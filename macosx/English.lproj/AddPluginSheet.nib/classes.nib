@@ -1,0 +1,14 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {closeAddPluginSheet = id; }; 
+            CLASS = PcsxPluginDocument; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {addPluginSheet = NSWindow; pluginName = NSTextField; }; 
+            SUPERCLASS = NSDocument; 
+        }, 
+        {CLASS = "java.lang.Object"; LANGUAGE = Java; }
+    ); 
+    IBVersion = 1; 
+}

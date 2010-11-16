@@ -1,0 +1,2 @@
+PCSX-df uses gettext internally, but can be configured without it.
+The gettext library is not included with PCSX-df.

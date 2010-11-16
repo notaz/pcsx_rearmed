@@ -1,0 +1,416 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 42;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2B038C07069183300082466B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2B038C05069183300082466B /* InfoPlist.strings */; };
+		2B038D2306918AA80082466B /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 2B038D2206918AA80082466B /* Info.plist */; };
+		2B143C79078A0C6700AF745A /* PluginWindow.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B957EAE0635DFE400543905 /* PluginWindow.h */; };
+		2B57868206BE7B3700BBA288 /* ExtendedKeys.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B57868106BE7B3700BBA288 /* ExtendedKeys.h */; };
+		2B957EB10635DFE400543905 /* PluginWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B957EAF0635DFE400543905 /* PluginWindow.m */; };
+		2B959DC106342C22000F2A2D /* drawgl.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B3E5D64062B2CC1001D796E /* drawgl.m */; };
+		2B959DC406342C23000F2A2D /* PluginGLView.h in Headers */ = {isa = PBXBuildFile; fileRef = 2BAF4FC90632967A00DB9A16 /* PluginGLView.h */; };
+		2B959DCD06342C24000F2A2D /* PluginGLView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BAF4FCA0632967A00DB9A16 /* PluginGLView.m */; };
+		2B959DD006342C25000F2A2D /* PluginWindowController.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B3E5DF0062B36FB001D796E /* PluginWindowController.h */; };
+		2B959DD506342C25000F2A2D /* PluginWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B3E5DF1062B36FB001D796E /* PluginWindowController.m */; };
+		2B959DE106342C31000F2A2D /* NetSfPeopsSoftGPUInterface.nib in Resources */ = {isa = PBXBuildFile; fileRef = 2B3E5DED062B36A0001D796E /* NetSfPeopsSoftGPUInterface.nib */; };
+		2B959E4406342D32000F2A2D /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B959E4306342D32000F2A2D /* OpenGL.framework */; };
+		2BB260A80777462E00F6854C /* PluginConfigController.h in Headers */ = {isa = PBXBuildFile; fileRef = 2BB260A60777462E00F6854C /* PluginConfigController.h */; };
+		2BB260A90777462E00F6854C /* PluginConfigController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BB260A70777462E00F6854C /* PluginConfigController.m */; };
+		2BD2E769077AF53E00657C69 /* Credits.rtf in Resources */ = {isa = PBXBuildFile; fileRef = 2BD2E767077AF53E00657C69 /* Credits.rtf */; };
+		2BD2E829077AFC2C00657C69 /* NetSfPeopsSoftGPUConfig.nib in Resources */ = {isa = PBXBuildFile; fileRef = 2BD2E828077AFC2C00657C69 /* NetSfPeopsSoftGPUConfig.nib */; };
+		2BD7C777076E1FAB000F05ED /* GLUT.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B51949E06B3D2D200744730 /* GLUT.framework */; };
+		71E9EC06109F24E700E98D1D /* fps.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBF4109F24E600E98D1D /* fps.c */; };
+		71E9EC08109F24E700E98D1D /* gpu.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBF6109F24E600E98D1D /* gpu.c */; };
+		71E9EC0B109F24E700E98D1D /* key.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBF9109F24E600E98D1D /* key.c */; };
+		71E9EC0D109F24E700E98D1D /* menu.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBFB109F24E600E98D1D /* menu.c */; };
+		71E9EC0F109F24E700E98D1D /* prim.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBFD109F24E700E98D1D /* prim.c */; };
+		71E9EC11109F24E700E98D1D /* soft.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EBFF109F24E700E98D1D /* soft.c */; };
+		71E9EC14109F24E700E98D1D /* zn.c in Sources */ = {isa = PBXBuildFile; fileRef = 71E9EC02109F24E700E98D1D /* zn.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2B038C06069183300082466B /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		2B038D2206918AA80082466B /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = Info.plist; sourceTree = "<group>"; };
+		2B371FBB0773859200B1DC0B /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/NetSfPeopsSoftGPUConfig.nib; sourceTree = "<group>"; };
+		2B3E5D64062B2CC1001D796E /* drawgl.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = drawgl.m; path = macsrc/drawgl.m; sourceTree = SOURCE_ROOT; };
+		2B3E5DED062B36A0001D796E /* NetSfPeopsSoftGPUInterface.nib */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; path = NetSfPeopsSoftGPUInterface.nib; sourceTree = "<group>"; };
+		2B3E5DF0062B36FB001D796E /* PluginWindowController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PluginWindowController.h; path = macsrc/PluginWindowController.h; sourceTree = SOURCE_ROOT; };
+		2B3E5DF1062B36FB001D796E /* PluginWindowController.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; name = PluginWindowController.m; path = macsrc/PluginWindowController.m; sourceTree = SOURCE_ROOT; };
+		2B51949E06B3D2D200744730 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = /System/Library/Frameworks/GLUT.framework; sourceTree = "<absolute>"; };
+		2B57868106BE7B3700BBA288 /* ExtendedKeys.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = ExtendedKeys.h; path = macsrc/ExtendedKeys.h; sourceTree = SOURCE_ROOT; };
+		2B957EAE0635DFE400543905 /* PluginWindow.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PluginWindow.h; path = macsrc/PluginWindow.h; sourceTree = SOURCE_ROOT; };
+		2B957EAF0635DFE400543905 /* PluginWindow.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; name = PluginWindow.m; path = macsrc/PluginWindow.m; sourceTree = SOURCE_ROOT; };
+		2B959E4306342D32000F2A2D /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = /System/Library/Frameworks/OpenGL.framework; sourceTree = "<absolute>"; };
+		2BAF4FC90632967A00DB9A16 /* PluginGLView.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PluginGLView.h; path = macsrc/PluginGLView.h; sourceTree = SOURCE_ROOT; };
+		2BAF4FCA0632967A00DB9A16 /* PluginGLView.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; name = PluginGLView.m; path = macsrc/PluginGLView.m; sourceTree = SOURCE_ROOT; };
+		2BAF50930632BB1A00DB9A16 /* PeopsSoftGL.psxplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PeopsSoftGL.psxplugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		2BB260A60777462E00F6854C /* PluginConfigController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PluginConfigController.h; path = macsrc/PluginConfigController.h; sourceTree = SOURCE_ROOT; };
+		2BB260A70777462E00F6854C /* PluginConfigController.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; name = PluginConfigController.m; path = macsrc/PluginConfigController.m; sourceTree = SOURCE_ROOT; };
+		2BD2E768077AF53E00657C69 /* English */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = English; path = English.lproj/Credits.rtf; sourceTree = "<group>"; };
+		71E9EBF1109F24E600E98D1D /* cfg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = cfg.h; path = ../../../plugins/dfxvideo/cfg.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF2109F24E600E98D1D /* draw.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = draw.h; path = ../../../plugins/dfxvideo/draw.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF3109F24E600E98D1D /* externals.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = externals.h; path = ../../../plugins/dfxvideo/externals.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF4109F24E600E98D1D /* fps.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = fps.c; path = ../../../plugins/dfxvideo/fps.c; sourceTree = SOURCE_ROOT; };
+		71E9EBF5109F24E600E98D1D /* fps.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fps.h; path = ../../../plugins/dfxvideo/fps.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF6109F24E600E98D1D /* gpu.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = gpu.c; path = ../../../plugins/dfxvideo/gpu.c; sourceTree = SOURCE_ROOT; };
+		71E9EBF7109F24E600E98D1D /* gpu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gpu.h; path = ../../../plugins/dfxvideo/gpu.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF8109F24E600E98D1D /* interp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = interp.h; path = ../../../plugins/dfxvideo/interp.h; sourceTree = SOURCE_ROOT; };
+		71E9EBF9109F24E600E98D1D /* key.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = key.c; path = ../../../plugins/dfxvideo/key.c; sourceTree = SOURCE_ROOT; };
+		71E9EBFA109F24E600E98D1D /* key.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = key.h; path = ../../../plugins/dfxvideo/key.h; sourceTree = SOURCE_ROOT; };
+		71E9EBFB109F24E600E98D1D /* menu.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = menu.c; path = ../../../plugins/dfxvideo/menu.c; sourceTree = SOURCE_ROOT; };
+		71E9EBFC109F24E700E98D1D /* menu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = menu.h; path = ../../../plugins/dfxvideo/menu.h; sourceTree = SOURCE_ROOT; };
+		71E9EBFD109F24E700E98D1D /* prim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = prim.c; path = ../../../plugins/dfxvideo/prim.c; sourceTree = SOURCE_ROOT; };
+		71E9EBFE109F24E700E98D1D /* prim.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = prim.h; path = ../../../plugins/dfxvideo/prim.h; sourceTree = SOURCE_ROOT; };
+		71E9EBFF109F24E700E98D1D /* soft.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = soft.c; path = ../../../plugins/dfxvideo/soft.c; sourceTree = SOURCE_ROOT; };
+		71E9EC00109F24E700E98D1D /* soft.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = soft.h; path = ../../../plugins/dfxvideo/soft.h; sourceTree = SOURCE_ROOT; };
+		71E9EC01109F24E700E98D1D /* swap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = swap.h; path = ../../../plugins/dfxvideo/swap.h; sourceTree = SOURCE_ROOT; };
+		71E9EC02109F24E700E98D1D /* zn.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = zn.c; path = ../../../plugins/dfxvideo/zn.c; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2BAF50910632BB1A00DB9A16 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B959E4406342D32000F2A2D /* OpenGL.framework in Frameworks */,
+				2BD7C777076E1FAB000F05ED /* GLUT.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2B3E59FF062AAC1A001D796E = {
+			isa = PBXGroup;
+			children = (
+				71E9EBF0109F24B600E98D1D /* src */,
+				2BD2E2F40779F50B00657C69 /* macsrc */,
+				2BD2E818077AFB9F00657C69 /* English.lproj */,
+				2B3E5DED062B36A0001D796E /* NetSfPeopsSoftGPUInterface.nib */,
+				2B038D2206918AA80082466B /* Info.plist */,
+				2B3E5A0B062AAC34001D796E /* Frameworks */,
+				2B3E5A46062AACF3001D796E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2B3E5A0B062AAC34001D796E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2B959E4306342D32000F2A2D /* OpenGL.framework */,
+				2B51949E06B3D2D200744730 /* GLUT.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		2B3E5A46062AACF3001D796E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2BAF50930632BB1A00DB9A16 /* PeopsSoftGL.psxplugin */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2BD2E2F40779F50B00657C69 /* macsrc */ = {
+			isa = PBXGroup;
+			children = (
+				2BB260A60777462E00F6854C /* PluginConfigController.h */,
+				2BB260A70777462E00F6854C /* PluginConfigController.m */,
+				2B3E5DF0062B36FB001D796E /* PluginWindowController.h */,
+				2B3E5DF1062B36FB001D796E /* PluginWindowController.m */,
+				2B957EAE0635DFE400543905 /* PluginWindow.h */,
+				2B957EAF0635DFE400543905 /* PluginWindow.m */,
+				2BAF4FC90632967A00DB9A16 /* PluginGLView.h */,
+				2BAF4FCA0632967A00DB9A16 /* PluginGLView.m */,
+				2B3E5D64062B2CC1001D796E /* drawgl.m */,
+				2B57868106BE7B3700BBA288 /* ExtendedKeys.h */,
+			);
+			name = macsrc;
+			sourceTree = "<group>";
+		};
+		2BD2E818077AFB9F00657C69 /* English.lproj */ = {
+			isa = PBXGroup;
+			children = (
+				2BD2E828077AFC2C00657C69 /* NetSfPeopsSoftGPUConfig.nib */,
+				2BD2E767077AF53E00657C69 /* Credits.rtf */,
+				2B038C05069183300082466B /* InfoPlist.strings */,
+			);
+			name = English.lproj;
+			sourceTree = "<group>";
+		};
+		71E9EBF0109F24B600E98D1D /* src */ = {
+			isa = PBXGroup;
+			children = (
+				71E9EBF1109F24E600E98D1D /* cfg.h */,
+				71E9EBF2109F24E600E98D1D /* draw.h */,
+				71E9EBF3109F24E600E98D1D /* externals.h */,
+				71E9EBF4109F24E600E98D1D /* fps.c */,
+				71E9EBF5109F24E600E98D1D /* fps.h */,
+				71E9EBF6109F24E600E98D1D /* gpu.c */,
+				71E9EBF7109F24E600E98D1D /* gpu.h */,
+				71E9EBF8109F24E600E98D1D /* interp.h */,
+				71E9EBF9109F24E600E98D1D /* key.c */,
+				71E9EBFA109F24E600E98D1D /* key.h */,
+				71E9EBFB109F24E600E98D1D /* menu.c */,
+				71E9EBFC109F24E700E98D1D /* menu.h */,
+				71E9EBFD109F24E700E98D1D /* prim.c */,
+				71E9EBFE109F24E700E98D1D /* prim.h */,
+				71E9EBFF109F24E700E98D1D /* soft.c */,
+				71E9EC00109F24E700E98D1D /* soft.h */,
+				71E9EC01109F24E700E98D1D /* swap.h */,
+				71E9EC02109F24E700E98D1D /* zn.c */,
+			);
+			name = src;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		2BAF508E0632BB1A00DB9A16 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B959DC406342C23000F2A2D /* PluginGLView.h in Headers */,
+				2B959DD006342C25000F2A2D /* PluginWindowController.h in Headers */,
+				2B57868206BE7B3700BBA288 /* ExtendedKeys.h in Headers */,
+				2BB260A80777462E00F6854C /* PluginConfigController.h in Headers */,
+				2B143C79078A0C6700AF745A /* PluginWindow.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		2BAF50920632BB1A00DB9A16 /* gpuPeopsSoftGL */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7170842C0FDFD328004F3EB4 /* Build configuration list for PBXNativeTarget "gpuPeopsSoftGL" */;
+			buildPhases = (
+				2BAF508E0632BB1A00DB9A16 /* Headers */,
+				2BAF508F0632BB1A00DB9A16 /* Resources */,
+				2BAF50900632BB1A00DB9A16 /* Sources */,
+				2BAF50910632BB1A00DB9A16 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = gpuPeopsSoftGL;
+			productName = gpuPeopsSoftGL;
+			productReference = 2BAF50930632BB1A00DB9A16 /* PeopsSoftGL.psxplugin */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2B3E5A03062AAC1A001D796E /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = 717084310FDFD328004F3EB4 /* Build configuration list for PBXProject "PeopsSoftGPU" */;
+			hasScannedForEncodings = 1;
+			mainGroup = 2B3E59FF062AAC1A001D796E;
+			productRefGroup = 2B3E5A46062AACF3001D796E /* Products */;
+			projectDirPath = "";
+			targets = (
+				2BAF50920632BB1A00DB9A16 /* gpuPeopsSoftGL */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2BAF508F0632BB1A00DB9A16 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B959DE106342C31000F2A2D /* NetSfPeopsSoftGPUInterface.nib in Resources */,
+				2B038C07069183300082466B /* InfoPlist.strings in Resources */,
+				2B038D2306918AA80082466B /* Info.plist in Resources */,
+				2BD2E829077AFC2C00657C69 /* NetSfPeopsSoftGPUConfig.nib in Resources */,
+				2BD2E769077AF53E00657C69 /* Credits.rtf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2BAF50900632BB1A00DB9A16 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B959DC106342C22000F2A2D /* drawgl.m in Sources */,
+				2B959DCD06342C24000F2A2D /* PluginGLView.m in Sources */,
+				2B959DD506342C25000F2A2D /* PluginWindowController.m in Sources */,
+				2B957EB10635DFE400543905 /* PluginWindow.m in Sources */,
+				2BB260A90777462E00F6854C /* PluginConfigController.m in Sources */,
+				71E9EC06109F24E700E98D1D /* fps.c in Sources */,
+				71E9EC08109F24E700E98D1D /* gpu.c in Sources */,
+				71E9EC0B109F24E700E98D1D /* key.c in Sources */,
+				71E9EC0D109F24E700E98D1D /* menu.c in Sources */,
+				71E9EC0F109F24E700E98D1D /* prim.c in Sources */,
+				71E9EC11109F24E700E98D1D /* soft.c in Sources */,
+				71E9EC14109F24E700E98D1D /* zn.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		2B038C05069183300082466B /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2B038C06069183300082466B /* English */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		2BD2E767077AF53E00657C69 /* Credits.rtf */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2BD2E768077AF53E00657C69 /* English */,
+			);
+			name = Credits.rtf;
+			sourceTree = "<group>";
+		};
+		2BD2E828077AFC2C00657C69 /* NetSfPeopsSoftGPUConfig.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2B371FBB0773859200B1DC0B /* English */,
+			);
+			name = NetSfPeopsSoftGPUConfig.nib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		7170842D0FDFD328004F3EB4 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				DEBUGGING_SYMBOLS = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_MODEL_TUNING = "";
+				GCC_OPTIMIZATION_LEVEL = 1;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_MACGL,
+					_DARWIN,
+				);
+				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = NO;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Playstation Emulator Plugins";
+				LIBRARY_STYLE = BUNDLE;
+				OPTIMIZATION_CFLAGS = "-finline-functions -finline-limit=1600 -fomit-frame-pointer -fno-exceptions -funroll-loops -falign-loops=16 -ffast-math";
+				OTHER_CFLAGS = "-finline-functions";
+				OTHER_LDFLAGS = (
+					"-framework",
+					Foundation,
+					"-framework",
+					AppKit,
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = PeopsSoftGL;
+				SECTORDER_FLAGS = "";
+				SYMROOT = ../../build;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = psxplugin;
+			};
+			name = Development;
+		};
+		7170842E0FDFD328004F3EB4 /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = YES;
+				DEBUGGING_SYMBOLS = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_MODEL_TUNING = "";
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_MACGL,
+					_DARWIN,
+				);
+				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = NO;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Playstation Emulator Plugins";
+				LIBRARY_STYLE = BUNDLE;
+				OPTIMIZATION_CFLAGS = "-finline-functions -finline-limit=1600 -fomit-frame-pointer -fno-exceptions -funroll-loops -falign-loops=16 -ffast-math";
+				OTHER_LDFLAGS = (
+					"-framework",
+					Foundation,
+					"-framework",
+					AppKit,
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = PeopsSoftGL;
+				SECTORDER_FLAGS = "";
+				SYMROOT = ../../build;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = psxplugin;
+				ZERO_LINK = NO;
+			};
+			name = Deployment;
+		};
+		717084320FDFD328004F3EB4 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_MODEL_TUNING = "";
+				HEADER_SEARCH_PATHS = (
+					../../../plugins/dfxvideo,
+					../../../libpcsxcore,
+				);
+			};
+			name = Development;
+		};
+		717084330FDFD328004F3EB4 /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_MODEL_TUNING = "";
+				HEADER_SEARCH_PATHS = (
+					../../../plugins/dfxvideo,
+					../../../libpcsxcore,
+				);
+			};
+			name = Deployment;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7170842C0FDFD328004F3EB4 /* Build configuration list for PBXNativeTarget "gpuPeopsSoftGL" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7170842D0FDFD328004F3EB4 /* Development */,
+				7170842E0FDFD328004F3EB4 /* Deployment */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+		717084310FDFD328004F3EB4 /* Build configuration list for PBXProject "PeopsSoftGPU" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				717084320FDFD328004F3EB4 /* Development */,
+				717084330FDFD328004F3EB4 /* Deployment */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2B3E5A03062AAC1A001D796E /* Project object */;
+}

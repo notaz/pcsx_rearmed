@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>psxplugin</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>psxplugin.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Playstation Emulator Plug-in</string>
+			<key>CFBundleTypeOSTypes</key>
+			<array>
+				<string>PsxP</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<true/>
+			<key>NSDocumentClass</key>
+			<string>PcsxPluginDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>bin</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>psxbios.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Playstation BIOS Image</string>
+			<key>CFBundleTypeOSTypes</key>
+			<array>
+				<string>PsxB</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>mcr</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>pcsxmemcard</string>
+			<key>CFBundleTypeName</key>
+			<string>PCSX Memory Card</string>
+			<key>CFBundleTypeOSTypes</key>
+			<array>
+				<string>Pmcr</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>pcsxstate</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>pcsxfreeze</string>
+			<key>CFBundleTypeName</key>
+			<string>PCSX Freeze State</string>
+			<key>CFBundleTypeOSTypes</key>
+			<array>
+				<string>Pfrz</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+		</dict>
+	</array>
+	<key>CFBundleExecutable</key>
+	<string>PCSX</string>
+	<key>CFBundleIconFile</key>
+	<string>PCSX.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.codeplex.pcsxr</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>PCSX</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>PCSX-Reloaded 1.9.92</string>
+	<key>CFBundleSignature</key>
+	<string>Pcsx</string>
+	<key>CFBundleVersion</key>
+	<string>1.9.92</string>
+	<key>NSMainNibFile</key>
+	<string>PCSX.nib</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+</dict>
+</plist>

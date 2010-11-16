@@ -1,0 +1,26 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {"" = id; }; 
+            CLASS = FirstResponder; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {
+            ACTIONS = {cancel = id; hackToggle = id; ok = id; reset = id; }; 
+            CLASS = NetSfPeopsSoftGPUPluginConfigController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                autoFullScreen = NSControl; 
+                ditherMode = NSPopUpButton; 
+                fpsCounter = NSControl; 
+                frameSkipping = NSControl; 
+                hackEnable = NSControl; 
+                hacksView = NSView; 
+                vSync = NSControl; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }
+    ); 
+    IBVersion = 1; 
+}

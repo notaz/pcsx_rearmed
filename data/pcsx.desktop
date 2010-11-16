@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Type=Application
+Name=PCSX
+GenericName=PlayStation Emulator
+GenericName[zh_CN]=PlayStation 模拟器
+GenericName[zh_TW]=PlayStation 模擬器
+Comment=Sony PlayStation emulator
+Comment[zh_CN]=Sony PlayStation 模拟器
+Comment[zh_TW]=Sony PlayStation 模擬器
+Exec=pcsx
+Icon=pcsx-icon
+Categories=Game;

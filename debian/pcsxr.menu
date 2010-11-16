@@ -1,0 +1,5 @@
+?package(pcsxr): \
+	needs="X11" \
+	section="Applications/Emulators" \
+	title="PCSX PlayStation Emulator" \
+	command="/usr/games/pcsx"

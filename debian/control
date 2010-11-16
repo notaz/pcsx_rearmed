@@ -1,0 +1,20 @@
+Source: pcsxr
+Section: otherosfs
+Priority: extra
+Maintainer: Wei Mingzhi <whistler@openoffice.org>
+Build-Depends: debhelper (>= 5), libgtk2.0-dev, libglade2-dev, zlib1g-dev | libz-dev, libxv-dev, libxtst-dev, nasm, libgl1-mesa-dev, libxxf86vm-dev, libsdl1.2-dev
+Standards-Version: 3.7.3
+
+Package: pcsxr
+Architecture: any
+Depends: ${shlibs:Depends}
+Replaces: pcsx, pcsx-bin, pcsx-i18n, psemu-drive-cdrmooby, psemu-input-omnijoy, psemu-input-padjoy, psemu-sound-alsa, psemu-sound-oss, psemu-video-x11, pcsx-df
+Conflicts: pcsx (<= 1:1.699df-rc3-1), pcsx-bin (<= 1:1.699df-rc3-1), pcsx-i18n (<= 1:1.699df-rc3-1), pcsx-df (<= 1:1.999)
+Description: Sony PlayStation emulator -- binary
+ PCSX is an advanced PlayStation (PSX) emulator, which uses a plugin 
+ architecture to provide full support for all components of the PSX.
+ It has full emulation support for gamepads, videos, sound, memory cards,
+ and other important PSX components, and is able to play many games
+ without problems.
+ .
+ This package provides the main PCSX binary, library, and support files.

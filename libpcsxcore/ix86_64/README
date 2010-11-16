@@ -1,0 +1,2 @@
+This is the AMD64 dynamic recompiler.
+Made from opcodes from PCSX2 0.9.3 and the x86 recompiler modified to fit.  ie. currently no AMD64/SSE specific code advantages.

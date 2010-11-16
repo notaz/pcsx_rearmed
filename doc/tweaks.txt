@@ -1,0 +1,25 @@
+There are several toggles in PCSX to allow you to modify emulation
+behavior; this may allow certain games to work that would not otherwise
+function. These can all be found at Configuration -> CPU.
+
+* Disable XA Decoding:
+    Disables XA sound, which can improve game speed.
+
+* SIO IRQ Always Enabled:
+    This should be enabled for certain memcards/gamepads.
+
+* SPU IRQ Always Enabled:
+    Compatibility tweak; should probably be left off.
+
+* Black & White Movies:
+    Allows movies to be shown faster on slower systems.
+
+* Disable CD Audio:
+    Disable CD Audio for a performance boost.
+
+* Enable Console Output:
+    Dumps the PSX emulator output to the console.
+
+* Enable Interpreter CPU:
+    Enables interpretive emulation.
+    This is often more compatible, but at the price of emulation speed.

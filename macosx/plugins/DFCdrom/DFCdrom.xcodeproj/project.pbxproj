@@ -1,0 +1,360 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 42;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2BD707180555997500CB5D9B /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2BD707170555997500CB5D9B /* IOKit.framework */; };
+		713DB2E811F113C30001BDD4 /* cdr.c in Sources */ = {isa = PBXBuildFile; fileRef = 713DB2E311F113C30001BDD4 /* cdr.c */; };
+		713DB2E911F113C30001BDD4 /* cdr.h in Headers */ = {isa = PBXBuildFile; fileRef = 713DB2E411F113C30001BDD4 /* cdr.h */; };
+		713DB2EB11F113C30001BDD4 /* util.c in Sources */ = {isa = PBXBuildFile; fileRef = 713DB2E611F113C30001BDD4 /* util.c */; };
+		71F3C32811F3CD0B007B9F12 /* cdr-macosx.c in Sources */ = {isa = PBXBuildFile; fileRef = 71F3C32411F3CD0B007B9F12 /* cdr-macosx.c */; };
+		71F3C32911F3CD0B007B9F12 /* cfg.c in Sources */ = {isa = PBXBuildFile; fileRef = 71F3C32511F3CD0B007B9F12 /* cfg.c */; };
+		71F3C32A11F3CD0B007B9F12 /* PluginConfigController.h in Headers */ = {isa = PBXBuildFile; fileRef = 71F3C32611F3CD0B007B9F12 /* PluginConfigController.h */; };
+		71F3C32B11F3CD0B007B9F12 /* PluginConfigController.m in Sources */ = {isa = PBXBuildFile; fileRef = 71F3C32711F3CD0B007B9F12 /* PluginConfigController.m */; };
+		71F3C38611F3CFED007B9F12 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 71F3C38511F3CFED007B9F12 /* AppKit.framework */; };
+		71F3C38811F3CFF7007B9F12 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 71F3C38711F3CFF7007B9F12 /* Carbon.framework */; };
+		71F3C47A11F3D108007B9F12 /* Credits.rtf in Resources */ = {isa = PBXBuildFile; fileRef = 71F3C47811F3D108007B9F12 /* Credits.rtf */; };
+		71F3C49D11F3D2B3007B9F12 /* DFCdromPluginConfig.nib in Resources */ = {isa = PBXBuildFile; fileRef = 71F3C49B11F3D2B3007B9F12 /* DFCdromPluginConfig.nib */; };
+		8D576314048677EA00EA77CD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AA1909FFE8422F4C02AAC07 /* CoreFoundation.framework */; };
+		8D5B49A804867FD3000E48DA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8D5B49A704867FD3000E48DA /* InfoPlist.strings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		089C167EFE841241C02AAC07 /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		0AA1909FFE8422F4C02AAC07 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = /System/Library/Frameworks/CoreFoundation.framework; sourceTree = "<absolute>"; };
+		2BD707170555997500CB5D9B /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = /System/Library/Frameworks/IOKit.framework; sourceTree = "<absolute>"; };
+		713DB2E311F113C30001BDD4 /* cdr.c */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.c; name = cdr.c; path = ../../../plugins/dfcdrom/cdr.c; sourceTree = SOURCE_ROOT; };
+		713DB2E411F113C30001BDD4 /* cdr.h */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.h; name = cdr.h; path = ../../../plugins/dfcdrom/cdr.h; sourceTree = SOURCE_ROOT; };
+		713DB2E611F113C30001BDD4 /* util.c */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.c; name = util.c; path = ../../../plugins/dfcdrom/util.c; sourceTree = SOURCE_ROOT; };
+		71F3C32411F3CD0B007B9F12 /* cdr-macosx.c */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.c; name = "cdr-macosx.c"; path = "macsrc/cdr-macosx.c"; sourceTree = "<group>"; };
+		71F3C32511F3CD0B007B9F12 /* cfg.c */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.c; name = cfg.c; path = macsrc/cfg.c; sourceTree = "<group>"; };
+		71F3C32611F3CD0B007B9F12 /* PluginConfigController.h */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.h; name = PluginConfigController.h; path = macsrc/PluginConfigController.h; sourceTree = "<group>"; };
+		71F3C32711F3CD0B007B9F12 /* PluginConfigController.m */ = {isa = PBXFileReference; fileEncoding = 0; lastKnownFileType = sourcecode.c.objc; name = PluginConfigController.m; path = macsrc/PluginConfigController.m; sourceTree = "<group>"; };
+		71F3C38511F3CFED007B9F12 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
+		71F3C38711F3CFF7007B9F12 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = /System/Library/Frameworks/Carbon.framework; sourceTree = "<absolute>"; };
+		71F3C47911F3D108007B9F12 /* English */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = English; path = English.lproj/Credits.rtf; sourceTree = "<group>"; };
+		71F3C49C11F3D2B3007B9F12 /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/DFCdromPluginConfig.nib; sourceTree = "<group>"; };
+		8D576316048677EA00EA77CD /* DFCdrom.psxplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DFCdrom.psxplugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D576317048677EA00EA77CD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8D576313048677EA00EA77CD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D576314048677EA00EA77CD /* CoreFoundation.framework in Frameworks */,
+				2BD707180555997500CB5D9B /* IOKit.framework in Frameworks */,
+				71F3C38611F3CFED007B9F12 /* AppKit.framework in Frameworks */,
+				71F3C38811F3CFF7007B9F12 /* Carbon.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		089C166AFE841209C02AAC07 /* CdrDevMac */ = {
+			isa = PBXGroup;
+			children = (
+				08FB77AFFE84173DC02AAC07 /* Source Files */,
+				089C167CFE841241C02AAC07 /* Resources */,
+				089C1671FE841209C02AAC07 /* External Frameworks and Libraries */,
+				19C28FB6FE9D52B211CA2CBB /* Products */,
+			);
+			name = CdrDevMac;
+			sourceTree = "<group>";
+		};
+		089C1671FE841209C02AAC07 /* External Frameworks and Libraries */ = {
+			isa = PBXGroup;
+			children = (
+				71F3C38511F3CFED007B9F12 /* AppKit.framework */,
+				71F3C38711F3CFF7007B9F12 /* Carbon.framework */,
+				0AA1909FFE8422F4C02AAC07 /* CoreFoundation.framework */,
+				2BD707170555997500CB5D9B /* IOKit.framework */,
+			);
+			name = "External Frameworks and Libraries";
+			sourceTree = "<group>";
+		};
+		089C167CFE841241C02AAC07 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				71F3C49B11F3D2B3007B9F12 /* DFCdromPluginConfig.nib */,
+				71F3C47811F3D108007B9F12 /* Credits.rtf */,
+				8D576317048677EA00EA77CD /* Info.plist */,
+				8D5B49A704867FD3000E48DA /* InfoPlist.strings */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		08FB77AFFE84173DC02AAC07 /* Source Files */ = {
+			isa = PBXGroup;
+			children = (
+				71F3C32111F3CCEF007B9F12 /* macsrc */,
+				71F3C30911F3CC22007B9F12 /* src */,
+			);
+			name = "Source Files";
+			sourceTree = "<group>";
+		};
+		19C28FB6FE9D52B211CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8D576316048677EA00EA77CD /* DFCdrom.psxplugin */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		71F3C30911F3CC22007B9F12 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				713DB2E311F113C30001BDD4 /* cdr.c */,
+				713DB2E411F113C30001BDD4 /* cdr.h */,
+				713DB2E611F113C30001BDD4 /* util.c */,
+			);
+			name = src;
+			sourceTree = "<group>";
+		};
+		71F3C32111F3CCEF007B9F12 /* macsrc */ = {
+			isa = PBXGroup;
+			children = (
+				71F3C32411F3CD0B007B9F12 /* cdr-macosx.c */,
+				71F3C32511F3CD0B007B9F12 /* cfg.c */,
+				71F3C32611F3CD0B007B9F12 /* PluginConfigController.h */,
+				71F3C32711F3CD0B007B9F12 /* PluginConfigController.m */,
+			);
+			name = macsrc;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		8D57630E048677EA00EA77CD /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				713DB2E911F113C30001BDD4 /* cdr.h in Headers */,
+				71F3C32A11F3CD0B007B9F12 /* PluginConfigController.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		8D57630D048677EA00EA77CD /* DFCdrom */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 710735990FDEED75004AD098 /* Build configuration list for PBXNativeTarget "DFCdrom" */;
+			buildPhases = (
+				8D57630E048677EA00EA77CD /* Headers */,
+				8D57630F048677EA00EA77CD /* Resources */,
+				8D576311048677EA00EA77CD /* Sources */,
+				8D576313048677EA00EA77CD /* Frameworks */,
+				8D576315048677EA00EA77CD /* Rez */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DFCdrom;
+			productInstallPath = "$(HOME)/Library/Bundles";
+			productName = CdrDevMac;
+			productReference = 8D576316048677EA00EA77CD /* DFCdrom.psxplugin */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		089C1669FE841209C02AAC07 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = 7107359E0FDEED75004AD098 /* Build configuration list for PBXProject "DFCdrom" */;
+			hasScannedForEncodings = 1;
+			mainGroup = 089C166AFE841209C02AAC07 /* CdrDevMac */;
+			projectDirPath = "";
+			targets = (
+				8D57630D048677EA00EA77CD /* DFCdrom */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D57630F048677EA00EA77CD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D5B49A804867FD3000E48DA /* InfoPlist.strings in Resources */,
+				71F3C47A11F3D108007B9F12 /* Credits.rtf in Resources */,
+				71F3C49D11F3D2B3007B9F12 /* DFCdromPluginConfig.nib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXRezBuildPhase section */
+		8D576315048677EA00EA77CD /* Rez */ = {
+			isa = PBXRezBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXRezBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8D576311048677EA00EA77CD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				713DB2E811F113C30001BDD4 /* cdr.c in Sources */,
+				713DB2EB11F113C30001BDD4 /* util.c in Sources */,
+				71F3C32811F3CD0B007B9F12 /* cdr-macosx.c in Sources */,
+				71F3C32911F3CD0B007B9F12 /* cfg.c in Sources */,
+				71F3C32B11F3CD0B007B9F12 /* PluginConfigController.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		71F3C47811F3D108007B9F12 /* Credits.rtf */ = {
+			isa = PBXVariantGroup;
+			children = (
+				71F3C47911F3D108007B9F12 /* English */,
+			);
+			name = Credits.rtf;
+			sourceTree = "<group>";
+		};
+		71F3C49B11F3D2B3007B9F12 /* DFCdromPluginConfig.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				71F3C49C11F3D2B3007B9F12 /* English */,
+			);
+			name = DFCdromPluginConfig.nib;
+			sourceTree = "<group>";
+		};
+		8D5B49A704867FD3000E48DA /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				089C167EFE841241C02AAC07 /* English */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		7107359A0FDEED75004AD098 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_MODEL_TUNING = "";
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
+				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = NO;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Playstation Emulator Plugins";
+				LIBRARY_STYLE = BUNDLE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = DFCdrom;
+				SECTORDER_FLAGS = "";
+				SYMROOT = ../../build;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = psxplugin;
+			};
+			name = Development;
+		};
+		7107359B0FDEED75004AD098 /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = YES;
+				DEBUGGING_SYMBOLS = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_MODEL_TUNING = "";
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
+				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = NO;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Playstation Emulator Plugins";
+				LIBRARY_STYLE = BUNDLE;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = DFCdrom;
+				SECTORDER_FLAGS = "";
+				SYMROOT = ../../build;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = psxplugin;
+				ZERO_LINK = NO;
+			};
+			name = Deployment;
+		};
+		7107359F0FDEED75004AD098 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_MODEL_TUNING = "";
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "_MACOSX=1";
+				HEADER_SEARCH_PATHS = (
+					../../../libpcsxcore,
+					../..,
+					../../../plugins/dfcdrom,
+				);
+				STRIP_INSTALLED_PRODUCT = NO;
+			};
+			name = Development;
+		};
+		710735A00FDEED75004AD098 /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_MODEL_TUNING = "";
+				GCC_PREPROCESSOR_DEFINITIONS = "_MACOSX=1";
+				HEADER_SEARCH_PATHS = (
+					../../../libpcsxcore,
+					../..,
+					../../../plugins/dfcdrom,
+				);
+			};
+			name = Deployment;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		710735990FDEED75004AD098 /* Build configuration list for PBXNativeTarget "DFCdrom" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7107359A0FDEED75004AD098 /* Development */,
+				7107359B0FDEED75004AD098 /* Deployment */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+		7107359E0FDEED75004AD098 /* Build configuration list for PBXProject "DFCdrom" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7107359F0FDEED75004AD098 /* Development */,
+				710735A00FDEED75004AD098 /* Deployment */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 089C1669FE841209C02AAC07 /* Project object */;
+}

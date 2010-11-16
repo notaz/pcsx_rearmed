@@ -1,0 +1,19 @@
+You should configure the PSX Input plugin -- it supports gamepads, joysticks,
+and keyboards, and will work with any of those that are recognized as input
+devices by your OS.
+
+There are also some quick keyboard commands to access emulator functions:
+
+F1: Save state
+F2: Switch to next save slot
+F3: Load state
+F4: Display state screenshot
+F5: Toggle SIO IRQ
+F6: Toggle Black & White decoders
+F7: Toggle XA
+F8: Take a game screenshot
+ESC: Return to the main window
+
+Ctrl 1 to 5: Save state 1 to 5
+Alt 1 to 5: Load state 1 to 5
+Alt 0: Load state from last ESC quit
