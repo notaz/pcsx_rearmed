@@ -135,6 +135,7 @@ void CALLBACK GPUdisplayFlags(unsigned long dwFlags)   // some info func
 // stuff to make this a true PDK module
 ////////////////////////////////////////////////////////////////////////
 
+/*
 char * CALLBACK PSEgetLibName(void)
 {
  return _(libraryName);
@@ -154,6 +155,7 @@ char * GPUgetLibInfos(void)
 {
  return _(libraryInfo);
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////
 // Snapshot func
@@ -400,7 +402,7 @@ long GPUopen(unsigned long * disp,char * CapText,char * CfgFile)
  pCaptionText=CapText;
 
 
- ReadConfig();                                         // read registry
+ ReadConfigGPU();                                      // read registry
 
  InitFPS();
 

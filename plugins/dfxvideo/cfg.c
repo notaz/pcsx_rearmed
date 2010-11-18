@@ -80,7 +80,7 @@ char * pConfigFile = NULL;
   size+=sprintf(pB+size, "%s = %.1f\n", name, (double)var); \
  }
 
-void ReadConfigFile()
+static void ReadConfigFile()
 {
  struct stat buf;
  FILE *in;char t[256];int len, size;
@@ -213,7 +213,7 @@ void AboutDlgProc(void)
 	ExecCfg(args);
 }
 
-void ReadConfig(void)
+void ReadConfigGPU(void)
 {
  // defaults
  iResX=640;iResY=480;

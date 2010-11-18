@@ -15,5 +15,5 @@
  *                                                                         *
  ***************************************************************************/
 
-void ReadConfig(void);
+void ReadConfigSPU(void);
 void StartCfgTool(char * pCmdLine);

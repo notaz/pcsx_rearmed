@@ -1,3 +1,10 @@
+/*
+ * (C) notaz, 2010
+ *
+ * This work is licensed under the terms of the GNU GPLv2 or later.
+ * See the COPYING file in the top-level directory.
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -6,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "plugin.h"
 #include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
 
@@ -65,13 +73,13 @@ int main(int argc, char *argv[])
 	// it may be redefined by -cfg on the command line
 	strcpy(cfgfile_basename, "pcsx.cfg");
 
+	emuLog = stdout;
 	SetIsoFile(NULL);
 	Config.PsxOut = 1;
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
-		     if (!strcmp(argv[i], "-nogui")) UseGui = FALSE;
-		else if (!strcmp(argv[i], "-psxout")) Config.PsxOut = 1;
+		     if (!strcmp(argv[i], "-psxout")) Config.PsxOut = 1;
 		else if (!strcmp(argv[i], "-load")) loadst = atol(argv[++i]);
 		else if (!strcmp(argv[i], "-cfg")) {
 			if (i+1 >= argc) break;
@@ -131,27 +139,22 @@ int main(int argc, char *argv[])
 	CheckSubDir();
 //	ScanAllPlugins();
 
+	strcpy(Config.Bios, "HLE");
+	strcpy(Config.BiosDir, "./");
+
+	strcpy(Config.PluginsDir, "plugins");
+	strcpy(Config.Gpu, "builtin_gpu");
+	strcpy(Config.Spu, "builtin_spu");
+	strcpy(Config.Cdr, "builtin_cdr");
+	strcpy(Config.Pad1, "builtin_pad");
+	strcpy(Config.Pad2, "builtin_pad");
+
 	// try to load config
 	// if the config file doesn't exist
 	if (LoadConfig() == -1) {
 		// Uh oh, no config file found, use some defaults
 		Config.PsxAuto = 1;
 
-		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "." BIOS_DIR);
-		snprintf(Config.PluginsDir, sizeof(Config.PluginsDir), "." PLUGINS_DIR);
-
-		// Update available plugins, but not GUI
-		//UpdatePluginsBIOS();
-
-		// Pick some defaults, if they're available
-/*
-		set_default_plugin(GpuConfS.plist[0], Config.Gpu);
-		set_default_plugin(SpuConfS.plist[0], Config.Spu);
-		set_default_plugin(CdrConfS.plist[0], Config.Cdr);
-		set_default_plugin(Pad1ConfS.plist[0], Config.Pad1);
-		set_default_plugin(Pad2ConfS.plist[0], Config.Pad2);
-		set_default_plugin(BiosConfS.plist[0], Config.Bios);
-*/
 		// create & load default memcards if they don't exist
 		CreateMemcard("card1.mcd", Config.Mcd1);
 		CreateMemcard("card2.mcd", Config.Mcd2);
@@ -213,8 +216,6 @@ int main(int argc, char *argv[])
 }
 
 int SysInit() {
-	emuLog = stdout;
-
 	if (EmuInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
 		return -1;
@@ -369,11 +370,53 @@ void SysMessage(const char *fmt, ...) {
 	fprintf(stderr, "%s\n", msg);
 }
 
+#if 1
+/* this is to avoid having to hack every plugin to stop using $HOME */
+char *getenv(const char *name)
+{
+	static char ret[8] = ".";
+
+	// HACK
+	if (name && strcmp(name, "DISPLAY") == 0)
+		return ":0";
+
+	if (name && strcmp(name, "HOME") != 0)
+		fprintf(stderr, "getenv called with %s\n", name);
+
+	return ret;
+}
+#endif
+
+/* we hook statically linked plugins here */
+static const char *builtin_plugins[] = {
+	"builtin_gpu", "builtin_spu", "builtin_cdr", "builtin_pad"
+};
+
+static const int builtin_plugin_ids[] = {
+	PLUGIN_GPU, PLUGIN_SPU, PLUGIN_CDR, PLUGIN_PAD,
+};
+
 void *SysLoadLibrary(const char *lib) {
+	const char *tmp = strrchr(lib, '/');
+	int i;
+
+	printf("dlopen %s\n", lib);
+	if (tmp != NULL) {
+		tmp++;
+		for (i = 0; i < ARRAY_SIZE(builtin_plugins); i++)
+			if (strcmp(tmp, builtin_plugins[i]) == 0)
+				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
+	}
+
 	return dlopen(lib, RTLD_NOW);
 }
 
 void *SysLoadSym(void *lib, const char *sym) {
+	unsigned int plugid = (unsigned int)(long)lib;
+
+	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
+		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
+
 	return dlsym(lib, sym);
 }
 
@@ -382,6 +425,11 @@ const char *SysLibError() {
 }
 
 void SysCloseLibrary(void *lib) {
+	unsigned int plugid = (unsigned int)(long)lib;
+
+	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
+		return;
+
 	dlclose(lib);
 }
 

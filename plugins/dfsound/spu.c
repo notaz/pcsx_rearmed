@@ -926,7 +926,7 @@ long CALLBACK SPUinit(void)
  iSPUIRQWait = 1;
  lastch = -1;
 
- ReadConfig();                                         // read user stuff
+ ReadConfigSPU();                                      // read user stuff
  SetupStreams();                                       // prepare streaming
 
  return 0;
@@ -1008,6 +1008,7 @@ void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned shor
 }
 
 // COMMON PLUGIN INFO FUNCS
+/*
 char * CALLBACK PSEgetLibName(void)
 {
  return _(libraryName);
@@ -1027,3 +1028,4 @@ char * SPUgetLibInfos(void)
 {
  return _(libraryInfo);
 }
+*/

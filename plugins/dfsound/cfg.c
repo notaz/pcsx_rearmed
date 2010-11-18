@@ -84,7 +84,7 @@ void StartCfgTool(char * pCmdLine)
 // READ LINUX CONFIG FILE
 /////////////////////////////////////////////////////////
 
-void ReadConfigFile(void)
+static void ReadConfigFile(void)
 {
  FILE *in;char t[256];int len;
  char * pB, * p;
@@ -153,7 +153,7 @@ void ReadConfigFile(void)
 // READ CONFIG called by spu funcs
 /////////////////////////////////////////////////////////
 
-void ReadConfig(void)
+void ReadConfigSPU(void)
 {
  iVolume=2;
  iXAPitch=0;
