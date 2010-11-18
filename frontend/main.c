@@ -18,6 +18,7 @@
 #include "../libpcsxcore/misc.h"
 
 int UseGui;
+static char *(*real_getenv)(const char *name);
 
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
@@ -67,7 +68,17 @@ int main(int argc, char *argv[])
 	char path[MAXPATHLEN];
 	int runcd = 0;
 	int loadst = 0;
+	void *tmp;
 	int i;
+
+	tmp = dlopen("/lib/libdl.so.2", RTLD_LAZY);
+	if (tmp != NULL)
+		real_getenv = dlsym(tmp, "getenv");
+	if (real_getenv == NULL) {
+		fprintf(stderr, "%s\n", dlerror());
+		return 1;
+	}
+	dlclose(tmp);
 
 	// what is the name of the config file?
 	// it may be redefined by -cfg on the command line
@@ -376,14 +387,10 @@ char *getenv(const char *name)
 {
 	static char ret[8] = ".";
 
-	// HACK
-	if (name && strcmp(name, "DISPLAY") == 0)
-		return ":0";
+	if (name && strcmp(name, "HOME") == 0)
+		return ret;
 
-	if (name && strcmp(name, "HOME") != 0)
-		fprintf(stderr, "getenv called with %s\n", name);
-
-	return ret;
+	return real_getenv(name);
 }
 #endif
 

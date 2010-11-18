@@ -1,9 +1,12 @@
-CROSS_COMPILE=
+#CROSS_COMPILE=
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 
 CFLAGS += -Wall -ggdb -Ifrontend
 LDFLAGS += -lz -lpthread -ldl
+ifdef CROSS_COMPILE
+CFLAGS += -O2 -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
+endif
 TARGET = pcsx
 
 all: $(TARGET)
@@ -21,14 +24,20 @@ OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/oss.o plugi
 	plugins/dfsound/spu.o
 # gpu
 OBJS += plugins/dfxvideo/cfg.o plugins/dfxvideo/fps.o plugins/dfxvideo/key.o plugins/dfxvideo/prim.o \
-	plugins/dfxvideo/zn.o plugins/dfxvideo/draw.o plugins/dfxvideo/gpu.o plugins/dfxvideo/menu.o \
-	plugins/dfxvideo/soft.o
-LDFLAGS += -lz -lpthread -lX11 -lXv
+	plugins/dfxvideo/gpu.o plugins/dfxvideo/menu.o plugins/dfxvideo/soft.o plugins/dfxvideo/zn.o
+ifdef X11
+LDFLAGS += -lX11 -lXv
+OBJS += plugins/dfxvideo/draw.o
+else
+CFLAGS += -D_MACGL # disables X in dfxvideo
+OBJS += plugins/dfxvideo/draw_fb.o
+endif
 
 # gui
 OBJS += gui/Config.o gui/Plugin.o
 
-OBJS += frontend/main.o frontend/plugin.o
+OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
+OBJS += frontend/linux/fbdev.o
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
