@@ -64,9 +64,11 @@ static void blit(void)
 
 static int fbw, fbh, fb24bpp;
 
+#include "pcnt.h"
+
 void DoBufferSwap(void)
 {
- static float fps_old;
+ static int fps_counter;
  if (PSXDisplay.DisplayMode.x == 0 || PSXDisplay.DisplayMode.y == 0)
   return;
 
@@ -78,13 +80,18 @@ void DoBufferSwap(void)
   pl_fbdev_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
 
- if (fps_cur != fps_old) {
-  printf("%2.1f\n", fps_cur);
-  fps_old = fps_cur;
- }
-
  blit();
  pl_fbdev_flip();
+
+ pcnt_end(PCNT_ALL);
+
+ if (++fps_counter == 60/6) {
+  //printf("%2.1f\n", fps_cur);
+  pcnt_print(fps_cur);
+  fps_counter = 0;
+ }
+
+ pcnt_start(PCNT_ALL);
 }
 
 void DoClearScreenBuffer(void)                         // CLEAR DX BUFFER
@@ -128,6 +135,7 @@ void CloseDisplay(void)
 {
  CloseMenu();
  pl_fbdev_finish();
+ //WriteConfig();
 }
 
 void CreatePic(unsigned char * pMem)

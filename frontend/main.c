@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "plugin.h"
+#include "pcnt.h"
 #include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
 
@@ -192,6 +193,7 @@ int main(int argc, char *argv[])
 			SysMessage("Failed loading plugins!");
 			return 1;
 		}
+		pcnt_hook_plugins();
 
 		if (OpenPlugins() == -1) {
 			return 1;

@@ -199,3 +199,76 @@ void *plugin_link(enum builtint_plugins_e id, const char *sym)
 	return NULL;
 }
 
+/* basic profile stuff */
+#include "pcnt.h"
+
+unsigned int pcounters[PCNT_CNT];
+unsigned int pcounter_starts[PCNT_CNT];
+
+#define pc_hook_func(name, args, pargs, cnt) \
+extern void (*name) args; \
+static void (*o_##name) args; \
+static void w_##name args \
+{ \
+	unsigned int pc_start = pcnt_get(); \
+	o_##name pargs; \
+	pcounters[cnt] += pcnt_get() - pc_start; \
+}
+
+#define pc_hook_func_ret(retn, name, args, pargs, cnt) \
+extern retn (*name) args; \
+static retn (*o_##name) args; \
+static retn w_##name args \
+{ \
+	retn ret; \
+	unsigned int pc_start = pcnt_get(); \
+	ret = o_##name pargs; \
+	pcounters[cnt] += pcnt_get() - pc_start; \
+	return ret; \
+}
+
+pc_hook_func              (GPU_writeStatus, (uint32_t a0), (a0), PCNT_GPU)
+pc_hook_func              (GPU_writeData, (uint32_t a0), (a0), PCNT_GPU)
+pc_hook_func              (GPU_writeDataMem, (uint32_t *a0, int a1), (a0, a1), PCNT_GPU)
+pc_hook_func_ret(uint32_t, GPU_readStatus, (void), (), PCNT_GPU)
+pc_hook_func_ret(uint32_t, GPU_readData, (void), (), PCNT_GPU)
+pc_hook_func              (GPU_readDataMem, (uint32_t *a0, int a1), (a0, a1), PCNT_GPU)
+pc_hook_func_ret(long,     GPU_dmaChain, (uint32_t *a0, int32_t a1), (a0, a1), PCNT_GPU)
+pc_hook_func              (GPU_updateLace, (void), (), PCNT_GPU)
+
+pc_hook_func              (SPU_writeRegister, (unsigned long a0, unsigned short a1), (a0, a1), PCNT_SPU)
+pc_hook_func_ret(unsigned short,SPU_readRegister, (unsigned long a0), (a0), PCNT_SPU)
+pc_hook_func              (SPU_writeDMA, (unsigned short a0), (a0), PCNT_SPU)
+pc_hook_func_ret(unsigned short,SPU_readDMA, (void), (), PCNT_SPU)
+pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1), (a0, a1), PCNT_SPU)
+pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1), (a0, a1), PCNT_SPU)
+pc_hook_func              (SPU_playADPCMchannel, (void *a0), (a0), PCNT_SPU)
+pc_hook_func              (SPU_async, (unsigned int a0), (a0), PCNT_SPU)
+pc_hook_func              (SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), PCNT_SPU)
+
+#define hook_it(name) { \
+	o_##name = name; \
+	name = w_##name; \
+}
+
+void pcnt_hook_plugins(void)
+{
+	hook_it(GPU_writeStatus);
+	hook_it(GPU_writeData);
+	hook_it(GPU_writeDataMem);
+	hook_it(GPU_readStatus);
+	hook_it(GPU_readData);
+	hook_it(GPU_readDataMem);
+	hook_it(GPU_dmaChain);
+	hook_it(GPU_updateLace);
+	hook_it(SPU_writeRegister);
+	hook_it(SPU_readRegister);
+	hook_it(SPU_writeDMA);
+	hook_it(SPU_readDMA);
+	hook_it(SPU_writeDMAMem);
+	hook_it(SPU_readDMAMem);
+	hook_it(SPU_playADPCMchannel);
+	hook_it(SPU_async);
+	hook_it(SPU_playCDDAchannel);
+}
+
