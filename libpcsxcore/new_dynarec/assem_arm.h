@@ -8,6 +8,7 @@
 #define CORTEX_A8_BRANCH_PREDICTION_HACK 1
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
+#define DISABLE_TLB 1
 
 /* ARM calling convention:
    r0-r3, r12: caller-save

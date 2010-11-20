@@ -258,8 +258,9 @@ void nullf() {}
 #define assem_debug nullf
 #define inv_debug nullf
 
-void tlb_hacks()
+static void tlb_hacks()
 {
+#ifndef DISABLE_TLB
   // Goldeneye hack
   if (strncmp((char *) ROM_HEADER->nom, "GOLDENEYE",9) == 0)
   {
@@ -301,18 +302,35 @@ void tlb_hacks()
       }
     }
   }
+#endif
+}
+
+static u_int get_page(u_int vaddr)
+{
+  u_int page=(vaddr^0x80000000)>>12;
+#ifndef DISABLE_TLB
+  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
+#endif
+  if(page>2048) page=2048+(page&2047);
+  return page;
+}
+
+static u_int get_vpage(u_int vaddr)
+{
+  u_int vpage=(vaddr^0x80000000)>>12;
+#ifndef DISABLE_TLB
+  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
+#endif
+  if(vpage>2048) vpage=2048+(vpage&2047);
+  return vpage;
 }
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
 void *get_addr(u_int vaddr)
 {
-  u_int page=(vaddr^0x80000000)>>12;
-  u_int vpage=page;
-  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
-  if(page>2048) page=2048+(page&2047);
-  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
-  if(vpage>2048) vpage=2048+(vpage&2047);
+  u_int page=get_page(vaddr);
+  u_int vpage=get_vpage(vaddr);
   struct ll_entry *head;
   //printf("TRACE: count=%d next=%d (get_addr %x,page %d)\n",Count,next_interupt,vaddr,page);
   head=jump_in[page];
@@ -339,10 +357,12 @@ void *get_addr(u_int vaddr)
         invalid_code[vaddr>>12]=0;
         memory_map[vaddr>>12]|=0x40000000;
         if(vpage<2048) {
+#ifndef DISABLE_TLB
           if(tlb_LUT_r[vaddr>>12]) {
             invalid_code[tlb_LUT_r[vaddr>>12]>>12]=0;
             memory_map[tlb_LUT_r[vaddr>>12]>>12]|=0x40000000;
           }
+#endif
           restore_candidate[vpage>>3]|=1<<(vpage&7);
         }
         else restore_candidate[page>>3]|=1<<(page&7);
@@ -390,12 +410,8 @@ void *get_addr_32(u_int vaddr,u_int flags)
   int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
   if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
   if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
-  u_int page=(vaddr^0x80000000)>>12;
-  u_int vpage=page;
-  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
-  if(page>2048) page=2048+(page&2047);
-  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
-  if(vpage>2048) vpage=2048+(vpage&2047);
+  u_int page=get_page(vaddr);
+  u_int vpage=get_vpage(vaddr);
   struct ll_entry *head;
   head=jump_in[page];
   while(head!=NULL) {
@@ -430,10 +446,12 @@ void *get_addr_32(u_int vaddr,u_int flags)
         invalid_code[vaddr>>12]=0;
         memory_map[vaddr>>12]|=0x40000000;
         if(vpage<2048) {
+#ifndef DISABLE_TLB
           if(tlb_LUT_r[vaddr>>12]) {
             invalid_code[tlb_LUT_r[vaddr>>12]>>12]=0;
             memory_map[tlb_LUT_r[vaddr>>12]>>12]|=0x40000000;
           }
+#endif
           restore_candidate[vpage>>3]|=1<<(vpage&7);
         }
         else restore_candidate[page>>3]|=1<<(page&7);
@@ -974,9 +992,7 @@ void *check_addr(u_int vaddr)
     if(((ht_bin[3]-MAX_OUTPUT_BLOCK_SIZE-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
       if(isclean(ht_bin[3])) return (void *)ht_bin[3];
   }
-  u_int page=(vaddr^0x80000000)>>12;
-  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
-  if(page>2048) page=2048+(page&2047);
+  u_int page=get_page(vaddr);
   struct ll_entry *head;
   head=jump_in[page];
   while(head!=NULL) {
@@ -1104,12 +1120,8 @@ int invalidate_page(u_int page)
 void invalidate_block(u_int block)
 {
   int modified;
-  u_int page,vpage;
-  page=vpage=block^0x80000;
-  if(page>262143&&tlb_LUT_r[block]) page=(tlb_LUT_r[block]^0x80000000)>>12;
-  if(page>2048) page=2048+(page&2047);
-  if(vpage>262143&&tlb_LUT_r[block]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
-  if(vpage>2048) vpage=2048+(vpage&2047);
+  u_int page=get_page(block<<12);
+  u_int vpage=get_vpage(block<<12);
   inv_debug("INVALIDATE: %x (%d)\n",block<<12,page);
   //inv_debug("invalid_code[block]=%d\n",invalid_code[block]);
   u_int first,last;
@@ -1152,6 +1164,7 @@ void invalidate_block(u_int block)
   
   // Don't trap writes
   invalid_code[block]=1;
+#ifndef DISABLE_TLB
   // If there is a valid TLB entry for this page, remove write protect
   if(tlb_LUT_w[block]) {
     assert(tlb_LUT_r[block]==tlb_LUT_w[block]);
@@ -1162,6 +1175,7 @@ void invalidate_block(u_int block)
     if(real_block>=0x80000&&real_block<0x80800) memory_map[real_block]=((u_int)rdram-0x80000000)>>2;
   }
   else if(block>=0x80000&&block<0x80800) memory_map[block]=((u_int)rdram-0x80000000)>>2;
+#endif
   #ifdef __arm__
   if(modified)
     __clear_cache((void *)BASE_ADDR,(void *)BASE_ADDR+(1<<TARGET_SIZE_2));
@@ -1190,6 +1204,7 @@ void invalidate_all_pages()
   #ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
   #endif
+  #ifndef DISABLE_TLB
   // TLB
   for(page=0;page<0x100000;page++) {
     if(tlb_LUT_r[page]) {
@@ -1201,14 +1216,13 @@ void invalidate_all_pages()
     if(page==0x80000) page=0xC0000;
   }
   tlb_hacks();
+  #endif
 }
 
 // Add an entry to jump_out after making a link
 void add_link(u_int vaddr,void *src)
 {
-  u_int page=(vaddr^0x80000000)>>12;
-  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
-  if(page>4095) page=2048+(page&2047);
+  u_int page=get_page(vaddr);
   inv_debug("add_link: %x -> %x (%d)\n",(int)src,vaddr,page);
   ll_add(jump_out+page,vaddr,src);
   //int ptr=get_pointer(src);
@@ -1251,7 +1265,9 @@ void clean_blocks(u_int page)
             void * clean_addr=(void *)get_clean_addr((int)head->addr);
             if((((u_int)clean_addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
               u_int ppage=page;
+#ifndef DISABLE_TLB
               if(page<2048&&tlb_LUT_r[head->vaddr>>12]) ppage=(tlb_LUT_r[head->vaddr>>12]^0x80000000)>>12;
+#endif
               inv_debug("INV: Restored %x (%x/%x)\n",head->vaddr, (int)head->addr, (int)clean_addr);
               //printf("page=%x, addr=%x\n",page,head->vaddr);
               //assert(head->vaddr>>12==(page|0x80000));
@@ -6192,12 +6208,8 @@ static void pagespan_ds()
 {
   assem_debug("initial delay slot:\n");
   u_int vaddr=start+1;
-  u_int page=(0x80000000^vaddr)>>12;
-  u_int vpage=page;
-  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[page^0x80000]^0x80000000)>>12;
-  if(page>2048) page=2048+(page&2047);
-  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
-  if(vpage>2048) vpage=2048+(vpage&2047);
+  u_int page=get_page(vaddr);
+  u_int vpage=get_vpage(vaddr);
   ll_add(jump_dirty+vpage,vaddr,(void *)out);
   do_dirty_stub_ds();
   ll_add(jump_in+page,vaddr,(void *)out);
@@ -10352,12 +10364,8 @@ int new_recompile_block(int addr)
       if(instr_addr[i]) // TODO - delay slots (=null)
       {
         u_int vaddr=start+i*4;
-        u_int page=(0x80000000^vaddr)>>12;
-        u_int vpage=page;
-        if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[page^0x80000]^0x80000000)>>12;
-        if(page>2048) page=2048+(page&2047);
-        if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
-        if(vpage>2048) vpage=2048+(vpage&2047);
+        u_int page=get_page(vaddr);
+        u_int vpage=get_vpage(vaddr);
         literal_pool(256);
         //if(!(is32[i]&(~unneeded_reg_upper[i])&~(1LL<<CCREG)))
         if(!requires_32bit[i])
