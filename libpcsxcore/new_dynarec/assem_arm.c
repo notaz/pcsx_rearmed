@@ -24,7 +24,9 @@ extern int pcaddr;
 extern int pending_exception;
 extern int branch_target;
 extern uint64_t readmem_dword;
+#ifdef MUPEN64
 extern precomp_instr fake_pc;
+#endif
 extern void *dynarec_local;
 extern u_int memory_map[1048576];
 extern u_int mini_ht[32][2];
@@ -902,10 +904,16 @@ void emit_zeroreg(int rt)
 
 void emit_loadreg(int r, int hr)
 {
+#ifdef FORCE32
+  if(r&64) {
+    printf("64bit load in 32bit mode!\n");
+    exit(1);
+  }
+#endif
   if((r&63)==0)
     emit_zeroreg(hr);
   else {
-    int addr=((int)reg)+((r&63)<<3)+((r&64)>>4);
+    int addr=((int)reg)+((r&63)<<REG_SHIFT)+((r&64)>>4);
     if((r&63)==HIREG) addr=(int)&hi+((r&64)>>4);
     if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
     if(r==CCREG) addr=(int)&cycle_count;
@@ -920,7 +928,13 @@ void emit_loadreg(int r, int hr)
 }
 void emit_storereg(int r, int hr)
 {
-  int addr=((int)reg)+((r&63)<<3)+((r&64)>>4);
+#ifdef FORCE32
+  if(r&64) {
+    printf("64bit store in 32bit mode!\n");
+    exit(1);
+  }
+#endif
+  int addr=((int)reg)+((r&63)<<REG_SHIFT)+((r&64)>>4);
   if((r&63)==HIREG) addr=(int)&hi+((r&64)>>4);
   if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
   if(r==CCREG) addr=(int)&cycle_count;
@@ -2669,8 +2683,12 @@ do_writestub(int n)
   if(type==STOREW_STUB)
     emit_writeword(rt,(int)&word);
   if(type==STORED_STUB) {
+#ifndef FORCE32
     emit_writeword(rt,(int)&dword);
     emit_writeword(r?rth:rt,(int)&dword+4);
+#else
+    printf("STORED_STUB\n");
+#endif
   }
   //emit_pusha();
   save_regs(reglist);
@@ -2736,8 +2754,12 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   if(type==STOREW_STUB)
     emit_writeword(rt,(int)&word);
   if(type==STORED_STUB) {
+#ifndef FORCE32
     emit_writeword(rt,(int)&dword);
     emit_writeword(target?rth:rt,(int)&dword+4);
+#else
+    printf("STORED_STUB\n");
+#endif
   }
   //emit_pusha();
   save_regs(reglist);
@@ -2843,7 +2865,7 @@ do_cop1stub(int n)
   assem_debug("do_cop1stub %x\n",start+stubs[n][3]*4);
   set_jump_target(stubs[n][1],(int)out);
   int i=stubs[n][3];
-  int rs=stubs[n][4];
+//  int rs=stubs[n][4];
   struct regstat *i_regs=(struct regstat *)stubs[n][5];
   int ds=stubs[n][6];
   if(!ds) {
@@ -3194,10 +3216,12 @@ void cop0_assemble(int i,struct regstat *i_regs)
     char copr=(source[i]>>11)&0x1f;
     //assert(t>=0); // Why does this happen?  OOT is weird
     if(t>=0) {
+#ifdef MUPEN64 /// FIXME
       emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
       emit_movimm((source[i]>>11)&0x1f,1);
       emit_writeword(0,(int)&PC);
       emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
+#endif
       if(copr==9) {
         emit_readword((int)&last_count,ECX);
         emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
@@ -3216,10 +3240,12 @@ void cop0_assemble(int i,struct regstat *i_regs)
     assert(s>=0);
     emit_writeword(s,(int)&readmem_dword);
     wb_register(rs1[i],i_regs->regmap,i_regs->dirty,i_regs->is32);
+#ifdef MUPEN64 /// FIXME
     emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
     emit_movimm((source[i]>>11)&0x1f,1);
     emit_writeword(0,(int)&PC);
     emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
+#endif
     if(copr==9||copr==11||copr==12) {
       emit_readword((int)&last_count,ECX);
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
@@ -3264,6 +3290,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
   else
   {
     assert(opcode2[i]==0x10);
+#ifndef DISABLE_TLB
     if((source[i]&0x3f)==0x01) // TLBR
       emit_call((int)TLBR);
     if((source[i]&0x3f)==0x02) // TLBWI
@@ -3280,6 +3307,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     }
     if((source[i]&0x3f)==0x08) // TLBP
       emit_call((int)TLBP);
+#endif
     if((source[i]&0x3f)==0x18) // ERET
     {
       int count=ccadj[i];
@@ -3290,8 +3318,20 @@ void cop0_assemble(int i,struct regstat *i_regs)
   }
 }
 
+void cop1_unusable(int i, struct regstat *i_regs)
+{
+  // XXX: should just just do the exception instead
+  if(!cop1_usable) {
+    int jaddr=(int)out;
+    emit_jmp(0);
+    add_stub(FP_STUB,jaddr,(int)out,i,0,(int)i_regs,is_delayslot,0);
+    cop1_usable=1;
+  }
+}
+
 void cop1_assemble(int i,struct regstat *i_regs)
 {
+#ifndef DISABLE_COP1
   // Check cop1 unusable
   if(!cop1_usable) {
     signed char rs=get_reg(i_regs->regmap,CSREG);
@@ -3356,10 +3396,14 @@ void cop1_assemble(int i,struct regstat *i_regs)
       //emit_fldcw_indexed((int)&rounding_modes,temp);
     }
   }
+#else
+  cop1_unusable(i, i_regs);
+#endif
 }
 
 void fconv_assemble_arm(int i,struct regstat *i_regs)
 {
+#ifndef DISABLE_COP1
   signed char temp=get_reg(i_regs->regmap,-1);
   assert(temp>=0);
   // Check cop1 unusable
@@ -3572,11 +3616,15 @@ void fconv_assemble_arm(int i,struct regstat *i_regs)
   }
   
   restore_regs(reglist);
+#else
+  cop1_unusable(i, i_regs);
+#endif
 }
 #define fconv_assemble fconv_assemble_arm
 
 void fcomp_assemble(int i,struct regstat *i_regs)
 {
+#ifndef DISABLE_COP1
   signed char fs=get_reg(i_regs->regmap,FSREG);
   signed char temp=get_reg(i_regs->regmap,-1);
   assert(temp>=0);
@@ -3701,10 +3749,14 @@ void fcomp_assemble(int i,struct regstat *i_regs)
   }
   restore_regs(reglist);
   emit_loadreg(FSREG,fs);
+#else
+  cop1_unusable(i, i_regs);
+#endif
 }
 
 void float_assemble(int i,struct regstat *i_regs)
 {
+#ifndef DISABLE_COP1
   signed char temp=get_reg(i_regs->regmap,-1);
   assert(temp>=0);
   // Check cop1 unusable
@@ -3894,6 +3946,9 @@ void float_assemble(int i,struct regstat *i_regs)
     }
     restore_regs(reglist);
   }
+#else
+  cop1_unusable(i, i_regs);
+#endif
 }
 
 void multdiv_assemble_arm(int i,struct regstat *i_regs)
@@ -4346,8 +4401,10 @@ void wb_invalidate_arm(signed char pre[],signed char entry[],uint64_t dirty,uint
 
 // CPU-architecture-specific initialization
 void arch_init() {
+#ifndef DISABLE_COP1
   rounding_modes[0]=0x0<<22; // round
   rounding_modes[1]=0x3<<22; // trunc
   rounding_modes[2]=0x1<<22; // ceil
   rounding_modes[3]=0x2<<22; // floor
+#endif
 }

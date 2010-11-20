@@ -22,14 +22,7 @@
 #include <stdint.h> //include for uint64_t
 #include <assert.h>
 
-#include "../recomp.h"
-#include "../recomph.h" //include for function prototypes
-#include "../macros.h"
-#include "../r4300.h"
-#include "../ops.h"
-#include "../interupt.h"
-
-#include "../../memory/memory.h"
+#include "emu_if.h" //emulator interface
 
 #include <sys/mman.h>
 
@@ -1969,14 +1962,6 @@ int rchecksum()
     sum^=((u_int *)reg)[i];
   return sum;
 }
-int fchecksum()
-{
-  int i;
-  int sum=0;
-  for(i=0;i<64;i++)
-    sum^=((u_int *)reg_cop1_fgr_64)[i];
-  return sum;
-}
 void rlist()
 {
   int i;
@@ -1984,10 +1969,12 @@ void rlist()
   for(i=0;i<32;i++)
     printf("r%d:%8x%8x ",i,((int *)(reg+i))[1],((int *)(reg+i))[0]);
   printf("\n");
+#ifndef DISABLE_COP1
   printf("TRACE: ");
   for(i=0;i<32;i++)
     printf("f%d:%8x%8x ",i,((int*)reg_cop1_simple[i])[1],*((int*)reg_cop1_simple[i]));
   printf("\n");
+#endif
 }
 
 void enabletrace()
@@ -3323,6 +3310,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
 
 void c1ls_assemble(int i,struct regstat *i_regs)
 {
+#ifndef DISABLE_COP1
   int s,th,tl;
   int temp,ar;
   int map=-1;
@@ -3497,6 +3485,9 @@ void c1ls_assemble(int i,struct regstat *i_regs)
     emit_call((int)memdebug);
     emit_popa();
   }/**/
+#else
+  cop1_unusable(i, i_regs);
+#endif
 }
 
 #ifndef multdiv_assemble
@@ -7393,10 +7384,12 @@ void new_dynarec_init()
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
             -1, 0) <= 0) {printf("mmap() failed\n");}
+#ifdef MUPEN64
   rdword=&readmem_dword;
   fake_pc.f.r.rs=&readmem_dword;
   fake_pc.f.r.rt=&readmem_dword;
   fake_pc.f.r.rd=&readmem_dword;
+#endif
   int n;
   for(n=0x80000;n<0x80800;n++)
     invalid_code[n]=1;
@@ -7486,11 +7479,14 @@ int new_recompile_block(int addr)
   //rlist();
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
+#ifdef MUPEN64
   if ((int)addr >= 0xa4000000 && (int)addr < 0xa4001000) {
     source = (u_int *)((u_int)SP_DMEM+start-0xa4000000);
     pagelimit = 0xa4001000;
   }
-  else if ((int)addr >= 0x80000000 && (int)addr < 0x80800000) {
+  else
+#endif
+  if ((int)addr >= 0x80000000 && (int)addr < 0x80800000) {
     source = (u_int *)((u_int)rdram+start-0x80000000);
     pagelimit = 0x80800000;
   }

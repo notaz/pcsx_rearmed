@@ -9,6 +9,15 @@
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
 #define DISABLE_TLB 1
+//#define MUPEN64
+#define FORCE32 1
+#define DISABLE_COP1 1
+
+#ifdef FORCE32
+#define REG_SHIFT 2
+#else
+#define REG_SHIFT 3
+#endif
 
 /* ARM calling convention:
    r0-r3, r12: caller-save
