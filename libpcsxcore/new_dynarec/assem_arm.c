@@ -826,7 +826,13 @@ u_int genimm(u_int imm,u_int *encoded)
 u_int genjmp(u_int addr)
 {
   int offset=addr-(int)out-8;
-  if(offset<-33554432||offset>=33554432) return 0;
+  if(offset<-33554432||offset>=33554432) {
+    if (addr>2) {
+      printf("genjmp: out of range: %08x\n", offset);
+      exit(1);
+    }
+    return 0;
+  }
   return ((u_int)offset>>2)&0xffffff;
 }
 
