@@ -1928,10 +1928,12 @@ void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32
         if((dirty>>hr)&1) {
           if(regmap[hr]<64) {
             emit_storereg(r,hr);
+#ifndef FORCE32
             if((is32>>regmap[hr])&1) {
               emit_sarimm(hr,31,hr);
               emit_storereg(r|64,hr);
             }
+#endif
           }else{
             emit_storereg(r|64,hr);
           }
@@ -4048,6 +4050,7 @@ void wb_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty)
           if((i_dirty>>hr)&1) {
             if(i_regmap[hr]<64) {
               emit_storereg(i_regmap[hr],hr);
+#ifndef FORCE32
               if( ((i_is32>>i_regmap[hr])&1) ) {
                 #ifdef DESTRUCTIVE_WRITEBACK
                 emit_sarimm(hr,31,hr);
@@ -4057,6 +4060,7 @@ void wb_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty)
                 emit_storereg(i_regmap[hr]|64,HOST_TEMPREG);
                 #endif
               }
+#endif
             }else{
               if( !((i_is32>>(i_regmap[hr]&63))&1) ) {
                 emit_storereg(i_regmap[hr],hr);
@@ -4082,6 +4086,7 @@ void wb_needed_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,in
             if((i_dirty>>hr)&1) {
               if(i_regmap[hr]<64) {
                 emit_storereg(i_regmap[hr],hr);
+#ifndef FORCE32
                 if( ((i_is32>>i_regmap[hr])&1) ) {
                   #ifdef DESTRUCTIVE_WRITEBACK
                   emit_sarimm(hr,31,hr);
@@ -4091,6 +4096,7 @@ void wb_needed_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,in
                   emit_storereg(i_regmap[hr]|64,HOST_TEMPREG);
                   #endif
                 }
+#endif
               }else{
                 if( !((i_is32>>(i_regmap[hr]&63))&1) ) {
                   emit_storereg(i_regmap[hr],hr);
@@ -6504,6 +6510,9 @@ void unneeded_registers(int istart,int iend,int r)
     // Save it
     unneeded_reg[i]=u;
     unneeded_reg_upper[i]=uu;
+#ifdef FORCE32
+    unneeded_reg_upper[i]=-1LL;
+#endif
     /*
     printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
     printf("U:");
@@ -7414,32 +7423,44 @@ void new_dynarec_init()
     memory_map[n]=((u_int)rdram-0x80000000)>>2;
   for(n=526336;n<1048576;n++) // 0x80800000 .. 0xFFFFFFFF
     memory_map[n]=-1;
+#ifdef MUPEN64
   for(n=0;n<0x8000;n++) { // 0 .. 0x7FFFFFFF
     writemem[n] = write_nomem_new;
     writememb[n] = write_nomemb_new;
     writememh[n] = write_nomemh_new;
+#ifndef FORCE32
     writememd[n] = write_nomemd_new;
+#endif
     readmem[n] = read_nomem_new;
     readmemb[n] = read_nomemb_new;
     readmemh[n] = read_nomemh_new;
+#ifndef FORCE32
     readmemd[n] = read_nomemd_new;
+#endif
   }
   for(n=0x8000;n<0x8080;n++) { // 0x80000000 .. 0x807FFFFF
     writemem[n] = write_rdram_new;
     writememb[n] = write_rdramb_new;
     writememh[n] = write_rdramh_new;
+#ifndef FORCE32
     writememd[n] = write_rdramd_new;
+#endif
   }
   for(n=0xC000;n<0x10000;n++) { // 0xC0000000 .. 0xFFFFFFFF
     writemem[n] = write_nomem_new;
     writememb[n] = write_nomemb_new;
     writememh[n] = write_nomemh_new;
+#ifndef FORCE32
     writememd[n] = write_nomemd_new;
+#endif
     readmem[n] = read_nomem_new;
     readmemb[n] = read_nomemb_new;
     readmemh[n] = read_nomemh_new;
+#ifndef FORCE32
     readmemd[n] = read_nomemd_new;
+#endif
   }
+#endif
   tlb_hacks();
   arch_init();
 }
@@ -8161,6 +8182,11 @@ int new_recompile_block(int addr)
         current.is32=temp_is32;
       }
     }
+#ifdef FORCE32
+    memset(p32, 0xff, sizeof(p32));
+    current.is32=-1LL;
+#endif
+
     memcpy(regmap_pre[i],current.regmap,sizeof(current.regmap));
     regs[i].wasconst=current.isconst;
     regs[i].was32=current.is32;

@@ -2416,10 +2416,12 @@ void wb_consts(signed char i_regmap[],uint64_t i_is32,u_int i_dirty,int i)
             emit_movimm(value,HOST_TEMPREG);
           }
           emit_storereg(i_regmap[hr],HOST_TEMPREG);
+#ifndef FORCE32
           if((i_is32>>i_regmap[hr])&1) {
             if(value!=-1&&value!=0) emit_sarimm(HOST_TEMPREG,31,HOST_TEMPREG);
             emit_storereg(i_regmap[hr]|64,HOST_TEMPREG);
           }
+#endif
         }
       }
     }
@@ -2466,7 +2468,7 @@ emit_extjump2(int addr, int target, int linker)
   assert((ptr[3]&0x0e)==0xa);
   emit_loadlp(target,0);
   emit_loadlp(addr,1);
-  assert(addr>=0x7000000&&addr<0x7FFFFFF);
+  assert(addr>=BASE_ADDR&&addr<(BASE_ADDR+(1<<TARGET_SIZE_2)));
   //assert((target>=0x80000000&&target<0x80800000)||(target>0xA4000000&&target<0xA4001000));
 //DEBUG >
 #ifdef DEBUG_CYCLE_COUNT
@@ -2522,8 +2524,11 @@ do_readstub(int n)
     ftable=(int)readmemh;
   if(type==LOADW_STUB)
     ftable=(int)readmem;
+#ifndef FORCE32
   if(type==LOADD_STUB)
     ftable=(int)readmemd;
+#endif
+  assert(ftable!=0);
   emit_writeword(rs,(int)&address);
   //emit_pusha();
   save_regs(reglist);
@@ -2594,8 +2599,11 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     ftable=(int)readmemh;
   if(type==LOADW_STUB)
     ftable=(int)readmem;
+#ifndef FORCE32
   if(type==LOADD_STUB)
     ftable=(int)readmemd;
+#endif
+  assert(ftable!=0);
   emit_writeword(rs,(int)&address);
   //emit_pusha();
   save_regs(reglist);
@@ -2677,8 +2685,11 @@ do_writestub(int n)
     ftable=(int)writememh;
   if(type==STOREW_STUB)
     ftable=(int)writemem;
+#ifndef FORCE32
   if(type==STORED_STUB)
     ftable=(int)writememd;
+#endif
+  assert(ftable!=0);
   emit_writeword(rs,(int)&address);
   //emit_shrimm(rs,16,rs);
   //emit_movmem_indexedx4(ftable,rs,rs);
@@ -2748,8 +2759,11 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
     ftable=(int)writememh;
   if(type==STOREW_STUB)
     ftable=(int)writemem;
+#ifndef FORCE32
   if(type==STORED_STUB)
     ftable=(int)writememd;
+#endif
+  assert(ftable!=0);
   emit_writeword(rs,(int)&address);
   //emit_shrimm(rs,16,rs);
   //emit_movmem_indexedx4(ftable,rs,rs);
@@ -4288,6 +4302,7 @@ void do_miniht_insert(u_int return_address,int rt,int temp) {
 // as a 64-bit value later.
 void wb_sx(signed char pre[],signed char entry[],uint64_t dirty,uint64_t is32_pre,uint64_t is32,uint64_t u,uint64_t uu)
 {
+#ifndef FORCE32
   if(is32_pre==is32) return;
   int hr,reg;
   for(hr=0;hr<HOST_REGS;hr++) {
@@ -4304,6 +4319,7 @@ void wb_sx(signed char pre[],signed char entry[],uint64_t dirty,uint64_t is32_pr
       //}
     }
   }
+#endif
 }
 
 void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t is32_pre,uint64_t u,uint64_t uu)
