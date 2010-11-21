@@ -1,5 +1,5 @@
 #define MAXPATHLEN 256
-#define NOPSXREC
+//#define NOPSXREC
 #define __LINUX__
 #define PACKAGE_NAME "pcsx"
 #define PACKAGE_VERSION "1.9"

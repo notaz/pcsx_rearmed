@@ -45,7 +45,7 @@
 
 extern char *invc_ptr;
 
-#define BASE_ADDR 0x7000000 // Code generator target address
+#define BASE_ADDR 0x2000000 // Code generator target address
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 // This is defined in linkage_arm.s, but gcc -O3 likes this better

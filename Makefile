@@ -1,11 +1,15 @@
 #CROSS_COMPILE=
+AS = $(CROSS_COMPILE)as
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 
-CFLAGS += -Wall -ggdb -Ifrontend
+CFLAGS += -ggdb -Ifrontend
 LDFLAGS += -lz -lpthread -ldl
 ifdef CROSS_COMPILE
-CFLAGS += -O2 -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
+CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
+endif
+ifndef DEBUG
+CFLAGS += -O2
 endif
 TARGET = pcsx
 
@@ -18,6 +22,11 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
+# dynarec
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o \
+	libpcsxcore/new_dynarec/emu_if.o
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
+
 # spu
 OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/oss.o plugins/dfsound/reverb.o \
 	plugins/dfsound/xa.o plugins/dfsound/freeze.o plugins/dfsound/cfg.o plugins/dfsound/registers.o \
@@ -40,7 +49,7 @@ OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
 OBJS += frontend/linux/fbdev.o
 
 $(TARGET): $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
 clean:
 	$(RM) $(TARGET) $(OBJS)

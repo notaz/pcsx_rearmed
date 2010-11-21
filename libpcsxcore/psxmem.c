@@ -67,7 +67,7 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-	psxM = mmap(0, 0x00220000,
+	psxM = mmap((void *)0x80000000, 0x00220000,
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	psxP = &psxM[0x200000];
@@ -76,7 +76,7 @@ int psxMemInit() {
 	psxR = (s8 *)malloc(0x00080000);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM == NULL || psxP == NULL || psxH == NULL) {
+		psxM != (void *)0x80000000 || psxP == NULL || psxH == NULL) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;
 	}

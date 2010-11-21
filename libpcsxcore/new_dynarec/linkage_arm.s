@@ -34,12 +34,9 @@ rdram = 0x80000000
 	.global	reg
 	.global	hi
 	.global	lo
-	.global	reg_cop1_simple
-	.global	reg_cop1_double
 	.global reg_cop0
 	.global	FCR0
 	.global	FCR31
-	.global	rounding_modes
 	.global	next_interupt
 	.global	cycle_count
 	.global	last_count
@@ -49,22 +46,25 @@ rdram = 0x80000000
 	.global	invc_ptr
 	.global	address
 	.global	readmem_dword
+	.global	readmem_word
 	.global	dword
 	.global	word
 	.global	hword
 	.global	byte
 	.global	branch_target
 	.global	PC
-	.global	fake_pc
 	.global	mini_ht
 	.global	restore_candidate
 	.global	memory_map
+	/* psx */
+	.global psxRegs
+
 	.bss
 	.align	4
 	.type	dynarec_local, %object
-	.size	dynarec_local, 64
+	.size	dynarec_local, dynarec_local_end-dynarec_local
 dynarec_local:
-	.space	64+16+16+8+8+8+8+256+8+8+128+128+128+16+8+132+4+256+512+4194304
+	.space	dynarec_local_end-dynarec_local /*0x400630*/
 next_interupt = dynarec_local + 64
 	.type	next_interupt, %object
 	.size	next_interupt, 4
@@ -90,6 +90,7 @@ address = invc_ptr + 4
 	.type	address, %object
 	.size	address, 4
 readmem_dword = address + 4
+readmem_word = readmem_dword
 	.type	readmem_dword, %object
 	.size	readmem_dword, 8
 dword = readmem_dword + 8
@@ -111,37 +112,51 @@ FCR31 = FCR0 + 4
 	.type	FCR31, %object
 	.size	FCR31, 4
 reg = FCR31 + 4
+
+/* psxRegs */
+psxRegs = reg
 	.type	reg, %object
-	.size	reg, 256
-hi = reg + 256
+	.size	reg, 128
+	.size	psxRegs, psxRegs_end-psxRegs
+hi = reg + 128
 	.type	hi, %object
-	.size	hi, 8
-lo = hi + 8
+	.size	hi, 4
+lo = hi + 4
 	.type	lo, %object
-	.size	lo, 8
-reg_cop0 = lo + 8
+	.size	lo, 4
+reg_cop0 = lo + 4
 	.type	reg_cop0, %object
 	.size	reg_cop0, 128
-reg_cop1_simple = reg_cop0 + 128
-	.type	reg_cop1_simple, %object
-	.size	reg_cop1_simple, 128
-reg_cop1_double = reg_cop1_simple + 128
-	.type	reg_cop1_double, %object
-	.size	reg_cop1_double, 128
-rounding_modes = reg_cop1_double + 128
-	.type	rounding_modes, %object
-	.size	rounding_modes, 16
-branch_target = rounding_modes + 16
-	.type	branch_target, %object
-	.size	branch_target, 4
-PC = branch_target + 4
+reg_cop2d = reg_cop0 + 128
+	.type	reg_cop2d, %object
+	.size	reg_cop2d, 128
+reg_cop2c = reg_cop2d + 128
+	.type	reg_cop2c, %object
+	.size	reg_cop2c, 128
+PC = reg_cop2c + 128
 	.type	PC, %object
 	.size	PC, 4
-fake_pc = PC + 4
-	.type	fake_pc, %object
-	.size	fake_pc, 132
-/* 4 bytes free */
-mini_ht = fake_pc + 136
+code = PC + 4
+	.type	code, %object
+	.size	code, 4
+cycle = code + 4
+	.type	cycle, %object
+	.size	cycle, 4
+interrupt = cycle + 4
+	.type	interrupt, %object
+	.size	interrupt, 4
+intCycle = interrupt + 4
+	.type	intCycle, %object
+	.size	intCycle, 128
+psxRegs_end = intCycle + 128
+
+align0 = psxRegs_end /* just for alignment */
+	.type	align0, %object
+	.size	align0, 4
+branch_target = align0 + 4
+	.type	branch_target, %object
+	.size	branch_target, 4
+mini_ht = branch_target + 4
 	.type	mini_ht, %object
 	.size	mini_ht, 256
 restore_candidate = mini_ht + 256
@@ -150,6 +165,7 @@ restore_candidate = mini_ht + 256
 memory_map = restore_candidate + 512
 	.type	memory_map, %object
 	.size	memory_map, 4194304
+dynarec_local_end = memory_map + 4194304
 
 	.text
 	.align	2
@@ -158,17 +174,11 @@ memory_map = restore_candidate + 512
 dyna_linker:
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	ldr	r4, .tlbptr
-	lsr	r5, r0, #12
 	mov	r12, r0
-	cmp	r0, #0xC0000000
 	mov	r6, #4096
-	ldrge	r12, [r4, r5, lsl #2]
 	mov	r2, #0x80000
 	ldr	r3, .jiptr
-	tst	r12, r12
 	sub	r6, r6, #1
-	moveq	r12, r0
 	ldr	r7, [r1]
 	eor	r2, r2, r12, lsr #12
 	and	r6, r6, r12, lsr #12
@@ -281,17 +291,11 @@ exec_pagefault:
 dyna_linker_ds:
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	ldr	r4, .tlbptr
-	lsr	r5, r0, #12
 	mov	r12, r0
-	cmp	r0, #0xC0000000
 	mov	r6, #4096
-	ldrge	r12, [r4, r5, lsl #2]
 	mov	r2, #0x80000
 	ldr	r3, .jiptr
-	tst	r12, r12
 	sub	r6, r6, #1
-	moveq	r12, r0
 	ldr	r7, [r1]
 	eor	r2, r2, r12, lsr #12
 	and	r6, r6, r12, lsr #12
@@ -380,8 +384,6 @@ dyna_linker_ds:
 	.word	jump_in
 .jdptr:
 	.word	jump_dirty
-.tlbptr:
-	.word	tlb_LUT_r
 .htptr:
 	.word	hash_table
 	.align	2
@@ -719,16 +721,14 @@ jump_eret:
 	.type	new_dyna_start, %function
 new_dyna_start:
 	ldr	r12, .dlptr
-	mov	r0, #0xa4000000
 	stmia	r12, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
 	sub	fp, r12, #28
-	add	r0, r0, #0x40
 	bl	new_recompile_block
 	ldr	r0, [fp, #next_interupt-dynarec_local]
 	ldr	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
 	str	r0, [fp, #last_count-dynarec_local]
 	sub	r10, r10, r0
-	mov	pc, #0x7000000
+	mov	pc, #0x2000000
 .dlptr:
 	.word	dynarec_local+28
 	.size	new_dyna_start, .-new_dyna_start
@@ -789,7 +789,13 @@ do_invalidate:
 	.align	2
 	.global	read_nomem_new
 	.type	read_nomem_new, %function
-read_nomem_new:
+/*read_nomem_new:*/
+read_nomemb_new:
+read_nomemh_new:
+read_nomemd_new:
+	/* should never happen */
+	b	read_nomem_new
+/*
 	ldr	r2, [fp, #address-dynarec_local]
 	add	r12, fp, #memory_map-dynarec_local
 	lsr	r0, r2, #12
@@ -800,63 +806,11 @@ read_nomem_new:
 	ldr	r0, [r2, r12, lsl #2]
 	str	r0, [fp, #readmem_dword-dynarec_local]
 	mov	pc, lr
+*/
 	.size	read_nomem_new, .-read_nomem_new
 	.align	2
 	.global	read_nomemb_new
 	.type	read_nomemb_new, %function
-read_nomemb_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	lsr	r0, r2, #12
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #8
-	tst	r12, r12
-	bmi	tlb_exception
-	eor	r2, r2, #3
-	ldrb	r0, [r2, r12, lsl #2]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-	.size	read_nomemb_new, .-read_nomemb_new
-	.align	2
-	.global	read_nomemh_new
-	.type	read_nomemh_new, %function
-read_nomemh_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	lsr	r0, r2, #12
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #8
-	tst	r12, r12
-	bmi	tlb_exception
-	lsl	r12, r12, #2
-	eor	r2, r2, #2
-	ldrh	r0, [r2, r12]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-	.size	read_nomemh_new, .-read_nomemh_new
-	.align	2
-	.global	read_nomemd_new
-	.type	read_nomemd_new, %function
-read_nomemd_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	lsr	r0, r2, #12
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #8
-	tst	r12, r12
-	bmi	tlb_exception
-	lsl	r12, r12, #2
-/*	ldrd	r0, [r2, r12]*/
-	add	r3, r2, #4
-	ldr	r0, [r2, r12]
-	ldr	r1, [r3, r12]
-	str	r0, [fp, #readmem_dword+4-dynarec_local]
-	str	r1, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-	.size	read_nomemd_new, .-read_nomemd_new
-	.align	2
-	.global	write_nomem_new
-	.type	write_nomem_new, %function
 write_nomem_new:
 	str	r3, [fp, #24]
 	str	lr, [fp, #28]

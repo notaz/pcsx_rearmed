@@ -253,6 +253,9 @@ pc_hook_func              (SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), P
 
 void pcnt_hook_plugins(void)
 {
+	/* test it first */
+	pcnt_get();
+
 	hook_it(GPU_writeStatus);
 	hook_it(GPU_writeData);
 	hook_it(GPU_writeDataMem);

@@ -28,15 +28,15 @@ extern int FCR0, FCR31;
 extern void (*readmem[0x10000])();
 extern void (*readmemb[0x10000])();
 extern void (*readmemh[0x10000])();
-extern void (*readmemd[0x10000])();
 extern void (*writemem[0x10000])();
 extern void (*writememb[0x10000])();
 extern void (*writememh[0x10000])();
-extern void (*writememd[0x10000])();
 
-extern unsigned int address, word;
-extern unsigned char byte;
+extern unsigned int address;
+extern unsigned int readmem_word; /* same as readmem_dword */
+extern unsigned int word;	/* write */
 extern unsigned short hword;
+extern unsigned char byte;
 
 /* cycles */
 extern unsigned int next_interupt;
