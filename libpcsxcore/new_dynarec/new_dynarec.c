@@ -1133,12 +1133,14 @@ void invalidate_block(u_int block)
           if((((end-1-(u_int)rdram)>>12)&2047)>last) last=((end-1-(u_int)rdram)>>12)&2047;
         }
       }
+#ifndef DISABLE_TLB
       if(page<2048&&(signed int)start>=(signed int)0xC0000000&&(signed int)end>=(signed int)0xC0000000) {
         if(((start+memory_map[start>>12]-(u_int)rdram)>>12)<=page&&((end-1+memory_map[(end-1)>>12]-(u_int)rdram)>>12)>=page) {
           if((((start+memory_map[start>>12]-(u_int)rdram)>>12)&2047)<first) first=((start+memory_map[start>>12]-(u_int)rdram)>>12)&2047;
           if((((end-1+memory_map[(end-1)>>12]-(u_int)rdram)>>12)&2047)>last) last=((end-1+memory_map[(end-1)>>12]-(u_int)rdram)>>12)&2047;
         }
       }
+#endif
     }
     head=head->next;
   }
@@ -7511,6 +7513,7 @@ int new_recompile_block(int addr)
     source = (u_int *)((u_int)rdram+start-0x80000000);
     pagelimit = 0x80800000;
   }
+#ifndef DISABLE_TLB
   else if ((signed int)addr >= (signed int)0xC0000000) {
     //printf("addr=%x mm=%x\n",(u_int)addr,(memory_map[start>>12]<<2));
     //if(tlb_LUT_r[start>>12])
@@ -7534,6 +7537,7 @@ int new_recompile_block(int addr)
     }
     //printf("source= %x\n",(int)source);
   }
+#endif
   else {
     printf("Compile at bogus memory address: %x \n", (int)addr);
     exit(1);
@@ -7821,7 +7825,9 @@ int new_recompile_block(int addr)
       case 0x3C: strcpy(insn[i],"SCD"); type=NI; break;
       case 0x3D: strcpy(insn[i],"SDC1"); type=C1LS; break;
       case 0x3F: strcpy(insn[i],"SD"); type=STORE; break;
-      default: strcpy(insn[i],"???"); type=NI; break;
+      default: strcpy(insn[i],"???"); type=NI;
+        assem_debug("NI %08x @%08x\n", source[i], addr + i*4);
+        break;
     }
     itype[i]=type;
     opcode2[i]=op2;
@@ -9953,6 +9959,7 @@ int new_recompile_block(int addr)
         else printf(" r%d",r);
       }
     }
+#ifndef FORCE32
     printf(" UU:");
     for(r=1;r<=CCREG;r++) {
       if(((unneeded_reg_upper[i]&~unneeded_reg[i])>>r)&1) {
@@ -9971,6 +9978,7 @@ int new_recompile_block(int addr)
         else printf(" r%d",r);
       }
     }
+#endif
     printf("\n");
     #if defined(__i386__) || defined(__x86_64__)
     printf("pre: eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",regmap_pre[i][0],regmap_pre[i][1],regmap_pre[i][2],regmap_pre[i][3],regmap_pre[i][5],regmap_pre[i][6],regmap_pre[i][7]);
@@ -10092,6 +10100,7 @@ int new_recompile_block(int addr)
       #endif
       printf("\n");
     }
+#ifndef FORCE32
     printf(" 32:");
     for(r=0;r<=CCREG;r++) {
       if((regs[i].is32>>r)&1) {
@@ -10102,6 +10111,7 @@ int new_recompile_block(int addr)
       }
     }
     printf("\n");
+#endif
     /*printf(" p32:");
     for(r=0;r<=CCREG;r++) {
       if((p32[i]>>r)&1) {
@@ -10139,6 +10149,7 @@ int new_recompile_block(int addr)
       if((branch_regs[i].dirty>>10)&1) printf("r10 ");
       if((branch_regs[i].dirty>>12)&1) printf("r12 ");
       #endif
+#ifndef FORCE32
       printf(" 32:");
       for(r=0;r<=CCREG;r++) {
         if((branch_regs[i].is32>>r)&1) {
@@ -10149,6 +10160,7 @@ int new_recompile_block(int addr)
         }
       }
       printf("\n");
+#endif
     }
   }
 
@@ -10451,6 +10463,7 @@ int new_recompile_block(int addr)
   // Trap writes to any of the pages we compiled
   for(i=start>>12;i<=(start+slen*4)>>12;i++) {
     invalid_code[i]=0;
+#ifndef DISABLE_TLB
     memory_map[i]|=0x40000000;
     if((signed int)start>=(signed int)0xC0000000) {
       assert(using_tlb);
@@ -10459,6 +10472,7 @@ int new_recompile_block(int addr)
       memory_map[j]|=0x40000000;
       //printf("write protect physical page: %x (virtual %x)\n",j<<12,start);
     }
+#endif
   }
   
   /* Pass 10 - Free memory by expiring oldest blocks */
