@@ -205,7 +205,7 @@ int verify_dirty(int addr)
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  u_int verifier=(int)ptr+((*ptr<<8)>>6)+8; // get target of bl
+  u_int verifier=(int)ptr+((signed int)(*ptr<<8)>>6)+8; // get target of bl
   if(verifier==(u_int)verify_code_vm||verifier==(u_int)verify_code_ds) {
     unsigned int page=source>>12;
     unsigned int map_value=memory_map[page];
@@ -258,7 +258,7 @@ void get_bounds(int addr,u_int *start,u_int *end)
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  u_int verifier=(int)ptr+((*ptr<<8)>>6)+8; // get target of bl
+  u_int verifier=(int)ptr+((signed int)(*ptr<<8)>>6)+8; // get target of bl
   if(verifier==(u_int)verify_code_vm||verifier==(u_int)verify_code_ds) {
     if(memory_map[source>>12]>=0x80000000) source = 0;
     else source = source+(memory_map[source>>12]<<2);
