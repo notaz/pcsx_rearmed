@@ -2,3 +2,6 @@
 
 extern int pcaddr;
 extern int pending_exception;
+
+void new_dynarec_init();
+void new_dynarec_cleanup();

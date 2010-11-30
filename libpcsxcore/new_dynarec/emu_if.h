@@ -1,3 +1,4 @@
+#include "new_dynarec.h"
 #include "../r3000a.h"
 
 extern char invalid_code[0x100000];
@@ -13,6 +14,7 @@ extern int reg[];
 extern int hi, lo;
 
 /* same as psxRegs.CP0.n.* */
+extern int reg_cop0[];
 #define Status   psxRegs.CP0.n.Status
 #define Cause    psxRegs.CP0.n.Cause
 #define EPC      psxRegs.CP0.n.EPC
@@ -38,10 +40,13 @@ extern unsigned int word;	/* write */
 extern unsigned short hword;
 extern unsigned char byte;
 
-/* cycles */
+/* cycles/irqs */
 extern unsigned int next_interupt;
+extern int pending_exception;
 
 /* called by drc */
-void MFC0();
-void MTC0();
+void MTC0_();
+#define MTC0 MTC0_ /* don't call interpreter with wrong args */
 
+/* misc */
+extern void *psxHLEt_addr;

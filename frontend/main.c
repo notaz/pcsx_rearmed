@@ -87,7 +87,6 @@ int main(int argc, char *argv[])
 
 	emuLog = stdout;
 	SetIsoFile(NULL);
-	Config.PsxOut = 1;
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
@@ -352,19 +351,6 @@ void SysPrintf(const char *fmt, ...) {
 	va_start(list, fmt);
 	vsprintf(msg, fmt, list);
 	va_end(list);
-
-	if (Config.PsxOut) {
-		static char linestart = 1;
-		int l = strlen(msg);
-
-		printf(linestart ? " * %s" : "%s", msg);
-
-		if (l > 0 && msg[l - 1] == '\n') {
-			linestart = 1;
-		} else {
-			linestart = 0;
-		}
-	}
 
 	fprintf(emuLog, "%s", msg);
 }

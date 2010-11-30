@@ -175,6 +175,7 @@ struct ll_entry
 #define OTHER 23  // Other
 #define SPAN 24   // Branch/delay slot spans 2 pages
 #define NI 25     // Not implemented
+#define HLECALL 26// PCSX fake opcodes for HLE
 
   /* stubs */
 #define CC_STUB 1
@@ -213,7 +214,10 @@ void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
 void jump_syscall();
+void jump_syscall_hle();
 void jump_eret();
+void jump_hlecall();
+void new_dyna_leave();
 
 // TLB
 void TLBWI_new();
@@ -399,6 +403,9 @@ void *get_addr_ht(u_int vaddr)
 
 void *get_addr_32(u_int vaddr,u_int flags)
 {
+#ifdef FORCE32
+  return get_addr(vaddr);
+#endif
   //printf("TRACE: count=%d next=%d (get_addr_32 %x,flags %x)\n",Count,next_interupt,vaddr,flags);
   int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
   if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
@@ -716,7 +723,7 @@ int needed_again(int r, int i)
       j++;
       break;
     }
-    if(itype[i+j]==SYSCALL||((source[i+j]&0xfc00003f)==0x0d))
+    if(itype[i+j]==SYSCALL||itype[i+j]==HLECALL||((source[i+j]&0xfc00003f)==0x0d))
     {
       break;
     }
@@ -962,14 +969,10 @@ void ll_add(struct ll_entry **head,int vaddr,void *addr)
 // Add virtual address mapping for 32-bit compiled block
 void ll_add_32(struct ll_entry **head,int vaddr,u_int reg32,void *addr)
 {
-  struct ll_entry *new_entry;
-  new_entry=malloc(sizeof(struct ll_entry));
-  assert(new_entry!=NULL);
-  new_entry->vaddr=vaddr;
-  new_entry->reg32=reg32;
-  new_entry->addr=addr;
-  new_entry->next=*head;
-  *head=new_entry;
+  ll_add(head,vaddr,addr);
+#ifndef FORCE32
+  (*head)->reg32=reg32;
+#endif
 }
 
 // Check if an address is already compiled
@@ -1805,6 +1808,7 @@ void delayslot_alloc(struct regstat *current,int i)
     case RJUMP:
     case FJUMP:
     case SYSCALL:
+    case HLECALL:
     case SPAN:
       assem_debug("jump in the delay slot.  this shouldn't happen.\n");//exit(1);
       printf("Disabled speculative precompilation\n");
@@ -3581,7 +3585,18 @@ void syscall_assemble(int i,struct regstat *i_regs)
   assert(!is_delayslot);
   emit_movimm(start+i*4,EAX); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
-  emit_jmp((int)jump_syscall);
+  emit_jmp((int)jump_syscall_hle); // XXX
+}
+
+void hlecall_assemble(int i,struct regstat *i_regs)
+{
+  signed char ccreg=get_reg(i_regs->regmap,CCREG);
+  assert(ccreg==HOST_CCREG);
+  assert(!is_delayslot);
+  emit_movimm(start+i*4+4,0); // Get PC
+  emit_movimm(source[i],1); // opcode
+  emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG); // XXX
+  emit_jmp((int)jump_hlecall); // XXX
 }
 
 void ds_assemble(int i,struct regstat *i_regs)
@@ -3621,6 +3636,7 @@ void ds_assemble(int i,struct regstat *i_regs)
     case MOV:
       mov_assemble(i,i_regs);break;
     case SYSCALL:
+    case HLECALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -4465,6 +4481,7 @@ void ds_assemble_entry(int i)
     case MOV:
       mov_assemble(t,&regs[t]);break;
     case SYSCALL:
+    case HLECALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -6290,6 +6307,7 @@ static void pagespan_ds()
     case MOV:
       mov_assemble(0,&regs[0]);break;
     case SYSCALL:
+    case HLECALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -6513,7 +6531,7 @@ void unneeded_registers(int istart,int iend,int r)
         }
       }
     }
-    else if(itype[i]==SYSCALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
     {
       // SYSCALL instruction (software interrupt)
       u=1;
@@ -6771,6 +6789,7 @@ static void provisional_32bit()
       case FCOMP:
         break;
       case SYSCALL:
+      case HLECALL:
         break;
       default:
         break;
@@ -6872,7 +6891,7 @@ static void provisional_r32()
         if((regs[i].was32>>dep2[i+1])&1) r32|=1LL<<dep2[i+1];
       }
     }
-    else if(itype[i]==SYSCALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
     {
       // SYSCALL instruction (software interrupt)
       r32=0;
@@ -7226,7 +7245,7 @@ void clean_registers(int istart,int iend,int wr)
         }
       }
     }
-    else if(itype[i]==SYSCALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
     {
       // SYSCALL instruction (software interrupt)
       will_dirty_i=0;
@@ -7535,6 +7554,24 @@ int new_recompile_block(int addr)
   //rlist();
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
+#ifdef PCSX
+  if (Config.HLE && start == 0x80001000) {
+    // XXX: is this enough? Maybe check hleSoftCall?
+    u_int page=get_page(start);
+    ll_add(jump_in+page,start,out);
+    invalid_code[start>>12]=0;
+    emit_movimm(start,0);
+    emit_writeword(0,(int)&pcaddr);
+    emit_jmp((int)new_dyna_leave); // enough??
+    return 0;
+  }
+  else if ((u_int)addr < 0x00200000) {
+    // used for BIOS calls mostly?
+    source = (u_int *)((u_int)rdram+start-0);
+    pagelimit = 0x00200000;
+  }
+  else
+#endif
 #ifdef MUPEN64
   if ((int)addr >= 0xa4000000 && (int)addr < 0xa4001000) {
     source = (u_int *)((u_int)SP_DMEM+start-0xa4000000);
@@ -7855,11 +7892,14 @@ int new_recompile_block(int addr)
       case 0x37: strcpy(insn[i],"LD"); type=LOAD; break;
       case 0x38: strcpy(insn[i],"SC"); type=NI; break;
       case 0x39: strcpy(insn[i],"SWC1"); type=C1LS; break;
+#ifdef PCSX
+      case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
+#endif
       case 0x3C: strcpy(insn[i],"SCD"); type=NI; break;
       case 0x3D: strcpy(insn[i],"SDC1"); type=C1LS; break;
       case 0x3F: strcpy(insn[i],"SD"); type=STORE; break;
       default: strcpy(insn[i],"???"); type=NI;
-        assem_debug("NI %08x @%08x\n", source[i], addr + i*4);
+        printf("NI %08x @%08x\n", source[i], addr + i*4);
         break;
     }
     itype[i]=type;
@@ -8063,6 +8103,7 @@ int new_recompile_block(int addr)
         rt2[i]=0;
         break;
       case SYSCALL:
+      case HLECALL:
         rs1[i]=CCREG;
         rs2[i]=0;
         rt1[i]=0;
@@ -8106,6 +8147,7 @@ int new_recompile_block(int addr)
       if(i>MAXBLOCK/2) done=1;
     }
     if(i>0&&itype[i-1]==SYSCALL&&stop_after_jal) done=1;
+    if(itype[i-1]==HLECALL) done=1;
     assert(i<MAXBLOCK-1);
     if(start+i*4==pagelimit-4) done=1;
     assert(start+i*4<pagelimit);
@@ -8704,6 +8746,7 @@ int new_recompile_block(int addr)
           fcomp_alloc(&current,i);
           break;
         case SYSCALL:
+        case HLECALL:
           syscall_alloc(&current,i);
           break;
         case SPAN:
@@ -9069,7 +9112,7 @@ int new_recompile_block(int addr)
 
     // Count cycles in between branches
     ccadj[i]=cc;
-    if(i>0&&(itype[i-1]==RJUMP||itype[i-1]==UJUMP||itype[i-1]==CJUMP||itype[i-1]==SJUMP||itype[i-1]==FJUMP||itype[i]==SYSCALL))
+    if(i>0&&(itype[i-1]==RJUMP||itype[i-1]==UJUMP||itype[i-1]==CJUMP||itype[i-1]==SJUMP||itype[i-1]==FJUMP||itype[i]==SYSCALL||itype[i]==HLECALL))
     {
       cc=0;
     }
@@ -9168,7 +9211,7 @@ int new_recompile_block(int addr)
         }
       }
     }
-    else if(itype[i]==SYSCALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
     {
       // SYSCALL instruction (software interrupt)
       nr=0;
@@ -9930,7 +9973,7 @@ int new_recompile_block(int addr)
         if((regs[i].was32>>dep2[i+1])&1) r32|=1LL<<dep2[i+1];
       }
     }
-    else if(itype[i]==SYSCALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
     {
       // SYSCALL instruction (software interrupt)
       r32=0;
@@ -10306,6 +10349,8 @@ int new_recompile_block(int addr)
           mov_assemble(i,&regs[i]);break;
         case SYSCALL:
           syscall_assemble(i,&regs[i]);break;
+        case HLECALL:
+          hlecall_assemble(i,&regs[i]);break;
         case UJUMP:
           ujump_assemble(i,&regs[i]);ds=1;break;
         case RJUMP:

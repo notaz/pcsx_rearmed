@@ -4,5 +4,5 @@
 #define PACKAGE_NAME "pcsx"
 #define PACKAGE_VERSION "1.9"
 #define DEF_PLUGIN_DIR "."
-#define EMU_LOG printf
+//#define EMU_LOG printf
 #define USEOSS

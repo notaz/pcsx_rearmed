@@ -3242,12 +3242,11 @@ void cop0_assemble(int i,struct regstat *i_regs)
     char copr=(source[i]>>11)&0x1f;
     //assert(t>=0); // Why does this happen?  OOT is weird
     if(t>=0) {
-#ifdef MUPEN64 /// FIXME
+#ifdef MUPEN64
       emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
       emit_movimm((source[i]>>11)&0x1f,1);
       emit_writeword(0,(int)&PC);
       emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
-#endif
       if(copr==9) {
         emit_readword((int)&last_count,ECX);
         emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
@@ -3257,6 +3256,9 @@ void cop0_assemble(int i,struct regstat *i_regs)
       }
       emit_call((int)MFC0);
       emit_readword((int)&readmem_dword,t);
+#else
+      emit_readword((int)&reg_cop0+copr*4,t);
+#endif
     }
   }
   else if(opcode2[i]==4) // MTC0
@@ -3272,7 +3274,11 @@ void cop0_assemble(int i,struct regstat *i_regs)
     emit_writeword(0,(int)&PC);
     emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
 #endif
-    if(copr==9||copr==11||copr==12) {
+#ifdef PCSX
+    emit_movimm(source[i],0);
+    emit_writeword(0,(int)&psxRegs.code);
+#endif
+    if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&last_count,ECX);
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
       emit_add(HOST_CCREG,ECX,HOST_CCREG);
@@ -3283,7 +3289,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     // so needs a special case to handle a pending interrupt.
     // The interrupt must be taken immediately, because a subsequent
     // instruction might disable interrupts again.
-    if(copr==12&&!is_delayslot) {
+    if(copr==12||copr==13) {
       emit_movimm(start+i*4+4,0);
       emit_movimm(0,1);
       emit_writeword(0,(int)&pcaddr);
@@ -3292,7 +3298,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     //else if(copr==12&&is_delayslot) emit_call((int)MTC0_R12);
     //else
     emit_call((int)MTC0);
-    if(copr==9||copr==11||copr==12) {
+    if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&Count,HOST_CCREG);
       emit_readword((int)&next_interupt,ECX);
       emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
@@ -3300,14 +3306,14 @@ void cop0_assemble(int i,struct regstat *i_regs)
       emit_writeword(ECX,(int)&last_count);
       emit_storereg(CCREG,HOST_CCREG);
     }
-    if(copr==12) {
+    if(copr==12||copr==13) {
       assert(!is_delayslot);
       emit_readword((int)&pending_exception,14);
     }
     emit_loadreg(rs1[i],s);
     if(get_reg(i_regs->regmap,rs1[i]|64)>=0)
       emit_loadreg(rs1[i]|64,get_reg(i_regs->regmap,rs1[i]|64));
-    if(copr==12) {
+    if(copr==12||copr==13) {
       emit_test(14,14);
       emit_jne((int)&do_interrupt);
     }

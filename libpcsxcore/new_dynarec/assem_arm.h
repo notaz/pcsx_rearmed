@@ -12,6 +12,7 @@
 //#define MUPEN64
 #define FORCE32 1
 #define DISABLE_COP1 1
+#define PCSX 1
 
 #ifdef FORCE32
 #define REG_SHIFT 2
@@ -45,7 +46,7 @@
 
 extern char *invc_ptr;
 
-#define BASE_ADDR 0x2000000 // Code generator target address
+#define BASE_ADDR 0x1000000 // Code generator target address
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 // This is defined in linkage_arm.s, but gcc -O3 likes this better
