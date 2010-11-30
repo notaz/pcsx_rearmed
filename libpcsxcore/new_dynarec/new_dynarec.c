@@ -2748,8 +2748,13 @@ void load_assemble(int i,struct regstat *i_regs)
           //gen_tlb_addr_r(tl,map);
           //emit_movsbl_indexed((int)rdram-0x80000000,tl,tl);
           int x=0;
+#ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,3,tl);
           else x=((constmap[i][s]+offset)^3)-(constmap[i][s]+offset);
+#else
+          if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+          else if (tl!=addr) emit_mov(addr,tl);
+#endif
           emit_movsbl_indexed_tlb(x,tl,map,tl);
         }
         if(jaddr)
@@ -2767,8 +2772,13 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           int x=0;
+#ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,2,tl);
           else x=((constmap[i][s]+offset)^2)-(constmap[i][s]+offset);
+#else
+          if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+          else if (tl!=addr) emit_mov(addr,tl);
+#endif
           //#ifdef
           //emit_movswl_indexed_tlb(x,tl,map,tl);
           //else
@@ -2811,8 +2821,13 @@ void load_assemble(int i,struct regstat *i_regs)
           //gen_tlb_addr_r(tl,map);
           //emit_movzbl_indexed((int)rdram-0x80000000,tl,tl);
           int x=0;
+#ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,3,tl);
           else x=((constmap[i][s]+offset)^3)-(constmap[i][s]+offset);
+#else
+          if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+          else if (tl!=addr) emit_mov(addr,tl);
+#endif
           emit_movzbl_indexed_tlb(x,tl,map,tl);
         }
         if(jaddr)
@@ -2830,8 +2845,13 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           int x=0;
+#ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,2,tl);
           else x=((constmap[i][s]+offset)^2)-(constmap[i][s]+offset);
+#else
+          if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+          else if (tl!=addr) emit_mov(addr,tl);
+#endif
           //#ifdef
           //emit_movzwl_indexed_tlb(x,tl,map,tl);
           //#else
@@ -2988,8 +3008,13 @@ void store_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x28) { // SB
     if(!c||memtarget) {
       int x=0;
+#ifdef BIG_ENDIAN_MIPS
       if(!c) emit_xorimm(addr,3,temp);
       else x=((constmap[i][s]+offset)^3)-(constmap[i][s]+offset);
+#else
+      if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+      else if (addr!=temp) emit_mov(addr,temp);
+#endif
       //gen_tlb_addr_w(temp,map);
       //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
       emit_writebyte_indexed_tlb(tl,x,temp,map,temp);
@@ -2999,8 +3024,13 @@ void store_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x29) { // SH
     if(!c||memtarget) {
       int x=0;
+#ifdef BIG_ENDIAN_MIPS
       if(!c) emit_xorimm(addr,2,temp);
       else x=((constmap[i][s]+offset)^2)-(constmap[i][s]+offset);
+#else
+      if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
+      else if (addr!=temp) emit_mov(addr,temp);
+#endif
       //#ifdef
       //emit_writehword_indexed_tlb(tl,x,temp,map,temp);
       //#else
@@ -3150,6 +3180,9 @@ void storelr_assemble(int i,struct regstat *i_regs)
       if(!rs2[i]) temp2=th=tl;
     }
 
+#ifndef BIG_ENDIAN_MIPS
+    emit_xorimm(temp,3,temp);
+#endif
     emit_testimm(temp,2);
     case2=(int)out;
     emit_jne(0);

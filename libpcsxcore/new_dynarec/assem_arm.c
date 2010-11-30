@@ -3174,7 +3174,12 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
       else
         inline_readstub(LOADW_STUB,i,(constmap[i][s]+offset)&0xFFFFFFFC,i_regs->regmap,FTEMP,ccadj[i],reglist);
       emit_andimm(temp,24,temp);
-      if (opcode[i]==0x26) emit_xorimm(temp,24,temp); // LWR
+#ifdef BIG_ENDIAN_MIPS
+      if (opcode[i]==0x26) // LWR
+#else
+      if (opcode[i]==0x22) // LWL
+#endif
+        emit_xorimm(temp,24,temp);
       emit_movimm(-1,HOST_TEMPREG);
       if (opcode[i]==0x26) {
         emit_shr(temp2,temp,temp2);
@@ -3187,6 +3192,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
       //emit_storereg(rt1[i],tl); // DEBUG
     }
     if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
+      // FIXME: little endian
       int temp2h=get_reg(i_regs->regmap,FTEMP|64);
       if(!c||memtarget) {
         //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,temp2,temp2h);
