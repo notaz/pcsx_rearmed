@@ -1,5 +1,5 @@
-// cycles after syscall/hle?
 // pending_exception?
+// swi 0 in do_unalignedwritestub?
 #include <stdio.h>
 
 #include "emu_if.h"
@@ -27,22 +27,15 @@ void MTC0_()
 void gen_interupt()
 {
 	evprintf("ari64_gen_interupt\n");
-	evprintf("  +ge %08x, %d->%d\n", psxRegs.pc, Count, next_interupt);
+	evprintf("  +ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 #ifdef DRC_DBG
 	psxRegs.cycle += 2;
-#else
-	psxRegs.cycle = Count; // stupid
 #endif
 
 	psxBranchTest();
 
-	if (psxRegs.cycle != Count) {
-		printf("psxRegs.cycle != Count: %d != %d\n", psxRegs.cycle, Count);
-		Count = psxRegs.cycle;
-	}
-
-	next_interupt = Count + psxNextCounter;
-	evprintf("  -ge %08x, %d->%d\n", psxRegs.pc, Count, next_interupt);
+	next_interupt = psxNextsCounter + psxNextCounter;
+	evprintf("  -ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 
 	pending_exception = 1; /* FIXME */
 }
@@ -126,18 +119,12 @@ static void ari64_reset()
 
 static void ari64_execute()
 {
-	/* TODO: get rid of this cycle counter copying */
-	Count = psxRegs.cycle;
-	next_interupt = Count + psxNextCounter;
+	next_interupt = psxNextsCounter + psxNextCounter;
 
-	evprintf("psxNextsCounter %d, psxNextCounter %d\n", psxNextsCounter, psxNextCounter);
-	evprintf("ari64_execute %08x, %d->%d\n", psxRegs.pc, Count, next_interupt);
+	evprintf("psxNextsCounter %d, psxNextCounter %d, Count %d\n", psxNextsCounter, psxNextCounter, psxRegs.CP0.r[9]);
+	evprintf("ari64_execute %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 	new_dyna_start(psxRegs.pc);
-	evprintf("ari64_execute end %08x, %d->%d\n", psxRegs.pc, Count, next_interupt);
-
-#ifndef DRC_DBG
-	psxRegs.cycle = Count;
-#endif
+	evprintf("ari64_execute end %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 }
 
 static void ari64_clear(u32 Addr, u32 Size)

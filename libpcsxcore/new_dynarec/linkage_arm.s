@@ -551,7 +551,8 @@ cc_interrupt:
 	str	r1, [fp, #pending_exception-dynarec_local]
 	and	r2, r2, r10, lsr #17
 	add	r3, fp, #restore_candidate-dynarec_local
-	str	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	str	r10, [fp, #cycle-dynarec_local] /* PCSX cycles */
+@@	str	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
 	ldr	r4, [r2, r3]
 	mov	r10, lr
 	tst	r4, r4
@@ -559,7 +560,7 @@ cc_interrupt:
 .E1:
 	bl	gen_interupt
 	mov	lr, r10
-	ldr	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	ldr	r10, [fp, #cycle-dynarec_local]
 	ldr	r0, [fp, #next_interupt-dynarec_local]
 	ldr	r1, [fp, #pending_exception-dynarec_local]
 	ldr	r2, [fp, #stop-dynarec_local]
@@ -597,7 +598,7 @@ do_interrupt:
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]
-	ldr	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	ldr	r10, [fp, #cycle-dynarec_local]
 	str	r1, [fp, #last_count-dynarec_local]
 	sub	r10, r10, r1
 	add	r10, r10, #2
@@ -655,13 +656,16 @@ jump_syscall_hle:
 	add	r2, r2, r10
 	mov	r0, #0x20 /* cause */
 	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
-	str	r2, [fp, #reg_cop0+36-dynarec_local] /* Count */
 	bl	psxException
 
 	/* note: psxException might do recorsive recompiler call from it's HLE code,
 	 * so be ready for this */
+pcsx_return:
+	ldr	r1, [fp, #next_interupt-dynarec_local]
+	ldr	r10, [fp, #cycle-dynarec_local]
 	ldr	r0, [fp, #pcaddr-dynarec_local]
-	mov	r10, #0 /* FIXME */
+	sub	r10, r10, r1
+	str	r1, [fp, #last_count-dynarec_local]
 	bl	get_addr_ht
 	mov	pc, r0
 	.size	jump_syscall_hle, .-jump_syscall_hle
@@ -676,14 +680,8 @@ jump_hlecall:
 	add	r2, r2, r10
 	ldr	r3, [fp, #psxHLEt_addr-dynarec_local] /* psxHLEt */
 	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
-	str	r2, [fp, #reg_cop0+36-dynarec_local] /* Count */
-	mov	lr, pc
+	adr	lr, pcsx_return
 	ldr	pc, [r3, r1, lsl #2]
-
-	ldr	r0, [fp, #pcaddr-dynarec_local]
-	mov	r10, #0 /* FIXME */
-	bl	get_addr_ht
-	mov	pc, r0
 	.size	jump_hlecall, .-jump_hlecall
 
 new_dyna_leave:
@@ -693,10 +691,11 @@ new_dyna_leave:
 	ldr	r0, [fp, #last_count-dynarec_local]
 	add	r12, fp, #28
 	add	r10, r0, r10
-	str	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	str	r10, [fp, #cycle-dynarec_local]
 	ldmia	r12, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
 	.size	new_dyna_leave, .-new_dyna_leave
 
+	/* these are used to call memhandlers */
 	.align	2
 	.global	indirect_jump_indexed
 	.type	indirect_jump_indexed, %function
@@ -707,7 +706,7 @@ indirect_jump_indexed:
 indirect_jump:
 	ldr	r12, [fp, #last_count-dynarec_local]
 	add	r2, r2, r12 
-	str	r2, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	str	r2, [fp, #cycle-dynarec_local]
 	mov	pc, r0
 	.size	indirect_jump, .-indirect_jump
 	.size	indirect_jump_indexed, .-indirect_jump_indexed
@@ -721,7 +720,7 @@ jump_eret:
 	bic	r1, r1, #2
 	add	r10, r0, r10
 	str	r1, [fp, #reg_cop0+48-dynarec_local] /* Status */
-	str	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	str	r10, [fp, #cycle-dynarec_local]
 	bl	check_interupt
 	ldr	r1, [fp, #next_interupt-dynarec_local]
 	ldr	r0, [fp, #reg_cop0+56-dynarec_local] /* EPC */
@@ -749,7 +748,7 @@ new_dyna_start:
 	/*bl	new_recompile_block*/
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]
-	ldr	r10, [fp, #reg_cop0+36-dynarec_local] /* Count */
+	ldr	r10, [fp, #cycle-dynarec_local]
 	str	r1, [fp, #last_count-dynarec_local]
 	sub	r10, r10, r1
 	mov	pc, r0

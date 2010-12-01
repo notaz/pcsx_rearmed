@@ -21,7 +21,7 @@ extern int reg_cop0[];
 #define BadVAddr psxRegs.CP0.n.BadVAddr
 #define Context  psxRegs.CP0.n.Context
 #define EntryHi  psxRegs.CP0.n.EntryHi
-#define Count    psxRegs.CP0.n.Count
+#define Count    psxRegs.cycle // psxRegs.CP0.n.Count
 
 /* dummy */
 extern int FCR0, FCR31;
