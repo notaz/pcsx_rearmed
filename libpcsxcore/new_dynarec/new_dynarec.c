@@ -2952,7 +2952,7 @@ void store_assemble(int i,struct regstat *i_regs)
   int addr,temp;
   int offset;
   int jaddr=0,jaddr2,type;
-  int memtarget,c=0;
+  int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rs2[i]|64);
@@ -3068,6 +3068,9 @@ void store_assemble(int i,struct regstat *i_regs)
     }
     type=STORED_STUB;
   }
+  if(!using_tlb&&(!c||memtarget))
+    // addr could be a temp, make sure it survives STORE*_STUB
+    reglist|=1<<addr;
   if(jaddr) {
     add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
   } else if(!memtarget) {
