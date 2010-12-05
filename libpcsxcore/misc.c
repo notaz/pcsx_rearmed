@@ -54,7 +54,9 @@ struct iso_directory_record {
 void mmssdd( char *b, char *p )
 {
 	int m, s, d;
-#if defined(__BIGENDIAN__)
+#if defined(__arm__)
+	int block = (b[3] << 24) | (b[2] << 16) | (b[1] << 8) | b[0];
+#elif defined(__BIGENDIAN__)
 	int block = (b[0] & 0xff) | ((b[1] & 0xff) << 8) | ((b[2] & 0xff) << 16) | (b[3] << 24);
 #else
 	int block = *((int*)b);
