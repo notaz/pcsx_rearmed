@@ -3708,9 +3708,9 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   assert(ccreg==HOST_CCREG);
   assert(!is_delayslot);
   emit_movimm(start+i*4+4,0); // Get PC
-  emit_movimm(source[i],1); // opcode
+  emit_movimm((int)psxHLEt[source[i]&7],1);
   emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG); // XXX
-  emit_jmp((int)jump_hlecall); // XXX
+  emit_jmp((int)jump_hlecall);
 }
 
 void ds_assemble(int i,struct regstat *i_regs)

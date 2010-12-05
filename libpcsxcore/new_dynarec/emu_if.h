@@ -54,4 +54,4 @@ void MTC0_();
 #define MTC0 MTC0_ /* don't call interpreter with wrong args */
 
 /* misc */
-extern void *psxHLEt_addr;
+extern void (*psxHLEt[])();

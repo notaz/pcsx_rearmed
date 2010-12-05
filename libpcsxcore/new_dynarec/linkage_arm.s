@@ -60,7 +60,6 @@ rdram = 0x80000000
 	.global	memory_map
 	/* psx */
 	.global psxRegs
-	.global psxHLEt_addr
 
 	.bss
 	.align	4
@@ -151,13 +150,10 @@ intCycle = interrupt + 4
 	.size	intCycle, 128
 psxRegs_end = intCycle + 128
 
-psxHLEt_addr = psxRegs_end
-	.type	psxHLEt_addr, %object
-	.size	psxHLEt_addr, 4
-align0 = psxHLEt_addr + 4 /* just for alignment */
+align0 = psxRegs_end /* just for alignment */
 	.type	align0, %object
-	.size	align0, 4
-branch_target = align0 + 4
+	.size	align0, 8
+branch_target = align0 + 8
 	.type	branch_target, %object
 	.size	branch_target, 4
 mini_ht = branch_target + 4
@@ -676,12 +672,10 @@ pcsx_return:
 jump_hlecall:
 	ldr	r2, [fp, #last_count-dynarec_local]
 	str	r0, [fp, #pcaddr-dynarec_local]
-	and	r1, r1, #7
 	add	r2, r2, r10
-	ldr	r3, [fp, #psxHLEt_addr-dynarec_local] /* psxHLEt */
 	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
 	adr	lr, pcsx_return
-	ldr	pc, [r3, r1, lsl #2] @ FIXME
+	bx	r1
 	.size	jump_hlecall, .-jump_hlecall
 
 new_dyna_leave:

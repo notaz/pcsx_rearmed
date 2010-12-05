@@ -123,7 +123,6 @@ static int ari64_init()
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
 
-	psxHLEt_addr = (void *)psxHLEt; // FIXME: rm
 	return 0;
 }
 
@@ -187,7 +186,6 @@ unsigned short hword;
 unsigned char byte;
 int pending_exception;
 unsigned int next_interupt;
-void *psxHLEt_addr;
 void new_dynarec_init() {}
 int  new_dyna_start() {}
 void new_dynarec_cleanup() {}
