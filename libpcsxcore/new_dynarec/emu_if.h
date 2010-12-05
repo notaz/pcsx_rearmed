@@ -23,6 +23,11 @@ extern int reg_cop0[];
 #define EntryHi  psxRegs.CP0.n.EntryHi
 #define Count    psxRegs.cycle // psxRegs.CP0.n.Count
 
+/* COP2/GTE */
+extern int reg_cop2d[], reg_cop2c[];
+extern void *gte_handlers[64];
+extern const char gte_cycletab[64];
+
 /* dummy */
 extern int FCR0, FCR31;
 

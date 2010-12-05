@@ -135,7 +135,7 @@ struct ll_entry
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
 #define TEMPREG 38
-#define FTEMP 38 // FPU temporary register
+#define FTEMP 38 // FPU/LDL/LDR temporary register
 #define PTEMP 39 // Prefetch temporary register
 #define TLREG 40 // TLB mapping offset
 #define RHASH 41 // Return address hash
@@ -176,6 +176,9 @@ struct ll_entry
 #define SPAN 24   // Branch/delay slot spans 2 pages
 #define NI 25     // Not implemented
 #define HLECALL 26// PCSX fake opcodes for HLE
+#define COP2 27   // Coprocessor 2 move
+#define C2LS 28   // Coprocessor 2 load/store
+#define C2OP 29   // Coprocessor 2 operation
 
   /* stubs */
 #define CC_STUB 1
@@ -633,7 +636,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     }
     // On some architectures stores need invc_ptr
     #if defined(HOST_IMM8)
-    if(itype[i+j]==STORE || itype[i+j]==STORELR || (opcode[i+j]&0x3b)==0x39) {
+    if(itype[i+j]==STORE || itype[i+j]==STORELR || (opcode[i+j]&0x3b)==0x39 || (opcode[i+j]&0x3b)==0x3a) {
       hsn[INVCP]=j;
     }
     #endif
@@ -670,7 +673,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[RHTBL]=1;
   }
   // Coprocessor load/store needs FTEMP, even if not declared
-  if(itype[i]==C1LS) {
+  if(itype[i]==C1LS||itype[i]==C2LS) {
     hsn[FTEMP]=0;
   }
   // Load L/R also uses FTEMP as a temporary register
@@ -682,7 +685,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[FTEMP]=0;
   }
   // Don't remove the TLB registers either
-  if(itype[i]==LOAD || itype[i]==LOADLR || itype[i]==STORE || itype[i]==STORELR || itype[i]==C1LS ) {
+  if(itype[i]==LOAD || itype[i]==LOADLR || itype[i]==STORE || itype[i]==STORELR || itype[i]==C1LS || itype[i]==C2LS) {
     hsn[TLREG]=0;
   }
   // Don't remove the miniht registers
@@ -1646,6 +1649,22 @@ void c1ls_alloc(struct regstat *current,int i)
   alloc_reg_temp(current,i,-1);
 }
 
+void c2ls_alloc(struct regstat *current,int i)
+{
+  clear_const(current,rt1[i]);
+  if(needed_again(rs1[i],i)) alloc_reg(current,i,rs1[i]);
+  alloc_reg(current,i,FTEMP);
+  // If using TLB, need a register for pointer to the mapping table
+  if(using_tlb) alloc_reg(current,i,TLREG);
+  #if defined(HOST_IMM8)
+  // On CPUs without 32-bit immediates we need a pointer to invalid_code
+  else if((opcode[i]&0x3b)==0x3a) // SWC2/SDC2
+    alloc_reg(current,i,INVCP);
+  #endif
+  // We need a temporary register for address generation
+  alloc_reg_temp(current,i,-1);
+}
+
 #ifndef multdiv_alloc
 void multdiv_alloc(struct regstat *current,int i)
 {
@@ -1783,6 +1802,10 @@ void float_alloc(struct regstat *current,int i)
   alloc_reg(current,i,CSREG); // Load status
   alloc_reg_temp(current,i,-1);
 }
+void c2op_alloc(struct regstat *current,int i)
+{
+  alloc_reg_temp(current,i,-1);
+}
 void fcomp_alloc(struct regstat *current,int i)
 {
   alloc_reg(current,i,CSREG); // Load status
@@ -1844,10 +1867,14 @@ void delayslot_alloc(struct regstat *current,int i)
       cop0_alloc(current,i);
       break;
     case COP1:
+    case COP2:
       cop1_alloc(current,i);
       break;
     case C1LS:
       c1ls_alloc(current,i);
+      break;
+    case C2LS:
+      c2ls_alloc(current,i);
       break;
     case FCONV:
       fconv_alloc(current,i);
@@ -1857,6 +1884,9 @@ void delayslot_alloc(struct regstat *current,int i)
       break;
     case FCOMP:
       fcomp_alloc(current,i);
+      break;
+    case C2OP:
+      c2op_alloc(current,i);
       break;
   }
 }
@@ -3534,6 +3564,87 @@ void c1ls_assemble(int i,struct regstat *i_regs)
 #endif
 }
 
+void c2ls_assemble(int i,struct regstat *i_regs)
+{
+  int s,tl;
+  int ar;
+  int offset;
+  int c=0;
+  int jaddr,jaddr2=0,jaddr3,type;
+  int agr=AGEN1+(i&1);
+  u_int hr,reglist=0;
+  u_int copr=(source[i]>>16)&0x1f;
+  s=get_reg(i_regs->regmap,rs1[i]);
+  tl=get_reg(i_regs->regmap,FTEMP);
+  offset=imm[i];
+  assert(rs1[i]>0);
+  assert(tl>=0);
+  assert(!using_tlb);
+
+  for(hr=0;hr<HOST_REGS;hr++) {
+    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
+  }
+  if(i_regs->regmap[HOST_CCREG]==CCREG)
+    reglist&=~(1<<HOST_CCREG);
+
+  // get the address
+  if (opcode[i]==0x3a) { // SWC2
+    ar=get_reg(i_regs->regmap,agr);
+    if(ar<0) ar=get_reg(i_regs->regmap,-1);
+    reglist|=1<<ar;
+  } else { // LWC2
+    ar=tl;
+  }
+  if (!offset&&!c&&s>=0) ar=s;
+  assert(ar>=0);
+
+  if (opcode[i]==0x3a) { // SWC2
+    cop2_get_dreg(copr,tl,HOST_TEMPREG);
+  }
+  if(s>=0) c=(i_regs->wasconst>>s)&1;
+  if(!c) {
+    emit_cmpimm(offset||c||s<0?ar:s,0x800000);
+    jaddr2=(int)out;
+    emit_jno(0);
+  }
+  else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80800000) {
+    jaddr2=(int)out;
+    emit_jmp(0); // inline_readstub/inline_writestub?  Very rare case
+  }
+  if (opcode[i]==0x32) { // LWC2
+    #ifdef HOST_IMM_ADDR32
+    if(c) emit_readword_tlb(constmap[i][s]+offset,-1,tl);
+    else
+    #endif
+    emit_readword_indexed(0,ar,tl);
+    type=LOADW_STUB;
+  }
+  if (opcode[i]==0x3a) { // SWC2
+#ifdef DESTRUCTIVE_SHIFT
+    if(!offset&&!c&&s>=0) emit_mov(s,ar);
+#endif
+    emit_writeword_indexed(tl,0,ar);
+    type=STOREW_STUB;
+  }
+  if(jaddr2)
+    add_stub(type,jaddr2,(int)out,i,ar,(int)i_regs,ccadj[i],reglist);
+  if (opcode[i]==0x3a) { // SWC2
+#if defined(HOST_IMM8)
+    int ir=get_reg(i_regs->regmap,INVCP);
+    assert(ir>=0);
+    emit_cmpmem_indexedsr12_reg(ir,ar,1);
+#else
+    emit_cmpmem_indexedsr12_imm((int)invalid_code,ar,1);
+#endif
+    jaddr3=(int)out;
+    emit_jne(0);
+    add_stub(INVCODE_STUB,jaddr3,(int)out,reglist|(1<<HOST_CCREG),ar,0,0,0);
+  }
+  if (opcode[i]==0x32) { // LWC2
+    cop2_put_dreg(copr,tl,HOST_TEMPREG);
+  }
+}
+
 #ifndef multdiv_assemble
 void multdiv_assemble(int i,struct regstat *i_regs)
 {
@@ -3628,6 +3739,12 @@ void ds_assemble(int i,struct regstat *i_regs)
       cop1_assemble(i,i_regs);break;
     case C1LS:
       c1ls_assemble(i,i_regs);break;
+    case COP2:
+      cop2_assemble(i,i_regs);break;
+    case C2LS:
+      c2ls_assemble(i,i_regs);break;
+    case C2OP:
+      c2op_assemble(i,i_regs);break;
     case FCONV:
       fconv_assemble(i,i_regs);break;
     case FLOAT:
@@ -3797,9 +3914,10 @@ static void loop_preload(signed char pre[],signed char entry[])
 }
 
 // Generate address for load/store instruction
+// goes to AGEN for writes, FTEMP for LOADLR and cop1/2 loads
 void address_generation(int i,struct regstat *i_regs,signed char entry[])
 {
-  if(itype[i]==LOAD||itype[i]==LOADLR||itype[i]==STORE||itype[i]==STORELR||itype[i]==C1LS) {
+  if(itype[i]==LOAD||itype[i]==LOADLR||itype[i]==STORE||itype[i]==STORELR||itype[i]==C1LS||itype[i]==C2LS) {
     int ra;
     int agr=AGEN1+(i&1);
     int mgr=MGEN1+(i&1);
@@ -3814,8 +3932,8 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
       ra=get_reg(i_regs->regmap,agr);
       if(ra<0) ra=get_reg(i_regs->regmap,-1);
     }
-    if(itype[i]==C1LS) {
-      if (opcode[i]==0x31||opcode[i]==0x35) // LWC1/LDC1
+    if(itype[i]==C1LS||itype[i]==C2LS) {
+      if ((opcode[i]&0x3b)==0x31||(opcode[i]&0x3b)==0x32) // LWC1/LDC1/LWC2/LDC2
         ra=get_reg(i_regs->regmap,FTEMP);
       else { // SWC1/SDC1
         ra=get_reg(i_regs->regmap,agr);
@@ -3853,7 +3971,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
       else if(c) {
         if(rm>=0) {
           if(!entry||entry[rm]!=mgr) {
-            if(itype[i]==STORE||itype[i]==STORELR||opcode[i]==0x39||opcode[i]==0x3D) {
+            if(itype[i]==STORE||itype[i]==STORELR||(opcode[i]&0x3b)==0x39||(opcode[i]&0x3b)==0x3a) {
               // Stores to memory go thru the mapper to detect self-modifying
               // code, loads don't.
               if((unsigned int)(constmap[i][rs]+offset)>=0xC0000000 ||
@@ -3873,7 +3991,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
               emit_movimm((constmap[i][rs]+offset)&0xFFFFFFF8,ra); // LDL/LDR
             }else{
               #ifdef HOST_IMM_ADDR32
-              if((itype[i]!=LOAD&&opcode[i]!=0x31&&opcode[i]!=0x35) ||
+              if((itype[i]!=LOAD&&(opcode[i]&0x3b)!=0x31&&(opcode[i]&0x3b)!=0x32) || // LWC1/LDC1/LWC2/LDC2
                  (using_tlb&&((signed int)constmap[i][rs]+offset)>=(signed int)0xC0000000))
               #endif
               emit_movimm(constmap[i][rs]+offset,ra);
@@ -3891,7 +4009,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
     }
   }
   // Preload constants for next instruction
-  if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS) {
+  if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS||itype[i+1]==C2LS) {
     int agr,ra;
     #ifndef HOST_IMM_ADDR32
     // Mapper entry
@@ -3902,7 +4020,8 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
       int offset=imm[i+1];
       int c=(regs[i+1].wasconst>>rs)&1;
       if(c) {
-        if(itype[i+1]==STORE||itype[i+1]==STORELR||opcode[i+1]==0x39||opcode[i+1]==0x3D) {
+        if(itype[i+1]==STORE||itype[i+1]==STORELR
+           ||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a) { // SWC1/SDC1, SWC2/SDC2
           // Stores to memory go thru the mapper to detect self-modifying
           // code, loads don't.
           if((unsigned int)(constmap[i+1][rs]+offset)>=0xC0000000 ||
@@ -3932,7 +4051,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
           emit_movimm((constmap[i+1][rs]+offset)&0xFFFFFFF8,ra); // LDL/LDR
         }else{
           #ifdef HOST_IMM_ADDR32
-          if((itype[i+1]!=LOAD&&opcode[i+1]!=0x31&&opcode[i+1]!=0x35) ||
+          if((itype[i+1]!=LOAD&&(opcode[i+1]&0x3b)!=0x31&&(opcode[i+1]&0x3b)!=0x32) || // LWC1/LDC1/LWC2/LDC2
              (using_tlb&&((signed int)constmap[i+1][rs]+offset)>=(signed int)0xC0000000))
           #endif
           emit_movimm(constmap[i+1][rs]+offset,ra);
@@ -4446,7 +4565,7 @@ void ds_assemble_entry(int i)
     wb_register(CCREG,regs[t].regmap_entry,regs[t].wasdirty,regs[t].was32);
   load_regs(regs[t].regmap_entry,regs[t].regmap,regs[t].was32,rs1[t],rs2[t]);
   address_generation(t,&regs[t],regs[t].regmap_entry);
-  if(itype[t]==STORE||itype[t]==STORELR||(opcode[t]&0x3b)==0x39)
+  if(itype[t]==STORE||itype[t]==STORELR||(opcode[t]&0x3b)==0x39||(opcode[t]&0x3b)==0x3a)
     load_regs(regs[t].regmap_entry,regs[t].regmap,regs[t].was32,INVCP,INVCP);
   cop1_usable=0;
   is_delayslot=0;
@@ -4473,6 +4592,12 @@ void ds_assemble_entry(int i)
       cop1_assemble(t,&regs[t]);break;
     case C1LS:
       c1ls_assemble(t,&regs[t]);break;
+    case COP2:
+      cop2_assemble(t,&regs[t]);break;
+    case C2LS:
+      c2ls_assemble(t,&regs[t]);break;
+    case C2OP:
+      c2op_assemble(t,&regs[t]);break;
     case FCONV:
       fconv_assemble(t,&regs[t]);break;
     case FLOAT:
@@ -6272,7 +6397,7 @@ static void pagespan_ds()
     emit_writeword(HOST_BTREG,(int)&branch_target);
   load_regs(regs[0].regmap_entry,regs[0].regmap,regs[0].was32,rs1[0],rs2[0]);
   address_generation(0,&regs[0],regs[0].regmap_entry);
-  if(itype[0]==STORE||itype[0]==STORELR||(opcode[0]&0x3b)==0x39)
+  if(itype[0]==STORE||itype[0]==STORELR||(opcode[0]&0x3b)==0x39||(opcode[0]&0x3b)==0x3a)
     load_regs(regs[0].regmap_entry,regs[0].regmap,regs[0].was32,INVCP,INVCP);
   cop1_usable=0;
   is_delayslot=0;
@@ -6299,6 +6424,12 @@ static void pagespan_ds()
       cop1_assemble(0,&regs[0]);break;
     case C1LS:
       c1ls_assemble(0,&regs[0]);break;
+    case COP2:
+      cop2_assemble(0,&regs[0]);break;
+    case C2LS:
+      c2ls_assemble(0,&regs[0]);break;
+    case C2OP:
+      c2op_assemble(0,&regs[0]);break;
     case FCONV:
       fconv_assemble(0,&regs[0]);break;
     case FLOAT:
@@ -6780,17 +6911,20 @@ static void provisional_32bit()
         if(op2==0) is32|=1LL<<rt; // MFC0
         break;
       case COP1:
+      case COP2:
         if(op2==0) is32|=1LL<<rt; // MFC1
         if(op2==1) is32&=~(1LL<<rt); // DMFC1
         if(op2==2) is32|=1LL<<rt; // CFC1
         break;
       case C1LS:
+      case C2LS:
         break;
       case FLOAT:
       case FCONV:
         break;
       case FCOMP:
         break;
+      case C2OP:
       case SYSCALL:
       case HLECALL:
         break;
@@ -7433,8 +7567,18 @@ void disassemble_inst(int i)
           printf (" %x: %s r%d,cpr1[%d]\n",start+i*4,insn[i],rs1[i],(source[i]>>11)&0x1f); // MTC1
         else printf (" %x: %s\n",start+i*4,insn[i]);
         break;
+      case COP2:
+        if(opcode2[i]<3)
+          printf (" %x: %s r%d,cpr2[%d]\n",start+i*4,insn[i],rt1[i],(source[i]>>11)&0x1f); // MFC2
+        else if(opcode2[i]>3)
+          printf (" %x: %s r%d,cpr2[%d]\n",start+i*4,insn[i],rs1[i],(source[i]>>11)&0x1f); // MTC2
+        else printf (" %x: %s\n",start+i*4,insn[i]);
+        break;
       case C1LS:
         printf (" %x: %s cpr1[%d],r%d+%x\n",start+i*4,insn[i],(source[i]>>16)&0x1f,rs1[i],imm[i]);
+        break;
+      case C2LS:
+        printf (" %x: %s cpr2[%d],r%d+%x\n",start+i*4,insn[i],(source[i]>>16)&0x1f,rs1[i],imm[i]);
         break;
       default:
         //printf (" %s %8x\n",insn[i],source[i]);
@@ -7895,12 +8039,30 @@ int new_recompile_block(int addr)
       case 0x37: strcpy(insn[i],"LD"); type=LOAD; break;
       case 0x38: strcpy(insn[i],"SC"); type=NI; break;
       case 0x39: strcpy(insn[i],"SWC1"); type=C1LS; break;
-#ifdef PCSX
-      case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
-#endif
       case 0x3C: strcpy(insn[i],"SCD"); type=NI; break;
       case 0x3D: strcpy(insn[i],"SDC1"); type=C1LS; break;
       case 0x3F: strcpy(insn[i],"SD"); type=STORE; break;
+#ifdef PCSX
+      case 0x12: strcpy(insn[i],"COP2"); type=NI;
+        op2=(source[i]>>21)&0x1f;
+        switch(op2)
+        {
+          case 0x00: strcpy(insn[i],"MFC2"); type=COP2; break;
+          case 0x02: strcpy(insn[i],"CFC2"); type=COP2; break;
+          case 0x04: strcpy(insn[i],"MTC2"); type=COP2; break;
+          case 0x06: strcpy(insn[i],"CTC2"); type=COP2; break;
+          default:
+            if (gte_handlers[source[i]&0x3f]!=NULL) {
+              snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
+              type=C2OP;
+            }
+            break;
+        }
+        break;
+      case 0x32: strcpy(insn[i],"LWC2"); type=C2LS; break;
+      case 0x3A: strcpy(insn[i],"SWC2"); type=C2LS; break;
+      case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
+#endif
       default: strcpy(insn[i],"???"); type=NI;
         printf("NI %08x @%08x\n", source[i], addr + i*4);
         break;
@@ -8076,6 +8238,7 @@ int new_recompile_block(int addr)
         if(op2==16) if((source[i]&0x3f)==0x18) rs2[i]=CCREG; // ERET
         break;
       case COP1:
+      case COP2:
         rs1[i]=0;
         rs2[i]=0;
         rt1[i]=0;
@@ -8088,6 +8251,13 @@ int new_recompile_block(int addr)
       case C1LS:
         rs1[i]=(source[i]>>21)&0x1F;
         rs2[i]=CSREG;
+        rt1[i]=0;
+        rt2[i]=0;
+        imm[i]=(short)source[i];
+        break;
+      case C2LS:
+        rs1[i]=(source[i]>>21)&0x1F;
+        rs2[i]=0;
         rt1[i]=0;
         rt2[i]=0;
         imm[i]=(short)source[i];
@@ -8734,10 +8904,17 @@ int new_recompile_block(int addr)
           cop0_alloc(&current,i);
           break;
         case COP1:
+        case COP2:
           cop1_alloc(&current,i);
           break;
         case C1LS:
           c1ls_alloc(&current,i);
+          break;
+        case C2LS:
+          c2ls_alloc(&current,i);
+          break;
+        case C2OP:
+          c2op_alloc(&current,i);
           break;
         case FCONV:
           fconv_alloc(&current,i);
@@ -9208,7 +9385,7 @@ int new_recompile_block(int addr)
           if(dep1[i+1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
           if(dep2[i+1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
         }
-        if(itype[i+1]==STORE || itype[i+1]==STORELR || (opcode[i+1]&0x3b)==0x39) {
+        if(itype[i+1]==STORE || itype[i+1]==STORELR || (opcode[i+1]&0x3b)==0x39 || (opcode[i+1]&0x3b)==0x3a) {
           if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
           if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
         }
@@ -9258,7 +9435,7 @@ int new_recompile_block(int addr)
         if(dep2[i]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
         if(dep2[i]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
       }
-      if(itype[i]==STORE || itype[i]==STORELR || (opcode[i]&0x3b)==0x39) {
+      if(itype[i]==STORE || itype[i]==STORELR || (opcode[i]&0x3b)==0x39 || (opcode[i]&0x3b)==0x3a) {
         if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
         if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
       }
@@ -9316,14 +9493,15 @@ int new_recompile_block(int addr)
           if(using_tlb) {
             if(itype[i+1]==LOAD || itype[i+1]==LOADLR ||
                itype[i+1]==STORE || itype[i+1]==STORELR ||
-               itype[i+1]==C1LS )
+               itype[i+1]==C1LS || itype[i+1]==C2LS)
             map=TLREG;
           } else
-          if(itype[i+1]==STORE || itype[i+1]==STORELR || (opcode[i+1]&0x3b)==0x39) {
+          if(itype[i+1]==STORE || itype[i+1]==STORELR ||
+             (opcode[i+1]&0x3b)==0x39 || (opcode[i+1]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
             map=INVCP;
           }
           if(itype[i+1]==LOADLR || itype[i+1]==STORELR ||
-             itype[i+1]==C1LS )
+             itype[i+1]==C1LS || itype[i+1]==C2LS)
             temp=FTEMP;
           if((regs[i].regmap[hr]&63)!=rs1[i] && (regs[i].regmap[hr]&63)!=rs2[i] &&
              (regs[i].regmap[hr]&63)!=rt1[i] && (regs[i].regmap[hr]&63)!=rt2[i] &&
@@ -9374,13 +9552,14 @@ int new_recompile_block(int addr)
             if(using_tlb) {
               if(itype[i]==LOAD || itype[i]==LOADLR ||
                  itype[i]==STORE || itype[i]==STORELR ||
-                 itype[i]==C1LS )
+                 itype[i]==C1LS || itype[i]==C2LS)
               map=TLREG;
-            } else if(itype[i]==STORE || itype[i]==STORELR || (opcode[i]&0x3b)==0x39) {
+            } else if(itype[i]==STORE || itype[i]==STORELR ||
+                      (opcode[i]&0x3b)==0x39 || (opcode[i]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
               map=INVCP;
             }
             if(itype[i]==LOADLR || itype[i]==STORELR ||
-               itype[i]==C1LS )
+               itype[i]==C1LS || itype[i]==C2LS)
               temp=FTEMP;
             if((regs[i].regmap[hr]&63)!=rt1[i] && (regs[i].regmap[hr]&63)!=rt2[i] &&
                (regs[i].regmap[hr]^64)!=us1[i] && (regs[i].regmap[hr]^64)!=us2[i] &&
@@ -9426,7 +9605,8 @@ int new_recompile_block(int addr)
       ||itype[i+1]==SHIFTIMM||itype[i+1]==IMM16||itype[i+1]==LOAD
       ||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS
       ||itype[i+1]==SHIFT||itype[i+1]==COP1||itype[i+1]==FLOAT
-      ||itype[i+1]==FCOMP||itype[i+1]==FCONV)
+      ||itype[i+1]==FCOMP||itype[i+1]==FCONV
+      ||itype[i+1]==COP2||itype[i+1]==C2LS||itype[i+1]==C2OP)
       {
         int t=(ba[i]-start)>>2;
         if(t>0&&(itype[t-1]!=UJUMP&&itype[t-1]!=RJUMP&&itype[t-1]!=CJUMP&&itype[t-1]!=SJUMP&&itype[t-1]!=FJUMP)) // loop_preload can't handle jumps into delay slots
@@ -9447,7 +9627,8 @@ int new_recompile_block(int addr)
           else if(branch_regs[i].regmap[hr]>=0) f_regmap[hr]=branch_regs[i].regmap[hr];
           if(itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS
           ||itype[i+1]==SHIFT||itype[i+1]==COP1||itype[i+1]==FLOAT
-          ||itype[i+1]==FCOMP||itype[i+1]==FCONV)
+          ||itype[i+1]==FCOMP||itype[i+1]==FCONV
+          ||itype[i+1]==COP2||itype[i+1]==C2LS||itype[i+1]==C2OP)
           {
             // Test both in case the delay slot is ooo,
             // could be done better...
@@ -9486,8 +9667,8 @@ int new_recompile_block(int addr)
                     while(k>1&&regs[k-1].regmap[hr]==-1) {
                       if(itype[k-1]==STORE||itype[k-1]==STORELR
                       ||itype[k-1]==C1LS||itype[k-1]==SHIFT||itype[k-1]==COP1
-                      ||itype[k-1]==FLOAT||itype[k-1]==FCONV
-                      ||itype[k-1]==FCOMP) {
+                      ||itype[k-1]==FLOAT||itype[k-1]==FCONV||itype[k-1]==FCOMP
+                      ||itype[k-1]==COP2||itype[k-1]==C2LS||itype[k-1]==C2OP) {
                         if(count_free_regs(regs[k-1].regmap)<2) {
                           //printf("no free regs for store %x\n",start+(k-1)*4);
                           break;
@@ -9596,7 +9777,8 @@ int new_recompile_block(int addr)
                 }
                 if(itype[j]==STORE||itype[j]==STORELR||itype[j]==C1LS
                 ||itype[j]==SHIFT||itype[j]==COP1||itype[j]==FLOAT
-                ||itype[j]==FCOMP||itype[j]==FCONV) {
+                ||itype[j]==FCOMP||itype[j]==FCONV
+                ||itype[j]==COP2||itype[j]==C2LS||itype[j]==C2OP) {
                   if(count_free_regs(regs[j].regmap)<2) {
                     //printf("No free regs for store %x\n",start+j*4);
                     break;
@@ -9638,7 +9820,8 @@ int new_recompile_block(int addr)
           if(regs[j].regmap[HOST_CCREG]!=-1) break;
           if(itype[j]==STORE||itype[j]==STORELR||itype[j]==C1LS
           ||itype[j]==SHIFT||itype[j]==COP1||itype[j]==FLOAT
-          ||itype[j]==FCOMP||itype[j]==FCONV) {
+          ||itype[j]==FCOMP||itype[j]==FCONV
+          ||itype[j]==COP2||itype[j]==C2LS||itype[j]==C2OP) {
             if(count_free_regs(regs[j].regmap)<2) {
               //printf("no free regs for store %x\n",start+j*4);
               break;
@@ -9671,7 +9854,8 @@ int new_recompile_block(int addr)
           while(regs[k-1].regmap[HOST_CCREG]==-1) {
             if(itype[k-1]==STORE||itype[k-1]==STORELR||itype[k-1]==C1LS
             ||itype[k-1]==SHIFT||itype[k-1]==COP1||itype[k-1]==FLOAT
-            ||itype[k-1]==FCONV||itype[k-1]==FCOMP) {
+            ||itype[k-1]==FCONV||itype[k-1]==FCOMP
+            ||itype[k-1]==COP2||itype[k-1]==C2LS||itype[k-1]==C2OP) {
               if(count_free_regs(regs[k-1].regmap)<2) {
                 //printf("no free regs for store %x\n",start+(k-1)*4);
                 break;
@@ -9702,7 +9886,8 @@ int new_recompile_block(int addr)
       if(itype[i]!=STORE&&itype[i]!=STORELR&&itype[i]!=C1LS&&itype[i]!=SHIFT&&
          itype[i]!=NOP&&itype[i]!=MOV&&itype[i]!=ALU&&itype[i]!=SHIFTIMM&&
          itype[i]!=IMM16&&itype[i]!=LOAD&&itype[i]!=COP1&&itype[i]!=FLOAT&&
-         itype[i]!=FCONV&&itype[i]!=FCOMP)
+         itype[i]!=FCONV&&itype[i]!=FCOMP&&
+         itype[i]!=COP2&&itype[i]!=C2LS&&itype[i]!=C2OP)
       {
         memcpy(f_regmap,regs[i].regmap,sizeof(f_regmap));
       }
@@ -9717,7 +9902,8 @@ int new_recompile_block(int addr)
     {
       if(!bt[i+1])
       {
-        if(itype[i]==ALU||itype[i]==MOV||itype[i]==LOAD||itype[i]==SHIFTIMM||itype[i]==IMM16||(itype[i]==COP1&&opcode2[i]<3))
+        if(itype[i]==ALU||itype[i]==MOV||itype[i]==LOAD||itype[i]==SHIFTIMM||itype[i]==IMM16
+           ||((itype[i]==COP1||itype[i]==COP2)&&opcode2[i]<3))
         {
           if(rs1[i+1]) {
             if((hr=get_reg(regs[i+1].regmap,rs1[i+1]))>=0)
@@ -9784,7 +9970,7 @@ int new_recompile_block(int addr)
             }
           }
           #ifndef HOST_IMM_ADDR32
-          if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS) {
+          if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS||itype[i+1]==C2LS) {
             hr=get_reg(regs[i+1].regmap,TLREG);
             if(hr>=0) {
               int sr=get_reg(regs[i+1].regmap,rs1[i+1]);
@@ -9822,7 +10008,8 @@ int new_recompile_block(int addr)
             }
           }
           #endif
-          if(itype[i+1]==STORE||itype[i+1]==STORELR||opcode[i+1]==0x39||opcode[i+1]==0x3D) { // SB/SH/SW/SD/SWC1/SDC1
+          if(itype[i+1]==STORE||itype[i+1]==STORELR
+             ||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a) { // SB/SH/SW/SD/SWC1/SDC1/SWC2/SDC2
             if(get_reg(regs[i+1].regmap,rs1[i+1])<0) {
               hr=get_reg2(regs[i].regmap,regs[i+1].regmap,-1);
               if(hr<0) hr=get_reg(regs[i+1].regmap,-1);
@@ -9841,7 +10028,7 @@ int new_recompile_block(int addr)
               }
             }
           }
-          if(itype[i+1]==LOADLR||opcode[i+1]==0x31||opcode[i+1]==0x35) { // LWC1/LDC1
+          if(itype[i+1]==LOADLR||(opcode[i+1]&0x3b)==0x31||(opcode[i+1]&0x3b)==0x32) { // LWC1/LDC1, LWC2/LDC2
             if(get_reg(regs[i+1].regmap,rs1[i+1])<0) {
               int nr;
               hr=get_reg(regs[i+1].regmap,FTEMP);
@@ -9876,12 +10063,12 @@ int new_recompile_block(int addr)
               }
             }
           }
-          if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR/*||itype[i+1]==C1LS*/) {
+          if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR/*||itype[i+1]==C1LS||||itype[i+1]==C2LS*/) {
             if(itype[i+1]==LOAD) 
               hr=get_reg(regs[i+1].regmap,rt1[i+1]);
-            if(itype[i+1]==LOADLR||opcode[i+1]==0x31||opcode[i+1]==0x35) // LWC1/LDC1
+            if(itype[i+1]==LOADLR||(opcode[i+1]&0x3b)==0x31||(opcode[i+1]&0x3b)==0x32) // LWC1/LDC1, LWC2/LDC2
               hr=get_reg(regs[i+1].regmap,FTEMP);
-            if(itype[i+1]==STORE||itype[i+1]==STORELR||opcode[i+1]==0x39||opcode[i+1]==0x3D) { // SWC1/SDC1
+            if(itype[i+1]==STORE||itype[i+1]==STORELR||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a) { // SWC1/SDC1/SWC2/SDC2
               hr=get_reg(regs[i+1].regmap,AGEN1+((i+1)&1));
               if(hr<0) hr=get_reg(regs[i+1].regmap,-1);
             }
@@ -10297,7 +10484,7 @@ int new_recompile_block(int addr)
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,rs1[i+1],rs1[i+1]);
         if(rs2[i+1]!=rs1[i+1]&&rs2[i+1]!=rs1[i]&&rs2[i+1]!=rs2[i])
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,rs2[i+1],rs2[i+1]);
-        if(itype[i+1]==STORE||itype[i+1]==STORELR||(opcode[i+1]&0x3b)==0x39)
+        if(itype[i+1]==STORE||itype[i+1]==STORELR||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a)
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,INVCP,INVCP);
       }
       else if(i+1<slen)
@@ -10313,7 +10500,7 @@ int new_recompile_block(int addr)
       // TODO: if(is_ooo(i)) address_generation(i+1);
       if(itype[i]==CJUMP||itype[i]==FJUMP)
         load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,CCREG,CCREG);
-      if(itype[i]==STORE||itype[i]==STORELR||(opcode[i]&0x3b)==0x39)
+      if(itype[i]==STORE||itype[i]==STORELR||(opcode[i]&0x3b)==0x39||(opcode[i]&0x3b)==0x3a)
         load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,INVCP,INVCP);
       if(bt[i]) cop1_usable=0;
       // assemble
@@ -10340,6 +10527,12 @@ int new_recompile_block(int addr)
           cop1_assemble(i,&regs[i]);break;
         case C1LS:
           c1ls_assemble(i,&regs[i]);break;
+        case COP2:
+          cop2_assemble(i,&regs[i]);break;
+        case C2LS:
+          c2ls_assemble(i,&regs[i]);break;
+        case C2OP:
+          c2op_assemble(i,&regs[i]);break;
         case FCONV:
           fconv_assemble(i,&regs[i]);break;
         case FLOAT:
@@ -10610,3 +10803,5 @@ int new_recompile_block(int addr)
   }
   return 0;
 }
+
+// vim:shiftwidth=2:expandtab

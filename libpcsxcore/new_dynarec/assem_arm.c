@@ -965,10 +965,24 @@ void emit_testimm(int rs,int imm)
   output_w32(0xe3100000|rd_rn_rm(0,rs,0)|armval);
 }
 
+void emit_testeqimm(int rs,int imm)
+{
+  u_int armval;
+  assem_debug("tsteq %s,$%d\n",regname[rs],imm);
+  assert(genimm(imm,&armval));
+  output_w32(0x03100000|rd_rn_rm(0,rs,0)|armval);
+}
+
 void emit_not(int rs,int rt)
 {
   assem_debug("mvn %s,%s\n",regname[rt],regname[rs]);
   output_w32(0xe1e00000|rd_rn_rm(rt,0,rs));
+}
+
+void emit_mvnmi(int rs,int rt)
+{
+  assem_debug("mvnmi %s,%s\n",regname[rt],regname[rs]);
+  output_w32(0x41e00000|rd_rn_rm(rt,0,rs));
 }
 
 void emit_and(u_int rs1,u_int rs2,u_int rt)
@@ -1281,6 +1295,17 @@ void emit_shrdimm(int rs,int rs2,u_int imm,int rt)
   output_w32(0xe1a00020|rd_rn_rm(rt,0,rs)|(imm<<7));
   assem_debug("orr %s,%s,%s,lsl #%d\n",regname[rt],regname[rt],regname[rs2],32-imm);
   output_w32(0xe1800000|rd_rn_rm(rt,rt,rs2)|((32-imm)<<7));
+}
+
+void emit_signextend16(int rs,int rt)
+{
+  #ifdef ARMv5_ONLY
+  emit_shlimm(rs,16,rt);
+  emit_sarimm(rt,16,rt);
+  #else
+  assem_debug("sxth %s,%s\n",regname[rt],regname[rs]);
+  output_w32(0xe6bf0070|rd_rn_rm(rt,0,rs));
+  #endif
 }
 
 void emit_shl(u_int rs,u_int shift,u_int rt)
@@ -2364,6 +2389,22 @@ void emit_orrvs_imm(int rs,int imm,int rt)
   output_w32(0x63800000|rd_rn_rm(rt,rs,0)|armval);
 }
 
+void emit_orrne_imm(int rs,int imm,int rt)
+{
+  u_int armval;
+  assert(genimm(imm,&armval));
+  assem_debug("orrne %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0x13800000|rd_rn_rm(rt,rs,0)|armval);
+}
+
+void emit_andne_imm(int rs,int imm,int rt)
+{
+  u_int armval;
+  assert(genimm(imm,&armval));
+  assem_debug("andne %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0x12000000|rd_rn_rm(rt,rs,0)|armval);
+}
+
 void emit_jno_unlikely(int a)
 {
   //emit_jno(a);
@@ -2506,7 +2547,7 @@ do_readstub(int n)
   int addr=get_reg(i_regmap,AGEN1+(i&1));
   int rth,rt;
   int ds;
-  if(itype[i]==C1LS||itype[i]==LOADLR) {
+  if(itype[i]==C1LS||itype[i]==C2LS||itype[i]==LOADLR) {
     rth=get_reg(i_regmap,FTEMP|64);
     rt=get_reg(i_regmap,FTEMP);
   }else{
@@ -2667,7 +2708,7 @@ do_writestub(int n)
   int addr=get_reg(i_regmap,AGEN1+(i&1));
   int rth,rt,r;
   int ds;
-  if(itype[i]==C1LS) {
+  if(itype[i]==C1LS||itype[i]==C2LS) {
     rth=get_reg(i_regmap,FTEMP|64);
     rt=get_reg(i_regmap,r=FTEMP);
   }else{
@@ -3350,7 +3391,177 @@ void cop0_assemble(int i,struct regstat *i_regs)
   }
 }
 
-void cop1_unusable(int i, struct regstat *i_regs)
+static void cop2_get_dreg(u_int copr,signed char tl,signed char temp)
+{
+  switch (copr) {
+    case 1:
+    case 3:
+    case 5:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+      emit_readword((int)&reg_cop2d[copr],tl);
+      emit_signextend16(tl,tl);
+      emit_writeword(tl,(int)&reg_cop2d[copr]); // hmh
+      break;
+    case 7:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+      emit_readword((int)&reg_cop2d[copr],tl);
+      emit_andimm(tl,0xffff,tl);
+      emit_writeword(tl,(int)&reg_cop2d[copr]);
+      break;
+    case 15:
+      emit_readword((int)&reg_cop2d[14],tl); // SXY2
+      emit_writeword(tl,(int)&reg_cop2d[copr]);
+      break;
+    case 28:
+    case 30:
+      emit_movimm(0,tl);
+      break;
+    case 29:
+      emit_readword((int)&reg_cop2d[9],temp);
+      emit_testimm(temp,0x8000); // do we need this?
+      emit_andimm(temp,0xf80,temp);
+      emit_andne_imm(temp,0,temp);
+      emit_shr(temp,7,tl);
+      emit_readword((int)&reg_cop2d[10],temp);
+      emit_testimm(temp,0x8000);
+      emit_andimm(temp,0xf80,temp);
+      emit_andne_imm(temp,0,temp);
+      emit_orrshr(temp,2,tl);
+      emit_readword((int)&reg_cop2d[11],temp);
+      emit_testimm(temp,0x8000);
+      emit_andimm(temp,0xf80,temp);
+      emit_andne_imm(temp,0,temp);
+      emit_orrshl(temp,3,tl);
+      emit_writeword(tl,(int)&reg_cop2d[copr]);
+      break;
+    default:
+      emit_readword((int)&reg_cop2d[copr],tl);
+      break;
+  }
+}
+
+static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
+{
+  switch (copr) {
+    case 15:
+      emit_readword((int)&reg_cop2d[13],temp);  // SXY1
+      emit_writeword(sl,(int)&reg_cop2d[copr]);
+      emit_writeword(temp,(int)&reg_cop2d[12]); // SXY0
+      emit_readword((int)&reg_cop2d[14],temp);  // SXY2
+      emit_writeword(sl,(int)&reg_cop2d[14]);
+      emit_writeword(temp,(int)&reg_cop2d[13]); // SXY1
+      break;
+    case 28:
+      emit_andimm(sl,0x001f,temp);
+      emit_shl(temp,7,temp);
+      emit_writeword(temp,(int)&reg_cop2d[9]);
+      emit_andimm(sl,0x03e0,temp);
+      emit_shl(temp,2,temp);
+      emit_writeword(temp,(int)&reg_cop2d[10]);
+      emit_andimm(sl,0x7c00,temp);
+      emit_shr(temp,3,temp);
+      emit_writeword(temp,(int)&reg_cop2d[11]);
+      emit_writeword(sl,(int)&reg_cop2d[28]);
+      break;
+    case 30:
+      emit_movs(sl,temp);
+      emit_mvnmi(temp,temp);
+      emit_clz(temp,temp);
+      emit_writeword(sl,(int)&reg_cop2d[30]);
+      emit_writeword(temp,(int)&reg_cop2d[31]);
+      break;
+    case 7:
+    case 29:
+    case 31:
+      break;
+    default:
+      emit_writeword(sl,(int)&reg_cop2d[copr]);
+      break;
+  }
+}
+
+void cop2_assemble(int i,struct regstat *i_regs)
+{
+  u_int copr=(source[i]>>11)&0x1f;
+  signed char temp=get_reg(i_regs->regmap,-1);
+  if (opcode2[i]==0) { // MFC2
+    signed char tl=get_reg(i_regs->regmap,rt1[i]);
+    if(tl>=0)
+      cop2_get_dreg(copr,tl,temp);
+  }
+  else if (opcode2[i]==4) { // MTC2
+    signed char sl=get_reg(i_regs->regmap,rs1[i]);
+    cop2_put_dreg(copr,sl,temp);
+  }
+  else if (opcode2[i]==2) // CFC2
+  {
+    signed char tl=get_reg(i_regs->regmap,rt1[i]);
+    if(tl>=0)
+      emit_readword((int)&reg_cop2c[copr],tl);
+  }
+  else if (opcode2[i]==6) // CTC2
+  {
+    signed char sl=get_reg(i_regs->regmap,rs1[i]);
+    switch(copr) {
+      case 4:
+      case 12:
+      case 20:
+      case 26:
+      case 27:
+      case 29:
+      case 30:
+        emit_signextend16(sl,temp);
+        break;
+      case 31:
+        //value = value & 0x7ffff000;
+        //if (value & 0x7f87e000) value |= 0x80000000;
+        emit_shrimm(sl,12,temp);
+        emit_shlimm(temp,12,temp);
+        emit_testimm(temp,0x7f000000);
+        emit_testeqimm(temp,0x00870000);
+        emit_testeqimm(temp,0x0000e000);
+        emit_orrne_imm(temp,0x80000000,temp);
+        break;
+      default:
+        temp=sl;
+        break;
+    }
+    emit_writeword(temp,(int)&reg_cop2c[copr]);
+    assert(sl>=0);
+  }
+}
+
+void c2op_assemble(int i,struct regstat *i_regs)
+{
+  signed char temp=get_reg(i_regs->regmap,-1);
+  u_int c2op=source[i]&0x3f;
+  u_int hr,reglist=0;
+  for(hr=0;hr<HOST_REGS;hr++) {
+    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
+  }
+  if(i==0||itype[i-1]!=C2OP)
+    save_regs(reglist);
+
+  if (gte_handlers[c2op]!=NULL) {
+    int cc=get_reg(i_regs->regmap,CCREG);
+    emit_movimm(source[i],temp); // opcode
+    if (cc>=0&&gte_cycletab[c2op])
+      emit_addimm(cc,gte_cycletab[c2op]/2,cc); // XXX: cound just adjust ccadj?
+    emit_writeword(temp,(int)&psxRegs.code);
+    emit_call((int)gte_handlers[c2op]);
+  }
+
+  if(i>=slen-1||itype[i+1]!=C2OP)
+    restore_regs(reglist);
+}
+
+void cop1_unusable(int i,struct regstat *i_regs)
 {
   // XXX: should just just do the exception instead
   if(!cop1_usable) {
@@ -4442,3 +4653,5 @@ void arch_init() {
   rounding_modes[3]=0x2<<22; // floor
 #endif
 }
+
+// vim:shiftwidth=2:expandtab

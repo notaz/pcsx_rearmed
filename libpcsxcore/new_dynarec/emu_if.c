@@ -11,15 +11,13 @@
 //#define evprintf printf
 #define evprintf(...)
 
-//#define DRC_DBG
-
 char invalid_code[0x100000];
 
 void MTC0_()
 {
 	extern void psxMTC0();
 
-	printf("ari64 MTC0 %08x\n", psxRegs.code);
+	memprintf("ari64 MTC0 %08x\n", psxRegs.code);
 	psxMTC0();
 	pending_exception = 1; /* FIXME? */
 }
@@ -93,10 +91,23 @@ void (*writemem[0x10000])();
 void (*writememb[0x10000])();
 void (*writememh[0x10000])();
 
+void *gte_handlers[64];
+
+/* from gte.txt.. not sure if this is any good. */
+const char gte_cycletab[64] = {
+	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
+	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
+	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
+	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
+	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
+};
 
 static int ari64_init()
 {
+	extern void (*psxCP2[64])();
+	extern void psxNULL();
 	size_t i;
+
 	new_dynarec_init();
 
 	for (i = 0; i < sizeof(readmem) / sizeof(readmem[0]); i++) {
@@ -108,7 +119,12 @@ static int ari64_init()
 		writemem[i] = write_mem32;
 	}
 
-	psxHLEt_addr = (void *)psxHLEt;
+	for (i = 0; i < sizeof(gte_handlers) / sizeof(gte_handlers[0]); i++)
+		if (psxCP2[i] != psxNULL)
+			gte_handlers[i] = psxCP2[i];
+
+	psxHLEt_addr = (void *)psxHLEt; // FIXME: rm
+	return 0;
 }
 
 static void ari64_reset()
@@ -121,9 +137,9 @@ static void ari64_execute()
 {
 	next_interupt = psxNextsCounter + psxNextCounter;
 
-	evprintf("psxNextsCounter %d, psxNextCounter %d, Count %d\n", psxNextsCounter, psxNextCounter, psxRegs.CP0.r[9]);
+	evprintf("psxNextsCounter %d, psxNextCounter %d\n", psxNextsCounter, psxNextCounter);
 	evprintf("ari64_execute %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
-	new_dyna_start(psxRegs.pc);
+	new_dyna_start();
 	evprintf("ari64_execute end %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 }
 

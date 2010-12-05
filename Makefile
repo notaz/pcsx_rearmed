@@ -11,6 +11,9 @@ endif
 ifndef DEBUG
 CFLAGS += -O2
 endif
+ifdef DRC_DBG
+CFLAGS += -DDRC_DBG
+endif
 TARGET = pcsx
 
 all: $(TARGET)

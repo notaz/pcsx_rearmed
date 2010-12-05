@@ -35,6 +35,8 @@ rdram = 0x80000000
 	.global	hi
 	.global	lo
 	.global reg_cop0
+	.global reg_cop2d
+	.global reg_cop2c
 	.global	FCR0
 	.global	FCR31
 	.global	next_interupt
@@ -59,7 +61,6 @@ rdram = 0x80000000
 	/* psx */
 	.global psxRegs
 	.global psxHLEt_addr
-	.global code
 
 	.bss
 	.align	4
@@ -139,7 +140,6 @@ pcaddr = PC
 code = PC + 4
 	.type	code, %object
 	.size	code, 4
-.global cycle
 cycle = code + 4
 	.type	cycle, %object
 	.size	cycle, 4
@@ -681,7 +681,7 @@ jump_hlecall:
 	ldr	r3, [fp, #psxHLEt_addr-dynarec_local] /* psxHLEt */
 	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
 	adr	lr, pcsx_return
-	ldr	pc, [r3, r1, lsl #2]
+	ldr	pc, [r3, r1, lsl #2] @ FIXME
 	.size	jump_hlecall, .-jump_hlecall
 
 new_dyna_leave:
