@@ -187,7 +187,7 @@ unsigned char byte;
 int pending_exception;
 unsigned int next_interupt;
 void new_dynarec_init() {}
-int  new_dyna_start() {}
+void new_dyna_start() {}
 void new_dynarec_cleanup() {}
 #endif
 
@@ -200,6 +200,8 @@ extern u32 last_io_addr;
 static void dump_mem(const char *fname, void *mem, size_t size)
 {
 	FILE *f1 = fopen(fname, "wb");
+	if (f1 == NULL)
+		f1 = fopen(strrchr(fname, '/') + 1, "wb");
 	fwrite(mem, 1, size, f1);
 	fclose(f1);
 }
@@ -277,6 +279,25 @@ static const char *regnames[offsetof(psxRegisters, intCycle) / 4] = {
 	"PC", "code", "cycle", "interrupt",
 };
 
+static struct {
+	int reg;
+	u32 val, val_expect;
+	u32 pc, cycle;
+} miss_log[64];
+static int miss_log_i;
+#define miss_log_len (sizeof(miss_log)/sizeof(miss_log[0]))
+#define miss_log_mask (miss_log_len-1)
+
+static void miss_log_add(int reg, u32 val, u32 val_expect, u32 pc, u32 cycle)
+{
+	miss_log[miss_log_i].reg = reg;
+	miss_log[miss_log_i].val = val;
+	miss_log[miss_log_i].val_expect = val_expect;
+	miss_log[miss_log_i].pc = pc;
+	miss_log[miss_log_i].cycle = cycle;
+	miss_log_i = (miss_log_i + 1) & miss_log_mask;
+}
+
 void breakme() {}
 
 void do_insn_cmp(void)
@@ -336,8 +357,7 @@ psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
 	for (i = 0; i < offsetof(psxRegisters, intCycle) / 4; i++) {
 		if (allregs_p[i] != allregs_e[i]) {
-			printf("bad %5s: %08x %08x, pc=%08x, cycle %u\n",
-				regnames[i], allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
+			miss_log_add(i, allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
 			bad++;
 		}
 	}
@@ -348,12 +368,24 @@ psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 	}
 
 	if (psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
-		printf("-- %d\n", bad);
+		static int last_mcycle;
+		if (last_mcycle != psxRegs.cycle >> 20) {
+			printf("%u\n", psxRegs.cycle);
+			last_mcycle = psxRegs.cycle >> 20;
+		}
 		failcount++;
 		goto ok;
 	}
 
 end:
+	for (i = 0; i < miss_log_len; i++, miss_log_i = (miss_log_i + 1) & miss_log_mask)
+		printf("bad %5s: %08x %08x, pc=%08x, cycle %u\n",
+			regnames[miss_log[miss_log_i].reg], miss_log[miss_log_i].val,
+			miss_log[miss_log_i].val_expect, miss_log[miss_log_i].pc, miss_log[miss_log_i].cycle);
+	printf("-- %d\n", bad);
+	for (i = 0; i < 8; i++)
+		printf("r%d=%08x r%2d=%08x r%2d=%08x r%2d=%08x\n", i, allregs_p[i],
+			i+8, allregs_p[i+8], i+16, allregs_p[i+16], i+24, allregs_p[i+23]);
 	printf("PC: %08x/%08x, cycle %u\n", psxRegs.pc, ppc, psxRegs.cycle);
 	dump_mem("/mnt/ntz/dev/pnd/tmp/psxram.dump", psxM, 0x200000);
 	dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);

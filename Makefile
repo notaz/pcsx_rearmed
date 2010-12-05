@@ -11,9 +11,7 @@ endif
 ifndef DEBUG
 CFLAGS += -O2
 endif
-ifdef DRC_DBG
-CFLAGS += -DDRC_DBG
-endif
+#DRC_DBG = 1
 TARGET = pcsx
 
 all: $(TARGET)
@@ -31,6 +29,10 @@ OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_ar
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
+ifdef DRC_DBG
+libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
+CFLAGS += -DDRC_DBG
+endif
 
 # spu
 OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/oss.o plugins/dfsound/reverb.o \
