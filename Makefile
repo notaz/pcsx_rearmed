@@ -56,6 +56,9 @@ OBJS += frontend/linux/fbdev.o
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
+spunull.so: plugins/spunull/spunull.c
+	$(CC) $(CFLAGS) -shared -fPIC -o $@ $^
+
 clean:
 	$(RM) $(TARGET) $(OBJS)
 
