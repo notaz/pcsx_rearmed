@@ -6,12 +6,15 @@
 #include "../psxmem.h"
 #include "../psxhle.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
 //#define memprintf printf
 #define memprintf(...)
 //#define evprintf printf
 #define evprintf(...)
 
 char invalid_code[0x100000];
+u32 event_cycles[6];
 
 void MTC0_()
 {
@@ -24,6 +27,9 @@ void MTC0_()
 
 void gen_interupt()
 {
+	u32 c, min;
+	int i;
+
 	evprintf("ari64_gen_interupt\n");
 	evprintf("  +ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 #ifdef DRC_DBG
@@ -32,7 +38,16 @@ void gen_interupt()
 
 	psxBranchTest();
 
-	next_interupt = psxNextsCounter + psxNextCounter;
+	min = psxNextsCounter + psxNextCounter;
+	for (i = 0; i < ARRAY_SIZE(event_cycles); i++) {
+		c = event_cycles[i];
+		evprintf("  ev %d\n", c - psxRegs.cycle);
+		if (psxRegs.cycle < c && c < min)
+			min = c;
+	}
+	next_interupt = min;
+
+	//next_interupt = psxNextsCounter + psxNextCounter;
 	evprintf("  -ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 
 	pending_exception = 1; /* FIXME */
@@ -110,7 +125,7 @@ static int ari64_init()
 
 	new_dynarec_init();
 
-	for (i = 0; i < sizeof(readmem) / sizeof(readmem[0]); i++) {
+	for (i = 0; i < ARRAY_SIZE(readmem); i++) {
 		readmemb[i] = read_mem8;
 		readmemh[i] = read_mem16;
 		readmem[i] = read_mem32;
@@ -119,7 +134,7 @@ static int ari64_init()
 		writemem[i] = write_mem32;
 	}
 
-	for (i = 0; i < sizeof(gte_handlers) / sizeof(gte_handlers[0]); i++)
+	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
 
