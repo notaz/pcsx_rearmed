@@ -1908,9 +1908,9 @@ static void pagespan_alloc(struct regstat *current,int i)
   if(opcode[i]==0&&(opcode2[i]&0x3E)==8) // JR/JALR
   {
     alloc_reg(current,i,rs1[i]);
-    if (rt1[i]==31) {
-      alloc_reg(current,i,31);
-      dirty_reg(current,31);
+    if (rt1[i]!=0) {
+      alloc_reg(current,i,rt1[i]);
+      dirty_reg(current,rt1[i]);
     }
   }
   if((opcode[i]&0x2E)==4) // BEQ/BNE/BEQL/BNEL
@@ -5076,11 +5076,11 @@ void rjump_assemble(int i,struct regstat *i_regs)
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
                 bc_unneeded,bc_unneeded_upper);
   load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,rs1[i],CCREG);
-  if(rt1[i]==31) {
+  if(rt1[i]!=0) {
     int rt,return_address;
-    assert(rt1[i+1]!=31);
-    assert(rt2[i+1]!=31);
-    rt=get_reg(branch_regs[i].regmap,31);
+    assert(rt1[i+1]!=rt1[i]);
+    assert(rt2[i+1]!=rt1[i]);
+    rt=get_reg(branch_regs[i].regmap,rt1[i]);
     assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
     assert(rt>=0);
     return_address=start+i*4+8;
@@ -6196,7 +6196,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
     emit_mov(s1l,addr);
     if(opcode2[i]==9) // JALR
     {
-      int rt=get_reg(i_regs->regmap,31);
+      int rt=get_reg(i_regs->regmap,rt1[i]);
       emit_movimm(start+i*4+8,rt);
     }
   }
@@ -7518,7 +7518,11 @@ void disassemble_inst(int i)
       case FJUMP:
         printf (" %x: %s %8x\n",start+i*4,insn[i],ba[i]);break;
       case RJUMP:
-        printf (" %x: %s r%d\n",start+i*4,insn[i],rs1[i]);break;
+        if (rt1[i]!=31)
+          printf (" %x: %s r%d,r%d\n",start+i*4,insn[i],rt1[i],rs1[i]);
+        else
+          printf (" %x: %s r%d\n",start+i*4,insn[i],rs1[i]);
+        break;
       case SPAN:
         printf (" %x: %s (pagespan) r%d,r%d,%8x\n",start+i*4,insn[i],rs1[i],rs2[i],ba[i]);break;
       case IMM16:
@@ -8134,9 +8138,9 @@ int new_recompile_block(int addr)
         rs2[i]=0;
         rt1[i]=0;
         rt2[i]=0;
-        // The JALR instruction writes to r31.
+        // The JALR instruction writes to rd.
         if (op2&1) {
-          rt1[i]=31;   
+          rt1[i]=(source[i]>>11)&0x1f;
         }
         rs2[i]=CCREG;
         break;
@@ -8300,7 +8304,7 @@ int new_recompile_block(int addr)
     else ba[i]=-1;
     /* Is this the end of the block? */
     if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000)) {
-      if(rt1[i-1]!=31) { // Continue past subroutine call (JAL)
+      if(rt1[i-1]==0) { // Continue past subroutine call (JAL)
         done=1;
         // Does the block continue due to a branch?
         for(j=i-1;j>=0;j--)
@@ -8643,9 +8647,9 @@ int new_recompile_block(int addr)
           dirty_reg(&current,CCREG);
           if(rs1[i]!=rt1[i+1]&&rs1[i]!=rt2[i+1]) {
             alloc_reg(&current,i,rs1[i]);
-            if (rt1[i]==31) {
-              alloc_reg(&current,i,31);
-              dirty_reg(&current,31);
+            if (rt1[i]!=0) {
+              alloc_reg(&current,i,rt1[i]);
+              dirty_reg(&current,rt1[i]);
               assert(rs1[i+1]!=31&&rs2[i+1]!=31);
               #ifdef REG_PREFETCH
               alloc_reg(&current,i,PTEMP);
@@ -9033,10 +9037,10 @@ int new_recompile_block(int addr)
           alloc_cc(&branch_regs[i-1],i-1);
           dirty_reg(&branch_regs[i-1],CCREG);
           alloc_reg(&branch_regs[i-1],i-1,rs1[i-1]);
-          if(rt1[i-1]==31) { // JALR
-            alloc_reg(&branch_regs[i-1],i-1,31);
-            dirty_reg(&branch_regs[i-1],31);
-            branch_regs[i-1].is32|=1LL<<31;
+          if(rt1[i-1]!=0) { // JALR
+            alloc_reg(&branch_regs[i-1],i-1,rt1[i-1]);
+            dirty_reg(&branch_regs[i-1],rt1[i-1]);
+            branch_regs[i-1].is32|=1LL<<rt1[i-1];
           }
           #ifdef USE_MINI_HT
           if(rs1[i-1]==31) { // JALR
