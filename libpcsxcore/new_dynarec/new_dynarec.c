@@ -7711,12 +7711,16 @@ int new_recompile_block(int addr)
 #ifdef PCSX
   if (Config.HLE && start == 0x80001000) {
     // XXX: is this enough? Maybe check hleSoftCall?
+    u_int beginning=(u_int)out;
     u_int page=get_page(start);
     ll_add(jump_in+page,start,out);
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,(int)&pcaddr);
-    emit_jmp((int)new_dyna_leave); // enough??
+    emit_jmp((int)new_dyna_leave);
+#ifdef __arm__
+    __clear_cache((void *)beginning,out);
+#endif
     return 0;
   }
   else if ((u_int)addr < 0x00200000) {
