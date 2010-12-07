@@ -7,6 +7,7 @@ CFLAGS += -ggdb -Ifrontend
 LDFLAGS += -lz -lpthread -ldl
 ifdef CROSS_COMPILE
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
+ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 endif
 ifndef DEBUG
 CFLAGS += -O2
@@ -55,6 +56,9 @@ OBJS += gui/Config.o gui/Plugin.o
 
 OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
 OBJS += frontend/linux/fbdev.o
+ifdef CROSS_COMPILE
+OBJS += frontend/arm_utils.o
+endif
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map

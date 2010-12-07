@@ -36,15 +36,22 @@ PSXPoint_t     ptCursorPoint[8];
 unsigned short usCursorActive = 0;
 char *         pCaptionText;
 
+#ifndef __arm__
+#define bgr555_to_rgb565 memcpy
+#endif
 
 static void blit(void)
 {
+ extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
  int x = PSXDisplay.DisplayPosition.x;
  int y = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;
  int pitch = PreviousPSXDisplay.DisplayMode.x * 2;
  unsigned char *dest = pl_fbdev_buf;
+
+ if (w <= 0)
+   return;
 
  // TODO: clear border if centering
 
@@ -57,7 +64,7 @@ static void blit(void)
    unsigned short *srcs = psxVuw + y * 1024 + x;
    for (; h-- > 0; dest += pitch, srcs += 1024)
    {
-     memcpy(dest, srcs, w * 2);
+     bgr555_to_rgb565(dest, srcs, w * 2);
    }
  }
 }
