@@ -1226,13 +1226,12 @@ void emit_orimm(int rs,int imm,int rt)
 
 void emit_xorimm(int rs,int imm,int rt)
 {
-  assert(imm>0&&imm<65536);
   u_int armval;
   if(genimm(imm,&armval)) {
     assem_debug("eor %s,%s,#%d\n",regname[rt],regname[rs],imm);
     output_w32(0xe2200000|rd_rn_rm(rt,rs,0)|armval);
   }else{
-    assert(imm>0);
+    assert(imm>0&&imm<65536);
     assem_debug("eor %s,%s,#%d\n",regname[rt],regname[rs],imm&0xFF00);
     assem_debug("eor %s,%s,#%d\n",regname[rt],regname[rs],imm&0xFF);
     output_w32(0xe2200000|rd_rn_imm_shift(rt,rs,imm>>8,8));
