@@ -6697,9 +6697,6 @@ void unneeded_registers(int istart,int iend,int r)
     // Save it
     unneeded_reg[i]=u;
     unneeded_reg_upper[i]=uu;
-#ifdef FORCE32
-    unneeded_reg_upper[i]=-1LL;
-#endif
     /*
     printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
     printf("U:");
@@ -6721,6 +6718,12 @@ void unneeded_registers(int istart,int iend,int r)
     }
     printf("\n");*/
   }
+#ifdef FORCE32
+  for (i=iend;i>=istart;i--)
+  {
+    unneeded_reg_upper[i]=branch_unneeded_reg_upper[i]=-1LL;
+  }
+#endif
 }
 
 // Identify registers which are likely to contain 32-bit values
