@@ -33,21 +33,21 @@ extern "C" {
 	psxRegs.interrupt |= 0x01000000; \
 	psxRegs.intCycle[3 + 24 + 1] = eCycle; \
 	psxRegs.intCycle[3 + 24] = psxRegs.cycle; \
-	new_dyna_set_event(3, psxRegs.cycle + eCycle); \
+	new_dyna_set_event(3, eCycle); \
 }
 
 #define SPUDMA_INT(eCycle) { \
     psxRegs.interrupt |= 0x04000000; \
     psxRegs.intCycle[1 + 24 + 1] = eCycle; \
     psxRegs.intCycle[1 + 24] = psxRegs.cycle; \
-    new_dyna_set_event(5, psxRegs.cycle + eCycle); \
+    new_dyna_set_event(5, eCycle); \
 }
 
 #define MDECOUTDMA_INT(eCycle) { \
 	psxRegs.interrupt |= 0x02000000; \
 	psxRegs.intCycle[5 + 24 + 1] = eCycle; \
 	psxRegs.intCycle[5 + 24] = psxRegs.cycle; \
-	new_dyna_set_event(4, psxRegs.cycle + eCycle); \
+	new_dyna_set_event(4, eCycle); \
 }
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr);

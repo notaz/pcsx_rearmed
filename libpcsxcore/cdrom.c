@@ -95,14 +95,14 @@ static struct SubQ *subq;
 	psxRegs.interrupt |= 0x4; \
 	psxRegs.intCycle[2 + 1] = eCycle; \
 	psxRegs.intCycle[2] = psxRegs.cycle; \
-	new_dyna_set_event(0, psxRegs.cycle + eCycle); \
+	new_dyna_set_event(0, eCycle); \
 }
 
 #define CDREAD_INT(eCycle) { \
 	psxRegs.interrupt |= 0x40000; \
 	psxRegs.intCycle[2 + 16 + 1] = eCycle; \
 	psxRegs.intCycle[2 + 16] = psxRegs.cycle; \
-	new_dyna_set_event(2, psxRegs.cycle + eCycle); \
+	new_dyna_set_event(2, eCycle); \
 }
 
 #define StartReading(type, eCycle) { \

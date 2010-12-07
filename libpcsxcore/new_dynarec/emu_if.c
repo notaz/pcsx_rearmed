@@ -25,30 +25,47 @@ void MTC0_()
 	pending_exception = 1; /* FIXME? */
 }
 
+static void schedule_timeslice(void)
+{
+	u32 i, c = psxRegs.cycle;
+	s32 min, dif;
+
+	min = psxNextsCounter + psxNextCounter - c;
+	for (i = 0; i < ARRAY_SIZE(event_cycles); i++) {
+		dif = event_cycles[i] - c;
+		//evprintf("  ev %d\n", dif);
+		if (0 < dif && dif < min)
+			min = dif;
+	}
+	next_interupt = c + min;
+
+#if 0
+	static u32 cnt, last_cycle;
+	static u64 sum;
+	if (last_cycle) {
+		cnt++;
+		sum += psxRegs.cycle - last_cycle;
+		if ((cnt & 0xff) == 0)
+			printf("%u\n", (u32)(sum / cnt));
+	}
+	last_cycle = psxRegs.cycle;
+#endif
+}
+
 void gen_interupt()
 {
-	u32 c, min;
-	int i;
-
-	evprintf("ari64_gen_interupt\n");
-	evprintf("  +ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
+	//evprintf("ari64_gen_interupt\n");
+	evprintf("  +ge %08x, %u->%u\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 #ifdef DRC_DBG
 	psxRegs.cycle += 2;
 #endif
 
 	psxBranchTest();
 
-	min = psxNextsCounter + psxNextCounter;
-	for (i = 0; i < ARRAY_SIZE(event_cycles); i++) {
-		c = event_cycles[i];
-		evprintf("  ev %d\n", c - psxRegs.cycle);
-		if (psxRegs.cycle < c && c < min)
-			min = c;
-	}
-	next_interupt = min;
+	schedule_timeslice();
 
-	//next_interupt = psxNextsCounter + psxNextCounter;
-	evprintf("  -ge %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
+	evprintf("  -ge %08x, %u->%u (%d)\n", psxRegs.pc, psxRegs.cycle,
+		next_interupt, next_interupt - psxRegs.cycle);
 
 	pending_exception = 1; /* FIXME */
 }
@@ -149,12 +166,15 @@ static void ari64_reset()
 
 static void ari64_execute()
 {
-	next_interupt = psxNextsCounter + psxNextCounter;
+	schedule_timeslice();
 
-	evprintf("psxNextsCounter %d, psxNextCounter %d\n", psxNextsCounter, psxNextCounter);
-	evprintf("ari64_execute %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
+	evprintf("ari64_execute %08x, %u->%u (%d)\n", psxRegs.pc,
+		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
+
 	new_dyna_start();
-	evprintf("ari64_execute end %08x, %d->%d\n", psxRegs.pc, psxRegs.cycle, next_interupt);
+
+	evprintf("ari64_execute end %08x, %u->%u (%d)\n", psxRegs.pc,
+		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
 }
 
 static void ari64_clear(u32 Addr, u32 Size)

@@ -142,12 +142,13 @@ extern u32 event_cycles[6];
 extern u32 next_interupt;
 
 #define new_dyna_set_event(e, c) { \
-	u32 c_ = c; \
-	event_cycles[e] = c_; \
-	if (c_ < next_interupt) { \
-		/*printf("%u: next_interupt %d -> %d\n", psxRegs.cycle, \
-			next_interupt - psxRegs.cycle, c_ - psxRegs.cycle);*/ \
-		next_interupt = c_; \
+	s32 c_ = c; \
+	u32 abs_ = psxRegs.cycle + c_; \
+	s32 odi_ = next_interupt - psxRegs.cycle; \
+	event_cycles[e] = abs_; \
+	if (c_ < odi_) { \
+		/*printf("%u: next_interupt %d -> %d (%u)\n", psxRegs.cycle, odi_, c_, abs_);*/ \
+		next_interupt = abs_; \
 	} \
 }
 

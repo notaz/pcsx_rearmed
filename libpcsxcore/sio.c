@@ -73,7 +73,7 @@ static inline void SIO_INT() {
 		psxRegs.interrupt |= 0x80;
 		psxRegs.intCycle[7 + 1] = 400;
 		psxRegs.intCycle[7] = psxRegs.cycle;
-		new_dyna_set_event(1, psxRegs.cycle + 400);
+		new_dyna_set_event(1, 400);
 	}
 }
 
