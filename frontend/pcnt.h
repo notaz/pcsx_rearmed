@@ -6,6 +6,8 @@ enum pcounters {
 	PCNT_CNT
 };
 
+#ifdef PCNT
+
 extern unsigned int pcounters[PCNT_CNT];
 extern unsigned int pcounter_starts[PCNT_CNT];
 
@@ -50,3 +52,15 @@ static inline unsigned int pcnt_get(void)
 	return val;
 }
 
+#else
+
+#define pcnt_start(id)
+#define pcnt_end(id)
+#define pcnt_hook_plugins()
+
+static inline void pcnt_print(float fps)
+{
+	printf("%2.1f\n", fps);
+}
+
+#endif

@@ -199,6 +199,8 @@ void *plugin_link(enum builtint_plugins_e id, const char *sym)
 	return NULL;
 }
 
+#ifdef PCNT
+
 /* basic profile stuff */
 #include "pcnt.h"
 
@@ -275,3 +277,4 @@ void pcnt_hook_plugins(void)
 	hook_it(SPU_playCDDAchannel);
 }
 
+#endif

@@ -73,6 +73,8 @@ int main(int argc, char *argv[])
 	int i;
 
 	tmp = dlopen("/lib/libdl.so.2", RTLD_LAZY);
+	if (tmp == NULL)
+		tmp = dlopen("/lib32/libdl.so.2", RTLD_LAZY);
 	if (tmp != NULL)
 		real_getenv = dlsym(tmp, "getenv");
 	if (real_getenv == NULL) {
@@ -217,7 +219,8 @@ int main(int argc, char *argv[])
 		if (loadst) {
 			StatesC = loadst - 1;
 			char *state_filename = get_state_filename(StatesC);
-			LoadState(state_filename);
+			int ret = LoadState(state_filename);
+			printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
 			free(state_filename);
 		}
 

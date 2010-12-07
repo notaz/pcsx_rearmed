@@ -12,6 +12,7 @@ ifndef DEBUG
 CFLAGS += -O2
 endif
 #DRC_DBG = 1
+#PCNT = 1
 TARGET = pcsx
 
 all: $(TARGET)
