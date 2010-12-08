@@ -45,4 +45,25 @@ bgr555_to_rgb565:
 
     bx          lr
 
+
+.global bgr888_to_rgb888
+bgr888_to_rgb888:
+    @ r2 /= 48
+    mov         r2, r2, lsr #4
+    movw        r3, #0x5556
+    movt        r3, #0x5555
+    umull       r12,r2, r3, r2
+0:
+    vld3.8      {d0-d2}, [r1, :64]!
+    vld3.8      {d3-d5}, [r1, :64]!
+    vswp        d0, d2
+    vswp        d3, d5
+    vst3.8      {d0-d2}, [r0, :64]!
+    vst3.8      {d3-d5}, [r0, :64]!
+    subs        r2, r2, #1
+    bne         0b
+
+    bx          lr
+
+
 @ vim:filetype=armasm

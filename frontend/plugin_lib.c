@@ -24,7 +24,7 @@ int pl_fbdev_init(void)
 
   w = 640;
   h = 512; // ??
-  fbdev = vout_fbdev_init(fbdev_name, &w, &h, 0);
+  fbdev = vout_fbdev_init(fbdev_name, &w, &h, 16, 3);
   if (fbdev == NULL)
     return -1;
 
@@ -36,7 +36,7 @@ int pl_fbdev_init(void)
 int pl_fbdev_set_mode(int w, int h, int bpp)
 {
   printf("set mode %dx%d@%d\n", w, h, bpp);
-  return vout_fbdev_resize(fbdev, w, h, 0, 0, 0, 0, 0);
+  return vout_fbdev_resize(fbdev, w, h, bpp, 0, 0, 0, 0, 3);
 }
 
 void *pl_fbdev_flip(void)

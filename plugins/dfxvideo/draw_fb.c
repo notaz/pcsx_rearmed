@@ -38,16 +38,19 @@ char *         pCaptionText;
 
 #ifndef __arm__
 #define bgr555_to_rgb565 memcpy
+#define bgr888_to_rgb888 memcpy
 #endif
 
 static void blit(void)
 {
  extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
+ extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
  int x = PSXDisplay.DisplayPosition.x;
  int y = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;
- int pitch = PreviousPSXDisplay.DisplayMode.x * 2;
+ int pitch = PreviousPSXDisplay.DisplayMode.x;
+ unsigned short *srcs = psxVuw + y * 1024 + x;
  unsigned char *dest = pl_fbdev_buf;
 
  if (w <= 0)
@@ -55,13 +58,22 @@ static void blit(void)
 
  // TODO: clear border if centering
 
+ pitch *= PSXDisplay.RGB24 ? 3 : 2;
+
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
  dest += PreviousPSXDisplay.Range.y0 / 2 * pitch;
  dest += PreviousPSXDisplay.Range.x0 * 2; // XXX
 
+ if (PSXDisplay.RGB24)
  {
-   unsigned short *srcs = psxVuw + y * 1024 + x;
+   for (; h-- > 0; dest += pitch, srcs += 1024)
+   {
+     bgr888_to_rgb888(dest, srcs, w * 3);
+   }
+ }
+ else
+ {
    for (; h-- > 0; dest += pitch, srcs += 1024)
    {
      bgr555_to_rgb565(dest, srcs, w * 2);

@@ -19,8 +19,6 @@
 
 #include "fbdev.h"
 
-#define FBDEV_MAX_BUFFERS 3
-
 struct vout_fbdev {
 	int	fd;
 	void	*mem;
@@ -60,8 +58,8 @@ void vout_fbdev_wait_vsync(struct vout_fbdev *fbdev)
 	ioctl(fbdev->fd, FBIO_WAITFORVSYNC, &arg);
 }
 
-int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h,
-		      int left_border, int right_border, int top_border, int bottom_border, int no_dblbuf)
+int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
+		      int left_border, int right_border, int top_border, int bottom_border, int buffer_cnt)
 {
 	int w_total = left_border + w + right_border;
 	int h_total = top_border + h + bottom_border;
@@ -71,7 +69,7 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h,
 	// unblank to be sure the mode is really accepted
 	ioctl(fbdev->fd, FBIOBLANK, FB_BLANK_UNBLANK);
 
-	if (fbdev->fbvar_new.bits_per_pixel != 16 ||
+	if (fbdev->fbvar_new.bits_per_pixel != bpp ||
 			w != fbdev->fbvar_new.xres ||
 			h != fbdev->fbvar_new.yres ||
 			w_total != fbdev->fbvar_new.xres_virtual ||
@@ -82,8 +80,8 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h,
 		fbdev->fbvar_new.xres_virtual = w_total;
 		fbdev->fbvar_new.yres_virtual = h_total;
 		fbdev->fbvar_new.xoffset = left_border;
-		fbdev->fbvar_new.bits_per_pixel = 16;
-		printf(" switching to %dx%d@16\n", w, h);
+		fbdev->fbvar_new.bits_per_pixel = bpp;
+		printf(" switching to %dx%d@%d\n", w, h, bpp);
 		ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
 		if (ret == -1) {
 			perror("FBIOPUT_VSCREENINFO ioctl");
@@ -91,9 +89,7 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h,
 		}
 	}
 
-	fbdev->buffer_count = FBDEV_MAX_BUFFERS; // be optimistic
-	if (no_dblbuf)
-		fbdev->buffer_count = 1;
+	fbdev->buffer_count = buffer_cnt;
 
 	if (fbdev->fbvar_new.yres_virtual < h_total * fbdev->buffer_count) {
 		fbdev->fbvar_new.yres_virtual = h_total * fbdev->buffer_count;
@@ -105,7 +101,7 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h,
 		}
 	}
 
-	fbdev->fb_size = w_total * h_total * 2;
+	fbdev->fb_size = w_total * h_total * bpp / 8;
 	fbdev->top_border = top_border;
 	fbdev->bottom_border = bottom_border;
 
@@ -157,7 +153,7 @@ int vout_fbdev_get_fd(struct vout_fbdev *fbdev)
 	return fbdev->fd;
 }
 
-struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int no_dblbuf)
+struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int bpp, int buffer_cnt)
 {
 	struct vout_fbdev *fbdev;
 	int req_w, req_h;
@@ -189,7 +185,7 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int n
 	if (*h != 0)
 		req_h = *h;
 
-	ret = vout_fbdev_resize(fbdev, req_w, req_h, 0, 0, 0, 0, no_dblbuf);
+	ret = vout_fbdev_resize(fbdev, req_w, req_h, bpp, 0, 0, 0, 0, buffer_cnt);
 	if (ret != 0)
 		goto fail;
 
