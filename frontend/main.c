@@ -17,7 +17,11 @@
 #include "pcnt.h"
 #include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
+#include "common/menu.h"
+#include "common/plat.h"
+#include "common/input.h"
 
+int ready_to_go;
 int UseGui;
 static char *(*real_getenv)(const char *name);
 
@@ -185,46 +189,58 @@ int main(int argc, char *argv[])
 	chdir(plugin_default_dir);
 	g_free(plugin_default_dir);
 */
-	if (SysInit() == -1) return 1;
+	if (SysInit() == -1)
+		return 1;
 
-	// if !gui
-	{
-		// the following only occurs if the gui isn't started
-		if (LoadPlugins() == -1) {
-			SysMessage("Failed loading plugins!");
-			return 1;
-		}
-		pcnt_hook_plugins();
+	// frontend stuff
+	in_init();
+	in_probe();
+	plat_init();
+	menu_init();
 
-		if (OpenPlugins() == -1) {
-			return 1;
-		}
+	if (LoadPlugins() == -1) {
+		SysMessage("Failed loading plugins!");
+		return 1;
+	}
+	pcnt_hook_plugins();
 
-		SysReset();
-		CheckCdrom();
+	if (OpenPlugins() == -1) {
+		return 1;
+	}
 
-		if (file[0] != '\0') {
-			Load(file);
-		} else {
-			if (runcd) {
-				if (LoadCdrom() == -1) {
-					ClosePlugins();
-					printf(_("Could not load CD-ROM!\n"));
-					return -1;
-				}
+	SysReset();
+	CheckCdrom();
+
+	if (file[0] != '\0') {
+		if (Load(file) != -1)
+			ready_to_go = 1;
+	} else {
+		if (runcd) {
+			if (LoadCdrom() == -1) {
+				ClosePlugins();
+				printf(_("Could not load CD-ROM!\n"));
+				return -1;
 			}
+			ready_to_go = 1;
 		}
+	}
 
-		// If a state has been specified, then load that
-		if (loadst) {
-			StatesC = loadst - 1;
-			char *state_filename = get_state_filename(StatesC);
-			int ret = LoadState(state_filename);
-			printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
-			free(state_filename);
-		}
+	// If a state has been specified, then load that
+	if (loadst) {
+		StatesC = loadst - 1;
+		char *state_filename = get_state_filename(StatesC);
+		int ret = LoadState(state_filename);
+		printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
+		free(state_filename);
+	}
 
+	if (!ready_to_go)
+		menu_loop();
+
+	while (1)
+	{
 		psxCpu->Execute();
+		menu_loop();
 	}
 
 	return 0;
@@ -378,7 +394,8 @@ char *getenv(const char *name)
 {
 	static char ret[8] = ".";
 
-	if (name && strcmp(name, "HOME") == 0)
+	if (name && strcmp(name, "HOME") == 0 &&
+			((int)name >> 28) == 0) // HACK: let libs find home
 		return ret;
 
 	return real_getenv(name);

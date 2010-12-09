@@ -57,10 +57,6 @@ static inline unsigned int pcnt_get(void)
 #define pcnt_start(id)
 #define pcnt_end(id)
 #define pcnt_hook_plugins()
-
-static inline void pcnt_print(float fps)
-{
-	printf("%2.1f\n", fps);
-}
+#define pcnt_print(fps)
 
 #endif

@@ -36,6 +36,9 @@ PSXPoint_t     ptCursorPoint[8];
 unsigned short usCursorActive = 0;
 char *         pCaptionText;
 
+static int fbw, fbh, fb24bpp;
+static int flip_cnt, flips_per_sec;
+
 #ifndef __arm__
 #define bgr555_to_rgb565 memcpy
 #define bgr888_to_rgb888 memcpy
@@ -78,10 +81,9 @@ static void blit(void)
    {
      bgr555_to_rgb565(dest, srcs, w * 2);
    }
+   pl_text_out16(2, fbh - 10, "%2d %2.1f", flips_per_sec, fps_cur);
  }
 }
-
-static int fbw, fbh, fb24bpp;
 
 #include "pcnt.h"
 
@@ -104,8 +106,18 @@ void DoBufferSwap(void)
 
  pcnt_end(PCNT_ALL);
 
+ {
+  static int oldsec;
+  struct timeval tv;
+  flip_cnt++;
+  gettimeofday(&tv, 0);
+  if (tv.tv_sec != oldsec) {
+    flips_per_sec = flip_cnt;
+    flip_cnt = 0;
+    oldsec = tv.tv_sec;
+  }
+ }
  if (++fps_counter == 60/6) {
-  //printf("%2.1f\n", fps_cur);
   pcnt_print(fps_cur);
   fps_counter = 0;
  }

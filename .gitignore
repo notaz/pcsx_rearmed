@@ -1,4 +1,6 @@
 *.o
 frontend/linux
+frontend/common
+frontend/X11
 tags
 cscope.out

@@ -4,13 +4,13 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 
 CFLAGS += -ggdb -Ifrontend
-LDFLAGS += -lz -lpthread -ldl
+LDFLAGS += -lz -lpthread -ldl -lpng
 ifdef CROSS_COMPILE
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
 ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 endif
 ifndef DEBUG
-CFLAGS += -O2
+CFLAGS += -O2 # -DNDEBUG
 endif
 #DRC_DBG = 1
 #PCNT = 1
@@ -55,10 +55,14 @@ endif
 OBJS += gui/Config.o gui/Plugin.o
 
 OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
-OBJS += frontend/linux/fbdev.o
+OBJS += frontend/omap.o frontend/menu.o
+OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
+OBJS += frontend/linux/plat.o frontend/linux/oshide.o
+OBJS += frontend/common/fonts.o frontend/common/input.o frontend/common/readpng.o
 ifdef CROSS_COMPILE
 OBJS += frontend/arm_utils.o
 endif
+frontend/%.o: CFLAGS += -Wall -DIN_EVDEV
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map

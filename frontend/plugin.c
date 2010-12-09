@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "plugin_lib.h"
 #include "plugin.h"
 
 static int dummy_func() {
@@ -42,18 +43,22 @@ extern void SPUasync(unsigned int);
 extern void SPUplayCDDAchannel(short *, int);
 
 /* PAD */
-static uint8_t CurByte;
+static uint8_t pad_buf[] = { 0x41, 0x5A, 0xFF, 0xFF };
+static uint8_t pad_byte;
 
 static unsigned char PADstartPoll(int pad) {
-	CurByte = 0;
+	pad_byte = 0;
+	pad_buf[2] = keystate;
+	pad_buf[3] = keystate >> 8;
+
 	return 0xFF;
 }
 
 static unsigned char PADpoll(unsigned char value) {
-	static uint8_t buf[] = {0x41, 0x5A, 0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80};
-	if (CurByte >= 4)
+	if (pad_byte >= 4)
 		return 0;
-	return buf[CurByte++];
+
+	return pad_buf[pad_byte++];
 }
 
 /* GPU */
