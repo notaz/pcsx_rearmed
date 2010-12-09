@@ -160,8 +160,9 @@ static int ari64_init()
 
 static void ari64_reset()
 {
-	/* hmh */
 	printf("ari64_reset\n");
+	invalidate_all_pages();
+	pending_exception = 1;
 }
 
 static void ari64_execute()
@@ -177,8 +178,24 @@ static void ari64_execute()
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
 }
 
-static void ari64_clear(u32 Addr, u32 Size)
+static void ari64_clear(u32 addr, u32 size)
 {
+	u32 start, end;
+
+	evprintf("ari64_clear %08x %04x\n", addr, size);
+
+	/* check for RAM mirrors */
+	if ((start & ~0xe0000000) < 0x200000) {
+		start &= ~0xe0000000;
+		start |=  0x80000000;
+	}
+
+	start = addr >> 12;
+	end = (addr + size) >> 12;
+
+	for (; start <= end; start++)
+		if (!invalid_code[start])
+			invalidate_block(start);
 }
 
 static void ari64_shutdown()

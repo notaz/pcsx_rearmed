@@ -7,3 +7,6 @@ extern int stop;
 void new_dynarec_init();
 void new_dynarec_cleanup();
 void new_dyna_start();
+
+void invalidate_all_pages();
+void invalidate_block(unsigned int block);
