@@ -16,6 +16,7 @@
 #include "omap.h"
 #include "common/plat.h"
 #include "../libpcsxcore/misc.h"
+#include "../libpcsxcore/new_dynarec/new_dynarec.h"
 
 #define MENU_X2 1
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
@@ -439,6 +440,7 @@ strcpy(last_selected_fname, "/mnt/ntz/stuff/psx");
 	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	menu_draw_end();
 	omap_enable_layer(1);
+	stop = 0;
 }
 
 void me_update_msg(const char *msg)

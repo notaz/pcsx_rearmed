@@ -402,60 +402,59 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 	struct input_event ev;
 	int rd;
 
-	while (1)
+	/* do single event, the caller sometimes wants
+	 * to do select() in blocking mode */
+	rd = read(dev->fd, &ev, sizeof(ev));
+	if (rd < (int) sizeof(ev)) {
+		if (errno != EAGAIN) {
+			perror("in_evdev: error reading");
+			sleep(1);
+		}
+		goto out;
+	}
+
+	if (ev.type == EV_KEY) {
+		if (ev.value < 0 || ev.value > 1)
+			goto out;
+		ret_kc = ev.code;
+		ret_down = ev.value;
+		goto out;
+	}
+	else if (ev.type == EV_ABS)
 	{
-		rd = read(dev->fd, &ev, sizeof(ev));
-		if (rd < (int) sizeof(ev)) {
-			if (errno != EAGAIN) {
-				perror("in_evdev: error reading");
-				sleep(1);
-			}
+		int lzone = dev->abs_lzone, down = 0, *last;
+
+		// map absolute to up/down/left/right
+		if (lzone != 0 && ev.code == ABS_X) {
+			if (ev.value < dev->abs_min_x + lzone)
+				down = KEY_LEFT;
+			else if (ev.value > dev->abs_max_x - lzone)
+				down = KEY_RIGHT;
+			last = &dev->abs_lastx;
+		}
+		else if (lzone != 0 && ev.code == ABS_Y) {
+			if (ev.value < dev->abs_min_y + lzone)
+				down = KEY_UP;
+			else if (ev.value > dev->abs_max_y - lzone)
+				down = KEY_DOWN;
+			last = &dev->abs_lasty;
+		}
+		else
+			goto out;
+
+		if (down == *last)
+			goto out;
+
+		if (down == 0 || *last != 0) {
+			/* key up or direction change, return up event for old key */
+			ret_kc = *last;
+			ret_down = 0;
+			*last = 0;
 			goto out;
 		}
-
-		if (ev.type == EV_KEY) {
-			if (ev.value < 0 || ev.value > 1)
-				continue;
-			ret_kc = ev.code;
-			ret_down = ev.value;
-			goto out;
-		}
-		else if (ev.type == EV_ABS)
-		{
-			int lzone = dev->abs_lzone, down = 0, *last;
-
-			// map absolute to up/down/left/right
-			if (lzone != 0 && ev.code == ABS_X) {
-				if (ev.value < dev->abs_min_x + lzone)
-					down = KEY_LEFT;
-				else if (ev.value > dev->abs_max_x - lzone)
-					down = KEY_RIGHT;
-				last = &dev->abs_lastx;
-			}
-			else if (lzone != 0 && ev.code == ABS_Y) {
-				if (ev.value < dev->abs_min_y + lzone)
-					down = KEY_UP;
-				else if (ev.value > dev->abs_max_y - lzone)
-					down = KEY_DOWN;
-				last = &dev->abs_lasty;
-			}
-			else
-				continue;
-
-			if (down == *last)
-				continue;
-
-			if (down == 0 || *last != 0) {
-				/* key up or direction change, return up event for old key */
-				ret_kc = *last;
-				ret_down = 0;
-				*last = 0;
-				goto out;
-			}
-			ret_kc = *last = down;
-			ret_down = 1;
-			goto out;
-		}
+		ret_kc = *last = down;
+		ret_down = 1;
+		goto out;
 	}
 
 out:
@@ -571,7 +570,9 @@ static void in_evdev_get_def_binds(int *binds)
 {
 	int i;
 
-	for (i = 0; in_evdev_defbinds[i].bit != 0; i++) {
+	for (i = 0; ; i++) {
+		if (in_evdev_defbinds[i].bit == 0 && in_evdev_defbinds[i].code == 0)
+			break;
 		binds[IN_BIND_OFFS(in_evdev_defbinds[i].code, in_evdev_defbinds[i].btype)] =
 			1 << in_evdev_defbinds[i].bit;
 	}
