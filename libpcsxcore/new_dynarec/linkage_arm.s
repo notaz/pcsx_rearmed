@@ -17,17 +17,16 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+.equiv HAVE_ARMV7, 1
+
+.if HAVE_ARMV7
+	.cpu cortex-a8
+	.fpu vfp
+.else
 	.cpu arm9tdmi
 	.fpu softvfp
-	.eabi_attribute 20, 1
-	.eabi_attribute 21, 1
-	.eabi_attribute 23, 3
-	.eabi_attribute 24, 1
-	.eabi_attribute 25, 1
-	.eabi_attribute 26, 2
-	.eabi_attribute 30, 6
-	.eabi_attribute 18, 4
-	.file	"linkage_arm.s"
+.endif 
 	.global	rdram
 rdram = 0x80000000
 	.global	dynarec_local
@@ -563,16 +562,13 @@ cc_interrupt:
 	str	r0, [fp, #last_count-dynarec_local]
 	sub	r10, r10, r0
 	tst	r2, r2
-	bne	.E3
+	ldmnefd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	tst	r1, r1
 	moveq	pc, lr
 .E2:
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	mov	pc, r0
-.E3:
-	add	r12, fp, #28
-	ldmia	r12, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
 .E4:
 	/* Move 'dirty' blocks to the 'clean' list */
 	lsl	r5, r2, #3
@@ -686,7 +682,7 @@ new_dyna_leave:
 	add	r12, fp, #28
 	add	r10, r0, r10
 	str	r10, [fp, #cycle-dynarec_local]
-	ldmia	r12, {r4, r5, r6, r7, r8, r9, sl, fp, pc}
+	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	.size	new_dyna_leave, .-new_dyna_leave
 
 	/* these are used to call memhandlers */
@@ -735,11 +731,15 @@ jump_eret:
 	.global	new_dyna_start
 	.type	new_dyna_start, %function
 new_dyna_start:
-	ldr	r12, .dlptr
-	stmia	r12, {r4, r5, r6, r7, r8, r9, sl, fp, lr}
-	sub	fp, r12, #28
+	/* ip is stored to conform EABI alignment */
+	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
+.if HAVE_ARMV7
+	movw	fp, #:lower16:dynarec_local
+	movt	fp, #:upper16:dynarec_local
+.else
+	ldr	fp, .dlptr
+.endif
 	ldr	r0, [fp, #pcaddr-dynarec_local]
-	/*bl	new_recompile_block*/
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]
 	ldr	r10, [fp, #cycle-dynarec_local]
@@ -747,7 +747,7 @@ new_dyna_start:
 	sub	r10, r10, r1
 	mov	pc, r0
 .dlptr:
-	.word	dynarec_local+28
+	.word	dynarec_local
 	.size	new_dyna_start, .-new_dyna_start
 
 	.align	2
