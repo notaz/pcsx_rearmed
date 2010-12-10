@@ -236,11 +236,13 @@ void do_insn_cmp() {}
 unsigned int address, readmem_word, word;
 unsigned short hword;
 unsigned char byte;
-int pending_exception;
+int pending_exception, stop;
 unsigned int next_interupt;
 void new_dynarec_init() {}
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
+void invalidate_all_pages() {}
+void invalidate_block(unsigned int block) {}
 #endif
 
 #ifdef DRC_DBG

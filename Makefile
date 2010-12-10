@@ -55,12 +55,15 @@ endif
 OBJS += gui/Config.o gui/Plugin.o
 
 OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
-OBJS += frontend/omap.o frontend/menu.o
+OBJS += frontend/menu.o
 OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
 OBJS += frontend/linux/plat.o frontend/linux/oshide.o
 OBJS += frontend/common/fonts.o frontend/common/input.o frontend/common/readpng.o
 ifdef CROSS_COMPILE
 OBJS += frontend/arm_utils.o
+OBJS += frontend/plat_omap.o
+else
+OBJS += frontend/plat_dummy.o
 endif
 frontend/%.o: CFLAGS += -Wall -DIN_EVDEV
 

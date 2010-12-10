@@ -47,7 +47,7 @@ void *pl_fbdev_flip(void)
 	in_update(actions);
 	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
 		stop = 1;
-	keystate = ~actions[IN_BINDTYPE_PLAYER12];
+	keystate = actions[IN_BINDTYPE_PLAYER12];
 
 	// let's flip now
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);

@@ -48,8 +48,8 @@ static uint8_t pad_byte;
 
 static unsigned char PADstartPoll(int pad) {
 	pad_byte = 0;
-	pad_buf[2] = keystate;
-	pad_buf[3] = keystate >> 8;
+	pad_buf[2] = ~keystate;
+	pad_buf[3] = ~keystate >> 8;
 
 	return 0xFF;
 }
