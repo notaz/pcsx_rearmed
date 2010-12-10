@@ -2717,7 +2717,7 @@ void load_assemble(int i,struct regstat *i_regs)
   int s,th,tl,addr,map=-1;
   int offset;
   int jaddr=0;
-  int memtarget,c=0;
+  int memtarget=0,c=0;
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rt1[i]|64);
   tl=get_reg(i_regs->regmap,rt1[i]);
@@ -2732,11 +2732,21 @@ void load_assemble(int i,struct regstat *i_regs)
     memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80800000;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
-  if(offset||s<0||c) addr=tl;
-  else addr=s;
   //printf("load_assemble: c=%d\n",c);
   //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
   // FIXME: Even if the load is a NOP, we should check for pagefaults...
+#ifdef PCSX
+  if(tl<0) {
+    if(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80) {
+      // could be FIFO, must perform the read
+      assem_debug("(forced read)\n");
+      tl=get_reg(i_regs->regmap,-1);
+      assert(tl>=0);
+    }
+  }
+  if(offset||s<0||c) addr=tl;
+  else addr=s;
+#endif
   if(tl>=0) {
     //assert(tl>=0);
     //assert(rt1[i]);

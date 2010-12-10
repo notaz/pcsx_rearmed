@@ -2553,6 +2553,11 @@ do_readstub(int n)
     rth=get_reg(i_regmap,rt1[i]|64);
     rt=get_reg(i_regmap,rt1[i]);
   }
+#ifdef PCSX
+  if(rt<0)
+    // assume forced dummy read
+    rt=get_reg(i_regmap,-1);
+#endif
   assert(rs>=0);
   assert(rt>=0);
   if(addr<0) addr=rt;
