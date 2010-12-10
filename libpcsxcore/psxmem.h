@@ -138,7 +138,7 @@ void psxMemWrite16(u32 mem, u16 value);
 void psxMemWrite32(u32 mem, u32 value);
 void *psxMemPointer(u32 mem);
 
-extern u32 event_cycles[6];
+extern u32 event_cycles[7];
 extern u32 next_interupt;
 
 #define new_dyna_set_event(e, c) { \

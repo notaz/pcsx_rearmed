@@ -14,16 +14,7 @@
 #define evprintf(...)
 
 char invalid_code[0x100000];
-u32 event_cycles[6];
-
-void MTC0_()
-{
-	extern void psxMTC0();
-
-	memprintf("ari64 MTC0 %08x\n", psxRegs.code);
-	psxMTC0();
-	pending_exception = 1; /* FIXME? */
-}
+u32 event_cycles[7];
 
 static void schedule_timeslice(void)
 {
@@ -54,7 +45,6 @@ static void schedule_timeslice(void)
 
 void gen_interupt()
 {
-	//evprintf("ari64_gen_interupt\n");
 	evprintf("  +ge %08x, %u->%u\n", psxRegs.pc, psxRegs.cycle, next_interupt);
 #ifdef DRC_DBG
 	psxRegs.cycle += 2;
@@ -70,6 +60,15 @@ void gen_interupt()
 	pending_exception = 1; /* FIXME */
 }
 
+void MTC0_()
+{
+	extern void psxMTC0();
+
+	evprintf("ari64 MTC0 %08x %08x %u\n", psxRegs.code, psxRegs.pc, psxRegs.cycle);
+	psxMTC0();
+	gen_interupt(); /* FIXME: checking pending irqs should be enough */
+}
+
 void check_interupt()
 {
 	printf("ari64_check_interupt\n");
@@ -82,37 +81,37 @@ void read_nomem_new()
 
 static void read_mem8()
 {
-	memprintf("ari64_read_mem8  %08x, PC~=%08x\n", address, psxRegs.pc);
+	memprintf("ari64_read_mem8  %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
 	readmem_word = psxMemRead8(address) & 0xff;
 }
 
 static void read_mem16()
 {
-	memprintf("ari64_read_mem16 %08x, PC~=%08x\n", address, psxRegs.pc);
+	memprintf("ari64_read_mem16 %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
 	readmem_word = psxMemRead16(address) & 0xffff;
 }
 
 static void read_mem32()
 {
-	memprintf("ari64_read_mem32 %08x, PC~=%08x\n", address, psxRegs.pc);
+	memprintf("ari64_read_mem32 %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
 	readmem_word = psxMemRead32(address);
 }
 
 static void write_mem8()
 {
-	memprintf("ari64_write_mem8  %08x,       %02x, PC~=%08x\n", address, byte, psxRegs.pc);
+	memprintf("ari64_write_mem8  %08x,       %02x @%08x %u\n", address, byte, psxRegs.pc, psxRegs.cycle);
 	psxMemWrite8(address, byte);
 }
 
 static void write_mem16()
 {
-	memprintf("ari64_write_mem16 %08x,     %04x, PC~=%08x\n", address, hword, psxRegs.pc);
+	memprintf("ari64_write_mem16 %08x,     %04x @%08x %u\n", address, hword, psxRegs.pc, psxRegs.cycle);
 	psxMemWrite16(address, hword);
 }
 
 static void write_mem32()
 {
-	memprintf("ari64_write_mem32 %08x, %08x, PC~=%08x\n", address, word, psxRegs.pc);
+	memprintf("ari64_write_mem32 %08x, %08x @%08x %u\n", address, word, psxRegs.pc, psxRegs.cycle);
 	psxMemWrite32(address, word);
 }
 

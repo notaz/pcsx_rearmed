@@ -587,6 +587,7 @@ cc_interrupt:
 	.global	do_interrupt
 	.type	do_interrupt, %function
 do_interrupt:
+	/* FIXME: cycles already calculated, not needed? */
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]
