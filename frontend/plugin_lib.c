@@ -9,16 +9,57 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
+#include "plugin_lib.h"
 #include "linux/fbdev.h"
 #include "common/fonts.h"
 #include "common/input.h"
 #include "omap.h"
+#include "pcnt.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 
 void *pl_fbdev_buf;
 int keystate;
-static int pl_fbdev_w;
+static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
+static int flip_cnt, flips_per_sec, tick_per_sec;
+extern float fps_cur; // XXX
+
+static int get_cpu_ticks(void)
+{
+	static unsigned long last_utime;
+	static int fd;
+	unsigned long utime, ret;
+	char buf[128];
+
+	if (fd == 0)
+		fd = open("/proc/self/stat", O_RDONLY);
+	lseek(fd, 0, SEEK_SET);
+	buf[0] = 0;
+	read(fd, buf, sizeof(buf));
+	buf[sizeof(buf) - 1] = 0;
+
+	sscanf(buf, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu", &utime);
+	ret = utime - last_utime;
+	last_utime = utime;
+	return ret;
+}
+
+static void print_fps(void)
+{
+	if (pl_fbdev_bpp == 16)
+		pl_text_out16(2, pl_fbdev_h - 10, "%2d %4.1f", flips_per_sec, fps_cur);
+}
+
+static void print_cpu_usage(void)
+{
+	if (pl_fbdev_bpp == 16)
+		pl_text_out16(pl_fbdev_w - 28, pl_fbdev_h - 10, "%3d", tick_per_sec);
+}
 
 int pl_fbdev_init(void)
 {
@@ -30,7 +71,12 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 {
 	void *ret;
 
+	if (w == pl_fbdev_w && h == pl_fbdev_h && bpp == pl_fbdev_bpp)
+		return 0;
+
 	pl_fbdev_w = w;
+	pl_fbdev_h = h;
+	pl_fbdev_bpp = bpp;
 
 	vout_fbdev_clear(layer_fb);
 	ret = vout_fbdev_resize(layer_fb, w, h, bpp, 0, 0, 0, 0, 3);
@@ -42,7 +88,7 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 	return (ret != NULL) ? 0 : -1;
 }
 
-void *pl_fbdev_flip(void)
+void pl_fbdev_flip(void)
 {
 	/* doing input here because the pad is polled
 	 * thousands of times for some reason */
@@ -53,13 +99,45 @@ void *pl_fbdev_flip(void)
 		stop = 1;
 	keystate = actions[IN_BINDTYPE_PLAYER12];
 
+	flip_cnt++;
+	print_fps();
+	print_cpu_usage();
+
 	// let's flip now
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
-	return pl_fbdev_buf;
 }
 
 void pl_fbdev_finish(void)
 {
+}
+
+/* called on every vsync */
+void pl_frame_limit(void)
+{
+	extern void CheckFrameRate(void);
+	static int oldsec;
+	struct timeval tv;
+
+	pcnt_end(PCNT_ALL);
+	gettimeofday(&tv, 0);
+
+	if (tv.tv_sec != oldsec) {
+		flips_per_sec = flip_cnt;
+		flip_cnt = 0;
+		tick_per_sec = get_cpu_ticks();
+		oldsec = tv.tv_sec;
+	}
+#ifdef PCNT
+	static int ya_vsync_count;
+	if (++ya_vsync_count == PCNT_FRAMES) {
+		pcnt_print(fps_cur);
+		ya_vsync_count = 0;
+	}
+#endif
+
+	CheckFrameRate();
+
+	pcnt_start(PCNT_ALL);
 }
 
 static void pl_text_out16_(int x, int y, const char *text)

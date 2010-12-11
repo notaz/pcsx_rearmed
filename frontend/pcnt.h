@@ -3,10 +3,16 @@ enum pcounters {
 	PCNT_ALL,
 	PCNT_GPU,
 	PCNT_SPU,
+	PCNT_BLIT,
+	PCNT_TEST,
 	PCNT_CNT
 };
 
 #ifdef PCNT
+
+static const char *pcnt_names[PCNT_CNT] = { "", "gpu", "spu", "blit", "test" };
+
+#define PCNT_FRAMES 10
 
 extern unsigned int pcounters[PCNT_CNT];
 extern unsigned int pcounter_starts[PCNT_CNT];
@@ -21,21 +27,34 @@ void pcnt_hook_plugins(void);
 
 static inline void pcnt_print(float fps)
 {
-	unsigned int total, gpu, spu, rem;
+	static int print_counter;
+	unsigned int total, rem;
 	int i;
 
 	for (i = 0; i < PCNT_CNT; i++)
-		pcounters[i] >>= 10;
+		pcounters[i] /= 1000 * PCNT_FRAMES;
 
-	total = pcounters[PCNT_ALL];
-	gpu = pcounters[PCNT_GPU];
-	spu = pcounters[PCNT_SPU];
-	rem = total - gpu - spu;
+	rem = total = pcounters[PCNT_ALL];
+	for (i = 1; i < PCNT_CNT; i++)
+		rem -= pcounters[i];
 	if (!total)
 		total++;
 
-	printf("%2.1f %6u %6u %6u (%2d %2d %2d)\n", fps, gpu, spu, rem,
-		gpu * 100 / total, spu * 100 / total, rem * 100 / total);
+	if (--print_counter < 0) {
+		printf("     ");
+		for (i = 1; i < PCNT_CNT; i++)
+			printf("%5s ", pcnt_names[i]);
+		printf("%5s\n", "rem");
+		print_counter = 30;
+	}
+
+	printf("%4.1f ", fps);
+	for (i = 1; i < PCNT_CNT; i++)
+		printf("%5u ", pcounters[i]);
+	printf("%5u (", rem);
+	for (i = 1; i < PCNT_CNT; i++)
+		printf("%2u ", pcounters[i] * 100 / total);
+	printf("%2u) %u\n", rem * 100 / total, total);
 
 	memset(pcounters, 0, sizeof(pcounters));
 }

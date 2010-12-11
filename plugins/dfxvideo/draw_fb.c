@@ -16,6 +16,7 @@
 #include "swap.h"
 
 #include "plugin_lib.h"
+#include "pcnt.h"
 
 // misc globals
 int            iResX;
@@ -35,9 +36,6 @@ int            iFVDisplay = 0;
 PSXPoint_t     ptCursorPoint[8];
 unsigned short usCursorActive = 0;
 char *         pCaptionText;
-
-static int fbw, fbh, fb24bpp;
-static int flip_cnt, flips_per_sec;
 
 #ifndef __arm__
 #define bgr555_to_rgb565 memcpy
@@ -81,50 +79,30 @@ static void blit(void)
    {
      bgr555_to_rgb565(dest, srcs, w * 2);
    }
-   pl_text_out16(2, fbh - 10, "%2d %2.1f", flips_per_sec, fps_cur);
  }
 }
 
-#include "pcnt.h"
-
 void DoBufferSwap(void)
 {
- static int fps_counter;
+ static int fbw, fb24bpp;
+
  if (PSXDisplay.DisplayMode.x == 0 || PSXDisplay.DisplayMode.y == 0)
   return;
 
  /* careful if rearranging this code, we try to set mode and flip
   * to get the hardware apply both changes at the same time */
- if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.DisplayMode.y != fbh
-     || PSXDisplay.RGB24 != fb24bpp) {
+ if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.RGB24 != fb24bpp) {
+  int fbh = PSXDisplay.DisplayMode.y;
   fbw = PSXDisplay.DisplayMode.x;
-  fbh = PSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
   pl_fbdev_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
 
+ pcnt_start(PCNT_BLIT);
  blit();
+ pcnt_end(PCNT_BLIT);
+
  pl_fbdev_flip();
-
- pcnt_end(PCNT_ALL);
-
- {
-  static int oldsec;
-  struct timeval tv;
-  flip_cnt++;
-  gettimeofday(&tv, 0);
-  if (tv.tv_sec != oldsec) {
-    flips_per_sec = flip_cnt;
-    flip_cnt = 0;
-    oldsec = tv.tv_sec;
-  }
- }
- if (++fps_counter == 60/6) {
-  pcnt_print(fps_cur);
-  fps_counter = 0;
- }
-
- pcnt_start(PCNT_ALL);
 }
 
 void DoClearScreenBuffer(void)                         // CLEAR DX BUFFER
