@@ -48,7 +48,7 @@ static void blit(void)
 {
  extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
  extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
- int x = PSXDisplay.DisplayPosition.x;
+ int x = PSXDisplay.DisplayPosition.x & ~3; // XXX: align needed by bgr*_to_...
  int y = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;
@@ -93,6 +93,8 @@ void DoBufferSwap(void)
  if (PSXDisplay.DisplayMode.x == 0 || PSXDisplay.DisplayMode.y == 0)
   return;
 
+ /* careful if rearranging this code, we try to set mode and flip
+  * to get the hardware apply both changes at the same time */
  if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.DisplayMode.y != fbh
      || PSXDisplay.RGB24 != fb24bpp) {
   fbw = PSXDisplay.DisplayMode.x;

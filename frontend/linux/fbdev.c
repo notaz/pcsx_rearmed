@@ -61,7 +61,8 @@ void vout_fbdev_wait_vsync(struct vout_fbdev *fbdev)
 	ioctl(fbdev->fd, FBIO_WAITFORVSYNC, &arg);
 }
 
-int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
+/* it is recommended to call vout_fbdev_clear() before this */
+void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 		      int left_border, int right_border, int top_border, int bottom_border, int buffer_cnt)
 {
 	int w_total = left_border + w + right_border;
@@ -83,13 +84,20 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 		fbdev->fbvar_new.xres_virtual = w_total;
 		fbdev->fbvar_new.yres_virtual = h_total;
 		fbdev->fbvar_new.xoffset = left_border;
+		fbdev->fbvar_new.yoffset = top_border;
 		fbdev->fbvar_new.bits_per_pixel = bpp;
 		printf(" switching to %dx%d@%d\n", w, h, bpp);
+
+		// seems to help a bit to avoid glitches
+		vout_fbdev_wait_vsync(fbdev);
+
 		ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
 		if (ret == -1) {
 			perror("FBIOPUT_VSCREENINFO ioctl");
-			return -1;
+			return NULL;
 		}
+
+		fbdev->buffer_write = 1;
 	}
 
 	fbdev->buffer_count = buffer_cnt;
@@ -99,6 +107,7 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 		ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
 		if (ret == -1) {
 			fbdev->buffer_count = 1;
+			fbdev->buffer_write = 0;
 			fprintf(stderr, "Warning: failed to increase virtual resolution, "
 					"doublebuffering disabled\n");
 		}
@@ -110,7 +119,7 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 
 	mem_size = fbdev->fb_size * fbdev->buffer_count;
 	if (fbdev->mem_size >= mem_size)
-		return 0;
+		goto out;
 
 	if (fbdev->mem != NULL)
 		munmap(fbdev->mem, fbdev->mem_size);
@@ -126,11 +135,13 @@ int vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 		fbdev->mem = NULL;
 		fbdev->mem_size = 0;
 		perror("mmap framebuffer");
-		return -1;
+		return NULL;
 	}
 
 	fbdev->mem_size = mem_size;
-	return 0;
+
+out:
+	return (char *)fbdev->mem + fbdev->fb_size * fbdev->buffer_write;
 }
 
 void vout_fbdev_clear(struct vout_fbdev *fbdev)
@@ -160,6 +171,7 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 {
 	struct vout_fbdev *fbdev;
 	int req_w, req_h;
+	void *pret;
 	int ret;
 
 	fbdev = calloc(1, sizeof(*fbdev));
@@ -188,8 +200,8 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 	if (*h != 0)
 		req_h = *h;
 
-	ret = vout_fbdev_resize(fbdev, req_w, req_h, bpp, 0, 0, 0, 0, buffer_cnt);
-	if (ret != 0)
+	pret = vout_fbdev_resize(fbdev, req_w, req_h, bpp, 0, 0, 0, 0, buffer_cnt);
+	if (pret == NULL)
 		goto fail;
 
 	printf("%s: %ix%i@%d\n", fbdev_name, fbdev->fbvar_new.xres, fbdev->fbvar_new.yres,

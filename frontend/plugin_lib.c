@@ -28,14 +28,18 @@ int pl_fbdev_init(void)
 
 int pl_fbdev_set_mode(int w, int h, int bpp)
 {
-	int ret;
+	void *ret;
 
 	pl_fbdev_w = w;
-	printf("set mode %dx%d@%d\n", w, h, bpp);
+
+	vout_fbdev_clear(layer_fb);
 	ret = vout_fbdev_resize(layer_fb, w, h, bpp, 0, 0, 0, 0, 3);
-	if (ret)
+	if (ret == NULL)
 		fprintf(stderr, "failed to set mode\n");
-	return ret;
+	else
+		pl_fbdev_buf = ret;
+
+	return (ret != NULL) ? 0 : -1;
 }
 
 void *pl_fbdev_flip(void)
