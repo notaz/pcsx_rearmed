@@ -1,4 +1,5 @@
 *.o
+frontend/revision.h
 frontend/linux
 frontend/common
 frontend/X11

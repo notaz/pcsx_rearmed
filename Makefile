@@ -69,6 +69,14 @@ ifdef PCNT
 CFLAGS += -DPCNT
 endif
 frontend/%.o: CFLAGS += -Wall -DIN_EVDEV
+frontend/menu.o: frontend/revision.h
+
+frontend/revision.h: FORCE
+	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
+	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
+	@rm $@_
+.PHONY: FORCE
+
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map

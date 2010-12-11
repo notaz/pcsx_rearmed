@@ -9,6 +9,7 @@
 #include "linux/fbdev.h"
 
 struct vout_fbdev *layer_fb;
+int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 struct in_default_bind in_evdev_defbinds[] = {
 	{ 0, 0, 0 },
 };

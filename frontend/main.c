@@ -15,9 +15,9 @@
 
 #include "plugin.h"
 #include "pcnt.h"
+#include "menu.h"
 #include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
-#include "common/menu.h"
 #include "common/plat.h"
 #include "common/input.h"
 
@@ -234,7 +234,9 @@ int main(int argc, char *argv[])
 		free(state_filename);
 	}
 
-	if (!ready_to_go)
+	if (ready_to_go)
+		menu_prepare_emu();
+	else
 		menu_loop();
 
 	while (1)

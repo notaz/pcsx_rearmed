@@ -20,6 +20,7 @@
 #include "common/fonts.h"
 #include "common/input.h"
 #include "omap.h"
+#include "menu.h"
 #include "pcnt.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 
@@ -84,6 +85,8 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 		fprintf(stderr, "failed to set mode\n");
 	else
 		pl_fbdev_buf = ret;
+
+	menu_notify_mode_change(w, h);
 
 	return (ret != NULL) ? 0 : -1;
 }

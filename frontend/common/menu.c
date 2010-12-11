@@ -652,7 +652,7 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 
 /* ***************************************** */
 
-static void draw_menu_credits(void)
+static void draw_menu_credits(void (*draw_more)(void))
 {
 	const char *creds, *p;
 	int x, y, h, w, wt;
@@ -685,6 +685,9 @@ static void draw_menu_credits(void)
 		if (*p != 0)
 			p++;
 	}
+
+	if (draw_more != NULL)
+		draw_more();
 
 	menu_draw_end();
 }
