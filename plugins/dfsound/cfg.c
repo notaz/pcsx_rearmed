@@ -157,7 +157,7 @@ void ReadConfigSPU(void)
 {
  iVolume=2;
  iXAPitch=0;
- iSPUIRQWait=1;
+ iSPUIRQWait=0;
  iUseTimer=2;
  iUseReverb=2;
  iUseInterpolation=2;
