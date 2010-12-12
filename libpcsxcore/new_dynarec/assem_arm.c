@@ -142,7 +142,7 @@ add_literal(int addr,int val)
   literalcount++; 
 } 
 
-void kill_pointer(void *stub)
+void *kill_pointer(void *stub)
 {
   int *ptr=(int *)(stub+4);
   assert((*ptr&0x0ff00000)==0x05900000);
@@ -150,6 +150,7 @@ void kill_pointer(void *stub)
   int **l_ptr=(void *)ptr+offset+8;
   int *i_ptr=*l_ptr;
   set_jump_target((int)i_ptr,(int)stub);
+  return i_ptr;
 }
 
 int get_pointer(void *stub)

@@ -184,9 +184,9 @@ static void ari64_clear(u32 addr, u32 size)
 	evprintf("ari64_clear %08x %04x\n", addr, size);
 
 	/* check for RAM mirrors */
-	if ((start & ~0xe0000000) < 0x200000) {
-		start &= ~0xe0000000;
-		start |=  0x80000000;
+	if ((addr & ~0xe0000000) < 0x200000) {
+		addr &= ~0xe0000000;
+		addr |=  0x80000000;
 	}
 
 	start = addr >> 12;

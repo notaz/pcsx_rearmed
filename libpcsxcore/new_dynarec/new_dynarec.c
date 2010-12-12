@@ -1076,25 +1076,37 @@ void ll_clear(struct ll_entry **head)
 // Dereference the pointers and remove if it matches
 void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
 {
+  u_int old_host_addr=0;
   while(head) {
     int ptr=get_pointer(head->addr);
     inv_debug("EXP: Lookup pointer to %x at %x (%x)\n",(int)ptr,(int)head->addr,head->vaddr);
     if(((ptr>>shift)==(addr>>shift)) ||
        (((ptr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift)))
     {
-      inv_debug("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
-      kill_pointer(head->addr);
+      printf("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
+      u_int host_addr=(u_int)kill_pointer(head->addr);
+
+      if((host_addr>>12)!=(old_host_addr>>12)) {
+        #ifdef __arm__
+        __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
+        #endif
+        old_host_addr=host_addr;
+      }
     }
     head=head->next;
   }
+  #ifdef __arm__
+  if (old_host_addr)
+    __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
+  #endif
 }
 
 // This is called when we write to a compiled block (see do_invstub)
-int invalidate_page(u_int page)
+void invalidate_page(u_int page)
 {
-  int modified=0;
   struct ll_entry *head;
   struct ll_entry *next;
+  u_int old_host_addr=0;
   head=jump_in[page];
   jump_in[page]=0;
   while(head!=NULL) {
@@ -1108,17 +1120,25 @@ int invalidate_page(u_int page)
   jump_out[page]=0;
   while(head!=NULL) {
     inv_debug("INVALIDATE: kill pointer to %x (%x)\n",head->vaddr,(int)head->addr);
-    kill_pointer(head->addr);
-    modified=1;
+    u_int host_addr=(u_int)kill_pointer(head->addr);
+
+    if((host_addr>>12)!=(old_host_addr>>12)) {
+      #ifdef __arm__
+      __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
+      #endif
+      old_host_addr=host_addr;
+    }
     next=head->next;
     free(head);
     head=next;
   }
-  return modified;
+  #ifdef __arm__
+  if (old_host_addr)
+    __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
+  #endif
 }
 void invalidate_block(u_int block)
 {
-  int modified;
   u_int page=get_page(block<<12);
   u_int vpage=get_vpage(block<<12);
   inv_debug("INVALIDATE: %x (%d)\n",block<<12,page);
@@ -1151,7 +1171,7 @@ void invalidate_block(u_int block)
     head=head->next;
   }
   //printf("first=%d last=%d\n",first,last);
-  modified=invalidate_page(page);
+  invalidate_page(page);
   assert(first+5>page); // NB: this assumes MAXBLOCK<=4096 (4 pages)
   assert(last<page+5);
   // Invalidate the adjacent pages if a block crosses a 4K boundary
@@ -1177,10 +1197,7 @@ void invalidate_block(u_int block)
   }
   else if(block>=0x80000&&block<0x80800) memory_map[block]=((u_int)rdram-0x80000000)>>2;
 #endif
-  #ifdef __arm__
-  if(modified)
-    __clear_cache((void *)BASE_ADDR,(void *)BASE_ADDR+(1<<TARGET_SIZE_2));
-  #endif
+
   #ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
   #endif
@@ -10812,10 +10829,6 @@ int new_recompile_block(int addr)
         break;
       case 3:
         // Clear jump_out
-        #ifdef __arm__
-        if((expirep&2047)==0)
-          __clear_cache((void *)BASE_ADDR,(void *)BASE_ADDR+(1<<TARGET_SIZE_2));
-        #endif
         ll_remove_matching_addrs(jump_out+(expirep&2047),base,shift);
         ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base,shift);
         break;
