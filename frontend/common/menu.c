@@ -729,22 +729,6 @@ static void do_delete(const char *fpath, const char *fname)
 
 // -------------- ROM selector --------------
 
-// rrrr rggg gggb bbbb
-static unsigned short file2color(const char *fname)
-{
-	const char *ext = fname + strlen(fname) - 3;
-	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso", "cue" };
-	static const char *other_exts[] = { "gmv", "pat" };
-	int i;
-
-	if (ext < fname) ext = fname;
-	for (i = 0; i < array_size(rom_exts); i++)
-		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
-	for (i = 0; i < array_size(other_exts); i++)
-		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
-	return 0xffff;
-}
-
 static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 {
 	int max_cnt, start, i, x, pos;
@@ -773,7 +757,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 			smalltext_out16(x, pos * me_sfont_h, "/", 0xfff6);
 			smalltext_out16(x + me_sfont_w, pos * me_sfont_h, namelist[i+1]->d_name, 0xfff6);
 		} else {
-			unsigned short color = file2color(namelist[i+1]->d_name);
+			unsigned short color = fname2color(namelist[i+1]->d_name);
 			smalltext_out16(x, pos * me_sfont_h, namelist[i+1]->d_name, color);
 		}
 	}

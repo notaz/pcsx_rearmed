@@ -125,6 +125,25 @@ static int menu_load_config(int is_game)
 	return 0;
 }
 
+// rrrr rggg gggb bbbb
+static unsigned short fname2color(const char *fname)
+{
+	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".z" };
+	static const char *other_exts[] = { ".cue", ".ccd", ".sub", ".table" };
+	const char *ext = strrchr(fname, '.');
+	int i;
+
+	if (ext == NULL)
+		return 0xffff;
+	for (i = 0; i < array_size(cdimg_exts); i++)
+		if (strcasecmp(ext, cdimg_exts[i]) == 0)
+			return 0x7bff;
+	for (i = 0; i < array_size(other_exts); i++)
+		if (strcasecmp(ext, other_exts[i]) == 0)
+			return 0xa514;
+	return 0xffff;
+}
+
 #define menu_init menu_init_common
 #include "common/menu.c"
 #undef menu_init
