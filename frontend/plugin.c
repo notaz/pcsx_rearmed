@@ -11,6 +11,7 @@
 
 #include "plugin_lib.h"
 #include "plugin.h"
+#include "../plugins/cdrcimg/cdrcimg.h"
 
 static int dummy_func() {
 	return 0;
@@ -189,6 +190,9 @@ static const struct {
 void *plugin_link(enum builtint_plugins_e id, const char *sym)
 {
 	int i;
+
+	if (id == PLUGIN_CDRCIMG)
+		return cdrcimg_get_sym(sym);
 
 	for (i = 0; i < ARRAY_SIZE(plugin_funcs); i++) {
 		if (id != plugin_funcs[i].id)

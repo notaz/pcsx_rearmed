@@ -526,6 +526,7 @@ const char *plat_get_credits(void)
 
 static char *romsel_run(void)
 {
+	extern void set_cd_image(const char *fname);
 	char *ret;
 
 	ret = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
@@ -535,7 +536,7 @@ static char *romsel_run(void)
 	lprintf("selected file: %s\n", ret);
 	ready_to_go = 0;
 
-	SetIsoFile(ret);
+	set_cd_image(ret);
 	LoadPlugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {

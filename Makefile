@@ -47,9 +47,12 @@ ifdef X11
 LDFLAGS += -lX11 -lXv
 OBJS += plugins/dfxvideo/draw.o
 else
-CFLAGS += -D_MACGL # disables X in dfxvideo
+plugins/dfxvideo/%.o: CFLAGS += -D_MACGL # disables X in dfxvideo
 OBJS += plugins/dfxvideo/draw_fb.o
 endif
+# cdrcimg
+plugins/cdrcimg/%.o: CFLAGS += -Wall
+OBJS += plugins/cdrcimg/cdrcimg.o
 
 # gui
 OBJS += gui/Config.o gui/Plugin.o

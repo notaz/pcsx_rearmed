@@ -18,6 +18,7 @@
 #include "menu.h"
 #include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
+#include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
 #include "common/input.h"
 
@@ -67,11 +68,31 @@ static void CreateMemcard(char *filename, char *conf_mcd) {
 	}
 }
 
+void set_cd_image(const char *fname)
+{
+	const char *ext;
+	int len;
+	
+	len = strlen(fname);
+	ext = fname;
+	if (len > 2)
+		ext = fname + len - 2;
+
+	if (strcasecmp(ext, ".z") == 0) {
+		SetIsoFile(NULL);
+		cdrcimg_set_fname(fname);
+		strcpy(Config.Cdr, "builtin_cdrcimg");
+	} else {
+		SetIsoFile(fname);
+		strcpy(Config.Cdr, "builtin_cdr");
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
-	int runcd = 0;
+	const char *cdfile = NULL;
 	int loadst = 0;
 	void *tmp;
 	int i;
@@ -118,8 +139,7 @@ int main(int argc, char *argv[])
 					isofilename[0] = 0;
 			}
 
-			SetIsoFile(isofilename);
-			runcd = 1;
+			cdfile = isofilename;
 		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
@@ -189,6 +209,10 @@ int main(int argc, char *argv[])
 	chdir(plugin_default_dir);
 	g_free(plugin_default_dir);
 */
+
+	if (cdfile)
+		set_cd_image(cdfile);
+
 	if (SysInit() == -1)
 		return 1;
 
@@ -215,7 +239,7 @@ int main(int argc, char *argv[])
 		if (Load(file) != -1)
 			ready_to_go = 1;
 	} else {
-		if (runcd) {
+		if (cdfile) {
 			if (LoadCdrom() == -1) {
 				ClosePlugins();
 				printf(_("Could not load CD-ROM!\n"));
@@ -406,11 +430,13 @@ char *getenv(const char *name)
 
 /* we hook statically linked plugins here */
 static const char *builtin_plugins[] = {
-	"builtin_gpu", "builtin_spu", "builtin_cdr", "builtin_pad"
+	"builtin_gpu", "builtin_spu", "builtin_cdr", "builtin_pad",
+	"builtin_cdrcimg",
 };
 
 static const int builtin_plugin_ids[] = {
 	PLUGIN_GPU, PLUGIN_SPU, PLUGIN_CDR, PLUGIN_PAD,
+	PLUGIN_CDRCIMG,
 };
 
 void *SysLoadLibrary(const char *lib) {
