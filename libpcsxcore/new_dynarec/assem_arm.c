@@ -2861,8 +2861,81 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
 
 do_unalignedwritestub(int n)
 {
+  assem_debug("do_unalignedwritestub %x\n",start+stubs[n][3]*4);
+  literal_pool(256);
   set_jump_target(stubs[n][1],(int)out);
-  output_w32(0xef000000);
+
+  int i=stubs[n][3];
+  struct regstat *i_regs=(struct regstat *)stubs[n][4];
+  int addr=stubs[n][5];
+  u_int reglist=stubs[n][7];
+  signed char *i_regmap=i_regs->regmap;
+  int temp2=get_reg(i_regmap,FTEMP);
+  int rt;
+  int ds, real_rs;
+  rt=get_reg(i_regmap,rs2[i]);
+  assert(rt>=0);
+  assert(addr>=0);
+  assert(opcode[i]==0x2a||opcode[i]==0x2e); // SWL/SWR only implemented
+  reglist|=(1<<addr);
+  reglist&=~(1<<temp2);
+
+  emit_andimm(addr,0xfffffffc,temp2);
+  emit_writeword(temp2,(int)&address);
+
+  save_regs(reglist);
+  ds=i_regs!=&regs[i];
+  real_rs=get_reg(i_regmap,rs1[i]);
+  u_int cmask=ds?-1:(0x100f|~i_regs->wasconst);
+  if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&0x100f,i);
+  wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty&cmask&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs)));
+  if(!ds) wb_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&~0x100f,i);
+  emit_shrimm(addr,16,1);
+  int cc=get_reg(i_regmap,CCREG);
+  if(cc<0) {
+    emit_loadreg(CCREG,2);
+  }
+  emit_movimm((u_int)readmem,0);
+  emit_addimm(cc<0?2:cc,2*stubs[n][6]+2,2);
+  emit_movimm(start+stubs[n][3]*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3); // XXX: can be rm'd?
+  emit_call((int)&indirect_jump_indexed);
+  restore_regs(reglist);
+
+  emit_readword((int)&readmem_dword,temp2);
+  int temp=addr; //hmh
+  emit_shlimm(addr,3,temp);
+  emit_andimm(temp,24,temp);
+#ifdef BIG_ENDIAN_MIPS
+  if (opcode[i]==0x2e) // SWR
+#else
+  if (opcode[i]==0x2a) // SWL
+#endif
+    emit_xorimm(temp,24,temp);
+  emit_movimm(-1,HOST_TEMPREG);
+  if (opcode[i]==0x2e) { // SWR
+    emit_bic_lsr(temp2,HOST_TEMPREG,temp,temp2);
+    emit_orrshr(rt,temp,temp2);
+  }else{
+    emit_bic_lsl(temp2,HOST_TEMPREG,temp,temp2);
+    emit_orrshl(rt,temp,temp2);
+  }
+  emit_readword((int)&address,addr);
+  emit_writeword(temp2,(int)&word);
+  //save_regs(reglist); // don't need to, no state changes
+  emit_shrimm(addr,16,1);
+  emit_movimm((u_int)writemem,0);
+  //emit_call((int)&indirect_jump_indexed);
+  emit_mov(15,14);
+  emit_readword_dualindexedx4(0,1,15);
+  emit_readword((int)&Count,HOST_TEMPREG);
+  emit_readword((int)&next_interupt,2);
+  emit_addimm(HOST_TEMPREG,-2*stubs[n][6]-2,HOST_TEMPREG);
+  emit_writeword(2,(int)&last_count);
+  emit_sub(HOST_TEMPREG,2,cc<0?HOST_TEMPREG:cc);
+  if(cc<0) {
+    emit_storereg(CCREG,HOST_TEMPREG);
+  }
+  restore_regs(reglist);
   emit_jmp(stubs[n][2]); // return address
 }
 

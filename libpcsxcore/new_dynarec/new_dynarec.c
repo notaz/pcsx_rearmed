@@ -680,8 +680,8 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
   if(itype[i]==LOADLR) {
     hsn[FTEMP]=0;
   }
-  // Also 64-bit SDL/SDR
-  if(opcode[i]==0x2c||opcode[i]==0x2d) {
+  // Also SWL/SWR/SDL/SDR
+  if(opcode[i]==0x2a||opcode[i]==0x2e||opcode[i]==0x2c||opcode[i]==0x2d) {
     hsn[FTEMP]=0;
   }
   // Don't remove the TLB registers either
@@ -1638,7 +1638,7 @@ void store_alloc(struct regstat *current,int i)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
   else alloc_reg(current,i,INVCP);
   #endif
-  if(opcode[i]==0x2c||opcode[i]==0x2d) { // 64-bit SDL/SDR
+  if(opcode[i]==0x2a||opcode[i]==0x2e||opcode[i]==0x2c||opcode[i]==0x2d) { // SWL/SWL/SDL/SDR
     alloc_reg(current,i,FTEMP);
   }
   // We need a temporary register for address generation
@@ -3379,7 +3379,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
       set_jump_target(done0,(int)out);
     }
     if(!c||!memtarget)
-      add_stub(STORELR_STUB,jaddr,(int)out,0,(int)i_regs,rs2[i],ccadj[i],reglist);
+      add_stub(STORELR_STUB,jaddr,(int)out,i,(int)i_regs,temp,ccadj[i],reglist);
   }
   if(!using_tlb) {
     emit_addimm_no_flags((u_int)0x80000000-(u_int)rdram,temp);
