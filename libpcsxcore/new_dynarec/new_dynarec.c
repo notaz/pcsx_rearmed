@@ -1153,7 +1153,7 @@ void invalidate_block(u_int block)
     if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
       get_bounds((int)head->addr,&start,&end);
       //printf("start: %x end: %x\n",start,end);
-      if(page<2048&&start>=0x80000000&&end<0x80800000) {
+      if(page<2048&&start>=0x80000000&&end<0x80000000+RAM_SIZE) {
         if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page) {
           if((((start-(u_int)rdram)>>12)&2047)<first) first=((start-(u_int)rdram)>>12)&2047;
           if((((end-1-(u_int)rdram)>>12)&2047)>last) last=((end-1-(u_int)rdram)>>12)&2047;
@@ -1266,7 +1266,7 @@ void clean_blocks(u_int page)
           u_int i;
           u_int inv=0;
           get_bounds((int)head->addr,&start,&end);
-          if(start-(u_int)rdram<0x800000) {
+          if(start-(u_int)rdram<RAM_SIZE) {
             for(i=(start-(u_int)rdram+0x80000000)>>12;i<=(end-1-(u_int)rdram+0x80000000)>>12;i++) {
               inv|=invalid_code[i];
             }
@@ -1276,7 +1276,7 @@ void clean_blocks(u_int page)
             //printf("addr=%x start=%x end=%x\n",addr,start,end);
             if(addr<start||addr>=end) inv=1;
           }
-          else if((signed int)head->vaddr>=(signed int)0x80800000) {
+          else if((signed int)head->vaddr>=(signed int)0x80000000+RAM_SIZE) {
             inv=1;
           }
           if(!inv) {
@@ -2746,7 +2746,7 @@ void load_assemble(int i,struct regstat *i_regs)
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80800000;
+    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
   //printf("load_assemble: c=%d\n",c);
@@ -2774,10 +2774,10 @@ void load_assemble(int i,struct regstat *i_regs)
 //#define R29_HACK 1
         #ifdef R29_HACK
         // Strmnnrmn's speed hack
-        if(rs1[i]!=29||start<0x80001000||start>=0x80800000)
+        if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
         #endif
         {
-          emit_cmpimm(addr,0x800000);
+          emit_cmpimm(addr,RAM_SIZE);
           jaddr=(int)out;
           #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
           // Hint to branch predictor that the branch is unlikely to be taken
@@ -3020,7 +3020,7 @@ void store_assemble(int i,struct regstat *i_regs)
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80800000;
+    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
   assert(tl>=0);
@@ -3036,14 +3036,14 @@ void store_assemble(int i,struct regstat *i_regs)
       #ifdef R29_HACK
       // Strmnnrmn's speed hack
       memtarget=1;
-      if(rs1[i]!=29||start<0x80001000||start>=0x80800000)
+      if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
-      emit_cmpimm(addr,0x800000);
+      emit_cmpimm(addr,RAM_SIZE);
       #ifdef DESTRUCTIVE_SHIFT
       if(s==addr) emit_mov(s,temp);
       #endif
       #ifdef R29_HACK
-      if(rs1[i]!=29||start<0x80001000||start>=0x80800000)
+      if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
       {
         jaddr=(int)out;
@@ -3203,7 +3203,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->isconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80800000;
+    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
   assert(tl>=0);
@@ -3214,7 +3214,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
     assert(temp>=0);
     if(!using_tlb) {
       if(!c) {
-        emit_cmpimm(s<0||offset?temp:s,0x800000);
+        emit_cmpimm(s<0||offset?temp:s,RAM_SIZE);
         if(!offset&&s!=temp) emit_mov(s,temp);
         jaddr=(int)out;
         emit_jno(0);
@@ -3466,7 +3466,7 @@ void c1ls_assemble(int i,struct regstat *i_regs)
   // Generate address + offset
   if(!using_tlb) {
     if(!c)
-      emit_cmpimm(offset||c||s<0?ar:s,0x800000);
+      emit_cmpimm(offset||c||s<0?ar:s,RAM_SIZE);
   }
   else
   {
@@ -3497,7 +3497,7 @@ void c1ls_assemble(int i,struct regstat *i_regs)
       jaddr2=(int)out;
       emit_jno(0);
     }
-    else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80800000) {
+    else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80000000+RAM_SIZE) {
       jaddr2=(int)out;
       emit_jmp(0); // inline_readstub/inline_writestub?  Very rare case
     }
@@ -3632,11 +3632,11 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   }
   if(s>=0) c=(i_regs->wasconst>>s)&1;
   if(!c) {
-    emit_cmpimm(offset||c||s<0?ar:s,0x800000);
+    emit_cmpimm(offset||c||s<0?ar:s,RAM_SIZE);
     jaddr2=(int)out;
     emit_jno(0);
   }
-  else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80800000) {
+  else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80000000+RAM_SIZE) {
     jaddr2=(int)out;
     emit_jmp(0); // inline_readstub/inline_writestub?  Very rare case
   }
@@ -4004,7 +4004,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
               // Stores to memory go thru the mapper to detect self-modifying
               // code, loads don't.
               if((unsigned int)(constmap[i][rs]+offset)>=0xC0000000 ||
-                 (unsigned int)(constmap[i][rs]+offset)<0x80800000 )
+                 (unsigned int)(constmap[i][rs]+offset)<0x80000000+RAM_SIZE )
                 generate_map_const(constmap[i][rs]+offset,rm);
             }else{
               if((signed int)(constmap[i][rs]+offset)>=(signed int)0xC0000000)
@@ -4054,7 +4054,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
           // Stores to memory go thru the mapper to detect self-modifying
           // code, loads don't.
           if((unsigned int)(constmap[i+1][rs]+offset)>=0xC0000000 ||
-             (unsigned int)(constmap[i+1][rs]+offset)<0x80800000 )
+             (unsigned int)(constmap[i+1][rs]+offset)<0x80000000+RAM_SIZE )
             generate_map_const(constmap[i+1][rs]+offset,ra);
         }else{
           if((signed int)(constmap[i+1][rs]+offset)>=(signed int)0xC0000000)
@@ -6537,7 +6537,7 @@ void unneeded_registers(int istart,int iend,int r)
         {
           uu=u=0x300C0F3; // Discard at, a0-a3, t6-t9
         }
-        if(start>0x80000400&&start<0x80800000) {
+        if(start>0x80000400&&start<0x80000000+RAM_SIZE) {
           if(itype[i]==UJUMP&&rt1[i]==31)
           {
             //uu=u=0x30300FF0FLL; // Discard at, v0-v1, t0-t9, lo, hi
@@ -7766,9 +7766,9 @@ int new_recompile_block(int addr)
   }
   else
 #endif
-  if ((int)addr >= 0x80000000 && (int)addr < 0x80800000) {
+  if ((int)addr >= 0x80000000 && (int)addr < 0x80000000+RAM_SIZE) {
     source = (u_int *)((u_int)rdram+start-0x80000000);
-    pagelimit = 0x80800000;
+    pagelimit = 0x80000000+RAM_SIZE;
   }
 #ifndef DISABLE_TLB
   else if ((signed int)addr >= (signed int)0xC0000000) {

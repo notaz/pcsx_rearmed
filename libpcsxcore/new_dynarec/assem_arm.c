@@ -3238,7 +3238,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
   else addr=s;
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80800000;
+    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
   if(tl>=0) {
@@ -3252,7 +3252,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
         }else{
           emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
         }
-        emit_cmpimm(addr,0x800000);
+        emit_cmpimm(addr,RAM_SIZE);
         jaddr=(int)out;
         emit_jno(0);
       }

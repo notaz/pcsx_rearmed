@@ -13,6 +13,7 @@
 #define FORCE32 1
 #define DISABLE_COP1 1
 #define PCSX 1
+#define RAM_SIZE 0x200000
 
 #ifdef FORCE32
 #define REG_SHIFT 2
