@@ -809,6 +809,9 @@ static unsigned char * CALLBACK ISOgetBuffer(void) {
 // sector: byte 0 - minute; byte 1 - second; byte 2 - frame
 // does NOT uses bcd format
 static long CALLBACK ISOplay(unsigned char *time) {
+	if (numtracks <= 1)
+		return 0;
+
 	if (SPU_playCDDAchannel != NULL) {
 		if (subChanMixed) {
 			startCDDA(MSF2SECT(time[0], time[1], time[2]) * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE));
