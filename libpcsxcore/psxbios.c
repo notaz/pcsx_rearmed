@@ -26,6 +26,9 @@
 #include "psxbios.h"
 #include "psxhw.h"
 
+#undef SysPrintf
+#define SysPrintf if (Config.PsxOut) printf
+
 char *biosA0n[256] = {
 // 0x00
 	"open",		"lseek",	"read",		"write",
