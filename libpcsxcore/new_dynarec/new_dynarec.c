@@ -3193,11 +3193,13 @@ void storelr_assemble(int i,struct regstat *i_regs)
   int case1,case2,case3;
   int done0,done1,done2;
   int memtarget,c=0;
+  int agr=AGEN1+(i&1);
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rs2[i]|64);
   tl=get_reg(i_regs->regmap,rs2[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
-  temp=get_reg(i_regs->regmap,-1);
+  temp=get_reg(i_regs->regmap,agr);
+  if(temp<0) temp=get_reg(i_regs->regmap,-1);
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->isconst>>s)&1;
