@@ -93,15 +93,6 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 
 void pl_fbdev_flip(void)
 {
-	/* doing input here because the pad is polled
-	 * thousands of times for some reason */
-	int actions[IN_BINDTYPE_COUNT] = { 0, };
-
-	in_update(actions);
-	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
-		stop = 1;
-	keystate = actions[IN_BINDTYPE_PLAYER12];
-
 	flip_cnt++;
 	print_fps();
 	print_cpu_usage();
@@ -114,12 +105,26 @@ void pl_fbdev_finish(void)
 {
 }
 
+static void update_input(void)
+{
+	int actions[IN_BINDTYPE_COUNT] = { 0, };
+
+	in_update(actions);
+	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
+		stop = 1;
+	keystate = actions[IN_BINDTYPE_PLAYER12];
+}
+
 /* called on every vsync */
 void pl_frame_limit(void)
 {
 	extern void CheckFrameRate(void);
 	static int oldsec;
 	struct timeval tv;
+
+	/* doing input here because the pad is polled
+	 * thousands of times per frame for some reason */
+	update_input();
 
 	pcnt_end(PCNT_ALL);
 	gettimeofday(&tv, 0);
