@@ -84,16 +84,17 @@ static void blit(void)
 
 void DoBufferSwap(void)
 {
- static int fbw, fb24bpp;
+ static int fbw, fbh, fb24bpp;
 
  if (PSXDisplay.DisplayMode.x == 0 || PSXDisplay.DisplayMode.y == 0)
   return;
 
  /* careful if rearranging this code, we try to set mode and flip
   * to get the hardware apply both changes at the same time */
- if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.RGB24 != fb24bpp) {
-  int fbh = PSXDisplay.DisplayMode.y;
+ if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.DisplayMode.y != fbh
+     || PSXDisplay.RGB24 != fb24bpp) {
   fbw = PSXDisplay.DisplayMode.x;
+  fbh = PSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
   pl_fbdev_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
