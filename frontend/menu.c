@@ -128,8 +128,8 @@ static int menu_load_config(int is_game)
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".z" };
-	static const char *other_exts[] = { ".cue", ".ccd", ".sub", ".table" };
+	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".z", ".cue" };
+	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table" };
 	const char *ext = strrchr(fname, '.');
 	int i;
 
