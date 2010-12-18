@@ -8104,7 +8104,7 @@ int new_recompile_block(int addr)
       case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
 #endif
       default: strcpy(insn[i],"???"); type=NI;
-        printf("NI %08x @%08x\n", source[i], addr + i*4);
+        printf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
         break;
     }
     itype[i]=type;
@@ -8359,9 +8359,9 @@ int new_recompile_block(int addr)
       // Don't get too close to the limit
       if(i>MAXBLOCK/2) done=1;
     }
-    if(i>0&&itype[i-1]==SYSCALL&&stop_after_jal) done=1;
-    if(itype[i-1]==HLECALL) done=1;
-    assert(i<MAXBLOCK-1);
+    if(itype[i]==SYSCALL&&stop_after_jal) done=1;
+    if(itype[i]==HLECALL) done=1;
+    //assert(i<MAXBLOCK-1);
     if(start+i*4==pagelimit-4) done=1;
     assert(start+i*4<pagelimit);
     if (i==MAXBLOCK-1) done=1;
