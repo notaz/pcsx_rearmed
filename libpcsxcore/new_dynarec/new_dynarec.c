@@ -8052,10 +8052,12 @@ int new_recompile_block(int addr)
       case 0x15: strcpy(insn[i],"BNEL"); type=CJUMP; break;
       case 0x16: strcpy(insn[i],"BLEZL"); type=CJUMP; break;
       case 0x17: strcpy(insn[i],"BGTZL"); type=CJUMP; break;
+#ifndef FORCE32
       case 0x18: strcpy(insn[i],"DADDI"); type=IMM16; break;
       case 0x19: strcpy(insn[i],"DADDIU"); type=IMM16; break;
       case 0x1A: strcpy(insn[i],"LDL"); type=LOADLR; break;
       case 0x1B: strcpy(insn[i],"LDR"); type=LOADLR; break;
+#endif
       case 0x20: strcpy(insn[i],"LB"); type=LOAD; break;
       case 0x21: strcpy(insn[i],"LH"); type=LOAD; break;
       case 0x22: strcpy(insn[i],"LWL"); type=LOADLR; break;
@@ -8068,20 +8070,26 @@ int new_recompile_block(int addr)
       case 0x29: strcpy(insn[i],"SH"); type=STORE; break;
       case 0x2A: strcpy(insn[i],"SWL"); type=STORELR; break;
       case 0x2B: strcpy(insn[i],"SW"); type=STORE; break;
+#ifndef FORCE32
       case 0x2C: strcpy(insn[i],"SDL"); type=STORELR; break;
       case 0x2D: strcpy(insn[i],"SDR"); type=STORELR; break;
+#endif
       case 0x2E: strcpy(insn[i],"SWR"); type=STORELR; break;
       case 0x2F: strcpy(insn[i],"CACHE"); type=NOP; break;
       case 0x30: strcpy(insn[i],"LL"); type=NI; break;
       case 0x31: strcpy(insn[i],"LWC1"); type=C1LS; break;
+#ifndef FORCE32
       case 0x34: strcpy(insn[i],"LLD"); type=NI; break;
       case 0x35: strcpy(insn[i],"LDC1"); type=C1LS; break;
       case 0x37: strcpy(insn[i],"LD"); type=LOAD; break;
+#endif
       case 0x38: strcpy(insn[i],"SC"); type=NI; break;
       case 0x39: strcpy(insn[i],"SWC1"); type=C1LS; break;
+#ifndef FORCE32
       case 0x3C: strcpy(insn[i],"SCD"); type=NI; break;
       case 0x3D: strcpy(insn[i],"SDC1"); type=C1LS; break;
       case 0x3F: strcpy(insn[i],"SD"); type=STORE; break;
+#endif
 #ifdef PCSX
       case 0x12: strcpy(insn[i],"COP2"); type=NI;
         op2=(source[i]>>21)&0x1f;
