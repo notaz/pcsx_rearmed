@@ -2959,15 +2959,19 @@ do_invstub(int n)
 int do_dirty_stub(int i)
 {
   assem_debug("do_dirty_stub %x\n",start+i*4);
+  u_int addr=(int)start<(int)0xC0000000?(u_int)source:(u_int)start;
+  #ifdef PCSX
+  addr=(u_int)source;
+  #endif
   // Careful about the code output here, verify_dirty needs to parse it.
   #ifdef ARMv5_ONLY
-  emit_loadlp((int)start<(int)0xC0000000?(int)source:(int)start,1);
+  emit_loadlp(addr,1);
   emit_loadlp((int)copy,2);
   emit_loadlp(slen*4,3);
   #else
-  emit_movw(((int)start<(int)0xC0000000?(u_int)source:(u_int)start)&0x0000FFFF,1);
+  emit_movw(addr&0x0000FFFF,1);
   emit_movw(((u_int)copy)&0x0000FFFF,2);
-  emit_movt(((int)start<(int)0xC0000000?(u_int)source:(u_int)start)&0xFFFF0000,1);
+  emit_movt(addr&0xFFFF0000,1);
   emit_movt(((u_int)copy)&0xFFFF0000,2);
   emit_movw(slen*4,3);
   #endif
