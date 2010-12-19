@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus - linkage_arm.s                                           *
+ *   linkage_arm.s for PCSX                                                *
  *   Copyright (C) 2009-2010 Ari64                                         *
+ *   Copyright (C) 2010 Gražvydas "notaz" Ignotas                          *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -59,6 +60,8 @@ rdram = 0x80000000
 	.global	memory_map
 	/* psx */
 	.global psxRegs
+	.global nd_pcsx_io
+	.global psxH_ptr
 
 	.bss
 	.align	4
@@ -109,13 +112,14 @@ FCR0 = hword + 4
 FCR31 = FCR0 + 4
 	.type	FCR31, %object
 	.size	FCR31, 4
-reg = FCR31 + 4
+psxRegs = FCR31 + 4
 
 /* psxRegs */
-psxRegs = reg
+	.type	psxRegs, %object
+	.size	psxRegs, psxRegs_end-psxRegs
+reg = psxRegs
 	.type	reg, %object
 	.size	reg, 128
-	.size	psxRegs, psxRegs_end-psxRegs
 lo = reg + 128
 	.type	lo, %object
 	.size	lo, 4
@@ -149,10 +153,43 @@ intCycle = interrupt + 4
 	.size	intCycle, 128
 psxRegs_end = intCycle + 128
 
-align0 = psxRegs_end /* just for alignment */
+/* nd_pcsx_io */
+nd_pcsx_io = psxRegs_end
+	.type	nd_pcsx_io, %object
+	.size	nd_pcsx_io, nd_pcsx_io_end-nd_pcsx_io
+tab_read8 = nd_pcsx_io
+	.type	tab_read8, %object
+	.size	tab_read8, 4
+tab_read16 = tab_read8 + 4
+	.type	tab_read16, %object
+	.size	tab_read16, 4
+tab_read32 = tab_read16 + 4
+	.type	tab_read32, %object
+	.size	tab_read32, 4
+tab_write8 = tab_read32 + 4
+	.type	tab_write8, %object
+	.size	tab_write8, 4
+tab_write16 = tab_write8 + 4
+	.type	tab_write16, %object
+	.size	tab_write16, 4
+tab_write32 = tab_write16 + 4
+	.type	tab_write32, %object
+	.size	tab_write32, 4
+spu_readf = tab_write32 + 4
+	.type	spu_readf, %object
+	.size	spu_readf, 4
+spu_writef = spu_readf + 4
+	.type	spu_writef, %object
+	.size	spu_writef, 4
+nd_pcsx_io_end = spu_writef + 4
+
+psxH_ptr = nd_pcsx_io_end
+	.type	psxH_ptr, %object
+	.size	psxH_ptr, 4
+align0 = psxH_ptr + 4 /* just for alignment */
 	.type	align0, %object
-	.size	align0, 8
-branch_target = align0 + 8
+	.size	align0, 4
+branch_target = align0 + 4
 	.type	branch_target, %object
 	.size	branch_target, 4
 mini_ht = branch_target + 4
@@ -751,143 +788,231 @@ new_dyna_start:
 	.word	dynarec_local
 	.size	new_dyna_start, .-new_dyna_start
 
-	.align	2
-	.global	write_rdram_new
-	.type	write_rdram_new, %function
-write_rdram_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	ldr	r0, [fp, #word-dynarec_local]
-	str	r0, [r2]
-	b	.E12
-	.size	write_rdram_new, .-write_rdram_new
-	.align	2
-	.global	write_rdramb_new
-	.type	write_rdramb_new, %function
-write_rdramb_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	ldrb	r0, [fp, #byte-dynarec_local]
-	eor	r2, r2, #3
-	strb	r0, [r2]
-	b	.E12
-	.size	write_rdramb_new, .-write_rdramb_new
-	.align	2
-	.global	write_rdramh_new
-	.type	write_rdramh_new, %function
-write_rdramh_new:
-	ldr	r2, [fp, #address-dynarec_local]
-	ldrh	r0, [fp, #hword-dynarec_local]
-	eor	r2, r2, #2
-	strh	r0, [r2]
-	b	.E12
-	.size	write_rdramh_new, .-write_rdramh_new
+/* --------------------------------------- */
 
-	.align	2
-	.global	do_invalidate
-	.type	do_invalidate, %function
-do_invalidate:
-	ldr	r2, [fp, #address-dynarec_local]
-.E12:
-	ldr	r1, [fp, #invc_ptr-dynarec_local]
-	lsr	r0, r2, #12
-	ldrb	r2, [r1, r0]
-	tst	r2, r2
-	beq	invalidate_block
-	mov	pc, lr
-	.size	do_invalidate, .-do_invalidate
+.align	2
+.global	ari_read_ram8
+.global	ari_read_ram16
+.global	ari_read_ram32
+.global	ari_read_ram_mirror8
+.global	ari_read_ram_mirror16
+.global	ari_read_ram_mirror32
+.global	ari_write_ram8
+.global	ari_write_ram16
+.global	ari_write_ram32
+.global	ari_write_ram_mirror8
+.global	ari_write_ram_mirror16
+.global	ari_write_ram_mirror32
+.global	ari_read_io8
+.global	ari_read_io16
+.global	ari_read_io32
+.global	ari_write_io8
+.global	ari_write_io16
+.global	ari_write_io32
 
-	.align	2
-	.global	read_nomem_new
-	.type	read_nomem_new, %function
-/*read_nomem_new:*/
-read_nomemb_new:
-read_nomemh_new:
-read_nomemd_new:
-	/* should never happen */
-	b	read_nomem_new
-/*
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	lsr	r0, r2, #12
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #8
-	tst	r12, r12
-	bmi	tlb_exception
-	ldr	r0, [r2, r12, lsl #2]
+.macro ari_read_ram bic_const op
+	ldr	r0, [fp, #address-dynarec_local]
+.if \bic_const
+	bic	r0, r0, #\bic_const
+.endif
+	\op	r0, [r0]
 	str	r0, [fp, #readmem_dword-dynarec_local]
 	mov	pc, lr
-*/
-	.size	read_nomem_new, .-read_nomem_new
-/*
-	.align	2
-	.global	read_nomemb_new
-	.type	read_nomemb_new, %function
-write_nomem_new:
-	str	r3, [fp, #24]
-	str	lr, [fp, #28]
-	bl	do_invalidate
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	ldr	lr, [fp, #28]
-	lsr	r0, r2, #12
-	ldr	r3, [fp, #24]
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #0xc
-	tst	r12, #0x40000000
-	bne	tlb_exception
-	ldr	r0, [fp, #word-dynarec_local]
-	str	r0, [r2, r12, lsl #2]
-	mov	pc, lr
-	.size	write_nomem_new, .-write_nomem_new
+.endm
 
-	.align	2
-	.global	write_nomemb_new
-	.type	write_nomemb_new, %function
-write_nomemb_new:
-	str	r3, [fp, #24]
-	str	lr, [fp, #28]
-	bl	do_invalidate
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	ldr	lr, [fp, #28]
-	lsr	r0, r2, #12
-	ldr	r3, [fp, #24]
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #0xc
-	tst	r12, #0x40000000
-	bne	tlb_exception
-	eor	r2, r2, #3
-	ldrb	r0, [fp, #byte-dynarec_local]
-	strb	r0, [r2, r12, lsl #2]
-	mov	pc, lr
-	.size	write_nomemb_new, .-write_nomemb_new
+ari_read_ram8:
+	ari_read_ram 0, ldrb
 
-	.align	2
-	.global	write_nomemh_new
-	.type	write_nomemh_new, %function
-write_nomemh_new:
-	str	r3, [fp, #24]
-	str	lr, [fp, #28]
-	bl	do_invalidate
-	ldr	r2, [fp, #address-dynarec_local]
-	add	r12, fp, #memory_map-dynarec_local
-	ldr	lr, [fp, #28]
-	lsr	r0, r2, #12
-	ldr	r3, [fp, #24]
-	ldr	r12, [r12, r0, lsl #2]
-	mov	r1, #0xc
-	lsls	r12, #2
-	bcs	tlb_exception
-	eor	r2, r2, #2
-	ldrh	r0, [fp, #hword-dynarec_local]
-	strh	r0, [r2, r12]
+ari_read_ram16:
+	ari_read_ram 1, ldrh
+
+ari_read_ram32:
+	ari_read_ram 3, ldr
+
+.macro ari_read_ram_mirror mvn_const, op
+	ldr	r0, [fp, #address-dynarec_local]
+	mvn	r1, #\mvn_const
+	and	r0, r1, lsr #11
+	orr	r0, r0, #1<<31
+	\op	r0, [r0]
+	str	r0, [fp, #readmem_dword-dynarec_local]
 	mov	pc, lr
-	.size	write_nomemh_new, .-write_nomemh_new
-*/
-	.align	2
-	.global	breakpoint
-	.type	breakpoint, %function
-breakpoint:
-	/* Set breakpoint here for debugging */
+.endm
+
+ari_read_ram_mirror8:
+	ari_read_ram_mirror 0, ldrb
+
+ari_read_ram_mirror16:
+	ari_read_ram_mirror (1<<11), ldrh
+
+ari_read_ram_mirror32:
+	ari_read_ram_mirror (3<<11), ldr
+
+/* invalidation is already taken care of by the caller */
+.macro ari_write_ram bic_const var op
+	ldr	r0, [fp, #address-dynarec_local]
+	ldr	r1, [fp, #\var-dynarec_local]
+.if \bic_const
+	bic	r0, r0, #\bic_const
+.endif
+	\op	r1, [r0]
 	mov	pc, lr
-	.size	breakpoint, .-breakpoint
-	.section	.note.GNU-stack,"",%progbits
+.endm
+
+ari_write_ram8:
+	ari_write_ram 0, byte, strb
+
+ari_write_ram16:
+	ari_write_ram 1, hword, strh
+
+ari_write_ram32:
+	ari_write_ram 3, word, str
+
+.macro ari_write_ram_mirror mvn_const var op
+	ldr	r0, [fp, #address-dynarec_local]
+	mvn	r3, #\mvn_const
+	ldr	r1, [fp, #\var-dynarec_local]
+	and	r0, r3, lsr #11
+	ldr	r2, [fp, #invc_ptr-dynarec_local]
+	orr	r0, r0, #1<<31
+	ldrb	r2, [r2, r0, lsr #12]
+	\op	r1, [r0]
+	tst	r2, r2
+	movne	pc, lr
+	lsr     r0, r0, #12
+	b	invalidate_block
+.endm
+
+ari_write_ram_mirror8:
+	ari_write_ram_mirror 0, byte, strb
+
+ari_write_ram_mirror16:
+	ari_write_ram_mirror (1<<11), hword, strh
+
+ari_write_ram_mirror32:
+	ari_write_ram_mirror (3<<11), word, str
+
+
+@ for testing
+.macro ari_read_io_old tab_shift
+	str     lr, [sp, #-8]! @ EABI alignment..
+.if \tab_shift == 0
+	bl	psxHwRead32
+.endif
+.if \tab_shift == 1
+	bl	psxHwRead16
+.endif
+.if \tab_shift == 2
+	bl	psxHwRead8
+.endif
+	str	r0, [fp, #readmem_dword-dynarec_local]
+	ldr     pc, [sp], #8
+.endm
+
+.macro ari_read_io readop mem_tab tab_shift
+	ldr	r0, [fp, #address-dynarec_local]
+	ldr	r1, [fp, #psxH_ptr-dynarec_local]
+.if \tab_shift == 0
+	bic	r0, r0, #3
+.endif
+.if \tab_shift == 1
+	bic	r0, r0, #1
+.endif
+	bic	r2, r0, #0x1f800000
+	ldr	r12,[fp, #\mem_tab-dynarec_local]
+	subs	r3, r2, #0x1000
+	blo	2f
+@	ari_read_io_old \tab_shift
+	cmp	r3, #0x880
+	bhs	1f
+	ldr	r12,[r12, r3, lsl #\tab_shift]
+	tst	r12,r12
+	beq	2f
+0:
+	str     lr, [sp, #-8]! @ EABI alignment..
+	blx	r12
+	str	r0, [fp, #readmem_dword-dynarec_local]
+	ldr     pc, [sp], #8
+
+1:
+.if \tab_shift == 1 @ read16
+	cmp	r2, #0x1c00
+	blo	2f
+	cmp	r2, #0x1e00
+	bhs	2f
+	ldr	r12,[fp, #spu_readf-dynarec_local]
+	b	0b
+.endif
+2:
+	@ no handler, just read psxH
+	\readop	r0, [r1, r2]
+	str	r0, [fp, #readmem_dword-dynarec_local]
+	mov	pc, lr
+.endm
+
+ari_read_io8:
+	ari_read_io ldrb, tab_read8, 2
+
+ari_read_io16:
+	ari_read_io ldrh, tab_read16, 1
+
+ari_read_io32:
+	ari_read_io ldr, tab_read32, 0
+
+.macro ari_write_io_old tab_shift
+.if \tab_shift == 0
+	b	psxHwWrite32
+.endif
+.if \tab_shift == 1
+	b	psxHwWrite16
+.endif
+.if \tab_shift == 2
+	b	psxHwWrite8
+.endif
+.endm
+
+.macro ari_write_io opvl opst var mem_tab tab_shift
+	ldr	r0, [fp, #address-dynarec_local]
+	\opvl	r1, [fp, #\var-dynarec_local]
+.if \tab_shift == 0
+	bic	r0, r0, #3
+.endif
+.if \tab_shift == 1
+	bic	r0, r0, #1
+.endif
+	bic	r2, r0, #0x1f800000
+	ldr	r12,[fp, #\mem_tab-dynarec_local]
+	subs	r3, r2, #0x1000
+	blo	0f
+@	ari_write_io_old \tab_shift
+	cmp	r3, #0x880
+	bhs	1f
+	ldr	r12,[r12, r3, lsl #\tab_shift]
+	mov	r0, r1
+	tst	r12,r12
+	bxne	r12
+0:
+	ldr	r3, [fp, #psxH_ptr-dynarec_local]
+	\opst	r1, [r2, r3]
+	mov	pc, lr
+1:
+.if \tab_shift == 1 @ write16
+	cmp	r2, #0x1c00
+	blo	0b
+	cmp	r2, #0x1e00
+	ldrlo	pc, [fp, #spu_writef-dynarec_local]
+	nop
+.endif
+	b	0b
+.endm
+
+ari_write_io8:
+	ari_write_io ldrb, strb, byte, tab_write8, 2
+
+ari_write_io16:
+	ari_write_io ldrh, strh, hword, tab_write16, 1
+
+ari_write_io32:
+	ari_write_io ldr, str, word, tab_write32, 0
+
+@ vim:filetype=armasm

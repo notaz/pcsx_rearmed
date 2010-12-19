@@ -1,15 +1,20 @@
+/*
+ * (C) Gražvydas "notaz" Ignotas, 2010
+ *
+ * This work is licensed under the terms of GNU GPL version 2 or later.
+ * See the COPYING file in the top-level directory.
+ */
+
 // pending_exception?
 // swi 0 in do_unalignedwritestub?
 #include <stdio.h>
 
 #include "emu_if.h"
-#include "../psxmem.h"
+#include "pcsxmem.h"
 #include "../psxhle.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
-//#define memprintf printf
-#define memprintf(...)
 //#define evprintf printf
 #define evprintf(...)
 
@@ -74,54 +79,6 @@ void check_interupt()
 	printf("ari64_check_interupt\n");
 }
 
-void read_nomem_new()
-{
-	printf("ari64_read_nomem_new\n");
-}
-
-static void read_mem8()
-{
-	memprintf("ari64_read_mem8  %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
-	readmem_word = psxMemRead8(address) & 0xff;
-}
-
-static void read_mem16()
-{
-	memprintf("ari64_read_mem16 %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
-	readmem_word = psxMemRead16(address) & 0xffff;
-}
-
-static void read_mem32()
-{
-	memprintf("ari64_read_mem32 %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
-	readmem_word = psxMemRead32(address);
-}
-
-static void write_mem8()
-{
-	memprintf("ari64_write_mem8  %08x,       %02x @%08x %u\n", address, byte, psxRegs.pc, psxRegs.cycle);
-	psxMemWrite8(address, byte);
-}
-
-static void write_mem16()
-{
-	memprintf("ari64_write_mem16 %08x,     %04x @%08x %u\n", address, hword, psxRegs.pc, psxRegs.cycle);
-	psxMemWrite16(address, hword);
-}
-
-static void write_mem32()
-{
-	memprintf("ari64_write_mem32 %08x, %08x @%08x %u\n", address, word, psxRegs.pc, psxRegs.cycle);
-	psxMemWrite32(address, word);
-}
-
-void (*readmem[0x10000])();
-void (*readmemb[0x10000])();
-void (*readmemh[0x10000])();
-void (*writemem[0x10000])();
-void (*writememb[0x10000])();
-void (*writememh[0x10000])();
-
 void *gte_handlers[64];
 
 /* from gte.txt.. not sure if this is any good. */
@@ -137,22 +94,17 @@ static int ari64_init()
 {
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
+	extern void *psxH_ptr;
 	size_t i;
 
 	new_dynarec_init();
-
-	for (i = 0; i < ARRAY_SIZE(readmem); i++) {
-		readmemb[i] = read_mem8;
-		readmemh[i] = read_mem16;
-		readmem[i] = read_mem32;
-		writememb[i] = write_mem8;
-		writememh[i] = write_mem16;
-		writemem[i] = write_mem32;
-	}
+	new_dyna_pcsx_mem_init();
 
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
+
+	psxH_ptr = psxH;
 
 	return 0;
 }
@@ -160,6 +112,7 @@ static int ari64_init()
 static void ari64_reset()
 {
 	printf("ari64_reset\n");
+	new_dyna_pcsx_mem_reset();
 	invalidate_all_pages();
 	pending_exception = 1;
 }
@@ -237,11 +190,14 @@ unsigned short hword;
 unsigned char byte;
 int pending_exception, stop;
 unsigned int next_interupt;
+void *psxH_ptr;
 void new_dynarec_init() {}
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
 void invalidate_all_pages() {}
 void invalidate_block(unsigned int block) {}
+void new_dyna_pcsx_mem_init(void) {}
+void new_dyna_pcsx_mem_reset(void) {}
 #endif
 
 #ifdef DRC_DBG

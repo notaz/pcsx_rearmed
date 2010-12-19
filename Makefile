@@ -28,6 +28,7 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 # dynarec
 ifndef NO_NEW_DRC
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
+OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
