@@ -543,12 +543,11 @@ void mdec1Interrupt() {
 	if (HW_DMA1_CHCR & SWAP32(0x01000000)) {
 		// Set a fixed value totaly arbitrarie another sound value is
 		// PSXCLK / 60 or PSXCLK / 50 since the bug happened at end of frame.
-		// PSXCLK / 1000 seems good for FF9. (for FF9 need < ~28000)
+		// PSXCLK / 500 seems good for FF9.
 		// CAUTION: commented interrupt-handling may lead to problems, keep an eye ;-)
-		MDECOUTDMA_INT(PSXCLK / 1000 * BIAS);
-//		psxRegs.interrupt |= 0x02000000;
-//		psxRegs.intCycle[5 + 24 + 1] *= 8;
-//		psxRegs.intCycle[5 + 24] = psxRegs.cycle;
+		MDECOUTDMA_INT(PSXCLK / 500);
+//		MDECOUTDMA_INT(psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle * 8);
+
 		HW_DMA1_CHCR &= SWAP32(~0x01000000);
 		DMA_INTERRUPT(1);
 	} else {

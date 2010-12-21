@@ -138,20 +138,6 @@ void psxMemWrite16(u32 mem, u16 value);
 void psxMemWrite32(u32 mem, u32 value);
 void *psxMemPointer(u32 mem);
 
-extern u32 event_cycles[7];
-extern u32 next_interupt;
-
-#define new_dyna_set_event(e, c) { \
-	s32 c_ = c; \
-	u32 abs_ = psxRegs.cycle + c_; \
-	s32 odi_ = next_interupt - psxRegs.cycle; \
-	event_cycles[e] = abs_; \
-	if (c_ < odi_) { \
-		/*printf("%u: next_interupt %d -> %d (%u)\n", psxRegs.cycle, odi_, c_, abs_);*/ \
-		next_interupt = abs_; \
-	} \
-}
-
 #ifdef __cplusplus
 }
 #endif

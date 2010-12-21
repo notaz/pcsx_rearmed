@@ -12,6 +12,7 @@
 #include "emu_if.h"
 #include "pcsxmem.h"
 #include "../psxhle.h"
+#include "../r3000a.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -19,7 +20,7 @@
 #define evprintf(...)
 
 char invalid_code[0x100000];
-u32 event_cycles[7];
+u32 event_cycles[PSXINT_COUNT];
 
 static void schedule_timeslice(void)
 {

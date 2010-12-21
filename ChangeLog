@@ -1,3 +1,17 @@
+August 7, 2010 Wei Mingzhi <whistler_wmz@users.sf.net>
+
+ * libpcsxcore/r3000a.h: Refactored the interrupt scheduling code to make it a
+   little more readable than using the "magic" numbers.
+ * libpcsxcore/r3000a.c: Likewise.
+ * libpcsxcore/cdrom.c: Likewise.
+ * libpcsxcore/mdec.c: Likewise.
+ * libpcsxcore/sio.c: Likewise.
+ * libpcsxcore/psxdma.h: Likewise.
+ * libpcsxcore/misc.c: Bumped savestate version.
+ * debian/changelog: Updated version.
+ * macosx/Info.plist: Likewise.
+ * po/zh_TW.po: Corrected a minor translation error.
+
 August 2, 2010 Wei Mingzhi <whistler_wmz@users.sf.net>
 
  * macosx/Pcsx.xcodeproj/project.pbxproj: Added some more optimizations

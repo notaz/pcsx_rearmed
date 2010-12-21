@@ -432,7 +432,7 @@ void psxHwWrite16(u32 add, u16 value) {
 #endif
 			psxHu16ref(0x1074) = SWAPu16(value);
 			if (psxHu16ref(0x1070) & value)
-				new_dyna_set_event(6, 1);
+				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 
 		case 0x1f801100:
@@ -546,7 +546,7 @@ void psxHwWrite32(u32 add, u32 value) {
 #endif
 			psxHu32ref(0x1074) = SWAPu32(value);
 			if (psxHu32ref(0x1070) & value)
-				new_dyna_set_event(6, 1);
+				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 
 #ifdef PSXHW_LOG

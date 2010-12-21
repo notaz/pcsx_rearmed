@@ -145,6 +145,17 @@ typedef union {
 	PAIR p[32];
 } psxCP2Ctrl;
 
+enum {
+	PSXINT_SIO = 0,
+	PSXINT_CDR,
+	PSXINT_CDREAD,
+	PSXINT_GPUDMA,
+	PSXINT_MDECOUTDMA,
+	PSXINT_SPUDMA,
+	PSXINT_NEWDRC_CHECK,
+	PSXINT_COUNT
+};
+
 typedef struct {
 	psxGPRRegs GPR;		/* General Purpose Registers */
 	psxCP0Regs CP0;		/* Coprocessor0 Registers */
@@ -154,10 +165,25 @@ typedef struct {
     u32 code;			/* The instruction */
 	u32 cycle;
 	u32 interrupt;
-	u32 intCycle[32];
+	struct { u32 sCycle, cycle; } intCycle[32];
 } psxRegisters;
 
 extern psxRegisters psxRegs;
+
+/* new_dynarec stuff */
+extern u32 event_cycles[PSXINT_COUNT];
+extern u32 next_interupt;
+
+#define new_dyna_set_event(e, c) { \
+	s32 c_ = c; \
+	u32 abs_ = psxRegs.cycle + c_; \
+	s32 odi_ = next_interupt - psxRegs.cycle; \
+	event_cycles[e] = abs_; \
+	if (c_ < odi_) { \
+		/*printf("%u: next_interupt %d -> %d (%u)\n", psxRegs.cycle, odi_, c_, abs_);*/ \
+		next_interupt = abs_; \
+	} \
+}
 
 #if defined(__BIGENDIAN__)
 
