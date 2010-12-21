@@ -64,7 +64,7 @@ struct in_default_bind in_evdev_defbinds[] = {
 	{ 0, 0, 0 }
 };
 
-static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
+static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, int first_call)
 {
 	struct omapfb_plane_info pi;
 	struct omapfb_mem_info mi;
@@ -90,11 +90,13 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 			perror("SETUP_PLANE");
 	}
 
-	mi.size = 640*512*2*3;
-	ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
-	if (ret != 0) {
-		perror("SETUP_MEM");
-		return -1;
+	if (first_call) {
+		mi.size = 640*512*2*3;
+		ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
+		if (ret != 0) {
+			perror("SETUP_MEM");
+			return -1;
+		}
 	}
 
 	pi.pos_x = x;
@@ -115,7 +117,7 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 int omap_enable_layer(int enabled)
 {
 	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb), enabled,
-		g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+		g_layer_x, g_layer_y, g_layer_w, g_layer_h, 0);
 }
 
 void plat_video_menu_enter(int is_rom_loaded)
@@ -153,7 +155,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	ret = omap_setup_layer_(fd, 1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+	ret = omap_setup_layer_(fd, 1, g_layer_x, g_layer_y, g_layer_w, g_layer_h, 1);
 	close(fd);
 	if (ret != 0) {
 		fprintf(stderr, "failed to set up layer, exiting.\n");
