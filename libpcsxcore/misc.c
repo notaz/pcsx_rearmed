@@ -470,6 +470,8 @@ int SaveState(const char *file) {
 	f = gzopen(file, "wb");
 	if (f == NULL) return -1;
 
+	new_dyna_save();
+
 	gzwrite(f, (void *)PcsxHeader, 32);
 	gzwrite(f, (void *)&SaveVersion, sizeof(u32));
 	gzwrite(f, (void *)&Config.HLE, sizeof(boolean));
@@ -568,6 +570,7 @@ int LoadState(const char *file) {
 	mdecFreeze(f, 0);
 
 	gzclose(f);
+	new_dyna_restore();
 
 	return 0;
 }

@@ -5,14 +5,15 @@
  * See the COPYING file in the top-level directory.
  */
 
-// pending_exception?
-// swi 0 in do_unalignedwritestub?
 #include <stdio.h>
 
 #include "emu_if.h"
 #include "pcsxmem.h"
 #include "../psxhle.h"
 #include "../r3000a.h"
+#include "../cdrom.h"
+#include "../psxdma.h"
+#include "../mdec.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -49,6 +50,46 @@ static void schedule_timeslice(void)
 #endif
 }
 
+typedef void (irq_func)();
+
+static irq_func * const irq_funcs[] = {
+	[PSXINT_SIO]	= sioInterrupt,
+	[PSXINT_CDR]	= cdrInterrupt,
+	[PSXINT_CDREAD]	= cdrReadInterrupt,
+	[PSXINT_GPUDMA]	= gpuInterrupt,
+	[PSXINT_MDECOUTDMA] = mdec1Interrupt,
+	[PSXINT_SPUDMA]	= spuInterrupt,
+};
+
+/* local dupe of psxBranchTest, using event_cycles */
+static void irq_test(void)
+{
+	u32 irqs = psxRegs.interrupt;
+	u32 cycle = psxRegs.cycle;
+	u32 irq, irq_bits;
+
+	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
+		psxRcntUpdate();
+
+	// irq_funcs() may queue more irqs
+	psxRegs.interrupt = 0;
+
+	for (irq = 0, irq_bits = irqs; irq_bits != 0; irq++, irq_bits >>= 1) {
+		if (!(irq_bits & 1))
+			continue;
+		if ((s32)(cycle - event_cycles[irq]) >= 0) {
+			irqs &= ~(1 << irq);
+			irq_funcs[irq]();
+		}
+	}
+	psxRegs.interrupt |= irqs;
+
+	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (Status & 0x401) == 0x401) {
+		psxException(0x400, 0);
+		pending_exception = 1;
+	}
+}
+
 void gen_interupt()
 {
 	evprintf("  +ge %08x, %u->%u\n", psxRegs.pc, psxRegs.cycle, next_interupt);
@@ -56,14 +97,14 @@ void gen_interupt()
 	psxRegs.cycle += 2;
 #endif
 
-	psxBranchTest();
+	irq_test();
+	//psxBranchTest();
+	//pending_exception = 1;
 
 	schedule_timeslice();
 
 	evprintf("  -ge %08x, %u->%u (%d)\n", psxRegs.pc, psxRegs.cycle,
 		next_interupt, next_interupt - psxRegs.cycle);
-
-	pending_exception = 1; /* FIXME */
 }
 
 void MTC0_()
@@ -77,7 +118,20 @@ void MTC0_()
 
 void check_interupt()
 {
+	/* FIXME (also asm) */
 	printf("ari64_check_interupt\n");
+}
+
+void new_dyna_save(void)
+{
+	// psxRegs.intCycle is always maintained, no need to convert
+}
+
+void new_dyna_restore(void)
+{
+	int i;
+	for (i = 0; i < PSXINT_NEWDRC_CHECK; i++)
+		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
 }
 
 void *gte_handlers[64];

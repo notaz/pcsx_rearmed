@@ -150,8 +150,8 @@ interrupt = cycle + 4
 	.size	interrupt, 4
 intCycle = interrupt + 4
 	.type	intCycle, %object
-	.size	intCycle, 128
-psxRegs_end = intCycle + 128
+	.size	intCycle, 256
+psxRegs_end = intCycle + 256
 
 /* nd_pcsx_io */
 nd_pcsx_io = psxRegs_end

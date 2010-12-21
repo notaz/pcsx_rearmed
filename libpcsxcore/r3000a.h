@@ -174,6 +174,9 @@ extern psxRegisters psxRegs;
 extern u32 event_cycles[PSXINT_COUNT];
 extern u32 next_interupt;
 
+void new_dyna_save(void);
+void new_dyna_restore(void);
+
 #define new_dyna_set_event(e, c) { \
 	s32 c_ = c; \
 	u32 abs_ = psxRegs.cycle + c_; \
