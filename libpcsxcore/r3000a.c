@@ -151,6 +151,12 @@ void psxBranchTest() {
 				spuInterrupt();
 			}
 		}
+		if (psxRegs.interrupt & (1 << PSXINT_MDECINDMA)) { // mdec in
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECINDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_MDECINDMA);
+				mdec0Interrupt();
+			}
+		}
 	}
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {

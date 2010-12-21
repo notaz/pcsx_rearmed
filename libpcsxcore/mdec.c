@@ -20,6 +20,20 @@
 
 #include "mdec.h"
 
+/* memory speed is 1 byte per MDEC_BIAS psx clock
+ * That mean (PSXCLK / MDEC_BIAS) B/s
+ * MDEC_BIAS = 2.0 => ~16MB/s
+ * MDEC_BIAS = 3.0 => ~11MB/s
+ * and so on ...
+ * I guess I have 50 images in 50Hz ... (could be 25 images ?)
+ * 320x240x24@50Hz => 11.52 MB/s
+ * 320x240x24@60Hz => 13.824 MB/s
+ * 320x240x16@50Hz => 7.68 MB/s
+ * 320x240x16@60Hz => 9.216 MB/s
+ * so 2.0 to 4.0 should be fine.
+ */
+#define MDEC_BIAS 2.0f
+
 #define DSIZE			8
 #define DSIZE2			(DSIZE * DSIZE)
 
@@ -66,7 +80,7 @@ static inline void fillrow(int *blk, int val) {
 		= blk[4] = blk[5] = blk[6] = blk[7] = val;
 }
 
-void idct(int *block,int used_col) {
+static void idct(int *block,int used_col) {
 	int tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
 	int z5, z10, z11, z12, z13;
 	int *ptr;
@@ -189,7 +203,7 @@ void idct(int *block,int used_col) {
 // mdec0: command register
 #define MDEC0_STP			0x02000000
 #define MDEC0_RGB24			0x08000000
-#define MDEC0_SIZE_MASK		0xFFFF
+#define MDEC0_SIZE_MASK		0x0000FFFF
 
 // mdec1: status register
 #define MDEC1_BUSY			0x20000000
@@ -199,11 +213,20 @@ void idct(int *block,int used_col) {
 #define MDEC1_STP			0x00800000
 #define MDEC1_RESET			0x80000000
 
+struct _pending_dma1 {
+	u32 adr;
+	u32 bcr;
+	u32 chcr;
+};
+
 struct {
-    u32 reg0;
-    u32 reg1;
-    unsigned short *rl;
-    int rlsize;
+	u32 reg0;
+	u32 reg1;
+	u16 * rl;
+	u16 * rl_end;
+	u8 * block_buffer_pos;
+	u8 block_buffer[16*16*3];
+	struct _pending_dma1 pending_dma1;
 } mdec;
 
 static int iq_y[DSIZE2], iq_uv[DSIZE2];
@@ -240,7 +263,7 @@ static void iqtab_init(int *iqtab, unsigned char *iq_y) {
 
 #define	MDEC_END_OF_DATA	0xfe00
 
-unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
+static unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
 	int i, k, q_scale, rl, used_col;
  	int *iqtab;
 
@@ -301,7 +324,7 @@ unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
 #define CLAMP_SCALE8(a)   (CLAMP8(SCALE8(a)))
 #define CLAMP_SCALE5(a)   (CLAMP5(SCALE5(a)))
 
-static inline void putlinebw15(unsigned short *image, int *Yblk) {
+static inline void putlinebw15(u16 *image, int *Yblk) {
 	int i;
 	int A = (mdec.reg0 & MDEC0_STP) ? 0x8000 : 0;
 
@@ -312,7 +335,7 @@ static inline void putlinebw15(unsigned short *image, int *Yblk) {
 	}
 }
 
-static void putquadrgb15(unsigned short *image, int *Yblk, int Cr, int Cb) {
+static inline void putquadrgb15(u16 *image, int *Yblk, int Cr, int Cb) {
 	int Y, R, G, B;
 	int A = (mdec.reg0 & MDEC0_STP) ? 0x8000 : 0;
 	R = MULR(Cr);
@@ -330,7 +353,7 @@ static void putquadrgb15(unsigned short *image, int *Yblk, int Cr, int Cb) {
 	image[17] = MAKERGB15(CLAMP_SCALE5(Y + R), CLAMP_SCALE5(Y + G), CLAMP_SCALE5(Y + B), A);
 }
 
-static void yuv2rgb15(int *blk, unsigned short *image) {
+static inline void yuv2rgb15(int *blk, unsigned short *image) {
 	int x, y;
 	int *Yblk = blk + DSIZE2 * 2;
 	int *Crblk = blk;
@@ -353,7 +376,7 @@ static void yuv2rgb15(int *blk, unsigned short *image) {
 	}
 }
 
-static inline void putlinebw24(unsigned char *image, int *Yblk) {
+static inline void putlinebw24(u8 * image, int *Yblk) {
 	int i;
 	unsigned char Y;
 	for (i = 0; i < 8 * 3; i += 3, Yblk++) {
@@ -364,7 +387,7 @@ static inline void putlinebw24(unsigned char *image, int *Yblk) {
 	}
 }
 
-static void putquadrgb24(unsigned char *image, int *Yblk, int Cr, int Cb) {
+static inline void putquadrgb24(u8 * image, int *Yblk, int Cr, int Cb) {
 	int Y, R, G, B;
 
 	R = MULR(Cr);
@@ -389,14 +412,14 @@ static void putquadrgb24(unsigned char *image, int *Yblk, int Cr, int Cb) {
 	image[17 * 3 + 2] = CLAMP_SCALE8(Y + B);
 }
 
-static void yuv2rgb24(int *blk, unsigned char *image) {
+static void yuv2rgb24(int *blk, u8 *image) {
 	int x, y;
 	int *Yblk = blk + DSIZE2 * 2;
 	int *Crblk = blk;
 	int *Cbblk = blk + DSIZE2;
 
 	if (!Config.Mdec) {
-		for (y = 0; y < 16; y += 2, Crblk += 4, Cbblk += 4, Yblk += 8, image += 24 * 3) {
+		for (y = 0; y < 16; y += 2, Crblk += 4, Cbblk += 4, Yblk += 8, image += 8 * 3 * 3) {
 			if (y == 8) Yblk += DSIZE2;
 			for (x = 0; x < 4; x++, image += 6, Crblk++, Cbblk++, Yblk += 2) {
 				putquadrgb24(image, Yblk, *Crblk, *Cbblk);
@@ -416,65 +439,68 @@ void mdecInit(void) {
 	mdec.rl = (u16 *)&psxM[0x100000];
 	mdec.reg0 = 0;
 	mdec.reg1 = 0;
+	mdec.pending_dma1.adr = 0;
+	mdec.block_buffer_pos = 0;
 }
 
 // command register
 void mdecWrite0(u32 data) {
-#ifdef CDR_LOG
-	CDR_LOG("mdec0 write %08x\n", data);
-#endif
 	mdec.reg0 = data;
 }
 
 u32 mdecRead0(void) {
-#ifdef CDR_LOG
-	CDR_LOG("mdec0 read %08x\n", mdec.reg0);
-#endif
-	// mame is returning 0
 	return mdec.reg0;
 }
 
 // status register
 void mdecWrite1(u32 data) {
-#ifdef CDR_LOG
-	CDR_LOG("mdec1 write %08x\n", data);
-#endif
 	if (data & MDEC1_RESET) { // mdec reset
 		mdec.reg0 = 0;
 		mdec.reg1 = 0;
+		mdec.pending_dma1.adr = 0;
+		mdec.block_buffer_pos = 0;
 	}
 }
 
 u32 mdecRead1(void) {
 	u32 v = mdec.reg1;
-	v |= (mdec.reg0 & MDEC0_STP) ? MDEC1_STP : 0;
-	v |= (mdec.reg0 & MDEC0_RGB24) ? MDEC1_RGB24 : 0;
-#ifdef CDR_LOG
-	CDR_LOG("mdec1 read %08x\n", v);
-#endif
 	return v;
 }
 
 void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 	int cmd = mdec.reg0;
 	int size;
-	
-#ifdef CDR_LOG
-	CDR_LOG("DMA0 %08x %08x %08x\n", adr, bcr, chcr);
-#endif
 
 	if (chcr != 0x01000201) {
-		// printf("chcr != 0x01000201\n");
 		return;
 	}
+
+	/* mdec is STP till dma0 is released */
+	mdec.reg1 |= MDEC1_STP;
 
 	size = (bcr >> 16) * (bcr & 0xffff);
 
 	switch (cmd >> 28) {
 		case 0x3: // decode
-			mdec.rl = (u16 *)PSXM(adr);
-			mdec.rlsize = mdec.reg0 & MDEC0_SIZE_MASK;
-			break;
+			mdec.rl = (u16 *) PSXM(adr);
+			/* now the mdec is busy till all data are decoded */
+			mdec.reg1 |= MDEC1_BUSY;
+			/* detect the end of decoding */
+			mdec.rl_end = mdec.rl + (size * 2);
+
+			/* sanity check */
+			if(mdec.rl_end <= mdec.rl) {
+				MDECINDMA_INT( size / 4 );
+				return;
+			}
+
+			/* process the pending dma1 */
+			if(mdec.pending_dma1.adr){
+				psxDma1(mdec.pending_dma1.adr, mdec.pending_dma1.bcr, mdec.pending_dma1.chcr);
+			}
+			mdec.pending_dma1.adr = 0;
+			return;
+			
 
 		case 0x4: // quantization table upload
 			{
@@ -485,11 +511,15 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 				iqtab_init(iq_y, p);
 				iqtab_init(iq_uv, p + 64);
 			}
-			break;
+
+			MDECINDMA_INT( size / 4 );
+      return;
 
 		case 0x6: // cosine table
 			// printf("mdec cosine table\n");
-			break;
+
+			MDECINDMA_INT( size / 4 );
+      return;
 
 		default:
 			// printf("mdec unknown command\n");
@@ -500,59 +530,144 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 	DMA_INTERRUPT(0);
 }
 
+void mdec0Interrupt()
+{
+	HW_DMA0_CHCR &= SWAP32(~0x01000000);
+	DMA_INTERRUPT(0);
+}
+
+#define SIZE_OF_24B_BLOCK (16*16*3)
+#define SIZE_OF_16B_BLOCK (16*16*2)
+
 void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 	int blk[DSIZE2 * 6];
-	unsigned short *image;
+	u8 * image;
 	int size;
-
-#ifdef CDR_LOG
-	CDR_LOG("DMA1 %08x %08x %08x (cmd = %08x)\n", adr, bcr, chcr, mdec.reg0);
-#endif
+	int dmacnt;
 
 	if (chcr != 0x01000200) return;
 
 	size = (bcr >> 16) * (bcr & 0xffff);
+	/* size in byte */
+	size *= 4;
+	/* I guess the memory speed is limitating */
+	dmacnt = size;
 
-	image = (u16 *)PSXM(adr);
+	if (!(mdec.reg1 & MDEC1_BUSY)) {
+		/* add to pending */
+		mdec.pending_dma1.adr = adr;
+		mdec.pending_dma1.bcr = bcr;
+		mdec.pending_dma1.chcr = chcr;
+		/* do not free the dma */
+	} else {
 
-	if (mdec.reg0 & MDEC0_RGB24) { // 15-b decoding
-		// MDECOUTDMA_INT(((size * (1000000 / 9000)) / 4) /** 4*/);
-		MDECOUTDMA_INT(size / 4);
-		size = size / ((16 * 16) / 2);
-		for (; size > 0; size--, image += (16 * 16)) {
-			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb15(blk, image);
+	image = (u8 *)PSXM(adr);
+
+	if (mdec.reg0 & MDEC0_RGB24) {
+		/* 16 bits decoding
+		 * block are 16 px * 16 px, each px are 2 byte
+		 */
+
+		/* there is some partial block pending ? */
+		if(mdec.block_buffer_pos != 0) {
+			int n = mdec.block_buffer - mdec.block_buffer_pos + SIZE_OF_16B_BLOCK;
+			/* TODO: check if partial block do not  larger than size */
+			memcpy(image, mdec.block_buffer_pos, n);
+			image += n;
+			size -= n;
+			mdec.block_buffer_pos = 0;
 		}
-	} else { // 24-b decoding
-		// MDECOUTDMA_INT(((size * (1000000 / 9000)) / 4) /** 4*/);
-		MDECOUTDMA_INT(size / 4);
-		size = size / ((24 * 16) / 2);
-		for (; size > 0; size--, image += (24 * 16)) {
+
+		while(size >= SIZE_OF_16B_BLOCK) {
 			mdec.rl = rl2blk(blk, mdec.rl);
-			yuv2rgb24(blk, (u8 *)image);
+			yuv2rgb15(blk, (u16 *)image);
+			image += SIZE_OF_16B_BLOCK;
+			size -= SIZE_OF_16B_BLOCK;
+		}
+
+		if(size != 0) {
+			mdec.rl = rl2blk(blk, mdec.rl);
+			yuv2rgb15(blk, (u16 *)mdec.block_buffer);
+			memcpy(image, mdec.block_buffer, size);
+			mdec.block_buffer_pos = mdec.block_buffer + size;
+		}
+
+	} else {
+		/* 24 bits decoding
+		 * block are 16 px * 16 px, each px are 3 byte
+		 */
+
+		/* there is some partial block pending ? */
+		if(mdec.block_buffer_pos != 0) {
+			int n = mdec.block_buffer - mdec.block_buffer_pos + SIZE_OF_24B_BLOCK;
+			/* TODO: check if partial block do not  larger than size */
+			memcpy(image, mdec.block_buffer_pos, n);
+			image += n;
+			size -= n;
+			mdec.block_buffer_pos = 0;
+		}
+
+		while(size >= SIZE_OF_24B_BLOCK) {
+			mdec.rl = rl2blk(blk, mdec.rl);
+			yuv2rgb24(blk, image);
+			image += SIZE_OF_24B_BLOCK;
+			size -= SIZE_OF_24B_BLOCK;
+		}
+
+		if(size != 0) {
+			mdec.rl = rl2blk(blk, mdec.rl);
+			yuv2rgb24(blk, mdec.block_buffer);
+			memcpy(image, mdec.block_buffer, size);
+			mdec.block_buffer_pos = mdec.block_buffer + size;
 		}
 	}
-
-	mdec.reg1 |= MDEC1_BUSY;
+	
+	/* define the power of mdec */
+	MDECOUTDMA_INT((int) ((dmacnt* MDEC_BIAS)));
+	}
 }
 
 void mdec1Interrupt() {
-#ifdef CDR_LOG
-	CDR_LOG("mdec1Interrupt\n");
-#endif
-	if (HW_DMA1_CHCR & SWAP32(0x01000000)) {
-		// Set a fixed value totaly arbitrarie another sound value is
-		// PSXCLK / 60 or PSXCLK / 50 since the bug happened at end of frame.
-		// PSXCLK / 500 seems good for FF9.
-		// CAUTION: commented interrupt-handling may lead to problems, keep an eye ;-)
-		MDECOUTDMA_INT(PSXCLK / 500);
-//		MDECOUTDMA_INT(psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle * 8);
+	/* Author : gschwind
+	 *
+	 * in that case we have done all decoding stuff
+	 * Note that : each block end with 0xfe00 flags
+	 * the list of blocks end with the same 0xfe00 flags
+	 * data loock like :
+	 *
+	 *  data block ...
+	 *  0xfe00
+	 *  data block ...
+	 *  0xfe00
+	 *  a lost of block ..
+	 *
+	 *  0xfe00
+	 *  the last block
+	 *  0xfe00
+	 *  0xfe00
+	 *
+	 * OR
+	 *
+	 * if the 0xfe00 is not present the data size is important.
+	 *
+	 */
 
-		HW_DMA1_CHCR &= SWAP32(~0x01000000);
-		DMA_INTERRUPT(1);
-	} else {
+	/* this else if avoid to read outside memory */
+	if(mdec.rl >= mdec.rl_end) {
+		mdec.reg1 &= ~MDEC1_STP;
+		HW_DMA0_CHCR &= SWAP32(~0x01000000);
+		DMA_INTERRUPT(0);
+		mdec.reg1 &= ~MDEC1_BUSY;
+	} else if (SWAP16(*(mdec.rl)) == MDEC_END_OF_DATA) {
+		mdec.reg1 &= ~MDEC1_STP;
+		HW_DMA0_CHCR &= SWAP32(~0x01000000);
+		DMA_INTERRUPT(0);
 		mdec.reg1 &= ~MDEC1_BUSY;
 	}
+
+	HW_DMA1_CHCR &= SWAP32(~0x01000000);
+	DMA_INTERRUPT(1);
+	return;
 }
 
 int mdecFreeze(gzFile f, int Mode) {

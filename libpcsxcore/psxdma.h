@@ -50,6 +50,13 @@ extern "C" {
 	new_dyna_set_event(PSXINT_MDECOUTDMA, eCycle); \
 }
 
+#define MDECINDMA_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_MDECINDMA); \
+	psxRegs.intCycle[PSXINT_MDECINDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_MDECINDMA].sCycle = psxRegs.cycle; \
+	new_dyna_set_event(PSXINT_MDECINDMA, eCycle); \
+}
+
 void psxDma2(u32 madr, u32 bcr, u32 chcr);
 void psxDma3(u32 madr, u32 bcr, u32 chcr);
 void psxDma4(u32 madr, u32 bcr, u32 chcr);
