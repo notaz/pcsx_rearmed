@@ -461,6 +461,9 @@ void psxRcntInit()
         _psxRcntWcount( i, 0 );
     }
 
+    hSyncCount = 0;
+    spuSyncCount = 0;
+
     psxRcntSet();
 }
 

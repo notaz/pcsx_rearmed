@@ -1123,6 +1123,7 @@ void cdrReset() {
 	cdr.CurTrack = 1;
 	cdr.File = 1;
 	cdr.Channel = 1;
+	memset(&stat, 0, sizeof(stat));
 }
 
 int cdrFreeze(gzFile f, int Mode) {

@@ -219,7 +219,7 @@ struct _pending_dma1 {
 	u32 chcr;
 };
 
-struct {
+static struct {
 	u32 reg0;
 	u32 reg1;
 	u16 * rl;
@@ -436,11 +436,10 @@ static void yuv2rgb24(int *blk, u8 *image) {
 }
 
 void mdecInit(void) {
+	memset(&mdec, 0, sizeof(mdec));
+	memset(iq_y, 0, sizeof(iq_y));
+	memset(iq_uv, 0, sizeof(iq_uv));
 	mdec.rl = (u16 *)&psxM[0x100000];
-	mdec.reg0 = 0;
-	mdec.reg1 = 0;
-	mdec.pending_dma1.adr = 0;
-	mdec.block_buffer_pos = 0;
 }
 
 // command register
