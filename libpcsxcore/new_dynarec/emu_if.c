@@ -60,6 +60,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_MDECOUTDMA] = mdec1Interrupt,
 	[PSXINT_SPUDMA]	= spuInterrupt,
 	[PSXINT_MDECINDMA] = mdec0Interrupt,
+	[PSXINT_GPUOTCDMA] = gpuotcInterrupt,
 };
 
 /* local dupe of psxBranchTest, using event_cycles */

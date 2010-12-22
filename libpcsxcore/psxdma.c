@@ -78,14 +78,54 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 	DMA_INTERRUPT(4);
 }
 
+// Taken from PEOPS SOFTGPU
+static inline boolean CheckForEndlessLoop(u32 laddr, u32 *lUsedAddr) {
+	if (laddr == lUsedAddr[1]) return TRUE;
+	if (laddr == lUsedAddr[2]) return TRUE;
+
+	if (laddr < lUsedAddr[0]) lUsedAddr[1] = laddr;
+	else lUsedAddr[2] = laddr;
+
+	lUsedAddr[0] = laddr;
+
+	return FALSE;
+}
+
+static u32 gpuDmaChainSize(u32 addr) {
+	u32 size;
+	u32 DMACommandCounter = 0;
+	u32 lUsedAddr[3];
+
+	lUsedAddr[0] = lUsedAddr[1] = lUsedAddr[2] = 0xffffff;
+
+	// initial linked list ptr (word)
+	size = 1;
+
+	do {
+		addr &= 0x1ffffc;
+
+		if (DMACommandCounter++ > 2000000) break;
+		if (CheckForEndlessLoop(addr, lUsedAddr)) break;
+
+		// # 32-bit blocks to transfer
+		size += psxMu8( addr + 3 );
+
+		// next 32-bit pointer
+		addr = psxMu32( addr & ~0x3 ) & 0xffffff;
+		size += 1;
+	} while (addr != 0xffffff);
+
+	return size;
+}
+
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	u32 *ptr;
 	u32 size;
 
-	switch(chcr) {
+	switch (chcr) {
 		case 0x01000200: // vram2mem
 #ifdef PSXDMA_LOG
-			PSXDMA_LOG("*** DMA2 GPU - vram2mem *** %x addr = %x size = %x\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA2 GPU - vram2mem *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 			ptr = (u32 *)PSXM(madr);
 			if (ptr == NULL) {
@@ -94,14 +134,18 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #endif
 				break;
 			}
+			// BA blocks * BS words (word = 32-bits)
 			size = (bcr >> 16) * (bcr & 0xffff);
 			GPU_readDataMem(ptr, size);
 			psxCpu->Clear(madr, size);
-			break;
+
+			// already 32-bit word size ((size * 4) / 4)
+			GPUDMA_INT(size);
+			return;
 
 		case 0x01000201: // mem2vram
 #ifdef PSXDMA_LOG
-			PSXDMA_LOG("*** DMA 2 - GPU mem2vram *** %x addr = %x size = %x\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA 2 - GPU mem2vram *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 			ptr = (u32 *)PSXM(madr);
 			if (ptr == NULL) {
@@ -110,21 +154,34 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #endif
 				break;
 			}
+			// BA blocks * BS words (word = 32-bits)
 			size = (bcr >> 16) * (bcr & 0xffff);
 			GPU_writeDataMem(ptr, size);
-			GPUDMA_INT(size / 4);
+
+			// already 32-bit word size ((size * 4) / 4)
+			GPUDMA_INT(size);
 			return;
 
 		case 0x01000401: // dma chain
 #ifdef PSXDMA_LOG
-			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %x addr = %x size = %x\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
+
+			size = gpuDmaChainSize(madr);
 			GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
-			break;
+			
+			// Tekken 3 = use 1.0 only (not 1.5x)
+
+			// Einhander = parse linked list in pieces (todo)
+			// Final Fantasy 4 = internal vram time (todo)
+			// Rebel Assault 2 = parse linked list in pieces (todo)
+			// Vampire Hunter D = allow edits to linked list (todo)
+			GPUDMA_INT(size);
+			return;
 
 #ifdef PSXDMA_LOG
 		default:
-			PSXDMA_LOG("*** DMA 2 - GPU unknown *** %x addr = %x size = %x\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA 2 - GPU unknown *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 			break;
 #endif
 	}
@@ -139,6 +196,7 @@ void gpuInterrupt() {
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
+	u32 size;
 	u32 *mem = (u32 *)PSXM(madr);
 
 #ifdef PSXDMA_LOG
@@ -155,11 +213,17 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 			return;
 		}
 
+		// already 32-bit size
+		size = bcr;
+
 		while (bcr--) {
 			*mem-- = SWAP32((madr - 4) & 0xffffff);
 			madr -= 4;
 		}
 		mem++; *mem = 0xffffff;
+
+		GPUOTCDMA_INT(size);
+		return;
 	}
 #ifdef PSXDMA_LOG
 	else {
@@ -172,3 +236,8 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 	DMA_INTERRUPT(6);
 }
 
+void gpuotcInterrupt()
+{
+	HW_DMA6_CHCR &= SWAP32(~0x01000000);
+	DMA_INTERRUPT(6);
+}

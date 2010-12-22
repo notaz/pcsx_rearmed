@@ -157,6 +157,12 @@ void psxBranchTest() {
 				mdec0Interrupt();
 			}
 		}
+		if (psxRegs.interrupt & (1 << PSXINT_GPUOTCDMA)) { // gpu otc
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_GPUOTCDMA);
+				gpuotcInterrupt();
+			}
+		}
 	}
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {
