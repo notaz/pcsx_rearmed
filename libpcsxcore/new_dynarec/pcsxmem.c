@@ -72,6 +72,9 @@ extern void ari_write_ram32();
 extern void ari_write_ram_mirror8();
 extern void ari_write_ram_mirror16();
 extern void ari_write_ram_mirror32();
+extern void ari_read_bios8();
+extern void ari_read_bios16();
+extern void ari_read_bios32();
 extern void ari_read_io8();
 extern void ari_read_io16();
 extern void ari_read_io32();
@@ -295,7 +298,7 @@ void new_dyna_pcsx_mem_init(void)
 		writemem[i] = write_mem32;
 #if 1
 		readmemb[i] = readmemh[i] = readmem[i] = read_mem_dummy;
-		readmemb[i] = readmemh[i] = readmem[i] = write_mem_dummy;
+		writememb[i] = writememh[i] = writemem[i] = write_mem_dummy;
 #endif
 	}
 
@@ -318,6 +321,13 @@ void new_dyna_pcsx_mem_init(void)
 		writememb[i] = ari_write_ram8;
 		writememh[i] = ari_write_ram16;
 		writemem[i] = ari_write_ram32;
+	}
+
+	// BIOS and it's mirrors
+	for (i = 0x1fc0; i < 0x1fc8; i++) {
+		readmemb[i] = readmemb[0x8000|i] = readmemb[0xa000|i] = ari_read_bios8;
+		readmemh[i] = readmemh[0x8000|i] = readmemh[0xa000|i] = ari_read_bios16;
+		readmem[i]  = readmem[0x8000|i]  = readmem[0xa000|i]  = ari_read_bios32;
 	}
 
 	// I/O

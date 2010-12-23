@@ -73,10 +73,12 @@ int psxMemInit() {
 	psxP = &psxM[0x200000];
 	psxH = &psxM[0x210000];
 
-	psxR = (s8 *)malloc(0x00080000);
+	psxR = mmap((void *)0x9fc00000, 0x80000,
+		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM != (void *)0x80000000 || psxP == NULL || psxH == NULL) {
+		psxM != (void *)0x80000000 || psxR != (void *)0x9fc00000 ||
+		psxP == NULL || psxH == NULL) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;
 	}
@@ -132,8 +134,8 @@ void psxMemReset() {
 
 void psxMemShutdown() {
 	munmap(psxM, 0x00220000);
+	munmap(psxR, 0x80000);
 
-	free(psxR);
 	free(psxMemRLUT);
 	free(psxMemWLUT);
 }

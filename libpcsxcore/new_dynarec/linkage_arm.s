@@ -803,6 +803,9 @@ new_dyna_start:
 .global	ari_write_ram_mirror8
 .global	ari_write_ram_mirror16
 .global	ari_write_ram_mirror32
+.global	ari_read_bios8
+.global	ari_read_bios16
+.global	ari_read_bios32
 .global	ari_read_io8
 .global	ari_read_io16
 .global	ari_read_io32
@@ -891,6 +894,25 @@ ari_write_ram_mirror16:
 
 ari_write_ram_mirror32:
 	ari_write_ram_mirror (3<<11), word, str
+
+
+.macro ari_read_bios_mirror bic_const op
+	ldr	r0, [fp, #address-dynarec_local]
+	orr	r0, r0, #0x80000000
+	bic	r0, r0, #(0x20000000|\bic_const)	@ map to 0x9fc...
+	\op	r0, [r0]
+	str	r0, [fp, #readmem_dword-dynarec_local]
+	mov	pc, lr
+.endm
+
+ari_read_bios8:
+	ari_read_bios_mirror 0, ldrb
+
+ari_read_bios16:
+	ari_read_bios_mirror 1, ldrh
+
+ari_read_bios32:
+	ari_read_bios_mirror 3, ldr
 
 
 @ for testing
