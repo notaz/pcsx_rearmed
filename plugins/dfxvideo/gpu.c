@@ -494,6 +494,7 @@ void updateDisplay(void)                               // UPDATE DISPLAY
   }
  else                                                  // no skip ?
   {
+   bSkipNextFrame = FALSE;
    DoBufferSwap();                                     // -> swap
   }
 }
