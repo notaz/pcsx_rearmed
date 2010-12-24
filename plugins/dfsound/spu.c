@@ -441,7 +441,7 @@ INLINE int iGetInterpolationVal(int ch)
 static void *MAINThread(void *arg)
 {
  int s_1,s_2,fa,ns;
-#ifndef _MACOSX
+#if !defined(_MACOSX) && !defined(__arm__)
  int voldiv = iVolume;
 #else
  const int voldiv = 2;
