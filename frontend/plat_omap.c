@@ -120,10 +120,6 @@ int omap_enable_layer(int enabled)
 		g_layer_x, g_layer_y, g_layer_w, g_layer_h, 0);
 }
 
-void plat_video_menu_enter(int is_rom_loaded)
-{
-}
-
 void plat_video_menu_begin(void)
 {
 }
@@ -189,7 +185,6 @@ void plat_init(void)
 		goto fail1;
 	}
 	g_menubg_ptr = temp_frame;
-	g_menubg_src_ptr = temp_frame;
 
 	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));

@@ -341,26 +341,6 @@ static void menu_darken_bg(void *dst, void *src, int pixels, int darker)
 	}
 }
 
-static void menu_enter(int is_rom_loaded)
-{
-	if (is_rom_loaded)
-	{
-		// darken the active framebuffer
-		menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
-	}
-	else
-	{
-		char buff[256];
-
-		// should really only happen once, on startup..
-		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h) < 0)
-			memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-	}
-
-	plat_video_menu_enter(is_rom_loaded);
-}
-
 static int me_id2offset(const menu_entry *ent, menu_id id)
 {
 	int i;

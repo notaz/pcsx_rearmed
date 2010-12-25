@@ -59,7 +59,6 @@ extern int ready_to_go;
 static int game_config_loaded;
 static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock;
-static int state_slot;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 int g_opts;
@@ -144,14 +143,199 @@ static void menu_set_defconfig(void)
 	iUseTimer = 2;
 }
 
+#define CE_CONFIG_STR(val) \
+	{ #val, 0, Config.val }
+
+#define CE_CONFIG_VAL(val) \
+	{ #val, sizeof(Config.val), &Config.val }
+
+#define CE_STR(val) \
+	{ #val, 0, val }
+
+#define CE_INTVAL(val) \
+	{ #val, sizeof(val), &val }
+
+static const struct {
+	const char *name;
+	size_t len;
+	void *val;
+} config_data[] = {
+	CE_CONFIG_STR(Bios),
+	CE_CONFIG_STR(Gpu),
+	CE_CONFIG_STR(Spu),
+	CE_CONFIG_STR(Cdr),
+	CE_CONFIG_VAL(Xa),
+	CE_CONFIG_VAL(Sio),
+	CE_CONFIG_VAL(Mdec),
+	CE_CONFIG_VAL(PsxAuto),
+	CE_CONFIG_VAL(Cdda),
+	CE_CONFIG_VAL(Debug),
+	CE_CONFIG_VAL(PsxOut),
+	CE_CONFIG_VAL(SpuIrq),
+	CE_CONFIG_VAL(RCntFix),
+	CE_CONFIG_VAL(VSyncWA),
+	CE_CONFIG_VAL(Cpu),
+	CE_CONFIG_VAL(PsxType),
+	CE_INTVAL(scaling),
+	CE_INTVAL(filter),
+	CE_INTVAL(state_slot),
+	CE_INTVAL(cpu_clock),
+	CE_INTVAL(g_opts),
+	CE_INTVAL(iUseDither),
+	CE_INTVAL(UseFrameSkip),
+	CE_INTVAL(dwActFixes),
+	CE_INTVAL(iUseReverb),
+	CE_INTVAL(iUseInterpolation),
+	CE_INTVAL(iXAPitch),
+	CE_INTVAL(iSPUIRQWait),
+	CE_INTVAL(iUseTimer),
+};
+
 static int menu_write_config(int is_game)
 {
-	return -1;
+	char cfgfile[MAXPATHLEN];
+	FILE *f;
+	int i;
+
+	if (is_game)
+		return -1;
+
+	snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+	f = fopen(cfgfile, "w");
+	if (f == NULL) {
+		printf("failed to open: %s\n", cfgfile);
+		return -1;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(config_data); i++) {
+		fprintf(f, "%s = ", config_data[i].name);
+		switch (config_data[i].len) {
+		case 0:
+			fprintf(f, "%s\n", (char *)config_data[i].val);
+			break;
+		case 1:
+			fprintf(f, "%x\n", *(u8 *)config_data[i].val);
+			break;
+		case 2:
+			fprintf(f, "%x\n", *(u16 *)config_data[i].val);
+			break;
+		case 4:
+			fprintf(f, "%x\n", *(u32 *)config_data[i].val);
+			break;
+		default:
+			printf("menu_write_config: unhandled len %d for %s\n",
+				 config_data[i].len, config_data[i].name);
+			break;
+		}
+	}
+
+	if (!is_game)
+		fprintf(f, "lastcdimg = %s\n", last_selected_fname);
+
+	fclose(f);
+	return 0;
+}
+
+static void parse_str_val(char *cval, const char *src)
+{
+	char *tmp;
+	strncpy(cval, src, MAXPATHLEN);
+	cval[MAXPATHLEN - 1] = 0;
+	tmp = strchr(cval, '\n');
+	if (tmp == NULL)
+		tmp = strchr(cval, '\r');
+	if (tmp != NULL)
+		*tmp = 0;
 }
 
 static int menu_load_config(int is_game)
 {
-	return 0;
+	char cfgfile[MAXPATHLEN];
+	int i, ret = -1;
+	long size;
+	char *cfg;
+	FILE *f;
+
+	if (is_game)
+		return -1;
+
+	snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+	f = fopen(cfgfile, "r");
+	if (f == NULL) {
+		printf("failed to open: %s\n", cfgfile);
+		return -1;
+	}
+
+	fseek(f, 0, SEEK_END);
+	size = ftell(f);
+	if (size <= 0) {
+		printf("bad size %ld: %s\n", size, cfgfile);
+		goto fail;
+	}
+
+	cfg = malloc(size + 1);
+	if (cfg == NULL)
+		goto fail;
+
+	fseek(f, 0, SEEK_SET);
+	if (fread(cfg, 1, size, f) != size) {
+		printf("failed to read: %s\n", cfgfile);
+		goto fail_read;
+	}
+	cfg[size] = 0;
+
+	for (i = 0; i < ARRAY_SIZE(config_data); i++) {
+		char *tmp, *tmp2;
+		u32 val;
+
+		tmp = strstr(cfg, config_data[i].name);
+		if (tmp == NULL)
+			continue;
+		tmp += strlen(config_data[i].name);
+		if (strncmp(tmp, " = ", 3) != 0)
+			continue;
+		tmp += 3;
+
+		if (config_data[i].len == 0) {
+			parse_str_val(config_data[i].val, tmp);
+			continue;
+		}
+
+		tmp2 = NULL;
+		val = strtoul(tmp, &tmp2, 16);
+		if (tmp2 == NULL || tmp == tmp2)
+			continue; // parse failed
+
+		switch (config_data[i].len) {
+		case 1:
+			*(u8 *)config_data[i].val = val;
+			break;
+		case 2:
+			*(u16 *)config_data[i].val = val;
+			break;
+		case 4:
+			*(u32 *)config_data[i].val = val;
+			break;
+		default:
+			printf("menu_load_config: unhandled len %d for %s\n",
+				 config_data[i].len, config_data[i].name);
+			break;
+		}
+	}
+
+	if (!is_game) {
+		char *tmp = strstr(cfg, "lastcdimg = ");
+		if (tmp != NULL) {
+			tmp += 12;
+			parse_str_val(last_selected_fname, tmp);
+		}
+	}
+
+fail_read:
+	free(cfg);
+fail:
+	fclose(f);
+	return ret;
 }
 
 // rrrr rggg gggb bbbb
@@ -208,10 +392,11 @@ static void apply_cpu_clock(void)
 
 static void apply_filter(int which)
 {
+	static int old = -1;
 	char buf[128];
 	int i;
 
-	if (pnd_filter_list == NULL)
+	if (pnd_filter_list == NULL || which == old)
 		return;
 
 	for (i = 0; i < which; i++)
@@ -223,6 +408,7 @@ static void apply_filter(int which)
 
 	snprintf(buf, sizeof(buf), "%s/op_videofir.sh %s", pnd_script_base, pnd_filter_list[i]);
 	system(buf);
+	old = which;
 }
 
 static menu_entry e_menu_gfx_options[];
@@ -385,7 +571,7 @@ static menu_entry e_menu_keyconfig[] =
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
-	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
+//	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
 	mee_label     (""),
 	mee_label     ("Input devices:"),
 	mee_label_mk  (MA_CTRL_DEV_FIRST, mgn_dev_name),
@@ -402,7 +588,7 @@ static int menu_loop_keyconfig(int id, int keys)
 {
 	static int sel = 0;
 
-	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, ready_to_go);
+//	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, ready_to_go);
 	me_loop(e_menu_keyconfig, &sel, NULL);
 	return 0;
 }
@@ -615,7 +801,7 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("[Display]",                menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
 	mee_handler   ("[Advanced]",               menu_loop_adv_options),
-//	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_saveloadcfg, mgn_saveloadcfg),
+	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_saveloadcfg, mgn_saveloadcfg),
 //	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
 	mee_handler_h ("Restore default config",   mh_restore_defaults, h_restore_def),
 	mee_end,
@@ -628,7 +814,7 @@ static int menu_loop_options(int id, int keys)
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
 	e_menu_options[i].enabled = cpu_clock != 0 ? 1 : 0;
-	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go);
+//	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go);
 
 	me_loop(e_menu_options, &sel, NULL);
 
@@ -797,7 +983,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
 
-	menu_enter(ready_to_go);
+//	menu_enter(ready_to_go);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 
 	do {
@@ -817,16 +1003,24 @@ void menu_loop(void)
 
 void menu_init(void)
 {
+	char buff[MAXPATHLEN];
+
+	strcpy(last_selected_fname, "/media");
+
+	pnd_menu_init();
+	menu_init_common();
+
 	menu_set_defconfig();
 	menu_load_config(0);
-	menu_init_common();
-	pnd_menu_init();
 	last_psx_w = 320;
 	last_psx_h = 240;
 	last_psx_bpp = 16;
 
-	strcpy(last_selected_fname, "/media");
-	//strcpy(last_selected_fname, "/mnt/ntz/stuff/psx");
+	g_menubg_src_ptr = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
+	if (g_menubg_src_ptr == NULL)
+		exit(1);
+	emu_make_path(buff, "skin/background.png", sizeof(buff));
+	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)
@@ -846,16 +1040,17 @@ static void menu_leave_emu(void)
 {
 	omap_enable_layer(0);
 
+	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	if (ready_to_go && last_psx_bpp == 16) {
 		int x = max(0, g_menuscreen_w - last_psx_w);
 		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
 		int w = min(g_menuscreen_w, last_psx_w);
 		int h = min(g_menuscreen_h, last_psx_h);
-		u16 *d = (u16 *)g_menubg_src_ptr + g_menuscreen_w * y + x;
+		u16 *d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
 		u16 *s = pl_fbdev_buf;
 
 		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
-			memcpy(d, s, w * 2);
+			menu_darken_bg(d, s, w, 0);
 	}
 }
 

@@ -56,7 +56,7 @@ plugins/cdrcimg/%.o: CFLAGS += -Wall
 OBJS += plugins/cdrcimg/cdrcimg.o
 
 # gui
-OBJS += gui/Config.o gui/Plugin.o
+OBJS += gui/Plugin.o
 
 OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
 OBJS += frontend/menu.o

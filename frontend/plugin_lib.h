@@ -27,3 +27,7 @@ void  pl_fbdev_flip(void);
 void  pl_fbdev_finish(void);
 
 void  pl_text_out16(int x, int y, const char *texto, ...);
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#endif

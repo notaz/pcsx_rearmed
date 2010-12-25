@@ -185,21 +185,7 @@ int main(int argc, char *argv[])
 	strcpy(Config.Cdr, "builtin_cdr");
 	strcpy(Config.Pad1, "builtin_pad");
 	strcpy(Config.Pad2, "builtin_pad");
-
-	// try to load config
-	// if the config file doesn't exist
-	if (LoadConfig() == -1) {
-		// Uh oh, no config file found, use some defaults
-		Config.PsxAuto = 1;
-
-		// create & load default memcards if they don't exist
-		CreateMemcard("card1.mcd", Config.Mcd1);
-		CreateMemcard("card2.mcd", Config.Mcd2);
-
-		LoadMcds(Config.Mcd1, Config.Mcd2);
-
-		SaveConfig();
-	}
+	Config.PsxAuto = 1;
 
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 /*
