@@ -159,6 +159,12 @@ static void *playthread(void *param)
 #else
 		usleep(d * 1000);
 #endif
+		// HACK: stop feeding data while emu is paused
+		extern int stop;
+		if (stop) {
+			usleep(100000);
+			continue;
+		}
 
 		t = GetTickCount() + CDDA_FRAMETIME;
 
