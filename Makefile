@@ -91,3 +91,15 @@ spunull.so: plugins/spunull/spunull.c
 clean:
 	$(RM) $(TARGET) $(OBJS)
 
+# ----------- release -----------
+
+PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
+
+VER ?= $(shell git describe --abbrev=0 master)
+
+rel: pcsx pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
+		pandora/picorestore pandora/readme.txt skin COPYING
+	rm -rf out
+	mkdir out
+	cp -r $^ out/
+	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x pandora/pcsx.pxml -i pandora/pcsx.png -c

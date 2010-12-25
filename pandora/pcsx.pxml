@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PXML xmlns="http://openpandora.org/namespaces/PXML" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="PXML_schema.xsd">
+<application id="pcsx_rearmed">
+  <title lang="en_US">PCSX ReARMed</title>
+ 
+  <description lang="en_US">PlayStation 1 Emulator.</description>
+ 
+  <exec command="pcsx.sh"/>
+ 
+  <icon src="pcsx.png"/>
+ 
+  <author name="PCSX team/notaz" website="http://notaz.gp2x.de/"/>
+ 
+  <version major="1" minor="9" release="92" build="0"/>
+  <info name="PCSX ReARMed readme" type="text/plain" src="readme.txt"/>
+ 
+  <categories>
+    <category name="Game">
+    <subcategory name="Emulator"/>
+    </category>
+  </categories>
+</application>
+</PXML>
