@@ -203,3 +203,11 @@ fail0:
 
 }
 
+void plat_finish(void)
+{
+	omap_enable_layer(0);
+	vout_fbdev_finish(layer_fb);
+	vout_fbdev_finish(main_fb);
+	oshide_finish();
+}
+

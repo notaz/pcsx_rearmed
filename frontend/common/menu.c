@@ -461,8 +461,11 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 		h = g_menuscreen_h;
 	}
 
-	x = g_menuscreen_w  / 2 - w / 2;
+	x = g_menuscreen_w / 2 - w / 2;
 	y = g_menuscreen_h / 2 - h / 2;
+#ifdef MENU_ALIGN_LEFT
+	if (x > 12) x = 12;
+#endif
 
 	/* draw */
 	menu_draw_begin(1);
@@ -511,7 +514,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 				len = strlen(names[i]);
 				if (len > 10)
 					offs = 10 - len - 2;
-				if (i == *(int *)ent->var) {
+				if (i == *(unsigned char *)ent->var) {
 					text_out16(x + col2_offs + offs * me_mfont_w, y, "%s", names[i]);
 					break;
 				}

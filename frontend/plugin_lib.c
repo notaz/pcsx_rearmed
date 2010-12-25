@@ -86,7 +86,7 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 	else
 		pl_fbdev_buf = ret;
 
-	menu_notify_mode_change(w, h);
+	menu_notify_mode_change(w, h, bpp);
 
 	return (ret != NULL) ? 0 : -1;
 }
@@ -94,8 +94,10 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 void pl_fbdev_flip(void)
 {
 	flip_cnt++;
-	print_fps();
-	print_cpu_usage();
+	if (g_opts & OPT_SHOWFPS)
+		print_fps();
+	if (g_opts & OPT_SHOWCPU)
+		print_cpu_usage();
 
 	// let's flip now
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
@@ -132,8 +134,9 @@ void pl_frame_limit(void)
 	if (tv.tv_sec != oldsec) {
 		flips_per_sec = flip_cnt;
 		flip_cnt = 0;
-		tick_per_sec = get_cpu_ticks();
 		oldsec = tv.tv_sec;
+		if (g_opts & OPT_SHOWCPU)
+			tick_per_sec = get_cpu_ticks();
 	}
 #ifdef PCNT
 	static int ya_vsync_count;

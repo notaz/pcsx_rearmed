@@ -56,11 +56,29 @@ enum {
 };
 
 extern int ready_to_go;
-static int game_config_loaded, last_psx_w, last_psx_h;
+static int game_config_loaded;
+static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock;
-static int dummy, state_slot;
+static int state_slot;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
+int g_opts;
+
+// from softgpu plugin
+extern int iUseDither;
+extern int UseFrameSkip;
+extern uint32_t dwActFixes;
+
+// sound plugin
+extern int iUseReverb;
+extern int iUseInterpolation;
+extern int iXAPitch;
+extern int iSPUIRQWait;
+extern int iUseTimer;
+
+
+static int min(int x, int y) { return x < y ? x : y; }
+static int max(int x, int y) { return x > y ? x : y; }
 
 void emu_make_path(char *buff, const char *end, int size)
 {
@@ -113,6 +131,17 @@ static void draw_savestate_bg(int slot)
 static void menu_set_defconfig(void)
 {
 	scaling = SCALE_4_3;
+
+	Config.Xa = Config.Cdda = Config.Sio =
+	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
+
+	iUseDither = UseFrameSkip = 0;
+	dwActFixes = 1<<7;
+
+	iUseReverb = 2;
+	iUseInterpolation = 1;
+	iXAPitch = iSPUIRQWait = 0;
+	iUseTimer = 2;
 }
 
 static int menu_write_config(int is_game)
@@ -144,6 +173,7 @@ static unsigned short fname2color(const char *fname)
 	return 0xffff;
 }
 
+#define MENU_ALIGN_LEFT
 #define menu_init menu_init_common
 #include "common/menu.c"
 #undef menu_init
@@ -281,10 +311,12 @@ me_bind_action me_ctrl_actions[] =
 
 me_bind_action emuctrl_actions[] =
 {
+/*
 	{ "Load State       ", PEV_STATE_LOAD },
 	{ "Save State       ", PEV_STATE_SAVE },
 	{ "Prev Save Slot   ", PEV_SSLOT_PREV },
 	{ "Next Save Slot   ", PEV_SSLOT_NEXT },
+*/
 	{ "Enter Menu       ", PEV_MENU },
 	{ NULL,                0 }
 };
@@ -375,21 +407,6 @@ static int menu_loop_keyconfig(int id, int keys)
 	return 0;
 }
 
-// ------------ adv options menu ------------
-
-static menu_entry e_menu_adv_options[] =
-{
-	mee_onoff     ("captain placeholder", 0, dummy, 1),
-	mee_end,
-};
-
-static int menu_loop_adv_options(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_adv_options, &sel, NULL);
-	return 0;
-}
-
 // ------------ gfx options menu ------------
 
 static const char *men_scaler[] = { "1x1", "scaled 4:3", "fullscreen", "custom", NULL };
@@ -465,6 +482,110 @@ static int menu_loop_gfx_options(int id, int keys)
 	return 0;
 }
 
+// ------------ bios/plugins ------------
+
+static const char *men_gpu_dithering[] = { "None", "Game dependant", "Always", NULL };
+static const char h_gpu[]              = "Configure built-in P.E.Op.S. SoftGL Driver V1.17\n"
+					 "Coded by Pete Bernert and the P.E.Op.S. team";
+static const char h_gpu_0[]            = "Needed for Chrono Cross";
+static const char h_gpu_1[]            = "Capcom fighting games";
+static const char h_gpu_2[]            = "Black screens in Lunar";
+static const char h_gpu_3[]            = "Compatibility mode";
+static const char h_gpu_6[]            = "Pandemonium 2";
+static const char h_gpu_7[]            = "Skip every second frame";
+static const char h_gpu_8[]            = "Needed by Dark Forces";
+static const char h_gpu_9[]            = "better g-colors, worse textures";
+static const char h_gpu_10[]           = "Toggle busy flags after drawing";
+
+static menu_entry e_menu_plugin_gpu[] =
+{
+	mee_enum      ("Dithering",                  0, iUseDither, men_gpu_dithering),
+	mee_onoff_h   ("Odd/even bit hack",          0, dwActFixes, 1<<0, h_gpu_0),
+	mee_onoff_h   ("Expand screen width",        0, dwActFixes, 1<<1, h_gpu_1),
+	mee_onoff_h   ("Ignore brightness color",    0, dwActFixes, 1<<2, h_gpu_2),
+	mee_onoff_h   ("Disable coordinate check",   0, dwActFixes, 1<<3, h_gpu_3),
+	mee_onoff_h   ("Lazy screen update",         0, dwActFixes, 1<<6, h_gpu_6),
+	mee_onoff_h   ("Old frame skipping",         0, dwActFixes, 1<<7, h_gpu_7),
+	mee_onoff_h   ("Repeated flat tex triangles ",0,dwActFixes, 1<<8, h_gpu_8),
+	mee_onoff_h   ("Draw quads with triangles",  0, dwActFixes, 1<<9, h_gpu_9),
+	mee_onoff_h   ("Fake 'gpu busy' states",     0, dwActFixes, 1<<10, h_gpu_10),
+	mee_end,
+};
+
+static int menu_loop_plugin_gpu(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_plugin_gpu, &sel, NULL);
+	return 0;
+}
+
+static const char *men_spu_reverb[] = { "Off", "Fake", "On", NULL };
+static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
+static const char h_spu[]           = "Configure built-in P.E.Op.S. Sound Driver V1.7\n"
+				      "Coded by Pete Bernert and the P.E.Op.S. team";
+static const char h_spu_irq_wait[]  = "Wait for CPU; only useful for some games, may cause glitches";
+static const char h_spu_thread[]    = "Run sound emulation in separate thread";
+
+static menu_entry e_menu_plugin_spu[] =
+{
+	mee_enum      ("Reverb",                    0, iUseReverb, men_spu_reverb),
+	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
+	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
+	mee_onoff_h   ("SPU IRQ Wait",              0, iSPUIRQWait, 1, h_spu_irq_wait),
+	mee_onoff_h   ("Use sound thread",          0, iUseTimer, 1, h_spu_thread),
+	mee_end,
+};
+
+static int menu_loop_plugin_spu(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_plugin_spu, &sel, NULL);
+	return 0;
+}
+
+static menu_entry e_menu_plugin_options[] =
+{
+	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu, h_gpu),
+	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
+	mee_end,
+};
+
+static int menu_loop_plugin_options(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_plugin_options, &sel, NULL);
+	return 0;
+}
+
+// ------------ adv options menu ------------
+
+static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
+static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
+				   "(proper .cue/.bin dump is needed otherwise)";
+static const char h_cfg_sio[]    = "This should be enabled for certain memcards/gamepads";
+static const char h_cfg_spuirq[] = "Compatibility tweak; should probably be left off";
+static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix";
+static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix";
+
+static menu_entry e_menu_adv_options[] =
+{
+	mee_onoff     ("Show CPU load",          0, g_opts, OPT_SHOWCPU),
+	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
+	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
+	mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
+	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
+	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
+	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+	mee_end,
+};
+
+static int menu_loop_adv_options(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_adv_options, &sel, NULL);
+	return 0;
+}
+
 // ------------ options menu ------------
 
 static int mh_restore_defaults(int id, int keys)
@@ -474,20 +595,29 @@ static int mh_restore_defaults(int id, int keys)
 	return 1;
 }
 
+static const char *men_region[]       = { "NTSC", "PAL", NULL };
+/*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
 					"loading state or both";
+*/
+static const char h_restore_def[]     = "Switches back to default / recommended\n"
+					"configuration";
 
 static menu_entry e_menu_options[] =
 {
-	mee_range     ("Save slot",                0, state_slot, 0, 9),
-	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
+//	mee_range     ("Save slot",                0, state_slot, 0, 9),
+//	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
+	mee_onoff     ("Frameskip",                0, UseFrameSkip, 1),
+	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
+	mee_enum      ("Region",                   0, Config.PsxType, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
 	mee_handler   ("[Display]",                menu_loop_gfx_options),
+	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
 	mee_handler   ("[Advanced]",               menu_loop_adv_options),
-	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_saveloadcfg, mgn_saveloadcfg),
-	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
-	mee_handler   ("Restore defaults",         mh_restore_defaults),
+//	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_saveloadcfg, mgn_saveloadcfg),
+//	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
+	mee_handler_h ("Restore default config",   mh_restore_defaults, h_restore_def),
 	mee_end,
 };
 
@@ -531,16 +661,19 @@ static void debug_menu_loop(void)
 
 // ------------ main menu ------------
 
+void OnFile_Exit();
+
 const char *plat_get_credits(void)
 {
-	return	"(C) 1999-2003 PCSX Team\n"
+	return	"PCSX-ReARMed\n\n"
+		"(C) 1999-2003 PCSX Team\n"
 		"(C) 2005-2009 PCSX-df Team\n"
 		"(C) 2009-2010 PCSX-Reloaded Team\n\n"
 		"GPU and SPU code by Pete Bernert\n"
 		"  and the P.E.Op.S. team\n"
-		"ARM recompiler by Ari64\n\n"
+		"ARM recompiler (C) 2009-2010 Ari64\n\n"
 		"integration, optimization and\n"
-		"  frontend by (C) notaz, 2010\n";
+		"  frontend (C) 2010 notaz\n";
 }
 
 static char *romsel_run(void)
@@ -579,6 +712,7 @@ static char *romsel_run(void)
 		return NULL;
 	}
 
+	strcpy(last_selected_fname, rom_fname_reload);
 	game_config_loaded = 0;
 	ready_to_go = 1;
 	return ret;
@@ -622,7 +756,8 @@ static int main_menu_handler(int id, int keys)
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		break;
 	case MA_MAIN_EXIT:
-		exit(1); // FIXME
+		OnFile_Exit();
+		break;
 	default:
 		lprintf("%s: something unknown selected\n", __FUNCTION__);
 		break;
@@ -649,23 +784,24 @@ static menu_entry e_menu_main[] =
 
 // ----------------------------
 
+static void menu_leave_emu(void);
+
 void menu_loop(void)
 {
 	static int sel = 0;
 
-	omap_enable_layer(0);
+	menu_leave_emu();
 
 	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
 
-strcpy(last_selected_fname, "/mnt/ntz/stuff/psx");
 	menu_enter(ready_to_go);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 
 	do {
-		me_loop(e_menu_main, &sel, draw_frame_debug);
+		me_loop(e_menu_main, &sel, NULL);
 	} while (!ready_to_go);
 
 	/* wait until menu, ok, back is released */
@@ -687,12 +823,17 @@ void menu_init(void)
 	pnd_menu_init();
 	last_psx_w = 320;
 	last_psx_h = 240;
+	last_psx_bpp = 16;
+
+	strcpy(last_selected_fname, "/media");
+	//strcpy(last_selected_fname, "/mnt/ntz/stuff/psx");
 }
 
-void menu_notify_mode_change(int w, int h)
+void menu_notify_mode_change(int w, int h, int bpp)
 {
 	last_psx_w = w;
 	last_psx_h = h;
+	last_psx_bpp = bpp;
 
 	if (scaling == SCALE_1_1) {
 		g_layer_x = 800/2 - w/2;  g_layer_y = 480/2 - h/2;
@@ -701,16 +842,34 @@ void menu_notify_mode_change(int w, int h)
 	}
 }
 
+static void menu_leave_emu(void)
+{
+	omap_enable_layer(0);
+
+	if (ready_to_go && last_psx_bpp == 16) {
+		int x = max(0, g_menuscreen_w - last_psx_w);
+		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
+		int w = min(g_menuscreen_w, last_psx_w);
+		int h = min(g_menuscreen_h, last_psx_h);
+		u16 *d = (u16 *)g_menubg_src_ptr + g_menuscreen_w * y + x;
+		u16 *s = pl_fbdev_buf;
+
+		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
+			memcpy(d, s, w * 2);
+	}
+}
+
 void menu_prepare_emu(void)
 {
 	if (!game_config_loaded) {
+		menu_set_defconfig();
 		menu_load_config(1);
 		game_config_loaded = 1;
 	}
 
 	switch (scaling) {
 	case SCALE_1_1:
-		menu_notify_mode_change(last_psx_w, last_psx_h);
+		menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);
 		break;
 	case SCALE_4_3:
 		g_layer_x = 80;  g_layer_y = 0;
@@ -727,6 +886,11 @@ void menu_prepare_emu(void)
 	apply_filter(filter);
 	apply_cpu_clock();
 	stop = 0;
+
+	// core doesn't care about Config.Cdda changes,
+	// so handle them manually here
+	if (Config.Cdda)
+		CDR_stop();
 }
 
 void me_update_msg(const char *msg)

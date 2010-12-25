@@ -297,6 +297,9 @@ void StartGui() {
 
 void SysReset() {
 	EmuReset();
+
+	// hmh core forgets this
+	CDR_stop();
 }
 
 void SysClose() {
@@ -317,7 +320,9 @@ void UpdateMenuSlots() {
 }
 
 void OnFile_Exit() {
-        printf("OnFile_Exit\n");
+	printf("OnFile_Exit\n");
+	plat_finish();
+	SysClose();
 	exit(0);
 }
 

@@ -35,3 +35,6 @@ void plat_init(void)
 {
 }
 
+void plat_finish(void)
+{
+}

@@ -29,11 +29,17 @@ typedef struct
 	const char *help;
 } menu_entry;
 
+#define mee_handler_id_h(name, id, handler, help) \
+	{ name, MB_NONE, id, NULL, 0, 0, 0, 1, 0, 1, handler, NULL, NULL, help }
+
 #define mee_handler_id(name, id, handler) \
-	{ name, MB_NONE, id, NULL, 0, 0, 0, 1, 0, 1, handler, NULL, NULL, NULL }
+	mee_handler_id_h(name, id, handler, NULL)
 
 #define mee_handler(name, handler) \
 	mee_handler_id(name, MA_NONE, handler)
+
+#define mee_handler_h(name, handler, help) \
+	mee_handler_id_h(name, MA_NONE, handler, help)
 
 #define mee_label(name) \
 	{ name, MB_NONE, MA_NONE, NULL, 0, 0, 0, 1, 0, 0, NULL, NULL, NULL, NULL }
