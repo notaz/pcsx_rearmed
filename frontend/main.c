@@ -56,18 +56,6 @@ static void CheckSubDir() {
 	create_profile_dir(PATCHES_DIR);
 }
 
-static void CreateMemcard(char *filename, char *conf_mcd) {
-	struct stat buf;
-
-	make_path(conf_mcd, MAXPATHLEN, MEMCARD_DIR, filename);
-
-	/* Only create a memory card if an existing one does not exist */
-	if (stat(conf_mcd, &buf) == -1) {
-		SysPrintf(_("Creating memory card: %s\n"), conf_mcd);
-		CreateMcd(conf_mcd);
-	}
-}
-
 void set_cd_image(const char *fname)
 {
 	const char *ext;
@@ -176,6 +164,8 @@ int main(int argc, char *argv[])
 	CheckSubDir();
 //	ScanAllPlugins();
 
+	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
+	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
 	strcpy(Config.Bios, "HLE");
 	strcpy(Config.BiosDir, "./");
 
