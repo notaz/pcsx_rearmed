@@ -483,7 +483,7 @@ me_bind_action me_ctrl_actions[] =
 	{ "LEFT    ", 1 << DKEY_LEFT },
 	{ "RIGHT   ", 1 << DKEY_RIGHT },
 	{ "TRIANGLE", 1 << DKEY_TRIANGLE },
-	{ "CIRCLE  ", 1 << DKEY_SQUARE },
+	{ "CIRCLE  ", 1 << DKEY_CIRCLE },
 	{ "CROSS   ", 1 << DKEY_CROSS },
 	{ "SQUARE  ", 1 << DKEY_SQUARE },
 	{ "L1      ", 1 << DKEY_L1 },
