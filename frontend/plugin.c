@@ -11,6 +11,7 @@
 
 #include "plugin_lib.h"
 #include "plugin.h"
+#include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
 static int dummy_func() {
@@ -44,22 +45,18 @@ extern void SPUasync(unsigned int);
 extern void SPUplayCDDAchannel(short *, int);
 
 /* PAD */
-static uint8_t pad_buf[] = { 0x41, 0x5A, 0xFF, 0xFF };
-static uint8_t pad_byte;
-
-static unsigned char PADstartPoll(int pad) {
-	pad_byte = 0;
-	pad_buf[2] = ~keystate;
-	pad_buf[3] = ~keystate >> 8;
-
-	return 0xFF;
+static long PADreadPort1(PadDataS *pad)
+{
+	pad->controllerType = PSE_PAD_TYPE_STANDARD;
+	pad->buttonStatus = ~keystate;
+	return 0;
 }
 
-static unsigned char PADpoll(unsigned char value) {
-	if (pad_byte >= 4)
-		return 0;
-
-	return pad_buf[pad_byte++];
+static long PADreadPort2(PadDataS *pad)
+{
+	pad->controllerType = PSE_PAD_TYPE_STANDARD;
+	pad->buttonStatus = ~keystate >> 16;
+	return 0;
 }
 
 /* GPU */
@@ -147,20 +144,22 @@ static const struct {
 	DIRECT_SPU(SPUasync),
 	DIRECT_SPU(SPUplayCDDAchannel),
 	/* PAD */
-	DUMMY_PAD(PADconfigure),
-	DUMMY_PAD(PADabout),
 	DUMMY_PAD(PADinit),
 	DUMMY_PAD(PADshutdown),
-	DUMMY_PAD(PADtest),
 	DUMMY_PAD(PADopen),
 	DUMMY_PAD(PADclose),
-	DUMMY_PAD(PADquery),
-	DUMMY_PAD(PADreadPort1),
-	DUMMY_PAD(PADreadPort2),
-	DUMMY_PAD(PADkeypressed),
 	DUMMY_PAD(PADsetSensitive),
-	DIRECT_PAD(PADstartPoll),
-	DIRECT_PAD(PADpoll),
+	DIRECT_PAD(PADreadPort1),
+	DIRECT_PAD(PADreadPort2),
+/*
+	DUMMY_PAD(PADquery),
+	DUMMY_PAD(PADconfigure),
+	DUMMY_PAD(PADtest),
+	DUMMY_PAD(PADabout),
+	DUMMY_PAD(PADkeypressed),
+	DUMMY_PAD(PADstartPoll),
+	DUMMY_PAD(PADpoll),
+*/
 	/* GPU */
 	DIRECT_GPU(GPUupdateLace),
 	DIRECT_GPU(GPUinit),
@@ -204,7 +203,7 @@ void *plugin_link(enum builtint_plugins_e id, const char *sym)
 		return plugin_funcs[i].func;
 	}
 
-	fprintf(stderr, "plugin_link: missing symbol %d %s\n", id, sym);
+	//fprintf(stderr, "plugin_link: missing symbol %d %s\n", id, sym);
 	return NULL;
 }
 
