@@ -91,7 +91,7 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, in
 	}
 
 	if (first_call) {
-		mi.size = 640*512*2*3;
+		mi.size = 640*512*3*3;
 		ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
 		if (ret != 0) {
 			perror("SETUP_MEM");

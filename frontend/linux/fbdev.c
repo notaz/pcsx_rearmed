@@ -126,8 +126,9 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 
 	fbdev->mem = mmap(0, mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev->fd, 0);
 	if (fbdev->mem == MAP_FAILED && fbdev->buffer_count > 1) {
-		fprintf(stderr, "Warning: can't map %zd bytes, doublebuffering disabled\n", fbdev->mem_size);
+		fprintf(stderr, "Warning: can't map %zd bytes, doublebuffering disabled\n", mem_size);
 		fbdev->buffer_count = 1;
+		fbdev->buffer_write = 0;
 		mem_size = fbdev->fb_size;
 		fbdev->mem = mmap(0, mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev->fd, 0);
 	}
