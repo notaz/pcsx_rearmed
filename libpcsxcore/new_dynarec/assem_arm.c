@@ -2912,7 +2912,7 @@ do_unalignedwritestub(int n)
 #endif
     emit_xorimm(temp,24,temp);
   emit_movimm(-1,HOST_TEMPREG);
-  if (opcode[i]==0x2e) { // SWR
+  if (opcode[i]==0x2a) { // SWL
     emit_bic_lsr(temp2,HOST_TEMPREG,temp,temp2);
     emit_orrshr(rt,temp,temp2);
   }else{
