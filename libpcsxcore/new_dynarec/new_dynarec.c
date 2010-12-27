@@ -5621,7 +5621,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
   #endif
 
   //if(opcode2[i]>=0x10) return; // FIXME (BxxZAL)
-  assert(opcode2[i]<0x10||rs1[i]==0); // FIXME (BxxZAL)
+  //assert(opcode2[i]<0x10||rs1[i]==0); // FIXME (BxxZAL)
 
   if(ooo)
     if(rs1[i]&&(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]))
@@ -5630,8 +5630,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
     // First test branch condition, then execute delay slot, then branch
     ooo=0;
   }
-  // TODO: Conditional branches w/link must execute in-order so that
-  // condition test and write to r31 occur before cycle count test
+  assert(opcode2[i]<0x10||ooo); // FIXME (BxxZALL)
 
   if(ooo) {
     s1l=get_reg(branch_regs[i].regmap,rs1[i]);
@@ -5726,7 +5725,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
       if(!only32)
       {
         assert(s1h>=0);
-        if(opcode2[i]==0) // BLTZ
+        if((opcode2[i]&0xf)==0) // BLTZ/BLTZAL
         {
           emit_test(s1h,s1h);
           if(invert){
@@ -5737,7 +5736,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             emit_js(0);
           }
         }
-        if(opcode2[i]==1) // BGEZ
+        if((opcode2[i]&0xf)==1) // BGEZ/BLTZAL
         {
           emit_test(s1h,s1h);
           if(invert){
@@ -5752,7 +5751,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
       else
       {
         assert(s1l>=0);
-        if(opcode2[i]==0) // BLTZ
+        if((opcode2[i]&0xf)==0) // BLTZ/BLTZAL
         {
           emit_test(s1l,s1l);
           if(invert){
@@ -5763,7 +5762,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             emit_js(0);
           }
         }
-        if(opcode2[i]==1) // BGEZ
+        if((opcode2[i]&0xf)==1) // BGEZ/BLTZAL
         {
           emit_test(s1l,s1l);
           if(invert){
