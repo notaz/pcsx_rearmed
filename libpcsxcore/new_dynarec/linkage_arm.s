@@ -1029,7 +1029,23 @@ ari_read_io32:
 .endm
 
 ari_write_io8:
-	ari_write_io ldrb, strb, byte, tab_write8, 2
+	@ PCSX always writes to psxH, so do we for consistency
+	ldr	r0, [fp, #address-dynarec_local]
+	ldr	r3, [fp, #psxH_ptr-dynarec_local]
+	ldrb	r1, [fp, #byte-dynarec_local]
+	bic	r2, r0, #0x1f800000
+	ldr	r12,[fp, #tab_write8-dynarec_local]
+	strb	r1, [r2, r3]
+	subs	r3, r2, #0x1000
+	movlo	pc, lr
+@	ari_write_io_old 2
+	cmp	r3, #0x880
+	movhs	pc, lr
+	ldr	r12,[r12, r3, lsl #2]
+	mov	r0, r1
+	tst	r12,r12
+	bxne	r12
+	mov	pc, lr
 
 ari_write_io16:
 	ari_write_io ldrh, strh, hword, tab_write16, 1
