@@ -46,25 +46,25 @@ static void blit(void)
 {
  extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
  extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
- int x = PSXDisplay.DisplayPosition.x & ~3; // XXX: align needed by bgr*_to_...
- int y = PSXDisplay.DisplayPosition.y;
+ int px = PSXDisplay.DisplayPosition.x & ~3; // XXX: align needed by bgr*_to_...
+ int py = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;
  int pitch = PreviousPSXDisplay.DisplayMode.x;
- unsigned short *srcs = psxVuw + y * 1024 + x;
+ unsigned short *srcs = psxVuw + py * 1024 + px;
  unsigned char *dest = pl_fbdev_buf;
 
  if (w <= 0)
    return;
 
- // TODO: clear border if centering
+ // TODO: clear border if centering?
 
  pitch *= PSXDisplay.RGB24 ? 3 : 2;
 
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
  dest += PreviousPSXDisplay.Range.y0 / 2 * pitch;
- dest += PreviousPSXDisplay.Range.x0 * 2; // XXX
+ dest += (PreviousPSXDisplay.Range.x0 & ~3) * 2; // must align here too..
 
  if (PSXDisplay.RGB24)
  {
@@ -86,15 +86,15 @@ void DoBufferSwap(void)
 {
  static int fbw, fbh, fb24bpp;
 
- if (PSXDisplay.DisplayMode.x == 0 || PSXDisplay.DisplayMode.y == 0)
+ if (PreviousPSXDisplay.DisplayMode.x == 0 || PreviousPSXDisplay.DisplayMode.y == 0)
   return;
 
  /* careful if rearranging this code, we try to set mode and flip
   * to get the hardware apply both changes at the same time */
- if (PSXDisplay.DisplayMode.x != fbw || PSXDisplay.DisplayMode.y != fbh
+ if (PreviousPSXDisplay.DisplayMode.x != fbw || PreviousPSXDisplay.DisplayMode.y != fbh
      || PSXDisplay.RGB24 != fb24bpp) {
-  fbw = PSXDisplay.DisplayMode.x;
-  fbh = PSXDisplay.DisplayMode.y;
+  fbw = PreviousPSXDisplay.DisplayMode.x;
+  fbh = PreviousPSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
   pl_fbdev_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
