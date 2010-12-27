@@ -224,7 +224,7 @@ extern void intExecuteBlockT();
 R3000Acpu psxRec = {
 	ari64_init,
 	ari64_reset,
-#if 1
+#if defined(__arm__)
 	ari64_execute,
 	ari64_execute,
 #else
@@ -272,6 +272,21 @@ static void dump_mem(const char *fname, void *mem, size_t size)
 	fclose(f1);
 }
 
+static u32 memcheck_read(u32 a)
+{
+	if ((a >> 16) == 0x1f80)
+		// scratchpad/IO
+		return *(u32 *)(psxH + (a & 0xfffc));
+
+	if ((a >> 16) == 0x1f00)
+		// parallel
+		return *(u32 *)(psxP + (a & 0xfffc));
+
+//	if ((a & ~0xe0600000) < 0x200000)
+	// RAM
+	return *(u32 *)(psxM + (a & 0x1ffffc));
+}
+
 void do_insn_trace(void)
 {
 	static psxRegisters oldregs;
@@ -279,7 +294,7 @@ void do_insn_trace(void)
 	static u32 old_io_data = 0xbad0c0de;
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_o = (void *)&oldregs;
-	u32 *io_data;
+	u32 io_data;
 	int i;
 	u8 byte;
 
@@ -301,12 +316,12 @@ void do_insn_trace(void)
 		fwrite(&last_io_addr, 1, 4, f);
 		old_io_addr = last_io_addr;
 	}
-	io_data = (void *)(psxM + (last_io_addr&0x1ffffc));
-	if (old_io_data != *io_data) {
+	io_data = memcheck_read(last_io_addr);
+	if (old_io_data != io_data) {
 		byte = 0xfe;
 		fwrite(&byte, 1, 1, f);
-		fwrite(io_data, 1, 4, f);
-		old_io_data = *io_data;
+		fwrite(&io_data, 1, 4, f);
+		old_io_data = io_data;
 	}
 	byte = 0xff;
 	fwrite(&byte, 1, 1, f);
@@ -406,16 +421,13 @@ void do_insn_cmp(void)
 	}
 
 	psxRegs.code = rregs.code; // don't care
-psxRegs.cycle = rregs.cycle;
-psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
+	psxRegs.cycle = rregs.cycle;
+	psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
 //if (psxRegs.cycle == 166172) breakme();
-//if (psxRegs.cycle > 11296376) printf("pc=%08x %u  %08x\n", psxRegs.pc, psxRegs.cycle, psxRegs.interrupt);
-
-	mem_addr &= 0x1ffffc;
 
 	if (memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle)) == 0 &&
-			mem_val == *(u32 *)(psxM + mem_addr)
+			mem_val == memcheck_read(mem_addr)
 	   ) {
 		failcount = 0;
 		goto ok;
@@ -428,8 +440,8 @@ psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 		}
 	}
 
-	if (mem_val != *(u32 *)(psxM + mem_addr)) {
-		printf("bad mem @%08x: %08x %08x\n", mem_addr, *(u32 *)(psxM + mem_addr), mem_val);
+	if (mem_val != memcheck_read(mem_addr)) {
+		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
 		goto end;
 	}
 

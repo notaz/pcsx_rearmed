@@ -432,6 +432,13 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
+#if defined(__x86_64__) || defined(__i386__)
+	// convenience hack
+	char name[MAXPATHLEN];
+	snprintf(name, sizeof(name), "%s.x86", lib);
+	lib = name;
+#endif
+
 	return dlopen(lib, RTLD_NOW);
 }
 
