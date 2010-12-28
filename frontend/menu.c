@@ -177,6 +177,10 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(PsxType),
 	CE_INTVAL(scaling),
+	CE_INTVAL(g_layer_x),
+	CE_INTVAL(g_layer_y),
+	CE_INTVAL(g_layer_w),
+	CE_INTVAL(g_layer_h),
 	CE_INTVAL(filter),
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
@@ -191,16 +195,30 @@ static const struct {
 	CE_INTVAL(iUseTimer),
 };
 
+static void make_cfg_fname(char *buf, size_t size, int is_game)
+{
+	char trimlabel[33];
+	int j;
+
+	strncpy(trimlabel, CdromLabel, 32);
+	trimlabel[32] = 0;
+	for (j = 31; j >= 0; j--)
+		if (trimlabel[j] == ' ')
+			trimlabel[j] = 0;
+
+	if (is_game)
+		snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", trimlabel, CdromId);
+	else
+		snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+}
+
 static int menu_write_config(int is_game)
 {
 	char cfgfile[MAXPATHLEN];
 	FILE *f;
 	int i;
 
-	if (is_game)
-		return -1;
-
-	snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "w");
 	if (f == NULL) {
 		printf("failed to open: %s\n", cfgfile);
@@ -256,10 +274,7 @@ static int menu_load_config(int is_game)
 	char *cfg;
 	FILE *f;
 
-	if (is_game)
-		return -1;
-
-	snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "r");
 	if (f == NULL) {
 		printf("failed to open: %s\n", cfgfile);
@@ -548,19 +563,12 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 	return "";
 }
 
-static int mh_saveloadcfg(int id, int keys)
+static int mh_savecfg(int id, int keys)
 {
-	switch (id) {
-	case MA_OPT_SAVECFG:
-	case MA_OPT_SAVECFG_GAME:
-		if (menu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0) == 0)
-			me_update_msg("config saved");
-		else
-			me_update_msg("failed to write config");
-		break;
-	default:
-		return 0;
-	}
+	if (menu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0) == 0)
+		me_update_msg("config saved");
+	else
+		me_update_msg("failed to write config");
 
 	return 1;
 }
@@ -570,8 +578,8 @@ static menu_entry e_menu_keyconfig[] =
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
-	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
-//	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
+//	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_savecfg, mgn_saveloadcfg),
+//	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
 	mee_label     (""),
 	mee_label     ("Input devices:"),
 	mee_label_mk  (MA_CTRL_DEV_FIRST, mgn_dev_name),
@@ -801,8 +809,8 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("[Display]",                menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
 	mee_handler   ("[Advanced]",               menu_loop_adv_options),
-	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_saveloadcfg, mgn_saveloadcfg),
-//	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
+	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
+	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
 	mee_handler_h ("Restore default config",   mh_restore_defaults, h_restore_def),
 	mee_end,
 };
@@ -814,7 +822,7 @@ static int menu_loop_options(int id, int keys)
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
 	e_menu_options[i].enabled = cpu_clock != 0 ? 1 : 0;
-//	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go);
+	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go);
 
 	me_loop(e_menu_options, &sel, NULL);
 

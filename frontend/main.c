@@ -54,6 +54,7 @@ static void CheckSubDir() {
 	create_profile_dir(PLUGINS_CFG_DIR);
 	create_profile_dir(CHEATS_DIR);
 	create_profile_dir(PATCHES_DIR);
+	create_profile_dir(PCSX_DOT_DIR "cfg");
 }
 
 void set_cd_image(const char *fname)
