@@ -137,7 +137,7 @@ unsigned long ulInitDisplay(void)
  iShowFPS=1;
  initialize();
 
- if (pl_fbdev_init() != 0)
+ if (pl_fbdev_open() != 0)
   return 0;
 
  return 1; /* ok */
@@ -146,7 +146,7 @@ unsigned long ulInitDisplay(void)
 void CloseDisplay(void)
 {
  CloseMenu();
- pl_fbdev_finish();
+ pl_fbdev_close();
  //WriteConfig();
 }
 

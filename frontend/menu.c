@@ -1032,13 +1032,16 @@ void menu_notify_mode_change(int w, int h, int bpp)
 	if (scaling == SCALE_1_1) {
 		g_layer_x = 800/2 - w/2;  g_layer_y = 480/2 - h/2;
 		g_layer_w = w; g_layer_h = h;
-		omap_enable_layer(1);
 	}
 }
 
 static void menu_leave_emu(void)
 {
-	omap_enable_layer(0);
+	if (GPU_close != NULL) {
+		int ret = GPU_close();
+		if (ret)
+			fprintf(stderr, "Warning: GPU_close returned %d\n", ret);
+	}
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	if (ready_to_go && last_psx_bpp == 16) {
@@ -1077,7 +1080,6 @@ void menu_prepare_emu(void)
 	case SCALE_CUSTOM:
 		break;
 	}
-	omap_enable_layer(1);
 	apply_filter(filter);
 	apply_cpu_clock();
 	stop = 0;
@@ -1086,6 +1088,13 @@ void menu_prepare_emu(void)
 	// so handle them manually here
 	if (Config.Cdda)
 		CDR_stop();
+
+	if (GPU_open != NULL) {
+		extern unsigned long gpuDisp;
+		int ret = GPU_open(&gpuDisp, "PCSX", NULL);
+		if (ret)
+			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
+	}
 }
 
 void me_update_msg(const char *msg)

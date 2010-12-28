@@ -62,12 +62,6 @@ static void print_cpu_usage(void)
 		pl_text_out16(pl_fbdev_w - 28, pl_fbdev_h - 10, "%3d", tick_per_sec);
 }
 
-int pl_fbdev_init(void)
-{
-	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
-	return 0;
-}
-
 int pl_fbdev_set_mode(int w, int h, int bpp)
 {
 	void *ret;
@@ -103,8 +97,16 @@ void pl_fbdev_flip(void)
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
 }
 
-void pl_fbdev_finish(void)
+int pl_fbdev_open(void)
 {
+	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
+	omap_enable_layer(1);
+	return 0;
+}
+
+void pl_fbdev_close(void)
+{
+	omap_enable_layer(0);
 }
 
 static void update_input(void)
