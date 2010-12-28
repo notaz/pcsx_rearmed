@@ -151,7 +151,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	ret = omap_setup_layer_(fd, 1, g_layer_x, g_layer_y, g_layer_w, g_layer_h, 1);
+	ret = omap_setup_layer_(fd, 0, g_layer_x, g_layer_y, g_layer_w, g_layer_h, 1);
 	close(fd);
 	if (ret != 0) {
 		fprintf(stderr, "failed to set up layer, exiting.\n");

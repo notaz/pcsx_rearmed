@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <dlfcn.h>
 
 #include "menu.h"
 #include "config.h"
@@ -56,7 +57,6 @@ enum {
 };
 
 extern int ready_to_go;
-static int game_config_loaded;
 static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock;
 static char rom_fname_reload[MAXPATHLEN];
@@ -74,6 +74,10 @@ extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iSPUIRQWait;
 extern int iUseTimer;
+
+static const char *gpu_plugins[16];
+static const char *spu_plugins[16];
+static int gpu_plugsel, spu_plugsel;
 
 
 static int min(int x, int y) { return x < y ? x : y; }
@@ -207,9 +211,9 @@ static void make_cfg_fname(char *buf, size_t size, int is_game)
 			trimlabel[j] = 0;
 
 	if (is_game)
-		snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", trimlabel, CdromId);
+		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", trimlabel, CdromId);
 	else
-		snprintf(cfgfile, sizeof(cfgfile), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
 }
 
 static int menu_write_config(int is_game)
@@ -221,7 +225,7 @@ static int menu_write_config(int is_game)
 	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "w");
 	if (f == NULL) {
-		printf("failed to open: %s\n", cfgfile);
+		printf("menu_write_config: failed to open: %s\n", cfgfile);
 		return -1;
 	}
 
@@ -277,7 +281,7 @@ static int menu_load_config(int is_game)
 	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "r");
 	if (f == NULL) {
-		printf("failed to open: %s\n", cfgfile);
+		printf("menu_load_config: failed to open: %s\n", cfgfile);
 		return -1;
 	}
 
@@ -346,6 +350,16 @@ static int menu_load_config(int is_game)
 		}
 	}
 
+	// sync plugins
+	for (i = gpu_plugsel = 0; gpu_plugins[i] != NULL; i++)
+		if (strcmp(Config.Gpu, gpu_plugins[i]) == 0)
+			{ gpu_plugsel = i; break; }
+
+	for (i = spu_plugsel = 0; spu_plugins[i] != NULL; i++)
+		if (strcmp(Config.Spu, spu_plugins[i]) == 0)
+			{ spu_plugsel = i; break; }
+
+	ret = 0;
 fail_read:
 	free(cfg);
 fail:
@@ -679,8 +693,6 @@ static int menu_loop_gfx_options(int id, int keys)
 // ------------ bios/plugins ------------
 
 static const char *men_gpu_dithering[] = { "None", "Game dependant", "Always", NULL };
-static const char h_gpu[]              = "Configure built-in P.E.Op.S. SoftGL Driver V1.17\n"
-					 "Coded by Pete Bernert and the P.E.Op.S. team";
 static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
 static const char h_gpu_2[]            = "Black screens in Lunar";
@@ -715,8 +727,6 @@ static int menu_loop_plugin_gpu(int id, int keys)
 
 static const char *men_spu_reverb[] = { "Off", "Fake", "On", NULL };
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
-static const char h_spu[]           = "Configure built-in P.E.Op.S. Sound Driver V1.7\n"
-				      "Coded by Pete Bernert and the P.E.Op.S. team";
 static const char h_spu_irq_wait[]  = "Wait for CPU; only useful for some games, may cause glitches";
 static const char h_spu_thread[]    = "Run sound emulation in separate thread";
 
@@ -737,8 +747,15 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
+static const char h_gpu[]        = "Configure built-in P.E.Op.S. SoftGL Driver V1.17";
+static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
+static const char h_plugin_xpu[] = "Must save config and reload the game\n"
+				   "for plugin change to take effect";
+
 static menu_entry e_menu_plugin_options[] =
 {
+	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
+	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu, h_gpu),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
@@ -748,6 +765,11 @@ static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
 	me_loop(e_menu_plugin_options, &sel, NULL);
+
+	// sync plugins
+	snprintf(Config.Gpu, sizeof(Config.Gpu), "%s", gpu_plugins[gpu_plugsel]);
+	snprintf(Config.Spu, sizeof(Config.Spu), "%s", spu_plugins[spu_plugsel]);
+
 	return 0;
 }
 
@@ -870,52 +892,72 @@ const char *plat_get_credits(void)
 		"  frontend (C) 2010 notaz\n";
 }
 
-static char *romsel_run(void)
+static int run_cd_image(const char *fname)
 {
 	extern void set_cd_image(const char *fname);
-	char *ret;
-
-	ret = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
-	if (ret == NULL)
-		return NULL;
-
-	lprintf("selected file: %s\n", ret);
 	ready_to_go = 0;
 
-	set_cd_image(ret);
+	set_cd_image(fname);
 	LoadPlugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {
 		me_update_msg("failed to open plugins");
-		return NULL;
+		return -1;
 	}
-
-	SysReset();
 
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
 		ClosePlugins();
 		me_update_msg("unsupported/invalid CD image");
-		return NULL;
+		return -1;
 	}
+
+	SysReset();
 
 	// Read main executable directly from CDRom and start it
 	if (LoadCdrom() == -1) {
 		ClosePlugins();
 		me_update_msg("failed to load CD image");
-		return NULL;
+		return -1;
+	}
+
+	ready_to_go = 1;
+	return 0;
+}
+
+static int romsel_run(void)
+{
+	int prev_gpu, prev_spu;
+	char *fname;
+
+	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	if (fname == NULL)
+		return -1;
+
+	printf("selected file: %s\n", fname);
+
+	if (run_cd_image(fname) != 0)
+		return -1;
+
+	prev_gpu = gpu_plugsel;
+	prev_spu = spu_plugsel;
+	if (menu_load_config(1) != 0)
+		menu_load_config(0);
+
+	// check for plugin changes, have to repeat
+	// loading if game config changed plugins to reload them
+	if (prev_gpu != gpu_plugsel || prev_spu != spu_plugsel) {
+		printf("plugin change detected, reloading plugins..\n");
+		if (run_cd_image(fname) != 0)
+			return -1;
 	}
 
 	strcpy(last_selected_fname, rom_fname_reload);
-	game_config_loaded = 0;
-	ready_to_go = 1;
-	return ret;
+	return 0;
 }
 
 static int main_menu_handler(int id, int keys)
 {
-	char *ret_name;
-
 	switch (id)
 	{
 	case MA_MAIN_RESUME_GAME:
@@ -941,8 +983,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_LOAD_ROM:
-		ret_name = romsel_run();
-		if (ret_name != NULL)
+		if (romsel_run() == 0)
 			return 1;
 		break;
 	case MA_MAIN_CREDITS:
@@ -1009,12 +1050,77 @@ void menu_loop(void)
 	menu_prepare_emu();
 }
 
+static void scan_plugins(void)
+{
+	char fname[MAXPATHLEN];
+	struct dirent *ent;
+	int gpu_i, spu_i;
+	char *p;
+	DIR *dir;
+
+	gpu_plugins[0] = "builtin_gpu";
+	spu_plugins[0] = "builtin_spu";
+	gpu_i = spu_i = 1;
+
+	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
+	dir = opendir(fname);
+	if (dir == NULL) {
+		perror("scan_plugins opendir");
+		return;
+	}
+
+	while (1) {
+		void *h, *tmp;
+
+		errno = 0;
+		ent = readdir(dir);
+		if (ent == NULL) {
+			if (errno != 0)
+				perror("readdir");
+			break;
+		}
+		p = strstr(ent->d_name, ".so");
+		if (p == NULL)
+			continue;
+
+		snprintf(fname, sizeof(fname), "%s/%s", Config.PluginsDir, ent->d_name);
+		h = dlopen(fname, RTLD_LAZY | RTLD_LOCAL);
+		if (h == NULL) {
+			fprintf(stderr, "%s\n", dlerror());
+			continue;
+		}
+
+		// now what do we have here?
+		tmp = dlsym(h, "GPUinit");
+		if (tmp) {
+			dlclose(h);
+			if (gpu_i < ARRAY_SIZE(gpu_plugins) - 1)
+				gpu_plugins[gpu_i++] = strdup(ent->d_name);
+			continue;
+		}
+
+		tmp = dlsym(h, "SPUinit");
+		if (tmp) {
+			dlclose(h);
+			if (spu_i < ARRAY_SIZE(spu_plugins) - 1)
+				spu_plugins[spu_i++] = strdup(ent->d_name);
+			continue;
+		}
+
+		fprintf(stderr, "ignoring unidentified plugin: %s\n", fname);
+		dlclose(h);
+	}
+
+	closedir(dir);
+}
+
 void menu_init(void)
 {
 	char buff[MAXPATHLEN];
 
 	strcpy(last_selected_fname, "/media");
 
+	scan_plugins();
 	pnd_menu_init();
 	menu_init_common();
 
@@ -1067,12 +1173,6 @@ static void menu_leave_emu(void)
 
 void menu_prepare_emu(void)
 {
-	if (!game_config_loaded) {
-		menu_set_defconfig();
-		menu_load_config(1);
-		game_config_loaded = 1;
-	}
-
 	switch (scaling) {
 	case SCALE_1_1:
 		menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);

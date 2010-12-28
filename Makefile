@@ -86,7 +86,7 @@ $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
 spunull.so: plugins/spunull/spunull.c
-	$(CC) $(CFLAGS) -shared -fPIC -o $@ $^
+	$(CC) $(CFLAGS) -shared -fPIC -ggdb -O2 -o $@ $^
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
@@ -97,9 +97,10 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 VER ?= $(shell git describe --abbrev=0 master)
 
-rel: pcsx pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
+rel: pcsx spunull.so pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
 		pandora/picorestore pandora/readme.txt skin COPYING
 	rm -rf out
-	mkdir out
+	mkdir -p out/plugins
 	cp -r $^ out/
+	mv out/*.so out/plugins/
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x pandora/pcsx.pxml -i pandora/pcsx.png -c

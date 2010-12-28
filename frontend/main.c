@@ -163,7 +163,6 @@ int main(int argc, char *argv[])
 	strcpy(Config.Net, "Disabled");
 
 	CheckSubDir();
-//	ScanAllPlugins();
 
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
@@ -209,8 +208,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	SysReset();
 	CheckCdrom();
+	SysReset();
 
 	if (file[0] != '\0') {
 		if (Load(file) != -1)
@@ -423,9 +422,11 @@ static const int builtin_plugin_ids[] = {
 
 void *SysLoadLibrary(const char *lib) {
 	const char *tmp = strrchr(lib, '/');
+	void *ret;
 	int i;
 
-	printf("dlopen %s\n", lib);
+	printf("plugin: %s\n", lib);
+
 	if (tmp != NULL) {
 		tmp++;
 		for (i = 0; i < ARRAY_SIZE(builtin_plugins); i++)
@@ -440,7 +441,10 @@ void *SysLoadLibrary(const char *lib) {
 	lib = name;
 #endif
 
-	return dlopen(lib, RTLD_NOW);
+	ret = dlopen(lib, RTLD_NOW);
+	if (ret == NULL)
+		fprintf(stderr, "dlopen: %s\n", dlerror());
+	return ret;
 }
 
 void *SysLoadSym(void *lib, const char *sym) {
