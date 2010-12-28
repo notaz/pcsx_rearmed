@@ -3598,7 +3598,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   int s,tl;
   int ar;
   int offset;
-  int c=0;
+  int memtarget=0,c=0;
   int jaddr,jaddr2=0,jaddr3,type;
   int agr=AGEN1+(i&1);
   u_int hr,reglist=0;
@@ -3624,36 +3624,41 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   } else { // LWC2
     ar=tl;
   }
+  if(s>=0) c=(i_regs->wasconst>>s)&1;
+  memtarget=c&&(((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE);
   if (!offset&&!c&&s>=0) ar=s;
   assert(ar>=0);
 
   if (opcode[i]==0x3a) { // SWC2
     cop2_get_dreg(copr,tl,HOST_TEMPREG);
-  }
-  if(s>=0) c=(i_regs->wasconst>>s)&1;
-  if(!c) {
-    emit_cmpimm(offset||c||s<0?ar:s,RAM_SIZE);
-    jaddr2=(int)out;
-    emit_jno(0);
-  }
-  else if(((signed int)(constmap[i][s]+offset))>=(signed int)0x80000000+RAM_SIZE) {
-    jaddr2=(int)out;
-    emit_jmp(0); // inline_readstub/inline_writestub?  Very rare case
-  }
-  if (opcode[i]==0x32) { // LWC2
-    #ifdef HOST_IMM_ADDR32
-    if(c) emit_readword_tlb(constmap[i][s]+offset,-1,tl);
-    else
-    #endif
-    emit_readword_indexed(0,ar,tl);
-    type=LOADW_STUB;
-  }
-  if (opcode[i]==0x3a) { // SWC2
-#ifdef DESTRUCTIVE_SHIFT
-    if(!offset&&!c&&s>=0) emit_mov(s,ar);
-#endif
-    emit_writeword_indexed(tl,0,ar);
     type=STOREW_STUB;
+  }
+  else
+    type=LOADW_STUB;
+
+  if(c&&!memtarget) {
+    jaddr2=(int)out;
+    emit_jmp(0); // inline_readstub/inline_writestub?
+  }
+  else {
+    if(!c) {
+      emit_cmpimm(offset||c||s<0?ar:s,RAM_SIZE);
+      jaddr2=(int)out;
+      emit_jno(0);
+    }
+    if (opcode[i]==0x32) { // LWC2
+      #ifdef HOST_IMM_ADDR32
+      if(c) emit_readword_tlb(constmap[i][s]+offset,-1,tl);
+      else
+      #endif
+      emit_readword_indexed(0,ar,tl);
+    }
+    if (opcode[i]==0x3a) { // SWC2
+      #ifdef DESTRUCTIVE_SHIFT
+      if(!offset&&!c&&s>=0) emit_mov(s,ar);
+      #endif
+      emit_writeword_indexed(tl,0,ar);
+    }
   }
   if(jaddr2)
     add_stub(type,jaddr2,(int)out,i,ar,(int)i_regs,ccadj[i],reglist);
@@ -3964,7 +3969,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
     if(itype[i]==C1LS||itype[i]==C2LS) {
       if ((opcode[i]&0x3b)==0x31||(opcode[i]&0x3b)==0x32) // LWC1/LDC1/LWC2/LDC2
         ra=get_reg(i_regs->regmap,FTEMP);
-      else { // SWC1/SDC1
+      else { // SWC1/SDC1/SWC2/SDC2
         ra=get_reg(i_regs->regmap,agr);
         if(ra<0) ra=get_reg(i_regs->regmap,-1);
       }
