@@ -35,10 +35,38 @@ Credits / License
 -----------------
 
 (C) 1999-2003 PCSX Team
+	(c) 1998 Vision Thing
+	Linuzappz     <linuzappz@pcsx.net>
+	Shadow        <shadow@pcsx.net>
+	Pete Bernett  <psswitch@online.de>
+	NoComp        <NoComp@mailcity.com>
+	Nik3d
+	Akumax        <akumax@pcsx.net>
+
 (C) 2005-2009 PCSX-df Team
+	(c) Ryan Schultz <schultz.ryan@gmail.com>
+	(c) Andrew Burton <adb@iinet.net.au>
+	(c) Stephen Chao <schao@myrealbox.com>
+	(c) Marcus Comstedt <marcus@mc.pp.se>
+	Stefan Sikora <hoshy@schrauberstube.de>
+
 (C) 2009-2010 PCSX-Reloaded Team
+	avlex (Help on xcode project)
+	Dario (Various bugfixes)
+	edgbla (Root counters, various core/plugin fixes)
+	Firnis (GTE code from PCSX-Revolution Project)
+	Gabriele Gorla (MDEC decoder)
+	maggix (Snow Leopard compile fix)
+	NeToU (Bugfix)
+	Peter Collingbourne (Various core/psxbios fixes)
+	siveritas (Bugfix)
+	shalma (GTE Divider, various core fixes)
+	Tristin Celestin (PulseAudio support)
+	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
+
 GPU and SPU code by Pete Bernert and the P.E.Op.S. team
 ARM recompiler (C) 2009-2010 Ari64
+
 integration, optimization and frontend (C) 2010 notaz
 
 Source code is released under GNU GPL license, version 2 or later.
