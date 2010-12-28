@@ -1869,12 +1869,8 @@ void psxBios_firstfile() { // 42
 	nfile = 1;
 	if (!strncmp(Ra0, "bu00", 4)) {
 		bufile(1);
-		v0 = _dir;
-	}
-
-	if (!strncmp(Ra0, "bu10", 4)) {
+	} else if (!strncmp(Ra0, "bu10", 4)) {
 		bufile(2);
-		v0 = _dir;
 	}
 
 	pc0 = ra;
