@@ -31,6 +31,27 @@ Supportd CD image formats:
 CDDA (CD audio) support requires .cue/.bin format.
 
 
+Changelog
+---------
+
+r2:
+* fixed memcard paths
+* fixed a keybind copy-paste bug
+* properly implemented pad handling
+  (inputs no longer controls both emulated pads at once)
+* fixed a crash caused by framebuffer out of range access
+* fixed SWL/SWR handling (usually resulted in graphic glitches)
+* fixed BxxZAL (Medal of Honor)
+* fixed alignment crash in color space conversion code (Lunar)
+* fixed SWC2 occasional use of wrong address register (Parasite Eve)
+* fixed firstfile() handling in HLE BIOS (broken memory cards in some games)
++ added per-game configs (controls still not saved though)
++ added simple plugin select interface to the menu
+
+r1:
+* initial release
+
+
 Credits / License
 -----------------
 
