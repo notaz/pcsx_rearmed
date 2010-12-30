@@ -789,9 +789,9 @@ void CALLBACK GPUupdateLace(void)                      // VSYNC
  if(!(dwActFixes&1))
   lGPUstatusRet^=0x80000000;                           // odd/even bit
 
+ //pcsx-rearmed: removed, this is handled by core
  //if(!(dwActFixes&32))                                  // std fps limitation?
  // CheckFrameRate();
- pl_frame_limit();
 
  if(PSXDisplay.Interlaced)                             // interlaced mode?
   {
