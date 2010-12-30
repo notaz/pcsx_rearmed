@@ -66,7 +66,10 @@ int g_opts;
 // from softgpu plugin
 extern int iUseDither;
 extern int UseFrameSkip;
+extern int UseFrameLimit;
 extern uint32_t dwActFixes;
+extern float fFrameRateHz;
+extern int dwFrameRateTicks;
 
 // sound plugin
 extern int iUseReverb;
@@ -139,6 +142,7 @@ static void menu_set_defconfig(void)
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
 	iUseDither = UseFrameSkip = 0;
+	UseFrameLimit = 1;
 	dwActFixes = 1<<7;
 
 	iUseReverb = 2;
@@ -191,6 +195,7 @@ static const struct {
 	CE_INTVAL(g_opts),
 	CE_INTVAL(iUseDither),
 	CE_INTVAL(UseFrameSkip),
+	CE_INTVAL(UseFrameLimit),
 	CE_INTVAL(dwActFixes),
 	CE_INTVAL(iUseReverb),
 	CE_INTVAL(iUseInterpolation),
@@ -775,6 +780,8 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+static const char h_cfg_cpul[]   = "Shows CPU usage in %%";
+static const char h_cfg_fl[]     = "Keeps the game from running too fast";
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
@@ -785,7 +792,8 @@ static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix";
 
 static menu_entry e_menu_adv_options[] =
 {
-	mee_onoff     ("Show CPU load",          0, g_opts, OPT_SHOWCPU),
+	mee_onoff_h   ("Show CPU load",          0, g_opts, OPT_SHOWCPU, h_cfg_cpul),
+	mee_onoff_h   ("Frame Limiter",          0, UseFrameLimit, 1, h_cfg_fl),
 	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
@@ -896,7 +904,9 @@ static int run_cd_image(const char *fname)
 {
 	extern void set_cd_image(const char *fname);
 	ready_to_go = 0;
+	pl_fbdev_buf = NULL;
 
+	ClosePlugins();
 	set_cd_image(fname);
 	LoadPlugins();
 	NetOpened = 0;
@@ -974,6 +984,7 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_RESET_GAME:
 		if (ready_to_go) {
+			ClosePlugins();
 			OpenPlugins();
 			SysReset();
 			if (CheckCdrom() != -1) {
@@ -1045,8 +1056,6 @@ void menu_loop(void)
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 
-	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-	menu_draw_end();
 	menu_prepare_emu();
 }
 
@@ -1158,7 +1167,7 @@ static void menu_leave_emu(void)
 	}
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
-	if (ready_to_go && last_psx_bpp == 16) {
+	if (pl_fbdev_buf != NULL && ready_to_go && last_psx_bpp == 16) {
 		int x = max(0, g_menuscreen_w - last_psx_w);
 		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
 		int w = min(g_menuscreen_w, last_psx_w);
@@ -1169,10 +1178,14 @@ static void menu_leave_emu(void)
 		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
 			menu_darken_bg(d, s, w, 0);
 	}
+
+	plat_video_menu_enter(ready_to_go);
 }
 
 void menu_prepare_emu(void)
 {
+	plat_video_menu_leave();
+
 	switch (scaling) {
 	case SCALE_1_1:
 		menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);
@@ -1196,6 +1209,12 @@ void menu_prepare_emu(void)
 	// so handle them manually here
 	if (Config.Cdda)
 		CDR_stop();
+
+	// HACK to set up the frame limiter if softgpu is not used..
+	if (gpu_plugsel != 0) {
+		fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
+		dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
+	}
 
 	if (GPU_open != NULL) {
 		extern unsigned long gpuDisp;

@@ -221,15 +221,16 @@ void ReadConfigGPU(void)
  iColDepth=32;
  iWindowMode=1;
  iMaintainAspect=0;
- UseFrameLimit=1;
- UseFrameSkip=0;
  iFrameLimit=2;
  fFrameRate=200.0f;
- dwCfgFixes=0;
  iUseFixes=0;
  iUseNoStretchBlt=0;
- iUseDither=0;
  iShowFPS=0;
+ // pcsx-rearmed: managed by frontend
+ //UseFrameLimit=1;
+ //UseFrameSkip=0;
+ //dwCfgFixes=0;
+ //iUseDither=0;
 
  // read sets
  ReadConfigFile();

@@ -120,6 +120,14 @@ int omap_enable_layer(int enabled)
 		g_layer_x, g_layer_y, g_layer_w, g_layer_h, 0);
 }
 
+void plat_video_menu_enter(int is_rom_loaded)
+{
+	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
+		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 3);
+	if (g_menuscreen_ptr == NULL)
+		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
+}
+
 void plat_video_menu_begin(void)
 {
 }
@@ -127,6 +135,17 @@ void plat_video_menu_begin(void)
 void plat_video_menu_end(void)
 {
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
+}
+
+void plat_video_menu_leave(void)
+{
+	/* have to get rid of panning so that plugins that
+	 * use fb0 and don't ever pan can work. */
+	vout_fbdev_clear(main_fb);
+	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
+		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 1);
+	if (g_menuscreen_ptr == NULL)
+		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
 }
 
 void plat_init(void)
