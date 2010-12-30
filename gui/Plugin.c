@@ -289,8 +289,9 @@ int _OpenPlugins() {
 	ret = SPU_open();
 	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
 	SPU_registerCallback(SPUirq);
-	ret = GPU_open(&gpuDisp, "PCSX", NULL);
-	if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }
+	// pcsx-rearmed: we handle gpu elsewhere
+	//ret = GPU_open(&gpuDisp, "PCSX", NULL);
+	//if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }
 	ret = PAD1_open(&gpuDisp);
 	if (ret < 0) { SysMessage(_("Error opening Controller 1 plugin!")); return -1; }
 	ret = PAD2_open(&gpuDisp);
@@ -381,8 +382,9 @@ void ClosePlugins() {
 	if (ret < 0) { SysMessage(_("Error closing Controller 1 Plugin!")); return; }
 	ret = PAD2_close();
 	if (ret < 0) { SysMessage(_("Error closing Controller 2 plugin!")); return; }
-	ret = GPU_close();
-	if (ret < 0) { SysMessage(_("Error closing GPU plugin!")); return; }
+	// pcsx-rearmed: we handle gpu elsewhere
+	//ret = GPU_close();
+	//if (ret < 0) { SysMessage(_("Error closing GPU plugin!")); return; }
 
 	if (Config.UseNet) {
 		NET_pause();
