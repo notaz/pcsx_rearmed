@@ -74,43 +74,45 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 	ioctl(fbdev->fd, FBIOBLANK, FB_BLANK_UNBLANK);
 
 	if (fbdev->fbvar_new.bits_per_pixel != bpp ||
-			w != fbdev->fbvar_new.xres ||
-			h != fbdev->fbvar_new.yres ||
-			w_total != fbdev->fbvar_new.xres_virtual ||
-			h_total > fbdev->fbvar_new.yres_virtual ||
-			left_border != fbdev->fbvar_new.xoffset) {
+			fbdev->fbvar_new.xres != w ||
+			fbdev->fbvar_new.yres != h ||
+			fbdev->fbvar_new.xres_virtual != w_total||
+			fbdev->fbvar_new.yres_virtual < h_total ||
+			fbdev->fbvar_new.xoffset != left_border ||
+			fbdev->buffer_count != buffer_cnt)
+	{
+		if (fbdev->fbvar_new.bits_per_pixel != bpp ||
+				w != fbdev->fbvar_new.xres || h != fbdev->fbvar_new.yres)
+			printf(" switching to %dx%d@%d\n", w, h, bpp);
+
 		fbdev->fbvar_new.xres = w;
 		fbdev->fbvar_new.yres = h;
 		fbdev->fbvar_new.xres_virtual = w_total;
-		fbdev->fbvar_new.yres_virtual = h_total;
+		fbdev->fbvar_new.yres_virtual = h_total * buffer_cnt;
 		fbdev->fbvar_new.xoffset = left_border;
 		fbdev->fbvar_new.yoffset = top_border;
 		fbdev->fbvar_new.bits_per_pixel = bpp;
-		printf(" switching to %dx%d@%d\n", w, h, bpp);
+		fbdev->buffer_count = buffer_cnt;
+		fbdev->buffer_write = 1;
 
 		// seems to help a bit to avoid glitches
 		vout_fbdev_wait_vsync(fbdev);
 
 		ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
 		if (ret == -1) {
-			perror("FBIOPUT_VSCREENINFO ioctl");
-			return NULL;
-		}
-
-		fbdev->buffer_write = 1;
-	}
-
-	fbdev->buffer_count = buffer_cnt;
-
-	if (fbdev->fbvar_new.yres_virtual < h_total * fbdev->buffer_count) {
-		fbdev->fbvar_new.yres_virtual = h_total * fbdev->buffer_count;
-		ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
-		if (ret == -1) {
+			// retry with no multibuffering
+			fbdev->fbvar_new.yres_virtual = h_total;
+			ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
+			if (ret == -1) {
+				perror("FBIOPUT_VSCREENINFO ioctl");
+				return NULL;
+			}
 			fbdev->buffer_count = 1;
 			fbdev->buffer_write = 0;
 			fprintf(stderr, "Warning: failed to increase virtual resolution, "
-					"doublebuffering disabled\n");
+					"multibuffering disabled\n");
 		}
+
 	}
 
 	fbdev->fb_size = w_total * h_total * bpp / 8;
