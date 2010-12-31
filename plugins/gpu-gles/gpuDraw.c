@@ -39,7 +39,7 @@
 #include "texture.h"
 #else
 #include "gpuExternals.h"
-#include "GPUPlugin.h"
+#include "gpuPlugin.h"
 #include "gpuDraw.h"
 #include "gpuPrim.h"
 #include "gpuTexture.h"
@@ -309,6 +309,48 @@ HGLRC GLCONTEXT=NULL;
 #endif
 
 #ifdef MAEMO_CHANGES
+#define MODE_RAW 0
+#define MODE_X11 1
+#define MODE_SDL 2
+int pandora_driver_mode = MODE_RAW;
+int use_fsaa = 0;
+
+EGLDisplay display;
+EGLConfig  config;
+EGLContext context;
+EGLSurface surface;
+
+#if defined(USE_X11)
+#include "X11/Xlib.h"
+#include "X11/Xutil.h"
+#include "X11/Xatom.h"
+
+Window			x11Window	= 0;
+Display*		x11Display	= 0;
+long			x11Screen	= 0;
+XVisualInfo		x11Visual;
+XVisualInfo*	px11Visual	= 0;
+Colormap        x11Colormap	= 0;
+#endif
+
+EGLint attrib_list_fsaa[] =
+{
+	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+	EGL_BUFFER_SIZE,    0,
+	EGL_DEPTH_SIZE,     16,
+	EGL_SAMPLE_BUFFERS, 1,
+	EGL_SAMPLES,        4,
+	EGL_NONE
+};
+
+EGLint attrib_list[] =
+{
+	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+	EGL_BUFFER_SIZE,  0,
+	EGL_DEPTH_SIZE,   16,
+	EGL_NONE
+};
+
 bool TestEGLError(const char* pszLocation)
 {
 	/*
@@ -320,79 +362,154 @@ bool TestEGLError(const char* pszLocation)
 	if (iErr != EGL_SUCCESS)
 	{
 		printf("%s failed (%d).\n", pszLocation, iErr);
-		return false;
+		return FALSE;
 	}
 
-	return true;
+	return TRUE;
 }
 
 void maemoGLinit(){
-	iResX= 800;
-    iResY =480;
+	printf ("GL init\n");
 
+	EGLint numConfigs;
+	EGLint majorVersion;
+	EGLint minorVersion;
+#if defined(USE_X11)
+	enum
+	{
+	_NET_WM_STATE_REMOVE =0,
+	_NET_WM_STATE_ADD = 1,
+	_NET_WM_STATE_TOGGLE =2
+	};
 	
-	printf ("maemo GL init\n");
-	long int winxid=GDK_WINDOW_XID(GTK_WIDGET(windowG)->window);
-	printf ("%d\n",winxid);
+	Window			        sRootWindow;
+	XSetWindowAttributes	sWA;
+	unsigned int		    ui32Mask;
+	int			            i32Depth;
+#endif
 	
-	EGLContext			context	= 0;
-	EGLConfig			eglConfig	= 0;
-	EGLContext			eglContext	= 0;
-	display = eglGetDisplay( EGL_DEFAULT_DISPLAY );
+	EGLint *attribList = NULL;
+	if (use_fsaa)
+	{
+		printf( "GLES: Using Full Scene Antialiasing\n" );
+		attribList = attrib_list_fsaa;
+	}
+	else
+	{
+		attribList = attrib_list;
+	}
+
+#if defined(USE_X11)
+	pandora_driver_mode = MODE_X11; // TODO make configurable
+#else
+	pandora_driver_mode = MODE_RAW; // TODO make configurable
+#endif
 	
-	if( eglInitialize( display, NULL, NULL ) == EGL_FALSE )
+    switch(pandora_driver_mode)
             {            
-                printf( "EGL Initialize failed!\n" );
+#if defined(USE_X11)
+        case MODE_X11:
+            // Initializes the display and screen
+            x11Display = XOpenDisplay( ":0" );
+            if (!x11Display)
+            {
+                printf("GLES Error: Unable to open X display\n");
+            }
+            x11Screen = XDefaultScreen( x11Display );
 				
+            // Gets the display parameters so we can pass the same parameters to the window to be created.
+            sRootWindow	= RootWindow(x11Display, x11Screen);
+            i32Depth	= DefaultDepth(x11Display, x11Screen);
+            px11Visual	= &x11Visual;
+            XMatchVisualInfo( x11Display, x11Screen, i32Depth, TrueColor, px11Visual);
+            if (!px11Visual)
+            {
+                printf("GLES Error: Unable to acquire visual\n");
 			}
+            // Colormap of the specified visual type for the display.
+            x11Colormap = XCreateColormap( x11Display, sRootWindow, px11Visual->visual, AllocNone );
+            sWA.colormap = x11Colormap;
 
-const EGLint attributeList[] = { 
-                                     EGL_SURFACE_TYPE, EGL_WINDOW_BIT, 
-                                     /*EGL_BUFFER_SIZE, 32, */
-                                     EGL_NONE 
-                                   };
+            // List of events to be handled by the application. Add to these for handling other events.
+            sWA.event_mask = StructureNotifyMask | ExposureMask | ButtonPressMask | ButtonReleaseMask | KeyPressMask | KeyReleaseMask;
+
+            // Display capabilities list.
+            ui32Mask = CWBackPixel | CWBorderPixel | CWEventMask | CWColormap;
 							   
-	EGLint pi32ConfigAttribs[5];
-	pi32ConfigAttribs[0] = EGL_SURFACE_TYPE;
-	pi32ConfigAttribs[1] = EGL_WINDOW_BIT;
-	pi32ConfigAttribs[2] = EGL_RENDERABLE_TYPE;
-	pi32ConfigAttribs[3] = EGL_OPENGL_ES2_BIT;	
-	pi32ConfigAttribs[4] = EGL_NONE;
+            // Creates the X11 window
+            x11Window = XCreateWindow( x11Display, RootWindow(x11Display, x11Screen), 0, 0, iResX, iResY,
+                                        0, CopyFromParent, InputOutput, CopyFromParent, ui32Mask, &sWA);
 
-	EGLint pi32ContextAttribs[3];
-	pi32ContextAttribs[0] = EGL_CONTEXT_CLIENT_VERSION;
-	pi32ContextAttribs[1] = 2;
-	pi32ContextAttribs[2] = EGL_NONE;
+            // Make the window viewable and flush the output buffer.
+            XMapWindow(x11Display, x11Window);
+            XFlush(x11Display);
 
-	int iConfigs;
-	if (!eglChooseConfig(display, attributeList, &eglConfig, 1, &iConfigs) || (iConfigs != 1))
+            // Make the window fullscreen
+            unsigned char fullScreen = 1;
+            Atom wmState = XInternAtom(x11Display, "_NET_WM_STATE", False);
+            Atom wmFullScreen = XInternAtom(x11Display,"_NET_WM_STATE_FULLSCREEN", False);
+
+            XEvent xev;
+            xev.xclient.type		    = ClientMessage;
+            xev.xclient.serial		    = 0;
+            xev.xclient.send_event      = True;
+            xev.xclient.window		    = x11Window;
+            xev.xclient.message_type    = wmState;
+            xev.xclient.format		    = 32;
+            xev.xclient.data.l[0]		= (fullScreen ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE);
+            xev.xclient.data.l[1]		= wmFullScreen;
+            xev.xclient.data.l[2]		= 0;
+
+            XSendEvent(x11Display, DefaultRootWindow(x11Display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+
+            display = eglGetDisplay( (EGLNativeDisplayType)x11Display );
+            break;
+#endif
+        case MODE_RAW:
+        default:
+            display = eglGetDisplay( (EGLNativeDisplayType)0 );
+            break;
+    }
+
+	if( display == EGL_NO_DISPLAY )
 	{
-		printf("Error: eglChooseConfig() failed.\n");
-	}
-	printf ("%d\n",iConfigs);
-	surface = eglCreateWindowSurface(display, eglConfig, (void*)winxid, NULL);
-	printf ("%d\n",surface);
-    if (!TestEGLError("eglCreateWindowSurface"))
-	{
-		printf ("eglCreateWindowSurface fail");
+		printf( "GLES EGL Error: GL No Display\n" );
 	}
 
-	//context = eglCreateContext(display, eglConfig, NULL, pi32ContextAttribs);
-	context =eglCreateContext( display, eglConfig,
-                                    EGL_NO_CONTEXT, NULL 
-                                  );
-printf ("%d\n",context);
-	if (!TestEGLError("eglCreateContext"))
+	if( !eglInitialize( display, &majorVersion, &minorVersion ) )
 	{
-		printf("error eglCreateContext");
+		printf( "GLES EGL Error: eglInitialize failed\n" );
 	}
 
-	eglMakeCurrent(display, surface, surface, context);
-
-	if (!TestEGLError("eglMakeCurrent"))
+	if( !eglChooseConfig( display, attribList, &config, 1, &numConfigs ) )
 	{
-		printf("error eglMakeCurrent");
+		printf( "GLES EGL Error: eglChooseConfig failed\n" );
 	}
+
+	context = eglCreateContext( display, config, NULL, NULL );
+	if( context==0 )
+	{
+		printf( "GLES EGL Error: eglCreateContext failed\n" );
+	}
+
+    switch(pandora_driver_mode)
+	{
+#if defined(USE_X11)
+        case MODE_X11:
+            surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)x11Window, NULL );
+            break;
+#endif
+        case MODE_RAW:
+        default:
+            surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)0, NULL );
+            break;
+	}
+
+    eglMakeCurrent( display, surface, surface, context );
+    if (!TestEGLError("eglMakeCurrent"))
+        printf("error eglMakeCurrent");
+    else
+        printf("GLES Window Opened\n");
 }
 #endif
 
@@ -504,6 +621,20 @@ void GLcleanup()
  if(GLCONTEXT) wglDeleteContext(GLCONTEXT);
  if(!bWindowMode && dcGlobal) 
   ReleaseDC(hWWindow,dcGlobal);
+#endif
+
+	eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
+	eglDestroySurface( display, surface );
+	eglDestroyContext( display, context );
+	eglTerminate( display );
+
+#if defined(USE_X11)
+	if (pandora_driver_mode == MODE_X11)
+	{
+		if (x11Window) XDestroyWindow(x11Display, x11Window);
+		if (x11Colormap) XFreeColormap( x11Display, x11Colormap );
+		if (x11Display) XCloseDisplay(x11Display);
+	}
 #endif
 }
 

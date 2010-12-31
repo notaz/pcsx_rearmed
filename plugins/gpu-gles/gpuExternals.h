@@ -32,7 +32,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define _GPU_API_
+
+typedef unsigned char u8;
+typedef signed char s8;
+typedef unsigned short int u16;
+typedef signed short int s16;
+typedef unsigned long u32;
+typedef signed long s32;
+typedef unsigned long long int u64;
+typedef signed long long int s64;
+
 #ifndef _WINDOWS
 #ifdef __NANOGL__
 #include <gl/gl.h>
@@ -41,17 +50,11 @@ extern "C" {
 #ifdef SOFT_LINKAGE
 #pragma softfp_linkage
 #endif
-#include <gles/gl.h> // for opengl es types 
+#include <GLES/gl.h> // for opengl es types
 #ifdef SOFT_LINKAGE
 #pragma no_softfp_linkage
 #endif
 #endif
-#endif
-
-#ifdef MAEMO_CHANGES
-	#include "../psxCommon.h"
-#else
-	#include "psxCommon.h"
 #endif
 
 #ifdef __NANOGL__
@@ -529,7 +532,7 @@ typedef struct {
 int x;
 int y;
 } Vec2f;
-/**/
+*/
 
 typedef struct {
   Vec3f xyz;

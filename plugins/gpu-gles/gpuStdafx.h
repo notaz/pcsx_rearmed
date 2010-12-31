@@ -31,7 +31,9 @@
 extern "C" {
 #endif
 
-
+#ifndef _GPU_API_
+#define _GPU_API_ 1
+#endif
 	
 	
 	
@@ -65,10 +67,16 @@ extern "C" {
 #pragma softfp_linkage
 #endif
 #ifdef MAEMO_CHANGES
-	#include <GLES/glplatform.h>
+
+	//#include <GLES/glplatform.h>
 	#include <GLES/gl.h>
-	#include <GLES/glext.h>
-	#include <EGL/egl.h>
+	//#include <GLES/glext.h>
+	#include <GLES/EGL/egl.h>
+	//#include "../maemo/minimal.h"
+	//#include <gdk/gdkx.h>
+	//#include <gdk/gdk.h>
+
+
 #else
 	#include <gles/gl.h> // for opengl es types 
 	#include <gles/egltypes.h>

@@ -51,11 +51,11 @@ extern "C" {
 #include "plugin.h"
 #include <gl/gl.h>
 #else
-#ifndef MAEMO_CHANGES
-	#include "psxCommon.h"
-#else
-	#include "../psxCommon.h"
-#endif	
+//#ifndef MAEMO_CHANGES
+//	#include "psxCommon.h"
+//#else
+//	#include "../psxCommon.h"
+//#endif
 #include "gpuExternals.h"
 #ifdef __NANOGL__
 #include <gl/gl.h>
@@ -87,32 +87,32 @@ typedef struct {
 	u8 psxVRam[1024*1024*2];
 } GPUFreeze_t;
 
-long CALLBACK GPU_init();
-long CALLBACK GPU_shutdown();
-long CALLBACK GPU_open(int hwndGPU);                    
-long CALLBACK GPU_close();
-unsigned long CALLBACK GPU_readData(void);
-void CALLBACK GPU_readDataMem(unsigned long * pMem, int iSize);
-unsigned long CALLBACK GPU_readStatus(void);
-void CALLBACK GPU_writeData(unsigned long gdata);
-void CALLBACK GPU_writeDataMem(unsigned long * pMem, int iSize);
-void CALLBACK GPU_writeStatus(unsigned long gdata);
-long CALLBACK GPU_dmaChain(unsigned long * baseAddrL, unsigned long addr);
-void CALLBACK GPU_updateLace(void);
-void CALLBACK GPU_makeSnapshot(void);
-long CALLBACK GPU_freeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF);
-long CALLBACK GPU_getScreenPic(u8 * pMem);
-long CALLBACK GPU_showScreenPic(u8 * pMem);
-//void CALLBACK GPU_keypressed(int keycode);
-//void CALLBACK GPU_displayText(s8 * pText);
-//void CALLBACK GPU_clearDynarec(void (CALLBACK *callback)(void));
-long CALLBACK GPU_configure(void);
-long CALLBACK GPU_test(void);
-void CALLBACK GPU_about(void);
+long CALLBACK GPUinit();
+long CALLBACK GPUshutdown();
+long CALLBACK GPUopen(int hwndGPU);
+long CALLBACK GPUclose();
+unsigned long CALLBACK GPUreadData(void);
+void CALLBACK GPUreadDataMem(unsigned long * pMem, int iSize);
+unsigned long CALLBACK GPUreadStatus(void);
+void CALLBACK GPUwriteData(unsigned long gdata);
+void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize);
+void CALLBACK GPUwriteStatus(unsigned long gdata);
+long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr);
+void CALLBACK GPUupdateLace(void);
+void CALLBACK GPUmakeSnapshot(void);
+long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF);
+long CALLBACK GPUgetScreenPic(u8 * pMem);
+long CALLBACK GPUshowScreenPic(u8 * pMem);
+//void CALLBACK GPUkeypressed(int keycode);
+//void CALLBACK GPUdisplayText(s8 * pText);
+//void CALLBACK GPUclearDynarec(void (CALLBACK *callback)(void));
+long CALLBACK GPUconfigure(void);
+long CALLBACK GPUtest(void);
+void CALLBACK GPUabout(void);
 
 
 void           DoSnapShot(void);
-void		   GPU_vSinc(void);
+void		   GPUvSinc(void);
 void           updateDisplay(void);
 void           updateFrontDisplay(void);
 void           SetAutoFrameCap(void);

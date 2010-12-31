@@ -53,10 +53,10 @@
 // globals
 ////////////////////////////////////////////////////////////////////////
 
-#ifndef _WINDOWS
-EGLSurface surface;
-EGLDisplay display;
-#endif
+//#ifndef _WINDOWS
+//EGLSurface surface;
+//EGLDisplay display;
+//#endif
 
 BOOL           bDrawTextured;                          // current active drawing states
 BOOL           bDrawSmoothShaded;

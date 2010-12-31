@@ -33,8 +33,7 @@
 extern "C" {
 #endif
 	
-#include "minimal.h"
-#include <gdk/gdkx.h>
+
 
 // internally used defines
 

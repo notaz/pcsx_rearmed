@@ -76,26 +76,7 @@
 #include "prim.h"
 #else
 #include "gpuStdafx.h"
-#ifdef __NANOGL__
-#include <gl/gl.h>
-#include <gl/gl.h>
-#else
-#ifdef SOFT_LINKAGE
-#pragma softfp_linkage
-#endif
-#ifdef MAEMO_CHANGES
-	#include <GLES/glplatform.h>
-	#include <GLES/gl.h>
-	#include <GLES/glext.h>
-	#include <EGL/egl.h>
-#else
-	#include <gles/gl.h> // for opengl es types 
-	#include <gles/egltypes.h>
-#endif
-#ifdef SOFT_LINKAGE
-#pragma no_softfp_linkage
-#endif
-#endif
+
 #include "gpuDraw.h"
 //#include "plugins.h"
 #include "gpuExternals.h"

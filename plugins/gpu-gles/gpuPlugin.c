@@ -396,7 +396,7 @@ void DoSnapShot(void)
 #ifdef _WINDOWS
 void CALLBACK GPUmakeSnapshot(void)
 #else
-void CALLBACK GPU_makeSnapshot(void)
+void CALLBACK GPUmakeSnapshot(void)
 #endif
 {
  //bSnapShot = TRUE;
@@ -409,7 +409,7 @@ void CALLBACK GPU_makeSnapshot(void)
 #ifdef _WINDOWS
 long CALLBACK GPUinit()
 #else
-long CALLBACK GPU_init()
+long CALLBACK GPUinit()
 #endif
 {
 memset(ulStatusControl,0,256*sizeof(unsigned long));
@@ -543,7 +543,7 @@ HMENU hPSEMenu=NULL;
 
 long CALLBACK GPUopen(HWND hwndGPU)                    
 #else
-long CALLBACK GPU_open(int hwndGPU)                    
+long CALLBACK GPUopen(int hwndGPU)
 #endif
 {
 	#ifdef _WINDOWS
@@ -555,12 +555,13 @@ long CALLBACK GPU_open(int hwndGPU)
 
 
 
-		 
-		 
 	#ifdef _WINDOWS
 	 iResX=240;iResY=320;
 	#endif
-	 iColDepth=32;
+#ifdef MAEMO_CHANGES
+	  iResX=640;iResY=480;
+#endif
+	 iColDepth=8;
 	 bChangeRes=FALSE;
 	#ifdef _WINDOWS
 	 bWindowMode=TRUE;
@@ -705,7 +706,7 @@ long CALLBACK GPUclose()                               // WINDOWS CLOSE
 
 #else
 
-long GPU_close()                                        // LINUX CLOSE
+long GPUclose()                                        // LINUX CLOSE
 {
  GLcleanup();                                          // close OGL
 
@@ -725,7 +726,7 @@ long GPU_close()                                        // LINUX CLOSE
 #ifdef _WINDOWS
 long CALLBACK GPUshutdown()
 #else
-long CALLBACK GPU_shutdown()
+long CALLBACK GPUshutdown()
 #endif
 {
  if(psxVSecure) free(psxVSecure);                      // kill emulated vram memory
@@ -783,7 +784,7 @@ void SetScanLines(void)
 
 int iLastRGB24=0;                                      // special vars for checking when to skip two display updates
 int iSkipTwo=0;
-void GPU_vSinc(void){
+void GPUvSinc(void){
 updateDisplay();
 }
 void updateDisplay(void)                               // UPDATE DISPLAY
@@ -1314,7 +1315,7 @@ static unsigned short usFirstPos=2;
 #ifdef _WINDOWS
 void CALLBACK GPUupdateLace(void)
 #else
-void CALLBACK GPU_updateLace(void)
+void CALLBACK GPUupdateLace(void)
 #endif
 {
 if(!(dwActFixes&0x1000))                               
@@ -1356,7 +1357,7 @@ if(bChangeWinMode) ChangeWindowMode();
 #ifdef _WINDOWS
 unsigned long CALLBACK GPUreadStatus(void)
 #else
-unsigned long CALLBACK GPU_readStatus(void)
+unsigned long CALLBACK GPUreadStatus(void)
 #endif
 {
 if(dwActFixes&0x1000)                                 // CC game fix
@@ -1396,7 +1397,7 @@ return STATUSREG;
 #ifdef _WINDOWS
 void CALLBACK GPUwriteStatus(unsigned long gdata)
 #else
-void CALLBACK GPU_writeStatus(unsigned long gdata)
+void CALLBACK GPUwriteStatus(unsigned long gdata)
 #endif
 {
 unsigned long lCommand=(gdata>>24)&0xff;
@@ -2012,7 +2013,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
 #ifdef _WINDOWS
 void CALLBACK GPUreadDataMem(unsigned int * pMem, int iSize)
 #else
-void CALLBACK GPU_readDataMem(unsigned long * pMem, int iSize)
+void CALLBACK GPUreadDataMem(unsigned long * pMem, int iSize)
 #endif
 {
 int i;
@@ -2088,14 +2089,14 @@ GPUIsIdle;
 #ifdef _WINDOWS
 unsigned long CALLBACK GPUreadData(void)
 #else
-unsigned long CALLBACK GPU_readData(void)
+unsigned long CALLBACK GPUreadData(void)
 #endif
 {
  unsigned long l;
 #ifdef _WINDOWS
  GPUreadDataMem(&l,1);
 #else
- GPU_readDataMem(&l,1);
+ GPUreadDataMem(&l,1);
 #endif 
  return GPUdataRet;
 }
@@ -2181,7 +2182,7 @@ const u8 primTableCX[256] =
 #ifdef _WINDOWS
 void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
 #else
-void CALLBACK GPU_writeDataMem(unsigned long * pMem, int iSize)
+void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
 #endif
 {
 u8 command;
@@ -2304,13 +2305,13 @@ GPUIsIdle;
 #ifdef _WINDOWS
 void CALLBACK GPUwriteData(unsigned long gdata)
 #else
-void CALLBACK GPU_writeData(unsigned long gdata)
+void CALLBACK GPUwriteData(unsigned long gdata)
 #endif
 {
 #ifdef _WINDOWS
  GPUwriteDataMem(&gdata,1);
 #else
- GPU_writeDataMem(&gdata,1);
+ GPUwriteDataMem(&gdata,1);
 #endif 
 }
 
@@ -2398,7 +2399,7 @@ void StartCfgTool(s8 * pCmdLine)                     // linux: start external cf
 #ifdef _WINDOWS
 long CALLBACK GPUconfigure(void)
 #else
-long CALLBACK GPU_configure(void)
+long CALLBACK GPUconfigure(void)
 #endif
 {
 
@@ -2452,7 +2453,7 @@ return FALSE;
 #ifdef _WINDOWS
 long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr)
 #else
-long CALLBACK GPU_dmaChain(unsigned long * baseAddrL, unsigned long addr)
+long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr)
 #endif
 {
 unsigned long dmaMem;
@@ -2481,7 +2482,7 @@ do
 #ifdef _WINDOWS
   if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
 #else
-  if(count>0) GPU_writeDataMem(&baseAddrL[dmaMem>>2],count);
+  if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
 #endif
   
   addr = baseAddrL[addr>>2]&0xffffff;
@@ -2500,7 +2501,7 @@ return 0;
 #ifdef _WINDOWS
 void CALLBACK GPUabout(void)
 #else
-void CALLBACK GPU_about(void)
+void CALLBACK GPUabout(void)
 #endif
 {
 
@@ -2513,7 +2514,7 @@ void CALLBACK GPU_about(void)
 #ifdef _WINDOWS
 long CALLBACK GPUtest(void)
 #else
-long CALLBACK GPU_test(void)
+long CALLBACK GPUtest(void)
 #endif
 {
  // if test fails this function should return negative value for error (unable to continue)
@@ -2531,7 +2532,7 @@ long CALLBACK GPU_test(void)
 #ifdef _WINDOWS
 long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
 #else
-long CALLBACK GPU_freeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
+long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
 #endif
 {
 if(ulGetFreezeData==2) 
@@ -2574,15 +2575,15 @@ ResetTextureArea(TRUE);
  GPUwriteStatus(ulStatusControl[5]);
  GPUwriteStatus(ulStatusControl[4]);
 #else
- GPU_writeStatus(ulStatusControl[0]);
- GPU_writeStatus(ulStatusControl[1]);
- GPU_writeStatus(ulStatusControl[2]);
- GPU_writeStatus(ulStatusControl[3]);
- GPU_writeStatus(ulStatusControl[8]);
- GPU_writeStatus(ulStatusControl[6]);
- GPU_writeStatus(ulStatusControl[7]);
- GPU_writeStatus(ulStatusControl[5]);
- GPU_writeStatus(ulStatusControl[4]);
+ GPUwriteStatus(ulStatusControl[0]);
+ GPUwriteStatus(ulStatusControl[1]);
+ GPUwriteStatus(ulStatusControl[2]);
+ GPUwriteStatus(ulStatusControl[3]);
+ GPUwriteStatus(ulStatusControl[8]);
+ GPUwriteStatus(ulStatusControl[6]);
+ GPUwriteStatus(ulStatusControl[7]);
+ GPUwriteStatus(ulStatusControl[5]);
+ GPUwriteStatus(ulStatusControl[4]);
 #endif
  return 1;
 }
@@ -2834,7 +2835,7 @@ void PaintPicDot(u8 * p,u8 c)
 #ifdef _WINDOWS
 void CALLBACK GPUgetScreenPic(u8 * pMem)
 #else
-long CALLBACK GPU_getScreenPic(u8 * pMem)
+long CALLBACK GPUgetScreenPic(u8 * pMem)
 #endif
 {
  float XS,YS;int x,y,v;
@@ -2917,7 +2918,7 @@ long CALLBACK GPU_getScreenPic(u8 * pMem)
 #ifdef _WINDOWS
 void CALLBACK GPUshowScreenPic(u8 * pMem)
 #else
-long CALLBACK GPU_showScreenPic(u8 * pMem)
+long CALLBACK GPUshowScreenPic(u8 * pMem)
 #endif
 {
 // DestroyPic();
