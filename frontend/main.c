@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010
+ * (C) notaz, 2010-2011
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -207,6 +207,7 @@ int main(int argc, char *argv[])
 	if (OpenPlugins() == -1) {
 		return 1;
 	}
+	plugin_call_rearmed_cbs();
 
 	CheckCdrom();
 	SysReset();
@@ -297,6 +298,7 @@ void UpdateMenuSlots() {
 
 void OnFile_Exit() {
 	printf("OnFile_Exit\n");
+	menu_finish();
 	plat_finish();
 	SysClose();
 	exit(0);

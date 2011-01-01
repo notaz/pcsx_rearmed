@@ -154,6 +154,8 @@ int             iFakePrimBusy = 0;
 int             iRumbleVal    = 0;
 int             iRumbleTime   = 0;
 
+static void (*rearmed_get_layer_pos)(int *x, int *y, int *w, int *h);
+
 ////////////////////////////////////////////////////////////////////////
 // stuff to make this a true PDK module
 ////////////////////////////////////////////////////////////////////////
@@ -559,7 +561,7 @@ long CALLBACK GPUopen(int hwndGPU)
 	 iResX=240;iResY=320;
 	#endif
 #ifdef MAEMO_CHANGES
-	  iResX=640;iResY=480;
+	  iResX=800;iResY=480;
 #endif
 	 iColDepth=8;
 	 bChangeRes=FALSE;
@@ -1119,6 +1121,7 @@ float xs,ys,s;RECT r;
 if(!PSXDisplay.DisplayModeNew.x) return;
 if(!PSXDisplay.DisplayModeNew.y) return;
 
+#if 0
 xs=(float)iResX/(float)PSXDisplay.DisplayModeNew.x;
 ys=(float)iResY/(float)PSXDisplay.DisplayModeNew.y;
 
@@ -1170,7 +1173,11 @@ if(r.bottom<rRatioRect.bottom ||
  }
 
 rRatioRect=r;
-
+#else
+ // pcsx-rearmed hack
+ if (rearmed_get_layer_pos != NULL)
+   rearmed_get_layer_pos(&rRatioRect.left, &rRatioRect.top, &rRatioRect.right, &rRatioRect.bottom);
+#endif
 
 glViewport(rRatioRect.left,
            iResY-(rRatioRect.top+rRatioRect.bottom),
@@ -2959,3 +2966,10 @@ void CALLBACK GPUdisplayFlags(unsigned long dwFlags)
 {
 // dwCoreFlags=dwFlags;
 }
+
+// pcsx-rearmed callbacks
+void CALLBACK GPUrearmedCallbacks(const void **cbs)
+{
+ rearmed_get_layer_pos = cbs[0];
+}
+

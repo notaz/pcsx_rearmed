@@ -12,15 +12,11 @@
 #include "plugin_lib.h"
 #include "plugin.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../libpcsxcore/system.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
 static int dummy_func() {
 	return 0;
-}
-
-static long CDRreadTrack(unsigned char *time) {
-	fprintf(stderr, "CDRreadTrack\n");
-	return -1;
 }
 
 /* SPU */
@@ -122,7 +118,6 @@ static const struct {
 	DUMMY_CDR(CDRsetfilename),
 	DUMMY_CDR(CDRreadCDDA),
 	DUMMY_CDR(CDRgetTE),
-	DIRECT(PLUGIN_CDR, CDRreadTrack),
 	/* SPU */
 	DIRECT_SPU(SPUconfigure),
 	DIRECT_SPU(SPUabout),
@@ -205,6 +200,16 @@ void *plugin_link(enum builtint_plugins_e id, const char *sym)
 
 	//fprintf(stderr, "plugin_link: missing symbol %d %s\n", id, sym);
 	return NULL;
+}
+
+void plugin_call_rearmed_cbs(void)
+{
+	extern void *hGPUDriver;
+	void (*rearmed_set_cbs)(const struct rearmed_cbs *cbs);
+
+	rearmed_set_cbs = SysLoadSym(hGPUDriver, "GPUrearmedCallbacks");
+	if (rearmed_set_cbs != NULL)
+		rearmed_set_cbs(&pl_rearmed_cbs);
 }
 
 #ifdef PCNT

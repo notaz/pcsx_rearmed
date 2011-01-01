@@ -189,3 +189,15 @@ void pl_text_out16(int x, int y, const char *texto, ...)
 	pl_text_out16_(x, y, buffer);
 }
 
+static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
+{
+	*x = g_layer_x;
+	*y = g_layer_y;
+	*w = g_layer_w;
+	*h = g_layer_h;
+}
+
+const struct rearmed_cbs pl_rearmed_cbs = {
+	pl_get_layer_pos,
+};
+

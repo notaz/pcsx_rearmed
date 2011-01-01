@@ -11,3 +11,4 @@ enum builtint_plugins_e {
 };
 
 void *plugin_link(enum builtint_plugins_e id, const char *sym);
+void plugin_call_rearmed_cbs(void);

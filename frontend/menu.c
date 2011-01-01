@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2010
+ * (C) Gražvydas "notaz" Ignotas, 2010-2011
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -15,6 +15,7 @@
 
 #include "menu.h"
 #include "config.h"
+#include "plugin.h"
 #include "plugin_lib.h"
 #include "omap.h"
 #include "common/plat.h"
@@ -58,7 +59,7 @@ enum {
 
 extern int ready_to_go;
 static int last_psx_w, last_psx_h, last_psx_bpp;
-static int scaling, filter, state_slot, cpu_clock;
+static int scaling, filter, state_slot, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 int g_opts;
@@ -455,7 +456,7 @@ static void pnd_menu_init(void)
 	char buff[64], *p;
 	DIR *dir;
 
-	cpu_clock = get_cpu_clock();
+	cpu_clock_st = cpu_clock = get_cpu_clock();
 
 	dir = opendir("/etc/pandora/conf/dss_fir");
 	if (dir == NULL) {
@@ -506,6 +507,12 @@ static void pnd_menu_init(void)
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_FILTERING);
 	e_menu_gfx_options[i].data = (void *)mfilters;
 	pnd_filter_list = mfilters;
+}
+
+void menu_finish(void)
+{
+	cpu_clock = cpu_clock_st;
+	apply_cpu_clock();
 }
 
 // -------------- key config --------------
@@ -634,13 +641,13 @@ static int menu_loop_cscaler(int id, int keys)
 	scaling = SCALE_CUSTOM;
 
 	omap_enable_layer(1);
-	//pnd_restore_layer_data();
 
 	for (;;)
 	{
 		menu_draw_begin(0);
-		memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-		text_out16(2, 480 - 18, "%dx%d | d-pad to resize, R+d-pad to move", g_layer_w, g_layer_h);
+		memset(g_menuscreen_ptr, 4, g_menuscreen_w * g_menuscreen_h * 2);
+		text_out16(2, 2, "%d,%d", g_layer_x, g_layer_y);
+		text_out16(2, 480 - 18, "%dx%d | d-pad: resize, R+d-pad: move",	g_layer_w, g_layer_h);
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_R|PBTN_MOK|PBTN_MBACK, 40);
@@ -897,7 +904,7 @@ const char *plat_get_credits(void)
 		"  and the P.E.Op.S. team\n"
 		"ARM recompiler (C) 2009-2010 Ari64\n\n"
 		"integration, optimization and\n"
-		"  frontend (C) 2010 notaz\n";
+		"  frontend (C) 2010-2011 notaz\n";
 }
 
 static int run_cd_image(const char *fname)
@@ -914,6 +921,7 @@ static int run_cd_image(const char *fname)
 		me_update_msg("failed to open plugins");
 		return -1;
 	}
+	plugin_call_rearmed_cbs();
 
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
