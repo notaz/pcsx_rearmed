@@ -2,42 +2,30 @@
 # MAKEFILE FOR PETE'S MESAGL GPU... just run "make"
 ##############################################################################
 
-##############################################################################
-# 1. SETS (CCFLAGS3 is used)
-##############################################################################
+#PREFIX	= /mythtv/media/devel/toolchains/pandora/arm-2007q3/
+CROSS_COMPILE ?= arm-none-linux-gnueabi-
 
-PREFIX	= /mythtv/media/devel/toolchains/pandora/arm-2007q3
-TARGET	= arm-none-linux-gnueabi-
+#CC = $(PREFIX)/bin/$(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)gcc
 
-CC = $(PREFIX)/bin/$(TARGET)gcc
+CFLAGS += -fPIC # -Wall
+CFLAGS += -O3 -ffast-math -fomit-frame-pointer
+CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8
+# note: the below causes strange bugs/crashes
+#CFLAGS += -mfloat-abi=softfp
+CFLAGS += -DMAEMO_CHANGES # -DUSE_X11
+CFLAGS += -I$(PREFIX)include
 
-CCFLAGS = -fPIC -c -Wall -O3 -ffast-math -fomit-frame-pointer -DMAEMO_CHANGES -DUSE_X11
+TARGET = gpuGLES.so
+LDFLAGS += -shared -Wl,-soname,$(TARGET) -o $(TARGET)
+LIB = -L$(PREFIX)lib -lGLES_CM -lX11 -lXau -lXdmcp
 
+OBJ = gpuDraw.o gpuFps.o gpuPlugin.o gpuPrim.o gpuTexture.o
 
-INCLUDE = -I$(PREFIX)/include
-LINK = $(PREFIX)/bin/$(TARGET)gcc
-LINKFLAGS = -shared -Wl,-soname,libgpuGLES.so -o libgpuGLES.so.1.0.0
-OBJ =   gpuDraw.o gpuFps.o gpuPlugin.o gpuPrim.o gpuTexture.o
+all: $(TARGET)
 
-LIB = -L$(PREFIX)/lib -lGLES_CM -lX11 -lXau -lXdmcp -lstdc++
-
-##############################################################################
-# 2. MAIN RULE
-##############################################################################
-
-gpuPeopsMesaGL :	$(OBJ)
-		$(LINK) $(LINKFLAGS) $(OBJ) $(LIB)
-
-##############################################################################
-# 3. GENERAL RULES
-##############################################################################
-
-%.o     : %.c
-	$(CC) $(CCFLAGS) $(INCLUDE) $<
-
-##############################################################################
-# 4. SPECIFIC RULES
-##############################################################################
+$(TARGET): $(OBJ)
+	$(CC) $(LDFLAGS) $(OBJ) $(LIB)
 
 clean:
-	rm *.o libgpuGLES.so*
+	$(RM) $(TARGET) $(OBJ)

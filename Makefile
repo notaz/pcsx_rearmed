@@ -88,6 +88,9 @@ $(TARGET): $(OBJS)
 spunull.so: plugins/spunull/spunull.c
 	$(CC) $(CFLAGS) -shared -fPIC -ggdb -O2 -o $@ $^
 
+plugins/gpu-gles/gpuGLES.so:
+	make -C plugins/gpu-gles/
+
 clean:
 	$(RM) $(TARGET) $(OBJS)
 
@@ -97,7 +100,8 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 VER ?= $(shell git describe --abbrev=0 master)
 
-rel: pcsx spunull.so pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
+rel: pcsx spunull.so plugins/gpu-gles/gpuGLES.so \
+		pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
 		pandora/picorestore pandora/readme.txt skin COPYING
 	rm -rf out
 	mkdir -p out/plugins

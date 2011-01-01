@@ -22,10 +22,10 @@ This version features a framebuffer driven menu that can be used to run
 games and configure the emulator.
 
 Supportd CD image formats:
-- .cue/.bin
-- .toc/.bin
-- .img
-- .mds
+- .bin/.cue
+- .bin/.toc
+- .img/.ccd/.sub
+- .mdf/.mds
 - .Z/.Z.table
 
 CDDA (CD audio) support requires .cue/.bin format.
@@ -54,6 +54,8 @@ r1:
 
 Credits / License
 -----------------
+
+Emulator core:
 
 (C) 1999-2003 PCSX Team
 	(c) 1998 Vision Thing
@@ -85,10 +87,21 @@ Credits / License
 	Tristin Celestin (PulseAudio support)
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
-GPU and SPU code by Pete Bernert and the P.E.Op.S. team
-ARM recompiler (C) 2009-2010 Ari64
+GLES plugin:
+	(C) 1999-2009 by Pete Bernert
+	EQ
+	Olli Hinkka
+	Proger
+	Pickle
 
-integration, optimization and frontend (C) 2010 notaz
+builtin GPU/SPU plugins:
+	Pete Bernert and the P.E.Op.S. team
+
+MIPS->ARM recompiler:
+	(C) 2009-2010 Ari64
+
+integration, optimization and frontend:
+	(C) 2010-2011 notaz
 
 Source code is released under GNU GPL license, version 2 or later.
 See COPYING included in the archive (.pnd can be extracted using unsquashfs).
