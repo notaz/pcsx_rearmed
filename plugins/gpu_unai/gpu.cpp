@@ -18,8 +18,8 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
-#include "gpu.h"
 #include "port.h"
+#include "gpu.h"
 #include "profiler.h"
 #include "debug.h"
 
@@ -92,7 +92,7 @@ u32   lInc;
 u32   tInc, tMsk;
 
 GPUPacket PacketBuffer;
-u16   GPU_FrameBuffer[FRAME_BUFFER_SIZE/2];    // FRAME_BUFFER_SIZE is defined in bytes
+u16   GPU_FrameBuffer[FRAME_BUFFER_SIZE/2] __attribute__((aligned(16)));    // FRAME_BUFFER_SIZE is defined in bytes
 u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -570,6 +570,8 @@ void  GPU_writeStatus(u32 data)
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
+#ifndef REARMED
+
 // Blitting functions
 #include "gpu_blit.h"
 
@@ -838,3 +840,97 @@ void  GPU_updateLace(void)
 
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
 }
+
+#else
+
+#include "../../frontend/plugin_lib.h"
+
+extern "C" {
+
+extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
+extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
+static const struct rearmed_cbs *cbs;
+static void *screen_buf;
+
+static void blit(void)
+{
+	static s16 old_res_horz, old_res_vert, old_rgb24;
+	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
+	s16 h0, x0, y0, w0, h1;
+	u8  *dest = (u8 *)screen_buf;
+	u16 *srcs;
+
+	x0 = DisplayArea[0] & ~3; // alignment needed by blitter
+	y0 = DisplayArea[1];
+	srcs = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0,y0)];
+
+	w0 = DisplayArea[2];
+	h0 = DisplayArea[3];  // video mode
+
+	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
+	if (h0 == 480) h1 = Min2(h1*2,480);
+
+	if (w0 != old_res_horz || h1 != old_res_vert || isRGB24 != old_rgb24)
+	{
+		old_res_horz = w0;
+		old_res_vert = h1;
+		old_rgb24 = (s16)isRGB24;
+		cbs->pl_fbdev_set_mode(w0, h1, isRGB24 ? 24 : 16);
+	}
+
+	if (isRGB24)
+	{
+		for (; h1-- > 0; dest += w0 * 3, srcs += 1024)
+		{
+			bgr888_to_rgb888(dest, srcs, w0 * 3);
+		}
+	}
+	else
+	{
+		for (; h1-- > 0; dest += w0 * 2, srcs += 1024)
+		{
+			bgr555_to_rgb565(dest, srcs, w0 * 2);
+		}
+	}
+
+	screen_buf = cbs->pl_fbdev_flip();
+}
+
+void GPU_updateLace(void)
+{
+	// Interlace bit toggle
+	GPU_GP1 ^= 0x80000000;
+
+	if (!((GPU_GP1&0x08000000) || (GPU_GP1&0x00800000)))
+		blit();
+}
+
+long GPUopen(unsigned long *, char *, char *)
+{
+	cbs->pl_fbdev_open();
+	screen_buf = cbs->pl_fbdev_flip();
+	return 0;
+}
+
+long GPUclose(void)
+{
+	cbs->pl_fbdev_close();
+	return 0;
+}
+
+long GPUfreeze(unsigned int ulGetFreezeData, GPUFreeze_t* p2)
+{
+	if (ulGetFreezeData > 1)
+		return 0;
+
+	return GPU_freeze(ulGetFreezeData, p2);
+}
+
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
+{
+	cbs = cbs_;
+}
+
+} /* extern "C" */
+
+#endif
