@@ -84,7 +84,7 @@ INLINE void gpuMoveImage(void)
 	if (((y0+h0)>512)||((x0+w0)>1024)||((y1+h0)>512)||((x1+w0)>1024))
 	{
 		u16 *psxVuw=GPU_FrameBuffer;
-		u32 i,j;
+		s32 i,j;
 	    for(j=0;j<h0;j++)
 		 for(i=0;i<w0;i++)
 		  psxVuw [(1024*((y1+j)&511))+((x1+i)&0x3ff)]=
