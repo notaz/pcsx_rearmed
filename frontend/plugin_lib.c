@@ -85,7 +85,7 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 	return (ret != NULL) ? 0 : -1;
 }
 
-void pl_fbdev_flip(void)
+void *pl_fbdev_flip(void)
 {
 	flip_cnt++;
 	if (g_opts & OPT_SHOWFPS)
@@ -95,6 +95,7 @@ void pl_fbdev_flip(void)
 
 	// let's flip now
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
+	return pl_fbdev_buf;
 }
 
 int pl_fbdev_open(void)
@@ -199,5 +200,9 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 
 const struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
+	pl_fbdev_open,
+	pl_fbdev_set_mode,
+	pl_fbdev_flip,
+	pl_fbdev_close,
 };
 
