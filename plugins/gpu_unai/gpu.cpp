@@ -40,6 +40,8 @@ bool frameLimit = false; /* frames to wait */
 bool light = true; /* lighting */
 bool blend = true; /* blending */
 
+bool fb_dirty = false;
+
 bool enableAbbeyHack = false; /* Abe's Odyssey hack */
 u8 BLEND_MODE;
 u8 TEXT_MODE;
@@ -298,6 +300,7 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 	}
 
 	GPU_GP1 = (GPU_GP1 | 0x14000000) & ~0x60000000;
+	fb_dirty = true;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
@@ -390,6 +393,7 @@ void  GPU_writeData(u32 data)
 		gpuCheckPacket(data);
 	}
 	GPU_GP1 |= 0x14000000;
+	fb_dirty = true;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 
@@ -529,10 +533,12 @@ void  GPU_writeStatus(u32 data)
 	case 0x05:
 		DisplayArea[0] = (data & 0x000003FF); //(short)(data & 0x3ff);
 		DisplayArea[1] = ((data & 0x0007FC00)>>10); //(data & 0x000FFC00) >> 10; //(short)((data>>10)&0x1ff);
+		fb_dirty = true;
 		break;
 	case 0x07:
 		DisplayArea[4] = data & 0x000003FF; //(short)(data & 0x3ff);
 		DisplayArea[5] = (data & 0x000FFC00) >> 10; //(short)((data>>10) & 0x3ff);
+		fb_dirty = true;
 		break;
 	case 0x08:
 		{
@@ -543,6 +549,7 @@ void  GPU_writeStatus(u32 data)
 			DisplayArea[3] = VerticalResolution[(GPU_GP1 >> 19) & 3];
 			isPAL = (data & 0x08) ? true : false; // if 1 - PAL mode, else NTSC
 		}
+		fb_dirty = true;
 		break;
 	case 0x10:
 		switch (data & 0xffff) {
@@ -901,8 +908,10 @@ void GPU_updateLace(void)
 	// Interlace bit toggle
 	GPU_GP1 ^= 0x80000000;
 
-	if (!((GPU_GP1&0x08000000) || (GPU_GP1&0x00800000)))
-		blit();
+	if (!fb_dirty || (GPU_GP1&0x08800000))
+		return;
+
+	blit();
 }
 
 long GPUopen(unsigned long *, char *, char *)
