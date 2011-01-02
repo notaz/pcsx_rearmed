@@ -198,11 +198,14 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
+extern int UseFrameSkip; // hmh
+
 const struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
 	pl_fbdev_open,
 	pl_fbdev_set_mode,
 	pl_fbdev_flip,
 	pl_fbdev_close,
+	&UseFrameSkip,
 };
 

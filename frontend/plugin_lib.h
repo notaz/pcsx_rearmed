@@ -34,6 +34,7 @@ struct rearmed_cbs {
 	int   (*pl_fbdev_set_mode)(int w, int h, int bpp);
 	void *(*pl_fbdev_flip)(void);
 	void  (*pl_fbdev_close)(void);
+	int  *fskip_option;
 };
 
 extern const struct rearmed_cbs pl_rearmed_cbs;

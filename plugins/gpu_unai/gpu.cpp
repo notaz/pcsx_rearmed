@@ -911,7 +911,15 @@ void GPU_updateLace(void)
 	if (!fb_dirty || (GPU_GP1&0x08800000))
 		return;
 
-	blit();
+	if (!isSkip) {
+		blit();
+
+		fb_dirty = false;
+		if (*cbs->fskip_option)
+			isSkip = true;
+	}
+	else
+		isSkip = false;
 }
 
 long GPUopen(unsigned long *, char *, char *)
