@@ -68,17 +68,7 @@ extern uint32_t GPUreadData(void);
 extern void GPUreadDataMem(uint32_t *, int);
 extern long GPUdmaChain(uint32_t *,uint32_t);
 extern void GPUupdateLace(void);
-extern long GPUconfigure(void);
-extern long GPUtest(void);
-extern void GPUabout(void);
-extern void GPUmakeSnapshot(void);
-extern void GPUkeypressed(int);
-extern void GPUdisplayText(char *);
 extern long GPUfreeze(uint32_t, void *);
-extern long GPUgetScreenPic(unsigned char *);
-extern long GPUshowScreenPic(unsigned char *);
-extern void GPUclearDynarec(void (*callback)(void));
-extern void GPUvBlank(int);
 
 
 #define DUMMY(id, name) \
@@ -87,6 +77,7 @@ extern void GPUvBlank(int);
 #define DIRECT(id, name) \
 	{ id, #name, name }
 
+#define DUMMY_GPU(name)  DUMMY(PLUGIN_GPU, name)
 #define DUMMY_CDR(name)  DUMMY(PLUGIN_CDR, name)
 #define DUMMY_PAD(name)  DUMMY(PLUGIN_PAD, name)
 #define DIRECT_SPU(name) DIRECT(PLUGIN_SPU, name)
@@ -159,9 +150,6 @@ static const struct {
 	DIRECT_GPU(GPUupdateLace),
 	DIRECT_GPU(GPUinit),
 	DIRECT_GPU(GPUshutdown),
-	DIRECT_GPU(GPUconfigure),
-	DIRECT_GPU(GPUtest),
-	DIRECT_GPU(GPUabout),
 	DIRECT_GPU(GPUopen),
 	DIRECT_GPU(GPUclose),
 	DIRECT_GPU(GPUreadStatus),
@@ -171,12 +159,18 @@ static const struct {
 	DIRECT_GPU(GPUwriteData),
 	DIRECT_GPU(GPUwriteDataMem),
 	DIRECT_GPU(GPUdmaChain),
-	DIRECT_GPU(GPUkeypressed),
-	DIRECT_GPU(GPUdisplayText),
-	DIRECT_GPU(GPUmakeSnapshot),
 	DIRECT_GPU(GPUfreeze),
+
+	DUMMY_GPU(GPUdisplayText),
+/*
+	DIRECT_GPU(GPUkeypressed),
+	DIRECT_GPU(GPUmakeSnapshot),
+	DIRECT_GPU(GPUconfigure),
+	DIRECT_GPU(GPUtest),
+	DIRECT_GPU(GPUabout),
 	DIRECT_GPU(GPUgetScreenPic),
 	DIRECT_GPU(GPUshowScreenPic),
+*/
 //	DIRECT_GPU(GPUclearDynarec),
 //	DIRECT_GPU(GPUvBlank),
 };

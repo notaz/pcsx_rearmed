@@ -19,11 +19,19 @@ int omap_enable_layer(int enabled)
 	return 0;
 }
 
+void plat_video_menu_enter(int is_rom_loaded)
+{
+}
+
 void plat_video_menu_begin(void)
 {
 }
 
 void plat_video_menu_end(void)
+{
+}
+
+void plat_video_menu_leave(void)
 {
 }
 

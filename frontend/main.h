@@ -21,11 +21,6 @@
 
 #include "config.h"
 
-#include "../libpcsxcore/psxcommon.h"
-#include <gtk/gtk.h>
-
-#include "Cheat.h"
-
 #define DEFAULT_MEM_CARD_1 "/.pcsx/memcards/card1.mcd"
 #define DEFAULT_MEM_CARD_2 "/.pcsx/memcards/card2.mcd"
 #define MEMCARD_DIR "/.pcsx/memcards/"
@@ -37,31 +32,11 @@
 #define CHEATS_DIR "/.pcsx/cheats/"
 #define PATCHES_DIR "/.pcsx/patches/"
 
-extern gboolean UseGui;
-extern int StatesC;
-char cfgfile[MAXPATHLEN];	/* ADB Comment this out - make a local var, or at least use gchar funcs */
-char cfgfile_basename[MAXPATHLEN];	/* ADB Comment this out - make a local var, or at least use gchar funcs */
+extern char cfgfile_basename[MAXPATHLEN];
 
-int LoadConfig();
-void SaveConfig();
+int get_state_filename(char *buf, int size, int i);
 
-void StartGui();
-
-void PADhandleKey(int key);
-
-void UpdateMenuSlots();
-
-gchar* get_state_filename(int i);
-
-void state_save(gchar *state_filename);
-void state_load(gchar *state_filename);
-
-int match(const char* string, char* pattern);
-int plugins_configured();
-
-void UpdatePluginsBIOS();
-
-void SysErrorMessage(gchar *primary, gchar *secondary);
-void SysInfoMessage(gchar *primary, gchar *secondary);
+extern unsigned long gpuDisp;
+extern int ready_to_go;
 
 #endif /* __LINUX_H__ */

@@ -12,18 +12,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
+#include "main.h"
 #include "plugin.h"
 #include "pcnt.h"
 #include "menu.h"
-#include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
 #include "common/input.h"
 
 int ready_to_go;
-int UseGui;
+unsigned long gpuDisp;
+char cfgfile_basename[MAXPATHLEN];
 static char *(*real_getenv)(const char *name);
 
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
@@ -228,11 +230,11 @@ int main(int argc, char *argv[])
 
 	// If a state has been specified, then load that
 	if (loadst) {
-		StatesC = loadst - 1;
-		char *state_filename = get_state_filename(StatesC);
-		int ret = LoadState(state_filename);
+		char state_filename[MAXPATHLEN];
+		int ret = get_state_filename(state_filename, sizeof(state_filename), loadst - 1);
+		if (ret == 0)
+			ret = LoadState(state_filename);
 		printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
-		free(state_filename);
 	}
 
 	if (ready_to_go)
@@ -289,11 +291,6 @@ void SysClose() {
 }
 
 void SysUpdate() {
-	PADhandleKey(PAD1_keypressed());
-	PADhandleKey(PAD2_keypressed());
-}
-
-void UpdateMenuSlots() {
 }
 
 void OnFile_Exit() {
@@ -304,57 +301,7 @@ void OnFile_Exit() {
 	exit(0);
 }
 
-void state_save(gchar *state_filename) {
-        char Text[MAXPATHLEN + 20];
-
-        GPU_updateLace();
-
-        if (SaveState(state_filename) == 0)
-                sprintf(Text, _("Saved state %s."), state_filename);
-        else
-                sprintf(Text, _("Error saving state %s!"), state_filename);
-
-        GPU_displayText(Text);
-}
-
-void state_load(gchar *state_filename) {
-	int ret;
-	char Text[MAXPATHLEN + 20];
-	FILE *fp;
-
-	// check if the state file actually exists
-	fp = fopen(state_filename, "rb");
-	if (fp == NULL) {
-		// file does not exist
-		return;
-	}
-
-	fclose(fp);
-
-	ret = CheckState(state_filename);
-
-	if (ret == 0) {
-		SysReset();
-		ret = LoadState(state_filename);
-	}
-
-	if (ret == 0) {
-		// Check the CD-ROM is valid
-		if (CheckCdrom() == -1) {
-			ClosePlugins();
-			SysRunGui();
-			return;
-		}
-
-		sprintf(Text, _("Loaded state %s."), state_filename);
-	} else {
-		sprintf(Text, _("Error loading state %s!"), state_filename);
-	}
-	GPU_displayText(Text);
-}
-
-char *get_state_filename(int i) {
-	char SStateFile[256];
+int get_state_filename(char *buf, int size, int i) {
 	char trimlabel[33];
 	int j;
 
@@ -366,10 +313,10 @@ char *get_state_filename(int i) {
 		else
 			continue;
 
-	snprintf(SStateFile, sizeof(SStateFile), "." STATES_DIR "%.32s-%.9s.%3.3d",
+	snprintf(buf, size, "." STATES_DIR "%.32s-%.9s.%3.3d",
 		trimlabel, CdromId, i);
 
-	return strdup(SStateFile);
+	return 0;
 }
 
 void SysPrintf(const char *fmt, ...) {
@@ -395,6 +342,132 @@ void SysMessage(const char *fmt, ...) {
                 msg[strlen(msg) - 1] = 0;
 
 	fprintf(stderr, "%s\n", msg);
+}
+
+static void SignalExit(int sig) {
+	ClosePlugins();
+	OnFile_Exit();
+}
+
+#define PARSEPATH(dst, src) \
+	ptr = src + strlen(src); \
+	while (*ptr != '\\' && ptr != src) ptr--; \
+	if (ptr != src) { \
+		strcpy(dst, ptr+1); \
+	}
+
+static int _OpenPlugins(void) {
+	int ret;
+
+	signal(SIGINT, SignalExit);
+	signal(SIGPIPE, SignalExit);
+
+	GPU_clearDynarec(clearDynarec);
+
+	ret = CDR_open();
+	if (ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
+	ret = SPU_open();
+	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
+	SPU_registerCallback(SPUirq);
+	// pcsx-rearmed: we handle gpu elsewhere
+	//ret = GPU_open(&gpuDisp, "PCSX", NULL);
+	//if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }
+	ret = PAD1_open(&gpuDisp);
+	if (ret < 0) { SysMessage(_("Error opening Controller 1 plugin!")); return -1; }
+	ret = PAD2_open(&gpuDisp);
+	if (ret < 0) { SysMessage(_("Error opening Controller 2 plugin!")); return -1; }
+
+	if (Config.UseNet && !NetOpened) {
+		netInfo info;
+		char path[MAXPATHLEN];
+		char dotdir[MAXPATHLEN];
+
+		MAKE_PATH(dotdir, "/.pcsx/plugins/", NULL);
+
+		strcpy(info.EmuName, "PCSX " PACKAGE_VERSION);
+		strncpy(info.CdromID, CdromId, 9);
+		strncpy(info.CdromLabel, CdromLabel, 9);
+		info.psxMem = psxM;
+		info.GPU_showScreenPic = GPU_showScreenPic;
+		info.GPU_displayText = GPU_displayText;
+		info.GPU_showScreenPic = GPU_showScreenPic;
+		info.PAD_setSensitive = PAD1_setSensitive;
+		sprintf(path, "%s%s", Config.BiosDir, Config.Bios);
+		strcpy(info.BIOSpath, path);
+		strcpy(info.MCD1path, Config.Mcd1);
+		strcpy(info.MCD2path, Config.Mcd2);
+		sprintf(path, "%s%s", dotdir, Config.Gpu);
+		strcpy(info.GPUpath, path);
+		sprintf(path, "%s%s", dotdir, Config.Spu);
+		strcpy(info.SPUpath, path);
+		sprintf(path, "%s%s", dotdir, Config.Cdr);
+		strcpy(info.CDRpath, path);
+		NET_setInfo(&info);
+
+		ret = NET_open(&gpuDisp);
+		if (ret < 0) {
+			if (ret == -2) {
+				// -2 is returned when something in the info
+				// changed and needs to be synced
+				char *ptr;
+
+				PARSEPATH(Config.Bios, info.BIOSpath);
+				PARSEPATH(Config.Gpu,  info.GPUpath);
+				PARSEPATH(Config.Spu,  info.SPUpath);
+				PARSEPATH(Config.Cdr,  info.CDRpath);
+
+				strcpy(Config.Mcd1, info.MCD1path);
+				strcpy(Config.Mcd2, info.MCD2path);
+				return -2;
+			} else {
+				Config.UseNet = FALSE;
+			}
+		} else {
+			if (NET_queryPlayer() == 1) {
+				if (SendPcsxInfo() == -1) Config.UseNet = FALSE;
+			} else {
+				if (RecvPcsxInfo() == -1) Config.UseNet = FALSE;
+			}
+		}
+		NetOpened = TRUE;
+	} else if (Config.UseNet) {
+		NET_resume();
+	}
+
+	return 0;
+}
+
+int OpenPlugins() {
+	int ret;
+
+	while ((ret = _OpenPlugins()) == -2) {
+		ReleasePlugins();
+		LoadMcds(Config.Mcd1, Config.Mcd2);
+		if (LoadPlugins() == -1) return -1;
+	}
+	return ret;
+}
+
+void ClosePlugins() {
+	int ret;
+
+	signal(SIGINT, SIG_DFL);
+	signal(SIGPIPE, SIG_DFL);
+	ret = CDR_close();
+	if (ret < 0) { SysMessage(_("Error closing CD-ROM plugin!")); return; }
+	ret = SPU_close();
+	if (ret < 0) { SysMessage(_("Error closing SPU plugin!")); return; }
+	ret = PAD1_close();
+	if (ret < 0) { SysMessage(_("Error closing Controller 1 Plugin!")); return; }
+	ret = PAD2_close();
+	if (ret < 0) { SysMessage(_("Error closing Controller 2 plugin!")); return; }
+	// pcsx-rearmed: we handle gpu elsewhere
+	//ret = GPU_close();
+	//if (ret < 0) { SysMessage(_("Error closing GPU plugin!")); return; }
+
+	if (Config.UseNet) {
+		NET_pause();
+	}
 }
 
 #if 1
@@ -470,5 +543,4 @@ void SysCloseLibrary(void *lib) {
 
 	dlclose(lib);
 }
-
 

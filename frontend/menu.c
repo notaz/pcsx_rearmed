@@ -13,13 +13,13 @@
 #include <errno.h>
 #include <dlfcn.h>
 
+#include "main.h"
 #include "menu.h"
 #include "config.h"
 #include "plugin.h"
 #include "plugin_lib.h"
 #include "omap.h"
 #include "common/plat.h"
-#include "../gui/Linux.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "revision.h"
@@ -57,7 +57,6 @@ enum {
 	SCALE_CUSTOM,
 };
 
-extern int ready_to_go;
 static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
@@ -101,32 +100,30 @@ void emu_make_path(char *buff, const char *end, int size)
 
 static int emu_check_save_file(int slot)
 {
-	char *fname;
+	char fname[MAXPATHLEN];
 	int ret;
 
-	fname = get_state_filename(slot);
-	if (fname == NULL)
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
 		return 0;
 
 	ret = CheckState(fname);
-	free(fname);
 	return ret == 0 ? 1 : 0;
 }
 
 static int emu_save_load_game(int load, int sram)
 {
-	char *fname;
+	char fname[MAXPATHLEN];
 	int ret;
 
-	fname = get_state_filename(state_slot);
-	if (fname == NULL)
+	ret = get_state_filename(fname, sizeof(fname), state_slot);
+	if (ret != 0)
 		return 0;
 
 	if (load)
 		ret = LoadState(fname);
 	else
 		ret = SaveState(fname);
-	free(fname);
 
 	return ret;
 }
@@ -1225,7 +1222,6 @@ void menu_prepare_emu(void)
 	}
 
 	if (GPU_open != NULL) {
-		extern unsigned long gpuDisp;
 		int ret = GPU_open(&gpuDisp, "PCSX", NULL);
 		if (ret)
 			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
