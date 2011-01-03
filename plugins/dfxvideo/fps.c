@@ -15,19 +15,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#define _IN_FPS
-
-#include <unistd.h>
-
-#include "externals.h"
-#include "fps.h"
-#include "gpu.h"
-
 // FPS stuff
 float          fFrameRateHz=0;
 DWORD          dwFrameRateTicks=16;
-float          fFrameRate;
-int            iFrameLimit;
+float          fFrameRate=200.0f;
+int            iFrameLimit=2;
 int            UseFrameLimit=0;
 int            UseFrameSkip=0;
 
@@ -36,7 +28,12 @@ BOOL   bInitCap = TRUE;
 float  fps_skip = 0;
 float  fps_cur  = 0;
 
+#define TIMEBASE 100000
 #define MAXLACE 16
+#define MAXSKIP 120
+
+static void calcfps(void);
+static void FrameCap(void);
 
 void CheckFrameRate(void)
 {
@@ -57,20 +54,18 @@ void CheckFrameRate(void)
  else                                                  // non-skipping mode:
   {
    if(UseFrameLimit) FrameCap();                       // -> do it
-   /*if(ulKeybits&KEY_SHOWFPS)*/ calcfps();                // -> and calc fps display
+   calcfps();                                          // -> and calc fps display
   }
 }
 
-#define TIMEBASE 100000
-
-unsigned long timeGetTime()
+static unsigned long timeGetTime(void)
 {
  struct timeval tv;
  gettimeofday(&tv, 0);                                 // well, maybe there are better ways
  return tv.tv_sec * 100000 + tv.tv_usec/10;            // to do that, but at least it works
 }
 
-void FrameCap (void)
+static void FrameCap (void)
 {
  static unsigned long curticks, lastticks, _ticks_since_last_update;
  static unsigned int TicksToWait = 0;
@@ -114,9 +109,7 @@ void FrameCap (void)
   }
 }
 
-#define MAXSKIP 120
-
-void FrameSkip(void)
+static void FrameSkip(void)
 {
  static int   iNumSkips=0,iAdditionalSkip=0;           // number of additional frames to skip
  static DWORD dwLastLace=0;                            // helper var for frame limitation
@@ -231,7 +224,7 @@ void FrameSkip(void)
  dwLaceCnt=0;                                          // init lace counter
 }
 
-void calcfps(void)
+static void calcfps(void)
 {
  static unsigned long curticks,_ticks_since_last_update,lastticks;
  static long   fps_cnt = 0;
@@ -270,14 +263,11 @@ void calcfps(void)
 
    fps_cnt = 0;
    fps_tck = 1;
-
-   //if(UseFrameLimit && fps_cur>fFrameRateHz)           // optical adjust ;) avoids flickering fps display
-    //fps_cur=fFrameRateHz;
   }
 
 }
 
-void PCFrameCap (void)
+static void PCFrameCap (void)
 {
  static unsigned long curticks, lastticks, _ticks_since_last_update;
  static unsigned long TicksToWait = 0;
@@ -297,7 +287,7 @@ void PCFrameCap (void)
   }
 }
 
-void PCcalcfps(void)
+static void PCcalcfps(void)
 {
  static unsigned long curticks,_ticks_since_last_update,lastticks;
  static long  fps_cnt = 0;
@@ -345,11 +335,7 @@ void SetAutoFrameCap(void)
   }
 }
 
-void SetFPSHandler(void)
-{
-}
-
-void InitFPS(void)
+static void InitFPS(void)
 {
  if(!fFrameRate) fFrameRate=200.0f;
  if(fFrameRateHz==0) fFrameRateHz=fFrameRate;          // set user framerate

@@ -42,13 +42,12 @@ OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/oss.o plugi
 	plugins/dfsound/xa.o plugins/dfsound/freeze.o plugins/dfsound/cfg.o plugins/dfsound/registers.o \
 	plugins/dfsound/spu.o
 # gpu
-OBJS += plugins/dfxvideo/cfg.o plugins/dfxvideo/fps.o plugins/dfxvideo/key.o plugins/dfxvideo/prim.o \
-	plugins/dfxvideo/gpu.o plugins/dfxvideo/menu.o plugins/dfxvideo/soft.o plugins/dfxvideo/zn.o
+plugins/dfxvideo/%.o: CFLAGS += -Wall
+OBJS += plugins/dfxvideo/gpu.o
 ifdef X11
 LDFLAGS += -lX11 -lXv
 OBJS += plugins/dfxvideo/draw.o
 else
-plugins/dfxvideo/%.o: CFLAGS += -D_MACGL # disables X in dfxvideo
 OBJS += plugins/dfxvideo/draw_fb.o
 endif
 # cdrcimg

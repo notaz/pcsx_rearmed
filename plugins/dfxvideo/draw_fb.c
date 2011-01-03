@@ -7,35 +7,16 @@
 
 #define _IN_DRAW
 
-#include "externals.h"
 #include "gpu.h"
-#include "draw.h"
-#include "prim.h"
-#include "menu.h"
-#include "interp.h"
-#include "swap.h"
 
 #include "plugin_lib.h"
 #include "pcnt.h"
 
 // misc globals
-int            iResX;
-int            iResY;
 long           lLowerpart;
-BOOL           bIsFirstFrame = TRUE;
 BOOL           bCheckMask = FALSE;
-unsigned short sSetMask = 0;
-unsigned long  lSetMask = 0;
-int            iDesktopCol = 16;
-int            iShowFPS = 0;
-int            iWinSize; 
-int            iMaintainAspect = 0;
-int            iUseNoStretchBlt = 0;
-int            iFastFwd = 0;
-int            iFVDisplay = 0;
-PSXPoint_t     ptCursorPoint[8];
-unsigned short usCursorActive = 0;
-char *         pCaptionText;
+unsigned short sSetMask;
+unsigned long  lSetMask;
 
 #ifndef __arm__
 #define bgr555_to_rgb565 memcpy
@@ -106,37 +87,12 @@ void DoBufferSwap(void)
  pl_fbdev_flip();
 }
 
-void DoClearScreenBuffer(void)                         // CLEAR DX BUFFER
+void DoClearScreenBuffer(void)
 {
-}
-
-void DoClearFrontBuffer(void)                          // CLEAR DX BUFFER
-{
-}
-
-static int initialize(void)
-{
- iDesktopCol=32;
-
- bUsingTWin=FALSE;
- bIsFirstFrame = FALSE;                                // done
-
- if(iShowFPS)
-  {
-   iShowFPS=0;
-   ulKeybits|=KEY_SHOWFPS;
-   szDispBuf[0]=0;
-   BuildDispMenu(0);
-  }
-
- return 0;
 }
 
 unsigned long ulInitDisplay(void)
 {
- iShowFPS=1;
- initialize();
-
  if (pl_fbdev_open() != 0)
   return 0;
 
@@ -145,19 +101,6 @@ unsigned long ulInitDisplay(void)
 
 void CloseDisplay(void)
 {
- CloseMenu();
  pl_fbdev_close();
- //WriteConfig();
 }
 
-void CreatePic(unsigned char * pMem)
-{
-}
-
-void DestroyPic(void)
-{
-}
-
-void HandleKey(int keycode)
-{
-}

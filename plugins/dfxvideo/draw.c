@@ -17,17 +17,15 @@
 
 #define _IN_DRAW
 
-#include "externals.h"
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/cursorfont.h>
+
 #include "gpu.h"
-#include "draw.h"
-#include "prim.h"
-#include "menu.h"
-#include "interp.h"
-#include "swap.h"
 
 // misc globals
-int            iResX;
-int            iResY;
+int            iResX=640;
+int            iResY=480;
 long           lLowerpart;
 BOOL           bIsFirstFrame = TRUE;
 BOOL           bCheckMask = FALSE;
@@ -43,6 +41,15 @@ int            iFastFwd = 0;
 int            iFVDisplay = 0;
 PSXPoint_t     ptCursorPoint[8];
 unsigned short usCursorActive = 0;
+unsigned long  ulKeybits;
+
+int            iWindowMode=1;
+int            iColDepth=32;
+char           szDispBuf[64];
+char           szMenuBuf[36];
+char           szDebugText[512];
+void InitMenu(void) {}
+void CloseMenu(void) {}
 
 //unsigned int   LUT16to32[65536];
 //unsigned int   RGBtoYUV[65536];
@@ -62,6 +69,14 @@ int xv_vsync = 0;
 
 XShmSegmentInfo shminfo;
 int finalw,finalh;
+
+typedef struct {
+#define MWM_HINTS_DECORATIONS   2
+  long flags;
+  long functions;
+  long decorations;
+  long input_mode;
+} MotifWmHints;
 
 extern XvImage  *XvShmCreateImage(Display*, XvPortID, int, char*, int, int, XShmSegmentInfo*);
 
@@ -1529,7 +1544,7 @@ void RGB2YUV(uint32_t *s, int width, int height, uint32_t *d)
 	}
 }
 
-extern time_t tStart;
+time_t tStart;
 
 //Note: dest x,y,w,h are both input and output variables
 inline void MaintainAspect(unsigned int *dx,unsigned int *dy,unsigned int *dw,unsigned int *dh)
@@ -1684,6 +1699,7 @@ int Xinitialize()
 
  p2XSaIFunc=NULL;
 
+#if 0
  if(iUseNoStretchBlt==1)
   {
    p2XSaIFunc=Std2xSaI_ex8;
@@ -1715,6 +1731,7 @@ int Xinitialize()
   {
    p2XSaIFunc=hq3x_32;
   }
+#endif
 
  bUsingTWin=FALSE;
 
@@ -1727,7 +1744,7 @@ int Xinitialize()
    iShowFPS=0;
    ulKeybits|=KEY_SHOWFPS;
    szDispBuf[0]=0;
-   BuildDispMenu(0);
+   //BuildDispMenu(0);
   }
 
  return 0;
@@ -1847,6 +1864,7 @@ void ShowTextGpuPic(void)
 {
 }
 
+#if 0
 static void hq2x_32_def(uint32_t * dst0, uint32_t * dst1, const uint32_t * src0, const uint32_t * src1, const uint32_t * src2, unsigned count)
 {
 	static unsigned char cache_vert_mask[640];
@@ -2045,3 +2063,4 @@ void hq3x_32( unsigned char * srcPtr,  DWORD srcPitch, unsigned char * dstPtr, i
 	hq3x_32_def(dst0, dst1, dst2, src0, src1, src1, width);
 
 }
+#endif
