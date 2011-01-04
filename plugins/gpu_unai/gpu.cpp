@@ -864,8 +864,8 @@ static void blit(void)
 	static s16 old_res_horz, old_res_vert, old_rgb24;
 	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
 	s16 h0, x0, y0, w0, h1;
-	u8  *dest = (u8 *)screen_buf;
 	u16 *srcs;
+	u8  *dest;
 
 	x0 = DisplayArea[0] & ~3; // alignment needed by blitter
 	y0 = DisplayArea[1];
@@ -877,13 +877,17 @@ static void blit(void)
 	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
 	if (h0 == 480) h1 = Min2(h1*2,480);
 
+	if (h1 <= 0)
+		return;
+
 	if (w0 != old_res_horz || h1 != old_res_vert || isRGB24 != old_rgb24)
 	{
 		old_res_horz = w0;
 		old_res_vert = h1;
 		old_rgb24 = (s16)isRGB24;
-		cbs->pl_fbdev_set_mode(w0, h1, isRGB24 ? 24 : 16);
+		screen_buf = cbs->pl_fbdev_set_mode(w0, h1, isRGB24 ? 24 : 16);
 	}
+	dest = (u8 *)screen_buf;
 
 	if (isRGB24)
 	{

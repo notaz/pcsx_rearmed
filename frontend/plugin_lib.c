@@ -62,7 +62,7 @@ static void print_cpu_usage(void)
 		pl_text_out16(pl_fbdev_w - 28, pl_fbdev_h - 10, "%3d", tick_per_sec);
 }
 
-int pl_fbdev_set_mode(int w, int h, int bpp)
+void *pl_fbdev_set_mode(int w, int h, int bpp)
 {
 	void *ret;
 
@@ -82,16 +82,19 @@ int pl_fbdev_set_mode(int w, int h, int bpp)
 
 	menu_notify_mode_change(w, h, bpp);
 
-	return (ret != NULL) ? 0 : -1;
+	return pl_fbdev_buf;
 }
 
 void *pl_fbdev_flip(void)
 {
 	flip_cnt++;
-	if (g_opts & OPT_SHOWFPS)
-		print_fps();
-	if (g_opts & OPT_SHOWCPU)
-		print_cpu_usage();
+
+	if (pl_fbdev_buf != NULL) {
+		if (g_opts & OPT_SHOWFPS)
+			print_fps();
+		if (g_opts & OPT_SHOWCPU)
+			print_cpu_usage();
+	}
 
 	// let's flip now
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);

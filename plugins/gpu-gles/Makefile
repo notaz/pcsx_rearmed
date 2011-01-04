@@ -8,8 +8,10 @@ CROSS_COMPILE ?= arm-none-linux-gnueabi-
 #CC = $(PREFIX)/bin/$(CROSS_COMPILE)gcc
 CC = $(CROSS_COMPILE)gcc
 
-CFLAGS += -fPIC # -Wall
+CFLAGS += -fPIC -ggdb # -Wall
+ifndef DEBUG
 CFLAGS += -O3 -ffast-math -fomit-frame-pointer
+endif
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8
 # note: the below causes strange bugs/crashes
 #CFLAGS += -mfloat-abi=softfp

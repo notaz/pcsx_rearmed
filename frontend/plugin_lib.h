@@ -22,7 +22,7 @@ enum {
 extern void *pl_fbdev_buf;
 
 int   pl_fbdev_open(void);
-int   pl_fbdev_set_mode(int w, int h, int bpp);
+void *pl_fbdev_set_mode(int w, int h, int bpp);
 void *pl_fbdev_flip(void);
 void  pl_fbdev_close(void);
 
@@ -31,7 +31,7 @@ void pl_text_out16(int x, int y, const char *texto, ...);
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_fbdev_open)(void);
-	int   (*pl_fbdev_set_mode)(int w, int h, int bpp);
+	void *(*pl_fbdev_set_mode)(int w, int h, int bpp);
 	void *(*pl_fbdev_flip)(void);
 	void  (*pl_fbdev_close)(void);
 	int  *fskip_option;

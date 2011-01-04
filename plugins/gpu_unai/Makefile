@@ -1,7 +1,9 @@
 CC = $(CROSS_COMPILE)gcc
 
-CFLAGS += -fPIC -Wall -DREARMED
+CFLAGS += -ggdb -fPIC -Wall -DREARMED
+ifndef DEBUG
 CFLAGS += -O2 -ffast-math -fomit-frame-pointer
+endif
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 # -fschedule-insns (from -O2+) causes bugs, probably bad asm() statements
 CFLAGS += -fno-schedule-insns -fno-schedule-insns2
