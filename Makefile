@@ -84,14 +84,18 @@ frontend/revision.h: FORCE
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
-spunull.so: plugins/spunull/spunull.c
-	$(CC) $(CFLAGS) -shared -fPIC -ggdb -O2 -o $@ $^
+PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
+	plugins/gpu-gles/gpuGLES.so
 
-plugins/gpu-gles/gpuGLES.so:
-	make -C plugins/gpu-gles/
+$(PLUGINS):
+	make -C $(dir $@)
 
 clean:
-	$(RM) $(TARGET) $(OBJS)
+	$(RM) $(TARGET) $(OBJS) $(TARGET).map
+
+clean_plugins:
+	for dir in $(PLUGINS) ; do \
+		$(MAKE) -C $$(dirname $$dir) clean; done
 
 # ----------- release -----------
 
@@ -99,7 +103,7 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 VER ?= $(shell git describe --abbrev=0 master)
 
-rel: pcsx spunull.so plugins/gpu-gles/gpuGLES.so \
+rel: pcsx $(PLUGINS) \
 		pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
 		pandora/picorestore pandora/readme.txt skin COPYING
 	rm -rf out

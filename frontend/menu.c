@@ -965,7 +965,9 @@ const char *plat_get_credits(void)
 		"(C) 2009-2010 PCSX-Reloaded Team\n\n"
 		"GPU and SPU code by Pete Bernert\n"
 		"  and the P.E.Op.S. team\n"
-		"ARM recompiler (C) 2009-2010 Ari64\n\n"
+		"ARM recompiler (C) 2009-2010 Ari64\n"
+		"PCSX4ALL plugins by PCSX4ALL team\n"
+		"  Chui, Franxis, Unai\n\n"
 		"integration, optimization and\n"
 		"  frontend (C) 2010-2011 notaz\n";
 }

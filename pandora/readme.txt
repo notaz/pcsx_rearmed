@@ -31,14 +31,36 @@ Supportd CD image formats:
 CDDA (CD audio) support requires .cue/.bin format.
 
 
+Plugins
+-------
+
+GPU (graphics) and SPU (sound) plugins can be selected in
+[BIOS/Plugins] menu:
+
+builtin_gpu    - the P.E.Op.S. GPU plugin, most accurate but slow.
+gpuPCSX4ALL.so - plugin from PCSX4ALL project. Faster but has some glitches.
+gpuGLES.so     - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
+                 Occasionally faster but has lots of glitches and seems to
+                 be rather unstable (may crash the system).
+builtin_spu    - P.E.Op.S. SPU plugin, most accurate but slow.
+spunull.so     - NULL plugin, i.e. no sound emulation.
+
+
 Changelog
 ---------
 
-r2:
+r3 (2011-01-05):
++ added Pickle's port of gpu-gles from psx4m project
++ added PCSX4ALL gpu as a plugin
+* improved gpu plugin support
++ added savestate preview
+* various frontend fixes
+
+r2 (2010-12-29):
 * fixed memcard paths
 * fixed a keybind copy-paste bug
 * properly implemented pad handling
-  (inputs no longer controls both emulated pads at once)
+  (inputs no longer control both emulated pads at once)
 * fixed a crash caused by framebuffer out of range access
 * fixed SWL/SWR handling (usually resulted in graphic glitches)
 * fixed BxxZAL (Medal of Honor)
@@ -48,7 +70,7 @@ r2:
 + added per-game configs (controls still not saved though)
 + added simple plugin select interface to the menu
 
-r1:
+r1 (2010-12-25):
 * initial release
 
 
@@ -74,20 +96,21 @@ Emulator core:
 	Stefan Sikora <hoshy@schrauberstube.de>
 
 (C) 2009-2010 PCSX-Reloaded Team
-	avlex (Help on xcode project)
-	Dario (Various bugfixes)
 	edgbla (Root counters, various core/plugin fixes)
 	Firnis (GTE code from PCSX-Revolution Project)
 	Gabriele Gorla (MDEC decoder)
-	maggix (Snow Leopard compile fix)
-	NeToU (Bugfix)
 	Peter Collingbourne (Various core/psxbios fixes)
-	siveritas (Bugfix)
+	Dario, NeToU, siveritas (Various bugfixes)
 	shalma (GTE Divider, various core fixes)
-	Tristin Celestin (PulseAudio support)
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
-GLES plugin:
+PCSX4ALL GPU plugin:
+	(C) 2010 PCSX4ALL Team
+	(C) 2010 Unai
+	Franxis <franxism@gmail.com>
+	Chui <sdl_gp32@yahoo.es>
+
+GLES plugin (psx4m project):
 	(C) 1999-2009 by Pete Bernert
 	EQ
 	Olli Hinkka
