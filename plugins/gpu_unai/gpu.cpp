@@ -182,6 +182,10 @@ long  GPU_freeze(unsigned int bWrite, GPUFreeze_t* p2)
 	if (bWrite)
 	{
 		p2->GPU_gp1 = GPU_GP1;
+		memset(p2->Control, 0, sizeof(p2->Control));
+		p2->Control[5] = DisplayArea[0] | (DisplayArea[1] << 10);
+		p2->Control[7] = DisplayArea[4] | (DisplayArea[5] << 10);
+		p2->Control[8] = ((GPU_GP1 >> 17) & 0x3f) | ((GPU_GP1 >> 10) & 0x40);
 		memcpy(p2->FrameBuffer, (u16*)GPU_FrameBuffer, FRAME_BUFFER_SIZE);
 		return (1);
 	}
@@ -189,6 +193,10 @@ long  GPU_freeze(unsigned int bWrite, GPUFreeze_t* p2)
 	{
 		GPU_GP1 = p2->GPU_gp1;
 		memcpy((u16*)GPU_FrameBuffer, p2->FrameBuffer, FRAME_BUFFER_SIZE);
+		GPU_writeStatus((5 << 24) | p2->Control[5]);
+		GPU_writeStatus((7 << 24) | p2->Control[7]);
+		GPU_writeStatus((8 << 24) | p2->Control[8]);
+		gpuSetTexture(GPU_GP1);
 		return (1);
 	}
 	return (0);
