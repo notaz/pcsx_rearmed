@@ -653,7 +653,7 @@ static void draw_menu_credits(void (*draw_more)(void))
 		p++;
 	}
 
-	x = g_menuscreen_w  / 2 - w * me_mfont_w / 2;
+	x = g_menuscreen_w / 2 - w * me_mfont_w / 2;
 	y = g_menuscreen_h / 2 - h * me_mfont_h / 2;
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
@@ -949,6 +949,10 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	if (x < 0) x = 0;
 	y = g_menuscreen_h / 2 - h / 2;
 	if (y < 0) y = 0;
+#ifdef MENU_ALIGN_LEFT
+	if (x > 12 + me_mfont_w * 2)
+		x = 12 + me_mfont_w * 2;
+#endif
 
 	menu_draw_begin(1);
 

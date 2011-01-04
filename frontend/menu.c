@@ -12,6 +12,7 @@
 #include <string.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <zlib.h>
 
 #include "main.h"
 #include "menu.h"
@@ -126,10 +127,6 @@ static int emu_save_load_game(int load, int sram)
 		ret = SaveState(fname);
 
 	return ret;
-}
-
-static void draw_savestate_bg(int slot)
-{
 }
 
 static void menu_set_defconfig(void)
@@ -389,10 +386,79 @@ static unsigned short fname2color(const char *fname)
 	return 0xffff;
 }
 
+static void draw_savestate_bg(int slot);
+
 #define MENU_ALIGN_LEFT
 #define menu_init menu_init_common
 #include "common/menu.c"
 #undef menu_init
+
+// a bit of black magic here
+static void draw_savestate_bg(int slot)
+{
+	extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
+	static const int psx_widths[8]  = { 256, 368, 320, 384, 512, 512, 640, 640 };
+	int x, y, w, h;
+	char fname[MAXPATHLEN];
+	GPUFreeze_t *gpu;
+	u16 *s, *d;
+	gzFile f;
+	int ret;
+	u32 tmp;
+
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
+		return;
+
+	f = gzopen(fname, "rb");
+	if (f == NULL)
+		return;
+
+	if (gzseek(f, 0x29933d, SEEK_SET) != 0x29933d) {
+		fprintf(stderr, "gzseek failed\n");
+		gzclose(f);
+		return;
+	}
+
+	gpu = malloc(sizeof(*gpu));
+	if (gpu == NULL) {
+		gzclose(f);
+		return;
+	}
+
+	ret = gzread(f, gpu, sizeof(*gpu));
+	gzclose(f);
+	if (ret != sizeof(*gpu)) {
+		fprintf(stderr, "gzread failed\n");
+		goto out;
+	}
+
+	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+
+	if ((gpu->ulStatus & 0x800000) || (gpu->ulStatus & 0x200000))
+		goto out; // disabled || 24bpp (NYET)
+
+	x = gpu->ulControl[5] & 0x3ff;
+	y = (gpu->ulControl[5] >> 10) & 0x1ff;
+	s = (u16 *)gpu->psxVRam + y * 1024 + (x & ~3);
+	w = psx_widths[(gpu->ulStatus >> 16) & 7];
+	tmp = gpu->ulControl[7];
+	h = ((tmp >> 10) & 0x3ff) - (tmp & 0x3ff);
+	if (gpu->ulStatus & 0x80000) // doubleheight
+		h *= 2;
+
+	x = max(0, g_menuscreen_w - w) & ~3;
+	y = max(0, g_menuscreen_h / 2 - h / 2);
+	w = min(g_menuscreen_w, w);
+	h = min(g_menuscreen_h, h);
+	d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
+
+	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
+		bgr555_to_rgb565(d, s, w * 2);
+
+out:
+	free(gpu);
+}
 
 // ---------- pandora specific -----------
 
