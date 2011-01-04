@@ -94,7 +94,8 @@ u32   lInc;
 u32   tInc, tMsk;
 
 GPUPacket PacketBuffer;
-u16   GPU_FrameBuffer[FRAME_BUFFER_SIZE/2] __attribute__((aligned(16)));    // FRAME_BUFFER_SIZE is defined in bytes
+// FRAME_BUFFER_SIZE is defined in bytes; 512K is guard memory for out of range reads
+u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(16)));
 u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
