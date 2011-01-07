@@ -11,8 +11,7 @@ version is ARM architecture oriented and features MIPS->ARM recompiler by
 Ari64. It was created for Pandora handheld, but should be usable on other
 devices after some code adjustments.
 
-It does not, however, have anything in common with similar psx4all and
-pcsx4all projects, except that all of these are PCSX ports.
+PCSX ReARMed features GPU and SPU plugins from PCSX4ALL project.
 
 
 Usage

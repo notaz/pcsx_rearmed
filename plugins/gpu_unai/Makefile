@@ -11,6 +11,8 @@ CFLAGS += -fno-schedule-insns -fno-schedule-insns2
 TARGET = gpuPCSX4ALL.so
 LDFLAGS += -shared -Wl,-soname,$(TARGET)
 
+-include Makefile.local
+
 all: $(TARGET)
 
 $(TARGET): gpu.cpp ../../frontend/arm_utils.s

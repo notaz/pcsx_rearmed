@@ -24,6 +24,8 @@ LIB = -L$(PREFIX)lib -lGLES_CM -lX11 -lXau -lXdmcp
 
 OBJ = gpuDraw.o gpuFps.o gpuPlugin.o gpuPrim.o gpuTexture.o
 
+-include Makefile.local
+
 all: $(TARGET)
 
 $(TARGET): $(OBJ)

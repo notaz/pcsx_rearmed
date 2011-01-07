@@ -14,9 +14,13 @@ endif
 ifndef DEBUG
 CFLAGS += -O2 # -DNDEBUG
 endif
+USE_OSS = 1
+#USE_ALSA = 1
 #DRC_DBG = 1
 #PCNT = 1
 TARGET = pcsx
+
+-include Makefile.local
 
 all: $(TARGET)
 
@@ -40,9 +44,18 @@ CFLAGS += -DDRC_DBG
 endif
 
 # spu
-OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/oss.o plugins/dfsound/reverb.o \
-	plugins/dfsound/xa.o plugins/dfsound/freeze.o plugins/dfsound/cfg.o plugins/dfsound/registers.o \
-	plugins/dfsound/spu.o
+OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/reverb.o plugins/dfsound/xa.o \
+	plugins/dfsound/freeze.o plugins/dfsound/cfg.o plugins/dfsound/registers.o plugins/dfsound/spu.o
+ifeq "$(USE_OSS)" "1"
+plugins/dfsound/%.o: CFLAGS += -DUSEOSS
+OBJS += plugins/dfsound/oss.o
+endif
+ifeq "$(USE_ALSA)" "1"
+plugins/dfsound/%.o: CFLAGS += -DUSEALSA
+OBJS += plugins/dfsound/alsa.o
+LDFLAGS += -lasound
+endif
+
 # gpu
 plugins/dfxvideo/%.o: CFLAGS += -Wall
 OBJS += plugins/dfxvideo/gpu.o
