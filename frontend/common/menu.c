@@ -1,7 +1,12 @@
-// (c) Copyright 2006-2010 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * (C) Gražvydas "notaz" Ignotas, 2006-2010
+ *
+ * This work is licensed under the terms of any of these licenses
+ * (at your option):
+ *  - GNU GPL, version 2 or later.
+ *  - GNU LGPL, version 2.1 or later.
+ * See the COPYING file in the top-level directory.
+ */
 
 #include <stdio.h>
 #include <string.h>
