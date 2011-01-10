@@ -763,12 +763,13 @@ static int intInit() {
 static void intReset() {
 }
 
-static void intExecute() {
-	for (;;) 
+void intExecute() {
+	extern int stop;
+	for (;!stop;) 
 		execI();
 }
 
-static void intExecuteBlock() {
+void intExecuteBlock() {
 	branch2 = 0;
 	while (!branch2) execI();
 }
