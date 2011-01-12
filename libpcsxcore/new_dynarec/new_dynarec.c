@@ -385,6 +385,9 @@ void *get_addr(u_int vaddr)
   //printf("TRACE: count=%d next=%d (get_addr no-match %x)\n",Count,next_interupt,vaddr);
   int r=new_recompile_block(vaddr);
   if(r==0) return get_addr(vaddr);
+#ifdef PCSX
+  return (void *)r;
+#else
   // Execute in unmapped page, generate pagefault execption
   Status|=2;
   Cause=(vaddr<<31)|0x8;
@@ -393,6 +396,7 @@ void *get_addr(u_int vaddr)
   Context=(Context&0xFF80000F)|((BadVAddr>>9)&0x007FFFF0);
   EntryHi=BadVAddr&0xFFFFE000;
   return get_addr_ht(0x80000000);
+#endif
 }
 // Look up address in hash table first
 void *get_addr_ht(u_int vaddr)
@@ -408,7 +412,7 @@ void *get_addr_32(u_int vaddr,u_int flags)
 {
 #ifdef FORCE32
   return get_addr(vaddr);
-#endif
+#else
   //printf("TRACE: count=%d next=%d (get_addr_32 %x,flags %x)\n",Count,next_interupt,vaddr,flags);
   int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
   if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
@@ -488,6 +492,7 @@ void *get_addr_32(u_int vaddr,u_int flags)
   Context=(Context&0xFF80000F)|((BadVAddr>>9)&0x007FFFF0);
   EntryHi=BadVAddr&0xFFFFE000;
   return get_addr_ht(0x80000000);
+#endif
 }
 
 void clear_all_regs(signed char regmap[])
@@ -7742,11 +7747,12 @@ int new_recompile_block(int addr)
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
 #ifdef PCSX
-  if (Config.HLE && start == 0x80001000) {
+  if ((Config.HLE && start == 0x80001000) || // hlecall
+      (/*psxRegs.pc != 0x80030000 &&*/ start == 0x80030000)) // fastbios thing
+  {
     // XXX: is this enough? Maybe check hleSoftCall?
     u_int beginning=(u_int)out;
     u_int page=get_page(start);
-    ll_add(jump_in+page,start,out);
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,(int)&pcaddr);
@@ -7754,12 +7760,24 @@ int new_recompile_block(int addr)
 #ifdef __arm__
     __clear_cache((void *)beginning,out);
 #endif
+    if (start == 0x80030000)
+      return beginning;
+    else
+      ll_add(jump_in+page,start,(void *)beginning);
     return 0;
   }
-  else if ((u_int)addr < 0x00200000) {
+  else if ((u_int)addr < 0x00200000 ||
+    (0xa0000000 <= addr && addr < 0xa0200000)) {
     // used for BIOS calls mostly?
-    source = (u_int *)((u_int)rdram+start-0);
-    pagelimit = 0x00200000;
+    source = (u_int *)((u_int)rdram+(start&0x1fffff));
+    pagelimit = (addr&0xa0000000)|0x00200000;
+  }
+  else if (!Config.HLE && (
+/*    (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
+    (0xbfc00000 <= addr && addr < 0xbfc80000))) {
+    // BIOS
+    source = (u_int *)((u_int)psxR+(start&0x7ffff));
+    pagelimit = (addr&0xfff00000)|0x80000;
   }
   else
 #endif
@@ -7794,7 +7812,7 @@ int new_recompile_block(int addr)
     else {
       assem_debug("Compile at unmapped memory address: %x \n", (int)addr);
       //assem_debug("start: %x next: %x\n",memory_map[start>>12],memory_map[(start+4096)>>12]);
-      return 1; // Caller will invoke exception handler
+      return -1; // Caller will invoke exception handler
     }
     //printf("source= %x\n",(int)source);
   }
