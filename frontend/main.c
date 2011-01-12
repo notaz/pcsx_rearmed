@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
 	strcpy(Config.Bios, "HLE");
-	strcpy(Config.BiosDir, "./");
+	strcpy(Config.BiosDir, "bios");
 
 	strcpy(Config.PluginsDir, "plugins");
 	strcpy(Config.Gpu, "builtin_gpu");
@@ -274,11 +274,23 @@ void StartGui() {
         printf("StartGui\n");
 }
 
+static void dummy_lace()
+{
+}
+
 void SysReset() {
+	// rearmed hack: EmuReset() runs some code when real BIOS is used,
+	// but we usually do reset from menu while GPU is not open yet,
+	// so we need to prevent updateLace() call..
+	void *real_lace = GPU_updateLace;
+	GPU_updateLace = dummy_lace;
+
 	EmuReset();
 
 	// hmh core forgets this
 	CDR_stop();
+
+	GPU_updateLace = real_lace;
 }
 
 void SysClose() {

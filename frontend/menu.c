@@ -79,9 +79,10 @@ extern int iXAPitch;
 extern int iSPUIRQWait;
 extern int iUseTimer;
 
+static const char *bioses[24];
 static const char *gpu_plugins[16];
 static const char *spu_plugins[16];
-static int gpu_plugsel, spu_plugsel;
+static int bios_sel, gpu_plugsel, spu_plugsel;
 
 
 static int min(int x, int y) { return x < y ? x : y; }
@@ -351,6 +352,10 @@ static int menu_load_config(int is_game)
 	}
 
 	// sync plugins
+	for (i = bios_sel = 0; bioses[i] != NULL; i++)
+		if (strcmp(Config.Bios, bioses[i]) == 0)
+			{ bios_sel = i; break; }
+
 	for (i = gpu_plugsel = 0; gpu_plugins[i] != NULL; i++)
 		if (strcmp(Config.Gpu, gpu_plugins[i]) == 0)
 			{ gpu_plugsel = i; break; }
@@ -822,13 +827,17 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
-static const char h_gpu[]        = "Configure built-in P.E.Op.S. SoftGL Driver V1.17";
-static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
+static const char h_bios[]       = "HLE is simulated BIOS. BIOS is saved in savestates.\n"
+				   "Must save config and reload the game\n"
+				   "for change to take effect";
 static const char h_plugin_xpu[] = "Must save config and reload the game\n"
 				   "for plugin change to take effect";
+static const char h_gpu[]        = "Configure built-in P.E.Op.S. SoftGL Driver V1.17";
+static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static menu_entry e_menu_plugin_options[] =
 {
+	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu, h_gpu),
@@ -841,7 +850,8 @@ static int menu_loop_plugin_options(int id, int keys)
 	static int sel = 0;
 	me_loop(e_menu_plugin_options, &sel, NULL);
 
-	// sync plugins
+	// sync BIOS/plugins
+	snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[bios_sel]);
 	snprintf(Config.Gpu, sizeof(Config.Gpu), "%s", gpu_plugins[gpu_plugsel]);
 	snprintf(Config.Spu, sizeof(Config.Spu), "%s", spu_plugins[spu_plugsel]);
 
@@ -1132,22 +1142,61 @@ void menu_loop(void)
 	menu_prepare_emu();
 }
 
-static void scan_plugins(void)
+static void scan_bios_plugins(void)
 {
 	char fname[MAXPATHLEN];
 	struct dirent *ent;
-	int gpu_i, spu_i;
+	int bios_i, gpu_i, spu_i;
 	char *p;
 	DIR *dir;
 
+	bioses[0] = "HLE";
 	gpu_plugins[0] = "builtin_gpu";
 	spu_plugins[0] = "builtin_spu";
-	gpu_i = spu_i = 1;
+	bios_i = gpu_i = spu_i = 1;
 
+	snprintf(fname, sizeof(fname), "%s/", Config.BiosDir);
+	dir = opendir(fname);
+	if (dir == NULL) {
+		perror("scan_bios_plugins bios opendir");
+		goto do_plugins;
+	}
+
+	while (1) {
+		struct stat st;
+
+		errno = 0;
+		ent = readdir(dir);
+		if (ent == NULL) {
+			if (errno != 0)
+				perror("readdir");
+			break;
+		}
+
+		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
+			continue;
+
+		snprintf(fname, sizeof(fname), "%s/%s", Config.BiosDir, ent->d_name);
+		if (stat(fname, &st) != 0 || st.st_size != 512*1024) {
+			printf("bad BIOS file: %s\n", ent->d_name);
+			continue;
+		}
+
+		if (bios_i < ARRAY_SIZE(bioses) - 1) {
+			bioses[bios_i++] = strdup(ent->d_name);
+			continue;
+		}
+
+		printf("too many BIOSes, dropping \"%s\"\n", ent->d_name);
+	}
+
+	closedir(dir);
+
+do_plugins:
 	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
 	dir = opendir(fname);
 	if (dir == NULL) {
-		perror("scan_plugins opendir");
+		perror("scan_bios_plugins opendir");
 		return;
 	}
 
@@ -1202,7 +1251,7 @@ void menu_init(void)
 
 	strcpy(last_selected_fname, "/media");
 
-	scan_plugins();
+	scan_bios_plugins();
 	pnd_menu_init();
 	menu_init_common();
 
