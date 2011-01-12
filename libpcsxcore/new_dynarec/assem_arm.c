@@ -1938,7 +1938,7 @@ void emit_writebyte(int rt, int addr)
 {
   u_int offset = addr-(u_int)&dynarec_local;
   assert(offset<4096);
-  assem_debug("str %s,fp+%d\n",regname[rt],offset);
+  assem_debug("strb %s,fp+%d\n",regname[rt],offset);
   output_w32(0xe5c00000|rd_rn_rm(rt,FP,0)|offset);
 }
 void emit_writeword_imm(int imm, int addr)

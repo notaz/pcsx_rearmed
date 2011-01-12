@@ -7554,7 +7554,7 @@ void disassemble_inst(int i)
       case FJUMP:
         printf (" %x: %s %8x\n",start+i*4,insn[i],ba[i]);break;
       case RJUMP:
-        if (rt1[i]!=31)
+        if (opcode[i]==0x9&&rt1[i]!=31)
           printf (" %x: %s r%d,r%d\n",start+i*4,insn[i],rt1[i],rs1[i]);
         else
           printf (" %x: %s r%d\n",start+i*4,insn[i],rs1[i]);
