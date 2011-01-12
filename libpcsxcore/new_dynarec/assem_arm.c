@@ -1003,6 +1003,15 @@ void emit_or_and_set_flags(int rs1,int rs2,int rt)
   output_w32(0xe1900000|rd_rn_rm(rt,rs1,rs2));
 }
 
+void emit_orrshr_imm(u_int rs,u_int imm,u_int rt)
+{
+  assert(rs<16);
+  assert(rt<16);
+  assert(imm<32);
+  assem_debug("orr %s,%s,%s,lsr #%d\n",regname[rt],regname[rt],regname[rs],imm);
+  output_w32(0xe1800020|rd_rn_rm(rt,rt,rs)|(imm<<7));
+}
+
 void emit_xor(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("eor %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
@@ -3463,6 +3472,16 @@ void cop0_assemble(int i,struct regstat *i_regs)
     if((source[i]&0x3f)==0x08) // TLBP
       emit_call((int)TLBP);
 #endif
+#ifdef PCSX
+    if((source[i]&0x3f)==0x10) // RFE
+    {
+      emit_readword((int)&Status,0);
+      emit_andimm(0,0x3c,1);
+      emit_andimm(0,~0xf,0);
+      emit_orrshr_imm(1,2,0);
+      emit_writeword(0,(int)&Status);
+    }
+#else
     if((source[i]&0x3f)==0x18) // ERET
     {
       int count=ccadj[i];
@@ -3470,6 +3489,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
       emit_addimm(HOST_CCREG,CLOCK_DIVIDER*count,HOST_CCREG); // TODO: Should there be an extra cycle here?
       emit_jmp((int)jump_eret);
     }
+#endif
   }
 }
 

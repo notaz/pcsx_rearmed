@@ -7933,7 +7933,11 @@ int new_recompile_block(int addr)
             case 0x02: strcpy(insn[i],"TLBWI"); type=COP0; break;
             case 0x06: strcpy(insn[i],"TLBWR"); type=COP0; break;
             case 0x08: strcpy(insn[i],"TLBP"); type=COP0; break;
+#ifdef PCSX
+            case 0x10: strcpy(insn[i],"RFE"); type=COP0; break;
+#else
             case 0x18: strcpy(insn[i],"ERET"); type=COP0; break;
+#endif
           }
         }
         break;

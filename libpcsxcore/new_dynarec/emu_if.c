@@ -118,12 +118,6 @@ void MTC0_()
 	gen_interupt(); /* FIXME: checking pending irqs should be enough */
 }
 
-void check_interupt()
-{
-	/* FIXME (also asm) */
-	printf("ari64_check_interupt\n");
-}
-
 void new_dyna_save(void)
 {
 	// psxRegs.intCycle is always maintained, no need to convert

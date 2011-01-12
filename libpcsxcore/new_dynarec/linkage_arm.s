@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *   linkage_arm.s for PCSX                                                *
  *   Copyright (C) 2009-2010 Ari64                                         *
- *   Copyright (C) 2010 Gražvydas "notaz" Ignotas                          *
+ *   Copyright (C) 2010-2011 Gražvydas "notaz" Ignotas                     *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -738,32 +738,6 @@ indirect_jump:
 	mov	pc, r0
 	.size	indirect_jump, .-indirect_jump
 	.size	indirect_jump_indexed, .-indirect_jump_indexed
-
-	.align	2
-	.global	jump_eret
-	.type	jump_eret, %function
-jump_eret:
-	ldr	r1, [fp, #reg_cop0+48-dynarec_local] /* Status */
-	ldr	r0, [fp, #last_count-dynarec_local]
-	bic	r1, r1, #2
-	add	r10, r0, r10
-	str	r1, [fp, #reg_cop0+48-dynarec_local] /* Status */
-	str	r10, [fp, #cycle-dynarec_local]
-	bl	check_interupt
-	ldr	r1, [fp, #next_interupt-dynarec_local]
-	ldr	r0, [fp, #reg_cop0+56-dynarec_local] /* EPC */
-	str	r1, [fp, #last_count-dynarec_local]
-	subs	r10, r10, r1
-	bpl	.E11
-.E8:
-	bl	get_addr
-	mov	pc, r0
-.E11:
-	str	r0, [fp, #pcaddr-dynarec_local]
-	bl	cc_interrupt
-	ldr	r0, [fp, #pcaddr-dynarec_local]
-	b	.E8
-	.size	jump_eret, .-jump_eret
 
 	.align	2
 	.global	new_dyna_start
