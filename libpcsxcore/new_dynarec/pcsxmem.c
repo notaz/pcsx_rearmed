@@ -15,6 +15,8 @@
 //#define memprintf printf
 #define memprintf(...)
 
+static int ram_is_ro;
+
 static void read_mem8()
 {
 	memprintf("ari64_read_mem8  %08x @%08x %u\n", address, psxRegs.pc, psxRegs.cycle);
@@ -88,6 +90,32 @@ void (*readmemh[0x10000])();
 void (*writemem[0x10000])();
 void (*writememb[0x10000])();
 void (*writememh[0x10000])();
+
+static void write_mem_check_ro32()
+{
+	if (!ram_is_ro)
+		*(u32 *)(address | 0x80000000) = word;
+}
+
+static void write_biu()
+{
+	memprintf("write_biu %08x, %08x @%08x %u\n", address, word, psxRegs.pc, psxRegs.cycle);
+
+	if (address != 0xfffe0130)
+		return;
+
+	switch (word) {
+	case 0x800: case 0x804:
+		ram_is_ro = 1;
+		break;
+	case 0: case 0x1e988:
+		ram_is_ro = 0;
+		break;
+	default:
+		memprintf("write_biu: unexpected val: %08x\n", word);
+		break;
+	}
+}
 
 /* IO handlers */
 static u32 io_read_sio16()
@@ -313,6 +341,10 @@ void new_dyna_pcsx_mem_init(void)
 		writemem[i]  = writemem [0x8000|i] = writemem [0xa000|i] = ari_write_ram_mirror32;
 	}
 
+	// stupid BIOS RAM check
+	writemem[0] = write_mem_check_ro32;
+	ram_is_ro = 0;
+
 	// RAM direct
 	for (i = 0x8000; i < 0x8020; i++) {
 		readmemb[i] = ari_read_ram8;
@@ -338,7 +370,7 @@ void new_dyna_pcsx_mem_init(void)
 	writememh[0x1f80] = ari_write_io16;
 	writemem[0x1f80]  = ari_write_io32;
 
-	writemem[0xfffe] = write_mem32;
+	writemem[0xfffe] = write_biu;
 #endif
 
 	// fill IO tables
