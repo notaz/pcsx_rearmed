@@ -2753,17 +2753,17 @@ void load_assemble(int i,struct regstat *i_regs)
   //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
   // FIXME: Even if the load is a NOP, we should check for pagefaults...
 #ifdef PCSX
-  if(tl<0) {
-    if(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80) {
+  if(tl<0&&(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80)
+    ||rt1[i]==0) {
       // could be FIFO, must perform the read
+      // ||dummy read
       assem_debug("(forced read)\n");
       tl=get_reg(i_regs->regmap,-1);
       assert(tl>=0);
-    }
   }
+#endif
   if(offset||s<0||c) addr=tl;
   else addr=s;
-#endif
   if(tl>=0) {
     //assert(tl>=0);
     //assert(rt1[i]);

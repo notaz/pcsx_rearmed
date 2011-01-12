@@ -2563,14 +2563,11 @@ do_readstub(int n)
     rth=get_reg(i_regmap,rt1[i]|64);
     rt=get_reg(i_regmap,rt1[i]);
   }
-#ifdef PCSX
-  if(rt<0)
-    // assume forced dummy read
-    rt=get_reg(i_regmap,-1);
-#endif
   assert(rs>=0);
-  assert(rt>=0);
   if(addr<0) addr=rt;
+  if(addr<0)
+    // assume dummy read, no alloced reg
+    addr=get_reg(i_regmap,-1);
   assert(addr>=0);
   int ftable=0;
   if(type==LOADB_STUB||type==LOADBU_STUB)
@@ -2623,19 +2620,22 @@ do_readstub(int n)
   //if((cc=get_reg(regmap,CCREG))>=0) {
   //  emit_loadreg(CCREG,cc);
   //}
-  if(type==LOADB_STUB)
-    emit_movsbl((int)&readmem_dword,rt);
-  if(type==LOADBU_STUB)
-    emit_movzbl((int)&readmem_dword,rt);
-  if(type==LOADH_STUB)
-    emit_movswl((int)&readmem_dword,rt);
-  if(type==LOADHU_STUB)
-    emit_movzwl((int)&readmem_dword,rt);
-  if(type==LOADW_STUB)
-    emit_readword((int)&readmem_dword,rt);
-  if(type==LOADD_STUB) {
-    emit_readword((int)&readmem_dword,rt);
-    if(rth>=0) emit_readword(((int)&readmem_dword)+4,rth);
+  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+    assert(rt>=0);
+    if(type==LOADB_STUB)
+      emit_movsbl((int)&readmem_dword,rt);
+    if(type==LOADBU_STUB)
+      emit_movzbl((int)&readmem_dword,rt);
+    if(type==LOADH_STUB)
+      emit_movswl((int)&readmem_dword,rt);
+    if(type==LOADHU_STUB)
+      emit_movzwl((int)&readmem_dword,rt);
+    if(type==LOADW_STUB)
+      emit_readword((int)&readmem_dword,rt);
+    if(type==LOADD_STUB) {
+      emit_readword((int)&readmem_dword,rt);
+      if(rth>=0) emit_readword(((int)&readmem_dword)+4,rth);
+    }
   }
   emit_jmp(stubs[n][2]); // return address
 }
