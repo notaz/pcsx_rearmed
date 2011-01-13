@@ -3373,7 +3373,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     signed char t=get_reg(i_regs->regmap,rt1[i]);
     char copr=(source[i]>>11)&0x1f;
     //assert(t>=0); // Why does this happen?  OOT is weird
-    if(t>=0) {
+    if(t>=0&&rt1[i]!=0) {
 #ifdef MUPEN64
       emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
       emit_movimm((source[i]>>11)&0x1f,1);
@@ -3594,7 +3594,7 @@ void cop2_assemble(int i,struct regstat *i_regs)
   signed char temp=get_reg(i_regs->regmap,-1);
   if (opcode2[i]==0) { // MFC2
     signed char tl=get_reg(i_regs->regmap,rt1[i]);
-    if(tl>=0)
+    if(tl>=0&&rt1[i]!=0)
       cop2_get_dreg(copr,tl,temp);
   }
   else if (opcode2[i]==4) { // MTC2
@@ -3604,7 +3604,7 @@ void cop2_assemble(int i,struct regstat *i_regs)
   else if (opcode2[i]==2) // CFC2
   {
     signed char tl=get_reg(i_regs->regmap,rt1[i]);
-    if(tl>=0)
+    if(tl>=0&&rt1[i]!=0)
       emit_readword((int)&reg_cop2c[copr],tl);
   }
   else if (opcode2[i]==6) // CTC2
