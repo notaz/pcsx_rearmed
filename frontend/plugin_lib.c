@@ -121,6 +121,11 @@ static void update_input(void)
 	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
 		stop = 1;
 	keystate = actions[IN_BINDTYPE_PLAYER12];
+
+#ifdef X11
+	extern void x11_update_keys(void);
+	x11_update_keys();
+#endif
 }
 
 /* called on every vsync */

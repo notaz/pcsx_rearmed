@@ -81,6 +81,10 @@ OBJS += frontend/plat_omap.o
 else
 OBJS += frontend/plat_dummy.o
 endif
+ifdef X11
+frontend/%.o: CFLAGS += -DX11
+OBJS += frontend/xkb.o
+endif
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
