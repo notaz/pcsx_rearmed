@@ -1873,6 +1873,9 @@ void psxBios_firstfile() { // 42
 		bufile(2);
 	}
 
+	// firstfile() calls _card_read() internally, so deliver it's event
+	DeliverEvent(0x11, 0x2);
+
 	pc0 = ra;
 }
 
