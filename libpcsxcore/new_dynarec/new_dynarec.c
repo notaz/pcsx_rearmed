@@ -3692,7 +3692,7 @@ void mov_assemble(int i,struct regstat *i_regs)
 {
   //if(opcode2[i]==0x10||opcode2[i]==0x12) { // MFHI/MFLO
   //if(opcode2[i]==0x11||opcode2[i]==0x13) { // MTHI/MTLO
-  assert(rt1[i]>0);
+  //assert(rt1[i]>0);
   if(rt1[i]) {
     signed char sh,sl,th,tl;
     th=get_reg(i_regs->regmap,rt1[i]|64);
