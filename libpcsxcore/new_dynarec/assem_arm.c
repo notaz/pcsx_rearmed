@@ -3405,15 +3405,11 @@ void cop0_assemble(int i,struct regstat *i_regs)
     assert(s>=0);
     emit_writeword(s,(int)&readmem_dword);
     wb_register(rs1[i],i_regs->regmap,i_regs->dirty,i_regs->is32);
-#ifdef MUPEN64 /// FIXME
+#ifdef MUPEN64
     emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
     emit_movimm((source[i]>>11)&0x1f,1);
     emit_writeword(0,(int)&PC);
     emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
-#endif
-#ifdef PCSX
-    emit_movimm(source[i],0);
-    emit_writeword(0,(int)&psxRegs.code);
 #endif
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&last_count,ECX);
@@ -3427,6 +3423,19 @@ void cop0_assemble(int i,struct regstat *i_regs)
     // The interrupt must be taken immediately, because a subsequent
     // instruction might disable interrupts again.
     if(copr==12||copr==13) {
+#ifdef PCSX
+      if (is_delayslot) {
+        // burn cycles to cause cc_interrupt, which will
+        // reschedule next_interupt. Relies on CCREG from above.
+        assem_debug("MTC0 DS %d\n", copr);
+        emit_writeword(HOST_CCREG,(int)&last_count);
+        emit_movimm(0,HOST_CCREG);
+        emit_storereg(CCREG,HOST_CCREG);
+        emit_movimm(copr,0);
+        emit_call((int)pcsx_mtc0_ds);
+        return;
+      }
+#endif
       emit_movimm(start+i*4+4,0);
       emit_movimm(0,1);
       emit_writeword(0,(int)&pcaddr);
@@ -3434,7 +3443,12 @@ void cop0_assemble(int i,struct regstat *i_regs)
     }
     //else if(copr==12&&is_delayslot) emit_call((int)MTC0_R12);
     //else
+#ifdef PCSX
+    emit_movimm(copr,0);
+    emit_call((int)pcsx_mtc0);
+#else
     emit_call((int)MTC0);
+#endif
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&Count,HOST_CCREG);
       emit_readword((int)&next_interupt,ECX);

@@ -50,8 +50,8 @@ extern unsigned int next_interupt;
 extern int pending_exception;
 
 /* called by drc */
-void MTC0_();
-#define MTC0 MTC0_ /* don't call interpreter with wrong args */
+void pcsx_mtc0(u32 reg);
+void pcsx_mtc0_ds(u32 reg);
 
 /* misc */
 extern void (*psxHLEt[])();

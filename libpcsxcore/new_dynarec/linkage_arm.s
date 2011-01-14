@@ -624,16 +624,12 @@ cc_interrupt:
 	.global	do_interrupt
 	.type	do_interrupt, %function
 do_interrupt:
-	/* FIXME: cycles already calculated, not needed? */
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
-	ldr	r1, [fp, #next_interupt-dynarec_local]
-	ldr	r10, [fp, #cycle-dynarec_local]
-	str	r1, [fp, #last_count-dynarec_local]
-	sub	r10, r10, r1
 	add	r10, r10, #2
 	mov	pc, r0
 	.size	do_interrupt, .-do_interrupt
+
 	.align	2
 	.global	fp_exception
 	.type	fp_exception, %function

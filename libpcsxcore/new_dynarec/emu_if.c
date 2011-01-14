@@ -109,13 +109,20 @@ void gen_interupt()
 		next_interupt, next_interupt - psxRegs.cycle);
 }
 
-void MTC0_()
-{
-	extern void psxMTC0();
+// from interpreter
+extern void MTC0(int reg, u32 val);
 
-	evprintf("ari64 MTC0 %08x %08x %u\n", psxRegs.code, psxRegs.pc, psxRegs.cycle);
-	psxMTC0();
-	gen_interupt(); /* FIXME: checking pending irqs should be enough */
+void pcsx_mtc0(u32 reg)
+{
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, readmem_word, psxRegs.pc, psxRegs.cycle);
+	MTC0(reg, readmem_word);
+	gen_interupt();
+}
+
+void pcsx_mtc0_ds(u32 reg)
+{
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, readmem_word, psxRegs.pc, psxRegs.cycle);
+	MTC0(reg, readmem_word);
 }
 
 void new_dyna_save(void)
