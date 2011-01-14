@@ -881,6 +881,8 @@ static const char h_cfg_sio[]    = "This should be enabled for certain memcards/
 static const char h_cfg_spuirq[] = "Compatibility tweak; should probably be left off";
 static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix";
+static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
+				   "Might be useful to overcome some dynarec bugs";
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -892,6 +894,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
 	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
 	mee_end,
 };
 
@@ -1357,6 +1360,8 @@ static void menu_leave_emu(void)
 
 void menu_prepare_emu(void)
 {
+	R3000Acpu *prev_cpu = psxCpu;
+
 	plat_video_menu_leave();
 
 	switch (scaling) {
@@ -1377,6 +1382,11 @@ void menu_prepare_emu(void)
 	apply_filter(filter);
 	apply_cpu_clock();
 	stop = 0;
+
+	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
+	if (psxCpu != prev_cpu)
+		// note that this does not really reset, just clears drc caches
+		psxCpu->Reset();
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here
