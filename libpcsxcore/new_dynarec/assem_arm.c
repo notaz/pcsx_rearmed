@@ -1008,6 +1008,15 @@ void emit_or_and_set_flags(int rs1,int rs2,int rt)
   output_w32(0xe1900000|rd_rn_rm(rt,rs1,rs2));
 }
 
+void emit_orrshl_imm(u_int rs,u_int imm,u_int rt)
+{
+  assert(rs<16);
+  assert(rt<16);
+  assert(imm<32);
+  assem_debug("orr %s,%s,%s,lsl #%d\n",regname[rt],regname[rt],regname[rs],imm);
+  output_w32(0xe1800000|rd_rn_rm(rt,rt,rs)|(imm<<7));
+}
+
 void emit_orrshr_imm(u_int rs,u_int imm,u_int rt)
 {
   assert(rs<16);
@@ -3548,17 +3557,17 @@ static void cop2_get_dreg(u_int copr,signed char tl,signed char temp)
       emit_testimm(temp,0x8000); // do we need this?
       emit_andimm(temp,0xf80,temp);
       emit_andne_imm(temp,0,temp);
-      emit_shr(temp,7,tl);
+      emit_shrimm(temp,7,tl);
       emit_readword((int)&reg_cop2d[10],temp);
       emit_testimm(temp,0x8000);
       emit_andimm(temp,0xf80,temp);
       emit_andne_imm(temp,0,temp);
-      emit_orrshr(temp,2,tl);
+      emit_orrshr_imm(temp,2,tl);
       emit_readword((int)&reg_cop2d[11],temp);
       emit_testimm(temp,0x8000);
       emit_andimm(temp,0xf80,temp);
       emit_andne_imm(temp,0,temp);
-      emit_orrshl(temp,3,tl);
+      emit_orrshl_imm(temp,3,tl);
       emit_writeword(tl,(int)&reg_cop2d[copr]);
       break;
     default:
@@ -3580,13 +3589,13 @@ static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
       break;
     case 28:
       emit_andimm(sl,0x001f,temp);
-      emit_shl(temp,7,temp);
+      emit_shlimm(temp,7,temp);
       emit_writeword(temp,(int)&reg_cop2d[9]);
       emit_andimm(sl,0x03e0,temp);
-      emit_shl(temp,2,temp);
+      emit_shlimm(temp,2,temp);
       emit_writeword(temp,(int)&reg_cop2d[10]);
       emit_andimm(sl,0x7c00,temp);
-      emit_shr(temp,3,temp);
+      emit_shrimm(temp,3,temp);
       emit_writeword(temp,(int)&reg_cop2d[11]);
       emit_writeword(sl,(int)&reg_cop2d[28]);
       break;
