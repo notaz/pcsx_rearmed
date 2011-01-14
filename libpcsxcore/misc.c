@@ -534,10 +534,14 @@ int LoadState(const char *file) {
 	gzread(f, &version, sizeof(u32));
 	gzread(f, &hle, sizeof(boolean));
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE) {
+	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion) {
 		gzclose(f);
 		return -1;
 	}
+	Config.HLE = hle;
+
+	if (Config.HLE)
+		psxBiosInit();
 
 	psxCpu->Reset();
 	gzseek(f, 128 * 96 * 3, SEEK_CUR);
@@ -590,7 +594,7 @@ int CheckState(const char *file) {
 
 	gzclose(f);
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE)
+	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion)
 		return -1;
 
 	return 0;

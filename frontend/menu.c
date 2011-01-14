@@ -123,8 +123,16 @@ static int emu_save_load_game(int load, int sram)
 	if (ret != 0)
 		return 0;
 
-	if (load)
+	if (load) {
 		ret = LoadState(fname);
+
+		// reflect hle/bios mode from savestate
+		if (Config.HLE)
+			bios_sel = 0;
+		else if (bios_sel == 0 && bioses[1] != NULL)
+			// XXX: maybe find the right bios instead
+			bios_sel = 1;
+	}
 	else
 		ret = SaveState(fname);
 
