@@ -824,6 +824,11 @@ u_int genimm(u_int imm,u_int *encoded)
   }
   return 0;
 }
+void genimm_checked(u_int imm,u_int *encoded)
+{
+  u_int ret=genimm(imm,encoded);
+  assert(ret);
+}
 u_int genjmp(u_int addr)
 {
   int offset=addr-(int)out-8;
@@ -962,7 +967,7 @@ void emit_testimm(int rs,int imm)
 {
   u_int armval;
   assem_debug("tst %s,$%d\n",regname[rs],imm);
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0xe3100000|rd_rn_rm(0,rs,0)|armval);
 }
 
@@ -970,7 +975,7 @@ void emit_testeqimm(int rs,int imm)
 {
   u_int armval;
   assem_debug("tsteq %s,$%d\n",regname[rs],imm);
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0x03100000|rd_rn_rm(0,rs,0)|armval);
 }
 
@@ -1133,14 +1138,14 @@ void emit_addnop(u_int r)
 void emit_adcimm(u_int rs,int imm,u_int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("adc %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0xe2a00000|rd_rn_rm(rt,rs,0)|armval);
 }
 /*void emit_sbcimm(int imm,u_int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("sbc %s,%s,#%d\n",regname[rt],regname[rt],imm);
   output_w32(0xe2c00000|rd_rn_rm(rt,rt,0)|armval);
 }*/
@@ -1164,7 +1169,7 @@ void emit_rscimm(int rs,int imm,u_int rt)
 {
   assert(0);
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("rsc %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0xe2e00000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -1434,28 +1439,28 @@ void emit_cmovne_imm(int imm,int rt)
 {
   assem_debug("movne %s,#%d\n",regname[rt],imm);
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0x13a00000|rd_rn_rm(rt,0,0)|armval);
 }
 void emit_cmovl_imm(int imm,int rt)
 {
   assem_debug("movlt %s,#%d\n",regname[rt],imm);
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0xb3a00000|rd_rn_rm(rt,0,0)|armval);
 }
 void emit_cmovb_imm(int imm,int rt)
 {
   assem_debug("movcc %s,#%d\n",regname[rt],imm);
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0x33a00000|rd_rn_rm(rt,0,0)|armval);
 }
 void emit_cmovs_imm(int imm,int rt)
 {
   assem_debug("movmi %s,#%d\n",regname[rt],imm);
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   output_w32(0x43a00000|rd_rn_rm(rt,0,0)|armval);
 }
 void emit_cmove_reg(int rs,int rt)
@@ -2095,7 +2100,7 @@ void emit_teq(int rs, int rt)
 void emit_rsbimm(int rs, int imm, int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("rsb %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0xe2600000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2361,7 +2366,7 @@ void emit_fmstat()
 void emit_bicne_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("bicne %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x13c00000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2369,7 +2374,7 @@ void emit_bicne_imm(int rs,int imm,int rt)
 void emit_biccs_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("biccs %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x23c00000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2377,7 +2382,7 @@ void emit_biccs_imm(int rs,int imm,int rt)
 void emit_bicvc_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("bicvc %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x73c00000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2385,7 +2390,7 @@ void emit_bicvc_imm(int rs,int imm,int rt)
 void emit_bichi_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("bichi %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x83c00000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2393,7 +2398,7 @@ void emit_bichi_imm(int rs,int imm,int rt)
 void emit_orrvs_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("orrvs %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x63800000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2401,7 +2406,7 @@ void emit_orrvs_imm(int rs,int imm,int rt)
 void emit_orrne_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("orrne %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x13800000|rd_rn_rm(rt,rs,0)|armval);
 }
@@ -2409,7 +2414,7 @@ void emit_orrne_imm(int rs,int imm,int rt)
 void emit_andne_imm(int rs,int imm,int rt)
 {
   u_int armval;
-  assert(genimm(imm,&armval));
+  genimm_checked(imm,&armval);
   assem_debug("andne %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x12000000|rd_rn_rm(rt,rs,0)|armval);
 }

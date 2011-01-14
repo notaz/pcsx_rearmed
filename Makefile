@@ -12,7 +12,7 @@ CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
 ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 endif
 ifndef DEBUG
-CFLAGS += -O2 # -DNDEBUG
+CFLAGS += -O2 -DNDEBUG
 endif
 USE_OSS = 1
 #USE_ALSA = 1
