@@ -35,6 +35,7 @@
 extern char cfgfile_basename[MAXPATHLEN];
 
 int get_state_filename(char *buf, int size, int i);
+void set_cd_image(const char *fname);
 
 extern unsigned long gpuDisp;
 extern int ready_to_go;

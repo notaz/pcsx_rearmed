@@ -61,15 +61,16 @@ static void CheckSubDir() {
 
 void set_cd_image(const char *fname)
 {
-	const char *ext;
-	int len;
+	const char *ext = NULL;
 	
-	len = strlen(fname);
-	ext = fname;
-	if (len > 2)
-		ext = fname + len - 2;
+	if (fname != NULL) {
+		int len = strlen(fname);
+		ext = fname;
+		if (len > 2)
+			ext = fname + len - 2;
+	}
 
-	if (strcasecmp(ext, ".z") == 0) {
+	if (ext && strcasecmp(ext, ".z") == 0) {
 		SetIsoFile(NULL);
 		cdrcimg_set_fname(fname);
 		strcpy(Config.Cdr, "builtin_cdrcimg");

@@ -36,6 +36,7 @@ typedef enum
 	MA_MAIN_LOAD_STATE,
 	MA_MAIN_RESET_GAME,
 	MA_MAIN_LOAD_ROM,
+	MA_MAIN_RUN_BIOS,
 	MA_MAIN_CONTROLS,
 	MA_MAIN_CREDITS,
 	MA_MAIN_EXIT,
@@ -690,7 +691,7 @@ static int menu_loop_keyconfig(int id, int keys)
 {
 	static int sel = 0;
 
-//	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, ready_to_go);
+//	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 	me_loop(e_menu_keyconfig, &sel, NULL);
 	return 0;
 }
@@ -845,6 +846,8 @@ static menu_entry e_menu_plugin_options[] =
 	mee_end,
 };
 
+static menu_entry e_menu_main[];
+
 static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
@@ -854,6 +857,7 @@ static int menu_loop_plugin_options(int id, int keys)
 	snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[bios_sel]);
 	snprintf(Config.Gpu, sizeof(Config.Gpu), "%s", gpu_plugins[gpu_plugsel]);
 	snprintf(Config.Spu, sizeof(Config.Spu), "%s", spu_plugins[spu_plugsel]);
+	me_enable(e_menu_main, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
 	return 0;
 }
@@ -932,7 +936,7 @@ static int menu_loop_options(int id, int keys)
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
 	e_menu_options[i].enabled = cpu_clock != 0 ? 1 : 0;
-	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go);
+	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
 	me_loop(e_menu_options, &sel, NULL);
 
@@ -982,9 +986,50 @@ const char *plat_get_credits(void)
 		"  frontend (C) 2010-2011 notaz\n";
 }
 
+static int reset_game(void)
+{
+	// sanity check
+	if (bios_sel == 0 && !Config.HLE)
+		return -1;
+
+	ClosePlugins();
+	OpenPlugins();
+	SysReset();
+	if (CheckCdrom() != -1) {
+		LoadCdrom();
+	}
+	return 0;
+}
+
+static int run_bios(void)
+{
+	if (bios_sel == 0)
+		return -1;
+
+	ready_to_go = 0;
+	pl_fbdev_buf = NULL;
+
+	ClosePlugins();
+	set_cd_image(NULL);
+	LoadPlugins();
+	NetOpened = 0;
+	if (OpenPlugins() == -1) {
+		me_update_msg("failed to open plugins");
+		return -1;
+	}
+	plugin_call_rearmed_cbs();
+
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	SysReset();
+
+	ready_to_go = 1;
+	return 0;
+}
+
 static int run_cd_image(const char *fname)
 {
-	extern void set_cd_image(const char *fname);
 	ready_to_go = 0;
 	pl_fbdev_buf = NULL;
 
@@ -1066,18 +1111,15 @@ static int main_menu_handler(int id, int keys)
 			return menu_loop_savestate(1);
 		break;
 	case MA_MAIN_RESET_GAME:
-		if (ready_to_go) {
-			ClosePlugins();
-			OpenPlugins();
-			SysReset();
-			if (CheckCdrom() != -1) {
-				LoadCdrom();
-			}
+		if (ready_to_go && reset_game() == 0)
 			return 1;
-		}
 		break;
 	case MA_MAIN_LOAD_ROM:
 		if (romsel_run() == 0)
+			return 1;
+		break;
+	case MA_MAIN_RUN_BIOS:
+		if (run_bios() == 0)
 			return 1;
 		break;
 	case MA_MAIN_CREDITS:
@@ -1104,6 +1146,7 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Load CD image",      MA_MAIN_LOAD_ROM,    main_menu_handler),
+	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,    main_menu_handler),
 	mee_handler   ("Options",            menu_loop_options),
 	mee_handler   ("Controls",           menu_loop_keyconfig),
 	mee_handler_id("Credits",            MA_MAIN_CREDITS,     main_menu_handler),
@@ -1122,11 +1165,11 @@ void menu_loop(void)
 	menu_leave_emu();
 
 	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, ready_to_go);
-	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go);
-	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go);
+	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go && CdromId[0]);
+	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
+	me_enable(e_menu_main, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
-//	menu_enter(ready_to_go);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 
 	do {
