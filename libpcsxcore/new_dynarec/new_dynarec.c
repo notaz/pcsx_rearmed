@@ -8688,7 +8688,8 @@ int new_recompile_block(int addr)
           if (rt1[i]==31) {
             alloc_reg(&current,i,31);
             dirty_reg(&current,31);
-            assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+            //assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+            assert(rt1[i+1]!=rt1[i]);
             #ifdef REG_PREFETCH
             alloc_reg(&current,i,PTEMP);
             #endif
@@ -8712,7 +8713,8 @@ int new_recompile_block(int addr)
             if (rt1[i]!=0) {
               alloc_reg(&current,i,rt1[i]);
               dirty_reg(&current,rt1[i]);
-              assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+              //assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+              assert(rt1[i+1]!=rt1[i]);
               #ifdef REG_PREFETCH
               alloc_reg(&current,i,PTEMP);
               #endif
