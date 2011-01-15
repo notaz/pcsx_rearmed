@@ -68,7 +68,6 @@ int g_opts;
 // from softgpu plugin
 extern int iUseDither;
 extern int UseFrameSkip;
-extern int UseFrameLimit;
 extern uint32_t dwActFixes;
 extern float fFrameRateHz;
 extern int dwFrameRateTicks;
@@ -141,13 +140,13 @@ static int emu_save_load_game(int load, int sram)
 
 static void menu_set_defconfig(void)
 {
+	g_opts = 0;
 	scaling = SCALE_4_3;
 
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
 	iUseDither = UseFrameSkip = 0;
-	UseFrameLimit = 1;
 	dwActFixes = 1<<7;
 
 	iUseReverb = 2;
@@ -200,7 +199,6 @@ static const struct {
 	CE_INTVAL(g_opts),
 	CE_INTVAL(iUseDither),
 	CE_INTVAL(UseFrameSkip),
-	CE_INTVAL(UseFrameLimit),
 	CE_INTVAL(dwActFixes),
 	CE_INTVAL(iUseReverb),
 	CE_INTVAL(iUseInterpolation),
@@ -887,7 +885,7 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff_h   ("Show CPU load",          0, g_opts, OPT_SHOWCPU, h_cfg_cpul),
-	mee_onoff_h   ("Frame Limiter",          0, UseFrameLimit, 1, h_cfg_fl),
+	mee_onoff_h   ("Disable Frame Limiter",  0, g_opts, OPT_NO_FRAMELIM, h_cfg_fl),
 	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
@@ -1393,11 +1391,7 @@ void menu_prepare_emu(void)
 	if (Config.Cdda)
 		CDR_stop();
 
-	// HACK to set up the frame limiter if softgpu is not used..
-	if (gpu_plugsel != 0) {
-		fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
-		dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
-	}
+	pl_frame_interval = Config.PsxType ? 20000 : 16667;
 
 	if (GPU_open != NULL) {
 		int ret = GPU_open(&gpuDisp, "PCSX", NULL);

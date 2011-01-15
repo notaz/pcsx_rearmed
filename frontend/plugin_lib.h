@@ -39,6 +39,8 @@ struct rearmed_cbs {
 
 extern const struct rearmed_cbs pl_rearmed_cbs;
 
+extern int pl_frame_interval;
+
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif

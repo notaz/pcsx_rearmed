@@ -25,10 +25,11 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 
 void *pl_fbdev_buf;
+int pl_frame_interval;
 int keystate;
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
-static int flip_cnt, flips_per_sec, tick_per_sec;
-extern float fps_cur; // XXX
+static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
+static float vsps_cur;
 
 static int get_cpu_ticks(void)
 {
@@ -53,7 +54,7 @@ static int get_cpu_ticks(void)
 static void print_fps(void)
 {
 	if (pl_fbdev_bpp == 16)
-		pl_text_out16(2, pl_fbdev_h - 10, "%2d %4.1f", flips_per_sec, fps_cur);
+		pl_text_out16(2, pl_fbdev_h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
 }
 
 static void print_cpu_usage(void)
@@ -128,36 +129,67 @@ static void update_input(void)
 #endif
 }
 
+#define MAX_LAG_FRAMES 3
+
+#define tvdiff(tv, tv_old) \
+	((tv.tv_sec - tv_old.tv_sec) * 1000000 + tv.tv_usec - tv_old.tv_usec)
+// assumes us < 1000000
+#define tvadd(tv, us) { \
+	tv.tv_usec += us; \
+	if (tv.tv_usec >= 1000000) { \
+		tv.tv_usec -= 1000000; \
+		tv.tv_sec++; \
+	} \
+}
+
 /* called on every vsync */
 void pl_frame_limit(void)
 {
-	extern void CheckFrameRate(void);
-	static int oldsec;
-	struct timeval tv;
+	static struct timeval tv_old, tv_expect;
+	struct timeval now;
+	int diff;
+
+	vsync_cnt++;
 
 	/* doing input here because the pad is polled
 	 * thousands of times per frame for some reason */
 	update_input();
 
 	pcnt_end(PCNT_ALL);
-	gettimeofday(&tv, 0);
+	gettimeofday(&now, 0);
 
-	if (tv.tv_sec != oldsec) {
+	if (now.tv_sec != tv_old.tv_sec) {
+		diff = tvdiff(now, tv_old);
+		vsps_cur = 0.0f;
+		if (0 < diff && diff < 2000000)
+			vsps_cur = 1000000.0f * vsync_cnt / diff;
 		flips_per_sec = flip_cnt;
-		flip_cnt = 0;
-		oldsec = tv.tv_sec;
+		vsync_cnt = flip_cnt = 0;
+		tv_old = now;
 		if (g_opts & OPT_SHOWCPU)
 			tick_per_sec = get_cpu_ticks();
 	}
 #ifdef PCNT
 	static int ya_vsync_count;
 	if (++ya_vsync_count == PCNT_FRAMES) {
-		pcnt_print(fps_cur);
+		pcnt_print(vsps_cur);
 		ya_vsync_count = 0;
 	}
 #endif
 
-	CheckFrameRate();
+	if (!(g_opts & OPT_NO_FRAMELIM)) {
+		tvadd(tv_expect, pl_frame_interval);
+		diff = tvdiff(tv_expect, now);
+		if (diff > MAX_LAG_FRAMES * pl_frame_interval || diff < -MAX_LAG_FRAMES * pl_frame_interval) {
+			//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, pl_frame_interval);
+			tv_expect = now;
+		}
+		else if (diff > pl_frame_interval) {
+			// yay for working usleep on pandora!
+			//printf("usleep %d\n", diff - pl_frame_interval / 2);
+			usleep(diff - pl_frame_interval / 2);
+		}
+	}
 
 	pcnt_start(PCNT_ALL);
 }
