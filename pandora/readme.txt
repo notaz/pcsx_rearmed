@@ -1,6 +1,8 @@
 
 PCSX-ReARMed - yet another PCSX fork
 
+http://notaz.gp2x.de/pcsx_rearmed.php
+
 
 About
 -----
@@ -11,7 +13,7 @@ version is ARM architecture oriented and features MIPS->ARM recompiler by
 Ari64. It was created for Pandora handheld, but should be usable on other
 devices after some code adjustments.
 
-PCSX ReARMed features GPU and SPU plugins from PCSX4ALL project.
+PCSX ReARMed features GPU plugin from PCSX4ALL project.
 
 
 Usage
@@ -28,6 +30,12 @@ Supportd CD image formats:
 - .Z/.Z.table
 
 CDDA (CD audio) support requires .cue/.bin format.
+
+The emulator can simulate BIOS, which means BIOS files are not required,
+however implementation is not complete and some games still need real BIOS
+to work. To use real BIOS, copy uncompressed BIOS files to
+[sd card]/pandora/appdata/pcsx_rearmed/bios/
+then select the BIOS you want to use in Options->BIOS/Plugins menu.
 
 
 Plugins
@@ -47,6 +55,13 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 
 Changelog
 ---------
+
+r4 (2011-01-15)
++ added real BIOS support (and various things for it to work)
+* fixed various recompiler issues
++ added interpreter option (useful to overcome dynarec bugs)
+* fixed some memory card related issues with HLE bios
+* rewrote frame limiter (old was sometimes sleeping needlessly)
 
 r3 (2011-01-05):
 + added Pickle's port of gpu-gles from psx4m project
