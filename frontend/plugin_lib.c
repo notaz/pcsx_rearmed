@@ -67,7 +67,7 @@ void *pl_fbdev_set_mode(int w, int h, int bpp)
 	void *ret;
 
 	if (w == pl_fbdev_w && h == pl_fbdev_h && bpp == pl_fbdev_bpp)
-		return 0;
+		return pl_fbdev_buf;
 
 	pl_fbdev_w = w;
 	pl_fbdev_h = h;
