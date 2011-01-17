@@ -9686,13 +9686,35 @@ int new_recompile_block(int addr)
               f_regmap[hr]=regs[i].regmap[hr];
             else f_regmap[hr]=-1;
           }
-          else if(regs[i].regmap[hr]>=0) f_regmap[hr]=regs[i].regmap[hr];
+          else if(regs[i].regmap[hr]>=0) {
+            if(f_regmap[hr]!=regs[i].regmap[hr]) {
+              // dealloc old register
+              int n;
+              for(n=0;n<HOST_REGS;n++)
+              {
+                if(f_regmap[n]==regs[i].regmap[hr]) {f_regmap[n]=-1;}
+              }
+              // and alloc new one
+              f_regmap[hr]=regs[i].regmap[hr];
+            }
+          }
           if(branch_regs[i].regmap[hr]>64) {
             if(!((branch_regs[i].dirty>>hr)&1))
               f_regmap[hr]=branch_regs[i].regmap[hr];
             else f_regmap[hr]=-1;
           }
-          else if(branch_regs[i].regmap[hr]>=0) f_regmap[hr]=branch_regs[i].regmap[hr];
+          else if(branch_regs[i].regmap[hr]>=0) {
+            if(f_regmap[hr]!=branch_regs[i].regmap[hr]) {
+              // dealloc old register
+              int n;
+              for(n=0;n<HOST_REGS;n++)
+              {
+                if(f_regmap[n]==branch_regs[i].regmap[hr]) {f_regmap[n]=-1;}
+              }
+              // and alloc new one
+              f_regmap[hr]=branch_regs[i].regmap[hr];
+            }
+          }
           if(itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS
           ||itype[i+1]==SHIFT||itype[i+1]==COP1||itype[i+1]==FLOAT
           ||itype[i+1]==FCOMP||itype[i+1]==FCONV
@@ -9878,7 +9900,18 @@ int new_recompile_block(int addr)
             if(!((regs[i].dirty>>hr)&1))
               f_regmap[hr]=regs[i].regmap[hr];
           }
-          else if(regs[i].regmap[hr]>=0) f_regmap[hr]=regs[i].regmap[hr];
+          else if(regs[i].regmap[hr]>=0) {
+            if(f_regmap[hr]!=regs[i].regmap[hr]) {
+              // dealloc old register
+              int n;
+              for(n=0;n<HOST_REGS;n++)
+              {
+                if(f_regmap[n]==regs[i].regmap[hr]) {f_regmap[n]=-1;}
+              }
+              // and alloc new one
+              f_regmap[hr]=regs[i].regmap[hr];
+            }
+          }
           else if(regs[i].regmap[hr]<0) count++;
         }
       }
