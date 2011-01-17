@@ -1084,7 +1084,7 @@ void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
     if(((ptr>>shift)==(addr>>shift)) ||
        (((ptr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift)))
     {
-      printf("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
+      inv_debug("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
       u_int host_addr=(u_int)kill_pointer(head->addr);
 
       if((host_addr>>12)!=(old_host_addr>>12)) {
