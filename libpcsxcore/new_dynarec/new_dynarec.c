@@ -9693,13 +9693,6 @@ int new_recompile_block(int addr)
             else f_regmap[hr]=-1;
           }
           else if(branch_regs[i].regmap[hr]>=0) f_regmap[hr]=branch_regs[i].regmap[hr];
-          // make sure mapping hasn't changed
-          int hr2;
-          for(hr2=0;hr2<HOST_REGS;hr2++)
-            if(hr2!=hr&&f_regmap[hr]==branch_regs[i].regmap[hr2]) {
-              f_regmap[hr]=-1;
-              break;
-            }
           if(itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS
           ||itype[i+1]==SHIFT||itype[i+1]==COP1||itype[i+1]==FLOAT
           ||itype[i+1]==FCOMP||itype[i+1]==FCONV
