@@ -207,9 +207,9 @@ static const struct {
 	CE_INTVAL(iUseTimer),
 };
 
-static void make_cfg_fname(char *buf, size_t size, int is_game)
+static char *get_cd_label(void)
 {
-	char trimlabel[33];
+	static char trimlabel[33];
 	int j;
 
 	strncpy(trimlabel, CdromLabel, 32);
@@ -218,8 +218,13 @@ static void make_cfg_fname(char *buf, size_t size, int is_game)
 		if (trimlabel[j] == ' ')
 			trimlabel[j] = 0;
 
+	return trimlabel;
+}
+
+static void make_cfg_fname(char *buf, size_t size, int is_game)
+{
 	if (is_game)
-		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", trimlabel, CdromId);
+		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", get_cd_label(), CdromId);
 	else
 		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
 }
@@ -528,7 +533,7 @@ static void pnd_menu_init(void)
 	struct dirent *ent;
 	int i, count = 0;
 	char **mfilters;
-	char buff[64], *p;
+	char buff[64];
 	DIR *dir;
 
 	cpu_clock_st = cpu_clock = get_cpu_clock();
@@ -547,9 +552,11 @@ static void pnd_menu_init(void)
 				perror("readdir");
 			break;
 		}
-		p = strstr(ent->d_name, "_up");
-		if (p != NULL && (p[3] == 0 || !strcmp(p + 3, "_h")))
-			count++;
+
+		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
+			continue;
+
+		count++;
 	}
 
 	if (count == 0)
@@ -563,11 +570,21 @@ static void pnd_menu_init(void)
 	for (i = 0; (ent = readdir(dir)); ) {
 		size_t len;
 
-		p = strstr(ent->d_name, "_up");
-		if (p == NULL || (p[3] != 0 && strcmp(p + 3, "_h")))
+		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
 			continue;
 
-		len = p - ent->d_name;
+		len = strlen(ent->d_name);
+
+		// skip pre-HF5 extra files
+		if (len >= 3 && strcmp(ent->d_name + len - 3, "_v3") == 0)
+			continue;
+		if (len >= 3 && strcmp(ent->d_name + len - 3, "_v5") == 0)
+			continue;
+
+		// have to cut "_up_h" for pre-HF5
+		if (len > 5 && strcmp(ent->d_name + len - 5, "_up_h") == 0)
+			len -= 5;
+
 		if (len > sizeof(buff) - 1)
 			continue;
 
@@ -815,7 +832,7 @@ static int menu_loop_plugin_gpu(int id, int keys)
 static const char *men_spu_reverb[] = { "Off", "Fake", "On", NULL };
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_irq_wait[]  = "Wait for CPU; only useful for some games, may cause glitches";
-static const char h_spu_thread[]    = "Run sound emulation in separate thread";
+static const char h_spu_thread[]    = "Run sound emulation in main thread (recommended)";
 
 static menu_entry e_menu_plugin_spu[] =
 {
@@ -823,7 +840,7 @@ static menu_entry e_menu_plugin_spu[] =
 	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
 	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
 	mee_onoff_h   ("SPU IRQ Wait",              0, iSPUIRQWait, 1, h_spu_irq_wait),
-	mee_onoff_h   ("Use sound thread",          0, iUseTimer, 1, h_spu_thread),
+	mee_onoff_h   ("Sound in main thread",      0, iUseTimer, 2, h_spu_thread),
 	mee_end,
 };
 
@@ -871,7 +888,7 @@ static int menu_loop_plugin_options(int id, int keys)
 // ------------ adv options menu ------------
 
 static const char h_cfg_cpul[]   = "Shows CPU usage in %%";
-static const char h_cfg_fl[]     = "Keeps the game from running too fast";
+static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running too fast";
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
@@ -979,6 +996,20 @@ static void debug_menu_loop(void)
 // ------------ main menu ------------
 
 void OnFile_Exit();
+
+static void draw_frame_main(void)
+{
+	if (CdromId[0] != 0) {
+		char buff[64];
+		snprintf(buff, sizeof(buff), "%.32s/%.9s", get_cd_label(), CdromId);
+		smalltext_out16(4, 1, buff, 0x105f);
+	}
+}
+
+static void draw_frame_credits(void)
+{
+	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
+}
 
 const char *plat_get_credits(void)
 {
@@ -1132,7 +1163,7 @@ static int main_menu_handler(int id, int keys)
 			return 1;
 		break;
 	case MA_MAIN_CREDITS:
-		draw_menu_credits(draw_frame_debug);
+		draw_menu_credits(draw_frame_credits);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		break;
 	case MA_MAIN_EXIT:
@@ -1182,7 +1213,7 @@ void menu_loop(void)
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 
 	do {
-		me_loop(e_menu_main, &sel, NULL);
+		me_loop(e_menu_main, &sel, draw_frame_main);
 	} while (!ready_to_go);
 
 	/* wait until menu, ok, back is released */
@@ -1352,6 +1383,9 @@ static void menu_leave_emu(void)
 		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
 			menu_darken_bg(d, s, w, 0);
 	}
+
+	if (ready_to_go)
+		cpu_clock = get_cpu_clock();
 
 	plat_video_menu_enter(ready_to_go);
 }

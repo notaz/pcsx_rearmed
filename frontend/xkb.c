@@ -68,21 +68,22 @@ static void DestroyKeyboard(void) {
 		XkbSetDetectableAutoRepeat(disp, 0, NULL);
 }
 
-void x11_update_keys(void) {
+int x11_update_keys(void) {
 	uint8_t					i;
 	XEvent					evt;
 	XClientMessageEvent		*xce;
 	uint16_t				Key;
+	static int keystate_x11;
 	int psxkey, leave = 0;
 	Display *disp = (Display *)gpuDisp;
 
-	if (initialized < 2000) {
+	if (!disp)
+		return 0;
+
+	if (!initialized) {
 		initialized++;
 		InitKeyboard();
 	}
-
-	if (!disp)
-		return;
 
 	while (XPending(disp)) {
 		XNextEvent(disp, &evt);
@@ -101,9 +102,9 @@ void x11_update_keys(void) {
 
 				if (psxkey >= 0) {
 					if (evt.type == KeyPress)
-						keystate |= 1 << psxkey;
+						keystate_x11 |= 1 << psxkey;
 					else
-						keystate &= ~(1 << psxkey);
+						keystate_x11 &= ~(1 << psxkey);
 				}
 				if (evt.type == KeyPress && Key == XK_Escape)
 					leave = 1;
@@ -121,4 +122,6 @@ void x11_update_keys(void) {
 		DestroyKeyboard();
 		exit(1);
 	}
+
+	return keystate_x11;
 }

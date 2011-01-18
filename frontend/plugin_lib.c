@@ -124,8 +124,8 @@ static void update_input(void)
 	keystate = actions[IN_BINDTYPE_PLAYER12];
 
 #ifdef X11
-	extern void x11_update_keys(void);
-	x11_update_keys();
+	extern int x11_update_keys(void);
+	keystate |= x11_update_keys();
 #endif
 }
 

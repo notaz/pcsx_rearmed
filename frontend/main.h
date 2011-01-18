@@ -27,10 +27,10 @@
 #define PLUGINS_DIR "/.pcsx/plugins/"
 #define PLUGINS_CFG_DIR "/.pcsx/plugins/cfg/"
 #define PCSX_DOT_DIR "/.pcsx/"
-#define BIOS_DIR "/.pcsx/bios/"
 #define STATES_DIR "/.pcsx/sstates/"
 #define CHEATS_DIR "/.pcsx/cheats/"
 #define PATCHES_DIR "/.pcsx/patches/"
+#define BIOS_DIR "/bios/"
 
 extern char cfgfile_basename[MAXPATHLEN];
 

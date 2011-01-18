@@ -872,9 +872,12 @@ rescan:
 			{
 				int newlen;
 				char *p, *newdir;
-				if (!(inp & PBTN_MOK)) continue;
+				if (!(inp & PBTN_MOK))
+					continue;
 				newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
 				newdir = malloc(newlen);
+				if (newdir == NULL)
+					break;
 				if (strcmp(namelist[sel+1]->d_name, "..") == 0) {
 					char *start = curr_path;
 					p = start + strlen(start) - 1;
@@ -918,6 +921,13 @@ rescan:
 	if (n > 0) {
 		while (n--) free(namelist[n]);
 		free(namelist);
+	}
+
+	// restore curr_path
+	if (fname != NULL) {
+		n = strlen(curr_path);
+		if (curr_path + n + 1 == fname)
+			curr_path[n] = '/';
 	}
 
 	return ret;
