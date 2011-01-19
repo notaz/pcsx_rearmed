@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "plugin_lib.h"
 #include "linux/fbdev.h"
@@ -146,6 +147,7 @@ static void update_input(void)
 void pl_frame_limit(void)
 {
 	static struct timeval tv_old, tv_expect;
+	static int vsync_cnt_prev;
 	struct timeval now;
 	int diff;
 
@@ -162,9 +164,10 @@ void pl_frame_limit(void)
 		diff = tvdiff(now, tv_old);
 		vsps_cur = 0.0f;
 		if (0 < diff && diff < 2000000)
-			vsps_cur = 1000000.0f * vsync_cnt / diff;
+			vsps_cur = 1000000.0f * (vsync_cnt - vsync_cnt_prev) / diff;
+		vsync_cnt_prev = vsync_cnt;
 		flips_per_sec = flip_cnt;
-		vsync_cnt = flip_cnt = 0;
+		flip_cnt = 0;
 		tv_old = now;
 		if (g_opts & OPT_SHOWCPU)
 			tick_per_sec = get_cpu_ticks();
@@ -248,4 +251,54 @@ const struct rearmed_cbs pl_rearmed_cbs = {
 	pl_fbdev_close,
 	&UseFrameSkip,
 };
+
+/* watchdog */
+static void *watchdog_thread(void *unused)
+{
+	int vsync_cnt_old = 0;
+	int seen_dead = 0;
+	int sleep_time = 5;
+
+	while (1)
+	{
+		sleep(sleep_time);
+
+		if (stop) {
+			seen_dead = 0;
+			sleep_time = 5;
+			continue;
+		}
+		if (vsync_cnt != vsync_cnt_old) {
+			vsync_cnt_old = vsync_cnt;
+			seen_dead = 0;
+			sleep_time = 2;
+			continue;
+		}
+
+		seen_dead++;
+		sleep_time = 1;
+		if (seen_dead > 1)
+			fprintf(stderr, "watchdog: seen_dead %d\n", seen_dead);
+		if (seen_dead > 4) {
+			fprintf(stderr, "watchdog: lockup detected, aborting\n");
+			// we can't do any cleanup here really, the main thread is
+			// likely touching resources and would crash anyway
+			abort();
+		}
+	}
+}
+
+void pl_start_watchdog(void)
+{
+	pthread_attr_t attr;
+	pthread_t tid;
+	int ret;
+	
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	ret = pthread_create(&tid, &attr, watchdog_thread, NULL);
+	if (ret != 0)
+		fprintf(stderr, "could not start watchdog: %d\n", ret);
+}
 

@@ -27,6 +27,7 @@ void *pl_fbdev_flip(void);
 void  pl_fbdev_close(void);
 
 void pl_text_out16(int x, int y, const char *texto, ...);
+void pl_start_watchdog(void);
 
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);

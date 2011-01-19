@@ -16,6 +16,7 @@
 
 #include "main.h"
 #include "plugin.h"
+#include "plugin_lib.h"
 #include "pcnt.h"
 #include "menu.h"
 #include "../libpcsxcore/misc.h"
@@ -242,6 +243,8 @@ int main(int argc, char *argv[])
 		menu_prepare_emu();
 	else
 		menu_loop();
+
+	pl_start_watchdog();
 
 	while (1)
 	{
