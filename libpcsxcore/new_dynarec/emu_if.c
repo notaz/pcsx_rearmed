@@ -192,6 +192,8 @@ static void ari64_clear(u32 addr, u32 size)
 {
 	u32 start, end;
 
+	size *= 4; /* PCSX uses DMA units */
+
 	evprintf("ari64_clear %08x %04x\n", addr, size);
 
 	/* check for RAM mirrors */
