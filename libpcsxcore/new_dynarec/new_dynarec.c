@@ -179,6 +179,7 @@ struct ll_entry
 #define COP2 27   // Coprocessor 2 move
 #define C2LS 28   // Coprocessor 2 load/store
 #define C2OP 29   // Coprocessor 2 operation
+#define INTCALL 30// Call interpreter to handle rare corner cases
 
   /* stubs */
 #define CC_STUB 1
@@ -220,6 +221,7 @@ void jump_syscall();
 void jump_syscall_hle();
 void jump_eret();
 void jump_hlecall();
+void jump_intcall();
 void new_dyna_leave();
 
 // TLB
@@ -727,7 +729,7 @@ int needed_again(int r, int i)
       j++;
       break;
     }
-    if(itype[i+j]==SYSCALL||itype[i+j]==HLECALL||((source[i+j]&0xfc00003f)==0x0d))
+    if(itype[i+j]==SYSCALL||itype[i+j]==HLECALL||itype[i+j]==INTCALL||((source[i+j]&0xfc00003f)==0x0d))
     {
       break;
     }
@@ -3748,6 +3750,16 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   emit_jmp((int)jump_hlecall);
 }
 
+void intcall_assemble(int i,struct regstat *i_regs)
+{
+  signed char ccreg=get_reg(i_regs->regmap,CCREG);
+  assert(ccreg==HOST_CCREG);
+  assert(!is_delayslot);
+  emit_movimm(start+i*4,0); // Get PC
+  emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+  emit_jmp((int)jump_intcall);
+}
+
 void ds_assemble(int i,struct regstat *i_regs)
 {
   is_delayslot=1;
@@ -3792,6 +3804,7 @@ void ds_assemble(int i,struct regstat *i_regs)
       mov_assemble(i,i_regs);break;
     case SYSCALL:
     case HLECALL:
+    case INTCALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -4645,6 +4658,7 @@ void ds_assemble_entry(int i)
       mov_assemble(t,&regs[t]);break;
     case SYSCALL:
     case HLECALL:
+    case INTCALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -6476,6 +6490,7 @@ static void pagespan_ds()
       mov_assemble(0,&regs[0]);break;
     case SYSCALL:
     case HLECALL:
+    case INTCALL:
     case SPAN:
     case UJUMP:
     case RJUMP:
@@ -6699,7 +6714,7 @@ void unneeded_registers(int istart,int iend,int r)
         }
       }
     }
-    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL||itype[i]==INTCALL)
     {
       // SYSCALL instruction (software interrupt)
       u=1;
@@ -7065,7 +7080,7 @@ static void provisional_r32()
         if((regs[i].was32>>dep2[i+1])&1) r32|=1LL<<dep2[i+1];
       }
     }
-    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL||itype[i]==INTCALL)
     {
       // SYSCALL instruction (software interrupt)
       r32=0;
@@ -7419,7 +7434,7 @@ void clean_registers(int istart,int iend,int wr)
         }
       }
     }
-    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL||itype[i]==INTCALL)
     {
       // SYSCALL instruction (software interrupt)
       will_dirty_i=0;
@@ -7620,6 +7635,9 @@ void disassemble_inst(int i)
         break;
       case C2LS:
         printf (" %x: %s cpr2[%d],r%d+%x\n",start+i*4,insn[i],(source[i]>>16)&0x1f,rs1[i],imm[i]);
+        break;
+      case INTCALL:
+        printf (" %x: %s (INTCALL)\n",start+i*4,insn[i]);
         break;
       default:
         //printf (" %s %8x\n",insn[i],source[i]);
@@ -8133,6 +8151,18 @@ int new_recompile_block(int addr)
         printf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
         break;
     }
+#ifdef PCSX
+    /* detect branch in delay slot early */
+    if(type==RJUMP||type==UJUMP||type==CJUMP||type==SJUMP||type==FJUMP) {
+      opcode[i+1]=source[i+1]>>26;
+      opcode2[i+1]=source[i+1]&0x3f;
+      if((0<opcode[i+1]&&opcode[i+1]<8)||(opcode[i+1]==0&&(opcode2[i+1]==8||opcode2[i+1]==9))) {
+        printf("branch in delay slot @%08x (%08x)\n", addr + i*4+4, addr);
+        // don't handle first branch and call interpreter if it's hit
+        type=INTCALL;
+      }
+    }
+#endif
     itype[i]=type;
     opcode2[i]=op2;
     /* Get registers/immediates */
@@ -8343,6 +8373,7 @@ int new_recompile_block(int addr)
         break;
       case SYSCALL:
       case HLECALL:
+      case INTCALL:
         rs1[i]=CCREG;
         rs2[i]=0;
         rt1[i]=0;
@@ -8367,13 +8398,7 @@ int new_recompile_block(int addr)
     /* Is this the end of the block? */
     if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000)) {
       if(rt1[i-1]==0) { // Continue past subroutine call (JAL)
-        done=1;
-        // Does the block continue due to a branch?
-        for(j=i-1;j>=0;j--)
-        {
-          if(ba[j]==start+i*4+4) done=j=0;
-          if(ba[j]==start+i*4+8) done=j=0;
-        }
+        done=2;
       }
       else {
         if(stop_after_jal) done=1;
@@ -8386,7 +8411,15 @@ int new_recompile_block(int addr)
       if(i>MAXBLOCK/2) done=1;
     }
     if(itype[i]==SYSCALL&&stop_after_jal) done=1;
-    if(itype[i]==HLECALL) done=1;
+    if(itype[i]==HLECALL||itype[i]==INTCALL) done=2;
+    if(done==2) {
+      // Does the block continue due to a branch?
+      for(j=i-1;j>=0;j--)
+      {
+        if(ba[j]==start+i*4+4) done=j=0;
+        if(ba[j]==start+i*4+8) done=j=0;
+      }
+    }
     //assert(i<MAXBLOCK-1);
     if(start+i*4==pagelimit-4) done=1;
     assert(start+i*4<pagelimit);
@@ -8995,6 +9028,7 @@ int new_recompile_block(int addr)
           break;
         case SYSCALL:
         case HLECALL:
+        case INTCALL:
           syscall_alloc(&current,i);
           break;
         case SPAN:
@@ -9459,7 +9493,7 @@ int new_recompile_block(int addr)
         }
       }
     }
-    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL||itype[i]==INTCALL)
     {
       // SYSCALL instruction (software interrupt)
       nr=0;
@@ -10264,7 +10298,7 @@ int new_recompile_block(int addr)
         if((regs[i].was32>>dep2[i+1])&1) r32|=1LL<<dep2[i+1];
       }
     }
-    else if(itype[i]==SYSCALL||itype[i]==HLECALL)
+    else if(itype[i]==SYSCALL||itype[i]==HLECALL||itype[i]==INTCALL)
     {
       // SYSCALL instruction (software interrupt)
       r32=0;
@@ -10661,6 +10695,8 @@ int new_recompile_block(int addr)
           syscall_assemble(i,&regs[i]);break;
         case HLECALL:
           hlecall_assemble(i,&regs[i]);break;
+        case INTCALL:
+          intcall_assemble(i,&regs[i]);break;
         case UJUMP:
           ujump_assemble(i,&regs[i]);ds=1;break;
         case RJUMP:
