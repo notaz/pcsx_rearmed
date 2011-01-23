@@ -175,7 +175,9 @@ static void ari64_reset()
 	pending_exception = 1;
 }
 
-static void ari64_execute()
+// execute until predefined leave points
+// (HLE softcall exit and BIOS fastboot end)
+static void ari64_execute_until()
 {
 	schedule_timeslice();
 
@@ -186,6 +188,14 @@ static void ari64_execute()
 
 	evprintf("ari64_execute end %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
+}
+
+static void ari64_execute()
+{
+	while (!stop) {
+		ari64_execute_until();
+		evprintf("drc left @%08x\n", psxRegs.pc);
+	}
 }
 
 static void ari64_clear(u32 addr, u32 size)
@@ -229,7 +239,7 @@ R3000Acpu psxRec = {
 	ari64_reset,
 #if defined(__arm__)
 	ari64_execute,
-	ari64_execute,
+	ari64_execute_until,
 #else
 	intExecuteT,
 	intExecuteBlockT,
