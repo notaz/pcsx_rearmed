@@ -946,14 +946,14 @@ ENDVRAM:
         {
          gpuDataC = primTableCX[command];
          gpuCommand = command;
-         PUTLE32(&gpuDataM[0], gdata);
+         PUTLE32_(&gpuDataM[0], gdata);
          gpuDataP = 1;
         }
        else continue;
       }
      else
       {
-       PUTLE32(&gpuDataM[gpuDataP], gdata);
+       PUTLE32_(&gpuDataM[gpuDataP], gdata);
        if(gpuDataC>128)
         {
          if((gpuDataC==254 && gpuDataP>=3) ||
@@ -986,7 +986,7 @@ ENDVRAM:
 
 void CALLBACK GPUwriteData(uint32_t gdata)
 {
- PUTLE32(&gdata, gdata);
+ PUTLE32_(&gdata, gdata);
  GPUwriteDataMem(&gdata,1);
 }
 

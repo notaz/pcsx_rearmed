@@ -703,9 +703,21 @@ jump_hlecall:
 	ldr	r2, [fp, #last_count-dynarec_local]
 	str	r0, [fp, #pcaddr-dynarec_local]
 	add	r2, r2, r10
-	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
 	adr	lr, pcsx_return
+	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
 	bx	r1
+	.size	jump_hlecall, .-jump_hlecall
+
+	.align	2
+	.global	jump_intcall
+	.type	jump_intcall, %function
+jump_intcall:
+	ldr	r2, [fp, #last_count-dynarec_local]
+	str	r0, [fp, #pcaddr-dynarec_local]
+	add	r2, r2, r10
+	adr	lr, pcsx_return
+	str	r2, [fp, #cycle-dynarec_local] /* PCSX cycle counter */
+	b	execI
 	.size	jump_hlecall, .-jump_hlecall
 
 new_dyna_leave:
@@ -822,34 +834,34 @@ ari_read_ram_mirror32:
 	ari_read_ram_mirror (3<<11), ldr
 
 /* invalidation is already taken care of by the caller */
-.macro ari_write_ram bic_const var op
+.macro ari_write_ram bic_const var pf
 	ldr	r0, [fp, #address-dynarec_local]
-	ldr	r1, [fp, #\var-dynarec_local]
+	ldr\pf	r1, [fp, #\var-dynarec_local]
 .if \bic_const
 	bic	r0, r0, #\bic_const
 .endif
-	\op	r1, [r0]
+	str\pf	r1, [r0]
 	mov	pc, lr
 .endm
 
 ari_write_ram8:
-	ari_write_ram 0, byte, strb
+	ari_write_ram 0, byte, b
 
 ari_write_ram16:
-	ari_write_ram 1, hword, strh
+	ari_write_ram 1, hword, h
 
 ari_write_ram32:
-	ari_write_ram 3, word, str
+	ari_write_ram 3, word,
 
-.macro ari_write_ram_mirror mvn_const var op
+.macro ari_write_ram_mirror mvn_const var pf
 	ldr	r0, [fp, #address-dynarec_local]
 	mvn	r3, #\mvn_const
-	ldr	r1, [fp, #\var-dynarec_local]
+	ldr\pf	r1, [fp, #\var-dynarec_local]
 	and	r0, r3, lsr #11
 	ldr	r2, [fp, #invc_ptr-dynarec_local]
 	orr	r0, r0, #1<<31
 	ldrb	r2, [r2, r0, lsr #12]
-	\op	r1, [r0]
+	str\pf	r1, [r0]
 	tst	r2, r2
 	movne	pc, lr
 	lsr     r0, r0, #12
@@ -857,13 +869,13 @@ ari_write_ram32:
 .endm
 
 ari_write_ram_mirror8:
-	ari_write_ram_mirror 0, byte, strb
+	ari_write_ram_mirror 0, byte, b
 
 ari_write_ram_mirror16:
-	ari_write_ram_mirror (1<<11), hword, strh
+	ari_write_ram_mirror (1<<11), hword, h
 
 ari_write_ram_mirror32:
-	ari_write_ram_mirror (3<<11), word, str
+	ari_write_ram_mirror (3<<11), word,
 
 
 .macro ari_read_bios_mirror bic_const op
@@ -963,9 +975,9 @@ ari_read_io32:
 .endif
 .endm
 
-.macro ari_write_io opvl opst var mem_tab tab_shift
+.macro ari_write_io pf var mem_tab tab_shift
 	ldr	r0, [fp, #address-dynarec_local]
-	\opvl	r1, [fp, #\var-dynarec_local]
+	ldr\pf	r1, [fp, #\var-dynarec_local]
 .if \tab_shift == 0
 	bic	r0, r0, #3
 .endif
@@ -985,7 +997,7 @@ ari_read_io32:
 	bxne	r12
 0:
 	ldr	r3, [fp, #psxH_ptr-dynarec_local]
-	\opst	r1, [r2, r3]
+	str\pf	r1, [r2, r3]
 	mov	pc, lr
 1:
 .if \tab_shift == 1 @ write16
@@ -1018,9 +1030,9 @@ ari_write_io8:
 	mov	pc, lr
 
 ari_write_io16:
-	ari_write_io ldrh, strh, hword, tab_write16, 1
+	ari_write_io h, hword, tab_write16, 1
 
 ari_write_io32:
-	ari_write_io ldr, str, word, tab_write32, 0
+	ari_write_io , word, tab_write32, 0
 
 @ vim:filetype=armasm
