@@ -273,12 +273,138 @@ void psxDelayTest(int reg, u32 bpc) {
 	psxBranchTest();
 }
 
+static u32 psxBranchNoDelay(void) {
+	u32 *code;
+	u32 temp;
+
+	code = (u32 *)PSXM(psxRegs.pc);
+	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	switch (_Op_) {
+		case 0x00: // SPECIAL
+			switch (_Funct_) {
+				case 0x08: // JR
+					return _u32(_rRs_);
+				case 0x09: // JALR
+					temp = _u32(_rRs_);
+					if (_Rd_) { _SetLink(_Rd_); }
+					return temp;
+			}
+			break;
+		case 0x01: // REGIMM
+			switch (_Rt_) {
+				case 0x00: // BLTZ
+					if (_i32(_rRs_) < 0)
+						return _BranchTarget_;
+					break;
+				case 0x01: // BGEZ
+					if (_i32(_rRs_) >= 0)
+						return _BranchTarget_;
+					break;
+				case 0x08: // BLTZAL
+					if (_i32(_rRs_) < 0) {
+						_SetLink(31);
+						return _BranchTarget_;
+					}
+					break;
+				case 0x09: // BGEZAL
+					if (_i32(_rRs_) >= 0) {
+						_SetLink(31);
+						return _BranchTarget_;
+					}
+					break;
+			}
+			break;
+		case 0x02: // J
+			return _JumpTarget_;
+		case 0x03: // JAL
+			_SetLink(31);
+			return _JumpTarget_;
+		case 0x04: // BEQ
+			if (_i32(_rRs_) == _i32(_rRt_))
+				return _BranchTarget_;
+			break;
+		case 0x05: // BNE
+			if (_i32(_rRs_) != _i32(_rRt_))
+				return _BranchTarget_;
+			break;
+		case 0x06: // BLEZ
+			if (_i32(_rRs_) <= 0)
+				return _BranchTarget_;
+			break;
+		case 0x07: // BGTZ
+			if (_i32(_rRs_) > 0)
+				return _BranchTarget_;
+			break;
+	}
+
+	return (u32)-1;
+}
+
+static int psxDelayBranchExec(u32 tar) {
+	execI();
+
+	branch = 0;
+	psxRegs.pc = tar;
+	psxRegs.cycle += BIAS;
+	psxBranchTest();
+	return 1;
+}
+
+static int psxDelayBranchTest(u32 tar1) {
+	u32 tar2, tmp1, tmp2;
+
+	tar2 = psxBranchNoDelay();
+	if (tar2 == (u32)-1)
+		return 0;
+
+	debugI();
+
+	/*
+	 * Branch in delay slot:
+	 * - execute 1 instruction at tar1
+	 * - jump to tar2 (target of branch in delay slot; this branch
+	 *   has no normal delay slot, instruction at tar1 was fetched instead)
+	 */
+	psxRegs.pc = tar1;
+	tmp1 = psxBranchNoDelay();
+	if (tmp1 == (u32)-1) {
+		return psxDelayBranchExec(tar2);
+	}
+	debugI();
+	psxRegs.cycle += BIAS;
+
+	/*
+	 * Got a branch at tar1:
+	 * - execute 1 instruction at tar2
+	 * - jump to target of that branch (tmp1)
+	 */
+	psxRegs.pc = tar2;
+	tmp2 = psxBranchNoDelay();
+	if (tmp2 == (u32)-1) {
+		return psxDelayBranchExec(tmp1);
+	}
+	debugI();
+	psxRegs.cycle += BIAS;
+
+	/*
+	 * Got a branch at tar2:
+	 * - execute 1 instruction at tmp1
+	 * - jump to target of that branch (tmp2)
+	 */
+	psxRegs.pc = tmp1;
+	return psxDelayBranchExec(tmp2);
+}
+
 __inline void doBranch(u32 tar) {
 	u32 *code;
 	u32 tmp;
 
 	branch2 = branch = 1;
 	branchPC = tar;
+
+	// check for branch in delay slot
+	if (psxDelayBranchTest(tar))
+		return;
 
 	code = (u32 *)PSXM(psxRegs.pc);
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
