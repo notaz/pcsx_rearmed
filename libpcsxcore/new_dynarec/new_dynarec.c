@@ -8128,19 +8128,20 @@ int new_recompile_block(int addr)
 #endif
 #ifdef PCSX
       case 0x12: strcpy(insn[i],"COP2"); type=NI;
+        // note: COP MIPS-1 encoding differs from MIPS32
         op2=(source[i]>>21)&0x1f;
-        switch(op2)
+        if (source[i]&0x3f) {
+          if (gte_handlers[source[i]&0x3f]!=NULL) {
+            snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
+            type=C2OP;
+          }
+        }
+        else switch(op2)
         {
           case 0x00: strcpy(insn[i],"MFC2"); type=COP2; break;
           case 0x02: strcpy(insn[i],"CFC2"); type=COP2; break;
           case 0x04: strcpy(insn[i],"MTC2"); type=COP2; break;
           case 0x06: strcpy(insn[i],"CTC2"); type=COP2; break;
-          default:
-            if (gte_handlers[source[i]&0x3f]!=NULL) {
-              snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
-              type=C2OP;
-            }
-            break;
         }
         break;
       case 0x32: strcpy(insn[i],"LWC2"); type=C2LS; break;
