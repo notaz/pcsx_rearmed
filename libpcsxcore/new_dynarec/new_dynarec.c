@@ -1783,16 +1783,17 @@ void cop1_alloc(struct regstat *current,int i)
   alloc_reg(current,i,CSREG); // Load status
   if(opcode2[i]<3) // MFC1/DMFC1/CFC1
   {
-    assert(rt1[i]);
-    clear_const(current,rt1[i]);
-    if(opcode2[i]==1) {
-      alloc_reg64(current,i,rt1[i]); // DMFC1
-      current->is32&=~(1LL<<rt1[i]);
-    }else{
-      alloc_reg(current,i,rt1[i]); // MFC1/CFC1
-      current->is32|=1LL<<rt1[i];
+    if(rt1[i]){
+      clear_const(current,rt1[i]);
+      if(opcode2[i]==1) {
+        alloc_reg64(current,i,rt1[i]); // DMFC1
+        current->is32&=~(1LL<<rt1[i]);
+      }else{
+        alloc_reg(current,i,rt1[i]); // MFC1/CFC1
+        current->is32|=1LL<<rt1[i];
+      }
+      dirty_reg(current,rt1[i]);
     }
-    dirty_reg(current,rt1[i]);
     alloc_reg_temp(current,i,-1);
   }
   else if(opcode2[i]>3) // MTC1/DMTC1/CTC1
