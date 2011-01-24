@@ -8084,11 +8084,11 @@ int new_recompile_block(int addr)
           break;
         }
         break;
+#ifndef FORCE32
       case 0x14: strcpy(insn[i],"BEQL"); type=CJUMP; break;
       case 0x15: strcpy(insn[i],"BNEL"); type=CJUMP; break;
       case 0x16: strcpy(insn[i],"BLEZL"); type=CJUMP; break;
       case 0x17: strcpy(insn[i],"BGTZL"); type=CJUMP; break;
-#ifndef FORCE32
       case 0x18: strcpy(insn[i],"DADDI"); type=IMM16; break;
       case 0x19: strcpy(insn[i],"DADDIU"); type=IMM16; break;
       case 0x1A: strcpy(insn[i],"LDL"); type=LOADLR; break;
