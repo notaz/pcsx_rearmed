@@ -5650,7 +5650,6 @@ void sjump_assemble(int i,struct regstat *i_regs)
     // First test branch condition, then execute delay slot, then branch
     ooo=0;
   }
-  assert(opcode2[i]<0x10||ooo); // FIXME (BxxZALL)
 
   if(ooo) {
     s1l=get_reg(branch_regs[i].regmap,rs1[i]);
@@ -5837,18 +5836,32 @@ void sjump_assemble(int i,struct regstat *i_regs)
     // In-order execution (branch first)
     //printf("IOE\n");
     int nottaken=0;
+    if(rt1[i]==31) {
+      int rt,return_address;
+      assert(rt1[i+1]!=31);
+      assert(rt2[i+1]!=31);
+      rt=get_reg(branch_regs[i].regmap,31);
+      if(rt>=0) {
+        // Save the PC even if the branch is not taken
+        return_address=start+i*4+8;
+        emit_movimm(return_address,rt); // PC into link register
+        #ifdef IMM_PREFETCH
+        emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
+        #endif
+      }
+    }
     if(!unconditional) {
       //printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
       if(!only32)
       {
         assert(s1h>=0);
-        if((opcode2[i]&0x1d)==0) // BLTZ/BLTZL
+        if((opcode2[i]&0x0d)==0) // BLTZ/BLTZL/BLTZAL/BLTZALL
         {
           emit_test(s1h,s1h);
           nottaken=(int)out;
           emit_jns(1);
         }
-        if((opcode2[i]&0x1d)==1) // BGEZ/BGEZL
+        if((opcode2[i]&0x0d)==1) // BGEZ/BGEZL/BGEZAL/BGEZALL
         {
           emit_test(s1h,s1h);
           nottaken=(int)out;
@@ -5858,13 +5871,13 @@ void sjump_assemble(int i,struct regstat *i_regs)
       else
       {
         assert(s1l>=0);
-        if((opcode2[i]&0x1d)==0) // BLTZ/BLTZL
+        if((opcode2[i]&0x0d)==0) // BLTZ/BLTZL/BLTZAL/BLTZALL
         {
           emit_test(s1l,s1l);
           nottaken=(int)out;
           emit_jns(1);
         }
-        if((opcode2[i]&0x1d)==1) // BGEZ/BGEZL
+        if((opcode2[i]&0x0d)==1) // BGEZ/BGEZL/BGEZAL/BGEZALL
         {
           emit_test(s1l,s1l);
           nottaken=(int)out;
