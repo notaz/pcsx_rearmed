@@ -1583,7 +1583,11 @@ void cdrWrite1(unsigned char rt) {
 		//AddIrqQueue(cdr.Cmd, 0x28);
 
 		// Tomb Raider 2 - cdda
-		AddIrqQueue(cdr.Cmd, 0x40);
+		//AddIrqQueue(cdr.Cmd, 0x40);
+
+		// rearmed: the above works in pcsxr-svn, but breaks here
+		// (TOCA world touring cars), perhaps some other code is not merged yet
+		AddIrqQueue(cdr.Cmd, 0x1000);
         	break;
 
     	case CdlGetTN:
