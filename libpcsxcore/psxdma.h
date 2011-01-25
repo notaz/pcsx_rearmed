@@ -64,6 +64,13 @@ extern "C" {
 	new_dyna_set_event(PSXINT_GPUOTCDMA, eCycle); \
 }
 
+#define CDRDMA_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_CDRDMA); \
+	psxRegs.intCycle[PSXINT_CDRDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_CDRDMA].sCycle = psxRegs.cycle; \
+	new_dyna_set_event(PSXINT_CDRDMA, eCycle); \
+}
+
 void psxDma2(u32 madr, u32 bcr, u32 chcr);
 void psxDma3(u32 madr, u32 bcr, u32 chcr);
 void psxDma4(u32 madr, u32 bcr, u32 chcr);

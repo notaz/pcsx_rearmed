@@ -163,6 +163,18 @@ void psxBranchTest() {
 				gpuotcInterrupt();
 			}
 		}
+		if (psxRegs.interrupt & (1 << PSXINT_CDRDMA)) { // cdrom
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle) >= psxRegs.intCycle[PSXINT_CDRDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_CDRDMA);
+				cdrDmaInterrupt();
+			}
+		}
+		if (psxRegs.interrupt & (1 << PSXINT_CDRLID)) { // cdr lid states
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRLID].sCycle) >= psxRegs.intCycle[PSXINT_CDRLID].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_CDRLID);
+				cdrLidSeekInterrupt();
+			}
+		}
 	}
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {

@@ -61,6 +61,8 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_SPUDMA]	= spuInterrupt,
 	[PSXINT_MDECINDMA] = mdec0Interrupt,
 	[PSXINT_GPUOTCDMA] = gpuotcInterrupt,
+	[PSXINT_CDRDMA] = cdrDmaInterrupt,
+	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
 };
 
 /* local dupe of psxBranchTest, using event_cycles */
@@ -133,7 +135,7 @@ void new_dyna_save(void)
 void new_dyna_restore(void)
 {
 	int i;
-	for (i = 0; i < PSXINT_NEWDRC_CHECK; i++)
+	for (i = 0; i < PSXINT_COUNT; i++)
 		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
 }
 
