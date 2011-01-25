@@ -739,6 +739,7 @@ static long CALLBACK ISOopen(void) {
 	if (numtracks > 1 && ti[1].handle == NULL) {
 		ti[1].handle = fopen(GetIsoFile(), "rb");
 	}
+	cddaCurOffset = cddaStartOffset = 0;
 
 	return 0;
 }
@@ -803,7 +804,17 @@ static long CALLBACK ISOgetTN(unsigned char *buffer) {
 //  byte 1 - second
 //  byte 2 - minute
 static long CALLBACK ISOgetTD(unsigned char track, unsigned char *buffer) {
-	if (numtracks > 0 && track <= numtracks) {
+	if (track == 0) {
+		// CD length according pcsxr-svn (done a bit different here)
+		unsigned int sect;
+		unsigned char time[3];
+		sect = msf2sec(ti[numtracks].start) + msf2sec(ti[numtracks].length);
+		sec2msf(sect, time);
+		buffer[2] = time[0];
+		buffer[1] = time[1];
+		buffer[0] = time[2];
+	}
+	else if (numtracks > 0 && track <= numtracks) {
 		buffer[2] = ti[track].start[0];
 		buffer[1] = ti[track].start[1];
 		buffer[0] = ti[track].start[2];
@@ -926,12 +937,13 @@ static long CALLBACK ISOgetStatus(struct CdrStat *stat) {
 	if (playing) {
 		stat->Type = 0x02;
 		stat->Status |= 0x80;
-		sec = (cddaStartOffset + cddaCurOffset) / CD_FRAMESIZE_RAW;
-		sec2msf(sec, (char *)stat->Time);
 	}
 	else {
 		stat->Type = 0x01;
 	}
+
+	sec = (cddaStartOffset + cddaCurOffset) / CD_FRAMESIZE_RAW;
+	sec2msf(sec, (char *)stat->Time);
 
 	return 0;
 }
