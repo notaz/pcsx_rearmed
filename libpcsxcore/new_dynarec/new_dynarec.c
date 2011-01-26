@@ -309,7 +309,14 @@ static void tlb_hacks()
 
 static u_int get_page(u_int vaddr)
 {
+#ifndef PCSX
   u_int page=(vaddr^0x80000000)>>12;
+#else
+  u_int page=vaddr&~0xe0000000;
+  if (page < 0x1000000)
+    page &= ~0x0e00000; // RAM mirrors
+  page>>=12;
+#endif
 #ifndef DISABLE_TLB
   if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
 #endif

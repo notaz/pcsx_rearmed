@@ -202,23 +202,20 @@ static void ari64_execute()
 
 static void ari64_clear(u32 addr, u32 size)
 {
-	u32 start, end;
+	u32 start, end, main_ram;
 
 	size *= 4; /* PCSX uses DMA units */
 
 	evprintf("ari64_clear %08x %04x\n", addr, size);
 
 	/* check for RAM mirrors */
-	if ((addr & ~0xe0600000) < 0x200000) {
-		addr &= ~0xe0600000;
-		addr |=  0x80000000;
-	}
+	main_ram = (addr & 0xffe00000) == 0x80000000;
 
 	start = addr >> 12;
 	end = (addr + size) >> 12;
 
 	for (; start <= end; start++)
-		if (!invalid_code[start])
+		if (!main_ram || !invalid_code[start])
 			invalidate_block(start);
 }
 
