@@ -81,6 +81,24 @@ void set_cd_image(const char *fname)
 	}
 }
 
+static void set_default_paths(void)
+{
+	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
+	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
+	strcpy(Config.BiosDir, "bios");
+
+	strcpy(Config.PluginsDir, "plugins");
+	strcpy(Config.Gpu, "builtin_gpu");
+	strcpy(Config.Spu, "builtin_spu");
+	strcpy(Config.Cdr, "builtin_cdr");
+	strcpy(Config.Pad1, "builtin_pad");
+	strcpy(Config.Pad2, "builtin_pad");
+	strcpy(Config.Net, "Disabled");
+	Config.PsxAuto = 1;
+
+	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
+}
+
 int main(int argc, char *argv[])
 {
 	char file[MAXPATHLEN] = "";
@@ -164,31 +182,10 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&Config, 0, sizeof(PcsxConfig));
-	strcpy(Config.Net, "Disabled");
 
 	CheckSubDir();
-
-	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
-	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
+	set_default_paths();
 	strcpy(Config.Bios, "HLE");
-	strcpy(Config.BiosDir, "bios");
-
-	strcpy(Config.PluginsDir, "plugins");
-	strcpy(Config.Gpu, "builtin_gpu");
-	strcpy(Config.Spu, "builtin_spu");
-	strcpy(Config.Cdr, "builtin_cdr");
-	strcpy(Config.Pad1, "builtin_pad");
-	strcpy(Config.Pad2, "builtin_pad");
-	Config.PsxAuto = 1;
-
-	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
-/*
-	// switch to plugin dotdir
-	// this lets plugins work without modification!
-	gchar *plugin_default_dir = g_build_filename(getenv("HOME"), PLUGINS_DIR, NULL);
-	chdir(plugin_default_dir);
-	g_free(plugin_default_dir);
-*/
 
 	if (cdfile)
 		set_cd_image(cdfile);
@@ -203,6 +200,11 @@ int main(int argc, char *argv[])
 	menu_init();
 
 	if (LoadPlugins() == -1) {
+		// FIXME: this recovery doesn't work, just delete bad config and bail out
+		// SysMessage("could not load plugins, retrying with defaults\n");
+		set_default_paths();
+		snprintf(path, sizeof(path), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		remove(path);
 		SysMessage("Failed loading plugins!");
 		return 1;
 	}
