@@ -184,9 +184,13 @@ long  GPU_freeze(unsigned int bWrite, GPUFreeze_t* p2)
 	{
 		p2->GPU_gp1 = GPU_GP1;
 		memset(p2->Control, 0, sizeof(p2->Control));
-		p2->Control[5] = DisplayArea[0] | (DisplayArea[1] << 10);
-		p2->Control[7] = DisplayArea[4] | (DisplayArea[5] << 10);
-		p2->Control[8] = ((GPU_GP1 >> 17) & 0x3f) | ((GPU_GP1 >> 10) & 0x40);
+		// save resolution and registers for P.E.Op.S. compatibility
+		p2->Control[3] = (3 << 24) | ((GPU_GP1 >> 23) & 1);
+		p2->Control[4] = (4 << 24) | ((GPU_GP1 >> 29) & 3);
+		p2->Control[5] = (5 << 24) | (DisplayArea[0] | (DisplayArea[1] << 10));
+		p2->Control[6] = (6 << 24) | (2560 << 12);
+		p2->Control[7] = (7 << 24) | (DisplayArea[4] | (DisplayArea[5] << 10));
+		p2->Control[8] = (8 << 24) | ((GPU_GP1 >> 17) & 0x3f) | ((GPU_GP1 >> 10) & 0x40);
 		memcpy(p2->FrameBuffer, (u16*)GPU_FrameBuffer, FRAME_BUFFER_SIZE);
 		return (1);
 	}
