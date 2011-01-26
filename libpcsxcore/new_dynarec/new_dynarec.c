@@ -5644,12 +5644,16 @@ void sjump_assemble(int i,struct regstat *i_regs)
   //if(opcode2[i]>=0x10) return; // FIXME (BxxZAL)
   //assert(opcode2[i]<0x10||rs1[i]==0); // FIXME (BxxZAL)
 
-  if(ooo)
+  if(ooo) {
     if(rs1[i]&&(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]))
-  {
-    // Write-after-read dependency prevents out of order execution
-    // First test branch condition, then execute delay slot, then branch
-    ooo=0;
+    {
+      // Write-after-read dependency prevents out of order execution
+      // First test branch condition, then execute delay slot, then branch
+      ooo=0;
+    }
+    if(rt1[i]==31&&(rs1[i+1]==31||rs2[i+1]==31||rt1[i+1]==31||rt2[i+1]==31))
+      // BxxZAL $ra is available to delay insn, so do it in order
+      ooo=0;
   }
 
   if(ooo) {
@@ -5692,8 +5696,6 @@ void sjump_assemble(int i,struct regstat *i_regs)
     load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,CCREG,CCREG);
     if(rt1[i]==31) {
       int rt,return_address;
-      assert(rt1[i+1]!=31);
-      assert(rt2[i+1]!=31);
       rt=get_reg(branch_regs[i].regmap,31);
       assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
       if(rt>=0) {
@@ -5839,8 +5841,6 @@ void sjump_assemble(int i,struct regstat *i_regs)
     int nottaken=0;
     if(rt1[i]==31) {
       int rt,return_address;
-      assert(rt1[i+1]!=31);
-      assert(rt2[i+1]!=31);
       rt=get_reg(branch_regs[i].regmap,31);
       if(rt>=0) {
         // Save the PC even if the branch is not taken
@@ -8736,7 +8736,7 @@ int new_recompile_block(int addr)
           if (rt1[i]==31) {
             alloc_reg(&current,i,31);
             dirty_reg(&current,31);
-            //assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+            assert(rs1[i+1]!=31&&rs2[i+1]!=31);
             assert(rt1[i+1]!=rt1[i]);
             #ifdef REG_PREFETCH
             alloc_reg(&current,i,PTEMP);
@@ -8761,7 +8761,7 @@ int new_recompile_block(int addr)
             if (rt1[i]!=0) {
               alloc_reg(&current,i,rt1[i]);
               dirty_reg(&current,rt1[i]);
-              //assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+              assert(rs1[i+1]!=rt1[i]&&rs2[i+1]!=rt1[i]);
               assert(rt1[i+1]!=rt1[i]);
               #ifdef REG_PREFETCH
               alloc_reg(&current,i,PTEMP);
@@ -8906,7 +8906,6 @@ int new_recompile_block(int addr)
             if (rt1[i]==31) { // BLTZAL/BGEZAL
               alloc_reg(&current,i,31);
               dirty_reg(&current,31);
-              assert(rs1[i+1]!=31&&rs2[i+1]!=31);
               //#ifdef REG_PREFETCH
               //alloc_reg(&current,i,PTEMP);
               //#endif
