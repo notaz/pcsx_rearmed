@@ -63,6 +63,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_GPUOTCDMA] = gpuotcInterrupt,
 	[PSXINT_CDRDMA] = cdrDmaInterrupt,
 	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
+	[PSXINT_CDRPLAY] = cdrPlayInterrupt,
 };
 
 /* local dupe of psxBranchTest, using event_cycles */
@@ -174,6 +175,7 @@ static void ari64_reset()
 	printf("ari64_reset\n");
 	new_dyna_pcsx_mem_reset();
 	invalidate_all_pages();
+	new_dyna_restore();
 	pending_exception = 1;
 }
 

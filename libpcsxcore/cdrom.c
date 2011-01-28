@@ -120,7 +120,6 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define cdReadTime (PSXCLK / 75)
 
 static struct CdrStat stat;
-static struct SubQ *subq;
 
 static unsigned int msf2sec(char *msf) {
 	return ((msf[0] * 60 + msf[1]) * 75) + msf[2];
@@ -154,6 +153,13 @@ static void sec2msf(unsigned int s, char *msf) {
 	psxRegs.intCycle[PSXINT_CDRLID].cycle = eCycle; \
 	psxRegs.intCycle[PSXINT_CDRLID].sCycle = psxRegs.cycle; \
 	new_dyna_set_event(PSXINT_CDRLID, eCycle); \
+}
+
+#define CDRPLAY_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_CDRPLAY); \
+	psxRegs.intCycle[PSXINT_CDRPLAY].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_CDRPLAY].sCycle = psxRegs.cycle; \
+	new_dyna_set_event(PSXINT_CDRPLAY, eCycle); \
 }
 
 #define StartReading(type, eCycle) { \
@@ -446,7 +452,7 @@ void Set_Track()
 
 
 static u8 fake_subq_local[3], fake_subq_real[3], fake_subq_index, fake_subq_change;
-void Create_Fake_Subq()
+static void Create_Fake_Subq()
 {
 	u8 temp_cur[3], temp_next[3], temp_start[3], pregap;
 	int diff;
@@ -529,9 +535,127 @@ void Create_Fake_Subq()
 }
 
 
+static void cdrPlayInterrupt_Autopause()
+{
+	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
+	if (subq != NULL ) {
+#ifdef CDR_LOG
+		CDR_LOG( "CDDA SUB - %X:%X:%X\n",
+			subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
+#endif
+
+		/*
+		CDDA Autopause
+
+		Silhouette Mirage ($3)
+		Tomb Raider 1 ($7)
+		*/
+
+		if( cdr.CurTrack >= btoi( subq->TrackNumber ) )
+			return;
+	} else {
+		Create_Fake_Subq();
+#ifdef CDR_LOG___0
+		CDR_LOG( "CDDA FAKE SUB - %d:%d:%d\n",
+			fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
+#endif
+
+		if( !fake_subq_change )
+			return;
+
+		fake_subq_change = 0;
+	}
+
+	if (cdr.Mode & MODE_AUTOPAUSE) {
+#ifdef CDR_LOG
+		CDR_LOG( "CDDA STOP\n" );
+#endif
+
+		// Magic the Gathering
+		// - looping territory cdda
+
+		// ...?
+		//cdr.ResultReady = 1;
+		//cdr.Stat = DataReady;
+		cdr.Stat = DataEnd;
+		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+
+		StopCdda();
+	}
+	if (cdr.Mode & MODE_REPORT) {
+		// rearmed note: PCSX-Reloaded does this for every sector,
+		// but we try to get away with only track change here.
+		memset( cdr.Result, 0, 8 );
+		cdr.Result[0] |= 0x10;
+
+		if (subq != NULL) {
+#ifdef CDR_LOG
+			CDR_LOG( "REPPLAY SUB - %X:%X:%X\n",
+				subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
+#endif
+			cdr.CurTrack = btoi( subq->TrackNumber );
+
+			// BIOS CD Player: data already BCD format
+			cdr.Result[1] = subq->TrackNumber;
+			cdr.Result[2] = subq->IndexNumber;
+
+			cdr.Result[3] = subq->AbsoluteAddress[0];
+			cdr.Result[4] = subq->AbsoluteAddress[1];
+			cdr.Result[5] = subq->AbsoluteAddress[2];
+		} else {
+#ifdef CDR_LOG___0
+			CDR_LOG( "REPPLAY FAKE - %d:%d:%d\n",
+				fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
+#endif
+
+			// track # / index #
+			cdr.Result[1] = itob(cdr.CurTrack);
+			cdr.Result[2] = itob(fake_subq_index);
+			// absolute
+			cdr.Result[3] = itob( fake_subq_real[0] );
+			cdr.Result[4] = itob( fake_subq_real[1] );
+			cdr.Result[5] = itob( fake_subq_real[2] );
+		}
+
+		// Rayman: Logo freeze (resultready + dataready)
+		cdr.ResultReady = 1;
+		cdr.Stat = DataReady;
+
+		SetResultSize(8);
+		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+	}
+}
+
+void cdrPlayInterrupt()
+{
+	if( !cdr.Play ) return;
+
+#ifdef CDR_LOG
+	CDR_LOG( "CDDA - %d:%d:%d\n",
+		cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
+#endif
+	CDRPLAY_INT( cdReadTime );
+
+	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & MODE_CDDA) && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
+		cdrPlayInterrupt_Autopause();
+
+	cdr.SetSectorPlay[2]++;
+	if (cdr.SetSectorPlay[2] == 75) {
+		cdr.SetSectorPlay[2] = 0;
+		cdr.SetSectorPlay[1]++;
+		if (cdr.SetSectorPlay[1] == 60) {
+			cdr.SetSectorPlay[1] = 0;
+			cdr.SetSectorPlay[0]++;
+		}
+	}
+
+	//Check_Shell(0);
+}
+
 void cdrInterrupt() {
 	int i;
 	unsigned char Irq = cdr.Irq;
+	struct SubQ *subq;
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
@@ -679,8 +803,7 @@ void cdrInterrupt() {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 
-			// TODO?
-			// CDRPLAY_INT( cdReadTime );
+			CDRPLAY_INT( cdReadTime );
 			break;
 
 		case CdlForward:
@@ -834,7 +957,8 @@ void cdrInterrupt() {
 				}
 				}
 			} else {
-				if( cdr.Play == FALSE ) Create_Fake_Subq();
+				if( cdr.Play == FALSE || !(cdr.Mode & MODE_CDDA) || !(cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)) )
+					Create_Fake_Subq();
 
 
 				// track # / index #
