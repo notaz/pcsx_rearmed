@@ -8419,6 +8419,17 @@ int new_recompile_block(int addr)
     else ba[i]=-1;
     /* Is this the end of the block? */
     if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000)) {
+#ifdef PCSX
+      // check for link register access in delay slot
+      int rt1_=rt1[i-1];
+      if(rt1_!=0&&(rs1[i]==rt1_||rs2[i]==rt1_||rt1[i]==rt1_||rt2[i]==rt1_)) {
+        printf("link access in delay slot @%08x (%08x)\n", addr + i*4, addr);
+        ba[i-1]=-1;
+        itype[i-1]=INTCALL;
+        done=2;
+      }
+      else
+#endif
       if(rt1[i-1]==0) { // Continue past subroutine call (JAL)
         done=2;
       }
