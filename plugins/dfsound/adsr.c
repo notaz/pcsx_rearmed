@@ -86,7 +86,10 @@ INLINE int MixADSR(int ch)                             // MIX ADSR
    if(s_chan[ch].ADSRX.EnvelopeVol<0) 
     {
      s_chan[ch].ADSRX.EnvelopeVol=0;
-     s_chan[ch].bOn=0;
+     // don't stop if this chan can still cause irqs
+     if(!(spuCtrl&0x40) || (s_chan[ch].pCurr > pSpuIrq && s_chan[ch].pLoop > pSpuIrq))
+      //s_chan[ch].bOn=0;
+      s_chan[ch].pCurr=(unsigned char *)-1;
      //s_chan[ch].bReverb=0;
      //s_chan[ch].bNoise=0;
     }
