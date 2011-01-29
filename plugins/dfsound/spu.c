@@ -979,7 +979,7 @@ long CALLBACK SPUconfigure(void)
 #ifdef _MACOSX
  DoConfiguration();
 #else
- StartCfgTool("CFG");
+// StartCfgTool("CFG");
 #endif
  return 0;
 }
@@ -990,7 +990,7 @@ void CALLBACK SPUabout(void)
 #ifdef _MACOSX
  DoAbout();
 #else
- StartCfgTool("ABOUT");
+// StartCfgTool("ABOUT");
 #endif
 }
 

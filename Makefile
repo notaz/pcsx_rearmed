@@ -44,8 +44,8 @@ CFLAGS += -DDRC_DBG
 endif
 
 # spu
-OBJS += plugins/dfsound/adsr.o plugins/dfsound/dma.o plugins/dfsound/reverb.o plugins/dfsound/xa.o \
-	plugins/dfsound/freeze.o plugins/dfsound/cfg.o plugins/dfsound/registers.o plugins/dfsound/spu.o
+OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
+	plugins/dfsound/registers.o plugins/dfsound/spu.o
 ifeq "$(USE_OSS)" "1"
 plugins/dfsound/%.o: CFLAGS += -DUSEOSS
 OBJS += plugins/dfsound/oss.o
