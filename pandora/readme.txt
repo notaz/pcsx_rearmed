@@ -59,6 +59,20 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
+r5 (2011-01-31)
++ added support for .bz format, also partial support for
+  .znx and eboot.pbp formats
++ merged latest cdrom code from PCSX-Reloaded project
+* fixed remaining savestate incompatibilities between PCSX4ALL
+  and P.E.Op.S. GPU plugins
+* fixed channel disable preventing irqs in P.E.Op.S. SPU plugin
+* fixed some alignment issues
++ added handling for branches in delay slots
++ fixed some unexpected drops to menu
+* fixed lots of recompiler related issues (see GIT)
++ added watchdog thread to detect emulator lockups
+* minor frontend adjustments
+
 r4 (2011-01-15)
 + added real BIOS support (and various things for it to work)
 * fixed various recompiler issues
