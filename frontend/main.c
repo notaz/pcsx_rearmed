@@ -64,14 +64,12 @@ void set_cd_image(const char *fname)
 {
 	const char *ext = NULL;
 	
-	if (fname != NULL) {
-		int len = strlen(fname);
-		ext = fname;
-		if (len > 2)
-			ext = fname + len - 2;
-	}
+	if (fname != NULL)
+		ext = strrchr(fname, '.');
 
-	if (ext && strcasecmp(ext, ".z") == 0) {
+	if (ext && (
+	    strcasecmp(ext, ".z") == 0 || strcasecmp(ext, ".bz") == 0 ||
+	    strcasecmp(ext, ".znx") == 0 || strcasecmp(ext, ".pbp") == 0)) {
 		SetIsoFile(NULL);
 		cdrcimg_set_fname(fname);
 		strcpy(Config.Cdr, "builtin_cdrcimg");

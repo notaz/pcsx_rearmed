@@ -6,7 +6,7 @@ LD = $(CROSS_COMPILE)ld
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -ggdb -Ifrontend
-LDFLAGS += -lz -lpthread -ldl -lpng
+LDFLAGS += -lz -lpthread -ldl -lpng -lbz2
 ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
 ASFLAGS += -mcpu=cortex-a8 -mfpu=neon

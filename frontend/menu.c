@@ -175,7 +175,7 @@ static const struct {
 	CE_CONFIG_STR(Bios),
 	CE_CONFIG_STR(Gpu),
 	CE_CONFIG_STR(Spu),
-	CE_CONFIG_STR(Cdr),
+//	CE_CONFIG_STR(Cdr),
 	CE_CONFIG_VAL(Xa),
 	CE_CONFIG_VAL(Sio),
 	CE_CONFIG_VAL(Mdec),
@@ -387,8 +387,8 @@ fail:
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".z", ".cue" };
-	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table" };
+	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".cue", ".z", ".bz", ".znx", ".pbp" };
+	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table", ".index" };
 	const char *ext = strrchr(fname, '.');
 	int i;
 

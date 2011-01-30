@@ -22,12 +22,15 @@ Usage
 This version features a framebuffer driven menu that can be used to run
 games and configure the emulator.
 
-Supportd CD image formats:
+Supported CD image formats:
 - .bin/.cue
 - .bin/.toc
 - .img/.ccd/.sub
 - .mdf/.mds
 - .Z/.Z.table
+- .bz/.bz.table
+- .ZNX/.ZNX.table (partial)
+- EBOOT.PBP (PSP, partial)
 
 CDDA (CD audio) support requires .cue/.bin format.
 
