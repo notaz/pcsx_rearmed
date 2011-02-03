@@ -109,8 +109,8 @@
 #define PUTLE16(X, Y) do{*((uint16_t *)X)=HOST2LE16((uint16_t)Y);}while(0)
 #define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE16((uint32_t)Y);}while(0)
 #ifdef __arm__
-#define GETLE32(X) (*(uint16_t *)X|(((uint16_t *)X)[1]<<16))
-#define PUTLE32(X, Y) do{*((uint16_t *)X)=(uint32_t)Y;((uint16_t *)X)[1]=(uint32_t)(Y)>>16;}while(0)
+#define GETLE32(X) (*(uint16_t *)(X)|(((uint16_t *)(X))[1]<<16))
+#define PUTLE32(X, Y) do{uint16_t *p_=(uint16_t *)(X);uint32_t y_=Y;p_[0]=y_;p_[1]=y_>>16;}while(0)
 #else
 #define GETLE32 GETLE32_
 #define PUTLE32 PUTLE32_
