@@ -75,4 +75,35 @@ bgr888_to_rgb888:
     bx          lr
 
 
+.global bgr888_to_rgb565
+bgr888_to_rgb565:
+    @ r2 /= 48
+    mov         r2, r2, lsr #4
+    movw        r3, #0x5556
+    movt        r3, #0x5555
+    umull       r12,r2, r3, r2
+
+    mov         r3, #0x07e0
+    vdup.16     q15, r3
+0:
+    vld3.8      {d1-d3}, [r1, :64]!
+    vld3.8      {d5-d7}, [r1, :64]!
+
+    vshll.u8    q8, d2, #3      @ g
+    vshll.u8    q9, d6, #3
+    vshr.u8     d0, d3, #3      @ b
+    vshr.u8     d4, d7, #3
+    vzip.8      d0, d1          @ rb
+    vzip.8      d4, d5
+    vbit        q0, q8, q15
+    vbit        q2, q9, q15
+
+    vstmia      r0!, {d0,d1}
+    vstmia      r0!, {d4,d5}
+    subs        r2, r2, #1
+    bne         0b
+
+    bx          lr
+
+
 @ vim:filetype=armasm

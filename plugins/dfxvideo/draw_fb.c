@@ -10,6 +10,7 @@
 #include "gpu.h"
 
 #include "plugin_lib.h"
+#include "arm_utils.h"
 #include "pcnt.h"
 
 // misc globals
@@ -18,15 +19,8 @@ BOOL           bCheckMask = FALSE;
 unsigned short sSetMask;
 unsigned long  lSetMask;
 
-#ifndef __arm__
-#define bgr555_to_rgb565 memcpy
-#define bgr888_to_rgb888 memcpy
-#endif
-
 static void blit(void)
 {
- extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
- extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
  int px = PSXDisplay.DisplayPosition.x & ~3; // XXX: align needed by bgr*_to_...
  int py = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
@@ -38,9 +32,13 @@ static void blit(void)
  if (w <= 0)
    return;
 
- // TODO: clear border if centering?
-
+#ifndef MAEMO
  pitch *= PSXDisplay.RGB24 ? 3 : 2;
+#else
+ // n900 doesn't do rgb24 for some reason
+ pitch *= 2;
+ #define bgr888_to_rgb888 bgr888_to_rgb565
+#endif
 
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
