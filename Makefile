@@ -14,7 +14,9 @@ endif
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
-USE_OSS = 1
+CFLAGS += $(EXTRA_CFLAGS)
+
+USE_OSS ?= 1
 #USE_ALSA = 1
 #DRC_DBG = 1
 #PCNT = 1
@@ -65,21 +67,29 @@ OBJS += plugins/dfxvideo/draw.o
 else
 OBJS += plugins/dfxvideo/draw_fb.o
 endif
+
 # cdrcimg
 plugins/cdrcimg/%.o: CFLAGS += -Wall
 OBJS += plugins/cdrcimg/cdrcimg.o
 
 # gui
-OBJS += frontend/main.o frontend/plugin.o frontend/plugin_lib.o
-OBJS += frontend/menu.o
+OBJS += frontend/main.o frontend/plugin.o 
+ifeq "$(USE_GTK)" "1"
+OBJS += maemo/hildon.o maemo/main.o
+maemo/%.o: maemo/%.c
+else
+OBJS += frontend/plugin_lib.o frontend/menu.o
 OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
 OBJS += frontend/linux/plat.o frontend/linux/oshide.o
 OBJS += frontend/common/fonts.o frontend/common/input.o frontend/common/readpng.o
 ifeq "$(ARCH)" "arm"
-OBJS += frontend/arm_utils.o
 OBJS += frontend/plat_omap.o
 else
 OBJS += frontend/plat_dummy.o
+endif
+endif # !USE_GTK
+ifeq "$(ARCH)" "arm"
+OBJS += frontend/arm_utils.o
 endif
 ifdef X11
 frontend/%.o: CFLAGS += -DX11

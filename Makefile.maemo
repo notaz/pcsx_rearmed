@@ -1,7 +1,19 @@
 USE_GTK=1
-USE_ALSA = 1
+USE_ALSA=1
 USE_OSS=0
+
 LDFLAGS += $(shell pkg-config --libs hildon-1 libpulse)
-CFLAGS += -march=armv7-a -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math -O3 \
-	-mfpu=neon -funsafe-math-optimizations \
-	-mstructure-size-boundary=32 -falign-functions=32 -falign-loops
+EXTRA_CFLAGS += -march=armv7-a -O3 -mfpu=neon -funsafe-math-optimizations \
+	-mstructure-size-boundary=32 -falign-functions=32 -falign-loops \
+	-DMAEMO -DMAEMO_CHANGES $(shell pkg-config --cflags hildon-1)
+
+#EXTRA_CFLAGS += -Imaemo/gtk-2.0 -Imaemo/hildon -Imaemo/glib-2.0 -Imaemo/cairo \
+	-Imaemo/pango-1.0 -Imaemo/atk-1.0 -DMAEMO -DMAEMO_CHANGES
+
+include Makefile
+
+maemo: pcsx plugins/spunull/spunull.so
+	rm -rf out
+	mkdir -p out/plugins
+	cp -r plugins/spunull/spunull.so .
+	strip pcsx spunull.so

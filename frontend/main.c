@@ -99,12 +99,7 @@ static void set_default_paths(void)
 
 int main(int argc, char *argv[])
 {
-	char file[MAXPATHLEN] = "";
-	char path[MAXPATHLEN];
-	const char *cdfile = NULL;
-	int loadst = 0;
 	void *tmp;
-	int i;
 
 	tmp = dlopen("/lib/libdl.so.2", RTLD_LAZY);
 	if (tmp == NULL)
@@ -123,6 +118,22 @@ int main(int argc, char *argv[])
 
 	emuLog = stdout;
 	SetIsoFile(NULL);
+
+	memset(&Config, 0, sizeof(Config));
+
+	CheckSubDir();
+	set_default_paths();
+	strcpy(Config.Bios, "HLE");
+
+#ifdef MAEMO
+	extern int maemo_main(int argc, char **argv);
+	return maemo_main(argc, argv);
+#else
+	char file[MAXPATHLEN] = "";
+	char path[MAXPATHLEN];
+	const char *cdfile = NULL;
+	int loadst = 0;
+	int i;
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
@@ -178,12 +189,6 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-
-	memset(&Config, 0, sizeof(PcsxConfig));
-
-	CheckSubDir();
-	set_default_paths();
-	strcpy(Config.Bios, "HLE");
 
 	if (cdfile)
 		set_cd_image(cdfile);
@@ -253,6 +258,7 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+#endif
 }
 
 int SysInit() {
@@ -311,7 +317,9 @@ void SysUpdate() {
 
 void OnFile_Exit() {
 	printf("OnFile_Exit\n");
+#ifndef MAEMO
 	menu_finish();
+#endif
 	plat_finish();
 	SysClose();
 	exit(0);
