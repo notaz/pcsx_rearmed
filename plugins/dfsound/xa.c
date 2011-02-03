@@ -359,7 +359,6 @@ INLINE void FeedXA(xa_decode_t *xap)
          vr+=(gauss[vl+2]*gvall(2))&~2047;
          vr+=(gauss[vl+3]*gvall(3))&~2047;
          l=s= vr >> 11;
-         l &= 0xffff;
         }
        else
         {
@@ -371,6 +370,7 @@ INLINE void FeedXA(xa_decode_t *xap)
          l=s;
         }
 
+       l &= 0xffff;
        *XAFeed++=(l|(l<<16));
 
        if(XAFeed==XAEnd) XAFeed=XAStart;
