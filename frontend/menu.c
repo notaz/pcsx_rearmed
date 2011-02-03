@@ -63,6 +63,7 @@ static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
+static int region;
 int g_opts;
 
 // from softgpu plugin
@@ -138,11 +139,27 @@ static int emu_save_load_game(int load, int sram)
 	return ret;
 }
 
+// propagate menu settings to the emu vars
+static void menu_sync_config(void)
+{
+	Config.PsxAuto = 1;
+	if (region > 0) {
+		Config.PsxAuto = 0;
+		Config.PsxType = region - 1;
+	}
+	pl_frame_interval = Config.PsxType ? 20000 : 16667;
+
+	// used by P.E.Op.S. frameskip code
+	fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
+	dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
+}
+
 static void menu_set_defconfig(void)
 {
 	g_opts = 0;
 	scaling = SCALE_4_3;
 
+	region = 0;
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
@@ -153,6 +170,8 @@ static void menu_set_defconfig(void)
 	iUseInterpolation = 1;
 	iXAPitch = iSPUIRQWait = 0;
 	iUseTimer = 2;
+
+	menu_sync_config();
 }
 
 #define CE_CONFIG_STR(val) \
@@ -179,7 +198,6 @@ static const struct {
 	CE_CONFIG_VAL(Xa),
 	CE_CONFIG_VAL(Sio),
 	CE_CONFIG_VAL(Mdec),
-	CE_CONFIG_VAL(PsxAuto),
 	CE_CONFIG_VAL(Cdda),
 	CE_CONFIG_VAL(Debug),
 	CE_CONFIG_VAL(PsxOut),
@@ -187,7 +205,7 @@ static const struct {
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(Cpu),
-	CE_CONFIG_VAL(PsxType),
+	CE_INTVAL(region),
 	CE_INTVAL(scaling),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
@@ -362,6 +380,8 @@ static int menu_load_config(int is_game)
 			parse_str_val(last_selected_fname, tmp);
 		}
 	}
+
+	menu_sync_config();
 
 	// sync plugins
 	for (i = bios_sel = 0; bioses[i] != NULL; i++)
@@ -929,7 +949,7 @@ static int mh_restore_defaults(int id, int keys)
 	return 1;
 }
 
-static const char *men_region[]       = { "NTSC", "PAL", NULL };
+static const char *men_region[]       = { "Auto", "NTSC", "PAL", NULL };
 /*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
@@ -944,7 +964,7 @@ static menu_entry e_menu_options[] =
 //	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
 	mee_onoff     ("Frameskip",                0, UseFrameSkip, 1),
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
-	mee_enum      ("Region",                   0, Config.PsxType, men_region),
+	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
 	mee_handler   ("[Display]",                menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
@@ -1001,7 +1021,8 @@ static void draw_frame_main(void)
 {
 	if (CdromId[0] != 0) {
 		char buff[64];
-		snprintf(buff, sizeof(buff), "%.32s/%.9s", get_cd_label(), CdromId);
+		snprintf(buff, sizeof(buff), "%.32s/%.9s (running as %s)",
+			 get_cd_label(), CdromId, Config.PsxType ? "PAL" : "NTSC");
 		smalltext_out16(4, 1, buff, 0x105f);
 	}
 }
@@ -1425,7 +1446,7 @@ void menu_prepare_emu(void)
 	if (Config.Cdda)
 		CDR_stop();
 
-	pl_frame_interval = Config.PsxType ? 20000 : 16667;
+	menu_sync_config();
 
 	if (GPU_open != NULL) {
 		int ret = GPU_open(&gpuDisp, "PCSX", NULL);

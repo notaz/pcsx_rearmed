@@ -31,6 +31,9 @@ int keystate;
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
+// P.E.Op.S.
+extern int UseFrameSkip;
+extern float fps_skip;
 
 static int get_cpu_ticks(void)
 {
@@ -191,6 +194,10 @@ void pl_frame_limit(void)
 			// yay for working usleep on pandora!
 			//printf("usleep %d\n", diff - pl_frame_interval / 2);
 			usleep(diff - pl_frame_interval / 2);
+		}
+		else if (diff < 0 && UseFrameSkip) {
+			// P.E.Op.S. makes skip decision based on this
+			fps_skip = 1000000.0f / (float)-diff;
 		}
 	}
 
