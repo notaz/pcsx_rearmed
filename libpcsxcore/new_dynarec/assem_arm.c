@@ -2659,8 +2659,11 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   int rs=get_reg(regmap,target);
   int rth=get_reg(regmap,target|64);
   int rt=get_reg(regmap,target);
+  // allow for PCSX dummy reads
+  //assert(rt>=0);
+  if(rs<0)
+    rs=get_reg(regmap,-1);
   assert(rs>=0);
-  assert(rt>=0);
   int ftable=0;
   if(type==LOADB_STUB||type==LOADBU_STUB)
     ftable=(int)readmemb;
@@ -2673,6 +2676,8 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     ftable=(int)readmemd;
 #endif
   assert(ftable!=0);
+  if(target==0)
+    emit_movimm(addr,rs);
   emit_writeword(rs,(int)&address);
   //emit_pusha();
   save_regs(reglist);
@@ -2706,19 +2711,21 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   }
   //emit_popa();
   restore_regs(reglist);
-  if(type==LOADB_STUB)
-    emit_movsbl((int)&readmem_dword,rt);
-  if(type==LOADBU_STUB)
-    emit_movzbl((int)&readmem_dword,rt);
-  if(type==LOADH_STUB)
-    emit_movswl((int)&readmem_dword,rt);
-  if(type==LOADHU_STUB)
-    emit_movzwl((int)&readmem_dword,rt);
-  if(type==LOADW_STUB)
-    emit_readword((int)&readmem_dword,rt);
-  if(type==LOADD_STUB) {
-    emit_readword((int)&readmem_dword,rt);
-    if(rth>=0) emit_readword(((int)&readmem_dword)+4,rth);
+  if(rt>=0) {
+    if(type==LOADB_STUB)
+      emit_movsbl((int)&readmem_dword,rt);
+    if(type==LOADBU_STUB)
+      emit_movzbl((int)&readmem_dword,rt);
+    if(type==LOADH_STUB)
+      emit_movswl((int)&readmem_dword,rt);
+    if(type==LOADHU_STUB)
+      emit_movzwl((int)&readmem_dword,rt);
+    if(type==LOADW_STUB)
+      emit_readword((int)&readmem_dword,rt);
+    if(type==LOADD_STUB) {
+      emit_readword((int)&readmem_dword,rt);
+      if(rth>=0) emit_readword(((int)&readmem_dword)+4,rth);
+    }
   }
 }
 
