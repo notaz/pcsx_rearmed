@@ -261,7 +261,7 @@ void psxMemWrite16(u32 mem, u16 value) {
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W2);
 			*(u16 *)(p + (mem & 0xffff)) = SWAPu16(value);
 #ifdef PSXREC
-			psxCpu->Clear((mem & (~1)), 1);
+			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
 #ifdef PSXMEM_LOG
