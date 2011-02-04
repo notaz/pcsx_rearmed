@@ -1000,13 +1000,23 @@ ari_read_io32:
 	str\pf	r1, [r2, r3]
 	mov	pc, lr
 1:
-.if \tab_shift == 1 @ write16
 	cmp	r2, #0x1c00
 	blo	0b
 	cmp	r2, #0x1e00
+.if \tab_shift != 0
 	ldrlo	pc, [fp, #spu_writef-dynarec_local]
-	nop
+.else
+	@ write32 to SPU - very rare case (is this correct?)
+	bhs	0b
+	add	r2, r0, #2
+	mov	r3, r1, lsr #16
+	push	{r2,r3,lr}
+	mov	lr, pc
+	ldr	pc, [fp, #spu_writef-dynarec_local]
+	pop	{r0,r1,lr}
+	ldr	pc, [fp, #spu_writef-dynarec_local]
 .endif
+	nop
 	b	0b
 .endm
 
