@@ -2,6 +2,7 @@ USE_GTK=1
 USE_ALSA=1
 USE_OSS=0
 
+export MAEMO=1
 LDFLAGS += $(shell pkg-config --libs hildon-1 libpulse)
 EXTRA_CFLAGS += -march=armv7-a -O3 -mfpu=neon -funsafe-math-optimizations \
 	-mstructure-size-boundary=32 -falign-functions=32 -falign-loops \

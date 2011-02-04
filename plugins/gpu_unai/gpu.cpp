@@ -864,11 +864,10 @@ void  GPU_updateLace(void)
 #else
 
 #include "../../frontend/plugin_lib.h"
+#include "../../frontend/arm_utils.h"
 
 extern "C" {
 
-extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
-extern void bgr888_to_rgb888(void *dst, void *src, int bytes);
 static const struct rearmed_cbs *cbs;
 static void *screen_buf;
 
@@ -904,10 +903,17 @@ static void blit(void)
 
 	if (isRGB24)
 	{
+#ifndef MAEMO
 		for (; h1-- > 0; dest += w0 * 3, srcs += 1024)
 		{
 			bgr888_to_rgb888(dest, srcs, w0 * 3);
 		}
+#else
+		for (; h1-- > 0; dest += w0 * 2, srcs += 1024)
+		{
+			bgr888_to_rgb565(dest, srcs, w0 * 3);
+		}
+#endif
 	}
 	else
 	{
