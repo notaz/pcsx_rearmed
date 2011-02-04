@@ -140,7 +140,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			psxCpu->Clear(madr, size);
 
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(size);
+			GPUDMA_INT(size / 4);
 			return;
 
 		case 0x01000201: // mem2vram
@@ -159,7 +159,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			GPU_writeDataMem(ptr, size);
 
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(size);
+			GPUDMA_INT(size / 4);
 			return;
 
 		case 0x01000401: // dma chain
