@@ -211,7 +211,7 @@ static inline u32 limE(u32 result) {
 #define F(a) BOUNDS((a), 0x7fffffff, (1 << 31) | (1 << 16), -(s64)0x80000000, (1 << 31) | (1 << 15))
 #define limG1(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 14))
 #define limG2(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 13))
-#define limH(a) LIM((a), 0xfff, 0x000, (1 << 12))
+#define limH(a) LIM((a), 0x1000, 0x0000, (1 << 12))
 
 #include "gte_divider.h"
 
@@ -240,9 +240,6 @@ static inline u32 MFC2(int reg) {
 			break;
 
 		case 28:
-		case 30:
-			return 0;
-
 		case 29:
 			psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
 									(LIM(gteIR2 >> 7, 0x1f, 0, 0) << 5) |
@@ -289,8 +286,6 @@ static inline void MTC2(u32 value, int reg) {
 			}
 			break;
 
-		case 7:
-		case 29:
 		case 31:
 			return;
 
@@ -483,9 +478,9 @@ void gteSQR() {
 	gteMAC1 = A1((gteIR1 * gteIR1) >> shift);
 	gteMAC2 = A2((gteIR2 * gteIR2) >> shift);
 	gteMAC3 = A3((gteIR3 * gteIR3) >> shift);
-	gteIR1 = limB1(gteMAC1 >> shift, lm);
-	gteIR2 = limB2(gteMAC2 >> shift, lm);
-	gteIR3 = limB3(gteMAC3 >> shift, lm);
+	gteIR1 = limB1(gteMAC1, lm);
+	gteIR2 = limB2(gteMAC2, lm);
+	gteIR3 = limB3(gteMAC3, lm);
 }
 
 void gteNCCS() {
