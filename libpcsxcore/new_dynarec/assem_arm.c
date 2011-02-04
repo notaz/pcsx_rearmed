@@ -3556,9 +3556,6 @@ static void cop2_get_dreg(u_int copr,signed char tl,signed char temp)
       emit_writeword(tl,(int)&reg_cop2d[copr]);
       break;
     case 28:
-    case 30:
-      emit_movimm(0,tl);
-      break;
     case 29:
       emit_readword((int)&reg_cop2d[9],temp);
       emit_testimm(temp,0x8000); // do we need this?
@@ -3613,8 +3610,6 @@ static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
       emit_writeword(sl,(int)&reg_cop2d[30]);
       emit_writeword(temp,(int)&reg_cop2d[31]);
       break;
-    case 7:
-    case 29:
     case 31:
       break;
     default:
