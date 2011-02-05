@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -24,10 +25,11 @@
 #include "menu.h"
 #include "pcnt.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../libpcsxcore/psemu_plugin_defs.h"
 
 void *pl_fbdev_buf;
 int pl_frame_interval;
-int keystate;
+int in_type, in_keystate, in_a1[2], in_a2[2];
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
@@ -124,13 +126,15 @@ static void update_input(void)
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 
 	in_update(actions);
+	if (in_type == PSE_PAD_TYPE_ANALOGPAD)
+		in_update_analogs();
 	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
 		stop = 1;
-	keystate = actions[IN_BINDTYPE_PLAYER12];
+	in_keystate = actions[IN_BINDTYPE_PLAYER12];
 
 #ifdef X11
 	extern int x11_update_keys(void);
-	keystate |= x11_update_keys();
+	in_keystate |= x11_update_keys();
 #endif
 }
 
@@ -268,6 +272,10 @@ static void *watchdog_thread(void *unused)
 	int seen_dead = 0;
 	int sleep_time = 5;
 
+#ifndef NDEBUG
+	// don't interfere with debug
+	return NULL;
+#endif
 	while (1)
 	{
 		sleep(sleep_time);

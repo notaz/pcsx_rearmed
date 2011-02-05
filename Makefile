@@ -77,6 +77,7 @@ OBJS += frontend/main.o frontend/plugin.o
 ifeq "$(USE_GTK)" "1"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
+maemo/%.o: CFLAGS += -Wall
 else
 OBJS += frontend/plugin_lib.o frontend/menu.o
 OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
@@ -84,6 +85,7 @@ OBJS += frontend/linux/plat.o frontend/linux/oshide.o
 OBJS += frontend/common/fonts.o frontend/common/input.o frontend/common/readpng.o
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/plat_omap.o
+OBJS += frontend/pandora.o
 else
 OBJS += frontend/plat_dummy.o
 endif

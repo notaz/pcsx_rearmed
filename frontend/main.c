@@ -20,6 +20,7 @@
 #include "pcnt.h"
 #include "menu.h"
 #include "../libpcsxcore/misc.h"
+#include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
 #include "common/input.h"
@@ -253,6 +254,7 @@ int main(int argc, char *argv[])
 
 	while (1)
 	{
+		stop = 0;
 		psxCpu->Execute();
 		menu_loop();
 	}

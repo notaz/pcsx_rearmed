@@ -22,7 +22,7 @@
 #include "omap.h"
 #include "common/plat.h"
 #include "../libpcsxcore/misc.h"
-#include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../libpcsxcore/psemu_plugin_defs.h"
 #include "revision.h"
 
 #define MENU_X2 1
@@ -63,7 +63,7 @@ static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, state_slot, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
-static int region;
+static int region, in_type_sel;
 int g_opts;
 
 // from softgpu plugin
@@ -147,8 +147,9 @@ static void menu_sync_config(void)
 		Config.PsxAuto = 0;
 		Config.PsxType = region - 1;
 	}
-	pl_frame_interval = Config.PsxType ? 20000 : 16667;
+	in_type = in_type_sel ? PSE_PAD_TYPE_ANALOGPAD : PSE_PAD_TYPE_STANDARD;
 
+	pl_frame_interval = Config.PsxType ? 20000 : 16667;
 	// used by P.E.Op.S. frameskip code
 	fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
 	dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
@@ -160,10 +161,12 @@ static void menu_set_defconfig(void)
 	scaling = SCALE_4_3;
 
 	region = 0;
+	in_type_sel = 0;
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
-	iUseDither = UseFrameSkip = 0;
+	iUseDither = 0;
+	UseFrameSkip = 1;
 	dwActFixes = 1<<7;
 
 	iUseReverb = 2;
@@ -215,6 +218,7 @@ static const struct {
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
+	CE_INTVAL(in_type_sel),
 	CE_INTVAL(iUseDither),
 	CE_INTVAL(UseFrameSkip),
 	CE_INTVAL(dwActFixes),
@@ -711,13 +715,17 @@ static int mh_savecfg(int id, int keys)
 	return 1;
 }
 
+static const char *men_in_type_sel[] = { "Standard (SCPH-1080)", "Analog (SCPH-1150)", NULL };
+
 static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
-//	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_savecfg, mgn_saveloadcfg),
-//	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
+	mee_label     (""),
+	mee_enum      ("Controller",        0, in_type_sel,     men_in_type_sel),
+	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
+	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
 	mee_label     (""),
 	mee_label     ("Input devices:"),
 	mee_label_mk  (MA_CTRL_DEV_FIRST, mgn_dev_name),
@@ -1434,7 +1442,6 @@ void menu_prepare_emu(void)
 	}
 	apply_filter(filter);
 	apply_cpu_clock();
-	stop = 0;
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	if (psxCpu != prev_cpu)

@@ -10,16 +10,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
-#include <linux/input.h>
 #include <linux/omapfb.h>
 
-#include "common/input.h"
 #include "common/menu.h"
 #include "linux/fbdev.h"
 #include "linux/oshide.h"
 #include "plugin_lib.h"
 #include "omap.h"
+#include "pandora.h"
 
 
 static struct vout_fbdev *main_fb;
@@ -27,42 +27,6 @@ int g_layer_x = 80, g_layer_y = 0;
 int g_layer_w = 640, g_layer_h = 480;
 
 struct vout_fbdev *layer_fb;
-
-static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
-	[0 ... KEY_MAX] = NULL,
-	[KEY_UP]	= "Up",
-	[KEY_LEFT]	= "Left",
-	[KEY_RIGHT]	= "Right",
-	[KEY_DOWN]	= "Down",
-	[KEY_HOME]	= "A",
-	[KEY_PAGEDOWN]	= "X",
-	[KEY_END]	= "B",
-	[KEY_PAGEUP]	= "Y",
-	[KEY_RIGHTSHIFT]= "L",
-	[KEY_RIGHTCTRL]	= "R",
-	[KEY_LEFTALT]	= "Start",
-	[KEY_LEFTCTRL]	= "Select",
-	[KEY_MENU]	= "Pandora",
-};
-
-struct in_default_bind in_evdev_defbinds[] = {
-	{ KEY_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
-	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
-	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
-	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
-	{ KEY_SPACE,    IN_BINDTYPE_EMU, PEVB_MENU },
-	{ KEY_PAGEUP,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
-	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
-	{ KEY_END,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
-	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
-	{ KEY_LEFTALT,	IN_BINDTYPE_PLAYER12, DKEY_START },
-	{ KEY_LEFTCTRL,	IN_BINDTYPE_PLAYER12, DKEY_SELECT },
-	{ KEY_RIGHTSHIFT,IN_BINDTYPE_PLAYER12, DKEY_L1 },
-	{ KEY_RIGHTCTRL, IN_BINDTYPE_PLAYER12, DKEY_R1 },
-	{ KEY_Q,	IN_BINDTYPE_PLAYER12, DKEY_L2 },
-	{ KEY_P,	IN_BINDTYPE_PLAYER12, DKEY_R2 },
-	{ 0, 0, 0 }
-};
 
 static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, int first_call)
 {
@@ -205,8 +169,7 @@ void plat_init(void)
 	}
 	g_menubg_ptr = temp_frame;
 
-	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
-		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
+	pandora_init();
 	return;
 
 fail1:

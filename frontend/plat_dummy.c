@@ -50,3 +50,7 @@ void bgr555_to_rgb565(void *d, void *s, int len)
 void bgr888_to_rgb888(void *d, void *s, int len)
 {
 }
+
+void in_update_analogs(void)
+{
+}

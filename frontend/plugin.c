@@ -43,15 +43,21 @@ extern void SPUplayCDDAchannel(short *, int);
 /* PAD */
 static long PADreadPort1(PadDataS *pad)
 {
-	pad->controllerType = PSE_PAD_TYPE_STANDARD;
-	pad->buttonStatus = ~keystate;
+	pad->controllerType = in_type;
+	pad->buttonStatus = ~in_keystate;
+	if (in_type == PSE_PAD_TYPE_ANALOGPAD) {
+		pad->leftJoyX = in_a1[0];
+		pad->leftJoyY = in_a1[1];
+		pad->rightJoyX = in_a2[0];
+		pad->rightJoyY = in_a2[1];
+	}
 	return 0;
 }
 
 static long PADreadPort2(PadDataS *pad)
 {
 	pad->controllerType = PSE_PAD_TYPE_STANDARD;
-	pad->buttonStatus = ~keystate >> 16;
+	pad->buttonStatus = ~in_keystate >> 16;
 	return 0;
 }
 

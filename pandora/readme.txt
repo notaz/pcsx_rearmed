@@ -40,6 +40,9 @@ to work. To use real BIOS, copy uncompressed BIOS files to
 [sd card]/pandora/appdata/pcsx_rearmed/bios/
 then select the BIOS you want to use in Options->BIOS/Plugins menu.
 
+Analog controllers are supported using nubs, but this is disabled by
+default and needs to be enabled in 'Controls' menu.
+
 
 Plugins
 -------

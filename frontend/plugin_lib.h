@@ -1,5 +1,4 @@
 
-extern int keystate;
 enum {
 	DKEY_SELECT = 0,
 	DKEY_L3,
@@ -18,6 +17,8 @@ enum {
 	DKEY_CROSS,
 	DKEY_SQUARE,
 };
+extern int in_type, in_keystate, in_a1[2], in_a2[2];
+void in_update_analogs(void);
 
 extern void *pl_fbdev_buf;
 
