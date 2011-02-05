@@ -1894,9 +1894,15 @@ void cdrWrite3(unsigned char rt) {
 			return;
 		}
 
+		// XA streaming - incorrect timing because of this reschedule
+		// - Final Fantasy Tactics
+		// - various other games
+
+		/*
 		if (cdr.Reading && !cdr.ResultReady) {
 			CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
 		}
+		*/
 
 		return;
 	}
