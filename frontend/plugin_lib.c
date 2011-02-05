@@ -31,6 +31,7 @@ int keystate;
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
+static int plugin_skip_advice;
 // P.E.Op.S.
 extern int UseFrameSkip;
 extern float fps_skip;
@@ -183,22 +184,25 @@ void pl_frame_limit(void)
 	}
 #endif
 
-	if (!(g_opts & OPT_NO_FRAMELIM)) {
-		tvadd(tv_expect, pl_frame_interval);
-		diff = tvdiff(tv_expect, now);
-		if (diff > MAX_LAG_FRAMES * pl_frame_interval || diff < -MAX_LAG_FRAMES * pl_frame_interval) {
-			//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, pl_frame_interval);
-			tv_expect = now;
-		}
-		else if (diff > pl_frame_interval) {
-			// yay for working usleep on pandora!
-			//printf("usleep %d\n", diff - pl_frame_interval / 2);
-			usleep(diff - pl_frame_interval / 2);
-		}
-		else if (diff < 0 && UseFrameSkip) {
-			// P.E.Op.S. makes skip decision based on this
-			fps_skip = 1000000.0f / (float)-diff;
-		}
+	tvadd(tv_expect, pl_frame_interval);
+	diff = tvdiff(tv_expect, now);
+	if (diff > MAX_LAG_FRAMES * pl_frame_interval || diff < -MAX_LAG_FRAMES * pl_frame_interval) {
+		//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, pl_frame_interval);
+		tv_expect = now;
+		diff = 0;
+	}
+
+	if (!(g_opts & OPT_NO_FRAMELIM) && diff > pl_frame_interval) {
+		// yay for working usleep on pandora!
+		//printf("usleep %d\n", diff - pl_frame_interval / 2);
+		usleep(diff - pl_frame_interval / 2);
+	}
+
+	plugin_skip_advice = 0;
+	if (UseFrameSkip && diff < -pl_frame_interval) {
+		// P.E.Op.S. makes skip decision based on this
+		fps_skip = 1.0f;
+		plugin_skip_advice = 1;
 	}
 
 	pcnt_start(PCNT_ALL);
@@ -248,15 +252,13 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
-extern int UseFrameSkip; // hmh
-
 const struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
 	pl_fbdev_open,
 	pl_fbdev_set_mode,
 	pl_fbdev_flip,
 	pl_fbdev_close,
-	&UseFrameSkip,
+	&plugin_skip_advice,
 };
 
 /* watchdog */
