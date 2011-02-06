@@ -8,8 +8,8 @@ EXTRA_CFLAGS += -march=armv7-a -O3 -mfpu=neon -funsafe-math-optimizations \
 	-mstructure-size-boundary=32 -falign-functions=32 -falign-loops \
 	-DMAEMO -DMAEMO_CHANGES $(shell pkg-config --cflags hildon-1)
 
-#EXTRA_CFLAGS += -Imaemo/gtk-2.0 -Imaemo/hildon -Imaemo/glib-2.0 -Imaemo/cairo \
-	-Imaemo/pango-1.0 -Imaemo/atk-1.0 -DMAEMO -DMAEMO_CHANGES
+#EXTRA_CFLAGS += -Imaemo/i/gtk-2.0 -Imaemo/i/hildon -Imaemo/i/glib-2.0 -Imaemo/i/cairo \
+	-Imaemo/i/pango-1.0 -Imaemo/i/atk-1.0 -DMAEMO -DMAEMO_CHANGES
 
 include Makefile
 

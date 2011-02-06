@@ -1,9 +1,11 @@
 #include <gtk/gtk.h>
 #include <glib.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <hildon/hildon.h>
 #include "plugin_lib.h"
+#include "../libpcsxcore/psemu_plugin_defs.h"
 
 #define X_RES           800
 #define Y_RES           480
@@ -15,7 +17,8 @@ static HildonAnimationActor *actor;
 static GtkWidget *window, *drawing;
 
 void *pl_fbdev_buf;
-int keystate;
+int in_type = PSE_PAD_TYPE_STANDARD;
+int in_keystate, in_a1[2], in_a2[2];
 
 static int keymap[65536];
 
@@ -86,15 +89,15 @@ window_key_proxy(GtkWidget *widget,
 
 	if (event->type == GDK_KEY_PRESS) {
 		if (psxkey1 >= 0)
-			keystate |= 1 << psxkey1;
+			in_keystate |= 1 << psxkey1;
 		if (psxkey2 >= 0)
-			keystate |= 1 << psxkey2;
+			in_keystate |= 1 << psxkey2;
 	}
 	else if (event->type == GDK_KEY_RELEASE) {
 		if (psxkey1 >= 0)
-			keystate &= ~(1 << psxkey1);
+			in_keystate &= ~(1 << psxkey1);
 		if (psxkey2 >= 0)
-			keystate &= ~(1 << psxkey2);
+			in_keystate &= ~(1 << psxkey2);
 	}
 }
 
@@ -148,7 +151,7 @@ void maemo_init(int *argc, char ***argv)
 void *pl_fbdev_set_mode(int w, int h, int bpp)
 {
 	if (w <= 0 || h <= 0)
-		return;
+		return pl_fbdev_buf;
 
 	if (image) gdk_image_destroy(image);
 	image = gdk_image_new( GDK_IMAGE_FASTEST, gdk_visual_get_system(), w, h );
@@ -169,6 +172,7 @@ void *pl_fbdev_set_mode(int w, int h, int bpp)
 void *pl_fbdev_flip(void)
 {
 	gtk_widget_queue_draw (drawing);
+	return pl_fbdev_buf;
 }
 
 void pl_frame_limit(void)
@@ -187,6 +191,7 @@ void pl_fbdev_close(void)
 
 int pl_fbdev_open(void)
 {
+	return 0;
 }
 
 static void pl_get_layer_pos(int *x, int *y, int *w, int *h)

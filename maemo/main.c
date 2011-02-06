@@ -7,17 +7,13 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
-#include <dlfcn.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <stdint.h>
 #include <unistd.h>
-#include <signal.h>
 
 #include "main.h"
 #include "plugin.h"
 #include "../libpcsxcore/misc.h"
-#include "../plugins/cdrcimg/cdrcimg.h"
+#include "../libpcsxcore/new_dynarec/new_dynarec.h"
 
 // from softgpu plugin
 extern int iUseDither;
@@ -34,11 +30,14 @@ extern int iXAPitch;
 extern int iSPUIRQWait;
 extern int iUseTimer;
 
+enum sched_action emu_action;
+void do_emu_action(void);
+
 static void ChangeWorkingDirectory(char *exe)
 {
-	s8 exepath[1024];
-	s8* s;
-	sprintf(exepath, "%s", exe);
+	char exepath[1024];
+	char *s;
+	snprintf(exepath, sizeof(exepath), "%s", exe);
 	s = strrchr(exepath, '/');
 	if (s != NULL) {
 		*s = '\0';
@@ -53,7 +52,6 @@ int maemo_main(int argc, char **argv)
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
 	int loadst = 0;
-	void *tmp;
 	int i;
 
 	strcpy(Config.BiosDir, "/home/user/MyDocs");
@@ -190,7 +188,15 @@ int maemo_main(int argc, char **argv)
 		return 0;
 	}
 
-	psxCpu->Execute();
+	while (1)
+	{
+		stop = 0;
+		emu_action = SACTION_NONE;
+
+		psxCpu->Execute();
+		if (emu_action != SACTION_NONE)
+			do_emu_action();
+	}
 
 	return 0;
 }
