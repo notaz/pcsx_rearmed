@@ -1039,17 +1039,10 @@ static int menu_loop_savestate(int is_loading)
 
 static char *action_binds(int player_idx, int action_mask, int dev_id)
 {
-	int k, count = 0, can_combo = 0, type;
-	const int *binds;
+	int dev = 0, dev_last = IN_MAX_DEVS - 1;
+	int can_combo = 1, type;
 
 	static_buff[0] = 0;
-
-	binds = in_get_dev_binds(dev_id);
-	if (binds == NULL)
-		return static_buff;
-
-	in_get_config(dev_id, IN_CFG_BIND_COUNT, &count);
-	in_get_config(dev_id, IN_CFG_DOES_COMBOS, &can_combo);
 
 	type = IN_BINDTYPE_EMU;
 	if (player_idx >= 0) {
@@ -1059,22 +1052,37 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 	if (player_idx == 1)
 		action_mask <<= 16;
 
-	for (k = 0; k < count; k++)
-	{
-		const char *xname;
-		int len;
+	if (dev_id >= 0)
+		dev = dev_last = dev_id;
 
-		if (!(binds[IN_BIND_OFFS(k, type)] & action_mask))
+	for (; dev <= dev_last; dev++) {
+		int k, count = 0, combo = 0;
+		const int *binds;
+
+		binds = in_get_dev_binds(dev);
+		if (binds == NULL)
 			continue;
 
-		xname = in_get_key_name(dev_id, k);
-		len = strlen(static_buff);
-		if (len) {
-			strncat(static_buff, can_combo ? " + " : ", ",
-				sizeof(static_buff) - len - 1);
-			len += can_combo ? 3 : 2;
+		in_get_config(dev, IN_CFG_BIND_COUNT, &count);
+		in_get_config(dev, IN_CFG_DOES_COMBOS, &combo);
+		combo = combo && can_combo;
+
+		for (k = 0; k < count; k++) {
+			const char *xname;
+			int len;
+
+			if (!(binds[IN_BIND_OFFS(k, type)] & action_mask))
+				continue;
+
+			xname = in_get_key_name(dev, k);
+			len = strlen(static_buff);
+			if (len) {
+				strncat(static_buff, combo ? " + " : ", ",
+					sizeof(static_buff) - len - 1);
+				len += combo ? 3 : 2;
+			}
+			strncat(static_buff, xname, sizeof(static_buff) - len - 1);
 		}
-		strncat(static_buff, xname, sizeof(static_buff) - len - 1);
 	}
 
 	return static_buff;
@@ -1126,7 +1134,10 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 		text_out16(x, y, "%s : %s", opts[i].name,
 			action_binds(player_idx, opts[i].mask, dev_id));
 
-	dev_name = in_get_dev_name(dev_id, 1, 1);
+	if (dev_id < 0)
+		dev_name = "(all devices)";
+	else
+		dev_name = in_get_dev_name(dev_id, 1, 1);
 	w = strlen(dev_name) * me_mfont_w;
 	if (w < 30 * me_mfont_w)
 		w = 30 * me_mfont_w;
@@ -1155,7 +1166,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
 	int i, sel = 0, menu_sel_max = opt_cnt - 1, does_combos = 0;
-	int dev_id, dev_count, kc, is_down, mkey;
+	int dev_id, bind_dev_id, dev_count, kc, is_down, mkey;
 	int unbind, bindtype, mask_shift;
 
 	for (i = 0, dev_id = -1, dev_count = 0; i < IN_MAX_DEVS; i++) {
@@ -1171,6 +1182,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		return;
 	}
 
+	dev_id = -1; // show all
 	mask_shift = 0;
 	if (player_idx == 1)
 		mask_shift = 16;
@@ -1184,18 +1196,18 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 			case PBTN_UP:   sel--; if (sel < 0) sel = menu_sel_max; continue;
 			case PBTN_DOWN: sel++; if (sel > menu_sel_max) sel = 0; continue;
 			case PBTN_LEFT:
-				for (i = 0, dev_id--; i < IN_MAX_DEVS; i++, dev_id--) {
-					if (dev_id < 0)
+				for (i = 0, dev_id--; i < IN_MAX_DEVS + 1; i++, dev_id--) {
+					if (dev_id < -1)
 						dev_id = IN_MAX_DEVS - 1;
-					if (in_get_dev_name(dev_id, 1, 0) != NULL)
+					if (dev_id == -1 || in_get_dev_name(dev_id, 1, 0) != NULL)
 						break;
 				}
 				continue;
 			case PBTN_RIGHT:
 				for (i = 0, dev_id++; i < IN_MAX_DEVS; i++, dev_id++) {
 					if (dev_id >= IN_MAX_DEVS)
-						dev_id = 0;
-					if (in_get_dev_name(dev_id, 1, 0) != NULL)
+						dev_id = -1;
+					if (dev_id == -1 || in_get_dev_name(dev_id, 1, 0) != NULL)
 						break;
 				}
 				continue;
@@ -1217,20 +1229,20 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 
 		/* wait for some up event */
 		for (is_down = 1; is_down; )
-			kc = in_update_keycode(&dev_id, &is_down, -1);
+			kc = in_update_keycode(&bind_dev_id, &is_down, -1);
 
-		i = count_bound_keys(dev_id, opts[sel].mask << mask_shift, bindtype);
+		i = count_bound_keys(bind_dev_id, opts[sel].mask << mask_shift, bindtype);
 		unbind = (i > 0);
 
 		/* allow combos if device supports them */
-		in_get_config(dev_id, IN_CFG_DOES_COMBOS, &does_combos);
+		in_get_config(bind_dev_id, IN_CFG_DOES_COMBOS, &does_combos);
 		if (i == 1 && bindtype == IN_BINDTYPE_EMU && does_combos)
 			unbind = 0;
 
 		if (unbind)
-			in_unbind_all(dev_id, opts[sel].mask << mask_shift, bindtype);
+			in_unbind_all(bind_dev_id, opts[sel].mask << mask_shift, bindtype);
 
-		in_bind_key(dev_id, kc, opts[sel].mask << mask_shift, bindtype, 0);
+		in_bind_key(bind_dev_id, kc, opts[sel].mask << mask_shift, bindtype, 0);
 	}
 }
 

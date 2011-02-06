@@ -251,6 +251,8 @@ static void make_cfg_fname(char *buf, size_t size, int is_game)
 		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
 }
 
+static void keys_write_all(FILE *f);
+
 static int menu_write_config(int is_game)
 {
 	char cfgfile[MAXPATHLEN];
@@ -289,7 +291,9 @@ static int menu_write_config(int is_game)
 	if (!is_game)
 		fprintf(f, "lastcdimg = %s\n", last_selected_fname);
 
+	keys_write_all(f);
 	fclose(f);
+
 	return 0;
 }
 
@@ -304,6 +308,8 @@ static void parse_str_val(char *cval, const char *src)
 	if (tmp != NULL)
 		*tmp = 0;
 }
+
+static void keys_load_all(const char *cfg);
 
 static int menu_load_config(int is_game)
 {
@@ -400,6 +406,7 @@ static int menu_load_config(int is_game)
 		if (strcmp(Config.Spu, spu_plugins[i]) == 0)
 			{ spu_plugsel = i; break; }
 
+	keys_load_all(cfg);
 	ret = 0;
 fail_read:
 	free(cfg);
@@ -647,6 +654,8 @@ me_bind_action me_ctrl_actions[] =
 	{ "R1      ", 1 << DKEY_R1 },
 	{ "L2      ", 1 << DKEY_L2 },
 	{ "R2      ", 1 << DKEY_R2 },
+	{ "L3      ", 1 << DKEY_L3 },
+	{ "R3      ", 1 << DKEY_R3 },
 	{ "START   ", 1 << DKEY_START },
 	{ "SELECT  ", 1 << DKEY_SELECT },
 	{ NULL,       0 }
@@ -663,6 +672,177 @@ me_bind_action emuctrl_actions[] =
 	{ "Enter Menu       ", PEV_MENU },
 	{ NULL,                0 }
 };
+
+static char *mystrip(char *str)
+{
+	int i, len;
+
+	len = strlen(str);
+	for (i = 0; i < len; i++)
+		if (str[i] != ' ') break;
+	if (i > 0) memmove(str, str + i, len - i + 1);
+
+	len = strlen(str);
+	for (i = len - 1; i >= 0; i--)
+		if (str[i] != ' ') break;
+	str[i+1] = 0;
+
+	return str;
+}
+
+static void get_line(char *d, size_t size, const char *s)
+{
+	const char *pe;
+	size_t len;
+
+	for (pe = s; *pe != '\r' && *pe != '\n' && *pe != 0; pe++)
+		;
+	len = pe - s;
+	if (len > size - 1)
+		len = size - 1;
+	strncpy(d, s, len);
+	d[len] = 0;
+
+	mystrip(d);
+}
+
+static void keys_write_all(FILE *f)
+{
+	int d;
+
+	for (d = 0; d < IN_MAX_DEVS; d++)
+	{
+		const int *binds = in_get_dev_binds(d);
+		const char *name = in_get_dev_name(d, 0, 0);
+		int k, count = 0;
+
+		if (binds == NULL || name == NULL)
+			continue;
+
+		fprintf(f, "binddev = %s\n", name);
+		in_get_config(d, IN_CFG_BIND_COUNT, &count);
+
+		for (k = 0; k < count; k++)
+		{
+			int i, kbinds, mask;
+			char act[32];
+
+			act[0] = act[31] = 0;
+			name = in_get_key_name(d, k);
+
+			kbinds = binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)];
+			for (i = 0; kbinds && i < ARRAY_SIZE(me_ctrl_actions) - 1; i++) {
+				mask = me_ctrl_actions[i].mask;
+				if (mask & kbinds) {
+					strncpy(act, me_ctrl_actions[i].name, 31);
+					fprintf(f, "bind %s = player1 %s\n", name, mystrip(act));
+					kbinds &= ~mask;
+				}
+				mask = me_ctrl_actions[i].mask << 16;
+				if (mask & kbinds) {
+					strncpy(act, me_ctrl_actions[i].name, 31);
+					fprintf(f, "bind %s = player2 %s\n", name, mystrip(act));
+					kbinds &= ~mask;
+				}
+			}
+
+			kbinds = binds[IN_BIND_OFFS(k, IN_BINDTYPE_EMU)];
+			for (i = 0; kbinds && i < ARRAY_SIZE(emuctrl_actions) - 1; i++) {
+				mask = emuctrl_actions[i].mask;
+				if (mask & kbinds) {
+					strncpy(act, emuctrl_actions[i].name, 31);
+					fprintf(f, "bind %s = %s\n", name, mystrip(act));
+					kbinds &= ~mask;
+				}
+			}
+		}
+	}
+}
+
+static int parse_bind_val(const char *val, int *type)
+{
+	int i;
+
+	*type = IN_BINDTYPE_NONE;
+	if (val[0] == 0)
+		return 0;
+	
+	if (strncasecmp(val, "player", 6) == 0)
+	{
+		int player, shift = 0;
+		player = atoi(val + 6) - 1;
+
+		if ((unsigned int)player > 1)
+			return -1;
+		if (player == 1)
+			shift = 16;
+
+		*type = IN_BINDTYPE_PLAYER12;
+		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
+			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0)
+				return me_ctrl_actions[i].mask << shift;
+		}
+	}
+	for (i = 0; emuctrl_actions[i].name != NULL; i++) {
+		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0) {
+			*type = IN_BINDTYPE_EMU;
+			return emuctrl_actions[i].mask;
+		}
+	}
+
+	return -1;
+}
+
+static void keys_load_all(const char *cfg)
+{
+	char dev[256], key[128], *act;
+	const char *p;
+	int bind, bindtype;
+	int dev_id;
+
+	p = cfg;
+	while (p != NULL && (p = strstr(p, "binddev = ")) != NULL) {
+		p += 10;
+
+		get_line(dev, sizeof(dev), p);
+		dev_id = in_config_parse_dev(dev);
+		if (dev_id < 0) {
+			printf("input: can't handle dev: %s\n", dev);
+			continue;
+		}
+
+		in_unbind_all(dev_id, -1, -1);
+		while ((p = strstr(p, "bind"))) {
+			if (strncmp(p, "binddev = ", 10) == 0)
+				break;
+
+			p += 4;
+			if (*p != ' ') {
+				printf("input: parse error: %16s..\n", p);
+				continue;
+			}
+
+			get_line(key, sizeof(key), p);
+			act = strchr(key, '=');
+			if (act == NULL) {
+				printf("parse failed: %16s..\n", p);
+				continue;
+			}
+			*act = 0;
+			act++;
+			mystrip(key);
+			mystrip(act);
+
+			bind = parse_bind_val(act, &bindtype);
+			if (bind != -1 && bind != 0) {
+				printf("bind #%d '%s' %08x (%s)\n", dev_id, key, bind, act);
+				in_config_bind_key(dev_id, key, bind, bindtype);
+			}
+			else
+				lprintf("config: unhandled action \"%s\"\n", act);
+		}
+	}
+}
 
 static int key_config_loop_wrap(int id, int keys)
 {

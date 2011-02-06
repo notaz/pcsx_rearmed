@@ -677,22 +677,39 @@ int in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbi
 	return 0;
 }
 
-void in_unbind_all(int dev_id, int act_mask, int bind_type)
+/*
+ * Unbind act_mask on binds with type bind_type
+ * - if dev_id_ < 0, affects all devices
+ *   else only affects dev_id_
+ * - if act_mask == -1, unbind all keys
+ *   else only actions in mask
+ */
+void in_unbind_all(int dev_id_, int act_mask, int bind_type)
 {
+	int dev_id = 0, dev_last = IN_MAX_DEVS - 1;
 	int i, count;
 	in_dev_t *dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
+	if (dev_id_ >= 0)
+		dev_id = dev_last = dev_id_;
+
+	if (bind_type >= IN_BINDTYPE_COUNT)
 		return;
 
-	dev = &in_devices[dev_id];
-	count = dev->key_count;
+	for (; dev_id <= dev_last; dev_id++) {
+		dev = &in_devices[dev_id];
+		count = dev->key_count;
 
-	if (dev->binds == NULL)
-		return;
+		if (dev->binds == NULL)
+			continue;
 
-	for (i = 0; i < count; i++)
-		dev->binds[IN_BIND_OFFS(i, bind_type)] &= ~act_mask;
+		if (act_mask != -1) {
+			for (i = 0; i < count; i++)
+				dev->binds[IN_BIND_OFFS(i, bind_type)] &= ~act_mask;
+		}
+		else
+			memset(dev->binds, 0, sizeof(dev->binds[0]) * count * IN_BINDTYPE_COUNT);
+	}
 }
 
 /* returns device id, or -1 on error */
