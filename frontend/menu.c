@@ -159,7 +159,8 @@ static void menu_set_defconfig(void)
 
 	iUseReverb = 2;
 	iUseInterpolation = 1;
-	iXAPitch = iSPUIRQWait = 0;
+	iXAPitch = 0;
+	iSPUIRQWait = 1;
 	iUseTimer = 2;
 
 	menu_sync_config();
@@ -176,6 +177,10 @@ static void menu_set_defconfig(void)
 
 #define CE_INTVAL(val) \
 	{ #val, sizeof(val), &val }
+
+// 'versioned' var, used when defaults change
+#define CE_INTVAL_V(val, ver) \
+	{ #val #ver, sizeof(val), &val }
 
 static const struct {
 	const char *name;
@@ -211,9 +216,9 @@ static const struct {
 	CE_INTVAL(UseFrameSkip),
 	CE_INTVAL(dwActFixes),
 	CE_INTVAL(iUseReverb),
-	CE_INTVAL(iUseInterpolation),
 	CE_INTVAL(iXAPitch),
-	CE_INTVAL(iSPUIRQWait),
+	CE_INTVAL_V(iUseInterpolation, 2),
+	CE_INTVAL_V(iSPUIRQWait, 2),
 	CE_INTVAL(iUseTimer),
 };
 
@@ -1026,7 +1031,7 @@ static int menu_loop_plugin_gpu(int id, int keys)
 
 static const char *men_spu_reverb[] = { "Off", "Fake", "On", NULL };
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
-static const char h_spu_irq_wait[]  = "Wait for CPU; only useful for some games, may cause glitches";
+static const char h_spu_irq_wait[]  = "Wait for CPU (recommended set to ON)";
 static const char h_spu_thread[]    = "Run sound emulation in main thread (recommended)";
 
 static menu_entry e_menu_plugin_spu[] =

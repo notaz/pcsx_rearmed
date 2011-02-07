@@ -925,7 +925,7 @@ long CALLBACK SPUinit(void)
  pMixIrq = 0;
  memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
  pSpuIrq = 0;
- iSPUIRQWait = 0;
+ //iSPUIRQWait = 0;
  lastch = -1;
 
  //ReadConfigSPU();                                      // read user stuff
