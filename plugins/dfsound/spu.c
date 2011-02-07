@@ -441,7 +441,7 @@ INLINE int iGetInterpolationVal(int ch)
 
 static void *MAINThread(void *arg)
 {
- int s_1,s_2,fa,ns;
+ int s_1,s_2,fa,ns,ns_from,ns_to;
 #if !defined(_MACOSX) && !defined(__arm__)
  int voldiv = iVolume;
 #else
@@ -480,17 +480,19 @@ static void *MAINThread(void *arg)
 
    //--------------------------------------------------// continue from irq handling in timer mode? 
 
+   ns_from=0;
+   ns_to=NSSIZE;
+   ch=0;
    if(lastch>=0)                                       // will be -1 if no continue is pending
     {
-     ch=lastch; ns=lastns; lastch=-1;                  // -> setup all kind of vars to continue
-     goto GOON;                                        // -> directly jump to the continue point
+     ch=lastch; ns_from=lastns+1; lastch=-1;           // -> setup all kind of vars to continue
     }
 
    //--------------------------------------------------//
    //- main channel loop                              -// 
    //--------------------------------------------------//
     {
-     for(ch=0;ch<MAXCHAN;ch++)                         // loop em all... we will collect 1 ms of sound of each playing channel
+     for(;ch<MAXCHAN;ch++)                             // loop em all... we will collect 1 ms of sound of each playing channel
       {
        if(s_chan[ch].bNew) StartSound(ch);             // start new sound
        if(!s_chan[ch].bOn) continue;                   // channel not playing? next
@@ -498,8 +500,7 @@ static void *MAINThread(void *arg)
        if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
         VoiceChangeFrequency(ch);
 
-       ns=0;
-       while(ns<NSSIZE)                                // loop until 1 ms of data is reached
+       for(ns=ns_from;ns<ns_to;ns++)                   // loop until 1 ms of data is reached
         {
          if(s_chan[ch].bFMod==1 && iFMod[ns])          // fmod freq channel
           FModChangeFrequency(ch,ns);
@@ -570,6 +571,9 @@ static void *MAINThread(void *arg)
                   {
                    iSpuAsyncWait=1;
                    bIRQReturn=1;
+                   lastch=ch; 
+                   lastns=ns;
+                   ns_to=ns+1;
                   }
                 }
               }
@@ -596,26 +600,6 @@ static void *MAINThread(void *arg)
              s_chan[ch].pCurr=start;                   // store values for next cycle
              s_chan[ch].s_1=s_1;
              s_chan[ch].s_2=s_2;
-
-             if(bIRQReturn)                            // special return for "spu irq - wait for cpu action"
-              {
-               bIRQReturn=0;
-               if(iUseTimer!=2)
-                { 
-                 DWORD dwWatchTime=timeGetTime_spu()+2500;
-
-                 while(iSpuAsyncWait && !bEndThread && 
-                       timeGetTime_spu()<dwWatchTime)
-                     usleep(1000L);
-                }
-               else
-                {
-                 lastch=ch; 
-                 lastns=ns;
-
-                 return 0;
-                }
-              }
 
 GOON: ;
             }
@@ -657,13 +641,30 @@ GOON: ;
          ////////////////////////////////////////////////
          // ok, go on until 1 ms data of this channel is collected
 
-         ns++;
          s_chan[ch].spos += s_chan[ch].sinc;
-
         }
 ENDX:   ;
       }
     }
+
+    if(bIRQReturn)                            // special return for "spu irq - wait for cpu action"
+     {
+      bIRQReturn=0;
+      if(iUseTimer!=2)
+       { 
+        DWORD dwWatchTime=timeGetTime_spu()+2500;
+
+        while(iSpuAsyncWait && !bEndThread && 
+              timeGetTime_spu()<dwWatchTime)
+            usleep(1000L);
+	continue;
+       }
+      else
+       {
+        return 0;
+       }
+     }
+
 
   //---------------------------------------------------//
   //- here we have another 1 ms of sound data
