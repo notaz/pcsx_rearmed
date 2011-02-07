@@ -173,11 +173,8 @@ int maemo_main(int argc, char **argv)
 
 	// If a state has been specified, then load that
 	if (loadst) {
-		char state_filename[MAXPATHLEN];
-		int ret = get_state_filename(state_filename, sizeof(state_filename), loadst - 1);
-		if (ret == 0)
-			ret = LoadState(state_filename);
-		printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
+		int ret = emu_load_state(loadst - 1);
+		printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
 	}
 
 	if (ready_to_go)

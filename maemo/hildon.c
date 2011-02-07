@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <hildon/hildon.h>
 #include "plugin_lib.h"
+#include "main.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 
 #define X_RES           800
@@ -80,10 +81,12 @@ window_key_proxy(GtkWidget *widget,
 			psxkey2 = DKEY_RIGHT;
 			break;
 		case 19:
-			//SaveState(cfile);
+			if (event->type == GDK_KEY_PRESS)
+				emu_set_action(SACTION_SAVE_STATE);
 			return;
 		case 20:
-			//LoadState(cfile);
+			if (event->type == GDK_KEY_PRESS)
+				emu_set_action(SACTION_LOAD_STATE);
 			return;
 	}
 
@@ -98,6 +101,8 @@ window_key_proxy(GtkWidget *widget,
 			in_keystate &= ~(1 << psxkey1);
 		if (psxkey2 >= 0)
 			in_keystate &= ~(1 << psxkey2);
+
+		emu_set_action(SACTION_NONE);
 	}
 }
 
@@ -146,6 +151,10 @@ void maemo_init(int *argc, char ***argv)
 
 	gtk_widget_show_all (GTK_WIDGET (actor));
 	gtk_widget_show_all (GTK_WIDGET (window));
+}
+
+void menu_loop(void)
+{
 }
 
 void *pl_fbdev_set_mode(int w, int h, int bpp)

@@ -29,6 +29,13 @@ int ready_to_go;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
 static char *(*real_getenv)(const char *name);
+int state_slot;
+enum sched_action emu_action, emu_action_old;
+char hud_msg[64];
+int hud_new_msg;
+
+// from softgpu plugin
+extern int UseFrameSkip;
 
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
@@ -96,6 +103,51 @@ static void set_default_paths(void)
 	Config.PsxAuto = 1;
 
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
+}
+
+void do_emu_action(void)
+{
+	int ret;
+
+	emu_action_old = emu_action;
+
+	switch (emu_action) {
+	case SACTION_NONE:
+		return;
+	case SACTION_ENTER_MENU:
+		menu_loop();
+		return;
+	case SACTION_LOAD_STATE:
+		ret = emu_load_state(state_slot);
+		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "LOADED" : "FAIL!");
+		break;
+	case SACTION_SAVE_STATE:
+		ret = emu_save_state(state_slot);
+		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "SAVED" : "FAIL!");
+		break;
+	case SACTION_NEXT_SSLOT:
+		state_slot++;
+		if (state_slot > 9)
+			state_slot = 0;
+		goto do_state_slot;
+	case SACTION_PREV_SSLOT:
+		state_slot--;
+		if (state_slot < 0)
+			state_slot = 9;
+		goto do_state_slot;
+	case SACTION_TOGGLE_FSKIP:
+		UseFrameSkip ^= 1;
+		snprintf(hud_msg, sizeof(hud_msg), "FRAMESKIP %s",
+			UseFrameSkip ? "ON" : "OFF");
+		break;
+	}
+	hud_new_msg = 3;
+	return;
+
+do_state_slot:
+	snprintf(hud_msg, sizeof(hud_msg), "STATE SLOT %d [%s]", state_slot,
+		emu_check_state(state_slot) == 0 ? "USED" : "FREE");
+	hud_new_msg = 3;
 }
 
 int main(int argc, char *argv[])
@@ -238,11 +290,8 @@ int main(int argc, char *argv[])
 
 	// If a state has been specified, then load that
 	if (loadst) {
-		char state_filename[MAXPATHLEN];
-		int ret = get_state_filename(state_filename, sizeof(state_filename), loadst - 1);
-		if (ret == 0)
-			ret = LoadState(state_filename);
-		printf("%s state %s\n", ret ? "failed to load" : "loaded", state_filename);
+		int ret = emu_load_state(loadst - 1);
+		printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
 	}
 
 	if (ready_to_go)
@@ -255,8 +304,11 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		stop = 0;
+		emu_action = SACTION_NONE;
+
 		psxCpu->Execute();
-		menu_loop();
+		if (emu_action != SACTION_NONE)
+			do_emu_action();
 	}
 
 	return 0;
@@ -343,6 +395,42 @@ int get_state_filename(char *buf, int size, int i) {
 		trimlabel, CdromId, i);
 
 	return 0;
+}
+
+int emu_check_state(int slot)
+{
+	char fname[MAXPATHLEN];
+	int ret;
+
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
+		return ret;
+
+	return CheckState(fname);
+}
+
+int emu_save_state(int slot)
+{
+	char fname[MAXPATHLEN];
+	int ret;
+
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
+		return ret;
+
+	return SaveState(fname);
+}
+
+int emu_load_state(int slot)
+{
+	char fname[MAXPATHLEN];
+	int ret;
+
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
+		return ret;
+
+	return LoadState(fname);
 }
 
 void SysPrintf(const char *fmt, ...) {

@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010
+ * (C) notaz, 2010-2011
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -23,6 +23,7 @@
 #include "common/input.h"
 #include "omap.h"
 #include "menu.h"
+#include "main.h"
 #include "pcnt.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
@@ -56,6 +57,12 @@ static int get_cpu_ticks(void)
 	ret = utime - last_utime;
 	last_utime = utime;
 	return ret;
+}
+
+static void print_hud(void)
+{
+	if (pl_fbdev_bpp == 16)
+		pl_text_out16(2, pl_fbdev_h - 10, "%s", hud_msg);
 }
 
 static void print_fps(void)
@@ -98,8 +105,11 @@ void *pl_fbdev_flip(void)
 	flip_cnt++;
 
 	if (pl_fbdev_buf != NULL) {
-		if (g_opts & OPT_SHOWFPS)
+		if (hud_msg[0] != 0)
+			print_hud();
+		else if (g_opts & OPT_SHOWFPS)
 			print_fps();
+
 		if (g_opts & OPT_SHOWCPU)
 			print_cpu_usage();
 	}
@@ -124,12 +134,20 @@ void pl_fbdev_close(void)
 static void update_input(void)
 {
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
+	unsigned int emu_act;
 
 	in_update(actions);
 	if (in_type == PSE_PAD_TYPE_ANALOGPAD)
 		in_update_analogs();
-	if (actions[IN_BINDTYPE_EMU] & PEV_MENU)
-		stop = 1;
+	emu_act = actions[IN_BINDTYPE_EMU];
+	if (emu_act) {
+		int which = 0;
+		for (; !(emu_act & 1); emu_act >>= 1, which++)
+			;
+		emu_act = which;
+	}
+	emu_set_action(emu_act);
+
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
 
 #ifdef X11
@@ -179,6 +197,12 @@ void pl_frame_limit(void)
 		tv_old = now;
 		if (g_opts & OPT_SHOWCPU)
 			tick_per_sec = get_cpu_ticks();
+
+		if (hud_new_msg > 0) {
+			hud_new_msg--;
+			if (hud_new_msg == 0)
+				hud_msg[0] = 0;
+		}
 	}
 #ifdef PCNT
 	static int ya_vsync_count;

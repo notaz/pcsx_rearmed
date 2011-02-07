@@ -17,6 +17,7 @@
 
 #include "common/input.h"
 #include "plugin_lib.h"
+#include "main.h"
 
 static int fdnub[2];
 static int analog_init_done;
@@ -43,7 +44,6 @@ struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
 	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
 	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
-	{ KEY_SPACE,    IN_BINDTYPE_EMU, PEVB_MENU },
 	{ KEY_PAGEUP,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
 	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
 	{ KEY_END,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
@@ -54,6 +54,12 @@ struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_RIGHTCTRL, IN_BINDTYPE_PLAYER12, DKEY_R1 },
 	{ KEY_Q,	IN_BINDTYPE_PLAYER12, DKEY_L2 },
 	{ KEY_P,	IN_BINDTYPE_PLAYER12, DKEY_R2 },
+	{ KEY_SPACE,    IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
+	{ KEY_1,        IN_BINDTYPE_EMU, SACTION_SAVE_STATE },
+	{ KEY_2,        IN_BINDTYPE_EMU, SACTION_LOAD_STATE },
+	{ KEY_3,        IN_BINDTYPE_EMU, SACTION_PREV_SSLOT },
+	{ KEY_4,        IN_BINDTYPE_EMU, SACTION_NEXT_SSLOT },
+	{ KEY_5,        IN_BINDTYPE_EMU, SACTION_TOGGLE_FSKIP },
 	{ 0, 0, 0 }
 };
 

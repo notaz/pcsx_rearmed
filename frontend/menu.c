@@ -60,7 +60,7 @@ enum {
 };
 
 static int last_psx_w, last_psx_h, last_psx_bpp;
-static int scaling, filter, state_slot, cpu_clock, cpu_clock_st;
+static int scaling, filter, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int region, in_type_sel;
@@ -103,28 +103,16 @@ void emu_make_path(char *buff, const char *end, int size)
 
 static int emu_check_save_file(int slot)
 {
-	char fname[MAXPATHLEN];
-	int ret;
-
-	ret = get_state_filename(fname, sizeof(fname), slot);
-	if (ret != 0)
-		return 0;
-
-	ret = CheckState(fname);
+	int ret = emu_check_state(slot);
 	return ret == 0 ? 1 : 0;
 }
 
-static int emu_save_load_game(int load, int sram)
+static int emu_save_load_game(int load, int unused)
 {
-	char fname[MAXPATHLEN];
 	int ret;
 
-	ret = get_state_filename(fname, sizeof(fname), state_slot);
-	if (ret != 0)
-		return 0;
-
 	if (load) {
-		ret = LoadState(fname);
+		ret = emu_load_state(state_slot);
 
 		// reflect hle/bios mode from savestate
 		if (Config.HLE)
@@ -134,7 +122,7 @@ static int emu_save_load_game(int load, int sram)
 			bios_sel = 1;
 	}
 	else
-		ret = SaveState(fname);
+		ret = emu_save_state(state_slot);
 
 	return ret;
 }
@@ -663,13 +651,12 @@ me_bind_action me_ctrl_actions[] =
 
 me_bind_action emuctrl_actions[] =
 {
-/*
-	{ "Load State       ", PEV_STATE_LOAD },
-	{ "Save State       ", PEV_STATE_SAVE },
-	{ "Prev Save Slot   ", PEV_SSLOT_PREV },
-	{ "Next Save Slot   ", PEV_SSLOT_NEXT },
-*/
-	{ "Enter Menu       ", PEV_MENU },
+	{ "Save State       ", 1 << SACTION_SAVE_STATE },
+	{ "Load State       ", 1 << SACTION_LOAD_STATE },
+	{ "Prev Save Slot   ", 1 << SACTION_PREV_SSLOT },
+	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
+	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
+	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 	{ NULL,                0 }
 };
 
@@ -835,7 +822,7 @@ static void keys_load_all(const char *cfg)
 
 			bind = parse_bind_val(act, &bindtype);
 			if (bind != -1 && bind != 0) {
-				printf("bind #%d '%s' %08x (%s)\n", dev_id, key, bind, act);
+				//printf("bind #%d '%s' %08x (%s)\n", dev_id, key, bind, act);
 				in_config_bind_key(dev_id, key, bind, bindtype);
 			}
 			else
@@ -1095,7 +1082,7 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
-static const char h_cfg_cpul[]   = "Shows CPU usage in %%";
+static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running too fast";
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
