@@ -269,11 +269,12 @@ static void Check_Shell( int Irq )
 			i = stat.Status;
 			if (CDR_getStatus(&stat) != -1)
 			{
-				if (stat.Type == 0xff)
-					cdr.Stat = DiskError;
+				// BIOS hangs + BIOS error messages
+				//if (stat.Type == 0xff)
+					//cdr.Stat = DiskError;
 
 				// case now open
-				else if (stat.Status & STATUS_SHELLOPEN)
+				if (stat.Status & STATUS_SHELLOPEN)
 				{
 					// Vib Ribbon: pre-CD swap
 					StopCdda();
@@ -1601,14 +1602,8 @@ void cdrWrite1(unsigned char rt) {
 		/*
 		   GameShark CD Player: save time for resume
 
-		   Twisted Metal - World Tour: don't save times for DATA reads
-		   - Only get 1 chance to do this right
-		   */
-		if( cdr.Play && CDR_getStatus(&stat) != -1 ) {
-			cdr.SetSectorPlay[0] = stat.Time[0];
-			cdr.SetSectorPlay[1] = stat.Time[1];
-			cdr.SetSectorPlay[2] = stat.Time[2];
-		}
+		   Twisted Metal - World Tour: don't mix Setloc / CdlPlay cursors
+		*/
 
 		StopCdda();
 		StopReading();
