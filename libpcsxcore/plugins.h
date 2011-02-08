@@ -60,6 +60,7 @@ int LoadPlugins();
 void ReleasePlugins();
 int OpenPlugins();
 void ClosePlugins();
+int ReloadCdromPlugin();
 
 typedef unsigned long (CALLBACK* PSEgetLibType)(void);
 typedef unsigned long (CALLBACK* PSEgetLibVersion)(void);

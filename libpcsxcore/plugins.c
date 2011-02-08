@@ -794,6 +794,23 @@ void ReleasePlugins() {
 #endif
 }
 
+// for CD swap
+int ReloadCdromPlugin()
+{
+	if (hCDRDriver != NULL || cdrIsoActive()) CDR_shutdown();
+	if (hCDRDriver != NULL) SysCloseLibrary(hCDRDriver); hCDRDriver = NULL;
+
+	if (UsingIso()) {
+		LoadCDRplugin(NULL);
+	} else {
+		char Plugin[MAXPATHLEN];
+		sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Cdr);
+		if (LoadCDRplugin(Plugin) == -1) return -1;
+	}
+
+	return CDR_init();
+}
+
 void SetIsoFile(const char *filename) {
 	if (filename == NULL) {
 		IsoFile[0] = '\0';

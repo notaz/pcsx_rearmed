@@ -22,6 +22,7 @@
 #include "omap.h"
 #include "common/plat.h"
 #include "../libpcsxcore/misc.h"
+#include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "revision.h"
 
@@ -36,6 +37,7 @@ typedef enum
 	MA_MAIN_LOAD_STATE,
 	MA_MAIN_RESET_GAME,
 	MA_MAIN_LOAD_ROM,
+	MA_MAIN_SWAP_CD,
 	MA_MAIN_RUN_BIOS,
 	MA_MAIN_CONTROLS,
 	MA_MAIN_CREDITS,
@@ -1335,6 +1337,36 @@ static int romsel_run(void)
 	return 0;
 }
 
+static int swap_cd_image(void)
+{
+	char *fname;
+
+	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	if (fname == NULL)
+		return -1;
+
+	printf("selected file: %s\n", fname);
+
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	set_cd_image(fname);
+	if (ReloadCdromPlugin() < 0) {
+		me_update_msg("failed to load cdr plugin");
+		return -1;
+	}
+	if (CDR_open() < 0) {
+		me_update_msg("failed to open cdr plugin");
+		return -1;
+	}
+
+	SetCdOpenCaseTime(time(NULL) + 2);
+	LidInterrupt();
+
+	strcpy(last_selected_fname, rom_fname_reload);
+	return 0;
+}
+
 static int main_menu_handler(int id, int keys)
 {
 	switch (id)
@@ -1357,6 +1389,10 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_LOAD_ROM:
 		if (romsel_run() == 0)
+			return 1;
+		break;
+	case MA_MAIN_SWAP_CD:
+		if (swap_cd_image() == 0)
 			return 1;
 		break;
 	case MA_MAIN_RUN_BIOS:
@@ -1387,6 +1423,7 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Load CD image",      MA_MAIN_LOAD_ROM,    main_menu_handler),
+	mee_handler_id("Change CD image",    MA_MAIN_SWAP_CD,     main_menu_handler),
 	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,    main_menu_handler),
 	mee_handler   ("Options",            menu_loop_options),
 	mee_handler   ("Controls",           menu_loop_keyconfig),
@@ -1409,6 +1446,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
+	me_enable(e_menu_main, MA_MAIN_SWAP_CD,  ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
