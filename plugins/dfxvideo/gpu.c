@@ -218,6 +218,8 @@ static void updateDisplay(void)                               // UPDATE DISPLAY
    bSkipNextFrame = FALSE;
    DoBufferSwap();                                     // -> swap
   }
+
+  bDoVSyncUpdate=FALSE;                                // vsync done
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -406,11 +408,14 @@ void CALLBACK GPUupdateLace(void)                      // VSYNC
     }
    else
     {
-     if(bDoVSyncUpdate && !UseFrameSkip)               // some primitives drawn?
-      updateDisplay();                                 // -> update display
+     if((bDoVSyncUpdate && !UseFrameSkip)              // some primitives drawn?
+      || bDoVSyncUpdate >= 8)                          // not syned for a while
+       updateDisplay();                                // -> update display
     }
   }
- bDoVSyncUpdate=FALSE;                                 // vsync done
+
+ if(bDoVSyncUpdate)                                    // if display not synced
+  bDoVSyncUpdate++;                                    // count how many times
 }
 
 ////////////////////////////////////////////////////////////////////////
