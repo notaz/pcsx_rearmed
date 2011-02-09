@@ -70,7 +70,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        break;
      //------------------------------------------------// start
      case 6:      
-       s_chan[ch].pStart=spuMemC+((unsigned long) val<<3);
+       // Brain Dead 13 - align to 16 boundary
+       s_chan[ch].pStart= spuMemC+(unsigned long)((val<<3)&~0xf);
        break;
      //------------------------------------------------// level with pre-calcs
      case 8:
@@ -162,7 +163,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
      //------------------------------------------------//
      case 14:                                          // loop?
        //WaitForSingleObject(s_chan[ch].hMutex,2000);        // -> no multithread fuckups
-       s_chan[ch].pLoop=spuMemC+((unsigned long) val<<3);
+       s_chan[ch].pLoop=spuMemC+((unsigned long)((val<<3)&~0xf));
        s_chan[ch].bIgnoreLoop=1;
        //ReleaseMutex(s_chan[ch].hMutex);                    // -> oki, on with the thread
        break;
@@ -424,6 +425,13 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
     {
      s_chan[ch].bIgnoreLoop=0;
      s_chan[ch].bNew=1;
+
+     // do this here, not in StartSound
+     // - fixes fussy timing issues
+     s_chan[ch].bStop=0;
+     s_chan[ch].bOn=1;
+     s_chan[ch].pCurr=s_chan[ch].pStart;
+
      dwNewChannel|=(1<<ch);                            // bitfield for faster testing
     }
   }
@@ -441,6 +449,11 @@ void SoundOff(int start,int end,unsigned short val)    // SOUND OFF PSX COMMAND
    if(val&1)                                           // && s_chan[i].bOn)  mmm...
     {
      s_chan[ch].bStop=1;
+
+     // Jungle Book - Rhythm 'n Groove
+     // - turns off buzzing sound (loop hangs)
+     s_chan[ch].bNew=0;
+     dwNewChannel &= ~(1<<ch);
     }                                                  
   }
 }
