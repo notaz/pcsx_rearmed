@@ -30,7 +30,7 @@
 
 void *pl_fbdev_buf;
 int pl_frame_interval;
-int in_type, in_keystate, in_a1[2], in_a2[2];
+int in_type, in_keystate, in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
@@ -226,11 +226,16 @@ void pl_frame_limit(void)
 		usleep(diff - pl_frame_interval / 2);
 	}
 
-	plugin_skip_advice = 0;
-	if (UseFrameSkip && diff < -pl_frame_interval) {
-		// P.E.Op.S. makes skip decision based on this
-		fps_skip = 1.0f;
-		plugin_skip_advice = 1;
+	if (UseFrameSkip) {
+		if (diff < -pl_frame_interval) {
+			// P.E.Op.S. makes skip decision based on this
+			fps_skip = 1.0f;
+			plugin_skip_advice = 1;
+		}
+		else if (diff >= 0) {
+			fps_skip = 100.0f;
+			plugin_skip_advice = 0;
+		}
 	}
 
 	pcnt_start(PCNT_ALL);
