@@ -134,7 +134,7 @@ clean_plugins:
 
 PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
-VER ?= $(shell git describe --abbrev=0 master)
+VER ?= $(shell git describe master)
 
 rel: pcsx $(PLUGINS) \
 		pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \

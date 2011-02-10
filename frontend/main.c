@@ -288,14 +288,15 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// If a state has been specified, then load that
-	if (loadst) {
-		int ret = emu_load_state(loadst - 1);
-		printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
-	}
-
-	if (ready_to_go)
+	if (ready_to_go) {
 		menu_prepare_emu();
+
+		// If a state has been specified, then load that
+		if (loadst) {
+			int ret = emu_load_state(loadst - 1);
+			printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
+		}
+	}
 	else
 		menu_loop();
 
