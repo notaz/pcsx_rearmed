@@ -44,6 +44,7 @@ enum {
 static struct {
 	uint8_t PadMode;
 	uint8_t PadID;
+	uint8_t ConfigMode;
 	PadDataS pad;
 } padstate[2];
 
@@ -111,11 +112,6 @@ static uint8_t do_cmd(void)
 
 	CmdLen = 8;
 	switch (CurCmd) {
-		case CMD_CONFIG_MODE:
-			buf = stdcfg[pad_num];
-			if (stdcfg[pad_num][3] == 0xFF) return 0xF3;
-			else return padstate[pad_num].PadID;
-
 		case CMD_SET_MODE_AND_LOCK:
 			buf = stdmode[pad_num];
 			return 0xF3;
@@ -141,6 +137,13 @@ static uint8_t do_cmd(void)
 			buf = unk4d[pad_num];
 			return 0xF3;
 
+		case CMD_CONFIG_MODE:
+			if (padstate[pad_num].ConfigMode) {
+				buf = stdcfg[pad_num];
+				return 0xF3;
+			}
+			// else FALLTHROUGH
+
 		case CMD_READ_DATA_AND_VIBRATE:
 		default:
 			buf = stdpar[pad_num];
@@ -165,17 +168,7 @@ static void do_cmd2(unsigned char value)
 {
 	switch (CurCmd) {
 		case CMD_CONFIG_MODE:
-			switch (value) {
-				case 0:
-					buf[2] = 0;
-					buf[3] = 0;
-					break;
-
-				case 1:
-					buf[2] = 0xFF;
-					buf[3] = 0xFF;
-					break;
-			}
+			padstate[CurPad].ConfigMode = value;
 			break;
 
 		case CMD_SET_MODE_AND_LOCK:
@@ -235,12 +228,16 @@ static unsigned char PADpoll_(unsigned char value) {
 	return buf[CurByte++];
 }
 
+#if 0
 #include <stdio.h>
 static unsigned char PADpoll(unsigned char value) {
 	unsigned char b = CurByte, r = PADpoll_(value);
 	printf("poll[%d] %02x %02x\n", b, value, r);
 	return r;
 }
+#else
+#define PADpoll PADpoll_
+#endif
 
 /* hack.. */
 extern long (*PAD1_readPort1)(PadDataS *pad);
