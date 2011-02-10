@@ -72,6 +72,10 @@ endif
 plugins/cdrcimg/%.o: CFLAGS += -Wall
 OBJS += plugins/cdrcimg/cdrcimg.o
 
+# dfinput
+plugins/dfinput/%.o: CFLAGS += -Wall
+OBJS += plugins/dfinput/pad.o
+
 # gui
 OBJS += frontend/main.o frontend/plugin.o 
 ifeq "$(USE_GTK)" "1"

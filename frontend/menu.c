@@ -24,6 +24,7 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../plugins/dfinput/pad.h"
 #include "revision.h"
 
 #define MENU_X2 1
@@ -1670,6 +1671,8 @@ void menu_prepare_emu(void)
 		if (ret)
 			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
 	}
+
+	dfinput_activate(in_type == PSE_PAD_TYPE_ANALOGPAD);
 }
 
 void me_update_msg(const char *msg)
