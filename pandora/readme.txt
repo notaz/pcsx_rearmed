@@ -62,6 +62,25 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
+r6 (2011-02-10)
++ added analog controller support using nubs (disabled by default)
++ added control config saving
++ added support for ingame actions (eg. savestate load)
++ added 'auto' region option and made it default
++ added cd swap functionality
++ added maemo frontend from Bonapart
+  (with some tuning, source code only)
+* reworked key configuration to be less confusing
+* fixed 'SPU IRQ wait' option sometimes causing noise
+  and turned it on by default
+* fixed mono xa masking (was causing noise)
+* fixed word access macros in dfxvideo (darkness problem)
+* changed GPU DMA timing back to 1.92 levels
+* backported more fixes from PCSX-Reloaded project
+  (mostly shalma's work, see GIT)
+* fixed a few more recompiler issues
++ fixed frameskip in builtin plugin
+
 r5 (2011-01-31)
 + added support for .bz format, also partial support for
   .znx and eboot.pbp formats
