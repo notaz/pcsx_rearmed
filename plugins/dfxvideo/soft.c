@@ -1003,6 +1003,10 @@ static void FillSoftwareArea(short x0,short y0,short x1,      // FILL AREA (BLK 
 {
  short j,i,dx,dy;
 
+ // ?? ff9 pal hooligan crack sets nonsense x0
+ if(x0<0) x0=0;
+ if(y0<0) y0=0;
+
  if(y0>y1) return;
  if(x0>x1) return;
     
