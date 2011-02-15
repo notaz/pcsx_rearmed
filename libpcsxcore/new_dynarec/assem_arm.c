@@ -914,6 +914,56 @@ void emit_zeroreg(int rt)
   output_w32(0xe3a00000|rd_rn_rm(rt,0,0));
 }
 
+void emit_loadlp(u_int imm,u_int rt)
+{
+  add_literal((int)out,imm);
+  assem_debug("ldr %s,pc+? [=%x]\n",regname[rt],imm);
+  output_w32(0xe5900000|rd_rn_rm(rt,15,0));
+}
+void emit_movw(u_int imm,u_int rt)
+{
+  assert(imm<65536);
+  assem_debug("movw %s,#%d (0x%x)\n",regname[rt],imm,imm);
+  output_w32(0xe3000000|rd_rn_rm(rt,0,0)|(imm&0xfff)|((imm<<4)&0xf0000));
+}
+void emit_movt(u_int imm,u_int rt)
+{
+  assem_debug("movt %s,#%d (0x%x)\n",regname[rt],imm&0xffff0000,imm&0xffff0000);
+  output_w32(0xe3400000|rd_rn_rm(rt,0,0)|((imm>>16)&0xfff)|((imm>>12)&0xf0000));
+}
+void emit_movimm(u_int imm,u_int rt)
+{
+  u_int armval;
+  if(genimm(imm,&armval)) {
+    assem_debug("mov %s,#%d\n",regname[rt],imm);
+    output_w32(0xe3a00000|rd_rn_rm(rt,0,0)|armval);
+  }else if(genimm(~imm,&armval)) {
+    assem_debug("mvn %s,#%d\n",regname[rt],imm);
+    output_w32(0xe3e00000|rd_rn_rm(rt,0,0)|armval);
+  }else if(imm<65536) {
+    #ifdef ARMv5_ONLY
+    assem_debug("mov %s,#%d\n",regname[rt],imm&0xFF00);
+    output_w32(0xe3a00000|rd_rn_imm_shift(rt,0,imm>>8,8));
+    assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
+    output_w32(0xe2800000|rd_rn_imm_shift(rt,rt,imm&0xff,0));
+    #else
+    emit_movw(imm,rt);
+    #endif
+  }else{
+    #ifdef ARMv5_ONLY
+    emit_loadlp(imm,rt);
+    #else
+    emit_movw(imm&0x0000FFFF,rt);
+    emit_movt(imm&0xFFFF0000,rt);
+    #endif
+  }
+}
+void emit_pcreladdr(u_int rt)
+{
+  assem_debug("add %s,pc,#?\n",regname[rt]);
+  output_w32(0xe2800000|rd_rn_rm(rt,15,0));
+}
+
 void emit_loadreg(int r, int hr)
 {
 #ifdef FORCE32
@@ -1030,56 +1080,6 @@ void emit_xor(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("eor %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0200000|rd_rn_rm(rt,rs1,rs2));
-}
-
-void emit_loadlp(u_int imm,u_int rt)
-{
-  add_literal((int)out,imm);
-  assem_debug("ldr %s,pc+? [=%x]\n",regname[rt],imm);
-  output_w32(0xe5900000|rd_rn_rm(rt,15,0));
-}
-void emit_movw(u_int imm,u_int rt)
-{
-  assert(imm<65536);
-  assem_debug("movw %s,#%d (0x%x)\n",regname[rt],imm,imm);
-  output_w32(0xe3000000|rd_rn_rm(rt,0,0)|(imm&0xfff)|((imm<<4)&0xf0000));
-}
-void emit_movt(u_int imm,u_int rt)
-{
-  assem_debug("movt %s,#%d (0x%x)\n",regname[rt],imm&0xffff0000,imm&0xffff0000);
-  output_w32(0xe3400000|rd_rn_rm(rt,0,0)|((imm>>16)&0xfff)|((imm>>12)&0xf0000));
-}
-void emit_movimm(u_int imm,u_int rt)
-{
-  u_int armval;
-  if(genimm(imm,&armval)) {
-    assem_debug("mov %s,#%d\n",regname[rt],imm);
-    output_w32(0xe3a00000|rd_rn_rm(rt,0,0)|armval);
-  }else if(genimm(~imm,&armval)) {
-    assem_debug("mvn %s,#%d\n",regname[rt],imm);
-    output_w32(0xe3e00000|rd_rn_rm(rt,0,0)|armval);
-  }else if(imm<65536) {
-    #ifdef ARMv5_ONLY
-    assem_debug("mov %s,#%d\n",regname[rt],imm&0xFF00);
-    output_w32(0xe3a00000|rd_rn_imm_shift(rt,0,imm>>8,8));
-    assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
-    output_w32(0xe2800000|rd_rn_imm_shift(rt,rt,imm&0xff,0));
-    #else
-    emit_movw(imm,rt);
-    #endif
-  }else{
-    #ifdef ARMv5_ONLY
-    emit_loadlp(imm,rt);
-    #else
-    emit_movw(imm&0x0000FFFF,rt);
-    emit_movt(imm&0xFFFF0000,rt);
-    #endif
-  }
-}
-void emit_pcreladdr(u_int rt)
-{
-  assem_debug("add %s,pc,#?\n",regname[rt]);
-  output_w32(0xe2800000|rd_rn_rm(rt,15,0));
 }
 
 void emit_addimm(u_int rs,int imm,u_int rt)
@@ -1202,7 +1202,9 @@ void emit_sbb(int rs1,int rs2)
 void emit_andimm(int rs,int imm,int rt)
 {
   u_int armval;
-  if(genimm(imm,&armval)) {
+  if(imm==0) {
+    emit_zeroreg(rt);
+  }else if(genimm(imm,&armval)) {
     assem_debug("and %s,%s,#%d\n",regname[rt],regname[rs],imm);
     output_w32(0xe2000000|rd_rn_rm(rt,rs,0)|armval);
   }else if(genimm(~imm,&armval)) {
@@ -1236,7 +1238,9 @@ void emit_andimm(int rs,int imm,int rt)
 void emit_orimm(int rs,int imm,int rt)
 {
   u_int armval;
-  if(genimm(imm,&armval)) {
+  if(imm==0) {
+    if(rs!=rt) emit_mov(rs,rt);
+  }else if(genimm(imm,&armval)) {
     assem_debug("orr %s,%s,#%d\n",regname[rt],regname[rs],imm);
     output_w32(0xe3800000|rd_rn_rm(rt,rs,0)|armval);
   }else{
@@ -1251,7 +1255,9 @@ void emit_orimm(int rs,int imm,int rt)
 void emit_xorimm(int rs,int imm,int rt)
 {
   u_int armval;
-  if(genimm(imm,&armval)) {
+  if(imm==0) {
+    if(rs!=rt) emit_mov(rs,rt);
+  }else if(genimm(imm,&armval)) {
     assem_debug("eor %s,%s,#%d\n",regname[rt],regname[rs],imm);
     output_w32(0xe2200000|rd_rn_rm(rt,rs,0)|armval);
   }else{
