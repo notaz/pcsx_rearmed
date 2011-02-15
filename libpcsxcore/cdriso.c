@@ -22,6 +22,7 @@
 #include "plugins.h"
 #include "cdrom.h"
 #include "cdriso.h"
+#include "ppf.h"
 
 #ifdef _WIN32
 #include <process.h>
@@ -685,6 +686,25 @@ static int opensubfile(const char *isoname) {
 	return 0;
 }
 
+static int opensbifile(const char *isoname) {
+	char		sbiname[MAXPATHLEN];
+	int		s;
+
+	strncpy(sbiname, isoname, sizeof(sbiname));
+	sbiname[MAXPATHLEN - 1] = '\0';
+	if (strlen(sbiname) >= 4) {
+		strcpy(sbiname + strlen(sbiname) - 4, ".sbi");
+	}
+	else {
+		return -1;
+	}
+
+	fseek(cdHandle, 0, SEEK_END);
+	s = ftell(cdHandle) / 2352;
+
+	return LoadSBI(sbiname, s);
+}
+
 static void PrintTracks(void) {
 	int i;
 
@@ -730,6 +750,9 @@ static long CALLBACK ISOopen(void) {
 	if (!subChanMixed && opensubfile(GetIsoFile()) == 0) {
 		SysPrintf("[+sub]");
 	}
+	if (opensbifile(GetIsoFile()) == 0) {
+		SysPrintf("[+sbi]");
+	}
 
 	SysPrintf(".\n");
 
@@ -765,6 +788,7 @@ static long CALLBACK ISOclose(void) {
 		}
 	}
 	numtracks = 0;
+	UnloadSBI();
 
 	return 0;
 }

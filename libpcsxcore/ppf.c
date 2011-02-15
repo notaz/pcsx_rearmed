@@ -330,3 +330,46 @@ void BuildPPFCache() {
 
 	SysPrintf(_("Loaded PPF %d.0 patch: %s.\n"), method + 1, szPPF);
 }
+
+// redump.org SBI files, slightly different handling from PCSX-Reloaded
+unsigned char *sbi_sectors;
+
+int LoadSBI(const char *fname, int sector_count) {
+	char buffer[16], sbifile[MAXPATHLEN];
+	FILE *sbihandle;
+	u8 sbitime[3];
+	int s;
+
+	sbihandle = fopen(fname, "rb");
+	if (sbihandle == NULL)
+		return -1;
+
+if (sbi_sectors != NULL) printf("sbi_sectors?\n");
+	sbi_sectors = calloc(1, sector_count / 8);
+	if (sbi_sectors == NULL)
+		return -1;
+
+	// 4-byte SBI header
+	fread(buffer, 1, 4, sbihandle);
+	while (!feof(sbihandle)) {
+		fread(sbitime, 1, 3, sbihandle);
+		fread(buffer, 1, 11, sbihandle);
+
+		s = MSF2SECT(btoi(sbitime[0]), btoi(sbitime[1]), btoi(sbitime[2]));
+		if (s < sector_count)
+			sbi_sectors[s >> 3] |= 1 << (s&7);
+		else
+			SysPrintf(_("SBI sector %d >= %d?\n"), s, sector_count);
+	}
+
+	fclose(sbihandle);
+
+	return 0;
+}
+
+void UnloadSBI(void) {
+	if (sbi_sectors) {
+		free(sbi_sectors);
+		sbi_sectors = NULL;
+	}
+}

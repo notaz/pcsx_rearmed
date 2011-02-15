@@ -27,6 +27,21 @@ void BuildPPFCache();
 void FreePPFCache();
 void CheckPPFCache(unsigned char *pB, unsigned char m, unsigned char s, unsigned char f);
 
+int LoadSBI(const char *fname, int sector_count);
+void UnloadSBI(void);
+
+extern unsigned char *sbi_sectors;
+
+static inline int CheckSBI(const u8 *t)
+{
+	int s;
+	if (sbi_sectors == NULL)
+		return 0;
+
+	s = MSF2SECT(btoi(t[0]), btoi(t[1]), btoi(t[2]));
+	return (sbi_sectors[s >> 3] >> (s & 7)) & 1;
+}
+
 #ifdef __cplusplus
 }
 #endif

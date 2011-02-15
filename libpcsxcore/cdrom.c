@@ -988,10 +988,9 @@ void cdrInterrupt() {
 			}
 
 			// redump.org - wipe time
-			/*if( !cdr.Play && CheckSBI(cdr.Result+5) ) {
+			if( !cdr.Play && CheckSBI(cdr.Result+5) ) {
 				memset( cdr.Result+2, 0, 6 );
 			}
-			*/
 
 			cdr.Stat = Acknowledge;
 			break;
