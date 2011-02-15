@@ -8490,9 +8490,10 @@ int new_recompile_block(int addr)
   int ds=0;
   int cc=0;
   int hr;
-  
+
+#ifndef FORCE32
   provisional_32bit();
-  
+#endif
   if((u_int)addr&1) {
     // First instruction is delay slot
     cc=-1;
@@ -8534,6 +8535,7 @@ int new_recompile_block(int addr)
         }
       }
     }
+#ifndef FORCE32
     // If something jumps here with 64-bit values
     // then promote those registers to 64 bits
     if(bt[i])
@@ -8568,8 +8570,7 @@ int new_recompile_block(int addr)
         current.is32=temp_is32;
       }
     }
-#ifdef FORCE32
-    memset(p32, 0xff, sizeof(p32));
+#else
     current.is32=-1LL;
 #endif
 
@@ -8577,7 +8578,7 @@ int new_recompile_block(int addr)
     regs[i].wasconst=current.isconst;
     regs[i].was32=current.is32;
     regs[i].wasdirty=current.dirty;
-    #ifdef DESTRUCTIVE_WRITEBACK
+    #if defined(DESTRUCTIVE_WRITEBACK) && !defined(FORCE32)
     // To change a dirty register from 32 to 64 bits, we must write
     // it out during the previous cycle (for branches, 2 cycles)
     if(i<slen-1&&bt[i+1]&&itype[i-1]!=UJUMP&&itype[i-1]!=CJUMP&&itype[i-1]!=SJUMP&&itype[i-1]!=RJUMP&&itype[i-1]!=FJUMP)
