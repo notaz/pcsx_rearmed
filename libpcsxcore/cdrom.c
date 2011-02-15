@@ -861,7 +861,17 @@ void cdrInterrupt() {
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Acknowledge;
 
-			AddIrqQueue(CdlPause + 0x20, 0x800);
+			/*
+			Gundam Battle Assault 2: much slower (*)
+			- Fixes boot, gameplay
+
+			Hokuto no Ken 2: slower
+			- Fixes intro + subtitles
+
+			InuYasha - Feudal Fairy Tale: slower
+			- Fixes battles
+			*/
+			AddIrqQueue(CdlPause + 0x20, cdReadTime * 3);
 			cdr.Ctrl |= 0x80;
 			break;
 
@@ -1610,17 +1620,7 @@ void cdrWrite1(unsigned char rt) {
 		cdr.Ctrl |= 0x80;
 		cdr.Stat = NoIntr;
 
-		/*
-		   Gundam Battle Assault 2: much slower (*)
-		   - Fixes boot, gameplay
-
-		   Hokuto no Ken 2: slower
-		   - Fixes intro + subtitles
-
-		   InuYasha - Feudal Fairy Tale: slower
-		   - Fixes battles
-		   */
-		AddIrqQueue(cdr.Cmd, cdReadTime * 3);
+		AddIrqQueue(cdr.Cmd, 0x800);
 		break;
 
 	case CdlReset:
