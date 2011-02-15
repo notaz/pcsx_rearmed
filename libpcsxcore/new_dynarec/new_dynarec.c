@@ -3840,8 +3840,11 @@ int internal_branch(uint64_t i_is32,int addr)
       else printf("optimizable: yes\n");
     }*/
     //if(is32[t]&~unneeded_reg_upper[t]&~i_is32) return 0;
+#ifndef FORCE32
     if(requires_32bit[t]&~i_is32) return 0;
-    else return 1;
+    else
+#endif
+      return 1;
   }
   return 0;
 }
@@ -4581,7 +4584,9 @@ int match_bt(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,int addr)
       }
     }
     //if(is32[t]&~unneeded_reg_upper[t]&~i_is32) return 0;
+#ifndef FORCE32
     if(requires_32bit[t]&~i_is32) return 0;
+#endif
     // Delay slots are not valid branch targets
     //if(t>0&&(itype[t-1]==RJUMP||itype[t-1]==UJUMP||itype[t-1]==CJUMP||itype[t-1]==SJUMP||itype[t-1]==FJUMP)) return 0;
     // Delay slots require additional processing, so do not match
@@ -10261,7 +10266,7 @@ int new_recompile_block(int addr)
   clean_registers(0,slen-1,1);
   
   /* Pass 7 - Identify 32-bit registers */
-  
+#ifndef FORCE32
   provisional_r32();
 
   u_int r32=0;
@@ -10375,6 +10380,7 @@ int new_recompile_block(int addr)
     }
     //requires_32bit[i]=is32[i]&~unneeded_reg_upper[i]; // DEBUG
   }
+#endif
 
   if(itype[slen-1]==SPAN) {
     bt[slen-1]=1; // Mark as a branch target so instruction can restart after exception
@@ -10862,7 +10868,11 @@ int new_recompile_block(int addr)
         u_int vpage=get_vpage(vaddr);
         literal_pool(256);
         //if(!(is32[i]&(~unneeded_reg_upper[i])&~(1LL<<CCREG)))
+#ifndef FORCE32
         if(!requires_32bit[i])
+#else
+        if(1)
+#endif
         {
           assem_debug("%8x (%d) <- %8x\n",instr_addr[i],i,start+i*4);
           assem_debug("jump_in: %x\n",start+i*4);
