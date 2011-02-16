@@ -2655,7 +2655,9 @@ do_readstub(int n)
   }
   emit_movimm(ftable,0);
   emit_addimm(cc<0?2:cc,2*stubs[n][6]+2,2);
+#ifndef PCSX
   emit_movimm(start+stubs[n][3]*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3);
+#endif
   //emit_readword((int)&last_count,temp);
   //emit_add(cc,temp,cc);
   //emit_writeword(cc,(int)&Count);
@@ -2663,6 +2665,7 @@ do_readstub(int n)
   emit_call((int)&indirect_jump_indexed);
   //emit_callreg(rs);
   //emit_readword_dualindexedx4(rs,HOST_TEMPREG,15);
+#ifndef PCSX
   // We really shouldn't need to update the count here,
   // but not doing so causes random crashes...
   emit_readword((int)&Count,HOST_TEMPREG);
@@ -2673,6 +2676,7 @@ do_readstub(int n)
   if(cc<0) {
     emit_storereg(CCREG,HOST_TEMPREG);
   }
+#endif
   //emit_popa();
   restore_regs(reglist);
   //if((cc=get_reg(regmap,CCREG))>=0) {
@@ -2731,15 +2735,18 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   emit_movimm(((u_int *)ftable)[addr>>16],0);
   //emit_readword((int)&last_count,12);
   emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+#ifndef PCSX
   if((signed int)addr>=(signed int)0xC0000000) {
     // Pagefault address
     int ds=regmap!=regs[i].regmap;
     emit_movimm(start+i*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3);
   }
+#endif
   //emit_add(12,2,2);
   //emit_writeword(2,(int)&Count);
   //emit_call(((u_int *)ftable)[addr>>16]);
   emit_call((int)&indirect_jump);
+#ifndef PCSX
   // We really shouldn't need to update the count here,
   // but not doing so causes random crashes...
   emit_readword((int)&Count,HOST_TEMPREG);
@@ -2750,6 +2757,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   if(cc<0) {
     emit_storereg(CCREG,HOST_TEMPREG);
   }
+#endif
   //emit_popa();
   restore_regs(reglist);
   if(rt>=0) {
@@ -2839,7 +2847,9 @@ do_writestub(int n)
   }
   emit_movimm(ftable,0);
   emit_addimm(cc<0?2:cc,2*stubs[n][6]+2,2);
+#ifndef PCSX
   emit_movimm(start+stubs[n][3]*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3);
+#endif
   //emit_readword((int)&last_count,temp);
   //emit_addimm(cc,2*stubs[n][5]+2,cc);
   //emit_add(cc,temp,cc);
@@ -2909,11 +2919,13 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   emit_movimm(((u_int *)ftable)[addr>>16],0);
   //emit_readword((int)&last_count,12);
   emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+#ifndef PCSX
   if((signed int)addr>=(signed int)0xC0000000) {
     // Pagefault address
     int ds=regmap!=regs[i].regmap;
     emit_movimm(start+i*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3);
   }
+#endif
   //emit_add(12,2,2);
   //emit_writeword(2,(int)&Count);
   //emit_call(((u_int *)ftable)[addr>>16]);
@@ -2968,7 +2980,10 @@ do_unalignedwritestub(int n)
   }
   emit_movimm((u_int)readmem,0);
   emit_addimm(cc<0?2:cc,2*stubs[n][6]+2,2);
-  emit_movimm(start+stubs[n][3]*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3); // XXX: can be rm'd?
+#ifndef PCSX
+  // pagefault address
+  emit_movimm(start+stubs[n][3]*4+(((regs[i].was32>>rs1[i])&1)<<1)+ds,3);
+#endif
   emit_call((int)&indirect_jump_indexed);
   restore_regs(reglist);
 
