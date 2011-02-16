@@ -20,6 +20,7 @@
 #include "plugin.h"
 #include "plugin_lib.h"
 #include "omap.h"
+#include "pcnt.h"
 #include "common/plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
@@ -415,7 +416,7 @@ fail:
 static unsigned short fname2color(const char *fname)
 {
 	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".cue", ".z", ".bz", ".znx", ".pbp" };
-	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table", ".index" };
+	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table", ".index", ".sbi" };
 	const char *ext = strrchr(fname, '.');
 	int i;
 
@@ -1204,8 +1205,9 @@ static void draw_frame_main(void)
 {
 	if (CdromId[0] != 0) {
 		char buff[64];
-		snprintf(buff, sizeof(buff), "%.32s/%.9s (running as %s)",
-			 get_cd_label(), CdromId, Config.PsxType ? "PAL" : "NTSC");
+		snprintf(buff, sizeof(buff), "%.32s/%.9s (running as %s, with %s)",
+			 get_cd_label(), CdromId, Config.PsxType ? "PAL" : "NTSC",
+			 Config.HLE ? "HLE" : "BIOS");
 		smalltext_out16(4, 1, buff, 0x105f);
 	}
 }
@@ -1256,6 +1258,7 @@ static int run_bios(void)
 	ClosePlugins();
 	set_cd_image(NULL);
 	LoadPlugins();
+	pcnt_hook_plugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {
 		me_update_msg("failed to open plugins");
@@ -1280,6 +1283,7 @@ static int run_cd_image(const char *fname)
 	ClosePlugins();
 	set_cd_image(fname);
 	LoadPlugins();
+	pcnt_hook_plugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {
 		me_update_msg("failed to open plugins");
