@@ -350,9 +350,6 @@ void new_dyna_pcsx_mem_init(void)
 		readmemb[i] = ari_read_ram8;
 		readmemh[i] = ari_read_ram16;
 		readmem[i] = ari_read_ram32;
-		writememb[i] = ari_write_ram8;
-		writememh[i] = ari_write_ram16;
-		writemem[i] = ari_write_ram32;
 	}
 
 	// BIOS and it's mirrors
