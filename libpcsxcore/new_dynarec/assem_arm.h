@@ -8,6 +8,7 @@
 #define CORTEX_A8_BRANCH_PREDICTION_HACK 1
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
+#define HAVE_CONDITIONAL_CALL 1
 #define DISABLE_TLB 1
 //#define MUPEN64
 #define FORCE32 1

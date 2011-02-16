@@ -3198,9 +3198,13 @@ void store_assemble(int i,struct regstat *i_regs)
       #else
       emit_cmpmem_indexedsr12_imm((int)invalid_code,addr,1);
       #endif
+      #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+      emit_callne(invalidate_addr_reg[addr]);
+      #else
       jaddr2=(int)out;
       emit_jne(0);
       add_stub(INVCODE_STUB,jaddr2,(int)out,reglist|(1<<HOST_CCREG),addr,0,0,0);
+      #endif
     }
   }
   if(jaddr) {
@@ -3632,9 +3636,13 @@ void c1ls_assemble(int i,struct regstat *i_regs)
       #else
       emit_cmpmem_indexedsr12_imm((int)invalid_code,temp,1);
       #endif
+      #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+      emit_callne(invalidate_addr_reg[temp]);
+      #else
       jaddr3=(int)out;
       emit_jne(0);
       add_stub(INVCODE_STUB,jaddr3,(int)out,reglist|(1<<HOST_CCREG),temp,0,0,0);
+      #endif
     }
   }
   if(jaddr2) add_stub(type,jaddr2,(int)out,i,offset||c||s<0?ar:s,(int)i_regs,ccadj[i],reglist);
@@ -3740,9 +3748,13 @@ void c2ls_assemble(int i,struct regstat *i_regs)
 #else
     emit_cmpmem_indexedsr12_imm((int)invalid_code,ar,1);
 #endif
+    #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+    emit_callne(invalidate_addr_reg[ar]);
+    #else
     jaddr3=(int)out;
     emit_jne(0);
     add_stub(INVCODE_STUB,jaddr3,(int)out,reglist|(1<<HOST_CCREG),ar,0,0,0);
+    #endif
   }
   if (opcode[i]==0x32) { // LWC2
     cop2_put_dreg(copr,tl,HOST_TEMPREG);

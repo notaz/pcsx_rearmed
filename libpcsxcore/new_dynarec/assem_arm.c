@@ -66,6 +66,37 @@ const u_int jump_vaddr_reg[16] = {
   0,
   0};
 
+void invalidate_addr_r0();
+void invalidate_addr_r1();
+void invalidate_addr_r2();
+void invalidate_addr_r3();
+void invalidate_addr_r4();
+void invalidate_addr_r5();
+void invalidate_addr_r6();
+void invalidate_addr_r7();
+void invalidate_addr_r8();
+void invalidate_addr_r9();
+void invalidate_addr_r10();
+void invalidate_addr_r12();
+
+const u_int invalidate_addr_reg[16] = {
+  (int)invalidate_addr_r0,
+  (int)invalidate_addr_r1,
+  (int)invalidate_addr_r2,
+  (int)invalidate_addr_r3,
+  (int)invalidate_addr_r4,
+  (int)invalidate_addr_r5,
+  (int)invalidate_addr_r6,
+  (int)invalidate_addr_r7,
+  (int)invalidate_addr_r8,
+  (int)invalidate_addr_r9,
+  (int)invalidate_addr_r10,
+  0,
+  (int)invalidate_addr_r12,
+  0,
+  0,
+  0};
+
 #include "fpu.h"
 
 unsigned int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
@@ -2193,6 +2224,13 @@ void emit_addsr12(int rs1,int rs2,int rt)
 {
   assem_debug("add %s,%s,%s lsr #12\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0800620|rd_rn_rm(rt,rs1,rs2));
+}
+
+void emit_callne(int a)
+{
+  assem_debug("blne %x\n",a);
+  u_int offset=genjmp(a);
+  output_w32(0x1b000000|offset);
 }
 
 // Used to preload hash table entries
