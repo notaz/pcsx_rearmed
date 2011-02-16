@@ -134,19 +134,21 @@ struct ll_entry
 #define CSREG 35 // Coprocessor status
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
-#define TEMPREG 38
-#define FTEMP 38 // FPU/LDL/LDR temporary register
-#define PTEMP 39 // Prefetch temporary register
-#define TLREG 40 // TLB mapping offset
-#define RHASH 41 // Return address hash
-#define RHTBL 42 // Return address hash table address
-#define RTEMP 43 // JR/JALR address register
-#define MAXREG 43
-#define AGEN1 44 // Address generation temporary register
-#define AGEN2 45 // Address generation temporary register
-#define MGEN1 46 // Maptable address generation temporary register
-#define MGEN2 47 // Maptable address generation temporary register
-#define BTREG 48 // Branch target temporary register
+#define MMREG 38 // Pointer to memory_map
+#define ROREG 39 // ram offset (if rdram!=0x80000000)
+#define TEMPREG 40
+#define FTEMP 40 // FPU temporary register
+#define PTEMP 41 // Prefetch temporary register
+#define TLREG 42 // TLB mapping offset
+#define RHASH 43 // Return address hash
+#define RHTBL 44 // Return address hash table address
+#define RTEMP 45 // JR/JALR address register
+#define MAXREG 45
+#define AGEN1 46 // Address generation temporary register
+#define AGEN2 47 // Address generation temporary register
+#define MGEN1 48 // Maptable address generation temporary register
+#define MGEN2 49 // Maptable address generation temporary register
+#define BTREG 50 // Branch target temporary register
 
   /* instruction types */
 #define NOP 0     // No operation
