@@ -2585,9 +2585,7 @@ do_readstub(int n)
   }
   assert(rs>=0);
   if(addr<0) addr=rt;
-  if(addr<0)
-    // assume dummy read, no alloced reg
-    addr=get_reg(i_regmap,-1);
+  if(addr<0&&itype[i]!=C1LS&&itype[i]!=C2LS&&itype[i]!=LOADLR) addr=get_reg(i_regmap,-1);
   assert(addr>=0);
   int ftable=0;
   if(type==LOADB_STUB||type==LOADBU_STUB)
@@ -2665,10 +2663,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   int rs=get_reg(regmap,target);
   int rth=get_reg(regmap,target|64);
   int rt=get_reg(regmap,target);
-  // allow for PCSX dummy reads
-  //assert(rt>=0);
-  if(rs<0)
-    rs=get_reg(regmap,-1);
+  if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
   int ftable=0;
   if(type==LOADB_STUB||type==LOADBU_STUB)
@@ -3281,57 +3276,60 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
     memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
     if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
   }
-  if(tl>=0) {
-    //assert(tl>=0);
-    //assert(rt1[i]);
-    if(!using_tlb) {
-      if(!c) {
-        emit_shlimm(addr,3,temp);
-        if (opcode[i]==0x22||opcode[i]==0x26) {
-          emit_andimm(addr,0xFFFFFFFC,temp2); // LWL/LWR
-        }else{
-          emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
-        }
-        emit_cmpimm(addr,RAM_SIZE);
-        jaddr=(int)out;
-        emit_jno(0);
-      }
-      else {
-        if (opcode[i]==0x22||opcode[i]==0x26) {
-          emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
-        }else{
-          emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
-        }
-      }
-    }else{ // using tlb
-      int a;
-      if(c) {
-        a=-1;
-      }else if (opcode[i]==0x22||opcode[i]==0x26) {
-        a=0xFFFFFFFC; // LWL/LWR
+  if(!using_tlb) {
+    if(!c) {
+      #ifdef RAM_OFFSET
+      map=get_reg(i_regs->regmap,ROREG);
+      if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
+      #endif
+      emit_shlimm(addr,3,temp);
+      if (opcode[i]==0x22||opcode[i]==0x26) {
+        emit_andimm(addr,0xFFFFFFFC,temp2); // LWL/LWR
       }else{
-        a=0xFFFFFFF8; // LDL/LDR
+        emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
       }
-      map=get_reg(i_regs->regmap,TLREG);
-      assert(map>=0);
-      map=do_tlb_r(addr,temp2,map,0,a,c?-1:temp,c,constmap[i][s]+offset);
-      if(c) {
-        if (opcode[i]==0x22||opcode[i]==0x26) {
-          emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
-        }else{
-          emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
-        }
-      }
-      do_tlb_r_branch(map,c,constmap[i][s]+offset,&jaddr);
+      emit_cmpimm(addr,RAM_SIZE);
+      jaddr=(int)out;
+      emit_jno(0);
     }
-    if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
-      if(!c||memtarget) {
-        //emit_readword_indexed((int)rdram-0x80000000,temp2,temp2);
-        emit_readword_indexed_tlb((int)rdram-0x80000000,temp2,map,temp2);
-        if(jaddr) add_stub(LOADW_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
+    else {
+      if (opcode[i]==0x22||opcode[i]==0x26) {
+        emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
+      }else{
+        emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
       }
-      else
-        inline_readstub(LOADW_STUB,i,(constmap[i][s]+offset)&0xFFFFFFFC,i_regs->regmap,FTEMP,ccadj[i],reglist);
+    }
+  }else{ // using tlb
+    int a;
+    if(c) {
+      a=-1;
+    }else if (opcode[i]==0x22||opcode[i]==0x26) {
+      a=0xFFFFFFFC; // LWL/LWR
+    }else{
+      a=0xFFFFFFF8; // LDL/LDR
+    }
+    map=get_reg(i_regs->regmap,TLREG);
+    assert(map>=0);
+    map=do_tlb_r(addr,temp2,map,0,a,c?-1:temp,c,constmap[i][s]+offset);
+    if(c) {
+      if (opcode[i]==0x22||opcode[i]==0x26) {
+        emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
+      }else{
+        emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
+      }
+    }
+    do_tlb_r_branch(map,c,constmap[i][s]+offset,&jaddr);
+  }
+  if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
+    if(!c||memtarget) {
+      //emit_readword_indexed((int)rdram-0x80000000,temp2,temp2);
+      emit_readword_indexed_tlb(0,temp2,map,temp2);
+      if(jaddr) add_stub(LOADW_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
+    }
+    else
+      inline_readstub(LOADW_STUB,i,(constmap[i][s]+offset)&0xFFFFFFFC,i_regs->regmap,FTEMP,ccadj[i],reglist);
+    if(rt1[i]) {
+      assert(tl>=0);
       emit_andimm(temp,24,temp);
 #ifdef BIG_ENDIAN_MIPS
       if (opcode[i]==0x26) // LWR
@@ -3348,19 +3346,23 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
         emit_bic_lsl(tl,HOST_TEMPREG,temp,tl);
       }
       emit_or(temp2,tl,tl);
-      //emit_storereg(rt1[i],tl); // DEBUG
     }
-    if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
-      // FIXME: little endian
-      int temp2h=get_reg(i_regs->regmap,FTEMP|64);
-      if(!c||memtarget) {
-        //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,temp2,temp2h);
-        //emit_readword_indexed((int)rdram-0x7FFFFFFC,temp2,temp2);
-        emit_readdword_indexed_tlb((int)rdram-0x80000000,temp2,map,temp2h,temp2);
-        if(jaddr) add_stub(LOADD_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
-      }
-      else
-        inline_readstub(LOADD_STUB,i,(constmap[i][s]+offset)&0xFFFFFFF8,i_regs->regmap,FTEMP,ccadj[i],reglist);
+    //emit_storereg(rt1[i],tl); // DEBUG
+  }
+  if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
+    // FIXME: little endian
+    int temp2h=get_reg(i_regs->regmap,FTEMP|64);
+    if(!c||memtarget) {
+      //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,temp2,temp2h);
+      //emit_readword_indexed((int)rdram-0x7FFFFFFC,temp2,temp2);
+      emit_readdword_indexed_tlb(0,temp2,map,temp2h,temp2);
+      if(jaddr) add_stub(LOADD_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
+    }
+    else
+      inline_readstub(LOADD_STUB,i,(constmap[i][s]+offset)&0xFFFFFFF8,i_regs->regmap,FTEMP,ccadj[i],reglist);
+    if(rt1[i]) {
+      assert(th>=0);
+      assert(tl>=0);
       emit_testimm(temp,32);
       emit_andimm(temp,24,temp);
       if (opcode[i]==0x1A) { // LDL
