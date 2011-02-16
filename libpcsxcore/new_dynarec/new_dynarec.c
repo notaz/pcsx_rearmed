@@ -1086,7 +1086,6 @@ void ll_clear(struct ll_entry **head)
 // Dereference the pointers and remove if it matches
 void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
 {
-  u_int old_host_addr=0;
   while(head) {
     int ptr=get_pointer(head->addr);
     inv_debug("EXP: Lookup pointer to %x at %x (%x)\n",(int)ptr,(int)head->addr,head->vaddr);
@@ -1095,20 +1094,12 @@ void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
     {
       inv_debug("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
       u_int host_addr=(u_int)kill_pointer(head->addr);
-
-      if((host_addr>>12)!=(old_host_addr>>12)) {
-        #ifdef __arm__
-        __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
-        #endif
-        old_host_addr=host_addr;
-      }
+      #ifdef __arm__
+        needs_clear_cache[(host_addr-(u_int)BASE_ADDR)>>17]|=1<<(((host_addr-(u_int)BASE_ADDR)>>12)&31);
+      #endif
     }
     head=head->next;
   }
-  #ifdef __arm__
-  if (old_host_addr)
-    __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
-  #endif
 }
 
 // This is called when we write to a compiled block (see do_invstub)
@@ -1116,7 +1107,6 @@ void invalidate_page(u_int page)
 {
   struct ll_entry *head;
   struct ll_entry *next;
-  u_int old_host_addr=0;
   head=jump_in[page];
   jump_in[page]=0;
   while(head!=NULL) {
@@ -1131,21 +1121,13 @@ void invalidate_page(u_int page)
   while(head!=NULL) {
     inv_debug("INVALIDATE: kill pointer to %x (%x)\n",head->vaddr,(int)head->addr);
     u_int host_addr=(u_int)kill_pointer(head->addr);
-
-    if((host_addr>>12)!=(old_host_addr>>12)) {
-      #ifdef __arm__
-      __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
-      #endif
-      old_host_addr=host_addr;
-    }
+    #ifdef __arm__
+      needs_clear_cache[(host_addr-(u_int)BASE_ADDR)>>17]|=1<<(((host_addr-(u_int)BASE_ADDR)>>12)&31);
+    #endif
     next=head->next;
     free(head);
     head=next;
   }
-  #ifdef __arm__
-  if (old_host_addr)
-    __clear_cache((void *)(old_host_addr&~0xfff),(void *)(old_host_addr|0xfff));
-  #endif
 }
 void invalidate_block(u_int block)
 {
@@ -1192,6 +1174,9 @@ void invalidate_block(u_int block)
   for(first=page+1;first<last;first++) {
     invalidate_page(first);
   }
+  #ifdef __arm__
+    do_clear_cache();
+  #endif
   
   // Don't trap writes
   invalid_code[block]=1;
@@ -1216,6 +1201,8 @@ void invalidate_addr(u_int addr)
 {
   invalidate_block(addr>>12);
 }
+// This is called when loading a save state.
+// Anything could have changed, so invalidate everything.
 void invalidate_all_pages()
 {
   u_int page,n;
@@ -11041,6 +11028,10 @@ int new_recompile_block(int addr)
         break;
       case 3:
         // Clear jump_out
+        #ifdef __arm__
+        if((expirep&2047)==0) 
+          do_clear_cache();
+        #endif
         ll_remove_matching_addrs(jump_out+(expirep&2047),base,shift);
         ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base,shift);
         break;

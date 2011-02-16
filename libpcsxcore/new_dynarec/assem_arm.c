@@ -68,6 +68,8 @@ const u_int jump_vaddr_reg[16] = {
 
 #include "fpu.h"
 
+unsigned int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
+
 /* Linker */
 
 void set_jump_target(int addr,u_int target)
@@ -4783,6 +4785,38 @@ void wb_invalidate_arm(signed char pre[],signed char entry[],uint64_t dirty,uint
 }
 #define wb_invalidate wb_invalidate_arm
 */
+
+// Clearing the cache is rather slow on ARM Linux, so mark the areas
+// that need to be cleared, and then only clear these areas once.
+void do_clear_cache()
+{
+  int i,j;
+  for (i=0;i<(1<<(TARGET_SIZE_2-17));i++)
+  {
+    u_int bitmap=needs_clear_cache[i];
+    if(bitmap) {
+      u_int start,end;
+      for(j=0;j<32;j++) 
+      {
+        if(bitmap&(1<<j)) {
+          start=BASE_ADDR+i*131072+j*4096;
+          end=start+4095;
+          j++;
+          while(j<32) {
+            if(bitmap&(1<<j)) {
+              end+=4096;
+              j++;
+            }else{
+              __clear_cache((void *)start,(void *)end);
+              break;
+            }
+          }
+        }
+      }
+      needs_clear_cache[i]=0;
+    }
+  }
+}
 
 // CPU-architecture-specific initialization
 void arch_init() {
