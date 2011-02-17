@@ -45,6 +45,8 @@ extern unsigned int word;	/* write */
 extern unsigned short hword;
 extern unsigned char byte;
 
+extern void *psxH_ptr;
+
 /* cycles/irqs */
 extern unsigned int next_interupt;
 extern int pending_exception;

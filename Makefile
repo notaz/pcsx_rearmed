@@ -39,7 +39,8 @@ OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_ar
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \
+	libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
@@ -48,6 +49,7 @@ endif
 # spu
 OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
 	plugins/dfsound/registers.o plugins/dfsound/spu.o
+plugins/dfsound/spu.o: plugins/dfsound/xa.c
 ifeq "$(USE_OSS)" "1"
 plugins/dfsound/%.o: CFLAGS += -DUSEOSS
 OBJS += plugins/dfsound/oss.o

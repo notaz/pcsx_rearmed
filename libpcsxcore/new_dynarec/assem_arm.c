@@ -2602,6 +2602,10 @@ emit_extjump_ds(int addr, int target)
   emit_extjump2(addr, target, (int)dyna_linker_ds);
 }
 
+#ifdef PCSX
+#include "pcsxmem_inline.c"
+#endif
+
 do_readstub(int n)
 {
   assem_debug("do_readstub %x\n",start+stubs[n][3]*4);
@@ -2721,6 +2725,10 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     ftable=(int)readmemd;
 #endif
   assert(ftable!=0);
+#ifdef PCSX
+  if(pcsx_direct_read(type,addr,target?rs:-1,rt))
+    return;
+#endif
   if(target==0)
     emit_movimm(addr,rs);
   emit_writeword(rs,(int)&address);
@@ -2879,6 +2887,10 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   int rt=get_reg(regmap,target);
   assert(rs>=0);
   assert(rt>=0);
+#ifdef PCSX
+  if(pcsx_direct_write(type,addr,rs,rt,regmap))
+    return;
+#endif
   int ftable=0;
   if(type==STOREB_STUB)
     ftable=(int)writememb;

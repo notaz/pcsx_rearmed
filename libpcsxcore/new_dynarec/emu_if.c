@@ -155,7 +155,6 @@ static int ari64_init()
 {
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
-	extern void *psxH_ptr;
 	size_t i;
 
 	new_dynarec_init();
