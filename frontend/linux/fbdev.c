@@ -92,6 +92,7 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 		fbdev->fbvar_new.xoffset = left_border;
 		fbdev->fbvar_new.yoffset = top_border;
 		fbdev->fbvar_new.bits_per_pixel = bpp;
+		fbdev->fbvar_new.nonstd = 0; // can set YUV here on omapfb
 		fbdev->buffer_count = buffer_cnt;
 		fbdev->buffer_write = 1;
 
