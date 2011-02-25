@@ -99,18 +99,16 @@ scratch:
 .macro rtpx_preload
     add         r3, r0, #4*32
     vldmia      r3, {d0-d2}    @ gteR*  [16*9]
+    vmov.i32    q15, #0
     add         r3, r0, #4*(32+5)
     vldmia      r3, {d4-d5}    @ gteTR*
-    vmov.i32    q15, #0
-    vshl.i64    d2, d2, #32    @ |
+    vext.16     d2, d1, d2, #2 @ xxx3 -> x321
+    vext.16     d1, d0, d1, #3 @ xx32 -> x321
     add         r3, r0, #4*(32+26)
     vld1.32     d11[0], [r3]   @ gteH
-    vsri.u64    d2, d1, #32    @ |
     vshll.s32   q3, d5, #12    @ gteTRZ
     vshll.s32   q2, d4, #12    @ gteTR|XY
-    vshl.i64    d1, d1, #16    @ |
     vmovl.s16   q6, d11        @ gteH
-    vsri.u64    d1, d0, #48    @ |
 .endm
 
 @ do RTP* gteMAC* calculation
@@ -147,17 +145,26 @@ gteRTPS_neon:
     movt        r1, #:upper16:scratch
     mov         r12, #0
 
+    vldmia      r0, {d8}       @ VXYZ(0)
     rtpx_preload
 
-    vldmia      r0, {d8}       @ VXYZ(0)
+@    rtpx_mac                  @ slower here, faster in RTPT?
     vmov.16     d8[3], r12     @ kill unused upper vector
-
-    rtpx_mac
+    vmull.s16   q8, d0, d8
+    vmull.s16   q9, d1, d8
+    vmull.s16   q10, d2, d8
+    vpadd.s32   d16, d16, d17
+    vpadd.s32   d17, d18, d19
+    vpadd.s32   d18, d20, d21
+    vpadal.s32  q2, q8
+    vpadal.s32  q3, q9         @ d6, d18 is slow?
+    vqshrn.s64  d8, q2, #12    @ gteMAC|12
+    vqshrn.s64  d9, q3, #12    @ gteMAC3
 
     add         r3, r0, #4*25
     vst1.32     d8, [r3]!
     vst1.32     d9[0], [r3]    @ wb gteMAC|123
-    vmovl.s16   q9, d10        @ expand gteIR|123
+    vqmovn.s32  d10, q4        @ gteIR|123
 
     add         r3, r0, #4*17  @ gteSZ*
     vldmia      r3, {q7}       @ d14,d15 gteSZ|123x
@@ -166,6 +173,7 @@ gteRTPS_neon:
     vshr.s32    d16, d12, #1   @ | gteH/2 (adjust for cmp)
     vmov.i32    d26, #1
     vmin.u32    d11, d28       @ saturate to 0..0xffff limD/fSZ3
+    vmovl.s16   q9, d10        @ || expand gteIR|123
     vshl.u32    d13, d12, #16  @ | preparing gteH
     add         r3, r0, #4*9
     vst1.32     d18, [r3]!
@@ -200,7 +208,7 @@ gteRTPS_neon:
     mov         lr, #0         @ gteFLAG
     ldmia       r3, {r4-r6}    @ gteMAC|123
 
-    vst1.32     d11, [r1]      @ wb quotient for flags (pre-limE)
+    vst1.32     d11, [r1, :64] @ wb quotient for flags (pre-limE)
     vqshl.u32   d11, #15
 
     do_mac_flags r4, r5, r6
@@ -307,10 +315,10 @@ gteRTPT_neon:
     vmin.s32    d22, d8        @ min gteMAC|12
     vmax.s32    d23, d8        @ max gteMAC|12
     subs        r3, #1
-    vst1.32     {d9,d10}, [r1, :64]!
+    vst1.32     {d9,d10}, [r1, :128]!
     bgt         0b
 
-    vst1.32     {d22,d23}, [r1, :64]! @ min/max gteMAC|12 (for flags)
+    vst1.32     {d22,d23}, [r1, :128]! @ min/max gteMAC|12, for flags
 
     @ - phase2 -
     sub         r1, r1, #8*2*4
