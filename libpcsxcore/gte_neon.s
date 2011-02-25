@@ -20,26 +20,59 @@ scratch:
 .text
 .align 2
 
-@ approximate signed gteIR|123 flags
-@ in: rl/rh with packed gteIR|123
-@ trash: r2,r3,r4
-.macro do_irs_flags rl rh
-    mov         r4, \rl, ror #16
-    adds        r2, \rl, #1<<16
-    subvcs      r3, \rl, #1<<16
+@ approximate gteMAC|123 flags
+@ in: rr 123 as gteMAC|123
+@ trash: nothing
+.macro do_mac_flags rr1 rr2 rr3
+    cmp         \rr1, #1
+    orrvs       lr, #(1<<31)|(1<<27)
+    cmp         \rr2, #1
+    orrvs       lr, #(1<<31)|(1<<26)
+    cmp         \rr3, #1
+    orrvs       lr, #(1<<31)|(1<<25)
+    cmn         \rr1, #1       @ same as adds ...
+    orrvs       lr, #(1<<30)
+    cmn         \rr2, #1
+    orrvs       lr, #(1<<29)
+    cmn         \rr3, #1
+    orrvs       lr, #(1<<28)
+.endm
+
+@ approximate 3x gteMACn flags
+@ in: rr 123 as 3 instances gteMACn, *flags
+@ trash: nothing
+.macro do_mac_flags3x rr1 rr2 rr3 nflags pflags
+    cmp         \rr1, #1
+    cmpvc       \rr2, #1
+    cmpvc       \rr3, #1
+    orrvs       lr, #\nflags
+    cmn         \rr1, #1       @ adds ...
+    cmnvc       \rr2, #1
+    cmnvc       \rr3, #1
+    orrvs       lr, #\pflags
+.endm
+
+@ approximate signed gteIR|123 [32] flags
+@ in: rr 123 as gteIR|123
+@ trash: r2,r3
+.macro do_irs_flags rr1 rr2 rr3
+    mov         r2, #0x10000
+    cmn         r2, \rr1, lsl #16 @ adds ...
+    rsbvcs      r3, r2, \rr1, lsl #16
     orrvs       lr, #(1<<31)|(1<<24) @ IR1/limB1
-    adds        r2, r4, #1<<16
-    subvcs      r3, r4, #1<<16
-    mov         r4, \rh, lsl #16
+    cmn         r2, \rr2, lsl #16
+    rsbvcs      r3, r2, \rr2, lsl #16
     orrvs       lr, #(1<<31)
     orrvs       lr, #(1<<23)   @ IR2/limB2
-    adds        r2, r4, #1<<16
-    subvcs      r3, r4, #1<<16
+    cmn         r2, \rr3, lsl #16
+    subvcs      r3, r2, \rr3, lsl #16
     orrvs       lr, #(1<<22)   @ IR3/limB3
 .endm
 
 
 /*
+ * RTPS/RTPT register map:
+ *
  *  q | d | c code / phase 1   phase 2          scratch
  *  0   0   gteR1* [s16]       gteMAC3     =    gteMAC3  \ v=0 *
  *      1   gteR2*             gteIR1-3    =    gteIR1-3 /     *
@@ -59,42 +92,32 @@ scratch:
  * 15  30   0
  *     31   0
  */
-.global gteRTPT_neon @ r0=CP2 (d,c),
-gteRTPT_neon:
-    push        {r4-r11,lr}
 
-@    fmrx        r4, fpscr      @ vmrs?
-    movw        r1, #:lower16:scratch
-    movt        r1, #:upper16:scratch
-    mov         r12, #0
-    veor        q15, q15
-
+@ load gteR*, gteTR* and gteH (see map above), clear q15
+@ in: r0 - context
+@ trash: r3
+.macro rtpx_preload
     add         r3, r0, #4*32
     vldmia      r3, {d0-d2}    @ gteR*  [16*9]
     add         r3, r0, #4*(32+5)
     vldmia      r3, {d4-d5}    @ gteTR*
+    vmov.i32    q15, #0
     vshl.i64    d2, d2, #32    @ |
     add         r3, r0, #4*(32+26)
     vld1.32     d11[0], [r3]   @ gteH
     vsri.u64    d2, d1, #32    @ |
-    add         r3, r0, #4*19
-    vld1.32     d14[0], [r3]   @ gteSZ3
-    vshll.s32   q3, d5, #12
-    vshll.s32   q2, d4, #12    @ gteTRX
+    vshll.s32   q3, d5, #12    @ gteTRZ
+    vshll.s32   q2, d4, #12    @ gteTR|XY
     vshl.i64    d1, d1, #16    @ |
-    add         r3, r0, #4*16
-    vst1.32     d14[0], [r3]   @ gteSZ0 = gteSZ3
     vmovl.s16   q6, d11        @ gteH
     vsri.u64    d1, d0, #48    @ |
+.endm
 
-    vmov.i32    d22, #0x7fffffff
-    vmov.i32    d23, #0x80000000
-    mov         r3, #3         @ counter
-    mov         r2, r0         @ VXYZ(0)
-0:
-    vldmia      r2!, {d8}      @ VXYZ(v)
-    vmov.16     d8[3], r12     @ kill unused upper vector
-
+@ do RTP* gteMAC* calculation
+@ in: gteR*, gteTR* as in map, d8 - VXYZ, r12 - 0
+@ out: d8,d9 - gteMAC|123, d10 - gteIR|123
+@ trash: d16-d21
+.macro rtpx_mac
     vmull.s16   q8, d0, d8
     vmull.s16   q9, d1, d8
     vmull.s16   q10, d2, d8
@@ -112,7 +135,175 @@ gteRTPT_neon:
     vqshrn.s64  d9, q10, #12   @ gteMAC3
     vsli.u64    d8, d18, #32   @ gteMAC|12
     vmov.32     d9[1], r12
-    vqmovn.s32  d10, q4        @ gteIR1-3; losing 2 cycles?
+    vqmovn.s32  d10, q4        @ gteIR|123; losing 2 cycles?
+.endm
+
+.global gteRTPS_neon @ r0=CP2 (d,c),
+gteRTPS_neon:
+    push        {r4-r7,lr}
+
+@    fmrx        r4, fpscr      @ vmrs? at least 40 cycle hit
+    movw        r1, #:lower16:scratch
+    movt        r1, #:upper16:scratch
+    mov         r12, #0
+
+    rtpx_preload
+
+    vldmia      r0, {d8}       @ VXYZ(0)
+    vmov.16     d8[3], r12     @ kill unused upper vector
+
+    rtpx_mac
+
+    add         r3, r0, #4*25
+    vst1.32     d8, [r3]!
+    vst1.32     d9[0], [r3]    @ wb gteMAC|123
+    vmovl.s16   q9, d10        @ expand gteIR|123
+
+    add         r3, r0, #4*17  @ gteSZ*
+    vldmia      r3, {q7}       @ d14,d15 gteSZ|123x
+    vmov.i32    d28, #0xffff   @ 0xffff[32]
+    vmax.s32    d11, d9, d31
+    vshr.s32    d16, d12, #1   @ | gteH/2 (adjust for cmp)
+    vmov.i32    d26, #1
+    vmin.u32    d11, d28       @ saturate to 0..0xffff limD/fSZ3
+    vshl.u32    d13, d12, #16  @ | preparing gteH
+    add         r3, r0, #4*9
+    vst1.32     d18, [r3]!
+    vst1.32     d19[0], [r3]
+
+    vsli.u64    d15, d11, #32  @ new gteSZ|0123 in q7
+    vclt.u32    d16, d16, d11  @ gteH/2 < fSZ3?
+
+    add         r3, r0, #4*(32+24)
+    vld1.32     d4, [r3]       @ || gteOF|XY
+    add         r3, r0, #4*(32+27)
+    vld1.32     d6, [r3]       @ || gteDQ|AB
+
+    vand        d11, d16
+    vmovl.s32   q2, d4         @ || gteOF|XY [64]
+    vmax.u32    d11, d26       @ make divisor 1 if not
+    vmovl.s32   q3, d6         @ || gteDQ|AB [64]
+    add         r3, r0, #4*16  @ | gteSZ*
+    vstmia      r3, {q7}       @ | d14,d15 gteSZ|123x
+
+    vcvt.f32.u32 d13, d13      @ gteH (float for div)
+    vcvt.f32.u32 d11, d11      @ divisor
+
+    @ divide.. it's not worth messing with reciprocals here
+    @ just for 1 value, let's just use VFP divider here
+    vdiv.f32    s22, s26, s22
+
+    vcvt.u32.f32 d11, d11      @ quotient
+
+    @ while NEON's busy we calculate some flags on ARM
+    add         r3, r0, #4*25
+    mov         lr, #0         @ gteFLAG
+    ldmia       r3, {r4-r6}    @ gteMAC|123
+
+    vst1.32     d11, [r1]      @ wb quotient for flags (pre-limE)
+    vqshl.u32   d11, #15
+
+    do_mac_flags r4, r5, r6
+
+    vshr.u32    d11, #15       @ quotient (limE)
+    add         r3, r0, #4*9
+
+    ldmia       r3, {r4-r6}    @ gteIR|123
+    do_irs_flags r4, r5, r6
+
+    vmlal.s32   q2, d18, d11[0]@ gteOF|XY + gteIR|12 * quotient
+    add         r3, r0, #4*13
+    vld1.32     d16, [r3]      @ || load fS|XY12, new 01
+    vqmovn.s64  d18, q2        @ saturate to 32
+    vmull.s32   q10, d6, d11[0]@ | d20 = gteDQA * quotient
+    vqshl.s32   d19, d18, #5   @ 11bit precision
+
+    ldr         r4, [r1]       @ quotient
+
+    mov         r2, r1
+    vst1.32     d18, [r2]!     @ || writeback fS|XY2 before limG
+    vst1.32     d19, [r2]      @ || and after 11bit saturation
+
+    movs        r3, r6, lsr #16
+    orrne       lr, #(1<<31)
+    orrne       lr, #(1<<18)   @ fSZ (limD)
+
+    vshr.s32    d18, d19, #16+5@ can't vqshrn because of insn
+    vadd.s64    d20, d7        @ | gteDQB + gteDQA * quotient
+    vmovn.s32   d18, q9        @ fS|XY2 [s16]
+
+    vqshrn.s64  d20, q10, #12  @ | gteMAC0
+    add         r3, r0, #4*12
+    vst1.32     d16, [r3]!     @ writeback fS|XY01
+    vst1.32     d18[0], [r3]   @ ...2
+    add         r3, r0, #4*24
+    vst1.32     d20[0], [r3]   @ gteMAC0
+
+    vmax.s32    d21, d20, d31
+    vmov.i32    d22, #0x1000
+    vmin.s32    d21, d22
+    add         r3, r0, #4*8
+    vst1.16     d21[0], [r3]   @ gteIR0
+
+    movs        r4, r4, lsr #17
+    orrne       lr, #(1<<31)
+    orrne       lr, #(1<<17)   @ limE
+
+    ldmia       r1, {r4-r7}    @ fS|XY2 before limG, after 11bit sat
+    subs        r2, r6, #1<<21
+    addvcs      r3, r6, #1<<21
+    orrvs       lr, #(1<<14)   @ limG1
+    orrvs       lr, #(1<<31)
+    subs        r2, r7, #1<<21
+    addvcs      r3, r7, #1<<21
+    orrvs       lr, #(1<<13)   @ limG2
+    orrvs       lr, #(1<<31)
+    adds        r2, r4, #1
+    addvcs      r3, r5, #1
+    orrvs       lr, #(1<<16)   @ F
+    orrvs       lr, #(1<<31)
+    subs        r2, r4, #1
+    subvcs      r3, r5, #1
+    orrvs       lr, #(1<<31)
+
+    ldr         r4, [r0, #4*24] @ gteMAC0
+    orrvs       lr, #(1<<15)
+
+    adds        r3, r4, #1
+    orrvs       lr, #(1<<16)   @ F
+    orrvs       lr, #(1<<31)
+    subs        r2, r4, #1
+    orrvs       lr, #(1<<15)   @ F
+    orrvs       lr, #(1<<31)
+    cmp         r4, #0x1000
+    orrhi       lr, #(1<<12)   @ limH
+
+    str         lr, [r0, #4*(32+31)] @ gteFLAG
+
+    pop         {r4-r7,pc}
+    .size	gteRTPS_neon, .-gteRTPS_neon
+ 
+
+
+.global gteRTPT_neon @ r0=CP2 (d,c),
+gteRTPT_neon:
+    push        {r4-r11,lr}
+
+    movw        r1, #:lower16:scratch
+    movt        r1, #:upper16:scratch
+    mov         r12, #0
+
+    rtpx_preload
+
+    vmov.i32    d22, #0x7fffffff
+    vmov.i32    d23, #0x80000000
+    mov         r3, #3         @ counter
+    mov         r2, r0         @ VXYZ(0)
+0:
+    vldmia      r2!, {d8}      @ VXYZ(v)
+    vmov.16     d8[3], r12     @ kill unused upper vector
+
+    rtpx_mac
     vmin.s32    d22, d8        @ min gteMAC|12
     vmax.s32    d23, d8        @ max gteMAC|12
     subs        r3, #1
@@ -127,7 +318,7 @@ gteRTPT_neon:
 
     vmov        d20, d0        @ gteMAC3 v=0
     vmin.s16    d24, d1, d3    @ | find min IR
-    vshr.s32    d22, d12, #1   @ || gteH (adjust for cmp)
+    vshr.s32    d22, d12, #1   @ || gteH/2 (adjust for cmp)
     vmax.s16    d25, d1, d3    @ | .. also max, for flag gen
     vsli.u64    d20, d2, #32   @ gteMAC3 v=1
     vmov        d21, d9        @ ... v=2
@@ -136,9 +327,12 @@ gteRTPT_neon:
     vmax.s32    q10, q15
     vmov.i32    q13, #1
     vdup.32     q11, d22[0]    @ gteH/2
-    vmin.u32    q10, q14       @ saturate to 0..0xffff - fSZ(v)
+    vmin.u32    q10, q14       @ saturate to 0..0xffff limD/fSZ(v)
     vmin.s16    d24, d10       @ | find min/max IR
     vmax.s16    d25, d10       @ |
+
+    add         r3, r0, #4*19  @ ||
+    vld1.32     d14[0], [r3]   @ || gteSZ3
 
     vclt.u32    q11, q11, q10  @ gteH/2 < fSZ(v)?
     add         r3, r0, #4*17
@@ -170,25 +364,29 @@ gteRTPT_neon:
     add         r3, r0, #4*(32+24)
     vld1.32     d4, [r3]       @ || gteOF|XY
     add         r3, r0, #4*(32+27)
-    vld1.32     d6, [r3]       @ || gteDQAB
+    vld1.32     d6, [r3]       @ || gteDQ|AB
 
     @ divide
 .if 1
     vrecpe.f32  q11, q10       @ inv
-    vmovl.s32   q2, d4         @ || gteOFXY [64]
-    vmovl.s32   q3, d6         @ || gteDQAB [64]
+    vmovl.s32   q2, d4         @ || gteOF|XY [64]
+    vmovl.s32   q3, d6         @ || gteDQ|AB [64]
     vrecps.f32  q12, q10, q11  @ step
     vcvt.f32.u32 d13, d13      @ | gteH (float for div)
     vmul.f32    q11, q12, q11  @ better inv
+    add         r3, r0, #4*16
+    vst1.32     d14[0], [r3]   @ gteSZ0 = gteSZ3
     vdup.32     q13, d13[0]    @ |
 @   vrecps.f32  q12, q10, q11  @ step
 @   vmul.f32    q11, q12, q11  @ better inv
     vmul.f32    q10, q13, q11  @ result
 .else
-    vmovl.s32   q2, d4         @ || gteOFXY [64]
-    vmovl.s32   q3, d6         @ || gteDQAB [64]
+    vmovl.s32   q2, d4         @ || gteOF|XY [64]
+    vmovl.s32   q3, d6         @ || gteDQ|AB [64]
     vcvt.f32.u32 d13, d13      @ | gteH (float for div)
     vdup.32     q13, d13[0]    @ |
+    add         r3, r0, #4*16
+    vst1.32     d14[0], [r3]   @ gteSZ0 = gteSZ3
 
     vpush       {q0}
     vmov        q0, q10        @ to test against C code
@@ -199,21 +397,7 @@ gteRTPT_neon:
     vpop        {q0}
 .endif
 
-@ approximate gteMACx flags
-@ in: rr 123 as gteMAC 123, *flags
-@ trash: r2,r3
-.macro do_mac_flags rr1 rr2 rr3 nflags pflags
-    subs        r2, \rr1, #1
-    subvcs      r3, \rr2, #1
-    subvcs      r2, \rr3, #1
-    orrvs       lr, #\nflags
-    adds        r3, \rr1, #1
-    addvcs      r2, \rr2, #1
-    addvcs      r3, \rr3, #1
-    orrvs       lr, #\pflags
-.endm
-
-    do_mac_flags r4, r5, r6, (1<<31)|(1<<25), (1<<27) @ MAC3
+    do_mac_flags3x r4, r5, r6, (1<<31)|(1<<25), (1<<27) @ MAC3
     orr         r7, r4, r5
     add         r4, r1, #8*8
     orr         r3, r7, r6
@@ -236,19 +420,17 @@ gteRTPT_neon:
     vdup.32     d25, d16[1]
     vdup.32     d26, d17[0]    @ quotient (dup)
 
-    mov         r4, r7, ror #16
-    mov         r5, r10, ror #16
-    subs        r2, r7, #1<<16
-    addvcs      r3, r10, #1<<16
+    @ flags for minIR012 (r7,r8), maxIR012 (r10,r11)
+    mov         r4, #0x10000
+    cmp         r7, #1<<16
+    cmnvc       r10, #1<<16
     orrvs       lr, #(1<<31)
     orrvs       lr, #(1<<23)   @ IR2/limB2
-    subs        r2, r4, #1<<16
-    addvcs      r3, r5, #1<<16
-    mov         r4, r8, lsl #16
-    mov         r5, r11, lsl #16
+    rsbs        r2, r4, r7, lsl #16
+    cmnvc       r4, r10, lsl #16
     orrvs       lr, #(1<<31)|(1<<24) @ IR1/limB1
-    subs        r2, r4, #1<<16
-    addvcs      r3, r5, #1<<16
+    rsbs        r2, r4, r8, lsl #16
+    cmnvc       r4, r11, lsl #16
     orrvs       lr, #(1<<22)   @ IR3/limB3
 
     vmull.s32   q9, d18, d24   @ gteIR|12 * quotient v=0
@@ -267,8 +449,8 @@ gteRTPT_neon:
     vqshl.s32   q11, q9, #5    @ 11bit precision, v=0,1
     vqshl.s32   d24, d20, #5   @ ... v=2
     vmull.s32   q13, d6, d17   @ | gteDQA * quotient v=2
-    vpmin.s32   d16, d14, d15  @ || also find min/max in pair
-    vpmax.s32   d17, d14, d15  @ ||
+    vpmin.s32   d16, d14, d31  @ || also find min/max in pair
+    vpmax.s32   d17, d15, d31  @ ||
     vshr.s32    q11, #16+5     @ can't vqshrn because of insn
     vshr.s32    d24, #16+5     @ encoding doesn't allow 21 :(
     vqshl.s32   q7, #5         @ || min/max pairs shifted
@@ -294,21 +476,19 @@ gteRTPT_neon:
 
     vmin.s32    d12, d13       @ | gteIR0
 
-    @ ~6 cycles
     ldmia       r6, {r4-r6}    @ quotients
     orr         r4, r5
     orr         r4, r6
-    add         r3, r0, #4*12
-    movs        r4, r4, lsr #17
-    orrne       lr, #(1<<31)   @ limE
-    orrne       lr, #(1<<17)   @ limE
-
     add         r3, r0, #4*8
+    movs        r4, r4, lsr #17
+
     vst1.32     d12[0], [r3]!  @ gteIR0
     vst1.32     d10, [r3]!     @ gteIR12
     vst1.32     d11[0], [r3]   @ ..3
 
-    @ ~19 cycles
+    @ ~20 cycles
+    orrne       lr, #(1<<31)   @ limE
+    orrne       lr, #(1<<17)   @ limE
     ldmia       r1, {r4-r9}
     subs        r2, r4, #1<<21 @ min fSX
     addvcs      r3, r6, #1<<21 @ max fSX
@@ -334,10 +514,50 @@ gteRTPT_neon:
     orrvs       lr, #(1<<15)
     orrvs       lr, #(1<<31)   @ F
     cmp         r4, #0x1000
-    orrhi       lr, #(1<<12)
+    orrhi       lr, #(1<<12)   @ limH
 
     str         lr, [r0, #4*(32+31)] @ gteFLAG
 
     pop         {r4-r11,pc}
+    .size	gteRTPT_neon, .-gteRTPT_neon
+
+
+
+@ the name is misnormer, this doesn't use NEON but oh well..
+.global gteNCLIP_neon @ r0=CP2 (d,c),
+gteNCLIP_neon:
+    push        {r4-r6,lr}
+
+    add         r1, r0, #4*12
+    ldmia       r1, {r1-r3}
+    mov         r4, r1, asr #16
+    mov         r5, r2, asr #16
+    mov         r6, r3, asr #16
+    sub         r12, r4, r5       @ 3: gteSY0 - gteSY1
+    sub         r5, r5, r6        @ 1: gteSY1 - gteSY2
+    sxth        r1, r1
+    smull       r1, r5, r1, r5    @ RdLo, RdHi
+    sub         r6, r4            @ 2: gteSY2 - gteSY0
+    sxth        r2, r2
+    smlal       r1, r5, r2, r6
+    mov         lr, #0            @ gteFLAG
+    sxth        r3, r3
+    smlal       r1, r5, r3, r12
+    mov         r6, #1<<31
+    orr         r6, #1<<15
+    movs        r2, r1, lsl #1
+    adc         r5, r5
+    cmp         r5, #0
+    movtgt      lr, #((1<<31)|(1<<16))>>16
+    mvngt       r1, #1<<31        @ maxint
+    cmn         r5, #1
+    movmi       r1, #1<<31        @ minint
+    orrmi       lr, r6
+    str         r1, [r0, #4*24]
+    str         lr, [r0, #4*(32+31)] @ gteFLAG
+
+    pop         {r4-r6,pc}
+    .size	gteNCLIP_neon, .-gteNCLIP_neon
+
 
 @ vim:filetype=armasm
