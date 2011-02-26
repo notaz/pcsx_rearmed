@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2010
+ * (C) Gražvydas "notaz" Ignotas, 2010-2011
  *
  * This work is licensed under the terms of GNU GPL version 2 or later.
  * See the COPYING file in the top-level directory.
@@ -14,6 +14,7 @@
 #include "../cdrom.h"
 #include "../psxdma.h"
 #include "../mdec.h"
+#include "../gte_neon.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -163,7 +164,12 @@ static int ari64_init()
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
-
+#ifdef __arm__
+	gte_handlers[0x01] = gteRTPS_neon;
+	gte_handlers[0x30] = gteRTPT_neon;
+	gte_handlers[0x12] = gteMVMVA_neon;
+	gte_handlers[0x06] = gteNCLIP_neon;
+#endif
 	psxH_ptr = psxH;
 
 	return 0;

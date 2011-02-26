@@ -3757,10 +3757,11 @@ void c2op_assemble(int i,struct regstat *i_regs)
 
   if (gte_handlers[c2op]!=NULL) {
     int cc=get_reg(i_regs->regmap,CCREG);
-    emit_movimm(source[i],temp); // opcode
+    emit_movimm(source[i],1); // opcode
     if (cc>=0&&gte_cycletab[c2op])
-      emit_addimm(cc,gte_cycletab[c2op]/2,cc); // XXX: cound just adjust ccadj?
-    emit_writeword(temp,(int)&psxRegs.code);
+      emit_addimm(cc,gte_cycletab[c2op]/2,cc); // XXX: could just adjust ccadj?
+    emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
+    emit_writeword(1,(int)&psxRegs.code);
     emit_call((int)gte_handlers[c2op]);
   }
 
