@@ -771,7 +771,7 @@ void CALLBACK SPUasync(unsigned long cycle)
  if(iSpuAsyncWait)
   {
    iSpuAsyncWait++;
-   if(iSpuAsyncWait<=64) return;
+   if(iSpuAsyncWait<=16) return;
    iSpuAsyncWait=0;
   }
 
@@ -780,6 +780,11 @@ void CALLBACK SPUasync(unsigned long cycle)
    if(!bSpuInit) return;                               // -> no init, no call
 
    MAINThread(0);                                      // -> linux high-compat mode
+
+   // abuse iSpuAsyncWait mechanism to reduce calls to above function
+   // to make it do larger chunks
+   // note: doing it less often than once per frame causes skips
+   iSpuAsyncWait=1;
   }
 }
 

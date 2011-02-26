@@ -65,9 +65,10 @@ void SetupSound(void)
   }
 
  // we use 64 fragments with 1024 bytes each
+ // rearmed: now using 10*4096 for better latency
 
- fragsize=10;
- myfrag=(63<<16)|fragsize;
+ fragsize=12;
+ myfrag=(10<<16)|fragsize;
 
  if(ioctl(oss_audio_fd,SNDCTL_DSP_SETFRAGMENT,&myfrag)==-1)
   {
