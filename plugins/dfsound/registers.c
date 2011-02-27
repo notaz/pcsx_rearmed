@@ -76,13 +76,14 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
      //------------------------------------------------// level with pre-calcs
      case 8:
        {
-        const unsigned long lval=val;unsigned long lx;
+        const unsigned long lval=val;
         //---------------------------------------------//
         s_chan[ch].ADSRX.AttackModeExp=(lval&0x8000)?1:0; 
         s_chan[ch].ADSRX.AttackRate=(lval>>8) & 0x007f;
         s_chan[ch].ADSRX.DecayRate=(lval>>4) & 0x000f;
         s_chan[ch].ADSRX.SustainLevel=lval & 0x000f;
         //---------------------------------------------//
+#if 0
         if(!iDebugMode) break;
         //---------------------------------------------// stuff below is only for debug mode
 
@@ -110,12 +111,13 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
          }
         s_chan[ch].ADSR.DecayTime =                   // so calc how long does it take to run from 100% to the wanted sus level
          (lx*(1024-s_chan[ch].ADSR.SustainLevel))/1024;
+#endif
        }
       break;
      //------------------------------------------------// adsr times with pre-calcs
      case 10:
       {
-       const unsigned long lval=val;unsigned long lx;
+       const unsigned long lval=val;
 
        //----------------------------------------------//
        s_chan[ch].ADSRX.SustainModeExp = (lval&0x8000)?1:0;
@@ -124,6 +126,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        s_chan[ch].ADSRX.ReleaseModeExp = (lval&0x0020)?1:0;
        s_chan[ch].ADSRX.ReleaseRate = lval & 0x001f;
        //----------------------------------------------//
+#if 0
        if(!iDebugMode) break;
        //----------------------------------------------// stuff below is only for debug mode
 
@@ -155,6 +158,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        if(lval & 0x4000)                               // add/dec flag
             s_chan[ch].ADSR.SustainModeDec=-1;
        else s_chan[ch].ADSR.SustainModeDec=1;
+#endif
       }
      break;
      //------------------------------------------------// adsr volume... mmm have to investigate this
@@ -362,9 +366,9 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      case 12:                                          // get adsr vol
       {
        const int ch=(r>>4)-0xc0;
-       if(s_chan[ch].bNew) return 1;                   // we are started, but not processed? return 1
-       if(s_chan[ch].ADSRX.lVolume &&                  // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
-          !s_chan[ch].ADSRX.EnvelopeVol)                   
+       if(dwNewChannel&(1<<ch)) return 1;              // we are started, but not processed? return 1
+       if((dwChannelOn&(1<<ch)) &&                     // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
+          !s_chan[ch].ADSRX.EnvelopeVol)
         return 1;
        return (unsigned short)(s_chan[ch].ADSRX.EnvelopeVol>>16);
       }
@@ -424,15 +428,14 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
    if((val&1) && s_chan[ch].pStart)                    // mmm... start has to be set before key on !?!
     {
      s_chan[ch].bIgnoreLoop=0;
-     s_chan[ch].bNew=1;
 
      // do this here, not in StartSound
      // - fixes fussy timing issues
      s_chan[ch].bStop=0;
-     s_chan[ch].bOn=1;
      s_chan[ch].pCurr=s_chan[ch].pStart;
 
      dwNewChannel|=(1<<ch);                            // bitfield for faster testing
+     dwChannelOn|=1<<ch;
     }
   }
 }
@@ -452,7 +455,6 @@ void SoundOff(int start,int end,unsigned short val)    // SOUND OFF PSX COMMAND
 
      // Jungle Book - Rhythm 'n Groove
      // - turns off buzzing sound (loop hangs)
-     s_chan[ch].bNew=0;
      dwNewChannel &= ~(1<<ch);
     }                                                  
   }
@@ -493,14 +495,7 @@ void NoiseOn(int start,int end,unsigned short val)     // NOISE ON PSX COMMAND
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   if(val&1)                                           // -> noise on/off
-    {
-     s_chan[ch].bNoise=1;
-    }
-   else 
-    {
-     s_chan[ch].bNoise=0;
-    }
+   s_chan[ch].bNoise=val&1;                            // -> noise on/off
   }
 }
 
@@ -513,8 +508,6 @@ void NoiseOn(int start,int end,unsigned short val)     // NOISE ON PSX COMMAND
 
 void SetVolumeL(unsigned char ch,short vol)            // LEFT VOLUME
 {
- s_chan[ch].iLeftVolRaw=vol;
-
  if(vol&0x8000)                                        // sweep?
   {
    short sInc=1;                                       // -> sweep up?
@@ -541,8 +534,6 @@ void SetVolumeL(unsigned char ch,short vol)            // LEFT VOLUME
 
 void SetVolumeR(unsigned char ch,short vol)            // RIGHT VOLUME
 {
- s_chan[ch].iRightVolRaw=vol;
-
  if(vol&0x8000)                                        // comments... see above :)
   {
    short sInc=1;
@@ -590,13 +581,6 @@ void ReverbOn(int start,int end,unsigned short val)    // REVERB ON PSX COMMAND
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   if(val&1)                                           // -> reverb on/off
-    {
-     s_chan[ch].bReverb=1;
-    }
-   else 
-    {
-     s_chan[ch].bReverb=0;
-    }
+   s_chan[ch].bReverb=val&1;                           // -> reverb on/off
   }
 }

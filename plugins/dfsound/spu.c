@@ -34,6 +34,7 @@
 #define N_(x) (x)
 #endif
 
+/*
 #if defined (USEMACOSX)
 static char * libraryName     = N_("Mac OS X Sound");
 #elif defined (USEALSA)
@@ -49,6 +50,7 @@ static char * libraryName     = N_("NULL Sound");
 #endif
 
 static char * libraryInfo     = N_("P.E.Op.S. Sound Driver V1.7\nCoded by Pete Bernert and the P.E.Op.S. team\n");
+*/
 
 // globals
 
@@ -93,13 +95,14 @@ int             bSPUIsOpen=0;
 static pthread_t thread = (pthread_t)-1;               // thread id (linux)
 
 unsigned long dwNewChannel=0;                          // flags for faster testing, if new channel starts
+unsigned long dwChannelOn=0;
 
 void (CALLBACK *irqCallback)(void)=0;                  // func of main emu, called on spu irq
 void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
 
 // certain globals (were local before, but with the new timeproc I need em global)
 
-static const int f[5][2] = {   {    0,  0  },
+static const int f[8][2] = {   {    0,  0  },
                         {   60,  0  },
                         {  115, -52 },
                         {   98, -55 },
@@ -253,8 +256,6 @@ INLINE void StartSound(int ch)
  s_chan[ch].s_1=0;                                     // init mixing vars
  s_chan[ch].s_2=0;
  s_chan[ch].iSBPos=28;
-
- s_chan[ch].bNew=0;                                    // init channel flags
 
  s_chan[ch].SB[29]=0;                                  // init our interpolation helpers
  s_chan[ch].SB[30]=0;
@@ -494,14 +495,16 @@ static void *MAINThread(void *arg)
     {
      for(;ch<MAXCHAN;ch++)                             // loop em all... we will collect 1 ms of sound of each playing channel
       {
-       if(s_chan[ch].bNew) StartSound(ch);             // start new sound
-       if(!s_chan[ch].bOn) continue;                   // channel not playing? next
+       if(dwNewChannel&(1<<ch)) StartSound(ch);        // start new sound
+       if(!(dwChannelOn&(1<<ch))) continue;            // channel not playing? next
 
        if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
         VoiceChangeFrequency(ch);
 
        for(ns=ns_from;ns<ns_to;ns++)                   // loop until 1 ms of data is reached
         {
+         int sval;
+
          if(s_chan[ch].bFMod==1 && iFMod[ns])          // fmod freq channel
           FModChangeFrequency(ch,ns);
 
@@ -513,8 +516,7 @@ static void *MAINThread(void *arg)
 
              if (start == (unsigned char*)-1)          // special "stop" sign
               {
-               s_chan[ch].bOn=0;                       // -> turn everything off
-               s_chan[ch].ADSRX.lVolume=0;
+               dwChannelOn&=~(1<<ch);                  // -> turn everything off
                s_chan[ch].ADSRX.EnvelopeVol=0;
                goto ENDX;                              // -> and done for this channel
               }
@@ -564,7 +566,6 @@ static void *MAINThread(void *arg)
                    (pSpuIrq >  s_chan[ch].pLoop-16 &&
                     pSpuIrq <= s_chan[ch].pLoop)))
                {
-                 s_chan[ch].iIrqDone=1;                // -> debug flag
                  irqCallback();                        // -> call main emu
 
                  if(iSPUIRQWait)                       // -> option: wait after irq for main emu
@@ -600,8 +601,6 @@ static void *MAINThread(void *arg)
              s_chan[ch].pCurr=start;                   // store values for next cycle
              s_chan[ch].s_1=s_1;
              s_chan[ch].s_2=s_2;
-
-GOON: ;
             }
 
            fa=s_chan[ch].SB[s_chan[ch].iSBPos++];      // get sample data
@@ -615,27 +614,22 @@ GOON: ;
               fa=iGetNoiseVal(ch);                     // get noise val
          else fa=iGetInterpolationVal(ch);             // get sample val
 
-         s_chan[ch].sval = (MixADSR(ch) * fa) / 1023;  // mix adsr
+         sval = (MixADSR(ch) * fa) / 1023;  // mix adsr
 
          if(s_chan[ch].bFMod==2)                       // fmod freq channel
-          iFMod[ns]=s_chan[ch].sval;                   // -> store 1T sample data, use that to do fmod on next channel
+          iFMod[ns]=sval;                              // -> store 1T sample data, use that to do fmod on next channel
          else                                          // no fmod freq channel
           {
            //////////////////////////////////////////////
            // ok, left/right sound volume (psx volume goes from 0 ... 0x3fff)
 
-           if(s_chan[ch].iMute) 
-            s_chan[ch].sval=0;                         // debug mute
-           else
-            {
-             SSumL[ns]+=(s_chan[ch].sval*s_chan[ch].iLeftVolume)/0x4000L;
-             SSumR[ns]+=(s_chan[ch].sval*s_chan[ch].iRightVolume)/0x4000L;
-            }
+           SSumL[ns]+=(sval*s_chan[ch].iLeftVolume)/0x4000L;
+           SSumR[ns]+=(sval*s_chan[ch].iRightVolume)/0x4000L;
 
            //////////////////////////////////////////////
            // now let us store sound data for reverb    
 
-           if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns);
+           if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns,sval);
           }
 
          ////////////////////////////////////////////////
@@ -736,7 +730,7 @@ ENDX:   ;
         for(ch=0;ch<4;ch++)
          {
           if(pSpuIrq>=pMixIrq+(ch*0x400) && pSpuIrq<pMixIrq+(ch*0x400)+2)
-           {irqCallback();s_chan[ch].iIrqDone=1;}
+           irqCallback();
          }
        }
       pMixIrq+=2;if(pMixIrq>spuMemC+0x3ff) pMixIrq=spuMemC;
@@ -887,9 +881,7 @@ void SetupStreams(void)
 // we don't use mutex sync... not needed, would only 
 // slow us down:
 //   s_chan[i].hMutex=CreateMutex(NULL,FALSE,NULL);
-   s_chan[i].ADSRX.SustainLevel = 1024;                // -> init sustain
-   s_chan[i].iMute=0;
-   s_chan[i].iIrqDone=0;
+   s_chan[i].ADSRX.SustainLevel = 0xf;                 // -> init sustain
    s_chan[i].pLoop=spuMemC;
    s_chan[i].pStart=spuMemC;
    s_chan[i].pCurr=spuMemC;
@@ -1036,3 +1028,5 @@ char * SPUgetLibInfos(void)
  return _(libraryInfo);
 }
 */
+
+// vim:shiftwidth=1:expandtab

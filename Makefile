@@ -52,7 +52,9 @@ endif
 # spu
 OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
 	plugins/dfsound/registers.o plugins/dfsound/spu.o
-plugins/dfsound/spu.o: plugins/dfsound/xa.c
+plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
+	plugins/dfsound/xa.c
+plugins/dfsound/%.o: CFLAGS += -Wall
 ifeq "$(USE_OSS)" "1"
 plugins/dfsound/%.o: CFLAGS += -DUSEOSS
 OBJS += plugins/dfsound/oss.o
@@ -66,6 +68,8 @@ endif
 # gpu
 plugins/dfxvideo/%.o: CFLAGS += -Wall
 OBJS += plugins/dfxvideo/gpu.o
+plugins/dfxvideo/gpu.o: plugins/dfxvideo/fps.c plugins/dfxvideo/prim.c \
+	plugins/dfxvideo/gpu.c plugins/dfxvideo/soft.c
 ifdef X11
 LDFLAGS += -lX11 -lXv
 OBJS += plugins/dfxvideo/draw.o

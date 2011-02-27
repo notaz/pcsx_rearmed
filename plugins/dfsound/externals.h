@@ -72,20 +72,17 @@ typedef struct
 
 typedef struct
 {
- int            State;
- int            AttackModeExp;
- int            AttackRate;
- int            DecayRate;
- int            SustainLevel;
- int            SustainModeExp;
- int            SustainIncrease;
- int            SustainRate;
- int            ReleaseModeExp;
- int            ReleaseRate;
+ unsigned char  State:2;
+ unsigned char  AttackModeExp:1;
+ unsigned char  SustainModeExp:1;
+ unsigned char  SustainIncrease:1;
+ unsigned char  ReleaseModeExp:1;
+ unsigned char  AttackRate;
+ unsigned char  DecayRate;
+ unsigned char  SustainLevel;
+ unsigned char  SustainRate;
+ unsigned char  ReleaseRate;
  int            EnvelopeVol;
- long           lVolume;
- long           lDummy1;
- long           lDummy2;
 } ADSRInfoEx;
               
 ///////////////////////////////////////////////////////////
@@ -104,45 +101,36 @@ typedef struct
 // MAIN CHANNEL STRUCT
 typedef struct
 {
- // no mutexes used anymore... don't need them to sync access
- //HANDLE            hMutex;
-
- int               bNew;                               // start flag
-
  int               iSBPos;                             // mixing stuff
  int               spos;
  int               sinc;
- int               SB[32+32];                          // Pete added another 32 dwords in 1.6 ... prevents overflow issues with gaussian/cubic interpolation (thanx xodnizel!), and can be used for even better interpolations, eh? :)
- int               sval;
 
  unsigned char *   pStart;                             // start ptr into sound mem
  unsigned char *   pCurr;                              // current pos in sound mem
  unsigned char *   pLoop;                              // loop ptr in sound mem
 
- int               bOn;                                // is channel active (sample playing?)
- int               bStop;                              // is channel stopped (sample _can_ still be playing, ADSR Release phase)
- int               bReverb;                            // can we do reverb on this channel? must have ctrl register bit, to get active
+ unsigned int      bStop:1;                            // is channel stopped (sample _can_ still be playing, ADSR Release phase)
+ unsigned int      bReverb:1;                          // can we do reverb on this channel? must have ctrl register bit, to get active
+ unsigned int      bIgnoreLoop:1;                      // ignore loop bit, if an external loop address is used
+ unsigned int      bRVBActive:1;                       // reverb active flag
+ unsigned int      bNoise:1;                           // noise active flag
+ unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
+
  int               iActFreq;                           // current psx pitch
  int               iUsedFreq;                          // current pc pitch
  int               iLeftVolume;                        // left volume
- int               iLeftVolRaw;                        // left psx volume value
- int               bIgnoreLoop;                        // ignore loop bit, if an external loop address is used
- int               iMute;                              // mute mode
  int               iRightVolume;                       // right volume
- int               iRightVolRaw;                       // right psx volume value
- int               iRawPitch;                          // raw pitch (0...3fff)
- int               iIrqDone;                           // debug irq done flag
  int               s_1;                                // last decoding infos
  int               s_2;
- int               bRVBActive;                         // reverb active flag
+ ADSRInfoEx        ADSRX;
+ int               iRawPitch;                          // raw pitch (0...3fff)
+
  int               iRVBOffset;                         // reverb offset
  int               iRVBRepeat;                         // reverb repeat
- int               bNoise;                             // noise active flag
- int               bFMod;                              // freq mod (0=off, 1=sound channel, 2=freq channel)
  int               iRVBNum;                            // another reverb helper
  int               iOldNoise;                          // old noise val for this channel   
- ADSRInfo          ADSR;                               // active ADSR settings
- ADSRInfoEx        ADSRX;                              // next ADSR settings (will be moved to active on sample start)
+
+ int               SB[32+32];
 } SPUCHAN;
 
 ///////////////////////////////////////////////////////////
@@ -233,7 +221,8 @@ extern unsigned long  spuAddr;
 extern int      bEndThread; 
 extern int      bThreadEnded;
 extern int      bSpuInit;
-extern unsigned long dwNewChannel;
+extern unsigned int dwNewChannel;
+extern unsigned int dwChannelOn;
 
 extern int      SSumR[];
 extern int      SSumL[];

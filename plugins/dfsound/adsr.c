@@ -53,8 +53,7 @@ void InitADSR(void)                                    // INIT ADSR
 
 INLINE void StartADSR(int ch)                          // MIX ADSR
 {
- s_chan[ch].ADSRX.lVolume=1;                           // and init some adsr vars
- s_chan[ch].ADSRX.State=0;
+ s_chan[ch].ADSRX.State=0;                             // and init some adsr vars
  s_chan[ch].ADSRX.EnvelopeVol=0;
 }
 
@@ -94,8 +93,7 @@ INLINE int MixADSR(int ch)                             // MIX ADSR
      //s_chan[ch].bNoise=0;
     }
 
-   s_chan[ch].ADSRX.lVolume=s_chan[ch].ADSRX.EnvelopeVol>>21;
-   return s_chan[ch].ADSRX.lVolume;
+   return s_chan[ch].ADSRX.EnvelopeVol>>21;
   }
  else                                                  // not stopped yet?
   {
@@ -119,8 +117,7 @@ INLINE int MixADSR(int ch)                             // MIX ADSR
        s_chan[ch].ADSRX.State=1;
       }
 
-     s_chan[ch].ADSRX.lVolume=s_chan[ch].ADSRX.EnvelopeVol>>21;
-     return s_chan[ch].ADSRX.lVolume;
+     return s_chan[ch].ADSRX.EnvelopeVol>>21;
     }
    //--------------------------------------------------//
    if(s_chan[ch].ADSRX.State==1)                       // -> decay
@@ -143,8 +140,7 @@ INLINE int MixADSR(int ch)                             // MIX ADSR
        s_chan[ch].ADSRX.State=2;
       }
 
-     s_chan[ch].ADSRX.lVolume=s_chan[ch].ADSRX.EnvelopeVol>>21;
-     return s_chan[ch].ADSRX.lVolume;
+     return s_chan[ch].ADSRX.EnvelopeVol>>21;
     }
    //--------------------------------------------------//
    if(s_chan[ch].ADSRX.State==2)                       // -> sustain
@@ -194,8 +190,7 @@ INLINE int MixADSR(int ch)                             // MIX ADSR
          s_chan[ch].ADSRX.EnvelopeVol=0;
         }
       }
-     s_chan[ch].ADSRX.lVolume=s_chan[ch].ADSRX.EnvelopeVol>>21;
-     return s_chan[ch].ADSRX.lVolume;
+     return s_chan[ch].ADSRX.EnvelopeVol>>21;
     }
   }
  return 0;

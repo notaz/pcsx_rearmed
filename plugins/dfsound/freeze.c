@@ -30,6 +30,67 @@
 
 typedef struct
 {
+ int            State;
+ int            AttackModeExp;
+ int            AttackRate;
+ int            DecayRate;
+ int            SustainLevel;
+ int            SustainModeExp;
+ int            SustainIncrease;
+ int            SustainRate;
+ int            ReleaseModeExp;
+ int            ReleaseRate;
+ int            EnvelopeVol;
+ long           lVolume;
+ long           lDummy1;
+ long           lDummy2;
+} ADSRInfoEx_orig;
+
+typedef struct
+{
+ // no mutexes used anymore... don't need them to sync access
+ //HANDLE            hMutex;
+
+ int               bNew;                               // start flag
+
+ int               iSBPos;                             // mixing stuff
+ int               spos;
+ int               sinc;
+ int               SB[32+32];                          // Pete added another 32 dwords in 1.6 ... prevents overflow issues with gaussian/cubic interpolation (thanx xodnizel!), and can be used for even better interpolations, eh? :)
+ int               sval;
+
+ unsigned char *   pStart;                             // start ptr into sound mem
+ unsigned char *   pCurr;                              // current pos in sound mem
+ unsigned char *   pLoop;                              // loop ptr in sound mem
+
+ int               bOn;                                // is channel active (sample playing?)
+ int               bStop;                              // is channel stopped (sample _can_ still be playing, ADSR Release phase)
+ int               bReverb;                            // can we do reverb on this channel? must have ctrl register bit, to get active
+ int               iActFreq;                           // current psx pitch
+ int               iUsedFreq;                          // current pc pitch
+ int               iLeftVolume;                        // left volume
+ int               iLeftVolRaw;                        // left psx volume value
+ int               bIgnoreLoop;                        // ignore loop bit, if an external loop address is used
+ int               iMute;                              // mute mode
+ int               iRightVolume;                       // right volume
+ int               iRightVolRaw;                       // right psx volume value
+ int               iRawPitch;                          // raw pitch (0...3fff)
+ int               iIrqDone;                           // debug irq done flag
+ int               s_1;                                // last decoding infos
+ int               s_2;
+ int               bRVBActive;                         // reverb active flag
+ int               iRVBOffset;                         // reverb offset
+ int               iRVBRepeat;                         // reverb repeat
+ int               bNoise;                             // noise active flag
+ int               bFMod;                              // freq mod (0=off, 1=sound channel, 2=freq channel)
+ int               iRVBNum;                            // another reverb helper
+ int               iOldNoise;                          // old noise val for this channel   
+ ADSRInfo          ADSR;                               // active ADSR settings
+ ADSRInfoEx_orig   ADSRX;                              // next ADSR settings (will be moved to active on sample start)
+} SPUCHAN_orig;
+
+typedef struct
+{
  char          szSPUName[8];
  uint32_t ulFreezeVersion;
  uint32_t ulFreezeSize;
@@ -47,7 +108,7 @@ typedef struct
  uint32_t   dummy2;
  uint32_t   dummy3;
 
- SPUCHAN  s_chan[MAXCHAN];   
+ SPUCHAN_orig s_chan[MAXCHAN];   
 
 } SPUOSSFreeze_t;
 
@@ -57,6 +118,93 @@ void LoadStateV5(SPUFreeze_t * pF);                    // newest version
 void LoadStateUnknown(SPUFreeze_t * pF);               // unknown format
 
 extern int lastch;
+
+// we want to retain compatibility between versions,
+// so use original channel struct
+static void save_channel(SPUCHAN_orig *d, SPUCHAN *s, int ch)
+{
+ memset(d, 0, sizeof(*d));
+ d->bNew = !!(dwNewChannel & (1<<ch));
+ d->iSBPos = s->iSBPos;
+ d->spos = s->spos;
+ d->sinc = s->sinc;
+ memcpy(d->SB, s->SB, sizeof(d->SB));
+ d->pStart = s->pStart;
+ d->pCurr = s->pCurr;
+ d->pLoop = s->pLoop;
+ d->bOn = !!(dwChannelOn & (1<<ch));
+ d->bStop = s->bStop;
+ d->bReverb = s->bReverb;
+ d->iActFreq = s->iActFreq;
+ d->iUsedFreq = s->iUsedFreq;
+ d->iLeftVolume = s->iLeftVolume;
+ d->bIgnoreLoop = s->bIgnoreLoop;
+ d->iRightVolume = s->iRightVolume;
+ d->iRawPitch = s->iRawPitch;
+ d->s_1 = s->s_1;
+ d->s_2 = s->s_2;
+ d->bRVBActive = s->bRVBActive;
+ d->iRVBOffset = s->iRVBOffset;
+ d->iRVBRepeat = s->iRVBRepeat;
+ d->bNoise = s->bNoise;
+ d->bFMod = s->bFMod;
+ d->iRVBNum = s->iRVBNum;
+ d->iOldNoise = s->iOldNoise;
+ d->ADSRX.State = s->ADSRX.State;
+ d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
+ d->ADSRX.AttackRate = s->ADSRX.AttackRate;
+ d->ADSRX.DecayRate = s->ADSRX.DecayRate;
+ d->ADSRX.SustainLevel = s->ADSRX.SustainLevel;
+ d->ADSRX.SustainModeExp = s->ADSRX.SustainModeExp;
+ d->ADSRX.SustainIncrease = s->ADSRX.SustainIncrease;
+ d->ADSRX.SustainRate = s->ADSRX.SustainRate;
+ d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
+ d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
+ d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
+ d->ADSRX.lVolume = d->bOn; // hmh
+}
+
+static void load_channel(SPUCHAN *d, SPUCHAN_orig *s, int ch)
+{
+ memset(d, 0, sizeof(*d));
+ if (s->bNew) dwNewChannel |= 1<<ch;
+ d->iSBPos = s->iSBPos;
+ d->spos = s->spos;
+ d->sinc = s->sinc;
+ memcpy(d->SB, s->SB, sizeof(d->SB));
+ d->pStart = s->pStart;
+ d->pCurr = s->pCurr;
+ d->pLoop = s->pLoop;
+ if (s->bOn) dwChannelOn |= 1<<ch;
+ d->bStop = s->bStop;
+ d->bReverb = s->bReverb;
+ d->iActFreq = s->iActFreq;
+ d->iUsedFreq = s->iUsedFreq;
+ d->iLeftVolume = s->iLeftVolume;
+ d->bIgnoreLoop = s->bIgnoreLoop;
+ d->iRightVolume = s->iRightVolume;
+ d->iRawPitch = s->iRawPitch;
+ d->s_1 = s->s_1;
+ d->s_2 = s->s_2;
+ d->bRVBActive = s->bRVBActive;
+ d->iRVBOffset = s->iRVBOffset;
+ d->iRVBRepeat = s->iRVBRepeat;
+ d->bNoise = s->bNoise;
+ d->bFMod = s->bFMod;
+ d->iRVBNum = s->iRVBNum;
+ d->iOldNoise = s->iOldNoise;
+ d->ADSRX.State = s->ADSRX.State;
+ d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
+ d->ADSRX.AttackRate = s->ADSRX.AttackRate;
+ d->ADSRX.DecayRate = s->ADSRX.DecayRate;
+ d->ADSRX.SustainLevel = s->ADSRX.SustainLevel;
+ d->ADSRX.SustainModeExp = s->ADSRX.SustainModeExp;
+ d->ADSRX.SustainIncrease = s->ADSRX.SustainIncrease;
+ d->ADSRX.SustainRate = s->ADSRX.SustainRate;
+ d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
+ d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
+ d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
+}
 
 ////////////////////////////////////////////////////////////////////////
 // SPUFREEZE: called by main emu on savestate load/save
@@ -101,7 +249,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
    for(i=0;i<MAXCHAN;i++)
     {
-     memcpy((void *)&pFO->s_chan[i],(void *)&s_chan[i],sizeof(SPUCHAN));
+     save_channel(&pFO->s_chan[i],&s_chan[i],i);
      if(pFO->s_chan[i].pStart)
       pFO->s_chan[i].pStart-=(unsigned long)spuMemC;
      if(pFO->s_chan[i].pCurr)
@@ -171,15 +319,15 @@ void LoadStateV5(SPUFreeze_t * pF)
    if (spuAddr == 0xbaadf00d) spuAddr = 0;
   }
 
+ dwNewChannel=0;
+ dwChannelOn=0;
  for(i=0;i<MAXCHAN;i++)
   {
-   memcpy((void *)&s_chan[i],(void *)&pFO->s_chan[i],sizeof(SPUCHAN));
+   load_channel(&s_chan[i],&pFO->s_chan[i],i);
 
    s_chan[i].pStart+=(unsigned long)spuMemC;
    s_chan[i].pCurr+=(unsigned long)spuMemC;
    s_chan[i].pLoop+=(unsigned long)spuMemC;
-   s_chan[i].iMute=0;
-   s_chan[i].iIrqDone=0;
   }
 }
 
@@ -191,18 +339,14 @@ void LoadStateUnknown(SPUFreeze_t * pF)
 
  for(i=0;i<MAXCHAN;i++)
   {
-   s_chan[i].bOn=0;
-   s_chan[i].bNew=0;
    s_chan[i].bStop=0;
-   s_chan[i].ADSR.lVolume=0;
    s_chan[i].pLoop=spuMemC;
    s_chan[i].pStart=spuMemC;
    s_chan[i].pLoop=spuMemC;
-   s_chan[i].iMute=0;
-   s_chan[i].iIrqDone=0;
   }
 
  dwNewChannel=0;
+ dwChannelOn=0;
  pSpuIrq=0;
 
  for(i=0;i<0xc0;i++)

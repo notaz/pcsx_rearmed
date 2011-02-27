@@ -93,14 +93,14 @@ INLINE void InitREVERB(void)
 // STORE REVERB
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void StoreREVERB(int ch,int ns)
+INLINE void StoreREVERB(int ch,int ns,int sval)
 {
  if(iUseReverb==0) return;
  else
  if(iUseReverb==2) // -------------------------------- // Neil's reverb
   {
-   const int iRxl=(s_chan[ch].sval*s_chan[ch].iLeftVolume)/0x4000;
-   const int iRxr=(s_chan[ch].sval*s_chan[ch].iRightVolume)/0x4000;
+   const int iRxl=(sval*s_chan[ch].iLeftVolume)/0x4000;
+   const int iRxr=(sval*s_chan[ch].iRightVolume)/0x4000;
 
    ns<<=1;
 
@@ -113,8 +113,8 @@ INLINE void StoreREVERB(int ch,int ns)
 
    // we use the half channel volume (/0x8000) for the first reverb effects, quarter for next and so on
 
-   int iRxl=(s_chan[ch].sval*s_chan[ch].iLeftVolume)/0x8000;
-   int iRxr=(s_chan[ch].sval*s_chan[ch].iRightVolume)/0x8000;
+   int iRxl=(sval*s_chan[ch].iLeftVolume)/0x8000;
+   int iRxr=(sval*s_chan[ch].iRightVolume)/0x8000;
  
    for(iRn=1;iRn<=s_chan[ch].iRVBNum;iRn++,iRr+=s_chan[ch].iRVBRepeat,iRxl/=2,iRxr/=2)
     {

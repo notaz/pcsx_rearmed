@@ -40,7 +40,7 @@
 #define HIWORD(l)           ((unsigned short)(((unsigned long)(l) >> 16) & 0xFFFF)) 
 
 #ifndef INLINE
-#define INLINE inline
+#define INLINE static inline
 #endif
 
 #include "psemuxa.h"
