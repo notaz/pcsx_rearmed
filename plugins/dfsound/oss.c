@@ -46,9 +46,7 @@ void SetupSound(void)
  int myfrag;
  int oss_speed, oss_stereo;
 
- if(iDisStereo) pstereo=OSS_MODE_MONO;
- else           pstereo=OSS_MODE_STEREO;
-
+ pstereo = OSS_MODE_STEREO;
  oss_speed = pspeed;
  oss_stereo = pstereo;
 
@@ -90,15 +88,10 @@ void SetupSound(void)
    return;
   }
 
- if(ioctl(oss_audio_fd,SNDCTL_DSP_STEREO,&oss_stereo)==-1)
+ if(ioctl(oss_audio_fd,SNDCTL_DSP_STEREO,&oss_stereo)==-1 || !oss_stereo)
   {
    printf("Stereo mode not supported!\n");
    return;
-  }
-
- if(oss_stereo!=1)
-  {
-   iDisStereo=1;
   }
 
  if(ioctl(oss_audio_fd,SNDCTL_DSP_SPEED,&oss_speed)==-1)

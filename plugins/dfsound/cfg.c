@@ -141,11 +141,6 @@ static void ReadConfigFile(void)
  if(iUseInterpolation<0) iUseInterpolation=0; 
  if(iUseInterpolation>3) iUseInterpolation=3; 
 
- strcpy(t,"\nDisStereo");p=strstr(pB,t);if(p) {p=strstr(p,"=");len=1;} 
- if(p)  iDisStereo=atoi(p+len); 
- if(iDisStereo<0) iDisStereo=0; 
- if(iDisStereo>1) iDisStereo=1; 
-
  free(pB);
 }
 
@@ -161,7 +156,6 @@ void ReadConfigSPU(void)
  iUseTimer=2;
  iUseReverb=2;
  iUseInterpolation=2;
- iDisStereo=0;
 
  ReadConfigFile();
 }

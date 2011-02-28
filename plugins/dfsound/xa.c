@@ -22,6 +22,8 @@
 // will be included from spu.c
 #ifdef _IN_SPU
 
+#define XA_HACK
+
 ////////////////////////////////////////////////////////////////////////
 // XA GLOBALS
 ////////////////////////////////////////////////////////////////////////
@@ -61,40 +63,40 @@ INLINE void MixXA(void)
  int ns;
  uint32_t l;
 
- for(ns=0;ns<NSSIZE && XAPlay!=XAFeed;ns++)
+ for(ns=0;ns<NSSIZE*2 && XAPlay!=XAFeed;)
   {
    XALastVal=*XAPlay++;
    if(XAPlay==XAEnd) XAPlay=XAStart;
 #ifdef XA_HACK
-   SSumL[ns]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
-   SSumR[ns]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
+   SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
+   SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
 #else
-   SSumL[ns]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
-   SSumR[ns]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
+   SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
+   SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
 #endif
   }
 
  if(XAPlay==XAFeed && XARepeat)
   {
    XARepeat--;
-   for(;ns<NSSIZE;ns++)
+   for(;ns<NSSIZE*2;)
     {
 #ifdef XA_HACK
-     SSumL[ns]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
-     SSumR[ns]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
+     SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
+     SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
 #else
-     SSumL[ns]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
-     SSumR[ns]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
+     SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
+     SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
 #endif
     }
   }
 
- for(ns=0;ns<NSSIZE && CDDAPlay!=CDDAFeed && (CDDAPlay!=CDDAEnd-1||CDDAFeed!=CDDAStart);ns++)
+ for(ns=0;ns<NSSIZE*2 && CDDAPlay!=CDDAFeed && (CDDAPlay!=CDDAEnd-1||CDDAFeed!=CDDAStart);)
   {
    l=*CDDAPlay++;
    if(CDDAPlay==CDDAEnd) CDDAPlay=CDDAStart;
-   SSumL[ns]+=(((short)(l&0xffff))       * iLeftXAVol)/32767;
-   SSumR[ns]+=(((short)((l>>16)&0xffff)) * iRightXAVol)/32767;
+   SSumLR[ns++]+=(((short)(l&0xffff))       * iLeftXAVol)/32767;
+   SSumLR[ns++]+=(((short)((l>>16)&0xffff)) * iRightXAVol)/32767;
   }
 }
 
@@ -122,7 +124,7 @@ INLINE void FeedXA(xa_decode_t *xap)
  xapGlobal = xap;                                      // store info for save states
  XARepeat  = 100;                                      // set up repeat
 
-#ifdef XA_HACK
+#if 0//def XA_HACK
  iSize=((45500*xap->nsamples)/xap->freq);              // get size
 #else
  iSize=((44100*xap->nsamples)/xap->freq);              // get size

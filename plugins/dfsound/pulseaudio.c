@@ -195,10 +195,7 @@ void SetupSound (void)
 
      // Set sample spec ////////////////////////////////////////////////////////
      device.spec.format = PA_SAMPLE_S16NE;
-     if (iDisStereo)
-	  device.spec.channels = 1;
-     else
-	  device.spec.channels = 2;
+     device.spec.channels = 2;
      device.spec.rate = settings.frequency;
 
      pa_buffer_attr buffer_attributes;

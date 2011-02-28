@@ -70,7 +70,7 @@ void SetupSound(void) {
 
 	spec.freq = 44100;
 	spec.format = AUDIO_S16SYS;
-	spec.channels = iDisStereo ? 1 : 2;
+	spec.channels = 2;
 	spec.samples = 512;
 	spec.callback = SOUND_FillAudio;
 
@@ -80,7 +80,6 @@ void SetupSound(void) {
 	}
 
 	iBufSize = BUFFER_SIZE;
-	if (iDisStereo) iBufSize /= 2;
 
 	pSndBuffer = (short *)malloc(iBufSize * sizeof(short));
 	if (pSndBuffer == NULL) {

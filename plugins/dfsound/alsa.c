@@ -40,8 +40,7 @@ void SetupSound(void)
  unsigned int period_time = buffer_time / 4;
  int err;
 
- if (iDisStereo) pchannels = 1;
- else pchannels=2;
+ pchannels=2;
 
  pspeed = 44100;
  format = SND_PCM_FORMAT_S16;
@@ -153,6 +152,5 @@ void SoundFeedStreamData(unsigned char* pSound,long lBytes)
 
  if (snd_pcm_state(handle) == SND_PCM_STATE_XRUN)
   snd_pcm_prepare(handle);
- snd_pcm_writei(handle,pSound,
-                iDisStereo ? lBytes / 2 : lBytes / 4);
+ snd_pcm_writei(handle,pSound, lBytes / 4);
 }

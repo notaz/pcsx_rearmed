@@ -73,7 +73,6 @@ int             iDebugMode=0;
 int             iRecordMode=0;
 int             iUseReverb=2;
 int             iUseInterpolation=2;
-int             iDisStereo=0;
 
 // MAIN infos struct for each channel
 
@@ -107,8 +106,7 @@ static const int f[8][2] = {   {    0,  0  },
                         {  115, -52 },
                         {   98, -55 },
                         {  122, -60 } };
-int SSumR[NSSIZE];
-int SSumL[NSSIZE];
+int SSumLR[NSSIZE*2];
 int iFMod[NSSIZE];
 int iCycle = 0;
 short * pS;
@@ -623,8 +621,8 @@ static void *MAINThread(void *arg)
            //////////////////////////////////////////////
            // ok, left/right sound volume (psx volume goes from 0 ... 0x3fff)
 
-           SSumL[ns]+=(sval*s_chan[ch].iLeftVolume)/0x4000L;
-           SSumR[ns]+=(sval*s_chan[ch].iRightVolume)/0x4000L;
+           SSumLR[ns*2]  +=(sval*s_chan[ch].iLeftVolume)/0x4000L;
+           SSumLR[ns*2+1]+=(sval*s_chan[ch].iRightVolume)/0x4000L;
 
            //////////////////////////////////////////////
            // now let us store sound data for reverb    
@@ -670,37 +668,21 @@ ENDX:   ;
   ///////////////////////////////////////////////////////
   // mix all channels (including reverb) into one buffer
 
-  if(iDisStereo)                                       // no stereo?
+  for (ns = 0; ns < NSSIZE*2; )
    {
-    int dl, dr;
-    for (ns = 0; ns < NSSIZE; ns++)
-     {
-      SSumL[ns] += MixREVERBLeft(ns);
+    SSumLR[ns] += MixREVERBLeft(ns/2);
 
-      dl = SSumL[ns] / voldiv; SSumL[ns] = 0;
-      if (dl < -32767) dl = -32767; if (dl > 32767) dl = 32767;
-
-      SSumR[ns] += MixREVERBRight();
-
-      dr = SSumR[ns] / voldiv; SSumR[ns] = 0;
-      if (dr < -32767) dr = -32767; if (dr > 32767) dr = 32767;
-      *pS++ = (dl + dr) / 2;
-     }
-   }
-  else                                                 // stereo:
-  for (ns = 0; ns < NSSIZE; ns++)
-   {
-    SSumL[ns] += MixREVERBLeft(ns);
-
-    d = SSumL[ns] / voldiv; SSumL[ns] = 0;
+    d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
     if (d < -32767) d = -32767; if (d > 32767) d = 32767;
     *pS++ = d;
+    ns++;
 
-    SSumR[ns] += MixREVERBRight();
+    SSumLR[ns] += MixREVERBRight();
 
-    d = SSumR[ns] / voldiv; SSumR[ns] = 0;
+    d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
     if(d < -32767) d = -32767; if(d > 32767) d = 32767;
     *pS++ = d;
+    ns++;
    }
 
   //////////////////////////////////////////////////////                   
@@ -818,8 +800,7 @@ void CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes)
 // SETUPTIMER: init of certain buffers and threads/timers
 void SetupTimer(void)
 {
- memset(SSumR,0,NSSIZE*sizeof(int));                   // init some mixing buffers
- memset(SSumL,0,NSSIZE*sizeof(int));
+ memset(SSumLR,0,sizeof(SSumLR));                      // init some mixing buffers
  memset(iFMod,0,NSSIZE*sizeof(int));
  pS=(short *)pSpuBuffer;                               // setup soundbuffer pointer
 

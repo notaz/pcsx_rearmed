@@ -205,7 +205,6 @@ extern int        iDebugMode;
 extern int        iRecordMode;
 extern int        iUseReverb;
 extern int        iUseInterpolation;
-extern int        iDisStereo;
 // MISC
 
 extern int iSpuAsyncWait;
