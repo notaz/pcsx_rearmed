@@ -49,13 +49,25 @@ static inline void pcnt_print(float fps)
 	}
 
 	printf("%4.1f ", fps);
+#if 0
+	static float pcounters_all[PCNT_CNT+1];
+	static int pcounter_samples;
+	pcounter_samples++;
+
+	for (i = 1; i < PCNT_CNT; i++) {
+		pcounters_all[i] += pcounters[i];
+		printf("%5.0f ", pcounters_all[i] / pcounter_samples);
+	}
+	pcounters_all[i] += rem;
+	printf("%5.0f\n", pcounters_all[i] / pcounter_samples);
+#else
 	for (i = 1; i < PCNT_CNT; i++)
 		printf("%5u ", pcounters[i]);
 	printf("%5u (", rem);
 	for (i = 1; i < PCNT_CNT; i++)
 		printf("%2u ", pcounters[i] * 100 / total);
 	printf("%2u) %u\n", rem * 100 / total, total);
-
+#endif
 	memset(pcounters, 0, sizeof(pcounters));
 }
 
