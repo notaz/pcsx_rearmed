@@ -7709,6 +7709,36 @@ void disassemble_inst(int i)
     }
 }
 
+// clear the state completely, instead of just marking
+// things invalid like invalidate_all_pages() does
+void new_dynarec_clear_full()
+{
+  int n;
+  for(n=0x80000;n<0x80800;n++)
+    invalid_code[n]=1;
+  for(n=0;n<65536;n++)
+    hash_table[n][0]=hash_table[n][2]=-1;
+  memset(mini_ht,-1,sizeof(mini_ht));
+  memset(restore_candidate,0,sizeof(restore_candidate));
+  memset(shadow,0,sizeof(shadow));
+  copy=shadow;
+  expirep=16384; // Expiry pointer, +2 blocks
+  pending_exception=0;
+  literalcount=0;
+  stop_after_jal=0;
+  // TLB
+  using_tlb=0;
+  for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
+    memory_map[n]=-1;
+  for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF
+    memory_map[n]=((u_int)rdram-0x80000000)>>2;
+  for(n=526336;n<1048576;n++) // 0x80800000 .. 0xFFFFFFFF
+    memory_map[n]=-1;
+  for(n=0;n<4096;n++) ll_clear(jump_in+n);
+  for(n=0;n<4096;n++) ll_clear(jump_out+n);
+  for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
+}
+
 void new_dynarec_init()
 {
   printf("Init new dynarec\n");
@@ -7724,29 +7754,11 @@ void new_dynarec_init()
   fake_pc.f.r.rd=&readmem_dword;
 #endif
   int n;
-  for(n=0x80000;n<0x80800;n++)
-    invalid_code[n]=1;
-  for(n=0;n<65536;n++)
-    hash_table[n][0]=hash_table[n][2]=-1;
-  memset(mini_ht,-1,sizeof(mini_ht));
-  memset(restore_candidate,0,sizeof(restore_candidate));
-  copy=shadow;
-  expirep=16384; // Expiry pointer, +2 blocks
-  pending_exception=0;
-  literalcount=0;
+  new_dynarec_clear_full();
 #ifdef HOST_IMM8
   // Copy this into local area so we don't have to put it in every literal pool
   invc_ptr=invalid_code;
 #endif
-  stop_after_jal=0;
-  // TLB
-  using_tlb=0;
-  for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
-    memory_map[n]=-1;
-  for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF
-    memory_map[n]=((u_int)rdram-0x80000000)>>2;
-  for(n=526336;n<1048576;n++) // 0x80800000 .. 0xFFFFFFFF
-    memory_map[n]=-1;
 #ifdef MUPEN64
   for(n=0;n<0x8000;n++) { // 0 .. 0x7FFFFFFF
     writemem[n] = write_nomem_new;

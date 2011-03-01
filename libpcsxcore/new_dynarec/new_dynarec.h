@@ -6,6 +6,7 @@ extern int stop;
 
 void new_dynarec_init();
 void new_dynarec_cleanup();
+void new_dynarec_clear_full();
 void new_dyna_start();
 
 void invalidate_all_pages();

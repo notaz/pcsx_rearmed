@@ -25,6 +25,7 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/pad.h"
 #include "revision.h"
 
@@ -1348,6 +1349,8 @@ static int romsel_run(void)
 		return -1;
 
 	printf("selected file: %s\n", fname);
+
+	new_dynarec_clear_full();
 
 	if (run_cd_image(fname) != 0)
 		return -1;
