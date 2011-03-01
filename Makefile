@@ -66,7 +66,8 @@ LDFLAGS += -lasound
 endif
 
 # gpu
-plugins/dfxvideo/%.o: CFLAGS += -Wall
+# note: code is not safe for strict-aliasing? (Castlevania problems)
+plugins/dfxvideo/%.o: CFLAGS += -Wall -fno-strict-aliasing
 OBJS += plugins/dfxvideo/gpu.o
 plugins/dfxvideo/gpu.o: plugins/dfxvideo/fps.c plugins/dfxvideo/prim.c \
 	plugins/dfxvideo/gpu.c plugins/dfxvideo/soft.c
