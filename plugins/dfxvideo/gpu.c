@@ -59,6 +59,7 @@ long              lSelectedSlot=0;
 BOOL              bDoLazyUpdate=FALSE;
 uint32_t          lGPUInfoVals[16];
 static int        iFakePrimBusy=0;
+static uint32_t   vBlank=0;
 
 ////////////////////////////////////////////////////////////////////////
 // some misc external display funcs
@@ -384,8 +385,8 @@ static void updateDisplayIfChanged(void)                      // UPDATE DISPLAY 
 
 void CALLBACK GPUupdateLace(void)                      // VSYNC
 {
- if(!(dwActFixes&1))
-  lGPUstatusRet^=0x80000000;                           // odd/even bit
+ //if(!(dwActFixes&1))
+ // lGPUstatusRet^=0x80000000;                           // odd/even bit
 
  //pcsx-rearmed: removed, this is handled by core
  //if(!(dwActFixes&32))                                  // std fps limitation?
@@ -393,6 +394,8 @@ void CALLBACK GPUupdateLace(void)                      // VSYNC
 
  if(PSXDisplay.Interlaced)                             // interlaced mode?
   {
+   lGPUstatusRet^=0x80000000;                          // odd/even bit?
+
    if(bDoVSyncUpdate && PSXDisplay.DisplayMode.x>0 && PSXDisplay.DisplayMode.y>0)
     {
      updateDisplay();
@@ -450,7 +453,7 @@ uint32_t CALLBACK GPUreadStatus(void)             // READ STATUS
      GPUIsReadyForCommands;
     }
   }
- return lGPUstatusRet;
+ return lGPUstatusRet | vBlank;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1103,3 +1106,9 @@ long CALLBACK GPUfreeze(uint32_t ulGetFreezeData,GPUFreeze_t * pF)
 
  return 1;
 }
+
+void CALLBACK GPUvBlank(int val)
+{
+ vBlank=val?0x80000000:0;
+}
+
