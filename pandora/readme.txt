@@ -33,6 +33,9 @@ Supported CD image formats:
 - EBOOT.PBP (PSP, partial)
 
 CDDA (CD audio) support requires .cue/.bin format.
+There is support for redump.org .sbi files, which can be used instead of
+.sub files to save space (name it the same as .cue/.bin, just use .sbi
+extension). This is required for Libcrypt copy protected game support.
 
 The emulator can simulate BIOS, which means BIOS files are not required,
 however implementation is not complete and some games still need real BIOS
@@ -61,6 +64,21 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 
 Changelog
 ---------
+
+r7 (2011-03-02)
++ implemented most used GTE operations in NEON
+* merged latest Ari64's recompiler patches
+* removed some code from the recompiler that is unneeded for R3k
+* added some special handlers for constant reads
+* some moderate builtin GPU and SPU optimizations
++ added redump.org SBI support
+* tuned frameskip code again
+* fixed one 'analog controller not working' issue
+* fixed a crash in builtin gpu code
+* fixed cdrom slowdown issue
+* fixed my stupid bug in the recompiler that slowed down
+  recompilation a lot
+* some other refactoring
 
 r6 (2011-02-10)
 + added analog controller support using nubs (disabled by default)
@@ -148,13 +166,13 @@ Emulator core:
 	(c) Marcus Comstedt <marcus@mc.pp.se>
 	Stefan Sikora <hoshy@schrauberstube.de>
 
-(C) 2009-2010 PCSX-Reloaded Team
+(C) 2009-2011 PCSX-Reloaded Team
 	edgbla (Root counters, various core/plugin fixes)
+	shalma (GTE Divider, many core improvements, sound plugin fixes)
 	Firnis (GTE code from PCSX-Revolution Project)
 	Gabriele Gorla (MDEC decoder)
 	Peter Collingbourne (Various core/psxbios fixes)
 	Dario, NeToU, siveritas (Various bugfixes)
-	shalma (GTE Divider, various core fixes)
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
 PCSX4ALL GPU plugin:
