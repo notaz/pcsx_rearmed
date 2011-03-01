@@ -147,7 +147,7 @@ VER ?= $(shell git describe master)
 
 rel: pcsx $(PLUGINS) \
 		pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
-		pandora/picorestore pandora/readme.txt skin COPYING
+		pandora/picorestore pandora/readme.txt pandora/skin COPYING
 	rm -rf out
 	mkdir -p out/plugins
 	cp -r $^ out/
