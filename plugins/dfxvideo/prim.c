@@ -375,6 +375,7 @@ static void cmdTextureWindow(unsigned char *baseAddr)
   TWin.Position.y1 = 128;  // 10000
  else
   TWin.Position.y1 = 256;  // 00000
+ TWin.ymask = TWin.Position.y1 - 1;
 
   // Texture window size is determined by the least bit set of the relevant 5 bits
 
@@ -390,6 +391,7 @@ static void cmdTextureWindow(unsigned char *baseAddr)
   TWin.Position.x1 = 128;  // 10000
  else
   TWin.Position.x1 = 256;  // 00000
+ TWin.xmask = TWin.Position.x1 - 1;
 
  // Re-calculate the bit field, because we can't trust what is passed in the data
 

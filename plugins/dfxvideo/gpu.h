@@ -178,6 +178,7 @@ typedef struct RECTTAG
 typedef struct TWINTAG
 {
  PSXRect_t  Position;
+ int xmask, ymask;
 } TWin_t;
 
 /////////////////////////////////////////////////////////////////////////////

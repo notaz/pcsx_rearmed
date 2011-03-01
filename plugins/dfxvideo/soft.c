@@ -1077,9 +1077,15 @@ static int left_B, delta_left_B, right_B, delta_right_B;
 // USE_NASM
 static inline int shl10idiv(int x, int y)
 {
+#ifdef __arm__
+ // rearmed: let's use VFP divider instead
+ float r = 1024.0f * (float)x / (float)y;
+ return (int)r;
+#else
  __int64 bi=x;
  bi<<=10;
  return bi/y;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2853,12 +2859,12 @@ static void drawPoly3TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
 
        for(j=xmin;j<xmax;j+=2)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-         XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+         XAdjust=((posX+difX)>>16)&TWin.xmask;
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -2871,8 +2877,8 @@ static void drawPoly3TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
         }
        if(j==xmax)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -2904,12 +2910,12 @@ static void drawPoly3TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
 
      for(j=xmin;j<xmax;j+=2)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-       XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+       XAdjust=((posX+difX)>>16)&TWin.xmask;
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -2922,8 +2928,8 @@ static void drawPoly3TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
       }
      if(j==xmax)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
        GetTextureTransColG(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -3303,12 +3309,12 @@ static void drawPoly4TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
 
        for(j=xmin;j<xmax;j+=2)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-         XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+         XAdjust=((posX+difX)>>16)&TWin.xmask;
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -3320,8 +3326,8 @@ static void drawPoly4TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
         }
        if(j==xmax)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -3357,12 +3363,12 @@ static void drawPoly4TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
 
      for(j=xmin;j<xmax;j+=2)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-       XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+       XAdjust=((posX+difX)>>16)&TWin.xmask;
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -3374,8 +3380,8 @@ static void drawPoly4TEx4_TW(short x1, short y1, short x2, short y2, short x3, s
       }
      if(j==xmax)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
        GetTextureTransColG(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -3441,12 +3447,12 @@ static void drawPoly4TEx4_TW_S(short x1, short y1, short x2, short y2, short x3,
 
        for(j=xmin;j<xmax;j+=2)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-         XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+         XAdjust=((posX+difX)>>16)&TWin.xmask;
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -3458,8 +3464,8 @@ static void drawPoly4TEx4_TW_S(short x1, short y1, short x2, short y2, short x3,
         }
        if(j==xmax)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -3495,12 +3501,12 @@ static void drawPoly4TEx4_TW_S(short x1, short y1, short x2, short y2, short x3,
 
      for(j=xmin;j<xmax;j+=2)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-       XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+       XAdjust=((posX+difX)>>16)&TWin.xmask;
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC2=(tC2>>((XAdjust&1)<<2))&0xf;
 
@@ -3512,8 +3518,8 @@ static void drawPoly4TEx4_TW_S(short x1, short y1, short x2, short y2, short x3,
       }
      if(j==xmax)
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
        GetTextureTransColG_SPR(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
@@ -3843,10 +3849,10 @@ static void drawPoly3TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
        for(j=xmin;j<xmax;j+=2)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+(((posX+difX)>>16)&TWin.xmask)];
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
              GETLE16(&psxVuw[clutP+tC1])|
              ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -3856,8 +3862,8 @@ static void drawPoly3TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
        if(j==xmax)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
         }
       }
@@ -3887,10 +3893,10 @@ static void drawPoly3TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
      for(j=xmin;j<xmax;j+=2)
       {
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                    YAdjust+(((posX+difX)>>16)&TWin.xmask)];
        GetTextureTransColG32((uint32_t *)&psxVuw[(i<<10)+j],
            GETLE16(&psxVuw[clutP+tC1])|
            ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -3900,8 +3906,8 @@ static void drawPoly3TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
      if(j==xmax)
       {
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
        GetTextureTransColG(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
       }
 
@@ -4256,10 +4262,10 @@ static void drawPoly4TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
        for(j=xmin;j<xmax;j+=2)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+(((posX+difX)>>16)&TWin.xmask)];
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
               GETLE16(&psxVuw[clutP+tC1])|
               ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -4268,8 +4274,8 @@ static void drawPoly4TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
         }
        if(j==xmax)
         {
-         tC1 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
+         tC1 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
         }
       }
@@ -4304,10 +4310,10 @@ static void drawPoly4TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
 
      for(j=xmin;j<xmax;j+=2)
       {
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                     YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                     YAdjust+(((posX+difX)>>16)&TWin.xmask)];
        GetTextureTransColG32((uint32_t *)&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1])|
             ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -4316,8 +4322,8 @@ static void drawPoly4TEx8_TW(short x1, short y1, short x2, short y2, short x3, s
       }
      if(j==xmax)
       {
-       tC1 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
+       tC1 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
        GetTextureTransColG(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
       }
     }
@@ -4381,10 +4387,10 @@ static void drawPoly4TEx8_TW_S(short x1, short y1, short x2, short y2, short x3,
 
        for(j=xmin;j<xmax;j+=2)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+(((posX+difX)>>16)&TWin.xmask)];
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
               GETLE16(&psxVuw[clutP+tC1])|
               ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -4393,8 +4399,8 @@ static void drawPoly4TEx8_TW_S(short x1, short y1, short x2, short y2, short x3,
         }
        if(j==xmax)
         {
-         tC1 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
+         tC1 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
         }
       }
@@ -4429,10 +4435,10 @@ static void drawPoly4TEx8_TW_S(short x1, short y1, short x2, short y2, short x3,
 
      for(j=xmin;j<xmax;j+=2)
       {
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
-       tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                     YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
+       tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                     YAdjust+(((posX+difX)>>16)&TWin.xmask)];
        GetTextureTransColG32_SPR((uint32_t *)&psxVuw[(i<<10)+j],
             GETLE16(&psxVuw[clutP+tC1])|
             ((int32_t)GETLE16(&psxVuw[clutP+tC2]))<<16);
@@ -4441,8 +4447,8 @@ static void drawPoly4TEx8_TW_S(short x1, short y1, short x2, short y2, short x3,
       }
      if(j==xmax)
       {
-       tC1 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
+       tC1 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
        GetTextureTransColG_SPR(&psxVuw[(i<<10)+j],GETLE16(&psxVuw[clutP+tC1]));
       }
     }
@@ -4598,18 +4604,18 @@ static void drawPoly3TD_TW(short x1, short y1, short x2, short y2, short x3, sho
        for(j=xmin;j<xmax;j+=2)
         {
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
-              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-              (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-              GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                     (((posX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+              (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+              GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                     (((posX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
          posX+=difX2;
          posY+=difY2;
         }
        if(j==xmax)
          GetTextureTransColG_S(&psxVuw[(i<<10)+j],
-             GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                    ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+             GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                    ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
       }
      if(NextRow_FT()) 
       {
@@ -4638,18 +4644,18 @@ static void drawPoly3TD_TW(short x1, short y1, short x2, short y2, short x3, sho
      for(j=xmin;j<xmax;j+=2)
       {
        GetTextureTransColG32((uint32_t *)&psxVuw[(i<<10)+j],
-            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-            (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-            GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                   (((posX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+            (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+            GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                   (((posX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
        posX+=difX2;
        posY+=difY2;
       }
      if(j==xmax)
        GetTextureTransColG(&psxVuw[(i<<10)+j],
-           GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                  ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+           GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                  ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
     }
    if(NextRow_FT()) 
     {
@@ -4830,18 +4836,18 @@ static void drawPoly4TD_TW(short x1, short y1, short x2, short y2, short x3, sho
        for(j=xmin;j<xmax;j+=2)
         {
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
-              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                             (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-              GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY)<<10)+TWin.Position.y0+
-                     ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                             (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+              GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY)<<10)+TWin.Position.y0+
+                    ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
          posX+=difX2;
          posY+=difY2;
         }
        if(j==xmax)
         GetTextureTransColG_S(&psxVuw[(i<<10)+j],
-           GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                  ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+           GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                  ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
       }
      if(NextRow_FT4()) return;
     }
@@ -4874,18 +4880,18 @@ static void drawPoly4TD_TW(short x1, short y1, short x2, short y2, short x3, sho
      for(j=xmin;j<xmax;j+=2)
       {
        GetTextureTransColG32((uint32_t *)&psxVuw[(i<<10)+j],
-            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                           (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-            GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                   ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                           (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+            GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                   ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
        posX+=difX2;
        posY+=difY2;
       }
      if(j==xmax)
       GetTextureTransColG(&psxVuw[(i<<10)+j],
-         GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+         GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
     }
    if(NextRow_FT4()) return;
   }
@@ -4942,18 +4948,18 @@ static void drawPoly4TD_TW_S(short x1, short y1, short x2, short y2, short x3, s
        for(j=xmin;j<xmax;j+=2)
         {
          GetTextureTransColG32_S((uint32_t *)&psxVuw[(i<<10)+j],
-              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                             (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-              GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY)<<10)+TWin.Position.y0+
-                     ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                             (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+              GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY)<<10)+TWin.Position.y0+
+                     ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
          posX+=difX2;
          posY+=difY2;
         }
        if(j==xmax)
         GetTextureTransColG_S(&psxVuw[(i<<10)+j],
-           GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                  ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+           GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                  ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
       }
      if(NextRow_FT4()) return;
     }
@@ -4986,18 +4992,18 @@ static void drawPoly4TD_TW_S(short x1, short y1, short x2, short y2, short x3, s
      for(j=xmin;j<xmax;j+=2)
       {
        GetTextureTransColG32_SPR((uint32_t *)&psxVuw[(i<<10)+j],
-            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                           (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-            GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                   ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+            (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                           (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+            GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                   ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
 
        posX+=difX2;
        posY+=difY2;
       }
      if(j==xmax)
       GetTextureTransColG_SPR(&psxVuw[(i<<10)+j],
-         GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]));
+         GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]));
     }
    if(NextRow_FT4()) return;
   }
@@ -5519,12 +5525,12 @@ static void drawPoly3TGEx4_TW(short x1, short y1, short x2, short y2, short x3, 
 
        for(j=xmin;j<xmax;j+=2) 
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
-         XAdjust=((posX+difX)>>16)%TWin.Position.x1;
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
+         XAdjust=((posX+difX)>>16)&TWin.xmask;
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
                       YAdjust+(XAdjust>>1)];
          tC2=(tC2>>((XAdjust&1)<<2))&0xf;
          GetTextureTransColGX32_S((uint32_t *)&psxVuw[(i<<10)+j],
@@ -5541,8 +5547,8 @@ static void drawPoly3TGEx4_TW(short x1, short y1, short x2, short y2, short x3, 
         }
        if(j==xmax)
         {
-         XAdjust=(posX>>16)%TWin.Position.x1;
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+         XAdjust=(posX>>16)&TWin.xmask;
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                        YAdjust+(XAdjust>>1)];
          tC1=(tC1>>((XAdjust&1)<<2))&0xf;
          GetTextureTransColGX_S(&psxVuw[(i<<10)+j], 
@@ -5579,8 +5585,8 @@ static void drawPoly3TGEx4_TW(short x1, short y1, short x2, short y2, short x3, 
 
      for(j=xmin;j<=xmax;j++) 
       {
-       XAdjust=(posX>>16)%TWin.Position.x1;
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
+       XAdjust=(posX>>16)&TWin.xmask;
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
                     YAdjust+(XAdjust>>1)];
        tC1=(tC1>>((XAdjust&1)<<2))&0xf;
        if(iDither)
@@ -6189,10 +6195,10 @@ static void drawPoly3TGEx8_TW(short x1, short y1, short x2, short y2, short x3, 
 
        for(j=xmin;j<xmax;j+=2)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
-         tC2 = psxVub[((((posY+difY)>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+(((posX+difX)>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
+         tC2 = psxVub[((((posY+difY)>>16)&TWin.ymask)<<11)+
+                      YAdjust+(((posX+difX)>>16)&TWin.xmask)];
                       
          GetTextureTransColGX32_S((uint32_t *)&psxVuw[(i<<10)+j],
               GETLE16(&psxVuw[clutP+tC1])|
@@ -6208,8 +6214,8 @@ static void drawPoly3TGEx8_TW(short x1, short y1, short x2, short y2, short x3, 
         }
        if(j==xmax)
         {
-         tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                      YAdjust+((posX>>16)%TWin.Position.x1)];
+         tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                      YAdjust+((posX>>16)&TWin.xmask)];
          GetTextureTransColGX_S(&psxVuw[(i<<10)+j], 
               GETLE16(&psxVuw[clutP+tC1]),
               (cB1>>16),(cG1>>16),(cR1>>16));
@@ -6244,8 +6250,8 @@ static void drawPoly3TGEx8_TW(short x1, short y1, short x2, short y2, short x3, 
 
      for(j=xmin;j<=xmax;j++)
       {
-       tC1 = psxVub[(((posY>>16)%TWin.Position.y1)<<11)+
-                    YAdjust+((posX>>16)%TWin.Position.x1)];
+       tC1 = psxVub[(((posY>>16)&TWin.ymask)<<11)+
+                    YAdjust+((posX>>16)&TWin.xmask)];
        if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j], 
             GETLE16(&psxVuw[clutP+tC1]),
@@ -6658,10 +6664,10 @@ static void drawPoly3TGD_TW(short x1, short y1, short x2, short y2, short x3, sh
        for(j=xmin;j<xmax;j+=2)
         {
          GetTextureTransColGX32_S((uint32_t *)&psxVuw[(i<<10)+j],
-              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                             (((posX+difX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
-              GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                     (((posX)>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]),
+              (((int32_t)GETLE16(&psxVuw[(((((posY+difY)>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                             (((posX+difX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]))<<16)|
+              GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                     (((posX)>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
               (cB1>>16)|((cB1+difB)&0xff0000),
               (cG1>>16)|((cG1+difG)&0xff0000),
               (cR1>>16)|((cR1+difR)&0xff0000));
@@ -6673,8 +6679,8 @@ static void drawPoly3TGD_TW(short x1, short y1, short x2, short y2, short x3, sh
         }
        if(j==xmax)
         GetTextureTransColGX_S(&psxVuw[(i<<10)+j],
-            GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                   ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]),
+            GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                   ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
             (cB1>>16),(cG1>>16),(cR1>>16));
       }
      if(NextRow_GT()) 
@@ -6708,13 +6714,13 @@ static void drawPoly3TGD_TW(short x1, short y1, short x2, short y2, short x3, sh
       {
        if(iDither)
         GetTextureTransColGX_Dither(&psxVuw[(i<<10)+j],
-          GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                 ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]),
+          GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                 ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
           (cB1>>16),(cG1>>16),(cR1>>16));
        else
         GetTextureTransColGX(&psxVuw[(i<<10)+j],
-          GETLE16(&psxVuw[((((posY>>16)%TWin.Position.y1)+GlobalTextAddrY+TWin.Position.y0)<<10)+
-                 ((posX>>16)%TWin.Position.x1)+GlobalTextAddrX+TWin.Position.x0]),
+          GETLE16(&psxVuw[((((posY>>16)&TWin.ymask)+GlobalTextAddrY+TWin.Position.y0)<<10)+
+                 ((posX>>16)&TWin.xmask)+GlobalTextAddrX+TWin.Position.x0]),
           (cB1>>16),(cG1>>16),(cR1>>16));
        posX+=difX;
        posY+=difY;
