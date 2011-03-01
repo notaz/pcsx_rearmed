@@ -50,7 +50,6 @@ unsigned int plat_get_ticks_ms(void);
 unsigned int plat_get_ticks_us(void);
 void plat_wait_till_us(unsigned int us);
 
-const char  *plat_get_credits(void);
 void plat_debug_cat(char *str);
 
 #ifdef __cplusplus

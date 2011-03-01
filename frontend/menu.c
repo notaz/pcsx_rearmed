@@ -67,7 +67,7 @@ static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
-static int region, in_type_sel;
+static int warned_about_bios, region, in_type_sel;
 int g_opts;
 
 // from softgpu plugin
@@ -224,6 +224,7 @@ static const struct {
 	CE_INTVAL_V(iUseInterpolation, 2),
 	CE_INTVAL_V(iSPUIRQWait, 2),
 	CE_INTVAL(iUseTimer),
+	CE_INTVAL(warned_about_bios),
 };
 
 static char *get_cd_label(void)
@@ -1055,9 +1056,9 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
-static const char h_bios[]       = "HLE is simulated BIOS. BIOS is saved in savestates.\n"
-				   "Must save config and reload the game\n"
-				   "for change to take effect";
+static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in savestates\n"
+				   "and can't be changed there. Must save config and reload\n"
+				   "the game for change to take effect";
 static const char h_plugin_xpu[] = "Must save config and reload the game\n"
 				   "for plugin change to take effect";
 static const char h_gpu[]        = "Configure built-in P.E.Op.S. SoftGL Driver V1.17";
@@ -1199,6 +1200,34 @@ static void debug_menu_loop(void)
 
 // ------------ main menu ------------
 
+static void menu_bios_warn(void)
+{
+	int inp;
+	static const char msg[] =
+		"You don't seem to have copied any BIOS files to\n"
+		"<SD card>/pandora/appdata/pcsx_rearmed/bios/\n\n"
+		"While many games work fine with fake (HLE) BIOS,\n"
+		"others (like MGS and FF8) require BIOS to work.\n"
+		"After copying the file, you'll also need to\n"
+		"select it in the emu's options->[BIOS/Plugins]\n\n"
+		"The file is usually named SCPH1001.BIN, but\n"
+		"other not compressed files can be used too.\n\n"
+		"Press (B) or (X) to continue";
+
+	while (1)
+	{
+		menu_draw_begin(1);
+		draw_menu_message(msg, NULL);
+		menu_draw_end();
+
+		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
+		if (inp & (PBTN_MBACK|PBTN_MOK))
+			return;
+	}
+}
+
+// ------------ main menu ------------
+
 void OnFile_Exit();
 
 static void draw_frame_main(void)
@@ -1217,20 +1246,18 @@ static void draw_frame_credits(void)
 	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
 }
 
-const char *plat_get_credits(void)
-{
-	return	"PCSX-ReARMed\n\n"
-		"(C) 1999-2003 PCSX Team\n"
-		"(C) 2005-2009 PCSX-df Team\n"
-		"(C) 2009-2011 PCSX-Reloaded Team\n\n"
-		"GPU and SPU code by Pete Bernert\n"
-		"  and the P.E.Op.S. team\n"
-		"ARM recompiler (C) 2009-2011 Ari64\n"
-		"PCSX4ALL plugins by PCSX4ALL team\n"
-		"  Chui, Franxis, Unai\n\n"
-		"integration, optimization and\n"
-		"  frontend (C) 2010-2011 notaz\n";
-}
+static const char credits_text[] = 
+	"PCSX-ReARMed\n\n"
+	"(C) 1999-2003 PCSX Team\n"
+	"(C) 2005-2009 PCSX-df Team\n"
+	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
+	"GPU and SPU code by Pete Bernert\n"
+	"  and the P.E.Op.S. team\n"
+	"ARM recompiler (C) 2009-2011 Ari64\n"
+	"PCSX4ALL plugins by PCSX4ALL team\n"
+	"  Chui, Franxis, Unai\n\n"
+	"integration, optimization and\n"
+	"  frontend (C) 2010-2011 notaz\n";
 
 static int reset_game(void)
 {
@@ -1405,7 +1432,7 @@ static int main_menu_handler(int id, int keys)
 			return 1;
 		break;
 	case MA_MAIN_CREDITS:
-		draw_menu_credits(draw_frame_credits);
+		draw_menu_message(credits_text, draw_frame_credits);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		break;
 	case MA_MAIN_EXIT:
@@ -1446,6 +1473,11 @@ void menu_loop(void)
 	static int sel = 0;
 
 	menu_leave_emu();
+
+	if (bioses[1] == NULL && !warned_about_bios) {
+		menu_bios_warn();
+		warned_about_bios = 1;
+	}
 
 	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, ready_to_go);
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go && CdromId[0]);

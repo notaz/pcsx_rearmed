@@ -640,13 +640,12 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 
 /* ***************************************** */
 
-static void draw_menu_credits(void (*draw_more)(void))
+static void draw_menu_message(const char *msg, void (*draw_more)(void))
 {
-	const char *creds, *p;
 	int x, y, h, w, wt;
+	const char *p;
 
-	p = creds = plat_get_credits();
-
+	p = msg;
 	for (h = 1, w = 0; *p != 0; h++) {
 		for (wt = 0; *p != 0 && *p != '\n'; p++)
 			wt++;
@@ -665,7 +664,7 @@ static void draw_menu_credits(void (*draw_more)(void))
 
 	menu_draw_begin(1);
 
-	for (p = creds; *p != 0 && y <= g_menuscreen_h - me_mfont_h; y += me_mfont_h) {
+	for (p = msg; *p != 0 && y <= g_menuscreen_h - me_mfont_h; y += me_mfont_h) {
 		text_out16(x, y, p);
 
 		for (; *p != 0 && *p != '\n'; p++)
