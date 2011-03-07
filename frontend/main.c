@@ -375,8 +375,8 @@ void OnFile_Exit() {
 #ifndef MAEMO
 	menu_finish();
 #endif
-	plat_finish();
 	SysClose();
+	plat_finish();
 	exit(0);
 }
 

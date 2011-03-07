@@ -30,8 +30,8 @@ struct vout_fbdev *layer_fb;
 
 static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, int first_call)
 {
-	struct omapfb_plane_info pi;
-	struct omapfb_mem_info mi;
+	struct omapfb_plane_info pi = { 0, };
+	struct omapfb_mem_info mi = { 0, };
 	int ret;
 
 	ret = ioctl(fd, OMAPFB_QUERY_PLANE, &pi);

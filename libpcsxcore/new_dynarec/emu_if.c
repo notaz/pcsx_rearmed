@@ -270,6 +270,7 @@ void *psxH_ptr;
 void new_dynarec_init() {}
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
+void new_dynarec_clear_full() {}
 void invalidate_all_pages() {}
 void invalidate_block(unsigned int block) {}
 void new_dyna_pcsx_mem_init(void) {}

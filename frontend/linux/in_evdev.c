@@ -585,10 +585,11 @@ static int in_evdev_clean_binds(void *drv_data, int *binds, int *def_binds)
 	in_evdev_t *dev = drv_data;
 	int i, t, ret, offs, count = 0;
 
+	memset(keybits, 0, sizeof(keybits));
 	ret = ioctl(dev->fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
 	if (ret == -1) {
 		perror("in_evdev: ioctl failed");
-		memset(keybits, 0xff, sizeof(keybits)); /* mark all as good */
+		// memset(keybits, 0xff, sizeof(keybits)); /* mark all as good */
 	}
 
 	if (dev->abs_lzone != 0) {
