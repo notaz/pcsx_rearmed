@@ -855,7 +855,7 @@ void SetupStreams(void)
   (uint32_t *)malloc(16384 * sizeof(uint32_t));
  CDDAEnd   = CDDAStart + 16384;
  CDDAPlay  = CDDAStart;
- CDDAFeed  = CDDAStart + 1;
+ CDDAFeed  = CDDAStart;
 
  for(i=0;i<MAXCHAN;i++)                                // loop sound channels
   {
