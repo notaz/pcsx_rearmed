@@ -3129,38 +3129,36 @@ void store_assemble(int i,struct regstat *i_regs)
 
   if (opcode[i]==0x28) { // SB
     if(!c||memtarget) {
-      int x=0;
+      int x=0,a=temp;
 #ifdef BIG_ENDIAN_MIPS
       if(!c) emit_xorimm(addr,3,temp);
       else x=((constmap[i][s]+offset)^3)-(constmap[i][s]+offset);
 #else
-      if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
-      else if (addr!=temp) emit_mov(addr,temp);
+      if(!c) a=addr;
 #endif
       //gen_tlb_addr_w(temp,map);
       //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
-      emit_writebyte_indexed_tlb(tl,x,temp,map,temp);
+      emit_writebyte_indexed_tlb(tl,x,a,map,a);
     }
     type=STOREB_STUB;
   }
   if (opcode[i]==0x29) { // SH
     if(!c||memtarget) {
-      int x=0;
+      int x=0,a=temp;
 #ifdef BIG_ENDIAN_MIPS
       if(!c) emit_xorimm(addr,2,temp);
       else x=((constmap[i][s]+offset)^2)-(constmap[i][s]+offset);
 #else
-      if(c) x=(constmap[i][s]+offset)-(constmap[i][s]+offset);
-      else if (addr!=temp) emit_mov(addr,temp);
+      if(!c) a=addr;
 #endif
       //#ifdef
       //emit_writehword_indexed_tlb(tl,x,temp,map,temp);
       //#else
       if(map>=0) {
-        gen_tlb_addr_w(temp,map);
-        emit_writehword_indexed(tl,x,temp);
+        gen_tlb_addr_w(a,map);
+        emit_writehword_indexed(tl,x,a);
       }else
-        emit_writehword_indexed(tl,(int)rdram-0x80000000+x,temp);
+        emit_writehword_indexed(tl,(int)rdram-0x80000000+x,a);
     }
     type=STOREH_STUB;
   }

@@ -2646,12 +2646,14 @@ do_readstub(int n)
   emit_writeword(rs,(int)&address);
   //emit_pusha();
   save_regs(reglist);
+#ifndef PCSX
   ds=i_regs!=&regs[i];
   int real_rs=(itype[i]==LOADLR)?-1:get_reg(i_regmap,rs1[i]);
   u_int cmask=ds?-1:(0x100f|~i_regs->wasconst);
   if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&0x100f,i);
   wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty&cmask&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs)));
   if(!ds) wb_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&~0x100f,i);
+#endif
   emit_shrimm(rs,16,1);
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0) {
@@ -2842,12 +2844,14 @@ do_writestub(int n)
   }
   //emit_pusha();
   save_regs(reglist);
+#ifndef PCSX
   ds=i_regs!=&regs[i];
   int real_rs=get_reg(i_regmap,rs1[i]);
   u_int cmask=ds?-1:(0x100f|~i_regs->wasconst);
   if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&0x100f,i);
   wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty&cmask&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs)));
   if(!ds) wb_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&~0x100f,i);
+#endif
   emit_shrimm(rs,16,1);
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0) {
@@ -2979,12 +2983,14 @@ do_unalignedwritestub(int n)
   emit_writeword(temp2,(int)&address);
 
   save_regs(reglist);
+#ifndef PCSX
   ds=i_regs!=&regs[i];
   real_rs=get_reg(i_regmap,rs1[i]);
   u_int cmask=ds?-1:(0x100f|~i_regs->wasconst);
   if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&0x100f,i);
   wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty&cmask&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs)));
   if(!ds) wb_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty&~(1<<addr)&(real_rs<0?-1:~(1<<real_rs))&~0x100f,i);
+#endif
   emit_shrimm(addr,16,1);
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0) {
