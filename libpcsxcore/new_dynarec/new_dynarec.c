@@ -121,7 +121,11 @@ struct ll_entry
   char shadow[1048576]  __attribute__((aligned(16)));
   void *copy;
   int expirep;
+#ifndef PCSX
   u_int using_tlb;
+#else
+  static const u_int using_tlb=0;
+#endif
   u_int stop_after_jal;
   extern u_char restore_candidate[512];
   extern int cycle_count;
@@ -2780,8 +2784,10 @@ void load_assemble(int i,struct regstat *i_regs)
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    if (c) {
+      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    }
   }
   //printf("load_assemble: c=%d\n",c);
   //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
@@ -3081,8 +3087,10 @@ void store_assemble(int i,struct regstat *i_regs)
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    if(c) {
+      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    }
   }
   assert(tl>=0);
   assert(temp>=0);
@@ -3252,7 +3260,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   int jaddr=0,jaddr2;
   int case1,case2,case3;
   int done0,done1,done2;
-  int memtarget,c=0;
+  int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rs2[i]|64);
@@ -3263,8 +3271,10 @@ void storelr_assemble(int i,struct regstat *i_regs)
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->isconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    if(c) {
+      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    }
   }
   assert(tl>=0);
   for(hr=0;hr<HOST_REGS;hr++) {
@@ -7725,7 +7735,9 @@ void new_dynarec_clear_full()
   literalcount=0;
   stop_after_jal=0;
   // TLB
+#ifndef DISABLE_TLB
   using_tlb=0;
+#endif
   for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
     memory_map[n]=-1;
   for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF

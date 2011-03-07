@@ -3328,7 +3328,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
   int s,th,tl,temp,temp2,addr,map=-1;
   int offset;
   int jaddr=0;
-  int memtarget,c=0;
+  int memtarget=0,c=0;
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rt1[i]|64);
   tl=get_reg(i_regs->regmap,rt1[i]);
@@ -3346,8 +3346,10 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
   else addr=s;
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    if(c) {
+      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
+    }
   }
   if(!using_tlb) {
     if(!c) {
