@@ -1186,6 +1186,9 @@ void invalidate_block(u_int block)
   
   // Don't trap writes
   invalid_code[block]=1;
+#ifdef PCSX
+  invalid_code[((u_int)0x80000000>>12)|page]=1;
+#endif
 #ifndef DISABLE_TLB
   // If there is a valid TLB entry for this page, remove write protect
   if(tlb_LUT_w[block]) {
@@ -11032,6 +11035,12 @@ int new_recompile_block(int addr)
     }
 #endif
   }
+#ifdef PCSX
+  // PCSX maps all RAM mirror invalid_code tests to 0x80000000..0x80000000+RAM_SIZE
+  if(get_page(start)<(RAM_SIZE>>12))
+    for(i=start>>12;i<=(start+slen*4)>>12;i++)
+      invalid_code[((u_int)0x80000000>>12)|i]=0;
+#endif
   
   /* Pass 10 - Free memory by expiring oldest blocks */
   
