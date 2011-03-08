@@ -104,7 +104,7 @@ static int pcsx_direct_write(int type, u_int addr, int rs, int rt, signed char *
 
     int ir=get_reg(regmap,INVCP);
     assert(ir>=0);
-    emit_cmpmem_indexedsr12_reg(ir,rs,1);
+    emit_cmpmem_indexedsr12_reg(ir,HOST_TEMPREG,1);
     emit_callne(invalidate_addr_reg[rs]);
     return 1;
   }

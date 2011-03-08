@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2010
+ * (C) Gražvydas "notaz" Ignotas, 2010-2011
  *
  * This work is licensed under the terms of GNU GPL version 2 or later.
  * See the COPYING file in the top-level directory.
@@ -15,7 +15,7 @@
 //#define memprintf printf
 #define memprintf(...)
 
-static int ram_is_ro;
+int pcsx_ram_is_ro;
 
 static void read_mem8()
 {
@@ -74,6 +74,7 @@ extern void ari_write_ram32();
 extern void ari_write_ram_mirror8();
 extern void ari_write_ram_mirror16();
 extern void ari_write_ram_mirror32();
+extern void ari_write_ram_mirror_ro32();
 extern void ari_read_bios8();
 extern void ari_read_bios16();
 extern void ari_read_bios32();
@@ -91,12 +92,6 @@ void (*writemem[0x10000])();
 void (*writememb[0x10000])();
 void (*writememh[0x10000])();
 
-static void write_mem_check_ro32()
-{
-	if (!ram_is_ro)
-		*(u32 *)(address | 0x80000000) = word;
-}
-
 static void write_biu()
 {
 	memprintf("write_biu %08x, %08x @%08x %u\n", address, word, psxRegs.pc, psxRegs.cycle);
@@ -106,10 +101,10 @@ static void write_biu()
 
 	switch (word) {
 	case 0x800: case 0x804:
-		ram_is_ro = 1;
+		pcsx_ram_is_ro = 1;
 		break;
 	case 0: case 0x1e988:
-		ram_is_ro = 0;
+		pcsx_ram_is_ro = 0;
 		break;
 	default:
 		memprintf("write_biu: unexpected val: %08x\n", word);
@@ -342,8 +337,8 @@ void new_dyna_pcsx_mem_init(void)
 	}
 
 	// stupid BIOS RAM check
-	writemem[0] = write_mem_check_ro32;
-	ram_is_ro = 0;
+	writemem[0] = ari_write_ram_mirror_ro32;
+	pcsx_ram_is_ro = 0;
 
 	// RAM direct
 	for (i = 0x8000; i < 0x8020; i++) {

@@ -203,6 +203,15 @@ memory_map = restore_candidate + 512
 	.size	memory_map, 4194304
 dynarec_local_end = memory_map + 4194304
 
+.macro load_var_adr reg var
+.if HAVE_ARMV7
+	movw	\reg, #:lower16:\var
+	movt	\reg, #:upper16:\var
+.else
+	ldr	\reg, =\var
+.endif
+.endm
+
 	.text
 	.align	2
 	.global	dyna_linker
@@ -856,12 +865,7 @@ invalidate_addr_call:
 new_dyna_start:
 	/* ip is stored to conform EABI alignment */
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
-.if HAVE_ARMV7
-	movw	fp, #:lower16:dynarec_local
-	movt	fp, #:upper16:dynarec_local
-.else
-	ldr	fp, .dlptr
-.endif
+	load_var_adr fp, dynarec_local
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]
@@ -869,8 +873,6 @@ new_dyna_start:
 	str	r1, [fp, #last_count-dynarec_local]
 	sub	r10, r10, r1
 	mov	pc, r0
-.dlptr:
-	.word	dynarec_local
 	.size	new_dyna_start, .-new_dyna_start
 
 /* --------------------------------------- */
@@ -888,6 +890,7 @@ new_dyna_start:
 .global	ari_write_ram_mirror8
 .global	ari_write_ram_mirror16
 .global	ari_write_ram_mirror32
+.global	ari_write_ram_mirror_ro32
 .global	ari_read_bios8
 .global	ari_read_bios16
 .global	ari_read_bios32
@@ -979,6 +982,14 @@ ari_write_ram_mirror16:
 
 ari_write_ram_mirror32:
 	ari_write_ram_mirror (3<<11), word,
+
+ari_write_ram_mirror_ro32:
+	load_var_adr r0, pcsx_ram_is_ro
+	ldr	r0, [r0]
+	tst	r0, r0
+	movne	pc, lr
+	nop
+	b	ari_write_ram_mirror32
 
 
 .macro ari_read_bios_mirror bic_const op
