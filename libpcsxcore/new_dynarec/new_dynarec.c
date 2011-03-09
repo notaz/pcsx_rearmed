@@ -8242,18 +8242,6 @@ int new_recompile_block(int addr)
         printf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
         break;
     }
-#ifdef PCSX
-    /* detect branch in delay slot early */
-    if(type==RJUMP||type==UJUMP||type==CJUMP||type==SJUMP||type==FJUMP) {
-      opcode[i+1]=source[i+1]>>26;
-      opcode2[i+1]=source[i+1]&0x3f;
-      if((0<opcode[i+1]&&opcode[i+1]<8)||(opcode[i+1]==0&&(opcode2[i+1]==8||opcode2[i+1]==9))) {
-        printf("branch in delay slot @%08x (%08x)\n", addr + i*4+4, addr);
-        // don't handle first branch and call interpreter if it's hit
-        type=INTCALL;
-      }
-    }
-#endif
     itype[i]=type;
     opcode2[i]=op2;
     /* Get registers/immediates */
@@ -8486,19 +8474,50 @@ int new_recompile_block(int addr)
     else if(type==CJUMP||type==SJUMP||type==FJUMP)
       ba[i]=start+i*4+4+((signed int)((unsigned int)source[i]<<16)>>14);
     else ba[i]=-1;
-    /* Is this the end of the block? */
-    if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000)) {
 #ifdef PCSX
+    if(i>0&&(itype[i-1]==RJUMP||itype[i-1]==UJUMP||itype[i-1]==CJUMP||itype[i-1]==SJUMP||itype[i-1]==FJUMP)) {
+      int do_in_intrp=0;
+      // branch in delay slot?
+      if(type==RJUMP||type==UJUMP||type==CJUMP||type==SJUMP||type==FJUMP) {
+        // don't handle first branch and call interpreter if it's hit
+        printf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
+        do_in_intrp=1;
+      }
+      // basic load delay detection
+      else if((type==LOAD||type==LOADLR||type==COP0||type==COP2||type==C2LS)&&rt1[i]!=0) {
+        int t=(ba[i-1]-start)/4;
+        if(0 <= t && t < i &&(rt1[i]==rs1[t]||rt1[i]==rs2[t])&&itype[t]!=CJUMP&&itype[t]!=SJUMP) {
+          // jump target wants DS result - potential load delay effect
+          printf("load delay @%08x (%08x)\n", addr + i*4, addr);
+          do_in_intrp=1;
+          bt[t+1]=1; // expected return from interpreter
+        }
+        else if(i>=2&&rt1[i-2]==2&&rt1[i]==2&&rs1[i]!=2&&rs2[i]!=2&&rs1[i-1]!=2&&rs2[i-1]!=2&&
+              !(i>=3&&(itype[i-3]==RJUMP||itype[i-3]==UJUMP||itype[i-3]==CJUMP||itype[i-3]==SJUMP))) {
+          // v0 overwrite like this is a sign of trouble, bail out
+          printf("v0 overwrite @%08x (%08x)\n", addr + i*4, addr);
+          do_in_intrp=1;
+        }
+      }
       // check for link register access in delay slot
+      // TODO: teach the recompiler to handle this
       int rt1_=rt1[i-1];
       if(rt1_!=0&&(rs1[i]==rt1_||rs2[i]==rt1_||rt1[i]==rt1_||rt2[i]==rt1_)) {
         printf("link access in delay slot @%08x (%08x)\n", addr + i*4, addr);
+        do_in_intrp=1;
+      }
+      if(do_in_intrp) {
+        rs1[i-1]=CCREG;
+        rs2[i-1]=rt1[i-1]=rt2[i-1]=0;
         ba[i-1]=-1;
         itype[i-1]=INTCALL;
         done=2;
+        i--; // don't compile the DS
       }
-      else
+    }
 #endif
+    /* Is this the end of the block? */
+    if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000)) {
       if(rt1[i-1]==0) { // Continue past subroutine call (JAL)
         done=2;
       }
