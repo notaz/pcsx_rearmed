@@ -21,6 +21,7 @@
 #include "plugin_lib.h"
 #include "omap.h"
 #include "pcnt.h"
+#include "arm_utils.h"
 #include "common/plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
@@ -443,7 +444,6 @@ static void draw_savestate_bg(int slot);
 // a bit of black magic here
 static void draw_savestate_bg(int slot)
 {
-	extern void bgr555_to_rgb565(void *dst, void *src, int bytes);
 	static const int psx_widths[8]  = { 256, 368, 320, 384, 512, 512, 640, 640 };
 	int x, y, w, h;
 	char fname[MAXPATHLEN];
@@ -1177,26 +1177,51 @@ static int menu_loop_options(int id, int keys)
 
 // ------------ debug menu ------------
 
-static void draw_frame_debug(void)
+static void draw_frame_debug(GPUFreeze_t *gpuf)
 {
+	int w = min(g_menuscreen_w, 1024);
+	int h = min(g_menuscreen_h, 512);
+	u16 *d = g_menuscreen_ptr;
+	u16 *s = (u16 *)gpuf->psxVRam;
+	char buff[64];
+	int ty = 1;
+
+	gpuf->ulFreezeVersion = 1;
+	if (GPU_freeze != NULL)
+		GPU_freeze(1, gpuf);
+
+	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
+		bgr555_to_rgb565(d, s, w * 2);
+
 	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
+	snprintf(buff, sizeof(buff), "GPU sr: %08x", gpuf->ulStatus);
+	smalltext_out16(4, (ty += me_sfont_h), buff, 0xe7fc);
+	snprintf(buff, sizeof(buff), "PC/SP: %08x %08x", psxRegs.pc, psxRegs.GPR.n.sp);
+	smalltext_out16(4, (ty += me_sfont_h), buff, 0xe7fc);
 }
 
 static void debug_menu_loop(void)
 {
+	GPUFreeze_t *gpuf;
 	int inp;
+
+	gpuf = malloc(sizeof(*gpuf));
+	if (gpuf == NULL)
+		return;
 
 	while (1)
 	{
-		menu_draw_begin(1);
-		draw_frame_debug();
+		menu_draw_begin(0);
+		draw_frame_debug(gpuf);
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
 					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
 		if (inp & PBTN_MBACK)
-			return;
+			break;
 	}
+
+	free(gpuf);
 }
 
 // ------------ main menu ------------
