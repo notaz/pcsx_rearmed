@@ -59,13 +59,13 @@ static void delayRead(int reg, u32 bpc) {
 
 	psxRegs.pc = bpc;
 
-	psxBranchTest();
+	branch = 0;
 
 	psxRegs.GPR.r[reg] = rold;
 	execI(); // first branch opcode
 	psxRegs.GPR.r[reg] = rnew;
 
-	branch = 0;
+	psxBranchTest();
 }
 
 static void delayWrite(int reg, u32 bpc) {
