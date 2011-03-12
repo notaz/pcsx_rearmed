@@ -51,6 +51,8 @@ DATAREGISTERMODES DataWriteMode;
 DATAREGISTERMODES DataReadMode;
 
 BOOL              bSkipNextFrame = FALSE;
+BOOL              fskip_frameReady;
+DWORD             lace_count_since_flip;
 DWORD             dwLaceCnt=0;
 short             sDispWidths[8] = {256,320,512,640,368,384,512,640};
 PSXDisplay_t      PSXDisplay;
@@ -205,22 +207,36 @@ static void updateDisplay(void)                               // UPDATE DISPLAY
 
  if(UseFrameSkip)                                      // skip ?
   {
-   if(!bSkipNextFrame) DoBufferSwap();                 // -> to skip or not to skip
-   if(dwActFixes&0xa0)                                 // -> pc fps calculation fix/old skipping fix
+   if(fskip_frameReady)
     {
-     if((fps_skip < fFrameRateHz) && !(bSkipNextFrame))  // -> skip max one in a row
-         {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
-     else bSkipNextFrame = FALSE;
+     DoBufferSwap();                                   // -> to skip or not to skip
+     fskip_frameReady=FALSE;
+     bDoVSyncUpdate=FALSE;                             // vsync done
     }
-   else FrameSkip();
   }
  else                                                  // no skip ?
   {
    bSkipNextFrame = FALSE;
    DoBufferSwap();                                     // -> swap
+   bDoVSyncUpdate=FALSE;                               // vsync done
   }
+}
 
-  bDoVSyncUpdate=FALSE;                                // vsync done
+static void decideSkip(void)
+{
+ if(!bDoVSyncUpdate)
+   return;
+
+ lace_count_since_flip=0;
+ fskip_frameReady=!bSkipNextFrame;
+
+ if(dwActFixes&0xa0)                                   // -> pc fps calculation fix/old skipping fix
+  {
+   if((fps_skip < fFrameRateHz) && !bSkipNextFrame)    // -> skip max one in a row
+       {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
+   else bSkipNextFrame = FALSE;
+  }
+ else FrameSkip();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -376,7 +392,7 @@ static void updateDisplayIfChanged(void)                      // UPDATE DISPLAY 
 
  if(iFrameLimit==2) SetAutoFrameCap();                 // -> set it
 
- if(UseFrameSkip) updateDisplay();                     // stupid stuff when frame skipping enabled
+ if(UseFrameSkip) decideSkip();                        // stupid stuff when frame skipping enabled
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -405,20 +421,24 @@ void CALLBACK GPUupdateLace(void)                      // VSYNC
   {
    if(dwActFixes&64)                                   // lazy screen update fix
     {
-     if(bDoLazyUpdate && !UseFrameSkip) 
+     if(bDoLazyUpdate)
       updateDisplay(); 
      bDoLazyUpdate=FALSE;
     }
    else
     {
-     if((bDoVSyncUpdate && !UseFrameSkip)              // some primitives drawn?
-      || bDoVSyncUpdate >= 8)                          // not syned for a while
+     if(bDoVSyncUpdate)                                // some primitives drawn?
        updateDisplay();                                // -> update display
     }
   }
 
- if(bDoVSyncUpdate)                                    // if display not synced
-  bDoVSyncUpdate++;                                    // count how many times
+ if(UseFrameSkip) {                                    // frame over-skip guard
+  lace_count_since_flip++;
+  if(lace_count_since_flip > 8) {
+   bSkipNextFrame=FALSE;
+   fskip_frameReady=TRUE;
+  }
+ }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -555,7 +575,7 @@ void CALLBACK GPUwriteStatus(uint32_t gdata)      // WRITE STATUS
 
      if (!(PSXDisplay.Interlaced))                      // stupid frame skipping option
       {
-       if(UseFrameSkip)  updateDisplay();
+       if(UseFrameSkip)  decideSkip();
        if(dwActFixes&64) bDoLazyUpdate=TRUE;
       }
     }return;
