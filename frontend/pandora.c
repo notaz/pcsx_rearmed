@@ -60,6 +60,7 @@ struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_3,        IN_BINDTYPE_EMU, SACTION_PREV_SSLOT },
 	{ KEY_4,        IN_BINDTYPE_EMU, SACTION_NEXT_SSLOT },
 	{ KEY_5,        IN_BINDTYPE_EMU, SACTION_TOGGLE_FSKIP },
+	{ KEY_6,        IN_BINDTYPE_EMU, SACTION_SCREENSHOT },
 	{ 0, 0, 0 }
 };
 

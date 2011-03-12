@@ -56,6 +56,7 @@ enum sched_action {
 	SACTION_NEXT_SSLOT,
 	SACTION_PREV_SSLOT,
 	SACTION_TOGGLE_FSKIP,
+	SACTION_SCREENSHOT,
 };
 
 static inline void emu_set_action(enum sched_action action_)

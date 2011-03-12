@@ -87,7 +87,7 @@ plugins/dfinput/%.o: CFLAGS += -Wall
 OBJS += plugins/dfinput/pad.o
 
 # gui
-OBJS += frontend/main.o frontend/plugin.o 
+OBJS += frontend/main.o frontend/plugin.o
 ifeq "$(USE_GTK)" "1"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c

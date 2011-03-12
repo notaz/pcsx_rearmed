@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 int readpng(void *dest, const char *fname, readpng_what what, int w, int h);
+int writepng(const char *fname, unsigned short *src, int w, int h);
 
 #ifdef __cplusplus
 }

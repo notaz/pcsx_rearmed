@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2008-2010
+ * (C) Gražvydas "notaz" Ignotas, 2008-2011
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <png.h>
 #include "readpng.h"
@@ -190,4 +191,76 @@ done:
 	return ret;
 }
 
+int writepng(const char *fname, unsigned short *src, int w, int h)
+{
+	png_structp png_ptr = NULL;
+	png_infop info_ptr = NULL;
+	png_bytepp row_pointers;
+	int i, j, ret = -1;
+	FILE *f;
+
+	f = fopen(fname, "wb");
+	if (f == NULL) {
+		lprintf(__FILE__ ": failed to open \"%s\"\n", fname);
+		return -1;
+	}
+
+	row_pointers = calloc(h, sizeof(row_pointers[0]));
+	if (row_pointers == NULL)
+		goto end1;
+
+	for (i = 0; i < h; i++) {
+		unsigned char *dst = malloc(w * 3);
+		if (dst == NULL)
+			goto end2;
+		row_pointers[i] = dst;
+		for (j = 0; j < w; j++, src++, dst += 3) {
+			dst[0] = (*src & 0xf800) >> 8;
+			dst[1] = (*src & 0x07e0) >> 3;
+			dst[2] = (*src & 0x001f) << 3;
+		}
+	}
+
+	/* initialize stuff */
+	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (png_ptr == NULL) {
+		fprintf(stderr, "png_create_write_struct() failed");
+		goto end2;
+	}
+
+	info_ptr = png_create_info_struct(png_ptr);
+	if (info_ptr == NULL) {
+		fprintf(stderr, "png_create_info_struct() failed");
+		goto end3;
+	}
+
+	if (setjmp(png_jmpbuf(png_ptr)) != 0) {
+		fprintf(stderr, "error in png code\n");
+		goto end4;
+	}
+
+	png_init_io(png_ptr, f);
+
+	png_set_IHDR(png_ptr, info_ptr, w, h,
+		8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+	png_write_info(png_ptr, info_ptr);
+	png_write_image(png_ptr, row_pointers);
+	png_write_end(png_ptr, NULL);
+
+	ret = 0;
+
+end4:
+//	png_destroy_info_struct(png_ptr, &info_ptr); // freed below
+end3:
+	png_destroy_write_struct(&png_ptr, &info_ptr);
+end2:
+	for (i = 0; i < h; i++)
+		free(row_pointers[i]);
+	free(row_pointers);
+end1:
+	fclose(f);
+	return ret;
+}
 

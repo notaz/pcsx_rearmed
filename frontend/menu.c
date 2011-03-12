@@ -667,6 +667,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Prev Save Slot   ", 1 << SACTION_PREV_SSLOT },
 	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
+	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 	{ NULL,                0 }
 };

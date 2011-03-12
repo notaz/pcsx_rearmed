@@ -211,6 +211,16 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = 640;
 }
 
+void *pl_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	return NULL;
+}
+
+int writepng()
+{
+	return -1;
+}
+
 extern int UseFrameSkip; // hmh
 
 const struct rearmed_cbs pl_rearmed_cbs = {

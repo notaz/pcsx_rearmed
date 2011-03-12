@@ -131,6 +131,15 @@ void pl_fbdev_close(void)
 	omap_enable_layer(0);
 }
 
+void *pl_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	*w = pl_fbdev_w;
+	*h = pl_fbdev_h;
+	*bpp = pl_fbdev_bpp;
+
+	return pl_fbdev_buf;
+}
+
 static void update_input(void)
 {
 	int actions[IN_BINDTYPE_COUNT] = { 0, };

@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 
 #include "main.h"
 #include "plugin.h"
@@ -24,6 +25,7 @@
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
 #include "common/input.h"
+#include "common/readpng.h"
 
 int ready_to_go;
 unsigned long gpuDisp;
@@ -66,6 +68,24 @@ static void CheckSubDir() {
 	create_profile_dir(CHEATS_DIR);
 	create_profile_dir(PATCHES_DIR);
 	create_profile_dir(PCSX_DOT_DIR "cfg");
+	create_profile_dir("/screenshots/");
+}
+
+static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
+	char trimlabel[33];
+	int j;
+
+	strncpy(trimlabel, CdromLabel, 32);
+	trimlabel[32] = 0;
+	for (j = 31; j >= 0; j--)
+		if (trimlabel[j] == ' ')
+			trimlabel[j] = 0;
+		else
+			continue;
+
+	snprintf(buf, size, fmt, trimlabel, CdromId, i);
+
+	return 0;
 }
 
 void set_cd_image(const char *fname)
@@ -107,6 +127,7 @@ static void set_default_paths(void)
 
 void do_emu_action(void)
 {
+	char buf[MAXPATHLEN];
 	int ret;
 
 	emu_action_old = emu_action;
@@ -140,6 +161,25 @@ void do_emu_action(void)
 		snprintf(hud_msg, sizeof(hud_msg), "FRAMESKIP %s",
 			UseFrameSkip ? "ON" : "OFF");
 		break;
+	case SACTION_SCREENSHOT:
+		{
+			void *scrbuf;
+			int w, h, bpp;
+			time_t t = time(NULL);
+			struct tm *tb = localtime(&t);
+			int ti = tb->tm_yday * 1000000 + tb->tm_hour * 10000 +
+				tb->tm_min * 100 + tb->tm_sec;
+
+			scrbuf = pl_prepare_screenshot(&w, &h, &bpp);
+			get_gameid_filename(buf, sizeof(buf),
+				"screenshots/%.32s-%.9s.%d.png", ti);
+			ret = -1;
+			if (scrbuf != 0 && bpp == 16)
+				ret = writepng(buf, scrbuf, w, h);
+			if (ret == 0)
+				snprintf(hud_msg, sizeof(hud_msg), "SCREENSHOT TAKEN");
+			break;
+		}
 	}
 	hud_new_msg = 3;
 	return;
@@ -381,21 +421,8 @@ void OnFile_Exit() {
 }
 
 int get_state_filename(char *buf, int size, int i) {
-	char trimlabel[33];
-	int j;
-
-	strncpy(trimlabel, CdromLabel, 32);
-	trimlabel[32] = 0;
-	for (j = 31; j >= 0; j--)
-		if (trimlabel[j] == ' ')
-			trimlabel[j] = 0;
-		else
-			continue;
-
-	snprintf(buf, size, "." STATES_DIR "%.32s-%.9s.%3.3d",
-		trimlabel, CdromId, i);
-
-	return 0;
+	return get_gameid_filename(buf, size,
+		"." STATES_DIR "%.32s-%.9s.%3.3d", i);
 }
 
 int emu_check_state(int slot)
