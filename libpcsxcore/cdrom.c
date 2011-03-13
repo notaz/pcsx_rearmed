@@ -1897,11 +1897,10 @@ void cdrWrite3(unsigned char rt) {
 		// - Final Fantasy Tactics
 		// - various other games
 
-		/*
+		if (cdr.Irq) // rearmed guesswork hack
 		if (cdr.Reading && !cdr.ResultReady) {
 			CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
 		}
-		*/
 
 		return;
 	}
