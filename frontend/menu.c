@@ -1243,9 +1243,7 @@ static void menu_bios_warn(void)
 
 	while (1)
 	{
-		menu_draw_begin(1);
 		draw_menu_message(msg, NULL);
-		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		if (inp & (PBTN_MBACK|PBTN_MOK))
