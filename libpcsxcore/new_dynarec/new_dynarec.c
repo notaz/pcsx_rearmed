@@ -5111,34 +5111,19 @@ void ujump_assemble(int i,struct regstat *i_regs)
     if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
   }
   #endif
-  ds_assemble(i+1,i_regs);
-  uint64_t bc_unneeded=branch_regs[i].u;
-  uint64_t bc_unneeded_upper=branch_regs[i].uu;
-  bc_unneeded|=1|(1LL<<rt1[i]);
-  bc_unneeded_upper|=1|(1LL<<rt1[i]);
-  wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
-                bc_unneeded,bc_unneeded_upper);
-  load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,CCREG,CCREG);
   if(rt1[i]==31) {
     int rt;
     unsigned int return_address;
-    assert(rt1[i+1]!=31);
-    assert(rt2[i+1]!=31);
     rt=get_reg(branch_regs[i].regmap,31);
     assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
     //assert(rt>=0);
     return_address=start+i*4+8;
     if(rt>=0) {
       #ifdef USE_MINI_HT
-      if(internal_branch(branch_regs[i].is32,return_address)) {
-        int temp=rt+1;
-        if(temp==EXCLUDE_REG||temp>=HOST_REGS||
-           branch_regs[i].regmap[temp]>=0)
-        {
-          temp=get_reg(branch_regs[i].regmap,-1);
-        }
+      if(internal_branch(branch_regs[i].is32,return_address)&&rt1[i+1]!=31) {
+        int temp=-1; // note: must be ds-safe
         #ifdef HOST_TEMPREG
-        if(temp<0) temp=HOST_TEMPREG;
+        temp=HOST_TEMPREG;
         #endif
         if(temp>=0) do_miniht_insert(return_address,rt,temp);
         else emit_movimm(return_address,rt);
@@ -5159,6 +5144,14 @@ void ujump_assemble(int i,struct regstat *i_regs)
       }
     }
   }
+  ds_assemble(i+1,i_regs);
+  uint64_t bc_unneeded=branch_regs[i].u;
+  uint64_t bc_unneeded_upper=branch_regs[i].uu;
+  bc_unneeded|=1|(1LL<<rt1[i]);
+  bc_unneeded_upper|=1|(1LL<<rt1[i]);
+  wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
+                bc_unneeded,bc_unneeded_upper);
+  load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,CCREG,CCREG);
   int cc,adj;
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
@@ -8499,13 +8492,6 @@ int new_recompile_block(int addr)
           do_in_intrp=1;
         }
       }
-      // check for link register access in delay slot
-      // TODO: teach the recompiler to handle this
-      int rt1_=rt1[i-1];
-      if(rt1_!=0&&(rs1[i]==rt1_||rs2[i]==rt1_||rt1[i]==rt1_||rt2[i]==rt1_)) {
-        printf("link access in delay slot @%08x (%08x)\n", addr + i*4, addr);
-        do_in_intrp=1;
-      }
       if(do_in_intrp) {
         rs1[i-1]=CCREG;
         rs2[i-1]=rt1[i-1]=rt2[i-1]=0;
@@ -8843,8 +8829,8 @@ int new_recompile_block(int addr)
           if (rt1[i]==31) {
             alloc_reg(&current,i,31);
             dirty_reg(&current,31);
-            assert(rs1[i+1]!=31&&rs2[i+1]!=31);
-            assert(rt1[i+1]!=rt1[i]);
+            //assert(rs1[i+1]!=31&&rs2[i+1]!=31);
+            //assert(rt1[i+1]!=rt1[i]);
             #ifdef REG_PREFETCH
             alloc_reg(&current,i,PTEMP);
             #endif
@@ -10777,9 +10763,9 @@ int new_recompile_block(int addr)
       if(itype[i]==RJUMP||itype[i]==UJUMP||itype[i]==CJUMP||itype[i]==SJUMP||itype[i]==FJUMP)
       {
         // Load the delay slot registers if necessary
-        if(rs1[i+1]!=rs1[i]&&rs1[i+1]!=rs2[i])
+        if(rs1[i+1]!=rs1[i]&&rs1[i+1]!=rs2[i]&&(rs1[i+1]!=rt1[i]||rt1[i]==0))
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,rs1[i+1],rs1[i+1]);
-        if(rs2[i+1]!=rs1[i+1]&&rs2[i+1]!=rs1[i]&&rs2[i+1]!=rs2[i])
+        if(rs2[i+1]!=rs1[i+1]&&rs2[i+1]!=rs1[i]&&rs2[i+1]!=rs2[i]&&(rs2[i+1]!=rt1[i]||rt1[i]==0))
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,rs2[i+1],rs2[i+1]);
         if(itype[i+1]==STORE||itype[i+1]==STORELR||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a)
           load_regs(regs[i].regmap_entry,regs[i].regmap,regs[i].was32,INVCP,INVCP);
