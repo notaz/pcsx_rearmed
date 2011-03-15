@@ -126,6 +126,7 @@ struct ll_entry
 #else
   static const u_int using_tlb=0;
 #endif
+  static u_int sp_in_mirror;
   u_int stop_after_jal;
   extern u_char restore_candidate[512];
   extern int cycle_count;
@@ -2826,6 +2827,13 @@ void load_assemble(int i,struct regstat *i_regs)
       if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
       {
+        #ifdef PCSX
+        if(sp_in_mirror&&rs1[i]==29) {
+          emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
+          emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
+        }
+        else
+        #endif
         emit_cmpimm(addr,RAM_SIZE);
         jaddr=(int)out;
         #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
@@ -2866,6 +2874,9 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
+#ifdef PCSX
+          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
           emit_movsbl_indexed_tlb(x,a,map,tl);
         }
       }
@@ -2891,6 +2902,9 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
+#ifdef PCSX
+          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
           //#ifdef
           //emit_movswl_indexed_tlb(x,tl,map,tl);
           //else
@@ -2915,13 +2929,17 @@ void load_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x23) { // LW
     if(!c||memtarget) {
       if(!dummy) {
+        int a=addr;
+#ifdef PCSX
+        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
         //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
           emit_readword_tlb(constmap[i][s]+offset,map,tl);
         else
         #endif
-        emit_readword_indexed_tlb(0,addr,map,tl);
+        emit_readword_indexed_tlb(0,a,map,tl);
       }
       if(jaddr)
         add_stub(LOADW_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
@@ -2948,6 +2966,9 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
+#ifdef PCSX
+          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
           emit_movzbl_indexed_tlb(x,a,map,tl);
         }
       }
@@ -2972,6 +2993,9 @@ void load_assemble(int i,struct regstat *i_regs)
           else x=((constmap[i][s]+offset)^2)-(constmap[i][s]+offset);
 #else
           if(!c) a=addr;
+#endif
+#ifdef PCSX
+          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
 #endif
           //#ifdef
           //emit_movzwl_indexed_tlb(x,tl,map,tl);
@@ -2998,13 +3022,17 @@ void load_assemble(int i,struct regstat *i_regs)
     assert(th>=0);
     if(!c||memtarget) {
       if(!dummy) {
+        int a=addr;
+#ifdef PCSX
+        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
         //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
           emit_readword_tlb(constmap[i][s]+offset,map,tl);
         else
         #endif
-        emit_readword_indexed_tlb(0,addr,map,tl);
+        emit_readword_indexed_tlb(0,a,map,tl);
       }
       if(jaddr)
         add_stub(LOADW_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
@@ -3017,6 +3045,10 @@ void load_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x37) { // LD
     if(!c||memtarget) {
       if(!dummy) {
+        int a=addr;
+#ifdef PCSX
+        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
         //gen_tlb_addr_r(tl,map);
         //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,addr,th);
         //emit_readword_indexed((int)rdram-0x7FFFFFFC,addr,tl);
@@ -3025,7 +3057,7 @@ void load_assemble(int i,struct regstat *i_regs)
           emit_readdword_tlb(constmap[i][s]+offset,map,th,tl);
         else
         #endif
-        emit_readdword_indexed_tlb(0,addr,map,th,tl);
+        emit_readdword_indexed_tlb(0,a,map,th,tl);
       }
       if(jaddr)
         add_stub(LOADD_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
@@ -3105,9 +3137,15 @@ void store_assemble(int i,struct regstat *i_regs)
   else addr=s;
   if(!using_tlb) {
     if(!c) {
+      #ifdef PCSX
+      if(sp_in_mirror&&rs1[i]==29) {
+        emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
+        emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
+      }
+      else
+      #endif
       #ifdef R29_HACK
       // Strmnnrmn's speed hack
-      memtarget=1;
       if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
       emit_cmpimm(addr,RAM_SIZE);
@@ -3115,6 +3153,7 @@ void store_assemble(int i,struct regstat *i_regs)
       if(s==addr) emit_mov(s,temp);
       #endif
       #ifdef R29_HACK
+      memtarget=1;
       if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
       {
@@ -3147,6 +3186,9 @@ void store_assemble(int i,struct regstat *i_regs)
 #else
       if(!c) a=addr;
 #endif
+#ifdef PCSX
+      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
       //gen_tlb_addr_w(temp,map);
       //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
       emit_writebyte_indexed_tlb(tl,x,a,map,a);
@@ -3162,6 +3204,9 @@ void store_assemble(int i,struct regstat *i_regs)
 #else
       if(!c) a=addr;
 #endif
+#ifdef PCSX
+      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
       //#ifdef
       //emit_writehword_indexed_tlb(tl,x,temp,map,temp);
       //#else
@@ -3174,23 +3219,32 @@ void store_assemble(int i,struct regstat *i_regs)
     type=STOREH_STUB;
   }
   if (opcode[i]==0x2B) { // SW
-    if(!c||memtarget)
+    if(!c||memtarget) {
+      int a=addr;
+#ifdef PCSX
+      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
       //emit_writeword_indexed(tl,(int)rdram-0x80000000,addr);
-      emit_writeword_indexed_tlb(tl,0,addr,map,temp);
+      emit_writeword_indexed_tlb(tl,0,a,map,temp);
+    }
     type=STOREW_STUB;
   }
   if (opcode[i]==0x3F) { // SD
     if(!c||memtarget) {
+      int a=addr;
+#ifdef PCSX
+      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
+#endif
       if(rs2[i]) {
         assert(th>=0);
         //emit_writeword_indexed(th,(int)rdram-0x80000000,addr);
         //emit_writeword_indexed(tl,(int)rdram-0x7FFFFFFC,addr);
-        emit_writedword_indexed_tlb(th,tl,0,addr,map,temp);
+        emit_writedword_indexed_tlb(th,tl,0,a,map,temp);
       }else{
         // Store zero
         //emit_writeword_indexed(tl,(int)rdram-0x80000000,temp);
         //emit_writeword_indexed(tl,(int)rdram-0x7FFFFFFC,temp);
-        emit_writedword_indexed_tlb(tl,tl,0,addr,map,temp);
+        emit_writedword_indexed_tlb(tl,tl,0,a,map,temp);
       }
     }
     type=STORED_STUB;
@@ -7734,6 +7788,7 @@ void new_dynarec_clear_full()
 #ifndef DISABLE_TLB
   using_tlb=0;
 #endif
+  sp_in_mirror=0;
   for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
     memory_map[n]=-1;
   for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF
@@ -7843,6 +7898,11 @@ int new_recompile_block(int addr)
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
 #ifdef PCSX
+  if(!sp_in_mirror&&(signed int)(psxRegs.GPR.n.sp&0xffe00000)>0x80200000&&
+     0x10000<=psxRegs.GPR.n.sp&&(psxRegs.GPR.n.sp&~0xe0e00000)<RAM_SIZE) {
+    printf("SP hack enabled (%08x), @%08x\n", psxRegs.GPR.n.sp);
+    sp_in_mirror=1;
+  }
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
