@@ -99,9 +99,6 @@ static void irq_test(void)
 void gen_interupt()
 {
 	evprintf("  +ge %08x, %u->%u\n", psxRegs.pc, psxRegs.cycle, next_interupt);
-#ifdef DRC_DBG
-	psxRegs.cycle += 2;
-#endif
 
 	irq_test();
 	//psxBranchTest();
@@ -164,7 +161,7 @@ static int ari64_init()
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
-#ifdef __arm__
+#if defined(__arm__) && !defined(DRC_DBG)
 	gte_handlers[0x01] = gteRTPS_neon;
 	gte_handlers[0x30] = gteRTPT_neon;
 	gte_handlers[0x12] = gteMVMVA_neon;
