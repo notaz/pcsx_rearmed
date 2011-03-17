@@ -1144,12 +1144,13 @@ static const char h_confirm_save[]    = "Ask for confirmation when overwriting s
 */
 static const char h_restore_def[]     = "Switches back to default / recommended\n"
 					"configuration";
+static const char h_frameskip[]       = "Warning: frameskip sometimes causes glitches\n";
 
 static menu_entry e_menu_options[] =
 {
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
 //	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
-	mee_onoff     ("Frameskip",                0, UseFrameSkip, 1),
+	mee_onoff_h   ("Frameskip",                0, UseFrameSkip, 1, h_frameskip),
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
