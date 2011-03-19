@@ -1002,7 +1002,8 @@ void emit_loadreg(int r, int hr)
 #ifdef FORCE32
   if(r&64) {
     printf("64bit load in 32bit mode!\n");
-    exit(1);
+    assert(0);
+    return;
   }
 #endif
   if((r&63)==0)
@@ -1026,7 +1027,8 @@ void emit_storereg(int r, int hr)
 #ifdef FORCE32
   if(r&64) {
     printf("64bit store in 32bit mode!\n");
-    exit(1);
+    assert(0);
+    return;
   }
 #endif
   int addr=((int)reg)+((r&63)<<REG_SHIFT)+((r&64)>>4);

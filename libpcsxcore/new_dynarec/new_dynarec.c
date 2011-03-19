@@ -8018,17 +8018,10 @@ int new_recompile_block(int addr)
           case 0x11: strcpy(insn[i],"MTHI"); type=MOV; break;
           case 0x12: strcpy(insn[i],"MFLO"); type=MOV; break;
           case 0x13: strcpy(insn[i],"MTLO"); type=MOV; break;
-          case 0x14: strcpy(insn[i],"DSLLV"); type=SHIFT; break;
-          case 0x16: strcpy(insn[i],"DSRLV"); type=SHIFT; break;
-          case 0x17: strcpy(insn[i],"DSRAV"); type=SHIFT; break;
           case 0x18: strcpy(insn[i],"MULT"); type=MULTDIV; break;
           case 0x19: strcpy(insn[i],"MULTU"); type=MULTDIV; break;
           case 0x1A: strcpy(insn[i],"DIV"); type=MULTDIV; break;
           case 0x1B: strcpy(insn[i],"DIVU"); type=MULTDIV; break;
-          case 0x1C: strcpy(insn[i],"DMULT"); type=MULTDIV; break;
-          case 0x1D: strcpy(insn[i],"DMULTU"); type=MULTDIV; break;
-          case 0x1E: strcpy(insn[i],"DDIV"); type=MULTDIV; break;
-          case 0x1F: strcpy(insn[i],"DDIVU"); type=MULTDIV; break;
           case 0x20: strcpy(insn[i],"ADD"); type=ALU; break;
           case 0x21: strcpy(insn[i],"ADDU"); type=ALU; break;
           case 0x22: strcpy(insn[i],"SUB"); type=ALU; break;
@@ -8039,22 +8032,31 @@ int new_recompile_block(int addr)
           case 0x27: strcpy(insn[i],"NOR"); type=ALU; break;
           case 0x2A: strcpy(insn[i],"SLT"); type=ALU; break;
           case 0x2B: strcpy(insn[i],"SLTU"); type=ALU; break;
-          case 0x2C: strcpy(insn[i],"DADD"); type=ALU; break;
-          case 0x2D: strcpy(insn[i],"DADDU"); type=ALU; break;
-          case 0x2E: strcpy(insn[i],"DSUB"); type=ALU; break;
-          case 0x2F: strcpy(insn[i],"DSUBU"); type=ALU; break;
           case 0x30: strcpy(insn[i],"TGE"); type=NI; break;
           case 0x31: strcpy(insn[i],"TGEU"); type=NI; break;
           case 0x32: strcpy(insn[i],"TLT"); type=NI; break;
           case 0x33: strcpy(insn[i],"TLTU"); type=NI; break;
           case 0x34: strcpy(insn[i],"TEQ"); type=NI; break;
           case 0x36: strcpy(insn[i],"TNE"); type=NI; break;
+#ifndef FORCE32
+          case 0x14: strcpy(insn[i],"DSLLV"); type=SHIFT; break;
+          case 0x16: strcpy(insn[i],"DSRLV"); type=SHIFT; break;
+          case 0x17: strcpy(insn[i],"DSRAV"); type=SHIFT; break;
+          case 0x1C: strcpy(insn[i],"DMULT"); type=MULTDIV; break;
+          case 0x1D: strcpy(insn[i],"DMULTU"); type=MULTDIV; break;
+          case 0x1E: strcpy(insn[i],"DDIV"); type=MULTDIV; break;
+          case 0x1F: strcpy(insn[i],"DDIVU"); type=MULTDIV; break;
+          case 0x2C: strcpy(insn[i],"DADD"); type=ALU; break;
+          case 0x2D: strcpy(insn[i],"DADDU"); type=ALU; break;
+          case 0x2E: strcpy(insn[i],"DSUB"); type=ALU; break;
+          case 0x2F: strcpy(insn[i],"DSUBU"); type=ALU; break;
           case 0x38: strcpy(insn[i],"DSLL"); type=SHIFTIMM; break;
           case 0x3A: strcpy(insn[i],"DSRL"); type=SHIFTIMM; break;
           case 0x3B: strcpy(insn[i],"DSRA"); type=SHIFTIMM; break;
           case 0x3C: strcpy(insn[i],"DSLL32"); type=SHIFTIMM; break;
           case 0x3E: strcpy(insn[i],"DSRL32"); type=SHIFTIMM; break;
           case 0x3F: strcpy(insn[i],"DSRA32"); type=SHIFTIMM; break;
+#endif
         }
         break;
       case 0x01: strcpy(insn[i],"regimm"); type=NI;
