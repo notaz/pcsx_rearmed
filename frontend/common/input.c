@@ -764,32 +764,6 @@ int in_config_parse_dev(const char *name)
 	return i;
 }
 
-/*
- * To reduce size of game specific configs, default binds are not saved.
- * So we mark default binds in in_config_start(), override them in in_config_bind_key(),
- * and restore whatever default binds are left in in_config_end().
- */
-void in_config_start(void)
-{
-	int i;
-
-	/* mark all default binds, so they get overwritten by func below */
-	for (i = 0; i < IN_MAX_DEVS; i++) {
-		int n, count, *binds, *def_binds;
-
-		binds = in_devices[i].binds;
-		if (binds == NULL)
-			continue;
-
-		count = in_devices[i].key_count;
-		def_binds = binds + count * IN_BINDTYPE_COUNT;
-
-		for (n = 0; n < count * IN_BINDTYPE_COUNT; n++)
-			if (binds[n] == def_binds[n])
-				binds[n] = -1;
-	}
-}
-
 int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 {
 	in_dev_t *dev;
@@ -812,7 +786,6 @@ int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 			dev->binds = in_alloc_binds(dev->drv_id, dev->key_count);
 			if (dev->binds == NULL)
 				return -1;
-			in_config_start();
 		}
 
 		kc = -1;
@@ -852,36 +825,20 @@ int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 	return 0;
 }
 
-void in_config_end(void)
+void in_clean_binds(void)
 {
 	int i;
 
 	for (i = 0; i < IN_MAX_DEVS; i++) {
-		int n, t, ret, count, *binds, *def_binds;
+		int ret, count, *binds, *def_binds;
 		in_dev_t *dev = &in_devices[i];
 
-		if (dev->binds == NULL)
+		if (dev->binds == NULL || dev->drv_data == NULL)
 			continue;
 
 		count = dev->key_count;
 		binds = dev->binds;
 		def_binds = binds + count * IN_BINDTYPE_COUNT;
-
-		for (n = 0; n < count; n++) {
-			int is_default = 1;
-			for (t = 0; t < IN_BINDTYPE_COUNT; t++)
-				if (binds[IN_BIND_OFFS(n, t)] == -1)
-					binds[IN_BIND_OFFS(n, t)] = 0;
-				else
-					is_default = 0;
-
-			if (is_default)
-				for (t = 0; t < IN_BINDTYPE_COUNT; t++)
-					binds[IN_BIND_OFFS(n, t)] = def_binds[IN_BIND_OFFS(n, t)];
-		}
-
-		if (dev->drv_data == NULL)
-			continue;
 
 		ret = DRV(dev->drv_id).clean_binds(dev->drv_data, binds, def_binds);
 		if (ret == 0) {
