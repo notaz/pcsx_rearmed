@@ -56,8 +56,8 @@ void EmuUpdate() {
 	if (!Config.HLE || !hleSoftCall)
 		SysUpdate();
 
-	pl_frame_limit();
 	ApplyCheats();
+	pl_frame_limit();
 }
 
 void __Log(char *fmt, ...) {

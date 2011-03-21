@@ -567,6 +567,20 @@ static void apply_filter(int which)
 	old = which;
 }
 
+static void apply_lcdrate(int pal)
+{
+	static int old = -1;
+	char buf[128];
+
+	if (pal == old)
+		return;
+
+	snprintf(buf, sizeof(buf), "%s/op_lcdrate.sh %d",
+			pnd_script_base, pal ? 50 : 60);
+	system(buf);
+	old = pal;
+}
+
 static menu_entry e_menu_gfx_options[];
 
 static void pnd_menu_init(void)
@@ -1739,8 +1753,6 @@ void menu_prepare_emu(void)
 	case SCALE_CUSTOM:
 		break;
 	}
-	apply_filter(filter);
-	apply_cpu_clock();
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	if (psxCpu != prev_cpu)
@@ -1753,6 +1765,9 @@ void menu_prepare_emu(void)
 		CDR_stop();
 
 	menu_sync_config();
+	apply_lcdrate(Config.PsxType);
+	apply_filter(filter);
+	apply_cpu_clock();
 
 	if (GPU_open != NULL) {
 		int ret = GPU_open(&gpuDisp, "PCSX", NULL);

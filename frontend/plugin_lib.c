@@ -35,6 +35,7 @@ static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
 static int plugin_skip_advice;
+static int vsync_usec_time;
 // P.E.Op.S.
 extern int UseFrameSkip;
 extern float fps_skip;
@@ -121,8 +122,18 @@ void *pl_fbdev_flip(void)
 
 int pl_fbdev_open(void)
 {
+	struct timeval now;
+
 	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
 	omap_enable_layer(1);
+
+	// try to align redraws to vsync
+	vout_fbdev_wait_vsync(layer_fb);
+	gettimeofday(&now, 0);
+	vsync_usec_time = now.tv_usec;
+	while (vsync_usec_time >= pl_frame_interval)
+		vsync_usec_time -= pl_frame_interval;
+
 	return 0;
 }
 
@@ -184,7 +195,7 @@ void pl_frame_limit(void)
 	static struct timeval tv_old, tv_expect;
 	static int vsync_cnt_prev;
 	struct timeval now;
-	int diff;
+	int diff, usadj;
 
 	vsync_cnt++;
 
@@ -227,6 +238,11 @@ void pl_frame_limit(void)
 		//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, pl_frame_interval);
 		tv_expect = now;
 		diff = 0;
+		// try to align with vsync
+		usadj = vsync_usec_time;
+		while (usadj < tv_expect.tv_usec - pl_frame_interval)
+			usadj += pl_frame_interval;
+		tv_expect.tv_usec = usadj;
 	}
 
 	if (!(g_opts & OPT_NO_FRAMELIM) && diff > pl_frame_interval) {

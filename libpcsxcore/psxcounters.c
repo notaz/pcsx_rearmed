@@ -300,8 +300,8 @@ void psxRcntUpdate()
             GPU_vBlank( 0 );
             setIrq( 0x01 );
 
-            GPU_updateLace();
             EmuUpdate();
+            GPU_updateLace();
         }
     }
 
