@@ -208,7 +208,7 @@ typedef struct PSXDISPLAYTAG
 // draw.c
 
 extern int32_t           GlobalTextAddrX,GlobalTextAddrY,GlobalTextTP;
-extern int32_t           GlobalTextREST,GlobalTextABR,GlobalTextPAGE;
+extern int32_t           GlobalTextABR,GlobalTextPAGE;
 extern short          ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;
 extern long           lLowerpart;
 extern BOOL           bCheckMask;

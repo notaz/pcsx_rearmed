@@ -348,7 +348,6 @@ static void cmdTexturePage(unsigned char * baseAddr)
  usMirror=gdata&0x3000;
  
  UpdateGlobalTP((unsigned short)gdata);
- GlobalTextREST = (gdata&0x00ffffff)>>9;
 }
 
 ////////////////////////////////////////////////////////////////////////
