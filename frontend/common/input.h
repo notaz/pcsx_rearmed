@@ -80,10 +80,13 @@ typedef struct {
 	void (*probe)(void);
 	void (*free)(void *drv_data);
 	int  (*get_bind_count)(void);
+	const char * const *
+	     (*get_key_names)(int *count);
 	void (*get_def_binds)(int *binds);
 	int  (*clean_binds)(void *drv_data, int *binds, int *def_finds);
 	int  (*get_config)(void *drv_data, int what, int *val);
 	int  (*set_config)(void *drv_data, int what, int val);
+	/* return -1 on no event, -2 on error */
 	int  (*update_keycode)(void *drv_data, int *is_down);
 	int  (*menu_translate)(void *drv_data, int keycode);
 	int  (*get_key_code)(const char *key_name);

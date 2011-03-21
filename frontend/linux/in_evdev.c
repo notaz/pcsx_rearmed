@@ -261,9 +261,11 @@ static void in_evdev_free(void *drv_data)
 	free(dev);
 }
 
-static int in_evdev_get_bind_count(void)
+static const char * const *
+in_evdev_get_key_names(int *count)
 {
-	return KEY_CNT;
+	*count = KEY_CNT;
+	return in_evdev_keys;
 }
 
 static void or_binds(const int *binds, int key, int *result)
@@ -408,7 +410,8 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 	if (rd < (int) sizeof(ev)) {
 		if (errno != EAGAIN) {
 			perror("in_evdev: error reading");
-			sleep(1);
+			//sleep(1);
+			ret_kc = -2;
 		}
 		goto out;
 	}
@@ -621,7 +624,7 @@ void in_evdev_init(void *vdrv)
 	drv->prefix = in_evdev_prefix;
 	drv->probe = in_evdev_probe;
 	drv->free = in_evdev_free;
-	drv->get_bind_count = in_evdev_get_bind_count;
+	drv->get_key_names = in_evdev_get_key_names;
 	drv->get_def_binds = in_evdev_get_def_binds;
 	drv->clean_binds = in_evdev_clean_binds;
 	drv->set_config = in_evdev_set_config;

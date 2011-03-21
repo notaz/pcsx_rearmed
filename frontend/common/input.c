@@ -41,7 +41,7 @@ typedef struct
 
 static in_drv_t in_drivers[IN_DRVID_COUNT];
 static in_dev_t in_devices[IN_MAX_DEVS];
-static int in_dev_count = 0;
+static int in_dev_count = 0;		/* probed + bind devices */
 static int in_have_async_devs = 0;
 static int menu_key_state = 0;
 static int menu_last_used_dev = 0;
@@ -64,12 +64,17 @@ static int *in_alloc_binds(int drv_id, int key_count)
 	return binds;
 }
 
-static void in_free(in_dev_t *dev)
+static void in_unprobe(in_dev_t *dev)
 {
 	if (dev->probed)
 		DRV(dev->drv_id).free(dev->drv_data);
 	dev->probed = 0;
 	dev->drv_data = NULL;
+}
+
+static void in_free(in_dev_t *dev)
+{
+	in_unprobe(dev);
 	free(dev->name);
 	dev->name = NULL;
 	free(dev->binds);
@@ -223,8 +228,11 @@ void in_probe(void)
 	int i;
 
 	in_have_async_devs = 0;
+	menu_key_state = 0;
+	menu_last_used_dev = 0;
+
 	for (i = 0; i < in_dev_count; i++)
-		in_devices[i].probed = 0;
+		in_unprobe(&in_devices[i]);
 
 	for (i = 1; i < IN_DRVID_COUNT; i++)
 		in_drivers[i].probe();
@@ -367,6 +375,12 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 		result = drv->update_keycode(in_devices[dev_id].drv_data, &is_down);
 		if (result >= 0)
 			break;
+
+		if (result == -2) {
+			lprintf("input: \"%s\" errored out, removing.\n", in_devices[dev_id].name);
+			in_unprobe(&in_devices[dev_id]);
+			break;
+		}
 
 		if (timeout_ms >= 0) {
 			unsigned int ticks2 = plat_get_ticks_ms();
@@ -755,7 +769,7 @@ int in_config_parse_dev(const char *name)
 	if (in_devices[i].name == NULL)
 		return -1;
 
-	in_devices[i].key_count = DRV(drv_id).get_bind_count();
+	in_devices[i].key_names = DRV(drv_id).get_key_names(&in_devices[i].key_count);
 	in_devices[i].drv_id = drv_id;
 
 	if (i + 1 > in_dev_count)
@@ -867,7 +881,8 @@ void in_debug_dump(void)
 
 static void in_def_probe(void) {}
 static void in_def_free(void *drv_data) {}
-static int  in_def_get_bind_count(void) { return 0; }
+static const char * const *
+            in_def_get_key_names(int *count) { return NULL; }
 static void in_def_get_def_binds(int *binds) {}
 static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 0; }
 static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
@@ -889,7 +904,7 @@ void in_init(void)
 		in_drivers[i].prefix = "none:";
 		in_drivers[i].probe = in_def_probe;
 		in_drivers[i].free = in_def_free;
-		in_drivers[i].get_bind_count = in_def_get_bind_count;
+		in_drivers[i].get_key_names = in_def_get_key_names;
 		in_drivers[i].get_def_binds = in_def_get_def_binds;
 		in_drivers[i].clean_binds = in_def_clean_binds;
 		in_drivers[i].get_config = in_def_get_config;
