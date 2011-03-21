@@ -147,10 +147,12 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 VER ?= $(shell git describe master)
 
 rel: pcsx $(PLUGINS) \
-		pandora/pcsx.sh pandora/pcsx.pxml pandora/pcsx.png \
+		pandora/pcsx.sh pandora/pcsx.pxml.templ pandora/pcsx.png \
 		pandora/picorestore pandora/readme.txt pandora/skin COPYING
 	rm -rf out
 	mkdir -p out/plugins
 	cp -r $^ out/
+	sed -e 's/%PR%/$(VER)/g' out/pcsx.pxml.templ > out/pcsx.pxml
+	rm out/pcsx.pxml.templ
 	mv out/*.so out/plugins/
-	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x pandora/pcsx.pxml -i pandora/pcsx.png -c
+	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i pandora/pcsx.png -c

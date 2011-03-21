@@ -10,8 +10,9 @@ About
 PCSX ReARMed is yet another PCSX fork based on the PCSX-Reloaded project,
 which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
 version is ARM architecture oriented and features MIPS->ARM recompiler by
-Ari64. It was created for Pandora handheld, but should be usable on other
-devices after some code adjustments.
+Ari64, NEON GTE code and more performance improvements. It was created for
+Pandora handheld, but should be usable on other devices after some code
+adjustments (N900 version is also available).
 
 PCSX ReARMed features GPU plugin from PCSX4ALL project.
 
@@ -64,6 +65,19 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 
 Changelog
 ---------
+
+r8 (2011-03-22)
+* improved recompiler performance for some games
+* fixed a few recompiler related compatibility issues
+  (also fixes broken memcard support in some games)
+* fixed some graphics problems caused by frameskip.
+  Note that not all problems were fixed, so if you see graphics
+  glitches try turning off frameskip or using different GPU plugin.
++ added screenshot function
++ added some code to attempt to sync with pandora's LCD better
+* merged a few compatibility fixes from PCSX-Reloaded
+* fixed and issue with external controllers
+* added experimental ability to use nubs as buttons
 
 r7 (2011-03-02)
 + implemented most used GTE operations in NEON
