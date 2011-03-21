@@ -151,8 +151,9 @@ void in_update_analogs(void)
 	//printf("%4d %4d %4d %4d\n", in_a1[0], in_a1[1], in_a2[0], in_a2[1]);
 }
 
-int pandora_init(void)
+int pandora_rescan_inputs(void)
 {
+	in_probe();
 	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
 

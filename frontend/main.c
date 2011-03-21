@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
 
 	// frontend stuff
 	in_init();
-	in_probe();
+	//in_probe();
 	plat_init();
 	menu_init();
 

@@ -20,9 +20,12 @@
 #include "plugin.h"
 #include "plugin_lib.h"
 #include "omap.h"
+#include "pandora.h"
 #include "pcnt.h"
 #include "arm_utils.h"
 #include "common/plat.h"
+#include "common/input.h"
+#include "linux/in_evdev.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
@@ -136,12 +139,18 @@ static int emu_save_load_game(int load, int unused)
 // propagate menu settings to the emu vars
 static void menu_sync_config(void)
 {
+	static int allow_abs_only_old;
+
 	Config.PsxAuto = 1;
 	if (region > 0) {
 		Config.PsxAuto = 0;
 		Config.PsxType = region - 1;
 	}
 	in_type = in_type_sel ? PSE_PAD_TYPE_ANALOGPAD : PSE_PAD_TYPE_STANDARD;
+	if (in_evdev_allow_abs_only != allow_abs_only_old) {
+		pandora_rescan_inputs();
+		allow_abs_only_old = in_evdev_allow_abs_only;
+	}
 
 	pl_frame_interval = Config.PsxType ? 20000 : 16667;
 	// used by P.E.Op.S. frameskip code
@@ -156,6 +165,7 @@ static void menu_set_defconfig(void)
 
 	region = 0;
 	in_type_sel = 0;
+	in_evdev_allow_abs_only = 0;
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
@@ -227,6 +237,7 @@ static const struct {
 	CE_INTVAL_V(iSPUIRQWait, 2),
 	CE_INTVAL(iUseTimer),
 	CE_INTVAL(warned_about_bios),
+	CE_INTVAL(in_evdev_allow_abs_only),
 };
 
 static char *get_cd_label(void)
@@ -841,6 +852,7 @@ static void keys_load_all(const char *cfg)
 				lprintf("config: unhandled action \"%s\"\n", act);
 		}
 	}
+	in_clean_binds();
 }
 
 static int key_config_loop_wrap(int id, int keys)
@@ -894,7 +906,17 @@ static int mh_savecfg(int id, int keys)
 	return 1;
 }
 
+static int mh_input_rescan(int id, int keys)
+{
+	//menu_sync_config();
+	pandora_rescan_inputs();
+	me_update_msg("rescan complete.");
+
+	return 0;
+}
+
 static const char *men_in_type_sel[] = { "Standard (SCPH-1080)", "Analog (SCPH-1150)", NULL };
+static const char h_nub_btns[] = "Experimental, keep this OFF if unsure. Select rescan after change.";
 
 static menu_entry e_menu_keyconfig[] =
 {
@@ -903,8 +925,10 @@ static menu_entry e_menu_keyconfig[] =
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_label     (""),
 	mee_enum      ("Controller",        0, in_type_sel,     men_in_type_sel),
+	mee_onoff_h   ("Nubs as buttons",   0, in_evdev_allow_abs_only, 1, h_nub_btns),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
+	mee_handler   ("Rescan devices",  mh_input_rescan),
 	mee_label     (""),
 	mee_label     ("Input devices:"),
 	mee_label_mk  (MA_CTRL_DEV_FIRST, mgn_dev_name),

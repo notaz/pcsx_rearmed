@@ -1,1 +1,1 @@
-int pandora_init(void);
+int pandora_rescan_inputs(void);

@@ -169,7 +169,9 @@ void plat_init(void)
 	}
 	g_menubg_ptr = temp_frame;
 
-	pandora_init();
+	// hmh
+	pandora_rescan_inputs();
+
 	return;
 
 fail1:
