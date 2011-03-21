@@ -49,6 +49,8 @@ typedef struct {
 #define KEYBITS_BIT_CLEAR(x) (keybits[(x)/sizeof(keybits[0])/8] &= \
 	~(1 << ((x) & (sizeof(keybits[0])*8-1))))
 
+int in_evdev_allow_abs_only;
+
 static const char * const in_evdev_prefix = "evdev:";
 static const char * const in_evdev_keys[KEY_CNT] = {
 	[0 ... KEY_MAX] = NULL,
@@ -151,7 +153,7 @@ static void in_evdev_probe(void)
 	for (i = 0;; i++)
 	{
 		int support = 0, count = 0;
-		int u, ret, fd, kc_first, kc_last;
+		int u, ret, fd, kc_first = KEY_MAX, kc_last = 0;
 		in_evdev_t *dev;
 		char name[64];
 
@@ -170,30 +172,29 @@ static void in_evdev_probe(void)
 			goto skip;
 		}
 
-		if (!(support & (1 << EV_KEY)))
-			goto skip;
+		if (support & (1 << EV_KEY)) {
+			ret = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
+			if (ret == -1) {
+				printf("in_evdev: ioctl failed on %s\n", name);
+				goto skip;
+			}
 
-		ret = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
-		if (ret == -1) {
-			printf("in_evdev: ioctl failed on %s\n", name);
-			goto skip;
-		}
-
-		/* check for interesting keys */
-		kc_first = KEY_MAX;
-		kc_last = 0;
-		for (u = 0; u < KEY_CNT; u++) {
-			if (KEYBITS_BIT(u)) {
-				if (u < kc_first)
-					kc_first = u;
-				if (u > kc_last)
-					kc_last = u;
-				if (u != KEY_POWER && u != KEY_SLEEP && u != BTN_TOUCH)
-					count++;
+			/* check for interesting keys */
+			for (u = 0; u < KEY_CNT; u++) {
+				if (KEYBITS_BIT(u)) {
+					if (u < kc_first)
+						kc_first = u;
+					if (u > kc_last)
+						kc_last = u;
+					if (u != KEY_POWER && u != KEY_SLEEP && u != BTN_TOUCH)
+						count++;
+					if (u == BTN_TOUCH) /* we can't deal with ts currently */
+						goto skip;
+				}
 			}
 		}
 
-		if (count == 0)
+		if (count == 0 && !in_evdev_allow_abs_only)
 			goto skip;
 
 		dev = calloc(1, sizeof(*dev));
@@ -237,6 +238,11 @@ static void in_evdev_probe(void)
 		}
 
 no_abs:
+		if (count == 0 && dev->abs_lzone == 0) {
+			free(dev);
+			goto skip;
+		}
+
 		dev->fd = fd;
 		dev->kc_first = kc_first;
 		dev->kc_last = kc_last;
