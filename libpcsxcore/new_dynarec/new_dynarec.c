@@ -7772,10 +7772,9 @@ void disassemble_inst(int i)
 void new_dynarec_clear_full()
 {
   int n;
-  for(n=0x80000;n<0x80800;n++)
-    invalid_code[n]=1;
-  for(n=0;n<65536;n++)
-    hash_table[n][0]=hash_table[n][2]=-1;
+  out=(u_char *)BASE_ADDR;
+  memset(invalid_code,1,sizeof(invalid_code));
+  memset(hash_table,0xff,sizeof(hash_table));
   memset(mini_ht,-1,sizeof(mini_ht));
   memset(restore_candidate,0,sizeof(restore_candidate));
   memset(shadow,0,sizeof(shadow));
