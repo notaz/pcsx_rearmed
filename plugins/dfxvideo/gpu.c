@@ -575,9 +575,9 @@ void CALLBACK GPUwriteStatus(uint32_t gdata)      // WRITE STATUS
 
      if (!(PSXDisplay.Interlaced))                      // stupid frame skipping option
       {
-       if(UseFrameSkip)  decideSkip();
        if(dwActFixes&64) bDoLazyUpdate=TRUE;
       }
+     if(UseFrameSkip)  decideSkip();
     }return;
    //--------------------------------------------------//
    // setting width
