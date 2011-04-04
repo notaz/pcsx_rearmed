@@ -225,12 +225,13 @@ int main(int argc, char *argv[])
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
+	int psxout = 0;
 	int loadst = 0;
 	int i;
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
-		     if (!strcmp(argv[i], "-psxout")) Config.PsxOut = 1;
+		     if (!strcmp(argv[i], "-psxout")) psxout = 1;
 		else if (!strcmp(argv[i], "-load")) loadst = atol(argv[++i]);
 		else if (!strcmp(argv[i], "-cfg")) {
 			if (i+1 >= argc) break;
@@ -293,7 +294,10 @@ int main(int argc, char *argv[])
 	in_init();
 	//in_probe();
 	plat_init();
-	menu_init();
+	menu_init(); // loads config
+
+	if (psxout)
+		Config.PsxOut = 1;
 
 	if (LoadPlugins() == -1) {
 		// FIXME: this recovery doesn't work, just delete bad config and bail out
