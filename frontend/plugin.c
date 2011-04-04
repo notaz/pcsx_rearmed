@@ -75,7 +75,7 @@ extern void GPUreadDataMem(uint32_t *, int);
 extern long GPUdmaChain(uint32_t *,uint32_t);
 extern void GPUupdateLace(void);
 extern long GPUfreeze(uint32_t, void *);
-extern void GPUvBlank(int);
+extern void GPUvBlank(int, uint32_t *);
 
 
 #define DUMMY(id, name) \

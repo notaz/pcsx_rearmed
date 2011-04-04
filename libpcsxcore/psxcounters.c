@@ -286,7 +286,7 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart[Config.PsxType] )
         {
-            GPU_vBlank( 1 );
+            GPU_vBlank( 1, &hSyncCount );
             
             // For the best times. :D
             //setIrq( 0x01 );
@@ -297,7 +297,7 @@ void psxRcntUpdate()
         {
             hSyncCount = 0;
 
-            GPU_vBlank( 0 );
+            GPU_vBlank( 0, &hSyncCount );
             setIrq( 0x01 );
 
             EmuUpdate();

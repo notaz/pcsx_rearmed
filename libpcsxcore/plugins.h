@@ -94,7 +94,7 @@ typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *);
 typedef long (CALLBACK* GPUgetScreenPic)(unsigned char *);
 typedef long (CALLBACK* GPUshowScreenPic)(unsigned char *);
 typedef void (CALLBACK* GPUclearDynarec)(void (CALLBACK *callback)(void));
-typedef void (CALLBACK* GPUvBlank)(int);
+typedef void (CALLBACK* GPUvBlank)(int, uint32_t *);
 
 // GPU function pointers
 extern GPUupdateLace    GPU_updateLace;
