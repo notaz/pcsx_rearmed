@@ -225,6 +225,7 @@ int main(int argc, char *argv[])
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
+	const char *loadst_f = NULL;
 	int psxout = 0;
 	int loadst = 0;
 	int i;
@@ -254,6 +255,10 @@ int main(int argc, char *argv[])
 			}
 
 			cdfile = isofilename;
+		}
+		else if (!strcmp(argv[i], "-loadf")) {
+			if (i+1 >= argc) break;
+			loadst_f = argv[++i];
 		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
@@ -339,6 +344,10 @@ int main(int argc, char *argv[])
 		if (loadst) {
 			int ret = emu_load_state(loadst - 1);
 			printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
+		}
+		if (loadst_f) {
+			int ret = LoadState(loadst_f);
+			printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
 		}
 	}
 	else
