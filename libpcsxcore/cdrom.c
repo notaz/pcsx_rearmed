@@ -1216,7 +1216,8 @@ void cdrInterrupt() {
 			// - fixes cutscene speech
 			{
 				u8 *buf = CDR_getBuffer();
-				memcpy(cdr.Transfer, buf, 8);
+				if (buf != NULL)
+					memcpy(cdr.Transfer, buf, 8);
 			}
 			
 			
