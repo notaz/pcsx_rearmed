@@ -79,6 +79,15 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
+	if (!Config.HLE && (((PSXMu32(psxRegs.pc) >> 24) & 0xfe) == 0x4a)) {
+		// "hokuto no ken" / "Crash Bandicot 2" ...
+		// BIOS does not allow to return to GTE instructions
+		// (just skips it, supposedly because it's scheduled already)
+		// so we step over it with the interpreter
+		extern void execI();
+		execI();
+	}
+
 	// Set the Cause
 	psxRegs.CP0.n.Cause = code;
 
@@ -101,11 +110,6 @@ void psxException(u32 code, u32 bd) {
 	// Set the Status
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status &~0x3f) |
 						  ((psxRegs.CP0.n.Status & 0xf) << 2);
-
-	if (!Config.HLE && (((PSXMu32(psxRegs.CP0.n.EPC) >> 24) & 0xfe) == 0x4a)) {
-		// "hokuto no ken" / "Crash Bandicot 2" ... fix
-		PSXMu32ref(psxRegs.CP0.n.EPC)&= SWAPu32(~0x02000000);
-	}
 
 	if (Config.HLE) psxBiosException();
 }
