@@ -171,8 +171,9 @@ static void update_input(void)
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
 
 #ifdef X11
-	extern int x11_update_keys(void);
-	in_keystate |= x11_update_keys();
+	extern int x11_update_keys(unsigned int *action);
+	in_keystate |= x11_update_keys(&emu_act);
+	emu_set_action(emu_act);
 #endif
 }
 

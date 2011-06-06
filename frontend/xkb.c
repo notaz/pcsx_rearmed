@@ -44,6 +44,11 @@ static const struct {
 	{ XK_t,		DKEY_R2 },
 	{ XK_c,		DKEY_SELECT },
 	{ XK_v,		DKEY_START },
+
+	{ XK_F6,	32 + SACTION_SAVE_STATE },
+	{ XK_F7,	32 + SACTION_PREV_SSLOT },
+	{ XK_F8,	32 + SACTION_NEXT_SSLOT },
+	{ XK_F9,	32 + SACTION_LOAD_STATE },
 };
 
 static Atom wmprotocols, wmdelwindow;
@@ -68,7 +73,7 @@ static void DestroyKeyboard(void) {
 		XkbSetDetectableAutoRepeat(disp, 0, NULL);
 }
 
-int x11_update_keys(void) {
+int x11_update_keys(unsigned int *action) {
 	uint8_t					i;
 	XEvent					evt;
 	XClientMessageEvent		*xce;
@@ -100,14 +105,18 @@ int x11_update_keys(void) {
 					}
 				}
 
-				if (psxkey >= 0) {
+				if (0 <= psxkey && psxkey < 32) {
 					if (evt.type == KeyPress)
 						keystate_x11 |= 1 << psxkey;
 					else
 						keystate_x11 &= ~(1 << psxkey);
 				}
-				if (evt.type == KeyPress && Key == XK_Escape)
-					leave = 1;
+				if (evt.type == KeyPress) {
+					if (psxkey > 32)
+						*action = psxkey - 32;
+					if (Key == XK_Escape)
+						leave = 1;
+				}
 				break;
 
 			case ClientMessage:
