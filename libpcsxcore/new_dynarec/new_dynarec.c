@@ -4114,7 +4114,7 @@ static void loop_preload(signed char pre[],signed char entry[])
 void address_generation(int i,struct regstat *i_regs,signed char entry[])
 {
   if(itype[i]==LOAD||itype[i]==LOADLR||itype[i]==STORE||itype[i]==STORELR||itype[i]==C1LS||itype[i]==C2LS) {
-    int ra;
+    int ra=-1;
     int agr=AGEN1+(i&1);
     int mgr=MGEN1+(i&1);
     if(itype[i]==LOAD) {
@@ -4932,7 +4932,7 @@ void do_ccstub(int n)
           emit_loadreg(rs2[i],s2l);
       #endif
       int hr=0;
-      int addr,alt,ntaddr;
+      int addr=-1,alt=-1,ntaddr=-1;
       while(hr<HOST_REGS)
       {
         if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
@@ -8624,7 +8624,7 @@ int new_recompile_block(int addr)
   current.wasconst=0;
   int ds=0;
   int cc=0;
-  int hr;
+  int hr=-1;
 
 #ifndef FORCE32
   provisional_32bit();
