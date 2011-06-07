@@ -57,7 +57,12 @@ void EmuUpdate() {
 		SysUpdate();
 
 	ApplyCheats();
-	pl_frame_limit();
+
+	// reamed hack
+	{
+		extern void pl_frame_limit(void);
+		pl_frame_limit();
+	}
 }
 
 void __Log(char *fmt, ...) {

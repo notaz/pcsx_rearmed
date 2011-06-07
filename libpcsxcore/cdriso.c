@@ -833,7 +833,7 @@ static long CALLBACK ISOgetTD(unsigned char track, unsigned char *buffer) {
 		unsigned int sect;
 		unsigned char time[3];
 		sect = msf2sec(ti[numtracks].start) + msf2sec(ti[numtracks].length);
-		sec2msf(sect, time);
+		sec2msf(sect, (char *)time);
 		buffer[2] = time[0];
 		buffer[1] = time[1];
 		buffer[0] = time[2];
@@ -913,7 +913,7 @@ static long CALLBACK ISOplay(unsigned char *time) {
 		return 0;
 
 	// find the track
-	sect = msf2sec(time);
+	sect = msf2sec((char *)time);
 	for (i = numtracks; i > 1; i--)
 		if (msf2sec(ti[i].start) <= sect + 2 * 75)
 			break;

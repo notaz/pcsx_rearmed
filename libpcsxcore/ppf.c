@@ -335,7 +335,7 @@ void BuildPPFCache() {
 unsigned char *sbi_sectors;
 
 int LoadSBI(const char *fname, int sector_count) {
-	char buffer[16], sbifile[MAXPATHLEN];
+	char buffer[16];
 	FILE *sbihandle;
 	u8 sbitime[3];
 	int s;
@@ -344,7 +344,6 @@ int LoadSBI(const char *fname, int sector_count) {
 	if (sbihandle == NULL)
 		return -1;
 
-if (sbi_sectors != NULL) printf("sbi_sectors?\n");
 	sbi_sectors = calloc(1, sector_count / 8);
 	if (sbi_sectors == NULL)
 		return -1;

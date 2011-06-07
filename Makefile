@@ -5,7 +5,7 @@ LD = $(CROSS_COMPILE)ld
 
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
-CFLAGS += -ggdb -Ifrontend
+CFLAGS += -Wall -ggdb -Ifrontend
 LDFLAGS += -lz -lpthread -ldl -lpng -lbz2
 ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
@@ -36,6 +36,9 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_neon.o
 endif
+libpcsxcore/cdrom.o libpcsxcore/misc.o: CFLAGS += -Wno-pointer-sign
+libpcsxcore/misc.o libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
+
 # dynarec
 ifndef NO_NEW_DRC
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
@@ -44,6 +47,7 @@ endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \
 	libpcsxcore/new_dynarec/pcsxmem_inline.c
+libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -Wno-all -Wno-pointer-sign
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
@@ -54,7 +58,6 @@ OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
 	plugins/dfsound/registers.o plugins/dfsound/spu.o
 plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
 	plugins/dfsound/xa.c
-plugins/dfsound/%.o: CFLAGS += -Wall
 ifeq "$(USE_OSS)" "1"
 plugins/dfsound/%.o: CFLAGS += -DUSEOSS
 OBJS += plugins/dfsound/oss.o
@@ -67,7 +70,7 @@ endif
 
 # gpu
 # note: code is not safe for strict-aliasing? (Castlevania problems)
-plugins/dfxvideo/%.o: CFLAGS += -Wall -fno-strict-aliasing
+plugins/dfxvideo/%.o: CFLAGS += -fno-strict-aliasing
 OBJS += plugins/dfxvideo/gpu.o
 plugins/dfxvideo/gpu.o: plugins/dfxvideo/fps.c plugins/dfxvideo/prim.c \
 	plugins/dfxvideo/gpu.c plugins/dfxvideo/soft.c
@@ -79,11 +82,9 @@ OBJS += plugins/dfxvideo/draw_fb.o
 endif
 
 # cdrcimg
-plugins/cdrcimg/%.o: CFLAGS += -Wall
 OBJS += plugins/cdrcimg/cdrcimg.o
 
 # dfinput
-plugins/dfinput/%.o: CFLAGS += -Wall
 OBJS += plugins/dfinput/pad.o
 
 # gui
@@ -91,7 +92,6 @@ OBJS += frontend/main.o frontend/plugin.o
 ifeq "$(USE_GTK)" "1"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
-maemo/%.o: CFLAGS += -Wall
 else
 OBJS += frontend/plugin_lib.o frontend/menu.o
 OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
@@ -114,7 +114,7 @@ endif
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
-frontend/%.o: CFLAGS += -Wall -DIN_EVDEV
+frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o: frontend/revision.h
 
 frontend/revision.h: FORCE
