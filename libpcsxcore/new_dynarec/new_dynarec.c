@@ -3744,7 +3744,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   int ar;
   int offset;
   int memtarget=0,c=0;
-  int jaddr,jaddr2=0,jaddr3,type;
+  int jaddr2=0,jaddr3,type;
   int agr=AGEN1+(i&1);
   u_int hr,reglist=0;
   u_int copr=(source[i]>>16)&0x1f;
@@ -7899,7 +7899,7 @@ int new_recompile_block(int addr)
 #ifdef PCSX
   if(!sp_in_mirror&&(signed int)(psxRegs.GPR.n.sp&0xffe00000)>0x80200000&&
      0x10000<=psxRegs.GPR.n.sp&&(psxRegs.GPR.n.sp&~0xe0e00000)<RAM_SIZE) {
-    printf("SP hack enabled (%08x), @%08x\n", psxRegs.GPR.n.sp);
+    printf("SP hack enabled (%08x), @%08x\n", psxRegs.GPR.n.sp, psxRegs.pc);
     sp_in_mirror=1;
   }
   if (Config.HLE && start == 0x80001000) // hlecall

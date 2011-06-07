@@ -845,7 +845,8 @@ u_int rd_rn_imm_shift(u_int rd, u_int rn, u_int imm, u_int shift)
 }
 u_int genimm(u_int imm,u_int *encoded)
 {
-  if(imm==0) {*encoded=0;return 1;}
+  *encoded=0;
+  if(imm==0) return 1;
   int i=32;
   while(i>0)
   {
