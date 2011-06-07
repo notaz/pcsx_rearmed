@@ -804,8 +804,8 @@ void psxBios_qsort() { // 0x31
 }
 
 void psxBios_malloc() { // 0x33
-	unsigned int *chunk, *newchunk;
-	unsigned int dsize, csize, cstat;
+	unsigned int *chunk, *newchunk = NULL;
+	unsigned int dsize = 0, csize, cstat;
 	int colflag;
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x33]);
@@ -875,7 +875,7 @@ void psxBios_malloc() { // 0x33
 		// split free chunk
 		*chunk = SWAP32(dsize);
 		newchunk = (u32*)((uptr)chunk + dsize + 4);
-		*newchunk = SWAP32((csize - dsize - 4) & 0xfffffffc | 1);
+		*newchunk = SWAP32(((csize - dsize - 4) & 0xfffffffc) | 1);
 	}
 
 	// return pointer to allocated memory
@@ -1010,7 +1010,7 @@ _start:
 
 	memcpy((char*)PSXM(sp), save, 4 * 4);
 
-	SysPrintf(tmp);
+	SysPrintf("%s", tmp);
 
 	pc0 = ra;
 }
@@ -1818,7 +1818,7 @@ void psxBios_putchar() { // 3d
 }
 
 void psxBios_puts() { // 3e/3f
-	SysPrintf(Ra0);
+	SysPrintf("%s", Ra0);
 	pc0 = ra;
 }
 
