@@ -9,68 +9,29 @@
  */
 
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
+#include "gpu.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define unlikely(x) __builtin_expect((x), 0)
 
-#define CMD_BUFFER_LEN          1024
+//#define log_io printf
+#define log_io(...)
+#define log_anomaly printf
 
-static struct __attribute__((aligned(64))) {
-  uint16_t vram[1024 * 512];
-  uint16_t guard[1024 * 512]; // overdraw guard
-  uint32_t cmd_buffer[CMD_BUFFER_LEN];
-  uint32_t regs[16];
-  union {
-    uint32_t reg;
-    struct {
-      uint32_t tx:4;        //  0 texture page
-      uint32_t ty:1;
-      uint32_t abr:2;
-      uint32_t tp:2;        //  7 t.p. mode (4,8,15bpp)
-      uint32_t dtd:1;       //  9 dither
-      uint32_t dfe:1;
-      uint32_t md:1;        // 11 set mask bit when drawing
-      uint32_t me:1;        // 12 no draw on mask
-      uint32_t unkn:3;
-      uint32_t width1:1;    // 16
-      uint32_t width0:2;
-      uint32_t dheight:1;   // 19 double height
-      uint32_t video:1;     // 20 NTSC,PAL
-      uint32_t rgb24:1;
-      uint32_t interlace:1; // 22 interlace on
-      uint32_t blanking:1;  // 23 display not enabled
-      uint32_t unkn2:2;
-      uint32_t busy:1;      // 26 !busy drawing
-      uint32_t img:1;       // 27 ready to DMA image data
-      uint32_t com:1;       // 28 ready for commands
-      uint32_t dma:2;       // 29 off, ?, to vram, from vram
-      uint32_t lcf:1;       // 31
-    };
-  } status;
-  struct {
-    int x, y, w, h;
-    int y1, y2;
-  } screen;
-  struct {
-    int x, y, w, h;
-    int offset;
-  } dma;
-  int cmd_len;
-  const uint32_t *lcf_hc;
-  uint32_t zero;
-} gpu;
+struct psx_gpu gpu __attribute__((aligned(64)));
 
 long GPUinit(void)
 {
+  int ret = vout_init();
   gpu.status.reg = 0x14802000;
-  return 0;
+  gpu.lcf_hc = &gpu.zero;
+  return ret;
 }
 
 long GPUshutdown(void)
 {
-  return 0;
+  return vout_finish();
 }
 
 void GPUwriteStatus(uint32_t data)
@@ -108,7 +69,7 @@ void GPUwriteStatus(uint32_t data)
     gpu.regs[cmd] = data;
 }
 
-static const unsigned char cmd_lengths[256] =
+const unsigned char cmd_lengths[256] =
 {
 	0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -127,39 +88,6 @@ static const unsigned char cmd_lengths[256] =
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // e0
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
-
-void do_cmd(uint32_t *list, int count)
-{
-  uint32_t *list_end = list + count;
-  int cmd;
-  //printf("do_cmd    %p, %d\n", data, count);
-
-  for (; list < list_end; list += 1 + cmd_lengths[cmd])
-  {
-    cmd = list[0] >> 24;
-    switch (cmd)
-    {
-      case 0xe1:
-        gpu.status.reg &= ~0x7ff;
-        gpu.status.reg |= list[0] & 0x7ff;
-        break;
-      case 0xe6:
-        gpu.status.reg &= ~0x1800;
-        gpu.status.reg |= (list[0] & 3) << 11;
-        break;
-    }
-    if ((cmd & 0xf4) == 0x24) {
-      // flat textured prim
-      gpu.status.reg &= ~0x1ff;
-      gpu.status.reg |= list[4] & 0x1ff;
-    }
-    else if ((cmd & 0xf4) == 0x34) {
-      // shaded textured prim
-      gpu.status.reg &= ~0x1ff;
-      gpu.status.reg |= list[5] & 0x1ff;
-    }
-  }
-}
 
 #define VRAM_MEM_XY(x, y) &gpu.vram[(y) * 1024 + (x)]
 
@@ -230,8 +158,6 @@ static int check_cmd(uint32_t *data, int count)
 {
   int len, cmd, start, pos;
 
-  //printf("check_cmd %p, %d\n", data, count);
-
   // process buffer
   for (start = pos = 0;; )
   {
@@ -244,9 +170,33 @@ static int check_cmd(uint32_t *data, int count)
     }
 
     while (pos < count) {
-      cmd = data[pos] >> 24;
+      uint32_t *list = data + pos;
+      cmd = list[0] >> 24;
       len = 1 + cmd_lengths[cmd];
+
       //printf("  %3d: %02x %d\n", pos, cmd, len);
+      if ((cmd & 0xf4) == 0x24) {
+        // flat textured prim
+        gpu.status.reg &= ~0x1ff;
+        gpu.status.reg |= list[4] & 0x1ff;
+      }
+      else if ((cmd & 0xf4) == 0x34) {
+        // shaded textured prim
+        gpu.status.reg &= ~0x1ff;
+        gpu.status.reg |= list[5] & 0x1ff;
+      }
+      else switch (cmd)
+      {
+        case 0xe1:
+          gpu.status.reg &= ~0x7ff;
+          gpu.status.reg |= list[0] & 0x7ff;
+          break;
+        case 0xe6:
+          gpu.status.reg &= ~0x1800;
+          gpu.status.reg |= (list[0] & 3) << 11;
+          break;
+      }
+
       if (pos + len > count) {
         cmd = -1;
         break; // incomplete cmd
@@ -257,7 +207,7 @@ static int check_cmd(uint32_t *data, int count)
     }
 
     if (pos - start > 0) {
-      do_cmd(data + start, pos - start);
+      do_cmd_list(data + start, pos - start);
       start = pos;
     }
 
@@ -267,7 +217,7 @@ static int check_cmd(uint32_t *data, int count)
       pos += len;
     }
 
-    if (pos == count)
+    if (pos >= count)
       return 0;
 
     if (pos + len > count) {
@@ -289,15 +239,19 @@ void GPUwriteDataMem(uint32_t *mem, int count)
 {
   int left;
 
+  log_io("gpu_dma_write %p %d\n", mem, count);
+
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
+
   left = check_cmd(mem, count);
   if (left)
-    printf("GPUwriteDataMem: discarded %d/%d words\n", left, count);
+    log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, count);
 }
 
 void GPUwriteData(uint32_t data)
 {
+  log_io("gpu_write %08x\n", data);
   gpu.cmd_buffer[gpu.cmd_len++] = data;
   if (gpu.cmd_len >= CMD_BUFFER_LEN)
     flush_cmd_buffer();
@@ -306,17 +260,23 @@ void GPUwriteData(uint32_t data)
 long GPUdmaChain(uint32_t *base, uint32_t addr)
 {
   uint32_t *list;
-  int len;
+  int len, left;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
+  log_io("gpu_dma_chain\n");
   while (addr != 0xffffff) {
+    log_io(".chain %08x\n", addr);
+
     list = base + (addr & 0x1fffff) / 4;
     len = list[0] >> 24;
     addr = list[0] & 0xffffff;
-    if (len)
-      GPUwriteDataMem(list + 1, len);
+    if (len) {
+      left = check_cmd(list + 1, len);
+      if (left)
+        log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, len);
+    }
   }
 
   return 0;
@@ -324,8 +284,11 @@ long GPUdmaChain(uint32_t *base, uint32_t addr)
 
 void GPUreadDataMem(uint32_t *mem, int count)
 {
+  log_io("gpu_dma_read  %p %d\n", mem, count);
+
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
+
   if (gpu.dma.h)
     do_vram_io(mem, count, 1);
 }
@@ -333,12 +296,22 @@ void GPUreadDataMem(uint32_t *mem, int count)
 uint32_t GPUreadData(void)
 {
   uint32_t v = 0;
-  GPUreadDataMem(&v, 1);
+
+  log_io("gpu_read\n");
+
+  if (unlikely(gpu.cmd_len > 0))
+    flush_cmd_buffer();
+
+  if (gpu.dma.h)
+    do_vram_io(&v, 1, 1);
+
   return v;
 }
 
 uint32_t GPUreadStatus(void)
 {
+  log_io("gpu_read_status\n");
+
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
@@ -388,90 +361,6 @@ void GPUvBlank(int val, uint32_t *hcnt)
     if (!val)
       gpu.lcf_hc = hcnt;
   }
-}
-
-// rearmed specific
-
-#include "../../frontend/plugin_lib.h"
-#include "../../frontend/arm_utils.h"
-
-static const struct rearmed_cbs *cbs;
-static void *screen_buf;
-
-static void blit(void)
-{
-  static uint32_t old_status, old_h;
-  int x = gpu.screen.x & ~3; // alignment needed by blitter
-  int y = gpu.screen.y;
-  int w = gpu.screen.w;
-  int h;
-  uint16_t *srcs;
-  uint8_t  *dest;
-
-  srcs = &gpu.vram[y * 1024 + x];
-
-  h = gpu.screen.y2 - gpu.screen.y1;
-  if (gpu.status.dheight)
-    h *= 2;
-
-  if (h <= 0)
-    return;
-
-  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h) // width|rgb24 change?
-  {
-    old_status = gpu.status.reg;
-    old_h = h;
-    screen_buf = cbs->pl_fbdev_set_mode(w, h, gpu.status.rgb24 ? 24 : 16);
-  }
-  dest = screen_buf;
-
-  if (gpu.status.rgb24)
-  {
-#ifndef MAEMO
-    for (; h-- > 0; dest += w * 3, srcs += 1024)
-    {
-      bgr888_to_rgb888(dest, srcs, w * 3);
-    }
-#else
-    for (; h-- > 0; dest += w * 2, srcs += 1024)
-    {
-      bgr888_to_rgb565(dest, srcs, w * 3);
-    }
-#endif
-  }
-  else
-  {
-    for (; h-- > 0; dest += w * 2, srcs += 1024)
-    {
-      bgr555_to_rgb565(dest, srcs, w * 2);
-    }
-  }
-
-  screen_buf = cbs->pl_fbdev_flip();
-}
-
-void GPUupdateLace(void)
-{
-  if (!gpu.status.blanking)
-    blit();
-}
-
-long GPUopen(void)
-{
-  cbs->pl_fbdev_open();
-  screen_buf = cbs->pl_fbdev_flip();
-  return 0;
-}
-
-long GPUclose(void)
-{
-  cbs->pl_fbdev_close();
-  return 0;
-}
-
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
-{
-  cbs = cbs_;
 }
 
 // vim:shiftwidth=2:expandtab
