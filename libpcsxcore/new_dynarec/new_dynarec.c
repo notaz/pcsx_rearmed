@@ -10537,6 +10537,19 @@ int new_recompile_block(int addr)
     }
     //requires_32bit[i]=is32[i]&~unneeded_reg_upper[i]; // DEBUG
   }
+#else
+  for (i=slen-1;i>=0;i--)
+  {
+    if(itype[i]==CJUMP||itype[i]==SJUMP||itype[i]==FJUMP)
+    {
+      // Conditional branch
+      if((source[i]>>16)!=0x1000&&i<slen-2) {
+        // Mark this address as a branch target since it may be called
+        // upon return from interrupt
+        bt[i+2]=1;
+      }
+    }
+  }
 #endif
 
   if(itype[slen-1]==SPAN) {
