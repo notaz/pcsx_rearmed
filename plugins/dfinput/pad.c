@@ -223,7 +223,7 @@ static unsigned char PADpoll_(unsigned char value) {
 		do_cmd2(value);
 
 	if (CurByte >= CmdLen)
-		return 0;
+		return 0xff;	// verified
 
 	return buf[CurByte++];
 }
