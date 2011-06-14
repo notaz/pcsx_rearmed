@@ -15,6 +15,7 @@ CFLAGS += `sdl-config --cflags` -m32
 LDFLAGS += `sdl-config --libs`
 SRC += vout_sdl.c
 endif
+PEOPS=1
 ifndef PEOPS
 else
 SRC += peops.c

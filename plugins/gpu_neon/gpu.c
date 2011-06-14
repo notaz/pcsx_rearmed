@@ -106,18 +106,26 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   uint16_t *sdata = (uint16_t *)data;
   int x = gpu.dma.x, y = gpu.dma.y;
   int w = gpu.dma.w, h = gpu.dma.h;
+  int o = gpu.dma.offset;
   int l;
   count *= 2; // operate in 16bpp pixels
 
   if (gpu.dma.offset) {
     l = w - gpu.dma.offset;
-    if (l > count)
+    if (count < l)
       l = count;
-    do_vram_line(x + gpu.dma.offset, y, sdata, l, is_read);
+
+    do_vram_line(x + o, y, sdata, l, is_read);
+
+    if (o + l < w)
+      o += l;
+    else {
+      o = 0;
+      y++;
+      h--;
+    }
     sdata += l;
     count -= l;
-    y++;
-    h--;
   }
 
   for (; h > 0 && count >= w; sdata += w, count -= w, y++, h--) {
@@ -128,19 +136,21 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   if (h > 0 && count > 0) {
     y &= 511;
     do_vram_line(x, y, sdata, count, is_read);
-    gpu.dma.offset = count;
+    o = count;
     count = 0;
   }
-  else
-    gpu.dma.offset = 0;
   gpu.dma.y = y;
   gpu.dma.h = h;
+  gpu.dma.offset = o;
 
   return count_initial - (count + 1) / 2;
 }
 
 static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_read)
 {
+  if (gpu.dma.h)
+    log_anomaly("start_vram_transfer while old unfinished\n");
+
   gpu.dma.x = pos_word & 1023;
   gpu.dma.y = (pos_word >> 16) & 511;
   gpu.dma.w = size_word & 0xffff; // ?
@@ -159,16 +169,19 @@ static int check_cmd(uint32_t *data, int count)
   int len, cmd, start, pos;
 
   // process buffer
-  for (start = pos = 0;; )
+  for (start = pos = 0; pos < count; )
   {
     cmd = -1;
     len = 0;
 
     if (gpu.dma.h) {
       pos += do_vram_io(data + pos, count - pos, 0);
+      if (pos == count)
+        break;
       start = pos;
     }
 
+    // do look-ahead pass to detect SR changes and VRAM i/o
     while (pos < count) {
       uint32_t *list = data + pos;
       cmd = list[0] >> 24;
@@ -217,14 +230,11 @@ static int check_cmd(uint32_t *data, int count)
       pos += len;
     }
 
-    if (pos >= count)
-      return 0;
-
-    if (pos + len > count) {
-      //printf("discarding %d words\n", pos + len - count);
-      return pos + len - count;
-    }
+    if (cmd == -1)
+      break;
   }
+
+  return count - pos;
 }
 
 static void flush_cmd_buffer(void)
@@ -257,26 +267,45 @@ void GPUwriteData(uint32_t data)
     flush_cmd_buffer();
 }
 
-long GPUdmaChain(uint32_t *base, uint32_t addr)
+long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
 {
-  uint32_t *list;
-  int len, left;
+  uint32_t addr, *list;
+  int len, left, count;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
   log_io("gpu_dma_chain\n");
-  while (addr != 0xffffff) {
+  addr = start_addr & 0xffffff;
+  for (count = 0; addr != 0xffffff; count++)
+  {
     log_io(".chain %08x\n", addr);
 
-    list = base + (addr & 0x1fffff) / 4;
+    list = rambase + (addr & 0x1fffff) / 4;
     len = list[0] >> 24;
     addr = list[0] & 0xffffff;
+
+    // loop detection marker
+    // (bit23 set causes DMA error on real machine, so
+    //  unlikely to be ever set by the game)
+    list[0] |= 0x800000;
+
     if (len) {
       left = check_cmd(list + 1, len);
       if (left)
         log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, len);
     }
+
+    if (addr & 0x800000)
+      break;
+  }
+
+  // remove loop detection markers
+  addr = start_addr & 0x1fffff;
+  while (count-- > 0) {
+    list = rambase + addr / 4;
+    addr = list[0] & 0x1fffff;
+    list[0] &= ~0x800000;
   }
 
   return 0;
@@ -310,12 +339,14 @@ uint32_t GPUreadData(void)
 
 uint32_t GPUreadStatus(void)
 {
-  log_io("gpu_read_status\n");
+  uint32_t ret;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
-  return gpu.status.reg | (*gpu.lcf_hc << 31);
+  ret = gpu.status.reg | (*gpu.lcf_hc << 31);
+  log_io("gpu_read_status %08x\n", ret);
+  return ret;
 }
 
 typedef struct GPUFREEZETAG
