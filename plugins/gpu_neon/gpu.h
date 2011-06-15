@@ -45,7 +45,9 @@ struct psx_gpu {
     };
   } status;
   struct {
+    int hres, vres;
     int x, y, w, h;
+    int x1, x2;
     int y1, y2;
   } screen;
   struct {

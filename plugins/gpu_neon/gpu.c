@@ -14,6 +14,7 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define unlikely(x) __builtin_expect((x), 0)
+#define noinline __attribute__((noinline))
 
 //#define log_io printf
 #define log_io(...)
@@ -34,15 +35,40 @@ long GPUshutdown(void)
   return vout_finish();
 }
 
+static noinline void update_width(void)
+{
+  int sw = gpu.screen.x2 - gpu.screen.x1;
+  if (sw <= 0 || sw >= 2560)
+    // full width
+    gpu.screen.w = gpu.screen.hres;
+  else
+    gpu.screen.w = sw * gpu.screen.hres / 2560;
+}
+
+static noinline void update_height(void)
+{
+  int sh = gpu.screen.y2 - gpu.screen.y1;
+  if (gpu.status.dheight)
+    sh *= 2;
+  if (sh <= 0)
+    sh = gpu.screen.vres;
+
+  gpu.screen.h = sh;
+}
+
 void GPUwriteStatus(uint32_t data)
 {
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
   static const short vres[4] = { 240, 480, 256, 480 };
   uint32_t cmd = data >> 24;
 
-  switch (data >> 24) {
+  if (cmd < ARRAY_SIZE(gpu.regs))
+    gpu.regs[cmd] = data;
+
+  switch (cmd) {
     case 0x00:
       gpu.status.reg = 0x14802000;
+      gpu.status.blanking = 1;
       break;
     case 0x03:
       gpu.status.blanking = data & 1;
@@ -54,19 +80,24 @@ void GPUwriteStatus(uint32_t data)
       gpu.screen.x = data & 0x3ff;
       gpu.screen.y = (data >> 10) & 0x3ff;
       break;
+    case 0x06:
+      gpu.screen.x1 = data & 0xfff;
+      gpu.screen.x2 = (data >> 12) & 0xfff;
+      update_width();
+      break;
     case 0x07:
       gpu.screen.y1 = data & 0x3ff;
       gpu.screen.y2 = (data >> 10) & 0x3ff;
+      update_height();
       break;
     case 0x08:
       gpu.status.reg = (gpu.status.reg & ~0x7f0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
-      gpu.screen.w = hres[(gpu.status.reg >> 16) & 7];
-      gpu.screen.h = vres[(gpu.status.reg >> 19) & 3];
+      gpu.screen.hres = hres[(gpu.status.reg >> 16) & 7];
+      gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
+      update_width();
+      update_height();
       break;
   }
-
-  if (cmd < ARRAY_SIZE(gpu.regs))
-    gpu.regs[cmd] = data;
 }
 
 const unsigned char cmd_lengths[256] =

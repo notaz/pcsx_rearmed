@@ -28,39 +28,40 @@ int vout_finish(void)
 static void blit(void)
 {
   static uint32_t old_status, old_h;
-  int x = gpu.screen.x & ~3; // alignment needed by blitter
+  int x = gpu.screen.x & ~1; // alignment needed by blitter
   int y = gpu.screen.y;
   int w = gpu.screen.w;
-  int h;
+  int h = gpu.screen.h;
+  int stride = gpu.screen.hres;
+  int doffs;
   uint16_t *srcs;
   uint8_t  *dest;
 
   srcs = &gpu.vram[y * 1024 + x];
 
-  h = gpu.screen.y2 - gpu.screen.y1;
-  if (gpu.status.dheight)
-    h *= 2;
-
-  if (h <= 0)
-    return;
-
   if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h) // width|rgb24 change?
   {
     old_status = gpu.status.reg;
     old_h = h;
-    screen_buf = cbs->pl_fbdev_set_mode(w, h, gpu.status.rgb24 ? 24 : 16);
+    screen_buf = cbs->pl_fbdev_set_mode(stride, h, gpu.status.rgb24 ? 24 : 16);
   }
+
   dest = screen_buf;
+
+  // only do centering, at least for now
+  doffs = (stride - w) / 2 & ~1;
 
   if (gpu.status.rgb24)
   {
 #ifndef MAEMO
-    for (; h-- > 0; dest += w * 3, srcs += 1024)
+    dest += (doffs / 8) * 24;
+    for (; h-- > 0; dest += stride * 3, srcs += 1024)
     {
       bgr888_to_rgb888(dest, srcs, w * 3);
     }
 #else
-    for (; h-- > 0; dest += w * 2, srcs += 1024)
+    dest += doffs * 2;
+    for (; h-- > 0; dest += stride * 2, srcs += 1024)
     {
       bgr888_to_rgb565(dest, srcs, w * 3);
     }
@@ -68,7 +69,8 @@ static void blit(void)
   }
   else
   {
-    for (; h-- > 0; dest += w * 2, srcs += 1024)
+    dest += doffs * 2;
+    for (; h-- > 0; dest += stride * 2, srcs += 1024)
     {
       bgr555_to_rgb565(dest, srcs, w * 2);
     }
