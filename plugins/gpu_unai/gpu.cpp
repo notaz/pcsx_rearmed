@@ -879,7 +879,7 @@ static void blit(void)
 	u16 *srcs;
 	u8  *dest;
 
-	x0 = DisplayArea[0] & ~3; // alignment needed by blitter
+	x0 = DisplayArea[0] & ~1; // alignment needed by blitter
 	y0 = DisplayArea[1];
 	srcs = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0,y0)];
 

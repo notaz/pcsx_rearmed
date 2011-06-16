@@ -21,7 +21,7 @@ unsigned long  lSetMask;
 
 static void blit(void)
 {
- int px = PSXDisplay.DisplayPosition.x & ~3; // XXX: align needed by bgr*_to_...
+ int px = PSXDisplay.DisplayPosition.x & ~1; // XXX: align needed by bgr*_to_...
  int py = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;

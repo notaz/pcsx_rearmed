@@ -15,7 +15,8 @@
 bgr555_to_rgb565:
     mov         r3, #0x07c0
     vdup.16     q15, r3
-    sub         r2, r2, #64
+    subs        r2, r2, #64
+    blt         btr16_end64
 0:
     vldmia      r1!, {q0-q3}
     vshl.u16    q4, q0, #11
@@ -38,20 +39,36 @@ bgr555_to_rgb565:
     subs        r2, r2, #64
     bge         0b
 
+btr16_end64:
     adds        r2, r2, #64
     bxeq        lr
+    subs        r2, r2, #16
+    blt         btr16_end16
 
-    @ handle the remainder
+    @ handle the remainder (reasonably rare)
 0:
-    vld1.16     {q0}, [r1, :64]!
+    vld1.16     {q0}, [r1]!
     vshl.u16    q1, q0, #11
     vshl.u16    q2, q0, #1
     vsri.u16    q1, q0, #10
     vbit        q1, q2, q15
     subs        r2, r2, #16
-    vst1.16     {q1}, [r0, :64]!
-    bgt         0b
+    vst1.16     {q1}, [r0]!
+    bge         0b
 
+btr16_end16:
+    adds        r2, r2, #16
+    bxeq        lr
+    subs        r2, r2, #8
+    bxlt        lr
+
+    @ very rare
+    vld1.16     d0, [r1]!
+    vshl.u16    d1, d0, #11
+    vshl.u16    d2, d0, #1
+    vsri.u16    d1, d0, #10
+    vbit        d1, d2, d30
+    vst1.16     d1, [r0]!
     bx          lr
 
 
