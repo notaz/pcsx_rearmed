@@ -938,7 +938,7 @@ void GPU_updateLace(void)
 		blit();
 
 		fb_dirty = false;
-		if (*cbs->fskip_option)
+		if (cbs->fskip_advice)
 			isSkip = true;
 	}
 	else

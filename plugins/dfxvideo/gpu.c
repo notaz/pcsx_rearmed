@@ -62,6 +62,7 @@ BOOL              bDoLazyUpdate=FALSE;
 uint32_t          lGPUInfoVals[16];
 static int        iFakePrimBusy=0;
 static uint32_t   vBlank=0;
+static const int  *skip_advice;
 
 ////////////////////////////////////////////////////////////////////////
 // some misc external display funcs
@@ -232,7 +233,8 @@ static void decideSkip(void)
 
  if(dwActFixes&0xa0)                                   // -> pc fps calculation fix/old skipping fix
   {
-   if((fps_skip < fFrameRateHz) && !bSkipNextFrame)    // -> skip max one in a row
+   int skip = (skip_advice && *skip_advice) || fps_skip < fFrameRateHz;
+   if(skip && !bSkipNextFrame)                         // -> skip max one in a row
        {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
    else bSkipNextFrame = FALSE;
   }
@@ -1132,3 +1134,18 @@ void CALLBACK GPUvBlank(int val)
  vBlank=val?0x80000000:0;
 }
 
+// rearmed thing
+#include "../../frontend/plugin_lib.h"
+
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
+{
+ // sync config
+ UseFrameSkip = cbs->frameskip;
+ iUseDither = cbs->gpu_peops.iUseDither;
+ dwActFixes = cbs->gpu_peops.dwActFixes;
+ fFrameRateHz = cbs->gpu_peops.fFrameRateHz;
+ dwFrameRateTicks = cbs->gpu_peops.dwFrameRateTicks;
+
+ skip_advice = &cbs->fskip_advice;
+ fps_skip = 100.0f;
+}

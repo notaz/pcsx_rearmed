@@ -37,10 +37,18 @@ struct rearmed_cbs {
 	void *(*pl_fbdev_set_mode)(int w, int h, int bpp);
 	void *(*pl_fbdev_flip)(void);
 	void  (*pl_fbdev_close)(void);
-	int  *fskip_option;
+	// gpu options
+	int   frameskip;
+	int   fskip_advice;
+	struct {
+		int   iUseDither;
+		int   dwActFixes;
+		float fFrameRateHz;
+		int   dwFrameRateTicks;
+	} gpu_peops;
 };
 
-extern const struct rearmed_cbs pl_rearmed_cbs;
+extern struct rearmed_cbs pl_rearmed_cbs;
 
 extern int pl_frame_interval;
 

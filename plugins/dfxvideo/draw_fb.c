@@ -9,9 +9,9 @@
 
 #include "gpu.h"
 
-#include "plugin_lib.h"
-#include "arm_utils.h"
-#include "pcnt.h"
+#include "../../frontend/plugin_lib.h"
+#include "../../frontend/arm_utils.h"
+#include "../../frontend/pcnt.h"
 
 // misc globals
 long           lLowerpart;
@@ -101,4 +101,3 @@ void CloseDisplay(void)
 {
  pl_fbdev_close();
 }
-

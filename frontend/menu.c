@@ -75,13 +75,6 @@ static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel;
 int g_opts;
 
-// from softgpu plugin
-extern int iUseDither;
-extern int UseFrameSkip;
-extern uint32_t dwActFixes;
-extern float fFrameRateHz;
-extern int dwFrameRateTicks;
-
 // sound plugin
 extern int iUseReverb;
 extern int iUseInterpolation;
@@ -154,8 +147,9 @@ static void menu_sync_config(void)
 
 	pl_frame_interval = Config.PsxType ? 20000 : 16667;
 	// used by P.E.Op.S. frameskip code
-	fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
-	dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
+	pl_rearmed_cbs.gpu_peops.fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
+	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
+		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
 }
 
 static void menu_set_defconfig(void)
@@ -169,9 +163,9 @@ static void menu_set_defconfig(void)
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 
-	iUseDither = 0;
-	UseFrameSkip = 1;
-	dwActFixes = 1<<7;
+	pl_rearmed_cbs.frameskip = 0;
+	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
+	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 
 	iUseReverb = 2;
 	iUseInterpolation = 1;
@@ -193,6 +187,9 @@ static void menu_set_defconfig(void)
 
 #define CE_INTVAL(val) \
 	{ #val, sizeof(val), &val }
+
+#define CE_INTVAL_P(val) \
+	{ #val, sizeof(pl_rearmed_cbs.val), &pl_rearmed_cbs.val }
 
 // 'versioned' var, used when defaults change
 #define CE_INTVAL_V(val, ver) \
@@ -228,9 +225,9 @@ static const struct {
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
 	CE_INTVAL(in_type_sel),
-	CE_INTVAL(iUseDither),
-	CE_INTVAL(UseFrameSkip),
-	CE_INTVAL(dwActFixes),
+	CE_INTVAL_P(frameskip),
+	CE_INTVAL_P(gpu_peops.iUseDither),
+	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL(iUseReverb),
 	CE_INTVAL(iXAPitch),
 	CE_INTVAL_V(iUseInterpolation, 2),
@@ -1054,16 +1051,16 @@ static const char h_gpu_10[]           = "Toggle busy flags after drawing";
 
 static menu_entry e_menu_plugin_gpu[] =
 {
-	mee_enum      ("Dithering",                  0, iUseDither, men_gpu_dithering),
-	mee_onoff_h   ("Odd/even bit hack",          0, dwActFixes, 1<<0, h_gpu_0),
-	mee_onoff_h   ("Expand screen width",        0, dwActFixes, 1<<1, h_gpu_1),
-	mee_onoff_h   ("Ignore brightness color",    0, dwActFixes, 1<<2, h_gpu_2),
-	mee_onoff_h   ("Disable coordinate check",   0, dwActFixes, 1<<3, h_gpu_3),
-	mee_onoff_h   ("Lazy screen update",         0, dwActFixes, 1<<6, h_gpu_6),
-	mee_onoff_h   ("Old frame skipping",         0, dwActFixes, 1<<7, h_gpu_7),
-	mee_onoff_h   ("Repeated flat tex triangles ",0,dwActFixes, 1<<8, h_gpu_8),
-	mee_onoff_h   ("Draw quads with triangles",  0, dwActFixes, 1<<9, h_gpu_9),
-	mee_onoff_h   ("Fake 'gpu busy' states",     0, dwActFixes, 1<<10, h_gpu_10),
+	mee_enum      ("Dithering",                  0, pl_rearmed_cbs.gpu_peops.iUseDither, men_gpu_dithering),
+	mee_onoff_h   ("Odd/even bit hack",          0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<0, h_gpu_0),
+	mee_onoff_h   ("Expand screen width",        0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<1, h_gpu_1),
+	mee_onoff_h   ("Ignore brightness color",    0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<2, h_gpu_2),
+	mee_onoff_h   ("Disable coordinate check",   0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<3, h_gpu_3),
+	mee_onoff_h   ("Lazy screen update",         0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<6, h_gpu_6),
+	mee_onoff_h   ("Old frame skipping",         0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<7, h_gpu_7),
+	mee_onoff_h   ("Repeated flat tex triangles ",0,pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<8, h_gpu_8),
+	mee_onoff_h   ("Draw quads with triangles",  0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<9, h_gpu_9),
+	mee_onoff_h   ("Fake 'gpu busy' states",     0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<10, h_gpu_10),
 	mee_end,
 };
 
@@ -1101,7 +1098,7 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 				   "the game for change to take effect";
 static const char h_plugin_xpu[] = "Must save config and reload the game\n"
 				   "for plugin change to take effect";
-static const char h_gpu[]        = "Configure built-in P.E.Op.S. SoftGL Driver V1.17";
+static const char h_gpu[]        = "Configure P.E.Op.S. SoftGL Driver V1.17";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static menu_entry e_menu_plugin_options[] =
@@ -1109,7 +1106,7 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu, h_gpu),
+	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu, h_gpu),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };
@@ -1188,7 +1185,7 @@ static menu_entry e_menu_options[] =
 {
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
 //	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
-	mee_onoff_h   ("Frameskip",                0, UseFrameSkip, 1, h_frameskip),
+	mee_onoff_h   ("Frameskip",                0, pl_rearmed_cbs.frameskip, 1, h_frameskip),
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
@@ -1768,6 +1765,9 @@ void menu_prepare_emu(void)
 	apply_lcdrate(Config.PsxType);
 	apply_filter(filter);
 	apply_cpu_clock();
+
+	// push config to GPU plugin
+	plugin_call_rearmed_cbs();
 
 	if (GPU_open != NULL) {
 		int ret = GPU_open(&gpuDisp, "PCSX", NULL);

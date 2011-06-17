@@ -36,9 +36,6 @@ enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
 
-// from softgpu plugin
-extern int UseFrameSkip;
-
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
 	if (fname)
@@ -157,9 +154,9 @@ void do_emu_action(void)
 			state_slot = 9;
 		goto do_state_slot;
 	case SACTION_TOGGLE_FSKIP:
-		UseFrameSkip ^= 1;
+		pl_rearmed_cbs.frameskip ^= 1;
 		snprintf(hud_msg, sizeof(hud_msg), "FRAMESKIP %s",
-			UseFrameSkip ? "ON" : "OFF");
+			pl_rearmed_cbs.frameskip ? "ON" : "OFF");
 		break;
 	case SACTION_SCREENSHOT:
 		{

@@ -76,6 +76,7 @@ extern long GPUdmaChain(uint32_t *,uint32_t);
 extern void GPUupdateLace(void);
 extern long GPUfreeze(uint32_t, void *);
 extern void GPUvBlank(int, uint32_t *);
+extern void GPUrearmedCallbacks(const struct rearmed_cbs *cbs);
 
 
 #define DUMMY(id, name) \
@@ -168,6 +169,7 @@ static const struct {
 	DIRECT_GPU(GPUdmaChain),
 	DIRECT_GPU(GPUfreeze),
 	DIRECT_GPU(GPUvBlank),
+	DIRECT_GPU(GPUrearmedCallbacks),
 
 	DUMMY_GPU(GPUdisplayText),
 /*

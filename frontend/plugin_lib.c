@@ -34,11 +34,7 @@ int in_type, in_keystate, in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
-static int plugin_skip_advice;
 static int vsync_usec_time;
-// P.E.Op.S.
-extern int UseFrameSkip;
-extern float fps_skip;
 
 static int get_cpu_ticks(void)
 {
@@ -252,16 +248,11 @@ void pl_frame_limit(void)
 		usleep(diff - pl_frame_interval / 2);
 	}
 
-	if (UseFrameSkip) {
-		if (diff < -pl_frame_interval) {
-			// P.E.Op.S. makes skip decision based on this
-			fps_skip = 1.0f;
-			plugin_skip_advice = 1;
-		}
-		else if (diff >= 0) {
-			fps_skip = 100.0f;
-			plugin_skip_advice = 0;
-		}
+	if (pl_rearmed_cbs.frameskip) {
+		if (diff < -pl_frame_interval)
+			pl_rearmed_cbs.fskip_advice = 1;
+		else if (diff >= 0)
+			pl_rearmed_cbs.fskip_advice = 0;
 	}
 
 	pcnt_start(PCNT_ALL);
@@ -311,13 +302,12 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
-const struct rearmed_cbs pl_rearmed_cbs = {
+struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
 	pl_fbdev_open,
 	pl_fbdev_set_mode,
 	pl_fbdev_flip,
 	pl_fbdev_close,
-	&plugin_skip_advice,
 };
 
 /* watchdog */
