@@ -26,6 +26,10 @@ long GPUinit(void)
 {
   int ret = vout_init();
   gpu.status.reg = 0x14802000;
+  gpu.status.blanking = 1;
+  gpu.regs[3] = 1;
+  gpu.screen.hres = gpu.screen.w = 320;
+  gpu.screen.vres = gpu.screen.h = 240;
   gpu.lcf_hc = &gpu.zero;
   return ret;
 }
@@ -56,14 +60,29 @@ static noinline void update_height(void)
   gpu.screen.h = sh;
 }
 
+static noinline void decide_frameskip(void)
+{
+  gpu.frameskip.frame_ready = !gpu.frameskip.active;
+
+  if (!gpu.frameskip.active && *gpu.frameskip.advice)
+    gpu.frameskip.active = 1;
+  else
+    gpu.frameskip.active = 0;
+}
+
 void GPUwriteStatus(uint32_t data)
 {
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
   static const short vres[4] = { 240, 480, 256, 480 };
   uint32_t cmd = data >> 24;
 
-  if (cmd < ARRAY_SIZE(gpu.regs))
+  if (cmd < ARRAY_SIZE(gpu.regs)) {
+    if (cmd != 0 && gpu.regs[cmd] == data)
+      return;
     gpu.regs[cmd] = data;
+  }
+
+  gpu.state.fb_dirty = 1;
 
   switch (cmd) {
     case 0x00:
@@ -79,6 +98,8 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       gpu.screen.x = data & 0x3ff;
       gpu.screen.y = (data >> 10) & 0x3ff;
+      if (gpu.frameskip.enabled)
+        decide_frameskip();
       break;
     case 0x06:
       gpu.screen.x1 = data & 0xfff;
@@ -198,6 +219,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 static int check_cmd(uint32_t *data, int count)
 {
   int len, cmd, start, pos;
+  int vram_dirty = 0;
 
   // process buffer
   for (start = pos = 0; pos < count; )
@@ -240,6 +262,8 @@ static int check_cmd(uint32_t *data, int count)
           gpu.status.reg |= (list[0] & 3) << 11;
           break;
       }
+      if (2 <= cmd && cmd < 0xc0)
+        vram_dirty = 1;
 
       if (pos + len > count) {
         cmd = -1;
@@ -251,7 +275,8 @@ static int check_cmd(uint32_t *data, int count)
     }
 
     if (pos - start > 0) {
-      do_cmd_list(data + start, pos - start);
+      if (!gpu.frameskip.active)
+        do_cmd_list(data + start, pos - start);
       start = pos;
     }
 
@@ -264,6 +289,8 @@ static int check_cmd(uint32_t *data, int count)
     if (cmd == -1)
       break;
   }
+
+  gpu.state.fb_dirty |= vram_dirty;
 
   return count - pos;
 }
@@ -390,6 +417,8 @@ typedef struct GPUFREEZETAG
 
 long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
 {
+  int i;
+
   switch (type) {
     case 1: // save
       if (gpu.cmd_len > 0)
@@ -402,9 +431,10 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
       memcpy(gpu.vram, freeze->psxVRam, sizeof(gpu.vram));
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       gpu.status.reg = freeze->ulStatus;
-      GPUwriteStatus((5 << 24) | gpu.regs[5]);
-      GPUwriteStatus((7 << 24) | gpu.regs[7]);
-      GPUwriteStatus((8 << 24) | gpu.regs[8]);
+      for (i = 8; i > 0; i--) {
+        gpu.regs[i] ^= 1; // avoid reg change detection
+        GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
+      }
       break;
   }
 

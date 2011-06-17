@@ -81,12 +81,20 @@ static void blit(void)
 
 void GPUupdateLace(void)
 {
-  if (!gpu.status.blanking)
+  if (gpu.frameskip.enabled && !gpu.frameskip.frame_ready)
+    return;
+
+  if (!gpu.status.blanking && gpu.state.fb_dirty) {
     blit();
+    gpu.state.fb_dirty = 0;
+  }
 }
 
 long GPUopen(void)
 {
+  gpu.frameskip.enabled = cbs->frameskip;
+  gpu.frameskip.advice = &cbs->fskip_advice;
+
   cbs->pl_fbdev_open();
   screen_buf = cbs->pl_fbdev_flip();
   return 0;
@@ -101,6 +109,9 @@ long GPUclose(void)
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
 {
   cbs = cbs_;
+  gpu.frameskip.enabled = cbs->frameskip;
+  gpu.frameskip.advice = &cbs->fskip_advice;
+  gpu.frameskip.active = gpu.frameskip.frame_ready = 0;
 }
 
 // vim:shiftwidth=2:expandtab

@@ -57,6 +57,15 @@ struct psx_gpu {
   int cmd_len;
   const uint32_t *lcf_hc;
   uint32_t zero;
+  struct {
+    uint32_t fb_dirty:1;
+  } state;
+  struct {
+    uint32_t enabled:1;
+    uint32_t active:1;
+    uint32_t frame_ready:1;
+    const int *advice;
+  } frameskip;
 };
 
 extern struct psx_gpu gpu;

@@ -4,13 +4,14 @@ ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-
 
 CFLAGS += -ggdb -Wall -fPIC -O2
 
-TARGET = gpu_neon.so
 LDFLAGS += -shared -Wl,-soname,$(TARGET)
 SRC += gpu.c
 ifeq "$(ARCH)" "arm"
+TARGET = gpu_neon.so
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 SRC += vout_fb.c ../../frontend/arm_utils.s
 else
+TARGET = gpu_neon.so.x86
 CFLAGS += `sdl-config --cflags` -m32
 LDFLAGS += `sdl-config --libs`
 SRC += vout_sdl.c
