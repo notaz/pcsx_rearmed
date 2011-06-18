@@ -490,12 +490,12 @@ static void draw_savestate_bg(int slot)
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 
-	if ((gpu->ulStatus & 0x800000) || (gpu->ulStatus & 0x200000))
-		goto out; // disabled || 24bpp (NYET)
+	if (gpu->ulStatus & 0x800000)
+		goto out; // disabled
 
 	x = gpu->ulControl[5] & 0x3ff;
 	y = (gpu->ulControl[5] >> 10) & 0x1ff;
-	s = (u16 *)gpu->psxVRam + y * 1024 + (x & ~3);
+	s = (u16 *)gpu->psxVRam + y * 1024 + (x & ~1);
 	w = psx_widths[(gpu->ulStatus >> 16) & 7];
 	tmp = gpu->ulControl[7];
 	h = ((tmp >> 10) & 0x3ff) - (tmp & 0x3ff);
@@ -509,7 +509,10 @@ static void draw_savestate_bg(int slot)
 	d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
 
 	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
-		bgr555_to_rgb565(d, s, w * 2);
+		if (gpu->ulStatus & 0x200000)
+			bgr888_to_rgb565(d, s, w * 3);
+		else
+			bgr555_to_rgb565(d, s, w * 2);
 
 out:
 	free(gpu);
