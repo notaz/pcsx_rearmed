@@ -44,6 +44,8 @@ struct psx_gpu {
       uint32_t lcf:1;       // 31
     };
   } status;
+  uint32_t gp0;
+  uint32_t ex_regs[8];
   struct {
     int hres, vres;
     int x, y, w, h;

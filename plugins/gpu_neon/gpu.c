@@ -22,21 +22,14 @@
 
 struct psx_gpu gpu __attribute__((aligned(64)));
 
-long GPUinit(void)
+static noinline void do_reset(void)
 {
-  int ret = vout_init();
+  memset(gpu.regs, 0, sizeof(gpu.regs));
   gpu.status.reg = 0x14802000;
-  gpu.status.blanking = 1;
+  gpu.gp0 = 0;
   gpu.regs[3] = 1;
-  gpu.screen.hres = gpu.screen.w = 320;
+  gpu.screen.hres = gpu.screen.w = 256;
   gpu.screen.vres = gpu.screen.h = 240;
-  gpu.lcf_hc = &gpu.zero;
-  return ret;
-}
-
-long GPUshutdown(void)
-{
-  return vout_finish();
 }
 
 static noinline void update_width(void)
@@ -70,6 +63,40 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.active = 0;
 }
 
+static noinline void get_gpu_info(uint32_t data)
+{
+  switch (data & 0x0f) {
+    case 0x02:
+    case 0x03:
+    case 0x04:
+    case 0x05:
+      gpu.gp0 = gpu.ex_regs[data & 7] & 0xfffff;
+      break;
+    case 0x06:
+      gpu.gp0 = gpu.ex_regs[5] & 0xfffff;
+      break;
+    case 0x07:
+      gpu.gp0 = 2;
+      break;
+    default:
+      gpu.gp0 = 0;
+      break;
+  }
+}
+
+long GPUinit(void)
+{
+  int ret = vout_init();
+  do_reset();
+  gpu.lcf_hc = &gpu.zero;
+  return ret;
+}
+
+long GPUshutdown(void)
+{
+  return vout_finish();
+}
+
 void GPUwriteStatus(uint32_t data)
 {
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
@@ -86,8 +113,7 @@ void GPUwriteStatus(uint32_t data)
 
   switch (cmd) {
     case 0x00:
-      gpu.status.reg = 0x14802000;
-      gpu.status.blanking = 1;
+      do_reset();
       break;
     case 0x03:
       gpu.status.blanking = data & 1;
@@ -117,6 +143,9 @@ void GPUwriteStatus(uint32_t data)
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
       update_height();
+      break;
+    case 0x10 ... 0x1f:
+      get_gpu_info(data);
       break;
   }
 }
@@ -195,7 +224,7 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   gpu.dma.h = h;
   gpu.dma.offset = o;
 
-  return count_initial - (count + 1) / 2;
+  return count_initial - count / 2;
 }
 
 static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_read)
@@ -212,8 +241,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   if (is_read)
     gpu.status.img = 1;
 
-  //printf("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
-  //  gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
+  log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
+    gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
 }
 
 static int check_cmd(uint32_t *data, int count)
@@ -264,6 +293,8 @@ static int check_cmd(uint32_t *data, int count)
       }
       if (2 <= cmd && cmd < 0xc0)
         vram_dirty = 1;
+      else if ((cmd & 0xf8) == 0xe0)
+        gpu.ex_regs[cmd & 7] = list[0];
 
       if (pos + len > count) {
         cmd = -1;
@@ -382,17 +413,15 @@ void GPUreadDataMem(uint32_t *mem, int count)
 
 uint32_t GPUreadData(void)
 {
-  uint32_t v = 0;
-
   log_io("gpu_read\n");
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
   if (gpu.dma.h)
-    do_vram_io(&v, 1, 1);
+    do_vram_io(&gpu.gp0, 1, 1);
 
-  return v;
+  return gpu.gp0;
 }
 
 uint32_t GPUreadStatus(void)
@@ -425,11 +454,13 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
         flush_cmd_buffer();
       memcpy(freeze->psxVRam, gpu.vram, sizeof(gpu.vram));
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
+      memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
       freeze->ulStatus = gpu.status.reg;
       break;
     case 0: // load
       memcpy(gpu.vram, freeze->psxVRam, sizeof(gpu.vram));
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
+      memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
       gpu.status.reg = freeze->ulStatus;
       for (i = 8; i > 0; i--) {
         gpu.regs[i] ^= 1; // avoid reg change detection
