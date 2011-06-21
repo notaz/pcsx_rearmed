@@ -426,7 +426,7 @@ fail:
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	static const char *cdimg_exts[] = { ".bin", ".img", ".iso", ".cue", ".z", ".bz", ".znx", ".pbp" };
+	static const char *cdimg_exts[] = { ".bin", ".img", ".mdf", ".iso", ".cue", ".z", ".bz", ".znx", ".pbp" };
 	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table", ".index", ".sbi" };
 	const char *ext = strrchr(fname, '.');
 	int i;
@@ -443,6 +443,10 @@ static unsigned short fname2color(const char *fname)
 }
 
 static void draw_savestate_bg(int slot);
+
+static const char *filter_exts[] = {
+	".mp3", ".MP3", ".txt", ".htm", "html",	".jpg", ".pnd"
+};
 
 #define MENU_ALIGN_LEFT
 #define menu_init menu_init_common

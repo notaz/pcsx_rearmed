@@ -766,11 +766,6 @@ static int scandir_cmp(const void *p1, const void *p2)
 	return alphasort(d1, d2);
 }
 
-static const char *filter_exts[] = {
-	".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds",	"bcfg", ".txt", ".htm", "html",
-	".jpg", ".gpe"
-};
-
 static int scandir_filter(const struct dirent *ent)
 {
 	const char *p;
