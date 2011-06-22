@@ -1057,7 +1057,7 @@ void emit_test(int rs, int rt)
 void emit_testimm(int rs,int imm)
 {
   u_int armval;
-  assem_debug("tst %s,$%d\n",regname[rs],imm);
+  assem_debug("tst %s,#%d\n",regname[rs],imm);
   genimm_checked(imm,&armval);
   output_w32(0xe3100000|rd_rn_rm(0,rs,0)|armval);
 }
@@ -1450,10 +1450,10 @@ void emit_cmpimm(int rs,int imm)
 {
   u_int armval;
   if(genimm(imm,&armval)) {
-    assem_debug("cmp %s,$%d\n",regname[rs],imm);
+    assem_debug("cmp %s,#%d\n",regname[rs],imm);
     output_w32(0xe3500000|rd_rn_rm(0,rs,0)|armval);
   }else if(genimm(-imm,&armval)) {
-    assem_debug("cmn %s,$%d\n",regname[rs],imm);
+    assem_debug("cmn %s,#%d\n",regname[rs],imm);
     output_w32(0xe3700000|rd_rn_rm(0,rs,0)|armval);
   }else if(imm>0) {
     assert(imm<65536);
