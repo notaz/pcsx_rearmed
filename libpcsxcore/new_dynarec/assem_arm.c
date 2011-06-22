@@ -2739,6 +2739,18 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   emit_writeword(rs,(int)&address);
   //emit_pusha();
   save_regs(reglist);
+#ifndef PCSX
+  if((signed int)addr>=(signed int)0xC0000000) {
+    // Theoretically we can have a pagefault here, if the TLB has never
+    // been enabled and the address is outside the range 80000000..BFFFFFFF
+    // Write out the registers so the pagefault can be handled.  This is
+    // a very rare case and likely represents a bug.
+    int ds=regmap!=regs[i].regmap;
+    if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
+    if(!ds) wb_dirtys(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty);
+    else wb_dirtys(branch_regs[i-1].regmap_entry,branch_regs[i-1].was32,branch_regs[i-1].wasdirty);
+  }
+#endif
   //emit_shrimm(rs,16,1);
   int cc=get_reg(regmap,CCREG);
   if(cc<0) {
@@ -2929,6 +2941,19 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   }
   //emit_pusha();
   save_regs(reglist);
+#ifndef PCSX
+  // rearmed note: load_all_consts prevents BIOS boot, some bug?
+  if((signed int)addr>=(signed int)0xC0000000) {
+    // Theoretically we can have a pagefault here, if the TLB has never
+    // been enabled and the address is outside the range 80000000..BFFFFFFF
+    // Write out the registers so the pagefault can be handled.  This is
+    // a very rare case and likely represents a bug.
+    int ds=regmap!=regs[i].regmap;
+    if(!ds) load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
+    if(!ds) wb_dirtys(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty);
+    else wb_dirtys(branch_regs[i-1].regmap_entry,branch_regs[i-1].was32,branch_regs[i-1].wasdirty);
+  }
+#endif
   //emit_shrimm(rs,16,1);
   int cc=get_reg(regmap,CCREG);
   if(cc<0) {
