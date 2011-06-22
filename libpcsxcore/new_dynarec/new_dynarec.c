@@ -3274,8 +3274,12 @@ void store_assemble(int i,struct regstat *i_regs)
   //if(opcode[i]==0x2B)
   /*if(opcode[i]==0x2B || opcode[i]==0x28 || opcode[i]==0x29 || opcode[i]==0x3F)
   {
-    //emit_pusha();
+    #ifdef __i386__
+    emit_pusha();
+    #endif
+    #ifdef __arm__
     save_regs(0x100f);
+    #endif
         emit_readword((int)&last_count,ECX);
         #ifdef __i386__
         if(get_reg(i_regs->regmap,CCREG)<0)
@@ -3294,8 +3298,12 @@ void store_assemble(int i,struct regstat *i_regs)
         emit_writeword(0,(int)&Count);
         #endif
     emit_call((int)memdebug);
-    //emit_popa();
+    #ifdef __i386__
+    emit_popa();
+    #endif
+    #ifdef __arm__
     restore_regs(0x100f);
+    #endif
   }/**/
 }
 
