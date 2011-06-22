@@ -8688,7 +8688,9 @@ int new_recompile_block(int addr)
       }
       if(temp_is32!=current.is32) {
         //printf("dumping 32-bit regs (%x)\n",start+i*4);
-        #ifdef DESTRUCTIVE_WRITEBACK
+        #ifndef DESTRUCTIVE_WRITEBACK
+        if(ds)
+        #endif
         for(hr=0;hr<HOST_REGS;hr++)
         {
           int r=current.regmap[hr];
@@ -8700,7 +8702,6 @@ int new_recompile_block(int addr)
             }
           }
         }
-        #endif
         current.is32=temp_is32;
       }
     }
