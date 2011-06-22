@@ -38,6 +38,7 @@ static FILE *subHandle = NULL;
 
 static boolean subChanMixed = FALSE;
 static boolean subChanRaw = FALSE;
+static boolean subChanMissing = FALSE;
 
 static unsigned char cdbuffer[DATA_SIZE];
 static unsigned char subbuffer[SUB_FRAMESIZE];
@@ -56,6 +57,11 @@ static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
 static unsigned int cddaCurOffset = 0;
 static unsigned int cddaStartOffset;
+/* Frame offset into CD image where pregap data would be found if it was there.
+ * If a game seeks there we must *not* return subchannel data since it's
+ * not in the CD image, so that cdrom code can fake subchannel data instead.
+ * XXX: there could be multiple pregaps but PSX dumps only have one? */
+static unsigned int pregapOffset;
 
 char* CALLBACK CDR__getDriveLetter(void);
 long CALLBACK CDR__configure(void);
@@ -368,6 +374,10 @@ static int parsetoc(const char *isofile) {
 			sscanf(linebuf, "ZERO AUDIO RW_RAW %8s", time);
 			tok2msf((char *)&time, dummy);
 			sector_offs += msf2sec(dummy);
+			if (numtracks > 1) {
+				t = ti[numtracks - 1].start_offset;
+				pregapOffset = t + msf2sec(ti[numtracks - 1].length);
+			}
 		}
 	}
 
@@ -473,12 +483,15 @@ static int parsecue(const char *isofile) {
 				t = msf2sec(ti[numtracks].start) - msf2sec(ti[numtracks - 1].start);
 				sec2msf(t, ti[numtracks - 1].length);
 			}
+			if (numtracks > 1 && pregapOffset == -1)
+				pregapOffset = ti[numtracks].start_offset;
 		}
 		else if (!strcmp(token, "PREGAP")) {
 			if (sscanf(linebuf, " PREGAP %8s", time) == 1) {
 				tok2msf(time, dummy);
 				sector_offs += msf2sec(dummy);
 			}
+			pregapOffset = -1; // mark to fill track start_offset
 		}
 		else if (!strcmp(token, "FILE")) {
 			sscanf(linebuf, " FILE \"%[^\"]\"", tmpb);
@@ -662,20 +675,26 @@ static int parsemds(const char *isofile) {
 		ti[i].start[1] = fgetc(fi);
 		ti[i].start[2] = fgetc(fi);
 
-		// get the track length
 		fread(&extra_offset, 1, sizeof(unsigned int), fi);
 		extra_offset = SWAP32(extra_offset);
-
-		fseek(fi, extra_offset + 4, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
-		l = SWAP32(l);
-		sec2msf(l, ti[i].length);
 
 		// get track start offset (in .mdf)
 		fseek(fi, offset + 0x28, SEEK_SET);
 		fread(&l, 1, sizeof(unsigned int), fi);
 		l = SWAP32(l);
 		ti[i].start_offset = l / CD_FRAMESIZE_RAW;
+
+		// get pregap
+		fseek(fi, extra_offset, SEEK_SET);
+		fread(&l, 1, sizeof(unsigned int), fi);
+		l = SWAP32(l);
+		if (l != 0 && i > 1)
+			pregapOffset = ti[i].start_offset;
+
+		// get the track length
+		fread(&l, 1, sizeof(unsigned int), fi);
+		l = SWAP32(l);
+		sec2msf(l, ti[i].length);
 
 		offset += 0x50;
 	}
@@ -753,6 +772,8 @@ static long CALLBACK ISOopen(void) {
 	cddaBigEndian = FALSE;
 	subChanMixed = FALSE;
 	subChanRaw = FALSE;
+	subChanMixed = FALSE;
+	pregapOffset = 0;
 
 	if (parsecue(GetIsoFile()) == 0) {
 		SysPrintf("[+cue]");
@@ -898,6 +919,15 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 		return -1;
 	}
 
+	if (pregapOffset) {
+		subChanMissing = FALSE;
+		if (sector >= pregapOffset) {
+			sector -= 2 * 75;
+			if (sector < pregapOffset)
+				subChanMissing = TRUE;
+		}
+	}
+
 	if (subChanMixed) {
 		fseek(cdHandle, sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE) + 12, SEEK_SET);
 		fread(cdbuffer, 1, DATA_SIZE, cdHandle);
@@ -953,6 +983,11 @@ static long CALLBACK ISOplay(unsigned char *time) {
 	cddaStartOffset = abs_sect - file_sect;
 	cddaHandle = ti[i].handle;
 
+	if (pregapOffset && (unsigned int)(pregapOffset - file_sect) < 2 * 75) {
+		// get out of the missing pregap to avoid noise
+		file_sect = pregapOffset;
+	}
+
 	if (SPU_playCDDAchannel != NULL) {
 		if (subChanMixed) {
 			startCDDA(file_sect * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE));
@@ -974,7 +1009,7 @@ static long CALLBACK ISOstop(void) {
 
 // gets subchannel data
 static unsigned char* CALLBACK ISOgetBufferSub(void) {
-	if (subHandle != NULL || subChanMixed) {
+	if ((subHandle != NULL || subChanMixed) && !subChanMissing) {
 		return subbuffer;
 	}
 
