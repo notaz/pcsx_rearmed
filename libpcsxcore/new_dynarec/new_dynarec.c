@@ -7453,6 +7453,10 @@ void clean_registers(int istart,int iend,int wr)
                   will_dirty_i|=will_dirty[(ba[i]-start)>>2]&(1<<r);
                   wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
                 }
+                if(branch_regs[i].regmap[r]>=0) {
+                  will_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(branch_regs[i].regmap[r]&63))&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(branch_regs[i].regmap[r]&63))&1)<<r;
+                }
               }
             }
           //}
@@ -7482,13 +7486,14 @@ void clean_registers(int istart,int iend,int wr)
           //if(ba[i]>start+i*4) { // Disable recursion (for debugging)
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if(branch_regs[i].regmap[r]==regs[(ba[i]-start)>>2].regmap_entry[r]) {
+                signed char target_reg=branch_regs[i].regmap[r];
+                if(target_reg==regs[(ba[i]-start)>>2].regmap_entry[r]) {
                   will_dirty_i&=will_dirty[(ba[i]-start)>>2]&(1<<r);
                   wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
                 }
-                else
-                {
-                  will_dirty_i&=~(1<<r);
+                else if(target_reg>=0) {
+                  will_dirty_i&=((unneeded_reg[(ba[i]-start)>>2]>>(target_reg&63))&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(target_reg&63))&1)<<r;
                 }
                 // Treat delay slot as part of branch too
                 /*if(regs[i+1].regmap[r]==regs[(ba[i]-start)>>2].regmap_entry[r]) {
@@ -7525,7 +7530,7 @@ void clean_registers(int istart,int iend,int wr)
               }
             }
           }
-          // Merge in delay slot
+          // Merge in delay slot (won't dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
               if((regs[i].regmap[r]&63)==rt1[i]) wont_dirty_i|=1<<r;
