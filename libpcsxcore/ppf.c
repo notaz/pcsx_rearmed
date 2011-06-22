@@ -190,6 +190,8 @@ void BuildPPFCache() {
 
 	FreePPFCache();
 
+	if (CdromId[0] == '\0') return;
+
 	// Generate filename in the format of SLUS_123.45
 	buffer[0] = toupper(CdromId[0]);
 	buffer[1] = toupper(CdromId[1]);
