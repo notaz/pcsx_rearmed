@@ -762,15 +762,20 @@ void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 void alloc_arm_reg(struct regstat *cur,int i,signed char reg,char hr)
 {
   int n;
+  int dirty=0;
   
   // see if it's already allocated (and dealloc it)
   for(n=0;n<HOST_REGS;n++)
   {
-    if(n!=EXCLUDE_REG&&cur->regmap[n]==reg) {cur->regmap[n]=-1;}
+    if(n!=EXCLUDE_REG&&cur->regmap[n]==reg) {
+      dirty=(cur->dirty>>n)&1;
+      cur->regmap[n]=-1;
+    }
   }
   
   cur->regmap[hr]=reg;
   cur->dirty&=~(1<<hr);
+  cur->dirty|=dirty<<hr;
   cur->isconst&=~(1<<hr);
 }
 
@@ -4798,23 +4803,8 @@ void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,
     if(hr!=EXCLUDE_REG) {
       reg=pre[hr];
       if(((~u)>>(reg&63))&1) {
-        if(reg==entry[hr]||(reg>0&&entry[hr]<0)) {
+        if(reg>0) {
           if(((dirty_pre&~dirty)>>hr)&1) {
-            if(reg>0&&reg<34) {
-              emit_storereg(reg,hr);
-              if( ((is32_pre&~uu)>>reg)&1 ) {
-                emit_sarimm(hr,31,HOST_TEMPREG);
-                emit_storereg(reg|64,HOST_TEMPREG);
-              }
-            }
-            else if(reg>=64) {
-              emit_storereg(reg,hr);
-            }
-          }
-        }
-        else // Check if register moved to a different register
-        if((new_hr=get_reg(entry,reg))>=0) {
-          if((dirty_pre>>hr)&(~dirty>>new_hr)&1) {
             if(reg>0&&reg<34) {
               emit_storereg(reg,hr);
               if( ((is32_pre&~uu)>>reg)&1 ) {
