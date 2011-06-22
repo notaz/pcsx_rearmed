@@ -9880,7 +9880,7 @@ int new_recompile_block(int addr)
   // If a register is allocated during a loop, try to allocate it for the
   // entire loop, if possible.  This avoids loading/storing registers
   // inside of the loop.
-
+  
   signed char f_regmap[HOST_REGS];
   clear_all_regs(f_regmap);
   for(i=0;i<slen-1;i++)
@@ -9897,7 +9897,7 @@ int new_recompile_block(int addr)
       {
         int t=(ba[i]-start)>>2;
         if(t>0&&(itype[t-1]!=UJUMP&&itype[t-1]!=RJUMP&&itype[t-1]!=CJUMP&&itype[t-1]!=SJUMP&&itype[t-1]!=FJUMP)) // loop_preload can't handle jumps into delay slots
-        if(t<2||(itype[t-2]!=UJUMP)) // call/ret assumes no registers allocated
+        if(t<2||(itype[t-2]!=UJUMP&&itype[t-2]!=RJUMP)||rt1[t-2]!=31) // call/ret assumes no registers allocated
         for(hr=0;hr<HOST_REGS;hr++)
         {
           if(regs[i].regmap[hr]>64) {
@@ -9953,7 +9953,7 @@ int new_recompile_block(int addr)
           // a mov, which is of negligible benefit.  So such cases are
           // skipped below.
           if(f_regmap[hr]>0) {
-            if(regs[t].regmap_entry[hr]<0&&get_reg(regmap_pre[t],f_regmap[hr])<0) {
+            if(regs[t].regmap[hr]==f_regmap[hr]||(regs[t].regmap_entry[hr]<0&&get_reg(regmap_pre[t],f_regmap[hr])<0)) {
               int r=f_regmap[hr];
               for(j=t;j<=i;j++)
               {
@@ -9992,7 +9992,7 @@ int new_recompile_block(int addr)
                         break;
                       }
                       // call/ret fast path assumes no registers allocated
-                      if(k>2&&(itype[k-3]==UJUMP||itype[k-3]==RJUMP)) {
+                      if(k>2&&(itype[k-3]==UJUMP||itype[k-3]==RJUMP)&&rt1[k-3]==31) {
                         break;
                       }
                       if(r>63) {
@@ -10140,7 +10140,7 @@ int new_recompile_block(int addr)
         }
       }
     }else{
-      int count=0;
+      // Non branch or undetermined branch target
       for(hr=0;hr<HOST_REGS;hr++)
       {
         if(hr!=EXCLUDE_REG) {
@@ -10160,7 +10160,6 @@ int new_recompile_block(int addr)
               f_regmap[hr]=regs[i].regmap[hr];
             }
           }
-          else if(regs[i].regmap[hr]<0) count++;
         }
       }
       // Try to restore cycle count at branch targets
@@ -10262,6 +10261,13 @@ int new_recompile_block(int addr)
               loop_start[hr]=MAXBLOCK;
             }
           }
+        }else{
+          if(count_free_regs(regs[i].regmap)<=minimum_free_regs[i+1]) {
+            for(hr=0;hr<HOST_REGS;hr++) {
+              score[hr]=0;earliest_available[hr]=i+1;
+              loop_start[hr]=MAXBLOCK;
+            }
+          }
         }
       }
       // Mark unavailable registers
@@ -10308,11 +10314,13 @@ int new_recompile_block(int addr)
               if(itype[j]==UJUMP||itype[j]==RJUMP||itype[j]==CJUMP||itype[j]==SJUMP||itype[j]==FJUMP) {
                 int t=(ba[j]-start)>>2;
                 if(t<j&&t>=earliest_available[hr]) {
-                  // Score a point for hoisting loop invariant
-                  if(t<loop_start[hr]) loop_start[hr]=t;
-                  //printf("set loop_start: i=%x j=%x (%x)\n",start+i*4,start+j*4,start+t*4);
-                  score[hr]++;
-                  end[hr]=j;
+                  if(t==1||(t>1&&itype[t-2]!=UJUMP&&itype[t-2]!=RJUMP)||(t>1&&rt1[t-2]!=31)) { // call/ret assumes no registers allocated
+                    // Score a point for hoisting loop invariant
+                    if(t<loop_start[hr]) loop_start[hr]=t;
+                    //printf("set loop_start: i=%x j=%x (%x)\n",start+i*4,start+j*4,start+t*4);
+                    score[hr]++;
+                    end[hr]=j;
+                  }
                 }
                 else if(t<j) {
                   if(regs[t].regmap[hr]==reg) {
@@ -10374,7 +10382,10 @@ int new_recompile_block(int addr)
               }
               // loop optimization (loop_preload)
               int t=(ba[j]-start)>>2;
-              if(t==loop_start[maxscore]) regs[t].regmap_entry[maxscore]=reg;
+              if(t==loop_start[maxscore]) {
+                if(t==1||(t>1&&itype[t-2]!=UJUMP&&itype[t-2]!=RJUMP)||(t>1&&rt1[t-2]!=31)) // call/ret assumes no registers allocated
+                  regs[t].regmap_entry[maxscore]=reg;
+              }
             }
             else
             {
@@ -10439,6 +10450,7 @@ int new_recompile_block(int addr)
               }
             }
           }
+          // Preload target address for load instruction (non-constant)
           if(itype[i+1]==LOAD&&rs1[i+1]&&get_reg(regs[i+1].regmap,rs1[i+1])<0) {
             if((hr=get_reg(regs[i+1].regmap,rt1[i+1]))>=0)
             {
@@ -10455,6 +10467,7 @@ int new_recompile_block(int addr)
               }
             }
           }
+          // Load source into target register 
           if(lt1[i+1]&&get_reg(regs[i+1].regmap,rs1[i+1])<0) {
             if((hr=get_reg(regs[i+1].regmap,rt1[i+1]))>=0)
             {
@@ -10471,6 +10484,7 @@ int new_recompile_block(int addr)
               }
             }
           }
+          // Preload map address
           #ifndef HOST_IMM_ADDR32
           if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS||itype[i+1]==C2LS) {
             hr=get_reg(regs[i+1].regmap,TLREG);
@@ -10510,6 +10524,7 @@ int new_recompile_block(int addr)
             }
           }
           #endif
+          // Address for store instruction (non-constant)
           if(itype[i+1]==STORE||itype[i+1]==STORELR
              ||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a) { // SB/SH/SW/SD/SWC1/SDC1/SWC2/SDC2
             if(get_reg(regs[i+1].regmap,rs1[i+1])<0) {
