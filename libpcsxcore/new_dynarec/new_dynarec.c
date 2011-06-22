@@ -8577,6 +8577,7 @@ int new_recompile_block(int addr)
       // Does the block continue due to a branch?
       for(j=i-1;j>=0;j--)
       {
+        if(ba[j]==start+i*4) done=j=0; // Branch into delay slot
         if(ba[j]==start+i*4+4) done=j=0;
         if(ba[j]==start+i*4+8) done=j=0;
       }
