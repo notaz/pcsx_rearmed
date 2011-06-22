@@ -599,6 +599,7 @@ void clear_const(struct regstat *cur,signed char reg)
 int is_const(struct regstat *cur,signed char reg)
 {
   int hr;
+  if(reg<0) return 0;
   if(!reg) return 1;
   for (hr=0;hr<HOST_REGS;hr++) {
     if((cur->regmap[hr]&63)==reg) {
@@ -9751,7 +9752,10 @@ int new_recompile_block(int addr)
             if(likely[i]) {
               regs[i].regmap[hr]=-1;
               regs[i].isconst&=~(1<<hr);
-              if(i<slen-2) regmap_pre[i+2][hr]=-1;
+              if(i<slen-2) {
+                regmap_pre[i+2][hr]=-1;
+                regs[i+2].wasconst&=~(1<<hr);
+              }
             }
           }
         }
@@ -9806,6 +9810,7 @@ int new_recompile_block(int addr)
               {
                 if(!likely[i]&&i<slen-2) {
                   regmap_pre[i+2][hr]=-1;
+                  regs[i+2].wasconst&=~(1<<hr);
                 }
               }
             }
@@ -9851,6 +9856,7 @@ int new_recompile_block(int addr)
                 }
                 regmap_pre[i+1][hr]=-1;
                 if(regs[i+1].regmap_entry[hr]==CCREG) regs[i+1].regmap_entry[hr]=-1;
+                regs[i+1].wasconst&=~(1<<hr);
               }
               regs[i].regmap[hr]=-1;
               regs[i].isconst&=~(1<<hr);
