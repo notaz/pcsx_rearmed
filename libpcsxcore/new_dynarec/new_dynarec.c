@@ -1593,13 +1593,9 @@ void load_alloc(struct regstat *current,int i)
   //if(rs1[i]!=rt1[i]&&needed_again(rs1[i],i)) clear_const(current,rs1[i]); // Does this help or hurt?
   if(!rs1[i]) current->u&=~1LL; // Allow allocating r0 if it's the source register
   if(needed_again(rs1[i],i)) alloc_reg(current,i,rs1[i]);
-  if(rt1[i]) {
+  if(rt1[i]&&!((current->u>>rt1[i])&1)) {
     alloc_reg(current,i,rt1[i]);
-    if(get_reg(current->regmap,rt1[i])<0) {
-      // dummy load, but we still need a register to calculate the address
-      alloc_reg_temp(current,i,-1);
-      minimum_free_regs[i]=1;
-    }
+    assert(get_reg(current->regmap,rt1[i])>=0);
     if(opcode[i]==0x27||opcode[i]==0x37) // LWU/LD
     {
       current->is32&=~(1LL<<rt1[i]);
@@ -1627,12 +1623,14 @@ void load_alloc(struct regstat *current,int i)
   }
   else
   {
-    // Load to r0 (dummy load)
+    // Load to r0 or unneeded register (dummy load)
     // but we still need a register to calculate the address
     if(opcode[i]==0x22||opcode[i]==0x26)
     {
       alloc_reg(current,i,FTEMP); // LWL/LWR need another temporary
     }
+    // If using TLB, need a register for pointer to the mapping table
+    if(using_tlb) alloc_reg(current,i,TLREG);
     alloc_reg_temp(current,i,-1);
     minimum_free_regs[i]=1;
     if(opcode[i]==0x1A||opcode[i]==0x1B) // LDL/LDR
