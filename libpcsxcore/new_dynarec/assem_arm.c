@@ -3413,6 +3413,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
     }
     map=get_reg(i_regs->regmap,TLREG);
     assert(map>=0);
+    reglist&=~(1<<map);
     map=do_tlb_r(addr,temp2,map,0,a,c?-1:temp,c,constmap[i][s]+offset);
     if(c) {
       if (opcode[i]==0x22||opcode[i]==0x26) {
