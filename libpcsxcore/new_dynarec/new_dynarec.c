@@ -719,12 +719,6 @@ int needed_again(int r, int i)
   int j;
   int b=-1;
   int rn=10;
-  int hr;
-  u_char hsn[MAXREG+1];
-  int preferred_reg;
-  
-  memset(hsn,10,sizeof(hsn));
-  lsn(hsn,i,&preferred_reg);
   
   if(i>0&&(itype[i-1]==UJUMP||itype[i-1]==RJUMP||(source[i-1]>>16)==0x1000))
   {
@@ -777,11 +771,7 @@ int needed_again(int r, int i)
       }
     }
   }*/
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG) {
-      if(rn<hsn[hr]) return 1;
-    }
-  }
+  if(rn<10) return 1;
   return 0;
 }
 
