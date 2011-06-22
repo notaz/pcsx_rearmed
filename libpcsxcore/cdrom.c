@@ -709,10 +709,11 @@ void cdrInterrupt() {
 			Wild 9: skip PREGAP + starting accurate SubQ
 			- plays tracks without retry play
 			*/
+			/* unneeded with correct cdriso?
 			Set_Track();
+			*/
 			Find_CurTrack();
 			ReadTrack( cdr.SetSectorPlay );
-
 
 			// GameShark CD Player: Calls 2x + Play 2x
 			if( cdr.FastBackward || cdr.FastForward ) {
