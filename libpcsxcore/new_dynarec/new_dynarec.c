@@ -4857,7 +4857,7 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
   }
   else
   {
-    emit_cmpimm(HOST_CCREG,-2*(count+2));
+    emit_cmpimm(HOST_CCREG,-CLOCK_DIVIDER*(count+2));
     jaddr=(int)out;
     emit_jns(0);
   }
