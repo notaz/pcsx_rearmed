@@ -1042,6 +1042,7 @@ long CALLBACK GPUdmaChain(uint32_t * baseAddrL, uint32_t addr)
  uint32_t dmaMem;
  unsigned char * baseAddrB;
  short count;unsigned int DMACommandCounter = 0;
+ long dmaWords = 0;
 
  GPUIsBusy;
 
@@ -1056,6 +1057,7 @@ long CALLBACK GPUdmaChain(uint32_t * baseAddrL, uint32_t addr)
    if(CheckForEndlessLoop(addr)) break;
 
    count = baseAddrB[addr+3];
+   dmaWords += 1 + count;
 
    dmaMem=addr+4;
 
@@ -1067,7 +1069,7 @@ long CALLBACK GPUdmaChain(uint32_t * baseAddrL, uint32_t addr)
 
  GPUIsIdle;
 
- return 0;
+ return dmaWords;
 }
 
 ////////////////////////////////////////////////////////////////////////

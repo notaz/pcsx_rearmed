@@ -23,7 +23,7 @@ extern "C" {
 bool GPUinit(void);
 void GPUshutdown(void);
 void GPUwriteDataMem(u32* dmaAddress, s32 dmaCount);
-void GPUdmaChain(u32* baseAddr, u32 dmaVAddr);
+long GPUdmaChain(u32* baseAddr, u32 dmaVAddr);
 void GPUwriteData(u32 data);
 void GPUreadDataMem(u32* dmaAddress, s32 dmaCount);
 u32  GPUreadData(void);

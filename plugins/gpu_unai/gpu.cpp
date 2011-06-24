@@ -331,7 +331,7 @@ INLINE int CheckForEndlessLoop(u32 *laddr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_dmaChain(u32* baseAddr, u32 dmaVAddr)
+long GPU_dmaChain(u32* baseAddr, u32 dmaVAddr)
 {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_GPU_dmaChain++;
@@ -339,6 +339,7 @@ void  GPU_dmaChain(u32* baseAddr, u32 dmaVAddr)
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	u32 data, *address, count, offset;
 	unsigned int DMACommandCounter = 0;
+	long dma_words = 0;
 
 	GPU_GP1 &= ~0x14000000;
 	lUsedAddr[0]=lUsedAddr[1]=lUsedAddr[2]=(u32*)0x1fffff;
@@ -355,9 +356,12 @@ void  GPU_dmaChain(u32* baseAddr, u32 dmaVAddr)
 		else dmaVAddr = 0x1FFFFF;
 
 		if(count>0) GPU_writeDataMem(address,count);
+		dma_words += 1 + count;
 	}
 	GPU_GP1 = (GPU_GP1 | 0x14000000) & ~0x60000000;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
+
+	return dma_words;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

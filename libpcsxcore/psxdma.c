@@ -167,8 +167,9 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 
-			size = gpuDmaChainSize(madr);
-			GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
+			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
+			if ((int)size <= 0)
+				size = gpuDmaChainSize(madr);
 			
 			// Tekken 3 = use 1.0 only (not 1.5x)
 
