@@ -504,12 +504,20 @@ void psxDIV() {
 		_i32(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
 		_i32(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
 	}
+	else {
+		_i32(_rLo_) = _i32(_rRs_) >= 0 ? 0xffffffff : 1;
+		_i32(_rHi_) = _i32(_rRs_);
+	}
 }
 
 void psxDIVU() {
 	if (_rRt_ != 0) {
 		_rLo_ = _rRs_ / _rRt_;
 		_rHi_ = _rRs_ % _rRt_;
+	}
+	else {
+		_i32(_rLo_) = 0xffffffff;
+		_i32(_rHi_) = _i32(_rRs_);
 	}
 }
 
