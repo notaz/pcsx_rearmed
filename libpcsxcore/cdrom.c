@@ -1902,9 +1902,13 @@ void cdrWrite3(unsigned char rt) {
 		// - Final Fantasy Tactics
 		// - various other games
 
-		if (cdr.Irq) // rearmed guesswork hack
 		if (cdr.Reading && !cdr.ResultReady) {
-			CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
+			int left = psxRegs.intCycle[PSXINT_CDREAD].sCycle + psxRegs.intCycle[PSXINT_CDREAD].cycle - psxRegs.cycle;
+			int time = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
+			if (left < time / 2) { // rearmed guesswork hack
+				//printf("-- resched %d -> %d\n", left, time / 2);
+				CDREAD_INT(time / 2);
+			}
 		}
 
 		return;
