@@ -4493,7 +4493,9 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         assert(quotient>=0);
         assert(remainder>=0);
         emit_movs(d1,remainder);
-        emit_negmi(remainder,remainder);
+        emit_movimm(0xffffffff,quotient);
+        emit_negmi(quotient,quotient); // .. quotient and ..
+        emit_negmi(remainder,remainder); // .. remainder for div0 case (will be negated back after jump)
         emit_movs(d2,HOST_TEMPREG);
         emit_jeq((int)out+52); // Division by zero
         emit_negmi(HOST_TEMPREG,HOST_TEMPREG);
@@ -4521,12 +4523,13 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         signed char remainder=get_reg(i_regs->regmap,HIREG);
         assert(quotient>=0);
         assert(remainder>=0);
+        emit_mov(d1,remainder);
+        emit_movimm(0xffffffff,quotient); // div0 case
         emit_test(d2,d2);
-        emit_jeq((int)out+44); // Division by zero
+        emit_jeq((int)out+40); // Division by zero
         emit_clz(d2,HOST_TEMPREG);
         emit_movimm(1<<31,quotient);
         emit_shl(d2,HOST_TEMPREG,d2);
-        emit_mov(d1,remainder);
         emit_shr(quotient,HOST_TEMPREG,quotient);
         emit_cmp(remainder,d2);
         emit_subcs(remainder,d2,remainder);
