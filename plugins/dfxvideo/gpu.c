@@ -649,7 +649,7 @@ void CALLBACK GPUwriteStatus(uint32_t gdata)      // WRITE STATUS
        }
       lGPUstatusRet|=GPUSTATUS_INTERLACED;
      }
-    else lGPUstatusRet&=~GPUSTATUS_INTERLACED;
+    else lGPUstatusRet&=~(GPUSTATUS_INTERLACED|0x80000000);
 
     if (PSXDisplay.PAL)
          lGPUstatusRet|=GPUSTATUS_PAL;
