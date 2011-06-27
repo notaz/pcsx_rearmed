@@ -162,6 +162,7 @@ static void menu_set_defconfig(void)
 	in_evdev_allow_abs_only = 0;
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
+	Config.CdrReschedule = 0;
 
 	pl_rearmed_cbs.frameskip = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
@@ -214,6 +215,7 @@ static const struct {
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(Cpu),
+	CE_CONFIG_VAL(CdrReschedule),
 	CE_INTVAL(region),
 	CE_INTVAL(scaling),
 	CE_INTVAL(g_layer_x),
@@ -1136,15 +1138,20 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+static const char *men_cfg_cdrr[] = { "Auto", "ON", "OFF", NULL };
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running too fast";
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
-static const char h_cfg_sio[]    = "This should be enabled for certain memcards/gamepads";
-static const char h_cfg_spuirq[] = "Compatibility tweak; should probably be left off";
-static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix";
-static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix";
+static const char h_cfg_sio[]    = "You should not need this, breaks games";
+static const char h_cfg_spuirq[] = "Compatibility tweak; should be left off";
+static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
+				   "(timing hack, breaks other games)";
+static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
+				   "(timing hack, breaks other games)";
+static const char h_cfg_cdrr[]   = "Compatibility tweak (fixes Team Buddies, maybe more)\n"
+				   "(CD timing hack, breaks FMVs)";
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
 
@@ -1158,6 +1165,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
 	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+	mee_enum_h    ("CD read reschedule hack",0, Config.CdrReschedule, men_cfg_cdrr, h_cfg_cdrr),
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
 	mee_end,
 };

@@ -560,11 +560,11 @@ static int me_process(menu_entry *entry, int is_next, int is_lr)
 			names = (const char **)entry->data;
 			for (c = 0; names[c] != NULL; c++)
 				;
-			*(int *)entry->var += is_next ? 1 : -1;
-			if (*(int *)entry->var < 0)
-				*(int *)entry->var = 0;
-			if (*(int *)entry->var >= c)
-				*(int *)entry->var = c - 1;
+			*(signed char *)entry->var += is_next ? 1 : -1;
+			if (*(signed char *)entry->var < 0)
+				*(signed char *)entry->var = 0;
+			if (*(signed char *)entry->var >= c)
+				*(signed char *)entry->var = c - 1;
 			return 1;
 		default:
 			return 0;

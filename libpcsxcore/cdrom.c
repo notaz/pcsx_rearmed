@@ -1905,9 +1905,10 @@ void cdrWrite3(unsigned char rt) {
 		if (cdr.Reading && !cdr.ResultReady) {
 			int left = psxRegs.intCycle[PSXINT_CDREAD].sCycle + psxRegs.intCycle[PSXINT_CDREAD].cycle - psxRegs.cycle;
 			int time = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
-			if (left < time / 2) { // rearmed guesswork hack
-				//printf("-- resched %d -> %d\n", left, time / 2);
-				CDREAD_INT(time / 2);
+			if (Config.CdrReschedule != 2)
+			if (left < time / 2 || Config.CdrReschedule) { // rearmed guesswork hack
+				//printf("-- resched %d -> %d\n", left, time);
+				CDREAD_INT(time);
 			}
 		}
 
