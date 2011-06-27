@@ -8251,7 +8251,9 @@ int new_recompile_block(int addr)
       case 0x24: strcpy(insn[i],"LBU"); type=LOAD; break;
       case 0x25: strcpy(insn[i],"LHU"); type=LOAD; break;
       case 0x26: strcpy(insn[i],"LWR"); type=LOADLR; break;
+#ifndef FORCE32
       case 0x27: strcpy(insn[i],"LWU"); type=LOAD; break;
+#endif
       case 0x28: strcpy(insn[i],"SB"); type=STORE; break;
       case 0x29: strcpy(insn[i],"SH"); type=STORE; break;
       case 0x2A: strcpy(insn[i],"SWL"); type=STORELR; break;
