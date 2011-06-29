@@ -2018,8 +2018,11 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 
 void cdrDmaInterrupt()
 {
-	HW_DMA3_CHCR &= SWAP32(~0x01000000);
-	DMA_INTERRUPT(3);
+	if (HW_DMA3_CHCR & SWAP32(0x01000000))
+	{
+		HW_DMA3_CHCR &= SWAP32(~0x01000000);
+		DMA_INTERRUPT(3);
+	}
 }
 
 void cdrReset() {
