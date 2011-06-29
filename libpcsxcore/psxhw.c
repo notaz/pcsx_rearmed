@@ -25,6 +25,9 @@
 #include "mdec.h"
 #include "cdrom.h"
 
+//#undef PSXHW_LOG
+//#define PSXHW_LOG printf
+
 void psxHwReset() {
 	if (Config.Sio) psxHu32ref(0x1070) |= SWAP32(0x80);
 	if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAP32(0x200);
@@ -658,8 +661,15 @@ void psxHwWrite32(u32 add, u32 value) {
 			PSXHW_LOG("DMA ICR 32bit write %x\n", value);
 #endif
 		{
-			u32 tmp = (~value) & SWAPu32(HW_DMA_ICR);
-			HW_DMA_ICR = SWAPu32(((tmp ^ value) & 0xffffff) ^ tmp);
+			u32 tmp = value & 0x00ff803f;
+			tmp |= (SWAPu32(HW_DMA_ICR) & ~value) & 0x7f000000;
+			if ((tmp & HW_DMA_ICR_GLOBAL_ENABLE && tmp & 0x7f000000)
+			    || tmp & HW_DMA_ICR_BUS_ERROR) {
+				if (!(SWAPu32(HW_DMA_ICR) & HW_DMA_ICR_IRQ_SENT))
+					psxHu32ref(0x1070) |= SWAP32(8);
+				tmp |= HW_DMA_ICR_IRQ_SENT;
+			}
+			HW_DMA_ICR = SWAPu32(tmp);
 			return;
 		}
 
