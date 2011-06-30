@@ -1937,6 +1937,7 @@ void cdrWrite3(unsigned char rt) {
 
 void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 	u32 cdsize;
+	int size;
 	u8 *ptr;
 
 #ifdef CDR_LOG
@@ -1981,15 +1982,12 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			- CdlPlay
 			- Spams DMA3 and gets buffer overrun
 			*/
-
-			if( (cdr.pTransfer-cdr.Transfer) + cdsize > 2352 )
+			size = CD_FRAMESIZE_RAW - (cdr.pTransfer - cdr.Transfer);
+			if (size > cdsize)
+				size = cdsize;
+			if (size > 0)
 			{
-				// avoid crash - probably should wrap here
-				//memcpy(ptr, cdr.pTransfer, cdsize);
-			}
-			else
-			{
-				memcpy(ptr, cdr.pTransfer, cdsize);
+				memcpy(ptr, cdr.pTransfer, size);
 			}
 
 			psxCpu->Clear(madr, cdsize / 4);
