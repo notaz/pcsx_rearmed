@@ -234,18 +234,19 @@ gteRTPS_neon:
     vadd.s64    d20, d7        @ | gteDQB + gteDQA * quotient
     vmovn.s32   d18, q9        @ fS|XY2 [s16]
 
-    vqshrn.s64  d20, q10, #12  @ | gteMAC0
+    vqmovn.s64  d20, q10       @ | gteMAC0
     add         r3, r0, #4*12
     vst1.32     d16, [r3]!     @ writeback fS|XY01
     vst1.32     d18[0], [r3]   @ ...2
     add         r3, r0, #4*24
+    vshr.s32    d21, d20, #12
     vst1.32     d20[0], [r3]   @ gteMAC0
 
     movs        r4, r4, lsr #17
     orrne       lr, #(1<<31)
     orrne       lr, #(1<<17)   @ limE
 
-    vmax.s32    d21, d20, d31
+    vmax.s32    d21, d31
     vmov.i32    d22, #0x1000
     vmin.s32    d21, d22
     add         r3, r0, #4*8
@@ -464,14 +465,15 @@ gteRTPT_neon:
     vst1.32     d12, [r3]!     @ writeback fS|XY v=0,1
     vst1.32     d13[0], [r3]
 
-    vqshrn.s64  d26, q13, #12  @ | gteMAC0
+    vqmovn.s64  d26, q13       @ | gteMAC0
     vmovl.u16   q5, d10        @ expand gteIR|123 v=2
 
     vmov.i32    d13, #0x1000
-    vmax.s32    d12, d26, d30
+    vshr.s32    d12, d26, #12
 
     add         r3, r0, #4*24
     vst1.32     d26[0], [r3]!  @ gteMAC0
+    vmax.s32    d12, d30
     vst1.32     d8, [r3]!      @ gteMAC123 (last iteration)
     vst1.32     d9[0], [r3]
 
