@@ -586,15 +586,21 @@ static void *MAINThread(void *arg)
               {
                // We play this block out first...
                //if(!(flags&2))                          // 1+2: do loop... otherwise: stop
-               if(flags!=3 || s_chan[ch].pLoop==NULL)  // PETE: if we don't check exactly for 3, loop hang ups will happen (DQ4, for example)
-                {                                      // and checking if pLoop is set avoids crashes, yeah
+               if((flags!=3 && flags!=7)               // PETE: if we don't check exactly for 3, loop hang ups will happen (DQ4, for example)
+                  || s_chan[ch].pLoop==NULL)           // and checking if pLoop is set avoids crashes, yeah
+                {
                  start = (unsigned char*)-1;
+                 // Actua Soccer 2, Jungle Book, other games that check for this condition
+                 s_chan[ch].ADSRX.EnvelopeVol = 0;
                 }
                else
                 {
                  start = s_chan[ch].pLoop;
                 }
               }
+
+             if (start - spuMemC >= 0x80000)
+              start = (unsigned char*)-1;
 
              s_chan[ch].pCurr=start;                   // store values for next cycle
              s_chan[ch].s_1=s_1;

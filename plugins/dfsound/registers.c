@@ -168,7 +168,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
      case 14:                                          // loop?
        //WaitForSingleObject(s_chan[ch].hMutex,2000);        // -> no multithread fuckups
        s_chan[ch].pLoop=spuMemC+((unsigned long)((val<<3)&~0xf));
-       s_chan[ch].bIgnoreLoop=1;
+       //s_chan[ch].bIgnoreLoop=1;
        //ReleaseMutex(s_chan[ch].hMutex);                    // -> oki, on with the thread
        break;
      //------------------------------------------------//
