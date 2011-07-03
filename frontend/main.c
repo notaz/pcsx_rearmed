@@ -94,7 +94,7 @@ void set_cd_image(const char *fname)
 
 	if (ext && (
 	    strcasecmp(ext, ".z") == 0 || strcasecmp(ext, ".bz") == 0 ||
-	    strcasecmp(ext, ".znx") == 0 || strcasecmp(ext, ".pbp") == 0)) {
+	    strcasecmp(ext, ".znx") == 0 /*|| strcasecmp(ext, ".pbp") == 0*/)) {
 		SetIsoFile(NULL);
 		cdrcimg_set_fname(fname);
 		strcpy(Config.Cdr, "builtin_cdrcimg");
