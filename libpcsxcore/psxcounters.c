@@ -66,7 +66,7 @@ static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
 static const u32 VBlankStart[]    = { 240, 256 };
-static const u32 HSyncTotal[]     = { 262, 312 };
+static const u32 HSyncTotal[]     = { 263, 313 };
 static const u32 SpuUpdInterval[] = { 23, 22 };
 
 static const s32 VerboseLevel     = 0;
