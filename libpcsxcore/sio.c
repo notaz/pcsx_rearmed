@@ -48,7 +48,8 @@
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];
-unsigned char cardh[4] = { 0x00, 0x00, 0x5a, 0x5d };
+static unsigned char cardh1[4] = { 0xff, 0x08, 0x5a, 0x5d };
+static unsigned char cardh2[4] = { 0xff, 0x08, 0x5a, 0x5d };
 
 // Transfer Ready and the Buffer is Empty
 // static unsigned short StatReg = 0x002b;
@@ -64,6 +65,7 @@ static unsigned char adrH, adrL;
 static unsigned int padst;
 
 char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
+char McdDisable[2];
 
 #define SIO_INT(eCycle) { \
 	if (!Config.Sio) { \
@@ -204,6 +206,14 @@ void sioWrite8(unsigned char value) {
 			return;
 		case 5:
 			parp++;
+			if ((rdwr == 1 && parp == 132) ||
+			    (rdwr == 2 && parp == 129)) {
+				// clear "new card" flags
+				if (CtrlReg & 0x2000)
+					cardh2[1] &= ~8;
+				else
+					cardh1[1] &= ~8;
+			}
 			if (rdwr == 2) {
 				if (parp < 128) buf[parp + 1] = value;
 			}
@@ -258,13 +268,31 @@ void sioWrite8(unsigned char value) {
 			SIO_INT(SIO_CYCLES);
 			return;
 		case 0x81: // start memcard
+			if (CtrlReg & 0x2000)
+			{
+				if (McdDisable[1])
+					goto no_device;
+				memcpy(buf, cardh2, 4);
+			}
+			else
+			{
+				if (McdDisable[0])
+					goto no_device;
+				memcpy(buf, cardh1, 4);
+			}
 			StatReg |= RX_RDY;
-			memcpy(buf, cardh, 4);
 			parp = 0;
 			bufcount = 3;
 			mcdst = 1;
 			rdwr = 0;
 			SIO_INT(SIO_CYCLES);
+			return;
+		default:
+		no_device:
+			StatReg |= RX_RDY;
+			buf[0] = 0xff;
+			parp = 0;
+			bufcount = 0;
 			return;
 	}
 }
@@ -366,12 +394,22 @@ void LoadMcd(int mcd, char *str) {
 	FILE *f;
 	char *data = NULL;
 
-	if (mcd == 1) data = Mcd1Data;
-	if (mcd == 2) data = Mcd2Data;
+	if (mcd != 1 && mcd != 2)
+		return;
 
-	if (*str == 0) {
-		sprintf(str, "memcards/card%d.mcd", mcd);
-		SysPrintf(_("No memory card value was specified - creating a default card %s\n"), str);
+	if (mcd == 1) {
+		data = Mcd1Data;
+		cardh1[1] |= 8; // mark as new
+	}
+	if (mcd == 2) {
+		data = Mcd2Data;
+		cardh2[1] |= 8;
+	}
+
+	McdDisable[mcd - 1] = 0;
+	if (str == NULL || *str == 0) {
+		McdDisable[mcd - 1] = 1;
+		return;
 	}
 	f = fopen(str, "rb");
 	if (f == NULL) {
@@ -679,6 +717,12 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 	int i, x;
 
 	memset(Info, 0, sizeof(McdBlock));
+
+	if (mcd != 1 && mcd != 2)
+		return;
+
+	if (McdDisable[mcd - 1])
+		return;
 
 	if (mcd == 1) data = Mcd1Data;
 	if (mcd == 2) data = Mcd2Data;
