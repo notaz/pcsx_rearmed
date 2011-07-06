@@ -46,6 +46,7 @@ typedef enum
 	MA_MAIN_LOAD_ROM,
 	MA_MAIN_SWAP_CD,
 	MA_MAIN_RUN_BIOS,
+	MA_MAIN_RUN_EXE,
 	MA_MAIN_CONTROLS,
 	MA_MAIN_CREDITS,
 	MA_MAIN_EXIT,
@@ -73,6 +74,7 @@ static int scaling, filter, cpu_clock, cpu_clock_st;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel;
+static int memcard1_sel, memcard2_sel;
 int g_opts;
 
 // sound plugin
@@ -85,6 +87,7 @@ extern int iUseTimer;
 static const char *bioses[24];
 static const char *gpu_plugins[16];
 static const char *spu_plugins[16];
+static const char *memcards[32];
 static int bios_sel, gpu_plugsel, spu_plugsel;
 
 
@@ -966,7 +969,7 @@ static int menu_loop_keyconfig(int id, int keys)
 	static int sel = 0;
 
 //	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
-	me_loop(e_menu_keyconfig, &sel, NULL);
+	me_loop(e_menu_keyconfig, &sel);
 	return 0;
 }
 
@@ -1040,7 +1043,7 @@ static int menu_loop_gfx_options(int id, int keys)
 {
 	static int sel = 0;
 
-	me_loop(e_menu_gfx_options, &sel, NULL);
+	me_loop(e_menu_gfx_options, &sel);
 
 	return 0;
 }
@@ -1076,7 +1079,7 @@ static menu_entry e_menu_plugin_gpu[] =
 static int menu_loop_plugin_gpu(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_plugin_gpu, &sel, NULL);
+	me_loop(e_menu_plugin_gpu, &sel);
 	return 0;
 }
 
@@ -1098,7 +1101,7 @@ static menu_entry e_menu_plugin_spu[] =
 static int menu_loop_plugin_spu(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_plugin_spu, &sel, NULL);
+	me_loop(e_menu_plugin_spu, &sel);
 	return 0;
 }
 
@@ -1120,18 +1123,18 @@ static menu_entry e_menu_plugin_options[] =
 	mee_end,
 };
 
-static menu_entry e_menu_main[];
+static menu_entry e_menu_main2[];
 
 static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_plugin_options, &sel, NULL);
+	me_loop(e_menu_plugin_options, &sel);
 
 	// sync BIOS/plugins
 	snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[bios_sel]);
 	snprintf(Config.Gpu, sizeof(Config.Gpu), "%s", gpu_plugins[gpu_plugsel]);
 	snprintf(Config.Spu, sizeof(Config.Spu), "%s", spu_plugins[spu_plugsel]);
-	me_enable(e_menu_main, MA_MAIN_RUN_BIOS, bios_sel != 0);
+	me_enable(e_menu_main2, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
 	return 0;
 }
@@ -1173,7 +1176,7 @@ static menu_entry e_menu_adv_options[] =
 static int menu_loop_adv_options(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_adv_options, &sel, NULL);
+	me_loop(e_menu_adv_options, &sel);
 	return 0;
 }
 
@@ -1222,7 +1225,7 @@ static int menu_loop_options(int id, int keys)
 	e_menu_options[i].enabled = cpu_clock != 0 ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
-	me_loop(e_menu_options, &sel, NULL);
+	me_loop(e_menu_options, &sel);
 
 	return 0;
 }
@@ -1276,7 +1279,115 @@ static void debug_menu_loop(void)
 	free(gpuf);
 }
 
-// ------------ main menu ------------
+// --------- memcard manager ---------
+
+static void draw_mc_icon(int dx, int dy, const u16 *s)
+{
+	u16 *d;
+	int x, y, l, p;
+	
+	d = (u16 *)g_menuscreen_ptr + g_menuscreen_w * dy + dx;
+
+	for (y = 0; y < 16; y++, s += 16) {
+		for (l = 0; l < 2; l++, d += g_menuscreen_w) {
+			for (x = 0; x < 16; x++) {
+				p = s[x];
+				d[x*2] = d[x*2 + 1] = ((p & 0x7c00) >> 10)
+					| ((p & 0x03e0) << 1) | ((p & 0x1f) << 11);
+			}
+		}
+	}
+}
+
+static void draw_mc_bg(void)
+{
+	McdBlock *blocks1, *blocks2;
+	int maxicons = 15;
+	int i, y, row2;
+
+	blocks1 = malloc(15 * sizeof(blocks1[0]));
+	blocks2 = malloc(15 * sizeof(blocks1[0]));
+	if (blocks1 == NULL || blocks2 == NULL)
+		goto out;
+
+	for (i = 0; i < 15; i++) {
+		GetMcdBlockInfo(1, i + 1, &blocks1[i]);
+		GetMcdBlockInfo(2, i + 1, &blocks2[i]);
+	}
+
+	menu_draw_begin(1);
+
+	memcpy(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+
+	y = g_menuscreen_h / 2 - 15 * 32 / 2;
+	if (y < 0) {
+		// doesn't fit..
+		y = 0;
+		maxicons = g_menuscreen_h / 32;
+	}
+
+	row2 = g_menuscreen_w / 2;
+	for (i = 0; i < maxicons; i++) {
+		draw_mc_icon(8, y + i * 32, (u16 *)blocks1[i].Icon);
+		smalltext_out16(10+32, y + i * 32 + 8, blocks1[i].sTitle, 0xf71e);
+
+		draw_mc_icon(row2 + 8, y + i * 32, (u16 *)blocks2[i].Icon);
+		smalltext_out16(row2 + 10+32, y + i * 32 + 8, blocks2[i].sTitle, 0xf71e);
+	}
+
+	menu_darken_bg(g_menubg_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
+
+	menu_draw_end();
+out:
+	free(blocks1);
+	free(blocks2);
+}
+
+static void handle_memcard_sel(void)
+{
+	Config.Mcd1[0] = 0;
+	if (memcard1_sel != 0)
+		snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s", MEMCARD_DIR, memcards[memcard1_sel]);
+	Config.Mcd2[0] = 0;
+	if (memcard2_sel != 0)
+		snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s", MEMCARD_DIR, memcards[memcard2_sel]);
+	LoadMcds(Config.Mcd1, Config.Mcd2);
+	draw_mc_bg();
+}
+
+static menu_entry e_memcard_options[] =
+{
+	mee_enum("Memory card 1", 0, memcard1_sel, memcards),
+	mee_enum("Memory card 2", 0, memcard2_sel, memcards),
+	mee_end,
+};
+
+static int menu_loop_memcards(int id, int keys)
+{
+	static int sel = 0;
+	char *p;
+	int i;
+
+	memcard1_sel = memcard2_sel = 0;
+	p = strrchr(Config.Mcd1, '/');
+	if (p != NULL)
+		for (i = 0; memcards[i] != NULL; i++)
+			if (strcmp(p + 1, memcards[i]) == 0)
+				{ memcard1_sel = i; break; }
+	p = strrchr(Config.Mcd2, '/');
+	if (p != NULL)
+		for (i = 0; memcards[i] != NULL; i++)
+			if (strcmp(p + 1, memcards[i]) == 0)
+				{ memcard2_sel = i; break; }
+
+	me_loop_d(e_memcard_options, &sel, handle_memcard_sel, NULL);
+
+	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+
+	return 0;
+}
+
+// --------- main menu help ----------
 
 static void menu_bios_warn(void)
 {
@@ -1350,16 +1461,13 @@ static int reset_game(void)
 	return 0;
 }
 
-static int run_bios(void)
+static int reload_plugins(const char *cdimg)
 {
-	if (bios_sel == 0)
-		return -1;
-
-	ready_to_go = 0;
 	pl_fbdev_buf = NULL;
 
 	ClosePlugins();
-	set_cd_image(NULL);
+
+	set_cd_image(cdimg);
 	LoadPlugins();
 	pcnt_hook_plugins();
 	NetOpened = 0;
@@ -1372,7 +1480,41 @@ static int run_bios(void)
 	CdromId[0] = '\0';
 	CdromLabel[0] = '\0';
 
+	return 0;
+}
+
+static int run_bios(void)
+{
+	if (bios_sel == 0)
+		return -1;
+
+	ready_to_go = 0;
+	if (reload_plugins(NULL) != 0)
+		return -1;
 	SysReset();
+
+	ready_to_go = 1;
+	return 0;
+}
+
+static int run_exe(void)
+{
+	const char *fname;
+
+	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	if (fname == NULL)
+		return -1;
+
+	ready_to_go = 0;
+	if (reload_plugins(NULL) != 0)
+		return -1;
+
+	SysReset();
+	if (Load(fname) != 0) {
+		me_update_msg("exe load failed, bad file?");
+		printf("meh\n");
+		return -1;
+	}
 
 	ready_to_go = 1;
 	return 0;
@@ -1381,18 +1523,7 @@ static int run_bios(void)
 static int run_cd_image(const char *fname)
 {
 	ready_to_go = 0;
-	pl_fbdev_buf = NULL;
-
-	ClosePlugins();
-	set_cd_image(fname);
-	LoadPlugins();
-	pcnt_hook_plugins();
-	NetOpened = 0;
-	if (OpenPlugins() == -1) {
-		me_update_msg("failed to open plugins");
-		return -1;
-	}
-	plugin_call_rearmed_cbs();
+	reload_plugins(fname);
 
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
@@ -1417,7 +1548,7 @@ static int run_cd_image(const char *fname)
 static int romsel_run(void)
 {
 	int prev_gpu, prev_spu;
-	char *fname;
+	const char *fname;
 
 	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
 	if (fname == NULL)
@@ -1509,6 +1640,10 @@ static int main_menu_handler(int id, int keys)
 		if (run_bios() == 0)
 			return 1;
 		break;
+	case MA_MAIN_RUN_EXE:
+		if (run_exe() == 0)
+			return 1;
+		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits_text, draw_frame_credits);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
@@ -1524,6 +1659,27 @@ static int main_menu_handler(int id, int keys)
 	return 0;
 }
 
+static menu_entry e_menu_main2[] =
+{
+	mee_handler_id("Change CD image",    MA_MAIN_SWAP_CD,     main_menu_handler),
+	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,    main_menu_handler),
+	mee_handler_id("Run EXE",            MA_MAIN_RUN_EXE,     main_menu_handler),
+	mee_handler   ("Memcard manager",    menu_loop_memcards),
+	mee_end,
+};
+
+static int main_menu2_handler(int id, int keys)
+{
+	static int sel = 0;
+
+	me_enable(e_menu_main2, MA_MAIN_SWAP_CD,  ready_to_go);
+	me_enable(e_menu_main2, MA_MAIN_RUN_BIOS, bios_sel != 0);
+
+	return me_loop_d(e_menu_main2, &sel, NULL, draw_frame_main);
+}
+
+static const char h_extra[] = "Change CD, manage memcards..\n";
+
 static menu_entry e_menu_main[] =
 {
 	mee_label     (""),
@@ -1533,10 +1689,9 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Load CD image",      MA_MAIN_LOAD_ROM,    main_menu_handler),
-	mee_handler_id("Change CD image",    MA_MAIN_SWAP_CD,     main_menu_handler),
-	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,    main_menu_handler),
 	mee_handler   ("Options",            menu_loop_options),
 	mee_handler   ("Controls",           menu_loop_keyconfig),
+	mee_handler_h ("Extra stuff",        main_menu2_handler,  h_extra),
 	mee_handler_id("Credits",            MA_MAIN_CREDITS,     main_menu_handler),
 	mee_handler_id("Exit",               MA_MAIN_EXIT,        main_menu_handler),
 	mee_end,
@@ -1561,13 +1716,11 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
-	me_enable(e_menu_main, MA_MAIN_SWAP_CD,  ready_to_go);
-	me_enable(e_menu_main, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 
 	do {
-		me_loop(e_menu_main, &sel, draw_frame_main);
+		me_loop_d(e_menu_main, &sel, NULL, draw_frame_main);
 	} while (!ready_to_go);
 
 	/* wait until menu, ok, back is released */
@@ -1579,18 +1732,26 @@ void menu_loop(void)
 	menu_prepare_emu();
 }
 
+static int qsort_strcmp(const void *p1, const void *p2)
+{
+	char * const *s1 = (char * const *)p1;
+	char * const *s2 = (char * const *)p2;
+	return strcasecmp(*s1, *s2);
+}
+
 static void scan_bios_plugins(void)
 {
 	char fname[MAXPATHLEN];
 	struct dirent *ent;
-	int bios_i, gpu_i, spu_i;
+	int bios_i, gpu_i, spu_i, mc_i;
 	char *p;
 	DIR *dir;
 
 	bioses[0] = "HLE";
 	gpu_plugins[0] = "builtin_gpu";
 	spu_plugins[0] = "builtin_spu";
-	bios_i = gpu_i = spu_i = 1;
+	memcards[0] = "(none)";
+	bios_i = gpu_i = spu_i = mc_i = 1;
 
 	snprintf(fname, sizeof(fname), "%s/", Config.BiosDir);
 	dir = opendir(fname);
@@ -1633,8 +1794,8 @@ do_plugins:
 	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
 	dir = opendir(fname);
 	if (dir == NULL) {
-		perror("scan_bios_plugins opendir");
-		return;
+		perror("scan_bios_plugins plugins opendir");
+		goto do_memcards;
 	}
 
 	while (1) {
@@ -1678,6 +1839,46 @@ do_plugins:
 		fprintf(stderr, "ignoring unidentified plugin: %s\n", fname);
 		dlclose(h);
 	}
+
+	closedir(dir);
+
+do_memcards:
+	dir = opendir("." MEMCARD_DIR);
+	if (dir == NULL) {
+		perror("scan_bios_plugins memcards opendir");
+		return;
+	}
+
+	while (1) {
+		struct stat st;
+
+		errno = 0;
+		ent = readdir(dir);
+		if (ent == NULL) {
+			if (errno != 0)
+				perror("readdir");
+			break;
+		}
+
+		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
+			continue;
+
+		snprintf(fname, sizeof(fname), "." MEMCARD_DIR "%s", ent->d_name);
+		if (stat(fname, &st) != 0) {
+			printf("bad memcard file: %s\n", ent->d_name);
+			continue;
+		}
+
+		if (mc_i < ARRAY_SIZE(memcards) - 1) {
+			memcards[mc_i++] = strdup(ent->d_name);
+			continue;
+		}
+
+		printf("too many memcards, dropping \"%s\"\n", ent->d_name);
+	}
+
+	if (mc_i > 2)
+		qsort(memcards + 1, mc_i - 1, sizeof(memcards[0]), qsort_strcmp);
 
 	closedir(dir);
 }

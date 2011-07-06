@@ -122,6 +122,25 @@ static void set_default_paths(void)
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 }
 
+static void check_memcards(void)
+{
+	char buf[MAXPATHLEN];
+	FILE *f;
+	int i;
+
+	for (i = 1; i <= 9; i++) {
+		snprintf(buf, sizeof(buf), ".%scard%d.mcd", MEMCARD_DIR, i);
+
+		f = fopen(buf, "rb");
+		if (f == NULL) {
+			printf("Creating memcard: %s\n", buf);
+			CreateMcd(buf);
+		}
+		else
+			fclose(f);
+	}
+}
+
 void do_emu_action(void)
 {
 	char buf[MAXPATHLEN];
@@ -213,6 +232,7 @@ int main(int argc, char *argv[])
 
 	CheckSubDir();
 	set_default_paths();
+	check_memcards();
 	strcpy(Config.Bios, "HLE");
 
 #ifdef MAEMO
@@ -372,7 +392,7 @@ int SysInit() {
 		return -1;
 	}
 
-	LoadMcds(Config.Mcd1, Config.Mcd2);	/* TODO Do we need to have this here, or in the calling main() function?? */
+	LoadMcds(Config.Mcd1, Config.Mcd2);
 
 	if (Config.Debug) {
 		StartDebugger();

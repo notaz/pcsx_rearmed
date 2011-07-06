@@ -573,14 +573,14 @@ static int me_process(menu_entry *entry, int is_next, int is_lr)
 
 static void debug_menu_loop(void);
 
-static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
+static int me_loop_d(menu_entry *menu, int *menu_sel, void (*draw_prep)(void), void (*draw_more)(void))
 {
-	int ret, inp, sel = *menu_sel, menu_sel_max;
+	int ret = 0, inp, sel = *menu_sel, menu_sel_max;
 
 	menu_sel_max = me_count(menu) - 1;
 	if (menu_sel_max < 0) {
 		lprintf("no enabled menu entries\n");
-		return;
+		return 0;
 	}
 
 	while ((!menu[sel].enabled || !menu[sel].selectable) && sel < menu_sel_max)
@@ -592,6 +592,9 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 
 	for (;;)
 	{
+		if (draw_prep != NULL)
+			draw_prep();
+
 		me_draw(menu, sel, draw_more);
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
 					PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, 70);
@@ -636,6 +639,13 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 		}
 	}
 	*menu_sel = sel;
+
+	return ret;
+}
+
+static int me_loop(menu_entry *menu, int *menu_sel)
+{
+	return me_loop_d(menu, menu_sel, NULL, NULL);
 }
 
 /* ***************************************** */
