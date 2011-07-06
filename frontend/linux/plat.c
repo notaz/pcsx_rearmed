@@ -48,7 +48,7 @@ int plat_get_root_dir(char *dst, int len)
 			break;
 		}
 
-	return 0;
+	return j;
 }
 
 #ifdef __GP2X__
