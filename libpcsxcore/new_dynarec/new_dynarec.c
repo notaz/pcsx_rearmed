@@ -10988,10 +10988,14 @@ int new_recompile_block(int addr)
 #ifdef PCSX
   if (start == 0x80030000) {
     // nasty hack for fastbios thing
+    // override block entry to this code
     instr_addr0_override=(u_int)out;
     emit_movimm(start,0);
-    emit_readword((int)&pcaddr,1);
+    // abuse io address var as a flag that we
+    // have already returned here once
+    emit_readword((int)&address,1);
     emit_writeword(0,(int)&pcaddr);
+    emit_writeword(0,(int)&address);
     emit_cmp(0,1);
     emit_jne((int)new_dyna_leave);
   }
