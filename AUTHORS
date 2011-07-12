@@ -1,39 +1,50 @@
-PCSX Upstream Authors:	Linuzappz     <linuzappz@pcsx.net>
+(C) 1999-2003 PCSX Team
+	(c) 1998 Vision Thing
+	Linuzappz     <linuzappz@pcsx.net>
 	Shadow        <shadow@pcsx.net>
 	Pete Bernett  <psswitch@online.de>
 	NoComp        <NoComp@mailcity.com>
 	Nik3d
 	Akumax        <akumax@pcsx.net>
 
-PCSX Copyright:	(c) 1999-2003  Pcsx Team
-	(c) 1998 Vision Thing
+(C) 2005-2009 PCSX-df Team
+	(c) Ryan Schultz <schultz.ryan@gmail.com>
+	(c) Andrew Burton <adb@iinet.net.au>
+	(c) Stephen Chao <schao@myrealbox.com>
+	(c) Marcus Comstedt <marcus@mc.pp.se>
+	Stefan Sikora <hoshy@schrauberstube.de>
 
-df Upstream Authors:	Ryan Schultz <schultz.ryan@gmail.com>
-			Andrew Burton <adb@iinet.net.au>
-			Stephen Chao <schao@myrealbox.com>
-			Marcus Comstedt <marcus@mc.pp.se>
-			Stefan Sikora <hoshy@schrauberstube.de>
+(C) 2009-2011 PCSX-Reloaded Team
+	edgbla (Root counters, various core/plugin fixes)
+	shalma (GTE Divider, many core improvements, sound plugin fixes)
+	Firnis (GTE code from PCSX-Revolution Project)
+	Gabriele Gorla (MDEC decoder)
+	Peter Collingbourne (Various core/psxbios fixes)
+	Dario, NeToU, siveritas (Various bugfixes)
+	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
-df Copyright:	(c) 2005 Ryan Schultz
-		(c) 2005 Andrew Burton
-		(c) 2007 Stephen Chao
-		(c) 2006 Marcus Comstedt
+PCSX4ALL GPU plugin:
+	(C) 2010 PCSX4ALL Team
+	(C) 2010 Unai
+	Franxis <franxism@gmail.com>
+	Chui <sdl_gp32@yahoo.es>
 
-PCSX-Reloaded Authors/Contributors: avlex (Help on xcode project)
-			    Dario (Various bugfixes)
-			    edgbla (Root counters, various core/plugin fixes)
-			    Firnis (GTE code from PCSX-Revolution Project)
-			    Gabriele Gorla (MDEC decoder)
-			    maggix (Snow Leopard compile fix)
-			    NeToU (Bugfix)
-			    Peter Collingbourne (Various core/psxbios fixes)
-			    siveritas (Bugfix)
-			    shalma (GTE Divider, various core fixes)
-			    Tristin Celestin (PulseAudio support)
-			    Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
+GLES plugin (psx4m project):
+	(C) 1999-2009 by Pete Bernert
+	EQ
+	Olli Hinkka
+	Proger
+	Pickle
 
-PCSX-Reloaded Translators: edgbla (Russian)
-			   Giovanni Scafora (Italian)
-			   Tibério Vítor (Brazilian Portuguese)
-			   Wei Mingzhi (Simplified & Traditional Chinese)
+builtin GPU/SPU plugins:
+	Pete Bernert and the P.E.Op.S. team
+
+MIPS->ARM recompiler:
+	(C) 2009-2010 Ari64
+
+integration, optimization and frontend:
+	(C) 2010-2011 notaz
+
+some implementation ideas (and maybe code?) likely originated from
+MAME/smf/pSXauthor and were integrated by various people to PCSX.
 

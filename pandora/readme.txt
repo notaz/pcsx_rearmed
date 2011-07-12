@@ -211,6 +211,9 @@ MIPS->ARM recompiler:
 integration, optimization and frontend:
 	(C) 2010-2011 notaz
 
+some implementation ideas (and maybe code?) likely originated from
+MAME/smf/pSXauthor and were integrated by various people to PCSX.
+
 Source code is released under GNU GPL license, version 2 or later.
 See COPYING included in the archive (.pnd can be extracted using unsquashfs).
 The source code is available in a GIT repository at:
