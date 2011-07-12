@@ -1329,6 +1329,23 @@ void cdrReadInterrupt() {
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
 
 			if (!ret) {
+				// only handle attenuator basic channel switch for now
+				if (cdr.Xa.stereo) {
+					int i;
+					if ((cdr.AttenuatorLeft[0] | cdr.AttenuatorLeft[1])
+					    && !(cdr.AttenuatorRight[0] | cdr.AttenuatorRight[1]))
+					{
+						for (i = 0; i < cdr.Xa.nsamples; i++)
+							cdr.Xa.pcm[i*2 + 1] = cdr.Xa.pcm[i*2];
+					}
+					else if (!(cdr.AttenuatorLeft[0] | cdr.AttenuatorLeft[1])
+					    && (cdr.AttenuatorRight[0] | cdr.AttenuatorRight[1]))
+					{
+						for (i = 0; i < cdr.Xa.nsamples; i++)
+							cdr.Xa.pcm[i*2] = cdr.Xa.pcm[i*2 + 1];
+					}
+				}
+
 				SPU_playADPCMchannel(&cdr.Xa);
 				cdr.FirstSector = 0;
 
@@ -1465,7 +1482,7 @@ void cdrWrite1(unsigned char rt) {
 
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 3 ) {
-		//cdr.AttenuatorRight[0] = rt;
+		cdr.AttenuatorRight[0] = rt;
 	}
 
 
@@ -1817,10 +1834,10 @@ void cdrWrite2(unsigned char rt) {
 
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 2 ) {
-		//cdr.AttenuatorLeft[0] = rt;
+		cdr.AttenuatorLeft[0] = rt;
 	}
 	else if( (cdr.Ctrl & 3) == 3 ) {
-		//cdr.AttenuatorRight[1] = rt;
+		cdr.AttenuatorRight[1] = rt;
 	}
 
 
@@ -1862,7 +1879,7 @@ void cdrWrite3(unsigned char rt) {
 #ifdef CDR_LOG
 	CDR_LOG("cdrWrite3() Log: CD3 write: %x\n", rt);
 #endif
-/*
+
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 2 ) {
 		cdr.AttenuatorLeft[1] = rt;
@@ -1874,7 +1891,7 @@ void cdrWrite3(unsigned char rt) {
 			cdr.AttenuatorRight[0], cdr.AttenuatorRight[1] );
 #endif
 	}
-*/
+
 
 	// GameShark CDX CD Player: Irq timing mania
 	if( rt == 0 &&
@@ -2028,6 +2045,12 @@ void cdrReset() {
 	cdr.CurTrack = 1;
 	cdr.File = 1;
 	cdr.Channel = 1;
+
+	// BIOS player - default values
+	cdr.AttenuatorLeft[0] = 0x80;
+	cdr.AttenuatorLeft[1] = 0x00;
+	cdr.AttenuatorRight[0] = 0x80;
+	cdr.AttenuatorRight[1] = 0x00;
 }
 
 int cdrFreeze(gzFile f, int Mode) {
