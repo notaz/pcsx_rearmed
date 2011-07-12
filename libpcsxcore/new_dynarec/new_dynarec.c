@@ -2766,6 +2766,7 @@ void load_assemble(int i,struct regstat *i_regs)
   int offset;
   int jaddr=0;
   int memtarget=0,c=0;
+  int fastload_reg_override=0;
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rt1[i]|64);
   tl=get_reg(i_regs->regmap,rt1[i]);
@@ -2820,6 +2821,7 @@ void load_assemble(int i,struct regstat *i_regs)
         if(sp_in_mirror&&rs1[i]==29) {
           emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
           emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
+          fastload_reg_override=HOST_TEMPREG;
         }
         else
         #endif
@@ -2864,9 +2866,8 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
-#ifdef PCSX
-          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+          if(fastload_reg_override) a=fastload_reg_override;
+
           emit_movsbl_indexed_tlb(x,a,map,tl);
         }
       }
@@ -2892,9 +2893,7 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
-#ifdef PCSX
-          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+          if(fastload_reg_override) a=fastload_reg_override;
           //#ifdef
           //emit_movswl_indexed_tlb(x,tl,map,tl);
           //else
@@ -2920,9 +2919,7 @@ void load_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       if(!dummy) {
         int a=addr;
-#ifdef PCSX
-        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+        if(fastload_reg_override) a=fastload_reg_override;
         //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
@@ -2956,9 +2953,8 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
-#ifdef PCSX
-          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+          if(fastload_reg_override) a=fastload_reg_override;
+
           emit_movzbl_indexed_tlb(x,a,map,tl);
         }
       }
@@ -2984,9 +2980,7 @@ void load_assemble(int i,struct regstat *i_regs)
 #else
           if(!c) a=addr;
 #endif
-#ifdef PCSX
-          if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+          if(fastload_reg_override) a=fastload_reg_override;
           //#ifdef
           //emit_movzwl_indexed_tlb(x,tl,map,tl);
           //#else
@@ -3013,9 +3007,7 @@ void load_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       if(!dummy) {
         int a=addr;
-#ifdef PCSX
-        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+        if(fastload_reg_override) a=fastload_reg_override;
         //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
@@ -3036,9 +3028,7 @@ void load_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       if(!dummy) {
         int a=addr;
-#ifdef PCSX
-        if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+        if(fastload_reg_override) a=fastload_reg_override;
         //gen_tlb_addr_r(tl,map);
         //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,addr,th);
         //emit_readword_indexed((int)rdram-0x7FFFFFFC,addr,tl);
@@ -3103,6 +3093,7 @@ void store_assemble(int i,struct regstat *i_regs)
   int jaddr=0,jaddr2,type;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
+  int faststore_reg_override=0;
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rs2[i]|64);
   tl=get_reg(i_regs->regmap,rs2[i]);
@@ -3131,6 +3122,7 @@ void store_assemble(int i,struct regstat *i_regs)
       if(sp_in_mirror&&rs1[i]==29) {
         emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
         emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
+        faststore_reg_override=HOST_TEMPREG;
       }
       else
       #endif
@@ -3177,9 +3169,7 @@ void store_assemble(int i,struct regstat *i_regs)
 #else
       if(!c) a=addr;
 #endif
-#ifdef PCSX
-      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+      if(faststore_reg_override) a=faststore_reg_override;
       //gen_tlb_addr_w(temp,map);
       //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
       emit_writebyte_indexed_tlb(tl,x,a,map,a);
@@ -3195,9 +3185,7 @@ void store_assemble(int i,struct regstat *i_regs)
 #else
       if(!c) a=addr;
 #endif
-#ifdef PCSX
-      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+      if(faststore_reg_override) a=faststore_reg_override;
       //#ifdef
       //emit_writehword_indexed_tlb(tl,x,temp,map,temp);
       //#else
@@ -3212,9 +3200,7 @@ void store_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x2B) { // SW
     if(!c||memtarget) {
       int a=addr;
-#ifdef PCSX
-      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+      if(faststore_reg_override) a=faststore_reg_override;
       //emit_writeword_indexed(tl,(int)rdram-0x80000000,addr);
       emit_writeword_indexed_tlb(tl,0,a,map,temp);
     }
@@ -3223,9 +3209,7 @@ void store_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x3F) { // SD
     if(!c||memtarget) {
       int a=addr;
-#ifdef PCSX
-      if(sp_in_mirror&&rs1[i]==29) a=HOST_TEMPREG;
-#endif
+      if(faststore_reg_override) a=faststore_reg_override;
       if(rs2[i]) {
         assert(th>=0);
         //emit_writeword_indexed(th,(int)rdram-0x80000000,addr);
