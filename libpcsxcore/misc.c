@@ -209,8 +209,10 @@ int LoadCdrom() {
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
+	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+
 	// Read the rest of the main executable
-	while (tmpHead.t_size) {
+	while (tmpHead.t_size & ~2047) {
 		void *ptr = (void *)PSXM(tmpHead.t_addr);
 
 		incTime();
@@ -252,7 +254,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	size = head->t_size;
 	addr = head->t_addr;
 
-	while (size) {
+	psxCpu->Clear(addr, size / 4);
+
+	while (size & ~2047) {
 		incTime();
 		READTRACK();
 
@@ -381,6 +385,7 @@ int Load(const char *ExePath) {
 	int retval = 0;
 	u8 opcode;
 	u32 section_address, section_size;
+	void *mem;
 
 	strncpy(CdromId, "SLUS99999", 9);
 	strncpy(CdromLabel, "SLUS_999.99", 11);
@@ -394,8 +399,14 @@ int Load(const char *ExePath) {
 		switch (type) {
 			case PSX_EXE:
 				fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile);
-				fseek(tmpFile, 0x800, SEEK_SET);		
-				fread((void *)PSXM(SWAP32(tmpHead.t_addr)), SWAP32(tmpHead.t_size),1,tmpFile);
+				section_address = SWAP32(tmpHead.t_addr);
+				section_size = SWAP32(tmpHead.t_size);
+				mem = PSXM(section_address);
+				if (mem != NULL) {
+					fseek(tmpFile, 0x800, SEEK_SET);		
+					fread(mem, section_size, 1, tmpFile);
+					psxCpu->Clear(section_address, section_size / 4);
+				}
 				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
@@ -417,7 +428,11 @@ int Load(const char *ExePath) {
 #ifdef EMU_LOG
 							EMU_LOG("Loading %08X bytes from %08X to %08X\n", section_size, ftell(tmpFile), section_address);
 #endif
-							fread(PSXM(section_address), section_size, 1, tmpFile);
+							mem = PSXM(section_address);
+							if (mem != NULL) {
+								fread(mem, section_size, 1, tmpFile);
+								psxCpu->Clear(section_address, section_size / 4);
+							}
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
