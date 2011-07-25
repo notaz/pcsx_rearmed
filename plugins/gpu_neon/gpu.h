@@ -61,6 +61,14 @@ struct psx_gpu {
   uint32_t zero;
   struct {
     uint32_t fb_dirty:1;
+    uint32_t frame_count;
+    uint32_t *hcnt;
+    struct {
+      uint32_t addr;
+      uint32_t words;
+      uint32_t frame;
+      uint32_t hcnt;
+    } last_list;
   } state;
   struct {
     uint32_t enabled:1;

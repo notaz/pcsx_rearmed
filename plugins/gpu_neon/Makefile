@@ -18,6 +18,7 @@ SRC += vout_sdl.c
 endif
 PEOPS=1
 ifndef PEOPS
+SRC += psx_gpu_if.c
 else
 SRC += peops.c
 endif

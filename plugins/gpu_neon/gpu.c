@@ -16,9 +16,13 @@
 #define unlikely(x) __builtin_expect((x), 0)
 #define noinline __attribute__((noinline))
 
-//#define log_io printf
+#define gpu_log(fmt, ...) \
+  printf("%d:%03d: " fmt, gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
+
+//#define log_io gpu_log
 #define log_io(...)
-#define log_anomaly printf
+#define log_anomaly gpu_log
+//#define log_anomaly(...)
 
 struct psx_gpu gpu __attribute__((aligned(64)));
 
@@ -89,6 +93,8 @@ long GPUinit(void)
   int ret = vout_init();
   do_reset();
   gpu.lcf_hc = &gpu.zero;
+  gpu.state.frame_count = 0;
+  gpu.state.hcnt = &gpu.zero;
   return ret;
 }
 
@@ -144,8 +150,9 @@ void GPUwriteStatus(uint32_t data)
       update_width();
       update_height();
       break;
-    case 0x10 ... 0x1f:
-      get_gpu_info(data);
+    default:
+      if ((cmd & 0xf0) == 0x10)
+        get_gpu_info(data);
       break;
   }
 }
@@ -359,20 +366,32 @@ void GPUwriteData(uint32_t data)
 long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
 {
   uint32_t addr, *list;
+  uint32_t *llist_entry = NULL;
   int len, left, count;
+  long dma_words = 0;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
+
+  // ff7 sends it's main list twice, detect this
+  if (gpu.state.frame_count == gpu.state.last_list.frame &&
+     *gpu.state.hcnt - gpu.state.last_list.hcnt <= 1 &&
+      gpu.state.last_list.words > 1024)
+  {
+    llist_entry = rambase + (gpu.state.last_list.addr & 0x1fffff) / 4;
+    *llist_entry |= 0x800000;
+  }
 
   log_io("gpu_dma_chain\n");
   addr = start_addr & 0xffffff;
   for (count = 0; addr != 0xffffff; count++)
   {
-    log_io(".chain %08x\n", addr);
-
     list = rambase + (addr & 0x1fffff) / 4;
     len = list[0] >> 24;
     addr = list[0] & 0xffffff;
+    dma_words += 1 + len;
+
+    log_io(".chain %08x #%d\n", (list - rambase) * 4, len);
 
     // loop detection marker
     // (bit23 set causes DMA error on real machine, so
@@ -382,7 +401,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     if (len) {
       left = check_cmd(list + 1, len);
       if (left)
-        log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, len);
+        log_anomaly("GPUdmaChain: discarded %d/%d words\n", left, len);
     }
 
     if (addr & 0x800000)
@@ -396,8 +415,15 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     addr = list[0] & 0x1fffff;
     list[0] &= ~0x800000;
   }
+  if (llist_entry)
+    *llist_entry &= ~0x800000;
 
-  return 0;
+  gpu.state.last_list.frame = gpu.state.frame_count;
+  gpu.state.last_list.hcnt = *gpu.state.hcnt;
+  gpu.state.last_list.words = dma_words;
+  gpu.state.last_list.addr = start_addr;
+
+  return dma_words;
 }
 
 void GPUreadDataMem(uint32_t *mem, int count)
@@ -484,6 +510,10 @@ void GPUvBlank(int val, uint32_t *hcnt)
     if (!val)
       gpu.lcf_hc = hcnt;
   }
+  if (!val)
+    gpu.state.frame_count++;
+
+  gpu.state.hcnt = hcnt;
 }
 
 // vim:shiftwidth=2:expandtab
