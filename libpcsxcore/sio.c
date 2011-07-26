@@ -386,8 +386,10 @@ void sioInterrupt() {
 	PAD_LOG("Sio Interrupt (CP0.Status = %x)\n", psxRegs.CP0.n.Status);
 #endif
 //	SysPrintf("Sio Interrupt\n");
-	StatReg |= IRQ;
-	psxHu32ref(0x1070) |= SWAPu32(0x80);
+	if (!(StatReg & IRQ)) {
+		StatReg |= IRQ;
+		psxHu32ref(0x1070) |= SWAPu32(0x80);
+	}
 }
 
 void LoadMcd(int mcd, char *str) {
