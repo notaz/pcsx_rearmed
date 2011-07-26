@@ -376,7 +376,6 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      case 14:                                          // get loop address
       {
        const int ch=(r>>4)-0xc0;
-       if(s_chan[ch].pLoop==NULL) return 0;
        return (unsigned short)((s_chan[ch].pLoop-spuMemC)>>3);
       }
     }

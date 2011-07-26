@@ -423,6 +423,102 @@ INLINE int iGetInterpolationVal(int ch)
  return fa;
 }
 
+static int decode_block(int ch)
+{
+ unsigned char *start;
+ unsigned int nSample;
+ int predict_nr,shift_factor,flags,d,s;
+ int fa,s_1,s_2;
+ int ret = 0;
+
+ s_chan[ch].iSBPos=0;
+
+ start=s_chan[ch].pCurr;                   // set up the current pos
+ if (start == (unsigned char*)-1)          // special "stop" sign
+ {
+  dwChannelOn&=~(1<<ch);                   // -> turn everything off
+  s_chan[ch].bStop=1;
+  s_chan[ch].ADSRX.EnvelopeVol=0;
+  return 0;                                // -> and done for this channel
+ }
+
+ //////////////////////////////////////////// spu irq handler here? mmm... do it later
+
+ s_1=s_chan[ch].s_1;
+ s_2=s_chan[ch].s_2;
+
+ predict_nr=(int)*start;start++;
+ shift_factor=predict_nr&0xf;
+ predict_nr >>= 4;
+ flags=(int)*start;start++;
+
+ // -------------------------------------- // 
+
+ for (nSample=0;nSample<28;start++)      
+ {
+  d=(int)*start;
+  s=((d&0xf)<<12);
+  if(s&0x8000) s|=0xffff0000;
+
+  fa=(s >> shift_factor);
+  fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+  s_2=s_1;s_1=fa;
+  s=((d & 0xf0) << 8);
+
+  s_chan[ch].SB[nSample++]=fa;
+
+  if(s&0x8000) s|=0xffff0000;
+  fa=(s>>shift_factor);
+  fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+  s_2=s_1;s_1=fa;
+
+  s_chan[ch].SB[nSample++]=fa;
+ }
+
+ //////////////////////////////////////////// irq check
+
+ if(irqCallback && (spuCtrl&0x40))         // some callback and irq active?
+ {
+  if((pSpuIrq >  start-16 &&              // irq address reached?
+     pSpuIrq <= start) ||
+    ((flags&1) &&                        // special: irq on looping addr, when stop/loop flag is set 
+     (pSpuIrq >  s_chan[ch].pLoop-16 &&
+      pSpuIrq <= s_chan[ch].pLoop)))
+  {
+   irqCallback();                        // -> call main emu
+   ret = 1;
+  }
+ }
+
+ //////////////////////////////////////////// flag handler
+
+ if((flags&4) && (!s_chan[ch].bIgnoreLoop))
+  s_chan[ch].pLoop=start-16;               // loop adress
+
+ if(flags&1)                               // 1: stop/loop
+ {
+  // We play this block out first...
+  //if(!(flags&2))                         // 1+2: do loop... otherwise: stop
+  if(flags!=3 && flags!=7)                 // PETE: if we don't check exactly for 3, loop hang ups will happen (DQ4, for example)
+  {
+   start = (unsigned char*)-1;
+  }
+  else
+  {
+   start = s_chan[ch].pLoop;
+  }
+ }
+
+ if (start - spuMemC >= 0x80000)
+  start = (unsigned char*)-1;
+
+ s_chan[ch].pCurr=start;                   // store values for next cycle
+ s_chan[ch].s_1=s_1;
+ s_chan[ch].s_2=s_2;
+
+ return ret;
+}
+
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
 // here is the main job handler... thread, timer or direct func call
@@ -440,14 +536,13 @@ INLINE int iGetInterpolationVal(int ch)
 
 static void *MAINThread(void *arg)
 {
- int s_1,s_2,fa,ns,ns_from,ns_to;
+ int fa,ns,ns_from,ns_to;
 #if !defined(_MACOSX) && !defined(__arm__)
  int voldiv = iVolume;
 #else
  const int voldiv = 2;
 #endif
- unsigned char * start;unsigned int nSample;
- int ch,predict_nr,shift_factor,flags,d,s;
+ int ch,d;
  int bIRQReturn=0;
 
  while(!bEndThread)                                    // until we are shutting down
@@ -484,7 +579,7 @@ static void *MAINThread(void *arg)
    ch=0;
    if(lastch>=0)                                       // will be -1 if no continue is pending
     {
-     ch=lastch; ns_from=lastns+1; lastch=-1;           // -> setup all kind of vars to continue
+     ch=lastch; ns_from=lastns; lastch=-1;             // -> setup all kind of vars to continue
     }
 
    //--------------------------------------------------//
@@ -503,6 +598,8 @@ static void *MAINThread(void *arg)
         {
          int sval;
 
+         if(!(dwChannelOn&(1<<ch))) break;             // something turned ch off (adsr or flags)
+
          if(s_chan[ch].bFMod==1 && iFMod[ns])          // fmod freq channel
           FModChangeFrequency(ch,ns);
 
@@ -510,101 +607,14 @@ static void *MAINThread(void *arg)
           {
            if(s_chan[ch].iSBPos==28)                   // 28 reached?
             {
-             start=s_chan[ch].pCurr;                   // set up the current pos
-
-             if (start == (unsigned char*)-1)          // special "stop" sign
+             d = decode_block(ch);
+             if(d && iSPUIRQWait)                      // -> option: wait after irq for main emu
               {
-               dwChannelOn&=~(1<<ch);                  // -> turn everything off
-               s_chan[ch].ADSRX.EnvelopeVol=0;
-               goto ENDX;                              // -> and done for this channel
+               bIRQReturn=1;
+               lastch=ch; 
+               lastns=ns_to=ns;
+               goto ENDX;                              // do remaining chans unil this ns
               }
-
-             s_chan[ch].iSBPos=0;
-
-             //////////////////////////////////////////// spu irq handler here? mmm... do it later
-
-             s_1=s_chan[ch].s_1;
-             s_2=s_chan[ch].s_2;
-
-             predict_nr=(int)*start;start++;
-             shift_factor=predict_nr&0xf;
-             predict_nr >>= 4;
-             flags=(int)*start;start++;
-
-             // -------------------------------------- // 
-
-             for (nSample=0;nSample<28;start++)      
-              {
-               d=(int)*start;
-               s=((d&0xf)<<12);
-               if(s&0x8000) s|=0xffff0000;
-
-               fa=(s >> shift_factor);
-               fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-               s_2=s_1;s_1=fa;
-               s=((d & 0xf0) << 8);
-
-               s_chan[ch].SB[nSample++]=fa;
-
-               if(s&0x8000) s|=0xffff0000;
-               fa=(s>>shift_factor);
-               fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-               s_2=s_1;s_1=fa;
-
-               s_chan[ch].SB[nSample++]=fa;
-              }
-
-             //////////////////////////////////////////// irq check
-
-             if(irqCallback && (spuCtrl&0x40))         // some callback and irq active?
-              {
-               if((pSpuIrq >  start-16 &&              // irq address reached?
-                   pSpuIrq <= start) ||
-                  ((flags&1) &&                        // special: irq on looping addr, when stop/loop flag is set 
-                   (pSpuIrq >  s_chan[ch].pLoop-16 &&
-                    pSpuIrq <= s_chan[ch].pLoop)))
-               {
-                 irqCallback();                        // -> call main emu
-
-                 if(iSPUIRQWait)                       // -> option: wait after irq for main emu
-                  {
-                   iSpuAsyncWait=1;
-                   bIRQReturn=1;
-                   lastch=ch; 
-                   lastns=ns;
-                   ns_to=ns+1;
-                  }
-                }
-              }
-
-             //////////////////////////////////////////// flag handler
-
-             if((flags&4) && (!s_chan[ch].bIgnoreLoop))
-              s_chan[ch].pLoop=start-16;               // loop adress
-
-             if(flags&1)                               // 1: stop/loop
-              {
-               // We play this block out first...
-               //if(!(flags&2))                          // 1+2: do loop... otherwise: stop
-               if((flags!=3 && flags!=7)               // PETE: if we don't check exactly for 3, loop hang ups will happen (DQ4, for example)
-                  || s_chan[ch].pLoop==NULL)           // and checking if pLoop is set avoids crashes, yeah
-                {
-                 start = (unsigned char*)-1;
-                 // Actua Soccer 2, Jungle Book, other games that check for this condition
-                 s_chan[ch].ADSRX.EnvelopeVol = 0;
-                }
-               else
-                {
-                 start = s_chan[ch].pLoop;
-                }
-              }
-
-             if (start - spuMemC >= 0x80000)
-              start = (unsigned char*)-1;
-
-             s_chan[ch].pCurr=start;                   // store values for next cycle
-             s_chan[ch].s_1=s_1;
-             s_chan[ch].s_2=s_2;
             }
 
            fa=s_chan[ch].SB[s_chan[ch].iSBPos++];      // get sample data
@@ -618,7 +628,7 @@ static void *MAINThread(void *arg)
               fa=iGetNoiseVal(ch);                     // get noise val
          else fa=iGetInterpolationVal(ch);             // get sample val
 
-         sval = (MixADSR(ch) * fa) / 1023;  // mix adsr
+         sval = (MixADSR(ch) * fa) / 1024;  // mix adsr
 
          if(s_chan[ch].bFMod==2)                       // fmod freq channel
           iFMod[ns]=sval;                              // -> store 1T sample data, use that to do fmod on next channel
@@ -641,12 +651,13 @@ static void *MAINThread(void *arg)
 
          s_chan[ch].spos += s_chan[ch].sinc;
         }
-ENDX:   ;
+ENDX: ;
       }
     }
 
-    if(bIRQReturn)                            // special return for "spu irq - wait for cpu action"
+    if(bIRQReturn && iSPUIRQWait)                      // special return for "spu irq - wait for cpu action"
      {
+      iSpuAsyncWait=1;
       bIRQReturn=0;
       if(iUseTimer!=2)
        { 
