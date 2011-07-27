@@ -656,6 +656,53 @@ ENDX: ;
       }
     }
 
+    // advance "stopped" channels that can cause irqs
+    // (all chans are always playing on the real thing..)
+    if(!bIRQReturn && (spuCtrl&CTRL_IRQ))
+     for(ch=0;ch<MAXCHAN;ch++)
+      {
+       if(dwChannelOn&(1<<ch)) continue;               // already handled
+       if(s_chan[ch].pCurr == (unsigned char *)-1)
+        continue;
+       if(s_chan[ch].pCurr > pSpuIrq && s_chan[ch].pLoop > pSpuIrq)
+        continue;
+
+       if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
+         VoiceChangeFrequency(ch);
+
+       s_chan[ch].spos += s_chan[ch].sinc * NSSIZE;
+       while(s_chan[ch].spos >= 28 * 0x10000)
+        {
+         unsigned char *start=s_chan[ch].pCurr;
+         int flags = start[1];
+
+         // Tron Bonne hack, probably wrong (could be wrong memory contents..)
+         if(flags & ~7) flags = 0;
+
+         if(start == pSpuIrq)
+          {
+           do_irq();
+           bIRQReturn = 1;
+          }
+         else if((flags & 1) && start == s_chan[ch].pLoop)
+          {
+           // looping on self
+           s_chan[ch].pCurr=(unsigned char *)-1;
+           break;
+          }
+
+         if((flags&4) && !s_chan[ch].bIgnoreLoop)
+          s_chan[ch].pLoop=start;
+
+         s_chan[ch].pCurr += 16;
+
+         if(flags & 1)
+          s_chan[ch].pCurr = s_chan[ch].pLoop;
+
+         s_chan[ch].spos -= 28 * 0x10000;
+        }
+      }
+
     if(bIRQReturn && iSPUIRQWait)                      // special return for "spu irq - wait for cpu action"
      {
       iSpuAsyncWait=1;
