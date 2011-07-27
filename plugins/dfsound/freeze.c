@@ -172,9 +172,9 @@ static void load_channel(SPUCHAN *d, SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, s->SB, sizeof(d->SB));
- d->pStart = s->pStart;
- d->pCurr = s->pCurr;
- d->pLoop = s->pLoop;
+ d->pStart = (void *)((long)s->pStart & 0x7fff0);
+ d->pCurr = (void *)((long)s->pCurr & 0x7fff0);
+ d->pLoop = (void *)((long)s->pLoop & 0x7fff0);
  if (s->bOn) dwChannelOn |= 1<<ch;
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
@@ -247,6 +247,9 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
    pFO->spuAddr=spuAddr;
    if(pFO->spuAddr==0) pFO->spuAddr=0xbaadf00d;
 
+   dwChannelOn&=~dwPendingChanOff;
+   dwPendingChanOff=0;
+
    for(i=0;i<MAXCHAN;i++)
     {
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
@@ -275,6 +278,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
   SPUplayADPCMchannel(&pF->xaS);
 
  xapGlobal=0;
+ dwPendingChanOff=0;
 
  if(!strcmp(pF->szSPUName,"PBOSS") && pF->ulFreezeVersion==5)
    LoadStateV5(pF);
@@ -311,7 +315,7 @@ void LoadStateV5(SPUFreeze_t * pF)
  pFO=(SPUOSSFreeze_t *)(pF+1);
 
  spuIrq = pFO->spuIrq;
- if(pFO->pSpuIrq) pSpuIrq = pFO->pSpuIrq+spuMemC; else pSpuIrq=NULL;
+ if(pFO->pSpuIrq) pSpuIrq = spuMemC+((long)pFO->pSpuIrq&0x7fff0); else pSpuIrq=NULL;
 
  if(pFO->spuAddr)
   {

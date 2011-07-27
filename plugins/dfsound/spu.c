@@ -20,6 +20,7 @@
 #define _IN_SPU
 
 #include "externals.h"
+#include "registers.h"
 #include "cfg.h"
 #include "dsoundoss.h"
 #include "regs.h"
@@ -95,6 +96,7 @@ static pthread_t thread = (pthread_t)-1;               // thread id (linux)
 
 unsigned long dwNewChannel=0;                          // flags for faster testing, if new channel starts
 unsigned long dwChannelOn=0;
+unsigned long dwPendingChanOff=0;
 
 void (CALLBACK *irqCallback)(void)=0;                  // func of main emu, called on spu irq
 void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
@@ -423,6 +425,15 @@ INLINE int iGetInterpolationVal(int ch)
  return fa;
 }
 
+static void do_irq(void)
+{
+ if(!(spuStat & STAT_IRQ))
+ {
+  spuStat |= STAT_IRQ;
+  if(irqCallback) irqCallback();
+ }
+}
+
 static int decode_block(int ch)
 {
  unsigned char *start;
@@ -434,15 +445,26 @@ static int decode_block(int ch)
  s_chan[ch].iSBPos=0;
 
  start=s_chan[ch].pCurr;                   // set up the current pos
- if (start == (unsigned char*)-1)          // special "stop" sign
+ if(start == (unsigned char*)-1 ||         // special "stop" sign
+    (dwPendingChanOff&(1<<ch)))
  {
   dwChannelOn&=~(1<<ch);                   // -> turn everything off
+  dwPendingChanOff&=~(1<<ch);
   s_chan[ch].bStop=1;
   s_chan[ch].ADSRX.EnvelopeVol=0;
   return 0;                                // -> and done for this channel
  }
 
- //////////////////////////////////////////// spu irq handler here? mmm... do it later
+ //////////////////////////////////////////// irq check
+
+ if(spuCtrl&CTRL_IRQ)
+ {
+  if(pSpuIrq == start)                     // irq address reached?
+  {
+   do_irq();                               // -> call main emu
+   ret = 1;
+  }
+ }
 
  s_1=s_chan[ch].s_1;
  s_2=s_chan[ch].s_2;
@@ -475,21 +497,6 @@ static int decode_block(int ch)
   s_chan[ch].SB[nSample++]=fa;
  }
 
- //////////////////////////////////////////// irq check
-
- if(irqCallback && (spuCtrl&0x40))         // some callback and irq active?
- {
-  if((pSpuIrq >  start-16 &&              // irq address reached?
-     pSpuIrq <= start) ||
-    ((flags&1) &&                        // special: irq on looping addr, when stop/loop flag is set 
-     (pSpuIrq >  s_chan[ch].pLoop-16 &&
-      pSpuIrq <= s_chan[ch].pLoop)))
-  {
-   irqCallback();                        // -> call main emu
-   ret = 1;
-  }
- }
-
  //////////////////////////////////////////// flag handler
 
  if((flags&4) && (!s_chan[ch].bIgnoreLoop))
@@ -497,16 +504,10 @@ static int decode_block(int ch)
 
  if(flags&1)                               // 1: stop/loop
  {
-  // We play this block out first...
-  //if(!(flags&2))                         // 1+2: do loop... otherwise: stop
-  if(flags!=3 && flags!=7)                 // PETE: if we don't check exactly for 3, loop hang ups will happen (DQ4, for example)
-  {
-   start = (unsigned char*)-1;
-  }
-  else
-  {
-   start = s_chan[ch].pLoop;
-  }
+  if(!(flags&2))
+   dwPendingChanOff|=1<<ch;
+
+  start = s_chan[ch].pLoop;
  }
 
  if (start - spuMemC >= 0x80000)
@@ -720,7 +721,7 @@ ENDX: ;
   // an IRQ. Only problem: the "wait for cpu" option is kinda hard to do here
   // in some of Peops timer modes. So: we ignore this option here (for now).
 
-  if(pMixIrq && irqCallback)
+  if(pMixIrq)
    {
     for(ns=0;ns<NSSIZE;ns++)
      {
@@ -729,7 +730,7 @@ ENDX: ;
         for(ch=0;ch<4;ch++)
          {
           if(pSpuIrq>=pMixIrq+(ch*0x400) && pSpuIrq<pMixIrq+(ch*0x400)+2)
-           irqCallback();
+           do_irq();
          }
        }
       pMixIrq+=2;if(pMixIrq>spuMemC+0x3ff) pMixIrq=spuMemC;

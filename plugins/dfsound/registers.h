@@ -142,3 +142,11 @@
 #define H_SPU_ADSRLevel22  0x0d68
 #define H_SPU_ADSRLevel23  0x0d78
 
+#define CTRL_IRQ                0x40
+#define CTRL_REVERB             0x80
+#define CTRL_NOISE              0x3f00
+#define CTRL_MUTE               0x4000
+#define CTRL_ON                 0x8000
+
+#define STAT_IRQ                0x40
+

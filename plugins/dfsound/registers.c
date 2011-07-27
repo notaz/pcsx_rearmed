@@ -191,6 +191,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
       break;
     //-------------------------------------------------//
     case H_SPUctrl:
+      if(!(spuCtrl & CTRL_IRQ))
+        spuStat&=~STAT_IRQ;
       spuCtrl=val;
       break;
     //-------------------------------------------------//
@@ -214,7 +216,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
     //-------------------------------------------------//
     case H_SPUirqAddr:
       spuIrq = val;
-      pSpuIrq=spuMemC+((unsigned long) val<<3);
+      pSpuIrq=spuMemC+(((unsigned long) val<<3)&~0xf);
       break;
     //-------------------------------------------------//
     case H_SPUrvolL:
