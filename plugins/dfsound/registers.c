@@ -482,6 +482,8 @@ void FModOn(int start,int end,unsigned short val)      // FMOD ON PSX COMMAND
    else
     {
      s_chan[ch].bFMod=0;                               // --> turn off fmod
+     if(ch>0&&s_chan[ch-1].bFMod==2)
+      s_chan[ch-1].bFMod=0;
     }
   }
 }

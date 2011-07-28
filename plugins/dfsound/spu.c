@@ -4,6 +4,9 @@
     begin                : Wed May 15 2002
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
+
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2011
+
  ***************************************************************************/
 /***************************************************************************
  *                                                                         *
@@ -282,9 +285,10 @@ INLINE void VoiceChangeFrequency(int ch)
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void FModChangeFrequency(int ch,int ns)
+INLINE int FModChangeFrequency(int ch,int ns)
 {
  int NP=s_chan[ch].iRawPitch;
+ int sinc;
 
  NP=((32768L+iFMod[ns])*NP)/32768L;
 
@@ -295,11 +299,13 @@ INLINE void FModChangeFrequency(int ch,int ns)
 
  s_chan[ch].iActFreq=NP;
  s_chan[ch].iUsedFreq=NP;
- s_chan[ch].sinc=(((NP/10)<<16)/4410);
- if(!s_chan[ch].sinc) s_chan[ch].sinc=1;
+ sinc=(((NP/10)<<16)/4410);
+ if(!sinc) sinc=1;
  if(iUseInterpolation==1)                              // freq change in simple interpolation mode
- s_chan[ch].SB[32]=1;
+  s_chan[ch].SB[32]=1;
  iFMod[ns]=0;
+
+ return sinc;
 }                    
 
 ////////////////////////////////////////////////////////////////////////
@@ -521,6 +527,115 @@ static int decode_block(int ch)
  return ret;
 }
 
+// do block, but ignore sample data
+static int skip_block(int ch)
+{
+ unsigned char *start = s_chan[ch].pCurr;
+ int flags = start[1];
+ int ret = 0;
+
+ // Tron Bonne hack, probably wrong (could be wrong memory contents..)
+ if(flags & ~7) flags = 0;
+
+ if(start == pSpuIrq)
+ {
+  do_irq();
+  ret = 1;
+ }
+
+ if((flags & 4) && !s_chan[ch].bIgnoreLoop)
+  s_chan[ch].pLoop=start;
+
+ s_chan[ch].pCurr += 16;
+
+ if(flags & 1)
+  s_chan[ch].pCurr = s_chan[ch].pLoop;
+
+ return ret;
+}
+
+#define make_do_samples(name, fmod_code, interp_start, interp1_code, interp2_code, interp_end) \
+static int do_samples_##name(int ch, int ns, int ns_to) \
+{                                            \
+ int sinc = s_chan[ch].sinc;                 \
+ int spos = s_chan[ch].spos;                 \
+ int ret = -1;                               \
+ int d, fa;                                  \
+ interp_start;                               \
+                                             \
+ for (; ns < ns_to; ns++)                    \
+ {                                           \
+  fmod_code;                                 \
+                                             \
+  while (spos >= 0x10000)                    \
+  {                                          \
+   if(s_chan[ch].iSBPos == 28)               \
+   {                                         \
+    d = decode_block(ch);                    \
+    if(d && iSPUIRQWait)                     \
+    {                                        \
+     ret = ns;                               \
+     goto out;                               \
+    }                                        \
+   }                                         \
+                                             \
+   fa = s_chan[ch].SB[s_chan[ch].iSBPos++];  \
+   interp1_code;                             \
+   spos -= 0x10000;                          \
+  }                                          \
+                                             \
+  interp2_code;                              \
+  spos += sinc;                              \
+ }                                           \
+                                             \
+out:                                         \
+ s_chan[ch].sinc = sinc;                     \
+ s_chan[ch].spos = spos;                     \
+ interp_end;                                 \
+                                             \
+ return ret;                                 \
+}
+
+#define fmod_recv_check \
+  if(s_chan[ch].bFMod==1 && iFMod[ns]) \
+    sinc = FModChangeFrequency(ch,ns)
+
+make_do_samples(default, fmod_recv_check, ,
+  StoreInterpolationVal(ch, fa),
+  ChanBuf[ns] = iGetInterpolationVal(ch), )
+make_do_samples(noint, , fa = s_chan[ch].SB[29], , ChanBuf[ns] = fa, s_chan[ch].SB[29] = fa)
+
+#define simple_interp_store \
+  s_chan[ch].SB[28] = 0; \
+  s_chan[ch].SB[29] = s_chan[ch].SB[30]; \
+  s_chan[ch].SB[30] = s_chan[ch].SB[31]; \
+  s_chan[ch].SB[31] = fa; \
+  s_chan[ch].SB[32] = 1
+
+#define simple_interp_get \
+  if(sinc<0x10000)          /* -> upsampling? */ \
+       InterpolateUp(ch);   /* --> interpolate up */ \
+  else InterpolateDown(ch); /* --> else down */ \
+  ChanBuf[ns] = s_chan[ch].SB[29]
+
+make_do_samples(simple, , ,
+  simple_interp_store, simple_interp_get, )
+
+static int do_samples_noise(int ch, int ns, int ns_to)
+{
+ s_chan[ch].spos += s_chan[ch].sinc * (ns_to - ns);
+ while (s_chan[ch].spos >= 28*0x10000)
+ {
+  skip_block(ch);
+  s_chan[ch].spos -= 28*0x10000;
+ }
+
+ for (; ns < ns_to; ns++)
+  ChanBuf[ns] = iGetNoiseVal(ch);
+
+ return -1;
+}
+
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
 // here is the main job handler... thread, timer or direct func call
@@ -538,7 +653,7 @@ static int decode_block(int ch)
 
 static void *MAINThread(void *arg)
 {
- int fa,ns,ns_from,ns_to;
+ int ns,ns_from,ns_to;
 #if !defined(_MACOSX) && !defined(__arm__)
  int voldiv = iVolume;
 #else
@@ -596,44 +711,19 @@ static void *MAINThread(void *arg)
        if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
         VoiceChangeFrequency(ch);
 
-       for(ns=ns_from;ns<ns_to;ns++)                   // loop until 1 ms of data is reached
+       if(s_chan[ch].bNoise)
+        d=do_samples_noise(ch, ns_from, ns_to);
+       else if(s_chan[ch].bFMod==2 || (s_chan[ch].bFMod==0 && iUseInterpolation==0))
+        d=do_samples_noint(ch, ns_from, ns_to);
+       else if(s_chan[ch].bFMod==0 && iUseInterpolation==1)
+        d=do_samples_simple(ch, ns_from, ns_to);
+       else
+        d=do_samples_default(ch, ns_from, ns_to);
+       if(d>=0)
         {
-         if(!(dwChannelOn&(1<<ch))) break;             // something turned ch off (adsr or flags)
-
-         if(s_chan[ch].bFMod==1 && iFMod[ns])          // fmod freq channel
-          FModChangeFrequency(ch,ns);
-
-         while(s_chan[ch].spos>=0x10000L)
-          {
-           if(s_chan[ch].iSBPos==28)                   // 28 reached?
-            {
-             d = decode_block(ch);
-             if(d && iSPUIRQWait)                      // -> option: wait after irq for main emu
-              {
-               bIRQReturn=1;
-               lastch=ch; 
-               lastns=ns_to=ns;
-               goto ENDX;                              // do remaining chans unil this ns
-              }
-            }
-
-           fa=s_chan[ch].SB[s_chan[ch].iSBPos++];      // get sample data
-
-           StoreInterpolationVal(ch,fa);               // store val for later interpolation
-
-           s_chan[ch].spos -= 0x10000L;
-          }
-
-         if(s_chan[ch].bNoise)
-              fa=iGetNoiseVal(ch);                     // get noise val
-         else fa=iGetInterpolationVal(ch);             // get sample val
-         ChanBuf[ns]=fa;
-
-         ////////////////////////////////////////////////
-         // ok, go on until 1 ms data of this channel is collected
-
-         s_chan[ch].spos += s_chan[ch].sinc;
-ENDX: ;
+         bIRQReturn=1;
+         lastch=ch; 
+         lastns=ns_to=d;
         }
 
        MixADSR(ch, ns_from, ns_to);
@@ -678,30 +768,14 @@ ENDX: ;
        while(s_chan[ch].spos >= 28 * 0x10000)
         {
          unsigned char *start=s_chan[ch].pCurr;
-         int flags = start[1];
 
-         // Tron Bonne hack, probably wrong (could be wrong memory contents..)
-         if(flags & ~7) flags = 0;
-
-         if(start == pSpuIrq)
-          {
-           do_irq();
-           bIRQReturn = 1;
-          }
-         else if((flags & 1) && start == s_chan[ch].pLoop)
+         bIRQReturn |= skip_block(ch);
+         if(start == s_chan[ch].pCurr)
           {
            // looping on self
            s_chan[ch].pCurr=(unsigned char *)-1;
            break;
           }
-
-         if((flags&4) && !s_chan[ch].bIgnoreLoop)
-          s_chan[ch].pLoop=start;
-
-         s_chan[ch].pCurr += 16;
-
-         if(flags & 1)
-          s_chan[ch].pCurr = s_chan[ch].pLoop;
 
          s_chan[ch].spos -= 28 * 0x10000;
         }
