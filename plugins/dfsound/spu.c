@@ -108,6 +108,7 @@ static const int f[8][2] = {   {    0,  0  },
                         {  115, -52 },
                         {   98, -55 },
                         {  122, -60 } };
+int ChanBuf[NSSIZE];
 int SSumLR[NSSIZE*2];
 int iFMod[NSSIZE];
 int iCycle = 0;
@@ -597,8 +598,6 @@ static void *MAINThread(void *arg)
 
        for(ns=ns_from;ns<ns_to;ns++)                   // loop until 1 ms of data is reached
         {
-         int sval;
-
          if(!(dwChannelOn&(1<<ch))) break;             // something turned ch off (adsr or flags)
 
          if(s_chan[ch].bFMod==1 && iFMod[ns])          // fmod freq channel
@@ -628,12 +627,23 @@ static void *MAINThread(void *arg)
          if(s_chan[ch].bNoise)
               fa=iGetNoiseVal(ch);                     // get noise val
          else fa=iGetInterpolationVal(ch);             // get sample val
+         ChanBuf[ns]=fa;
 
-         sval = (MixADSR(ch) * fa) / 1024;  // mix adsr
+         ////////////////////////////////////////////////
+         // ok, go on until 1 ms data of this channel is collected
 
-         if(s_chan[ch].bFMod==2)                       // fmod freq channel
-          iFMod[ns]=sval;                              // -> store 1T sample data, use that to do fmod on next channel
-         else                                          // no fmod freq channel
+         s_chan[ch].spos += s_chan[ch].sinc;
+ENDX: ;
+        }
+
+       MixADSR(ch, ns_from, ns_to);
+
+       if(s_chan[ch].bFMod==2)                         // fmod freq channel
+        memcpy(iFMod, ChanBuf, sizeof(iFMod));
+       else for(ns=ns_from;ns<ns_to;ns++)
+        {
+         int sval = ChanBuf[ns];
+
           {
            //////////////////////////////////////////////
            // ok, left/right sound volume (psx volume goes from 0 ... 0x3fff)
@@ -646,13 +656,7 @@ static void *MAINThread(void *arg)
 
            if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns,sval);
           }
-
-         ////////////////////////////////////////////////
-         // ok, go on until 1 ms data of this channel is collected
-
-         s_chan[ch].spos += s_chan[ch].sinc;
         }
-ENDX: ;
       }
     }
 
