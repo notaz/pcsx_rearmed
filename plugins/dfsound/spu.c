@@ -1075,4 +1075,24 @@ char * SPUgetLibInfos(void)
 }
 */
 
+// debug
+void spu_get_debug_info(int *chans_out, int *fmod_chans_out, int *noise_chans_out)
+{
+ int ch = 0, fmod_chans = 0, noise_chans = 0;
+
+ for(;ch<MAXCHAN;ch++)
+ {
+  if (!(dwChannelOn & (1<<ch)))
+   continue;
+  if (s_chan[ch].bFMod == 2)
+   fmod_chans |= 1 << ch;
+  if (s_chan[ch].bNoise)
+   noise_chans |= 1 << ch;
+ }
+
+ *chans_out = dwChannelOn;
+ *fmod_chans_out = fmod_chans;
+ *noise_chans_out = noise_chans;
+}
+
 // vim:shiftwidth=1:expandtab

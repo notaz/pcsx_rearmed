@@ -74,6 +74,35 @@ static void print_cpu_usage(void)
 		pl_text_out16(pl_fbdev_w - 28, pl_fbdev_h - 10, "%3d", tick_per_sec);
 }
 
+// draw 192x8 status of 24 sound channels
+static __attribute__((noinline)) void draw_active_chans(void)
+{
+	extern void spu_get_debug_info(int *chans_out, int *fmod_chans_out, int *noise_chans_out); // hack
+	int live_chans, fmod_chans, noise_chans;
+
+	static const unsigned short colors[2] = { 0x1fe3, 0x0700 };
+	unsigned short *dest = (unsigned short *)pl_fbdev_buf +
+		pl_fbdev_w * (pl_fbdev_h - 10) + pl_fbdev_w / 2 - 192/2;
+	unsigned short *d, p;
+	int c, x, y;
+
+	if (pl_fbdev_bpp != 16)
+		return;
+
+	spu_get_debug_info(&live_chans, &fmod_chans, &noise_chans);
+
+	for (c = 0; c < 24; c++) {
+		d = dest + c * 8;
+		p = !(live_chans & (1<<c)) ? 0 :
+		     (fmod_chans & (1<<c)) ? 0xf000 :
+		     (noise_chans & (1<<c)) ? 0x001f :
+		     colors[c & 1];
+		for (y = 0; y < 8; y++, d += pl_fbdev_w)
+			for (x = 0; x < 8; x++)
+				d[x] = p;
+	}
+}
+
 void *pl_fbdev_set_mode(int w, int h, int bpp)
 {
 	void *ret;
@@ -102,6 +131,9 @@ void *pl_fbdev_flip(void)
 	flip_cnt++;
 
 	if (pl_fbdev_buf != NULL) {
+		if (g_opts & OPT_SHOWSPU)
+			draw_active_chans();
+
 		if (hud_msg[0] != 0)
 			print_hud();
 		else if (g_opts & OPT_SHOWFPS)

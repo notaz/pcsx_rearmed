@@ -1143,6 +1143,8 @@ static int menu_loop_plugin_options(int id, int keys)
 
 static const char *men_cfg_cdrr[] = { "Auto", "ON", "OFF", NULL };
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
+static const char h_cfg_spu[]    = "Shows active SPU channels\n"
+				   "(green: normal, red: fmod, blue: noise)";
 static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running too fast";
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
@@ -1161,6 +1163,7 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff_h   ("Show CPU load",          0, g_opts, OPT_SHOWCPU, h_cfg_cpul),
+	mee_onoff_h   ("Show SPU channels",      0, g_opts, OPT_SHOWSPU, h_cfg_spu),
 	mee_onoff_h   ("Disable Frame Limiter",  0, g_opts, OPT_NO_FRAMELIM, h_cfg_fl),
 	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),

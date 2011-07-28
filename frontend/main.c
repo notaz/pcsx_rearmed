@@ -476,7 +476,9 @@ int emu_save_state(int slot)
 	if (ret != 0)
 		return ret;
 
-	return SaveState(fname);
+	ret = SaveState(fname);
+	printf("* %s \"%s\" [%d]\n", ret == 0 ? "saved" : "failed to save", fname, slot);
+	return ret;
 }
 
 int emu_load_state(int slot)
