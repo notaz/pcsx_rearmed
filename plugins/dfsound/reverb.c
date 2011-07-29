@@ -4,6 +4,10 @@
     begin                : Wed May 15 2002
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
+
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2011
+ Portions (C) SPU2-X, gigaherz, Pcsx2 Development Team
+
  ***************************************************************************/
 /***************************************************************************
  *                                                                         *
@@ -31,32 +35,6 @@
 int *          sRVBPlay      = 0;
 int *          sRVBEnd       = 0;
 int *          sRVBStart     = 0;
-int            iReverbOff    = -1;                          // some delay factor for reverb
-int            iReverbRepeat = 0;
-int            iReverbNum    = 1;    
-
-////////////////////////////////////////////////////////////////////////
-// SET REVERB
-////////////////////////////////////////////////////////////////////////
-
-void SetREVERB(unsigned short val)
-{
- switch(val)
-  {
-   case 0x0000: iReverbOff=-1;  break;                                         // off
-   case 0x007D: iReverbOff=32;  iReverbNum=2; iReverbRepeat=128;  break;       // ok room
-
-   case 0x0033: iReverbOff=32;  iReverbNum=2; iReverbRepeat=64;   break;       // studio small
-   case 0x00B1: iReverbOff=48;  iReverbNum=2; iReverbRepeat=96;   break;       // ok studio medium
-   case 0x00E3: iReverbOff=64;  iReverbNum=2; iReverbRepeat=128;  break;       // ok studio large ok
-
-   case 0x01A5: iReverbOff=128; iReverbNum=4; iReverbRepeat=32;   break;       // ok hall
-   case 0x033D: iReverbOff=256; iReverbNum=4; iReverbRepeat=64;   break;       // space echo
-   case 0x0001: iReverbOff=184; iReverbNum=3; iReverbRepeat=128;  break;       // echo/delay
-   case 0x0017: iReverbOff=128; iReverbNum=2; iReverbRepeat=128;  break;       // half echo
-   default:     iReverbOff=32;  iReverbNum=1; iReverbRepeat=0;    break;
-  }
-}
 
 ////////////////////////////////////////////////////////////////////////
 // START REVERB
@@ -66,15 +44,7 @@ INLINE void StartREVERB(int ch)
 {
  if(s_chan[ch].bReverb && (spuCtrl&0x80))              // reverb possible?
   {
-   if(iUseReverb==2) s_chan[ch].bRVBActive=1;
-   else
-   if(iUseReverb==1 && iReverbOff>0)                   // -> fake reverb used?
-    {
-     s_chan[ch].bRVBActive=1;                            // -> activate it
-     s_chan[ch].iRVBOffset=iReverbOff*45;
-     s_chan[ch].iRVBRepeat=iReverbRepeat*45;
-     s_chan[ch].iRVBNum   =iReverbNum;
-    }
+   s_chan[ch].bRVBActive=!!iUseReverb;
   }
  else s_chan[ch].bRVBActive=0;                         // else -> no reverb
 }
@@ -85,199 +55,198 @@ INLINE void StartREVERB(int ch)
 
 INLINE void InitREVERB(void)
 {
- if(iUseReverb==2)
-  {memset(sRVBStart,0,NSSIZE*2*4);}
+ memset(sRVBStart,0,NSSIZE*2*4);
 }
 
 ////////////////////////////////////////////////////////////////////////
 // STORE REVERB
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void StoreREVERB(int ch,int ns,int sval)
+INLINE void StoreREVERB(int ch,int ns,int l,int r)
 {
- if(iUseReverb==0) return;
- else
- if(iUseReverb==2) // -------------------------------- // Neil's reverb
-  {
-   const int iRxl=(sval*s_chan[ch].iLeftVolume)/0x4000;
-   const int iRxr=(sval*s_chan[ch].iRightVolume)/0x4000;
+ ns<<=1;
 
-   ns<<=1;
-
-   *(sRVBStart+ns)  +=iRxl;                            // -> we mix all active reverb channels into an extra buffer
-   *(sRVBStart+ns+1)+=iRxr;
-  }
- else // --------------------------------------------- // Pete's easy fake reverb
-  {
-   int * pN;int iRn,iRr=0;
-
-   // we use the half channel volume (/0x8000) for the first reverb effects, quarter for next and so on
-
-   int iRxl=(sval*s_chan[ch].iLeftVolume)/0x8000;
-   int iRxr=(sval*s_chan[ch].iRightVolume)/0x8000;
- 
-   for(iRn=1;iRn<=s_chan[ch].iRVBNum;iRn++,iRr+=s_chan[ch].iRVBRepeat,iRxl/=2,iRxr/=2)
-    {
-     pN=sRVBPlay+((s_chan[ch].iRVBOffset+iRr+ns)<<1);
-     if(pN>=sRVBEnd) pN=sRVBStart+(pN-sRVBEnd);
-
-     (*pN)+=iRxl;
-     pN++;
-     (*pN)+=iRxr;
-    }
-  }
+ sRVBStart[ns]  +=l;                                   // -> we mix all active reverb channels into an extra buffer
+ sRVBStart[ns+1]+=r;
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int g_buffer(int iOff)                          // get_buffer content helper: takes care about wraps
+INLINE int rvb2ram_offs(int curr, int space, int iOff)
 {
- short * p=(short *)spuMem;
- iOff=(iOff*4)+rvb.CurrAddr;
- while(iOff>0x3FFFF)       iOff=rvb.StartAddr+(iOff-0x40000);
- while(iOff<rvb.StartAddr) iOff=0x3ffff-(rvb.StartAddr-iOff);
- return (int)*(p+iOff);
+ iOff += curr;
+ if (iOff >= 0x40000) iOff -= space;
+ return iOff;
 }
+
+// get_buffer content helper: takes care about wraps
+#define g_buffer(var) \
+ ((int)(signed short)spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)])
+
+// saturate iVal and store it as var
+#define s_buffer(var, iVal) \
+ ssat32_to_16(iVal); \
+ spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)] = iVal
+
+#define s_buffer1(var, iVal) \
+ ssat32_to_16(iVal); \
+ spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var + 1)] = iVal
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void s_buffer(int iOff,int iVal)                // set_buffer content helper: takes care about wraps and clipping
+// portions based on spu2-x from PCSX2
+static void MixREVERB(void)
 {
- short * p=(short *)spuMem;
- iOff=(iOff*4)+rvb.CurrAddr;
- while(iOff>0x3FFFF) iOff=rvb.StartAddr+(iOff-0x40000);
- while(iOff<rvb.StartAddr) iOff=0x3ffff-(rvb.StartAddr-iOff);
- if(iVal<-32768L) iVal=-32768L;if(iVal>32767L) iVal=32767L;
- *(p+iOff)=(short)iVal;
+ int l_old = rvb.iRVBLeft;
+ int r_old = rvb.iRVBRight;
+ int curr_addr = rvb.CurrAddr;
+ int space = 0x40000 - rvb.StartAddr;
+ int l, r, ns;
+
+ for (ns = 0; ns < NSSIZE*2; )
+  {
+   int IIR_ALPHA = rvb.IIR_ALPHA;
+   int ACC0, ACC1, FB_A0, FB_A1, FB_B0, FB_B1;
+   int mix_dest_a0, mix_dest_a1, mix_dest_b0, mix_dest_b1;
+
+   int input_L = sRVBStart[ns]   * rvb.IN_COEF_L;
+   int input_R = sRVBStart[ns+1] * rvb.IN_COEF_R;
+
+   int IIR_INPUT_A0 = ((g_buffer(IIR_SRC_A0) * rvb.IIR_COEF) + input_L) >> 15;
+   int IIR_INPUT_A1 = ((g_buffer(IIR_SRC_A1) * rvb.IIR_COEF) + input_R) >> 15;
+   int IIR_INPUT_B0 = ((g_buffer(IIR_SRC_B0) * rvb.IIR_COEF) + input_L) >> 15;
+   int IIR_INPUT_B1 = ((g_buffer(IIR_SRC_B1) * rvb.IIR_COEF) + input_R) >> 15;
+
+   int iir_dest_a0 = g_buffer(IIR_DEST_A0);
+   int iir_dest_a1 = g_buffer(IIR_DEST_A1);
+   int iir_dest_b0 = g_buffer(IIR_DEST_B0);
+   int iir_dest_b1 = g_buffer(IIR_DEST_B1);
+
+   int IIR_A0 = iir_dest_a0 + ((IIR_INPUT_A0 - iir_dest_a0) * IIR_ALPHA >> 15);
+   int IIR_A1 = iir_dest_a1 + ((IIR_INPUT_A1 - iir_dest_a1) * IIR_ALPHA >> 15);
+   int IIR_B0 = iir_dest_b0 + ((IIR_INPUT_B0 - iir_dest_b0) * IIR_ALPHA >> 15);
+   int IIR_B1 = iir_dest_b1 + ((IIR_INPUT_B1 - iir_dest_b1) * IIR_ALPHA >> 15);
+
+   s_buffer1(IIR_DEST_A0, IIR_A0);
+   s_buffer1(IIR_DEST_A1, IIR_A1);
+   s_buffer1(IIR_DEST_B0, IIR_B0);
+   s_buffer1(IIR_DEST_B1, IIR_B1);
+
+   ACC0 = (g_buffer(ACC_SRC_A0) * rvb.ACC_COEF_A +
+           g_buffer(ACC_SRC_B0) * rvb.ACC_COEF_B +
+           g_buffer(ACC_SRC_C0) * rvb.ACC_COEF_C +
+           g_buffer(ACC_SRC_D0) * rvb.ACC_COEF_D) >> 15;
+   ACC1 = (g_buffer(ACC_SRC_A1) * rvb.ACC_COEF_A +
+           g_buffer(ACC_SRC_B1) * rvb.ACC_COEF_B +
+           g_buffer(ACC_SRC_C1) * rvb.ACC_COEF_C +
+           g_buffer(ACC_SRC_D1) * rvb.ACC_COEF_D) >> 15;
+
+   FB_A0 = g_buffer(FB_SRC_A0);
+   FB_A1 = g_buffer(FB_SRC_A1);
+   FB_B0 = g_buffer(FB_SRC_B0);
+   FB_B1 = g_buffer(FB_SRC_B1);
+
+   mix_dest_a0 = ACC0 - ((FB_A0 * rvb.FB_ALPHA) >> 15);
+   mix_dest_a1 = ACC1 - ((FB_A1 * rvb.FB_ALPHA) >> 15);
+
+   mix_dest_b0 = FB_A0 + (((ACC0 - FB_A0) * rvb.FB_ALPHA - FB_B0 * rvb.FB_X) >> 15);
+   mix_dest_b1 = FB_A1 + (((ACC1 - FB_A1) * rvb.FB_ALPHA - FB_B1 * rvb.FB_X) >> 15);
+
+   s_buffer(MIX_DEST_A0, mix_dest_a0);
+   s_buffer(MIX_DEST_A1, mix_dest_a1);
+   s_buffer(MIX_DEST_B0, mix_dest_b0);
+   s_buffer(MIX_DEST_B1, mix_dest_b1);
+
+   l = (mix_dest_a0 + mix_dest_b0) / 3;
+   r = (mix_dest_a1 + mix_dest_b1) / 3;
+
+   l = (l * rvb.VolLeft)  >> 14;
+   r = (r * rvb.VolRight) >> 14;
+
+   SSumLR[ns++] += (l + l_old) / 2;
+   SSumLR[ns++] += (r + r_old) / 2;
+   SSumLR[ns++] += l;
+   SSumLR[ns++] += r;
+
+   l_old = l;
+   r_old = r;
+
+   curr_addr++;
+   if (curr_addr >= 0x40000) curr_addr = rvb.StartAddr;
+  }
+
+ rvb.iRVBLeft = l;
+ rvb.iRVBRight = r;
+ rvb.CurrAddr = curr_addr;
 }
 
-////////////////////////////////////////////////////////////////////////
-
-INLINE void s_buffer1(int iOff,int iVal)                // set_buffer (+1 sample) content helper: takes care about wraps and clipping
+static void prepare_offsets(void)
 {
- short * p=(short *)spuMem;
- iOff=(iOff*4)+rvb.CurrAddr+1;
- while(iOff>0x3FFFF) iOff=rvb.StartAddr+(iOff-0x40000);
- while(iOff<rvb.StartAddr) iOff=0x3ffff-(rvb.StartAddr-iOff);
- if(iVal<-32768L) iVal=-32768L;if(iVal>32767L) iVal=32767L;
- *(p+iOff)=(short)iVal;
+ int space = 0x40000 - rvb.StartAddr;
+ int t;
+ #define prep_offs(v) \
+   t = rvb.v; \
+   while (t >= space) \
+     t -= space; \
+   rvb.n##v = t
+ #define prep_offs2(d, v1, v2) \
+   t = rvb.v1 - rvb.v2; \
+   while (t >= space) \
+     t -= space; \
+   rvb.n##d = t
+
+ prep_offs(IIR_SRC_A0);
+ prep_offs(IIR_SRC_A1);
+ prep_offs(IIR_SRC_B0);
+ prep_offs(IIR_SRC_B1);
+ prep_offs(IIR_DEST_A0);
+ prep_offs(IIR_DEST_A1);
+ prep_offs(IIR_DEST_B0);
+ prep_offs(IIR_DEST_B1);
+ prep_offs(ACC_SRC_A0);
+ prep_offs(ACC_SRC_A1);
+ prep_offs(ACC_SRC_B0);
+ prep_offs(ACC_SRC_B1);
+ prep_offs(ACC_SRC_C0);
+ prep_offs(ACC_SRC_C1);
+ prep_offs(ACC_SRC_D0);
+ prep_offs(ACC_SRC_D1);
+ prep_offs(MIX_DEST_A0);
+ prep_offs(MIX_DEST_A1);
+ prep_offs(MIX_DEST_B0);
+ prep_offs(MIX_DEST_B1);
+ prep_offs2(FB_SRC_A0, MIX_DEST_A0, FB_SRC_A);
+ prep_offs2(FB_SRC_A1, MIX_DEST_A1, FB_SRC_A);
+ prep_offs2(FB_SRC_B0, MIX_DEST_B0, FB_SRC_B);
+ prep_offs2(FB_SRC_B1, MIX_DEST_B1, FB_SRC_B);
+
+#undef prep_offs
+#undef prep_offs2
+ rvb.dirty = 0;
 }
 
-////////////////////////////////////////////////////////////////////////
-
-INLINE int MixREVERBLeft(int ns)
+INLINE void REVERBDo(void)
 {
- if(iUseReverb==0) return 0;
- else
- if(iUseReverb==2)
-  {
-   static int iCnt=0;                                  // this func will be called with 44.1 khz
+ if (!rvb.StartAddr)                                   // reverb is off
+ {
+  rvb.iRVBLeft = rvb.iRVBRight = 0;
+  return;
+ }
 
-   if(!rvb.StartAddr)                                  // reverb is off
-    {
-     rvb.iLastRVBLeft=rvb.iLastRVBRight=rvb.iRVBLeft=rvb.iRVBRight=0;
-     return 0;
-    }
+ if (spuCtrl & 0x80)                                   // -> reverb on? oki
+ {
+  if (rvb.dirty)
+   prepare_offsets();
 
-   iCnt++;                                    
-
-   if(iCnt&1)                                          // we work on every second left value: downsample to 22 khz
-    {
-     if(spuCtrl&0x80)                                  // -> reverb on? oki
-      {
-       int ACC0,ACC1,FB_A0,FB_A1,FB_B0,FB_B1;
-
-       const int INPUT_SAMPLE_L=*(sRVBStart+(ns<<1));                         
-       const int INPUT_SAMPLE_R=*(sRVBStart+(ns<<1)+1);                     
-
-       const int IIR_INPUT_A0 = (g_buffer(rvb.IIR_SRC_A0) * rvb.IIR_COEF)/32768L + (INPUT_SAMPLE_L * rvb.IN_COEF_L)/32768L;
-       const int IIR_INPUT_A1 = (g_buffer(rvb.IIR_SRC_A1) * rvb.IIR_COEF)/32768L + (INPUT_SAMPLE_R * rvb.IN_COEF_R)/32768L;
-       const int IIR_INPUT_B0 = (g_buffer(rvb.IIR_SRC_B0) * rvb.IIR_COEF)/32768L + (INPUT_SAMPLE_L * rvb.IN_COEF_L)/32768L;
-       const int IIR_INPUT_B1 = (g_buffer(rvb.IIR_SRC_B1) * rvb.IIR_COEF)/32768L + (INPUT_SAMPLE_R * rvb.IN_COEF_R)/32768L;
-
-       const int IIR_A0 = (IIR_INPUT_A0 * rvb.IIR_ALPHA)/32768L + (g_buffer(rvb.IIR_DEST_A0) * (32768L - rvb.IIR_ALPHA))/32768L;
-       const int IIR_A1 = (IIR_INPUT_A1 * rvb.IIR_ALPHA)/32768L + (g_buffer(rvb.IIR_DEST_A1) * (32768L - rvb.IIR_ALPHA))/32768L;
-       const int IIR_B0 = (IIR_INPUT_B0 * rvb.IIR_ALPHA)/32768L + (g_buffer(rvb.IIR_DEST_B0) * (32768L - rvb.IIR_ALPHA))/32768L;
-       const int IIR_B1 = (IIR_INPUT_B1 * rvb.IIR_ALPHA)/32768L + (g_buffer(rvb.IIR_DEST_B1) * (32768L - rvb.IIR_ALPHA))/32768L;
-
-       s_buffer1(rvb.IIR_DEST_A0, IIR_A0);
-       s_buffer1(rvb.IIR_DEST_A1, IIR_A1);
-       s_buffer1(rvb.IIR_DEST_B0, IIR_B0);
-       s_buffer1(rvb.IIR_DEST_B1, IIR_B1);
- 
-       ACC0 = (g_buffer(rvb.ACC_SRC_A0) * rvb.ACC_COEF_A)/32768L +
-              (g_buffer(rvb.ACC_SRC_B0) * rvb.ACC_COEF_B)/32768L +
-              (g_buffer(rvb.ACC_SRC_C0) * rvb.ACC_COEF_C)/32768L +
-              (g_buffer(rvb.ACC_SRC_D0) * rvb.ACC_COEF_D)/32768L;
-       ACC1 = (g_buffer(rvb.ACC_SRC_A1) * rvb.ACC_COEF_A)/32768L +
-              (g_buffer(rvb.ACC_SRC_B1) * rvb.ACC_COEF_B)/32768L +
-              (g_buffer(rvb.ACC_SRC_C1) * rvb.ACC_COEF_C)/32768L +
-              (g_buffer(rvb.ACC_SRC_D1) * rvb.ACC_COEF_D)/32768L;
-
-       FB_A0 = g_buffer(rvb.MIX_DEST_A0 - rvb.FB_SRC_A);
-       FB_A1 = g_buffer(rvb.MIX_DEST_A1 - rvb.FB_SRC_A);
-       FB_B0 = g_buffer(rvb.MIX_DEST_B0 - rvb.FB_SRC_B);
-       FB_B1 = g_buffer(rvb.MIX_DEST_B1 - rvb.FB_SRC_B);
-
-       s_buffer(rvb.MIX_DEST_A0, ACC0 - (FB_A0 * rvb.FB_ALPHA)/32768L);
-       s_buffer(rvb.MIX_DEST_A1, ACC1 - (FB_A1 * rvb.FB_ALPHA)/32768L);
-       
-       s_buffer(rvb.MIX_DEST_B0, (rvb.FB_ALPHA * ACC0)/32768L - (FB_A0 * (int)(rvb.FB_ALPHA^0xFFFF8000))/32768L - (FB_B0 * rvb.FB_X)/32768L);
-       s_buffer(rvb.MIX_DEST_B1, (rvb.FB_ALPHA * ACC1)/32768L - (FB_A1 * (int)(rvb.FB_ALPHA^0xFFFF8000))/32768L - (FB_B1 * rvb.FB_X)/32768L);
- 
-       rvb.iLastRVBLeft  = rvb.iRVBLeft;
-       rvb.iLastRVBRight = rvb.iRVBRight;
-
-       rvb.iRVBLeft  = (g_buffer(rvb.MIX_DEST_A0)+g_buffer(rvb.MIX_DEST_B0))/3;
-       rvb.iRVBRight = (g_buffer(rvb.MIX_DEST_A1)+g_buffer(rvb.MIX_DEST_B1))/3;
-
-       rvb.iRVBLeft  = (rvb.iRVBLeft  * rvb.VolLeft)  / 0x4000;
-       rvb.iRVBRight = (rvb.iRVBRight * rvb.VolRight) / 0x4000;
-
-       rvb.CurrAddr++;
-       if(rvb.CurrAddr>0x3ffff) rvb.CurrAddr=rvb.StartAddr;
-
-       return rvb.iLastRVBLeft+(rvb.iRVBLeft-rvb.iLastRVBLeft)/2;
-      }
-     else                                              // -> reverb off
-      {
-       rvb.iLastRVBLeft=rvb.iLastRVBRight=rvb.iRVBLeft=rvb.iRVBRight=0;
-      }
-
-     rvb.CurrAddr++;
-     if(rvb.CurrAddr>0x3ffff) rvb.CurrAddr=rvb.StartAddr;
-    }
-
-   return rvb.iLastRVBLeft;
-  }
- else                                                  // easy fake reverb:
-  {
-   const int iRV=*sRVBPlay;                            // -> simply take the reverb mix buf value
-   *sRVBPlay++=0;                                      // -> init it after
-   if(sRVBPlay>=sRVBEnd) sRVBPlay=sRVBStart;           // -> and take care about wrap arounds
-   return iRV;                                         // -> return reverb mix buf val
-  }
-}
-
-////////////////////////////////////////////////////////////////////////
-
-INLINE int MixREVERBRight(void)
-{
- if(iUseReverb==0) return 0;
- else
- if(iUseReverb==2)                                     // Neill's reverb:
-  {
-   int i=rvb.iLastRVBRight+(rvb.iRVBRight-rvb.iLastRVBRight)/2;
-   rvb.iLastRVBRight=rvb.iRVBRight;
-   return i;                                           // -> just return the last right reverb val (little bit scaled by the previous right val)
-  }
- else                                                  // easy fake reverb:
-  {
-   const int iRV=*sRVBPlay;                            // -> simply take the reverb mix buf value
-   *sRVBPlay++=0;                                      // -> init it after
-   if(sRVBPlay>=sRVBEnd) sRVBPlay=sRVBStart;           // -> and take care about wrap arounds
-   return iRV;                                         // -> return reverb mix buf val
-  }
+  MixREVERB();
+ }
+ else                                                  // -> reverb off
+ {
+  // supposedly runs anyway?
+  rvb.CurrAddr += NSSIZE/2;
+  while (rvb.CurrAddr >= 0x40000)
+   rvb.CurrAddr -= 0x40000 - rvb.StartAddr;
+ }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -460,3 +429,4 @@ buffer[MIX_DEST_B1] = (FB_ALPHA * ACC1) - FB_A1 * (FB_ALPHA^0x8000) - FB_B1 * FB
 -----------------------------------------------------------------------------
 */
 
+// vim:shiftwidth=1:expandtab

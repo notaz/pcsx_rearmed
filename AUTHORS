@@ -36,11 +36,16 @@ GLES plugin (psx4m project):
 	Proger
 	Pickle
 
-builtin GPU/SPU plugins:
-	Pete Bernert and the P.E.Op.S. team
+builtin GPU plugin:
+	(C) Pete Bernert and the P.E.Op.S. team
+
+builtin SPU plugin:
+	(C) Pete Bernert and the P.E.Op.S. team
+	(C) SPU2-X, gigaherz, Pcsx2 Development Team
+	shalma
 
 MIPS->ARM recompiler:
-	(C) 2009-2010 Ari64
+	(C) 2009-2011 Ari64
 
 integration, optimization and frontend:
 	(C) 2010-2011 notaz

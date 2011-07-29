@@ -45,7 +45,8 @@
 #define MAXCHAN     24
 
 // ~ 1 ms of data
-#define NSSIZE 45
+// note: must be even due to the way reverb works now
+#define NSSIZE 46
 
 ///////////////////////////////////////////////////////////
 // struct defines
@@ -142,8 +143,6 @@ typedef struct
 
  int VolLeft;
  int VolRight;
- int iLastRVBLeft;
- int iLastRVBRight;
  int iRVBLeft;
  int iRVBRight;
 
@@ -179,6 +178,17 @@ typedef struct
  int MIX_DEST_B1;    // (offset)
  int IN_COEF_L;      // (coef.)
  int IN_COEF_R;      // (coef.)
+
+ int dirty;          // registers changed
+
+ // normalized offsets
+ int nIIR_DEST_A0, nIIR_DEST_A1, nIIR_DEST_B0, nIIR_DEST_B1,
+ 	nACC_SRC_A0, nACC_SRC_A1, nACC_SRC_B0, nACC_SRC_B1, 
+	nIIR_SRC_A0, nIIR_SRC_A1, nIIR_SRC_B0, nIIR_SRC_B1,
+	nACC_SRC_C0, nACC_SRC_C1, nACC_SRC_D0, nACC_SRC_D1,
+	nMIX_DEST_A0, nMIX_DEST_A1, nMIX_DEST_B0, nMIX_DEST_B1;
+ // MIX_DEST_xx - FB_SRC_x
+ int nFB_SRC_A0, nFB_SRC_A1, nFB_SRC_B0, nFB_SRC_B1;
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////
@@ -268,8 +278,5 @@ extern int           iRightXAVol;
 extern int *          sRVBPlay;
 extern int *          sRVBEnd;
 extern int *          sRVBStart;
-extern int            iReverbOff;
-extern int            iReverbRepeat;
-extern int            iReverbNum;    
 
 #endif

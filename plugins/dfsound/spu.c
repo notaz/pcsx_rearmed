@@ -38,6 +38,16 @@
 #define N_(x) (x)
 #endif
 
+#ifdef __arm__
+ #define ssat32_to_16(v) \
+  asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
+#else
+ #define ssat32_to_16(v) do { \
+  if (v < -32768) v = -32768; \
+  else if (v > 32767) v = 32767; \
+ } while (0)
+#endif
+
 /*
 #if defined (USEMACOSX)
 static char * libraryName     = N_("Mac OS X Sound");
@@ -730,21 +740,28 @@ static void *MAINThread(void *arg)
 
        if(s_chan[ch].bFMod==2)                         // fmod freq channel
         memcpy(iFMod, ChanBuf, sizeof(iFMod));
-       else for(ns=ns_from;ns<ns_to;ns++)
+       else
         {
-         int sval = ChanBuf[ns];
+         int lv=s_chan[ch].iLeftVolume;
+         int rv=s_chan[ch].iRightVolume;
 
+         for(ns=ns_from;ns<ns_to;ns++)
           {
+           int sval = ChanBuf[ns];
+           int l, r;
+
            //////////////////////////////////////////////
            // ok, left/right sound volume (psx volume goes from 0 ... 0x3fff)
 
-           SSumLR[ns*2]  +=(sval*s_chan[ch].iLeftVolume)/0x4000L;
-           SSumLR[ns*2+1]+=(sval*s_chan[ch].iRightVolume)/0x4000L;
+           l=(sval*lv)>>14;
+           r=(sval*rv)>>14;
+           SSumLR[ns*2]  +=l;
+           SSumLR[ns*2+1]+=r;
 
            //////////////////////////////////////////////
            // now let us store sound data for reverb    
 
-           if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns,sval);
+           if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns,l,r);
           }
         }
       }
@@ -811,19 +828,24 @@ static void *MAINThread(void *arg)
   ///////////////////////////////////////////////////////
   // mix all channels (including reverb) into one buffer
 
+  if(iUseReverb)
+   REVERBDo();
+
+  if((spuCtrl&0x4000)==0) // muted? (rare, don't optimize for this)
+   {
+    memset(pS, 0, NSSIZE * 2 * sizeof(pS[0]));
+    pS += NSSIZE*2;
+   }
+  else
   for (ns = 0; ns < NSSIZE*2; )
    {
-    SSumLR[ns] += MixREVERBLeft(ns/2);
-
     d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
-    if (d < -32767) d = -32767; if (d > 32767) d = 32767;
+    ssat32_to_16(d);
     *pS++ = d;
     ns++;
 
-    SSumLR[ns] += MixREVERBRight();
-
     d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
-    if(d < -32767) d = -32767; if(d > 32767) d = 32767;
+    ssat32_to_16(d);
     *pS++ = d;
     ns++;
    }
@@ -1037,7 +1059,6 @@ long CALLBACK SPUinit(void)
  InitADSR();
 
  iVolume = 3;
- iReverbOff = -1;
  spuIrq = 0;
  spuAddr = 0xffffffff;
  bEndThread = 0;

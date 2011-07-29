@@ -22,7 +22,6 @@
 #include "externals.h"
 #include "registers.h"
 #include "regs.h"
-#include "reverb.h"
 
 /*
 // adsr time values (in ms) by James Higgs ... see the end of
@@ -212,6 +211,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
           rvb.CurrAddr=rvb.StartAddr;
          }
        }
+      rvb.dirty = 1;
       break;
     //-------------------------------------------------//
     case H_SPUirqAddr:
@@ -303,19 +303,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
       ReverbOn(16,24,val);
       break;
     //-------------------------------------------------//
-    case H_Reverb+0:
-
-      rvb.FB_SRC_A=val;
-
-      // OK, here's the fake REVERB stuff...
-      // depending on effect we do more or less delay and repeats... bah
-      // still... better than nothing :)
-
-      SetREVERB(val);
-      break;
-
-
-    case H_Reverb+2   : rvb.FB_SRC_B=(short)val;       break;
+    case H_Reverb+0   : rvb.FB_SRC_A=val*4;            break;
+    case H_Reverb+2   : rvb.FB_SRC_B=val*4;            break;
     case H_Reverb+4   : rvb.IIR_ALPHA=(short)val;      break;
     case H_Reverb+6   : rvb.ACC_COEF_A=(short)val;     break;
     case H_Reverb+8   : rvb.ACC_COEF_B=(short)val;     break;
@@ -324,29 +313,32 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
     case H_Reverb+14  : rvb.IIR_COEF=(short)val;       break;
     case H_Reverb+16  : rvb.FB_ALPHA=(short)val;       break;
     case H_Reverb+18  : rvb.FB_X=(short)val;           break;
-    case H_Reverb+20  : rvb.IIR_DEST_A0=(short)val;    break;
-    case H_Reverb+22  : rvb.IIR_DEST_A1=(short)val;    break;
-    case H_Reverb+24  : rvb.ACC_SRC_A0=(short)val;     break;
-    case H_Reverb+26  : rvb.ACC_SRC_A1=(short)val;     break;
-    case H_Reverb+28  : rvb.ACC_SRC_B0=(short)val;     break;
-    case H_Reverb+30  : rvb.ACC_SRC_B1=(short)val;     break;
-    case H_Reverb+32  : rvb.IIR_SRC_A0=(short)val;     break;
-    case H_Reverb+34  : rvb.IIR_SRC_A1=(short)val;     break;
-    case H_Reverb+36  : rvb.IIR_DEST_B0=(short)val;    break;
-    case H_Reverb+38  : rvb.IIR_DEST_B1=(short)val;    break;
-    case H_Reverb+40  : rvb.ACC_SRC_C0=(short)val;     break;
-    case H_Reverb+42  : rvb.ACC_SRC_C1=(short)val;     break;
-    case H_Reverb+44  : rvb.ACC_SRC_D0=(short)val;     break;
-    case H_Reverb+46  : rvb.ACC_SRC_D1=(short)val;     break;
-    case H_Reverb+48  : rvb.IIR_SRC_B1=(short)val;     break;
-    case H_Reverb+50  : rvb.IIR_SRC_B0=(short)val;     break;
-    case H_Reverb+52  : rvb.MIX_DEST_A0=(short)val;    break;
-    case H_Reverb+54  : rvb.MIX_DEST_A1=(short)val;    break;
-    case H_Reverb+56  : rvb.MIX_DEST_B0=(short)val;    break;
-    case H_Reverb+58  : rvb.MIX_DEST_B1=(short)val;    break;
+    case H_Reverb+20  : rvb.IIR_DEST_A0=val*4;         break;
+    case H_Reverb+22  : rvb.IIR_DEST_A1=val*4;         break;
+    case H_Reverb+24  : rvb.ACC_SRC_A0=val*4;          break;
+    case H_Reverb+26  : rvb.ACC_SRC_A1=val*4;          break;
+    case H_Reverb+28  : rvb.ACC_SRC_B0=val*4;          break;
+    case H_Reverb+30  : rvb.ACC_SRC_B1=val*4;          break;
+    case H_Reverb+32  : rvb.IIR_SRC_A0=val*4;          break;
+    case H_Reverb+34  : rvb.IIR_SRC_A1=val*4;          break;
+    case H_Reverb+36  : rvb.IIR_DEST_B0=val*4;         break;
+    case H_Reverb+38  : rvb.IIR_DEST_B1=val*4;         break;
+    case H_Reverb+40  : rvb.ACC_SRC_C0=val*4;          break;
+    case H_Reverb+42  : rvb.ACC_SRC_C1=val*4;          break;
+    case H_Reverb+44  : rvb.ACC_SRC_D0=val*4;          break;
+    case H_Reverb+46  : rvb.ACC_SRC_D1=val*4;          break;
+    case H_Reverb+48  : rvb.IIR_SRC_B1=val*4;          break;
+    case H_Reverb+50  : rvb.IIR_SRC_B0=val*4;          break;
+    case H_Reverb+52  : rvb.MIX_DEST_A0=val*4;         break;
+    case H_Reverb+54  : rvb.MIX_DEST_A1=val*4;         break;
+    case H_Reverb+56  : rvb.MIX_DEST_B0=val*4;         break;
+    case H_Reverb+58  : rvb.MIX_DEST_B1=val*4;         break;
     case H_Reverb+60  : rvb.IN_COEF_L=(short)val;      break;
     case H_Reverb+62  : rvb.IN_COEF_R=(short)val;      break;
    }
+
+ if ((r & ~0x3f) == H_Reverb)
+  rvb.dirty = 1; // recalculate on next update
 
  iSpuAsyncWait=0;
 }
