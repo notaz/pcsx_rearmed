@@ -1083,14 +1083,13 @@ static int menu_loop_plugin_gpu(int id, int keys)
 	return 0;
 }
 
-static const char *men_spu_reverb[] = { "Off", "Fake", "On", NULL };
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_irq_wait[]  = "Wait for CPU (recommended set to ON)";
 static const char h_spu_thread[]    = "Run sound emulation in main thread (recommended)";
 
 static menu_entry e_menu_plugin_spu[] =
 {
-	mee_enum      ("Reverb",                    0, iUseReverb, men_spu_reverb),
+	mee_onoff     ("Reverb",                    0, iUseReverb, 2),
 	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
 	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
 	mee_onoff_h   ("SPU IRQ Wait",              0, iSPUIRQWait, 1, h_spu_irq_wait),

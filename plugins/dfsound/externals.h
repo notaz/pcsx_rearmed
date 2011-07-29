@@ -46,7 +46,8 @@
 
 // ~ 1 ms of data
 // note: must be even due to the way reverb works now
-#define NSSIZE 46
+#define FRAG_MSECS 2
+#define NSSIZE ((44100 * FRAG_MSECS / 1000 + 1) & ~1)
 
 ///////////////////////////////////////////////////////////
 // struct defines
@@ -121,17 +122,10 @@ typedef struct
  int               iUsedFreq;                          // current pc pitch
  int               iLeftVolume;                        // left volume
  int               iRightVolume;                       // right volume
- int               s_1;                                // last decoding infos
- int               s_2;
  ADSRInfoEx        ADSRX;
  int               iRawPitch;                          // raw pitch (0...3fff)
 
- int               iRVBOffset;                         // reverb offset
- int               iRVBRepeat;                         // reverb repeat
- int               iRVBNum;                            // another reverb helper
- int               iOldNoise;                          // old noise val for this channel   
-
- int               SB[32+32];
+ int               SB[32+4];
 } SPUCHAN;
 
 ///////////////////////////////////////////////////////////

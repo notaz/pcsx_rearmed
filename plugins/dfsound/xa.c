@@ -95,8 +95,8 @@ INLINE void MixXA(void)
   {
    l=*CDDAPlay++;
    if(CDDAPlay==CDDAEnd) CDDAPlay=CDDAStart;
-   SSumLR[ns++]+=(((short)(l&0xffff))       * iLeftXAVol)/32767;
-   SSumLR[ns++]+=(((short)((l>>16)&0xffff)) * iRightXAVol)/32767;
+   SSumLR[ns++]+=(((short)(l&0xffff))       * iLeftXAVol) >> 15;
+   SSumLR[ns++]+=(((short)((l>>16)&0xffff)) * iRightXAVol) >> 15;
   }
 }
 
@@ -222,13 +222,11 @@ INLINE void FeedXA(xa_decode_t *xap)
        s=(short)LOWORD(l);
        l1=s;
        l1=(l1*iPlace)/iSize;
-       if(l1<-32767) l1=-32767;
-       if(l1> 32767) l1=32767;
+       ssat32_to_16(l1);
        s=(short)HIWORD(l);
        l2=s;
        l2=(l2*iPlace)/iSize;
-       if(l2<-32767) l2=-32767;
-       if(l2> 32767) l2=32767;
+       ssat32_to_16(l2);
        l=(l1&0xffff)|(l2<<16);
 
        *XAFeed++=l;
@@ -328,8 +326,7 @@ INLINE void FeedXA(xa_decode_t *xap)
         }
 
        l1=(l1*iPlace)/iSize;
-       if(l1<-32767) l1=-32767;
-       if(l1> 32767) l1=32767;
+       ssat32_to_16(l1);
        l=(l1&0xffff)|(l1<<16);
        *XAFeed++=l;
 

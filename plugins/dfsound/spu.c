@@ -267,8 +267,8 @@ INLINE void StartSound(int ch)
  //s_chan[ch].bStop=0;
  //s_chan[ch].bOn=1;
 
- s_chan[ch].s_1=0;                                     // init mixing vars
- s_chan[ch].s_2=0;
+ s_chan[ch].SB[26]=0;                                  // init mixing vars
+ s_chan[ch].SB[27]=0;
  s_chan[ch].iSBPos=28;
 
  s_chan[ch].SB[29]=0;                                  // init our interpolation helpers
@@ -355,12 +355,7 @@ INLINE void StoreInterpolationVal(int ch,int fa)
   s_chan[ch].SB[29]=fa;
  else
   {
-   if((spuCtrl&0x4000)==0) fa=0;                       // muted?
-   else                                                // else adjust
-    {
-     if(fa>32767L)  fa=32767L;
-     if(fa<-32767L) fa=-32767L;              
-    }
+   ssat32_to_16(fa);
 
    if(iUseInterpolation>=2)                            // gauss/cubic interpolation
     {     
@@ -451,15 +446,39 @@ static void do_irq(void)
  }
 }
 
+static void decode_block_data(int *dest, const unsigned char *src, int predict_nr, int shift_factor)
+{
+ int nSample;
+ int fa, s_1, s_2, d, s;
+
+ s_1 = dest[27];
+ s_2 = dest[26];
+
+ for (nSample = 0; nSample < 28; src++)
+ {
+  d = (int)*src;
+  s = (int)(signed short)((d & 0x0f) << 12);
+
+  fa = s >> shift_factor;
+  fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+  s_2=s_1;s_1=fa;
+
+  dest[nSample++] = fa;
+
+  s = (int)(signed short)((d & 0xf0) << 8);
+  fa = s >> shift_factor;
+  fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+  s_2=s_1;s_1=fa;
+
+  dest[nSample++] = fa;
+ }
+}
+
 static int decode_block(int ch)
 {
  unsigned char *start;
- unsigned int nSample;
- int predict_nr,shift_factor,flags,d,s;
- int fa,s_1,s_2;
+ int predict_nr,shift_factor,flags;
  int ret = 0;
-
- s_chan[ch].iSBPos=0;
 
  start=s_chan[ch].pCurr;                   // set up the current pos
  if(start == (unsigned char*)-1 ||         // special "stop" sign
@@ -483,42 +502,19 @@ static int decode_block(int ch)
   }
  }
 
- s_1=s_chan[ch].s_1;
- s_2=s_chan[ch].s_2;
-
- predict_nr=(int)*start;start++;
+ predict_nr=(int)start[0];
  shift_factor=predict_nr&0xf;
  predict_nr >>= 4;
- flags=(int)*start;start++;
 
- // -------------------------------------- // 
-
- for (nSample=0;nSample<28;start++)      
- {
-  d=(int)*start;
-  s=((d&0xf)<<12);
-  if(s&0x8000) s|=0xffff0000;
-
-  fa=(s >> shift_factor);
-  fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-  s_2=s_1;s_1=fa;
-  s=((d & 0xf0) << 8);
-
-  s_chan[ch].SB[nSample++]=fa;
-
-  if(s&0x8000) s|=0xffff0000;
-  fa=(s>>shift_factor);
-  fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-  s_2=s_1;s_1=fa;
-
-  s_chan[ch].SB[nSample++]=fa;
- }
+ decode_block_data(s_chan[ch].SB, start + 2, predict_nr, shift_factor);
 
  //////////////////////////////////////////// flag handler
 
- if((flags&4) && (!s_chan[ch].bIgnoreLoop))
-  s_chan[ch].pLoop=start-16;               // loop adress
+ flags=(int)start[1];
+ if(flags&4)
+  s_chan[ch].pLoop=start;                  // loop adress
 
+ start+=16;
  if(flags&1)                               // 1: stop/loop
  {
   if(!(flags&2))
@@ -530,9 +526,7 @@ static int decode_block(int ch)
  if (start - spuMemC >= 0x80000)
   start = (unsigned char*)-1;
 
- s_chan[ch].pCurr=start;                   // store values for next cycle
- s_chan[ch].s_1=s_1;
- s_chan[ch].s_2=s_2;
+ s_chan[ch].pCurr = start;                 // store values for next cycle
 
  return ret;
 }
@@ -553,7 +547,7 @@ static int skip_block(int ch)
   ret = 1;
  }
 
- if((flags & 4) && !s_chan[ch].bIgnoreLoop)
+ if(flags & 4)
   s_chan[ch].pLoop=start;
 
  s_chan[ch].pCurr += 16;
@@ -569,6 +563,8 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
 {                                            \
  int sinc = s_chan[ch].sinc;                 \
  int spos = s_chan[ch].spos;                 \
+ int sbpos = s_chan[ch].iSBPos;              \
+ int *SB = s_chan[ch].SB;                    \
  int ret = -1;                               \
  int d, fa;                                  \
  interp_start;                               \
@@ -579,8 +575,9 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
                                              \
   while (spos >= 0x10000)                    \
   {                                          \
-   if(s_chan[ch].iSBPos == 28)               \
+   if(sbpos == 28)                           \
    {                                         \
+    sbpos = 0;                               \
     d = decode_block(ch);                    \
     if(d && iSPUIRQWait)                     \
     {                                        \
@@ -589,7 +586,7 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
     }                                        \
    }                                         \
                                              \
-   fa = s_chan[ch].SB[s_chan[ch].iSBPos++];  \
+   fa = SB[sbpos++];                         \
    interp1_code;                             \
    spos -= 0x10000;                          \
   }                                          \
@@ -601,6 +598,7 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
 out:                                         \
  s_chan[ch].sinc = sinc;                     \
  s_chan[ch].spos = spos;                     \
+ s_chan[ch].iSBPos = sbpos;                  \
  interp_end;                                 \
                                              \
  return ret;                                 \
@@ -888,7 +886,7 @@ static void *MAINThread(void *arg)
 
   // feed the sound
   // wanna have around 1/60 sec (16.666 ms) updates
-  if (iCycle++ > 16)
+  if (iCycle++ > 16/FRAG_MSECS)
    {
     SoundFeedStreamData((unsigned char *)pSpuBuffer,
                         ((unsigned char *)pS) - ((unsigned char *)pSpuBuffer));
@@ -912,7 +910,7 @@ void CALLBACK SPUasync(unsigned long cycle)
  if(iSpuAsyncWait)
   {
    iSpuAsyncWait++;
-   if(iSpuAsyncWait<=16) return;
+   if(iSpuAsyncWait<=16/FRAG_MSECS) return;
    iSpuAsyncWait=0;
   }
 

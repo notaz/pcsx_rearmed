@@ -121,7 +121,7 @@ extern int lastch;
 
 // we want to retain compatibility between versions,
 // so use original channel struct
-static void save_channel(SPUCHAN_orig *d, SPUCHAN *s, int ch)
+static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
 {
  memset(d, 0, sizeof(*d));
  d->bNew = !!(dwNewChannel & (1<<ch));
@@ -141,15 +141,11 @@ static void save_channel(SPUCHAN_orig *d, SPUCHAN *s, int ch)
  d->bIgnoreLoop = s->bIgnoreLoop;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
- d->s_1 = s->s_1;
- d->s_2 = s->s_2;
+ d->s_1 = s->SB[27]; // yes it's reversed
+ d->s_2 = s->SB[26];
  d->bRVBActive = s->bRVBActive;
- d->iRVBOffset = s->iRVBOffset;
- d->iRVBRepeat = s->iRVBRepeat;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
- d->iRVBNum = s->iRVBNum;
- d->iOldNoise = s->iOldNoise;
  d->ADSRX.State = s->ADSRX.State;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;
@@ -164,7 +160,7 @@ static void save_channel(SPUCHAN_orig *d, SPUCHAN *s, int ch)
  d->ADSRX.lVolume = d->bOn; // hmh
 }
 
-static void load_channel(SPUCHAN *d, SPUCHAN_orig *s, int ch)
+static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
 {
  memset(d, 0, sizeof(*d));
  if (s->bNew) dwNewChannel |= 1<<ch;
@@ -184,15 +180,9 @@ static void load_channel(SPUCHAN *d, SPUCHAN_orig *s, int ch)
  d->bIgnoreLoop = s->bIgnoreLoop;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
- d->s_1 = s->s_1;
- d->s_2 = s->s_2;
  d->bRVBActive = s->bRVBActive;
- d->iRVBOffset = s->iRVBOffset;
- d->iRVBRepeat = s->iRVBRepeat;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
- d->iRVBNum = s->iRVBNum;
- d->iOldNoise = s->iOldNoise;
  d->ADSRX.State = s->ADSRX.State;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;
