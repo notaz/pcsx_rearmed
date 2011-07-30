@@ -93,7 +93,8 @@ int             iUseInterpolation=2;
 SPUCHAN         s_chan[MAXCHAN+1];                     // channel + 1 infos (1 is security for fmod handling)
 REVERBInfo      rvb;
 
-unsigned long   dwNoiseVal=1;                          // global noise generator
+unsigned int    dwNoiseVal;                            // global noise generator
+unsigned int    dwNoiseCount;
 int             iSpuAsyncWait=0;
 
 unsigned short  spuCtrl=0;                             // some vars to store psx reg infos
@@ -317,35 +318,6 @@ INLINE int FModChangeFrequency(int ch,int ns)
 
  return sinc;
 }                    
-
-////////////////////////////////////////////////////////////////////////
-
-// noise handler... just produces some noise data
-// surely wrong... and no noise frequency (spuCtrl&0x3f00) will be used...
-// and sometimes the noise will be used as fmod modulation... pfff
-
-INLINE int iGetNoiseVal(int ch)
-{
- int fa;
-
- if((dwNoiseVal<<=1)&0x80000000L)
-  {
-   dwNoiseVal^=0x0040001L;
-   fa=((dwNoiseVal>>2)&0x7fff);
-   fa=-fa;
-  }
- else fa=(dwNoiseVal>>2)&0x7fff;
-
- // mmm... depending on the noise freq we allow bigger/smaller changes to the previous val
- fa=s_chan[ch].iOldNoise+((fa-s_chan[ch].iOldNoise)/((0x001f-((spuCtrl&0x3f00)>>9))+1));
- if(fa>32767L)  fa=32767L;
- if(fa<-32767L) fa=-32767L;              
- s_chan[ch].iOldNoise=fa;
-
- if(iUseInterpolation<2)                               // no gauss/cubic interpolation?
- s_chan[ch].SB[29] = fa;                               // -> store noise val in "current sample" slot
- return fa;
-}                                 
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -631,6 +603,8 @@ make_do_samples(simple, , ,
 
 static int do_samples_noise(int ch, int ns, int ns_to)
 {
+ int level, shift, bit;
+
  s_chan[ch].spos += s_chan[ch].sinc * (ns_to - ns);
  while (s_chan[ch].spos >= 28*0x10000)
  {
@@ -638,8 +612,25 @@ static int do_samples_noise(int ch, int ns, int ns_to)
   s_chan[ch].spos -= 28*0x10000;
  }
 
+ // modified from DrHell/shalma, no fraction
+ level = (spuCtrl >> 10) & 0x0f;
+ level = 0x8000 >> level;
+
  for (; ns < ns_to; ns++)
-  ChanBuf[ns] = iGetNoiseVal(ch);
+ {
+  dwNoiseCount += 2;
+  if (dwNoiseCount >= level)
+  {
+   dwNoiseCount -= level;
+   shift = (dwNoiseVal >> 10) & 0x1f;
+   bit = (0x69696969 >> shift) & 1;
+   if (dwNoiseVal & 0x8000)
+    bit ^= 1;
+   dwNoiseVal = (dwNoiseVal << 1) | bit;
+  }
+
+  ChanBuf[ns] = (signed short)dwNoiseVal;
+ }
 
  return -1;
 }
