@@ -79,7 +79,7 @@ unsigned char * pMixIrq=0;
 
 // user settings
 
-int             iVolume=3;
+int             iVolume=768; // 1024 is 1.0
 int             iXAPitch=1;
 int             iUseTimer=2;
 int             iSPUIRQWait=1;
@@ -661,12 +661,8 @@ static int do_samples_noise(int ch, int ns, int ns_to)
 
 static void *MAINThread(void *arg)
 {
+ int volmult = iVolume;
  int ns,ns_from,ns_to;
-#if !defined(_MACOSX) && !defined(__arm__)
- int voldiv = iVolume;
-#else
- const int voldiv = 2;
-#endif
  int ch,d;
  int bIRQReturn=0;
 
@@ -837,12 +833,14 @@ static void *MAINThread(void *arg)
   else
   for (ns = 0; ns < NSSIZE*2; )
    {
-    d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
+    d = SSumLR[ns]; SSumLR[ns] = 0;
+    d = d * volmult >> 10;
     ssat32_to_16(d);
     *pS++ = d;
     ns++;
 
-    d = SSumLR[ns] / voldiv; SSumLR[ns] = 0;
+    d = SSumLR[ns]; SSumLR[ns] = 0;
+    d = d * volmult >> 10;
     ssat32_to_16(d);
     *pS++ = d;
     ns++;
@@ -1056,7 +1054,6 @@ long CALLBACK SPUinit(void)
  memset((void *)&rvb, 0, sizeof(REVERBInfo));
  InitADSR();
 
- iVolume = 3;
  spuIrq = 0;
  spuAddr = 0xffffffff;
  bEndThread = 0;

@@ -61,8 +61,11 @@ typedef struct
 #define mee_onoff(name, id, var, mask) \
 	mee_onoff_h(name, id, var, mask, NULL)
 
+#define mee_range_h(name, id, var, min, max, help) \
+	{ name, MB_OPT_RANGE, id, &(var), 0, min, max, 1, 1, 1, NULL, NULL, NULL, help }
+
 #define mee_range(name, id, var, min, max) \
-	{ name, MB_OPT_RANGE, id, &(var), 0, min, max, 1, 1, 1, NULL, NULL, NULL, NULL }
+	mee_range_h(name, id, var, min, max, NULL)
 
 #define mee_range_hide(name, id, var, min, max) \
 	{ name, MB_OPT_RANGE, id, &(var), 0, min, max, 0, 1, 0, NULL, NULL, NULL, NULL }

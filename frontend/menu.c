@@ -70,7 +70,7 @@ enum {
 };
 
 static int last_psx_w, last_psx_h, last_psx_bpp;
-static int scaling, filter, cpu_clock, cpu_clock_st;
+static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel;
@@ -83,6 +83,7 @@ extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iSPUIRQWait;
 extern int iUseTimer;
+extern int iVolume;
 
 static const char *bioses[24];
 static const char *gpu_plugins[16];
@@ -153,12 +154,15 @@ static void menu_sync_config(void)
 	pl_rearmed_cbs.gpu_peops.fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
 	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
 		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
+
+	iVolume = 768 + 128 * volume_boost;
 }
 
 static void menu_set_defconfig(void)
 {
 	g_opts = 0;
 	scaling = SCALE_4_3;
+	volume_boost = 0;
 
 	region = 0;
 	in_type_sel = 0;
@@ -240,6 +244,7 @@ static const struct {
 	CE_INTVAL(iUseTimer),
 	CE_INTVAL(warned_about_bios),
 	CE_INTVAL(in_evdev_allow_abs_only),
+	CE_INTVAL(volume_boost),
 };
 
 static char *get_cd_label(void)
@@ -1084,11 +1089,13 @@ static int menu_loop_plugin_gpu(int id, int keys)
 }
 
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
+static const char h_spu_volboost[]  = "Large values cause distortion";
 static const char h_spu_irq_wait[]  = "Wait for CPU (recommended set to ON)";
 static const char h_spu_thread[]    = "Run sound emulation in main thread (recommended)";
 
 static menu_entry e_menu_plugin_spu[] =
 {
+	mee_range_h   ("Volume boost",              0, volume_boost, -5, 30, h_spu_volboost),
 	mee_onoff     ("Reverb",                    0, iUseReverb, 2),
 	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
 	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
