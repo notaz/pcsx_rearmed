@@ -186,11 +186,15 @@ void *kill_pointer(void *stub)
   return i_ptr;
 }
 
+// find where external branch is liked to using addr of it's stub:
+// get address that insn one after stub loads (dyna_linker arg1),
+// treat it as a pointer to branch insn,
+// return addr where that branch jumps to
 int get_pointer(void *stub)
 {
   //printf("get_pointer(%x)\n",(int)stub);
   int *ptr=(int *)(stub+4);
-  assert((*ptr&0x0ff00000)==0x05900000);
+  assert((*ptr&0x0fff0000)==0x059f0000);
   u_int offset=*ptr&0xfff;
   int **l_ptr=(void *)ptr+offset+8;
   int *i_ptr=*l_ptr;

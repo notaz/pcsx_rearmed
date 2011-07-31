@@ -219,14 +219,16 @@ dynarec_local_end = memory_map + 4194304
 dyna_linker:
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	mov	r12, r0
-	mov	r6, #4096
-	mov	r2, #0x80000
 	ldr	r3, .jiptr
+	/* get_page */
+	lsr     r2, r0, #12
+	mov	r6, #4096
+	bic	r2, r2, #0xe0000
 	sub	r6, r6, #1
+	cmp     r2, #0x1000
 	ldr	r7, [r1]
-	eor	r2, r2, r12, lsr #12
-	and	r6, r6, r12, lsr #12
+	biclt   r2, #0x0e00
+	and	r6, r6, r2
 	cmp	r2, #2048
 	add	r12, r7, #2
 	orrcs	r2, r6, #2048
@@ -337,14 +339,16 @@ exec_pagefault:
 dyna_linker_ds:
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	mov	r12, r0
-	mov	r6, #4096
-	mov	r2, #0x80000
 	ldr	r3, .jiptr
+	/* get_page */
+	lsr     r2, r0, #12
+	mov	r6, #4096
+	bic	r2, r2, #0xe0000
 	sub	r6, r6, #1
+	cmp     r2, #0x1000
 	ldr	r7, [r1]
-	eor	r2, r2, r12, lsr #12
-	and	r6, r6, r12, lsr #12
+	biclt   r2, #0x0e00
+	and	r6, r6, r2
 	cmp	r2, #2048
 	add	r12, r7, #2
 	orrcs	r2, r6, #2048
