@@ -83,6 +83,19 @@ static inline unsigned int pcnt_get(void)
 	return val;
 }
 
+static inline void pcnt_init(void)
+{
+#ifdef __ARM_ARCH_7A__
+	int v;
+	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(v));
+	v |= 5; // master enable, ccnt reset
+	v &= ~8; // ccnt divider 0
+	asm volatile("mcr p15, 0, %0, c9, c12, 0" :: "r"(v));
+	// enable cycle counter
+	asm volatile("mcr p15, 0, %0, c9, c12, 1" :: "r"(1<<31));
+#endif
+}
+
 #else
 
 #define pcnt_start(id)
