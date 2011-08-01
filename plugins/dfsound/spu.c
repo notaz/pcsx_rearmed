@@ -122,8 +122,8 @@ static const int f[8][2] = {   {    0,  0  },
                         {  115, -52 },
                         {   98, -55 },
                         {  122, -60 } };
-int ChanBuf[NSSIZE];
-int SSumLR[NSSIZE*2];
+int ChanBuf[NSSIZE+3];
+int SSumLR[(NSSIZE+3)*2];
 int iFMod[NSSIZE];
 int iCycle = 0;
 short * pS;
@@ -635,6 +635,49 @@ static int do_samples_noise(int ch, int ns, int ns_to)
  return -1;
 }
 
+#ifdef __arm__
+// asm code
+extern void mix_chan(int start, int count, int lv, int rv);
+extern void mix_chan_rvb(int start, int count, int lv, int rv);
+#else
+static void mix_chan(int start, int count, int lv, int rv)
+{
+ int *dst = SSumLR + start * 2;
+ const int *src = ChanBuf + start;
+ int l, r;
+
+ while (count--)
+  {
+   int sval = *src++;
+
+   l = (sval * lv) >> 14;
+   r = (sval * rv) >> 14;
+   *dst++ += l;
+   *dst++ += r;
+  }
+}
+
+static void mix_chan_rvb(int start, int count, int lv, int rv)
+{
+ int *dst = SSumLR + start * 2;
+ int *drvb = sRVBStart + start * 2;
+ const int *src = ChanBuf + start;
+ int l, r;
+
+ while (count--)
+  {
+   int sval = *src++;
+
+   l = (sval * lv) >> 14;
+   r = (sval * rv) >> 14;
+   *dst++ += l;
+   *dst++ += r;
+   *drvb++ += l;
+   *drvb++ += r;
+  }
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
 // here is the main job handler... thread, timer or direct func call
@@ -725,30 +768,10 @@ static void *MAINThread(void *arg)
 
        if(s_chan[ch].bFMod==2)                         // fmod freq channel
         memcpy(iFMod, ChanBuf, sizeof(iFMod));
+       else if(s_chan[ch].bRVBActive)
+        mix_chan_rvb(ns_from,ns_to-ns_from,s_chan[ch].iLeftVolume,s_chan[ch].iRightVolume);
        else
-        {
-         int lv=s_chan[ch].iLeftVolume;
-         int rv=s_chan[ch].iRightVolume;
-
-         for(ns=ns_from;ns<ns_to;ns++)
-          {
-           int sval = ChanBuf[ns];
-           int l, r;
-
-           //////////////////////////////////////////////
-           // ok, left/right sound volume (psx volume goes from 0 ... 0x3fff)
-
-           l=(sval*lv)>>14;
-           r=(sval*rv)>>14;
-           SSumLR[ns*2]  +=l;
-           SSumLR[ns*2+1]+=r;
-
-           //////////////////////////////////////////////
-           // now let us store sound data for reverb    
-
-           if(s_chan[ch].bRVBActive) StoreREVERB(ch,ns,l,r);
-          }
-        }
+        mix_chan(ns_from,ns_to-ns_from,s_chan[ch].iLeftVolume,s_chan[ch].iRightVolume);
       }
     }
 
