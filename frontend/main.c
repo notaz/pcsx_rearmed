@@ -149,8 +149,6 @@ void do_emu_action(void)
 	emu_action_old = emu_action;
 
 	switch (emu_action) {
-	case SACTION_NONE:
-		return;
 	case SACTION_ENTER_MENU:
 		menu_loop();
 		return;
@@ -196,6 +194,8 @@ void do_emu_action(void)
 				snprintf(hud_msg, sizeof(hud_msg), "SCREENSHOT TAKEN");
 			break;
 		}
+	default:
+		return;
 	}
 	hud_new_msg = 3;
 	return;
@@ -204,6 +204,7 @@ do_state_slot:
 	snprintf(hud_msg, sizeof(hud_msg), "STATE SLOT %d [%s]", state_slot,
 		emu_check_state(state_slot) == 0 ? "USED" : "FREE");
 	hud_new_msg = 3;
+	printf("* %s\n", hud_msg);
 }
 
 int main(int argc, char *argv[])
@@ -317,6 +318,7 @@ int main(int argc, char *argv[])
 	//in_probe();
 	plat_init();
 	menu_init(); // loads config
+	pl_init();
 
 	if (psxout)
 		Config.PsxOut = 1;

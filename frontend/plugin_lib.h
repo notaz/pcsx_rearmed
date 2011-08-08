@@ -17,7 +17,8 @@ enum {
 	DKEY_CROSS,
 	DKEY_SQUARE,
 };
-extern int in_type, in_keystate, in_a1[2], in_a2[2];
+extern int in_type1, in_type2;
+extern int in_keystate, in_state_gun, in_a1[2], in_a2[2];
 void in_update_analogs(void);
 
 extern void *pl_fbdev_buf;
@@ -30,6 +31,9 @@ void  pl_fbdev_close(void);
 void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
+void  pl_init(void);
+
+void  pl_update_gun(int *xn, int *xres, int *y, int *in);
 
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);

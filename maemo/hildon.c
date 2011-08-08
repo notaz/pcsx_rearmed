@@ -18,7 +18,7 @@ static HildonAnimationActor *actor;
 static GtkWidget *window, *drawing;
 
 void *pl_fbdev_buf;
-int in_type = PSE_PAD_TYPE_STANDARD;
+int in_type1 = PSE_PAD_TYPE_STANDARD, in_type2 = PSE_PAD_TYPE_STANDARD;
 int in_keystate, in_a1[2], in_a2[2];
 
 static int keymap[65536];

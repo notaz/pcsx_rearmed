@@ -88,7 +88,7 @@ endif
 OBJS += plugins/cdrcimg/cdrcimg.o
 
 # dfinput
-OBJS += plugins/dfinput/pad.o
+OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # gui
 OBJS += frontend/main.o frontend/plugin.o
@@ -116,6 +116,10 @@ OBJS += frontend/xkb.o
 endif
 ifdef PCNT
 CFLAGS += -DPCNT
+endif
+ifndef NO_TSLIB
+frontend/%.o: CFLAGS += -DHAVE_TSLIB
+OBJS += frontend/pl_gun_ts.o
 endif
 frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o: frontend/revision.h

@@ -57,7 +57,13 @@ enum sched_action {
 	SACTION_PREV_SSLOT,
 	SACTION_TOGGLE_FSKIP,
 	SACTION_SCREENSHOT,
+	SACTION_GUN_TRIGGER = 16,
+	SACTION_GUN_A,
+	SACTION_GUN_B,
+	SACTION_GUN_TRIGGER2,
 };
+
+#define SACTION_GUN_MASK (0x0f << SACTION_GUN_TRIGGER)
 
 static inline void emu_set_action(enum sched_action action_)
 {

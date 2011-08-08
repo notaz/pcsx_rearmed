@@ -30,7 +30,7 @@
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/pad.h"
+#include "../plugins/dfinput/main.h"
 #include "revision.h"
 
 #define MENU_X2 1
@@ -73,7 +73,7 @@ static int last_psx_w, last_psx_h, last_psx_bpp;
 static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
-static int warned_about_bios, region, in_type_sel;
+static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int memcard1_sel, memcard2_sel;
 int g_opts;
 
@@ -143,7 +143,16 @@ static void menu_sync_config(void)
 		Config.PsxAuto = 0;
 		Config.PsxType = region - 1;
 	}
-	in_type = in_type_sel ? PSE_PAD_TYPE_ANALOGPAD : PSE_PAD_TYPE_STANDARD;
+	switch (in_type_sel1) {
+	case 1:  in_type1 = PSE_PAD_TYPE_ANALOGPAD; break;
+	case 2:  in_type1 = PSE_PAD_TYPE_GUNCON;    break;
+	default: in_type1 = PSE_PAD_TYPE_STANDARD;
+	}
+	switch (in_type_sel2) {
+	case 1:  in_type2 = PSE_PAD_TYPE_ANALOGPAD; break;
+	case 2:  in_type2 = PSE_PAD_TYPE_GUNCON;    break;
+	default: in_type2 = PSE_PAD_TYPE_STANDARD;
+	}
 	if (in_evdev_allow_abs_only != allow_abs_only_old) {
 		pandora_rescan_inputs();
 		allow_abs_only_old = in_evdev_allow_abs_only;
@@ -165,7 +174,7 @@ static void menu_set_defconfig(void)
 	volume_boost = 0;
 
 	region = 0;
-	in_type_sel = 0;
+	in_type_sel1 = in_type_sel2 = 0;
 	in_evdev_allow_abs_only = 0;
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
@@ -233,7 +242,8 @@ static const struct {
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
-	CE_INTVAL(in_type_sel),
+	CE_INTVAL(in_type_sel1),
+	CE_INTVAL(in_type_sel2),
 	CE_INTVAL_P(frameskip),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
@@ -708,6 +718,10 @@ me_bind_action emuctrl_actions[] =
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
+	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
+	{ "Gun A button     ", 1 << SACTION_GUN_A },
+	{ "Gun B button     ", 1 << SACTION_GUN_B },
+	{ "Gun Offscreen Trigger", 1 << SACTION_GUN_TRIGGER2 },
 	{ NULL,                0 }
 };
 
@@ -943,17 +957,25 @@ static int mh_input_rescan(int id, int keys)
 	return 0;
 }
 
-static const char *men_in_type_sel[] = { "Standard (SCPH-1080)", "Analog (SCPH-1150)", NULL };
+static const char *men_in_type_sel[] = {
+	"Standard (SCPH-1080)",
+	"Analog (SCPH-1150)",
+	"GunCon",
+	NULL
+};
 static const char h_nub_btns[] = "Experimental, keep this OFF if unsure. Select rescan after change.";
+static const char h_notsgun[] =  "Don't trigger (shoot) when touching screen in gun games.";
 
 static menu_entry e_menu_keyconfig[] =
 {
-	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
-	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
-	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
+	mee_handler_id("Player 1",              MA_CTRL_PLAYER1,    key_config_loop_wrap),
+	mee_handler_id("Player 2",              MA_CTRL_PLAYER2,    key_config_loop_wrap),
+	mee_handler_id("Emulator/Gun controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_label     (""),
-	mee_enum      ("Controller",        0, in_type_sel,     men_in_type_sel),
+	mee_enum      ("Port 1 device",     0, in_type_sel1,    men_in_type_sel),
+	mee_enum      ("Port 2 device",     0, in_type_sel2,    men_in_type_sel),
 	mee_onoff_h   ("Nubs as buttons",   0, in_evdev_allow_abs_only, 1, h_nub_btns),
+	mee_onoff_h   ("No TS Gun trigger", 0, g_opts, OPT_TSGUN_NOTRIGGER, h_notsgun),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
 	mee_handler   ("Rescan devices",  mh_input_rescan),
@@ -2000,7 +2022,7 @@ void menu_prepare_emu(void)
 			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
 	}
 
-	dfinput_activate(in_type == PSE_PAD_TYPE_ANALOGPAD);
+	dfinput_activate();
 }
 
 void me_update_msg(const char *msg)

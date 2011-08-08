@@ -25,18 +25,23 @@
 #include "menu.h"
 #include "main.h"
 #include "pcnt.h"
+#include "pl_gun_ts.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 
 void *pl_fbdev_buf;
 int pl_frame_interval;
-int in_type, in_keystate, in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+int in_type1, in_type2;
+int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+int in_keystate, in_state_gun;
+static void *ts;
 static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
 static int vsync_usec_time;
 
-static int get_cpu_ticks(void)
+
+static __attribute__((noinline)) int get_cpu_ticks(void)
 {
 	static unsigned long last_utime;
 	static int fd;
@@ -185,9 +190,12 @@ static void update_input(void)
 	unsigned int emu_act;
 
 	in_update(actions);
-	if (in_type == PSE_PAD_TYPE_ANALOGPAD)
+	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
 		in_update_analogs();
 	emu_act = actions[IN_BINDTYPE_EMU];
+	in_state_gun = (emu_act & SACTION_GUN_MASK) >> SACTION_GUN_TRIGGER;
+
+	emu_act &= ~SACTION_GUN_MASK;
 	if (emu_act) {
 		int which = 0;
 		for (; !(emu_act & 1); emu_act >>= 1, which++)
@@ -203,6 +211,15 @@ static void update_input(void)
 	in_keystate |= x11_update_keys(&emu_act);
 	emu_set_action(emu_act);
 #endif
+}
+
+void pl_update_gun(int *xn, int *xres, int *y, int *in)
+{
+	if (ts)
+		pl_gun_ts_update(ts, xn, y, in);
+
+	*xres = pl_fbdev_w;
+	*y = *y * pl_fbdev_h >> 10;
 }
 
 #define MAX_LAG_FRAMES 3
@@ -396,3 +413,7 @@ void pl_start_watchdog(void)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
 }
 
+void pl_init(void)
+{
+	ts = pl_gun_ts_init();
+}

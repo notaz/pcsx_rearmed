@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include "../../libpcsxcore/psemu_plugin_defs.h"
+#include "main.h"
 
 enum {
 	ANALOG_LEFT = 0,
@@ -102,7 +103,6 @@ static uint8_t stdmodel[2][8] = {
 	 0x00}
 };
 
-static uint8_t CurPad = 0, CurByte = 0, CurCmd = 0, CmdLen = 0;
 static uint8_t *buf;
 
 static uint8_t do_cmd(void)
@@ -206,7 +206,18 @@ static void do_cmd2(unsigned char value)
 	}
 }
 
-static unsigned char PADpoll_(unsigned char value) {
+#if 0
+#include <stdio.h>
+unsigned char PADpoll_(unsigned char value);
+unsigned char PADpoll(unsigned char value) {
+	unsigned char b = CurByte, r = PADpoll_(value);
+	printf("poll[%d] %02x %02x\n", b, value, r);
+	return r;
+}
+#define PADpoll PADpoll_
+#endif
+
+unsigned char PADpoll_pad(unsigned char value) {
 
 	if (CurByte == 0) {
 		CurCmd = value;
@@ -228,57 +239,27 @@ static unsigned char PADpoll_(unsigned char value) {
 	return buf[CurByte++];
 }
 
-#if 0
-#include <stdio.h>
-static unsigned char PADpoll(unsigned char value) {
-	unsigned char b = CurByte, r = PADpoll_(value);
-	printf("poll[%d] %02x %02x\n", b, value, r);
-	return r;
-}
-#else
-#define PADpoll PADpoll_
-#endif
-
-/* hack.. */
-extern long (*PAD1_readPort1)(PadDataS *pad);
-
-static unsigned char PADstartPoll1(int pad) {
-	CurPad = 0;
+unsigned char PADstartPoll_pad(int pad) {
+	CurPad = pad - 1;
 	CurByte = 0;
 
-	PAD1_readPort1(&padstate[0].pad);
+	if (pad == 1)
+		PAD1_readPort1(&padstate[0].pad);
+	else
+		PAD2_readPort2(&padstate[1].pad);
 
 	return 0xFF;
 }
 
-/* some more hacks here but oh well */
-extern void *PAD1_startPoll, *PAD1_poll;
-
-void dfinput_activate(int yes)
+void pad_init(void)
 {
-	static void *old_start, *old_poll;
-
-	if (!yes) {
-		if (PAD1_startPoll == PADstartPoll1)
-			PAD1_startPoll = old_start;
-		if (PAD1_poll == PADpoll)
-			PAD1_poll = old_poll;
-		return;
-	}
-
-	if (PAD1_startPoll == PADstartPoll1 && PAD1_poll == PADpoll)
-		return;
-
-	old_start = PAD1_startPoll;
-	old_poll = PAD1_poll;
-	PAD1_startPoll = PADstartPoll1;
-	PAD1_poll = PADpoll;
+	int i;
 
 	PAD1_readPort1(&padstate[0].pad);
-	padstate[0].PadID = padstate[0].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD ? 0x73 : 0x41;
-	padstate[0].PadMode = padstate[0].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD;
+	PAD2_readPort2(&padstate[1].pad);
 
-	padstate[1].PadID = 0x41;
-	padstate[1].PadMode = 0;
+	for (i = 0; i < 2; i++) {
+		padstate[i].PadID = padstate[i].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD ? 0x73 : 0x41;
+		padstate[i].PadMode = padstate[i].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD;
+	}
 }
-

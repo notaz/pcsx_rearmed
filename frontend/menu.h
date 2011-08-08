@@ -10,6 +10,7 @@ enum opts {
 	OPT_SHOWCPU = 1 << 1,
 	OPT_NO_FRAMELIM = 1 << 2,
 	OPT_SHOWSPU = 1 << 3,
+	OPT_TSGUN_NOTRIGGER = 1 << 4,
 };
 
 extern int g_opts;

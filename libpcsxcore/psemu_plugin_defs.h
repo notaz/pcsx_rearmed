@@ -54,8 +54,8 @@ extern "C" {
 
 typedef struct
 {
-	uint32_t	flags;
-	uint32_t	status;
+	unsigned int flags;
+	unsigned int status;
  	void*	window;
 	unsigned char reserved[100];
 } gpuQueryS;

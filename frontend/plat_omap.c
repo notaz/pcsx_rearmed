@@ -18,6 +18,7 @@
 #include "linux/fbdev.h"
 #include "linux/oshide.h"
 #include "plugin_lib.h"
+#include "pl_gun_ts.h"
 #include "omap.h"
 #include "pandora.h"
 
@@ -80,6 +81,9 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, in
 
 int omap_enable_layer(int enabled)
 {
+	if (enabled)
+		pl_set_gun_rect(g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+
 	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb), enabled,
 		g_layer_x, g_layer_y, g_layer_w, g_layer_h, 0);
 }
