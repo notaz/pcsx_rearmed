@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010
+ * (C) notaz, 2010-2011
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -19,7 +19,7 @@ BOOL           bCheckMask = FALSE;
 unsigned short sSetMask;
 unsigned long  lSetMask;
 
-static void blit(void)
+static void blit(void *vout_buf)
 {
  int px = PSXDisplay.DisplayPosition.x & ~1; // XXX: align needed by bgr*_to_...
  int py = PSXDisplay.DisplayPosition.y;
@@ -27,7 +27,7 @@ static void blit(void)
  int h = PreviousPSXDisplay.DisplayMode.y;
  int pitch = PreviousPSXDisplay.DisplayMode.x;
  unsigned short *srcs = psxVuw + py * 1024 + px;
- unsigned char *dest = pl_fbdev_buf;
+ unsigned char *dest = vout_buf;
 
  if (w <= 0)
    return;
@@ -64,6 +64,7 @@ static void blit(void)
 void DoBufferSwap(void)
 {
  static int fbw, fbh, fb24bpp;
+ static void *vout_buf;
 
  if (PreviousPSXDisplay.DisplayMode.x == 0 || PreviousPSXDisplay.DisplayMode.y == 0)
   return;
@@ -75,14 +76,14 @@ void DoBufferSwap(void)
   fbw = PreviousPSXDisplay.DisplayMode.x;
   fbh = PreviousPSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
-  pl_fbdev_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
+  vout_buf = rcbs->pl_vout_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
 
  pcnt_start(PCNT_BLIT);
- blit();
+ blit(vout_buf);
  pcnt_end(PCNT_BLIT);
 
- pl_fbdev_flip();
+ vout_buf = rcbs->pl_vout_flip();
 }
 
 void DoClearScreenBuffer(void)
@@ -91,7 +92,7 @@ void DoClearScreenBuffer(void)
 
 unsigned long ulInitDisplay(void)
 {
- if (pl_fbdev_open() != 0)
+ if (rcbs->pl_vout_open() != 0)
   return 0;
 
  return 1; /* ok */
@@ -99,5 +100,5 @@ unsigned long ulInitDisplay(void)
 
 void CloseDisplay(void)
 {
- pl_fbdev_close();
+ rcbs->pl_vout_close();
 }

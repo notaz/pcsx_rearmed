@@ -158,13 +158,8 @@ static void menu_sync_config(void)
 		allow_abs_only_old = in_evdev_allow_abs_only;
 	}
 
-	pl_frame_interval = Config.PsxType ? 20000 : 16667;
-	// used by P.E.Op.S. frameskip code
-	pl_rearmed_cbs.gpu_peops.fFrameRateHz = Config.PsxType ? 50.0f : 59.94f;
-	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
-		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
-
 	iVolume = 768 + 128 * volume_boost;
+	pl_timing_prepare(Config.PsxType);
 }
 
 static void menu_set_defconfig(void)
@@ -1494,7 +1489,7 @@ static int reset_game(void)
 
 static int reload_plugins(const char *cdimg)
 {
-	pl_fbdev_buf = NULL;
+	pl_vout_buf = NULL;
 
 	ClosePlugins();
 
@@ -1958,13 +1953,13 @@ static void menu_leave_emu(void)
 	}
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
-	if (pl_fbdev_buf != NULL && ready_to_go && last_psx_bpp == 16) {
+	if (pl_vout_buf != NULL && ready_to_go && last_psx_bpp == 16) {
 		int x = max(0, g_menuscreen_w - last_psx_w);
 		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
 		int w = min(g_menuscreen_w, last_psx_w);
 		int h = min(g_menuscreen_h, last_psx_h);
 		u16 *d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
-		u16 *s = pl_fbdev_buf;
+		u16 *s = pl_vout_buf;
 
 		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
 			menu_darken_bg(d, s, w, 0);

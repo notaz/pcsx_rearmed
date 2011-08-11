@@ -92,14 +92,16 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # gui
 OBJS += frontend/main.o frontend/plugin.o
+OBJS += frontend/plugin_lib.o frontend/common/readpng.o
+OBJS += frontend/common/fonts.o frontend/linux/plat.o
 ifeq "$(USE_GTK)" "1"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
 else
-OBJS += frontend/plugin_lib.o frontend/menu.o
+frontend/%.o: CFLAGS += -DVOUT_FBDEV
+OBJS += frontend/menu.o
 OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
-OBJS += frontend/linux/plat.o frontend/linux/oshide.o
-OBJS += frontend/common/fonts.o frontend/common/input.o frontend/common/readpng.o
+OBJS += frontend/common/input.o frontend/linux/oshide.o
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/plat_omap.o
 OBJS += frontend/pandora.o

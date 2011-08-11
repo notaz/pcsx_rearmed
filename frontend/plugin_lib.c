@@ -29,16 +29,15 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 
-void *pl_fbdev_buf;
-int pl_frame_interval;
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate, in_state_gun;
 static void *ts;
-static int pl_fbdev_w, pl_fbdev_h, pl_fbdev_bpp;
+void *pl_vout_buf;
+static int pl_vout_w, pl_vout_h, pl_vout_bpp;
 static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
-static int vsync_usec_time;
+static int frame_interval, frame_interval1024, vsync_usec_time;
 
 
 static __attribute__((noinline)) int get_cpu_ticks(void)
@@ -63,20 +62,20 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 
 static void print_hud(void)
 {
-	if (pl_fbdev_bpp == 16)
-		pl_text_out16(2, pl_fbdev_h - 10, "%s", hud_msg);
+	if (pl_vout_bpp == 16)
+		pl_text_out16(2, pl_vout_h - 10, "%s", hud_msg);
 }
 
 static void print_fps(void)
 {
-	if (pl_fbdev_bpp == 16)
-		pl_text_out16(2, pl_fbdev_h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
+	if (pl_vout_bpp == 16)
+		pl_text_out16(2, pl_vout_h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
 }
 
 static void print_cpu_usage(void)
 {
-	if (pl_fbdev_bpp == 16)
-		pl_text_out16(pl_fbdev_w - 28, pl_fbdev_h - 10, "%3d", tick_per_sec);
+	if (pl_vout_bpp == 16)
+		pl_text_out16(pl_vout_w - 28, pl_vout_h - 10, "%3d", tick_per_sec);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -86,12 +85,12 @@ static __attribute__((noinline)) void draw_active_chans(void)
 	int live_chans, fmod_chans, noise_chans;
 
 	static const unsigned short colors[2] = { 0x1fe3, 0x0700 };
-	unsigned short *dest = (unsigned short *)pl_fbdev_buf +
-		pl_fbdev_w * (pl_fbdev_h - 10) + pl_fbdev_w / 2 - 192/2;
+	unsigned short *dest = (unsigned short *)pl_vout_buf +
+		pl_vout_w * (pl_vout_h - 10) + pl_vout_w / 2 - 192/2;
 	unsigned short *d, p;
 	int c, x, y;
 
-	if (pl_fbdev_bpp != 16)
+	if (pl_vout_bpp != 16)
 		return;
 
 	spu_get_debug_info(&live_chans, &fmod_chans, &noise_chans);
@@ -102,40 +101,41 @@ static __attribute__((noinline)) void draw_active_chans(void)
 		     (fmod_chans & (1<<c)) ? 0xf000 :
 		     (noise_chans & (1<<c)) ? 0x001f :
 		     colors[c & 1];
-		for (y = 0; y < 8; y++, d += pl_fbdev_w)
+		for (y = 0; y < 8; y++, d += pl_vout_w)
 			for (x = 0; x < 8; x++)
 				d[x] = p;
 	}
 }
 
-void *pl_fbdev_set_mode(int w, int h, int bpp)
+static void *pl_vout_set_mode(int w, int h, int bpp)
 {
-	void *ret;
+	if (w == pl_vout_w && h == pl_vout_h && bpp == pl_vout_bpp)
+		return pl_vout_buf;
 
-	if (w == pl_fbdev_w && h == pl_fbdev_h && bpp == pl_fbdev_bpp)
-		return pl_fbdev_buf;
+	pl_vout_w = w;
+	pl_vout_h = h;
+	pl_vout_bpp = bpp;
 
-	pl_fbdev_w = w;
-	pl_fbdev_h = h;
-	pl_fbdev_bpp = bpp;
-
+#if defined(VOUT_FBDEV)
 	vout_fbdev_clear(layer_fb);
-	ret = vout_fbdev_resize(layer_fb, w, h, bpp, 0, 0, 0, 0, 3);
-	if (ret == NULL)
-		fprintf(stderr, "failed to set mode\n");
-	else
-		pl_fbdev_buf = ret;
+	pl_vout_buf = vout_fbdev_resize(layer_fb, w, h, bpp, 0, 0, 0, 0, 3);
+#elif defined(MAEMO)
+	extern void *hildon_set_mode(int w, int h);
+	pl_vout_buf = hildon_set_mode(w, h);
+#endif
 
+	if (pl_vout_buf == NULL)
+		fprintf(stderr, "failed to set mode\n");
 	menu_notify_mode_change(w, h, bpp);
 
-	return pl_fbdev_buf;
+	return pl_vout_buf;
 }
 
-void *pl_fbdev_flip(void)
+static void *pl_vout_flip(void)
 {
 	flip_cnt++;
 
-	if (pl_fbdev_buf != NULL) {
+	if (pl_vout_buf != NULL) {
 		if (g_opts & OPT_SHOWSPU)
 			draw_active_chans();
 
@@ -149,43 +149,55 @@ void *pl_fbdev_flip(void)
 	}
 
 	// let's flip now
-	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
-	return pl_fbdev_buf;
+#if defined(VOUT_FBDEV)
+	pl_vout_buf = vout_fbdev_flip(layer_fb);
+#elif defined(MAEMO)
+	extern void *hildon_flip(void);
+	pl_vout_buf = hildon_flip();
+#endif
+	return pl_vout_buf;
 }
 
-int pl_fbdev_open(void)
+static int pl_vout_open(void)
 {
 	struct timeval now;
 
-	pl_fbdev_buf = vout_fbdev_flip(layer_fb);
 	omap_enable_layer(1);
+#if defined(VOUT_FBDEV)
+	pl_vout_buf = vout_fbdev_flip(layer_fb);
 
 	// try to align redraws to vsync
 	vout_fbdev_wait_vsync(layer_fb);
+#elif defined(MAEMO)
+	extern void *hildon_flip(void);
+	pl_vout_buf = hildon_flip();
+#endif
+
 	gettimeofday(&now, 0);
 	vsync_usec_time = now.tv_usec;
-	while (vsync_usec_time >= pl_frame_interval)
-		vsync_usec_time -= pl_frame_interval;
+	while (vsync_usec_time >= frame_interval)
+		vsync_usec_time -= frame_interval;
 
 	return 0;
 }
 
-void pl_fbdev_close(void)
+static void pl_vout_close(void)
 {
 	omap_enable_layer(0);
 }
 
 void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 {
-	*w = pl_fbdev_w;
-	*h = pl_fbdev_h;
-	*bpp = pl_fbdev_bpp;
+	*w = pl_vout_w;
+	*h = pl_vout_h;
+	*bpp = pl_vout_bpp;
 
-	return pl_fbdev_buf;
+	return pl_vout_buf;
 }
 
 static void update_input(void)
 {
+#ifndef MAEMO
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	unsigned int emu_act;
 
@@ -205,7 +217,7 @@ static void update_input(void)
 	emu_set_action(emu_act);
 
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
-
+#endif
 #ifdef X11
 	extern int x11_update_keys(unsigned int *action);
 	in_keystate |= x11_update_keys(&emu_act);
@@ -218,22 +230,14 @@ void pl_update_gun(int *xn, int *xres, int *y, int *in)
 	if (ts)
 		pl_gun_ts_update(ts, xn, y, in);
 
-	*xres = pl_fbdev_w;
-	*y = *y * pl_fbdev_h >> 10;
+	*xres = pl_vout_w;
+	*y = *y * pl_vout_h >> 10;
 }
 
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \
 	((tv.tv_sec - tv_old.tv_sec) * 1000000 + tv.tv_usec - tv_old.tv_usec)
-// assumes us < 1000000
-#define tvadd(tv, us) { \
-	tv.tv_usec += us; \
-	if (tv.tv_usec >= 1000000) { \
-		tv.tv_usec -= 1000000; \
-		tv.tv_sec++; \
-	} \
-}
 
 /* called on every vsync */
 void pl_frame_limit(void)
@@ -278,27 +282,33 @@ void pl_frame_limit(void)
 	}
 #endif
 
-	tvadd(tv_expect, pl_frame_interval);
-	diff = tvdiff(tv_expect, now);
-	if (diff > MAX_LAG_FRAMES * pl_frame_interval || diff < -MAX_LAG_FRAMES * pl_frame_interval) {
-		//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, pl_frame_interval);
+	// tv_expect uses usec*1024 units instead of usecs for better accuracy
+	tv_expect.tv_usec += frame_interval1024;
+	if (tv_expect.tv_usec >= (1000000 << 10)) {
+		tv_expect.tv_usec -= (1000000 << 10);
+		tv_expect.tv_sec++;
+	}
+	diff = (tv_expect.tv_sec - now.tv_sec) * 1000000 + (tv_expect.tv_usec >> 10) - now.tv_usec;
+
+	if (diff > MAX_LAG_FRAMES * frame_interval || diff < -MAX_LAG_FRAMES * frame_interval) {
+		//printf("pl_frame_limit reset, diff=%d, iv %d\n", diff, frame_interval);
 		tv_expect = now;
 		diff = 0;
 		// try to align with vsync
 		usadj = vsync_usec_time;
-		while (usadj < tv_expect.tv_usec - pl_frame_interval)
-			usadj += pl_frame_interval;
-		tv_expect.tv_usec = usadj;
+		while (usadj < tv_expect.tv_usec - frame_interval)
+			usadj += frame_interval;
+		tv_expect.tv_usec = usadj << 10;
 	}
 
-	if (!(g_opts & OPT_NO_FRAMELIM) && diff > pl_frame_interval) {
+	if (!(g_opts & OPT_NO_FRAMELIM) && diff > frame_interval) {
 		// yay for working usleep on pandora!
-		//printf("usleep %d\n", diff - pl_frame_interval / 2);
-		usleep(diff - pl_frame_interval / 2);
+		//printf("usleep %d\n", diff - frame_interval / 2);
+		usleep(diff - frame_interval / 2);
 	}
 
 	if (pl_rearmed_cbs.frameskip) {
-		if (diff < -pl_frame_interval)
+		if (diff < -frame_interval)
 			pl_rearmed_cbs.fskip_advice = 1;
 		else if (diff >= 0)
 			pl_rearmed_cbs.fskip_advice = 0;
@@ -307,10 +317,23 @@ void pl_frame_limit(void)
 	pcnt_start(PCNT_ALL);
 }
 
+void pl_timing_prepare(int is_pal)
+{
+	pl_rearmed_cbs.fskip_advice = 0;
+
+	frame_interval = is_pal ? 20000 : 16667;
+	frame_interval1024 = is_pal ? 20000*1024 : 17066667;
+
+	// used by P.E.Op.S. frameskip code
+	pl_rearmed_cbs.gpu_peops.fFrameRateHz = is_pal ? 50.0f : 59.94f;
+	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
+		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
+}
+
 static void pl_text_out16_(int x, int y, const char *text)
 {
-	int i, l, len = strlen(text), w = pl_fbdev_w;
-	unsigned short *screen = (unsigned short *)pl_fbdev_buf + x + y * w;
+	int i, l, len = strlen(text), w = pl_vout_w;
+	unsigned short *screen = (unsigned short *)pl_vout_buf + x + y * w;
 	unsigned short val = 0xffff;
 
 	for (i = 0; i < len; i++, screen += 8)
@@ -353,10 +376,10 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 
 struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
-	pl_fbdev_open,
-	pl_fbdev_set_mode,
-	pl_fbdev_flip,
-	pl_fbdev_close,
+	pl_vout_open,
+	pl_vout_set_mode,
+	pl_vout_flip,
+	pl_vout_close,
 };
 
 /* watchdog */

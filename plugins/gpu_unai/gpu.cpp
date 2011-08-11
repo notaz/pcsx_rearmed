@@ -901,7 +901,7 @@ static void blit(void)
 		old_res_horz = w0;
 		old_res_vert = h1;
 		old_rgb24 = (s16)isRGB24;
-		screen_buf = cbs->pl_fbdev_set_mode(w0, h1, isRGB24 ? 24 : 16);
+		screen_buf = cbs->pl_vout_set_mode(w0, h1, isRGB24 ? 24 : 16);
 	}
 	dest = (u8 *)screen_buf;
 
@@ -927,7 +927,7 @@ static void blit(void)
 		}
 	}
 
-	screen_buf = cbs->pl_fbdev_flip();
+	screen_buf = cbs->pl_vout_flip();
 }
 
 void GPU_updateLace(void)
@@ -951,14 +951,14 @@ void GPU_updateLace(void)
 
 long GPUopen(unsigned long *, char *, char *)
 {
-	cbs->pl_fbdev_open();
-	screen_buf = cbs->pl_fbdev_flip();
+	cbs->pl_vout_open();
+	screen_buf = cbs->pl_vout_flip();
 	return 0;
 }
 
 long GPUclose(void)
 {
-	cbs->pl_fbdev_close();
+	cbs->pl_vout_close();
 	return 0;
 }
 

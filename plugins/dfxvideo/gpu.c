@@ -1139,6 +1139,8 @@ void CALLBACK GPUvBlank(int val)
 // rearmed thing
 #include "../../frontend/plugin_lib.h"
 
+const struct rearmed_cbs *rcbs;
+
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 {
  // sync config
@@ -1150,4 +1152,5 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 
  skip_advice = &cbs->fskip_advice;
  fps_skip = 100.0f;
+ rcbs = cbs;
 }

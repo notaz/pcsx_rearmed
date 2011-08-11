@@ -13,13 +13,13 @@
 #define D_WIDTH			640
 #define D_HEIGHT		480
 
+int g_layer_x = (X_RES - D_WIDTH) / 2;
+int g_layer_y = (Y_RES - D_HEIGHT) / 2;
+int g_layer_w = D_WIDTH, g_layer_h = D_HEIGHT;
+
 static GdkImage *image;
 static HildonAnimationActor *actor;
 static GtkWidget *window, *drawing;
-
-void *pl_fbdev_buf;
-int in_type1 = PSE_PAD_TYPE_STANDARD, in_type2 = PSE_PAD_TYPE_STANDARD;
-int in_keystate, in_a1[2], in_a2[2];
 
 static int keymap[65536];
 
@@ -157,15 +157,15 @@ void menu_loop(void)
 {
 }
 
-void *pl_fbdev_set_mode(int w, int h, int bpp)
+void *hildon_set_mode(int w, int h)
 {
 	if (w <= 0 || h <= 0)
-		return pl_fbdev_buf;
+		return pl_vout_buf;
 
 	if (image) gdk_image_destroy(image);
 	image = gdk_image_new( GDK_IMAGE_FASTEST, gdk_visual_get_system(), w, h );
 
-	pl_fbdev_buf = (void *) image->mem;
+	pl_vout_buf = (void *) image->mem;
 
 	gtk_image_set_from_image (GTK_IMAGE(drawing), image, NULL);
 
@@ -175,60 +175,26 @@ void *pl_fbdev_set_mode(int w, int h, int bpp)
 				(gdouble)D_HEIGHT / (gdouble)h
 	);
 
-	return pl_fbdev_buf;
+	return pl_vout_buf;
 }
 
-void *pl_fbdev_flip(void)
+void *hildon_flip(void)
 {
 	gtk_widget_queue_draw (drawing);
-	return pl_fbdev_buf;
-}
-
-void pl_frame_limit(void)
-{
-	extern void CheckFrameRate(void);
-	//CheckFrameRate();
 
 	/* process GTK+ events */
 	while (gtk_events_pending())
 		gtk_main_iteration();
+
+	return pl_vout_buf;
 }
 
-void pl_fbdev_close(void)
-{
-}
-
-int pl_fbdev_open(void)
+int omap_enable_layer(int enabled)
 {
 	return 0;
 }
 
-static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
+void menu_notify_mode_change(int w, int h, int bpp)
 {
-	*x = 0;
-	*y = 0;
-	*w = 800;
-	*h = 640;
 }
-
-void *pl_prepare_screenshot(int *w, int *h, int *bpp)
-{
-	return NULL;
-}
-
-int writepng()
-{
-	return -1;
-}
-
-extern int UseFrameSkip; // hmh
-
-const struct rearmed_cbs pl_rearmed_cbs = {
-	pl_get_layer_pos,
-	pl_fbdev_open,
-	pl_fbdev_set_mode,
-	pl_fbdev_flip,
-	pl_fbdev_close,
-	&UseFrameSkip,
-};
 

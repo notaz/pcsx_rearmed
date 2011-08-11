@@ -11,24 +11,19 @@
 #include <unistd.h>
 
 #include "main.h"
+#include "menu.h"
 #include "plugin.h"
+#include "plugin_lib.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-
-// from softgpu plugin
-extern int iUseDither;
-extern int UseFrameSkip;
-extern int UseFrameLimit;
-extern uint32_t dwActFixes;
-extern float fFrameRateHz;
-extern int dwFrameRateTicks;
 
 // sound plugin
 extern int iUseReverb;
 extern int iUseInterpolation;
-extern int iXAPitch;
 extern int iSPUIRQWait;
 extern int iUseTimer;
+
+int g_opts = OPT_SHOWFPS;
 
 enum sched_action emu_action;
 void do_emu_action(void);
@@ -80,25 +75,22 @@ int maemo_main(int argc, char **argv)
 
 			cdfile = isofilename;
 		}
-		else if (!strcmp(argv[i],"-frameskip")){
-		
-		int tv_reg=atol(argv[++i]);
-		if (tv_reg>0){
-		UseFrameSkip=1;
-		fFrameRateHz = (tv_reg==1)?50.0f:  59.94f;
-		dwFrameRateTicks = (100000*100 / (unsigned long)(fFrameRateHz*100));
+		else if (!strcmp(argv[i],"-frameskip")) {
+
+			int tv_reg = atol(argv[++i]);
+			if (tv_reg > 0)
+				pl_rearmed_cbs.frameskip = 1;
 		}
-		}
-		else if (!strcmp(argv[i],"-sputhreaded")){
+		else if (!strcmp(argv[i],"-sputhreaded")) {
 			iUseTimer=1;
 		}
-		else if (!strcmp(argv[i],"-nosound")){
-				strcpy(Config.Spu, "spunull.so");
+		else if (!strcmp(argv[i],"-nosound")) {
+			strcpy(Config.Spu, "spunull.so");
 		}
 		else if(!strcmp(argv[i], "-bdir"))	sprintf(Config.BiosDir, "%s", argv[++i]);
 		else if(!strcmp(argv[i], "-bios"))	sprintf(Config.Bios, "%s", argv[++i]);
 		else if (!strcmp(argv[i],"-gles")){
-		strcpy(Config.Gpu, "gpuGLES.so");
+			strcpy(Config.Gpu, "gpuGLES.so");
 		}
 		else if (!strcmp(argv[i], "-cdda"))		Config.Cdda = 1;
 		else if (!strcmp(argv[i], "-xa"))		Config.Xa = 1;
@@ -136,6 +128,15 @@ int maemo_main(int argc, char **argv)
 		}
 	}
 
+	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
+	iUseReverb = 2;
+	iUseInterpolation = 1;
+	iSPUIRQWait = 1;
+	iUseTimer = 2;
+
+	in_type1 = PSE_PAD_TYPE_STANDARD;
+	in_type2 = PSE_PAD_TYPE_STANDARD;
+
 	hildon_init(&argc, &argv);
 	
 	if (cdfile)
@@ -143,6 +144,8 @@ int maemo_main(int argc, char **argv)
 
 	if (SysInit() == -1)
 		return 1;
+
+	pl_init();
 
 	if (LoadPlugins() == -1) {
 		SysMessage("Failed loading plugins!");
@@ -184,6 +187,8 @@ int maemo_main(int argc, char **argv)
 		printf ("somethings goes wrong, maybe you forgot -cdfile ? \n");
 		return 0;
 	}
+
+	pl_timing_prepare(Config.PsxType);
 
 	while (1)
 	{

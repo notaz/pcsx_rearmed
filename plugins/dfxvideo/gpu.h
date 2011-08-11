@@ -314,4 +314,7 @@ void          DoClearFrontBuffer(void);
 unsigned long ulInitDisplay(void);
 void          CloseDisplay(void);
 
+struct rearmed_cbs;
+extern const struct rearmed_cbs *rcbs;
+
 #endif
