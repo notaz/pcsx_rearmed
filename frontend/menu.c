@@ -178,6 +178,9 @@ static void menu_set_defconfig(void)
 	pl_rearmed_cbs.frameskip = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
+	pl_rearmed_cbs.gpu_unai.abe_hack =
+	pl_rearmed_cbs.gpu_unai.no_light =
+	pl_rearmed_cbs.gpu_unai.no_blend = 0;
 
 	iUseReverb = 2;
 	iUseInterpolation = 1;
@@ -242,6 +245,9 @@ static const struct {
 	CE_INTVAL_P(frameskip),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
+	CE_INTVAL_P(gpu_unai.abe_hack),
+	CE_INTVAL_P(gpu_unai.no_light),
+	CE_INTVAL_P(gpu_unai.no_blend),
 	CE_INTVAL(iUseReverb),
 	CE_INTVAL(iXAPitch),
 	CE_INTVAL_V(iUseInterpolation, 2),
@@ -1072,6 +1078,21 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
+static menu_entry e_menu_plugin_gpu_unai[] =
+{
+	mee_onoff     ("Abe's Odyssey hack",         0, pl_rearmed_cbs.gpu_unai.abe_hack, 1),
+	mee_onoff     ("Disable lighting",           0, pl_rearmed_cbs.gpu_unai.no_light, 1),
+	mee_onoff     ("Disable blending",           0, pl_rearmed_cbs.gpu_unai.no_blend, 1),
+	mee_end,
+};
+
+static int menu_loop_plugin_gpu_unai(int id, int keys)
+{
+	int sel = 0;
+	me_loop(e_menu_plugin_gpu_unai, &sel);
+	return 0;
+}
+
 static const char *men_gpu_dithering[] = { "None", "Game dependant", "Always", NULL };
 static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
@@ -1083,7 +1104,7 @@ static const char h_gpu_8[]            = "Needed by Dark Forces";
 static const char h_gpu_9[]            = "better g-colors, worse textures";
 static const char h_gpu_10[]           = "Toggle busy flags after drawing";
 
-static menu_entry e_menu_plugin_gpu[] =
+static menu_entry e_menu_plugin_gpu_peops[] =
 {
 	mee_enum      ("Dithering",                  0, pl_rearmed_cbs.gpu_peops.iUseDither, men_gpu_dithering),
 	mee_onoff_h   ("Odd/even bit hack",          0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<0, h_gpu_0),
@@ -1098,10 +1119,10 @@ static menu_entry e_menu_plugin_gpu[] =
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu(int id, int keys)
+static int menu_loop_plugin_gpu_peops(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_plugin_gpu, &sel);
+	me_loop(e_menu_plugin_gpu_peops, &sel);
 	return 0;
 }
 
@@ -1133,7 +1154,8 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 				   "the game for change to take effect";
 static const char h_plugin_xpu[] = "Must save config and reload the game\n"
 				   "for plugin change to take effect";
-static const char h_gpu[]        = "Configure P.E.Op.S. SoftGL Driver V1.17";
+static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
+static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team GPU plugin";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static menu_entry e_menu_plugin_options[] =
@@ -1141,7 +1163,8 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
-	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu, h_gpu),
+	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
+	mee_handler_h ("Configure PCSX4ALL GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };

@@ -48,6 +48,10 @@ struct rearmed_cbs {
 		float fFrameRateHz;
 		int   dwFrameRateTicks;
 	} gpu_peops;
+	struct {
+		int   abe_hack;
+		int   no_light, no_blend;
+	} gpu_unai;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;

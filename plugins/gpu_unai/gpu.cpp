@@ -972,6 +972,10 @@ long GPUfreeze(unsigned int ulGetFreezeData, GPUFreeze_t* p2)
 
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
 {
+	enableAbbeyHack = cbs_->gpu_unai.abe_hack;
+	light = !cbs_->gpu_unai.no_light;
+	blend = !cbs_->gpu_unai.no_blend;
+
 	cbs = cbs_;
 }
 
