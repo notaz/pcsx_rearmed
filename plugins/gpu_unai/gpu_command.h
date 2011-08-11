@@ -400,7 +400,7 @@ void gpuSendPacketFunction(const int PRIM)
 				TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
 				TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
 				gpuSetTexture(GPU_GP1);
-				isSkip = false;
+				//isSkip = false;
 				DO_LOG(("TextureWindow(0x%x)\n",PRIM));
 			}
 			break;
@@ -409,7 +409,7 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingArea[0] = temp         & 0x3FF;
 				DrawingArea[1] = (temp >> 10) & 0x3FF;
-				isSkip = false;
+				//isSkip = false;
 				DO_LOG(("DrawingArea_Pos(0x%x)\n",PRIM));
 			}
 			break;
@@ -418,7 +418,7 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingArea[2] = (temp         & 0x3FF) + 1;
 				DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
-				isSkip = false;
+				//isSkip = false;
 				DO_LOG(("DrawingArea_Size(0x%x)\n",PRIM));
 			}
 			break;
@@ -427,7 +427,7 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
 				DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
-				isSkip = false;
+				//isSkip = false;
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));
 			}
 			break;

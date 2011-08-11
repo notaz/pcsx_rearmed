@@ -29,6 +29,7 @@ int linesInterlace = 0;  /* internal lines interlace */
 int linesInterlace_user = 0; /* Lines interlace */
 
 bool isSkip = false; /* skip frame (info coming from GPU) */
+bool wasSkip = false;
 bool skipFrame = false; /* skip frame (according to frame skip) */
 bool alt_fps = false; /* Alternative FPS algorithm */
 bool show_fps = false; /* Show FPS statistics */
@@ -551,6 +552,11 @@ void  GPU_writeStatus(u32 data)
 		DisplayArea[0] = (data & 0x000003FF); //(short)(data & 0x3ff);
 		DisplayArea[1] = ((data & 0x0007FC00)>>10); //(data & 0x000FFC00) >> 10; //(short)((data>>10)&0x1ff);
 		fb_dirty = true;
+		wasSkip = isSkip;
+		if (isSkip)
+			isSkip = false;
+		else
+			isSkip = skipFrame;
 		break;
 	case 0x07:
 		DisplayArea[4] = data & 0x000003FF; //(short)(data & 0x3ff);
@@ -884,15 +890,18 @@ void GPU_updateLace(void)
 	if (!fb_dirty || (GPU_GP1&0x08800000))
 		return;
 
-	if (!isSkip) {
+	if (!wasSkip) {
 		blit();
-
 		fb_dirty = false;
-		if (cbs->fskip_advice)
-			isSkip = true;
+		skCount = 0;
 	}
-	else
-		isSkip = false;
+	else {
+		skCount++;
+		if (skCount >= 8)
+			wasSkip = isSkip = 0;
+	}
+
+	skipFrame = cbs->fskip_advice;
 }
 
 long GPUopen(unsigned long *, char *, char *)
