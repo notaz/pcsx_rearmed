@@ -8,8 +8,6 @@ ifdef MAEMO
 CFLAGS += -DMAEMO
 endif
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-# -fschedule-insns (from -O2+) causes bugs, probably bad asm() statements
-CFLAGS += -fno-schedule-insns -fno-schedule-insns2
 
 TARGET = gpuPCSX4ALL.so
 LDFLAGS += -shared -Wl,-soname,$(TARGET)

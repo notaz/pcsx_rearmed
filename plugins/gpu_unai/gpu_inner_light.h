@@ -27,11 +27,13 @@
 #define gpuLightingRGB(uSrc,lCol) \
 { \
 	u32 cb,cg; \
-	asm ("and %[cb],  %[lCol], #0x7C00/32       " : [cb]   "=r" (cb)   : [lCol] "r" (lCol) ); \
-	asm ("and %[cg],  %[lCol], #0x03E0*2048     " : [cg]   "=r" (cg)   : [lCol] "r" (lCol) ); \
-	asm ("mov %[res], %[lCol],          lsr #27 " : [res]  "=r" (uSrc)  : [lCol] "r" (lCol) ); \
-	asm ("orr %[res], %[res], %[cb],    lsl #5  " : [res]  "=r" (uSrc)  : "0" (uSrc), [cb] "r" (cb) ); \
-	asm ("orr %[res], %[res], %[cg],    lsr #11 " : [res]  "=r" (uSrc)  : "0" (uSrc), [cg] "r" (cg) ); \
+	asm ("and %[cb],  %[lCol], #0x7C00/32      \n" \
+	     "and %[cg],  %[lCol], #0x03E0*2048    \n" \
+	     "mov %[res], %[lCol],          lsr #27\n" \
+	     "orr %[res], %[res], %[cb],    lsl #5 \n" \
+	     "orr %[res], %[res], %[cg],    lsr #11\n" \
+	 : [res] "=&r" (uSrc), [cb] "=&r" (cb), [cg] "=&r" (cg) \
+	 : [lCol] "r" (lCol)); \
 }
 #else
 #define gpuLightingRGB(uSrc,lCol) uSrc=((lCol<<5)&0x7C00) | ((lCol>>11)&0x3E0) | (lCol>>27)
