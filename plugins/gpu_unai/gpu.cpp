@@ -24,25 +24,28 @@
 #include "debug.h"
 
 int skipCount = 2; /* frame skip (0,1,2,3...) */
-int skCount=0; /* internal frame skip */
+int skCount = 0; /* internal frame skip */
 int linesInterlace = 0;  /* internal lines interlace */
 int linesInterlace_user = 0; /* Lines interlace */
 
-bool isSkip=false; /* skip frame (info coming from GPU) */
-bool skipFrame=false; /* skip frame (according to frame skip) */
+bool isSkip = false; /* skip frame (info coming from GPU) */
+bool skipFrame = false; /* skip frame (according to frame skip) */
 bool alt_fps = false; /* Alternative FPS algorithm */
 bool show_fps = false; /* Show FPS statistics */
 
-bool isPAL=false; /* PAL video timing */
+bool isPAL = false; /* PAL video timing */
 bool progressInterlace_flag = false; /* Progressive interlace flag */
 bool progressInterlace = false; /* Progressive interlace option*/
 bool frameLimit = false; /* frames to wait */
+
 bool light = true; /* lighting */
 bool blend = true; /* blending */
-
+bool FrameToRead = false; /* load image in progress */
+bool FrameToWrite = false; /* store image in progress */
 bool fb_dirty = false;
 
 bool enableAbbeyHack = false; /* Abe's Odyssey hack */
+
 u8 BLEND_MODE;
 u8 TEXT_MODE;
 u8 Masking;
@@ -59,9 +62,6 @@ u16 PixelData;
 s32		px,py;
 s32		x_end,y_end;
 u16*  pvram;
-
-u32 FrameToRead;
-u32 FrameToWrite;
 
 u32 GP0;
 s32 PacketCount;
@@ -284,7 +284,7 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 					pvram += 1024;
 					if (++py>=y_end) 
 					{
-						FrameToWrite = 0;
+						FrameToWrite = false;
 						GPU_GP1 &= ~0x08000000;
 						break;
 					}
@@ -297,7 +297,7 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 					pvram += 1024;
 					if (++py>=y_end) 
 					{
-						FrameToWrite = 0;
+						FrameToWrite = false;
 						GPU_GP1 &= ~0x08000000;
 						break;
 					}
@@ -385,7 +385,7 @@ void  GPU_writeData(u32 data)
 			pvram += 1024;
 			if (++py>=y_end) 
 			{
-				FrameToWrite = 0;
+				FrameToWrite = false;
 				GPU_GP1 &= ~0x08000000;
 			}
 		}
@@ -399,7 +399,7 @@ void  GPU_writeData(u32 data)
 				pvram += 1024;
 				if (++py>=y_end) 
 				{
-					FrameToWrite = 0;
+					FrameToWrite = false;
 					GPU_GP1 &= ~0x08000000;
 				}
 			}
@@ -452,7 +452,7 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 			pvram += 1024;
 			if (++py>=y_end) 
 			{
-				FrameToRead = 0;
+				FrameToRead = false;
 				GPU_GP1 &= ~0x08000000;
 				break;
 			}
@@ -485,7 +485,7 @@ u32  GPU_readData(void)
 			pvram += 1024;
 			if (++py>=y_end) 
 			{
-				FrameToRead = 0;
+				FrameToRead = false;
 				GPU_GP1 &= ~0x08000000;
 			}
 		}
@@ -497,7 +497,7 @@ u32  GPU_readData(void)
 			pvram +=1024;
 			if (++py>=y_end) 
 			{
-				FrameToRead = 0;
+				FrameToRead = false;
 				GPU_GP1 &= ~0x08000000;
 			}
 		}
@@ -533,11 +533,11 @@ void  GPU_writeStatus(u32 data)
 		break;
 	case 0x01:
 		GPU_GP1 &= ~0x08000000;
-		PacketCount = FrameToRead = FrameToWrite = 0;
+		PacketCount = 0; FrameToRead = FrameToWrite = false;
 		break;
 	case 0x02:
 		GPU_GP1 &= ~0x08000000;
-		PacketCount = FrameToRead = FrameToWrite = 0;
+		PacketCount = 0; FrameToRead = FrameToWrite = false;
 		break;
 	case 0x03:
 		GPU_GP1 = (GPU_GP1 & ~0x00800000) | ((data & 1) << 23);
@@ -638,15 +638,16 @@ INLINE void gpuVideoOutput(void)
 	int incY = (h0==480) ? 2 : 1;
 	h0=(h0==480 ? 2048 : 1024);
 
-	if (!progressInterlace)
 	{
 		const int li=linesInterlace;
+		bool pi=progressInterlace;
+		bool pif=progressInterlace_flag;
 		switch ( w0 )
 		{
 			case 256:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWWDWW(	src_screen16,	dest_screen16, isRGB24);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWDWW(	src_screen16,	dest_screen16, isRGB24);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
@@ -654,7 +655,7 @@ INLINE void gpuVideoOutput(void)
 			case 368:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWWWWWWWWS(	src_screen16,	dest_screen16, isRGB24, 4);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWWWWS(	src_screen16,	dest_screen16, isRGB24, 4);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
@@ -662,7 +663,7 @@ INLINE void gpuVideoOutput(void)
 			case 320:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
@@ -670,7 +671,7 @@ INLINE void gpuVideoOutput(void)
 			case 384:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWWWWWS(	src_screen16,	dest_screen16, isRGB24);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWS(	src_screen16,	dest_screen16, isRGB24);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
@@ -678,7 +679,7 @@ INLINE void gpuVideoOutput(void)
 			case 512:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWWSWWSWS(	src_screen16, dest_screen16, isRGB24);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWSWWSWS(	src_screen16, dest_screen16, isRGB24);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
@@ -686,69 +687,13 @@ INLINE void gpuVideoOutput(void)
 			case 640:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if( 0 == (y0&li) ) GPU_BlitWS(	src_screen16, dest_screen16, isRGB24);
+					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWS(	src_screen16, dest_screen16, isRGB24);
 					dest_screen16 += VIDEO_WIDTH;
 					src_screen16  += h0;
 				}
 				break;
 		}
-	}
-	else
-	{
-		const int li=linesInterlace;
-		bool flag=progressInterlace_flag; /* progressive interlace */
-		switch ( w0 )
-		{
-			case 256:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWWDWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-			case 368:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWWWWWWWWS(	src_screen16,	dest_screen16, isRGB24, 4);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-			case 320:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-			case 384:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWWWWWS(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-			case 512:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWWSWWSWS(	src_screen16, dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-			case 640:
-				for(int y1=y0+h1; y0<y1; y0+=incY)
-				{
-					if(( 0 == (y0&li) ) && (flag=!flag)) GPU_BlitWS(	src_screen16, dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
-				}
-				break;
-		}
-		progressInterlace_flag=!flag;
+		progressInterlace_flag=!progressInterlace_flag;
 	}
 	video_flip();
 }
@@ -797,7 +742,7 @@ void  GPU_updateLace(void)
 	GPU_GP1 ^= 0x80000000;
 
 	// Update display
-	if ((!skipFrame) && (!isSkip) && (!(((GPU_GP1&0x08000000))||((GPU_GP1&0x00800000)))))
+	if ((!skipFrame) && (!isSkip) && (fb_dirty) && (!(((GPU_GP1&0x08000000))||((GPU_GP1&0x00800000)))))
 	{
 		gpuVideoOutput(); // Display updated
 
@@ -811,18 +756,18 @@ void  GPU_updateLace(void)
 			linesInterlace = linesInterlace_user; // resolution changed from 480 to lower one
 			video_clear();
 		}
+	}
 
-		// Limit FPS
-		if (frameLimit)
+	// Limit FPS
+	if (frameLimit)
+	{
+		static unsigned next=get_ticks();
+		if (!skipFrame)
 		{
-			static unsigned next=get_ticks();
 			unsigned now=get_ticks();
-			if (!skipFrame)
-			{
-				if (now<next) wait_ticks(next-now);
-			}
-			next+=(isPAL?(1000000/50):((unsigned)(1000000.0/59.94)));
+			if (now<next) wait_ticks(next-now);
 		}
+		next+=(isPAL?(1000000/50):((unsigned)(1000000.0/59.94)));
 	}
 
 	// Show FPS statistics
@@ -830,7 +775,7 @@ void  GPU_updateLace(void)
 	{
 		static u32 real_fps=0;
 		static u32 prev=get_ticks();
-		static char msg[24]="FPS=000/00 SPD=000%";
+		static char msg[32]="FPS=000/00 SPD=000%";
 		u32 now=get_ticks();
 		real_fps++;
 		if ((now-prev)>=1000000)
@@ -861,6 +806,7 @@ void  GPU_updateLace(void)
 			isSkip=true;
 		}
 	}
+	fb_dirty=false;
 
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
 }
