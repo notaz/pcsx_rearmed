@@ -7,3 +7,6 @@ tags
 cscope.out
 pandora
 pcsx.map
+tools
+gpu_dumps*
+.pcsx/

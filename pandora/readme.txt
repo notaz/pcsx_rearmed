@@ -33,7 +33,7 @@ Supported CD image formats:
 - .ZNX/.ZNX.table (partial)
 - EBOOT.PBP (PSP, partial)
 
-CDDA (CD audio) support requires .cue/.bin format.
+CDDA (CD audio) only supported when .cue/.toc/.ccd/.mds files are present.
 There is support for redump.org .sbi files, which can be used instead of
 .sub files to save space (name it the same as .cue/.bin, just use .sbi
 extension). This is required for Libcrypt copy protected game support.
@@ -46,6 +46,8 @@ then select the BIOS you want to use in Options->BIOS/Plugins menu.
 
 Analog controllers are supported using nubs, but this is disabled by
 default and needs to be enabled in 'Controls' menu.
+There is also touchscreen based GunCon support, which also requires
+appropriate controller selected in controls configuration.
 
 
 Plugins
@@ -59,12 +61,31 @@ gpuPCSX4ALL.so - plugin from PCSX4ALL project. Faster but has some glitches.
 gpuGLES.so     - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
                  Occasionally faster but has lots of glitches and seems to
                  be rather unstable (may crash the system).
-builtin_spu    - P.E.Op.S. SPU plugin, most accurate but slow.
+builtin_spu    - P.E.Op.S. SPU plugin.
 spunull.so     - NULL plugin, i.e. no sound emulation.
 
 
 Changelog
 ---------
+
+r9 (2011-08-13)
+* fixed various dynarec integration issues that were causing instability
+* merged latest Ari64 dynarec code for some performance improvement
+* changed frameskip handling in builtin and PCSX4ALL plugins,
+  fixes some cases where it would not work
+* merged PCSX4ALL 2.2 GPU code to it's plugin
+* fixed PCSX4ALL GPU inline asm, was miscompiling for ARMv7.
++ added CDDA handling for eboot format
+* improved CDDA handling for all image formats that support it
+* various compatibility/accuracy improvements
+* optimized PEOPS SPU core
+* various menu adjustments
+* changed scaling options a bit, there are now two 4:3 options:
+  integer and fractional
++ added some basic memory card manager, which allows to change
+  or remove cards (remove needed for Tenka)
++ added GunCon support
++ added gpuPEOPS2 plugin (peops rendering + new emulation code)
 
 r8 (2011-03-22)
 * improved recompiler performance for some games
