@@ -109,6 +109,9 @@ static __attribute__((noinline)) void draw_active_chans(void)
 
 static void *pl_vout_set_mode(int w, int h, int bpp)
 {
+	// special h handling, Wipeout likes to change it by 1-6
+	h = (h + 7) & ~7;
+
 	if (w == pl_vout_w && h == pl_vout_h && bpp == pl_vout_bpp)
 		return pl_vout_buf;
 
@@ -126,7 +129,10 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 	if (pl_vout_buf == NULL)
 		fprintf(stderr, "failed to set mode\n");
+
+	// menu decides on layer size, we commit it
 	menu_notify_mode_change(w, h, bpp);
+	omap_enable_layer(1);
 
 	return pl_vout_buf;
 }

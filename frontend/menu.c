@@ -65,6 +65,7 @@ typedef enum
 enum {
 	SCALE_1_1,
 	SCALE_4_3,
+	SCALE_4_3v2,
 	SCALE_FULLSCREEN,
 	SCALE_CUSTOM,
 };
@@ -231,7 +232,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(CdrReschedule),
 	CE_INTVAL(region),
-	CE_INTVAL(scaling),
+	CE_INTVAL_V(scaling, 2),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
 	CE_INTVAL(g_layer_w),
@@ -1003,7 +1004,7 @@ static int menu_loop_keyconfig(int id, int keys)
 
 // ------------ gfx options menu ------------
 
-static const char *men_scaler[] = { "1x1", "scaled 4:3", "fullscreen", "custom", NULL };
+static const char *men_scaler[] = { "1x1", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL };
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
 static const char *men_dummy[] = { NULL };
@@ -1957,14 +1958,53 @@ void menu_init(void)
 
 void menu_notify_mode_change(int w, int h, int bpp)
 {
+	float mult;
+	int imult;
+
 	last_psx_w = w;
 	last_psx_h = h;
 	last_psx_bpp = bpp;
 
-	if (scaling == SCALE_1_1) {
-		g_layer_x = 800/2 - w/2;  g_layer_y = 480/2 - h/2;
+	switch (scaling) {
+	case SCALE_1_1:
 		g_layer_w = w; g_layer_h = h;
+		break;
+
+	case SCALE_4_3:
+		mult = 240.0f / (float)h * 4.0f / 3.0f;
+		if (h > 256)
+			mult *= 2.0f;
+		g_layer_w = mult * (float)g_menuscreen_h;
+		g_layer_h = g_menuscreen_h;
+		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		break;
+
+	case SCALE_4_3v2:
+		// 4:3 that prefers integer scaling
+		imult = g_menuscreen_h / h;
+		g_layer_w = w * imult;
+		g_layer_h = h * imult;
+		mult = (float)g_layer_w / (float)g_layer_h;
+		if (mult < 1.25f || mult > 1.666f)
+			g_layer_w = 4.0f/3.0f * (float)g_layer_h;
+		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		break;
+
+	case SCALE_FULLSCREEN:
+		g_layer_w = g_menuscreen_w;
+		g_layer_h = g_menuscreen_h;
+		break;
+
+	default:
+		break;
 	}
+
+	g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
+	g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
+	if (g_layer_x < 0) g_layer_x = 0;
+	if (g_layer_y < 0) g_layer_y = 0;
+	if (g_layer_w > g_menuscreen_w) g_layer_w = g_menuscreen_w;
+	if (g_layer_h > g_menuscreen_h) g_layer_w = g_menuscreen_h;
 }
 
 static void menu_leave_emu(void)
@@ -2000,21 +2040,7 @@ void menu_prepare_emu(void)
 
 	plat_video_menu_leave();
 
-	switch (scaling) {
-	case SCALE_1_1:
-		menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);
-		break;
-	case SCALE_4_3:
-		g_layer_x = 80;  g_layer_y = 0;
-		g_layer_w = 640; g_layer_h = 480;
-		break;
-	case SCALE_FULLSCREEN:
-		g_layer_x = 0;   g_layer_y = 0;
-		g_layer_w = 800; g_layer_h = 480;
-		break;
-	case SCALE_CUSTOM:
-		break;
-	}
+	menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	if (psxCpu != prev_cpu)
