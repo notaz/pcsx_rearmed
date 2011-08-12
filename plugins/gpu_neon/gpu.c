@@ -21,8 +21,8 @@
 
 //#define log_io gpu_log
 #define log_io(...)
-#define log_anomaly gpu_log
-//#define log_anomaly(...)
+//#define log_anomaly gpu_log
+#define log_anomaly(...)
 
 struct psx_gpu gpu __attribute__((aligned(64)));
 
@@ -90,11 +90,14 @@ static noinline void get_gpu_info(uint32_t data)
 
 long GPUinit(void)
 {
-  int ret = vout_init();
-  do_reset();
+  int ret;
+  ret  = vout_init();
+  ret |= renderer_init();
+
   gpu.lcf_hc = &gpu.zero;
   gpu.state.frame_count = 0;
   gpu.state.hcnt = &gpu.zero;
+  do_reset();
   return ret;
 }
 
@@ -247,6 +250,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 
   if (is_read)
     gpu.status.img = 1;
+  else
+    renderer_invalidate_caches(gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
 
   log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
@@ -484,6 +489,7 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
       freeze->ulStatus = gpu.status.reg;
       break;
     case 0: // load
+      renderer_invalidate_caches(0, 0, 1024, 512);
       memcpy(gpu.vram, freeze->psxVRam, sizeof(gpu.vram));
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));

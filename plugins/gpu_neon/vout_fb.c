@@ -43,7 +43,7 @@ static void blit(void)
   {
     old_status = gpu.status.reg;
     old_h = h;
-    screen_buf = cbs->pl_fbdev_set_mode(stride, h, gpu.status.rgb24 ? 24 : 16);
+    screen_buf = cbs->pl_vout_set_mode(stride, h, gpu.status.rgb24 ? 24 : 16);
   }
 
   dest = screen_buf;
@@ -76,7 +76,7 @@ static void blit(void)
     }
   }
 
-  screen_buf = cbs->pl_fbdev_flip();
+  screen_buf = cbs->pl_vout_flip();
 }
 
 void GPUupdateLace(void)
@@ -85,6 +85,7 @@ void GPUupdateLace(void)
     return;
 
   if (!gpu.status.blanking && gpu.state.fb_dirty) {
+    renderer_flush_queues();
     blit();
     gpu.state.fb_dirty = 0;
   }
@@ -95,14 +96,14 @@ long GPUopen(void)
   gpu.frameskip.enabled = cbs->frameskip;
   gpu.frameskip.advice = &cbs->fskip_advice;
 
-  cbs->pl_fbdev_open();
-  screen_buf = cbs->pl_fbdev_flip();
+  cbs->pl_vout_open();
+  screen_buf = cbs->pl_vout_flip();
   return 0;
 }
 
 long GPUclose(void)
 {
-  cbs->pl_fbdev_close();
+  cbs->pl_vout_close();
   return 0;
 }
 

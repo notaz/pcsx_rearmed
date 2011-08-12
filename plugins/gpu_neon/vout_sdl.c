@@ -79,8 +79,11 @@ static void blit(void)
 
 void GPUupdateLace(void)
 {
-  if (!gpu.status.blanking)
+  if (!gpu.status.blanking && gpu.state.fb_dirty) {
+    renderer_flush_queues();
     blit();
+    gpu.state.fb_dirty = 0;
+  }
 }
 
 long GPUopen(void **dpy)
