@@ -365,6 +365,16 @@ void do_cmd_list(unsigned int *list, int list_len)
   }
 }
 
+void renderer_sync_ecmds(uint32_t *ecmds)
+{
+  cmdTexturePage((unsigned char *)&ecmds[1]);
+  cmdTextureWindow((unsigned char *)&ecmds[2]);
+  cmdDrawAreaStart((unsigned char *)&ecmds[3]);
+  cmdDrawAreaEnd((unsigned char *)&ecmds[4]);
+  cmdDrawOffset((unsigned char *)&ecmds[5]);
+  cmdSTP((unsigned char *)&ecmds[6]);
+}
+
 void renderer_invalidate_caches(int x, int y, int w, int h)
 {
 }

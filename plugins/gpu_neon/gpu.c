@@ -328,11 +328,12 @@ static int check_cmd(uint32_t *data, int count)
       start_vram_transfer(data[pos + 1], data[pos + 2], cmd == 0xc0);
       pos += len;
     }
-
-    if (cmd == -1)
+    else if (cmd == -1)
       break;
   }
 
+  if (gpu.frameskip.active)
+    renderer_sync_ecmds(gpu.ex_regs);
   gpu.state.fb_dirty |= vram_dirty;
 
   return count - pos;
@@ -498,6 +499,7 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
         gpu.regs[i] ^= 1; // avoid reg change detection
         GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
       }
+      renderer_sync_ecmds(gpu.ex_regs);
       break;
   }
 

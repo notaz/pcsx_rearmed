@@ -85,7 +85,7 @@ void GPUupdateLace(void)
     return;
 
   if (gpu.frameskip.enabled) {
-    if (!gpu.frameskip.frame_ready && gpu.frameskip.skipped_blits < 6) {
+    if (!gpu.frameskip.frame_ready && gpu.frameskip.skipped_blits < 9) {
       gpu.frameskip.skipped_blits++;
       return;
     }

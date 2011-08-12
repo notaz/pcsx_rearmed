@@ -86,6 +86,7 @@ extern const unsigned char cmd_lengths[256];
 void do_cmd_list(uint32_t *list, int count);
 
 int  renderer_init(void);
+void renderer_sync_ecmds(uint32_t * ecmds);
 void renderer_invalidate_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
 
