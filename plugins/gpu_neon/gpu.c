@@ -113,7 +113,7 @@ void GPUwriteStatus(uint32_t data)
   uint32_t cmd = data >> 24;
 
   if (cmd < ARRAY_SIZE(gpu.regs)) {
-    if (cmd != 0 && gpu.regs[cmd] == data)
+    if (cmd != 0 && cmd != 5 && gpu.regs[cmd] == data)
       return;
     gpu.regs[cmd] = data;
   }

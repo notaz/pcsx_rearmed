@@ -74,6 +74,7 @@ struct psx_gpu {
     uint32_t enabled:1;
     uint32_t active:1;
     uint32_t frame_ready:1;
+    uint32_t skipped_blits:5;
     const int *advice;
   } frameskip;
 };
