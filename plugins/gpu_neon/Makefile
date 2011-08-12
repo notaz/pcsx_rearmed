@@ -3,6 +3,7 @@ CC = $(CROSS_COMPILE)gcc
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -ggdb -Wall -fPIC -O2
+CFLAGS += -fno-strict-aliasing
 
 LDFLAGS += -shared -Wl,-soname,$(TARGET)
 SRC += gpu.c
@@ -20,7 +21,7 @@ PEOPS=1
 ifndef PEOPS
 SRC += psx_gpu_if.c
 else
-SRC += peops.c
+SRC += peops_if.c
 endif
 
 all: $(TARGET)
