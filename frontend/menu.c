@@ -607,6 +607,18 @@ static void apply_lcdrate(int pal)
 	old = pal;
 }
 
+static int get_bat_capacity(void)
+{
+	FILE *f;
+	int ret = 0;
+	f = fopen("/sys/class/power_supply/bq27500-0/capacity", "r");
+	if (f) {
+		fscanf(f, "%d", &ret);
+		fclose(f);
+	}
+	return ret;
+}
+
 static menu_entry e_menu_gfx_options[];
 
 static void pnd_menu_init(void)
@@ -1469,12 +1481,24 @@ void OnFile_Exit();
 
 static void draw_frame_main(void)
 {
+	struct tm *tmp;
+	time_t ltime;
+	char ltime_s[16];
+	char buff[64];
+
 	if (CdromId[0] != 0) {
-		char buff[64];
 		snprintf(buff, sizeof(buff), "%.32s/%.9s (running as %s, with %s)",
 			 get_cd_label(), CdromId, Config.PsxType ? "PAL" : "NTSC",
 			 Config.HLE ? "HLE" : "BIOS");
 		smalltext_out16(4, 1, buff, 0x105f);
+	}
+
+	if (ready_to_go) {
+		ltime = time(NULL);
+		tmp = localtime(&ltime);
+		strftime(ltime_s, sizeof(ltime_s), "%H:%M", tmp);
+		snprintf(buff, sizeof(buff), "%s %3d%%", ltime_s, get_bat_capacity());
+		smalltext_out16(4, 1 + me_sfont_h, buff, 0x105f);
 	}
 }
 
