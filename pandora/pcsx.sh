@@ -10,6 +10,7 @@ echo absolute > /proc/pandora/nub1/mode
 
 # restore stuff if pcsx crashes
 ./picorestore
+sudo -n /usr/pandora/scripts/op_lcdrate.sh 60
 
 echo "$nub0mode" > /proc/pandora/nub0/mode
 echo "$nub1mode" > /proc/pandora/nub1/mode

@@ -29,7 +29,7 @@ int g_layer_w = 640, g_layer_h = 480;
 
 struct vout_fbdev *layer_fb;
 
-static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, int first_call)
+static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 {
 	struct omapfb_plane_info pi = { 0, };
 	struct omapfb_mem_info mi = { 0, };
@@ -55,7 +55,7 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h, in
 			perror("SETUP_PLANE");
 	}
 
-	if (first_call) {
+	if (mi.size < 640*512*3*3) {
 		mi.size = 640*512*3*3;
 		ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
 		if (ret != 0) {
@@ -85,7 +85,7 @@ int omap_enable_layer(int enabled)
 		pl_set_gun_rect(g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 
 	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb), enabled,
-		g_layer_x, g_layer_y, g_layer_w, g_layer_h, 0);
+		g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 }
 
 void plat_video_menu_enter(int is_rom_loaded)
@@ -138,7 +138,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	ret = omap_setup_layer_(fd, 0, g_layer_x, g_layer_y, g_layer_w, g_layer_h, 1);
+	ret = omap_setup_layer_(fd, 0, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 	close(fd);
 	if (ret != 0) {
 		fprintf(stderr, "failed to set up layer, exiting.\n");

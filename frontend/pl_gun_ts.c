@@ -106,7 +106,7 @@ struct tsdev *pl_gun_ts_init(void)
 	return ts;
 
 fail_config:
-	pts_close(ltsh);
+	pts_close(ts);
 fail_open:
 fail_dlsym:
 	dlclose(ltsh);
