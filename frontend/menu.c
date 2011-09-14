@@ -71,7 +71,7 @@ enum {
 };
 
 static int last_psx_w, last_psx_h, last_psx_bpp;
-static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost;
+static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
@@ -160,6 +160,7 @@ static void menu_sync_config(void)
 	}
 
 	iVolume = 768 + 128 * volume_boost;
+	pl_rearmed_cbs.frameskip = frameskip - 1;
 	pl_timing_prepare(Config.PsxType);
 }
 
@@ -168,6 +169,7 @@ static void menu_set_defconfig(void)
 	g_opts = 0;
 	scaling = SCALE_4_3;
 	volume_boost = 0;
+	frameskip = 0;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;
@@ -176,7 +178,6 @@ static void menu_set_defconfig(void)
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 	Config.CdrReschedule = 0;
 
-	pl_rearmed_cbs.frameskip = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.abe_hack =
@@ -211,6 +212,9 @@ static void menu_set_defconfig(void)
 #define CE_INTVAL_V(val, ver) \
 	{ #val #ver, sizeof(val), &val }
 
+#define CE_INTVAL_PV(val, ver) \
+	{ #val #ver, sizeof(pl_rearmed_cbs.val), &pl_rearmed_cbs.val }
+
 static const struct {
 	const char *name;
 	size_t len;
@@ -243,7 +247,7 @@ static const struct {
 	CE_INTVAL(g_opts),
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
-	CE_INTVAL_P(frameskip),
+	CE_INTVAL_V(frameskip, 2),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.abe_hack),
@@ -1252,6 +1256,7 @@ static int mh_restore_defaults(int id, int keys)
 }
 
 static const char *men_region[]       = { "Auto", "NTSC", "PAL", NULL };
+static const char *men_frameskip[]    = { "Auto", "Off", "1", NULL };
 /*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
@@ -1265,7 +1270,7 @@ static menu_entry e_menu_options[] =
 {
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
 //	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
-	mee_onoff_h   ("Frameskip",                0, pl_rearmed_cbs.frameskip, 1, h_frameskip),
+	mee_enum_h    ("Frameskip",                0, frameskip, men_frameskip, h_frameskip),
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),

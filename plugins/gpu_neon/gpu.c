@@ -61,7 +61,7 @@ static noinline void decide_frameskip(void)
 {
   gpu.frameskip.frame_ready = !gpu.frameskip.active;
 
-  if (!gpu.frameskip.active && *gpu.frameskip.advice)
+  if (!gpu.frameskip.active && (*gpu.frameskip.advice || gpu.frameskip.set == 1))
     gpu.frameskip.active = 1;
   else
     gpu.frameskip.active = 0;
@@ -133,7 +133,7 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       gpu.screen.x = data & 0x3ff;
       gpu.screen.y = (data >> 10) & 0x3ff;
-      if (gpu.frameskip.enabled)
+      if (gpu.frameskip.set)
         decide_frameskip();
       break;
     case 0x06:

@@ -171,9 +171,14 @@ void do_emu_action(void)
 			state_slot = 9;
 		goto do_state_slot;
 	case SACTION_TOGGLE_FSKIP:
-		pl_rearmed_cbs.frameskip ^= 1;
-		snprintf(hud_msg, sizeof(hud_msg), "FRAMESKIP %s",
-			pl_rearmed_cbs.frameskip ? "ON" : "OFF");
+		pl_rearmed_cbs.fskip_advice = 0;
+		pl_rearmed_cbs.frameskip++;
+		if (pl_rearmed_cbs.frameskip > 1)
+			pl_rearmed_cbs.frameskip = -1;
+		snprintf(hud_msg, sizeof(hud_msg), "FRAMESKIP: %s",
+			pl_rearmed_cbs.frameskip == -1 ? "AUTO" :
+			pl_rearmed_cbs.frameskip == 0 ? "OFF" : "1" );
+		plugin_call_rearmed_cbs();
 		break;
 	case SACTION_SCREENSHOT:
 		{

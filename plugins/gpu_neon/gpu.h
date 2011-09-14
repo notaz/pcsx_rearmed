@@ -71,7 +71,7 @@ struct psx_gpu {
     } last_list;
   } state;
   struct {
-    uint32_t enabled:1;
+    int32_t set:3; /* -1 auto, 0 off, 1 fixed */
     uint32_t active:1;
     uint32_t frame_ready:1;
     uint32_t skipped_blits:5;

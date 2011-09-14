@@ -901,7 +901,7 @@ void GPU_updateLace(void)
 			wasSkip = isSkip = 0;
 	}
 
-	skipFrame = cbs->fskip_advice;
+	skipFrame = cbs->fskip_advice || cbs->frameskip == 1;
 }
 
 long GPUopen(unsigned long *, char *, char *)

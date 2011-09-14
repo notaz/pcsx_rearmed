@@ -233,7 +233,7 @@ static void decideSkip(void)
 
  if(dwActFixes&0xa0)                                   // -> pc fps calculation fix/old skipping fix
   {
-   int skip = (skip_advice && *skip_advice) || fps_skip < fFrameRateHz;
+   int skip = (skip_advice && *skip_advice) || UseFrameSkip == 1 || fps_skip < fFrameRateHz;
    if(skip && !bSkipNextFrame)                         // -> skip max one in a row
        {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
    else bSkipNextFrame = FALSE;
