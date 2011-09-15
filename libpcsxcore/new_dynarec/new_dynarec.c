@@ -8881,8 +8881,6 @@ int new_recompile_block(int addr)
           clear_const(&current,rt1[i]);
           alloc_cc(&current,i);
           dirty_reg(&current,CCREG);
-          ooo[i]=1;
-          delayslot_alloc(&current,i+1);
           if (rt1[i]==31) {
             alloc_reg(&current,i,31);
             dirty_reg(&current,31);
@@ -8893,6 +8891,8 @@ int new_recompile_block(int addr)
             #endif
             //current.is32|=1LL<<rt1[i];
           }
+          ooo[i]=1;
+          delayslot_alloc(&current,i+1);
           //current.isconst=0; // DEBUG
           ds=1;
           //printf("i=%d, isconst=%x\n",i,current.isconst);
