@@ -794,7 +794,8 @@ static void *MAINThread(void *arg)
         {
          unsigned char *start=s_chan[ch].pCurr;
 
-         bIRQReturn |= skip_block(ch);
+         // no need for bIRQReturn since the channel is silent
+         iSpuAsyncWait |= skip_block(ch);
          if(start == s_chan[ch].pCurr)
           {
            // looping on self
