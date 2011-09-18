@@ -310,7 +310,7 @@ void pl_frame_limit(void)
 	if (!(g_opts & OPT_NO_FRAMELIM) && diff > frame_interval) {
 		// yay for working usleep on pandora!
 		//printf("usleep %d\n", diff - frame_interval / 2);
-		usleep(diff - frame_interval / 2);
+		usleep(diff - frame_interval);
 	}
 
 	if (pl_rearmed_cbs.frameskip) {
