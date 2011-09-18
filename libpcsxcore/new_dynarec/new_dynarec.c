@@ -690,6 +690,10 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[RHASH]=1;
     hsn[RHTBL]=1;
   }
+  // due to the way JAL is currently done we need DS not to evict $ra
+  if(i>0&&itype[i-1]==UJUMP&&rt1[i-1]==31) {
+    hsn[31]=0;
+  }
   // Coprocessor load/store needs FTEMP, even if not declared
   if(itype[i]==C1LS||itype[i]==C2LS) {
     hsn[FTEMP]=0;
