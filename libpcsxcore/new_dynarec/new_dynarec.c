@@ -690,9 +690,9 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[RHASH]=1;
     hsn[RHTBL]=1;
   }
-  // due to the way JAL is currently done we need DS not to evict $ra
-  if(i>0&&itype[i-1]==UJUMP&&rt1[i-1]==31) {
-    hsn[31]=0;
+  // due to the way JAL(R) is currently done we need DS not to evict $ra
+  if(i>0&&(itype[i-1]==RJUMP||itype[i-1]!=UJUMP)&&rt1[i-1]!=0) {
+    hsn[rt1[i-1]]=0;
   }
   // Coprocessor load/store needs FTEMP, even if not declared
   if(itype[i]==C1LS||itype[i]==C2LS) {
@@ -5249,15 +5249,6 @@ void rjump_assemble(int i,struct regstat *i_regs)
     if(rh>=0) do_preload_rhash(rh);
   }
   #endif
-  ds_assemble(i+1,i_regs);
-  uint64_t bc_unneeded=branch_regs[i].u;
-  uint64_t bc_unneeded_upper=branch_regs[i].uu;
-  bc_unneeded|=1|(1LL<<rt1[i]);
-  bc_unneeded_upper|=1|(1LL<<rt1[i]);
-  bc_unneeded&=~(1LL<<rs1[i]);
-  wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
-                bc_unneeded,bc_unneeded_upper);
-  load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,rs1[i],CCREG);
   if(rt1[i]!=0) {
     int rt,return_address;
     assert(rt1[i+1]!=rt1[i]);
@@ -5277,6 +5268,15 @@ void rjump_assemble(int i,struct regstat *i_regs)
     emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
     #endif
   }
+  ds_assemble(i+1,i_regs);
+  uint64_t bc_unneeded=branch_regs[i].u;
+  uint64_t bc_unneeded_upper=branch_regs[i].uu;
+  bc_unneeded|=1|(1LL<<rt1[i]);
+  bc_unneeded_upper|=1|(1LL<<rt1[i]);
+  bc_unneeded&=~(1LL<<rs1[i]);
+  wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
+                bc_unneeded,bc_unneeded_upper);
+  load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,rs1[i],CCREG);
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
   #ifdef USE_MINI_HT
