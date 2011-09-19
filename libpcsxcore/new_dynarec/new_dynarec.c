@@ -1240,6 +1240,8 @@ void add_link(u_int vaddr,void *src)
 {
   u_int page=get_page(vaddr);
   inv_debug("add_link: %x -> %x (%d)\n",(int)src,vaddr,page);
+  int *ptr=(int *)(src+4);
+  assert((*ptr&0x0fff0000)==0x059f0000);
   ll_add(jump_out+page,vaddr,src);
   //int ptr=get_pointer(src);
   //inv_debug("add_link: Pointer is to %x\n",(int)ptr);

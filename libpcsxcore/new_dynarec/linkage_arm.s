@@ -212,11 +212,7 @@ dynarec_local_end = memory_map + 4194304
 .endif
 .endm
 
-	.text
-	.align	2
-	.global	dyna_linker
-	.type	dyna_linker, %function
-dyna_linker:
+.macro dyna_linker_main
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
 	ldr	r3, .jiptr
@@ -234,32 +230,39 @@ dyna_linker:
 	orrcs	r2, r6, #2048
 	ldr	r5, [r3, r2, lsl #2]
 	lsl	r12, r12, #8
+	add	r6, r1, r12, asr #6
+	mov	r8, #0
 	/* jump_in lookup */
-.A1:
+1:
 	movs	r4, r5
-	beq	.A3
+	beq	2f
 	ldr	r3, [r5]
 	ldr	r5, [r4, #12]
 	teq	r3, r0
-	bne	.A1
+	bne	1b
 	ldr	r3, [r4, #4]
 	ldr	r4, [r4, #8]
 	tst	r3, r3
-	bne	.A1
-.A2:
-	mov	r5, r1
-	add	r1, r1, r12, asr #6
-	teq	r1, r4
+	bne	1b
+	teq	r4, r6
 	moveq	pc, r4 /* Stale i-cache */
+	mov	r8, r4
+	b  	1b     /* jump_in may have dupes, continue search */
+2:
+	tst     r8, r8
+	beq	3f     /* r0 not in jump_in */
+
+	mov	r5, r1
+	mov	r1, r6
 	bl	add_link
-	sub	r2, r4, r5
+	sub	r2, r8, r5
 	and	r1, r7, #0xff000000
 	lsl	r2, r2, #6
 	sub	r1, r1, #2
 	add	r1, r1, r2, lsr #8
 	str	r1, [r5]
-	mov	pc, r4
-.A3:
+	mov	pc, r8
+3:
 	/* hash_table lookup */
 	cmp	r2, #2048
 	ldr	r3, .jdptr
@@ -277,14 +280,14 @@ dyna_linker:
 	teq	r7, r0
 	ldreq	pc, [r6, #12]
 	/* jump_dirty lookup */
-.A6:
+6:
 	movs	r4, r5
-	beq	.A8
+	beq	8f
 	ldr	r3, [r5]
 	ldr	r5, [r4, #12]
 	teq	r3, r0
-	bne	.A6
-.A7:
+	bne	6b
+7:
 	ldr	r1, [r4, #8]
 	/* hash_table insert */
 	ldr	r2, [r6]
@@ -294,7 +297,18 @@ dyna_linker:
 	str	r2, [r6, #8]
 	str	r3, [r6, #12]
 	mov	pc, r1
-.A8:
+8:
+.endm
+
+	.text
+	.align	2
+	.global	dyna_linker
+	.type	dyna_linker, %function
+dyna_linker:
+	/* r0 = virtual target address */
+	/* r1 = instruction to patch */
+	dyna_linker_main
+
 	mov	r4, r0
 	mov	r5, r1
 	bl	new_recompile_block
@@ -339,82 +353,8 @@ exec_pagefault:
 dyna_linker_ds:
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	ldr	r3, .jiptr
-	/* get_page */
-	lsr     r2, r0, #12
-	mov	r6, #4096
-	bic	r2, r2, #0xe0000
-	sub	r6, r6, #1
-	cmp     r2, #0x1000
-	ldr	r7, [r1]
-	biclt   r2, #0x0e00
-	and	r6, r6, r2
-	cmp	r2, #2048
-	add	r12, r7, #2
-	orrcs	r2, r6, #2048
-	ldr	r5, [r3, r2, lsl #2]
-	lsl	r12, r12, #8
-	/* jump_in lookup */
-.B1:
-	movs	r4, r5
-	beq	.B3
-	ldr	r3, [r5]
-	ldr	r5, [r4, #12]
-	teq	r3, r0
-	bne	.B1
-	ldr	r3, [r4, #4]
-	ldr	r4, [r4, #8]
-	tst	r3, r3
-	bne	.B1
-.B2:
-	mov	r5, r1
-	add	r1, r1, r12, asr #6
-	teq	r1, r4
-	moveq	pc, r4 /* Stale i-cache */
-	bl	add_link
-	sub	r2, r4, r5
-	and	r1, r7, #0xff000000
-	lsl	r2, r2, #6
-	sub	r1, r1, #2
-	add	r1, r1, r2, lsr #8
-	str	r1, [r5]
-	mov	pc, r4
-.B3:
-	/* hash_table lookup */
-	cmp	r2, #2048
-	ldr	r3, .jdptr
-	eor	r4, r0, r0, lsl #16
-	lslcc	r2, r0, #9
-	ldr	r6, .htptr
-	lsr	r4, r4, #12
-	lsrcc	r2, r2, #21
-	bic	r4, r4, #15
-	ldr	r5, [r3, r2, lsl #2]
-	ldr	r7, [r6, r4]!
-	teq	r7, r0
-	ldreq	pc, [r6, #4]
-	ldr	r7, [r6, #8]
-	teq	r7, r0
-	ldreq	pc, [r6, #12]
-	/* jump_dirty lookup */
-.B6:
-	movs	r4, r5
-	beq	.B8
-	ldr	r3, [r5]
-	ldr	r5, [r4, #12]
-	teq	r3, r0
-	bne	.B6
-.B7:
-	ldr	r1, [r4, #8]
-	/* hash_table insert */
-	ldr	r2, [r6]
-	ldr	r3, [r6, #4]
-	str	r0, [r6]
-	str	r1, [r6, #4]
-	str	r2, [r6, #8]
-	str	r3, [r6, #12]
-	mov	pc, r1
-.B8:
+	dyna_linker_main
+
 	mov	r4, r0
 	bic	r0, r0, #7
 	mov	r5, r1
