@@ -42,9 +42,9 @@ mix_chan:
 
 mc_finish:
     vstmia      r2!, {d2}
-    cmp         r1, #2
+    cmp         r1, #-2
     vstmiage    r2!, {d3}
-    cmp         r1, #3
+    cmp         r1, #-1
     vstmiage    r2!, {d4}
     bx          lr
 
@@ -87,10 +87,10 @@ mix_chan_rvb:
 mcr_finish:
     vstmia      r2!, {d2}
     vstmia      r3!, {d6}
-    cmp         r1, #2
+    cmp         r1, #-2
     vstmiage    r2!, {d3}
     vstmiage    r3!, {d7}
-    cmp         r1, #3
+    cmp         r1, #-1
     vstmiage    r2!, {d4}
     vstmiage    r3!, {d8}
     bx          lr

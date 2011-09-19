@@ -762,6 +762,8 @@ static void *MAINThread(void *arg)
          bIRQReturn=1;
          lastch=ch; 
          lastns=ns_to=d;
+         if(d==0)
+          break;
         }
 
        MixADSR(ch, ns_from, ns_to);
