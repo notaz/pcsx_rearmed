@@ -690,10 +690,6 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[RHASH]=1;
     hsn[RHTBL]=1;
   }
-  // due to the way JAL(R) is currently done we need DS not to evict $ra
-  if(i>0&&(itype[i-1]==RJUMP||itype[i-1]!=UJUMP)&&rt1[i-1]!=0) {
-    hsn[rt1[i-1]]=0;
-  }
   // Coprocessor load/store needs FTEMP, even if not declared
   if(itype[i]==C1LS||itype[i]==C2LS) {
     hsn[FTEMP]=0;
@@ -5140,9 +5136,45 @@ add_to_linker(int addr,int target,int ext)
   linkcount++;
 }
 
+static void ujump_assemble_write_ra(int i)
+{
+  int rt;
+  unsigned int return_address;
+  rt=get_reg(branch_regs[i].regmap,31);
+  assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
+  //assert(rt>=0);
+  return_address=start+i*4+8;
+  if(rt>=0) {
+    #ifdef USE_MINI_HT
+    if(internal_branch(branch_regs[i].is32,return_address)&&rt1[i+1]!=31) {
+      int temp=-1; // note: must be ds-safe
+      #ifdef HOST_TEMPREG
+      temp=HOST_TEMPREG;
+      #endif
+      if(temp>=0) do_miniht_insert(return_address,rt,temp);
+      else emit_movimm(return_address,rt);
+    }
+    else
+    #endif
+    {
+      #ifdef REG_PREFETCH
+      if(temp>=0) 
+      {
+        if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
+      }
+      #endif
+      emit_movimm(return_address,rt); // PC into link register
+      #ifdef IMM_PREFETCH
+      emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
+      #endif
+    }
+  }
+}
+
 void ujump_assemble(int i,struct regstat *i_regs)
 {
   signed char *i_regmap=i_regs->regmap;
+  int ra_done=0;
   if(i==(ba[i]-start)>>2) assem_debug("idle loop\n");
   address_generation(i+1,i_regs,regs[i].regmap_entry);
   #ifdef REG_PREFETCH
@@ -5154,38 +5186,9 @@ void ujump_assemble(int i,struct regstat *i_regs)
     if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
   }
   #endif
-  if(rt1[i]==31) {
-    int rt;
-    unsigned int return_address;
-    rt=get_reg(branch_regs[i].regmap,31);
-    assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
-    //assert(rt>=0);
-    return_address=start+i*4+8;
-    if(rt>=0) {
-      #ifdef USE_MINI_HT
-      if(internal_branch(branch_regs[i].is32,return_address)&&rt1[i+1]!=31) {
-        int temp=-1; // note: must be ds-safe
-        #ifdef HOST_TEMPREG
-        temp=HOST_TEMPREG;
-        #endif
-        if(temp>=0) do_miniht_insert(return_address,rt,temp);
-        else emit_movimm(return_address,rt);
-      }
-      else
-      #endif
-      {
-        #ifdef REG_PREFETCH
-        if(temp>=0) 
-        {
-          if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
-        }
-        #endif
-        emit_movimm(return_address,rt); // PC into link register
-        #ifdef IMM_PREFETCH
-        emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
-        #endif
-      }
-    }
+  if(rt1[i]==31&&(rt1[i]==rs1[i+1]||rt1[i]==rs2[i+1])) {
+    ujump_assemble_write_ra(i); // writeback ra for DS
+    ra_done=1;
   }
   ds_assemble(i+1,i_regs);
   uint64_t bc_unneeded=branch_regs[i].u;
@@ -5195,6 +5198,8 @@ void ujump_assemble(int i,struct regstat *i_regs)
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
                 bc_unneeded,bc_unneeded_upper);
   load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,CCREG,CCREG);
+  if(!ra_done&&rt1[i]==31)
+    ujump_assemble_write_ra(i);
   int cc,adj;
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
@@ -5218,11 +5223,33 @@ void ujump_assemble(int i,struct regstat *i_regs)
   }
 }
 
+static void rjump_assemble_write_ra(int i)
+{
+  int rt,return_address;
+  assert(rt1[i+1]!=rt1[i]);
+  assert(rt2[i+1]!=rt1[i]);
+  rt=get_reg(branch_regs[i].regmap,rt1[i]);
+  assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
+  assert(rt>=0);
+  return_address=start+i*4+8;
+  #ifdef REG_PREFETCH
+  if(temp>=0) 
+  {
+    if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
+  }
+  #endif
+  emit_movimm(return_address,rt); // PC into link register
+  #ifdef IMM_PREFETCH
+  emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
+  #endif
+}
+
 void rjump_assemble(int i,struct regstat *i_regs)
 {
   signed char *i_regmap=i_regs->regmap;
   int temp;
   int rs,cc,adj;
+  int ra_done=0;
   rs=get_reg(branch_regs[i].regmap,rs1[i]);
   assert(rs>=0);
   if(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]) {
@@ -5249,24 +5276,9 @@ void rjump_assemble(int i,struct regstat *i_regs)
     if(rh>=0) do_preload_rhash(rh);
   }
   #endif
-  if(rt1[i]!=0) {
-    int rt,return_address;
-    assert(rt1[i+1]!=rt1[i]);
-    assert(rt2[i+1]!=rt1[i]);
-    rt=get_reg(branch_regs[i].regmap,rt1[i]);
-    assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
-    assert(rt>=0);
-    return_address=start+i*4+8;
-    #ifdef REG_PREFETCH
-    if(temp>=0) 
-    {
-      if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
-    }
-    #endif
-    emit_movimm(return_address,rt); // PC into link register
-    #ifdef IMM_PREFETCH
-    emit_prefetch(hash_table[((return_address>>16)^return_address)&0xFFFF]);
-    #endif
+  if(rt1[i]!=0&&(rt1[i]==rs1[i+1]||rt1[i]==rs2[i+1])) {
+    rjump_assemble_write_ra(i);
+    ra_done=1;
   }
   ds_assemble(i+1,i_regs);
   uint64_t bc_unneeded=branch_regs[i].u;
@@ -5277,6 +5289,8 @@ void rjump_assemble(int i,struct regstat *i_regs)
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,regs[i].is32,
                 bc_unneeded,bc_unneeded_upper);
   load_regs(regs[i].regmap,branch_regs[i].regmap,regs[i].was32,rs1[i],CCREG);
+  if(!ra_done&&rt1[i]!=0)
+    rjump_assemble_write_ra(i);
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
   #ifdef USE_MINI_HT
