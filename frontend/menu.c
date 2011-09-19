@@ -1604,6 +1604,9 @@ static int run_cd_image(const char *fname)
 	ready_to_go = 0;
 	reload_plugins(fname);
 
+	// always autodetect, menu_sync_config will override as needed
+	Config.PsxAuto = 1;
+
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
 		ClosePlugins();
