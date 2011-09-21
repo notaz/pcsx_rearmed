@@ -62,6 +62,8 @@ rdram = 0x80000000
 	.global psxRegs
 	.global nd_pcsx_io
 	.global psxH_ptr
+	.global inv_code_start
+	.global inv_code_end
 
 	.bss
 	.align	4
@@ -186,10 +188,16 @@ nd_pcsx_io_end = spu_writef + 4
 psxH_ptr = nd_pcsx_io_end
 	.type	psxH_ptr, %object
 	.size	psxH_ptr, 4
-align0 = psxH_ptr + 4 /* just for alignment */
+inv_code_start = psxH_ptr + 4
+	.type	inv_code_start, %object
+	.size	inv_code_start, 4
+inv_code_end = inv_code_start + 4
+	.type	inv_code_end, %object
+	.size	inv_code_end, 4
+align0 = inv_code_end + 4 /* just for alignment */
 	.type	align0, %object
-	.size	align0, 4
-branch_target = align0 + 4
+	.size	align0, 12
+branch_target = align0 + 12
 	.type	branch_target, %object
 	.size	branch_target, 4
 mini_ht = branch_target + 4
@@ -705,7 +713,6 @@ indirect_jump:
 	.type	invalidate_addr_r0, %function
 invalidate_addr_r0:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r0, #12	
 	b	invalidate_addr_call
 	.size	invalidate_addr_r0, .-invalidate_addr_r0
 	.align	2
@@ -713,7 +720,7 @@ invalidate_addr_r0:
 	.type	invalidate_addr_r1, %function
 invalidate_addr_r1:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r1, #12	
+	mov	r0, r1
 	b	invalidate_addr_call
 	.size	invalidate_addr_r1, .-invalidate_addr_r1
 	.align	2
@@ -721,7 +728,7 @@ invalidate_addr_r1:
 	.type	invalidate_addr_r2, %function
 invalidate_addr_r2:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r2, #12	
+	mov	r0, r2
 	b	invalidate_addr_call
 	.size	invalidate_addr_r2, .-invalidate_addr_r2
 	.align	2
@@ -729,7 +736,7 @@ invalidate_addr_r2:
 	.type	invalidate_addr_r3, %function
 invalidate_addr_r3:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r3, #12	
+	mov	r0, r3
 	b	invalidate_addr_call
 	.size	invalidate_addr_r3, .-invalidate_addr_r3
 	.align	2
@@ -737,7 +744,7 @@ invalidate_addr_r3:
 	.type	invalidate_addr_r4, %function
 invalidate_addr_r4:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r4, #12	
+	mov	r0, r4
 	b	invalidate_addr_call
 	.size	invalidate_addr_r4, .-invalidate_addr_r4
 	.align	2
@@ -745,7 +752,7 @@ invalidate_addr_r4:
 	.type	invalidate_addr_r5, %function
 invalidate_addr_r5:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r5, #12	
+	mov	r0, r5
 	b	invalidate_addr_call
 	.size	invalidate_addr_r5, .-invalidate_addr_r5
 	.align	2
@@ -753,7 +760,7 @@ invalidate_addr_r5:
 	.type	invalidate_addr_r6, %function
 invalidate_addr_r6:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r6, #12	
+	mov	r0, r6
 	b	invalidate_addr_call
 	.size	invalidate_addr_r6, .-invalidate_addr_r6
 	.align	2
@@ -761,7 +768,7 @@ invalidate_addr_r6:
 	.type	invalidate_addr_r7, %function
 invalidate_addr_r7:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r7, #12	
+	mov	r0, r7
 	b	invalidate_addr_call
 	.size	invalidate_addr_r7, .-invalidate_addr_r7
 	.align	2
@@ -769,7 +776,7 @@ invalidate_addr_r7:
 	.type	invalidate_addr_r8, %function
 invalidate_addr_r8:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r8, #12	
+	mov	r0, r8
 	b	invalidate_addr_call
 	.size	invalidate_addr_r8, .-invalidate_addr_r8
 	.align	2
@@ -777,7 +784,7 @@ invalidate_addr_r8:
 	.type	invalidate_addr_r9, %function
 invalidate_addr_r9:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r9, #12	
+	mov	r0, r9
 	b	invalidate_addr_call
 	.size	invalidate_addr_r9, .-invalidate_addr_r9
 	.align	2
@@ -785,7 +792,7 @@ invalidate_addr_r9:
 	.type	invalidate_addr_r10, %function
 invalidate_addr_r10:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r10, #12	
+	mov	r0, r10
 	b	invalidate_addr_call
 	.size	invalidate_addr_r10, .-invalidate_addr_r10
 	.align	2
@@ -793,13 +800,17 @@ invalidate_addr_r10:
 	.type	invalidate_addr_r12, %function
 invalidate_addr_r12:
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
-	lsr	r0, r12, #12	
+	mov	r0, r12
 	.size	invalidate_addr_r12, .-invalidate_addr_r12
 	.align	2
 	.global	invalidate_addr_call
 	.type	invalidate_addr_call, %function
 invalidate_addr_call:
-	bl	invalidate_block
+	ldr	r12, [fp, #inv_code_start-dynarec_local]
+	ldr	lr, [fp, #inv_code_end-dynarec_local]
+	cmp	r0, r12
+	cmpcs   lr, r0
+	blcc	invalidate_addr
 	ldmia	fp, {r0, r1, r2, r3, r12, pc}
 	.size	invalidate_addr_call, .-invalidate_addr_call
 
@@ -914,8 +925,13 @@ ari_write_ram32:
 	str\pf	r1, [r0]
 	tst	r2, r2
 	movne	pc, lr
-	lsr     r0, r0, #12
-	b	invalidate_block
+	ldr	r1, [fp, #inv_code_start-dynarec_local]
+	ldr	r2, [fp, #inv_code_end-dynarec_local]
+	cmp	r0, r1
+	cmpcs   r2, r0
+	movcs	pc, lr
+	nop
+	b	invalidate_addr
 .endm
 
 ari_write_ram_mirror8:

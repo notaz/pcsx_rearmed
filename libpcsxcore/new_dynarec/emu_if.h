@@ -47,6 +47,9 @@ extern unsigned char byte;
 
 extern void *psxH_ptr;
 
+// same as invalid_code, just a region for ram write checks (inclusive)
+extern u32 inv_code_start, inv_code_end;
+
 /* cycles/irqs */
 extern unsigned int next_interupt;
 extern int pending_exception;

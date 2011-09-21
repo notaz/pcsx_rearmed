@@ -371,6 +371,7 @@ void *get_addr(u_int vaddr)
       if(verify_dirty(head->addr)) {
         //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
         invalid_code[vaddr>>12]=0;
+        inv_code_start=inv_code_end=~0;
         memory_map[vaddr>>12]|=0x40000000;
         if(vpage<2048) {
 #ifndef DISABLE_TLB
@@ -463,6 +464,7 @@ void *get_addr_32(u_int vaddr,u_int flags)
       if(verify_dirty(head->addr)) {
         //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
         invalid_code[vaddr>>12]=0;
+        inv_code_start=inv_code_end=~0;
         memory_map[vaddr>>12]|=0x40000000;
         if(vpage<2048) {
 #ifndef DISABLE_TLB
@@ -1127,6 +1129,46 @@ void invalidate_page(u_int page)
     head=next;
   }
 }
+
+static void invalidate_block_range(u_int block, u_int first, u_int last)
+{
+  u_int page=get_page(block<<12);
+  //printf("first=%d last=%d\n",first,last);
+  invalidate_page(page);
+  assert(first+5>page); // NB: this assumes MAXBLOCK<=4096 (4 pages)
+  assert(last<page+5);
+  // Invalidate the adjacent pages if a block crosses a 4K boundary
+  while(first<page) {
+    invalidate_page(first);
+    first++;
+  }
+  for(first=page+1;first<last;first++) {
+    invalidate_page(first);
+  }
+  #ifdef __arm__
+    do_clear_cache();
+  #endif
+  
+  // Don't trap writes
+  invalid_code[block]=1;
+#ifndef DISABLE_TLB
+  // If there is a valid TLB entry for this page, remove write protect
+  if(tlb_LUT_w[block]) {
+    assert(tlb_LUT_r[block]==tlb_LUT_w[block]);
+    // CHECK: Is this right?
+    memory_map[block]=((tlb_LUT_w[block]&0xFFFFF000)-(block<<12)+(unsigned int)rdram-0x80000000)>>2;
+    u_int real_block=tlb_LUT_w[block]>>12;
+    invalid_code[real_block]=1;
+    if(real_block>=0x80000&&real_block<0x80800) memory_map[real_block]=((u_int)rdram-0x80000000)>>2;
+  }
+  else if(block>=0x80000&&block<0x80800) memory_map[block]=((u_int)rdram-0x80000000)>>2;
+#endif
+
+  #ifdef USE_MINI_HT
+  memset(mini_ht,-1,sizeof(mini_ht));
+  #endif
+}
+
 void invalidate_block(u_int block)
 {
   u_int page=get_page(block<<12);
@@ -1160,48 +1202,64 @@ void invalidate_block(u_int block)
     }
     head=head->next;
   }
-  //printf("first=%d last=%d\n",first,last);
-  invalidate_page(page);
-  assert(first+5>page); // NB: this assumes MAXBLOCK<=4096 (4 pages)
-  assert(last<page+5);
-  // Invalidate the adjacent pages if a block crosses a 4K boundary
-  while(first<page) {
-    invalidate_page(first);
-    first++;
-  }
-  for(first=page+1;first<last;first++) {
-    invalidate_page(first);
-  }
-  #ifdef __arm__
-    do_clear_cache();
-  #endif
-  
-  // Don't trap writes
-  invalid_code[block]=1;
-#ifdef PCSX
-  invalid_code[((u_int)0x80000000>>12)|page]=1;
-#endif
-#ifndef DISABLE_TLB
-  // If there is a valid TLB entry for this page, remove write protect
-  if(tlb_LUT_w[block]) {
-    assert(tlb_LUT_r[block]==tlb_LUT_w[block]);
-    // CHECK: Is this right?
-    memory_map[block]=((tlb_LUT_w[block]&0xFFFFF000)-(block<<12)+(unsigned int)rdram-0x80000000)>>2;
-    u_int real_block=tlb_LUT_w[block]>>12;
-    invalid_code[real_block]=1;
-    if(real_block>=0x80000&&real_block<0x80800) memory_map[real_block]=((u_int)rdram-0x80000000)>>2;
-  }
-  else if(block>=0x80000&&block<0x80800) memory_map[block]=((u_int)rdram-0x80000000)>>2;
-#endif
-
-  #ifdef USE_MINI_HT
-  memset(mini_ht,-1,sizeof(mini_ht));
-  #endif
+  invalidate_block_range(block,first,last);
 }
+
 void invalidate_addr(u_int addr)
 {
+#ifdef PCSX
+  //static int rhits;
+  // this check is done by the caller
+  //if (inv_code_start<=addr&&addr<=inv_code_end) { rhits++; return; }
+  u_int page=get_page(addr);
+  if(page<2048) { // RAM
+    struct ll_entry *head;
+    u_int addr_min=~0, addr_max=0;
+    int mask=RAM_SIZE-1;
+    int pg1;
+    inv_code_start=addr&~0xfff;
+    inv_code_end=addr|0xfff;
+    pg1=page;
+    if (pg1>0) {
+      // must check previous page too because of spans..
+      pg1--;
+      inv_code_start-=0x1000;
+    }
+    for(;pg1<=page;pg1++) {
+      for(head=jump_dirty[pg1];head!=NULL;head=head->next) {
+        u_int start,end;
+        get_bounds((int)head->addr,&start,&end);
+        if((start&mask)<=(addr&mask)&&(addr&mask)<(end&mask)) {
+          if(start<addr_min) addr_min=start;
+          if(end>addr_max) addr_max=end;
+        }
+        else if(addr<start) {
+          if(start<inv_code_end)
+            inv_code_end=start-1;
+        }
+        else {
+          if(end>inv_code_start)
+            inv_code_start=end;
+        }
+      }
+    }
+    if (addr_min!=~0) {
+      inv_debug("INV ADDR: %08x hit %08x-%08x\n", addr, addr_min, addr_max);
+      inv_code_start=inv_code_end=~0;
+      invalidate_block_range(addr>>12,(addr_min&mask)>>12,(addr_max&mask)>>12);
+      return;
+    }
+    else {
+      inv_debug("INV ADDR: %08x miss, inv %08x-%08x, sk %d\n", addr, inv_code_start, inv_code_end, 0);//rhits);
+    }
+    //rhits=0;
+    if(page!=0) // FIXME: don't know what's up with page 0 (Klonoa)
+      return;
+  }
+#endif
   invalidate_block(addr>>12);
 }
+
 // This is called when loading a save state.
 // Anything could have changed, so invalidate everything.
 void invalidate_all_pages()
@@ -7793,6 +7851,7 @@ void new_dynarec_clear_full()
   pending_exception=0;
   literalcount=0;
   stop_after_jal=0;
+  inv_code_start=inv_code_end=~0;
   // TLB
 #ifndef DISABLE_TLB
   using_tlb=0;
@@ -11325,6 +11384,7 @@ int new_recompile_block(int addr)
     }
 #endif
   }
+  inv_code_start=inv_code_end=~0;
 #ifdef PCSX
   // PCSX maps all RAM mirror invalid_code tests to 0x80000000..0x80000000+RAM_SIZE
   if(get_page(start)<(RAM_SIZE>>12))
