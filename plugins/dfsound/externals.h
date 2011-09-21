@@ -227,6 +227,7 @@ extern int      bSpuInit;
 extern unsigned int dwNewChannel;
 extern unsigned int dwChannelOn;
 extern unsigned int dwPendingChanOff;
+extern unsigned int dwChannelDead;
 
 extern int      SSumR[];
 extern int      SSumL[];

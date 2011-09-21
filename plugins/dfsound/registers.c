@@ -169,6 +169,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        s_chan[ch].pLoop=spuMemC+((unsigned long)((val<<3)&~0xf));
        //s_chan[ch].bIgnoreLoop=1;
        //ReleaseMutex(s_chan[ch].hMutex);                    // -> oki, on with the thread
+       dwChannelDead&=~(1<<ch);
        break;
      //------------------------------------------------//
     }
@@ -429,6 +430,7 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
 
      dwNewChannel|=(1<<ch);                            // bitfield for faster testing
      dwChannelOn|=1<<ch;
+     dwChannelDead&=~(1<<ch);
     }
   }
 }

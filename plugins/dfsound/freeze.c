@@ -315,6 +315,7 @@ void LoadStateV5(SPUFreeze_t * pF)
 
  dwNewChannel=0;
  dwChannelOn=0;
+ dwChannelDead=0;
  for(i=0;i<MAXCHAN;i++)
   {
    load_channel(&s_chan[i],&pFO->s_chan[i],i);
@@ -341,6 +342,7 @@ void LoadStateUnknown(SPUFreeze_t * pF)
 
  dwNewChannel=0;
  dwChannelOn=0;
+ dwChannelDead=0;
  pSpuIrq=0;
 
  for(i=0;i<0xc0;i++)

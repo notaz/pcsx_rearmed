@@ -108,9 +108,10 @@ int             bSPUIsOpen=0;
 
 static pthread_t thread = (pthread_t)-1;               // thread id (linux)
 
-unsigned long dwNewChannel=0;                          // flags for faster testing, if new channel starts
-unsigned long dwChannelOn=0;
-unsigned long dwPendingChanOff=0;
+unsigned int dwNewChannel=0;                           // flags for faster testing, if new channel starts
+unsigned int dwChannelOn=0;                            // not silent channels
+unsigned int dwPendingChanOff=0;
+unsigned int dwChannelDead=0;                          // silent+not useful channels
 
 void (CALLBACK *irqCallback)(void)=0;                  // func of main emu, called on spu irq
 void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
@@ -453,14 +454,12 @@ static int decode_block(int ch)
  int ret = 0;
 
  start=s_chan[ch].pCurr;                   // set up the current pos
- if(start == (unsigned char*)-1 ||         // special "stop" sign
-    (dwPendingChanOff&(1<<ch)))
+ if(dwPendingChanOff&(1<<ch))
  {
   dwChannelOn&=~(1<<ch);                   // -> turn everything off
   dwPendingChanOff&=~(1<<ch);
   s_chan[ch].bStop=1;
   s_chan[ch].ADSRX.EnvelopeVol=0;
-  return 0;                                // -> and done for this channel
  }
 
  //////////////////////////////////////////// irq check
@@ -495,8 +494,11 @@ static int decode_block(int ch)
   start = s_chan[ch].pLoop;
  }
 
- if (start - spuMemC >= 0x80000)
-  start = (unsigned char*)-1;
+ if (start - spuMemC >= 0x80000) {
+  // most likely wrong
+  start = spuMemC;
+  printf("ch%d oflow\n", ch);
+ }
 
  s_chan[ch].pCurr = start;                 // store values for next cycle
 
@@ -697,7 +699,7 @@ static void *MAINThread(void *arg)
 {
  int volmult = iVolume;
  int ns,ns_from,ns_to;
- int ch,d;
+ int ch,d,silentch;
  int bIRQReturn=0;
 
  while(!bEndThread)                                    // until we are shutting down
@@ -736,6 +738,8 @@ static void *MAINThread(void *arg)
     {
      ch=lastch; ns_from=lastns; lastch=-1;             // -> setup all kind of vars to continue
     }
+
+   silentch=~(dwChannelOn|dwNewChannel);
 
    //--------------------------------------------------//
    //- main channel loop                              -// 
@@ -782,9 +786,8 @@ static void *MAINThread(void *arg)
     if(!bIRQReturn && (spuCtrl&CTRL_IRQ))
      for(ch=0;ch<MAXCHAN;ch++)
       {
-       if(dwChannelOn&(1<<ch)) continue;               // already handled
-       if(s_chan[ch].pCurr == (unsigned char *)-1)
-        continue;
+       if(!(silentch&(1<<ch))) continue;               // already handled
+       if(dwChannelDead&(1<<ch)) continue;
        if(s_chan[ch].pCurr > pSpuIrq && s_chan[ch].pLoop > pSpuIrq)
         continue;
 
@@ -801,7 +804,7 @@ static void *MAINThread(void *arg)
          if(start == s_chan[ch].pCurr)
           {
            // looping on self
-           s_chan[ch].pCurr=(unsigned char *)-1;
+           dwChannelDead|=1<<ch;
            break;
           }
 
@@ -1187,9 +1190,9 @@ char * SPUgetLibInfos(void)
 */
 
 // debug
-void spu_get_debug_info(int *chans_out, int *fmod_chans_out, int *noise_chans_out)
+void spu_get_debug_info(int *chans_out, int *run_chans, int *fmod_chans_out, int *noise_chans_out)
 {
- int ch = 0, fmod_chans = 0, noise_chans = 0;
+ int ch = 0, fmod_chans = 0, noise_chans = 0, irq_chans = 0;
 
  for(;ch<MAXCHAN;ch++)
  {
@@ -1199,9 +1202,12 @@ void spu_get_debug_info(int *chans_out, int *fmod_chans_out, int *noise_chans_ou
    fmod_chans |= 1 << ch;
   if (s_chan[ch].bNoise)
    noise_chans |= 1 << ch;
+  if((spuCtrl&CTRL_IRQ) && s_chan[ch].pCurr <= pSpuIrq && s_chan[ch].pLoop <= pSpuIrq)
+   irq_chans |= 1 << ch;
  }
 
  *chans_out = dwChannelOn;
+ *run_chans = ~dwChannelOn & ~dwChannelDead & irq_chans;
  *fmod_chans_out = fmod_chans;
  *noise_chans_out = noise_chans;
 }
