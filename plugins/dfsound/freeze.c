@@ -134,6 +134,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->bOn = !!(dwChannelOn & (1<<ch));
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
+ d->bIgnoreLoop = s->bJump;
  d->iActFreq = 1;
  d->iUsedFreq = 2;
  d->iLeftVolume = s->iLeftVolume;
@@ -178,6 +179,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->bRVBActive = s->bRVBActive;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
+ d->bJump = s->bIgnoreLoop;
  d->ADSRX.State = s->ADSRX.State;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;

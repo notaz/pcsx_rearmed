@@ -485,6 +485,7 @@ static int decode_block(int ch)
  }
 
  s_chan[ch].pCurr = start;                 // store values for next cycle
+ s_chan[ch].bJump = flags & 1;
 
  return ret;
 }
@@ -503,13 +504,14 @@ static int skip_block(int ch)
  }
 
  if(flags & 4)
-  s_chan[ch].pLoop=start;
+  s_chan[ch].pLoop = start;
 
  s_chan[ch].pCurr += 16;
 
  if(flags & 1)
   s_chan[ch].pCurr = s_chan[ch].pLoop;
 
+ s_chan[ch].bJump = flags & 1;
  return ret;
 }
 
