@@ -111,7 +111,10 @@ static __attribute__((noinline)) void draw_active_chans(void)
 static void *pl_vout_set_mode(int w, int h, int bpp)
 {
 	// special h handling, Wipeout likes to change it by 1-6
-	h = (h + 7) & ~7;
+	static int vsync_cnt_ms_prev;
+	if ((unsigned int)(vsync_cnt - vsync_cnt_ms_prev) < 5*60)
+		h = (h + 7) & ~7;
+	vsync_cnt_ms_prev = vsync_cnt;
 
 	if (w == pl_vout_w && h == pl_vout_h && bpp == pl_vout_bpp)
 		return pl_vout_buf;
@@ -171,7 +174,10 @@ static int pl_vout_open(void)
 
 	omap_enable_layer(1);
 #if defined(VOUT_FBDEV)
-	pl_vout_buf = vout_fbdev_flip(layer_fb);
+	// force mode update
+	int h = pl_vout_h;
+	pl_vout_h--;
+	pl_vout_buf = pl_vout_set_mode(pl_vout_w, h, pl_vout_bpp);
 
 	// try to align redraws to vsync
 	vout_fbdev_wait_vsync(layer_fb);
@@ -445,5 +451,8 @@ void pl_start_watchdog(void)
 
 void pl_init(void)
 {
+	pl_vout_w = pl_vout_h = 256;
+	pl_vout_bpp = 16;
+
 	ts = pl_gun_ts_init();
 }
