@@ -150,3 +150,7 @@
 
 #define STAT_IRQ                0x40
 
+///////////////////////////////////////////////////////////
+
+void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val);
+

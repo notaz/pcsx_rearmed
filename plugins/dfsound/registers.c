@@ -21,7 +21,6 @@
 
 #include "externals.h"
 #include "registers.h"
-#include "regs.h"
 
 /*
 // adsr time values (in ms) by James Higgs ... see the end of
@@ -40,6 +39,15 @@
 #define DECAY_MS       572L
 #define SUSTAIN_MS     441L
 #define RELEASE_MS     437L
+
+static void SoundOn(int start,int end,unsigned short val);
+static void SoundOff(int start,int end,unsigned short val);
+static void FModOn(int start,int end,unsigned short val);
+static void NoiseOn(int start,int end,unsigned short val);
+static void SetVolumeL(unsigned char ch,short vol);
+static void SetVolumeR(unsigned char ch,short vol);
+static void SetPitch(int ch,unsigned short val);
+static void ReverbOn(int start,int end,unsigned short val);
 
 ////////////////////////////////////////////////////////////////////////
 // WRITE REGISTERS: called by main emu
@@ -69,8 +77,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        break;
      //------------------------------------------------// start
      case 6:      
-       // Brain Dead 13 - align to 16 boundary
-       s_chan[ch].pStart= spuMemC+(unsigned long)((val<<3)&~0xf);
+       // taken from regArea later
        break;
      //------------------------------------------------// level with pre-calcs
      case 8:
@@ -165,11 +172,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        break;
      //------------------------------------------------//
      case 14:                                          // loop?
-       //WaitForSingleObject(s_chan[ch].hMutex,2000);        // -> no multithread fuckups
-       s_chan[ch].pLoop=spuMemC+((unsigned long)((val<<3)&~0xf));
-       //s_chan[ch].bIgnoreLoop=1;
-       //ReleaseMutex(s_chan[ch].hMutex);                    // -> oki, on with the thread
-       dwChannelDead&=~(1<<ch);
+       s_chan[ch].pLoop=spuMemC+((val&~1)<<3);
        break;
      //------------------------------------------------//
     }
@@ -413,7 +416,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
 // SOUND ON register write
 ////////////////////////////////////////////////////////////////////////
 
-void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
+static void SoundOn(int start,int end,unsigned short val)
 {
  int ch;
 
@@ -421,8 +424,6 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
   {
    if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
     {
-     s_chan[ch].bIgnoreLoop=0;
-
      // do this here, not in StartSound
      // - fixes fussy timing issues
      s_chan[ch].bStop=0;
@@ -440,7 +441,7 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
 // SOUND OFF register write
 ////////////////////////////////////////////////////////////////////////
 
-void SoundOff(int start,int end,unsigned short val)    // SOUND OFF PSX COMMAND
+static void SoundOff(int start,int end,unsigned short val)
 {
  int ch;
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
@@ -460,7 +461,7 @@ void SoundOff(int start,int end,unsigned short val)    // SOUND OFF PSX COMMAND
 // FMOD register write
 ////////////////////////////////////////////////////////////////////////
 
-void FModOn(int start,int end,unsigned short val)      // FMOD ON PSX COMMAND
+static void FModOn(int start,int end,unsigned short val)
 {
  int ch;
 
@@ -487,7 +488,7 @@ void FModOn(int start,int end,unsigned short val)      // FMOD ON PSX COMMAND
 // NOISE register write
 ////////////////////////////////////////////////////////////////////////
 
-void NoiseOn(int start,int end,unsigned short val)     // NOISE ON PSX COMMAND
+static void NoiseOn(int start,int end,unsigned short val)
 {
  int ch;
 
@@ -504,7 +505,7 @@ void NoiseOn(int start,int end,unsigned short val)     // NOISE ON PSX COMMAND
 // please note: sweep and phase invert are wrong... but I've never seen
 // them used
 
-void SetVolumeL(unsigned char ch,short vol)            // LEFT VOLUME
+static void SetVolumeL(unsigned char ch,short vol)     // LEFT VOLUME
 {
  if(vol&0x8000)                                        // sweep?
   {
@@ -530,7 +531,7 @@ void SetVolumeL(unsigned char ch,short vol)            // LEFT VOLUME
 // RIGHT VOLUME register write
 ////////////////////////////////////////////////////////////////////////
 
-void SetVolumeR(unsigned char ch,short vol)            // RIGHT VOLUME
+static void SetVolumeR(unsigned char ch,short vol)     // RIGHT VOLUME
 {
  if(vol&0x8000)                                        // comments... see above :)
   {
@@ -556,24 +557,22 @@ void SetVolumeR(unsigned char ch,short vol)            // RIGHT VOLUME
 // PITCH register write
 ////////////////////////////////////////////////////////////////////////
 
-void SetPitch(int ch,unsigned short val)               // SET PITCH
+static void SetPitch(int ch,unsigned short val)               // SET PITCH
 {
  int NP;
  if(val>0x3fff) NP=0x3fff;                             // get pitch val
  else           NP=val;
 
  s_chan[ch].iRawPitch=NP;
-
- NP=(44100L*NP)/4096L;                                 // calc frequency
- if(NP<1) NP=1;                                        // some security
- s_chan[ch].iActFreq=NP;                               // store frequency
+ s_chan[ch].sinc=(NP<<4)|8;
+ if(iUseInterpolation==1) s_chan[ch].SB[32]=1;         // -> freq change in simple interpolation mode: set flag
 }
 
 ////////////////////////////////////////////////////////////////////////
 // REVERB register write
 ////////////////////////////////////////////////////////////////////////
 
-void ReverbOn(int start,int end,unsigned short val)    // REVERB ON PSX COMMAND
+static void ReverbOn(int start,int end,unsigned short val)
 {
  int ch;
 

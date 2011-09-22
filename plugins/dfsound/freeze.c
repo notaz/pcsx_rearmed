@@ -22,7 +22,6 @@
 #include "externals.h"
 #include "registers.h"
 #include "spu.h"
-#include "regs.h"
 
 ////////////////////////////////////////////////////////////////////////
 // freeze structs
@@ -129,16 +128,16 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, s->SB, sizeof(d->SB));
- d->pStart = s->pStart;
+ d->pStart = (unsigned char *)((regAreaGet(ch,6)&~1)<<3);
  d->pCurr = s->pCurr;
  d->pLoop = s->pLoop;
  d->bOn = !!(dwChannelOn & (1<<ch));
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
- d->iActFreq = s->iActFreq;
- d->iUsedFreq = s->iUsedFreq;
+ d->iActFreq = 1;
+ d->iUsedFreq = 2;
  d->iLeftVolume = s->iLeftVolume;
- d->bIgnoreLoop = s->bIgnoreLoop;
+ d->bIgnoreLoop = 0;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
  d->s_1 = s->SB[27]; // yes it's reversed
@@ -168,16 +167,12 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, s->SB, sizeof(d->SB));
- d->pStart = (void *)((long)s->pStart & 0x7fff0);
  d->pCurr = (void *)((long)s->pCurr & 0x7fff0);
  d->pLoop = (void *)((long)s->pLoop & 0x7fff0);
  if (s->bOn) dwChannelOn |= 1<<ch;
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
- d->iActFreq = s->iActFreq;
- d->iUsedFreq = s->iUsedFreq;
  d->iLeftVolume = s->iLeftVolume;
- d->bIgnoreLoop = s->bIgnoreLoop;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
  d->bRVBActive = s->bRVBActive;
@@ -243,8 +238,6 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
    for(i=0;i<MAXCHAN;i++)
     {
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
-     if(pFO->s_chan[i].pStart)
-      pFO->s_chan[i].pStart-=(unsigned long)spuMemC;
      if(pFO->s_chan[i].pCurr)
       pFO->s_chan[i].pCurr-=(unsigned long)spuMemC;
      if(pFO->s_chan[i].pLoop)
@@ -320,7 +313,6 @@ void LoadStateV5(SPUFreeze_t * pF)
   {
    load_channel(&s_chan[i],&pFO->s_chan[i],i);
 
-   s_chan[i].pStart+=(unsigned long)spuMemC;
    s_chan[i].pCurr+=(unsigned long)spuMemC;
    s_chan[i].pLoop+=(unsigned long)spuMemC;
   }
@@ -335,8 +327,6 @@ void LoadStateUnknown(SPUFreeze_t * pF)
  for(i=0;i<MAXCHAN;i++)
   {
    s_chan[i].bStop=0;
-   s_chan[i].pLoop=spuMemC;
-   s_chan[i].pStart=spuMemC;
    s_chan[i].pLoop=spuMemC;
   }
 

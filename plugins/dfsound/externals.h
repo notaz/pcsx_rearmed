@@ -107,19 +107,15 @@ typedef struct
  int               spos;
  int               sinc;
 
- unsigned char *   pStart;                             // start ptr into sound mem
  unsigned char *   pCurr;                              // current pos in sound mem
  unsigned char *   pLoop;                              // loop ptr in sound mem
 
  unsigned int      bStop:1;                            // is channel stopped (sample _can_ still be playing, ADSR Release phase)
  unsigned int      bReverb:1;                          // can we do reverb on this channel? must have ctrl register bit, to get active
- unsigned int      bIgnoreLoop:1;                      // ignore loop bit, if an external loop address is used
  unsigned int      bRVBActive:1;                       // reverb active flag
  unsigned int      bNoise:1;                           // noise active flag
  unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
 
- int               iActFreq;                           // current psx pitch
- int               iUsedFreq;                          // current pc pitch
  int               iLeftVolume;                        // left volume
  int               iRightVolume;                       // right volume
  ADSRInfoEx        ADSRX;

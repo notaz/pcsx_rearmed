@@ -26,7 +26,6 @@
 #include "registers.h"
 #include "cfg.h"
 #include "dsoundoss.h"
-#include "regs.h"
 
 #ifdef ENABLE_NLS
 #include <libintl.h>
@@ -287,19 +286,9 @@ INLINE void StartSound(int ch)
 // ALL KIND OF HELPERS
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void VoiceChangeFrequency(int ch)
-{
- s_chan[ch].iUsedFreq=s_chan[ch].iActFreq;             // -> take it and calc steps
- s_chan[ch].sinc=s_chan[ch].iRawPitch<<4;
- if(!s_chan[ch].sinc) s_chan[ch].sinc=1;
- if(iUseInterpolation==1) s_chan[ch].SB[32]=1;         // -> freq change in simle imterpolation mode: set flag
-}
-
-////////////////////////////////////////////////////////////////////////
-
 INLINE int FModChangeFrequency(int ch,int ns)
 {
- int NP=s_chan[ch].iRawPitch;
+ unsigned int NP=s_chan[ch].iRawPitch;
  int sinc;
 
  NP=((32768L+iFMod[ns])*NP)/32768L;
@@ -307,12 +296,7 @@ INLINE int FModChangeFrequency(int ch,int ns)
  if(NP>0x3fff) NP=0x3fff;
  if(NP<0x1)    NP=0x1;
 
- NP=(44100L*NP)/(4096L);                               // calc frequency
-
- s_chan[ch].iActFreq=NP;
- s_chan[ch].iUsedFreq=NP;
- sinc=(((NP/10)<<16)/4410);
- if(!sinc) sinc=1;
+ sinc=NP<<4;                                           // calc frequency
  if(iUseInterpolation==1)                              // freq change in simple interpolation mode
   s_chan[ch].SB[32]=1;
  iFMod[ns]=0;
@@ -511,9 +495,6 @@ static int skip_block(int ch)
  unsigned char *start = s_chan[ch].pCurr;
  int flags = start[1];
  int ret = 0;
-
- // Tron Bonne hack, probably wrong (could be wrong memory contents..)
- if(flags & ~7) flags = 0;
 
  if(start == pSpuIrq)
  {
@@ -750,9 +731,6 @@ static void *MAINThread(void *arg)
        if(dwNewChannel&(1<<ch)) StartSound(ch);        // start new sound
        if(!(dwChannelOn&(1<<ch))) continue;            // channel not playing? next
 
-       if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
-        VoiceChangeFrequency(ch);
-
        if(s_chan[ch].bNoise)
         d=do_samples_noise(ch, ns_from, ns_to);
        else if(s_chan[ch].bFMod==2 || (s_chan[ch].bFMod==0 && iUseInterpolation==0))
@@ -791,20 +769,18 @@ static void *MAINThread(void *arg)
        if(s_chan[ch].pCurr > pSpuIrq && s_chan[ch].pLoop > pSpuIrq)
         continue;
 
-       if(s_chan[ch].iActFreq!=s_chan[ch].iUsedFreq)   // new psx frequency?
-         VoiceChangeFrequency(ch);
-
        s_chan[ch].spos += s_chan[ch].sinc * NSSIZE;
        while(s_chan[ch].spos >= 28 * 0x10000)
         {
-         unsigned char *start=s_chan[ch].pCurr;
+         unsigned char *start = s_chan[ch].pCurr;
 
          // no need for bIRQReturn since the channel is silent
          iSpuAsyncWait |= skip_block(ch);
          if(start == s_chan[ch].pCurr)
           {
            // looping on self
-           dwChannelDead|=1<<ch;
+           dwChannelDead |= 1<<ch;
+           s_chan[ch].spos = 0;
            break;
           }
 
@@ -1045,7 +1021,6 @@ void SetupStreams(void)
 //   s_chan[i].hMutex=CreateMutex(NULL,FALSE,NULL);
    s_chan[i].ADSRX.SustainLevel = 0xf;                 // -> init sustain
    s_chan[i].pLoop=spuMemC;
-   s_chan[i].pStart=spuMemC;
    s_chan[i].pCurr=spuMemC;
   }
 
