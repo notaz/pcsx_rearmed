@@ -419,14 +419,15 @@ void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX COMAND
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   if((val&1) && s_chan[ch].pStart)                    // mmm... start has to be set before key on !?!
+   if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
     {
      s_chan[ch].bIgnoreLoop=0;
 
      // do this here, not in StartSound
      // - fixes fussy timing issues
      s_chan[ch].bStop=0;
-     s_chan[ch].pCurr=s_chan[ch].pStart;
+     s_chan[ch].pCurr=spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
+     s_chan[ch].pLoop=spuMemC+((regAreaGet(ch,14)&~1)<<3);
 
      dwNewChannel|=(1<<ch);                            // bitfield for faster testing
      dwChannelOn|=1<<ch;

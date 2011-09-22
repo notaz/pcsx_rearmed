@@ -199,6 +199,9 @@ extern unsigned char * spuMemC;
 extern unsigned char * pSpuIrq;
 extern unsigned char * pSpuBuffer;
 
+#define regAreaGet(ch,offset) \
+  regArea[((ch<<4)|(offset))>>1]
+
 // user settings
 
 extern int        iVolume;
