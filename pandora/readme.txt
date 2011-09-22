@@ -68,6 +68,14 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
+r10 (2011-09-23)
++ added fixed frameskip option
+* fixed a crash in PCSX4ALL GPU plugin
+* fixed several dynarec compatibility related issues (hopefully)
+* fixed several SPU regressions from r9
+* fixed frame limiter issue that sometimes caused stuttering
+* fixed some minor GUI issues
+
 r9 (2011-08-13)
 * fixed various dynarec integration issues that were causing instability
 * merged latest Ari64 dynarec code for some performance improvement
