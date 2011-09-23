@@ -10,7 +10,7 @@
 
 #include "gpu.h"
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/arm_utils.h"
+#include "../../frontend/cspace.h"
 
 static const struct rearmed_cbs *cbs;
 static void *screen_buf;

@@ -3,19 +3,8 @@ AS = $(CROSS_COMPILE)as
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
-CFLAGS += -Wall -ggdb -Ifrontend
-LDFLAGS += -lz -lpthread -ldl -lpng -lbz2
-ifeq "$(ARCH)" "arm"
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=softfp -ffast-math
-ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
-endif
-ifndef DEBUG
-CFLAGS += -O2 -DNDEBUG
-endif
-CFLAGS += $(EXTRA_CFLAGS)
-
+ARM926 ?= 0
+ARM_CORTEXA8 ?= 1
 USE_OSS ?= 1
 #USE_ALSA = 1
 #DRC_DBG = 1
@@ -23,6 +12,30 @@ USE_OSS ?= 1
 TARGET = pcsx
 
 -include Makefile.local
+
+ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
+
+CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
+LDFLAGS += -lz -lpthread -ldl -lpng -lbz2
+ifndef DEBUG
+CFLAGS += -O2 -DNDEBUG
+endif
+CFLAGS += $(EXTRA_CFLAGS)
+
+ifeq "$(ARCH)" "arm"
+ifeq "$(ARM_CORTEXA8)" "1"
+CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
+endif
+ifeq "$(ARM926)" "1"
+CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
+ASFLAGS += -mcpu=arm926ej-s
+endif
+endif
+
+# detect armv7 and NEON from the specified CPU
+HAVE_NEON = $(shell $(CC) -E -dD $(CFLAGS) frontend/config.h | grep -q '__ARM_NEON__ 1' && echo 1)
+HAVE_ARMV7 = $(shell $(CC) -E -dD $(CFLAGS) frontend/config.h | grep -q '__ARM_ARCH_7A__ 1' && echo 1)
 
 all: $(TARGET)
 
@@ -33,7 +46,7 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
-ifeq "$(ARCH)" "arm"
+ifeq "$(HAVE_NEON)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/cdrom.o libpcsxcore/misc.o: CFLAGS += -Wno-pointer-sign
@@ -41,6 +54,7 @@ libpcsxcore/misc.o libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifndef NO_NEW_DRC
+libpcsxcore/new_dynarec/linkage_arm.o: ASFLAGS += --defsym HAVE_ARMV7=$(HAVE_ARMV7)
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 endif
@@ -58,7 +72,7 @@ OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
 	plugins/dfsound/registers.o plugins/dfsound/spu.o
 plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
 	plugins/dfsound/xa.c
-ifeq "$(ARCH)" "arm"
+ifeq "$(HAVE_NEON)" "1"
 OBJS += plugins/dfsound/arm_utils.o
 endif
 ifeq "$(USE_OSS)" "1"
@@ -109,8 +123,11 @@ else
 OBJS += frontend/plat_dummy.o
 endif
 endif # !USE_GTK
-ifeq "$(ARCH)" "arm"
-OBJS += frontend/arm_utils.o
+
+ifeq "$(HAVE_NEON)" "1"
+OBJS += frontend/cspace_neon.o
+else
+OBJS += frontend/cspace.o
 endif
 ifdef X11
 frontend/%.o: CFLAGS += -DX11
@@ -136,7 +153,7 @@ frontend/revision.h: FORCE
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
-PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
+PLUGINS ?= plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
 	plugins/gpu-gles/gpuGLES.so plugins/gpu_neon/gpu_neon.so
 
 $(PLUGINS):

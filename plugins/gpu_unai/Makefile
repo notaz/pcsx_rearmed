@@ -16,7 +16,7 @@ LDFLAGS += -shared -Wl,-soname,$(TARGET)
 
 all: $(TARGET)
 
-$(TARGET): gpu.cpp ../../frontend/arm_utils.s
+$(TARGET): gpu.cpp ../../frontend/cspace_neon.s
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 # $(TARGET): *.h

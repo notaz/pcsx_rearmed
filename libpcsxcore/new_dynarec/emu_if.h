@@ -1,6 +1,10 @@
 #include "new_dynarec.h"
 #include "../r3000a.h"
 
+#ifndef __ARM_ARCH_7A__
+#define ARMv5_ONLY
+#endif
+
 extern char invalid_code[0x100000];
 
 /* weird stuff */

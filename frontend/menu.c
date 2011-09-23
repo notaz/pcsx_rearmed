@@ -22,7 +22,7 @@
 #include "omap.h"
 #include "pandora.h"
 #include "pcnt.h"
-#include "arm_utils.h"
+#include "cspace.h"
 #include "common/plat.h"
 #include "common/input.h"
 #include "linux/in_evdev.h"

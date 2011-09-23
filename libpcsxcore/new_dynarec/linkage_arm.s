@@ -19,15 +19,8 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-.equiv HAVE_ARMV7, 1
+/* .equiv HAVE_ARMV7, 1 */
 
-.if HAVE_ARMV7
-	.cpu cortex-a8
-	.fpu vfp
-.else
-	.cpu arm9tdmi
-	.fpu softvfp
-.endif 
 	.global	rdram
 rdram = 0x80000000
 	.global	dynarec_local

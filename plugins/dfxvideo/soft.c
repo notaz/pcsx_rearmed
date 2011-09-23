@@ -1077,7 +1077,7 @@ static int left_B, delta_left_B, right_B, delta_right_B;
 // USE_NASM
 static inline int shl10idiv(int x, int y)
 {
-#ifdef __arm__
+#ifdef __ARM_ARCH_7A__
  // rearmed: let's use VFP divider instead
  float r = 1024.0f * (float)x / (float)y;
  return (int)r;

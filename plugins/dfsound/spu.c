@@ -37,7 +37,7 @@
 #define N_(x) (x)
 #endif
 
-#ifdef __arm__
+#ifdef __ARM_ARCH_7A__
  #define ssat32_to_16(v) \
   asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
 #else
@@ -620,7 +620,7 @@ static int do_samples_noise(int ch, int ns, int ns_to)
  return -1;
 }
 
-#ifdef __arm__
+#ifdef __ARM_ARCH_7A__
 // asm code
 extern void mix_chan(int start, int count, int lv, int rv);
 extern void mix_chan_rvb(int start, int count, int lv, int rv);

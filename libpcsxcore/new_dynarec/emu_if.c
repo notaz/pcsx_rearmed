@@ -161,11 +161,13 @@ static int ari64_init()
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
-#if defined(__arm__) && !defined(DRC_DBG)
+#ifndef DRC_DBG
+#ifdef __ARM_NEON__
 	gte_handlers[0x01] = gteRTPS_neon;
 	gte_handlers[0x30] = gteRTPT_neon;
 	gte_handlers[0x12] = gteMVMVA_neon;
 	gte_handlers[0x06] = gteNCLIP_neon;
+#endif
 #endif
 	psxH_ptr = psxH;
 

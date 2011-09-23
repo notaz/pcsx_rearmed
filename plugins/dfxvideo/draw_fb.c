@@ -10,7 +10,7 @@
 #include "gpu.h"
 
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/arm_utils.h"
+#include "../../frontend/cspace.h"
 #include "../../frontend/pcnt.h"
 
 // misc globals

@@ -820,7 +820,7 @@ void  GPU_updateLace(void)
 #else
 
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/arm_utils.h"
+#include "../../frontend/cspace.h"
 
 extern "C" {
 
