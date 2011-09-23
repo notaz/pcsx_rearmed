@@ -27,6 +27,10 @@
 #include "common/input.h"
 #include "common/readpng.h"
 
+// don't include debug.h - it breaks ARM build (R1 redefined)
+void StartDebugger();
+void StopDebugger();
+
 int ready_to_go;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];

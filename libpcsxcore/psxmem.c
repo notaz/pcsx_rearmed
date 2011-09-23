@@ -26,6 +26,7 @@
 #include "psxmem.h"
 #include "r3000a.h"
 #include "psxhw.h"
+#include "debug.h"
 #include <sys/mman.h>
 
 #ifndef MAP_ANONYMOUS

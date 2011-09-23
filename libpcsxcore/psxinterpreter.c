@@ -25,6 +25,7 @@
 #include "r3000a.h"
 #include "gte.h"
 #include "psxhle.h"
+#include "debug.h"
 
 static int branch = 0;
 static int branch2 = 0;
