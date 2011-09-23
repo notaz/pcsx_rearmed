@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <bzlib.h>
+#include <dlfcn.h>
 
 #include "cdrcimg.h"
 
@@ -33,6 +34,9 @@ static unsigned int  cd_index_len;
 static unsigned int  cd_sectors_per_blk;
 static int cd_compression;
 static FILE *cd_file;
+
+static int (*pBZ2_bzBuffToBuffDecompress)(char *dest, unsigned int *destLen, char *source,
+		unsigned int sourceLen, int small, int verbosity);
 
 static struct {
 	unsigned char raw[16][CD_FRAMESIZE_RAW];
@@ -193,7 +197,7 @@ static long CDRreadTrack(unsigned char *time)
 		ret = uncompress2(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
 		break;
 	case CDRC_BZ:
-		ret = BZ2_bzBuffToBuffDecompress((char *)cdbuffer->raw, (unsigned int *)&cdbuffer_size,
+		ret = pBZ2_bzBuffToBuffDecompress((char *)cdbuffer->raw, (unsigned int *)&cdbuffer_size,
 			(char *)cdbuffer->compressed, size, 0, 0);
 		break;
 	default:
@@ -274,6 +278,18 @@ static long CDRinit(void)
 		if (cdbuffer == NULL) {
 			err("OOM\n");
 			return -1;
+		}
+	}
+	if (pBZ2_bzBuffToBuffDecompress == NULL) {
+		void *h = dlopen("/usr/lib/libbz2.so.1", RTLD_LAZY);
+		if (h == NULL)
+			h = dlopen("./lib/libbz2.so.1", RTLD_LAZY);
+		if (h != NULL) {
+			pBZ2_bzBuffToBuffDecompress = dlsym(h, "BZ2_bzBuffToBuffDecompress");
+			if (pBZ2_bzBuffToBuffDecompress == NULL) {
+				err("dlsym bz2: %s", dlerror());
+				dlclose(h);
+			}
 		}
 	}
 	return 0;
@@ -422,6 +438,10 @@ static long CDRopen(void)
 		snprintf(table_fname, sizeof(table_fname), "%s.table", cd_fname);
 	}
 	else if (strcasecmp(ext, ".bz") == 0) {
+		if (pBZ2_bzBuffToBuffDecompress == NULL) {
+			err("libbz2 unavailable for .bz2 handling\n");
+			return -1;
+		}
 		cd_compression = CDRC_BZ;
 		tabentry_size = sizeof(u.bztab_entry);
 		snprintf(table_fname, sizeof(table_fname), "%s.index", cd_fname);

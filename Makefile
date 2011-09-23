@@ -16,7 +16,7 @@ TARGET = pcsx
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
-LDFLAGS += -lz -lpthread -ldl -lpng -lbz2
+LDFLAGS += -lz -lpthread -ldl -lpng
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
