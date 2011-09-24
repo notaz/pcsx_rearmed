@@ -80,7 +80,10 @@ void DoBufferSwap(void)
  }
 
  pcnt_start(PCNT_BLIT);
- blit(vout_buf);
+ if (rcbs->pl_vout_raw_flip != NULL)
+  rcbs->pl_vout_raw_flip(PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y);
+ else
+  blit(vout_buf);
  pcnt_end(PCNT_BLIT);
 
  vout_buf = rcbs->pl_vout_flip();

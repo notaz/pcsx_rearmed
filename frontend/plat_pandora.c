@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -17,6 +18,7 @@
 
 #include "common/input.h"
 #include "plugin_lib.h"
+#include "plat.h"
 #include "main.h"
 
 static int fdnub[2];
@@ -151,11 +153,49 @@ void in_update_analogs(void)
 	//printf("%4d %4d %4d %4d\n", in_a1[0], in_a1[1], in_a2[0], in_a2[1]);
 }
 
-int pandora_rescan_inputs(void)
+int plat_rescan_inputs(void)
 {
 	in_probe();
 	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
 
 	return 0;
+}
+
+static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
+
+int plat_cpu_clock_get(void)
+{
+	FILE *f;
+	int ret = 0;
+	f = fopen("/proc/pandora/cpu_mhz_max", "r");
+	if (f) {
+		fscanf(f, "%d", &ret);
+		fclose(f);
+	}
+	return ret;
+}
+
+int plat_cpu_clock_apply(int cpu_clock)
+{
+	char buf[128];
+
+	if (cpu_clock != 0 && cpu_clock != plat_cpu_clock_get()) {
+		snprintf(buf, sizeof(buf), "unset DISPLAY; echo y | %s/op_cpuspeed.sh %d",
+			 pnd_script_base, cpu_clock);
+		system(buf);
+	}
+	return 0;
+}
+
+int plat_get_bat_capacity(void)
+{
+	FILE *f;
+	int ret = 0;
+	f = fopen("/sys/class/power_supply/bq27500-0/capacity", "r");
+	if (f) {
+		fscanf(f, "%d", &ret);
+		fclose(f);
+	}
+	return ret;
 }

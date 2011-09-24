@@ -7,7 +7,16 @@ endif
 ifdef MAEMO
 CFLAGS += -DMAEMO
 endif
+ARM_CORTEXA8 ?= 1
+ifeq "$(ARM_CORTEXA8)" "1"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+SRC += ../../frontend/cspace_neon.s
+else
+CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
+SRC += ../../frontend/cspace.c
+endif
+
+SRC += gpu.cpp
 
 TARGET = gpuPCSX4ALL.so
 LDFLAGS += -shared -Wl,-soname,$(TARGET)
@@ -16,7 +25,7 @@ LDFLAGS += -shared -Wl,-soname,$(TARGET)
 
 all: $(TARGET)
 
-$(TARGET): gpu.cpp ../../frontend/cspace_neon.s
+$(TARGET): $(SRC)
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 # $(TARGET): *.h

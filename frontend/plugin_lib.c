@@ -32,10 +32,11 @@
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate, in_state_gun;
+int pl_flip_cnt;
 static void *ts;
 void *pl_vout_buf;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp;
-static int flip_cnt, vsync_cnt, flips_per_sec, tick_per_sec;
+static int vsync_cnt, flips_per_sec, tick_per_sec;
 static float vsps_cur;
 static int frame_interval, frame_interval1024, vsync_usec_time;
 
@@ -60,26 +61,26 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 	return ret;
 }
 
-static void print_hud(void)
+static void print_msg(int h)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(2, pl_vout_h - 10, "%s", hud_msg);
+		pl_text_out16(2, h - 10, "%s", hud_msg);
 }
 
-static void print_fps(void)
+static void print_fps(int h)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(2, pl_vout_h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
+		pl_text_out16(2, h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
 }
 
-static void print_cpu_usage(void)
+static void print_cpu_usage(int w, int h)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(pl_vout_w - 28, pl_vout_h - 10, "%3d", tick_per_sec);
+		pl_text_out16(w - 28, h - 10, "%3d", tick_per_sec);
 }
 
 // draw 192x8 status of 24 sound channels
-static __attribute__((noinline)) void draw_active_chans(void)
+static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 {
 	extern void spu_get_debug_info(int *chans_out, int *run_chans,
 		int *fmod_chans_out, int *noise_chans_out); // hack
@@ -87,7 +88,7 @@ static __attribute__((noinline)) void draw_active_chans(void)
 
 	static const unsigned short colors[2] = { 0x1fe3, 0x0700 };
 	unsigned short *dest = (unsigned short *)pl_vout_buf +
-		pl_vout_w * (pl_vout_h - 10) + pl_vout_w / 2 - 192/2;
+		vout_w * (vout_h - 10) + vout_w / 2 - 192/2;
 	unsigned short *d, p;
 	int c, x, y;
 
@@ -102,10 +103,27 @@ static __attribute__((noinline)) void draw_active_chans(void)
 		     (fmod_chans & (1<<c)) ? 0xf000 :
 		     (noise_chans & (1<<c)) ? 0x001f :
 		     colors[c & 1];
-		for (y = 0; y < 8; y++, d += pl_vout_w)
+		for (y = 0; y < 8; y++, d += vout_w)
 			for (x = 0; x < 8; x++)
 				d[x] = p;
 	}
+}
+
+void pl_print_hud(int w, int h)
+{
+	pl_vout_w = w; // used by pollux
+	pl_vout_h = h;
+
+	if (g_opts & OPT_SHOWSPU)
+		draw_active_chans(w, h);
+
+	if (hud_msg[0] != 0)
+		print_msg(h);
+	else if (g_opts & OPT_SHOWFPS)
+		print_fps(h);
+
+	if (g_opts & OPT_SHOWCPU)
+		print_cpu_usage(w, h);
 }
 
 static void *pl_vout_set_mode(int w, int h, int bpp)
@@ -143,20 +161,10 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 static void *pl_vout_flip(void)
 {
-	flip_cnt++;
+	pl_flip_cnt++;
 
-	if (pl_vout_buf != NULL) {
-		if (g_opts & OPT_SHOWSPU)
-			draw_active_chans();
-
-		if (hud_msg[0] != 0)
-			print_hud();
-		else if (g_opts & OPT_SHOWFPS)
-			print_fps();
-
-		if (g_opts & OPT_SHOWCPU)
-			print_cpu_usage();
-	}
+	if (pl_vout_buf != NULL)
+		pl_print_hud(pl_vout_w, pl_vout_h);
 
 	// let's flip now
 #if defined(VOUT_FBDEV)
@@ -275,8 +283,8 @@ void pl_frame_limit(void)
 		if (0 < diff && diff < 2000000)
 			vsps_cur = 1000000.0f * (vsync_cnt - vsync_cnt_prev) / diff;
 		vsync_cnt_prev = vsync_cnt;
-		flips_per_sec = flip_cnt;
-		flip_cnt = 0;
+		flips_per_sec = pl_flip_cnt;
+		pl_flip_cnt = 0;
 		tv_old = now;
 		if (g_opts & OPT_SHOWCPU)
 			tick_per_sec = get_cpu_ticks();

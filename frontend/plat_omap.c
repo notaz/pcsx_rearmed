@@ -20,7 +20,7 @@
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "omap.h"
-#include "pandora.h"
+#include "plat.h"
 
 
 static struct vout_fbdev *main_fb;
@@ -174,7 +174,7 @@ void plat_init(void)
 	g_menubg_ptr = temp_frame;
 
 	// hmh
-	pandora_rescan_inputs();
+	plat_rescan_inputs();
 
 	return;
 

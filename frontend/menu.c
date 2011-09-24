@@ -20,7 +20,7 @@
 #include "plugin.h"
 #include "plugin_lib.h"
 #include "omap.h"
-#include "pandora.h"
+#include "plat.h"
 #include "pcnt.h"
 #include "cspace.h"
 #include "common/plat.h"
@@ -33,7 +33,6 @@
 #include "../plugins/dfinput/main.h"
 #include "revision.h"
 
-#define MENU_X2 1
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
 
 typedef enum
@@ -55,11 +54,14 @@ typedef enum
 	MA_CTRL_EMU,
 	MA_CTRL_DEV_FIRST,
 	MA_CTRL_DEV_NEXT,
+	MA_CTRL_NUBS_BTNS,
+	MA_CTRL_DEADZONE,
 	MA_CTRL_DONE,
 	MA_OPT_SAVECFG,
 	MA_OPT_SAVECFG_GAME,
 	MA_OPT_CPU_CLOCKS,
 	MA_OPT_FILTERING,
+	MA_OPT_DISP_OPTS,
 } menu_id;
 
 enum {
@@ -76,7 +78,7 @@ static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int memcard1_sel, memcard2_sel;
-int g_opts;
+int g_opts, analog_deadzone;
 
 // sound plugin
 extern int iUseReverb;
@@ -155,7 +157,7 @@ static void menu_sync_config(void)
 	default: in_type2 = PSE_PAD_TYPE_STANDARD;
 	}
 	if (in_evdev_allow_abs_only != allow_abs_only_old) {
-		pandora_rescan_inputs();
+		plat_rescan_inputs();
 		allow_abs_only_old = in_evdev_allow_abs_only;
 	}
 
@@ -170,6 +172,7 @@ static void menu_set_defconfig(void)
 	scaling = SCALE_4_3;
 	volume_boost = 0;
 	frameskip = 0;
+	analog_deadzone = 50;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;
@@ -247,6 +250,7 @@ static const struct {
 	CE_INTVAL(g_opts),
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
+	CE_INTVAL(analog_deadzone),
 	CE_INTVAL_V(frameskip, 2),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
@@ -475,6 +479,12 @@ static const char *filter_exts[] = {
 };
 
 #define MENU_ALIGN_LEFT
+#ifdef __ARM_ARCH_7A__ // assume hires device
+#define MENU_X2 1
+#else
+#define MENU_X2 0
+#endif
+
 #define menu_init menu_init_common
 #include "common/menu.c"
 #undef menu_init
@@ -538,43 +548,25 @@ static void draw_savestate_bg(int slot)
 	h = min(g_menuscreen_h, h);
 	d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
 
-	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
+	for (; h > 0; h--, d += g_menuscreen_w, s += 1024) {
 		if (gpu->ulStatus & 0x200000)
 			bgr888_to_rgb565(d, s, w * 3);
 		else
 			bgr555_to_rgb565(d, s, w * 2);
+#ifndef __ARM_ARCH_7A__
+		// better darken this on small screens
+		menu_darken_bg(d, d, w * 2, 0);
+#endif
+	}
 
 out:
 	free(gpu);
 }
 
-// ---------- pandora specific -----------
+// ---------- XXX: pandora specific -----------
 
 static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
 static char **pnd_filter_list;
-
-static int get_cpu_clock(void)
-{
-	FILE *f;
-	int ret = 0;
-	f = fopen("/proc/pandora/cpu_mhz_max", "r");
-	if (f) {
-		fscanf(f, "%d", &ret);
-		fclose(f);
-	}
-	return ret;
-}
-
-static void apply_cpu_clock(void)
-{
-	char buf[128];
-
-	if (cpu_clock != 0 && cpu_clock != get_cpu_clock()) {
-		snprintf(buf, sizeof(buf), "unset DISPLAY; echo y | %s/op_cpuspeed.sh %d",
-			 pnd_script_base, cpu_clock);
-		system(buf);
-	}
-}
 
 static void apply_filter(int which)
 {
@@ -611,18 +603,6 @@ static void apply_lcdrate(int pal)
 	old = pal;
 }
 
-static int get_bat_capacity(void)
-{
-	FILE *f;
-	int ret = 0;
-	f = fopen("/sys/class/power_supply/bq27500-0/capacity", "r");
-	if (f) {
-		fscanf(f, "%d", &ret);
-		fclose(f);
-	}
-	return ret;
-}
-
 static menu_entry e_menu_gfx_options[];
 
 static void pnd_menu_init(void)
@@ -633,7 +613,7 @@ static void pnd_menu_init(void)
 	char buff[64];
 	DIR *dir;
 
-	cpu_clock_st = cpu_clock = get_cpu_clock();
+	cpu_clock_st = cpu_clock = plat_cpu_clock_get();
 
 	dir = opendir("/etc/pandora/conf/dss_fir");
 	if (dir == NULL) {
@@ -700,8 +680,7 @@ static void pnd_menu_init(void)
 
 void menu_finish(void)
 {
-	cpu_clock = cpu_clock_st;
-	apply_cpu_clock();
+	plat_cpu_clock_apply(cpu_clock_st);
 }
 
 // -------------- key config --------------
@@ -969,7 +948,7 @@ static int mh_savecfg(int id, int keys)
 static int mh_input_rescan(int id, int keys)
 {
 	//menu_sync_config();
-	pandora_rescan_inputs();
+	plat_rescan_inputs();
 	me_update_msg("rescan complete.");
 
 	return 0;
@@ -992,7 +971,8 @@ static menu_entry e_menu_keyconfig[] =
 	mee_label     (""),
 	mee_enum      ("Port 1 device",     0, in_type_sel1,    men_in_type_sel),
 	mee_enum      ("Port 2 device",     0, in_type_sel2,    men_in_type_sel),
-	mee_onoff_h   ("Nubs as buttons",   0, in_evdev_allow_abs_only, 1, h_nub_btns),
+	mee_onoff_h   ("Nubs as buttons",   MA_CTRL_NUBS_BTNS,  in_evdev_allow_abs_only, 1, h_nub_btns),
+	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   analog_deadzone, 1, 99),
 	mee_onoff_h   ("No TS Gun trigger", 0, g_opts, OPT_TSGUN_NOTRIGGER, h_notsgun),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
@@ -1166,9 +1146,9 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
-static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in savestates\n"
-				   "and can't be changed there. Must save config and reload\n"
-				   "the game for change to take effect";
+static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in\n"
+				   "savestates and can't be changed there. Must save\n"
+				   "config and reload the game for change to take effect";
 static const char h_plugin_xpu[] = "Must save config and reload the game\n"
 				   "for plugin change to take effect";
 static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
@@ -1274,7 +1254,7 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
-	mee_handler   ("[Display]",                menu_loop_gfx_options),
+	mee_handler_id("[Display]",                MA_OPT_DISP_OPTS, menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
 	mee_handler   ("[Advanced]",               menu_loop_adv_options),
 	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
@@ -1502,7 +1482,7 @@ static void draw_frame_main(void)
 		ltime = time(NULL);
 		tmp = localtime(&ltime);
 		strftime(ltime_s, sizeof(ltime_s), "%H:%M", tmp);
-		snprintf(buff, sizeof(buff), "%s %3d%%", ltime_s, get_bat_capacity());
+		snprintf(buff, sizeof(buff), "%s %3d%%", ltime_s, plat_get_bat_capacity());
 		smalltext_out16(4, 1 + me_sfont_h, buff, 0x105f);
 	}
 }
@@ -1986,6 +1966,13 @@ void menu_init(void)
 		exit(1);
 	emu_make_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
+
+#ifndef __ARM_ARCH_7A__ /* XXX */
+	me_enable(e_menu_options, MA_OPT_DISP_OPTS, 0);
+	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
+#else
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
+#endif
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)
@@ -2047,6 +2034,8 @@ static void menu_leave_emu(void)
 			fprintf(stderr, "Warning: GPU_close returned %d\n", ret);
 	}
 
+	plat_video_menu_enter(ready_to_go);
+
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	if (pl_vout_buf != NULL && ready_to_go && last_psx_bpp == 16) {
 		int x = max(0, g_menuscreen_w - last_psx_w);
@@ -2061,9 +2050,7 @@ static void menu_leave_emu(void)
 	}
 
 	if (ready_to_go)
-		cpu_clock = get_cpu_clock();
-
-	plat_video_menu_enter(ready_to_go);
+		cpu_clock = plat_cpu_clock_get();
 }
 
 void menu_prepare_emu(void)
@@ -2087,7 +2074,7 @@ void menu_prepare_emu(void)
 	menu_sync_config();
 	apply_lcdrate(Config.PsxType);
 	apply_filter(filter);
-	apply_cpu_clock();
+	plat_cpu_clock_apply(cpu_clock);
 
 	// push config to GPU plugin
 	plugin_call_rearmed_cbs();

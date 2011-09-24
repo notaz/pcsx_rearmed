@@ -102,7 +102,11 @@ struct tsdev *pl_gun_ts_init(void)
 
 	// FIXME: we should be able to get this somewhere
 	// the problem is this doesn't always match resolution due to different display modes
+#ifdef __ARM_ARCH_7A__
 	pl_set_gun_rect(0, 0, 800, 480);
+#else
+	pl_set_gun_rect(0, 0, 320, 240);
+#endif
 	return ts;
 
 fail_config:

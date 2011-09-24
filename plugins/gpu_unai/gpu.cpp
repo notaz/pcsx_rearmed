@@ -96,7 +96,7 @@ u32   tInc, tMsk;
 
 GPUPacket PacketBuffer;
 // FRAME_BUFFER_SIZE is defined in bytes; 512K is guard memory for out of range reads
-u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(16)));
+u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(2048)));
 u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -826,10 +826,10 @@ extern "C" {
 
 static const struct rearmed_cbs *cbs;
 static void *screen_buf;
+static s16 old_res_horz, old_res_vert, old_rgb24;
 
 static void blit(void)
 {
-	static s16 old_res_horz, old_res_vert, old_rgb24;
 	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
 	s16 h0, x0, y0, w0, h1;
 	u16 *srcs;
@@ -882,6 +882,29 @@ static void blit(void)
 	screen_buf = cbs->pl_vout_flip();
 }
 
+static void blit_raw(void)
+{
+	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
+	s16 h0, w0, h1;
+
+	w0 = DisplayArea[2];
+	h0 = DisplayArea[3];  // video mode
+	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
+	if (h0 == 480) h1 = Min2(h1*2,480);
+
+	if (h1 <= 0)
+		return;
+
+	if (w0 != old_res_horz || h1 != old_res_vert || isRGB24 != old_rgb24)
+	{
+		old_res_horz = w0;
+		old_res_vert = h1;
+		old_rgb24 = (s16)isRGB24;
+		screen_buf = cbs->pl_vout_set_mode(w0, h1, isRGB24 ? 24 : 16);
+	}
+	cbs->pl_vout_raw_flip(DisplayArea[0], DisplayArea[1]);
+}
+
 void GPU_updateLace(void)
 {
 	// Interlace bit toggle
@@ -891,7 +914,10 @@ void GPU_updateLace(void)
 		return;
 
 	if (!wasSkip) {
-		blit();
+		if (cbs->pl_vout_raw_flip != NULL)
+			blit_raw();
+		else
+			blit();
 		fb_dirty = false;
 		skCount = 0;
 	}
@@ -930,6 +956,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
 	enableAbbeyHack = cbs_->gpu_unai.abe_hack;
 	light = !cbs_->gpu_unai.no_light;
 	blend = !cbs_->gpu_unai.no_blend;
+	if (cbs_->pl_vout_set_raw_vram)
+		cbs_->pl_vout_set_raw_vram((void *)GPU_FrameBuffer);
 
 	cbs = cbs_;
 }

@@ -7,6 +7,7 @@
 
 #include "common/input.h"
 #include "linux/fbdev.h"
+#include "plat.h"
 
 struct vout_fbdev *layer_fb;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
@@ -47,6 +48,22 @@ void in_update_analogs(void)
 {
 }
 
-void pandora_rescan_inputs(void)
+int plat_rescan_inputs(void)
 {
+	return -1;
+}
+
+int plat_cpu_clock_get(void)
+{
+	return -1;
+}
+
+int plat_cpu_clock_apply(int cpu_clock)
+{
+	return -1;
+}
+
+int plat_get_bat_capacity(void)
+{
+	return -1;
 }

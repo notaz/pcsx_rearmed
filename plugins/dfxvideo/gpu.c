@@ -23,7 +23,6 @@
 // memory image of the PSX vram 
 ////////////////////////////////////////////////////////////////////////
 
-unsigned char  *psxVSecure;
 unsigned char  *psxVub;
 signed   char  *psxVsb;
 unsigned short *psxVuw;
@@ -88,16 +87,15 @@ static void SetFixes(void)
 // INIT, will be called after lib load... well, just do some var init...
 ////////////////////////////////////////////////////////////////////////
 
+// one extra MB for soft drawing funcs security
+static unsigned char vram[1024*512*2 + 1024*1024] __attribute__((aligned(2048)));
+
 long CALLBACK GPUinit(void)                                // GPU INIT
 {
  memset(ulStatusControl,0,256*sizeof(uint32_t));  // init save state scontrol field
 
- psxVSecure = (unsigned char *)malloc((512*2)*1024 + (1024*1024)); // always alloc one extra MB for soft drawing funcs security
- if (!psxVSecure)
-  return -1;
-
  //!!! ATTENTION !!!
- psxVub=psxVSecure + 512 * 1024;                           // security offset into double sized psx vram!
+ psxVub=vram + 512 * 1024;                           // security offset into double sized psx vram!
 
  psxVsb=(signed char *)psxVub;                         // different ways of accessing PSX VRAM
  psxVsw=(signed short *)psxVub;
@@ -107,7 +105,7 @@ long CALLBACK GPUinit(void)                                // GPU INIT
 
  psxVuw_eom=psxVuw+1024*512;                    // pre-calc of end of vram
 
- memset(psxVSecure,0x00,(512*2)*1024 + (1024*1024));
+ memset(vram,0x00,(512*2)*1024 + (1024*1024));
  memset(lGPUInfoVals,0x00,16*sizeof(uint32_t));
 
  PSXDisplay.RGB24        = FALSE;                      // init some stuff
@@ -185,7 +183,6 @@ long CALLBACK GPUclose()                               // GPU CLOSE
 long CALLBACK GPUshutdown(void)                            // GPU SHUTDOWN
 {
  CloseDisplay();                                       // shutdown direct draw
- free(psxVSecure);
  return 0;                                             // nothinh to do
 }
 
@@ -1150,6 +1147,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
  dwActFixes = cbs->gpu_peops.dwActFixes;
  fFrameRateHz = cbs->gpu_peops.fFrameRateHz;
  dwFrameRateTicks = cbs->gpu_peops.dwFrameRateTicks;
+ if (cbs->pl_vout_set_raw_vram)
+  cbs->pl_vout_set_raw_vram(psxVub);
 
  skip_advice = &cbs->fskip_advice;
  fps_skip = 100.0f;

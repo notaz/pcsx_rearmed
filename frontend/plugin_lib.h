@@ -22,11 +22,13 @@ extern int in_keystate, in_state_gun, in_a1[2], in_a2[2];
 void in_update_analogs(void);
 
 extern void *pl_vout_buf;
+extern int pl_flip_cnt;
 
 void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
+void  pl_print_hud(int w, int h);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
@@ -39,6 +41,9 @@ struct rearmed_cbs {
 	void *(*pl_vout_set_mode)(int w, int h, int bpp);
 	void *(*pl_vout_flip)(void);
 	void  (*pl_vout_close)(void);
+	// these are only used by some frontends
+	void  (*pl_vout_raw_flip)(int x, int y);
+	void  (*pl_vout_set_raw_vram)(void *vram);
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;

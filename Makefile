@@ -5,6 +5,7 @@ LD = $(CROSS_COMPILE)ld
 
 ARM926 ?= 0
 ARM_CORTEXA8 ?= 1
+PLATFORM ?= pandora
 USE_OSS ?= 1
 #USE_ALSA = 1
 #DRC_DBG = 1
@@ -112,16 +113,23 @@ ifeq "$(USE_GTK)" "1"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
 else
-frontend/%.o: CFLAGS += -DVOUT_FBDEV
-OBJS += frontend/menu.o
-OBJS += frontend/linux/fbdev.o frontend/linux/in_evdev.o
+OBJS += frontend/menu.o frontend/linux/in_evdev.o
 OBJS += frontend/common/input.o frontend/linux/oshide.o
-ifeq "$(ARCH)" "arm"
+
+ifeq "$(PLATFORM)" "pandora"
+frontend/%.o: CFLAGS += -DVOUT_FBDEV
+OBJS += frontend/linux/fbdev.o
 OBJS += frontend/plat_omap.o
-OBJS += frontend/pandora.o
+OBJS += frontend/plat_pandora.o
+else
+ifeq "$(PLATFORM)" "caanoo"
+OBJS += frontend/plat_pollux.o
+OBJS += frontend/warm/warm.o
 else
 OBJS += frontend/plat_dummy.o
 endif
+endif
+
 endif # !USE_GTK
 
 ifeq "$(HAVE_NEON)" "1"

@@ -1,0 +1,5 @@
+export ARM926=1
+export ARM_CORTEXA8=0
+PLATFORM=caanoo
+
+include Makefile
