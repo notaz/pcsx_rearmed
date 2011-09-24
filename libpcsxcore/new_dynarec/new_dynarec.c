@@ -7980,6 +7980,7 @@ int new_recompile_block(int addr)
     emit_movimm(start,0);
     emit_writeword(0,(int)&pcaddr);
     emit_jmp((int)new_dyna_leave);
+    literal_pool(0);
 #ifdef __arm__
     __clear_cache((void *)beginning,out);
 #endif

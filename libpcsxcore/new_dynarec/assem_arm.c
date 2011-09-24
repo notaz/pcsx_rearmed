@@ -170,6 +170,7 @@ void set_jump_target_fillslot(int addr,u_int target,int copy)
 /* Literal pool */
 add_literal(int addr,int val)
 {
+  assert(literalcount<sizeof(literals)/sizeof(literals[0]));
   literals[literalcount][0]=addr;
   literals[literalcount][1]=val;
   literalcount++; 
@@ -226,7 +227,7 @@ int verify_dirty(int addr)
   u_int *ptr=(u_int *)addr;
   #ifdef ARMv5_ONLY
   // get from literal pool
-  assert((*ptr&0xFFF00000)==0xe5900000);
+  assert((*ptr&0xFFFF0000)==0xe59f0000);
   u_int offset=*ptr&0xfff;
   u_int *l_ptr=(void *)ptr+offset+8;
   u_int source=l_ptr[0];
@@ -279,7 +280,7 @@ void get_bounds(int addr,u_int *start,u_int *end)
   u_int *ptr=(u_int *)addr;
   #ifdef ARMv5_ONLY
   // get from literal pool
-  assert((*ptr&0xFFF00000)==0xe5900000);
+  assert((*ptr&0xFFFF0000)==0xe59f0000);
   u_int offset=*ptr&0xfff;
   u_int *l_ptr=(void *)ptr+offset+8;
   u_int source=l_ptr[0];
