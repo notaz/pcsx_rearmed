@@ -154,6 +154,17 @@ void *gte_handlers_nf[64] = {
 	NULL      , NULL       , NULL       , NULL      , NULL     , gteGPF_nf  , gteGPL_nf  , gteNCCT_nf, // 38
 };
 
+const char *gte_regnames[64] = {
+	NULL  , "RTPS" , NULL   , NULL  , NULL , NULL   , "NCLIP", NULL  , // 00
+	NULL  , NULL   , NULL   , NULL  , "OP" , NULL   , NULL   , NULL  , // 08
+	"DPCS", "INTPL", "MVMVA", "NCDS", "CDP", NULL   , "NCDT" , NULL  , // 10
+	NULL  , NULL   , NULL   , "NCCS", "CC" , NULL   , "NCS"  , NULL  , // 18
+	"NCT" , NULL   , NULL   , NULL  , NULL , NULL   , NULL   , NULL  , // 20
+	"SQR" , "DCPL" , "DPCT" , NULL  , NULL , "AVSZ3", "AVSZ4", NULL  , // 28 
+	"RTPT", NULL   , NULL   , NULL  , NULL , NULL   , NULL   , NULL  , // 30
+	NULL  , NULL   , NULL   , NULL  , NULL , "GPF"  , "GPL"  , "NCCT", // 38
+};
+
 /* from gte.txt.. not sure if this is any good. */
 const char gte_cycletab[64] = {
 	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */

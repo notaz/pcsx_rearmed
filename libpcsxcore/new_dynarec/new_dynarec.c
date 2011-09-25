@@ -80,6 +80,10 @@ struct ll_entry
   u_char dep1[MAXBLOCK];
   u_char dep2[MAXBLOCK];
   u_char lt1[MAXBLOCK];
+  static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
+  static uint64_t gte_rt[MAXBLOCK];
+  static uint64_t gte_unneeded[MAXBLOCK];
+  static int gte_reads_flags; // gte flag read encountered
   int imm[MAXBLOCK];
   u_int ba[MAXBLOCK];
   char likely[MAXBLOCK];
@@ -6710,8 +6714,8 @@ static void pagespan_ds()
 void unneeded_registers(int istart,int iend,int r)
 {
   int i;
-  uint64_t u,uu,b,bu;
-  uint64_t temp_u,temp_uu;
+  uint64_t u,uu,gte_u,b,bu,gte_bu;
+  uint64_t temp_u,temp_uu,temp_gte_u;
   uint64_t tdep;
   if(iend==slen-1) {
     u=1;uu=1;
@@ -6720,6 +6724,8 @@ void unneeded_registers(int istart,int iend,int r)
     uu=unneeded_reg_upper[iend+1];
     u=1;uu=1;
   }
+  gte_u=temp_gte_u=0;
+
   for (i=iend;i>=istart;i--)
   {
     //printf("unneeded registers i=%d (%d,%d) r=%d\n",i,istart,iend,r);
@@ -6733,6 +6739,7 @@ void unneeded_registers(int istart,int iend,int r)
         // Branch out of this block, flush all regs
         u=1;
         uu=1;
+        gte_u=0;
         /* Hexagon hack 
         if(itype[i]==UJUMP&&rt1[i]==31)
         {
@@ -6764,17 +6771,21 @@ void unneeded_registers(int istart,int iend,int r)
         uu&=~((1LL<<us1[i+1])|(1LL<<us2[i+1]));
         uu&=~((tdep<<dep1[i+1])|(tdep<<dep2[i+1]));
         u|=1;uu|=1;
+        gte_u|=gte_rt[i+1];
+        gte_u&=~gte_rs[i+1];
         // If branch is "likely" (and conditional)
         // then we skip the delay slot on the fall-thru path
         if(likely[i]) {
           if(i<slen-1) {
             u&=unneeded_reg[i+2];
             uu&=unneeded_reg_upper[i+2];
+            gte_u&=gte_unneeded[i+2];
           }
           else
           {
             u=1;
             uu=1;
+            gte_u=0;
           }
         }
       }
@@ -6788,10 +6799,12 @@ void unneeded_registers(int istart,int iend,int r)
           {
             // Unconditional branch
             temp_u=1;temp_uu=1;
+            temp_gte_u=0;
           } else {
             // Conditional branch (not taken case)
             temp_u=unneeded_reg[i+2];
             temp_uu=unneeded_reg_upper[i+2];
+            temp_gte_u&=gte_unneeded[i+2];
           }
           // Merge in delay slot
           tdep=(~temp_uu>>rt1[i+1])&1;
@@ -6801,17 +6814,21 @@ void unneeded_registers(int istart,int iend,int r)
           temp_uu&=~((1LL<<us1[i+1])|(1LL<<us2[i+1]));
           temp_uu&=~((tdep<<dep1[i+1])|(tdep<<dep2[i+1]));
           temp_u|=1;temp_uu|=1;
+          temp_gte_u|=gte_rt[i+1];
+          temp_gte_u&=~gte_rs[i+1];
           // If branch is "likely" (and conditional)
           // then we skip the delay slot on the fall-thru path
           if(likely[i]) {
             if(i<slen-1) {
               temp_u&=unneeded_reg[i+2];
               temp_uu&=unneeded_reg_upper[i+2];
+              temp_gte_u&=gte_unneeded[i+2];
             }
             else
             {
               temp_u=1;
               temp_uu=1;
+              temp_gte_u=0;
             }
           }
           tdep=(~temp_uu>>rt1[i])&1;
@@ -6821,8 +6838,11 @@ void unneeded_registers(int istart,int iend,int r)
           temp_uu&=~((1LL<<us1[i])|(1LL<<us2[i]));
           temp_uu&=~((tdep<<dep1[i])|(tdep<<dep2[i]));
           temp_u|=1;temp_uu|=1;
+          temp_gte_u|=gte_rt[i];
+          temp_gte_u&=~gte_rs[i];
           unneeded_reg[i]=temp_u;
           unneeded_reg_upper[i]=temp_uu;
+          gte_unneeded[i]=temp_gte_u;
           // Only go three levels deep.  This recursion can take an
           // excessive amount of time if there are a lot of nested loops.
           if(r<2) {
@@ -6830,6 +6850,7 @@ void unneeded_registers(int istart,int iend,int r)
           }else{
             unneeded_reg[(ba[i]-start)>>2]=1;
             unneeded_reg_upper[(ba[i]-start)>>2]=1;
+            gte_unneeded[(ba[i]-start)>>2]=0;
           }
         } /*else*/ if(1) {
           if(itype[i]==RJUMP||itype[i]==UJUMP||(source[i]>>16)==0x1000)
@@ -6837,6 +6858,7 @@ void unneeded_registers(int istart,int iend,int r)
             // Unconditional branch
             u=unneeded_reg[(ba[i]-start)>>2];
             uu=unneeded_reg_upper[(ba[i]-start)>>2];
+            gte_u=gte_unneeded[(ba[i]-start)>>2];
             branch_unneeded_reg[i]=u;
             branch_unneeded_reg_upper[i]=uu;
         //u=1;
@@ -6851,10 +6873,13 @@ void unneeded_registers(int istart,int iend,int r)
             uu&=~((1LL<<us1[i+1])|(1LL<<us2[i+1]));
             uu&=~((tdep<<dep1[i+1])|(tdep<<dep2[i+1]));
             u|=1;uu|=1;
+            gte_u|=gte_rt[i+1];
+            gte_u&=~gte_rs[i+1];
           } else {
             // Conditional branch
             b=unneeded_reg[(ba[i]-start)>>2];
             bu=unneeded_reg_upper[(ba[i]-start)>>2];
+            gte_bu=gte_unneeded[(ba[i]-start)>>2];
             branch_unneeded_reg[i]=b;
             branch_unneeded_reg_upper[i]=bu;
         //b=1;
@@ -6869,20 +6894,25 @@ void unneeded_registers(int istart,int iend,int r)
             bu&=~((1LL<<us1[i+1])|(1LL<<us2[i+1]));
             bu&=~((tdep<<dep1[i+1])|(tdep<<dep2[i+1]));
             b|=1;bu|=1;
+            gte_bu|=gte_rt[i+1];
+            gte_bu&=~gte_rs[i+1];
             // If branch is "likely" then we skip the
             // delay slot on the fall-thru path
             if(likely[i]) {
               u=b;
               uu=bu;
+              gte_u=gte_bu;
               if(i<slen-1) {
                 u&=unneeded_reg[i+2];
                 uu&=unneeded_reg_upper[i+2];
+                gte_u&=gte_unneeded[i+2];
         //u=1;
         //uu=1;
               }
             } else {
               u&=b;
               uu&=bu;
+              gte_u&=gte_bu;
         //u=1;
         //uu=1;
             }
@@ -6918,11 +6948,13 @@ void unneeded_registers(int istart,int iend,int r)
     u|=1LL<<rt2[i];
     uu|=1LL<<rt1[i];
     uu|=1LL<<rt2[i];
+    gte_u|=gte_rt[i];
     // Accessed registers are needed
     u&=~(1LL<<rs1[i]);
     u&=~(1LL<<rs2[i]);
     uu&=~(1LL<<us1[i]);
     uu&=~(1LL<<us2[i]);
+    gte_u&=~gte_rs[i];
     // Source-target dependencies
     uu&=~(tdep<<dep1[i]);
     uu&=~(tdep<<dep2[i]);
@@ -6931,6 +6963,7 @@ void unneeded_registers(int istart,int iend,int r)
     // Save it
     unneeded_reg[i]=u;
     unneeded_reg_upper[i]=uu;
+    gte_unneeded[i]=gte_u;
     /*
     printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
     printf("U:");
@@ -7852,6 +7885,7 @@ void new_dynarec_clear_full()
   literalcount=0;
   stop_after_jal=0;
   inv_code_start=inv_code_end=~0;
+  gte_reads_flags=0;
   // TLB
 #ifndef DISABLE_TLB
   using_tlb=0;
@@ -8344,11 +8378,14 @@ int new_recompile_block(int addr)
 #endif
 #ifdef PCSX
       case 0x12: strcpy(insn[i],"COP2"); type=NI;
-        // note: COP MIPS-1 encoding differs from MIPS32
         op2=(source[i]>>21)&0x1f;
-        if (source[i]&0x3f) {
+        //if (op2 & 0x10) {
+        if (source[i]&0x3f) { // use this hack to support old savestates with patched gte insns
           if (gte_handlers[source[i]&0x3f]!=NULL) {
-            snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
+            if (gte_regnames[source[i]&0x3f]!=NULL)
+              strcpy(insn[i],gte_regnames[source[i]&0x3f]);
+            else
+              snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
             type=C2OP;
           }
         }
@@ -8376,6 +8413,7 @@ int new_recompile_block(int addr)
     us2[i]=0;
     dep1[i]=0;
     dep2[i]=0;
+    gte_rs[i]=gte_rt[i]=0;
     switch(type) {
       case LOAD:
         rs1[i]=(source[i]>>21)&0x1f;
@@ -8539,7 +8577,6 @@ int new_recompile_block(int addr)
         if(op2==16) if((source[i]&0x3f)==0x18) rs2[i]=CCREG; // ERET
         break;
       case COP1:
-      case COP2:
         rs1[i]=0;
         rs2[i]=0;
         rt1[i]=0;
@@ -8548,6 +8585,28 @@ int new_recompile_block(int addr)
         if(op2>3) rs1[i]=(source[i]>>16)&0x1F; // MTC1/DMTC1/CTC1
         if(op2==5) us1[i]=rs1[i]; // DMTC1
         rs2[i]=CSREG;
+        break;
+      case COP2:
+        rs1[i]=0;
+        rs2[i]=0;
+        rt1[i]=0;
+        rt2[i]=0;
+        if(op2<3) rt1[i]=(source[i]>>16)&0x1F; // MFC2/CFC2
+        if(op2>3) rs1[i]=(source[i]>>16)&0x1F; // MTC2/CTC2
+        rs2[i]=CSREG;
+        int gr=(source[i]>>11)&0x1F;
+        switch(op2)
+        {
+          case 0x00: gte_rs[i]=1ll<<gr; break; // MFC2
+          case 0x04: gte_rt[i]=1ll<<gr; break; // MTC2
+          case 0x02: gte_rs[i]=1ll<<(gr+32); // CFC2
+            if(gr==31&&!gte_reads_flags) {
+              printf("gte flag read encountered @%08x\n",addr + i*4);
+              gte_reads_flags=1;
+            }
+            break;
+          case 0x06: gte_rt[i]=1ll<<(gr+32); break; // CTC2
+        }
         break;
       case C1LS:
         rs1[i]=(source[i]>>21)&0x1F;
@@ -8562,6 +8621,16 @@ int new_recompile_block(int addr)
         rt1[i]=0;
         rt2[i]=0;
         imm[i]=(short)source[i];
+        if(op==0x32) gte_rt[i]=1ll<<((source[i]>>16)&0x1F); // LWC2
+        else gte_rs[i]=1ll<<((source[i]>>16)&0x1F); // SWC2
+        break;
+      case C2OP:
+        rs1[i]=0;
+        rs2[i]=0;
+        rt1[i]=0;
+        rt2[i]=0;
+        gte_rt[i]=1ll<<63; // every op changes flags
+        // TODO: other regs?
         break;
       case FLOAT:
       case FCONV:

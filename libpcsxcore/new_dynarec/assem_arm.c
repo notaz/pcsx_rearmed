@@ -3796,6 +3796,7 @@ void c2op_assemble(int i,struct regstat *i_regs)
   signed char temp=get_reg(i_regs->regmap,-1);
   u_int c2op=source[i]&0x3f;
   u_int hr,reglist=0;
+  int need_flags;
   for(hr=0;hr<HOST_REGS;hr++) {
     if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
   }
@@ -3809,7 +3810,13 @@ void c2op_assemble(int i,struct regstat *i_regs)
       emit_addimm(cc,gte_cycletab[c2op]/2,cc); // XXX: could just adjust ccadj?
     emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
     emit_writeword(1,(int)&psxRegs.code);
-    emit_call((int)gte_handlers[c2op]);
+    need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
+    assem_debug("gte unneeded %016llx, need_flags %d\n",gte_unneeded[i+1],need_flags);
+#ifdef ARMv5_ONLY
+    // let's take more risk here
+    need_flags=need_flags&&gte_reads_flags;
+#endif
+    emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
   }
 
   if(i>=slen-1||itype[i+1]!=C2OP)

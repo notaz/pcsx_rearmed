@@ -212,7 +212,11 @@ static inline s32 LIM(s32 value, s32 max, s32 min, u32 flag_unused) {
 	return ret;
 }
 
-#define limE(a) ((a) & 0x1ffff)
+static inline u32 limE(u32 result) {
+	if (result > 0x1ffff)
+		return 0x1ffff;
+	return result;
+}
 
 #endif
 
