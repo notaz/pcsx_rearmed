@@ -19,6 +19,33 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
+#ifdef FLAGLESS
+
+#define gteRTPS gteRTPS_nf
+#define gteOP gteOP_nf
+#define gteNCLIP gteNCLIP_nf
+#define gteDPCS gteDPCS_nf
+#define gteINTPL gteINTPL_nf
+#define gteMVMVA gteMVMVA_nf
+#define gteNCDS gteNCDS_nf
+#define gteNCDT gteNCDT_nf
+#define gteCDP gteCDP_nf
+#define gteNCCS gteNCCS_nf
+#define gteCC gteCC_nf
+#define gteNCS gteNCS_nf
+#define gteNCT gteNCT_nf
+#define gteSQR gteSQR_nf
+#define gteDCPL gteDCPL_nf
+#define gteDPCT gteDPCT_nf
+#define gteAVSZ3 gteAVSZ3_nf
+#define gteAVSZ4 gteAVSZ4_nf
+#define gteRTPT gteRTPT_nf
+#define gteGPF gteGPF_nf
+#define gteGPL gteGPL_nf
+#define gteNCCT gteNCCT_nf
+
+#endif
+
 #ifndef __GTE_H__
 #define __GTE_H__
 

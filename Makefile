@@ -47,7 +47,10 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
-OBJS += libpcsxcore/gte.o libpcsxcore/gte_divider.o
+OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
+ifeq "$(ARCH)" "arm"
+OBJS += libpcsxcore/gte_arm.o
+endif
 ifeq "$(HAVE_NEON)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
@@ -56,7 +59,6 @@ libpcsxcore/misc.o libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifndef NO_NEW_DRC
-libpcsxcore/new_dynarec/linkage_arm.o: ASFLAGS += --defsym HAVE_ARMV7=$(HAVE_ARMV7)
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 endif
@@ -149,8 +151,12 @@ ifndef NO_TSLIB
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
 OBJS += frontend/pl_gun_ts.o
 endif
+%.o: ASFLAGS += --defsym HAVE_ARMV7=$(HAVE_ARMV7)
 frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o: frontend/revision.h
+
+libpcsxcore/gte_nf.o: libpcsxcore/gte.c
+	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
 
 frontend/revision.h: FORCE
 	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_

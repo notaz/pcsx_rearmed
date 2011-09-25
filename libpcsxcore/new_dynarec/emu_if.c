@@ -14,7 +14,10 @@
 #include "../cdrom.h"
 #include "../psxdma.h"
 #include "../mdec.h"
+#include "../gte_arm.h"
 #include "../gte_neon.h"
+#define FLAGLESS
+#include "../gte.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -140,6 +143,17 @@ void new_dyna_restore(void)
 
 void *gte_handlers[64];
 
+void *gte_handlers_nf[64] = {
+	NULL      , gteRTPS_nf , NULL       , NULL      , NULL     , NULL       , gteNCLIP_nf, NULL      , // 00
+	NULL      , NULL       , NULL       , NULL      , gteOP_nf , NULL       , NULL       , NULL      , // 08
+	gteDPCS_nf, gteINTPL_nf, gteMVMVA_nf, gteNCDS_nf, gteCDP_nf, NULL       , gteNCDT_nf , NULL      , // 10
+	NULL      , NULL       , NULL       , gteNCCS_nf, gteCC_nf , NULL       , gteNCS_nf  , NULL      , // 18
+	gteNCT_nf , NULL       , NULL       , NULL      , NULL     , NULL       , NULL       , NULL      , // 20
+	gteSQR_nf , gteDCPL_nf , gteDPCT_nf , NULL      , NULL     , gteAVSZ3_nf, gteAVSZ4_nf, NULL      , // 28 
+	gteRTPT_nf, NULL       , NULL       , NULL      , NULL     , NULL       , NULL       , NULL      , // 30
+	NULL      , NULL       , NULL       , NULL      , NULL     , gteGPF_nf  , gteGPL_nf  , gteNCCT_nf, // 38
+};
+
 /* from gte.txt.. not sure if this is any good. */
 const char gte_cycletab[64] = {
 	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
@@ -161,12 +175,16 @@ static int ari64_init()
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
-#ifndef DRC_DBG
+
+#if !defined(DRC_DBG) && !defined(PCNT)
+#ifdef __arm__
+	gte_handlers[0x06] = gteNCLIP_arm;
+#endif
 #ifdef __ARM_NEON__
-	gte_handlers[0x01] = gteRTPS_neon;
-	gte_handlers[0x30] = gteRTPT_neon;
-	gte_handlers[0x12] = gteMVMVA_neon;
-	gte_handlers[0x06] = gteNCLIP_neon;
+	// compiler's _nf version is still a lot slower then neon
+	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
+	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
+	gte_handlers[0x12] = gte_handlers_nf[0x12] = gteMVMVA_neon;
 #endif
 #endif
 	psxH_ptr = psxH;

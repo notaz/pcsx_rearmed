@@ -168,6 +168,8 @@
 
 #define gteop (psxRegs.code & 0x1ffffff)
 
+#ifndef FLAGLESS
+
 static inline s64 BOUNDS(s64 n_value, s64 n_max, int n_maxflag, s64 n_min, int n_minflag) {
 	if (n_value > n_max) {
 		gteFLAG |= n_maxflag;
@@ -189,6 +191,31 @@ static inline s32 LIM(s32 value, s32 max, s32 min, u32 flag) {
 	return ret;
 }
 
+static inline u32 limE(u32 result) {
+	if (result > 0x1ffff) {
+		gteFLAG |= (1 << 31) | (1 << 17);
+		return 0x1ffff;
+	}
+	return result;
+}
+
+#else
+
+#define BOUNDS(a, ...) (a)
+
+static inline s32 LIM(s32 value, s32 max, s32 min, u32 flag_unused) {
+	s32 ret = value;
+	if (value > max)
+		ret = max;
+	else if (value < min)
+		ret = min;
+	return ret;
+}
+
+#define limE(a) ((a) & 0x1ffff)
+
+#endif
+
 #define A1(a) BOUNDS((a), 0x7fffffff, (1 << 30), -(s64)0x80000000, (1 << 31) | (1 << 27))
 #define A2(a) BOUNDS((a), 0x7fffffff, (1 << 29), -(s64)0x80000000, (1 << 31) | (1 << 26))
 #define A3(a) BOUNDS((a), 0x7fffffff, (1 << 28), -(s64)0x80000000, (1 << 31) | (1 << 25))
@@ -200,20 +227,14 @@ static inline s32 LIM(s32 value, s32 max, s32 min, u32 flag) {
 #define limC3(a) LIM((a), 0x00ff, 0x0000, (1 << 19))
 #define limD(a) LIM((a), 0xffff, 0x0000, (1 << 31) | (1 << 18))
 
-static inline u32 limE(u32 result) {
-	if (result > 0x1ffff) {
-		gteFLAG |= (1 << 31) | (1 << 17);
-		return 0x1ffff;
-	}
-	return result;
-}
-
 #define F(a) BOUNDS((a), 0x7fffffff, (1 << 31) | (1 << 16), -(s64)0x80000000, (1 << 31) | (1 << 15))
 #define limG1(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 14))
 #define limG2(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 13))
 #define limH(a) LIM((a), 0x1000, 0x0000, (1 << 12))
 
 #include "gte_divider.h"
+
+#ifndef FLAGLESS
 
 static inline u32 MFC2(int reg) {
 	switch (reg) {
@@ -342,6 +363,8 @@ void gteLWC2() {
 void gteSWC2() {
 	psxMemWrite32(_oB_, MFC2(_Rt_));
 }
+
+#endif // FLAGLESS
 
 #if 0
 #define DIVIDE DIVIDE_

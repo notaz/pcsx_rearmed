@@ -20,6 +20,8 @@ scratch:
 .text
 .align 2
 
+@ XXX: gteMAC calc shouldn't be saturating, but it is here
+
 @ approximate gteMAC|123 flags
 @ in: rr 123 as gteMAC|123
 @ trash: nothing
@@ -625,43 +627,6 @@ gteMVMVA_neon:
     pop         {r4-r5,pc}
     .size	gteMVMVA_neon, .-gteMVMVA_neon
 
-
-
-@ the name is misnormer, this doesn't use NEON but oh well..
-.global gteNCLIP_neon @ r0=CP2 (d,c),
-gteNCLIP_neon:
-    push        {r4-r6,lr}
-
-    add         r1, r0, #4*12
-    ldmia       r1, {r1-r3}
-    mov         r4, r1, asr #16
-    mov         r5, r2, asr #16
-    mov         r6, r3, asr #16
-    sub         r12, r4, r5       @ 3: gteSY0 - gteSY1
-    sub         r5, r5, r6        @ 1: gteSY1 - gteSY2
-    sxth        r1, r1
-    smull       r1, r5, r1, r5    @ RdLo, RdHi
-    sub         r6, r4            @ 2: gteSY2 - gteSY0
-    sxth        r2, r2
-    smlal       r1, r5, r2, r6
-    mov         lr, #0            @ gteFLAG
-    sxth        r3, r3
-    smlal       r1, r5, r3, r12
-    mov         r6, #1<<31
-    orr         r6, #1<<15
-    movs        r2, r1, lsl #1
-    adc         r5, r5
-    cmp         r5, #0
-    movtgt      lr, #((1<<31)|(1<<16))>>16
-    mvngt       r1, #1<<31        @ maxint
-    cmn         r5, #1
-    movmi       r1, #1<<31        @ minint
-    orrmi       lr, r6
-    str         r1, [r0, #4*24]
-    str         lr, [r0, #4*(32+31)] @ gteFLAG
-
-    pop         {r4-r6,pc}
-    .size	gteNCLIP_neon, .-gteNCLIP_neon
 
 
 @ vim:filetype=armasm
