@@ -343,6 +343,7 @@ void gteSWC2() {
 	psxMemWrite32(_oB_, MFC2(_Rt_));
 }
 
+#if 0
 #define DIVIDE DIVIDE_
 static u32 DIVIDE_(s16 n, u16 d) {
 	if (n >= 0 && n < d * 2) {
@@ -352,6 +353,7 @@ static u32 DIVIDE_(s16 n, u16 d) {
 	}
 	return 0xffffffff;
 }
+#endif
 
 void gteRTPS() {
 	int quotient;
