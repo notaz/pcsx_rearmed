@@ -61,22 +61,22 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 	return ret;
 }
 
-static void print_msg(int h)
+static void print_msg(int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(2, h - 10, "%s", hud_msg);
+		pl_text_out16(border + 2, h - 10, "%s", hud_msg);
 }
 
-static void print_fps(int h)
+static void print_fps(int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(2, h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
+		pl_text_out16(border + 2, h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
 }
 
-static void print_cpu_usage(int w, int h)
+static void print_cpu_usage(int w, int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(w - 28, h - 10, "%3d", tick_per_sec);
+		pl_text_out16(w - border - 28, h - 10, "%3d", tick_per_sec);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -109,7 +109,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-void pl_print_hud(int w, int h)
+void pl_print_hud(int w, int h, int xborder)
 {
 	pl_vout_w = w; // used by pollux
 	pl_vout_h = h;
@@ -118,12 +118,12 @@ void pl_print_hud(int w, int h)
 		draw_active_chans(w, h);
 
 	if (hud_msg[0] != 0)
-		print_msg(h);
+		print_msg(h, xborder);
 	else if (g_opts & OPT_SHOWFPS)
-		print_fps(h);
+		print_fps(h, xborder);
 
 	if (g_opts & OPT_SHOWCPU)
-		print_cpu_usage(w, h);
+		print_cpu_usage(w, h, xborder);
 }
 
 static void *pl_vout_set_mode(int w, int h, int bpp)
@@ -164,7 +164,7 @@ static void *pl_vout_flip(void)
 	pl_flip_cnt++;
 
 	if (pl_vout_buf != NULL)
-		pl_print_hud(pl_vout_w, pl_vout_h);
+		pl_print_hud(pl_vout_w, pl_vout_h, 0);
 
 	// let's flip now
 #if defined(VOUT_FBDEV)

@@ -28,7 +28,7 @@ void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
-void  pl_print_hud(int w, int h);
+void  pl_print_hud(int w, int h, int xborder);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);

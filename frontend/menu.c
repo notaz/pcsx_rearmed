@@ -172,7 +172,7 @@ static void menu_set_defconfig(void)
 	scaling = SCALE_4_3;
 	volume_boost = 0;
 	frameskip = 0;
-	analog_deadzone = 50;
+	analog_deadzone = 70;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;

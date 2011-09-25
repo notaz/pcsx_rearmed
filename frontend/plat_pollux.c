@@ -36,7 +36,7 @@ static int cpu_clock_allowed;
 static unsigned short *psx_vram;
 static unsigned int psx_vram_padds[512];
 static int psx_offset, psx_step, psx_width, psx_height, psx_bpp;
-static int fb_offset;
+static int fb_offset_x, fb_offset_y;
 
 // TODO: get rid of this
 struct vout_fbdev;
@@ -217,7 +217,6 @@ void plat_video_menu_end(void)
 
 void plat_video_menu_leave(void)
 {
-	pollux_changemode(psx_bpp, 1);
 	if (psx_vram == NULL) {
 		fprintf(stderr, "GPU plugin did not provide vram\n");
 		exit(1);
@@ -225,6 +224,12 @@ void plat_video_menu_leave(void)
 
 	in_set_config_int(in_name_to_id("evdev:pollux-analog"),
 			IN_CFG_ABS_DEAD_ZONE, analog_deadzone);
+
+	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
+	g_menuscreen_ptr = fb_flip();
+	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
+
+	pollux_changemode(psx_bpp, 1);
 }
 
 static void pl_vout_set_raw_vram(void *vram)
@@ -248,7 +253,6 @@ static void pl_vout_set_raw_vram(void *vram)
 static void *pl_vout_set_mode(int w, int h, int bpp)
 {
 	static int old_w, old_h, old_bpp;
-	int fboff_w, fboff_h;
 	int poff_w, poff_h;
 
 	if (!w || !h || !bpp || (w == old_w && h == old_h && bpp == old_bpp))
@@ -271,14 +275,20 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 		poff_h = h / 2 - 240/2;
 		h = 240;
 	}
-	fboff_w = 320/2 - w / 2;
-	fboff_h = 240/2 - h / 2;
+	fb_offset_x = 320/2 - w / 2;
+	fb_offset_y = 240/2 - h / 2;
 
 	psx_offset = poff_h * 1024 + poff_w;
 	psx_width = w;
 	psx_height = h;
 	psx_bpp = bpp;
-	fb_offset = fboff_h * 320 + fboff_w;
+
+	if (fb_offset_x || fb_offset_y) {
+		// not fullscreen, must clear borders
+		memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
+		g_menuscreen_ptr = fb_flip();
+		memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
+	}
 
 	pollux_changemode(bpp, 1);
 
@@ -300,7 +310,8 @@ static void spend_cycles(int loops)
 /* this takes ~1.5ms, while ldm/stm ~1.95ms */
 static void raw_flip_dma(int x, int y)
 {
-	unsigned int dst = fb_paddrs[fb_work_buf] + fb_offset * psx_bpp / 8;
+	unsigned int dst = fb_paddrs[fb_work_buf] +
+			(fb_offset_y * 320 + fb_offset_x) * psx_bpp / 8;
 	int spsx_line = y + (psx_offset >> 10);
 	int spsx_offset = (x + psx_offset) & 0x3f8;
 	int dst_stride = 320 * psx_bpp / 8;
@@ -338,7 +349,7 @@ static void raw_flip_dma(int x, int y)
 
 	if (psx_bpp == 16) {
 		pl_vout_buf = g_menuscreen_ptr;
-		pl_print_hud(psx_width, psx_height);
+		pl_print_hud(320, fb_offset_y + psx_height, fb_offset_x);
 	}
 
 	g_menuscreen_ptr = fb_flip();
@@ -348,7 +359,8 @@ static void raw_flip_dma(int x, int y)
 static void raw_flip_soft(int x, int y)
 {
 	unsigned short *src = psx_vram + y * 1024 + x + psx_offset;
-	unsigned char *dst = (unsigned char *)g_menuscreen_ptr + fb_offset * psx_bpp / 8;
+	unsigned char *dst = (unsigned char *)g_menuscreen_ptr +
+			(fb_offset_y * 320 + fb_offset_x) * psx_bpp / 8;
 	int dst_stride = 320 * psx_bpp / 8;
 	int len = psx_width * psx_bpp / 8;
 	//unsigned int st = timer_get();
@@ -361,11 +373,16 @@ static void raw_flip_soft(int x, int y)
 
 	if (psx_bpp == 16) {
 		pl_vout_buf = g_menuscreen_ptr;
-		pl_print_hud(psx_width, psx_height);
+		pl_print_hud(320, fb_offset_y + psx_height, fb_offset_x);
 	}
 
 	g_menuscreen_ptr = fb_flip();
 	pl_flip_cnt++;
+}
+
+static void *pl_vout_flip(void)
+{
+	return NULL;
 }
 
 void plat_init(void)
@@ -474,6 +491,7 @@ void plat_init(void)
 	// hmh
 	plat_rescan_inputs();
 
+	pl_rearmed_cbs.pl_vout_flip = pl_vout_flip;
 	pl_rearmed_cbs.pl_vout_raw_flip = warm_ret == 0 ? raw_flip_dma : raw_flip_soft;
 	pl_rearmed_cbs.pl_vout_set_mode = pl_vout_set_mode;
 	pl_rearmed_cbs.pl_vout_set_raw_vram = pl_vout_set_raw_vram;
