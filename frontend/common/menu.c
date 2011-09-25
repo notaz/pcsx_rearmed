@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2006-2010
+ * (C) Gražvydas "notaz" Ignotas, 2006-2011
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -372,6 +372,28 @@ static int me_count(const menu_entry *ent)
 	return ret;
 }
 
+static unsigned int me_read_onoff(const menu_entry *ent)
+{
+	// guess var size based on mask to avoid reading too much
+	if (ent->mask & 0xffff0000)
+		return *(unsigned int *)ent->var & ent->mask;
+	else if (ent->mask & 0xff00)
+		return *(unsigned short *)ent->var & ent->mask;
+	else
+		return *(unsigned char *)ent->var & ent->mask;
+}
+
+static void me_toggle_onoff(menu_entry *ent)
+{
+	// guess var size based on mask to avoid reading too much
+	if (ent->mask & 0xffff0000)
+		*(unsigned int *)ent->var ^= ent->mask;
+	else if (ent->mask & 0xff00)
+		*(unsigned short *)ent->var ^= ent->mask;
+	else
+		*(unsigned char *)ent->var ^= ent->mask;
+}
+
 static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 {
 	const menu_entry *ent, *ent_sel = entries;
@@ -477,7 +499,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 		case MB_NONE:
 			break;
 		case MB_OPT_ONOFF:
-			text_out16(x + col2_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
+			text_out16(x + col2_offs, y, me_read_onoff(ent) ? "ON" : "OFF");
 			break;
 		case MB_OPT_RANGE:
 			text_out16(x + col2_offs, y, "%i", *(int *)ent->var);
@@ -545,7 +567,7 @@ static int me_process(menu_entry *entry, int is_next, int is_lr)
 	{
 		case MB_OPT_ONOFF:
 		case MB_OPT_CUSTONOFF:
-			*(int *)entry->var ^= entry->mask;
+			me_toggle_onoff(entry);
 			return 1;
 		case MB_OPT_RANGE:
 		case MB_OPT_CUSTRANGE:
