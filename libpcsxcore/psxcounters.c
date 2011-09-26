@@ -78,6 +78,8 @@ static Rcnt rcnts[ CounterQuantity ];
 
 static u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;
+static u32 hsync_steps = 0;
+static u32 gpu_wants_hcnt = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
@@ -140,7 +142,8 @@ u32 _psxRcntRcount( u32 index )
 
     count  = psxRegs.cycle;
     count -= rcnts[index].cycleStart;
-    count /= rcnts[index].rate;
+    if (rcnts[index].rate > 1)
+        count /= rcnts[index].rate;
 
     if( count > 0xffff )
     {
@@ -192,7 +195,8 @@ void psxRcntReset( u32 index )
         {
             count  = psxRegs.cycle;
             count -= rcnts[index].cycleStart;
-            count /= rcnts[index].rate;
+            if (rcnts[index].rate > 1)
+                count /= rcnts[index].rate;
             count -= rcnts[index].target;
         }
         else
@@ -218,7 +222,8 @@ void psxRcntReset( u32 index )
     {
         count  = psxRegs.cycle;
         count -= rcnts[index].cycleStart;
-        count /= rcnts[index].rate;
+        if (rcnts[index].rate > 1)
+            count /= rcnts[index].rate;
         count -= 0xffff;
 
         _psxRcntWcount( index, count );
@@ -268,10 +273,11 @@ void psxRcntUpdate()
     // rcnt base.
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
-        psxRcntReset( 3 );
+        u32 leftover_cycles = cycle - rcnts[3].cycleStart - rcnts[3].cycle;
+        u32 next_vsync, next_lace;
 
-        spuSyncCount++;
-        hSyncCount++;
+        spuSyncCount += hsync_steps;
+        hSyncCount += hsync_steps;
 
         // Update spu.
         if( spuSyncCount >= SpuUpdInterval[Config.PsxType] )
@@ -287,7 +293,7 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart[Config.PsxType] )
         {
-            GPU_vBlank( 1, &hSyncCount );
+            GPU_vBlank( 1, &hSyncCount, &gpu_wants_hcnt );
             
             // For the best times. :D
             //setIrq( 0x01 );
@@ -298,15 +304,32 @@ void psxRcntUpdate()
         {
             hSyncCount = 0;
 
-            GPU_vBlank( 0, &hSyncCount );
+            GPU_vBlank( 0, &hSyncCount, &gpu_wants_hcnt );
             setIrq( 0x01 );
 
             EmuUpdate();
             GPU_updateLace();
         }
+
+        // Schedule next call, in hsyncs
+        hsync_steps = SpuUpdInterval[Config.PsxType] - spuSyncCount;
+        next_vsync = VBlankStart[Config.PsxType] - hSyncCount; // ok to overflow
+        next_lace = HSyncTotal[Config.PsxType] - hSyncCount;
+        if( next_vsync && next_vsync < hsync_steps )
+            hsync_steps = next_vsync;
+        if( next_lace && next_lace < hsync_steps )
+            hsync_steps = next_lace;
+        if( gpu_wants_hcnt )
+            hsync_steps = 1;
+
+        rcnts[3].cycleStart = cycle - leftover_cycles;
+        rcnts[3].cycle = hsync_steps * rcnts[3].target;
+        psxRcntSet();
     }
 
+#ifndef NDEBUG
     DebugVSync();
+#endif
 }
 
 /******************************************************************************/
@@ -464,6 +487,7 @@ void psxRcntInit()
 
     hSyncCount = 0;
     spuSyncCount = 0;
+    hsync_steps = 1;
 
     psxRcntSet();
 }
@@ -477,6 +501,9 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
     gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
     gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
+
+    if (Mode == 0)
+        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
 
     return 0;
 }
