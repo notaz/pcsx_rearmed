@@ -7092,7 +7092,7 @@ static void DrawSoftwareLineShade(int32_t rgb0, int32_t rgb1)
 {
 	short x0, y0, x1, y1, xt, yt;
 	int32_t rgbt;
-	double m, dy, dx;
+	int dy, dx;
 
 	if (lx0 > drawW && lx1 > drawW) return;
 	if (ly0 > drawH && ly1 > drawH) return;
@@ -7142,17 +7142,15 @@ static void DrawSoftwareLineShade(int32_t rgb0, int32_t rgb1)
 				dy = y1 - y0;
 			}
 
-			m = dy / dx;
-
-			if (m >= 0)
+			if ((dx >= 0 && dy >= 0) || (dx < 0 && dy < 0))
 			{
-				if (m > 1)
+				if (abs(dy) > abs(dx))
 					Line_S_SE_Shade(x0, y0, x1, y1, rgb0, rgb1);
 				else
 					Line_E_SE_Shade(x0, y0, x1, y1, rgb0, rgb1);
 			}
 			else
-				if (m < -1)
+				if (abs(dy) > abs(dx))
 					Line_N_NE_Shade(x0, y0, x1, y1, rgb0, rgb1);
 				else
 					Line_E_NE_Shade(x0, y0, x1, y1, rgb0, rgb1);
@@ -7164,7 +7162,7 @@ static void DrawSoftwareLineShade(int32_t rgb0, int32_t rgb1)
 static void DrawSoftwareLineFlat(int32_t rgb)
 {
 	short x0, y0, x1, y1, xt, yt;
-	double m, dy, dx;
+	int dy, dx;
 	unsigned short colour = 0;
  
 	if (lx0 > drawW && lx1 > drawW) return;
@@ -7216,17 +7214,15 @@ static void DrawSoftwareLineFlat(int32_t rgb)
 				dy = y1 - y0;
 			}
 
-			m = dy/dx;
-
-			if (m >= 0)
+			if ((dx >= 0 && dy >= 0) || (dx < 0 && dy < 0))
 			{
-				if (m > 1)
+				if (abs(dy) > abs(dx))
 					Line_S_SE_Flat(x0, y0, x1, y1, colour);
 				else
 					Line_E_SE_Flat(x0, y0, x1, y1, colour);
 			}
 			else
-				if (m < -1)
+				if (abs(dy) > abs(dx))
 					Line_N_NE_Flat(x0, y0, x1, y1, colour);
 				else
 					Line_E_NE_Flat(x0, y0, x1, y1, colour);
