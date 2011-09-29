@@ -1,10 +1,7 @@
 /*
  * (C) Gražvydas "notaz" Ignotas, 2011
  *
- * This work is licensed under the terms of any of these licenses
- * (at your option):
- *  - GNU GPL, version 2 or later.
- *  - GNU LGPL, version 2.1 or later.
+ * This work is licensed under the terms of GNU GPL version 2 or later.
  * See the COPYING file in the top-level directory.
  */
 

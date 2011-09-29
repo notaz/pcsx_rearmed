@@ -190,9 +190,12 @@ static int ari64_init()
 #if !defined(DRC_DBG) && !defined(PCNT)
 #ifdef __arm__
 	gte_handlers[0x06] = gteNCLIP_arm;
+	gte_handlers_nf[0x01] = gteRTPS_nf_arm;
+	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
 #endif
 #ifdef __ARM_NEON__
 	// compiler's _nf version is still a lot slower then neon
+	// _nf_arm RTPS is roughly the same, RTPT slower
 	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
 	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
 	gte_handlers[0x12] = gte_handlers_nf[0x12] = gteMVMVA_neon;
