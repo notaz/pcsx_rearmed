@@ -410,7 +410,7 @@ static void *watchdog_thread(void *unused)
 	int seen_dead = 0;
 	int sleep_time = 5;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(DRC_DBG)
 	// don't interfere with debug
 	return NULL;
 #endif

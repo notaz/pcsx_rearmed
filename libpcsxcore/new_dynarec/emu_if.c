@@ -201,6 +201,9 @@ static int ari64_init()
 	gte_handlers[0x12] = gte_handlers_nf[0x12] = gteMVMVA_neon;
 #endif
 #endif
+#ifdef DRC_DBG
+	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
+#endif
 	psxH_ptr = psxH;
 
 	return 0;

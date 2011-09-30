@@ -8601,7 +8601,7 @@ int new_recompile_block(int addr)
           case 0x04: gte_rt[i]=1ll<<gr; break; // MTC2
           case 0x02: gte_rs[i]=1ll<<(gr+32); // CFC2
             if(gr==31&&!gte_reads_flags) {
-              printf("gte flag read encountered @%08x\n",addr + i*4);
+              assem_debug("gte flag read encountered @%08x\n",addr + i*4);
               gte_reads_flags=1;
             }
             break;

@@ -24,6 +24,7 @@
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
+#include "pcnt.h"
 
 static int fbdev = -1, memdev = -1, battdev = -1;
 static volatile unsigned short *memregs;
@@ -320,6 +321,7 @@ static void raw_flip_dma(int x, int y)
 	int i;
 
 	warm_cache_op_all(WOP_D_CLEAN);
+	pcnt_start(PCNT_BLIT);
 
 	dst &= ~7;
 	len &= ~7;
@@ -354,6 +356,8 @@ static void raw_flip_dma(int x, int y)
 
 	g_menuscreen_ptr = fb_flip();
 	pl_flip_cnt++;
+
+	pcnt_end(PCNT_BLIT);
 }
 
 static void raw_flip_soft(int x, int y)

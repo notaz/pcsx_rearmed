@@ -192,6 +192,9 @@ static void menu_set_defconfig(void)
 	iXAPitch = 0;
 	iSPUIRQWait = 1;
 	iUseTimer = 2;
+#ifndef __ARM_ARCH_7A__ /* XXX */
+	iUseReverb = 0;
+#endif
 
 	menu_sync_config();
 }
