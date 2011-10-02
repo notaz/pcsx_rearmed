@@ -34,6 +34,13 @@ extern const char gte_cycletab[64];
 extern int FCR0, FCR31;
 
 /* mem */
+extern void *mem_rtab;
+extern void *mem_wtab;
+
+void jump_handler_read8(u32 addr, u32 *table, u32 cycles);
+void jump_handler_read16(u32 addr, u32 *table, u32 cycles);
+void jump_handler_read32(u32 addr, u32 *table, u32 cycles);
+
 extern void (*readmem[0x10000])();
 extern void (*readmemb[0x10000])();
 extern void (*readmemh[0x10000])();

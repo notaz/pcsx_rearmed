@@ -1,6 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus - assem_arm.c                                             *
+ *   Mupen64plus/PCSX - assem_arm.c                                        *
  *   Copyright (C) 2009-2011 Ari64                                         *
+ *   Copyright (C) 2010-2011 Gražvydas "notaz" Ignotas                     *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -1324,6 +1325,14 @@ void emit_shlimm(int rs,u_int imm,int rt)
   output_w32(0xe1a00000|rd_rn_rm(rt,0,rs)|(imm<<7));
 }
 
+void emit_lsls_imm(int rs,int imm,int rt)
+{
+  assert(imm>0);
+  assert(imm<32);
+  assem_debug("lsls %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0xe1b00000|rd_rn_rm(rt,0,rs)|(imm<<7));
+}
+
 void emit_shrimm(int rs,u_int imm,int rt)
 {
   assert(imm>0);
@@ -1380,6 +1389,17 @@ void emit_signextend16(int rs,int rt)
   #else
   assem_debug("sxth %s,%s\n",regname[rt],regname[rs]);
   output_w32(0xe6bf0070|rd_rn_rm(rt,0,rs));
+  #endif
+}
+
+void emit_signextend8(int rs,int rt)
+{
+  #ifdef ARMv5_ONLY
+  emit_shlimm(rs,24,rt);
+  emit_sarimm(rt,24,rt);
+  #else
+  assem_debug("sxtb %s,%s\n",regname[rt],regname[rs]);
+  output_w32(0xe6af0070|rd_rn_rm(rt,0,rs));
   #endif
 }
 
@@ -1756,8 +1776,9 @@ void emit_popreg(u_int r)
 }
 void emit_callreg(u_int r)
 {
-  assem_debug("call *%%%s\n",regname[r]);
-  assert(0);
+  assert(r<15);
+  assem_debug("blx %s\n",regname[r]);
+  output_w32(0xe12fff30|r);
 }
 void emit_jmpreg(u_int r)
 {
@@ -1779,6 +1800,31 @@ void emit_readword_dualindexedx4(int rs1, int rs2, int rt)
 {
   assem_debug("ldr %s,%s,%s lsl #2\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe7900000|rd_rn_rm(rt,rs1,rs2)|0x100);
+}
+void emit_ldrcc_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrcc %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x37900000|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_ldrccb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrccb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x37d00000|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_ldrccsb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrccsb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x319000d0|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_ldrcch_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrcch %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x319000b0|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_ldrccsh_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrccsh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x319000f0|rd_rn_rm(rt,rs1,rs2));
 }
 void emit_readword_indexed_tlb(int addr, int rs, int map, int rt)
 {
@@ -2641,6 +2687,76 @@ do_readstub(int n)
     rt=get_reg(i_regmap,rt1[i]);
   }
   assert(rs>=0);
+#ifdef PCSX
+  int r,temp=-1,temp2=HOST_TEMPREG,regs_saved=0,restore_jump=0;
+  reglist|=(1<<rs);
+  for(r=0;r<=12;r++) {
+    if(((1<<r)&0x13ff)&&((1<<r)&reglist)==0) {
+      temp=r; break;
+    }
+  }
+  if(rt>=0)
+    reglist&=~(1<<rt);
+  if(temp==-1) {
+    save_regs(reglist);
+    regs_saved=1;
+    temp=(rs==0)?2:0;
+  }
+  if((regs_saved||(reglist&2)==0)&&temp!=1&&rs!=1)
+    temp2=1;
+  emit_readword((int)&mem_rtab,temp);
+  emit_shrimm(rs,12,temp2);
+  emit_readword_dualindexedx4(temp,temp2,temp2);
+  emit_lsls_imm(temp2,1,temp2);
+  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+    switch(type) {
+      case LOADB_STUB:  emit_ldrccsb_dualindexed(temp2,rs,rt); break;
+      case LOADBU_STUB: emit_ldrccb_dualindexed(temp2,rs,rt); break;
+      case LOADH_STUB:  emit_ldrccsh_dualindexed(temp2,rs,rt); break;
+      case LOADHU_STUB: emit_ldrcch_dualindexed(temp2,rs,rt); break;
+      case LOADW_STUB:  emit_ldrcc_dualindexed(temp2,rs,rt); break;
+    }
+  }
+  if(regs_saved) {
+    restore_jump=(int)out;
+    emit_jcc(0); // jump to reg restore
+  }
+  else
+    emit_jcc(stubs[n][2]); // return address
+
+  if(!regs_saved)
+    save_regs(reglist);
+  int handler=0;
+  if(type==LOADB_STUB||type==LOADBU_STUB)
+    handler=(int)jump_handler_read8;
+  if(type==LOADH_STUB||type==LOADHU_STUB)
+    handler=(int)jump_handler_read16;
+  if(type==LOADW_STUB)
+    handler=(int)jump_handler_read32;
+  assert(handler!=0);
+  if(rs!=0)
+    emit_mov(rs,0);
+  if(temp2!=1)
+    emit_mov(temp2,1);
+  int cc=get_reg(i_regmap,CCREG);
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  emit_call(handler);
+  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+    switch(type) {
+      case LOADB_STUB:  emit_signextend8(0,rt); break;
+      case LOADBU_STUB: emit_andimm(0,0xff,rt); break;
+      case LOADH_STUB:  emit_signextend16(0,rt); break;
+      case LOADHU_STUB: emit_andimm(0,0xffff,rt); break;
+      case LOADW_STUB:  if(rt!=0) emit_mov(0,rt); break;
+    }
+  }
+  if(restore_jump)
+    set_jump_target(restore_jump,(int)out);
+  restore_regs(reglist);
+  emit_jmp(stubs[n][2]); // return address
+#else // !PCSX
   if(addr<0) addr=rt;
   if(addr<0&&itype[i]!=C1LS&&itype[i]!=C2LS&&itype[i]!=LOADLR) addr=get_reg(i_regmap,-1);
   assert(addr>=0);
@@ -2719,7 +2835,37 @@ do_readstub(int n)
     }
   }
   emit_jmp(stubs[n][2]); // return address
+#endif // !PCSX
 }
+
+#ifdef PCSX
+// return memhandler, or get directly accessable address and return 0
+u_int get_direct_memhandler(void *table,u_int addr,int type,u_int *addr_host)
+{
+  u_int l1,l2=0;
+  l1=((u_int *)table)[addr>>12];
+  if((l1&(1<<31))==0) {
+    u_int v=l1<<1;
+    *addr_host=v+addr;
+    return 0;
+  }
+  else {
+    l1<<=1;
+    if(type==LOADB_STUB||type==LOADBU_STUB||type==STOREB_STUB)
+      l2=((u_int *)l1)[0x1000/4 + 0x1000/2 + (addr&0xfff)];
+    else if(type==LOADH_STUB||type==LOADHU_STUB||type==STOREW_STUB)
+      l2=((u_int *)l1)[0x1000/4 + (addr&0xfff)/2];
+    else
+      l2=((u_int *)l1)[(addr&0xfff)/4];
+    if((l2&(1<<31))==0) {
+      u_int v=l2<<1;
+      *addr_host=v+(addr&0xfff);
+      return 0;
+    }
+    return l2<<1;
+  }
+}
+#endif
 
 inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
 {
@@ -2728,6 +2874,63 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   int rt=get_reg(regmap,target);
   if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
+#ifdef PCSX
+  u_int handler,host_addr=0;
+  if(pcsx_direct_read(type,addr,target?rs:-1,rt))
+    return;
+  handler=get_direct_memhandler(mem_rtab,addr,type,&host_addr);
+  if (handler==0) {
+    if(rt<0)
+      return;
+    if(target==0||addr!=host_addr)
+      emit_movimm(host_addr,rs);
+    switch(type) {
+      case LOADB_STUB:  emit_movsbl_indexed(0,rs,rt); break;
+      case LOADBU_STUB: emit_movzbl_indexed(0,rs,rt); break;
+      case LOADH_STUB:  emit_movswl_indexed(0,rs,rt); break;
+      case LOADHU_STUB: emit_movzwl_indexed(0,rs,rt); break;
+      case LOADW_STUB:  emit_readword_indexed(0,rs,rt); break;
+      default:          assert(0);
+    }
+    return;
+  }
+
+  // call a memhandler
+  if(rt>=0)
+    reglist&=~(1<<rt);
+  save_regs(reglist);
+  if(target==0)
+    emit_movimm(addr,0);
+  else if(rs!=0)
+    emit_mov(rs,0);
+  int cc=get_reg(regmap,CCREG);
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  emit_readword((int)&last_count,3);
+  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_add(2,3,3);
+  emit_writeword(3,(int)&Count);
+
+  int offset=(int)handler-(int)out-8;
+  if(offset<-33554432||offset>=33554432) {
+    // unreachable memhandler, a plugin func perhaps
+    emit_movimm(handler,1);
+    emit_callreg(1);
+  }
+  else
+    emit_call(handler);
+  if(rt>=0) {
+    switch(type) {
+      case LOADB_STUB:  emit_signextend8(0,rt); break;
+      case LOADBU_STUB: emit_andimm(0,0xff,rt); break;
+      case LOADH_STUB:  emit_signextend16(0,rt); break;
+      case LOADHU_STUB: emit_andimm(0,0xffff,rt); break;
+      case LOADW_STUB:  if(rt!=0) emit_mov(0,rt); break;
+      default:          assert(0);
+    }
+  }
+  restore_regs(reglist);
+#else // if !PCSX
   int ftable=0;
   if(type==LOADB_STUB||type==LOADBU_STUB)
     ftable=(int)readmemb;
@@ -2740,10 +2943,6 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     ftable=(int)readmemd;
 #endif
   assert(ftable!=0);
-#ifdef PCSX
-  if(pcsx_direct_read(type,addr,target?rs:-1,rt))
-    return;
-#endif
   if(target==0)
     emit_movimm(addr,rs);
   emit_writeword(rs,(int)&address);
@@ -2811,6 +3010,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
       if(rth>=0) emit_readword(((int)&readmem_dword)+4,rth);
     }
   }
+#endif // !PCSX
 }
 
 do_writestub(int n)

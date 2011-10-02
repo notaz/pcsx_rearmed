@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <sys/mman.h>
 #include "../psxhw.h"
 #include "../cdrom.h"
 #include "../mdec.h"
@@ -15,6 +16,7 @@
 //#define memprintf printf
 #define memprintf(...)
 
+static u8 unmapped_mem[0x1000];
 int pcsx_ram_is_ro;
 
 static void read_mem8()
@@ -314,10 +316,142 @@ struct {
 	void *spu_writef;
 } nd_pcsx_io;
 
+static u32 *mem_readtab;
+static u32 *mem_writetab;
+static u32 mem_iortab[(1+2+4) * 0x1000 / 4];
+static u32 mem_iowtab[(1+2+4) * 0x1000 / 4];
+//static u32 mem_unmrtab[(1+2+4) * 0x1000 / 4];
+static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
+
+static void map_item(u32 *out, const void *h, u32 flag)
+{
+	u32 hv = (u32)h;
+	if (hv & 1)
+		fprintf(stderr, "%p has LSB set\n", h);
+	*out = (hv >> 1) | (flag << 31);
+}
+
+// size must be power of 2, at least 4k
+#define map_l1_mem(tab, i, addr, size, base) \
+	map_item(&tab[((addr)>>12) + i], (u8 *)(base) - (u32)(addr) - ((i << 12) & ~(size - 1)), 0)
+
+#define IOMEM32(a) (((a) & 0xfff) / 4)
+#define IOMEM16(a) (0x1000/4 + (((a) & 0xfff) / 2))
+#define IOMEM8(a)  (0x1000/4 + 0x1000/2 + ((a) & 0xfff))
+
 void new_dyna_pcsx_mem_init(void)
 {
 	int i;
+#if 1
+	// have to map these further to keep tcache close to .text
+	mem_readtab = mmap((void *)0x08000000, 0x200000 * 4, PROT_READ | PROT_WRITE,
+		MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (mem_readtab == MAP_FAILED) {
+		fprintf(stderr, "failed to map mem tables\n");
+		exit(1);
+	}
+	mem_writetab = mem_readtab + 0x100000;
 
+	// 1st level lookup:
+	//   0: direct mem
+	//   1: use 2nd lookup
+	// 2nd level lookup:
+	//   0: direct mem variable
+	//   1: memhandler
+
+	// default/unmapped memhandlers
+	for (i = 0; i < 0x100000; i++) {
+		//map_item(&mem_readtab[i], mem_unmrtab, 1);
+		map_l1_mem(mem_readtab, i, 0, 0x1000, unmapped_mem);
+		map_item(&mem_writetab[i], mem_unmwtab, 1);
+	}
+
+	// RAM and it's mirrors
+	for (i = 0; i < (0x800000 >> 12); i++) {
+		map_l1_mem(mem_readtab,  i, 0x80000000, 0x200000, psxM);
+		map_l1_mem(mem_writetab, i, 0x80000000, 0x200000, psxM);
+		map_l1_mem(mem_readtab,  i, 0x00000000, 0x200000, psxM);
+		map_l1_mem(mem_writetab, i, 0x00000000, 0x200000, psxM);
+		map_l1_mem(mem_readtab,  i, 0xa0000000, 0x200000, psxM);
+		map_l1_mem(mem_writetab, i, 0xa0000000, 0x200000, psxM);
+	}
+
+	// stupid BIOS RAM check
+	// TODO
+
+	// BIOS and it's mirrors
+	for (i = 0; i < (0x80000 >> 12); i++) {
+		map_l1_mem(mem_readtab, i, 0x1fc00000, 0x80000, psxR);
+		map_l1_mem(mem_readtab, i, 0xbfc00000, 0x80000, psxR);
+	}
+
+	// scratchpad
+	map_l1_mem(mem_readtab, 0, 0x1f800000, 0x1000, psxH);
+	map_l1_mem(mem_writetab, 0, 0x1f800000, 0x1000, psxH);
+
+	// I/O
+	map_item(&mem_readtab[0x1f801000 >> 12], mem_iortab, 1);
+	map_item(&mem_writetab[0x1f801000 >> 12], mem_iowtab, 1);
+
+	// L2
+	// unmapped tables
+	for (i = 0; i < 0x1000; i++)
+		map_item(&mem_unmwtab[i], write_mem_dummy, 1);
+
+	// fill IO tables
+	for (i = 0; i < 0x1000/4; i++) {
+		map_item(&mem_iortab[i], &psxH[0x1000], 0);
+		map_item(&mem_iowtab[i], &psxH[0x1000], 0);
+	}
+	for (; i < 0x1000/4 + 0x1000/2; i++) {
+		map_item(&mem_iortab[i], &psxH[0x1000], 0);
+		map_item(&mem_iowtab[i], &psxH[0x1000], 0);
+	}
+	for (; i < 0x1000/4 + 0x1000/2 + 0x1000; i++) {
+		map_item(&mem_iortab[i], &psxH[0x1000], 0);
+		map_item(&mem_iowtab[i], &psxH[0x1000], 0);
+	}
+
+	map_item(&mem_iortab[IOMEM32(0x1040)], io_read_sio32, 1);
+	map_item(&mem_iortab[IOMEM32(0x1100)], io_rcnt_read_count0, 1);
+	map_item(&mem_iortab[IOMEM32(0x1104)], io_rcnt_read_mode0, 1);
+	map_item(&mem_iortab[IOMEM32(0x1108)], io_rcnt_read_target0, 1);
+	map_item(&mem_iortab[IOMEM32(0x1110)], io_rcnt_read_count1, 1);
+	map_item(&mem_iortab[IOMEM32(0x1114)], io_rcnt_read_mode1, 1);
+	map_item(&mem_iortab[IOMEM32(0x1118)], io_rcnt_read_target1, 1);
+	map_item(&mem_iortab[IOMEM32(0x1120)], io_rcnt_read_count2, 1);
+	map_item(&mem_iortab[IOMEM32(0x1124)], io_rcnt_read_mode2, 1);
+	map_item(&mem_iortab[IOMEM32(0x1128)], io_rcnt_read_target2, 1);
+//	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
+//	map_item(&mem_iortab[IOMEM32(0x1814)], GPU_readStatus, 1);
+	map_item(&mem_iortab[IOMEM32(0x1820)], mdecRead0, 1);
+	map_item(&mem_iortab[IOMEM32(0x1824)], mdecRead1, 1);
+
+	map_item(&mem_iortab[IOMEM16(0x1040)], io_read_sio16, 1);
+	map_item(&mem_iortab[IOMEM16(0x1044)], sioReadStat16, 1);
+	map_item(&mem_iortab[IOMEM16(0x1048)], sioReadMode16, 1);
+	map_item(&mem_iortab[IOMEM16(0x104a)], sioReadCtrl16, 1);
+	map_item(&mem_iortab[IOMEM16(0x104e)], sioReadBaud16, 1);
+	map_item(&mem_iortab[IOMEM16(0x1100)], io_rcnt_read_count0, 1);
+	map_item(&mem_iortab[IOMEM16(0x1104)], io_rcnt_read_mode0, 1);
+	map_item(&mem_iortab[IOMEM16(0x1108)], io_rcnt_read_target0, 1);
+	map_item(&mem_iortab[IOMEM16(0x1110)], io_rcnt_read_count1, 1);
+	map_item(&mem_iortab[IOMEM16(0x1114)], io_rcnt_read_mode1, 1);
+	map_item(&mem_iortab[IOMEM16(0x1118)], io_rcnt_read_target1, 1);
+	map_item(&mem_iortab[IOMEM16(0x1120)], io_rcnt_read_count2, 1);
+	map_item(&mem_iortab[IOMEM16(0x1124)], io_rcnt_read_mode2, 1);
+	map_item(&mem_iortab[IOMEM16(0x1128)], io_rcnt_read_target2, 1);
+
+	map_item(&mem_iortab[IOMEM8(0x1040)], sioRead8, 1);
+	map_item(&mem_iortab[IOMEM8(0x1800)], cdrRead0, 1);
+	map_item(&mem_iortab[IOMEM8(0x1801)], cdrRead1, 1);
+	map_item(&mem_iortab[IOMEM8(0x1802)], cdrRead2, 1);
+	map_item(&mem_iortab[IOMEM8(0x1803)], cdrRead3, 1);
+
+	mem_rtab = mem_readtab;
+	mem_wtab = mem_writetab;
+#endif
+///
 	// default/unmapped handlers
 	for (i = 0; i < 0x10000; i++) {
 		readmemb[i] = read_mem8;
@@ -383,7 +517,15 @@ void new_dyna_pcsx_mem_init(void)
 
 void new_dyna_pcsx_mem_reset(void)
 {
+	int i;
+
 	// plugins might change so update the pointers
+	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
+	map_item(&mem_iortab[IOMEM32(0x1814)], GPU_readStatus, 1);
+
+	for (i = 0x1c00; i < 0x1e00; i += 2)
+		map_item(&mem_iortab[IOMEM16(i)], SPU_readRegister, 1);
+
 	nd_pcsx_io.spu_readf = SPU_readRegister;
 	nd_pcsx_io.spu_writef = SPU_writeRegister;
 

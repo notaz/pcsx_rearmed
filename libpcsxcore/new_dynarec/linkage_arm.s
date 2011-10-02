@@ -53,6 +53,8 @@ rdram = 0x80000000
 	.global	memory_map
 	/* psx */
 	.global psxRegs
+	.global mem_rtab
+	.global mem_wtab
 	.global nd_pcsx_io
 	.global psxH_ptr
 	.global inv_code_start
@@ -148,8 +150,15 @@ intCycle = interrupt + 4
 	.size	intCycle, 256
 psxRegs_end = intCycle + 256
 
+mem_rtab = psxRegs_end
+	.type	mem_rtab, %object
+	.size	mem_rtab, 4
+mem_wtab = mem_rtab + 4
+	.type	mem_wtab, %object
+	.size	mem_wtab, 4
+
 /* nd_pcsx_io */
-nd_pcsx_io = psxRegs_end
+nd_pcsx_io = mem_wtab + 4
 	.type	nd_pcsx_io, %object
 	.size	nd_pcsx_io, nd_pcsx_io_end-nd_pcsx_io
 tab_read8 = nd_pcsx_io
@@ -189,8 +198,8 @@ inv_code_end = inv_code_start + 4
 	.size	inv_code_end, 4
 align0 = inv_code_end + 4 /* just for alignment */
 	.type	align0, %object
-	.size	align0, 12
-branch_target = align0 + 12
+	.size	align0, 4
+branch_target = align0 + 4
 	.type	branch_target, %object
 	.size	branch_target, 4
 mini_ht = branch_target + 4
@@ -848,6 +857,9 @@ new_dyna_start:
 .global	ari_write_io8
 .global	ari_write_io16
 .global	ari_write_io32
+.global	jump_handler_read8
+.global	jump_handler_read16
+.global	jump_handler_read32
 
 .macro ari_read_ram bic_const op
 	ldr	r0, [fp, #address-dynarec_local]
@@ -1111,5 +1123,37 @@ ari_write_io16:
 
 ari_write_io32:
 	ari_write_io , word, tab_write32, 0
+
+/* */
+
+.macro pcsx_read_mem readop tab_shift
+	/* r0 = address, r1 = handler_tab, r2 = cycles */
+	lsl	r3, r0, #20
+	lsr	r3, #(20+\tab_shift)
+	ldr	r12, [fp, #last_count-dynarec_local]
+	ldr	r1, [r1, r3, lsl #2]
+	add	r2, r2, r12
+	lsls	r1, #1
+.if \tab_shift == 1
+	lsl	r3, #1
+	\readop	r0, [r1, r3]
+.else
+	\readop	r0, [r1, r3, lsl #\tab_shift]
+.endif
+	movcc	pc, lr
+	str	r2, [fp, #cycle-dynarec_local]
+	bx	r1
+.endm
+
+jump_handler_read8:
+	add     r1, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
+	pcsx_read_mem ldrccb, 0
+
+jump_handler_read16:
+	add     r1, #0x1000/4*4              @ shift to r16 part
+	pcsx_read_mem ldrcch, 1
+
+jump_handler_read32:
+	pcsx_read_mem ldrcc, 2
 
 @ vim:filetype=armasm
