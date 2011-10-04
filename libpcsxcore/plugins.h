@@ -206,7 +206,7 @@ typedef struct {
 } SPUFreeze_t;
 typedef long (CALLBACK* SPUfreeze)(uint32_t, SPUFreeze_t *);
 typedef void (CALLBACK* SPUasync)(uint32_t);
-typedef void (CALLBACK* SPUplayCDDAchannel)(short *, int);
+typedef int  (CALLBACK* SPUplayCDDAchannel)(short *, int);
 
 // SPU function pointers
 extern SPUconfigure        SPU_configure;

@@ -347,8 +347,9 @@ void SPUasync(unsigned int cycle)
 {
 }
 
-void SPUplayCDDAchannel(short *pcm, int nbytes)
+int SPUplayCDDAchannel(short *pcm, int nbytes)
 {
+ return -1;
 }
 
 ////////////////////////////////////////////////////////////////////////

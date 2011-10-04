@@ -164,33 +164,13 @@ static void playthread(void *param)
 static void *playthread(void *param)
 #endif
 {
-	long			d, t, i, s;
+	long osleep, d, t, i, s;
 	unsigned char	tmp;
+	int ret = 0;
 
 	t = GetTickCount();
 
 	while (playing) {
-		d = t - (long)GetTickCount();
-		if (d <= 0) {
-			d = 1;
-		}
-		else if (d > CDDA_FRAMETIME) {
-			d = CDDA_FRAMETIME;
-		}
-#ifdef _WIN32
-		Sleep(d);
-#else
-		usleep(d * 1000);
-#endif
-		// HACK: stop feeding data while emu is paused
-		extern int stop;
-		if (stop) {
-			usleep(100000);
-			continue;
-		}
-
-		t = GetTickCount() + CDDA_FRAMETIME;
-
 		s = 0;
 		for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
 			d = cdimg_read_func(cddaHandle, sndbuffer + s, cdda_cur_sector, 0);
@@ -223,8 +203,37 @@ static void *playthread(void *param)
 				}
 			}
 
-			SPU_playCDDAchannel((short *)sndbuffer, s);
+			do {
+				ret = SPU_playCDDAchannel((short *)sndbuffer, s);
+				if (ret == 0x7761)
+					usleep(6 * 1000);
+			} while (ret == 0x7761 && playing); // rearmed_wait
 		}
+
+		if (ret != 0x676f) { // !rearmed_go
+			// do approx sleep
+			long now;
+
+			// HACK: stop feeding data while emu is paused
+			extern int stop;
+			while (stop && playing)
+				usleep(10000);
+
+			now = GetTickCount();
+			osleep = t - now;
+			if (osleep <= 0) {
+				osleep = 1;
+				t = now;
+			}
+			else if (osleep > CDDA_FRAMETIME) {
+				osleep = CDDA_FRAMETIME;
+				t = now;
+			}
+
+			usleep(osleep * 1000);
+			t += CDDA_FRAMETIME;
+		}
+
 	}
 
 #ifdef _WIN32

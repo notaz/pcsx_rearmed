@@ -38,7 +38,7 @@ extern long SPUtest(void);
 extern void SPUabout(void);
 extern long SPUfreeze(unsigned int, void *);
 extern void SPUasync(unsigned int);
-extern void SPUplayCDDAchannel(short *, int);
+extern int  SPUplayCDDAchannel(short *, int);
 
 /* PAD */
 static long PADreadPort1(PadDataS *pad)
@@ -262,7 +262,7 @@ pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1), (a0, a
 pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1), (a0, a1), PCNT_SPU)
 pc_hook_func              (SPU_playADPCMchannel, (void *a0), (a0), PCNT_SPU)
 pc_hook_func              (SPU_async, (unsigned int a0), (a0), PCNT_SPU)
-pc_hook_func              (SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), PCNT_SPU)
+pc_hook_func_ret(int,      SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), PCNT_SPU)
 
 #define hook_it(name) { \
 	o_##name = name; \

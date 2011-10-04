@@ -389,21 +389,29 @@ INLINE void FeedXA(xa_decode_t *xap)
 // FEED CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void FeedCDDA(unsigned char *pcm, int nBytes)
+INLINE int FeedCDDA(unsigned char *pcm, int nBytes)
 {
+ int space;
+ space=(CDDAPlay-CDDAFeed-1)*4 & (CDDA_BUFFER_SIZE - 1);
+ if(space<nBytes)
+  return 0x7761; // rearmed_wait
+
  while(nBytes>0)
   {
    if(CDDAFeed==CDDAEnd) CDDAFeed=CDDAStart;
-   while(CDDAFeed==CDDAPlay-1||
-         (CDDAFeed==CDDAEnd-1&&CDDAPlay==CDDAStart))
-   {
-    if (!iUseTimer) usleep(1000);
-    else return;
-   }
-   *CDDAFeed++=(*pcm | (*(pcm+1)<<8) | (*(pcm+2)<<16) | (*(pcm+3)<<24));
-   nBytes-=4;
-   pcm+=4;
+   space=(CDDAPlay-CDDAFeed-1)*4 & (CDDA_BUFFER_SIZE - 1);
+   if(CDDAFeed+space/4>CDDAEnd)
+    space=(CDDAEnd-CDDAFeed)*4;
+   if(space>nBytes)
+    space=nBytes;
+
+   memcpy(CDDAFeed,pcm,space);
+   CDDAFeed+=space/4;
+   nBytes-=space;
+   pcm+=space;
   }
+
+ return 0x676f; // rearmed_go
 }
 
 #endif

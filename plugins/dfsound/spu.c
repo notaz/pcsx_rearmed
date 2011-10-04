@@ -132,6 +132,8 @@ int lastch=-1;             // last channel processed on spu irq in timer mode
 static int lastns=0;       // last ns pos
 static int iSecureStart=0; // secure start counter
 
+#define CDDA_BUFFER_SIZE (16384 * sizeof(uint32_t)) // must be power of 2
+
 ////////////////////////////////////////////////////////////////////////
 // CODE AREA
 ////////////////////////////////////////////////////////////////////////
@@ -948,12 +950,12 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
 }
 
 // CDDA AUDIO
-void CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes)
+int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes)
 {
- if (!pcm)      return;
- if (nbytes<=0) return;
+ if (!pcm)      return -1;
+ if (nbytes<=0) return -1;
 
- FeedCDDA((unsigned char *)pcm, nbytes);
+ return FeedCDDA((unsigned char *)pcm, nbytes);
 }
 
 // SETUPTIMER: init of certain buffers and threads/timers
@@ -1011,7 +1013,7 @@ void SetupStreams(void)
  XAFeed  = XAStart;
 
  CDDAStart =                                           // alloc cdda buffer
-  (uint32_t *)malloc(16384 * sizeof(uint32_t));
+  (uint32_t *)malloc(CDDA_BUFFER_SIZE);
  CDDAEnd   = CDDAStart + 16384;
  CDDAPlay  = CDDAStart;
  CDDAFeed  = CDDAStart;
