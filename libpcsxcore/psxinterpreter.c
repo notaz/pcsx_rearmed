@@ -39,7 +39,7 @@ static u32 branchPC;
 #define debugI()
 #endif
 
-inline void execI();
+void execI();
 
 // Subsets
 void (*psxBSC[64])();
@@ -408,7 +408,7 @@ static int psxDelayBranchTest(u32 tar1) {
 	return psxDelayBranchExec(tmp2);
 }
 
-__inline void doBranch(u32 tar) {
+static void doBranch(u32 tar) {
 	u32 *code;
 	u32 tmp;
 
@@ -788,7 +788,7 @@ void psxTestSWInts() {
 	}
 }
 
-__inline void MTC0(int reg, u32 val) {
+void MTC0(int reg, u32 val) {
 //	SysPrintf("MTC0 %d: %x\n", reg, val);
 	switch (reg) {
 		case 12: // Status
@@ -928,7 +928,7 @@ static void intShutdown() {
 }
 
 // interpreter execution
-inline void execI() { 
+void execI() {
 	u32 *code = (u32 *)PSXM(psxRegs.pc);
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 

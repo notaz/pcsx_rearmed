@@ -1,7 +1,11 @@
 #CROSS_COMPILE=
-AS = $(CROSS_COMPILE)as
-CC = $(CROSS_COMPILE)gcc
-LD = $(CROSS_COMPILE)ld
+AS  = $(CROSS_COMPILE)as
+GCC = $(CROSS_COMPILE)gcc
+CC  = $(CROSS_COMPILE)gcc
+LD  = $(CROSS_COMPILE)ld
+ifdef CC_OVERRIDE
+CC = $(CC_OVERRIDE)
+endif
 
 ARM926 ?= 0
 ARM_CORTEXA8 ?= 1
@@ -14,7 +18,7 @@ TARGET = pcsx
 
 -include Makefile.local
 
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
+ARCH = $(shell $(GCC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
 LDFLAGS += -lz -lpthread -ldl -lpng
@@ -25,18 +29,19 @@ CFLAGS += $(EXTRA_CFLAGS)
 
 ifeq "$(ARCH)" "arm"
 ifeq "$(ARM_CORTEXA8)" "1"
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+GCC_CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 endif
 ifeq "$(ARM926)" "1"
-CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
+GCC_CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
 ASFLAGS += -mcpu=arm926ej-s
 endif
 endif
+CFLAGS += $(GCC_CFLAGS)
 
 # detect armv7 and NEON from the specified CPU
-HAVE_NEON = $(shell $(CC) -E -dD $(CFLAGS) frontend/config.h | grep -q '__ARM_NEON__ 1' && echo 1)
-HAVE_ARMV7 = $(shell $(CC) -E -dD $(CFLAGS) frontend/config.h | grep -q '__ARM_ARCH_7A__ 1' && echo 1)
+HAVE_NEON = $(shell $(GCC) -E -dD $(GCC_CFLAGS) frontend/config.h | grep -q '__ARM_NEON__ 1' && echo 1)
+HAVE_ARMV7 = $(shell $(GCC) -E -dD $(GCC_CFLAGS) frontend/config.h | grep -q '__ARM_ARCH_7A__ 1' && echo 1)
 
 all: $(TARGET)
 

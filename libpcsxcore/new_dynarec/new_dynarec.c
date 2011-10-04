@@ -21,10 +21,15 @@
 #include <stdlib.h>
 #include <stdint.h> //include for uint64_t
 #include <assert.h>
+#include <sys/mman.h>
 
 #include "emu_if.h" //emulator interface
 
-#include <sys/mman.h>
+//#define DISASM
+//#define assem_debug printf
+//#define inv_debug printf
+#define assem_debug(...)
+#define inv_debug(...)
 
 #ifdef __i386__
 #include "assem_x86.h"
@@ -264,12 +269,6 @@ void load_all_consts(signed char regmap[],int is32,u_int dirty,int i);
 int tracedebug=0;
 
 //#define DEBUG_CYCLE_COUNT 1
-
-void nullf() {}
-//#define assem_debug printf
-//#define inv_debug printf
-#define assem_debug nullf
-#define inv_debug nullf
 
 static void tlb_hacks()
 {
@@ -848,7 +847,7 @@ void alloc_all(struct regstat *cur,int i)
   }
 }
 
-
+#ifndef FORCE32
 void div64(int64_t dividend,int64_t divisor)
 {
   lo=dividend/divisor;
@@ -959,6 +958,7 @@ uint64_t ldr_merge(uint64_t original,uint64_t loaded,u_int bits)
   else original=loaded;
   return original;
 }
+#endif
 
 #ifdef __i386__
 #include "assem_x86.c"
@@ -7787,6 +7787,7 @@ void clean_registers(int istart,int iend,int wr)
   }
 }
 
+#ifdef DISASM
   /* disassembly */
 void disassemble_inst(int i)
 {
@@ -7875,6 +7876,9 @@ void disassemble_inst(int i)
         printf (" %x: %s\n",start+i*4,insn[i]);
     }
 }
+#else
+static void disassemble_inst(int i) {}
+#endif // DISASM
 
 // clear the state completely, instead of just marking
 // things invalid like invalidate_all_pages() does
@@ -10894,9 +10898,9 @@ int new_recompile_block(int addr)
   if(itype[slen-1]==SPAN) {
     bt[slen-1]=1; // Mark as a branch target so instruction can restart after exception
   }
-  
+
+#ifdef DISASM
   /* Debug/disassembly */
-  if((void*)assem_debug==(void*)printf) 
   for(i=0;i<slen;i++)
   {
     printf("U:");
@@ -11112,6 +11116,7 @@ int new_recompile_block(int addr)
 #endif
     }
   }
+#endif // DISASM
 
   /* Pass 8 - Assembly */
   linkcount=0;stubcount=0;
@@ -11144,7 +11149,7 @@ int new_recompile_block(int addr)
   for(i=0;i<slen;i++)
   {
     //if(ds) printf("ds: ");
-    if((void*)assem_debug==(void*)printf) disassemble_inst(i);
+    disassemble_inst(i);
     if(ds) {
       ds=0; // Skip delay slot
       if(bt[i]) assem_debug("OOPS - branch into delay slot\n");

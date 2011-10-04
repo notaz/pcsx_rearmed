@@ -4890,6 +4890,7 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
       }
     }
     else // 64-bit
+#ifndef FORCE32
     {
       if(opcode2[i]==0x1C) // DMULT
       {
@@ -5063,6 +5064,9 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         if(lol>=0) emit_loadreg(LOREG,lol);
       }
     }
+#else
+    assert(0);
+#endif
   }
   else
   {
