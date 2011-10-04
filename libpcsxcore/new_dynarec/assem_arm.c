@@ -2041,6 +2041,21 @@ void emit_writebyte_indexed_tlb(int rt, int addr, int rs, int map, int temp)
     }
   }
 }
+void emit_strcc_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("strcc %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x37800000|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_strccb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("strccb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x37c00000|rd_rn_rm(rt,rs1,rs2));
+}
+void emit_strcch_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("strcch %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0x318000b0|rd_rn_rm(rt,rs1,rs2));
+}
 void emit_writeword(int rt, int addr)
 {
   u_int offset = addr-(u_int)&dynarec_local;
@@ -2665,6 +2680,23 @@ emit_extjump_ds(int addr, int target)
 #include "pcsxmem_inline.c"
 #endif
 
+// trashes r2
+static void pass_args(int a0, int a1)
+{
+  if(a0==1&&a1==0) {
+    // must swap
+    emit_mov(a0,2); emit_mov(a1,1); emit_mov(2,0);
+  }
+  else if(a0!=0&&a1==0) {
+    emit_mov(a1,1);
+    if (a0>=0) emit_mov(a0,0);
+  }
+  else {
+    if(a0>=0&&a0!=0) emit_mov(a0,0);
+    if(a1>=0&&a1!=1) emit_mov(a1,1);
+  }
+}
+
 do_readstub(int n)
 {
   assem_debug("do_readstub %x\n",start+stubs[n][3]*4);
@@ -2734,10 +2766,7 @@ do_readstub(int n)
   if(type==LOADW_STUB)
     handler=(int)jump_handler_read32;
   assert(handler!=0);
-  if(rs!=0)
-    emit_mov(rs,0);
-  if(temp2!=1)
-    emit_mov(temp2,1);
+  pass_args(rs,temp2);
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
@@ -2853,7 +2882,7 @@ u_int get_direct_memhandler(void *table,u_int addr,int type,u_int *addr_host)
     l1<<=1;
     if(type==LOADB_STUB||type==LOADBU_STUB||type==STOREB_STUB)
       l2=((u_int *)l1)[0x1000/4 + 0x1000/2 + (addr&0xfff)];
-    else if(type==LOADH_STUB||type==LOADHU_STUB||type==STOREW_STUB)
+    else if(type==LOADH_STUB||type==LOADHU_STUB||type==STOREH_STUB)
       l2=((u_int *)l1)[0x1000/4 + (addr&0xfff)/2];
     else
       l2=((u_int *)l1)[(addr&0xfff)/4];
@@ -3036,6 +3065,68 @@ do_writestub(int n)
   }
   assert(rs>=0);
   assert(rt>=0);
+#ifdef PCSX
+  int rtmp,temp=-1,temp2=HOST_TEMPREG,regs_saved=0,restore_jump=0,ra;
+  int reglist2=reglist|(1<<rs)|(1<<rt);
+  for(rtmp=0;rtmp<=12;rtmp++) {
+    if(((1<<rtmp)&0x13ff)&&((1<<rtmp)&reglist2)==0) {
+      temp=rtmp; break;
+    }
+  }
+  if(temp==-1) {
+    save_regs(reglist);
+    regs_saved=1;
+    for(rtmp=0;rtmp<=3;rtmp++)
+      if(rtmp!=rs&&rtmp!=rt)
+        {temp=rtmp;break;}
+  }
+  if((regs_saved||(reglist2&8)==0)&&temp!=3&&rs!=3&&rt!=3)
+    temp2=3;
+  emit_readword((int)&mem_wtab,temp);
+  emit_shrimm(rs,12,temp2);
+  emit_readword_dualindexedx4(temp,temp2,temp2);
+  emit_lsls_imm(temp2,1,temp2);
+  switch(type) {
+    case STOREB_STUB: emit_strccb_dualindexed(temp2,rs,rt); break;
+    case STOREH_STUB: emit_strcch_dualindexed(temp2,rs,rt); break;
+    case STOREW_STUB: emit_strcc_dualindexed(temp2,rs,rt); break;
+    default:          assert(0);
+  }
+  if(regs_saved) {
+    restore_jump=(int)out;
+    emit_jcc(0); // jump to reg restore
+  }
+  else
+    emit_jcc(stubs[n][2]); // return address (invcode check)
+
+  if(!regs_saved)
+    save_regs(reglist);
+  int handler=0;
+  switch(type) {
+    case STOREB_STUB: handler=(int)jump_handler_write8; break;
+    case STOREH_STUB: handler=(int)jump_handler_write16; break;
+    case STOREW_STUB: handler=(int)jump_handler_write32; break;
+  }
+  assert(handler!=0);
+  pass_args(rs,rt);
+  if(temp2!=3)
+    emit_mov(temp2,3);
+  int cc=get_reg(i_regmap,CCREG);
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  // returns new cycle_count
+  emit_call(handler);
+  emit_addimm(0,-CLOCK_DIVIDER*stubs[n][6]-2,cc<0?2:cc);
+  if(cc<0)
+    emit_storereg(CCREG,2);
+  if(restore_jump)
+    set_jump_target(restore_jump,(int)out);
+  restore_regs(reglist);
+  ra=stubs[n][2];
+  if(!restore_jump) ra+=4*3; // skip invcode check
+  emit_jmp(ra);
+#else // if !PCSX
   if(addr<0) addr=get_reg(i_regmap,-1);
   assert(addr>=0);
   int ftable=0;
@@ -3107,6 +3198,7 @@ do_writestub(int n)
   //  emit_loadreg(CCREG,cc);
   //}
   emit_jmp(stubs[n][2]); // return address
+#endif // !PCSX
 }
 
 inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
@@ -3117,9 +3209,39 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   assert(rs>=0);
   assert(rt>=0);
 #ifdef PCSX
+  u_int handler,host_addr=0;
   if(pcsx_direct_write(type,addr,rs,rt,regmap))
     return;
-#endif
+  handler=get_direct_memhandler(mem_wtab,addr,type,&host_addr);
+  if (handler==0) {
+    if(target==0||addr!=host_addr)
+      emit_movimm(host_addr,rs);
+    switch(type) {
+      case STOREB_STUB: emit_writebyte_indexed(rt,0,rs); break;
+      case STOREH_STUB: emit_writehword_indexed(rt,0,rs); break;
+      case STOREW_STUB: emit_writeword_indexed(rt,0,rs); break;
+      default:          assert(0);
+    }
+    return;
+  }
+
+  // call a memhandler
+  save_regs(reglist);
+  pass_args(target!=0?rs:-1,rt);
+  if(target==0)
+    emit_movimm(addr,0);
+  int cc=get_reg(regmap,CCREG);
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_movimm(handler,3);
+  // returns new cycle_count
+  emit_call((int)jump_handler_write_h);
+  emit_addimm(0,-CLOCK_DIVIDER*(adj+1),cc<0?2:cc);
+  if(cc<0)
+    emit_storereg(CCREG,2);
+  restore_regs(reglist);
+#else // if !pcsx
   int ftable=0;
   if(type==STOREB_STUB)
     ftable=(int)writememb;
@@ -3194,6 +3316,7 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   }
   //emit_popa();
   restore_regs(reglist);
+#endif
 }
 
 do_unalignedwritestub(int n)
@@ -3217,6 +3340,21 @@ do_unalignedwritestub(int n)
   reglist|=(1<<addr);
   reglist&=~(1<<temp2);
 
+#if 1
+  // don't bother with it and call write handler
+  save_regs(reglist);
+  pass_args(addr,rt);
+  int cc=get_reg(i_regmap,CCREG);
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  emit_call((int)(opcode[i]==0x2a?jump_handle_swl:jump_handle_swr));
+  emit_addimm(0,-CLOCK_DIVIDER*stubs[n][6]-2,cc<0?2:cc);
+  if(cc<0)
+    emit_storereg(CCREG,2);
+  restore_regs(reglist);
+  emit_jmp(stubs[n][2]); // return address
+#else
   emit_andimm(addr,0xfffffffc,temp2);
   emit_writeword(temp2,(int)&address);
 
@@ -3279,6 +3417,7 @@ do_unalignedwritestub(int n)
   }
   restore_regs(reglist);
   emit_jmp(stubs[n][2]); // return address
+#endif
 }
 
 void printregs(int edi,int esi,int ebp,int esp,int b,int d,int c,int a)

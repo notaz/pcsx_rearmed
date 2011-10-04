@@ -3288,6 +3288,14 @@ void store_assemble(int i,struct regstat *i_regs)
     }
     type=STORED_STUB;
   }
+#ifdef PCSX
+  if(jaddr) {
+    // PCSX store handlers don't check invcode again
+    reglist|=1<<addr;
+    add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+    jaddr=0;
+  }
+#endif
   if(!using_tlb) {
     if(!c||memtarget) {
       #ifdef DESTRUCTIVE_SHIFT
@@ -11456,10 +11464,12 @@ int new_recompile_block(int addr)
   }
   inv_code_start=inv_code_end=~0;
 #ifdef PCSX
-  // PCSX maps all RAM mirror invalid_code tests to 0x80000000..0x80000000+RAM_SIZE
+  // for PCSX we need to mark all mirrors too
   if(get_page(start)<(RAM_SIZE>>12))
     for(i=start>>12;i<=(start+slen*4)>>12;i++)
-      invalid_code[((u_int)0x80000000>>12)|i]=0;
+      invalid_code[((u_int)0x00000000>>12)|(i&0x1ff)]=
+      invalid_code[((u_int)0x80000000>>12)|(i&0x1ff)]=
+      invalid_code[((u_int)0xa0000000>>12)|(i&0x1ff)]=0;
 #endif
   
   /* Pass 10 - Free memory by expiring oldest blocks */

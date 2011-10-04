@@ -860,6 +860,12 @@ new_dyna_start:
 .global	jump_handler_read8
 .global	jump_handler_read16
 .global	jump_handler_read32
+.global	jump_handler_write8
+.global	jump_handler_write16
+.global	jump_handler_write32
+.global	jump_handler_write_h
+.global jump_handle_swl
+.global jump_handle_swr
 
 .macro ari_read_ram bic_const op
 	ldr	r0, [fp, #address-dynarec_local]
@@ -1155,5 +1161,123 @@ jump_handler_read16:
 
 jump_handler_read32:
 	pcsx_read_mem ldrcc, 2
+
+
+.macro pcsx_write_mem wrtop tab_shift
+	/* r0 = address, r1 = data, r2 = cycles, r3 = handler_tab */
+	lsl	r12,r0, #20
+	lsr	r12, #(20+\tab_shift)
+	ldr	r3, [r3, r12, lsl #2]
+	str	r0, [fp, #address-dynarec_local]      @ some handlers still need it..
+	lsls	r3, #1
+	mov     r0, r2                                @ cycle return in case of direct store
+.if \tab_shift == 1
+	lsl	r12, #1
+	\wrtop	r1, [r3, r12]
+.else
+	\wrtop	r1, [r3, r12, lsl #\tab_shift]
+.endif
+	movcc	pc, lr
+	ldr	r12, [fp, #last_count-dynarec_local]
+	mov     r0, r1
+	add	r2, r2, r12
+	push	{r2, lr}
+	str	r2, [fp, #cycle-dynarec_local]
+	blx	r3
+
+	ldr	r0, [fp, #next_interupt-dynarec_local]
+	pop	{r2, r3}
+	str	r0, [fp, #last_count-dynarec_local]
+	sub	r0, r2, r0
+	bx	r3
+.endm
+
+jump_handler_write8:
+	add     r3, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
+	pcsx_write_mem strccb, 0
+
+jump_handler_write16:
+	add     r3, #0x1000/4*4              @ shift to r16 part
+	pcsx_write_mem strcch, 1
+
+jump_handler_write32:
+	pcsx_write_mem strcc, 2
+
+jump_handler_write_h:
+	/* r0 = address, r1 = data, r2 = cycles, r3 = handler */
+	ldr	r12, [fp, #last_count-dynarec_local]
+	str	r0, [fp, #address-dynarec_local]      @ some handlers still need it..
+	add	r2, r2, r12
+	mov     r0, r1
+	push	{r2, lr}
+	str	r2, [fp, #cycle-dynarec_local]
+	blx	r3
+
+	ldr	r0, [fp, #next_interupt-dynarec_local]
+	pop	{r2, r3}
+	str	r0, [fp, #last_count-dynarec_local]
+	sub	r0, r2, r0
+	bx	r3
+
+jump_handle_swl:
+	/* r0 = address, r1 = data, r2 = cycles */
+	ldr	r3, [fp, #mem_wtab-dynarec_local]
+	mov	r12,r0,lsr #12
+	ldr	r3, [r3, r12, lsl #2]
+	lsls	r3, #1
+	bcs	4f
+	add	r3, r0, r3
+	mov	r0, r2
+	tst	r3, #2
+	beq	101f
+	tst	r3, #1
+	beq	2f
+3:
+	str	r1, [r3, #-3]
+	bx	lr
+2:
+	lsr	r2, r1, #8
+	lsr	r1, #24
+	strh	r2, [r3, #-2]
+	strb	r1, [r3]
+	bx	lr
+101:
+	tst	r3, #1
+	lsrne	r1, #16		@ 1
+	lsreq	r12, r1, #24	@ 0
+	strneh	r1, [r3, #-1]
+	streqb	r12, [r3]
+	bx	lr
+4:
+	mov	r0, r2
+	b	abort
+	bx	lr		@ TODO?
+
+
+jump_handle_swr:
+	/* r0 = address, r1 = data, r2 = cycles */
+	ldr	r3, [fp, #mem_wtab-dynarec_local]
+	mov	r12,r0,lsr #12
+	ldr	r3, [r3, r12, lsl #2]
+	lsls	r3, #1
+	bcs	4f
+	add	r3, r0, r3
+	and	r12,r3, #3
+	mov	r0, r2
+	cmp	r12,#2
+	strgtb	r1, [r3]	@ 3
+	streqh	r1, [r3]	@ 2
+	cmp	r12,#1
+	strlt	r1, [r3]	@ 0
+	bxne	lr
+	lsr	r2, r1, #8	@ 1
+	strb	r1, [r3]
+	strh	r2, [r3, #1]
+	bx	lr
+4:
+	mov	r0, r2
+	b	abort
+	bx	lr		@ TODO?
+
 
 @ vim:filetype=armasm

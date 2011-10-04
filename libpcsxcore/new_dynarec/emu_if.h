@@ -40,6 +40,12 @@ extern void *mem_wtab;
 void jump_handler_read8(u32 addr, u32 *table, u32 cycles);
 void jump_handler_read16(u32 addr, u32 *table, u32 cycles);
 void jump_handler_read32(u32 addr, u32 *table, u32 cycles);
+void jump_handler_write8(u32 addr, u32 data, u32 cycles, u32 *table);
+void jump_handler_write16(u32 addr, u32 data, u32 cycles, u32 *table);
+void jump_handler_write32(u32 addr, u32 data, u32 cycles, u32 *table);
+void jump_handler_write_h(u32 addr, u32 data, u32 cycles, void *handler);
+void jump_handle_swl(u32 addr, u32 data, u32 cycles);
+void jump_handle_swr(u32 addr, u32 data, u32 cycles);
 
 extern void (*readmem[0x10000])();
 extern void (*readmemb[0x10000])();
