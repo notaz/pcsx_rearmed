@@ -222,9 +222,10 @@ INLINE void InterpolateUp(int ch)
    s_chan[ch].SB[32]=0;
 
    s_chan[ch].SB[28]=(s_chan[ch].SB[28]*s_chan[ch].sinc)/0x20000L;
-   if(s_chan[ch].sinc<=0x8000)
-        s_chan[ch].SB[29]=s_chan[ch].SB[30]-(s_chan[ch].SB[28]*((0x10000/s_chan[ch].sinc)-1));
-   else s_chan[ch].SB[29]+=s_chan[ch].SB[28];
+   //if(s_chan[ch].sinc<=0x8000)
+   //     s_chan[ch].SB[29]=s_chan[ch].SB[30]-(s_chan[ch].SB[28]*((0x10000/s_chan[ch].sinc)-1));
+   //else
+   s_chan[ch].SB[29]+=s_chan[ch].SB[28];
   }
  else                                                  // no flags? add bigger val (if possible), calc smaller step, set flag1
   s_chan[ch].SB[29]+=s_chan[ch].SB[28];
