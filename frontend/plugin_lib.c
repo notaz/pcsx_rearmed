@@ -264,7 +264,7 @@ void pl_update_gun(int *xn, int *xres, int *y, int *in)
 void pl_frame_limit(void)
 {
 	static struct timeval tv_old, tv_expect;
-	static int vsync_cnt_prev;
+	static int vsync_cnt_prev, drc_active_vsyncs;
 	struct timeval now;
 	int diff, usadj;
 
@@ -333,6 +333,17 @@ void pl_frame_limit(void)
 			pl_rearmed_cbs.fskip_advice = 1;
 		else if (diff >= 0)
 			pl_rearmed_cbs.fskip_advice = 0;
+
+		// recompilation is not that fast and may cause frame skip on
+		// loading screens and such, resulting in flicker or glitches
+		if (new_dynarec_did_compile) {
+			if (drc_active_vsyncs < 32)
+				pl_rearmed_cbs.fskip_advice = 0;
+			drc_active_vsyncs++;
+		}
+		else
+			drc_active_vsyncs = 0;
+		new_dynarec_did_compile = 0;
 	}
 
 	pcnt_start(PCNT_ALL);

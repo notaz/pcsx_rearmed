@@ -136,6 +136,7 @@ struct ll_entry
   static const u_int using_tlb=0;
 #endif
   static u_int sp_in_mirror;
+  int new_dynarec_did_compile;
   u_int stop_after_jal;
   extern u_char restore_candidate[512];
   extern int cycle_count;
@@ -8011,6 +8012,7 @@ int new_recompile_block(int addr)
   //rlist();
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
+  new_dynarec_did_compile=1;
 #ifdef PCSX
   if(!sp_in_mirror&&(signed int)(psxRegs.GPR.n.sp&0xffe00000)>0x80200000&&
      0x10000<=psxRegs.GPR.n.sp&&(psxRegs.GPR.n.sp&~0xe0e00000)<RAM_SIZE) {

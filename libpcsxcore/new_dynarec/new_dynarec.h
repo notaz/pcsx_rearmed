@@ -3,6 +3,7 @@
 extern int pcaddr;
 extern int pending_exception;
 extern int stop;
+extern int new_dynarec_did_compile;
 
 void new_dynarec_init();
 void new_dynarec_cleanup();
