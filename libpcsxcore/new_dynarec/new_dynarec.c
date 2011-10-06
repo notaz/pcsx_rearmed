@@ -1391,8 +1391,6 @@ void mov_alloc(struct regstat *current,int i)
 
 void shiftimm_alloc(struct regstat *current,int i)
 {
-  clear_const(current,rs1[i]);
-  clear_const(current,rt1[i]);
   if(opcode2[i]<=0x3) // SLL/SRL/SRA
   {
     if(rt1[i]) {
@@ -1401,8 +1399,21 @@ void shiftimm_alloc(struct regstat *current,int i)
       alloc_reg(current,i,rt1[i]);
       current->is32|=1LL<<rt1[i];
       dirty_reg(current,rt1[i]);
+      if(is_const(current,rs1[i])) {
+        int v=get_const(current,rs1[i]);
+        if(opcode2[i]==0x00) set_const(current,rt1[i],v<<imm[i]);
+        if(opcode2[i]==0x02) set_const(current,rt1[i],(u_int)v>>imm[i]);
+        if(opcode2[i]==0x03) set_const(current,rt1[i],v>>imm[i]);
+      }
+      else clear_const(current,rt1[i]);
     }
   }
+  else
+  {
+    clear_const(current,rs1[i]);
+    clear_const(current,rt1[i]);
+  }
+
   if(opcode2[i]>=0x38&&opcode2[i]<=0x3b) // DSLL/DSRL/DSRA
   {
     if(rt1[i]) {
@@ -2688,7 +2699,7 @@ void shiftimm_assemble(int i,struct regstat *i_regs)
       t=get_reg(i_regs->regmap,rt1[i]);
       s=get_reg(i_regs->regmap,rs1[i]);
       //assert(t>=0);
-      if(t>=0){
+      if(t>=0&&!((i_regs->isconst>>t)&1)){
         if(rs1[i]==0)
         {
           emit_zeroreg(t);
