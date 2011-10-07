@@ -68,18 +68,19 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-	psxM = mmap((void *)0x80000000, 0x00220000,
+	psxM = mmap((void *)0x80000000, 0x00210000,
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	psxP = &psxM[0x200000];
-	psxH = &psxM[0x210000];
+	psxH = mmap((void *)0x1f800000, 0x00010000,
+		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	psxR = mmap((void *)0x9fc00000, 0x80000,
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
 		psxM != (void *)0x80000000 || psxR != (void *)0x9fc00000 ||
-		psxP == NULL || psxH == NULL) {
+		psxP == NULL || psxH != (void *)0x1f800000) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;
 	}

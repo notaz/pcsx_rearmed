@@ -1134,7 +1134,6 @@ void emit_addimm(u_int rs,int imm,u_int rt)
   assert(rs<16);
   assert(rt<16);
   if(imm!=0) {
-    assert(imm>-65536&&imm<65536);
     u_int armval;
     if(genimm(imm,&armval)) {
       assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],imm);
@@ -1143,11 +1142,13 @@ void emit_addimm(u_int rs,int imm,u_int rt)
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],imm);
       output_w32(0xe2400000|rd_rn_rm(rt,rs,0)|armval);
     }else if(imm<0) {
+      assert(imm>-65536);
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],(-imm)&0xFF00);
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rt],(-imm)&0xFF);
       output_w32(0xe2400000|rd_rn_imm_shift(rt,rs,(-imm)>>8,8));
       output_w32(0xe2400000|rd_rn_imm_shift(rt,rt,(-imm)&0xff,0));
     }else{
+      assert(imm<65536);
       assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],imm&0xFF00);
       assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
       output_w32(0xe2800000|rd_rn_imm_shift(rt,rs,imm>>8,8));
@@ -3698,6 +3699,182 @@ void shift_assemble_arm(int i,struct regstat *i_regs)
     }
   }
 }
+
+#ifdef PCSX
+static void speculate_mov(int rs,int rt)
+{
+  if(rt!=0) {
+    smrv_strong_next|=1<<rt;
+    smrv[rt]=smrv[rs];
+  }
+}
+
+static void speculate_mov_weak(int rs,int rt)
+{
+  if(rt!=0) {
+    smrv_weak_next|=1<<rt;
+    smrv[rt]=smrv[rs];
+  }
+}
+
+static void speculate_register_values(int i)
+{
+  if(i==0) {
+    memcpy(smrv,psxRegs.GPR.r,sizeof(smrv));
+    // gp,sp are likely to stay the same throughout the block
+    smrv_strong_next=(1<<28)|(1<<29)|(1<<30);
+    smrv_weak_next=~smrv_strong_next;
+    //printf(" llr %08x\n", smrv[4]);
+  }
+  smrv_strong=smrv_strong_next;
+  smrv_weak=smrv_weak_next;
+  switch(itype[i]) {
+    case ALU:
+      if     ((smrv_strong>>rs1[i])&1) speculate_mov(rs1[i],rt1[i]);
+      else if((smrv_strong>>rs2[i])&1) speculate_mov(rs2[i],rt1[i]);
+      else if((smrv_weak>>rs1[i])&1) speculate_mov_weak(rs1[i],rt1[i]);
+      else if((smrv_weak>>rs2[i])&1) speculate_mov_weak(rs2[i],rt1[i]);
+      else {
+        smrv_strong_next&=~(1<<rt1[i]);
+        smrv_weak_next&=~(1<<rt1[i]);
+      }
+      break;
+    case SHIFTIMM:
+      smrv_strong_next&=~(1<<rt1[i]);
+      smrv_weak_next&=~(1<<rt1[i]);
+      // fallthrough
+    case IMM16:
+      if(rt1[i]&&is_const(&regs[i],rt1[i])) {
+        int value,hr=get_reg(regs[i].regmap,rt1[i]);
+        if(hr>=0) {
+          if(get_final_value(hr,i,&value))
+               smrv[rt1[i]]=value;
+          else smrv[rt1[i]]=constmap[i][hr];
+          smrv_strong_next|=1<<rt1[i];
+        }
+      }
+      else {
+        if     ((smrv_strong>>rs1[i])&1) speculate_mov(rs1[i],rt1[i]);
+        else if((smrv_weak>>rs1[i])&1) speculate_mov_weak(rs1[i],rt1[i]);
+      }
+      break;
+    case LOAD:
+      if(start<0x2000&&(rt1[i]==26||(smrv[rt1[i]]>>24)==0xa0)) {
+        // special case for BIOS
+        smrv[rt1[i]]=0xa0000000;
+        smrv_strong_next|=1<<rt1[i];
+        break;
+      }
+      // fallthrough
+    case SHIFT:
+    case LOADLR:
+    case MOV:
+      smrv_strong_next&=~(1<<rt1[i]);
+      smrv_weak_next&=~(1<<rt1[i]);
+      break;
+    case COP0:
+    case COP2:
+      if(opcode2[i]==0||opcode2[i]==2) { // MFC/CFC
+        smrv_strong_next&=~(1<<rt1[i]);
+        smrv_weak_next&=~(1<<rt1[i]);
+      }
+      break;
+    case C2LS:
+      if (opcode[i]==0x32) { // LWC2
+        smrv_strong_next&=~(1<<rt1[i]);
+        smrv_weak_next&=~(1<<rt1[i]);
+      }
+      break;
+  }
+#if 0
+  int r=4;
+  printf("x %08x %08x %d %d c %08x %08x\n",smrv[r],start+i*4,
+    ((smrv_strong>>r)&1),(smrv_weak>>r)&1,regs[i].isconst,regs[i].wasconst);
+#endif
+}
+
+enum {
+  MTYPE_8000 = 0,
+  MTYPE_8020,
+  MTYPE_0000,
+  MTYPE_A000,
+  MTYPE_1F80,
+};
+
+static int get_ptr_mem_type(u_int a)
+{
+  if(a < 0x00200000) {
+    if(a<0x1000&&((start>>20)==0xbfc||(start>>24)==0xa0))
+      // return wrong, must use memhandler for BIOS self-test to pass
+      // 007 does similar stuff from a00 mirror, weird stuff
+      return MTYPE_8000;
+    return MTYPE_0000;
+  }
+  if(0x1f800000 <= a && a < 0x1f801000)
+    return MTYPE_1F80;
+  if(0x80200000 <= a && a < 0x80800000)
+    return MTYPE_8020;
+  if(0xa0000000 <= a && a < 0xa0200000)
+    return MTYPE_A000;
+  return MTYPE_8000;
+}
+#endif
+
+static int emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
+{
+  int jaddr,type=0;
+
+#ifdef PCSX
+  int mr=rs1[i];
+  if(((smrv_strong|smrv_weak)>>mr)&1) {
+    type=get_ptr_mem_type(smrv[mr]);
+    //printf("set %08x @%08x r%d %d\n", smrv[mr], start+i*4, mr, type);
+  }
+  else {
+    // use the mirror we are running on
+    type=get_ptr_mem_type(start);
+    //printf("set nospec   @%08x r%d %d\n", start+i*4, mr, type);
+  }
+
+  if(type==MTYPE_8020) { // RAM 80200000+ mirror
+    emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
+    addr=*addr_reg_override=HOST_TEMPREG;
+    type=0;
+  }
+  else if(type==MTYPE_0000) { // RAM 0 mirror
+    emit_orimm(addr,0x80000000,HOST_TEMPREG);
+    addr=*addr_reg_override=HOST_TEMPREG;
+    type=0;
+  }
+  else if(type==MTYPE_A000) { // RAM A mirror
+    emit_andimm(addr,~0x20000000,HOST_TEMPREG);
+    addr=*addr_reg_override=HOST_TEMPREG;
+    type=0;
+  }
+  else if(type==MTYPE_1F80) { // scratchpad
+    emit_addimm(addr,-0x1f800000,HOST_TEMPREG);
+    emit_cmpimm(HOST_TEMPREG,0x1000);
+    jaddr=(int)out;
+    emit_jc(0);
+  }
+#endif
+
+  if(type==0)
+  {
+    emit_cmpimm(addr,RAM_SIZE);
+    jaddr=(int)out;
+    #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
+    // Hint to branch predictor that the branch is unlikely to be taken
+    if(rs1[i]>=28)
+      emit_jno_unlikely(0);
+    else
+    #endif
+      emit_jno(0);
+  }
+
+  return jaddr;
+}
+
 #define shift_assemble shift_assemble_arm
 
 void loadlr_assemble_arm(int i,struct regstat *i_regs)
@@ -3706,6 +3883,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
   int offset;
   int jaddr=0;
   int memtarget=0,c=0;
+  int fastload_reg_override=0;
   u_int hr,reglist=0;
   th=get_reg(i_regs->regmap,rt1[i]|64);
   tl=get_reg(i_regs->regmap,rt1[i]);
@@ -3740,9 +3918,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
       }else{
         emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
       }
-      emit_cmpimm(addr,RAM_SIZE);
-      jaddr=(int)out;
-      emit_jno(0);
+      jaddr=emit_fastpath_cmp_jump(i,temp2,&fastload_reg_override);
     }
     else {
       if (opcode[i]==0x22||opcode[i]==0x26) {
@@ -3775,8 +3951,10 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
   }
   if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
     if(!c||memtarget) {
+      int a=temp2;
+      if(fastload_reg_override) a=fastload_reg_override;
       //emit_readword_indexed((int)rdram-0x80000000,temp2,temp2);
-      emit_readword_indexed_tlb(0,temp2,map,temp2);
+      emit_readword_indexed_tlb(0,a,map,temp2);
       if(jaddr) add_stub(LOADW_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
     }
     else
@@ -3803,7 +3981,7 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
     //emit_storereg(rt1[i],tl); // DEBUG
   }
   if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
-    // FIXME: little endian
+    // FIXME: little endian, fastload_reg_override
     int temp2h=get_reg(i_regs->regmap,FTEMP|64);
     if(!c||memtarget) {
       //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,temp2,temp2h);

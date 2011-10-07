@@ -89,6 +89,11 @@ struct ll_entry
   static uint64_t gte_rt[MAXBLOCK];
   static uint64_t gte_unneeded[MAXBLOCK];
   static int gte_reads_flags; // gte flag read encountered
+  static u_int smrv[32]; // speculated MIPS register values
+  static u_int smrv_strong; // mask or regs that are likely to have correct values
+  static u_int smrv_weak; // same, but somewhat less likely
+  static u_int smrv_strong_next; // same, but after current insn executes
+  static u_int smrv_weak_next;
   int imm[MAXBLOCK];
   u_int ba[MAXBLOCK];
   char likely[MAXBLOCK];
@@ -135,7 +140,6 @@ struct ll_entry
 #else
   static const u_int using_tlb=0;
 #endif
-  static u_int sp_in_mirror;
   int new_dynarec_did_compile;
   u_int stop_after_jal;
   extern u_char restore_candidate[512];
@@ -2893,23 +2897,7 @@ void load_assemble(int i,struct regstat *i_regs)
       if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
       #endif
       {
-        #ifdef PCSX
-        if(sp_in_mirror&&rs1[i]==29) {
-          emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
-          emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
-          fastload_reg_override=HOST_TEMPREG;
-        }
-        else
-        #endif
-        emit_cmpimm(addr,RAM_SIZE);
-        jaddr=(int)out;
-        #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
-        // Hint to branch predictor that the branch is unlikely to be taken
-        if(rs1[i]>=28)
-          emit_jno_unlikely(0);
-        else
-        #endif
-        emit_jno(0);
+        jaddr=emit_fastpath_cmp_jump(i,addr,&fastload_reg_override);
       }
     }
   }else{ // using tlb
@@ -3194,14 +3182,7 @@ void store_assemble(int i,struct regstat *i_regs)
   else addr=s;
   if(!using_tlb) {
     if(!c) {
-      #ifdef PCSX
-      if(sp_in_mirror&&rs1[i]==29) {
-        emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
-        emit_cmpimm(HOST_TEMPREG,RAM_SIZE);
-        faststore_reg_override=HOST_TEMPREG;
-      }
-      else
-      #endif
+      #ifndef PCSX
       #ifdef R29_HACK
       // Strmnnrmn's speed hack
       if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
@@ -3224,6 +3205,9 @@ void store_assemble(int i,struct regstat *i_regs)
         #endif
         emit_jno(0);
       }
+      #else
+        jaddr=emit_fastpath_cmp_jump(i,addr,&faststore_reg_override);
+      #endif
     }
   }else{ // using tlb
     int x=0;
@@ -3815,6 +3799,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   int memtarget=0,c=0;
   int jaddr2=0,jaddr3,type;
   int agr=AGEN1+(i&1);
+  int fastio_reg_override=0;
   u_int hr,reglist=0;
   u_int copr=(source[i]>>16)&0x1f;
   s=get_reg(i_regs->regmap,rs1[i]);
@@ -3856,22 +3841,24 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   }
   else {
     if(!c) {
-      emit_cmpimm(offset||c||s<0?ar:s,RAM_SIZE);
-      jaddr2=(int)out;
-      emit_jno(0);
+      jaddr2=emit_fastpath_cmp_jump(i,ar,&fastio_reg_override);
     }
     if (opcode[i]==0x32) { // LWC2
       #ifdef HOST_IMM_ADDR32
       if(c) emit_readword_tlb(constmap[i][s]+offset,-1,tl);
       else
       #endif
-      emit_readword_indexed(0,ar,tl);
+      int a=ar;
+      if(fastio_reg_override) a=fastio_reg_override;
+      emit_readword_indexed(0,a,tl);
     }
     if (opcode[i]==0x3a) { // SWC2
       #ifdef DESTRUCTIVE_SHIFT
       if(!offset&&!c&&s>=0) emit_mov(s,ar);
       #endif
-      emit_writeword_indexed(tl,0,ar);
+      int a=ar;
+      if(fastio_reg_override) a=fastio_reg_override;
+      emit_writeword_indexed(tl,0,a);
     }
   }
   if(jaddr2)
@@ -3976,6 +3963,7 @@ void intcall_assemble(int i,struct regstat *i_regs)
 
 void ds_assemble(int i,struct regstat *i_regs)
 {
+  speculate_register_values(i);
   is_delayslot=1;
   switch(itype[i]) {
     case ALU:
@@ -7914,7 +7902,6 @@ void new_dynarec_clear_full()
 #ifndef DISABLE_TLB
   using_tlb=0;
 #endif
-  sp_in_mirror=0;
   for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
     memory_map[n]=-1;
   for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF
@@ -8025,11 +8012,6 @@ int new_recompile_block(int addr)
   //assert(((u_int)addr&1)==0);
   new_dynarec_did_compile=1;
 #ifdef PCSX
-  if(!sp_in_mirror&&(signed int)(psxRegs.GPR.n.sp&0xffe00000)>0x80200000&&
-     0x10000<=psxRegs.GPR.n.sp&&(psxRegs.GPR.n.sp&~0xe0e00000)<RAM_SIZE) {
-    printf("SP hack enabled (%08x), @%08x\n", psxRegs.GPR.n.sp, psxRegs.pc);
-    sp_in_mirror=1;
-  }
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
@@ -11168,6 +11150,7 @@ int new_recompile_block(int addr)
       if(bt[i]) assem_debug("OOPS - branch into delay slot\n");
       instr_addr[i]=0;
     } else {
+      speculate_register_values(i);
       #ifndef DESTRUCTIVE_WRITEBACK
       if(i<2||(itype[i-2]!=UJUMP&&itype[i-2]!=RJUMP&&(source[i-2]>>16)!=0x1000))
       {
