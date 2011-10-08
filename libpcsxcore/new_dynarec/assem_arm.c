@@ -2677,9 +2677,18 @@ emit_extjump_ds(int addr, int target)
   emit_extjump2(addr, target, (int)dyna_linker_ds);
 }
 
-#ifdef PCSX
-#include "pcsxmem_inline.c"
-#endif
+// put rt_val into rt, potentially making use of rs with value rs_val
+static void emit_movimm_from(u_int rs_val,int rs,u_int rt_val,int rt)
+{
+  u_int xor=rs_val^rt_val;
+  u_int xs;
+  for(xs=xor;xs!=0&&(xs&3)==0;xs>>=2)
+    ;
+  if(xs<0x100)
+    emit_xorimm(rs,xor,rt);
+  else
+    emit_movimm(rt_val,rt);
+}
 
 // trashes r2
 static void pass_args(int a0, int a1)
@@ -2906,14 +2915,12 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   assert(rs>=0);
 #ifdef PCSX
   u_int handler,host_addr=0;
-  if(pcsx_direct_read(type,addr,target?rs:-1,rt))
-    return;
   handler=get_direct_memhandler(mem_rtab,addr,type,&host_addr);
   if (handler==0) {
     if(rt<0)
       return;
-    if(target==0||addr!=host_addr)
-      emit_movimm(host_addr,rs);
+    if(addr!=host_addr)
+      emit_movimm_from(addr,rs,host_addr,rs);
     switch(type) {
       case LOADB_STUB:  emit_movsbl_indexed(0,rs,rt); break;
       case LOADBU_STUB: emit_movzbl_indexed(0,rs,rt); break;
@@ -3211,12 +3218,10 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   assert(rt>=0);
 #ifdef PCSX
   u_int handler,host_addr=0;
-  if(pcsx_direct_write(type,addr,rs,rt,regmap))
-    return;
   handler=get_direct_memhandler(mem_wtab,addr,type,&host_addr);
   if (handler==0) {
-    if(target==0||addr!=host_addr)
-      emit_movimm(host_addr,rs);
+    if(addr!=host_addr)
+      emit_movimm_from(addr,rs,host_addr,rs);
     switch(type) {
       case STOREB_STUB: emit_writebyte_indexed(rt,0,rs); break;
       case STOREH_STUB: emit_writehword_indexed(rt,0,rs); break;
@@ -3228,9 +3233,7 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
 
   // call a memhandler
   save_regs(reglist);
-  pass_args(target!=0?rs:-1,rt);
-  if(target==0)
-    emit_movimm(addr,0);
+  pass_args(rs,rt);
   int cc=get_reg(regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
