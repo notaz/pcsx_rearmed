@@ -116,17 +116,17 @@ void gen_interupt()
 // from interpreter
 extern void MTC0(int reg, u32 val);
 
-void pcsx_mtc0(u32 reg)
+void pcsx_mtc0(u32 reg, u32 val)
 {
-	evprintf("MTC0 %d #%x @%08x %u\n", reg, readmem_word, psxRegs.pc, psxRegs.cycle);
-	MTC0(reg, readmem_word);
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
+	MTC0(reg, val);
 	gen_interupt();
 }
 
-void pcsx_mtc0_ds(u32 reg)
+void pcsx_mtc0_ds(u32 reg, u32 val)
 {
-	evprintf("MTC0 %d #%x @%08x %u\n", reg, readmem_word, psxRegs.pc, psxRegs.cycle);
-	MTC0(reg, readmem_word);
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
+	MTC0(reg, val);
 }
 
 void new_dyna_save(void)

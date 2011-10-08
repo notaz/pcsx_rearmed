@@ -40,22 +40,14 @@ rdram = 0x80000000
 	.global	stop
 	.global	invc_ptr
 	.global	address
-	.global	readmem_dword
-	.global	readmem_word
-	.global	dword
-	.global	word
-	.global	hword
-	.global	byte
 	.global	branch_target
 	.global	PC
 	.global	mini_ht
 	.global	restore_candidate
-	.global	memory_map
 	/* psx */
 	.global psxRegs
 	.global mem_rtab
 	.global mem_wtab
-	.global nd_pcsx_io
 	.global psxH_ptr
 	.global inv_code_start
 	.global inv_code_end
@@ -87,29 +79,7 @@ invc_ptr = stop + 4
 address = invc_ptr + 4
 	.type	address, %object
 	.size	address, 4
-readmem_dword = address + 4
-readmem_word = readmem_dword
-	.type	readmem_dword, %object
-	.size	readmem_dword, 8
-dword = readmem_dword + 8
-	.type	dword, %object
-	.size	dword, 8
-word = dword + 8
-	.type	word, %object
-	.size	word, 4
-hword = word + 4
-	.type	hword, %object
-	.size	hword, 2
-byte = hword + 2
-	.type	byte, %object
-	.size	byte, 1 /* 1 byte free */
-FCR0 = hword + 4
-	.type	FCR0, %object
-	.size	FCR0, 4
-FCR31 = FCR0 + 4
-	.type	FCR31, %object
-	.size	FCR31, 4
-psxRegs = FCR31 + 4
+psxRegs = address + 4
 
 /* psxRegs */
 	.type	psxRegs, %object
@@ -156,38 +126,7 @@ mem_rtab = psxRegs_end
 mem_wtab = mem_rtab + 4
 	.type	mem_wtab, %object
 	.size	mem_wtab, 4
-
-/* nd_pcsx_io */
-nd_pcsx_io = mem_wtab + 4
-	.type	nd_pcsx_io, %object
-	.size	nd_pcsx_io, nd_pcsx_io_end-nd_pcsx_io
-tab_read8 = nd_pcsx_io
-	.type	tab_read8, %object
-	.size	tab_read8, 4
-tab_read16 = tab_read8 + 4
-	.type	tab_read16, %object
-	.size	tab_read16, 4
-tab_read32 = tab_read16 + 4
-	.type	tab_read32, %object
-	.size	tab_read32, 4
-tab_write8 = tab_read32 + 4
-	.type	tab_write8, %object
-	.size	tab_write8, 4
-tab_write16 = tab_write8 + 4
-	.type	tab_write16, %object
-	.size	tab_write16, 4
-tab_write32 = tab_write16 + 4
-	.type	tab_write32, %object
-	.size	tab_write32, 4
-spu_readf = tab_write32 + 4
-	.type	spu_readf, %object
-	.size	spu_readf, 4
-spu_writef = spu_readf + 4
-	.type	spu_writef, %object
-	.size	spu_writef, 4
-nd_pcsx_io_end = spu_writef + 4
-
-psxH_ptr = nd_pcsx_io_end
+psxH_ptr = mem_wtab + 4
 	.type	psxH_ptr, %object
 	.size	psxH_ptr, 4
 inv_code_start = psxH_ptr + 4
@@ -196,22 +135,27 @@ inv_code_start = psxH_ptr + 4
 inv_code_end = inv_code_start + 4
 	.type	inv_code_end, %object
 	.size	inv_code_end, 4
-align0 = inv_code_end + 4 /* just for alignment */
-	.type	align0, %object
-	.size	align0, 4
-branch_target = align0 + 4
+branch_target = inv_code_end + 4
 	.type	branch_target, %object
 	.size	branch_target, 4
-mini_ht = branch_target + 4
+align0 = branch_target + 4 /* unused/alignment */
+	.type	align0, %object
+	.size	align0, 4
+mini_ht = align0 + 4
 	.type	mini_ht, %object
 	.size	mini_ht, 256
 restore_candidate = mini_ht + 256
 	.type	restore_candidate, %object
 	.size	restore_candidate, 512
-memory_map = restore_candidate + 512
-	.type	memory_map, %object
-	.size	memory_map, 4194304
-dynarec_local_end = memory_map + 4194304
+dynarec_local_end = restore_candidate + 512
+
+/* unused */
+FCR0 = align0
+	.type	FCR0, %object
+	.size	FCR0, 4
+FCR31 = align0
+	.type	FCR31, %object
+	.size	FCR31, 4
 
 .macro load_var_adr reg var
 .if HAVE_ARMV7
@@ -694,22 +638,6 @@ new_dyna_leave:
 	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	.size	new_dyna_leave, .-new_dyna_leave
 
-	/* these are used to call memhandlers */
-	.align	2
-	.global	indirect_jump_indexed
-	.type	indirect_jump_indexed, %function
-indirect_jump_indexed:
-	ldr	r0, [r0, r1, lsl #2]
-	.global	indirect_jump
-	.type	indirect_jump, %function
-indirect_jump:
-	ldr	r12, [fp, #last_count-dynarec_local]
-	add	r2, r2, r12 
-	str	r2, [fp, #cycle-dynarec_local]
-	mov	pc, r0
-	.size	indirect_jump, .-indirect_jump
-	.size	indirect_jump_indexed, .-indirect_jump_indexed
-
 	.align	2
 	.global	invalidate_addr_r0
 	.type	invalidate_addr_r0, %function
@@ -835,28 +763,6 @@ new_dyna_start:
 /* --------------------------------------- */
 
 .align	2
-.global	ari_read_ram8
-.global	ari_read_ram16
-.global	ari_read_ram32
-.global	ari_read_ram_mirror8
-.global	ari_read_ram_mirror16
-.global	ari_read_ram_mirror32
-.global	ari_write_ram8
-.global	ari_write_ram16
-.global	ari_write_ram32
-.global	ari_write_ram_mirror8
-.global	ari_write_ram_mirror16
-.global	ari_write_ram_mirror32
-.global	ari_write_ram_mirror_ro32
-.global	ari_read_bios8
-.global	ari_read_bios16
-.global	ari_read_bios32
-.global	ari_read_io8
-.global	ari_read_io16
-.global	ari_read_io32
-.global	ari_write_io8
-.global	ari_write_io16
-.global	ari_write_io32
 .global	jump_handler_read8
 .global	jump_handler_read16
 .global	jump_handler_read32
@@ -867,270 +773,6 @@ new_dyna_start:
 .global jump_handle_swl
 .global jump_handle_swr
 
-.macro ari_read_ram bic_const op
-	ldr	r0, [fp, #address-dynarec_local]
-.if \bic_const
-	bic	r0, r0, #\bic_const
-.endif
-	\op	r0, [r0]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-.endm
-
-ari_read_ram8:
-	ari_read_ram 0, ldrb
-
-ari_read_ram16:
-	ari_read_ram 1, ldrh
-
-ari_read_ram32:
-	ari_read_ram 3, ldr
-
-.macro ari_read_ram_mirror mvn_const, op
-	ldr	r0, [fp, #address-dynarec_local]
-	mvn	r1, #\mvn_const
-	and	r0, r1, lsr #11
-	orr	r0, r0, #1<<31
-	\op	r0, [r0]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-.endm
-
-ari_read_ram_mirror8:
-	ari_read_ram_mirror 0, ldrb
-
-ari_read_ram_mirror16:
-	ari_read_ram_mirror (1<<11), ldrh
-
-ari_read_ram_mirror32:
-	ari_read_ram_mirror (3<<11), ldr
-
-/* invalidation is already taken care of by the caller */
-.macro ari_write_ram bic_const var pf
-	ldr	r0, [fp, #address-dynarec_local]
-	ldr\pf	r1, [fp, #\var-dynarec_local]
-.if \bic_const
-	bic	r0, r0, #\bic_const
-.endif
-	str\pf	r1, [r0]
-	mov	pc, lr
-.endm
-
-ari_write_ram8:
-	ari_write_ram 0, byte, b
-
-ari_write_ram16:
-	ari_write_ram 1, hword, h
-
-ari_write_ram32:
-	ari_write_ram 3, word,
-
-.macro ari_write_ram_mirror mvn_const var pf
-	ldr	r0, [fp, #address-dynarec_local]
-	mvn	r3, #\mvn_const
-	ldr\pf	r1, [fp, #\var-dynarec_local]
-	and	r0, r3, lsr #11
-	ldr	r2, [fp, #invc_ptr-dynarec_local]
-	orr	r0, r0, #1<<31
-	ldrb	r2, [r2, r0, lsr #12]
-	str\pf	r1, [r0]
-	tst	r2, r2
-	movne	pc, lr
-	ldr	r1, [fp, #inv_code_start-dynarec_local]
-	ldr	r2, [fp, #inv_code_end-dynarec_local]
-	cmp	r0, r1
-	cmpcs   r2, r0
-	movcs	pc, lr
-	nop
-	b	invalidate_addr
-.endm
-
-ari_write_ram_mirror8:
-	ari_write_ram_mirror 0, byte, b
-
-ari_write_ram_mirror16:
-	ari_write_ram_mirror (1<<11), hword, h
-
-ari_write_ram_mirror32:
-	ari_write_ram_mirror (3<<11), word,
-
-ari_write_ram_mirror_ro32:
-	load_var_adr r0, pcsx_ram_is_ro
-	ldr	r0, [r0]
-	tst	r0, r0
-	movne	pc, lr
-	nop
-	b	ari_write_ram_mirror32
-
-
-.macro ari_read_bios_mirror bic_const op
-	ldr	r0, [fp, #address-dynarec_local]
-	orr	r0, r0, #0x80000000
-	bic	r0, r0, #(0x20000000|\bic_const)	@ map to 0x9fc...
-	\op	r0, [r0]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-.endm
-
-ari_read_bios8:
-	ari_read_bios_mirror 0, ldrb
-
-ari_read_bios16:
-	ari_read_bios_mirror 1, ldrh
-
-ari_read_bios32:
-	ari_read_bios_mirror 3, ldr
-
-
-@ for testing
-.macro ari_read_io_old tab_shift
-	str     lr, [sp, #-8]! @ EABI alignment..
-.if \tab_shift == 0
-	bl	psxHwRead32
-.endif
-.if \tab_shift == 1
-	bl	psxHwRead16
-.endif
-.if \tab_shift == 2
-	bl	psxHwRead8
-.endif
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	ldr     pc, [sp], #8
-.endm
-
-.macro ari_read_io readop mem_tab tab_shift
-	ldr	r0, [fp, #address-dynarec_local]
-	ldr	r1, [fp, #psxH_ptr-dynarec_local]
-.if \tab_shift == 0
-	bic	r0, r0, #3
-.endif
-.if \tab_shift == 1
-	bic	r0, r0, #1
-.endif
-	bic	r2, r0, #0x1f800000
-	ldr	r12,[fp, #\mem_tab-dynarec_local]
-	subs	r3, r2, #0x1000
-	blo	2f
-@	ari_read_io_old \tab_shift
-	cmp	r3, #0x880
-	bhs	1f
-	ldr	r12,[r12, r3, lsl #\tab_shift]
-	tst	r12,r12
-	beq	2f
-0:
-	str     lr, [sp, #-8]! @ EABI alignment..
-	blx	r12
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	ldr     pc, [sp], #8
-
-1:
-.if \tab_shift == 1 @ read16
-	cmp	r2, #0x1c00
-	blo	2f
-	cmp	r2, #0x1e00
-	bhs	2f
-	ldr	r12,[fp, #spu_readf-dynarec_local]
-	b	0b
-.endif
-2:
-	@ no handler, just read psxH
-	\readop	r0, [r1, r2]
-	str	r0, [fp, #readmem_dword-dynarec_local]
-	mov	pc, lr
-.endm
-
-ari_read_io8:
-	ari_read_io ldrb, tab_read8, 2
-
-ari_read_io16:
-	ari_read_io ldrh, tab_read16, 1
-
-ari_read_io32:
-	ari_read_io ldr, tab_read32, 0
-
-.macro ari_write_io_old tab_shift
-.if \tab_shift == 0
-	b	psxHwWrite32
-.endif
-.if \tab_shift == 1
-	b	psxHwWrite16
-.endif
-.if \tab_shift == 2
-	b	psxHwWrite8
-.endif
-.endm
-
-.macro ari_write_io pf var mem_tab tab_shift
-	ldr	r0, [fp, #address-dynarec_local]
-	ldr\pf	r1, [fp, #\var-dynarec_local]
-.if \tab_shift == 0
-	bic	r0, r0, #3
-.endif
-.if \tab_shift == 1
-	bic	r0, r0, #1
-.endif
-	bic	r2, r0, #0x1f800000
-	ldr	r12,[fp, #\mem_tab-dynarec_local]
-	subs	r3, r2, #0x1000
-	blo	0f
-@	ari_write_io_old \tab_shift
-	cmp	r3, #0x880
-	bhs	1f
-	ldr	r12,[r12, r3, lsl #\tab_shift]
-	mov	r0, r1
-	tst	r12,r12
-	bxne	r12
-0:
-	ldr	r3, [fp, #psxH_ptr-dynarec_local]
-	str\pf	r1, [r2, r3]
-	mov	pc, lr
-1:
-	cmp	r2, #0x1c00
-	blo	0b
-	cmp	r2, #0x1e00
-.if \tab_shift != 0
-	ldrlo	pc, [fp, #spu_writef-dynarec_local]
-.else
-	@ write32 to SPU - very rare case (is this correct?)
-	bhs	0b
-	add	r2, r0, #2
-	mov	r3, r1, lsr #16
-	push	{r2,r3,lr}
-	mov	lr, pc
-	ldr	pc, [fp, #spu_writef-dynarec_local]
-	pop	{r0,r1,lr}
-	ldr	pc, [fp, #spu_writef-dynarec_local]
-.endif
-	nop
-	b	0b
-.endm
-
-ari_write_io8:
-	@ PCSX always writes to psxH, so do we for consistency
-	ldr	r0, [fp, #address-dynarec_local]
-	ldr	r3, [fp, #psxH_ptr-dynarec_local]
-	ldrb	r1, [fp, #byte-dynarec_local]
-	bic	r2, r0, #0x1f800000
-	ldr	r12,[fp, #tab_write8-dynarec_local]
-	strb	r1, [r2, r3]
-	subs	r3, r2, #0x1000
-	movlo	pc, lr
-@	ari_write_io_old 2
-	cmp	r3, #0x880
-	movhs	pc, lr
-	ldr	r12,[r12, r3, lsl #2]
-	mov	r0, r1
-	tst	r12,r12
-	bxne	r12
-	mov	pc, lr
-
-ari_write_io16:
-	ari_write_io h, hword, tab_write16, 1
-
-ari_write_io32:
-	ari_write_io , word, tab_write32, 0
-
-/* */
 
 .macro pcsx_read_mem readop tab_shift
 	/* r0 = address, r1 = handler_tab, r2 = cycles */
@@ -1250,7 +892,7 @@ jump_handle_swl:
 	bx	lr
 4:
 	mov	r0, r2
-	b	abort
+@	b	abort
 	bx	lr		@ TODO?
 
 
@@ -1276,7 +918,7 @@ jump_handle_swr:
 	bx	lr
 4:
 	mov	r0, r2
-	b	abort
+@	b	abort
 	bx	lr		@ TODO?
 
 

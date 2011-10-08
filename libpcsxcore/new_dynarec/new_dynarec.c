@@ -380,7 +380,9 @@ void *get_addr(u_int vaddr)
         //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
         invalid_code[vaddr>>12]=0;
         inv_code_start=inv_code_end=~0;
+#ifndef DISABLE_TLB
         memory_map[vaddr>>12]|=0x40000000;
+#endif
         if(vpage<2048) {
 #ifndef DISABLE_TLB
           if(tlb_LUT_r[vaddr>>12]) {
@@ -1338,11 +1340,13 @@ void clean_blocks(u_int page)
               inv|=invalid_code[i];
             }
           }
+#ifndef DISABLE_TLB
           if((signed int)head->vaddr>=(signed int)0xC0000000) {
             u_int addr = (head->vaddr+(memory_map[head->vaddr>>12]<<2));
             //printf("addr=%x start=%x end=%x\n",addr,start,end);
             if(addr<start||addr>=end) inv=1;
           }
+#endif
           else if((signed int)head->vaddr>=(signed int)0x80000000+RAM_SIZE) {
             inv=1;
           }
@@ -4223,6 +4227,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
         //  printf("poor load scheduling!\n");
       }
       else if(c) {
+#ifndef DISABLE_TLB
         if(rm>=0) {
           if(!entry||entry[rm]!=mgr) {
             if(itype[i]==STORE||itype[i]==STORELR||(opcode[i]&0x3b)==0x39||(opcode[i]&0x3b)==0x3a) {
@@ -4237,6 +4242,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
             }
           }
         }
+#endif
         if(rs1[i]!=rt1[i]||itype[i]!=LOAD) {
           if(!entry||entry[ra]!=agr) {
             if (opcode[i]==0x22||opcode[i]==0x26) {
@@ -4265,7 +4271,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
   // Preload constants for next instruction
   if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS||itype[i+1]==C2LS) {
     int agr,ra;
-    #ifndef HOST_IMM_ADDR32
+    #if !defined(HOST_IMM_ADDR32) && !defined(DISABLE_TLB)
     // Mapper entry
     agr=MGEN1+((i+1)&1);
     ra=get_reg(i_regs->regmap,agr);
@@ -7901,13 +7907,13 @@ void new_dynarec_clear_full()
   // TLB
 #ifndef DISABLE_TLB
   using_tlb=0;
-#endif
   for(n=0;n<524288;n++) // 0 .. 0x7FFFFFFF
     memory_map[n]=-1;
   for(n=524288;n<526336;n++) // 0x80000000 .. 0x807FFFFF
     memory_map[n]=((u_int)rdram-0x80000000)>>2;
   for(n=526336;n<1048576;n++) // 0x80800000 .. 0xFFFFFFFF
     memory_map[n]=-1;
+#endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);

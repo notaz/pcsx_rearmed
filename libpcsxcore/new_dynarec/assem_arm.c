@@ -245,6 +245,7 @@ int verify_dirty(int addr)
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
+#ifndef DISABLE_TLB
   u_int verifier=(int)ptr+((signed int)(*ptr<<8)>>6)+8; // get target of bl
   if(verifier==(u_int)verify_code_vm||verifier==(u_int)verify_code_ds) {
     unsigned int page=source>>12;
@@ -255,6 +256,7 @@ int verify_dirty(int addr)
     }
     source = source+(map_value<<2);
   }
+#endif
   //printf("verify_dirty: %x %x %x\n",source,copy,len);
   return !memcmp((void *)source,(void *)copy,len);
 }
@@ -298,11 +300,13 @@ void get_bounds(int addr,u_int *start,u_int *end)
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
+#ifndef DISABLE_TLB
   u_int verifier=(int)ptr+((signed int)(*ptr<<8)>>6)+8; // get target of bl
   if(verifier==(u_int)verify_code_vm||verifier==(u_int)verify_code_ds) {
     if(memory_map[source>>12]>=0x80000000) source = 0;
     else source = source+(memory_map[source>>12]<<2);
   }
+#endif
   *start=source;
   *end=source+len;
 }
@@ -3508,6 +3512,8 @@ do_cop1stub(int n)
   emit_jmp(ds?(int)fp_exception_ds:(int)fp_exception);
 }
 
+#ifndef DISABLE_TLB
+
 /* TLB */
 
 int do_tlb_r(int s,int ar,int map,int x,int a,int shift,int c,u_int addr)
@@ -3590,6 +3596,17 @@ generate_map_const(u_int addr,int reg) {
   //printf("generate_map_const(%x,%s)\n",addr,regname[reg]);
   emit_movimm((addr>>12)+(((u_int)memory_map-(u_int)&dynarec_local)>>2),reg);
 }
+
+#else
+
+static int do_tlb_r() { return 0; }
+static int do_tlb_r_branch() { return 0; }
+static int gen_tlb_addr_r() { return 0; }
+static int do_tlb_w() { return 0; }
+static int do_tlb_w_branch() { return 0; }
+static int gen_tlb_addr_w() { return 0; }
+
+#endif // DISABLE_TLB
 
 /* Special assem */
 
@@ -4061,18 +4078,20 @@ void cop0_assemble(int i,struct regstat *i_regs)
     signed char s=get_reg(i_regs->regmap,rs1[i]);
     char copr=(source[i]>>11)&0x1f;
     assert(s>=0);
+#ifdef MUPEN64
     emit_writeword(s,(int)&readmem_dword);
     wb_register(rs1[i],i_regs->regmap,i_regs->dirty,i_regs->is32);
-#ifdef MUPEN64
     emit_addimm(FP,(int)&fake_pc-(int)&dynarec_local,0);
     emit_movimm((source[i]>>11)&0x1f,1);
     emit_writeword(0,(int)&PC);
     emit_writebyte(1,(int)&(fake_pc.f.r.nrd));
+#else
+    wb_register(rs1[i],i_regs->regmap,i_regs->dirty,i_regs->is32);
 #endif
     if(copr==9||copr==11||copr==12||copr==13) {
-      emit_readword((int)&last_count,ECX);
+      emit_readword((int)&last_count,HOST_TEMPREG);
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
-      emit_add(HOST_CCREG,ECX,HOST_CCREG);
+      emit_add(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
       emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
       emit_writeword(HOST_CCREG,(int)&Count);
     }
@@ -4089,19 +4108,23 @@ void cop0_assemble(int i,struct regstat *i_regs)
         emit_writeword(HOST_CCREG,(int)&last_count);
         emit_movimm(0,HOST_CCREG);
         emit_storereg(CCREG,HOST_CCREG);
+        if(s!=1)
+          emit_mov(s,1);
         emit_movimm(copr,0);
         emit_call((int)pcsx_mtc0_ds);
         return;
       }
 #endif
-      emit_movimm(start+i*4+4,0);
-      emit_movimm(0,1);
-      emit_writeword(0,(int)&pcaddr);
-      emit_writeword(1,(int)&pending_exception);
+      emit_movimm(start+i*4+4,HOST_TEMPREG);
+      emit_writeword(HOST_TEMPREG,(int)&pcaddr);
+      emit_movimm(0,HOST_TEMPREG);
+      emit_writeword(HOST_TEMPREG,(int)&pending_exception);
     }
     //else if(copr==12&&is_delayslot) emit_call((int)MTC0_R12);
     //else
 #ifdef PCSX
+    if(s!=1)
+      emit_mov(s,1);
     emit_movimm(copr,0);
     emit_call((int)pcsx_mtc0);
 #else
