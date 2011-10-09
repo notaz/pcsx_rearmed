@@ -1,0 +1,8 @@
+#!/bin/sh
+
+./pollux_set "ram_timings=3,9,4,1,1,1,1"
+
+./pcsx "$@"
+
+cd /usr/gp2x
+exec ./gp2xmenu

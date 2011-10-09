@@ -3,3 +3,25 @@ export ARM_CORTEXA8=0
 PLATFORM=caanoo
 
 include Makefile
+
+PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
+	plugins/gpu_neon/gpu_neon.so
+
+# ----------- release -----------
+
+rel_caanoo: pcsx $(PLUGINS) \
+		frontend/320240/caanoo.gpe frontend/320240/pcsx26.png \
+		frontend/320240/skin \
+		frontend/warm/bin/warm_2.6.24.ko frontend/320240/pollux_set \
+		frontend/320240/pcsx_rearmed.ini readme.txt COPYING
+	rm -rf out
+	mkdir -p out/pcsx_rearmed/plugins
+	cp -r $^ out/pcsx_rearmed/
+	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
+	mv out/pcsx_rearmed/plugins/gpu_neon.so out/pcsx_rearmed/plugins/gpuPEOPS2.so
+	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
+	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
+	mkdir out/pcsx_rearmed/lib/
+	cp ./lib/libbz2.so.1 out/pcsx_rearmed/lib/
+	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_caanoo.zip *
+
