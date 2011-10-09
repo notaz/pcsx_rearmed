@@ -2009,16 +2009,10 @@ void menu_notify_mode_change(int w, int h, int bpp)
 		g_layer_w = w; g_layer_h = h;
 		break;
 
-	case SCALE_4_3:
-		mult = 240.0f / (float)h * 4.0f / 3.0f;
-		if (h > 256)
-			mult *= 2.0f;
-		g_layer_w = mult * (float)g_menuscreen_h;
-		g_layer_h = g_menuscreen_h;
-		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
-		break;
-
 	case SCALE_4_3v2:
+		if (h > g_menuscreen_h || (240 < h && h <= 360))
+			goto fractional_4_3;
+
 		// 4:3 that prefers integer scaling
 		imult = g_menuscreen_h / h;
 		g_layer_w = w * imult;
@@ -2026,6 +2020,16 @@ void menu_notify_mode_change(int w, int h, int bpp)
 		mult = (float)g_layer_w / (float)g_layer_h;
 		if (mult < 1.25f || mult > 1.666f)
 			g_layer_w = 4.0f/3.0f * (float)g_layer_h;
+		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		break;
+
+	fractional_4_3:
+	case SCALE_4_3:
+		mult = 240.0f / (float)h * 4.0f / 3.0f;
+		if (h > 256)
+			mult *= 2.0f;
+		g_layer_w = mult * (float)g_menuscreen_h;
+		g_layer_h = g_menuscreen_h;
 		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
 		break;
 
