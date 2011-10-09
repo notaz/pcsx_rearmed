@@ -301,6 +301,7 @@ unsigned char byte;
 int pending_exception, stop;
 unsigned int next_interupt;
 int new_dynarec_did_compile;
+int cycle_multiplier;
 void *psxH_ptr;
 void new_dynarec_init() {}
 void new_dyna_start() {}

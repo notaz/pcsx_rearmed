@@ -77,8 +77,12 @@ static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
+static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, analog_deadzone;
+
+#define DEFAULT_PSX_CLOCK 50
+#define DEFAULT_PSX_CLOCK_S "50"
 
 // sound plugin
 extern int iUseReverb;
@@ -146,6 +150,8 @@ static void menu_sync_config(void)
 		Config.PsxAuto = 0;
 		Config.PsxType = region - 1;
 	}
+	cycle_multiplier = 10000 / psx_clock;
+
 	switch (in_type_sel1) {
 	case 1:  in_type1 = PSE_PAD_TYPE_ANALOGPAD; break;
 	case 2:  in_type1 = PSE_PAD_TYPE_GUNCON;    break;
@@ -173,6 +179,7 @@ static void menu_set_defconfig(void)
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 70;
+	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;
@@ -194,6 +201,7 @@ static void menu_set_defconfig(void)
 	iUseTimer = 2;
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	iUseReverb = 0;
+	iUseInterpolation = 0;
 #endif
 
 	menu_sync_config();
@@ -268,6 +276,7 @@ static const struct {
 	CE_INTVAL(warned_about_bios),
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
+	CE_INTVAL(psx_clock),
 };
 
 static char *get_cd_label(void)
@@ -1203,6 +1212,8 @@ static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
 static const char h_cfg_cdrr[]   = "Compatibility tweak (fixes Team Buddies, maybe more)\n"
 				   "(CD timing hack, breaks FMVs)";
+static const char h_cfg_psxclk[] = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
+				   "(may break games, must reload game to take effect)";
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
 
@@ -1218,6 +1229,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
 	mee_enum_h    ("CD read reschedule hack",0, Config.CdrReschedule, men_cfg_cdrr, h_cfg_cdrr),
+	mee_range_h   ("PSX CPU clock, %%",      0, psx_clock, 1, 500, h_cfg_psxclk),
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
 	mee_end,
 };

@@ -2784,7 +2784,7 @@ do_readstub(int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n][6]+1),2);
   emit_call(handler);
   if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
     switch(type) {
@@ -2948,7 +2948,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_readword((int)&last_count,3);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
   emit_add(2,3,3);
   emit_writeword(3,(int)&Count);
 
@@ -3009,7 +3009,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   //emit_movimm(ftable,0);
   emit_movimm(((u_int *)ftable)[addr>>16],0);
   //emit_readword((int)&last_count,12);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
 #ifndef PCSX
   if((signed int)addr>=(signed int)0xC0000000) {
     // Pagefault address
@@ -3026,7 +3026,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   // but not doing so causes random crashes...
   emit_readword((int)&Count,HOST_TEMPREG);
   emit_readword((int)&next_interupt,2);
-  emit_addimm(HOST_TEMPREG,-CLOCK_DIVIDER*(adj+1),HOST_TEMPREG);
+  emit_addimm(HOST_TEMPREG,-CLOCK_ADJUST(adj+1),HOST_TEMPREG);
   emit_writeword(2,(int)&last_count);
   emit_sub(HOST_TEMPREG,2,cc<0?HOST_TEMPREG:cc);
   if(cc<0) {
@@ -3126,10 +3126,10 @@ do_writestub(int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n][6]+1),2);
   // returns new cycle_count
   emit_call(handler);
-  emit_addimm(0,-CLOCK_DIVIDER*stubs[n][6]-2,cc<0?2:cc);
+  emit_addimm(0,-CLOCK_ADJUST((int)stubs[n][6]+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   if(restore_jump)
@@ -3241,11 +3241,11 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   int cc=get_reg(regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
   emit_movimm(handler,3);
   // returns new cycle_count
   emit_call((int)jump_handler_write_h);
-  emit_addimm(0,-CLOCK_DIVIDER*(adj+1),cc<0?2:cc);
+  emit_addimm(0,-CLOCK_ADJUST(adj+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   restore_regs(reglist);
@@ -3302,7 +3302,7 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   //emit_movimm(ftable,0);
   emit_movimm(((u_int *)ftable)[addr>>16],0);
   //emit_readword((int)&last_count,12);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*(adj+1),2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
 #ifndef PCSX
   if((signed int)addr>=(signed int)0xC0000000) {
     // Pagefault address
@@ -3316,7 +3316,7 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
   emit_call((int)&indirect_jump);
   emit_readword((int)&Count,HOST_TEMPREG);
   emit_readword((int)&next_interupt,2);
-  emit_addimm(HOST_TEMPREG,-CLOCK_DIVIDER*(adj+1),HOST_TEMPREG);
+  emit_addimm(HOST_TEMPREG,-CLOCK_ADJUST(adj+1),HOST_TEMPREG);
   emit_writeword(2,(int)&last_count);
   emit_sub(HOST_TEMPREG,2,cc<0?HOST_TEMPREG:cc);
   if(cc<0) {
@@ -3355,9 +3355,9 @@ do_unalignedwritestub(int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_DIVIDER*stubs[n][6]+2,2);
+  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n][6]+1),2);
   emit_call((int)(opcode[i]==0x2a?jump_handle_swl:jump_handle_swr));
-  emit_addimm(0,-CLOCK_DIVIDER*stubs[n][6]-2,cc<0?2:cc);
+  emit_addimm(0,-CLOCK_ADJUST((int)stubs[n][6]+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   restore_regs(reglist);
@@ -3508,7 +3508,7 @@ do_cop1stub(int n)
   wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty);
   if(regs[i].regmap_entry[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
   emit_movimm(start+(i-ds)*4,EAX); // Get PC
-  emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
+  emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
   emit_jmp(ds?(int)fp_exception_ds:(int)fp_exception);
 }
 
@@ -4063,7 +4063,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
         emit_readword((int)&last_count,ECX);
         emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
         emit_add(HOST_CCREG,ECX,HOST_CCREG);
-        emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+        emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
         emit_writeword(HOST_CCREG,(int)&Count);
       }
       emit_call((int)MFC0);
@@ -4092,7 +4092,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
       emit_readword((int)&last_count,HOST_TEMPREG);
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
       emit_add(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
-      emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+      emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
       emit_writeword(HOST_CCREG,(int)&Count);
     }
     // What a mess.  The status register (12) can enable interrupts,
@@ -4133,7 +4133,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&Count,HOST_CCREG);
       emit_readword((int)&next_interupt,ECX);
-      emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+      emit_addimm(HOST_CCREG,-CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
       emit_sub(HOST_CCREG,ECX,HOST_CCREG);
       emit_writeword(ECX,(int)&last_count);
       emit_storereg(CCREG,HOST_CCREG);
@@ -4165,7 +4165,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
       emit_readword((int)&last_count,ECX);
       if(i_regs->regmap[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
       emit_add(HOST_CCREG,ECX,HOST_CCREG);
-      emit_addimm(HOST_CCREG,CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+      emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
       emit_writeword(HOST_CCREG,(int)&Count);
       emit_call((int)TLBWR_new);
     }
@@ -4186,7 +4186,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
     {
       int count=ccadj[i];
       if(i_regs->regmap[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
-      emit_addimm(HOST_CCREG,CLOCK_DIVIDER*count,HOST_CCREG); // TODO: Should there be an extra cycle here?
+      emit_addimm(HOST_CCREG,CLOCK_ADJUST(count),HOST_CCREG); // TODO: Should there be an extra cycle here?
       emit_jmp((int)jump_eret);
     }
 #endif
