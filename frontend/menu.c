@@ -81,8 +81,13 @@ static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, analog_deadzone;
 
+#ifdef __ARM_ARCH_7A__
+#define DEFAULT_PSX_CLOCK 57
+#define DEFAULT_PSX_CLOCK_S "57"
+#else
 #define DEFAULT_PSX_CLOCK 50
 #define DEFAULT_PSX_CLOCK_S "50"
+#endif
 
 // sound plugin
 extern int iUseReverb;
