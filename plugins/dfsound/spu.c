@@ -904,12 +904,14 @@ static void *MAINThread(void *arg)
 // SPU ASYNC... even newer epsxe func
 //  1 time every 'cycle' cycles... harhar
 
+// rearmed: called every 2ms now
+
 void CALLBACK SPUasync(unsigned long cycle)
 {
  if(iSpuAsyncWait)
   {
    iSpuAsyncWait++;
-   if(iSpuAsyncWait<=16/FRAG_MSECS) return;
+   if(iSpuAsyncWait<=16/2) return;
    iSpuAsyncWait=0;
   }
 
