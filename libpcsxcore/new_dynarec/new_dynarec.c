@@ -5403,6 +5403,12 @@ void rjump_assemble(int i,struct regstat *i_regs)
   //assert(adj==0);
   emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
   add_stub(CC_STUB,(int)out,jump_vaddr_reg[rs],0,i,-1,TAKEN,0);
+#ifdef PCSX
+  if(itype[i+1]==COP0&&(source[i+1]&0x3f)==0x10)
+    // special case for RFE
+    emit_jmp(0);
+  else
+#endif
   emit_jns(0);
   //load_regs_bt(branch_regs[i].regmap,branch_regs[i].is32,branch_regs[i].dirty,-1);
   #ifdef USE_MINI_HT
