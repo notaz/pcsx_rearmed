@@ -68,11 +68,17 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
-r10 (2011-09-23)
+r10 (2011-10-10)
++ added Caanoo port
++ completely rewrote memory handlers
 + added fixed frameskip option
++ added ability to change PSX clock
++ implemented GTE dead flag detection
+* switched to larger timeslices for better performance
+* fixed some cases of flickering
 * fixed a crash in PCSX4ALL GPU plugin
 * fixed several dynarec compatibility related issues (hopefully)
-* fixed several SPU regressions from r9
+* fixed multiple SPU regressions from r9 and earlier
 * fixed frame limiter issue that sometimes caused stuttering
 * fixed some minor GUI issues
 

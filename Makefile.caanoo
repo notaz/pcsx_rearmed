@@ -4,8 +4,7 @@ PLATFORM=caanoo
 
 include Makefile
 
-PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
-	plugins/gpu_neon/gpu_neon.so
+PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so
 
 # ----------- release -----------
 
@@ -18,7 +17,6 @@ rel_caanoo: pcsx $(PLUGINS) \
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
 	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
-	mv out/pcsx_rearmed/plugins/gpu_neon.so out/pcsx_rearmed/plugins/gpuPEOPS2.so
 	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
 	mkdir out/pcsx_rearmed/lib/

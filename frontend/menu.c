@@ -378,7 +378,7 @@ static int menu_load_config(int is_game)
 	f = fopen(cfgfile, "r");
 	if (f == NULL) {
 		printf("menu_load_config: failed to open: %s\n", cfgfile);
-		return -1;
+		goto fail;
 	}
 
 	fseek(f, 0, SEEK_END);
@@ -446,6 +446,14 @@ static int menu_load_config(int is_game)
 		}
 	}
 
+	keys_load_all(cfg);
+	ret = 0;
+fail_read:
+	free(cfg);
+fail:
+	if (f != NULL)
+		fclose(f);
+
 	menu_sync_config();
 
 	// sync plugins
@@ -461,12 +469,6 @@ static int menu_load_config(int is_game)
 		if (strcmp(Config.Spu, spu_plugins[i]) == 0)
 			{ spu_plugsel = i; break; }
 
-	keys_load_all(cfg);
-	ret = 0;
-fail_read:
-	free(cfg);
-fail:
-	fclose(f);
 	return ret;
 }
 
@@ -1460,14 +1462,22 @@ static void menu_bios_warn(void)
 {
 	int inp;
 	static const char msg[] =
-		"You don't seem to have copied any BIOS files to\n"
+		"You don't seem to have copied any BIOS\n"
+		"files to\n"
+#ifdef __ARM_ARCH_7A__ // XXX
 		"<SD card>/pandora/appdata/pcsx_rearmed/bios/\n\n"
-		"While many games work fine with fake (HLE) BIOS,\n"
-		"others (like MGS and FF8) require BIOS to work.\n"
-		"After copying the file, you'll also need to\n"
-		"select it in the emu's options->[BIOS/Plugins]\n\n"
-		"The file is usually named SCPH1001.BIN, but\n"
-		"other not compressed files can be used too.\n\n"
+#else
+		"pcsx_rearmed/bios/\n\n"
+#endif
+		"While many games work fine with fake\n"
+		"(HLE) BIOS, others (like MGS and FF8)\n"
+		"require BIOS to work.\n"
+		"After copying the file, you'll also need\n"
+		"to select it in the emu's menu:\n"
+		"options->[BIOS/Plugins]\n\n"
+		"The file is usually named SCPH1001.BIN,\n"
+		"but other not compressed files can be\n"
+		"used too.\n\n"
 		"Press (B) or (X) to continue";
 
 	while (1)
