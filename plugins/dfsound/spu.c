@@ -339,7 +339,7 @@ INLINE void StoreInterpolationVal(int ch,int fa)
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int iGetInterpolationVal(int ch)
+INLINE int iGetInterpolationVal(int ch, int spos)
 {
  int fa;
 
@@ -351,7 +351,7 @@ INLINE int iGetInterpolationVal(int ch)
    case 3:                                             // cubic interpolation
     {
      long xd;int gpos;
-     xd = ((s_chan[ch].spos) >> 1)+1;
+     xd = (spos >> 1)+1;
      gpos = s_chan[ch].SB[28];
 
      fa  = gval(3) - 3*gval(2) + 3*gval(1) - gval0;
@@ -370,7 +370,7 @@ INLINE int iGetInterpolationVal(int ch)
    case 2:                                             // gauss interpolation
     {
      int vl, vr;int gpos;
-     vl = (s_chan[ch].spos >> 6) & ~3;
+     vl = (spos >> 6) & ~3;
      gpos = s_chan[ch].SB[28];
      vr=(gauss[vl]*gval0)&~2047;
      vr+=(gauss[vl+1]*gval(1))&~2047;
@@ -570,7 +570,7 @@ out:                                         \
 
 make_do_samples(default, fmod_recv_check, ,
   StoreInterpolationVal(ch, fa),
-  ChanBuf[ns] = iGetInterpolationVal(ch), )
+  ChanBuf[ns] = iGetInterpolationVal(ch, spos), )
 make_do_samples(noint, , fa = s_chan[ch].SB[29], , ChanBuf[ns] = fa, s_chan[ch].SB[29] = fa)
 
 #define simple_interp_store \
