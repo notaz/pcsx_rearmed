@@ -70,7 +70,8 @@ static const u32 VBlankStart[]    = { 240, 256 };
 static const u32 HSyncTotal[]     = { 263, 313 };
 static const u32 SpuUpdInterval[] = { 32, 32 };
 
-static const s32 VerboseLevel     = 0;
+#define VERBOSE_LEVEL 0
+static const s32 VerboseLevel     = VERBOSE_LEVEL;
 
 /******************************************************************************/
 
@@ -92,8 +93,9 @@ void setIrq( u32 irq )
 }
 
 static
-void verboseLog( s32 level, const char *str, ... )
+void verboseLog( u32 level, const char *str, ... )
 {
+#if VERBOSE_LEVEL > 0
     if( level <= VerboseLevel )
     {
         va_list va;
@@ -106,6 +108,7 @@ void verboseLog( s32 level, const char *str, ... )
         printf( "%s", buf );
         fflush( stdout );
     }
+#endif
 }
 
 /******************************************************************************/
@@ -338,8 +341,6 @@ void psxRcntWcount( u32 index, u32 value )
 {
     verboseLog( 2, "[RCNT %i] wcount: %x\n", index, value );
 
-    psxRcntUpdate();
-
     _psxRcntWcount( index, value );
     psxRcntSet();
 }
@@ -347,8 +348,6 @@ void psxRcntWcount( u32 index, u32 value )
 void psxRcntWmode( u32 index, u32 value )
 {
     verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
-
-    psxRcntUpdate();
 
     rcnts[index].mode = value;
     rcnts[index].irqState = 0;
@@ -401,8 +400,6 @@ void psxRcntWtarget( u32 index, u32 value )
 {
     verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
 
-    psxRcntUpdate();
-
     rcnts[index].target = value;
 
     _psxRcntWcount( index, _psxRcntRcount( index ) );
@@ -414,8 +411,6 @@ void psxRcntWtarget( u32 index, u32 value )
 u32 psxRcntRcount( u32 index )
 {
     u32 count;
-
-    psxRcntUpdate();
 
     count = _psxRcntRcount( index );
 
@@ -439,8 +434,6 @@ u32 psxRcntRcount( u32 index )
 u32 psxRcntRmode( u32 index )
 {
     u16 mode;
-
-    psxRcntUpdate();
 
     mode = rcnts[index].mode;
     rcnts[index].mode &= 0xe7ff;
