@@ -31,6 +31,14 @@ extern "C" {
 
 extern u32 psxNextCounter, psxNextsCounter;
 
+typedef struct Rcnt
+{
+    u16 mode, target;
+    u32 rate, irq, counterState, irqState;
+    u32 cycle, cycleStart;
+} Rcnt;
+extern Rcnt rcnts[];
+
 void psxRcntInit();
 void psxRcntUpdate();
 

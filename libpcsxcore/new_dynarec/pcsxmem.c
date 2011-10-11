@@ -16,6 +16,30 @@
 //#define memprintf printf
 #define memprintf(...)
 
+static u32 *mem_readtab;
+static u32 *mem_writetab;
+static u32 mem_iortab[(1+2+4) * 0x1000 / 4];
+static u32 mem_iowtab[(1+2+4) * 0x1000 / 4];
+static u32 mem_ffwtab[(1+2+4) * 0x1000 / 4];
+//static u32 mem_unmrtab[(1+2+4) * 0x1000 / 4];
+static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
+
+static void map_item(u32 *out, const void *h, u32 flag)
+{
+	u32 hv = (u32)h;
+	if (hv & 1)
+		fprintf(stderr, "%p has LSB set\n", h);
+	*out = (hv >> 1) | (flag << 31);
+}
+
+// size must be power of 2, at least 4k
+#define map_l1_mem(tab, i, addr, size, base) \
+	map_item(&tab[((addr)>>12) + i], (u8 *)(base) - (u32)(addr) - ((i << 12) & ~(size - 1)), 0)
+
+#define IOMEM32(a) (((a) & 0xfff) / 4)
+#define IOMEM16(a) (0x1000/4 + (((a) & 0xfff) / 2))
+#define IOMEM8(a)  (0x1000/4 + 0x1000/2 + ((a) & 0xfff))
+
 static u8 unmapped_mem[0x1000];
 
 u32 read_mem_dummy()
@@ -53,12 +77,60 @@ static void io_write_sio32(u32 value)
 	sioWrite8((unsigned char)(value >> 24));
 }
 
+static void map_rcnt_rcount0(u32 mode)
+{
+	if (mode & 0x01) { // gate
+		map_item(&mem_iortab[IOMEM32(0x1100)], &psxH[0x1000], 0);
+		map_item(&mem_iortab[IOMEM16(0x1100)], &psxH[0x1000], 0);
+	}
+	else if (mode & 0x100) { // pixel clock
+		map_item(&mem_iortab[IOMEM32(0x1100)], rcnt0_read_count_m1, 1);
+		map_item(&mem_iortab[IOMEM16(0x1100)], rcnt0_read_count_m1, 1);
+	}
+	else {
+		map_item(&mem_iortab[IOMEM32(0x1100)], rcnt0_read_count_m0, 1);
+		map_item(&mem_iortab[IOMEM16(0x1100)], rcnt0_read_count_m0, 1);
+	}
+}
+
+static void map_rcnt_rcount1(u32 mode)
+{
+	if (mode & 0x01) { // gate
+		map_item(&mem_iortab[IOMEM32(0x1110)], &psxH[0x1000], 0);
+		map_item(&mem_iortab[IOMEM16(0x1110)], &psxH[0x1000], 0);
+	}
+	else if (mode & 0x100) { // hcnt
+		map_item(&mem_iortab[IOMEM32(0x1110)], rcnt1_read_count_m1, 1);
+		map_item(&mem_iortab[IOMEM16(0x1110)], rcnt1_read_count_m1, 1);
+	}
+	else {
+		map_item(&mem_iortab[IOMEM32(0x1110)], rcnt1_read_count_m0, 1);
+		map_item(&mem_iortab[IOMEM16(0x1110)], rcnt1_read_count_m0, 1);
+	}
+}
+
+static void map_rcnt_rcount2(u32 mode)
+{
+	if (mode & 0x01) { // gate
+		map_item(&mem_iortab[IOMEM32(0x1120)], &psxH[0x1000], 0);
+		map_item(&mem_iortab[IOMEM16(0x1120)], &psxH[0x1000], 0);
+	}
+	else if (mode & 0x200) { // clk/8
+		map_item(&mem_iortab[IOMEM32(0x1120)], rcnt2_read_count_m1, 1);
+		map_item(&mem_iortab[IOMEM16(0x1120)], rcnt2_read_count_m1, 1);
+	}
+	else {
+		map_item(&mem_iortab[IOMEM32(0x1120)], rcnt2_read_count_m0, 1);
+		map_item(&mem_iortab[IOMEM16(0x1120)], rcnt2_read_count_m0, 1);
+	}
+}
+
 #define make_rcnt_funcs(i) \
 static u32 io_rcnt_read_count##i()  { return psxRcntRcount(i); } \
 static u32 io_rcnt_read_mode##i()   { return psxRcntRmode(i); } \
 static u32 io_rcnt_read_target##i() { return psxRcntRtarget(i); } \
 static void io_rcnt_write_count##i(u32 val)  { psxRcntWcount(i, val & 0xffff); } \
-static void io_rcnt_write_mode##i(u32 val)   { psxRcntWmode(i, val); } \
+static void io_rcnt_write_mode##i(u32 val)   { psxRcntWmode(i, val); map_rcnt_rcount##i(val); } \
 static void io_rcnt_write_target##i(u32 val) { psxRcntWtarget(i, val & 0xffff); }
 
 make_rcnt_funcs(0)
@@ -137,30 +209,6 @@ static void io_spu_write32(u32 value)
 	wfunc(a + 2, value >> 16);
 }
 
-static u32 *mem_readtab;
-static u32 *mem_writetab;
-static u32 mem_iortab[(1+2+4) * 0x1000 / 4];
-static u32 mem_iowtab[(1+2+4) * 0x1000 / 4];
-static u32 mem_ffwtab[(1+2+4) * 0x1000 / 4];
-//static u32 mem_unmrtab[(1+2+4) * 0x1000 / 4];
-static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
-
-static void map_item(u32 *out, const void *h, u32 flag)
-{
-	u32 hv = (u32)h;
-	if (hv & 1)
-		fprintf(stderr, "%p has LSB set\n", h);
-	*out = (hv >> 1) | (flag << 31);
-}
-
-// size must be power of 2, at least 4k
-#define map_l1_mem(tab, i, addr, size, base) \
-	map_item(&tab[((addr)>>12) + i], (u8 *)(base) - (u32)(addr) - ((i << 12) & ~(size - 1)), 0)
-
-#define IOMEM32(a) (((a) & 0xfff) / 4)
-#define IOMEM16(a) (0x1000/4 + (((a) & 0xfff) / 2))
-#define IOMEM8(a)  (0x1000/4 + 0x1000/2 + ((a) & 0xfff))
-
 static void map_ram_write(void)
 {
 	int i;
@@ -201,6 +249,22 @@ static void write_biu(u32 value)
 		printf("write_biu: unexpected val: %08x\n", value);
 		break;
 	}
+}
+
+void new_dyna_pcsx_mem_load_state(void)
+{
+	map_rcnt_rcount0(rcnts[0].mode);
+	map_rcnt_rcount1(rcnts[1].mode);
+	map_rcnt_rcount2(rcnts[2].mode);
+}
+
+int pcsxmem_is_handler_dynamic(u_int addr)
+{
+	if ((addr & 0xfffff000) != 0x1f801000)
+		return 0;
+
+	addr &= 0xffff;
+	return addr == 0x1100 || addr == 0x1110 || addr == 0x1120;
 }
 
 void new_dyna_pcsx_mem_init(void)
@@ -367,6 +431,8 @@ void new_dyna_pcsx_mem_init(void)
 
 	mem_rtab = mem_readtab;
 	mem_wtab = mem_writetab;
+
+	new_dyna_pcsx_mem_load_state();
 }
 
 void new_dyna_pcsx_mem_reset(void)

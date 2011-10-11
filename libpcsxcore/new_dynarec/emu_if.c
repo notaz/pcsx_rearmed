@@ -139,6 +139,8 @@ void new_dyna_restore(void)
 	int i;
 	for (i = 0; i < PSXINT_COUNT; i++)
 		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
+
+	new_dyna_pcsx_mem_load_state();
 }
 
 void *gte_handlers[64];
@@ -311,6 +313,7 @@ void invalidate_all_pages() {}
 void invalidate_block(unsigned int block) {}
 void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
+void new_dyna_pcsx_mem_load_state(void) {}
 #endif
 
 #ifdef DRC_DBG

@@ -46,6 +46,12 @@ void jump_handler_write32(u32 addr, u32 data, u32 cycles, u32 *table);
 void jump_handler_write_h(u32 addr, u32 data, u32 cycles, void *handler);
 void jump_handle_swl(u32 addr, u32 data, u32 cycles);
 void jump_handle_swr(u32 addr, u32 data, u32 cycles);
+void rcnt0_read_count_m0(u32 addr, u32, u32 cycles);
+void rcnt0_read_count_m1(u32 addr, u32, u32 cycles);
+void rcnt1_read_count_m0(u32 addr, u32, u32 cycles);
+void rcnt1_read_count_m1(u32 addr, u32, u32 cycles);
+void rcnt2_read_count_m0(u32 addr, u32, u32 cycles);
+void rcnt2_read_count_m1(u32 addr, u32, u32 cycles);
 
 extern unsigned int address;
 extern void *psxH_ptr;

@@ -26,13 +26,6 @@
 
 /******************************************************************************/
 
-typedef struct Rcnt
-{
-    u16 mode, target;
-    u32 rate, irq, counterState, irqState;
-    u32 cycle, cycleStart;
-} Rcnt;
-
 enum
 {
     Rc0Gate           = 0x0001, // 0    not implemented
@@ -75,7 +68,7 @@ static const s32 VerboseLevel     = VERBOSE_LEVEL;
 
 /******************************************************************************/
 
-static Rcnt rcnts[ CounterQuantity ];
+Rcnt rcnts[ CounterQuantity ];
 
 static u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;

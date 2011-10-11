@@ -51,13 +51,14 @@ rdram = 0x80000000
 	.global psxH_ptr
 	.global inv_code_start
 	.global inv_code_end
+	.global rcnts
 
 	.bss
 	.align	4
 	.type	dynarec_local, %object
 	.size	dynarec_local, dynarec_local_end-dynarec_local
 dynarec_local:
-	.space	dynarec_local_end-dynarec_local /*0x400630*/
+	.space	dynarec_local_end-dynarec_local
 next_interupt = dynarec_local + 64
 	.type	next_interupt, %object
 	.size	next_interupt, 4
@@ -120,7 +121,12 @@ intCycle = interrupt + 4
 	.size	intCycle, 256
 psxRegs_end = intCycle + 256
 
-mem_rtab = psxRegs_end
+rcnts = psxRegs_end
+	.type	rcnts, %object
+	.size	rcnts, 7*4*4
+rcnts_end = rcnts + 7*4*4
+
+mem_rtab = rcnts_end
 	.type	mem_rtab, %object
 	.size	mem_rtab, 4
 mem_wtab = mem_rtab + 4
@@ -163,6 +169,26 @@ FCR31 = align0
 	movt	\reg, #:upper16:\var
 .else
 	ldr	\reg, =\var
+.endif
+.endm
+
+.macro mov_16 reg imm
+.if HAVE_ARMV7
+	movw	\reg, #\imm
+.else
+	mov	\reg, #(\imm & 0x00ff)
+	orr	\reg, #(\imm & 0xff00)
+.endif
+.endm
+
+.macro mov_24 reg imm
+.if HAVE_ARMV7
+	movw	\reg, #(\imm & 0xffff)
+	movt	\reg, #(\imm >> 16)
+.else
+	mov	\reg, #(\imm & 0x0000ff)
+	orr	\reg, #(\imm & 0x00ff00)
+	orr	\reg, #(\imm & 0xff0000)
 .endif
 .endm
 
@@ -772,6 +798,12 @@ new_dyna_start:
 .global	jump_handler_write_h
 .global jump_handle_swl
 .global jump_handle_swr
+.global rcnt0_read_count_m0
+.global rcnt0_read_count_m1
+.global rcnt1_read_count_m0
+.global rcnt1_read_count_m1
+.global rcnt2_read_count_m0
+.global rcnt2_read_count_m1
 
 
 .macro pcsx_read_mem readop tab_shift
@@ -921,5 +953,48 @@ jump_handle_swr:
 @	b	abort
 	bx	lr		@ TODO?
 
+
+.macro rcntx_read_mode0 num
+	/* r0 = address, r2 = cycles */
+	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*\num] @ cycleStart
+	mov	r0, r2, lsl #16
+	sub	r0, r3, lsl #16
+	lsr	r0, #16
+	bx	lr
+.endm
+
+rcnt0_read_count_m0:
+	rcntx_read_mode0 0
+
+rcnt1_read_count_m0:
+	rcntx_read_mode0 1
+
+rcnt2_read_count_m0:
+	rcntx_read_mode0 2
+
+rcnt0_read_count_m1:
+	/* r0 = address, r2 = cycles */
+	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*0] @ cycleStart
+	mov_16	r1, 0x3334
+	sub	r2, r2, r3
+	mul	r0, r1, r2		@ /= 5
+	lsr	r0, #16
+	bx	lr
+
+rcnt1_read_count_m1:
+	/* r0 = address, r2 = cycles */
+	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*1]
+	mov_24	r1, 0x1e6cde
+	sub	r2, r2, r3
+	umull	r3, r0, r1, r2		@ ~ /= hsync_cycles, max ~0x1e6cdd
+	bx	lr
+
+rcnt2_read_count_m1:
+	/* r0 = address, r2 = cycles */
+	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*2]
+	mov	r0, r2, lsl #16-3
+	sub	r0, r3, lsl #16-3
+	lsr	r0, #16			@ /= 8
+	bx	lr
 
 @ vim:filetype=armasm

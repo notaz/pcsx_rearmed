@@ -2158,6 +2158,14 @@ void emit_shrcc_imm(int rs,u_int imm,int rt)
   output_w32(0x31a00000|rd_rn_rm(rt,0,rs)|0x20|(imm<<7));
 }
 
+void emit_shrne_imm(int rs,u_int imm,int rt)
+{
+  assert(imm>0);
+  assert(imm<32);
+  assem_debug("lsrne %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0x11a00000|rd_rn_rm(rt,0,rs)|0x20|(imm<<7));
+}
+
 void emit_negmi(int rs, int rt)
 {
   assem_debug("rsbmi %s,%s,#0\n",regname[rt],regname[rs]);
@@ -2711,6 +2719,23 @@ static void pass_args(int a0, int a1)
   }
 }
 
+static void mov_loadtype_adj(int type,int rs,int rt)
+{
+  switch(type) {
+    case LOADB_STUB:  emit_signextend8(rs,rt); break;
+    case LOADBU_STUB: emit_andimm(rs,0xff,rt); break;
+    case LOADH_STUB:  emit_signextend16(rs,rt); break;
+    case LOADHU_STUB: emit_andimm(rs,0xffff,rt); break;
+    case LOADW_STUB:  if(rs!=rt) emit_mov(rs,rt); break;
+    default: assert(0);
+  }
+}
+
+#ifdef PCSX
+#include "pcsxmem.h"
+#include "pcsxmem_inline.c"
+#endif
+
 do_readstub(int n)
 {
   assem_debug("do_readstub %x\n",start+stubs[n][3]*4);
@@ -2787,13 +2812,7 @@ do_readstub(int n)
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n][6]+1),2);
   emit_call(handler);
   if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
-    switch(type) {
-      case LOADB_STUB:  emit_signextend8(0,rt); break;
-      case LOADBU_STUB: emit_andimm(0,0xff,rt); break;
-      case LOADH_STUB:  emit_signextend16(0,rt); break;
-      case LOADHU_STUB: emit_andimm(0,0xffff,rt); break;
-      case LOADW_STUB:  if(rt!=0) emit_mov(0,rt); break;
-    }
+    mov_loadtype_adj(type,0,rt);
   }
   if(restore_jump)
     set_jump_target(restore_jump,(int)out);
@@ -2918,7 +2937,10 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
 #ifdef PCSX
-  u_int handler,host_addr=0;
+  u_int handler,host_addr=0,is_dynamic,far_call=0;
+  int cc=get_reg(regmap,CCREG);
+  if(pcsx_direct_read(type,addr,CLOCK_ADJUST(adj+1),cc,target?rs:-1,rt))
+    return;
   handler=get_direct_memhandler(mem_rtab,addr,type,&host_addr);
   if (handler==0) {
     if(rt<0)
@@ -2935,6 +2957,15 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     }
     return;
   }
+  is_dynamic=pcsxmem_is_handler_dynamic(addr);
+  if(is_dynamic) {
+    if(type==LOADB_STUB||type==LOADBU_STUB)
+      handler=(int)jump_handler_read8;
+    if(type==LOADH_STUB||type==LOADHU_STUB)
+      handler=(int)jump_handler_read16;
+    if(type==LOADW_STUB)
+      handler=(int)jump_handler_read32;
+  }
 
   // call a memhandler
   if(rt>=0)
@@ -2944,22 +2975,30 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     emit_movimm(addr,0);
   else if(rs!=0)
     emit_mov(rs,0);
-  int cc=get_reg(regmap,CCREG);
-  if(cc<0)
-    emit_loadreg(CCREG,2);
-  emit_readword((int)&last_count,3);
-  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
-  emit_add(2,3,3);
-  emit_writeword(3,(int)&Count);
-
   int offset=(int)handler-(int)out-8;
   if(offset<-33554432||offset>=33554432) {
     // unreachable memhandler, a plugin func perhaps
-    emit_movimm(handler,1);
-    emit_callreg(1);
+    emit_movimm(handler,12);
+    far_call=1;
   }
+  if(cc<0)
+    emit_loadreg(CCREG,2);
+  if(is_dynamic) {
+    emit_movimm(((u_int *)mem_rtab)[addr>>12]<<1,1);
+    emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
+  }
+  else {
+    emit_readword((int)&last_count,3);
+    emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
+    emit_add(2,3,2);
+    emit_writeword(2,(int)&Count);
+  }
+
+  if(far_call)
+    emit_callreg(12);
   else
     emit_call(handler);
+
   if(rt>=0) {
     switch(type) {
       case LOADB_STUB:  emit_signextend8(0,rt); break;

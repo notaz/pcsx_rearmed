@@ -1233,7 +1233,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
-	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
+	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
 	mee_enum_h    ("CD read reschedule hack",0, Config.CdrReschedule, men_cfg_cdrr, h_cfg_cdrr),
 	mee_range_h   ("PSX CPU clock, %%",      0, psx_clock, 1, 500, h_cfg_psxclk),
