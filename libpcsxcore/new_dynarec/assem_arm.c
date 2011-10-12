@@ -2637,12 +2637,24 @@ void literal_pool(int n)
   int i;
   for(i=0;i<literalcount;i++)
   {
+    u_int l_addr=(u_int)out;
+    int j;
+    for(j=0;j<i;j++) {
+      if(literals[j][1]==literals[i][1]) {
+        //printf("dup %08x\n",literals[i][1]);
+        l_addr=literals[j][0];
+        break;
+      }
+    }
     ptr=(u_int *)literals[i][0];
-    u_int offset=(u_int)out-(u_int)ptr-8;
+    u_int offset=l_addr-(u_int)ptr-8;
     assert(offset<4096);
     assert(!(offset&3));
     *ptr|=offset;
-    output_w32(literals[i][1]);
+    if(l_addr==(u_int)out) {
+      literals[i][0]=l_addr; // remember for dupes
+      output_w32(literals[i][1]);
+    }
   }
   literalcount=0;
 }
