@@ -33,6 +33,8 @@ static void *fb_vaddrs[2];
 static unsigned int fb_paddrs[2];
 static int fb_work_buf;
 static int cpu_clock_allowed;
+static unsigned int saved_video_regs[2][6];
+#define FB_VRAM_SIZE (320*240*2*2*2) // 2 buffers with space for 24bpp mode
 
 static unsigned short *psx_vram;
 static unsigned int psx_vram_padds[512];
@@ -51,8 +53,9 @@ int omap_enable_layer(int enabled)
 
 static void *fb_flip(void)
 {
-	memregl[0x406C>>2] = fb_paddrs[fb_work_buf];
+	memregl[0x406C>>2] = memregl[0x446C>>2] = fb_paddrs[fb_work_buf];
 	memregl[0x4058>>2] |= 0x10;
+	memregl[0x4458>>2] |= 0x10;
 	fb_work_buf ^= 1;
 	return fb_vaddrs[fb_work_buf];
 }
@@ -86,12 +89,17 @@ static void pollux_changemode(int bpp, int is_bgr)
 			return;
 	}
 
-	memregl[0x405c>>2] = bytes;
-	memregl[0x4060>>2] = 320 * bytes;
+	// program both MLCs so that TV-out works
+	memregl[0x405c>>2] = memregl[0x445c>>2] = bytes;
+	memregl[0x4060>>2] = memregl[0x4460>>2] = 320 * bytes;
 
 	r = memregl[0x4058>>2];
 	r = (r & 0xffff) | (code << 16) | 0x10;
 	memregl[0x4058>>2] = r;
+
+	r = memregl[0x4458>>2];
+	r = (r & 0xffff) | (code << 16) | 0x10;
+	memregl[0x4458>>2] = r;
 }
 
 /* note: both PLLs are programmed the same way,
@@ -389,6 +397,24 @@ static void *pl_vout_flip(void)
 	return NULL;
 }
 
+static void save_multiple_regs(unsigned int *dest, int base, int count)
+{
+	const volatile unsigned int *regs = memregl + base / 4;
+	int i;
+
+	for (i = 0; i < count; i++)
+		dest[i] = regs[i];
+}
+
+static void restore_multiple_regs(int base, const unsigned int *src, int count)
+{
+	volatile unsigned int *regs = memregl + base / 4;
+	int i;
+
+	for (i = 0; i < count; i++)
+		regs[i] = src[i];
+}
+
 void plat_init(void)
 {
 	const char *main_fb_name = "/dev/fb0";
@@ -409,6 +435,10 @@ void plat_init(void)
 	}
 	memregl = (volatile void *)memregs;
 
+	// save video regs of both MLCs
+	save_multiple_regs(saved_video_regs[0], 0x4058, ARRAY_SIZE(saved_video_regs[0]));
+	save_multiple_regs(saved_video_regs[1], 0x4458, ARRAY_SIZE(saved_video_regs[1]));
+
 	fbdev = open(main_fb_name, O_RDWR);
 	if (fbdev == -1) {
 		fprintf(stderr, "%s: ", main_fb_name);
@@ -425,7 +455,7 @@ void plat_init(void)
 	fb_paddrs[0] = fbfix.smem_start;
 	fb_paddrs[1] = fb_paddrs[0] + 320*240*4; // leave space for 24bpp
 
-	fb_vaddrs[0] = mmap(0, 320*240*2*4, PROT_READ|PROT_WRITE,
+	fb_vaddrs[0] = mmap(0, FB_VRAM_SIZE, PROT_READ|PROT_WRITE,
 				MAP_SHARED, memdev, fb_paddrs[0]);
 	if (fb_vaddrs[0] == MAP_FAILED) {
 		perror("mmap(fb_vaddrs) failed");
@@ -509,14 +539,17 @@ void plat_finish(void)
 {
 	warm_finish();
 	timer_cleanup();
-	pollux_changemode(16, 0);
-	fb_work_buf = 0;
-	fb_flip();
+
+	memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
+	restore_multiple_regs(0x4058, saved_video_regs[0], ARRAY_SIZE(saved_video_regs[0]));
+	restore_multiple_regs(0x4458, saved_video_regs[1], ARRAY_SIZE(saved_video_regs[1]));
+	memregl[0x4058>>2] |= 0x10;
+	memregl[0x4458>>2] |= 0x10;
+	munmap(fb_vaddrs[0], FB_VRAM_SIZE);
+	close(fbdev);
 
 	if (battdev >= 0)
 		close(battdev);
-	munmap(fb_vaddrs[0], 320*240*2*2);
-	close(fbdev);
 	munmap((void *)memregs, 0x20000);
 	close(memdev);
 }
