@@ -69,17 +69,17 @@ int psxMemInit() {
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
 	psxM = mmap((void *)0x80000000, 0x00210000,
-		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
 	psxP = &psxM[0x200000];
 	psxH = mmap((void *)0x1f800000, 0x00010000,
-		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
-	psxR = mmap((void *)0x9fc00000, 0x80000,
+	psxR = mmap((void *)0x1fc00000, 0x80000,
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM != (void *)0x80000000 || psxR != (void *)0x9fc00000 ||
+		psxM != (void *)0x80000000 || psxR == MAP_FAILED ||
 		psxP == NULL || psxH != (void *)0x1f800000) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;
@@ -135,7 +135,8 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	munmap(psxM, 0x00220000);
+	munmap(psxM, 0x00210000);
+	munmap(psxH, 0x1f800000);
 	munmap(psxR, 0x80000);
 
 	free(psxMemRLUT);
