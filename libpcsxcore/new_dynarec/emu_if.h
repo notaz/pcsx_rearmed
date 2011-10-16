@@ -29,6 +29,8 @@ extern void *gte_handlers[64];
 extern void *gte_handlers_nf[64];
 extern const char *gte_regnames[64];
 extern const char gte_cycletab[64];
+extern const uint64_t gte_reg_reads[64];
+extern const uint64_t gte_reg_writes[64];
 
 /* dummy */
 extern int FCR0, FCR31;

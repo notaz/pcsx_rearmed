@@ -8651,8 +8651,9 @@ int new_recompile_block(int addr)
         rs2[i]=0;
         rt1[i]=0;
         rt2[i]=0;
-        gte_rt[i]=1ll<<63; // every op changes flags
-        // TODO: other regs?
+        gte_rs[i]=gte_reg_reads[source[i]&0x3f];
+        gte_rt[i]=gte_reg_writes[source[i]&0x3f];
+        gte_rt[i]|=1ll<<63; // every op changes flags
         break;
       case FLOAT:
       case FCONV:

@@ -143,6 +143,7 @@ void new_dyna_restore(void)
 	new_dyna_pcsx_mem_load_state();
 }
 
+/* GTE stuff */
 void *gte_handlers[64];
 
 void *gte_handlers_nf[64] = {
@@ -174,6 +175,107 @@ const char gte_cycletab[64] = {
 	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
 	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
 	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
+};
+
+enum gte_opcodes {
+	GTE_RTPS	= 0x01,
+	GTE_NCLIP	= 0x06,
+	GTE_OP		= 0x0c,
+	GTE_DPCS	= 0x10,
+	GTE_INTPL	= 0x11,
+	GTE_MVMVA	= 0x12,
+	GTE_NCDS	= 0x13,
+	GTE_CDP		= 0x14,
+	GTE_NCDT	= 0x16,
+	GTE_NCCS	= 0x1b,
+	GTE_CC		= 0x1c,
+	GTE_NCS		= 0x1e,
+	GTE_NCT		= 0x20,
+	GTE_SQR		= 0x28,
+	GTE_DCPL	= 0x29,
+	GTE_DPCT	= 0x2a,
+	GTE_AVSZ3	= 0x2d,
+	GTE_AVSZ4	= 0x2e,
+	GTE_RTPT	= 0x30,
+	GTE_GPF		= 0x3d,
+	GTE_GPL		= 0x3e,
+	GTE_NCCT	= 0x3f,
+};
+
+#define GCBIT(x) \
+	(1ll << (32+x))
+#define GDBIT(x) \
+	(1ll << (x))
+#define GCBITS3(b0,b1,b2) \
+	(GCBIT(b0) | GCBIT(b1) | GCBIT(b2))
+#define GDBITS2(b0,b1) \
+	(GDBIT(b0) | GDBIT(b1))
+#define GDBITS3(b0,b1,b2) \
+	(GDBITS2(b0,b1) | GDBIT(b2))
+#define GDBITS4(b0,b1,b2,b3) \
+	(GDBITS3(b0,b1,b2) | GDBIT(b3))
+#define GDBITS5(b0,b1,b2,b3,b4) \
+	(GDBITS4(b0,b1,b2,b3) | GDBIT(b4))
+#define GDBITS6(b0,b1,b2,b3,b4,b5) \
+	(GDBITS5(b0,b1,b2,b3,b4) | GDBIT(b5))
+#define GDBITS7(b0,b1,b2,b3,b4,b5,b6) \
+	(GDBITS6(b0,b1,b2,b3,b4,b5) | GDBIT(b6))
+#define GDBITS8(b0,b1,b2,b3,b4,b5,b6,b7) \
+	(GDBITS7(b0,b1,b2,b3,b4,b5,b6) | GDBIT(b7))
+#define GDBITS9(b0,b1,b2,b3,b4,b5,b6,b7,b8) \
+	(GDBITS8(b0,b1,b2,b3,b4,b5,b6,b7) | GDBIT(b8))
+#define GDBITS10(b0,b1,b2,b3,b4,b5,b6,b7,b8,b9) \
+	(GDBITS9(b0,b1,b2,b3,b4,b5,b6,b7,b8) | GDBIT(b9))
+
+const uint64_t gte_reg_reads[64] = {
+	[GTE_RTPS]  = 0x1f0000ff00000000ll | GDBITS7(0,1,13,14,17,18,19),
+	[GTE_NCLIP] =                        GDBITS3(12,13,14),
+	[GTE_OP]    = GCBITS3(0,2,4)       | GDBITS3(9,10,11),
+	[GTE_DPCS]  = GCBITS3(21,22,23)    | GDBITS4(6,8,21,22),
+	[GTE_INTPL] = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
+	[GTE_MVMVA] = 0x00ffffff00000000ll | GDBITS6(0,1,2,3,4,5), // XXX: maybe decode further?
+	[GTE_NCDS]  = 0x00ffff0000000000ll | GDBITS5(0,1,6,21,22),
+	[GTE_CDP]   = 0x00fff00000000000ll | GDBITS7(6,8,9,10,11,21,22),
+	[GTE_NCDT]  = 0x00ffff0000000000ll | GDBITS8(0,1,2,3,4,5,6,8),
+	[GTE_NCCS]  = 0x00ffff0000000000ll | GDBITS6(0,1,6,8,21,22),
+	[GTE_CC]    = 0x001fe00000000000ll | GDBITS6(6,9,10,11,21,22),
+	[GTE_NCS]   = 0x001fff0000000000ll | GDBITS4(0,1,21,22),
+	[GTE_NCT]   = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
+	[GTE_SQR]   =                        GDBITS3(9,10,11),
+	[GTE_DCPL]  = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
+	[GTE_DPCT]  = GCBITS3(21,22,23)    | GDBITS4(8,20,21,22),
+	[GTE_AVSZ3] = GCBIT(29)            | GDBITS3(17,18,19),
+	[GTE_AVSZ4] = GCBIT(30)            | GDBITS4(16,17,18,19),
+	[GTE_RTPT]  = 0x1f0000ff00000000ll | GDBITS7(0,1,2,3,4,5,19),
+	[GTE_GPF]   =                        GDBITS7(6,8,9,10,11,21,22),
+	[GTE_GPL]   =                        GDBITS10(6,8,9,10,11,21,22,25,26,27),
+	[GTE_NCCT]  = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
+};
+
+// note: this excludes gteFLAG that is always written to
+const uint64_t gte_reg_writes[64] = {
+	[GTE_RTPS]  = 0x0f0f7f00ll,
+	[GTE_NCLIP] = GDBIT(24),
+	[GTE_OP]    = GDBITS6(9,10,11,25,26,27),
+	[GTE_DPCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_INTPL] = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_MVMVA] = GDBITS6(9,10,11,25,26,27),
+	[GTE_NCDS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_CDP]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_NCDT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_NCCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_CC]    = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_NCS]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_NCT]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_SQR]   = GDBITS6(9,10,11,25,26,27),
+	[GTE_DCPL]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_DPCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_AVSZ3] = GDBITS2(7,24),
+	[GTE_AVSZ4] = GDBITS2(7,24),
+	[GTE_RTPT]  = 0x0f0f7f00ll,
+	[GTE_GPF]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_GPL]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTE_NCCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
 };
 
 static int ari64_init()
