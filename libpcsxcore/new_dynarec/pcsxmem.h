@@ -1,4 +1,6 @@
 
+extern u8 zero_mem[0x1000];
+
 void new_dyna_pcsx_mem_init(void);
 void new_dyna_pcsx_mem_reset(void);
 void new_dyna_pcsx_mem_load_state(void);

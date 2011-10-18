@@ -527,40 +527,20 @@ gteRTPT_neon:
 
 
 
-.global gteMVMVA_neon @ r0=CP2 (d,c), op
-gteMVMVA_neon:
-    push        {r4-r5,lr}
-
-    add         r12, r0, #4*32
-
-    ubfx        r2, r1, #15, #2 @ v
-
-    vmov.i32    q0, #0          @ d0,d1
-    vmov.i32    q1, #0          @ d2,d3
-    vmov.i32    q2, #0          @ d4,d5
-    cmp         r2, #3
-    addeq       r4, r0, #4*9
-    addne       r3, r0, r2, lsl #3
-    ldmeqia     r4, {r3-r5}
-    ldmneia     r3, {r4,r5}
-    pkhbteq     r4, r3, r4, lsl #16
+@ note: non-std calling convention used
+@ r0 = CP2 (d,c)  (must preserve)
+@ r1 = op
+@ r4,r5 = VXYZ(v) packed
+@ r6 = &MX11(mx)
+@ r7 = &CV1(cv)
+.global gteMVMVA_part_neon
+gteMVMVA_part_neon:
     uxth        r5, r5
     vmov.32     d8[0], r4
     vmov.32     d8[1], r5       @ VXYZ(v)
-    ubfx        r3, r1, #17, #2 @ mx
-    ubfx        r2, r1, #13, #2 @ cv
-    cmp         r3, #3
-    beq         0f              @ very rare case
-    add         r3, r12, r3, lsl #5
-    vldmia      r3, {d0-d2}     @ MXxy/gteR*  [16*9]
-0:
-    cmp         r2, #3
-    add         r3, r12, r2, lsl #5
-    beq         0f
-    add         r3, #4*5
-    vldmia      r3, {d4-d5}     @ CVx/gteTR*
+    vldmia      r6, {d0-d2}     @ MXxy/gteR*  [16*9]
+    vldmia      r7, {d4-d5}     @ CVx/gteTR*
 
-0:
     vmov.i32    q15, #0
     vext.16     d2, d1, d2, #2 @ xxx3 -> x321
     vext.16     d1, d0, d1, #3 @ xx32 -> x321
@@ -596,10 +576,17 @@ gteMVMVA_neon:
     add         r3, r0, #4*9
     vst1.32     d18, [r3]!
     vst1.32     d19[0], [r3]
+    bx          lr
+    .size       gteMVMVA_part_neon, .-gteMVMVA_part_neon
 
-    tst         r1, #1<<10     @ lm
-    mov         r2, #0
+
+@ get flags after gteMVMVA_part_neon operation
+.global gteMACtoIR_flags_neon @ r0=CP2 (d,c), r1=lm
+gteMACtoIR_flags_neon:
+    push        {r4,r5,lr}
+    tst         r1, r1         @ lm
     mov         lr, #0         @ gteFLAG
+    mov         r2, #0
     mov         r12, #15
     moveq       r2, #0x8000    @ adj
     moveq       r12, #16       @ shift
@@ -621,8 +608,8 @@ gteMVMVA_neon:
     orrne       lr, #(1<<22)   @ IR3/limB3
     str         lr, [r0, #4*(32+31)] @ gteFLAG
 
-    pop         {r4-r5,pc}
-    .size	gteMVMVA_neon, .-gteMVMVA_neon
+    pop         {r4,r5,pc}
+    .size       gteMACtoIR_flags_neon, .-gteMACtoIR_flags_neon
 
 
 

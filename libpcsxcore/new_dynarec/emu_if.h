@@ -24,6 +24,31 @@ extern int reg_cop0[];
 #define Count    psxRegs.cycle // psxRegs.CP0.n.Count
 
 /* COP2/GTE */
+enum gte_opcodes {
+	GTE_RTPS	= 0x01,
+	GTE_NCLIP	= 0x06,
+	GTE_OP		= 0x0c,
+	GTE_DPCS	= 0x10,
+	GTE_INTPL	= 0x11,
+	GTE_MVMVA	= 0x12,
+	GTE_NCDS	= 0x13,
+	GTE_CDP		= 0x14,
+	GTE_NCDT	= 0x16,
+	GTE_NCCS	= 0x1b,
+	GTE_CC		= 0x1c,
+	GTE_NCS		= 0x1e,
+	GTE_NCT		= 0x20,
+	GTE_SQR		= 0x28,
+	GTE_DCPL	= 0x29,
+	GTE_DPCT	= 0x2a,
+	GTE_AVSZ3	= 0x2d,
+	GTE_AVSZ4	= 0x2e,
+	GTE_RTPT	= 0x30,
+	GTE_GPF		= 0x3d,
+	GTE_GPL		= 0x3e,
+	GTE_NCCT	= 0x3f,
+};
+
 extern int reg_cop2d[], reg_cop2c[];
 extern void *gte_handlers[64];
 extern void *gte_handlers_nf[64];
@@ -57,6 +82,7 @@ void rcnt2_read_count_m1(u32 addr, u32, u32 cycles);
 
 extern unsigned int address;
 extern void *psxH_ptr;
+extern void *zeromem_ptr;
 
 // same as invalid_code, just a region for ram write checks (inclusive)
 extern u32 inv_code_start, inv_code_end;

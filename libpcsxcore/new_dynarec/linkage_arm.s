@@ -49,6 +49,7 @@ rdram = 0x80000000
 	.global mem_rtab
 	.global mem_wtab
 	.global psxH_ptr
+	.global zeromem_ptr
 	.global inv_code_start
 	.global inv_code_end
 	.global rcnts
@@ -135,7 +136,10 @@ mem_wtab = mem_rtab + 4
 psxH_ptr = mem_wtab + 4
 	.type	psxH_ptr, %object
 	.size	psxH_ptr, 4
-inv_code_start = psxH_ptr + 4
+zeromem_ptr = psxH_ptr + 4
+	.type	zeromem_ptr, %object
+	.size	zeromem_ptr, 4
+inv_code_start = zeromem_ptr + 4
 	.type	inv_code_start, %object
 	.size	inv_code_start, 4
 inv_code_end = inv_code_start + 4
@@ -146,8 +150,8 @@ branch_target = inv_code_end + 4
 	.size	branch_target, 4
 align0 = branch_target + 4 /* unused/alignment */
 	.type	align0, %object
-	.size	align0, 4
-mini_ht = align0 + 4
+	.size	align0, 16
+mini_ht = align0 + 16
 	.type	mini_ht, %object
 	.size	mini_ht, 256
 restore_candidate = mini_ht + 256

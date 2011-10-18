@@ -40,7 +40,7 @@ static void map_item(u32 *out, const void *h, u32 flag)
 #define IOMEM16(a) (0x1000/4 + (((a) & 0xfff) / 2))
 #define IOMEM8(a)  (0x1000/4 + 0x1000/2 + ((a) & 0xfff))
 
-static u8 unmapped_mem[0x1000];
+u8 zero_mem[0x1000];
 
 u32 read_mem_dummy()
 {
@@ -290,7 +290,7 @@ void new_dyna_pcsx_mem_init(void)
 	// default/unmapped memhandlers
 	for (i = 0; i < 0x100000; i++) {
 		//map_item(&mem_readtab[i], mem_unmrtab, 1);
-		map_l1_mem(mem_readtab, i, 0, 0x1000, unmapped_mem);
+		map_l1_mem(mem_readtab, i, 0, 0x1000, zero_mem);
 		map_item(&mem_writetab[i], mem_unmwtab, 1);
 	}
 

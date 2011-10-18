@@ -19,6 +19,12 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#ifdef PCSX
+#include "../gte_arm.h"
+#include "../gte_neon.h"
+#include "pcnt.h"
+#endif
+
 extern int cycle_count;
 extern int last_count;
 extern int pcaddr;
@@ -1924,6 +1930,16 @@ void emit_movzwl_indexed(int offset, int rs, int rt)
     output_w32(0xe15000b0|rd_rn_rm(rt,rs,0)|(((-offset)<<4)&0xf00)|((-offset)&0xf));
   }
 }
+static void emit_ldrd(int offset, int rs, int rt)
+{
+  assert(offset>-256&&offset<256);
+  assem_debug("ldrd %s,%s+%d\n",regname[rt],regname[rs],offset);
+  if(offset>=0) {
+    output_w32(0xe1c000d0|rd_rn_rm(rt,rs,0)|((offset<<4)&0xf00)|(offset&0xf));
+  }else{
+    output_w32(0xe14000d0|rd_rn_rm(rt,rs,0)|(((-offset)<<4)&0xf00)|((-offset)&0xf));
+  }
+}
 void emit_readword(int addr, int rt)
 {
   u_int offset = addr-(u_int)&dynarec_local;
@@ -2568,33 +2584,39 @@ void emit_jno_unlikely(int a)
   output_w32(0x72800000|rd_rn_rm(15,15,0));
 }
 
-// Save registers before function call
-void save_regs(u_int reglist)
+static void save_regs_all(u_int reglist)
 {
-  reglist&=0x100f; // only save the caller-save registers, r0-r3, r12
+  int i;
   if(!reglist) return;
   assem_debug("stmia fp,{");
-  if(reglist&1) assem_debug("r0, ");
-  if(reglist&2) assem_debug("r1, ");
-  if(reglist&4) assem_debug("r2, ");
-  if(reglist&8) assem_debug("r3, ");
-  if(reglist&0x1000) assem_debug("r12");
+  for(i=0;i<16;i++)
+    if(reglist&(1<<i))
+      assem_debug("r%d,",i);
   assem_debug("}\n");
   output_w32(0xe88b0000|reglist);
 }
-// Restore registers after function call
-void restore_regs(u_int reglist)
+static void restore_regs_all(u_int reglist)
 {
-  reglist&=0x100f; // only restore the caller-save registers, r0-r3, r12
+  int i;
   if(!reglist) return;
   assem_debug("ldmia fp,{");
-  if(reglist&1) assem_debug("r0, ");
-  if(reglist&2) assem_debug("r1, ");
-  if(reglist&4) assem_debug("r2, ");
-  if(reglist&8) assem_debug("r3, ");
-  if(reglist&0x1000) assem_debug("r12");
+  for(i=0;i<16;i++)
+    if(reglist&(1<<i))
+      assem_debug("r%d,",i);
   assem_debug("}\n");
   output_w32(0xe89b0000|reglist);
+}
+// Save registers before function call
+static void save_regs(u_int reglist)
+{
+  reglist&=0x100f; // only save the caller-save registers, r0-r3, r12
+  save_regs_all(reglist);
+}
+// Restore registers after function call
+static void restore_regs(u_int reglist)
+{
+  reglist&=0x100f; // only restore the caller-save registers, r0-r3, r12
+  restore_regs_all(reglist);
 }
 
 // Write back consts using r14 so we don't disturb the other registers
@@ -4385,36 +4407,96 @@ void cop2_assemble(int i,struct regstat *i_regs)
   }
 }
 
-void c2op_assemble(int i,struct regstat *i_regs)
+static void c2op_prologue(u_int op,u_int reglist)
+{
+  save_regs_all(reglist);
+  emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
+}
+
+static void c2op_epilogue(u_int op,u_int reglist)
+{
+  restore_regs_all(reglist);
+}
+
+static void c2op_assemble(int i,struct regstat *i_regs)
 {
   signed char temp=get_reg(i_regs->regmap,-1);
   u_int c2op=source[i]&0x3f;
   u_int hr,reglist=0;
-  int need_flags;
+  int need_flags,need_ir;
   for(hr=0;hr<HOST_REGS;hr++) {
     if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
   }
-  if(i==0||itype[i-1]!=C2OP)
-    save_regs(reglist);
 
   if (gte_handlers[c2op]!=NULL) {
-    int cc=get_reg(i_regs->regmap,CCREG);
-    emit_movimm(source[i],1); // opcode
-    if (cc>=0&&gte_cycletab[c2op])
-      emit_addimm(cc,gte_cycletab[c2op]/2,cc); // XXX: could just adjust ccadj?
-    emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
-    emit_writeword(1,(int)&psxRegs.code);
     need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
-    assem_debug("gte unneeded %016llx, need_flags %d\n",gte_unneeded[i+1],need_flags);
+    need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
+    assem_debug("gte unneeded %016llx, need_flags %d, need_ir %d\n",
+      gte_unneeded[i+1],need_flags,need_ir);
 #ifdef ARMv5_ONLY
     // let's take more risk here
     need_flags=need_flags&&gte_reads_flags;
 #endif
-    emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
-  }
+    switch(c2op) {
+      case GTE_MVMVA: {
+        int shift = (source[i] >> 19) & 1;
+        int v  = (source[i] >> 15) & 3;
+        int cv = (source[i] >> 13) & 3;
+        int mx = (source[i] >> 17) & 3;
+        int lm = (source[i] >> 10) & 1;
+        reglist&=0x10ff; // +{r4-r7}
+        c2op_prologue(c2op,reglist);
+        /* r4,r5 = VXYZ(v) packed; r6 = &MX11(mx); r7 = &CV1(cv) */
+        if(v<3)
+          emit_ldrd(v*8,0,4);
+        else {
+          emit_movzwl_indexed(9*4,0,4);  // gteIR
+          emit_movzwl_indexed(10*4,0,6);
+          emit_movzwl_indexed(11*4,0,5);
+          emit_orrshl_imm(6,16,4);
+        }
+        if(mx<3)
+          emit_addimm(0,32*4+mx*8*4,6);
+        else
+          emit_readword((int)&zeromem_ptr,6);
+        if(cv<3)
+          emit_addimm(0,32*4+(cv*8+5)*4,7);
+        else
+          emit_readword((int)&zeromem_ptr,7);
+#ifdef __ARM_NEON__
+        emit_movimm(source[i],1); // opcode
+        emit_call((int)gteMVMVA_part_neon);
+        if(need_flags) {
+          emit_movimm(lm,1);
+          emit_call((int)gteMACtoIR_flags_neon);
+        }
+#else
+        if(cv==3&&shift)
+          emit_call((int)gteMVMVA_part_cv3sh12_arm);
+        else {
+          emit_movimm(shift,1);
+          emit_call((int)(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm));
+        }
+        if(need_flags||need_ir) {
+          if(need_flags)
+            emit_call((int)(lm?gteMACtoIR_lm1:gteMACtoIR_lm0));
+          else
+            emit_call((int)(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf)); // lm0 borked
+        }
+#endif
+        break;
+      }
 
-  if(i>=slen-1||itype[i+1]!=C2OP)
-    restore_regs(reglist);
+      default:
+        reglist&=0x100f;
+        c2op_prologue(c2op,reglist);
+        emit_movimm(source[i],1); // opcode
+        emit_writeword(1,(int)&psxRegs.code);
+        emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
+        break;
+    }
+    c2op_epilogue(c2op,reglist);
+  }
 }
 
 void cop1_unusable(int i,struct regstat *i_regs)

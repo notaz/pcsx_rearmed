@@ -9736,6 +9736,11 @@ int new_recompile_block(int addr)
       cc=0;
     }
 #ifdef PCSX
+    else if(itype[i]==C2OP&&gte_cycletab[source[i]&0x3f]>2)
+    {
+      // GTE runs in parallel until accessed, divide by 2 for a rough guess
+      cc+=gte_cycletab[source[i]&0x3f]/2;
+    }
     else if(/*itype[i]==LOAD||*/itype[i]==STORE||itype[i]==C1LS) // load causes weird timing issues
     {
       cc+=2; // 2 cycle penalty (after CLOCK_DIVIDER)

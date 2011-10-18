@@ -38,6 +38,19 @@
 .endif
 .endm
 
+@ prepare work reg for ssatx0 (sat to 0..2^(bit-1))
+@ in: wr reg, bit to saturate to
+.macro ssatx0_prep wr bit
+    mov      \wr, #(1<<(\bit-1))
+.endm
+
+.macro ssatx0 rd wr bit
+    cmp      \rd, \wr
+    subge    \rd, \wr, #1
+    cmn      \rd, #0
+    movlt    \rd, #0
+.endm
+
 .macro usat16_ rd rs
 .if HAVE_ARMV7
     usat     \rd, #16, \rs
@@ -209,8 +222,7 @@ rtpt_arm_loop:
     mov      r9, r0
     pop      {r0, r12, lr}
 .endif
-1:
-                                  cmp      r9, #0x20000
+1:                                cmp      r9, #0x20000
     add      r1, r0, #4*12
                                   movhs    r9, #0x20000
     ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
@@ -246,6 +258,129 @@ rtpt_arm_loop:
 
     pop      {r4-r11,pc}
     .size    gteRTPT_nf_arm, .-gteRTPT_nf_arm
+
+
+@ note: not std calling convention used
+@ r0 = CP2 (d,c)  (must preserve)
+@ r1 = needs_shift12
+@ r4,r5 = VXYZ(v) packed
+@ r6 = &MX11(mx)
+@ r7 = &CV1(cv)
+.macro mvma_op do_flags
+    push     {r8-r11}
+
+.if \do_flags
+    ands     r3, r1, #1           @ gteFLAG, shift_need
+.else
+    tst      r1, #1
+.endif
+    ldmia    r7, {r7-r9}          @ CV123
+    ldmia    r6!,{r10-r12}        @ MX1*,MX2*
+    asr      r1, r7, #20
+    lsl      r7, #12              @ expand to 64bit
+    smlalbb  r7, r1, r10, r4      @ MX11 * vx
+    smlaltt  r7, r1, r10, r4      @ MX12 * vy
+    smlalbb  r7, r1, r11, r5      @ MX13 * vz
+    lsrne    r7, #12
+    orrne    r7, r1, lsl #20      @ gteMAC0
+.if \do_flags
+    asrne    r1, #20
+    adds     r2, r7, #0x80000000
+    adcs     r1, #0
+    orrgt    r3, #(1<<30)
+    orrmi    r3, #(1<<31)|(1<<27)
+    tst      r3, #1               @ repeat shift test
+.endif
+    asr      r1, r8, #20
+    lsl      r8, #12              @ expand to 64bit
+    smlaltb  r8, r1, r11, r4      @ MX21 * vx
+    smlalbt  r8, r1, r12, r4      @ MX22 * vy
+    smlaltb  r8, r1, r12, r5      @ MX23 * vz
+    lsrne    r8, #12
+    orrne    r8, r1, lsl #20      @ gteMAC1
+.if \do_flags
+    asrne    r1, #20
+    adds     r2, r8, #0x80000000
+    adcs     r1, #0
+    orrgt    r3, #(1<<29)
+    orrmi    r3, #(1<<31)|(1<<26)
+    tst      r3, #1               @ repeat shift test
+.endif
+    ldmia    r6!,{r10-r11}        @ MX3*
+    asr      r1, r9, #20
+    lsl      r9, #12              @ expand to 64bit
+    smlalbb  r9, r1, r10, r4      @ MX31 * vx
+    smlaltt  r9, r1, r10, r4      @ MX32 * vy
+    smlalbb  r9, r1, r11, r5      @ MX33 * vz
+    lsrne    r9, #12
+    orrne    r9, r1, lsl #20      @ gteMAC2
+.if \do_flags
+    asrne    r1, #20
+    adds     r2, r9, #0x80000000
+    adcs     r1, #0
+    orrgt    r3, #(1<<28)
+    orrmi    r3, #(1<<31)|(1<<25)
+    bic      r3, #1
+.else
+    mov      r3, #0
+.endif
+    str      r3, [r0, #4*(32+31)] @ gteFLAG
+    add      r1, r0, #4*25
+    stmia    r1, {r7-r9}
+
+    pop      {r8-r11}
+    bx       lr
+.endm
+
+.global gteMVMVA_part_arm
+gteMVMVA_part_arm:
+    mvma_op 1
+    .size    gteMVMVA_part_arm, .-gteMVMVA_part_arm
+ 
+.global gteMVMVA_part_nf_arm
+gteMVMVA_part_nf_arm:
+    mvma_op 0
+    .size    gteMVMVA_part_nf_arm, .-gteMVMVA_part_nf_arm
+ 
+@ common version of MVMVA with cv3 (== 0) and shift12,
+@ can't overflow so no gteMAC flags needed
+@ note: not std calling convention used
+@ r0 = CP2 (d,c)  (must preserve)
+@ r4,r5 = VXYZ(v) packed
+@ r6 = &MX11(mx)
+.global gteMVMVA_part_cv3sh12_arm
+gteMVMVA_part_cv3sh12_arm:
+    push     {r8-r9}
+    ldmia    r6!,{r7-r9}          @ MX1*,MX2*
+    smulbb   r1, r7, r4           @ MX11 * vx
+    smultt   r2, r7, r4           @ MX12 * vy
+    smulbb   r3, r8, r5           @ MX13 * vz
+    qadd     r1, r1, r2
+    asr      r3, #1               @ prevent oflow, lose a bit
+    add      r1, r3, r1, asr #1
+    asr      r7, r1, #11
+    smultb   r1, r8, r4           @ MX21 * vx
+    smulbt   r2, r9, r4           @ MX22 * vy
+    smultb   r3, r9, r5           @ MX23 * vz
+    qadd     r1, r1, r2
+    asr      r3, #1
+    add      r1, r3, r1, asr #1
+    asr      r8, r1, #11
+    ldmia    r6, {r6,r9}          @ MX3*
+    smulbb   r1, r6, r4           @ MX31 * vx
+    smultt   r2, r6, r4           @ MX32 * vy
+    smulbb   r3, r9, r5           @ MX33 * vz
+    qadd     r1, r1, r2
+    asr      r3, #1
+    add      r1, r3, r1, asr #1
+    asr      r9, r1, #11
+    add      r1, r0, #4*25
+    mov      r2, #0
+    stmia    r1, {r7-r9}
+    str      r2, [r0, #4*(32+31)] @ gteFLAG
+    pop      {r8-r9}
+    bx       lr
+    .size    gteMVMVA_part_cv3sh12_arm, .-gteMVMVA_part_cv3sh12_arm
 
 
 .global gteNCLIP_arm @ r0=CP2 (d,c),
@@ -287,6 +422,147 @@ gteNCLIP_arm:
 
     pop         {r4-r6,pc}
     .size	gteNCLIP_arm, .-gteNCLIP_arm
+
+
+.macro gteMACtoIR lm
+    ldr      r2, [r0, #4*25]      @ gteMAC1
+    mov      r1, #1<<15
+    ldr      r12,[r0, #4*(32+31)] @ gteFLAG
+    cmp      r2, r1
+    subge    r2, r1, #1
+    orrge    r12, #(1<<31)|(1<<24)
+.if \lm
+    cmp      r2, #0
+    movlt    r2, #0
+.else
+    cmn      r2, r1
+    rsblt    r2, r1, #0
+.endif
+    str      r2, [r0, #4*9]
+    ldrd     r2, [r0, #4*26]      @ gteMAC23
+    orrlt    r12, #(1<<31)|(1<<24)
+    cmp      r2, r1
+    subge    r2, r1, #1
+    orrge    r12, #1<<23
+    orrge    r12, #1<<31
+.if \lm
+    cmp      r2, #0
+    movlt    r2, #0
+.else
+    cmn      r2, r1
+    rsblt    r2, r1, #0
+.endif
+    orrlt    r12, #1<<23
+    orrlt    r12, #1<<31
+    cmp      r3, r1
+    subge    r3, r1, #1
+    orrge    r12, #1<<22
+.if \lm
+    cmp      r3, #0
+    movlt    r3, #0
+.else
+    cmn      r3, r1
+    rsblt    r3, r1, #0
+.endif
+    orrlt    r12, #1<<22
+    strd     r2, [r0, #4*10]      @ gteIR23
+    str      r12,[r0, #4*(32+31)] @ gteFLAG
+    bx       lr
+.endm
+
+.global gteMACtoIR_lm0 @ r0=CP2 (d,c)
+gteMACtoIR_lm0:
+    gteMACtoIR 0
+    .size    gteMACtoIR_lm0, .-gteMACtoIR_lm0
+
+.global gteMACtoIR_lm1 @ r0=CP2 (d,c)
+gteMACtoIR_lm1:
+    gteMACtoIR 1
+    .size    gteMACtoIR_lm1, .-gteMACtoIR_lm1
+
+
+.global gteMACtoIR_lm0_nf @ r0=CP2 (d,c)
+gteMACtoIR_lm0_nf:
+    add      r12, r0, #4*25
+    ldmia    r12, {r1-r3}
+    ssatx_prep r12, 16
+    ssatx    r1, r12, 16
+    ssatx    r2, r12, 16
+    ssatx    r3, r12, 16
+    add      r12, r0, #4*9
+    stmia    r12, {r1-r3}
+    bx       lr
+    .size    gteMACtoIR_lm0_nf, .-gteMACtoIR_lm0_nf
+
+
+.global gteMACtoIR_lm1_nf @ r0=CP2 (d,c)
+gteMACtoIR_lm1_nf:
+    add      r12, r0, #4*25
+    ldmia    r12, {r1-r3}
+    ssatx0_prep r12, 16
+    ssatx0   r1, r12, 16
+    ssatx0   r2, r12, 16
+    ssatx0   r3, r12, 16
+    add      r12, r0, #4*9
+    stmia    r12, {r1-r3}
+    bx       lr
+    .size    gteMACtoIR_lm1_nf, .-gteMACtoIR_lm1_nf
+
+
+.if 0
+.global gteMVMVA_test
+gteMVMVA_test:
+    push     {r4-r7,lr}
+    push     {r1}
+    and      r2, r1, #0x18000     @ v
+    cmp      r2, #0x18000         @ v == 3?
+    addeq    r4, r0, #4*9
+    addne    r3, r0, r2, lsr #12
+    ldmeqia  r4, {r3-r5}
+    ldmneia  r3, {r4,r5}
+    lsleq    r3, #16
+    lsreq    r3, #16
+    orreq    r4, r3, r4, lsl #16  @ r4,r5 = VXYZ(v)
+    @and     r5, #0xffff
+    add      r12, r0, #4*32
+    and      r3, r1, #0x60000 @ mx
+    lsr      r3, #17
+    add      r6, r12, r3, lsl #5
+    cmp      r3, #3
+    adreq    r6, zeroes
+    and      r2, r1, #0x06000 @ cv
+    lsr      r2, #13
+    add      r7, r12, r2, lsl #5
+    add      r7, #4*5
+    cmp      r2, #3
+    adreq    r7, zeroes
+.if 1
+    adr      lr, 1f
+    bne      0f
+    tst      r1, #1<<19
+    bne      gteMVMVA_part_cv3sh12_arm
+0:
+    and      r1, #1<<19
+    lsr      r1, #19
+    b        gteMVMVA_part_arm
+1:
+    pop      {r1}
+    tst      r1, #1<<10
+    adr      lr, 0f
+    beq      gteMACtoIR_lm0
+    bne      gteMACtoIR_lm1
+0:
+.else
+    bl       gteMVMVA_part_neon
+    pop      {r1}
+    and      r1, #1<<10
+    bl       gteMACtoIR_flags_neon
+.endif
+    pop      {r4-r7,pc}
+
+zeroes:
+    .word 0,0,0,0,0
+.endif
 
 
 @ vim:filetype=armasm

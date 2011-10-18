@@ -177,31 +177,6 @@ const char gte_cycletab[64] = {
 	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
 };
 
-enum gte_opcodes {
-	GTE_RTPS	= 0x01,
-	GTE_NCLIP	= 0x06,
-	GTE_OP		= 0x0c,
-	GTE_DPCS	= 0x10,
-	GTE_INTPL	= 0x11,
-	GTE_MVMVA	= 0x12,
-	GTE_NCDS	= 0x13,
-	GTE_CDP		= 0x14,
-	GTE_NCDT	= 0x16,
-	GTE_NCCS	= 0x1b,
-	GTE_CC		= 0x1c,
-	GTE_NCS		= 0x1e,
-	GTE_NCT		= 0x20,
-	GTE_SQR		= 0x28,
-	GTE_DCPL	= 0x29,
-	GTE_DPCT	= 0x2a,
-	GTE_AVSZ3	= 0x2d,
-	GTE_AVSZ4	= 0x2e,
-	GTE_RTPT	= 0x30,
-	GTE_GPF		= 0x3d,
-	GTE_GPL		= 0x3e,
-	GTE_NCCT	= 0x3f,
-};
-
 #define GCBIT(x) \
 	(1ll << (32+x))
 #define GDBIT(x) \
@@ -298,17 +273,17 @@ static int ari64_init()
 	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
 #endif
 #ifdef __ARM_NEON__
-	// compiler's _nf version is still a lot slower then neon
+	// compiler's _nf version is still a lot slower than neon
 	// _nf_arm RTPS is roughly the same, RTPT slower
 	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
 	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
-	gte_handlers[0x12] = gte_handlers_nf[0x12] = gteMVMVA_neon;
 #endif
 #endif
 #ifdef DRC_DBG
 	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
 #endif
 	psxH_ptr = psxH;
+	zeromem_ptr = zero_mem;
 
 	return 0;
 }
@@ -399,14 +374,14 @@ void do_insn_cmp() {}
 #endif
 
 #if defined(__x86_64__) || defined(__i386__)
-unsigned int address, readmem_word, word;
-unsigned short hword;
-unsigned char byte;
+unsigned int address;
 int pending_exception, stop;
 unsigned int next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier;
 void *psxH_ptr;
+void *zeromem_ptr;
+u8 zero_mem[0x1000];
 void new_dynarec_init() {}
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
