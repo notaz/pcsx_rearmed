@@ -4,13 +4,14 @@ enum pcounters {
 	PCNT_GPU,
 	PCNT_SPU,
 	PCNT_BLIT,
+	PCNT_GTE,
 	PCNT_TEST,
 	PCNT_CNT
 };
 
 #ifdef PCNT
 
-static const char *pcnt_names[PCNT_CNT] = { "", "gpu", "spu", "blit", "test" };
+static const char *pcnt_names[PCNT_CNT] = { "", "gpu", "spu", "blit", "gte", "test" };
 
 #define PCNT_FRAMES 10
 
@@ -95,6 +96,9 @@ static inline void pcnt_init(void)
 	asm volatile("mcr p15, 0, %0, c9, c12, 1" :: "r"(1<<31));
 #endif
 }
+
+void pcnt_gte_start(int op);
+void pcnt_gte_end(int op);
 
 #else
 

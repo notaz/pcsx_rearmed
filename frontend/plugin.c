@@ -292,4 +292,15 @@ void pcnt_hook_plugins(void)
 	hook_it(SPU_playCDDAchannel);
 }
 
+// hooked into recompiler
+void pcnt_gte_start(int op)
+{
+	pcnt_start(PCNT_GTE);
+}
+
+void pcnt_gte_end(int op)
+{
+	pcnt_end(PCNT_GTE);
+}
+
 #endif

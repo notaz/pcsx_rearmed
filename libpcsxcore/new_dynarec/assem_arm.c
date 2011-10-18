@@ -4410,11 +4410,19 @@ void cop2_assemble(int i,struct regstat *i_regs)
 static void c2op_prologue(u_int op,u_int reglist)
 {
   save_regs_all(reglist);
+#ifdef PCNT
+  emit_movimm(op,0);
+  emit_call((int)pcnt_gte_start);
+#endif
   emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
 }
 
 static void c2op_epilogue(u_int op,u_int reglist)
 {
+#ifdef PCNT
+  emit_movimm(op,0);
+  emit_call((int)pcnt_gte_end);
+#endif
   restore_regs_all(reglist);
 }
 
