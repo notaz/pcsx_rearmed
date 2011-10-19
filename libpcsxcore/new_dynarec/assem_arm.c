@@ -3209,7 +3209,6 @@ do_writestub(int n)
     set_jump_target(restore_jump,(int)out);
   restore_regs(reglist);
   ra=stubs[n][2];
-  if(!restore_jump) ra+=4*3; // skip invcode check
   emit_jmp(ra);
 #else // if !PCSX
   if(addr<0) addr=get_reg(i_regmap,-1);

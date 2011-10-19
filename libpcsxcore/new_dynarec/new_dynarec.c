@@ -59,6 +59,7 @@ struct regstat
   uint64_t uu;
   u_int wasconst;
   u_int isconst;
+  u_int waswritten;              // regs that were used as store base before
   uint64_t constmap[HOST_REGS];
 };
 
@@ -3298,7 +3299,7 @@ void store_assemble(int i,struct regstat *i_regs)
     jaddr=0;
   }
 #endif
-  if(!using_tlb) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
     if(!c||memtarget) {
       #ifdef DESTRUCTIVE_SHIFT
       // The x86 shift operation is 'destructive'; it overwrites the
@@ -3572,7 +3573,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   }
   if(!c||!memtarget)
     add_stub(STORELR_STUB,jaddr,(int)out,i,(int)i_regs,temp,ccadj[i],reglist);
-  if(!using_tlb) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
     #ifdef RAM_OFFSET
     int map=get_reg(i_regs->regmap,ROREG);
     if(map<0) map=HOST_TEMPREG;
@@ -3750,7 +3751,7 @@ void c1ls_assemble(int i,struct regstat *i_regs)
     emit_writedword_indexed_tlb(th,tl,0,offset||c||s<0?temp:s,map,temp);
     type=STORED_STUB;
   }
-  if(!using_tlb) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
     if (opcode[i]==0x39||opcode[i]==0x3D) { // SWC1/SDC1
       #ifndef DESTRUCTIVE_SHIFT
       temp=offset||c||s<0?ar:s;
@@ -3869,7 +3870,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   }
   if(jaddr2)
     add_stub(type,jaddr2,(int)out,i,ar,(int)i_regs,ccadj[i],reglist);
-  if (opcode[i]==0x3a) { // SWC2
+  if (!(i_regs->waswritten&(1<<rs1[i]))&&opcode[i]==0x3a) { // SWC2
 #if defined(HOST_IMM8)
     int ir=get_reg(i_regs->regmap,INVCP);
     assert(ir>=0);
@@ -8787,6 +8788,7 @@ int new_recompile_block(int addr)
   dirty_reg(&current,CCREG);
   current.isconst=0;
   current.wasconst=0;
+  current.waswritten=0;
   int ds=0;
   int cc=0;
   int hr=-1;
@@ -8815,6 +8817,7 @@ int new_recompile_block(int addr)
         if(current.regmap[hr]==0) current.regmap[hr]=-1;
       }
       current.isconst=0;
+      current.waswritten=0;
     }
     if(i>1)
     {
@@ -9441,6 +9444,14 @@ int new_recompile_block(int addr)
       }
       memcpy(regs[i].regmap,current.regmap,sizeof(current.regmap));
     }
+
+    if(i>0&&(itype[i-1]==STORE||itype[i-1]==STORELR||(itype[i-1]==C2LS&&opcode[i-1]==0x3a))&&(u_int)imm[i-1]<0x800)
+      current.waswritten|=1<<rs1[i-1];
+    current.waswritten&=~(1<<rt1[i]);
+    current.waswritten&=~(1<<rt2[i]);
+    if((itype[i]==STORE||itype[i]==STORELR||(itype[i]==C2LS&&opcode[i]==0x3a))&&(u_int)imm[i]>=0x800)
+      current.waswritten&=~(1<<rs1[i]);
+
     /* Branch post-alloc */
     if(i>0)
     {
@@ -9770,6 +9781,7 @@ int new_recompile_block(int addr)
       }
     }
     if(current.regmap[HOST_BTREG]==BTREG) current.regmap[HOST_BTREG]=-1;
+    regs[i].waswritten=current.waswritten;
   }
   
   /* Pass 4 - Cull unused host registers */
