@@ -10,11 +10,11 @@
 .text
 .align 2
 
-.macro sgnxt16 rd
+.macro sgnxt16 rd rs
 .if HAVE_ARMV7
-    sxth     \rd, \rd
+    sxth     \rd, \rs
 .else
-    lsl      \rd, \rd, #16
+    lsl      \rd, \rs, #16
     asr      \rd, \rd, #16
 .endif
 .endm
@@ -63,11 +63,8 @@
 .endif
 .endm
 
-@ unsigned divide rd = rm / rs
-@ no div by 0 check
-@ in: rm, rs
-@ trash: rm rs
-.macro udiv rd rm rs
+.macro udiv_ rd rm rs
+    lsl      \rm, #16
     clz      \rd, \rs
     lsl      \rs, \rs, \rd        @ shift up divisor
     orr      \rd, \rd, #1<<31
@@ -80,6 +77,37 @@
     bcc      0b
 .endm
 
+.macro newton_step rcp den zero t1 t2
+    umull    \t2, \t1, \den, \rcp  @ \t2 is dummy
+    sub      \t1, \zero, \t1, lsl #2
+    smlal    \t2, \rcp, \t1, \rcp
+.endm
+
+.macro udiv_newton rd rm rs t1 t2 t3 t4
+    lsl      \rd, \rm, #16
+    clz      \t1, \rs
+    mov      \t2, #0
+    lsl      \rs, \t1             @ normalize for the algo
+    mov      \rm, #0x4d000000     @ initial estimate ~1.2
+
+    newton_step \rm, \rs, \t2, \t3, \t4
+    newton_step \rm, \rs, \t2, \t3, \t4
+    newton_step \rm, \rs, \t2, \t3, \t4
+    newton_step \rm, \rs, \t2, \t3, \t4
+
+    umull    \t4, \rd, \rm, \rd
+    rsb      \t2, \t1, #30        @ here t1 is 1..15
+    mov      \rd, \rd, lsr \t2
+.endm
+
+@ unsigned divide rd = rm / rs; 16.16 result
+@ no div by 0 check
+@ in: rm, rs
+@ trash: rm rs t*
+.macro udiv rd rm rs t1 t2 t3 t4
+    @udiv_        \rd, \rm, \rs
+    udiv_newton  \rd, \rm, \rs, \t1, \t2, \t3, \t4
+.endm
 
 @ calculate RTPS/RTPT MAC values
 @ in: r0 context, r8,r9 VXYZ
@@ -142,8 +170,7 @@ gteRTPS_nf_arm:
     mov      r9, #1<<30
     bhs      1f
 .if 1
-    lsl      r3, #16
-    udiv     r9, r3, lr
+    udiv     r9, r3, lr, r1, r2, r6, r7
 .else
     push     {r0, r12}
     mov      r0, r3
@@ -212,8 +239,7 @@ rtpt_arm_loop:
     mov      r9, #1<<30
     bhs      1f
 .if 1
-    lsl      r3, #16
-    udiv     r9, r3, r2
+    udiv     r9, r3, r2, r1, r4, r6, r7
 .else
     push     {r0, r12, lr}
     mov      r0, r3
@@ -386,21 +412,18 @@ gteMVMVA_part_cv3sh12_arm:
 .global gteNCLIP_arm @ r0=CP2 (d,c),
 gteNCLIP_arm:
     push        {r4-r6,lr}
-
-    add         r1, r0, #4*12
-    ldmia       r1, {r1-r3}
-    mov         r4, r1, asr #16
-    mov         r5, r2, asr #16
-    mov         r6, r3, asr #16
+    ldrsh       r4, [r0, #4*12+2]
+    ldrsh       r5, [r0, #4*13+2]
+    ldrsh       r6, [r0, #4*14+2]
+    ldrsh       lr, [r0, #4*12]
+    ldrsh       r2, [r0, #4*13]
     sub         r12, r4, r5       @ 3: gteSY0 - gteSY1
     sub         r5, r5, r6        @ 1: gteSY1 - gteSY2
-    sgnxt16     r1
-    smull       r1, r5, r1, r5    @ RdLo, RdHi
+    smull       r1, r5, lr, r5    @ RdLo, RdHi
     sub         r6, r4            @ 2: gteSY2 - gteSY0
-    sgnxt16     r2
+    ldrsh       r3, [r0, #4*14]
     smlal       r1, r5, r2, r6
     mov         lr, #0            @ gteFLAG
-    sgnxt16     r3
     smlal       r1, r5, r3, r12
     mov         r6, #1<<31
     orr         r6, #1<<15
@@ -413,9 +436,7 @@ gteNCLIP_arm:
     movgt       lr, #(1<<31)
     orrgt       lr, #(1<<16)
 .endif
-    mvngt       r1, #1<<31        @ maxint
     cmn         r5, #1
-    movmi       r1, #1<<31        @ minint
     orrmi       lr, r6
     str         r1, [r0, #4*24]
     str         lr, [r0, #4*(32+31)] @ gteFLAG
