@@ -1149,7 +1149,7 @@ void emit_addimm(u_int rs,int imm,u_int rt)
       assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],imm);
       output_w32(0xe2800000|rd_rn_rm(rt,rs,0)|armval);
     }else if(genimm(-imm,&armval)) {
-      assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],imm);
+      assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],-imm);
       output_w32(0xe2400000|rd_rn_rm(rt,rs,0)|armval);
     }else if(imm<0) {
       assert(imm>-65536);
