@@ -2726,14 +2726,45 @@ emit_extjump_ds(int addr, int target)
 // put rt_val into rt, potentially making use of rs with value rs_val
 static void emit_movimm_from(u_int rs_val,int rs,u_int rt_val,int rt)
 {
-  u_int xor=rs_val^rt_val;
+  u_int armval;
+  int diff;
+  if(genimm(rt_val,&armval)) {
+    assem_debug("mov %s,#%d\n",regname[rt],rt_val);
+    output_w32(0xe3a00000|rd_rn_rm(rt,0,0)|armval);
+    return;
+  }
+  if(genimm(~rt_val,&armval)) {
+    assem_debug("mvn %s,#%d\n",regname[rt],rt_val);
+    output_w32(0xe3e00000|rd_rn_rm(rt,0,0)|armval);
+    return;
+  }
+  diff=rt_val-rs_val;
+  if(genimm(diff,&armval)) {
+    assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],diff);
+    output_w32(0xe2800000|rd_rn_rm(rt,rs,0)|armval);
+    return;
+  }else if(genimm(-diff,&armval)) {
+    assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],-diff);
+    output_w32(0xe2400000|rd_rn_rm(rt,rs,0)|armval);
+    return;
+  }
+  emit_movimm(rt_val,rt);
+}
+
+// return 1 if above function can do it's job cheaply
+static int is_similar_value(u_int v1,u_int v2)
+{
   u_int xs;
-  for(xs=xor;xs!=0&&(xs&3)==0;xs>>=2)
+  int diff;
+  if(v1==v2) return 1;
+  diff=v2-v1;
+  for(xs=diff;xs!=0&&(xs&3)==0;xs>>=2)
     ;
-  if(xs<0x100)
-    emit_xorimm(rs,xor,rt);
-  else
-    emit_movimm(rt_val,rt);
+  if(xs<0x100) return 1;
+  for(xs=-diff;xs!=0&&(xs&3)==0;xs>>=2)
+    ;
+  if(xs<0x100) return 1;
+  return 0;
 }
 
 // trashes r2

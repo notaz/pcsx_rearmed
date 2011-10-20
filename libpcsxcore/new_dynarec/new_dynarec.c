@@ -59,7 +59,8 @@ struct regstat
   uint64_t uu;
   u_int wasconst;
   u_int isconst;
-  u_int waswritten;              // regs that were used as store base before
+  u_int loadedconst;             // host regs that have constants loaded
+  u_int waswritten;              // MIPS regs that were used as store base before
   uint64_t constmap[HOST_REGS];
 };
 
@@ -4258,6 +4259,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
                  (using_tlb&&((signed int)constmap[i][rs]+offset)>=(signed int)0xC0000000))
               #endif
               emit_movimm(constmap[i][rs]+offset,ra);
+              regs[i].loadedconst|=1<<ra;
             }
           } // else did it in the previous cycle
         } // else load_consts already did it
@@ -4318,6 +4320,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
              (using_tlb&&((signed int)constmap[i+1][rs]+offset)>=(signed int)0xC0000000))
           #endif
           emit_movimm(constmap[i+1][rs]+offset,ra);
+          regs[i+1].loadedconst|=1<<ra;
         }
       }
       else if(rs1[i+1]==0) {
@@ -4386,22 +4389,51 @@ int get_final_value(int hr, int i, int *value)
 // Load registers with known constants
 void load_consts(signed char pre[],signed char regmap[],int is32,int i)
 {
-  int hr;
+  int hr,hr2;
+  // propagate loaded constant flags
+  if(i==0||bt[i])
+    regs[i].loadedconst=0;
+  else {
+    for(hr=0;hr<HOST_REGS;hr++) {
+      if(hr!=EXCLUDE_REG&&regmap[hr]>=0&&((regs[i-1].isconst>>hr)&1)&&pre[hr]==regmap[hr]
+         &&regmap[hr]==regs[i-1].regmap[hr]&&((regs[i-1].loadedconst>>hr)&1))
+      {
+        regs[i].loadedconst|=1<<hr;
+      }
+    }
+  }
   // Load 32-bit regs
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG&&regmap[hr]>=0) {
       //if(entry[hr]!=regmap[hr]) {
-      if(i==0||!((regs[i-1].isconst>>hr)&1)||pre[hr]!=regmap[hr]||bt[i]) {
+      if(!((regs[i].loadedconst>>hr)&1)) {
         if(((regs[i].isconst>>hr)&1)&&regmap[hr]<64&&regmap[hr]>0) {
-          int value;
+          int value,similar=0;
           if(get_final_value(hr,i,&value)) {
-            if(value==0) {
+            // see if some other register has similar value
+            for(hr2=0;hr2<HOST_REGS;hr2++) {
+              if(hr2!=EXCLUDE_REG&&((regs[i].loadedconst>>hr2)&1)) {
+                if(is_similar_value(value,constmap[i][hr2])) {
+                  similar=1;
+                  break;
+                }
+              }
+            }
+            if(similar) {
+              int value2;
+              if(get_final_value(hr2,i,&value2)) // is this needed?
+                emit_movimm_from(value2,hr2,value,hr);
+              else
+                emit_movimm(value,hr);
+            }
+            else if(value==0) {
               emit_zeroreg(hr);
             }
             else {
               emit_movimm(value,hr);
             }
           }
+          regs[i].loadedconst|=1<<hr;
         }
       }
     }
@@ -8882,6 +8914,7 @@ int new_recompile_block(int addr)
     regs[i].wasconst=current.isconst;
     regs[i].was32=current.is32;
     regs[i].wasdirty=current.dirty;
+    regs[i].loadedconst=0;
     #if defined(DESTRUCTIVE_WRITEBACK) && !defined(FORCE32)
     // To change a dirty register from 32 to 64 bits, we must write
     // it out during the previous cycle (for branches, 2 cycles)
