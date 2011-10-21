@@ -20,6 +20,10 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #ifdef PCSX
+#include "../gte.h"
+#define FLAGLESS
+#include "../gte.h"
+#undef FLAGLESS
 #include "../gte_arm.h"
 #include "../gte_neon.h"
 #include "pcnt.h"
@@ -4456,15 +4460,34 @@ static void c2op_epilogue(u_int op,u_int reglist)
   restore_regs_all(reglist);
 }
 
+static void c2op_call_MACtoIR(int lm,int need_flags)
+{
+  if(need_flags)
+    emit_call((int)(lm?gteMACtoIR_lm1:gteMACtoIR_lm0));
+  else
+    emit_call((int)(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf));
+}
+
+static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
+{
+  emit_call((int)func);
+  // func is C code and trashes r0
+  emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
+  if(need_flags||need_ir)
+    c2op_call_MACtoIR(lm,need_flags);
+  emit_call((int)(need_flags?gteMACtoRGB:gteMACtoRGB_nf));
+}
+
 static void c2op_assemble(int i,struct regstat *i_regs)
 {
   signed char temp=get_reg(i_regs->regmap,-1);
   u_int c2op=source[i]&0x3f;
-  u_int hr,reglist=0;
+  u_int hr,reglist_full=0,reglist;
   int need_flags,need_ir;
   for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
+    if(i_regs->regmap[hr]>=0) reglist_full|=1<<hr;
   }
+  reglist=reglist_full&0x100f;
 
   if (gte_handlers[c2op]!=NULL) {
     need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
@@ -4475,14 +4498,14 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     // let's take more risk here
     need_flags=need_flags&&gte_reads_flags;
 #endif
+    int shift = (source[i] >> 19) & 1;
+    int lm = (source[i] >> 10) & 1;
     switch(c2op) {
       case GTE_MVMVA: {
-        int shift = (source[i] >> 19) & 1;
         int v  = (source[i] >> 15) & 3;
         int cv = (source[i] >> 13) & 3;
         int mx = (source[i] >> 17) & 3;
-        int lm = (source[i] >> 10) & 1;
-        reglist&=0x10ff; // +{r4-r7}
+        reglist=reglist_full&0x10ff; // +{r4-r7}
         c2op_prologue(c2op,reglist);
         /* r4,r5 = VXYZ(v) packed; r6 = &MX11(mx); r7 = &CV1(cv) */
         if(v<3)
@@ -4515,21 +4538,52 @@ static void c2op_assemble(int i,struct regstat *i_regs)
           emit_movimm(shift,1);
           emit_call((int)(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm));
         }
-        if(need_flags||need_ir) {
-          if(need_flags)
-            emit_call((int)(lm?gteMACtoIR_lm1:gteMACtoIR_lm0));
-          else
-            emit_call((int)(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf)); // lm0 borked
-        }
+        if(need_flags||need_ir)
+          c2op_call_MACtoIR(lm,need_flags);
 #endif
         break;
       }
+      case GTE_OP:
+        c2op_prologue(c2op,reglist);
+        emit_call((int)(shift?gteOP_part_shift:gteOP_part_noshift));
+        if(need_flags||need_ir) {
+          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
+          c2op_call_MACtoIR(lm,need_flags);
+        }
+        break;
+      case GTE_DPCS:
+        c2op_prologue(c2op,reglist);
+        c2op_call_rgb_func(shift?gteDPCS_part_shift:gteDPCS_part_noshift,lm,need_ir,need_flags);
+        break;
+      case GTE_INTPL:
+        c2op_prologue(c2op,reglist);
+        c2op_call_rgb_func(shift?gteINTPL_part_shift:gteINTPL_part_noshift,lm,need_ir,need_flags);
+        break;
+      case GTE_SQR:
+        c2op_prologue(c2op,reglist);
+        emit_call((int)(shift?gteSQR_part_shift:gteSQR_part_noshift));
+        if(need_flags||need_ir) {
+          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
+          c2op_call_MACtoIR(lm,need_flags);
+        }
+        break;
+      case GTE_DCPL:
+        c2op_prologue(c2op,reglist);
+        c2op_call_rgb_func(gteDCPL_part,lm,need_ir,need_flags);
+        break;
+      case GTE_GPF:
+        c2op_prologue(c2op,reglist);
+        c2op_call_rgb_func(shift?gteGPF_part_shift:gteGPF_part_noshift,lm,need_ir,need_flags);
+        break;
+      case GTE_GPL:
+        c2op_prologue(c2op,reglist);
+        c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
+        break;
 
       default:
-        reglist&=0x100f;
         c2op_prologue(c2op,reglist);
-        emit_movimm(source[i],1); // opcode
-        emit_writeword(1,(int)&psxRegs.code);
+        //emit_movimm(source[i],1); // opcode
+        //emit_writeword(1,(int)&psxRegs.code);
         emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
         break;
     }

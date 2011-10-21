@@ -26,6 +26,11 @@
 #include "gte.h"
 #include "psxmem.h"
 
+typedef struct psxCP2Regs {
+	psxCP2Data CP2D; 	/* Cop2 data registers */
+	psxCP2Ctrl CP2C; 	/* Cop2 control registers */
+} psxCP2Regs;
+
 #define VX(n) (n < 3 ? regs->CP2D.p[n << 1].sw.l : regs->CP2D.p[9].sw.l)
 #define VY(n) (n < 3 ? regs->CP2D.p[n << 1].sw.h : regs->CP2D.p[10].sw.l)
 #define VZ(n) (n < 3 ? regs->CP2D.p[(n << 1) + 1].sw.l : regs->CP2D.p[11].sw.l)
@@ -956,3 +961,131 @@ void gteCDP(psxCP2Regs *regs) {
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
 }
+
+/* decomposed/parametrized versions for the recompiler */
+
+#ifndef FLAGLESS
+
+void gteSQR_part_noshift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = gteIR1 * gteIR1;
+	gteMAC2 = gteIR2 * gteIR2;
+	gteMAC3 = gteIR3 * gteIR3;
+}
+
+void gteSQR_part_shift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = (gteIR1 * gteIR1) >> 12;
+	gteMAC2 = (gteIR2 * gteIR2) >> 12;
+	gteMAC3 = (gteIR3 * gteIR3) >> 12;
+}
+
+void gteOP_part_noshift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = (gteR22 * gteIR3) - (gteR33 * gteIR2);
+	gteMAC2 = (gteR33 * gteIR1) - (gteR11 * gteIR3);
+	gteMAC3 = (gteR11 * gteIR2) - (gteR22 * gteIR1);
+}
+
+void gteOP_part_shift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = ((gteR22 * gteIR3) - (gteR33 * gteIR2)) >> 12;
+	gteMAC2 = ((gteR33 * gteIR1) - (gteR11 * gteIR3)) >> 12;
+	gteMAC3 = ((gteR11 * gteIR2) - (gteR22 * gteIR1)) >> 12;
+}
+
+void gteDCPL_part(psxCP2Regs *regs) {
+	s32 RIR1 = ((s32)gteR * gteIR1) >> 8;
+	s32 GIR2 = ((s32)gteG * gteIR2) >> 8;
+	s32 BIR3 = ((s32)gteB * gteIR3) >> 8;
+
+	gteFLAG = 0;
+
+	gteMAC1 = RIR1 + ((gteIR0 * limB1(A1U((s64)gteRFC - RIR1), 0)) >> 12);
+	gteMAC2 = GIR2 + ((gteIR0 * limB1(A2U((s64)gteGFC - GIR2), 0)) >> 12);
+	gteMAC3 = BIR3 + ((gteIR0 * limB1(A3U((s64)gteBFC - BIR3), 0)) >> 12);
+}
+
+void gteGPF_part_noshift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = gteIR0 * gteIR1;
+	gteMAC2 = gteIR0 * gteIR2;
+	gteMAC3 = gteIR0 * gteIR3;
+}
+
+void gteGPF_part_shift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = (gteIR0 * gteIR1) >> 12;
+	gteMAC2 = (gteIR0 * gteIR2) >> 12;
+	gteMAC3 = (gteIR0 * gteIR3) >> 12;
+}
+
+#endif // !FLAGLESS
+
+void gteGPL_part_noshift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = A1((s64)gteMAC1 + (gteIR0 * gteIR1));
+	gteMAC2 = A2((s64)gteMAC2 + (gteIR0 * gteIR2));
+	gteMAC3 = A3((s64)gteMAC3 + (gteIR0 * gteIR3));
+}
+
+void gteGPL_part_shift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = A1((s64)gteMAC1 + ((gteIR0 * gteIR1) >> 12));
+	gteMAC2 = A2((s64)gteMAC2 + ((gteIR0 * gteIR2) >> 12));
+	gteMAC3 = A3((s64)gteMAC3 + ((gteIR0 * gteIR3) >> 12));
+}
+
+void gteDPCS_part_noshift(psxCP2Regs *regs) {
+	int shift = 0;
+
+	gteFLAG = 0;
+
+	gteMAC1 = ((gteR << 16) + (gteIR0 * limB1(A1U((s64)gteRFC - (gteR << 4)) << (12 - shift), 0))) >> 12;
+	gteMAC2 = ((gteG << 16) + (gteIR0 * limB2(A2U((s64)gteGFC - (gteG << 4)) << (12 - shift), 0))) >> 12;
+	gteMAC3 = ((gteB << 16) + (gteIR0 * limB3(A3U((s64)gteBFC - (gteB << 4)) << (12 - shift), 0))) >> 12;
+}
+
+void gteDPCS_part_shift(psxCP2Regs *regs) {
+	int shift = 12;
+
+	gteFLAG = 0;
+
+	gteMAC1 = ((gteR << 16) + (gteIR0 * limB1(A1U((s64)gteRFC - (gteR << 4)) << (12 - shift), 0))) >> 12;
+	gteMAC2 = ((gteG << 16) + (gteIR0 * limB2(A2U((s64)gteGFC - (gteG << 4)) << (12 - shift), 0))) >> 12;
+	gteMAC3 = ((gteB << 16) + (gteIR0 * limB3(A3U((s64)gteBFC - (gteB << 4)) << (12 - shift), 0))) >> 12;
+}
+
+void gteINTPL_part_noshift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = ((gteIR1 << 12) + (gteIR0 * limB1(A1U((s64)gteRFC - gteIR1), 0)));
+	gteMAC2 = ((gteIR2 << 12) + (gteIR0 * limB2(A2U((s64)gteGFC - gteIR2), 0)));
+	gteMAC3 = ((gteIR3 << 12) + (gteIR0 * limB3(A3U((s64)gteBFC - gteIR3), 0)));
+}
+
+void gteINTPL_part_shift(psxCP2Regs *regs) {
+	gteFLAG = 0;
+
+	gteMAC1 = ((gteIR1 << 12) + (gteIR0 * limB1(A1U((s64)gteRFC - gteIR1), 0))) >> 12;
+	gteMAC2 = ((gteIR2 << 12) + (gteIR0 * limB2(A2U((s64)gteGFC - gteIR2), 0))) >> 12;
+	gteMAC3 = ((gteIR3 << 12) + (gteIR0 * limB3(A3U((s64)gteBFC - gteIR3), 0))) >> 12;
+}
+
+void gteMACtoRGB(psxCP2Regs *regs) {
+	gteRGB0 = gteRGB1;
+	gteRGB1 = gteRGB2;
+	gteCODE2 = gteCODE;
+	gteR2 = limC1(gteMAC1 >> 4);
+	gteG2 = limC2(gteMAC2 >> 4);
+	gteB2 = limC3(gteMAC3 >> 4);
+}
+

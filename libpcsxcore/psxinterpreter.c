@@ -46,7 +46,7 @@ void (*psxBSC[64])();
 void (*psxSPC[64])();
 void (*psxREG[32])();
 void (*psxCP0[32])();
-void (*psxCP2[64])(psxCP2Regs *regs);
+void (*psxCP2[64])(struct psxCP2Regs *regs);
 void (*psxCP2BSC[32])();
 
 static void delayRead(int reg, u32 bpc) {
@@ -833,10 +833,10 @@ void psxCOP0() {
 }
 
 void psxCOP2() {
-	psxCP2[_Funct_]((psxCP2Regs *)&psxRegs.CP2D);
+	psxCP2[_Funct_]((struct psxCP2Regs *)&psxRegs.CP2D);
 }
 
-void psxBASIC(psxCP2Regs *regs) {
+void psxBASIC(struct psxCP2Regs *regs) {
 	psxCP2BSC[_Rs_]();
 }
 
@@ -882,7 +882,7 @@ void (*psxCP0[32])() = {
 	psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL
 };
 
-void (*psxCP2[64])(psxCP2Regs *regs) = {
+void (*psxCP2[64])(struct psxCP2Regs *regs) = {
 	psxBASIC, gteRTPS , psxNULL , psxNULL, psxNULL, psxNULL , gteNCLIP, psxNULL, // 00
 	psxNULL , psxNULL , psxNULL , psxNULL, gteOP  , psxNULL , psxNULL , psxNULL, // 08
 	gteDPCS , gteINTPL, gteMVMVA, gteNCDS, gteCDP , psxNULL , gteNCDT , psxNULL, // 10
