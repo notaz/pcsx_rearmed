@@ -7015,6 +7015,8 @@ void unneeded_registers(int istart,int iend,int r)
     uu&=~(1LL<<us1[i]);
     uu&=~(1LL<<us2[i]);
     gte_u&=~gte_rs[i];
+    if(gte_rs[i]&&rt1[i]&&(unneeded_reg[i+1]&(1ll<<rt1[i])))
+      gte_u|=gte_rs[i];  // MFC2/CFC2 to dead register, unneeded
     // Source-target dependencies
     uu&=~(tdep<<dep1[i]);
     uu&=~(tdep<<dep2[i]);
