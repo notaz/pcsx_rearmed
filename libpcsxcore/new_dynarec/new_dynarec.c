@@ -343,6 +343,7 @@ static u_int get_page(u_int vaddr)
   return page;
 }
 
+#ifndef PCSX
 static u_int get_vpage(u_int vaddr)
 {
   u_int vpage=(vaddr^0x80000000)>>12;
@@ -352,6 +353,13 @@ static u_int get_vpage(u_int vaddr)
   if(vpage>2048) vpage=2048+(vpage&2047);
   return vpage;
 }
+#else
+// no virtual mem in PCSX
+static u_int get_vpage(u_int vaddr)
+{
+  return get_page(vaddr);
+}
+#endif
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
@@ -1226,7 +1234,7 @@ void invalidate_addr(u_int addr)
   //static int rhits;
   // this check is done by the caller
   //if (inv_code_start<=addr&&addr<=inv_code_end) { rhits++; return; }
-  u_int page=get_page(addr);
+  u_int page=get_vpage(addr);
   if(page<2048) { // RAM
     struct ll_entry *head;
     u_int addr_min=~0, addr_max=0;
@@ -1265,11 +1273,9 @@ void invalidate_addr(u_int addr)
       return;
     }
     else {
-      inv_debug("INV ADDR: %08x miss, inv %08x-%08x, sk %d\n", addr, inv_code_start, inv_code_end, 0);//rhits);
-    }
-    //rhits=0;
-    if(page!=0) // FIXME: don't know what's up with page 0 (Klonoa)
+      inv_debug("INV ADDR: %08x miss, inv %08x-%08x, sk %d\n", addr, inv_code_start, inv_code_end, 0);
       return;
+    }
   }
 #endif
   invalidate_block(addr>>12);
