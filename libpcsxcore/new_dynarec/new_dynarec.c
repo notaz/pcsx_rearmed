@@ -92,7 +92,6 @@ struct ll_entry
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
   static uint64_t gte_rt[MAXBLOCK];
   static uint64_t gte_unneeded[MAXBLOCK];
-  static int gte_reads_flags; // gte flag read encountered
   static u_int smrv[32]; // speculated MIPS register values
   static u_int smrv_strong; // mask or regs that are likely to have correct values
   static u_int smrv_weak; // same, but somewhat less likely
@@ -145,6 +144,7 @@ struct ll_entry
   static const u_int using_tlb=0;
 #endif
   int new_dynarec_did_compile;
+  int new_dynarec_hacks;
   u_int stop_after_jal;
   extern u_char restore_candidate[512];
   extern int cycle_count;
@@ -3300,7 +3300,7 @@ void store_assemble(int i,struct regstat *i_regs)
     jaddr=0;
   }
 #endif
-  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     if(!c||memtarget) {
       #ifdef DESTRUCTIVE_SHIFT
       // The x86 shift operation is 'destructive'; it overwrites the
@@ -3574,7 +3574,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   }
   if(!c||!memtarget)
     add_stub(STORELR_STUB,jaddr,(int)out,i,(int)i_regs,temp,ccadj[i],reglist);
-  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     #ifdef RAM_OFFSET
     int map=get_reg(i_regs->regmap,ROREG);
     if(map<0) map=HOST_TEMPREG;
@@ -3752,7 +3752,7 @@ void c1ls_assemble(int i,struct regstat *i_regs)
     emit_writedword_indexed_tlb(th,tl,0,offset||c||s<0?temp:s,map,temp);
     type=STORED_STUB;
   }
-  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))) {
+  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     if (opcode[i]==0x39||opcode[i]==0x3D) { // SWC1/SDC1
       #ifndef DESTRUCTIVE_SHIFT
       temp=offset||c||s<0?ar:s;
@@ -3871,7 +3871,8 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   }
   if(jaddr2)
     add_stub(type,jaddr2,(int)out,i,ar,(int)i_regs,ccadj[i],reglist);
-  if (!(i_regs->waswritten&(1<<rs1[i]))&&opcode[i]==0x3a) { // SWC2
+  if(opcode[i]==0x3a) // SWC2
+  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
 #if defined(HOST_IMM8)
     int ir=get_reg(i_regs->regmap,INVCP);
     assert(ir>=0);
@@ -6770,16 +6771,20 @@ void unneeded_registers(int istart,int iend,int r)
 {
   int i;
   uint64_t u,uu,gte_u,b,bu,gte_bu;
-  uint64_t temp_u,temp_uu,temp_gte_u;
+  uint64_t temp_u,temp_uu,temp_gte_u=0;
   uint64_t tdep;
+  uint64_t gte_u_unknown=0;
+  if(new_dynarec_hacks&NDHACK_GTE_UNNEEDED)
+    gte_u_unknown=~0ll;
   if(iend==slen-1) {
     u=1;uu=1;
+    gte_u=gte_u_unknown;
   }else{
     u=unneeded_reg[iend+1];
     uu=unneeded_reg_upper[iend+1];
     u=1;uu=1;
+    gte_u=gte_unneeded[iend+1];
   }
-  gte_u=temp_gte_u=0;
 
   for (i=iend;i>=istart;i--)
   {
@@ -6794,7 +6799,7 @@ void unneeded_registers(int istart,int iend,int r)
         // Branch out of this block, flush all regs
         u=1;
         uu=1;
-        gte_u=0;
+        gte_u=gte_u_unknown;
         /* Hexagon hack 
         if(itype[i]==UJUMP&&rt1[i]==31)
         {
@@ -6840,7 +6845,7 @@ void unneeded_registers(int istart,int iend,int r)
           {
             u=1;
             uu=1;
-            gte_u=0;
+            gte_u=gte_u_unknown;
           }
         }
       }
@@ -6883,7 +6888,7 @@ void unneeded_registers(int istart,int iend,int r)
             {
               temp_u=1;
               temp_uu=1;
-              temp_gte_u=0;
+              temp_gte_u=gte_u_unknown;
             }
           }
           tdep=(~temp_uu>>rt1[i])&1;
@@ -6905,7 +6910,7 @@ void unneeded_registers(int istart,int iend,int r)
           }else{
             unneeded_reg[(ba[i]-start)>>2]=1;
             unneeded_reg_upper[(ba[i]-start)>>2]=1;
-            gte_unneeded[(ba[i]-start)>>2]=0;
+            gte_unneeded[(ba[i]-start)>>2]=gte_u_unknown;
           }
         } /*else*/ if(1) {
           if(itype[i]==RJUMP||itype[i]==UJUMP||(source[i]>>16)==0x1000)
@@ -7944,7 +7949,6 @@ void new_dynarec_clear_full()
   literalcount=0;
   stop_after_jal=0;
   inv_code_start=inv_code_end=~0;
-  gte_reads_flags=0;
   // TLB
 #ifndef DISABLE_TLB
   using_tlb=0;
@@ -8654,12 +8658,7 @@ int new_recompile_block(int addr)
         {
           case 0x00: gte_rs[i]=1ll<<gr; break; // MFC2
           case 0x04: gte_rt[i]=1ll<<gr; break; // MTC2
-          case 0x02: gte_rs[i]=1ll<<(gr+32); // CFC2
-            if(gr==31&&!gte_reads_flags) {
-              assem_debug("gte flag read encountered @%08x\n",addr + i*4);
-              gte_reads_flags=1;
-            }
-            break;
+          case 0x02: gte_rs[i]=1ll<<(gr+32); break; // CFC2
           case 0x06: gte_rt[i]=1ll<<(gr+32); break; // CTC2
         }
         break;

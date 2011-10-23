@@ -185,6 +185,7 @@ static void menu_set_defconfig(void)
 	frameskip = 0;
 	analog_deadzone = 70;
 	psx_clock = DEFAULT_PSX_CLOCK;
+	new_dynarec_hacks = 0;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;
@@ -282,6 +283,7 @@ static const struct {
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
 	CE_INTVAL(psx_clock),
+	CE_INTVAL(new_dynarec_hacks),
 };
 
 static char *get_cd_label(void)
@@ -1203,6 +1205,27 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n";
+static const char h_cfg_nosmc[]   = "Will cause crashes when loading";
+static const char h_cfg_gteunn[]  = "May cause graphical glitches";
+static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+
+static menu_entry e_menu_speed_hacks[] =
+{
+	mee_range_h   ("PSX CPU clock, %%",        0, psx_clock, 1, 500, h_cfg_psxclk),
+	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
+	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
+	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+	mee_end,
+};
+
+static int menu_loop_speed_hacks(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_speed_hacks, &sel);
+	return 0;
+}
+
 static const char *men_cfg_cdrr[] = { "Auto", "ON", "OFF", NULL };
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"
@@ -1217,12 +1240,11 @@ static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
 				   "(timing hack, breaks other games)";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
-static const char h_cfg_cdrr[]   = "Compatibility tweak (fixes Team Buddies, maybe more)\n"
-				   "(CD timing hack, breaks FMVs)";
-static const char h_cfg_psxclk[] = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
-				   "(may break games, must reload game to take effect)";
+static const char h_cfg_cdrr[]   = "Compatibility tweak (CD timing hack, breaks FMVs)";
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
+static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
+				   "must reload game for any change to take effect";
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1236,8 +1258,8 @@ static menu_entry e_menu_adv_options[] =
 	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
 	mee_enum_h    ("CD read reschedule hack",0, Config.CdrReschedule, men_cfg_cdrr, h_cfg_cdrr),
-	mee_range_h   ("PSX CPU clock, %%",      0, psx_clock, 1, 500, h_cfg_psxclk),
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
+	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
 };
 

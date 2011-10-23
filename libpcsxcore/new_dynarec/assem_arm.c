@@ -4494,10 +4494,8 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
     assem_debug("gte unneeded %016llx, need_flags %d, need_ir %d\n",
       gte_unneeded[i+1],need_flags,need_ir);
-#ifdef ARMv5_ONLY
-    // let's take more risk here
-    need_flags=need_flags&&gte_reads_flags;
-#endif
+    if(new_dynarec_hacks&NDHACK_GTE_NO_FLAGS)
+      need_flags=0;
     int shift = (source[i] >> 19) & 1;
     int lm = (source[i] >> 10) & 1;
     switch(c2op) {

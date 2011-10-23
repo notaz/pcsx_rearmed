@@ -379,6 +379,7 @@ int pending_exception, stop;
 unsigned int next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier;
+int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u8 zero_mem[0x1000];
