@@ -79,11 +79,7 @@ static void io_write_sio32(u32 value)
 
 static void map_rcnt_rcount0(u32 mode)
 {
-	if (mode & 0x01) { // gate
-		map_item(&mem_iortab[IOMEM32(0x1100)], &psxH[0x1000], 0);
-		map_item(&mem_iortab[IOMEM16(0x1100)], &psxH[0x1000], 0);
-	}
-	else if (mode & 0x100) { // pixel clock
+	if (mode & 0x100) { // pixel clock
 		map_item(&mem_iortab[IOMEM32(0x1100)], rcnt0_read_count_m1, 1);
 		map_item(&mem_iortab[IOMEM16(0x1100)], rcnt0_read_count_m1, 1);
 	}
@@ -95,11 +91,7 @@ static void map_rcnt_rcount0(u32 mode)
 
 static void map_rcnt_rcount1(u32 mode)
 {
-	if (mode & 0x01) { // gate
-		map_item(&mem_iortab[IOMEM32(0x1110)], &psxH[0x1000], 0);
-		map_item(&mem_iortab[IOMEM16(0x1110)], &psxH[0x1000], 0);
-	}
-	else if (mode & 0x100) { // hcnt
+	if (mode & 0x100) { // hcnt
 		map_item(&mem_iortab[IOMEM32(0x1110)], rcnt1_read_count_m1, 1);
 		map_item(&mem_iortab[IOMEM16(0x1110)], rcnt1_read_count_m1, 1);
 	}
