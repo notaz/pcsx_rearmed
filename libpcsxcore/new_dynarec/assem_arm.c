@@ -4215,8 +4215,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
         emit_writeword(HOST_CCREG,(int)&last_count);
         emit_movimm(0,HOST_CCREG);
         emit_storereg(CCREG,HOST_CCREG);
-        if(s!=1)
-          emit_mov(s,1);
+        emit_loadreg(rs1[i],1);
         emit_movimm(copr,0);
         emit_call((int)pcsx_mtc0_ds);
         return;
@@ -4230,7 +4229,9 @@ void cop0_assemble(int i,struct regstat *i_regs)
     //else if(copr==12&&is_delayslot) emit_call((int)MTC0_R12);
     //else
 #ifdef PCSX
-    if(s!=1)
+    if(s==HOST_CCREG)
+      emit_loadreg(rs1[i],1);
+    else if(s!=1)
       emit_mov(s,1);
     emit_movimm(copr,0);
     emit_call((int)pcsx_mtc0);
