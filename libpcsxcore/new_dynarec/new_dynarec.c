@@ -44,9 +44,6 @@
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
-int cycle_multiplier; // 100 for 1.0
-#define CLOCK_ADJUST(x) (((x) * cycle_multiplier + 50) / 100)
-
 struct regstat
 {
   signed char regmap_entry[HOST_REGS];
@@ -278,6 +275,14 @@ void load_all_consts(signed char regmap[],int is32,u_int dirty,int i);
 int tracedebug=0;
 
 //#define DEBUG_CYCLE_COUNT 1
+
+int cycle_multiplier; // 100 for 1.0
+
+static int CLOCK_ADJUST(int x)
+{
+  int s=(x>>31)|1;
+  return (x * cycle_multiplier + s * 50) / 100;
+}
 
 static void tlb_hacks()
 {
