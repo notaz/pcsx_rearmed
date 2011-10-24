@@ -5,6 +5,8 @@
  * See the COPYING file in the top-level directory.
  */
 
+#ifndef DRC_DBG
+
 static int pcsx_direct_read(int type, u_int addr, int cc_adj, int cc, int rs, int rt)
 {
   if ((addr & 0xfffff000) == 0x1f801000) {
@@ -51,5 +53,14 @@ dont_care:
   assem_debug("pcsx_direct_read %08x dummy\n", addr);
   return 1;
 }
+
+#else
+
+static int pcsx_direct_read(int type, u_int addr, int cc_adj, int cc, int rs, int rt)
+{
+  return 0;
+}
+
+#endif
 
 // vim:shiftwidth=2:expandtab

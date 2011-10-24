@@ -429,16 +429,18 @@ void do_insn_trace(void)
 	static psxRegisters oldregs;
 	static u32 old_io_addr = (u32)-1;
 	static u32 old_io_data = 0xbad0c0de;
+	static u32 event_cycles_o[PSXINT_COUNT];
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_o = (void *)&oldregs;
 	u32 io_data;
 	int i;
 	u8 byte;
 
-//last_io_addr = 0x5e2c8;
+	//last_io_addr = 0x5e2c8;
 	if (f == NULL)
 		f = fopen("tracelog", "wb");
 
+	// log reg changes
 	oldregs.code = psxRegs.code; // don't care
 	for (i = 0; i < offsetof(psxRegisters, intCycle) / 4; i++) {
 		if (allregs_p[i] != allregs_o[i]) {
@@ -447,6 +449,17 @@ void do_insn_trace(void)
 			allregs_o[i] = allregs_p[i];
 		}
 	}
+	// log event changes
+	for (i = 0; i < PSXINT_COUNT; i++) {
+		if (event_cycles[i] != event_cycles_o[i]) {
+			byte = 0xfc;
+			fwrite(&byte, 1, 1, f);
+			fwrite(&i, 1, 1, f);
+			fwrite(&event_cycles[i], 1, 4, f);
+			event_cycles_o[i] = event_cycles[i];
+		}
+	}
+	// log last io
 	if (old_io_addr != last_io_addr) {
 		byte = 0xfd;
 		fwrite(&byte, 1, 1, f);
@@ -525,7 +538,8 @@ void do_insn_cmp(void)
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_e = (void *)&rregs;
 	static u32 ppc, failcount;
-	int i, ret, bad = 0;
+	int i, ret, bad = 0, which_event = -1;
+	u32 ev_cycles = 0;
 	u8 code;
 
 	if (f == NULL)
@@ -538,18 +552,20 @@ void do_insn_cmp(void)
 			break;
 		if (code == 0xff)
 			break;
-		if (code == 0xfd) {
-			if ((ret = fread(&mem_addr, 1, 4, f)) <= 0)
-				break;
+		switch (code) {
+		case 0xfc:
+			which_event = 0;
+			fread(&which_event, 1, 1, f);
+			fread(&ev_cycles, 1, 4, f);
+			continue;
+		case 0xfd:
+			fread(&mem_addr, 1, 4, f);
+			continue;
+		case 0xfe:
+			fread(&mem_val, 1, 4, f);
 			continue;
 		}
-		if (code == 0xfe) {
-			if ((ret = fread(&mem_val, 1, 4, f)) <= 0)
-				break;
-			continue;
-		}
-		if ((ret = fread(&allregs_e[code], 1, 4, f)) <= 0)
-			break;
+		fread(&allregs_e[code], 1, 4, f);
 	}
 
 	if (ret <= 0) {
@@ -561,7 +577,7 @@ void do_insn_cmp(void)
 	psxRegs.cycle = rregs.cycle;
 	psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
-//if (psxRegs.cycle == 166172) breakme();
+	//if (psxRegs.cycle == 166172) breakme();
 
 	if (memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle)) == 0 &&
 			mem_val == memcheck_read(mem_addr)
@@ -579,6 +595,11 @@ void do_insn_cmp(void)
 
 	if (mem_val != memcheck_read(mem_addr)) {
 		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
+		goto end;
+	}
+
+	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
+		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
 		goto end;
 	}
 

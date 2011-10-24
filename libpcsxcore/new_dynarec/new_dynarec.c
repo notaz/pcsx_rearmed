@@ -9786,7 +9786,7 @@ int new_recompile_block(int addr)
     {
       cc=0;
     }
-#ifdef PCSX
+#if defined(PCSX) && !defined(DRC_DBG)
     else if(itype[i]==C2OP&&gte_cycletab[source[i]&0x3f]>2)
     {
       // GTE runs in parallel until accessed, divide by 2 for a rough guess

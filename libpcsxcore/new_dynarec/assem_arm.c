@@ -4499,6 +4499,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     int shift = (source[i] >> 19) & 1;
     int lm = (source[i] >> 10) & 1;
     switch(c2op) {
+#ifndef DRC_DBG
       case GTE_MVMVA: {
         int v  = (source[i] >> 15) & 3;
         int cv = (source[i] >> 13) & 3;
@@ -4577,11 +4578,13 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         c2op_prologue(c2op,reglist);
         c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
         break;
-
+#endif
       default:
         c2op_prologue(c2op,reglist);
-        //emit_movimm(source[i],1); // opcode
-        //emit_writeword(1,(int)&psxRegs.code);
+#ifdef DRC_DBG
+        emit_movimm(source[i],1); // opcode
+        emit_writeword(1,(int)&psxRegs.code);
+#endif
         emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
         break;
     }

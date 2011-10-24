@@ -77,6 +77,8 @@ static void io_write_sio32(u32 value)
 	sioWrite8((unsigned char)(value >> 24));
 }
 
+#ifndef DRC_DBG
+
 static void map_rcnt_rcount0(u32 mode)
 {
 	if (mode & 0x100) { // pixel clock
@@ -116,6 +118,12 @@ static void map_rcnt_rcount2(u32 mode)
 		map_item(&mem_iortab[IOMEM16(0x1120)], rcnt2_read_count_m0, 1);
 	}
 }
+
+#else
+#define map_rcnt_rcount0(mode)
+#define map_rcnt_rcount1(mode)
+#define map_rcnt_rcount2(mode)
+#endif
 
 #define make_rcnt_funcs(i) \
 static u32 io_rcnt_read_count##i()  { return psxRcntRcount(i); } \
