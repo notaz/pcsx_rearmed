@@ -30,28 +30,19 @@ u32 event_cycles[PSXINT_COUNT];
 static void schedule_timeslice(void)
 {
 	u32 i, c = psxRegs.cycle;
+	u32 irqs = psxRegs.interrupt;
 	s32 min, dif;
 
-	min = psxNextsCounter + psxNextCounter - c;
-	for (i = 0; i < ARRAY_SIZE(event_cycles); i++) {
+	min = PSXCLK;
+	for (i = 0; irqs != 0; i++, irqs >>= 1) {
+		if (!(irqs & 1))
+			continue;
 		dif = event_cycles[i] - c;
 		//evprintf("  ev %d\n", dif);
 		if (0 < dif && dif < min)
 			min = dif;
 	}
 	next_interupt = c + min;
-
-#if 0
-	static u32 cnt, last_cycle;
-	static u64 sum;
-	if (last_cycle) {
-		cnt++;
-		sum += psxRegs.cycle - last_cycle;
-		if ((cnt & 0xff) == 0)
-			printf("%u\n", (u32)(sum / cnt));
-	}
-	last_cycle = psxRegs.cycle;
-#endif
 }
 
 typedef void (irq_func)();
@@ -68,6 +59,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_CDRDMA] = cdrDmaInterrupt,
 	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
 	[PSXINT_CDRPLAY] = cdrPlayInterrupt,
+	[PSXINT_RCNT] = psxRcntUpdate,
 };
 
 /* local dupe of psxBranchTest, using event_cycles */
@@ -76,9 +68,6 @@ static void irq_test(void)
 	u32 irqs = psxRegs.interrupt;
 	u32 cycle = psxRegs.cycle;
 	u32 irq, irq_bits;
-
-	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
-		psxRcntUpdate();
 
 	// irq_funcs() may queue more irqs
 	psxRegs.interrupt = 0;
@@ -131,7 +120,14 @@ void pcsx_mtc0_ds(u32 reg, u32 val)
 
 void new_dyna_save(void)
 {
+	psxRegs.interrupt &= ~(1 << PSXINT_RCNT); // old savestate compat
+
 	// psxRegs.intCycle is always maintained, no need to convert
+}
+
+void new_dyna_after_save(void)
+{
+	psxRegs.interrupt |= 1 << PSXINT_RCNT;
 }
 
 void new_dyna_restore(void)
@@ -139,6 +135,10 @@ void new_dyna_restore(void)
 	int i;
 	for (i = 0; i < PSXINT_COUNT; i++)
 		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
+
+	event_cycles[PSXINT_RCNT] = psxNextsCounter + psxNextCounter;
+	psxRegs.interrupt |=  1 << PSXINT_RCNT;
+	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
 
 	new_dyna_pcsx_mem_load_state();
 }

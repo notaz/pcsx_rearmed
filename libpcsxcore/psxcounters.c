@@ -176,6 +176,9 @@ void psxRcntSet()
             psxNextCounter = countToUpdate;
         }
     }
+
+    psxRegs.interrupt |= (1 << PSXINT_RCNT);
+    new_dyna_set_event(PSXINT_RCNT, psxNextCounter);
 }
 
 /******************************************************************************/

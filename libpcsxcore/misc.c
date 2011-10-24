@@ -530,6 +530,8 @@ int SaveState(const char *file) {
 
 	gzclose(f);
 
+	new_dyna_after_save();
+
 	return 0;
 }
 
