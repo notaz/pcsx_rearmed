@@ -89,7 +89,7 @@ void psxException(u32 code, u32 bd) {
 	}
 
 	// Set the Cause
-	psxRegs.CP0.n.Cause = code;
+	psxRegs.CP0.n.Cause = (psxRegs.CP0.n.Cause & 0x300) | code;
 
 	// Set the EPC & PC
 	if (bd) {

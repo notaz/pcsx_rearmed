@@ -780,10 +780,9 @@ void psxMFC0() { if (!_Rt_) return; _i32(_rRt_) = (int)_rFs_; }
 void psxCFC0() { if (!_Rt_) return; _i32(_rRt_) = (int)_rFs_; }
 
 void psxTestSWInts() {
-	// the next code is untested, if u know please
-	// tell me if it works ok or not (linuzappz)
 	if (psxRegs.CP0.n.Cause & psxRegs.CP0.n.Status & 0x0300 &&
-		psxRegs.CP0.n.Status & 0x1) {
+	   psxRegs.CP0.n.Status & 0x1) {
+		psxRegs.CP0.n.Cause &= ~0x7c;
 		psxException(psxRegs.CP0.n.Cause, branch);
 	}
 }
@@ -797,7 +796,8 @@ void MTC0(int reg, u32 val) {
 			break;
 
 		case 13: // Cause
-			psxRegs.CP0.n.Cause = val & ~(0xfc00);
+			psxRegs.CP0.n.Cause &= ~0x0300;
+			psxRegs.CP0.n.Cause |= val & 0x0300;
 			psxTestSWInts();
 			break;
 
