@@ -74,6 +74,7 @@ static u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;
 static u32 hsync_steps = 0;
 static u32 gpu_wants_hcnt = 0;
+static u32 base_cycle = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
@@ -322,7 +323,14 @@ void psxRcntUpdate()
             hsync_steps = 1;
 
         rcnts[3].cycleStart = cycle - leftover_cycles;
-        rcnts[3].cycle = hsync_steps * rcnts[3].target;
+        if (Config.PsxType)
+                // 20.12 precision, clk / 50 / 313 ~= 2164.14
+                base_cycle += hsync_steps * 8864320;
+        else
+                // clk / 60 / 263 ~= 2146.31
+                base_cycle += hsync_steps * 8791293;
+        rcnts[3].cycle = base_cycle >> 12;
+        base_cycle &= 0xfff;
         psxRcntSet();
     }
 
@@ -493,6 +501,8 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
 
     if (Mode == 0)
         hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+
+    base_cycle = 0;
 
     return 0;
 }
