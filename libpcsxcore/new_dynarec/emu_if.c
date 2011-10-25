@@ -110,6 +110,8 @@ void pcsx_mtc0(u32 reg, u32 val)
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
 	MTC0(reg, val);
 	gen_interupt();
+	if (Cause & Status & 0x0300) // possible sw irq
+		pending_exception = 1;
 }
 
 void pcsx_mtc0_ds(u32 reg, u32 val)
