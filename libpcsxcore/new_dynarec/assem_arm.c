@@ -4218,6 +4218,7 @@ void cop0_assemble(int i,struct regstat *i_regs)
         emit_loadreg(rs1[i],1);
         emit_movimm(copr,0);
         emit_call((int)pcsx_mtc0_ds);
+        emit_loadreg(rs1[i],s);
         return;
       }
 #endif
@@ -4240,23 +4241,21 @@ void cop0_assemble(int i,struct regstat *i_regs)
 #endif
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword((int)&Count,HOST_CCREG);
-      emit_readword((int)&next_interupt,ECX);
+      emit_readword((int)&next_interupt,HOST_TEMPREG);
       emit_addimm(HOST_CCREG,-CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
-      emit_sub(HOST_CCREG,ECX,HOST_CCREG);
-      emit_writeword(ECX,(int)&last_count);
+      emit_sub(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
+      emit_writeword(HOST_TEMPREG,(int)&last_count);
       emit_storereg(CCREG,HOST_CCREG);
     }
     if(copr==12||copr==13) {
       assert(!is_delayslot);
       emit_readword((int)&pending_exception,14);
+      emit_test(14,14);
+      emit_jne((int)&do_interrupt);
     }
     emit_loadreg(rs1[i],s);
     if(get_reg(i_regs->regmap,rs1[i]|64)>=0)
       emit_loadreg(rs1[i]|64,get_reg(i_regs->regmap,rs1[i]|64));
-    if(copr==12||copr==13) {
-      emit_test(14,14);
-      emit_jne((int)&do_interrupt);
-    }
     cop1_usable=0;
   }
   else
