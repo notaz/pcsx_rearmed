@@ -32,12 +32,12 @@ static void blit(void)
   int y = gpu.screen.y;
   int w = gpu.screen.w;
   int h = gpu.screen.h;
+  uint16_t *vram = gpu.vram;
   int stride = gpu.screen.hres;
-  int doffs;
-  uint16_t *srcs;
-  uint8_t  *dest;
+  int fb_offs, doffs;
+  uint8_t *dest;
 
-  srcs = &gpu.vram[y * 1024 + x];
+  fb_offs = y * 1024 + x;
 
   if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h) // width|rgb24 change?
   {
@@ -55,24 +55,27 @@ static void blit(void)
   {
 #ifndef MAEMO
     dest += (doffs / 8) * 24;
-    for (; h-- > 0; dest += stride * 3, srcs += 1024)
+    for (; h-- > 0; dest += stride * 3, fb_offs += 1024)
     {
-      bgr888_to_rgb888(dest, srcs, w * 3);
+      fb_offs &= 1024*512-1;
+      bgr888_to_rgb888(dest, vram + fb_offs, w * 3);
     }
 #else
     dest += doffs * 2;
-    for (; h-- > 0; dest += stride * 2, srcs += 1024)
+    for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
     {
-      bgr888_to_rgb565(dest, srcs, w * 3);
+      fb_offs &= 1024*512-1;
+      bgr888_to_rgb565(dest, vram + fb_offs, w * 3);
     }
 #endif
   }
   else
   {
     dest += doffs * 2;
-    for (; h-- > 0; dest += stride * 2, srcs += 1024)
+    for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
     {
-      bgr555_to_rgb565(dest, srcs, w * 2);
+      fb_offs &= 1024*512-1;
+      bgr555_to_rgb565(dest, vram + fb_offs, w * 2);
     }
   }
 
