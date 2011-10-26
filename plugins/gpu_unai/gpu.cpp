@@ -274,8 +274,9 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 	{
 		if (FrameToWrite) 
 		{
-			while (dmaCount--) 
+			while (dmaCount)
 			{
+				dmaCount--;
 				data = *dmaAddress++;
 				if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
 				pvram[px] = data;
@@ -830,14 +831,15 @@ static s16 old_res_horz, old_res_vert, old_rgb24;
 
 static void blit(void)
 {
+	u16 *base = (u16 *)GPU_FrameBuffer;
 	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
 	s16 h0, x0, y0, w0, h1;
-	u16 *srcs;
+	u32 fb_offs;
 	u8  *dest;
 
 	x0 = DisplayArea[0] & ~1; // alignment needed by blitter
 	y0 = DisplayArea[1];
-	srcs = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0,y0)];
+	fb_offs = FRAME_OFFSET(x0, y0);
 
 	w0 = DisplayArea[2];
 	h0 = DisplayArea[3];  // video mode
@@ -860,22 +862,25 @@ static void blit(void)
 	if (isRGB24)
 	{
 #ifndef MAEMO
-		for (; h1-- > 0; dest += w0 * 3, srcs += 1024)
+		for (; h1-- > 0; dest += w0 * 3, fb_offs += 1024)
 		{
-			bgr888_to_rgb888(dest, srcs, w0 * 3);
+			fb_offs &= 1024*512-1;
+			bgr888_to_rgb888(dest, base + fb_offs, w0 * 3);
 		}
 #else
-		for (; h1-- > 0; dest += w0 * 2, srcs += 1024)
+		for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
 		{
-			bgr888_to_rgb565(dest, srcs, w0 * 3);
+			fb_offs &= 1024*512-1;
+			bgr888_to_rgb565(dest, base + fb_offs, w0 * 3);
 		}
 #endif
 	}
 	else
 	{
-		for (; h1-- > 0; dest += w0 * 2, srcs += 1024)
+		for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
 		{
-			bgr555_to_rgb565(dest, srcs, w0 * 2);
+			fb_offs &= 1024*512-1;
+			bgr555_to_rgb565(dest, base + fb_offs, w0 * 2);
 		}
 	}
 
