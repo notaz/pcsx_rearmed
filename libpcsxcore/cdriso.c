@@ -70,6 +70,7 @@ static struct {
 	unsigned char buff_compressed[CD_FRAMESIZE_RAW * 16 + 100];
 	unsigned int *index_table;
 	unsigned int index_len;
+	unsigned int block_shift;
 	unsigned int current_block;
 	unsigned int sector_in_blk;
 } *compr_img;
@@ -704,7 +705,7 @@ static int parsemds(const char *isofile) {
 	return 0;
 }
 
-static int parsepbp(const char *isofile) {
+static int handlepbp(const char *isofile) {
 	struct {
 		unsigned int sig;
 		unsigned int dontcare[8];
@@ -800,6 +801,7 @@ static int parsepbp(const char *isofile) {
 	if (compr_img == NULL)
 		goto fail_io;
 
+	compr_img->block_shift = 4;
 	compr_img->current_block = (unsigned int)-1;
 
 	compr_img->index_len = (0x100000 - 0x4000) / sizeof(index_entry);
@@ -828,6 +830,88 @@ fail_index:
 	free(compr_img->index_table);
 	compr_img->index_table = NULL;
 fail_io:
+	if (compr_img != NULL) {
+		free(compr_img);
+		compr_img = NULL;
+	}
+	return -1;
+}
+
+static int handlecbin(const char *isofile) {
+	struct
+	{
+		char magic[4];
+		unsigned int header_size;
+		unsigned long long total_bytes;
+		unsigned int block_size;
+		unsigned char ver;		// 1
+		unsigned char align;
+		unsigned char rsv_06[2];
+	} ciso_hdr;
+	const char *ext = NULL;
+	unsigned int index, plain;
+	int i, ret;
+
+	if (strlen(isofile) >= 5)
+		ext = isofile + strlen(isofile) - 5;
+	if (ext == NULL || (strcasecmp(ext + 1, ".cbn") != 0 && strcasecmp(ext, ".cbin") != 0))
+		return -1;
+
+	ret = fread(&ciso_hdr, 1, sizeof(ciso_hdr), cdHandle);
+	if (ret != sizeof(ciso_hdr)) {
+		fprintf(stderr, "failed to read ciso header\n");
+		return -1;
+	}
+
+	if (strncmp(ciso_hdr.magic, "CISO", 4) != 0 || ciso_hdr.total_bytes <= 0 || ciso_hdr.block_size <= 0) {
+		fprintf(stderr, "bad ciso header\n");
+		return -1;
+	}
+	if (ciso_hdr.header_size != 0 && ciso_hdr.header_size != sizeof(ciso_hdr)) {
+		ret = fseek(cdHandle, ciso_hdr.header_size, SEEK_SET);
+		if (ret != 0) {
+			fprintf(stderr, "failed to seek to %x\n", ciso_hdr.header_size);
+			return -1;
+		}
+	}
+
+	compr_img = calloc(1, sizeof(*compr_img));
+	if (compr_img == NULL)
+		goto fail_io;
+
+	compr_img->block_shift = 0;
+	compr_img->current_block = (unsigned int)-1;
+
+	compr_img->index_len = ciso_hdr.total_bytes / ciso_hdr.block_size;
+	compr_img->index_table = malloc((compr_img->index_len + 1) * sizeof(compr_img->index_table[0]));
+	if (compr_img->index_table == NULL)
+		goto fail_io;
+
+	ret = fread(compr_img->index_table, sizeof(compr_img->index_table[0]), compr_img->index_len, cdHandle);
+	if (ret != compr_img->index_len) {
+		fprintf(stderr, "failed to read index table\n");
+		goto fail_index;
+	}
+
+	for (i = 0; i < compr_img->index_len + 1; i++) {
+		index = compr_img->index_table[i];
+		plain = index & 0x80000000;
+		index &= 0x7fffffff;
+		compr_img->index_table[i] = (index << ciso_hdr.align) | plain;
+	}
+	if ((long long)index << ciso_hdr.align >= 0x80000000ll)
+		fprintf(stderr, "warning: ciso img too large, expect problems\n");
+
+	return 0;
+
+fail_index:
+	free(compr_img->index_table);
+	compr_img->index_table = NULL;
+fail_io:
+	if (compr_img != NULL) {
+		free(compr_img);
+		compr_img = NULL;
+	}
 	return -1;
 }
 
@@ -924,12 +1008,13 @@ static int uncompress2(void *out, unsigned long *out_size, void *in, unsigned lo
 
 static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 {
+	unsigned long cdbuffer_size, cdbuffer_size_expect;
 	unsigned int start_byte, size;
-	unsigned long cdbuffer_size;
+	int is_compressed;
 	int ret, block;
 
-	block = sector >> 4;
-	compr_img->sector_in_blk = sector & 15;
+	block = sector >> compr_img->block_shift;
+	compr_img->sector_in_blk = sector & ((1 << compr_img->block_shift) - 1);
 
 	if (block == compr_img->current_block) {
 		//printf("hit sect %d\n", sector);
@@ -941,7 +1026,7 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 		return -1;
 	}
 
-	start_byte = compr_img->index_table[block];
+	start_byte = compr_img->index_table[block] & 0x7fffffff;
 	if (fseek(cdHandle, start_byte, SEEK_SET) != 0) {
 		fprintf(stderr, "seek error for block %d at %x: ",
 			block, start_byte);
@@ -949,28 +1034,33 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 		return -1;
 	}
 
-	size = compr_img->index_table[block + 1] - start_byte;
+	is_compressed = !(compr_img->index_table[block] & 0x80000000);
+	size = (compr_img->index_table[block + 1] & 0x7fffffff) - start_byte;
 	if (size > sizeof(compr_img->buff_compressed)) {
 		fprintf(stderr, "block %d is too large: %u\n", block, size);
 		return -1;
 	}
 
-	if (fread(compr_img->buff_compressed, 1, size, cdHandle) != size) {
+	if (fread(is_compressed ? compr_img->buff_compressed : compr_img->buff_raw[0],
+				1, size, cdHandle) != size) {
 		fprintf(stderr, "read error for block %d at %x: ", block, start_byte);
 		perror(NULL);
 		return -1;
 	}
 
-	cdbuffer_size = sizeof(compr_img->buff_raw[0]) * 16;
-	ret = uncompress2(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
-	if (ret != 0) {
-		fprintf(stderr, "uncompress failed with %d for block %d, sector %d\n",
-			ret, block, sector);
-		return -1;
+	if (is_compressed) {
+		cdbuffer_size_expect = sizeof(compr_img->buff_raw[0]) << compr_img->block_shift;
+		cdbuffer_size = cdbuffer_size_expect;
+		ret = uncompress2(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
+		if (ret != 0) {
+			fprintf(stderr, "uncompress failed with %d for block %d, sector %d\n",
+					ret, block, sector);
+			return -1;
+		}
+		if (cdbuffer_size != cdbuffer_size_expect)
+			fprintf(stderr, "cdbuffer_size: %lu != %lu, sector %d\n", cdbuffer_size,
+					cdbuffer_size_expect, sector);
 	}
-	if (cdbuffer_size != sizeof(compr_img->buff_raw[0]) * 16)
-		fprintf(stderr, "cdbuffer_size: %lu != %d, sector %d\n", cdbuffer_size,
-			sizeof(compr_img->buff_raw[0]) * 16, sector);
 
 	// done at last!
 	compr_img->current_block = block;
@@ -1052,8 +1142,13 @@ static long CALLBACK ISOopen(void) {
 	else if (parsemds(GetIsoFile()) == 0) {
 		SysPrintf("[+mds]");
 	}
-	else if (parsepbp(GetIsoFile()) == 0) {
+	if (handlepbp(GetIsoFile()) == 0) {
 		SysPrintf("[pbp]");
+		CDR_getBuffer = ISOgetBuffer_compr;
+		cdimg_read_func = cdread_compressed;
+	}
+	else if (handlecbin(GetIsoFile()) == 0) {
+		SysPrintf("[cbin]");
 		CDR_getBuffer = ISOgetBuffer_compr;
 		cdimg_read_func = cdread_compressed;
 	}
