@@ -319,6 +319,7 @@ int main(int argc, char *argv[])
 	plat_init();
 	menu_init(); // loads config
 	pl_init();
+	plat_rescan_inputs();
 
 	if (psxout)
 		Config.PsxOut = 1;

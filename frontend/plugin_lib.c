@@ -33,7 +33,7 @@ int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate, in_state_gun;
 int pl_flip_cnt;
-static void *ts;
+void *tsdev;
 void *pl_vout_buf;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp;
 static int vsync_cnt, flips_per_sec, tick_per_sec;
@@ -248,8 +248,8 @@ static void update_input(void)
 
 void pl_update_gun(int *xn, int *xres, int *y, int *in)
 {
-	if (ts)
-		pl_gun_ts_update(ts, xn, y, in);
+	if (tsdev)
+		pl_gun_ts_update(tsdev, xn, y, in);
 
 	*xres = pl_vout_w;
 	*y = *y * pl_vout_h >> 10;
@@ -473,5 +473,5 @@ void pl_init(void)
 	pl_vout_w = pl_vout_h = 256;
 	pl_vout_bpp = 16;
 
-	ts = pl_gun_ts_init();
+	tsdev = pl_gun_ts_init();
 }

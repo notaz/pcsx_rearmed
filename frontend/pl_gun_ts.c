@@ -19,7 +19,8 @@
 
 static int gun_x, gun_y, gun_in;
 static int ts_multiplier_x, ts_multiplier_y, ts_offs_x, ts_offs_y;
-static int (*pts_read)(struct tsdev *dev, struct ts_sample *sample, int nr);
+int (*pts_read)(struct tsdev *dev, struct ts_sample *sample, int nr);
+int (*pts_fd)(struct tsdev *dev);
 
 #define limit(v, min, max) \
 	if (v < min) v = min; \
@@ -77,9 +78,9 @@ struct tsdev *pl_gun_ts_init(void)
 		tsdevname = "/dev/input/touchscreen0";
 
 	// avoid hard dep on tslib
-	ltsh = dlopen("/usr/lib/libts-1.0.so.0", RTLD_LAZY);
+	ltsh = dlopen("/usr/lib/libts-1.0.so.0", RTLD_NOW|RTLD_GLOBAL);
 	if (ltsh == NULL)
-		ltsh = dlopen("/usr/lib/libts-0.0.so.0", RTLD_LAZY);
+		ltsh = dlopen("/usr/lib/libts-0.0.so.0", RTLD_NOW|RTLD_GLOBAL);
 	if (ltsh == NULL) {
 		fprintf(stderr, "%s\n", dlerror());
 		goto fail;
@@ -88,8 +89,10 @@ struct tsdev *pl_gun_ts_init(void)
 	pts_open = dlsym(ltsh, "ts_open");
 	pts_config = dlsym(ltsh, "ts_config");
 	pts_read = dlsym(ltsh, "ts_read");
+	pts_fd = dlsym(ltsh, "ts_fd");
 	pts_close = dlsym(ltsh, "ts_close");
-	if (pts_open == NULL || pts_config == NULL || pts_read == NULL || pts_close == NULL) {
+	if (pts_open == NULL || pts_config == NULL || pts_read == NULL
+	    || pts_fd == NULL || pts_close == NULL) {
 		fprintf(stderr, "%s\n", dlerror());
 		goto fail_dlsym;
 	}

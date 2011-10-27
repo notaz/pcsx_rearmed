@@ -173,9 +173,6 @@ void plat_init(void)
 	}
 	g_menubg_ptr = temp_frame;
 
-	// hmh
-	plat_rescan_inputs();
-
 	return;
 
 fail1:

@@ -22,6 +22,7 @@
 #include "plugin_lib.h"
 #include "cspace.h"
 #include "blit320.h"
+#include "in_tsbutton.h"
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
@@ -555,9 +556,6 @@ void plat_init(void)
 	if (battdev < 0)
 		perror("Warning: could't open pollux_batt");
 
-	// hmh
-	plat_rescan_inputs();
-
 	pl_rearmed_cbs.pl_vout_flip = pl_vout_flip;
 	pl_rearmed_cbs.pl_vout_raw_flip = have_warm ? raw_flip_dma : raw_flip_soft;
 	pl_rearmed_cbs.pl_vout_set_mode = pl_vout_set_mode;
@@ -566,6 +564,8 @@ void plat_init(void)
 	psx_width = 320;
 	psx_height = 240;
 	psx_bpp = 16;
+
+	in_tsbutton_init();
 }
 
 void plat_finish(void)
