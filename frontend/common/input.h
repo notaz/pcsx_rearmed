@@ -50,14 +50,6 @@
 
 
 enum {
-	IN_DRVID_UNKNOWN = 0,
-	IN_DRVID_GP2X,
-	IN_DRVID_EVDEV,
-	IN_DRVID_VK,
-	IN_DRVID_COUNT,
-};
-
-enum {
 	IN_CFG_BIND_COUNT = 0,
 	IN_CFG_DOES_COMBOS,
 	IN_CFG_BLOCKING,
@@ -79,13 +71,13 @@ typedef struct {
 	const char *prefix;
 	void (*probe)(void);
 	void (*free)(void *drv_data);
-	int  (*get_bind_count)(void);
 	const char * const *
 	     (*get_key_names)(int *count);
 	void (*get_def_binds)(int *binds);
 	int  (*clean_binds)(void *drv_data, int *binds, int *def_finds);
 	int  (*get_config)(void *drv_data, int what, int *val);
 	int  (*set_config)(void *drv_data, int what, int val);
+	int  (*update)(void *drv_data, const int *binds, int *result);
 	/* return -1 on no event, -2 on error */
 	int  (*update_keycode)(void *drv_data, int *is_down);
 	int  (*menu_translate)(void *drv_data, int keycode);
@@ -100,7 +92,8 @@ struct in_default_bind {
 };
 
 /* to be called by drivers */
-void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
+int  in_register_driver(const in_drv_t *drv);
+void in_register(const char *nname, int drv_fd_hnd, void *drv_data,
 		int key_count, const char * const *key_names, int combos);
 void in_combos_find(const int *binds, int last_key, int *combo_keys, int *combo_acts);
 int  in_combos_do(int keys, const int *binds, int last_key, int combo_keys, int combo_acts);

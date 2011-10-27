@@ -24,8 +24,9 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
-#include "common/input.h"
 #include "common/readpng.h"
+#include "common/input.h"
+#include "linux/in_evdev.h"
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
@@ -313,6 +314,7 @@ int main(int argc, char *argv[])
 
 	// frontend stuff
 	in_init();
+	in_evdev_init();
 	//in_probe();
 	plat_init();
 	menu_init(); // loads config

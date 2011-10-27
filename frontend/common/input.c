@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2008-2010
+ * (C) Gražvydas "notaz" Ignotas, 2008-2011
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -16,13 +16,12 @@
 #include "plat.h"
 #include "lprintf.h"
 
-#ifdef IN_EVDEV
-#include "../linux/in_evdev.h"
-#endif
 #ifdef IN_GP2X
+#error needs update: in_gp2x_init in_gp2x_update
 #include "../gp2x/in_gp2x.h"
 #endif
 #ifdef IN_VK
+#error needs update: in_vk_init in_vk_update
 #include "../win32/in_vk.h"
 #endif
 
@@ -39,14 +38,16 @@ typedef struct
 	unsigned int does_combos:1;
 } in_dev_t;
 
-static in_drv_t in_drivers[IN_DRVID_COUNT];
+static in_drv_t *in_drivers;
 static in_dev_t in_devices[IN_MAX_DEVS];
+static int in_driver_count = 0;
 static int in_dev_count = 0;		/* probed + bind devices */
 static int in_have_async_devs = 0;
+static int in_probe_dev_id;
 static int menu_key_state = 0;
 static int menu_last_used_dev = 0;
 
-#define DRV(id) in_drivers[(unsigned)(id) < IN_DRVID_COUNT ? (id) : 0]
+#define DRV(id) in_drivers[id]
 
 
 static int *in_alloc_binds(int drv_id, int key_count)
@@ -83,7 +84,7 @@ static void in_free(in_dev_t *dev)
 
 /* to be called by drivers
  * async devices must set drv_fd_hnd to -1 */
-void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
+void in_register(const char *nname, int drv_fd_hnd, void *drv_data,
 		int key_count, const char * const *key_names, int combos)
 {
 	int i, ret, dupe_count = 0, *binds;
@@ -124,7 +125,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
 	if (tmp == NULL)
 		return;
 
-	binds = in_alloc_binds(drv_id, key_count);
+	binds = in_alloc_binds(in_probe_dev_id, key_count);
 	if (binds == NULL) {
 		free(tmp);
 		return;
@@ -140,13 +141,13 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
 update:
 	in_devices[i].probed = 1;
 	in_devices[i].does_combos = combos;
-	in_devices[i].drv_id = drv_id;
+	in_devices[i].drv_id = in_probe_dev_id;
 	in_devices[i].drv_fd_hnd = drv_fd_hnd;
 	in_devices[i].key_names = key_names;
 	in_devices[i].drv_data = drv_data;
 
 	if (in_devices[i].binds != NULL) {
-		ret = DRV(drv_id).clean_binds(drv_data, in_devices[i].binds,
+		ret = DRV(in_probe_dev_id).clean_binds(drv_data, in_devices[i].binds,
 			in_devices[i].binds + key_count * IN_BINDTYPE_COUNT);
 		if (ret == 0) {
 			/* no useable binds */
@@ -234,8 +235,10 @@ void in_probe(void)
 	for (i = 0; i < in_dev_count; i++)
 		in_unprobe(&in_devices[i]);
 
-	for (i = 1; i < IN_DRVID_COUNT; i++)
+	for (i = 0; i < in_driver_count; i++) {
+		in_probe_dev_id = i;
 		in_drivers[i].probe();
+	}
 
 	/* get rid of devs without binds and probes */
 	for (i = 0; i < in_dev_count; i++) {
@@ -267,26 +270,8 @@ int in_update(int *result)
 
 	for (i = 0; i < in_dev_count; i++) {
 		in_dev_t *dev = &in_devices[i];
-		if (dev->probed && dev->binds != NULL) {
-			// FIXME: this is stupid, make it indirect
-			switch (dev->drv_id) {
-#ifdef IN_EVDEV
-			case IN_DRVID_EVDEV:
-				ret |= in_evdev_update(dev->drv_data, dev->binds, result);
-				break;
-#endif
-#ifdef IN_GP2X
-			case IN_DRVID_GP2X:
-				ret |= in_gp2x_update(dev->drv_data, dev->binds, result);
-				break;
-#endif
-#ifdef IN_VK
-			case IN_DRVID_VK:
-				ret |= in_vk_update(dev->drv_data, dev->binds, result);
-				break;
-#endif
-			}
-		}
+		if (dev->probed && dev->binds != NULL)
+			ret |= DRV(dev->drv_id).update(dev->drv_data, dev->binds, result);
 	}
 
 	return ret;
@@ -602,6 +587,7 @@ const char *in_get_key_name(int dev_id, int keycode)
 {
 	const char *name = NULL;
 	static char xname[16];
+	in_drv_t *drv;
 	in_dev_t *dev;
 
 	if (dev_id < 0)		/* want last used dev? */
@@ -611,15 +597,17 @@ const char *in_get_key_name(int dev_id, int keycode)
 		return "Unkn0";
 
 	dev = &in_devices[dev_id];
+	drv = &DRV(dev->drv_id);
 	if (keycode < 0)	/* want name for menu key? */
-		keycode = DRV(dev->drv_id).menu_translate(dev->drv_data, keycode);
+		keycode = drv->menu_translate(dev->drv_data, keycode);
 
 	if (dev->key_names != NULL && 0 <= keycode && keycode < dev->key_count)
 		name = dev->key_names[keycode];
 	if (name != NULL)
 		return name;
 
-	name = DRV(dev->drv_id).get_key_name(keycode);
+	if (drv->get_key_name != NULL)
+		name = drv->get_key_name(keycode);
 	if (name != NULL)
 		return name;
 
@@ -731,7 +719,7 @@ int in_config_parse_dev(const char *name)
 {
 	int drv_id = -1, i;
 
-	for (i = 0; i < IN_DRVID_COUNT; i++) {
+	for (i = 0; i < in_driver_count; i++) {
 		int len = strlen(in_drivers[i].prefix);
 		if (strncmp(name, in_drivers[i].prefix, len) == 0) {
 			drv_id = i;
@@ -877,53 +865,56 @@ void in_debug_dump(void)
 	}
 }
 
-/* handlers for unknown/not_preset drivers */
+/* stubs for drivers that choose not to implement something */
 
-static void in_def_probe(void) {}
 static void in_def_free(void *drv_data) {}
-static const char * const *
-            in_def_get_key_names(int *count) { return NULL; }
 static void in_def_get_def_binds(int *binds) {}
-static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 0; }
+static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 1; }
 static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
 static int  in_def_set_config(void *drv_data, int what, int val) { return -1; }
 static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
-static int  in_def_menu_translate(void *drv_data, int keycode) { return keycode; }
+static int  in_def_menu_translate(void *drv_data, int keycode) { return 0; }
 static int  in_def_get_key_code(const char *key_name) { return -1; }
 static const char *in_def_get_key_name(int keycode) { return NULL; }
 
-void in_init(void)
+#define CHECK_ADD_STUB(d, f) \
+	if (d.f == NULL) d.f = in_def_##f
+
+/* to be called by drivers */
+int in_register_driver(const in_drv_t *drv)
 {
-	int i;
+	int count_new = in_driver_count + 1;
+	in_drv_t *new_drivers;
 
-	memset(in_drivers, 0, sizeof(in_drivers));
-	memset(in_devices, 0, sizeof(in_devices));
-	in_dev_count = 0;
-
-	for (i = 0; i < IN_DRVID_COUNT; i++) {
-		in_drivers[i].prefix = "none:";
-		in_drivers[i].probe = in_def_probe;
-		in_drivers[i].free = in_def_free;
-		in_drivers[i].get_key_names = in_def_get_key_names;
-		in_drivers[i].get_def_binds = in_def_get_def_binds;
-		in_drivers[i].clean_binds = in_def_clean_binds;
-		in_drivers[i].get_config = in_def_get_config;
-		in_drivers[i].set_config = in_def_set_config;
-		in_drivers[i].update_keycode = in_def_update_keycode;
-		in_drivers[i].menu_translate = in_def_menu_translate;
-		in_drivers[i].get_key_code = in_def_get_key_code;
-		in_drivers[i].get_key_name = in_def_get_key_name;
+	new_drivers = realloc(in_drivers, count_new * sizeof(in_drivers[0]));
+	if (new_drivers == NULL) {
+		lprintf("input: in_register_driver OOM\n");
+		return -1;
 	}
 
-#ifdef IN_GP2X
-	in_gp2x_init(&in_drivers[IN_DRVID_GP2X]);
-#endif
-#ifdef IN_EVDEV
-	in_evdev_init(&in_drivers[IN_DRVID_EVDEV]);
-#endif
-#ifdef IN_VK
-	in_vk_init(&in_drivers[IN_DRVID_VK]);
-#endif
+	memcpy(&new_drivers[in_driver_count], drv, sizeof(new_drivers[0]));
+
+	CHECK_ADD_STUB(new_drivers[in_driver_count], free);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], get_def_binds);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], clean_binds);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], get_config);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], set_config);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], update_keycode);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], menu_translate);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], get_key_code);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], get_key_name);
+	in_drivers = new_drivers;
+	in_driver_count = count_new;
+
+	return 0;
+}
+
+void in_init(void)
+{
+	in_drivers = NULL;
+	memset(in_devices, 0, sizeof(in_devices));
+	in_driver_count = 0;
+	in_dev_count = 0;
 }
 
 #if 0

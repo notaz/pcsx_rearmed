@@ -51,7 +51,8 @@ typedef struct {
 
 int in_evdev_allow_abs_only;
 
-static const char * const in_evdev_prefix = "evdev:";
+#define IN_EVDEV_PREFIX "evdev:"
+
 static const char * const in_evdev_keys[KEY_CNT] = {
 	[0 ... KEY_MAX] = NULL,
 	[KEY_RESERVED] = "Reserved",		[KEY_ESC] = "Esc",
@@ -246,11 +247,11 @@ no_abs:
 		dev->fd = fd;
 		dev->kc_first = kc_first;
 		dev->kc_last = kc_last;
-		strcpy(name, in_evdev_prefix);
+		strcpy(name, IN_EVDEV_PREFIX);
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
-		in_register(name, IN_DRVID_EVDEV, fd, dev, KEY_CNT, in_evdev_keys, 0);
+		in_register(name, fd, dev, KEY_CNT, in_evdev_keys, 0);
 		continue;
 
 skip:
@@ -283,7 +284,7 @@ static void or_binds(const int *binds, int key, int *result)
 
 /* ORs result with binds of pressed buttons
  * XXX: should measure performance hit of this func, might need to optimize */
-int in_evdev_update(void *drv_data, const int *binds, int *result)
+static int in_evdev_update(void *drv_data, const int *binds, int *result)
 {
 	struct input_event ev[16];
 	struct input_absinfo ainfo;
@@ -586,18 +587,21 @@ static int in_evdev_clean_binds(void *drv_data, int *binds, int *def_binds)
 	return count;
 }
 
-void in_evdev_init(void *vdrv)
-{
-	in_drv_t *drv = vdrv;
+static const in_drv_t in_evdev_drv = {
+	.prefix         = IN_EVDEV_PREFIX,
+	.probe          = in_evdev_probe,
+	.free           = in_evdev_free,
+	.get_key_names  = in_evdev_get_key_names,
+	.get_def_binds  = in_evdev_get_def_binds,
+	.clean_binds    = in_evdev_clean_binds,
+	.set_config     = in_evdev_set_config,
+	.update         = in_evdev_update,
+	.update_keycode = in_evdev_update_keycode,
+	.menu_translate = in_evdev_menu_translate,
+};
 
-	drv->prefix = in_evdev_prefix;
-	drv->probe = in_evdev_probe;
-	drv->free = in_evdev_free;
-	drv->get_key_names = in_evdev_get_key_names;
-	drv->get_def_binds = in_evdev_get_def_binds;
-	drv->clean_binds = in_evdev_clean_binds;
-	drv->set_config = in_evdev_set_config;
-	drv->update_keycode = in_evdev_update_keycode;
-	drv->menu_translate = in_evdev_menu_translate;
+void in_evdev_init(void)
+{
+	in_register_driver(&in_evdev_drv);
 }
 
