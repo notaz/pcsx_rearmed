@@ -34,7 +34,6 @@ void StopDebugger();
 int ready_to_go;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
-static char *(*real_getenv)(const char *name);
 int state_slot;
 enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
@@ -221,19 +220,6 @@ do_state_slot:
 
 int main(int argc, char *argv[])
 {
-	void *tmp;
-
-	tmp = dlopen("/lib/libdl.so.2", RTLD_LAZY);
-	if (tmp == NULL)
-		tmp = dlopen("/lib32/libdl.so.2", RTLD_LAZY);
-	if (tmp != NULL)
-		real_getenv = dlsym(tmp, "getenv");
-	if (real_getenv == NULL) {
-		fprintf(stderr, "%s\n", dlerror());
-		return 1;
-	}
-	dlclose(tmp);
-
 	// what is the name of the config file?
 	// it may be redefined by -cfg on the command line
 	strcpy(cfgfile_basename, "pcsx.cfg");
@@ -657,20 +643,6 @@ void ClosePlugins() {
 		NET_pause();
 	}
 }
-
-#if 1
-/* this is to avoid having to hack every plugin to stop using $HOME */
-char *getenv(const char *name)
-{
-	static char ret[8] = ".";
-
-	if (name && strcmp(name, "HOME") == 0 &&
-			((int)name >> 28) == 0) // HACK: let libs find home
-		return ret;
-
-	return real_getenv(name);
-}
-#endif
 
 /* we hook statically linked plugins here */
 static const char *builtin_plugins[] = {
