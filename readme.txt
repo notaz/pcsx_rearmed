@@ -32,6 +32,7 @@ Supported CD image formats:
 - .bz/.bz.table
 - .ZNX/.ZNX.table (partial)
 - EBOOT.PBP (PSP, partial)
+- .cbn
 
 CDDA (CD audio) only supported when .cue/.toc/.ccd/.mds files are present.
 There is support for redump.org .sbi files, which can be used instead of

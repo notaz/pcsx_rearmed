@@ -183,7 +183,7 @@ static void menu_set_defconfig(void)
 	scaling = SCALE_4_3;
 	volume_boost = 0;
 	frameskip = 0;
-	analog_deadzone = 70;
+	analog_deadzone = 50;
 	psx_clock = DEFAULT_PSX_CLOCK;
 	new_dynarec_hacks = 0;
 
@@ -477,8 +477,10 @@ fail:
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	static const char *cdimg_exts[] = { ".bin", ".img", ".mdf", ".iso", ".cue", ".z", ".bz", ".znx", ".pbp" };
-	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub", ".table", ".index", ".sbi" };
+	static const char *cdimg_exts[] = { ".bin", ".img", ".mdf", ".iso", ".cue", ".z",
+					    ".bz", ".znx", ".pbp", ".cbn" };
+	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub",
+					    ".table", ".index", ".sbi" };
 	const char *ext = strrchr(fname, '.');
 	int i;
 
@@ -1206,7 +1208,7 @@ static int menu_loop_plugin_options(int id, int keys)
 // ------------ adv options menu ------------
 
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n";
-static const char h_cfg_nosmc[]   = "Will cause crashes when loading";
+static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
 
@@ -1687,6 +1689,9 @@ static int romsel_run(void)
 		if (run_cd_image(fname) != 0)
 			return -1;
 	}
+
+	if (Config.HLE)
+		printf("note: running without BIOS, expect compatibility problems\n");
 
 	strcpy(last_selected_fname, rom_fname_reload);
 	return 0;
