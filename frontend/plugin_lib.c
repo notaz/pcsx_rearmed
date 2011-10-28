@@ -24,6 +24,7 @@
 #include "omap.h"
 #include "menu.h"
 #include "main.h"
+#include "plat.h"
 #include "pcnt.h"
 #include "pl_gun_ts.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
@@ -209,11 +210,15 @@ static void pl_vout_close(void)
 
 void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 {
+#if defined(VOUT_FBDEV)
 	*w = pl_vout_w;
 	*h = pl_vout_h;
 	*bpp = pl_vout_bpp;
 
 	return pl_vout_buf;
+#else
+	return plat_prepare_screenshot(w, h, bpp);
+#endif
 }
 
 static void update_input(void)

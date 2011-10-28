@@ -48,6 +48,11 @@ void in_update_analogs(void)
 {
 }
 
+void *plat_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	return 0;
+}
+
 int plat_rescan_inputs(void)
 {
 	return -1;

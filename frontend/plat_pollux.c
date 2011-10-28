@@ -244,6 +244,15 @@ void plat_video_menu_leave(void)
 	pollux_changemode(psx_bpp, 1);
 }
 
+void *plat_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	bgr555_to_rgb565(pl_vout_buf, pl_vout_buf, 320*240*2);
+	*w = 320;
+	*h = 240;
+	*bpp = psx_bpp;
+	return pl_vout_buf;
+}
+
 static void pl_vout_set_raw_vram(void *vram)
 {
 	int i;

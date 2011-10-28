@@ -20,6 +20,7 @@
 #include "plugin_lib.h"
 #include "pcnt.h"
 #include "menu.h"
+#include "plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
