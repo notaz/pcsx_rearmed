@@ -5,8 +5,10 @@
 #include <unistd.h>
 #include <hildon/hildon.h>
 #include "plugin_lib.h"
+
 #include "main.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "common/readpng.h"
 
 #define X_RES           800
 #define Y_RES           480
@@ -21,6 +23,10 @@ static GdkImage *image;
 static HildonAnimationActor *actor;
 static GtkWidget *window, *drawing;
 
+extern int g_opts;
+extern char * file_name;
+static int pl_buf_w, pl_buf_h;
+static int sens, y_def;
 static int keymap[65536];
 
 // map psx4m compatible keymap to PSX keys
@@ -82,11 +88,24 @@ window_key_proxy(GtkWidget *widget,
 			break;
 		case 19:
 			if (event->type == GDK_KEY_PRESS)
-				emu_set_action(SACTION_SAVE_STATE);
+			{
+				emu_save_state(state_slot);
+				char buf[MAXPATHLEN];
+				sprintf (buf,"/opt/maemo/usr/games/screenshots%s.%3.3d",file_name,state_slot);
+				writepng(buf, image->mem, pl_buf_w,pl_buf_h);
+			}
 			return;
 		case 20:
 			if (event->type == GDK_KEY_PRESS)
-				emu_set_action(SACTION_LOAD_STATE);
+				emu_load_state(state_slot);
+			return;
+		case 21:
+			if (event->type == GDK_KEY_PRESS)
+				state_slot=(state_slot<9)?state_slot+1:0;
+			return;
+		case 22:
+			if (event->type == GDK_KEY_PRESS)
+				state_slot=(state_slot>0)?state_slot-1:8;
 			return;
 	}
 
@@ -127,6 +146,15 @@ void maemo_init(int *argc, char ***argv)
 		fclose(pFile);
 	}
 	
+	pFile = fopen("/opt/psx4m/config", "r");
+	if (NULL != pFile) {
+		fscanf(pFile, "%d %d",&sens,&y_def);
+		fclose(pFile);
+	} else {
+		sens=150;
+		y_def=500; //near 45 degrees =)
+	}
+
 	gtk_init (argc, argv);
 
 	window = hildon_stackable_window_new ();
@@ -142,7 +170,10 @@ void maemo_init(int *argc, char ***argv)
 				GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
 
 	actor = HILDON_ANIMATION_ACTOR (hildon_animation_actor_new());
-	hildon_animation_actor_set_position (actor, (X_RES - D_WIDTH)/2, (Y_RES - D_HEIGHT)/2 );
+	if (g_opts & 2)
+		hildon_animation_actor_set_position (actor, 0, 0 );
+	else
+		hildon_animation_actor_set_position (actor, (X_RES - D_WIDTH)/2, (Y_RES - D_HEIGHT)/2 );
 	hildon_animation_actor_set_parent (actor, GTK_WINDOW (window));
 
 	drawing = gtk_image_new ();
@@ -170,17 +201,42 @@ void *hildon_set_mode(int w, int h)
 	gtk_image_set_from_image (GTK_IMAGE(drawing), image, NULL);
 
 	gtk_window_resize (GTK_WINDOW (actor), w, h);
-	hildon_animation_actor_set_scale (actor,
+	if (g_opts & 2)
+		hildon_animation_actor_set_scale (actor,
+				(gdouble)800 / (gdouble)w,
+				(gdouble)480 / (gdouble)h
+				);
+	else
+		hildon_animation_actor_set_scale (actor,
 				(gdouble)D_WIDTH / (gdouble)w,
 				(gdouble)D_HEIGHT / (gdouble)h
-	);
-
+				);
+	pl_buf_w=w;pl_buf_h=h;
 	return pl_vout_buf;
 }
 
 void *hildon_flip(void)
 {
 	gtk_widget_queue_draw (drawing);
+
+	// process accelometer
+	if (g_opts & 4) {
+		int x, y, z;
+		FILE* f = fopen( "/sys/class/i2c-adapter/i2c-3/3-001d/coord", "r" );
+		if( !f ) {printf ("err in accel"); exit(1);}
+		fscanf( f, "%d %d %d", &x, &y, &z );
+		fclose( f );
+
+		if( x > sens ) keystate |= 1 << DKEY_LEFT;
+		else if( x < -sens ) keystate |= 1 << DKEY_RIGHT;
+		else {keystate &= ~(1 << DKEY_LEFT);keystate &= ~(1 << DKEY_RIGHT);}
+
+		y+=y_def;
+		if( y > sens )keystate |= 1 << DKEY_UP;
+		else if( y < -sens ) keystate |= 1 << DKEY_DOWN; 
+		else {keystate &= ~(1 << DKEY_DOWN);keystate &= ~(1 << DKEY_UP);}
+
+	}
 
 	/* process GTK+ events */
 	while (gtk_events_pending())

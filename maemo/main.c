@@ -27,6 +27,7 @@ int g_opts = OPT_SHOWFPS;
 
 enum sched_action emu_action;
 void do_emu_action(void);
+char* file_name;
 
 static void ChangeWorkingDirectory(char *exe)
 {
@@ -60,7 +61,6 @@ int maemo_main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-load")) loadst = atol(argv[++i]);
 		else if (!strcmp(argv[i], "-cdfile")) {
 			char isofilename[MAXPATHLEN];
-
 			if (i+1 >= argc) break;
 			strncpy(isofilename, argv[++i], MAXPATHLEN);
 			if (isofilename[0] != '/') {
@@ -72,60 +72,28 @@ int maemo_main(int argc, char **argv)
 				} else
 					isofilename[0] = 0;
 			}
-
 			cdfile = isofilename;
 		}
 		else if (!strcmp(argv[i],"-frameskip")) {
-
 			int tv_reg = atol(argv[++i]);
 			if (tv_reg > 0)
-				pl_rearmed_cbs.frameskip = 1;
+				pl_rearmed_cbs.frameskip = -1;
 		}
-		else if (!strcmp(argv[i],"-sputhreaded")) {
-			iUseTimer=1;
-		}
-		else if (!strcmp(argv[i],"-nosound")) {
-			strcpy(Config.Spu, "spunull.so");
-		}
-		else if(!strcmp(argv[i], "-bdir"))	sprintf(Config.BiosDir, "%s", argv[++i]);
-		else if(!strcmp(argv[i], "-bios"))	sprintf(Config.Bios, "%s", argv[++i]);
-		else if (!strcmp(argv[i],"-gles")){
-			strcpy(Config.Gpu, "gpuGLES.so");
-		}
+		else if (!strcmp(argv[i],"-fullscreen"))		g_opts |= 2;
+		else if (!strcmp(argv[i],"-accel"))				g_opts |= 4;
+		else if (!strcmp(argv[i],"-sputhreaded"))		iUseTimer=1;
+		else if (!strcmp(argv[i],"-nosound"))		strcpy(Config.Spu, "spunull.so");
+		/* unworking with r10
+		else if(!strcmp(argv[i], "-bdir"))			sprintf(Config.BiosDir, "%s", argv[++i]);
+		else if(!strcmp(argv[i], "-bios"))			sprintf(Config.Bios, "%s", argv[++i]);
+		else if (!strcmp(argv[i],"-gles"))			strcpy(Config.Gpu, "gpuGLES.so");
+		*/
 		else if (!strcmp(argv[i], "-cdda"))		Config.Cdda = 1;
 		else if (!strcmp(argv[i], "-xa"))		Config.Xa = 1;
 		else if (!strcmp(argv[i], "-rcnt"))		Config.RCntFix = 1 ;
 		else if (!strcmp(argv[i], "-sio"))		Config.Sio = 1;
 		else if (!strcmp(argv[i], "-spuirq"))	Config.SpuIrq = 1;
 		else if (!strcmp(argv[i], "-vsync"))	Config.VSyncWA = 1;
-		else if (!strcmp(argv[i], "-h") ||
-			 !strcmp(argv[i], "-help") ||
-			 !strcmp(argv[i], "--help")) {
-			 printf(PACKAGE_NAME " " PACKAGE_VERSION "\n");
-			 printf("%s\n", _(
-							" pcsx [options] [file]\n"
-							"\toptions:\n"
-							"\t-cdfile FILE\tRuns a CD image file\n"
-							"\t-psxout\t\tEnable PSX output\n"
-							"\t-nosound\t\tDisable sound using spunull plugin\n"
-							"\t-sputhreaded\t\tMove sound to separate thread\n"
-							"\t-frameskip\t\tEnable frameskip\n"
-							"\t-load STATENUM\tLoads savestate STATENUM (1-5)\n"
-							"\t-h -help\tDisplay this message\n"
-							"\tfile\t\tLoads file\n"));
-			 return 0;
-		} else {
-			strncpy(file, argv[i], MAXPATHLEN);
-			if (file[0] != '/') {
-				getcwd(path, MAXPATHLEN);
-				if (strlen(path) + strlen(file) + 1 < MAXPATHLEN) {
-					strcat(path, "/");
-					strcat(path, file);
-					strcpy(file, path);
-				} else
-					file[0] = 0;
-			}
-		}
 	}
 
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
@@ -139,6 +107,10 @@ int maemo_main(int argc, char **argv)
 
 	hildon_init(&argc, &argv);
 	
+	char f_name[MAXPATHLEN];
+	strcpy(f_name, strrchr(cdfile,'/'));
+	file_name=f_name;
+
 	if (cdfile)
 		set_cd_image(cdfile);
 
