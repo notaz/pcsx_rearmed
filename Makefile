@@ -81,7 +81,7 @@ OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
 	plugins/dfsound/registers.o plugins/dfsound/spu.o
 plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
 	plugins/dfsound/xa.c
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(ARCH)" "arm"
 OBJS += plugins/dfsound/arm_utils.o
 endif
 ifeq "$(USE_OSS)" "1"

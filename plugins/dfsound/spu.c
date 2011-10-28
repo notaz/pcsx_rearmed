@@ -623,8 +623,8 @@ static int do_samples_noise(int ch, int ns, int ns_to)
  return -1;
 }
 
-#ifdef __ARM_ARCH_7A__
-// asm code
+#ifdef __arm__
+// asm code; lv and rv must be 0-3fff
 extern void mix_chan(int start, int count, int lv, int rv);
 extern void mix_chan_rvb(int start, int count, int lv, int rv);
 #else
