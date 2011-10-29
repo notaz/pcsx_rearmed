@@ -33,6 +33,14 @@
 void StartDebugger();
 void StopDebugger();
 
+// sound plugin
+extern int iUseReverb;
+extern int iUseInterpolation;
+extern int iXAPitch;
+extern int iSPUIRQWait;
+extern int iUseTimer;
+extern int iVolume;
+
 int ready_to_go;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
@@ -125,9 +133,39 @@ static void set_default_paths(void)
 #if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX */
 	strcpy(Config.Gpu, "gpuPCSX4ALL.so");
 #endif
-	Config.PsxAuto = 1;
 
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
+}
+
+void emu_set_default_config(void)
+{
+	// try to set sane config on which most games work
+	Config.Xa = Config.Cdda = Config.Sio =
+	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
+	Config.CdrReschedule = 0;
+	Config.PsxAuto = 1;
+
+	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
+	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
+	pl_rearmed_cbs.gpu_unai.abe_hack =
+	pl_rearmed_cbs.gpu_unai.no_light =
+	pl_rearmed_cbs.gpu_unai.no_blend = 0;
+
+	iUseReverb = 2;
+	iUseInterpolation = 1;
+	iXAPitch = 0;
+	iSPUIRQWait = 1;
+	iUseTimer = 2;
+	iVolume = 768;
+#ifndef __ARM_ARCH_7A__ /* XXX */
+	iUseReverb = 0;
+	iUseInterpolation = 0;
+#endif
+	new_dynarec_hacks = 0;
+	cycle_multiplier = 200;
+
+	in_type1 = PSE_PAD_TYPE_STANDARD;
+	in_type2 = PSE_PAD_TYPE_STANDARD;
 }
 
 static void check_memcards(void)
@@ -233,6 +271,7 @@ int main(int argc, char *argv[])
 
 	CheckSubDir();
 	set_default_paths();
+	emu_set_default_config();
 	check_memcards();
 	strcpy(Config.Bios, "HLE");
 
@@ -423,6 +462,9 @@ void SysReset() {
 	// so we need to prevent updateLace() call..
 	void *real_lace = GPU_updateLace;
 	GPU_updateLace = dummy_lace;
+
+	// reset can run code, timing must be set
+	pl_timing_prepare(Config.PsxType);
 
 	EmuReset();
 

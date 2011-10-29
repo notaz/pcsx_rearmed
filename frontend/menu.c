@@ -179,36 +179,18 @@ static void menu_sync_config(void)
 
 static void menu_set_defconfig(void)
 {
+	emu_set_default_config();
+
 	g_opts = 0;
 	scaling = SCALE_4_3;
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 50;
 	psx_clock = DEFAULT_PSX_CLOCK;
-	new_dynarec_hacks = 0;
 
 	region = 0;
 	in_type_sel1 = in_type_sel2 = 0;
 	in_evdev_allow_abs_only = 0;
-	Config.Xa = Config.Cdda = Config.Sio =
-	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
-	Config.CdrReschedule = 0;
-
-	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
-	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
-	pl_rearmed_cbs.gpu_unai.abe_hack =
-	pl_rearmed_cbs.gpu_unai.no_light =
-	pl_rearmed_cbs.gpu_unai.no_blend = 0;
-
-	iUseReverb = 2;
-	iUseInterpolation = 1;
-	iXAPitch = 0;
-	iSPUIRQWait = 1;
-	iUseTimer = 2;
-#ifndef __ARM_ARCH_7A__ /* XXX */
-	iUseReverb = 0;
-	iUseInterpolation = 0;
-#endif
 
 	menu_sync_config();
 }

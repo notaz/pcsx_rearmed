@@ -35,6 +35,7 @@
 extern char cfgfile_basename[MAXPATHLEN];
 
 extern int state_slot;
+void emu_set_default_config(void);
 int get_state_filename(char *buf, int size, int i);
 int emu_check_state(int slot);
 int emu_save_state(int slot);

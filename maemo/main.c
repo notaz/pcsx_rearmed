@@ -19,9 +19,6 @@
 #include "maemo_common.h"
 
 // sound plugin
-extern int iUseReverb;
-extern int iUseInterpolation;
-extern int iSPUIRQWait;
 extern int iUseTimer;
 
 int g_opts = OPT_SHOWFPS;
@@ -97,15 +94,6 @@ int maemo_main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-spuirq"))	Config.SpuIrq = 1;
 		else if (!strcmp(argv[i], "-vsync"))	Config.VSyncWA = 1;
 	}
-
-	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
-	iUseReverb = 2;
-	iUseInterpolation = 1;
-	iSPUIRQWait = 1;
-	iUseTimer = 2;
-
-	in_type1 = PSE_PAD_TYPE_STANDARD;
-	in_type2 = PSE_PAD_TYPE_STANDARD;
 
 	hildon_init(&argc, &argv);
 	
