@@ -16,6 +16,7 @@
 #include "plugin_lib.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "maemo_common.h"
 
 // sound plugin
 extern int iUseReverb;
@@ -24,10 +25,11 @@ extern int iSPUIRQWait;
 extern int iUseTimer;
 
 int g_opts = OPT_SHOWFPS;
+int g_maemo_opts;
+char file_name[MAXPATHLEN];
 
 enum sched_action emu_action;
 void do_emu_action(void);
-char* file_name;
 
 static void ChangeWorkingDirectory(char *exe)
 {
@@ -79,8 +81,8 @@ int maemo_main(int argc, char **argv)
 			if (tv_reg > 0)
 				pl_rearmed_cbs.frameskip = -1;
 		}
-		else if (!strcmp(argv[i],"-fullscreen"))		g_opts |= 2;
-		else if (!strcmp(argv[i],"-accel"))				g_opts |= 4;
+		else if (!strcmp(argv[i],"-fullscreen"))		g_maemo_opts |= 2;
+		else if (!strcmp(argv[i],"-accel"))				g_maemo_opts |= 4;
 		else if (!strcmp(argv[i],"-sputhreaded"))		iUseTimer=1;
 		else if (!strcmp(argv[i],"-nosound"))		strcpy(Config.Spu, "spunull.so");
 		/* unworking with r10
@@ -107,12 +109,10 @@ int maemo_main(int argc, char **argv)
 
 	hildon_init(&argc, &argv);
 	
-	char f_name[MAXPATHLEN];
-	strcpy(f_name, strrchr(cdfile,'/'));
-	file_name=f_name;
-
-	if (cdfile)
+	if (cdfile) {
 		set_cd_image(cdfile);
+		strcpy(file_name, strrchr(cdfile,'/'));
+	}
 
 	if (SysInit() == -1)
 		return 1;
@@ -153,7 +153,7 @@ int maemo_main(int argc, char **argv)
 	}
 
 	if (ready_to_go)
-		maemo_init();
+		maemo_init(&argc, &argv);
 	else
 	{
 		printf ("somethings goes wrong, maybe you forgot -cdfile ? \n");

@@ -9,6 +9,7 @@
 #include "main.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "common/readpng.h"
+#include "maemo_common.h"
 
 #define X_RES           800
 #define Y_RES           480
@@ -23,8 +24,6 @@ static GdkImage *image;
 static HildonAnimationActor *actor;
 static GtkWidget *window, *drawing;
 
-extern int g_opts;
-extern char * file_name;
 static int pl_buf_w, pl_buf_h;
 static int sens, y_def;
 static int keymap[65536];
@@ -170,7 +169,7 @@ void maemo_init(int *argc, char ***argv)
 				GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
 
 	actor = HILDON_ANIMATION_ACTOR (hildon_animation_actor_new());
-	if (g_opts & 2)
+	if (g_maemo_opts & 2)
 		hildon_animation_actor_set_position (actor, 0, 0 );
 	else
 		hildon_animation_actor_set_position (actor, (X_RES - D_WIDTH)/2, (Y_RES - D_HEIGHT)/2 );
@@ -201,7 +200,7 @@ void *hildon_set_mode(int w, int h)
 	gtk_image_set_from_image (GTK_IMAGE(drawing), image, NULL);
 
 	gtk_window_resize (GTK_WINDOW (actor), w, h);
-	if (g_opts & 2)
+	if (g_maemo_opts & 2)
 		hildon_animation_actor_set_scale (actor,
 				(gdouble)800 / (gdouble)w,
 				(gdouble)480 / (gdouble)h
@@ -220,21 +219,21 @@ void *hildon_flip(void)
 	gtk_widget_queue_draw (drawing);
 
 	// process accelometer
-	if (g_opts & 4) {
+	if (g_maemo_opts & 4) {
 		int x, y, z;
 		FILE* f = fopen( "/sys/class/i2c-adapter/i2c-3/3-001d/coord", "r" );
 		if( !f ) {printf ("err in accel"); exit(1);}
 		fscanf( f, "%d %d %d", &x, &y, &z );
 		fclose( f );
 
-		if( x > sens ) keystate |= 1 << DKEY_LEFT;
-		else if( x < -sens ) keystate |= 1 << DKEY_RIGHT;
-		else {keystate &= ~(1 << DKEY_LEFT);keystate &= ~(1 << DKEY_RIGHT);}
+		if( x > sens ) in_keystate |= 1 << DKEY_LEFT;
+		else if( x < -sens ) in_keystate |= 1 << DKEY_RIGHT;
+		else {in_keystate &= ~(1 << DKEY_LEFT);in_keystate &= ~(1 << DKEY_RIGHT);}
 
 		y+=y_def;
-		if( y > sens )keystate |= 1 << DKEY_UP;
-		else if( y < -sens ) keystate |= 1 << DKEY_DOWN; 
-		else {keystate &= ~(1 << DKEY_DOWN);keystate &= ~(1 << DKEY_UP);}
+		if( y > sens )in_keystate |= 1 << DKEY_UP;
+		else if( y < -sens ) in_keystate |= 1 << DKEY_DOWN; 
+		else {in_keystate &= ~(1 << DKEY_DOWN);in_keystate &= ~(1 << DKEY_UP);}
 
 	}
 
