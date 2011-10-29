@@ -21,7 +21,7 @@ TARGET = pcsx
 ARCH = $(shell $(GCC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
-LDFLAGS += -lz -lpthread -ldl -lpng
+LDFLAGS += -lpthread -ldl -lpng -lz -lm
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
@@ -34,7 +34,7 @@ ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 endif
 ifeq "$(ARM926)" "1"
 GCC_CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
-ASFLAGS += -mcpu=arm926ej-s
+ASFLAGS += -mcpu=arm926ej-s -mfloat-abi=softfp
 endif
 endif
 CFLAGS += $(GCC_CFLAGS)
