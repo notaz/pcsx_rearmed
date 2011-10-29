@@ -16,6 +16,7 @@
 #include "plugin_lib.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../plugins/dfinput/main.h"
 #include "maemo_common.h"
 
 // sound plugin
@@ -82,11 +83,9 @@ int maemo_main(int argc, char **argv)
 		else if (!strcmp(argv[i],"-accel"))				g_maemo_opts |= 4;
 		else if (!strcmp(argv[i],"-sputhreaded"))		iUseTimer=1;
 		else if (!strcmp(argv[i],"-nosound"))		strcpy(Config.Spu, "spunull.so");
-		/* unworking with r10
-		else if(!strcmp(argv[i], "-bdir"))			sprintf(Config.BiosDir, "%s", argv[++i]);
-		else if(!strcmp(argv[i], "-bios"))			sprintf(Config.Bios, "%s", argv[++i]);
-		else if (!strcmp(argv[i],"-gles"))			strcpy(Config.Gpu, "gpuGLES.so");
-		*/
+		else if (!strcmp(argv[i], "-bdir"))			sprintf(Config.BiosDir, "%s", argv[++i]);
+		else if (!strcmp(argv[i], "-bios"))			sprintf(Config.Bios, "%s", argv[++i]);
+		else if (!strcmp(argv[i], "-gles"))			strcpy(Config.Gpu, "gpuGLES.so");
 		else if (!strcmp(argv[i], "-cdda"))		Config.Cdda = 1;
 		else if (!strcmp(argv[i], "-xa"))		Config.Xa = 1;
 		else if (!strcmp(argv[i], "-rcnt"))		Config.RCntFix = 1 ;
@@ -134,20 +133,26 @@ int maemo_main(int argc, char **argv)
 		}
 	}
 
+	if (!ready_to_go) {
+		printf ("something goes wrong, maybe you forgot -cdfile ? \n");
+		return 1;
+	}
+
 	// If a state has been specified, then load that
 	if (loadst) {
 		int ret = emu_load_state(loadst - 1);
 		printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
 	}
 
-	if (ready_to_go)
-		maemo_init(&argc, &argv);
-	else
-	{
-		printf ("somethings goes wrong, maybe you forgot -cdfile ? \n");
-		return 0;
+	maemo_init(&argc, &argv);
+
+	if (GPU_open != NULL) {
+		int ret = GPU_open(&gpuDisp, "PCSX", NULL);
+		if (ret)
+			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
 	}
 
+	dfinput_activate();
 	pl_timing_prepare(Config.PsxType);
 
 	while (1)
