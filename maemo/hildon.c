@@ -198,3 +198,8 @@ void menu_notify_mode_change(int w, int h, int bpp)
 {
 }
 
+void *plat_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	return NULL;
+}
+

@@ -2,6 +2,7 @@ USE_GTK=1
 USE_ALSA=1
 USE_OSS=0
 PLATFORM=generic
+NO_TSLIB=1
 
 export MAEMO=1
 LDFLAGS += $(shell pkg-config --libs hildon-1 libpulse)
