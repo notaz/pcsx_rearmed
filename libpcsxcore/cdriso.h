@@ -28,6 +28,9 @@ extern "C" {
 void cdrIsoInit(void);
 int cdrIsoActive(void);
 
+extern unsigned int cdrIsoMultidiskCount;
+extern unsigned int cdrIsoMultidiskSelect;
+
 #ifdef __cplusplus
 }
 #endif

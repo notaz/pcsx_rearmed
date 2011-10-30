@@ -33,6 +33,9 @@
 #endif
 #include <zlib.h>
 
+unsigned int cdrIsoMultidiskCount;
+unsigned int cdrIsoMultidiskSelect;
+
 static FILE *cdHandle = NULL;
 static FILE *cddaHandle = NULL;
 static FILE *subHandle = NULL;
@@ -724,8 +727,9 @@ static int handlepbp(const char *isofile) {
 		unsigned int size;
 		unsigned int dontcare[6];
 	} index_entry;
-	char psar_sig[9];
+	char psar_sig[11];
 	unsigned int t, cd_length, cdimg_base;
+	unsigned int offsettab[8], psisoimg_offs;
 	const char *ext = NULL;
 	int i, ret;
 
@@ -748,17 +752,56 @@ static int handlepbp(const char *isofile) {
 		goto fail_io;
 	}
 
+	psisoimg_offs = pbp_hdr.psar_offs;
 	fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
-	psar_sig[8] = 0;
-	if (strcmp(psar_sig, "PSISOIMG") != 0) {
+	psar_sig[10] = 0;
+	if (strcmp(psar_sig, "PSTITLEIMG") == 0) {
+		// multidisk image?
+		ret = fseek(cdHandle, pbp_hdr.psar_offs + 0x200, SEEK_SET);
+		if (ret != 0) {
+			fprintf(stderr, "failed to seek to %x\n", pbp_hdr.psar_offs + 0x200);
+			goto fail_io;
+		}
+
+		if (fread(&offsettab, 1, sizeof(offsettab), cdHandle) != sizeof(offsettab)) {
+			fprintf(stderr, "failed to read offsettab\n");
+			goto fail_io;
+		}
+
+		for (i = 0; i < sizeof(offsettab) / sizeof(offsettab[0]); i++) {
+			if (offsettab[i] == 0)
+				break;
+		}
+		cdrIsoMultidiskCount = i;
+		if (cdrIsoMultidiskCount == 0) {
+			fprintf(stderr, "multidisk eboot has 0 images?\n");
+			goto fail_io;
+		}
+
+		if (cdrIsoMultidiskSelect >= cdrIsoMultidiskCount)
+			cdrIsoMultidiskSelect = 0;
+
+		psisoimg_offs += offsettab[cdrIsoMultidiskSelect];
+
+		ret = fseek(cdHandle, psisoimg_offs, SEEK_SET);
+		if (ret != 0) {
+			fprintf(stderr, "failed to seek to %x\n", psisoimg_offs);
+			goto fail_io;
+		}
+
+		fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+		psar_sig[10] = 0;
+	}
+
+	if (strcmp(psar_sig, "PSISOIMG00") != 0) {
 		fprintf(stderr, "bad psar_sig: %s\n", psar_sig);
 		goto fail_io;
 	}
 
 	// seek to TOC
-	ret = fseek(cdHandle, pbp_hdr.psar_offs + 0x800, SEEK_SET);
+	ret = fseek(cdHandle, psisoimg_offs + 0x800, SEEK_SET);
 	if (ret != 0) {
-		fprintf(stderr, "failed to seek to %x\n", pbp_hdr.psar_offs);
+		fprintf(stderr, "failed to seek to %x\n", psisoimg_offs + 0x800);
 		goto fail_io;
 	}
 
@@ -791,7 +834,7 @@ static int handlepbp(const char *isofile) {
 	sec2msf(t, ti[numtracks].length);
 
 	// seek to ISO index
-	ret = fseek(cdHandle, pbp_hdr.psar_offs + 0x4000, SEEK_SET);
+	ret = fseek(cdHandle, psisoimg_offs + 0x4000, SEEK_SET);
 	if (ret != 0) {
 		fprintf(stderr, "failed to seek to ISO index\n");
 		goto fail_io;
@@ -809,7 +852,7 @@ static int handlepbp(const char *isofile) {
 	if (compr_img->index_table == NULL)
 		goto fail_io;
 
-	cdimg_base = pbp_hdr.psar_offs + 0x100000;
+	cdimg_base = psisoimg_offs + 0x100000;
 	for (i = 0; i < compr_img->index_len; i++) {
 		ret = fread(&index_entry, 1, sizeof(index_entry), cdHandle);
 		if (ret != sizeof(index_entry)) {
@@ -849,7 +892,7 @@ static int handlecbin(const char *isofile) {
 		unsigned char rsv_06[2];
 	} ciso_hdr;
 	const char *ext = NULL;
-	unsigned int index, plain;
+	unsigned int index = 0, plain;
 	int i, ret;
 
 	if (strlen(isofile) >= 5)
@@ -1126,6 +1169,7 @@ static long CALLBACK ISOopen(void) {
 	subChanMixed = FALSE;
 	subChanRaw = FALSE;
 	pregapOffset = 0;
+	cdrIsoMultidiskCount = 1;
 
 	CDR_getBuffer = ISOgetBuffer;
 	cdimg_read_func = cdread_normal;

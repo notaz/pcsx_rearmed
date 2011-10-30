@@ -28,6 +28,7 @@
 #include "linux/in_evdev.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
+#include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/main.h"
@@ -44,6 +45,7 @@ typedef enum
 	MA_MAIN_RESET_GAME,
 	MA_MAIN_LOAD_ROM,
 	MA_MAIN_SWAP_CD,
+	MA_MAIN_SWAP_CD_MULTI,
 	MA_MAIN_RUN_BIOS,
 	MA_MAIN_RUN_EXE,
 	MA_MAIN_CONTROLS,
@@ -1577,6 +1579,7 @@ static int reload_plugins(const char *cdimg)
 	}
 	plugin_call_rearmed_cbs();
 
+	cdrIsoMultidiskCount = 1;
 	CdromId[0] = '\0';
 	CdromLabel[0] = '\0';
 
@@ -1714,6 +1717,24 @@ static int swap_cd_image(void)
 	return 0;
 }
 
+static int swap_cd_multidisk(void)
+{
+	cdrIsoMultidiskSelect++;
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	CDR_close();
+	if (CDR_open() < 0) {
+		me_update_msg("failed to open cdr plugin");
+		return -1;
+	}
+
+	SetCdOpenCaseTime(time(NULL) + 2);
+	LidInterrupt();
+
+	return 0;
+}
+
 static int main_menu_handler(int id, int keys)
 {
 	switch (id)
@@ -1742,6 +1763,10 @@ static int main_menu_handler(int id, int keys)
 		if (swap_cd_image() == 0)
 			return 1;
 		break;
+	case MA_MAIN_SWAP_CD_MULTI:
+		if (swap_cd_multidisk() == 0)
+			return 1;
+		break;
 	case MA_MAIN_RUN_BIOS:
 		if (run_bios() == 0)
 			return 1;
@@ -1767,9 +1792,10 @@ static int main_menu_handler(int id, int keys)
 
 static menu_entry e_menu_main2[] =
 {
-	mee_handler_id("Change CD image",    MA_MAIN_SWAP_CD,     main_menu_handler),
-	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,    main_menu_handler),
-	mee_handler_id("Run EXE",            MA_MAIN_RUN_EXE,     main_menu_handler),
+	mee_handler_id("Change CD image",    MA_MAIN_SWAP_CD,       main_menu_handler),
+	mee_handler_id("Next multidisk CD",  MA_MAIN_SWAP_CD_MULTI, main_menu_handler),
+	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,      main_menu_handler),
+	mee_handler_id("Run EXE",            MA_MAIN_RUN_EXE,       main_menu_handler),
 	mee_handler   ("Memcard manager",    menu_loop_memcards),
 	mee_end,
 };
@@ -1779,6 +1805,7 @@ static int main_menu2_handler(int id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_main2, MA_MAIN_SWAP_CD,  ready_to_go);
+	me_enable(e_menu_main2, MA_MAIN_SWAP_CD_MULTI, ready_to_go && cdrIsoMultidiskCount > 1);
 	me_enable(e_menu_main2, MA_MAIN_RUN_BIOS, bios_sel != 0);
 
 	return me_loop_d(e_menu_main2, &sel, NULL, draw_frame_main);
