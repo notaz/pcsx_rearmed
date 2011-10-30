@@ -19,6 +19,9 @@
 
 #define PBTN_MENU  (1 << 10)
 
+// TODO: move to pico
+#if 0
+
 /* ui events */
 #define PEVB_VOL_DOWN   30
 #define PEVB_VOL_UP     29
@@ -48,6 +51,7 @@
 
 #define PEV_MASK 0x7ff80000
 
+#endif
 
 enum {
 	IN_CFG_BIND_COUNT = 0,

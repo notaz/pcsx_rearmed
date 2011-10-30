@@ -541,7 +541,10 @@ int in_set_config(int dev_id, int what, const void *val, int size)
 		return 0;
 	}
 
-	return DRV(dev->drv_id).set_config(dev->drv_data, what, *ival);
+	if (dev->probed)
+		return DRV(dev->drv_id).set_config(dev->drv_data, what, *ival);
+
+	return -1;
 }
 
 const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
