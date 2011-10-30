@@ -1,5 +1,6 @@
 export ARM926=1
 export ARM_CORTEXA8=0
+# caanoo also covers Wiz
 PLATFORM=caanoo
 
 include Makefile

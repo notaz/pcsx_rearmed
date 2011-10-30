@@ -1,6 +1,9 @@
 #!/bin/sh
 
+# Wiz's timings are already good, apply this for Caanoo
+if [ -e /dev/accel ]; then
 ./pollux_set "ram_timings=3,9,4,1,1,1,1"
+fi
 
 ./pcsx "$@"
 
