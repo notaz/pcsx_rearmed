@@ -79,7 +79,8 @@ static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
-int g_opts, analog_deadzone;
+int g_opts;
+int analog_deadzone; // for Caanoo
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -724,6 +725,10 @@ me_bind_action emuctrl_actions[] =
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },
 	{ "Gun Offscreen Trigger", 1 << SACTION_GUN_TRIGGER2 },
+#ifndef __ARM_ARCH_7A__ /* XXX */
+	{ "Volume Up        ", 1 << SACTION_VOLUME_UP },
+	{ "Volume Down      ", 1 << SACTION_VOLUME_DOWN },
+#endif
 	{ NULL,                0 }
 };
 
@@ -801,7 +806,7 @@ static void keys_write_all(FILE *f)
 			}
 
 			kbinds = binds[IN_BIND_OFFS(k, IN_BINDTYPE_EMU)];
-			for (i = 0; kbinds && i < ARRAY_SIZE(emuctrl_actions) - 1; i++) {
+			for (i = 0; kbinds && emuctrl_actions[i].name != NULL; i++) {
 				mask = emuctrl_actions[i].mask;
 				if (mask & kbinds) {
 					strncpy(act, emuctrl_actions[i].name, 31);

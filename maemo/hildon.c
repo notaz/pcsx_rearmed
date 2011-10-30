@@ -258,3 +258,7 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 	return NULL;
 }
 
+void plat_step_volume(int is_up)
+{
+}
+

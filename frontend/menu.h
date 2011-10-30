@@ -13,4 +13,5 @@ enum opts {
 	OPT_TSGUN_NOTRIGGER = 1 << 4,
 };
 
-extern int g_opts, analog_deadzone;
+extern int g_opts;
+extern int analog_deadzone;

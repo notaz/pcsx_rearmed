@@ -132,7 +132,7 @@ OBJS += frontend/plat_pandora.o
 else
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
-OBJS += frontend/warm/warm.o
+OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
 else
 OBJS += frontend/plat_dummy.o
 endif

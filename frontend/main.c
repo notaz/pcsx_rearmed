@@ -245,6 +245,10 @@ void do_emu_action(void)
 				snprintf(hud_msg, sizeof(hud_msg), "SCREENSHOT TAKEN");
 			break;
 		}
+	case SACTION_VOLUME_UP:
+	case SACTION_VOLUME_DOWN:
+		plat_step_volume(emu_action == SACTION_VOLUME_UP);
+		return;
 	default:
 		return;
 	}

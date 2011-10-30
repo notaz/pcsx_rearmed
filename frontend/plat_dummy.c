@@ -72,3 +72,7 @@ int plat_get_bat_capacity(void)
 {
 	return -1;
 }
+
+void plat_step_volume(int is_up)
+{
+}

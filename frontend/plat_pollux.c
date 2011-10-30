@@ -15,11 +15,14 @@
 #include <unistd.h>
 #include <linux/fb.h>
 #include <sys/mman.h>
+#include <linux/soundcard.h>
 
 #include "common/input.h"
+#include "gp2x/in_gp2x.h"
 #include "common/menu.h"
 #include "warm/warm.h"
 #include "plugin_lib.h"
+#include "pl_gun_ts.h"
 #include "cspace.h"
 #include "blit320.h"
 #include "in_tsbutton.h"
@@ -28,7 +31,9 @@
 #include "plat.h"
 #include "pcnt.h"
 
-static int fbdev = -1, memdev = -1, battdev = -1;
+int gp2x_dev_id;
+
+static int fbdev = -1, memdev = -1, battdev = -1, mixerdev = -1;
 static volatile unsigned short *memregs;
 static volatile unsigned int   *memregl;
 static void *fb_vaddrs[2];
@@ -234,7 +239,8 @@ void plat_video_menu_leave(void)
 		exit(1);
 	}
 
-	in_set_config_int(in_name_to_id("evdev:pollux-analog"),
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		in_set_config_int(in_name_to_id("evdev:pollux-analog"),
 			IN_CFG_ABS_DEAD_ZONE, analog_deadzone);
 
 	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
@@ -431,6 +437,8 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 	pollux_changemode(bpp, 1);
 
+	pl_set_gun_rect(fb_offset_x, fb_offset_y, w > 320 ? 320 : w, h);
+
 	return NULL;
 }
 
@@ -463,6 +471,7 @@ void plat_init(void)
 	struct fb_fix_screeninfo fbfix;
 	int rate, timer_div, timer_div2;
 	int fbdev, ret, warm_ret;
+	FILE *f;
 
 	memdev = open("/dev/mem", O_RDWR);
 	if (memdev == -1) {
@@ -565,6 +574,22 @@ void plat_init(void)
 	if (battdev < 0)
 		perror("Warning: could't open pollux_batt");
 
+	f = fopen("/dev/accel", "rb");
+	if (f) {
+		printf("detected Caanoo\n");
+		gp2x_dev_id = GP2X_DEV_CAANOO;
+		fclose(f);
+	}
+	else {
+		printf("detected Wiz\n");
+		gp2x_dev_id = GP2X_DEV_WIZ;
+		in_gp2x_init();
+	}
+
+	mixerdev = open("/dev/mixer", O_RDWR);
+	if (mixerdev == -1)
+		perror("open(/dev/mixer)");
+
 	pl_rearmed_cbs.pl_vout_flip = pl_vout_flip;
 	pl_rearmed_cbs.pl_vout_raw_flip = have_warm ? raw_flip_dma : raw_flip_soft;
 	pl_rearmed_cbs.pl_vout_set_mode = pl_vout_set_mode;
@@ -592,6 +617,8 @@ void plat_finish(void)
 
 	if (battdev >= 0)
 		close(battdev);
+	if (mixerdev >= 0)
+		close(mixerdev);
 	munmap((void *)memregs, 0x20000);
 	close(memdev);
 }
@@ -639,10 +666,60 @@ static const char * const caanoo_keys[KEY_MAX + 1] = {
 	[BTN_BASE5]     = "Push",
 };
 
+/* Wiz stuff */
+struct in_default_bind in_gp2x_defbinds[] =
+{
+	/* MXYZ SACB RLDU */
+	{ GP2X_BTN_UP,		IN_BINDTYPE_PLAYER12, DKEY_UP },
+	{ GP2X_BTN_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
+	{ GP2X_BTN_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
+	{ GP2X_BTN_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
+	{ GP2X_BTN_X,		IN_BINDTYPE_PLAYER12, DKEY_CROSS },
+	{ GP2X_BTN_B,		IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
+	{ GP2X_BTN_A,		IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
+	{ GP2X_BTN_Y,		IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
+	{ GP2X_BTN_L,		IN_BINDTYPE_PLAYER12, DKEY_L1 },
+	{ GP2X_BTN_R,		IN_BINDTYPE_PLAYER12, DKEY_R1 },
+	{ GP2X_BTN_START,	IN_BINDTYPE_PLAYER12, DKEY_START },
+	{ GP2X_BTN_SELECT,	IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
+	{ GP2X_BTN_VOL_UP,	IN_BINDTYPE_EMU, SACTION_VOLUME_UP },
+	{ GP2X_BTN_VOL_DOWN,	IN_BINDTYPE_EMU, SACTION_VOLUME_DOWN },
+	{ 0, 0, 0 },
+};
+
+void plat_step_volume(int is_up)
+{
+	static int volume = 50;
+	int ret, val;
+
+	if (mixerdev < 0)
+		return;
+
+	if (is_up) {
+		volume += 5;
+		if (volume > 255) volume = 255;
+	}
+	else {
+		volume -= 5;
+		if (volume < 0) volume = 0;
+	}
+	val = volume;
+	val |= val << 8;
+
+ 	ret = ioctl(mixerdev, SOUND_MIXER_WRITE_PCM, &val);
+	if (ret == -1)
+		perror("WRITE_PCM");
+}
+
+// unused dummy for in_gp2x
+volatile unsigned short *gp2x_memregs;
+
 int plat_rescan_inputs(void)
 {
 	in_probe();
-	in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
-		      caanoo_keys, sizeof(caanoo_keys));
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
+			      caanoo_keys, sizeof(caanoo_keys));
+
 	return 0;
 }

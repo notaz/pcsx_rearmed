@@ -116,6 +116,10 @@ void plat_video_menu_leave(void)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
 }
 
+void plat_step_volume(int is_up)
+{
+}
+
 void plat_init(void)
 {
 	const char *main_fb_name, *layer_fb_name;
