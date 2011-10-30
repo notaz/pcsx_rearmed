@@ -19,14 +19,14 @@
 
 static int gun_x, gun_y, gun_in;
 static int ts_multiplier_x, ts_multiplier_y, ts_offs_x, ts_offs_y;
-int (*pts_read)(struct tsdev *dev, struct ts_sample *sample, int nr);
-int (*pts_fd)(struct tsdev *dev);
+static int (*pts_read)(struct tsdev *dev, struct ts_sample *sample, int nr);
+static int (*pts_fd)(struct tsdev *dev);
 
 #define limit(v, min, max) \
 	if (v < min) v = min; \
 	else if (v > max) v = max
 
-void pl_gun_ts_update(struct tsdev *ts, int *x, int *y, int *in)
+int pl_gun_ts_update_raw(struct tsdev *ts, int *x, int *y, int *p)
 {
 	struct ts_sample sample;
 	int sx = 0, sy = 0, sp = 0, updated = 0;
@@ -51,6 +51,20 @@ void pl_gun_ts_update(struct tsdev *ts, int *x, int *y, int *in)
 		}
 	}
 
+	if (updated) {
+		if (x) *x = sx;
+		if (y) *y = sy;
+		if (p) *p = sp;
+		return 1;
+	}
+
+	return 0;
+}
+
+void pl_gun_ts_update(struct tsdev *ts, int *x, int *y, int *in)
+{
+	pl_gun_ts_update_raw(ts, NULL, NULL, NULL);
+
 	*x = gun_x;
 	*y = gun_y;
 	*in = gun_in | in_state_gun;
@@ -62,6 +76,14 @@ void pl_set_gun_rect(int x, int y, int w, int h)
 	ts_offs_y = y;
 	ts_multiplier_x = (1<<20) / w;
 	ts_multiplier_y = (1<<20) / h;
+}
+
+int pl_gun_ts_get_fd(struct tsdev *ts)
+{
+	if (ts != NULL && pts_fd != NULL)
+		return pts_fd(ts);
+
+	return -1;
 }
 
 struct tsdev *pl_gun_ts_init(void)
@@ -81,6 +103,8 @@ struct tsdev *pl_gun_ts_init(void)
 	ltsh = dlopen("/usr/lib/libts-1.0.so.0", RTLD_NOW|RTLD_GLOBAL);
 	if (ltsh == NULL)
 		ltsh = dlopen("/usr/lib/libts-0.0.so.0", RTLD_NOW|RTLD_GLOBAL);
+	if (ltsh == NULL)
+		ltsh = dlopen("/lib/libts-0.0.so.0", RTLD_NOW|RTLD_GLOBAL);
 	if (ltsh == NULL) {
 		fprintf(stderr, "%s\n", dlerror());
 		goto fail;

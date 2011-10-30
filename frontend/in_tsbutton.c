@@ -12,6 +12,7 @@
 #include <tslib.h>
 
 #include "common/input.h"
+#include "pl_gun_ts.h"
 #include "in_tsbutton.h"
 
 #define IN_TSBUTTON_PREFIX "tsbutton:"
@@ -24,8 +25,6 @@ static int last_tsbutton_id;
 
 // HACK: stealing this from plugin_lib
 extern void *tsdev;
-extern int (*pts_read)(struct tsdev *dev, struct ts_sample *sample, int nr);
-extern int (*pts_fd)(struct tsdev *dev);
 
 static const char * const in_tsbutton_keys[IN_TSBUTTON_COUNT] = {
 	"TS1", "TS2", "TS3", "TS4",
@@ -40,7 +39,7 @@ static void in_tsbutton_probe(void)
 	}
 
 	in_register(IN_TSBUTTON_PREFIX "touchscreen as buttons",
-		pts_fd(dev), NULL, IN_TSBUTTON_COUNT, in_tsbutton_keys, 0);
+		pl_gun_ts_get_fd(dev), NULL, IN_TSBUTTON_COUNT, in_tsbutton_keys, 0);
 }
 
 static const char * const *
@@ -53,20 +52,12 @@ in_tsbutton_get_key_names(int *count)
 static int update_button(void)
 {
 	struct tsdev *dev = tsdev;
-	struct ts_sample sample;
-	int sx = 0, sy = 0, sp = 0, updated = 0;
+	int sx = 0, sy = 0, sp = 0;
 
 	if (dev == NULL)
 		return -1;
 
-	while (pts_read(dev, &sample, 1) > 0) {
-		sx = sample.x;
-		sy = sample.y;
-		sp = sample.pressure;
-		updated = 1;
-	}
-
-	if (updated) {
+	if (pl_gun_ts_update_raw(dev, &sx, &sy, &sp)) {
 		if (sp == 0)
 			tsbutton_down_id = -1;
 		else {
