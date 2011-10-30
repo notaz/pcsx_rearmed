@@ -12,7 +12,7 @@ which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
 version is ARM architecture oriented and features MIPS->ARM recompiler by
 Ari64, NEON GTE code and more performance improvements. It was created for
 Pandora handheld, but should be usable on other devices after some code
-adjustments (N900 version is also available).
+adjustments (N900, GPH Wiz/Caanoo versions are also available).
 
 PCSX ReARMed features GPU plugin from PCSX4ALL project.
 
@@ -45,8 +45,8 @@ to work. To use real BIOS, copy uncompressed BIOS files to
 [sd card]/pandora/appdata/pcsx_rearmed/bios/
 then select the BIOS you want to use in Options->BIOS/Plugins menu.
 
-Analog controllers are supported using nubs, but this is disabled by
-default and needs to be enabled in 'Controls' menu.
+On pandora, analog controllers are supported using nubs, but this is
+disabled by default and needs to be enabled in 'Controls' menu.
 There is also touchscreen based GunCon support, which also requires
 appropriate controller selected in controls configuration.
 
@@ -68,6 +68,23 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 
 Changelog
 ---------
+
+r11 (2011-10-31)
++ added Wiz support
+* Caanoo: fixed tv-out
++ Caanoo/Wiz: added scaling (16bpp only)
++ Caanoo/Wiz: added touchscreen-as-buttons input (4 sections)
++ added .cbin support
++ added multidisk eboot support (use "next multidisk CD" in exras menu)
+* some GTE related optimizations
+* various other optimizations
++ added some speed hack options for slower devices
+  (get more speed at stability and correctness loss)
+* fixed several compatibility issues
+* fixed a few crash situations
+* various minor adjustments
+* maemo: merged some code from Bonapart
+* maemo: fixed BIOS issue (hopefully)
 
 r10 (2011-10-10)
 + added Caanoo port

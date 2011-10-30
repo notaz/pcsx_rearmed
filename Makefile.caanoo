@@ -11,7 +11,7 @@ PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so
 
 rel_caanoo: pcsx $(PLUGINS) \
 		frontend/320240/caanoo.gpe frontend/320240/pcsx26.png \
-		frontend/320240/skin \
+		frontend/320240/pcsxb.png frontend/320240/skin \
 		frontend/warm/bin/warm_2.6.24.ko frontend/320240/pollux_set \
 		frontend/320240/pcsx_rearmed.ini readme.txt COPYING
 	rm -rf out
@@ -22,5 +22,6 @@ rel_caanoo: pcsx $(PLUGINS) \
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
 	mkdir out/pcsx_rearmed/lib/
 	cp ./lib/libbz2.so.1 out/pcsx_rearmed/lib/
+	mkdir out/pcsx_rearmed/bios/
 	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_caanoo.zip *
 
