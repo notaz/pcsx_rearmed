@@ -8699,6 +8699,12 @@ int new_recompile_block(int addr)
         gte_rs[i]=gte_reg_reads[source[i]&0x3f];
         gte_rt[i]=gte_reg_writes[source[i]&0x3f];
         gte_rt[i]|=1ll<<63; // every op changes flags
+        if((source[i]&0x3f)==GTE_MVMVA) {
+          int v = (source[i] >> 15) & 3;
+          gte_rs[i]&=~0xe3fll;
+          if(v==3) gte_rs[i]|=0xe00ll;
+          else gte_rs[i]|=3ll<<(v*2);
+        }
         break;
       case FLOAT:
       case FCONV:
