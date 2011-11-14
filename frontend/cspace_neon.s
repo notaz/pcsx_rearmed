@@ -13,11 +13,13 @@
 
 .global bgr555_to_rgb565
 bgr555_to_rgb565:
+    pld         [r1]
     mov         r3, #0x07c0
     vdup.16     q15, r3
     subs        r2, r2, #64
     blt         btr16_end64
 0:
+    pld         [r1, #64*2]
     vldmia      r1!, {q0-q3}
     vshl.u16    q4, q0, #11
     vshl.u16    q5, q1, #11
@@ -74,12 +76,14 @@ btr16_end16:
 
 .global bgr888_to_rgb888
 bgr888_to_rgb888:
+    pld         [r1]
     @ r2 /= 48
     mov         r2, r2, lsr #4
     movw        r3, #0x5556
     movt        r3, #0x5555
     umull       r12,r2, r3, r2
 0:
+    pld         [r1, #48*3]
     vld3.8      {d0-d2}, [r1, :64]!
     vld3.8      {d3-d5}, [r1, :64]!
     vswp        d0, d2
@@ -94,6 +98,7 @@ bgr888_to_rgb888:
 
 .global bgr888_to_rgb565
 bgr888_to_rgb565:
+    pld         [r1]
     @ r2 /= 48
     mov         r2, r2, lsr #4
     movw        r3, #0x5556
@@ -103,6 +108,7 @@ bgr888_to_rgb565:
     mov         r3, #0x07e0
     vdup.16     q15, r3
 0:
+    pld         [r1, #48*3]
     vld3.8      {d1-d3}, [r1, :64]!
     vld3.8      {d5-d7}, [r1, :64]!
 
