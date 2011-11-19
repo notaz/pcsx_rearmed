@@ -27,7 +27,8 @@ int vout_finish(void)
 
 static void blit(void)
 {
-  static uint32_t old_status, old_h;
+  static uint32_t old_status;
+  static int old_h;
   int x = gpu.screen.x & ~1; // alignment needed by blitter
   int y = gpu.screen.y;
   int w = gpu.screen.w;
@@ -46,7 +47,7 @@ static void blit(void)
     screen_buf = cbs->pl_vout_set_mode(stride, h, gpu.status.rgb24 ? 24 : 16);
   }
 
-  dest = screen_buf;
+  dest = (uint8_t *)screen_buf;
 
   // only do centering, at least for now
   doffs = (stride - w) / 2 & ~1;

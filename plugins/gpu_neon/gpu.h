@@ -10,6 +10,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CMD_BUFFER_LEN          1024
 
 struct psx_gpu {
@@ -92,3 +96,7 @@ void renderer_flush_queues(void);
 
 int vout_init(void);
 int vout_finish(void);
+
+#ifdef __cplusplus
+}
+#endif

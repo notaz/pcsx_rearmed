@@ -1,33 +1,38 @@
 CC = $(CROSS_COMPILE)gcc
+CXX = $(CROSS_COMPILE)g++
+CC_ = $(CC)
 
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -ggdb -Wall -fPIC -O2
 CFLAGS += -fno-strict-aliasing
 
-LDFLAGS += -shared -Wl,-soname,$(TARGET)
 SRC += gpu.c
 ifeq "$(ARCH)" "arm"
-TARGET = gpu_neon.so
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 SRC += vout_fb.c ../../frontend/cspace_neon.s
-else
-TARGET = gpu_neon.so.x86
+EXT = so
+endif
+ifeq "$(ARCH)" "x86_64"
 CFLAGS += `sdl-config --cflags` -m32
 LDFLAGS += `sdl-config --libs`
 SRC += vout_sdl.c
-endif
-PEOPS=1
-ifndef PEOPS
-SRC += psx_gpu_if.c
-else
-SRC += peops_if.c
+EXT = so.x86
 endif
 
-all: $(TARGET)
+TARGETS = gpu_neon.$(EXT) gpu_peops.$(EXT) gpu_unai.$(EXT)
 
-$(TARGET): $(SRC)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+gpu_neon.$(EXT): SRC += psx_gpu_if.c
+gpu_neon.$(EXT): CFLAGS += -fno-strict-aliasing
+gpu_peops.$(EXT): SRC += peops_if.c
+gpu_peops.$(EXT): CFLAGS += -fno-strict-aliasing
+gpu_unai.$(EXT): SRC += unai_if.cpp
+gpu_unai.$(EXT): CC_ = $(CXX)
+
+all: $(TARGETS)
+
+$(TARGETS): $(SRC)
+	$(CC_) -o $@ $(SRC) $(CFLAGS) $(LDFLAGS) -shared -Wl,-soname,$@
 
 clean:
-	$(RM) $(TARGET)
+	$(RM) $(TARGETS)

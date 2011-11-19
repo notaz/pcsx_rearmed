@@ -68,7 +68,7 @@ static void blit(void)
   else
   {
     uint16_t *s = gpu.vram;
-    d = screen->pixels;
+    d = (uint32_t *)screen->pixels;
     for (i = 0; i < 1024 * 512; i++)
       d[i] = (((uint32_t)s[i] << 19) & 0xf80000) | ((s[i] << 6) & 0xf800) |
         ((s[i] >> 7) & 0xf8);
