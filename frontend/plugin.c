@@ -168,7 +168,7 @@ static const struct {
 	DIRECT_GPU(GPUwriteDataMem),
 	DIRECT_GPU(GPUdmaChain),
 	DIRECT_GPU(GPUfreeze),
-	DIRECT_GPU(GPUvBlank),
+//	DIRECT_GPU(GPUvBlank), // unused
 	DIRECT_GPU(GPUrearmedCallbacks),
 
 	DUMMY_GPU(GPUdisplayText),

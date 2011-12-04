@@ -125,6 +125,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
   gpu.frameskip.advice = &cbs->fskip_advice;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
+  gpu.state.hcnt = cbs->gpu_hcnt;
 }
 
 // vim:shiftwidth=2:expandtab

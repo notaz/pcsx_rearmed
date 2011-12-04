@@ -47,6 +47,7 @@ struct rearmed_cbs {
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;
+	unsigned int *gpu_hcnt;
 	struct {
 		int   iUseDither;
 		int   dwActFixes;

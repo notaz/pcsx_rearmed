@@ -71,12 +71,11 @@ static const s32 VerboseLevel     = VERBOSE_LEVEL;
 
 Rcnt rcnts[ CounterQuantity ];
 
-static u32 hSyncCount = 0;
+u32 hSyncCount = 0;
+u32 frame_counter = 0;
 static u32 spuSyncCount = 0;
 static u32 hsync_steps = 0;
-static u32 gpu_wants_hcnt = 0;
 static u32 base_cycle = 0;
-static u32 frame_counter = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
@@ -295,7 +294,6 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart[Config.PsxType] )
         {
-            GPU_vBlank( 1, &hSyncCount, &gpu_wants_hcnt );
             //if( !(HW_GPU_STATUS & PSXGPU_ILACE) ) // hmh
                 HW_GPU_STATUS |= PSXGPU_LCF;
 
@@ -309,7 +307,6 @@ void psxRcntUpdate()
             hSyncCount = 0;
             frame_counter++;
 
-            GPU_vBlank( 0, &hSyncCount, &gpu_wants_hcnt );
             setIrq( 0x01 );
 
             EmuUpdate();
@@ -328,8 +325,6 @@ void psxRcntUpdate()
             hsync_steps = next_vsync;
         if( next_lace && next_lace < hsync_steps )
             hsync_steps = next_lace;
-        if( gpu_wants_hcnt )
-            hsync_steps = 1;
 
         rcnts[3].cycleStart = cycle - leftover_cycles;
         if (Config.PsxType)

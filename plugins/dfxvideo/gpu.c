@@ -60,7 +60,6 @@ long              lSelectedSlot=0;
 BOOL              bDoLazyUpdate=FALSE;
 uint32_t          lGPUInfoVals[16];
 static int        iFakePrimBusy=0;
-static uint32_t   vBlank=0;
 static const int  *skip_advice;
 
 ////////////////////////////////////////////////////////////////////////
@@ -472,7 +471,7 @@ uint32_t CALLBACK GPUreadStatus(void)             // READ STATUS
      GPUIsReadyForCommands;
     }
   }
- return lGPUstatusRet | vBlank;
+ return lGPUstatusRet;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1127,11 +1126,6 @@ long CALLBACK GPUfreeze(uint32_t ulGetFreezeData,GPUFreeze_t * pF)
  GPUwriteStatus(ulStatusControl[4]);
 
  return 1;
-}
-
-void CALLBACK GPUvBlank(int val)
-{
- vBlank=val?0x80000000:0;
 }
 
 // rearmed thing

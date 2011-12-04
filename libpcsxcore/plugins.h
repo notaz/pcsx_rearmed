@@ -94,7 +94,7 @@ typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *);
 typedef long (CALLBACK* GPUgetScreenPic)(unsigned char *);
 typedef long (CALLBACK* GPUshowScreenPic)(unsigned char *);
 typedef void (CALLBACK* GPUclearDynarec)(void (CALLBACK *callback)(void));
-typedef void (CALLBACK* GPUvBlank)(int, uint32_t *, uint32_t *);
+typedef void (CALLBACK* GPUvBlank)(int);
 
 // GPU function pointers
 extern GPUupdateLace    GPU_updateLace;
@@ -119,7 +119,7 @@ extern GPUfreeze        GPU_freeze;
 extern GPUgetScreenPic  GPU_getScreenPic;
 extern GPUshowScreenPic GPU_showScreenPic;
 extern GPUclearDynarec  GPU_clearDynarec;
-extern GPUvBlank        GPU_vBlank;
+extern GPUvBlank        GPU_vBlank; // unused
 
 // CD-ROM Functions
 typedef long (CALLBACK* CDRinit)(void);

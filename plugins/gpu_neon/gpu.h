@@ -61,7 +61,6 @@ struct psx_gpu {
     int offset;
   } dma;
   int cmd_len;
-  const uint32_t *lcf_hc;
   uint32_t zero;
   struct {
     uint32_t fb_dirty:1;

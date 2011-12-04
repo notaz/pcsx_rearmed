@@ -94,7 +94,6 @@ long GPUinit(void)
   ret  = vout_init();
   ret |= renderer_init();
 
-  gpu.lcf_hc = &gpu.zero;
   gpu.state.frame_count = 0;
   gpu.state.hcnt = &gpu.zero;
   do_reset();
@@ -463,7 +462,7 @@ uint32_t GPUreadStatus(void)
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
-  ret = gpu.status.reg | (*gpu.lcf_hc << 31);
+  ret = gpu.status.reg;
   log_io("gpu_read_status %08x\n", ret);
   return ret;
 }
@@ -504,24 +503,6 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
   }
 
   return 1;
-}
-
-void GPUvBlank(int val, uint32_t *hcnt)
-{
-  gpu.lcf_hc = &gpu.zero;
-  if (gpu.status.interlace) {
-    if (val)
-      gpu.status.lcf ^= 1;
-  }
-  else {
-    gpu.status.lcf = 0;
-    if (!val)
-      gpu.lcf_hc = hcnt;
-  }
-  if (!val)
-    gpu.state.frame_count++;
-
-  gpu.state.hcnt = hcnt;
 }
 
 // vim:shiftwidth=2:expandtab

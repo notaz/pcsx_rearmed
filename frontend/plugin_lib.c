@@ -475,8 +475,12 @@ void pl_start_watchdog(void)
 
 void pl_init(void)
 {
+	extern unsigned int hSyncCount; // from psxcounters
+
 	pl_vout_w = pl_vout_h = 256;
 	pl_vout_bpp = 16;
 
 	tsdev = pl_gun_ts_init();
+
+	pl_rearmed_cbs.gpu_hcnt = &hSyncCount;
 }
