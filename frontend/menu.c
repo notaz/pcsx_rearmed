@@ -1648,6 +1648,8 @@ static int run_cd_image(const char *fname)
 	}
 
 	ready_to_go = 1;
+	snprintf(hud_msg, sizeof(hud_msg), "Booting up...");
+	hud_new_msg = 2;
 	return 0;
 }
 
