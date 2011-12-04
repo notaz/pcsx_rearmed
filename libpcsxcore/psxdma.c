@@ -22,6 +22,7 @@
 */
 
 #include "psxdma.h"
+#include "gpu.h"
 
 // Dma0/1 in Mdec.c
 // Dma3   in CdRom.c
@@ -173,6 +174,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
 			if ((int)size <= 0)
 				size = gpuDmaChainSize(madr);
+			HW_GPU_STATUS &= ~PSXGPU_nBUSY;
 			
 			// Tekken 3 = use 1.0 only (not 1.5x)
 
@@ -200,6 +202,7 @@ void gpuInterrupt() {
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);
 		DMA_INTERRUPT(2);
 	}
+	HW_GPU_STATUS |= PSXGPU_nBUSY; // GPU no longer busy
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
