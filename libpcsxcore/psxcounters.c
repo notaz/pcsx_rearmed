@@ -22,6 +22,7 @@
  */
 
 #include "psxcounters.h"
+#include "gpu.h"
 #include "debug.h"
 
 /******************************************************************************/
@@ -75,6 +76,7 @@ static u32 spuSyncCount = 0;
 static u32 hsync_steps = 0;
 static u32 gpu_wants_hcnt = 0;
 static u32 base_cycle = 0;
+static u32 frame_counter = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
@@ -294,7 +296,9 @@ void psxRcntUpdate()
         if( hSyncCount == VBlankStart[Config.PsxType] )
         {
             GPU_vBlank( 1, &hSyncCount, &gpu_wants_hcnt );
-            
+            //if( !(HW_GPU_STATUS & PSXGPU_ILACE) ) // hmh
+                HW_GPU_STATUS |= PSXGPU_LCF;
+
             // For the best times. :D
             //setIrq( 0x01 );
         }
@@ -303,12 +307,17 @@ void psxRcntUpdate()
         if( hSyncCount >= (Config.VSyncWA ? HSyncTotal[Config.PsxType] / BIAS : HSyncTotal[Config.PsxType]) )
         {
             hSyncCount = 0;
+            frame_counter++;
 
             GPU_vBlank( 0, &hSyncCount, &gpu_wants_hcnt );
             setIrq( 0x01 );
 
             EmuUpdate();
             GPU_updateLace();
+
+            HW_GPU_STATUS &= ~PSXGPU_LCF;
+            if( HW_GPU_STATUS & PSXGPU_ILACE )
+                HW_GPU_STATUS |= frame_counter << 31;
         }
 
         // Schedule next call, in hsyncs

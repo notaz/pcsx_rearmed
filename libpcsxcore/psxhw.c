@@ -24,6 +24,7 @@
 #include "psxhw.h"
 #include "mdec.h"
 #include "cdrom.h"
+#include "gpu.h"
 
 //#undef PSXHW_LOG
 //#define PSXHW_LOG printf
@@ -37,6 +38,7 @@ void psxHwReset() {
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
 	psxRcntInit();
+	HW_GPU_STATUS = 0x14802000;
 }
 
 u8 psxHwRead8(u32 add) {
@@ -238,7 +240,8 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 		case 0x1f801814:
-			hard = GPU_readStatus();
+			gpuSyncPluginSR();
+			hard = HW_GPU_STATUS;
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
 #endif
@@ -682,7 +685,9 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit write %x\n", value);
 #endif
-			GPU_writeStatus(value); return;
+			GPU_writeStatus(value);
+			gpuSyncPluginSR();
+			return;
 
 		case 0x1f801820:
 			mdecWrite0(value); break;

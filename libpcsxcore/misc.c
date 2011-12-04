@@ -24,6 +24,7 @@
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
+#include "gpu.h"
 #include "ppf.h"
 
 char CdromId[10] = "";
@@ -576,6 +577,8 @@ int LoadState(const char *file) {
 	gzread(f, gpufP, sizeof(GPUFreeze_t));
 	GPU_freeze(0, gpufP);
 	free(gpufP);
+	if (HW_GPU_STATUS == 0)
+		HW_GPU_STATUS = GPU_readStatus();
 
 	// spu
 	gzread(f, &Size, 4);

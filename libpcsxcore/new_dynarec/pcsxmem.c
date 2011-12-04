@@ -10,6 +10,7 @@
 #include "../psxhw.h"
 #include "../cdrom.h"
 #include "../mdec.h"
+#include "../gpu.h"
 #include "emu_if.h"
 #include "pcsxmem.h"
 
@@ -209,6 +210,19 @@ static void io_spu_write32(u32 value)
 	wfunc(a + 2, value >> 16);
 }
 
+static u32 io_gpu_read_status(void)
+{
+	// meh2, syncing for img bit, might want to avoid it..
+	gpuSyncPluginSR();
+	return HW_GPU_STATUS;
+}
+
+static void io_gpu_write_status(u32 value)
+{
+	GPU_writeStatus(value);
+	gpuSyncPluginSR();
+}
+
 static void map_ram_write(void)
 {
 	int i;
@@ -346,7 +360,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iortab[IOMEM32(0x1124)], io_rcnt_read_mode2, 1);
 	map_item(&mem_iortab[IOMEM32(0x1128)], io_rcnt_read_target2, 1);
 //	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
-//	map_item(&mem_iortab[IOMEM32(0x1814)], GPU_readStatus, 1);
+	map_item(&mem_iortab[IOMEM32(0x1814)], io_gpu_read_status, 1);
 	map_item(&mem_iortab[IOMEM32(0x1820)], mdecRead0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1824)], mdecRead1, 1);
 
@@ -392,7 +406,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM32(0x1124)], io_rcnt_write_mode2, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1128)], io_rcnt_write_target2, 1);
 //	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
-//	map_item(&mem_iowtab[IOMEM32(0x1814)], GPU_writeStatus, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1814)], io_gpu_write_status, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1820)], mdecWrite0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1824)], mdecWrite1, 1);
 
@@ -441,11 +455,9 @@ void new_dyna_pcsx_mem_reset(void)
 
 	// plugins might change so update the pointers
 	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
-	map_item(&mem_iortab[IOMEM32(0x1814)], GPU_readStatus, 1);
 
 	for (i = 0x1c00; i < 0x1e00; i += 2)
 		map_item(&mem_iortab[IOMEM16(i)], SPU_readRegister, 1);
 
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1814)], GPU_writeStatus, 1);
 }
