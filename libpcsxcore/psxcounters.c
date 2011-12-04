@@ -294,11 +294,13 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart[Config.PsxType] )
         {
-            //if( !(HW_GPU_STATUS & PSXGPU_ILACE) ) // hmh
+            if( !(HW_GPU_STATUS & PSXGPU_ILACE) )
                 HW_GPU_STATUS |= PSXGPU_LCF;
 
-            // For the best times. :D
-            //setIrq( 0x01 );
+            setIrq( 0x01 );
+
+            EmuUpdate();
+            GPU_updateLace();
         }
         
         // Update lace. (with InuYasha fix)
@@ -306,11 +308,6 @@ void psxRcntUpdate()
         {
             hSyncCount = 0;
             frame_counter++;
-
-            setIrq( 0x01 );
-
-            EmuUpdate();
-            GPU_updateLace();
 
             HW_GPU_STATUS &= ~PSXGPU_LCF;
             if( HW_GPU_STATUS & PSXGPU_ILACE )
