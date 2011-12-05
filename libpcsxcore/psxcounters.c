@@ -190,6 +190,8 @@ void psxRcntReset( u32 index )
 {
     u32 count;
 
+    rcnts[index].mode |= RcUnknown10;
+
     if( rcnts[index].counterState == CountToTarget )
     {
         if( rcnts[index].mode & RcCountToTarget )
@@ -218,8 +220,14 @@ void psxRcntReset( u32 index )
         }
 
         rcnts[index].mode |= RcCountEqTarget;
+
+        psxRcntSet();
+
+        if( count < 0xffff ) // special case, overflow too?
+            return;
     }
-    else if( rcnts[index].counterState == CountToOverflow )
+
+    if( rcnts[index].counterState == CountToOverflow )
     {
         count  = psxRegs.cycle;
         count -= rcnts[index].cycleStart;
@@ -241,8 +249,6 @@ void psxRcntReset( u32 index )
 
         rcnts[index].mode |= RcOverflow;
     }
-
-    rcnts[index].mode |= RcUnknown10;
 
     psxRcntSet();
 }
