@@ -64,8 +64,8 @@ struct psx_gpu {
   uint32_t zero;
   struct {
     uint32_t fb_dirty:1;
-    uint32_t frame_count;
-    uint32_t *hcnt;
+    uint32_t *frame_count;
+    uint32_t *hcnt; /* hsync count */
     struct {
       uint32_t addr;
       uint32_t words;

@@ -126,6 +126,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
   gpu.state.hcnt = cbs->gpu_hcnt;
+  gpu.state.frame_count = cbs->gpu_frame_count;
 }
 
 // vim:shiftwidth=2:expandtab

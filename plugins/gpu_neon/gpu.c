@@ -17,7 +17,7 @@
 #define noinline __attribute__((noinline))
 
 #define gpu_log(fmt, ...) \
-  printf("%d:%03d: " fmt, gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
+  printf("%d:%03d: " fmt, *gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
 
 //#define log_io gpu_log
 #define log_io(...)
@@ -94,7 +94,7 @@ long GPUinit(void)
   ret  = vout_init();
   ret |= renderer_init();
 
-  gpu.state.frame_count = 0;
+  gpu.state.frame_count = &gpu.zero;
   gpu.state.hcnt = &gpu.zero;
   do_reset();
   return ret;
@@ -379,9 +379,9 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     flush_cmd_buffer();
 
   // ff7 sends it's main list twice, detect this
-  if (gpu.state.frame_count == gpu.state.last_list.frame &&
-     *gpu.state.hcnt - gpu.state.last_list.hcnt <= 1 &&
-      gpu.state.last_list.words > 1024)
+  if (*gpu.state.frame_count == gpu.state.last_list.frame &&
+      *gpu.state.hcnt - gpu.state.last_list.hcnt <= 1 &&
+       gpu.state.last_list.words > 1024)
   {
     llist_entry = rambase + (gpu.state.last_list.addr & 0x1fffff) / 4;
     *llist_entry |= 0x800000;
@@ -423,7 +423,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
   if (llist_entry)
     *llist_entry &= ~0x800000;
 
-  gpu.state.last_list.frame = gpu.state.frame_count;
+  gpu.state.last_list.frame = *gpu.state.frame_count;
   gpu.state.last_list.hcnt = *gpu.state.hcnt;
   gpu.state.last_list.words = dma_words;
   gpu.state.last_list.addr = start_addr;
