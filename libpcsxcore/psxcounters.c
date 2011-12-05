@@ -194,18 +194,12 @@ void psxRcntReset( u32 index )
 
     if( rcnts[index].counterState == CountToTarget )
     {
+        count  = psxRegs.cycle;
+        count -= rcnts[index].cycleStart;
+        if( rcnts[index].rate > 1 )
+            count /= rcnts[index].rate;
         if( rcnts[index].mode & RcCountToTarget )
-        {
-            count  = psxRegs.cycle;
-            count -= rcnts[index].cycleStart;
-            if (rcnts[index].rate > 1)
-                count /= rcnts[index].rate;
             count -= rcnts[index].target;
-        }
-        else
-        {
-            count = _psxRcntRcount( index );
-        }
 
         _psxRcntWcount( index, count );
 
@@ -220,8 +214,6 @@ void psxRcntReset( u32 index )
         }
 
         rcnts[index].mode |= RcCountEqTarget;
-
-        psxRcntSet();
 
         if( count < 0xffff ) // special case, overflow too?
             return;
@@ -249,8 +241,6 @@ void psxRcntReset( u32 index )
 
         rcnts[index].mode |= RcOverflow;
     }
-
-    psxRcntSet();
 }
 
 void psxRcntUpdate()
@@ -338,8 +328,9 @@ void psxRcntUpdate()
                 base_cycle += hsync_steps * 8791293;
         rcnts[3].cycle = base_cycle >> 12;
         base_cycle &= 0xfff;
-        psxRcntSet();
     }
+
+    psxRcntSet();
 
 #ifndef NDEBUG
     DebugVSync();
