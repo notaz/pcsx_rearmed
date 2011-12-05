@@ -171,7 +171,7 @@ static void menu_sync_config(void)
 	default: in_type2 = PSE_PAD_TYPE_STANDARD;
 	}
 	if (in_evdev_allow_abs_only != allow_abs_only_old) {
-		plat_rescan_inputs();
+		in_probe();
 		allow_abs_only_old = in_evdev_allow_abs_only;
 	}
 
@@ -960,7 +960,7 @@ static int mh_savecfg(int id, int keys)
 static int mh_input_rescan(int id, int keys)
 {
 	//menu_sync_config();
-	plat_rescan_inputs();
+	in_probe();
 	me_update_msg("rescan complete.");
 
 	return 0;

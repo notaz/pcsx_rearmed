@@ -177,6 +177,8 @@ void plat_init(void)
 	}
 	g_menubg_ptr = temp_frame;
 
+	plat_pandora_init(); // XXX
+
 	return;
 
 fail1:

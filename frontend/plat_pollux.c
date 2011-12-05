@@ -59,6 +59,9 @@ int omap_enable_layer(int enabled)
 	return 0;
 }
 
+static void caanoo_init(void);
+
+
 static void *fb_flip(void)
 {
 	memregl[0x406C>>2] = memregl[0x446C>>2] = fb_paddrs[fb_work_buf];
@@ -586,6 +589,11 @@ void plat_init(void)
 		in_gp2x_init();
 	}
 
+	in_tsbutton_init();
+	in_probe();
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		caanoo_init();
+
 	mixerdev = open("/dev/mixer", O_RDWR);
 	if (mixerdev == -1)
 		perror("open(/dev/mixer)");
@@ -598,8 +606,6 @@ void plat_init(void)
 	psx_width = 320;
 	psx_height = 240;
 	psx_bpp = 16;
-
-	in_tsbutton_init();
 }
 
 void plat_finish(void)
@@ -714,12 +720,8 @@ void plat_step_volume(int is_up)
 // unused dummy for in_gp2x
 volatile unsigned short *gp2x_memregs;
 
-int plat_rescan_inputs(void)
+static void caanoo_init(void)
 {
-	in_probe();
-	if (gp2x_dev_id == GP2X_DEV_CAANOO)
-		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
-			      caanoo_keys, sizeof(caanoo_keys));
-
-	return 0;
+	in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
+		      caanoo_keys, sizeof(caanoo_keys));
 }
