@@ -132,8 +132,10 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       gpu.screen.x = data & 0x3ff;
       gpu.screen.y = (data >> 10) & 0x3ff;
-      if (gpu.frameskip.set)
+      if (gpu.frameskip.set && gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
         decide_frameskip();
+        gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
+      }
       break;
     case 0x06:
       gpu.screen.x1 = data & 0xfff;
@@ -291,6 +293,16 @@ static int check_cmd(uint32_t *data, int count)
         gpu.ex_regs[1] &= ~0x1ff;
         gpu.ex_regs[1] |= list[5] & 0x1ff;
       }
+      else if (cmd == 0xe3)
+      {
+        // no frameskip if it decides to draw to display area,
+        // but not for interlace since it'll most likely always do that
+        uint32_t x = list[0] & 0x3ff;
+        uint32_t y = (list[0] >> 10) & 0x3ff;
+        gpu.frameskip.allow = gpu.status.interlace ||
+          (uint32_t)(x - gpu.screen.x) >= (uint32_t)gpu.screen.w ||
+          (uint32_t)(y - gpu.screen.y) >= (uint32_t)gpu.screen.h;
+      }
       if (2 <= cmd && cmd < 0xc0)
         vram_dirty = 1;
       else if ((cmd & 0xf8) == 0xe0)
@@ -306,7 +318,7 @@ static int check_cmd(uint32_t *data, int count)
     }
 
     if (pos - start > 0) {
-      if (!gpu.frameskip.active)
+      if (!gpu.frameskip.active || !gpu.frameskip.allow)
         do_cmd_list(data + start, pos - start);
       start = pos;
     }

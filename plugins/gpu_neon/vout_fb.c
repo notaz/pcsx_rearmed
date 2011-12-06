@@ -89,12 +89,11 @@ void GPUupdateLace(void)
     return;
 
   if (gpu.frameskip.set) {
-    if (!gpu.frameskip.frame_ready && gpu.frameskip.skipped_blits < 9) {
-      gpu.frameskip.skipped_blits++;
-      return;
+    if (!gpu.frameskip.frame_ready) {
+      if (*gpu.state.frame_count - gpu.frameskip.last_flip_frame < 9)
+        return;
     }
     gpu.frameskip.frame_ready = 0;
-    gpu.frameskip.skipped_blits = 0;
   }
 
   renderer_flush_queues();

@@ -76,9 +76,10 @@ struct psx_gpu {
   struct {
     int32_t set:3; /* -1 auto, 0 off, 1 fixed */
     uint32_t active:1;
+    uint32_t allow:1;
     uint32_t frame_ready:1;
-    uint32_t skipped_blits:5;
     const int *advice;
+    uint32_t last_flip_frame;
   } frameskip;
 };
 
