@@ -95,16 +95,17 @@ LDFLAGS += -lasound
 endif
 
 # gpu
+OBJS += plugins/gpu_neon/gpu.o
 # note: code is not safe for strict-aliasing? (Castlevania problems)
-plugins/dfxvideo/%.o: CFLAGS += -fno-strict-aliasing
-OBJS += plugins/dfxvideo/gpu.o
-plugins/dfxvideo/gpu.o: plugins/dfxvideo/fps.c plugins/dfxvideo/prim.c \
-	plugins/dfxvideo/gpu.c plugins/dfxvideo/soft.c
+plugins/gpu_neon/peops_if.o: CFLAGS += -fno-strict-aliasing
+plugins/gpu_neon/peops_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
+OBJS += plugins/gpu_neon/peops_if.o
 ifdef X11
-LDFLAGS += -lX11 -lXv
-OBJS += plugins/dfxvideo/draw.o
+LDFLAGS += -lX11 `sdl-config --libs`
+OBJS += plugins/gpu_neon/vout_sdl.o
+plugins/gpu_neon/vout_sdl.o: CFLAGS += `sdl-config --cflags`
 else
-OBJS += plugins/dfxvideo/draw_fb.o
+OBJS += plugins/gpu_neon/vout_fb.o
 endif
 
 # cdrcimg
