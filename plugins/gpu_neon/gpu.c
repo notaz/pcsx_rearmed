@@ -283,24 +283,13 @@ static int check_cmd(uint32_t *data, int count)
       //printf("  %3d: %02x %d\n", pos, cmd, len);
       if ((cmd & 0xf4) == 0x24) {
         // flat textured prim
-        gpu.status.reg &= ~0x1ff;
-        gpu.status.reg |= list[4] & 0x1ff;
+        gpu.ex_regs[1] &= ~0x1ff;
+        gpu.ex_regs[1] |= list[4] & 0x1ff;
       }
       else if ((cmd & 0xf4) == 0x34) {
         // shaded textured prim
-        gpu.status.reg &= ~0x1ff;
-        gpu.status.reg |= list[5] & 0x1ff;
-      }
-      else switch (cmd)
-      {
-        case 0xe1:
-          gpu.status.reg &= ~0x7ff;
-          gpu.status.reg |= list[0] & 0x7ff;
-          break;
-        case 0xe6:
-          gpu.status.reg &= ~0x1800;
-          gpu.status.reg |= (list[0] & 3) << 11;
-          break;
+        gpu.ex_regs[1] &= ~0x1ff;
+        gpu.ex_regs[1] |= list[5] & 0x1ff;
       }
       if (2 <= cmd && cmd < 0xc0)
         vram_dirty = 1;
@@ -330,6 +319,10 @@ static int check_cmd(uint32_t *data, int count)
     else if (cmd == -1)
       break;
   }
+
+  gpu.status.reg &= ~0x1fff;
+  gpu.status.reg |= gpu.ex_regs[1] & 0x7ff;
+  gpu.status.reg |= (gpu.ex_regs[6] & 3) << 11;
 
   if (gpu.frameskip.active)
     renderer_sync_ecmds(gpu.ex_regs);
