@@ -97,7 +97,7 @@ long GPUclose(void)
   return 0;
 }
 
-void GPUrearmedCallbacks(const void *cbs_)
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
 {
 }
 

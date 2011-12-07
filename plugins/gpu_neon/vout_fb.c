@@ -101,7 +101,7 @@ void GPUupdateLace(void)
   gpu.state.fb_dirty = 0;
 }
 
-long GPUopen(void)
+long GPUopen(void **unused)
 {
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;

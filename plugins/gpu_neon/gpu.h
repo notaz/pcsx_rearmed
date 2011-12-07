@@ -97,6 +97,25 @@ void renderer_flush_queues(void);
 int vout_init(void);
 int vout_finish(void);
 
+/* listing these here for correct linkage if rasterizer uses c++ */
+struct GPUFreeze;
+struct rearmed_cbs;
+
+long GPUinit(void);
+long GPUshutdown(void);
+void GPUwriteDataMem(uint32_t *mem, int count);
+long GPUdmaChain(uint32_t *rambase, uint32_t addr);
+void GPUwriteData(uint32_t data);
+void GPUreadDataMem(uint32_t *mem, int count);
+uint32_t GPUreadData(void);
+uint32_t GPUreadStatus(void);
+void GPUwriteStatus(uint32_t data);
+long GPUfreeze(uint32_t type, struct GPUFreeze *freeze);
+void GPUupdateLace(void);
+long GPUopen(void **dpy);
+long GPUclose(void);
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
+
 #ifdef __cplusplus
 }
 #endif

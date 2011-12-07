@@ -472,15 +472,15 @@ uint32_t GPUreadStatus(void)
   return ret;
 }
 
-typedef struct GPUFREEZETAG
+struct GPUFreeze
 {
   uint32_t ulFreezeVersion;      // should be always 1 for now (set by main emu)
   uint32_t ulStatus;             // current gpu status
   uint32_t ulControl[256];       // latest control register values
   unsigned char psxVRam[1024*1024*2]; // current VRam image (full 2 MB for ZN)
-} GPUFreeze_t;
+};
 
-long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
+long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
 {
   int i;
 
