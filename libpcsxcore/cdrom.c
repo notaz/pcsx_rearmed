@@ -1225,6 +1225,7 @@ void cdrInterrupt() {
 			/*
 			Duke Nukem: Land of the Babes - seek then delay read for one frame
 			- fixes cutscenes
+			C-12 - Final Resistance - doesn't like seek
 			*/
 
 			if (!cdr.Seeked) {
@@ -1473,6 +1474,7 @@ unsigned char cdrRead1(void) {
 }
 
 void cdrWrite1(unsigned char rt) {
+	char set_loc[3];
 	int i;
 
 #ifdef CDR_LOG
@@ -1521,9 +1523,12 @@ void cdrWrite1(unsigned char rt) {
 
     	case CdlSetloc:
 		StopReading();
-		cdr.Seeked = FALSE;
 		for (i = 0; i < 3; i++)
-			cdr.SetSector[i] = btoi(cdr.Param[i]);
+			set_loc[i] = btoi(cdr.Param[i]);
+		i = abs(msf2sec(cdr.SetSector) - msf2sec(set_loc));
+		if (i > 16)
+			cdr.Seeked = FALSE;
+		memcpy(cdr.SetSector, set_loc, 3);
         	cdr.SetSector[3] = 0;
 
 		/*
