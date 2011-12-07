@@ -58,7 +58,6 @@ struct regstat
   u_int isconst;
   u_int loadedconst;             // host regs that have constants loaded
   u_int waswritten;              // MIPS regs that were used as store base before
-  uint64_t constmap[HOST_REGS];
 };
 
 struct ll_entry
@@ -106,11 +105,10 @@ struct ll_entry
   uint64_t p32[MAXBLOCK];
   uint64_t pr32[MAXBLOCK];
   signed char regmap_pre[MAXBLOCK][HOST_REGS];
-  signed char regmap[MAXBLOCK][HOST_REGS];
-  signed char regmap_entry[MAXBLOCK][HOST_REGS];
-  uint64_t constmap[MAXBLOCK][HOST_REGS];
-  struct regstat regs[MAXBLOCK];
-  struct regstat branch_regs[MAXBLOCK];
+  static uint64_t current_constmap[HOST_REGS];
+  static uint64_t constmap[MAXBLOCK][HOST_REGS];
+  static struct regstat regs[MAXBLOCK];
+  static struct regstat branch_regs[MAXBLOCK];
   signed char minimum_free_regs[MAXBLOCK];
   u_int needed_reg[MAXBLOCK];
   uint64_t requires_32bit[MAXBLOCK];
@@ -605,11 +603,11 @@ void set_const(struct regstat *cur,signed char reg,uint64_t value)
   for (hr=0;hr<HOST_REGS;hr++) {
     if(cur->regmap[hr]==reg) {
       cur->isconst|=1<<hr;
-      cur->constmap[hr]=value;
+      current_constmap[hr]=value;
     }
     else if((cur->regmap[hr]^64)==reg) {
       cur->isconst|=1<<hr;
-      cur->constmap[hr]=value>>32;
+      current_constmap[hr]=value>>32;
     }
   }
 }
@@ -643,7 +641,7 @@ uint64_t get_const(struct regstat *cur,signed char reg)
   if(!reg) return 0;
   for (hr=0;hr<HOST_REGS;hr++) {
     if(cur->regmap[hr]==reg) {
-      return cur->constmap[hr];
+      return current_constmap[hr];
     }
   }
   printf("Unknown constant in r%d\n",reg);
@@ -9523,7 +9521,7 @@ int new_recompile_block(int addr)
             branch_regs[i-1].is32|=1LL<<31;
           }
           memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          memcpy(constmap[i],constmap[i-1],sizeof(current.constmap));
+          memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
           break;
         case RJUMP:
           memcpy(&branch_regs[i-1],&current,sizeof(current));
@@ -9548,7 +9546,7 @@ int new_recompile_block(int addr)
           }
           #endif
           memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          memcpy(constmap[i],constmap[i-1],sizeof(current.constmap));
+          memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
           break;
         case CJUMP:
           if((opcode[i-1]&0x3E)==4) // BEQ/BNE
@@ -9584,7 +9582,7 @@ int new_recompile_block(int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current.constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
           }
           else
           if((opcode[i-1]&0x3E)==6) // BLEZ/BGTZ
@@ -9617,7 +9615,7 @@ int new_recompile_block(int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current.constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
           }
           else
           // Alloc the delay slot in case the branch is taken
@@ -9683,7 +9681,7 @@ int new_recompile_block(int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current.constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
           }
           else
           // Alloc the delay slot in case the branch is taken
@@ -9822,7 +9820,7 @@ int new_recompile_block(int addr)
       regs[i].is32=current.is32;
       regs[i].dirty=current.dirty;
       regs[i].isconst=current.isconst;
-      memcpy(constmap[i],current.constmap,sizeof(current.constmap));
+      memcpy(constmap[i],current_constmap,sizeof(current_constmap));
     }
     for(hr=0;hr<HOST_REGS;hr++) {
       if(hr!=EXCLUDE_REG&&regs[i].regmap[hr]>=0) {
