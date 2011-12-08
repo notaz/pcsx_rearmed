@@ -347,7 +347,7 @@ void do_cmd_list(unsigned int *list, int list_len)
         }
 
         if(num_vertexes > 2)
-          len += ((num_vertexes * 2) - 2);
+          len += (num_vertexes - 2) * 2;
 
         break;
       }

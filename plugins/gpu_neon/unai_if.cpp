@@ -32,14 +32,12 @@
 #define s32 int32_t
 #define s64 int64_t
 
-#define INLINE
+#define INLINE static
 
 #define	FRAME_BUFFER_SIZE  (1024*512*2)
 #define	FRAME_WIDTH        1024
 #define	FRAME_HEIGHT       512
 #define	FRAME_OFFSET(x,y)  (((y)<<10)+(x))
-
-//#define VIDEO_WIDTH 320
 
 static bool isSkip = false; /* skip frame (info coming from GPU) */
 static int linesInterlace = 0;  /* internal lines interlace */
@@ -91,12 +89,12 @@ static u32   tInc, tMsk;
 
 union GPUPacket
 {
-	u32 *U4;
-	s32 *S4;
-	u16 *U2;
-	s16 *S2;
-	u8  *U1;
-	s8  *S1;
+	u32 U4[16];
+	s32 S4[16];
+	u16 U2[32];
+	s16 S2[32];
+	u8  U1[64];
+	s8  S1[64];
 };
 
 static GPUPacket PacketBuffer;
@@ -137,8 +135,8 @@ static u32   GPU_GP1;
 // GPU command buffer execution/store
 #include "../gpu_unai/gpu_command.h"
 
-#define unai_do_prim(cmd, list) \
-  PacketBuffer.U4 = list; \
+#define unai_do_prim(cmd, list, len) \
+  memcpy(PacketBuffer.U4, list, (len) * 4); \
   gpuSendPacketFunction(cmd)
 
 /////////////////////////////////////////////////////////////////////////////
@@ -172,11 +170,8 @@ void do_cmd_list(unsigned int *list, int list_len)
 
   for (; list < list_end; list += 1 + len)
   {
-    short *slist = (short *)list;
     cmd = *list >> 24;
     len = cmd_lengths[cmd];
-
-    unai_do_prim(cmd, list);
 
     switch(cmd)
     {
@@ -184,13 +179,20 @@ void do_cmd_list(unsigned int *list, int list_len)
       {
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
+        u32 PRIM = cmd;
+
+        memcpy(&PacketBuffer.U4[0], list, 4 * 3);
+        gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
         while(1)
         {
           if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
             break;
 
-          list_position++;
+          PacketBuffer.U4[1] = PacketBuffer.U4[2];
+          PacketBuffer.U4[2] = *list_position++;
+          gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+
           num_vertexes++;
         }
 
@@ -204,43 +206,46 @@ void do_cmd_list(unsigned int *list, int list_len)
       {
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
+        u32 PRIM = cmd;
+
+        memcpy(&PacketBuffer.U4[0], list, 4 * 4);
+        gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
         while(1)
         {
           if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
             break;
 
-          list_position += 2;
+          PacketBuffer.U4[0] = PacketBuffer.U4[2];
+          PacketBuffer.U4[1] = PacketBuffer.U4[3];
+          PacketBuffer.U4[2] = *list_position++;
+          PacketBuffer.U4[3] = *list_position++;
+          gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+
           num_vertexes++;
         }
 
         if(num_vertexes > 2)
-          len += ((num_vertexes * 2) - 2);
+          len += (num_vertexes - 2) * 2;
 
         break;
       }
 
-      case 0xA0:          //  sys -> vid
-      {
-        u32 load_width = slist[4];
-        u32 load_height = slist[5];
-        u32 load_size = load_width * load_height;
-
-        len += load_size / 2;
+      default:
+        unai_do_prim(cmd, list, len + 1);
         break;
-      }
     }
   }
 }
 
 void renderer_sync_ecmds(uint32_t *ecmds)
 {
-  unai_do_prim(0xe1, &ecmds[1]);
-  unai_do_prim(0xe2, &ecmds[2]);
-  unai_do_prim(0xe3, &ecmds[3]);
-  unai_do_prim(0xe4, &ecmds[4]);
-  unai_do_prim(0xe5, &ecmds[5]);
-  unai_do_prim(0xe6, &ecmds[6]);
+  unai_do_prim(0xe1, &ecmds[1], 1);
+  unai_do_prim(0xe2, &ecmds[2], 1);
+  unai_do_prim(0xe3, &ecmds[3], 1);
+  unai_do_prim(0xe4, &ecmds[4], 1);
+  unai_do_prim(0xe5, &ecmds[5], 1);
+  unai_do_prim(0xe6, &ecmds[6], 1);
 }
 
 void renderer_invalidate_caches(int x, int y, int w, int h)
