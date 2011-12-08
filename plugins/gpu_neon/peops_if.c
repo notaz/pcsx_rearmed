@@ -382,3 +382,11 @@ void renderer_invalidate_caches(int x, int y, int w, int h)
 void renderer_flush_queues(void)
 {
 }
+
+#include "../../frontend/plugin_lib.h"
+
+void renderer_set_config(const struct rearmed_cbs *cbs)
+{
+ iUseDither = cbs->gpu_peops.iUseDither;
+ dwActFixes = cbs->gpu_peops.dwActFixes;
+}

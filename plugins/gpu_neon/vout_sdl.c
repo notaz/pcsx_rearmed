@@ -97,8 +97,16 @@ long GPUclose(void)
   return 0;
 }
 
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
+#include "../../frontend/plugin_lib.h"
+
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 {
+  gpu.state.hcnt = cbs->gpu_hcnt;
+  gpu.state.frame_count = cbs->gpu_frame_count;
+
+  if (cbs->pl_vout_set_raw_vram)
+    cbs->pl_vout_set_raw_vram(gpu.vram);
+  renderer_set_config(cbs);
 }
 
 // vim:shiftwidth=2:expandtab

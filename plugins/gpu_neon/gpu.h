@@ -89,17 +89,19 @@ extern const unsigned char cmd_lengths[256];
 
 void do_cmd_list(uint32_t *list, int count);
 
+struct rearmed_cbs;
+
 int  renderer_init(void);
 void renderer_sync_ecmds(uint32_t * ecmds);
 void renderer_invalidate_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
+void renderer_set_config(const struct rearmed_cbs *config);
 
 int vout_init(void);
 int vout_finish(void);
 
 /* listing these here for correct linkage if rasterizer uses c++ */
 struct GPUFreeze;
-struct rearmed_cbs;
 
 long GPUinit(void);
 long GPUshutdown(void);
