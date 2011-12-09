@@ -21,9 +21,6 @@
 #include "plat.h"
 #include "main.h"
 
-static int fdnub[2];
-static int analog_init_done;
-
 static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
 	[0 ... KEY_MAX] = NULL,
 	[KEY_UP]	= "Up",
@@ -66,98 +63,13 @@ struct in_default_bind in_evdev_defbinds[] = {
 	{ 0, 0, 0 }
 };
 
-static void analog_init(void)
-{
-	int i, nub;
-
-	fdnub[0] = fdnub[1] = -1;
-
-	for (i = nub = 0; nub < 2; i++)
-	{
-		long absbits[(ABS_MAX+1) / sizeof(long) / 8];
-		int ret, fd, support = 0;
-		char name[64];
-
-		snprintf(name, sizeof(name), "/dev/input/event%d", i);
-		fd = open(name, O_RDONLY|O_NONBLOCK);
-		if (fd == -1) {
-			if (errno == EACCES)
-				continue;	/* maybe we can access next one */
-			break;
-		}
-
-		/* check supported events */
-		ret = ioctl(fd, EVIOCGBIT(0, sizeof(support)), &support);
-		if (ret == -1) {
-			printf("pandora: ioctl failed on %s\n", name);
-			goto skip;
-		}
-
-		if (!(support & (1 << EV_ABS)))
-			goto skip;
-
-		ret = ioctl(fd, EVIOCGNAME(sizeof(name)), name);
-		if (ret == -1 || strncmp(name, "nub", 3) != 0)
-			goto skip;
-
-		ret = ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absbits)), absbits);
-		if (ret == -1)
-			goto skip;
-		if ((absbits[0] & ((1 << ABS_X)|(1 << ABS_Y))) != ((1 << ABS_X)|(1 << ABS_Y)))
-			goto skip;
-
-		printf("pandora: found analog #%d \"%s\"\n", nub, name);
-		fdnub[nub++] = fd;
-		continue;
-
-skip:
-		close(fd);
-	}
-
-	if (nub != 2)
-		printf("pandora: warning: not all nubs found: %d\n", nub);
-
-	analog_init_done = 1;
-}
-
-void in_update_analogs(void)
-{
-	int *nubp[2] = { in_a1, in_a2 };
-	struct input_absinfo ainfo;
-	int i, fd, v, ret;
-
-	if (!analog_init_done)
-		analog_init();
-
-	for (i = 0; i < 2; i++) {
-		fd = fdnub[i];
-		if (fd < 0)
-			continue;
-
-		ret = ioctl(fd, EVIOCGABS(ABS_X), &ainfo);
-		if (ret == -1) {
-			perror("ioctl");
-			continue;
-		}
-		v = ainfo.value / 2 + 127;
-		nubp[i][0] = v < 0 ? 0 : v;
-
-		ret = ioctl(fd, EVIOCGABS(ABS_Y), &ainfo);
-		if (ret == -1) {
-			perror("ioctl");
-			continue;
-		}
-		v = ainfo.value / 2 + 127;
-		nubp[i][1] = v < 0 ? 0 : v;
-	}
-	//printf("%4d %4d %4d %4d\n", in_a1[0], in_a1[1], in_a2[0], in_a2[1]);
-}
-
 int plat_pandora_init(void)
 {
 	in_probe();
 	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
+	in_adev[0] = in_name_to_id("evdev:nub0");
+	in_adev[1] = in_name_to_id("evdev:nub1");
 
 	return 0;
 }

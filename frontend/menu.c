@@ -53,6 +53,7 @@ typedef enum
 	MA_MAIN_EXIT,
 	MA_CTRL_PLAYER1,
 	MA_CTRL_PLAYER2,
+	MA_CTRL_ANALOG,
 	MA_CTRL_EMU,
 	MA_CTRL_DEV_FIRST,
 	MA_CTRL_DEV_NEXT,
@@ -819,6 +820,12 @@ static void keys_write_all(FILE *f)
 				}
 			}
 		}
+
+		for (k = 0; k < array_size(in_adev); k++)
+		{
+			if (in_adev[k] == d)
+				fprintf(f, "bind_analog = %d\n", k);
+		}
 	}
 }
 
@@ -861,7 +868,7 @@ static void keys_load_all(const char *cfg)
 	char dev[256], key[128], *act;
 	const char *p;
 	int bind, bindtype;
-	int dev_id;
+	int ret, dev_id;
 
 	p = cfg;
 	while (p != NULL && (p = strstr(p, "binddev = ")) != NULL) {
@@ -878,6 +885,21 @@ static void keys_load_all(const char *cfg)
 		while ((p = strstr(p, "bind"))) {
 			if (strncmp(p, "binddev = ", 10) == 0)
 				break;
+
+			if (strncmp(p, "bind_analog", 11) == 0) {
+				ret = sscanf(p, "bind_analog = %d", &bind);
+				p += 11;
+				if (ret != 1) {
+					printf("input: parse error: %16s..\n", p);
+					continue;
+				}
+				if ((unsigned int)bind >= array_size(in_adev)) {
+					printf("input: analog id %d out of range\n", bind);
+					continue;
+				}
+				in_adev[bind] = dev_id;
+				continue;
+			}
 
 			p += 4;
 			if (*p != ' ') {
@@ -923,6 +945,57 @@ static int key_config_loop_wrap(int id, int keys)
 		default:
 			break;
 	}
+	return 0;
+}
+
+static const char *adevnames[IN_MAX_DEVS + 2];
+static int stick_sel[2];
+
+static menu_entry e_menu_keyconfig_analog[] =
+{
+	mee_enum ("Left stick (L3)",  0, stick_sel[0], adevnames),
+	mee_range("  X axis",    0, in_adev_axis[0][0], 0, 7),
+	mee_range("  Y axis",    0, in_adev_axis[0][1], 0, 7),
+	mee_enum ("Right stick (R3)", 0, stick_sel[1], adevnames),
+	mee_range("  X axis",    0, in_adev_axis[1][0], 0, 7),
+	mee_range("  Y axis",    0, in_adev_axis[1][1], 0, 7),
+	mee_end,
+};
+
+static int key_config_analog(int id, int keys)
+{
+	int i, d, count, sel = 0;
+	int sel2dev_map[IN_MAX_DEVS];
+
+	memset(adevnames, 0, sizeof(adevnames));
+	memset(sel2dev_map, 0xff, sizeof(sel2dev_map));
+	memset(stick_sel, 0, sizeof(stick_sel));
+
+	adevnames[0] = "None";
+	i = 1;
+	for (d = 0; d < IN_MAX_DEVS; d++)
+	{
+		const char *name = in_get_dev_name(d, 0, 1);
+		if (name == NULL)
+			continue;
+
+		count = 0;
+		in_get_config(d, IN_CFG_ABS_AXIS_COUNT, &count);
+		if (count == 0)
+			continue;
+
+		if (in_adev[0] == d) stick_sel[0] = i;
+		if (in_adev[1] == d) stick_sel[1] = i;
+		sel2dev_map[i] = d;
+		adevnames[i++] = name;
+	}
+	adevnames[i] = NULL;
+
+	me_loop(e_menu_keyconfig_analog, &sel);
+
+	in_adev[0] = sel2dev_map[stick_sel[0]];
+	in_adev[1] = sel2dev_map[stick_sel[1]];
+
 	return 0;
 }
 
@@ -982,6 +1055,7 @@ static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",              MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",              MA_CTRL_PLAYER2,    key_config_loop_wrap),
+	mee_handler_id("Analog controls",       MA_CTRL_ANALOG,     key_config_analog),
 	mee_handler_id("Emulator/Gun controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_label     (""),
 	mee_enum      ("Port 1 device",     0, in_type_sel1,    men_in_type_sel),
@@ -992,9 +1066,8 @@ static menu_entry e_menu_keyconfig[] =
 	mee_onoff_h   ("No TS Gun trigger", 0, g_opts, OPT_TSGUN_NOTRIGGER, h_notsgun),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_savecfg, mgn_saveloadcfg),
-	mee_handler   ("Rescan devices",  mh_input_rescan),
+	mee_handler   ("Rescan devices:",  mh_input_rescan),
 	mee_label     (""),
-	mee_label     ("Input devices:"),
 	mee_label_mk  (MA_CTRL_DEV_FIRST, mgn_dev_name),
 	mee_label_mk  (MA_CTRL_DEV_NEXT,  mgn_dev_name),
 	mee_label_mk  (MA_CTRL_DEV_NEXT,  mgn_dev_name),

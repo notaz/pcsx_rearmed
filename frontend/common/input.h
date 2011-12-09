@@ -2,6 +2,7 @@
 #define INCLUDE_uXt8Z4R7EMpuEEtvSibXjNhKH3741VNc 1
 
 #define IN_MAX_DEVS 10
+#define IN_ABS_RANGE 1024	/* abs must be centered at 0, move upto +- this */
 
 /* unified menu keys */
 #define PBTN_UP    (1 <<  0)
@@ -58,7 +59,8 @@ enum {
 	IN_CFG_DOES_COMBOS,
 	IN_CFG_BLOCKING,
 	IN_CFG_KEY_NAMES,
-	IN_CFG_ABS_DEAD_ZONE, /* dead zone for analog-digital mapping */
+	IN_CFG_ABS_DEAD_ZONE,	/* dead zone for analog-digital mapping */
+	IN_CFG_ABS_AXIS_COUNT,	/* number of abs axes (ro) */
 };
 
 enum {
@@ -82,6 +84,7 @@ typedef struct {
 	int  (*get_config)(void *drv_data, int what, int *val);
 	int  (*set_config)(void *drv_data, int what, int val);
 	int  (*update)(void *drv_data, const int *binds, int *result);
+	int  (*update_analog)(void *drv_data, int axis_id, int *result);
 	/* return -1 on no event, -2 on error */
 	int  (*update_keycode)(void *drv_data, int *is_down);
 	int  (*menu_translate)(void *drv_data, int keycode);
@@ -105,6 +108,7 @@ int  in_combos_do(int keys, const int *binds, int last_key, int combo_keys, int 
 void in_init(void);
 void in_probe(void);
 int  in_update(int *result);
+int  in_update_analog(int dev_id, int axis_id, int *value);
 int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
 int  in_menu_wait_any(int timeout_ms);
 int  in_menu_wait(int interesting, int autorep_delay_ms);

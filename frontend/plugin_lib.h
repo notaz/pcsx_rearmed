@@ -19,8 +19,8 @@ enum {
 };
 extern int in_type1, in_type2;
 extern int in_keystate, in_state_gun, in_a1[2], in_a2[2];
+extern int in_adev[2], in_adev_axis[2][2];
 extern int in_enable_vibration;
-void in_update_analogs(void);
 
 extern void *pl_vout_buf;
 extern int pl_flip_cnt;

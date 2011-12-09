@@ -32,6 +32,7 @@
 
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
 int in_keystate, in_state_gun;
 int in_enable_vibration;
 int pl_flip_cnt;
@@ -222,15 +223,38 @@ void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 #endif
 }
 
+#ifndef MAEMO
+static void update_analogs(void)
+{
+	int *nubp[2] = { in_a1, in_a2 };
+	int i, a, v, ret;
+
+	for (i = 0; i < 2; i++)
+	{
+		if (in_adev[i] < 0)
+			continue;
+
+		for (a = 0; a < 2; a++) {
+			nubp[i][a] = 127;
+
+			ret = in_update_analog(in_adev[i], in_adev_axis[i][a], &v);
+			if (ret == 0) {
+				v = v / (IN_ABS_RANGE / 128) + 127;
+				nubp[i][a] = v < 0 ? 0 : v;
+			}
+		}
+	}
+	//printf("%4d %4d %4d %4d\n", in_a1[0], in_a1[1], in_a2[0], in_a2[1]);
+}
+
 static void update_input(void)
 {
-#ifndef MAEMO
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	unsigned int emu_act;
 
 	in_update(actions);
 	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
-		in_update_analogs();
+		update_analogs();
 	emu_act = actions[IN_BINDTYPE_EMU];
 	in_state_gun = (emu_act & SACTION_GUN_MASK) >> SACTION_GUN_TRIGGER;
 
@@ -244,13 +268,17 @@ static void update_input(void)
 	emu_set_action(emu_act);
 
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
-#endif
 #ifdef X11
 	extern int x11_update_keys(unsigned int *action);
 	in_keystate |= x11_update_keys(&emu_act);
 	emu_set_action(emu_act);
 #endif
 }
+#else /* MAEMO */
+static void update_input(void)
+{
+}
+#endif
 
 void pl_update_gun(int *xn, int *xres, int *y, int *in)
 {

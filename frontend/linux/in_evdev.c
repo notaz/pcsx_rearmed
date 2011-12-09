@@ -22,10 +22,12 @@
 #include "../common/input.h"
 #include "in_evdev.h"
 
+#define MAX_ABS_DEVS 8
+
 typedef struct {
 	int fd;
 	int *kbits;
-	int abs_min_x;
+	int abs_min_x; /* abs->digital mapping */
 	int abs_max_x;
 	int abs_min_y;
 	int abs_max_y;
@@ -34,6 +36,10 @@ typedef struct {
 	int abs_lasty;
 	int kc_first;
 	int kc_last;
+	unsigned int abs_count;
+	int abs_mult[MAX_ABS_DEVS]; /* 16.16 multiplier to IN_ABS_RANGE */
+	int abs_adj[MAX_ABS_DEVS];  /* adjust for centering */
+	unsigned int abs_to_digital:1;
 } in_evdev_t;
 
 #ifndef KEY_CNT
@@ -154,7 +160,7 @@ static void in_evdev_probe(void)
 	for (i = 0;; i++)
 	{
 		int support = 0, count = 0;
-		int u, ret, fd, kc_first = KEY_MAX, kc_last = 0;
+		int u, ret, fd, kc_first = KEY_MAX, kc_last = 0, have_abs = 0;
 		in_evdev_t *dev;
 		char name[64];
 
@@ -195,9 +201,6 @@ static void in_evdev_probe(void)
 			}
 		}
 
-		if (count == 0 && !in_evdev_allow_abs_only)
-			goto skip;
-
 		dev = calloc(1, sizeof(*dev));
 		if (dev == NULL)
 			goto skip;
@@ -236,10 +239,21 @@ static void in_evdev_probe(void)
 				dev->abs_min_y = ainfo.minimum;
 				dev->abs_max_y = ainfo.maximum;
 			}
+			for (u = 0; u < MAX_ABS_DEVS; u++) {
+				ret = ioctl(fd, EVIOCGABS(u), &ainfo);
+				if (ret == -1)
+					break;
+				dist = ainfo.maximum - ainfo.minimum;
+				if (dist != 0)
+					dev->abs_mult[u] = IN_ABS_RANGE * 2 * 65536 / dist;
+				dev->abs_adj[u] = -(ainfo.maximum + ainfo.minimum + 1) / 2;
+				have_abs = 1;
+			}
+			dev->abs_count = u;
 		}
 
 no_abs:
-		if (count == 0 && dev->abs_lzone == 0) {
+		if (count == 0 && !have_abs) {
 			free(dev);
 			goto skip;
 		}
@@ -247,6 +261,8 @@ no_abs:
 		dev->fd = fd;
 		dev->kc_first = kc_first;
 		dev->kc_last = kc_last;
+		if (count > 0 || in_evdev_allow_abs_only)
+			dev->abs_to_digital = 1;
 		strcpy(name, IN_EVDEV_PREFIX);
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
@@ -327,14 +343,12 @@ static int in_evdev_update(void *drv_data, const int *binds, int *result)
 
 	/* map X and Y absolute to UDLR */
 	lzone = dev->abs_lzone;
-	if (lzone != 0) {
+	if (dev->abs_to_digital && lzone != 0) {
 		ret = ioctl(dev->fd, EVIOCGABS(ABS_X), &ainfo);
 		if (ret != -1) {
 			if (ainfo.value < dev->abs_min_x + lzone) or_binds(binds, KEY_LEFT, result);
 			if (ainfo.value > dev->abs_max_x - lzone) or_binds(binds, KEY_RIGHT, result);
 		}
-	}
-	if (lzone != 0) {
 		ret = ioctl(dev->fd, EVIOCGABS(ABS_Y), &ainfo);
 		if (ret != -1) {
 			if (ainfo.value < dev->abs_min_y + lzone) or_binds(binds, KEY_UP, result);
@@ -342,6 +356,24 @@ static int in_evdev_update(void *drv_data, const int *binds, int *result)
 		}
 	}
 
+	return 0;
+}
+
+static int in_evdev_update_analog(void *drv_data, int axis_id, int *result)
+{
+	struct input_absinfo ainfo;
+	in_evdev_t *dev = drv_data;
+	int ret;
+
+	if ((unsigned int)axis_id >= MAX_ABS_DEVS)
+		return -1;
+
+	ret = ioctl(dev->fd, EVIOCGABS(axis_id), &ainfo);
+	if (ret != 0)
+		return ret;
+
+	*result = (ainfo.value + dev->abs_adj[axis_id]) * dev->abs_mult[axis_id];
+	*result >>= 16;
 	return 0;
 }
 
@@ -372,6 +404,21 @@ static int in_evdev_set_blocking(in_evdev_t *dev, int y)
 	ret = fcntl(dev->fd, F_SETFL, flags);
 	if (ret == -1) {
 		perror("in_evdev: F_SETFL fcntl failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int in_evdev_get_config(void *drv_data, int what, int *val)
+{
+	in_evdev_t *dev = drv_data;
+
+	switch (what) {
+	case IN_CFG_ABS_AXIS_COUNT:
+		*val = dev->abs_count;
+		break;
+	default:
 		return -1;
 	}
 
@@ -430,7 +477,7 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 		ret_down = ev.value;
 		goto out;
 	}
-	else if (ev.type == EV_ABS)
+	else if (ev.type == EV_ABS && dev->abs_to_digital)
 	{
 		int lzone = dev->abs_lzone, down = 0, *last;
 
@@ -565,11 +612,9 @@ static int in_evdev_clean_binds(void *drv_data, int *binds, int *def_binds)
 		// memset(keybits, 0xff, sizeof(keybits)); /* mark all as good */
 	}
 
-	if (dev->abs_lzone != 0) {
+	if (dev->abs_to_digital && dev->abs_lzone != 0) {
 		KEYBITS_BIT_SET(KEY_LEFT);
 		KEYBITS_BIT_SET(KEY_RIGHT);
-	}
-	if (dev->abs_lzone != 0) {
 		KEYBITS_BIT_SET(KEY_UP);
 		KEYBITS_BIT_SET(KEY_DOWN);
 	}
@@ -594,8 +639,10 @@ static const in_drv_t in_evdev_drv = {
 	.get_key_names  = in_evdev_get_key_names,
 	.get_def_binds  = in_evdev_get_def_binds,
 	.clean_binds    = in_evdev_clean_binds,
+	.get_config     = in_evdev_get_config,
 	.set_config     = in_evdev_set_config,
 	.update         = in_evdev_update,
+	.update_analog  = in_evdev_update_analog,
 	.update_keycode = in_evdev_update_keycode,
 	.menu_translate = in_evdev_menu_translate,
 };

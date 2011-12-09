@@ -277,6 +277,24 @@ int in_update(int *result)
 	return ret;
 }
 
+static in_dev_t *get_dev(int dev_id)
+{
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+		return NULL;
+
+	return &in_devices[dev_id];
+}
+
+int in_update_analog(int dev_id, int axis_id, int *result)
+{
+	in_dev_t *dev = get_dev(dev_id);
+
+	if (dev == NULL || !dev->probed)
+		return -1;
+
+	return DRV(dev->drv_id).update_analog(dev->drv_data, axis_id, result);
+}
+
 static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
 	int i, is_down, result;
@@ -453,18 +471,18 @@ int in_menu_wait(int interesting, int autorep_delay_ms)
 
 const int *in_get_dev_binds(int dev_id)
 {
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
-		return NULL;
+	in_dev_t *dev = get_dev(dev_id);
 
-	return in_devices[dev_id].binds;
+	return dev ? dev->binds : NULL;
 }
 
 const int *in_get_dev_def_binds(int dev_id)
 {
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	in_dev_t *dev = get_dev(dev_id);
+	if (dev == NULL)
 		return NULL;
 
-	return in_devices[dev_id].binds + in_devices[dev_id].key_count * IN_BINDTYPE_COUNT;
+	return dev->binds + dev->key_count * IN_BINDTYPE_COUNT;
 }
 
 int in_get_config(int dev_id, int what, void *val)
@@ -472,10 +490,10 @@ int in_get_config(int dev_id, int what, void *val)
 	int *ival = val;
 	in_dev_t *dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || val == NULL)
+	dev = get_dev(dev_id);
+	if (dev == NULL || val == NULL)
 		return -1;
 
-	dev = &in_devices[dev_id];
 	switch (what) {
 	case IN_CFG_BIND_COUNT:
 		*ival = dev->key_count;
@@ -524,10 +542,10 @@ int in_set_config(int dev_id, int what, const void *val, int size)
 	if (what == IN_CFG_BLOCKING)
 		return in_set_blocking(*ival);
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	dev = get_dev(dev_id);
+	if (dev == NULL)
 		return -1;
 
-	dev = &in_devices[dev_id];
 	if (what == IN_CFG_KEY_NAMES) {
 		const char * const *names = val;
 		int count = size / sizeof(names[0]);
@@ -550,14 +568,16 @@ int in_set_config(int dev_id, int what, const void *val, int size)
 const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
 {
 	const char *name, *tmp;
+	in_dev_t *dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	dev = get_dev(dev_id);
+	if (dev == NULL)
 		return NULL;
 
-	if (must_be_active && !in_devices[dev_id].probed)
+	if (must_be_active && !dev->probed)
 		return NULL;
 
-	name = in_devices[dev_id].name;
+	name = dev->name;
 	if (name == NULL || !skip_pfix)
 		return name;
 
@@ -596,10 +616,10 @@ const char *in_get_key_name(int dev_id, int keycode)
 	if (dev_id < 0)		/* want last used dev? */
 		dev_id = menu_last_used_dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	dev = get_dev(dev_id);
+	if (dev == NULL)
 		return "Unkn0";
 
-	dev = &in_devices[dev_id];
 	drv = &DRV(dev->drv_id);
 	if (keycode < 0)	/* want name for menu key? */
 		keycode = drv->menu_translate(dev->drv_data, keycode);
@@ -631,10 +651,10 @@ int in_get_key_code(int dev_id, const char *key_name)
 	if (dev_id < 0)		/* want last used dev? */
 		dev_id = menu_last_used_dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	dev = get_dev(dev_id);
+	if (dev == NULL)
 		return -1;
 
-	dev = &in_devices[dev_id];
 	if (dev->key_names == NULL)
 		return -1;
 
@@ -650,10 +670,10 @@ int in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbi
 	int ret, count;
 	in_dev_t *dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
+	dev = get_dev(dev_id);
+	if (dev == NULL || bind_type >= IN_BINDTYPE_COUNT)
 		return -1;
 
-	dev = &in_devices[dev_id];
 	count = dev->key_count;
 
 	if (dev->binds == NULL) {
@@ -774,9 +794,9 @@ int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 	in_dev_t *dev;
 	int i, offs, kc;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
+	dev = get_dev(dev_id);
+	if (dev == NULL || bind_type >= IN_BINDTYPE_COUNT)
 		return -1;
-	dev = &in_devices[dev_id];
 
 	/* maybe a raw code? */
 	if (key[0] == '\\' && key[1] == 'x') {
@@ -875,6 +895,7 @@ static void in_def_get_def_binds(int *binds) {}
 static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 1; }
 static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
 static int  in_def_set_config(void *drv_data, int what, int val) { return -1; }
+static int  in_def_update_analog(void *drv_data, int axis_id, int *result) { return -1; }
 static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
 static int  in_def_menu_translate(void *drv_data, int keycode) { return 0; }
 static int  in_def_get_key_code(const char *key_name) { return -1; }
@@ -902,6 +923,7 @@ int in_register_driver(const in_drv_t *drv)
 	CHECK_ADD_STUB(new_drivers[in_driver_count], clean_binds);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], get_config);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], set_config);
+	CHECK_ADD_STUB(new_drivers[in_driver_count], update_analog);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], update_keycode);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], menu_translate);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], get_key_code);

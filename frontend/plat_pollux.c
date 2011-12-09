@@ -629,10 +629,6 @@ void plat_finish(void)
 	close(memdev);
 }
 
-void in_update_analogs(void)
-{
-}
-
 /* Caanoo stuff, perhaps move later */
 #include <linux/input.h>
 
