@@ -262,3 +262,6 @@ void plat_step_volume(int is_up)
 {
 }
 
+void plat_trigger_vibrate(void)
+{
+}

@@ -24,3 +24,7 @@ extern long (*PAD2_readPort2)(PadDataS *pad);
 #define GUNIN_BTNB	(1<<2)
 #define GUNIN_TRIGGER2	(1<<3)	/* offscreen trigger */
 extern void pl_update_gun(int *xn, int *xres, int *y, int *in);
+
+/* vibration trigger to frontend */
+extern int in_enable_vibration;
+extern void plat_trigger_vibrate(void);

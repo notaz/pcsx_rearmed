@@ -58,6 +58,7 @@ typedef enum
 	MA_CTRL_DEV_NEXT,
 	MA_CTRL_NUBS_BTNS,
 	MA_CTRL_DEADZONE,
+	MA_CTRL_VIBRATION,
 	MA_CTRL_DONE,
 	MA_OPT_SAVECFG,
 	MA_OPT_SAVECFG_GAME,
@@ -269,6 +270,7 @@ static const struct {
 	CE_INTVAL(volume_boost),
 	CE_INTVAL(psx_clock),
 	CE_INTVAL(new_dynarec_hacks),
+	CE_INTVAL(in_enable_vibration),
 };
 
 static char *get_cd_label(void)
@@ -973,7 +975,8 @@ static const char *men_in_type_sel[] = {
 	NULL
 };
 static const char h_nub_btns[] = "Experimental, keep this OFF if unsure. Select rescan after change.";
-static const char h_notsgun[] =  "Don't trigger (shoot) when touching screen in gun games.";
+static const char h_notsgun[]  = "Don't trigger (shoot) when touching screen in gun games.";
+static const char h_vibration[]= "Must select analog above and enable this ingame too.";
 
 static menu_entry e_menu_keyconfig[] =
 {
@@ -984,6 +987,7 @@ static menu_entry e_menu_keyconfig[] =
 	mee_enum      ("Port 1 device",     0, in_type_sel1,    men_in_type_sel),
 	mee_enum      ("Port 2 device",     0, in_type_sel2,    men_in_type_sel),
 	mee_onoff_h   ("Nubs as buttons",   MA_CTRL_NUBS_BTNS,  in_evdev_allow_abs_only, 1, h_nub_btns),
+	mee_onoff_h   ("Vibration",         MA_CTRL_VIBRATION,  in_enable_vibration, 1, h_vibration),
 	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   analog_deadzone, 1, 99),
 	mee_onoff_h   ("No TS Gun trigger", 0, g_opts, OPT_TSGUN_NOTRIGGER, h_notsgun),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG,      mh_savecfg, mgn_saveloadcfg),
@@ -2044,6 +2048,7 @@ void menu_init(void)
 	me_enable(e_menu_options, MA_OPT_DISP_OPTS, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
 #else
+	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 #endif
 }

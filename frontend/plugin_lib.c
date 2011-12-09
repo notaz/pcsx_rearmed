@@ -33,6 +33,7 @@
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate, in_state_gun;
+int in_enable_vibration;
 int pl_flip_cnt;
 void *tsdev;
 void *pl_vout_buf;

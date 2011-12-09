@@ -71,3 +71,7 @@ int plat_get_bat_capacity(void)
 void plat_step_volume(int is_up)
 {
 }
+
+void plat_trigger_vibrate(void)
+{
+}

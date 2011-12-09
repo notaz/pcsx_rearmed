@@ -672,6 +672,97 @@ static const char * const caanoo_keys[KEY_MAX + 1] = {
 	[BTN_BASE5]     = "Push",
 };
 
+struct haptic_data {
+	int count;
+	struct {
+		short time, strength;
+	} actions[120];
+};
+
+#define HAPTIC_IOCTL_MAGIC	'I'
+#define HAPTIC_PLAY_PATTERN	_IOW(HAPTIC_IOCTL_MAGIC, 4, struct haptic_data)
+#define HAPTIC_INDIVIDUAL_MODE	_IOW(HAPTIC_IOCTL_MAGIC, 5, unsigned int)
+#define HAPTIC_SET_VIB_LEVEL	_IOW(HAPTIC_IOCTL_MAGIC, 9, unsigned int)
+
+static int hapticdev = -1;
+static struct haptic_data haptic_seq;
+
+static int haptic_init(void)
+{
+	int i, ret, v1, v2;
+	char buf[128], *p;
+	FILE *f;
+
+	f = fopen("haptic.txt", "r");
+	if (f == NULL) {
+		perror("fopen(haptic.txt)");
+		return -1;
+	}
+
+	for (i = 0; i < sizeof(haptic_seq.actions) / sizeof(haptic_seq.actions[0]); ) {
+		p = fgets(buf, sizeof(buf), f);
+		if (p == NULL)
+			break;
+		while (*p != 0 && *p == ' ')
+			p++;
+		if (*p == 0 || *p == ';' || *p == '#')
+			continue;
+
+		ret = sscanf(buf, "%d %d", &v1, &v2);
+		if (ret != 2) {
+			fprintf(stderr, "can't parse: %s", buf);
+			continue;
+		}
+
+		haptic_seq.actions[i].time = v1;
+		haptic_seq.actions[i].strength = v2;
+		i++;
+	}
+	fclose(f);
+
+	if (i == 0) {
+		fprintf(stderr, "bad haptic.txt\n");
+		return -1;
+	}
+	haptic_seq.count = i;
+
+	hapticdev = open("/dev/isa1200", O_RDWR | O_NONBLOCK);
+	if (hapticdev == -1) {
+		perror("open(/dev/isa1200)");
+		return -1;
+	}
+
+	i = 0;
+	ret  = ioctl(hapticdev, HAPTIC_INDIVIDUAL_MODE, &i);	/* use 2 of them */
+	i = 3;
+	ret |= ioctl(hapticdev, HAPTIC_SET_VIB_LEVEL, &i);	/* max */
+	if (ret != 0) {
+		fprintf(stderr, "haptic ioctls failed\n");
+		close(hapticdev);
+		hapticdev = -1;
+		return -1;
+	}
+
+	return 0;
+}
+
+void plat_trigger_vibrate(void)
+{
+	int ret;
+
+	if (hapticdev == -2)
+		return; // it's broken
+	if (hapticdev < 0) {
+		ret = haptic_init();
+		if (ret < 0) {
+			hapticdev = -2;
+			return;
+		}
+	}
+
+	ioctl(hapticdev, HAPTIC_PLAY_PATTERN, &haptic_seq);
+}
+
 /* Wiz stuff */
 struct in_default_bind in_gp2x_defbinds[] =
 {

@@ -120,6 +120,10 @@ void plat_step_volume(int is_up)
 {
 }
 
+void plat_trigger_vibrate(void)
+{
+}
+
 void plat_init(void)
 {
 	const char *main_fb_name, *layer_fb_name;

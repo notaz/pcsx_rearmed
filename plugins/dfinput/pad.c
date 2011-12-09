@@ -203,6 +203,11 @@ static void do_cmd2(unsigned char value)
 					break;
 			}
 			break;
+
+		case CMD_READ_DATA_AND_VIBRATE:
+			if (value == 1 && CurPad == 0 && in_enable_vibration)
+				plat_trigger_vibrate();
+			break;
 	}
 }
 
