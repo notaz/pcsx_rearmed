@@ -9,8 +9,15 @@ CFLAGS += -fno-strict-aliasing
 
 SRC += gpu.c
 ifeq "$(ARCH)" "arm"
+ARM_CORTEXA8 ?= 1
+ifeq "$(ARM_CORTEXA8)" "1"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-SRC += vout_fb.c ../../frontend/cspace_neon.s
+SRC += ../../frontend/cspace_neon.s
+else
+CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
+SRC += ../../frontend/cspace.c
+endif
+SRC += vout_fb.c
 EXT = so
 endif
 ifeq "$(ARCH)" "x86_64"
@@ -20,7 +27,12 @@ SRC += vout_sdl.c
 EXT = so.x86
 endif
 
-TARGETS = gpu_neon.$(EXT) gpu_peops.$(EXT) gpu_unai.$(EXT)
+HAVE_NEON = $(shell $(CC_) -E -dD $(CFLAGS) gpu.h | grep -q '__ARM_NEON__ 1' && echo 1)
+
+TARGETS = gpu_peops.$(EXT) gpu_unai.$(EXT)
+ifeq "$(HAVE_NEON)" "1"
+TARGETS += gpu_neon.$(EXT)
+endif
 
 gpu_neon.$(EXT): SRC += psx_gpu_if.c
 gpu_neon.$(EXT): CFLAGS += -fno-strict-aliasing

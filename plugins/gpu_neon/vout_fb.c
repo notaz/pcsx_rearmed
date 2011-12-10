@@ -25,10 +25,23 @@ int vout_finish(void)
   return 0;
 }
 
-static void blit(void)
+static void check_mode_change(void)
 {
   static uint32_t old_status;
   static int old_h;
+
+  // width|rgb24 change?
+  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || gpu.screen.h != old_h)
+  {
+    old_status = gpu.status.reg;
+    old_h = gpu.screen.h;
+    screen_buf = cbs->pl_vout_set_mode(gpu.screen.hres,
+                                       gpu.screen.h, gpu.status.rgb24 ? 24 : 16);
+  }
+}
+
+static void blit(void)
+{
   int x = gpu.screen.x & ~1; // alignment needed by blitter
   int y = gpu.screen.y;
   int w = gpu.screen.w;
@@ -39,14 +52,6 @@ static void blit(void)
   uint8_t *dest;
 
   fb_offs = y * 1024 + x;
-
-  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h) // width|rgb24 change?
-  {
-    old_status = gpu.status.reg;
-    old_h = h;
-    screen_buf = cbs->pl_vout_set_mode(stride, h, gpu.status.rgb24 ? 24 : 16);
-  }
-
   dest = (uint8_t *)screen_buf;
 
   // only do centering, at least for now
@@ -97,7 +102,11 @@ void GPUupdateLace(void)
   }
 
   renderer_flush_queues();
-  blit();
+  check_mode_change();
+  if (cbs->pl_vout_raw_flip)
+    cbs->pl_vout_raw_flip(gpu.screen.x, gpu.screen.y);
+  else
+    blit();
   gpu.state.fb_dirty = 0;
 }
 

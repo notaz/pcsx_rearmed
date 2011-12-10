@@ -24,7 +24,7 @@
 //#define log_anomaly gpu_log
 #define log_anomaly(...)
 
-struct psx_gpu gpu __attribute__((aligned(64)));
+struct psx_gpu gpu __attribute__((aligned(2048)));
 
 static noinline void do_reset(void)
 {
