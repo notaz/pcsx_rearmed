@@ -59,12 +59,30 @@ static noinline void update_height(void)
 
 static noinline void decide_frameskip(void)
 {
-  gpu.frameskip.frame_ready = !gpu.frameskip.active;
+  if (gpu.frameskip.active)
+    gpu.frameskip.cnt++;
+  else {
+    gpu.frameskip.cnt = 0;
+    gpu.frameskip.frame_ready = 1;
+  }
 
-  if (!gpu.frameskip.active && (*gpu.frameskip.advice || gpu.frameskip.set == 1))
+  if (!gpu.frameskip.active && *gpu.frameskip.advice)
+    gpu.frameskip.active = 1;
+  else if (gpu.frameskip.set > 0 && gpu.frameskip.cnt < gpu.frameskip.set)
     gpu.frameskip.active = 1;
   else
     gpu.frameskip.active = 0;
+}
+
+static noinline void decide_frameskip_allow(uint32_t cmd_e3)
+{
+  // no frameskip if it decides to draw to display area,
+  // but not for interlace since it'll most likely always do that
+  uint32_t x = cmd_e3 & 0x3ff;
+  uint32_t y = (cmd_e3 >> 10) & 0x3ff;
+  gpu.frameskip.allow = gpu.status.interlace ||
+    (uint32_t)(x - gpu.screen.x) >= (uint32_t)gpu.screen.w ||
+    (uint32_t)(y - gpu.screen.y) >= (uint32_t)gpu.screen.h;
 }
 
 static noinline void get_gpu_info(uint32_t data)
@@ -132,9 +150,12 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       gpu.screen.x = data & 0x3ff;
       gpu.screen.y = (data >> 10) & 0x3ff;
-      if (gpu.frameskip.set && gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
-        decide_frameskip();
-        gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
+      if (gpu.frameskip.set) {
+        decide_frameskip_allow(gpu.ex_regs[3]);
+        if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
+          decide_frameskip();
+          gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
+        }
       }
       break;
     case 0x06:
@@ -294,15 +315,8 @@ static int check_cmd(uint32_t *data, int count)
         gpu.ex_regs[1] |= list[5] & 0x1ff;
       }
       else if (cmd == 0xe3)
-      {
-        // no frameskip if it decides to draw to display area,
-        // but not for interlace since it'll most likely always do that
-        uint32_t x = list[0] & 0x3ff;
-        uint32_t y = (list[0] >> 10) & 0x3ff;
-        gpu.frameskip.allow = gpu.status.interlace ||
-          (uint32_t)(x - gpu.screen.x) >= (uint32_t)gpu.screen.w ||
-          (uint32_t)(y - gpu.screen.y) >= (uint32_t)gpu.screen.h;
-      }
+        decide_frameskip_allow(list[0]);
+
       if (2 <= cmd && cmd < 0xc0)
         vram_dirty = 1;
       else if ((cmd & 0xf8) == 0xe0)

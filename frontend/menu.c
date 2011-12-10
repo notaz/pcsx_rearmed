@@ -255,7 +255,7 @@ static const struct {
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
 	CE_INTVAL(analog_deadzone),
-	CE_INTVAL_V(frameskip, 2),
+	CE_INTVAL_V(frameskip, 3),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.abe_hack),
@@ -1348,7 +1348,7 @@ static int mh_restore_defaults(int id, int keys)
 }
 
 static const char *men_region[]       = { "Auto", "NTSC", "PAL", NULL };
-static const char *men_frameskip[]    = { "Auto", "Off", "1", NULL };
+static const char *men_frameskip[]    = { "Auto", "Off", "1", "2", "3", NULL };
 /*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"

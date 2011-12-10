@@ -74,7 +74,8 @@ struct psx_gpu {
     } last_list;
   } state;
   struct {
-    int32_t set:3; /* -1 auto, 0 off, 1 fixed */
+    int32_t set:3; /* -1 auto, 0 off, 1-3 fixed */
+    int32_t cnt:3; /* amount skipped in a row */
     uint32_t active:1;
     uint32_t allow:1;
     uint32_t frame_ready:1;
