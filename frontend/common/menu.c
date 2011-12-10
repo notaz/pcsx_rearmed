@@ -482,7 +482,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	for (ent = entries; ent->name; ent++)
 	{
 		const char **names;
-		int len;
+		int len, leftname_end = 0;
 
 		if (!ent->enabled)
 			continue;
@@ -492,8 +492,10 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 			if (ent->generate_name)
 				name = ent->generate_name(ent->id, &offs);
 		}
-		if (name != NULL)
+		if (name != NULL) {
 			text_out16(x, y, name);
+			leftname_end = x + (strlen(name) + 1) * me_mfont_w;
+		}
 
 		switch (ent->beh) {
 		case MB_NONE:
@@ -516,13 +518,15 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 			break;
 		case MB_OPT_ENUM:
 			names = (const char **)ent->data;
-			offs = 0;
 			for (i = 0; names[i] != NULL; i++) {
+				offs = x + col2_offs;
 				len = strlen(names[i]);
 				if (len > 10)
-					offs = 10 - len - 2;
+					offs += (10 - len - 2) * me_mfont_w;
+				if (offs < leftname_end)
+					offs = leftname_end;
 				if (i == *(unsigned char *)ent->var) {
-					text_out16(x + col2_offs + offs * me_mfont_w, y, "%s", names[i]);
+					text_out16(offs, y, "%s", names[i]);
 					break;
 				}
 			}
