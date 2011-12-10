@@ -4492,8 +4492,8 @@ static void c2op_assemble(int i,struct regstat *i_regs)
   if (gte_handlers[c2op]!=NULL) {
     need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
     need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
-    assem_debug("gte unneeded %016llx, need_flags %d, need_ir %d\n",
-      gte_unneeded[i+1],need_flags,need_ir);
+    assem_debug("gte op %08x, unneeded %016llx, need_flags %d, need_ir %d\n",
+      source[i],gte_unneeded[i+1],need_flags,need_ir);
     if(new_dynarec_hacks&NDHACK_GTE_NO_FLAGS)
       need_flags=0;
     int shift = (source[i] >> 19) & 1;
