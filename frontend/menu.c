@@ -13,6 +13,9 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <zlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "main.h"
 #include "menu.h"
@@ -33,6 +36,8 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/main.h"
 #include "revision.h"
+
+#define REARMED_BIRTHDAY_TIME 1293306830	/* 25 Dec 2010 */
 
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
 
@@ -124,10 +129,30 @@ void emu_make_path(char *buff, const char *end, int size)
 		printf("Warning: path truncated: %s\n", buff);
 }
 
-static int emu_check_save_file(int slot)
+static int emu_check_save_file(int slot, int *time)
 {
-	int ret = emu_check_state(slot);
-	return ret == 0 ? 1 : 0;
+	char fname[MAXPATHLEN];
+	struct stat status;
+	int ret;
+	
+	ret = emu_check_state(slot);
+	if (ret != 0 || time == NULL)
+		return ret == 0 ? 1 : 0;
+
+	ret = get_state_filename(fname, sizeof(fname), slot);
+	if (ret != 0)
+		return 1;
+
+	ret = stat(fname, &status);
+	if (ret != 0)
+		return 1;
+
+	if (status.st_mtime < REARMED_BIRTHDAY_TIME)
+		return 1; // probably bad rtc like on some Caanoos
+
+	*time = status.st_mtime;
+
+	return 1;
 }
 
 static int emu_save_load_game(int load, int unused)

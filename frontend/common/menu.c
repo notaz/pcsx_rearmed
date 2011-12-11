@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "menu.h"
 #include "fonts.h"
@@ -965,7 +966,10 @@ rescan:
 
 // ------------ savestate loader ------------
 
+#define STATE_SLOT_COUNT 10
+
 static int state_slot_flags = 0;
+static int state_slot_times[STATE_SLOT_COUNT];
 
 static void state_check_slots(void)
 {
@@ -973,8 +977,9 @@ static void state_check_slots(void)
 
 	state_slot_flags = 0;
 
-	for (slot = 0; slot < 10; slot++) {
-		if (emu_check_save_file(slot))
+	for (slot = 0; slot < STATE_SLOT_COUNT; slot++) {
+		state_slot_times[slot] = 0;
+		if (emu_check_save_file(slot, &state_slot_times[slot]))
 			state_slot_flags |= 1 << slot;
 	}
 }
@@ -984,12 +989,13 @@ static void draw_savestate_bg(int slot);
 static void draw_savestate_menu(int menu_sel, int is_loading)
 {
 	int i, x, y, w, h;
+	char time_buf[32];
 
 	if (state_slot_flags & (1 << menu_sel))
 		draw_savestate_bg(menu_sel);
 
 	w = (13 + 2) * me_mfont_w;
-	h = (1+2+10+1) * me_mfont_h;
+	h = (1+2+STATE_SLOT_COUNT+1) * me_mfont_h;
 	x = g_menuscreen_w / 2 - w / 2;
 	if (x < 0) x = 0;
 	y = g_menuscreen_h / 2 - h / 2;
@@ -1004,12 +1010,23 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	text_out16(x, y, is_loading ? "Load state" : "Save state");
 	y += 3 * me_mfont_h;
 
-	menu_draw_selection(x - me_mfont_w * 2, y + menu_sel * me_mfont_h, (13 + 2) * me_mfont_w + 4);
+	menu_draw_selection(x - me_mfont_w * 2, y + menu_sel * me_mfont_h, (23 + 2) * me_mfont_w + 4);
 
-	/* draw all 10 slots */
-	for (i = 0; i < 10; i++, y += me_mfont_h)
+	/* draw all slots */
+	for (i = 0; i < STATE_SLOT_COUNT; i++, y += me_mfont_h)
 	{
-		text_out16(x, y, "SLOT %i (%s)", i, (state_slot_flags & (1 << i)) ? "USED" : "free");
+		if (!(state_slot_flags & (1 << i)))
+			strcpy(time_buf, "free");
+		else {
+			strcpy(time_buf, "USED");
+			if (state_slot_times[i] != 0) {
+				time_t time = state_slot_times[i];
+				struct tm *t = localtime(&time);
+				strftime(time_buf, sizeof(time_buf), "%x %R", t);
+			}
+		}
+
+		text_out16(x, y, "SLOT %i (%s)", i, time_buf);
 	}
 	text_out16(x, y, "back");
 
@@ -1018,8 +1035,8 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 
 static int menu_loop_savestate(int is_loading)
 {
-	static int menu_sel = 10;
-	int menu_sel_max = 10;
+	static int menu_sel = STATE_SLOT_COUNT;
+	int menu_sel_max = STATE_SLOT_COUNT;
 	unsigned long inp = 0;
 	int ret = 0;
 
@@ -1047,7 +1064,7 @@ static int menu_loop_savestate(int is_loading)
 			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
 		}
 		if (inp & PBTN_MOK) { // save/load
-			if (menu_sel < 10) {
+			if (menu_sel < STATE_SLOT_COUNT) {
 				state_slot = menu_sel;
 				if (emu_save_load_game(is_loading, 0)) {
 					me_update_msg(is_loading ? "Load failed" : "Save failed");
