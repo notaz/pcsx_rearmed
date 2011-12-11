@@ -360,9 +360,9 @@ int main(int argc, char *argv[])
 	in_init();
 	in_evdev_init();
 	//in_probe();
+	pl_init();
 	plat_init();
 	menu_init(); // loads config
-	pl_init();
 
 	if (psxout)
 		Config.PsxOut = 1;

@@ -174,13 +174,13 @@ frontend/revision.h: FORCE
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
-PLUGINS ?= plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so \
-	plugins/gpu-gles/gpuGLES.so plugins/gpu_neon/gpu_neon.so
+PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpuGLES.so \
+	plugins/gpu_neon/gpu_unai.so plugins/gpu_neon/gpu_peops.so
 
 $(PLUGINS):
 	make -C $(dir $@)
 
-clean:
+clean: $(PLAT_CLEAN)
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map
 
 clean_plugins:
@@ -202,5 +202,6 @@ rel: pcsx $(PLUGINS) \
 	sed -e 's/%PR%/$(VER)/g' out/pcsx.pxml.templ > out/pcsx.pxml
 	rm out/pcsx.pxml.templ
 	mv out/*.so out/plugins/
-	mv out/plugins/gpu_neon.so out/plugins/gpuPEOPS2.so
+	mv out/plugins/gpu_unai.so out/plugins/gpuPCSX4ALL.so
+	mv out/plugins/gpu_peops.so out/plugins/gpuPEOPS.so
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c

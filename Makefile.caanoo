@@ -3,9 +3,14 @@ export ARM_CORTEXA8=0
 # caanoo also covers Wiz
 PLATFORM=caanoo
 
+PLAT_CLEAN = caanoo_clean
+
 include Makefile
 
-PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpuPCSX4ALL.so
+caanoo_clean:
+	$(RM) frontend/320240/pollux_set
+
+PLUGINS = plugins/spunull/spunull.so plugins/gpu_neon/gpu_unai.so
 
 # ----------- release -----------
 
@@ -13,10 +18,12 @@ rel_caanoo: pcsx $(PLUGINS) \
 		frontend/320240/caanoo.gpe frontend/320240/pcsx26.png \
 		frontend/320240/pcsxb.png frontend/320240/skin \
 		frontend/warm/bin/warm_2.6.24.ko frontend/320240/pollux_set \
-		frontend/320240/pcsx_rearmed.ini readme.txt COPYING
+		frontend/320240/pcsx_rearmed.ini frontend/320240/haptic.txt \
+		readme.txt COPYING
 	rm -rf out
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
+	mv out/pcsx_rearmed/gpu_unai.so out/pcsx_rearmed/gpuPCSX4ALL.so
 	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
 	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
