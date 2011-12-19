@@ -4,7 +4,7 @@ CC_ = $(CROSS_COMPILE)gcc
 
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
-CFLAGS += -ggdb -Wall
+CFLAGS += -ggdb -Wall -DTEST
 CFLAGS += -O2
 ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp

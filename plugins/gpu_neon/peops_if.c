@@ -304,7 +304,6 @@ void do_cmd_list(unsigned int *list, int list_len)
 
   for (; list < list_end; list += 1 + len)
   {
-    short *slist = (void *)list;
     cmd = *list >> 24;
     len = cmd_lengths[cmd];
 
@@ -352,8 +351,10 @@ void do_cmd_list(unsigned int *list, int list_len)
         break;
       }
 
+#ifdef TEST
       case 0xA0:          //  sys -> vid
       {
+        short *slist = (void *)list;
         u32 load_width = slist[4];
         u32 load_height = slist[5];
         u32 load_size = load_width * load_height;
@@ -361,6 +362,7 @@ void do_cmd_list(unsigned int *list, int list_len)
         len += load_size / 2;
         break;
       }
+#endif
     }
   }
 }

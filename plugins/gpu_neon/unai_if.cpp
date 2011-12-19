@@ -231,6 +231,18 @@ void do_cmd_list(unsigned int *list, int list_len)
         break;
       }
 
+#ifdef TEST
+      case 0xA0:          //  sys -> vid
+      {
+        u32 load_width = list[2] & 0xffff;
+        u32 load_height = list[2] >> 16;
+        u32 load_size = load_width * load_height;
+
+        len += load_size / 2;
+        break;
+      }
+#endif
+
       default:
         unai_do_prim(cmd, list, len + 1);
         break;
@@ -256,6 +268,8 @@ void renderer_flush_queues(void)
 {
 }
 
+#ifndef TEST
+
 #include "../../frontend/plugin_lib.h"
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
@@ -264,3 +278,5 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   light = !cbs->gpu_unai.no_light;
   blend = !cbs->gpu_unai.no_blend;
 }
+
+#endif
