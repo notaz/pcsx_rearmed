@@ -373,7 +373,9 @@ void gpuSendPacketFunction(const int PRIM)
 			break;
 		case 0xA0:          //  sys ->vid
 			gpuLoadImage();   //  prim handles updateLace && skip
+#ifndef isSkip // not a define
 			if (alt_fps) isSkip=false;
+#endif
 			DO_LOG(("gpuLoadImage(0x%x)\n",PRIM));
 			break;
 		case 0xC0:          //  vid -> sys

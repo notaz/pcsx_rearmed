@@ -39,10 +39,10 @@
 #define	FRAME_HEIGHT       512
 #define	FRAME_OFFSET(x,y)  (((y)<<10)+(x))
 
-static bool isSkip = false; /* skip frame (info coming from GPU) */
-static int linesInterlace = 0;  /* internal lines interlace */
-
+#define isSkip 0 /* skip frame (info coming from GPU) */
 #define alt_fps 0
+static int linesInterlace;  /* internal lines interlace */
+static int force_interlace;
 
 static bool light = true; /* lighting */
 static bool blend = true; /* blending */
@@ -165,8 +165,12 @@ extern const unsigned char cmd_lengths[256];
 void do_cmd_list(unsigned int *list, int list_len)
 {
   unsigned int cmd, len;
-
   unsigned int *list_end = list + list_len;
+
+  linesInterlace = force_interlace;
+#ifndef __ARM_ARCH_7A__ /* XXX */
+  linesInterlace |= gpu.status.interlace;
+#endif
 
   for (; list < list_end; list += 1 + len)
   {
@@ -274,6 +278,7 @@ void renderer_flush_queues(void)
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
+  force_interlace = cbs->gpu_unai.lineskip;
   enableAbbeyHack = cbs->gpu_unai.abe_hack;
   light = !cbs->gpu_unai.no_light;
   blend = !cbs->gpu_unai.no_blend;

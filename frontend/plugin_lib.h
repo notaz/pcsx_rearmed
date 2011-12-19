@@ -59,6 +59,7 @@ struct rearmed_cbs {
 	struct {
 		int   abe_hack;
 		int   no_light, no_blend;
+		int   lineskip;
 	} gpu_unai;
 };
 
