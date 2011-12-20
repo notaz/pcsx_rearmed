@@ -125,7 +125,7 @@ void update_screen(psx_gpu_struct *psx_gpu, SDL_Surface *screen)
   SDL_Flip(screen);
 }
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
 
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
   
   initialize_psx_gpu(psx_gpu, _vram);
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
   system("ofbset -fb /dev/fb1 -mem 6291456 -en 0");
   u32 fbdev_handle = open("/dev/fb1", O_RDWR);
   psx_gpu->vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 
 
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
   //triangle_benchmark(psx_gpu);
   //return 0;
 #endif
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 
   clear_stats();
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
   init_counter();
 #endif
 
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 
   clear_stats();
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
   u32 cycles = get_counter();
 #endif
 
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
   flush_render_block_buffer(psx_gpu);
 
   printf("%s: ", argv[1]);
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
   u32 cycles_elapsed = get_counter() - cycles;
 
   printf("%d\n", cycles_elapsed);

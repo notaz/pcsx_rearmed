@@ -91,7 +91,7 @@ struct render_block_handler_struct
   blend_blocks_function_type *blend_blocks; 
 };
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 u32 fixed_reciprocal(u32 denominator, u32 *_shift)
 {
@@ -252,7 +252,7 @@ u32 invalidate_texture_cache_region_viewport(psx_gpu_struct *psx_gpu, u32 x1,
 void update_texture_8bpp_cache_slice(psx_gpu_struct *psx_gpu,
  u32 texture_page);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 void update_texture_4bpp_cache(psx_gpu_struct *psx_gpu)
 {
@@ -424,7 +424,7 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
  vertex_struct *b, vertex_struct *c);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 #define setup_gradient_calculation_input(set, vertex)                          \
   /* First type is:  uvrg bxxx xxxx                                          */\
@@ -1110,7 +1110,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c);
 
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 void setup_spans_up_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c)
@@ -1848,7 +1848,7 @@ void setup_blocks_unshaded_textured_dithered_swizzled_indirect(psx_gpu_struct
 
 //setup_blocks_builder(unshaded, untextured, undithered, unswizzled, direct);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 setup_blocks_builder(shaded, textured, dithered, swizzled, indirect);
 setup_blocks_builder(shaded, textured, dithered, unswizzled, indirect);
@@ -1871,7 +1871,7 @@ void texture_blocks_4bpp(psx_gpu_struct *psx_gpu);
 void texture_blocks_8bpp(psx_gpu_struct *psx_gpu);
 void texture_blocks_16bpp(psx_gpu_struct *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 void texture_blocks_untextured(psx_gpu_struct *psx_gpu)
 {
@@ -2157,7 +2157,7 @@ void shade_blocks_unshaded_textured_modulated_dithered_indirect(psx_gpu_struct
 void shade_blocks_unshaded_textured_modulated_undithered_indirect(psx_gpu_struct
  *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 shade_blocks_textured_modulated_builder(shaded, dithered, direct);
 shade_blocks_textured_modulated_builder(shaded, undithered, direct);
@@ -2207,7 +2207,7 @@ void shade_blocks_textured_unmodulated_##target(psx_gpu_struct *psx_gpu)       \
 void shade_blocks_textured_unmodulated_indirect(psx_gpu_struct *psx_gpu);
 void shade_blocks_textured_unmodulated_direct(psx_gpu_struct *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 shade_blocks_textured_unmodulated_builder(indirect)
 shade_blocks_textured_unmodulated_builder(direct)
@@ -2218,7 +2218,7 @@ shade_blocks_textured_unmodulated_builder(direct)
 void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu);
 void shade_blocks_unshaded_untextured_direct(psx_gpu_struct *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
                                                                                 
 void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu)
 {
@@ -2452,7 +2452,7 @@ void blend_blocks_untextured_add_fourth_on(psx_gpu_struct *psx_gpu);
 void blend_blocks_textured_unblended_off(psx_gpu_struct *psx_gpu);
 void blend_blocks_textured_unblended_on(psx_gpu_struct *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 void blend_blocks_textured_unblended_off(psx_gpu_struct *psx_gpu)
 {
@@ -2950,7 +2950,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 
 void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 
 void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 {
@@ -3361,7 +3361,7 @@ void setup_sprite_8bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
 void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
  s32 width, s32 height, u32 color);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
 setup_sprite_tiled_builder(4bpp);
 setup_sprite_tiled_builder(8bpp);
 
@@ -4235,7 +4235,7 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
 {
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
-#ifndef PANDORA_BUILD
+#ifndef NEON_BUILD
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
   u32 b = (color >> 16) & 0xFF;
@@ -4384,7 +4384,7 @@ u64 get_us(void)
   return (tv.tv_sec * 1000000ULL) + tv.tv_usec;
 }
 
-#ifdef PANDORA_BUILD
+#ifdef NEON_BUILD
 
 u32 get_counter()
 {
