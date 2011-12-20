@@ -1,0 +1,352 @@
+/*
+ * Copyright (C) 2011 Gilead Kutnick "Exophase" <exophase@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "SDL.h"
+#include "common.h"
+
+extern u32 span_pixels;
+extern u32 span_pixel_blocks;
+extern u32 span_pixel_blocks_unaligned;
+extern u32 spans;
+extern u32 triangles;
+extern u32 sprites;
+extern u32 sprites_4bpp;
+extern u32 sprites_8bpp;
+extern u32 sprites_16bpp;
+extern u32 sprites_untextured;
+extern u32 sprite_blocks;
+extern u32 lines;
+extern u32 texels_4bpp;
+extern u32 texels_8bpp;
+extern u32 texels_16bpp;
+extern u32 texel_blocks_4bpp;
+extern u32 texel_blocks_8bpp;
+extern u32 texel_blocks_16bpp;
+extern u32 texel_blocks_untextured;
+extern u32 blend_blocks;
+extern u32 untextured_pixels;
+extern u32 blend_pixels;
+extern u32 transparent_pixels;
+extern u32 render_buffer_flushes;
+extern u32 state_changes;
+extern u32 trivial_rejects;
+extern u32 left_split_triangles;
+extern u32 flat_triangles;
+extern u32 clipped_triangles;
+extern u32 zero_block_spans;
+extern u32 texture_cache_loads;
+extern u32 false_modulated_triangles;
+extern u32 false_modulated_sprites;
+
+static u32 mismatches;
+
+typedef struct
+{
+	u16 vram[1024 * 512];
+	u32 gpu_register[15];
+	u32 status;
+} gpu_dump_struct;
+
+static gpu_dump_struct state;
+
+psx_gpu_struct __attribute__((aligned(256))) _psx_gpu;
+
+#define percent_of(numerator, denominator)                                     \
+  ((((double)(numerator)) / (denominator)) * 100.0)                            \
+
+void clear_stats(void)
+{
+  triangles = 0;
+  sprites = 0;
+  sprites_4bpp = 0;
+  sprites_8bpp = 0;
+  sprites_16bpp = 0;
+  sprites_untextured = 0;
+  sprite_blocks = 0;
+  lines = 0;
+  span_pixels = 0;
+  span_pixel_blocks = 0;
+  span_pixel_blocks_unaligned = 0;
+  spans = 0;
+  texels_4bpp = 0;
+  texels_8bpp = 0;
+  texels_16bpp = 0;
+  texel_blocks_untextured = 0;
+  texel_blocks_4bpp = 0;
+  texel_blocks_8bpp = 0;
+  texel_blocks_16bpp = 0;
+  blend_blocks = 0;
+  untextured_pixels = 0;
+  blend_pixels = 0;
+  transparent_pixels = 0;
+  render_buffer_flushes = 0;
+  state_changes = 0;
+  trivial_rejects = 0;
+  left_split_triangles = 0;
+  flat_triangles = 0;
+  clipped_triangles = 0;
+  zero_block_spans = 0;
+  texture_cache_loads = 0;
+  false_modulated_triangles = 0;
+  false_modulated_sprites = 0;
+}
+
+void update_screen(psx_gpu_struct *psx_gpu, SDL_Surface *screen)
+{
+  u32 x, y;
+
+  for(y = 0; y < 512; y++)
+  {
+    for(x = 0; x < 1024; x++)
+    {
+      u32 pixel = psx_gpu->vram_ptr[(y * 1024) + x];
+      ((u32 *)screen->pixels)[(y * 1024) + x] =
+       ((pixel & 0x1F) << (16 + 3)) |
+       (((pixel >> 5) & 0x1F) << (8 + 3)) |
+       (((pixel >> 10) & 0x1F) << 3);
+    }
+  }
+
+  SDL_Flip(screen);
+}
+
+#ifdef PANDORA_BUILD
+
+#include <fcntl.h>
+#include <linux/fb.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+  
+#endif
+
+int main(int argc, char *argv[])
+{
+  psx_gpu_struct *psx_gpu = &_psx_gpu;
+  SDL_Surface *screen;
+  SDL_Event event;
+
+  u32 *list;
+  int size;
+  FILE *state_file;
+  FILE *list_file;
+  u32 no_display = 0;
+
+  if((argc != 3) && (argc != 4))
+  {
+    printf("usage:\n%s <state> <list>\n", argv[0]);
+    return 1;
+  }
+
+  if((argc == 4) && !strcmp(argv[3], "-n"))
+    no_display = 1;
+  
+  state_file = fopen(argv[1], "rb");
+  fread(&state, 1, sizeof(gpu_dump_struct), state_file);
+  fclose(state_file);
+  
+  list_file = fopen(argv[2], "rb");
+  
+  fseek(list_file, 0, SEEK_END);
+  size = ftell(list_file);
+  fseek(list_file, 0, SEEK_SET);
+  //size = 0;
+  
+  list = malloc(size);
+  fread(list, 1, size, list_file);
+  fclose(list_file);
+ 
+  if(no_display == 0) 
+  {
+    SDL_Init(SDL_INIT_EVERYTHING);
+    screen = SDL_SetVideoMode(1024, 512, 32, 0);
+  }
+  
+  initialize_psx_gpu(psx_gpu);
+
+#ifdef PANDORA_BUILD
+  system("ofbset -fb /dev/fb1 -mem 6291456 -en 0");
+  u32 fbdev_handle = open("/dev/fb1", O_RDWR);
+  psx_gpu->vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
+   MAP_SHARED | 0xA0000000, fbdev_handle, 0));
+  psx_gpu->vram_ptr += 64;
+#endif
+
+
+
+#ifdef PANDORA_BUILD
+  //triangle_benchmark(psx_gpu);
+  //return 0;
+#endif
+
+#ifdef FULL_COMPARE_MODE
+  psx_gpu->pixel_count_mode = 1; 
+  psx_gpu->pixel_compare_mode = 0;
+  memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
+  //render_block_fill(psx_gpu, 0, 0, 0, 1024, 512);
+  gpu_parse(psx_gpu, list, size);
+
+  psx_gpu->pixel_count_mode = 0;
+  psx_gpu->pixel_compare_mode = 1;
+  memcpy(psx_gpu->compare_vram, state.vram, 1024 * 512 * 2); 
+  memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
+  //render_block_fill(psx_gpu, 0, 0, 0, 1024, 512);
+  clear_stats();
+  gpu_parse(psx_gpu, list, size);
+  flush_render_block_buffer(psx_gpu);
+#else
+  memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
+
+  psx_gpu->pixel_count_mode = 0;
+  psx_gpu->pixel_compare_mode = 0;
+
+  clear_stats();
+
+#ifdef PANDORA_BUILD
+  init_counter();
+#endif
+
+  gpu_parse(psx_gpu, list, size);
+  flush_render_block_buffer(psx_gpu);
+
+  clear_stats();
+
+#ifdef PANDORA_BUILD
+  u32 cycles = get_counter();
+#endif
+
+  gpu_parse(psx_gpu, list, size);
+  flush_render_block_buffer(psx_gpu);
+
+  printf("%s: ", argv[1]);
+#ifdef PANDORA_BUILD
+  u32 cycles_elapsed = get_counter() - cycles;
+
+  printf("%d\n", cycles_elapsed);
+#endif
+
+#if 1
+  u32 i;
+
+  for(i = 0; i < 1024 * 512; i++)
+  {
+    if((psx_gpu->vram_ptr[i] & 0x7FFF) != (state.vram[i] & 0x7FFF))
+    {
+      printf("(%d %d %d) vs (%d %d %d) at (%d %d)\n",
+       psx_gpu->vram_ptr[i] & 0x1F,
+       (psx_gpu->vram_ptr[i] >> 5) & 0x1F,
+       (psx_gpu->vram_ptr[i] >> 10) & 0x1F,
+       state.vram[i] & 0x1F,
+       (state.vram[i] >> 5) & 0x1F,
+       (state.vram[i] >> 10) & 0x1F, i % 1024, i / 1024);
+
+      mismatches++;
+    }
+    else
+    {
+      psx_gpu->vram_ptr[i] =
+       ((psx_gpu->vram_ptr[i] & 0x1F) / 4) |
+       ((((psx_gpu->vram_ptr[i] >> 5) & 0x1F) / 4) << 5) |
+       ((((psx_gpu->vram_ptr[i] >> 10) & 0x1F) / 4) << 10);
+    }
+  }
+#endif
+#endif
+
+#if 0
+  printf("\n");
+  printf("  %d pixels, %d pixel blocks (%d unaligned), %d spans\n"
+   "   (%lf pixels per block (%lf unaligned, r %lf), %lf pixels per span),\n"
+   "   %lf blocks per span (%lf per non-zero span), %lf overdraw)\n\n",
+   span_pixels, span_pixel_blocks, span_pixel_blocks_unaligned, spans,
+   (double)span_pixels / span_pixel_blocks,
+   (double)span_pixels / span_pixel_blocks_unaligned,
+   (double)span_pixel_blocks / span_pixel_blocks_unaligned,
+   (double)span_pixels / spans,
+   (double)span_pixel_blocks / spans, 
+   (double)span_pixel_blocks / (spans - zero_block_spans),
+   (double)span_pixels / 
+   ((psx_gpu->viewport_end_x - psx_gpu->viewport_start_x) * 
+   (psx_gpu->viewport_end_y - psx_gpu->viewport_start_y)));
+
+  printf("  %d triangles (%d false modulated)\n"
+   "   (%d trivial rejects, %lf%% flat, %lf%% left split, %lf%% clipped)\n"
+   "   (%lf pixels per triangle, %lf rows per triangle)\n\n",
+   triangles, false_modulated_triangles, trivial_rejects,
+   percent_of(flat_triangles, triangles),
+   percent_of(left_split_triangles, triangles),
+   percent_of(clipped_triangles, triangles),
+   (double)span_pixels / triangles,
+   (double)spans / triangles);
+
+  printf("  Block data:\n");
+  printf("   %7d 4bpp texel blocks  (%lf%%)\n", texel_blocks_4bpp,
+   percent_of(texel_blocks_4bpp, span_pixel_blocks));
+  printf("   %7d 8bpp texel blocks  (%lf%%)\n", texel_blocks_8bpp,
+   percent_of(texel_blocks_8bpp, span_pixel_blocks));
+  printf("   %7d 16bpp texel blocks (%lf%%)\n", texel_blocks_16bpp,
+   percent_of(texel_blocks_16bpp, span_pixel_blocks));
+  printf("   %7d untextured blocks  (%lf%%)\n", texel_blocks_untextured,
+   percent_of(texel_blocks_untextured, span_pixel_blocks));
+  printf("   %7d sprite blocks      (%lf%%)\n", sprite_blocks,  
+   percent_of(sprite_blocks, span_pixel_blocks));
+  printf("   %7d blended blocks     (%lf%%)\n", blend_blocks,
+   percent_of(blend_blocks, span_pixel_blocks));
+  printf("\n");
+  printf("  %lf blocks per render buffer flush\n", (double)span_pixel_blocks /
+   render_buffer_flushes);
+  printf("  %d zero block spans\n", zero_block_spans);
+  printf("  %d state changes, %d texture cache loads\n", state_changes,
+   texture_cache_loads);
+  if(sprites)
+  {
+    printf("  %d sprites\n"
+     "    4bpp:       %lf%%\n"
+     "    8bpp:       %lf%%\n"
+     "    16bpp:      %lf%%\n"
+     "    untextured: %lf%%\n",
+     sprites, percent_of(sprites_4bpp, sprites),
+     percent_of(sprites_8bpp, sprites), percent_of(sprites_16bpp, sprites),
+     percent_of(sprites_untextured, sprites));
+  }
+  printf("\n");
+  printf("  %d mismatches\n\n\n", mismatches);
+#endif
+
+  fflush(stdout);
+
+  if(no_display == 0)
+  {
+    while(1)
+    {
+      update_screen(psx_gpu, screen);
+  
+      if(SDL_PollEvent(&event))
+      {
+        if((event.type == SDL_QUIT) ||
+         ((event.type == SDL_KEYDOWN) &&
+         (event.key.keysym.sym == SDLK_ESCAPE)))
+        {
+          break;
+        }      
+      }
+  
+      SDL_Delay(20);
+    }
+  }
+
+  return (mismatches != 0);
+}
