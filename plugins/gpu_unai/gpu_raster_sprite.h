@@ -84,6 +84,47 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 	}
 }
 
+#ifdef __arm__
+#include "gpu_arm.h"
+
+void gpuDrawS16(void)
+{
+	s32 x0, y0;
+	s32 u0, v0;
+	s32 xmin, xmax;
+	s32 ymin, ymax;
+	u32 h = 16;
+
+	x0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[2]) + DrawingOffset[0];
+	y0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[3]) + DrawingOffset[1];
+
+	xmin = DrawingArea[0];	xmax = DrawingArea[2];
+	ymin = DrawingArea[1];	ymax = DrawingArea[3];
+	u0 = PacketBuffer.U1[8];
+	v0 = PacketBuffer.U1[9];
+
+	if (x0 > xmax - 16 || x0 < xmin ||
+	    ((u0 | v0) & 15) || !(TextureWindow[2] & TextureWindow[3] & 8)) {
+		// send corner cases to general handler
+		PacketBuffer.U4[3] = 0x00100010;
+		gpuDrawS(gpuSpriteSpanFn<0x20>);
+		return;
+	}
+
+	if (y0 >= ymax || y0 <= ymin - 16)
+		return;
+	if (y0 < ymin) {
+		h -= ymin - y0;
+		v0 += ymin - y0;
+		y0 = ymin;
+	}
+	else if (ymax - y0 < 16)
+		h = ymax - y0;
+
+	draw_spr16_full(&GPU_FrameBuffer[FRAME_OFFSET(x0, y0)], &TBA[FRAME_OFFSET(u0/4, v0)], CBA, h);
+}
+#endif // __arm__
+
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawT(const PT gpuTileSpanDriver)
 {

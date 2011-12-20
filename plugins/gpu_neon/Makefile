@@ -6,6 +6,9 @@ ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-
 
 CFLAGS += -ggdb -Wall -fPIC -O2
 CFLAGS += -fno-strict-aliasing
+ifdef MAEMO
+CFLAGS += -DMAEMO
+endif
 
 SRC += gpu.c
 ifeq "$(ARCH)" "arm"
@@ -38,7 +41,7 @@ gpu_neon.$(EXT): SRC += psx_gpu_if.c
 gpu_neon.$(EXT): CFLAGS += -fno-strict-aliasing
 gpu_peops.$(EXT): SRC += peops_if.c
 gpu_peops.$(EXT): CFLAGS += -fno-strict-aliasing
-gpu_unai.$(EXT): SRC += unai_if.cpp
+gpu_unai.$(EXT): SRC += unai_if.cpp ../gpu_unai/gpu_arm.s
 gpu_unai.$(EXT): CC_ = $(CXX)
 
 all: $(TARGETS)

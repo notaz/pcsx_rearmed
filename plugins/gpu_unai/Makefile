@@ -16,7 +16,7 @@ CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
 SRC += ../../frontend/cspace.c
 endif
 
-SRC += gpu.cpp
+SRC += gpu.cpp gpu_arm.s
 
 TARGET = gpuPCSX4ALL.so
 LDFLAGS += -shared -Wl,-soname,$(TARGET)

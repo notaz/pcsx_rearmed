@@ -352,6 +352,16 @@ void gpuSendPacketFunction(const int PRIM)
 			break;
 		case 0x7C:
 		case 0x7D:
+#ifdef __arm__
+			if ((GPU_GP1 & 0x180) == 0 && (Masking | PixelMSB) == 0)
+			{
+				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
+				gpuSetTexture (GPU_GP1);
+				gpuDrawS16();
+				break;
+			}
+			// fallthrough
+#endif
 		case 0x7E:
 		case 0x7F:
 			if (!isSkip)
