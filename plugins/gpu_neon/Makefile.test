@@ -3,9 +3,12 @@ CXX = $(CROSS_COMPILE)g++
 CC_ = $(CROSS_COMPILE)gcc
 
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
+HAVE_NEON = $(shell $(CC_) -E -dD $(CFLAGS) gpu.h | grep -q '__ARM_NEON__ 1' && echo 1)
 
 CFLAGS += -ggdb -Wall -DTEST
+ifndef DEBUG
 CFLAGS += -O2
+endif
 ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 endif
@@ -13,17 +16,21 @@ ifeq "$(ARCH)" "x86_64"
 CFLAGS += -m32
 endif
 
-# test_neon
 TARGETS = test_peops test_unai
+ifeq "$(HAVE_NEON)" "1"
+TARGETS += test_neon
+endif
+
 SRC += test.c
 
 all: $(TARGETS)
 
-test_neon: SRC += psx_gpu_if.c
-test_neon: CFLAGS += -fno-strict-aliasing
+test_neon: SRC += psx_gpu_if.c psx_gpu/psx_gpu_arm_neon.S
+test_neon: psx_gpu_if.c psx_gpu/*.c
+test_neon: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 test_peops: SRC += peops_if.c
 test_peops: CFLAGS += -fno-strict-aliasing
-test_unai: SRC += unai_if.cpp
+test_unai: SRC += unai_if.cpp ../gpu_unai/gpu_arm.s
 test_unai: CC_ = $(CXX)
 
 $(TARGETS): $(SRC)

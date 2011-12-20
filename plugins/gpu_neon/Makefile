@@ -37,8 +37,8 @@ ifeq "$(HAVE_NEON)" "1"
 TARGETS += gpu_neon.$(EXT)
 endif
 
-gpu_neon.$(EXT): SRC += psx_gpu_if.c
-gpu_neon.$(EXT): CFLAGS += -fno-strict-aliasing
+gpu_neon.$(EXT): SRC += psx_gpu_if.c psx_gpu/psx_gpu_arm_neon.S
+gpu_neon.$(EXT): CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 gpu_peops.$(EXT): SRC += peops_if.c
 gpu_peops.$(EXT): CFLAGS += -fno-strict-aliasing
 gpu_unai.$(EXT): SRC += unai_if.cpp ../gpu_unai/gpu_arm.s

@@ -96,10 +96,16 @@ endif
 
 # gpu
 OBJS += plugins/gpu_neon/gpu.o
+ifeq "$(HAVE_NEON)" "1"
+OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
+plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
+else
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/gpu_neon/peops_if.o: CFLAGS += -fno-strict-aliasing
 plugins/gpu_neon/peops_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/gpu_neon/peops_if.o
+endif
 ifdef X11
 LDFLAGS += -lX11 `sdl-config --libs`
 OBJS += plugins/gpu_neon/vout_sdl.o
@@ -170,6 +176,8 @@ frontend/revision.h: FORCE
 	@rm $@_
 .PHONY: FORCE
 
+%.o: %.S
+	$(CC) $(CFLAGS) -c $^ -o $@
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map

@@ -241,6 +241,9 @@ static void menu_set_defconfig(void)
 	{ #val, sizeof(pl_rearmed_cbs.val), &pl_rearmed_cbs.val }
 
 // 'versioned' var, used when defaults change
+#define CE_CONFIG_STR_V(val, ver) \
+	{ #val #ver, 0, Config.val }
+
 #define CE_INTVAL_V(val, ver) \
 	{ #val #ver, sizeof(val), &val }
 
@@ -253,7 +256,7 @@ static const struct {
 	void *val;
 } config_data[] = {
 	CE_CONFIG_STR(Bios),
-	CE_CONFIG_STR(Gpu),
+	CE_CONFIG_STR_V(Gpu, 2),
 	CE_CONFIG_STR(Spu),
 //	CE_CONFIG_STR(Cdr),
 	CE_CONFIG_VAL(Xa),
