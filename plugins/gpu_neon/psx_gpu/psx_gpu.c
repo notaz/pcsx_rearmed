@@ -2760,8 +2760,6 @@ char *render_block_flag_strings[] =
    (triangle_y_direction_##direction_c << 4) |                                 \
    (triangle_winding_##winding << 6))                                          \
 
-psx_gpu_struct __attribute__((aligned(64))) psx_gpu_alt;
-
 void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
  u32 flags)
 {
