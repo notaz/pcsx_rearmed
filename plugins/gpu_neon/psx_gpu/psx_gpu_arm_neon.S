@@ -76,8 +76,6 @@
 #define psx_gpu_span_edge_data_offset                     0x4100
 #define psx_gpu_span_b_offset_offset                      0x5100
 
-#define psx_gpu__vram_offset                              0x005900
-
 #define edge_data_left_x_offset                           0
 #define edge_data_num_blocks_offset                       2
 #define edge_data_right_mask_offset                       4

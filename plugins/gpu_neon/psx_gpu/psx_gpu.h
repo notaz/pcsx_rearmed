@@ -186,7 +186,6 @@ typedef struct
   edge_data_struct span_edge_data[MAX_SPANS];
   u32 span_b_offset[MAX_SPANS];
 
-  u16 _vram[1024 * 512];
   u8 texture_4bpp_cache[32][256 * 256];
   u8 texture_8bpp_even_cache[16][256 * 256];
   u8 texture_8bpp_odd_cache[16][256 * 256];
@@ -232,7 +231,7 @@ u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu);
 
-void initialize_psx_gpu(psx_gpu_struct *psx_gpu);
+void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
 void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size);
 
 void triangle_benchmark(psx_gpu_struct *psx_gpu);

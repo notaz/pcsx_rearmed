@@ -4315,7 +4315,7 @@ void initialize_reciprocal_table(void)
 #define dither_table_row(a, b, c, d)                                           \
  ((a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16) | ((d & 0xFF) << 24))    \
 
-void initialize_psx_gpu(psx_gpu_struct *psx_gpu)
+void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
 {
   vec_8x16u test_mask =
    { { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 } } };
@@ -4345,7 +4345,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu)
   psx_gpu->render_state_base = 0;
   psx_gpu->num_blocks = 0;
 
-  psx_gpu->vram_ptr = psx_gpu->_vram;
+  psx_gpu->vram_ptr = vram;
 
   psx_gpu->texture_page_ptr = psx_gpu->vram_ptr;
   psx_gpu->clut_ptr = psx_gpu->vram_ptr;

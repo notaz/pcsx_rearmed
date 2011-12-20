@@ -64,6 +64,7 @@ typedef struct
 static gpu_dump_struct state;
 
 psx_gpu_struct __attribute__((aligned(256))) _psx_gpu;
+u16 __attribute__((aligned(256))) _vram[1024 * 512];
 
 #define percent_of(numerator, denominator)                                     \
   ((((double)(numerator)) / (denominator)) * 100.0)                            \
@@ -175,7 +176,7 @@ int main(int argc, char *argv[])
     screen = SDL_SetVideoMode(1024, 512, 32, 0);
   }
   
-  initialize_psx_gpu(psx_gpu);
+  initialize_psx_gpu(psx_gpu, _vram);
 
 #ifdef PANDORA_BUILD
   system("ofbset -fb /dev/fb1 -mem 6291456 -en 0");
