@@ -5122,7 +5122,7 @@ function(setup_sprite_16bpp)
   ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
   add block, psx_gpu, #psx_gpu_blocks_offset
 
-  bic texture_offset_base, texture_offset_base, #0x7
+  bic texture_offset_base, texture_offset_base, #0xF
   cmp block_width, #1
 
   ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_ptr_offset ]
