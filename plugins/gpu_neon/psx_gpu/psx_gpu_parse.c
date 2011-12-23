@@ -599,6 +599,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
 
           flush_render_block_buffer(psx_gpu);
           
+          psx_gpu->texture_window_settings = texture_window_settings;
           psx_gpu->texture_window_x = x;
           psx_gpu->texture_window_y = y;
           psx_gpu->texture_mask_width = w - 1;
