@@ -96,8 +96,7 @@ void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
     u32 texture_mode = (texture_settings >> 7) & 0x3;
     u32 render_state_base = psx_gpu->render_state_base;
 
-    if(psx_gpu->current_texture_page != new_texture_page)
-      flush_render_block_buffer(psx_gpu);
+    flush_render_block_buffer(psx_gpu);
 
     render_state_base &= ~(0xF << 6);
     render_state_base |= ((texture_settings >> 5) & 0xF) << 6;

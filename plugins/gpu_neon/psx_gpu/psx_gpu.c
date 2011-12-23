@@ -281,6 +281,7 @@ void update_texture_4bpp_cache(psx_gpu_struct *psx_gpu)
         while(sub_x)
         {
           texel_block = *vram_ptr;
+
           texture_page_ptr[0] = texel_block & 0xF;
           texture_page_ptr[1] = (texel_block >> 4) & 0xF;
           texture_page_ptr[2] = (texel_block >> 8) & 0xF;
@@ -2017,6 +2018,10 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
 
 
 #define shade_blocks_textured_false_modulated_check_dithered(target)           \
+  if(psx_gpu->triangle_color == 0x808080)                                      \
+  {                                                                            \
+    false_modulated_blocks += num_blocks;                                      \
+  }                                                                            \
 
 #define shade_blocks_textured_false_modulated_check_undithered(target)         \
   if(psx_gpu->triangle_color == 0x808080)                                      \
