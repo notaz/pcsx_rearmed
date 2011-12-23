@@ -379,8 +379,8 @@ gteRTPT_neon:
     add         r3, r0, #4*16
     vst1.32     d14[0], [r3]   @ gteSZ0 = gteSZ3
     vdup.32     q13, d13[0]    @ |
-@   vrecps.f32  q12, q10, q11  @ step
-@   vmul.f32    q11, q12, q11  @ better inv
+    vrecps.f32  q12, q10, q11  @ step
+    vmul.f32    q11, q12, q11  @ better inv
     vmul.f32    q10, q13, q11  @ result
 .else
     vmovl.s32   q2, d4         @ || gteOF|XY [64]
