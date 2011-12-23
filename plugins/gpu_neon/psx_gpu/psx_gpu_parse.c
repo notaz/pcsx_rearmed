@@ -433,8 +433,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   
   		case 0x60 ... 0x63:
       {        
-        u32 x = list_s16[2] + psx_gpu->offset_x;
-        u32 y = list_s16[3] + psx_gpu->offset_y;
+        u32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        u32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
         u32 width = list_s16[4] & 0x3FF;
         u32 height = list_s16[5] & 0x1FF;
 
@@ -444,8 +444,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   
   		case 0x64 ... 0x67:
       {        
-        u32 x = list_s16[2] + psx_gpu->offset_x;
-        u32 y = list_s16[3] + psx_gpu->offset_y;
+        u32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        u32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
         u32 uv = list_s16[4];
         u32 width = list_s16[6] & 0x3FF;
         u32 height = list_s16[7] & 0x1FF;
@@ -462,8 +462,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   		case 0x6A:
   		case 0x6B:
       {
-        s32 x = list_s16[2] + psx_gpu->offset_x;
-        s32 y = list_s16[3] + psx_gpu->offset_y;
+        s32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        s32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
 
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
   			break;
@@ -474,8 +474,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   		case 0x72:
   		case 0x73:
       {        
-        s32 x = list_s16[2] + psx_gpu->offset_x;
-        s32 y = list_s16[3] + psx_gpu->offset_y;
+        s32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        s32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
   			break;
@@ -486,8 +486,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   		case 0x76:
   		case 0x77:
       {        
-        s32 x = list_s16[2] + psx_gpu->offset_x;
-        s32 y = list_s16[3] + psx_gpu->offset_y;
+        s32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        s32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
         u32 uv = list_s16[4];
 
         set_clut(psx_gpu, list_s16[5]);
@@ -502,8 +502,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   		case 0x7A:
   		case 0x7B:
       {        
-        s32 x = list_s16[2] + psx_gpu->offset_x;
-        s32 y = list_s16[3] + psx_gpu->offset_y;
+        s32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        s32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
 
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
   			break;
@@ -514,8 +514,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   		case 0x7E:
   		case 0x7F:
       {        
-        s32 x = list_s16[2] + psx_gpu->offset_x;
-        s32 y = list_s16[3] + psx_gpu->offset_y;
+        s32 x = sign_extend_12bit(list_s16[2]) + psx_gpu->offset_x;
+        s32 y = sign_extend_12bit(list_s16[3]) + psx_gpu->offset_y;
         u32 uv = list_s16[4];
 
         set_clut(psx_gpu, list_s16[5]);
