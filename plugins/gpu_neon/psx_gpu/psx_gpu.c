@@ -3886,9 +3886,18 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
 #define set_line_gradients(minor)                                              \
 {                                                                              \
   s32 gradient_divisor = delta_##minor;                                        \
-  gradient_r = int_to_fixed(vertex_b->r - vertex_a->r) / gradient_divisor;     \
-  gradient_g = int_to_fixed(vertex_b->g - vertex_a->g) / gradient_divisor;     \
-  gradient_b = int_to_fixed(vertex_b->b - vertex_a->b) / gradient_divisor;     \
+  if(gradient_divisor != 0)                                                    \
+  {                                                                            \
+    gradient_r = int_to_fixed(vertex_b->r - vertex_a->r) / gradient_divisor;   \
+    gradient_g = int_to_fixed(vertex_b->g - vertex_a->g) / gradient_divisor;   \
+    gradient_b = int_to_fixed(vertex_b->b - vertex_a->b) / gradient_divisor;   \
+  }                                                                            \
+  else                                                                         \
+  {                                                                            \
+    gradient_r = 0;                                                            \
+    gradient_g = 0;                                                            \
+    gradient_b = 0;                                                            \
+  }                                                                            \
   current_r = fixed_center(vertex_a->r);                                       \
   current_g = fixed_center(vertex_a->g);                                       \
   current_b = fixed_center(vertex_a->b);                                       \
