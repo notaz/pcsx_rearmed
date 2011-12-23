@@ -210,8 +210,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   			break;
   
   		case 0x02:
-        render_block_fill(psx_gpu, list[0] & 0xFFFFFF, list_s16[2], list_s16[3],
-         list_s16[4] & 0x3FF, list_s16[5] & 0x3FF);
+        render_block_fill(psx_gpu, list[0] & 0xFFFFFF, list_s16[2] & 0x3FF,
+         list_s16[3] & 0x1FF, list_s16[4] & 0x3FF, list_s16[5] & 0x1FF);
   			break;
   
   		case 0x20 ... 0x23:
@@ -532,10 +532,10 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   
   		case 0xA0:          //  sys -> vid
       {
-        u32 load_x = list_s16[2];
-        u32 load_y = list_s16[3];
-        u32 load_width = list_s16[4];
-        u32 load_height = list_s16[5];
+        u32 load_x = list_s16[2] & 0x3FF;
+        u32 load_y = list_s16[3] & 0x1FF;
+        u32 load_width = list_s16[4] & 0x3FF;
+        u32 load_height = list_s16[5] & 0x1FF;
         u32 load_size = load_width * load_height;
   
         command_length += load_size / 2;

@@ -3767,7 +3767,7 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
    RENDER_FLAGS_TEXTURE_MAP);
   render_state |=
    (psx_gpu->render_state_base & ~RENDER_STATE_DITHER);
-  
+
   if((psx_gpu->render_state != render_state) ||
    (psx_gpu->primitive_type != PRIMITIVE_TYPE_SPRITE))
   {
@@ -4316,6 +4316,9 @@ void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
 void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
  u32 width, u32 height)
 {
+  if((width == 0) || (height == 0))
+    return;
+
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
 #ifndef NEON_BUILD
@@ -4349,6 +4352,9 @@ void render_block_copy(psx_gpu_struct *psx_gpu, u16 *source, u32 x, u32 y,
 {
   u16 *vram_ptr = psx_gpu->vram_ptr + x + (y * 1024);
   u32 draw_x, draw_y;
+
+  if((width == 0) || (height == 0))
+    return;
 
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
