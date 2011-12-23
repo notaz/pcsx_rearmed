@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
   printf("%d\n", cycles_elapsed);
 #endif
 
-#if 1
+#if 0
   u32 i;
 
   for(i = 0; i < 1024 * 512; i++)
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
   }
 #endif
 
-#if 0
+#if 1
   printf("\n");
   printf("  %d pixels, %d pixel blocks, %d spans\n"
    "   (%lf pixels per block, %lf pixels per span),\n"
