@@ -38,10 +38,10 @@
 #define psx_gpu_dirty_textures_8bpp_mask_offset           172
 #define psx_gpu_dirty_textures_8bpp_alternate_mask_offset 176
 #define psx_gpu_triangle_color_offset                     180
-#define psx_gpu_primitive_color_offset                    184
-#define psx_gpu_dither_table_offset                       188
-#define psx_gpu_render_block_handler_offset               204
-#define psx_gpu_texture_page_ptr_offset                   208
+#define psx_gpu_dither_table_offset                       184
+#define psx_gpu_render_block_handler_offset               200
+#define psx_gpu_texture_page_ptr_offset                   204
+#define psx_gpu_texture_page_base_offset                  208
 #define psx_gpu_clut_ptr_offset                           212
 #define psx_gpu_vram_ptr_offset                           216
 
@@ -1955,6 +1955,8 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
   vdup.u16 colors, color
 
   add span_edge_data, psx_gpu, #psx_gpu_span_edge_data_offset
+  orr color, color, lsl #16
+
 
  0:
   ldrh span_num_blocks, [ span_edge_data, #edge_data_num_blocks_offset ]
@@ -1981,12 +1983,21 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
 
  3:
   ldrb right_mask, [ span_edge_data, #edge_data_right_mask_offset ]
-  eor right_mask, right_mask, #0xFF
 
- 4:
-  strh color, [ fb_ptr ], #2
-  movs right_mask, right_mask, lsr #1
-  bne 4b
+  cmp right_mask, #0x0
+  beq 5f
+
+  tst right_mask, #0xF
+  streq color, [ fb_ptr ], #4
+  moveq right_mask, right_mask, lsr #4
+  streq color, [ fb_ptr ], #4
+
+  tst right_mask, #0x3
+  streq color, [ fb_ptr ], #4
+  moveq right_mask, right_mask, lsr #2
+
+  tst right_mask, #0x1
+  streqh color, [ fb_ptr ]
 
  1:
   add span_edge_data, span_edge_data, #8
@@ -1997,6 +2008,9 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
 
   ldmia sp!, { r4 - r11, pc }
                                                                            
+ 5:
+  vst1.u32 { colors }, [ fb_ptr ]
+  bal 1b
 
 
 #undef c_64
@@ -2337,6 +2351,7 @@ setup_blocks_shaded_untextured_indirect_builder(dithered)
 
 #define draw_mask                                         q0
 #define pixels_low                                        d16
+#define pixels_high                                       d17
 
 
 
@@ -2500,23 +2515,67 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_direct)       \
  3:                                                                            \
   setup_blocks_shaded_untextured_dither_a_##dithering();                       \
                                                                                \
-  ldrb right_mask, [ span_edge_data, #edge_data_right_mask_offset ];           \
+  ldrh right_mask, [ span_edge_data, #edge_data_right_mask_offset ];           \
   setup_blocks_shaded_untextured_dither_b_##dithering();                       \
                                                                                \
   vshr.u8 r_whole_8, r_whole_8, #3;                                            \
+  rbit right_mask, right_mask;                                                 \
   vmov pixels, msb_mask;                                                       \
   vbic.u8 gb_whole_8, gb_whole_8, d128_0x7;                                    \
-  eor right_mask, right_mask, #0xFF;                                           \
+  clz right_mask, right_mask;                                                  \
                                                                                \
   vmlal.u8 pixels, r_whole_8, d64_1;                                           \
   vmlal.u8 pixels, g_whole_8, d64_4;                                           \
   vmlal.u8 pixels, b_whole_8, d64_128;                                         \
                                                                                \
+  ldr pc, [ pc, right_mask, lsl #2 ];                                          \
+  nop;                                                                         \
+  nop;                                                                         \
+  .word 4f;                                                                    \
+  .word 5f;                                                                    \
+  .word 6f;                                                                    \
+  .word 7f;                                                                    \
+  .word 8f;                                                                    \
+  .word 9f;                                                                    \
+  .word 10f;                                                                   \
+  .word 11f;                                                                   \
+                                                                               \
  4:                                                                            \
-  vst1.u16 { pixels_low[0] }, [ fb_ptr ]!;                                     \
-  vext.16 pixels, pixels, #1;                                                  \
-  movs right_mask, right_mask, lsr #1;                                         \
-  bne 4b;                                                                      \
+  vst1.u16 { pixels_low[0] }, [ fb_ptr ];                                      \
+  bal 1f;                                                                      \
+                                                                               \
+ 5:                                                                            \
+  vst1.u32 { pixels_low[0] }, [ fb_ptr ];                                      \
+  bal 1f;                                                                      \
+                                                                               \
+ 6:                                                                            \
+  vst1.u32 { pixels_low[0] }, [ fb_ptr ]!;                                     \
+  vst1.u16 { pixels_low[2] }, [ fb_ptr ];                                      \
+  bal 1f;                                                                      \
+                                                                               \
+ 7:                                                                            \
+  vst1.u32 { pixels_low }, [ fb_ptr ];                                         \
+  bal 1f;                                                                      \
+                                                                               \
+ 8:                                                                            \
+  vst1.u32 { pixels_low }, [ fb_ptr ]!;                                        \
+  vst1.u16 { pixels_high[0] }, [ fb_ptr ];                                     \
+  bal 1f;                                                                      \
+                                                                               \
+ 9:                                                                            \
+  vst1.u32 { pixels_low }, [ fb_ptr ]!;                                        \
+  vst1.u32 { pixels_high[0] }, [ fb_ptr ]!;                                    \
+  bal 1f;                                                                      \
+                                                                               \
+ 10:                                                                           \
+  vst1.u32 { pixels_low }, [ fb_ptr ]!;                                        \
+  vst1.u32 { pixels_high[0] }, [ fb_ptr ]!;                                    \
+  vst1.u16 { pixels_high[2] }, [ fb_ptr ];                                     \
+  bal 1f;                                                                      \
+                                                                               \
+ 11:                                                                           \
+  vst1.u32 { pixels }, [ fb_ptr ];                                             \
+  bal 1f;                                                                      \
                                                                                \
  1:                                                                            \
   add span_uvrg_offset, span_uvrg_offset, #16;                                 \
@@ -2957,6 +3016,8 @@ function(texture_blocks_16bpp)
 #define psx_gpu                                  r0
 #define num_blocks                               r1
 #define color_ptr                                r2
+#define colors_scalar                            r2
+#define colors_scalar_compare                    r3
 #define mask_msb_ptr                             r2
 
 #define block_ptr_load_a                         r0
@@ -3013,9 +3074,21 @@ function(texture_blocks_16bpp)
   add mask_msb_ptr, psx_gpu, #psx_gpu_mask_msb_offset;                         \
   vld1.u16 { msb_mask_low[], msb_mask_high[] }, [ mask_msb_ptr, :16 ]          \
 
-#define shade_blocks_textured_modulated_prologue_shaded()                      \
 
-#define shade_blocks_textured_modulated_prologue_unshaded()                    \
+#define shade_blocks_textured_modulated_prologue_shaded(dithering, target)     \
+  
+#define shade_blocks_textured_false_modulation_check_undithered(target)        \
+  ldr colors_scalar, [ psx_gpu, #psx_gpu_triangle_color_offset ];              \
+  movw colors_scalar_compare, #0x8080;                                         \
+                                                                               \
+  movt colors_scalar_compare, #0x80;                                           \
+  cmp colors_scalar, colors_scalar_compare;                                    \
+  beq shade_blocks_textured_unmodulated_##target                               \
+
+#define shade_blocks_textured_false_modulation_check_dithered(target)          \
+
+#define shade_blocks_textured_modulated_prologue_unshaded(dithering, target)   \
+  shade_blocks_textured_false_modulation_check_##dithering(target);            \
   add color_ptr, psx_gpu, #psx_gpu_triangle_color_offset;                      \
   vld1.u32 { colors_r[] }, [ color_ptr, :32 ];                                 \
   vdup.u8 colors_g, colors_r[1];                                               \
@@ -3086,13 +3159,13 @@ function(texture_blocks_16bpp)
 .align 3;                                                                      \
                                                                                \
 function(shade_blocks_##shading##_textured_modulated_##dithering##_##target)   \
+  shade_blocks_textured_modulated_prologue_##shading(dithering, target);       \
   stmdb sp!, { r4 - r5, lr };                                                  \
   ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ];                    \
                                                                                \
   vld1.u32 { test_mask }, [ psx_gpu, :128 ];                                   \
                                                                                \
   shade_blocks_textured_modulated_prologue_##target();                         \
-  shade_blocks_textured_modulated_prologue_##shading();                        \
                                                                                \
   add block_ptr_load_a, psx_gpu, #psx_gpu_blocks_offset;                       \
   mov c_32, #32;                                                               \
@@ -5271,7 +5344,7 @@ function(update_texture_4bpp_cache)
 
   ldrb current_texture_page, [ psx_gpu, #psx_gpu_current_texture_page_offset ]
 
-  ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_ptr_offset ]
+  ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_base_offset ]
   ldr vram_ptr_a, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
 
   and current_texture_page_x, current_texture_page, #0xF
@@ -5375,7 +5448,7 @@ function(update_texture_8bpp_cache_slice)
   ldrb current_texture_page, [ psx_gpu, #psx_gpu_current_texture_page_offset ]
   ldr vram_ptr_a, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
 
-  ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_ptr_offset ]
+  ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_base_offset ]
   mov tile_y, #16
 
   and texture_page_x, texture_page, #0xF

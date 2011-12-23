@@ -38,61 +38,53 @@ const u8 command_lengths[256] =
 
 void update_texture_ptr(psx_gpu_struct *psx_gpu)
 {
+  u8 *texture_base;
   u8 *texture_ptr;
 
   switch((psx_gpu->render_state_base >> 8) & 0x3)
   {
     default:
     case TEXTURE_MODE_4BPP:
-#ifdef TEXTURE_CACHE_4BPP
-      texture_ptr = psx_gpu->texture_4bpp_cache[psx_gpu->current_texture_page];
+      texture_base = psx_gpu->texture_4bpp_cache[psx_gpu->current_texture_page];
+
+      texture_ptr = texture_base;
       texture_ptr += psx_gpu->texture_window_x & 0xF;
       texture_ptr += (psx_gpu->texture_window_y & 0xF) << 4;
       texture_ptr += (psx_gpu->texture_window_x >> 4) << 8;
       texture_ptr += (psx_gpu->texture_window_y >> 4) << 12;
-#else
-      texture_ptr = (u8 *)(psx_gpu->vram_ptr);
-      texture_ptr += (psx_gpu->current_texture_page & 0xF) * 128;
-      texture_ptr += ((psx_gpu->current_texture_page >> 4) * 256) * 2048;
-      texture_ptr += psx_gpu->texture_window_x / 2;
-      texture_ptr += (psx_gpu->texture_window_y) * 2048;
-#endif
       break;
 
     case TEXTURE_MODE_8BPP:
-#ifdef TEXTURE_CACHE_8BPP
       if(psx_gpu->current_texture_page & 0x1)
       {
-        texture_ptr =
+        texture_base =
          psx_gpu->texture_8bpp_odd_cache[psx_gpu->current_texture_page >> 1];
       }
       else
       {
-        texture_ptr =
+        texture_base =
          psx_gpu->texture_8bpp_even_cache[psx_gpu->current_texture_page >> 1];
       }
       
+      texture_ptr = texture_base;
+      texture_ptr += psx_gpu->texture_window_x & 0xF;
       texture_ptr += (psx_gpu->texture_window_y & 0xF) << 4;
       texture_ptr += (psx_gpu->texture_window_x >> 4) << 8;
       texture_ptr += (psx_gpu->texture_window_y >> 4) << 12;
-#else
-      texture_ptr = (u8 *)(psx_gpu->vram_ptr);
-      texture_ptr += (psx_gpu->current_texture_page & 0xF) * 128;
-      texture_ptr += ((psx_gpu->current_texture_page >> 4) * 256) * 2048;
-      texture_ptr += psx_gpu->texture_window_x;
-      texture_ptr += (psx_gpu->texture_window_y) * 2048;
-#endif
       break;
 
     case TEXTURE_MODE_16BPP:
-      texture_ptr = (u8 *)(psx_gpu->vram_ptr);
-      texture_ptr += (psx_gpu->current_texture_page & 0xF) * 128;
-      texture_ptr += ((psx_gpu->current_texture_page >> 4) * 256) * 2048;
+      texture_base = (u8 *)(psx_gpu->vram_ptr);
+      texture_base += (psx_gpu->current_texture_page & 0xF) * 128;
+      texture_base += ((psx_gpu->current_texture_page >> 4) * 256) * 2048;
+
+      texture_ptr = texture_base;
       texture_ptr += psx_gpu->texture_window_x * 2;
       texture_ptr += (psx_gpu->texture_window_y) * 2048;
       break;
   }
 
+  psx_gpu->texture_page_base = texture_base;
   psx_gpu->texture_page_ptr = texture_ptr;  
 }
 
@@ -447,8 +439,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         u32 width = list_s16[4] & 0x3FF;
         u32 height = list_s16[5] & 0x1FF;
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
-
         render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
   			break;
       }
@@ -461,7 +451,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         u32 width = list_s16[6] & 0x3FF;
         u32 height = list_s16[7] & 0x1FF;
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
         set_clut(psx_gpu, list_s16[5]);
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, width, height,
@@ -477,8 +466,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         s32 x = list_s16[2] + psx_gpu->offset_x;
         s32 y = list_s16[3] + psx_gpu->offset_y;
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
-
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
   			break;
       }
@@ -490,8 +477,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
       {        
         s32 x = list_s16[2] + psx_gpu->offset_x;
         s32 y = list_s16[3] + psx_gpu->offset_y;
-
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
   			break;
@@ -506,7 +491,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         s32 y = list_s16[3] + psx_gpu->offset_y;
         u32 uv = list_s16[4];
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
         set_clut(psx_gpu, list_s16[5]);
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 8, 8,
@@ -522,7 +506,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         s32 x = list_s16[2] + psx_gpu->offset_x;
         s32 y = list_s16[3] + psx_gpu->offset_y;
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
   			break;
       }
@@ -536,7 +519,6 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         s32 y = list_s16[3] + psx_gpu->offset_y;
         u32 uv = list_s16[4];
 
-        psx_gpu->primitive_color = list[0] & 0xFFFFFF;
         set_clut(psx_gpu, list_s16[5]);
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 16, 16,

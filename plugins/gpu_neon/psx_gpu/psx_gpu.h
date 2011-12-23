@@ -130,12 +130,11 @@ typedef struct
   u32 dirty_textures_8bpp_alternate_mask;
 
   u32 triangle_color;
-  u32 primitive_color;
-
   u32 dither_table[4];
 
   struct render_block_handler_struct *render_block_handler;
   void *texture_page_ptr;
+  void *texture_page_base;
   u16 *clut_ptr;
   u16 *vram_ptr;
 
@@ -189,13 +188,6 @@ typedef struct
   u8 texture_4bpp_cache[32][256 * 256];
   u8 texture_8bpp_even_cache[16][256 * 256];
   u8 texture_8bpp_odd_cache[16][256 * 256];
-
-  u32 pixel_count_mode;
-  u32 pixel_compare_mode;
-
-  u8 *vram_pixel_counts_a;
-  u8 *vram_pixel_counts_b;
-  u16 *compare_vram;
 } psx_gpu_struct;
 
 typedef struct __attribute__((aligned(16)))

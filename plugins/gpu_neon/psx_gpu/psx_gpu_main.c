@@ -20,7 +20,6 @@
 
 extern u32 span_pixels;
 extern u32 span_pixel_blocks;
-extern u32 span_pixel_blocks_unaligned;
 extern u32 spans;
 extern u32 triangles;
 extern u32 sprites;
@@ -38,9 +37,6 @@ extern u32 texel_blocks_8bpp;
 extern u32 texel_blocks_16bpp;
 extern u32 texel_blocks_untextured;
 extern u32 blend_blocks;
-extern u32 untextured_pixels;
-extern u32 blend_pixels;
-extern u32 transparent_pixels;
 extern u32 render_buffer_flushes;
 extern u32 state_changes;
 extern u32 trivial_rejects;
@@ -49,8 +45,7 @@ extern u32 flat_triangles;
 extern u32 clipped_triangles;
 extern u32 zero_block_spans;
 extern u32 texture_cache_loads;
-extern u32 false_modulated_triangles;
-extern u32 false_modulated_sprites;
+extern u32 false_modulated_blocks;
 
 static u32 mismatches;
 
@@ -64,7 +59,7 @@ typedef struct
 static gpu_dump_struct state;
 
 psx_gpu_struct __attribute__((aligned(256))) _psx_gpu;
-u16 __attribute__((aligned(256))) _vram[1024 * 512];
+u16 __attribute__((aligned(256))) _vram[(1024 * 512) + 1024];
 
 #define percent_of(numerator, denominator)                                     \
   ((((double)(numerator)) / (denominator)) * 100.0)                            \
@@ -81,7 +76,6 @@ void clear_stats(void)
   lines = 0;
   span_pixels = 0;
   span_pixel_blocks = 0;
-  span_pixel_blocks_unaligned = 0;
   spans = 0;
   texels_4bpp = 0;
   texels_8bpp = 0;
@@ -91,9 +85,6 @@ void clear_stats(void)
   texel_blocks_8bpp = 0;
   texel_blocks_16bpp = 0;
   blend_blocks = 0;
-  untextured_pixels = 0;
-  blend_pixels = 0;
-  transparent_pixels = 0;
   render_buffer_flushes = 0;
   state_changes = 0;
   trivial_rejects = 0;
@@ -102,8 +93,7 @@ void clear_stats(void)
   clipped_triangles = 0;
   zero_block_spans = 0;
   texture_cache_loads = 0;
-  false_modulated_triangles = 0;
-  false_modulated_sprites = 0;
+  false_modulated_blocks = 0;
 }
 
 void update_screen(psx_gpu_struct *psx_gpu, SDL_Surface *screen)
@@ -165,7 +155,7 @@ int main(int argc, char *argv[])
   size = ftell(list_file);
   fseek(list_file, 0, SEEK_SET);
   //size = 0;
-  
+
   list = malloc(size);
   fread(list, 1, size, list_file);
   fclose(list_file);
@@ -175,44 +165,26 @@ int main(int argc, char *argv[])
     SDL_Init(SDL_INIT_EVERYTHING);
     screen = SDL_SetVideoMode(1024, 512, 32, 0);
   }
-  
-  initialize_psx_gpu(psx_gpu, _vram);
 
 #ifdef NEON_BUILD
   system("ofbset -fb /dev/fb1 -mem 6291456 -en 0");
   u32 fbdev_handle = open("/dev/fb1", O_RDWR);
-  psx_gpu->vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
+  u16 *vram_ptr =
+  vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
    MAP_SHARED | 0xA0000000, fbdev_handle, 0));
-  psx_gpu->vram_ptr += 64;
+  vram_ptr += 64;
+
+  initialize_psx_gpu(psx_gpu, vram_ptr + 64);
+#else
+  initialize_psx_gpu(psx_gpu, _vram + 64);
 #endif
-
-
 
 #ifdef NEON_BUILD
   //triangle_benchmark(psx_gpu);
   //return 0;
 #endif
 
-#ifdef FULL_COMPARE_MODE
-  psx_gpu->pixel_count_mode = 1; 
-  psx_gpu->pixel_compare_mode = 0;
   memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
-  //render_block_fill(psx_gpu, 0, 0, 0, 1024, 512);
-  gpu_parse(psx_gpu, list, size);
-
-  psx_gpu->pixel_count_mode = 0;
-  psx_gpu->pixel_compare_mode = 1;
-  memcpy(psx_gpu->compare_vram, state.vram, 1024 * 512 * 2); 
-  memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
-  //render_block_fill(psx_gpu, 0, 0, 0, 1024, 512);
-  clear_stats();
-  gpu_parse(psx_gpu, list, size);
-  flush_render_block_buffer(psx_gpu);
-#else
-  memcpy(psx_gpu->vram_ptr, state.vram, 1024 * 512 * 2);
-
-  psx_gpu->pixel_count_mode = 0;
-  psx_gpu->pixel_compare_mode = 0;
 
   clear_stats();
 
@@ -232,7 +204,7 @@ int main(int argc, char *argv[])
   gpu_parse(psx_gpu, list, size);
   flush_render_block_buffer(psx_gpu);
 
-  printf("%s: ", argv[1]);
+  printf("%-64s: ", argv[1]);
 #ifdef NEON_BUILD
   u32 cycles_elapsed = get_counter() - cycles;
 
@@ -265,17 +237,14 @@ int main(int argc, char *argv[])
     }
   }
 #endif
-#endif
 
 #if 0
   printf("\n");
-  printf("  %d pixels, %d pixel blocks (%d unaligned), %d spans\n"
-   "   (%lf pixels per block (%lf unaligned, r %lf), %lf pixels per span),\n"
+  printf("  %d pixels, %d pixel blocks, %d spans\n"
+   "   (%lf pixels per block, %lf pixels per span),\n"
    "   %lf blocks per span (%lf per non-zero span), %lf overdraw)\n\n",
-   span_pixels, span_pixel_blocks, span_pixel_blocks_unaligned, spans,
+   span_pixels, span_pixel_blocks, spans,
    (double)span_pixels / span_pixel_blocks,
-   (double)span_pixels / span_pixel_blocks_unaligned,
-   (double)span_pixel_blocks / span_pixel_blocks_unaligned,
    (double)span_pixels / spans,
    (double)span_pixel_blocks / spans, 
    (double)span_pixel_blocks / (spans - zero_block_spans),
@@ -283,10 +252,10 @@ int main(int argc, char *argv[])
    ((psx_gpu->viewport_end_x - psx_gpu->viewport_start_x) * 
    (psx_gpu->viewport_end_y - psx_gpu->viewport_start_y)));
 
-  printf("  %d triangles (%d false modulated)\n"
+  printf("  %d triangles\n"
    "   (%d trivial rejects, %lf%% flat, %lf%% left split, %lf%% clipped)\n"
    "   (%lf pixels per triangle, %lf rows per triangle)\n\n",
-   triangles, false_modulated_triangles, trivial_rejects,
+   triangles, trivial_rejects,
    percent_of(flat_triangles, triangles),
    percent_of(left_split_triangles, triangles),
    percent_of(clipped_triangles, triangles),
@@ -306,6 +275,8 @@ int main(int argc, char *argv[])
    percent_of(sprite_blocks, span_pixel_blocks));
   printf("   %7d blended blocks     (%lf%%)\n", blend_blocks,
    percent_of(blend_blocks, span_pixel_blocks));
+  printf("   %7d false-mod blocks   (%lf%%)\n", false_modulated_blocks,
+   percent_of(false_modulated_blocks, span_pixel_blocks));
   printf("\n");
   printf("  %lf blocks per render buffer flush\n", (double)span_pixel_blocks /
    render_buffer_flushes);
