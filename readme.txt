@@ -14,7 +14,9 @@ Ari64, NEON GTE code and more performance improvements. It was created for
 Pandora handheld, but should be usable on other devices after some code
 adjustments (N900, GPH Wiz/Caanoo versions are also available).
 
-PCSX ReARMed features GPU plugin from PCSX4ALL project.
+PCSX ReARMed features ARM NEON GPU by Exophase, that in many cases produces
+pixel perfect graphics at very high performance. There is also Una-i's GPU
+plugin from PCSX4ALL project, and traditional P.E.Op.S. one.
 
 
 Usage
@@ -57,17 +59,31 @@ Plugins
 GPU (graphics) and SPU (sound) plugins can be selected in
 [BIOS/Plugins] menu:
 
-builtin_gpu    - the P.E.Op.S. GPU plugin, most accurate but slow.
-gpuPCSX4ALL.so - plugin from PCSX4ALL project. Faster but has some glitches.
+builtin_gpu    - this is either Exophase's ARM NEON GPU (accurate and fast,
+                 available if platform supports NEON), else it's P.E.Op.S.
+                 soft GPU (accurate but slow).
+gpuPCSX4ALL.so - plugin from PCSX4ALL project. Faster than P.E.Op.S.
+                 but has some glitches.
 gpuGLES.so     - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
                  Occasionally faster but has lots of glitches and seems to
                  be rather unstable (may crash the system).
-builtin_spu    - P.E.Op.S. SPU plugin.
+gpuPEOPS.so    - P.E.Op.S. soft GPU (in case builtin one is NEON)
+builtin_spu    - P.E.Op.S. SPU plugin, optimized for ARM.
 spunull.so     - NULL plugin, i.e. no sound emulation.
 
 
 Changelog
 ---------
+
+r12 (2011-12-24)
++ new ARM NEON GPU rasterizer from Exophase (NEON hardware required)
++ new GPU emulation code
++ new analog controller configurator
+* changed frameskip handling (again..), higher values supported
+* fixed several more regressions from earlier versions
+* changed cdrom code with hope for better compatibility
+* sprite optimization for PCSX4ALL plugin
++ Caanoo: added vibration support
 
 r11 (2011-10-31)
 + added Wiz support
@@ -242,6 +258,10 @@ Emulator core:
 	Dario, NeToU, siveritas (Various bugfixes)
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
+NEON GPU plugin:
+	(C) 2011 Exophase
+	(C) 2011 notaz
+
 PCSX4ALL GPU plugin:
 	(C) 2010 PCSX4ALL Team
 	(C) 2010 Unai
@@ -255,13 +275,14 @@ GLES plugin (psx4m project):
 	Proger
 	Pickle
 
-builtin GPU/SPU plugin:
+P.E.Op.S. GPU plugin:
 	(C) Pete Bernert and the P.E.Op.S. team
 
-builtin SPU plugin:
+P.E.Op.S. SPU plugin:
 	(C) Pete Bernert and the P.E.Op.S. team
 	(C) SPU2-X, gigaherz, Pcsx2 Development Team
 	shalma
+	notaz
 
 MIPS->ARM recompiler:
 	(C) 2009-2011 Ari64

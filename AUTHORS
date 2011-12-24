@@ -23,6 +23,10 @@
 	Dario, NeToU, siveritas (Various bugfixes)
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
+ARM NEON GPU plugin:
+	(C) 2011 Exophase
+	(C) 2011 notaz
+
 PCSX4ALL GPU plugin:
 	(C) 2010 PCSX4ALL Team
 	(C) 2010 Unai
@@ -36,13 +40,14 @@ GLES plugin (psx4m project):
 	Proger
 	Pickle
 
-builtin GPU plugin:
+P.E.Op.S. GPU plugin:
 	(C) Pete Bernert and the P.E.Op.S. team
 
-builtin SPU plugin:
+P.E.Op.S. SPU plugin:
 	(C) Pete Bernert and the P.E.Op.S. team
 	(C) SPU2-X, gigaherz, Pcsx2 Development Team
 	shalma
+	notaz
 
 MIPS->ARM recompiler:
 	(C) 2009-2011 Ari64

@@ -1647,10 +1647,13 @@ static const char credits_text[] =
 	"(C) 1999-2003 PCSX Team\n"
 	"(C) 2005-2009 PCSX-df Team\n"
 	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
-	"GPU and SPU code by Pete Bernert\n"
-	"  and the P.E.Op.S. team\n"
 	"ARM recompiler (C) 2009-2011 Ari64\n"
-	"PCSX4ALL plugins by PCSX4ALL team\n"
+#ifdef __ARM_NEON__
+	"ARM NEON GPU (c) 2011 Exophase\n"
+#endif
+	"PEOpS GPU and SPU by Pete Bernert\n"
+	"  and the P.E.Op.S. team\n"
+	"PCSX4ALL plugin by PCSX4ALL team\n"
 	"  Chui, Franxis, Unai\n\n"
 	"integration, optimization and\n"
 	"  frontend (C) 2010-2011 notaz\n";
