@@ -2002,8 +2002,6 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
  1:
   add span_edge_data, span_edge_data, #8
   subs num_spans, num_spans, #1
-
-  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
   bne 0b
 
   ldmia sp!, { r4 - r11, pc }
