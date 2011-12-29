@@ -272,8 +272,10 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 
   if (is_read)
     gpu.status.img = 1;
-  else
+  else {
+    renderer_flush_queues();
     renderer_invalidate_caches(gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
+  }
 
   log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
