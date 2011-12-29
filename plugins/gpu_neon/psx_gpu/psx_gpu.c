@@ -2270,7 +2270,7 @@ void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu);
 void shade_blocks_unshaded_untextured_direct(psx_gpu_struct *psx_gpu);
 
 #ifndef NEON_BUILD
-                                                                                
+                                                                               
 void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu)
 {
 }
@@ -4430,6 +4430,11 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->clut_ptr = psx_gpu->vram_ptr;
 
   psx_gpu->mask_msb = 0;
+
+  psx_gpu->texture_window_x = 0;
+  psx_gpu->texture_window_y = 0;
+  psx_gpu->texture_mask_width = 0xFF;
+  psx_gpu->texture_mask_height = 0xFF;
 
   memset(psx_gpu->vram_ptr, 0, sizeof(u16) * 1024 * 512);
 

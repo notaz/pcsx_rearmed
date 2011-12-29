@@ -228,7 +228,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         get_vertex_data_xy(0, 2);
         get_vertex_data_xy(1, 4);
         get_vertex_data_xy(2, 6);
-  
+          
         render_triangle(psx_gpu, vertexes, current_command);
   			break;
       }
@@ -359,7 +359,8 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         while(1)
         {
           xy = *list_position;
-          if(xy == 0x55555555)
+
+          if((xy & 0xF000F000) == 0x50005000)
             break;
 
           vertexes[0] = vertexes[1];
@@ -369,6 +370,9 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
 
           list_position++;
           num_vertexes++;
+
+          if(list_position > list_end)
+            break;
 
           render_line(psx_gpu, vertexes, current_command, list[0]);
         }
@@ -413,7 +417,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         while(1)
         {
           color = list_position[0];
-          if(color == 0x55555555)
+          if((color & 0xF000F000) == 0x50005000)
             break;
 
           xy = list_position[1];
@@ -428,6 +432,9 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
 
           list_position += 2;
           num_vertexes++;
+
+          if(list_position > list_end)
+            break;
 
           render_line(psx_gpu, vertexes, current_command, 0);
         }

@@ -294,6 +294,7 @@ int main(int argc, char *argv[])
      percent_of(sprites_8bpp, sprites), percent_of(sprites_16bpp, sprites),
      percent_of(sprites_untextured, sprites));
   }
+  printf("  %d lines\n", lines);
   printf("\n");
   printf("  %d mismatches\n\n\n", mismatches);
 #endif
