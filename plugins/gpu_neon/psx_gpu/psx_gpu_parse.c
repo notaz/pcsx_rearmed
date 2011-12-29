@@ -553,7 +553,10 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         u32 load_size = load_width * load_height;
   
         command_length += load_size / 2;
-  
+
+        if(load_size & 1)
+          command_length++;
+
         render_block_copy(psx_gpu, (u16 *)&(list_s16[6]), load_x, load_y,
          load_width, load_height, load_width);
   			break;

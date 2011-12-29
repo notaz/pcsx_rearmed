@@ -4319,6 +4319,7 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   if((width == 0) || (height == 0))
     return;
 
+  flush_render_block_buffer(psx_gpu);
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
 #ifndef NEON_BUILD
@@ -4356,6 +4357,7 @@ void render_block_copy(psx_gpu_struct *psx_gpu, u16 *source, u32 x, u32 y,
   if((width == 0) || (height == 0))
     return;
 
+  flush_render_block_buffer(psx_gpu);
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
   for(draw_y = 0; draw_y < height; draw_y++)
