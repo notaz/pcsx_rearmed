@@ -87,6 +87,7 @@ struct psx_gpu {
 extern struct psx_gpu gpu;
 
 extern const unsigned char cmd_lengths[256];
+void flush_cmd_buffer(void);
 
 void do_cmd_list(uint32_t *list, int count);
 

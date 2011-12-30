@@ -80,6 +80,8 @@ static void blit(void)
 void GPUupdateLace(void)
 {
   if (!gpu.status.blanking && gpu.state.fb_dirty) {
+    if (gpu.cmd_len > 0)
+      flush_cmd_buffer();
     renderer_flush_queues();
     blit();
     gpu.state.fb_dirty = 0;

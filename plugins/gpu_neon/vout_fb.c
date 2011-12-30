@@ -101,6 +101,8 @@ void GPUupdateLace(void)
     gpu.frameskip.frame_ready = 0;
   }
 
+  if (gpu.cmd_len > 0)
+    flush_cmd_buffer();
   renderer_flush_queues();
   check_mode_change();
   if (cbs->pl_vout_raw_flip)

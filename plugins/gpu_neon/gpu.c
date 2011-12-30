@@ -359,7 +359,7 @@ static int check_cmd(uint32_t *data, int count)
   return count - pos;
 }
 
-static void flush_cmd_buffer(void)
+void flush_cmd_buffer(void)
 {
   int left = check_cmd(gpu.cmd_buffer, gpu.cmd_len);
   if (left > 0)
