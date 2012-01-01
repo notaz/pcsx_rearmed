@@ -270,10 +270,13 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   gpu.dma.h = size_word >> 16;
   gpu.dma.offset = 0;
 
-  if (is_read)
+  renderer_flush_queues();
+  if (is_read) {
     gpu.status.img = 1;
+    // XXX: wrong for width 1
+    memcpy(&gpu.gp0, VRAM_MEM_XY(gpu.dma.x, gpu.dma.y), 4);
+  }
   else {
-    renderer_flush_queues();
     renderer_invalidate_caches(gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
   }
 
@@ -467,15 +470,17 @@ void GPUreadDataMem(uint32_t *mem, int count)
 
 uint32_t GPUreadData(void)
 {
-  log_io("gpu_read\n");
+  uint32_t ret;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
+  ret = gpu.gp0;
   if (gpu.dma.h)
-    do_vram_io(&gpu.gp0, 1, 1);
+    do_vram_io(&ret, 1, 1);
 
-  return gpu.gp0;
+  log_io("gpu_read %08x\n", ret);
+  return ret;
 }
 
 uint32_t GPUreadStatus(void)
