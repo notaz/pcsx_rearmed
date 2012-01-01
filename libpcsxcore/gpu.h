@@ -5,9 +5,13 @@
  *    that GPU plugin doesn't.
  */
 
-#define PSXGPU_LCF   (1<<31)
-#define PSXGPU_nBUSY (1<<26)
-#define PSXGPU_ILACE (1<<22)
+#define PSXGPU_LCF     (1<<31)
+#define PSXGPU_nBUSY   (1<<26)
+#define PSXGPU_ILACE   (1<<22)
+#define PSXGPU_DHEIGHT (1<<19)
+
+// both must be set for interlace to work
+#define PSXGPU_ILACE_BITS (PSXGPU_ILACE | PSXGPU_DHEIGHT)
 
 #define HW_GPU_STATUS psxHu32ref(0x1814)
 

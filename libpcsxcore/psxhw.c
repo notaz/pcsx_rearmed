@@ -242,6 +242,8 @@ u32 psxHwRead32(u32 add) {
 		case 0x1f801814:
 			gpuSyncPluginSR();
 			hard = HW_GPU_STATUS;
+			if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+				hard |= PSXGPU_LCF & (psxRegs.cycle << 20);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
 #endif

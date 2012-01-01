@@ -128,7 +128,9 @@ int x11_update_keys(unsigned int *action) {
 	}
 
 	if (leave) {
+		extern void OnFile_Exit();
 		DestroyKeyboard();
+		OnFile_Exit();
 		exit(1);
 	}
 

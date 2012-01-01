@@ -212,9 +212,17 @@ static void io_spu_write32(u32 value)
 
 static u32 io_gpu_read_status(void)
 {
+	u32 v;
+
 	// meh2, syncing for img bit, might want to avoid it..
 	gpuSyncPluginSR();
-	return HW_GPU_STATUS;
+	v = HW_GPU_STATUS;
+
+	// XXX: because of large timeslices can't use hSyncCount, using rough
+	// approximization instead. Perhaps better use hcounter code here or something.
+	if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+		v |= PSXGPU_LCF & (psxRegs.cycle << 20);
+	return v;
 }
 
 static void io_gpu_write_status(u32 value)

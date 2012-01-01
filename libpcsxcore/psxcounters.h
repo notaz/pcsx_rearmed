@@ -31,6 +31,8 @@ extern "C" {
 
 extern u32 psxNextCounter, psxNextsCounter;
 
+extern u32 hSyncCount, frame_counter;
+
 typedef struct Rcnt
 {
     u16 mode, target;

@@ -60,9 +60,9 @@ static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
-static const u32 VBlankStart[]    = { 240, 256 };
 static const u32 HSyncTotal[]     = { 263, 313 };
 static const u32 SpuUpdInterval[] = { 32, 32 };
+#define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
 static const s32 VerboseLevel     = VERBOSE_LEVEL;
@@ -288,10 +288,9 @@ void psxRcntUpdate()
         }
         
         // VSync irq.
-        if( hSyncCount == VBlankStart[Config.PsxType] )
+        if( hSyncCount == VBlankStart )
         {
-            if( !(HW_GPU_STATUS & PSXGPU_ILACE) )
-                HW_GPU_STATUS |= PSXGPU_LCF;
+            HW_GPU_STATUS &= ~PSXGPU_LCF;
 
             setIrq( 0x01 );
 
@@ -305,14 +304,14 @@ void psxRcntUpdate()
             hSyncCount = 0;
             frame_counter++;
 
-            HW_GPU_STATUS &= ~PSXGPU_LCF;
-            if( HW_GPU_STATUS & PSXGPU_ILACE )
+            gpuSyncPluginSR();
+            if( (HW_GPU_STATUS & PSXGPU_ILACE_BITS) == PSXGPU_ILACE_BITS )
                 HW_GPU_STATUS |= frame_counter << 31;
         }
 
         // Schedule next call, in hsyncs
         hsync_steps = SpuUpdInterval[Config.PsxType] - spuSyncCount;
-        next_vsync = VBlankStart[Config.PsxType] - hSyncCount; // ok to overflow
+        next_vsync = VBlankStart - hSyncCount; // ok to overflow
         next_lace = HSyncTotal[Config.PsxType] - hSyncCount;
         if( next_vsync && next_vsync < hsync_steps )
             hsync_steps = next_vsync;
