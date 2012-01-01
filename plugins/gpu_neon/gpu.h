@@ -68,7 +68,7 @@ struct psx_gpu {
     uint32_t *hcnt; /* hsync count */
     struct {
       uint32_t addr;
-      uint32_t words;
+      uint32_t cycles;
       uint32_t frame;
       uint32_t hcnt;
     } last_list;

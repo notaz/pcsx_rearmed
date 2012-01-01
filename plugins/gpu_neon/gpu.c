@@ -394,7 +394,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
   uint32_t addr, *list;
   uint32_t *llist_entry = NULL;
   int len, left, count;
-  long dma_words = 0;
+  long cpu_cycles = 0;
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
@@ -402,7 +402,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
   // ff7 sends it's main list twice, detect this
   if (*gpu.state.frame_count == gpu.state.last_list.frame &&
       *gpu.state.hcnt - gpu.state.last_list.hcnt <= 1 &&
-       gpu.state.last_list.words > 1024)
+       gpu.state.last_list.cycles > 2048)
   {
     llist_entry = rambase + (gpu.state.last_list.addr & 0x1fffff) / 4;
     *llist_entry |= 0x800000;
@@ -415,7 +415,9 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     list = rambase + (addr & 0x1fffff) / 4;
     len = list[0] >> 24;
     addr = list[0] & 0xffffff;
-    dma_words += 1 + len;
+    cpu_cycles += 10;
+    if (len > 0)
+      cpu_cycles += 5 + len;
 
     log_io(".chain %08x #%d\n", (list - rambase) * 4, len);
 
@@ -446,10 +448,10 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
 
   gpu.state.last_list.frame = *gpu.state.frame_count;
   gpu.state.last_list.hcnt = *gpu.state.hcnt;
-  gpu.state.last_list.words = dma_words;
+  gpu.state.last_list.cycles = cpu_cycles;
   gpu.state.last_list.addr = start_addr;
 
-  return dma_words;
+  return cpu_cycles;
 }
 
 void GPUreadDataMem(uint32_t *mem, int count)
