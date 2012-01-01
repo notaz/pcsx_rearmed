@@ -210,16 +210,61 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   	s16 *list_s16 = (void *)list;
   	current_command = *list >> 24;
   	command_length = command_lengths[current_command];
-  
+
   	switch(current_command)
   	{
   		case 0x00:
   			break;
   
   		case 0x02:
-        render_block_fill(psx_gpu, list[0] & 0xFFFFFF, list_s16[2] & 0x3FF,
-         list_s16[3] & 0x1FF, list_s16[4] & 0x3FF, list_s16[5] & 0x1FF);
+      {
+        u32 x = list_s16[2] & 0x3FF;
+        u32 y = list_s16[3] & 0x1FF;
+        u32 width = list_s16[4] & 0x3FF;
+        u32 height = list_s16[5] & 0x1FF;
+        u32 color = list[0] & 0xFFFFFF;
+
+        x &= ~0xF;
+        width = ((width + 0xF) & ~0xF);
+
+        if((x + width) > 1024)
+        {
+          u32 width_a = 1024 - x;
+          u32 width_b = width - width_a;
+
+          if((y + height) > 512)
+          {
+            u32 height_a = 512 - y;
+            u32 height_b = height - height_a;
+
+            render_block_fill(psx_gpu, color, x, y, width_a, height_a);
+            render_block_fill(psx_gpu, color, 0, y, width_b, height_a);
+            render_block_fill(psx_gpu, color, x, 0, width_a, height_b);
+            render_block_fill(psx_gpu, color, 0, 0, width_b, height_b);
+          }
+          else
+          {
+            render_block_fill(psx_gpu, color, x, y, width_a, height);
+            render_block_fill(psx_gpu, color, 0, y, width_b, height);
+          }
+        }
+        else
+        {
+          if((y + height) > 512)
+          {
+            u32 height_a = 512 - y;
+            u32 height_b = height - height_a;
+
+            render_block_fill(psx_gpu, color, x, y, width, height_a);
+            render_block_fill(psx_gpu, color, x, 0, width, height_b);
+          }
+          else
+          {
+            render_block_fill(psx_gpu, color, x, y, width, height);
+          }
+        }
   			break;
+      }
   
   		case 0x20 ... 0x23:
       {
@@ -567,6 +612,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   
   		case 0xE1:
         set_texture(psx_gpu, list[0] & 0x1FF);
+
         if(list[0] & (1 << 9))
           psx_gpu->render_state_base |= RENDER_STATE_DITHER;
         else

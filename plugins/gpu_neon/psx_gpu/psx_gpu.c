@@ -4352,8 +4352,8 @@ void render_block_copy(psx_gpu_struct *psx_gpu, u16 *source, u32 x, u32 y,
  u32 width, u32 height, u32 pitch)
 {
   u16 *vram_ptr = psx_gpu->vram_ptr + x + (y * 1024);
-  u32 mask_msb = psx_gpu->mask_msb;
   u32 draw_x, draw_y;
+  u32 mask_msb = psx_gpu->mask_msb;
 
   if((width == 0) || (height == 0))
     return;

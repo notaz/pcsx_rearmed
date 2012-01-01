@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
    MAP_SHARED | 0xA0000000, fbdev_handle, 0));
   vram_ptr += 64;
 
-  initialize_psx_gpu(psx_gpu, vram_ptr + 64);
+  initialize_psx_gpu(psx_gpu, vram_ptr);
 #else
   initialize_psx_gpu(psx_gpu, _vram + 64);
 #endif
@@ -204,14 +204,15 @@ int main(int argc, char *argv[])
   gpu_parse(psx_gpu, list, size);
   flush_render_block_buffer(psx_gpu);
 
-  printf("%-64s: ", argv[1]);
 #ifdef NEON_BUILD
   u32 cycles_elapsed = get_counter() - cycles;
 
-  printf("%d\n", cycles_elapsed);
+  printf("%-64s: %d\n", argv[1], cycles_elapsed);
+#else
+  printf("%-64s: ", argv[1]);
 #endif
 
-#if 0
+#if 1
   u32 i;
 
   for(i = 0; i < 1024 * 512; i++)
@@ -238,7 +239,7 @@ int main(int argc, char *argv[])
   }
 #endif
 
-#if 1
+#if 0
   printf("\n");
   printf("  %d pixels, %d pixel blocks, %d spans\n"
    "   (%lf pixels per block, %lf pixels per span),\n"

@@ -4363,9 +4363,11 @@ function(warmup)
 #define num_unaligned                                     r2
 #define num_width                                         r6
 
-#undef colors
+#undef colors_a
+#undef colors_b
 
-#define colors                                            q0
+#define colors_a                                          q0
+#define colors_b                                          q1
 
 .align 3
 
@@ -4386,51 +4388,26 @@ function(render_block_fill_body)
   orr color, color_r, color_g, lsl #5
 
   orr color, color, color_b, lsl #10
-  add left_unaligned, x, #0x7
+  vdup.u16 colors_a, color
 
-  bic left_unaligned, left_unaligned, #0x7
-  vdup.u16 colors, color
-
-  sub left_unaligned, left_unaligned, x
+  vmov colors_b, colors_a
   mov pitch, #2048
-
   sub pitch, pitch, width, lsl #1
-  sub width, width, left_unaligned
-
-  and right_unaligned, width, #0x7
-  bic width, width, #0x7
 
  0:
-  mov num_width, width, lsr #3
-
-  movs num_unaligned, left_unaligned
-  beq 2f
+  mov num_width, width, lsr #4
 
  1:
-  strh color, [ vram_ptr ], #2
+  vst1.u32 { colors_a, colors_b }, [ vram_ptr, :128 ]!
 
-  subs num_unaligned, num_unaligned, #1
+  subs num_width, num_width, #1
   bne 1b
 
- 2:
-  vst1.u32 { colors }, [ vram_ptr, :128 ]!
-  subs num_width, num_width, #1
-  bne 2b
-
-  movs num_unaligned, right_unaligned
-  beq 4f
-
- 3:
-  strh color, [ vram_ptr ], #2
-  
-  subs num_unaligned, num_unaligned, #1
-  bne 3b
-
- 4:
   add vram_ptr, vram_ptr, pitch
   subs height, height, #1
   bne 0b
-  
+ 
+ 1: 
   ldmia sp!, { r4 - r6, pc }
 
 
