@@ -32,17 +32,23 @@ endif
 
 HAVE_NEON = $(shell $(CC_) -E -dD $(CFLAGS) gpu.h | grep -q '__ARM_NEON__ 1' && echo 1)
 
-TARGETS = gpu_peops.$(EXT) gpu_unai.$(EXT)
-ifeq "$(HAVE_NEON)" "1"
-TARGETS += gpu_neon.$(EXT)
-endif
+TARGETS = gpu_neon.$(EXT) gpu_peops.$(EXT) gpu_unai.$(EXT)
 
-gpu_neon.$(EXT): SRC += psx_gpu_if.c psx_gpu/psx_gpu_arm_neon.S
-gpu_neon.$(EXT): CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+gpu_neon.$(EXT): SRC += psx_gpu_if.c
+gpu_neon.$(EXT): CFLAGS += -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+ifeq "$(HAVE_NEON)" "1"
+gpu_neon.$(EXT): SRC += psx_gpu/psx_gpu_arm_neon.S
+gpu_neon.$(EXT): CFLAGS += -DNEON_BUILD
+else
+gpu_neon.$(EXT): CFLAGS += -fno-strict-aliasing
+endif
 gpu_peops.$(EXT): SRC += peops_if.c
 gpu_peops.$(EXT): CFLAGS += -fno-strict-aliasing
-gpu_unai.$(EXT): SRC += unai_if.cpp ../gpu_unai/gpu_arm.s
+gpu_unai.$(EXT): SRC += unai_if.cpp
 gpu_unai.$(EXT): CC_ = $(CXX)
+ifeq "$(ARCH)" "arm"
+gpu_unai.$(EXT): SRC += ../gpu_unai/gpu_arm.s
+endif
 
 all: $(TARGETS)
 
