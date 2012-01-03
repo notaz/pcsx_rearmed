@@ -533,4 +533,8 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
   return 1;
 }
 
+void GPUvBlank(int is_vblank, int lcf)
+{
+}
+
 // vim:shiftwidth=2:expandtab
