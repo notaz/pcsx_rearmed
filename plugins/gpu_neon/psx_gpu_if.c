@@ -10,13 +10,10 @@
 
 #include <stdio.h>
 
-#if 1
+extern const unsigned char cmd_lengths[256];
+#define command_lengths cmd_lengths
+
 #include "psx_gpu/psx_gpu.c"
-#else
-#define printf xprintf
-#define xprintf(...)
-#include "psx_gpu/psx_gpu_standard.c"
-#endif
 #include "psx_gpu/psx_gpu_parse.c"
 #include "gpu.h"
 
