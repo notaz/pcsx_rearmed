@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <time.h>
+#include <locale.h> // savestate date
 
 #include "menu.h"
 #include "fonts.h"
@@ -310,6 +311,9 @@ void menu_init(void)
 		}
 		fclose(f);
 	}
+
+	// use user's locale for savestate date display
+	setlocale(LC_TIME, "");
 }
 
 static void menu_draw_begin(int need_bg)
