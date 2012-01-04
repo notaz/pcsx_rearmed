@@ -385,6 +385,10 @@ void renderer_flush_queues(void)
 {
 }
 
+void renderer_set_interlace(int enable, int is_odd)
+{
+}
+
 #include "../../frontend/plugin_lib.h"
 
 void renderer_set_config(const struct rearmed_cbs *cbs)

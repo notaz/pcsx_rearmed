@@ -89,6 +89,8 @@ int main(int argc, char *argv[])
   pcnt_init();
   renderer_init();
   memcpy(gpu.vram, state.vram, sizeof(gpu.vram));
+  if ((state.gpu_register[8] & 0x24) == 0x24)
+    renderer_set_interlace(1, !(state.status >> 31));
 
   start_cycles = pcnt_get();
 

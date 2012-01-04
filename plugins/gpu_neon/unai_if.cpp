@@ -272,6 +272,10 @@ void renderer_flush_queues(void)
 {
 }
 
+void renderer_set_interlace(int enable, int is_odd)
+{
+}
+
 #ifndef TEST
 
 #include "../../frontend/plugin_lib.h"

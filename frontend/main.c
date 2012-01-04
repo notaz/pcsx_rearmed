@@ -150,6 +150,7 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_unai.abe_hack =
 	pl_rearmed_cbs.gpu_unai.no_light =
 	pl_rearmed_cbs.gpu_unai.no_blend = 0;
+	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
 
 	iUseReverb = 2;
 	iUseInterpolation = 1;

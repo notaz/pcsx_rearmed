@@ -61,6 +61,9 @@ struct rearmed_cbs {
 		int   no_light, no_blend;
 		int   lineskip;
 	} gpu_unai;
+	struct {
+		int   allow_interlace; // 0 off, 1 on, 2 guess
+	} gpu_neon;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;

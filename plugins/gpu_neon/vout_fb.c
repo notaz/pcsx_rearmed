@@ -88,28 +88,13 @@ static void blit(void)
   screen_buf = cbs->pl_vout_flip();
 }
 
-void GPUupdateLace(void)
+void vout_update(void)
 {
-  if (gpu.status.blanking || !gpu.state.fb_dirty)
-    return;
-
-  if (gpu.frameskip.set) {
-    if (!gpu.frameskip.frame_ready) {
-      if (*gpu.state.frame_count - gpu.frameskip.last_flip_frame < 9)
-        return;
-    }
-    gpu.frameskip.frame_ready = 0;
-  }
-
-  if (gpu.cmd_len > 0)
-    flush_cmd_buffer();
-  renderer_flush_queues();
   check_mode_change();
   if (cbs->pl_vout_raw_flip)
     cbs->pl_vout_raw_flip(gpu.screen.x, gpu.screen.y);
   else
     blit();
-  gpu.state.fb_dirty = 0;
 }
 
 long GPUopen(void **unused)
@@ -128,19 +113,9 @@ long GPUclose(void)
   return 0;
 }
 
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
+void vout_set_config(const struct rearmed_cbs *cbs_)
 {
   cbs = cbs_;
-  gpu.frameskip.set = cbs->frameskip;
-  gpu.frameskip.advice = &cbs->fskip_advice;
-  gpu.frameskip.active = 0;
-  gpu.frameskip.frame_ready = 1;
-  gpu.state.hcnt = cbs->gpu_hcnt;
-  gpu.state.frame_count = cbs->gpu_frame_count;
-
-  if (cbs->pl_vout_set_raw_vram)
-    cbs->pl_vout_set_raw_vram(gpu.vram);
-  renderer_set_config(cbs_);
 }
 
 // vim:shiftwidth=2:expandtab

@@ -48,7 +48,7 @@ int vout_finish(void)
   return 0;
 }
 
-static void blit(void)
+void vout_update(void)
 {
   uint32_t *d;
   int i;
@@ -77,17 +77,6 @@ static void blit(void)
   SDL_UpdateRect(screen, 0, 0, 1024, 512);
 }
 
-void GPUupdateLace(void)
-{
-  if (!gpu.status.blanking && gpu.state.fb_dirty) {
-    if (gpu.cmd_len > 0)
-      flush_cmd_buffer();
-    renderer_flush_queues();
-    blit();
-    gpu.state.fb_dirty = 0;
-  }
-}
-
 long GPUopen(void **dpy)
 {
   *dpy = x11_display;
@@ -99,16 +88,8 @@ long GPUclose(void)
   return 0;
 }
 
-#include "../../frontend/plugin_lib.h"
-
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
+void vout_set_config(const struct rearmed_cbs *cbs)
 {
-  gpu.state.hcnt = cbs->gpu_hcnt;
-  gpu.state.frame_count = cbs->gpu_frame_count;
-
-  if (cbs->pl_vout_set_raw_vram)
-    cbs->pl_vout_set_raw_vram(gpu.vram);
-  renderer_set_config(cbs);
 }
 
 // vim:shiftwidth=2:expandtab

@@ -290,6 +290,7 @@ static const struct {
 	CE_INTVAL_P(gpu_unai.abe_hack),
 	CE_INTVAL_P(gpu_unai.no_light),
 	CE_INTVAL_P(gpu_unai.no_blend),
+	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_V(iUseReverb, 3),
 	CE_INTVAL_V(iXAPitch, 3),
 	CE_INTVAL_V(iUseInterpolation, 3),
@@ -1193,6 +1194,26 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
+#ifdef __ARM_NEON__
+
+static const char h_gpu_neon[] = "Configure built-in NEON GPU plugin";
+static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
+
+static menu_entry e_menu_plugin_gpu_neon[] =
+{
+	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
+	mee_end,
+};
+
+static int menu_loop_plugin_gpu_neon(int id, int keys)
+{
+	int sel = 0;
+	me_loop(e_menu_plugin_gpu_neon, &sel);
+	return 0;
+}
+
+#endif
+
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
 	mee_onoff     ("Skip every 2nd line",        0, pl_rearmed_cbs.gpu_unai.lineskip, 1),
@@ -1210,12 +1231,12 @@ static int menu_loop_plugin_gpu_unai(int id, int keys)
 }
 
 static const char *men_gpu_dithering[] = { "None", "Game dependant", "Always", NULL };
-static const char h_gpu_0[]            = "Needed for Chrono Cross";
+//static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
 static const char h_gpu_2[]            = "Black screens in Lunar";
 static const char h_gpu_3[]            = "Compatibility mode";
 static const char h_gpu_6[]            = "Pandemonium 2";
-static const char h_gpu_7[]            = "Skip every second frame";
+//static const char h_gpu_7[]            = "Skip every second frame";
 static const char h_gpu_8[]            = "Needed by Dark Forces";
 static const char h_gpu_9[]            = "better g-colors, worse textures";
 static const char h_gpu_10[]           = "Toggle busy flags after drawing";
@@ -1223,12 +1244,12 @@ static const char h_gpu_10[]           = "Toggle busy flags after drawing";
 static menu_entry e_menu_plugin_gpu_peops[] =
 {
 	mee_enum      ("Dithering",                  0, pl_rearmed_cbs.gpu_peops.iUseDither, men_gpu_dithering),
-	mee_onoff_h   ("Odd/even bit hack",          0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<0, h_gpu_0),
+//	mee_onoff_h   ("Odd/even bit hack",          0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<0, h_gpu_0),
 	mee_onoff_h   ("Expand screen width",        0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<1, h_gpu_1),
 	mee_onoff_h   ("Ignore brightness color",    0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<2, h_gpu_2),
 	mee_onoff_h   ("Disable coordinate check",   0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<3, h_gpu_3),
 	mee_onoff_h   ("Lazy screen update",         0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<6, h_gpu_6),
-	mee_onoff_h   ("Old frame skipping",         0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<7, h_gpu_7),
+//	mee_onoff_h   ("Old frame skipping",         0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<7, h_gpu_7),
 	mee_onoff_h   ("Repeated flat tex triangles ",0,pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<8, h_gpu_8),
 	mee_onoff_h   ("Draw quads with triangles",  0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<9, h_gpu_9),
 	mee_onoff_h   ("Fake 'gpu busy' states",     0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<10, h_gpu_10),
@@ -1279,6 +1300,9 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
+#ifdef __ARM_NEON__
+	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
+#endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
 	mee_handler_h ("Configure PCSX4ALL GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),

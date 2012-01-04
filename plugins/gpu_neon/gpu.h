@@ -64,6 +64,8 @@ struct psx_gpu {
   uint32_t zero;
   struct {
     uint32_t fb_dirty:1;
+    uint32_t old_interlace:1;
+    uint32_t allow_interlace:2;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {
@@ -72,6 +74,7 @@ struct psx_gpu {
       uint32_t frame;
       uint32_t hcnt;
     } last_list;
+    uint32_t last_vram_read_frame;
   } state;
   struct {
     int32_t set:3; /* -1 auto, 0 off, 1-3 fixed */
@@ -87,7 +90,6 @@ struct psx_gpu {
 extern struct psx_gpu gpu;
 
 extern const unsigned char cmd_lengths[256];
-void flush_cmd_buffer(void);
 
 void do_cmd_list(uint32_t *list, int count);
 
@@ -97,10 +99,13 @@ int  renderer_init(void);
 void renderer_sync_ecmds(uint32_t * ecmds);
 void renderer_invalidate_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
+void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);
 
-int vout_init(void);
-int vout_finish(void);
+int  vout_init(void);
+int  vout_finish(void);
+void vout_update(void);
+void vout_set_config(const struct rearmed_cbs *config);
 
 /* listing these here for correct linkage if rasterizer uses c++ */
 struct GPUFreeze;

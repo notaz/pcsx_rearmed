@@ -29,6 +29,7 @@ struct psx_gpu gpu __attribute__((aligned(2048)));
 static noinline void do_reset(void)
 {
   memset(gpu.regs, 0, sizeof(gpu.regs));
+  memset(gpu.ex_regs, 0, sizeof(gpu.ex_regs));
   gpu.status.reg = 0x14802000;
   gpu.gp0 = 0;
   gpu.regs[3] = 1;
@@ -264,10 +265,10 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   if (gpu.dma.h)
     log_anomaly("start_vram_transfer while old unfinished\n");
 
-  gpu.dma.x = pos_word & 1023;
-  gpu.dma.y = (pos_word >> 16) & 511;
-  gpu.dma.w = size_word & 0xffff; // ?
-  gpu.dma.h = size_word >> 16;
+  gpu.dma.x = pos_word & 0x3ff;
+  gpu.dma.y = (pos_word >> 16) & 0x1ff;
+  gpu.dma.w = size_word & 0x3ff;
+  gpu.dma.h = (size_word >> 16) & 0x1ff;
   gpu.dma.offset = 0;
 
   renderer_flush_queues();
@@ -275,6 +276,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
     gpu.status.img = 1;
     // XXX: wrong for width 1
     memcpy(&gpu.gp0, VRAM_MEM_XY(gpu.dma.x, gpu.dma.y), 4);
+    gpu.state.last_vram_read_frame = *gpu.state.frame_count;
   }
   else {
     renderer_invalidate_caches(gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
@@ -362,7 +364,7 @@ static int check_cmd(uint32_t *data, int count)
   return count - pos;
 }
 
-void flush_cmd_buffer(void)
+static void flush_cmd_buffer(void)
 {
   int left = check_cmd(gpu.cmd_buffer, gpu.cmd_len);
   if (left > 0)
@@ -533,8 +535,65 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
   return 1;
 }
 
+void GPUupdateLace(void)
+{
+  if (gpu.cmd_len > 0)
+    flush_cmd_buffer();
+  renderer_flush_queues();
+
+  if (gpu.status.blanking || !gpu.state.fb_dirty)
+    return;
+
+  if (gpu.frameskip.set) {
+    if (!gpu.frameskip.frame_ready) {
+      if (*gpu.state.frame_count - gpu.frameskip.last_flip_frame < 9)
+        return;
+      gpu.frameskip.active = 0;
+    }
+    gpu.frameskip.frame_ready = 0;
+  }
+
+  vout_update();
+  gpu.state.fb_dirty = 0;
+}
+
 void GPUvBlank(int is_vblank, int lcf)
 {
+  int interlace = gpu.state.allow_interlace
+    && gpu.status.interlace && gpu.status.dheight;
+  // interlace doesn't look nice on progressive displays,
+  // so we have this "auto" mode here for games that don't read vram
+  if (gpu.state.allow_interlace == 2
+      && *gpu.state.frame_count - gpu.state.last_vram_read_frame > 1)
+  {
+    interlace = 0;
+  }
+  if (interlace || interlace != gpu.state.old_interlace) {
+    gpu.state.old_interlace = interlace;
+
+    if (gpu.cmd_len > 0)
+      flush_cmd_buffer();
+    renderer_flush_queues();
+    renderer_set_interlace(interlace, !lcf);
+  }
+}
+
+#include "../../frontend/plugin_lib.h"
+
+void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
+{
+  gpu.frameskip.set = cbs->frameskip;
+  gpu.frameskip.advice = &cbs->fskip_advice;
+  gpu.frameskip.active = 0;
+  gpu.frameskip.frame_ready = 1;
+  gpu.state.hcnt = cbs->gpu_hcnt;
+  gpu.state.frame_count = cbs->gpu_frame_count;
+  gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
+
+  if (cbs->pl_vout_set_raw_vram)
+    cbs->pl_vout_set_raw_vram(gpu.vram);
+  renderer_set_config(cbs);
+  vout_set_config(cbs);
 }
 
 // vim:shiftwidth=2:expandtab
