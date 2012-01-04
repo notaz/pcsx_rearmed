@@ -53,6 +53,12 @@ typedef enum
   RENDER_STATE_MASK_EVALUATE   = 0x20,
 } render_state_enum;
 
+typedef enum
+{
+  RENDER_INTERLACE_ENABLED     = 0x1,
+  RENDER_INTERLACE_ODD         = 0x2
+} render_interlace_enum;
+
 typedef struct
 {
   u16 left_x;
@@ -172,10 +178,11 @@ typedef struct
   u8 texture_window_y;
 
   u8 primitive_type;
+  u8 interlace_mode;
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned
-  u8 reserved_a[1];
+  //u8 reserved_a[0];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

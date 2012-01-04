@@ -401,6 +401,48 @@ void setup_blocks_shaded_untextured_undithered_unswizzled_indirect(
 
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 {
+  if((psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED) &&
+   (psx_gpu->primitive_type == PRIMITIVE_TYPE_SPRITE))
+  {
+    u32 num_blocks_dest = 0;
+    block_struct *block_src = psx_gpu->blocks; 
+    block_struct *block_dest = psx_gpu->blocks;
+
+    u16 *vram_ptr = psx_gpu->vram_ptr;
+    u32 i;
+
+    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    {
+      for(i = 0; i < psx_gpu->num_blocks; i++)
+      {
+        u32 fb_offset = (u32)((u8 *)block_src->fb_ptr - (u8 *)vram_ptr);
+        if(fb_offset & (1 << 11))
+        {
+          *block_dest = *block_src;
+          num_blocks_dest++;
+          block_dest++;
+        }
+        block_src++;
+      }
+    }
+    else
+    {
+      for(i = 0; i < psx_gpu->num_blocks; i++)
+      {
+        u32 fb_offset = (u32)((u8 *)block_src->fb_ptr - (u8 *)vram_ptr);
+        if((fb_offset & (1 << 11)) == 0)
+        {
+          *block_dest = *block_src;
+          num_blocks_dest++;
+          block_dest++;
+        }
+        block_src++;
+      }
+    }
+
+    psx_gpu->num_blocks = num_blocks_dest;
+  }
+
   if(psx_gpu->num_blocks)
   {
     render_block_handler_struct *render_block_handler =
@@ -2987,6 +3029,28 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   spans += psx_gpu->num_spans;
 #endif
 
+  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
+  {
+    u32 i;
+
+    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    {
+      for(i = 0; i < psx_gpu->num_spans; i++)
+      {
+        if((psx_gpu->span_edge_data[i].y & 1) == 0)
+          psx_gpu->span_edge_data[i].num_blocks = 0;
+      }
+    }
+    else
+    {
+      for(i = 0; i < psx_gpu->num_spans; i++)
+      {
+        if(psx_gpu->span_edge_data[i].y & 1)
+          psx_gpu->span_edge_data[i].num_blocks = 0;
+      }
+    }
+  }
+
   u32 render_state = flags &
    (RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND | 
    RENDER_FLAGS_TEXTURE_MAP | RENDER_FLAGS_SHADE);
@@ -4456,6 +4520,8 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->texture_window_y = 0;
   psx_gpu->texture_mask_width = 0xFF;
   psx_gpu->texture_mask_height = 0xFF;
+
+  psx_gpu->interlace_mode = 0;
 
   memset(psx_gpu->vram_ptr, 0, sizeof(u16) * 1024 * 512);
 
