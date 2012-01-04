@@ -4322,30 +4322,48 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   flush_render_block_buffer(psx_gpu);
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
-#ifndef NEON_BUILD
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
   u32 b = (color >> 16) & 0xFF;
-  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10);
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
+   psx_gpu->mask_msb;
+  u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
-  u16 *vram_ptr = psx_gpu->vram_ptr + x + (y * 1024);
-  u32 draw_x, draw_y;
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_ptr + x + (y * 1024));
 
-  for(draw_y = 0; draw_y < height; draw_y++)
+  u32 pitch = 512 - (width / 2);
+  u32 num_width;
+
+  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
   {
-    for(draw_x = 0; draw_x < width; draw_x++)
+    pitch += 512;
+    height /= 2;
+
+    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+      vram_ptr += 512; 
+  }
+
+  while(height)
+  {
+    num_width = width;
+    while(num_width)
     {
-      vram_ptr[draw_x] = color_16bpp;
+      vram_ptr[0] = color_32bpp;
+      vram_ptr[1] = color_32bpp;
+      vram_ptr[2] = color_32bpp;
+      vram_ptr[3] = color_32bpp;
+      vram_ptr[4] = color_32bpp;
+      vram_ptr[5] = color_32bpp;
+      vram_ptr[6] = color_32bpp;
+      vram_ptr[7] = color_32bpp;
+
+      vram_ptr += 8;
+      num_width -= 16;
     }
 
-    vram_ptr += 1024;
+    vram_ptr += pitch;
+    height--;
   }
-#else
-  void render_block_fill_body(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
-   u32 width, u32 height);
-
-  render_block_fill_body(psx_gpu, color, x, y, width, height);
-#endif
 }
 
 void render_block_copy(psx_gpu_struct *psx_gpu, u16 *source, u32 x, u32 y,

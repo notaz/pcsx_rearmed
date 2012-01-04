@@ -4337,31 +4337,20 @@ function(warmup)
 
   bx lr
 
+#undef vram_ptr
 #undef color
-#undef y
+#undef width
 #undef height
-
-#define psx_gpu                                           r0
-#define color                                             r1
-#define x                                                 r2
-#define y                                                 r3
+#undef pitch
 
 #define vram_ptr                                          r0
-#define width                                             r3
-#define height                                            r12
+#define color                                             r1
+#define width                                             r2
+#define height                                            r3
 
-#define parameter_width_offset                            0
-#define parameter_height_offset                           4
+#define pitch                                             r1
 
-#define color_r                                           r14
-#define color_g                                           r4
-#define color_b                                           r5  
-
-#define left_unaligned                                    r14
-#define right_unaligned                                   r4
-#define pitch                                             r5
-#define num_unaligned                                     r2
-#define num_width                                         r6
+#define num_width                                         r12
 
 #undef colors_a
 #undef colors_b
@@ -4372,44 +4361,28 @@ function(warmup)
 .align 3
 
 function(render_block_fill_body)
-  ldr vram_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
-  ldr height, [ sp, #parameter_height_offset ]
-
-  add vram_ptr, vram_ptr, y, lsl #11
-  ldr width, [ sp, #parameter_width_offset ]
-
-  add vram_ptr, vram_ptr, x, lsl #1
-  stmdb sp!, { r4 - r6, r14 }
-
-  ubfx color_r, color, #3, #5
-  ubfx color_g, color, #11, #5
-
-  ubfx color_b, color, #19, #5
-  orr color, color_r, color_g, lsl #5
-
-  orr color, color, color_b, lsl #10
   vdup.u16 colors_a, color
+  mov pitch, #2048
 
   vmov colors_b, colors_a
-  mov pitch, #2048
   sub pitch, pitch, width, lsl #1
 
- 0:
-  mov num_width, width, lsr #4
+  mov num_width, width
 
- 1:
-  vst1.u32 { colors_a, colors_b }, [ vram_ptr, :128 ]!
+ 0:  
+  vst1.u32 { colors_a, colors_b }, [ vram_ptr, :256 ]!
 
-  subs num_width, num_width, #1
-  bne 1b
+  subs num_width, num_width, #2
+  bne 0b
 
   add vram_ptr, vram_ptr, pitch
+  mov num_width, width
+
   subs height, height, #1
   bne 0b
- 
- 1: 
-  ldmia sp!, { r4 - r6, pc }
 
+  bx lr
+ 
 
 #undef x
 #undef y
