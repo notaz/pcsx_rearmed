@@ -26,10 +26,26 @@
 
 struct psx_gpu gpu __attribute__((aligned(2048)));
 
+static noinline int do_cmd_buffer(uint32_t *data, int count);
+
+static noinline void do_cmd_reset(void)
+{
+  if (unlikely(gpu.cmd_len > 0))
+    do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
+
+  gpu.cmd_len = 0;
+  gpu.dma.h = 0;
+}
+
 static noinline void do_reset(void)
 {
+  int i;
+
+  do_cmd_reset();
+
   memset(gpu.regs, 0, sizeof(gpu.regs));
-  memset(gpu.ex_regs, 0, sizeof(gpu.ex_regs));
+  for (i = 0; i < sizeof(gpu.ex_regs) / sizeof(gpu.ex_regs[0]); i++)
+    gpu.ex_regs[i] = (0xe0 + i) << 24;
   gpu.status.reg = 0x14802000;
   gpu.gp0 = 0;
   gpu.regs[3] = 1;
@@ -115,7 +131,10 @@ long GPUinit(void)
 
   gpu.state.frame_count = &gpu.zero;
   gpu.state.hcnt = &gpu.zero;
+  gpu.frameskip.active = 0;
+  gpu.cmd_len = 0;
   do_reset();
+
   return ret;
 }
 
@@ -131,7 +150,7 @@ void GPUwriteStatus(uint32_t data)
   uint32_t cmd = data >> 24;
 
   if (cmd < ARRAY_SIZE(gpu.regs)) {
-    if (cmd != 0 && cmd != 5 && gpu.regs[cmd] == data)
+    if (cmd > 1 && cmd != 5 && gpu.regs[cmd] == data)
       return;
     gpu.regs[cmd] = data;
   }
@@ -141,6 +160,9 @@ void GPUwriteStatus(uint32_t data)
   switch (cmd) {
     case 0x00:
       do_reset();
+      break;
+    case 0x01:
+      do_cmd_reset();
       break;
     case 0x03:
       gpu.status.blanking = data & 1;
@@ -267,8 +289,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 
   gpu.dma.x = pos_word & 0x3ff;
   gpu.dma.y = (pos_word >> 16) & 0x1ff;
-  gpu.dma.w = size_word & 0x3ff;
-  gpu.dma.h = (size_word >> 16) & 0x1ff;
+  gpu.dma.w = ((size_word - 1) & 0x3ff) + 1;
+  gpu.dma.h = (((size_word >> 16) - 1) & 0x1ff) + 1;
   gpu.dma.offset = 0;
 
   renderer_flush_queues();
@@ -286,7 +308,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
     gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
 }
 
-static int check_cmd(uint32_t *data, int count)
+static noinline int do_cmd_buffer(uint32_t *data, int count)
 {
   int len, cmd, start, pos;
   int vram_dirty = 0;
@@ -366,7 +388,7 @@ static int check_cmd(uint32_t *data, int count)
 
 static void flush_cmd_buffer(void)
 {
-  int left = check_cmd(gpu.cmd_buffer, gpu.cmd_len);
+  int left = do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
   if (left > 0)
     memmove(gpu.cmd_buffer, gpu.cmd_buffer + gpu.cmd_len - left, left * 4);
   gpu.cmd_len = left;
@@ -381,7 +403,7 @@ void GPUwriteDataMem(uint32_t *mem, int count)
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
-  left = check_cmd(mem, count);
+  left = do_cmd_buffer(mem, count);
   if (left)
     log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, count);
 }
@@ -432,7 +454,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     list[0] |= 0x800000;
 
     if (len) {
-      left = check_cmd(list + 1, len);
+      left = do_cmd_buffer(list + 1, len);
       if (left)
         log_anomaly("GPUdmaChain: discarded %d/%d words\n", left, len);
     }
