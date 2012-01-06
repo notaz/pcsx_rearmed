@@ -2835,7 +2835,7 @@ do_readstub(int n)
       temp=r; break;
     }
   }
-  if(rt>=0)
+  if(rt>=0&&rt1[i]!=0)
     reglist&=~(1<<rt);
   if(temp==-1) {
     save_regs(reglist);
@@ -3012,7 +3012,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
     return;
   handler=get_direct_memhandler(mem_rtab,addr,type,&host_addr);
   if (handler==0) {
-    if(rt<0)
+    if(rt<0||rt1[i]==0)
       return;
     if(addr!=host_addr)
       emit_movimm_from(addr,rs,host_addr,rs);
@@ -3037,7 +3037,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   }
 
   // call a memhandler
-  if(rt>=0)
+  if(rt>=0&&rt1[i]!=0)
     reglist&=~(1<<rt);
   save_regs(reglist);
   if(target==0)
@@ -3068,7 +3068,7 @@ inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, i
   else
     emit_call(handler);
 
-  if(rt>=0) {
+  if(rt>=0&&rt1[i]!=0) {
     switch(type) {
       case LOADB_STUB:  emit_signextend8(0,rt); break;
       case LOADBU_STUB: emit_andimm(0,0xff,rt); break;
