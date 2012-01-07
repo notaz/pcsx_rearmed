@@ -3332,10 +3332,24 @@ void store_assemble(int i,struct regstat *i_regs)
       #endif
     }
   }
+  u_int addr_val=constmap[i][s]+offset;
   if(jaddr) {
     add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
   } else if(c&&!memtarget) {
-    inline_writestub(type,i,constmap[i][s]+offset,i_regs->regmap,rs2[i],ccadj[i],reglist);
+    inline_writestub(type,i,addr_val,i_regs->regmap,rs2[i],ccadj[i],reglist);
+  }
+  // basic current block modification detection..
+  // not looking back as that should be in mips cache already
+  if(c&&start+i*4<addr_val&&addr_val<start+slen*4) {
+    printf("write to %08x hits block %08x, pc=%08x\n",addr_val,start,start+i*4);
+    assert(i_regs->regmap==regs[i].regmap); // not delay slot
+    if(i_regs->regmap==regs[i].regmap) {
+      load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
+      wb_dirtys(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty);
+      emit_movimm(start+i*4+4,0);
+      emit_writeword(0,(int)&pcaddr);
+      emit_jmp((int)do_interrupt);
+    }
   }
   //if(opcode[i]==0x2B || opcode[i]==0x3F)
   //if(opcode[i]==0x2B || opcode[i]==0x28)
