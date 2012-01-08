@@ -1666,7 +1666,7 @@ static void draw_frame_main(void)
 
 static void draw_frame_credits(void)
 {
-	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
+	smalltext_out16(4, 1, "build: " __DATE__ " " __TIME__ " " REV, 0xe7fc);
 }
 
 static const char credits_text[] = 
@@ -1676,14 +1676,14 @@ static const char credits_text[] =
 	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
 	"ARM recompiler (C) 2009-2011 Ari64\n"
 #ifdef __ARM_NEON__
-	"ARM NEON GPU (c) 2011 Exophase\n"
+	"ARM NEON GPU (c) 2011-2012 Exophase\n"
 #endif
 	"PEOpS GPU and SPU by Pete Bernert\n"
 	"  and the P.E.Op.S. team\n"
 	"PCSX4ALL plugin by PCSX4ALL team\n"
 	"  Chui, Franxis, Unai\n\n"
 	"integration, optimization and\n"
-	"  frontend (C) 2010-2011 notaz\n";
+	"  frontend (C) 2010-2012 notaz\n";
 
 static int reset_game(void)
 {

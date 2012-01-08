@@ -75,6 +75,15 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
+r13 (2012-01-09)
+* yet more fixes for regressions from earlier versions
+* various fixes for NEON GPU (in collaboration with Exophase)
++ NEON GPU supports interlace mode now, but it's not always
+  enabled due to frameskip glithes (can be changed in the menu)
+* cdda should resume on savestate load now
+* fixed date display in menus to honour locale
++ pandora: added support for minimizing the emulator (while ingame only)
+
 r12 (2011-12-24)
 + new ARM NEON GPU rasterizer from Exophase (NEON hardware required)
 + new GPU emulation code
@@ -259,8 +268,8 @@ Emulator core:
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
 NEON GPU plugin:
-	(C) 2011 Exophase
-	(C) 2011 notaz
+	(C) 2011-2012 Exophase
+	(C) 2011-2012 notaz
 
 PCSX4ALL GPU plugin:
 	(C) 2010 PCSX4ALL Team
@@ -288,13 +297,18 @@ MIPS->ARM recompiler:
 	(C) 2009-2011 Ari64
 
 integration, optimization and frontend:
-	(C) 2010-2011 notaz
+	(C) 2010-2012 notaz
 
-some implementation ideas (and maybe code?) likely originated from
+Special thanks to Mednafen author, shalma/gretar and Rokas for
+various help while developing this emulator.
+
+Some implementation ideas (and maybe code?) likely originated from
 MAME/smf/pSXauthor and were integrated by various people to PCSX.
 
 Source code is released under GNU GPL license, version 2 or later.
-See COPYING included in the archive (.pnd can be extracted using unsquashfs).
+See COPYING included in the archive (pandora version's .pnd can be
+extracted using unsquashfs).
+
 The source code is available in a GIT repository at:
 
 git://notaz.gp2x.de/~notaz/pcsx_rearmed.git

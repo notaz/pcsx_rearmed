@@ -24,8 +24,8 @@
 	Wei Mingzhi (Maintainer, input plugin, iso/cheat support, misc stuff)
 
 ARM NEON GPU plugin:
-	(C) 2011 Exophase
-	(C) 2011 notaz
+	(C) 2011-2012 Exophase
+	(C) 2011-2012 notaz
 
 PCSX4ALL GPU plugin:
 	(C) 2010 PCSX4ALL Team
@@ -53,7 +53,10 @@ MIPS->ARM recompiler:
 	(C) 2009-2011 Ari64
 
 integration, optimization and frontend:
-	(C) 2010-2011 notaz
+	(C) 2010-2012 notaz
+
+Special thanks to Mednafen author, shalma/gretar and Rokas for
+various help and ideas while developing this emulator.
 
 some implementation ideas (and maybe code?) likely originated from
 MAME/smf/pSXauthor and were integrated by various people to PCSX.
