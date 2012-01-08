@@ -2073,8 +2073,12 @@ int cdrFreeze(gzFile f, int Mode) {
 
 	gzfreeze(&tmp, sizeof(tmp));
 
-	if (Mode == 0)
+	if (Mode == 0) {
 		cdr.pTransfer = cdr.Transfer + tmp;
+
+		if (cdr.Play && !Config.Cdda)
+			CDR_play(cdr.SetSectorPlay);
+	}
 
 	return 0;
 }
