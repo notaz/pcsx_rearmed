@@ -121,6 +121,13 @@ void plat_video_menu_leave(void)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
 }
 
+void plat_minimize(void)
+{
+	omap_enable_layer(0);
+	xenv_minimize();
+	omap_enable_layer(1);
+}
+
 void plat_step_volume(int is_up)
 {
 }
@@ -158,7 +165,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	xenv_init();
+	xenv_init("PCSX-ReARMed");
 
 	w = h = 0;
 	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);

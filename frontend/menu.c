@@ -756,6 +756,9 @@ me_bind_action emuctrl_actions[] =
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
+#ifdef __ARM_ARCH_7A__ /* XXX */
+	{ "Minimize         ", 1 << SACTION_MINIMIZE },
+#endif
 	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },

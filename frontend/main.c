@@ -250,6 +250,9 @@ void do_emu_action(void)
 	case SACTION_VOLUME_DOWN:
 		plat_step_volume(emu_action == SACTION_VOLUME_UP);
 		return;
+	case SACTION_MINIMIZE:
+		plat_minimize();
+		return;
 	default:
 		return;
 	}

@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2009-2011
+ * (C) Gražvydas "notaz" Ignotas, 2009-2012
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -38,6 +38,7 @@
 
 struct xstuff {
 	Display *display;
+	Window window;
 	FPTR(XCreateBitmapFromData);
 	FPTR(XCreatePixmapCursor);
 	FPTR(XFreePixmap);
@@ -50,11 +51,17 @@ struct xstuff {
 	FPTR(XMapWindow);
 	FPTR(XNextEvent);
 	FPTR(XCheckTypedEvent);
-	FPTR(XUnmapWindow);
+	FPTR(XWithdrawWindow);
 	FPTR(XGrabKeyboard);
 	FPTR(XPending);
 	FPTR(XLookupKeysym);
 	FPTR(XkbSetDetectableAutoRepeat);
+	FPTR(XStoreName);
+	FPTR(XIconifyWindow);
+	FPTR(XMoveResizeWindow);
+	FPTR(XInternAtom);
+	FPTR(XSetWMHints);
+	FPTR(XSync);
 };
 
 static struct xstuff g_xstuff;
@@ -74,7 +81,7 @@ static Cursor transparent_cursor(struct xstuff *xf, Display *display, Window win
 	return cursor;
 }
 
-static int x11h_init(void)
+static int x11h_init(const char *window_title)
 {
 	unsigned int display_width, display_height;
 	Display *display;
@@ -102,11 +109,17 @@ static int x11h_init(void)
 	FPTR_LINK(g_xstuff, x11lib, XMapWindow);
 	FPTR_LINK(g_xstuff, x11lib, XNextEvent);
 	FPTR_LINK(g_xstuff, x11lib, XCheckTypedEvent);
-	FPTR_LINK(g_xstuff, x11lib, XUnmapWindow);
+	FPTR_LINK(g_xstuff, x11lib, XWithdrawWindow);
 	FPTR_LINK(g_xstuff, x11lib, XGrabKeyboard);
 	FPTR_LINK(g_xstuff, x11lib, XPending);
 	FPTR_LINK(g_xstuff, x11lib, XLookupKeysym);
 	FPTR_LINK(g_xstuff, x11lib, XkbSetDetectableAutoRepeat);
+	FPTR_LINK(g_xstuff, x11lib, XStoreName);
+	FPTR_LINK(g_xstuff, x11lib, XIconifyWindow);
+	FPTR_LINK(g_xstuff, x11lib, XMoveResizeWindow);
+	FPTR_LINK(g_xstuff, x11lib, XInternAtom);
+	FPTR_LINK(g_xstuff, x11lib, XSetWMHints);
+	FPTR_LINK(g_xstuff, x11lib, XSync);
 
 	//XInitThreads();
 
@@ -132,21 +145,24 @@ static int x11h_init(void)
 	display_height = DisplayHeight(display, screen);
 	printf(PFX "display is %dx%d\n", display_width, display_height);
 
-	win = g_xstuff.pXCreateSimpleWindow(display,
-			RootWindow(display, screen),
-			0, 0, display_width, display_height, 0,
-			BlackPixel(display, screen),
-			BlackPixel(display, screen));
+	g_xstuff.window = win = g_xstuff.pXCreateSimpleWindow(display,
+		RootWindow(display, screen), 0, 0, display_width, display_height,
+		0, BlackPixel(display, screen), BlackPixel(display, screen));
 
 	attributes.override_redirect = True;
 	attributes.cursor = transparent_cursor(&g_xstuff, display, win);
 	g_xstuff.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
 
-	g_xstuff.pXSelectInput(display, win, ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask);
+	g_xstuff.pXStoreName(display, win, window_title);
+	g_xstuff.pXSelectInput(display, win,
+		ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask | PropertyChangeMask);
 	g_xstuff.pXMapWindow(display, win);
 	g_xstuff.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
 	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
 	// XSetIOErrorHandler
+
+	// we don't know when event dispatch will be called, so sync now
+	g_xstuff.pXSync(display, False);
 
 	return 0;
 fail2:
@@ -169,6 +185,8 @@ static int x11h_update(int *is_down)
 			case Expose:
 				while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
 					;
+			default:
+				// printf("event %d\n", evt.type);
 				break;
 
 			case KeyPress:
@@ -183,6 +201,86 @@ static int x11h_update(int *is_down)
 	}
 
 	return NoSymbol;
+}
+
+static void x11h_wait_vmstate(void)
+{
+	Atom wm_state = g_xstuff.pXInternAtom(g_xstuff.display, "WM_STATE", False);
+	XEvent evt;
+	int i;
+
+	usleep(20000);
+
+	for (i = 0; i < 20; i++) {
+		while (g_xstuff.pXPending(g_xstuff.display)) {
+			g_xstuff.pXNextEvent(g_xstuff.display, &evt);
+			// printf("w event %d\n", evt.type);
+			if (evt.type == PropertyNotify && evt.xproperty.atom == wm_state)
+				return;
+		}
+		usleep(200000);
+	}
+
+	printf("timeout waiting for wm_state change\n");
+}
+
+static int x11h_minimize(void)
+{
+	XSetWindowAttributes attributes;
+	Display *display = g_xstuff.display;
+	Window window = g_xstuff.window;
+	int screen = DefaultScreen(g_xstuff.display);
+	int display_width, display_height;
+	XWMHints wm_hints;
+	XEvent evt;
+
+	g_xstuff.pXWithdrawWindow(display, window, screen);
+
+	attributes.override_redirect = False;
+	g_xstuff.pXChangeWindowAttributes(display, window,
+		CWOverrideRedirect, &attributes);
+
+	wm_hints.flags = StateHint;
+	wm_hints.initial_state = IconicState;
+	g_xstuff.pXSetWMHints(display, window, &wm_hints);
+
+	g_xstuff.pXMapWindow(display, window);
+
+	while (g_xstuff.pXNextEvent(display, &evt) == 0)
+	{
+		// printf("m event %d\n", evt.type);
+		switch (evt.type)
+		{
+			case FocusIn:
+				goto out;
+			default:
+				break;
+		}
+	}
+
+out:
+	g_xstuff.pXWithdrawWindow(display, window, screen);
+
+	// must wait for some magic vmstate property change before setting override_redirect
+	x11h_wait_vmstate();
+
+	attributes.override_redirect = True;
+	g_xstuff.pXChangeWindowAttributes(display, window,
+		CWOverrideRedirect, &attributes);
+
+	// fixup window after resize on override_redirect loss
+	display_width = DisplayWidth(display, screen);
+	display_height = DisplayHeight(display, screen);
+	g_xstuff.pXMoveResizeWindow(display, window, 0, 0, display_width, display_height);
+
+	g_xstuff.pXMapWindow(display, window);
+	g_xstuff.pXGrabKeyboard(display, window, False, GrabModeAsync, GrabModeAsync, CurrentTime);
+	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
+
+	// we don't know when event dispatch will be called, so sync now
+	g_xstuff.pXSync(display, False);
+
+	return 0;
 }
 
 static struct termios g_kbd_termios_saved;
@@ -249,11 +347,11 @@ static void tty_end(void)
 	g_kbdfd = -1;
 }
 
-int xenv_init(void)
+int xenv_init(const char *window_title)
 {
 	int ret;
 
-	ret = x11h_init();
+	ret = x11h_init(window_title);
 	if (ret == 0)
 		return 0;
 
@@ -274,8 +372,47 @@ int xenv_update(int *is_down)
 	return -1;
 }
 
+/* blocking minimize until user maximazes again */
+int xenv_minimize(void)
+{
+	int ret, dummy;
+
+	if (g_xstuff.display) {
+		xenv_update(&dummy);
+		ret = x11h_minimize();
+		xenv_update(&dummy);
+		return ret;
+	}
+
+	return -1;
+}
+
 void xenv_finish(void)
 {
 	// TODO: cleanup X?
 	tty_end();
 }
+
+#if 0
+int main()
+{
+	int i, r, d;
+
+	xenv_init("just a test");
+
+	for (i = 0; i < 5; i++) {
+		while ((r = xenv_update(&d)) > 0)
+			printf("%d %x %d\n", d, r, r);
+		sleep(1);
+
+		if (i == 1)
+			xenv_minimize();
+		printf("ll %d\n", i);
+	}
+
+	printf("xenv_finish..\n");
+	xenv_finish();
+
+	return 0;
+}
+#endif

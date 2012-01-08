@@ -262,6 +262,10 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 	return pl_vout_buf;
 }
 
+void plat_minimize(void)
+{
+}
+
 static void pl_vout_set_raw_vram(void *vram)
 {
 	int i;

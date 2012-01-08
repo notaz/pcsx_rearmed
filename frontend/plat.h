@@ -1,3 +1,4 @@
+void plat_minimize(void);
 void *plat_prepare_screenshot(int *w, int *h, int *bpp);
 void plat_step_volume(int is_up);
 int  plat_cpu_clock_get(void);
