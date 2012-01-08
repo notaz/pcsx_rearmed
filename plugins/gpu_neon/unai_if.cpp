@@ -264,7 +264,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
   unai_do_prim(0xe6, &ecmds[6], 1);
 }
 
-void renderer_invalidate_caches(int x, int y, int w, int h)
+void renderer_update_caches(int x, int y, int w, int h)
 {
 }
 

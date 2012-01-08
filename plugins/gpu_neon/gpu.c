@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2011
+ * (C) Gražvydas "notaz" Ignotas, 2011-2012
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -27,13 +27,16 @@
 struct psx_gpu gpu __attribute__((aligned(2048)));
 
 static noinline int do_cmd_buffer(uint32_t *data, int count);
+static void finish_vram_transfer(int is_read);
 
 static noinline void do_cmd_reset(void)
 {
   if (unlikely(gpu.cmd_len > 0))
     do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
-
   gpu.cmd_len = 0;
+
+  if (unlikely(gpu.dma.h > 0))
+    finish_vram_transfer(gpu.dma_start.is_read);
   gpu.dma.h = 0;
 }
 
@@ -269,12 +272,16 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
     do_vram_line(x, y, sdata, w, is_read);
   }
 
-  if (h > 0 && count > 0) {
-    y &= 511;
-    do_vram_line(x, y, sdata, count, is_read);
-    o = count;
-    count = 0;
+  if (h > 0) {
+    if (count > 0) {
+      y &= 511;
+      do_vram_line(x, y, sdata, count, is_read);
+      o = count;
+      count = 0;
+    }
   }
+  else
+    finish_vram_transfer(is_read);
   gpu.dma.y = y;
   gpu.dma.h = h;
   gpu.dma.offset = o;
@@ -292,6 +299,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   gpu.dma.w = ((size_word - 1) & 0x3ff) + 1;
   gpu.dma.h = (((size_word >> 16) - 1) & 0x1ff) + 1;
   gpu.dma.offset = 0;
+  gpu.dma.is_read = is_read;
+  gpu.dma_start = gpu.dma;
 
   renderer_flush_queues();
   if (is_read) {
@@ -300,12 +309,18 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
     memcpy(&gpu.gp0, VRAM_MEM_XY(gpu.dma.x, gpu.dma.y), 4);
     gpu.state.last_vram_read_frame = *gpu.state.frame_count;
   }
-  else {
-    renderer_invalidate_caches(gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
-  }
 
   log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
+}
+
+static void finish_vram_transfer(int is_read)
+{
+  if (is_read)
+    gpu.status.img = 0;
+  else
+    renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
+                           gpu.dma_start.w, gpu.dma_start.h);
 }
 
 static noinline int do_cmd_buffer(uint32_t *data, int count)
@@ -541,7 +556,6 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
       freeze->ulStatus = gpu.status.reg;
       break;
     case 0: // load
-      renderer_invalidate_caches(0, 0, 1024, 512);
       memcpy(gpu.vram, freeze->psxVRam, sizeof(gpu.vram));
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
@@ -551,6 +565,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
         GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
       }
       renderer_sync_ecmds(gpu.ex_regs);
+      renderer_update_caches(0, 0, 1024, 512);
       break;
   }
 

@@ -58,8 +58,8 @@ struct psx_gpu {
   } screen;
   struct {
     int x, y, w, h;
-    int offset;
-  } dma;
+    short int offset, is_read;
+  } dma, dma_start;
   int cmd_len;
   uint32_t zero;
   struct {
@@ -97,7 +97,7 @@ struct rearmed_cbs;
 
 int  renderer_init(void);
 void renderer_sync_ecmds(uint32_t * ecmds);
-void renderer_invalidate_caches(int x, int y, int w, int h);
+void renderer_update_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);

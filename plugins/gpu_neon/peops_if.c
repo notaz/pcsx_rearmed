@@ -377,7 +377,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
   cmdSTP((unsigned char *)&ecmds[6]);
 }
 
-void renderer_invalidate_caches(int x, int y, int w, int h)
+void renderer_update_caches(int x, int y, int w, int h)
 {
 }
 

@@ -35,9 +35,9 @@ void renderer_sync_ecmds(uint32_t *ecmds)
   gpu_parse(&egpu, ecmds + 1, 6 * 4);
 }
 
-void renderer_invalidate_caches(int x, int y, int w, int h)
+void renderer_update_caches(int x, int y, int w, int h)
 {
-  invalidate_texture_cache_region(&egpu, x, y, x + w - 1, y + h - 1);
+  update_texture_cache_region(&egpu, x, y, x + w - 1, y + h - 1);
 }
 
 void renderer_flush_queues(void)

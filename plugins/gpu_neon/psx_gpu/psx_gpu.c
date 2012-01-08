@@ -244,6 +244,58 @@ u32 invalidate_texture_cache_region_viewport(psx_gpu_struct *psx_gpu, u32 x1,
   return mask;
 }
 
+void update_texture_cache_region(psx_gpu_struct *psx_gpu, u32 x1, u32 y1,
+ u32 x2, u32 y2)
+{
+  u32 mask = texture_region_mask(x1, y1, x2, y2);
+  u32 texture_page;
+  u8 *texture_page_ptr;
+  u16 *vram_ptr;
+  u32 texel_block;
+  u32 sub_x, sub_y;
+
+  psx_gpu->dirty_textures_8bpp_mask |= mask;
+  psx_gpu->dirty_textures_8bpp_alternate_mask |= mask;
+
+  if ((psx_gpu->dirty_textures_4bpp_mask & mask) == 0 &&
+      (x1 & 3) == 0 && (y1 & 15) == 0 && x2 - x1 < 4 && y2 - y1 < 16)
+  {
+    texture_page = ((x1 / 64) & 15) + (y1 / 256) * 16;
+    texture_page_ptr = psx_gpu->texture_4bpp_cache[texture_page];
+    texture_page_ptr += (x1 / 4 & 15) * 16*16 + (y1 / 16 & 15) * 16*16*16;
+    vram_ptr = psx_gpu->vram_ptr + x1 + y1 * 1024;
+    sub_x = 4;
+    sub_y = 16;
+
+    while(sub_y)
+    {
+      while(sub_x)
+      {
+        texel_block = *vram_ptr;
+
+        texture_page_ptr[0] = texel_block & 0xF;
+        texture_page_ptr[1] = (texel_block >> 4) & 0xF;
+        texture_page_ptr[2] = (texel_block >> 8) & 0xF;
+        texture_page_ptr[3] = texel_block >> 12;
+        
+        vram_ptr++;
+        texture_page_ptr += 4;
+
+        sub_x--;          
+      }
+
+      vram_ptr -= 4;
+      sub_x = 4;
+
+      sub_y--;
+      vram_ptr += 1024;
+    }
+  }
+  else
+  {
+    psx_gpu->dirty_textures_4bpp_mask |= mask;
+  }
+}
 
 void update_texture_8bpp_cache_slice(psx_gpu_struct *psx_gpu,
  u32 texture_page);
