@@ -375,14 +375,16 @@ gteRTPT_neon:
     vmovl.s32   q3, d6         @ || gteDQ|AB [64]
     vrecps.f32  q12, q10, q11  @ step
     vcvt.f32.u32 d13, d13      @ | gteH (float for div)
+    vmov.f32    q8, #0.5       @ |||
     vmul.f32    q11, q12, q11  @ better inv
     add         r3, r0, #4*16
     vst1.32     d14[0], [r3]   @ gteSZ0 = gteSZ3
     vdup.32     q13, d13[0]    @ |
-    vrecps.f32  q12, q10, q11  @ step
-    vmul.f32    q11, q12, q11  @ better inv
+@    vrecps.f32  q12, q10, q11  @ step
+@    vmul.f32    q11, q12, q11  @ better inv
     vmul.f32    q10, q13, q11  @ result
 .else
+    vmov.f32    q8, #0.5       @ |||
     vmovl.s32   q2, d4         @ || gteOF|XY [64]
     vmovl.s32   q3, d6         @ || gteDQ|AB [64]
     vcvt.f32.u32 d13, d13      @ | gteH (float for div)
@@ -409,7 +411,7 @@ gteRTPT_neon:
     orrne       lr, #(1<<31)
     orrne       lr, #(1<<18)   @ fSZ (limD)
 
-@    vadd.f32     q10, q        @ adjust for vcvt rounding mode
+    vadd.f32     q10, q8       @ adjust for vcvt rounding mode
     vcvt.u32.f32 q8, q10
     vmovl.s16   q9, d1         @ expand gteIR|12 v=0
     vmovl.s16   q10, d3        @ expand gteIR|12 v=1
