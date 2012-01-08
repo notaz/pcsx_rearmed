@@ -129,7 +129,7 @@ OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
 else
 OBJS += frontend/menu.o frontend/linux/in_evdev.o
-OBJS += frontend/common/input.o frontend/linux/oshide.o
+OBJS += frontend/common/input.o frontend/linux/xenv.o
 
 ifeq "$(PLATFORM)" "pandora"
 frontend/%.o: CFLAGS += -DVOUT_FBDEV

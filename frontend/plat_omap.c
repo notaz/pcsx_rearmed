@@ -16,7 +16,7 @@
 
 #include "common/menu.h"
 #include "linux/fbdev.h"
-#include "linux/oshide.h"
+#include "linux/xenv.h"
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "omap.h"
@@ -90,10 +90,15 @@ int omap_enable_layer(int enabled)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
+	int dummy;
+
 	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
 		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 3);
 	if (g_menuscreen_ptr == NULL)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
+
+	// hmh
+	xenv_update(&dummy);
 }
 
 void plat_video_menu_begin(void)
@@ -153,7 +158,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	oshide_init();
+	xenv_init();
 
 	w = h = 0;
 	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);
@@ -167,7 +172,7 @@ void plat_init(void)
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	w = 640;
-	h = 512; // ??
+	h = 512;
 	layer_fb = vout_fbdev_init(layer_fb_name, &w, &h, 16, 3);
 	if (layer_fb == NULL) {
 		fprintf(stderr, "couldn't init fb: %s\n", layer_fb_name);
@@ -198,6 +203,6 @@ void plat_finish(void)
 	omap_enable_layer(0);
 	vout_fbdev_finish(layer_fb);
 	vout_fbdev_finish(main_fb);
-	oshide_finish();
+	xenv_finish();
 }
 

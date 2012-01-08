@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2009-2010
+ * (C) Gražvydas "notaz" Ignotas, 2009-2011
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -15,6 +15,7 @@
 #include <dlfcn.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -24,7 +25,7 @@
 #include <termios.h>
 #include <linux/kd.h>
 
-#define PFX "oshide: "
+#define PFX "xenv: "
 
 #define FPTR(f) typeof(f) * p##f
 #define FPTR_LINK(xf, dl, f) { \
@@ -35,25 +36,30 @@
 	} \
 }
 
-struct xfuncs {
-FPTR(XCreateBitmapFromData);
-FPTR(XCreatePixmapCursor);
-FPTR(XFreePixmap);
-FPTR(XOpenDisplay);
-FPTR(XDisplayName);
-FPTR(XCloseDisplay);
-FPTR(XCreateSimpleWindow);
-FPTR(XChangeWindowAttributes);
-FPTR(XSelectInput);
-FPTR(XMapWindow);
-FPTR(XNextEvent);
-FPTR(XCheckTypedEvent);
-FPTR(XUnmapWindow);
-FPTR(XGrabKeyboard);
+struct xstuff {
+	Display *display;
+	FPTR(XCreateBitmapFromData);
+	FPTR(XCreatePixmapCursor);
+	FPTR(XFreePixmap);
+	FPTR(XOpenDisplay);
+	FPTR(XDisplayName);
+	FPTR(XCloseDisplay);
+	FPTR(XCreateSimpleWindow);
+	FPTR(XChangeWindowAttributes);
+	FPTR(XSelectInput);
+	FPTR(XMapWindow);
+	FPTR(XNextEvent);
+	FPTR(XCheckTypedEvent);
+	FPTR(XUnmapWindow);
+	FPTR(XGrabKeyboard);
+	FPTR(XPending);
+	FPTR(XLookupKeysym);
+	FPTR(XkbSetDetectableAutoRepeat);
 };
 
+static struct xstuff g_xstuff;
 
-static Cursor transparent_cursor(struct xfuncs *xf, Display *display, Window win)
+static Cursor transparent_cursor(struct xstuff *xf, Display *display, Window win)
 {
 	Cursor cursor;
 	Pixmap pix;
@@ -68,46 +74,47 @@ static Cursor transparent_cursor(struct xfuncs *xf, Display *display, Window win
 	return cursor;
 }
 
-static void *x11h_handler(void *arg)
+static int x11h_init(void)
 {
-	struct xfuncs xf;
 	unsigned int display_width, display_height;
+	Display *display;
 	XSetWindowAttributes attributes;
 	Window win;
-	XEvent report;
-	Display *display;
 	Visual *visual;
 	void *x11lib;
 	int screen;
 
-	memset(&xf, 0, sizeof(xf));
+	memset(&g_xstuff, 0, sizeof(g_xstuff));
 	x11lib = dlopen("libX11.so.6", RTLD_LAZY);
 	if (x11lib == NULL) {
 		fprintf(stderr, "libX11.so load failed:\n%s\n", dlerror());
 		goto fail;
 	}
-	FPTR_LINK(xf, x11lib, XCreateBitmapFromData);
-	FPTR_LINK(xf, x11lib, XCreatePixmapCursor);
-	FPTR_LINK(xf, x11lib, XFreePixmap);
-	FPTR_LINK(xf, x11lib, XOpenDisplay);
-	FPTR_LINK(xf, x11lib, XDisplayName);
-	FPTR_LINK(xf, x11lib, XCloseDisplay);
-	FPTR_LINK(xf, x11lib, XCreateSimpleWindow);
-	FPTR_LINK(xf, x11lib, XChangeWindowAttributes);
-	FPTR_LINK(xf, x11lib, XSelectInput);
-	FPTR_LINK(xf, x11lib, XMapWindow);
-	FPTR_LINK(xf, x11lib, XNextEvent);
-	FPTR_LINK(xf, x11lib, XCheckTypedEvent);
-	FPTR_LINK(xf, x11lib, XUnmapWindow);
-	FPTR_LINK(xf, x11lib, XGrabKeyboard);
+	FPTR_LINK(g_xstuff, x11lib, XCreateBitmapFromData);
+	FPTR_LINK(g_xstuff, x11lib, XCreatePixmapCursor);
+	FPTR_LINK(g_xstuff, x11lib, XFreePixmap);
+	FPTR_LINK(g_xstuff, x11lib, XOpenDisplay);
+	FPTR_LINK(g_xstuff, x11lib, XDisplayName);
+	FPTR_LINK(g_xstuff, x11lib, XCloseDisplay);
+	FPTR_LINK(g_xstuff, x11lib, XCreateSimpleWindow);
+	FPTR_LINK(g_xstuff, x11lib, XChangeWindowAttributes);
+	FPTR_LINK(g_xstuff, x11lib, XSelectInput);
+	FPTR_LINK(g_xstuff, x11lib, XMapWindow);
+	FPTR_LINK(g_xstuff, x11lib, XNextEvent);
+	FPTR_LINK(g_xstuff, x11lib, XCheckTypedEvent);
+	FPTR_LINK(g_xstuff, x11lib, XUnmapWindow);
+	FPTR_LINK(g_xstuff, x11lib, XGrabKeyboard);
+	FPTR_LINK(g_xstuff, x11lib, XPending);
+	FPTR_LINK(g_xstuff, x11lib, XLookupKeysym);
+	FPTR_LINK(g_xstuff, x11lib, XkbSetDetectableAutoRepeat);
 
 	//XInitThreads();
 
-	display = xf.pXOpenDisplay(NULL);
+	g_xstuff.display = display = g_xstuff.pXOpenDisplay(NULL);
 	if (display == NULL)
 	{
 		fprintf(stderr, "cannot connect to X server %s, X handling disabled.\n",
-				xf.pXDisplayName(NULL));
+				g_xstuff.pXDisplayName(NULL));
 		goto fail2;
 	}
 
@@ -125,57 +132,63 @@ static void *x11h_handler(void *arg)
 	display_height = DisplayHeight(display, screen);
 	printf(PFX "display is %dx%d\n", display_width, display_height);
 
-	win = xf.pXCreateSimpleWindow(display,
+	win = g_xstuff.pXCreateSimpleWindow(display,
 			RootWindow(display, screen),
 			0, 0, display_width, display_height, 0,
 			BlackPixel(display, screen),
 			BlackPixel(display, screen));
 
 	attributes.override_redirect = True;
-	attributes.cursor = transparent_cursor(&xf, display, win);
-	xf.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
+	attributes.cursor = transparent_cursor(&g_xstuff, display, win);
+	g_xstuff.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
 
-	xf.pXSelectInput(display, win, ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask);
-	xf.pXMapWindow(display, win);
-	xf.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
+	g_xstuff.pXSelectInput(display, win, ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask);
+	g_xstuff.pXMapWindow(display, win);
+	g_xstuff.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
+	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
 	// XSetIOErrorHandler
 
-	while (1)
-	{
-		xf.pXNextEvent(display, &report);
-		switch (report.type)
-		{
-			case Expose:
-				while (xf.pXCheckTypedEvent(display, Expose, &report))
-					;
-				break;
-
-			case FocusOut:
-				// XFocusChangeEvent
-				// printf("focus out\n");
-				// xf.pXUnmapWindow(display, win);
-				break;
-
-			case KeyPress:
-				// printf("press %d\n", report.xkey.keycode);
-				break;
-
-			default:
-				break;
-		}
-	}
-
+	return 0;
 fail2:
 	dlclose(x11lib);
 fail:
+	g_xstuff.display = NULL;
 	fprintf(stderr, "x11 handling disabled.\n");
-	return NULL;
+	return -1;
+}
+
+static int x11h_update(int *is_down)
+{
+	XEvent evt;
+
+	while (g_xstuff.pXPending(g_xstuff.display))
+	{
+		g_xstuff.pXNextEvent(g_xstuff.display, &evt);
+		switch (evt.type)
+		{
+			case Expose:
+				while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
+					;
+				break;
+
+			case KeyPress:
+				*is_down = 1;
+				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+
+			case KeyRelease:
+				*is_down = 0;
+				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+				// printf("press %d\n", evt.xkey.keycode);
+		}
+	}
+
+	return NoSymbol;
 }
 
 static struct termios g_kbd_termios_saved;
-static int g_kbdfd;
+static int g_kbdfd = -1;
 
-static void hidecon_start(void)
+static int tty_init(void)
 {
 	struct termios kbd_termios;
 	int mode;
@@ -183,7 +196,7 @@ static void hidecon_start(void)
 	g_kbdfd = open("/dev/tty", O_RDWR);
 	if (g_kbdfd == -1) {
 		perror(PFX "open /dev/tty");
-		return;
+		return -1;
 	}
 
 	if (ioctl(g_kbdfd, KDGETMODE, &mode) == -1) {
@@ -213,14 +226,15 @@ static void hidecon_start(void)
 		goto fail;
 	}
 
-	return;
+	return 0;
 
 fail:
 	close(g_kbdfd);
 	g_kbdfd = -1;
+	return -1;
 }
 
-static void hidecon_end(void)
+static void tty_end(void)
 {
 	if (g_kbdfd < 0)
 		return;
@@ -235,34 +249,33 @@ static void hidecon_end(void)
 	g_kbdfd = -1;
 }
 
-int oshide_init(void)
+int xenv_init(void)
 {
-	pthread_t tid;
 	int ret;
 
-	ret = pthread_create(&tid, NULL, x11h_handler, NULL);
-	if (ret != 0) {
-		fprintf(stderr, PFX "failed to create thread: %d\n", ret);
-		return ret;
-	}
-	pthread_detach(tid);
+	ret = x11h_init();
+	if (ret == 0)
+		return 0;
 
-	hidecon_start();
+	ret = tty_init();
+	if (ret == 0)
+		return 0;
 
-	return 0;
+	fprintf(stderr, PFX "error: both x11h_init and tty_init failed\n");
+	return -1;
 }
 
-void oshide_finish(void)
+int xenv_update(int *is_down)
 {
-	/* XXX: the X thread.. */
+	if (g_xstuff.display)
+		return x11h_update(is_down);
 
-	hidecon_end();
+	// TODO: read tty?
+	return -1;
 }
 
-#if 0
-int main()
+void xenv_finish(void)
 {
-	x11h_init();
-	sleep(5);
+	// TODO: cleanup X?
+	tty_end();
 }
-#endif
