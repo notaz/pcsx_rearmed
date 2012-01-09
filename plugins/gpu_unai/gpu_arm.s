@@ -45,9 +45,9 @@ draw_spr16_full:
     do_4_pixels r4, 16, 8
     do_4_pixels r5, 0,  16
     do_4_pixels r5, 16, 24
-    subs    r3, #1
-    add     r0, #2048
-    add     r1, #2048
+    subs    r3, r3, #1
+    add     r0, r0, #2048
+    add     r1, r1, #2048
     bgt     0b
 
     ldmfd   sp!, {r4-r8,pc}
