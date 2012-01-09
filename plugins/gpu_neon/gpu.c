@@ -42,7 +42,7 @@ static noinline void do_cmd_reset(void)
 
 static noinline void do_reset(void)
 {
-  int i;
+  unsigned int i;
 
   do_cmd_reset();
 
