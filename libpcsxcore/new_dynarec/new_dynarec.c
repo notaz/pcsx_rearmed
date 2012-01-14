@@ -7993,10 +7993,16 @@ void new_dynarec_init()
 {
   printf("Init new dynarec\n");
   out=(u_char *)BASE_ADDR;
+#ifdef BASE_ADDR_FIXED
   if (mmap (out, 1<<TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
             -1, 0) <= 0) {printf("mmap() failed\n");}
+#else
+  // not all systems allow execute in data segment by default
+  if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+    printf("mprotect() failed\n");
+#endif
 #ifdef MUPEN64
   rdword=&readmem_dword;
   fake_pc.f.r.rs=&readmem_dword;
@@ -8055,7 +8061,9 @@ void new_dynarec_init()
 void new_dynarec_cleanup()
 {
   int n;
+  #ifdef BASE_ADDR_FIXED
   if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {printf("munmap() failed\n");}
+  #endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
@@ -11543,7 +11551,7 @@ int new_recompile_block(int addr)
   
   // If we're within 256K of the end of the buffer,
   // start over from the beginning. (Is 256K enough?)
-  if((int)out>BASE_ADDR+(1<<TARGET_SIZE_2)-MAX_OUTPUT_BLOCK_SIZE) out=(u_char *)BASE_ADDR;
+  if((u_int)out>(u_int)BASE_ADDR+(1<<TARGET_SIZE_2)-MAX_OUTPUT_BLOCK_SIZE) out=(u_char *)BASE_ADDR;
   
   // Trap writes to any of the pages we compiled
   for(i=start>>12;i<=(start+slen*4)>>12;i++) {
@@ -11571,11 +11579,11 @@ int new_recompile_block(int addr)
   
   /* Pass 10 - Free memory by expiring oldest blocks */
   
-  int end=((((int)out-BASE_ADDR)>>(TARGET_SIZE_2-16))+16384)&65535;
+  int end=((((int)out-(int)BASE_ADDR)>>(TARGET_SIZE_2-16))+16384)&65535;
   while(expirep!=end)
   {
     int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    int base=BASE_ADDR+((expirep>>13)<<shift); // Base address of this block
+    int base=(int)BASE_ADDR+((expirep>>13)<<shift); // Base address of this block
     inv_debug("EXP: Phase %d\n",expirep);
     switch((expirep>>11)&3)
     {

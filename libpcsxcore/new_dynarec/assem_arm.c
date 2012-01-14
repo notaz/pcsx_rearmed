@@ -29,6 +29,10 @@
 #include "pcnt.h"
 #endif
 
+#ifndef BASE_ADDR_FIXED
+char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
+#endif
+
 extern int cycle_count;
 extern int last_count;
 extern int pcaddr;
@@ -5680,7 +5684,7 @@ void do_clear_cache()
       for(j=0;j<32;j++) 
       {
         if(bitmap&(1<<j)) {
-          start=BASE_ADDR+i*131072+j*4096;
+          start=(u_int)BASE_ADDR+i*131072+j*4096;
           end=start+4095;
           j++;
           while(j<32) {
