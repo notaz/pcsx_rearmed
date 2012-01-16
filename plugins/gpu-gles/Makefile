@@ -15,7 +15,7 @@ endif
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8
 # note: the below causes strange bugs/crashes
 #CFLAGS += -mfloat-abi=softfp
-CFLAGS += -DMAEMO_CHANGES # -DUSE_X11
+#CFLAGS += -DUSE_X11
 CFLAGS += -I$(PREFIX)include
 
 TARGET = gpuGLES.so

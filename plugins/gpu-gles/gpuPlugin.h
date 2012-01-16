@@ -46,34 +46,9 @@ extern "C" {
 #define GREEN(x) ((x>>8) & 0xff)
 #define COLOR(x) (x & 0xffffff)
 
-#ifdef _WINDOWS
-#include "Externals.h"
-#include "plugin.h"
-#include <gl/gl.h>
-#else
-//#ifndef MAEMO_CHANGES
-//	#include "psxCommon.h"
-//#else
-//	#include "../psxCommon.h"
-//#endif
+
 #include "gpuExternals.h"
-#ifdef __NANOGL__
-#include <gl/gl.h>
-#else
-#ifdef SOFT_LINKAGE
-#pragma softfp_linkage
-#endif
-#ifndef MAEMO_CHANGES
-	#include <gles/gl.h> // for opengl es types 
-	#include <gles/egltypes.h>
-#else
-#include "gpuStdafx.h"
-#endif
-#ifdef SOFT_LINKAGE
-#pragma no_softfp_linkage
-#endif
-#endif
-#endif
+
 /////////////////////////////////////////////////////////////////////////////
 
 #define CALLBACK

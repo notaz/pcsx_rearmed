@@ -33,19 +33,12 @@
 extern "C" {
 #endif
 
-#ifndef _WINDOWS
 #ifdef __NANOGL__
 #include <gl/gl.h>
 #include <gl/egl.h>
 #else
-#ifdef SOFT_LINKAGE
-#pragma softfp_linkage
-#endif
-#include <GLES/gl.h> // for opengl es types
-#ifdef SOFT_LINKAGE
-#pragma no_softfp_linkage
-#endif
-#endif
+#include <GLES/gl.h>
+#include <GLES/glext.h>
 #endif
 
 #ifdef __NANOGL__

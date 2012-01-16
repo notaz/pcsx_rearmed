@@ -66,21 +66,9 @@ extern "C" {
 #ifdef SOFT_LINKAGE
 #pragma softfp_linkage
 #endif
-#ifdef MAEMO_CHANGES
-
-	//#include <GLES/glplatform.h>
-	#include <GLES/gl.h>
-	//#include <GLES/glext.h>
-	#include <GLES/EGL/egl.h>
-	//#include "../maemo/minimal.h"
-	//#include <gdk/gdkx.h>
-	//#include <gdk/gdk.h>
-
-
-#else
-	#include <gles/gl.h> // for opengl es types 
-	#include <gles/egltypes.h>
-#endif
+#include <GLES/gl.h> // for opengl es types 
+//#include <GLES/egltypes.h>
+#include <EGL/egl.h>
 #ifdef SOFT_LINKAGE
 #pragma no_softfp_linkage
 #endif

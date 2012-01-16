@@ -308,11 +308,9 @@ void CreateScanLines(void)
 HGLRC GLCONTEXT=NULL;
 #endif
 
-#ifdef MAEMO_CHANGES
 #define MODE_RAW 0
 #define MODE_X11 1
 #define MODE_SDL 2
-int pandora_driver_mode = MODE_RAW;
 int use_fsaa = 0;
 
 EGLDisplay display;
@@ -345,9 +343,7 @@ EGLint attrib_list_fsaa[] =
 
 EGLint attrib_list[] =
 {
-	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-	EGL_BUFFER_SIZE,  0,
-	EGL_DEPTH_SIZE,   16,
+//	EGL_DEPTH_SIZE,   16,
 	EGL_NONE
 };
 
@@ -368,7 +364,8 @@ bool TestEGLError(const char* pszLocation)
 	return TRUE;
 }
 
-void maemoGLinit(){
+static void initEGL(void)
+{
 	printf ("GL init\n");
 
 	EGLint numConfigs;
@@ -400,15 +397,6 @@ void maemoGLinit(){
 	}
 
 #if defined(USE_X11)
-	pandora_driver_mode = MODE_X11; // TODO make configurable
-#else
-	pandora_driver_mode = MODE_RAW; // TODO make configurable
-#endif
-	
-    switch(pandora_driver_mode)
-            {            
-#if defined(USE_X11)
-        case MODE_X11:
             // Initializes the display and screen
             x11Display = XOpenDisplay( ":0" );
             if (!x11Display)
@@ -463,13 +451,9 @@ void maemoGLinit(){
             XSendEvent(x11Display, DefaultRootWindow(x11Display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
 
             display = eglGetDisplay( (EGLNativeDisplayType)x11Display );
-            break;
-#endif
-        case MODE_RAW:
-        default:
+#else
             display = eglGetDisplay( (EGLNativeDisplayType)0 );
-            break;
-    }
+#endif
 
 	if( display == EGL_NO_DISPLAY )
 	{
@@ -492,18 +476,11 @@ void maemoGLinit(){
 		printf( "GLES EGL Error: eglCreateContext failed\n" );
 	}
 
-    switch(pandora_driver_mode)
-	{
 #if defined(USE_X11)
-        case MODE_X11:
             surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)x11Window, NULL );
-            break;
-#endif
-        case MODE_RAW:
-        default:
+#else
             surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)0, NULL );
-            break;
-	}
+#endif
 
     eglMakeCurrent( display, surface, surface, context );
     if (!TestEGLError("eglMakeCurrent"))
@@ -511,7 +488,6 @@ void maemoGLinit(){
     else
         printf("GLES Window Opened\n");
 }
-#endif
 
 int GLinitialize() 
 {
@@ -526,9 +502,8 @@ int GLinitialize()
  // CheckWGLExtensions(dcGlobal);
  if(bWindowMode) ReleaseDC(hWWindow,dcGlobal);         // win mode: release dc again
 #endif
-#ifdef MAEMO_CHANGES
-	 maemoGLinit();
-#endif
+ initEGL();
+
  //----------------------------------------------------// 
 
  glViewport(rRatioRect.left,                           // init viewport by ratio rect
@@ -629,12 +604,9 @@ void GLcleanup()
 	eglTerminate( display );
 
 #if defined(USE_X11)
-	if (pandora_driver_mode == MODE_X11)
-	{
 		if (x11Window) XDestroyWindow(x11Display, x11Window);
 		if (x11Colormap) XFreeColormap( x11Display, x11Colormap );
 		if (x11Display) XCloseDisplay(x11Display);
-	}
 #endif
 }
 

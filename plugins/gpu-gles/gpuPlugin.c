@@ -560,9 +560,7 @@ long CALLBACK GPUopen(int hwndGPU)
 	#ifdef _WINDOWS
 	 iResX=240;iResY=320;
 	#endif
-#ifdef MAEMO_CHANGES
-	  iResX=800;iResY=480;
-#endif
+	 iResX=800;iResY=480;
 	 iColDepth=8;
 	 bChangeRes=FALSE;
 	#ifdef _WINDOWS
