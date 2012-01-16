@@ -442,9 +442,13 @@ int GLinitialize()
  glLoadIdentity();
  glScalef(1.0f/255.99f,1.0f/255.99f,1.0f);             // geforce precision hack
 #endif 
+ glDepthRangef(0.0f, 1.0f);glError();
+ 
+ glPolygonOffset( -0.2f, -0.2f );glError();
 
  glMatrixMode(GL_PROJECTION); glError();               // init projection with psx resolution
  glLoadIdentity(); glError();
+
  glOrtho(0,PSXDisplay.DisplayMode.x,
          PSXDisplay.DisplayMode.y, 0, -1, 1); glError();
 
