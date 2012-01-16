@@ -661,7 +661,7 @@ void SetSemiTrans(void)
  if(!DrawSemiTrans)                                    // no semi trans at all?
   {
    if(bBlendEnable)
-    {glDisable(GL_BLEND);bBlendEnable=FALSE;}          // -> don't wanna blend
+    {glDisable(GL_BLEND);glError();bBlendEnable=FALSE;}// -> don't wanna blend
    ubGloAlpha=ubGloColAlpha=255;                       // -> full alpha
    return;                                             // -> and bye
   }
@@ -669,7 +669,7 @@ void SetSemiTrans(void)
  ubGloAlpha=ubGloColAlpha=TransSets[GlobalTextABR].alpha;
 
  if(!bBlendEnable)
-  {glEnable(GL_BLEND);bBlendEnable=TRUE;}              // wanna blend
+  {glEnable(GL_BLEND);glError();bBlendEnable=TRUE;}    // wanna blend
 
  if(TransSets[GlobalTextABR].srcFac!=obm1 || 
     TransSets[GlobalTextABR].dstFac!=obm2)
@@ -678,7 +678,7 @@ void SetSemiTrans(void)
     {
      obm1=TransSets[GlobalTextABR].srcFac;
      obm2=TransSets[GlobalTextABR].dstFac;
-     glBlendFunc(obm1,obm2);                           // set blend func
+     glBlendFunc(obm1,obm2); glError();                // set blend func
     }
    /*else
    if(TransSets[GlobalTextABR].dstFac !=GL_ONE_MINUS_SRC_COLOR)
@@ -709,7 +709,7 @@ void SetScanTrans(void)                                // blending for scan line
 */
  obm1=TransSets[0].srcFac;
  obm2=TransSets[0].dstFac;
- glBlendFunc(obm1,obm2);                               // set blend func
+ glBlendFunc(obm1,obm2); glError();                    // set blend func
 }
 
 void SetScanTexTrans(void)                             // blending for scan mask texture
@@ -722,7 +722,7 @@ void SetScanTexTrans(void)                             // blending for scan mask
 */
  obm1=TransSets[2].srcFac;
  obm2=TransSets[2].dstFac;
- glBlendFunc(obm1,obm2);                               // set blend func
+ glBlendFunc(obm1,obm2); glError();                    // set blend func
 }
 
 ////////////////////////////////////////////////////////////////////////                                          
@@ -802,11 +802,11 @@ void SetSemiTransMulti(int Pass)
   }
 
  if(!bBlendEnable)
-  {glEnable(GL_BLEND);bBlendEnable=TRUE;}              // wanna blend
+  {glEnable(GL_BLEND);glError();bBlendEnable=TRUE;}    // wanna blend
 
  if(bm1!=obm1 || bm2!=obm2)
   {
-   glBlendFunc(bm1,bm2);                               // set blend func
+   glBlendFunc(bm1,bm2); glError();                    // set blend func
    obm1=bm1;obm2=bm2;
   }
 }
@@ -947,14 +947,14 @@ void SetRenderMode(unsigned long DrawAttributes,BOOL bSCol)
    else                 currTex=SelectSubTextureS(GlobalTextTP,ulClutID);
 
    if(gTexName!=currTex)
-    {gTexName=currTex;glBindTexture(GL_TEXTURE_2D,currTex);}
+    {gTexName=currTex;glBindTexture(GL_TEXTURE_2D,currTex); glError();}
 
    if(!bTexEnabled)                                    // -> turn texturing on
-    {bTexEnabled=TRUE;glEnable(GL_TEXTURE_2D);}
+    {bTexEnabled=TRUE;glEnable(GL_TEXTURE_2D); glError();}
   }
  else                                                  // no texture ?
  if(bTexEnabled) 
-  {bTexEnabled=FALSE;glDisable(GL_TEXTURE_2D);}        // -> turn texturing off
+  {bTexEnabled=FALSE;glDisable(GL_TEXTURE_2D); glError();} // -> turn texturing off
 
  if(bSCol)                                             // also set color ?
   {
@@ -980,6 +980,7 @@ void SetRenderMode(unsigned long DrawAttributes,BOOL bSCol)
   {
    if(bDrawSmoothShaded) glShadeModel(GL_SMOOTH);      // -> set actual shading
    else                  glShadeModel(GL_FLAT);
+   glError();
    bOldSmoothShaded=bDrawSmoothShaded;
   }
 }
@@ -1452,14 +1453,14 @@ void UploadScreenEx(long Position)
  if(!PSXDisplay.DisplayMode.x) return;
  if(!PSXDisplay.DisplayMode.y) return;
 
- glDisable(GL_SCISSOR_TEST);
- glShadeModel(GL_FLAT);
+ glDisable(GL_SCISSOR_TEST); glError();
+ glShadeModel(GL_FLAT); glError();
  bOldSmoothShaded=FALSE;
- glDisable(GL_BLEND);
+ glDisable(GL_BLEND); glError();
  bBlendEnable=FALSE;
- glDisable(GL_TEXTURE_2D);
+ glDisable(GL_TEXTURE_2D); glError();
  bTexEnabled=FALSE;
- glDisable(GL_ALPHA_TEST);
+ glDisable(GL_ALPHA_TEST); glError();
 
  //glPixelZoom(((float)rRatioRect.right)/((float)PSXDisplay.DisplayMode.x),
  //            -1.0f*(((float)rRatioRect.bottom)/((float)PSXDisplay.DisplayMode.y)));
@@ -1523,8 +1524,8 @@ void UploadScreenEx(long Position)
 
 // glPixelZoom(1.0F,1.0F);
 
- glEnable(GL_ALPHA_TEST);
- glEnable(GL_SCISSOR_TEST);
+ glEnable(GL_ALPHA_TEST); glError();
+ glEnable(GL_SCISSOR_TEST); glError();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1692,13 +1693,13 @@ void cmdSTP(unsigned char * baseAddr)
    bCheckMask=TRUE;
    if(iDepthFunc==0) return;
    iDepthFunc=0;
-   glDepthFunc(GL_LESS);
+   glDepthFunc(GL_LESS); glError();
   }
  else
   {
    bCheckMask=FALSE;
    if(iDepthFunc==1) return;
-   glDepthFunc(GL_ALWAYS);
+   glDepthFunc(GL_ALWAYS); glError();
    iDepthFunc=1;
   }
 }
@@ -2245,9 +2246,9 @@ void primBlkFill(unsigned char * baseAddr)
      b=((GLclampf)BLUE(gpuData[0]))/255.0f;
      r=((GLclampf)RED(gpuData[0]))/255.0f;
      
-     glDisable(GL_SCISSOR_TEST);                       
-     glClearColor(r,g,b,1.0f);
-     glClear(uiBufferBits); 
+     glDisable(GL_SCISSOR_TEST); glError();
+     glClearColor(r,g,b,1.0f); glError();
+     glClear(uiBufferBits); glError();
      gl_z=0.0f;
 
      if(gpuData[0]!=0x02000000 &&
@@ -2278,7 +2279,7 @@ void primBlkFill(unsigned char * baseAddr)
         }
       }
 
-     glEnable(GL_SCISSOR_TEST);                       
+     glEnable(GL_SCISSOR_TEST); glError();
     }
    else
     {
@@ -2288,9 +2289,9 @@ void primBlkFill(unsigned char * baseAddr)
      SetRenderMode((unsigned long)0x01000000, FALSE);
      vertex[0].c.lcol=gpuData[0]|0xff000000;
      SETCOL(vertex[0]); 
-     glDisable(GL_SCISSOR_TEST);                       
+     glDisable(GL_SCISSOR_TEST); glError();
      PRIMdrawQuad(&vertex[0], &vertex[1], &vertex[2], &vertex[3]);
-     glEnable(GL_SCISSOR_TEST);                       
+     glEnable(GL_SCISSOR_TEST); glError();
     }
   }
 

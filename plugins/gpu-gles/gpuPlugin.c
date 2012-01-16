@@ -149,10 +149,10 @@ void ResizeWindow()
  glViewport(rRatioRect.left,                           // init viewport by ratio rect
             iResY-(rRatioRect.top+rRatioRect.bottom),
             rRatioRect.right, 
-            rRatioRect.bottom);         
+            rRatioRect.bottom); glError();
                                                       
- glScissor(0, 0, iResX, iResY);                        // init clipping (fullscreen)
- glEnable(GL_SCISSOR_TEST);                       
+ glScissor(0, 0, iResX, iResY); glError();             // init clipping (fullscreen)
+ glEnable(GL_SCISSOR_TEST); glError();
 
 #ifndef OWNSCALE
  glMatrixMode(GL_TEXTURE);                             // init psx tex sow and tow if not "ownscale"
@@ -160,10 +160,10 @@ void ResizeWindow()
  glScalef(1.0f/255.99f,1.0f/255.99f,1.0f);             // geforce precision hack
 #endif 
 
- glMatrixMode(GL_PROJECTION);                          // init projection with psx resolution
- glLoadIdentity();
+ glMatrixMode(GL_PROJECTION); glError();               // init projection with psx resolution
+ glLoadIdentity(); glError();
  glOrtho(0,PSXDisplay.DisplayMode.x,
-         PSXDisplay.DisplayMode.y, 0, -1, 1);
+         PSXDisplay.DisplayMode.y, 0, -1, 1); glError();
  if (bKeepRatio)
  SetAspectRatio();
 }
@@ -550,15 +550,15 @@ long CALLBACK GPUshutdown()
 void PaintBlackBorders(void)
 {
  short s;
+ glDisable(GL_SCISSOR_TEST); glError();
+ if(bTexEnabled) {glDisable(GL_TEXTURE_2D);bTexEnabled=FALSE;} glError();
+ if(bOldSmoothShaded) {glShadeModel(GL_FLAT);bOldSmoothShaded=FALSE;} glError();
+ if(bBlendEnable)     {glDisable(GL_BLEND);bBlendEnable=FALSE;} glError();
+ glDisable(GL_ALPHA_TEST); glError();
 
- glDisable(GL_SCISSOR_TEST);
- if(bTexEnabled) {glDisable(GL_TEXTURE_2D);bTexEnabled=FALSE;}
- if(bOldSmoothShaded) {glShadeModel(GL_FLAT);bOldSmoothShaded=FALSE;}
- if(bBlendEnable)     {glDisable(GL_BLEND);bBlendEnable=FALSE;}
- glDisable(GL_ALPHA_TEST);
+ glEnable(GL_ALPHA_TEST); glError();
+ glEnable(GL_SCISSOR_TEST); glError();
 
- glEnable(GL_ALPHA_TEST);
- glEnable(GL_SCISSOR_TEST);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -640,11 +640,13 @@ if(PreviousPSXDisplay.Range.x0||                      // paint black borders aro
 
 if(PSXDisplay.Disabled)                               // display disabled?
  {
+  //LOGE("PSXDisplay.Disabled");
+
   // moved here
-  glDisable(GL_SCISSOR_TEST);                       
-  glClearColor(0,0,0,128);                            // -> clear whole backbuffer
-  glClear(uiBufferBits);
-  glEnable(GL_SCISSOR_TEST);                       
+  glDisable(GL_SCISSOR_TEST); glError();                       
+  glClearColor(0,0,0,128); glError();                 // -> clear whole backbuffer
+  glClear(uiBufferBits); glError();
+  glEnable(GL_SCISSOR_TEST); glError();                       
   gl_z=0.0f;
   bDisplayNotSet = TRUE;
  }
@@ -712,11 +714,10 @@ if(lClearOnSwap)                                      // clear buffer after swap
   g=((GLclampf)GREEN(lClearOnSwapColor))/255.0f;      // -> get col
   b=((GLclampf)BLUE(lClearOnSwapColor))/255.0f;
   r=((GLclampf)RED(lClearOnSwapColor))/255.0f;
-  
-  glDisable(GL_SCISSOR_TEST);                       
-  glClearColor(r,g,b,128);                            // -> clear 
-  glClear(uiBufferBits);
-  glEnable(GL_SCISSOR_TEST);                       
+  glDisable(GL_SCISSOR_TEST); glError();                       
+  glClearColor(r,g,b,128); glError();                 // -> clear 
+  glClear(uiBufferBits); glError();
+  glEnable(GL_SCISSOR_TEST); glError();                       
   lClearOnSwap=0;                                     // -> done
  }
 else 
@@ -725,11 +726,12 @@ else
 
   if(iZBufferDepth)                                   // clear zbuffer as well (if activated)
    {
-    glDisable(GL_SCISSOR_TEST);                       
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_SCISSOR_TEST);                       
+    glDisable(GL_SCISSOR_TEST); glError();
+    glClear(GL_DEPTH_BUFFER_BIT); glError();
+    glEnable(GL_SCISSOR_TEST); glError();
    }
  }
+
 gl_z=0.0f;
 
 //----------------------------------------------------//
@@ -776,7 +778,7 @@ if(iRumbleTime)                                       // shake screen by modifyi
   glViewport(rRatioRect.left+i1,                      
              iResY-(rRatioRect.top+rRatioRect.bottom)+i2,
              rRatioRect.right+i3, 
-             rRatioRect.bottom+i4);            
+             rRatioRect.bottom+i4); glError();
  }
 
 //----------------------------------------------------//
@@ -915,12 +917,11 @@ if(r.bottom < 1)     r.bottom = 1;
 
 r.left = (iResX-r.right)/2;
 r.top  = (iResY-r.bottom)/2;
-
 if(r.bottom<rRatioRect.bottom ||
    r.right <rRatioRect.right)
  {
   RECT rC;
-  glClearColor(0,0,0,128);                         
+  glClearColor(0,0,0,128); glError();
 
   if(r.right <rRatioRect.right)
    {
@@ -928,11 +929,12 @@ if(r.bottom<rRatioRect.bottom ||
     rC.top=0;
     rC.right=r.left;
     rC.bottom=iResY;
-    glScissor(rC.left,rC.top,rC.right,rC.bottom);
-    glClear(uiBufferBits);
+    glScissor(rC.left,rC.top,rC.right,rC.bottom); glError();
+    glClear(uiBufferBits); glError();
     rC.left=iResX-rC.right;
-    glScissor(rC.left,rC.top,rC.right,rC.bottom);
-    glClear(uiBufferBits);
+    glScissor(rC.left,rC.top,rC.right,rC.bottom); glError();
+    
+    glClear(uiBufferBits); glError();
    }
 
   if(r.bottom <rRatioRect.bottom)
@@ -941,11 +943,12 @@ if(r.bottom<rRatioRect.bottom ||
     rC.top=0;
     rC.right=iResX;
     rC.bottom=r.top;
-    glScissor(rC.left,rC.top,rC.right,rC.bottom);
-    glClear(uiBufferBits);
+    glScissor(rC.left,rC.top,rC.right,rC.bottom); glError();
+
+    glClear(uiBufferBits); glError();
     rC.top=iResY-rC.bottom;
-    glScissor(rC.left,rC.top,rC.right,rC.bottom);
-    glClear(uiBufferBits);
+    glScissor(rC.left,rC.top,rC.right,rC.bottom); glError();
+    glClear(uiBufferBits); glError();
    }
   
   bSetClip=TRUE;
@@ -962,7 +965,7 @@ rRatioRect=r;
 glViewport(rRatioRect.left,
            iResY-(rRatioRect.top+rRatioRect.bottom),
            rRatioRect.right,
-           rRatioRect.bottom);                         // init viewport
+           rRatioRect.bottom); glError();              // init viewport
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -982,9 +985,9 @@ if ((PSXDisplay.DisplayMode.y == PSXDisplay.DisplayModeNew.y) &&
  }
 else                                                  // some res change?
  {
-  glLoadIdentity();
+  glLoadIdentity(); glError();
   glOrtho(0,PSXDisplay.DisplayModeNew.x,              // -> new psx resolution
-            PSXDisplay.DisplayModeNew.y, 0, -1, 1);
+            PSXDisplay.DisplayModeNew.y, 0, -1, 1); glError();
   if(bKeepRatio) SetAspectRatio();
  }
 
@@ -1581,7 +1584,7 @@ void CheckVRamReadEx(int x, int y, int dx, int dy)
 
  if(!pGfxCardScreen)
   {
-   glPixelStorei(GL_PACK_ALIGNMENT,1);
+   glPixelStorei(GL_PACK_ALIGNMENT,1); glError();
    pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
@@ -1589,8 +1592,7 @@ void CheckVRamReadEx(int x, int y, int dx, int dy)
  
  //if(!sArea) glReadBuffer(GL_FRONT);
 
- glReadPixels(x,y,dx,dy,GL_RGB,GL_UNSIGNED_BYTE,ps);
-               
+ glReadPixels(x,y,dx,dy,GL_RGB,GL_UNSIGNED_BYTE,ps); glError();
  //if(!sArea) glReadBuffer(GL_BACK);
 
  s=0;
@@ -1729,7 +1731,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
 
  if(!pGfxCardScreen)
   {
-   glPixelStorei(GL_PACK_ALIGNMENT,1);
+   glPixelStorei(GL_PACK_ALIGNMENT,1); glError();
    pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
@@ -1737,8 +1739,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
  
 // if(bFront) glReadBuffer(GL_FRONT);
 
- glReadPixels(x,y,dx,dy,GL_RGB,GL_UNSIGNED_BYTE,ps);
-               
+ glReadPixels(x,y,dx,dy,GL_RGB,GL_UNSIGNED_BYTE,ps); glError(); glError();
 // if(bFront) glReadBuffer(GL_BACK);
 
  XS=(float)dx/(float)(udx);
@@ -2532,7 +2533,7 @@ long CALLBACK GPUgetScreenPic(unsigned char * pMem)
 
  if(!pGfxCardScreen)
   {
-   glPixelStorei(GL_PACK_ALIGNMENT,1);
+   glPixelStorei(GL_PACK_ALIGNMENT,1); glError();
    pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
@@ -2540,7 +2541,7 @@ long CALLBACK GPUgetScreenPic(unsigned char * pMem)
 
 // glReadBuffer(GL_FRONT);
 
- glReadPixels(0,0,iResX,iResY,GL_RGB,GL_UNSIGNED_BYTE,ps);
+ glReadPixels(0,0,iResX,iResY,GL_RGB,GL_UNSIGNED_BYTE,ps); glError();
                
 // glReadBuffer(GL_BACK);
 
