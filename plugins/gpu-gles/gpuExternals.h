@@ -33,15 +33,6 @@
 extern "C" {
 #endif
 
-typedef unsigned char u8;
-typedef signed char s8;
-typedef unsigned short int u16;
-typedef signed short int s16;
-typedef unsigned long u32;
-typedef signed long s32;
-typedef unsigned long long int u64;
-typedef signed long long int s64;
-
 #ifndef _WINDOWS
 #ifdef __NANOGL__
 #include <gl/gl.h>
@@ -253,7 +244,7 @@ typedef struct OGLVertexTag
  union
 COLTAG
   {
-   u8 col[4];
+   unsigned char col[4];
    unsigned long lcol;
   } c;
 
@@ -261,13 +252,13 @@ COLTAG
 
 typedef union EXShortTag
 {
- u8  c[2];
+ unsigned char  c[2];
  unsigned short s;
 } EXShort;
 
 typedef union EXLongTag
 {
- u8 c[4];
+ unsigned char c[4];
  unsigned long l;
  EXShort       s[2];
 } EXLong;
@@ -295,8 +286,8 @@ extern BOOL           bAdvancedBlend;
 //extern PFNGLBLENDEQU      glBlendEquationEXTEx;
 //extern PFNGLCOLORTABLEEXT glColorTableEXTEx;
 
-extern u8  gl_ux[8];
-extern u8  gl_vy[8];
+extern unsigned char  gl_ux[8];
+extern unsigned char  gl_vy[8];
 extern OGLVertex      vertex[4];
 extern short          sprtY,sprtX,sprtH,sprtW;
 #ifdef _WINDOWS
@@ -361,8 +352,8 @@ extern short         sSprite_vy2;
 extern BOOL          bRenderFrontBuffer;
 extern unsigned long ulOLDCOL;
 extern unsigned long ulClutID;
-extern void (*primTableJ[256])(u8 *);
-extern void (*primTableSkip[256])(u8 *);
+extern void (*primTableJ[256])(unsigned char *);
+extern void (*primTableSkip[256])(unsigned char *);
 extern unsigned short  usMirror;
 extern unsigned long dwCfgFixes;
 extern unsigned long dwActFixes;
@@ -386,7 +377,7 @@ extern short symax;
 
 #ifndef _IN_TEXTURE
 
-extern u8  ubOpaqueDraw;
+extern unsigned char  ubOpaqueDraw;
 extern GLint          giWantedRGBA;
 extern GLint          giWantedFMT;
 extern GLint          giWantedTYPE;
@@ -424,8 +415,8 @@ extern int            iDataReadMode;
 extern int            iColDepth;
 extern BOOL           bChangeRes;
 extern BOOL           bWindowMode;
-extern s8           szDispBuf[];
-extern s8           szGPUKeys[];
+extern char           szDispBuf[];
+extern char           szGPUKeys[];
 extern PSXDisplay_t   PSXDisplay;
 extern PSXDisplay_t   PreviousPSXDisplay;
 //extern unsigned long  ulKeybits;
@@ -435,8 +426,8 @@ extern long           lGPUstatusRet;
 extern short          imageX0,imageX1;
 extern short          imageY0,imageY1;
 extern long           lClearOnSwap,lClearOnSwapColor;
-extern u8  * psxVub;
-extern s8    * psxVsb;
+extern unsigned char  * psxVub;
+extern char    * psxVsb;
 extern unsigned short * psxVuw;
 extern signed short   * psxVsw;
 extern unsigned long  * psxVul;
@@ -481,7 +472,7 @@ extern GLuint         gTexPicName;
 #ifndef _IN_CFG
 
 #ifndef _WINDOWS
-extern s8 * pConfigFile;
+extern char * pConfigFile;
 #endif
 
 #endif
@@ -503,10 +494,10 @@ extern float          fps_cur;
 //-----------------------------------------------------//
 
 typedef struct {
-u8 r;
-u8 g;
-u8 b;
-u8 a;
+unsigned char r;
+unsigned char g;
+unsigned char b;
+unsigned char a;
 } Vec4f;
 
 /**/

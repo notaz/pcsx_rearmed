@@ -45,7 +45,7 @@ BOOL CheckAgainstScreen(short imageX0,short imageY0,short imageX1,short imageY1)
 BOOL CheckAgainstFrontScreen(short imageX0,short imageY0,short imageX1,short imageY1);
 BOOL FastCheckAgainstScreen(short imageX0,short imageY0,short imageX1,short imageY1);
 BOOL FastCheckAgainstFrontScreen(short imageX0,short imageY0,short imageX1,short imageY1);
-BOOL bCheckFF9G4(u8 * baseAddr);
+BOOL bCheckFF9G4(unsigned char * baseAddr);
 void SetScanTrans(void);
 void SetScanTexTrans(void);
 void DrawMultiBlur(void);

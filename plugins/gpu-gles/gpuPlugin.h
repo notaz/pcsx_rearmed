@@ -81,10 +81,10 @@ extern "C" {
 #define bool unsigned short
 
 typedef struct {
-	u32 ulFreezeVersion;
-	u32 ulStatus;
-	u32 ulControl[256];
-	u8 psxVRam[1024*1024*2];
+	unsigned int ulFreezeVersion;
+	unsigned int ulStatus;
+	unsigned int ulControl[256];
+	unsigned char psxVRam[1024*1024*2];
 } GPUFreeze_t;
 
 long CALLBACK GPUinit();
@@ -101,8 +101,8 @@ long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr);
 void CALLBACK GPUupdateLace(void);
 void CALLBACK GPUmakeSnapshot(void);
 long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF);
-long CALLBACK GPUgetScreenPic(u8 * pMem);
-long CALLBACK GPUshowScreenPic(u8 * pMem);
+long CALLBACK GPUgetScreenPic(unsigned char * pMem);
+long CALLBACK GPUshowScreenPic(unsigned char * pMem);
 //void CALLBACK GPUkeypressed(int keycode);
 //void CALLBACK GPUdisplayText(s8 * pText);
 //void CALLBACK GPUclearDynarec(void (CALLBACK *callback)(void));
@@ -121,8 +121,8 @@ void           CheckVRamRead(int x, int y, int dx, int dy, bool bFront);
 void           CheckVRamReadEx(int x, int y, int dx, int dy);
 void           SetFixes(void);
 
-void PaintPicDot(u8 * p,u8 c);
-//void DrawNumBorPic(u8 *pMem, int lSelectedSlot);
+void PaintPicDot(unsigned char * p,unsigned char c);
+//void DrawNumBorPic(unsigned char *pMem, int lSelectedSlot);
 void ResizeWindow();
 
 ////////////////////////////////////////////////////////////////////////////

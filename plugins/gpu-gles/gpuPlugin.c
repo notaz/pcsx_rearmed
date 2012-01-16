@@ -83,8 +83,8 @@ int           iTileCheat=0;
 // memory image of the PSX vram
 ////////////////////////////////////////////////////////////////////////
 
-u8  *psxVSecure;
-u8  *psxVub;
+unsigned char  *psxVSecure;
+unsigned char  *psxVub;
 signed   char  *psxVsb;
 unsigned short *psxVuw;
 unsigned short *psxVuw_eom;
@@ -112,10 +112,10 @@ unsigned long   ulStatusControl[256];
 
 static long     GPUdataRet;
 long            lGPUstatusRet;
-s8            szDispBuf[64];
+char            szDispBuf[64];
 
 static unsigned long gpuDataM[256];
-static u8 gpuCommand = 0;
+static unsigned char gpuCommand = 0;
 static long          gpuDataC = 0;
 static long          gpuDataP = 0;
 
@@ -144,7 +144,7 @@ BOOL            bDisplayNotSet = TRUE;
 GLuint          uiScanLine=0;
 int             iUseScanLines=0;
 long            lSelectedSlot=0;
-u8 * pGfxCardScreen=0;
+unsigned char * pGfxCardScreen=0;
 int             iBlurBuffer=0;
 int             iScanBlend=0;
 int             iRenderFVR=0;
@@ -161,7 +161,7 @@ static void (*rearmed_get_layer_pos)(int *x, int *y, int *w, int *h);
 ////////////////////////////////////////////////////////////////////////
 
 #ifdef _WINDOWS
-s8 * CALLBACK PSEgetLibName(void)
+char * CALLBACK PSEgetLibName(void)
 {
  return "name";
 }
@@ -208,14 +208,14 @@ void ResizeWindow()
  SetAspectRatio();
 }
 
-s8 * GetConfigInfos(int hW)
+char * GetConfigInfos(int hW)
 {
 #ifdef _WINDOWS
  HDC hdc;HGLRC hglrc;
 #endif
- s8 szO[2][4]={"off","on "};
- s8 szTxt[256];
- s8 * pB=(s8 *)malloc(32767);
+ char szO[2][4]={"off","on "};
+ char szTxt[256];
+ char * pB=(char *)malloc(32767);
 /*
  if(!pB) return NULL;
  *pB=0;
@@ -237,7 +237,7 @@ s8 * GetConfigInfos(int hW)
  strcat(pB,szTxt);
  sprintf(szTxt,"OGL version: %s\r\n\r\n",(char *)glGetString(GL_VERSION));
  strcat(pB,szTxt);
- //strcat(pB,(s8 *)glGetString(GL_EXTENSIONS));
+ //strcat(pB,(char *)glGetString(GL_EXTENSIONS));
  //strcat(pB,"\r\n\r\n");
 
 #ifdef _WINDOWS
@@ -432,7 +432,7 @@ iWinSize=MAKELONG(iResX,iResY);
 bKeepRatio = TRUE;
 // different ways of accessing PSX VRAM
 
-psxVSecure=(u8 *)malloc((iGPUHeight*2)*1024 + (1024*1024)); // always alloc one extra MB for soft drawing funcs security
+psxVSecure=(unsigned char *)malloc((iGPUHeight*2)*1024 + (1024*1024)); // always alloc one extra MB for soft drawing funcs security
 if(!psxVSecure) return -1;
 
 psxVub=psxVSecure+512*1024;                           // security offset into double sized psx vram!
@@ -1730,8 +1730,8 @@ void CheckVRamReadEx(int x, int y, int dx, int dy)
  int ux,uy,udx,udy,wx,wy;
  unsigned short * p1, *p2;
  float XS,YS;
- u8 * ps;
- u8 * px;
+ unsigned char * ps;
+ unsigned char * px;
  unsigned short s,sx;
 
  if(STATUSREG&GPUSTATUS_RGB24) return;
@@ -1828,7 +1828,7 @@ void CheckVRamReadEx(int x, int y, int dx, int dy)
  if(!pGfxCardScreen)
   {
    glPixelStorei(GL_PACK_ALIGNMENT,1);
-   pGfxCardScreen=(u8 *)malloc(iResX*iResY*4);
+   pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
  ps=pGfxCardScreen;
@@ -1881,7 +1881,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
 {
  unsigned short sArea;unsigned short * p;
  int ux,uy,udx,udy,wx,wy;float XS,YS;
- u8 * ps, * px;
+ unsigned char * ps, * px;
  unsigned short s=0,sx;
 
  if(STATUSREG&GPUSTATUS_RGB24) return;
@@ -1976,7 +1976,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
  if(!pGfxCardScreen)
   {
    glPixelStorei(GL_PACK_ALIGNMENT,1);
-   pGfxCardScreen=(u8 *)malloc(iResX*iResY*4);
+   pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
  ps=pGfxCardScreen;
@@ -2112,7 +2112,7 @@ unsigned long CALLBACK GPUreadData(void)
 // helper table to know how much data is used by drawing commands
 ////////////////////////////////////////////////////////////////////////
 
-const u8 primTableCX[256] =
+const unsigned char primTableCX[256] =
 {
     // 00
     0,0,3,0,0,0,0,0,
@@ -2192,7 +2192,7 @@ void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
 void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
 #endif
 {
-u8 command;
+unsigned char command;
 unsigned long gdata=0;
 int i=0;
 GPUIsBusy;
@@ -2252,7 +2252,7 @@ ENDVRAM:
 
 if(iDataWriteMode==DR_NORMAL)
  {
-  void (* *primFunc)(u8 *);
+  void (* *primFunc)(unsigned char *);
   if(bSkipNextFrame) primFunc=primTableSkip;
   else               primFunc=primTableJ;
 
@@ -2264,7 +2264,7 @@ if(iDataWriteMode==DR_NORMAL)
 
     if(gpuDataC == 0)
      {
-      command = (u8)((gdata>>24) & 0xff);
+      command = (unsigned char)((gdata>>24) & 0xff);
 
       if(primTableCX[command])
        {
@@ -2293,7 +2293,7 @@ if(iDataWriteMode==DR_NORMAL)
     if(gpuDataP == gpuDataC)
      {
       gpuDataC=gpuDataP=0;
-      primFunc[gpuCommand]((u8 *)gpuDataM);
+      primFunc[gpuCommand]((unsigned char *)gpuDataM);
 
       if(dwEmuFixes&0x0001 || dwActFixes&0x20000)     // hack for emulating "gpu busy" in some games
        iFakePrimBusy=4;
@@ -2357,9 +2357,9 @@ return iT;
 
 /*#include <unistd.h>
 
-void StartCfgTool(s8 * pCmdLine)                     // linux: start external cfg tool
+void StartCfgTool(char * pCmdLine)                     // linux: start external cfg tool
 {
- FILE * cf;s8 filename[255],t[255];
+ FILE * cf;char filename[255],t[255];
 
  strcpy(filename,"cfg/cfgPeopsMesaGL");                 // look in cfg sub folder first
  cf=fopen(filename,"rb");
@@ -2464,7 +2464,7 @@ long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr)
 #endif
 {
 unsigned long dmaMem;
-u8 * baseAddrB;
+unsigned char * baseAddrB;
 short count;unsigned int DMACommandCounter = 0;
 
 if(bIsFirstFrame) GLinitialize();
@@ -2473,7 +2473,7 @@ GPUIsBusy;
 
 lUsedAddr[0]=lUsedAddr[1]=lUsedAddr[2]=0xffffff;
 
-baseAddrB = (u8*) baseAddrL;
+baseAddrB = (unsigned char*) baseAddrL;
 
 do
  {
@@ -2604,7 +2604,7 @@ ResetTextureArea(TRUE);
 //10 = red
 //11 = transparent
 
-u8 cFont[10][120]=
+unsigned char cFont[10][120]=
 {
 // 0
 {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,
@@ -2830,7 +2830,7 @@ u8 cFont[10][120]=
 
 ////////////////////////////////////////////////////////////////////////
 
-void PaintPicDot(u8 * p,u8 c)
+void PaintPicDot(unsigned char * p,unsigned char c)
 {
  if(c==0) {*p++=0x00;*p++=0x00;*p=0x00;return;}
  if(c==1) {*p++=0xff;*p++=0xff;*p=0xff;return;}
@@ -2840,19 +2840,19 @@ void PaintPicDot(u8 * p,u8 c)
 ////////////////////////////////////////////////////////////////////////
 
 #ifdef _WINDOWS
-void CALLBACK GPUgetScreenPic(u8 * pMem)
+void CALLBACK GPUgetScreenPic(unsigned char * pMem)
 #else
-long CALLBACK GPUgetScreenPic(u8 * pMem)
+long CALLBACK GPUgetScreenPic(unsigned char * pMem)
 #endif
 {
  float XS,YS;int x,y,v;
- u8 * ps, * px, * pf;
- u8 c;
+ unsigned char * ps, * px, * pf;
+ unsigned char c;
 
  if(!pGfxCardScreen)
   {
    glPixelStorei(GL_PACK_ALIGNMENT,1);
-   pGfxCardScreen=(u8 *)malloc(iResX*iResY*4);
+   pGfxCardScreen=(unsigned char *)malloc(iResX*iResY*4);
   }
 
  ps=pGfxCardScreen;
@@ -2891,13 +2891,13 @@ long CALLBACK GPUgetScreenPic(u8 * pMem)
     {
      c=cFont[lSelectedSlot][x+y*6];
      v=(c&0xc0)>>6;
-     PaintPicDot(pf,(u8)v);pf+=3;                // paint the dots into the rect
+     PaintPicDot(pf,(unsigned char)v);pf+=3;                // paint the dots into the rect
      v=(c&0x30)>>4;
-     PaintPicDot(pf,(u8)v);pf+=3;
+     PaintPicDot(pf,(unsigned char)v);pf+=3;
      v=(c&0x0c)>>2;
-     PaintPicDot(pf,(u8)v);pf+=3;
+     PaintPicDot(pf,(unsigned char)v);pf+=3;
      v=c&0x03;
-     PaintPicDot(pf,(u8)v);pf+=3;
+     PaintPicDot(pf,(unsigned char)v);pf+=3;
     }
    pf+=104*3;
   }
@@ -2923,9 +2923,9 @@ long CALLBACK GPUgetScreenPic(u8 * pMem)
 ////////////////////////////////////////////////////////////////////////
 
 #ifdef _WINDOWS
-void CALLBACK GPUshowScreenPic(u8 * pMem)
+void CALLBACK GPUshowScreenPic(unsigned char * pMem)
 #else
-long CALLBACK GPUshowScreenPic(u8 * pMem)
+long CALLBACK GPUshowScreenPic(unsigned char * pMem)
 #endif
 {
 // DestroyPic();

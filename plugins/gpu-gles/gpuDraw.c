@@ -211,7 +211,7 @@ void GetExtInfos(void)
 {
  BOOL bPacked=FALSE;                                   // default: no packed pixel support
 
- if(strstr((s8 *)glGetString(GL_EXTENSIONS),         // packed pixels available?
+ if(strstr((char *)glGetString(GL_EXTENSIONS),         // packed pixels available?
     "GL_EXT_packed_pixels"))                          
   bPacked=TRUE;                                        // -> ok
 

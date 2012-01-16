@@ -1514,7 +1514,7 @@ void PrepareFullScreenUpload (long Position)
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
-u8 * LoadDirectMovieFast(void);
+unsigned char * LoadDirectMovieFast(void);
 
 void UploadScreenEx(long Position)
 {
@@ -1745,7 +1745,7 @@ BOOL IsInsideNextScreen(short x, short y, short xoff, short yoff)
 //Mask1    Set mask bit while drawing. 1 = on
 //Mask2    Do not draw to mask areas. 1= on
 
-void cmdSTP(u8 * baseAddr)
+void cmdSTP(unsigned char * baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
 
@@ -1778,7 +1778,7 @@ void cmdSTP(u8 * baseAddr)
 // cmd: Set texture page infos
 ////////////////////////////////////////////////////////////////////////
 
-void cmdTexturePage(u8 * baseAddr)
+void cmdTexturePage(unsigned char * baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
  UpdateGlobalTP((unsigned short)gdata);
@@ -1789,7 +1789,7 @@ void cmdTexturePage(u8 * baseAddr)
 // cmd: turn on/off texture window
 ////////////////////////////////////////////////////////////////////////
 
-void cmdTextureWindow(u8 *baseAddr)
+void cmdTextureWindow(unsigned char *baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
 
@@ -1998,7 +1998,7 @@ void ClampToPSXScreenOffset(short *x0, short *y0, short *x1, short *y1)
 // cmd: start of drawing area... primitives will be clipped inside
 ////////////////////////////////////////////////////////////////////////
 
-void cmdDrawAreaStart(u8 * baseAddr)
+void cmdDrawAreaStart(unsigned char * baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
 
@@ -2029,7 +2029,7 @@ void cmdDrawAreaStart(u8 * baseAddr)
 // cmd: end of drawing area... primitives will be clipped inside
 ////////////////////////////////////////////////////////////////////////
 
-void cmdDrawAreaEnd(u8 * baseAddr)
+void cmdDrawAreaEnd(unsigned char * baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
 
@@ -2064,7 +2064,7 @@ void cmdDrawAreaEnd(u8 * baseAddr)
 // cmd: draw offset... will be added to prim coords
 ////////////////////////////////////////////////////////////////////////
 
-void cmdDrawOffset(u8 * baseAddr)
+void cmdDrawOffset(unsigned char * baseAddr)
 {
  unsigned long gdata = ((unsigned long*)baseAddr)[0];
 
@@ -2095,7 +2095,7 @@ void cmdDrawOffset(u8 * baseAddr)
 // cmd: load image to vram
 ////////////////////////////////////////////////////////////////////////
 
-void primLoadImage(u8 * baseAddr)
+void primLoadImage(unsigned char * baseAddr)
 {
  unsigned short *sgpuData = ((unsigned short *) baseAddr);
 
@@ -2252,7 +2252,7 @@ void CheckWriteUpdate()
 // cmd: vram -> psx mem
 ////////////////////////////////////////////////////////////////////////
 
-void primStoreImage(u8 * baseAddr)
+void primStoreImage(unsigned char * baseAddr)
 {
  unsigned short *sgpuData = ((unsigned short *) baseAddr);
 
@@ -2274,7 +2274,7 @@ void primStoreImage(u8 * baseAddr)
 // cmd: blkfill - NO primitive! Doesn't care about draw areas...
 ////////////////////////////////////////////////////////////////////////
 
-void primBlkFill(u8 * baseAddr)
+void primBlkFill(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -2471,7 +2471,7 @@ void MoveImageWrapped(short imageX0,short imageY0,
 
 ////////////////////////////////////////////////////////////////////////
 
-void primMoveImage(u8 * baseAddr)
+void primMoveImage(unsigned char * baseAddr)
 {
  short *sgpuData = ((short *) baseAddr);
  short imageY0,imageX0,imageY1,imageX1,imageSX,imageSY,i,j;
@@ -2630,7 +2630,7 @@ void primMoveImage(u8 * baseAddr)
 // cmd: draw free-size Tile 
 ////////////////////////////////////////////////////////////////////////
 
-void primTileS(u8 * baseAddr)
+void primTileS(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long*)baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -2695,7 +2695,7 @@ void primTileS(u8 * baseAddr)
 // cmd: draw 1 dot Tile (point)
 ////////////////////////////////////////////////////////////////////////
 
-void primTile1(u8 * baseAddr)
+void primTile1(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long*)baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -2742,7 +2742,7 @@ void primTile1(u8 * baseAddr)
 // cmd: draw 8 dot Tile (small rect)
 ////////////////////////////////////////////////////////////////////////
 
-void primTile8(u8 * baseAddr)
+void primTile8(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long*)baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -2789,7 +2789,7 @@ void primTile8(u8 * baseAddr)
 // cmd: draw 16 dot Tile (medium rect)
 ////////////////////////////////////////////////////////////////////////
 
-void primTile16(u8 * baseAddr)
+void primTile16(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long*)baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -2900,7 +2900,7 @@ void DrawMultiFilterSprite(void)
 // cmd: small sprite (textured rect)
 ////////////////////////////////////////////////////////////////////////
 
-void primSprt8(u8 * baseAddr)
+void primSprt8(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -3021,7 +3021,7 @@ void primSprt8(u8 * baseAddr)
 // cmd: medium sprite (textured rect)
 ////////////////////////////////////////////////////////////////////////
 
-void primSprt16(u8 * baseAddr)
+void primSprt16(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -3141,7 +3141,7 @@ void primSprt16(u8 * baseAddr)
 // cmd: free-size sprite (textured rect)
 ////////////////////////////////////////////////////////////////////////
  
-void primSprtSRest(u8 * baseAddr,unsigned short type)
+void primSprtSRest(unsigned char * baseAddr,unsigned short type)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -3312,7 +3312,7 @@ void primSprtSRest(u8 * baseAddr,unsigned short type)
   }
 }
 
-void primSprtS(u8 * baseAddr)
+void primSprtS(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -3451,7 +3451,7 @@ void primSprtS(u8 * baseAddr)
 // cmd: flat shaded Poly4
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyF4(u8 *baseAddr)
+void primPolyF4(unsigned char *baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -3496,7 +3496,7 @@ void primPolyF4(u8 *baseAddr)
 // cmd: smooth shaded Poly4
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyG4(u8 * baseAddr);
+void primPolyG4(unsigned char * baseAddr);
 
 BOOL bDrawOffscreenFrontFF9G4(void)
 {
@@ -3519,9 +3519,9 @@ BOOL bDrawOffscreenFrontFF9G4(void)
  return TRUE;
 }
 
-BOOL bCheckFF9G4(u8 * baseAddr)
+BOOL bCheckFF9G4(unsigned char * baseAddr)
 {
- static u8 pFF9G4Cache[32];
+ static unsigned char pFF9G4Cache[32];
  static int iFF9Fix=0;
 
  if(baseAddr)
@@ -3560,7 +3560,7 @@ BOOL bCheckFF9G4(u8 * baseAddr)
 
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyG4(u8 * baseAddr)
+void primPolyG4(unsigned char * baseAddr)
 {
  unsigned long *gpuData = (unsigned long *)baseAddr;
  short *sgpuData = ((short *) baseAddr);
@@ -3778,7 +3778,7 @@ BOOL DoLineCheck(unsigned long * gpuData)
 
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyFT3(u8 * baseAddr)
+void primPolyFT3(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4214,7 +4214,7 @@ void RectTexAlign(void)
 
 }
 
-void primPolyFT4(u8 * baseAddr)
+void primPolyFT4(unsigned char * baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4302,7 +4302,7 @@ void primPolyFT4(u8 * baseAddr)
 // cmd: smooth shaded Texture3
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyGT3(u8 *baseAddr)
+void primPolyGT3(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4411,7 +4411,7 @@ void primPolyGT3(u8 *baseAddr)
 // cmd: smooth shaded Poly3
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyG3(u8 *baseAddr)
+void primPolyG3(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4456,7 +4456,7 @@ void primPolyG3(u8 *baseAddr)
 // cmd: smooth shaded Texture4
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyGT4(u8 *baseAddr)
+void primPolyGT4(unsigned char *baseAddr)
 { 
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4576,7 +4576,7 @@ void primPolyGT4(u8 *baseAddr)
 // cmd: smooth shaded Poly3
 ////////////////////////////////////////////////////////////////////////
 
-void primPolyF3(u8 *baseAddr)
+void primPolyF3(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4620,7 +4620,7 @@ void primPolyF3(u8 *baseAddr)
 // cmd: skipping shaded polylines
 ////////////////////////////////////////////////////////////////////////
 
-void primLineGSkip(u8 *baseAddr)
+void primLineGSkip(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4645,7 +4645,7 @@ void primLineGSkip(u8 *baseAddr)
 // cmd: shaded polylines
 ////////////////////////////////////////////////////////////////////////
 
-void primLineGEx(u8 *baseAddr)
+void primLineGEx(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  int iMax=255;
@@ -4709,7 +4709,7 @@ void primLineGEx(u8 *baseAddr)
 // cmd: shaded polyline2
 ////////////////////////////////////////////////////////////////////////
 
-void primLineG2(u8 *baseAddr)
+void primLineG2(unsigned char *baseAddr)
 {    
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4754,7 +4754,7 @@ void primLineG2(u8 *baseAddr)
 // cmd: skipping flat polylines
 ////////////////////////////////////////////////////////////////////////
 
-void primLineFSkip(u8 *baseAddr)
+void primLineFSkip(unsigned char *baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  int i=2,iMax=255;
@@ -4774,7 +4774,7 @@ void primLineFSkip(u8 *baseAddr)
 // cmd: drawing flat polylines
 ////////////////////////////////////////////////////////////////////////
 
-void primLineFEx(u8 *baseAddr)
+void primLineFEx(unsigned char *baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  int iMax;
@@ -4832,7 +4832,7 @@ void primLineFEx(u8 *baseAddr)
 // cmd: drawing flat polyline2
 ////////////////////////////////////////////////////////////////////////
 
-void primLineF2(u8 *baseAddr)
+void primLineF2(unsigned char *baseAddr)
 {
  unsigned long *gpuData = ((unsigned long *) baseAddr);
  short *sgpuData = ((short *) baseAddr);
@@ -4873,7 +4873,7 @@ void primLineF2(u8 *baseAddr)
 // cmd: well, easiest command... not implemented
 ////////////////////////////////////////////////////////////////////////
 
-void primNI(u8 *bA)
+void primNI(unsigned char *bA)
 {
 }
 
@@ -4881,7 +4881,7 @@ void primNI(u8 *bA)
 // cmd func ptr table
 ////////////////////////////////////////////////////////////////////////
 
-void (*primTableJ[256])(u8 *) = 
+void (*primTableJ[256])(unsigned char *) = 
 {
     // 00
     primNI,primNI,primBlkFill,primNI,primNI,primNI,primNI,primNI,
@@ -4953,7 +4953,7 @@ void (*primTableJ[256])(u8 *) =
 // cmd func ptr table for skipping
 ////////////////////////////////////////////////////////////////////////
 
-void (*primTableSkip[256])(u8 *) = 
+void (*primTableSkip[256])(unsigned char *) = 
 {
     // 00
     primNI,primNI,primBlkFill,primNI,primNI,primNI,primNI,primNI,
