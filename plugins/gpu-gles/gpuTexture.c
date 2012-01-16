@@ -67,14 +67,6 @@
  
 #define _IN_TEXTURE
 
-#ifdef _WINDOWS
-#include "stdafx.h"
-
-#include "externals.h"
-#include "texture.h"
-#include "gpu.h"
-#include "prim.h"
-#else
 #include "gpuStdafx.h"
 
 #include "gpuDraw.h"
@@ -83,7 +75,7 @@
 #include "gpuTexture.h"
 #include "gpuPlugin.h"
 #include "gpuPrim.h"
-#endif
+
 #define CLUTCHK   0x00060000
 #define CLUTSHIFT 17
 
@@ -98,11 +90,7 @@ GLuint        gTexFrameName=0;
 int           iTexGarbageCollection=1;
 unsigned long dwTexPageComp=0;
 int           iVRamSize=0;
-#ifdef _WINDOWS
-int           iClampType=GL_CLAMP;
-#else
 int           iClampType=GL_CLAMP_TO_EDGE;
-#endif
 int iFilter = GL_LINEAR;
 void               (*LoadSubTexFn) (int,int,short,short);
 unsigned long      (*PalTexturedColourFn)  (unsigned long);
@@ -166,10 +154,6 @@ unsigned short (*PTCF[2]) (unsigned short);
 // texture cache implementation
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-#pragma pack(1)
-#endif
-
 // "texture window" cache entry
 
 typedef struct textureWndCacheEntryTag
@@ -195,9 +179,6 @@ typedef struct textureSubCacheEntryTagS
  unsigned char   Opaque;
 } textureSubCacheEntryS;
 
-#ifdef _WINDOWS
-#pragma pack()
-#endif
 
 //---------------------------------------------
 

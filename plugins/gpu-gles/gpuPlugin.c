@@ -27,25 +27,8 @@
 //#include "gpuStdafx.h"
 
 //#include <mmsystem.h>
-
 #define _IN_GPU
 
-#ifdef _WINDOWS
-#include "stdafx.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <mmsystem.h>
-
-#include "externals.h"
-#include "gpu.h"
-#include "draw.h"
-#include "prim.h"
-#include "texture.h"
-#include "fps.h"
-#include "resource.h"
-#else
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -60,10 +43,7 @@
 //#include "NoPic.h"
 
 #include "gpuStdafx.h"
-#endif
 
-extern void ProcessEvents();
-               
 short g_m1=255,g_m2=255,g_m3=255;
 short DrawSemiTrans=FALSE;
 short Ymin;
@@ -99,10 +79,6 @@ GLfloat         gl_z=0.0f;
 BOOL            bNeedInterlaceUpdate=FALSE;
 BOOL            bNeedRGB24Update=FALSE;
 BOOL            bChangeWinMode=FALSE;
-
-#ifdef _WINDOWS
-extern HGLRC    GLCONTEXT;
-#endif
 
 unsigned long   ulStatusControl[256];
 
@@ -155,27 +131,11 @@ int             iRumbleVal    = 0;
 int             iRumbleTime   = 0;
 
 static void (*rearmed_get_layer_pos)(int *x, int *y, int *w, int *h);
+static void flipEGL(void);
 
 ////////////////////////////////////////////////////////////////////////
 // stuff to make this a true PDK module
 ////////////////////////////////////////////////////////////////////////
-
-#ifdef _WINDOWS
-char * CALLBACK PSEgetLibName(void)
-{
- return "name";
-}
-
-unsigned long CALLBACK PSEgetLibType(void)
-{
- return  1;
-}
-
-unsigned long CALLBACK PSEgetLibVersion(void)
-{
- return 1<<16|1<<8|1;
-}
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 // snapshot funcs (saves screen to bitmap / text infos into file)
@@ -210,9 +170,6 @@ void ResizeWindow()
 
 char * GetConfigInfos(int hW)
 {
-#ifdef _WINDOWS
- HDC hdc;HGLRC hglrc;
-#endif
  char szO[2][4]={"off","on "};
  char szTxt[256];
  char * pB=(char *)malloc(32767);
@@ -395,11 +352,7 @@ void DoSnapShot(void)
 {
 }       
 
-#ifdef _WINDOWS
 void CALLBACK GPUmakeSnapshot(void)
-#else
-void CALLBACK GPUmakeSnapshot(void)
-#endif
 {
  //bSnapShot = TRUE;
 }        
@@ -408,26 +361,12 @@ void CALLBACK GPUmakeSnapshot(void)
 // GPU INIT... here starts it all (first func called by emu)
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 long CALLBACK GPUinit()
-#else
-long CALLBACK GPUinit()
-#endif
 {
 memset(ulStatusControl,0,256*sizeof(unsigned long));
 
-#ifdef _WINDOWS
-iResX=240;iResY=320;
-#endif
 bChangeRes=FALSE;
-#ifdef _WINDOWS
-bWindowMode=TRUE;
-#else
 bWindowMode=FALSE;
-#endif 
-#ifdef _WINDOWS
-iWinSize=MAKELONG(iResX,iResY);
-#endif
 
 bKeepRatio = TRUE;
 // different ways of accessing PSX VRAM
@@ -501,33 +440,6 @@ return 0;
 
 
 ////////////////////////////////////////////////////////////////////////
-// GPU OPEN: funcs to open up the gpu display (Windows)
-////////////////////////////////////////////////////////////////////////
-
-#ifdef _WINDOWS
-
-void ChangeDesktop()                                   // change destop resolution
-{
- DEVMODE dv;long lRes,iTry=0;                       
-
- while(iTry<10)                                        // keep on hammering...
-  {
-   memset(&dv,0,sizeof(DEVMODE));
-   dv.dmSize=sizeof(DEVMODE);
-   dv.dmBitsPerPel=iColDepth;
-   dv.dmPelsWidth=iResX;
-   dv.dmPelsHeight=iResY;
-
-   dv.dmFields=DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT;
-
-   lRes=ChangeDisplaySettings(&dv,0);                  // ...hammering the anvil
-
-   if(lRes==DISP_CHANGE_SUCCESSFUL) return;
-   iTry++;Sleep(10);
-  }
-}
-
-////////////////////////////////////////////////////////////////////////
 // OPEN interface func: attention! 
 // some emus are calling this func in their main Window thread,
 // but all other interface funcs (to draw stuff) in a different thread!
@@ -541,33 +453,12 @@ void ChangeDesktop()                                   // change destop resoluti
 // some PAD or SPU plugins would not work anymore)
 ////////////////////////////////////////////////////////////////////////
 
-HMENU hPSEMenu=NULL;
-
-long CALLBACK GPUopen(HWND hwndGPU)                    
-#else
 long CALLBACK GPUopen(int hwndGPU)
-#endif
 {
-	#ifdef _WINDOWS
-	HDC hdc;RECT r;DEVMODE dv;
-
-	 hWWindow = hwndGPU;                                   // store hwnd globally
-	#endif
-	// InitKeyHandler();                                     // init key handler (subclass window)
-
-
-
-	#ifdef _WINDOWS
-	 iResX=240;iResY=320;
-	#endif
 	 iResX=800;iResY=480;
 	 iColDepth=8;
 	 bChangeRes=FALSE;
-	#ifdef _WINDOWS
-	 bWindowMode=TRUE;
-	#else
 	 bWindowMode=FALSE;
-	#endif 
 	 bFullVRam=FALSE;
 	 iFilterType=0;
 	// bAdvancedBlend=FALSE;
@@ -581,9 +472,6 @@ long CALLBACK GPUopen(int hwndGPU)
 	 //bOpaquePass=FALSE;
 	 //bUseAntiAlias=FALSE;
 	 //iTexQuality=0;
-	#ifdef _WINDOWS
-	 iWinSize=MAKELONG(iResX,iResY);
-	#endif
 	 iUseMask=0;
 	 iZBufferDepth=0;
 	 bUseFastMdec=FALSE;
@@ -605,65 +493,12 @@ long CALLBACK GPUopen(int hwndGPU)
 
 
 
-#ifdef _WINDOWS
- memset(&dv,0,sizeof(DEVMODE));
- dv.dmSize=sizeof(DEVMODE);
- EnumDisplaySettings(NULL,ENUM_CURRENT_SETTINGS,&dv);
-#endif
  bIsFirstFrame = TRUE;                                 // flag: we have to init OGL later in windows!
 
-#ifdef _WINDOWS
- if(bWindowMode)                                       // win mode?
-  {
-   DWORD dw=GetWindowLong(hWWindow, GWL_STYLE);        // -> adjust wnd style (owndc needed by some stupid ogl drivers)
-   dw&=~WS_THICKFRAME;
-   dw|=WS_BORDER|WS_CAPTION|CS_OWNDC;
-   SetWindowLong(hWWindow, GWL_STYLE, dw);
-
-   hPSEMenu=GetMenu(hWWindow);                         // -> hide emu menu (if any)
-   if(hPSEMenu!=NULL) SetMenu(hWWindow,NULL);
-
-   iResX=LOWORD(iWinSize);iResY=HIWORD(iWinSize);
-   ShowWindow(hWWindow,SW_SHOWNORMAL);
-
-   MoveWindow(hWWindow,                                // -> center wnd
-      GetSystemMetrics(SM_CXFULLSCREEN)/2-iResX/2,
-      GetSystemMetrics(SM_CYFULLSCREEN)/2-iResY/2,
-      iResX+GetSystemMetrics(SM_CXFIXEDFRAME)+3,
-      iResY+GetSystemMetrics(SM_CYFIXEDFRAME)+GetSystemMetrics(SM_CYCAPTION)+3,
-      TRUE);
-   UpdateWindow(hWWindow);                             // -> let windows do some update
-
-   if(dv.dmBitsPerPel==16 || dv.dmBitsPerPel==32)      // -> overwrite user color info with desktop color info
-    iColDepth=dv.dmBitsPerPel;
-  }
- else                                                  // fullscreen mode:
-  {
-   if(dv.dmBitsPerPel!=(unsigned int)iColDepth ||      // -> check, if we have to change resolution
-      dv.dmPelsWidth !=(unsigned int)iResX ||
-      dv.dmPelsHeight!=(unsigned int)iResY)
-    bChangeRes=TRUE; else bChangeRes=FALSE;
-
-   if(bChangeRes) ChangeDesktop();                     // -> change the res (had to do an own func because of some MS 'optimizations')
-
-   SetWindowLong(hWWindow, GWL_STYLE, CS_OWNDC);       // -> adjust wnd style as well (to be sure)
-                
-   hPSEMenu=GetMenu(hWWindow);                         // -> hide menu
-   if(hPSEMenu!=NULL) SetMenu(hWWindow,NULL);
-   ShowWindow(hWWindow,SW_SHOWMAXIMIZED);              // -> max mode
-  }
-#endif
  rRatioRect.left   = rRatioRect.top=0;
  rRatioRect.right  = iResX;
  rRatioRect.bottom = iResY;
 
-#ifdef _WINDOWS
- r.left=r.top=0;r.right=iResX;r.bottom=iResY;          // hack for getting a clean black window until OGL gets initialized
- hdc = GetDC(hWWindow);
- FillRect(hdc,&r,(HBRUSH)GetStockObject(BLACK_BRUSH));
- bSetupPixelFormat(hdc);
- ReleaseDC(hWWindow,hdc);
-#endif
  bDisplayNotSet = TRUE; 
  bSetClip=TRUE;
 
@@ -683,28 +518,6 @@ long CALLBACK GPUopen(int hwndGPU)
 // close
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-long CALLBACK GPUclose()                               // WINDOWS CLOSE
-{
-// ExitKeyHandler();
-
- GLcleanup();                                          // close OGL
-
- if(bChangeRes)                                        // change res back
-  ChangeDisplaySettings(NULL,0);
-
- if(hPSEMenu)                                          // set menu again
-  SetMenu(hWWindow,hPSEMenu);
-
- if(pGfxCardScreen) free(pGfxCardScreen);              // free helper memory
- pGfxCardScreen=0;
-
-// if(iNoScreenSaver) EnableScreenSaver(TRUE);           // enable screen saver again
-
- return 0;
-}
-
-#else
 
 long GPUclose()                                        // LINUX CLOSE
 {
@@ -717,17 +530,12 @@ long GPUclose()                                        // LINUX CLOSE
 
  return 0;
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 // I shot the sheriff... last function called from emu 
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 long CALLBACK GPUshutdown()
-#else
-long CALLBACK GPUshutdown()
-#endif
 {
  if(psxVSecure) free(psxVSecure);                      // kill emulated vram memory
  psxVSecure=0;
@@ -791,10 +599,6 @@ void updateDisplay(void)                               // UPDATE DISPLAY
 {
 BOOL bBlur=FALSE;
 
-#ifdef _WINDOWS
-HDC hdc=GetDC(hWWindow);                              // windows:
-wglMakeCurrent(hdc,GLCONTEXT);                        // -> make context current again
-#endif
 
 bFakeFrontBuffer=FALSE;
 bRenderFrontBuffer=FALSE;
@@ -882,29 +686,16 @@ if(bUseFrameSkip)                                     // frame skipping active ?
  {
   if(!bSkipNextFrame) 
    {
-    if(iDrawnSomething)
-#ifdef _WINDOWS
-     SwapBuffers(wglGetCurrentDC());                  // -> to skip or not to skip
-#else
-     eglSwapBuffers(display,surface);
-#endif
+    if(iDrawnSomething)     flipEGL();
    }
-  if(dwActFixes&0x180)                                // -> special old frame skipping: skip max one in a row
-   {
     if((fps_skip < fFrameRateHz) && !(bSkipNextFrame)) 
      {bSkipNextFrame = TRUE; fps_skip=fFrameRateHz;}
     else bSkipNextFrame = FALSE;
-   }
-  else FrameSkip();
+
  }
 else                                                  // no skip ?
  {
-  if(iDrawnSomething)
-#ifdef _WINDOWS
-   SwapBuffers(wglGetCurrentDC());                    // -> swap
-#else
-  eglSwapBuffers(display,surface);
-#endif
+  if(iDrawnSomething)  flipEGL();
  }
 
 iDrawnSomething=0;
@@ -1018,18 +809,9 @@ bRenderFrontBuffer=FALSE;
 // if(gTexPicName) DisplayPic();
 // if(ulKeybits&KEY_SHOWFPS) DisplayText();
 
-#ifdef _WINDOWS
- {                                                    // windows: 
-  HDC hdc=GetDC(hWWindow);
-  wglMakeCurrent(hdc,GLCONTEXT);                      // -> make current again
-  if(iDrawnSomething)
-   SwapBuffers(wglGetCurrentDC());                    // -> swap
-  ReleaseDC(hWWindow,hdc);                            // -> ! important !
- }
-#else
 if(iDrawnSomething)                                   // linux:
- eglSwapBuffers(display,surface);
-#endif
+      flipEGL();
+
 
 //if(iBlurBuffer) UnBlurBackBuffer();
 }
@@ -1241,15 +1023,6 @@ if(bUp) updateDisplay();                              // yeah, real update (swap
 // window mode <-> fullscreen mode (windows)
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-void ChangeWindowMode(void)
-{
- GPUclose();
- bWindowMode=!bWindowMode;
- GPUopen(hWWindow);
- bChangeWinMode=FALSE;
-}
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 // swap update check (called by psx vsync function)
@@ -1317,11 +1090,7 @@ return FALSE;
 
 static unsigned short usFirstPos=2;
 
-#ifdef _WINDOWS
 void CALLBACK GPUupdateLace(void)
-#else
-void CALLBACK GPUupdateLace(void)
-#endif
 {
 if(!(dwActFixes&0x1000))                               
  STATUSREG^=0x80000000;                               // interlaced bit toggle, if the CC game fix is not active (see gpuReadStatus)
@@ -1350,20 +1119,13 @@ else if(usFirstPos==1)                                // initial updates (after 
   updateDisplay();
  }
 
-#ifdef _WINDOWS
-if(bChangeWinMode) ChangeWindowMode();
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
 // process read request from GPU status register
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 unsigned long CALLBACK GPUreadStatus(void)
-#else
-unsigned long CALLBACK GPUreadStatus(void)
-#endif
 {
 if(dwActFixes&0x1000)                                 // CC game fix
  {
@@ -1399,17 +1161,11 @@ return STATUSREG;
 // these are always single packet commands.
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 void CALLBACK GPUwriteStatus(unsigned long gdata)
-#else
-void CALLBACK GPUwriteStatus(unsigned long gdata)
-#endif
 {
 unsigned long lCommand=(gdata>>24)&0xff;
 
-#ifdef _WINDOWS
 if(bIsFirstFrame) GLinitialize();                     // real ogl startup (needed by some emus)
-#endif
 
 ulStatusControl[lCommand]=gdata;
 
@@ -2015,11 +1771,7 @@ void CheckVRamRead(int x, int y, int dx, int dy, bool bFront)
 // core read from vram
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-void CALLBACK GPUreadDataMem(unsigned int * pMem, int iSize)
-#else
 void CALLBACK GPUreadDataMem(unsigned long * pMem, int iSize)
-#endif
 {
 int i;
 
@@ -2091,18 +1843,10 @@ ENDREAD:
 GPUIsIdle;
 }
 
-#ifdef _WINDOWS
 unsigned long CALLBACK GPUreadData(void)
-#else
-unsigned long CALLBACK GPUreadData(void)
-#endif
 {
  unsigned long l;
-#ifdef _WINDOWS
  GPUreadDataMem(&l,1);
-#else
- GPUreadDataMem(&l,1);
-#endif 
  return GPUdataRet;
 }
 
@@ -2184,11 +1928,7 @@ const unsigned char primTableCX[256] =
 // processes data send to GPU data register
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
-#else
-void CALLBACK GPUwriteDataMem(unsigned long * pMem, int iSize)
-#endif
 {
 unsigned char command;
 unsigned long gdata=0;
@@ -2307,17 +2047,9 @@ GPUIsIdle;
 
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 void CALLBACK GPUwriteData(unsigned long gdata)
-#else
-void CALLBACK GPUwriteData(unsigned long gdata)
-#endif
 {
-#ifdef _WINDOWS
  GPUwriteDataMem(&gdata,1);
-#else
- GPUwriteDataMem(&gdata,1);
-#endif 
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -2401,22 +2133,9 @@ void StartCfgTool(char * pCmdLine)                     // linux: start external 
 #endif
 
 
-#ifdef _WINDOWS
 long CALLBACK GPUconfigure(void)
-#else
-long CALLBACK GPUconfigure(void)
-#endif
 {
 
-#ifdef _WINDOWS
-// HWND hWP=GetActiveWindow();
-// DialogBox(hInst,MAKEINTRESOURCE(IDD_CFGDLG),
-//           hWP,(DLGPROC)CfgDlgProc);
-#else
-
-// StartCfgTool("CFG");
-
-#endif
 
  return 0;
 }
@@ -2455,11 +2174,7 @@ return FALSE;
 // core gives a dma chain to gpu: same as the gpuwrite interface funcs
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr)
-#else
-long CALLBACK GPUdmaChain(unsigned long * baseAddrL, unsigned long addr)
-#endif
 {
 unsigned long dmaMem;
 unsigned char * baseAddrB;
@@ -2484,11 +2199,7 @@ do
 
   dmaMem=addr+4;
 
-#ifdef _WINDOWS
   if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
-#else
-  if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
-#endif
   
   addr = baseAddrL[addr>>2]&0xffffff;
  }
@@ -2503,11 +2214,7 @@ return 0;
 // show about dlg
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 void CALLBACK GPUabout(void)
-#else
-void CALLBACK GPUabout(void)
-#endif
 {
 
 }
@@ -2516,11 +2223,7 @@ void CALLBACK GPUabout(void)
 // We are ever fine ;)
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 long CALLBACK GPUtest(void)
-#else
-long CALLBACK GPUtest(void)
-#endif
 {
  // if test fails this function should return negative value for error (unable to continue)
  // and positive value for warning (can continue but output might be crappy)
@@ -2534,11 +2237,7 @@ long CALLBACK GPUtest(void)
 
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
 long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
-#else
-long CALLBACK GPUfreeze(unsigned long ulGetFreezeData,GPUFreeze_t * pF)
-#endif
 {
 if(ulGetFreezeData==2) 
  {
@@ -2569,7 +2268,6 @@ memcpy(psxVub,         pF->psxVRam,  1024*iGPUHeight*2);
 
 ResetTextureArea(TRUE);
 
-#ifdef _WINDOWS
  GPUwriteStatus(ulStatusControl[0]);
  GPUwriteStatus(ulStatusControl[1]);
  GPUwriteStatus(ulStatusControl[2]);
@@ -2579,17 +2277,6 @@ ResetTextureArea(TRUE);
  GPUwriteStatus(ulStatusControl[7]);
  GPUwriteStatus(ulStatusControl[5]);
  GPUwriteStatus(ulStatusControl[4]);
-#else
- GPUwriteStatus(ulStatusControl[0]);
- GPUwriteStatus(ulStatusControl[1]);
- GPUwriteStatus(ulStatusControl[2]);
- GPUwriteStatus(ulStatusControl[3]);
- GPUwriteStatus(ulStatusControl[8]);
- GPUwriteStatus(ulStatusControl[6]);
- GPUwriteStatus(ulStatusControl[7]);
- GPUwriteStatus(ulStatusControl[5]);
- GPUwriteStatus(ulStatusControl[4]);
-#endif
  return 1;
 }
 
@@ -2837,11 +2524,7 @@ void PaintPicDot(unsigned char * p,unsigned char c)
 
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-void CALLBACK GPUgetScreenPic(unsigned char * pMem)
-#else
 long CALLBACK GPUgetScreenPic(unsigned char * pMem)
-#endif
 {
  float XS,YS;int x,y,v;
  unsigned char * ps, * px, * pf;
@@ -2920,11 +2603,7 @@ long CALLBACK GPUgetScreenPic(unsigned char * pMem)
 
 ////////////////////////////////////////////////////////////////////////
 
-#ifdef _WINDOWS
-void CALLBACK GPUshowScreenPic(unsigned char * pMem)
-#else
 long CALLBACK GPUshowScreenPic(unsigned char * pMem)
-#endif
 {
 // DestroyPic();
 // if(pMem==0) return;
@@ -2971,3 +2650,7 @@ void CALLBACK GPUrearmedCallbacks(const void **cbs)
  rearmed_get_layer_pos = cbs[0];
 }
 
+static void flipEGL(void)
+{
+ eglSwapBuffers(display, surface);
+}
