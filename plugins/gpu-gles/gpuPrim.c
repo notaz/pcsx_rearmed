@@ -90,6 +90,19 @@ BOOL          bUseFixes;
 
 long          drawX,drawY,drawW,drawH;                 // offscreen drawing checkers
 short         sxmin,sxmax,symin,symax;
+unsigned int CSVERTEX=0,CSCOLOR=0,CSTEXTURE=0;
+
+void offsetPSX4(void)
+{
+ lx0 += PSXDisplay.DrawOffset.x;
+ ly0 += PSXDisplay.DrawOffset.y;
+ lx1 += PSXDisplay.DrawOffset.x;
+ ly1 += PSXDisplay.DrawOffset.y;
+ lx2 += PSXDisplay.DrawOffset.x;
+ ly2 += PSXDisplay.DrawOffset.y;
+ lx3 += PSXDisplay.DrawOffset.x;
+ ly3 += PSXDisplay.DrawOffset.y;
+}
 
 ////////////////////////////////////////////////////////////////////////                                          
 // Update global TP infos
@@ -193,22 +206,23 @@ v[3].xyz.y = fpoint(vertex3->y);
 v[3].xyz.z = fpoint(vertex3->z);
 v[3].st.x = fpoint(vertex3->sow);
 v[3].st.y = fpoint(vertex3->tow);
-
-glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-glEnableClientState(GL_VERTEX_ARRAY);
-glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-glDisableClientState(GL_VERTEX_ARRAY); 
+if (CSCOLOR==1) glDisableClientState(GL_COLOR_ARRAY);glError();
+if (CSTEXTURE==0) glEnableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);glError();
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSTEXTURE=CSVERTEX=1;
+CSCOLOR=0;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawTexturedTri(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawTexturedTri(OGLVertex* vertex1, OGLVertex* vertex2,
                                   OGLVertex* vertex3) 
 {
 Vertex v[3];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -227,24 +241,25 @@ v[2].xyz.y = fpoint(vertex3->y);
 v[2].xyz.z = fpoint(vertex3->z);
 v[2].st.x = fpoint(vertex3->sow);
 v[2].st.y = fpoint(vertex3->tow);
-
-glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-glEnableClientState(GL_VERTEX_ARRAY);
-glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glDrawArrays(GL_TRIANGLES, 0, 3);
-glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-glDisableClientState(GL_VERTEX_ARRAY);
+if (CSCOLOR==1) glDisableClientState(GL_COLOR_ARRAY);glError();
+if (CSTEXTURE==0) glEnableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);glError();
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glDrawArrays(GL_TRIANGLES, 0, 3);glError();
+CSTEXTURE=CSVERTEX=1;
+CSCOLOR=0;
 
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawTexGouraudTriColor(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawTexGouraudTriColor(OGLVertex* vertex1, OGLVertex* vertex2,
                                          OGLVertex* vertex3) 
 {
 
 Vertex2 v[3];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -276,26 +291,25 @@ v[2].rgba.g = vertex3->c.col[1];
 v[2].rgba.b = vertex3->c.col[2];
 v[2].rgba.a = vertex3->c.col[3];
 
-glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSTEXTURE==0) glEnableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
 
-glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);glError();
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLES, 0, 3);
-glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLES, 0, 3);glError();
+CSTEXTURE=CSVERTEX=CSCOLOR=1;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawTexGouraudTriColorQuad(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawTexGouraudTriColorQuad(OGLVertex* vertex1, OGLVertex* vertex2,
                                              OGLVertex* vertex3, OGLVertex* vertex4) 
 {
 Vertex2 v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -337,25 +351,24 @@ v[3].rgba.g = vertex3->c.col[1];
 v[3].rgba.b = vertex3->c.col[2];
 v[3].rgba.a = vertex3->c.col[3];
 
-glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSTEXTURE==0) glEnableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
 
-glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glTexCoordPointer(2, GL_FLOAT, sizeof(v[0]), &v[0].st);glError();
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSTEXTURE=CSVERTEX=CSCOLOR=1;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawTri(OGLVertex* vertex1, OGLVertex* vertex2, OGLVertex* vertex3) 
+void PRIMdrawTri(OGLVertex* vertex1, OGLVertex* vertex2, OGLVertex* vertex3)
 {
 Vec3f v[3];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0) return;
 
 v[0].x = fpoint(vertex1->x);
 v[0].y = fpoint(vertex1->y);
@@ -369,18 +382,24 @@ v[2].x = fpoint(vertex3->x);
 v[2].y = fpoint(vertex3->y);
 v[2].z = fpoint(vertex3->z);
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);
-glDrawArrays(GL_TRIANGLES, 0, 3);
-glDisableClientState(GL_VERTEX_ARRAY);
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSCOLOR==1) glDisableClientState(GL_COLOR_ARRAY);glError();
+
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);glError();
+glDrawArrays(GL_TRIANGLES, 0, 3);glError();
+CSVERTEX=1;
+CSTEXTURE=CSCOLOR=0;
+
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawTri2(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawTri2(OGLVertex* vertex1, OGLVertex* vertex2,
                            OGLVertex* vertex3, OGLVertex* vertex4) 
 {
 Vec3f v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].x = fpoint(vertex1->x);
 v[0].y = fpoint(vertex1->y);
@@ -398,18 +417,23 @@ v[3].x = fpoint(vertex4->x);
 v[3].y = fpoint(vertex4->y);
 v[3].z = fpoint(vertex4->z);
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_VERTEX_ARRAY);
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSCOLOR==1) glDisableClientState(GL_COLOR_ARRAY);glError();
+
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);glError();
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSVERTEX=1;
+CSTEXTURE=CSCOLOR=0;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawGouraudTriColor(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawGouraudTriColor(OGLVertex* vertex1, OGLVertex* vertex2,
                                       OGLVertex* vertex3) 
 {
 Vertex2 v[3];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -435,23 +459,25 @@ v[2].rgba.g = vertex3->c.col[1];
 v[2].rgba.b = vertex3->c.col[2];
 v[2].rgba.a = vertex3->c.col[3];
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
 
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLES, 0, 3);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLES, 0, 3);glError();
+CSVERTEX=CSCOLOR=1;
+CSTEXTURE=0;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawGouraudTri2Color(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawGouraudTri2Color(OGLVertex* vertex1, OGLVertex* vertex2,
                                        OGLVertex* vertex3, OGLVertex* vertex4) 
 {
 Vertex2 v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -485,22 +511,24 @@ v[3].rgba.g = vertex4->c.col[1];
 v[3].rgba.b = vertex4->c.col[2];
 v[3].rgba.a = vertex4->c.col[3];
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
 
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSTEXTURE=0;
+CSVERTEX=CSCOLOR=1;
 }
 
 ///////////////////////////////////////////////////////// 
 
-__inline void PRIMdrawFlatLine(OGLVertex* vertex1, OGLVertex* vertex2,OGLVertex* vertex3, OGLVertex* vertex4)
+void PRIMdrawFlatLine(OGLVertex* vertex1, OGLVertex* vertex2,OGLVertex* vertex3, OGLVertex* vertex4)
 {
 Vertex2 v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -534,24 +562,27 @@ v[3].rgba.g = vertex1->c.col[1];
 v[3].rgba.b = vertex1->c.col[2];
 v[3].rgba.a = vertex1->c.col[3];
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
 
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+
+CSTEXTURE=0;
+CSVERTEX=CSCOLOR=1;
 
 
 }
 
 ///////////////////////////////////////////////////////// 
      
-__inline void PRIMdrawGouraudLine(OGLVertex* vertex1, OGLVertex* vertex2,OGLVertex* vertex3, OGLVertex* vertex4)
+void PRIMdrawGouraudLine(OGLVertex* vertex1, OGLVertex* vertex2,OGLVertex* vertex3, OGLVertex* vertex4)
 {
 	Vertex2 v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].xyz.x = fpoint(vertex1->x);
 v[0].xyz.y = fpoint(vertex1->y);
@@ -585,23 +616,25 @@ v[2].rgba.g = vertex4->c.col[1];
 v[2].rgba.b = vertex4->c.col[2];
 v[2].rgba.a = vertex4->c.col[3];
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==0) glEnableClientState(GL_COLOR_ARRAY);glError();
 
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);
-glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0].xyz);glError();
+glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(v[0]), &v[0].rgba);glError();
 
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSTEXTURE=0;
+CSVERTEX=CSCOLOR=1;
 }
 
 ///////////////////////////////////////////////////////// 
              
-__inline void PRIMdrawQuad(OGLVertex* vertex1, OGLVertex* vertex2, 
+void PRIMdrawQuad(OGLVertex* vertex1, OGLVertex* vertex2,
                            OGLVertex* vertex3, OGLVertex* vertex4) 
 {
 Vec3f v[4];
+if (vertex1->x==0&&vertex1->y==0&&vertex2->x==0&&vertex2->y==0&&vertex3->x==0&&vertex3->y==0&&vertex4->x==0&&vertex4->y==0) return;
 
 v[0].x = fpoint(vertex1->x);
 v[0].y = fpoint(vertex1->y);
@@ -619,10 +652,15 @@ v[3].x = fpoint(vertex3->x);
 v[3].y = fpoint(vertex3->y);
 v[3].z = fpoint(vertex3->z);
 
-glEnableClientState(GL_VERTEX_ARRAY);
-glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);
-glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-glDisableClientState(GL_VERTEX_ARRAY);
+if (CSTEXTURE==1) glDisableClientState(GL_TEXTURE_COORD_ARRAY);glError();
+if (CSVERTEX==0) glEnableClientState(GL_VERTEX_ARRAY);glError();
+if (CSCOLOR==1) glDisableClientState(GL_COLOR_ARRAY);glError();
+
+glVertexPointer(3, GL_FLOAT, sizeof(v[0]), &v[0]);glError();
+glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);glError();
+CSTEXTURE=0;
+CSVERTEX=1;
+CSCOLOR=0;
 }
 
 ////////////////////////////////////////////////////////////////////////                                          
@@ -815,7 +853,7 @@ void SetSemiTransMulti(int Pass)
 // Set several rendering stuff including blending 
 ////////////////////////////////////////////////////////////////////////
 
-__inline void SetZMask3O(void)
+void SetZMask3O(void)
 {
  if(iUseMask && DrawSemiTrans && !iSetMask)
   {
@@ -824,7 +862,7 @@ __inline void SetZMask3O(void)
   }
 }
 
-__inline void SetZMask3(void)
+void SetZMask3(void)
 {
  if(iUseMask)
   {
@@ -838,7 +876,7 @@ __inline void SetZMask3(void)
   }
 }
 
-__inline void SetZMask3NT(void)
+void SetZMask3NT(void)
 {
  if(iUseMask)
   {
@@ -854,7 +892,7 @@ __inline void SetZMask3NT(void)
 
 ////////////////////////////////////////////////////////////////////////
 
-__inline void SetZMask4O(void)
+ void SetZMask4O(void)
 {
  if(iUseMask && DrawSemiTrans && !iSetMask)
   {
@@ -863,7 +901,7 @@ __inline void SetZMask4O(void)
   }
 }
 
-__inline void SetZMask4(void)
+ void SetZMask4(void)
 {
  if(iUseMask)
   {
@@ -877,7 +915,7 @@ __inline void SetZMask4(void)
   }
 }
 
-__inline void SetZMask4NT(void)
+ void SetZMask4NT(void)
 {
  if(iUseMask)
   {
@@ -891,7 +929,7 @@ __inline void SetZMask4NT(void)
   }
 }
 
-__inline void SetZMask4SP(void)
+ void SetZMask4SP(void)
 {
  if(iUseMask)
   {
@@ -912,7 +950,7 @@ __inline void SetZMask4SP(void)
 
 ////////////////////////////////////////////////////////////////////////
 
-__inline void SetRenderState(unsigned long DrawAttributes)
+ void SetRenderState(unsigned long DrawAttributes)
 {
  bDrawNonShaded = (SHADETEXBIT(DrawAttributes)) ? TRUE : FALSE;
  DrawSemiTrans = (SEMITRANSBIT(DrawAttributes)) ? TRUE : FALSE;
@@ -920,7 +958,7 @@ __inline void SetRenderState(unsigned long DrawAttributes)
 
 ////////////////////////////////////////////////////////////////////////                                          
 
-__inline void SetRenderColor(unsigned long DrawAttributes)
+ void SetRenderColor(unsigned long DrawAttributes)
 {
  if(bDrawNonShaded) {g_m1=g_m2=g_m3=128;}
  else
