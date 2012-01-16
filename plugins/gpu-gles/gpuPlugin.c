@@ -509,7 +509,7 @@ long CALLBACK GPUopen(int hwndGPU)
 // lGPUstatusRet = 0x74000000;
 
 // with some emus, we could do the OGL init right here... oh my
-// if(bIsFirstFrame) GLinitialize();
+ if(bIsFirstFrame) GLinitialize();
 
  return 0;
 }
