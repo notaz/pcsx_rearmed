@@ -364,6 +364,10 @@ extern short sxmax;
 extern short symin;
 extern short symax;
 
+extern unsigned int CSVERTEX;
+extern unsigned int CSCOLOR;
+extern unsigned int CSTEXTURE;
+
 #endif
 
 //-----------------------------------------------------//

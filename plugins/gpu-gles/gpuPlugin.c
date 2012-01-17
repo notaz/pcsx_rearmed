@@ -506,6 +506,8 @@ long CALLBACK GPUopen(int hwndGPU)
 
  InitializeTextureStore();                             // init texture mem
 
+ CSTEXTURE = CSVERTEX = CSCOLOR = 0;
+
 // lGPUstatusRet = 0x74000000;
 
 // with some emus, we could do the OGL init right here... oh my

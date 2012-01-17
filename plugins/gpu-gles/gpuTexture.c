@@ -612,6 +612,7 @@ void CleanupTextureStore()
   for(j=0;j<MAXTPAGES;j++)                           // loop tex pages
    {
     free(pscSubtexStore[i][j]);                      // -> clean mem
+    pscSubtexStore[i][j]=0;
    }
  for(i=0;i<MAXSORTTEX;i++)
   {
@@ -622,6 +623,7 @@ void CleanupTextureStore()
      uiStexturePage[i]=0;                            // --> delete it
     }
    free(pxSsubtexLeft[i]);                           // -> clean mem
+   pxSsubtexLeft[i]=0;
   }
  //----------------------------------------------------//
 }
