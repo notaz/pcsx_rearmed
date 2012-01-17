@@ -472,6 +472,9 @@ void CheckTextureMemory(void)
    return;
   }
 
+#if 1
+ iSortTexCnt=MAXSORTTEX;
+#else // below vram detector supposedly crashes some drivers
 
 	 iTSize=256;
  p=(char *)malloc(iTSize*iTSize*4);
@@ -508,6 +511,7 @@ void CheckTextureMemory(void)
  else  iSortTexCnt=iCnt-3+min(1,0);       // place for menu&texwnd
 
  if(iSortTexCnt<8) iSortTexCnt=8;
+#endif
 } 
 
 ////////////////////////////////////////////////////////////////////////
