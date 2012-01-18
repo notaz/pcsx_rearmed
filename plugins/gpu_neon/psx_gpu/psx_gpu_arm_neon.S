@@ -241,6 +241,18 @@
 
 .align 4
 
+/* FIXME: users of this should be in psx_gpu instead */
+#ifndef __PIC__
+#define load_pointer(register, pointer)                                        \
+  movw register, :lower16:pointer;                                             \
+  movt register, :upper16:pointer;                                             \
+
+#else
+#define load_pointer(register, pointer)                                        \
+  ldr  register, =pointer                                                      \
+
+#endif
+
 #define function(name)                                                         \
   .global name;                                                                \
   name:                                                                        \
@@ -609,8 +621,7 @@ function(compute_all_gradients)
   vld1.32 { uvrg }, [ temp ];                                                  \
   add temp, psx_gpu, #psx_gpu_uvrg_dy_offset;                                  \
   vld1.32 { uvrg_dy }, [ temp ];                                               \
-  movw reciprocal_table_ptr, :lower16:reciprocal_table;                        \
-  movt reciprocal_table_ptr, :upper16:reciprocal_table;                        \
+  load_pointer(reciprocal_table_ptr, reciprocal_table);                        \
                                                                                \
   vmov.u32 c_0x01, #0x01                                                       \
 
@@ -1016,6 +1027,7 @@ function(setup_spans_up_left)
 function(setup_spans_up_right)
   setup_spans_up_up(right, left)
 
+.pool
 
 #define setup_spans_down_down(minor, major)                                    \
   setup_spans_prologue();                                                      \
@@ -1224,6 +1236,7 @@ function(setup_spans_up_down)
   setup_spans_prologue_b()
   bal 4b
 
+.pool
 
 #undef span_uvrg_offset
 #undef span_edge_data
