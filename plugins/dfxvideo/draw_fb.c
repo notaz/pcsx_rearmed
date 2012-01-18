@@ -9,8 +9,8 @@
 
 #include "gpu.h"
 
+#include "../gpulib/cspace.h"
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/cspace.h"
 #include "../../frontend/pcnt.h"
 
 // misc globals

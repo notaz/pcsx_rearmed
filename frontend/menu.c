@@ -25,7 +25,6 @@
 #include "omap.h"
 #include "plat.h"
 #include "pcnt.h"
-#include "cspace.h"
 #include "common/plat.h"
 #include "common/input.h"
 #include "linux/in_evdev.h"
@@ -35,6 +34,7 @@
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/main.h"
+#include "../plugins/gpulib/cspace.h"
 #include "revision.h"
 
 #define REARMED_BIRTHDAY_TIME 1293306830	/* 25 Dec 2010 */

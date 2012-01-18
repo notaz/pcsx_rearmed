@@ -9,8 +9,8 @@
  */
 
 #include "gpu.h"
+#include "cspace.h"
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/cspace.h"
 
 static const struct rearmed_cbs *cbs;
 static void *screen_buf;

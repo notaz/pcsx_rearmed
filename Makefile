@@ -95,23 +95,25 @@ LDFLAGS += -lasound
 endif
 
 # gpu
-OBJS += plugins/gpu_neon/gpu.o
+OBJS += plugins/gpulib/gpu.o
 ifeq "$(HAVE_NEON)" "1"
+OBJS += plugins/gpulib/cspace_neon.o
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
 else
+OBJS += plugins/gpulib/cspace.o
 # note: code is not safe for strict-aliasing? (Castlevania problems)
-plugins/gpu_neon/peops_if.o: CFLAGS += -fno-strict-aliasing
-plugins/gpu_neon/peops_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
-OBJS += plugins/gpu_neon/peops_if.o
+plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
+plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
+OBJS += plugins/dfxvideo/gpulib_if.o
 endif
 ifdef X11
 LDFLAGS += -lX11 `sdl-config --libs`
-OBJS += plugins/gpu_neon/vout_sdl.o
-plugins/gpu_neon/vout_sdl.o: CFLAGS += `sdl-config --cflags`
+OBJS += plugins/gpulib/vout_sdl.o
+plugins/gpulib/vout_sdl.o: CFLAGS += `sdl-config --cflags`
 else
-OBJS += plugins/gpu_neon/vout_fb.o
+OBJS += plugins/gpulib/vout_fb.o
 endif
 
 # cdrcimg
@@ -147,11 +149,6 @@ endif
 
 endif # !USE_GTK
 
-ifeq "$(HAVE_NEON)" "1"
-OBJS += frontend/cspace_neon.o
-else
-OBJS += frontend/cspace.o
-endif
 ifdef X11
 frontend/%.o: CFLAGS += -DX11
 OBJS += frontend/xkb.o
@@ -183,7 +180,7 @@ $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
 PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpuGLES.so \
-	plugins/gpu_neon/gpu_unai.so plugins/gpu_neon/gpu_peops.so
+	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
 
 $(PLUGINS):
 	make -C $(dir $@)

@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gpu.h"
+#include "../gpulib/gpu.h"
 
 #define u32 uint32_t
 
@@ -260,8 +260,8 @@ unsigned short sSetMask = 0;
 unsigned long  lSetMask = 0;
 long           lLowerpart;
 
-#include "../dfxvideo/soft.c"
-#include "../dfxvideo/prim.c"
+#include "soft.c"
+#include "prim.c"
 
 /////////////////////////////////////////////////////////////////////////////
 

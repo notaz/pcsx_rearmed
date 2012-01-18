@@ -1,34 +1,17 @@
-CC = $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)g++
 
-CFLAGS += -ggdb -fPIC -Wall -DREARMED
-ifndef DEBUG
-CFLAGS += -O2 -ffast-math -fomit-frame-pointer
-endif
-ifdef MAEMO
-CFLAGS += -DMAEMO
-endif
-ARM_CORTEXA8 ?= 1
-ifeq "$(ARM_CORTEXA8)" "1"
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-SRC += ../../frontend/cspace_neon.s
-else
-CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
-SRC += ../../frontend/cspace.c
+ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
+
+CFLAGS += -DREARMED
+CFLAGS += -ggdb -Wall -fPIC -O2 -ffast-math
+
+SRC_STANDALONE += gpu.cpp
+SRC_GPULIB += gpulib_if.cpp
+
+ifeq "$(ARCH)" "arm"
+SRC += gpu_arm.s
 endif
 
-SRC += gpu.cpp gpu_arm.s
-
-TARGET = gpuPCSX4ALL.so
-LDFLAGS += -shared -Wl,-soname,$(TARGET)
-
--include Makefile.local
-
-all: $(TARGET)
-
-$(TARGET): $(SRC)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-# $(TARGET): *.h
-
-clean:
-	$(RM) $(TARGET) $(OBJ)
+BIN_STANDLALONE = gpuPCSX4ALL.so
+BIN_GPULIB = gpu_unai.so
+include ../gpulib/gpulib.mak

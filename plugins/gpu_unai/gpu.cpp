@@ -821,7 +821,7 @@ void  GPU_updateLace(void)
 #else
 
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/cspace.h"
+#include "../gpulib/cspace.h"
 
 extern "C" {
 

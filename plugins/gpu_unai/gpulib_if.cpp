@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gpu.h"
+#include "../gpulib/gpu.h"
 
 #define u8 uint8_t
 #define s8 int8_t

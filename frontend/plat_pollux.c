@@ -23,13 +23,13 @@
 #include "warm/warm.h"
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
-#include "cspace.h"
 #include "blit320.h"
 #include "in_tsbutton.h"
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
 #include "pcnt.h"
+#include "../plugins/gpulib/cspace.h"
 
 int gp2x_dev_id;
 

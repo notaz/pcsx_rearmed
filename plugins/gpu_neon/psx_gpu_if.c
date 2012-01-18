@@ -15,7 +15,7 @@ extern const unsigned char cmd_lengths[256];
 
 #include "psx_gpu/psx_gpu.c"
 #include "psx_gpu/psx_gpu_parse.c"
-#include "gpu.h"
+#include "../gpulib/gpu.h"
 
 static psx_gpu_struct egpu __attribute__((aligned(256)));
 
