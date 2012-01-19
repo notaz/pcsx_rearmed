@@ -179,7 +179,7 @@ frontend/revision.h: FORCE
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
 
-PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpuGLES.so \
+PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpu_gles.so \
 	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
 
 $(PLUGINS):

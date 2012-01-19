@@ -1,35 +1,15 @@
-##############################################################################
-# MAKEFILE FOR PETE'S MESAGL GPU... just run "make"
-##############################################################################
-
-#PREFIX	= /mythtv/media/devel/toolchains/pandora/arm-2007q3/
-CROSS_COMPILE ?= arm-none-linux-gnueabi-
-
-#CC = $(PREFIX)/bin/$(CROSS_COMPILE)gcc
 CC = $(CROSS_COMPILE)gcc
 
-CFLAGS += -fPIC -ggdb # -Wall
-ifndef DEBUG
-CFLAGS += -O3 -ffast-math -fomit-frame-pointer
-endif
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8
-# note: the below causes strange bugs/crashes
-#CFLAGS += -mfloat-abi=softfp
-#CFLAGS += -DUSE_X11
+ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
+
+CFLAGS += -ggdb -fPIC -O2 # -Wall
+
+SRC_STANDALONE += gpuDraw.c gpuFps.c gpuPlugin.c gpuPrim.c gpuTexture.c
+SRC_GPULIB += gpulib_if.c
+
 CFLAGS += -I$(PREFIX)include
+LDLIBS += -L$(PREFIX)lib -lGLES_CM
 
-TARGET = gpuGLES.so
-LDFLAGS += -shared -Wl,-soname,$(TARGET) -o $(TARGET)
-LIB = -L$(PREFIX)lib -lGLES_CM -lX11 -lXau -lXdmcp
-
-OBJ = gpuDraw.o gpuFps.o gpuPlugin.o gpuPrim.o gpuTexture.o
-
--include Makefile.local
-
-all: $(TARGET)
-
-$(TARGET): $(OBJ)
-	$(CC) $(LDFLAGS) $(OBJ) $(LIB)
-
-clean:
-	$(RM) $(TARGET) $(OBJ)
+BIN_STANDLALONE = gpuGLES.so
+BIN_GPULIB = gpu_gles.so
+include ../gpulib/gpulib.mak

@@ -62,6 +62,7 @@ typedef struct {
 	unsigned char psxVRam[1024*1024*2];
 } GPUFreeze_t;
 
+#if 0
 long CALLBACK GPUinit();
 long CALLBACK GPUshutdown();
 long CALLBACK GPUopen(int hwndGPU);
@@ -84,7 +85,7 @@ long CALLBACK GPUshowScreenPic(unsigned char * pMem);
 long CALLBACK GPUconfigure(void);
 long CALLBACK GPUtest(void);
 void CALLBACK GPUabout(void);
-
+#endif
 
 void           DoSnapShot(void);
 void		   GPUvSinc(void);

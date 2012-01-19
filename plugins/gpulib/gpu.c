@@ -206,6 +206,10 @@ void GPUwriteStatus(uint32_t data)
         get_gpu_info(data);
       break;
   }
+
+#ifdef GPUwriteStatus_ext
+  GPUwriteStatus_ext(data);
+#endif
 }
 
 const unsigned char cmd_lengths[256] =
