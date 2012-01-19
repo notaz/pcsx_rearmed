@@ -51,6 +51,9 @@ struct rearmed_cbs {
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	struct {
+		int   allow_interlace; // 0 off, 1 on, 2 guess
+	} gpu_neon;
+	struct {
 		int   iUseDither;
 		int   dwActFixes;
 		float fFrameRateHz;
@@ -62,8 +65,11 @@ struct rearmed_cbs {
 		int   lineskip;
 	} gpu_unai;
 	struct {
-		int   allow_interlace; // 0 off, 1 on, 2 guess
-	} gpu_neon;
+		int   dwActFixes;
+		int   bDrawDither, iFilterType, iFrameTexType;
+		int   iUseMask, bOpaquePass, bAdvancedBlend, bUseFastMdec;
+		int   iVRamSize, iTexGarbageCollection;
+	} gpu_peopsgl;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;

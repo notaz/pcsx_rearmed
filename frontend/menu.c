@@ -1266,6 +1266,43 @@ static int menu_loop_plugin_gpu_peops(int id, int keys)
 	return 0;
 }
 
+static const char *men_peopsgl_texfilter[] = { "None", "Standard", "Extended",
+	"Standard-sprites", "Extended-sprites", "Standard+sprites", "Extended+sprites", NULL };
+static const char *men_peopsgl_fbtex[] = { "Emulated VRam", "Black", "Card", "Card+soft" };
+
+static menu_entry e_menu_plugin_gpu_peopsgl[] =
+{
+	mee_onoff     ("Dithering",                  0, pl_rearmed_cbs.gpu_peopsgl.bDrawDither, 1),
+	mee_enum      ("Texture Filtering",          0, pl_rearmed_cbs.gpu_peopsgl.iFilterType, men_peopsgl_texfilter),
+	mee_enum      ("Framebuffer Textures",       0, pl_rearmed_cbs.gpu_peopsgl.iFrameTexType, men_peopsgl_fbtex),
+	mee_onoff     ("Mask Detect",                0, pl_rearmed_cbs.gpu_peopsgl.iUseMask, 1),
+	mee_onoff     ("Opaque Pass",                0, pl_rearmed_cbs.gpu_peopsgl.bOpaquePass, 1),
+	mee_onoff     ("Advanced Blend",             0, pl_rearmed_cbs.gpu_peopsgl.bAdvancedBlend, 1),
+	mee_onoff     ("Use Fast Mdec",              0, pl_rearmed_cbs.gpu_peopsgl.bUseFastMdec, 1),
+	mee_range     ("Texture RAM size (MB)",      0, pl_rearmed_cbs.gpu_peopsgl.iVRamSize, 4, 128),
+	mee_onoff     ("Texture garbage collection", 0, pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection, 1),
+	mee_label     ("Fixes/hacks:"),
+	mee_onoff     ("FF7 cursor",                 0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<0),
+	mee_onoff     ("Direct FB updates",          0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<1),
+	mee_onoff     ("Black brightness",           0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<2),
+	mee_onoff     ("Swap front detection",       0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<3),
+	mee_onoff     ("Disable coord check",        0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<4),
+	mee_onoff     ("No blue glitches (LoD)",     0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<5),
+	mee_onoff     ("Soft FB access",             0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<6),
+	mee_onoff     ("FF9 rect",                   0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<9),
+	mee_onoff     ("No subtr. blending",         0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<10),
+	mee_onoff     ("Lazy upload (DW7)",          0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<11),
+	mee_onoff     ("Additional uploads",         0, pl_rearmed_cbs.gpu_peopsgl.dwActFixes, 1<<15),
+	mee_end,
+};
+
+static int menu_loop_plugin_gpu_peopsgl(int id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_plugin_gpu_peopsgl, &sel);
+	return 0;
+}
+
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_volboost[]  = "Large values cause distortion";
 static const char h_spu_irq_wait[]  = "Wait for CPU (recommended set to ON)";
@@ -1292,22 +1329,35 @@ static int menu_loop_plugin_spu(int id, int keys)
 static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in\n"
 				   "savestates and can't be changed there. Must save\n"
 				   "config and reload the game for change to take effect";
-static const char h_plugin_xpu[] = "Must save config and reload the game\n"
-				   "for plugin change to take effect";
+static const char h_plugin_gpu[] = 
+#ifdef __ARM_NEON__
+				   "builtin_gpu is the NEON GPU, very fast and accurate\n"
+				   "gpuPEOPS "
+#else
+				   "builtin_gpu "
+#endif
+				                "is Pete's soft GPU, slow but accurate\n"
+				   "gpuPCSX4ALL is GPU from PCSX4ALL, fast but glitchy\n"
+				   "gpuGLES Pete's hw GPU, uses 3D chip but is glitchy\n"
+				   "must save config and reload the game if changed";
+static const char h_plugin_spu[] = "spunull effectively disables sound\n"
+				   "must save config and reload the game if changed";
 static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
+static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
 static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team GPU plugin";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
-	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_xpu),
-	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_xpu),
+	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
+	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
 #ifdef __ARM_NEON__
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
 #endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
 	mee_handler_h ("Configure PCSX4ALL GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
+	mee_handler_h ("Configure GLES GPU plugin",     menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };
