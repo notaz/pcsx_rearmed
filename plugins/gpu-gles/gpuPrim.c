@@ -2284,7 +2284,7 @@ void primBlkFill(unsigned char * baseAddr)
      b=((GLclampf)BLUE(gpuData[0]))/255.0f;
      r=((GLclampf)RED(gpuData[0]))/255.0f;
      
-     glDisable(GL_SCISSOR_TEST); glError();
+     //glDisable(GL_SCISSOR_TEST); glError();
      glClearColor(r,g,b,1.0f); glError();
      glClear(uiBufferBits); glError();
      gl_z=0.0f;
@@ -2317,7 +2317,7 @@ void primBlkFill(unsigned char * baseAddr)
         }
       }
 
-     glEnable(GL_SCISSOR_TEST); glError();
+     //glEnable(GL_SCISSOR_TEST); glError();
     }
    else
     {
@@ -2327,9 +2327,9 @@ void primBlkFill(unsigned char * baseAddr)
      SetRenderMode((unsigned long)0x01000000, FALSE);
      vertex[0].c.lcol=gpuData[0]|0xff000000;
      SETCOL(vertex[0]); 
-     glDisable(GL_SCISSOR_TEST); glError();
+     //glDisable(GL_SCISSOR_TEST); glError();
      PRIMdrawQuad(&vertex[0], &vertex[1], &vertex[2], &vertex[3]);
-     glEnable(GL_SCISSOR_TEST); glError();
+     //glEnable(GL_SCISSOR_TEST); glError();
     }
   }
 
