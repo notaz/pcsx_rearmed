@@ -19,6 +19,7 @@
 #include "gpuDraw.c"
 #include "gpuTexture.c"
 #include "gpuPrim.c"
+#include "hud.c"
 
 static const short dispWidths[8] = {256,320,512,640,368,384,512,640};
 short g_m1,g_m2,g_m3;
@@ -84,6 +85,8 @@ static void PaintBlackBorders(void)
  glEnable(GL_SCISSOR_TEST); glError();
 }
 
+static void fps_update(void);
+
 void updateDisplay(void)
 {
  bFakeFrontBuffer=FALSE;
@@ -120,8 +123,11 @@ void updateDisplay(void)
  }
 
  if(iDrawnSomething)
+ {
+  fps_update();
   eglSwapBuffers(display, surface);
- iDrawnSomething=0;
+  iDrawnSomething=0;
+ }
 
  if(lClearOnSwap)                                     // clear buffer after swap?
  {
@@ -622,6 +628,8 @@ void vout_update(void)
 
 long GPUopen(void **dpy)
 {
+ int ret;
+
  iResX = 800; iResY = 480;
  rRatioRect.left   = rRatioRect.top=0;
  rRatioRect.right  = iResX;
@@ -632,27 +640,29 @@ long GPUopen(void **dpy)
  CSTEXTURE = CSVERTEX = CSCOLOR = 0;
 
  InitializeTextureStore();                             // init texture mem
- is_opened = 1;
 
- return GLinitialize();
+ ret = GLinitialize();
+ MakeDisplayLists();
+
+ is_opened = 1;
+ return ret;
 }
 
 long GPUclose(void)
 {
  is_opened = 0;
 
+ KillDisplayLists();
  GLcleanup();                                          // close OGL
  return 0;
 }
 
-//#include "../../frontend/plugin_lib.h"
-
-static const struct rearmed_cbs *cbs;
+static struct rearmed_cbs *cbs;
 
 /* acting as both renderer and vout handler here .. */
 void renderer_set_config(const struct rearmed_cbs *cbs_)
 {
- cbs = cbs_;
+ cbs = (void *)cbs_; // ugh..
 
  iOffscreenDrawing = 0;
  iZBufferDepth = 0;
@@ -686,4 +696,21 @@ void SetAspectRatio(void)
            iResY-(rRatioRect.top+rRatioRect.bottom),
            rRatioRect.right,rRatioRect.bottom);
  glError();
+}
+
+static void fps_update(void)
+{
+ char buf[16];
+
+ cbs->flip_cnt++;
+ if(cbs->flips_per_sec != 0)
+ {
+  snprintf(buf,sizeof(buf),"%2d %4.1f",cbs->flips_per_sec,cbs->vsps_cur);
+  DisplayText(buf, 0);
+ }
+ if(cbs->cpu_usage != 0)
+ {
+  snprintf(buf,sizeof(buf),"%3d",cbs->cpu_usage);
+  DisplayText(buf, 1);
+ }
 }
