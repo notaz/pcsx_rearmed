@@ -23,7 +23,6 @@ extern int in_adev[2], in_adev_axis[2][2];
 extern int in_enable_vibration;
 
 extern void *pl_vout_buf;
-extern int pl_flip_cnt;
 
 void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
@@ -45,11 +44,15 @@ struct rearmed_cbs {
 	// these are only used by some frontends
 	void  (*pl_vout_raw_flip)(int x, int y);
 	void  (*pl_vout_set_raw_vram)(void *vram);
+	// some stats, for display by some plugins
+	int flips_per_sec, cpu_usage;
+	float vsps_cur; // currect vsync/s
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
+	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 	} gpu_neon;

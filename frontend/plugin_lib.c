@@ -35,12 +35,10 @@ int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
 int in_keystate, in_state_gun;
 int in_enable_vibration;
-int pl_flip_cnt;
 void *tsdev;
 void *pl_vout_buf;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp;
-static int vsync_cnt, flips_per_sec, tick_per_sec;
-static float vsps_cur;
+static int vsync_cnt;
 static int frame_interval, frame_interval1024, vsync_usec_time;
 
 
@@ -73,13 +71,14 @@ static void print_msg(int h, int border)
 static void print_fps(int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(border + 2, h - 10, "%2d %4.1f", flips_per_sec, vsps_cur);
+		pl_text_out16(border + 2, h - 10, "%2d %4.1f",
+			pl_rearmed_cbs.flips_per_sec, pl_rearmed_cbs.vsps_cur);
 }
 
 static void print_cpu_usage(int w, int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(w - border - 28, h - 10, "%3d", tick_per_sec);
+		pl_text_out16(w - border - 28, h - 10, "%3d", pl_rearmed_cbs.cpu_usage);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -164,7 +163,7 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 static void *pl_vout_flip(void)
 {
-	pl_flip_cnt++;
+	pl_rearmed_cbs.flip_cnt++;
 
 	if (pl_vout_buf != NULL)
 		pl_print_hud(pl_vout_w, pl_vout_h, 0);
@@ -313,26 +312,28 @@ void pl_frame_limit(void)
 
 	if (now.tv_sec != tv_old.tv_sec) {
 		diff = tvdiff(now, tv_old);
-		vsps_cur = 0.0f;
+		pl_rearmed_cbs.vsps_cur = 0.0f;
 		if (0 < diff && diff < 2000000)
-			vsps_cur = 1000000.0f * (vsync_cnt - vsync_cnt_prev) / diff;
+			pl_rearmed_cbs.vsps_cur = 1000000.0f * (vsync_cnt - vsync_cnt_prev) / diff;
 		vsync_cnt_prev = vsync_cnt;
-		flips_per_sec = pl_flip_cnt;
-		pl_flip_cnt = 0;
-		tv_old = now;
+
+		if (g_opts & OPT_SHOWFPS)
+			pl_rearmed_cbs.flips_per_sec = pl_rearmed_cbs.flip_cnt;
+		pl_rearmed_cbs.flip_cnt = 0;
 		if (g_opts & OPT_SHOWCPU)
-			tick_per_sec = get_cpu_ticks();
+			pl_rearmed_cbs.cpu_usage = get_cpu_ticks();
 
 		if (hud_new_msg > 0) {
 			hud_new_msg--;
 			if (hud_new_msg == 0)
 				hud_msg[0] = 0;
 		}
+		tv_old = now;
 	}
 #ifdef PCNT
 	static int ya_vsync_count;
 	if (++ya_vsync_count == PCNT_FRAMES) {
-		pcnt_print(vsps_cur);
+		pcnt_print(pl_rearmed_cbs.vsps_cur);
 		ya_vsync_count = 0;
 	}
 #endif
@@ -386,6 +387,8 @@ void pl_frame_limit(void)
 void pl_timing_prepare(int is_pal)
 {
 	pl_rearmed_cbs.fskip_advice = 0;
+	pl_rearmed_cbs.flips_per_sec = 0;
+	pl_rearmed_cbs.cpu_usage = 0;
 
 	frame_interval = is_pal ? 20000 : 16667;
 	frame_interval1024 = is_pal ? 20000*1024 : 17066667;

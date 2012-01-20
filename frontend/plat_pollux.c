@@ -340,7 +340,7 @@ static void raw_flip_dma(int x, int y)
 	}
 
 	g_menuscreen_ptr = fb_flip();
-	pl_flip_cnt++;
+	pl_rearmed_cbs.flip_cnt++;
 
 	pcnt_end(PCNT_BLIT);
 }
@@ -369,7 +369,7 @@ static void name(int x, int y)                                                  
         }                                                                               \
                                                                                         \
         g_menuscreen_ptr = fb_flip();                                                   \
-        pl_flip_cnt++;                                                                  \
+        pl_rearmed_cbs.flip_cnt++;                                                      \
                                                                                         \
         pcnt_end(PCNT_BLIT);                                                            \
 }
