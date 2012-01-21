@@ -610,6 +610,9 @@ void plat_init(void)
 	psx_width = 320;
 	psx_height = 240;
 	psx_bpp = 16;
+
+	pl_rearmed_cbs.screen_w = 320;
+	pl_rearmed_cbs.screen_h = 240;
 }
 
 void plat_finish(void)

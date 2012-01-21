@@ -177,6 +177,8 @@ void plat_init(void)
 	g_menuscreen_w = w;
 	g_menuscreen_h = h;
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
+	pl_rearmed_cbs.screen_w = w;
+	pl_rearmed_cbs.screen_h = h;
 
 	w = 640;
 	h = 512;

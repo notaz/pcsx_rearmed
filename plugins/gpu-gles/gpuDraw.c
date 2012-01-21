@@ -291,15 +291,17 @@ bool TestEGLError(const char* pszLocation)
 	EGLint iErr = eglGetError();
 	if (iErr != EGL_SUCCESS)
 	{
-		printf("%s failed (%d).\n", pszLocation, iErr);
+		printf("%s failed (0x%x).\n", pszLocation, iErr);
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-static void initEGL(void)
+static int initEGL(void)
 {
+	NativeWindowType window = 0;
+
 	printf ("GL init\n");
 
 	EGLint numConfigs;
@@ -336,9 +338,10 @@ static void initEGL(void)
             if (!x11Display)
             {
                 printf("GLES Error: Unable to open X display\n");
+                return -1;
             }
             x11Screen = XDefaultScreen( x11Display );
-				
+
             // Gets the display parameters so we can pass the same parameters to the window to be created.
             sRootWindow	= RootWindow(x11Display, x11Screen);
             i32Depth	= DefaultDepth(x11Display, x11Screen);
@@ -347,7 +350,8 @@ static void initEGL(void)
             if (!px11Visual)
             {
                 printf("GLES Error: Unable to acquire visual\n");
-			}
+                return -1;
+            }
             // Colormap of the specified visual type for the display.
             x11Colormap = XCreateColormap( x11Display, sRootWindow, px11Visual->visual, AllocNone );
             sWA.colormap = x11Colormap;
@@ -357,7 +361,7 @@ static void initEGL(void)
 
             // Display capabilities list.
             ui32Mask = CWBackPixel | CWBorderPixel | CWEventMask | CWColormap;
-							   
+
             // Creates the X11 window
             x11Window = XCreateWindow( x11Display, RootWindow(x11Display, x11Screen), 0, 0, iResX, iResY,
                                         0, CopyFromParent, InputOutput, CopyFromParent, ui32Mask, &sWA);
@@ -385,6 +389,7 @@ static void initEGL(void)
             XSendEvent(x11Display, DefaultRootWindow(x11Display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
 
             display = eglGetDisplay( (EGLNativeDisplayType)x11Display );
+            window = x11Window;
 #else
             display = eglGetDisplay( (EGLNativeDisplayType)0 );
 #endif
@@ -392,40 +397,48 @@ static void initEGL(void)
 	if( display == EGL_NO_DISPLAY )
 	{
 		printf( "GLES EGL Error: GL No Display\n" );
+		return -1;
 	}
 
 	if( !eglInitialize( display, &majorVersion, &minorVersion ) )
 	{
 		printf( "GLES EGL Error: eglInitialize failed\n" );
+		return -1;
 	}
 
 	if( !eglChooseConfig( display, attribList, &config, 1, &numConfigs ) )
 	{
 		printf( "GLES EGL Error: eglChooseConfig failed\n" );
+		return -1;
 	}
 
 	context = eglCreateContext( display, config, NULL, NULL );
 	if( context==0 )
 	{
 		printf( "GLES EGL Error: eglCreateContext failed\n" );
+		return -1;
 	}
 
-#if defined(USE_X11)
-            surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)x11Window, NULL );
-#else
-            surface = eglCreateWindowSurface( display, config, (EGLNativeDisplayType)0, NULL );
+#ifdef FAKE_WINDOW
+	// broken Caanoo libs won't accept NULL window
+	window = (NativeWindowType)1;
 #endif
+	surface = eglCreateWindowSurface( display, config, window, NULL );
+	if (!TestEGLError("eglCreateWindowSurface"))
+		return -1;
 
-    eglMakeCurrent( display, surface, surface, context );
-    if (!TestEGLError("eglMakeCurrent"))
-        printf("error eglMakeCurrent");
-    else
-        printf("GLES Window Opened\n");
+	eglMakeCurrent( display, surface, surface, context );
+	if (!TestEGLError("eglMakeCurrent"))
+		return -1;
+
+	printf("GLES init ok\n");
+	return 0;
 }
 
 int GLinitialize() 
 {
- initEGL();
+ if(initEGL()!=0)
+  return -1;
 
  //----------------------------------------------------// 
 

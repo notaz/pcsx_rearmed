@@ -626,11 +626,14 @@ void vout_update(void)
  }
 }
 
+static struct rearmed_cbs *cbs;
+
 long GPUopen(void **dpy)
 {
  int ret;
 
- iResX = 800; iResY = 480;
+ iResX = cbs->screen_w;
+ iResY = cbs->screen_h;
  rRatioRect.left   = rRatioRect.top=0;
  rRatioRect.right  = iResX;
  rRatioRect.bottom = iResY;
@@ -656,8 +659,6 @@ long GPUclose(void)
  GLcleanup();                                          // close OGL
  return 0;
 }
-
-static struct rearmed_cbs *cbs;
 
 /* acting as both renderer and vout handler here .. */
 void renderer_set_config(const struct rearmed_cbs *cbs_)
