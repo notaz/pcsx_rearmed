@@ -3,7 +3,7 @@ CC = $(CROSS_COMPILE)g++
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
 CFLAGS += -DREARMED
-CFLAGS += -ggdb -Wall -fPIC -O2 -ffast-math
+CFLAGS += -ggdb -Wall -O3 -ffast-math
 
 SRC_STANDALONE += gpu.cpp
 SRC_GPULIB += gpulib_if.cpp

@@ -5,7 +5,8 @@ LDFLAGS += -shared
 ifeq "$(ARCH)" "arm"
  ARM_CORTEXA8 ?= 1
  ifeq "$(ARM_CORTEXA8)" "1"
-  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon \
+    -fPIC -mfloat-abi=softfp
   ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
  else
   CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s

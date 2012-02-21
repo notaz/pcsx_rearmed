@@ -4,14 +4,17 @@ AR = $(CROSS_COMPILE)ar
 
 ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
 
-CFLAGS += -ggdb -Wall -fPIC -O2
+CFLAGS += -ggdb -Wall
+ifndef DEBUG
+CFLAGS += -O2
+endif
 
 OBJS += gpu.o
 
 ifeq "$(ARCH)" "arm"
 ARM_CORTEXA8 ?= 1
 ifeq "$(ARM_CORTEXA8)" "1"
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp -fPIC
 ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 OBJS += cspace_neon.o
 else
