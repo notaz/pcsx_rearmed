@@ -231,7 +231,7 @@ u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu);
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
-void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size);
+u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command);
 
 void triangle_benchmark(psx_gpu_struct *psx_gpu);
 

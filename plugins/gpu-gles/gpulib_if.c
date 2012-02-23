@@ -502,16 +502,28 @@ int renderer_init(void)
 
 extern const unsigned char cmd_lengths[256];
 
-void do_cmd_list(unsigned int *list, int list_len)
+// XXX: mostly dupe code from soft peops
+int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 {
   unsigned int cmd, len;
-
+  unsigned int *list_start = list;
   unsigned int *list_end = list + list_len;
 
   for (; list < list_end; list += 1 + len)
   {
     cmd = *list >> 24;
     len = cmd_lengths[cmd];
+    if (list + 1 + len > list_end) {
+      cmd = -1;
+      break;
+    }
+
+#ifndef TEST
+    if (cmd == 0xa0 || cmd == 0xc0)
+      break; // image i/o, forward to upper layer
+    else if ((cmd & 0xf8) == 0xe0)
+      gpu.ex_regs[cmd & 7] = list[0];
+#endif
 
     primTableJ[cmd]((void *)list);
 
@@ -519,8 +531,8 @@ void do_cmd_list(unsigned int *list, int list_len)
     {
       case 0x48 ... 0x4F:
       {
-        uint32_t num_vertexes = 1;
-        uint32_t *list_position = &(list[2]);
+        uint32_t num_vertexes = 2;
+        uint32_t *list_position = &(list[3]);
 
         while(1)
         {
@@ -531,16 +543,14 @@ void do_cmd_list(unsigned int *list, int list_len)
           num_vertexes++;
         }
 
-        if(num_vertexes > 2)
-          len += (num_vertexes - 2);
-
+        len += (num_vertexes - 2);
         break;
       }
 
       case 0x58 ... 0x5F:
       {
-        uint32_t num_vertexes = 1;
-        uint32_t *list_position = &(list[2]);
+        uint32_t num_vertexes = 2;
+        uint32_t *list_position = &(list[4]);
 
         while(1)
         {
@@ -551,9 +561,7 @@ void do_cmd_list(unsigned int *list, int list_len)
           num_vertexes++;
         }
 
-        if(num_vertexes > 2)
-          len += (num_vertexes - 2) * 2;
-
+        len += (num_vertexes - 2) * 2;
         break;
       }
 
@@ -571,6 +579,12 @@ void do_cmd_list(unsigned int *list, int list_len)
 #endif
     }
   }
+
+  gpu.ex_regs[1] &= ~0x1ff;
+  gpu.ex_regs[1] |= lGPUstatusRet & 0x1ff;
+
+  *last_cmd = cmd;
+  return list - list_start;
 }
 
 void renderer_sync_ecmds(uint32_t *ecmds)

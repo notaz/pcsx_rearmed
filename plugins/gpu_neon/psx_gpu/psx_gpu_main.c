@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
   init_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size);
+  gpu_parse(psx_gpu, list, size, NULL);
   flush_render_block_buffer(psx_gpu);
 
   clear_stats();
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
   u32 cycles = get_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size);
+  gpu_parse(psx_gpu, list, size, NULL);
   flush_render_block_buffer(psx_gpu);
 
 #ifdef NEON_BUILD

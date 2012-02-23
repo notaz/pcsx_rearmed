@@ -162,9 +162,10 @@ int renderer_init(void)
 
 extern const unsigned char cmd_lengths[256];
 
-void do_cmd_list(unsigned int *list, int list_len)
+int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 {
-  unsigned int cmd, len;
+  unsigned int cmd = 0, len;
+  unsigned int *list_start = list;
   unsigned int *list_end = list + list_len;
 
   linesInterlace = force_interlace;
@@ -176,6 +177,17 @@ void do_cmd_list(unsigned int *list, int list_len)
   {
     cmd = *list >> 24;
     len = cmd_lengths[cmd];
+    if (list + 1 + len > list_end) {
+      cmd = -1;
+      break;
+    }
+
+#ifndef TEST
+    if (cmd == 0xa0 || cmd == 0xc0)
+      break; // image i/o, forward to upper layer
+    else if ((cmd & 0xf8) == 0xe0)
+      gpu.ex_regs[cmd & 7] = list[0];
+#endif
 
     switch(cmd)
     {
@@ -190,19 +202,16 @@ void do_cmd_list(unsigned int *list, int list_len)
 
         while(1)
         {
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
-            break;
-
           PacketBuffer.U4[1] = PacketBuffer.U4[2];
           PacketBuffer.U4[2] = *list_position++;
           gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
+          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+            break;
         }
 
-        if(num_vertexes > 2)
-          len += (num_vertexes - 2);
-
+        len += (num_vertexes - 2);
         break;
       }
 
@@ -217,9 +226,6 @@ void do_cmd_list(unsigned int *list, int list_len)
 
         while(1)
         {
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
-            break;
-
           PacketBuffer.U4[0] = PacketBuffer.U4[2];
           PacketBuffer.U4[1] = PacketBuffer.U4[3];
           PacketBuffer.U4[2] = *list_position++;
@@ -227,11 +233,11 @@ void do_cmd_list(unsigned int *list, int list_len)
           gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
+          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+            break;
         }
 
-        if(num_vertexes > 2)
-          len += (num_vertexes - 2) * 2;
-
+        len += (num_vertexes - 2) * 2;
         break;
       }
 
@@ -252,6 +258,12 @@ void do_cmd_list(unsigned int *list, int list_len)
         break;
     }
   }
+
+  gpu.ex_regs[1] &= ~0x1ff;
+  gpu.ex_regs[1] |= GPU_GP1 & 0x1ff;
+
+  *last_cmd = cmd;
+  return list - list_start;
 }
 
 void renderer_sync_ecmds(uint32_t *ecmds)

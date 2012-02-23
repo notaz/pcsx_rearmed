@@ -199,12 +199,17 @@ void set_triangle_color(psx_gpu_struct *psx_gpu, u32 triangle_color)
   get_vertex_data_xy(vertex_number, offset16);                                 \
   set_vertex_color_constant(vertex_number, color)                              \
 
+#ifndef SET_Ex
+#define SET_Ex(r, v)
+#endif
+
 vertex_struct vertexes[4] __attribute__((aligned(32)));
 
-void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
+u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 {
-  u32 current_command, command_length;
-  
+  u32 current_command = 0, command_length;
+
+  u32 *list_start = list;
   u32 *list_end = list + (size / 4);
 
   for(; list < list_end; list += 1 + command_length)
@@ -212,6 +217,10 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   	s16 *list_s16 = (void *)list;
   	current_command = *list >> 24;
   	command_length = command_lengths[current_command];
+  	if (list + 1 + command_length > list_end) {
+  	  current_command = (u32)-1;
+  	  break;
+  	}
 
   	switch(current_command)
   	{
@@ -590,7 +599,12 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         render_block_move(psx_gpu, list_s16[2] & 0x3FF, list_s16[3] & 0x1FF,
          list_s16[4] & 0x3FF, list_s16[5] & 0x1FF, list_s16[6], list_s16[7]);
   			break;
-  
+ 
+#ifdef PCSX
+  		case 0xA0:          //  sys -> vid
+  		case 0xC0:          //  vid -> sys
+  			goto breakloop;
+#else
   		case 0xA0:          //  sys -> vid
       {
         u32 load_x = list_s16[2] & 0x3FF;
@@ -608,10 +622,11 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
          load_width, load_height, load_width);
   			break;
       }
-  
+
   		case 0xC0:          //  vid -> sys
   			break;
-  
+#endif
+
   		case 0xE1:
         set_texture(psx_gpu, list[0] & 0x1FF);
 
@@ -621,6 +636,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
         psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+  			SET_Ex(1, list[0]);
   			break;
   
   		case 0xE2:
@@ -653,6 +669,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
 
           update_texture_ptr(psx_gpu);
         }
+        SET_Ex(2, list[0]);
         break;
   		}
   
@@ -666,6 +683,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
+  			SET_Ex(3, list[0]);
   			break;
   
   		case 0xE4:
@@ -678,6 +696,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
+  			SET_Ex(4, list[0]);
   			break;
   
   		case 0xE5:
@@ -687,6 +706,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
         psx_gpu->offset_x = offset_x >> 21;
         psx_gpu->offset_y = offset_y >> 21; 
   
+  			SET_Ex(5, list[0]);
   			break;
   		}
 
@@ -706,6 +726,7 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
           psx_gpu->mask_msb = mask_msb;
         }
 
+  			SET_Ex(6, list[0]);
   			break;
       }
   
@@ -713,5 +734,12 @@ void gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size)
   			break;
   	}
   }
+
+#ifdef PCSX
+breakloop:
+#endif
+  if (last_command != NULL)
+    *last_command = current_command;
+  return list - list_start;
 }
 

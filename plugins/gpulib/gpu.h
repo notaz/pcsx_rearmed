@@ -91,7 +91,7 @@ extern struct psx_gpu gpu;
 
 extern const unsigned char cmd_lengths[256];
 
-void do_cmd_list(uint32_t *list, int count);
+int do_cmd_list(uint32_t *list, int count, int *last_cmd);
 
 struct rearmed_cbs;
 

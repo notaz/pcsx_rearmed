@@ -94,7 +94,7 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.active = 0;
 }
 
-static noinline void decide_frameskip_allow(uint32_t cmd_e3)
+static noinline int decide_frameskip_allow(uint32_t cmd_e3)
 {
   // no frameskip if it decides to draw to display area,
   // but not for interlace since it'll most likely always do that
@@ -103,6 +103,7 @@ static noinline void decide_frameskip_allow(uint32_t cmd_e3)
   gpu.frameskip.allow = gpu.status.interlace ||
     (uint32_t)(x - gpu.screen.x) >= (uint32_t)gpu.screen.w ||
     (uint32_t)(y - gpu.screen.y) >= (uint32_t)gpu.screen.h;
+  return gpu.frameskip.allow;
 }
 
 static noinline void get_gpu_info(uint32_t data)
@@ -327,70 +328,84 @@ static void finish_vram_transfer(int is_read)
                            gpu.dma_start.w, gpu.dma_start.h);
 }
 
+static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
+{
+  int cmd = 0, pos = 0, len, dummy;
+  int skip = 1;
+
+  while (pos < count && skip) {
+    uint32_t *list = data + pos;
+    cmd = list[0] >> 24;
+    len = 1 + cmd_lengths[cmd];
+
+    if (cmd == 0x02) {
+      if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
+        // clearing something large, don't skip
+        do_cmd_list(data + pos, 3, &dummy);
+    }
+    else if ((cmd & 0xf4) == 0x24) {
+      // flat textured prim
+      gpu.ex_regs[1] &= ~0x1ff;
+      gpu.ex_regs[1] |= list[4] & 0x1ff;
+    }
+    else if ((cmd & 0xf4) == 0x34) {
+      // shaded textured prim
+      gpu.ex_regs[1] &= ~0x1ff;
+      gpu.ex_regs[1] |= list[5] & 0x1ff;
+    }
+    else if (cmd == 0xe3)
+      skip = decide_frameskip_allow(list[0]);
+
+    if ((cmd & 0xf8) == 0xe0)
+      gpu.ex_regs[cmd & 7] = list[0];
+
+    if (pos + len > count) {
+      cmd = -1;
+      break; // incomplete cmd
+    }
+    if (cmd == 0xa0 || cmd == 0xc0)
+      break; // image i/o
+    pos += len;
+  }
+
+  renderer_sync_ecmds(gpu.ex_regs);
+  *last_cmd = cmd;
+  return pos;
+}
+
 static noinline int do_cmd_buffer(uint32_t *data, int count)
 {
-  int len, cmd, start, pos;
+  int cmd, pos;
+  uint32_t old_e3 = gpu.ex_regs[3];
   int vram_dirty = 0;
 
   // process buffer
-  for (start = pos = 0; pos < count; )
+  for (pos = 0; pos < count; )
   {
-    cmd = -1;
-    len = 0;
-
-    if (gpu.dma.h) {
+    if (gpu.dma.h && !gpu.dma_start.is_read) { // XXX: need to verify
+      vram_dirty = 1;
       pos += do_vram_io(data + pos, count - pos, 0);
       if (pos == count)
         break;
-      start = pos;
     }
 
-    // do look-ahead pass to detect SR changes and VRAM i/o
-    while (pos < count) {
-      uint32_t *list = data + pos;
-      cmd = list[0] >> 24;
-      len = 1 + cmd_lengths[cmd];
-
-      //printf("  %3d: %02x %d\n", pos, cmd, len);
-      if ((cmd & 0xf4) == 0x24) {
-        // flat textured prim
-        gpu.ex_regs[1] &= ~0x1ff;
-        gpu.ex_regs[1] |= list[4] & 0x1ff;
-      }
-      else if ((cmd & 0xf4) == 0x34) {
-        // shaded textured prim
-        gpu.ex_regs[1] &= ~0x1ff;
-        gpu.ex_regs[1] |= list[5] & 0x1ff;
-      }
-      else if (cmd == 0xe3)
-        decide_frameskip_allow(list[0]);
-
-      if (2 <= cmd && cmd < 0xc0)
-        vram_dirty = 1;
-      else if ((cmd & 0xf8) == 0xe0)
-        gpu.ex_regs[cmd & 7] = list[0];
-
-      if (pos + len > count) {
-        cmd = -1;
-        break; // incomplete cmd
-      }
-      if (cmd == 0xa0 || cmd == 0xc0)
-        break; // image i/o
-      pos += len;
-    }
-
-    if (pos - start > 0) {
-      if (!gpu.frameskip.active || !gpu.frameskip.allow)
-        do_cmd_list(data + start, pos - start);
-      start = pos;
-    }
-
+    cmd = data[pos] >> 24;
     if (cmd == 0xa0 || cmd == 0xc0) {
       // consume vram write/read cmd
       start_vram_transfer(data[pos + 1], data[pos + 2], cmd == 0xc0);
-      pos += len;
+      pos += 3;
+      continue;
     }
-    else if (cmd == -1)
+
+    if (gpu.frameskip.active && gpu.frameskip.allow)
+      pos += do_cmd_list_skip(data + pos, count - pos, &cmd);
+    else {
+      pos += do_cmd_list(data + pos, count - pos, &cmd);
+      vram_dirty = 1;
+    }
+
+    if (cmd == -1)
+      // incomplete cmd
       break;
   }
 
@@ -398,9 +413,10 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
   gpu.status.reg |= gpu.ex_regs[1] & 0x7ff;
   gpu.status.reg |= (gpu.ex_regs[6] & 3) << 11;
 
-  if (gpu.frameskip.active)
-    renderer_sync_ecmds(gpu.ex_regs);
   gpu.state.fb_dirty |= vram_dirty;
+
+  if (old_e3 != gpu.ex_regs[3])
+    decide_frameskip_allow(gpu.ex_regs[3]);
 
   return count - pos;
 }

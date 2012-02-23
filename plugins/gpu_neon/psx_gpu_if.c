@@ -13,26 +13,37 @@
 extern const unsigned char cmd_lengths[256];
 #define command_lengths cmd_lengths
 
+static unsigned int *ex_regs;
+
+#define PCSX
+#define SET_Ex(r, v) \
+  ex_regs[r] = v
+
 #include "psx_gpu/psx_gpu.c"
 #include "psx_gpu/psx_gpu_parse.c"
 #include "../gpulib/gpu.h"
 
 static psx_gpu_struct egpu __attribute__((aligned(256)));
 
-void do_cmd_list(uint32_t *list, int count)
+int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 {
-  gpu_parse(&egpu, list, count * 4);
+  int ret = gpu_parse(&egpu, list, count * 4, (u32 *)last_cmd);
+
+  ex_regs[1] &= ~0x1ff;
+  ex_regs[1] |= egpu.texture_settings & 0x1ff;
+  return ret;
 }
 
 int renderer_init(void)
 {
   initialize_psx_gpu(&egpu, gpu.vram);
+  ex_regs = gpu.ex_regs;
   return 0;
 }
 
 void renderer_sync_ecmds(uint32_t *ecmds)
 {
-  gpu_parse(&egpu, ecmds + 1, 6 * 4);
+  gpu_parse(&egpu, ecmds + 1, 6 * 4, NULL);
 }
 
 void renderer_update_caches(int x, int y, int w, int h)
