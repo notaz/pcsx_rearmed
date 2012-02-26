@@ -69,8 +69,11 @@ typedef enum
 	MA_OPT_SAVECFG,
 	MA_OPT_SAVECFG_GAME,
 	MA_OPT_CPU_CLOCKS,
-	MA_OPT_FILTERING,
 	MA_OPT_DISP_OPTS,
+	MA_OPT_SCALER,
+	MA_OPT_SCALER2,
+	MA_OPT_FILTERING,
+	MA_OPT_SCALER_C,
 } menu_id;
 
 enum {
@@ -89,7 +92,7 @@ static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts;
-int analog_deadzone; // for Caanoo
+int soft_scaling, analog_deadzone; // for Caanoo
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -216,6 +219,7 @@ static void menu_set_defconfig(void)
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 50;
+	soft_scaling = 1;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -1179,10 +1183,11 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Scaler",                   0, scaling, men_scaler),
+	mee_enum      ("Scaler",                   MA_OPT_SCALER, scaling, men_scaler),
+	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Filter",                   MA_OPT_FILTERING, filter, men_dummy),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
-	mee_cust_h    ("Setup custom scaler",      0, menu_loop_cscaler, NULL, h_cscaler),
+	mee_cust_h    ("Setup custom scaler",      MA_OPT_SCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
 };
 
@@ -1380,7 +1385,8 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
-static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n";
+static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
+				    "(lower value - less work for the emu, may be faster)";
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
@@ -1488,7 +1494,7 @@ static int menu_loop_options(int id, int keys)
 	int i;
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].enabled = cpu_clock != 0 ? 1 : 0;
+	e_menu_options[i].enabled = cpu_clock_st != 0 ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
 	me_loop(e_menu_options, &sel);
@@ -1498,12 +1504,12 @@ static int menu_loop_options(int id, int keys)
 
 // ------------ debug menu ------------
 
-static void draw_frame_debug(GPUFreeze_t *gpuf)
+static void draw_frame_debug(GPUFreeze_t *gpuf, int x, int y)
 {
 	int w = min(g_menuscreen_w, 1024);
 	int h = min(g_menuscreen_h, 512);
 	u16 *d = g_menuscreen_ptr;
-	u16 *s = (u16 *)gpuf->psxVRam;
+	u16 *s = (u16 *)gpuf->psxVRam + y * 1024 + x;
 	char buff[64];
 	int ty = 1;
 
@@ -1523,8 +1529,8 @@ static void draw_frame_debug(GPUFreeze_t *gpuf)
 
 static void debug_menu_loop(void)
 {
+	int inp, df_x = 0, df_y = 0;
 	GPUFreeze_t *gpuf;
-	int inp;
 
 	gpuf = malloc(sizeof(*gpuf));
 	if (gpuf == NULL)
@@ -1533,13 +1539,16 @@ static void debug_menu_loop(void)
 	while (1)
 	{
 		menu_draw_begin(0);
-		draw_frame_debug(gpuf);
+		draw_frame_debug(gpuf, df_x, df_y);
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
-					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
-		if (inp & PBTN_MBACK)
-			break;
+					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 10);
+		if      (inp & PBTN_MBACK) break;
+		else if (inp & PBTN_UP)    { if (df_y > 0) df_y--; }
+		else if (inp & PBTN_DOWN)  { if (df_y < 512 - g_menuscreen_h) df_y++; }
+		else if (inp & PBTN_LEFT)  { if (df_x > 0) df_x--; }
+		else if (inp & PBTN_RIGHT) { if (df_x < 1024 - g_menuscreen_w) df_x++; }
 	}
 
 	free(gpuf);
@@ -2228,9 +2237,12 @@ void menu_init(void)
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
 #ifndef __ARM_ARCH_7A__ /* XXX */
-	me_enable(e_menu_options, MA_OPT_DISP_OPTS, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_SCALER, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_SCALER_C, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
 #else
+	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 #endif

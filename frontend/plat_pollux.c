@@ -46,7 +46,7 @@ static unsigned int saved_video_regs[2][6];
 static unsigned short *psx_vram;
 static unsigned int psx_vram_padds[512];
 static int psx_step, psx_width, psx_height, psx_bpp;
-static int psx_offset_x, psx_offset_y;
+static int psx_offset_x, psx_offset_y, psx_src_width, psx_src_height;
 static int fb_offset_x, fb_offset_y;
 
 // TODO: get rid of this
@@ -60,6 +60,7 @@ int omap_enable_layer(int enabled)
 }
 
 static void caanoo_init(void);
+static void *pl_vout_set_mode(int w, int h, int bpp);
 
 
 static void *fb_flip(void)
@@ -248,9 +249,7 @@ void plat_video_menu_leave(void)
 
 	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
 	g_menuscreen_ptr = fb_flip();
-	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
-
-	pollux_changemode(psx_bpp, 1);
+	pl_vout_set_mode(psx_width, psx_height, psx_bpp);
 }
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
@@ -304,7 +303,7 @@ static void raw_flip_dma(int x, int y)
 	int spsx_line = y + psx_offset_y;
 	int spsx_offset = (x + psx_offset_x) & 0x3f8;
 	int dst_stride = 320 * psx_bpp / 8;
-	int len = psx_width * psx_bpp / 8;
+	int len = psx_src_width * psx_bpp / 8;
 	int i;
 
 	warm_cache_op_all(WOP_D_CLEAN);
@@ -322,7 +321,7 @@ static void raw_flip_dma(int x, int y)
 		DMA_REG(0x24) = 1;
 	}
 
-	for (i = psx_height; i > 0; i--, spsx_line += psx_step, dst += dst_stride) {
+	for (i = psx_src_height; i > 0; i--, spsx_line += psx_step, dst += dst_stride) {
 		while ((DMA_REG(0x2c) & 0x0f) < 4)
 			spend_cycles(10);
 
@@ -336,7 +335,7 @@ static void raw_flip_dma(int x, int y)
 
 	if (psx_bpp == 16) {
 		pl_vout_buf = g_menuscreen_ptr;
-		pl_print_hud(320, fb_offset_y + psx_height, fb_offset_x);
+		pl_print_hud(320, fb_offset_y + psx_src_height, fb_offset_x);
 	}
 
 	g_menuscreen_ptr = fb_flip();
@@ -353,19 +352,19 @@ static void name(int x, int y)                                                  
                         (fb_offset_y * 320 + fb_offset_x) * psx_bpp / 8;                \
         unsigned int src = (y + psx_offset_y) * 1024 + x + psx_offset_x;                \
         int dst_stride = 320 * psx_bpp / 8;                                             \
-        int len = psx_width * psx_bpp / 8;                                              \
+        int len = psx_src_width * psx_bpp / 8;                                          \
         int i;                                                                          \
                                                                                         \
         pcnt_start(PCNT_BLIT);                                                          \
                                                                                         \
-        for (i = psx_height; i > 0; i--, src += psx_step * 1024, dst += dst_stride) {   \
+        for (i = psx_src_height; i > 0; i--, src += psx_step * 1024, dst += dst_stride) { \
                 src &= 1024*512-1;                                                      \
                 blitfunc(dst, vram + src, len);                                         \
         }                                                                               \
                                                                                         \
         if (psx_bpp == 16) {                                                            \
                 pl_vout_buf = g_menuscreen_ptr;                                         \
-                pl_print_hud(320, fb_offset_y + psx_height, fb_offset_x);               \
+                pl_print_hud(320, fb_offset_y + psx_src_height, fb_offset_x);           \
         }                                                                               \
                                                                                         \
         g_menuscreen_ptr = fb_flip();                                                   \
@@ -381,15 +380,17 @@ make_flip_func(raw_flip_soft_640, blit320_640)
 
 static void *pl_vout_set_mode(int w, int h, int bpp)
 {
-	static int old_w, old_h, old_bpp;
 	int poff_w, poff_h, w_max;
 
-	if (!w || !h || !bpp || (w == old_w && h == old_h && bpp == old_bpp))
+	if (!w || !h || !bpp)
 		return NULL;
 
 	printf("psx mode: %dx%d@%d\n", w, h, bpp);
+	psx_width = w;
+	psx_height = h;
+	psx_bpp = bpp;
 
-	switch (w + (bpp != 16)) {
+	switch (w + (bpp != 16) + !soft_scaling) {
 	case 640:
 		pl_rearmed_cbs.pl_vout_raw_flip = raw_flip_soft_640;
 		w_max = 640;
@@ -431,9 +432,8 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 	psx_offset_x = poff_w;
 	psx_offset_y = poff_h;
-	psx_width = w;
-	psx_height = h;
-	psx_bpp = bpp;
+	psx_src_width = w;
+	psx_src_height = h;
 
 	if (fb_offset_x || fb_offset_y) {
 		// not fullscreen, must clear borders
@@ -521,6 +521,7 @@ void plat_init(void)
 	}
 	fb_vaddrs[1] = (char *)fb_vaddrs[0] + 320*240*4;
 
+	memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
 	pollux_changemode(16, 0);
 	g_menuscreen_w = 320;
 	g_menuscreen_h = 240;
@@ -607,8 +608,8 @@ void plat_init(void)
 	pl_rearmed_cbs.pl_vout_set_mode = pl_vout_set_mode;
 	pl_rearmed_cbs.pl_vout_set_raw_vram = pl_vout_set_raw_vram;
 
-	psx_width = 320;
-	psx_height = 240;
+	psx_src_width = 320;
+	psx_src_height = 240;
 	psx_bpp = 16;
 
 	pl_rearmed_cbs.screen_w = 320;

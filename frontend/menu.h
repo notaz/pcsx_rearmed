@@ -14,4 +14,4 @@ enum opts {
 };
 
 extern int g_opts;
-extern int analog_deadzone;
+extern int soft_scaling, analog_deadzone;
