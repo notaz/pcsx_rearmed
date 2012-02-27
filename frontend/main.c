@@ -531,6 +531,9 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
+#ifndef __ARM_ARCH_7A__ /* XXX */
+	sync();
+#endif
 	printf("* %s \"%s\" [%d]\n", ret == 0 ? "saved" : "failed to save", fname, slot);
 	return ret;
 }
