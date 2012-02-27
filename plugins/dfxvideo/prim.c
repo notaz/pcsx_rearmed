@@ -575,7 +575,7 @@ static void primMoveImage(unsigned char * baseAddr)
    return;
   }
  
- if(imageSX&1)                                         // not dword aligned? slower func
+ if((imageSX|imageX0|imageX1)&1)                       // not dword aligned? slower func
   {
    unsigned short *SRCPtr, *DSTPtr;
    unsigned short LineOffset;
