@@ -186,10 +186,10 @@ gteRTPS_nf_arm:
                                   movhs    r9, #0x20000
     ldmia    r1, {r2-r4}
                    /* quotient */ subhs    r9, #1
-    mov      r2, #0
+    mov      r2, r6, asr #31
     smlal    r6, r2, r10, r9
     stmia    r1!,{r3,r4}          @ shift gteSXY
-    mov      r3, #0
+    mov      r3, r7, asr #31
     smlal    r7, r3, r11, r9
     lsr      r6, #16
              /* gteDQA, gteDQB */ ldrd     r10,[r0, #4*(32+27)]
@@ -253,9 +253,9 @@ rtpt_arm_loop:
                                   movhs    r9, #0x20000
     ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
                    /* quotient */ subhs    r9, #1
-    mov      r2, #0
+    mov      r2, r6, asr #31
     smlal    r6, r2, r10, r9
-    mov      r3, #0
+    mov      r3, r7, asr #31
     smlal    r7, r3, r11, r9
     lsr      r6, #16
     orr      r6, r2, lsl #16      @ (gteOFX + gteIR1 * q) >> 16
