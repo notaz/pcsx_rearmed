@@ -152,6 +152,7 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_unai.no_light =
 	pl_rearmed_cbs.gpu_unai.no_blend = 0;
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
+	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;
 
 	iUseReverb = 2;
 	iUseInterpolation = 1;
