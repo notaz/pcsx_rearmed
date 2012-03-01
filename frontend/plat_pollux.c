@@ -689,21 +689,22 @@ struct haptic_data {
 #define HAPTIC_SET_VIB_LEVEL	_IOW(HAPTIC_IOCTL_MAGIC, 9, unsigned int)
 
 static int hapticdev = -1;
-static struct haptic_data haptic_seq;
+static struct haptic_data haptic_seq[2];
 
-static int haptic_init(void)
+static int haptic_read(const char *fname, struct haptic_data *data)
 {
 	int i, ret, v1, v2;
 	char buf[128], *p;
 	FILE *f;
 
-	f = fopen("haptic.txt", "r");
+	f = fopen(fname, "r");
 	if (f == NULL) {
-		perror("fopen(haptic.txt)");
+		fprintf("fopen(%s)", fname);
+		perror("");
 		return -1;
 	}
 
-	for (i = 0; i < sizeof(haptic_seq.actions) / sizeof(haptic_seq.actions[0]); ) {
+	for (i = 0; i < sizeof(data->actions) / sizeof(data->actions[0]); ) {
 		p = fgets(buf, sizeof(buf), f);
 		if (p == NULL)
 			break;
@@ -718,17 +719,31 @@ static int haptic_init(void)
 			continue;
 		}
 
-		haptic_seq.actions[i].time = v1;
-		haptic_seq.actions[i].strength = v2;
+		data->actions[i].time = v1;
+		data->actions[i].strength = v2;
 		i++;
 	}
 	fclose(f);
 
 	if (i == 0) {
-		fprintf(stderr, "bad haptic.txt\n");
+		fprintf(stderr, "bad haptic file: %s\n", fname);
 		return -1;
 	}
-	haptic_seq.count = i;
+	data->count = i;
+
+	return 0;
+}
+
+static int haptic_init(void)
+{
+	int ret, i;
+
+	ret = haptic_read("haptic_w.cfg", &haptic_seq[0]);
+	if (ret != 0)
+		return -1;
+	ret = haptic_read("haptic_s.cfg", &haptic_seq[1]);
+	if (ret != 0)
+		return -1;
 
 	hapticdev = open("/dev/isa1200", O_RDWR | O_NONBLOCK);
 	if (hapticdev == -1) {
@@ -750,7 +765,7 @@ static int haptic_init(void)
 	return 0;
 }
 
-void plat_trigger_vibrate(void)
+void plat_trigger_vibrate(int is_strong)
 {
 	int ret;
 
@@ -764,7 +779,7 @@ void plat_trigger_vibrate(void)
 		}
 	}
 
-	ioctl(hapticdev, HAPTIC_PLAY_PATTERN, &haptic_seq);
+	ioctl(hapticdev, HAPTIC_PLAY_PATTERN, &haptic_seq[!!is_strong]);
 }
 
 /* Wiz stuff */

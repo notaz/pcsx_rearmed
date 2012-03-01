@@ -206,8 +206,18 @@ static void do_cmd2(unsigned char value)
 
 		case CMD_READ_DATA_AND_VIBRATE:
 			if (value == 1 && CurPad == 0 && in_enable_vibration)
-				plat_trigger_vibrate();
+				plat_trigger_vibrate(0);
 			break;
+	}
+}
+
+static void do_cmd3(unsigned char value)
+{
+	if (in_enable_vibration && CurCmd == CMD_READ_DATA_AND_VIBRATE && CurPad == 0) {
+		if (value >= 0xf0)
+			plat_trigger_vibrate(1);
+		else if (value > 0x40)
+			plat_trigger_vibrate(0);
 	}
 }
 
@@ -224,7 +234,8 @@ unsigned char PADpoll(unsigned char value) {
 
 unsigned char PADpoll_pad(unsigned char value) {
 
-	if (CurByte == 0) {
+	switch (CurByte) {
+	case 0:
 		CurCmd = value;
 		CurByte++;
 
@@ -233,10 +244,13 @@ unsigned char PADpoll_pad(unsigned char value) {
 			CurCmd = CMD_READ_DATA_AND_VIBRATE;
 
 		return do_cmd();
-	}
-
-	if (CurByte == 2)
+	case 2:
 		do_cmd2(value);
+		break;
+	case 3:
+		do_cmd3(value);
+		break;
+	}
 
 	if (CurByte >= CmdLen)
 		return 0xff;	// verified
