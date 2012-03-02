@@ -1,5 +1,5 @@
 # depends on ARCH definition
-# always adding gpulib to LDLIBS in case cspace is needed
+# always adding gpulib to deps in case cspace is needed
 
 LDFLAGS += -shared
 ifeq "$(ARCH)" "arm"
@@ -27,7 +27,6 @@ ifdef DEBUG
 endif
 
 GPULIB_A = ../gpulib/gpulib$(EXT).a
-LDLIBS += $(GPULIB_A)
 
 ifdef BIN_STANDLALONE
 TARGETS += $(BIN_STANDLALONE)$(EXT)
@@ -36,16 +35,16 @@ ifdef BIN_GPULIB
 TARGETS += $(BIN_GPULIB)$(EXT)
 endif
 
-all: $(GPULIB_A) $(TARGETS)
+all: $(TARGETS)
 
 ifdef BIN_STANDLALONE
-$(BIN_STANDLALONE)$(EXT): $(SRC) $(SRC_STANDALONE)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) $(LDLIBS) $(LDLIBS_STANDALONE)
+$(BIN_STANDLALONE)$(EXT): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
+	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_STANDALONE)
 endif
 
 ifdef BIN_GPULIB
-$(BIN_GPULIB)$(EXT): $(SRC) $(SRC_GPULIB)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) $(LDLIBS) $(LDLIBS_GPULIB)
+$(BIN_GPULIB)$(EXT): $(SRC) $(SRC_GPULIB) $(GPULIB_A)
+	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_GPULIB)
 endif
 
 $(GPULIB_A):
