@@ -397,7 +397,8 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
       continue;
     }
 
-    if (gpu.frameskip.active && gpu.frameskip.allow)
+    // 0xex cmds might affect frameskip.allow, so pass to do_cmd_list_skip
+    if (gpu.frameskip.active && (gpu.frameskip.allow || ((data[pos] >> 24) & 0xf0) == 0xe0))
       pos += do_cmd_list_skip(data + pos, count - pos, &cmd);
     else {
       pos += do_cmd_list(data + pos, count - pos, &cmd);
