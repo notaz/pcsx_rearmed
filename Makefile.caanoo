@@ -10,7 +10,8 @@ include Makefile
 caanoo_clean:
 	$(RM) frontend/320240/pollux_set
 
-PLUGINS = plugins/spunull/spunull.so plugins/gpu_neon/gpu_unai.so
+PLUGINS = plugins/spunull/spunull.so plugins/gpu_unai/gpu_unai.so \
+	plugins/gpu-gles/gpu_gles.so
 
 # ----------- release -----------
 
@@ -25,6 +26,7 @@ rel_caanoo: pcsx $(PLUGINS) \
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
 	mv out/pcsx_rearmed/gpu_unai.so out/pcsx_rearmed/gpuPCSX4ALL.so
+	mv out/pcsx_rearmed/gpu_gles.so out/pcsx_rearmed/gpuGLES.so
 	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
 	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/

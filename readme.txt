@@ -75,6 +75,16 @@ spunull.so     - NULL plugin, i.e. no sound emulation.
 Changelog
 ---------
 
+r14 (2012-03-04)
+* GLES GPU: implemented frameskip
+* GLES GPU: merged some changes from schtruck/FPSE
+* Caanoo: potential workaround for save corruption
+  (always exit emulator cleanly before turning off the console
+   to reduce chance of corruption)
+* Caanoo: fixed a bug in GTE code (graphic glitches in some games)
+* Caanoo: reworked vibration support, should support more games
+* various refactoring/minor tweaks
+
 r13 (2012-01-09)
 * yet more fixes for regressions from earlier versions
 * various fixes for NEON GPU (in collaboration with Exophase)

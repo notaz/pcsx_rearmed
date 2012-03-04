@@ -189,6 +189,7 @@ clean: $(PLAT_CLEAN)
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map
 
 clean_plugins:
+	make -C plugins/gpulib/ clean
 	for dir in $(PLUGINS) ; do \
 		$(MAKE) -C $$(dirname $$dir) clean; done
 
@@ -208,5 +209,6 @@ rel: pcsx $(PLUGINS) \
 	rm out/pcsx.pxml.templ
 	mv out/*.so out/plugins/
 	mv out/plugins/gpu_unai.so out/plugins/gpuPCSX4ALL.so
+	mv out/plugins/gpu_gles.so out/plugins/gpuGLES.so
 	mv out/plugins/gpu_peops.so out/plugins/gpuPEOPS.so
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c
