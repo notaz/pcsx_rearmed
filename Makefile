@@ -183,6 +183,7 @@ PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpu_gles.so \
 	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
 
 $(PLUGINS):
+	make -C plugins/gpulib/ clean
 	make -C $(dir $@)
 
 clean: $(PLAT_CLEAN)
