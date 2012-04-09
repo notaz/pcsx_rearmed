@@ -90,15 +90,12 @@ int omap_enable_layer(int enabled)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
-	int dummy;
-
 	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
 		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 3);
 	if (g_menuscreen_ptr == NULL)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
 
-	// hmh
-	xenv_update(&dummy);
+	xenv_update(NULL, NULL, NULL, NULL);
 }
 
 void plat_video_menu_begin(void)
@@ -165,7 +162,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	xenv_init("PCSX-ReARMed");
+	xenv_init(NULL, "PCSX-ReARMed");
 
 	w = h = 0;
 	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);

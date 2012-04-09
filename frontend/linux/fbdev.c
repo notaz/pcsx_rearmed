@@ -22,6 +22,8 @@
 
 #include "fbdev.h"
 
+#define PFX "fbdev: "
+
 struct vout_fbdev {
 	int	fd;
 	void	*mem;
@@ -32,6 +34,8 @@ struct vout_fbdev {
 	int	fb_size;
 	int	buffer_count;
 	int	top_border, bottom_border;
+	void	*mem_saved;
+	size_t	mem_saved_size;
 };
 
 void *vout_fbdev_flip(struct vout_fbdev *fbdev)
@@ -83,7 +87,7 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 	{
 		if (fbdev->fbvar_new.bits_per_pixel != bpp ||
 				w != fbdev->fbvar_new.xres || h != fbdev->fbvar_new.yres)
-			printf(" switching to %dx%d@%d\n", w, h, bpp);
+			printf(PFX "switching to %dx%d@%d\n", w, h, bpp);
 
 		fbdev->fbvar_new.xres = w;
 		fbdev->fbvar_new.yres = h;
@@ -105,12 +109,12 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 			fbdev->fbvar_new.yres_virtual = h_total;
 			ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
 			if (ret == -1) {
-				perror("FBIOPUT_VSCREENINFO ioctl");
+				perror(PFX "FBIOPUT_VSCREENINFO ioctl");
 				return NULL;
 			}
 			fbdev->buffer_count = 1;
 			fbdev->buffer_write = 0;
-			fprintf(stderr, "Warning: failed to increase virtual resolution, "
+			fprintf(stderr, PFX "Warning: failed to increase virtual resolution, "
 					"multibuffering disabled\n");
 		}
 
@@ -129,7 +133,7 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 
 	fbdev->mem = mmap(0, mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev->fd, 0);
 	if (fbdev->mem == MAP_FAILED && fbdev->buffer_count > 1) {
-		fprintf(stderr, "Warning: can't map %zd bytes, doublebuffering disabled\n", mem_size);
+		fprintf(stderr, PFX "Warning: can't map %zd bytes, doublebuffering disabled\n", mem_size);
 		fbdev->buffer_count = 1;
 		fbdev->buffer_write = 0;
 		mem_size = fbdev->fb_size;
@@ -138,7 +142,7 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 	if (fbdev->mem == MAP_FAILED) {
 		fbdev->mem = NULL;
 		fbdev->mem_size = 0;
-		perror("mmap framebuffer");
+		perror(PFX "mmap framebuffer");
 		return NULL;
 	}
 
@@ -184,14 +188,14 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 
 	fbdev->fd = open(fbdev_name, O_RDWR);
 	if (fbdev->fd == -1) {
-		fprintf(stderr, "%s: ", fbdev_name);
+		fprintf(stderr, PFX "%s: ", fbdev_name);
 		perror("open");
 		goto fail_open;
 	}
 
 	ret = ioctl(fbdev->fd, FBIOGET_VSCREENINFO, &fbdev->fbvar_old);
 	if (ret == -1) {
-		perror("FBIOGET_VSCREENINFO ioctl");
+		perror(PFX "FBIOGET_VSCREENINFO ioctl");
 		goto fail;
 	}
 
@@ -208,8 +212,8 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 	if (pret == NULL)
 		goto fail;
 
-	printf("%s: %ix%i@%d\n", fbdev_name, fbdev->fbvar_new.xres, fbdev->fbvar_new.yres,
-		fbdev->fbvar_new.bits_per_pixel);
+	printf(PFX "%s: %ix%i@%d\n", fbdev_name, fbdev->fbvar_new.xres,
+		fbdev->fbvar_new.yres, fbdev->fbvar_new.bits_per_pixel);
 	*w = fbdev->fbvar_new.xres;
 	*h = fbdev->fbvar_new.yres;
 
@@ -219,7 +223,7 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 	ret = 0;
 	ret = ioctl(fbdev->fd, FBIO_WAITFORVSYNC, &ret);
 	if (ret != 0)
-		fprintf(stderr, "Warning: vsync doesn't seem to be supported\n");
+		fprintf(stderr, PFX "Warning: vsync doesn't seem to be supported\n");
 
 	if (fbdev->buffer_count > 1) {
 		fbdev->buffer_write = 0;
@@ -227,7 +231,7 @@ struct vout_fbdev *vout_fbdev_init(const char *fbdev_name, int *w, int *h, int b
 		ret = ioctl(fbdev->fd, FBIOPAN_DISPLAY, &fbdev->fbvar_new);
 		if (ret != 0) {
 			fbdev->buffer_count = 1;
-			fprintf(stderr, "Warning: can't pan display, doublebuffering disabled\n");
+			fprintf(stderr, PFX "Warning: can't pan display, doublebuffering disabled\n");
 		}
 	}
 
@@ -241,14 +245,66 @@ fail_open:
 	return NULL;
 }
 
-void vout_fbdev_finish(struct vout_fbdev *fbdev)
+static void vout_fbdev_release(struct vout_fbdev *fbdev)
 {
 	ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_old);
 	if (fbdev->mem != MAP_FAILED)
 		munmap(fbdev->mem, fbdev->mem_size);
+	fbdev->mem = NULL;
+}
+
+int vout_fbdev_save(struct vout_fbdev *fbdev)
+{
+	void *tmp;
+
+	if (fbdev == NULL || fbdev->mem == NULL || fbdev->mem == MAP_FAILED) {
+		fprintf(stderr, PFX "bad args for save\n");
+		return -1;
+	}
+
+	if (fbdev->mem_saved_size < fbdev->mem_size) {
+		tmp = realloc(fbdev->mem_saved, fbdev->mem_size);
+		if (tmp == NULL)
+			return -1;
+		fbdev->mem_saved = tmp;
+	}
+	memcpy(fbdev->mem_saved, fbdev->mem, fbdev->mem_size);
+	fbdev->mem_saved_size = fbdev->mem_size;
+
+	vout_fbdev_release(fbdev);
+	return 0;
+}
+
+int vout_fbdev_restore(struct vout_fbdev *fbdev)
+{
+	int ret;
+
+	if (fbdev == NULL || fbdev->mem != NULL) {
+		fprintf(stderr, PFX "bad args/state for restore\n");
+		return -1;
+	}
+
+	fbdev->mem = mmap(0, fbdev->mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev->fd, 0);
+	if (fbdev->mem == MAP_FAILED) {
+		perror(PFX "restore: memory restore failed");
+		return -1;
+	}
+	memcpy(fbdev->mem, fbdev->mem_saved, fbdev->mem_size);
+
+	ret = ioctl(fbdev->fd, FBIOPUT_VSCREENINFO, &fbdev->fbvar_new);
+	if (ret == -1) {
+		perror(PFX "restore: FBIOPUT_VSCREENINFO");
+		return -1;
+	}
+
+	return 0;
+}
+
+void vout_fbdev_finish(struct vout_fbdev *fbdev)
+{
+	vout_fbdev_release(fbdev);
 	if (fbdev->fd >= 0)
 		close(fbdev->fd);
-	fbdev->mem = NULL;
 	fbdev->fd = -1;
 	free(fbdev);
 }

@@ -25,6 +25,8 @@
 #include <termios.h>
 #include <linux/kd.h>
 
+#include "xenv.h"
+
 #define PFX "xenv: "
 
 #define FPTR(f) typeof(f) * p##f
@@ -81,13 +83,14 @@ static Cursor transparent_cursor(struct xstuff *xf, Display *display, Window win
 	return cursor;
 }
 
-static int x11h_init(const char *window_title)
+static int x11h_init(int *xenv_flags, const char *window_title)
 {
 	unsigned int display_width, display_height;
 	Display *display;
 	XSetWindowAttributes attributes;
 	Window win;
 	Visual *visual;
+	long evt_mask;
 	void *x11lib;
 	int screen;
 
@@ -153,9 +156,14 @@ static int x11h_init(const char *window_title)
 	attributes.cursor = transparent_cursor(&g_xstuff, display, win);
 	g_xstuff.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
 
-	g_xstuff.pXStoreName(display, win, window_title);
-	g_xstuff.pXSelectInput(display, win,
-		ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask | PropertyChangeMask);
+	if (window_title != NULL)
+		g_xstuff.pXStoreName(display, win, window_title);
+	evt_mask = ExposureMask | FocusChangeMask | PropertyChangeMask;
+	if (xenv_flags && (*xenv_flags & XENV_CAP_KEYS))
+		evt_mask |= KeyPressMask | KeyReleaseMask;
+	if (xenv_flags && (*xenv_flags & XENV_CAP_MOUSE))
+		evt_mask |= ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+	g_xstuff.pXSelectInput(display, win, evt_mask);
 	g_xstuff.pXMapWindow(display, win);
 	g_xstuff.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
 	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
@@ -173,34 +181,54 @@ fail:
 	return -1;
 }
 
-static int x11h_update(int *is_down)
+static void x11h_update(int (*key_cb)(void *cb_arg, int kc, int is_pressed),
+			int (*mouseb_cb)(void *cb_arg, int x, int y, int button, int is_pressed),
+			int (*mousem_cb)(void *cb_arg, int x, int y),
+			void *cb_arg)
 {
 	XEvent evt;
+	int keysym;
 
 	while (g_xstuff.pXPending(g_xstuff.display))
 	{
 		g_xstuff.pXNextEvent(g_xstuff.display, &evt);
 		switch (evt.type)
 		{
-			case Expose:
-				while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
-					;
-			default:
-				// printf("event %d\n", evt.type);
-				break;
+		case Expose:
+			while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
+				;
+			break;
 
-			case KeyPress:
-				*is_down = 1;
-				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+		case KeyPress:
+			keysym = g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+			if (key_cb != NULL)
+				key_cb(cb_arg, keysym, 1);
+			break;
 
-			case KeyRelease:
-				*is_down = 0;
-				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
-				// printf("press %d\n", evt.xkey.keycode);
+		case KeyRelease:
+			keysym = g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+			if (key_cb != NULL)
+				key_cb(cb_arg, keysym, 0);
+			break;
+
+		case ButtonPress:
+			if (mouseb_cb != NULL)
+				mouseb_cb(cb_arg, evt.xbutton.x, evt.xbutton.y,
+					  evt.xbutton.button, 1);
+			break;
+
+		case ButtonRelease:
+			if (mouseb_cb != NULL)
+				mouseb_cb(cb_arg, evt.xbutton.x, evt.xbutton.y,
+					  evt.xbutton.button, 0);
+			break;
+
+		case MotionNotify:
+			if (mousem_cb != NULL)
+				mousem_cb(cb_arg, evt.xmotion.x, evt.xmotion.y);
+			break;
 		}
 	}
-
-	return NoSymbol;
 }
 
 static void x11h_wait_vmstate(void)
@@ -221,7 +249,7 @@ static void x11h_wait_vmstate(void)
 		usleep(200000);
 	}
 
-	printf("timeout waiting for wm_state change\n");
+	fprintf(stderr, PFX "timeout waiting for wm_state change\n");
 }
 
 static int x11h_minimize(void)
@@ -347,40 +375,49 @@ static void tty_end(void)
 	g_kbdfd = -1;
 }
 
-int xenv_init(const char *window_title)
+int xenv_init(int *xenv_flags, const char *window_title)
 {
 	int ret;
 
-	ret = x11h_init(window_title);
+	ret = x11h_init(xenv_flags, window_title);
 	if (ret == 0)
-		return 0;
+		goto out;
 
+	if (xenv_flags != NULL)
+		*xenv_flags &= ~(XENV_CAP_KEYS | XENV_CAP_MOUSE); /* TODO? */
 	ret = tty_init();
 	if (ret == 0)
-		return 0;
+		goto out;
 
 	fprintf(stderr, PFX "error: both x11h_init and tty_init failed\n");
-	return -1;
+	ret = -1;
+out:
+	return ret;
 }
 
-int xenv_update(int *is_down)
+int xenv_update(int (*key_cb)(void *cb_arg, int kc, int is_pressed),
+		int (*mouseb_cb)(void *cb_arg, int x, int y, int button, int is_pressed),
+		int (*mousem_cb)(void *cb_arg, int x, int y),
+		void *cb_arg)
 {
-	if (g_xstuff.display)
-		return x11h_update(is_down);
+	if (g_xstuff.display) {
+		x11h_update(key_cb, mouseb_cb, mousem_cb, cb_arg);
+		return 0;
+	}
 
 	// TODO: read tty?
 	return -1;
 }
 
-/* blocking minimize until user maximazes again */
+/* blocking minimize until user maximizes again */
 int xenv_minimize(void)
 {
-	int ret, dummy;
+	int ret;
 
 	if (g_xstuff.display) {
-		xenv_update(&dummy);
+		xenv_update(NULL, NULL, NULL, NULL);
 		ret = x11h_minimize();
-		xenv_update(&dummy);
+		xenv_update(NULL, NULL, NULL, NULL);
 		return ret;
 	}
 

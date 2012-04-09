@@ -9,4 +9,6 @@ void *vout_fbdev_resize(struct vout_fbdev *fbdev, int w, int h, int bpp,
 void  vout_fbdev_clear(struct vout_fbdev *fbdev);
 void  vout_fbdev_clear_lines(struct vout_fbdev *fbdev, int y, int count);
 int   vout_fbdev_get_fd(struct vout_fbdev *fbdev);
+int   vout_fbdev_save(struct vout_fbdev *fbdev);
+int   vout_fbdev_restore(struct vout_fbdev *fbdev);
 void  vout_fbdev_finish(struct vout_fbdev *fbdev);
