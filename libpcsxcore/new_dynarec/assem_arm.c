@@ -29,7 +29,7 @@
 #include "pcnt.h"
 #endif
 
-#ifndef BASE_ADDR_FIXED
+#if !BASE_ADDR_FIXED
 char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 #endif
 
@@ -4001,6 +4001,10 @@ static int emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
     else
     #endif
       emit_jno(0);
+    if(ram_offset!=0) {
+      emit_addimm(addr,ram_offset,HOST_TEMPREG);
+      addr=*addr_reg_override=HOST_TEMPREG;
+    }
   }
 
   return jaddr;
@@ -4052,6 +4056,10 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
       jaddr=emit_fastpath_cmp_jump(i,temp2,&fastload_reg_override);
     }
     else {
+      if(ram_offset&&memtarget) {
+        emit_addimm(temp2,ram_offset,HOST_TEMPREG);
+        fastload_reg_override=HOST_TEMPREG;
+      }
       if (opcode[i]==0x22||opcode[i]==0x26) {
         emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
       }else{

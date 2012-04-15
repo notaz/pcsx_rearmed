@@ -22,8 +22,12 @@
 //#undef USE_MINI_HT
 #endif
 
+#ifndef BASE_ADDR_FIXED
 #ifndef __ANDROID__
 #define BASE_ADDR_FIXED 1
+#else
+#define BASE_ADDR_FIXED 0
+#endif
 #endif
 
 #ifdef FORCE32
@@ -61,13 +65,10 @@ extern char *invc_ptr;
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 // Code generator target address
-#ifdef BASE_ADDR_FIXED
+#if BASE_ADDR_FIXED
 // "round" address helpful for debug
 #define BASE_ADDR 0x1000000
 #else
 extern char translation_cache[1 << TARGET_SIZE_2];
 #define BASE_ADDR translation_cache
 #endif
-
-// This is defined in linkage_arm.s, but gcc -O3 likes this better
-#define rdram ((unsigned int *)0x80000000)

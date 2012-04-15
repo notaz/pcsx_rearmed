@@ -70,6 +70,15 @@ int psxMemInit() {
 
 	psxM = mmap((void *)0x80000000, 0x00210000,
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+#ifndef RAM_FIXED
+	if (psxM == MAP_FAILED)
+		psxM = mmap((void *)0x70000000, 0x00210000,
+			PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+#endif
+	if (psxM == MAP_FAILED) {
+		SysMessage(_("mapping main RAM failed"));
+		return -1;
+	}
 
 	psxP = &psxM[0x200000];
 	psxH = mmap((void *)0x1f800000, 0x00010000,
@@ -79,7 +88,7 @@ int psxMemInit() {
 		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM != (void *)0x80000000 || psxR == MAP_FAILED ||
+		psxR == MAP_FAILED ||
 		psxP == NULL || psxH != (void *)0x1f800000) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;

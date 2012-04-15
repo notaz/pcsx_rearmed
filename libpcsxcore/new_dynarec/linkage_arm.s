@@ -21,8 +21,6 @@
 
 /* .equiv HAVE_ARMV7, 1 */
 
-	.global	rdram
-rdram = 0x80000000
 	.global	dynarec_local
 	.global	reg
 	.global	hi

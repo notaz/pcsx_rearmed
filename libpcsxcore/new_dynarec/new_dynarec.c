@@ -141,6 +141,11 @@ struct ll_entry
   int new_dynarec_did_compile;
   int new_dynarec_hacks;
   u_int stop_after_jal;
+#ifndef RAM_FIXED
+  static u_int ram_offset;
+#else
+  static const u_int ram_offset=0;
+#endif
   extern u_char restore_candidate[512];
   extern int cycle_count;
 
@@ -2917,6 +2922,10 @@ void load_assemble(int i,struct regstat *i_regs)
         jaddr=emit_fastpath_cmp_jump(i,addr,&fastload_reg_override);
       }
     }
+    else if(ram_offset&&memtarget) {
+      emit_addimm(addr,ram_offset,HOST_TEMPREG);
+      fastload_reg_override=HOST_TEMPREG;
+    }
   }else{ // using tlb
     int x=0;
     if (opcode[i]==0x20||opcode[i]==0x24) x=3; // LB/LBU
@@ -2982,7 +2991,7 @@ void load_assemble(int i,struct regstat *i_regs)
             gen_tlb_addr_r(a,map);
             emit_movswl_indexed(x,a,tl);
           }else{
-            #ifdef RAM_OFFSET
+            #if 1 //def RAM_OFFSET
             emit_movswl_indexed(x,a,tl);
             #else
             emit_movswl_indexed((int)rdram-0x80000000+x,a,tl);
@@ -3069,7 +3078,7 @@ void load_assemble(int i,struct regstat *i_regs)
             gen_tlb_addr_r(a,map);
             emit_movzwl_indexed(x,a,tl);
           }else{
-            #ifdef RAM_OFFSET
+            #if 1 //def RAM_OFFSET
             emit_movzwl_indexed(x,a,tl);
             #else
             emit_movzwl_indexed((int)rdram-0x80000000+x,a,tl);
@@ -3226,6 +3235,10 @@ void store_assemble(int i,struct regstat *i_regs)
         jaddr=emit_fastpath_cmp_jump(i,addr,&faststore_reg_override);
       #endif
     }
+    else if(ram_offset&&memtarget) {
+      emit_addimm(addr,ram_offset,HOST_TEMPREG);
+      faststore_reg_override=HOST_TEMPREG;
+    }
   }else{ // using tlb
     int x=0;
     if (opcode[i]==0x28) x=3; // SB
@@ -3270,7 +3283,8 @@ void store_assemble(int i,struct regstat *i_regs)
         gen_tlb_addr_w(a,map);
         emit_writehword_indexed(tl,x,a);
       }else
-        emit_writehword_indexed(tl,(int)rdram-0x80000000+x,a);
+        //emit_writehword_indexed(tl,(int)rdram-0x80000000+x,a);
+        emit_writehword_indexed(tl,x,a);
     }
     type=STOREH_STUB;
   }
@@ -3873,6 +3887,10 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   else {
     if(!c) {
       jaddr2=emit_fastpath_cmp_jump(i,ar,&fastio_reg_override);
+    }
+    else if(ram_offset&&memtarget) {
+      emit_addimm(ar,ram_offset,HOST_TEMPREG);
+      fastio_reg_override=HOST_TEMPREG;
     }
     if (opcode[i]==0x32) { // LWC2
       #ifdef HOST_IMM_ADDR32
@@ -7993,7 +8011,7 @@ void new_dynarec_init()
 {
   printf("Init new dynarec\n");
   out=(u_char *)BASE_ADDR;
-#ifdef BASE_ADDR_FIXED
+#if BASE_ADDR_FIXED
   if (mmap (out, 1<<TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
@@ -8056,12 +8074,15 @@ void new_dynarec_init()
 #endif
   tlb_hacks();
   arch_init();
+#ifndef RAM_FIXED
+  ram_offset=(u_int)rdram-0x80000000;
+#endif
 }
 
 void new_dynarec_cleanup()
 {
   int n;
-  #ifdef BASE_ADDR_FIXED
+  #if BASE_ADDR_FIXED
   if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {printf("munmap() failed\n");}
   #endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);

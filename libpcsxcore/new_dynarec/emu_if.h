@@ -97,3 +97,9 @@ void pcsx_mtc0_ds(u32 reg, u32 val);
 
 /* misc */
 extern void (*psxHLEt[])();
+
+#ifdef RAM_FIXED
+#define rdram ((u_int)0x80000000)
+#else
+#define rdram ((u_int)psxM)
+#endif

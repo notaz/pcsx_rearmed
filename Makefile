@@ -11,6 +11,7 @@ ARM926 ?= 0
 ARM_CORTEXA8 ?= 1
 PLATFORM ?= pandora
 USE_OSS ?= 1
+RAM_FIXED ?= 1
 #USE_ALSA = 1
 #DRC_DBG = 1
 #PCNT = 1
@@ -74,6 +75,9 @@ libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -Wno-all -Wno-pointer-sign
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
+endif
+ifeq "$(RAM_FIXED)" "1"
+CFLAGS += -DRAM_FIXED
 endif
 
 # spu
