@@ -1216,7 +1216,7 @@ void invalidate_block(u_int block)
     if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
       get_bounds((int)head->addr,&start,&end);
       //printf("start: %x end: %x\n",start,end);
-      if(page<2048&&start>=0x80000000&&end<0x80000000+RAM_SIZE) {
+      if(page<2048&&start>=(u_int)rdram&&end<(u_int)rdram+RAM_SIZE) {
         if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page) {
           if((((start-(u_int)rdram)>>12)&2047)<first) first=((start-(u_int)rdram)>>12)&2047;
           if((((end-1-(u_int)rdram)>>12)&2047)>last) last=((end-1-(u_int)rdram)>>12)&2047;
@@ -1246,10 +1246,11 @@ void invalidate_addr(u_int addr)
   if(page<2048) { // RAM
     struct ll_entry *head;
     u_int addr_min=~0, addr_max=0;
-    int mask=RAM_SIZE-1;
+    u_int mask=RAM_SIZE-1;
+    u_int addr_main=0x80000000|(addr&mask);
     int pg1;
-    inv_code_start=addr&~0xfff;
-    inv_code_end=addr|0xfff;
+    inv_code_start=addr_main&~0xfff;
+    inv_code_end=addr_main|0xfff;
     pg1=page;
     if (pg1>0) {
       // must check previous page too because of spans..
@@ -1260,11 +1261,15 @@ void invalidate_addr(u_int addr)
       for(head=jump_dirty[pg1];head!=NULL;head=head->next) {
         u_int start,end;
         get_bounds((int)head->addr,&start,&end);
-        if((start&mask)<=(addr&mask)&&(addr&mask)<(end&mask)) {
+        if(ram_offset) {
+          start-=ram_offset;
+          end-=ram_offset;
+        }
+        if(start<=addr_main&&addr_main<end) {
           if(start<addr_min) addr_min=start;
           if(end>addr_max) addr_max=end;
         }
-        else if(addr<start) {
+        else if(addr_main<start) {
           if(start<inv_code_end)
             inv_code_end=start-1;
         }
@@ -1281,6 +1286,8 @@ void invalidate_addr(u_int addr)
       return;
     }
     else {
+      inv_code_start=(addr&~mask)|(inv_code_start&mask);
+      inv_code_end=(addr&~mask)|(inv_code_end&mask);
       inv_debug("INV ADDR: %08x miss, inv %08x-%08x, sk %d\n", addr, inv_code_start, inv_code_end, 0);
       return;
     }

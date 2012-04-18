@@ -292,6 +292,7 @@ int isclean(int addr)
   return 1;
 }
 
+// get source that block at addr was compiled from (host pointers)
 void get_bounds(int addr,u_int *start,u_int *end)
 {
   u_int *ptr=(u_int *)addr;
