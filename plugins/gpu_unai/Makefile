@@ -1,9 +1,7 @@
-CC = $(CROSS_COMPILE)g++
-
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
-CFLAGS += -DREARMED
 CFLAGS += -ggdb -Wall -O3 -ffast-math
+CFLAGS += -DREARMED
+
+include ../../config.mak
 
 SRC_STANDALONE += gpu.cpp
 SRC_GPULIB += gpulib_if.cpp

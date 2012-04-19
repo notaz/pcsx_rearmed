@@ -23,11 +23,7 @@
 #endif
 
 #ifndef BASE_ADDR_FIXED
-#ifndef __ANDROID__
-#define BASE_ADDR_FIXED 1
-#else
 #define BASE_ADDR_FIXED 0
-#endif
 #endif
 
 #ifdef FORCE32

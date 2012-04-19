@@ -1,25 +1,16 @@
 # depends on ARCH definition
 # always adding gpulib to deps in case cspace is needed
+# users must include ../../config.mak
 
 LDFLAGS += -shared
+CFLAGS += $(PLUGIN_CFLAGS)
 ifeq "$(ARCH)" "arm"
- ARM_CORTEXA8 ?= 1
- ifeq "$(ARM_CORTEXA8)" "1"
-  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon \
-    -fPIC -mfloat-abi=softfp
-  ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
- else
-  CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
-  ASFLAGS += -mcpu=arm926ej-s -mfloat-abi=softfp
- endif
  EXT =
 else
- CFLAGS += -m32
- LDFLAGS += -m32
  LDLIBS_GPULIB += `sdl-config --libs`
- EXT = .x86
+ EXT = .$(ARCH)
 endif
-ifdef MAEMO
+ifeq "$(PLATFORM)" "maemo"
  CFLAGS += -DMAEMO
 endif
 ifdef DEBUG
@@ -35,7 +26,7 @@ ifdef BIN_GPULIB
 TARGETS += $(BIN_GPULIB)$(EXT)
 endif
 
-all: $(TARGETS)
+all: ../../config.mak $(TARGETS)
 
 ifdef BIN_STANDLALONE
 $(BIN_STANDLALONE)$(EXT): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
@@ -52,3 +43,7 @@ $(GPULIB_A):
 
 clean:
 	$(RM) $(TARGETS)
+
+../../config.mak:
+	@echo "Please run ./configure before running make!"
+	@exit 1

@@ -1,0 +1,277 @@
+#!/bin/sh
+# some elements originated from qemu configure
+set -e
+
+TMPC="/tmp/pcsx-conf-${RANDOM}-$$-${RANDOM}.c"
+TMPO="/tmp/pcsx-conf-${RANDOM}-$$-${RANDOM}.o"
+trap "rm -f $TMPC $TMPO" EXIT INT QUIT TERM
+rm -f config.log
+
+compile_object()
+{
+  c="$CC $CFLAGS -c $TMPC -o $TMPO $1"
+  echo $c >> config.log
+  $c >> config.log 2>&1
+}
+
+check_define()
+{
+  echo "" > $TMPC
+  $CC -E -dD $CFLAGS $TMPC | grep -q $1 || return 1
+  return 0
+}
+
+# setting options to "yes" or "no" will make that choice default,
+# "" means "autodetect".
+
+platform_list="generic pandora maemo caanoo"
+platform="generic"
+sound_driver_list="oss alsa none"
+sound_driver="alsa"
+ram_fixed="no"
+drc_cache_base="no"
+have_armv6=""
+have_armv7=""
+have_arm_neon=""
+have_tslib=""
+enable_dynarec="yes"
+# these are for known platforms
+optimize_cortexa8="no"
+optimize_arm926ej="no"
+
+# hardcoded stuff
+CC="${CC-${CROSS_COMPILE}gcc}"
+AS="${AS-${CROSS_COMPILE}as}"
+AR="${AS-${CROSS_COMPILE}ar}"
+config_mak="config.mak"
+
+# call during arg parsing, so that cmd line can override platform defaults
+set_platform()
+{
+  platform=$1
+  case "$platform" in
+  generic)
+    ;;
+  pandora)
+    sound_driver="oss"
+    ram_fixed="yes"
+    drc_cache_base="yes"
+    optimize_cortexa8="yes"
+    have_arm_neon="yes"
+    ;;
+  maemo)
+    ram_fixed="yes"
+    drc_cache_base="yes"
+    optimize_cortexa8="yes"
+    have_arm_neon="yes"
+    ;;
+  caanoo)
+    sound_driver="oss"
+    ram_fixed="yes"
+    drc_cache_base="yes"
+    optimize_arm926ej="yes"
+    ;;
+  *)
+    echo "unsupported platform: $platform"
+    exit 1
+    ;;
+  esac
+}
+
+for opt do
+  optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'` || true
+  case "$opt" in
+  --help|-h) show_help="yes"
+  ;;
+  --platform=*) set_platform "$optarg"
+  ;;
+  --sound-driver=*) sound_driver="$optarg"
+  ;;
+  --enable-neon) have_arm_neon="yes"
+  ;;
+  --disable-neon) have_arm_neon="no"
+  ;;
+  --disable-dynarec) enable_dynarec="no"
+  ;;
+  *) echo "ERROR: unknown option $opt"; show_help="yes"
+  ;;
+  esac
+done
+
+if [ "$show_help" = "yes" ]; then
+  echo "options:"
+  echo "  --help                   print this message"
+  echo "  --platform=NAME          target platform [$platform]"
+  echo "                           available: $platform_list"
+  echo "  --sound-driver=NAME      sound output driver [$sound_driver]"
+  echo "                           available: $sound_driver_list"
+  echo "  --enable-neon"
+  echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
+  echo "  --disable-dynarec        disable dynamic recompiler"
+  echo "                           (dynarec is only available and enabled on ARM)"
+  echo "influential environment variables:"
+  echo "  CROSS_COMPILE CC AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
+  exit 1
+fi
+
+case "$sound_driver" in
+oss|alsa|none)
+  ;;
+*)
+  echo "unsupported sound driver: $sound_driver"
+  exit 1
+  ;;
+esac
+
+if [ -z "$ARCH" ]; then
+  ARCH=`$CC -v 2>&1 | grep -i 'target:' | awk '{print $2}' \
+        | awk -F '-' '{print $1}'`
+fi
+
+# ARM stuff
+if [ "$ARCH" = "arm" ]; then
+  if [ "$optimize_cortexa8" = "yes" ]; then
+  # both: -mfpu=neon
+    CFLAGS="$CFLAGS -mcpu=cortex-a8 -mtune=cortex-a8"
+    ASFLAGS="$ASFLAGS -mcpu=cortex-a8"
+  fi
+  if [ "$optimize_arm926ej" = "yes" ]; then
+    CFLAGS="$CFLAGS -mcpu=arm926ej-s -mtune=arm926ej-s"
+    ASFLAGS="$ASFLAGS -mcpu=arm926ej-s -mfloat-abi=softfp"
+  fi
+
+  if [ "x$have_arm_neon" = "x" ]; then
+    # detect NEON from user-supplied cflags to enable asm code
+    have_arm_neon=`check_define __ARM_NEON__ && echo yes` || true
+  fi
+  if [ "x$have_armv6" = "x" ]; then
+    have_armv6=`check_define __ARM_ARCH_6 && echo yes` || true
+  fi
+  if [ "x$have_armv7" = "x" ]; then
+    if check_define __ARM_ARCH_7A__; then
+      have_armv6="yes"
+      have_armv7="yes"
+    fi
+  fi
+
+  # set mfpu and mfloat-abi if they are not set
+  if [ "$have_arm_neon" = "yes" ]; then
+    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=neon"
+    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=neon"
+  elif [ "$have_armv6" = "yes" ]; then
+    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=vfp"
+    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=vfp"
+  fi
+  if [ "$have_armv6" = "yes" ]; then
+    echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
+    echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
+  fi
+
+  if [ "$have_armv7" = "yes" ]; then
+    ASFLAGS="$ASFLAGS --defsym HAVE_ARMV7=1"
+  else
+    ASFLAGS="$ASFLAGS --defsym HAVE_ARMV7=0"
+  fi
+else
+  # dynarec only available on ARM
+  enable_dynarec="no"
+fi
+
+if [ "$ARCH" = "x86_64" ]; then
+  # currently we are full of 32bit assumptions,
+  # at least savestate compatibility will break without these
+  CFLAGS="$CFLAGS -m32"
+  LDFLAGS="$LDFLAGS -m32"
+fi
+
+# supposedly we can avoid -fPIC on armv5 for slightly better performace?
+if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
+  PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
+fi
+
+if [ "$ram_fixed" = "yes" ]; then
+  CFLAGS="$CFLAGS -DRAM_FIXED"
+fi
+
+if [ "$platform" = "maemo" ]; then
+  maemo_cflags=`pkg-config --cflags hildon-1`
+  maemo_ldlibs=`pkg-config --libs hildon-1`
+  CFLAGS="$CFLAGS -DMAEMO -DMAEMO_CHANGES $maemo_cflags"
+  LDFLAGS="$LDFLAGS $maemo_ldlibs"
+fi
+
+# check for tslib (only headers needed)
+if [ "x$have_tslib" = "x" ]; then
+  cat > $TMPC <<EOF
+  #include <tslib.h>
+  void test(struct ts_sample sample) {}
+EOF
+  if compile_object; then
+    have_tslib="yes"
+  else
+    have_tslib="no"
+  fi
+fi
+
+# set things that failed to autodetect to "no"
+test "x$have_armv6" != "x" || have_armv6="no"
+test "x$have_armv7" != "x" || have_armv7="no"
+test "x$have_arm_neon" != "x" || have_arm_neon="no"
+
+echo "architecture        $ARCH"
+echo "platform            $platform"
+echo "sound driver        $sound_driver"
+echo "C compiler          $CC"
+echo "C compiler flags    $CFLAGS"
+echo "enable dynarec      $enable_dynarec"
+echo "ARMv7 optimizations $have_armv7"
+echo "enable ARM NEON     $have_arm_neon"
+echo "tslib support       $have_tslib"
+
+echo "# Automatically generated by configure" > $config_mak
+printf "# Configured with:" >> $config_mak
+printf " '%s'" "$0" "$@" >> $config_mak
+echo >> $config_mak
+
+echo "CC = $CC" >> $config_mak
+echo "AS = $AS" >> $config_mak
+echo "CFLAGS += $CFLAGS" >> $config_mak
+echo "ASFLAGS += $ASFLAGS" >> $config_mak
+echo "LDFLAGS += $LDFLAGS" >> $config_mak
+echo "LDLIBS += $LDLIBS" >> $config_mak
+echo "PLUGIN_CFLAGS += $PLUGIN_CFLAGS" >> $config_mak
+echo >> $config_mak
+
+echo "ARCH = $ARCH" >> $config_mak
+echo "PLATFORM = $platform" >> $config_mak
+case "$sound_driver" in
+oss)
+  echo "USE_OSS = 1" >> $config_mak
+  ;;
+alsa)
+  echo "USE_ALSA = 1" >> $config_mak
+  ;;
+none)
+  echo "USE_NO_SOUND = 1" >> $config_mak
+  ;;
+esac
+if [ "$have_armv6" = "yes" ]; then
+  echo "HAVE_ARMV6 = 1" >> $config_mak
+fi
+if [ "$have_armv7" = "yes" ]; then
+  echo "HAVE_ARMV7 = 1" >> $config_mak
+fi
+if [ "$have_arm_neon" = "yes" ]; then
+  echo "HAVE_NEON = 1" >> $config_mak
+fi
+if [ "$have_tslib" = "yes" ]; then
+  echo "HAVE_TSLIB = 1" >> $config_mak
+fi
+if [ "$enable_dynarec" = "yes" ]; then
+  echo "USE_DYNAREC = 1" >> $config_mak
+fi
+if [ "$drc_cache_base" = "yes" ]; then
+  echo "DRC_CACHE_BASE = 1" >> $config_mak
+fi
+
+# vim:shiftwidth=2:expandtab

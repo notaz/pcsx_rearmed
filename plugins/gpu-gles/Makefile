@@ -1,8 +1,6 @@
-CC = $(CROSS_COMPILE)gcc
-
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
 CFLAGS += -ggdb -fPIC -O2 # -Wall
+
+include ../../config.mak
 
 SRC_STANDALONE += gpuDraw.c gpuFps.c gpuPlugin.c gpuPrim.c gpuTexture.c
 SRC_GPULIB += gpulib_if.c

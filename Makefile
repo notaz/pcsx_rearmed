@@ -1,50 +1,29 @@
-#CROSS_COMPILE=
-AS  = $(CROSS_COMPILE)as
-GCC = $(CROSS_COMPILE)gcc
-CC  = $(CROSS_COMPILE)gcc
-LD  = $(CROSS_COMPILE)ld
-ifdef CC_OVERRIDE
-CC = $(CC_OVERRIDE)
-endif
+# Makefile for PCSX ReARMed
 
-ARM926 ?= 0
-ARM_CORTEXA8 ?= 1
-PLATFORM ?= pandora
-USE_OSS ?= 1
-RAM_FIXED ?= 1
-#USE_ALSA = 1
-#DRC_DBG = 1
-#PCNT = 1
 TARGET = pcsx
 
--include Makefile.local
-
-ARCH = $(shell $(GCC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
+# default CFLAGS go here, so that config can override them
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
-LDFLAGS += -lpthread -ldl -lpng -lz -lm
+LDLIBS += -lpthread -ldl -lpng -lz -lm
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
-CFLAGS += $(EXTRA_CFLAGS)
+#DRC_DBG = 1
+#PCNT = 1
 
-ifeq "$(ARCH)" "arm"
-ifeq "$(ARM_CORTEXA8)" "1"
-GCC_CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
-endif
-ifeq "$(ARM926)" "1"
-GCC_CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
-ASFLAGS += -mcpu=arm926ej-s -mfloat-abi=softfp
-endif
-endif
-CFLAGS += $(GCC_CFLAGS)
+all: config.mak $(TARGET)
 
-# detect armv7 and NEON from the specified CPU
-HAVE_NEON = $(shell $(GCC) -E -dD $(GCC_CFLAGS) frontend/config.h | grep -q '__ARM_NEON__ 1' && echo 1)
-HAVE_ARMV7 = $(shell $(GCC) -E -dD $(GCC_CFLAGS) frontend/config.h | grep -q '__ARM_ARCH_7A__ 1' && echo 1)
-
-all: $(TARGET)
+ifneq ($(wildcard config.mak),)
+config.mak: ./configure
+	@echo $@ is out-of-date, running configure
+	@sed -n "/.*Configured with/s/[^:]*: //p" $@ | sh
+include config.mak
+else
+config.mak:
+	@echo "Please run ./configure before running make!"
+	@exit 1
+endif
+-include Makefile.local
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
@@ -64,7 +43,7 @@ libpcsxcore/cdrom.o libpcsxcore/misc.o: CFLAGS += -Wno-pointer-sign
 libpcsxcore/misc.o libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
-ifndef NO_NEW_DRC
+ifeq "$(USE_DYNAREC)" "1"
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 endif
@@ -76,8 +55,8 @@ ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
 endif
-ifeq "$(RAM_FIXED)" "1"
-CFLAGS += -DRAM_FIXED
+ifeq "$(DRC_CACHE_BASE)" "1"
+libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
 endif
 
 # spu
@@ -95,7 +74,10 @@ endif
 ifeq "$(USE_ALSA)" "1"
 plugins/dfsound/%.o: CFLAGS += -DUSEALSA
 OBJS += plugins/dfsound/alsa.o
-LDFLAGS += -lasound
+LDLIBS += -lasound
+endif
+ifeq "$(USE_NO_SOUND)" "1"
+OBJS += plugins/dfsound/nullsnd.o
 endif
 
 # gpu
@@ -113,7 +95,7 @@ plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
 ifdef X11
-LDFLAGS += -lX11 `sdl-config --libs`
+LDLIBS += -lX11 `sdl-config --libs`
 OBJS += plugins/gpulib/vout_sdl.o
 plugins/gpulib/vout_sdl.o: CFLAGS += `sdl-config --cflags`
 else
@@ -130,28 +112,27 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 OBJS += frontend/main.o frontend/plugin.o
 OBJS += frontend/plugin_lib.o frontend/common/readpng.o
 OBJS += frontend/common/fonts.o frontend/linux/plat.o
-ifeq "$(USE_GTK)" "1"
+ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
 else
 OBJS += frontend/menu.o frontend/linux/in_evdev.o
 OBJS += frontend/common/input.o frontend/linux/xenv.o
 
+ifeq "$(PLATFORM)" "generic"
+OBJS += frontend/plat_dummy.o
+endif
 ifeq "$(PLATFORM)" "pandora"
 frontend/%.o: CFLAGS += -DVOUT_FBDEV
 OBJS += frontend/linux/fbdev.o
 OBJS += frontend/plat_omap.o
 OBJS += frontend/plat_pandora.o
-else
+endif
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
 OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
-else
-OBJS += frontend/plat_dummy.o
 endif
-endif
-
-endif # !USE_GTK
+endif # !maemo
 
 ifdef X11
 frontend/%.o: CFLAGS += -DX11
@@ -160,11 +141,10 @@ endif
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
-ifndef NO_TSLIB
+ifeq "$(HAVE_TSLIB)" "1"
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
 OBJS += frontend/pl_gun_ts.o
 endif
-%.o: ASFLAGS += --defsym HAVE_ARMV7=$(HAVE_ARMV7)
 frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o: frontend/revision.h
 
@@ -181,28 +161,31 @@ frontend/revision.h: FORCE
 	$(CC) $(CFLAGS) -c $^ -o $@
 
 $(TARGET): $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
-
-PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpu_gles.so \
-	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
-
-$(PLUGINS):
-	make -C plugins/gpulib/ clean
-	make -C $(dir $@)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
 
 clean: $(PLAT_CLEAN)
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map
+
+ifneq ($(PLUGINS),)
+$(PLUGINS):
+	make -C plugins/gpulib/ clean
+	make -C $(dir $@)
 
 clean_plugins:
 	make -C plugins/gpulib/ clean
 	for dir in $(PLUGINS) ; do \
 		$(MAKE) -C $$(dirname $$dir) clean; done
+endif
 
 # ----------- release -----------
 
+VER ?= $(shell git describe master)
+
+ifeq "$(PLATFORM)" "pandora"
 PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
-VER ?= $(shell git describe master)
+PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpu_gles.so \
+	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
 
 rel: pcsx $(PLUGINS) \
 		frontend/pandora/pcsx.sh frontend/pandora/pcsx.pxml.templ frontend/pandora/pcsx.png \
@@ -217,3 +200,34 @@ rel: pcsx $(PLUGINS) \
 	mv out/plugins/gpu_gles.so out/plugins/gpuGLES.so
 	mv out/plugins/gpu_peops.so out/plugins/gpuPEOPS.so
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c
+endif
+
+ifeq "$(PLATFORM)" "caanoo"
+PLAT_CLEAN = caanoo_clean
+
+caanoo_clean:
+	$(RM) frontend/320240/pollux_set
+
+PLUGINS ?= plugins/spunull/spunull.so plugins/gpu_unai/gpu_unai.so \
+	plugins/gpu-gles/gpu_gles.so
+
+rel: pcsx $(PLUGINS) \
+		frontend/320240/caanoo.gpe frontend/320240/pcsx26.png \
+		frontend/320240/pcsxb.png frontend/320240/skin \
+		frontend/warm/bin/warm_2.6.24.ko frontend/320240/pollux_set \
+		frontend/320240/pcsx_rearmed.ini frontend/320240/haptic_w.cfg \
+		frontend/320240/haptic_s.cfg \
+		readme.txt COPYING
+	rm -rf out
+	mkdir -p out/pcsx_rearmed/plugins
+	cp -r $^ out/pcsx_rearmed/
+	mv out/pcsx_rearmed/gpu_unai.so out/pcsx_rearmed/gpuPCSX4ALL.so
+	mv out/pcsx_rearmed/gpu_gles.so out/pcsx_rearmed/gpuGLES.so
+	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
+	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
+	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
+	mkdir out/pcsx_rearmed/lib/
+	cp ./lib/libbz2.so.1 out/pcsx_rearmed/lib/
+	mkdir out/pcsx_rearmed/bios/
+	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_caanoo.zip *
+endif

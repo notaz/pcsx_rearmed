@@ -1,18 +1,6 @@
-CC = $(CROSS_COMPILE)gcc
+CFLAGS += -ggdb -Wall -O2
 
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
-HAVE_NEON = $(shell $(CC) -E -dD $(CFLAGS_) ../gpulib/gpu.h | grep -q '__ARM_NEON__ 1' && echo 1)
-
-# FIXME: rework NEON detection to get rid of this
-ifeq "$(ARCH)" "arm"
- ARM_CORTEXA8 ?= 1
- ifeq "$(ARM_CORTEXA8)" "1"
-  CFLAGS_ += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
- endif
-endif
-
-CFLAGS += -ggdb -Wall -fPIC -O2
+include ../../config.mak
 
 SRC += psx_gpu_if.c
 

@@ -1,41 +1,37 @@
-CC = $(CROSS_COMPILE)gcc
-AS = $(CROSS_COMPILE)as
-AR = $(CROSS_COMPILE)ar
-
-ARCH = $(shell $(CC) -v 2>&1 | grep -i 'target:' | awk '{print $$2}' | awk -F '-' '{print $$1}')
-
 CFLAGS += -ggdb -Wall
 ifndef DEBUG
 CFLAGS += -O2
 endif
 
+include ../../config.mak
+
 OBJS += gpu.o
 
 ifeq "$(ARCH)" "arm"
-ARM_CORTEXA8 ?= 1
-ifeq "$(ARM_CORTEXA8)" "1"
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp -fPIC
-ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
+ifeq "$(HAVE_NEON)" "1"
 OBJS += cspace_neon.o
 else
-CFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s
-ASFLAGS += -mcpu=arm926ej-s -mfloat-abi=softfp
 OBJS += cspace.o
 endif
 OBJS += vout_fb.o
 EXT = a
 else
-CFLAGS += `sdl-config --cflags` -m32
+CFLAGS += `sdl-config --cflags`
 OBJS += vout_sdl.o
-EXT = x86.a
+EXT = $(ARCH).a
 endif
+CFLAGS += $(PLUGIN_CFLAGS)
 
 TARGET = gpulib.$(EXT)
 
-all: $(TARGET)
+all: ../../config.mak $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(AR) crs $@ $^
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
+
+../../config.mak:
+	@echo "Please run ./configure before running make!"
+	@exit 1
