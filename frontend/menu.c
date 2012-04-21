@@ -22,7 +22,6 @@
 #include "config.h"
 #include "plugin.h"
 #include "plugin_lib.h"
-#include "omap.h"
 #include "plat.h"
 #include "pcnt.h"
 #include "common/plat.h"
@@ -1147,7 +1146,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 	scaling = SCALE_CUSTOM;
 
-	omap_enable_layer(1);
+	plat_gvideo_open();
 
 	for (;;)
 	{
@@ -1182,11 +1181,12 @@ static int menu_loop_cscaler(int id, int keys)
 				g_layer_w = 800 - g_layer_x;
 			if (g_layer_y + g_layer_h > 480)
 				g_layer_h = 480 - g_layer_y;
-			omap_enable_layer(1);
+			// resize the layer
+			plat_gvideo_open();
 		}
 	}
 
-	omap_enable_layer(0);
+	plat_gvideo_close();
 
 	return 0;
 }
@@ -2258,6 +2258,7 @@ void menu_init(void)
 #endif
 }
 
+// XXX: should really menu code cotrol the layer size?
 void menu_notify_mode_change(int w, int h, int bpp)
 {
 	float mult;

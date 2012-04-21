@@ -21,7 +21,6 @@
 #include "linux/fbdev.h"
 #include "common/fonts.h"
 #include "common/input.h"
-#include "omap.h"
 #include "menu.h"
 #include "main.h"
 #include "plat.h"
@@ -37,6 +36,7 @@ int in_keystate, in_state_gun;
 int in_enable_vibration;
 void *tsdev;
 void *pl_vout_buf;
+int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp;
 static int vsync_cnt;
 static int frame_interval, frame_interval1024, vsync_usec_time;
@@ -111,10 +111,9 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-void pl_print_hud(int w, int h, int xborder)
+void pl_print_hud(int xborder)
 {
-	pl_vout_w = w; // used by pollux
-	pl_vout_h = h;
+	int w = pl_vout_w, h = pl_vout_h;
 
 	if (g_opts & OPT_SHOWSPU)
 		draw_active_chans(w, h);
@@ -143,58 +142,39 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 	pl_vout_h = h;
 	pl_vout_bpp = bpp;
 
-#if defined(VOUT_FBDEV)
-	vout_fbdev_clear(layer_fb);
-	pl_vout_buf = vout_fbdev_resize(layer_fb, w, h, bpp, 0, 0, 0, 0, 3);
-#elif defined(MAEMO)
-	extern void *hildon_set_mode(int w, int h);
-	pl_vout_buf = hildon_set_mode(w, h);
-#endif
-
+	pl_vout_buf = plat_gvideo_set_mode(&pl_vout_w, &pl_vout_h, &pl_vout_bpp);
 	if (pl_vout_buf == NULL)
 		fprintf(stderr, "failed to set mode\n");
 
-	// menu decides on layer size, we commit it
 	menu_notify_mode_change(w, h, bpp);
-	omap_enable_layer(1);
 
 	return pl_vout_buf;
 }
 
+// only used if raw flip is not defined
 static void *pl_vout_flip(void)
 {
 	pl_rearmed_cbs.flip_cnt++;
 
 	if (pl_vout_buf != NULL)
-		pl_print_hud(pl_vout_w, pl_vout_h, 0);
+		pl_print_hud(0);
 
 	// let's flip now
-#if defined(VOUT_FBDEV)
-	pl_vout_buf = vout_fbdev_flip(layer_fb);
-#elif defined(MAEMO)
-	extern void *hildon_flip(void);
-	pl_vout_buf = hildon_flip();
-#endif
+	pl_vout_buf = plat_gvideo_flip();
 	return pl_vout_buf;
 }
 
 static int pl_vout_open(void)
 {
 	struct timeval now;
+	int h;
 
-	omap_enable_layer(1);
-#if defined(VOUT_FBDEV)
 	// force mode update
-	int h = pl_vout_h;
+	h = pl_vout_h;
 	pl_vout_h--;
 	pl_vout_buf = pl_vout_set_mode(pl_vout_w, h, pl_vout_bpp);
 
-	// try to align redraws to vsync
-	vout_fbdev_wait_vsync(layer_fb);
-#elif defined(MAEMO)
-	extern void *hildon_flip(void);
-	pl_vout_buf = hildon_flip();
-#endif
+	plat_gvideo_open();
 
 	gettimeofday(&now, 0);
 	vsync_usec_time = now.tv_usec;
@@ -206,20 +186,20 @@ static int pl_vout_open(void)
 
 static void pl_vout_close(void)
 {
-	omap_enable_layer(0);
+	plat_gvideo_close();
 }
 
 void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 {
-#if defined(VOUT_FBDEV)
+	void *ret = plat_prepare_screenshot(w, h, bpp);
+	if (ret != NULL)
+		return ret;
+
 	*w = pl_vout_w;
 	*h = pl_vout_h;
 	*bpp = pl_vout_bpp;
 
 	return pl_vout_buf;
-#else
-	return plat_prepare_screenshot(w, h, bpp);
-#endif
 }
 
 #ifndef MAEMO

@@ -49,18 +49,7 @@ static int psx_step, psx_width, psx_height, psx_bpp;
 static int psx_offset_x, psx_offset_y, psx_src_width, psx_src_height;
 static int fb_offset_x, fb_offset_y;
 
-// TODO: get rid of this
-struct vout_fbdev;
-struct vout_fbdev *layer_fb;
-int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
-
-int omap_enable_layer(int enabled)
-{
-	return 0;
-}
-
 static void caanoo_init(void);
-static void *pl_vout_set_mode(int w, int h, int bpp);
 
 
 static void *fb_flip(void)
@@ -249,7 +238,6 @@ void plat_video_menu_leave(void)
 
 	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
 	g_menuscreen_ptr = fb_flip();
-	pl_vout_set_mode(psx_width, psx_height, psx_bpp);
 }
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
@@ -335,7 +323,7 @@ static void raw_flip_dma(int x, int y)
 
 	if (psx_bpp == 16) {
 		pl_vout_buf = g_menuscreen_ptr;
-		pl_print_hud(320, fb_offset_y + psx_src_height, fb_offset_x);
+		pl_print_hud(fb_offset_x);
 	}
 
 	g_menuscreen_ptr = fb_flip();
@@ -364,7 +352,7 @@ static void name(int x, int y)                                                  
                                                                                         \
         if (psx_bpp == 16) {                                                            \
                 pl_vout_buf = g_menuscreen_ptr;                                         \
-                pl_print_hud(320, fb_offset_y + psx_src_height, fb_offset_x);           \
+                pl_print_hud(fb_offset_x);                                              \
         }                                                                               \
                                                                                         \
         g_menuscreen_ptr = fb_flip();                                                   \
@@ -378,9 +366,10 @@ make_flip_func(raw_flip_soft_368, blit320_368)
 make_flip_func(raw_flip_soft_512, blit320_512)
 make_flip_func(raw_flip_soft_640, blit320_640)
 
-static void *pl_vout_set_mode(int w, int h, int bpp)
+void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 {
 	int poff_w, poff_h, w_max;
+	int w = *w_, h = *h_, bpp = *bpp_;
 
 	if (!w || !h || !bpp)
 		return NULL;
@@ -446,12 +435,25 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 
 	pl_set_gun_rect(fb_offset_x, fb_offset_y, w > 320 ? 320 : w, h);
 
+	// adjust for hud
+	*w_ = 320;
+	*h_ = fb_offset_y + psx_src_height;
+
 	return NULL;
 }
 
-static void *pl_vout_flip(void)
+/* not really used, we do raw_flip */
+void plat_gvideo_open(void)
+{
+}
+
+void *plat_gvideo_flip(void)
 {
 	return NULL;
+}
+
+void plat_gvideo_close(void)
+{
 }
 
 static void save_multiple_regs(unsigned int *dest, int base, int count)
@@ -603,9 +605,7 @@ void plat_init(void)
 	if (mixerdev == -1)
 		perror("open(/dev/mixer)");
 
-	pl_rearmed_cbs.pl_vout_flip = pl_vout_flip;
 	pl_rearmed_cbs.pl_vout_raw_flip = have_warm ? raw_flip_dma : raw_flip_soft;
-	pl_rearmed_cbs.pl_vout_set_mode = pl_vout_set_mode;
 	pl_rearmed_cbs.pl_vout_set_raw_vram = pl_vout_set_raw_vram;
 
 	psx_src_width = 320;
@@ -699,7 +699,7 @@ static int haptic_read(const char *fname, struct haptic_data *data)
 
 	f = fopen(fname, "r");
 	if (f == NULL) {
-		fprintf("fopen(%s)", fname);
+		fprintf(stderr, "fopen(%s)", fname);
 		perror("");
 		return -1;
 	}

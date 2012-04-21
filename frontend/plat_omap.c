@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010
+ * (C) Gražvydas "notaz" Ignotas, 2010-2012
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -19,15 +19,10 @@
 #include "linux/xenv.h"
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
-#include "omap.h"
 #include "plat.h"
+#include "menu.h"
 
-
-static struct vout_fbdev *main_fb;
-int g_layer_x = 80, g_layer_y = 0;
-int g_layer_w = 640, g_layer_h = 480;
-
-struct vout_fbdev *layer_fb;
+static struct vout_fbdev *main_fb, *layer_fb;
 
 static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 {
@@ -79,13 +74,43 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 	return 0;
 }
 
-int omap_enable_layer(int enabled)
+static int omap_enable_layer(int enabled)
 {
 	if (enabled)
 		pl_set_gun_rect(g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 
 	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb), enabled,
 		g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+}
+
+void plat_gvideo_open(void)
+{
+	omap_enable_layer(1);
+
+	// try to align redraws to vsync
+	vout_fbdev_wait_vsync(layer_fb);
+}
+
+void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
+{
+	void *buf;
+
+	vout_fbdev_clear(layer_fb);
+	buf = vout_fbdev_resize(layer_fb, *w, *h, *bpp, 0, 0, 0, 0, 3);
+
+	omap_enable_layer(1);
+
+	return buf;
+}
+
+void *plat_gvideo_flip(void)
+{
+	return vout_fbdev_flip(layer_fb);
+}
+
+void plat_gvideo_close(void)
+{
+	omap_enable_layer(0);
 }
 
 void plat_video_menu_enter(int is_rom_loaded)
@@ -133,6 +158,11 @@ void plat_trigger_vibrate(int is_strong)
 {
 }
 
+void *plat_prepare_screenshot(int *w, int *h, int *bpp)
+{
+	return NULL;
+}
+
 void plat_init(void)
 {
 	const char *main_fb_name, *layer_fb_name;
@@ -154,6 +184,9 @@ void plat_init(void)
 		perror("open");
 		exit(1);
 	}
+
+	g_layer_x = 80, g_layer_y = 0;
+	g_layer_w = 640, g_layer_h = 480;
 
 	ret = omap_setup_layer_(fd, 0, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 	close(fd);

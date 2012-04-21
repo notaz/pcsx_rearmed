@@ -7,6 +7,7 @@
 #include "plugin_lib.h"
 
 #include "main.h"
+#include "plat.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "common/readpng.h"
 #include "maemo_common.h"
@@ -15,10 +16,6 @@
 #define Y_RES           480
 #define D_WIDTH			640
 #define D_HEIGHT		480
-
-int g_layer_x = (X_RES - D_WIDTH) / 2;
-int g_layer_y = (Y_RES - D_HEIGHT) / 2;
-int g_layer_w = D_WIDTH, g_layer_h = D_HEIGHT;
 
 static GdkImage *image;
 static HildonAnimationActor *actor;
@@ -181,14 +178,20 @@ void maemo_init(int *argc, char ***argv)
 
 	gtk_widget_show_all (GTK_WIDGET (actor));
 	gtk_widget_show_all (GTK_WIDGET (window));
+
+	g_layer_x = (X_RES - D_WIDTH) / 2;
+	g_layer_y = (Y_RES - D_HEIGHT) / 2;
+	g_layer_w = D_WIDTH, g_layer_h = D_HEIGHT;
 }
 
 void menu_loop(void)
 {
 }
 
-void *hildon_set_mode(int w, int h)
+void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 {
+	int w = *w_, h = *h_;
+
 	if (w <= 0 || h <= 0)
 		return pl_vout_buf;
 
@@ -214,7 +217,7 @@ void *hildon_set_mode(int w, int h)
 	return pl_vout_buf;
 }
 
-void *hildon_flip(void)
+void *plat_gvideo_flip(void)
 {
 	gtk_widget_queue_draw (drawing);
 
@@ -244,12 +247,11 @@ void *hildon_flip(void)
 	return pl_vout_buf;
 }
 
-int omap_enable_layer(int enabled)
+void plat_gvideo_open(void)
 {
-	return 0;
 }
 
-void menu_notify_mode_change(int w, int h, int bpp)
+void plat_gvideo_close(void)
 {
 }
 

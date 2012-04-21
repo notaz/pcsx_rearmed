@@ -6,19 +6,11 @@
  */
 
 #include "common/input.h"
-#include "linux/fbdev.h"
 #include "plat.h"
 
-struct vout_fbdev *layer_fb;
-int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 struct in_default_bind in_evdev_defbinds[] = {
 	{ 0, 0, 0 },
 };
-
-int omap_enable_layer(int enabled)
-{
-	return 0;
-}
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
@@ -33,6 +25,24 @@ void plat_video_menu_end(void)
 }
 
 void plat_video_menu_leave(void)
+{
+}
+
+void plat_gvideo_open(void)
+{
+}
+
+void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
+{
+	return 0;
+}
+
+void *plat_gvideo_flip(void)
+{
+	return 0;
+}
+
+void plat_gvideo_close(void)
 {
 }
 

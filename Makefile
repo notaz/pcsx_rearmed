@@ -123,7 +123,6 @@ ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/plat_dummy.o
 endif
 ifeq "$(PLATFORM)" "pandora"
-frontend/%.o: CFLAGS += -DVOUT_FBDEV
 OBJS += frontend/linux/fbdev.o
 OBJS += frontend/plat_omap.o
 OBJS += frontend/plat_pandora.o
