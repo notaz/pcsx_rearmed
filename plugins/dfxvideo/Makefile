@@ -9,7 +9,7 @@ SRC_STANDALONE += gpu.c
 SRC_GPULIB += gpulib_if.c
 
 ifeq "$(ARCH)" "arm"
-SRC_STANDALONE += draw_fb.c
+SRC_STANDALONE += draw_pl.c
 else
 SRC_STANDALONE += draw.c
 LDLIBS_STANDALONE += -lX11 -lXv

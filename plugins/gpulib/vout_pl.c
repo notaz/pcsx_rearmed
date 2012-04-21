@@ -1,4 +1,5 @@
 /*
+ * video output handling using plugin_lib
  * (C) Gražvydas "notaz" Ignotas, 2011
  *
  * This work is licensed under the terms of any of these licenses

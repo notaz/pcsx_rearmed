@@ -99,7 +99,7 @@ LDLIBS += -lX11 `sdl-config --libs`
 OBJS += plugins/gpulib/vout_sdl.o
 plugins/gpulib/vout_sdl.o: CFLAGS += `sdl-config --cflags`
 else
-OBJS += plugins/gpulib/vout_fb.o
+OBJS += plugins/gpulib/vout_pl.o
 endif
 
 # cdrcimg

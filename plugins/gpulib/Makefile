@@ -13,7 +13,7 @@ OBJS += cspace_neon.o
 else
 OBJS += cspace.o
 endif
-OBJS += vout_fb.o
+OBJS += vout_pl.o
 EXT = a
 else
 CFLAGS += `sdl-config --cflags`
