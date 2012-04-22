@@ -120,7 +120,7 @@ OBJS += frontend/menu.o frontend/linux/in_evdev.o
 OBJS += frontend/common/input.o frontend/linux/xenv.o
 
 ifeq "$(PLATFORM)" "generic"
-OBJS += frontend/plat_dummy.o
+OBJS += frontend/plat_sdl.o frontend/common/in_sdl.o
 endif
 ifeq "$(PLATFORM)" "pandora"
 OBJS += frontend/linux/fbdev.o
@@ -145,7 +145,7 @@ frontend/%.o: CFLAGS += -DHAVE_TSLIB
 OBJS += frontend/pl_gun_ts.o
 endif
 frontend/%.o: CFLAGS += -DIN_EVDEV
-frontend/menu.o: frontend/revision.h
+frontend/menu.o frontend/plat_sdl.o: frontend/revision.h
 
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS

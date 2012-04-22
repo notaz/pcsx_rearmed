@@ -8,7 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE 1
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>

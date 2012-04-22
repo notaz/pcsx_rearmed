@@ -1504,7 +1504,7 @@ static int menu_loop_options(int id, int keys)
 	int i;
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].enabled = cpu_clock_st != 0 ? 1 : 0;
+	e_menu_options[i].enabled = cpu_clock_st > 0 ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
 	me_loop(e_menu_options, &sel);
@@ -1714,8 +1714,10 @@ static void draw_frame_main(void)
 {
 	struct tm *tmp;
 	time_t ltime;
+	int capacity;
 	char ltime_s[16];
 	char buff[64];
+	char *out;
 
 	if (CdromId[0] != 0) {
 		snprintf(buff, sizeof(buff), "%.32s/%.9s (running as %s, with %s)",
@@ -1725,11 +1727,17 @@ static void draw_frame_main(void)
 	}
 
 	if (ready_to_go) {
+		capacity = plat_get_bat_capacity();
 		ltime = time(NULL);
 		tmp = localtime(&ltime);
 		strftime(ltime_s, sizeof(ltime_s), "%H:%M", tmp);
-		snprintf(buff, sizeof(buff), "%s %3d%%", ltime_s, plat_get_bat_capacity());
-		smalltext_out16(4, 1 + me_sfont_h, buff, 0x105f);
+		if (capacity >= 0) {
+			snprintf(buff, sizeof(buff), "%s %3d%%", ltime_s, capacity);
+			out = buff;
+		}
+		else
+			out = ltime_s;
+		smalltext_out16(4, 1 + me_sfont_h, out, 0x105f);
 	}
 }
 
@@ -2241,8 +2249,12 @@ void menu_init(void)
 	last_psx_bpp = 16;
 
 	g_menubg_src_ptr = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
-	if (g_menubg_src_ptr == NULL)
+	g_menubg_ptr = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
+	if (g_menubg_src_ptr == NULL || g_menubg_ptr == NULL) {
+		fprintf(stderr, "OOM\n");
 		exit(1);
+	}
+
 	emu_make_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
@@ -2362,7 +2374,8 @@ void menu_prepare_emu(void)
 	menu_sync_config();
 	apply_lcdrate(Config.PsxType);
 	apply_filter(filter);
-	plat_cpu_clock_apply(cpu_clock);
+	if (cpu_clock > 0)
+		plat_cpu_clock_apply(cpu_clock);
 
 	// push config to GPU plugin
 	plugin_call_rearmed_cbs();

@@ -166,7 +166,6 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 void plat_init(void)
 {
 	const char *main_fb_name, *layer_fb_name;
-	void *temp_frame;
 	int fd, ret, w, h;
 
 	main_fb_name = getenv("FBDEV_MAIN");
@@ -217,13 +216,6 @@ void plat_init(void)
 		fprintf(stderr, "couldn't init fb: %s\n", layer_fb_name);
 		goto fail0;
 	}
-
-	temp_frame = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
-	if (temp_frame == NULL) {
-		fprintf(stderr, "OOM\n");
-		goto fail1;
-	}
-	g_menubg_ptr = temp_frame;
 
 	plat_pandora_init(); // XXX
 

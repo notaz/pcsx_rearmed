@@ -529,12 +529,6 @@ void plat_init(void)
 	g_menuscreen_h = 240;
 	g_menuscreen_ptr = fb_flip();
 
-	g_menubg_ptr = calloc(320*240*2, 1);
-	if (g_menubg_ptr == NULL) {
-		fprintf(stderr, "OOM\n");
-		exit(1);
-	}
-
 	warm_ret = warm_init();
 	have_warm = warm_ret == 0;
 	warm_change_cb_upper(WCB_B_BIT, 1);
