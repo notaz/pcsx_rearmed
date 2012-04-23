@@ -244,18 +244,6 @@ static const struct {
 };
 #endif
 
-static void in_gp2x_get_def_binds(int *binds)
-{
-	int i;
-
-	for (i = 0; 1; i++) {
-		if (in_gp2x_defbinds[i].bit == 0 && in_gp2x_defbinds[i].code == 0)
-			break;
-		binds[IN_BIND_OFFS(in_gp2x_defbinds[i].code, in_gp2x_defbinds[i].btype)] =
-			1 << in_gp2x_defbinds[i].bit;
-	}
-}
-
 /* remove binds of missing keys, count remaining ones */
 static int in_gp2x_clean_binds(void *drv_data, int *binds, int *def_binds)
 {
@@ -305,20 +293,19 @@ static const in_drv_t in_gp2x_drv = {
 	.probe          = in_gp2x_probe,
 	.free           = in_gp2x_free,
 	.get_key_names  = in_gp2x_get_key_names,
-	.get_def_binds  = in_gp2x_get_def_binds,
 	.clean_binds    = in_gp2x_clean_binds,
 	.update         = in_gp2x_update,
 	.update_keycode = in_gp2x_update_keycode,
 	.menu_translate = in_gp2x_menu_translate,
 };
 
-void in_gp2x_init(void)
+void in_gp2x_init(const struct in_default_bind *defbinds)
 {
 	if (gp2x_dev_id == GP2X_DEV_WIZ)
 		in_gp2x_keys[GP2X_BTN_START] = "MENU";
 	
 	in_gp2x_combo_keys = in_gp2x_combo_acts = 0;
 
-	in_register_driver(&in_gp2x_drv);
+	in_register_driver(&in_gp2x_drv, defbinds);
 }
 

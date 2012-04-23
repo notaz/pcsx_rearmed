@@ -52,15 +52,27 @@ static int menu_last_used_dev = 0;
 
 static int *in_alloc_binds(int drv_id, int key_count)
 {
+	const struct in_default_bind *defbinds;
 	int *binds;
+	int i;
 
 	binds = calloc(key_count * IN_BINDTYPE_COUNT * 2, sizeof(binds[0]));
 	if (binds == NULL)
 		return NULL;
 
-	DRV(drv_id).get_def_binds(binds + key_count * IN_BINDTYPE_COUNT);
-	memcpy(binds, binds + key_count * IN_BINDTYPE_COUNT,
-		sizeof(binds[0]) * key_count * IN_BINDTYPE_COUNT);
+	defbinds = DRV(drv_id).defbinds;
+	if (defbinds != NULL) {
+		for (i = 0; ; i++) {
+			if (defbinds[i].bit == 0 && defbinds[i].code == 0)
+				break;
+			binds[IN_BIND_OFFS(defbinds[i].code, defbinds[i].btype)] =
+				1 << defbinds[i].bit;
+		}
+
+		/* always have a copy of defbinds */
+		memcpy(binds + key_count * IN_BINDTYPE_COUNT, binds,
+			sizeof(binds[0]) * key_count * IN_BINDTYPE_COUNT);
+	}
 
 	return binds;
 }
@@ -891,7 +903,6 @@ void in_debug_dump(void)
 /* stubs for drivers that choose not to implement something */
 
 static void in_def_free(void *drv_data) {}
-static void in_def_get_def_binds(int *binds) {}
 static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 1; }
 static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
 static int  in_def_set_config(void *drv_data, int what, int val) { return -1; }
@@ -905,7 +916,7 @@ static const char *in_def_get_key_name(int keycode) { return NULL; }
 	if (d.f == NULL) d.f = in_def_##f
 
 /* to be called by drivers */
-int in_register_driver(const in_drv_t *drv)
+int in_register_driver(const in_drv_t *drv, const struct in_default_bind *defbinds)
 {
 	int count_new = in_driver_count + 1;
 	in_drv_t *new_drivers;
@@ -919,7 +930,6 @@ int in_register_driver(const in_drv_t *drv)
 	memcpy(&new_drivers[in_driver_count], drv, sizeof(new_drivers[0]));
 
 	CHECK_ADD_STUB(new_drivers[in_driver_count], free);
-	CHECK_ADD_STUB(new_drivers[in_driver_count], get_def_binds);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], clean_binds);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], get_config);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], set_config);
@@ -928,6 +938,8 @@ int in_register_driver(const in_drv_t *drv)
 	CHECK_ADD_STUB(new_drivers[in_driver_count], menu_translate);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], get_key_code);
 	CHECK_ADD_STUB(new_drivers[in_driver_count], get_key_name);
+	if (defbinds != NULL)
+		new_drivers[in_driver_count].defbinds = defbinds;
 	in_drivers = new_drivers;
 	in_driver_count = count_new;
 

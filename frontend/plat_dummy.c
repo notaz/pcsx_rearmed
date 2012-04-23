@@ -5,12 +5,7 @@
  * See the COPYING file in the top-level directory.
  */
 
-#include "common/input.h"
 #include "plat.h"
-
-struct in_default_bind in_evdev_defbinds[] = {
-	{ 0, 0, 0 },
-};
 
 void plat_video_menu_enter(int is_rom_loaded)
 {

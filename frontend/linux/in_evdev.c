@@ -586,18 +586,6 @@ static int in_evdev_menu_translate(void *drv_data, int keycode)
 	return 0;
 }
 
-static void in_evdev_get_def_binds(int *binds)
-{
-	int i;
-
-	for (i = 0; ; i++) {
-		if (in_evdev_defbinds[i].bit == 0 && in_evdev_defbinds[i].code == 0)
-			break;
-		binds[IN_BIND_OFFS(in_evdev_defbinds[i].code, in_evdev_defbinds[i].btype)] =
-			1 << in_evdev_defbinds[i].bit;
-	}
-}
-
 /* remove binds of missing keys, count remaining ones */
 static int in_evdev_clean_binds(void *drv_data, int *binds, int *def_binds)
 {
@@ -637,7 +625,6 @@ static const in_drv_t in_evdev_drv = {
 	.probe          = in_evdev_probe,
 	.free           = in_evdev_free,
 	.get_key_names  = in_evdev_get_key_names,
-	.get_def_binds  = in_evdev_get_def_binds,
 	.clean_binds    = in_evdev_clean_binds,
 	.get_config     = in_evdev_get_config,
 	.set_config     = in_evdev_set_config,
@@ -647,8 +634,8 @@ static const in_drv_t in_evdev_drv = {
 	.menu_translate = in_evdev_menu_translate,
 };
 
-void in_evdev_init(void)
+void in_evdev_init(const struct in_default_bind *defbinds)
 {
-	in_register_driver(&in_evdev_drv);
+	in_register_driver(&in_evdev_drv, defbinds);
 }
 

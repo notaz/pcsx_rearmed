@@ -302,8 +302,8 @@ static const in_drv_t in_sdl_drv = {
 	.menu_translate = in_sdl_menu_translate,
 };
 
-void in_sdl_init(void)
+void in_sdl_init(const struct in_default_bind *defbinds)
 {
-	in_register_driver(&in_sdl_drv);
+	in_register_driver(&in_sdl_drv, defbinds);
 }
 

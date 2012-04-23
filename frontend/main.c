@@ -364,9 +364,9 @@ int main(int argc, char *argv[])
 		return 1;
 
 	// frontend stuff
+	// init input but leave probing to platform code,
+	// they add input drivers and may need to modify them after probe
 	in_init();
-	in_evdev_init();
-	//in_probe();
 	pl_init();
 	plat_init();
 	menu_init(); // loads config

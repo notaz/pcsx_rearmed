@@ -16,9 +16,11 @@
 #include <linux/fb.h>
 #include <sys/mman.h>
 #include <linux/soundcard.h>
+#include <linux/input.h>
 
 #include "common/input.h"
 #include "gp2x/in_gp2x.h"
+#include "linux/in_evdev.h"
 #include "common/menu.h"
 #include "warm/warm.h"
 #include "plugin_lib.h"
@@ -50,7 +52,25 @@ static int psx_offset_x, psx_offset_y, psx_src_width, psx_src_height;
 static int fb_offset_x, fb_offset_y;
 
 static void caanoo_init(void);
+static void wiz_init(void);
 
+
+static const struct in_default_bind in_evdev_defbinds[] = {
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
+	{ BTN_TOP,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
+	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
+	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
+	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
+	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, DKEY_START },
+	{ BTN_BASE4,	IN_BINDTYPE_PLAYER12, DKEY_SELECT },
+	{ BTN_TOP2,	IN_BINDTYPE_PLAYER12, DKEY_L1 },
+	{ BTN_PINKIE,	IN_BINDTYPE_PLAYER12, DKEY_R1 },
+	{ BTN_BASE,	IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
+	{ 0, 0, 0 },
+};
 
 static void *fb_flip(void)
 {
@@ -587,13 +607,14 @@ void plat_init(void)
 	else {
 		printf("detected Wiz\n");
 		gp2x_dev_id = GP2X_DEV_WIZ;
-		in_gp2x_init();
 	}
 
 	in_tsbutton_init();
-	in_probe();
+	in_evdev_init(in_evdev_defbinds);
 	if (gp2x_dev_id == GP2X_DEV_CAANOO)
 		caanoo_init();
+	else
+		wiz_init();
 
 	mixerdev = open("/dev/mixer", O_RDWR);
 	if (mixerdev == -1)
@@ -632,25 +653,6 @@ void plat_finish(void)
 }
 
 /* Caanoo stuff, perhaps move later */
-#include <linux/input.h>
-
-struct in_default_bind in_evdev_defbinds[] = {
-	{ KEY_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
-	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
-	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
-	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
-	{ BTN_TOP,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
-	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
-	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
-	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
-	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, DKEY_START },
-	{ BTN_BASE4,	IN_BINDTYPE_PLAYER12, DKEY_SELECT },
-	{ BTN_TOP2,	IN_BINDTYPE_PLAYER12, DKEY_L1 },
-	{ BTN_PINKIE,	IN_BINDTYPE_PLAYER12, DKEY_R1 },
-	{ BTN_BASE,	IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
-	{ 0, 0, 0 },
-};
-
 static const char * const caanoo_keys[KEY_MAX + 1] = {
 	[0 ... KEY_MAX] = NULL,
 	[KEY_UP]        = "Up",
@@ -776,8 +778,15 @@ void plat_trigger_vibrate(int is_strong)
 	ioctl(hapticdev, HAPTIC_PLAY_PATTERN, &haptic_seq[!!is_strong]);
 }
 
+static void caanoo_init(void)
+{
+	in_probe();
+	in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
+		      caanoo_keys, sizeof(caanoo_keys));
+}
+
 /* Wiz stuff */
-struct in_default_bind in_gp2x_defbinds[] =
+static const struct in_default_bind in_gp2x_defbinds[] =
 {
 	/* MXYZ SACB RLDU */
 	{ GP2X_BTN_UP,		IN_BINDTYPE_PLAYER12, DKEY_UP },
@@ -824,8 +833,8 @@ void plat_step_volume(int is_up)
 // unused dummy for in_gp2x
 volatile unsigned short *gp2x_memregs;
 
-static void caanoo_init(void)
+static void wiz_init(void)
 {
-	in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
-		      caanoo_keys, sizeof(caanoo_keys));
+	in_gp2x_init(in_gp2x_defbinds);
+	in_probe();
 }

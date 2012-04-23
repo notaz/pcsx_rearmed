@@ -79,7 +79,6 @@ typedef struct {
 	void (*free)(void *drv_data);
 	const char * const *
 	     (*get_key_names)(int *count);
-	void (*get_def_binds)(int *binds);
 	int  (*clean_binds)(void *drv_data, int *binds, int *def_finds);
 	int  (*get_config)(void *drv_data, int what, int *val);
 	int  (*set_config)(void *drv_data, int what, int val);
@@ -90,6 +89,8 @@ typedef struct {
 	int  (*menu_translate)(void *drv_data, int keycode);
 	int  (*get_key_code)(const char *key_name);
 	const char * (*get_key_name)(int keycode);
+
+	const struct in_default_bind *defbinds;
 } in_drv_t;
 
 struct in_default_bind {
@@ -99,7 +100,7 @@ struct in_default_bind {
 };
 
 /* to be called by drivers */
-int  in_register_driver(const in_drv_t *drv);
+int  in_register_driver(const in_drv_t *drv, const struct in_default_bind *defbinds);
 void in_register(const char *nname, int drv_fd_hnd, void *drv_data,
 		int key_count, const char * const *key_names, int combos);
 void in_combos_find(const int *binds, int last_key, int *combo_keys, int *combo_acts);

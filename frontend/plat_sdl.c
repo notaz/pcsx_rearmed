@@ -13,11 +13,27 @@
 #include "common/input.h"
 #include "common/in_sdl.h"
 #include "common/menu.h"
+#include "plugin_lib.h"
+#include "main.h"
 #include "plat.h"
 #include "revision.h"
 
-// XXX
-struct in_default_bind in_evdev_defbinds[] = {
+static const struct in_default_bind in_sdl_defbinds[] = {
+	{ SDLK_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
+	{ SDLK_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
+	{ SDLK_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
+	{ SDLK_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
+	{ SDLK_d,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
+	{ SDLK_z,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
+	{ SDLK_x,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
+	{ SDLK_s,	IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
+	{ SDLK_v,	IN_BINDTYPE_PLAYER12, DKEY_START },
+	{ SDLK_c,	IN_BINDTYPE_PLAYER12, DKEY_SELECT },
+	{ SDLK_w,	IN_BINDTYPE_PLAYER12, DKEY_L1 },
+	{ SDLK_r,	IN_BINDTYPE_PLAYER12, DKEY_R1 },
+	{ SDLK_e,	IN_BINDTYPE_PLAYER12, DKEY_L2 },
+	{ SDLK_t,	IN_BINDTYPE_PLAYER12, DKEY_R2 },
+	{ SDLK_ESCAPE,	IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
 	{ 0, 0, 0 }
 };
 
@@ -62,7 +78,7 @@ void plat_init(void)
   }
   SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
 
-  in_sdl_init();
+  in_sdl_init(in_sdl_defbinds);
   in_probe();
   return;
 

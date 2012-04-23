@@ -1,8 +1,7 @@
 
-void in_gp2x_init(void);
+struct in_default_bind;
 
-/* to be set somewhere in platform code */
-extern struct in_default_bind in_gp2x_defbinds[];
+void in_gp2x_init(const struct in_default_bind *defbinds);
 
 enum  { GP2X_BTN_UP = 0,      GP2X_BTN_LEFT = 2,      GP2X_BTN_DOWN = 4,  GP2X_BTN_RIGHT = 6,
         GP2X_BTN_START = 8,   GP2X_BTN_SELECT = 9,    GP2X_BTN_L = 10,    GP2X_BTN_R = 11,

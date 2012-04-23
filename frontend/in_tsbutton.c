@@ -133,6 +133,6 @@ static const in_drv_t in_tsbutton_drv = {
 void in_tsbutton_init(void)
 {
 	tsbutton_down_id = last_tsbutton_id = -1;
-	in_register_driver(&in_tsbutton_drv);
+	in_register_driver(&in_tsbutton_drv, NULL);
 }
 

@@ -38,7 +38,7 @@ static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
 	[KEY_MENU]	= "Pandora",
 };
 
-struct in_default_bind in_evdev_defbinds[] = {
+static const struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
 	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
 	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
@@ -66,6 +66,7 @@ struct in_default_bind in_evdev_defbinds[] = {
 
 int plat_pandora_init(void)
 {
+	in_evdev_init(in_evdev_defbinds);
 	in_probe();
 	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
