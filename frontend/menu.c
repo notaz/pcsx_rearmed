@@ -607,10 +607,10 @@ static void draw_savestate_bg(int slot)
 			bgr888_to_rgb565(d, s, w * 3);
 		else
 			bgr555_to_rgb565(d, s, w * 2);
-#ifndef __ARM_ARCH_7A__
-		// better darken this on small screens
-		menu_darken_bg(d, d, w * 2, 0);
-#endif
+
+		// darken this so that menu text is visible
+		if (g_menuscreen_w - w < 320)
+			menu_darken_bg(d, d, w * 2, 0);
 	}
 
 out:
@@ -2270,7 +2270,6 @@ void menu_init(void)
 #endif
 }
 
-// XXX: should really menu code cotrol the layer size?
 void menu_notify_mode_change(int w, int h, int bpp)
 {
 	float mult;
@@ -2280,6 +2279,7 @@ void menu_notify_mode_change(int w, int h, int bpp)
 	last_psx_h = h;
 	last_psx_bpp = bpp;
 
+	// XXX: should really menu code cotrol the layer size?
 	switch (scaling) {
 	case SCALE_1_1:
 		g_layer_w = w; g_layer_h = h;
@@ -2337,16 +2337,24 @@ static void menu_leave_emu(void)
 	plat_video_menu_enter(ready_to_go);
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
-	if (pl_vout_buf != NULL && ready_to_go && last_psx_bpp == 16) {
+	if (pl_vout_buf != NULL && ready_to_go) {
 		int x = max(0, g_menuscreen_w - last_psx_w);
 		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
 		int w = min(g_menuscreen_w, last_psx_w);
 		int h = min(g_menuscreen_h, last_psx_h);
 		u16 *d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
-		u16 *s = pl_vout_buf;
+		char *s = pl_vout_buf;
 
-		for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w)
-			menu_darken_bg(d, s, w, 0);
+		if (last_psx_bpp == 16) {
+			for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w * 2)
+				menu_darken_bg(d, s, w, 0);
+		}
+		else {
+			for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w * 3) {
+				bgr888_to_rgb565(d, s, w * 3);
+				menu_darken_bg(d, d, w, 0);
+			}
+		}
 	}
 
 	if (ready_to_go)

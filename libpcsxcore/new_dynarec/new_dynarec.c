@@ -8084,6 +8084,8 @@ void new_dynarec_init()
 #ifndef RAM_FIXED
   ram_offset=(u_int)rdram-0x80000000;
 #endif
+  if (ram_offset!=0)
+    printf("warning: RAM is not directly mapped, performance will suffer\n");
 }
 
 void new_dynarec_cleanup()
