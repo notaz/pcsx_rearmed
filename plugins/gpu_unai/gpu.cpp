@@ -861,19 +861,22 @@ static void blit(void)
 
 	if (isRGB24)
 	{
-#ifndef MAEMO
-		for (; h1-- > 0; dest += w0 * 3, fb_offs += 1024)
+		if (!cbs->only_16bpp)
 		{
-			fb_offs &= 1024*512-1;
-			bgr888_to_rgb888(dest, base + fb_offs, w0 * 3);
+			for (; h1-- > 0; dest += w0 * 3, fb_offs += 1024)
+			{
+				fb_offs &= 1024*512-1;
+				bgr888_to_rgb888(dest, base + fb_offs, w0 * 3);
+			}
 		}
-#else
-		for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
+		else
 		{
-			fb_offs &= 1024*512-1;
-			bgr888_to_rgb565(dest, base + fb_offs, w0 * 3);
+			for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
+			{
+				fb_offs &= 1024*512-1;
+				bgr888_to_rgb565(dest, base + fb_offs, w0 * 3);
+			}
 		}
-#endif
 	}
 	else
 	{

@@ -36,8 +36,8 @@ static void check_mode_change(void)
   {
     old_status = gpu.status.reg;
     old_h = gpu.screen.h;
-    screen_buf = cbs->pl_vout_set_mode(gpu.screen.hres,
-                                       gpu.screen.h, gpu.status.rgb24 ? 24 : 16);
+    screen_buf = cbs->pl_vout_set_mode(gpu.screen.hres, gpu.screen.h,
+      (gpu.status.rgb24 && !cbs->only_16bpp) ? 24 : 16);
   }
 }
 
@@ -60,21 +60,22 @@ static void blit(void)
 
   if (gpu.status.rgb24)
   {
-#ifndef MAEMO
-    dest += (doffs / 8) * 24;
-    for (; h-- > 0; dest += stride * 3, fb_offs += 1024)
-    {
-      fb_offs &= 1024*512-1;
-      bgr888_to_rgb888(dest, vram + fb_offs, w * 3);
+    if (cbs->only_16bpp) {
+      dest += doffs * 2;
+      for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
+      {
+        fb_offs &= 1024*512-1;
+        bgr888_to_rgb565(dest, vram + fb_offs, w * 3);
+      }
     }
-#else
-    dest += doffs * 2;
-    for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
-    {
-      fb_offs &= 1024*512-1;
-      bgr888_to_rgb565(dest, vram + fb_offs, w * 3);
+    else {
+      dest += (doffs / 8) * 24;
+      for (; h-- > 0; dest += stride * 3, fb_offs += 1024)
+      {
+        fb_offs &= 1024*512-1;
+        bgr888_to_rgb888(dest, vram + fb_offs, w * 3);
+      }
     }
-#endif
   }
   else
   {

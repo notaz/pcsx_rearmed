@@ -182,6 +182,8 @@ void maemo_init(int *argc, char ***argv)
 	g_layer_x = (X_RES - D_WIDTH) / 2;
 	g_layer_y = (Y_RES - D_HEIGHT) / 2;
 	g_layer_w = D_WIDTH, g_layer_h = D_HEIGHT;
+
+	pl_rearmed_cbs.only_16bpp = 1;
 }
 
 void menu_loop(void)

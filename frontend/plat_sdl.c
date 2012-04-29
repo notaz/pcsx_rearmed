@@ -80,6 +80,7 @@ void plat_init(void)
 
   in_sdl_init(in_sdl_defbinds);
   in_probe();
+  pl_rearmed_cbs.only_16bpp = 1;
   return;
 
 fail:

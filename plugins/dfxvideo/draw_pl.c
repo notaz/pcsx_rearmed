@@ -32,13 +32,7 @@ static void blit(void *vout_buf)
  if (w <= 0)
    return;
 
-#ifndef MAEMO
- pitch *= PSXDisplay.RGB24 ? 3 : 2;
-#else
- // n900 doesn't do rgb24 for some reason
- pitch *= 2;
- #define bgr888_to_rgb888 bgr888_to_rgb565
-#endif
+ pitch *= (PSXDisplay.RGB24 && !rcbs->only_16bpp) ? 3 : 2;
 
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
@@ -47,9 +41,19 @@ static void blit(void *vout_buf)
 
  if (PSXDisplay.RGB24)
  {
-   for (; h-- > 0; dest += pitch, srcs += 1024)
+   if (!rcbs->only_16bpp)
    {
-     bgr888_to_rgb888(dest, srcs, w * 3);
+     for (; h-- > 0; dest += pitch, srcs += 1024)
+     {
+       bgr888_to_rgb888(dest, srcs, w * 3);
+     }
+   }
+   else
+   {
+     for (; h-- > 0; dest += pitch, srcs += 1024)
+     {
+       bgr888_to_rgb565(dest, srcs, w * 3);
+     }
    }
  }
  else
