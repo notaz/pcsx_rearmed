@@ -299,6 +299,7 @@ static void ari64_reset()
 	pending_exception = 1;
 }
 
+#ifdef __arm__
 // execute until predefined leave points
 // (HLE softcall exit and BIOS fastboot end)
 static void ari64_execute_until()
@@ -321,6 +322,7 @@ static void ari64_execute()
 		evprintf("drc left @%08x\n", psxRegs.pc);
 	}
 }
+#endif
 
 static void ari64_clear(u32 addr, u32 size)
 {

@@ -41,6 +41,7 @@ optimize_arm926ej="no"
 
 # hardcoded stuff
 CC="${CC-${CROSS_COMPILE}gcc}"
+CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 AR="${AS-${CROSS_COMPILE}ar}"
 config_mak="config.mak"
@@ -110,7 +111,7 @@ if [ "$show_help" = "yes" ]; then
   echo "  --disable-dynarec        disable dynamic recompiler"
   echo "                           (dynarec is only available and enabled on ARM)"
   echo "influential environment variables:"
-  echo "  CROSS_COMPILE CC AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
+  echo "  CROSS_COMPILE CC CXX AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
 fi
 
@@ -240,6 +241,7 @@ printf " '%s'" "$0" "$@" >> $config_mak
 echo >> $config_mak
 
 echo "CC = $CC" >> $config_mak
+echo "CXX = $CXX" >> $config_mak
 echo "AS = $AS" >> $config_mak
 echo "CFLAGS += $CFLAGS" >> $config_mak
 echo "ASFLAGS += $ASFLAGS" >> $config_mak

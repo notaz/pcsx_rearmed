@@ -730,9 +730,11 @@ void *SysLoadLibrary(const char *lib) {
 
 #if defined(__x86_64__) || defined(__i386__)
 	// convenience hack
-	char name[MAXPATHLEN];
-	snprintf(name, sizeof(name), "%s.x86", lib);
-	lib = name;
+	if (strstr(lib, ".x86") == NULL) {
+		char name[MAXPATHLEN];
+		snprintf(name, sizeof(name), "%s.x86", lib);
+		lib = name;
+	}
 #endif
 
 	ret = dlopen(lib, RTLD_NOW);
