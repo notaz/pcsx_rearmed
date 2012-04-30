@@ -221,12 +221,9 @@ void plat_init(void)
 
 	return;
 
-fail1:
-	vout_fbdev_finish(layer_fb);
 fail0:
 	vout_fbdev_finish(main_fb);
 	exit(1);
-
 }
 
 void plat_finish(void)

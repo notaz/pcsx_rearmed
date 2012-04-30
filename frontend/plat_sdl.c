@@ -19,25 +19,26 @@
 #include "revision.h"
 
 static const struct in_default_bind in_sdl_defbinds[] = {
-	{ SDLK_UP,	IN_BINDTYPE_PLAYER12, DKEY_UP },
-	{ SDLK_DOWN,	IN_BINDTYPE_PLAYER12, DKEY_DOWN },
-	{ SDLK_LEFT,	IN_BINDTYPE_PLAYER12, DKEY_LEFT },
-	{ SDLK_RIGHT,	IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
-	{ SDLK_d,	IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
-	{ SDLK_z,	IN_BINDTYPE_PLAYER12, DKEY_CROSS },
-	{ SDLK_x,	IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
-	{ SDLK_s,	IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
-	{ SDLK_v,	IN_BINDTYPE_PLAYER12, DKEY_START },
-	{ SDLK_c,	IN_BINDTYPE_PLAYER12, DKEY_SELECT },
-	{ SDLK_w,	IN_BINDTYPE_PLAYER12, DKEY_L1 },
-	{ SDLK_r,	IN_BINDTYPE_PLAYER12, DKEY_R1 },
-	{ SDLK_e,	IN_BINDTYPE_PLAYER12, DKEY_L2 },
-	{ SDLK_t,	IN_BINDTYPE_PLAYER12, DKEY_R2 },
-	{ SDLK_ESCAPE,	IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
-	{ 0, 0, 0 }
+  { SDLK_UP,     IN_BINDTYPE_PLAYER12, DKEY_UP },
+  { SDLK_DOWN,   IN_BINDTYPE_PLAYER12, DKEY_DOWN },
+  { SDLK_LEFT,   IN_BINDTYPE_PLAYER12, DKEY_LEFT },
+  { SDLK_RIGHT,  IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
+  { SDLK_d,      IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
+  { SDLK_z,      IN_BINDTYPE_PLAYER12, DKEY_CROSS },
+  { SDLK_x,      IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
+  { SDLK_s,      IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
+  { SDLK_v,      IN_BINDTYPE_PLAYER12, DKEY_START },
+  { SDLK_c,      IN_BINDTYPE_PLAYER12, DKEY_SELECT },
+  { SDLK_w,      IN_BINDTYPE_PLAYER12, DKEY_L1 },
+  { SDLK_r,      IN_BINDTYPE_PLAYER12, DKEY_R1 },
+  { SDLK_e,      IN_BINDTYPE_PLAYER12, DKEY_L2 },
+  { SDLK_t,      IN_BINDTYPE_PLAYER12, DKEY_R2 },
+  { SDLK_ESCAPE, IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
+  { 0, 0, 0 }
 };
 
 static SDL_Surface *screen;
+static void *menubg_img;
 
 static int change_video_mode(int w, int h)
 {
@@ -78,6 +79,10 @@ void plat_init(void)
   }
   SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
 
+  menubg_img = malloc(640 * 512 * 2);
+  if (menubg_img == NULL)
+    goto fail;
+
   in_sdl_init(in_sdl_defbinds);
   in_probe();
   pl_rearmed_cbs.only_16bpp = 1;
@@ -90,6 +95,8 @@ fail:
 
 void plat_finish(void)
 {
+  free(menubg_img);
+  menubg_img = NULL;
   SDL_Quit();
 }
 
@@ -103,6 +110,7 @@ void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
   return screen->pixels;
 }
 
+/* XXX: missing SDL_LockSurface() */
 void *plat_gvideo_flip(void)
 {
   SDL_Flip(screen);
@@ -115,6 +123,10 @@ void plat_gvideo_close(void)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
+  /* surface will be lost, must adjust pl_vout_buf for menu bg */
+  memcpy(menubg_img, screen->pixels, screen->w * screen->h * 2);
+  pl_vout_buf = menubg_img;
+
   change_video_mode(g_menuscreen_w, g_menuscreen_h);
 }
 

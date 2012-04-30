@@ -61,6 +61,7 @@ enum {
 	IN_CFG_KEY_NAMES,
 	IN_CFG_ABS_DEAD_ZONE,	/* dead zone for analog-digital mapping */
 	IN_CFG_ABS_AXIS_COUNT,	/* number of abs axes (ro) */
+	IN_CFG_DEFAULT_DEV,
 };
 
 enum {

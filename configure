@@ -313,4 +313,7 @@ if [ "$drc_cache_base" = "yes" ]; then
   echo "DRC_CACHE_BASE = 1" >> $config_mak
 fi
 
+# use pandora's skin (for now)
+test -e skin || ln -s frontend/pandora/skin skin
+
 # vim:shiftwidth=2:expandtab

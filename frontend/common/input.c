@@ -548,8 +548,10 @@ static int in_set_blocking(int is_blocking)
 
 int in_set_config(int dev_id, int what, const void *val, int size)
 {
+	const char * const *names;
 	const int *ival = val;
 	in_dev_t *dev;
+	int count;
 
 	if (what == IN_CFG_BLOCKING)
 		return in_set_blocking(*ival);
@@ -558,9 +560,10 @@ int in_set_config(int dev_id, int what, const void *val, int size)
 	if (dev == NULL)
 		return -1;
 
-	if (what == IN_CFG_KEY_NAMES) {
-		const char * const *names = val;
-		int count = size / sizeof(names[0]);
+	switch (what) {
+	case IN_CFG_KEY_NAMES:
+		names = val;
+		count = size / sizeof(names[0]);
 
 		if (count < dev->key_count) {
 			lprintf("input: set_key_names: not enough keys\n");
@@ -569,6 +572,12 @@ int in_set_config(int dev_id, int what, const void *val, int size)
 
 		dev->key_names = names;
 		return 0;
+	case IN_CFG_DEFAULT_DEV:
+		/* just set last used dev, for now */
+		menu_last_used_dev = dev_id;
+		return 0;
+	default:
+		break;
 	}
 
 	if (dev->probed)

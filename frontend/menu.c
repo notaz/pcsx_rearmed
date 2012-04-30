@@ -1698,11 +1698,14 @@ static void menu_bios_warn(void)
 		"The file is usually named SCPH1001.BIN,\n"
 		"but other not compressed files can be\n"
 		"used too.\n\n"
-		"Press (B) or (X) to continue";
+		"Press %s or %s to continue";
+	char tmp_msg[sizeof(msg) + 64];
 
+	snprintf(tmp_msg, sizeof(tmp_msg), msg,
+		in_get_key_name(-1, -PBTN_MOK), in_get_key_name(-1, -PBTN_MBACK));
 	while (1)
 	{
-		draw_menu_message(msg, NULL);
+		draw_menu_message(tmp_msg, NULL);
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		if (inp & (PBTN_MBACK|PBTN_MOK))

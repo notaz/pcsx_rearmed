@@ -17,6 +17,7 @@
 #include <errno.h>
 
 #include "common/input.h"
+#include "linux/in_evdev.h"
 #include "plugin_lib.h"
 #include "plat.h"
 #include "main.h"
@@ -66,10 +67,14 @@ static const struct in_default_bind in_evdev_defbinds[] = {
 
 int plat_pandora_init(void)
 {
+	int gpiokeys_id;
+
 	in_evdev_init(in_evdev_defbinds);
 	in_probe();
-	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
+	gpiokeys_id = in_name_to_id("evdev:gpio-keys");
+	in_set_config(gpiokeys_id, IN_CFG_KEY_NAMES,
 		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
+	in_set_config(gpiokeys_id, IN_CFG_DEFAULT_DEV, NULL, 0);
 	in_adev[0] = in_name_to_id("evdev:nub0");
 	in_adev[1] = in_name_to_id("evdev:nub1");
 
