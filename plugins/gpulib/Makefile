@@ -23,15 +23,28 @@ OBJS += cspace.o
 endif
 CFLAGS += $(PLUGIN_CFLAGS)
 
+# need to compile to another dir, same files are compiled
+# into main binary without PIC
+OBJS2 = $(patsubst %.o,obj/%.o,$(OBJS)) 
+
 TARGET = gpulib.$(EXT)
 
-all: ../../config.mak $(TARGET)
+all: ../../config.mak obj $(TARGET)
 
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJS2)
 	$(AR) crs $@ $^
 
+obj/%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $^
+
+obj/%.o: %.s
+	$(AS) $(ASFLAGS) -o $@ $^
+
 clean:
-	$(RM) $(TARGET) $(OBJS)
+	$(RM) $(TARGET) $(OBJS2)
+
+obj:
+	mkdir -p $@
 
 ../../config.mak:
 	@echo "Please run ./configure before running make!"

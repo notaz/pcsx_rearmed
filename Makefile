@@ -11,7 +11,7 @@ endif
 #DRC_DBG = 1
 #PCNT = 1
 
-all: config.mak $(TARGET)
+all: config.mak $(TARGET) plugins_
 
 ifneq ($(wildcard config.mak),)
 config.mak: ./configure
@@ -118,14 +118,14 @@ OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
 else
 OBJS += frontend/menu.o frontend/linux/in_evdev.o
-OBJS += frontend/common/input.o frontend/linux/xenv.o
+OBJS += frontend/common/input.o
 
 ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/plat_sdl.o frontend/common/in_sdl.o
 endif
 ifeq "$(PLATFORM)" "pandora"
 OBJS += frontend/linux/fbdev.o
-OBJS += frontend/plat_omap.o
+OBJS += frontend/plat_omap.o frontend/linux/xenv.o
 OBJS += frontend/plat_pandora.o
 endif
 ifeq "$(PLATFORM)" "caanoo"
@@ -163,29 +163,43 @@ frontend/revision.h: FORCE
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
 
-clean: $(PLAT_CLEAN)
+clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map
 
 ifneq ($(PLUGINS),)
+plugins_: $(PLUGINS)
+
 $(PLUGINS):
-	make -C plugins/gpulib/ clean
 	make -C $(dir $@)
 
 clean_plugins:
 	make -C plugins/gpulib/ clean
 	for dir in $(PLUGINS) ; do \
 		$(MAKE) -C $$(dirname $$dir) clean; done
+else
+plugins_:
+clean_plugins:
 endif
 
 # ----------- release -----------
 
 VER ?= $(shell git describe master)
 
+ifeq "$(PLATFORM)" "generic"
+OUT = pcsx_rearmed_$(VER)
+
+rel: pcsx $(PLUGINS) \
+		frontend/pandora/skin readme.txt COPYING
+	rm -rf $(OUT)
+	mkdir -p $(OUT)/plugins
+	mkdir -p $(OUT)/bios
+	cp -r $^ $(OUT)/
+	mv $(OUT)/*.so* $(OUT)/plugins/
+	zip -9 -r $(OUT).zip $(OUT)
+endif
+
 ifeq "$(PLATFORM)" "pandora"
 PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
-
-PLUGINS ?= plugins/spunull/spunull.so plugins/gpu-gles/gpu_gles.so \
-	plugins/gpu_unai/gpu_unai.so plugins/dfxvideo/gpu_peops.so
 
 rel: pcsx $(PLUGINS) \
 		frontend/pandora/pcsx.sh frontend/pandora/pcsx.pxml.templ frontend/pandora/pcsx.png \
@@ -207,9 +221,6 @@ PLAT_CLEAN = caanoo_clean
 
 caanoo_clean:
 	$(RM) frontend/320240/pollux_set
-
-PLUGINS ?= plugins/spunull/spunull.so plugins/gpu_unai/gpu_unai.so \
-	plugins/gpu-gles/gpu_gles.so
 
 rel: pcsx $(PLUGINS) \
 		frontend/320240/caanoo.gpe frontend/320240/pcsx26.png \

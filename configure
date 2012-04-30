@@ -28,6 +28,8 @@ platform_list="generic pandora maemo caanoo"
 platform="generic"
 sound_driver_list="oss alsa none"
 sound_driver="alsa"
+plugins="plugins/spunull/spunull.so \
+plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
 ram_fixed="no"
 drc_cache_base="no"
 have_armv6=""
@@ -219,6 +221,25 @@ EOF
   fi
 fi
 
+# check for GLES headers
+cat > $TMPC <<EOF
+#include <GLES/gl.h>
+#include <GLES/glext.h>
+#include <EGL/egl.h>
+void *test(void) {
+  return eglGetDisplay( (EGLNativeDisplayType)0 );
+}
+EOF
+if compile_object; then
+  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+fi
+
+# short plugin list for display
+for p in $plugins; do
+  p1=`basename $p`
+  plugins_short="$p1 $plugins_short"
+done
+
 # set things that failed to autodetect to "no"
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
@@ -227,6 +248,7 @@ test "x$have_arm_neon" != "x" || have_arm_neon="no"
 echo "architecture        $ARCH"
 echo "platform            $platform"
 echo "sound driver        $sound_driver"
+echo "plugins             $plugins_short"
 echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
 echo "linker flags        $LDFLAGS"
@@ -263,6 +285,15 @@ none)
   echo "USE_NO_SOUND = 1" >> $config_mak
   ;;
 esac
+if [ "$ARCH" = "arm" ]; then
+  echo "PLUGINS = $plugins" >> $config_mak
+else
+  echo -n "PLUGINS =" >> $config_mak
+  for p in $plugins; do
+    echo -n " ${p}.${ARCH}" >> $config_mak
+  done
+  echo >> $config_mak
+fi
 if [ "$have_armv6" = "yes" ]; then
   echo "HAVE_ARMV6 = 1" >> $config_mak
 fi

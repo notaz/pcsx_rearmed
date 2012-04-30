@@ -1,12 +1,20 @@
-all: ../../config.mak spunull.so
-
 include ../../config.mak
 
-spunull.so: spunull.c
+ifneq "$(ARCH)" "arm"
+ EXT = .$(ARCH)
+endif
+TARGET = spunull.so$(EXT)
+WD = $(shell pwd)
+PLUGINDIR = $(shell basename $(WD))
+
+all: ../../config.mak $(TARGET)
+
+$(TARGET): spunull.c
 	$(CC) $(CFLAGS) -shared -fPIC -ggdb -O2 -o $@ $^
+	ln -fs $(PLUGINDIR)/$(TARGET) ../
 
 clean:
-	$(RM) spunull.so
+	$(RM) $(TARGET)
 
 ../../config.mak:
 	@echo "Please run ./configure before running make!"

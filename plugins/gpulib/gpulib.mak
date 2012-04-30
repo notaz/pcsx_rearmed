@@ -25,6 +25,9 @@ endif
 CC_STANDLALONE = $(CC)
 CC_GPULIB = $(CC)
 
+WD = $(shell pwd)
+PLUGINDIR = $(shell basename $(WD))
+
 all: ../../config.mak $(TARGETS)
 
 ifdef BIN_STANDLALONE
@@ -33,6 +36,7 @@ CC_STANDLALONE = $(CXX)
 endif
 $(BIN_STANDLALONE)$(EXT): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
 	$(CC_STANDLALONE) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_STANDALONE)
+	ln -fs $(PLUGINDIR)/$@ ../
 endif
 
 ifdef BIN_GPULIB
@@ -41,6 +45,7 @@ CC_GPULIB = $(CXX)
 endif
 $(BIN_GPULIB)$(EXT): $(SRC) $(SRC_GPULIB) $(GPULIB_A)
 	$(CC_GPULIB) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_GPULIB)
+	ln -fs $(PLUGINDIR)/$@ ../
 endif
 
 $(GPULIB_A):

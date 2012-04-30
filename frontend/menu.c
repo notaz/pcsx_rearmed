@@ -489,6 +489,10 @@ fail:
 
 	menu_sync_config();
 
+	// caanoo old config compat hack
+	if (strcmp(Config.Gpu, "gpuPCSX4ALL.so") == 0)
+		strcpy(Config.Gpu, "gpu_unai.so");
+
 	// sync plugins
 	for (i = bios_sel = 0; bioses[i] != NULL; i++)
 		if (strcmp(Config.Bios, bioses[i]) == 0)

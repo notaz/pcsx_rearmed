@@ -131,7 +131,7 @@ static void set_default_paths(void)
 	strcpy(Config.Pad2, "builtin_pad");
 	strcpy(Config.Net, "Disabled");
 #if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX */
-	strcpy(Config.Gpu, "gpuPCSX4ALL.so");
+	strcpy(Config.Gpu, "gpu_unai.so");
 #endif
 
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
@@ -732,7 +732,7 @@ void *SysLoadLibrary(const char *lib) {
 	// convenience hack
 	if (strstr(lib, ".x86") == NULL) {
 		char name[MAXPATHLEN];
-		snprintf(name, sizeof(name), "%s.x86", lib);
+		snprintf(name, sizeof(name), "%s.x86_64", lib);
 		lib = name;
 	}
 #endif
