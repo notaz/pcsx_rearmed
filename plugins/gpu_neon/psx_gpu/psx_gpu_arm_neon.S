@@ -4091,14 +4091,11 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
                                                                                \
   vmov.u16 d128_0x7C1F, #0x7C00;                                               \
   vmov.u16 d128_0x03E0, #0x0300;                                               \
-  vmov.u16 d128_0x83E0, #0x8300;                                               \
   vmov.u16 d128_0x1C07, #0x1C00;                                               \
-  vmov.u16 d128_0x80E0, #0x8000;                                               \
+  vmov.u16 d128_0x00E0, #0x00E0;                                               \
   vorr.u16 d128_0x7C1F, #0x001F;                                               \
   vorr.u16 d128_0x03E0, #0x00E0;                                               \
-  vorr.u16 d128_0x83E0, #0x00E0;                                               \
   vorr.u16 d128_0x1C07, #0x0007;                                               \
-  vorr.u16 d128_0x80E0, #0x00E0;                                               \
                                                                                \
   vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
   ldr fb_ptr_next, [ pixel_ptr, #28 ];                                         \
@@ -4107,33 +4104,31 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
   vld1.u16 { fb_pixels }, [ fb_ptr_next ];                                     \
   blend_blocks_add_mask_set_##mask_evaluate();                                 \
   vshr.s16 pixels_fourth, pixels, #2;                                          \
+  vand.u16 pixels_rb, pixels_fourth, d128_0x1C07;                              \
                                                                                \
   blend_blocks_add_mask_copy_##mask_evaluate();                                \
-  vorr.u16 pixels, pixels, msb_mask;                                           \
-  vand.u16 pixels_rb, pixels_fourth, d128_0x1C07;                              \
-  vand.u16 fb_pixels_masked, fb_pixels, blend_mask;                            \
-  vand.u16 pixels_mg, pixels_fourth, d128_0x80E0;                              \
-  vand.u16 fb_pixels_rb, fb_pixels_masked, d128_0x7C1F;                        \
-  vand.u16 fb_pixels_g, fb_pixels_masked, d128_0x03E0;                         \
+  vand.u16 pixels_g, pixels_fourth, d128_0x00E0;                               \
+  vand.u16 fb_pixels_rb, fb_pixels, d128_0x7C1F;                               \
+  vand.u16 fb_pixels_g, fb_pixels, d128_0x03E0;                                \
   vadd.u16 fb_pixels_rb, fb_pixels_rb, pixels_rb;                              \
-  vadd.u16 fb_pixels_g, fb_pixels_g, pixels_mg;                                \
+  vadd.u16 fb_pixels_g, fb_pixels_g, pixels_g;                                 \
   vmin.u8 fb_pixels_rb, fb_pixels_rb, d128_0x7C1F;                             \
-  vmin.u16 fb_pixels_g, fb_pixels_g, d128_0x83E0;                              \
+  vmin.u16 fb_pixels_g, fb_pixels_g, d128_0x03E0;                              \
                                                                                \
   subs num_blocks, num_blocks, #1;                                             \
   beq 1f;                                                                      \
                                                                                \
  0:                                                                            \
   mov fb_ptr, fb_ptr_next;                                                     \
-                                                                               \
   ldr fb_ptr_next, [ pixel_ptr, #28 ];                                         \
+                                                                               \
+  vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
+  vbif.u16 blend_pixels, pixels, blend_mask;                                   \
                                                                                \
   vld1.u32 { pixels }, [ pixel_ptr, :128 ], c_64;                              \
   vclt.s16 blend_mask, pixels, #0;                                             \
-                                                                               \
   vshr.s16 pixels_fourth, pixels, #2;                                          \
-  vorr.u16 pixels, pixels, msb_mask;                                           \
-  vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
+  vorr.u16 blend_pixels, blend_pixels, msb_mask;                               \
   vand.u16 pixels_rb, pixels_fourth, d128_0x1C07;                              \
                                                                                \
   vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
@@ -4146,24 +4141,25 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
                                                                                \
   vld1.u16 { fb_pixels }, [ fb_ptr_next ];                                     \
   blend_blocks_add_mask_set_##mask_evaluate();                                 \
-  vand.u16 fb_pixels_masked, fb_pixels, blend_mask;                            \
   blend_blocks_add_mask_copy_##mask_evaluate();                                \
-  vand.u16 pixels_mg, pixels_fourth, d128_0x80E0;                              \
-  vand.u16 fb_pixels_rb, fb_pixels_masked, d128_0x7C1F;                        \
+  vand.u16 pixels_g, pixels_fourth, d128_0x00E0;                               \
+  vand.u16 fb_pixels_rb, fb_pixels, d128_0x7C1F;                               \
   vst1.u16 { blend_pixels }, [ fb_ptr ];                                       \
                                                                                \
  3:                                                                            \
-  vand.u16 fb_pixels_g, fb_pixels_masked, d128_0x03E0;                         \
+  vand.u16 fb_pixels_g, fb_pixels, d128_0x03E0;                                \
   vadd.u16 fb_pixels_rb, fb_pixels_rb, pixels_rb;                              \
-  vadd.u16 fb_pixels_g, fb_pixels_g, pixels_mg;                                \
+  vadd.u16 fb_pixels_g, fb_pixels_g, pixels_g;                                 \
   vmin.u8 fb_pixels_rb, fb_pixels_rb, d128_0x7C1F;                             \
-  vmin.u16 fb_pixels_g, fb_pixels_g, d128_0x83E0;                              \
+  vmin.u16 fb_pixels_g, fb_pixels_g, d128_0x03E0;                              \
                                                                                \
   subs num_blocks, num_blocks, #1;                                             \
   bne 0b;                                                                      \
                                                                                \
  1:                                                                            \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
+  vorr.u16 blend_pixels, blend_pixels, msb_mask;                               \
+  vbif.u16 blend_pixels, pixels, blend_mask;                                   \
   vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
   vst1.u16 { blend_pixels }, [ fb_ptr_next ];                                  \
                                                                                \
@@ -4171,14 +4167,14 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
                                                                                \
  2:                                                                            \
   vst1.u16 { blend_pixels }, [ fb_ptr ];                                       \
-  vand.u16 pixels_mg, pixels_fourth, d128_0x80E0;                              \
+  vand.u16 pixels_g, pixels_fourth, d128_0x00E0;                               \
                                                                                \
   vld1.u16 { fb_pixels }, [ fb_ptr_next ];                                     \
   blend_blocks_add_mask_set_##mask_evaluate();                                 \
-  vand.u16 fb_pixels_masked, fb_pixels, blend_mask;                            \
   blend_blocks_add_mask_copy_##mask_evaluate();                                \
-  vand.u16 fb_pixels_rb, fb_pixels_masked, d128_0x7C1F;                        \
+  vand.u16 fb_pixels_rb, fb_pixels, d128_0x7C1F;                               \
   bal 3b                                                                       \
+
 
 
 #define blend_blocks_add_fourth_untextured_builder(mask_evaluate)              \
@@ -4197,12 +4193,10 @@ function(blend_blocks_untextured_add_fourth_##mask_evaluate)                   \
                                                                                \
   vmov.u16 d128_0x7C1F, #0x7C00;                                               \
   vmov.u16 d128_0x03E0, #0x0300;                                               \
-  vmov.u16 d128_0x83E0, #0x8300;                                               \
   vmov.u16 d128_0x1C07, #0x1C00;                                               \
   vmov.u16 d128_0x00E0, #0x00E0;                                               \
   vorr.u16 d128_0x7C1F, #0x001F;                                               \
   vorr.u16 d128_0x03E0, #0x00E0;                                               \
-  vorr.u16 d128_0x83E0, #0x00E0;                                               \
   vorr.u16 d128_0x1C07, #0x0007;                                               \
                                                                                \
   vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
@@ -4227,7 +4221,6 @@ function(blend_blocks_untextured_add_fourth_##mask_evaluate)                   \
                                                                                \
  0:                                                                            \
   mov fb_ptr, fb_ptr_next;                                                     \
-                                                                               \
   ldr fb_ptr_next, [ pixel_ptr, #28 ];                                         \
                                                                                \
   vld1.u32 { pixels }, [ pixel_ptr, :128 ], c_64;                              \
@@ -4385,7 +4378,7 @@ function(render_block_fill_body)
  0:  
   vst1.u32 { colors_a, colors_b }, [ vram_ptr, :256 ]!
 
-  subs num_width, num_width, #2
+  subs num_width, num_width, #16
   bne 0b
 
   add vram_ptr, vram_ptr, pitch
