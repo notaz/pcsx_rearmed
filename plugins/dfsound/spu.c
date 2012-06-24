@@ -399,9 +399,9 @@ INLINE int iGetInterpolationVal(int ch, int spos)
 
 static void do_irq(void)
 {
- if(!(spuStat & STAT_IRQ))
+ //if(!(spuStat & STAT_IRQ))
  {
-  spuStat |= STAT_IRQ;
+  spuStat |= STAT_IRQ;                                 // asserted status?
   if(irqCallback) irqCallback();
  }
 }
