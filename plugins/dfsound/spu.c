@@ -24,7 +24,6 @@
 
 #include "externals.h"
 #include "registers.h"
-#include "cfg.h"
 #include "dsoundoss.h"
 
 #ifdef ENABLE_NLS
@@ -80,7 +79,6 @@ unsigned char * pMixIrq=0;
 
 int             iVolume=768; // 1024 is 1.0
 int             iXAPitch=1;
-int             iUseTimer=2;
 int             iSPUIRQWait=1;
 int             iDebugMode=0;
 int             iRecordMode=0;
@@ -100,12 +98,8 @@ unsigned short  spuCtrl=0;                             // some vars to store psx
 unsigned short  spuStat=0;
 unsigned short  spuIrq=0;
 unsigned long   spuAddr=0xffffffff;                    // address into spu mem
-int             bEndThread=0;                          // thread handlers
-int             bThreadEnded=0;
 int             bSpuInit=0;
 int             bSPUIsOpen=0;
-
-static pthread_t thread = (pthread_t)-1;               // thread id (linux)
 
 unsigned int dwNewChannel=0;                           // flags for faster testing, if new channel starts
 unsigned int dwChannelOn=0;                            // not silent channels
@@ -668,27 +662,18 @@ static void mix_chan_rvb(int start, int count, int lv, int rv)
 
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
-// here is the main job handler... thread, timer or direct func call
+// here is the main job handler...
 // basically the whole sound processing is done in this fat func!
 ////////////////////////////////////////////////////////////////////////
 
-// 5 ms waiting phase, if buffer is full and no new sound has to get started
-// .. can be made smaller (smallest val: 1 ms), but bigger waits give
-// better performance
-
-#define PAUSE_W 5
-#define PAUSE_L 5000
-
-////////////////////////////////////////////////////////////////////////
-
-static void *MAINThread(void *arg)
+static int do_samples(void)
 {
  int volmult = iVolume;
  int ns,ns_from,ns_to;
  int ch,d,silentch;
  int bIRQReturn=0;
 
- while(!bEndThread)                                    // until we are shutting down
+ while(1)
   {
    // ok, at the beginning we are looking if there is
    // enuff free place in the dsound/oss buffer to
@@ -704,15 +689,10 @@ static void *MAINThread(void *arg)
     }
    else iSecureStart=0;                                // 0: no new channel should start
 
-   while(!iSecureStart && !bEndThread &&               // no new start? no thread end?
+   if(!iSecureStart &&                                 // no new start?
          (SoundGetBytesBuffered()>TESTSIZE))           // and still enuff data in sound buffer?
     {
-     iSecureStart=0;                                   // reset secure
-
-     if(iUseTimer) return 0;                           // linux no-thread mode? bye
-     usleep(PAUSE_L);                                  // else sleep for x ms (linux)
-
-     if(dwNewChannel) iSecureStart=1;                  // if a new channel kicks in (or, of course, sound buffer runs low), we will leave the loop
+     return 0;
     }
 
    //--------------------------------------------------// continue from irq handling in timer mode? 
@@ -797,19 +777,7 @@ static void *MAINThread(void *arg)
      {
       iSpuAsyncWait=1;
       bIRQReturn=0;
-      if(iUseTimer!=2)
-       { 
-        DWORD dwWatchTime=timeGetTime_spu()+2500;
-
-        while(iSpuAsyncWait && !bEndThread && 
-              timeGetTime_spu()<dwWatchTime)
-            usleep(1000L);
-	continue;
-       }
-      else
-       {
-        return 0;
-       }
+      return 0;
      }
 
 
@@ -894,10 +862,6 @@ static void *MAINThread(void *arg)
    }
  }
 
- // end of big main loop...
-
- bThreadEnded = 1;
-
  return 0;
 }
 
@@ -911,21 +875,18 @@ void CALLBACK SPUasync(unsigned long cycle)
  if(iSpuAsyncWait)
   {
    iSpuAsyncWait++;
-   if(iSpuAsyncWait<=16/2) return;
+   if(iSpuAsyncWait<=16/FRAG_MSECS) return;
    iSpuAsyncWait=0;
   }
 
- if(iUseTimer==2)                                      // special mode, only used in Linux by this spu (or if you enable the experimental Windows mode)
-  {
-   if(!bSpuInit) return;                               // -> no init, no call
+ if(!bSpuInit) return;                               // -> no init, no call
 
-   MAINThread(0);                                      // -> linux high-compat mode
+ do_samples();
 
-   // abuse iSpuAsyncWait mechanism to reduce calls to above function
-   // to make it do larger chunks
-   // note: doing it less often than once per frame causes skips
-   iSpuAsyncWait=1;
-  }
+ // abuse iSpuAsyncWait mechanism to reduce calls to above function
+ // to make it do larger chunks
+ // note: doing it less often than once per frame causes skips
+ iSpuAsyncWait=1;
 }
 
 // SPU UPDATE... new epsxe func
@@ -961,37 +922,12 @@ int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes)
  return FeedCDDA((unsigned char *)pcm, nbytes);
 }
 
-// SETUPTIMER: init of certain buffers and threads/timers
-void SetupTimer(void)
+// to be called after state load
+void ClearWorkingState(void)
 {
  memset(SSumLR,0,sizeof(SSumLR));                      // init some mixing buffers
- memset(iFMod,0,NSSIZE*sizeof(int));
+ memset(iFMod,0,sizeof(iFMod));     
  pS=(short *)pSpuBuffer;                               // setup soundbuffer pointer
-
- bEndThread=0;                                         // init thread vars
- bThreadEnded=0; 
- bSpuInit=1;                                           // flag: we are inited
-
- if(!iUseTimer)                                        // linux: use thread
-  {
-   pthread_create(&thread, NULL, MAINThread, NULL);
-  }
-}
-
-// REMOVETIMER: kill threads/timers
-void RemoveTimer(void)
-{
- bEndThread=1;                                         // raise flag to end thread
-
- if(!iUseTimer)                                        // linux tread?
-  {
-   int i=0;
-   while(!bThreadEnded && i<2000) {usleep(1000L);i++;} // -> wait until thread has ended
-   if(thread!=(pthread_t)-1) {pthread_cancel(thread);thread=(pthread_t)-1;}  // -> cancel thread anyway
-  }
-
- bThreadEnded=0;                                       // no more spu is running
- bSpuInit=0;
 }
 
 // SETUPSTREAMS: init most of the spu buffers
@@ -1031,7 +967,11 @@ void SetupStreams(void)
    s_chan[i].pCurr=spuMemC;
   }
 
-  pMixIrq=spuMemC;                                     // enable decoded buffer irqs by setting the address
+ pMixIrq=spuMemC;                                      // enable decoded buffer irqs by setting the address
+
+ ClearWorkingState();
+
+ bSpuInit=1;                                           // flag: we are inited
 }
 
 // REMOVESTREAMS: free most buffer
@@ -1058,8 +998,6 @@ long CALLBACK SPUinit(void)
 
  spuIrq = 0;
  spuAddr = 0xffffffff;
- bEndThread = 0;
- bThreadEnded = 0;
  spuMemC = (unsigned char *)spuMem;
  pMixIrq = 0;
  memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
@@ -1067,7 +1005,6 @@ long CALLBACK SPUinit(void)
  //iSPUIRQWait = 0;
  lastch = -1;
 
- //ReadConfigSPU();                                      // read user stuff
  SetupStreams();                                       // prepare streaming
 
  return 0;
@@ -1079,7 +1016,6 @@ long CALLBACK SPUopen(void)
  if (bSPUIsOpen) return 0;                             // security for some stupid main emus
 
  SetupSound();                                         // setup sound (before init!)
- SetupTimer();                                         // timer for feeding data
 
  bSPUIsOpen = 1;
 
@@ -1093,7 +1029,6 @@ long CALLBACK SPUclose(void)
 
  bSPUIsOpen = 0;                                       // no more open
 
- RemoveTimer();                                        // no more feeding
  RemoveSound();                                        // no more sound handling
 
  return 0;
@@ -1104,6 +1039,7 @@ long CALLBACK SPUshutdown(void)
 {
  SPUclose();
  RemoveStreams();                                      // no more streaming
+ bSpuInit=0;
 
  return 0;
 }

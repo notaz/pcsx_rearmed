@@ -214,8 +214,6 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
    if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
                                                        // save mode:
-   RemoveTimer();                                      // stop timer
-
    memcpy(pF->cSPURam,spuMem,0x80000);                 // copy common infos
    memcpy(pF->cSPUPort,regArea,0x200);
 
@@ -246,15 +244,11 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
       pFO->s_chan[i].pLoop-=(unsigned long)spuMemC;
     }
 
-   SetupTimer();                                       // sound processing on again
-
    return 1;
    //--------------------------------------------------//
   }
                                                        
  if(ulFreezeMode!=0) return 0;                         // bad mode? bye
-
- RemoveTimer();                                        // we stop processing while doing the save!
 
  memcpy(spuMem,pF->cSPURam,0x80000);                   // get ram
  memcpy(regArea,pF->cSPUPort,0x200);
@@ -286,7 +280,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
  // fix to prevent new interpolations from crashing
  for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
 
- SetupTimer();                                         // start sound processing again
+ ClearWorkingState();
 
  return 1;
 }

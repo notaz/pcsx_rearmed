@@ -19,9 +19,6 @@
 #include "../plugins/dfinput/main.h"
 #include "maemo_common.h"
 
-// sound plugin
-extern int iUseTimer;
-
 int g_opts = OPT_SHOWFPS;
 int g_maemo_opts;
 char file_name[MAXPATHLEN];
@@ -81,7 +78,6 @@ int maemo_main(int argc, char **argv)
 		}
 		else if (!strcmp(argv[i],"-fullscreen"))		g_maemo_opts |= 2;
 		else if (!strcmp(argv[i],"-accel"))				g_maemo_opts |= 4;
-		else if (!strcmp(argv[i],"-sputhreaded"))		iUseTimer=1;
 		else if (!strcmp(argv[i],"-nosound"))		strcpy(Config.Spu, "spunull.so");
 		else if (!strcmp(argv[i], "-bdir"))			sprintf(Config.BiosDir, "%s", argv[++i]);
 		else if (!strcmp(argv[i], "-bios"))			sprintf(Config.Bios, "%s", argv[++i]);

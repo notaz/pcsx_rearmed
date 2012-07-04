@@ -38,7 +38,6 @@ extern int iUseReverb;
 extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iSPUIRQWait;
-extern int iUseTimer;
 extern int iVolume;
 
 int ready_to_go;
@@ -159,7 +158,6 @@ void emu_set_default_config(void)
 	iUseInterpolation = 1;
 	iXAPitch = 0;
 	iSPUIRQWait = 1;
-	iUseTimer = 2;
 	iVolume = 768;
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	iUseReverb = 0;

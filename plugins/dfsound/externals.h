@@ -203,7 +203,6 @@ extern unsigned char * pSpuBuffer;
 
 extern int        iVolume;
 extern int        iXAPitch;
-extern int        iUseTimer;
 extern int        iSPUIRQWait;
 extern int        iDebugMode;
 extern int        iRecordMode;
@@ -221,8 +220,6 @@ extern unsigned short spuCtrl;
 extern unsigned short spuStat;
 extern unsigned short spuIrq;
 extern unsigned long  spuAddr;
-extern int      bEndThread; 
-extern int      bThreadEnded;
 extern int      bSpuInit;
 extern unsigned int dwNewChannel;
 extern unsigned int dwChannelOn;
