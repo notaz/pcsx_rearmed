@@ -303,7 +303,7 @@ unsigned long SoundGetBytesBuffered (void)
      int playing = 0;
 
      if ((device.mainloop == NULL) || (device.api == NULL) || ( device.context == NULL) || (device.stream == NULL))
-     	  return SOUNDSIZE;
+     	  return 1;
 
      pa_threaded_mainloop_lock (device.mainloop);
      free_space = pa_stream_writable_size (device.stream);
@@ -315,7 +315,7 @@ unsigned long SoundGetBytesBuffered (void)
      {
 	  // Don't buffer anymore, just play
 	  //fprintf (stderr, "Not buffering.\n");
-     	  return SOUNDSIZE;
+     	  return 1;
      }
      else 
      {

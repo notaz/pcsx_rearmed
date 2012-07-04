@@ -124,7 +124,6 @@ short * pS;
 
 int lastch=-1;             // last channel processed on spu irq in timer mode
 static int lastns=0;       // last ns pos
-static int iSecureStart=0; // secure start counter
 
 #define CDDA_BUFFER_SIZE (16384 * sizeof(uint32_t)) // must be power of 2
 
@@ -682,15 +681,7 @@ static int do_samples(void)
    // until enuff free place is available/a new channel gets
    // started
 
-   if(dwNewChannel)                                    // new channel should start immedately?
-    {                                                  // (at least one bit 0 ... MAXCHANNEL is set?)
-     iSecureStart++;                                   // -> set iSecure
-     if(iSecureStart>5) iSecureStart=0;                //    (if it is set 5 times - that means on 5 tries a new samples has been started - in a row, we will reset it, to give the sound update a chance)
-    }
-   else iSecureStart=0;                                // 0: no new channel should start
-
-   if(!iSecureStart &&                                 // no new start?
-         (SoundGetBytesBuffered()>TESTSIZE))           // and still enuff data in sound buffer?
+   if(!dwNewChannel && SoundGetBytesBuffered())        // still enuff data in sound buffer?
     {
      return 0;
     }
@@ -872,6 +863,8 @@ static int do_samples(void)
 
 void CALLBACK SPUasync(unsigned long cycle)
 {
+ if(!bSpuInit) return;                               // -> no init, no call
+
  if(iSpuAsyncWait)
   {
    iSpuAsyncWait++;
@@ -879,14 +872,7 @@ void CALLBACK SPUasync(unsigned long cycle)
    iSpuAsyncWait=0;
   }
 
- if(!bSpuInit) return;                               // -> no init, no call
-
  do_samples();
-
- // abuse iSpuAsyncWait mechanism to reduce calls to above function
- // to make it do larger chunks
- // note: doing it less often than once per frame causes skips
- iSpuAsyncWait=1;
 }
 
 // SPU UPDATE... new epsxe func

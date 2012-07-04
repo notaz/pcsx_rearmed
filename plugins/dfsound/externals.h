@@ -35,12 +35,6 @@
 // spu defines
 ////////////////////////////////////////////////////////////////////////
 
-// sound buffer sizes
-// 400 ms complete sound buffer
-#define SOUNDSIZE   70560
-// 137 ms test buffer... if less than that is buffered, a new upload will happen
-#define TESTSIZE    24192
-
 // num of channels
 #define MAXCHAN     24
 

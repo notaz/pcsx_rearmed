@@ -129,13 +129,13 @@ unsigned long SoundGetBytesBuffered(void)
  audio_buf_info info;
  unsigned long l;
 
- if(oss_audio_fd == -1) return SOUNDSIZE;
+ if(oss_audio_fd == -1) return 1;
  if(ioctl(oss_audio_fd,SNDCTL_DSP_GETOSPACE,&info)==-1)
   l=0;
  else
   {
    if(info.fragments<(info.fragstotal>>1))             // can we write in at least the half of fragments?
-        l=SOUNDSIZE;                                   // -> no? wait
+        l=1;                                           // -> no? wait
    else l=0;                                           // -> else go on
   }
 
