@@ -157,7 +157,7 @@ static void in_sdl_probe(void)
 {
 	keybits_t *keystate;
 
-	keystate = calloc(SDLK_LAST / KEYBITS_WORD_BITS + 1, 1);
+	keystate = calloc(SDLK_LAST / KEYBITS_WORD_BITS + 1, sizeof(keybits_t));
 	if (keystate == NULL) {
 		fprintf(stderr, "in_sdl: OOM\n");
 		return;
