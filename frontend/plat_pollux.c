@@ -463,7 +463,7 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 }
 
 /* not really used, we do raw_flip */
-void plat_gvideo_open(void)
+void plat_gvideo_open(int is_pal)
 {
 }
 

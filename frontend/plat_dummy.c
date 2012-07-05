@@ -23,7 +23,7 @@ void plat_video_menu_leave(void)
 {
 }
 
-void plat_gvideo_open(void)
+void plat_gvideo_open(int is_pal)
 {
 }
 

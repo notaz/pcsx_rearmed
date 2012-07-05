@@ -4,6 +4,7 @@ void menu_loop(void);
 void menu_finish(void);
 
 void menu_notify_mode_change(int w, int h, int bpp);
+void menu_set_filter_list(void *filters);
 
 enum opts {
 	OPT_SHOWFPS = 1 << 0,
@@ -15,3 +16,4 @@ enum opts {
 
 extern int g_opts;
 extern int soft_scaling, analog_deadzone;
+extern int filter;

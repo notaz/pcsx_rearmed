@@ -39,7 +39,8 @@ void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp;
 static int vsync_cnt;
-static int frame_interval, frame_interval1024, vsync_usec_time;
+static int is_pal, frame_interval, frame_interval1024;
+static int vsync_usec_time;
 
 
 static __attribute__((noinline)) int get_cpu_ticks(void)
@@ -174,7 +175,7 @@ static int pl_vout_open(void)
 	pl_vout_h--;
 	pl_vout_buf = pl_vout_set_mode(pl_vout_w, h, pl_vout_bpp);
 
-	plat_gvideo_open();
+	plat_gvideo_open(is_pal);
 
 	gettimeofday(&now, 0);
 	vsync_usec_time = now.tv_usec;
@@ -364,12 +365,13 @@ void pl_frame_limit(void)
 	pcnt_start(PCNT_ALL);
 }
 
-void pl_timing_prepare(int is_pal)
+void pl_timing_prepare(int is_pal_)
 {
 	pl_rearmed_cbs.fskip_advice = 0;
 	pl_rearmed_cbs.flips_per_sec = 0;
 	pl_rearmed_cbs.cpu_usage = 0;
 
+	is_pal = is_pal_;
 	frame_interval = is_pal ? 20000 : 16667;
 	frame_interval1024 = is_pal ? 20000*1024 : 17066667;
 

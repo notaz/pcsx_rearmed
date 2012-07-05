@@ -84,7 +84,7 @@ enum {
 };
 
 static int last_psx_w, last_psx_h, last_psx_bpp;
-static int scaling, filter, cpu_clock, cpu_clock_st, volume_boost, frameskip;
+static int scaling, cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
@@ -92,6 +92,7 @@ static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts;
 int soft_scaling, analog_deadzone; // for Caanoo
+int filter;
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -621,126 +622,6 @@ out:
 	free(gpu);
 }
 
-// ---------- XXX: pandora specific -----------
-
-static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
-static char **pnd_filter_list;
-
-static void apply_filter(int which)
-{
-	static int old = -1;
-	char buf[128];
-	int i;
-
-	if (pnd_filter_list == NULL || which == old)
-		return;
-
-	for (i = 0; i < which; i++)
-		if (pnd_filter_list[i] == NULL)
-			return;
-
-	if (pnd_filter_list[i] == NULL)
-		return;
-
-	snprintf(buf, sizeof(buf), "%s/op_videofir.sh %s", pnd_script_base, pnd_filter_list[i]);
-	system(buf);
-	old = which;
-}
-
-static void apply_lcdrate(int pal)
-{
-	static int old = -1;
-	char buf[128];
-
-	if (pal == old)
-		return;
-
-	snprintf(buf, sizeof(buf), "%s/op_lcdrate.sh %d",
-			pnd_script_base, pal ? 50 : 60);
-	system(buf);
-	old = pal;
-}
-
-static menu_entry e_menu_gfx_options[];
-
-static void pnd_menu_init(void)
-{
-	struct dirent *ent;
-	int i, count = 0;
-	char **mfilters;
-	char buff[64];
-	DIR *dir;
-
-	cpu_clock_st = cpu_clock = plat_cpu_clock_get();
-
-	dir = opendir("/etc/pandora/conf/dss_fir");
-	if (dir == NULL) {
-		perror("filter opendir");
-		return;
-	}
-
-	while (1) {
-		errno = 0;
-		ent = readdir(dir);
-		if (ent == NULL) {
-			if (errno != 0)
-				perror("readdir");
-			break;
-		}
-
-		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
-			continue;
-
-		count++;
-	}
-
-	if (count == 0)
-		return;
-
-	mfilters = calloc(count + 1, sizeof(mfilters[0]));
-	if (mfilters == NULL)
-		return;
-
-	rewinddir(dir);
-	for (i = 0; (ent = readdir(dir)); ) {
-		size_t len;
-
-		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
-			continue;
-
-		len = strlen(ent->d_name);
-
-		// skip pre-HF5 extra files
-		if (len >= 3 && strcmp(ent->d_name + len - 3, "_v3") == 0)
-			continue;
-		if (len >= 3 && strcmp(ent->d_name + len - 3, "_v5") == 0)
-			continue;
-
-		// have to cut "_up_h" for pre-HF5
-		if (len > 5 && strcmp(ent->d_name + len - 5, "_up_h") == 0)
-			len -= 5;
-
-		if (len > sizeof(buff) - 1)
-			continue;
-
-		strncpy(buff, ent->d_name, len);
-		buff[len] = 0;
-		mfilters[i] = strdup(buff);
-		if (mfilters[i] != NULL)
-			i++;
-	}
-	closedir(dir);
-
-	i = me_id2offset(e_menu_gfx_options, MA_OPT_FILTERING);
-	e_menu_gfx_options[i].data = (void *)mfilters;
-	pnd_filter_list = mfilters;
-}
-
-void menu_finish(void)
-{
-	plat_cpu_clock_apply(cpu_clock_st);
-}
-
 // -------------- key config --------------
 
 me_bind_action me_ctrl_actions[] =
@@ -1150,7 +1031,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 	scaling = SCALE_CUSTOM;
 
-	plat_gvideo_open();
+	plat_gvideo_open(Config.PsxType);
 
 	for (;;)
 	{
@@ -1186,7 +1067,7 @@ static int menu_loop_cscaler(int id, int keys)
 			if (g_layer_y + g_layer_h > 480)
 				g_layer_h = 480 - g_layer_y;
 			// resize the layer
-			plat_gvideo_open();
+			plat_gvideo_open(Config.PsxType);
 		}
 	}
 
@@ -1212,6 +1093,16 @@ static int menu_loop_gfx_options(int id, int keys)
 	me_loop(e_menu_gfx_options, &sel);
 
 	return 0;
+}
+
+// XXX
+void menu_set_filter_list(void *filters)
+{
+	int i;
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_FILTERING);
+	e_menu_gfx_options[i].data = filters;
+	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, filters != NULL);
 }
 
 // ------------ bios/plugins ------------
@@ -2245,8 +2136,9 @@ void menu_init(void)
 
 	strcpy(last_selected_fname, "/media");
 
+	cpu_clock_st = cpu_clock = plat_cpu_clock_get();
+
 	scan_bios_plugins();
-	pnd_menu_init();
 	menu_init_common();
 
 	menu_set_defconfig();
@@ -2387,8 +2279,6 @@ void menu_prepare_emu(void)
 		CDR_stop();
 
 	menu_sync_config();
-	apply_lcdrate(Config.PsxType);
-	apply_filter(filter);
 	if (cpu_clock > 0)
 		plat_cpu_clock_apply(cpu_clock);
 
@@ -2413,3 +2303,7 @@ void me_update_msg(const char *msg)
 	lprintf("msg: %s\n", menu_error_msg);
 }
 
+void menu_finish(void)
+{
+	plat_cpu_clock_apply(cpu_clock_st);
+}

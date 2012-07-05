@@ -100,7 +100,7 @@ void plat_finish(void)
   SDL_Quit();
 }
 
-void plat_gvideo_open(void)
+void plat_gvideo_open(int is_pal)
 {
 }
 

@@ -20,6 +20,7 @@
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "plat.h"
+#include "plat_omap.h"
 #include "menu.h"
 
 static struct vout_fbdev *main_fb, *layer_fb;
@@ -83,7 +84,7 @@ static int omap_enable_layer(int enabled)
 		g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 }
 
-void plat_gvideo_open(void)
+void plat_omap_gvideo_open(void)
 {
 	omap_enable_layer(1);
 
@@ -150,20 +151,12 @@ void plat_minimize(void)
 	omap_enable_layer(1);
 }
 
-void plat_step_volume(int is_up)
-{
-}
-
-void plat_trigger_vibrate(int is_strong)
-{
-}
-
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 {
 	return NULL;
 }
 
-void plat_init(void)
+void plat_omap_init(void)
 {
 	const char *main_fb_name, *layer_fb_name;
 	int fd, ret, w, h;
@@ -217,8 +210,6 @@ void plat_init(void)
 		goto fail0;
 	}
 
-	plat_pandora_init(); // XXX
-
 	return;
 
 fail0:
@@ -226,7 +217,7 @@ fail0:
 	exit(1);
 }
 
-void plat_finish(void)
+void plat_omap_finish(void)
 {
 	omap_enable_layer(0);
 	vout_fbdev_finish(layer_fb);
