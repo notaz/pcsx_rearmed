@@ -37,7 +37,6 @@ void StopDebugger();
 extern int iUseReverb;
 extern int iUseInterpolation;
 extern int iXAPitch;
-extern int iSPUIRQWait;
 extern int iVolume;
 
 int ready_to_go;
@@ -157,7 +156,6 @@ void emu_set_default_config(void)
 	iUseReverb = 2;
 	iUseInterpolation = 1;
 	iXAPitch = 0;
-	iSPUIRQWait = 1;
 	iVolume = 768;
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	iUseReverb = 0;

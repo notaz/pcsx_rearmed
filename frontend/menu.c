@@ -106,7 +106,6 @@ int filter;
 extern int iUseReverb;
 extern int iUseInterpolation;
 extern int iXAPitch;
-extern int iSPUIRQWait;
 extern int iVolume;
 
 static const char *bioses[24];
@@ -307,7 +306,6 @@ static const struct {
 	CE_INTVAL_V(iUseReverb, 3),
 	CE_INTVAL_V(iXAPitch, 3),
 	CE_INTVAL_V(iUseInterpolation, 3),
-	CE_INTVAL_V(iSPUIRQWait, 3),
 	CE_INTVAL(warned_about_bios),
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
@@ -1213,7 +1211,6 @@ static int menu_loop_plugin_gpu_peopsgl(int id, int keys)
 
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_volboost[]  = "Large values cause distortion";
-static const char h_spu_irq_wait[]  = "Wait for CPU (recommended set to ON)";
 
 static menu_entry e_menu_plugin_spu[] =
 {
@@ -1221,7 +1218,6 @@ static menu_entry e_menu_plugin_spu[] =
 	mee_onoff     ("Reverb",                    0, iUseReverb, 2),
 	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
 	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
-	mee_onoff_h   ("SPU IRQ Wait",              0, iSPUIRQWait, 1, h_spu_irq_wait),
 	mee_end,
 };
 

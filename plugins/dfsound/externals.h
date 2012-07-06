@@ -197,9 +197,6 @@ extern unsigned char * pSpuBuffer;
 
 extern int        iVolume;
 extern int        iXAPitch;
-extern int        iSPUIRQWait;
-extern int        iDebugMode;
-extern int        iRecordMode;
 extern int        iUseReverb;
 extern int        iUseInterpolation;
 // MISC

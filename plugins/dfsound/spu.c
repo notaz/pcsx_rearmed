@@ -81,9 +81,6 @@ unsigned char * pMixIrq=0;
 
 int             iVolume=768; // 1024 is 1.0
 int             iXAPitch=1;
-int             iSPUIRQWait=1;
-int             iDebugMode=0;
-int             iRecordMode=0;
 int             iUseReverb=2;
 int             iUseInterpolation=2;
 
@@ -535,7 +532,7 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
    {                                         \
     sbpos = 0;                               \
     d = decode_block(ch);                    \
-    if(d && iSPUIRQWait)                     \
+    if(d)                                    \
     {                                        \
      ret = ns;                               \
      goto out;                               \
@@ -744,7 +741,7 @@ static int do_samples(int forced_updates)
 
     // advance "stopped" channels that can cause irqs
     // (all chans are always playing on the real thing..)
-    if(!bIRQReturn && (spuCtrl&CTRL_IRQ))
+    if(spuCtrl&CTRL_IRQ)
      for(ch=0;ch<MAXCHAN;ch++)
       {
        if(!(silentch&(1<<ch))) continue;               // already handled
@@ -752,7 +749,7 @@ static int do_samples(int forced_updates)
        if(s_chan[ch].pCurr > pSpuIrq && s_chan[ch].pLoop > pSpuIrq)
         continue;
 
-       s_chan[ch].spos += s_chan[ch].sinc * NSSIZE;
+       s_chan[ch].spos += s_chan[ch].sinc * (ns_to - ns_from);
        while(s_chan[ch].spos >= 28 * 0x10000)
         {
          unsigned char *start = s_chan[ch].pCurr;
@@ -771,7 +768,7 @@ static int do_samples(int forced_updates)
         }
       }
 
-    if(bIRQReturn && iSPUIRQWait)                      // special return for "spu irq - wait for cpu action"
+    if(bIRQReturn)                                     // special return for "spu irq - wait for cpu action"
       return 0;
 
 
@@ -1001,7 +998,6 @@ long CALLBACK SPUinit(void)
  pMixIrq = 0;
  memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
  pSpuIrq = 0;
- //iSPUIRQWait = 0;
  lastch = -1;
 
  SetupStreams();                                       // prepare streaming
