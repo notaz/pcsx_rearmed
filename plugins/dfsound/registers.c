@@ -180,7 +180,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        break;
      //------------------------------------------------//
     }
-   iSpuAsyncWait=0;
    return;
   }
 
@@ -347,8 +346,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
 
  if ((r & ~0x3f) == H_Reverb)
   rvb.dirty = 1; // recalculate on next update
-
- iSpuAsyncWait=0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -359,8 +356,6 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
 {
  const unsigned long r=reg&0xfff;
         
- iSpuAsyncWait=0;
-
  if(r>=0x0c00 && r<0x0d80)
   {
    switch(r&0x0f)

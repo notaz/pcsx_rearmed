@@ -31,8 +31,6 @@ unsigned short CALLBACK SPUreadDMA(void)
  spuAddr+=2;
  if(spuAddr>0x7ffff) spuAddr=0;
 
- iSpuAsyncWait=0;
-
  return s;
 }
 
@@ -50,8 +48,6 @@ void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize)
    spuAddr+=2;                                         // inc spu addr
    if(spuAddr>0x7ffff) spuAddr=0;                      // wrap
   }
-
- iSpuAsyncWait=0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -72,8 +68,6 @@ void CALLBACK SPUwriteDMA(unsigned short val)
 
  spuAddr+=2;                                           // inc spu addr
  if(spuAddr>0x7ffff) spuAddr=0;                        // wrap
-
- iSpuAsyncWait=0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -83,15 +77,22 @@ void CALLBACK SPUwriteDMA(unsigned short val)
 void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize)
 {
  int i;
+ 
+ had_dma = 1;
+
+ if(spuAddr + iSize*2 < 0x80000)
+  {
+   memcpy(&spuMem[spuAddr>>1], pusPSXMem, iSize*2);
+   spuAddr += iSize*2;
+   return;
+  }
 
  for(i=0;i<iSize;i++)
   {
    spuMem[spuAddr>>1] = *pusPSXMem++;                  // spu addr got by writeregister
    spuAddr+=2;                                         // inc spu addr
-   if(spuAddr>0x7ffff) spuAddr=0;                      // wrap
+   spuAddr&=0x7ffff;                                   // wrap
   }
- 
- iSpuAsyncWait=0;
 }
 
 ////////////////////////////////////////////////////////////////////////

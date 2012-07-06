@@ -46,6 +46,8 @@
  } while (0)
 #endif
 
+#define PSXCLK	33868800	/* 33.8688 MHz */
+
 /*
 #if defined (USEMACOSX)
 static char * libraryName     = N_("Mac OS X Sound");
@@ -92,7 +94,6 @@ REVERBInfo      rvb;
 
 unsigned int    dwNoiseVal;                            // global noise generator
 unsigned int    dwNoiseCount;
-int             iSpuAsyncWait=0;
 
 unsigned short  spuCtrl=0;                             // some vars to store psx reg infos
 unsigned short  spuStat=0;
@@ -122,8 +123,10 @@ int iFMod[NSSIZE];
 int iCycle = 0;
 short * pS;
 
+int had_dma;
 int lastch=-1;             // last channel processed on spu irq in timer mode
 static int lastns=0;       // last ns pos
+static int cycles_since_update;
 
 #define CDDA_BUFFER_SIZE (16384 * sizeof(uint32_t)) // must be power of 2
 
@@ -665,7 +668,7 @@ static void mix_chan_rvb(int start, int count, int lv, int rv)
 // basically the whole sound processing is done in this fat func!
 ////////////////////////////////////////////////////////////////////////
 
-static int do_samples(void)
+static int do_samples(int forced_updates)
 {
  int volmult = iVolume;
  int ns,ns_from,ns_to;
@@ -681,10 +684,14 @@ static int do_samples(void)
    // until enuff free place is available/a new channel gets
    // started
 
-   if(!dwNewChannel && SoundGetBytesBuffered())        // still enuff data in sound buffer?
+   if(!forced_updates && SoundGetBytesBuffered())      // still enuff data in sound buffer?
     {
      return 0;
     }
+
+   cycles_since_update = 0;
+   if(forced_updates > 0)
+    forced_updates--;
 
    //--------------------------------------------------// continue from irq handling in timer mode? 
 
@@ -751,7 +758,7 @@ static int do_samples(void)
          unsigned char *start = s_chan[ch].pCurr;
 
          // no need for bIRQReturn since the channel is silent
-         iSpuAsyncWait |= skip_block(ch);
+         skip_block(ch);
          if(start == s_chan[ch].pCurr)
           {
            // looping on self
@@ -765,11 +772,7 @@ static int do_samples(void)
       }
 
     if(bIRQReturn && iSPUIRQWait)                      // special return for "spu irq - wait for cpu action"
-     {
-      iSpuAsyncWait=1;
-      bIRQReturn=0;
       return 0;
-     }
 
 
   //---------------------------------------------------//
@@ -863,16 +866,26 @@ static int do_samples(void)
 
 void CALLBACK SPUasync(unsigned long cycle)
 {
+ int forced_updates = 0;
+ int do_update = 0;
+
  if(!bSpuInit) return;                               // -> no init, no call
 
- if(iSpuAsyncWait)
+ cycles_since_update += cycle;
+
+ if(dwNewChannel || had_dma)
   {
-   iSpuAsyncWait++;
-   if(iSpuAsyncWait<=16/FRAG_MSECS) return;
-   iSpuAsyncWait=0;
+   forced_updates = 1;
+   do_update = 1;
+   had_dma = 0;
   }
 
- do_samples();
+ // once per frame should be fine (using a bit more because of BIAS)
+ if(cycles_since_update > PSXCLK/60 * 5/4)
+  do_update = 1;
+
+ if(do_update)
+  do_samples(forced_updates);
 }
 
 // SPU UPDATE... new epsxe func

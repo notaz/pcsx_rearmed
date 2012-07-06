@@ -38,7 +38,7 @@
 // num of channels
 #define MAXCHAN     24
 
-// ~ 1 ms of data
+// ~ FRAG_MSECS ms of data
 // note: must be even due to the way reverb works now
 #define FRAG_MSECS 2
 #define NSSIZE ((44100 * FRAG_MSECS / 1000 + 1) & ~1)
@@ -204,7 +204,7 @@ extern int        iUseReverb;
 extern int        iUseInterpolation;
 // MISC
 
-extern int iSpuAsyncWait;
+extern int had_dma;
 
 extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;
