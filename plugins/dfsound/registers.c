@@ -173,10 +173,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
      //------------------------------------------------//
      case 14:                                          // loop?
        s_chan[ch].pLoop=spuMemC+((val&~1)<<3);
-       if(s_chan[ch].bJump)
-        // real machine would be most likely still doing the last block and use new value for the jump;
-        // but we decode ahead a bit and already did the jump part, so compensate for that now.
-        s_chan[ch].pCurr=s_chan[ch].pLoop;
        break;
      //------------------------------------------------//
     }
@@ -428,7 +424,7 @@ static void SoundOn(int start,int end,unsigned short val)
      s_chan[ch].bStop=0;
      s_chan[ch].pCurr=spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
      s_chan[ch].pLoop=spuMemC+((regAreaGet(ch,14)&~1)<<3);
-     s_chan[ch].bJump=0;
+     s_chan[ch].prevflags=2;
 
      dwNewChannel|=(1<<ch);                            // bitfield for faster testing
      dwChannelOn|=1<<ch;

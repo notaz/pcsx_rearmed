@@ -134,11 +134,11 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->bOn = !!(dwChannelOn & (1<<ch));
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
- d->bIgnoreLoop = s->bJump;
  d->iActFreq = 1;
  d->iUsedFreq = 2;
  d->iLeftVolume = s->iLeftVolume;
- d->bIgnoreLoop = 0;
+ // this one is nasty but safe, save compat is important
+ d->bIgnoreLoop = (s->prevflags ^ 2) << 1;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
  d->s_1 = s->SB[27]; // yes it's reversed
@@ -179,7 +179,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->bRVBActive = s->bRVBActive;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
- d->bJump = s->bIgnoreLoop;
+ d->prevflags = (s->bIgnoreLoop >> 1) ^ 2;
  d->ADSRX.State = s->ADSRX.State;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;
@@ -232,11 +232,11 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
    pFO->spuAddr=spuAddr;
    if(pFO->spuAddr==0) pFO->spuAddr=0xbaadf00d;
 
-   dwChannelOn&=~dwPendingChanOff;
-   dwPendingChanOff=0;
-
    for(i=0;i<MAXCHAN;i++)
     {
+     if(!(s_chan[i].prevflags&2))
+      dwChannelOn&=~(1<<i);
+
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
      if(pFO->s_chan[i].pCurr)
       pFO->s_chan[i].pCurr-=(unsigned long)spuMemC;
@@ -257,7 +257,6 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
   SPUplayADPCMchannel(&pF->xaS);
 
  xapGlobal=0;
- dwPendingChanOff=0;
 
  if(!strcmp(pF->szSPUName,"PBOSS") && pF->ulFreezeVersion==5)
    LoadStateV5(pF);

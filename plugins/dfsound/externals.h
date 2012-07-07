@@ -109,7 +109,7 @@ typedef struct
  unsigned int      bRVBActive:1;                       // reverb active flag
  unsigned int      bNoise:1;                           // noise active flag
  unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
- unsigned int      bJump:1;                            // last decoded block jumped
+ unsigned int      prevflags:3;                        // flags from previous block
 
  int               iLeftVolume;                        // left volume
  int               iRightVolume;                       // right volume

@@ -5,7 +5,7 @@
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
 
- Portions (C) Gražvydas "notaz" Ignotas, 2010-2011
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2012
 
  ***************************************************************************/
 /***************************************************************************
@@ -250,6 +250,26 @@ INLINE void InterpolateDown(int ch)
 
 #include "xa.c"
 
+static void do_irq(void)
+{
+ //if(!(spuStat & STAT_IRQ))
+ {
+  spuStat |= STAT_IRQ;                                 // asserted status?
+  if(irqCallback) irqCallback();
+ }
+}
+
+static int check_irq(int ch, unsigned char *pos)
+{
+ if((spuCtrl & CTRL_IRQ) && pos == pSpuIrq)
+ {
+  //printf("ch%d irq %04x\n", ch, pos - spuMemC);
+  do_irq();
+  return 1;
+ }
+ return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////
 // START SOUND... called by main thread to setup a new sound on a channel
 ////////////////////////////////////////////////////////////////////////
@@ -274,6 +294,8 @@ INLINE void StartSound(int ch)
  if(iUseInterpolation>=2)                              // gauss interpolation?
       {s_chan[ch].spos=0x30000L;s_chan[ch].SB[28]=0;}  // -> start with more decoding
  else {s_chan[ch].spos=0x10000L;s_chan[ch].SB[31]=0;}  // -> no/simple interpolation starts with one 44100 decoding
+
+ check_irq(ch, s_chan[ch].pCurr);                      // just in case
 
  dwNewChannel&=~(1<<ch);                               // clear new channel bit
 }
@@ -390,15 +412,6 @@ INLINE int iGetInterpolationVal(int ch, int spos)
  return fa;
 }
 
-static void do_irq(void)
-{
- //if(!(spuStat & STAT_IRQ))
- {
-  spuStat |= STAT_IRQ;                                 // asserted status?
-  if(irqCallback) irqCallback();
- }
-}
-
 static void decode_block_data(int *dest, const unsigned char *src, int predict_nr, int shift_factor)
 {
  int nSample;
@@ -434,23 +447,17 @@ static int decode_block(int ch)
  int ret = 0;
 
  start=s_chan[ch].pCurr;                   // set up the current pos
- if(dwPendingChanOff&(1<<ch))
- {
-  dwChannelOn&=~(1<<ch);                   // -> turn everything off
-  dwPendingChanOff&=~(1<<ch);
-  s_chan[ch].bStop=1;
-  s_chan[ch].ADSRX.EnvelopeVol=0;
- }
 
- //////////////////////////////////////////// irq check
-
- if(spuCtrl&CTRL_IRQ)
+ if(s_chan[ch].prevflags&1)                // 1: stop/loop
  {
-  if(pSpuIrq == start)                     // irq address reached?
+  if(!(s_chan[ch].prevflags&2))
   {
-   do_irq();                               // -> call main emu
-   ret = 1;
+   dwChannelOn&=~(1<<ch);                  // -> turn everything off
+   s_chan[ch].bStop=1;
+   s_chan[ch].ADSRX.EnvelopeVol=0;
   }
+
+  start = s_chan[ch].pLoop;
  }
 
  predict_nr=(int)start[0];
@@ -459,29 +466,22 @@ static int decode_block(int ch)
 
  decode_block_data(s_chan[ch].SB, start + 2, predict_nr, shift_factor);
 
- //////////////////////////////////////////// flag handler
-
  flags=(int)start[1];
  if(flags&4)
   s_chan[ch].pLoop=start;                  // loop adress
 
  start+=16;
+
  if(flags&1)                               // 1: stop/loop
- {
-  if(!(flags&2))
-   dwPendingChanOff|=1<<ch;
-
   start = s_chan[ch].pLoop;
- }
 
- if (start - spuMemC >= 0x80000) {
-  // most likely wrong
+ if (start - spuMemC >= 0x80000)
   start = spuMemC;
-  printf("ch%d oflow\n", ch);
- }
+
+ ret = check_irq(ch, start);
 
  s_chan[ch].pCurr = start;                 // store values for next cycle
- s_chan[ch].bJump = flags & 1;
+ s_chan[ch].prevflags = flags;
 
  return ret;
 }
@@ -491,24 +491,22 @@ static int skip_block(int ch)
 {
  unsigned char *start = s_chan[ch].pCurr;
  int flags = start[1];
- int ret = 0;
 
- if(start == pSpuIrq)
- {
-  do_irq();
-  ret = 1;
- }
+ if(s_chan[ch].prevflags & 1)
+  start = s_chan[ch].pLoop;
 
  if(flags & 4)
   s_chan[ch].pLoop = start;
 
- s_chan[ch].pCurr += 16;
+ start += 16;
 
  if(flags & 1)
-  s_chan[ch].pCurr = s_chan[ch].pLoop;
+  start = s_chan[ch].pLoop;
 
- s_chan[ch].bJump = flags & 1;
- return ret;
+ s_chan[ch].pCurr = start;
+ s_chan[ch].prevflags = flags;
+
+ return check_irq(ch, start);
 }
 
 #define make_do_samples(name, fmod_code, interp_start, interp1_code, interp2_code, interp_end) \
@@ -824,18 +822,15 @@ static int do_samples(int forced_updates)
   // an IRQ. Only problem: the "wait for cpu" option is kinda hard to do here
   // in some of Peops timer modes. So: we ignore this option here (for now).
 
-  if(pMixIrq)
+  if(pMixIrq && (spuCtrl&CTRL_IRQ) && pSpuIrq && pSpuIrq<spuMemC+0x1000)                 
    {
     for(ns=0;ns<NSSIZE;ns++)
      {
-      if((spuCtrl&0x40) && pSpuIrq && pSpuIrq<spuMemC+0x1000)                 
-       {
         for(ch=0;ch<4;ch++)
          {
           if(pSpuIrq>=pMixIrq+(ch*0x400) && pSpuIrq<pMixIrq+(ch*0x400)+2)
            do_irq();
          }
-       }
       pMixIrq+=2;if(pMixIrq>spuMemC+0x3ff) pMixIrq=spuMemC;
      }
    }
@@ -863,6 +858,7 @@ static int do_samples(int forced_updates)
 
 void CALLBACK SPUasync(unsigned long cycle)
 {
+ static int old_ctrl;
  int forced_updates = 0;
  int do_update = 0;
 
@@ -877,9 +873,16 @@ void CALLBACK SPUasync(unsigned long cycle)
    had_dma = 0;
   }
 
- // once per frame should be fine (using a bit more because of BIAS)
- if(cycles_since_update > PSXCLK/60 * 5/4)
+ if((spuCtrl&CTRL_IRQ) && (((spuCtrl^old_ctrl)&CTRL_IRQ) // irq was enabled
+    || cycles_since_update > PSXCLK/60 / 4)) {
   do_update = 1;
+  forced_updates = cycles_since_update / (PSXCLK/44100) / NSSIZE;
+ }
+ // with no irqs, once per frame should be fine (using a bit more because of BIAS)
+ else if(cycles_since_update > PSXCLK/60 * 5/4)
+  do_update = 1;
+
+ old_ctrl = spuCtrl;
 
  if(do_update)
   do_samples(forced_updates);
