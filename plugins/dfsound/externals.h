@@ -248,9 +248,6 @@ extern uint32_t * XAPlay;
 extern uint32_t * XAStart;
 extern uint32_t * XAEnd;
 
-extern uint32_t   XARepeat;
-extern uint32_t   XALastVal;
-
 extern uint32_t * CDDAFeed;
 extern uint32_t * CDDAPlay;
 extern uint32_t * CDDAStart;

@@ -22,8 +22,6 @@
 // will be included from spu.c
 #ifdef _IN_SPU
 
-#define XA_HACK
-
 ////////////////////////////////////////////////////////////////////////
 // XA GLOBALS
 ////////////////////////////////////////////////////////////////////////
@@ -61,42 +59,44 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 INLINE void MixXA(void)
 {
  int ns;
- uint32_t l;
+ short l, r;
+ uint32_t v;
+ int cursor = decode_pos;
 
- for(ns=0;ns<NSSIZE*2 && XAPlay!=XAFeed;)
-  {
-   XALastVal=*XAPlay++;
-   if(XAPlay==XAEnd) XAPlay=XAStart;
-#ifdef XA_HACK
-   SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
-   SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
-#else
-   SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
-   SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
-#endif
-  }
-
- if(XAPlay==XAFeed && XARepeat)
-  {
+ if(XAPlay != XAFeed || XARepeat > 0)
+ {
+  if(XAPlay == XAFeed)
    XARepeat--;
-   for(;ns<NSSIZE*2;)
-    {
-#ifdef XA_HACK
-     SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32768;
-     SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32768;
-#else
-     SSumLR[ns++]+=(((short)(XALastVal&0xffff))       * iLeftXAVol)/32767;
-     SSumLR[ns++]+=(((short)((XALastVal>>16)&0xffff)) * iRightXAVol)/32767;
-#endif
-    }
-  }
+
+  v = XALastVal;
+  for(ns=0;ns<NSSIZE*2;)
+   {
+    if(XAPlay != XAFeed) v=*XAPlay++;
+    if(XAPlay == XAEnd) XAPlay=XAStart;
+
+    l = ((int)(short)v * iLeftXAVol) >> 15;
+    r = ((int)(short)(v >> 16) * iLeftXAVol) >> 15;
+    SSumLR[ns++] += l;
+    SSumLR[ns++] += r;
+    spuMem[cursor] = l;
+    spuMem[cursor + 0x400/2] = r;
+    cursor = (cursor + 1) & 0x1ff;
+   }
+  XALastVal = v;
+ }
 
  for(ns=0;ns<NSSIZE*2 && CDDAPlay!=CDDAFeed && (CDDAPlay!=CDDAEnd-1||CDDAFeed!=CDDAStart);)
   {
-   l=*CDDAPlay++;
+   v=*CDDAPlay++;
    if(CDDAPlay==CDDAEnd) CDDAPlay=CDDAStart;
-   SSumLR[ns++]+=(((short)(l&0xffff))       * iLeftXAVol) >> 15;
-   SSumLR[ns++]+=(((short)((l>>16)&0xffff)) * iRightXAVol) >> 15;
+
+   l = ((int)(short)v * iLeftXAVol) >> 15;
+   r = ((int)(short)(v >> 16) * iLeftXAVol) >> 15;
+   SSumLR[ns++] += l;
+   SSumLR[ns++] += r;
+   spuMem[cursor] = l;
+   spuMem[cursor + 0x400/2] = r;
+   cursor = (cursor + 1) & 0x1ff;
   }
 }
 
