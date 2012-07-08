@@ -75,7 +75,6 @@ unsigned short  spuMem[256*1024];
 unsigned char * spuMemC;
 unsigned char * pSpuIrq=0;
 unsigned char * pSpuBuffer;
-unsigned char * pMixIrq=0;
 
 // user settings
 
@@ -120,6 +119,8 @@ int iFMod[NSSIZE];
 int iCycle = 0;
 short * pS;
 
+static int decode_dirty_ch;
+int decode_pos;
 int had_dma;
 int lastch=-1;             // last channel processed on spu irq in timer mode
 static int lastns=0;       // last ns pos
@@ -657,6 +658,23 @@ static void mix_chan_rvb(int start, int count, int lv, int rv)
 }
 #endif
 
+// 0x0800-0x0bff  Voice 1
+// 0x0c00-0x0fff  Voice 3
+static void noinline do_decode_bufs(int which, int start, int count)
+{
+ const int *src = ChanBuf + start;
+ unsigned short *dst = &spuMem[0x800/2 + which*0x400/2];
+ int cursor = decode_pos;
+
+ while (count-- > 0)
+  {
+   dst[cursor] = *src++;
+   cursor = (cursor + 1) & 0x1ff;
+  }
+
+ // decode_pos is updated and irqs are checked later, after voice loop
+}
+
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
 // here is the main job handler...
@@ -728,6 +746,12 @@ static int do_samples(int forced_updates)
 
        MixADSR(ch, ns_from, ns_to);
 
+       if(ch==1 || ch==3)
+        {
+         do_decode_bufs(ch/2, ns_from, ns_to-ns_from);
+         decode_dirty_ch |= 1<<ch;
+        }
+
        if(s_chan[ch].bFMod==2)                         // fmod freq channel
         memcpy(iFMod, ChanBuf, sizeof(iFMod));
        else if(s_chan[ch].bRVBActive)
@@ -769,6 +793,16 @@ static int do_samples(int forced_updates)
     if(bIRQReturn)                                     // special return for "spu irq - wait for cpu action"
       return 0;
 
+  if(unlikely(silentch & decode_dirty_ch & (1<<1)))    // must clear silent channel decode buffers
+   {
+    memset(&spuMem[0x800/2], 0, 0x400);
+    decode_dirty_ch &= ~(1<<1);
+   }
+  if(unlikely(silentch & decode_dirty_ch & (1<<3)))
+   {
+    memset(&spuMem[0xc00/2], 0, 0x400);
+    decode_dirty_ch &= ~(1<<3);
+   }
 
   //---------------------------------------------------//
   //- here we have another 1 ms of sound data
@@ -822,18 +856,17 @@ static int do_samples(int forced_updates)
   // an IRQ. Only problem: the "wait for cpu" option is kinda hard to do here
   // in some of Peops timer modes. So: we ignore this option here (for now).
 
-  if(pMixIrq && (spuCtrl&CTRL_IRQ) && pSpuIrq && pSpuIrq<spuMemC+0x1000)                 
+  if(unlikely((spuCtrl&CTRL_IRQ) && pSpuIrq && pSpuIrq<spuMemC+0x1000))
    {
-    for(ns=0;ns<NSSIZE;ns++)
+    int irq_pos=(pSpuIrq-spuMemC)/2 & 0x1ff;
+    if((decode_pos <= irq_pos && irq_pos < decode_pos+NSSIZE)
+       || (decode_pos+NSSIZE > 0x200 && irq_pos < ((decode_pos+NSSIZE) & 0x1ff)))
      {
-        for(ch=0;ch<4;ch++)
-         {
-          if(pSpuIrq>=pMixIrq+(ch*0x400) && pSpuIrq<pMixIrq+(ch*0x400)+2)
-           do_irq();
-         }
-      pMixIrq+=2;if(pMixIrq>spuMemC+0x3ff) pMixIrq=spuMemC;
+      //printf("decoder irq %x\n", decode_pos);
+      do_irq();
      }
    }
+  decode_pos = (decode_pos + NSSIZE) & 0x1ff;
 
   InitREVERB();
 
@@ -966,8 +999,6 @@ void SetupStreams(void)
    s_chan[i].pCurr=spuMemC;
   }
 
- pMixIrq=spuMemC;                                      // enable decoded buffer irqs by setting the address
-
  ClearWorkingState();
 
  bSpuInit=1;                                           // flag: we are inited
@@ -998,7 +1029,7 @@ long CALLBACK SPUinit(void)
  spuIrq = 0;
  spuAddr = 0xffffffff;
  spuMemC = (unsigned char *)spuMem;
- pMixIrq = 0;
+ decode_pos = 0;
  memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
  pSpuIrq = 0;
  lastch = -1;

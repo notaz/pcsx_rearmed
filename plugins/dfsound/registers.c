@@ -212,6 +212,9 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
          {
           rvb.StartAddr=(unsigned long)val<<2;
           rvb.CurrAddr=rvb.StartAddr;
+          // sync-with-decode-buffers hack..
+          if(rvb.StartAddr==0x3ff00)
+            rvb.CurrAddr+=decode_pos/2;
          }
        }
       rvb.dirty = 1;

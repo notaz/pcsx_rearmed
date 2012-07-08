@@ -21,6 +21,14 @@
 // generic defines
 /////////////////////////////////////////////////////////
 
+#if 0 //def __GNUC__
+#define noinline __attribute__((noinline))
+#define unlikely(x) __builtin_expect((x), 0)
+#else
+#define noinline
+#define unlikely(x) x
+#endif
+
 #define PSE_LT_SPU                  4
 #define PSE_SPU_ERR_SUCCESS         0
 #define PSE_SPU_ERR                 -60
@@ -202,6 +210,7 @@ extern int        iUseInterpolation;
 // MISC
 
 extern int had_dma;
+extern int decode_pos;
 
 extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;

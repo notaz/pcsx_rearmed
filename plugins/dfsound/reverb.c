@@ -157,11 +157,44 @@ static void MixREVERB(void)
    s_buffer(MIX_DEST_B0, mix_dest_b0);
    s_buffer(MIX_DEST_B1, mix_dest_b1);
 
-   l = (mix_dest_a0 + mix_dest_b0) / 3;
-   r = (mix_dest_a1 + mix_dest_b1) / 3;
+   l = (mix_dest_a0 + mix_dest_b0) / 2;
+   r = (mix_dest_a1 + mix_dest_b1) / 2;
 
-   l = (l * rvb.VolLeft)  >> 14;
-   r = (r * rvb.VolRight) >> 14;
+   l = (l * rvb.VolLeft)  >> 15; // 15?
+   r = (r * rvb.VolRight) >> 15;
+
+   SSumLR[ns++] += (l + l_old) / 2;
+   SSumLR[ns++] += (r + r_old) / 2;
+   SSumLR[ns++] += l;
+   SSumLR[ns++] += r;
+
+   l_old = l;
+   r_old = r;
+
+   curr_addr++;
+   if (curr_addr >= 0x40000) curr_addr = rvb.StartAddr;
+  }
+
+ rvb.iRVBLeft = l;
+ rvb.iRVBRight = r;
+ rvb.CurrAddr = curr_addr;
+}
+
+static void MixREVERB_off(void)
+{
+ int l_old = rvb.iRVBLeft;
+ int r_old = rvb.iRVBRight;
+ int curr_addr = rvb.CurrAddr;
+ int space = 0x40000 - rvb.StartAddr;
+ int l, r, ns;
+
+ for (ns = 0; ns < NSSIZE*2; )
+  {
+   l = (g_buffer(MIX_DEST_A0) + g_buffer(MIX_DEST_B0)) / 2;
+   r = (g_buffer(MIX_DEST_A1) + g_buffer(MIX_DEST_B1)) / 2;
+
+   l = (l * rvb.VolLeft)  >> 15;
+   r = (r * rvb.VolRight) >> 15;
 
    SSumLR[ns++] += (l + l_old) / 2;
    SSumLR[ns++] += (r + r_old) / 2;
@@ -235,14 +268,21 @@ INLINE void REVERBDo(void)
 
  if (spuCtrl & 0x80)                                   // -> reverb on? oki
  {
-  if (rvb.dirty)
+  if (unlikely(rvb.dirty))
    prepare_offsets();
 
   MixREVERB();
  }
+ else if (rvb.VolLeft || rvb.VolRight)
+ {
+  if (unlikely(rvb.dirty))
+   prepare_offsets();
+
+  MixREVERB_off();
+ }
  else                                                  // -> reverb off
  {
-  // supposedly runs anyway?
+  // reverb runs anyway
   rvb.CurrAddr += NSSIZE/2;
   while (rvb.CurrAddr >= 0x40000)
    rvb.CurrAddr -= 0x40000 - rvb.StartAddr;
