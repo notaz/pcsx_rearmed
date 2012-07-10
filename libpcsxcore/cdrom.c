@@ -539,6 +539,7 @@ static void Create_Fake_Subq()
 static void cdrPlayInterrupt_Autopause()
 {
 	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
+	int track_changed = 0;
 	if (subq != NULL ) {
 #ifdef CDR_LOG
 		CDR_LOG( "CDDA SUB - %X:%X:%X\n",
@@ -552,8 +553,8 @@ static void cdrPlayInterrupt_Autopause()
 		Tomb Raider 1 ($7)
 		*/
 
-		if( cdr.CurTrack >= btoi( subq->TrackNumber ) )
-			return;
+		if( cdr.CurTrack < btoi( subq->TrackNumber ) )
+			track_changed = 1;
 	} else {
 		Create_Fake_Subq();
 #ifdef CDR_LOG___0
@@ -561,13 +562,11 @@ static void cdrPlayInterrupt_Autopause()
 			fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
 #endif
 
-		if( !fake_subq_change )
-			return;
-
+		track_changed = fake_subq_change;
 		fake_subq_change = 0;
 	}
 
-	if (cdr.Mode & MODE_AUTOPAUSE) {
+	if ((cdr.Mode & MODE_AUTOPAUSE) && track_changed) {
 #ifdef CDR_LOG
 		CDR_LOG( "CDDA STOP\n" );
 #endif
@@ -584,11 +583,6 @@ static void cdrPlayInterrupt_Autopause()
 		StopCdda();
 	}
 	if (cdr.Mode & MODE_REPORT) {
-		// rearmed note: PCSX-Reloaded does this for every sector,
-		// but we try to get away with only track change here.
-		memset( cdr.Result, 0, 8 );
-		cdr.Result[0] |= 0x10;
-
 		if (subq != NULL) {
 #ifdef CDR_LOG
 			CDR_LOG( "REPPLAY SUB - %X:%X:%X\n",
@@ -596,6 +590,10 @@ static void cdrPlayInterrupt_Autopause()
 #endif
 			cdr.CurTrack = btoi( subq->TrackNumber );
 
+			if (subq->AbsoluteAddress[2] & 0xf)
+				return;
+
+			cdr.Result[0] = cdr.StatP;
 			// BIOS CD Player: data already BCD format
 			cdr.Result[1] = subq->TrackNumber;
 			cdr.Result[2] = subq->IndexNumber;
@@ -609,6 +607,10 @@ static void cdrPlayInterrupt_Autopause()
 				fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
 #endif
 
+			if (fake_subq_real[2] & 0xf)
+				return;
+
+			cdr.Result[0] = cdr.StatP;
 			// track # / index #
 			cdr.Result[1] = itob(cdr.CurTrack);
 			cdr.Result[2] = itob(fake_subq_index);
