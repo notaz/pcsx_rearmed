@@ -142,6 +142,28 @@ int GetCdromFile(u8 *mdir, u8 *time, s8 *filename) {
 	return 0;
 }
 
+static const unsigned int gpu_ctl_def[] = {
+	0x00000000, 0x01000000, 0x03000000, 0x04000000,
+	0x05000800, 0x06c60260, 0x0703fc10, 0x08000027,
+};
+
+static const unsigned int gpu_data_def[] = {
+	0xe100360b, 0xe2000000, 0xe3000800, 0xe4077e7f,
+	0xe5001000, 0xe6000000,
+	0x02000000, 0x00000000, 0x01ff03ff,
+};
+
+static void fake_bios_gpu_setup(void)
+{
+	int i;
+
+	for (i = 0; i < sizeof(gpu_ctl_def) / sizeof(gpu_ctl_def[0]); i++)
+		GPU_writeStatus(gpu_ctl_def[i]);
+
+	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
+		GPU_writeData(gpu_data_def[i]);
+}
+
 int LoadCdrom() {
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
@@ -149,7 +171,12 @@ int LoadCdrom() {
 	u8 mdir[4096];
 	s8 exename[256];
 
+	// not the best place to do it, but since BIOS boot logo killer
+	// is just below, do it here
+	fake_bios_gpu_setup();
+
 	if (!Config.HLE) {
+		// skip BIOS logos
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;
 	}
