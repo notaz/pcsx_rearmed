@@ -581,6 +581,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
       gpu.status.reg = freeze->ulStatus;
+      gpu.cmd_len = 0;
       for (i = 8; i > 0; i--) {
         gpu.regs[i] ^= 1; // avoid reg change detection
         GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
