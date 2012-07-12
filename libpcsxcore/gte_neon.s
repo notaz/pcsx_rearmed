@@ -199,6 +199,8 @@ gteRTPS_neon:
     @ just for 1 value, let's just use VFP divider here
     vdiv.f32    s22, s26, s22
 
+    vmov.f32    d20, #0.5
+    vadd.f32    d11, d20
     vcvt.u32.f32 d11, d11      @ quotient
 
     @ while NEON's busy we calculate some flags on ARM
