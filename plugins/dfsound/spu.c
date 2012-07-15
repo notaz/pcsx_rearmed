@@ -296,8 +296,6 @@ INLINE void StartSound(int ch)
       {s_chan[ch].spos=0x30000L;s_chan[ch].SB[28]=0;}  // -> start with more decoding
  else {s_chan[ch].spos=0x10000L;s_chan[ch].SB[31]=0;}  // -> no/simple interpolation starts with one 44100 decoding
 
- check_irq(ch, s_chan[ch].pCurr);                      // just in case
-
  dwNewChannel&=~(1<<ch);                               // clear new channel bit
 }
 
@@ -460,6 +458,8 @@ static int decode_block(int ch)
 
   start = s_chan[ch].pLoop;
  }
+ else
+  ret = check_irq(ch, start);              // hack, see check_irq below..
 
  predict_nr=(int)start[0];
  shift_factor=predict_nr&0xf;
@@ -473,13 +473,13 @@ static int decode_block(int ch)
 
  start+=16;
 
- if(flags&1)                               // 1: stop/loop
+ if(flags&1) {                             // 1: stop/loop
   start = s_chan[ch].pLoop;
+  ret |= check_irq(ch, start);             // hack.. :(
+ }
 
  if (start - spuMemC >= 0x80000)
   start = spuMemC;
-
- ret = check_irq(ch, start);
 
  s_chan[ch].pCurr = start;                 // store values for next cycle
  s_chan[ch].prevflags = flags;
@@ -492,6 +492,7 @@ static int skip_block(int ch)
 {
  unsigned char *start = s_chan[ch].pCurr;
  int flags = start[1];
+ int ret = check_irq(ch, start);
 
  if(s_chan[ch].prevflags & 1)
   start = s_chan[ch].pLoop;
@@ -507,7 +508,7 @@ static int skip_block(int ch)
  s_chan[ch].pCurr = start;
  s_chan[ch].prevflags = flags;
 
- return check_irq(ch, start);
+ return ret;
 }
 
 #define make_do_samples(name, fmod_code, interp_start, interp1_code, interp2_code, interp_end) \
@@ -532,10 +533,7 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
     sbpos = 0;                               \
     d = decode_block(ch);                    \
     if(d)                                    \
-    {                                        \
-     ret = ns;                               \
-     goto out;                               \
-    }                                        \
+     ret = ns_to = ns + 1;                   \
    }                                         \
                                              \
    fa = SB[sbpos++];                         \
@@ -547,7 +545,6 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
   spos += sinc;                              \
  }                                           \
                                              \
-out:                                         \
  s_chan[ch].sinc = sinc;                     \
  s_chan[ch].spos = spos;                     \
  s_chan[ch].iSBPos = sbpos;                  \
@@ -584,11 +581,14 @@ make_do_samples(simple, , ,
 static int do_samples_noise(int ch, int ns, int ns_to)
 {
  int level, shift, bit;
+ int ret = -1, d;
 
  s_chan[ch].spos += s_chan[ch].sinc * (ns_to - ns);
  while (s_chan[ch].spos >= 28*0x10000)
  {
-  skip_block(ch);
+  d = skip_block(ch);
+  if (d)
+   ret = ns_to;
   s_chan[ch].spos -= 28*0x10000;
  }
 
@@ -612,7 +612,7 @@ static int do_samples_noise(int ch, int ns, int ns_to)
   ChanBuf[ns] = (signed short)dwNoiseVal;
  }
 
- return -1;
+ return ret;
 }
 
 #ifdef __arm__
@@ -740,8 +740,6 @@ static int do_samples(int forced_updates)
          bIRQReturn=1;
          lastch=ch; 
          lastns=ns_to=d;
-         if(d==0)
-          break;
         }
 
        MixADSR(ch, ns_from, ns_to);
