@@ -1444,8 +1444,8 @@ static void debug_menu_loop(void)
 		if      (inp & PBTN_MBACK) break;
 		else if (inp & PBTN_UP)    { if (df_y > 0) df_y--; }
 		else if (inp & PBTN_DOWN)  { if (df_y < 512 - g_menuscreen_h) df_y++; }
-		else if (inp & PBTN_LEFT)  { if (df_x > 0) df_x--; }
-		else if (inp & PBTN_RIGHT) { if (df_x < 1024 - g_menuscreen_w) df_x++; }
+		else if (inp & PBTN_LEFT)  { if (df_x > 0) df_x -= 2; }
+		else if (inp & PBTN_RIGHT) { if (df_x < 1024 - g_menuscreen_w) df_x += 2; }
 	}
 
 	free(gpuf);
