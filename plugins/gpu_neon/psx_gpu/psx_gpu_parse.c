@@ -412,31 +412,29 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
         vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
       
+        xy = *list_position;
         while(1)
         {
-          xy = *list_position;
-
-          if((xy & 0xF000F000) == 0x50005000)
-            break;
-
           vertexes[0] = vertexes[1];
 
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
+          render_line(psx_gpu, vertexes, current_command, list[0]);
+
           list_position++;
           num_vertexes++;
 
-          if(list_position > list_end)
+          if(list_position >= list_end)
             break;
 
-          render_line(psx_gpu, vertexes, current_command, list[0]);
+          xy = *list_position;
+          if((xy & 0xF000F000) == 0x50005000)
+            break;
         }
 
-        if(num_vertexes > 2)
-          command_length += (num_vertexes - 2);
-
-  			break;
+        command_length += (num_vertexes - 2);
+        break;
       }
   
   		case 0x50 ... 0x57:
@@ -470,12 +468,9 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
         vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
       
+        color = list_position[0];
         while(1)
         {
-          color = list_position[0];
-          if((color & 0xF000F000) == 0x50005000)
-            break;
-
           xy = list_position[1];
 
           vertexes[0] = vertexes[1];
@@ -486,19 +481,21 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
+          render_line(psx_gpu, vertexes, current_command, 0);
+
           list_position += 2;
           num_vertexes++;
 
-          if(list_position > list_end)
+          if(list_position >= list_end)
             break;
 
-          render_line(psx_gpu, vertexes, current_command, 0);
+          color = list_position[0];
+          if((color & 0xF000F000) == 0x50005000)
+            break;
         }
 
-        if(num_vertexes > 2)
-          command_length += ((num_vertexes - 2) * 2);
-
-  			break;
+        command_length += ((num_vertexes - 2) * 2);
+        break;
       }
   
   		case 0x60 ... 0x63:
