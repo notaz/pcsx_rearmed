@@ -496,7 +496,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         }
 
         if(num_vertexes > 2)
-          command_length += ((num_vertexes * 2) - 2);
+          command_length += ((num_vertexes - 2) * 2);
 
   			break;
       }
@@ -597,7 +597,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   
   		case 0x80:          //  vid -> vid
         render_block_move(psx_gpu, list_s16[2] & 0x3FF, list_s16[3] & 0x1FF,
-         list_s16[4] & 0x3FF, list_s16[5] & 0x1FF, list_s16[6], list_s16[7]);
+         list_s16[4] & 0x3FF, list_s16[5] & 0x1FF,
+         ((list_s16[6] - 1) & 0x3FF) + 1, ((list_s16[7] - 1) & 0x1FF) + 1);
   			break;
  
 #ifdef PCSX

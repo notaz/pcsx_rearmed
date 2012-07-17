@@ -333,6 +333,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
   int cmd = 0, pos = 0, len, dummy;
   int skip = 1;
 
+  // XXX: polylines are not properly handled
   while (pos < count && skip) {
     uint32_t *list = data + pos;
     cmd = list[0] >> 24;
