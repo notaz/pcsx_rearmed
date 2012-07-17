@@ -128,7 +128,7 @@ void _psxRcntWcount( u32 index, u32 value )
     }
     else
     {
-        rcnts[index].cycle = 0xffff * rcnts[index].rate;
+        rcnts[index].cycle = 0x10000 * rcnts[index].rate;
         rcnts[index].counterState = CountToOverflow;
     }
 }
@@ -143,11 +143,11 @@ u32 _psxRcntRcount( u32 index )
     if (rcnts[index].rate > 1)
         count /= rcnts[index].rate;
 
-    if( count > 0xffff )
+    if( count > 0x10000 )
     {
-        verboseLog( 1, "[RCNT %i] rcount > 0xffff: %x\n", index, count );
-        count &= 0xffff;
+        verboseLog( 1, "[RCNT %i] rcount > 0x10000: %x\n", index, count );
     }
+    count &= 0xffff;
 
     return count;
 }
@@ -188,26 +188,29 @@ void psxRcntSet()
 static
 void psxRcntReset( u32 index )
 {
-    u32 count;
+    u32 rcycles;
 
     rcnts[index].mode |= RcUnknown10;
 
     if( rcnts[index].counterState == CountToTarget )
     {
-        count  = psxRegs.cycle;
-        count -= rcnts[index].cycleStart;
-        if( rcnts[index].rate > 1 )
-            count /= rcnts[index].rate;
+        rcycles = psxRegs.cycle - rcnts[index].cycleStart;
         if( rcnts[index].mode & RcCountToTarget )
-            count -= rcnts[index].target;
-
-        _psxRcntWcount( index, count );
+        {
+            rcycles -= rcnts[index].target * rcnts[index].rate;
+            rcnts[index].cycleStart = psxRegs.cycle - rcycles;
+        }
+        else
+        {
+            rcnts[index].cycle = 0x10000 * rcnts[index].rate;
+            rcnts[index].counterState = CountToOverflow;
+        }
 
         if( rcnts[index].mode & RcIrqOnTarget )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-                verboseLog( 3, "[RCNT %i] irq: %x\n", index, count );
+                verboseLog( 3, "[RCNT %i] irq\n", index );
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
@@ -215,25 +218,28 @@ void psxRcntReset( u32 index )
 
         rcnts[index].mode |= RcCountEqTarget;
 
-        if( count < 0xffff ) // special case, overflow too?
+        if( rcycles < 0x10000 * rcnts[index].rate )
             return;
     }
 
     if( rcnts[index].counterState == CountToOverflow )
     {
-        count  = psxRegs.cycle;
-        count -= rcnts[index].cycleStart;
-        if (rcnts[index].rate > 1)
-            count /= rcnts[index].rate;
-        count -= 0xffff;
+        rcycles = psxRegs.cycle - rcnts[index].cycleStart;
+        rcycles -= 0x10000 * rcnts[index].rate;
 
-        _psxRcntWcount( index, count );
+        rcnts[index].cycleStart = psxRegs.cycle - rcycles;
+
+        if( rcycles < rcnts[index].target * rcnts[index].rate )
+        {
+            rcnts[index].cycle = rcnts[index].target * rcnts[index].rate;
+            rcnts[index].counterState = CountToTarget;
+        }
 
         if( rcnts[index].mode & RcIrqOnOverflow )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-                verboseLog( 3, "[RCNT %i] irq: %x\n", index, count );
+                verboseLog( 3, "[RCNT %i] irq\n", index );
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
