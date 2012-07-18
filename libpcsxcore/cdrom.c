@@ -1450,7 +1450,7 @@ void cdrWrite0(unsigned char rt) {
 #ifdef CDR_LOG
 	CDR_LOG("cdrWrite0() Log: CD0 write: %x\n", rt);
 #endif
-	cdr.Ctrl = rt | (cdr.Ctrl & ~0x3);
+	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
 
 	if (rt == 0) {
 		cdr.ParamP = 0;
@@ -1506,7 +1506,7 @@ void cdrWrite1(unsigned char rt) {
 	}
 #endif
 
-	if (cdr.Ctrl & 0x1) return;
+	if (cdr.Ctrl & 0x3) return;
 
 	switch (cdr.Cmd) {
     	case CdlSync:
@@ -1861,7 +1861,7 @@ void cdrWrite2(unsigned char rt) {
 				cdr.Reg2 = rt;
 				break;
 		}
-	} else if (!(cdr.Ctrl & 0x1) && cdr.ParamP < 8) {
+	} else if (!(cdr.Ctrl & 0x3) && cdr.ParamP < 8) {
 		cdr.Param[cdr.ParamP++] = rt;
 		cdr.ParamC++;
 	}
@@ -1914,7 +1914,7 @@ void cdrWrite3(unsigned char rt) {
 	}
 
 
-	if (rt == 0x07 && cdr.Ctrl & 0x1) {
+	if (rt == 0x07 && (cdr.Ctrl & 3) == 1) {
 		cdr.Stat = 0;
 
 		if (cdr.Irq == 0xff) {
@@ -1939,7 +1939,7 @@ void cdrWrite3(unsigned char rt) {
 		return;
 	}
 
-	if (rt == 0x80 && !(cdr.Ctrl & 0x1) && cdr.Readed == 0) {
+	if (rt == 0x80 && !(cdr.Ctrl & 0x3) && cdr.Readed == 0) {
 		cdr.Readed = 1;
 		cdr.pTransfer = cdr.Transfer;
 
