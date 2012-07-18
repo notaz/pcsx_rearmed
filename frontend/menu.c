@@ -590,7 +590,7 @@ static void draw_savestate_bg(int slot)
 
 	x = gpu->ulControl[5] & 0x3ff;
 	y = (gpu->ulControl[5] >> 10) & 0x1ff;
-	s = (u16 *)gpu->psxVRam + y * 1024 + (x & ~1);
+	s = (u16 *)gpu->psxVRam + y * 1024 + x;
 	w = psx_widths[(gpu->ulStatus >> 16) & 7];
 	tmp = gpu->ulControl[7];
 	h = ((tmp >> 10) & 0x3ff) - (tmp & 0x3ff);
@@ -2242,7 +2242,7 @@ static void menu_leave_emu(void)
 		}
 		else {
 			for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w * 3) {
-				bgr888_to_rgb565(d, s, w * 3);
+				rgb888_to_rgb565(d, s, w * 3);
 				menu_darken_bg(d, d, w, 0);
 			}
 		}
