@@ -1264,6 +1264,9 @@ void cdrInterrupt() {
 
 	Check_Shell( Irq );
 
+	cdr.ParamP = 0;
+	cdr.ParamC = 0;
+
 	if (cdr.Stat != NoIntr && cdr.Reg2 != 0x18) {
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 	}
@@ -1451,12 +1454,6 @@ void cdrWrite0(unsigned char rt) {
 	CDR_LOG("cdrWrite0() Log: CD0 write: %x\n", rt);
 #endif
 	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
-
-	if (rt == 0) {
-		cdr.ParamP = 0;
-		cdr.ParamC = 0;
-		cdr.ResultReady = 0;
-	}
 }
 
 unsigned char cdrRead1(void) {
@@ -1507,6 +1504,8 @@ void cdrWrite1(unsigned char rt) {
 #endif
 
 	if (cdr.Ctrl & 0x3) return;
+
+	cdr.ResultReady = 0;
 
 	switch (cdr.Cmd) {
     	case CdlSync:
@@ -1809,6 +1808,8 @@ void cdrWrite1(unsigned char rt) {
         	break;
 
     	default:
+		cdr.ParamP = 0;
+		cdr.ParamC = 0;
 #ifdef CDR_LOG
 		CDR_LOG("cdrWrite1() Log: Unknown command: %x\n", cdr.Cmd);
 #endif
