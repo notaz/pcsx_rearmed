@@ -116,6 +116,9 @@ void pl_print_hud(int xborder)
 {
 	int w = pl_vout_w, h = pl_vout_h;
 
+	if (h < 16)
+		return;
+
 	if (g_opts & OPT_SHOWSPU)
 		draw_active_chans(w, h);
 

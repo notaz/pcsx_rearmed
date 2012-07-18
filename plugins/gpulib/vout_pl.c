@@ -9,6 +9,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include <string.h>
 #include "gpu.h"
 #include "cspace.h"
 #include "../../frontend/plugin_lib.h"
@@ -52,8 +53,11 @@ static void blit(void)
   int fb_offs, doffs;
   uint8_t *dest;
 
-  fb_offs = y * 1024 + x;
   dest = (uint8_t *)screen_buf;
+  if (dest == NULL)
+    return;
+
+  fb_offs = y * 1024 + x;
 
   // only do centering, at least for now
   doffs = (stride - w) / 2 & ~1;
@@ -97,6 +101,16 @@ void vout_update(void)
     cbs->pl_vout_raw_flip(gpu.screen.x, gpu.screen.y);
   else
     blit();
+}
+
+void vout_blank(void)
+{
+  check_mode_change();
+  if (cbs->pl_vout_raw_flip == NULL) {
+    int bytespp = gpu.status.rgb24 ? 3 : 2;
+    memset(screen_buf, 0, gpu.screen.hres * gpu.screen.h * bytespp);
+    screen_buf = cbs->pl_vout_flip();
+  }
 }
 
 long GPUopen(void **unused)

@@ -601,7 +601,16 @@ void GPUupdateLace(void)
     flush_cmd_buffer();
   renderer_flush_queues();
 
-  if (gpu.status.blanking || !gpu.state.fb_dirty)
+  if (gpu.status.blanking) {
+    if (!gpu.state.blanked) {
+      vout_blank();
+      gpu.state.blanked = 1;
+      gpu.state.fb_dirty = 1;
+    }
+    return;
+  }
+
+  if (!gpu.state.fb_dirty)
     return;
 
   if (gpu.frameskip.set) {
@@ -615,6 +624,7 @@ void GPUupdateLace(void)
 
   vout_update();
   gpu.state.fb_dirty = 0;
+  gpu.state.blanked = 0;
 }
 
 void GPUvBlank(int is_vblank, int lcf)

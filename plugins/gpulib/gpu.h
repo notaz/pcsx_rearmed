@@ -66,6 +66,7 @@ struct psx_gpu {
     uint32_t fb_dirty:1;
     uint32_t old_interlace:1;
     uint32_t allow_interlace:2;
+    uint32_t blanked:1;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {
@@ -105,6 +106,7 @@ void renderer_set_config(const struct rearmed_cbs *config);
 int  vout_init(void);
 int  vout_finish(void);
 void vout_update(void);
+void vout_blank(void);
 void vout_set_config(const struct rearmed_cbs *config);
 
 /* listing these here for correct linkage if rasterizer uses c++ */

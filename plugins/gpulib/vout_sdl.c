@@ -77,6 +77,10 @@ void vout_update(void)
   SDL_UpdateRect(screen, 0, 0, 1024, 512);
 }
 
+void vout_blank(void)
+{
+}
+
 long GPUopen(void **dpy)
 {
   *dpy = x11_display;
