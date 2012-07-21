@@ -14,6 +14,10 @@
 #include "emu_if.h"
 #include "pcsxmem.h"
 
+#ifdef __thumb__
+#error the dynarec does not have Thumb support, please remove -mthumb
+#endif
+
 //#define memprintf printf
 #define memprintf(...)
 
@@ -28,8 +32,10 @@ static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
 static void map_item(u32 *out, const void *h, u32 flag)
 {
 	u32 hv = (u32)h;
-	if (hv & 1)
-		fprintf(stderr, "%p has LSB set\n", h);
+	if (hv & 1) {
+		fprintf(stderr, "FATAL: %p has LSB set\n", h);
+		abort();
+	}
 	*out = (hv >> 1) | (flag << 31);
 }
 
