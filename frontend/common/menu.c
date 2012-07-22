@@ -216,6 +216,13 @@ static int parse_hex_color(char *buff)
 	return -1;
 }
 
+static char tolower_simple(char c)
+{
+	if ('A' <= c && c <= 'Z')
+		c = c - 'A' + 'a';
+	return c;
+}
+
 void menu_init(void)
 {
 	int i, c, l;
@@ -619,7 +626,7 @@ static int me_loop_d(menu_entry *menu, int *menu_sel, void (*draw_prep)(void), v
 
 	/* make sure action buttons are not pressed on entering menu */
 	me_draw(menu, sel, NULL);
-	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU));
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU));
 
 	for (;;)
 	{
@@ -628,7 +635,7 @@ static int me_loop_d(menu_entry *menu, int *menu_sel, void (*draw_prep)(void), v
 
 		me_draw(menu, sel, draw_more);
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
-					PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, 70);
+			PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, NULL, 70);
 		if (inp & (PBTN_MENU|PBTN_MBACK))
 			break;
 
@@ -749,8 +756,8 @@ static void do_delete(const char *fpath, const char *fname)
 	text_out16(mid - me_mfont_w * len / 2, 12 * me_mfont_h, tmp);
 	menu_draw_end();
 
-	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MA2));
-	inp = in_menu_wait(PBTN_MA3|PBTN_MBACK, 100);
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MA2));
+	inp = in_menu_wait(PBTN_MA3|PBTN_MBACK, NULL, 100);
 	if (inp & PBTN_MA3)
 		remove(fpath);
 }
@@ -824,11 +831,28 @@ static int scandir_filter(const struct dirent *ent)
 	return 1;
 }
 
+static int dirent_seek_char(struct dirent **namelist, int len, int sel, char c)
+{
+	int i;
+
+	sel++;
+	for (i = sel + 1; i != sel; i++) {
+		if (i >= len)
+			i = 1;
+
+		if (tolower_simple(namelist[i]->d_name[0]) == c)
+			break;
+	}
+
+	return i - 1;
+}
+
 static char *menu_loop_romsel(char *curr_path, int len)
 {
 	struct dirent **namelist;
 	int n, inp, sel = 0;
 	char *ret = NULL, *fname = NULL;
+	char cinp;
 
 rescan:
 	// is this a dir or a full path?
@@ -858,10 +882,12 @@ rescan:
 	}
 
 	// try to find sel
+	// note: we don't show '.' so sel is namelist index - 1
 	if (fname != NULL) {
 		int i;
 		for (i = 1; i < n; i++) {
-			if (strcmp(namelist[i]->d_name, fname) == 0) {
+			char *dname = namelist[i]->d_name;
+			if (dname[0] == fname[0] && strcmp(dname, fname) == 0) {
 				sel = i - 1;
 				break;
 			}
@@ -870,20 +896,21 @@ rescan:
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_dirlist(curr_path, namelist, n, sel);
-	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU))
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU))
 		;
 
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
-			PBTN_L|PBTN_R|PBTN_MA2|PBTN_MOK|PBTN_MBACK|PBTN_MENU, 33);
+			PBTN_L|PBTN_R|PBTN_MA2|PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_CHAR, &cinp, 33);
 		if (inp & PBTN_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if (inp & PBTN_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
 		if (inp & PBTN_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
 		if (inp & PBTN_L)     { sel-=24; if (sel < 0)   sel = 0; }
 		if (inp & PBTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if (inp & PBTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
+		if (inp & PBTN_CHAR)  sel = dirent_seek_char(namelist, n, sel, cinp);
 		if ((inp & PBTN_MOK) || (inp & (PBTN_MENU|PBTN_MA2)) == (PBTN_MENU|PBTN_MA2))
 		{
 			again:
@@ -1052,7 +1079,7 @@ static int menu_loop_savestate(int is_loading)
 	for (;;)
 	{
 		draw_savestate_menu(menu_sel, is_loading);
-		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK|PBTN_MBACK, 100);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK|PBTN_MBACK, NULL, 100);
 		if (inp & PBTN_UP) {
 			do {
 				menu_sel--;
@@ -1242,7 +1269,8 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 	for (;;)
 	{
 		draw_key_config(opts, opt_cnt, player_idx, sel, dev_id, dev_count, 0);
-		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MBACK|PBTN_MOK|PBTN_MA2, 100);
+		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT
+				|PBTN_MBACK|PBTN_MOK|PBTN_MA2, NULL, 100);
 		switch (mkey) {
 			case PBTN_UP:   sel--; if (sel < 0) sel = menu_sel_max; continue;
 			case PBTN_DOWN: sel++; if (sel > menu_sel_max) sel = 0; continue;
@@ -1267,7 +1295,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 			case PBTN_MOK:
 				if (sel >= opt_cnt)
 					return;
-				while (in_menu_wait_any(30) & PBTN_MOK)
+				while (in_menu_wait_any(NULL, 30) & PBTN_MOK)
 					;
 				break;
 			case PBTN_MA2:
@@ -1280,7 +1308,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 
 		/* wait for some up event */
 		for (is_down = 1; is_down; )
-			kc = in_update_keycode(&bind_dev_id, &is_down, -1);
+			kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
 
 		i = count_bound_keys(bind_dev_id, opts[sel].mask << mask_shift, bindtype);
 		unbind = (i > 0);

@@ -559,9 +559,10 @@ static const struct {
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_evdev_menu_translate(void *drv_data, int keycode)
+static int in_evdev_menu_translate(void *drv_data, int keycode, char *charcode)
 {
 	in_evdev_t *dev = drv_data;
+	int ret = 0;
 	int i;
 
 	if (keycode < 0)
@@ -578,12 +579,25 @@ static int in_evdev_menu_translate(void *drv_data, int keycode)
 	}
 	else
 	{
-		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
-			if (key_pbtn_map[i].key == keycode)
-				return key_pbtn_map[i].pbtn;
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++) {
+			if (key_pbtn_map[i].key == keycode) {
+				ret = key_pbtn_map[i].pbtn;
+				break;
+			}
+		}
+
+		if (charcode != NULL && (unsigned int)keycode < KEY_CNT &&
+		    in_evdev_keys[keycode] != NULL && in_evdev_keys[keycode][1] == 0)
+		{
+			char c = in_evdev_keys[keycode][0];
+			if ('A' <= c && c <= 'Z')
+				c = 'a' + c - 'A';
+			ret |= PBTN_CHAR;
+			*charcode = c;
+		}
 	}
 
-	return 0;
+	return ret;
 }
 
 /* remove binds of missing keys, count remaining ones */

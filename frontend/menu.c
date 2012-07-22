@@ -1037,7 +1037,8 @@ static int menu_loop_cscaler(int id, int keys)
 		text_out16(2, 480 - 18, "%dx%d | d-pad: resize, R+d-pad: move",	g_layer_w, g_layer_h);
 		menu_draw_end();
 
-		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_R|PBTN_MOK|PBTN_MBACK, 40);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT
+				|PBTN_R|PBTN_MOK|PBTN_MBACK, NULL, 40);
 		if (inp & PBTN_UP)    g_layer_y--;
 		if (inp & PBTN_DOWN)  g_layer_y++;
 		if (inp & PBTN_LEFT)  g_layer_x--;
@@ -1440,7 +1441,7 @@ static void debug_menu_loop(void)
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
-					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 10);
+					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, NULL, 10);
 		if      (inp & PBTN_MBACK) break;
 		else if (inp & PBTN_UP)    { if (df_y > 0) df_y--; }
 		else if (inp & PBTN_DOWN)  { if (df_y < 512 - g_menuscreen_h) df_y++; }
@@ -1590,7 +1591,7 @@ static void menu_bios_warn(void)
 	{
 		draw_menu_message(tmp_msg, NULL);
 
-		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
+		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
 		if (inp & (PBTN_MBACK|PBTN_MOK))
 			return;
 	}
@@ -1883,7 +1884,7 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits_text, draw_frame_credits);
-		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
+		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
 		break;
 	case MA_MAIN_EXIT:
 		OnFile_Exit();
@@ -1963,7 +1964,7 @@ void menu_loop(void)
 	} while (!ready_to_go);
 
 	/* wait until menu, ok, back is released */
-	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
 		;
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);

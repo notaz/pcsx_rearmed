@@ -344,7 +344,7 @@ static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
 /* 
  * wait for a press, always return some keycode or -1 on timeout or error
  */
-int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
+int in_update_keycode(int *dev_id_out, int *is_down_out, char *charcode, int timeout_ms)
 {
 	int result = -1, dev_id = 0, is_down, result_menu;
 	int fds_hnds[IN_MAX_DEVS];
@@ -411,7 +411,7 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 finish:
 	/* keep track of menu key state, to allow mixing
 	 * in_update_keycode() and in_menu_wait_any() calls */
-	result_menu = drv->menu_translate(in_devices[dev_id].drv_data, result);
+	result_menu = drv->menu_translate(in_devices[dev_id].drv_data, result, charcode);
 	if (result_menu != 0) {
 		if (is_down)
 			menu_key_state |=  result_menu;
@@ -427,7 +427,7 @@ finish:
 }
 
 /* same as above, only return bitfield of PBTN_*  */
-int in_menu_wait_any(int timeout_ms)
+int in_menu_wait_any(char *charcode, int timeout_ms)
 {
 	int keys_old = menu_key_state;
 
@@ -435,7 +435,7 @@ int in_menu_wait_any(int timeout_ms)
 	{
 		int code, is_down = 0, dev_id = 0;
 
-		code = in_update_keycode(&dev_id, &is_down, timeout_ms);
+		code = in_update_keycode(&dev_id, &is_down, charcode, timeout_ms);
 		if (code < 0)
 			break;
 
@@ -449,7 +449,7 @@ int in_menu_wait_any(int timeout_ms)
 }
 
 /* wait for menu input, do autorepeat */
-int in_menu_wait(int interesting, int autorep_delay_ms)
+int in_menu_wait(int interesting, char *charcode, int autorep_delay_ms)
 {
 	static int inp_prev = 0;
 	static int repeats = 0;
@@ -458,12 +458,12 @@ int in_menu_wait(int interesting, int autorep_delay_ms)
 	if (repeats)
 		wait = autorep_delay_ms;
 
-	ret = in_menu_wait_any(wait);
+	ret = in_menu_wait_any(charcode, wait);
 	if (ret == inp_prev)
 		repeats++;
 
 	while (!(ret & interesting)) {
-		ret = in_menu_wait_any(-1);
+		ret = in_menu_wait_any(charcode, -1);
 		release = 1;
 	}
 
@@ -540,7 +540,7 @@ static int in_set_blocking(int is_blocking)
 
 	/* flush events */
 	do {
-		ret = in_update_keycode(NULL, NULL, 0);
+		ret = in_update_keycode(NULL, NULL, NULL, 0);
 	} while (ret >= 0);
 
 	return 0;
@@ -643,7 +643,7 @@ const char *in_get_key_name(int dev_id, int keycode)
 
 	drv = &DRV(dev->drv_id);
 	if (keycode < 0)	/* want name for menu key? */
-		keycode = drv->menu_translate(dev->drv_data, keycode);
+		keycode = drv->menu_translate(dev->drv_data, keycode, NULL);
 
 	if (dev->key_names != NULL && 0 <= keycode && keycode < dev->key_count)
 		name = dev->key_names[keycode];
@@ -917,7 +917,7 @@ static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
 static int  in_def_set_config(void *drv_data, int what, int val) { return -1; }
 static int  in_def_update_analog(void *drv_data, int axis_id, int *result) { return -1; }
 static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
-static int  in_def_menu_translate(void *drv_data, int keycode) { return 0; }
+static int  in_def_menu_translate(void *drv_data, int keycode, char *ccode) { return 0; }
 static int  in_def_get_key_code(const char *key_name) { return -1; }
 static const char *in_def_get_key_name(int keycode) { return NULL; }
 

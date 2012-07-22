@@ -15,6 +15,7 @@
 #include <linux/omapfb.h>
 
 #include "common/menu.h"
+#include "common/input.h"
 #include "linux/fbdev.h"
 #include "linux/xenv.h"
 #include "plugin_lib.h"
@@ -148,6 +149,7 @@ void plat_minimize(void)
 {
 	omap_enable_layer(0);
 	xenv_minimize();
+	in_set_config_int(0, IN_CFG_BLOCKING, 0); /* flush event queue */
 	omap_enable_layer(1);
 }
 

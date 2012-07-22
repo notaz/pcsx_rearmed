@@ -197,7 +197,7 @@ static const struct {
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_gp2x_menu_translate(void *drv_data, int keycode)
+static int in_gp2x_menu_translate(void *drv_data, int keycode, char *charcode)
 {
 	int i;
 	if (keycode < 0)

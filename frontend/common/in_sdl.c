@@ -270,8 +270,9 @@ static const struct {
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_sdl_menu_translate(void *drv_data, int keycode)
+static int in_sdl_menu_translate(void *drv_data, int keycode, char *charcode)
 {
+	int ret = 0;
 	int i;
 
 	if (keycode < 0)
@@ -284,12 +285,22 @@ static int in_sdl_menu_translate(void *drv_data, int keycode)
 	}
 	else
 	{
-		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
-			if (key_pbtn_map[i].key == keycode)
-				return key_pbtn_map[i].pbtn;
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++) {
+			if (key_pbtn_map[i].key == keycode) {
+				ret = key_pbtn_map[i].pbtn;
+				break;
+			}
+		}
+
+		if (charcode != NULL && (unsigned int)keycode < SDLK_LAST &&
+		    in_sdl_keys[keycode] != NULL && in_sdl_keys[keycode][1] == 0)
+		{
+			ret |= PBTN_CHAR;
+			*charcode = in_sdl_keys[keycode][0];
+		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static const in_drv_t in_sdl_drv = {

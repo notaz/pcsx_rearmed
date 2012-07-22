@@ -20,6 +20,8 @@
 
 #define PBTN_MENU  (1 << 10)
 
+#define PBTN_CHAR  (1 << 11)	/* character (text input) */
+
 // TODO: move to pico
 #if 0
 
@@ -87,7 +89,7 @@ typedef struct {
 	int  (*update_analog)(void *drv_data, int axis_id, int *result);
 	/* return -1 on no event, -2 on error */
 	int  (*update_keycode)(void *drv_data, int *is_down);
-	int  (*menu_translate)(void *drv_data, int keycode);
+	int  (*menu_translate)(void *drv_data, int keycode, char *charcode);
 	int  (*get_key_code)(const char *key_name);
 	const char * (*get_key_name)(int keycode);
 
@@ -111,9 +113,9 @@ void in_init(void);
 void in_probe(void);
 int  in_update(int *result);
 int  in_update_analog(int dev_id, int axis_id, int *value);
-int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
-int  in_menu_wait_any(int timeout_ms);
-int  in_menu_wait(int interesting, int autorep_delay_ms);
+int  in_update_keycode(int *dev_id, int *is_down, char *charcode, int timeout_ms);
+int  in_menu_wait_any(char *charcode, int timeout_ms);
+int  in_menu_wait(int interesting, char *charcode, int autorep_delay_ms);
 int  in_config_parse_dev(const char *dev_name);
 int  in_config_bind_key(int dev_id, const char *key, int binds, int bind_type);
 int  in_get_config(int dev_id, int what, void *val);
