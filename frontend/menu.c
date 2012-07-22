@@ -376,10 +376,26 @@ static int menu_write_config(int is_game)
 		}
 	}
 
-	if (!is_game)
-		fprintf(f, "lastcdimg = %s\n", last_selected_fname);
-
 	keys_write_all(f);
+	fclose(f);
+
+	return 0;
+}
+
+static int menu_do_last_cd_img(int is_get)
+{
+	char path[256];
+	FILE *f;
+
+	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
+	f = fopen(path, is_get ? "r" : "w");
+	if (f == NULL)
+		return -1;
+
+	if (is_get)
+		fscanf(f, "%255s", last_selected_fname);
+	else
+		fprintf(f, "%s\n", last_selected_fname);
 	fclose(f);
 
 	return 0;
@@ -2222,6 +2238,7 @@ void menu_init(void)
 
 	menu_set_defconfig();
 	menu_load_config(0);
+	menu_do_last_cd_img(1);
 	last_psx_w = 320;
 	last_psx_h = 240;
 	last_psx_bpp = 16;
@@ -2384,5 +2401,6 @@ void me_update_msg(const char *msg)
 
 void menu_finish(void)
 {
+	menu_do_last_cd_img(0);
 	plat_cpu_clock_apply(cpu_clock_st);
 }
