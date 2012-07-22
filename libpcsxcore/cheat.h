@@ -87,6 +87,9 @@ extern s8 *prevM;
 extern u32 *SearchResults;
 extern int NumSearchResults;
 
+extern int NumCheatsAllocated;
+extern int NumCodesAllocated;
+
 #define PREVM(mem)		(&prevM[mem])
 #define PrevMu8(mem)	(*(u8 *)PREVM(mem))
 #define PrevMu16(mem)	(SWAP16(*(u16 *)PREVM(mem)))

@@ -30,6 +30,7 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
+#include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/main.h"
@@ -52,6 +53,8 @@ typedef enum
 	MA_MAIN_SWAP_CD_MULTI,
 	MA_MAIN_RUN_BIOS,
 	MA_MAIN_RUN_EXE,
+	MA_MAIN_LOAD_CHEATS,
+	MA_MAIN_CHEATS,
 	MA_MAIN_CONTROLS,
 	MA_MAIN_CREDITS,
 	MA_MAIN_EXIT,
@@ -1560,6 +1563,59 @@ static int menu_loop_memcards(int id, int keys)
 	return 0;
 }
 
+// ------------ cheats menu ------------
+
+static void draw_cheatlist(int sel)
+{
+	int max_cnt, start, i, pos, active;
+
+	max_cnt = g_menuscreen_h / me_sfont_h;
+	start = max_cnt / 2 - sel;
+
+	menu_draw_begin(1);
+
+	for (i = 0; i < NumCheats; i++) {
+		pos = start + i;
+		if (pos < 0) continue;
+		if (pos >= max_cnt) break;
+		active = Cheats[i].Enabled;
+		smalltext_out16(14,                pos * me_sfont_h,
+			active ? "ON " : "OFF", active ? 0xfff6 : 0xffff);
+		smalltext_out16(14 + me_sfont_w*4, pos * me_sfont_h,
+			Cheats[i].Descr, active ? 0xfff6 : 0xffff);
+	}
+	pos = start + i;
+	if (pos < max_cnt)
+		smalltext_out16(14, pos * me_sfont_h, "done", 0xffff);
+
+	text_out16(5, max_cnt / 2 * me_sfont_h, ">");
+	menu_draw_end();
+}
+
+static void menu_loop_cheats(void)
+{
+	static int menu_sel = 0;
+	int inp;
+
+	for (;;)
+	{
+		draw_cheatlist(menu_sel);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R
+				|PBTN_MOK|PBTN_MBACK, NULL, 33);
+		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = NumCheats; }
+		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > NumCheats) menu_sel = 0; }
+		if (inp &(PBTN_LEFT|PBTN_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
+		if (inp &(PBTN_RIGHT|PBTN_R)) { menu_sel+=10; if (menu_sel > NumCheats) menu_sel = NumCheats; }
+		if (inp & PBTN_MOK) { // action
+			if (menu_sel < NumCheats)
+				Cheats[menu_sel].Enabled = !Cheats[menu_sel].Enabled;
+			else 	break;
+		}
+		if (inp & PBTN_MBACK)
+			break;
+	}
+}
+
 // --------- main menu help ----------
 
 static void menu_bios_warn(void)
@@ -1599,6 +1655,7 @@ static void menu_bios_warn(void)
 
 // ------------ main menu ------------
 
+static menu_entry e_menu_main[];
 void OnFile_Exit();
 
 static void draw_frame_main(void)
@@ -1752,9 +1809,9 @@ static int run_cd_image(const char *fname)
 		return -1;
 	}
 
+	emu_on_new_cd();
 	ready_to_go = 1;
-	snprintf(hud_msg, sizeof(hud_msg), "Booting up...");
-	hud_new_msg = 2;
+
 	return 0;
 }
 
@@ -1786,9 +1843,6 @@ static int romsel_run(void)
 		if (run_cd_image(fname) != 0)
 			return -1;
 	}
-
-	if (Config.HLE)
-		printf("note: running without BIOS, expect compatibility problems\n");
 
 	strcpy(last_selected_fname, rom_fname_reload);
 	return 0;
@@ -1842,6 +1896,28 @@ static int swap_cd_multidisk(void)
 	return 0;
 }
 
+static void load_pcsx_cht(void)
+{
+	char path[256];
+	char *fname;
+
+	path[0] = 0;
+	fname = menu_loop_romsel(path, sizeof(path));
+	if (fname == NULL)
+		return;
+
+	printf("selected cheat file: %s\n", fname);
+	LoadCheats(fname);
+
+	if (NumCheats == 0 && NumCodes == 0)
+		me_update_msg("failed to load cheats");
+	else {
+		snprintf(path, sizeof(path), "%d cheat(s) loaded", NumCheats + NumCodes);
+		me_update_msg(path);
+	}
+	me_enable(e_menu_main, MA_MAIN_CHEATS, ready_to_go && NumCheats);
+}
+
 static int main_menu_handler(int id, int keys)
 {
 	switch (id)
@@ -1882,6 +1958,12 @@ static int main_menu_handler(int id, int keys)
 		if (run_exe() == 0)
 			return 1;
 		break;
+	case MA_MAIN_CHEATS:
+		menu_loop_cheats();
+		break;
+	case MA_MAIN_LOAD_CHEATS:
+		load_pcsx_cht();
+		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits_text, draw_frame_credits);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
@@ -1904,6 +1986,7 @@ static menu_entry e_menu_main2[] =
 	mee_handler_id("Run BIOS",           MA_MAIN_RUN_BIOS,      main_menu_handler),
 	mee_handler_id("Run EXE",            MA_MAIN_RUN_EXE,       main_menu_handler),
 	mee_handler   ("Memcard manager",    menu_loop_memcards),
+	mee_handler_id("Load PCSX cheats..", MA_MAIN_LOAD_CHEATS,   main_menu_handler),
 	mee_end,
 };
 
@@ -1914,6 +1997,7 @@ static int main_menu2_handler(int id, int keys)
 	me_enable(e_menu_main2, MA_MAIN_SWAP_CD,  ready_to_go);
 	me_enable(e_menu_main2, MA_MAIN_SWAP_CD_MULTI, ready_to_go && cdrIsoMultidiskCount > 1);
 	me_enable(e_menu_main2, MA_MAIN_RUN_BIOS, bios_sel != 0);
+	me_enable(e_menu_main2, MA_MAIN_LOAD_CHEATS, ready_to_go);
 
 	return me_loop_d(e_menu_main2, &sel, NULL, draw_frame_main);
 }
@@ -1931,6 +2015,7 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Load CD image",      MA_MAIN_LOAD_ROM,    main_menu_handler),
 	mee_handler   ("Options",            menu_loop_options),
 	mee_handler   ("Controls",           menu_loop_keyconfig),
+	mee_handler_id("Cheats",             MA_MAIN_CHEATS,      main_menu_handler),
 	mee_handler_h ("Extra stuff",        main_menu2_handler,  h_extra),
 	mee_handler_id("Credits",            MA_MAIN_CREDITS,     main_menu_handler),
 	mee_handler_id("Exit",               MA_MAIN_EXIT,        main_menu_handler),
@@ -1956,6 +2041,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  ready_to_go && CdromId[0]);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  ready_to_go);
+	me_enable(e_menu_main, MA_MAIN_CHEATS,      ready_to_go && NumCheats);
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 

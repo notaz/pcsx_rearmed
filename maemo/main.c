@@ -125,6 +125,7 @@ int maemo_main(int argc, char **argv)
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
+			emu_on_new_cd();
 			ready_to_go = 1;
 		}
 	}

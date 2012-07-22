@@ -22,6 +22,7 @@
 #include "menu.h"
 #include "plat.h"
 #include "../libpcsxcore/misc.h"
+#include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "common/plat.h"
@@ -265,6 +266,119 @@ do_state_slot:
 	printf("* %s\n", hud_msg);
 }
 
+static int cdidcmp(const char *id1, const char *id2)
+{
+	while (*id1 != 0 && *id2 != 0) {
+		if (*id1 == '_') { id1++; continue; }
+		if (*id2 == '_') { id2++; continue; }
+		if (*id1 != *id2)
+			break;
+		id1++;
+		id2++;
+	}
+
+	return *id1 - *id2;
+}
+
+static void parse_cwcheat(void)
+{
+	char line[256], buf[64], name[64], *p;
+	int newcheat = 1;
+	u32 a, v;
+	FILE *f;
+
+	f = fopen("cheatpops.db", "r");
+	if (f == NULL)
+		return;
+
+	/* find the game */
+	while (fgets(line, sizeof(line), f)) {
+		if (sscanf(line, "_S %63s", buf) != 1)
+			continue;
+		if (cdidcmp(buf, CdromId) == 0)
+			break;
+	}
+
+	if (feof(f))
+		goto out;
+
+	printf("cwcheat section found for %s\n", CdromId);
+	while (fgets(line, sizeof(line), f))
+	{
+		p = line + strlen(line);
+		for (p--; p >= line && (*p == '\r' || *p == '\n' || *p == ' '); p--)
+			*p = 0;
+		if (*p == 0 || *p == '#' || *p == ';')
+			continue;
+
+		if (strncmp(line, "_S", 2) == 0)
+			break;
+		if (strncmp(line, "_G", 2) == 0) {
+			printf("  cwcheat game name: '%s'\n", line + 3);
+			continue;
+		}
+		if (strncmp(line, "_C0", 3) == 0) {
+			if (!newcheat && Cheats[NumCheats - 1].n == 0) {
+				printf("cheat '%s' failed to parse\n", name);
+				free(Cheats[NumCheats - 1].Descr);
+				NumCheats--;
+			}
+			snprintf(name, sizeof(name), "%s", line + 4);
+			newcheat = 1;
+			continue;
+		}
+		if (sscanf(line, "_L %x %x", &a, &v) != 2) {
+			printf("line failed to parse: '%s'\n", line);
+			continue;
+		}
+
+		if (newcheat) {
+			if (NumCheats >= NumCheatsAllocated) {
+				NumCheatsAllocated += 16;
+				Cheats = realloc(Cheats, sizeof(Cheat) *
+						NumCheatsAllocated);
+				if (Cheats == NULL)
+					break;
+			}
+			Cheats[NumCheats].Descr = strdup(name);
+			Cheats[NumCheats].Enabled = 0;
+			Cheats[NumCheats].First = NumCodes;
+			Cheats[NumCheats].n = 0;
+			NumCheats++;
+			newcheat = 0;
+		}
+
+		if (NumCodes >= NumCodesAllocated) {
+			NumCodesAllocated += 16;
+			CheatCodes = realloc(CheatCodes, sizeof(CheatCode) *
+				NumCodesAllocated);
+			if (CheatCodes == NULL)
+				break;
+		}
+		CheatCodes[NumCodes].Addr = a;
+		CheatCodes[NumCodes].Val = v;
+		NumCodes++;
+		Cheats[NumCheats - 1].n++;
+	}
+
+out:
+	fclose(f);
+}
+
+void emu_on_new_cd(void)
+{
+	ClearAllCheats();
+	parse_cwcheat();
+
+	if (Config.HLE) {
+		printf("note: running with HLE BIOS, expect compatibility problems\n");
+		printf("----------------------------------------------------------\n");
+	}
+
+	snprintf(hud_msg, sizeof(hud_msg), "Booting up...");
+	hud_new_msg = 2;
+}
+
 int main(int argc, char *argv[])
 {
 	// what is the name of the config file?
@@ -399,6 +513,7 @@ int main(int argc, char *argv[])
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
+			emu_on_new_cd();
 			ready_to_go = 1;
 		}
 	}

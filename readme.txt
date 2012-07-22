@@ -72,6 +72,17 @@ builtin_spu    - P.E.Op.S. SPU plugin, optimized for ARM.
 spunull.so     - NULL plugin, i.e. no sound emulation.
 
 
+Cheats
+------
+
+PCSX and cwcheat cheat formats are supported. PCSX .cht file can be loaded from
+"extra stuff" menu after game is loaded, while cwcheat cheats are automatically
+loaded from cheatpops.db file, if one is present in emulator's directory and
+has any cheats for the loaded game in it.
+If any of those files are successfully loaded, 'cheats' option will appear in
+the main menu where it is possible to enable/disable individual cheats.
+
+
 Changelog
 ---------
 

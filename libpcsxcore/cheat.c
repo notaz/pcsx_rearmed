@@ -24,11 +24,11 @@
 
 Cheat *Cheats = NULL;
 int NumCheats = 0;
-static int NumCheatsAllocated = 0;
+int NumCheatsAllocated = 0;
 
 CheatCode *CheatCodes = NULL;
 int NumCodes = 0;
-static int NumCodesAllocated = 0;
+int NumCodesAllocated = 0;
 
 s8 *prevM = NULL;
 u32 *SearchResults = NULL;
