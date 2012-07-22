@@ -342,6 +342,7 @@ static void parse_cwcheat(void)
 			}
 			Cheats[NumCheats].Descr = strdup(name);
 			Cheats[NumCheats].Enabled = 0;
+			Cheats[NumCheats].WasEnabled = 0;
 			Cheats[NumCheats].First = NumCodes;
 			Cheats[NumCheats].n = 0;
 			NumCheats++;
