@@ -18,6 +18,13 @@
 typedef unsigned long keybits_t;
 #define KEYBITS_WORD_BITS (sizeof(keybits_t) * 8)
 
+struct in_sdl_state {
+	SDL_Joystick *joy;
+	int joy_id;
+	int axis_keydown[2];
+	keybits_t keystate[SDLK_LAST / KEYBITS_WORD_BITS + 1];
+};
+
 static const char * const in_sdl_keys[SDLK_LAST] = {
 	[SDLK_BACKSPACE] = "backspace",
 	[SDLK_TAB] = "tab",
@@ -155,24 +162,54 @@ static const char * const in_sdl_keys[SDLK_LAST] = {
 
 static void in_sdl_probe(void)
 {
-	keybits_t *keystate;
+	struct in_sdl_state *state;
+	SDL_Joystick *joy;
+	int i, joycount;
+	char name[256];
 
-	keystate = calloc(SDLK_LAST / KEYBITS_WORD_BITS + 1, sizeof(keybits_t));
-	if (keystate == NULL) {
+	state = calloc(1, sizeof(*state));
+	if (state == NULL) {
 		fprintf(stderr, "in_sdl: OOM\n");
 		return;
 	}
 
-	in_register(IN_SDL_PREFIX "keys", -1, keystate, SDLK_LAST,
+	in_register(IN_SDL_PREFIX "keys", -1, state, SDLK_LAST,
 		in_sdl_keys, 0);
+
+	/* joysticks go here too */
+	SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+
+	joycount = SDL_NumJoysticks();
+	for (i = 0; i < joycount; i++) {
+		joy = SDL_JoystickOpen(i);
+		if (joy == NULL)
+			continue;
+
+		state = calloc(1, sizeof(*state));
+		if (state == NULL) {
+			fprintf(stderr, "in_sdl: OOM\n");
+			break;
+		}
+		state->joy = joy;
+		state->joy_id = i;
+
+		snprintf(name, sizeof(name), IN_SDL_PREFIX "%s", SDL_JoystickName(i));
+		in_register(name, -1, state, SDLK_LAST, in_sdl_keys, 0);
+	}
+
+	if (joycount > 0)
+		SDL_JoystickEventState(SDL_ENABLE);
 }
 
 static void in_sdl_free(void *drv_data)
 {
-	keybits_t *keystate = drv_data;
+	struct in_sdl_state *state = drv_data;
 
-	if (keystate != NULL)
-		free(keystate);
+	if (state != NULL) {
+		if (state->joy != NULL)
+			SDL_JoystickClose(state->joy);
+		free(state);
+	}
 }
 
 static const char * const *
@@ -196,22 +233,120 @@ static void update_keystate(keybits_t *keystate, int sym, int is_down)
 		*ks_word &= ~mask;
 }
 
-static int in_sdl_update(void *drv_data, const int *binds, int *result)
+static int handle_event(struct in_sdl_state *state, SDL_Event *event,
+	int *kc_out, int *down_out)
 {
-	keybits_t *keystate = drv_data, mask;
-	SDL_Event event;
-	int i, sym, bit, b;
+	if (event->type != SDL_KEYDOWN && event->type != SDL_KEYUP)
+		return 0;
 
-	while (SDL_PollEvent(&event)) {
-		if (event.type != SDL_KEYDOWN && event.type != SDL_KEYUP)
-			continue;
+	update_keystate(state->keystate, event->key.keysym.sym,
+		event->type == SDL_KEYDOWN);
+	if (kc_out != NULL)
+		*kc_out = event->key.keysym.sym;
+	if (down_out != NULL)
+		*down_out = event->type == SDL_KEYDOWN;
 
-		update_keystate(keystate, event.key.keysym.sym,
-			event.type == SDL_KEYDOWN);
+	return 1;
+}
+
+static int handle_joy_event(struct in_sdl_state *state, SDL_Event *event,
+	int *kc_out, int *down_out)
+{
+	int kc = -1, down = 0, ret = 0;
+
+	/* FIXME: should ckeck .which */
+	/* TODO: remaining axis */
+	switch (event->type) {
+	case SDL_JOYAXISMOTION:
+		if (event->jaxis.axis > 1)
+			break;
+		if (-16384 <= event->jaxis.value && event->jaxis.value <= 16384) {
+			kc = state->axis_keydown[event->jaxis.axis];
+			state->axis_keydown[event->jaxis.axis] = 0;
+			ret = 1;
+		}
+		else if (event->jaxis.value < -16384) {
+			kc = state->axis_keydown[event->jaxis.axis];
+			if (kc)
+				update_keystate(state->keystate, kc, 0);
+			kc = event->jaxis.axis ? SDLK_UP : SDLK_LEFT;
+			state->axis_keydown[event->jaxis.axis] = kc;
+			down = 1;
+			ret = 1;
+		}
+		else if (event->jaxis.value > 16384) {
+			kc = state->axis_keydown[event->jaxis.axis];
+			if (kc)
+				update_keystate(state->keystate, kc, 0);
+			kc = event->jaxis.axis ? SDLK_DOWN : SDLK_RIGHT;
+			state->axis_keydown[event->jaxis.axis] = kc;
+			down = 1;
+			ret = 1;
+		}
+		break;
+
+	case SDL_JOYBUTTONDOWN:
+	case SDL_JOYBUTTONUP:
+		kc = (int)event->jbutton.button + SDLK_WORLD_0;
+		down = event->jbutton.state == SDL_PRESSED;
+		ret = 1;
+		break;
 	}
 
+	if (ret)
+		update_keystate(state->keystate, kc, down);
+	if (kc_out != NULL)
+		*kc_out = kc;
+	if (down_out != NULL)
+		*down_out = down;
+
+	return ret;
+}
+
+#define JOY_EVENTS (SDL_JOYAXISMOTIONMASK | SDL_JOYBALLMOTIONMASK | SDL_JOYHATMOTIONMASK \
+		    | SDL_JOYBUTTONDOWNMASK | SDL_JOYBUTTONUPMASK)
+
+static int collect_events(struct in_sdl_state *state, int *one_kc, int *one_down)
+{
+	SDL_Event events[4];
+	Uint32 mask = state->joy ? JOY_EVENTS : (SDL_ALLEVENTS & ~JOY_EVENTS);
+	int count, maxcount;
+	int i, ret, retval = 0;
+
+	maxcount = (one_kc != NULL) ? 1 : sizeof(events) / sizeof(events[0]);
+
+	SDL_PumpEvents();
+	while (1) {
+		count = SDL_PeepEvents(events, maxcount, SDL_GETEVENT, mask);
+		if (count <= 0)
+			break;
+		for (i = 0; i < count; i++) {
+			if (state->joy)
+				ret = handle_joy_event(state,
+					&events[i], one_kc, one_down);
+			else
+				ret = handle_event(state,
+					&events[i], one_kc, one_down);
+			retval |= ret;
+			if (one_kc != NULL && ret)
+				goto out;
+		}
+	}
+
+out:
+	return retval;
+}
+
+static int in_sdl_update(void *drv_data, const int *binds, int *result)
+{
+	struct in_sdl_state *state = drv_data;
+	keybits_t mask;
+	int i, sym, bit, b;
+
+	collect_events(state, NULL, NULL);
+
 	for (i = 0; i < SDLK_LAST / KEYBITS_WORD_BITS + 1; i++) {
-		mask = keystate[i];
+		mask = state->keystate[i];
 		if (mask == 0)
 			continue;
 		for (bit = 0; mask != 0; bit++, mask >>= 1) {
@@ -229,30 +364,23 @@ static int in_sdl_update(void *drv_data, const int *binds, int *result)
 
 static int in_sdl_update_keycode(void *drv_data, int *is_down)
 {
-	int ret, ret_kc = -1, ret_down = 0;
-	SDL_Event event;
+	struct in_sdl_state *state = drv_data;
+	int ret_kc = -1, ret_down = 0;
 
-	ret = SDL_PollEvent(&event);
-	if (ret == 0)
-		goto out;
-	if (event.type != SDL_KEYDOWN && event.type != SDL_KEYUP)
-		goto out;
+	collect_events(state, &ret_kc, &ret_down);
 
-	if (event.key.type == SDL_KEYDOWN)
-		ret_down = 1;
-	ret_kc = event.key.keysym.sym;
-	update_keystate(drv_data, ret_kc, ret_down);
-out:
 	if (is_down != NULL)
 		*is_down = ret_down;
 
 	return ret_kc;
 }
 
-static const struct {
+struct menu_keymap {
 	short key;
 	short pbtn;
-} key_pbtn_map[] =
+};
+
+static const struct menu_keymap key_pbtn_map[] =
 {
 	{ SDLK_UP,	PBTN_UP },
 	{ SDLK_DOWN,	PBTN_DOWN },
@@ -267,27 +395,46 @@ static const struct {
 	{ SDLK_LEFTBRACKET,  PBTN_L },
 	{ SDLK_RIGHTBRACKET, PBTN_R },
 };
-
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
+
+static const struct menu_keymap joybtn_pbtn_map[] =
+{
+	{ SDLK_UP,	PBTN_UP },
+	{ SDLK_DOWN,	PBTN_DOWN },
+	{ SDLK_LEFT,	PBTN_LEFT },
+	{ SDLK_RIGHT,	PBTN_RIGHT },
+	/* joystick */
+	{ SDLK_WORLD_0,	PBTN_MOK },
+	{ SDLK_WORLD_1,	PBTN_MBACK },
+	{ SDLK_WORLD_2,	PBTN_MA2 },
+	{ SDLK_WORLD_3,	PBTN_MA3 },
+};
+#define JOYBTN_PBTN_MAP_SIZE (sizeof(joybtn_pbtn_map) / sizeof(joybtn_pbtn_map[0]))
 
 static int in_sdl_menu_translate(void *drv_data, int keycode, char *charcode)
 {
+	struct in_sdl_state *state = drv_data;
+	const struct menu_keymap *map;
+	int map_len;
 	int ret = 0;
 	int i;
+
+	map = state->joy ? joybtn_pbtn_map : key_pbtn_map;
+	map_len = state->joy ? JOYBTN_PBTN_MAP_SIZE : KEY_PBTN_MAP_SIZE;
 
 	if (keycode < 0)
 	{
 		/* menu -> kc */
 		keycode = -keycode;
-		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
-			if (key_pbtn_map[i].pbtn == keycode)
-				return key_pbtn_map[i].key;
+		for (i = 0; i < map_len; i++)
+			if (map[i].pbtn == keycode)
+				return map[i].key;
 	}
 	else
 	{
-		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++) {
-			if (key_pbtn_map[i].key == keycode) {
-				ret = key_pbtn_map[i].pbtn;
+		for (i = 0; i < map_len; i++) {
+			if (map[i].key == keycode) {
+				ret = map[i].pbtn;
 				break;
 			}
 		}
