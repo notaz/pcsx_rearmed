@@ -170,6 +170,11 @@ if [ "$ARCH" = "arm" ]; then
     echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
   fi
 
+  # must disable -mthumb as recompiler can't handle it
+  if check_define __thumb__; then
+    CFLAGS="$CFLAGS -mno-thumb"
+  fi
+
   if [ "$have_armv7" = "yes" ]; then
     ASFLAGS="$ASFLAGS --defsym HAVE_ARMV7=1"
   else
