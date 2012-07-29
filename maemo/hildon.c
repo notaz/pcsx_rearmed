@@ -245,7 +245,7 @@ void *plat_gvideo_flip(void)
 	return pl_vout_buf;
 }
 
-void plat_gvideo_open(void)
+void plat_gvideo_open(int is_pal)
 {
 }
 
@@ -258,14 +258,10 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 	return NULL;
 }
 
-void plat_step_volume(int is_up)
-{
-}
-
 void plat_trigger_vibrate(int is_strong)
 {
 }
 
-void plat_minimize(void)
+void menu_notify_mode_change(int w, int h, int bpp)
 {
 }
