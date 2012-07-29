@@ -2702,7 +2702,7 @@ void literal_pool_jumpover(int n)
   set_jump_target(jaddr,(int)out);
 }
 
-emit_extjump2(int addr, int target, int linker)
+emit_extjump2(u_int addr, int target, int linker)
 {
   u_char *ptr=(u_char *)addr;
   assert((ptr[3]&0x0e)==0xa);

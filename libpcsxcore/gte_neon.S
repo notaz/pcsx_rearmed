@@ -17,6 +17,15 @@ scratch:
 .text
 .align 2
 
+.macro ldr_scratch rd
+#ifndef __PIC__
+    movw        \rd, #:lower16:scratch
+    movt        \rd, #:upper16:scratch
+#else
+    ldr         \rd, =scratch
+#endif
+.endm
+
 @ XXX: gteMAC calc shouldn't be saturating, but it is here
 
 @ approximate gteMAC|123 flags
@@ -139,8 +148,7 @@ gteRTPS_neon:
     push        {r4-r6,lr}
 
 @    fmrx        r4, fpscr      @ vmrs? at least 40 cycle hit
-    movw        r1, #:lower16:scratch
-    movt        r1, #:upper16:scratch
+    ldr_scratch r1
     mov         r12, #0
 
     vldmia      r0, {d8}       @ VXYZ(0)
@@ -293,8 +301,7 @@ gteRTPS_neon:
 gteRTPT_neon:
     push        {r4-r11,lr}
 
-    movw        r1, #:lower16:scratch
-    movt        r1, #:upper16:scratch
+    ldr_scratch r1
     mov         r12, #0
 
     rtpx_preload

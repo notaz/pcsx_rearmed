@@ -12,18 +12,24 @@
 .text
 .align 2
 
-@ XXX: should be HAVE_NEON
-.if HAVE_ARMV7
+.macro load_varadr reg var
+#if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
+	movw	\reg, #:lower16:\var
+	movt	\reg, #:upper16:\var
+#else
+	ldr	\reg, =\var
+#endif
+.endm
+
+#ifdef __ARM_NEON__
 
 .global mix_chan @ (int start, int count, int lv, int rv)
 mix_chan:
     vmov.32     d14[0], r2
     vmov.32     d14[1], r3             @ multipliers
     mov         r12, r0
-    movw        r0, #:lower16:ChanBuf
-    movw        r2, #:lower16:SSumLR
-    movt        r0, #:upper16:ChanBuf
-    movt        r2, #:upper16:SSumLR
+    load_varadr r0, ChanBuf
+    load_varadr r2, SSumLR
     add         r0, r12, lsl #2
     add         r2, r12, lsl #3
 0:
@@ -56,12 +62,9 @@ mix_chan_rvb:
     vmov.32     d14[0], r2
     vmov.32     d14[1], r3             @ multipliers
     mov         r12, r0
-    movw        r0, #:lower16:ChanBuf
-    movw        r3, #:lower16:sRVBStart
-    movw        r2, #:lower16:SSumLR
-    movt        r0, #:upper16:ChanBuf
-    movt        r3, #:upper16:sRVBStart
-    movt        r2, #:upper16:SSumLR
+    load_varadr r0, ChanBuf
+    load_varadr r3, sRVBStart
+    load_varadr r2, SSumLR
     ldr         r3, [r3]
     add         r0, r12, lsl #2
     add         r2, r12, lsl #3
@@ -97,7 +100,7 @@ mcr_finish:
     vstmiage    r3!, {d8}
     bx          lr
 
-.else
+#else
 
 .global mix_chan @ (int start, int count, int lv, int rv)
 mix_chan:
@@ -105,8 +108,8 @@ mix_chan:
     orr         r3, r2, r3, lsl #16
     lsl         r3, #1                 @ packed multipliers << 1
     mov         r12, r0
-    ldr         r0, =ChanBuf
-    ldr         r2, =SSumLR
+    load_varadr r0, ChanBuf
+    load_varadr r2, SSumLR
     add         r0, r12, lsl #2
     add         r2, r12, lsl #3
 0:
@@ -134,9 +137,9 @@ mix_chan_rvb:
     stmfd       sp!, {r4-r8,lr}
     orr         lr, r2, r3, lsl #16
     lsl         lr, #1
-    ldr         r3, =sRVBStart
-    ldr         r2, =SSumLR
-    ldr         r4, =ChanBuf
+    load_varadr r3, sRVBStart
+    load_varadr r2, SSumLR
+    load_varadr r4, ChanBuf
     ldr         r3, [r3]
     add         r2, r2, r0, lsl #3
     add         r3, r3, r0, lsl #3
@@ -156,6 +159,6 @@ mix_chan_rvb:
     bgt         0b
     ldmfd       sp!, {r4-r8,pc}
 
-.endif
+#endif
 
 @ vim:filetype=armasm

@@ -19,8 +19,6 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/* .equiv HAVE_ARMV7, 1 */
-
 	.global	dynarec_local
 	.global	reg
 	.global	hi
@@ -165,33 +163,33 @@ FCR31 = align0
 	.type	FCR31, %object
 	.size	FCR31, 4
 
-.macro load_var_adr reg var
-.if HAVE_ARMV7
+.macro load_varadr reg var
+#if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
 	movw	\reg, #:lower16:\var
 	movt	\reg, #:upper16:\var
-.else
+#else
 	ldr	\reg, =\var
-.endif
+#endif
 .endm
 
 .macro mov_16 reg imm
-.if HAVE_ARMV7
+#ifdef __ARM_ARCH_7A__
 	movw	\reg, #\imm
-.else
+#else
 	mov	\reg, #(\imm & 0x00ff)
 	orr	\reg, #(\imm & 0xff00)
-.endif
+#endif
 .endm
 
 .macro mov_24 reg imm
-.if HAVE_ARMV7
+#ifdef __ARM_ARCH_7A__
 	movw	\reg, #(\imm & 0xffff)
 	movt	\reg, #(\imm >> 16)
-.else
+#else
 	mov	\reg, #(\imm & 0x0000ff)
 	orr	\reg, #(\imm & 0x00ff00)
 	orr	\reg, #(\imm & 0xff0000)
-.endif
+#endif
 .endm
 
 .macro dyna_linker_main
@@ -778,7 +776,7 @@ invalidate_addr_call:
 new_dyna_start:
 	/* ip is stored to conform EABI alignment */
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
-	load_var_adr fp, dynarec_local
+	load_varadr fp, dynarec_local
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	ldr	r1, [fp, #next_interupt-dynarec_local]

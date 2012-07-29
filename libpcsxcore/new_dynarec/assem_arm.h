@@ -66,5 +66,5 @@ extern char *invc_ptr;
 #define BASE_ADDR 0x1000000
 #else
 extern char translation_cache[1 << TARGET_SIZE_2];
-#define BASE_ADDR translation_cache
+#define BASE_ADDR (u_int)translation_cache
 #endif
