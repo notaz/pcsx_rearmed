@@ -186,10 +186,6 @@ void maemo_init(int *argc, char ***argv)
 	pl_rearmed_cbs.only_16bpp = 1;
 }
 
-void menu_loop(void)
-{
-}
-
 void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 {
 	int w = *w_, h = *h_;

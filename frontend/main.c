@@ -29,6 +29,7 @@
 #include "common/readpng.h"
 #include "common/input.h"
 #include "linux/in_evdev.h"
+#include "revision.h"
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
@@ -190,15 +191,11 @@ static void check_memcards(void)
 
 void do_emu_action(void)
 {
-	char buf[MAXPATHLEN];
 	int ret;
 
 	emu_action_old = emu_action;
 
 	switch (emu_action) {
-	case SACTION_ENTER_MENU:
-		menu_loop();
-		return;
 	case SACTION_LOAD_STATE:
 		ret = emu_load_state(state_slot);
 		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "LOADED" : "FAIL!");
@@ -207,6 +204,10 @@ void do_emu_action(void)
 		ret = emu_save_state(state_slot);
 		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "SAVED" : "FAIL!");
 		break;
+#ifndef NO_FRONTEND
+	case SACTION_ENTER_MENU:
+		menu_loop();
+		return;
 	case SACTION_NEXT_SSLOT:
 		state_slot++;
 		if (state_slot > 9)
@@ -216,7 +217,12 @@ void do_emu_action(void)
 		state_slot--;
 		if (state_slot < 0)
 			state_slot = 9;
-		goto do_state_slot;
+do_state_slot:
+		snprintf(hud_msg, sizeof(hud_msg), "STATE SLOT %d [%s]", state_slot,
+			emu_check_state(state_slot) == 0 ? "USED" : "FREE");
+		hud_new_msg = 3;
+		printf("* %s\n", hud_msg);
+		break;
 	case SACTION_TOGGLE_FSKIP:
 		pl_rearmed_cbs.fskip_advice = 0;
 		pl_rearmed_cbs.frameskip++;
@@ -229,6 +235,7 @@ void do_emu_action(void)
 		break;
 	case SACTION_SCREENSHOT:
 		{
+			char buf[MAXPATHLEN];
 			void *scrbuf;
 			int w, h, bpp;
 			time_t t = time(NULL);
@@ -253,17 +260,12 @@ void do_emu_action(void)
 	case SACTION_MINIMIZE:
 		plat_minimize();
 		return;
+#endif
 	default:
 		return;
 	}
-	hud_new_msg = 3;
-	return;
 
-do_state_slot:
-	snprintf(hud_msg, sizeof(hud_msg), "STATE SLOT %d [%s]", state_slot,
-		emu_check_state(state_slot) == 0 ? "USED" : "FREE");
 	hud_new_msg = 3;
-	printf("* %s\n", hud_msg);
 }
 
 static int cdidcmp(const char *id1, const char *id2)
@@ -380,7 +382,7 @@ void emu_on_new_cd(void)
 	hud_new_msg = 2;
 }
 
-int main(int argc, char *argv[])
+int emu_core_preinit(void)
 {
 	// what is the name of the config file?
 	// it may be redefined by -cfg on the command line
@@ -391,16 +393,35 @@ int main(int argc, char *argv[])
 
 	memset(&Config, 0, sizeof(Config));
 
-	CheckSubDir();
 	set_default_paths();
 	emu_set_default_config();
-	check_memcards();
 	strcpy(Config.Bios, "HLE");
 
-#ifdef MAEMO
-	extern int maemo_main(int argc, char **argv);
-	return maemo_main(argc, argv);
-#else
+	return 0;
+}
+
+int emu_core_init(void)
+{
+	CheckSubDir();
+	check_memcards();
+
+	if (EmuInit() == -1) {
+		printf("PSX emulator couldn't be initialized.\n");
+		return -1;
+	}
+
+	LoadMcds(Config.Mcd1, Config.Mcd2);
+
+	if (Config.Debug) {
+		StartDebugger();
+	}
+
+	return 0;
+}
+
+#ifndef NO_FRONTEND
+int main(int argc, char *argv[])
+{
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
@@ -408,6 +429,8 @@ int main(int argc, char *argv[])
 	int psxout = 0;
 	int loadst = 0;
 	int i;
+
+	emu_core_preinit();
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
@@ -442,17 +465,16 @@ int main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
-			 printf(PACKAGE_NAME " " PACKAGE_VERSION "\n");
+			 printf("PCSX-ReARMed " REV "\n");
 			 printf("%s\n", _(
 							" pcsx [options] [file]\n"
 							"\toptions:\n"
 							"\t-cdfile FILE\tRuns a CD image file\n"
-							"\t-nogui\t\tDon't open the GTK GUI\n"
 							"\t-cfg FILE\tLoads desired configuration file (default: ~/.pcsx/pcsx.cfg)\n"
 							"\t-psxout\t\tEnable PSX output\n"
 							"\t-load STATENUM\tLoads savestate STATENUM (1-5)\n"
 							"\t-h -help\tDisplay this message\n"
-							"\tfile\t\tLoads file\n"));
+							"\tfile\t\tLoads a PSX EXE file\n"));
 			 return 0;
 		} else {
 			strncpy(file, argv[i], MAXPATHLEN);
@@ -471,9 +493,6 @@ int main(int argc, char *argv[])
 	if (cdfile)
 		set_cd_image(cdfile);
 
-	if (SysInit() == -1)
-		return 1;
-
 	// frontend stuff
 	// init input but leave probing to platform code,
 	// they add input drivers and may need to modify them after probe
@@ -481,6 +500,8 @@ int main(int argc, char *argv[])
 	pl_init();
 	plat_init();
 	menu_init(); // loads config
+
+	emu_core_init();
 
 	if (psxout)
 		Config.PsxOut = 1;
@@ -548,30 +569,11 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
 #endif
-}
-
-int SysInit() {
-	if (EmuInit() == -1) {
-		printf("PSX emulator couldn't be initialized.\n");
-		return -1;
-	}
-
-	LoadMcds(Config.Mcd1, Config.Mcd2);
-
-	if (Config.Debug) {
-		StartDebugger();
-	}
-
-	return 0;
-}
 
 void SysRunGui() {
         printf("SysRunGui\n");
-}
-
-void StartGui() {
-        printf("StartGui\n");
 }
 
 static void dummy_lace()
@@ -610,12 +612,12 @@ void SysUpdate() {
 
 void OnFile_Exit() {
 	printf("OnFile_Exit\n");
-#ifndef MAEMO
-	menu_finish();
-#endif
 	SysClose();
+#ifndef NO_FRONTEND
+	menu_finish();
 	plat_finish();
 	exit(0);
+#endif
 }
 
 int get_state_filename(char *buf, int size, int i) {
@@ -729,7 +731,7 @@ static int _OpenPlugins(void) {
 
 		MAKE_PATH(dotdir, "/.pcsx/plugins/", NULL);
 
-		strcpy(info.EmuName, "PCSX " PACKAGE_VERSION);
+		strcpy(info.EmuName, "PCSX");
 		strncpy(info.CdromID, CdromId, 9);
 		strncpy(info.CdromLabel, CdromLabel, 9);
 		info.psxMem = psxM;

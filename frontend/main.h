@@ -35,6 +35,12 @@
 extern char cfgfile_basename[MAXPATHLEN];
 
 extern int state_slot;
+
+/* emu_core_preinit - must be the very first call
+ * emu_core_init - to be called after platform-specific setup */
+int emu_core_preinit(void);
+int emu_core_init(void);
+
 void emu_set_default_config(void);
 void emu_on_new_cd(void);
 

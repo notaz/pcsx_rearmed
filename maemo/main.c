@@ -38,20 +38,26 @@ static void ChangeWorkingDirectory(char *exe)
 	}
 }
 
-int maemo_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-	ChangeWorkingDirectory("c");
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
 	int loadst = 0;
 	int i;
 
+	emu_core_preinit();
+	ChangeWorkingDirectory("c");
+
 	strcpy(Config.BiosDir, "/home/user/MyDocs");
 	strcpy(Config.PluginsDir, "/opt/maemo/usr/games/plugins");
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "/opt/maemo/usr/games" PATCHES_DIR);
 	Config.PsxAuto = 1;
 	
+	pl_init();
+
+	emu_core_init();
+
 	// read command line options
 	for (i = 1; i < argc; i++) {
 		     if (!strcmp(argv[i], "-psxout")) Config.PsxOut = 1;
@@ -96,11 +102,6 @@ int maemo_main(int argc, char **argv)
 		set_cd_image(cdfile);
 		strcpy(file_name, strrchr(cdfile,'/'));
 	}
-
-	if (SysInit() == -1)
-		return 1;
-
-	pl_init();
 
 	if (LoadPlugins() == -1) {
 		SysMessage("Failed loading plugins!");

@@ -11,7 +11,7 @@ endif
 #DRC_DBG = 1
 #PCNT = 1
 
-all: config.mak $(TARGET) plugins_
+all: config.mak target_ plugins_
 
 ifneq ($(wildcard config.mak),)
 config.mak: ./configure
@@ -111,28 +111,43 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # gui
 OBJS += frontend/main.o frontend/plugin.o
-OBJS += frontend/plugin_lib.o frontend/common/readpng.o
-OBJS += frontend/common/fonts.o frontend/linux/plat.o
-ifeq "$(PLATFORM)" "maemo"
-OBJS += maemo/hildon.o maemo/main.o
-maemo/%.o: maemo/%.c
-else
-OBJS += frontend/menu.o frontend/linux/in_evdev.o
-OBJS += frontend/common/input.o
+OBJS += frontend/common/readpng.o frontend/common/fonts.o
+OBJS += frontend/linux/plat.o
 
 ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/plat_sdl.o frontend/common/in_sdl.o
+USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"
 OBJS += frontend/linux/fbdev.o
 OBJS += frontend/plat_omap.o frontend/linux/xenv.o
 OBJS += frontend/plat_pandora.o
+USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
 OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
+USE_FRONTEND = 1
 endif
-endif # !maemo
+ifeq "$(PLATFORM)" "maemo"
+OBJS += maemo/hildon.o maemo/main.o
+maemo/%.o: maemo/%.c
+OBJS += frontend/plugin_lib.o
+endif
+ifeq "$(PLATFORM)" "libretro"
+OBJS += frontend/libretro.o
+endif
+ifeq "$(USE_FRONTEND)" "1"
+OBJS += frontend/menu.o frontend/linux/in_evdev.o
+OBJS += frontend/common/input.o
+OBJS += frontend/plugin_lib.o
+ifeq "$(HAVE_TSLIB)" "1"
+frontend/%.o: CFLAGS += -DHAVE_TSLIB
+OBJS += frontend/pl_gun_ts.o
+endif
+else
+CFLAGS += -DNO_FRONTEND
+endif
 
 ifdef X11
 frontend/%.o: CFLAGS += -DX11
@@ -141,12 +156,8 @@ endif
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
-ifeq "$(HAVE_TSLIB)" "1"
-frontend/%.o: CFLAGS += -DHAVE_TSLIB
-OBJS += frontend/pl_gun_ts.o
-endif
 frontend/%.o: CFLAGS += -DIN_EVDEV
-frontend/menu.o frontend/plat_sdl.o: frontend/revision.h
+frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
 
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
@@ -159,6 +170,8 @@ frontend/revision.h: FORCE
 
 %.o: %.S
 	$(CC) $(CFLAGS) -c $^ -o $@
+
+target_: $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map

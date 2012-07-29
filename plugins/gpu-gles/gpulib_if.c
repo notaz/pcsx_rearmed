@@ -702,7 +702,8 @@ void vout_set_config(const struct rearmed_cbs *cbs)
 
 void SetAspectRatio(void)
 {
- cbs->pl_get_layer_pos(&rRatioRect.left, &rRatioRect.top, &rRatioRect.right, &rRatioRect.bottom);
+ if (cbs->pl_get_layer_pos)
+  cbs->pl_get_layer_pos(&rRatioRect.left, &rRatioRect.top, &rRatioRect.right, &rRatioRect.bottom);
 
  glScissor(rRatioRect.left,
            iResY-(rRatioRect.top+rRatioRect.bottom),
