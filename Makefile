@@ -79,6 +79,9 @@ plugins/dfsound/%.o: CFLAGS += -DUSEALSA
 OBJS += plugins/dfsound/alsa.o
 LDLIBS += -lasound
 endif
+ifeq "$(SOUND_DRIVER)" "sdl"
+OBJS += plugins/dfsound/sdl.o
+endif
 ifeq "$(SOUND_DRIVER)" "none"
 OBJS += plugins/dfsound/nullsnd.o
 endif

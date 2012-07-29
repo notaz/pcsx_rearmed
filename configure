@@ -28,7 +28,7 @@ platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
 builtin_gpu_list="peops unai neon"
 builtin_gpu=""
-sound_driver_list="oss alsa libretro none"
+sound_driver_list="oss alsa sdl libretro none"
 sound_driver="alsa"
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
@@ -138,7 +138,7 @@ if [ "x$builtin_gpu" != "x" ]; then
 fi
 
 case "$sound_driver" in
-oss|alsa|libretro|none)
+oss|alsa|sdl|libretro|none)
   ;;
 *)
   echo "unsupported sound driver: $sound_driver"
