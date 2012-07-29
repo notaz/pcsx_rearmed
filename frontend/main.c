@@ -130,9 +130,6 @@ static void set_default_paths(void)
 	strcpy(Config.Pad1, "builtin_pad");
 	strcpy(Config.Pad2, "builtin_pad");
 	strcpy(Config.Net, "Disabled");
-#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX */
-	strcpy(Config.Gpu, "gpu_unai.so");
-#endif
 
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 }

@@ -1,13 +1,13 @@
 # Makefile for PCSX ReARMed
 
+# default stuff goes here, so that config can override
 TARGET = pcsx
-
-# default CFLAGS go here, so that config can override them
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
 LDLIBS += -lpthread -ldl -lpng -lz -lm
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
+CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
 
@@ -24,6 +24,8 @@ config.mak:
 	@exit 1
 endif
 -include Makefile.local
+
+CC_LINK = $(CC)
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
@@ -68,39 +70,45 @@ plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/dfsound/arm_utils.o
 endif
-ifeq "$(USE_OSS)" "1"
+ifeq "$(SOUND_DRIVER)" "oss"
 plugins/dfsound/%.o: CFLAGS += -DUSEOSS
 OBJS += plugins/dfsound/oss.o
 endif
-ifeq "$(USE_ALSA)" "1"
+ifeq "$(SOUND_DRIVER)" "alsa"
 plugins/dfsound/%.o: CFLAGS += -DUSEALSA
 OBJS += plugins/dfsound/alsa.o
 LDLIBS += -lasound
 endif
-ifeq "$(USE_NO_SOUND)" "1"
+ifeq "$(SOUND_DRIVER)" "none"
 OBJS += plugins/dfsound/nullsnd.o
 endif
 
-# gpu
-OBJS += plugins/gpulib/gpu.o
+# builtin gpu
+OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(HAVE_NEON)" "1"
 OBJS += plugins/gpulib/cspace_neon.o
+else
+OBJS += plugins/gpulib/cspace.o
+endif
+ifeq "$(BUILTIN_GPU)" "neon"
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
-else
-OBJS += plugins/gpulib/cspace.o
+endif
+ifeq "$(BUILTIN_GPU)" "peops"
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
-ifdef X11
-LDLIBS += -lX11 `sdl-config --libs`
-OBJS += plugins/gpulib/vout_sdl.o
-plugins/gpulib/vout_sdl.o: CFLAGS += `sdl-config --cflags`
-else
-OBJS += plugins/gpulib/vout_pl.o
+ifeq "$(BUILTIN_GPU)" "unai"
+OBJS += plugins/gpulib/cspace.o
+OBJS += plugins/gpu_unai/gpulib_if.o
+ifeq "$(ARCH)" "arm"
+OBJS += plugins/gpu_unai/gpu_arm.o
+endif
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED
+CC_LINK = $(CXX)
 endif
 
 # cdrcimg
@@ -174,7 +182,7 @@ frontend/revision.h: FORCE
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
+	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map

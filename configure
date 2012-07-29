@@ -26,6 +26,8 @@ check_define()
 
 platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
+builtin_gpu_list="peops unai neon"
+builtin_gpu=""
 sound_driver_list="oss alsa libretro none"
 sound_driver="alsa"
 plugins="plugins/spunull/spunull.so \
@@ -91,6 +93,8 @@ for opt do
   ;;
   --platform=*) set_platform "$optarg"
   ;;
+  --gpu=*) builtin_gpu="$optarg"
+  ;;
   --sound-driver=*) sound_driver="$optarg"
   ;;
   --enable-neon) have_arm_neon="yes"
@@ -109,6 +113,8 @@ if [ "$show_help" = "yes" ]; then
   echo "  --help                   print this message"
   echo "  --platform=NAME          target platform [$platform]"
   echo "                           available: $platform_list"
+  echo "  --gpu=NAME               builtin gpu plugin [guessed]"
+  echo "                           available: $builtin_gpu_list"
   echo "  --sound-driver=NAME      sound output driver [$sound_driver]"
   echo "                           available: $sound_driver_list"
   echo "  --enable-neon"
@@ -118,6 +124,17 @@ if [ "$show_help" = "yes" ]; then
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
+fi
+
+if [ "x$builtin_gpu" != "x" ]; then
+  case "$builtin_gpu" in
+  peops|unai|neon)
+    ;;
+  *)
+    echo "unsupported builtin gpu plugin: $builtin_gpu"
+    exit 1
+    ;;
+  esac
 fi
 
 case "$sound_driver" in
@@ -160,6 +177,17 @@ if [ "$ARCH" = "arm" ]; then
     fi
   fi
 
+  if [ "x$builtin_gpu" = "x" ]; then
+    if [ "$have_arm_neon" = "yes" ]; then
+      builtin_gpu="neon"
+    elif [ "$have_armv7" != "yes" ]; then
+      # pre-ARMv7 hardware is usually not fast enough for peops
+      builtin_gpu="unai"
+    else
+      builtin_gpu="peops"
+    fi
+  fi
+
   # set mfpu and mfloat-abi if they are not set
   if [ "$have_arm_neon" = "yes" ]; then
     echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=neon"
@@ -186,6 +214,10 @@ if [ "$ARCH" = "arm" ]; then
 else
   # dynarec only available on ARM
   enable_dynarec="no"
+fi
+
+if [ "x$builtin_gpu" = "x" ]; then
+  builtin_gpu="peops"
 fi
 
 if [ "$ARCH" = "x86_64" ]; then
@@ -249,6 +281,10 @@ if compile_object; then
   plugins="$plugins plugins/gpu-gles/gpu_gles.so"
 fi
 
+if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
+  plugins="$plugins plugins/gpu_neon/gpu_neon.so"
+fi
+
 # short plugin list for display
 for p in $plugins; do
   p1=`basename $p`
@@ -262,6 +298,7 @@ test "x$have_arm_neon" != "x" || have_arm_neon="no"
 
 echo "architecture        $ARCH"
 echo "platform            $platform"
+echo "built-in GPU        $builtin_gpu"
 echo "sound driver        $sound_driver"
 echo "plugins             $plugins_short"
 echo "C compiler          $CC"
@@ -292,17 +329,8 @@ if [ "$platform" = "libretro" ]; then
 fi
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
-case "$sound_driver" in
-oss)
-  echo "USE_OSS = 1" >> $config_mak
-  ;;
-alsa)
-  echo "USE_ALSA = 1" >> $config_mak
-  ;;
-none)
-  echo "USE_NO_SOUND = 1" >> $config_mak
-  ;;
-esac
+echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
+echo "SOUND_DRIVER = $sound_driver" >> $config_mak
 if [ "$ARCH" = "arm" ]; then
   echo "PLUGINS = $plugins" >> $config_mak
 else
