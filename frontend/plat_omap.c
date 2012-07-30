@@ -147,10 +147,19 @@ void plat_video_menu_leave(void)
 
 void plat_minimize(void)
 {
-	omap_enable_layer(0);
+	int ret;
+
+	ret = vout_fbdev_save(layer_fb);
+	if (ret != 0) {
+		printf("minimize: layer/fb handling failed\n");
+		return;
+	}
+
 	xenv_minimize();
+
 	in_set_config_int(0, IN_CFG_BLOCKING, 0); /* flush event queue */
-	omap_enable_layer(1);
+	omap_enable_layer(0); /* restore layer mem */
+	vout_fbdev_restore(layer_fb);
 }
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)

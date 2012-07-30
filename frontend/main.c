@@ -255,7 +255,16 @@ do_state_slot:
 		plat_step_volume(emu_action == SACTION_VOLUME_UP);
 		return;
 	case SACTION_MINIMIZE:
+		if (GPU_close != NULL)
+			GPU_close();
+
 		plat_minimize();
+
+		if (GPU_open != NULL) {
+			ret = GPU_open(&gpuDisp, "PCSX", NULL);
+			if (ret)
+				fprintf(stderr, "GPU_open returned %d\n", ret);
+		}
 		return;
 #endif
 	default:
