@@ -22,24 +22,6 @@
 #include "externals.h"
 #include "registers.h"
 
-/*
-// adsr time values (in ms) by James Higgs ... see the end of
-// the adsr.c source for details
-
-#define ATTACK_MS     514L
-#define DECAYHALF_MS  292L
-#define DECAY_MS      584L
-#define SUSTAIN_MS    450L
-#define RELEASE_MS    446L
-*/
-
-// we have a timebase of 1.020408f ms, not 1 ms... so adjust adsr defines
-#define ATTACK_MS      494L
-#define DECAYHALF_MS   286L
-#define DECAY_MS       572L
-#define SUSTAIN_MS     441L
-#define RELEASE_MS     437L
-
 static void SoundOn(int start,int end,unsigned short val);
 static void SoundOff(int start,int end,unsigned short val);
 static void FModOn(int start,int end,unsigned short val);
@@ -89,35 +71,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
         s_chan[ch].ADSRX.DecayRate=(lval>>4) & 0x000f;
         s_chan[ch].ADSRX.SustainLevel=lval & 0x000f;
         //---------------------------------------------//
-#if 0
-        if(!iDebugMode) break;
-        //---------------------------------------------// stuff below is only for debug mode
-
-        s_chan[ch].ADSR.AttackModeExp=(lval&0x8000)?1:0;        //0x007f
-
-        lx=(((lval>>8) & 0x007f)>>2);                  // attack time to run from 0 to 100% volume
-        lx=min(31,lx);                                 // no overflow on shift!
-        if(lx) 
-         { 
-          lx = (1<<lx);
-          if(lx<2147483) lx=(lx*ATTACK_MS)/10000L;     // another overflow check
-          else           lx=(lx/10000L)*ATTACK_MS;
-          if(!lx) lx=1;
-         }
-        s_chan[ch].ADSR.AttackTime=lx;                
-
-        s_chan[ch].ADSR.SustainLevel=                 // our adsr vol runs from 0 to 1024, so scale the sustain level
-         (1024*((lval) & 0x000f))/15;
-
-        lx=(lval>>4) & 0x000f;                         // decay:
-        if(lx)                                         // our const decay value is time it takes from 100% to 0% of volume
-         {
-          lx = ((1<<(lx))*DECAY_MS)/10000L;
-          if(!lx) lx=1;
-         }
-        s_chan[ch].ADSR.DecayTime =                   // so calc how long does it take to run from 100% to the wanted sus level
-         (lx*(1024-s_chan[ch].ADSR.SustainLevel))/1024;
-#endif
        }
       break;
      //------------------------------------------------// adsr times with pre-calcs
@@ -132,39 +85,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
        s_chan[ch].ADSRX.ReleaseModeExp = (lval&0x0020)?1:0;
        s_chan[ch].ADSRX.ReleaseRate = lval & 0x001f;
        //----------------------------------------------//
-#if 0
-       if(!iDebugMode) break;
-       //----------------------------------------------// stuff below is only for debug mode
-
-       s_chan[ch].ADSR.SustainModeExp = (lval&0x8000)?1:0;
-       s_chan[ch].ADSR.ReleaseModeExp = (lval&0x0020)?1:0;
-                   
-       lx=((((lval>>6) & 0x007f)>>2));                 // sustain time... often very high
-       lx=min(31,lx);                                  // values are used to hold the volume
-       if(lx)                                          // until a sound stop occurs
-        {                                              // the highest value we reach (due to 
-         lx = (1<<lx);                                 // overflow checking) is: 
-         if(lx<2147483) lx=(lx*SUSTAIN_MS)/10000L;     // 94704 seconds = 1578 minutes = 26 hours... 
-         else           lx=(lx/10000L)*SUSTAIN_MS;     // should be enuff... if the stop doesn't 
-         if(!lx) lx=1;                                 // come in this time span, I don't care :)
-        }
-       s_chan[ch].ADSR.SustainTime = lx;
-
-       lx=(lval & 0x001f);
-       s_chan[ch].ADSR.ReleaseVal     =lx;
-       if(lx)                                          // release time from 100% to 0%
-        {                                              // note: the release time will be
-         lx = (1<<lx);                                 // adjusted when a stop is coming,
-         if(lx<2147483) lx=(lx*RELEASE_MS)/10000L;     // so at this time the adsr vol will 
-         else           lx=(lx/10000L)*RELEASE_MS;     // run from (current volume) to 0%
-         if(!lx) lx=1;
-        }
-       s_chan[ch].ADSR.ReleaseTime=lx;
-
-       if(lval & 0x4000)                               // add/dec flag
-            s_chan[ch].ADSR.SustainModeDec=-1;
-       else s_chan[ch].ADSR.SustainModeDec=1;
-#endif
       }
      break;
      //------------------------------------------------// adsr volume... mmm have to investigate this

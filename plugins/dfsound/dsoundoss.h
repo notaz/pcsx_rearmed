@@ -19,4 +19,3 @@ void SetupSound(void);
 void RemoveSound(void);
 unsigned long SoundGetBytesBuffered(void);
 void SoundFeedStreamData(unsigned char* pSound,long lBytes);
-unsigned long timeGetTime_spu();

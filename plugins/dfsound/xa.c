@@ -104,7 +104,7 @@ INLINE void MixXA(void)
 // small linux time helper... only used for watchdog
 ////////////////////////////////////////////////////////////////////////
 
-unsigned long timeGetTime_spu()
+static unsigned long timeGetTime_spu()
 {
  struct timeval tv;
  gettimeofday(&tv, 0);                                 // well, maybe there are better ways

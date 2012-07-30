@@ -21,7 +21,7 @@
 // generic defines
 /////////////////////////////////////////////////////////
 
-#if 0 //def __GNUC__
+#ifdef __GNUC__
 #define noinline __attribute__((noinline))
 #define unlikely(x) __builtin_expect((x), 0)
 #else

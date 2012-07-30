@@ -243,7 +243,7 @@ INLINE void InterpolateDown(int ch)
 // helpers for gauss interpolation
 
 #define gval0 (((short*)(&s_chan[ch].SB[29]))[gpos])
-#define gval(x) (((short*)(&s_chan[ch].SB[29]))[(gpos+x)&3])
+#define gval(x) ((int)((short*)(&s_chan[ch].SB[29]))[(gpos+x)&3])
 
 #include "gauss_i.h"
 
@@ -386,7 +386,7 @@ INLINE int iGetInterpolationVal(int ch, int spos)
      int vl, vr;int gpos;
      vl = (spos >> 6) & ~3;
      gpos = s_chan[ch].SB[28];
-     vr=(gauss[vl]*gval0)&~2047;
+     vr=(gauss[vl]*(int)gval0)&~2047;
      vr+=(gauss[vl+1]*gval(1))&~2047;
      vr+=(gauss[vl+2]*gval(2))&~2047;
      vr+=(gauss[vl+3]*gval(3))&~2047;
