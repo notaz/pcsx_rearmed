@@ -24,7 +24,7 @@
 
 #include "externals.h"
 #include "registers.h"
-#include "dsoundoss.h"
+#include "out.h"
 
 #ifdef ENABLE_NLS
 #include <libintl.h>
@@ -697,7 +697,7 @@ static int do_samples(int forced_updates)
    // until enuff free place is available/a new channel gets
    // started
 
-   if(!forced_updates && SoundGetBytesBuffered())      // still enuff data in sound buffer?
+   if(!forced_updates && out_current->busy())          // still enuff data in sound buffer?
     {
      return 0;
     }
@@ -872,7 +872,7 @@ static int do_samples(int forced_updates)
   // wanna have around 1/60 sec (16.666 ms) updates
   if (iCycle++ > 16/FRAG_MSECS)
    {
-    SoundFeedStreamData((unsigned char *)pSpuBuffer,
+    out_current->feed(pSpuBuffer,
                         ((unsigned char *)pS) - ((unsigned char *)pSpuBuffer));
     pS = (short *)pSpuBuffer;
     iCycle = 0;
@@ -1056,7 +1056,7 @@ long CALLBACK SPUclose(void)
 
  bSPUIsOpen = 0;                                       // no more open
 
- RemoveSound();                                        // no more sound handling
+ out_current->finish();                                // no more sound handling
 
  return 0;
 }

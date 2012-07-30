@@ -12,6 +12,7 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/psxcounters.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../plugins/dfsound/out.h"
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
@@ -100,15 +101,16 @@ void pl_update_gun(int *xn, int *xres, int *y, int *in)
 }
 
 /* sound calls */
-void SetupSound(void)
+static int snd_init(void)
+{
+	return 0;
+}
+
+static void snd_finish(void)
 {
 }
 
-void RemoveSound(void)
-{
-}
-
-unsigned long SoundGetBytesBuffered(void)
+static int snd_busy(void)
 {
 	if (samples_to_send > samples_sent)
 		return 0; /* give more samples */
@@ -116,10 +118,19 @@ unsigned long SoundGetBytesBuffered(void)
 		return 1;
 }
 
-void SoundFeedStreamData(void *buf, long bytes)
+static void snd_feed(void *buf, int bytes)
 {
 	audio_batch_cb(buf, bytes / 4);
 	samples_sent += bytes / 4;
+}
+
+void out_register_libretro(struct out_driver *drv)
+{
+	drv->name = "libretro";
+	drv->init = snd_init;
+	drv->finish = snd_finish;
+	drv->busy = snd_busy;
+	drv->feed = snd_feed;
 }
 
 /* libretro */

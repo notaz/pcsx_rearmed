@@ -15,11 +15,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "stdafx.h"
-
-#define _IN_OSS
-
-#include "externals.h"
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <sys/soundcard.h>
+#include "out.h"
 
 ////////////////////////////////////////////////////////////////////////
 // oss globals
@@ -37,7 +40,7 @@ extern int errno;
 // SETUP SOUND
 ////////////////////////////////////////////////////////////////////////
 
-void SetupSound(void)
+static int oss_init(void)
 {
  int pspeed=44100;
  int pstereo;
@@ -52,14 +55,14 @@ void SetupSound(void)
 
  if((oss_audio_fd=open("/dev/dsp",O_WRONLY,0))==-1)
   {
-   printf("Sound device not available!\n");
-   return;
+   printf("OSS device not available\n");
+   return -1;
   }
 
  if(ioctl(oss_audio_fd,SNDCTL_DSP_RESET,0)==-1)
   {
    printf("Sound reset failed\n");
-   return;
+   return -1;
   }
 
  // we use 64 fragments with 1024 bytes each
@@ -71,7 +74,7 @@ void SetupSound(void)
  if(ioctl(oss_audio_fd,SNDCTL_DSP_SETFRAGMENT,&myfrag)==-1)
   {
    printf("Sound set fragment failed!\n");
-   return;        
+   return -1;
   }
 
  format = AFMT_S16_NE;
@@ -79,39 +82,41 @@ void SetupSound(void)
  if(ioctl(oss_audio_fd,SNDCTL_DSP_SETFMT,&format) == -1)
   {
    printf("Sound format not supported!\n");
-   return;
+   return -1;
   }
 
  if(format!=AFMT_S16_NE)
   {
    printf("Sound format not supported!\n");
-   return;
+   return -1;
   }
 
  if(ioctl(oss_audio_fd,SNDCTL_DSP_STEREO,&oss_stereo)==-1 || !oss_stereo)
   {
    printf("Stereo mode not supported!\n");
-   return;
+   return -1;
   }
 
  if(ioctl(oss_audio_fd,SNDCTL_DSP_SPEED,&oss_speed)==-1)
   {
    printf("Sound frequency not supported\n");
-   return;
+   return -1;
   }
 
  if(oss_speed!=pspeed)
   {
    printf("Sound frequency not supported\n");
-   return;
+   return -1;
   }
+
+ return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
 // REMOVE SOUND
 ////////////////////////////////////////////////////////////////////////
 
-void RemoveSound(void)
+static void oss_finish(void)
 {
  if(oss_audio_fd != -1 )
   {
@@ -121,10 +126,10 @@ void RemoveSound(void)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// GET BYTES BUFFERED
+// GET BUFFERED STATUS
 ////////////////////////////////////////////////////////////////////////
 
-unsigned long SoundGetBytesBuffered(void)
+static int oss_busy(void)
 {
  audio_buf_info info;
  unsigned long l;
@@ -146,8 +151,17 @@ unsigned long SoundGetBytesBuffered(void)
 // FEED SOUND DATA
 ////////////////////////////////////////////////////////////////////////
 
-void SoundFeedStreamData(unsigned char* pSound,long lBytes)
+static void oss_feed(void *buf, int bytes)
 {
  if(oss_audio_fd == -1) return;
- write(oss_audio_fd,pSound,lBytes);
+ write(oss_audio_fd, buf, bytes);
+}
+
+void out_register_oss(struct out_driver *drv)
+{
+	drv->name = "oss";
+	drv->init = oss_init;
+	drv->finish = oss_finish;
+	drv->busy = oss_busy;
+	drv->feed = oss_feed;
 }

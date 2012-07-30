@@ -4,12 +4,20 @@ set -e
 
 TMPC="/tmp/pcsx-conf-${RANDOM}-$$-${RANDOM}.c"
 TMPO="/tmp/pcsx-conf-${RANDOM}-$$-${RANDOM}.o"
-trap "rm -f $TMPC $TMPO" EXIT INT QUIT TERM
+TMPB="/tmp/pcsx-conf-${RANDOM}-$$-${RANDOM}"
+trap "rm -f $TMPC $TMPO $TMPB" EXIT INT QUIT TERM
 rm -f config.log
 
 compile_object()
 {
-  c="$CC $CFLAGS -c $TMPC -o $TMPO $1"
+  c="$CC $CFLAGS -c $TMPC -o $TMPO $@"
+  echo $c >> config.log
+  $c >> config.log 2>&1
+}
+
+compile_binary()
+{
+  c="$CC $CFLAGS $TMPC -o $TMPB $LDFLAGS $MAIN_LDLIBS $@"
   echo $c >> config.log
   $c >> config.log 2>&1
 }
@@ -28,8 +36,8 @@ platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
 builtin_gpu_list="peops unai neon"
 builtin_gpu=""
-sound_driver_list="oss alsa sdl libretro none"
-sound_driver="alsa"
+sound_driver_list="oss alsa sdl pulseaudio libretro"
+sound_drivers=""
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
 ram_fixed="no"
@@ -48,7 +56,14 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 AR="${AS-${CROSS_COMPILE}ar}"
+MAIN_LDLIBS="$LDLIBS -ldl -lpng -lz"
 config_mak="config.mak"
+
+fail()
+{
+  echo "$@"
+  exit 1
+}
 
 # call during arg parsing, so that cmd line can override platform defaults
 set_platform()
@@ -58,7 +73,7 @@ set_platform()
   generic)
     ;;
   pandora)
-    sound_driver="oss"
+    sound_drivers="oss alsa"
     ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
@@ -71,17 +86,16 @@ set_platform()
     have_arm_neon="yes"
     ;;
   caanoo)
-    sound_driver="oss"
+    sound_drivers="oss"
     ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     ;;
   libretro)
-    sound_driver="libretro"
+    sound_drivers="libretro"
     ;;
   *)
-    echo "unsupported platform: $platform"
-    exit 1
+    fail "unsupported platform: $platform"
     ;;
   esac
 }
@@ -95,7 +109,7 @@ for opt do
   ;;
   --gpu=*) builtin_gpu="$optarg"
   ;;
-  --sound-driver=*) sound_driver="$optarg"
+  --sound-drivers=*) sound_drivers="$optarg"
   ;;
   --enable-neon) have_arm_neon="yes"
   ;;
@@ -115,7 +129,7 @@ if [ "$show_help" = "yes" ]; then
   echo "                           available: $platform_list"
   echo "  --gpu=NAME               builtin gpu plugin [guessed]"
   echo "                           available: $builtin_gpu_list"
-  echo "  --sound-driver=NAME      sound output driver [$sound_driver]"
+  echo "  --sound-drivers=LIST     sound output drivers [guessed]"
   echo "                           available: $sound_driver_list"
   echo "  --enable-neon"
   echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
@@ -126,25 +140,20 @@ if [ "$show_help" = "yes" ]; then
   exit 1
 fi
 
+# validate selections
 if [ "x$builtin_gpu" != "x" ]; then
-  case "$builtin_gpu" in
-  peops|unai|neon)
-    ;;
-  *)
-    echo "unsupported builtin gpu plugin: $builtin_gpu"
-    exit 1
-    ;;
-  esac
+  if ! echo $builtin_gpu_list | grep -q "\<$builtin_gpu\>"; then
+    fail "unsupported builtin gpu plugin: $builtin_gpu"
+  fi
 fi
 
-case "$sound_driver" in
-oss|alsa|sdl|libretro|none)
-  ;;
-*)
-  echo "unsupported sound driver: $sound_driver"
-  exit 1
-  ;;
-esac
+if [ "x$sound_drivers" != "x" ]; then
+  for d in $sound_drivers; do
+    if ! echo $sound_driver_list | grep -q "\<$d\>"; then
+      fail "unsupported sound driver: $sound_driver"
+    fi
+  done
+fi
 
 if [ -z "$ARCH" ]; then
   ARCH=`$CC -v 2>&1 | grep -i 'target:' | awk '{print $2}' \
@@ -241,19 +250,99 @@ generic)
   generic_cflags=`sdl-config --cflags`
   generic_ldlibs=`sdl-config --libs`
   CFLAGS="$CFLAGS $generic_cflags"
-  LDFLAGS="$LDFLAGS $generic_ldlibs"
+  MAIN_LDLIBS="$MAIN_LDLIBS $generic_ldlibs"
   ;;
 maemo)
   maemo_cflags=`pkg-config --cflags hildon-1`
   maemo_ldlibs=`pkg-config --libs hildon-1`
   CFLAGS="$CFLAGS -DMAEMO -DMAEMO_CHANGES $maemo_cflags"
-  LDFLAGS="$LDFLAGS $maemo_ldlibs"
+  MAIN_LDLIBS="$MAIN_LDLIBS $maemo_ldlibs"
   ;;
 libretro)
   CFLAGS="$CFLAGS -fPIC"
   LDFLAGS="$LDFLAGS -shared"
   ;;
 esac
+
+# header/library presence tests
+check_zlib()
+{
+  cat > $TMPC <<EOF
+  #include <zlib.h>
+  void main() { uncompress(0, 0, 0, 0); }
+EOF
+  compile_binary
+}
+
+check_bzlib()
+{
+  cat > $TMPC <<EOF
+  #include <bzlib.h>
+  void main() { BZ2_bzBuffToBuffDecompress(0, 0, 0, 0, 0, 0); }
+EOF
+  compile_object
+}
+
+check_libpng()
+{
+  cat > $TMPC <<EOF
+  #include <png.h>
+  void main() { png_init_io(0, 0); }
+EOF
+  compile_binary
+}
+
+check_oss()
+{
+  cat > $TMPC <<EOF
+  #include <sys/soundcard.h>
+  #include <sys/ioctl.h>
+  void main() { int a=0; ioctl(0, SNDCTL_DSP_SETFMT, &a); }
+EOF
+  compile_binary
+}
+
+check_alsa()
+{
+  cat > $TMPC <<EOF
+  #include <alsa/asoundlib.h>
+  void main() { snd_pcm_open(0, 0, 0, 0); }
+EOF
+  compile_binary "$@"
+}
+
+check_sdl()
+{
+  cat > $TMPC <<EOF
+  #include <SDL.h>
+  void main() { SDL_OpenAudio(0, 0); }
+EOF
+  compile_binary "$@"
+}
+
+check_zlib || fail "please install libz-dev"
+check_bzlib || fail "please install libbz2-dev"
+check_libpng || fail "please install libpng-dev"
+
+# find what audio support we can compile
+if [ "x$sound_drivers" = "x" ]; then
+  if check_oss; then sound_drivers="$sound_drivers oss"; fi
+  if check_alsa -lasound; then sound_drivers="$sound_drivers alsa"; fi
+  if check_sdl; then sound_drivers="$sound_drivers sdl"; fi
+fi
+
+if echo $sound_drivers | grep -q "\<oss\>"; then
+  check_oss || fail "oss support missing"
+fi
+if echo $sound_drivers | grep -q "\<alsa\>"; then
+  MAIN_LDLIBS="$MAIN_LDLIBS -lasound"
+  check_alsa || fail "please install libasound2-dev"
+fi
+if echo $sound_drivers | grep -q "\<sdl\>"; then
+  echo $MAIN_LDLIBS | grep -qi SDL || CFLAGS="$CFLAGS `sdl-config --cflags`"
+  echo $MAIN_LDLIBS | grep -qi SDL || MAIN_LDLIBS="$MAIN_LDLIBS `sdl-config --libs`"
+  check_sdl || fail "please install libsdl1.2-dev"
+fi
 
 # check for tslib (only headers needed)
 if [ "x$have_tslib" = "x" ]; then
@@ -299,10 +388,11 @@ test "x$have_arm_neon" != "x" || have_arm_neon="no"
 echo "architecture        $ARCH"
 echo "platform            $platform"
 echo "built-in GPU        $builtin_gpu"
-echo "sound driver        $sound_driver"
+echo "sound drivers       $sound_drivers"
 echo "plugins             $plugins_short"
 echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
+echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
 echo "ARMv7 optimizations $have_armv7"
@@ -320,7 +410,7 @@ echo "AS = $AS" >> $config_mak
 echo "CFLAGS += $CFLAGS" >> $config_mak
 echo "ASFLAGS += $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak
-echo "LDLIBS += $LDLIBS" >> $config_mak
+echo "MAIN_LDLIBS += $MAIN_LDLIBS" >> $config_mak
 echo "PLUGIN_CFLAGS += $PLUGIN_CFLAGS" >> $config_mak
 echo >> $config_mak
 
@@ -330,7 +420,7 @@ fi
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
-echo "SOUND_DRIVER = $sound_driver" >> $config_mak
+echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
 if [ "$ARCH" = "arm" ]; then
   echo "PLUGINS = $plugins" >> $config_mak
 else

@@ -3,7 +3,7 @@
 # default stuff goes here, so that config can override
 TARGET = pcsx
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
-LDLIBS += -lpthread -ldl -lpng -lz -lm
+LDLIBS += -lpthread -lm
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
@@ -26,6 +26,7 @@ endif
 -include Makefile.local
 
 CC_LINK = $(CC)
+LDLIBS += $(MAIN_LDLIBS)
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
@@ -64,26 +65,32 @@ endif
 
 # spu
 OBJS += plugins/dfsound/dma.o plugins/dfsound/freeze.o \
-	plugins/dfsound/registers.o plugins/dfsound/spu.o
+	plugins/dfsound/registers.o plugins/dfsound/spu.o \
+	plugins/dfsound/out.o plugins/dfsound/nullsnd.o
 plugins/dfsound/spu.o: plugins/dfsound/adsr.c plugins/dfsound/reverb.c \
 	plugins/dfsound/xa.c
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/dfsound/arm_utils.o
 endif
-ifeq "$(SOUND_DRIVER)" "oss"
-plugins/dfsound/%.o: CFLAGS += -DUSEOSS
+ifneq ($(findstring oss,$(SOUND_DRIVERS)),)
+plugins/dfsound/out.o: CFLAGS += -DHAVE_OSS
 OBJS += plugins/dfsound/oss.o
 endif
-ifeq "$(SOUND_DRIVER)" "alsa"
-plugins/dfsound/%.o: CFLAGS += -DUSEALSA
+ifneq ($(findstring alsa,$(SOUND_DRIVERS)),)
+plugins/dfsound/out.o: CFLAGS += -DHAVE_ALSA
 OBJS += plugins/dfsound/alsa.o
 LDLIBS += -lasound
 endif
-ifeq "$(SOUND_DRIVER)" "sdl"
+ifneq ($(findstring sdl,$(SOUND_DRIVERS)),)
+plugins/dfsound/out.o: CFLAGS += -DHAVE_SDL
 OBJS += plugins/dfsound/sdl.o
 endif
-ifeq "$(SOUND_DRIVER)" "none"
-OBJS += plugins/dfsound/nullsnd.o
+ifneq ($(findstring pulseaudio,$(SOUND_DRIVERS)),)
+plugins/dfsound/out.o: CFLAGS += -DHAVE_PULSE
+OBJS += plugins/dfsound/pulseaudio.o
+endif
+ifneq ($(findstring libretro,$(SOUND_DRIVERS)),)
+plugins/dfsound/out.o: CFLAGS += -DHAVE_LIBRETRO
 endif
 
 # builtin gpu

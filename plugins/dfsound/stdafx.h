@@ -23,9 +23,6 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifdef USEOSS
-#include <sys/soundcard.h>
-#endif
 #include <unistd.h>
 #include <pthread.h>
 #define RRand(range) (random()%range)  

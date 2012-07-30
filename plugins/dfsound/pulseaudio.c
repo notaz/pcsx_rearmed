@@ -19,8 +19,6 @@ comment              : Much of this was taken from simple.c, in the pulseaudio
 
 #include "stdafx.h"
 
-#ifdef USEPULSEAUDIO
-
 #define _IN_OSS
 
 #include "externals.h"
@@ -136,7 +134,7 @@ static void stream_request_cb (pa_stream *stream, size_t length, void *userdata)
 // SETUP SOUND
 ////////////////////////////////////////////////////////////////////////
 
-void SetupSound (void)
+static void pulse_init(void)
 {
      int error_number;
 
@@ -145,7 +143,7 @@ void SetupSound (void)
      if (device.mainloop == NULL)
      {
 	  fprintf (stderr, "Could not acquire PulseAudio main loop\n");
-	  return;
+	  return -1;
      }
 
      // Acquire context ////////////////////////////////////////////////////////
@@ -156,7 +154,7 @@ void SetupSound (void)
      if (device.context == NULL)
      {
 	  fprintf (stderr, "Could not acquire PulseAudio device context\n");
-	  return;
+	  return -1;
      }
 
      // Connect to PulseAudio server ///////////////////////////////////////////
@@ -164,7 +162,7 @@ void SetupSound (void)
      {
 	  error_number = pa_context_errno (device.context);
 	  fprintf (stderr, "Could not connect to PulseAudio server: %s\n", pa_strerror(error_number));
-	  return;
+	  return -1;
      }
 
      // Run mainloop until sever context is ready //////////////////////////////
@@ -172,7 +170,7 @@ void SetupSound (void)
      if (pa_threaded_mainloop_start (device.mainloop) < 0)
      {
 	  fprintf (stderr, "Could not start mainloop\n");
-	  return;
+	  return -1;
      }
 
      pa_context_state_t context_state;
@@ -184,7 +182,7 @@ void SetupSound (void)
 	  {
 	       error_number = pa_context_errno (device.context);
 	       fprintf (stderr, "Context state is not good: %s\n", pa_strerror (error_number));
-	       return;
+	       return -1;
 	  }
 	  else if (context_state == PA_CONTEXT_READY)
 	       break;
@@ -216,7 +214,7 @@ void SetupSound (void)
      {
 	  error_number = pa_context_errno (device.context);
 	  fprintf (stderr, "Could not acquire new PulseAudio stream: %s\n", pa_strerror (error_number));
-	  return;
+	  return -1;
      }
 
      // Set callbacks for server events ////////////////////////////////////////
@@ -231,7 +229,7 @@ void SetupSound (void)
      {
 	  pa_context_errno (device.context);
 	  fprintf (stderr, "Could not connect for playback: %s\n", pa_strerror (error_number));
-	  return;
+	  return -1;
      }
 
      // Run mainloop until stream is ready /////////////////////////////////////
@@ -248,7 +246,7 @@ void SetupSound (void)
 	  {
 	       error_number = pa_context_errno (device.context);
 	       fprintf (stderr, "Stream state is not good: %s\n", pa_strerror (error_number));
-	       return;
+	       return -1;
 	  }
 	  else
 	       fprintf (stderr, "PulseAudio stream state is %d\n", stream_state);
@@ -258,13 +256,13 @@ void SetupSound (void)
      pa_threaded_mainloop_unlock (device.mainloop);
 
      fprintf  (stderr, "PulseAudio should be connected\n");
-     return;
+     return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
 // REMOVE SOUND
 ////////////////////////////////////////////////////////////////////////
-void RemoveSound (void)
+static void pulse_finish(void)
 {
      if (device.mainloop != NULL)
 	  pa_threaded_mainloop_stop (device.mainloop);
@@ -295,7 +293,7 @@ void RemoveSound (void)
 // GET BYTES BUFFERED
 ////////////////////////////////////////////////////////////////////////
 
-unsigned long SoundGetBytesBuffered (void)
+static int pulse_busy(void)
 {
      int free_space;
      int error_code;
@@ -329,7 +327,7 @@ unsigned long SoundGetBytesBuffered (void)
 // FEED SOUND DATA
 ////////////////////////////////////////////////////////////////////////
 
-void SoundFeedStreamData (unsigned char *pSound, long lBytes)
+static void pulse_feed(void *pSound, int lBytes)
 {
      int error_code;
      int size;
@@ -348,4 +346,12 @@ void SoundFeedStreamData (unsigned char *pSound, long lBytes)
 	  }
      }
 }
-#endif
+
+void out_register_pulse(struct out_driver *drv)
+{
+	drv->name = "pulseaudio";
+	drv->init = pulse_init;
+	drv->finish = pulse_finish;
+	drv->busy = pulse_busy;
+	drv->feed = pulse_feed;
+}

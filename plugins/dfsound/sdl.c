@@ -16,10 +16,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA
  */
 
-#include "stdafx.h"
-
-#include "externals.h"
+#include <stdlib.h>
 #include <SDL.h>
+#include "out.h"
 
 #define BUFFER_SIZE		22050
 
@@ -61,10 +60,10 @@ static void DestroySDL() {
 	}
 }
 
-void SetupSound(void) {
+static int sdl_init(void) {
 	SDL_AudioSpec				spec;
 
-	if (pSndBuffer != NULL) return;
+	if (pSndBuffer != NULL) return -1;
 
 	InitSDL();
 
@@ -76,7 +75,7 @@ void SetupSound(void) {
 
 	if (SDL_OpenAudio(&spec, NULL) < 0) {
 		DestroySDL();
-		return;
+		return -1;
 	}
 
 	iBufSize = BUFFER_SIZE;
@@ -84,16 +83,17 @@ void SetupSound(void) {
 	pSndBuffer = (short *)malloc(iBufSize * sizeof(short));
 	if (pSndBuffer == NULL) {
 		SDL_CloseAudio();
-		return;
+		return -1;
 	}
 
 	iReadPos = 0;
 	iWritePos = 0;
 
 	SDL_PauseAudio(0);
+	return 0;
 }
 
-void RemoveSound(void) {
+static void sdl_finish(void) {
 	if (pSndBuffer == NULL) return;
 
 	SDL_CloseAudio();
@@ -103,7 +103,7 @@ void RemoveSound(void) {
 	pSndBuffer = NULL;
 }
 
-unsigned long SoundGetBytesBuffered(void) {
+static int sdl_busy(void) {
 	int size;
 
 	if (pSndBuffer == NULL) return 1;
@@ -116,7 +116,7 @@ unsigned long SoundGetBytesBuffered(void) {
 	return 0;
 }
 
-void SoundFeedStreamData(unsigned char *pSound, long lBytes) {
+static void sdl_feed(void *pSound, int lBytes) {
 	short *p = (short *)pSound;
 
 	if (pSndBuffer == NULL) return;
@@ -131,4 +131,13 @@ void SoundFeedStreamData(unsigned char *pSound, long lBytes) {
 
 		lBytes -= sizeof(short);
 	}
+}
+
+void out_register_sdl(struct out_driver *drv)
+{
+	drv->name = "sdl";
+	drv->init = sdl_init;
+	drv->finish = sdl_finish;
+	drv->busy = sdl_busy;
+	drv->feed = sdl_feed;
 }
