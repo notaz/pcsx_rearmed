@@ -440,7 +440,7 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 	}
 	fb_offset_y = 240/2 - h / 2;
 
-	psx_offset_x = poff_w;
+	psx_offset_x = poff_w * psx_bpp/8 / 2;
 	psx_offset_y = poff_h;
 	psx_src_width = w;
 	psx_src_height = h;
