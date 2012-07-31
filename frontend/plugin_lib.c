@@ -37,7 +37,8 @@ int in_enable_vibration;
 void *tsdev;
 void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
-static int pl_vout_w, pl_vout_h, pl_vout_bpp;
+static int pl_vout_w, pl_vout_h, pl_vout_bpp; /* output display/layer */
+static int psx_w, psx_h, psx_bpp;
 static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
 static int vsync_usec_time;
@@ -139,18 +140,19 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 		h = (h + 7) & ~7;
 	vsync_cnt_ms_prev = vsync_cnt;
 
-	if (w == pl_vout_w && h == pl_vout_h && bpp == pl_vout_bpp)
+	if (w == psx_w && h == psx_h && bpp == psx_bpp)
 		return pl_vout_buf;
 
-	pl_vout_w = w;
-	pl_vout_h = h;
-	pl_vout_bpp = bpp;
+	pl_vout_w = psx_w = w;
+	pl_vout_h = psx_h = h;
+	pl_vout_bpp = psx_bpp = bpp;
 
 	pl_vout_buf = plat_gvideo_set_mode(&pl_vout_w, &pl_vout_h, &pl_vout_bpp);
-	if (pl_vout_buf == NULL)
-		fprintf(stderr, "failed to set mode\n");
+	if (pl_vout_buf == NULL && pl_rearmed_cbs.pl_vout_raw_flip == NULL)
+		fprintf(stderr, "failed to set mode %dx%d@%d\n",
+			psx_w, psx_h, psx_bpp);
 
-	menu_notify_mode_change(w, h, bpp);
+	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
 
 	return pl_vout_buf;
 }
@@ -174,9 +176,9 @@ static int pl_vout_open(void)
 	int h;
 
 	// force mode update
-	h = pl_vout_h;
-	pl_vout_h--;
-	pl_vout_buf = pl_vout_set_mode(pl_vout_w, h, pl_vout_bpp);
+	h = psx_h;
+	psx_h--;
+	pl_vout_buf = pl_vout_set_mode(psx_w, h, psx_bpp);
 
 	plat_gvideo_open(is_pal);
 
@@ -495,8 +497,8 @@ void pl_init(void)
 	extern unsigned int hSyncCount; // from psxcounters
 	extern unsigned int frame_counter;
 
-	pl_vout_w = pl_vout_h = 256;
-	pl_vout_bpp = 16;
+	psx_w = psx_h = pl_vout_w = pl_vout_h = 256;
+	psx_bpp = pl_vout_bpp = 16;
 
 	tsdev = pl_gun_ts_init();
 

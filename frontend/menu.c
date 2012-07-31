@@ -86,7 +86,7 @@ enum {
 	SCALE_CUSTOM,
 };
 
-static int last_psx_w, last_psx_h, last_psx_bpp;
+static int last_vout_w, last_vout_h, last_vout_bpp;
 static int scaling, cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
@@ -2239,9 +2239,9 @@ void menu_init(void)
 	menu_set_defconfig();
 	menu_load_config(0);
 	menu_do_last_cd_img(1);
-	last_psx_w = 320;
-	last_psx_h = 240;
-	last_psx_bpp = 16;
+	last_vout_w = 320;
+	last_vout_h = 240;
+	last_vout_bpp = 16;
 
 	g_menubg_src_ptr = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
 	g_menubg_ptr = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
@@ -2270,9 +2270,9 @@ void menu_notify_mode_change(int w, int h, int bpp)
 	float mult;
 	int imult;
 
-	last_psx_w = w;
-	last_psx_h = h;
-	last_psx_bpp = bpp;
+	last_vout_w = w;
+	last_vout_h = h;
+	last_vout_bpp = bpp;
 
 	// XXX: should really menu code cotrol the layer size?
 	switch (scaling) {
@@ -2333,19 +2333,19 @@ static void menu_leave_emu(void)
 
 	memcpy(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	if (pl_vout_buf != NULL && ready_to_go) {
-		int x = max(0, g_menuscreen_w - last_psx_w);
-		int y = max(0, g_menuscreen_h / 2 - last_psx_h / 2);
-		int w = min(g_menuscreen_w, last_psx_w);
-		int h = min(g_menuscreen_h, last_psx_h);
+		int x = max(0, g_menuscreen_w - last_vout_w);
+		int y = max(0, g_menuscreen_h / 2 - last_vout_h / 2);
+		int w = min(g_menuscreen_w, last_vout_w);
+		int h = min(g_menuscreen_h, last_vout_h);
 		u16 *d = (u16 *)g_menubg_ptr + g_menuscreen_w * y + x;
 		char *s = pl_vout_buf;
 
-		if (last_psx_bpp == 16) {
-			for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w * 2)
+		if (last_vout_bpp == 16) {
+			for (; h > 0; h--, d += g_menuscreen_w, s += last_vout_w * 2)
 				menu_darken_bg(d, s, w, 0);
 		}
 		else {
-			for (; h > 0; h--, d += g_menuscreen_w, s += last_psx_w * 3) {
+			for (; h > 0; h--, d += g_menuscreen_w, s += last_vout_w * 3) {
 				rgb888_to_rgb565(d, s, w * 3);
 				menu_darken_bg(d, d, w, 0);
 			}
@@ -2362,7 +2362,7 @@ void menu_prepare_emu(void)
 
 	plat_video_menu_leave();
 
-	menu_notify_mode_change(last_psx_w, last_psx_h, last_psx_bpp);
+	menu_notify_mode_change(last_vout_w, last_vout_h, last_vout_bpp);
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	if (psxCpu != prev_cpu)

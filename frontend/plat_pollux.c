@@ -258,6 +258,7 @@ void plat_video_menu_leave(void)
 
 	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
 	g_menuscreen_ptr = fb_flip();
+	memset(g_menuscreen_ptr, 0, 320*240 * psx_bpp/8);
 }
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
