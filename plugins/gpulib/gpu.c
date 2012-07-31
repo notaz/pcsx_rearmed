@@ -92,6 +92,12 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.active = 1;
   else
     gpu.frameskip.active = 0;
+
+  if (!gpu.frameskip.active && gpu.frameskip.pending_fill[0] != 0) {
+    int dummy;
+    do_cmd_list(gpu.frameskip.pending_fill, 3, &dummy);
+    gpu.frameskip.pending_fill[0] = 0;
+  }
 }
 
 static noinline int decide_frameskip_allow(uint32_t cmd_e3)
@@ -333,6 +339,8 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
   int cmd = 0, pos = 0, len, dummy;
   int skip = 1;
 
+  gpu.frameskip.pending_fill[0] = 0;
+
   // XXX: polylines are not properly handled
   while (pos < count && skip) {
     uint32_t *list = data + pos;
@@ -342,7 +350,9 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
     if (cmd == 0x02) {
       if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
         // clearing something large, don't skip
-        do_cmd_list(data + pos, 3, &dummy);
+        do_cmd_list(list, 3, &dummy);
+      else
+        memcpy(gpu.frameskip.pending_fill, list, 3 * 4);
     }
     else if ((cmd & 0xf4) == 0x24) {
       // flat textured prim
