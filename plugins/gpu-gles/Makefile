@@ -6,6 +6,7 @@ SRC_STANDALONE += gpuDraw.c gpuFps.c gpuPlugin.c gpuPrim.c gpuTexture.c
 SRC_GPULIB += gpulib_if.c
 
 CFLAGS += -I$(PREFIX)include
+LDFLAGS += -Wl,--allow-multiple-definition
 LDLIBS += -L$(PREFIX)lib
 ifeq "$(PLATFORM)" "caanoo"
 CFLAGS += -DFAKE_WINDOW

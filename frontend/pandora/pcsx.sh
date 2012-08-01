@@ -3,8 +3,7 @@
 # stupid nub mode thing
 nub0mode=`cat /proc/pandora/nub0/mode`
 nub1mode=`cat /proc/pandora/nub1/mode`
-echo absolute > /proc/pandora/nub0/mode
-echo absolute > /proc/pandora/nub1/mode
+/usr/pandora/scripts/op_nubchange.sh absolute absolute
 
 ./pcsx "$@"
 
@@ -12,5 +11,4 @@ echo absolute > /proc/pandora/nub1/mode
 ./picorestore
 sudo -n /usr/pandora/scripts/op_lcdrate.sh 60
 
-echo "$nub0mode" > /proc/pandora/nub0/mode
-echo "$nub1mode" > /proc/pandora/nub1/mode
+/usr/pandora/scripts/op_nubchange.sh $nub0mode $nub1mode

@@ -261,7 +261,7 @@ static const struct {
 	void *val;
 } config_data[] = {
 	CE_CONFIG_STR(Bios),
-	CE_CONFIG_STR_V(Gpu, 2),
+	CE_CONFIG_STR_V(Gpu, 3),
 	CE_CONFIG_STR(Spu),
 //	CE_CONFIG_STR(Cdr),
 	CE_CONFIG_VAL(Xa),
@@ -340,6 +340,7 @@ static void make_cfg_fname(char *buf, size_t size, int is_game)
 }
 
 static void keys_write_all(FILE *f);
+static char *mystrip(char *str);
 
 static int menu_write_config(int is_game)
 {
@@ -386,14 +387,18 @@ static int menu_do_last_cd_img(int is_get)
 {
 	char path[256];
 	FILE *f;
+	int ret;
 
 	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
 	f = fopen(path, is_get ? "r" : "w");
 	if (f == NULL)
 		return -1;
 
-	if (is_get)
-		fscanf(f, "%255s", last_selected_fname);
+	if (is_get) {
+		ret = fread(last_selected_fname, 1, sizeof(last_selected_fname) - 1, f);
+		last_selected_fname[ret] = 0;
+		mystrip(last_selected_fname);
+	}
 	else
 		fprintf(f, "%s\n", last_selected_fname);
 	fclose(f);
@@ -504,10 +509,6 @@ fail:
 		fclose(f);
 
 	menu_sync_config();
-
-	// caanoo old config compat hack
-	if (strcmp(Config.Gpu, "gpuPCSX4ALL.so") == 0)
-		strcpy(Config.Gpu, "gpu_unai.so");
 
 	// sync plugins
 	for (i = bios_sel = 0; bioses[i] != NULL; i++)
@@ -694,7 +695,7 @@ static char *mystrip(char *str)
 
 	len = strlen(str);
 	for (i = len - 1; i >= 0; i--)
-		if (str[i] != ' ') break;
+		if (str[i] != ' ' && str[i] != '\r' && str[i] != '\n') break;
 	str[i+1] = 0;
 
 	return str;
@@ -1254,13 +1255,10 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 static const char h_plugin_gpu[] = 
 #ifdef __ARM_NEON__
 				   "builtin_gpu is the NEON GPU, very fast and accurate\n"
-				   "gpuPEOPS "
-#else
-				   "builtin_gpu "
 #endif
-				                "is Pete's soft GPU, slow but accurate\n"
-				   "gpuPCSX4ALL is GPU from PCSX4ALL, fast but glitchy\n"
-				   "gpuGLES Pete's hw GPU, uses 3D chip but is glitchy\n"
+				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
+				   "gpu_unai is GPU from PCSX4ALL, fast but glitchy\n"
+				   "gpu_gles Pete's hw GPU, uses 3D chip but is glitchy\n"
 				   "must save config and reload the game if changed";
 static const char h_plugin_spu[] = "spunull effectively disables sound\n"
 				   "must save config and reload the game if changed";
@@ -1278,8 +1276,8 @@ static menu_entry e_menu_plugin_options[] =
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
 #endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
-	mee_handler_h ("Configure PCSX4ALL GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
-	mee_handler_h ("Configure GLES GPU plugin",     menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
+	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
+	mee_handler_h ("Configure gpu_gles GPU plugin", menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };

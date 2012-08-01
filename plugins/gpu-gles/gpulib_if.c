@@ -640,6 +640,14 @@ void vout_update(void)
  }
 }
 
+void vout_blank(void)
+{
+}
+
+void vout_set_config(const struct rearmed_cbs *cbs)
+{
+}
+
 static struct rearmed_cbs *cbs;
 
 long GPUopen(void **dpy)
@@ -694,10 +702,6 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
  bUseFastMdec = cbs->gpu_peopsgl.bUseFastMdec;
  iTexGarbageCollection = cbs->gpu_peopsgl.iTexGarbageCollection;
  iVRamSize = cbs->gpu_peopsgl.iVRamSize;
-}
-
-void vout_set_config(const struct rearmed_cbs *cbs)
-{
 }
 
 void SetAspectRatio(void)

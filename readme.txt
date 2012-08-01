@@ -1,5 +1,5 @@
 
-PCSX-ReARMed - yet another PCSX fork
+PCSX-ReARMed - yet another PCSX fork, ARM special
 
 http://notaz.gp2x.de/pcsx_rearmed.php
 
@@ -12,7 +12,7 @@ which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
 version is ARM architecture oriented and features MIPS->ARM recompiler by
 Ari64, NEON GTE code and more performance improvements. It was created for
 Pandora handheld, but should be usable on other devices after some code
-adjustments (N900, GPH Wiz/Caanoo versions are also available).
+adjustments (N900, GPH Wiz/Caanoo, PlayBook versions are also available).
 
 PCSX ReARMed features ARM NEON GPU by Exophase, that in many cases produces
 pixel perfect graphics at very high performance. There is also Una-i's GPU
@@ -60,16 +60,18 @@ GPU (graphics) and SPU (sound) plugins can be selected in
 [BIOS/Plugins] menu:
 
 builtin_gpu    - this is either Exophase's ARM NEON GPU (accurate and fast,
-                 available if platform supports NEON), else it's P.E.Op.S.
-                 soft GPU (accurate but slow).
-gpuPCSX4ALL.so - plugin from PCSX4ALL project. Faster than P.E.Op.S.
+                 available if platform supports NEON, like on pandoa),
+                 gpu_peops or gpu_unai (depends on compile options).
+gpu_peops.so   - P.E.Op.S. soft GPU, reasonably accurate but slow
+                 (also found with older emulators on PC)
+gpu_unai.so    - Unai's plugin from PCSX4ALL project. Faster than P.E.Op.S.
                  but has some glitches.
-gpuGLES.so     - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
+gpu_gles.so    - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
                  Occasionally faster but has lots of glitches and seems to
-                 be rather unstable (may crash the system).
-gpuPEOPS.so    - P.E.Op.S. soft GPU (in case builtin one is NEON)
+                 be rather unstable (may crash the driver/system).
 builtin_spu    - P.E.Op.S. SPU plugin, optimized for ARM.
 spunull.so     - NULL plugin, i.e. no sound emulation.
+                 May cause compatibility problems.
 
 
 Cheats
@@ -85,6 +87,20 @@ the main menu where it is possible to enable/disable individual cheats.
 
 Changelog
 ---------
+
+r15 (2012-08-02)
+* various compatibility fixes
+* attempts to fix various SPU issues
+* Exophase fixed blending issue in his NEON GPU
+* fixed some potential crashes
+* gpu_unai: merged range fix from Franxis
++ added cheat support
++ menu: pressing a key in file list now seeks to a file
++ new code, fixes and refactoring to improve portability:
+  support RAM offset, translation cache in data segment,
+  SDL support, multiple sound output methods, configure script
+* unified plugin names for all ports
++ initial libretro support
 
 r14 (2012-03-04)
 * GLES GPU: implemented frameskip
