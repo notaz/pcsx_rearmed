@@ -107,12 +107,10 @@ u32   GPU_GP1;
 //  GPU Raster Macros
 #define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
 
-#define GPU_EXPANDSIGN_POLY(x)  (((s32)(x)<<20)>>20)
-//#define GPU_EXPANDSIGN_POLY(x)  (((s32)(x)<<21)>>21)
-#define GPU_EXPANDSIGN_SPRT(x)  (((s32)(x)<<21)>>21)
+#define GPU_EXPANDSIGN(x)  (((s32)(x)<<21)>>21)
 
-//#define	GPU_TESTRANGE(x)      { if((u32)(x+1024) > 2047) return; }
-#define	GPU_TESTRANGE(x)      { if ((x<-1023) || (x>1023)) return; }
+#define CHKMAX_X 1024
+#define CHKMAX_Y 512
 
 #define	GPU_SWAP(a,b,t)	{(t)=(a);(a)=(b);(b)=(t);}
 

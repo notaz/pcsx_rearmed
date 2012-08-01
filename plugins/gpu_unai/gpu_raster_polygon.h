@@ -18,6 +18,16 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#define GPU_TESTRANGE3() \
+{ \
+	if(x0<0) { if((x1-x0)>CHKMAX_X) return; if((x2-x0)>CHKMAX_X) return; } \
+	if(x1<0) { if((x0-x1)>CHKMAX_X) return; if((x2-x1)>CHKMAX_X) return; } \
+	if(x2<0) { if((x0-x2)>CHKMAX_X) return; if((x1-x2)>CHKMAX_X) return; } \
+	if(y0<0) { if((y1-y0)>CHKMAX_Y) return; if((y2-y0)>CHKMAX_Y) return; } \
+	if(y1<0) { if((y0-y1)>CHKMAX_Y) return; if((y2-y1)>CHKMAX_Y) return; } \
+	if(y2<0) { if((y0-y2)>CHKMAX_Y) return; if((y1-y2)>CHKMAX_Y) return; } \
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal polygon drawing functions
 
@@ -31,12 +41,14 @@ void gpuDrawF3(const PP gpuPolySpanDriver)
 	s32 x0, x1, x2, x3, dx3=0, x4, dx4=0, dx;
 	s32 y0, y1, y2;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2]);  GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3]);  GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[4]);  GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[5]);  GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6]);  GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7]);  GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]);
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]);
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[4]);
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[5]);
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[6]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[7]);
+
+	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
@@ -164,12 +176,14 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 	s32 u0, u1, u2, u3, du3=0;
 	s32 v0, v1, v2, v3, dv3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );   GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );   GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6] );   GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7] );   GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[10]);   GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[11]);   GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[6] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
+
+	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
@@ -352,12 +366,14 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 	s32 g0, g1, g2, g3, dg3=0;
 	s32 b0, b1, b2, b3, db3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );    GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );	  GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6] );	  GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7] );	  GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[10]);	  GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[11]);	  GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[6] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
+
+	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
@@ -536,12 +552,14 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 	s32 g0, g1, g2, g3, dg3=0;
 	s32 b0, b1, b2, b3, db3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );   GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );   GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[8] );   GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[9] );   GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[14]);   GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[15]);   GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[8] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[9] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[14]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[15]);
+
+	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];

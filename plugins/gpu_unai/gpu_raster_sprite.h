@@ -29,8 +29,8 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 	s32 u0;
 	s32 v0;
 
-	x1 = x0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[3]) + DrawingOffset[1];
+	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
+	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
 	x1+= PacketBuffer.S2[6];
 	y1+= PacketBuffer.S2[7];
 
@@ -95,8 +95,8 @@ void gpuDrawS16(void)
 	s32 ymin, ymax;
 	u32 h = 16;
 
-	x0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[3]) + DrawingOffset[1];
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
 
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
 	ymin = DrawingArea[1];	ymax = DrawingArea[3];
@@ -131,8 +131,8 @@ void gpuDrawT(const PT gpuTileSpanDriver)
 	s32 x0, y0;
 	s32 x1, y1;
 
-	x1 = x0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN_SPRT(PacketBuffer.S2[3]) + DrawingOffset[1];
+	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
+	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
 	x1+= PacketBuffer.S2[4];
 	y1+= PacketBuffer.S2[5];
 

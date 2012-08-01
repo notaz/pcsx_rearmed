@@ -18,6 +18,8 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#define	GPU_TESTRANGE(x)      { if((u32)(x+1024) > 2047) return; }
+
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal line drawing functions
 
