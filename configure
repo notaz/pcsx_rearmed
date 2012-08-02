@@ -47,6 +47,7 @@ have_armv7=""
 have_arm_neon=""
 have_tslib=""
 enable_dynarec="yes"
+need_sdl="no"
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_arm926ej="no"
@@ -56,7 +57,7 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 AR="${AS-${CROSS_COMPILE}ar}"
-MAIN_LDLIBS="$LDLIBS -ldl -lpng -lz"
+MAIN_LDLIBS="$LDLIBS -ldl -lm"
 config_mak="config.mak"
 
 fail()
@@ -247,10 +248,7 @@ fi
 
 case "$platform" in
 generic)
-  generic_cflags=`sdl-config --cflags`
-  generic_ldlibs=`sdl-config --libs`
-  CFLAGS="$CFLAGS $generic_cflags"
-  MAIN_LDLIBS="$MAIN_LDLIBS $generic_ldlibs"
+  need_sdl="yes"
   ;;
 maemo)
   maemo_cflags=`pkg-config --cflags hildon-1`
@@ -320,27 +318,38 @@ EOF
   compile_binary "$@"
 }
 
-check_zlib || fail "please install libz-dev"
-check_bzlib || fail "please install libbz2-dev"
-check_libpng || fail "please install libpng-dev"
+MAIN_LDLIBS="$MAIN_LDLIBS -lz"
+check_zlib || fail "please install zlib/libz-dev"
+
+check_bzlib || fail "please install bz2lib/libbz2-dev"
+
+MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
+check_libpng || fail "please install libpng/libpng-dev"
 
 # find what audio support we can compile
 if [ "x$sound_drivers" = "x" ]; then
   if check_oss; then sound_drivers="$sound_drivers oss"; fi
-  if check_alsa -lasound; then sound_drivers="$sound_drivers alsa"; fi
-  if check_sdl; then sound_drivers="$sound_drivers sdl"; fi
+  if check_alsa -lasound; then
+    sound_drivers="$sound_drivers alsa"
+    MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
+  fi
+  if [ "$need_sdl" == "yes" ] || check_sdl `sdl-config --cflags -libs`; then
+    sound_drivers="$sound_drivers sdl"
+    need_sdl="yes"
+  fi
+else
+  if echo $sound_drivers | grep -q "\<oss\>"; then
+    check_oss || fail "oss support is missing"
+  fi
+  if echo $sound_drivers | grep -q "\<alsa\>"; then
+    MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
+    check_alsa || fail "please install libasound2-dev"
+  fi
 fi
 
-if echo $sound_drivers | grep -q "\<oss\>"; then
-  check_oss || fail "oss support missing"
-fi
-if echo $sound_drivers | grep -q "\<alsa\>"; then
-  MAIN_LDLIBS="$MAIN_LDLIBS -lasound"
-  check_alsa || fail "please install libasound2-dev"
-fi
-if echo $sound_drivers | grep -q "\<sdl\>"; then
-  echo $MAIN_LDLIBS | grep -qi SDL || CFLAGS="$CFLAGS `sdl-config --cflags`"
-  echo $MAIN_LDLIBS | grep -qi SDL || MAIN_LDLIBS="$MAIN_LDLIBS `sdl-config --libs`"
+if [ "$need_sdl" == "yes" ]; then
+  CFLAGS="$CFLAGS `sdl-config --cflags`"
+  MAIN_LDLIBS="`sdl-config --libs` $MAIN_LDLIBS"
   check_sdl || fail "please install libsdl1.2-dev"
 fi
 

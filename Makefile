@@ -3,7 +3,7 @@
 # default stuff goes here, so that config can override
 TARGET = pcsx
 CFLAGS += -Wall -ggdb -Ifrontend -ffast-math
-LDLIBS += -lpthread -lm
+LDLIBS += -lpthread
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
