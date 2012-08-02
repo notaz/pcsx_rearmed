@@ -145,6 +145,7 @@ endif
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
 OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
+libpcsxcore/new_dynarec/pcsxmem.o: CFLAGS += -DCUSTOM_MEMMAPS
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "maemo"

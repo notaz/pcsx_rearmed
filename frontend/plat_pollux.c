@@ -653,6 +653,22 @@ void plat_finish(void)
 	close(memdev);
 }
 
+/* WIZ RAM lack workaround */
+void *memtab_mmap(void *addr, size_t size)
+{
+	void *ret;
+
+	if (gp2x_dev_id != GP2X_DEV_WIZ)
+		return mmap(addr, size, PROT_READ | PROT_WRITE,
+			MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+
+	ret = mmap(addr, size, PROT_READ | PROT_WRITE,
+		MAP_SHARED | MAP_FIXED, memdev, 0x03000000);
+	if (ret != MAP_FAILED)
+		warm_change_cb_range(WCB_C_BIT | WCB_B_BIT, 1, ret, size);
+	return ret;
+}
+
 /* Caanoo stuff, perhaps move later */
 static const char * const caanoo_keys[KEY_MAX + 1] = {
 	[0 ... KEY_MAX] = NULL,

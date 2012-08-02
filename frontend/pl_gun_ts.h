@@ -13,5 +13,6 @@ int pl_gun_ts_get_fd(struct tsdev *ts);
 
 #define pl_gun_ts_init() NULL
 #define pl_gun_ts_update(...) do {} while (0)
+#define pl_set_gun_rect(...) do {} while (0)
 
 #endif
