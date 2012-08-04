@@ -205,15 +205,15 @@ if [ "$ARCH" = "arm" ]; then
     echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=vfp"
     echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=vfp"
   fi
-  floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes`
+  floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes` || true
   if [ "$floatabi_set_by_gcc" != "yes" -a "$have_armv6" = "yes" ]; then
     echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
     echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
   fi
 
-  # must disable -mthumb as recompiler can't handle it
+  # must disable thumb as recompiler can't handle it
   if check_define __thumb__; then
-    CFLAGS="$CFLAGS -mno-thumb"
+    CFLAGS="$CFLAGS -marm"
   fi
 
   if [ "$have_armv7" = "yes" ]; then
@@ -319,12 +319,12 @@ EOF
 }
 
 MAIN_LDLIBS="$MAIN_LDLIBS -lz"
-check_zlib || fail "please install zlib/libz-dev"
+check_zlib || fail "please install zlib (libz-dev)"
 
-check_bzlib || fail "please install bz2lib/libbz2-dev"
+check_bzlib || fail "please install bz2lib (libbz2-dev)"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
-check_libpng || fail "please install libpng/libpng-dev"
+check_libpng || fail "please install libpng (libpng-dev)"
 
 # find what audio support we can compile
 if [ "x$sound_drivers" = "x" ]; then
@@ -333,7 +333,7 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers alsa"
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
   fi
-  if [ "$need_sdl" == "yes" ] || check_sdl `sdl-config --cflags -libs`; then
+  if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
   fi
@@ -347,10 +347,12 @@ else
   fi
 fi
 
-if [ "$need_sdl" == "yes" ]; then
+if [ "$need_sdl" = "yes" ]; then
+  which sdl-config > /dev/null || \
+    fail "sdl-config is missing; please install libsdl (libsdl1.2-dev)"
   CFLAGS="$CFLAGS `sdl-config --cflags`"
   MAIN_LDLIBS="`sdl-config --libs` $MAIN_LDLIBS"
-  check_sdl || fail "please install libsdl1.2-dev"
+  check_sdl || fail "please install libsdl (libsdl1.2-dev)"
 fi
 
 # check for tslib (only headers needed)
@@ -381,6 +383,13 @@ fi
 
 if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
   plugins="$plugins plugins/gpu_neon/gpu_neon.so"
+fi
+
+cat > $TMPC <<EOF
+void test(void *f, void *d) { fread(d, 1, 1, f); }
+EOF
+if compile_object -Wno-unused-result; then
+  CFLAGS="$CFLAGS -Wno-unused-result"
 fi
 
 # short plugin list for display

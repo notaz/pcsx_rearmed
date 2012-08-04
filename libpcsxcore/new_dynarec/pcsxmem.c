@@ -15,7 +15,8 @@
 #include "pcsxmem.h"
 
 #ifdef __thumb__
-#error the dynarec does not have Thumb support, please remove -mthumb
+#error the dynarec is incompatible with Thumb functions,
+#error please add -marm to compile flags
 #endif
 
 //#define memprintf printf
