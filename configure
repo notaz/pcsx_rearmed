@@ -164,7 +164,6 @@ fi
 # ARM stuff
 if [ "$ARCH" = "arm" ]; then
   if [ "$optimize_cortexa8" = "yes" ]; then
-  # both: -mfpu=neon
     CFLAGS="$CFLAGS -mcpu=cortex-a8 -mtune=cortex-a8"
     ASFLAGS="$ASFLAGS -mcpu=cortex-a8"
   fi
@@ -198,7 +197,7 @@ if [ "$ARCH" = "arm" ]; then
     fi
   fi
 
-  # set mfpu and mfloat-abi if they are not set
+  # automatically set mfpu and mfloat-abi if they are not set
   if [ "$have_arm_neon" = "yes" ]; then
     echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=neon"
     echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=neon"
@@ -206,7 +205,8 @@ if [ "$ARCH" = "arm" ]; then
     echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=vfp"
     echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=vfp"
   fi
-  if [ "$have_armv6" = "yes" ]; then
+  floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes`
+  if [ "$floatabi_set_by_gcc" != "yes" -a "$have_armv6" = "yes" ]; then
     echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
     echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
   fi
