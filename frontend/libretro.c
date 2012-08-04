@@ -49,11 +49,11 @@ static void *vout_set_mode(int w, int h, int bpp)
 }
 
 /* FIXME: either teach PCSX to blit to RGB1555 or RetroArch to support RGB565 */
-static void convert(void *buf, size_t size)
+static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
 
-	for (i = 0; i < size / 2; i++) {
+	for (i = 0; i < bytes / 4; i++) {
 		v = p[i];
 		p[i] = (v & 0x001f001f) | ((v >> 1) & 0x7fe07fe0);
 	}
