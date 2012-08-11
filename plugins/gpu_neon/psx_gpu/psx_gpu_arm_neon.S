@@ -16,65 +16,9 @@
 #define MAX_BLOCKS                                        64
 #define MAX_BLOCKS_PER_ROW                                128
 
-#define psx_gpu_test_mask_offset                          0
-#define psx_gpu_uvrg_offset                               16
-#define psx_gpu_uvrg_dx_offset                            32
-#define psx_gpu_uvrg_dy_offset                            48
-#define psx_gpu_u_block_span_offset                       64
-#define psx_gpu_v_block_span_offset                       80
-#define psx_gpu_r_block_span_offset                       96
-#define psx_gpu_g_block_span_offset                       112
-#define psx_gpu_b_block_span_offset                       128
+#include "psx_gpu_offsets.h"
 
-#define psx_gpu_b_dx_offset                               132
-
-#define psx_gpu_b_offset                                  144
-#define psx_gpu_b_dy_offset                               148
-#define psx_gpu_triangle_area_offset                      152
-#define psx_gpu_texture_window_settings_offset            156
-#define psx_gpu_current_texture_mask_offset               160
-#define psx_gpu_viewport_mask_offset                      164
-#define psx_gpu_dirty_textures_4bpp_mask_offset           168
-#define psx_gpu_dirty_textures_8bpp_mask_offset           172
-#define psx_gpu_dirty_textures_8bpp_alternate_mask_offset 176
-#define psx_gpu_triangle_color_offset                     180
-#define psx_gpu_dither_table_offset                       184
-#define psx_gpu_render_block_handler_offset               200
-#define psx_gpu_texture_page_ptr_offset                   204
-#define psx_gpu_texture_page_base_offset                  208
-#define psx_gpu_clut_ptr_offset                           212
-#define psx_gpu_vram_ptr_offset                           216
-
-#define psx_gpu_render_state_base_offset                  220
-#define psx_gpu_render_state_offset                       222
-#define psx_gpu_num_spans_offset                          224
-#define psx_gpu_num_blocks_offset                         226
-#define psx_gpu_offset_x_offset                           228
-#define psx_gpu_offset_y_offset                           230
-#define psx_gpu_clut_settings_offset                      232
-#define psx_gpu_texture_settings_offset                   234
-#define psx_gpu_viewport_start_x_offset                   236
-#define psx_gpu_viewport_start_y_offset                   238
-#define psx_gpu_viewport_end_x_offset                     240
-#define psx_gpu_viewport_end_y_offset                     242
-#define psx_gpu_mask_msb_offset                           244
-                                                          
-#define psx_gpu_triangle_winding_offset                   246
-#define psx_gpu_display_area_draw_enable_offset           247
-#define psx_gpu_current_texture_page_offset               248
-#define psx_gpu_last_8bpp_texture_page_offset             249
-#define psx_gpu_texture_mask_width_offset                 250
-#define psx_gpu_texture_mask_height_offset                251
-#define psx_gpu_texture_window_x_offset                   252
-#define psx_gpu_texture_window_y_offset                   253
-#define psx_gpu_primitive_type_offset                     254
-
-#define psx_gpu_reserved_a_offset                         255
-
-#define psx_gpu_blocks_offset                             0x0100
-#define psx_gpu_span_uvrg_offset_offset                   0x2100
-#define psx_gpu_span_edge_data_offset                     0x4100
-#define psx_gpu_span_b_offset_offset                      0x5100
+#define psx_gpu_b_dx_offset (psx_gpu_b_block_span_offset + 4)
 
 #define edge_data_left_x_offset                           0
 #define edge_data_num_blocks_offset                       2
