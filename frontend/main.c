@@ -143,6 +143,8 @@ void emu_set_default_config(void)
 	Config.PsxAuto = 1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
+	pl_rearmed_cbs.gpu_neon.enhancement_enable =
+	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.abe_hack =

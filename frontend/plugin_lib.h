@@ -60,6 +60,8 @@ struct rearmed_cbs {
 	unsigned int only_16bpp; // platform is 16bpp-only
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
+		int   enhancement_enable;
+		int   enhancement_no_main;
 	} gpu_neon;
 	struct {
 		int   iUseDither;

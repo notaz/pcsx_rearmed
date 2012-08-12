@@ -67,6 +67,9 @@ struct psx_gpu {
     uint32_t old_interlace:1;
     uint32_t allow_interlace:2;
     uint32_t blanked:1;
+    uint32_t enhancement_available:1;
+    uint32_t enhancement_enable:1;
+    uint32_t enhancement_active:1;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {
@@ -87,6 +90,7 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
+  void *enhancement_bufer;
 };
 
 extern struct psx_gpu gpu;

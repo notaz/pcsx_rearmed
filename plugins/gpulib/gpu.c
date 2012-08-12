@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "gpu.h"
 
@@ -137,7 +138,20 @@ long GPUinit(void)
 {
   int ret;
   ret  = vout_init();
+
+  gpu.state.enhancement_available = 0;
   ret |= renderer_init();
+
+  if (gpu.state.enhancement_available) {
+    if (gpu.enhancement_bufer == NULL)
+      gpu.enhancement_bufer = malloc(2048 * 1024 * 2 + 1024 * 512 * 2);
+      if (gpu.enhancement_bufer == NULL)
+        gpu_log("OOM for enhancement buffer\n");
+  }
+  else if (gpu.enhancement_bufer != NULL) {
+    free(gpu.enhancement_bufer);
+    gpu.enhancement_bufer = NULL;
+  }
 
   gpu.state.frame_count = &gpu.zero;
   gpu.state.hcnt = &gpu.zero;
@@ -669,6 +683,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.hcnt = cbs->gpu_hcnt;
   gpu.state.frame_count = cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
+  gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
 
   if (cbs->pl_vout_set_raw_vram)
     cbs->pl_vout_set_raw_vram(gpu.vram);

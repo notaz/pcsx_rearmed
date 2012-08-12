@@ -31,13 +31,25 @@ static void check_mode_change(void)
 {
   static uint32_t old_status;
   static int old_h;
+  int w = gpu.screen.hres;
+  int h = gpu.screen.h;
+
+  gpu.state.enhancement_active =
+    gpu.enhancement_bufer != NULL && gpu.state.enhancement_enable
+    && w <= 512 && h <= 256 && !gpu.status.rgb24;
+
+  if (gpu.state.enhancement_active) {
+    w *= 2;
+    h *= 2;
+  }
 
   // width|rgb24 change?
-  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || gpu.screen.h != old_h)
+  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
   {
     old_status = gpu.status.reg;
-    old_h = gpu.screen.h;
-    screen_buf = cbs->pl_vout_set_mode(gpu.screen.hres, gpu.screen.h,
+    old_h = h;
+
+    screen_buf = cbs->pl_vout_set_mode(w, h,
       (gpu.status.rgb24 && !cbs->only_16bpp) ? 24 : 16);
   }
 }
@@ -50,6 +62,8 @@ static void blit(void)
   int h = gpu.screen.h;
   uint16_t *vram = gpu.vram;
   int stride = gpu.screen.hres;
+  int vram_stride = 1024;
+  int vram_mask = 1024 * 512 - 1;
   int fb_offs, doffs;
   uint8_t *dest;
 
@@ -57,7 +71,16 @@ static void blit(void)
   if (dest == NULL)
     return;
 
-  fb_offs = y * 1024 + x;
+  if (gpu.state.enhancement_active) {
+    vram = gpu.enhancement_bufer;
+    x *= 2;
+    y *= 2;
+    w *= 2;
+    h *= 2;
+    stride *= 2;
+    vram_mask = 1024 * 1024 - 1;
+  }
+  fb_offs = y * vram_stride + x;
 
   // only do centering, at least for now
   doffs = (stride - w) / 2 & ~1;
@@ -66,17 +89,17 @@ static void blit(void)
   {
     if (cbs->only_16bpp) {
       dest += doffs * 2;
-      for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
+      for (; h-- > 0; dest += stride * 2, fb_offs += vram_stride)
       {
-        fb_offs &= 1024*512-1;
+        fb_offs &= vram_mask;
         bgr888_to_rgb565(dest, vram + fb_offs, w * 3);
       }
     }
     else {
       dest += (doffs / 8) * 24;
-      for (; h-- > 0; dest += stride * 3, fb_offs += 1024)
+      for (; h-- > 0; dest += stride * 3, fb_offs += vram_stride)
       {
-        fb_offs &= 1024*512-1;
+        fb_offs &= vram_mask;
         bgr888_to_rgb888(dest, vram + fb_offs, w * 3);
       }
     }
@@ -84,9 +107,9 @@ static void blit(void)
   else
   {
     dest += doffs * 2;
-    for (; h-- > 0; dest += stride * 2, fb_offs += 1024)
+    for (; h-- > 0; dest += stride * 2, fb_offs += vram_stride)
     {
-      fb_offs &= 1024*512-1;
+      fb_offs &= vram_mask;
       bgr555_to_rgb565(dest, vram + fb_offs, w * 2);
     }
   }
