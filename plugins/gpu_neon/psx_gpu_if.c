@@ -27,7 +27,12 @@ static psx_gpu_struct egpu __attribute__((aligned(256)));
 
 int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 {
-  int ret = gpu_parse(&egpu, list, count * 4, (u32 *)last_cmd);
+  int ret;
+
+  if (gpu.state.enhancement_active)
+    ret = gpu_parse_enhanced(&egpu, list, count * 4, (u32 *)last_cmd);
+  else
+    ret = gpu_parse(&egpu, list, count * 4, (u32 *)last_cmd);
 
   ex_regs[1] &= ~0x1ff;
   ex_regs[1] |= egpu.texture_settings & 0x1ff;
@@ -38,6 +43,7 @@ int renderer_init(void)
 {
   initialize_psx_gpu(&egpu, gpu.vram);
   ex_regs = gpu.ex_regs;
+  gpu.state.enhancement_available = 1;
   return 0;
 }
 
@@ -65,6 +71,10 @@ void renderer_set_interlace(int enable, int is_odd)
     egpu.interlace_mode |= RENDER_INTERLACE_ODD;
 }
 
+#include "../../frontend/plugin_lib.h"
+
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
+  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
+  disable_main_render = cbs->gpu_neon.enhancement_no_main;
 }

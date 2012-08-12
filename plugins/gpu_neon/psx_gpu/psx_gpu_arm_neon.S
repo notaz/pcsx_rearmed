@@ -1337,7 +1337,7 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -1604,7 +1604,7 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -1799,7 +1799,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_indirect)
   ldrh span_num_blocks, [ span_edge_data, #edge_data_num_blocks_offset ]
   ldrh y, [ span_edge_data, #edge_data_y_offset ]
 
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   cmp span_num_blocks, #0
   beq 1f
@@ -1919,7 +1919,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
   ldrh span_num_blocks, [ span_edge_data, #edge_data_num_blocks_offset ]
   ldrh y, [ span_edge_data, #edge_data_y_offset ]
 
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   cmp span_num_blocks, #0
   beq 1f
@@ -2106,7 +2106,7 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_indirect)     \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -2346,7 +2346,7 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_direct)       \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -4804,7 +4804,7 @@ function(setup_sprite_##texture_mode)                                          \
   and offset_u, u, #0xF;                                                       \
                                                                                \
   ldr width, [ sp, #40 ];                                                      \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   ldr height, [ sp, #44 ];                                                     \
   add fb_ptr, fb_ptr, y, lsl #11;                                              \
@@ -5052,7 +5052,7 @@ setup_sprites_16bpp_flush_row:
 
 function(setup_sprite_16bpp)
   stmdb sp!, { r4 - r11, r14 }
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   ldr v, [ sp, #36 ]
   add fb_ptr, fb_ptr, y, lsl #11

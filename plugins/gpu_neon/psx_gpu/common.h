@@ -18,5 +18,7 @@ typedef unsigned long long int u64;
 #include "vector_ops.h"
 #include "psx_gpu.h"
 
+#define unlikely(x) __builtin_expect((x), 0)
+
 #endif
 

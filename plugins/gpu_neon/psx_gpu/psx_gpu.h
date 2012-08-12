@@ -122,7 +122,7 @@ typedef struct
   vec_4x32u g_block_span;
   vec_4x32u b_block_span;
 
-  // 72 bytes
+  // 76 bytes
   u32 b;
   u32 b_dy;
 
@@ -143,6 +143,7 @@ typedef struct
   void *texture_page_base;
   u16 *clut_ptr;
   u16 *vram_ptr;
+  u16 *vram_out_ptr;
 
   // 26 bytes
   u16 render_state_base;
@@ -180,9 +181,16 @@ typedef struct
   u8 primitive_type;
   u8 interlace_mode;
 
+  // enhancement stuff
+  u16 *enhancement_buf_ptr;
+  s16 saved_viewport_start_x;
+  s16 saved_viewport_start_y;
+  s16 saved_viewport_end_x;
+  s16 saved_viewport_end_y;
+
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
-  // aligned
-  //u8 reserved_a[0];
+  // aligned, also make reachable with single immediate addition
+  u8 reserved_a[240];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

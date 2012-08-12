@@ -48,6 +48,7 @@ int main()
 	WRITE_OFFSET(f, texture_page_base);
 	WRITE_OFFSET(f, clut_ptr);
 	WRITE_OFFSET(f, vram_ptr);
+	WRITE_OFFSET(f, vram_out_ptr);
 	WRITE_OFFSET(f, render_state_base);
 	WRITE_OFFSET(f, render_state);
 	WRITE_OFFSET(f, num_spans);

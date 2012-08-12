@@ -152,6 +152,52 @@ void set_triangle_color(psx_gpu_struct *psx_gpu, u32 triangle_color)
   }
 }
 
+static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
+ u32 width, u32 height, u32 color)
+{
+  x &= ~0xF;
+  width = ((width + 0xF) & ~0xF);
+
+  flush_render_block_buffer(psx_gpu);
+
+  if(unlikely((x + width) > 1024))
+  {
+    u32 width_a = 1024 - x;
+    u32 width_b = width - width_a;
+
+    if(unlikely((y + height) > 512))
+    {
+      u32 height_a = 512 - y;
+      u32 height_b = height - height_a;
+
+      render_block_fill(psx_gpu, color, x, y, width_a, height_a);
+      render_block_fill(psx_gpu, color, 0, y, width_b, height_a);
+      render_block_fill(psx_gpu, color, x, 0, width_a, height_b);
+      render_block_fill(psx_gpu, color, 0, 0, width_b, height_b);
+    }
+    else
+    {
+      render_block_fill(psx_gpu, color, x, y, width_a, height);
+      render_block_fill(psx_gpu, color, 0, y, width_b, height);
+    }
+  }
+  else
+  {
+    if(unlikely((y + height) > 512))
+    {
+      u32 height_a = 512 - y;
+      u32 height_b = height - height_a;
+
+      render_block_fill(psx_gpu, color, x, y, width, height_a);
+      render_block_fill(psx_gpu, color, x, 0, width, height_b);
+    }
+    else
+    {
+      render_block_fill(psx_gpu, color, x, y, width, height);
+    }
+  }
+}
+
 #define sign_extend_12bit(value)                                               \
   (((s32)((value) << 20)) >> 20)                                               \
 
@@ -235,45 +281,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         u32 height = list_s16[5] & 0x1FF;
         u32 color = list[0] & 0xFFFFFF;
 
-        x &= ~0xF;
-        width = ((width + 0xF) & ~0xF);
-
-        if((x + width) > 1024)
-        {
-          u32 width_a = 1024 - x;
-          u32 width_b = width - width_a;
-
-          if((y + height) > 512)
-          {
-            u32 height_a = 512 - y;
-            u32 height_b = height - height_a;
-
-            render_block_fill(psx_gpu, color, x, y, width_a, height_a);
-            render_block_fill(psx_gpu, color, 0, y, width_b, height_a);
-            render_block_fill(psx_gpu, color, x, 0, width_a, height_b);
-            render_block_fill(psx_gpu, color, 0, 0, width_b, height_b);
-          }
-          else
-          {
-            render_block_fill(psx_gpu, color, x, y, width_a, height);
-            render_block_fill(psx_gpu, color, 0, y, width_b, height);
-          }
-        }
-        else
-        {
-          if((y + height) > 512)
-          {
-            u32 height_a = 512 - y;
-            u32 height_b = height - height_a;
-
-            render_block_fill(psx_gpu, color, x, y, width, height_a);
-            render_block_fill(psx_gpu, color, x, 0, width, height_b);
-          }
-          else
-          {
-            render_block_fill(psx_gpu, color, x, y, width, height);
-          }
-        }
+        do_fill(psx_gpu, x, y, width, height, color);
   			break;
       }
   
@@ -741,3 +749,602 @@ breakloop:
   return list - list_start;
 }
 
+#define enhancement_disable() { \
+  psx_gpu->vram_out_ptr = psx_gpu->vram_ptr; \
+  psx_gpu->viewport_start_x = psx_gpu->saved_viewport_start_x; \
+  psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y; \
+  psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x; \
+  psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y; \
+}
+
+#define enhancement_enable() { \
+  psx_gpu->vram_out_ptr = psx_gpu->enhancement_buf_ptr; \
+  psx_gpu->viewport_start_x = psx_gpu->saved_viewport_start_x * 2; \
+  psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y * 2; \
+  psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2; \
+  psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2; \
+}
+
+#define shift_vertices3(v) { \
+  v[0]->x *= 2; \
+  v[0]->y *= 2; \
+  v[1]->x *= 2; \
+  v[1]->y *= 2; \
+  v[2]->x *= 2; \
+  v[2]->y *= 2; \
+}
+
+#define unshift_vertices3(v) { \
+  v[0]->x /= 2; \
+  v[0]->y /= 2; \
+  v[1]->x /= 2; \
+  v[1]->y /= 2; \
+  v[2]->x /= 2; \
+  v[2]->y /= 2; \
+}
+
+#define shift_triangle_area() \
+  psx_gpu->triangle_area *= 4
+
+static int disable_main_render;
+
+static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
+ vertex_struct *vertexes, u32 current_command)
+{
+  vertex_struct *vertex_ptrs[3];
+
+  if (!prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
+    return;
+
+  if (!disable_main_render)
+    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+
+  enhancement_enable();
+  shift_vertices3(vertex_ptrs);
+  shift_triangle_area();
+  render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+}
+
+static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ u32 current_command)
+{
+  vertex_struct *vertex_ptrs[3];
+
+  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs)) {
+    if (!disable_main_render)
+      render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+
+    enhancement_enable();
+    shift_vertices3(vertex_ptrs);
+    shift_triangle_area();
+    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+    unshift_vertices3(vertex_ptrs);
+  }
+  enhancement_disable();
+  if (prepare_triangle(psx_gpu, &vertexes[1], vertex_ptrs)) {
+    if (!disable_main_render)
+      render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+
+    enhancement_enable();
+    shift_vertices3(vertex_ptrs);
+    shift_triangle_area();
+    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+  }
+}
+
+u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
+{
+  u32 current_command = 0, command_length;
+
+  u32 *list_start = list;
+  u32 *list_end = list + (size / 4);
+
+  psx_gpu->saved_viewport_start_x = psx_gpu->viewport_start_x;
+  psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
+  psx_gpu->saved_viewport_end_x = psx_gpu->viewport_end_x;
+  psx_gpu->saved_viewport_end_y = psx_gpu->viewport_end_y;
+
+  for(; list < list_end; list += 1 + command_length)
+  {
+    s16 *list_s16 = (void *)list;
+    current_command = *list >> 24;
+    command_length = command_lengths[current_command];
+    if (list + 1 + command_length > list_end) {
+      current_command = (u32)-1;
+      break;
+    }
+
+    enhancement_disable();
+
+    switch(current_command)
+    {
+      case 0x00:
+        break;
+  
+      case 0x02:
+      {
+        u32 x = list_s16[2] & 0x3FF;
+        u32 y = list_s16[3] & 0x1FF;
+        u32 width = list_s16[4] & 0x3FF;
+        u32 height = list_s16[5] & 0x1FF;
+        u32 color = list[0] & 0xFFFFFF;
+
+        do_fill(psx_gpu, x, y, width, height, color);
+
+        psx_gpu->vram_out_ptr = psx_gpu->enhancement_buf_ptr;
+        x *= 2;
+        y *= 2;
+        width *= 2;
+        height *= 2;
+        if (width > 1024)
+          width = 1024;
+        render_block_fill(psx_gpu, color, x, y, width, height);
+        break;
+      }
+  
+      case 0x20 ... 0x23:
+      {
+        set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
+  
+        get_vertex_data_xy(0, 2);
+        get_vertex_data_xy(1, 4);
+        get_vertex_data_xy(2, 6);
+
+        do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x24 ... 0x27:
+      {
+        set_clut(psx_gpu, list_s16[5]);
+        set_texture(psx_gpu, list_s16[9]);
+        set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
+  
+        get_vertex_data_xy_uv(0, 2);
+        get_vertex_data_xy_uv(1, 6);
+        get_vertex_data_xy_uv(2, 10);
+  
+        do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x28 ... 0x2B:
+      {
+        set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
+  
+        get_vertex_data_xy(0, 2);
+        get_vertex_data_xy(1, 4);
+        get_vertex_data_xy(2, 6);
+        get_vertex_data_xy(3, 8);
+
+        do_quad_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x2C ... 0x2F:
+      {
+        set_clut(psx_gpu, list_s16[5]);
+        set_texture(psx_gpu, list_s16[9]);
+        set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
+  
+        get_vertex_data_xy_uv(0, 2);   
+        get_vertex_data_xy_uv(1, 6);   
+        get_vertex_data_xy_uv(2, 10);  
+        get_vertex_data_xy_uv(3, 14);
+  
+        do_quad_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x30 ... 0x33:
+      {
+        get_vertex_data_xy_rgb(0, 0);
+        get_vertex_data_xy_rgb(1, 4);
+        get_vertex_data_xy_rgb(2, 8);
+  
+        do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x34:
+      case 0x35:
+      case 0x36:
+      case 0x37:
+      {
+        set_clut(psx_gpu, list_s16[5]);
+        set_texture(psx_gpu, list_s16[11]);
+  
+        get_vertex_data_xy_uv_rgb(0, 0);
+        get_vertex_data_xy_uv_rgb(1, 6);
+        get_vertex_data_xy_uv_rgb(2, 12);
+
+        do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x38:
+      case 0x39:
+      case 0x3A:
+      case 0x3B:
+      {
+        get_vertex_data_xy_rgb(0, 0);
+        get_vertex_data_xy_rgb(1, 4);
+        get_vertex_data_xy_rgb(2, 8);
+        get_vertex_data_xy_rgb(3, 12);
+  
+        do_quad_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x3C:
+      case 0x3D:
+      case 0x3E:
+      case 0x3F:
+      {
+        set_clut(psx_gpu, list_s16[5]);
+        set_texture(psx_gpu, list_s16[11]);
+  
+        get_vertex_data_xy_uv_rgb(0, 0);
+        get_vertex_data_xy_uv_rgb(1, 6);
+        get_vertex_data_xy_uv_rgb(2, 12);
+        get_vertex_data_xy_uv_rgb(3, 18);
+
+        do_quad_enhanced(psx_gpu, vertexes, current_command);
+        break;
+      }
+  
+      case 0x40 ... 0x47:
+      {
+        vertexes[0].x = list_s16[2] + psx_gpu->offset_x;
+        vertexes[0].y = list_s16[3] + psx_gpu->offset_y;
+        vertexes[1].x = list_s16[4] + psx_gpu->offset_x;
+        vertexes[1].y = list_s16[5] + psx_gpu->offset_y;
+
+        render_line(psx_gpu, vertexes, current_command, list[0]);
+        break;
+      }
+  
+      case 0x48 ... 0x4F:
+      {
+        u32 num_vertexes = 1;
+        u32 *list_position = &(list[2]);
+        u32 xy = list[1];
+
+        vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
+        vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
+      
+        xy = *list_position;
+        while(1)
+        {
+          vertexes[0] = vertexes[1];
+
+          vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
+          vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
+
+          render_line(psx_gpu, vertexes, current_command, list[0]);
+
+          list_position++;
+          num_vertexes++;
+
+          if(list_position >= list_end)
+            break;
+
+          xy = *list_position;
+          if((xy & 0xF000F000) == 0x50005000)
+            break;
+        }
+
+        command_length += (num_vertexes - 2);
+        break;
+      }
+  
+      case 0x50 ... 0x57:
+      {
+        vertexes[0].r = list[0] & 0xFF;
+        vertexes[0].g = (list[0] >> 8) & 0xFF;
+        vertexes[0].b = (list[0] >> 16) & 0xFF;
+        vertexes[0].x = list_s16[2] + psx_gpu->offset_x;
+        vertexes[0].y = list_s16[3] + psx_gpu->offset_y;
+
+        vertexes[1].r = list[2] & 0xFF;
+        vertexes[1].g = (list[2] >> 8) & 0xFF;
+        vertexes[1].b = (list[2] >> 16) & 0xFF;
+        vertexes[1].x = list_s16[6] + psx_gpu->offset_x;
+        vertexes[1].y = list_s16[7] + psx_gpu->offset_y;
+
+        render_line(psx_gpu, vertexes, current_command, 0);
+        break;
+      }
+ 
+      case 0x58 ... 0x5F:
+      {
+        u32 num_vertexes = 1;
+        u32 *list_position = &(list[2]);
+        u32 color = list[0];
+        u32 xy = list[1];
+
+        vertexes[1].r = color & 0xFF;
+        vertexes[1].g = (color >> 8) & 0xFF;
+        vertexes[1].b = (color >> 16) & 0xFF;
+        vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
+        vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
+      
+        color = list_position[0];
+        while(1)
+        {
+          xy = list_position[1];
+
+          vertexes[0] = vertexes[1];
+
+          vertexes[1].r = color & 0xFF;
+          vertexes[1].g = (color >> 8) & 0xFF;
+          vertexes[1].b = (color >> 16) & 0xFF;
+          vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
+          vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
+
+          render_line(psx_gpu, vertexes, current_command, 0);
+
+          list_position += 2;
+          num_vertexes++;
+
+          if(list_position >= list_end)
+            break;
+
+          color = list_position[0];
+          if((color & 0xF000F000) == 0x50005000)
+            break;
+        }
+
+        command_length += ((num_vertexes - 2) * 2);
+        break;
+      }
+  
+      case 0x60 ... 0x63:
+      {        
+        u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        u32 width = list_s16[4] & 0x3FF;
+        u32 height = list_s16[5] & 0x1FF;
+
+        render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
+        break;
+      }
+  
+      case 0x64 ... 0x67:
+      {        
+        u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        u32 uv = list_s16[4];
+        u32 width = list_s16[6] & 0x3FF;
+        u32 height = list_s16[7] & 0x1FF;
+
+        set_clut(psx_gpu, list_s16[5]);
+
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, width, height,
+         current_command, list[0]);
+        break;
+      }
+  
+      case 0x68:
+      case 0x69:
+      case 0x6A:
+      case 0x6B:
+      {
+        s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+
+        render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
+        break;
+      }
+  
+      case 0x70:
+      case 0x71:
+      case 0x72:
+      case 0x73:
+      {        
+        s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+
+        render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
+        break;
+      }
+  
+      case 0x74:
+      case 0x75:
+      case 0x76:
+      case 0x77:
+      {        
+        s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        u32 uv = list_s16[4];
+
+        set_clut(psx_gpu, list_s16[5]);
+
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 8, 8,
+         current_command, list[0]);
+        break;
+      }
+  
+      case 0x78:
+      case 0x79:
+      case 0x7A:
+      case 0x7B:
+      {        
+        s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+
+        render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
+        break;
+      }
+  
+      case 0x7C:
+      case 0x7D:
+      case 0x7E:
+      case 0x7F:
+      {        
+        s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
+        s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        u32 uv = list_s16[4];
+
+        set_clut(psx_gpu, list_s16[5]);
+
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 16, 16,
+         current_command, list[0]);
+        break;
+      }
+  
+      case 0x80:          //  vid -> vid
+        render_block_move(psx_gpu, list_s16[2] & 0x3FF, list_s16[3] & 0x1FF,
+         list_s16[4] & 0x3FF, list_s16[5] & 0x1FF,
+         ((list_s16[6] - 1) & 0x3FF) + 1, ((list_s16[7] - 1) & 0x1FF) + 1);
+        break;
+ 
+#ifdef PCSX
+      case 0xA0:          //  sys -> vid
+      case 0xC0:          //  vid -> sys
+        goto breakloop;
+#else
+      case 0xA0:          //  sys -> vid
+      {
+        u32 load_x = list_s16[2] & 0x3FF;
+        u32 load_y = list_s16[3] & 0x1FF;
+        u32 load_width = list_s16[4] & 0x3FF;
+        u32 load_height = list_s16[5] & 0x1FF;
+        u32 load_size = load_width * load_height;
+  
+        command_length += load_size / 2;
+
+        if(load_size & 1)
+          command_length++;
+
+        render_block_copy(psx_gpu, (u16 *)&(list_s16[6]), load_x, load_y,
+         load_width, load_height, load_width);
+        break;
+      }
+
+      case 0xC0:          //  vid -> sys
+        break;
+#endif
+
+      case 0xE1:
+        set_texture(psx_gpu, list[0] & 0x1FF);
+
+        if(list[0] & (1 << 9))
+          psx_gpu->render_state_base |= RENDER_STATE_DITHER;
+        else
+          psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
+
+        psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+        SET_Ex(1, list[0]);
+        break;
+  
+      case 0xE2:
+      {
+        // TODO: Clean
+        u32 texture_window_settings = list[0];
+        u32 tmp, x, y, w, h;
+
+        if(texture_window_settings != psx_gpu->texture_window_settings)
+        {
+          tmp = (texture_window_settings & 0x1F) | 0x20;
+          for(w = 8; (tmp & 1) == 0; tmp >>= 1, w <<= 1);
+
+          tmp = ((texture_window_settings >> 5) & 0x1f) | 0x20;
+          for (h = 8; (tmp & 1) == 0; tmp >>= 1, h <<= 1);
+
+          tmp = 32 - (w >> 3);
+          x = ((texture_window_settings >> 10) & tmp) << 3;
+
+          tmp = 32 - (h >> 3);
+          y = ((texture_window_settings >> 15) & tmp) << 3;
+
+          flush_render_block_buffer(psx_gpu);
+          
+          psx_gpu->texture_window_settings = texture_window_settings;
+          psx_gpu->texture_window_x = x;
+          psx_gpu->texture_window_y = y;
+          psx_gpu->texture_mask_width = w - 1;
+          psx_gpu->texture_mask_height = h - 1;
+
+          update_texture_ptr(psx_gpu);
+        }
+        SET_Ex(2, list[0]);
+        break;
+      }
+  
+      case 0xE3:
+        psx_gpu->viewport_start_x = list[0] & 0x3FF;
+        psx_gpu->viewport_start_y = (list[0] >> 10) & 0x1FF;
+        psx_gpu->saved_viewport_start_x = psx_gpu->viewport_start_x;
+        psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
+
+#ifdef TEXTURE_CACHE_4BPP
+        psx_gpu->viewport_mask =
+         texture_region_mask(psx_gpu->viewport_start_x,
+         psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
+         psx_gpu->viewport_end_y);
+#endif
+        SET_Ex(3, list[0]);
+        break;
+  
+      case 0xE4:
+        psx_gpu->viewport_end_x = list[0] & 0x3FF;
+        psx_gpu->viewport_end_y = (list[0] >> 10) & 0x1FF;
+        psx_gpu->saved_viewport_end_x = psx_gpu->viewport_end_x;
+        psx_gpu->saved_viewport_end_y = psx_gpu->viewport_end_y;
+
+#ifdef TEXTURE_CACHE_4BPP
+        psx_gpu->viewport_mask =
+         texture_region_mask(psx_gpu->viewport_start_x,
+         psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
+         psx_gpu->viewport_end_y);
+#endif
+        SET_Ex(4, list[0]);
+        break;
+  
+      case 0xE5:
+      {
+        s32 offset_x = list[0] << 21;
+        s32 offset_y = list[0] << 10;
+        psx_gpu->offset_x = offset_x >> 21;
+        psx_gpu->offset_y = offset_y >> 21; 
+  
+        SET_Ex(5, list[0]);
+        break;
+      }
+
+      case 0xE6:
+      {
+        u32 mask_settings = list[0];
+        u16 mask_msb = mask_settings << 15;
+
+        if(list[0] & 0x2)
+          psx_gpu->render_state_base |= RENDER_STATE_MASK_EVALUATE;
+        else
+          psx_gpu->render_state_base &= ~RENDER_STATE_MASK_EVALUATE;
+
+        if(mask_msb != psx_gpu->mask_msb)
+        {
+          flush_render_block_buffer(psx_gpu);
+          psx_gpu->mask_msb = mask_msb;
+        }
+
+        SET_Ex(6, list[0]);
+        break;
+      }
+  
+      default:
+        break;
+    }
+  }
+
+#ifdef PCSX
+breakloop:
+#endif
+enhancement_disable();
+  if (last_command != NULL)
+    *last_command = current_command;
+  return list - list_start;
+}
+
+// vim:shiftwidth=2:expandtab

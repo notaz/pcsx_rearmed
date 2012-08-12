@@ -47,7 +47,8 @@ u32 zero_block_spans = 0;
 u32 texture_cache_loads = 0;
 u32 false_modulated_blocks = 0;
 
-u32 reciprocal_table[512];
+/* double size for enhancement */
+u32 reciprocal_table[512 * 2];
 
 
 typedef s32 fixed_type;
@@ -1872,7 +1873,7 @@ void setup_blocks_##shading##_##texturing##_##dithering##_##sw##_##target(     \
     if(span_num_blocks)                                                        \
     {                                                                          \
       y = span_edge_data->y;                                                   \
-      fb_ptr = psx_gpu->vram_ptr + span_edge_data->left_x + (y * 1024);        \
+      fb_ptr = psx_gpu->vram_out_ptr + span_edge_data->left_x + (y * 1024);    \
                                                                                \
       setup_blocks_span_initialize_##shading##_##texturing();                  \
       setup_blocks_span_initialize_##dithering(texturing);                     \
@@ -2905,8 +2906,8 @@ char *render_block_flag_strings[] =
    (triangle_y_direction_##direction_c << 4) |                                 \
    (triangle_winding_##winding << 6))                                          \
 
-void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
- u32 flags)
+static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ vertex_struct *vertexes_out[3])
 {
   s32 y_top, y_bottom;
   s32 triangle_area;
@@ -2927,7 +2928,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(b->y < a->y)
@@ -2949,7 +2950,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(triangle_area < 0)
@@ -2975,7 +2976,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(invalidate_texture_cache_region_viewport(psx_gpu, a->x, y_top, c->x,
@@ -2984,12 +2985,27 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
-  psx_gpu->num_spans = 0;
   psx_gpu->triangle_area = triangle_area;
   psx_gpu->triangle_winding = triangle_winding;
+
+  vertexes_out[0] = a;
+  vertexes_out[1] = b;
+  vertexes_out[2] = c;
+
+  return 1;
+}
+
+static void render_triangle_p(psx_gpu_struct *psx_gpu,
+ vertex_struct *vertex_ptrs[3], u32 flags)
+{
+  psx_gpu->num_spans = 0;
+
+  vertex_struct *a = vertex_ptrs[0];
+  vertex_struct *b = vertex_ptrs[1];
+  vertex_struct *c = vertex_ptrs[2];
 
   s32 y_delta_a = b->y - a->y;
   s32 y_delta_b = c->y - b->y;
@@ -3002,7 +3018,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   compute_all_gradients(psx_gpu, a, b, c);
 
   switch(y_direction_a | (y_direction_b << 2) | (y_direction_c << 4) |
-   (triangle_winding << 6))
+   (psx_gpu->triangle_winding << 6))
   {
     triangle_case(up, up, up, negative):
     triangle_case(up, up, flat, negative):
@@ -3124,6 +3140,14 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
    &(render_triangle_block_handlers[render_state]);
   ((setup_blocks_function_type *)psx_gpu->render_block_handler->setup_blocks)
    (psx_gpu);
+}
+
+void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ u32 flags)
+{
+  vertex_struct *vertex_ptrs[3];
+  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
+    render_triangle_p(psx_gpu, vertex_ptrs, flags);
 }
 
 
@@ -4245,7 +4269,7 @@ void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
 
   flags &= ~RENDER_FLAGS_TEXTURE_MAP;
 
-  vram_ptr = psx_gpu->vram_ptr + (y_a * 1024) + x_a;
+  vram_ptr = psx_gpu->vram_out_ptr + (y_a * 1024) + x_a;
 
   control_mask = 0x0;
 
@@ -4435,7 +4459,6 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   if((width == 0) || (height == 0))
     return;
 
-  flush_render_block_buffer(psx_gpu);
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
   u32 r = color & 0xFF;
@@ -4445,7 +4468,7 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
    psx_gpu->mask_msb;
   u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
-  u32 *vram_ptr = (u32 *)(psx_gpu->vram_ptr + x + (y * 1024));
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));
 
   u32 pitch = 512 - (width / 2);
   u32 num_width;
@@ -4522,7 +4545,8 @@ void initialize_reciprocal_table(void)
   u32 height_reciprocal;
   s32 shift;
 
-  for(height = 1; height < 512; height++)
+  for(height = 1; height < sizeof(reciprocal_table)
+       / sizeof(reciprocal_table[0]); height++)
   {
     shift = __builtin_clz(height);
     height_normalized = height << shift;
@@ -4561,6 +4585,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->num_blocks = 0;
 
   psx_gpu->vram_ptr = vram;
+  psx_gpu->vram_out_ptr = vram;
 
   psx_gpu->texture_page_base = psx_gpu->vram_ptr;
   psx_gpu->texture_page_ptr = psx_gpu->vram_ptr;
