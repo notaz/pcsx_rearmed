@@ -46,7 +46,7 @@
 #define psx_gpu_texture_window_x_offset                   0x100
 #define psx_gpu_texture_window_y_offset                   0x101
 #define psx_gpu_primitive_type_offset                     0x102
-#define psx_gpu_interlace_mode_offset                     0x103
+#define psx_gpu_render_mode_offset                        0x103
 #define psx_gpu_blocks_offset                             0x200
 #define psx_gpu_span_uvrg_offset_offset                   0x2200
 #define psx_gpu_span_edge_data_offset                     0x4200

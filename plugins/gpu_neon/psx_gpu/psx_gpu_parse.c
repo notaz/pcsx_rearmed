@@ -755,6 +755,7 @@ breakloop:
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y; \
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y; \
+  psx_gpu->render_mode &= ~RENDER_DOUBLE_MODE; \
 }
 
 #define enhancement_enable() { \
@@ -763,6 +764,7 @@ breakloop:
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y * 2; \
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2; \
+  psx_gpu->render_mode |= RENDER_DOUBLE_MODE; \
 }
 
 #define shift_vertices3(v) { \
@@ -869,6 +871,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         u32 height = list_s16[5] & 0x1FF;
         u32 color = list[0] & 0xFFFFFF;
 
+        x &= ~0xF;
+        width = ((width + 0xF) & ~0xF);
+
         do_fill(psx_gpu, x, y, width, height, color);
 
         psx_gpu->vram_out_ptr = psx_gpu->enhancement_buf_ptr;
@@ -876,9 +881,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         y *= 2;
         width *= 2;
         height *= 2;
-        if (width > 1024)
-          width = 1024;
-        render_block_fill(psx_gpu, color, x, y, width, height);
+        render_block_fill_enh(psx_gpu, color, x, y, width, height);
         break;
       }
   

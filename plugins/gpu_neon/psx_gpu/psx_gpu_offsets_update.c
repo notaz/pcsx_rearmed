@@ -71,7 +71,7 @@ int main()
 	WRITE_OFFSET(f, texture_window_x);
 	WRITE_OFFSET(f, texture_window_y);
 	WRITE_OFFSET(f, primitive_type);
-	WRITE_OFFSET(f, interlace_mode);
+	WRITE_OFFSET(f, render_mode);
 	WRITE_OFFSET(f, blocks);
 	WRITE_OFFSET(f, span_uvrg_offset);
 	WRITE_OFFSET(f, span_edge_data);

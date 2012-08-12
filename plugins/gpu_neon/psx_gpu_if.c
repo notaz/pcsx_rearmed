@@ -64,11 +64,11 @@ void renderer_flush_queues(void)
 
 void renderer_set_interlace(int enable, int is_odd)
 {
-  egpu.interlace_mode &= ~(RENDER_INTERLACE_ENABLED|RENDER_INTERLACE_ODD);
+  egpu.render_mode &= ~(RENDER_INTERLACE_ENABLED|RENDER_INTERLACE_ODD);
   if (enable)
-    egpu.interlace_mode |= RENDER_INTERLACE_ENABLED;
+    egpu.render_mode |= RENDER_INTERLACE_ENABLED;
   if (is_odd)
-    egpu.interlace_mode |= RENDER_INTERLACE_ODD;
+    egpu.render_mode |= RENDER_INTERLACE_ODD;
 }
 
 #include "../../frontend/plugin_lib.h"

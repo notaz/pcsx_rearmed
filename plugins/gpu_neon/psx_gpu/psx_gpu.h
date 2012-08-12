@@ -56,8 +56,9 @@ typedef enum
 typedef enum
 {
   RENDER_INTERLACE_ENABLED     = 0x1,
-  RENDER_INTERLACE_ODD         = 0x2
-} render_interlace_enum;
+  RENDER_INTERLACE_ODD         = 0x2,
+  RENDER_DOUBLE_MODE           = 0x4,
+} render_mode_enum;
 
 typedef struct
 {
@@ -179,7 +180,7 @@ typedef struct
   u8 texture_window_y;
 
   u8 primitive_type;
-  u8 interlace_mode;
+  u8 render_mode;
 
   // enhancement stuff
   u16 *enhancement_buf_ptr;

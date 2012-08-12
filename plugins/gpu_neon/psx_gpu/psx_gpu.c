@@ -454,7 +454,7 @@ void setup_blocks_shaded_untextured_undithered_unswizzled_indirect(
 
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 {
-  if((psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED) &&
+  if((psx_gpu->render_mode & RENDER_INTERLACE_ENABLED) &&
    (psx_gpu->primitive_type == PRIMITIVE_TYPE_SPRITE))
   {
     u32 num_blocks_dest = 0;
@@ -464,7 +464,7 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
     u16 *vram_ptr = psx_gpu->vram_ptr;
     u32 i;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
     {
       for(i = 0; i < psx_gpu->num_blocks; i++)
       {
@@ -3097,11 +3097,11 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
   spans += psx_gpu->num_spans;
 #endif
 
-  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
+  if(unlikely(psx_gpu->render_mode & RENDER_INTERLACE_ENABLED))
   {
     u32 i;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
     {
       for(i = 0; i < psx_gpu->num_spans; i++)
       {
@@ -3116,6 +3116,14 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
         if(psx_gpu->span_edge_data[i].y & 1)
           psx_gpu->span_edge_data[i].num_blocks = 0;
       }
+    }
+  }
+  if(psx_gpu->render_mode & RENDER_DOUBLE_MODE)
+  {
+    u32 i;
+    for(i = 0; i < psx_gpu->num_spans; i++)
+    {
+      psx_gpu->span_edge_data[i].y *= 2;
     }
   }
 
@@ -4473,14 +4481,55 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   u32 pitch = 512 - (width / 2);
   u32 num_width;
 
-  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
+  if(psx_gpu->render_mode & RENDER_INTERLACE_ENABLED)
   {
     pitch += 512;
     height /= 2;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
       vram_ptr += 512; 
   }
+
+  while(height)
+  {
+    num_width = width;
+    while(num_width)
+    {
+      vram_ptr[0] = color_32bpp;
+      vram_ptr[1] = color_32bpp;
+      vram_ptr[2] = color_32bpp;
+      vram_ptr[3] = color_32bpp;
+      vram_ptr[4] = color_32bpp;
+      vram_ptr[5] = color_32bpp;
+      vram_ptr[6] = color_32bpp;
+      vram_ptr[7] = color_32bpp;
+
+      vram_ptr += 8;
+      num_width -= 16;
+    }
+
+    vram_ptr += pitch;
+    height--;
+  }
+}
+
+void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
+ u32 width, u32 height)
+{
+  if((width == 0) || (height == 0))
+    return;
+
+  u32 r = color & 0xFF;
+  u32 g = (color >> 8) & 0xFF;
+  u32 b = (color >> 16) & 0xFF;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
+   psx_gpu->mask_msb;
+  u32 color_32bpp = color_16bpp | (color_16bpp << 16);
+
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 2048));
+
+  u32 pitch = 2048 / 2 - (width / 2);
+  u32 num_width;
 
   while(height)
   {
@@ -4598,7 +4647,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->texture_mask_width = 0xFF;
   psx_gpu->texture_mask_height = 0xFF;
 
-  psx_gpu->interlace_mode = 0;
+  psx_gpu->render_mode = 0;
 
   memset(psx_gpu->vram_ptr, 0, sizeof(u16) * 1024 * 512);
 

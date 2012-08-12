@@ -78,7 +78,8 @@ static void blit(void)
     w *= 2;
     h *= 2;
     stride *= 2;
-    vram_mask = 1024 * 1024 - 1;
+    vram_stride = 2048;
+    vram_mask = 2048 * 1024 - 1;
   }
   fb_offs = y * vram_stride + x;
 
