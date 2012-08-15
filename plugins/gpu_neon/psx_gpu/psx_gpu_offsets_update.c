@@ -43,6 +43,7 @@ int main()
 	WRITE_OFFSET(f, dirty_textures_8bpp_alternate_mask);
 	WRITE_OFFSET(f, triangle_color);
 	WRITE_OFFSET(f, dither_table);
+	WRITE_OFFSET(f, uvrgb_phase);
 	WRITE_OFFSET(f, render_block_handler);
 	WRITE_OFFSET(f, texture_page_ptr);
 	WRITE_OFFSET(f, texture_page_base);
@@ -53,10 +54,6 @@ int main()
 	WRITE_OFFSET(f, render_state);
 	WRITE_OFFSET(f, num_spans);
 	WRITE_OFFSET(f, num_blocks);
-	WRITE_OFFSET(f, offset_x);
-	WRITE_OFFSET(f, offset_y);
-	WRITE_OFFSET(f, clut_settings);
-	WRITE_OFFSET(f, texture_settings);
 	WRITE_OFFSET(f, viewport_start_x);
 	WRITE_OFFSET(f, viewport_start_y);
 	WRITE_OFFSET(f, viewport_end_x);
@@ -72,6 +69,10 @@ int main()
 	WRITE_OFFSET(f, texture_window_y);
 	WRITE_OFFSET(f, primitive_type);
 	WRITE_OFFSET(f, render_mode);
+	WRITE_OFFSET(f, offset_x);
+	WRITE_OFFSET(f, offset_y);
+	WRITE_OFFSET(f, clut_settings);
+	WRITE_OFFSET(f, texture_settings);
 	WRITE_OFFSET(f, blocks);
 	WRITE_OFFSET(f, span_uvrg_offset);
 	WRITE_OFFSET(f, span_edge_data);

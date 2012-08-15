@@ -182,6 +182,7 @@
 #define uvrg_dx3l                                         d6
 #define uvrg_dx3h                                         d7
 
+#define uvrgb_phase                                       q13
 
 .align 4
 
@@ -313,11 +314,16 @@ function(compute_all_gradients)
   vmull.s16 ga_uvrg_y, d0_b, d1_b
   rsbmi ga_bx, ga_bx, #0
 
+  @ r12 = psx_gpu->uvrgb_phase
+  ldr r12, [ psx_gpu, #psx_gpu_uvrgb_phase_offset ]
+
   vmlsl.s16 ga_uvrg_y, d2_b, d3_b
   movs gs_by, ga_by, asr #31
 
   vshr.u64 d0, d30, #22
-  mov b_base, b0, lsl #16
+  add b_base, r12, b0, lsl #16
+
+  vdup.u32 uvrgb_phase, r12
 
   rsbmi ga_by, ga_by, #0
   vclt.s32 gs_uvrg_x, ga_uvrg_x, #0  @ gs_uvrg_x = ga_uvrg_x < 0
@@ -326,7 +332,6 @@ function(compute_all_gradients)
   ldrb r12, [ psx_gpu, #psx_gpu_triangle_winding_offset ]
   vclt.s32 gs_uvrg_y, ga_uvrg_y, #0  @ gs_uvrg_y = ga_uvrg_y < 0
 
-  add b_base, b_base, #0x8000
   rsb r12, r12, #0                   @ r12 = -(triangle->winding)
 
   vdup.u32 w_mask, r12               @ w_mask = { -w, -w, -w, -w }
@@ -335,7 +340,7 @@ function(compute_all_gradients)
   vshll.u16 uvrg_base, uvrg0, #16    @ uvrg_base = uvrg0 << 16
   vdup.u32 r_shift, r14              @ r_shift = { shift, shift, shift, shift }
 
-  vorr.u32 uvrg_base, #0x8000
+  vadd.u32 uvrg_base, uvrgb_phase
   vabs.s32 ga_uvrg_x, ga_uvrg_x      @ ga_uvrg_x = abs(ga_uvrg_x)
 
   vmov area_r_s, s0                  @ area_r_s = triangle_reciprocal

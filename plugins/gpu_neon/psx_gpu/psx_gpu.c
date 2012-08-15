@@ -567,7 +567,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
 
   vec_4x32u uvrg_base;
   vec_4x32u b_base;
-  vec_4x32u const_0x8000;
+  vec_4x32u uvrgb_phase;
 
   vec_4x16s d0_a_d3_c, d0_b, d0_c;
   vec_4x16s d1_a, d1_b, d1_c_d2_a;
@@ -596,12 +596,12 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
   setup_gradient_calculation_input(1, b);
   setup_gradient_calculation_input(2, c);
 
-  dup_4x32b(const_0x8000, 0x8000);
+  dup_4x32b(uvrgb_phase, psx_gpu->uvrgb_phase);
   shl_long_4x16b(uvrg_base, x0_a_y0_c, 16);
   shl_long_4x16b(b_base, x0_b, 16);
 
-  add_4x32b(uvrg_base, uvrg_base, const_0x8000);
-  add_4x32b(b_base, b_base, const_0x8000);
+  add_4x32b(uvrg_base, uvrg_base, uvrgb_phase);
+  add_4x32b(b_base, b_base, uvrgb_phase);
 
   // Can probably pair these, but it'll require careful register allocation
   sub_4x16b(d0_a_d3_c, x1_a_y1_c, x0_a_y0_c);
@@ -4632,6 +4632,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->render_state = 0;
   psx_gpu->render_state_base = 0;
   psx_gpu->num_blocks = 0;
+  psx_gpu->uvrgb_phase = 0x8000;
 
   psx_gpu->vram_ptr = vram;
   psx_gpu->vram_out_ptr = vram;

@@ -757,6 +757,7 @@ breakloop:
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y; \
   psx_gpu->render_mode &= ~RENDER_DOUBLE_MODE; \
+  psx_gpu->uvrgb_phase = 0x8000; \
 }
 
 #define enhancement_enable() { \
@@ -766,6 +767,7 @@ breakloop:
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2; \
   psx_gpu->render_mode |= RENDER_DOUBLE_MODE; \
+  psx_gpu->uvrgb_phase = 0x1000; \
 }
 
 #define shift_vertices3(v) { \
