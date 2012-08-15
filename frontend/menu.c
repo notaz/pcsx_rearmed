@@ -1859,6 +1859,7 @@ static int romsel_run(void)
 	}
 
 	strcpy(last_selected_fname, rom_fname_reload);
+	menu_do_last_cd_img(0);
 	return 0;
 }
 
@@ -2399,6 +2400,5 @@ void me_update_msg(const char *msg)
 
 void menu_finish(void)
 {
-	menu_do_last_cd_img(0);
 	plat_cpu_clock_apply(cpu_clock_st);
 }
