@@ -92,6 +92,7 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
 
 void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
 {
+  texture_settings &= 0x1FF;
   if(psx_gpu->texture_settings != texture_settings)
   {
     u32 new_texture_page = texture_settings & 0x1F;
@@ -634,7 +635,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 #endif
 
   		case 0xE1:
-        set_texture(psx_gpu, list[0] & 0x1FF);
+        set_texture(psx_gpu, list[0]);
 
         if(list[0] & (1 << 9))
           psx_gpu->render_state_base |= RENDER_STATE_DITHER;
@@ -1230,7 +1231,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 #endif
 
       case 0xE1:
-        set_texture(psx_gpu, list[0] & 0x1FF);
+        set_texture(psx_gpu, list[0]);
 
         if(list[0] & (1 << 9))
           psx_gpu->render_state_base |= RENDER_STATE_DITHER;
