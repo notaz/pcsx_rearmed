@@ -232,6 +232,11 @@ do_state_slot:
 			pl_rearmed_cbs.frameskip == 0 ? "OFF" : "1" );
 		plugin_call_rearmed_cbs();
 		break;
+	case SACTION_TOGGLE_RENDERER:
+		pl_rearmed_cbs.gpu_neon.enhancement_enable =
+			!pl_rearmed_cbs.gpu_neon.enhancement_enable;
+		plugin_call_rearmed_cbs();
+		break;
 	case SACTION_SCREENSHOT:
 		{
 			char buf[MAXPATHLEN];
