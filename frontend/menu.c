@@ -78,22 +78,14 @@ typedef enum
 	MA_OPT_SCALER_C,
 } menu_id;
 
-enum {
-	SCALE_1_1,
-	SCALE_4_3,
-	SCALE_4_3v2,
-	SCALE_FULLSCREEN,
-	SCALE_CUSTOM,
-};
-
 static int last_vout_w, last_vout_h, last_vout_bpp;
-static int scaling, cpu_clock, cpu_clock_st, volume_boost, frameskip;
+static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
-int g_opts;
+int g_opts, g_scaler;
 int soft_scaling, analog_deadzone; // for Caanoo
 int filter;
 
@@ -216,7 +208,7 @@ static void menu_set_defconfig(void)
 	emu_set_default_config();
 
 	g_opts = 0;
-	scaling = SCALE_4_3;
+	g_scaler = SCALE_4_3;
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 50;
@@ -276,7 +268,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(CdrReschedule),
 	CE_INTVAL(region),
-	CE_INTVAL_V(scaling, 2),
+	CE_INTVAL_V(g_scaler, 2),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
 	CE_INTVAL(g_layer_w),
@@ -1045,7 +1037,7 @@ static int menu_loop_cscaler(int id, int keys)
 {
 	unsigned int inp;
 
-	scaling = SCALE_CUSTOM;
+	g_scaler = SCALE_CUSTOM;
 
 	plat_gvideo_open(Config.PsxType);
 
@@ -1095,7 +1087,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Scaler",                   MA_OPT_SCALER, scaling, men_scaler),
+	mee_enum      ("Scaler",                   MA_OPT_SCALER, g_scaler, men_scaler),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Filter",                   MA_OPT_FILTERING, filter, men_dummy),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
@@ -2266,58 +2258,9 @@ void menu_init(void)
 
 void menu_notify_mode_change(int w, int h, int bpp)
 {
-	float mult;
-	int imult;
-
 	last_vout_w = w;
 	last_vout_h = h;
 	last_vout_bpp = bpp;
-
-	// XXX: should really menu code cotrol the layer size?
-	switch (scaling) {
-	case SCALE_1_1:
-		g_layer_w = w; g_layer_h = h;
-		break;
-
-	case SCALE_4_3v2:
-		if (h > g_menuscreen_h || (240 < h && h <= 360))
-			goto fractional_4_3;
-
-		// 4:3 that prefers integer scaling
-		imult = g_menuscreen_h / h;
-		g_layer_w = w * imult;
-		g_layer_h = h * imult;
-		mult = (float)g_layer_w / (float)g_layer_h;
-		if (mult < 1.25f || mult > 1.666f)
-			g_layer_w = 4.0f/3.0f * (float)g_layer_h;
-		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
-		break;
-
-	fractional_4_3:
-	case SCALE_4_3:
-		mult = 240.0f / (float)h * 4.0f / 3.0f;
-		if (h > 256)
-			mult *= 2.0f;
-		g_layer_w = mult * (float)g_menuscreen_h;
-		g_layer_h = g_menuscreen_h;
-		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
-		break;
-
-	case SCALE_FULLSCREEN:
-		g_layer_w = g_menuscreen_w;
-		g_layer_h = g_menuscreen_h;
-		break;
-
-	default:
-		break;
-	}
-
-	g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
-	g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
-	if (g_layer_x < 0) g_layer_x = 0;
-	if (g_layer_y < 0) g_layer_y = 0;
-	if (g_layer_w > g_menuscreen_w) g_layer_w = g_menuscreen_w;
-	if (g_layer_h > g_menuscreen_h) g_layer_w = g_menuscreen_h;
 }
 
 static void menu_leave_emu(void)
@@ -2360,8 +2303,6 @@ void menu_prepare_emu(void)
 	R3000Acpu *prev_cpu = psxCpu;
 
 	plat_video_menu_leave();
-
-	menu_notify_mode_change(last_vout_w, last_vout_h, last_vout_bpp);
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	if (psxCpu != prev_cpu)

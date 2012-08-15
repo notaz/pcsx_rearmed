@@ -132,6 +132,58 @@ void pl_print_hud(int xborder)
 		print_cpu_usage(w, h, xborder);
 }
 
+/* update scaler target size according to user settings */
+static void update_layer_size(int w, int h)
+{
+	float mult;
+	int imult;
+
+	switch (g_scaler) {
+	case SCALE_1_1:
+		g_layer_w = w; g_layer_h = h;
+		break;
+
+	case SCALE_4_3v2:
+		if (h > g_menuscreen_h || (240 < h && h <= 360))
+			goto fractional_4_3;
+
+		// 4:3 that prefers integer scaling
+		imult = g_menuscreen_h / h;
+		g_layer_w = w * imult;
+		g_layer_h = h * imult;
+		mult = (float)g_layer_w / (float)g_layer_h;
+		if (mult < 1.25f || mult > 1.666f)
+			g_layer_w = 4.0f/3.0f * (float)g_layer_h;
+		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		break;
+
+	fractional_4_3:
+	case SCALE_4_3:
+		mult = 240.0f / (float)h * 4.0f / 3.0f;
+		if (h > 256)
+			mult *= 2.0f;
+		g_layer_w = mult * (float)g_menuscreen_h;
+		g_layer_h = g_menuscreen_h;
+		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		break;
+
+	case SCALE_FULLSCREEN:
+		g_layer_w = g_menuscreen_w;
+		g_layer_h = g_menuscreen_h;
+		break;
+
+	default:
+		break;
+	}
+
+	g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
+	g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
+	if (g_layer_x < 0) g_layer_x = 0;
+	if (g_layer_y < 0) g_layer_y = 0;
+	if (g_layer_w > g_menuscreen_w) g_layer_w = g_menuscreen_w;
+	if (g_layer_h > g_menuscreen_h) g_layer_h = g_menuscreen_h;
+}
+
 static void *pl_vout_set_mode(int w, int h, int bpp)
 {
 	// special h handling, Wipeout likes to change it by 1-6
@@ -146,6 +198,8 @@ static void *pl_vout_set_mode(int w, int h, int bpp)
 	pl_vout_w = psx_w = w;
 	pl_vout_h = psx_h = h;
 	pl_vout_bpp = psx_bpp = bpp;
+
+	update_layer_size(pl_vout_w, pl_vout_h);
 
 	pl_vout_buf = plat_gvideo_set_mode(&pl_vout_w, &pl_vout_h, &pl_vout_bpp);
 	if (pl_vout_buf == NULL && pl_rearmed_cbs.pl_vout_raw_flip == NULL)
