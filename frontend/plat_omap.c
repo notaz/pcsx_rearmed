@@ -95,10 +95,19 @@ void plat_omap_gvideo_open(void)
 
 void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
 {
+	int l = 0, r = 0, t = 0, b = 0;
 	void *buf;
 
+	if (g_scaler == SCALE_1_1) {
+		if (*w > g_menuscreen_w)
+			l = r = (*w - g_menuscreen_w) / 2;
+		if (*h > g_menuscreen_h)
+			t = b = (*h - g_menuscreen_h) / 2;
+	}
+
 	vout_fbdev_clear(layer_fb);
-	buf = vout_fbdev_resize(layer_fb, *w, *h, *bpp, 0, 0, 0, 0, 3);
+	buf = vout_fbdev_resize(layer_fb, *w, *h, *bpp,
+		l, r, t, b, 3);
 
 	omap_enable_layer(1);
 
