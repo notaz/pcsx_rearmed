@@ -835,6 +835,71 @@ static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   }
 }
 
+#define fill_vertex(i, x_, y_, u_, v_, rgb_) \
+  vertexes[i].x = x_; \
+  vertexes[i].y = y_; \
+  vertexes[i].u = u_; \
+  vertexes[i].v = v_; \
+  vertexes[i].r = rgb_; \
+  vertexes[i].g = (rgb_) >> 8; \
+  vertexes[i].b = (rgb_) >> 16
+
+static void do_esprite_in_triangles(psx_gpu_struct *psx_gpu, int x, int y,
+ u32 u, u32 v, u32 w, u32 h, u32 cmd_rgb)
+{
+  vertex_struct *vertex_ptrs[3];
+  u32 flags = (cmd_rgb >> 24);
+  u32 color = cmd_rgb & 0xffffff;
+  u32 render_state_base_saved = psx_gpu->render_state_base;
+  int x1, y1;
+  u8 u1, v1;
+
+  flags &=
+   (RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND |
+   RENDER_FLAGS_TEXTURE_MAP);
+
+  set_triangle_color(psx_gpu, color);
+  if(color == 0x808080)
+    flags |= RENDER_FLAGS_MODULATE_TEXELS;
+
+  psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
+  enhancement_enable();
+
+  x1 = x + w;
+  y1 = y + h;
+  u1 = u + w;
+  v1 = v + h;
+  // FIXME..
+  if (u1 < u) u1 = 0xff;
+  if (v1 < v) v1 = 0xff;
+
+  // 0-2
+  // |/
+  // 1
+  fill_vertex(0, x,  y,  u,  v,  color);
+  fill_vertex(1, x,  y1, u,  v1, color);
+  fill_vertex(2, x1, y,  u1, v,  color);
+  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs)) {
+    shift_vertices3(vertex_ptrs);
+    shift_triangle_area();
+    render_triangle_p(psx_gpu, vertex_ptrs, flags);
+  }
+
+  //   0
+  //  /|
+  // 1-2
+  fill_vertex(0, x1, y,  u1, v,  color);
+  fill_vertex(1, x,  y1, u,  v1, color);
+  fill_vertex(2, x1, y1, u1, v1, color);
+  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs)) {
+    shift_vertices3(vertex_ptrs);
+    shift_triangle_area();
+    render_triangle_p(psx_gpu, vertex_ptrs, flags);
+  }
+
+  psx_gpu->render_state_base = render_state_base_saved;
+}
+
 u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 {
   u32 current_command = 0, command_length;
@@ -1111,6 +1176,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         u32 height = list_s16[5] & 0x1FF;
 
         render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, width, height, list[0]);
         break;
       }
   
@@ -1118,14 +1184,16 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
       {        
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
-        u32 uv = list_s16[4];
+        u8 u = list_s16[4];
+        u8 v = list_s16[4] >> 8;
         u32 width = list_s16[6] & 0x3FF;
         u32 height = list_s16[7] & 0x1FF;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, width, height,
+        render_sprite(psx_gpu, x, y, u, v, width, height,
          current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, u, v, width, height, list[0]);
         break;
       }
   
@@ -1138,6 +1206,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
         break;
       }
   
@@ -1150,6 +1219,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
         break;
       }
   
@@ -1160,12 +1230,14 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
-        u32 uv = list_s16[4];
+        u8 u = list_s16[4];
+        u8 v = list_s16[4] >> 8;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 8, 8,
+        render_sprite(psx_gpu, x, y, u, v, 8, 8,
          current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, u, v, 8, 8, list[0]);
         break;
       }
   
@@ -1178,6 +1250,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
         break;
       }
   
@@ -1188,12 +1261,13 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
-        u32 uv = list_s16[4];
+        u8 u = list_s16[4];
+        u8 v = list_s16[4] >> 8;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 16, 16,
-         current_command, list[0]);
+        render_sprite(psx_gpu, x, y, u, v, 16, 16, current_command, list[0]);
+        do_esprite_in_triangles(psx_gpu, x, y, u, v, 16, 16, list[0]);
         break;
       }
   
