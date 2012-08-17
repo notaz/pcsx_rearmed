@@ -3118,14 +3118,6 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
       }
     }
   }
-  if(psx_gpu->render_mode & RENDER_DOUBLE_MODE)
-  {
-    u32 i;
-    for(i = 0; i < psx_gpu->num_spans; i++)
-    {
-      psx_gpu->span_edge_data[i].y *= 2;
-    }
-  }
 
   u32 render_state = flags &
    (RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND | 
@@ -4519,6 +4511,9 @@ void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   if((width == 0) || (height == 0))
     return;
 
+  if(width > 1024)
+    width = 1024;
+
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
   u32 b = (color >> 16) & 0xFF;
@@ -4526,9 +4521,9 @@ void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
    psx_gpu->mask_msb;
   u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
-  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 2048));
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));
 
-  u32 pitch = 2048 / 2 - (width / 2);
+  u32 pitch = 1024 / 2 - (width / 2);
   u32 num_width;
 
   while(height)
@@ -4671,6 +4666,8 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->dither_table[3] = dither_table_row(3, -1, 2, -2);
 
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
+
+  psx_gpu->enhancement_x_threshold = 256;
 }
 
 u64 get_us(void)

@@ -43,8 +43,25 @@ int renderer_init(void)
 {
   initialize_psx_gpu(&egpu, gpu.vram);
   ex_regs = gpu.ex_regs;
-  gpu.state.enhancement_available = 1;
+
+  if (gpu.enhancement_bufer == NULL) {
+    // currently we use 4x 1024*1024 buffers instead of single 2048*1024
+    // to be able to reuse 1024-width code better (triangle setup,
+    // dithering phase, lines).
+    gpu.enhancement_bufer = malloc(1024 * 1024 * 2 * 4);
+    if (gpu.enhancement_bufer == NULL)
+      printf("OOM for enhancement buffer\n");
+  }
+  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
+
   return 0;
+}
+
+void renderer_finish(void)
+{
+  free(gpu.enhancement_bufer);
+  gpu.enhancement_bufer = NULL;
+  egpu.enhancement_buf_ptr = NULL;
 }
 
 void renderer_sync_ecmds(uint32_t *ecmds)
@@ -71,10 +88,14 @@ void renderer_set_interlace(int enable, int is_odd)
     egpu.render_mode |= RENDER_INTERLACE_ODD;
 }
 
+void renderer_notify_res_change(void)
+{
+  egpu.enhancement_x_threshold = gpu.screen.hres;
+}
+
 #include "../../frontend/plugin_lib.h"
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
-  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
   disable_main_render = cbs->gpu_neon.enhancement_no_main;
 }

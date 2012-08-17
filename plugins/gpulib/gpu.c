@@ -9,7 +9,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "gpu.h"
 
@@ -138,20 +137,7 @@ long GPUinit(void)
 {
   int ret;
   ret  = vout_init();
-
-  gpu.state.enhancement_available = 0;
   ret |= renderer_init();
-
-  if (gpu.state.enhancement_available) {
-    if (gpu.enhancement_bufer == NULL)
-      gpu.enhancement_bufer = malloc(2048 * 1024 * 2 + 1024 * 512 * 2);
-      if (gpu.enhancement_bufer == NULL)
-        gpu_log("OOM for enhancement buffer\n");
-  }
-  else if (gpu.enhancement_bufer != NULL) {
-    free(gpu.enhancement_bufer);
-    gpu.enhancement_bufer = NULL;
-  }
 
   gpu.state.frame_count = &gpu.zero;
   gpu.state.hcnt = &gpu.zero;
@@ -164,6 +150,7 @@ long GPUinit(void)
 
 long GPUshutdown(void)
 {
+  renderer_finish();
   return vout_finish();
 }
 
@@ -221,6 +208,7 @@ void GPUwriteStatus(uint32_t data)
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
       update_height();
+      renderer_notify_res_change();
       break;
     default:
       if ((cmd & 0xf0) == 0x10)

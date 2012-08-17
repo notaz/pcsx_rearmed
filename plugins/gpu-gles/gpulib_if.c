@@ -500,6 +500,14 @@ int renderer_init(void)
  return 0;
 }
 
+void renderer_finish(void)
+{
+}
+
+void renderer_notify_res_change(void)
+{
+}
+
 extern const unsigned char cmd_lengths[256];
 
 // XXX: mostly dupe code from soft peops

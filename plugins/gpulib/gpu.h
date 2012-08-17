@@ -67,7 +67,6 @@ struct psx_gpu {
     uint32_t old_interlace:1;
     uint32_t allow_interlace:2;
     uint32_t blanked:1;
-    uint32_t enhancement_available:1;
     uint32_t enhancement_enable:1;
     uint32_t enhancement_active:1;
     uint32_t *frame_count;
@@ -90,7 +89,7 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
-  void *enhancement_bufer;
+  uint16_t *enhancement_bufer;
 };
 
 extern struct psx_gpu gpu;
@@ -102,11 +101,13 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd);
 struct rearmed_cbs;
 
 int  renderer_init(void);
+void renderer_finish(void);
 void renderer_sync_ecmds(uint32_t * ecmds);
 void renderer_update_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);
+void renderer_notify_res_change(void);
 
 int  vout_init(void);
 int  vout_finish(void);

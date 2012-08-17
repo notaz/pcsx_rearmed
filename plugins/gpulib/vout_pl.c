@@ -68,18 +68,19 @@ static void blit(void)
   uint8_t *dest;
 
   dest = (uint8_t *)screen_buf;
-  if (dest == NULL)
+  if (dest == NULL || w == 0 || stride == 0)
     return;
 
   if (gpu.state.enhancement_active) {
-    vram = gpu.enhancement_bufer;
+    // this layout is gpu_neon specific..
+    vram = gpu.enhancement_bufer +
+      (x + 8) / stride * 1024 * 1024;
     x *= 2;
     y *= 2;
     w *= 2;
     h *= 2;
     stride *= 2;
-    vram_stride = 2048;
-    vram_mask = 2048 * 1024 - 1;
+    vram_mask = 1024 * 1024 - 1;
   }
   fb_offs = y * vram_stride + x;
 

@@ -57,7 +57,6 @@ typedef enum
 {
   RENDER_INTERLACE_ENABLED     = 0x1,
   RENDER_INTERLACE_ODD         = 0x2,
-  RENDER_DOUBLE_MODE           = 0x4,
 } render_mode_enum;
 
 typedef struct
@@ -183,6 +182,8 @@ typedef struct
 
   // enhancement stuff
   u16 *enhancement_buf_ptr;
+  u16 *enhancement_current_buf_ptr;
+  u32 enhancement_x_threshold;
   s16 saved_viewport_start_x;
   s16 saved_viewport_start_y;
   s16 saved_viewport_end_x;
@@ -190,7 +191,7 @@ typedef struct
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[236];
+  u8 reserved_a[228];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

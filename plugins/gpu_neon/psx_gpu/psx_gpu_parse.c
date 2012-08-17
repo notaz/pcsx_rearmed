@@ -750,23 +750,30 @@ breakloop:
   return list - list_start;
 }
 
+#define select_enhancement_buf(psx_gpu) { \
+  u32 _x, _b; \
+  _x = psx_gpu->saved_viewport_start_x + 8; \
+  for (_b = 0; _x >= psx_gpu->enhancement_x_threshold; _b++) \
+    _x -= psx_gpu->enhancement_x_threshold; \
+  psx_gpu->enhancement_current_buf_ptr = \
+    psx_gpu->enhancement_buf_ptr + _b * 1024 * 1024; \
+}
+
 #define enhancement_disable() { \
   psx_gpu->vram_out_ptr = psx_gpu->vram_ptr; \
   psx_gpu->viewport_start_x = psx_gpu->saved_viewport_start_x; \
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y; \
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y; \
-  psx_gpu->render_mode &= ~RENDER_DOUBLE_MODE; \
   psx_gpu->uvrgb_phase = 0x8000; \
 }
 
 #define enhancement_enable() { \
-  psx_gpu->vram_out_ptr = psx_gpu->enhancement_buf_ptr; \
+  psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr; \
   psx_gpu->viewport_start_x = psx_gpu->saved_viewport_start_x * 2; \
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y * 2; \
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2; \
-  psx_gpu->render_mode |= RENDER_DOUBLE_MODE; \
   psx_gpu->uvrgb_phase = 0x1000; \
 }
 
@@ -913,6 +920,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
   psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
   psx_gpu->saved_viewport_end_x = psx_gpu->viewport_end_x;
   psx_gpu->saved_viewport_end_y = psx_gpu->viewport_end_y;
+  select_enhancement_buf(psx_gpu);
 
   for(; list < list_end; list += 1 + command_length)
   {
@@ -944,7 +952,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 
         do_fill(psx_gpu, x, y, width, height, color);
 
-        psx_gpu->vram_out_ptr = psx_gpu->enhancement_buf_ptr;
+        psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr;
         x *= 2;
         y *= 2;
         width *= 2;
@@ -1357,6 +1365,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         psx_gpu->viewport_start_y = (list[0] >> 10) & 0x1FF;
         psx_gpu->saved_viewport_start_x = psx_gpu->viewport_start_x;
         psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
+        select_enhancement_buf(psx_gpu);
 
 #ifdef TEXTURE_CACHE_4BPP
         psx_gpu->viewport_mask =
