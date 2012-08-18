@@ -5410,3 +5410,38 @@ function(update_texture_8bpp_cache_slice)
   vpop { q0 - q3 }
   ldmia sp!, { r4 - r11, pc }
 
+
+/* void scale2x_tiles8(void *dst, const void *src, int w8, int h) */
+function(scale2x_tiles8)
+  push { r4, r14 }
+
+  mov r4, r1
+  add r12, r0, #1024*2
+  mov r14, r2
+
+0:
+  vld1.u16 { q0 }, [ r1, :128 ]!
+  vld1.u16 { q2 }, [ r1, :128 ]!
+  vmov q1, q0
+  vmov q3, q2
+  vzip.16 q0, q1
+  vzip.16 q2, q3
+  subs r14, #2
+  vst1.u16 { q0, q1 }, [ r0, :128 ]!
+  vst1.u16 { q0, q1 }, [ r12, :128 ]!
+  blt 1f
+  vst1.u16 { q2, q3 }, [ r0, :128 ]!
+  vst1.u16 { q2, q3 }, [ r12, :128 ]!
+  bgt 0b
+1:
+  subs r3, #1
+  mov r14, r2
+  add r0, #1024*2*2
+  add r4, #1024*2
+  sub r0, r2, lsl #4+1
+  mov r1, r4
+  add r12, r0, #1024*2
+  bgt 0b
+  nop
+
+  pop { r4, pc }

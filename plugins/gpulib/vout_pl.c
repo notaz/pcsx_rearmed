@@ -77,8 +77,8 @@ static void blit(void)
       (x + 8) / stride * 1024 * 1024;
     x *= 2;
     y *= 2;
-    w *= 2;
-    h *= 2;
+    w = (w - 2) * 2;
+    h = (h * 2) - 1;
     stride *= 2;
     vram_mask = 1024 * 1024 - 1;
   }

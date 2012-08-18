@@ -798,6 +798,8 @@ breakloop:
 #define shift_triangle_area() \
   psx_gpu->triangle_area *= 4
 
+extern void scale2x_tiles8(void *dst, const void *src, int w8, int h);
+
 static int disable_main_render;
 
 static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
@@ -1292,37 +1294,28 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
       }
   
       case 0x80:          //  vid -> vid
-        render_block_move(psx_gpu, list_s16[2] & 0x3FF, list_s16[3] & 0x1FF,
-         list_s16[4] & 0x3FF, list_s16[5] & 0x1FF,
-         ((list_s16[6] - 1) & 0x3FF) + 1, ((list_s16[7] - 1) & 0x1FF) + 1);
+      {
+        u32 sx = list_s16[2] & 0x3FF;
+        u32 sy = list_s16[3] & 0x1FF;
+        u32 dx = list_s16[4] & 0x3FF;
+        u32 dy = list_s16[5] & 0x1FF;
+        u32 w = ((list_s16[6] - 1) & 0x3FF) + 1;
+        u32 h = ((list_s16[7] - 1) & 0x1FF) + 1;
+
+        render_block_move(psx_gpu, sx, sy, dx, dy, w, h);
+        if (dy + h > 512)
+          h = 512 - dy;
+        sx = sx & ~7; // FIXME?
+        dx = dx * 2 & ~7;
+        dy *= 2;
+        scale2x_tiles8(psx_gpu->enhancement_buf_ptr + dy * 1024 + dx,
+          psx_gpu->vram_ptr + sy * 1024 + sx, w / 8, h);
         break;
+      }
  
-#ifdef PCSX
       case 0xA0:          //  sys -> vid
       case 0xC0:          //  vid -> sys
         goto breakloop;
-#else
-      case 0xA0:          //  sys -> vid
-      {
-        u32 load_x = list_s16[2] & 0x3FF;
-        u32 load_y = list_s16[3] & 0x1FF;
-        u32 load_width = list_s16[4] & 0x3FF;
-        u32 load_height = list_s16[5] & 0x1FF;
-        u32 load_size = load_width * load_height;
-  
-        command_length += load_size / 2;
-
-        if(load_size & 1)
-          command_length++;
-
-        render_block_copy(psx_gpu, (u16 *)&(list_s16[6]), load_x, load_y,
-         load_width, load_height, load_width);
-        break;
-      }
-
-      case 0xC0:          //  vid -> sys
-        break;
-#endif
 
       case 0xE1:
         set_texture(psx_gpu, list[0]);
