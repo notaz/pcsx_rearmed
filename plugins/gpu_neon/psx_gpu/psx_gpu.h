@@ -233,7 +233,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
  s32 width, s32 height, u32 flags, u32 color);
 void render_line(psx_gpu_struct *gpu, vertex_struct *vertexes, u32 flags,
- u32 color);
+ u32 color, int double_resolution);
 
 u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 

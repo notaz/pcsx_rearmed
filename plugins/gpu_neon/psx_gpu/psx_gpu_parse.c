@@ -408,7 +408,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].x = list_s16[4] + psx_gpu->offset_x;
         vertexes[1].y = list_s16[5] + psx_gpu->offset_y;
 
-        render_line(psx_gpu, vertexes, current_command, list[0]);
+        render_line(psx_gpu, vertexes, current_command, list[0], 0);
   			break;
       }
   
@@ -429,7 +429,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
-          render_line(psx_gpu, vertexes, current_command, list[0]);
+          render_line(psx_gpu, vertexes, current_command, list[0], 0);
 
           list_position++;
           num_vertexes++;
@@ -460,7 +460,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].x = list_s16[6] + psx_gpu->offset_x;
         vertexes[1].y = list_s16[7] + psx_gpu->offset_y;
 
-        render_line(psx_gpu, vertexes, current_command, 0);
+        render_line(psx_gpu, vertexes, current_command, 0, 0);
   			break;
       }
  
@@ -490,7 +490,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
-          render_line(psx_gpu, vertexes, current_command, 0);
+          render_line(psx_gpu, vertexes, current_command, 0, 0);
 
           list_position += 2;
           num_vertexes++;
@@ -1079,7 +1079,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         vertexes[1].x = list_s16[4] + psx_gpu->offset_x;
         vertexes[1].y = list_s16[5] + psx_gpu->offset_y;
 
-        render_line(psx_gpu, vertexes, current_command, list[0]);
+        render_line(psx_gpu, vertexes, current_command, list[0], 0);
+        enhancement_enable();
+        render_line(psx_gpu, vertexes, current_command, list[0], 1);
         break;
       }
   
@@ -1100,7 +1102,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
-          render_line(psx_gpu, vertexes, current_command, list[0]);
+          enhancement_disable();
+          render_line(psx_gpu, vertexes, current_command, list[0], 0);
+          enhancement_enable();
+          render_line(psx_gpu, vertexes, current_command, list[0], 1);
 
           list_position++;
           num_vertexes++;
@@ -1131,7 +1136,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         vertexes[1].x = list_s16[6] + psx_gpu->offset_x;
         vertexes[1].y = list_s16[7] + psx_gpu->offset_y;
 
-        render_line(psx_gpu, vertexes, current_command, 0);
+        render_line(psx_gpu, vertexes, current_command, 0, 0);
+        enhancement_enable();
+        render_line(psx_gpu, vertexes, current_command, 0, 1);
         break;
       }
  
@@ -1161,7 +1168,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
           vertexes[1].x = (xy & 0xFFFF) + psx_gpu->offset_x;
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
-          render_line(psx_gpu, vertexes, current_command, 0);
+          enhancement_disable();
+          render_line(psx_gpu, vertexes, current_command, 0, 0);
+          enhancement_enable();
+          render_line(psx_gpu, vertexes, current_command, 0, 1);
 
           list_position += 2;
           num_vertexes++;

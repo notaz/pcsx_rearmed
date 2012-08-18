@@ -4179,9 +4179,6 @@ do                                                                             \
   {                                                                            \
     delta_y *= -1;                                                             \
                                                                                \
-    if(delta_y >= 512)                                                         \
-      return;                                                                  \
-                                                                               \
     if(delta_x > delta_y)                                                      \
     {                                                                          \
       draw_line_span_horizontal(decrement, shading, blending, dithering,       \
@@ -4195,9 +4192,6 @@ do                                                                             \
   }                                                                            \
   else                                                                         \
   {                                                                            \
-    if(delta_y >= 512)                                                         \
-      return;                                                                  \
-                                                                               \
     if(delta_x > delta_y)                                                      \
     {                                                                          \
       draw_line_span_horizontal(increment, shading, blending, dithering,       \
@@ -4212,7 +4206,7 @@ do                                                                             \
 
                                                                                 
 void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
- u32 color)
+ u32 color, int double_resolution)
 {
   s32 color_r, color_g, color_b;
   u32 triangle_winding = 0;
@@ -4264,8 +4258,18 @@ void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
   delta_x = x_b - x_a;
   delta_y = y_b - y_a;
 
-  if(delta_x >= 1024)
+  if(delta_x >= 1024 || delta_y >= 512 || delta_y <= -512)
     return;
+
+  if(double_resolution)
+  {
+    x_a *= 2;
+    x_b *= 2;
+    y_a *= 2;
+    y_b *= 2;
+    delta_x *= 2;
+    delta_y *= 2;
+  }
 
   flags &= ~RENDER_FLAGS_TEXTURE_MAP;
 
