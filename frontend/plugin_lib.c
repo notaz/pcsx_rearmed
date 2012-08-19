@@ -21,6 +21,7 @@
 #include "linux/fbdev.h"
 #include "common/fonts.h"
 #include "common/input.h"
+#include "common/plat.h"
 #include "menu.h"
 #include "main.h"
 #include "plat.h"
@@ -484,12 +485,24 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
+static void *pl_mmap(unsigned int size)
+{
+	return plat_mmap(0, size, 0);
+}
+
+static void pl_munmap(void *ptr, unsigned int size)
+{
+	plat_munmap(ptr, size);
+}
+
 struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
 	pl_vout_open,
 	pl_vout_set_mode,
 	pl_vout_flip,
 	pl_vout_close,
+	pl_mmap,
+	pl_munmap,
 };
 
 /* watchdog */

@@ -24,7 +24,7 @@
 //#define log_anomaly gpu_log
 #define log_anomaly(...)
 
-struct psx_gpu gpu __attribute__((aligned(2048)));
+struct psx_gpu gpu;
 
 static noinline int do_cmd_buffer(uint32_t *data, int count);
 static void finish_vram_transfer(int is_read);
@@ -133,6 +133,22 @@ static noinline void get_gpu_info(uint32_t data)
   }
 }
 
+// double, for overdraw guard
+#define VRAM_SIZE (1024 * 512 * 2 * 2)
+
+static int map_vram(void)
+{
+  gpu.vram = gpu.mmap(VRAM_SIZE);
+  if (gpu.vram != NULL) {
+    gpu.vram += 4096 / 2;
+    return 0;
+  }
+  else {
+    fprintf(stderr, "could not map vram, expect crashes\n");
+    return -1;
+  }
+}
+
 long GPUinit(void)
 {
   int ret;
@@ -145,13 +161,26 @@ long GPUinit(void)
   gpu.cmd_len = 0;
   do_reset();
 
+  if (gpu.mmap != NULL) {
+    if (map_vram() != 0)
+      ret = -1;
+  }
   return ret;
 }
 
 long GPUshutdown(void)
 {
+  long ret;
+
   renderer_finish();
-  return vout_finish();
+  ret = vout_finish();
+  if (gpu.vram != NULL) {
+    gpu.vram -= 4096 / 2;
+    gpu.munmap(gpu.vram, VRAM_SIZE);
+  }
+  gpu.vram = NULL;
+
+  return ret;
 }
 
 void GPUwriteStatus(uint32_t data)
@@ -584,13 +613,13 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
     case 1: // save
       if (gpu.cmd_len > 0)
         flush_cmd_buffer();
-      memcpy(freeze->psxVRam, gpu.vram, sizeof(gpu.vram));
+      memcpy(freeze->psxVRam, gpu.vram, 1024 * 512 * 2);
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
       memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
       freeze->ulStatus = gpu.status.reg;
       break;
     case 0: // load
-      memcpy(gpu.vram, freeze->psxVRam, sizeof(gpu.vram));
+      memcpy(gpu.vram, freeze->psxVRam, 1024 * 512 * 2);
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
       gpu.status.reg = freeze->ulStatus;
@@ -672,6 +701,13 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.frame_count = cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
+
+  gpu.mmap = cbs->mmap;
+  gpu.munmap = cbs->munmap;
+
+  // delayed vram mmap
+  if (gpu.vram == NULL)
+    map_vram();
 
   if (cbs->pl_vout_set_raw_vram)
     cbs->pl_vout_set_raw_vram(gpu.vram);

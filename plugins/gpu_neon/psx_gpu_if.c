@@ -15,6 +15,7 @@ extern const unsigned char cmd_lengths[256];
 #define command_lengths cmd_lengths
 
 static unsigned int *ex_regs;
+static int initialized;
 
 #define PCSX
 #define SET_Ex(r, v) \
@@ -42,33 +43,38 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 
 #define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096)
 
+static void map_enhancement_buffer(void)
+{
+  // currently we use 4x 1024*1024 buffers instead of single 2048*1024
+  // to be able to reuse 1024-width code better (triangle setup,
+  // dithering phase, lines).
+  gpu.enhancement_bufer = gpu.mmap(ENHANCEMENT_BUF_SIZE);
+  if (gpu.enhancement_bufer == NULL)
+    fprintf(stderr, "failed to map enhancement buffer\n");
+  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
+}
+
 int renderer_init(void)
 {
-  initialize_psx_gpu(&egpu, gpu.vram);
-  ex_regs = gpu.ex_regs;
-
-  if (gpu.enhancement_bufer == NULL) {
-    // currently we use 4x 1024*1024 buffers instead of single 2048*1024
-    // to be able to reuse 1024-width code better (triangle setup,
-    // dithering phase, lines).
-    gpu.enhancement_bufer = mmap(NULL, ENHANCEMENT_BUF_SIZE,
-      PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (gpu.enhancement_bufer == MAP_FAILED) {
-      printf("OOM for enhancement buffer\n");
-      gpu.enhancement_bufer = NULL;
-    }
+  if (gpu.vram != NULL) {
+    initialize_psx_gpu(&egpu, gpu.vram);
+    initialized = 1;
   }
-  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
 
+  if (gpu.mmap != NULL && gpu.enhancement_bufer == NULL)
+    map_enhancement_buffer();
+
+  ex_regs = gpu.ex_regs;
   return 0;
 }
 
 void renderer_finish(void)
 {
   if (gpu.enhancement_bufer != NULL)
-    munmap(gpu.enhancement_bufer, ENHANCEMENT_BUF_SIZE);
+    gpu.munmap(gpu.enhancement_bufer, ENHANCEMENT_BUF_SIZE);
   gpu.enhancement_bufer = NULL;
   egpu.enhancement_buf_ptr = NULL;
+  initialized = 0;
 }
 
 static __attribute__((noinline)) void
@@ -148,4 +154,12 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     sync_enhancement_buffers(0, 0, 1024, 512);
   }
   enhancement_was_on = cbs->gpu_neon.enhancement_enable;
+
+  if (!initialized) {
+    initialize_psx_gpu(&egpu, gpu.vram);
+    initialized = 1;
+  }
+
+  if (gpu.enhancement_bufer == NULL)
+    map_enhancement_buffer();
 }

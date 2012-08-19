@@ -44,6 +44,8 @@ struct rearmed_cbs {
 	void *(*pl_vout_set_mode)(int w, int h, int bpp);
 	void *(*pl_vout_flip)(void);
 	void  (*pl_vout_close)(void);
+	void *(*mmap)(unsigned int size);
+	void  (*munmap)(void *ptr, unsigned int size);
 	// these are only used by some frontends
 	void  (*pl_vout_raw_flip)(int x, int y);
 	void  (*pl_vout_set_raw_vram)(void *vram);

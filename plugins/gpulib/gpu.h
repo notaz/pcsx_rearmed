@@ -17,10 +17,9 @@ extern "C" {
 #define CMD_BUFFER_LEN          1024
 
 struct psx_gpu {
-  uint16_t vram[1024 * 512];
-  uint16_t guard[1024 * 512]; // overdraw guard
   uint32_t cmd_buffer[CMD_BUFFER_LEN];
   uint32_t regs[16];
+  uint16_t *vram;
   union {
     uint32_t reg;
     struct {
@@ -90,6 +89,8 @@ struct psx_gpu {
     uint32_t pending_fill[3];
   } frameskip;
   uint16_t *enhancement_bufer;
+  void *(*mmap)(unsigned int size);
+  void  (*munmap)(void *ptr, unsigned int size);
 };
 
 extern struct psx_gpu gpu;
