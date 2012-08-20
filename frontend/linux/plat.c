@@ -134,7 +134,7 @@ int plat_wait_event(int *fds_hnds, int count, int timeout_ms)
 	return ret;
 }
 
-void *plat_mmap(unsigned long addr, size_t size, int need_exec)
+void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 {
 	static int hugetlb_disabled;
 	int prot = PROT_READ | PROT_WRITE;
@@ -144,6 +144,8 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec)
 	req = (void *)addr;
 	if (need_exec)
 		prot |= PROT_EXEC;
+	if (is_fixed)
+		flags |= MAP_FIXED;
 	if (size >= HUGETLB_THRESHOLD && !hugetlb_disabled)
 		flags |= MAP_HUGETLB;
 

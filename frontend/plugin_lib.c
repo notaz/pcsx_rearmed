@@ -487,7 +487,7 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 
 static void *pl_mmap(unsigned int size)
 {
-	return plat_mmap(0, size, 0);
+	return plat_mmap(0, size, 0, 0);
 }
 
 static void pl_munmap(void *ptr, unsigned int size)
