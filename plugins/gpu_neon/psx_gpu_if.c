@@ -41,7 +41,7 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
   return ret;
 }
 
-#define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096)
+#define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096 * 2)
 
 static void map_enhancement_buffer(void)
 {
@@ -51,6 +51,8 @@ static void map_enhancement_buffer(void)
   gpu.enhancement_bufer = gpu.mmap(ENHANCEMENT_BUF_SIZE);
   if (gpu.enhancement_bufer == NULL)
     fprintf(stderr, "failed to map enhancement buffer\n");
+  else
+    gpu.enhancement_bufer += 4096 / 2;
   egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
 }
 
@@ -70,10 +72,13 @@ int renderer_init(void)
 
 void renderer_finish(void)
 {
-  if (gpu.enhancement_bufer != NULL)
+  if (gpu.enhancement_bufer != NULL) {
+    gpu.enhancement_bufer -= 4096 / 2;
     gpu.munmap(gpu.enhancement_bufer, ENHANCEMENT_BUF_SIZE);
+  }
   gpu.enhancement_bufer = NULL;
   egpu.enhancement_buf_ptr = NULL;
+  egpu.enhancement_current_buf_ptr = NULL;
   initialized = 0;
 }
 

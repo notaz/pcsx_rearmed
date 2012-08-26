@@ -77,8 +77,8 @@ static void blit(void)
       (x + 8) / stride * 1024 * 1024;
     x *= 2;
     y *= 2;
-    w = (w - 2) * 2;
-    h = (h * 2) - 1;
+    w = w * 2;
+    h = h * 2;
     stride *= 2;
     vram_mask = 1024 * 1024 - 1;
   }
@@ -130,6 +130,7 @@ void vout_update(void)
 
 void vout_blank(void)
 {
+  gpu.state.enhancement_active = 0;
   check_mode_change();
   if (cbs->pl_vout_raw_flip == NULL) {
     int bytespp = gpu.status.rgb24 ? 3 : 2;

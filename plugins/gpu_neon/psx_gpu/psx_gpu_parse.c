@@ -601,12 +601,22 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   			break;
       }
   
-  		case 0x80:          //  vid -> vid
-        render_block_move(psx_gpu, list_s16[2] & 0x3FF, list_s16[3] & 0x1FF,
-         list_s16[4] & 0x3FF, list_s16[5] & 0x1FF,
-         ((list_s16[6] - 1) & 0x3FF) + 1, ((list_s16[7] - 1) & 0x1FF) + 1);
-  			break;
- 
+      case 0x80:          //  vid -> vid
+      {
+        u32 sx = list_s16[2] & 0x3FF;
+        u32 sy = list_s16[3] & 0x1FF;
+        u32 dx = list_s16[4] & 0x3FF;
+        u32 dy = list_s16[5] & 0x1FF;
+        u32 w = ((list_s16[6] - 1) & 0x3FF) + 1;
+        u32 h = ((list_s16[7] - 1) & 0x1FF) + 1;
+
+        if (sx == dx && sy == dy && psx_gpu->mask_msb == 0)
+          break;
+
+        render_block_move(psx_gpu, sx, sy, dx, dy, w, h);
+        break;
+      } 
+
 #ifdef PCSX
   		case 0xA0:          //  sys -> vid
   		case 0xC0:          //  vid -> sys
@@ -750,14 +760,17 @@ breakloop:
   return list - list_start;
 }
 
-#define select_enhancement_buf(psx_gpu) { \
-  u32 _x, _b; \
-  _x = psx_gpu->saved_viewport_start_x + 8; \
-  for (_b = 0; _x >= psx_gpu->enhancement_x_threshold; _b++) \
-    _x -= psx_gpu->enhancement_x_threshold; \
-  psx_gpu->enhancement_current_buf_ptr = \
-    psx_gpu->enhancement_buf_ptr + _b * 1024 * 1024; \
+static void *select_enhancement_buf_ptr(psx_gpu_struct *psx_gpu, u32 x)
+{
+  u32 b;
+  for (b = 0; x >= psx_gpu->enhancement_x_threshold; b++)
+    x -= psx_gpu->enhancement_x_threshold;
+  return psx_gpu->enhancement_buf_ptr + b * 1024 * 1024;
 }
+
+#define select_enhancement_buf(psx_gpu) \
+  psx_gpu->enhancement_current_buf_ptr = \
+    select_enhancement_buf_ptr(psx_gpu, psx_gpu->saved_viewport_start_x + 8)
 
 #define enhancement_disable() { \
   psx_gpu->vram_out_ptr = psx_gpu->vram_ptr; \
@@ -772,8 +785,8 @@ breakloop:
   psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr; \
   psx_gpu->viewport_start_x = psx_gpu->saved_viewport_start_x * 2; \
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y * 2; \
-  psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2; \
-  psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2; \
+  psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x * 2 + 1; \
+  psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2 + 1; \
   psx_gpu->uvrgb_phase = 0x1000; \
 }
 
@@ -799,6 +812,11 @@ breakloop:
   psx_gpu->triangle_area *= 4
 
 extern void scale2x_tiles8(void *dst, const void *src, int w8, int h);
+
+#ifndef NEON_BUILD
+// TODO?
+void scale2x_tiles8(void *dst, const void *src, int w8, int h) {}
+#endif
 
 static int disable_main_render;
 
@@ -1301,6 +1319,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         u32 dy = list_s16[5] & 0x1FF;
         u32 w = ((list_s16[6] - 1) & 0x3FF) + 1;
         u32 h = ((list_s16[7] - 1) & 0x1FF) + 1;
+        u16 *buf;
+
+        if (sx == dx && sy == dy && psx_gpu->mask_msb == 0)
+          break;
 
         render_block_move(psx_gpu, sx, sy, dx, dy, w, h);
         if (dy + h > 512)
@@ -1308,8 +1330,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         sx = sx & ~7; // FIXME?
         dx = dx * 2 & ~7;
         dy *= 2;
-        scale2x_tiles8(psx_gpu->enhancement_buf_ptr + dy * 1024 + dx,
-          psx_gpu->vram_ptr + sy * 1024 + sx, w / 8, h);
+        w = (w + 7) / 8;
+        buf = select_enhancement_buf_ptr(psx_gpu, dx / 2);
+        scale2x_tiles8(buf + dy * 1024 + dx,
+          psx_gpu->vram_ptr + sy * 1024 + sx, w, h);
         break;
       }
  
