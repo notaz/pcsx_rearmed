@@ -230,12 +230,12 @@ if [ "x$builtin_gpu" = "x" ]; then
   builtin_gpu="peops"
 fi
 
-if [ "$ARCH" = "x86_64" ]; then
+#if [ "$ARCH" = "x86_64" ]; then
   # currently we are full of 32bit assumptions,
   # at least savestate compatibility will break without these
-  CFLAGS="$CFLAGS -m32"
-  LDFLAGS="$LDFLAGS -m32"
-fi
+#  CFLAGS="$CFLAGS -m32"
+#  LDFLAGS="$LDFLAGS -m32"
+#fi
 
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
@@ -267,7 +267,7 @@ check_zlib()
 {
   cat > $TMPC <<EOF
   #include <zlib.h>
-  void main() { uncompress(0, 0, 0, 0); }
+  int main(void) { uncompress(0, 0, 0, 0); }
 EOF
   compile_binary
 }

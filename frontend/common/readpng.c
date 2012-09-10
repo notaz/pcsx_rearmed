@@ -60,7 +60,7 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 		goto done;
 	}
 
-	// lprintf("%s: %ix%i @ %ibpp\n", fname, (int)info_ptr->width, (int)info_ptr->height, info_ptr->pixel_depth);
+	// lprintf("%s: %ix%i @ %ibpp\n", fname, (int)png_get_image_width(png_ptr, info_ptr), (int)png_get_image_height(png_ptr, info_ptr), png_get_bit_depth(png_ptr, info_ptr));
 
 	switch (what)
 	{
@@ -68,15 +68,15 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 		{
 			int height, width, h;
 			unsigned short *dst = dest;
-			if (info_ptr->pixel_depth != 24)
+			if (png_get_bit_depth(png_ptr, info_ptr) != 8)
 			{
-				lprintf(__FILE__ ": bg image uses %ibpp, needed 24bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": bg image uses %ibpc, needed 8bpc\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
-			height = info_ptr->height;
+			height = png_get_image_width(png_ptr, info_ptr);
 			if (height > req_h)
 				height = req_h;
-			width = info_ptr->width;
+			width = png_get_image_height(png_ptr, info_ptr);
 			if (width > req_w)
 				width = req_w;
 
@@ -102,15 +102,15 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 		{
 			int x, y, x1, y1;
 			unsigned char *dst = dest;
-			if (info_ptr->width != req_w || info_ptr->height != req_h)
+			if (png_get_image_width(png_ptr, info_ptr) != req_w || png_get_image_height(png_ptr, info_ptr) != req_h)
 			{
 				lprintf(__FILE__ ": unexpected font image size %dx%d, needed %dx%d\n",
-					(int)info_ptr->width, (int)info_ptr->height, req_w, req_h);
+					(int)png_get_image_width(png_ptr, info_ptr), (int)png_get_image_height(png_ptr, info_ptr), req_w, req_h);
 				break;
 			}
-			if (info_ptr->pixel_depth != 8)
+			if (png_get_bit_depth(png_ptr, info_ptr) != 8)
 			{
-				lprintf(__FILE__ ": font image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": font image uses %ibpp, needed 8bpp\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
 			for (y = 0; y < 16; y++)
@@ -135,15 +135,15 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 		{
 			int x1, y1;
 			unsigned char *dst = dest;
-			if (info_ptr->width != req_w || info_ptr->height != req_h)
+			if (png_get_image_width(png_ptr, info_ptr) != req_w || png_get_image_height(png_ptr, info_ptr) != req_h)
 			{
 				lprintf(__FILE__ ": unexpected selector image size %ix%i, needed %dx%d\n",
-					(int)info_ptr->width, (int)info_ptr->height, req_w, req_h);
+					(int)png_get_image_width(png_ptr, info_ptr), (int)png_get_image_height(png_ptr, info_ptr), req_w, req_h);
 				break;
 			}
-			if (info_ptr->pixel_depth != 8)
+			if (png_get_bit_depth(png_ptr, info_ptr) != 8)
 			{
-				lprintf(__FILE__ ": selector image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": selector image uses %ibpp, needed 8bpp\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
 			for (y1 = 0; y1 < req_h; y1++)
@@ -159,15 +159,15 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 		{
 			int height, width, h;
 			unsigned char *dst = dest;
-			if (info_ptr->pixel_depth != 24)
+			if (png_get_bit_depth(png_ptr, info_ptr) != 8)
 			{
-				lprintf(__FILE__ ": image uses %ibpp, needed 24bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": image uses %ibpc, needed 8bpc\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
-			height = info_ptr->height;
+			height = png_get_image_height(png_ptr, info_ptr);
 			if (height > req_h)
 				height = req_h;
-			width = info_ptr->width;
+			width = png_get_image_width(png_ptr, info_ptr);
 			if (width > req_w)
 				width = req_w;
 
