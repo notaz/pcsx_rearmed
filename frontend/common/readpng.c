@@ -73,12 +73,12 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 				lprintf(__FILE__ ": bg image uses %ibpc, needed 8bpc\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
-			height = png_get_image_width(png_ptr, info_ptr);
-			if (height > req_h)
-				height = req_h;
-			width = png_get_image_height(png_ptr, info_ptr);
+			width = png_get_image_width(png_ptr, info_ptr);
 			if (width > req_w)
 				width = req_w;
+			height = png_get_image_height(png_ptr, info_ptr);
+			if (height > req_h)
+				height = req_h;
 
 			for (h = 0; h < height; h++)
 			{
@@ -164,12 +164,12 @@ int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req
 				lprintf(__FILE__ ": image uses %ibpc, needed 8bpc\n", png_get_bit_depth(png_ptr, info_ptr));
 				break;
 			}
-			height = png_get_image_height(png_ptr, info_ptr);
-			if (height > req_h)
-				height = req_h;
 			width = png_get_image_width(png_ptr, info_ptr);
 			if (width > req_w)
 				width = req_w;
+			height = png_get_image_height(png_ptr, info_ptr);
+			if (height > req_h)
+				height = req_h;
 
 			for (h = 0; h < height; h++)
 			{
