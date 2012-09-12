@@ -939,7 +939,7 @@ void psxBios_InitHeap() { // 0x39
 	heap_end = (u32 *)((u8 *)heap_addr + size);
 	*heap_addr = SWAP32(size | 1);
 
-	SysPrintf("InitHeap %x,%x : %x %x\n",a0,a1, (uptr)heap_addr-(uptr)psxM, size);
+	SysPrintf("InitHeap %x,%x : %x %x\n",a0,a1, (int)((uptr)heap_addr-(uptr)psxM), size);
 
 	pc0 = ra;
 }

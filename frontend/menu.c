@@ -364,7 +364,7 @@ static int menu_write_config(int is_game)
 			break;
 		default:
 			printf("menu_write_config: unhandled len %d for %s\n",
-				 config_data[i].len, config_data[i].name);
+				 (int)config_data[i].len, config_data[i].name);
 			break;
 		}
 	}
@@ -479,7 +479,7 @@ static int menu_load_config(int is_game)
 			break;
 		default:
 			printf("menu_load_config: unhandled len %d for %s\n",
-				 config_data[i].len, config_data[i].name);
+				 (int)config_data[i].len, config_data[i].name);
 			break;
 		}
 	}

@@ -212,7 +212,7 @@ static long CDRreadTrack(unsigned char *time)
 	}
 	if (cdbuffer_size != sizeof(cdbuffer->raw[0]) * cd_sectors_per_blk)
 		err("cdbuffer_size: %lu != %d, sector %d\n", cdbuffer_size,
-			sizeof(cdbuffer->raw[0]) * cd_sectors_per_blk, sector);
+			(int)sizeof(cdbuffer->raw[0]) * cd_sectors_per_blk, sector);
 
 	// done at last!
 	current_block = block;
