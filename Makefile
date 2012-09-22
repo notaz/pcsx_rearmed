@@ -215,7 +215,7 @@ endif
 
 # ----------- release -----------
 
-VER ?= $(shell git describe master)
+VER ?= $(shell git describe HEAD)
 
 ifeq "$(PLATFORM)" "generic"
 OUT = pcsx_rearmed_$(VER)
