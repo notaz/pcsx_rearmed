@@ -127,7 +127,7 @@ void update_screen(psx_gpu_struct *psx_gpu, SDL_Surface *screen)
 int main(int argc, char *argv[])
 {
   psx_gpu_struct *psx_gpu = &_psx_gpu;
-  SDL_Surface *screen;
+  SDL_Surface *screen = NULL;
   SDL_Event event;
 
   u32 *list;
@@ -164,14 +164,35 @@ int main(int argc, char *argv[])
   {
     SDL_Init(SDL_INIT_EVERYTHING);
     screen = SDL_SetVideoMode(1024, 512, 32, 0);
+    if (screen == 0)
+    {
+      printf("can't set video mode: %s\n", SDL_GetError());
+      return 1;
+    }
   }
 
 #ifdef NEON_BUILD
+  u16 *vram_ptr;
+#if 0
   system("ofbset -fb /dev/fb1 -mem 6291456 -en 0");
   u32 fbdev_handle = open("/dev/fb1", O_RDWR);
-  u16 *vram_ptr =
   vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
    MAP_SHARED | 0xA0000000, fbdev_handle, 0));
+#elif 1
+  #ifndef MAP_HUGETLB
+  #define MAP_HUGETLB 0x40000 /* arch specific */
+  #endif
+  vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
+   MAP_ANONYMOUS | MAP_PRIVATE | MAP_HUGETLB, -1, 0));
+#else
+  vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
+   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
+#endif
+  if (vram_ptr == MAP_FAILED)
+  {
+    perror("mmap");
+    return 1;
+  }
   vram_ptr += 64;
 
   initialize_psx_gpu(psx_gpu, vram_ptr);
