@@ -2970,7 +2970,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
       vertex_swap(a, b);
   }
 
-  if((c->x - a->x) >= 1024)
+  if((c->x - psx_gpu->offset_x) >= 1024 || (c->x - a->x) >= 1024)
   {
 #ifdef PROFILE
     trivial_rejects++;
