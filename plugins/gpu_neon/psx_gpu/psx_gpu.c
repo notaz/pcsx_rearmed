@@ -854,7 +854,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
                                                                                \
   dup_2x32b(edge_shifts, edge_shift);                                          \
   sub_2x32b(heights_b, heights, c_0x01);                                       \
-  shr_2x32b(height_reciprocals, edge_shifts, 12);                              \
+  shr_2x32b(height_reciprocals, edge_shifts, 10);                              \
                                                                                \
   mla_2x32b(heights_b, x_starts, heights);                                     \
   bic_immediate_4x16b(vector_cast(vec_4x16u, edge_shifts), 0xE0);              \
@@ -883,8 +883,8 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
   sub_2x32b(widths, x_ends, x_starts);                                         \
   width_alt = x_c - start_c;                                                   \
                                                                                \
-  shr_2x32b(height_reciprocals, edge_shifts, 12);                              \
-  height_reciprocal_alt = edge_shift_alt >> 12;                                \
+  shr_2x32b(height_reciprocals, edge_shifts, 10);                              \
+  height_reciprocal_alt = edge_shift_alt >> 10;                                \
                                                                                \
   bic_immediate_4x16b(vector_cast(vec_4x16u, edge_shifts), 0xE0);              \
   edge_shift_alt &= 0x1F;                                                      \
@@ -4526,12 +4526,12 @@ void initialize_reciprocal_table(void)
   {
     shift = __builtin_clz(height);
     height_normalized = height << shift;
-    height_reciprocal = ((1ULL << 50) + (height_normalized - 1)) /
+    height_reciprocal = ((1ULL << 52) + (height_normalized - 1)) /
      height_normalized;
 
-    shift = 32 - (50 - shift);
+    shift = 32 - (52 - shift);
 
-    reciprocal_table[height] = (height_reciprocal << 12) | shift;
+    reciprocal_table[height] = (height_reciprocal << 10) | shift;
   }
 }
 

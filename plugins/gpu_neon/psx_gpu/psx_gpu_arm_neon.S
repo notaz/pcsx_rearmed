@@ -657,7 +657,7 @@ function(compute_all_gradients)
                                                                                \
   vdup.u32 edge_shifts, temp;                                                  \
   vsub.u32 heights_b, heights, c_0x01;                                         \
-  vshr.u32 height_reciprocals, edge_shifts, #12;                               \
+  vshr.u32 height_reciprocals, edge_shifts, #10;                               \
                                                                                \
   vmla.s32 heights_b, x_starts, heights;                                       \
   vbic.u16 edge_shifts, #0xE0;                                                 \
@@ -682,8 +682,8 @@ function(compute_all_gradients)
   vsub.u32 heights_b, heights, c_0x01;                                         \
   sub height_b_alt, height_minor_b, #1;                                        \
                                                                                \
-  vshr.u32 height_reciprocals, edge_shifts, #12;                               \
-  lsr height_reciprocal_alt, edge_shift_alt, #12;                              \
+  vshr.u32 height_reciprocals, edge_shifts, #10;                               \
+  lsr height_reciprocal_alt, edge_shift_alt, #10;                              \
                                                                                \
   vmla.s32 heights_b, x_starts, heights;                                       \
   mla height_b_alt, height_minor_b, start_c, height_b_alt;                     \
