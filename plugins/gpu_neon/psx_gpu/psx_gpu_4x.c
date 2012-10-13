@@ -50,7 +50,7 @@
     tbl_16(texels_high, texels, clut_high);                                    \
     zip_8x16b(pixels, texels_low, texels_high);                                \
                                                                                \
-    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);		 \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
     block->texels = pixels_wide;                                               \
     block->draw_mask_bits = left_mask_bits_a;                                  \
     block->fb_ptr = fb_ptr;                                                    \
@@ -77,7 +77,7 @@
     tbl_16(texels_high, texels, clut_high);                                    \
     zip_8x16b(pixels, texels_low, texels_high);                                \
                                                                                \
-    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);	   \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
     block->texels = pixels_wide;                                               \
     block->draw_mask_bits = right_mask_bits_a;                                 \
     block->fb_ptr = fb_ptr + 16;                                               \
@@ -111,7 +111,7 @@
 {                                                                              \
   vec_8x8u texels_low, texels_high;                                            \
   vec_8x16u pixels, pixels_wide;                                               \
-  setup_sprite_tile_add_blocks(sub_tile_height);                               \
+  setup_sprite_tile_add_blocks_4x(sub_tile_height);                            \
   u32 edge##_mask_bits_a = edge##_mask_bits & 0xFF;                            \
   u32 edge##_mask_bits_b = edge##_mask_bits >> 8;                              \
                                                                                \
@@ -122,7 +122,7 @@
     tbl_16(texels_high, texels, clut_high);                                    \
     zip_8x16b(pixels, texels_low, texels_high);                                \
                                                                                \
-    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);		 \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
     block->texels = pixels_wide;                                               \
     block->draw_mask_bits = edge##_mask_bits_a;                                \
     block->fb_ptr = fb_ptr;                                                    \
@@ -195,12 +195,12 @@
                                                                                \
     block->r = texels_wide.low;                                                \
     block->draw_mask_bits = right_mask_bits_a;                                 \
-    block->fb_ptr = fb_ptr + 1024;                                             \
+    block->fb_ptr = fb_ptr + 1024 + 16;                                        \
     block++;                                                                   \
                                                                                \
     block->r = texels_wide.high;                                               \
     block->draw_mask_bits = right_mask_bits_b;                                 \
-    block->fb_ptr = fb_ptr + 24 + 1024;                                        \
+    block->fb_ptr = fb_ptr + 24;                                               \
     block++;                                                                   \
                                                                                \
     block->r = texels_wide.high;                                               \
@@ -218,7 +218,7 @@
 
 #define setup_sprite_tile_half_8bpp_4x(edge)                                   \
 {                                                                              \
-  setup_sprite_tile_add_blocks_4x(sub_tile_height * 2);                        \
+  setup_sprite_tile_add_blocks_4x(sub_tile_height);                            \
   vec_16x8u texels_wide;                                                       \
   u32 edge##_mask_bits_a = edge##_mask_bits & 0xFF;                            \
   u32 edge##_mask_bits_b = edge##_mask_bits >> 8;                              \
@@ -387,7 +387,7 @@ void setup_sprite_##texture_mode##_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,   \
   u32 offset_u_right = width_rounded & 0xF;                                    \
                                                                                \
   u32 left_block_mask = ~(0xFFFFFFFF << (offset_u * 2));                       \
-  u32 right_block_mask = 0xFFFFFFFE << (offset_u_right * 2);                   \
+  u32 right_block_mask = 0xFFFFFFFC << (offset_u_right * 2);                   \
                                                                                \
   u32 left_mask_bits;                                                          \
   u32 right_mask_bits;                                                         \
@@ -404,7 +404,7 @@ void setup_sprite_##texture_mode##_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,   \
   u32 texture_offset_base = texture_offset;                                    \
   u32 control_mask;                                                            \
                                                                                \
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + (x - offset_u);               \
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + (x - offset_u * 2);       \
   u32 num_blocks = psx_gpu->num_blocks;                                        \
   block_struct *block = psx_gpu->blocks + num_blocks;                          \
                                                                                \
@@ -416,7 +416,7 @@ void setup_sprite_##texture_mode##_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,   \
   control_mask = tile_width == 1;                                              \
   control_mask |= (tile_height == 1) << 1;                                     \
   control_mask |= ((left_block_mask & 0xFFFF) == 0xFFFF) << 2;                 \
-  control_mask |= (((right_block_mask >> 8) & 0xFFFF) == 0xFFFF) << 3;         \
+  control_mask |= (((right_block_mask >> 16) & 0xFFFF) == 0xFFFF) << 3;        \
                                                                                \
   sprites_##texture_mode++;                                                    \
                                                                                \
@@ -514,13 +514,13 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   u32 left_offset = u & 0x7;
   u32 width_rounded = width + left_offset + 7;
 
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + (s32)(x - left_offset);
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + (s32)(x - left_offset * 2);
   u32 right_width = width_rounded & 0x7;
   u32 block_width = width_rounded / 8;
-  u32 fb_ptr_pitch = (1024 + 8) - (block_width * 8);
+  u32 fb_ptr_pitch = (2048 + 16) - (block_width * 16);
 
   u32 left_mask_bits = ~(0xFFFF << (left_offset * 2));
-  u32 right_mask_bits = 0xFE << (right_width * 2);
+  u32 right_mask_bits = 0xFFFC << (right_width * 2);
 
   u32 texture_offset_base = u + (v * 1024);
   u32 texture_mask =
@@ -563,7 +563,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
       load_128b(texels, texture_block_ptr);
       
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
       block->draw_mask_bits = mask_bits_a;
       block->fb_ptr = fb_ptr;          
@@ -574,7 +574,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       block->fb_ptr = fb_ptr + 1024;          
       block++;
       
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
       block->texels = texels_wide;
       block->draw_mask_bits = mask_bits_b;
       block->fb_ptr = fb_ptr + 8;
@@ -613,7 +613,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       if(num_blocks > MAX_BLOCKS)
       {
         flush_render_block_buffer(psx_gpu);
-        num_blocks = block_width;
+        num_blocks = block_width * 4;
         block = psx_gpu->blocks;
       }
 
@@ -624,7 +624,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       
       load_128b(texels, texture_block_ptr);
 
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
       block->draw_mask_bits = left_mask_bits_a;
       block->fb_ptr = fb_ptr;
@@ -635,7 +635,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       block->fb_ptr = fb_ptr + 1024;
       block++;      
 
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
       block->texels = texels_wide;
       block->draw_mask_bits = left_mask_bits_b;
       block->fb_ptr = fb_ptr + 8;
@@ -654,7 +654,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
         texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
         load_128b(texels, texture_block_ptr);
 
-        zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
+        zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
         block->texels = texels_wide;
         block->draw_mask_bits = 0;
         block->fb_ptr = fb_ptr;
@@ -665,7 +665,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
         block->fb_ptr = fb_ptr + 1024;
         block++;      
 
-        zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
+        zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
         block->texels = texels_wide;
         block->draw_mask_bits = 0;
         block->fb_ptr = fb_ptr + 8;
@@ -677,7 +677,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
         block++;
         
         texture_offset += 8;
-        fb_ptr += 8;
+        fb_ptr += 16;
 
         blocks_remaining--;
       }
@@ -685,7 +685,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
       load_128b(texels, texture_block_ptr);
       
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
       block->draw_mask_bits = right_mask_bits_a;
       block->fb_ptr = fb_ptr;
@@ -696,7 +696,7 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       block->fb_ptr = fb_ptr + 1024;
       block++;      
 
-      zip4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
+      zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.high, texels.high);
       block->texels = texels_wide;
       block->draw_mask_bits = right_mask_bits_b;
       block->fb_ptr = fb_ptr + 8;
@@ -717,11 +717,17 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
 #endif
 
+static void setup_sprite_untextured_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,
+ s32 u, s32 v, s32 width, s32 height, u32 color)
+{
+  setup_sprite_untextured(psx_gpu, x, y, u, v, width * 2, height * 2, color);
+}
+
 #define setup_sprite_blocks_switch_textured_4x(texture_mode)                   \
   setup_sprite_##texture_mode##_4x                                             \
 
 #define setup_sprite_blocks_switch_untextured_4x(texture_mode)                 \
-  setup_sprite_untextured                                                      \
+  setup_sprite_untextured_4x                                                   \
 
 #define setup_sprite_blocks_switch_4x(texturing, texture_mode)                 \
   setup_sprite_blocks_switch_##texturing##_4x(texture_mode)                    \
@@ -802,9 +808,6 @@ render_block_handler_struct render_sprite_block_handlers_4x[] =
 void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
  s32 width, s32 height, u32 flags, u32 color)
 {
-  x *= 2;
-  y *= 2;
-
   s32 x_right = x + width - 1;
   s32 y_bottom = y + height - 1;
 
@@ -836,6 +839,9 @@ void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
 
   if((width <= 0) || (height <= 0))
     return;
+
+  x *= 2;
+  y *= 2;
 
 #ifdef PROFILE
   span_pixels += width * height;

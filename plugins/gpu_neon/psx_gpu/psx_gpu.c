@@ -3574,7 +3574,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   u32 left_offset = u & 0x7;
   u32 width_rounded = width + left_offset + 7;
 
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + (s32)(x - left_offset);
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + (s32)(x - left_offset);
   u32 right_width = width_rounded & 0x7;
   u32 block_width = width_rounded / 8;
   u32 fb_ptr_pitch = (1024 + 8) - (block_width * 8);
@@ -3696,7 +3696,7 @@ void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 {
   u32 right_width = ((width - 1) & 0x7) + 1;
   u32 right_mask_bits = (0xFF << right_width);
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + x;
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + x;
   u32 block_width = (width + 7) / 8;
   u32 fb_ptr_pitch = 1024 - ((block_width - 1) * 8);
   u32 blocks_remaining;
@@ -4736,3 +4736,4 @@ void triangle_benchmark(psx_gpu_struct *psx_gpu)
 
 #endif
 
+#include "psx_gpu_4x.c"

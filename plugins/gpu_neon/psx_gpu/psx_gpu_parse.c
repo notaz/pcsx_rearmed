@@ -760,6 +760,8 @@ breakloop:
   return list - list_start;
 }
 
+#ifdef PCSX
+
 static void *select_enhancement_buf_ptr(psx_gpu_struct *psx_gpu, u32 x)
 {
   u32 b;
@@ -864,6 +866,8 @@ static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   }
 }
 
+#if 0
+
 #define fill_vertex(i, x_, y_, u_, v_, rgb_) \
   vertexes[i].x = x_; \
   vertexes[i].y = y_; \
@@ -873,7 +877,7 @@ static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   vertexes[i].g = (rgb_) >> 8; \
   vertexes[i].b = (rgb_) >> 16
 
-static void do_esprite_in_triangles(psx_gpu_struct *psx_gpu, int x, int y,
+static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
  u32 u, u32 v, u32 w, u32 h, u32 cmd_rgb)
 {
   vertex_struct *vertex_ptrs[3];
@@ -928,6 +932,17 @@ static void do_esprite_in_triangles(psx_gpu_struct *psx_gpu, int x, int y,
 
   psx_gpu->render_state_base = render_state_base_saved;
 }
+#else
+static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
+ u32 u, u32 v, u32 w, u32 h, u32 cmd_rgb)
+{
+  u32 flags = (cmd_rgb >> 24);
+  u32 color = cmd_rgb & 0xffffff;
+
+  psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr;
+  render_sprite_4x(psx_gpu, x, y, u, v, w, h, flags, color);
+}
+#endif
 
 u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 {
@@ -1216,7 +1231,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         u32 height = list_s16[5] & 0x1FF;
 
         render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, width, height, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
         break;
       }
   
@@ -1233,7 +1248,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 
         render_sprite(psx_gpu, x, y, u, v, width, height,
          current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, u, v, width, height, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
         break;
       }
   
@@ -1246,7 +1261,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
         break;
       }
   
@@ -1259,7 +1274,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
         break;
       }
   
@@ -1277,7 +1292,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 
         render_sprite(psx_gpu, x, y, u, v, 8, 8,
          current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, u, v, 8, 8, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
         break;
       }
   
@@ -1290,7 +1305,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
         break;
       }
   
@@ -1307,7 +1322,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
         set_clut(psx_gpu, list_s16[5]);
 
         render_sprite(psx_gpu, x, y, u, v, 16, 16, current_command, list[0]);
-        do_esprite_in_triangles(psx_gpu, x, y, u, v, 16, 16, list[0]);
+        do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
         break;
       }
   
@@ -1454,13 +1469,14 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
     }
   }
 
-#ifdef PCSX
+  enhancement_disable();
+
 breakloop:
-#endif
-enhancement_disable();
   if (last_command != NULL)
     *last_command = current_command;
   return list - list_start;
 }
+
+#endif /* PCSX */
 
 // vim:shiftwidth=2:expandtab

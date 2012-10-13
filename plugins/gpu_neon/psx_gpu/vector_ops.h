@@ -396,7 +396,7 @@ build_vector_types(s);
 
 #define zip_4x32b(dest, source_a, source_b)                                    \
   foreach_element(4, (dest).e[_i] =                                            \
-   (u8)(source_a).e[_i] | ((u8)(source_b).e[_i] << 16))                        \
+   (u16)(source_a).e[_i] | ((u16)(source_b).e[_i] << 16))                      \
 
 #define zip_2x64b(dest, source_a, source_b)                                    \
   foreach_element(2, (dest).e[_i] =                                            \
