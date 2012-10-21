@@ -762,17 +762,26 @@ breakloop:
 
 #ifdef PCSX
 
-static void *select_enhancement_buf_ptr(psx_gpu_struct *psx_gpu, u32 x)
+static void update_enhancement_buf_table(psx_gpu_struct *psx_gpu)
 {
-  u32 b;
-  for (b = 0; x >= psx_gpu->enhancement_x_threshold; b++)
-    x -= psx_gpu->enhancement_x_threshold;
-  return psx_gpu->enhancement_buf_ptr + b * 1024 * 1024;
+  u32 b, x, s;
+
+  b = 0;
+  s = psx_gpu->enhancement_x_threshold;
+  for (x = 0; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++)
+  {
+    if (x * 16 >= s - 15)
+    {
+      s += psx_gpu->enhancement_x_threshold;
+      b++;
+    }
+    psx_gpu->enhancement_buf_by_x16[x] = b;
+  }
 }
 
 #define select_enhancement_buf(psx_gpu) \
   psx_gpu->enhancement_current_buf_ptr = \
-    select_enhancement_buf_ptr(psx_gpu, psx_gpu->saved_viewport_start_x + 8)
+    select_enhancement_buf_ptr(psx_gpu, psx_gpu->saved_viewport_start_x)
 
 #define enhancement_disable() { \
   psx_gpu->vram_out_ptr = psx_gpu->vram_ptr; \
@@ -939,12 +948,12 @@ static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
   u32 flags = (cmd_rgb >> 24);
   u32 color = cmd_rgb & 0xffffff;
 
-  psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr;
   render_sprite_4x(psx_gpu, x, y, u, v, w, h, flags, color);
 }
 #endif
 
-u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
+u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
+ u32 *last_command)
 {
   u32 current_command = 0, command_length;
 
@@ -987,7 +996,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 
         do_fill(psx_gpu, x, y, width, height, color);
 
-        psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr;
+        psx_gpu->vram_out_ptr = select_enhancement_buf_ptr(psx_gpu, x);
         x *= 2;
         y *= 2;
         width *= 2;
@@ -1403,10 +1412,20 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
       }
   
       case 0xE3:
+      {
+        u32 d;
         psx_gpu->viewport_start_x = list[0] & 0x3FF;
         psx_gpu->viewport_start_y = (list[0] >> 10) & 0x1FF;
         psx_gpu->saved_viewport_start_x = psx_gpu->viewport_start_x;
         psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
+
+        d = psx_gpu->enhancement_x_threshold - psx_gpu->viewport_start_x;
+        if(unlikely(0 < d && d <= 8))
+        {
+          // Grandia hack..
+          psx_gpu->enhancement_x_threshold = psx_gpu->viewport_start_x;
+          update_enhancement_buf_table(psx_gpu);
+        }
         select_enhancement_buf(psx_gpu);
 
 #ifdef TEXTURE_CACHE_4BPP
@@ -1417,7 +1436,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_c
 #endif
         SET_Ex(3, list[0]);
         break;
-  
+      }
+
       case 0xE4:
         psx_gpu->viewport_end_x = list[0] & 0x3FF;
         psx_gpu->viewport_end_y = (list[0] >> 10) & 0x1FF;

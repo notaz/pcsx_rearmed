@@ -1,3 +1,7 @@
+#define select_enhancement_buf_ptr(psx_gpu, x) \
+  ((psx_gpu)->enhancement_buf_ptr + \
+   ((psx_gpu)->enhancement_buf_by_x16[(x) / 16] << 20))
+
 #ifndef NEON_BUILD
 void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
@@ -330,6 +334,8 @@ void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
 
   if((width <= 0) || (height <= 0))
     return;
+
+  psx_gpu->vram_out_ptr = select_enhancement_buf_ptr(psx_gpu, x);
 
   x *= 2;
   y *= 2;

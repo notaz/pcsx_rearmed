@@ -130,11 +130,15 @@ void vout_update(void)
 
 void vout_blank(void)
 {
-  gpu.state.enhancement_active = 0;
-  check_mode_change();
   if (cbs->pl_vout_raw_flip == NULL) {
+    int w = gpu.screen.hres;
+    int h = gpu.screen.h;
     int bytespp = gpu.status.rgb24 ? 3 : 2;
-    memset(screen_buf, 0, gpu.screen.hres * gpu.screen.h * bytespp);
+    if (gpu.state.enhancement_active) {
+      w *= 2;
+      h *= 2;
+    }
+    memset(screen_buf, 0, w * h * bytespp);
     screen_buf = cbs->pl_vout_flip();
   }
 }

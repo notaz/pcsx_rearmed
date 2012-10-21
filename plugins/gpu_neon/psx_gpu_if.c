@@ -85,32 +85,28 @@ void renderer_finish(void)
 static __attribute__((noinline)) void
 sync_enhancement_buffers(int x, int y, int w, int h)
 {
-  int xt = egpu.enhancement_x_threshold;
+  const int step_x = 1024 / sizeof(egpu.enhancement_buf_by_x16);
   u16 *src, *dst;
-  int wb, i;
+  int w1, fb_index;
 
-  w += x & 7;
-  x &= ~7;
-  w = (w + 7) & ~7;
+  w += x & (step_x - 1);
+  x &= ~(step_x - 1);
+  w = (w + step_x - 1) & ~(step_x - 1);
   if (y + h > 512)
     h = 512 - y;
 
-  for (i = 0; i < 4 && w > 0; i++) {
-    if (x < 512) {
-      wb = w;
-      if (x + w > 512)
-        wb = 512 - x;
-      src = gpu.vram + xt * i + y * 1024 + x;
-      dst = egpu.enhancement_buf_ptr +
-        (1024*1024 + xt * 2) * i + (y * 1024 + x) * 2;
-      scale2x_tiles8(dst, src, wb / 8, h);
-    }
+  while (w > 0) {
+    fb_index = egpu.enhancement_buf_by_x16[x / step_x];
+    for (w1 = 0; w > 0; w1++, w -= step_x)
+      if (fb_index != egpu.enhancement_buf_by_x16[x / step_x + w1])
+        break;
 
-    x -= xt;
-    if (x < 0) {
-      w += x;
-      x = 0;
-    }
+    src = gpu.vram + y * 1024 + x;
+    dst = select_enhancement_buf_ptr(&egpu, x);
+    dst += (y * 1024 + x) * 2;
+    scale2x_tiles8(dst, src, w1 * step_x / 8, h);
+
+    x += w1 * step_x;
   }
 }
 
@@ -143,7 +139,11 @@ void renderer_set_interlace(int enable, int is_odd)
 void renderer_notify_res_change(void)
 {
   // note: must keep it multiple of 8
-  egpu.enhancement_x_threshold = gpu.screen.hres;
+  if (egpu.enhancement_x_threshold != gpu.screen.hres)
+  {
+    egpu.enhancement_x_threshold = gpu.screen.hres;
+    update_enhancement_buf_table(&egpu);
+  }
 }
 
 #include "../../frontend/plugin_lib.h"

@@ -188,10 +188,11 @@ typedef struct
   s16 saved_viewport_start_y;
   s16 saved_viewport_end_x;
   s16 saved_viewport_end_y;
+  u8 enhancement_buf_by_x16[64];
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[228];
+  u8 reserved_a[164];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];
