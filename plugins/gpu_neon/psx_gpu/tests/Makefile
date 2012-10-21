@@ -13,7 +13,7 @@ ASFLAGS = $(CFLAGS)
 OBJ += psx_gpu_arm_neon.o
 endif
 ifndef DEBUG
-CFLAGS += -O2 -fno-strict-aliasing
+CFLAGS += -O2 -DNDEBUG -fno-strict-aliasing
 endif
 
 OBJ += psx_gpu.o psx_gpu_parse.o psx_gpu_main.o

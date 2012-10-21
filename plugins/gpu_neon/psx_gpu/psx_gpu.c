@@ -767,6 +767,21 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
     printf("mismatch on %s %s: %x vs %x\n", #_a, #_b, _a, _b)                  \
 
 
+#ifndef NDEBUG
+#define setup_spans_debug_check(span_edge_data_element)                        \
+  if (&span_edge_data_element - psx_gpu->span_edge_data < psx_gpu->num_spans)  \
+  {                                                                            \
+    if(span_edge_data_element.num_blocks > MAX_BLOCKS_PER_ROW)                 \
+      *(int *)0 = 1;                                                           \
+    if(span_edge_data_element.y > 2048)                                        \
+      *(int *)0 = 1;                                                           \
+  }                                                                            \
+
+#else
+#define setup_spans_debug_check(span_edge_data_element)                        \
+
+#endif
+
 #define setup_spans_prologue_alternate_yes()                                   \
   vec_2x64s alternate_x;                                                       \
   vec_2x64s alternate_dx_dy;                                                   \
@@ -1070,6 +1085,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
     span_edge_data[i].num_blocks = left_right_x_16.high.e[i];                  \
     span_edge_data[i].right_mask = span_shift.e[i];                            \
     span_edge_data[i].y = y_x4.e[i];                                           \
+    setup_spans_debug_check(span_edge_data[i]);                                \
   }                                                                            \
                                                                                \
   span_edge_data += 4;                                                         \
@@ -4906,10 +4922,10 @@ void initialize_reciprocal_table(void)
   {
     shift = __builtin_clz(height);
     height_normalized = height << shift;
-    height_reciprocal = ((1ULL << 52) + (height_normalized - 1)) /
+    height_reciprocal = ((1ULL << 51) + (height_normalized - 1)) /
      height_normalized;
 
-    shift = 32 - (52 - shift);
+    shift = 32 - (51 - shift);
 
     reciprocal_table[height] = (height_reciprocal << 10) | shift;
   }
