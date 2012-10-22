@@ -43,17 +43,34 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 
 #define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096 * 2)
 
+static uint16_t *get_enhancement_bufer(int *x, int *y, int *w, int *h,
+ int *stride, int *mask)
+{
+  uint16_t *ret = select_enhancement_buf_ptr(&egpu, *x);
+
+  *x *= 2;
+  *y *= 2;
+  *w = *w * 2;
+  *h = *h * 2;
+  *stride *= 2;
+  *mask = 1024 * 1024 - 1;
+  return ret;
+}
+
 static void map_enhancement_buffer(void)
 {
   // currently we use 4x 1024*1024 buffers instead of single 2048*1024
   // to be able to reuse 1024-width code better (triangle setup,
   // dithering phase, lines).
-  gpu.enhancement_bufer = gpu.mmap(ENHANCEMENT_BUF_SIZE);
-  if (gpu.enhancement_bufer == NULL)
+  egpu.enhancement_buf_ptr = gpu.mmap(ENHANCEMENT_BUF_SIZE);
+  if (egpu.enhancement_buf_ptr == NULL) {
     fprintf(stderr, "failed to map enhancement buffer\n");
-  else
-    gpu.enhancement_bufer += 4096 / 2;
-  egpu.enhancement_buf_ptr = gpu.enhancement_bufer;
+    gpu.get_enhancement_bufer = NULL;
+  }
+  else {
+    egpu.enhancement_buf_ptr += 4096 / 2;
+    gpu.get_enhancement_bufer = get_enhancement_bufer;
+  }
 }
 
 int renderer_init(void)
@@ -63,7 +80,7 @@ int renderer_init(void)
     initialized = 1;
   }
 
-  if (gpu.mmap != NULL && gpu.enhancement_bufer == NULL)
+  if (gpu.mmap != NULL && egpu.enhancement_buf_ptr == NULL)
     map_enhancement_buffer();
 
   ex_regs = gpu.ex_regs;
@@ -72,11 +89,10 @@ int renderer_init(void)
 
 void renderer_finish(void)
 {
-  if (gpu.enhancement_bufer != NULL) {
-    gpu.enhancement_bufer -= 4096 / 2;
-    gpu.munmap(gpu.enhancement_bufer, ENHANCEMENT_BUF_SIZE);
+  if (egpu.enhancement_buf_ptr != NULL) {
+    egpu.enhancement_buf_ptr -= 4096 / 2;
+    gpu.munmap(egpu.enhancement_buf_ptr, ENHANCEMENT_BUF_SIZE);
   }
-  gpu.enhancement_bufer = NULL;
   egpu.enhancement_buf_ptr = NULL;
   egpu.enhancement_current_buf_ptr = NULL;
   initialized = 0;
@@ -165,6 +181,6 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     initialized = 1;
   }
 
-  if (gpu.enhancement_bufer == NULL)
+  if (gpu.mmap != NULL && egpu.enhancement_buf_ptr == NULL)
     map_enhancement_buffer();
 }

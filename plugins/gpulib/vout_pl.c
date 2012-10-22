@@ -35,7 +35,7 @@ static void check_mode_change(void)
   int h = gpu.screen.h;
 
   gpu.state.enhancement_active =
-    gpu.enhancement_bufer != NULL && gpu.state.enhancement_enable
+    gpu.get_enhancement_bufer != NULL && gpu.state.enhancement_enable
     && w <= 512 && h <= 256 && !gpu.status.rgb24;
 
   if (gpu.state.enhancement_active) {
@@ -71,17 +71,9 @@ static void blit(void)
   if (dest == NULL || w == 0 || stride == 0)
     return;
 
-  if (gpu.state.enhancement_active) {
-    // this layout is gpu_neon specific..
-    vram = gpu.enhancement_bufer +
-      (x + 8) / stride * 1024 * 1024;
-    x *= 2;
-    y *= 2;
-    w = w * 2;
-    h = h * 2;
-    stride *= 2;
-    vram_mask = 1024 * 1024 - 1;
-  }
+  if (gpu.state.enhancement_active)
+    vram = gpu.get_enhancement_bufer(&x, &y, &w, &h, &stride, &vram_mask);
+
   fb_offs = y * vram_stride + x;
 
   // only do centering, at least for now
