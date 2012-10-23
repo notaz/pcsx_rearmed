@@ -200,7 +200,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 bool retro_load_game(const struct retro_game_info *info)
 {
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
-	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
+	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
 		native_rgb565 = 1;
 		fprintf(stderr, "RGB565 supported, using it\n");
 	}
