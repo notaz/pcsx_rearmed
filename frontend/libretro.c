@@ -29,6 +29,7 @@ static void *vout_buf;
 static int vout_width, vout_height;
 static int samples_sent, samples_to_send;
 static int plugins_opened;
+static int native_rgb565;
 
 /* PCSX ReARMed core calls and stuff */
 int in_type1, in_type2;
@@ -62,7 +63,8 @@ static void convert(void *buf, size_t bytes)
 static void *vout_flip(void)
 {
 	pl_rearmed_cbs.flip_cnt++;
-	convert(vout_buf,  vout_width * vout_height * 2);
+	if (!native_rgb565)
+		convert(vout_buf,  vout_width * vout_height * 2);
 	video_cb(vout_buf, vout_width, vout_height, vout_width * 2);
 
 	return vout_buf;
@@ -197,6 +199,12 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
+	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
+	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
+		native_rgb565 = 1;
+		fprintf(stderr, "RGB565 supported, using it\n");
+	}
+
 	if (plugins_opened) {
 		ClosePlugins();
 		plugins_opened = 0;
