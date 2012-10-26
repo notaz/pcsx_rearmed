@@ -12,7 +12,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <zlib.h>
-#include <bzlib.h>
 #include <dlfcn.h>
 
 #include "cdrcimg.h"

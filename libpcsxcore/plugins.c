@@ -702,6 +702,7 @@ int LoadPlugins() {
 	char Plugin[MAXPATHLEN];
 
 	ReleasePlugins();
+	SysLibError();
 
 	if (UsingIso()) {
 		LoadCDRplugin(NULL);
