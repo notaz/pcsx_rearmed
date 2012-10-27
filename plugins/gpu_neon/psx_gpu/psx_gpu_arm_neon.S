@@ -3392,10 +3392,12 @@ function(shade_blocks_textured_unmodulated_direct)
    [ draw_mask_bits_ptr, :16 ], c_64
   vbif.u16 fb_pixels, pixels, draw_mask_combined
 
+  sub fb_ptr_cmp, fb_ptr_next, fb_ptr
+  pld [ fb_ptr_next, #64 ]
+
+  add fb_ptr_cmp, fb_ptr_cmp, #14
   vld1.u32 { pixels }, [ block_ptr_load, :128 ], c_64
 
-  sub fb_ptr_cmp, fb_ptr_next, fb_ptr
-  add fb_ptr_cmp, fb_ptr_cmp, #14
   cmp fb_ptr_cmp, #28
   bls 4f
 
@@ -3754,11 +3756,15 @@ function(blend_blocks_textured_add_##mask_evaluate)                            \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
   vand.u16 pixels_mg, pixels, d128_0x83E0;                                     \
                                                                                \
-  vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
-  vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
+  sub fb_ptr_cmp, fb_ptr_next, fb_ptr;                                         \
+  pld [ fb_ptr_next, #64 ];                                                    \
                                                                                \
   sub fb_ptr_cmp, fb_ptr_next, fb_ptr;                                         \
+  vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
+                                                                               \
   add fb_ptr_cmp, fb_ptr_cmp, #14;                                             \
+  vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
+                                                                               \
   cmp fb_ptr_cmp, #28;                                                         \
   bls 2f;                                                                      \
                                                                                \
@@ -4917,12 +4923,12 @@ setup_sprite_update_texture_8bpp_cache:
    draw_mask_fb_ptr_left_b);                                                   \
                                                                                \
   add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
-  add fb_ptr, fb_ptr, #16*2;                                                   \
+  pld [ fb_ptr, #2048 ];                                                       \
                                                                                \
   vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
-  vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels;                       \
+  add fb_ptr, fb_ptr, #16*2;                                                   \
                                                                                \
-  pld [ fb_ptr ];                                                              \
+  vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels;                       \
   vtbl.8 texels_high, { clut_high_a, clut_high_b }, texels;                    \
                                                                                \
   vzip.8 texels_low, texels_high;                                              \
@@ -4961,9 +4967,10 @@ setup_sprite_update_texture_8bpp_cache:
   do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_##edge##_a,              \
    draw_mask_fb_ptr_##edge##_b);                                               \
                                                                                \
+  pld [ fb_ptr, #2048 ];                                                       \
   add fb_ptr, fb_ptr, #2048 * 2;                                               \
-  subs sub_tile_height, sub_tile_height, #1;                                   \
                                                                                \
+  subs sub_tile_height, sub_tile_height, #1;                                   \
   bne 4b;                                                                      \
                                                                                \
   ldr column_data, [sp], #8; /* fb_ptr2 */                                     \
@@ -4987,13 +4994,13 @@ setup_sprite_update_texture_8bpp_cache:
   do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_left_a,                   \
    draw_mask_fb_ptr_left_b);                                                   \
                                                                                \
+  pld [ fb_ptr, #2048 ];                                                       \
   and texture_block_ptr, texture_block_ptr, texture_mask;                      \
                                                                                \
   add fb_ptr, fb_ptr, #16*2;                                                   \
   add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
                                                                                \
   vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
-  pld [ fb_ptr ];                                                              \
                                                                                \
   do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_right_a,                  \
    draw_mask_fb_ptr_right_b);                                                  \
@@ -5022,6 +5029,7 @@ setup_sprite_update_texture_8bpp_cache:
   add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
   vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
                                                                                \
+  pld [ fb_ptr, #2048 ];                                                       \
   do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_##edge##_a,               \
    draw_mask_fb_ptr_##edge##_b);                                               \
                                                                                \
