@@ -3885,6 +3885,11 @@ void setup_sprite_8bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
 void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
  s32 width, s32 height, u32 color);
 
+void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
+ s32 v, s32 width, s32 height, u32 color);
+void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
+ s32 u, s32 v, s32 width, s32 height, u32 color);
+
 #ifndef NEON_BUILD
 setup_sprite_tiled_builder(4bpp,);
 setup_sprite_tiled_builder(8bpp,);
@@ -4013,11 +4018,16 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   }
 }
 
-#endif
-
 void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
 {
+  if((psx_gpu->render_state & (RENDER_STATE_MASK_EVALUATE |
+   RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND)) == 0)
+  {
+    setup_sprite_untextured_simple(psx_gpu, x, y, u, v, width, height, color);
+    return;
+  }
+
   u32 right_width = ((width - 1) & 0x7) + 1;
   u32 right_mask_bits = (0xFF << right_width);
   u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + x;
@@ -4083,6 +4093,66 @@ void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   }
 }
 
+#endif
+
+void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
+ s32 u, s32 v, s32 width, s32 height, u32 color)
+{
+  u32 r = color & 0xFF;
+  u32 g = (color >> 8) & 0xFF;
+  u32 b = (color >> 16) & 0xFF;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
+   psx_gpu->mask_msb;
+  u32 color_32bpp = color_16bpp | (color_16bpp << 16);
+
+  u16 *vram_ptr16 = psx_gpu->vram_out_ptr + x + (y * 1024);
+  u32 *vram_ptr;
+
+  u32 num_width;
+
+  if(psx_gpu->num_blocks > MAX_BLOCKS)
+  {
+    flush_render_block_buffer(psx_gpu);
+  }
+
+  while(height)
+  {
+    num_width = width;
+
+    vram_ptr = (void *)vram_ptr16;
+    if((long)vram_ptr16 & 2)
+    {
+      *vram_ptr16 = color_32bpp;
+      vram_ptr = (void *)(vram_ptr16 + 1);
+      num_width--;
+    }
+
+    while(num_width >= 4 * 2)
+    {
+      vram_ptr[0] = color_32bpp;
+      vram_ptr[1] = color_32bpp;
+      vram_ptr[2] = color_32bpp;
+      vram_ptr[3] = color_32bpp;
+
+      vram_ptr += 4;
+      num_width -= 4 * 2;
+    }
+
+    while(num_width >= 2)
+    {
+      *vram_ptr++ = color_32bpp;
+      num_width -= 2;
+    }
+
+    if(num_width > 0)
+    {
+      *(u16 *)vram_ptr = color_32bpp;
+    }
+
+    vram_ptr16 += 1024;
+    height--;
+  }
+}
 
 
 #define setup_sprite_blocks_switch_textured(texture_mode)                      \

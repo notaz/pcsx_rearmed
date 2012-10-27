@@ -17,6 +17,10 @@
 #define MAX_BLOCKS                                        64
 #define MAX_BLOCKS_PER_ROW                                128
 
+#define RENDER_STATE_MASK_EVALUATE                        0x20
+#define RENDER_FLAGS_MODULATE_TEXELS                      0x1
+#define RENDER_FLAGS_BLEND                                0x2
+
 #include "psx_gpu_offsets.h"
 
 #define psx_gpu_b_dx_offset (psx_gpu_b_block_span_offset + 4)
@@ -5685,6 +5689,145 @@ function(setup_sprite_16bpp_4x)
   bne 0b
 
   ldmia sp!, { r4 - r11, pc }
+
+
+#undef width
+#undef right_width
+#undef right_mask_bits
+#undef color
+#undef height
+#undef blocks_remaining
+#undef colors
+#undef right_mask
+#undef test_mask
+#undef draw_mask
+
+#define psx_gpu                                           r0
+#define x                                                 r1
+#define y                                                 r2
+#define width                                             r3
+#define right_width                                       r5
+#define right_mask_bits                                   r6
+#define fb_ptr                                            r7
+#define color                                             r8
+#define height                                            r9
+#define fb_ptr_pitch                                      r12
+
+// referenced by setup_sprites_16bpp_flush
+#define num_blocks                                        r4
+#define block                                             r5
+#define block_width                                       r11
+
+#define color_r                                           r1
+#define color_g                                           r2
+#define color_b                                           r8
+#define blocks_remaining                                  r6
+
+#define colors                                            q0
+#define right_mask                                        q1
+#define test_mask                                         q2
+#define draw_mask                                         q2
+#define draw_mask_bits_fb_ptr                             d6
+
+
+.align 3
+
+function(setup_sprite_untextured)
+  ldrh r12, [ psx_gpu, #psx_gpu_render_state_offset ]
+  tst r12, #(RENDER_STATE_MASK_EVALUATE | RENDER_FLAGS_MODULATE_TEXELS         \
+    | RENDER_FLAGS_BLEND)
+  beq setup_sprite_untextured_simple
+
+  stmdb sp!, { r4 - r11, r14 }
+
+  ldr width, [ sp, #40 ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
+
+  ldr height, [ sp, #44 ]
+  add fb_ptr, fb_ptr, y, lsl #11
+
+  add fb_ptr, fb_ptr, x, lsl #1
+  sub right_width, width, #1
+
+  ldr color, [ sp, #48 ]
+  and right_width, #7
+
+  add block_width, width, #7
+  add right_width, #1
+
+  lsr block_width, #3
+  mov right_mask_bits, #0xff
+
+  sub fb_ptr_pitch, block_width, #1
+  lsl right_mask_bits, right_width
+
+  lsl fb_ptr_pitch, #3+1
+  ubfx color_r, color, #3, #5
+
+  rsb fb_ptr_pitch, #1024*2
+  ubfx color_g, color, #11, #5
+
+  vld1.u32 { test_mask }, [ psx_gpu, :128 ]
+  ubfx color_b, color, #19, #5
+
+  vdup.u16 right_mask, right_mask_bits
+  orr color, color_r, color_b, lsl #10
+
+  ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  orr color, color, color_g, lsl #5
+
+  vtst.u16 right_mask, right_mask, test_mask
+  add block, psx_gpu, #psx_gpu_blocks_offset
+
+  vdup.u16 colors, color
+  add block, block, num_blocks, lsl #6
+
+
+setup_sprite_untextured_height_loop:
+  add num_blocks, block_width
+  sub blocks_remaining, block_width, #1
+
+  cmp num_blocks, #MAX_BLOCKS
+  blgt setup_sprites_16bpp_flush
+
+  cmp blocks_remaining, #0
+  ble 1f
+
+  vmov.u8 draw_mask, #0 /* zero_mask */
+  vmov.u8 draw_mask_bits_fb_ptr, #0
+
+ 0:
+  vst1.u32 { draw_mask }, [ block, :128 ]!
+  subs blocks_remaining, #1
+
+  vst1.u32 { colors }, [ block, :128 ]
+  add block, block, #24
+
+  vmov.u32 draw_mask_bits_fb_ptr[1], fb_ptr
+  vst1.u32 { draw_mask_bits_fb_ptr }, [ block, :64 ]
+  
+  add block, block, #24
+  add fb_ptr, #8*2
+  bgt 0b
+
+ 1:
+  vst1.u32 { right_mask }, [ block, :128 ]!
+  subs height, #1
+
+  vst1.u32 { colors }, [ block, :128 ]
+  add block, block, #24
+
+  vmov.u32 draw_mask_bits_fb_ptr[1], fb_ptr
+  vst1.u32 { draw_mask_bits_fb_ptr }, [ block, :64 ]
+  
+  add block, block, #24
+  add fb_ptr, fb_ptr_pitch
+
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  bgt setup_sprite_untextured_height_loop
+
+  ldmia sp!, { r4 - r11, pc }
+
 
 
 #undef texture_page_ptr
