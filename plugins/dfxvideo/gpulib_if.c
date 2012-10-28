@@ -421,5 +421,7 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
 {
  iUseDither = cbs->gpu_peops.iUseDither;
  dwActFixes = cbs->gpu_peops.dwActFixes;
+ if (cbs->pl_set_gpu_caps)
+  cbs->pl_set_gpu_caps(0);
  set_vram(gpu.vram);
 }

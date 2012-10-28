@@ -31,7 +31,8 @@ void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
-void  pl_print_hud(int xborder);
+void  pl_print_hud(int width, int height, int xborder);
+void  pl_switch_dispmode(void);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
@@ -41,14 +42,15 @@ void  pl_update_gun(int *xn, int *xres, int *y, int *in);
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_vout_open)(void);
-	void *(*pl_vout_set_mode)(int w, int h, int bpp);
-	void *(*pl_vout_flip)(void);
+	void  (*pl_vout_set_mode)(int w, int h, int bpp);
+	void  (*pl_vout_flip)(const void *vram, int stride, int bgr24,
+			      int w, int h);
 	void  (*pl_vout_close)(void);
 	void *(*mmap)(unsigned int size);
 	void  (*munmap)(void *ptr, unsigned int size);
-	// these are only used by some frontends
-	void  (*pl_vout_raw_flip)(int x, int y);
+	// only used by some frontends
 	void  (*pl_vout_set_raw_vram)(void *vram);
+	void  (*pl_set_gpu_caps)(int caps);
 	// some stats, for display by some plugins
 	int flips_per_sec, cpu_usage;
 	float vsps_cur; // currect vsync/s
@@ -82,9 +84,16 @@ struct rearmed_cbs {
 		int   iUseMask, bOpaquePass, bAdvancedBlend, bUseFastMdec;
 		int   iVRamSize, iTexGarbageCollection;
 	} gpu_peopsgl;
+	// misc
+	int gpu_caps;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;
+
+enum gpu_plugin_caps {
+	GPU_CAP_OWNS_DISPLAY = (1 << 0),
+	GPU_CAP_SUPPORTS_2X = (1 << 1),
+};
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))

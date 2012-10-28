@@ -19,56 +19,26 @@ BOOL           bCheckMask = FALSE;
 unsigned short sSetMask;
 unsigned long  lSetMask;
 
-static void blit(void *vout_buf)
+static void blit(void)
 {
  int px = PSXDisplay.DisplayPosition.x & ~1; // XXX: align needed by bgr*_to_...
  int py = PSXDisplay.DisplayPosition.y;
  int w = PreviousPSXDisplay.Range.x1;
  int h = PreviousPSXDisplay.DisplayMode.y;
- int pitch = PreviousPSXDisplay.DisplayMode.x;
  unsigned short *srcs = psxVuw + py * 1024 + px;
- unsigned char *dest = vout_buf;
 
  if (w <= 0)
    return;
 
- pitch *= (PSXDisplay.RGB24 && !rcbs->only_16bpp) ? 3 : 2;
-
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
- dest += PreviousPSXDisplay.Range.y0 / 2 * pitch;
- dest += (PreviousPSXDisplay.Range.x0 & ~3) * 2; // must align here too..
 
- if (PSXDisplay.RGB24)
- {
-   if (!rcbs->only_16bpp)
-   {
-     for (; h-- > 0; dest += pitch, srcs += 1024)
-     {
-       bgr888_to_rgb888(dest, srcs, w * 3);
-     }
-   }
-   else
-   {
-     for (; h-- > 0; dest += pitch, srcs += 1024)
-     {
-       bgr888_to_rgb565(dest, srcs, w * 3);
-     }
-   }
- }
- else
- {
-   for (; h-- > 0; dest += pitch, srcs += 1024)
-   {
-     bgr555_to_rgb565(dest, srcs, w * 2);
-   }
- }
+ rcbs->pl_vout_flip(srcs, 1024, PSXDisplay.RGB24, w, h);
 }
 
 void DoBufferSwap(void)
 {
  static int fbw, fbh, fb24bpp;
- static void *vout_buf;
 
  if (PreviousPSXDisplay.DisplayMode.x == 0 || PreviousPSXDisplay.DisplayMode.y == 0)
   return;
@@ -80,17 +50,12 @@ void DoBufferSwap(void)
   fbw = PreviousPSXDisplay.DisplayMode.x;
   fbh = PreviousPSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
-  vout_buf = rcbs->pl_vout_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
+  rcbs->pl_vout_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
  }
 
  pcnt_start(PCNT_BLIT);
- if (rcbs->pl_vout_raw_flip != NULL)
-  rcbs->pl_vout_raw_flip(PSXDisplay.DisplayPosition.x, PSXDisplay.DisplayPosition.y);
- else
-  blit(vout_buf);
+ blit();
  pcnt_end(PCNT_BLIT);
-
- vout_buf = rcbs->pl_vout_flip();
 }
 
 void DoClearScreenBuffer(void)

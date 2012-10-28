@@ -89,7 +89,7 @@ struct psx_gpu {
     uint32_t pending_fill[3];
   } frameskip;
   uint16_t *(*get_enhancement_bufer)
-    (int *x, int *y, int *w, int *h, int *stride, int *mask);
+    (int *x, int *y, int *w, int *h, int *vram_h);
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);
 };

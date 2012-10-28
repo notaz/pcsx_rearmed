@@ -232,10 +232,13 @@ do_state_slot:
 			pl_rearmed_cbs.frameskip == 0 ? "OFF" : "1" );
 		plugin_call_rearmed_cbs();
 		break;
-	case SACTION_TOGGLE_RENDERER:
-		pl_rearmed_cbs.gpu_neon.enhancement_enable =
-			!pl_rearmed_cbs.gpu_neon.enhancement_enable;
+	case SACTION_SWITCH_DISPMODE:
+		pl_switch_dispmode();
 		plugin_call_rearmed_cbs();
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
 		break;
 	case SACTION_SCREENSHOT:
 		{

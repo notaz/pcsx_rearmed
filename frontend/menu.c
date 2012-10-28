@@ -75,6 +75,7 @@ typedef enum
 	MA_OPT_SCALER,
 	MA_OPT_SCALER2,
 	MA_OPT_FILTERING,
+	MA_OPT_FILTERING2,
 	MA_OPT_SCALER_C,
 } menu_id;
 
@@ -87,7 +88,7 @@ static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, g_scaler;
 int soft_scaling, analog_deadzone; // for Caanoo
-int filter;
+int filter, soft_filter;
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -213,6 +214,7 @@ static void menu_set_defconfig(void)
 	frameskip = 0;
 	analog_deadzone = 50;
 	soft_scaling = 1;
+	soft_filter = 0;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -274,6 +276,7 @@ static const struct {
 	CE_INTVAL(g_layer_w),
 	CE_INTVAL(g_layer_h),
 	CE_INTVAL(filter),
+	CE_INTVAL(soft_filter),
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
@@ -663,7 +666,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
-	{ "Toggle Renderer  ", 1 << SACTION_TOGGLE_RENDERER },
+	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 #ifdef __ARM_ARCH_7A__ /* XXX */
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
@@ -1032,9 +1035,15 @@ static int menu_loop_keyconfig(int id, int keys)
 // ------------ gfx options menu ------------
 
 static const char *men_scaler[] = { "1x1", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL };
+static const char *men_soft_filter[] = { "None",
+#ifdef __ARM_NEON__
+	"scale2x", "eagle2x",
+#endif
+	NULL };
+static const char *men_dummy[] = { NULL };
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
-static const char *men_dummy[] = { NULL };
+static const char h_soft_filter[] = "Works only if game uses low resolution modes";
 
 static int menu_loop_cscaler(int id, int keys)
 {
@@ -1093,6 +1102,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_enum      ("Scaler",                   MA_OPT_SCALER, g_scaler, men_scaler),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Filter",                   MA_OPT_FILTERING, filter, men_dummy),
+	mee_enum_h    ("Software Filter",          MA_OPT_FILTERING2, soft_filter, men_soft_filter, h_soft_filter),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_SCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
@@ -1121,9 +1131,13 @@ void menu_set_filter_list(void *filters)
 
 #ifdef __ARM_NEON__
 
-static const char h_gpu_neon[] = "Configure built-in NEON GPU plugin";
-static const char h_gpu_neon_enhanced[] = "Renders in double resolution at the cost of lower performance";
-static const char h_gpu_neon_enhanced_hack[] = "Speed hack for above option (glitches some games)";
+static const char h_gpu_neon[] =
+	"Configure built-in NEON GPU plugin";
+static const char h_gpu_neon_enhanced[] =
+	"Renders in double resolution at the cost of lower performance\n"
+	"(not available for high resolution games)";
+static const char h_gpu_neon_enhanced_hack[] =
+	"Speed hack for above option (glitches some games)";
 static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
 
 static menu_entry e_menu_plugin_gpu_neon[] =
@@ -2254,6 +2268,7 @@ void menu_init(void)
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER, 0);
 	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_FILTERING2, 0);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER_C, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
 #else

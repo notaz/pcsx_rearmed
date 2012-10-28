@@ -44,7 +44,7 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 #define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096 * 2)
 
 static uint16_t *get_enhancement_bufer(int *x, int *y, int *w, int *h,
- int *stride, int *mask)
+ int *vram_h)
 {
   uint16_t *ret = select_enhancement_buf_ptr(&egpu, *x);
 
@@ -52,8 +52,7 @@ static uint16_t *get_enhancement_bufer(int *x, int *y, int *w, int *h,
   *y *= 2;
   *w = *w * 2;
   *h = *h * 2;
-  *stride *= 2;
-  *mask = 1024 * 1024 - 1;
+  *vram_h = 1024;
   return ret;
 }
 
@@ -183,4 +182,6 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
 
   if (gpu.mmap != NULL && egpu.enhancement_buf_ptr == NULL)
     map_enhancement_buffer();
+  if (cbs->pl_set_gpu_caps)
+    cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
 }

@@ -127,6 +127,14 @@ OBJS += plugins/cdrcimg/cdrcimg.o
 # dfinput
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
+# misc
+ifeq "$(HAVE_NEON)" "1"
+OBJS += frontend/libpicofe/arm/neon_scale2x.o
+OBJS += frontend/libpicofe/arm/neon_eagle2x.o
+frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB
+frontend/libpicofe/arm/neon_eagle2x.o: CFLAGS += -DDO_BGR_TO_RGB
+endif
+
 # gui
 OBJS += frontend/main.o frontend/plugin.o
 OBJS += frontend/common/readpng.o frontend/common/fonts.o
@@ -178,6 +186,12 @@ endif
 frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
 
+frontend/libpicofe/arm/neon_scale2x.S frontend/libpicofe/menu.c:
+	@echo "libpicofe module is missing, please run:"
+	@echo "git submodule init && git submodule update"
+	@exit 1
+
+
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
 
@@ -185,7 +199,6 @@ frontend/revision.h: FORCE
 	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
 	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
 	@rm $@_
-.PHONY: FORCE
 
 %.o: %.S
 	$(CC) $(CFLAGS) -c $^ -o $@
@@ -212,6 +225,8 @@ else
 plugins_:
 clean_plugins:
 endif
+
+.PHONY: all clean target_ plugins_ clean_plugins FORCE
 
 # ----------- release -----------
 

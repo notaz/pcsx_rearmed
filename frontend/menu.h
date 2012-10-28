@@ -22,9 +22,15 @@ enum g_scaler_opts {
 	SCALE_CUSTOM,
 };
 
+enum g_soft_filter_opts {
+	SOFT_FILTER_NONE,
+	SOFT_FILTER_SCALE2X,
+	SOFT_FILTER_EAGLE2X,
+};
+
 extern int g_opts, g_scaler;
 extern int soft_scaling, analog_deadzone;
-extern int filter;
+extern int filter, soft_filter;
 
 extern int g_menuscreen_w;
 extern int g_menuscreen_h;

@@ -715,6 +715,8 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
  bUseFastMdec = cbs->gpu_peopsgl.bUseFastMdec;
  iTexGarbageCollection = cbs->gpu_peopsgl.iTexGarbageCollection;
  iVRamSize = cbs->gpu_peopsgl.iVRamSize;
+ if (cbs->pl_set_gpu_caps)
+  cbs->pl_set_gpu_caps(GPU_CAP_OWNS_DISPLAY);
 
  set_vram(gpu.vram);
 }

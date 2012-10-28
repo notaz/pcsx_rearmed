@@ -15,7 +15,6 @@
 #include "../../frontend/plugin_lib.h"
 
 static const struct rearmed_cbs *cbs;
-static void *screen_buf;
 
 int vout_init(void)
 {
@@ -27,7 +26,7 @@ int vout_finish(void)
   return 0;
 }
 
-static void check_mode_change(void)
+static void check_mode_change(int force)
 {
   static uint32_t old_status;
   static int old_h;
@@ -44,95 +43,57 @@ static void check_mode_change(void)
   }
 
   // width|rgb24 change?
-  if ((gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
+  if (force || (gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
   {
     old_status = gpu.status.reg;
     old_h = h;
 
-    screen_buf = cbs->pl_vout_set_mode(w, h,
+    cbs->pl_vout_set_mode(w, h,
       (gpu.status.rgb24 && !cbs->only_16bpp) ? 24 : 16);
   }
 }
 
-static void blit(void)
+void vout_update(void)
 {
   int x = gpu.screen.x & ~1; // alignment needed by blitter
   int y = gpu.screen.y;
   int w = gpu.screen.w;
   int h = gpu.screen.h;
   uint16_t *vram = gpu.vram;
-  int stride = gpu.screen.hres;
-  int vram_stride = 1024;
-  int vram_mask = 1024 * 512 - 1;
-  int fb_offs, doffs;
-  uint8_t *dest;
+  int vram_h = 512;
 
-  dest = (uint8_t *)screen_buf;
-  if (dest == NULL || w == 0 || stride == 0)
+  if (w == 0 || h == 0)
     return;
 
+  check_mode_change(0);
   if (gpu.state.enhancement_active)
-    vram = gpu.get_enhancement_bufer(&x, &y, &w, &h, &stride, &vram_mask);
+    vram = gpu.get_enhancement_bufer(&x, &y, &w, &h, &vram_h);
 
-  fb_offs = y * vram_stride + x;
-
-  // only do centering, at least for now
-  doffs = (stride - w) / 2 & ~1;
-
-  if (gpu.status.rgb24)
-  {
-    if (cbs->only_16bpp) {
-      dest += doffs * 2;
-      for (; h-- > 0; dest += stride * 2, fb_offs += vram_stride)
-      {
-        fb_offs &= vram_mask;
-        bgr888_to_rgb565(dest, vram + fb_offs, w * 3);
-      }
+  if (y + h > vram_h) {
+    if (y + h - vram_h > h / 2) {
+      // wrap
+      y = 0;
+      h -= vram_h - y;
     }
-    else {
-      dest += (doffs / 8) * 24;
-      for (; h-- > 0; dest += stride * 3, fb_offs += vram_stride)
-      {
-        fb_offs &= vram_mask;
-        bgr888_to_rgb888(dest, vram + fb_offs, w * 3);
-      }
-    }
-  }
-  else
-  {
-    dest += doffs * 2;
-    for (; h-- > 0; dest += stride * 2, fb_offs += vram_stride)
-    {
-      fb_offs &= vram_mask;
-      bgr555_to_rgb565(dest, vram + fb_offs, w * 2);
-    }
+    else
+      // clip
+      h = vram_h - y;
   }
 
-  screen_buf = cbs->pl_vout_flip();
-}
+  vram += y * 1024 + x;
 
-void vout_update(void)
-{
-  check_mode_change();
-  if (cbs->pl_vout_raw_flip)
-    cbs->pl_vout_raw_flip(gpu.screen.x, gpu.screen.y);
-  else
-    blit();
+  cbs->pl_vout_flip(vram, 1024, gpu.status.rgb24, w, h);
 }
 
 void vout_blank(void)
 {
-  if (cbs->pl_vout_raw_flip == NULL) {
-    int w = gpu.screen.hres;
-    int h = gpu.screen.h;
-    int bytespp = gpu.status.rgb24 ? 3 : 2;
-    if (gpu.state.enhancement_active) {
-      w *= 2;
-      h *= 2;
-    }
-    memset(screen_buf, 0, w * h * bytespp);
-    screen_buf = cbs->pl_vout_flip();
+  int w = gpu.screen.hres;
+  int h = gpu.screen.h;
+  if (gpu.state.enhancement_active) {
+    w *= 2;
+    h *= 2;
   }
+  cbs->pl_vout_flip(NULL, 1024, gpu.status.rgb24, w, h);
 }
 
 long GPUopen(void **unused)
@@ -141,7 +102,7 @@ long GPUopen(void **unused)
   gpu.frameskip.frame_ready = 1;
 
   cbs->pl_vout_open();
-  screen_buf = cbs->pl_vout_flip();
+  check_mode_change(1);
   return 0;
 }
 
