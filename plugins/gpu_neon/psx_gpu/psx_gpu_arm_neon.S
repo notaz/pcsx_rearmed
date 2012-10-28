@@ -1175,6 +1175,10 @@ function(setup_spans_up_down)
 
   ldrh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
   add temp, temp, height_minor_b
+
+  cmp temp, #MAX_SPANS
+  beq 5f
+
   strh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
 
  2:                                                     
@@ -1189,6 +1193,15 @@ function(setup_spans_up_down)
   setup_spans_up_down_load_edge_set_b()
   setup_spans_prologue_b()
   bal 4b
+
+ 5:
+  // FIXME: overflow corner case
+  sub temp, temp, height_minor_b
+  bics height_minor_b, #3
+  add temp, temp, height_minor_b
+  strh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
+  bne 2b
+  bal 1b
 
 .pool
 

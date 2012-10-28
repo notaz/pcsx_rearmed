@@ -769,13 +769,18 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
 
 #ifndef NDEBUG
 #define setup_spans_debug_check(span_edge_data_element)                        \
-  if (&span_edge_data_element - psx_gpu->span_edge_data < psx_gpu->num_spans)  \
+{                                                                              \
+  u32 _num_spans = &span_edge_data_element - psx_gpu->span_edge_data;          \
+  if (_num_spans > MAX_SPANS)                                                  \
+    *(int *)0 = 1;                                                             \
+  if (_num_spans < psx_gpu->num_spans)                                         \
   {                                                                            \
     if(span_edge_data_element.num_blocks > MAX_BLOCKS_PER_ROW)                 \
       *(int *)0 = 1;                                                           \
     if(span_edge_data_element.y > 2048)                                        \
       *(int *)0 = 1;                                                           \
   }                                                                            \
+}                                                                              \
 
 #else
 #define setup_spans_debug_check(span_edge_data_element)                        \
@@ -1423,12 +1428,16 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     y_x4.e[3] = y_a + 3;
     setup_spans_adjust_edges_alternate_no(index_left, index_right);
 
+    // FIXME: overflow corner case
+    if(psx_gpu->num_spans + height_minor_b == MAX_SPANS)
+      height_minor_b &= ~3;
+
     psx_gpu->num_spans += height_minor_b;
-    do
+    while(height_minor_b > 0)
     {
       setup_spans_set_x4(none, down, no);
       height_minor_b -= 4;
-    } while(height_minor_b > 0);
+    }
   }
 
   left_split_triangles++;
