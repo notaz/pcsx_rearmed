@@ -20,14 +20,14 @@ ifeq ($(TARGET_ARCH),arm)
    LOCAL_ARM_MODE := arm
 
    ifeq ($(TARGET_ARCH_EABI),armeabi-v7a)
-      LOCAL_CFLAGS += -DHAVE_ARMV7=1
+      LOCAL_CFLAGS += -Wa,--defsym,HAVE_ARMV7=1
    else
-      LOCAL_CFLAGS += -DHAVE_ARMV7=0
+      LOCAL_CFLAGS += -Wa,--defsym,HAVE_ARMV7=0
    endif
 
    LOCAL_CFLAGS += -DANDROID_ARM
 
-   LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.S
+   LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.s
 
    # dynarec
    LOCAL_SRC_FILES += ../libpcsxcore/new_dynarec/new_dynarec.c ../libpcsxcore/new_dynarec/linkage_arm.S ../libpcsxcore/new_dynarec/emu_if.c ../libpcsxcore/new_dynarec/pcsxmem.c
