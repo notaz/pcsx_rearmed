@@ -606,16 +606,31 @@ void pl_timing_prepare(int is_pal_)
 
 static void pl_text_out16_(int x, int y, const char *text)
 {
-	int i, l, len = strlen(text), w = pl_vout_w;
-	unsigned short *screen = (unsigned short *)pl_vout_buf + x + y * w;
+	int i, l, w = pl_vout_w;
+	unsigned short *screen;
 	unsigned short val = 0xffff;
 
-	for (i = 0; i < len; i++, screen += 8)
+	x &= ~1;
+	screen = (unsigned short *)pl_vout_buf + x + y * w;
+	for (i = 0; ; i++, screen += 8)
 	{
+		char c = text[i];
+		if (c == 0)
+			break;
+		if (c == ' ')
+			continue;
+
 		for (l = 0; l < 8; l++)
 		{
-			unsigned char fd = fontdata8x8[text[i] * 8 + l];
+			unsigned char fd = fontdata8x8[c * 8 + l];
 			unsigned short *s = screen + l * w;
+			unsigned int *s32 = (void *)s;
+
+			s32[0] = (s32[0] >> 1) & 0x7bef7bef;
+			s32[1] = (s32[1] >> 1) & 0x7bef7bef;
+			s32[2] = (s32[2] >> 1) & 0x7bef7bef;
+			s32[3] = (s32[3] >> 1) & 0x7bef7bef;
+
 			if (fd&0x80) s[0] = val;
 			if (fd&0x40) s[1] = val;
 			if (fd&0x20) s[2] = val;
