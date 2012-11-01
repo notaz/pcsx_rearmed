@@ -688,11 +688,21 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         }
         SET_Ex(2, list[0]);
         break;
-  		}
+      }
+
+      case 0xE3:
+      {
+        s16 viewport_start_x = list[0] & 0x3FF;
+        s16 viewport_start_y = (list[0] >> 10) & 0x1FF;
+
+        if(viewport_start_x == psx_gpu->viewport_start_x &&
+         viewport_start_y == psx_gpu->viewport_start_y)
+        {
+          break;
+        }
   
-  		case 0xE3:
-        psx_gpu->viewport_start_x = list[0] & 0x3FF;
-        psx_gpu->viewport_start_y = (list[0] >> 10) & 0x1FF;
+        psx_gpu->viewport_start_x = viewport_start_x;
+        psx_gpu->viewport_start_y = viewport_start_y;
 
 #ifdef TEXTURE_CACHE_4BPP
         psx_gpu->viewport_mask =
@@ -700,12 +710,23 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-  			SET_Ex(3, list[0]);
-  			break;
-  
-  		case 0xE4:
-        psx_gpu->viewport_end_x = list[0] & 0x3FF;
-        psx_gpu->viewport_end_y = (list[0] >> 10) & 0x1FF;
+        SET_Ex(3, list[0]);
+        break;
+      }
+
+      case 0xE4:
+      {
+        s16 viewport_end_x = list[0] & 0x3FF;
+        s16 viewport_end_y = (list[0] >> 10) & 0x1FF;
+
+        if(viewport_end_x == psx_gpu->viewport_end_x &&
+         viewport_end_y == psx_gpu->viewport_end_y)
+        {
+          break;
+        }
+
+        psx_gpu->viewport_end_x = viewport_end_x;
+        psx_gpu->viewport_end_y = viewport_end_y;
 
 #ifdef TEXTURE_CACHE_4BPP
         psx_gpu->viewport_mask =
@@ -713,10 +734,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-  			SET_Ex(4, list[0]);
-  			break;
+        SET_Ex(4, list[0]);
+        break;
+      }
   
-  		case 0xE5:
+      case 0xE5:
       {
         s32 offset_x = list[0] << 21;
         s32 offset_y = list[0] << 10;
@@ -762,7 +784,9 @@ breakloop:
 
 #ifdef PCSX
 
-static void update_enhancement_buf_table(psx_gpu_struct *psx_gpu)
+#define ENH_BUF_TABLE_STEP (1024 / sizeof(psx_gpu->enhancement_buf_by_x16))
+
+static void update_enhancement_buf_table_from_hres(psx_gpu_struct *psx_gpu)
 {
   u32 b, x, s;
 
@@ -770,13 +794,27 @@ static void update_enhancement_buf_table(psx_gpu_struct *psx_gpu)
   s = psx_gpu->enhancement_x_threshold;
   for (x = 0; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++)
   {
-    if (x * 16 >= s - 15)
+    if (b < 3 && x * ENH_BUF_TABLE_STEP >= s - ENH_BUF_TABLE_STEP - 1)
     {
       s += psx_gpu->enhancement_x_threshold;
       b++;
     }
     psx_gpu->enhancement_buf_by_x16[x] = b;
   }
+}
+
+static void update_enhancement_buf_table_from_x(psx_gpu_struct *psx_gpu,
+ u32 x0, u32 len)
+{
+  u32 x, b;
+
+  for (x = x0, b = 0; x >= len; b++)
+    x -= len;
+  if (b > 3)
+    b = 3;
+
+  memset(psx_gpu->enhancement_buf_by_x16 + x0 / ENH_BUF_TABLE_STEP,
+   b, (len + ENH_BUF_TABLE_STEP - 1) / ENH_BUF_TABLE_STEP);
 }
 
 #define select_enhancement_buf(psx_gpu) \
@@ -1413,18 +1451,25 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
       case 0xE3:
       {
+        s16 viewport_start_x = list[0] & 0x3FF;
+        s16 viewport_start_y = (list[0] >> 10) & 0x1FF;
         u32 d;
-        psx_gpu->viewport_start_x = list[0] & 0x3FF;
-        psx_gpu->viewport_start_y = (list[0] >> 10) & 0x1FF;
-        psx_gpu->saved_viewport_start_x = psx_gpu->viewport_start_x;
-        psx_gpu->saved_viewport_start_y = psx_gpu->viewport_start_y;
 
-        d = psx_gpu->enhancement_x_threshold - psx_gpu->viewport_start_x;
-        if(unlikely(0 < d && d <= 8))
+        if(viewport_start_x == psx_gpu->viewport_start_x &&
+         viewport_start_y == psx_gpu->viewport_start_y)
         {
-          // Grandia hack..
-          psx_gpu->enhancement_x_threshold = psx_gpu->viewport_start_x;
-          update_enhancement_buf_table(psx_gpu);
+          break;
+        }
+        psx_gpu->viewport_start_x = viewport_start_x;
+        psx_gpu->viewport_start_y = viewport_start_y;
+        psx_gpu->saved_viewport_start_x = viewport_start_x;
+        psx_gpu->saved_viewport_start_y = viewport_start_y;
+
+        d = (u32)psx_gpu->viewport_end_x - (u32)viewport_start_x + 1;
+        if((u32)psx_gpu->enhancement_x_threshold - d <= 16)
+        {
+          update_enhancement_buf_table_from_x(psx_gpu,
+           viewport_start_x, d);
         }
         select_enhancement_buf(psx_gpu);
 
@@ -1439,10 +1484,29 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       }
 
       case 0xE4:
-        psx_gpu->viewport_end_x = list[0] & 0x3FF;
-        psx_gpu->viewport_end_y = (list[0] >> 10) & 0x1FF;
-        psx_gpu->saved_viewport_end_x = psx_gpu->viewport_end_x;
-        psx_gpu->saved_viewport_end_y = psx_gpu->viewport_end_y;
+      {
+        s16 viewport_end_x = list[0] & 0x3FF;
+        s16 viewport_end_y = (list[0] >> 10) & 0x1FF;
+        u32 d;
+
+        if(viewport_end_x == psx_gpu->viewport_end_x &&
+         viewport_end_y == psx_gpu->viewport_end_y)
+        {
+          break;
+        }
+
+        psx_gpu->viewport_end_x = viewport_end_x;
+        psx_gpu->viewport_end_y = viewport_end_y;
+        psx_gpu->saved_viewport_end_x = viewport_end_x;
+        psx_gpu->saved_viewport_end_y = viewport_end_y;
+
+        d = (u32)viewport_end_x - (u32)psx_gpu->viewport_start_x + 1;
+        if((u32)psx_gpu->enhancement_x_threshold - d <= 16)
+        {
+          update_enhancement_buf_table_from_x(psx_gpu,
+           psx_gpu->viewport_start_x, d);
+        }
+        select_enhancement_buf(psx_gpu);
 
 #ifdef TEXTURE_CACHE_4BPP
         psx_gpu->viewport_mask =
@@ -1452,6 +1516,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 #endif
         SET_Ex(4, list[0]);
         break;
+      }
   
       case 0xE5:
       {

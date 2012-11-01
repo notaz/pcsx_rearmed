@@ -157,7 +157,7 @@ void renderer_notify_res_change(void)
   if (egpu.enhancement_x_threshold != gpu.screen.hres)
   {
     egpu.enhancement_x_threshold = gpu.screen.hres;
-    update_enhancement_buf_table(&egpu);
+    update_enhancement_buf_table_from_hres(&egpu);
   }
 }
 
