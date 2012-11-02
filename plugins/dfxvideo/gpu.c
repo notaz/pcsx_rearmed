@@ -1143,6 +1143,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
  dwFrameRateTicks = cbs->gpu_peops.dwFrameRateTicks;
  if (cbs->pl_vout_set_raw_vram)
   cbs->pl_vout_set_raw_vram(psxVub);
+ if (cbs->pl_set_gpu_caps)
+  cbs->pl_set_gpu_caps(0);
 
  skip_advice = &cbs->fskip_advice;
  fps_skip = 100.0f;

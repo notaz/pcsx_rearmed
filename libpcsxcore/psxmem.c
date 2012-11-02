@@ -60,6 +60,16 @@ u8 **psxMemRLUT = NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS Mirror (512K) Uncached
 */
 
+#if 1
+void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed);
+void  plat_munmap(void *ptr, size_t size);
+#else
+#define plat_mmap(addr, size, need_exec, is_fixed) \
+	mmap((void *)addr, size, PROT_WRITE | PROT_READ, \
+	MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0)
+#define plat_munmap munmap
+#endif
+
 int psxMemInit() {
 	int i;
 
@@ -68,8 +78,7 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-	psxM = mmap((void *)0x80000000, 0x00210000,
-		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+	psxM = plat_mmap(0x80000000, 0x00210000, 0, 1);
 #ifndef RAM_FIXED
 	if (psxM == MAP_FAILED)
 		psxM = mmap((void *)0x70000000, 0x00210000,
@@ -144,7 +153,7 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	munmap(psxM, 0x00210000);
+	plat_munmap(psxM, 0x00210000);
 	munmap(psxH, 0x1f800000);
 	munmap(psxR, 0x80000);
 

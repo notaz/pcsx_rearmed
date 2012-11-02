@@ -13,6 +13,7 @@
 #include "../libpcsxcore/psxcounters.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/out.h"
+#include "../plugins/gpulib/cspace.h"
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
@@ -26,7 +27,6 @@ static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
 static void *vout_buf;
-static int vout_width, vout_height;
 static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int native_rgb565;
@@ -42,14 +42,10 @@ static int vout_open(void)
 	return 0;
 }
 
-static void *vout_set_mode(int w, int h, int bpp)
+static void vout_set_mode(int w, int h, int bpp)
 {
-	vout_width = w;
-	vout_height = h;
-	return vout_buf;
 }
 
-/* FIXME: either teach PCSX to blit to RGB1555 or RetroArch to support RGB565 */
 static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
@@ -60,14 +56,39 @@ static void convert(void *buf, size_t bytes)
 	}
 }
 
-static void *vout_flip(void)
+static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
-	pl_rearmed_cbs.flip_cnt++;
-	if (!native_rgb565)
-		convert(vout_buf,  vout_width * vout_height * 2);
-	video_cb(vout_buf, vout_width, vout_height, vout_width * 2);
+	unsigned short *dest = vout_buf;
+	const unsigned short *src = vram;
+	int dstride = w, h1 = h;
 
-	return vout_buf;
+	if (vram == NULL) {
+		// blanking
+		memset(pl_vout_buf, 0, dstride * h * 2);
+		goto out;
+	}
+
+	if (bgr24)
+	{
+		// XXX: could we switch to RETRO_PIXEL_FORMAT_XRGB8888 here?
+		for (; h1-- > 0; dest += dstride, src += stride)
+		{
+			bgr888_to_rgb565(dest, src, w * 3);
+		}
+	}
+	else
+	{
+		for (; h1-- > 0; dest += dstride, src += stride)
+		{
+			bgr555_to_rgb565(dest, src, w * 2);
+		}
+	}
+
+out:
+	if (!native_rgb565)
+		convert(vout_buf, w * h * 2);
+	video_cb(vout_buf, w, h, w * 2);
+	pl_rearmed_cbs.flip_cnt++;
 }
 
 static void vout_close(void)

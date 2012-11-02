@@ -143,6 +143,8 @@ void emu_set_default_config(void)
 	Config.PsxAuto = 1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
+	pl_rearmed_cbs.gpu_neon.enhancement_enable =
+	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.abe_hack =
@@ -229,6 +231,14 @@ do_state_slot:
 			pl_rearmed_cbs.frameskip == -1 ? "AUTO" :
 			pl_rearmed_cbs.frameskip == 0 ? "OFF" : "1" );
 		plugin_call_rearmed_cbs();
+		break;
+	case SACTION_SWITCH_DISPMODE:
+		pl_switch_dispmode();
+		plugin_call_rearmed_cbs();
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
 		break;
 	case SACTION_SCREENSHOT:
 		{

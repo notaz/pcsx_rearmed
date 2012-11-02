@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011 Gilead Kutnick "Exophase" <exophase@gmail.com>
+ * Copyright (C) 2012 Gražvydas Ignotas "notaz" <notasas@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -16,65 +17,13 @@
 #define MAX_BLOCKS                                        64
 #define MAX_BLOCKS_PER_ROW                                128
 
-#define psx_gpu_test_mask_offset                          0
-#define psx_gpu_uvrg_offset                               16
-#define psx_gpu_uvrg_dx_offset                            32
-#define psx_gpu_uvrg_dy_offset                            48
-#define psx_gpu_u_block_span_offset                       64
-#define psx_gpu_v_block_span_offset                       80
-#define psx_gpu_r_block_span_offset                       96
-#define psx_gpu_g_block_span_offset                       112
-#define psx_gpu_b_block_span_offset                       128
+#define RENDER_STATE_MASK_EVALUATE                        0x20
+#define RENDER_FLAGS_MODULATE_TEXELS                      0x1
+#define RENDER_FLAGS_BLEND                                0x2
 
-#define psx_gpu_b_dx_offset                               132
+#include "psx_gpu_offsets.h"
 
-#define psx_gpu_b_offset                                  144
-#define psx_gpu_b_dy_offset                               148
-#define psx_gpu_triangle_area_offset                      152
-#define psx_gpu_texture_window_settings_offset            156
-#define psx_gpu_current_texture_mask_offset               160
-#define psx_gpu_viewport_mask_offset                      164
-#define psx_gpu_dirty_textures_4bpp_mask_offset           168
-#define psx_gpu_dirty_textures_8bpp_mask_offset           172
-#define psx_gpu_dirty_textures_8bpp_alternate_mask_offset 176
-#define psx_gpu_triangle_color_offset                     180
-#define psx_gpu_dither_table_offset                       184
-#define psx_gpu_render_block_handler_offset               200
-#define psx_gpu_texture_page_ptr_offset                   204
-#define psx_gpu_texture_page_base_offset                  208
-#define psx_gpu_clut_ptr_offset                           212
-#define psx_gpu_vram_ptr_offset                           216
-
-#define psx_gpu_render_state_base_offset                  220
-#define psx_gpu_render_state_offset                       222
-#define psx_gpu_num_spans_offset                          224
-#define psx_gpu_num_blocks_offset                         226
-#define psx_gpu_offset_x_offset                           228
-#define psx_gpu_offset_y_offset                           230
-#define psx_gpu_clut_settings_offset                      232
-#define psx_gpu_texture_settings_offset                   234
-#define psx_gpu_viewport_start_x_offset                   236
-#define psx_gpu_viewport_start_y_offset                   238
-#define psx_gpu_viewport_end_x_offset                     240
-#define psx_gpu_viewport_end_y_offset                     242
-#define psx_gpu_mask_msb_offset                           244
-                                                          
-#define psx_gpu_triangle_winding_offset                   246
-#define psx_gpu_display_area_draw_enable_offset           247
-#define psx_gpu_current_texture_page_offset               248
-#define psx_gpu_last_8bpp_texture_page_offset             249
-#define psx_gpu_texture_mask_width_offset                 250
-#define psx_gpu_texture_mask_height_offset                251
-#define psx_gpu_texture_window_x_offset                   252
-#define psx_gpu_texture_window_y_offset                   253
-#define psx_gpu_primitive_type_offset                     254
-
-#define psx_gpu_reserved_a_offset                         255
-
-#define psx_gpu_blocks_offset                             0x0100
-#define psx_gpu_span_uvrg_offset_offset                   0x2100
-#define psx_gpu_span_edge_data_offset                     0x4100
-#define psx_gpu_span_b_offset_offset                      0x5100
+#define psx_gpu_b_dx_offset (psx_gpu_b_block_span_offset + 4)
 
 #define edge_data_left_x_offset                           0
 #define edge_data_num_blocks_offset                       2
@@ -238,6 +187,7 @@
 #define uvrg_dx3l                                         d6
 #define uvrg_dx3h                                         d7
 
+#define uvrgb_phase                                       q13
 
 .align 4
 
@@ -369,11 +319,16 @@ function(compute_all_gradients)
   vmull.s16 ga_uvrg_y, d0_b, d1_b
   rsbmi ga_bx, ga_bx, #0
 
+  @ r12 = psx_gpu->uvrgb_phase
+  ldr r12, [ psx_gpu, #psx_gpu_uvrgb_phase_offset ]
+
   vmlsl.s16 ga_uvrg_y, d2_b, d3_b
   movs gs_by, ga_by, asr #31
 
   vshr.u64 d0, d30, #22
-  mov b_base, b0, lsl #16
+  add b_base, r12, b0, lsl #16
+
+  vdup.u32 uvrgb_phase, r12
 
   rsbmi ga_by, ga_by, #0
   vclt.s32 gs_uvrg_x, ga_uvrg_x, #0  @ gs_uvrg_x = ga_uvrg_x < 0
@@ -382,7 +337,6 @@ function(compute_all_gradients)
   ldrb r12, [ psx_gpu, #psx_gpu_triangle_winding_offset ]
   vclt.s32 gs_uvrg_y, ga_uvrg_y, #0  @ gs_uvrg_y = ga_uvrg_y < 0
 
-  add b_base, b_base, #0x8000
   rsb r12, r12, #0                   @ r12 = -(triangle->winding)
 
   vdup.u32 w_mask, r12               @ w_mask = { -w, -w, -w, -w }
@@ -391,7 +345,7 @@ function(compute_all_gradients)
   vshll.u16 uvrg_base, uvrg0, #16    @ uvrg_base = uvrg0 << 16
   vdup.u32 r_shift, r14              @ r_shift = { shift, shift, shift, shift }
 
-  vorr.u32 uvrg_base, #0x8000
+  vadd.u32 uvrg_base, uvrgb_phase
   vabs.s32 ga_uvrg_x, ga_uvrg_x      @ ga_uvrg_x = abs(ga_uvrg_x)
 
   vmov area_r_s, s0                  @ area_r_s = triangle_reciprocal
@@ -657,7 +611,7 @@ function(compute_all_gradients)
                                                                                \
   vdup.u32 edge_shifts, temp;                                                  \
   vsub.u32 heights_b, heights, c_0x01;                                         \
-  vshr.u32 height_reciprocals, edge_shifts, #12;                               \
+  vshr.u32 height_reciprocals, edge_shifts, #10;                               \
                                                                                \
   vmla.s32 heights_b, x_starts, heights;                                       \
   vbic.u16 edge_shifts, #0xE0;                                                 \
@@ -682,8 +636,8 @@ function(compute_all_gradients)
   vsub.u32 heights_b, heights, c_0x01;                                         \
   sub height_b_alt, height_minor_b, #1;                                        \
                                                                                \
-  vshr.u32 height_reciprocals, edge_shifts, #12;                               \
-  lsr height_reciprocal_alt, edge_shift_alt, #12;                              \
+  vshr.u32 height_reciprocals, edge_shifts, #10;                               \
+  lsr height_reciprocal_alt, edge_shift_alt, #10;                              \
                                                                                \
   vmla.s32 heights_b, x_starts, heights;                                       \
   mla height_b_alt, height_minor_b, start_c, height_b_alt;                     \
@@ -1221,6 +1175,10 @@ function(setup_spans_up_down)
 
   ldrh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
   add temp, temp, height_minor_b
+
+  cmp temp, #MAX_SPANS
+  beq 5f
+
   strh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
 
  2:                                                     
@@ -1235,6 +1193,15 @@ function(setup_spans_up_down)
   setup_spans_up_down_load_edge_set_b()
   setup_spans_prologue_b()
   bal 4b
+
+ 5:
+  // FIXME: overflow corner case
+  sub temp, temp, height_minor_b
+  bics height_minor_b, #3
+  add temp, temp, height_minor_b
+  strh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
+  bne 2b
+  bal 1b
 
 .pool
 
@@ -1393,7 +1360,7 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -1660,7 +1627,7 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -1855,7 +1822,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_indirect)
   ldrh span_num_blocks, [ span_edge_data, #edge_data_num_blocks_offset ]
   ldrh y, [ span_edge_data, #edge_data_y_offset ]
 
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   cmp span_num_blocks, #0
   beq 1f
@@ -1975,7 +1942,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
   ldrh span_num_blocks, [ span_edge_data, #edge_data_num_blocks_offset ]
   ldrh y, [ span_edge_data, #edge_data_y_offset ]
 
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   cmp span_num_blocks, #0
   beq 1f
@@ -2162,7 +2129,7 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_indirect)     \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -2402,7 +2369,7 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_direct)       \
   add dither_offset_ptr, psx_gpu, #psx_gpu_dither_table_offset;                \
                                                                                \
   ldrh y, [ span_edge_data, #edge_data_y_offset ];                             \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   cmp span_num_blocks, #0;                                                     \
   beq 1f;                                                                      \
@@ -3239,6 +3206,7 @@ function(shade_blocks_##shading##_textured_modulated_##dithering##_##target)   \
   shade_blocks_textured_modulated_load_bdm_##shading();                        \
   vshrn.u16 texels_b, texels, #7;                                              \
                                                                                \
+  pld [ block_ptr_load_a ];                                                    \
   vmovn.u16 texels_r, texels;                                                  \
   vmlal.u8 pixels, pixels_r_low, d64_1;                                        \
                                                                                \
@@ -3437,10 +3405,12 @@ function(shade_blocks_textured_unmodulated_direct)
    [ draw_mask_bits_ptr, :16 ], c_64
   vbif.u16 fb_pixels, pixels, draw_mask_combined
 
+  sub fb_ptr_cmp, fb_ptr_next, fb_ptr
+  pld [ fb_ptr_next, #64 ]
+
+  add fb_ptr_cmp, fb_ptr_cmp, #14
   vld1.u32 { pixels }, [ block_ptr_load, :128 ], c_64
 
-  sub fb_ptr_cmp, fb_ptr_next, fb_ptr
-  add fb_ptr_cmp, fb_ptr_cmp, #14
   cmp fb_ptr_cmp, #28
   bls 4f
 
@@ -3799,11 +3769,15 @@ function(blend_blocks_textured_add_##mask_evaluate)                            \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
   vand.u16 pixels_mg, pixels, d128_0x83E0;                                     \
                                                                                \
-  vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
-  vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
+  sub fb_ptr_cmp, fb_ptr_next, fb_ptr;                                         \
+  pld [ fb_ptr_next, #64 ];                                                    \
                                                                                \
   sub fb_ptr_cmp, fb_ptr_next, fb_ptr;                                         \
+  vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
+                                                                               \
   add fb_ptr_cmp, fb_ptr_cmp, #14;                                             \
+  vld1.u32 { draw_mask }, [ draw_mask_ptr, :128 ], c_64;                       \
+                                                                               \
   cmp fb_ptr_cmp, #28;                                                         \
   bls 2f;                                                                      \
                                                                                \
@@ -4456,6 +4430,12 @@ function(render_block_fill_body)
 #define draw_mask_fb_ptr_left                             d2
 #define draw_mask_fb_ptr_right                            d3
 
+#define draw_mask_fb_ptr_left_a                           d2
+#define draw_mask_fb_ptr_left_b                           d3
+#define draw_mask_fb_ptr_right_a                          d10
+#define draw_mask_fb_ptr_right_b                          d11
+#define draw_masks_fb_ptrs2                               q5
+
 #define clut_low_a                                        d4
 #define clut_low_b                                        d5
 #define clut_high_a                                       d6
@@ -4467,37 +4447,24 @@ function(render_block_fill_body)
 #define clut_a                                            q2
 #define clut_b                                            q3
 
-#define texels_low                                        d10
-#define texels_high                                       d11
+#define texels_low                                        d12
+#define texels_high                                       d13
+
+#define texels_wide_low                                   d14
+#define texels_wide_high                                  d15
+#define texels_wide                                       q7
 
 
-setup_sprite_flush_blocks_single:
-  vpush { q1 - q4 }
-
-  stmdb sp!, { r0 - r3, r12, r14 }
-  bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, r12, r14 }
-
-  vpop { q1 - q4 }
-
-  add block, psx_gpu, #psx_gpu_blocks_offset
-
-  mov num_blocks, sub_tile_height
-  bx lr
-
-
-setup_sprite_flush_blocks_double:
-  vpush { q1 - q4 }
+setup_sprite_flush_blocks:
+  vpush { q1 - q5 }
 
   stmdb sp!, { r0 - r3, r12, r14 }
   bl flush_render_block_buffer
   ldmia sp!, { r0 - r3, r12, r14 }
 
-  vpop { q1 - q4 }
+  vpop { q1 - q5 }
 
   add block, psx_gpu, #psx_gpu_blocks_offset
-
-  mov num_blocks, sub_tile_height, lsl #1
   bx lr
 
 
@@ -4535,8 +4502,6 @@ setup_sprite_update_texture_8bpp_cache:
   blne setup_sprite_update_texture_8bpp_cache                                  \
 
 
-#define setup_sprite_tile_setup_block_no(side, offset, texture_mode)           \
-
 #define setup_sprite_block_count_single()                                      \
   sub_tile_height                                                              \
 
@@ -4547,7 +4512,8 @@ setup_sprite_update_texture_8bpp_cache:
   add num_blocks, num_blocks, setup_sprite_block_count_##type();               \
   cmp num_blocks, #MAX_BLOCKS;                                                 \
                                                                                \
-  blgt setup_sprite_flush_blocks_##type                                        \
+  movgt num_blocks, setup_sprite_block_count_##type();                         \
+  blgt setup_sprite_flush_blocks                                               \
 
 
 #define setup_sprite_tile_full_4bpp(edge)                                      \
@@ -4729,31 +4695,33 @@ setup_sprite_update_texture_8bpp_cache:
 #define setup_sprite_tile_column_edge_post_adjust_full(edge)                   \
 
 
-#define setup_sprite_tile_column_height_single(edge_mode, edge, texture_mode)  \
+#define setup_sprite_tile_column_height_single(edge_mode, edge, texture_mode,  \
+ x4mode)                                                                       \
   mov sub_tile_height, column_data;                                            \
-  setup_sprite_tile_column_edge_pre_adjust_##edge_mode(edge);                  \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
-  setup_sprite_tile_column_edge_post_adjust_##edge_mode(edge)                  \
+  setup_sprite_tile_column_edge_pre_adjust_##edge_mode##x4mode(edge);          \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
+  setup_sprite_tile_column_edge_post_adjust_##edge_mode##x4mode(edge)          \
 
-#define setup_sprite_tile_column_height_multi(edge_mode, edge, texture_mode)   \
+#define setup_sprite_tile_column_height_multi(edge_mode, edge, texture_mode,   \
+ x4mode)                                                                       \
   and sub_tile_height, column_data, #0xFF;                                     \
   mov tiles_remaining, column_data, lsr #16;                                   \
-  setup_sprite_tile_column_edge_pre_adjust_##edge_mode(edge);                  \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
+  setup_sprite_tile_column_edge_pre_adjust_##edge_mode##x4mode(edge);          \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
                                                                                \
   subs tiles_remaining, tiles_remaining, #1;                                   \
   beq 2f;                                                                      \
                                                                                \
  3:                                                                            \
   mov sub_tile_height, #16;                                                    \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
   subs tiles_remaining, tiles_remaining, #1;                                   \
   bne 3b;                                                                      \
                                                                                \
  2:                                                                            \
   uxtb sub_tile_height, column_data, ror #8;                                   \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
-  setup_sprite_tile_column_edge_post_adjust_##edge_mode(edge)                  \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
+  setup_sprite_tile_column_edge_post_adjust_##edge_mode##x4mode(edge)          \
 
 
 #define setup_sprite_column_data_single()                                      \
@@ -4772,17 +4740,30 @@ setup_sprite_update_texture_8bpp_cache:
                                                                                \
   orr column_data, column_data, height_rounded, lsl #8                         \
 
-#define setup_sprite_tile_column_width_single(texture_mode, multi_height,      \
- edge_mode, edge)                                                              \
- setup_sprite_##texture_mode##_single_##multi_height##_##edge_mode##_##edge:   \
+#define setup_sprite_setup_left_draw_mask_fb_ptr()                             \
+  vdup.u8 draw_mask_fb_ptr_left, block_masks[0];                               \
+  vdup.u8 draw_mask_fb_ptr_right, block_masks[1]                               \
+
+#define setup_sprite_setup_left_draw_mask_fb_ptr_advance_column()              \
+  mov fb_ptr_advance_column, #32;                                              \
+  vdup.u8 draw_mask_fb_ptr_left, block_masks[0];                               \
+                                                                               \
+  sub fb_ptr_advance_column, height, lsl #11;                                  \
+  vdup.u8 draw_mask_fb_ptr_right, block_masks[1]                               \
+
+#define setup_sprite_setup_right_draw_mask_fb_ptr()                            \
+  vdup.u8 draw_mask_fb_ptr_left, block_masks[4];                               \
+  vdup.u8 draw_mask_fb_ptr_right, block_masks[5]                               \
+
+#define setup_sprite_tile_column_width_single(tm, multi_height, edge_mode,     \
+ edge, x4mode)                                                                 \
+ setup_sprite_##tm##_single_##multi_height##_##edge_mode##_##edge##x4mode:     \
   setup_sprite_column_data_##multi_height();                                   \
   vext.32 block_masks_shifted, block_masks, block_masks, #1;                   \
   vorr.u32 block_masks, block_masks, block_masks_shifted;                      \
-  vdup.u8 draw_mask_fb_ptr_left, block_masks[0];                               \
-  vdup.u8 draw_mask_fb_ptr_right, block_masks[1];                              \
+  setup_sprite_setup_left_draw_mask_fb_ptr##x4mode();                          \
                                                                                \
-  setup_sprite_tile_column_height_##multi_height(edge_mode, edge,              \
-   texture_mode);                                                              \
+  setup_sprite_tile_column_height_##multi_height(edge_mode, edge, tm, x4mode); \
   ldmia sp!, { r4 - r11, pc }                                                  \
 
 #define setup_sprite_tiled_advance_column()                                    \
@@ -4791,37 +4772,335 @@ setup_sprite_update_texture_8bpp_cache:
   subeq texture_offset_base, texture_offset_base, #(0x100 + 0xF00)             \
 
 #define setup_sprite_tile_column_width_multi(tm, multi_height, left_mode,      \
- right_mode)                                                                   \
- setup_sprite_##tm##_multi_##multi_height##_##left_mode##_##right_mode:        \
+ right_mode, x4mode)                                                           \
+ setup_sprite_##tm##_multi_##multi_height##_##left_mode##_##right_mode##x4mode:\
   setup_sprite_column_data_##multi_height();                                   \
-  mov fb_ptr_advance_column, #32;                                              \
                                                                                \
-  sub fb_ptr_advance_column, height, lsl #11;                                  \
-  vdup.u8 draw_mask_fb_ptr_left, block_masks[0];                               \
+  setup_sprite_setup_left_draw_mask_fb_ptr_advance_column##x4mode();           \
                                                                                \
-  vdup.u8 draw_mask_fb_ptr_right, block_masks[1];                              \
-  setup_sprite_tile_column_height_##multi_height(left_mode, right, tm);        \
+  setup_sprite_tile_column_height_##multi_height(left_mode, right, tm, x4mode);\
                                                                                \
   subs tile_width, tile_width, #2;                                             \
   add fb_ptr, fb_ptr, fb_ptr_advance_column;                                   \
                                                                                \
-  vmov.u8 draw_masks_fb_ptrs, #0;                                              \
   beq 1f;                                                                      \
+                                                                               \
+  vmov.u8 draw_masks_fb_ptrs, #0;                                              \
+  vmov.u8 draw_masks_fb_ptrs2, #0;                                             \
                                                                                \
  0:                                                                            \
   setup_sprite_tiled_advance_column();                                         \
-  setup_sprite_tile_column_height_##multi_height(full, none, tm);              \
+  setup_sprite_tile_column_height_##multi_height(full, none, tm, x4mode);      \
   add fb_ptr, fb_ptr, fb_ptr_advance_column;                                   \
   subs tile_width, tile_width, #1;                                             \
   bne 0b;                                                                      \
                                                                                \
  1:                                                                            \
-  vdup.u8 draw_mask_fb_ptr_left, block_masks[4];                               \
-  vdup.u8 draw_mask_fb_ptr_right, block_masks[5];                              \
+  setup_sprite_setup_right_draw_mask_fb_ptr##x4mode();                         \
                                                                                \
   setup_sprite_tiled_advance_column();                                         \
-  setup_sprite_tile_column_height_##multi_height(right_mode, left, tm);        \
+  setup_sprite_tile_column_height_##multi_height(right_mode, left, tm, x4mode);\
   ldmia sp!, { r4 - r11, pc }                                                  \
+
+
+#define setup_sprite_offset_u_adjust()                                         \
+
+#define setup_sprite_get_left_block_mask()                                     \
+  and left_block_mask, left_block_mask, #0xFF                                  \
+
+#define setup_sprite_compare_left_block_mask()                                 \
+  cmp left_block_mask, #0xFF                                                   \
+
+#define setup_sprite_get_right_block_mask()                                    \
+  uxtb right_block_mask, right_block_mask, ror #8                              \
+
+#define setup_sprite_compare_right_block_mask()                                \
+  cmp right_block_mask, #0xFF                                                  \
+
+
+
+/* 4x stuff */
+#define fb_ptr2 column_data
+
+#define setup_sprite_offset_u_adjust_4x()                                      \
+  sub fb_ptr, fb_ptr, offset_u, lsl #1;                                        \
+  lsl offset_u_right, #1;                                                      \
+  lsl offset_u, #1;                                                            \
+  add offset_u_right, #1                                                       \
+
+#define setup_sprite_get_left_block_mask_4x()                                  \
+  sxth left_block_mask, left_block_mask                                        \
+
+#define setup_sprite_compare_left_block_mask_4x()                              \
+  cmp left_block_mask, #0xFFFFFFFF                                             \
+
+#define setup_sprite_get_right_block_mask_4x()                                 \
+  sxth right_block_mask, right_block_mask, ror #16                             \
+
+#define setup_sprite_compare_right_block_mask_4x()                             \
+  cmp right_block_mask, #0xFFFFFFFF                                            \
+
+
+#define widen_texels_16bpp(texels_)                                            \
+  vmov texels_wide_low, texels_;                                               \
+  vmov texels_wide_high, texels_;                                              \
+  vzip.16 texels_wide_low, texels_wide_high                                    \
+
+#define widen_texels_8bpp(texels_)                                             \
+  vmov texels_wide_low, texels_;                                               \
+  vmov texels_wide_high, texels_;                                              \
+  vzip.8 texels_wide_low, texels_wide_high                                     \
+
+#define write_block_16bpp(texels_, block_, draw_mask_fb_ptr_, fb_ptr_)         \
+  vst1.u32 { texels_ }, [ block_, :128 ];                                      \
+  add block_, block_, #40;                                                     \
+                                                                               \
+  vmov.u32 draw_mask_fb_ptr_[1], fb_ptr_;                                      \
+  vst1.u32 { draw_mask_fb_ptr_ }, [ block_, :64 ];                             \
+  add block_, block_, #24                                                      \
+
+/* assumes 16-byte offset already added to block_ */
+#define write_block_8bpp(texels_, block_, draw_mask_fb_ptr_, fb_ptr_)          \
+  vst1.u32 { texels_ }, [ block_, :64 ];                                       \
+  add block_, block_, #24;                                                     \
+                                                                               \
+  vmov.u32 draw_mask_fb_ptr_[1], fb_ptr_;                                      \
+  vst1.u32 { draw_mask_fb_ptr_ }, [ block_, :64 ];                             \
+  add block_, block_, #40                                                      \
+
+#define do_texture_block_16bpp_4x(fb_ptr_tmp, draw_mask_fb_ptr_a_,             \
+ draw_mask_fb_ptr_b_)                                                          \
+  widen_texels_16bpp(texels_low);                                              \
+  add fb_ptr_tmp, fb_ptr, #1024*2;                                             \
+                                                                               \
+  write_block_16bpp(texels_wide, block, draw_mask_fb_ptr_a_, fb_ptr);          \
+                                                                               \
+  write_block_16bpp(texels_wide, block, draw_mask_fb_ptr_a_, fb_ptr_tmp);      \
+  widen_texels_16bpp(texels_high);                                             \
+                                                                               \
+  add fb_ptr_tmp, fb_ptr, #8*2;                                                \
+  write_block_16bpp(texels_wide, block, draw_mask_fb_ptr_b_, fb_ptr_tmp);      \
+                                                                               \
+  add fb_ptr_tmp, fb_ptr_tmp, #1024*2;                                         \
+  write_block_16bpp(texels_wide, block, draw_mask_fb_ptr_b_, fb_ptr_tmp)       \
+
+#define do_texture_block_8bpp_4x(fb_ptr_tmp, draw_mask_fb_ptr_a_,              \
+ draw_mask_fb_ptr_b_)                                                          \
+  widen_texels_8bpp(texels);                                                   \
+  add fb_ptr_tmp, fb_ptr, #1024*2;                                             \
+                                                                               \
+  write_block_8bpp(texels_wide_low, block, draw_mask_fb_ptr_a_, fb_ptr);       \
+  write_block_8bpp(texels_wide_low, block, draw_mask_fb_ptr_a_, fb_ptr_tmp);   \
+                                                                               \
+  add fb_ptr_tmp, fb_ptr, #8*2;                                                \
+  write_block_8bpp(texels_wide_high, block, draw_mask_fb_ptr_b_, fb_ptr_tmp);  \
+                                                                               \
+  add fb_ptr_tmp, fb_ptr_tmp, #1024*2;                                         \
+  write_block_8bpp(texels_wide_high, block, draw_mask_fb_ptr_b_, fb_ptr_tmp)   \
+
+
+#define setup_sprite_tiled_initialize_4bpp_4x()                                \
+  ldr clut_ptr, [ psx_gpu, #psx_gpu_clut_ptr_offset ];                         \
+  vld1.u32 { clut_a, clut_b }, [ clut_ptr, :128 ];                             \
+                                                                               \
+  vuzp.u8 clut_a, clut_b                                                       \
+
+#define setup_sprite_tiled_initialize_8bpp_4x()                                \
+
+
+#define setup_sprite_block_count_single_4x()                                   \
+  sub_tile_height, lsl #2                                                      \
+
+#define setup_sprite_block_count_double_4x()                                   \
+  sub_tile_height, lsl #(1+2)                                                  \
+
+#define setup_sprite_tile_full_4bpp_4x(edge)                                   \
+  setup_sprite_tile_add_blocks(double_4x);                                     \
+  str column_data, [sp, #-8]!; /* fb_ptr2 */                                   \
+                                                                               \
+ 4:                                                                            \
+  and texture_block_ptr, texture_offset, texture_mask;                         \
+  pld [ fb_ptr ];                                                              \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+                                                                               \
+  add texture_block_ptr, texture_offset, #8;                                   \
+  vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels;                       \
+                                                                               \
+  and texture_block_ptr, texture_block_ptr, texture_mask;                      \
+  vtbl.8 texels_high, { clut_high_a, clut_high_b }, texels;                    \
+                                                                               \
+  vzip.8 texels_low, texels_high;                                              \
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_left_a,                  \
+   draw_mask_fb_ptr_left_b);                                                   \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  pld [ fb_ptr, #2048 ];                                                       \
+                                                                               \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+  add fb_ptr, fb_ptr, #16*2;                                                   \
+                                                                               \
+  vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels;                       \
+  vtbl.8 texels_high, { clut_high_a, clut_high_b }, texels;                    \
+                                                                               \
+  vzip.8 texels_low, texels_high;                                              \
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_right_a,                 \
+   draw_mask_fb_ptr_right_b);                                                  \
+                                                                               \
+  add texture_offset, texture_offset, #0x10;                                   \
+  add fb_ptr, fb_ptr, #(2048 - 16) * 2;                                        \
+                                                                               \
+  subs sub_tile_height, sub_tile_height, #1;                                   \
+  bne 4b;                                                                      \
+                                                                               \
+  ldr column_data, [sp], #8; /* fb_ptr2 */                                     \
+  add texture_offset, texture_offset, #0xF00;                                  \
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]                     \
+
+
+#define setup_sprite_tile_half_4bpp_4x(edge)                                   \
+  setup_sprite_tile_add_blocks(single_4x);                                     \
+  str column_data, [sp, #-8]!; /* fb_ptr2 */                                   \
+                                                                               \
+ 4:                                                                            \
+  and texture_block_ptr, texture_offset, texture_mask;                         \
+  pld [ fb_ptr ];                                                              \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels;                       \
+                                                                               \
+  vtbl.8 texels_high, { clut_high_a, clut_high_b }, texels;                    \
+  add texture_offset, texture_offset, #0x10;                                   \
+                                                                               \
+  vzip.8 texels_low, texels_high;                                              \
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_##edge##_a,              \
+   draw_mask_fb_ptr_##edge##_b);                                               \
+                                                                               \
+  pld [ fb_ptr, #2048 ];                                                       \
+  add fb_ptr, fb_ptr, #2048 * 2;                                               \
+                                                                               \
+  subs sub_tile_height, sub_tile_height, #1;                                   \
+  bne 4b;                                                                      \
+                                                                               \
+  ldr column_data, [sp], #8; /* fb_ptr2 */                                     \
+  add texture_offset, texture_offset, #0xF00;                                  \
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]                     \
+
+
+#define setup_sprite_tile_full_8bpp_4x(edge)                                   \
+  setup_sprite_tile_add_blocks(double_4x);                                     \
+  add block, block, #16;                                                       \
+  str column_data, [sp, #-8]!; /* fb_ptr2 */                                   \
+                                                                               \
+ 4:                                                                            \
+  and texture_block_ptr, texture_offset, texture_mask;                         \
+  pld [ fb_ptr ];                                                              \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+                                                                               \
+  add texture_block_ptr, texture_offset, #8;                                   \
+  do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_left_a,                   \
+   draw_mask_fb_ptr_left_b);                                                   \
+                                                                               \
+  pld [ fb_ptr, #2048 ];                                                       \
+  and texture_block_ptr, texture_block_ptr, texture_mask;                      \
+                                                                               \
+  add fb_ptr, fb_ptr, #16*2;                                                   \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+                                                                               \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+                                                                               \
+  do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_right_a,                  \
+   draw_mask_fb_ptr_right_b);                                                  \
+                                                                               \
+  add texture_offset, texture_offset, #0x10;                                   \
+  add fb_ptr, fb_ptr, #(2048 - 16) * 2;                                        \
+                                                                               \
+  subs sub_tile_height, sub_tile_height, #1;                                   \
+  bne 4b;                                                                      \
+                                                                               \
+  sub block, block, #16;                                                       \
+  ldr column_data, [sp], #8; /* fb_ptr2 */                                     \
+  add texture_offset, texture_offset, #0xF00;                                  \
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]                     \
+
+  
+#define setup_sprite_tile_half_8bpp_4x(edge)                                   \
+  setup_sprite_tile_add_blocks(single_4x);                                     \
+  add block, block, #16;                                                       \
+  str column_data, [sp, #-8]!; /* fb_ptr2 */                                   \
+                                                                               \
+ 4:                                                                            \
+  and texture_block_ptr, texture_offset, texture_mask;                         \
+  pld [ fb_ptr ];                                                              \
+                                                                               \
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr;                  \
+  vld1.u32 { texels }, [ texture_block_ptr, :64 ];                             \
+                                                                               \
+  pld [ fb_ptr, #2048 ];                                                       \
+  do_texture_block_8bpp_4x(fb_ptr2, draw_mask_fb_ptr_##edge##_a,               \
+   draw_mask_fb_ptr_##edge##_b);                                               \
+                                                                               \
+  add texture_offset, texture_offset, #0x10;                                   \
+  add fb_ptr, fb_ptr, #2048 * 2;                                               \
+                                                                               \
+  subs sub_tile_height, sub_tile_height, #1;                                   \
+  bne 4b;                                                                      \
+                                                                               \
+  sub block, block, #16;                                                       \
+  ldr column_data, [sp], #8; /* fb_ptr2 */                                     \
+  add texture_offset, texture_offset, #0xF00;                                  \
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]                     \
+
+ 
+#define setup_sprite_tile_column_edge_pre_adjust_half_right_4x()               \
+  add texture_offset, texture_offset_base, #8;                                 \
+  add fb_ptr, fb_ptr, #16 * 2                                                  \
+
+#define setup_sprite_tile_column_edge_pre_adjust_half_left_4x()                \
+  mov texture_offset, texture_offset_base                                      \
+
+#define setup_sprite_tile_column_edge_pre_adjust_half_4x(edge)                 \
+  setup_sprite_tile_column_edge_pre_adjust_half_##edge##_4x()                  \
+
+#define setup_sprite_tile_column_edge_pre_adjust_full_4x(edge)                 \
+  mov texture_offset, texture_offset_base                                      \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_right_4x()              \
+  sub fb_ptr, fb_ptr, #16 * 2                                                  \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_left_4x()               \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_4x(edge)                \
+  setup_sprite_tile_column_edge_post_adjust_half_##edge##_4x()                 \
+
+#define setup_sprite_tile_column_edge_post_adjust_full_4x(edge)                \
+
+
+#define setup_sprite_setup_left_draw_mask_fb_ptr_4x()                          \
+  vdup.u8 draw_mask_fb_ptr_left_a, block_masks[0];                             \
+  vdup.u8 draw_mask_fb_ptr_left_b, block_masks[1];                             \
+  vdup.u8 draw_mask_fb_ptr_right_a, block_masks[2];                            \
+  vdup.u8 draw_mask_fb_ptr_right_b, block_masks[3]                             \
+
+#define setup_sprite_setup_left_draw_mask_fb_ptr_advance_column_4x()           \
+  mov fb_ptr_advance_column, #32 * 2;                                          \
+  vdup.u8 draw_mask_fb_ptr_left_a, block_masks[0];                             \
+  vdup.u8 draw_mask_fb_ptr_left_b, block_masks[1];                             \
+  sub fb_ptr_advance_column, height, lsl #11 + 1;                              \
+  vdup.u8 draw_mask_fb_ptr_right_a, block_masks[2];                            \
+  vdup.u8 draw_mask_fb_ptr_right_b, block_masks[3]                             \
+
+#define setup_sprite_setup_right_draw_mask_fb_ptr_4x()                         \
+  vdup.u8 draw_mask_fb_ptr_left_a, block_masks[4];                             \
+  vdup.u8 draw_mask_fb_ptr_left_b, block_masks[5];                             \
+  vdup.u8 draw_mask_fb_ptr_right_a, block_masks[6];                            \
+  vdup.u8 draw_mask_fb_ptr_right_b, block_masks[7]                             \
 
 
 // r0: psx_gpu
@@ -4833,34 +5112,48 @@ setup_sprite_update_texture_8bpp_cache:
 // [ sp + 8 ]: height
 // [ sp + 12 ]: color (unused)
 
-#define setup_sprite_tiled_builder(texture_mode)                               \
+#define setup_sprite_tiled_builder(texture_mode, x4mode)                       \
                                                                                \
-setup_sprite_tile_column_width_multi(texture_mode,  multi,  full, full);       \
-setup_sprite_tile_column_width_single(texture_mode, multi,  full, none);       \
-setup_sprite_tile_column_width_multi(texture_mode,  single, full, full);       \
-setup_sprite_tile_column_width_single(texture_mode, single, full, none);       \
-setup_sprite_tile_column_width_multi(texture_mode,  multi,  half, full);       \
-setup_sprite_tile_column_width_single(texture_mode, multi,  half, right);      \
-setup_sprite_tile_column_width_multi(texture_mode,  single, half, full);       \
-setup_sprite_tile_column_width_single(texture_mode, single, half, right);      \
-setup_sprite_tile_column_width_multi(texture_mode,  multi,  full, half);       \
-setup_sprite_tile_column_width_single(texture_mode, multi,  half, left);       \
-setup_sprite_tile_column_width_multi(texture_mode,  single, full, half);       \
-setup_sprite_tile_column_width_single(texture_mode, single, half, left);       \
-setup_sprite_tile_column_width_multi(texture_mode,  multi,  half, half);       \
-setup_sprite_tile_column_width_multi(texture_mode,  single, half, half);       \
+setup_sprite_tile_column_width_multi(texture_mode,  multi,  full, full,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, multi,  full, none,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  single, full, full,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, single, full, none,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  multi,  half, full,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, multi,  half, right,       \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  single, half, full,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, single, half, right,       \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  multi,  full, half,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, multi,  half, left,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  single, full, half,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_single(texture_mode, single, half, left,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  multi,  half, half,        \
+  x4mode);                                                                     \
+setup_sprite_tile_column_width_multi(texture_mode,  single, half, half,        \
+  x4mode);                                                                     \
                                                                                \
 .align 4;                                                                      \
                                                                                \
-function(setup_sprite_##texture_mode)                                          \
+function(setup_sprite_##texture_mode##x4mode)                                  \
   stmdb sp!, { r4 - r11, r14 };                                                \
-  setup_sprite_tiled_initialize_##texture_mode();                              \
+  setup_sprite_tiled_initialize_##texture_mode##x4mode();                      \
                                                                                \
   ldr v, [ sp, #36 ];                                                          \
   and offset_u, u, #0xF;                                                       \
                                                                                \
   ldr width, [ sp, #40 ];                                                      \
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ];                           \
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ];                       \
                                                                                \
   ldr height, [ sp, #44 ];                                                     \
   add fb_ptr, fb_ptr, y, lsl #11;                                              \
@@ -4883,11 +5176,13 @@ function(setup_sprite_##texture_mode)                                          \
                                                                                \
   /* texture_offset_base = VH-UH-UL-00                                       */\
   bfi texture_offset_base, u, #4, #8;                                          \
-  movw right_block_mask, #0xFFFE;                                              \
+  mov right_block_mask, #0xFFFFFFFE;                                           \
+                                                                               \
+  setup_sprite_offset_u_adjust##x4mode();                                      \
                                                                                \
   /* texture_offset_base = VH-UH-VL-00                                       */\
   bfi texture_offset_base, v, #4, #4;                                          \
-  movw left_block_mask, #0xFFFF;                                               \
+  mov left_block_mask, #0xFFFFFFFF;                                            \
                                                                                \
   mov tile_height, height_rounded, lsr #4;                                     \
   mvn left_block_mask, left_block_mask, lsl offset_u;                          \
@@ -4907,16 +5202,16 @@ function(setup_sprite_##texture_mode)                                          \
                                                                                \
   /* texture_mask = HH-WH-HL-WL                                              */\
   bfi texture_mask, texture_mask_rev, #8, #4;                                  \
-  and left_block_mask, left_block_mask, #0xFF;                                 \
+  setup_sprite_get_left_block_mask##x4mode();                                  \
                                                                                \
   mov control_mask, #0;                                                        \
-  cmp left_block_mask, #0xFF;                                                  \
+  setup_sprite_compare_left_block_mask##x4mode();                              \
                                                                                \
-  uxtb right_block_mask, right_block_mask, ror #8;                             \
+  setup_sprite_get_right_block_mask##x4mode();                                 \
   orreq control_mask, control_mask, #0x4;                                      \
                                                                                \
   ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ];                    \
-  cmp right_block_mask, #0xFF;                                                 \
+  setup_sprite_compare_right_block_mask##x4mode();                             \
                                                                                \
   orreq control_mask, control_mask, #0x8;                                      \
   cmp tile_width, #1;                                                          \
@@ -4931,25 +5226,31 @@ function(setup_sprite_##texture_mode)                                          \
   ldr pc, [ pc, control_mask, lsl #2 ];                                        \
   nop;                                                                         \
                                                                                \
- .word setup_sprite_##texture_mode##_multi_multi_full_full;                    \
- .word setup_sprite_##texture_mode##_single_multi_full_none;                   \
- .word setup_sprite_##texture_mode##_multi_single_full_full;                   \
- .word setup_sprite_##texture_mode##_single_single_full_none;                  \
- .word setup_sprite_##texture_mode##_multi_multi_half_full;                    \
- .word setup_sprite_##texture_mode##_single_multi_half_right;                  \
- .word setup_sprite_##texture_mode##_multi_single_half_full;                   \
- .word setup_sprite_##texture_mode##_single_single_half_right;                 \
- .word setup_sprite_##texture_mode##_multi_multi_full_half;                    \
- .word setup_sprite_##texture_mode##_single_multi_half_left;                   \
- .word setup_sprite_##texture_mode##_multi_single_full_half;                   \
- .word setup_sprite_##texture_mode##_single_single_half_left;                  \
- .word setup_sprite_##texture_mode##_multi_multi_half_half;                    \
+ .word setup_sprite_##texture_mode##_multi_multi_full_full##x4mode;            \
+ .word setup_sprite_##texture_mode##_single_multi_full_none##x4mode;           \
+ .word setup_sprite_##texture_mode##_multi_single_full_full##x4mode;           \
+ .word setup_sprite_##texture_mode##_single_single_full_none##x4mode;          \
+ .word setup_sprite_##texture_mode##_multi_multi_half_full##x4mode;            \
+ .word setup_sprite_##texture_mode##_single_multi_half_right##x4mode;          \
+ .word setup_sprite_##texture_mode##_multi_single_half_full##x4mode;           \
+ .word setup_sprite_##texture_mode##_single_single_half_right##x4mode;         \
+ .word setup_sprite_##texture_mode##_multi_multi_full_half##x4mode;            \
+ .word setup_sprite_##texture_mode##_single_multi_half_left##x4mode;           \
+ .word setup_sprite_##texture_mode##_multi_single_full_half##x4mode;           \
+ .word setup_sprite_##texture_mode##_single_single_half_left##x4mode;          \
+ .word setup_sprite_##texture_mode##_multi_multi_half_half##x4mode;            \
  .word 0x00000000;                                                             \
- .word setup_sprite_##texture_mode##_multi_single_half_half                    \
+ .word setup_sprite_##texture_mode##_multi_single_half_half##x4mode;           \
 
 
-setup_sprite_tiled_builder(4bpp);
-setup_sprite_tiled_builder(8bpp);
+setup_sprite_tiled_builder(4bpp,);
+setup_sprite_tiled_builder(8bpp,);
+
+#undef draw_mask_fb_ptr_left
+#undef draw_mask_fb_ptr_right
+
+setup_sprite_tiled_builder(4bpp, _4x);
+setup_sprite_tiled_builder(8bpp, _4x);
 
 
 #undef block_ptr
@@ -5038,6 +5339,12 @@ function(texture_sprite_blocks_8bpp)
 #undef texture_mask
 #undef num_blocks
 #undef texture_offset
+#undef texels_low
+#undef texels_high
+#undef texels_wide_low
+#undef texels_wide_high
+#undef texels_wide
+#undef fb_ptr2
 
 #define psx_gpu                                           r0
 #define x                                                 r1
@@ -5049,6 +5356,7 @@ function(texture_sprite_blocks_8bpp)
 #define left_offset                                       r8
 #define width_rounded                                     r9
 #define right_width                                       r10
+
 #define block_width                                       r11
 
 #define texture_offset_base                               r1
@@ -5059,6 +5367,7 @@ function(texture_sprite_blocks_8bpp)
 #define fb_ptr                                            r7
 #define texture_offset                                    r8
 #define blocks_remaining                                  r9
+#define fb_ptr2                                           r10
 #define fb_ptr_pitch                                      r12
 #define texture_block_ptr                                 r14
 
@@ -5077,29 +5386,23 @@ function(texture_sprite_blocks_8bpp)
 #define draw_mask_fb_ptr                                  d2
 #define texels                                            q2
 
+#define draw_mask_fb_ptr_a                                d2
+#define draw_mask_fb_ptr_b                                d3
+#define texels_low                                        d4
+#define texels_high                                       d5
+#define texels_wide_low                                   d6
+#define texels_wide_high                                  d7
+#define texels_wide                                       q3
 
-setup_sprites_16bpp_flush_single:
-  vpush { d0 - d2 }
 
-  stmdb sp!, { r0 - r3, r12, r14 }
-  bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, r12, r14 }
-
-  vpop { d0 - d2 }
-
-  add block, psx_gpu, #psx_gpu_blocks_offset
-  mov num_blocks, #1
-
-  bx lr
-
-setup_sprites_16bpp_flush_row:
-  vpush { d0 - d2 }
+setup_sprites_16bpp_flush:
+  vpush { d0 - d3 }
 
   stmdb sp!, { r0 - r3, r12, r14 }
   bl flush_render_block_buffer
   ldmia sp!, { r0 - r3, r12, r14 }
 
-  vpop { d0 - d2 }
+  vpop { d0 - d3 }
 
   add block, psx_gpu, #psx_gpu_blocks_offset
   mov num_blocks, block_width
@@ -5108,7 +5411,7 @@ setup_sprites_16bpp_flush_row:
 
 function(setup_sprite_16bpp)
   stmdb sp!, { r4 - r11, r14 }
-  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_ptr_offset ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
 
   ldr v, [ sp, #36 ]
   add fb_ptr, fb_ptr, y, lsl #11
@@ -5164,7 +5467,7 @@ function(setup_sprite_16bpp)
  1:
   add num_blocks, num_blocks, #1
   cmp num_blocks, #MAX_BLOCKS
-  blgt setup_sprites_16bpp_flush_single
+  blgt setup_sprites_16bpp_flush
 
   and texture_block_ptr, texture_offset_base, texture_mask
   subs height, height, #1
@@ -5193,7 +5496,7 @@ function(setup_sprite_16bpp)
   mov texture_offset, texture_offset_base
 
   cmp num_blocks, #MAX_BLOCKS
-  blgt setup_sprites_16bpp_flush_row
+  blgt setup_sprites_16bpp_flush
 
   add texture_offset_base, texture_offset_base, #2048
   and texture_block_ptr, texture_offset, texture_mask
@@ -5262,6 +5565,290 @@ function(setup_sprite_16bpp)
   bne 0b
 
   ldmia sp!, { r4 - r11, pc }
+
+
+// 4x version
+// FIXME: duplicate code with normal version :(
+#undef draw_mask_fb_ptr
+
+function(setup_sprite_16bpp_4x)
+  stmdb sp!, { r4 - r11, r14 }
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
+
+  ldr v, [ sp, #36 ]
+  add fb_ptr, fb_ptr, y, lsl #11
+
+  ldr width, [ sp, #40 ]
+  add fb_ptr, fb_ptr, x, lsl #1
+
+  ldr height, [ sp, #44 ]
+  and left_offset, u, #0x7
+
+  add texture_offset_base, u, u
+  add width_rounded, width, #7
+
+  add texture_offset_base, v, lsl #11
+  movw left_mask_bits, #0xFFFF
+  
+  ldrb texture_mask_width, [ psx_gpu, #psx_gpu_texture_mask_width_offset ]
+  add width_rounded, width_rounded, left_offset
+
+  lsl left_offset, #1
+
+  ldrb texture_mask_height, [ psx_gpu, #psx_gpu_texture_mask_height_offset ]
+  sub fb_ptr, fb_ptr, left_offset, lsl #1
+
+  add texture_mask, texture_mask_width, texture_mask_width
+  movw right_mask_bits, #0xFFFC
+
+  and right_width, width_rounded, #0x7
+  mvn left_mask_bits, left_mask_bits, lsl left_offset
+
+  lsl right_width, #1
+
+  add texture_mask, texture_mask_height, lsl #11
+  mov block_width, width_rounded, lsr #3
+
+  mov right_mask_bits, right_mask_bits, lsl right_width
+  movw fb_ptr_pitch, #(2048 + 16) * 2
+
+  sub fb_ptr_pitch, fb_ptr_pitch, block_width, lsl #4+1
+  vmov block_masks, left_mask_bits, right_mask_bits
+
+  ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  add block, psx_gpu, #psx_gpu_blocks_offset
+
+  bic texture_offset_base, texture_offset_base, #0xF
+  cmp block_width, #1
+
+  ldr texture_page_ptr, [ psx_gpu, #psx_gpu_texture_page_ptr_offset ]
+  add block, block, num_blocks, lsl #6
+
+  lsl block_width, #2
+  bne 0f
+
+  vext.32 block_masks_shifted, block_masks, block_masks, #1
+  vorr.u32 block_masks, block_masks, block_masks_shifted
+  vdup.u8 draw_mask_fb_ptr_a, block_masks[0]
+  vdup.u8 draw_mask_fb_ptr_b, block_masks[1]
+
+ 1:
+  add num_blocks, num_blocks, block_width
+  cmp num_blocks, #MAX_BLOCKS
+  blgt setup_sprites_16bpp_flush
+
+  and texture_block_ptr, texture_offset_base, texture_mask
+  subs height, height, #1
+
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr
+  vld1.u32 { texels }, [ texture_block_ptr, :128 ]
+
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_a, draw_mask_fb_ptr_b)
+
+  add texture_offset_base, texture_offset_base, #2048
+  add fb_ptr, fb_ptr, #2048*2
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  bne 1b
+
+  ldmia sp!, { r4 - r11, pc }
+
+ 0:
+  add num_blocks, num_blocks, block_width
+  mov texture_offset, texture_offset_base
+
+  vdup.u8 draw_mask_fb_ptr_a, block_masks[0] // left_mask_bits
+  vdup.u8 draw_mask_fb_ptr_b, block_masks[1]
+
+  cmp num_blocks, #MAX_BLOCKS
+  blgt setup_sprites_16bpp_flush
+
+  add texture_offset_base, texture_offset_base, #2048
+  and texture_block_ptr, texture_offset, texture_mask
+
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr
+  vld1.u32 { texels }, [ texture_block_ptr, :128 ]
+
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_a, draw_mask_fb_ptr_b)
+
+  subs blocks_remaining, block_width, #2*4
+  add texture_offset, texture_offset, #16
+
+  vmov.u8 draw_mask_fb_ptr_a, #0
+  vmov.u8 draw_mask_fb_ptr_b, #0
+
+  add fb_ptr, fb_ptr, #16*2
+  beq 2f
+
+ 1:
+  and texture_block_ptr, texture_offset, texture_mask
+  subs blocks_remaining, blocks_remaining, #4
+
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr
+  vld1.u32 { texels }, [ texture_block_ptr, :128 ]
+
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_a, draw_mask_fb_ptr_b)
+  add texture_offset, texture_offset, #16
+
+  add fb_ptr, fb_ptr, #16*2
+  bgt 1b
+
+ 2:
+  vdup.u8 draw_mask_fb_ptr_a, block_masks[4] // right_mask_bits
+  vdup.u8 draw_mask_fb_ptr_b, block_masks[5]
+
+  and texture_block_ptr, texture_offset, texture_mask
+  add texture_block_ptr, texture_page_ptr, texture_block_ptr
+
+  vld1.u32 { texels }, [ texture_block_ptr, :128 ]
+
+  do_texture_block_16bpp_4x(fb_ptr2, draw_mask_fb_ptr_a, draw_mask_fb_ptr_b)
+  subs height, height, #1
+
+  add fb_ptr, fb_ptr, fb_ptr_pitch
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+
+  bne 0b
+
+  ldmia sp!, { r4 - r11, pc }
+
+
+#undef width
+#undef right_width
+#undef right_mask_bits
+#undef color
+#undef height
+#undef blocks_remaining
+#undef colors
+#undef right_mask
+#undef test_mask
+#undef draw_mask
+
+#define psx_gpu                                           r0
+#define x                                                 r1
+#define y                                                 r2
+#define width                                             r3
+#define right_width                                       r5
+#define right_mask_bits                                   r6
+#define fb_ptr                                            r7
+#define color                                             r8
+#define height                                            r9
+#define fb_ptr_pitch                                      r12
+
+// referenced by setup_sprites_16bpp_flush
+#define num_blocks                                        r4
+#define block                                             r5
+#define block_width                                       r11
+
+#define color_r                                           r1
+#define color_g                                           r2
+#define color_b                                           r8
+#define blocks_remaining                                  r6
+
+#define colors                                            q0
+#define right_mask                                        q1
+#define test_mask                                         q2
+#define draw_mask                                         q2
+#define draw_mask_bits_fb_ptr                             d6
+
+
+.align 3
+
+function(setup_sprite_untextured)
+  ldrh r12, [ psx_gpu, #psx_gpu_render_state_offset ]
+  tst r12, #(RENDER_STATE_MASK_EVALUATE | RENDER_FLAGS_MODULATE_TEXELS         \
+    | RENDER_FLAGS_BLEND)
+  beq setup_sprite_untextured_simple
+
+  stmdb sp!, { r4 - r11, r14 }
+
+  ldr width, [ sp, #40 ]
+  ldr fb_ptr, [ psx_gpu, #psx_gpu_vram_out_ptr_offset ]
+
+  ldr height, [ sp, #44 ]
+  add fb_ptr, fb_ptr, y, lsl #11
+
+  add fb_ptr, fb_ptr, x, lsl #1
+  sub right_width, width, #1
+
+  ldr color, [ sp, #48 ]
+  and right_width, #7
+
+  add block_width, width, #7
+  add right_width, #1
+
+  lsr block_width, #3
+  mov right_mask_bits, #0xff
+
+  sub fb_ptr_pitch, block_width, #1
+  lsl right_mask_bits, right_width
+
+  lsl fb_ptr_pitch, #3+1
+  ubfx color_r, color, #3, #5
+
+  rsb fb_ptr_pitch, #1024*2
+  ubfx color_g, color, #11, #5
+
+  vld1.u32 { test_mask }, [ psx_gpu, :128 ]
+  ubfx color_b, color, #19, #5
+
+  vdup.u16 right_mask, right_mask_bits
+  orr color, color_r, color_b, lsl #10
+
+  ldrh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  orr color, color, color_g, lsl #5
+
+  vtst.u16 right_mask, right_mask, test_mask
+  add block, psx_gpu, #psx_gpu_blocks_offset
+
+  vdup.u16 colors, color
+  add block, block, num_blocks, lsl #6
+
+
+setup_sprite_untextured_height_loop:
+  add num_blocks, block_width
+  sub blocks_remaining, block_width, #1
+
+  cmp num_blocks, #MAX_BLOCKS
+  blgt setup_sprites_16bpp_flush
+
+  cmp blocks_remaining, #0
+  ble 1f
+
+  vmov.u8 draw_mask, #0 /* zero_mask */
+  vmov.u8 draw_mask_bits_fb_ptr, #0
+
+ 0:
+  vst1.u32 { draw_mask }, [ block, :128 ]!
+  subs blocks_remaining, #1
+
+  vst1.u32 { colors }, [ block, :128 ]
+  add block, block, #24
+
+  vmov.u32 draw_mask_bits_fb_ptr[1], fb_ptr
+  vst1.u32 { draw_mask_bits_fb_ptr }, [ block, :64 ]
+  
+  add block, block, #24
+  add fb_ptr, #8*2
+  bgt 0b
+
+ 1:
+  vst1.u32 { right_mask }, [ block, :128 ]!
+  subs height, #1
+
+  vst1.u32 { colors }, [ block, :128 ]
+  add block, block, #24
+
+  vmov.u32 draw_mask_bits_fb_ptr[1], fb_ptr
+  vst1.u32 { draw_mask_bits_fb_ptr }, [ block, :64 ]
+  
+  add block, block, #24
+  add fb_ptr, fb_ptr_pitch
+
+  strh num_blocks, [ psx_gpu, #psx_gpu_num_blocks_offset ]
+  bgt setup_sprite_untextured_height_loop
+
+  ldmia sp!, { r4 - r11, pc }
+
 
 
 #undef texture_page_ptr
@@ -5461,3 +6048,40 @@ function(update_texture_8bpp_cache_slice)
   vpop { q0 - q3 }
   ldmia sp!, { r4 - r11, pc }
 
+
+/* void scale2x_tiles8(void *dst, const void *src, int w8, int h) */
+function(scale2x_tiles8)
+  push { r4, r14 }
+
+  mov r4, r1
+  add r12, r0, #1024*2
+  mov r14, r2
+
+0:
+  vld1.u16 { q0 }, [ r1, :128 ]!
+  vld1.u16 { q2 }, [ r1, :128 ]!
+  vmov q1, q0
+  vmov q3, q2
+  vzip.16 q0, q1
+  vzip.16 q2, q3
+  subs r14, #2
+  vst1.u16 { q0, q1 }, [ r0, :128 ]!
+  vst1.u16 { q0, q1 }, [ r12, :128 ]!
+  blt 1f
+  vst1.u16 { q2, q3 }, [ r0, :128 ]!
+  vst1.u16 { q2, q3 }, [ r12, :128 ]!
+  bgt 0b
+1:
+  subs r3, #1
+  mov r14, r2
+  add r0, #1024*2*2
+  add r4, #1024*2
+  sub r0, r2, lsl #4+1
+  mov r1, r4
+  add r12, r0, #1024*2
+  bgt 0b
+  nop
+
+  pop { r4, pc }
+
+// vim:filetype=armasm

@@ -265,9 +265,9 @@ long           lLowerpart;
 
 /////////////////////////////////////////////////////////////////////////////
 
-int renderer_init(void)
+static void set_vram(void *vram)
 {
- psxVub=(void *)gpu.vram;
+ psxVub=vram;
 
  psxVsb=(signed char *)psxVub;                         // different ways of accessing PSX VRAM
  psxVsw=(signed short *)psxVub;
@@ -276,6 +276,11 @@ int renderer_init(void)
  psxVul=(uint32_t *)psxVub;
 
  psxVuw_eom=psxVuw+1024*512;                           // pre-calc of end of vram
+}
+
+int renderer_init(void)
+{
+ set_vram(gpu.vram);
 
  PSXDisplay.RGB24        = FALSE;                      // init some stuff
  PSXDisplay.Interlaced   = FALSE;
@@ -292,6 +297,14 @@ int renderer_init(void)
  lGPUstatusRet = 0x14802000;
 
  return 0;
+}
+
+void renderer_finish(void)
+{
+}
+
+void renderer_notify_res_change(void)
+{
 }
 
 extern const unsigned char cmd_lengths[256];
@@ -408,4 +421,7 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
 {
  iUseDither = cbs->gpu_peops.iUseDither;
  dwActFixes = cbs->gpu_peops.dwActFixes;
+ if (cbs->pl_set_gpu_caps)
+  cbs->pl_set_gpu_caps(0);
+ set_vram(gpu.vram);
 }

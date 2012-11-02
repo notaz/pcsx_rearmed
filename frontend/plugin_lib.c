@@ -21,13 +21,17 @@
 #include "linux/fbdev.h"
 #include "common/fonts.h"
 #include "common/input.h"
+#include "common/plat.h"
 #include "menu.h"
 #include "main.h"
 #include "plat.h"
 #include "pcnt.h"
 #include "pl_gun_ts.h"
+#include "libpicofe/arm/neon_scale2x.h"
+#include "libpicofe/arm/neon_eagle2x.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../plugins/gpulib/cspace.h"
 
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
@@ -38,6 +42,7 @@ void *tsdev;
 void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp; /* output display/layer */
+static int pl_vout_scale;
 static int psx_w, psx_h, psx_bpp;
 static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
@@ -113,10 +118,8 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-void pl_print_hud(int xborder)
+void pl_print_hud(int w, int h, int xborder)
 {
-	int w = pl_vout_w, h = pl_vout_h;
-
 	if (h < 16)
 		return;
 
@@ -184,55 +187,142 @@ static void update_layer_size(int w, int h)
 	if (g_layer_h > g_menuscreen_h) g_layer_h = g_menuscreen_h;
 }
 
-static void *pl_vout_set_mode(int w, int h, int bpp)
+// XXX: this is platform specific really
+static int resolution_ok(int w, int h)
 {
+	return w <= 1024 && h <= 512;
+}
+
+static void pl_vout_set_mode(int w, int h, int bpp)
+{
+	int vout_w, vout_h, vout_bpp;
+
 	// special h handling, Wipeout likes to change it by 1-6
 	static int vsync_cnt_ms_prev;
 	if ((unsigned int)(vsync_cnt - vsync_cnt_ms_prev) < 5*60)
 		h = (h + 7) & ~7;
 	vsync_cnt_ms_prev = vsync_cnt;
 
-	if (w == psx_w && h == psx_h && bpp == psx_bpp)
-		return pl_vout_buf;
+	vout_w = psx_w = w;
+	vout_h = psx_h = h;
+	vout_bpp = psx_bpp = bpp;
 
-	pl_vout_w = psx_w = w;
-	pl_vout_h = psx_h = h;
-	pl_vout_bpp = psx_bpp = bpp;
+	pl_vout_scale = 1;
+#ifdef __ARM_NEON__
+	if (soft_filter) {
+		if (resolution_ok(w * 2, h * 2) && bpp == 16) {
+			vout_w *= 2;
+			vout_h *= 2;
+			pl_vout_scale = 2;
+		}
+		else {
+			// filter unavailable
+			hud_msg[0] = 0;
+		}
+	}
+#endif
 
-	update_layer_size(pl_vout_w, pl_vout_h);
+	if (pl_vout_buf != NULL && vout_w == pl_vout_w && vout_h == pl_vout_h
+	    && vout_bpp == pl_vout_bpp)
+		return;
 
-	pl_vout_buf = plat_gvideo_set_mode(&pl_vout_w, &pl_vout_h, &pl_vout_bpp);
-	if (pl_vout_buf == NULL && pl_rearmed_cbs.pl_vout_raw_flip == NULL)
+	update_layer_size(vout_w, vout_h);
+
+	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
+	if (pl_vout_buf == NULL)
 		fprintf(stderr, "failed to set mode %dx%d@%d\n",
 			psx_w, psx_h, psx_bpp);
+	else {
+		pl_vout_w = vout_w;
+		pl_vout_h = vout_h;
+		pl_vout_bpp = vout_bpp;
+	}
 
 	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
-
-	return pl_vout_buf;
 }
 
-// only used if raw flip is not defined
-static void *pl_vout_flip(void)
+static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
-	pl_rearmed_cbs.flip_cnt++;
+	static int doffs_old, clear_counter;
+	unsigned char *dest = pl_vout_buf;
+	const unsigned short *src = vram;
+	int dstride = pl_vout_w, h1 = h;
+	int doffs;
 
-	if (pl_vout_buf != NULL)
-		pl_print_hud(0);
+	if (dest == NULL)
+		goto out;
 
+	if (vram == NULL) {
+		// blanking
+		memset(pl_vout_buf, 0, dstride * pl_vout_h * pl_vout_bpp / 8);
+		goto out;
+	}
+
+	// borders
+	doffs = (dstride - w * pl_vout_scale) / 2 & ~1;
+	dest += doffs * 2;
+
+	if (doffs > doffs_old)
+		clear_counter = 2;
+	doffs_old = doffs;
+
+	if (clear_counter > 0) {
+		memset(pl_vout_buf, 0, dstride * pl_vout_h * pl_vout_bpp / 8);
+		clear_counter--;
+	}
+
+	if (bgr24)
+	{
+		if (pl_rearmed_cbs.only_16bpp) {
+			for (; h1-- > 0; dest += dstride * 2, src += stride)
+			{
+				bgr888_to_rgb565(dest, src, w * 3);
+			}
+		}
+		else {
+			dest -= doffs * 2;
+			dest += (doffs / 8) * 24;
+
+			for (; h1-- > 0; dest += dstride * 3, src += stride)
+			{
+				bgr888_to_rgb888(dest, src, w * 3);
+			}
+		}
+	}
+#ifdef __ARM_NEON__
+	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale == 2)
+	{
+		neon_scale2x_16_16(src, (void *)dest, w,
+			stride * 2, dstride * 2, h1);
+	}
+	else if (soft_filter == SOFT_FILTER_EAGLE2X && pl_vout_scale == 2)
+	{
+		neon_eagle2x_16_16(src, (void *)dest, w,
+			stride * 2, dstride * 2, h1);
+	}
+#endif
+	else
+	{
+		for (; h1-- > 0; dest += dstride * 2, src += stride)
+		{
+			bgr555_to_rgb565(dest, src, w * 2);
+		}
+	}
+
+	pl_print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
+
+out:
 	// let's flip now
 	pl_vout_buf = plat_gvideo_flip();
-	return pl_vout_buf;
+	pl_rearmed_cbs.flip_cnt++;
 }
 
 static int pl_vout_open(void)
 {
 	struct timeval now;
-	int h;
 
-	// force mode update
-	h = psx_h;
-	psx_h--;
-	pl_vout_buf = pl_vout_set_mode(psx_w, h, psx_bpp);
+	// force mode update on pl_vout_set_mode() call from gpulib/vout_pl
+	pl_vout_buf = NULL;
 
 	plat_gvideo_open(is_pal);
 
@@ -249,6 +339,11 @@ static void pl_vout_close(void)
 	plat_gvideo_close();
 }
 
+static void pl_set_gpu_caps(int caps)
+{
+	pl_rearmed_cbs.gpu_caps = caps;
+}
+
 void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 {
 	void *ret = plat_prepare_screenshot(w, h, bpp);
@@ -260,6 +355,75 @@ void *pl_prepare_screenshot(int *w, int *h, int *bpp)
 	*bpp = pl_vout_bpp;
 
 	return pl_vout_buf;
+}
+
+/* display/redering mode switcher */
+static int dispmode_default(void)
+{
+	pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
+	soft_filter = SOFT_FILTER_NONE;
+	snprintf(hud_msg, sizeof(hud_msg), "default mode");
+	return 1;
+}
+
+int dispmode_doubleres(void)
+{
+	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
+	    || !resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
+		return 0;
+
+	dispmode_default();
+	pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
+	snprintf(hud_msg, sizeof(hud_msg), "double resolution");
+	return 1;
+}
+
+int dispmode_scale2x(void)
+{
+	if (psx_bpp != 16)
+		return 0;
+
+	dispmode_default();
+	soft_filter = SOFT_FILTER_SCALE2X;
+	snprintf(hud_msg, sizeof(hud_msg), "scale2x");
+	return 1;
+}
+
+int dispmode_eagle2x(void)
+{
+	if (psx_bpp != 16)
+		return 0;
+
+	dispmode_default();
+	soft_filter = SOFT_FILTER_EAGLE2X;
+	snprintf(hud_msg, sizeof(hud_msg), "eagle2x");
+	return 1;
+}
+
+static int (*dispmode_switchers[])(void) = {
+	dispmode_default,
+#ifdef __ARM_NEON__
+	dispmode_doubleres,
+	dispmode_scale2x,
+	dispmode_eagle2x,
+#endif
+};
+
+static int dispmode_current;
+
+void pl_switch_dispmode(void)
+{
+	if (pl_rearmed_cbs.gpu_caps & GPU_CAP_OWNS_DISPLAY)
+		return;
+
+	while (1) {
+		dispmode_current++;
+		if (dispmode_current >=
+		    sizeof(dispmode_switchers) / sizeof(dispmode_switchers[0]))
+			dispmode_current = 0;
+		if (dispmode_switchers[dispmode_current]())
+			break;
+	}
 }
 
 #ifndef MAEMO
@@ -442,16 +606,31 @@ void pl_timing_prepare(int is_pal_)
 
 static void pl_text_out16_(int x, int y, const char *text)
 {
-	int i, l, len = strlen(text), w = pl_vout_w;
-	unsigned short *screen = (unsigned short *)pl_vout_buf + x + y * w;
+	int i, l, w = pl_vout_w;
+	unsigned short *screen;
 	unsigned short val = 0xffff;
 
-	for (i = 0; i < len; i++, screen += 8)
+	x &= ~1;
+	screen = (unsigned short *)pl_vout_buf + x + y * w;
+	for (i = 0; ; i++, screen += 8)
 	{
+		char c = text[i];
+		if (c == 0)
+			break;
+		if (c == ' ')
+			continue;
+
 		for (l = 0; l < 8; l++)
 		{
-			unsigned char fd = fontdata8x8[text[i] * 8 + l];
+			unsigned char fd = fontdata8x8[c * 8 + l];
 			unsigned short *s = screen + l * w;
+			unsigned int *s32 = (void *)s;
+
+			s32[0] = (s32[0] >> 1) & 0x7bef7bef;
+			s32[1] = (s32[1] >> 1) & 0x7bef7bef;
+			s32[2] = (s32[2] >> 1) & 0x7bef7bef;
+			s32[3] = (s32[3] >> 1) & 0x7bef7bef;
+
 			if (fd&0x80) s[0] = val;
 			if (fd&0x40) s[1] = val;
 			if (fd&0x20) s[2] = val;
@@ -484,12 +663,26 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
+static void *pl_mmap(unsigned int size)
+{
+	return plat_mmap(0, size, 0, 0);
+}
+
+static void pl_munmap(void *ptr, unsigned int size)
+{
+	plat_munmap(ptr, size);
+}
+
 struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
 	pl_vout_open,
 	pl_vout_set_mode,
 	pl_vout_flip,
 	pl_vout_close,
+
+	.mmap = pl_mmap,
+	.munmap = pl_munmap,
+	.pl_set_gpu_caps = pl_set_gpu_caps,
 };
 
 /* watchdog */
