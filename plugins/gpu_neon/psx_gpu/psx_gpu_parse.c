@@ -1453,7 +1453,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         s16 viewport_start_x = list[0] & 0x3FF;
         s16 viewport_start_y = (list[0] >> 10) & 0x1FF;
-        u32 d;
+        u32 w;
+        s32 d;
 
         if(viewport_start_x == psx_gpu->viewport_start_x &&
          viewport_start_y == psx_gpu->viewport_start_y)
@@ -1465,11 +1466,12 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_start_x = viewport_start_x;
         psx_gpu->saved_viewport_start_y = viewport_start_y;
 
-        d = (u32)psx_gpu->viewport_end_x - (u32)viewport_start_x + 1;
-        if((u32)psx_gpu->enhancement_x_threshold - d <= 16)
+        w = (u32)psx_gpu->viewport_end_x - (u32)viewport_start_x + 1;
+        d = psx_gpu->enhancement_x_threshold - w;
+        if(-16 <= d && d <= 16)
         {
           update_enhancement_buf_table_from_x(psx_gpu,
-           viewport_start_x, d);
+           viewport_start_x, w);
         }
         select_enhancement_buf(psx_gpu);
 
@@ -1487,7 +1489,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         s16 viewport_end_x = list[0] & 0x3FF;
         s16 viewport_end_y = (list[0] >> 10) & 0x1FF;
-        u32 d;
+        u32 w;
+        s32 d;
 
         if(viewport_end_x == psx_gpu->viewport_end_x &&
          viewport_end_y == psx_gpu->viewport_end_y)
@@ -1500,11 +1503,12 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_end_x = viewport_end_x;
         psx_gpu->saved_viewport_end_y = viewport_end_y;
 
-        d = (u32)viewport_end_x - (u32)psx_gpu->viewport_start_x + 1;
-        if((u32)psx_gpu->enhancement_x_threshold - d <= 16)
+        w = (u32)viewport_end_x - (u32)psx_gpu->viewport_start_x + 1;
+        d = psx_gpu->enhancement_x_threshold - w;
+        if(-16 <= d && d <= 16)
         {
           update_enhancement_buf_table_from_x(psx_gpu,
-           psx_gpu->viewport_start_x, d);
+           psx_gpu->viewport_start_x, w);
         }
         select_enhancement_buf(psx_gpu);
 
