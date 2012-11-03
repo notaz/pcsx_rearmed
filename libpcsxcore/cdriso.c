@@ -59,8 +59,11 @@ static pthread_t threadid;
 static unsigned int initial_offset = 0;
 static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
+// offsets of cddaHandle file
 static unsigned int cdda_cur_sector;
-static unsigned int cdda_start_sector;
+static unsigned int cdda_first_sector;
+// toc_sector - file_sector
+static unsigned int cdda_toc_delta;
 /* Frame offset into CD image where pregap data would be found if it was there.
  * If a game seeks there we must *not* return subchannel data since it's
  * not in the CD image, so that cdrom code can fake subchannel data instead.
@@ -180,6 +183,9 @@ static void *playthread(void *param)
 			d = cdimg_read_func(cddaHandle, sndbuffer + s, cdda_cur_sector, 0);
 			if (d < CD_FRAMESIZE_RAW)
 				break;
+
+			if (cdda_cur_sector < cdda_first_sector)
+				memset(sndbuffer + s, 0, CD_FRAMESIZE_RAW);
 
 			s += d;
 			cdda_cur_sector++;
@@ -1223,7 +1229,7 @@ static long CALLBACK ISOopen(void) {
 	if (numtracks > 1 && ti[1].handle == NULL) {
 		ti[1].handle = fopen(GetIsoFile(), "rb");
 	}
-	cdda_cur_sector = cdda_start_sector = 0;
+	cdda_cur_sector = cdda_toc_delta = 0;
 
 	return 0;
 }
@@ -1370,19 +1376,22 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 // sector: byte 0 - minute; byte 1 - second; byte 2 - frame
 // does NOT uses bcd format
 static long CALLBACK ISOplay(unsigned char *time) {
-	unsigned int i, abs_sect;
-	int file_sect;
+	unsigned int i, abs_sect, start_sect = 0;
+	int track_offset, file_sect;
 
 	if (numtracks <= 1)
 		return 0;
 
 	// find the track
 	abs_sect = msf2sec((char *)time);
-	for (i = numtracks; i > 1; i--)
-		if (msf2sec(ti[i].start) <= abs_sect + 2 * 75)
+	for (i = numtracks; i > 1; i--) {
+		start_sect = msf2sec(ti[i].start);
+		if (start_sect <= abs_sect + 2 * 75)
 			break;
+	}
 
-	file_sect = ti[i].start_offset + (abs_sect - msf2sec(ti[i].start));
+	track_offset = abs_sect - start_sect;
+	file_sect = ti[i].start_offset + track_offset;
 	if (file_sect < 0)
 		file_sect = 0;
 
@@ -1391,13 +1400,12 @@ static long CALLBACK ISOplay(unsigned char *time) {
 		if (ti[i].handle != NULL)
 			break;
 
-	cdda_start_sector = abs_sect - file_sect;
-	cddaHandle = ti[i].handle;
+	cdda_first_sector = 0;
+	if (i == 1)
+		cdda_first_sector = file_sect - track_offset;
 
-	if (pregapOffset && (unsigned int)(pregapOffset - file_sect) < 2 * 75) {
-		// get out of the missing pregap to avoid noise
-		file_sect = pregapOffset;
-	}
+	cdda_toc_delta = abs_sect - file_sect;
+	cddaHandle = ti[i].handle;
 
 	if (SPU_playCDDAchannel != NULL) {
 		startCDDA(file_sect);
@@ -1433,7 +1441,7 @@ static long CALLBACK ISOgetStatus(struct CdrStat *stat) {
 		stat->Type = 0x01;
 	}
 
-	sec = cdda_start_sector + cdda_cur_sector;
+	sec = cdda_cur_sector + cdda_toc_delta;
 	sec2msf(sec, (char *)stat->Time);
 
 	return 0;
