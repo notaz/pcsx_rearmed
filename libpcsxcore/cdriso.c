@@ -185,13 +185,6 @@ static void *playthread(void *param)
 			cdda_cur_sector++;
 		}
 
-		if (subHandle != NULL) {
-			fseek(subHandle, cdda_cur_sector * SUB_FRAMESIZE, SEEK_SET);
-			fread(subbuffer, 1, SUB_FRAMESIZE, subHandle);
-
-			if (subChanRaw) DecodeRawSubData();
-		}
-
 		if (s == 0) {
 			playing = FALSE;
 			initial_offset = 0;

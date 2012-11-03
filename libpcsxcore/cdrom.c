@@ -541,6 +541,9 @@ static void cdrPlayInterrupt_Autopause()
 	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
 	int track_changed = 0;
 	if (subq != NULL ) {
+		// update subq
+		ReadTrack( cdr.SetSectorPlay );
+
 #ifdef CDR_LOG
 		CDR_LOG( "CDDA SUB - %X:%X:%X\n",
 			subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
@@ -958,6 +961,9 @@ void cdrInterrupt() {
 			subq = (struct SubQ *)CDR_getBufferSub();
 
 			if (subq != NULL) {
+				// update subq
+				ReadTrack( cdr.SetSectorPlay );
+
 				cdr.Result[0] = subq->TrackNumber;
 				cdr.Result[1] = subq->IndexNumber;
 				memcpy(cdr.Result + 2, subq->TrackRelativeAddress, 3);
