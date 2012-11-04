@@ -860,15 +860,6 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
-#if defined(__x86_64__) || defined(__i386__)
-	// convenience hack
-	if (strstr(lib, ".x86") == NULL) {
-		char name[MAXPATHLEN];
-		snprintf(name, sizeof(name), "%s.x86_64", lib);
-		lib = name;
-	}
-#endif
-
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		fprintf(stderr, "dlopen: %s\n", dlerror());

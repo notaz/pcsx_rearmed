@@ -28,6 +28,9 @@ endif
 CC_LINK = $(CC)
 LDFLAGS += $(MAIN_LDFLAGS)
 LDLIBS += $(MAIN_LDLIBS)
+ifdef PCNT
+CFLAGS += -DPCNT
+endif
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
@@ -186,25 +189,16 @@ else
 CFLAGS += -DNO_FRONTEND
 endif
 
-ifdef X11
-frontend/%.o: CFLAGS += -DX11
-OBJS += frontend/xkb.o
-endif
-ifdef PCNT
-CFLAGS += -DPCNT
-endif
-
 # misc
 OBJS += frontend/main.o frontend/plugin.o
 
-frontend/%.o: CFLAGS += -DIN_EVDEV
+
 frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
 
 frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
 	@echo "git submodule init && git submodule update"
 	@exit 1
-
 
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
@@ -216,6 +210,7 @@ frontend/revision.h: FORCE
 
 %.o: %.S
 	$(CC) $(CFLAGS) -c $^ -o $@
+
 
 target_: $(TARGET)
 
