@@ -26,6 +26,7 @@ endif
 -include Makefile.local
 
 CC_LINK = $(CC)
+LDFLAGS += $(MAIN_LDFLAGS)
 LDLIBS += $(MAIN_LDLIBS)
 
 # core

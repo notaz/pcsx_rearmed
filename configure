@@ -274,7 +274,7 @@ maemo)
   ;;
 libretro)
   CFLAGS="$CFLAGS -fPIC"
-  LDFLAGS="$LDFLAGS -shared"
+  MAIN_LDFLAGS="$MAIN_LDFLAGS -shared -Wl,--no-undefined"
   ;;
 esac
 
@@ -427,7 +427,7 @@ echo "plugins             $plugins_short"
 echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
-echo "linker flags        $LDFLAGS"
+echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
 echo "ARMv7 optimizations $have_armv7"
 echo "enable ARM NEON     $have_arm_neon"
@@ -444,6 +444,7 @@ echo "AS = $AS" >> $config_mak
 echo "CFLAGS += $CFLAGS" >> $config_mak
 echo "ASFLAGS += $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak
+echo "MAIN_LDFLAGS += $MAIN_LDFLAGS" >> $config_mak
 echo "MAIN_LDLIBS += $MAIN_LDLIBS" >> $config_mak
 echo "PLUGIN_CFLAGS += $PLUGIN_CFLAGS" >> $config_mak
 echo >> $config_mak

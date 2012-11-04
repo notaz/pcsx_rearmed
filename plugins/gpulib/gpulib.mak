@@ -2,7 +2,7 @@
 # always adding gpulib to deps in case cspace is needed
 # users must include ../../config.mak
 
-LDFLAGS += -shared
+LDFLAGS += -shared -Wl,--no-undefined
 CFLAGS += $(PLUGIN_CFLAGS)
 ifeq "$(ARCH)" "arm"
  EXT =
