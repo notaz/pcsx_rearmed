@@ -364,6 +364,9 @@ int CheckCdrom() {
 		}
 	}
 
+	if (CdromId[0] == '\0')
+		strcpy(CdromId, "SLUS99999");
+
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
 			Config.PsxType = PSX_TYPE_PAL; // pal

@@ -556,7 +556,7 @@ static void cdrPlayInterrupt_Autopause()
 		Tomb Raider 1 ($7)
 		*/
 
-		if( cdr.CurTrack < btoi( subq->TrackNumber ) )
+		if( cdr.CurTrack + 1 == btoi( subq->TrackNumber ) )
 			track_changed = 1;
 	} else {
 		Create_Fake_Subq();
