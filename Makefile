@@ -127,47 +127,56 @@ OBJS += plugins/cdrcimg/cdrcimg.o
 # dfinput
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
-# misc
+# frontend/gui
+ifeq "$(PLATFORM)" "generic"
+OBJS += frontend/libpicofe/in_sdl.o frontend/plat_sdl.o
+OBJS += frontend/libpicofe/plat_dummy.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "pandora"
+OBJS += frontend/libpicofe/pandora/plat.o
+OBJS += frontend/libpicofe/linux/fbdev.o frontend/libpicofe/linux/xenv.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_pandora.o frontend/plat_omap.o
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "caanoo"
+OBJS += frontend/libpicofe/gp2x/in_gp2x.o frontend/warm/warm.o
+OBJS += frontend/libpicofe/gp2x/soc_pollux.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
+libpcsxcore/new_dynarec/pcsxmem.o: CFLAGS += -DCUSTOM_MEMMAPS
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "maemo"
+OBJS += maemo/hildon.o maemo/main.o
+maemo/%.o: maemo/%.c
+USE_PLUGIN_LIB = 1
+endif
+ifeq "$(PLATFORM)" "libretro"
+OBJS += frontend/libretro.o
+OBJS += frontend/linux/plat_mmap.o
+endif
+
+ifeq "$(USE_PLUGIN_LIB)" "1"
+OBJS += frontend/plugin_lib.o
+OBJS += frontend/libpicofe/linux/plat.o
+OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
 ifeq "$(HAVE_NEON)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o
 frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB
 frontend/libpicofe/arm/neon_eagle2x.o: CFLAGS += -DDO_BGR_TO_RGB
 endif
-
-# gui
-OBJS += frontend/main.o frontend/plugin.o
-OBJS += frontend/common/readpng.o frontend/common/fonts.o
-OBJS += frontend/linux/plat.o
-
-ifeq "$(PLATFORM)" "generic"
-OBJS += frontend/plat_sdl.o frontend/common/in_sdl.o
-USE_FRONTEND = 1
-endif
-ifeq "$(PLATFORM)" "pandora"
-OBJS += frontend/linux/fbdev.o
-OBJS += frontend/plat_omap.o frontend/linux/xenv.o
-OBJS += frontend/plat_pandora.o
-USE_FRONTEND = 1
-endif
-ifeq "$(PLATFORM)" "caanoo"
-OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
-OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
-libpcsxcore/new_dynarec/pcsxmem.o: CFLAGS += -DCUSTOM_MEMMAPS
-USE_FRONTEND = 1
-endif
-ifeq "$(PLATFORM)" "maemo"
-OBJS += maemo/hildon.o maemo/main.o
-maemo/%.o: maemo/%.c
-OBJS += frontend/plugin_lib.o
-endif
-ifeq "$(PLATFORM)" "libretro"
-OBJS += frontend/libretro.o
 endif
 ifeq "$(USE_FRONTEND)" "1"
-OBJS += frontend/menu.o frontend/linux/in_evdev.o
-OBJS += frontend/common/input.o
-OBJS += frontend/plugin_lib.o
+OBJS += frontend/menu.o
+OBJS += frontend/libpicofe/input.o
+frontend/menu.o: frontend/libpicofe/menu.c
 ifeq "$(HAVE_TSLIB)" "1"
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
 OBJS += frontend/pl_gun_ts.o
@@ -183,10 +192,14 @@ endif
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
+
+# misc
+OBJS += frontend/main.o frontend/plugin.o
+
 frontend/%.o: CFLAGS += -DIN_EVDEV
 frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
 
-frontend/libpicofe/arm/neon_scale2x.S frontend/libpicofe/menu.c:
+frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
 	@echo "git submodule init && git submodule update"
 	@exit 1

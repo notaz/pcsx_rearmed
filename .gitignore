@@ -1,13 +1,10 @@
 *.o
-frontend/revision.h
-frontend/linux
-frontend/common
-frontend/X11
-frontend/gp2x
 tags
 cscope.out
 pandora
 pcsx.map
+config.mak
+config.log
+frontend/revision.h
 tools
-gpu_dumps*
 .pcsx/

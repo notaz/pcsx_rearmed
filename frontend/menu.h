@@ -4,7 +4,6 @@ void menu_loop(void);
 void menu_finish(void);
 
 void menu_notify_mode_change(int w, int h, int bpp);
-void menu_set_filter_list(void *filters);
 
 enum g_opts_opts {
 	OPT_SHOWFPS = 1 << 0,
@@ -28,7 +27,7 @@ enum g_soft_filter_opts {
 	SOFT_FILTER_EAGLE2X,
 };
 
-extern int g_opts, g_scaler;
+extern int g_opts, g_scaler, g_gamma;
 extern int soft_scaling, analog_deadzone;
 extern int filter, soft_filter;
 

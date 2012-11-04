@@ -14,6 +14,7 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/gpulib/cspace.h"
+#include "linux/plat_mmap.h"
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
@@ -64,7 +65,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 	if (vram == NULL) {
 		// blanking
-		memset(pl_vout_buf, 0, dstride * h * 2);
+		memset(vout_buf, 0, dstride * h * 2);
 		goto out;
 	}
 
@@ -95,11 +96,23 @@ static void vout_close(void)
 {
 }
 
+static void *pl_mmap(unsigned int size)
+{
+	return plat_mmap(0, size, 0, 0);
+}
+
+static void pl_munmap(void *ptr, unsigned int size)
+{
+	plat_munmap(ptr, size);
+}
+
 struct rearmed_cbs pl_rearmed_cbs = {
 	.pl_vout_open = vout_open,
 	.pl_vout_set_mode = vout_set_mode,
 	.pl_vout_flip = vout_flip,
 	.pl_vout_close = vout_close,
+	.mmap = pl_mmap,
+	.munmap = pl_munmap,
 	/* from psxcounters */
 	.gpu_hcnt = &hSyncCount,
 	.gpu_frame_count = &frame_counter,

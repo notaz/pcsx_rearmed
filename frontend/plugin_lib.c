@@ -17,18 +17,17 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include "libpicofe/fonts.h"
+#include "libpicofe/input.h"
+#include "libpicofe/plat.h"
+#include "libpicofe/arm/neon_scale2x.h"
+#include "libpicofe/arm/neon_eagle2x.h"
 #include "plugin_lib.h"
-#include "linux/fbdev.h"
-#include "common/fonts.h"
-#include "common/input.h"
-#include "common/plat.h"
 #include "menu.h"
 #include "main.h"
 #include "plat.h"
 #include "pcnt.h"
 #include "pl_gun_ts.h"
-#include "libpicofe/arm/neon_scale2x.h"
-#include "libpicofe/arm/neon_eagle2x.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../plugins/gpulib/cspace.h"
@@ -249,6 +248,8 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	int dstride = pl_vout_w, h1 = h;
 	int doffs;
 
+	pcnt_start(PCNT_BLIT);
+
 	if (dest == NULL)
 		goto out;
 
@@ -312,6 +313,8 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	pl_print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
 
 out:
+	pcnt_end(PCNT_BLIT);
+
 	// let's flip now
 	pl_vout_buf = plat_gvideo_flip();
 	pl_rearmed_cbs.flip_cnt++;

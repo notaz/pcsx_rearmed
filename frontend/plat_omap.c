@@ -14,10 +14,10 @@
 #include <unistd.h>
 #include <linux/omapfb.h>
 
-#include "common/menu.h"
-#include "common/input.h"
-#include "linux/fbdev.h"
-#include "linux/xenv.h"
+#include "libpicofe/menu.h"
+#include "libpicofe/input.h"
+#include "libpicofe/linux/fbdev.h"
+#include "libpicofe/linux/xenv.h"
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "plat.h"

@@ -10,9 +10,10 @@
 
 #include <stdio.h>
 #include <SDL.h>
-#include "common/input.h"
-#include "common/in_sdl.h"
-#include "common/menu.h"
+
+#include "libpicofe/input.h"
+#include "libpicofe/in_sdl.h"
+#include "libpicofe/menu.h"
 #include "plugin_lib.h"
 #include "main.h"
 #include "plat.h"

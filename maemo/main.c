@@ -21,6 +21,9 @@
 
 int g_opts = OPT_SHOWFPS;
 int g_maemo_opts;
+int g_scaler, soft_filter;
+int g_menuscreen_w, g_menuscreen_h;
+
 char file_name[MAXPATHLEN];
 
 enum sched_action emu_action;
@@ -53,7 +56,10 @@ int main(int argc, char **argv)
 	strcpy(Config.PluginsDir, "/opt/maemo/usr/games/plugins");
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "/opt/maemo/usr/games" PATCHES_DIR);
 	Config.PsxAuto = 1;
-	
+
+	g_menuscreen_w = 800;
+	g_menuscreen_h = 480;
+
 	pl_init();
 
 	emu_core_init();

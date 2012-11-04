@@ -25,11 +25,13 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
-#include "common/plat.h"
-#include "common/readpng.h"
-#include "common/input.h"
-#include "linux/in_evdev.h"
 #include "revision.h"
+
+#ifndef NO_FRONTEND
+#include "libpicofe/input.h"
+#include "libpicofe/plat.h"
+#include "libpicofe/readpng.h"
+#endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
@@ -262,7 +264,7 @@ do_state_slot:
 		}
 	case SACTION_VOLUME_UP:
 	case SACTION_VOLUME_DOWN:
-		plat_step_volume(emu_action == SACTION_VOLUME_UP);
+		plat_target_step_volume(emu_action == SACTION_VOLUME_UP);
 		return;
 	case SACTION_MINIMIZE:
 		if (GPU_close != NULL)

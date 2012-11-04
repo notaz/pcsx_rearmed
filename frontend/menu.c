@@ -24,9 +24,10 @@
 #include "plugin_lib.h"
 #include "plat.h"
 #include "pcnt.h"
-#include "common/plat.h"
-#include "common/input.h"
-#include "linux/in_evdev.h"
+#include "libpicofe/plat.h"
+#include "libpicofe/input.h"
+#include "libpicofe/linux/in_evdev.h"
+#include "libpicofe/plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
@@ -74,8 +75,9 @@ typedef enum
 	MA_OPT_DISP_OPTS,
 	MA_OPT_SCALER,
 	MA_OPT_SCALER2,
-	MA_OPT_FILTERING,
-	MA_OPT_FILTERING2,
+	MA_OPT_HWFILTER,
+	MA_OPT_SWFILTER,
+	MA_OPT_GAMMA,
 	MA_OPT_SCALER_C,
 } menu_id;
 
@@ -86,7 +88,7 @@ static char last_selected_fname[MAXPATHLEN];
 static int warned_about_bios, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
-int g_opts, g_scaler;
+int g_opts, g_scaler, g_gamma = 100;
 int soft_scaling, analog_deadzone; // for Caanoo
 int filter, soft_filter;
 
@@ -557,9 +559,7 @@ static const char *filter_exts[] = {
 #define MENU_X2 0
 #endif
 
-#define menu_init menu_init_common
-#include "common/menu.c"
-#undef menu_init
+#include "libpicofe/menu.c"
 
 // a bit of black magic here
 static void draw_savestate_bg(int slot)
@@ -970,9 +970,9 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 static int mh_savecfg(int id, int keys)
 {
 	if (menu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0) == 0)
-		me_update_msg("config saved");
+		menu_update_msg("config saved");
 	else
-		me_update_msg("failed to write config");
+		menu_update_msg("failed to write config");
 
 	return 1;
 }
@@ -981,7 +981,7 @@ static int mh_input_rescan(int id, int keys)
 {
 	//menu_sync_config();
 	in_probe();
-	me_update_msg("rescan complete.");
+	menu_update_msg("rescan complete.");
 
 	return 0;
 }
@@ -1044,6 +1044,7 @@ static const char *men_dummy[] = { NULL };
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
+static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
 
 static int menu_loop_cscaler(int id, int keys)
 {
@@ -1055,7 +1056,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 	for (;;)
 	{
-		menu_draw_begin(0);
+		menu_draw_begin(0, 1);
 		memset(g_menuscreen_ptr, 4, g_menuscreen_w * g_menuscreen_h * 2);
 		text_out16(2, 2, "%d,%d", g_layer_x, g_layer_y);
 		text_out16(2, 480 - 18, "%dx%d | d-pad: resize, R+d-pad: move",	g_layer_w, g_layer_h);
@@ -1101,8 +1102,9 @@ static menu_entry e_menu_gfx_options[] =
 {
 	mee_enum      ("Scaler",                   MA_OPT_SCALER, g_scaler, men_scaler),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
-	mee_enum      ("Filter",                   MA_OPT_FILTERING, filter, men_dummy),
-	mee_enum_h    ("Software Filter",          MA_OPT_FILTERING2, soft_filter, men_soft_filter, h_soft_filter),
+	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, filter, men_dummy),
+	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
+	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_SCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
@@ -1115,16 +1117,6 @@ static int menu_loop_gfx_options(int id, int keys)
 	me_loop(e_menu_gfx_options, &sel);
 
 	return 0;
-}
-
-// XXX
-void menu_set_filter_list(void *filters)
-{
-	int i;
-
-	i = me_id2offset(e_menu_gfx_options, MA_OPT_FILTERING);
-	e_menu_gfx_options[i].data = filters;
-	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, filters != NULL);
 }
 
 // ------------ bios/plugins ------------
@@ -1384,7 +1376,7 @@ static int menu_loop_adv_options(int id, int keys)
 static int mh_restore_defaults(int id, int keys)
 {
 	menu_set_defconfig();
-	me_update_msg("defaults restored");
+	menu_update_msg("defaults restored");
 	return 1;
 }
 
@@ -1466,7 +1458,7 @@ static void debug_menu_loop(void)
 
 	while (1)
 	{
-		menu_draw_begin(0);
+		menu_draw_begin(0, 1);
 		draw_frame_debug(gpuf, df_x, df_y);
 		menu_draw_end();
 
@@ -1518,7 +1510,7 @@ static void draw_mc_bg(void)
 		GetMcdBlockInfo(2, i + 1, &blocks2[i]);
 	}
 
-	menu_draw_begin(1);
+	menu_draw_begin(1, 1);
 
 	memcpy(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 
@@ -1599,7 +1591,7 @@ static void draw_cheatlist(int sel)
 	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
-	menu_draw_begin(1);
+	menu_draw_begin(1, 1);
 
 	for (i = 0; i < NumCheats; i++) {
 		pos = start + i;
@@ -1702,7 +1694,7 @@ static void draw_frame_main(void)
 	}
 
 	if (ready_to_go) {
-		capacity = plat_get_bat_capacity();
+		capacity = plat_target_bat_capacity_get();
 		ltime = time(NULL);
 		tmp = localtime(&ltime);
 		strftime(ltime_s, sizeof(ltime_s), "%H:%M", tmp);
@@ -1763,7 +1755,7 @@ static int reload_plugins(const char *cdimg)
 	pcnt_hook_plugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {
-		me_update_msg("failed to open plugins");
+		menu_update_msg("failed to open plugins");
 		return -1;
 	}
 	plugin_call_rearmed_cbs();
@@ -1803,7 +1795,7 @@ static int run_exe(void)
 
 	SysReset();
 	if (Load(fname) != 0) {
-		me_update_msg("exe load failed, bad file?");
+		menu_update_msg("exe load failed, bad file?");
 		printf("meh\n");
 		return -1;
 	}
@@ -1823,7 +1815,7 @@ static int run_cd_image(const char *fname)
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
 		ClosePlugins();
-		me_update_msg("unsupported/invalid CD image");
+		menu_update_msg("unsupported/invalid CD image");
 		return -1;
 	}
 
@@ -1832,7 +1824,7 @@ static int run_cd_image(const char *fname)
 	// Read main executable directly from CDRom and start it
 	if (LoadCdrom() == -1) {
 		ClosePlugins();
-		me_update_msg("failed to load CD image");
+		menu_update_msg("failed to load CD image");
 		return -1;
 	}
 
@@ -1891,11 +1883,11 @@ static int swap_cd_image(void)
 
 	set_cd_image(fname);
 	if (ReloadCdromPlugin() < 0) {
-		me_update_msg("failed to load cdr plugin");
+		menu_update_msg("failed to load cdr plugin");
 		return -1;
 	}
 	if (CDR_open() < 0) {
-		me_update_msg("failed to open cdr plugin");
+		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
 
@@ -1914,7 +1906,7 @@ static int swap_cd_multidisk(void)
 
 	CDR_close();
 	if (CDR_open() < 0) {
-		me_update_msg("failed to open cdr plugin");
+		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
 
@@ -1938,10 +1930,10 @@ static void load_pcsx_cht(void)
 	LoadCheats(fname);
 
 	if (NumCheats == 0 && NumCodes == 0)
-		me_update_msg("failed to load cheats");
+		menu_update_msg("failed to load cheats");
 	else {
 		snprintf(path, sizeof(path), "%d cheat(s) loaded", NumCheats + NumCodes);
-		me_update_msg(path);
+		menu_update_msg(path);
 	}
 	me_enable(e_menu_main, MA_MAIN_CHEATS, ready_to_go && NumCheats);
 }
@@ -2240,13 +2232,14 @@ do_memcards:
 void menu_init(void)
 {
 	char buff[MAXPATHLEN];
+	int i;
 
 	strcpy(last_selected_fname, "/media");
 
-	cpu_clock_st = cpu_clock = plat_cpu_clock_get();
+	cpu_clock_st = cpu_clock = plat_target_cpu_clock_get();
 
 	scan_bios_plugins();
-	menu_init_common();
+	menu_init_base();
 
 	menu_set_defconfig();
 	menu_load_config(0);
@@ -2265,11 +2258,22 @@ void menu_init(void)
 	emu_make_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
+	i = plat_target.cpu_clock_set != NULL
+		&& plat_target.cpu_clock_get != NULL && cpu_clock_st > 0;
+	me_enable(e_menu_gfx_options, MA_OPT_CPU_CLOCKS, i);
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
+	e_menu_gfx_options[i].data = plat_target.hwfilters;
+	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
+		plat_target.hwfilters != NULL);
+
+	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
+		plat_target.gamma_set != NULL);
+
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER, 0);
-	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, 0);
-	me_enable(e_menu_gfx_options, MA_OPT_FILTERING2, 0);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER_C, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
 #else
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, 0);
@@ -2317,7 +2321,7 @@ static void menu_leave_emu(void)
 	}
 
 	if (ready_to_go)
-		cpu_clock = plat_cpu_clock_get();
+		cpu_clock = plat_target_cpu_clock_get();
 }
 
 void menu_prepare_emu(void)
@@ -2338,7 +2342,7 @@ void menu_prepare_emu(void)
 
 	menu_sync_config();
 	if (cpu_clock > 0)
-		plat_cpu_clock_apply(cpu_clock);
+		plat_target_cpu_clock_set(cpu_clock);
 
 	// push config to GPU plugin
 	plugin_call_rearmed_cbs();
@@ -2352,7 +2356,7 @@ void menu_prepare_emu(void)
 	dfinput_activate();
 }
 
-void me_update_msg(const char *msg)
+void menu_update_msg(const char *msg)
 {
 	strncpy(menu_error_msg, msg, sizeof(menu_error_msg));
 	menu_error_msg[sizeof(menu_error_msg) - 1] = 0;
@@ -2363,5 +2367,6 @@ void me_update_msg(const char *msg)
 
 void menu_finish(void)
 {
-	plat_cpu_clock_apply(cpu_clock_st);
+	if (cpu_clock_st > 0)
+		plat_target_cpu_clock_set(cpu_clock_st);
 }

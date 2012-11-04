@@ -48,6 +48,8 @@ have_arm_neon=""
 have_tslib=""
 enable_dynarec="yes"
 need_sdl="no"
+need_libpicofe="yes"
+need_warm="no"
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_arm926ej="no"
@@ -91,9 +93,11 @@ set_platform()
     ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
+    need_warm="yes"
     ;;
   libretro)
     sound_drivers="libretro"
+    need_libpicofe="no"
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -154,6 +158,18 @@ if [ "x$sound_drivers" != "x" ]; then
       fail "unsupported sound driver: $sound_driver"
     fi
   done
+fi
+
+if [ "$need_libpicofe" = "yes" ]; then
+  if ! test -f "frontend/libpicofe/README"; then
+    fail "libpicofe is missing, please run 'git submodule init && git submodule update'"
+  fi
+fi
+
+if [ "$need_warm" = "yes" ]; then
+  if ! test -f "frontend/warm/README"; then
+    fail "wARM is missing, please run 'git submodule init && git submodule update'"
+  fi
 fi
 
 if [ -z "$ARCH" ]; then
