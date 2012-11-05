@@ -26,6 +26,7 @@
 #include "psxdma.h"
 
 cdrStruct cdr;
+static unsigned char *pTransfer;
 
 /* CD-ROM magic numbers */
 #define CdlSync        0
@@ -1832,7 +1833,7 @@ unsigned char cdrRead2(void) {
 	if (cdr.Readed == 0) {
 		ret = 0;
 	} else {
-		ret = *cdr.pTransfer++;
+		ret = *pTransfer++;
 	}
 
 #ifdef CDR_LOG
@@ -1948,16 +1949,16 @@ void cdrWrite3(unsigned char rt) {
 
 	if (rt == 0x80 && !(cdr.Ctrl & 0x3) && cdr.Readed == 0) {
 		cdr.Readed = 1;
-		cdr.pTransfer = cdr.Transfer;
+		pTransfer = cdr.Transfer;
 
 		switch (cdr.Mode & 0x30) {
 			case MODE_SIZE_2328:
 			case 0x00:
-				cdr.pTransfer += 12;
+				pTransfer += 12;
 				break;
 
 			case MODE_SIZE_2340:
-				cdr.pTransfer += 0;
+				pTransfer += 0;
 				break;
 
 			default:
@@ -2013,16 +2014,16 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			- CdlPlay
 			- Spams DMA3 and gets buffer overrun
 			*/
-			size = CD_FRAMESIZE_RAW - (cdr.pTransfer - cdr.Transfer);
+			size = CD_FRAMESIZE_RAW - (pTransfer - cdr.Transfer);
 			if (size > cdsize)
 				size = cdsize;
 			if (size > 0)
 			{
-				memcpy(ptr, cdr.pTransfer, size);
+				memcpy(ptr, pTransfer, size);
 			}
 
 			psxCpu->Clear(madr, cdsize / 4);
-			cdr.pTransfer += cdsize;
+			pTransfer += cdsize;
 
 
 			// burst vs normal
@@ -2059,6 +2060,7 @@ void cdrReset() {
 	cdr.CurTrack = 1;
 	cdr.File = 1;
 	cdr.Channel = 1;
+	pTransfer = cdr.Transfer;
 
 	// BIOS player - default values
 	cdr.AttenuatorLeft[0] = 0x80;
@@ -2068,8 +2070,7 @@ void cdrReset() {
 }
 
 int cdrFreeze(gzFile f, int Mode) {
-	uintptr_t tmp;
-
+	u32 tmp;
 
 	if( Mode == 0 ) {
 		StopCdda();
@@ -2078,12 +2079,12 @@ int cdrFreeze(gzFile f, int Mode) {
 	gzfreeze(&cdr, sizeof(cdr));
 	
 	if (Mode == 1)
-		tmp = cdr.pTransfer - cdr.Transfer;
+		tmp = pTransfer - cdr.Transfer;
 
 	gzfreeze(&tmp, sizeof(tmp));
 
 	if (Mode == 0) {
-		cdr.pTransfer = cdr.Transfer + tmp;
+		pTransfer = cdr.Transfer + tmp;
 
 		if (cdr.Play && !Config.Cdda)
 			CDR_play(cdr.SetSectorPlay);

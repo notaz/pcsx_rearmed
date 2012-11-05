@@ -672,7 +672,30 @@ void mdec1Interrupt() {
 }
 
 int mdecFreeze(gzFile f, int Mode) {
-	gzfreeze(&mdec, sizeof(mdec));
+	u8 *base = (u8 *)&psxM[0x100000];
+	u32 v;
+
+	gzfreeze(&mdec.reg0, sizeof(mdec.reg0));
+	gzfreeze(&mdec.reg1, sizeof(mdec.reg1));
+
+	// old code used to save raw pointers..
+	v = (u8 *)mdec.rl - base;
+	gzfreeze(&v, sizeof(v));
+	mdec.rl = (u16 *)(base + (v & 0xffffe));
+	v = (u8 *)mdec.rl_end - base;
+	gzfreeze(&v, sizeof(v));
+	mdec.rl_end = (u16 *)(base + (v & 0xffffe));
+
+	v = 0;
+	if (mdec.block_buffer_pos)
+		v = mdec.block_buffer_pos - base;
+	gzfreeze(&v, sizeof(v));
+	mdec.block_buffer_pos = 0;
+	if (v)
+		mdec.block_buffer_pos = base + (v & 0xfffff);
+
+	gzfreeze(&mdec.block_buffer, sizeof(mdec.block_buffer));
+	gzfreeze(&mdec.pending_dma1, sizeof(mdec.pending_dma1));
 	gzfreeze(iq_y, sizeof(iq_y));
 	gzfreeze(iq_uv, sizeof(iq_uv));
 

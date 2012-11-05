@@ -58,9 +58,9 @@ typedef struct
  int               SB[32+32];                          // Pete added another 32 dwords in 1.6 ... prevents overflow issues with gaussian/cubic interpolation (thanx xodnizel!), and can be used for even better interpolations, eh? :)
  int               sval;
 
- unsigned char *   pStart;                             // start ptr into sound mem
- unsigned char *   pCurr;                              // current pos in sound mem
- unsigned char *   pLoop;                              // loop ptr in sound mem
+ int               iStart;                             // start ptr into sound mem
+ int               iCurr;                              // current pos in sound mem
+ int               iLoop;                              // loop ptr in sound mem
 
  int               bOn;                                // is channel active (sample playing?)
  int               bStop;                              // is channel stopped (sample _can_ still be playing, ADSR Release phase)
@@ -128,9 +128,9 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, s->SB, sizeof(d->SB));
- d->pStart = (unsigned char *)((regAreaGet(ch,6)&~1)<<3);
- d->pCurr = s->pCurr;
- d->pLoop = s->pLoop;
+ d->iStart = (regAreaGet(ch,6)&~1)<<3;
+ d->iCurr = 0; // set by the caller
+ d->iLoop = 0; // set by the caller
  d->bOn = !!(dwChannelOn & (1<<ch));
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
@@ -168,8 +168,8 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, s->SB, sizeof(d->SB));
- d->pCurr = (void *)((long)s->pCurr & 0x7fff0);
- d->pLoop = (void *)((long)s->pLoop & 0x7fff0);
+ d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
+ d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
  if (s->bOn) dwChannelOn |= 1<<ch;
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
@@ -238,10 +238,10 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
       dwChannelOn&=~(1<<i);
 
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
-     if(pFO->s_chan[i].pCurr)
-      pFO->s_chan[i].pCurr-=(unsigned long)spuMemC;
-     if(pFO->s_chan[i].pLoop)
-      pFO->s_chan[i].pLoop-=(unsigned long)spuMemC;
+     if(s_chan[i].pCurr)
+      pFO->s_chan[i].iCurr=s_chan[i].pCurr-spuMemC;
+     if(s_chan[i].pLoop)
+      pFO->s_chan[i].iLoop=s_chan[i].pLoop-spuMemC;
     }
 
    return 1;
