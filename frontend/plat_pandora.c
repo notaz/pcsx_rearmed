@@ -39,7 +39,8 @@ static const struct in_default_bind in_evdev_defbinds[] = {
 	{ KEY_4,        IN_BINDTYPE_EMU, SACTION_NEXT_SSLOT },
 	{ KEY_5,        IN_BINDTYPE_EMU, SACTION_TOGGLE_FSKIP },
 	{ KEY_6,        IN_BINDTYPE_EMU, SACTION_SCREENSHOT },
-	{ KEY_7,        IN_BINDTYPE_EMU, SACTION_SWITCH_DISPMODE },
+	{ KEY_7,        IN_BINDTYPE_EMU, SACTION_FAST_FORWARD },
+	{ KEY_8,        IN_BINDTYPE_EMU, SACTION_SWITCH_DISPMODE },
 	{ 0, 0, 0 }
 };
 

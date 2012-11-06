@@ -666,11 +666,12 @@ me_bind_action emuctrl_actions[] =
 	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
-	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
-	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
+	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
 #ifdef __ARM_ARCH_7A__ /* XXX */
+	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
 #endif
+	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },

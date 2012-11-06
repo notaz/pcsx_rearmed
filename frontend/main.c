@@ -51,6 +51,8 @@ enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
 
+static void toggle_fast_forward(int force_off);
+
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
 	if (fname)
@@ -207,6 +209,7 @@ void do_emu_action(void)
 		break;
 #ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
+		toggle_fast_forward(1);
 		menu_loop();
 		return;
 	case SACTION_NEXT_SSLOT:
@@ -241,6 +244,10 @@ do_state_slot:
 			GPU_close();
 			GPU_open(&gpuDisp, "PCSX", NULL);
 		}
+		break;
+	case SACTION_FAST_FORWARD:
+		toggle_fast_forward(0);
+		plugin_call_rearmed_cbs();
 		break;
 	case SACTION_SCREENSHOT:
 		{
@@ -587,6 +594,40 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+static void toggle_fast_forward(int force_off)
+{
+	static int fast_forward;
+	static int normal_g_opts;
+	static int normal_frameskip;
+	static int normal_enhancement_enable;
+
+	if (force_off && !fast_forward)
+		return;
+
+	fast_forward = !fast_forward;
+	if (fast_forward) {
+		normal_g_opts = g_opts;
+		normal_frameskip = pl_rearmed_cbs.frameskip;
+		normal_enhancement_enable =
+			pl_rearmed_cbs.gpu_neon.enhancement_enable;
+
+		g_opts |= OPT_NO_FRAMELIM;
+		pl_rearmed_cbs.frameskip = 3;
+		pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
+	} else {
+		g_opts = normal_g_opts;
+		pl_rearmed_cbs.frameskip = normal_frameskip;
+		pl_rearmed_cbs.gpu_neon.enhancement_enable =
+			normal_enhancement_enable;
+
+		pl_timing_prepare(Config.PsxType);
+	}
+
+	if (!force_off)
+		snprintf(hud_msg, sizeof(hud_msg), "FAST FORWARD %s",
+			fast_forward ? "ON" : "OFF");
 }
 #endif
 
