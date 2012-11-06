@@ -32,6 +32,9 @@
 #include "libpicofe/plat.h"
 #include "libpicofe/readpng.h"
 #endif
+#ifndef BOOT_MSG
+#define BOOT_MSG "Booting up..."
+#endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
@@ -403,8 +406,8 @@ void emu_on_new_cd(void)
 		printf("----------------------------------------------------------\n");
 	}
 
-	snprintf(hud_msg, sizeof(hud_msg), "Booting up...");
-	hud_new_msg = 2;
+	snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
+	hud_new_msg = 3;
 }
 
 int emu_core_preinit(void)

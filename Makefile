@@ -144,6 +144,7 @@ OBJS += frontend/libpicofe/pandora/plat.o
 OBJS += frontend/libpicofe/linux/fbdev.o frontend/libpicofe/linux/xenv.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pandora.o frontend/plat_omap.o
+frontend/main.o frontend/menu.o: CFLAGS += -include pandora/ui_feat.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
@@ -153,6 +154,7 @@ OBJS += frontend/libpicofe/gp2x/soc_pollux.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
 libpcsxcore/new_dynarec/pcsxmem.o: CFLAGS += -DCUSTOM_MEMMAPS
+frontend/main.o frontend/menu.o: CFLAGS += -include 320240/ui_gp2x.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif

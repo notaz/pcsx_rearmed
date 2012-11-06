@@ -73,19 +73,19 @@ typedef enum
 	MA_OPT_SAVECFG_GAME,
 	MA_OPT_CPU_CLOCKS,
 	MA_OPT_DISP_OPTS,
-	MA_OPT_SCALER,
+	MA_OPT_VARSCALER,
+	MA_OPT_VARSCALER_C,
 	MA_OPT_SCALER2,
 	MA_OPT_HWFILTER,
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
-	MA_OPT_SCALER_C,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
 static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
-static int warned_about_bios, region, in_type_sel1, in_type_sel2;
+static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, g_scaler, g_gamma = 100;
@@ -112,6 +112,16 @@ static const char *spu_plugins[16];
 static const char *memcards[32];
 static int bios_sel, gpu_plugsel, spu_plugsel;
 
+#ifndef UI_FEATURES_H
+#define MENU_BIOS_PATH "bios/"
+#define MENU_SHOW_VARSCALER 0
+#define MENU_SHOW_SCALER2 0
+#define MENU_SHOW_NUBS_BTNS 0
+#define MENU_SHOW_VIBRATION 0
+#define MENU_SHOW_DEADZONE 0
+#define MENU_SHOW_MINIMIZE 0
+#define MENU_SHOW_VOLUME 0
+#endif
 
 static int min(int x, int y) { return x < y ? x : y; }
 static int max(int x, int y) { return x > y ? x : y; }
@@ -308,7 +318,7 @@ static const struct {
 	CE_INTVAL_V(iUseReverb, 3),
 	CE_INTVAL_V(iXAPitch, 3),
 	CE_INTVAL_V(iUseInterpolation, 3),
-	CE_INTVAL(warned_about_bios),
+	CE_INTVAL(config_save_counter),
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
 	CE_INTVAL(psx_clock),
@@ -346,6 +356,8 @@ static int menu_write_config(int is_game)
 	char cfgfile[MAXPATHLEN];
 	FILE *f;
 	int i;
+
+	config_save_counter++;
 
 	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "w");
@@ -667,8 +679,10 @@ me_bind_action emuctrl_actions[] =
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
 	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
-#ifdef __ARM_ARCH_7A__ /* XXX */
+#ifdef __ARM_ARCH_7A__
 	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
+#endif
+#if MENU_SHOW_MINIMIZE
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
 #endif
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
@@ -676,7 +690,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },
 	{ "Gun Offscreen Trigger", 1 << SACTION_GUN_TRIGGER2 },
-#ifndef __ARM_ARCH_7A__ /* XXX */
+#if MENU_SHOW_VOLUME
 	{ "Volume Up        ", 1 << SACTION_VOLUME_UP },
 	{ "Volume Down      ", 1 << SACTION_VOLUME_DOWN },
 #endif
@@ -1101,13 +1115,13 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Scaler",                   MA_OPT_SCALER, g_scaler, men_scaler),
+	mee_enum      ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, filter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
-	mee_cust_h    ("Setup custom scaler",      MA_OPT_SCALER_C, menu_loop_cscaler, NULL, h_cscaler),
+	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
 };
 
@@ -1644,11 +1658,8 @@ static void menu_bios_warn(void)
 	static const char msg[] =
 		"You don't seem to have copied any BIOS\n"
 		"files to\n"
-#ifdef __ARM_ARCH_7A__ // XXX
-		"<SD card>/pandora/appdata/pcsx_rearmed/bios/\n\n"
-#else
-		"pcsx_rearmed/bios/\n\n"
-#endif
+		MENU_BIOS_PATH "\n\n"
+
 		"While many games work fine with fake\n"
 		"(HLE) BIOS, others (like MGS and FF8)\n"
 		"require BIOS to work.\n"
@@ -2049,13 +2060,22 @@ static void menu_leave_emu(void);
 
 void menu_loop(void)
 {
+	static int warned_about_bios = 0;
 	static int sel = 0;
 
 	menu_leave_emu();
 
-	if (bioses[1] == NULL && !warned_about_bios) {
-		menu_bios_warn();
-		warned_about_bios = 1;
+	if (config_save_counter == 0) {
+		// assume first run
+		if (bioses[1] != NULL) {
+			// autoselect BIOS to make user's life easier
+			snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[1]);
+			bios_sel = 1;
+		}
+		else if (!warned_about_bios) {
+			menu_bios_warn();
+			warned_about_bios = 1;
+		}
 	}
 
 	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, ready_to_go);
@@ -2271,16 +2291,15 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
 		plat_target.gamma_set != NULL);
 
-#ifndef __ARM_ARCH_7A__ /* XXX */
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER, 0);
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER_C, 0);
+#ifndef __ARM_ARCH_7A__
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
-#else
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 #endif
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
+	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
+	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, MENU_SHOW_DEADZONE);
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)
