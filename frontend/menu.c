@@ -248,6 +248,9 @@ static void menu_set_defconfig(void)
 #define CE_INTVAL(val) \
 	{ #val, sizeof(val), &val }
 
+#define CE_INTVAL_N(name, val) \
+	{ name, sizeof(val), &val }
+
 #define CE_INTVAL_P(val) \
 	{ #val, sizeof(pl_rearmed_cbs.val), &pl_rearmed_cbs.val }
 
@@ -295,6 +298,8 @@ static const struct {
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
 	CE_INTVAL(analog_deadzone),
+	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
+	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 3),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
@@ -908,17 +913,21 @@ static int key_config_loop_wrap(int id, int keys)
 	return 0;
 }
 
+static const char h_nubmode[] = "Maps nub-like analog controls to PSX ones better\n"
+				"Might cause problems with real analog sticks";
 static const char *adevnames[IN_MAX_DEVS + 2];
 static int stick_sel[2];
 
 static menu_entry e_menu_keyconfig_analog[] =
 {
-	mee_enum ("Left stick (L3)",  0, stick_sel[0], adevnames),
-	mee_range("  X axis",    0, in_adev_axis[0][0], 0, 7),
-	mee_range("  Y axis",    0, in_adev_axis[0][1], 0, 7),
-	mee_enum ("Right stick (R3)", 0, stick_sel[1], adevnames),
-	mee_range("  X axis",    0, in_adev_axis[1][0], 0, 7),
-	mee_range("  Y axis",    0, in_adev_axis[1][1], 0, 7),
+	mee_enum   ("Left stick (L3)",  0, stick_sel[0], adevnames),
+	mee_range  ("  X axis",    0, in_adev_axis[0][0], 0, 7),
+	mee_range  ("  Y axis",    0, in_adev_axis[0][1], 0, 7),
+	mee_onoff_h("  nub mode",  0, in_adev_is_nublike[0], 1, h_nubmode),
+	mee_enum   ("Right stick (R3)", 0, stick_sel[1], adevnames),
+	mee_range  ("  X axis",    0, in_adev_axis[1][0], 0, 7),
+	mee_range  ("  Y axis",    0, in_adev_axis[1][1], 0, 7),
+	mee_onoff_h("  nub mode",  0, in_adev_is_nublike[1], 1, h_nubmode),
 	mee_end,
 };
 

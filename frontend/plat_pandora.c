@@ -55,6 +55,7 @@ int plat_init(void)
 
 	in_adev[0] = in_name_to_id("evdev:nub0");
 	in_adev[1] = in_name_to_id("evdev:nub1");
+	in_adev_is_nublike[0] = in_adev_is_nublike[1] = 1;
 
 	return 0;
 }

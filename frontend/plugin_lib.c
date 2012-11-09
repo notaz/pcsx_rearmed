@@ -35,6 +35,7 @@
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
+int in_adev_is_nublike[2];
 int in_keystate, in_state_gun;
 int in_enable_vibration;
 void *tsdev;
@@ -430,9 +431,25 @@ void pl_switch_dispmode(void)
 }
 
 #ifndef MAEMO
+/* adjust circle-like analog inputs to better match
+ * more square-like analogs in PSX */
+static void update_analog_nub_adjust(int *x_, int *y_)
+{
+	static const int scale[] = { 0, 0, 0, 12, 30, 60, 75, 60, 60 };
+	int x = *x_;
+	int y = *y_;
+
+	x += x * scale[abs(y) / 16] >> 8;
+	y += y * scale[abs(x) / 16] >> 8;
+
+	*x_ = x;
+	*y_ = y;
+}
+
 static void update_analogs(void)
 {
 	int *nubp[2] = { in_a1, in_a2 };
+	int vals[2];
 	int i, a, v, ret;
 
 	for (i = 0; i < 2; i++)
@@ -441,14 +458,23 @@ static void update_analogs(void)
 			continue;
 
 		for (a = 0; a < 2; a++) {
-			nubp[i][a] = 127;
+			vals[a] = 0;
 
 			ret = in_update_analog(in_adev[i], in_adev_axis[i][a], &v);
-			if (ret == 0) {
-				v = v / (IN_ABS_RANGE / 128) + 127;
-				nubp[i][a] = v < 0 ? 0 : v;
-			}
+			if (ret == 0)
+				vals[a] = 128 * v / IN_ABS_RANGE;
 		}
+
+		if (in_adev_is_nublike[i])
+			update_analog_nub_adjust(&vals[0], &vals[1]);
+
+		for (a = 0; a < 2; a++) {
+			v = vals[a] + 127;
+			if (v < 0) v = 0;
+			else if (v > 255) v = 255;
+			nubp[i][a] = v;
+		}
+
 	}
 	//printf("%4d %4d %4d %4d\n", in_a1[0], in_a1[1], in_a2[0], in_a2[1]);
 }
