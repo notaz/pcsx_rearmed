@@ -435,12 +435,25 @@ void pl_switch_dispmode(void)
  * more square-like analogs in PSX */
 static void update_analog_nub_adjust(int *x_, int *y_)
 {
-	static const int scale[] = { 0, 0, 0, 12, 30, 60, 75, 60, 60 };
-	int x = *x_;
-	int y = *y_;
+	const int d = 16;
+	static const int scale[] =
+		{ 0 - d*2,  0 - d*2,  0 - d*2, 12 - d*2,
+		 30 - d*2, 60 - d*2, 75 - d*2, 60 - d*2, 60 - d*2 };
+	int x = abs(*x_);
+	int y = abs(*y_);
+	int scale_x = scale[y / 16];
+	int scale_y = scale[x / 16];
 
-	x += x * scale[abs(y) / 16] >> 8;
-	y += y * scale[abs(x) / 16] >> 8;
+	if (x) {
+		x += d + (x * scale_x >> 8);
+		if (*x_ < 0)
+			x = -x;
+	}
+	if (y) {
+		y += d + (y * scale_y >> 8);
+		if (*y_ < 0)
+			y = -y;
+	}
 
 	*x_ = x;
 	*y_ = y;
