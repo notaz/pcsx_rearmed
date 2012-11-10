@@ -396,7 +396,7 @@ out:
 	fclose(f);
 }
 
-void emu_on_new_cd(void)
+void emu_on_new_cd(int show_hud_msg)
 {
 	ClearAllCheats();
 	parse_cwcheat();
@@ -406,8 +406,10 @@ void emu_on_new_cd(void)
 		printf("----------------------------------------------------------\n");
 	}
 
-	snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
-	hud_new_msg = 3;
+	if (show_hud_msg) {
+		snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
+		hud_new_msg = 3;
+	}
 }
 
 int emu_core_preinit(void)
@@ -563,7 +565,7 @@ int main(int argc, char *argv[])
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
-			emu_on_new_cd();
+			emu_on_new_cd(!loadst);
 			ready_to_go = 1;
 		}
 	}

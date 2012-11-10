@@ -132,7 +132,7 @@ int main(int argc, char **argv)
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
-			emu_on_new_cd();
+			emu_on_new_cd(0);
 			ready_to_go = 1;
 		}
 	}

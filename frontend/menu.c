@@ -1849,7 +1849,7 @@ static int run_cd_image(const char *fname)
 		return -1;
 	}
 
-	emu_on_new_cd();
+	emu_on_new_cd(1);
 	ready_to_go = 1;
 
 	return 0;
