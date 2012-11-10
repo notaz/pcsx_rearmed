@@ -88,6 +88,16 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r16 (2012-11-10)
++ gpu_neon now has new hires rendering mode
+  (sometimes slow and occasionally glitchy)
++ integrated M-HT's scale2x and eagle2x filters
+  (works for 512x256 or lower resolution games)
++ pandora: added gamma/brightness control (requires SZ 1.52)
+* pandora: some improvements for nub support
++ added fast forward support
+* fixed some glitches after loading savestates from r14 or earlier
+
 r15 (2012-08-02)
 * various compatibility fixes
 * attempts to fix various SPU issues

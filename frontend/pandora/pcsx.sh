@@ -14,6 +14,7 @@ sudo -n /usr/pandora/scripts/op_hugetlb.sh 16
 # restore stuff if pcsx crashes
 ./picorestore
 sudo -n /usr/pandora/scripts/op_lcdrate.sh 60
+sudo -n /usr/pandora/scripts/op_gamma.sh 0
 sudo -n /usr/pandora/scripts/op_hugetlb.sh 0
 
 /usr/pandora/scripts/op_nubchange.sh $nub0mode $nub1mode
