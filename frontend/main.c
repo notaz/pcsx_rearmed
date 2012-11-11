@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010-2011
+ * (C) notaz, 2010-2012
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -251,6 +251,15 @@ do_state_slot:
 	case SACTION_FAST_FORWARD:
 		toggle_fast_forward(0);
 		plugin_call_rearmed_cbs();
+		break;
+	case SACTION_TOGGLE_FPS:
+		if ((g_opts & (OPT_SHOWFPS|OPT_SHOWCPU))
+		    == (OPT_SHOWFPS|OPT_SHOWCPU))
+			g_opts &= ~(OPT_SHOWFPS|OPT_SHOWCPU);
+		else if (g_opts & OPT_SHOWFPS)
+			g_opts |= OPT_SHOWCPU;
+		else
+			g_opts |= OPT_SHOWFPS;
 		break;
 	case SACTION_SCREENSHOT:
 		{
@@ -722,6 +731,8 @@ int emu_load_state(int slot)
 {
 	char fname[MAXPATHLEN];
 	int ret;
+
+	hud_msg[0] = 0;
 
 	ret = get_state_filename(fname, sizeof(fname), slot);
 	if (ret != 0)

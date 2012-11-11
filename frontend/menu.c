@@ -683,10 +683,11 @@ me_bind_action emuctrl_actions[] =
 	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
-	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
+	{ "Show/Hide FPS    ", 1 << SACTION_TOGGLE_FPS },
 #ifdef __ARM_ARCH_7A__
 	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
 #endif
+	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
 #if MENU_SHOW_MINIMIZE
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
 #endif
