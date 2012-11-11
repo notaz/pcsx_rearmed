@@ -72,20 +72,24 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 static void print_msg(int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(border + 2, h - 10, "%s", hud_msg);
+		basic_text_out16_nf(pl_vout_buf, pl_vout_w,
+			border + 2, h - 10, hud_msg);
 }
 
 static void print_fps(int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(border + 2, h - 10, "%2d %4.1f",
+		basic_text_out16(pl_vout_buf, pl_vout_w,
+			border + 2, h - 10, "%2d %4.1f",
 			pl_rearmed_cbs.flips_per_sec, pl_rearmed_cbs.vsps_cur);
 }
 
 static void print_cpu_usage(int w, int h, int border)
 {
 	if (pl_vout_bpp == 16)
-		pl_text_out16(w - border - 28, h - 10, "%3d", pl_rearmed_cbs.cpu_usage);
+		basic_text_out16(pl_vout_buf, pl_vout_w,
+			pl_vout_w - border - 28, h - 10,
+			"%3d", pl_rearmed_cbs.cpu_usage);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -122,6 +126,8 @@ void pl_print_hud(int w, int h, int xborder)
 {
 	if (h < 16)
 		return;
+
+	xborder += (pl_vout_w - w) / 2;
 
 	if (g_opts & OPT_SHOWSPU)
 		draw_active_chans(w, h);
@@ -639,57 +645,6 @@ void pl_timing_prepare(int is_pal_)
 	pl_rearmed_cbs.gpu_peops.fFrameRateHz = is_pal ? 50.0f : 59.94f;
 	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
 		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
-}
-
-static void pl_text_out16_(int x, int y, const char *text)
-{
-	int i, l, w = pl_vout_w;
-	unsigned short *screen;
-	unsigned short val = 0xffff;
-
-	x &= ~1;
-	screen = (unsigned short *)pl_vout_buf + x + y * w;
-	for (i = 0; ; i++, screen += 8)
-	{
-		char c = text[i];
-		if (c == 0)
-			break;
-		if (c == ' ')
-			continue;
-
-		for (l = 0; l < 8; l++)
-		{
-			unsigned char fd = fontdata8x8[c * 8 + l];
-			unsigned short *s = screen + l * w;
-			unsigned int *s32 = (void *)s;
-
-			s32[0] = (s32[0] >> 1) & 0x7bef7bef;
-			s32[1] = (s32[1] >> 1) & 0x7bef7bef;
-			s32[2] = (s32[2] >> 1) & 0x7bef7bef;
-			s32[3] = (s32[3] >> 1) & 0x7bef7bef;
-
-			if (fd&0x80) s[0] = val;
-			if (fd&0x40) s[1] = val;
-			if (fd&0x20) s[2] = val;
-			if (fd&0x10) s[3] = val;
-			if (fd&0x08) s[4] = val;
-			if (fd&0x04) s[5] = val;
-			if (fd&0x02) s[6] = val;
-			if (fd&0x01) s[7] = val;
-		}
-	}
-}
-
-void pl_text_out16(int x, int y, const char *texto, ...)
-{
-	va_list args;
-	char    buffer[256];
-
-	va_start(args, texto);
-	vsnprintf(buffer, sizeof(buffer), texto, args);
-	va_end(args);
-
-	pl_text_out16_(x, y, buffer);
 }
 
 static void pl_get_layer_pos(int *x, int *y, int *w, int *h)

@@ -28,7 +28,6 @@ extern void *pl_vout_buf;
 extern int g_layer_x, g_layer_y;
 extern int g_layer_w, g_layer_h;
 
-void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
