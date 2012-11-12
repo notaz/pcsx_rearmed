@@ -409,6 +409,22 @@ static int PSXGetFileType(FILE *f) {
 	return INVALID_EXE;
 }
 
+// temporary pandora workaround..
+// FIXME: remove
+size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+	void *tmp;
+	size_t ret = 0;
+	
+	tmp = malloc(size * nmemb);
+	if (tmp) {
+		ret = fread(tmp, size, nmemb, stream);
+		memcpy(ptr, tmp, size * nmemb);
+		free(tmp);
+	}
+	return ret;
+}
+
 int Load(const char *ExePath) {
 	FILE *tmpFile;
 	EXE_HEADER tmpHead;
@@ -435,7 +451,7 @@ int Load(const char *ExePath) {
 				mem = PSXM(section_address);
 				if (mem != NULL) {
 					fseek(tmpFile, 0x800, SEEK_SET);		
-					fread(mem, section_size, 1, tmpFile);
+					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
 				fclose(tmpFile);
@@ -461,7 +477,7 @@ int Load(const char *ExePath) {
 #endif
 							mem = PSXM(section_address);
 							if (mem != NULL) {
-								fread(mem, section_size, 1, tmpFile);
+								fread_to_ram(mem, section_size, 1, tmpFile);
 								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;
