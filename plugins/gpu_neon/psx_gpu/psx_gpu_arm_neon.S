@@ -20,6 +20,7 @@
 #define RENDER_STATE_MASK_EVALUATE                        0x20
 #define RENDER_FLAGS_MODULATE_TEXELS                      0x1
 #define RENDER_FLAGS_BLEND                                0x2
+#define RENDER_INTERLACE_ENABLED                          0x1
 
 #include "psx_gpu_offsets.h"
 
@@ -5757,6 +5758,8 @@ function(setup_sprite_untextured)
   ldrh r12, [ psx_gpu, #psx_gpu_render_state_offset ]
   tst r12, #(RENDER_STATE_MASK_EVALUATE | RENDER_FLAGS_MODULATE_TEXELS         \
     | RENDER_FLAGS_BLEND)
+  ldreqb r12, [ psx_gpu, #psx_gpu_render_mode_offset ]
+  tsteq r12, #RENDER_INTERLACE_ENABLED
   beq setup_sprite_untextured_simple
 
   stmdb sp!, { r4 - r11, r14 }

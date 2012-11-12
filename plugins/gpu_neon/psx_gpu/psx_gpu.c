@@ -4031,7 +4031,8 @@ void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
 {
   if((psx_gpu->render_state & (RENDER_STATE_MASK_EVALUATE |
-   RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND)) == 0)
+   RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND)) == 0 &&
+   (psx_gpu->render_mode & RENDER_INTERLACE_ENABLED) == 0)
   {
     setup_sprite_untextured_simple(psx_gpu, x, y, u, v, width, height, color);
     return;
