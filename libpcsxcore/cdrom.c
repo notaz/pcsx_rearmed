@@ -557,6 +557,8 @@ static void cdrPlayInterrupt_Autopause()
 		Tomb Raider 1 ($7)
 		*/
 
+		// .. + 1 is probably wrong, but deals with corrupted subq + good checksum
+		// (how does real thing handle those?)
 		if( cdr.CurTrack + 1 == btoi( subq->TrackNumber ) )
 			track_changed = 1;
 	} else {
@@ -586,13 +588,14 @@ static void cdrPlayInterrupt_Autopause()
 
 		StopCdda();
 	}
-	if (cdr.Mode & MODE_REPORT) {
+	else if (cdr.Mode & MODE_REPORT) {
 		if (subq != NULL) {
 #ifdef CDR_LOG
 			CDR_LOG( "REPPLAY SUB - %X:%X:%X\n",
 				subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
 #endif
-			cdr.CurTrack = btoi( subq->TrackNumber );
+			// breaks when .sub doesn't have index 0 for some reason (bad rip?)
+			//cdr.CurTrack = btoi( subq->TrackNumber );
 
 			if (subq->AbsoluteAddress[2] & 0xf)
 				return;
@@ -783,7 +786,7 @@ void cdrInterrupt() {
 								cdr.SetSectorPlay[2] = cdr.ResultTD[0];
 
 								// reset data
-								Set_Track();
+								//Set_Track();
 								Find_CurTrack();
 								ReadTrack( cdr.SetSectorPlay );
 
