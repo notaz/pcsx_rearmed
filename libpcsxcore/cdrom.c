@@ -962,8 +962,9 @@ void cdrInterrupt() {
 			subq = (struct SubQ *)CDR_getBufferSub();
 
 			if (subq != NULL) {
-				// update subq
-				ReadTrack( cdr.SetSectorPlay );
+				if( cdr.Play && (cdr.Mode & MODE_CDDA) && !(cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)) )
+					// update subq
+					ReadTrack( cdr.SetSectorPlay );
 
 				cdr.Result[0] = subq->TrackNumber;
 				cdr.Result[1] = subq->IndexNumber;
