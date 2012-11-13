@@ -72,8 +72,8 @@ void vout_update(void)
   if (y + h > vram_h) {
     if (y + h - vram_h > h / 2) {
       // wrap
-      y = 0;
       h -= vram_h - y;
+      y = 0;
     }
     else
       // clip

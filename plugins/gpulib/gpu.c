@@ -212,7 +212,7 @@ void GPUwriteStatus(uint32_t data)
       break;
     case 0x05:
       gpu.screen.x = data & 0x3ff;
-      gpu.screen.y = (data >> 10) & 0x3ff;
+      gpu.screen.y = (data >> 10) & 0x1ff;
       if (gpu.frameskip.set) {
         decide_frameskip_allow(gpu.ex_regs[3]);
         if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {

@@ -624,12 +624,18 @@ static void draw_savestate_bg(int slot)
 
 	x = gpu->ulControl[5] & 0x3ff;
 	y = (gpu->ulControl[5] >> 10) & 0x1ff;
-	s = (u16 *)gpu->psxVRam + y * 1024 + x;
 	w = psx_widths[(gpu->ulStatus >> 16) & 7];
 	tmp = gpu->ulControl[7];
 	h = ((tmp >> 10) & 0x3ff) - (tmp & 0x3ff);
 	if (gpu->ulStatus & 0x80000) // doubleheight
 		h *= 2;
+	if (h <= 0 || h > 512)
+		goto out;
+	if (y > 512 - 64)
+		y = 0;
+	if (y + h > 512)
+		h = 512 - y;
+	s = (u16 *)gpu->psxVRam + y * 1024 + x;
 
 	x = max(0, g_menuscreen_w - w) & ~3;
 	y = max(0, g_menuscreen_h / 2 - h / 2);
