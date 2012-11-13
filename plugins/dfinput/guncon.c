@@ -29,17 +29,17 @@ unsigned char PADpoll_guncon(unsigned char value)
 
 unsigned char PADstartPoll_guncon(int pad)
 {
-	int x, xn = 0, y = 0, in = 0, xres = 256;
+	int x, y, xn = 0, yn = 0, in = 0, xres = 256, yres = 240;
 	CurByte = 0;
 
 	buf[2] = buf[3] = 0xff;
-	pl_update_gun(&xn, &xres, &y, &in);
+	pl_update_gun(&xn, &yn, &xres, &yres, &in);
 
 	// while y = const + line counter, what is x?
 	// for 256 mode, hw dumped offsets x, y: 0x5a, 0x20
 	//x = 0x5a + (356 * xn >> 10);
 	x = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * xn >> 10);
-	y = 0x20 + y;
+	y = 0x20 + (yres * yn >> 10);
 
 	if (in & GUNIN_TRIGGER)
 		buf[3] &= ~0x20;

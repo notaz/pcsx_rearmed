@@ -50,7 +50,7 @@ void DoBufferSwap(void)
   fbw = PreviousPSXDisplay.DisplayMode.x;
   fbh = PreviousPSXDisplay.DisplayMode.y;
   fb24bpp = PSXDisplay.RGB24;
-  rcbs->pl_vout_set_mode(fbw, fbh, fb24bpp ? 24 : 16);
+  rcbs->pl_vout_set_mode(fbw, fbh, fbw, fbh, fb24bpp ? 24 : 16);
  }
 
  pcnt_start(PCNT_BLIT);

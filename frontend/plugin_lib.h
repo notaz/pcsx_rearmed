@@ -37,12 +37,10 @@ void  pl_switch_dispmode(void);
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
 
-void  pl_update_gun(int *xn, int *xres, int *y, int *in);
-
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_vout_open)(void);
-	void  (*pl_vout_set_mode)(int w, int h, int bpp);
+	void  (*pl_vout_set_mode)(int w, int h, int raw_w, int raw_h, int bpp);
 	void  (*pl_vout_flip)(const void *vram, int stride, int bgr24,
 			      int w, int h);
 	void  (*pl_vout_close)(void);

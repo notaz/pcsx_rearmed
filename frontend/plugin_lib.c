@@ -31,6 +31,7 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../plugins/gpulib/cspace.h"
+#include "../plugins/dfinput/externals.h"
 
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
@@ -199,7 +200,7 @@ static int resolution_ok(int w, int h)
 	return w <= 1024 && h <= 512;
 }
 
-static void pl_vout_set_mode(int w, int h, int bpp)
+static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	int vout_w, vout_h, vout_bpp;
 
@@ -209,8 +210,10 @@ static void pl_vout_set_mode(int w, int h, int bpp)
 		h = (h + 7) & ~7;
 	vsync_cnt_ms_prev = vsync_cnt;
 
-	vout_w = psx_w = w;
-	vout_h = psx_h = h;
+	psx_w = raw_w;
+	psx_h = raw_h;
+	vout_w = w;
+	vout_h = h;
 	vout_bpp = psx_bpp = bpp;
 
 	pl_vout_scale = 1;
@@ -237,7 +240,7 @@ static void pl_vout_set_mode(int w, int h, int bpp)
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
 	if (pl_vout_buf == NULL)
 		fprintf(stderr, "failed to set mode %dx%d@%d\n",
-			psx_w, psx_h, psx_bpp);
+			vout_w, vout_h, psx_bpp);
 	else {
 		pl_vout_w = vout_w;
 		pl_vout_h = vout_h;
@@ -390,7 +393,7 @@ int dispmode_doubleres(void)
 
 int dispmode_scale2x(void)
 {
-	if (psx_bpp != 16)
+	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
 		return 0;
 
 	dispmode_default();
@@ -401,7 +404,7 @@ int dispmode_scale2x(void)
 
 int dispmode_eagle2x(void)
 {
-	if (psx_bpp != 16)
+	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
 		return 0;
 
 	dispmode_default();
@@ -441,7 +444,7 @@ void pl_switch_dispmode(void)
  * more square-like analogs in PSX */
 static void update_analog_nub_adjust(int *x_, int *y_)
 {
-	const int d = 16;
+	#define d 16
 	static const int scale[] =
 		{ 0 - d*2,  0 - d*2,  0 - d*2, 12 - d*2,
 		 30 - d*2, 60 - d*2, 75 - d*2, 60 - d*2, 60 - d*2 };
@@ -463,6 +466,7 @@ static void update_analog_nub_adjust(int *x_, int *y_)
 
 	*x_ = x;
 	*y_ = y;
+	#undef d
 }
 
 static void update_analogs(void)
@@ -526,13 +530,13 @@ static void update_input(void)
 }
 #endif
 
-void pl_update_gun(int *xn, int *xres, int *y, int *in)
+void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 {
 	if (tsdev)
-		pl_gun_ts_update(tsdev, xn, y, in);
+		pl_gun_ts_update(tsdev, xn, yn, in);
 
-	*xres = pl_vout_w;
-	*y = *y * pl_vout_h >> 10;
+	*xres = psx_w;
+	*yres = psx_h;
 }
 
 #define MAX_LAG_FRAMES 3

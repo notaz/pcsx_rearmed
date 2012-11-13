@@ -16,7 +16,7 @@
 #include "plugin_lib.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/main.h"
+#include "../plugins/dfinput/externals.h"
 #include "maemo_common.h"
 
 int g_opts = OPT_SHOWFPS;

@@ -43,7 +43,7 @@ static int vout_open(void)
 	return 0;
 }
 
-static void vout_set_mode(int w, int h, int bpp)
+static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 }
 
@@ -132,7 +132,7 @@ void plat_trigger_vibrate(int is_strong)
 {
 }
 
-void pl_update_gun(int *xn, int *xres, int *y, int *in)
+void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 {
 }
 

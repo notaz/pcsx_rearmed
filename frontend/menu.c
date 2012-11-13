@@ -34,7 +34,7 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/main.h"
+#include "../plugins/dfinput/externals.h"
 #include "../plugins/gpulib/cspace.h"
 #include "revision.h"
 

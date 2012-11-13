@@ -32,14 +32,16 @@ static void check_mode_change(int force)
   static int old_h;
   int w = gpu.screen.hres;
   int h = gpu.screen.h;
+  int w_out = w;
+  int h_out = h;
 
   gpu.state.enhancement_active =
     gpu.get_enhancement_bufer != NULL && gpu.state.enhancement_enable
     && w <= 512 && h <= 256 && !gpu.status.rgb24;
 
   if (gpu.state.enhancement_active) {
-    w *= 2;
-    h *= 2;
+    w_out *= 2;
+    h_out *= 2;
   }
 
   // width|rgb24 change?
@@ -48,7 +50,7 @@ static void check_mode_change(int force)
     old_status = gpu.status.reg;
     old_h = h;
 
-    cbs->pl_vout_set_mode(w, h,
+    cbs->pl_vout_set_mode(w_out, h_out, w, h,
       (gpu.status.rgb24 && !cbs->only_16bpp) ? 24 : 16);
   }
 }

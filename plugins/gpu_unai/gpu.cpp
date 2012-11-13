@@ -850,7 +850,7 @@ static void blit(void)
 		old_res_horz = w0;
 		old_res_vert = h1;
 		old_rgb24 = (s16)isRGB24;
-		cbs->pl_vout_set_mode(w0, h1, isRGB24 ? 24 : 16);
+		cbs->pl_vout_set_mode(w0, h1, w0, h1, isRGB24 ? 24 : 16);
 	}
 
 	cbs->pl_vout_flip(base, 1024, isRGB24, w0, h1);
