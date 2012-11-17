@@ -11,6 +11,13 @@ enum pcounters {
 
 #ifdef PCNT
 
+#ifndef __ARM_ARCH_7A__
+#include <sys/time.h>
+#define PCNT_DIV 1
+#else
+#define PCNT_DIV 1000
+#endif
+
 static const char *pcnt_names[PCNT_CNT] = { "", "gpu", "spu", "blit", "gte", "test" };
 
 #define PCNT_FRAMES 10
@@ -33,7 +40,7 @@ static inline void pcnt_print(float fps)
 	int i;
 
 	for (i = 0; i < PCNT_CNT; i++)
-		pcounters[i] /= 1000 * PCNT_FRAMES;
+		pcounters[i] /= PCNT_DIV * PCNT_FRAMES;
 
 	rem = total = pcounters[PCNT_ALL];
 	for (i = 1; i < PCNT_CNT; i++)
@@ -79,7 +86,13 @@ static inline unsigned int pcnt_get(void)
 	__asm__ volatile("mrc p15, 0, %0, c9, c13, 0"
 			 : "=r"(val));
 #else
-	val = 0;
+	// all slow on ARM :(
+	//struct timespec tv;
+	//clock_gettime(CLOCK_MONOTONIC_RAW, &tv);
+	//val = tv.tv_sec * 1000000000 + tv.tv_nsec;
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	val = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
 	return val;
 }
