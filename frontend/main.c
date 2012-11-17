@@ -261,6 +261,9 @@ do_state_slot:
 		else
 			g_opts |= OPT_SHOWFPS;
 		break;
+	case SACTION_TOGGLE_FULLSCREEN:
+		g_fullscreen = !g_fullscreen;
+		break;
 	case SACTION_SCREENSHOT:
 		{
 			char buf[MAXPATHLEN];

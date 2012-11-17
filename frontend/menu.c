@@ -79,6 +79,7 @@ typedef enum
 	MA_OPT_HWFILTER,
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
+	MA_OPT_VIDOVERLAY,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -90,6 +91,7 @@ static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, g_scaler, g_gamma = 100;
 int soft_scaling, analog_deadzone; // for Caanoo
+int g_use_overlay, g_fullscreen;
 int filter, soft_filter;
 
 #ifdef __ARM_ARCH_7A__
@@ -115,11 +117,13 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #ifndef UI_FEATURES_H
 #define MENU_BIOS_PATH "bios/"
 #define MENU_SHOW_VARSCALER 0
+#define MENU_SHOW_VIDOVERLAY 1
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 0
 #define MENU_SHOW_VIBRATION 0
 #define MENU_SHOW_DEADZONE 0
 #define MENU_SHOW_MINIMIZE 0
+#define MENU_SHOW_FULLSCREEN 1
 #define MENU_SHOW_VOLUME 0
 #endif
 
@@ -227,6 +231,8 @@ static void menu_set_defconfig(void)
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
+	g_use_overlay = 1;
+	g_fullscreen = 0;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -292,6 +298,8 @@ static const struct {
 	CE_INTVAL(g_layer_h),
 	CE_INTVAL(filter),
 	CE_INTVAL(soft_filter),
+	CE_INTVAL(g_use_overlay),
+	CE_INTVAL(g_fullscreen),
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
@@ -697,6 +705,9 @@ me_bind_action emuctrl_actions[] =
 #if MENU_SHOW_MINIMIZE
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
 #endif
+#if MENU_SHOW_FULLSCREEN
+	{ "Toggle fullscreen", 1 << SACTION_TOGGLE_FULLSCREEN },
+#endif
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
@@ -1074,6 +1085,7 @@ static const char *men_soft_filter[] = { "None",
 static const char *men_dummy[] = { NULL };
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
+static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
 
@@ -1132,6 +1144,7 @@ static int menu_loop_cscaler(int id, int keys)
 static menu_entry e_menu_gfx_options[] =
 {
 	mee_enum      ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler),
+	mee_onoff_h   ("Use video overlay",        MA_OPT_VIDOVERLAY, g_use_overlay, 1, h_overlay),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, filter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
@@ -2311,6 +2324,7 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_VIDOVERLAY, MENU_SHOW_VIDOVERLAY);
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
