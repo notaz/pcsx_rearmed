@@ -14,6 +14,8 @@
 #include "libpicofe/input.h"
 #include "libpicofe/in_sdl.h"
 #include "libpicofe/menu.h"
+#include "libpicofe/fonts.h"
+#include "../plugins/gpulib/cspace.h"
 #include "plugin_lib.h"
 #include "main.h"
 #include "menu.h"
@@ -58,7 +60,9 @@ static int window_w, window_h;
 static int fs_w, fs_h;
 static int psx_w, psx_h;
 static void *menubg_img;
-static int in_menu, pending_resize, old_fullscreen;
+static int in_menu, old_fullscreen;
+
+static void overlay_clear(void);
 
 static int change_video_mode(int w, int h)
 {
@@ -98,6 +102,8 @@ static int change_video_mode(int w, int h)
       if (!overlay->hw_overlay)
         fprintf(stderr, "warning: video overlay is not hardware accelerated,"
                         " you may want to disable it.\n");
+
+      overlay_clear();
     }
     else {
       fprintf(stderr, "warning: could not create overlay.\n");
@@ -130,7 +136,7 @@ static void event_handler(void *event_)
     if (overlay != NULL && !g_fullscreen && !old_fullscreen) {
       window_w = event->resize.w;
       window_h = event->resize.h;
-      pending_resize = 1;
+      change_video_mode(psx_w, psx_h);
     }
   }
 }
@@ -189,6 +195,8 @@ void plat_init(void)
   in_sdl_init(in_sdl_defbinds, event_handler);
   in_probe();
   pl_rearmed_cbs.only_16bpp = 1;
+
+  bgr_to_uyvy_init();
   return;
 
 fail:
@@ -207,65 +215,96 @@ void plat_gvideo_open(int is_pal)
 {
 }
 
-void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
+static void uyvy_to_rgb565(void *d, const void *s, int pixels)
 {
-  change_video_mode(*w, *h);
-  return screen->pixels;
-}
+  unsigned short *dst = d;
+  const unsigned int *src = s;
+  int v;
 
-static void test_convert(void *d, const void *s, int pixels)
-{
-  unsigned int *dst = d;
-  const unsigned short *src = s;
-  int r0, g0, b0, r1, g1, b1;
-  int y0, y1, u, v;
+  // no colors, for now
+  for (; pixels > 0; src++, dst += 2, pixels -= 2) {
+    v = (*src >> 8) & 0xff;
+    v = (v - 16) * 255 / 219 / 8;
+    dst[0] = (v << 11) | (v << 6) | v;
 
-  for (; pixels > 0; src += 2, dst++, pixels -= 2) {
-    r0 =  src[0] >> 11;
-    g0 = (src[0] >> 6) & 0x1f;
-    b0 =  src[0] & 0x1f;
-    r1 =  src[1] >> 11;
-    g1 = (src[1] >> 6) & 0x1f;
-    b1 =  src[1] & 0x1f;
-    y0 = (int)((0.299f * r0) + (0.587f * g0) + (0.114f * b0));
-    y1 = (int)((0.299f * r1) + (0.587f * g1) + (0.114f * b1));
-    //u = (int)(((-0.169f * r0) + (-0.331f * g0) + ( 0.499f * b0)) * 8) + 128;
-    //v = (int)((( 0.499f * r0) + (-0.418f * g0) + (-0.0813f * b0)) * 8) + 128;
-    u = (int)(8 * 0.565f * (b0 - y0)) + 128;
-    v = (int)(8 * 0.713f * (r0 - y0)) + 128;
-    // valid Y range seems to be 16..235
-    y0 = 16 + 219 * y0 / 31;
-    y1 = 16 + 219 * y1 / 31;
-
-    if (y0 < 0 || y0 > 255 || y1 < 0 || y1 > 255
-        || u < 0 || u > 255 || v < 0 || v > 255)
-    {
-      printf("oor: %d, %d, %d, %d\n", y0, y1, u, v);
-    }
-    *dst = (y1 << 24) | (v << 16) | (y0 << 8) | u;
+    v = (*src >> 24) & 0xff;
+    v = (v - 16) * 255 / 219 / 8;
+    dst[1] = (v << 11) | (v << 6) | v;
   }
 }
 
-/* XXX: missing SDL_LockSurface() */
+static void overlay_clear(void)
+{
+  int pixels = overlay->w * overlay->h;
+  int *dst = (int *)overlay->pixels[0];
+  int v = 0x10801080;
+
+  for (; pixels > 0; dst += 4, pixels -= 2 * 4)
+    dst[0] = dst[1] = dst[2] = dst[3] = v;
+
+  for (; pixels > 0; dst++, pixels -= 2)
+    *dst = v;
+}
+
+static void overlay_blit(int doffs, const void *src_, int w, int h,
+                         int sstride, int bgr24)
+{
+  const unsigned short *src = src_;
+  unsigned short *dst;
+  int dstride = overlay->w;
+
+  SDL_LockYUVOverlay(overlay);
+  dst = (void *)overlay->pixels[0];
+
+  dst += doffs;
+  if (bgr24) {
+    for (; h > 0; dst += dstride, src += sstride, h--)
+      bgr888_to_uyvy(dst, src, w);
+  }
+  else {
+    for (; h > 0; dst += dstride, src += sstride, h--)
+      bgr555_to_uyvy(dst, src, w);
+  }
+
+  SDL_UnlockYUVOverlay(overlay);
+}
+
+static void overlay_hud_print(int x, int y, const char *str, int bpp)
+{
+  SDL_LockYUVOverlay(overlay);
+  basic_text_out_uyvy_nf(overlay->pixels[0], overlay->w, x, y, str);
+  SDL_UnlockYUVOverlay(overlay);
+}
+
+void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
+{
+  change_video_mode(*w, *h);
+  if (overlay != NULL) {
+    pl_plat_clear = overlay_clear;
+    pl_plat_blit = overlay_blit;
+    pl_plat_hud_print = overlay_hud_print;
+    return NULL;
+  }
+  else {
+    pl_plat_clear = NULL;
+    pl_plat_blit = NULL;
+    pl_plat_hud_print = NULL;
+    return screen->pixels;
+  }
+}
+
 void *plat_gvideo_flip(void)
 {
   if (!in_menu && overlay != NULL) {
     SDL_Rect dstrect = { 0, 0, screen->w, screen->h };
-    SDL_LockYUVOverlay(overlay);
-    test_convert(overlay->pixels[0], screen->pixels, overlay->w * overlay->h);
-    SDL_UnlockYUVOverlay(overlay);
     SDL_DisplayYUVOverlay(overlay, &dstrect);
+    return NULL;
   }
-  else
+  else {
+    // XXX: missing SDL_LockSurface()
     SDL_Flip(screen);
-
-  if (pending_resize || g_fullscreen != old_fullscreen) {
-    // must be done here so that correct buffer is returned
-    change_video_mode(psx_w, psx_h);
-    pending_resize = 0;
+    return screen->pixels;
   }
-
-  return screen->pixels;
 }
 
 void plat_gvideo_close(void)
@@ -277,8 +316,10 @@ void plat_video_menu_enter(int is_rom_loaded)
   in_menu = 1;
 
   /* surface will be lost, must adjust pl_vout_buf for menu bg */
-  // FIXME?
-  memcpy(menubg_img, screen->pixels, psx_w * psx_h * 2);
+  if (overlay != NULL)
+    uyvy_to_rgb565(menubg_img, overlay->pixels[0], psx_w * psx_h);
+  else
+    memcpy(menubg_img, screen->pixels, psx_w * psx_h * 2);
   pl_vout_buf = menubg_img;
 
   change_video_mode(g_menuscreen_w, g_menuscreen_h);

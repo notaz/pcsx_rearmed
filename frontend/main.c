@@ -263,6 +263,10 @@ do_state_slot:
 		break;
 	case SACTION_TOGGLE_FULLSCREEN:
 		g_fullscreen = !g_fullscreen;
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
 		break;
 	case SACTION_SCREENSHOT:
 		{

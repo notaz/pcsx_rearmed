@@ -49,6 +49,12 @@ static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
 static int vsync_usec_time;
 
+// platform hooks
+void (*pl_plat_clear)(void);
+void (*pl_plat_blit)(int doffs, const void *src, int w, int h,
+		     int sstride, int bgr24);
+void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
+
 
 static __attribute__((noinline)) int get_cpu_ticks(void)
 {
@@ -66,31 +72,48 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 
 	sscanf(buf, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu", &utime);
 	ret = utime - last_utime;
+	if (ret > 200)
+		ret = 0;
 	last_utime = utime;
 	return ret;
 }
 
+static void hud_print(void *fb, int w, int x, int y, const char *text)
+{
+	if (pl_plat_hud_print)
+		pl_plat_hud_print(x, y, text, pl_vout_bpp);
+	else if (pl_vout_bpp == 16)
+		basic_text_out16_nf(fb, w, x, y, text);
+}
+
+static void hud_printf(void *fb, int w, int x, int y, const char *texto, ...)
+{
+	va_list args;
+	char    buffer[256];
+
+	va_start(args, texto);
+	vsnprintf(buffer, sizeof(buffer), texto, args);
+	va_end(args);
+
+	hud_print(fb, w, x, y, buffer);
+}
+
 static void print_msg(int h, int border)
 {
-	if (pl_vout_bpp == 16)
-		basic_text_out16_nf(pl_vout_buf, pl_vout_w,
-			border + 2, h - 10, hud_msg);
+	hud_print(pl_vout_buf, pl_vout_w, border + 2, h - 10, hud_msg);
 }
 
 static void print_fps(int h, int border)
 {
-	if (pl_vout_bpp == 16)
-		basic_text_out16(pl_vout_buf, pl_vout_w,
-			border + 2, h - 10, "%2d %4.1f",
-			pl_rearmed_cbs.flips_per_sec, pl_rearmed_cbs.vsps_cur);
+	hud_printf(pl_vout_buf, pl_vout_w, border + 2, h - 10,
+		"%2d %4.1f", pl_rearmed_cbs.flips_per_sec,
+		pl_rearmed_cbs.vsps_cur);
 }
 
 static void print_cpu_usage(int w, int h, int border)
 {
-	if (pl_vout_bpp == 16)
-		basic_text_out16(pl_vout_buf, pl_vout_w,
-			pl_vout_w - border - 28, h - 10,
-			"%3d", pl_rearmed_cbs.cpu_usage);
+	hud_printf(pl_vout_buf, pl_vout_w, pl_vout_w - border - 28, h - 10,
+		"%3d", pl_rearmed_cbs.cpu_usage);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -106,7 +129,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	unsigned short *d, p;
 	int c, x, y;
 
-	if (pl_vout_bpp != 16)
+	if (dest == NULL || pl_vout_bpp != 16)
 		return;
 
 	spu_get_debug_info(&live_chans, &run_chans, &fmod_chans, &noise_chans);
@@ -238,7 +261,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	update_layer_size(vout_w, vout_h);
 
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
-	if (pl_vout_buf == NULL)
+	if (pl_vout_buf == NULL && pl_plat_blit == NULL)
 		fprintf(stderr, "failed to set mode %dx%d@%d\n",
 			vout_w, vout_h, psx_bpp);
 	else {
@@ -260,27 +283,42 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 	pcnt_start(PCNT_BLIT);
 
-	if (dest == NULL)
-		goto out;
-
 	if (vram == NULL) {
 		// blanking
-		memset(pl_vout_buf, 0, dstride * pl_vout_h * pl_vout_bpp / 8);
-		goto out;
+		if (pl_plat_clear)
+			pl_plat_clear();
+		else
+			memset(pl_vout_buf, 0,
+				dstride * pl_vout_h * pl_vout_bpp / 8);
+		goto out_hud;
 	}
 
 	// borders
 	doffs = (dstride - w * pl_vout_scale) / 2 & ~1;
-	dest += doffs * 2;
 
 	if (doffs > doffs_old)
 		clear_counter = 2;
 	doffs_old = doffs;
 
 	if (clear_counter > 0) {
-		memset(pl_vout_buf, 0, dstride * pl_vout_h * pl_vout_bpp / 8);
+		if (pl_plat_clear)
+			pl_plat_clear();
+		else
+			memset(pl_vout_buf, 0,
+				dstride * pl_vout_h * pl_vout_bpp / 8);
 		clear_counter--;
 	}
+
+	if (pl_plat_blit)
+	{
+		pl_plat_blit(doffs, src, w, h, stride, bgr24);
+		goto out_hud;
+	}
+
+	if (dest == NULL)
+		goto out;
+
+	dest += doffs * 2;
 
 	if (bgr24)
 	{
@@ -304,12 +342,12 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale == 2)
 	{
 		neon_scale2x_16_16(src, (void *)dest, w,
-			stride * 2, dstride * 2, h1);
+			stride * 2, dstride * 2, h);
 	}
 	else if (soft_filter == SOFT_FILTER_EAGLE2X && pl_vout_scale == 2)
 	{
 		neon_eagle2x_16_16(src, (void *)dest, w,
-			stride * 2, dstride * 2, h1);
+			stride * 2, dstride * 2, h);
 	}
 #endif
 	else
@@ -320,6 +358,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 		}
 	}
 
+out_hud:
 	pl_print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
 
 out:

@@ -99,10 +99,9 @@ endif
 
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
+OBJS += plugins/gpulib/cspace.o
 ifeq "$(HAVE_NEON)" "1"
 OBJS += plugins/gpulib/cspace_neon.o
-else
-OBJS += plugins/gpulib/cspace.o
 endif
 ifeq "$(BUILTIN_GPU)" "neon"
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
