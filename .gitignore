@@ -1,4 +1,6 @@
 *.o
+*.a
+*.so
 tags
 cscope.out
 pandora

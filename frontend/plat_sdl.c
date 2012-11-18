@@ -99,11 +99,16 @@ static int change_video_mode(int w, int h)
 
       if ((long)overlay->pixels[0] & 3)
         fprintf(stderr, "warning: overlay pointer is unaligned\n");
-      if (!overlay->hw_overlay)
-        fprintf(stderr, "warning: video overlay is not hardware accelerated,"
-                        " you may want to disable it.\n");
 
-      overlay_clear();
+      if (!overlay->hw_overlay) {
+        fprintf(stderr, "warning: video overlay is not hardware accelerated, "
+                        "disabling it.\n");
+        g_use_overlay = 0;
+        SDL_FreeYUVOverlay(overlay);
+        overlay = NULL;
+      }
+      else
+        overlay_clear();
     }
     else {
       fprintf(stderr, "warning: could not create overlay.\n");
