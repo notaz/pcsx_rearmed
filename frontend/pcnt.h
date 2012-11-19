@@ -11,11 +11,11 @@ enum pcounters {
 
 #ifdef PCNT
 
-#ifndef __ARM_ARCH_7A__
+#if defined(__ARM_ARCH_7A__) || defined(ARM1176)
+#define PCNT_DIV 1000
+#else
 #include <sys/time.h>
 #define PCNT_DIV 1
-#else
-#define PCNT_DIV 1000
 #endif
 
 static const char *pcnt_names[PCNT_CNT] = { "", "gpu", "spu", "blit", "gte", "test" };
@@ -85,6 +85,9 @@ static inline unsigned int pcnt_get(void)
 #ifdef __ARM_ARCH_7A__
 	__asm__ volatile("mrc p15, 0, %0, c9, c13, 0"
 			 : "=r"(val));
+#elif defined(ARM1176)
+	__asm__ volatile("mrc p15, 0, %0, c15, c12, 1"
+			 : "=r"(val));
 #else
 	// all slow on ARM :(
 	//struct timespec tv;
@@ -107,6 +110,12 @@ static inline void pcnt_init(void)
 	asm volatile("mcr p15, 0, %0, c9, c12, 0" :: "r"(v));
 	// enable cycle counter
 	asm volatile("mcr p15, 0, %0, c9, c12, 1" :: "r"(1<<31));
+#elif defined(ARM1176)
+	int v;
+	asm volatile("mrc p15, 0, %0, c15, c12, 0" : "=r"(v));
+	v |= 5; // master enable, ccnt reset
+	v &= ~8; // ccnt divider 0
+	asm volatile("mcr p15, 0, %0, c15, c12, 0" :: "r"(v));
 #endif
 }
 
