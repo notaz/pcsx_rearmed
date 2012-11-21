@@ -46,7 +46,6 @@ endif
 ifeq "$(HAVE_NEON)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
-libpcsxcore/gte.o libpcsxcore/gte_nf.o: CFLAGS += -fno-strict-aliasing
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
