@@ -122,11 +122,11 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 
 static struct CdrStat stat;
 
-static unsigned int msf2sec(char *msf) {
+static unsigned int msf2sec(u8 *msf) {
 	return ((msf[0] * 60 + msf[1]) * 75) + msf[2];
 }
 
-static void sec2msf(unsigned int s, char *msf) {
+static void sec2msf(unsigned int s, u8 *msf) {
 	msf[0] = s / 75 / 60;
 	s = s - msf[0] * 75 * 60;
 	msf[1] = s / 75;
@@ -1484,7 +1484,7 @@ unsigned char cdrRead1(void) {
 }
 
 void cdrWrite1(unsigned char rt) {
-	char set_loc[3];
+	u8 set_loc[3];
 	int i;
 
 #ifdef CDR_LOG
