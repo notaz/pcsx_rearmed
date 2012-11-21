@@ -17,10 +17,10 @@ endif
 GPULIB_A = ../gpulib/gpulib$(EXT).a
 
 ifdef BIN_STANDLALONE
-TARGETS += $(BIN_STANDLALONE)$(EXT)
+TARGETS += $(BIN_STANDLALONE)
 endif
 ifdef BIN_GPULIB
-TARGETS += $(BIN_GPULIB)$(EXT)
+TARGETS += $(BIN_GPULIB)
 endif
 CC_STANDLALONE = $(CC)
 CC_GPULIB = $(CC)
@@ -34,7 +34,7 @@ ifdef BIN_STANDLALONE
 ifneq ($(findstring .cpp,$(SRC_STANDALONE)),)
 CC_STANDLALONE = $(CXX)
 endif
-$(BIN_STANDLALONE)$(EXT): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
+$(BIN_STANDLALONE): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
 	$(CC_STANDLALONE) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_STANDALONE)
 	ln -fs $(PLUGINDIR)/$@ ../
 endif
@@ -43,7 +43,7 @@ ifdef BIN_GPULIB
 ifneq ($(findstring .cpp,$(SRC_GPULIB)),)
 CC_GPULIB = $(CXX)
 endif
-$(BIN_GPULIB)$(EXT): $(SRC) $(SRC_GPULIB) $(GPULIB_A)
+$(BIN_GPULIB): $(SRC) $(SRC_GPULIB) $(GPULIB_A)
 	$(CC_GPULIB) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_GPULIB)
 	ln -fs $(PLUGINDIR)/$@ ../
 endif

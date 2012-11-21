@@ -449,15 +449,7 @@ echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-if [ "$ARCH" = "arm" ]; then
-  echo "PLUGINS = $plugins" >> $config_mak
-else
-  echo -n "PLUGINS =" >> $config_mak
-  for p in $plugins; do
-    echo -n " ${p}.${ARCH}" >> $config_mak
-  done
-  echo >> $config_mak
-fi
+echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_armv6" = "yes" ]; then
   echo "HAVE_ARMV6 = 1" >> $config_mak
 fi

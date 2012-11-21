@@ -1,9 +1,6 @@
 include ../../config.mak
 
-ifneq "$(ARCH)" "arm"
- EXT = .$(ARCH)
-endif
-TARGET = spunull.so$(EXT)
+TARGET = spunull.so
 WD = $(shell pwd)
 PLUGINDIR = $(shell basename $(WD))
 
