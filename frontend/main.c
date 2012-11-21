@@ -586,6 +586,12 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (loadst_f) {
+		int ret = LoadState(loadst_f);
+		printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
+		ready_to_go |= ret == 0;
+	}
+
 	if (ready_to_go) {
 		menu_prepare_emu();
 
@@ -593,10 +599,6 @@ int main(int argc, char *argv[])
 		if (loadst) {
 			int ret = emu_load_state(loadst - 1);
 			printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
-		}
-		if (loadst_f) {
-			int ret = LoadState(loadst_f);
-			printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
 		}
 	}
 	else
