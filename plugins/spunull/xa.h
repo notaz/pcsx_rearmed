@@ -5,7 +5,7 @@
 
 typedef struct
 {
-	long	y0, y1;
+	int	y0, y1;
 } ADPCM_Decode_t;
 
 typedef struct

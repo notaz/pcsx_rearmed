@@ -29,6 +29,24 @@
 
 typedef struct
 {
+ int            AttackModeExp;
+ int            AttackTime;
+ int            DecayTime;
+ int            SustainLevel;
+ int            SustainModeExp;
+ int            SustainModeDec;
+ int            SustainTime;
+ int            ReleaseModeExp;
+ unsigned int   ReleaseVal;
+ int            ReleaseTime;
+ int            ReleaseStartTime; 
+ int            ReleaseVol; 
+ int            lTime;
+ int            lVolume;
+} ADSRInfo;
+
+typedef struct
+{
  int            State;
  int            AttackModeExp;
  int            AttackRate;
@@ -40,9 +58,9 @@ typedef struct
  int            ReleaseModeExp;
  int            ReleaseRate;
  int            EnvelopeVol;
- long           lVolume;
- long           lDummy1;
- long           lDummy2;
+ int            lVolume;
+ int            lDummy1;
+ int            lDummy2;
 } ADSRInfoEx_orig;
 
 typedef struct
