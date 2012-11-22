@@ -188,7 +188,6 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  memcpy(d->SB, s->SB, sizeof(d->SB));
  d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
- if (s->bOn) dwChannelOn |= 1<<ch;
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
  d->iLeftVolume = s->iLeftVolume;
@@ -209,6 +208,8 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
  d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
  d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
+ if (s->bOn) dwChannelOn |= 1<<ch;
+ else d->ADSRX.EnvelopeVol = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -252,9 +253,6 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
    for(i=0;i<MAXCHAN;i++)
     {
-     if(!(s_chan[i].prevflags&2))
-      dwChannelOn&=~(1<<i);
-
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
      if(s_chan[i].pCurr)
       pFO->s_chan[i].iCurr=s_chan[i].pCurr-spuMemC;
