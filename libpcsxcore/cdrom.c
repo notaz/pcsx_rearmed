@@ -120,6 +120,13 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 // so (PSXCLK / 75) = cdr read time (linuzappz)
 #define cdReadTime (PSXCLK / 75)
 
+// for cdr.Seeked
+enum seeked_state {
+	SEEK_PENDING = 0,
+	SEEK_DONE = 1,
+	SEEK_DOING_CMD = 2,
+};
+
 static struct CdrStat stat;
 
 static unsigned int msf2sec(u8 *msf) {
@@ -134,7 +141,7 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	msf[2] = s;
 }
 
-
+// cdrInterrupt
 #define CDR_INT(eCycle) { \
 	psxRegs.interrupt |= (1 << PSXINT_CDR); \
 	psxRegs.intCycle[PSXINT_CDR].cycle = eCycle; \
@@ -142,6 +149,7 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDR, eCycle); \
 }
 
+// cdrReadInterrupt
 #define CDREAD_INT(eCycle) { \
 	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
 	psxRegs.intCycle[PSXINT_CDREAD].cycle = eCycle; \
@@ -149,6 +157,7 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDREAD, eCycle); \
 }
 
+// cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
 	psxRegs.interrupt |= (1 << PSXINT_CDRLID); \
 	psxRegs.intCycle[PSXINT_CDRLID].cycle = eCycle; \
@@ -156,7 +165,8 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDRLID, eCycle); \
 }
 
-#define CDRPLAY_INT(eCycle) { \
+// cdrPlayInterrupt
+#define CDRMISC_INT(eCycle) { \
 	psxRegs.interrupt |= (1 << PSXINT_CDRPLAY); \
 	psxRegs.intCycle[PSXINT_CDRPLAY].cycle = eCycle; \
 	psxRegs.intCycle[PSXINT_CDRPLAY].sCycle = psxRegs.cycle; \
@@ -251,7 +261,6 @@ void cdrLidSeekInterrupt()
 		cdr.LidCheck = 0;
 	}
 }
-
 
 static void Check_Shell( int Irq )
 {
@@ -411,12 +420,13 @@ static void ReadTrack( u8 *time ) {
 }
 
 
-void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
+static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
+	//if (cdr.Irq != 0 && cdr.Irq != 0xff)
+	//	printf("cdr: override cmd %02x -> %02x\n", cdr.Irq, irq);
+
 	cdr.Irq = irq;
 	cdr.eCycle = ecycle;
 
-	// Doom: Force rescheduling
-	// - Fixes boot
 	CDR_INT(ecycle);
 }
 
@@ -636,15 +646,40 @@ static void cdrPlayInterrupt_Autopause()
 	}
 }
 
+// also handles seek
 void cdrPlayInterrupt()
 {
-	if( !cdr.Play ) return;
+	if (cdr.Seeked == SEEK_DOING_CMD) {
+		SetResultSize(1);
+		cdr.StatP |= STATUS_ROTATING;
+		cdr.StatP &= ~STATUS_SEEK;
+		cdr.Result[0] = cdr.StatP;
+		if (cdr.Irq == 0 || cdr.Irq == 0xff) {
+			cdr.Stat = Complete;
+			if (cdr.Stat != NoIntr)
+				psxHu32ref(0x1070) |= SWAP32(0x4);
+		}
+
+		cdr.Seeked = SEEK_PENDING;
+		CDRMISC_INT(cdReadTime * 20); // ???
+		return;
+	}
+	else if (cdr.Seeked == SEEK_PENDING) {
+		cdr.Seeked = SEEK_DONE;
+		if (!cdr.Play && !cdr.Reading) {
+			memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
+			Find_CurTrack();
+			ReadTrack(cdr.SetSector);
+		}
+	}
+
+	if (!cdr.Play) return;
 
 #ifdef CDR_LOG
 	CDR_LOG( "CDDA - %d:%d:%d\n",
 		cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
 #endif
-	CDRPLAY_INT( cdReadTime );
+	CDRMISC_INT( cdReadTime );
 
 	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & MODE_CDDA) && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
@@ -703,9 +738,10 @@ void cdrInterrupt() {
 		case CdlPlay:
 			fake_subq_change = 0;
 
-			if( cdr.Seeked == FALSE ) {
+			if (cdr.Seeked == SEEK_PENDING) {
+				// XXX: wrong, should seek instead..
 				memcpy( cdr.SetSectorPlay, cdr.SetSector, 4 );
-				cdr.Seeked = TRUE;
+				cdr.Seeked = SEEK_DONE;
 			}
 
 			/*
@@ -814,7 +850,7 @@ void cdrInterrupt() {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 
-			CDRPLAY_INT( cdReadTime );
+			CDRMISC_INT( cdReadTime );
 			break;
 
 		case CdlForward:
@@ -1047,6 +1083,7 @@ void cdrInterrupt() {
 			break;
 
 		case CdlSeekL:
+		case CdlSeekP:
 			SetResultSize(1);
 			cdr.StatP |= STATUS_ROTATING;
 			cdr.Result[0] = cdr.StatP;
@@ -1066,45 +1103,8 @@ void cdrInterrupt() {
 			Rockman X5 = 0.5-4x
 			- fix capcom logo
 			*/
-			AddIrqQueue(CdlSeekL + 0x20, cdReadTime * 4);
-			break;
-
-		case CdlSeekL + 0x20:
-			SetResultSize(1);
-			cdr.StatP |= STATUS_ROTATING;
-			cdr.StatP &= ~STATUS_SEEK;
-			cdr.Result[0] = cdr.StatP;
-			cdr.Seeked = TRUE;
-			cdr.Stat = Complete;
-
-
-			// Mega Man Legends 2: must update read cursor for getlocp
-			ReadTrack( cdr.SetSector );
-			break;
-
-		case CdlSeekP:
-			SetResultSize(1);
-			cdr.StatP |= STATUS_ROTATING;
-			cdr.Result[0] = cdr.StatP;
-			cdr.StatP |= STATUS_SEEK;
-			cdr.Stat = Acknowledge;
-			AddIrqQueue(CdlSeekP + 0x20, cdReadTime * 1);
-			break;
-
-		case CdlSeekP + 0x20:
-			SetResultSize(1);
-			cdr.StatP |= STATUS_ROTATING;
-			cdr.StatP &= ~STATUS_SEEK;
-			cdr.Result[0] = cdr.StatP;
-			cdr.Stat = Complete;
-			cdr.Seeked = TRUE;
-
-			// GameShark Music Player
-			memcpy( cdr.SetSectorPlay, cdr.SetSector, 4 );
-
-			// Tomb Raider 2: must update read cursor for getlocp
-			Find_CurTrack();
-			ReadTrack( cdr.SetSectorPlay );
+			CDRMISC_INT(cdr.Seeked == SEEK_DONE ? 0x800 : cdReadTime * 4);
+			cdr.Seeked = SEEK_DOING_CMD;
 			break;
 
 		case CdlTest:
@@ -1233,17 +1233,14 @@ void cdrInterrupt() {
 				if (buf != NULL)
 					memcpy(cdr.Transfer, buf, 8);
 			}
-			
-			
+
 			/*
 			Duke Nukem: Land of the Babes - seek then delay read for one frame
 			- fixes cutscenes
 			C-12 - Final Resistance - doesn't like seek
 			*/
 
-			if (!cdr.Seeked) {
-				cdr.Seeked = TRUE;
-
+			if (cdr.Seeked != SEEK_DONE) {
 				cdr.StatP |= STATUS_SEEK;
 				cdr.StatP &= ~STATUS_READ;
 
@@ -1283,7 +1280,10 @@ void cdrInterrupt() {
 	}
 
 #ifdef CDR_LOG
-	CDR_LOG("cdrInterrupt() Log: CDR Interrupt IRQ %x\n", Irq);
+	printf("cdrInterrupt() Log: CDR Interrupt IRQ %x: ", Irq);
+	for (i = 0; i < cdr.ResultC; i++)
+		printf("%02x ", cdr.Result[i]);
+	printf("\n");
 #endif
 }
 
@@ -1307,6 +1307,7 @@ void cdrReadInterrupt() {
 	cdr.StatP |= STATUS_READ|STATUS_ROTATING;
 	cdr.StatP &= ~STATUS_SEEK;
 	cdr.Result[0] = cdr.StatP;
+	cdr.Seeked = SEEK_DONE;
 
 	ReadTrack( cdr.SetSector );
 
@@ -1537,16 +1538,13 @@ void cdrWrite1(unsigned char rt) {
 		StopReading();
 		for (i = 0; i < 3; i++)
 			set_loc[i] = btoi(cdr.Param[i]);
+
 		i = abs(msf2sec(cdr.SetSector) - msf2sec(set_loc));
 		if (i > 16)
-			cdr.Seeked = FALSE;
+		       cdr.Seeked = SEEK_PENDING;
+
 		memcpy(cdr.SetSector, set_loc, 3);
         	cdr.SetSector[3] = 0;
-
-		/*
-		   if ((cdr.SetSector[0] | cdr.SetSector[1] | cdr.SetSector[2]) == 0) {
-		 *(u32 *)cdr.SetSector = *(u32 *)cdr.SetSectorSeek;
-		 }*/
 
 		cdr.Ctrl |= 0x80;
         	cdr.Stat = NoIntr;
@@ -1663,6 +1661,7 @@ void cdrWrite1(unsigned char rt) {
 
 	case CdlReset:
     	case CdlInit:
+		cdr.Seeked = SEEK_DONE;
 		StopCdda();
 		StopReading();
 		cdr.Ctrl |= 0x80;

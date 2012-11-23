@@ -87,7 +87,7 @@ typedef struct {
 	unsigned char Irq;
 	u32 eCycle;
 
-	boolean Seeked;
+	u8 Seeked;
 
 	u8 LidCheck;
 	u8 FastForward;
