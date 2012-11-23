@@ -95,6 +95,7 @@ void vout_blank(void)
     w *= 2;
     h *= 2;
   }
+  check_mode_change(0);
   cbs->pl_vout_flip(NULL, 1024, gpu.status.rgb24, w, h);
 }
 
