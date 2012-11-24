@@ -281,15 +281,6 @@ EOF
   compile_binary
 }
 
-check_bzlib()
-{
-  cat > $TMPC <<EOF
-  #include <bzlib.h>
-  void main() { BZ2_bzBuffToBuffDecompress(0, 0, 0, 0, 0, 0); }
-EOF
-  compile_object
-}
-
 check_libpng()
 {
   cat > $TMPC <<EOF
@@ -329,8 +320,6 @@ EOF
 
 MAIN_LDLIBS="$MAIN_LDLIBS -lz"
 check_zlib || fail "please install zlib (libz-dev)"
-
-check_bzlib || fail "please install bz2lib (libbz2-dev)"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"
