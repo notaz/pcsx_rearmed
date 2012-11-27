@@ -32,7 +32,6 @@
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
-#include "pcnt.h"
 #include "../plugins/gpulib/cspace.h"
 
 
@@ -226,9 +225,10 @@ static void spend_cycles(int loops)
 #define DMA_REG(x) memregl[(DMA_BASE6 + x) >> 2]
 
 /* this takes ~1.5ms, while ldm/stm ~1.95ms */
-static void raw_flip_dma(const void *vram, int stride, int bgr24, int w, int h)
+static void raw_blit_dma(int doffs, const void *vram, int w, int h,
+			 int sstride, int bgr24)
 {
-	unsigned int pixel_offset = psx_vram - (unsigned short *)vram;
+	unsigned int pixel_offset = (unsigned short *)vram - psx_vram;
 	unsigned int dst = fb_paddrs[fb_work_buf] +
 			(fb_offset_y * 320 + fb_offset_x) * psx_bpp / 8;
 	int spsx_line = pixel_offset / 1024 + psx_offset_y;
@@ -238,7 +238,6 @@ static void raw_flip_dma(const void *vram, int stride, int bgr24, int w, int h)
 	int i;
 
 	warm_cache_op_all(WOP_D_CLEAN);
-	pcnt_start(PCNT_BLIT);
 
 	dst &= ~7;
 	len &= ~7;
@@ -263,20 +262,10 @@ static void raw_flip_dma(const void *vram, int stride, int bgr24, int w, int h)
 		DMA_REG(0x18) = len - 1;	// len
 		DMA_REG(0x1c) = 0x80000;	// go
 	}
-
-	if (psx_bpp == 16) {
-		pl_vout_buf = g_menuscreen_ptr;
-		pl_print_hud(w, h, fb_offset_x);
-	}
-
-	g_menuscreen_ptr = fb_flip();
-	pl_rearmed_cbs.flip_cnt++;
-
-	pcnt_end(PCNT_BLIT);
 }
 
 #define make_flip_func(name, blitfunc)                                                  \
-static void name(const void *vram_, int stride, int bgr24, int w, int h)                \
+static void name(int doffs, const void *vram_, int w, int h, int sstride, int bgr24)    \
 {                                                                                       \
         const unsigned short *vram = vram_;                                             \
         unsigned char *dst = (unsigned char *)g_menuscreen_ptr +                        \
@@ -285,27 +274,15 @@ static void name(const void *vram_, int stride, int bgr24, int w, int h)        
         int len = psx_src_width * psx_bpp / 8;                                          \
         int i;                                                                          \
                                                                                         \
-        pcnt_start(PCNT_BLIT);                                                          \
-                                                                                        \
         vram += psx_offset_y * 1024 + psx_offset_x;                                     \
         for (i = psx_src_height; i > 0; i--, vram += psx_step * 1024, dst += dst_stride)\
                 blitfunc(dst, vram, len);                                               \
-                                                                                        \
-        if (psx_bpp == 16) {                                                            \
-                pl_vout_buf = g_menuscreen_ptr;                                         \
-                pl_print_hud(w, h, fb_offset_x);                                        \
-        }                                                                               \
-                                                                                        \
-        g_menuscreen_ptr = fb_flip();                                                   \
-        pl_rearmed_cbs.flip_cnt++;                                                      \
-                                                                                        \
-        pcnt_end(PCNT_BLIT);                                                            \
 }
 
-make_flip_func(raw_flip_soft, memcpy)
-make_flip_func(raw_flip_soft_368, blit320_368)
-make_flip_func(raw_flip_soft_512, blit320_512)
-make_flip_func(raw_flip_soft_640, blit320_640)
+make_flip_func(raw_blit_soft, memcpy)
+make_flip_func(raw_blit_soft_368, blit320_368)
+make_flip_func(raw_blit_soft_512, blit320_512)
+make_flip_func(raw_blit_soft_640, blit320_640)
 
 void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 {
@@ -322,20 +299,20 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 
 	switch (w + (bpp != 16) + !soft_scaling) {
 	case 640:
-		pl_rearmed_cbs.pl_vout_flip = raw_flip_soft_640;
+		pl_plat_blit = raw_blit_soft_640;
 		w_max = 640;
 		break;
 	case 512:
-		pl_rearmed_cbs.pl_vout_flip = raw_flip_soft_512;
+		pl_plat_blit = raw_blit_soft_512;
 		w_max = 512;
 		break;
 	case 384:
 	case 368:
-		pl_rearmed_cbs.pl_vout_flip = raw_flip_soft_368;
+		pl_plat_blit = raw_blit_soft_368;
 		w_max = 368;
 		break;
 	default:
-		pl_rearmed_cbs.pl_vout_flip = have_warm ? raw_flip_dma : raw_flip_soft;
+		pl_plat_blit = have_warm ? raw_blit_dma : raw_blit_soft;
 		w_max = 320;
 		break;
 	}
@@ -380,7 +357,7 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 	*w_ = 320;
 	*h_ = fb_offset_y + psx_src_height;
 
-	return NULL;
+	return g_menuscreen_ptr;
 }
 
 /* not really used, we do raw_flip */
@@ -390,7 +367,8 @@ void plat_gvideo_open(int is_pal)
 
 void *plat_gvideo_flip(void)
 {
-	return NULL;
+	g_menuscreen_ptr = fb_flip();
+	return g_menuscreen_ptr;
 }
 
 void plat_gvideo_close(void)
@@ -450,7 +428,7 @@ void plat_init(void)
 	else
 		wiz_init();
 
-	pl_rearmed_cbs.pl_vout_flip = have_warm ? raw_flip_dma : raw_flip_soft;
+	pl_plat_blit = have_warm ? raw_blit_dma : raw_blit_soft;
 	pl_rearmed_cbs.pl_vout_set_raw_vram = pl_vout_set_raw_vram;
 
 	psx_src_width = 320;

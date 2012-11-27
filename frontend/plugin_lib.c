@@ -146,12 +146,15 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-void pl_print_hud(int w, int h, int xborder)
+static void print_hud(int w, int h, int xborder)
 {
 	if (h < 16)
 		return;
 
-	xborder += (pl_vout_w - w) / 2;
+	if (w < pl_vout_w)
+		xborder += (pl_vout_w - w) / 2;
+	if (h > pl_vout_h)
+		h = pl_vout_h;
 
 	if (g_opts & OPT_SHOWSPU)
 		draw_active_chans(w, h);
@@ -359,7 +362,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out_hud:
-	pl_print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
+	print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
 
 out:
 	pcnt_end(PCNT_BLIT);
