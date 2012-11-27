@@ -1,8 +1,22 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2009-2011
+ * (C) Gražvydas "notaz" Ignotas, 2009-2012
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
+ *
+ * GPH claims:
+ *  Main Memory  : Wiz = 0       ~ 2A00000,      Caanoo = 0       ~ 5600000 (86M)
+ *  Frame Buffer : Wiz = 2A00000 ~ 2E00000 (4M), Caanoo = 5600000 ~ 5700000 (1M)
+ *  Sound Buffer : Wiz = 2E00000 ~ 3000000 (2M), Caanoo = 5700000 ~ 5800000 (1M)
+ *  YUV Buffer   :                               Caanoo = 5800000 ~ 6000000 (8M)
+ *  3D Buffer    : Wiz = 3000000 ~ 4000000 (16M),Caanoo = 6000000 ~ 8000000 (32M)
+ *
+ * Caanoo dram column (or row?) is 1024 bytes?
+ *
+ * pollux display array:
+ * 27:24 |  23:18  |  17:11  |  10:6  |  5:0
+ *  seg  | y[11:5] | x[11:6] | y[4:0] | x[5:0]
+ *       |  blk_index[12:0]  |   block[10:0]
  */
 
 #include <stdio.h>
@@ -32,6 +46,7 @@
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
+#include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/gpulib/cspace.h"
 
 
@@ -41,9 +56,9 @@ static unsigned int fb_paddrs[2];
 static int fb_work_buf;
 static int have_warm;
 #define FB_VRAM_SIZE (320*240*2*2*2) // 2 buffers with space for 24bpp mode
+static unsigned int uppermem_pbase, vram_pbase;
 
 static unsigned short *psx_vram;
-static unsigned int psx_vram_padds[512];
 static int psx_step, psx_width, psx_height, psx_bpp;
 static int psx_offset_x, psx_offset_y, psx_src_width, psx_src_height;
 static int fb_offset_x, fb_offset_y;
@@ -194,24 +209,6 @@ void plat_minimize(void)
 {
 }
 
-static void pl_vout_set_raw_vram(void *vram)
-{
-	int i;
-
-	psx_vram = vram;
-
-	if (vram == NULL)
-		return;
-
-	if ((long)psx_vram & 0x7ff)
-		fprintf(stderr, "GPU plugin did not align vram\n");
-
-	for (i = 0; i < 512; i++) {
-		psx_vram[i * 1024] = 0; // touch
-		psx_vram_padds[i] = warm_virt2phys(&psx_vram[i * 1024]);
-	}
-}
-
 static void spend_cycles(int loops)
 {
 	asm volatile (
@@ -233,11 +230,12 @@ static void raw_blit_dma(int doffs, const void *vram, int w, int h,
 			(fb_offset_y * 320 + fb_offset_x) * psx_bpp / 8;
 	int spsx_line = pixel_offset / 1024 + psx_offset_y;
 	int spsx_offset = (pixel_offset + psx_offset_x) & 0x3f8;
+	unsigned int vram_byte_pos, vram_byte_step;
 	int dst_stride = 320 * psx_bpp / 8;
 	int len = psx_src_width * psx_bpp / 8;
 	int i;
 
-	warm_cache_op_all(WOP_D_CLEAN);
+	//warm_cache_op_all(WOP_D_CLEAN);
 
 	dst &= ~7;
 	len &= ~7;
@@ -251,13 +249,19 @@ static void raw_blit_dma(int doffs, const void *vram, int w, int h,
 		DMA_REG(0x24) = 1;
 	}
 
-	for (i = psx_src_height; i > 0; i--, spsx_line += psx_step, dst += dst_stride) {
+	vram_byte_pos = vram_pbase;
+	vram_byte_pos += (spsx_line & 511) * 2 * 1024 + spsx_offset * 2;
+	vram_byte_step = psx_step * 2 * 1024;
+
+	for (i = psx_src_height; i > 0;
+	     i--, vram_byte_pos += vram_byte_step, dst += dst_stride)
+	{
 		while ((DMA_REG(0x2c) & 0x0f) < 4)
 			spend_cycles(10);
 
 		// XXX: it seems we must always set all regs, what is autoincrement there for?
 		DMA_REG(0x20) = 1;		// queue wait cmd
-		DMA_REG(0x10) = psx_vram_padds[spsx_line & 511] + spsx_offset * 2; // DMA src
+		DMA_REG(0x10) = vram_byte_pos;	// DMA src
 		DMA_REG(0x14) = dst;		// DMA dst
 		DMA_REG(0x18) = len - 1;	// len
 		DMA_REG(0x1c) = 0x80000;	// go
@@ -375,6 +379,92 @@ void plat_gvideo_close(void)
 {
 }
 
+static void *pl_emu_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+	unsigned int pbase;
+	void *retval;
+	int ret;
+
+	if (!have_warm)
+		goto basic_map;
+
+	switch (tag) {
+	case MAP_TAG_RAM:
+		if (size > 0x400000) {
+			fprintf(stderr, "unexpected ram map request: %08lx %x\n",
+				addr, size);
+			exit(1);
+		}
+		pbase = (uppermem_pbase + 0xffffff) & ~0xffffff;
+		pbase += 0x400000;
+		retval = (void *)addr;
+		ret = warm_mmap_section(retval, pbase, size, WCB_C_BIT);
+		if (ret != 0) {
+			fprintf(stderr, "ram section map failed\n");
+			exit(1);
+		}
+		goto out;
+	case MAP_TAG_VRAM:
+		if (size > 0x400000) {
+			fprintf(stderr, "unexpected vram map request: %08lx %x\n",
+				addr, size);
+			exit(1);
+		}
+		if (addr == 0)
+			addr = 0x60000000;
+		vram_pbase = (uppermem_pbase + 0xffffff) & ~0xffffff;
+		retval = (void *)addr;
+
+		ret = warm_mmap_section(retval, vram_pbase, size, WCB_C_BIT);
+		if (ret != 0) {
+			fprintf(stderr, "vram section map failed\n");
+			exit(1);
+		}
+		goto out;
+	case MAP_TAG_LUTS:
+		// mostly for Wiz to not run out of RAM
+		if (size > 0x800000) {
+			fprintf(stderr, "unexpected LUT map request: %08lx %x\n",
+				addr, size);
+			exit(1);
+		}
+		pbase = (uppermem_pbase + 0xffffff) & ~0xffffff;
+		pbase += 0x800000;
+		retval = (void *)addr;
+		ret = warm_mmap_section(retval, pbase, size, WCB_C_BIT);
+		if (ret != 0) {
+			fprintf(stderr, "LUT section map failed\n");
+			exit(1);
+		}
+		goto out;
+	default:
+		break;
+	}
+
+basic_map:
+	retval = plat_mmap(addr, size, 0, is_fixed);
+
+out:
+	if (tag == MAP_TAG_VRAM)
+		psx_vram = retval;
+	return retval;
+}
+
+static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+	switch (tag) {
+	case MAP_TAG_RAM:
+	case MAP_TAG_VRAM:
+	case MAP_TAG_LUTS:
+		warm_munmap_section(ptr, size);
+		break;
+	default:
+		plat_munmap(ptr, size);
+		break;
+	}
+}
+
 void plat_init(void)
 {
 	const char *main_fb_name = "/dev/fb0";
@@ -395,16 +485,41 @@ void plat_init(void)
 		perror("ioctl(fbdev) failed");
 		exit(1);
 	}
+	uppermem_pbase = fbfix.smem_start;
+
 	printf("framebuffer: \"%s\" @ %08lx\n", fbfix.id, fbfix.smem_start);
 	fb_paddrs[0] = fbfix.smem_start;
 	fb_paddrs[1] = fb_paddrs[0] + 320*240*4; // leave space for 24bpp
 
-	fb_vaddrs[0] = mmap(0, FB_VRAM_SIZE, PROT_READ|PROT_WRITE,
-				MAP_SHARED, memdev, fb_paddrs[0]);
-	if (fb_vaddrs[0] == MAP_FAILED) {
-		perror("mmap(fb_vaddrs) failed");
-		exit(1);
+	ret = warm_init();
+	have_warm = (ret == 0);
+
+	if (have_warm) {
+		// map fb as write-through cached section
+		fb_vaddrs[0] = (void *)0x7fe00000;
+		ret = warm_mmap_section(fb_vaddrs[0], fb_paddrs[0],
+			FB_VRAM_SIZE, WCB_C_BIT);
+		if (ret != 0) {
+			fprintf(stderr, "fb section map failed\n");
+			fb_vaddrs[0] = NULL;
+
+			// we could continue but it would just get messy
+			exit(1);
+		}
 	}
+	if (fb_vaddrs[0] == NULL) {
+		fb_vaddrs[0] = mmap(0, FB_VRAM_SIZE, PROT_READ|PROT_WRITE,
+				MAP_SHARED, memdev, fb_paddrs[0]);
+		if (fb_vaddrs[0] == MAP_FAILED) {
+			perror("mmap(fb_vaddrs) failed");
+			exit(1);
+		}
+
+		memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
+		warm_change_cb_range(WCB_C_BIT, 1, fb_vaddrs[0], FB_VRAM_SIZE);
+	}
+	printf("  mapped @%p\n", fb_vaddrs[0]);
+
 	fb_vaddrs[1] = (char *)fb_vaddrs[0] + 320*240*4;
 
 	memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
@@ -413,10 +528,6 @@ void plat_init(void)
 	g_menuscreen_w = 320;
 	g_menuscreen_h = 240;
 	g_menuscreen_ptr = fb_flip();
-
-	ret = warm_init();
-	have_warm = (ret == 0);
-	warm_change_cb_upper(WCB_B_BIT, 1);
 
 	/* setup DMA */
 	DMA_REG(0x0c) = 0x20000; // pending IRQ clear
@@ -429,7 +540,6 @@ void plat_init(void)
 		wiz_init();
 
 	pl_plat_blit = have_warm ? raw_blit_dma : raw_blit_soft;
-	pl_rearmed_cbs.pl_vout_set_raw_vram = pl_vout_set_raw_vram;
 
 	psx_src_width = 320;
 	psx_src_height = 240;
@@ -441,6 +551,9 @@ void plat_init(void)
 	plat_target_setup_input();
 
 	plat_target.cpu_clock_set = cpu_clock_wrapper;
+
+	psxMapHook = pl_emu_mmap;
+	psxUnmapHook = pl_emu_munmap;
 }
 
 void plat_finish(void)
@@ -450,22 +563,6 @@ void plat_finish(void)
 	munmap(fb_vaddrs[0], FB_VRAM_SIZE);
 	close(fbdev);
 	plat_target_finish();
-}
-
-/* WIZ RAM lack workaround */
-void *memtab_mmap(void *addr, size_t size)
-{
-	void *ret;
-
-	if (gp2x_dev_id != GP2X_DEV_WIZ)
-		return mmap(addr, size, PROT_READ | PROT_WRITE,
-			MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-
-	ret = mmap(addr, size, PROT_READ | PROT_WRITE,
-		MAP_SHARED | MAP_FIXED, memdev, 0x03000000);
-	if (ret != MAP_FAILED)
-		warm_change_cb_range(WCB_C_BIT | WCB_B_BIT, 1, ret, size);
-	return ret;
 }
 
 /* Caanoo stuff, perhaps move later */
