@@ -31,6 +31,8 @@
 #include "libpicofe/input.h"
 #include "libpicofe/plat.h"
 #include "libpicofe/readpng.h"
+
+static void toggle_fast_forward(int force_off);
 #endif
 #ifndef BOOT_MSG
 #define BOOT_MSG "Booting up..."
@@ -53,8 +55,6 @@ int state_slot;
 enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
-
-static void toggle_fast_forward(int force_off);
 
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {

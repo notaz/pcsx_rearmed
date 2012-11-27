@@ -30,6 +30,7 @@
 #include "pl_gun_ts.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/gpulib/cspace.h"
 #include "../plugins/dfinput/externals.h"
 
@@ -697,15 +698,8 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
-static void *pl_mmap(unsigned int size)
-{
-	return plat_mmap(0, size, 0, 0);
-}
-
-static void pl_munmap(void *ptr, unsigned int size)
-{
-	plat_munmap(ptr, size);
-}
+static void *pl_mmap(unsigned int size);
+static void pl_munmap(void *ptr, unsigned int size);
 
 struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
@@ -773,6 +767,27 @@ void pl_start_watchdog(void)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
 }
 
+static void *pl_emu_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+	return plat_mmap(addr, size, 0, is_fixed);
+}
+
+static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+	plat_munmap(ptr, size);
+}
+
+static void *pl_mmap(unsigned int size)
+{
+	return psxMapHook(0, size, 0, MAP_TAG_VRAM);
+}
+
+static void pl_munmap(void *ptr, unsigned int size)
+{
+	psxUnmapHook(ptr, size, MAP_TAG_VRAM);
+}
+
 void pl_init(void)
 {
 	extern unsigned int hSyncCount; // from psxcounters
@@ -785,4 +800,7 @@ void pl_init(void)
 
 	pl_rearmed_cbs.gpu_hcnt = &hSyncCount;
 	pl_rearmed_cbs.gpu_frame_count = &frame_counter;
+
+	psxMapHook = pl_emu_mmap;
+	psxUnmapHook = pl_emu_munmap;
 }

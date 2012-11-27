@@ -6,11 +6,11 @@
  */
 
 #include <stdio.h>
-#include <sys/mman.h>
 #include "../psxhw.h"
 #include "../cdrom.h"
 #include "../mdec.h"
 #include "../gpu.h"
+#include "../psxmem_map.h"
 #include "emu_if.h"
 #include "pcsxmem.h"
 
@@ -300,16 +300,9 @@ void new_dyna_pcsx_mem_init(void)
 {
 	int i;
 
-#ifdef CUSTOM_MEMMAPS
-	// WIZ lack-of-RAM hack
-	extern void *memtab_mmap(void *addr, size_t size);
-	mem_readtab = memtab_mmap((void *)0x08000000, 0x200000 * 4);
-#else
 	// have to map these further to keep tcache close to .text
-	mem_readtab = mmap((void *)0x08000000, 0x200000 * 4, PROT_READ | PROT_WRITE,
-		MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-#endif
-	if (mem_readtab == MAP_FAILED) {
+	mem_readtab = psxMap(0x08000000, 0x200000 * 4, 0, MAP_TAG_LUTS);
+	if (mem_readtab == NULL) {
 		fprintf(stderr, "failed to map mem tables\n");
 		exit(1);
 	}

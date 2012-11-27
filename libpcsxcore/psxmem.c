@@ -24,6 +24,7 @@
 // TODO: Implement caches & cycle penalty.
 
 #include "psxmem.h"
+#include "psxmem_map.h"
 #include "r3000a.h"
 #include "psxhw.h"
 #include "debug.h"
@@ -32,6 +33,44 @@
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif
+
+void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
+		enum psxMapTag tag);
+void (*psxUnmapHook)(void *ptr, size_t size, enum psxMapTag tag);
+
+void *psxMap(unsigned long addr, size_t size, int is_fixed,
+		enum psxMapTag tag)
+{
+	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+	void *req, *ret;
+
+	if (psxMapHook != NULL)
+		return psxMapHook(addr, size, is_fixed, tag);
+
+	if (is_fixed)
+		flags |= MAP_FIXED;
+
+	req = (void *)addr;
+	ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
+	if (ret == MAP_FAILED)
+		return NULL;
+
+	if (ret != req)
+		SysMessage("psxMap: warning: wanted to map @%p, got %p\n",
+			req, ret);
+
+	return ret;
+}
+
+void psxUnmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+	if (psxUnmapHook != NULL) {
+		psxUnmapHook(ptr, size, tag);
+		return;
+	}
+
+	munmap(ptr, size);
+}
 
 s8 *psxM = NULL; // Kernel & User Memory (2 Meg)
 s8 *psxP = NULL; // Parallel Port (64K)
@@ -60,16 +99,6 @@ u8 **psxMemRLUT = NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS Mirror (512K) Uncached
 */
 
-#if 1
-void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed);
-void  plat_munmap(void *ptr, size_t size);
-#else
-#define plat_mmap(addr, size, need_exec, is_fixed) \
-	mmap((void *)addr, size, PROT_WRITE | PROT_READ, \
-	MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0)
-#define plat_munmap munmap
-#endif
-
 int psxMemInit() {
 	int i;
 
@@ -78,27 +107,22 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-	psxM = plat_mmap(0x80000000, 0x00210000, 0, 1);
+	psxM = psxMap(0x80000000, 0x00210000, 1, MAP_TAG_RAM);
 #ifndef RAM_FIXED
-	if (psxM == MAP_FAILED)
-		psxM = mmap((void *)0x70000000, 0x00210000,
-			PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+	if (psxM == NULL)
+		psxM = psxMap(0x70000000, 0x00210000, 0, MAP_TAG_RAM);
 #endif
-	if (psxM == MAP_FAILED) {
+	if (psxM == NULL) {
 		SysMessage(_("mapping main RAM failed"));
 		return -1;
 	}
 
 	psxP = &psxM[0x200000];
-	psxH = mmap((void *)0x1f800000, 0x00010000,
-		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-
-	psxR = mmap((void *)0x1fc00000, 0x80000,
-		PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	psxH = psxMap(0x1f800000, 0x10000, 1, MAP_TAG_OTHER);
+	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxR == MAP_FAILED ||
-		psxP == NULL || psxH != (void *)0x1f800000) {
+		psxR == NULL || psxP == NULL || psxH != (void *)0x1f800000) {
 		SysMessage(_("Error allocating memory!"));
 		return -1;
 	}
@@ -153,9 +177,9 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	plat_munmap(psxM, 0x00210000);
-	munmap(psxH, 0x1f800000);
-	munmap(psxR, 0x80000);
+	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM);
+	psxUnmap(psxH, 0x1f800000, MAP_TAG_OTHER);
+	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER);
 
 	free(psxMemRLUT);
 	free(psxMemWLUT);
