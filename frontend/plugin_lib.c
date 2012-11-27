@@ -257,10 +257,6 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	}
 #endif
 
-	if (pl_vout_buf != NULL && vout_w == pl_vout_w && vout_h == pl_vout_h
-	    && vout_bpp == pl_vout_bpp)
-		return;
-
 	update_layer_size(vout_w, vout_h);
 
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
