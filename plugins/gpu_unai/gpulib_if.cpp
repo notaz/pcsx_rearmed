@@ -154,6 +154,14 @@ int renderer_init(void)
 	return 0;
 }
 
+void renderer_finish(void)
+{
+}
+
+void renderer_notify_res_change(void)
+{
+}
+
 extern const unsigned char cmd_lengths[256];
 
 int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
@@ -525,6 +533,8 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   enableAbbeyHack = cbs->gpu_unai.abe_hack;
   light = !cbs->gpu_unai.no_light;
   blend = !cbs->gpu_unai.no_blend;
+
+  GPU_FrameBuffer = (u16 *)gpu.vram;
 }
 
 #endif

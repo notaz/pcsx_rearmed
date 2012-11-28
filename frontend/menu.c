@@ -24,16 +24,17 @@
 #include "plugin_lib.h"
 #include "plat.h"
 #include "pcnt.h"
-#include "common/plat.h"
-#include "common/input.h"
-#include "linux/in_evdev.h"
+#include "libpicofe/plat.h"
+#include "libpicofe/input.h"
+#include "libpicofe/linux/in_evdev.h"
+#include "libpicofe/plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/main.h"
+#include "../plugins/dfinput/externals.h"
 #include "../plugins/gpulib/cspace.h"
 #include "revision.h"
 
@@ -72,22 +73,26 @@ typedef enum
 	MA_OPT_SAVECFG_GAME,
 	MA_OPT_CPU_CLOCKS,
 	MA_OPT_DISP_OPTS,
-	MA_OPT_SCALER,
+	MA_OPT_VARSCALER,
+	MA_OPT_VARSCALER_C,
 	MA_OPT_SCALER2,
-	MA_OPT_FILTERING,
-	MA_OPT_SCALER_C,
+	MA_OPT_HWFILTER,
+	MA_OPT_SWFILTER,
+	MA_OPT_GAMMA,
+	MA_OPT_VIDOVERLAY,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
 static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
-static int warned_about_bios, region, in_type_sel1, in_type_sel2;
+static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel, memcard2_sel;
-int g_opts, g_scaler;
+int g_opts, g_scaler, g_gamma = 100;
 int soft_scaling, analog_deadzone; // for Caanoo
-int filter;
+int g_use_overlay, g_fullscreen;
+int filter, soft_filter;
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -109,6 +114,18 @@ static const char *spu_plugins[16];
 static const char *memcards[32];
 static int bios_sel, gpu_plugsel, spu_plugsel;
 
+#ifndef UI_FEATURES_H
+#define MENU_BIOS_PATH "bios/"
+#define MENU_SHOW_VARSCALER 0
+#define MENU_SHOW_VIDOVERLAY 1
+#define MENU_SHOW_SCALER2 0
+#define MENU_SHOW_NUBS_BTNS 0
+#define MENU_SHOW_VIBRATION 0
+#define MENU_SHOW_DEADZONE 0
+#define MENU_SHOW_MINIMIZE 0
+#define MENU_SHOW_FULLSCREEN 1
+#define MENU_SHOW_VOLUME 0
+#endif
 
 static int min(int x, int y) { return x < y ? x : y; }
 static int max(int x, int y) { return x > y ? x : y; }
@@ -213,6 +230,9 @@ static void menu_set_defconfig(void)
 	frameskip = 0;
 	analog_deadzone = 50;
 	soft_scaling = 1;
+	soft_filter = 0;
+	g_use_overlay = 1;
+	g_fullscreen = 0;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -233,6 +253,9 @@ static void menu_set_defconfig(void)
 
 #define CE_INTVAL(val) \
 	{ #val, sizeof(val), &val }
+
+#define CE_INTVAL_N(name, val) \
+	{ name, sizeof(val), &val }
 
 #define CE_INTVAL_P(val) \
 	{ #val, sizeof(pl_rearmed_cbs.val), &pl_rearmed_cbs.val }
@@ -274,12 +297,17 @@ static const struct {
 	CE_INTVAL(g_layer_w),
 	CE_INTVAL(g_layer_h),
 	CE_INTVAL(filter),
+	CE_INTVAL(soft_filter),
+	CE_INTVAL(g_use_overlay),
+	CE_INTVAL(g_fullscreen),
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
 	CE_INTVAL(analog_deadzone),
+	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
+	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 3),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
@@ -288,6 +316,8 @@ static const struct {
 	CE_INTVAL_P(gpu_unai.no_light),
 	CE_INTVAL_P(gpu_unai.no_blend),
 	CE_INTVAL_P(gpu_neon.allow_interlace),
+	CE_INTVAL_P(gpu_neon.enhancement_enable),
+	CE_INTVAL_P(gpu_neon.enhancement_no_main),
 	CE_INTVAL_P(gpu_peopsgl.bDrawDither),
 	CE_INTVAL_P(gpu_peopsgl.iFilterType),
 	CE_INTVAL_P(gpu_peopsgl.iFrameTexType),
@@ -301,7 +331,7 @@ static const struct {
 	CE_INTVAL_V(iUseReverb, 3),
 	CE_INTVAL_V(iXAPitch, 3),
 	CE_INTVAL_V(iUseInterpolation, 3),
-	CE_INTVAL(warned_about_bios),
+	CE_INTVAL(config_save_counter),
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
 	CE_INTVAL(psx_clock),
@@ -339,6 +369,8 @@ static int menu_write_config(int is_game)
 	char cfgfile[MAXPATHLEN];
 	FILE *f;
 	int i;
+
+	config_save_counter++;
 
 	make_cfg_fname(cfgfile, sizeof(cfgfile), is_game);
 	f = fopen(cfgfile, "w");
@@ -552,9 +584,7 @@ static const char *filter_exts[] = {
 #define MENU_X2 0
 #endif
 
-#define menu_init menu_init_common
-#include "common/menu.c"
-#undef menu_init
+#include "libpicofe/menu.c"
 
 // a bit of black magic here
 static void draw_savestate_bg(int slot)
@@ -602,12 +632,18 @@ static void draw_savestate_bg(int slot)
 
 	x = gpu->ulControl[5] & 0x3ff;
 	y = (gpu->ulControl[5] >> 10) & 0x1ff;
-	s = (u16 *)gpu->psxVRam + y * 1024 + x;
 	w = psx_widths[(gpu->ulStatus >> 16) & 7];
 	tmp = gpu->ulControl[7];
 	h = ((tmp >> 10) & 0x3ff) - (tmp & 0x3ff);
 	if (gpu->ulStatus & 0x80000) // doubleheight
 		h *= 2;
+	if (h <= 0 || h > 512)
+		goto out;
+	if (y > 512 - 64)
+		y = 0;
+	if (y + h > 512)
+		h = 512 - y;
+	s = (u16 *)gpu->psxVRam + y * 1024 + x;
 
 	x = max(0, g_menuscreen_w - w) & ~3;
 	y = max(0, g_menuscreen_h / 2 - h / 2);
@@ -661,15 +697,23 @@ me_bind_action emuctrl_actions[] =
 	{ "Next Save Slot   ", 1 << SACTION_NEXT_SSLOT },
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
-	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
-#ifdef __ARM_ARCH_7A__ /* XXX */
+	{ "Show/Hide FPS    ", 1 << SACTION_TOGGLE_FPS },
+#ifdef __ARM_ARCH_7A__
+	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
+#endif
+	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
+#if MENU_SHOW_MINIMIZE
 	{ "Minimize         ", 1 << SACTION_MINIMIZE },
 #endif
+#if MENU_SHOW_FULLSCREEN
+	{ "Toggle fullscreen", 1 << SACTION_TOGGLE_FULLSCREEN },
+#endif
+	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
 	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },
 	{ "Gun Offscreen Trigger", 1 << SACTION_GUN_TRIGGER2 },
-#ifndef __ARM_ARCH_7A__ /* XXX */
+#if MENU_SHOW_VOLUME
 	{ "Volume Up        ", 1 << SACTION_VOLUME_UP },
 	{ "Volume Down      ", 1 << SACTION_VOLUME_DOWN },
 #endif
@@ -887,17 +931,21 @@ static int key_config_loop_wrap(int id, int keys)
 	return 0;
 }
 
+static const char h_nubmode[] = "Maps nub-like analog controls to PSX ones better\n"
+				"Might cause problems with real analog sticks";
 static const char *adevnames[IN_MAX_DEVS + 2];
 static int stick_sel[2];
 
 static menu_entry e_menu_keyconfig_analog[] =
 {
-	mee_enum ("Left stick (L3)",  0, stick_sel[0], adevnames),
-	mee_range("  X axis",    0, in_adev_axis[0][0], 0, 7),
-	mee_range("  Y axis",    0, in_adev_axis[0][1], 0, 7),
-	mee_enum ("Right stick (R3)", 0, stick_sel[1], adevnames),
-	mee_range("  X axis",    0, in_adev_axis[1][0], 0, 7),
-	mee_range("  Y axis",    0, in_adev_axis[1][1], 0, 7),
+	mee_enum   ("Left stick (L3)",  0, stick_sel[0], adevnames),
+	mee_range  ("  X axis",    0, in_adev_axis[0][0], 0, 7),
+	mee_range  ("  Y axis",    0, in_adev_axis[0][1], 0, 7),
+	mee_onoff_h("  nub mode",  0, in_adev_is_nublike[0], 1, h_nubmode),
+	mee_enum   ("Right stick (R3)", 0, stick_sel[1], adevnames),
+	mee_range  ("  X axis",    0, in_adev_axis[1][0], 0, 7),
+	mee_range  ("  Y axis",    0, in_adev_axis[1][1], 0, 7),
+	mee_onoff_h("  nub mode",  0, in_adev_is_nublike[1], 1, h_nubmode),
 	mee_end,
 };
 
@@ -964,9 +1012,9 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 static int mh_savecfg(int id, int keys)
 {
 	if (menu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0) == 0)
-		me_update_msg("config saved");
+		menu_update_msg("config saved");
 	else
-		me_update_msg("failed to write config");
+		menu_update_msg("failed to write config");
 
 	return 1;
 }
@@ -975,7 +1023,7 @@ static int mh_input_rescan(int id, int keys)
 {
 	//menu_sync_config();
 	in_probe();
-	me_update_msg("rescan complete.");
+	menu_update_msg("rescan complete.");
 
 	return 0;
 }
@@ -1029,9 +1077,17 @@ static int menu_loop_keyconfig(int id, int keys)
 // ------------ gfx options menu ------------
 
 static const char *men_scaler[] = { "1x1", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL };
+static const char *men_soft_filter[] = { "None",
+#ifdef __ARM_NEON__
+	"scale2x", "eagle2x",
+#endif
+	NULL };
+static const char *men_dummy[] = { NULL };
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
-static const char *men_dummy[] = { NULL };
+static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
+static const char h_soft_filter[] = "Works only if game uses low resolution modes";
+static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
 
 static int menu_loop_cscaler(int id, int keys)
 {
@@ -1043,7 +1099,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 	for (;;)
 	{
-		menu_draw_begin(0);
+		menu_draw_begin(0, 1);
 		memset(g_menuscreen_ptr, 4, g_menuscreen_w * g_menuscreen_h * 2);
 		text_out16(2, 2, "%d,%d", g_layer_x, g_layer_y);
 		text_out16(2, 480 - 18, "%dx%d | d-pad: resize, R+d-pad: move",	g_layer_w, g_layer_h);
@@ -1087,11 +1143,14 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Scaler",                   MA_OPT_SCALER, g_scaler, men_scaler),
+	mee_enum      ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler),
+	mee_onoff_h   ("Use video overlay",        MA_OPT_VIDOVERLAY, g_use_overlay, 1, h_overlay),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
-	mee_enum      ("Filter",                   MA_OPT_FILTERING, filter, men_dummy),
+	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, filter, men_dummy),
+	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
+	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
-	mee_cust_h    ("Setup custom scaler",      MA_OPT_SCALER_C, menu_loop_cscaler, NULL, h_cscaler),
+	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
 };
 
@@ -1104,32 +1163,30 @@ static int menu_loop_gfx_options(int id, int keys)
 	return 0;
 }
 
-// XXX
-void menu_set_filter_list(void *filters)
-{
-	int i;
-
-	i = me_id2offset(e_menu_gfx_options, MA_OPT_FILTERING);
-	e_menu_gfx_options[i].data = filters;
-	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, filters != NULL);
-}
-
 // ------------ bios/plugins ------------
 
 #ifdef __ARM_NEON__
 
-static const char h_gpu_neon[] = "Configure built-in NEON GPU plugin";
+static const char h_gpu_neon[] =
+	"Configure built-in NEON GPU plugin";
+static const char h_gpu_neon_enhanced[] =
+	"Renders in double resolution at the cost of lower performance\n"
+	"(not available for high resolution games)";
+static const char h_gpu_neon_enhanced_hack[] =
+	"Speed hack for above option (glitches some games)";
 static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
 
 static menu_entry e_menu_plugin_gpu_neon[] =
 {
 	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
+	mee_onoff_h   ("Enhanced resolution (slow)", 0, pl_rearmed_cbs.gpu_neon.enhancement_enable, 1, h_gpu_neon_enhanced),
+	mee_onoff_h   ("Enhanced res. speed hack",   0, pl_rearmed_cbs.gpu_neon.enhancement_no_main, 1, h_gpu_neon_enhanced_hack),
 	mee_end,
 };
 
 static int menu_loop_plugin_gpu_neon(int id, int keys)
 {
-	int sel = 0;
+	static int sel = 0;
 	me_loop(e_menu_plugin_gpu_neon, &sel);
 	return 0;
 }
@@ -1363,7 +1420,7 @@ static int menu_loop_adv_options(int id, int keys)
 static int mh_restore_defaults(int id, int keys)
 {
 	menu_set_defconfig();
-	me_update_msg("defaults restored");
+	menu_update_msg("defaults restored");
 	return 1;
 }
 
@@ -1445,7 +1502,7 @@ static void debug_menu_loop(void)
 
 	while (1)
 	{
-		menu_draw_begin(0);
+		menu_draw_begin(0, 1);
 		draw_frame_debug(gpuf, df_x, df_y);
 		menu_draw_end();
 
@@ -1497,7 +1554,7 @@ static void draw_mc_bg(void)
 		GetMcdBlockInfo(2, i + 1, &blocks2[i]);
 	}
 
-	menu_draw_begin(1);
+	menu_draw_begin(1, 1);
 
 	memcpy(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 
@@ -1578,7 +1635,7 @@ static void draw_cheatlist(int sel)
 	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
-	menu_draw_begin(1);
+	menu_draw_begin(1, 1);
 
 	for (i = 0; i < NumCheats; i++) {
 		pos = start + i;
@@ -1630,11 +1687,8 @@ static void menu_bios_warn(void)
 	static const char msg[] =
 		"You don't seem to have copied any BIOS\n"
 		"files to\n"
-#ifdef __ARM_ARCH_7A__ // XXX
-		"<SD card>/pandora/appdata/pcsx_rearmed/bios/\n\n"
-#else
-		"pcsx_rearmed/bios/\n\n"
-#endif
+		MENU_BIOS_PATH "\n\n"
+
 		"While many games work fine with fake\n"
 		"(HLE) BIOS, others (like MGS and FF8)\n"
 		"require BIOS to work.\n"
@@ -1681,7 +1735,7 @@ static void draw_frame_main(void)
 	}
 
 	if (ready_to_go) {
-		capacity = plat_get_bat_capacity();
+		capacity = plat_target_bat_capacity_get();
 		ltime = time(NULL);
 		tmp = localtime(&ltime);
 		strftime(ltime_s, sizeof(ltime_s), "%H:%M", tmp);
@@ -1742,7 +1796,7 @@ static int reload_plugins(const char *cdimg)
 	pcnt_hook_plugins();
 	NetOpened = 0;
 	if (OpenPlugins() == -1) {
-		me_update_msg("failed to open plugins");
+		menu_update_msg("failed to open plugins");
 		return -1;
 	}
 	plugin_call_rearmed_cbs();
@@ -1782,7 +1836,7 @@ static int run_exe(void)
 
 	SysReset();
 	if (Load(fname) != 0) {
-		me_update_msg("exe load failed, bad file?");
+		menu_update_msg("exe load failed, bad file?");
 		printf("meh\n");
 		return -1;
 	}
@@ -1802,7 +1856,7 @@ static int run_cd_image(const char *fname)
 	if (CheckCdrom() == -1) {
 		// Only check the CD if we are starting the console with a CD
 		ClosePlugins();
-		me_update_msg("unsupported/invalid CD image");
+		menu_update_msg("unsupported/invalid CD image");
 		return -1;
 	}
 
@@ -1811,11 +1865,11 @@ static int run_cd_image(const char *fname)
 	// Read main executable directly from CDRom and start it
 	if (LoadCdrom() == -1) {
 		ClosePlugins();
-		me_update_msg("failed to load CD image");
+		menu_update_msg("failed to load CD image");
 		return -1;
 	}
 
-	emu_on_new_cd();
+	emu_on_new_cd(1);
 	ready_to_go = 1;
 
 	return 0;
@@ -1870,11 +1924,11 @@ static int swap_cd_image(void)
 
 	set_cd_image(fname);
 	if (ReloadCdromPlugin() < 0) {
-		me_update_msg("failed to load cdr plugin");
+		menu_update_msg("failed to load cdr plugin");
 		return -1;
 	}
 	if (CDR_open() < 0) {
-		me_update_msg("failed to open cdr plugin");
+		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
 
@@ -1893,7 +1947,7 @@ static int swap_cd_multidisk(void)
 
 	CDR_close();
 	if (CDR_open() < 0) {
-		me_update_msg("failed to open cdr plugin");
+		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
 
@@ -1917,10 +1971,10 @@ static void load_pcsx_cht(void)
 	LoadCheats(fname);
 
 	if (NumCheats == 0 && NumCodes == 0)
-		me_update_msg("failed to load cheats");
+		menu_update_msg("failed to load cheats");
 	else {
 		snprintf(path, sizeof(path), "%d cheat(s) loaded", NumCheats + NumCodes);
-		me_update_msg(path);
+		menu_update_msg(path);
 	}
 	me_enable(e_menu_main, MA_MAIN_CHEATS, ready_to_go && NumCheats);
 }
@@ -2035,13 +2089,22 @@ static void menu_leave_emu(void);
 
 void menu_loop(void)
 {
+	static int warned_about_bios = 0;
 	static int sel = 0;
 
 	menu_leave_emu();
 
-	if (bioses[1] == NULL && !warned_about_bios) {
-		menu_bios_warn();
-		warned_about_bios = 1;
+	if (config_save_counter == 0) {
+		// assume first run
+		if (bioses[1] != NULL) {
+			// autoselect BIOS to make user's life easier
+			snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[1]);
+			bios_sel = 1;
+		}
+		else if (!warned_about_bios) {
+			menu_bios_warn();
+			warned_about_bios = 1;
+		}
 	}
 
 	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, ready_to_go);
@@ -2219,13 +2282,14 @@ do_memcards:
 void menu_init(void)
 {
 	char buff[MAXPATHLEN];
+	int i;
 
 	strcpy(last_selected_fname, "/media");
 
-	cpu_clock_st = cpu_clock = plat_cpu_clock_get();
+	cpu_clock_st = cpu_clock = plat_target_cpu_clock_get();
 
 	scan_bios_plugins();
-	menu_init_common();
+	menu_init_base();
 
 	menu_set_defconfig();
 	menu_load_config(0);
@@ -2244,16 +2308,28 @@ void menu_init(void)
 	emu_make_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
-#ifndef __ARM_ARCH_7A__ /* XXX */
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER, 0);
-	me_enable(e_menu_gfx_options, MA_OPT_FILTERING, 0);
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER_C, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, 0);
-#else
-	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, 0);
-	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
+	i = plat_target.cpu_clock_set != NULL
+		&& plat_target.cpu_clock_get != NULL && cpu_clock_st > 0;
+	me_enable(e_menu_gfx_options, MA_OPT_CPU_CLOCKS, i);
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
+	e_menu_gfx_options[i].data = plat_target.hwfilters;
+	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
+		plat_target.hwfilters != NULL);
+
+	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
+		plat_target.gamma_set != NULL);
+
+#ifndef __ARM_ARCH_7A__
+	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_VIDOVERLAY, MENU_SHOW_VIDOVERLAY);
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
+	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
+	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, MENU_SHOW_DEADZONE);
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)
@@ -2295,7 +2371,7 @@ static void menu_leave_emu(void)
 	}
 
 	if (ready_to_go)
-		cpu_clock = plat_cpu_clock_get();
+		cpu_clock = plat_target_cpu_clock_get();
 }
 
 void menu_prepare_emu(void)
@@ -2316,7 +2392,7 @@ void menu_prepare_emu(void)
 
 	menu_sync_config();
 	if (cpu_clock > 0)
-		plat_cpu_clock_apply(cpu_clock);
+		plat_target_cpu_clock_set(cpu_clock);
 
 	// push config to GPU plugin
 	plugin_call_rearmed_cbs();
@@ -2330,7 +2406,7 @@ void menu_prepare_emu(void)
 	dfinput_activate();
 }
 
-void me_update_msg(const char *msg)
+void menu_update_msg(const char *msg)
 {
 	strncpy(menu_error_msg, msg, sizeof(menu_error_msg));
 	menu_error_msg[sizeof(menu_error_msg) - 1] = 0;
@@ -2341,5 +2417,6 @@ void me_update_msg(const char *msg)
 
 void menu_finish(void)
 {
-	plat_cpu_clock_apply(cpu_clock_st);
+	if (cpu_clock_st > 0)
+		plat_target_cpu_clock_set(cpu_clock_st);
 }

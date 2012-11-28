@@ -48,8 +48,8 @@ extern long CDR__getStatus(struct CdrStat *stat);
 
 struct CdrStat
 {
-	unsigned long Type;
-	unsigned long Status;
+	unsigned int Type;
+	unsigned int Status;
 	unsigned char Time[3]; // current playing time
 };
 

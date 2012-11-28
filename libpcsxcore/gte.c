@@ -26,11 +26,6 @@
 #include "gte.h"
 #include "psxmem.h"
 
-typedef struct psxCP2Regs {
-	psxCP2Data CP2D; 	/* Cop2 data registers */
-	psxCP2Ctrl CP2C; 	/* Cop2 control registers */
-} psxCP2Regs;
-
 #define VX(n) (n < 3 ? regs->CP2D.p[n << 1].sw.l : regs->CP2D.p[9].sw.l)
 #define VY(n) (n < 3 ? regs->CP2D.p[n << 1].sw.h : regs->CP2D.p[10].sw.l)
 #define VZ(n) (n < 3 ? regs->CP2D.p[(n << 1) + 1].sw.l : regs->CP2D.p[11].sw.l)
@@ -264,7 +259,7 @@ static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 #ifndef FLAGLESS
 
 static inline u32 MFC2(int reg) {
-	psxCP2Regs *regs = (psxCP2Regs *)&psxRegs.CP2D;
+	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 1:
 		case 3:
@@ -299,7 +294,7 @@ static inline u32 MFC2(int reg) {
 }
 
 static inline void MTC2(u32 value, int reg) {
-	psxCP2Regs *regs = (psxCP2Regs *)&psxRegs.CP2D;
+	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 15:
 			gteSXY0 = gteSXY1;

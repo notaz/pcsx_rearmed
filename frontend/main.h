@@ -42,7 +42,7 @@ int emu_core_preinit(void);
 int emu_core_init(void);
 
 void emu_set_default_config(void);
-void emu_on_new_cd(void);
+void emu_on_new_cd(int show_hud_msg);
 
 int get_state_filename(char *buf, int size, int i);
 int emu_check_state(int slot);
@@ -65,10 +65,14 @@ enum sched_action {
 	SACTION_NEXT_SSLOT,
 	SACTION_PREV_SSLOT,
 	SACTION_TOGGLE_FSKIP,
+	SACTION_SWITCH_DISPMODE,
+	SACTION_FAST_FORWARD,
 	SACTION_SCREENSHOT,
 	SACTION_VOLUME_UP,
 	SACTION_VOLUME_DOWN,
 	SACTION_MINIMIZE,
+	SACTION_TOGGLE_FPS,
+	SACTION_TOGGLE_FULLSCREEN,
 	SACTION_GUN_TRIGGER = 16,
 	SACTION_GUN_A,
 	SACTION_GUN_B,

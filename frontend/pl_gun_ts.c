@@ -15,7 +15,7 @@
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "menu.h"
-#include "../plugins/dfinput/main.h"
+#include "../plugins/dfinput/externals.h"
 
 static int gun_x, gun_y, gun_in;
 static int ts_multiplier_x, ts_multiplier_y, ts_offs_x, ts_offs_y;
@@ -61,6 +61,7 @@ int pl_gun_ts_update_raw(struct tsdev *ts, int *x, int *y, int *p)
 	return 0;
 }
 
+/* returns x, y in range 0..1023 (normalized to visible layer) */
 void pl_gun_ts_update(struct tsdev *ts, int *x, int *y, int *in)
 {
 	pl_gun_ts_update_raw(ts, NULL, NULL, NULL);

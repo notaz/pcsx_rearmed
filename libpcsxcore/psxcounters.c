@@ -152,6 +152,52 @@ u32 _psxRcntRcount( u32 index )
     return count;
 }
 
+static
+void _psxRcntWmode( u32 index, u32 value )
+{
+    rcnts[index].mode = value;
+
+    switch( index )
+    {
+        case 0:
+            if( value & Rc0PixelClock )
+            {
+                rcnts[index].rate = 5;
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+        break;
+        case 1:
+            if( value & Rc1HSyncClock )
+            {
+                rcnts[index].rate = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+        break;
+        case 2:
+            if( value & Rc2OneEighthClock )
+            {
+                rcnts[index].rate = 8;
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+
+            // TODO: wcount must work.
+            if( value & Rc2Disable )
+            {
+                rcnts[index].rate = 0xffffffff;
+            }
+        break;
+    }
+}
+
 /******************************************************************************/
 
 static
@@ -357,50 +403,10 @@ void psxRcntWmode( u32 index, u32 value )
 {
     verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
 
-    rcnts[index].mode = value;
-    rcnts[index].irqState = 0;
-
-    switch( index )
-    {
-        case 0:
-            if( value & Rc0PixelClock )
-            {
-                rcnts[index].rate = 5;
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-        break;
-        case 1:
-            if( value & Rc1HSyncClock )
-            {
-                rcnts[index].rate = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-        break;
-        case 2:
-            if( value & Rc2OneEighthClock )
-            {
-                rcnts[index].rate = 8;
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-
-            // TODO: wcount must work.
-            if( value & Rc2Disable )
-            {
-                rcnts[index].rate = 0xffffffff;
-            }
-        break;
-    }
-
+    _psxRcntWmode( index, value );
     _psxRcntWcount( index, 0 );
+
+    rcnts[index].irqState = 0;
     psxRcntSet();
 }
 
@@ -497,6 +503,9 @@ void psxRcntInit()
 
 s32 psxRcntFreeze( gzFile f, s32 Mode )
 {
+    u32 count;
+    s32 i;
+
     gzfreeze( &rcnts, sizeof(rcnts) );
     gzfreeze( &hSyncCount, sizeof(hSyncCount) );
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
@@ -504,9 +513,19 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
     gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
 
     if (Mode == 0)
+    {
+        // don't trust things from a savestate
+        for( i = 0; i < CounterQuantity; ++i )
+        {
+            _psxRcntWmode( i, rcnts[i].mode );
+            count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
+            _psxRcntWcount( i, count );
+        }
         hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        psxRcntSet();
 
-    base_cycle = 0;
+        base_cycle = 0;
+    }
 
     return 0;
 }

@@ -58,24 +58,6 @@
 // ADSR INFOS PER CHANNEL
 typedef struct
 {
- int            AttackModeExp;
- long           AttackTime;
- long           DecayTime;
- long           SustainLevel;
- int            SustainModeExp;
- long           SustainModeDec;
- long           SustainTime;
- int            ReleaseModeExp;
- unsigned long  ReleaseVal;
- long           ReleaseTime;
- long           ReleaseStartTime; 
- long           ReleaseVol; 
- long           lTime;
- long           lVolume;
-} ADSRInfo;
-
-typedef struct
-{
  unsigned char  State:2;
  unsigned char  AttackModeExp:1;
  unsigned char  SustainModeExp:1;
@@ -215,11 +197,10 @@ extern int decode_pos;
 extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;
 
-extern unsigned long dwNoiseVal;
 extern unsigned short spuCtrl;
 extern unsigned short spuStat;
 extern unsigned short spuIrq;
-extern unsigned long  spuAddr;
+extern unsigned int   spuAddr;
 extern int      bSpuInit;
 extern unsigned int dwNewChannel;
 extern unsigned int dwChannelOn;

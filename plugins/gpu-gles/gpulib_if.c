@@ -479,10 +479,15 @@ switch((gdata>>24)&0xff)
 
 static int is_opened;
 
+static void set_vram(void *vram)
+{
+ psxVub=vram;
+ psxVuw=(unsigned short *)psxVub;
+}
+
 int renderer_init(void)
 {
- psxVub=(void *)gpu.vram;
- psxVuw=(unsigned short *)psxVub;
+ set_vram(gpu.vram);
 
  PSXDisplay.RGB24        = FALSE;                      // init some stuff
  PSXDisplay.Interlaced   = FALSE;
@@ -498,6 +503,14 @@ int renderer_init(void)
  lGPUstatusRet = 0x14802000;
 
  return 0;
+}
+
+void renderer_finish(void)
+{
+}
+
+void renderer_notify_res_change(void)
+{
 }
 
 extern const unsigned char cmd_lengths[256];
@@ -702,6 +715,10 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
  bUseFastMdec = cbs->gpu_peopsgl.bUseFastMdec;
  iTexGarbageCollection = cbs->gpu_peopsgl.iTexGarbageCollection;
  iVRamSize = cbs->gpu_peopsgl.iVRamSize;
+ if (cbs->pl_set_gpu_caps)
+  cbs->pl_set_gpu_caps(GPU_CAP_OWNS_DISPLAY);
+
+ set_vram(gpu.vram);
 }
 
 void SetAspectRatio(void)

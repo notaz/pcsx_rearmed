@@ -47,7 +47,8 @@ u32 zero_block_spans = 0;
 u32 texture_cache_loads = 0;
 u32 false_modulated_blocks = 0;
 
-u32 reciprocal_table[512];
+/* double size for enhancement */
+u32 reciprocal_table[512 * 2];
 
 
 typedef s32 fixed_type;
@@ -453,7 +454,7 @@ void setup_blocks_shaded_untextured_undithered_unswizzled_indirect(
 
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 {
-  if((psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED) &&
+  if((psx_gpu->render_mode & RENDER_INTERLACE_ENABLED) &&
    (psx_gpu->primitive_type == PRIMITIVE_TYPE_SPRITE))
   {
     u32 num_blocks_dest = 0;
@@ -463,7 +464,7 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
     u16 *vram_ptr = psx_gpu->vram_ptr;
     u32 i;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
     {
       for(i = 0; i < psx_gpu->num_blocks; i++)
       {
@@ -566,7 +567,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
 
   vec_4x32u uvrg_base;
   vec_4x32u b_base;
-  vec_4x32u const_0x8000;
+  vec_4x32u uvrgb_phase;
 
   vec_4x16s d0_a_d3_c, d0_b, d0_c;
   vec_4x16s d1_a, d1_b, d1_c_d2_a;
@@ -595,12 +596,12 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
   setup_gradient_calculation_input(1, b);
   setup_gradient_calculation_input(2, c);
 
-  dup_4x32b(const_0x8000, 0x8000);
+  dup_4x32b(uvrgb_phase, psx_gpu->uvrgb_phase);
   shl_long_4x16b(uvrg_base, x0_a_y0_c, 16);
   shl_long_4x16b(b_base, x0_b, 16);
 
-  add_4x32b(uvrg_base, uvrg_base, const_0x8000);
-  add_4x32b(b_base, b_base, const_0x8000);
+  add_4x32b(uvrg_base, uvrg_base, uvrgb_phase);
+  add_4x32b(b_base, b_base, uvrgb_phase);
 
   // Can probably pair these, but it'll require careful register allocation
   sub_4x16b(d0_a_d3_c, x1_a_y1_c, x0_a_y0_c);
@@ -766,6 +767,26 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
     printf("mismatch on %s %s: %x vs %x\n", #_a, #_b, _a, _b)                  \
 
 
+#ifndef NDEBUG
+#define setup_spans_debug_check(span_edge_data_element)                        \
+{                                                                              \
+  u32 _num_spans = &span_edge_data_element - psx_gpu->span_edge_data;          \
+  if (_num_spans > MAX_SPANS)                                                  \
+    *(int *)0 = 1;                                                             \
+  if (_num_spans < psx_gpu->num_spans)                                         \
+  {                                                                            \
+    if(span_edge_data_element.num_blocks > MAX_BLOCKS_PER_ROW)                 \
+      *(int *)0 = 1;                                                           \
+    if(span_edge_data_element.y > 2048)                                        \
+      *(int *)0 = 1;                                                           \
+  }                                                                            \
+}                                                                              \
+
+#else
+#define setup_spans_debug_check(span_edge_data_element)                        \
+
+#endif
+
 #define setup_spans_prologue_alternate_yes()                                   \
   vec_2x64s alternate_x;                                                       \
   vec_2x64s alternate_dx_dy;                                                   \
@@ -854,7 +875,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
                                                                                \
   dup_2x32b(edge_shifts, edge_shift);                                          \
   sub_2x32b(heights_b, heights, c_0x01);                                       \
-  shr_2x32b(height_reciprocals, edge_shifts, 12);                              \
+  shr_2x32b(height_reciprocals, edge_shifts, 10);                              \
                                                                                \
   mla_2x32b(heights_b, x_starts, heights);                                     \
   bic_immediate_4x16b(vector_cast(vec_4x16u, edge_shifts), 0xE0);              \
@@ -883,8 +904,8 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
   sub_2x32b(widths, x_ends, x_starts);                                         \
   width_alt = x_c - start_c;                                                   \
                                                                                \
-  shr_2x32b(height_reciprocals, edge_shifts, 12);                              \
-  height_reciprocal_alt = edge_shift_alt >> 12;                                \
+  shr_2x32b(height_reciprocals, edge_shifts, 10);                              \
+  height_reciprocal_alt = edge_shift_alt >> 10;                                \
                                                                                \
   bic_immediate_4x16b(vector_cast(vec_4x16u, edge_shifts), 0xE0);              \
   edge_shift_alt &= 0x1F;                                                      \
@@ -1069,6 +1090,7 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
     span_edge_data[i].num_blocks = left_right_x_16.high.e[i];                  \
     span_edge_data[i].right_mask = span_shift.e[i];                            \
     span_edge_data[i].y = y_x4.e[i];                                           \
+    setup_spans_debug_check(span_edge_data[i]);                                \
   }                                                                            \
                                                                                \
   span_edge_data += 4;                                                         \
@@ -1406,12 +1428,16 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     y_x4.e[3] = y_a + 3;
     setup_spans_adjust_edges_alternate_no(index_left, index_right);
 
+    // FIXME: overflow corner case
+    if(psx_gpu->num_spans + height_minor_b == MAX_SPANS)
+      height_minor_b &= ~3;
+
     psx_gpu->num_spans += height_minor_b;
-    do
+    while(height_minor_b > 0)
     {
       setup_spans_set_x4(none, down, no);
       height_minor_b -= 4;
-    } while(height_minor_b > 0);
+    }
   }
 
   left_split_triangles++;
@@ -1872,7 +1898,7 @@ void setup_blocks_##shading##_##texturing##_##dithering##_##sw##_##target(     \
     if(span_num_blocks)                                                        \
     {                                                                          \
       y = span_edge_data->y;                                                   \
-      fb_ptr = psx_gpu->vram_ptr + span_edge_data->left_x + (y * 1024);        \
+      fb_ptr = psx_gpu->vram_out_ptr + span_edge_data->left_x + (y * 1024);    \
                                                                                \
       setup_blocks_span_initialize_##shading##_##texturing();                  \
       setup_blocks_span_initialize_##dithering(texturing);                     \
@@ -2905,8 +2931,8 @@ char *render_block_flag_strings[] =
    (triangle_y_direction_##direction_c << 4) |                                 \
    (triangle_winding_##winding << 6))                                          \
 
-void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
- u32 flags)
+static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ vertex_struct *vertexes_out[3])
 {
   s32 y_top, y_bottom;
   s32 triangle_area;
@@ -2927,7 +2953,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(b->y < a->y)
@@ -2949,7 +2975,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(triangle_area < 0)
@@ -2975,7 +3001,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
   if(invalidate_texture_cache_region_viewport(psx_gpu, a->x, y_top, c->x,
@@ -2984,12 +3010,27 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 #ifdef PROFILE
     trivial_rejects++;
 #endif
-    return;
+    return 0;
   }
 
-  psx_gpu->num_spans = 0;
   psx_gpu->triangle_area = triangle_area;
   psx_gpu->triangle_winding = triangle_winding;
+
+  vertexes_out[0] = a;
+  vertexes_out[1] = b;
+  vertexes_out[2] = c;
+
+  return 1;
+}
+
+static void render_triangle_p(psx_gpu_struct *psx_gpu,
+ vertex_struct *vertex_ptrs[3], u32 flags)
+{
+  psx_gpu->num_spans = 0;
+
+  vertex_struct *a = vertex_ptrs[0];
+  vertex_struct *b = vertex_ptrs[1];
+  vertex_struct *c = vertex_ptrs[2];
 
   s32 y_delta_a = b->y - a->y;
   s32 y_delta_b = c->y - b->y;
@@ -3002,7 +3043,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   compute_all_gradients(psx_gpu, a, b, c);
 
   switch(y_direction_a | (y_direction_b << 2) | (y_direction_c << 4) |
-   (triangle_winding << 6))
+   (psx_gpu->triangle_winding << 6))
   {
     triangle_case(up, up, up, negative):
     triangle_case(up, up, flat, negative):
@@ -3081,11 +3122,11 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   spans += psx_gpu->num_spans;
 #endif
 
-  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
+  if(unlikely(psx_gpu->render_mode & RENDER_INTERLACE_ENABLED))
   {
     u32 i;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
     {
       for(i = 0; i < psx_gpu->num_spans; i++)
       {
@@ -3126,6 +3167,14 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
    (psx_gpu);
 }
 
+void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ u32 flags)
+{
+  vertex_struct *vertex_ptrs[3];
+  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
+    render_triangle_p(psx_gpu, vertex_ptrs, flags);
+}
+
 
 void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu);
 
@@ -3161,14 +3210,17 @@ void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 #endif
 
 
-#define setup_sprite_tiled_initialize_4bpp()                                   \
+#define setup_sprite_tiled_initialize_4bpp_clut()                              \
   u16 *clut_ptr = psx_gpu->clut_ptr;                                           \
   vec_8x16u clut_a, clut_b;                                                    \
   vec_16x8u clut_low, clut_high;                                               \
                                                                                \
   load_8x16b(clut_a, clut_ptr);                                                \
   load_8x16b(clut_b, clut_ptr + 8);                                            \
-  unzip_16x8b(clut_low, clut_high, clut_a, clut_b);                            \
+  unzip_16x8b(clut_low, clut_high, clut_a, clut_b)                             \
+
+#define setup_sprite_tiled_initialize_4bpp()                                   \
+  setup_sprite_tiled_initialize_4bpp_clut();                                   \
                                                                                \
   if(psx_gpu->current_texture_mask & psx_gpu->dirty_textures_4bpp_mask)        \
     update_texture_4bpp_cache(psx_gpu)                                         \
@@ -3184,10 +3236,6 @@ void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
                                                                                \
   load_64b(texels, texture_block_ptr)                                          \
 
-
-#define setup_sprite_tile_setup_block_yes(side, offset, texture_mode)          \
-
-#define setup_sprite_tile_setup_block_no(side, offset, texture_mode)           \
 
 #define setup_sprite_tile_add_blocks(tile_num_blocks)                          \
   num_blocks += tile_num_blocks;                                               \
@@ -3334,34 +3382,36 @@ void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 #define setup_sprite_tile_column_edge_post_adjust_full(edge)                   \
 
 
-#define setup_sprite_tile_column_height_single(edge_mode, edge, texture_mode)  \
+#define setup_sprite_tile_column_height_single(edge_mode, edge, texture_mode,  \
+ x4mode)                                                                       \
 do                                                                             \
 {                                                                              \
   sub_tile_height = column_data;                                               \
-  setup_sprite_tile_column_edge_pre_adjust_##edge_mode(edge);                  \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
-  setup_sprite_tile_column_edge_post_adjust_##edge_mode(edge);                 \
+  setup_sprite_tile_column_edge_pre_adjust_##edge_mode##x4mode(edge);          \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
+  setup_sprite_tile_column_edge_post_adjust_##edge_mode##x4mode(edge);         \
 } while(0)                                                                     \
 
-#define setup_sprite_tile_column_height_multi(edge_mode, edge, texture_mode)   \
+#define setup_sprite_tile_column_height_multi(edge_mode, edge, texture_mode,   \
+ x4mode)                                                                       \
 do                                                                             \
 {                                                                              \
   u32 tiles_remaining = column_data >> 16;                                     \
   sub_tile_height = column_data & 0xFF;                                        \
-  setup_sprite_tile_column_edge_pre_adjust_##edge_mode(edge);                  \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
+  setup_sprite_tile_column_edge_pre_adjust_##edge_mode##x4mode(edge);          \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
   tiles_remaining -= 1;                                                        \
                                                                                \
   while(tiles_remaining)                                                       \
   {                                                                            \
     sub_tile_height = 16;                                                      \
-    setup_sprite_tile_##edge_mode##_##texture_mode(edge);                      \
+    setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);              \
     tiles_remaining--;                                                         \
   }                                                                            \
                                                                                \
   sub_tile_height = (column_data >> 8) & 0xFF;                                 \
-  setup_sprite_tile_##edge_mode##_##texture_mode(edge);                        \
-  setup_sprite_tile_column_edge_post_adjust_##edge_mode(edge);                 \
+  setup_sprite_tile_##edge_mode##_##texture_mode##x4mode(edge);                \
+  setup_sprite_tile_column_edge_post_adjust_##edge_mode##x4mode(edge);         \
 } while(0)                                                                     \
 
 
@@ -3374,15 +3424,18 @@ do                                                                             \
   column_data |= (tile_height - 1) << 16                                       \
 
 
+#define RIGHT_MASK_BIT_SHIFT 8
+#define RIGHT_MASK_BIT_SHIFT_4x 16
+
 #define setup_sprite_tile_column_width_single(texture_mode, multi_height,      \
- edge_mode, edge)                                                              \
+ edge_mode, edge, x4mode)                                                      \
 {                                                                              \
   setup_sprite_column_data_##multi_height();                                   \
   left_mask_bits = left_block_mask | right_block_mask;                         \
-  right_mask_bits = left_mask_bits >> 8;                                       \
+  right_mask_bits = left_mask_bits >> RIGHT_MASK_BIT_SHIFT##x4mode;            \
                                                                                \
   setup_sprite_tile_column_height_##multi_height(edge_mode, edge,              \
-   texture_mode);                                                              \
+   texture_mode, x4mode);                                                      \
 }                                                                              \
 
 #define setup_sprite_tiled_advance_column()                                    \
@@ -3390,18 +3443,22 @@ do                                                                             \
   if((texture_offset_base & 0xF00) == 0)                                       \
     texture_offset_base -= (0x100 + 0xF00)                                     \
 
+#define FB_PTR_MULTIPLIER 1
+#define FB_PTR_MULTIPLIER_4x 2
+
 #define setup_sprite_tile_column_width_multi(texture_mode, multi_height,       \
- left_mode, right_mode)                                                        \
+ left_mode, right_mode, x4mode)                                                \
 {                                                                              \
   setup_sprite_column_data_##multi_height();                                   \
-  s32 fb_ptr_advance_column = 16 - (1024 * height);                            \
+  s32 fb_ptr_advance_column = (16 - (1024 * height))                           \
+    * FB_PTR_MULTIPLIER##x4mode;                                               \
                                                                                \
   tile_width -= 2;                                                             \
   left_mask_bits = left_block_mask;                                            \
-  right_mask_bits = left_mask_bits >> 8;                                       \
+  right_mask_bits = left_mask_bits >> RIGHT_MASK_BIT_SHIFT##x4mode;            \
                                                                                \
   setup_sprite_tile_column_height_##multi_height(left_mode, right,             \
-   texture_mode);                                                              \
+   texture_mode, x4mode);                                                      \
   fb_ptr += fb_ptr_advance_column;                                             \
                                                                                \
   left_mask_bits = 0x00;                                                       \
@@ -3410,22 +3467,297 @@ do                                                                             \
   while(tile_width)                                                            \
   {                                                                            \
     setup_sprite_tiled_advance_column();                                       \
-    setup_sprite_tile_column_height_##multi_height(full, none, texture_mode);  \
+    setup_sprite_tile_column_height_##multi_height(full, none,                 \
+     texture_mode, x4mode);                                                    \
     fb_ptr += fb_ptr_advance_column;                                           \
     tile_width--;                                                              \
   }                                                                            \
                                                                                \
   left_mask_bits = right_block_mask;                                           \
-  right_mask_bits = left_mask_bits >> 8;                                       \
+  right_mask_bits = left_mask_bits >> RIGHT_MASK_BIT_SHIFT##x4mode;            \
                                                                                \
   setup_sprite_tiled_advance_column();                                         \
   setup_sprite_tile_column_height_##multi_height(right_mode, left,             \
-   texture_mode);                                                              \
+   texture_mode, x4mode);                                                      \
 }                                                                              \
 
 
-#define setup_sprite_tiled_builder(texture_mode)                               \
-void setup_sprite_##texture_mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,        \
+/* 4x stuff */
+#define setup_sprite_tiled_initialize_4bpp_4x()                                \
+  setup_sprite_tiled_initialize_4bpp_clut()                                    \
+
+#define setup_sprite_tiled_initialize_8bpp_4x()                                \
+
+
+#define setup_sprite_tile_full_4bpp_4x(edge)                                   \
+{                                                                              \
+  vec_8x8u texels_low, texels_high;                                            \
+  vec_8x16u pixels, pixels_wide;                                               \
+  setup_sprite_tile_add_blocks(sub_tile_height * 2 * 4);                       \
+  u32 left_mask_bits_a = left_mask_bits & 0xFF;                                \
+  u32 left_mask_bits_b = left_mask_bits >> 8;                                  \
+  u32 right_mask_bits_a = right_mask_bits & 0xFF;                              \
+  u32 right_mask_bits_b = right_mask_bits >> 8;                                \
+                                                                               \
+  while(sub_tile_height)                                                       \
+  {                                                                            \
+    setup_sprite_tile_fetch_texel_block_8bpp(0);                               \
+    tbl_16(texels_low, texels, clut_low);                                      \
+    tbl_16(texels_high, texels, clut_high);                                    \
+    zip_8x16b(pixels, texels_low, texels_high);                                \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = left_mask_bits_a;                                  \
+    block->fb_ptr = fb_ptr;                                                    \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = left_mask_bits_a;                                  \
+    block->fb_ptr = fb_ptr + 1024;                                             \
+    block++;                                                                   \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.high, pixels.high);  \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = left_mask_bits_b;                                  \
+    block->fb_ptr = fb_ptr + 8;                                                \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = left_mask_bits_b;                                  \
+    block->fb_ptr = fb_ptr + 1024 + 8;                                         \
+    block++;                                                                   \
+                                                                               \
+    setup_sprite_tile_fetch_texel_block_8bpp(8);                               \
+    tbl_16(texels_low, texels, clut_low);                                      \
+    tbl_16(texels_high, texels, clut_high);                                    \
+    zip_8x16b(pixels, texels_low, texels_high);                                \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = right_mask_bits_a;                                 \
+    block->fb_ptr = fb_ptr + 16;                                               \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = right_mask_bits_a;                                 \
+    block->fb_ptr = fb_ptr + 1024 + 16;                                        \
+    block++;                                                                   \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.high, pixels.high);  \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = right_mask_bits_b;                                 \
+    block->fb_ptr = fb_ptr + 24;                                               \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = right_mask_bits_b;                                 \
+    block->fb_ptr = fb_ptr + 1024 + 24;                                        \
+    block++;                                                                   \
+                                                                               \
+    fb_ptr += 2048;                                                            \
+    texture_offset += 0x10;                                                    \
+    sub_tile_height--;                                                         \
+  }                                                                            \
+  texture_offset += 0xF00;                                                     \
+  psx_gpu->num_blocks = num_blocks;                                            \
+}                                                                              \
+
+#define setup_sprite_tile_half_4bpp_4x(edge)                                   \
+{                                                                              \
+  vec_8x8u texels_low, texels_high;                                            \
+  vec_8x16u pixels, pixels_wide;                                               \
+  setup_sprite_tile_add_blocks(sub_tile_height * 4);                           \
+  u32 edge##_mask_bits_a = edge##_mask_bits & 0xFF;                            \
+  u32 edge##_mask_bits_b = edge##_mask_bits >> 8;                              \
+                                                                               \
+  while(sub_tile_height)                                                       \
+  {                                                                            \
+    setup_sprite_tile_fetch_texel_block_8bpp(0);                               \
+    tbl_16(texels_low, texels, clut_low);                                      \
+    tbl_16(texels_high, texels, clut_high);                                    \
+    zip_8x16b(pixels, texels_low, texels_high);                                \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.low, pixels.low);    \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = edge##_mask_bits_a;                                \
+    block->fb_ptr = fb_ptr;                                                    \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = edge##_mask_bits_a;                                \
+    block->fb_ptr = fb_ptr + 1024;                                             \
+    block++;                                                                   \
+                                                                               \
+    zip_4x32b(vector_cast(vec_4x32u, pixels_wide), pixels.high, pixels.high);  \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = edge##_mask_bits_b;                                \
+    block->fb_ptr = fb_ptr + 8;                                                \
+    block++;                                                                   \
+                                                                               \
+    block->texels = pixels_wide;                                               \
+    block->draw_mask_bits = edge##_mask_bits_b;                                \
+    block->fb_ptr = fb_ptr + 1024 + 8;                                         \
+    block++;                                                                   \
+                                                                               \
+    fb_ptr += 2048;                                                            \
+    texture_offset += 0x10;                                                    \
+    sub_tile_height--;                                                         \
+  }                                                                            \
+  texture_offset += 0xF00;                                                     \
+  psx_gpu->num_blocks = num_blocks;                                            \
+}                                                                              \
+
+  
+#define setup_sprite_tile_full_8bpp_4x(edge)                                   \
+{                                                                              \
+  setup_sprite_tile_add_blocks(sub_tile_height * 2 * 4);                       \
+  vec_16x8u texels_wide;                                                       \
+  u32 left_mask_bits_a = left_mask_bits & 0xFF;                                \
+  u32 left_mask_bits_b = left_mask_bits >> 8;                                  \
+  u32 right_mask_bits_a = right_mask_bits & 0xFF;                              \
+  u32 right_mask_bits_b = right_mask_bits >> 8;                                \
+                                                                               \
+  while(sub_tile_height)                                                       \
+  {                                                                            \
+    setup_sprite_tile_fetch_texel_block_8bpp(0);                               \
+    zip_8x16b(vector_cast(vec_8x16u, texels_wide), texels, texels);            \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = left_mask_bits_a;                                  \
+    block->fb_ptr = fb_ptr;                                                    \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = left_mask_bits_a;                                  \
+    block->fb_ptr = fb_ptr + 1024;                                             \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = left_mask_bits_b;                                  \
+    block->fb_ptr = fb_ptr + 8;                                                \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = left_mask_bits_b;                                  \
+    block->fb_ptr = fb_ptr + 1024 + 8;                                         \
+    block++;                                                                   \
+                                                                               \
+    setup_sprite_tile_fetch_texel_block_8bpp(8);                               \
+    zip_8x16b(vector_cast(vec_8x16u, texels_wide), texels, texels);            \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = right_mask_bits_a;                                 \
+    block->fb_ptr = fb_ptr + 16;                                               \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = right_mask_bits_a;                                 \
+    block->fb_ptr = fb_ptr + 1024 + 16;                                        \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = right_mask_bits_b;                                 \
+    block->fb_ptr = fb_ptr + 24;                                               \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = right_mask_bits_b;                                 \
+    block->fb_ptr = fb_ptr + 24 + 1024;                                        \
+    block++;                                                                   \
+                                                                               \
+    fb_ptr += 2048;                                                            \
+    texture_offset += 0x10;                                                    \
+    sub_tile_height--;                                                         \
+  }                                                                            \
+  texture_offset += 0xF00;                                                     \
+  psx_gpu->num_blocks = num_blocks;                                            \
+}                                                                              \
+
+#define setup_sprite_tile_half_8bpp_4x(edge)                                   \
+{                                                                              \
+  setup_sprite_tile_add_blocks(sub_tile_height * 4);                           \
+  vec_16x8u texels_wide;                                                       \
+  u32 edge##_mask_bits_a = edge##_mask_bits & 0xFF;                            \
+  u32 edge##_mask_bits_b = edge##_mask_bits >> 8;                              \
+                                                                               \
+  while(sub_tile_height)                                                       \
+  {                                                                            \
+    setup_sprite_tile_fetch_texel_block_8bpp(0);                               \
+    zip_8x16b(vector_cast(vec_8x16u, texels_wide), texels, texels);            \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = edge##_mask_bits_a;                                \
+    block->fb_ptr = fb_ptr;                                                    \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.low;                                                \
+    block->draw_mask_bits = edge##_mask_bits_a;                                \
+    block->fb_ptr = fb_ptr + 1024;                                             \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = edge##_mask_bits_b;                                \
+    block->fb_ptr = fb_ptr + 8;                                                \
+    block++;                                                                   \
+                                                                               \
+    block->r = texels_wide.high;                                               \
+    block->draw_mask_bits = edge##_mask_bits_b;                                \
+    block->fb_ptr = fb_ptr + 8 + 1024;                                         \
+    block++;                                                                   \
+                                                                               \
+    fb_ptr += 2048;                                                            \
+    texture_offset += 0x10;                                                    \
+    sub_tile_height--;                                                         \
+  }                                                                            \
+  texture_offset += 0xF00;                                                     \
+  psx_gpu->num_blocks = num_blocks;                                            \
+}                                                                              \
+
+  
+#define setup_sprite_tile_column_edge_pre_adjust_half_right_4x()               \
+  texture_offset = texture_offset_base + 8;                                    \
+  fb_ptr += 16                                                                 \
+
+#define setup_sprite_tile_column_edge_pre_adjust_half_left_4x()                \
+  texture_offset = texture_offset_base                                         \
+
+#define setup_sprite_tile_column_edge_pre_adjust_half_4x(edge)                 \
+  setup_sprite_tile_column_edge_pre_adjust_half_##edge##_4x()                  \
+
+#define setup_sprite_tile_column_edge_pre_adjust_full_4x(edge)                 \
+  texture_offset = texture_offset_base                                         \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_right_4x()              \
+  fb_ptr -= 16                                                                 \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_left_4x()               \
+
+#define setup_sprite_tile_column_edge_post_adjust_half_4x(edge)                \
+  setup_sprite_tile_column_edge_post_adjust_half_##edge##_4x()                 \
+
+#define setup_sprite_tile_column_edge_post_adjust_full_4x(edge)                \
+
+
+#define setup_sprite_offset_u_adjust()                                         \
+
+#define setup_sprite_comapre_left_block_mask()                                 \
+  ((left_block_mask & 0xFF) == 0xFF)                                           \
+
+#define setup_sprite_comapre_right_block_mask()                                \
+  (((right_block_mask >> 8) & 0xFF) == 0xFF)                                   \
+
+
+#define setup_sprite_offset_u_adjust_4x()                                      \
+  offset_u *= 2;                                                               \
+  offset_u_right = offset_u_right * 2 + 1                                      \
+
+#define setup_sprite_comapre_left_block_mask_4x()                              \
+  ((left_block_mask & 0xFFFF) == 0xFFFF)                                       \
+
+#define setup_sprite_comapre_right_block_mask_4x()                             \
+  (((right_block_mask >> 16) & 0xFFFF) == 0xFFFF)                              \
+
+
+#define setup_sprite_tiled_builder(texture_mode, x4mode)                       \
+void setup_sprite_##texture_mode##x4mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,\
  s32 u, s32 v, s32 width, s32 height, u32 color)                               \
 {                                                                              \
   s32 offset_u = u & 0xF;                                                      \
@@ -3437,8 +3769,10 @@ void setup_sprite_##texture_mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,        \
   s32 tile_width = width_rounded / 16;                                         \
   u32 offset_u_right = width_rounded & 0xF;                                    \
                                                                                \
-  u32 left_block_mask = ~(0xFFFF << offset_u);                                 \
-  u32 right_block_mask = 0xFFFE << offset_u_right;                             \
+  setup_sprite_offset_u_adjust##x4mode();                                      \
+                                                                               \
+  u32 left_block_mask = ~(0xFFFFFFFF << offset_u);                             \
+  u32 right_block_mask = 0xFFFFFFFE << offset_u_right;                         \
                                                                                \
   u32 left_mask_bits;                                                          \
   u32 right_mask_bits;                                                         \
@@ -3455,19 +3789,19 @@ void setup_sprite_##texture_mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,        \
   u32 texture_offset_base = texture_offset;                                    \
   u32 control_mask;                                                            \
                                                                                \
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + (x - offset_u);               \
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + (x - offset_u);           \
   u32 num_blocks = psx_gpu->num_blocks;                                        \
   block_struct *block = psx_gpu->blocks + num_blocks;                          \
                                                                                \
   u16 *texture_block_ptr;                                                      \
   vec_8x8u texels;                                                             \
                                                                                \
-  setup_sprite_tiled_initialize_##texture_mode();                              \
+  setup_sprite_tiled_initialize_##texture_mode##x4mode();                      \
                                                                                \
   control_mask = tile_width == 1;                                              \
   control_mask |= (tile_height == 1) << 1;                                     \
-  control_mask |= ((left_block_mask & 0xFF) == 0xFF) << 2;                     \
-  control_mask |= (((right_block_mask >> 8) & 0xFF) == 0xFF) << 3;             \
+  control_mask |= setup_sprite_comapre_left_block_mask##x4mode() << 2;         \
+  control_mask |= setup_sprite_comapre_right_block_mask##x4mode() << 3;        \
                                                                                \
   sprites_##texture_mode++;                                                    \
                                                                                \
@@ -3475,63 +3809,76 @@ void setup_sprite_##texture_mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,        \
   {                                                                            \
     default:                                                                   \
     case 0x0:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, multi, full, full);   \
+      setup_sprite_tile_column_width_multi(texture_mode, multi, full, full,    \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x1:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, multi, full, none);  \
+      setup_sprite_tile_column_width_single(texture_mode, multi, full, none,   \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x2:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, single, full, full);  \
+      setup_sprite_tile_column_width_multi(texture_mode, single, full, full,   \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x3:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, single, full, none); \
+      setup_sprite_tile_column_width_single(texture_mode, single, full, none,  \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x4:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, multi, half, full);   \
+      setup_sprite_tile_column_width_multi(texture_mode, multi, half, full,    \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x5:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, multi, half, right); \
+      setup_sprite_tile_column_width_single(texture_mode, multi, half, right,  \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x6:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, single, half, full);  \
+      setup_sprite_tile_column_width_multi(texture_mode, single, half, full,   \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x7:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, single, half, right);\
+      setup_sprite_tile_column_width_single(texture_mode, single, half, right, \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x8:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, multi, full, half);   \
+      setup_sprite_tile_column_width_multi(texture_mode, multi, full, half,    \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0x9:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, multi, half, left);  \
+      setup_sprite_tile_column_width_single(texture_mode, multi, half, left,   \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0xA:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, single, full, half);  \
+      setup_sprite_tile_column_width_multi(texture_mode, single, full, half,   \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0xB:                                                                  \
-      setup_sprite_tile_column_width_single(texture_mode, single, half, left); \
+      setup_sprite_tile_column_width_single(texture_mode, single, half, left,  \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0xC:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, multi, half, half);   \
+      setup_sprite_tile_column_width_multi(texture_mode, multi, half, half,    \
+       x4mode);                                                                \
       break;                                                                   \
                                                                                \
     case 0xE:                                                                  \
-      setup_sprite_tile_column_width_multi(texture_mode, single, half, half);  \
+      setup_sprite_tile_column_width_multi(texture_mode, single, half, half,   \
+       x4mode);                                                                \
       break;                                                                   \
   }                                                                            \
 }                                                                              \
-
 
 void setup_sprite_4bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
  s32 width, s32 height, u32 color);
@@ -3540,9 +3887,24 @@ void setup_sprite_8bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
 void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
  s32 width, s32 height, u32 color);
 
+void setup_sprite_4bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
+ s32 width, s32 height, u32 color);
+void setup_sprite_8bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
+ s32 width, s32 height, u32 color);
+void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
+ s32 width, s32 height, u32 color);
+
+void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
+ s32 v, s32 width, s32 height, u32 color);
+void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
+ s32 u, s32 v, s32 width, s32 height, u32 color);
+
 #ifndef NEON_BUILD
-setup_sprite_tiled_builder(4bpp);
-setup_sprite_tiled_builder(8bpp);
+setup_sprite_tiled_builder(4bpp,);
+setup_sprite_tiled_builder(8bpp,);
+
+setup_sprite_tiled_builder(4bpp,_4x);
+setup_sprite_tiled_builder(8bpp,_4x);
 
 void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
@@ -3550,7 +3912,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   u32 left_offset = u & 0x7;
   u32 width_rounded = width + left_offset + 7;
 
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + (s32)(x - left_offset);
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + (s32)(x - left_offset);
   u32 right_width = width_rounded & 0x7;
   u32 block_width = width_rounded / 8;
   u32 fb_ptr_pitch = (1024 + 8) - (block_width * 8);
@@ -3665,14 +4027,20 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   }
 }
 
-#endif
-
 void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
 {
+  if((psx_gpu->render_state & (RENDER_STATE_MASK_EVALUATE |
+   RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND)) == 0 &&
+   (psx_gpu->render_mode & RENDER_INTERLACE_ENABLED) == 0)
+  {
+    setup_sprite_untextured_simple(psx_gpu, x, y, u, v, width, height, color);
+    return;
+  }
+
   u32 right_width = ((width - 1) & 0x7) + 1;
   u32 right_mask_bits = (0xFF << right_width);
-  u16 *fb_ptr = psx_gpu->vram_ptr + (y * 1024) + x;
+  u16 *fb_ptr = psx_gpu->vram_out_ptr + (y * 1024) + x;
   u32 block_width = (width + 7) / 8;
   u32 fb_ptr_pitch = 1024 - ((block_width - 1) * 8);
   u32 blocks_remaining;
@@ -3735,6 +4103,66 @@ void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
   }
 }
 
+#endif
+
+void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
+ s32 u, s32 v, s32 width, s32 height, u32 color)
+{
+  u32 r = color & 0xFF;
+  u32 g = (color >> 8) & 0xFF;
+  u32 b = (color >> 16) & 0xFF;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
+   psx_gpu->mask_msb;
+  u32 color_32bpp = color_16bpp | (color_16bpp << 16);
+
+  u16 *vram_ptr16 = psx_gpu->vram_out_ptr + x + (y * 1024);
+  u32 *vram_ptr;
+
+  u32 num_width;
+
+  if(psx_gpu->num_blocks > MAX_BLOCKS)
+  {
+    flush_render_block_buffer(psx_gpu);
+  }
+
+  while(height)
+  {
+    num_width = width;
+
+    vram_ptr = (void *)vram_ptr16;
+    if((long)vram_ptr16 & 2)
+    {
+      *vram_ptr16 = color_32bpp;
+      vram_ptr = (void *)(vram_ptr16 + 1);
+      num_width--;
+    }
+
+    while(num_width >= 4 * 2)
+    {
+      vram_ptr[0] = color_32bpp;
+      vram_ptr[1] = color_32bpp;
+      vram_ptr[2] = color_32bpp;
+      vram_ptr[3] = color_32bpp;
+
+      vram_ptr += 4;
+      num_width -= 4 * 2;
+    }
+
+    while(num_width >= 2)
+    {
+      *vram_ptr++ = color_32bpp;
+      num_width -= 2;
+    }
+
+    if(num_width > 0)
+    {
+      *(u16 *)vram_ptr = color_32bpp;
+    }
+
+    vram_ptr16 += 1024;
+    height--;
+  }
+}
 
 
 #define setup_sprite_blocks_switch_textured(texture_mode)                      \
@@ -4155,9 +4583,6 @@ do                                                                             \
   {                                                                            \
     delta_y *= -1;                                                             \
                                                                                \
-    if(delta_y >= 512)                                                         \
-      return;                                                                  \
-                                                                               \
     if(delta_x > delta_y)                                                      \
     {                                                                          \
       draw_line_span_horizontal(decrement, shading, blending, dithering,       \
@@ -4171,9 +4596,6 @@ do                                                                             \
   }                                                                            \
   else                                                                         \
   {                                                                            \
-    if(delta_y >= 512)                                                         \
-      return;                                                                  \
-                                                                               \
     if(delta_x > delta_y)                                                      \
     {                                                                          \
       draw_line_span_horizontal(increment, shading, blending, dithering,       \
@@ -4188,7 +4610,7 @@ do                                                                             \
 
                                                                                 
 void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
- u32 color)
+ u32 color, int double_resolution)
 {
   s32 color_r, color_g, color_b;
   u32 triangle_winding = 0;
@@ -4240,12 +4662,22 @@ void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
   delta_x = x_b - x_a;
   delta_y = y_b - y_a;
 
-  if(delta_x >= 1024)
+  if(delta_x >= 1024 || delta_y >= 512 || delta_y <= -512)
     return;
+
+  if(double_resolution)
+  {
+    x_a *= 2;
+    x_b *= 2;
+    y_a *= 2;
+    y_b *= 2;
+    delta_x *= 2;
+    delta_y *= 2;
+  }
 
   flags &= ~RENDER_FLAGS_TEXTURE_MAP;
 
-  vram_ptr = psx_gpu->vram_ptr + (y_a * 1024) + x_a;
+  vram_ptr = psx_gpu->vram_out_ptr + (y_a * 1024) + x_a;
 
   control_mask = 0x0;
 
@@ -4435,7 +4867,6 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   if((width == 0) || (height == 0))
     return;
 
-  flush_render_block_buffer(psx_gpu);
   invalidate_texture_cache_region(psx_gpu, x, y, x + width - 1, y + height - 1);
 
   u32 r = color & 0xFF;
@@ -4445,19 +4876,63 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
    psx_gpu->mask_msb;
   u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
-  u32 *vram_ptr = (u32 *)(psx_gpu->vram_ptr + x + (y * 1024));
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));
 
   u32 pitch = 512 - (width / 2);
   u32 num_width;
 
-  if(psx_gpu->interlace_mode & RENDER_INTERLACE_ENABLED)
+  if(psx_gpu->render_mode & RENDER_INTERLACE_ENABLED)
   {
     pitch += 512;
     height /= 2;
 
-    if(psx_gpu->interlace_mode & RENDER_INTERLACE_ODD)
+    if(psx_gpu->render_mode & RENDER_INTERLACE_ODD)
       vram_ptr += 512; 
   }
+
+  while(height)
+  {
+    num_width = width;
+    while(num_width)
+    {
+      vram_ptr[0] = color_32bpp;
+      vram_ptr[1] = color_32bpp;
+      vram_ptr[2] = color_32bpp;
+      vram_ptr[3] = color_32bpp;
+      vram_ptr[4] = color_32bpp;
+      vram_ptr[5] = color_32bpp;
+      vram_ptr[6] = color_32bpp;
+      vram_ptr[7] = color_32bpp;
+
+      vram_ptr += 8;
+      num_width -= 16;
+    }
+
+    vram_ptr += pitch;
+    height--;
+  }
+}
+
+void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
+ u32 width, u32 height)
+{
+  if((width == 0) || (height == 0))
+    return;
+
+  if(width > 1024)
+    width = 1024;
+
+  u32 r = color & 0xFF;
+  u32 g = (color >> 8) & 0xFF;
+  u32 b = (color >> 16) & 0xFF;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
+   psx_gpu->mask_msb;
+  u32 color_32bpp = color_16bpp | (color_16bpp << 16);
+
+  u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));
+
+  u32 pitch = 1024 / 2 - (width / 2);
+  u32 num_width;
 
   while(height)
   {
@@ -4522,16 +4997,17 @@ void initialize_reciprocal_table(void)
   u32 height_reciprocal;
   s32 shift;
 
-  for(height = 1; height < 512; height++)
+  for(height = 1; height < sizeof(reciprocal_table)
+       / sizeof(reciprocal_table[0]); height++)
   {
     shift = __builtin_clz(height);
     height_normalized = height << shift;
-    height_reciprocal = ((1ULL << 50) + (height_normalized - 1)) /
+    height_reciprocal = ((1ULL << 51) + (height_normalized - 1)) /
      height_normalized;
 
-    shift = 32 - (50 - shift);
+    shift = 32 - (51 - shift);
 
-    reciprocal_table[height] = (height_reciprocal << 12) | shift;
+    reciprocal_table[height] = (height_reciprocal << 10) | shift;
   }
 }
 
@@ -4559,8 +5035,10 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->render_state = 0;
   psx_gpu->render_state_base = 0;
   psx_gpu->num_blocks = 0;
+  psx_gpu->uvrgb_phase = 0x8000;
 
   psx_gpu->vram_ptr = vram;
+  psx_gpu->vram_out_ptr = vram;
 
   psx_gpu->texture_page_base = psx_gpu->vram_ptr;
   psx_gpu->texture_page_ptr = psx_gpu->vram_ptr;
@@ -4573,7 +5051,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->texture_mask_width = 0xFF;
   psx_gpu->texture_mask_height = 0xFF;
 
-  psx_gpu->interlace_mode = 0;
+  psx_gpu->render_mode = 0;
 
   memset(psx_gpu->vram_ptr, 0, sizeof(u16) * 1024 * 512);
 
@@ -4596,6 +5074,8 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->dither_table[3] = dither_table_row(3, -1, 2, -2);
 
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
+
+  psx_gpu->enhancement_x_threshold = 256;
 }
 
 u64 get_us(void)
@@ -4660,3 +5140,4 @@ void triangle_benchmark(psx_gpu_struct *psx_gpu)
 
 #endif
 
+#include "psx_gpu_4x.c"

@@ -1,4 +1,4 @@
-CFLAGS += -ggdb -Wall -O2
+CFLAGS += -ggdb -Wall -O2 -DNDEBUG
 
 include ../../config.mak
 

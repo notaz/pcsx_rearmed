@@ -52,7 +52,7 @@ typedef struct {
 	unsigned char StatP;
 
 	unsigned char Transfer[CD_FRAMESIZE_RAW];
-	unsigned char *pTransfer;
+	unsigned int  pad1;
 
 	unsigned char Prev[4];
 	unsigned char Param[8];
@@ -87,7 +87,7 @@ typedef struct {
 	unsigned char Irq;
 	u32 eCycle;
 
-	boolean Seeked;
+	u8 Seeked;
 
 	u8 LidCheck;
 	u8 FastForward;

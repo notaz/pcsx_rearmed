@@ -299,7 +299,6 @@ static void ari64_reset()
 	pending_exception = 1;
 }
 
-#ifdef __arm__
 // execute until predefined leave points
 // (HLE softcall exit and BIOS fastboot end)
 static void ari64_execute_until()
@@ -322,7 +321,6 @@ static void ari64_execute()
 		evprintf("drc left @%08x\n", psxRegs.pc);
 	}
 }
-#endif
 
 static void ari64_clear(u32 addr, u32 size)
 {
@@ -360,7 +358,7 @@ extern void intExecuteBlockT();
 R3000Acpu psxRec = {
 	ari64_init,
 	ari64_reset,
-#if defined(__arm__)
+#ifndef DRC_DISABLE
 	ari64_execute,
 	ari64_execute_until,
 #else
@@ -377,7 +375,7 @@ void do_insn_trace() {}
 void do_insn_cmp() {}
 #endif
 
-#if defined(__x86_64__) || defined(__i386__)
+#ifdef DRC_DISABLE
 unsigned int address;
 int pending_exception, stop;
 unsigned int next_interupt;
@@ -387,7 +385,7 @@ int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u8 zero_mem[0x1000];
-void new_dynarec_init() {}
+void new_dynarec_init() { (void)ari64_execute; }
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}

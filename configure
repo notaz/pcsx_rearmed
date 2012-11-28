@@ -48,6 +48,8 @@ have_arm_neon=""
 have_tslib=""
 enable_dynarec="yes"
 need_sdl="no"
+need_libpicofe="yes"
+need_warm="no"
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_arm926ej="no"
@@ -91,9 +93,11 @@ set_platform()
     ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
+    need_warm="yes"
     ;;
   libretro)
     sound_drivers="libretro"
+    need_libpicofe="no"
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -154,6 +158,18 @@ if [ "x$sound_drivers" != "x" ]; then
       fail "unsupported sound driver: $sound_driver"
     fi
   done
+fi
+
+if [ "$need_libpicofe" = "yes" ]; then
+  if ! test -f "frontend/libpicofe/README"; then
+    fail "libpicofe is missing, please run 'git submodule init && git submodule update'"
+  fi
+fi
+
+if [ "$need_warm" = "yes" ]; then
+  if ! test -f "frontend/warm/README"; then
+    fail "wARM is missing, please run 'git submodule init && git submodule update'"
+  fi
 fi
 
 if [ -z "$ARCH" ]; then
@@ -230,13 +246,6 @@ if [ "x$builtin_gpu" = "x" ]; then
   builtin_gpu="peops"
 fi
 
-#if [ "$ARCH" = "x86_64" ]; then
-  # currently we are full of 32bit assumptions,
-  # at least savestate compatibility will break without these
-#  CFLAGS="$CFLAGS -m32"
-#  LDFLAGS="$LDFLAGS -m32"
-#fi
-
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
   PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
@@ -258,7 +267,7 @@ maemo)
   ;;
 libretro)
   CFLAGS="$CFLAGS -fPIC"
-  LDFLAGS="$LDFLAGS -shared"
+  MAIN_LDFLAGS="$MAIN_LDFLAGS -shared -Wl,--no-undefined"
   ;;
 esac
 
@@ -270,15 +279,6 @@ check_zlib()
   int main(void) { uncompress(0, 0, 0, 0); }
 EOF
   compile_binary
-}
-
-check_bzlib()
-{
-  cat > $TMPC <<EOF
-  #include <bzlib.h>
-  void main() { BZ2_bzBuffToBuffDecompress(0, 0, 0, 0, 0, 0); }
-EOF
-  compile_object
 }
 
 check_libpng()
@@ -320,8 +320,6 @@ EOF
 
 MAIN_LDLIBS="$MAIN_LDLIBS -lz"
 check_zlib || fail "please install zlib (libz-dev)"
-
-check_bzlib || fail "please install bz2lib (libbz2-dev)"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"
@@ -411,7 +409,7 @@ echo "plugins             $plugins_short"
 echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
-echo "linker flags        $LDFLAGS"
+echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
 echo "ARMv7 optimizations $have_armv7"
 echo "enable ARM NEON     $have_arm_neon"
@@ -428,6 +426,7 @@ echo "AS = $AS" >> $config_mak
 echo "CFLAGS += $CFLAGS" >> $config_mak
 echo "ASFLAGS += $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak
+echo "MAIN_LDFLAGS += $MAIN_LDFLAGS" >> $config_mak
 echo "MAIN_LDLIBS += $MAIN_LDLIBS" >> $config_mak
 echo "PLUGIN_CFLAGS += $PLUGIN_CFLAGS" >> $config_mak
 echo >> $config_mak
@@ -439,15 +438,7 @@ echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-if [ "$ARCH" = "arm" ]; then
-  echo "PLUGINS = $plugins" >> $config_mak
-else
-  echo -n "PLUGINS =" >> $config_mak
-  for p in $plugins; do
-    echo -n " ${p}.${ARCH}" >> $config_mak
-  done
-  echo >> $config_mak
-fi
+echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_armv6" = "yes" ]; then
   echo "HAVE_ARMV6 = 1" >> $config_mak
 fi

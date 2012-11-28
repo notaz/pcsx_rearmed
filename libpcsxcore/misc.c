@@ -93,8 +93,9 @@ void mmssdd( char *b, char *p )
 
 #define READTRACK() \
 	if (CDR_readTrack(time) == -1) return -1; \
-	buf = CDR_getBuffer(); \
-	if (buf == NULL) return -1; else CheckPPFCache(buf, time[0], time[1], time[2]);
+	buf = (void *)CDR_getBuffer(); \
+	if (buf == NULL) return -1; \
+	else CheckPPFCache((u8 *)buf, time[0], time[1], time[2]);
 
 #define READDIR(_dir) \
 	READTRACK(); \
@@ -104,9 +105,9 @@ void mmssdd( char *b, char *p )
 	READTRACK(); \
 	memcpy(_dir + 2048, buf + 12, 2048);
 
-int GetCdromFile(u8 *mdir, u8 *time, s8 *filename) {
+int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 	struct iso_directory_record *dir;
-	char ddir[4096];
+	u8 ddir[4096];
 	u8 *buf;
 	int i;
 
@@ -169,7 +170,7 @@ int LoadCdrom() {
 	struct iso_directory_record *dir;
 	u8 time[4], *buf;
 	u8 mdir[4096];
-	s8 exename[256];
+	char exename[256];
 
 	// not the best place to do it, but since BIOS boot logo killer
 	// is just below, do it here
@@ -207,7 +208,7 @@ int LoadCdrom() {
 		if (GetCdromFile(mdir, time, exename) == -1) {
 			sscanf((char *)buf + 12, "BOOT = cdrom:%256s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
-				char *ptr = strstr(buf + 12, "cdrom:");
+				char *ptr = strstr((char *)buf + 12, "cdrom:");
 				if (ptr != NULL) {
 					ptr += 6;
 					while (*ptr == '\\' || *ptr == '/') ptr++;
@@ -258,8 +259,10 @@ int LoadCdrom() {
 int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	struct iso_directory_record *dir;
 	u8 time[4],*buf;
-	u8 mdir[4096], exename[256];
+	u8 mdir[4096];
+	char exename[256];
 	u32 size, addr;
+	void *mem;
 
 	sscanf(filename, "cdrom:\\%256s", exename);
 
@@ -288,7 +291,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 		incTime();
 		READTRACK();
 
-		memcpy((void *)PSXM(addr), buf + 12, 2048);
+		mem = PSXM(addr);
+		if (mem)
+			memcpy(mem, buf + 12, 2048);
 
 		size -= 2048;
 		addr += 2048;
@@ -299,7 +304,8 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 
 int CheckCdrom() {
 	struct iso_directory_record *dir;
-	unsigned char time[4], *buf;
+	unsigned char time[4];
+	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
 	int i, c;
@@ -327,9 +333,9 @@ int CheckCdrom() {
 	if (GetCdromFile(mdir, time, "SYSTEM.CNF;1") != -1) {
 		READTRACK();
 
-		sscanf((char *)buf + 12, "BOOT = cdrom:\\%256s", exename);
+		sscanf(buf + 12, "BOOT = cdrom:\\%256s", exename);
 		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf((char *)buf + 12, "BOOT = cdrom:%256s", exename);
+			sscanf(buf + 12, "BOOT = cdrom:%256s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
 				char *ptr = strstr(buf + 12, "cdrom:");			// possibly the executable is in some subdir
 				if (ptr != NULL) {
@@ -363,6 +369,9 @@ int CheckCdrom() {
 			}
 		}
 	}
+
+	if (CdromId[0] == '\0')
+		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
@@ -406,6 +415,22 @@ static int PSXGetFileType(FILE *f) {
 	return INVALID_EXE;
 }
 
+// temporary pandora workaround..
+// FIXME: remove
+size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+	void *tmp;
+	size_t ret = 0;
+	
+	tmp = malloc(size * nmemb);
+	if (tmp) {
+		ret = fread(tmp, size, nmemb, stream);
+		memcpy(ptr, tmp, size * nmemb);
+		free(tmp);
+	}
+	return ret;
+}
+
 int Load(const char *ExePath) {
 	FILE *tmpFile;
 	EXE_HEADER tmpHead;
@@ -432,7 +457,7 @@ int Load(const char *ExePath) {
 				mem = PSXM(section_address);
 				if (mem != NULL) {
 					fseek(tmpFile, 0x800, SEEK_SET);		
-					fread(mem, section_size, 1, tmpFile);
+					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
 				fclose(tmpFile);
@@ -458,7 +483,7 @@ int Load(const char *ExePath) {
 #endif
 							mem = PSXM(section_address);
 							if (mem != NULL) {
-								fread(mem, section_size, 1, tmpFile);
+								fread_to_ram(mem, section_size, 1, tmpFile);
 								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;

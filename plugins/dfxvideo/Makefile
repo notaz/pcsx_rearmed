@@ -12,7 +12,7 @@ ifeq "$(ARCH)" "arm"
 SRC_STANDALONE += draw_pl.c
 else
 SRC_STANDALONE += draw.c
-LDLIBS_STANDALONE += -lX11 -lXv
+LDLIBS_STANDALONE += -lX11 -lXv -lXext
 endif
 
 BIN_STANDLALONE = gpuPEOPS.so

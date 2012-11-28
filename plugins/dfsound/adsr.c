@@ -46,6 +46,10 @@ void InitADSR(void)                                    // INIT ADSR
 
   RateTableAdd[lcv] = ((7 - (lcv&3)) << 16) / denom;
   RateTableSub[lcv] = ((-8 + (lcv&3)) << 16) / denom;
+
+  // XXX: this is wrong, we need more bits..
+  if (RateTableAdd[lcv] == 0)
+    RateTableAdd[lcv] = 1;
  }
 }
 
@@ -67,12 +71,13 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
  if (s_chan[ch].bStop)                                 // should be stopped:
  {                                                     // do release
    val = RateTableSub[s_chan[ch].ADSRX.ReleaseRate * 4];
+
    if (s_chan[ch].ADSRX.ReleaseModeExp)
    {
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-       if (EnvelopeVol < 0)
+       if (EnvelopeVol <= 0)
          break;
 
        ChanBuf[ns] *= EnvelopeVol >> 21;
@@ -84,7 +89,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += val;
-       if (EnvelopeVol < 0)
+       if (EnvelopeVol <= 0)
          break;
 
        ChanBuf[ns] *= EnvelopeVol >> 21;
@@ -92,7 +97,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
      }
    }
 
-   if (EnvelopeVol < 0)
+   if (EnvelopeVol <= 0)
      goto stop;
 
    goto done;

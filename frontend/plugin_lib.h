@@ -20,6 +20,7 @@ enum {
 extern int in_type1, in_type2;
 extern int in_keystate, in_state_gun, in_a1[2], in_a2[2];
 extern int in_adev[2], in_adev_axis[2][2];
+extern int in_adev_is_nublike[2];
 extern int in_enable_vibration;
 
 extern void *pl_vout_buf;
@@ -27,26 +28,27 @@ extern void *pl_vout_buf;
 extern int g_layer_x, g_layer_y;
 extern int g_layer_w, g_layer_h;
 
-void  pl_text_out16(int x, int y, const char *texto, ...);
 void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
-void  pl_print_hud(int xborder);
+void  pl_print_hud(int width, int height, int xborder);
+void  pl_switch_dispmode(void);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
 
-void  pl_update_gun(int *xn, int *xres, int *y, int *in);
-
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_vout_open)(void);
-	void *(*pl_vout_set_mode)(int w, int h, int bpp);
-	void *(*pl_vout_flip)(void);
+	void  (*pl_vout_set_mode)(int w, int h, int raw_w, int raw_h, int bpp);
+	void  (*pl_vout_flip)(const void *vram, int stride, int bgr24,
+			      int w, int h);
 	void  (*pl_vout_close)(void);
-	// these are only used by some frontends
-	void  (*pl_vout_raw_flip)(int x, int y);
+	void *(*mmap)(unsigned int size);
+	void  (*munmap)(void *ptr, unsigned int size);
+	// only used by some frontends
 	void  (*pl_vout_set_raw_vram)(void *vram);
+	void  (*pl_set_gpu_caps)(int caps);
 	// some stats, for display by some plugins
 	int flips_per_sec, cpu_usage;
 	float vsps_cur; // currect vsync/s
@@ -60,6 +62,8 @@ struct rearmed_cbs {
 	unsigned int only_16bpp; // platform is 16bpp-only
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
+		int   enhancement_enable;
+		int   enhancement_no_main;
 	} gpu_neon;
 	struct {
 		int   iUseDither;
@@ -78,9 +82,22 @@ struct rearmed_cbs {
 		int   iUseMask, bOpaquePass, bAdvancedBlend, bUseFastMdec;
 		int   iVRamSize, iTexGarbageCollection;
 	} gpu_peopsgl;
+	// misc
+	int gpu_caps;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;
+
+enum gpu_plugin_caps {
+	GPU_CAP_OWNS_DISPLAY = (1 << 0),
+	GPU_CAP_SUPPORTS_2X = (1 << 1),
+};
+
+// platform hooks
+extern void (*pl_plat_clear)(void);
+extern void (*pl_plat_blit)(int doffs, const void *src,
+			    int w, int h, int sstride, int bgr24);
+extern void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))

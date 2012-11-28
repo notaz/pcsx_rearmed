@@ -4,12 +4,12 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <hildon/hildon.h>
-#include "plugin_lib.h"
 
+#include "plugin_lib.h"
 #include "main.h"
 #include "plat.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
-#include "common/readpng.h"
+#include "libpicofe/readpng.h"
 #include "maemo_common.h"
 
 #define X_RES           800

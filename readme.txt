@@ -19,11 +19,28 @@ pixel perfect graphics at very high performance. There is also Una-i's GPU
 plugin from PCSX4ALL project, and traditional P.E.Op.S. one.
 
 
+Compiling
+---------
+
+'./configure && make' should work for the most part.
+
+When compiling for ARM, it's advisable to tell configure script the CPU, FPU
+and ABI that matches your target system to get best performance, like this:
+
+CFLAGS='-mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp' ./configure
+
+Cross compilation should also work if kernel-style CROSS_COMPILE variable
+is set:
+CROSS_COMPILE='arm-none-linux-gnueabi-' ./configure
+
+
 Usage
 -----
 
-This version features a framebuffer driven menu that can be used to run
-games and configure the emulator.
+There are several different frontends that can be built from source (one
+generic and several platform specific), so usage slightly differs depending
+on that. Most of them have a menu that can be used to run games and configure
+the emulator.
 
 Supported CD image formats:
 - .bin/.cue
@@ -43,9 +60,13 @@ extension). This is required for Libcrypt copy protected game support.
 
 The emulator can simulate BIOS, which means BIOS files are not required,
 however implementation is not complete and some games still need real BIOS
-to work. To use real BIOS, copy uncompressed BIOS files to
+to work. To use real BIOS, copy uncompressed BIOS files to bios/ directory
+which itself should be in main emulator directory.
+
+For pandora, it should be:
 [sd card]/pandora/appdata/pcsx_rearmed/bios/
-then select the BIOS you want to use in Options->BIOS/Plugins menu.
+
+When the file is copied, BIOS should be selected in Options->BIOS/Plugins menu.
 
 On pandora, analog controllers are supported using nubs, but this is
 disabled by default and needs to be enabled in 'Controls' menu.
@@ -60,7 +81,7 @@ GPU (graphics) and SPU (sound) plugins can be selected in
 [BIOS/Plugins] menu:
 
 builtin_gpu    - this is either Exophase's ARM NEON GPU (accurate and fast,
-                 available if platform supports NEON, like on pandoa),
+                 available if platform supports NEON, like on pandora),
                  gpu_peops or gpu_unai (depends on compile options).
 gpu_peops.so   - P.E.Op.S. soft GPU, reasonably accurate but slow
                  (also found with older emulators on PC)
@@ -87,6 +108,23 @@ the main menu where it is possible to enable/disable individual cheats.
 
 Changelog
 ---------
+
+r17
++ added overlay support for generic Linux build
+* attempted to fix sound breakage with PulseAudio
+* fixed some regressions caused by hires mode code
+* fixed some sound issues introduced in r9
+* various other tweaks
+
+r16 (2012-11-10)
++ gpu_neon now has new hires rendering mode
+  (sometimes slow and occasionally glitchy)
++ integrated M-HT's scale2x and eagle2x filters
+  (works for 512x256 or lower resolution games)
++ pandora: added gamma/brightness control (requires SZ 1.52)
+* pandora: some improvements for nub support
++ added fast forward support
+* fixed some glitches after loading savestates from r14 or earlier
 
 r15 (2012-08-02)
 * various compatibility fixes

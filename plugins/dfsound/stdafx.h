@@ -32,9 +32,9 @@
 
 #undef CALLBACK
 #define CALLBACK
-#define DWORD unsigned long
+#define DWORD unsigned int
 #define LOWORD(l)           ((unsigned short)(l)) 
-#define HIWORD(l)           ((unsigned short)(((unsigned long)(l) >> 16) & 0xFFFF)) 
+#define HIWORD(l)           ((unsigned short)(((unsigned int)(l) >> 16) & 0xFFFF)) 
 
 #ifndef INLINE
 #define INLINE static inline

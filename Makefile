@@ -26,7 +26,11 @@ endif
 -include Makefile.local
 
 CC_LINK = $(CC)
+LDFLAGS += $(MAIN_LDFLAGS)
 LDLIBS += $(MAIN_LDLIBS)
+ifdef PCNT
+CFLAGS += -DPCNT
+endif
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
@@ -42,14 +46,14 @@ endif
 ifeq "$(HAVE_NEON)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
-libpcsxcore/gte.o libpcsxcore/gte_nf.o: CFLAGS += -fno-strict-aliasing
-libpcsxcore/cdrom.o libpcsxcore/misc.o: CFLAGS += -Wno-pointer-sign
-libpcsxcore/misc.o libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
+libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifeq "$(USE_DYNAREC)" "1"
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+else
+libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -DDRC_DISABLE
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \
@@ -95,10 +99,9 @@ endif
 
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
+OBJS += plugins/gpulib/cspace.o
 ifeq "$(HAVE_NEON)" "1"
 OBJS += plugins/gpulib/cspace_neon.o
-else
-OBJS += plugins/gpulib/cspace.o
 endif
 ifeq "$(BUILTIN_GPU)" "neon"
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
@@ -127,39 +130,58 @@ OBJS += plugins/cdrcimg/cdrcimg.o
 # dfinput
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
-# gui
-OBJS += frontend/main.o frontend/plugin.o
-OBJS += frontend/common/readpng.o frontend/common/fonts.o
-OBJS += frontend/linux/plat.o
-
+# frontend/gui
 ifeq "$(PLATFORM)" "generic"
-OBJS += frontend/plat_sdl.o frontend/common/in_sdl.o
+OBJS += frontend/libpicofe/in_sdl.o frontend/plat_sdl.o
+OBJS += frontend/libpicofe/plat_dummy.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"
-OBJS += frontend/linux/fbdev.o
-OBJS += frontend/plat_omap.o frontend/linux/xenv.o
-OBJS += frontend/plat_pandora.o
+OBJS += frontend/libpicofe/pandora/plat.o
+OBJS += frontend/libpicofe/linux/fbdev.o frontend/libpicofe/linux/xenv.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_pandora.o frontend/plat_omap.o
+frontend/main.o frontend/menu.o: CFLAGS += -include pandora/ui_feat.h
+USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "caanoo"
+OBJS += frontend/libpicofe/gp2x/in_gp2x.o frontend/warm/warm.o
+OBJS += frontend/libpicofe/gp2x/soc_pollux.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
-OBJS += frontend/gp2x/in_gp2x.o frontend/warm/warm.o
 libpcsxcore/new_dynarec/pcsxmem.o: CFLAGS += -DCUSTOM_MEMMAPS
+frontend/main.o frontend/menu.o: CFLAGS += -include 320240/ui_gp2x.h
+USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o
 maemo/%.o: maemo/%.c
-OBJS += frontend/plugin_lib.o
+USE_PLUGIN_LIB = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += frontend/libretro.o
+OBJS += frontend/linux/plat_mmap.o
+endif
+
+ifeq "$(USE_PLUGIN_LIB)" "1"
+OBJS += frontend/plugin_lib.o
+OBJS += frontend/libpicofe/linux/plat.o
+OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
+ifeq "$(HAVE_NEON)" "1"
+OBJS += frontend/libpicofe/arm/neon_scale2x.o
+OBJS += frontend/libpicofe/arm/neon_eagle2x.o
+frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB
+frontend/libpicofe/arm/neon_eagle2x.o: CFLAGS += -DDO_BGR_TO_RGB
+endif
 endif
 ifeq "$(USE_FRONTEND)" "1"
-OBJS += frontend/menu.o frontend/linux/in_evdev.o
-OBJS += frontend/common/input.o
-OBJS += frontend/plugin_lib.o
+OBJS += frontend/menu.o
+OBJS += frontend/libpicofe/input.o
+frontend/menu.o: frontend/libpicofe/menu.c
 ifeq "$(HAVE_TSLIB)" "1"
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
 OBJS += frontend/pl_gun_ts.o
@@ -168,15 +190,16 @@ else
 CFLAGS += -DNO_FRONTEND
 endif
 
-ifdef X11
-frontend/%.o: CFLAGS += -DX11
-OBJS += frontend/xkb.o
-endif
-ifdef PCNT
-CFLAGS += -DPCNT
-endif
-frontend/%.o: CFLAGS += -DIN_EVDEV
+# misc
+OBJS += frontend/main.o frontend/plugin.o
+
+
 frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
+
+frontend/libpicofe/%.c:
+	@echo "libpicofe module is missing, please run:"
+	@echo "git submodule init && git submodule update"
+	@exit 1
 
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
@@ -185,10 +208,10 @@ frontend/revision.h: FORCE
 	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
 	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
 	@rm $@_
-.PHONY: FORCE
 
 %.o: %.S
 	$(CC) $(CFLAGS) -c $^ -o $@
+
 
 target_: $(TARGET)
 
@@ -213,9 +236,11 @@ plugins_:
 clean_plugins:
 endif
 
+.PHONY: all clean target_ plugins_ clean_plugins FORCE
+
 # ----------- release -----------
 
-VER ?= $(shell git describe master)
+VER ?= $(shell git describe HEAD)
 
 ifeq "$(PLATFORM)" "generic"
 OUT = pcsx_rearmed_$(VER)

@@ -824,7 +824,6 @@ void  GPU_updateLace(void)
 extern "C" {
 
 static const struct rearmed_cbs *cbs;
-static void *screen_buf;
 static s16 old_res_horz, old_res_vert, old_rgb24;
 
 static void blit(void)
@@ -832,12 +831,10 @@ static void blit(void)
 	u16 *base = (u16 *)GPU_FrameBuffer;
 	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
 	s16 h0, x0, y0, w0, h1;
-	u32 fb_offs;
-	u8  *dest;
 
 	x0 = DisplayArea[0] & ~1; // alignment needed by blitter
 	y0 = DisplayArea[1];
-	fb_offs = FRAME_OFFSET(x0, y0);
+	base += FRAME_OFFSET(x0, y0);
 
 	w0 = DisplayArea[2];
 	h0 = DisplayArea[3];  // video mode
@@ -853,62 +850,10 @@ static void blit(void)
 		old_res_horz = w0;
 		old_res_vert = h1;
 		old_rgb24 = (s16)isRGB24;
-		screen_buf = cbs->pl_vout_set_mode(w0, h1, isRGB24 ? 24 : 16);
-	}
-	dest = (u8 *)screen_buf;
-
-	if (isRGB24)
-	{
-		if (!cbs->only_16bpp)
-		{
-			for (; h1-- > 0; dest += w0 * 3, fb_offs += 1024)
-			{
-				fb_offs &= 1024*512-1;
-				bgr888_to_rgb888(dest, base + fb_offs, w0 * 3);
-			}
-		}
-		else
-		{
-			for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
-			{
-				fb_offs &= 1024*512-1;
-				bgr888_to_rgb565(dest, base + fb_offs, w0 * 3);
-			}
-		}
-	}
-	else
-	{
-		for (; h1-- > 0; dest += w0 * 2, fb_offs += 1024)
-		{
-			fb_offs &= 1024*512-1;
-			bgr555_to_rgb565(dest, base + fb_offs, w0 * 2);
-		}
+		cbs->pl_vout_set_mode(w0, h1, w0, h1, isRGB24 ? 24 : 16);
 	}
 
-	screen_buf = cbs->pl_vout_flip();
-}
-
-static void blit_raw(void)
-{
-	s16 isRGB24 = (GPU_GP1 & 0x00200000) ? 1 : 0;
-	s16 h0, w0, h1;
-
-	w0 = DisplayArea[2];
-	h0 = DisplayArea[3];  // video mode
-	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
-	if (h0 == 480) h1 = Min2(h1*2,480);
-
-	if (h1 <= 0)
-		return;
-
-	if (w0 != old_res_horz || h1 != old_res_vert || isRGB24 != old_rgb24)
-	{
-		old_res_horz = w0;
-		old_res_vert = h1;
-		old_rgb24 = (s16)isRGB24;
-		screen_buf = cbs->pl_vout_set_mode(w0, h1, isRGB24 ? 24 : 16);
-	}
-	cbs->pl_vout_raw_flip(DisplayArea[0], DisplayArea[1]);
+	cbs->pl_vout_flip(base, 1024, isRGB24, w0, h1);
 }
 
 void GPU_updateLace(void)
@@ -920,10 +865,7 @@ void GPU_updateLace(void)
 		return;
 
 	if (!wasSkip) {
-		if (cbs->pl_vout_raw_flip != NULL)
-			blit_raw();
-		else
-			blit();
+		blit();
 		fb_dirty = false;
 		skCount = 0;
 	}
@@ -939,7 +881,6 @@ void GPU_updateLace(void)
 long GPUopen(unsigned long *, char *, char *)
 {
 	cbs->pl_vout_open();
-	screen_buf = cbs->pl_vout_flip();
 	return 0;
 }
 
@@ -966,6 +907,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_)
 		cbs_->pl_vout_set_raw_vram((void *)GPU_FrameBuffer);
 
 	cbs = cbs_;
+	if (cbs->pl_set_gpu_caps)
+		cbs->pl_set_gpu_caps(0);
 }
 
 } /* extern "C" */

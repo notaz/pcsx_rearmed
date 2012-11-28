@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010-2011
+ * (C) notaz, 2010-2012
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -25,11 +25,16 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
-#include "common/plat.h"
-#include "common/readpng.h"
-#include "common/input.h"
-#include "linux/in_evdev.h"
 #include "revision.h"
+
+#ifndef NO_FRONTEND
+#include "libpicofe/input.h"
+#include "libpicofe/plat.h"
+#include "libpicofe/readpng.h"
+#endif
+#ifndef BOOT_MSG
+#define BOOT_MSG "Booting up..."
+#endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
@@ -48,6 +53,8 @@ int state_slot;
 enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
+
+static void toggle_fast_forward(int force_off);
 
 static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
@@ -143,6 +150,8 @@ void emu_set_default_config(void)
 	Config.PsxAuto = 1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
+	pl_rearmed_cbs.gpu_neon.enhancement_enable =
+	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.abe_hack =
@@ -203,6 +212,7 @@ void do_emu_action(void)
 		break;
 #ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
+		toggle_fast_forward(1);
 		menu_loop();
 		return;
 	case SACTION_NEXT_SSLOT:
@@ -230,6 +240,34 @@ do_state_slot:
 			pl_rearmed_cbs.frameskip == 0 ? "OFF" : "1" );
 		plugin_call_rearmed_cbs();
 		break;
+	case SACTION_SWITCH_DISPMODE:
+		pl_switch_dispmode();
+		plugin_call_rearmed_cbs();
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
+		break;
+	case SACTION_FAST_FORWARD:
+		toggle_fast_forward(0);
+		plugin_call_rearmed_cbs();
+		break;
+	case SACTION_TOGGLE_FPS:
+		if ((g_opts & (OPT_SHOWFPS|OPT_SHOWCPU))
+		    == (OPT_SHOWFPS|OPT_SHOWCPU))
+			g_opts &= ~(OPT_SHOWFPS|OPT_SHOWCPU);
+		else if (g_opts & OPT_SHOWFPS)
+			g_opts |= OPT_SHOWCPU;
+		else
+			g_opts |= OPT_SHOWFPS;
+		break;
+	case SACTION_TOGGLE_FULLSCREEN:
+		g_fullscreen = !g_fullscreen;
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
+		break;
 	case SACTION_SCREENSHOT:
 		{
 			char buf[MAXPATHLEN];
@@ -252,7 +290,7 @@ do_state_slot:
 		}
 	case SACTION_VOLUME_UP:
 	case SACTION_VOLUME_DOWN:
-		plat_step_volume(emu_action == SACTION_VOLUME_UP);
+		plat_target_step_volume(emu_action == SACTION_VOLUME_UP);
 		return;
 	case SACTION_MINIMIZE:
 		if (GPU_close != NULL)
@@ -374,7 +412,7 @@ out:
 	fclose(f);
 }
 
-void emu_on_new_cd(void)
+void emu_on_new_cd(int show_hud_msg)
 {
 	ClearAllCheats();
 	parse_cwcheat();
@@ -384,8 +422,10 @@ void emu_on_new_cd(void)
 		printf("----------------------------------------------------------\n");
 	}
 
-	snprintf(hud_msg, sizeof(hud_msg), "Booting up...");
-	hud_new_msg = 2;
+	if (show_hud_msg) {
+		snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
+		hud_new_msg = 3;
+	}
 }
 
 int emu_core_preinit(void)
@@ -541,9 +581,15 @@ int main(int argc, char *argv[])
 				printf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
-			emu_on_new_cd();
+			emu_on_new_cd(!loadst);
 			ready_to_go = 1;
 		}
+	}
+
+	if (loadst_f) {
+		int ret = LoadState(loadst_f);
+		printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
+		ready_to_go |= ret == 0;
 	}
 
 	if (ready_to_go) {
@@ -553,10 +599,6 @@ int main(int argc, char *argv[])
 		if (loadst) {
 			int ret = emu_load_state(loadst - 1);
 			printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
-		}
-		if (loadst_f) {
-			int ret = LoadState(loadst_f);
-			printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
 		}
 	}
 	else
@@ -575,6 +617,40 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+static void toggle_fast_forward(int force_off)
+{
+	static int fast_forward;
+	static int normal_g_opts;
+	static int normal_frameskip;
+	static int normal_enhancement_enable;
+
+	if (force_off && !fast_forward)
+		return;
+
+	fast_forward = !fast_forward;
+	if (fast_forward) {
+		normal_g_opts = g_opts;
+		normal_frameskip = pl_rearmed_cbs.frameskip;
+		normal_enhancement_enable =
+			pl_rearmed_cbs.gpu_neon.enhancement_enable;
+
+		g_opts |= OPT_NO_FRAMELIM;
+		pl_rearmed_cbs.frameskip = 3;
+		pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
+	} else {
+		g_opts = normal_g_opts;
+		pl_rearmed_cbs.frameskip = normal_frameskip;
+		pl_rearmed_cbs.gpu_neon.enhancement_enable =
+			normal_enhancement_enable;
+
+		pl_timing_prepare(Config.PsxType);
+	}
+
+	if (!force_off)
+		snprintf(hud_msg, sizeof(hud_msg), "FAST FORWARD %s",
+			fast_forward ? "ON" : "OFF");
 }
 #endif
 
@@ -664,6 +740,8 @@ int emu_load_state(int slot)
 {
 	char fname[MAXPATHLEN];
 	int ret;
+
+	hud_msg[0] = 0;
 
 	ret = get_state_filename(fname, sizeof(fname), slot);
 	if (ret != 0)
@@ -847,15 +925,6 @@ void *SysLoadLibrary(const char *lib) {
 			if (strcmp(tmp, builtin_plugins[i]) == 0)
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
-
-#if defined(__x86_64__) || defined(__i386__)
-	// convenience hack
-	if (strstr(lib, ".x86") == NULL) {
-		char name[MAXPATHLEN];
-		snprintf(name, sizeof(name), "%s.x86_64", lib);
-		lib = name;
-	}
-#endif
 
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)

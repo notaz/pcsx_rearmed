@@ -14,10 +14,10 @@
 #include <unistd.h>
 #include <linux/omapfb.h>
 
-#include "common/menu.h"
-#include "common/input.h"
-#include "linux/fbdev.h"
-#include "linux/xenv.h"
+#include "libpicofe/menu.h"
+#include "libpicofe/input.h"
+#include "libpicofe/linux/fbdev.h"
+#include "libpicofe/linux/xenv.h"
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "plat.h"
@@ -52,8 +52,9 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 			perror("SETUP_PLANE");
 	}
 
-	if (mi.size < 640*512*3*3) {
-		mi.size = 640*512*3*3;
+	// upto 1024x512 (2x resolution enhancement)
+	if (mi.size < 1024*512*2 * 3) {
+		mi.size = 1024*512*2 * 3;
 		ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
 		if (ret != 0) {
 			perror("SETUP_MEM");

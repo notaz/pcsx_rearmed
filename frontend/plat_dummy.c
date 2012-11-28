@@ -54,25 +54,6 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 	return 0;
 }
 
-int plat_cpu_clock_get(void)
-{
-	return -1;
-}
-
-int plat_cpu_clock_apply(int cpu_clock)
-{
-	return -1;
-}
-
-int plat_get_bat_capacity(void)
-{
-	return -1;
-}
-
-void plat_step_volume(int is_up)
-{
-}
-
 void plat_trigger_vibrate(int is_strong)
 {
 }

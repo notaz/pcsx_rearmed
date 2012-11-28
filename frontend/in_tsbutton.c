@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <tslib.h>
 
-#include "common/input.h"
+#include "libpicofe/input.h"
 #include "pl_gun_ts.h"
 #include "in_tsbutton.h"
 

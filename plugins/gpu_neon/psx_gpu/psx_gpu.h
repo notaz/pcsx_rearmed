@@ -56,8 +56,8 @@ typedef enum
 typedef enum
 {
   RENDER_INTERLACE_ENABLED     = 0x1,
-  RENDER_INTERLACE_ODD         = 0x2
-} render_interlace_enum;
+  RENDER_INTERLACE_ODD         = 0x2,
+} render_mode_enum;
 
 typedef struct
 {
@@ -122,7 +122,6 @@ typedef struct
   vec_4x32u g_block_span;
   vec_4x32u b_block_span;
 
-  // 72 bytes
   u32 b;
   u32 b_dy;
 
@@ -138,24 +137,20 @@ typedef struct
   u32 triangle_color;
   u32 dither_table[4];
 
+  u32 uvrgb_phase;
+
   struct render_block_handler_struct *render_block_handler;
   void *texture_page_ptr;
   void *texture_page_base;
   u16 *clut_ptr;
   u16 *vram_ptr;
+  u16 *vram_out_ptr;
 
-  // 26 bytes
   u16 render_state_base;
   u16 render_state;
 
   u16 num_spans;
   u16 num_blocks;
-
-  s16 offset_x;
-  s16 offset_y;
-
-  u16 clut_settings;
-  u16 texture_settings;
 
   s16 viewport_start_x;
   s16 viewport_start_y;
@@ -164,7 +159,6 @@ typedef struct
 
   u16 mask_msb;
 
-  // 8 bytes
   u8 triangle_winding;
 
   u8 display_area_draw_enable;
@@ -178,11 +172,27 @@ typedef struct
   u8 texture_window_y;
 
   u8 primitive_type;
-  u8 interlace_mode;
+  u8 render_mode;
+
+  s16 offset_x;
+  s16 offset_y;
+
+  u16 clut_settings;
+  u16 texture_settings;
+
+  // enhancement stuff
+  u16 *enhancement_buf_ptr;
+  u16 *enhancement_current_buf_ptr;
+  u32 enhancement_x_threshold;
+  s16 saved_viewport_start_x;
+  s16 saved_viewport_start_y;
+  s16 saved_viewport_end_x;
+  s16 saved_viewport_end_y;
+  u8 enhancement_buf_by_x16[64];
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
-  // aligned
-  //u8 reserved_a[0];
+  // aligned, also make reachable with single immediate addition
+  u8 reserved_a[164];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];
@@ -224,7 +234,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
  s32 width, s32 height, u32 flags, u32 color);
 void render_line(psx_gpu_struct *gpu, vertex_struct *vertexes, u32 flags,
- u32 color);
+ u32 color, int double_resolution);
 
 u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 
