@@ -30,6 +30,7 @@
 #include "pl_gun_ts.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psemu_plugin_defs.h"
+#include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/gpulib/cspace.h"
 #include "../plugins/dfinput/externals.h"
 
@@ -146,12 +147,15 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-void pl_print_hud(int w, int h, int xborder)
+static void print_hud(int w, int h, int xborder)
 {
 	if (h < 16)
 		return;
 
-	xborder += (pl_vout_w - w) / 2;
+	if (w < pl_vout_w)
+		xborder += (pl_vout_w - w) / 2;
+	if (h > pl_vout_h)
+		h = pl_vout_h;
 
 	if (g_opts & OPT_SHOWSPU)
 		draw_active_chans(w, h);
@@ -254,10 +258,6 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	}
 #endif
 
-	if (pl_vout_buf != NULL && vout_w == pl_vout_w && vout_h == pl_vout_h
-	    && vout_bpp == pl_vout_bpp)
-		return;
-
 	update_layer_size(vout_w, vout_h);
 
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
@@ -359,7 +359,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out_hud:
-	pl_print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
+	print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
 
 out:
 	pcnt_end(PCNT_BLIT);
@@ -698,15 +698,8 @@ static void pl_get_layer_pos(int *x, int *y, int *w, int *h)
 	*h = g_layer_h;
 }
 
-static void *pl_mmap(unsigned int size)
-{
-	return plat_mmap(0, size, 0, 0);
-}
-
-static void pl_munmap(void *ptr, unsigned int size)
-{
-	plat_munmap(ptr, size);
-}
+static void *pl_mmap(unsigned int size);
+static void pl_munmap(void *ptr, unsigned int size);
 
 struct rearmed_cbs pl_rearmed_cbs = {
 	pl_get_layer_pos,
@@ -774,6 +767,27 @@ void pl_start_watchdog(void)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
 }
 
+static void *pl_emu_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+	return plat_mmap(addr, size, 0, is_fixed);
+}
+
+static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+	plat_munmap(ptr, size);
+}
+
+static void *pl_mmap(unsigned int size)
+{
+	return psxMapHook(0, size, 0, MAP_TAG_VRAM);
+}
+
+static void pl_munmap(void *ptr, unsigned int size)
+{
+	psxUnmapHook(ptr, size, MAP_TAG_VRAM);
+}
+
 void pl_init(void)
 {
 	extern unsigned int hSyncCount; // from psxcounters
@@ -786,4 +800,7 @@ void pl_init(void)
 
 	pl_rearmed_cbs.gpu_hcnt = &hSyncCount;
 	pl_rearmed_cbs.gpu_frame_count = &frame_counter;
+
+	psxMapHook = pl_emu_mmap;
+	psxUnmapHook = pl_emu_munmap;
 }

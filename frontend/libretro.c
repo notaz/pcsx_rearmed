@@ -11,10 +11,10 @@
 
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/psxcounters.h"
+#include "../libpcsxcore/psxmem_map.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/gpulib/cspace.h"
-#include "linux/plat_mmap.h"
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
@@ -98,12 +98,12 @@ static void vout_close(void)
 
 static void *pl_mmap(unsigned int size)
 {
-	return plat_mmap(0, size, 0, 0);
+	return psxMap(0, size, 0, MAP_TAG_VRAM);
 }
 
 static void pl_munmap(void *ptr, unsigned int size)
 {
-	plat_munmap(ptr, size);
+	psxUnmap(ptr, size, MAP_TAG_VRAM);
 }
 
 struct rearmed_cbs pl_rearmed_cbs = {
