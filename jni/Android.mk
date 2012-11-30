@@ -98,7 +98,7 @@ LOCAL_SRC_FILES += ../frontend/linux/plat.c
 LOCAL_SRC_FILES += ../frontend/libretro.c
 
 LOCAL_CFLAGS += -O3 -ffast-math -funroll-loops -DNDEBUG -D_FILE_OFFSET_BITS=64 -DHAVE_LIBRETRO -DNO_FRONTEND
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../frontend
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
 LOCAL_LDLIBS := -lz -llog
 
 include $(BUILD_SHARED_LIBRARY)

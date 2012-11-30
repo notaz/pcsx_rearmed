@@ -1,4 +1,4 @@
-#include "../../libpcsxcore/psemu_plugin_defs.h"
+#include "psemu_plugin_defs.h"
 #include "externals.h"
 
 extern unsigned char CurPad, CurByte, CurCmd, CmdLen;

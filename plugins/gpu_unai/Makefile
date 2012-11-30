@@ -1,5 +1,6 @@
 CFLAGS += -ggdb -Wall -O3 -ffast-math
 CFLAGS += -DREARMED
+CFLAGS += -I../../include
 
 include ../../config.mak
 

@@ -1,7 +1,6 @@
 CFLAGS += -Wall -ggdb -O2
 CFLAGS += -fno-strict-aliasing -ffast-math
-# ugh
-CFLAGS += -I../../libpcsxcore
+CFLAGS += -I../../include
 
 include ../../config.mak
 

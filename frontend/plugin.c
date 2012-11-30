@@ -11,7 +11,7 @@
 
 #include "plugin_lib.h"
 #include "plugin.h"
-#include "../libpcsxcore/psemu_plugin_defs.h"
+#include "psemu_plugin_defs.h"
 #include "../libpcsxcore/system.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
