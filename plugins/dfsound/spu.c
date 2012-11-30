@@ -25,6 +25,7 @@
 #include "externals.h"
 #include "registers.h"
 #include "out.h"
+#include "arm_features.h"
 
 #ifdef ENABLE_NLS
 #include <libintl.h>
@@ -615,7 +616,7 @@ static int do_samples_noise(int ch, int ns, int ns_to)
  return ret;
 }
 
-#ifdef __arm__
+#ifdef HAVE_ARMV5
 // asm code; lv and rv must be 0-3fff
 extern void mix_chan(int start, int count, int lv, int rv);
 extern void mix_chan_rvb(int start, int count, int lv, int rv);

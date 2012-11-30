@@ -5,37 +5,37 @@
  * See the COPYING file in the top-level directory.
  */
 
-/* .equiv HAVE_ARMV7, 1 */
+#include "arm_features.h"
 
 .text
 .align 2
 
 .macro sgnxt16 rd rs
-.if HAVE_ARMV7
+#ifdef HAVE_ARMV7
     sxth     \rd, \rs
-.else
+#else
     lsl      \rd, \rs, #16
     asr      \rd, \rd, #16
-.endif
+#endif
 .endm
 
 @ prepare work reg for ssatx
 @ in: wr reg, bit to saturate to
 .macro ssatx_prep wr bit
-.if !HAVE_ARMV7
+#ifndef HAVE_ARMV7
     mov      \wr, #(1<<(\bit-1))
-.endif
+#endif
 .endm
 
 .macro ssatx rd wr bit
-.if HAVE_ARMV7
+#ifdef HAVE_ARMV7
     ssat     \rd, #\bit, \rd
-.else
+#else
     cmp      \rd, \wr
     subge    \rd, \wr, #1
     cmn      \rd, \wr
     rsblt    \rd, \wr, #0
-.endif
+#endif
 .endm
 
 @ prepare work reg for ssatx0 (sat to 0..2^(bit-1))
@@ -52,16 +52,18 @@
 .endm
 
 .macro usat16_ rd rs
-.if HAVE_ARMV7
+#ifdef HAVE_ARMV7
     usat     \rd, #16, \rs
-.else
+#else
     subs     \rd, \rs, #0
     movlt    \rd, #0
     cmp      \rd, #0x10000
     movge    \rd, #0x0ff00
     orrge    \rd, #0x000ff
-.endif
+#endif
 .endm
+
+#ifdef HAVE_ARMV5
 
 .macro udiv_ rd rm rs
     lsl      \rm, #16
@@ -408,6 +410,7 @@ gteMVMVA_part_cv3sh12_arm:
     bx       lr
     .size    gteMVMVA_part_cv3sh12_arm, .-gteMVMVA_part_cv3sh12_arm
 
+#endif /* HAVE_ARMV5 */
 
 .global gteNCLIP_arm @ r0=CP2 (d,c),
 gteNCLIP_arm:
@@ -430,12 +433,12 @@ gteNCLIP_arm:
     movs        r2, r1, lsl #1
     adc         r5, r5
     cmp         r5, #0
-.if HAVE_ARMV7
+#ifdef HAVE_ARMV7
     movtgt      lr, #((1<<31)|(1<<16))>>16
-.else
+#else
     movgt       lr, #(1<<31)
     orrgt       lr, #(1<<16)
-.endif
+#endif
     cmn         r5, #1
     orrmi       lr, r6
     str         r1, [r0, #4*24]
@@ -460,7 +463,12 @@ gteNCLIP_arm:
     rsblt    r2, r1, #0
 .endif
     str      r2, [r0, #4*9]
+#ifdef HAVE_ARMV5
     ldrd     r2, [r0, #4*26]      @ gteMAC23
+#else
+    ldr      r2, [r0, #4*26]
+    ldr      r3, [r0, #4*27]
+#endif
     orrlt    r12, #(1<<31)|(1<<24)
     cmp      r2, r1
     subge    r2, r1, #1
@@ -486,7 +494,12 @@ gteNCLIP_arm:
     rsblt    r3, r1, #0
 .endif
     orrlt    r12, #1<<22
+#ifdef HAVE_ARMV5
     strd     r2, [r0, #4*10]      @ gteIR23
+#else
+    str      r2, [r0, #4*10]
+    str      r3, [r0, #4*11]
+#endif
     str      r12,[r0, #4*(32+31)] @ gteFLAG
     bx       lr
 .endm

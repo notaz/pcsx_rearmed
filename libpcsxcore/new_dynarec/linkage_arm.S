@@ -19,6 +19,9 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "arm_features.h"
+
+
 	.global	dynarec_local
 	.global	reg
 	.global	hi
@@ -162,6 +165,13 @@ FCR0 = align0
 FCR31 = align0
 	.type	FCR31, %object
 	.size	FCR31, 4
+
+#ifndef HAVE_ARMV5
+.macro blx rd
+	mov	lr, pc
+	bx	\rd
+.endm
+#endif
 
 .macro load_varadr reg var
 #if defined(__ARM_ARCH_7A__) && !defined(__PIC__)

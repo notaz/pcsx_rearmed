@@ -268,9 +268,9 @@ static int ari64_init()
 		if (psxCP2[i] != psxNULL)
 			gte_handlers[i] = psxCP2[i];
 
-#if !defined(DRC_DBG)
-#ifdef __arm__
+#if defined(__arm__) && !defined(DRC_DBG)
 	gte_handlers[0x06] = gteNCLIP_arm;
+#ifdef HAVE_ARMV5
 	gte_handlers_nf[0x01] = gteRTPS_nf_arm;
 	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
 #endif

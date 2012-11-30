@@ -19,12 +19,6 @@ endif
 ifeq ($(TARGET_ARCH),arm)
    LOCAL_ARM_MODE := arm
 
-   ifeq ($(TARGET_ARCH_EABI),armeabi-v7a)
-      LOCAL_CFLAGS += -DHAVE_ARMV7=1
-   else
-      LOCAL_CFLAGS += -DHAVE_ARMV7=0
-   endif
-
    LOCAL_CFLAGS += -DANDROID_ARM
 
    LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.S
