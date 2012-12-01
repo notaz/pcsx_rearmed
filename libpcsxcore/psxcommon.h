@@ -70,7 +70,7 @@ typedef uint8_t boolean;
 // Local includes
 #include "system.h"
 
-#if defined (__LINUX__) || defined (__MACOSX__)
+#ifndef _WIN32
 #define strnicmp strncasecmp
 #endif
 #define __inline inline
