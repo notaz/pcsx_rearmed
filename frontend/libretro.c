@@ -32,6 +32,10 @@ static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int native_rgb565;
 
+/* memory card data */
+extern char Mcd1Data[MCD_SIZE];
+extern char McdDisable[2];
+
 /* PCSX ReARMed core calls and stuff */
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
@@ -295,12 +299,12 @@ unsigned retro_get_region(void)
 
 void *retro_get_memory_data(unsigned id)
 {
-	return NULL;
+	return Mcd1Data;
 }
 
 size_t retro_get_memory_size(unsigned id)
 {
-	return 0;
+	return MCD_SIZE;
 }
 
 void retro_reset(void)
@@ -387,6 +391,9 @@ void retro_init(void)
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+
+	McdDisable[0] = 0;
+	McdDisable[1] = 1;
 }
 
 void retro_deinit(void)
