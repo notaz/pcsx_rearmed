@@ -17,7 +17,6 @@
 #define RAM_SIZE 0x200000
 
 #ifndef __ARM_ARCH_7A__
-#define ARMv5_ONLY
 //#undef CORTEX_A8_BRANCH_PREDICTION_HACK
 //#undef USE_MINI_HT
 #endif

@@ -21,7 +21,7 @@
 
 #include <stdint.h>
 
-#include "../../libpcsxcore/psemu_plugin_defs.h"
+#include "psemu_plugin_defs.h"
 #include "main.h"
 
 enum {

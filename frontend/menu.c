@@ -32,10 +32,10 @@
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
-#include "../libpcsxcore/psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/externals.h"
 #include "../plugins/gpulib/cspace.h"
+#include "psemu_plugin_defs.h"
 #include "revision.h"
 
 #define REARMED_BIRTHDAY_TIME 1293306830	/* 25 Dec 2010 */

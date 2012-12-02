@@ -8,6 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include "arm_features.h"
 
 .text
 .align 2
@@ -100,7 +101,7 @@ mcr_finish:
     vstmiage    r3!, {d8}
     bx          lr
 
-#else
+#elif defined(HAVE_ARMV5)
 
 .global mix_chan @ (int start, int count, int lv, int rv)
 mix_chan:

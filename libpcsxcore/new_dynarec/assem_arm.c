@@ -28,6 +28,7 @@
 #include "../gte_neon.h"
 #include "pcnt.h"
 #endif
+#include "arm_features.h"
 
 #if !BASE_ADDR_FIXED
 char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
@@ -223,7 +224,7 @@ int get_pointer(void *stub)
 u_int get_clean_addr(int addr)
 {
   int *ptr=(int *)addr;
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   ptr+=4;
   #else
   ptr+=6;
@@ -240,7 +241,7 @@ u_int get_clean_addr(int addr)
 int verify_dirty(int addr)
 {
   u_int *ptr=(u_int *)addr;
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   // get from literal pool
   assert((*ptr&0xFFFF0000)==0xe59f0000);
   u_int offset=*ptr&0xfff;
@@ -279,7 +280,7 @@ int verify_dirty(int addr)
 // guarantees that it's not dirty
 int isclean(int addr)
 {
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   int *ptr=((u_int *)addr)+4;
   #else
   int *ptr=((u_int *)addr)+6;
@@ -296,7 +297,7 @@ int isclean(int addr)
 void get_bounds(int addr,u_int *start,u_int *end)
 {
   u_int *ptr=(u_int *)addr;
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   // get from literal pool
   assert((*ptr&0xFFFF0000)==0xe59f0000);
   u_int offset=*ptr&0xfff;
@@ -1005,7 +1006,7 @@ void emit_movimm(u_int imm,u_int rt)
     assem_debug("mvn %s,#%d\n",regname[rt],imm);
     output_w32(0xe3e00000|rd_rn_rm(rt,0,0)|armval);
   }else if(imm<65536) {
-    #ifdef ARMv5_ONLY
+    #ifndef HAVE_ARMV7
     assem_debug("mov %s,#%d\n",regname[rt],imm&0xFF00);
     output_w32(0xe3a00000|rd_rn_imm_shift(rt,0,imm>>8,8));
     assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
@@ -1014,7 +1015,7 @@ void emit_movimm(u_int imm,u_int rt)
     emit_movw(imm,rt);
     #endif
   }else{
-    #ifdef ARMv5_ONLY
+    #ifndef HAVE_ARMV7
     emit_loadlp(imm,rt);
     #else
     emit_movw(imm&0x0000FFFF,rt);
@@ -1278,7 +1279,7 @@ void emit_andimm(int rs,int imm,int rt)
     assem_debug("bic %s,%s,#%d\n",regname[rt],regname[rs],imm);
     output_w32(0xe3c00000|rd_rn_rm(rt,rs,0)|armval);
   }else if(imm==65535) {
-    #ifdef ARMv5_ONLY
+    #ifndef HAVE_ARMV7
     assem_debug("bic %s,%s,#FF000000\n",regname[rt],regname[rs]);
     output_w32(0xe3c00000|rd_rn_rm(rt,rs,0)|0x4FF);
     assem_debug("bic %s,%s,#00FF0000\n",regname[rt],regname[rt]);
@@ -1289,7 +1290,7 @@ void emit_andimm(int rs,int imm,int rt)
     #endif
   }else{
     assert(imm>0&&imm<65535);
-    #ifdef ARMv5_ONLY
+    #ifndef HAVE_ARMV7
     assem_debug("mov r14,#%d\n",imm&0xFF00);
     output_w32(0xe3a00000|rd_rn_imm_shift(HOST_TEMPREG,0,imm>>8,8));
     assem_debug("add r14,r14,#%d\n",imm&0xFF);
@@ -1353,6 +1354,14 @@ void emit_lsls_imm(int rs,int imm,int rt)
   output_w32(0xe1b00000|rd_rn_rm(rt,0,rs)|(imm<<7));
 }
 
+void emit_lslpls_imm(int rs,int imm,int rt)
+{
+  assert(imm>0);
+  assert(imm<32);
+  assem_debug("lslpls %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0x51b00000|rd_rn_rm(rt,0,rs)|(imm<<7));
+}
+
 void emit_shrimm(int rs,u_int imm,int rt)
 {
   assert(imm>0);
@@ -1403,7 +1412,7 @@ void emit_shrdimm(int rs,int rs2,u_int imm,int rt)
 
 void emit_signextend16(int rs,int rt)
 {
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   emit_shlimm(rs,16,rt);
   emit_sarimm(rt,16,rt);
   #else
@@ -1414,7 +1423,7 @@ void emit_signextend16(int rs,int rt)
 
 void emit_signextend8(int rs,int rt)
 {
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   emit_shlimm(rs,24,rt);
   emit_sarimm(rt,24,rt);
   #else
@@ -1502,20 +1511,12 @@ void emit_cmpimm(int rs,int imm)
     output_w32(0xe3700000|rd_rn_rm(0,rs,0)|armval);
   }else if(imm>0) {
     assert(imm<65536);
-    #ifdef ARMv5_ONLY
     emit_movimm(imm,HOST_TEMPREG);
-    #else
-    emit_movw(imm,HOST_TEMPREG);
-    #endif
     assem_debug("cmp %s,r14\n",regname[rs]);
     output_w32(0xe1500000|rd_rn_rm(0,rs,HOST_TEMPREG));
   }else{
     assert(imm>-65536);
-    #ifdef ARMv5_ONLY
     emit_movimm(-imm,HOST_TEMPREG);
-    #else
-    emit_movw(-imm,HOST_TEMPREG);
-    #endif
     assem_debug("cmn %s,r14\n",regname[rs]);
     output_w32(0xe1700000|rd_rn_rm(0,rs,HOST_TEMPREG));
   }
@@ -2295,7 +2296,7 @@ void emit_cmov2imm_e_ne_compact(int imm1,int imm2,u_int rt)
     output_w32(0x12400000|rd_rn_rm(rt,rt,0)|armval);
   }
   else {
-    #ifdef ARMv5_ONLY
+    #ifndef HAVE_ARMV7
     emit_movimm(imm1,rt);
     add_literal((int)out,imm2);
     assem_debug("ldrne %s,pc+? [=%x]\n",regname[rt],imm2);
@@ -2584,6 +2585,14 @@ void emit_andne_imm(int rs,int imm,int rt)
   genimm_checked(imm,&armval);
   assem_debug("andne %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x12000000|rd_rn_rm(rt,rs,0)|armval);
+}
+
+void emit_addpl_imm(int rs,int imm,int rt)
+{
+  u_int armval;
+  genimm_checked(imm,&armval);
+  assem_debug("addpl %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  output_w32(0x52800000|rd_rn_rm(rt,rs,0)|armval);
 }
 
 void emit_jno_unlikely(int a)
@@ -3565,7 +3574,7 @@ int do_dirty_stub(int i)
   addr=(u_int)source;
   #endif
   // Careful about the code output here, verify_dirty needs to parse it.
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   emit_loadlp(addr,1);
   emit_loadlp((int)copy,2);
   emit_loadlp(slen*4,3);
@@ -3588,7 +3597,7 @@ int do_dirty_stub(int i)
 void do_dirty_stub_ds()
 {
   // Careful about the code output here, verify_dirty needs to parse it.
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   emit_loadlp((int)start<(int)0xC0000000?(int)source:(int)start,1);
   emit_loadlp((int)copy,2);
   emit_loadlp(slen*4,3);
@@ -4391,7 +4400,16 @@ static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
     case 30:
       emit_movs(sl,temp);
       emit_mvnmi(temp,temp);
+#ifdef HAVE_ARMV5
       emit_clz(temp,temp);
+#else
+      emit_movs(temp,HOST_TEMPREG);
+      emit_movimm(0,temp);
+      emit_jeq((int)out+4*4);
+      emit_addpl_imm(temp,1,temp);
+      emit_lslpls_imm(HOST_TEMPREG,1,HOST_TEMPREG);
+      emit_jns((int)out-2*4);
+#endif
       emit_writeword(sl,(int)&reg_cop2d[30]);
       emit_writeword(temp,(int)&reg_cop2d[31]);
       break;
@@ -4513,6 +4531,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     int lm = (source[i] >> 10) & 1;
     switch(c2op) {
 #ifndef DRC_DBG
+#ifdef HAVE_ARMV5
       case GTE_MVMVA: {
         int v  = (source[i] >> 15) & 3;
         int cv = (source[i] >> 13) & 3;
@@ -4555,6 +4574,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
 #endif
         break;
       }
+#endif /* HAVE_ARMV5 */
       case GTE_OP:
         c2op_prologue(c2op,reglist);
         emit_call((int)(shift?gteOP_part_shift:gteOP_part_noshift));
@@ -5293,8 +5313,15 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_movs(d2,HOST_TEMPREG);
         emit_jeq((int)out+52); // Division by zero
         emit_negmi(HOST_TEMPREG,HOST_TEMPREG);
+#ifdef HAVE_ARMV5
         emit_clz(HOST_TEMPREG,quotient);
         emit_shl(HOST_TEMPREG,quotient,HOST_TEMPREG);
+#else
+        emit_movimm(0,quotient);
+        emit_addpl_imm(quotient,1,quotient);
+        emit_lslpls_imm(HOST_TEMPREG,1,HOST_TEMPREG);
+        emit_jns((int)out-2*4);
+#endif
         emit_orimm(quotient,1<<31,quotient);
         emit_shr(quotient,quotient,quotient);
         emit_cmp(remainder,HOST_TEMPREG);
@@ -5321,9 +5348,17 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_movimm(0xffffffff,quotient); // div0 case
         emit_test(d2,d2);
         emit_jeq((int)out+40); // Division by zero
+#ifdef HAVE_ARMV5
         emit_clz(d2,HOST_TEMPREG);
         emit_movimm(1<<31,quotient);
         emit_shl(d2,HOST_TEMPREG,d2);
+#else
+        emit_movimm(0,HOST_TEMPREG);
+        emit_addpl_imm(d2,1,d2);
+        emit_lslpls_imm(HOST_TEMPREG,1,HOST_TEMPREG);
+        emit_jns((int)out-2*4);
+        emit_movimm(1<<31,quotient);
+#endif
         emit_shr(quotient,HOST_TEMPREG,quotient);
         emit_cmp(remainder,d2);
         emit_subcs(remainder,d2,remainder);
@@ -5554,7 +5589,7 @@ void do_miniht_jump(int rs,int rh,int ht) {
 }
 
 void do_miniht_insert(u_int return_address,int rt,int temp) {
-  #ifdef ARMv5_ONLY
+  #ifndef HAVE_ARMV7
   emit_movimm(return_address,rt); // PC into link register
   add_to_linker((int)out,return_address,1);
   emit_pcreladdr(temp);

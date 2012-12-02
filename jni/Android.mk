@@ -19,12 +19,6 @@ endif
 ifeq ($(TARGET_ARCH),arm)
    LOCAL_ARM_MODE := arm
 
-   ifeq ($(TARGET_ARCH_EABI),armeabi-v7a)
-      LOCAL_CFLAGS += -DHAVE_ARMV7=1
-   else
-      LOCAL_CFLAGS += -DHAVE_ARMV7=0
-   endif
-
    LOCAL_CFLAGS += -DANDROID_ARM
 
    LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.S
@@ -89,16 +83,14 @@ LOCAL_SRC_FILES += ../plugins/cdrcimg/cdrcimg.c
 # dfinput
 LOCAL_SRC_FILES += ../plugins/dfinput/main.c ../plugins/dfinput/pad.c ../plugins/dfinput/guncon.c
 
-# gui
+# misc
 LOCAL_SRC_FILES += ../frontend/main.c ../frontend/plugin.c
-LOCAL_SRC_FILES += ../frontend/common/fonts.c
-LOCAL_SRC_FILES += ../frontend/linux/plat.c
 
 # libretro
 LOCAL_SRC_FILES += ../frontend/libretro.c
 
 LOCAL_CFLAGS += -O3 -ffast-math -funroll-loops -DNDEBUG -D_FILE_OFFSET_BITS=64 -DHAVE_LIBRETRO -DNO_FRONTEND
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../frontend
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
 LOCAL_LDLIBS := -lz -llog
 
 include $(BUILD_SHARED_LIBRARY)

@@ -11,7 +11,7 @@
 
 #include "../gpulib/cspace.h"
 #include "../../frontend/plugin_lib.h"
-#include "../../frontend/pcnt.h"
+#include "pcnt.h"
 
 // misc globals
 long           lLowerpart;

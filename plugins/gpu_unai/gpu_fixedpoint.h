@@ -21,6 +21,8 @@
 #ifndef FIXED_H
 #define FIXED_H
 
+#include "arm_features.h"
+
 typedef s32 fixed;
 
 #ifdef GPU_TABLE_10_BITS
@@ -55,7 +57,7 @@ INLINE u32 Log2(u32 _a)
 }
 */
 
-#ifdef __arm__
+#ifdef HAVE_ARMV5
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }
 #else
 INLINE u32 Log2(u32 x) { u32 i = 0; for ( ; x > 0; ++i, x >>= 1); return i - 1; }
