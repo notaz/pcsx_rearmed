@@ -83,10 +83,8 @@ LOCAL_SRC_FILES += ../plugins/cdrcimg/cdrcimg.c
 # dfinput
 LOCAL_SRC_FILES += ../plugins/dfinput/main.c ../plugins/dfinput/pad.c ../plugins/dfinput/guncon.c
 
-# gui
+# misc
 LOCAL_SRC_FILES += ../frontend/main.c ../frontend/plugin.c
-LOCAL_SRC_FILES += ../frontend/common/fonts.c
-LOCAL_SRC_FILES += ../frontend/linux/plat.c
 
 # libretro
 LOCAL_SRC_FILES += ../frontend/libretro.c

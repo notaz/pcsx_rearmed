@@ -192,7 +192,8 @@ endif
 OBJS += frontend/main.o frontend/plugin.o
 
 
-frontend/menu.o frontend/main.o frontend/plat_sdl.o: frontend/revision.h
+frontend/menu.o frontend/main.o: frontend/revision.h
+frontend/plat_sdl.o frontend/libretro.o: frontend/revision.h
 
 frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
@@ -217,7 +218,7 @@ $(TARGET): $(OBJS)
 	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
 
 clean: $(PLAT_CLEAN) clean_plugins
-	$(RM) $(TARGET) $(OBJS) $(TARGET).map
+	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
 
 ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)
