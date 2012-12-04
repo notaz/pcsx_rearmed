@@ -30,7 +30,6 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static void *vout_buf;
 static int samples_sent, samples_to_send;
 static int plugins_opened;
-static int native_rgb565;
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
@@ -51,6 +50,7 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 }
 
+#ifdef FRONTEND_SUPPORTS_RGB565
 static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
@@ -60,6 +60,7 @@ static void convert(void *buf, size_t bytes)
 		p[i] = (v & 0x001f001f) | ((v >> 1) & 0x7fe07fe0);
 	}
 }
+#endif
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
@@ -90,8 +91,9 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out:
-	if (!native_rgb565)
-		convert(vout_buf, w * h * 2);
+#ifndef FRONTEND_SUPPORTS_RGB565
+   convert(vout_buf, w * h * 2);
+#endif
 	video_cb(vout_buf, w, h, w * 2);
 	pl_rearmed_cbs.flip_cnt++;
 }
@@ -237,11 +239,12 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
+#ifdef FRONTEND_SUPPORTS_RGB565
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
-		native_rgb565 = 1;
 		fprintf(stderr, "RGB565 supported, using it\n");
 	}
+#endif
 
 	if (plugins_opened) {
 		ClosePlugins();
@@ -402,4 +405,3 @@ void retro_deinit(void)
 	free(vout_buf);
 	vout_buf = NULL;
 }
-
