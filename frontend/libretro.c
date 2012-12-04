@@ -62,6 +62,9 @@ static void convert(void *buf, size_t bytes)
 }
 #endif
 
+static unsigned game_width;
+static unsigned game_height;
+
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
 	unsigned short *dest = vout_buf;
@@ -94,8 +97,8 @@ out:
 #ifndef FRONTEND_SUPPORTS_RGB565
    convert(vout_buf, w * h * 2);
 #endif
-	video_cb(vout_buf, w, h, w * 2);
-	pl_rearmed_cbs.flip_cnt++;
+   game_width = w;
+   game_height = h;
 }
 
 static void vout_close(void)
@@ -353,6 +356,8 @@ void retro_run(void)
 	psxCpu->Execute();
 
 	samples_to_send += 44100 / 60;
+	video_cb(vout_buf, game_width, game_height, game_width * 2);
+	pl_rearmed_cbs.flip_cnt++;
 }
 
 void retro_init(void)
