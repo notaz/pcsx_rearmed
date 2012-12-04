@@ -99,6 +99,7 @@ out:
 #endif
    game_width = w;
    game_height = h;
+	pl_rearmed_cbs.flip_cnt++;
 }
 
 static void vout_close(void)
@@ -357,7 +358,6 @@ void retro_run(void)
 
 	samples_to_send += 44100 / 60;
 	video_cb(vout_buf, game_width, game_height, game_width * 2);
-	pl_rearmed_cbs.flip_cnt++;
 }
 
 void retro_init(void)
