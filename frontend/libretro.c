@@ -41,6 +41,39 @@ int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate;
 int in_enable_vibration;
 
+static void init_memcard(char *mcd_data)
+{
+	unsigned off = 0;
+	unsigned i;
+
+	memset(mcd_data, 0, MCD_SIZE);
+
+	mcd_data[off++] = 'M';
+	mcd_data[off++] = 'C';
+	off += 0x7d;
+	mcd_data[off++] = 0x0e;
+
+	for (i = 0; i < 15; i++) {
+		mcd_data[off++] = 0xa0;
+		off += 0x07;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x75;
+		mcd_data[off++] = 0xa0;
+	}
+
+	for (i = 0; i < 20; i++) {
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x04;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x76;
+	}
+}
+
 static int vout_open(void)
 {
 	return 0;
@@ -402,6 +435,7 @@ void retro_init(void)
 
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
+	init_memcard(Mcd1Data);
 }
 
 void retro_deinit(void)
