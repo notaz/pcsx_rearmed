@@ -215,16 +215,18 @@ if [ "$ARCH" = "arm" ]; then
 
   # automatically set mfpu and mfloat-abi if they are not set
   if [ "$have_arm_neon" = "yes" ]; then
-    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=neon"
-    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=neon"
+    fpu="neon"
   elif [ "$have_armv6" = "yes" ]; then
-    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=vfp"
-    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=vfp"
+    fpu="vfp"
   fi
-  floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes` || true
-  if [ "$floatabi_set_by_gcc" != "yes" -a "$have_armv6" = "yes" ]; then
-    echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
-    echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
+  if [ "x$fpu" != "x" ]; then
+    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=$fpu"
+    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=$fpu"
+    floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes` || true
+    if [ "$floatabi_set_by_gcc" != "yes" ]; then
+      echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
+      echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
+    fi
   fi
 
   # must disable thumb as recompiler can't handle it
