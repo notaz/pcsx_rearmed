@@ -741,13 +741,13 @@ static int handlepbp(const char *isofile) {
 
 	ret = fread(&pbp_hdr, 1, sizeof(pbp_hdr), cdHandle);
 	if (ret != sizeof(pbp_hdr)) {
-		fprintf(stderr, "failed to read pbp\n");
+		SysPrintf("failed to read pbp\n");
 		goto fail_io;
 	}
 
 	ret = fseek(cdHandle, pbp_hdr.psar_offs, SEEK_SET);
 	if (ret != 0) {
-		fprintf(stderr, "failed to seek to %x\n", pbp_hdr.psar_offs);
+		SysPrintf("failed to seek to %x\n", pbp_hdr.psar_offs);
 		goto fail_io;
 	}
 
@@ -758,12 +758,12 @@ static int handlepbp(const char *isofile) {
 		// multidisk image?
 		ret = fseek(cdHandle, pbp_hdr.psar_offs + 0x200, SEEK_SET);
 		if (ret != 0) {
-			fprintf(stderr, "failed to seek to %x\n", pbp_hdr.psar_offs + 0x200);
+			SysPrintf("failed to seek to %x\n", pbp_hdr.psar_offs + 0x200);
 			goto fail_io;
 		}
 
 		if (fread(&offsettab, 1, sizeof(offsettab), cdHandle) != sizeof(offsettab)) {
-			fprintf(stderr, "failed to read offsettab\n");
+			SysPrintf("failed to read offsettab\n");
 			goto fail_io;
 		}
 
@@ -773,7 +773,7 @@ static int handlepbp(const char *isofile) {
 		}
 		cdrIsoMultidiskCount = i;
 		if (cdrIsoMultidiskCount == 0) {
-			fprintf(stderr, "multidisk eboot has 0 images?\n");
+			SysPrintf("multidisk eboot has 0 images?\n");
 			goto fail_io;
 		}
 
@@ -784,7 +784,7 @@ static int handlepbp(const char *isofile) {
 
 		ret = fseek(cdHandle, psisoimg_offs, SEEK_SET);
 		if (ret != 0) {
-			fprintf(stderr, "failed to seek to %x\n", psisoimg_offs);
+			SysPrintf("failed to seek to %x\n", psisoimg_offs);
 			goto fail_io;
 		}
 
@@ -793,14 +793,14 @@ static int handlepbp(const char *isofile) {
 	}
 
 	if (strcmp(psar_sig, "PSISOIMG00") != 0) {
-		fprintf(stderr, "bad psar_sig: %s\n", psar_sig);
+		SysPrintf("bad psar_sig: %s\n", psar_sig);
 		goto fail_io;
 	}
 
 	// seek to TOC
 	ret = fseek(cdHandle, psisoimg_offs + 0x800, SEEK_SET);
 	if (ret != 0) {
-		fprintf(stderr, "failed to seek to %x\n", psisoimg_offs + 0x800);
+		SysPrintf("failed to seek to %x\n", psisoimg_offs + 0x800);
 		goto fail_io;
 	}
 
@@ -835,7 +835,7 @@ static int handlepbp(const char *isofile) {
 	// seek to ISO index
 	ret = fseek(cdHandle, psisoimg_offs + 0x4000, SEEK_SET);
 	if (ret != 0) {
-		fprintf(stderr, "failed to seek to ISO index\n");
+		SysPrintf("failed to seek to ISO index\n");
 		goto fail_io;
 	}
 
@@ -855,7 +855,7 @@ static int handlepbp(const char *isofile) {
 	for (i = 0; i < compr_img->index_len; i++) {
 		ret = fread(&index_entry, 1, sizeof(index_entry), cdHandle);
 		if (ret != sizeof(index_entry)) {
-			fprintf(stderr, "failed to read index_entry #%d\n", i);
+			SysPrintf("failed to read index_entry #%d\n", i);
 			goto fail_index;
 		}
 
@@ -901,18 +901,18 @@ static int handlecbin(const char *isofile) {
 
 	ret = fread(&ciso_hdr, 1, sizeof(ciso_hdr), cdHandle);
 	if (ret != sizeof(ciso_hdr)) {
-		fprintf(stderr, "failed to read ciso header\n");
+		SysPrintf("failed to read ciso header\n");
 		return -1;
 	}
 
 	if (strncmp(ciso_hdr.magic, "CISO", 4) != 0 || ciso_hdr.total_bytes <= 0 || ciso_hdr.block_size <= 0) {
-		fprintf(stderr, "bad ciso header\n");
+		SysPrintf("bad ciso header\n");
 		return -1;
 	}
 	if (ciso_hdr.header_size != 0 && ciso_hdr.header_size != sizeof(ciso_hdr)) {
 		ret = fseek(cdHandle, ciso_hdr.header_size, SEEK_SET);
 		if (ret != 0) {
-			fprintf(stderr, "failed to seek to %x\n", ciso_hdr.header_size);
+			SysPrintf("failed to seek to %x\n", ciso_hdr.header_size);
 			return -1;
 		}
 	}
@@ -931,7 +931,7 @@ static int handlecbin(const char *isofile) {
 
 	ret = fread(compr_img->index_table, sizeof(compr_img->index_table[0]), compr_img->index_len, cdHandle);
 	if (ret != compr_img->index_len) {
-		fprintf(stderr, "failed to read index table\n");
+		SysPrintf("failed to read index table\n");
 		goto fail_index;
 	}
 
@@ -942,7 +942,7 @@ static int handlecbin(const char *isofile) {
 		compr_img->index_table[i] = (index << ciso_hdr.align) | plain;
 	}
 	if ((long long)index << ciso_hdr.align >= 0x80000000ll)
-		fprintf(stderr, "warning: ciso img too large, expect problems\n");
+		SysPrintf("warning: ciso img too large, expect problems\n");
 
 	return 0;
 
@@ -1064,13 +1064,13 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 	}
 
 	if (sector >= compr_img->index_len * 16) {
-		fprintf(stderr, "sector %d is past img end\n", sector);
+		SysPrintf("sector %d is past img end\n", sector);
 		return -1;
 	}
 
 	start_byte = compr_img->index_table[block] & 0x7fffffff;
 	if (fseek(cdHandle, start_byte, SEEK_SET) != 0) {
-		fprintf(stderr, "seek error for block %d at %x: ",
+		SysPrintf("seek error for block %d at %x: ",
 			block, start_byte);
 		perror(NULL);
 		return -1;
@@ -1079,13 +1079,13 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 	is_compressed = !(compr_img->index_table[block] & 0x80000000);
 	size = (compr_img->index_table[block + 1] & 0x7fffffff) - start_byte;
 	if (size > sizeof(compr_img->buff_compressed)) {
-		fprintf(stderr, "block %d is too large: %u\n", block, size);
+		SysPrintf("block %d is too large: %u\n", block, size);
 		return -1;
 	}
 
 	if (fread(is_compressed ? compr_img->buff_compressed : compr_img->buff_raw[0],
 				1, size, cdHandle) != size) {
-		fprintf(stderr, "read error for block %d at %x: ", block, start_byte);
+		SysPrintf("read error for block %d at %x: ", block, start_byte);
 		perror(NULL);
 		return -1;
 	}
@@ -1095,12 +1095,12 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 		cdbuffer_size = cdbuffer_size_expect;
 		ret = uncompress2(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
 		if (ret != 0) {
-			fprintf(stderr, "uncompress failed with %d for block %d, sector %d\n",
+			SysPrintf("uncompress failed with %d for block %d, sector %d\n",
 					ret, block, sector);
 			return -1;
 		}
 		if (cdbuffer_size != cdbuffer_size_expect)
-			fprintf(stderr, "cdbuffer_size: %lu != %lu, sector %d\n", cdbuffer_size,
+			SysPrintf("cdbuffer_size: %lu != %lu, sector %d\n", cdbuffer_size,
 					cdbuffer_size_expect, sector);
 	}
 

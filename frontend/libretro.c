@@ -236,7 +236,7 @@ bool retro_load_game(const struct retro_game_info *info)
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
 		native_rgb565 = 1;
-		fprintf(stderr, "RGB565 supported, using it\n");
+		SysPrintf("RGB565 supported, using it\n");
 	}
 
 	if (plugins_opened) {
@@ -248,7 +248,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	/* have to reload after set_cd_image for correct cdr plugin */
 	if (LoadPlugins() == -1) {
-		printf("faled to load plugins\n");
+		SysPrintf("failed to load plugins\n");
 		return false;
 	}
 
@@ -256,7 +256,7 @@ bool retro_load_game(const struct retro_game_info *info)
 	NetOpened = 0;
 
 	if (OpenPlugins() == -1) {
-		printf("faled to open plugins\n");
+		SysPrintf("failed to open plugins\n");
 		return false;
 	}
 
@@ -264,14 +264,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	Config.PsxAuto = 1;
 	if (CheckCdrom() == -1) {
-		printf("unsupported/invalid CD image: %s\n", info->path);
+		SysPrintf("unsupported/invalid CD image: %s\n", info->path);
 		return false;
 	}
 
 	SysReset();
 
 	if (LoadCdrom() == -1) {
-		printf("could not load CD-ROM!\n");
+		SysPrintf("could not load CD-ROM!\n");
 		return false;
 	}
 	emu_on_new_cd(0);
@@ -359,7 +359,7 @@ void retro_init(void)
 	ret = emu_core_preinit();
 	ret |= emu_core_init();
 	if (ret != 0) {
-		printf("PCSX init failed, sorry\n");
+		SysPrintf("PCSX init failed.\n");
 		exit(1);
 	}
 
@@ -379,11 +379,11 @@ void retro_init(void)
 		}
 	}
 	if (f != NULL) {
-		printf("found BIOS file: %s\n", Config.Bios);
+		SysPrintf("found BIOS file: %s\n", Config.Bios);
 		fclose(f);
 	}
 	else
-		printf("no BIOS files found.\n");
+		SysPrintf("no BIOS files found.\n");
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
