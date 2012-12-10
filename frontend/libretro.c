@@ -30,13 +30,49 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static void *vout_buf;
 static int samples_sent, samples_to_send;
 static int plugins_opened;
-static int native_rgb565;
+
+/* memory card data */
+extern char Mcd1Data[MCD_SIZE];
+extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate;
 int in_enable_vibration;
+
+static void init_memcard(char *mcd_data)
+{
+	unsigned off = 0;
+	unsigned i;
+
+	memset(mcd_data, 0, MCD_SIZE);
+
+	mcd_data[off++] = 'M';
+	mcd_data[off++] = 'C';
+	off += 0x7d;
+	mcd_data[off++] = 0x0e;
+
+	for (i = 0; i < 15; i++) {
+		mcd_data[off++] = 0xa0;
+		off += 0x07;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x75;
+		mcd_data[off++] = 0xa0;
+	}
+
+	for (i = 0; i < 20; i++) {
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x04;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x76;
+	}
+}
 
 static int vout_open(void)
 {
@@ -47,6 +83,7 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 }
 
+#ifndef FRONTEND_SUPPORTS_RGB565
 static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
@@ -56,6 +93,11 @@ static void convert(void *buf, size_t bytes)
 		p[i] = (v & 0x001f001f) | ((v >> 1) & 0x7fe07fe0);
 	}
 }
+#endif
+
+static unsigned game_width;
+static unsigned game_height;
+static unsigned game_fb_dirty;
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
@@ -86,9 +128,12 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out:
-	if (!native_rgb565)
-		convert(vout_buf, w * h * 2);
-	video_cb(vout_buf, w, h, w * 2);
+#ifndef FRONTEND_SUPPORTS_RGB565
+	convert(vout_buf, w * h * 2);
+#endif
+	game_width = w;
+	game_height = h;
+	game_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
 }
 
@@ -233,11 +278,12 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
+#ifdef FRONTEND_SUPPORTS_RGB565
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
-		native_rgb565 = 1;
 		SysPrintf("RGB565 supported, using it\n");
 	}
+#endif
 
 	if (plugins_opened) {
 		ClosePlugins();
@@ -295,12 +341,12 @@ unsigned retro_get_region(void)
 
 void *retro_get_memory_data(unsigned id)
 {
-	return NULL;
+	return Mcd1Data;
 }
 
 size_t retro_get_memory_size(unsigned id)
 {
-	return 0;
+	return MCD_SIZE;
 }
 
 void retro_reset(void)
@@ -346,6 +392,9 @@ void retro_run(void)
 	psxCpu->Execute();
 
 	samples_to_send += 44100 / 60;
+
+	video_cb(game_fb_dirty ? vout_buf : NULL, game_width, game_height, game_width * 2);
+	game_fb_dirty = 0;
 }
 
 void retro_init(void)
@@ -387,6 +436,10 @@ void retro_init(void)
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+
+	McdDisable[0] = 0;
+	McdDisable[1] = 1;
+	init_memcard(Mcd1Data);
 }
 
 void retro_deinit(void)
@@ -395,4 +448,3 @@ void retro_deinit(void)
 	free(vout_buf);
 	vout_buf = NULL;
 }
-

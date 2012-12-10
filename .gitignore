@@ -10,3 +10,4 @@ config.log
 frontend/revision.h
 tools
 .pcsx/
+obj/
