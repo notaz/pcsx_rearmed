@@ -437,6 +437,15 @@ void retro_init(void)
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 
+	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
+	 * we have to do this because cache misses and some IO penalties
+	 * are not emulated. Warning: changing this may break compatibility. */
+#ifdef __ARM_ARCH_7A__
+	cycle_multiplier = 175;
+#else
+	cycle_multiplier = 200;
+#endif
+
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
 	init_memcard(Mcd1Data);
