@@ -83,7 +83,7 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 }
 
-#ifdef FRONTEND_SUPPORTS_RGB565
+#ifndef FRONTEND_SUPPORTS_RGB565
 static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
@@ -129,12 +129,12 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-   convert(vout_buf, w * h * 2);
+	convert(vout_buf, w * h * 2);
 #endif
-   game_width = w;
-   game_height = h;
-   game_fb_dirty = 1;
-   pl_rearmed_cbs.flip_cnt++;
+	game_width = w;
+	game_height = h;
+	game_fb_dirty = 1;
+	pl_rearmed_cbs.flip_cnt++;
 }
 
 static void vout_close(void)
