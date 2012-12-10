@@ -97,6 +97,7 @@ static void convert(void *buf, size_t bytes)
 
 static unsigned game_width;
 static unsigned game_height;
+static unsigned game_fb_dirty;
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
@@ -132,7 +133,8 @@ out:
 #endif
    game_width = w;
    game_height = h;
-	pl_rearmed_cbs.flip_cnt++;
+   game_fb_dirty = 1;
+   pl_rearmed_cbs.flip_cnt++;
 }
 
 static void vout_close(void)
@@ -390,7 +392,9 @@ void retro_run(void)
 	psxCpu->Execute();
 
 	samples_to_send += 44100 / 60;
-	video_cb(vout_buf, game_width, game_height, game_width * 2);
+
+	video_cb(game_fb_dirty ? vout_buf : NULL, game_width, game_height, game_width * 2);
+	game_fb_dirty = 0;
 }
 
 void retro_init(void)
