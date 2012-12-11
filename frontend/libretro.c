@@ -28,6 +28,9 @@ static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
 static void *vout_buf;
+static int vout_width, vout_height;
+static int vout_doffs_old, vout_fb_dirty;
+
 static int samples_sent, samples_to_send;
 static int plugins_opened;
 
@@ -81,9 +84,11 @@ static int vout_open(void)
 
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
+	vout_width = w;
+	vout_height = h;
 }
 
-#ifdef FRONTEND_SUPPORTS_RGB565
+#ifndef FRONTEND_SUPPORTS_RGB565
 static void convert(void *buf, size_t bytes)
 {
 	unsigned int i, v, *p = buf;
@@ -95,20 +100,27 @@ static void convert(void *buf, size_t bytes)
 }
 #endif
 
-static unsigned game_width;
-static unsigned game_height;
-
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
 	unsigned short *dest = vout_buf;
 	const unsigned short *src = vram;
-	int dstride = w, h1 = h;
+	int dstride = vout_width, h1 = h;
+	int doffs;
 
 	if (vram == NULL) {
 		// blanking
 		memset(vout_buf, 0, dstride * h * 2);
 		goto out;
 	}
+
+	doffs = (vout_height - h) * dstride;
+	doffs += (dstride - w) / 2 & ~1;
+	if (doffs != vout_doffs_old) {
+		// clear borders
+		memset(vout_buf, 0, dstride * h * 2);
+		vout_doffs_old = doffs;
+	}
+	dest += doffs;
 
 	if (bgr24)
 	{
@@ -128,10 +140,9 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-   convert(vout_buf, w * h * 2);
+	convert(vout_buf, vout_width * vout_height * 2);
 #endif
-   game_width = w;
-   game_height = h;
+	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
 }
 
@@ -279,7 +290,7 @@ bool retro_load_game(const struct retro_game_info *info)
 #ifdef FRONTEND_SUPPORTS_RGB565
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
-		fprintf(stderr, "RGB565 supported, using it\n");
+		SysPrintf("RGB565 supported, using it\n");
 	}
 #endif
 
@@ -292,7 +303,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	/* have to reload after set_cd_image for correct cdr plugin */
 	if (LoadPlugins() == -1) {
-		printf("faled to load plugins\n");
+		SysPrintf("failed to load plugins\n");
 		return false;
 	}
 
@@ -300,7 +311,7 @@ bool retro_load_game(const struct retro_game_info *info)
 	NetOpened = 0;
 
 	if (OpenPlugins() == -1) {
-		printf("faled to open plugins\n");
+		SysPrintf("failed to open plugins\n");
 		return false;
 	}
 
@@ -308,14 +319,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	Config.PsxAuto = 1;
 	if (CheckCdrom() == -1) {
-		printf("unsupported/invalid CD image: %s\n", info->path);
+		SysPrintf("unsupported/invalid CD image: %s\n", info->path);
 		return false;
 	}
 
 	SysReset();
 
 	if (LoadCdrom() == -1) {
-		printf("could not load CD-ROM!\n");
+		SysPrintf("could not load CD-ROM!\n");
 		return false;
 	}
 	emu_on_new_cd(0);
@@ -390,7 +401,9 @@ void retro_run(void)
 	psxCpu->Execute();
 
 	samples_to_send += 44100 / 60;
-	video_cb(vout_buf, game_width, game_height, game_width * 2);
+
+	video_cb(vout_fb_dirty ? vout_buf : NULL, vout_width, vout_height, vout_width * 2);
+	vout_fb_dirty = 0;
 }
 
 void retro_init(void)
@@ -404,7 +417,7 @@ void retro_init(void)
 	ret = emu_core_preinit();
 	ret |= emu_core_init();
 	if (ret != 0) {
-		printf("PCSX init failed, sorry\n");
+		SysPrintf("PCSX init failed.\n");
 		exit(1);
 	}
 
@@ -424,14 +437,23 @@ void retro_init(void)
 		}
 	}
 	if (f != NULL) {
-		printf("found BIOS file: %s\n", Config.Bios);
+		SysPrintf("found BIOS file: %s\n", Config.Bios);
 		fclose(f);
 	}
 	else
-		printf("no BIOS files found.\n");
+		SysPrintf("no BIOS files found.\n");
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+
+	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
+	 * we have to do this because cache misses and some IO penalties
+	 * are not emulated. Warning: changing this may break compatibility. */
+#ifdef __ARM_ARCH_7A__
+	cycle_multiplier = 175;
+#else
+	cycle_multiplier = 200;
+#endif
 
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;

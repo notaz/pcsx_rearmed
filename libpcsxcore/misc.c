@@ -506,7 +506,8 @@ int Load(const char *ExePath) {
 				retval = -1;
 				break;
 			case INVALID_EXE:
-				SysPrintf(_("This file does not appear to be a valid PSX file.\n"));
+				SysPrintf(_("This file does not appear to be a valid PSX EXE file.\n"));
+				SysPrintf(_("(did you forget -cdfile ?)\n"));
 				retval = -1;
 				break;
 		}

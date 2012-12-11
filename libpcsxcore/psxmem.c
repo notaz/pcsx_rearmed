@@ -55,7 +55,7 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 	if (ret == MAP_FAILED)
 		return NULL;
 
-	if (ret != req)
+	if (req != NULL && ret != req)
 		SysMessage("psxMap: warning: wanted to map @%p, got %p\n",
 			req, ret);
 

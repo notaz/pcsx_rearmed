@@ -187,7 +187,7 @@ static void check_memcards(void)
 
 		f = fopen(buf, "rb");
 		if (f == NULL) {
-			printf("Creating memcard: %s\n", buf);
+			SysPrintf("Creating memcard: %s\n", buf);
 			CreateMcd(buf);
 		}
 		else
@@ -228,7 +228,7 @@ do_state_slot:
 		snprintf(hud_msg, sizeof(hud_msg), "STATE SLOT %d [%s]", state_slot,
 			emu_check_state(state_slot) == 0 ? "USED" : "FREE");
 		hud_new_msg = 3;
-		printf("* %s\n", hud_msg);
+		SysPrintf("* %s\n", hud_msg);
 		break;
 	case SACTION_TOGGLE_FSKIP:
 		pl_rearmed_cbs.fskip_advice = 0;
@@ -301,7 +301,7 @@ do_state_slot:
 		if (GPU_open != NULL) {
 			ret = GPU_open(&gpuDisp, "PCSX", NULL);
 			if (ret)
-				fprintf(stderr, "GPU_open returned %d\n", ret);
+				SysMessage("GPU_open returned %d", ret);
 		}
 		return;
 #endif
@@ -348,7 +348,7 @@ static void parse_cwcheat(void)
 	if (feof(f))
 		goto out;
 
-	printf("cwcheat section found for %s\n", CdromId);
+	SysPrintf("cwcheat section found for %s\n", CdromId);
 	while (fgets(line, sizeof(line), f))
 	{
 		p = line + strlen(line);
@@ -360,12 +360,12 @@ static void parse_cwcheat(void)
 		if (strncmp(line, "_S", 2) == 0)
 			break;
 		if (strncmp(line, "_G", 2) == 0) {
-			printf("  cwcheat game name: '%s'\n", line + 3);
+			SysPrintf("  cwcheat game name: '%s'\n", line + 3);
 			continue;
 		}
 		if (strncmp(line, "_C0", 3) == 0) {
 			if (!newcheat && Cheats[NumCheats - 1].n == 0) {
-				printf("cheat '%s' failed to parse\n", name);
+				SysPrintf("cheat '%s' failed to parse\n", name);
 				free(Cheats[NumCheats - 1].Descr);
 				NumCheats--;
 			}
@@ -374,7 +374,7 @@ static void parse_cwcheat(void)
 			continue;
 		}
 		if (sscanf(line, "_L %x %x", &a, &v) != 2) {
-			printf("line failed to parse: '%s'\n", line);
+			SysPrintf("line failed to parse: '%s'\n", line);
 			continue;
 		}
 
@@ -418,8 +418,8 @@ void emu_on_new_cd(int show_hud_msg)
 	parse_cwcheat();
 
 	if (Config.HLE) {
-		printf("note: running with HLE BIOS, expect compatibility problems\n");
-		printf("----------------------------------------------------------\n");
+		SysPrintf("note: running with HLE BIOS, expect compatibility problems\n");
+		SysPrintf("----------------------------------------------------------\n");
 	}
 
 	if (show_hud_msg) {
@@ -452,7 +452,7 @@ int emu_core_init(void)
 	check_memcards();
 
 	if (EmuInit() == -1) {
-		printf("PSX emulator couldn't be initialized.\n");
+		SysPrintf("PSX emulator couldn't be initialized.\n");
 		return -1;
 	}
 
@@ -485,7 +485,7 @@ int main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-cfg")) {
 			if (i+1 >= argc) break;
 			strncpy(cfgfile_basename, argv[++i], MAXPATHLEN-100);	/* TODO buffer overruns */
-			printf("Using config file %s.\n", cfgfile_basename);
+			SysPrintf("Using config file %s.\n", cfgfile_basename);
 		}
 		else if (!strcmp(argv[i], "-cdfile")) {
 			char isofilename[MAXPATHLEN];
@@ -578,7 +578,7 @@ int main(int argc, char *argv[])
 		if (cdfile) {
 			if (LoadCdrom() == -1) {
 				ClosePlugins();
-				printf(_("Could not load CD-ROM!\n"));
+				SysPrintf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
 			emu_on_new_cd(!loadst);
@@ -588,7 +588,8 @@ int main(int argc, char *argv[])
 
 	if (loadst_f) {
 		int ret = LoadState(loadst_f);
-		printf("%s state file: %s\n", ret ? "failed to load" : "loaded", loadst_f);
+		SysPrintf("%s state file: %s\n",
+			ret ? "failed to load" : "loaded", loadst_f);
 		ready_to_go |= ret == 0;
 	}
 
@@ -598,7 +599,8 @@ int main(int argc, char *argv[])
 		// If a state has been specified, then load that
 		if (loadst) {
 			int ret = emu_load_state(loadst - 1);
-			printf("%s state %d\n", ret ? "failed to load" : "loaded", loadst);
+			SysPrintf("%s state %d\n",
+				ret ? "failed to load" : "loaded", loadst);
 		}
 	}
 	else
@@ -732,7 +734,8 @@ int emu_save_state(int slot)
 #ifndef __ARM_ARCH_7A__ /* XXX */
 	sync();
 #endif
-	printf("* %s \"%s\" [%d]\n", ret == 0 ? "saved" : "failed to save", fname, slot);
+	SysPrintf("* %s \"%s\" [%d]\n",
+		ret == 0 ? "saved" : "failed to save", fname, slot);
 	return ret;
 }
 
@@ -752,13 +755,10 @@ int emu_load_state(int slot)
 
 void SysPrintf(const char *fmt, ...) {
 	va_list list;
-	char msg[512];
 
 	va_start(list, fmt);
-	vsprintf(msg, fmt, list);
+	vfprintf(emuLog, fmt, list);
 	va_end(list);
-
-	fprintf(emuLog, "%s", msg);
 }
 
 void SysMessage(const char *fmt, ...) {
@@ -766,13 +766,13 @@ void SysMessage(const char *fmt, ...) {
         char msg[512];
 
         va_start(list, fmt);
-        vsprintf(msg, fmt, list);
+        vsnprintf(msg, sizeof(msg), fmt, list);
         va_end(list);
 
         if (msg[strlen(msg) - 1] == '\n')
                 msg[strlen(msg) - 1] = 0;
 
-	fprintf(stderr, "%s\n", msg);
+	SysPrintf("%s\n", msg);
 }
 
 static void SignalExit(int sig) {
@@ -917,7 +917,7 @@ void *SysLoadLibrary(const char *lib) {
 	void *ret;
 	int i;
 
-	printf("plugin: %s\n", lib);
+	SysPrintf("plugin: %s\n", lib);
 
 	if (tmp != NULL) {
 		tmp++;
@@ -928,7 +928,7 @@ void *SysLoadLibrary(const char *lib) {
 
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
-		fprintf(stderr, "dlopen: %s\n", dlerror());
+		SysMessage("dlopen: %s", dlerror());
 	return ret;
 }
 

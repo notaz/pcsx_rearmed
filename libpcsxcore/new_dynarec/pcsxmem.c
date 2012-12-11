@@ -34,7 +34,7 @@ static void map_item(u32 *out, const void *h, u32 flag)
 {
 	u32 hv = (u32)h;
 	if (hv & 1) {
-		fprintf(stderr, "FATAL: %p has LSB set\n", h);
+		SysPrintf("FATAL: %p has LSB set\n", h);
 		abort();
 	}
 	*out = (hv >> 1) | (flag << 31);
@@ -303,7 +303,7 @@ void new_dyna_pcsx_mem_init(void)
 	// have to map these further to keep tcache close to .text
 	mem_readtab = psxMap(0x08000000, 0x200000 * 4, 0, MAP_TAG_LUTS);
 	if (mem_readtab == NULL) {
-		fprintf(stderr, "failed to map mem tables\n");
+		SysPrintf("failed to map mem tables\n");
 		exit(1);
 	}
 	mem_writetab = mem_readtab + 0x100000;
