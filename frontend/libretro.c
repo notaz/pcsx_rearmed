@@ -28,6 +28,9 @@ static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
 static void *vout_buf;
+static int vout_width, vout_height;
+static int vout_doffs_old, vout_fb_dirty;
+
 static int samples_sent, samples_to_send;
 static int plugins_opened;
 
@@ -81,6 +84,8 @@ static int vout_open(void)
 
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
+	vout_width = w;
+	vout_height = h;
 }
 
 #ifndef FRONTEND_SUPPORTS_RGB565
@@ -95,21 +100,27 @@ static void convert(void *buf, size_t bytes)
 }
 #endif
 
-static unsigned game_width;
-static unsigned game_height;
-static unsigned game_fb_dirty;
-
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
 	unsigned short *dest = vout_buf;
 	const unsigned short *src = vram;
-	int dstride = w, h1 = h;
+	int dstride = vout_width, h1 = h;
+	int doffs;
 
 	if (vram == NULL) {
 		// blanking
 		memset(vout_buf, 0, dstride * h * 2);
 		goto out;
 	}
+
+	doffs = (vout_height - h) * dstride;
+	doffs += (dstride - w) / 2 & ~1;
+	if (doffs != vout_doffs_old) {
+		// clear borders
+		memset(vout_buf, 0, dstride * h * 2);
+		vout_doffs_old = doffs;
+	}
+	dest += doffs;
 
 	if (bgr24)
 	{
@@ -129,11 +140,9 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-	convert(vout_buf, w * h * 2);
+	convert(vout_buf, vout_width * vout_height * 2);
 #endif
-	game_width = w;
-	game_height = h;
-	game_fb_dirty = 1;
+	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
 }
 
@@ -393,8 +402,8 @@ void retro_run(void)
 
 	samples_to_send += 44100 / 60;
 
-	video_cb(game_fb_dirty ? vout_buf : NULL, game_width, game_height, game_width * 2);
-	game_fb_dirty = 0;
+	video_cb(vout_fb_dirty ? vout_buf : NULL, vout_width, vout_height, vout_width * 2);
+	vout_fb_dirty = 0;
 }
 
 void retro_init(void)
