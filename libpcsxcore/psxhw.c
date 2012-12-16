@@ -764,6 +764,6 @@ void psxHwWrite32(u32 add, u32 value) {
 #endif
 }
 
-int psxHwFreeze(gzFile f, int Mode) {
+int psxHwFreeze(void *f, int Mode) {
 	return 0;
 }

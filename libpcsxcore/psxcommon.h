@@ -42,7 +42,6 @@ extern "C" {
 #include <ctype.h>
 #include <sys/types.h>
 #include <assert.h>
-#include <zlib.h>
 
 // Define types
 typedef int8_t s8;
@@ -137,9 +136,18 @@ typedef struct {
 extern PcsxConfig Config;
 extern boolean NetOpened;
 
+struct PcsxSaveFuncs {
+	void *(*open)(const char *name, const char *mode);
+	int   (*read)(void *file, void *buf, u32 len);
+	int   (*write)(void *file, const void *buf, u32 len);
+	long  (*seek)(void *file, long offs, int whence);
+	void  (*close)(void *file);
+};
+extern struct PcsxSaveFuncs SaveFuncs;
+
 #define gzfreeze(ptr, size) { \
-	if (Mode == 1) gzwrite(f, ptr, size); \
-	if (Mode == 0) gzread(f, ptr, size); \
+	if (Mode == 1) SaveFuncs.write(f, ptr, size); \
+	if (Mode == 0) SaveFuncs.read(f, ptr, size); \
 }
 
 // Make the timing events trigger faster as we are currently assuming everything

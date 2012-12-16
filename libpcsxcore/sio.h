@@ -50,7 +50,7 @@ unsigned short sioReadBaud16();
 void netError();
 
 void sioInterrupt();
-int sioFreeze(gzFile f, int Mode);
+int sioFreeze(void *f, int Mode);
 
 void LoadMcd(int mcd, char *str);
 void LoadMcds(char *mcd1, char *mcd2);

@@ -26,6 +26,7 @@
 #include "psxbios.h"
 #include "psxhw.h"
 #include "gpu.h"
+#include <zlib.h>
 
 #undef SysPrintf
 #define SysPrintf if (Config.PsxOut) printf

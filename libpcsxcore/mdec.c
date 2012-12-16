@@ -671,7 +671,7 @@ void mdec1Interrupt() {
 	}
 }
 
-int mdecFreeze(gzFile f, int Mode) {
+int mdecFreeze(void *f, int Mode) {
 	u8 *base = (u8 *)&psxM[0x100000];
 	u32 v;
 

@@ -2072,7 +2072,7 @@ void cdrReset() {
 	cdr.AttenuatorRight[1] = 0x00;
 }
 
-int cdrFreeze(gzFile f, int Mode) {
+int cdrFreeze(void *f, int Mode) {
 	u32 tmp;
 
 	if( Mode == 0 ) {
