@@ -30,6 +30,7 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static void *vout_buf;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
+static bool vout_can_dupe;
 
 static int samples_sent, samples_to_send;
 static int plugins_opened;
@@ -402,7 +403,8 @@ void retro_run(void)
 
 	samples_to_send += 44100 / 60;
 
-	video_cb(vout_fb_dirty ? vout_buf : NULL, vout_width, vout_height, vout_width * 2);
+	video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf : NULL,
+		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
 
@@ -445,6 +447,8 @@ void retro_init(void)
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+
+	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
