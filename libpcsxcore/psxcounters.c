@@ -501,7 +501,7 @@ void psxRcntInit()
 
 /******************************************************************************/
 
-s32 psxRcntFreeze( gzFile f, s32 Mode )
+s32 psxRcntFreeze( void *f, s32 Mode )
 {
     u32 count;
     s32 i;

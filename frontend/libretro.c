@@ -13,6 +13,7 @@
 #include "../libpcsxcore/psxcounters.h"
 #include "../libpcsxcore/psxmem_map.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/gpulib/cspace.h"
 #include "main.h"
@@ -30,6 +31,7 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static void *vout_buf;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
+static bool vout_can_dupe;
 
 static int samples_sent, samples_to_send;
 static int plugins_opened;
@@ -261,28 +263,127 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->geometry.aspect_ratio = 4.0 / 3.0;
 }
 
-/* TODO */
+/* savestates */
 size_t retro_serialize_size(void) 
 { 
-	return 0;
+	// it's currently 4380651 bytes, but have some reserved for future
+	return 0x430000;
+}
+
+struct save_fp {
+	char *buf;
+	size_t pos;
+	int is_write;
+};
+
+static void *save_open(const char *name, const char *mode)
+{
+	struct save_fp *fp;
+
+	if (name == NULL || mode == NULL)
+		return NULL;
+
+	fp = malloc(sizeof(*fp));
+	if (fp == NULL)
+		return NULL;
+
+	fp->buf = (char *)name;
+	fp->pos = 0;
+	fp->is_write = (mode[0] == 'w' || mode[1] == 'w');
+
+	return fp;
+}
+
+static int save_read(void *file, void *buf, u32 len)
+{
+	struct save_fp *fp = file;
+	if (fp == NULL || buf == NULL)
+		return -1;
+
+	memcpy(buf, fp->buf + fp->pos, len);
+	fp->pos += len;
+	return len;
+}
+
+static int save_write(void *file, const void *buf, u32 len)
+{
+	struct save_fp *fp = file;
+	if (fp == NULL || buf == NULL)
+		return -1;
+
+	memcpy(fp->buf + fp->pos, buf, len);
+	fp->pos += len;
+	return len;
+}
+
+static long save_seek(void *file, long offs, int whence)
+{
+	struct save_fp *fp = file;
+	if (fp == NULL)
+		return -1;
+
+	switch (whence) {
+	case SEEK_CUR:
+		fp->pos += offs;
+		return fp->pos;
+	case SEEK_SET:
+		fp->pos = offs;
+		return fp->pos;
+	default:
+		return -1;
+	}
+}
+
+static void save_close(void *file)
+{
+	struct save_fp *fp = file;
+	size_t r_size = retro_serialize_size();
+	if (fp == NULL)
+		return;
+
+	if (fp->pos > r_size)
+		SysPrintf("ERROR: save buffer overflow detected\n");
+	else if (fp->is_write && fp->pos < r_size)
+		// make sure we don't save trash in leftover space
+		memset(fp->buf + fp->pos, 0, r_size - fp->pos);
+	free(fp);
 }
 
 bool retro_serialize(void *data, size_t size)
 { 
-	return false;
+	int ret = SaveState(data);
+	return ret == 0 ? true : false;
 }
 
 bool retro_unserialize(const void *data, size_t size)
 {
-	return false;
+	int ret = LoadState(data);
+	return ret == 0 ? true : false;
 }
 
 void retro_cheat_reset(void)
 {
+	ClearAllCheats();
 }
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
+	char buf[256];
+	int ret;
+
+	// cheat funcs are destructive, need a copy..
+	strncpy(buf, code, sizeof(buf));
+	buf[sizeof(buf) - 1] = 0;
+
+	if (index < NumCheats)
+		ret = EditCheat(index, "", buf);
+	else
+		ret = AddCheat("", buf);
+
+	if (ret != 0)
+		SysPrintf("Failed to set cheat %#u\n", index);
+	else if (index < NumCheats)
+		Cheats[index].Enabled = enabled;
 }
 
 bool retro_load_game(const struct retro_game_info *info)
@@ -402,7 +503,8 @@ void retro_run(void)
 
 	samples_to_send += 44100 / 60;
 
-	video_cb(vout_fb_dirty ? vout_buf : NULL, vout_width, vout_height, vout_width * 2);
+	video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf : NULL,
+		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
 
@@ -446,6 +548,8 @@ void retro_init(void)
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 
+	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
+
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
 	 * are not emulated. Warning: changing this may break compatibility. */
@@ -458,6 +562,12 @@ void retro_init(void)
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
 	init_memcard(Mcd1Data);
+
+	SaveFuncs.open = save_open;
+	SaveFuncs.read = save_read;
+	SaveFuncs.write = save_write;
+	SaveFuncs.seek = save_seek;
+	SaveFuncs.close = save_close;
 }
 
 void retro_deinit(void)

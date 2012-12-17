@@ -7,12 +7,12 @@ include ../../config.mak
 SRC_STANDALONE += gpu.c
 SRC_GPULIB += gpulib_if.c
 
-ifeq "$(ARCH)" "arm"
+#ifeq "$(ARCH)" "arm"
 SRC_STANDALONE += draw_pl.c
-else
-SRC_STANDALONE += draw.c
-LDLIBS_STANDALONE += -lX11 -lXv -lXext
-endif
+#else
+#SRC_STANDALONE += draw.c
+#LDLIBS_STANDALONE += -lX11 -lXv -lXext
+#endif
 
 BIN_STANDLALONE = gpuPEOPS.so
 BIN_GPULIB = gpu_peops.so

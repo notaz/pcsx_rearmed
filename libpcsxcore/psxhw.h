@@ -80,7 +80,7 @@ u32 psxHwRead32(u32 add);
 void psxHwWrite8(u32 add, u8  value);
 void psxHwWrite16(u32 add, u16 value);
 void psxHwWrite32(u32 add, u32 value);
-int psxHwFreeze(gzFile f, int Mode);
+int psxHwFreeze(void *f, int Mode);
 
 #ifdef __cplusplus
 }
