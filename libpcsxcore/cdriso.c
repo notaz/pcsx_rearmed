@@ -30,6 +30,7 @@
 #else
 #include <pthread.h>
 #include <sys/time.h>
+#include <unistd.h>
 #endif
 #include <zlib.h>
 
