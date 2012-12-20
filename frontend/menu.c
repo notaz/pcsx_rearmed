@@ -79,7 +79,7 @@ typedef enum
 	MA_OPT_HWFILTER,
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
-	MA_OPT_VIDOVERLAY,
+	MA_OPT_VOUT_MODE,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -91,8 +91,7 @@ static int psx_clock;
 static int memcard1_sel, memcard2_sel;
 int g_opts, g_scaler, g_gamma = 100;
 int soft_scaling, analog_deadzone; // for Caanoo
-int g_use_overlay, g_fullscreen;
-int filter, soft_filter;
+int soft_filter;
 
 #ifdef __ARM_ARCH_7A__
 #define DEFAULT_PSX_CLOCK 57
@@ -117,7 +116,7 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #ifndef UI_FEATURES_H
 #define MENU_BIOS_PATH "bios/"
 #define MENU_SHOW_VARSCALER 0
-#define MENU_SHOW_VIDOVERLAY 1
+#define MENU_SHOW_VOUTMODE 1
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 0
 #define MENU_SHOW_VIBRATION 0
@@ -231,8 +230,7 @@ static void menu_set_defconfig(void)
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
-	g_use_overlay = 1;
-	g_fullscreen = 0;
+	plat_target.vout_fullscreen = 0;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -296,10 +294,10 @@ static const struct {
 	CE_INTVAL(g_layer_y),
 	CE_INTVAL(g_layer_w),
 	CE_INTVAL(g_layer_h),
-	CE_INTVAL(filter),
 	CE_INTVAL(soft_filter),
-	CE_INTVAL(g_use_overlay),
-	CE_INTVAL(g_fullscreen),
+	CE_INTVAL(plat_target.vout_method),
+	CE_INTVAL(plat_target.hwfilter),
+	CE_INTVAL(plat_target.vout_fullscreen),
 	CE_INTVAL(state_slot),
 	CE_INTVAL(cpu_clock),
 	CE_INTVAL(g_opts),
@@ -1144,9 +1142,9 @@ static int menu_loop_cscaler(int id, int keys)
 static menu_entry e_menu_gfx_options[] =
 {
 	mee_enum      ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler),
-	mee_onoff_h   ("Use video overlay",        MA_OPT_VIDOVERLAY, g_use_overlay, 1, h_overlay),
+	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
-	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, filter, men_dummy),
+	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
@@ -2312,6 +2310,11 @@ void menu_init(void)
 		&& plat_target.cpu_clock_get != NULL && cpu_clock_st > 0;
 	me_enable(e_menu_gfx_options, MA_OPT_CPU_CLOCKS, i);
 
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_MODE);
+	e_menu_gfx_options[i].data = plat_target.vout_methods;
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
+		plat_target.vout_methods != NULL);
+
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
 	e_menu_gfx_options[i].data = plat_target.hwfilters;
 	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
@@ -2324,7 +2327,7 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
-	me_enable(e_menu_gfx_options, MA_OPT_VIDOVERLAY, MENU_SHOW_VIDOVERLAY);
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE, MENU_SHOW_VOUTMODE);
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);

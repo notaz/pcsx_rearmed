@@ -262,7 +262,7 @@ do_state_slot:
 			g_opts |= OPT_SHOWFPS;
 		break;
 	case SACTION_TOGGLE_FULLSCREEN:
-		g_fullscreen = !g_fullscreen;
+		plat_target.vout_fullscreen = !plat_target.vout_fullscreen;
 		if (GPU_open != NULL && GPU_close != NULL) {
 			GPU_close();
 			GPU_open(&gpuDisp, "PCSX", NULL);

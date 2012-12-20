@@ -4,7 +4,7 @@
 #define MENU_BIOS_PATH "<SD card>/pandora/appdata/pcsx_rearmed/bios/"
 #define BOOT_MSG "Booting up...  (press SPACE for menu)"
 #define MENU_SHOW_VARSCALER 1
-#define MENU_SHOW_VIDOVERLAY 0
+#define MENU_SHOW_VOUTMODE 0
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 1
 #define MENU_SHOW_VIBRATION 0

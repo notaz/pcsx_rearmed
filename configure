@@ -46,10 +46,13 @@ have_armv6=""
 have_armv7=""
 have_arm_neon=""
 have_tslib=""
+have_gles=""
 enable_dynarec="yes"
 need_sdl="no"
 need_libpicofe="yes"
 need_warm="no"
+CFLAGS_GLES=""
+LDLIBS_GLES=""
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_arm926ej="no"
@@ -362,19 +365,31 @@ EOF
   fi
 fi
 
+# check for VideoCore stuff for Raspberry Pi
+if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
+  CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads"
+  LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
+fi
+
 # check for GLES headers
 cat > $TMPC <<EOF
 #include <GLES/gl.h>
-#include <GLES/glext.h>
 #include <EGL/egl.h>
-void *test(void) {
-  return eglGetDisplay( (EGLNativeDisplayType)0 );
+int main(void) {
+  return (int)eglGetDisplay( (EGLNativeDisplayType)0 );
 }
 EOF
-if compile_object; then
-  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+if compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
+  have_gles="yes"
+  LDLIBS_GLES="-lEGL -lGLES_CM $LDLIBS_GLES"
+elif compile_binary $CFLAGS_GLES -lEGL -lGLESv1_CM $LDLIBS_GLES; then
+  have_gles="yes"
+  LDLIBS_GLES="-lEGL -lGLESv1_CM $LDLIBS_GLES"
 fi
 
+if [ "$have_gles" = "yes" ]; then
+  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+fi
 if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
   plugins="$plugins plugins/gpu_neon/gpu_neon.so"
 fi
@@ -440,6 +455,11 @@ if [ "$have_arm_neon" = "yes" ]; then
 fi
 if [ "$have_tslib" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak
+fi
+if [ "$have_gles" = "yes" ]; then
+  echo "HAVE_GLES = 1" >> $config_mak
+  echo "CFLAGS_GLES = $CFLAGS_GLES" >> $config_mak
+  echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
 if [ "$enable_dynarec" = "yes" ]; then
   echo "USE_DYNAREC = 1" >> $config_mak
