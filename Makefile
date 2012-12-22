@@ -138,9 +138,10 @@ OBJS += frontend/libpicofe/plat_dummy.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_sdl.o
 ifeq "$(HAVE_GLES)" "1"
-OBJS += frontend/libpicofe/gl.o
+OBJS += frontend/libpicofe/gl.o frontend/libpicofe/gl_platform.o
 LDLIBS += $(LDLIBS_GLES)
 frontend/libpicofe/plat_sdl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
+frontend/libpicofe/gl_platform.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
 frontend/libpicofe/gl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
 frontend/plat_sdl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
 endif

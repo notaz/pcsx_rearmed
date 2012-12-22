@@ -69,7 +69,7 @@ static int change_video_mode(void)
     h = psx_h;
   }
 
-  return plat_sdl_change_video_mode(w, h);
+  return plat_sdl_change_video_mode(w, h, 0);
 }
 
 void plat_init(void)
