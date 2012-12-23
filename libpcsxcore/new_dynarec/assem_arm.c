@@ -4531,8 +4531,8 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     int lm = (source[i] >> 10) & 1;
     switch(c2op) {
 #ifndef DRC_DBG
-#ifdef HAVE_ARMV5
       case GTE_MVMVA: {
+#ifdef HAVE_ARMV5
         int v  = (source[i] >> 15) & 3;
         int cv = (source[i] >> 13) & 3;
         int mx = (source[i] >> 17) & 3;
@@ -4572,9 +4572,14 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         if(need_flags||need_ir)
           c2op_call_MACtoIR(lm,need_flags);
 #endif
+#else /* if not HAVE_ARMV5 */
+        c2op_prologue(c2op,reglist);
+        emit_movimm(source[i],1); // opcode
+        emit_writeword(1,(int)&psxRegs.code);
+        emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
+#endif
         break;
       }
-#endif /* HAVE_ARMV5 */
       case GTE_OP:
         c2op_prologue(c2op,reglist);
         emit_call((int)(shift?gteOP_part_shift:gteOP_part_noshift));
@@ -5312,7 +5317,7 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_negmi(remainder,remainder); // .. remainder for div0 case (will be negated back after jump)
         emit_movs(d2,HOST_TEMPREG);
         emit_jeq((int)out+52); // Division by zero
-        emit_negmi(HOST_TEMPREG,HOST_TEMPREG);
+        emit_negsmi(HOST_TEMPREG,HOST_TEMPREG);
 #ifdef HAVE_ARMV5
         emit_clz(HOST_TEMPREG,quotient);
         emit_shl(HOST_TEMPREG,quotient,HOST_TEMPREG);
@@ -5354,8 +5359,8 @@ void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_shl(d2,HOST_TEMPREG,d2);
 #else
         emit_movimm(0,HOST_TEMPREG);
-        emit_addpl_imm(d2,1,d2);
-        emit_lslpls_imm(HOST_TEMPREG,1,HOST_TEMPREG);
+        emit_addpl_imm(HOST_TEMPREG,1,HOST_TEMPREG);
+        emit_lslpls_imm(d2,1,d2);
         emit_jns((int)out-2*4);
         emit_movimm(1<<31,quotient);
 #endif
