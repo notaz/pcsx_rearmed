@@ -36,7 +36,7 @@ platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
 builtin_gpu_list="peops unai neon"
 builtin_gpu=""
-sound_driver_list="oss alsa sdl pulseaudio libretro"
+sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
@@ -308,6 +308,15 @@ EOF
   compile_binary "$@"
 }
 
+check_pulseaudio()
+{
+  cat > $TMPC <<EOF
+  #include <pulse/pulseaudio.h>
+  void main() { pa_threaded_mainloop_new(); }
+EOF
+  compile_binary "$@"
+}
+
 check_sdl()
 {
   cat > $TMPC <<EOF
@@ -330,6 +339,10 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers alsa"
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
   fi
+  if check_pulseaudio -lpulse; then
+    sound_drivers="$sound_drivers pulseaudio"
+    MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
+  fi
   if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
@@ -341,6 +354,10 @@ else
   if echo $sound_drivers | grep -q "\<alsa\>"; then
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
     check_alsa || fail "please install libasound2-dev"
+  fi
+  if echo $sound_drivers | grep -q "\<pulseaudio\>"; then
+    MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
+    check_pulseaudio || fail "pulseaudio support is missing"
   fi
 fi
 
