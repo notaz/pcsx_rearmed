@@ -24,8 +24,7 @@ compile_binary()
 
 check_define()
 {
-  echo "" > $TMPC
-  $CC -E -dD $CFLAGS $TMPC | grep -q $1 || return 1
+  $CC -E -dD $CFLAGS include/arm_features.h | grep -q $1 || return 1
   return 0
 }
 
@@ -42,6 +41,7 @@ plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
 ram_fixed="no"
 drc_cache_base="no"
+have_armv5=""
 have_armv6=""
 have_armv7=""
 have_arm_neon=""
@@ -175,6 +175,15 @@ if [ "$need_warm" = "yes" ]; then
   fi
 fi
 
+# basic compiler test
+cat > $TMPC <<EOF
+#include <zlib.h>
+int main(void) { return 0; }
+EOF
+if ! compile_binary; then
+  fail "basic compiler test failed, please check config.log"
+fi
+
 if [ -z "$ARCH" ]; then
   ARCH=`$CC -v 2>&1 | grep -i 'target:' | awk '{print $2}' \
         | awk -F '-' '{print $1}'`
@@ -195,14 +204,21 @@ if [ "$ARCH" = "arm" ]; then
     # detect NEON from user-supplied cflags to enable asm code
     have_arm_neon=`check_define __ARM_NEON__ && echo yes` || true
   fi
-  if [ "x$have_armv6" = "x" ]; then
-    have_armv6=`check_define __ARM_ARCH_6 && echo yes` || true
-  fi
   if [ "x$have_armv7" = "x" ]; then
-    if check_define __ARM_ARCH_7A__; then
-      have_armv6="yes"
+    if check_define HAVE_ARMV7; then
       have_armv7="yes"
+      have_armv6="yes"
+      have_armv5="yes"
     fi
+  fi
+  if [ "x$have_armv6" = "x" ]; then
+    if check_define HAVE_ARMV6; then
+      have_armv6="yes"
+      have_armv5="yes"
+    fi
+  fi
+  if [ "x$have_armv5" = "x" ]; then
+    have_armv5=`check_define HAVE_ARMV5 && echo yes` || true
   fi
 
   if [ "x$builtin_gpu" = "x" ]; then
@@ -235,6 +251,20 @@ if [ "$ARCH" = "arm" ]; then
   # must disable thumb as recompiler can't handle it
   if check_define __thumb__; then
     CFLAGS="$CFLAGS -marm"
+  fi
+
+  # warn about common mistakes
+  if [ "$have_armv5" != "yes" ]; then
+    if ! echo "$CFLAGS" | grep -q -- '-mcpu=\|-march='; then
+      echo "Warning: compiling for ARMv4, is that really what you want?"
+      echo "You probably should specify -mcpu= or -march= like this:"
+      echo "  CFLAGS=-march=armv6 ./configure ..."
+    fi
+  fi
+  if [ "$have_arm_neon" = "yes" -a "$have_armv7" != "yes" ]; then
+    echo "Warning: compiling for NEON, but not ARMv7?"
+    echo "You probably want to specify -mcpu= or -march= like this:"
+    echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
 else
   # dynarec only available on ARM
@@ -428,6 +458,7 @@ done
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
+test "x$have_gles" != "x" || have_gles="no"
 
 echo "architecture        $ARCH"
 echo "platform            $platform"
