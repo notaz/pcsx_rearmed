@@ -12,7 +12,8 @@ ifeq "$(PLATFORM)" "caanoo"
 CFLAGS += -DFAKE_WINDOW
 LDLIBS += -lopengles_lite -lstdc++
 else
-LDLIBS += -lGLES_CM
+CFLAGS += $(CFLAGS_GLES)
+LDLIBS += $(LDLIBS_GLES)
 endif
 
 BIN_STANDLALONE = gpuGLES.so

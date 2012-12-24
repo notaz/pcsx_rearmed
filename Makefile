@@ -132,9 +132,19 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # frontend/gui
 ifeq "$(PLATFORM)" "generic"
-OBJS += frontend/libpicofe/in_sdl.o frontend/plat_sdl.o
+OBJS += frontend/libpicofe/in_sdl.o
+OBJS += frontend/libpicofe/plat_sdl.o
 OBJS += frontend/libpicofe/plat_dummy.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_sdl.o
+ifeq "$(HAVE_GLES)" "1"
+OBJS += frontend/libpicofe/gl.o frontend/libpicofe/gl_platform.o
+LDLIBS += $(LDLIBS_GLES)
+frontend/libpicofe/plat_sdl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
+frontend/libpicofe/gl_platform.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
+frontend/libpicofe/gl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
+frontend/plat_sdl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
+endif
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif

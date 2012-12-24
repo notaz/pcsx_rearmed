@@ -29,8 +29,7 @@ enum g_soft_filter_opts {
 
 extern int g_opts, g_scaler, g_gamma;
 extern int soft_scaling, analog_deadzone;
-extern int g_use_overlay, g_fullscreen;
-extern int filter, soft_filter;
+extern int soft_filter;
 
 extern int g_menuscreen_w;
 extern int g_menuscreen_h;

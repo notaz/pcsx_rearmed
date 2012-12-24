@@ -70,7 +70,7 @@ void plat_finish(void)
 void plat_gvideo_open(int is_pal)
 {
 	plat_target_lcdrate_set(is_pal);
-	plat_target_hwfilter_set(filter);
+	plat_target_hwfilter_set(plat_target.hwfilter);
 	plat_target_gamma_set(g_gamma, 0);
 
 	plat_omap_gvideo_open();

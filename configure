@@ -24,8 +24,7 @@ compile_binary()
 
 check_define()
 {
-  echo "" > $TMPC
-  $CC -E -dD $CFLAGS $TMPC | grep -q $1 || return 1
+  $CC -E -dD $CFLAGS include/arm_features.h | grep -q $1 || return 1
   return 0
 }
 
@@ -36,20 +35,24 @@ platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
 builtin_gpu_list="peops unai neon"
 builtin_gpu=""
-sound_driver_list="oss alsa sdl pulseaudio libretro"
+sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
 ram_fixed="no"
 drc_cache_base="no"
+have_armv5=""
 have_armv6=""
 have_armv7=""
 have_arm_neon=""
 have_tslib=""
+have_gles=""
 enable_dynarec="yes"
 need_sdl="no"
 need_libpicofe="yes"
 need_warm="no"
+CFLAGS_GLES=""
+LDLIBS_GLES=""
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_arm926ej="no"
@@ -172,6 +175,15 @@ if [ "$need_warm" = "yes" ]; then
   fi
 fi
 
+# basic compiler test
+cat > $TMPC <<EOF
+#include <zlib.h>
+int main(void) { return 0; }
+EOF
+if ! compile_binary; then
+  fail "basic compiler test failed, please check config.log"
+fi
+
 if [ -z "$ARCH" ]; then
   ARCH=`$CC -v 2>&1 | grep -i 'target:' | awk '{print $2}' \
         | awk -F '-' '{print $1}'`
@@ -192,14 +204,21 @@ if [ "$ARCH" = "arm" ]; then
     # detect NEON from user-supplied cflags to enable asm code
     have_arm_neon=`check_define __ARM_NEON__ && echo yes` || true
   fi
-  if [ "x$have_armv6" = "x" ]; then
-    have_armv6=`check_define __ARM_ARCH_6 && echo yes` || true
-  fi
   if [ "x$have_armv7" = "x" ]; then
-    if check_define __ARM_ARCH_7A__; then
-      have_armv6="yes"
+    if check_define HAVE_ARMV7; then
       have_armv7="yes"
+      have_armv6="yes"
+      have_armv5="yes"
     fi
+  fi
+  if [ "x$have_armv6" = "x" ]; then
+    if check_define HAVE_ARMV6; then
+      have_armv6="yes"
+      have_armv5="yes"
+    fi
+  fi
+  if [ "x$have_armv5" = "x" ]; then
+    have_armv5=`check_define HAVE_ARMV5 && echo yes` || true
   fi
 
   if [ "x$builtin_gpu" = "x" ]; then
@@ -232,6 +251,20 @@ if [ "$ARCH" = "arm" ]; then
   # must disable thumb as recompiler can't handle it
   if check_define __thumb__; then
     CFLAGS="$CFLAGS -marm"
+  fi
+
+  # warn about common mistakes
+  if [ "$have_armv5" != "yes" ]; then
+    if ! echo "$CFLAGS" | grep -q -- '-mcpu=\|-march='; then
+      echo "Warning: compiling for ARMv4, is that really what you want?"
+      echo "You probably should specify -mcpu= or -march= like this:"
+      echo "  CFLAGS=-march=armv6 ./configure ..."
+    fi
+  fi
+  if [ "$have_arm_neon" = "yes" -a "$have_armv7" != "yes" ]; then
+    echo "Warning: compiling for NEON, but not ARMv7?"
+    echo "You probably want to specify -mcpu= or -march= like this:"
+    echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
 else
   # dynarec only available on ARM
@@ -305,6 +338,15 @@ EOF
   compile_binary "$@"
 }
 
+check_pulseaudio()
+{
+  cat > $TMPC <<EOF
+  #include <pulse/pulseaudio.h>
+  void main() { pa_threaded_mainloop_new(); }
+EOF
+  compile_binary "$@"
+}
+
 check_sdl()
 {
   cat > $TMPC <<EOF
@@ -327,6 +369,10 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers alsa"
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
   fi
+  if check_pulseaudio -lpulse; then
+    sound_drivers="$sound_drivers pulseaudio"
+    MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
+  fi
   if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
@@ -338,6 +384,10 @@ else
   if echo $sound_drivers | grep -q "\<alsa\>"; then
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
     check_alsa || fail "please install libasound2-dev"
+  fi
+  if echo $sound_drivers | grep -q "\<pulseaudio\>"; then
+    MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
+    check_pulseaudio || fail "pulseaudio support is missing"
   fi
 fi
 
@@ -362,19 +412,31 @@ EOF
   fi
 fi
 
+# check for VideoCore stuff for Raspberry Pi
+if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
+  CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads"
+  LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
+fi
+
 # check for GLES headers
 cat > $TMPC <<EOF
 #include <GLES/gl.h>
-#include <GLES/glext.h>
 #include <EGL/egl.h>
-void *test(void) {
-  return eglGetDisplay( (EGLNativeDisplayType)0 );
+int main(void) {
+  return (int)eglGetDisplay( (EGLNativeDisplayType)0 );
 }
 EOF
-if compile_object; then
-  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+if compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
+  have_gles="yes"
+  LDLIBS_GLES="-lEGL -lGLES_CM $LDLIBS_GLES"
+elif compile_binary $CFLAGS_GLES -lEGL -lGLESv1_CM $LDLIBS_GLES; then
+  have_gles="yes"
+  LDLIBS_GLES="-lEGL -lGLESv1_CM $LDLIBS_GLES"
 fi
 
+if [ "$have_gles" = "yes" ]; then
+  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+fi
 if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
   plugins="$plugins plugins/gpu_neon/gpu_neon.so"
 fi
@@ -396,6 +458,7 @@ done
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
+test "x$have_gles" != "x" || have_gles="no"
 
 echo "architecture        $ARCH"
 echo "platform            $platform"
@@ -410,6 +473,9 @@ echo "enable dynarec      $enable_dynarec"
 echo "ARMv7 optimizations $have_armv7"
 echo "enable ARM NEON     $have_arm_neon"
 echo "tslib support       $have_tslib"
+if [ "$platform" = "generic" ]; then
+  echo "OpenGL ES output    $have_gles"
+fi
 
 echo "# Automatically generated by configure" > $config_mak
 printf "# Configured with:" >> $config_mak
@@ -440,6 +506,11 @@ if [ "$have_arm_neon" = "yes" ]; then
 fi
 if [ "$have_tslib" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak
+fi
+if [ "$have_gles" = "yes" ]; then
+  echo "HAVE_GLES = 1" >> $config_mak
+  echo "CFLAGS_GLES = $CFLAGS_GLES" >> $config_mak
+  echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
 if [ "$enable_dynarec" = "yes" ]; then
   echo "USE_DYNAREC = 1" >> $config_mak

@@ -15,10 +15,11 @@
 #include "libpicofe/in_sdl.h"
 #include "libpicofe/menu.h"
 #include "libpicofe/fonts.h"
+#include "libpicofe/plat_sdl.h"
+#include "libpicofe/gl.h"
 #include "../plugins/gpulib/cspace.h"
 #include "plugin_lib.h"
 #include "main.h"
-#include "menu.h"
 #include "plat.h"
 #include "revision.h"
 
@@ -51,169 +52,58 @@ static const struct in_default_bind in_sdl_defbinds[] = {
   { 0, 0, 0 }
 };
 
-// XXX: maybe determine this instead..
-#define WM_DECORATION_H 32
-
-static SDL_Surface *screen;
-static SDL_Overlay *overlay;
-static int window_w, window_h;
-static int fs_w, fs_h;
 static int psx_w, psx_h;
-static void *menubg_img;
-static int in_menu, old_fullscreen;
+static void *shadow_fb, *menubg_img;
+static int in_menu;
 
-static void overlay_clear(void);
-
-static int change_video_mode(int w, int h)
+static int change_video_mode(void)
 {
-  psx_w = w;
-  psx_h = h;
+  int w, h;
 
-  if (overlay != NULL) {
-    SDL_FreeYUVOverlay(overlay);
-    overlay = NULL;
+  if (in_menu) {
+    w = g_menuscreen_w;
+    h = g_menuscreen_h;
+  }
+  else {
+    w = psx_w;
+    h = psx_h;
   }
 
-  if (g_use_overlay && !in_menu) {
-    Uint32 flags = SDL_RESIZABLE;
-    int win_w = window_w;
-    int win_h = window_h;
-
-    if (g_fullscreen) {
-      flags |= SDL_FULLSCREEN;
-      win_w = fs_w;
-      win_h = fs_h;
-    }
-
-    screen = SDL_SetVideoMode(win_w, win_h, 0, flags);
-    if (screen == NULL) {
-      fprintf(stderr, "SDL_SetVideoMode failed: %s\n", SDL_GetError());
-      return -1;
-    }
-
-    overlay = SDL_CreateYUVOverlay(w, h, SDL_UYVY_OVERLAY, screen);
-    if (overlay != NULL) {
-      /*printf("overlay: fmt %x, planes: %d, pitch: %d, hw: %d\n",
-        overlay->format, overlay->planes, *overlay->pitches,
-        overlay->hw_overlay);*/
-
-      if ((long)overlay->pixels[0] & 3)
-        fprintf(stderr, "warning: overlay pointer is unaligned\n");
-
-      if (!overlay->hw_overlay) {
-        fprintf(stderr, "warning: video overlay is not hardware accelerated, "
-                        "disabling it.\n");
-        g_use_overlay = 0;
-        SDL_FreeYUVOverlay(overlay);
-        overlay = NULL;
-      }
-      else
-        overlay_clear();
-    }
-    else {
-      fprintf(stderr, "warning: could not create overlay.\n");
-    }
-  }
-
-  if (overlay == NULL) {
-    screen = SDL_SetVideoMode(w, h, 16, 0);
-    if (screen == NULL) {
-      fprintf(stderr, "SDL_SetVideoMode failed: %s\n", SDL_GetError());
-      return -1;
-    }
-
-    if (!in_menu) {
-      window_w = screen->w;
-      window_h = screen->h;
-    }
-  }
-
-  old_fullscreen = g_fullscreen;
-  return 0;
-}
-
-static void event_handler(void *event_)
-{
-  SDL_Event *event = event_;
-
-  if (event->type == SDL_VIDEORESIZE) {
-    //printf("%dx%d\n", event->resize.w, event->resize.h);
-    if (overlay != NULL && !g_fullscreen && !old_fullscreen) {
-      window_w = event->resize.w;
-      window_h = event->resize.h;
-      change_video_mode(psx_w, psx_h);
-    }
-  }
+  return plat_sdl_change_video_mode(w, h, 0);
 }
 
 void plat_init(void)
 {
-  const SDL_VideoInfo *info;
-  int ret, h;
+  int ret;
 
-  ret = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
-  if (ret != 0) {
-    fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+  ret = plat_sdl_init();
+  if (ret != 0)
+    exit(1);
+
+  in_menu = 1;
+  SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
+
+  shadow_fb = malloc(640 * 512 * 2);
+  menubg_img = malloc(640 * 512 * 2);
+  if (shadow_fb == NULL || menubg_img == NULL) {
+    fprintf(stderr, "OOM\n");
     exit(1);
   }
 
-  info = SDL_GetVideoInfo();
-  if (info != NULL) {
-    fs_w = info->current_w;
-    fs_h = info->current_h;
-  }
-
-  in_menu = 1;
-  g_menuscreen_w = 640;
-  if (fs_w != 0 && g_menuscreen_w > fs_w)
-    g_menuscreen_w = fs_w;
-  g_menuscreen_h = 480;
-  if (fs_h != 0) {
-    h = fs_h;
-    if (info && info->wm_available && h > WM_DECORATION_H)
-      h -= WM_DECORATION_H;
-    if (g_menuscreen_h > h)
-      g_menuscreen_h = h;
-  }
-
-  ret = change_video_mode(g_menuscreen_w, g_menuscreen_h);
-  if (ret != 0) {
-    ret = change_video_mode(0, 0);
-    if (ret != 0)
-      goto fail;
-
-    if (screen->w < 320 || screen->h < 240) {
-      fprintf(stderr, "resolution %dx%d is too small, sorry.\n",
-              screen->w, screen->h);
-      goto fail;
-    }
-  }
-  g_menuscreen_w = window_w = screen->w;
-  g_menuscreen_h = window_h = screen->h;
-
-  SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
-
-  menubg_img = malloc(640 * 512 * 2);
-  if (menubg_img == NULL)
-    goto fail;
-
-  in_sdl_init(in_sdl_defbinds, event_handler);
+  in_sdl_init(in_sdl_defbinds, plat_sdl_event_handler);
   in_probe();
   pl_rearmed_cbs.only_16bpp = 1;
 
   bgr_to_uyvy_init();
-  return;
-
-fail:
-  SDL_Quit();
-  exit(1);
 }
 
 void plat_finish(void)
 {
+  free(shadow_fb);
+  shadow_fb = NULL;
   free(menubg_img);
   menubg_img = NULL;
-  SDL_Quit();
+  plat_sdl_finish();
 }
 
 void plat_gvideo_open(int is_pal)
@@ -238,28 +128,15 @@ static void uyvy_to_rgb565(void *d, const void *s, int pixels)
   }
 }
 
-static void overlay_clear(void)
-{
-  int pixels = overlay->w * overlay->h;
-  int *dst = (int *)overlay->pixels[0];
-  int v = 0x10801080;
-
-  for (; pixels > 0; dst += 4, pixels -= 2 * 4)
-    dst[0] = dst[1] = dst[2] = dst[3] = v;
-
-  for (; pixels > 0; dst++, pixels -= 2)
-    *dst = v;
-}
-
 static void overlay_blit(int doffs, const void *src_, int w, int h,
                          int sstride, int bgr24)
 {
   const unsigned short *src = src_;
   unsigned short *dst;
-  int dstride = overlay->w;
+  int dstride = plat_sdl_overlay->w;
 
-  SDL_LockYUVOverlay(overlay);
-  dst = (void *)overlay->pixels[0];
+  SDL_LockYUVOverlay(plat_sdl_overlay);
+  dst = (void *)plat_sdl_overlay->pixels[0];
 
   dst += doffs;
   if (bgr24) {
@@ -271,21 +148,23 @@ static void overlay_blit(int doffs, const void *src_, int w, int h,
       bgr555_to_uyvy(dst, src, w);
   }
 
-  SDL_UnlockYUVOverlay(overlay);
+  SDL_UnlockYUVOverlay(plat_sdl_overlay);
 }
 
 static void overlay_hud_print(int x, int y, const char *str, int bpp)
 {
-  SDL_LockYUVOverlay(overlay);
-  basic_text_out_uyvy_nf(overlay->pixels[0], overlay->w, x, y, str);
-  SDL_UnlockYUVOverlay(overlay);
+  SDL_LockYUVOverlay(plat_sdl_overlay);
+  basic_text_out_uyvy_nf(plat_sdl_overlay->pixels[0], plat_sdl_overlay->w, x, y, str);
+  SDL_UnlockYUVOverlay(plat_sdl_overlay);
 }
 
 void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
 {
-  change_video_mode(*w, *h);
-  if (overlay != NULL) {
-    pl_plat_clear = overlay_clear;
+  psx_w = *w;
+  psx_h = *h;
+  change_video_mode();
+  if (plat_sdl_overlay != NULL) {
+    pl_plat_clear = plat_sdl_overlay_clear;
     pl_plat_blit = overlay_blit;
     pl_plat_hud_print = overlay_hud_print;
     return NULL;
@@ -294,21 +173,28 @@ void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
     pl_plat_clear = NULL;
     pl_plat_blit = NULL;
     pl_plat_hud_print = NULL;
-    return screen->pixels;
+    if (plat_sdl_gl_active)
+      return shadow_fb;
+    else
+      return plat_sdl_screen->pixels;
   }
 }
 
 void *plat_gvideo_flip(void)
 {
-  if (!in_menu && overlay != NULL) {
-    SDL_Rect dstrect = { 0, 0, screen->w, screen->h };
-    SDL_DisplayYUVOverlay(overlay, &dstrect);
+  if (plat_sdl_overlay != NULL) {
+    SDL_Rect dstrect = { 0, 0, plat_sdl_screen->w, plat_sdl_screen->h };
+    SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
     return NULL;
   }
+  else if (plat_sdl_gl_active) {
+    gl_flip(shadow_fb, psx_w, psx_h);
+    return shadow_fb;
+  }
   else {
-    // XXX: missing SDL_LockSurface()
-    SDL_Flip(screen);
-    return screen->pixels;
+    // XXX: no locking, but should be fine with SDL_SWSURFACE?
+    SDL_Flip(plat_sdl_screen);
+    return plat_sdl_screen->pixels;
   }
 }
 
@@ -321,25 +207,47 @@ void plat_video_menu_enter(int is_rom_loaded)
   in_menu = 1;
 
   /* surface will be lost, must adjust pl_vout_buf for menu bg */
-  if (overlay != NULL)
-    uyvy_to_rgb565(menubg_img, overlay->pixels[0], psx_w * psx_h);
+  if (plat_sdl_overlay != NULL)
+    uyvy_to_rgb565(menubg_img, plat_sdl_overlay->pixels[0], psx_w * psx_h);
+  else if (plat_sdl_gl_active)
+    memcpy(menubg_img, shadow_fb, psx_w * psx_h * 2);
   else
-    memcpy(menubg_img, screen->pixels, psx_w * psx_h * 2);
+    memcpy(menubg_img, plat_sdl_screen->pixels, psx_w * psx_h * 2);
   pl_vout_buf = menubg_img;
 
-  change_video_mode(g_menuscreen_w, g_menuscreen_h);
+  change_video_mode();
 }
 
 void plat_video_menu_begin(void)
 {
-  SDL_LockSurface(screen);
-  g_menuscreen_ptr = screen->pixels;
+  if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
+    g_menuscreen_ptr = shadow_fb;
+  }
+  else {
+    SDL_LockSurface(plat_sdl_screen);
+    g_menuscreen_ptr = plat_sdl_screen->pixels;
+  }
 }
 
 void plat_video_menu_end(void)
 {
-  SDL_UnlockSurface(screen);
-  SDL_Flip(screen);
+  if (plat_sdl_overlay != NULL) {
+    SDL_Rect dstrect = { 0, 0, plat_sdl_screen->w, plat_sdl_screen->h };
+
+    SDL_LockYUVOverlay(plat_sdl_overlay);
+    rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
+      g_menuscreen_w * g_menuscreen_h);
+    SDL_UnlockYUVOverlay(plat_sdl_overlay);
+
+    SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
+  }
+  else if (plat_sdl_gl_active) {
+    gl_flip(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h);
+  }
+  else {
+    SDL_UnlockSurface(plat_sdl_screen);
+    SDL_Flip(plat_sdl_screen);
+  }
   g_menuscreen_ptr = NULL;
 }
 

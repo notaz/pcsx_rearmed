@@ -17,12 +17,10 @@ comment              : Much of this was taken from simple.c, in the pulseaudio
  *                                                                         *
  ***************************************************************************/
 
-#include "stdafx.h"
+#include <stdio.h>
 
-#define _IN_OSS
-
-#include "externals.h"
 #include <pulse/pulseaudio.h>
+#include "out.h"
 
 ////////////////////////////////////////////////////////////////////////
 // pulseaudio structs
@@ -134,7 +132,7 @@ static void stream_request_cb (pa_stream *stream, size_t length, void *userdata)
 // SETUP SOUND
 ////////////////////////////////////////////////////////////////////////
 
-static void pulse_init(void)
+static int pulse_init(void)
 {
      int error_number;
 
@@ -227,7 +225,7 @@ static void pulse_init(void)
      //pa_stream_flags_t flags = (pa_stream_flags_t) (PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_EARLY_REQUESTS);
      if (pa_stream_connect_playback (device.stream, NULL, &buffer_attributes, flags, NULL, NULL) < 0)
      {
-	  pa_context_errno (device.context);
+	  error_number = pa_context_errno (device.context);
 	  fprintf (stderr, "Could not connect for playback: %s\n", pa_strerror (error_number));
 	  return -1;
      }
@@ -296,9 +294,6 @@ static void pulse_finish(void)
 static int pulse_busy(void)
 {
      int free_space;
-     int error_code;
-     long latency;
-     int playing = 0;
 
      if ((device.mainloop == NULL) || (device.api == NULL) || ( device.context == NULL) || (device.stream == NULL))
      	  return 1;
@@ -329,9 +324,6 @@ static int pulse_busy(void)
 
 static void pulse_feed(void *pSound, int lBytes)
 {
-     int error_code;
-     int size;
-
      if (device.mainloop != NULL)
      {
 	  pa_threaded_mainloop_lock (device.mainloop);
