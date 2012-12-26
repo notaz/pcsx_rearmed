@@ -181,16 +181,18 @@ cat > $TMPC <<EOF
 int main(void) { return 0; }
 EOF
 if ! compile_binary; then
-  fail "basic compiler test failed, please check config.log"
+  fail "compiler test failed, please check config.log"
 fi
 
 if [ -z "$ARCH" ]; then
-  ARCH=`$CC -v 2>&1 | grep -i 'target:' | awk '{print $2}' \
-        | awk -F '-' '{print $1}'`
+  ARCH=`$CC -dumpmachine | awk -F '-' '{print $1}'`
 fi
 
-# ARM stuff
-if [ "$ARCH" = "arm" ]; then
+case "$ARCH" in
+arm*)
+  # ARM stuff
+  ARCH="arm"
+
   if [ "$optimize_cortexa8" = "yes" ]; then
     CFLAGS="$CFLAGS -mcpu=cortex-a8 -mtune=cortex-a8"
     ASFLAGS="$ASFLAGS -mcpu=cortex-a8"
@@ -266,10 +268,12 @@ if [ "$ARCH" = "arm" ]; then
     echo "You probably want to specify -mcpu= or -march= like this:"
     echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
-else
+  ;;
+*)
   # dynarec only available on ARM
   enable_dynarec="no"
-fi
+  ;;
+esac
 
 if [ "x$builtin_gpu" = "x" ]; then
   builtin_gpu="peops"
