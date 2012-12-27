@@ -25,6 +25,24 @@
 #include "ppf.h"
 #include "psxdma.h"
 
+/* logging */
+#if 0
+#define CDR_LOG SysPrintf
+#else
+#define CDR_LOG(...)
+#endif
+#if 0
+#define CDR_LOG_I SysPrintf
+#else
+#define CDR_LOG_I(...)
+#endif
+#if 0
+#define CDR_LOG_IO SysPrintf
+#else
+#define CDR_LOG_IO(...)
+#endif
+//#define CDR_LOG_CMD_IRQ
+
 cdrStruct cdr;
 static unsigned char *pTransfer;
 
@@ -267,9 +285,7 @@ static void Check_Shell( int Irq )
 	// check case open/close
 	if (cdr.LidCheck > 0)
 	{
-#ifdef CDR_LOG
 		CDR_LOG( "LidCheck\n" );
-#endif
 
 		// $20 = check lid state
 		if( cdr.LidCheck == 0x20 )
@@ -382,12 +398,10 @@ void Find_CurTrack() {
 			if (CDR_getTD((u8)(lcv), cdr.ResultTD) != -1) {
 				u32 sect1, sect2;
 
-#ifdef CDR_LOG___0
 				CDR_LOG( "curtrack %d %d %d | %d %d %d | %d\n",
 					cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 					cdr.ResultTD[2], cdr.ResultTD[1], cdr.ResultTD[0],
 					cdr.CurTrack );
-#endif
 
 				// find next track boundary - only need m:s accuracy
 				sect1 = cdr.SetSectorPlay[0] * 60 * 75 + cdr.SetSectorPlay[1] * 75;
@@ -413,16 +427,14 @@ static void ReadTrack( u8 *time ) {
 	cdr.Prev[1] = itob( time[1] );
 	cdr.Prev[2] = itob( time[2] );
 
-#ifdef CDR_LOG
 	CDR_LOG("ReadTrack() Log: KEY *** %x:%x:%x\n", cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
-#endif
 	cdr.RErr = CDR_readTrack(cdr.Prev);
 }
 
 
 static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
-	//if (cdr.Irq != 0 && cdr.Irq != 0xff)
-	//	printf("cdr: override cmd %02x -> %02x\n", cdr.Irq, irq);
+	if (cdr.Irq != 0 && cdr.Irq != 0xff)
+		CDR_LOG_I("cdr: override cmd %02x -> %02x\n", cdr.Irq, irq);
 
 	cdr.Irq = irq;
 	cdr.eCycle = ecycle;
@@ -438,12 +450,10 @@ void Set_Track()
 
 		for( lcv = 1; lcv < cdr.ResultTN[1]; lcv++ ) {
 			if (CDR_getTD((u8)(lcv), cdr.ResultTD) != -1) {
-#ifdef CDR_LOG___0
 				CDR_LOG( "settrack %d %d %d | %d %d %d | %d\n",
 					cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 					cdr.ResultTD[2], cdr.ResultTD[1], cdr.ResultTD[0],
 					cdr.CurTrack );
-#endif
 
 				// check if time matches track start (only need min, sec accuracy)
 				// - m:s:f vs f:s:m
@@ -524,12 +534,10 @@ static void Create_Fake_Subq()
 	temp_start[2] = cdr.ResultTD[0];
 
 
-#ifdef CDR_LOG
 	CDR_LOG( "CDDA FAKE SUB - %d:%d:%d / %d:%d:%d / %d:%d:%d\n",
 		temp_cur[0], temp_cur[1], temp_cur[2],
 		temp_start[0], temp_start[1], temp_start[2],
 		temp_next[0], temp_next[1], temp_next[2]);
-#endif
 
 
 
@@ -555,10 +563,8 @@ static void cdrPlayInterrupt_Autopause()
 		// update subq
 		ReadTrack( cdr.SetSectorPlay );
 
-#ifdef CDR_LOG
 		CDR_LOG( "CDDA SUB - %X:%X:%X\n",
 			subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
-#endif
 
 		/*
 		CDDA Autopause
@@ -573,19 +579,15 @@ static void cdrPlayInterrupt_Autopause()
 			track_changed = 1;
 	} else {
 		Create_Fake_Subq();
-#ifdef CDR_LOG___0
 		CDR_LOG( "CDDA FAKE SUB - %d:%d:%d\n",
 			fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
-#endif
 
 		track_changed = fake_subq_change;
 		fake_subq_change = 0;
 	}
 
 	if ((cdr.Mode & MODE_AUTOPAUSE) && track_changed) {
-#ifdef CDR_LOG
 		CDR_LOG( "CDDA STOP\n" );
-#endif
 
 		// Magic the Gathering
 		// - looping territory cdda
@@ -600,10 +602,9 @@ static void cdrPlayInterrupt_Autopause()
 	}
 	else if (cdr.Mode & MODE_REPORT) {
 		if (subq != NULL) {
-#ifdef CDR_LOG
 			CDR_LOG( "REPPLAY SUB - %X:%X:%X\n",
 				subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
-#endif
+
 			// breaks when .sub doesn't have index 0 for some reason (bad rip?)
 			//cdr.CurTrack = btoi( subq->TrackNumber );
 
@@ -619,10 +620,8 @@ static void cdrPlayInterrupt_Autopause()
 			cdr.Result[4] = subq->AbsoluteAddress[1];
 			cdr.Result[5] = subq->AbsoluteAddress[2];
 		} else {
-#ifdef CDR_LOG___0
 			CDR_LOG( "REPPLAY FAKE - %d:%d:%d\n",
 				fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
-#endif
 
 			if (fake_subq_real[2] & 0xf)
 				return;
@@ -651,7 +650,7 @@ void cdrPlayInterrupt()
 {
 	if (cdr.Seeked == SEEK_DOING_CMD) {
 		if (cdr.Stat) {
-			SysPrintf("cdrom: seek stat hack\n");
+			CDR_LOG_I("cdrom: seek stat hack\n");
 			CDRMISC_INT(0x1000);
 			return;
 		}
@@ -680,10 +679,9 @@ void cdrPlayInterrupt()
 
 	if (!cdr.Play) return;
 
-#ifdef CDR_LOG
 	CDR_LOG( "CDDA - %d:%d:%d\n",
 		cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-#endif
+
 	CDRMISC_INT( cdReadTime );
 
 	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & MODE_CDDA) && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
@@ -709,7 +707,7 @@ void cdrInterrupt() {
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
-		SysPrintf("cdrom: stat hack: %02x %x\n", cdr.Irq, cdr.Stat);
+		CDR_LOG_I("cdrom: stat hack: %02x %x\n", cdr.Irq, cdr.Stat);
 		CDR_INT(0x1000);
 		return;
 	}
@@ -787,10 +785,8 @@ void cdrInterrupt() {
 
 				// GameShark CD Player: Resume play
 				if( cdr.ParamC == 0 ) {
-#ifdef CDR_LOG___0
 					CDR_LOG( "PLAY Resume @ %d:%d:%d\n",
 						cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-#endif
 
 					//CDR_play( cdr.SetSectorPlay );
 				}
@@ -798,18 +794,14 @@ void cdrInterrupt() {
 				{
 					// BIOS CD Player: Resume play
 					if( cdr.Param[0] == 0 ) {
-#ifdef CDR_LOG___0
 						CDR_LOG( "PLAY Resume T0 @ %d:%d:%d\n",
 							cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-#endif
 
 						//CDR_play( cdr.SetSectorPlay );
 					}
 					else {
-#ifdef CDR_LOG___0
 						CDR_LOG( "PLAY Resume Td @ %d:%d:%d\n",
 							cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-#endif
 
 						// BIOS CD Player: Allow track replaying
 						StopCdda();
@@ -1285,11 +1277,12 @@ void cdrInterrupt() {
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 	}
 
-#ifdef CDR_LOG
-	printf("cdrInterrupt() Log: CDR Interrupt IRQ %x: ", Irq);
+#ifdef CDR_LOG_CMD_IRQ
+	SysPrintf("cdrInterrupt() Log: CDR Interrupt IRQ %d %02x: ",
+		cdr.Stat != NoIntr && cdr.Reg2 != 0x18, Irq);
 	for (i = 0; i < cdr.ResultC; i++)
-		printf("%02x ", cdr.Result[i]);
-	printf("\n");
+		SysPrintf("%02x ", cdr.Result[i]);
+	SysPrintf("\n");
 #endif
 }
 
@@ -1300,14 +1293,10 @@ void cdrReadInterrupt() {
 		return;
 
 	if (cdr.Irq || cdr.Stat) {
-		SysPrintf("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
+		CDR_LOG_I("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
 		CDREAD_INT(0x1000);
 		return;
 	}
-
-#ifdef CDR_LOG
-	CDR_LOG("cdrReadInterrupt() Log: KEY END");
-#endif
 
 	cdr.OCUP = 1;
 	SetResultSize(1);
@@ -1323,9 +1312,7 @@ void cdrReadInterrupt() {
 		cdr.RErr = -1;
 
 	if (cdr.RErr == -1) {
-#ifdef CDR_LOG
-		fprintf(emuLog, "cdrReadInterrupt() Log: err\n");
-#endif
+		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
 		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdr.Stat = DiskError;
 		cdr.Result[0] |= STATUS_ERROR;
@@ -1337,9 +1324,7 @@ void cdrReadInterrupt() {
 	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
 
 
-#ifdef CDR_LOG
-	fprintf(emuLog, "cdrReadInterrupt() Log: cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
-#endif
+	CDR_LOG("cdrReadInterrupt() Log: cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
 
 	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
 		// Firemen 2: Multi-XA files - briefings, cutscenes
@@ -1402,9 +1387,9 @@ void cdrReadInterrupt() {
 	// G-Police: Don't autopause ADPCM even if mode set (music)
 	if ((cdr.Transfer[4 + 2] & 0x80) && (cdr.Mode & MODE_AUTOPAUSE) &&
 			(cdr.Transfer[4 + 2] & 0x4) != 0x4 ) { // EOF
-#ifdef CDR_LOG
+
 		CDR_LOG("cdrReadInterrupt() Log: Autopausing read\n");
-#endif
+
 //		AddIrqQueue(AUTOPAUSE, 0x2000);
 		AddIrqQueue(CdlPause, 0x2000);
 	}
@@ -1456,9 +1441,7 @@ unsigned char cdrRead0(void) {
 	// What means the 0x10 and the 0x08 bits? I only saw it used by the bios
 	cdr.Ctrl |= 0x18;
 
-#ifdef CDR_LOG
-	CDR_LOG("cdrRead0() Log: CD0 Read: %x\n", cdr.Ctrl);
-#endif
+	CDR_LOG_IO("cdr r0: %02x\n", cdr.Ctrl);
 
 	return psxHu8(0x1800) = cdr.Ctrl;
 }
@@ -1469,9 +1452,8 @@ cdrWrite0:
 */
 
 void cdrWrite0(unsigned char rt) {
-#ifdef CDR_LOG
-	CDR_LOG("cdrWrite0() Log: CD0 write: %x\n", rt);
-#endif
+	CDR_LOG_IO("cdr w0: %02x\n", rt);
+
 	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
 }
 
@@ -1485,9 +1467,8 @@ unsigned char cdrRead1(void) {
 	} else {
 		psxHu8(0x1801) = 0;
 	}
-#ifdef CDR_LOG
-	CDR_LOG("cdrRead1() Log: CD1 Read: %x\n", psxHu8(0x1801));
-#endif
+	CDR_LOG_IO("cdr r1: %02x\n", psxHu8(0x1801));
+
 	return psxHu8(0x1801);
 }
 
@@ -1495,10 +1476,7 @@ void cdrWrite1(unsigned char rt) {
 	u8 set_loc[3];
 	int i;
 
-#ifdef CDR_LOG
-	CDR_LOG("cdrWrite1() Log: CD1 write: %x (%s)\n", rt, CmdName[rt]);
-#endif
-
+	CDR_LOG_IO("cdr w1: %02x\n", rt);
 
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 3 ) {
@@ -1510,7 +1488,7 @@ void cdrWrite1(unsigned char rt) {
 	cdr.Cmd = rt;
 	cdr.OCUP = 0;
 
-#ifdef CDRCMD_DEBUG
+#ifdef CDR_LOG_CMD_IRQ
 	SysPrintf("cdrWrite1() Log: CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
@@ -1709,9 +1687,8 @@ void cdrWrite1(unsigned char rt) {
         	break;
 
     	case CdlSetmode:
-#ifdef CDR_LOG
 		CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
-#endif 
+
         	cdr.Mode = cdr.Param[0];
 		cdr.Ctrl |= 0x80;
     		cdr.Stat = NoIntr; 
@@ -1827,9 +1804,7 @@ void cdrWrite1(unsigned char rt) {
     	default:
 		cdr.ParamP = 0;
 		cdr.ParamC = 0;
-#ifdef CDR_LOG
-		CDR_LOG("cdrWrite1() Log: Unknown command: %x\n", cdr.Cmd);
-#endif
+		CDR_LOG_I("cdrWrite1() Log: Unknown command: %x\n", cdr.Cmd);
 		return;
 	}
 	if (cdr.Stat != NoIntr) {
@@ -1846,16 +1821,12 @@ unsigned char cdrRead2(void) {
 		ret = *pTransfer++;
 	}
 
-#ifdef CDR_LOG
-	CDR_LOG("cdrRead2() Log: CD2 Read: %x\n", ret);
-#endif
+	CDR_LOG_IO("cdr r2: %02x\n", ret);
 	return ret;
 }
 
 void cdrWrite2(unsigned char rt) {
-#ifdef CDR_LOG
-	CDR_LOG("cdrWrite2() Log: CD2 write: %x\n", rt);
-#endif
+	CDR_LOG_IO("cdr w2: %02x\n", rt);
 
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 2 ) {
@@ -1894,27 +1865,22 @@ unsigned char cdrRead3(void) {
 	} else {
 		psxHu8(0x1803) = 0;
 	}
-#ifdef CDR_LOG
-	CDR_LOG("cdrRead3() Log: CD3 Read: %x\n", psxHu8(0x1803));
-#endif
+
+	CDR_LOG_IO("cdr r3: %02x\n", psxHu8(0x1803));
 	return psxHu8(0x1803);
 }
 
 void cdrWrite3(unsigned char rt) {
-#ifdef CDR_LOG
-	CDR_LOG("cdrWrite3() Log: CD3 write: %x\n", rt);
-#endif
+	CDR_LOG_IO("cdr w3: %02x\n", rt);
 
 	// Tekken: CDXA fade-out
 	if( (cdr.Ctrl & 3) == 2 ) {
 		cdr.AttenuatorLeft[1] = rt;
 	}
 	else if( (cdr.Ctrl & 3) == 3 && rt == 0x20 ) {
-#ifdef CDR_LOG
 		CDR_LOG( "CD-XA Volume: %X %X | %X %X\n",
 			cdr.AttenuatorLeft[0], cdr.AttenuatorLeft[1],
 			cdr.AttenuatorRight[0], cdr.AttenuatorRight[1] );
-#endif
 	}
 
 
@@ -1949,7 +1915,7 @@ void cdrWrite3(unsigned char rt) {
 			int time = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
 			if (Config.CdrReschedule != 2)
 			if (left < time / 2 || Config.CdrReschedule) { // rearmed guesswork hack
-				//printf("-- resched %d -> %d\n", left, time);
+				CDR_LOG_I("-- resched %d -> %d\n", left, time);
 				CDREAD_INT(time);
 			}
 		}
@@ -1982,17 +1948,13 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 	int size;
 	u8 *ptr;
 
-#ifdef CDR_LOG
 	CDR_LOG("psxDma3() Log: *** DMA 3 *** %x addr = %x size = %x\n", chcr, madr, bcr);
-#endif
 
 	switch (chcr) {
 		case 0x11000000:
 		case 0x11400100:
 			if (cdr.Readed == 0) {
-#ifdef CDR_LOG
 				CDR_LOG("psxDma3() Log: *** DMA 3 *** NOT READY\n");
-#endif
 				break;
 			}
 
@@ -2012,9 +1974,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 
 			ptr = (u8 *)PSXM(madr);
 			if (ptr == NULL) {
-#ifdef CPU_LOG
 				CDR_LOG("psxDma3() Log: *** DMA 3 *** NULL Pointer!\n");
-#endif
 				break;
 			}
 
@@ -2046,9 +2006,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			return;
 
 		default:
-#ifdef CDR_LOG
 			CDR_LOG("psxDma3() Log: Unknown cddma %x\n", chcr);
-#endif
 			break;
 	}
 
