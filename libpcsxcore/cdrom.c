@@ -78,8 +78,6 @@ static unsigned char *pTransfer;
 #define CdlReset       28
 #define CdlReadToc     30
 
-/* don't set 255, it's reserved */
-
 char *CmdName[0x100]= {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
@@ -423,7 +421,7 @@ static void ReadTrack( u8 *time ) {
 
 
 static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
-	if (cdr.Irq != 0 && cdr.Irq != 0xff)
+	if (cdr.Irq != 0)
 		CDR_LOG_I("cdr: override cmd %02x -> %02x\n", cdr.Irq, irq);
 
 	cdr.Irq = irq;
@@ -648,7 +646,7 @@ void cdrPlayInterrupt()
 		cdr.StatP |= STATUS_ROTATING;
 		cdr.StatP &= ~STATUS_SEEK;
 		cdr.Result[0] = cdr.StatP;
-		if (cdr.Irq == 0 || cdr.Irq == 0xff) {
+		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
 			setIrq();
 		}
@@ -701,7 +699,7 @@ void cdrInterrupt() {
 		return;
 	}
 
-	cdr.Irq = 0xff;
+	cdr.Irq = 0;
 	cdr.Ctrl &= ~0x80;
 
 	switch (Irq) {
@@ -1358,17 +1356,7 @@ void cdrReadInterrupt() {
 
 	cdr.Readed = 0;
 
-	// G-Police: Don't autopause ADPCM even if mode set (music)
-	if ((cdr.Transfer[4 + 2] & 0x80) && (cdr.Mode & MODE_AUTOPAUSE) &&
-			(cdr.Transfer[4 + 2] & 0x4) != 0x4 ) { // EOF
-
-		CDR_LOG("cdrReadInterrupt() Log: Autopausing read\n");
-
-		AddIrqQueue(CdlPause, 0x2000);
-	}
-	else {
-		CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
-	}
+	CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1376,14 +1364,10 @@ void cdrReadInterrupt() {
 	Sim Theme Park - no adpcm at all (zero)
 	*/
 
-	if( (cdr.Mode & MODE_STRSND) == 0 || (cdr.Transfer[4+2] & 0x4) != 0x4 ) {
+	if (!(cdr.Mode & MODE_STRSND) || !(cdr.Transfer[4+2] & 0x4)) {
 		cdr.Stat = DataReady;
-	} else {
-		// Breath of Fire 3 - fix inn sleeping
-		// Rockman X5 - no music restart problem
-		cdr.Stat = NoIntr;
+		setIrq();
 	}
-	setIrq();
 
 	Check_Shell(0);
 }
@@ -1693,9 +1677,13 @@ void cdrWrite3(unsigned char rt) {
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
-		goto transfer;
+		break; // transfer
 	case 1:
-		break; // irq
+		cdr.Stat &= ~rt;
+
+		if (rt & 0x40)
+			cdr.ParamC = 0;
+		return;
 	case 2:
 		cdr.AttenuatorLeft[1] = rt;
 		return;
@@ -1707,34 +1695,6 @@ void cdrWrite3(unsigned char rt) {
 		return;
 	}
 
-	cdr.Stat &= ~rt;
-
-	if (rt & 0x40)
-		cdr.ParamC = 0;
-
-	if (rt == 0x07) {
-		if (cdr.Irq == 0xff) {
-			cdr.Irq = 0;
-			return;
-		}
-
-		// XA streaming - incorrect timing because of this reschedule
-		// - Final Fantasy Tactics
-		// - various other games
-
-		if (cdr.Reading && !cdr.ResultReady) {
-			int left = psxRegs.intCycle[PSXINT_CDREAD].sCycle + psxRegs.intCycle[PSXINT_CDREAD].cycle - psxRegs.cycle;
-			int time = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
-			if (Config.CdrReschedule != 2)
-			if (left < time / 2 || Config.CdrReschedule) { // rearmed guesswork hack
-				CDR_LOG_I("-- resched %d -> %d\n", left, time);
-				CDREAD_INT(time);
-			}
-		}
-	}
-	return;
-
-transfer:
 	if ((rt & 0x80) && cdr.Readed == 0) {
 		cdr.Readed = 1;
 		pTransfer = cdr.Transfer;
@@ -1879,7 +1839,7 @@ void LidInterrupt() {
 	cdr.LidCheck = 0x20; // start checker
 
 	CDRLID_INT( cdReadTime * 3 );
-	
+
 	// generate interrupt if none active - open or close
 	if (cdr.Irq == 0 || cdr.Irq == 0xff) {
 		cdr.Ctrl |= 0x80;
