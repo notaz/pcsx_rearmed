@@ -656,7 +656,7 @@ void cdrPlayInterrupt()
 		cdr.Result[0] = cdr.StatP;
 		if (cdr.Irq == 0 || cdr.Irq == 0xff) {
 			cdr.Stat = Complete;
-			if (cdr.Stat != NoIntr)
+			if (cdr.Reg2 != 0x18)
 				psxHu32ref(0x1070) |= SWAP32(0x4);
 		}
 
