@@ -78,12 +78,6 @@ static unsigned char *pTransfer;
 #define CdlReset       28
 #define CdlReadToc     30
 
-#define AUTOPAUSE      249
-#define READ_ACK       250
-#define READ           251
-#define REPPLAY_ACK    252
-#define REPPLAY        253
-#define ASYNC          254
 /* don't set 255, it's reserved */
 
 char *CmdName[0x100]= {
@@ -191,13 +185,6 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDRPLAY, eCycle); \
 }
 
-#define StartReading(type, eCycle) { \
-   	cdr.Reading = type; \
-  	cdr.FirstSector = 1; \
-  	cdr.Readed = 0xff; \
-	AddIrqQueue(READ_ACK, eCycle); \
-}
-
 #define StopReading() { \
 	if (cdr.Reading) { \
 		cdr.Reading = 0; \
@@ -218,11 +205,16 @@ static void sec2msf(unsigned int s, u8 *msf) {
 }
 
 #define SetResultSize(size) { \
-    cdr.ResultP = 0; \
+	cdr.ResultP = 0; \
 	cdr.ResultC = size; \
 	cdr.ResultReady = 1; \
 }
 
+static void setIrq(void)
+{
+	if (cdr.Stat & cdr.Reg2)
+		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+}
 
 void cdrLidSeekInterrupt()
 {
@@ -341,8 +333,7 @@ static void Check_Shell( int Irq )
 					if( cdr.Stat == NoIntr )
 						cdr.Stat = Acknowledge;
 
-					psxHu32ref(0x1070) |= SWAP32((u32)0x4);
-
+					setIrq();
 
 					// begin close-seek-ready cycle
 					CDRLID_INT( cdReadTime * 3 );
@@ -382,11 +373,10 @@ static void Check_Shell( int Irq )
 			if( cdr.Stat == NoIntr )
 				cdr.Stat = Acknowledge;
 
-			psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+			setIrq();
 		}
 	}
 }
-
 
 void Find_CurTrack() {
 	cdr.CurTrack = 0;
@@ -596,7 +586,7 @@ static void cdrPlayInterrupt_Autopause()
 		//cdr.ResultReady = 1;
 		//cdr.Stat = DataReady;
 		cdr.Stat = DataEnd;
-		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+		setIrq();
 
 		StopCdda();
 	}
@@ -641,7 +631,7 @@ static void cdrPlayInterrupt_Autopause()
 		cdr.Stat = DataReady;
 
 		SetResultSize(8);
-		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+		setIrq();
 	}
 }
 
@@ -660,8 +650,7 @@ void cdrPlayInterrupt()
 		cdr.Result[0] = cdr.StatP;
 		if (cdr.Irq == 0 || cdr.Irq == 0xff) {
 			cdr.Stat = Complete;
-			if (cdr.Reg2 != 0x18)
-				psxHu32ref(0x1070) |= SWAP32(0x4);
+			setIrq();
 		}
 
 		cdr.Seeked = SEEK_PENDING;
@@ -1202,20 +1191,8 @@ void cdrInterrupt() {
 			cdr.Stat = Complete;
 			break;
 
-		case AUTOPAUSE:
-			cdr.OCUP = 0;
-/*			SetResultSize(1);
-			StopCdda();
-			StopReading();
-			cdr.OCUP = 0;
-			cdr.StatP&=~0x20;
-			cdr.StatP|= 0x2;
-			cdr.Result[0] = cdr.StatP;
-			cdr.Stat = DataEnd;
-*/			AddIrqQueue(CdlPause, 0x800);
-			break;
-
-		case READ_ACK:
+		case CdlReadN:
+		case CdlReadS:
 			if (!cdr.Reading) return;
 
 
@@ -1270,12 +1247,9 @@ void cdrInterrupt() {
 
 	Check_Shell( Irq );
 
-	cdr.ParamP = 0;
 	cdr.ParamC = 0;
 
-	if (cdr.Stat != NoIntr && cdr.Reg2 != 0x18) {
-		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
-	}
+	setIrq();
 
 #ifdef CDR_LOG_CMD_IRQ
 	SysPrintf("cdrInterrupt() Log: CDR Interrupt IRQ %d %02x: ",
@@ -1365,7 +1339,7 @@ void cdrReadInterrupt() {
 				// - don't do here
 
 				// signal ADPCM data ready
-				psxHu32ref(0x1070) |= SWAP32((u32)0x200);
+				setIrq();
 #endif
 			}
 			else cdr.FirstSector = -1;
@@ -1390,7 +1364,6 @@ void cdrReadInterrupt() {
 
 		CDR_LOG("cdrReadInterrupt() Log: Autopausing read\n");
 
-//		AddIrqQueue(AUTOPAUSE, 0x2000);
 		AddIrqQueue(CdlPause, 0x2000);
 	}
 	else {
@@ -1410,15 +1383,14 @@ void cdrReadInterrupt() {
 		// Rockman X5 - no music restart problem
 		cdr.Stat = NoIntr;
 	}
-	psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+	setIrq();
 
 	Check_Shell(0);
 }
 
 /*
 cdrRead0:
-	bit 0 - 0 REG1 command send / 1 REG1 data read
-	bit 1 - 0 data transfer finish / 1 data transfer ready/in progress
+	bit 0,1 - mode
 	bit 2 - unknown
 	bit 3 - unknown
 	bit 4 - unknown
@@ -1446,11 +1418,6 @@ unsigned char cdrRead0(void) {
 	return psxHu8(0x1800) = cdr.Ctrl;
 }
 
-/*
-cdrWrite0:
-	0 - to send a command / 1 - to get the result
-*/
-
 void cdrWrite0(unsigned char rt) {
 	CDR_LOG_IO("cdr w0: %02x\n", rt);
 
@@ -1458,15 +1425,14 @@ void cdrWrite0(unsigned char rt) {
 }
 
 unsigned char cdrRead1(void) {
-    if (cdr.ResultReady) { // && cdr.Ctrl & 0x1) {
-		// GameShark CDX CD Player: uses 17 bytes output (wraps around)
+	if ((cdr.ResultP & 0xf) < cdr.ResultC)
 		psxHu8(0x1801) = cdr.Result[cdr.ResultP & 0xf];
-		cdr.ResultP++;
-		if (cdr.ResultP == cdr.ResultC)
-			cdr.ResultReady = 0;
-	} else {
+	else
 		psxHu8(0x1801) = 0;
-	}
+	cdr.ResultP++;
+	if (cdr.ResultP == cdr.ResultC)
+		cdr.ResultReady = 0;
+
 	CDR_LOG_IO("cdr r1: %02x\n", psxHu8(0x1801));
 
 	return psxHu8(0x1801);
@@ -1478,13 +1444,16 @@ void cdrWrite1(unsigned char rt) {
 
 	CDR_LOG_IO("cdr w1: %02x\n", rt);
 
-	// Tekken: CDXA fade-out
-	if( (cdr.Ctrl & 3) == 3 ) {
-		cdr.AttenuatorRight[0] = rt;
+	switch (cdr.Ctrl & 3) {
+	case 0:
+		break;
+	case 3:
+		cdr.AttenuatorRight[1] = rt;
+		return;
+	default:
+		return;
 	}
 
-
-//	psxHu8(0x1801) = rt;
 	cdr.Cmd = rt;
 	cdr.OCUP = 0;
 
@@ -1500,43 +1469,40 @@ void cdrWrite1(unsigned char rt) {
 	}
 #endif
 
-	if (cdr.Ctrl & 0x3) return;
-
 	cdr.ResultReady = 0;
+	cdr.Ctrl |= 0x80;
+	// cdr.Stat = NoIntr; 
+	AddIrqQueue(cdr.Cmd, 0x800);
 
 	switch (cdr.Cmd) {
-    	case CdlSync:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
+	case CdlSync:
+	case CdlNop:
+	case CdlForward:
+	case CdlBackward:
+	case CdlReadT:
+	case CdlTest:
+	case CdlID:
+	case CdlReadToc:
+	case CdlGetmode:
+	case CdlGetlocL:
+	case CdlGetlocP:
+	case CdlGetTD:
+		break;
 
-    	case CdlNop:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-
-		// Twisted Metal 3 - fix music
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlSetloc:
+	case CdlSetloc:
 		StopReading();
 		for (i = 0; i < 3; i++)
 			set_loc[i] = btoi(cdr.Param[i]);
 
 		i = abs(msf2sec(cdr.SetSector) - msf2sec(set_loc));
 		if (i > 16)
-		       cdr.Seeked = SEEK_PENDING;
+			cdr.Seeked = SEEK_PENDING;
 
 		memcpy(cdr.SetSector, set_loc, 3);
-        	cdr.SetSector[3] = 0;
+		cdr.SetSector[3] = 0;
+		break;
 
-		cdr.Ctrl |= 0x80;
-        	cdr.Stat = NoIntr;
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlPlay:
+	case CdlPlay:
 		// Vib Ribbon: try same track again
 		StopCdda();
 
@@ -1560,50 +1526,25 @@ void cdrWrite1(unsigned char rt) {
 		//TODO?
 		//CDRDBUF_INT( PSXCLK / 44100 * 0x100 );
 
-
 		cdr.Play = TRUE;
 
 		cdr.StatP |= STATUS_SEEK;
 		cdr.StatP &= ~STATUS_ROTATING;
-
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-		AddIrqQueue(cdr.Cmd, 0x800);
-    		break;
-
-    	case CdlForward:
-		//if (cdr.CurTrack < 0xaa)
-		//	cdr.CurTrack++;
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlBackward:
-		//if (cdr.CurTrack > 1)
-		//cdr.CurTrack--;
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlReadN:
-		cdr.Irq = 0;
-		StopReading();
-		cdr.Ctrl|= 0x80;
-		cdr.Stat = NoIntr; 
-		StartReading(1, 0x800);
 		break;
 
-    	case CdlStandby:
+	case CdlReadN:
+		StopReading();
+		cdr.Reading = 1;
+		cdr.FirstSector = 1;
+		cdr.Readed = 0xff;
+		break;
+
+	case CdlStandby:
 		StopCdda();
 		StopReading();
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr;
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
+		break;
 
-    	case CdlStop:
+	case CdlStop:
 		// GameShark CD Player: Reset CDDA to track start
 		if( cdr.Play && CDR_getStatus(&stat) != -1 ) {
 			cdr.SetSectorPlay[0] = stat.Time[0];
@@ -1611,7 +1552,6 @@ void cdrWrite1(unsigned char rt) {
 			cdr.SetSectorPlay[2] = stat.Time[2];
 
 			Find_CurTrack();
-
 
 			// grab time for current track
 			CDR_getTD((u8)(cdr.CurTrack), cdr.ResultTD);
@@ -1623,13 +1563,9 @@ void cdrWrite1(unsigned char rt) {
 
 		StopCdda();
 		StopReading();
+		break;
 
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr;
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlPause:
+	case CdlPause:
 		/*
 		   GameShark CD Player: save time for resume
 
@@ -1638,61 +1574,41 @@ void cdrWrite1(unsigned char rt) {
 
 		StopCdda();
 		StopReading();
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr;
-
-		AddIrqQueue(cdr.Cmd, 0x800);
 		break;
 
 	case CdlReset:
-    	case CdlInit:
+	case CdlInit:
 		cdr.Seeked = SEEK_DONE;
 		StopCdda();
 		StopReading();
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
+		break;
 
-    	case CdlMute:
-        	cdr.Muted = TRUE;
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-
+	case CdlMute:
+		cdr.Muted = TRUE;
 			// Duke Nukem - Time to Kill
 			// - do not directly set cd-xa volume
 			//SPU_writeRegister( H_CDLeft, 0x0000 );
 			//SPU_writeRegister( H_CDRight, 0x0000 );
-        	break;
+		break;
 
-    	case CdlDemute:
-        	cdr.Muted = FALSE;
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
+	case CdlDemute:
+		cdr.Muted = FALSE;
 
 			// Duke Nukem - Time to Kill
 			// - do not directly set cd-xa volume
 			//SPU_writeRegister( H_CDLeft, 0x7f00 );
 			//SPU_writeRegister( H_CDRight, 0x7f00 );
-        	break;
+		break;
 
     	case CdlSetfilter:
         	cdr.File = cdr.Param[0];
         	cdr.Channel = cdr.Param[1];
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
         	break;
 
     	case CdlSetmode:
 		CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
 
         	cdr.Mode = cdr.Param[0];
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
 
 		// Squaresoft on PlayStation 1998 Collector's CD Vol. 1
 		// - fixes choppy movie sound
@@ -1700,115 +1616,31 @@ void cdrWrite1(unsigned char rt) {
 			StopCdda();
         	break;
 
-    	case CdlGetmode:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlGetlocL:
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-
-		// Crusaders of Might and Magic - cutscene speech
-		AddIrqQueue(cdr.Cmd, 0x800);
-		break;
-
-    	case CdlGetlocP:
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-
-		// GameShark CDX / Lite Player: pretty narrow time window
-		// - doesn't always work due to time inprecision
-		//AddIrqQueue(cdr.Cmd, 0x28);
-
-		// Tomb Raider 2 - cdda
-		//AddIrqQueue(cdr.Cmd, 0x40);
-
-		// rearmed: the above works in pcsxr-svn, but breaks here
-		// (TOCA world touring cars), perhaps some other code is not merged yet
-		AddIrqQueue(cdr.Cmd, 0x1000);
-        	break;
-
     	case CdlGetTN:
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
 		//AddIrqQueue(cdr.Cmd, 0x800);
 
 		// GameShark CDX CD Player: very long time
 		AddIrqQueue(cdr.Cmd, 0x100000);
 		break;
 
-    	case CdlGetTD:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
     	case CdlSeekL:
-//			((u32 *)cdr.SetSectorSeek)[0] = ((u32 *)cdr.SetSector)[0];
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-		AddIrqQueue(cdr.Cmd, 0x800);
-
-		StopCdda();
-		StopReading();
-
-		break;
-
     	case CdlSeekP:
-//        	((u32 *)cdr.SetSectorSeek)[0] = ((u32 *)cdr.SetSector)[0];
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-
 		// Tomb Raider 2 - reset cdda
 		StopCdda();
 		StopReading();
-
-		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-	// Destruction Derby: read TOC? GetTD after this
-	case CdlReadT:
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr;
-		AddIrqQueue(cdr.Cmd, 0x800);
 		break;
-
-    	case CdlTest:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	case CdlID:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
 
     	case CdlReadS:
-		cdr.Irq = 0;
 		StopReading();
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr; 
-		StartReading(2, 0x800);
+		cdr.Reading = 2;
+		cdr.FirstSector = 1;
+		cdr.Readed = 0xff;
 		break;
 
-    	case CdlReadToc:
-		cdr.Ctrl |= 0x80;
-    		cdr.Stat = NoIntr; 
-    		AddIrqQueue(cdr.Cmd, 0x800);
-        	break;
-
-    	default:
-		cdr.ParamP = 0;
+	default:
 		cdr.ParamC = 0;
 		CDR_LOG_I("cdrWrite1() Log: Unknown command: %x\n", cdr.Cmd);
 		return;
-	}
-	if (cdr.Stat != NoIntr) {
-		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 	}
 }
 
@@ -1828,43 +1660,29 @@ unsigned char cdrRead2(void) {
 void cdrWrite2(unsigned char rt) {
 	CDR_LOG_IO("cdr w2: %02x\n", rt);
 
-	// Tekken: CDXA fade-out
-	if( (cdr.Ctrl & 3) == 2 ) {
+	switch (cdr.Ctrl & 3) {
+	case 0:
+		if (cdr.ParamC < 8) // FIXME: size and wrapping
+			cdr.Param[cdr.ParamC++] = rt;
+		return;
+	case 1:
+		cdr.Reg2 = rt;
+		setIrq();
+		return;
+	case 2:
 		cdr.AttenuatorLeft[0] = rt;
-	}
-	else if( (cdr.Ctrl & 3) == 3 ) {
-		cdr.AttenuatorRight[1] = rt;
-	}
-
-
-	if (cdr.Ctrl & 0x1) {
-		switch (rt) {
-			case 0x07:
-				cdr.ParamP = 0;
-				cdr.ParamC = 0;
-				cdr.ResultReady = 1; //0;
-				cdr.Ctrl &= ~3; //cdr.Ctrl = 0;
-				break;
-
-			default:
-				cdr.Reg2 = rt;
-				break;
-		}
-	} else if (!(cdr.Ctrl & 0x3) && cdr.ParamP < 8) {
-		cdr.Param[cdr.ParamP++] = rt;
-		cdr.ParamC++;
+		return;
+	case 3:
+		cdr.AttenuatorRight[0] = rt;
+		return;
 	}
 }
 
 unsigned char cdrRead3(void) {
-	if (cdr.Stat) {
-		if (cdr.Ctrl & 0x1)
-			psxHu8(0x1803) = cdr.Stat | 0xE0;
-		else
-			psxHu8(0x1803) = 0xff;
-	} else {
-		psxHu8(0x1803) = 0;
-	}
+	if (cdr.Ctrl & 0x1)
+		psxHu8(0x1803) = cdr.Stat | 0xE0;
+	else
+		psxHu8(0x1803) = cdr.Reg2 | 0xE0;
 
 	CDR_LOG_IO("cdr r3: %02x\n", psxHu8(0x1803));
 	return psxHu8(0x1803);
@@ -1873,34 +1691,28 @@ unsigned char cdrRead3(void) {
 void cdrWrite3(unsigned char rt) {
 	CDR_LOG_IO("cdr w3: %02x\n", rt);
 
-	// Tekken: CDXA fade-out
-	if( (cdr.Ctrl & 3) == 2 ) {
+	switch (cdr.Ctrl & 3) {
+	case 0:
+		goto transfer;
+	case 1:
+		break; // irq
+	case 2:
 		cdr.AttenuatorLeft[1] = rt;
-	}
-	else if( (cdr.Ctrl & 3) == 3 && rt == 0x20 ) {
+		return;
+	case 3:
+		if (rt == 0x20)
 		CDR_LOG( "CD-XA Volume: %X %X | %X %X\n",
 			cdr.AttenuatorLeft[0], cdr.AttenuatorLeft[1],
 			cdr.AttenuatorRight[0], cdr.AttenuatorRight[1] );
+		return;
 	}
 
+	cdr.Stat &= ~rt;
 
-	// GameShark CDX CD Player: Irq timing mania
-	if( rt == 0 &&
-			cdr.Irq != 0 && cdr.Irq != 0xff &&
-			cdr.ResultReady == 0 ) {
+	if (rt & 0x40)
+		cdr.ParamC = 0;
 
-		// GS CDX: ~0x28 cycle timing - way too precise
-		if( cdr.Irq == CdlGetlocP ) {
-			cdrInterrupt();
-
-			psxRegs.interrupt &= ~(1 << PSXINT_CDR);
-		}
-	}
-
-
-	if (rt == 0x07 && (cdr.Ctrl & 3) == 1) {
-		cdr.Stat = 0;
-
+	if (rt == 0x07) {
 		if (cdr.Irq == 0xff) {
 			cdr.Irq = 0;
 			return;
@@ -1919,11 +1731,11 @@ void cdrWrite3(unsigned char rt) {
 				CDREAD_INT(time);
 			}
 		}
-
-		return;
 	}
+	return;
 
-	if (rt == 0x80 && !(cdr.Ctrl & 0x3) && cdr.Readed == 0) {
+transfer:
+	if ((rt & 0x80) && cdr.Readed == 0) {
 		cdr.Readed = 1;
 		pTransfer = cdr.Transfer;
 
@@ -2033,8 +1845,8 @@ void cdrReset() {
 	// BIOS player - default values
 	cdr.AttenuatorLeft[0] = 0x80;
 	cdr.AttenuatorLeft[1] = 0x00;
-	cdr.AttenuatorRight[0] = 0x80;
-	cdr.AttenuatorRight[1] = 0x00;
+	cdr.AttenuatorRight[0] = 0x00;
+	cdr.AttenuatorRight[1] = 0x80;
 }
 
 int cdrFreeze(void *f, int Mode) {
@@ -2046,8 +1858,10 @@ int cdrFreeze(void *f, int Mode) {
 	
 	gzfreeze(&cdr, sizeof(cdr));
 	
-	if (Mode == 1)
+	if (Mode == 1) {
+		cdr.ParamP = cdr.ParamC;
 		tmp = pTransfer - cdr.Transfer;
+	}
 
 	gzfreeze(&tmp, sizeof(tmp));
 
