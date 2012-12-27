@@ -650,6 +650,11 @@ static void cdrPlayInterrupt_Autopause()
 void cdrPlayInterrupt()
 {
 	if (cdr.Seeked == SEEK_DOING_CMD) {
+		if (cdr.Stat) {
+			SysPrintf("cdrom: seek stat hack\n");
+			CDRMISC_INT(0x1000);
+			return;
+		}
 		SetResultSize(1);
 		cdr.StatP |= STATUS_ROTATING;
 		cdr.StatP &= ~STATUS_SEEK;
@@ -704,7 +709,8 @@ void cdrInterrupt() {
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
-		CDR_INT( 0x100 );
+		SysPrintf("cdrom: stat hack: %02x %x\n", cdr.Irq, cdr.Stat);
+		CDR_INT(0x1000);
 		return;
 	}
 
@@ -1294,7 +1300,8 @@ void cdrReadInterrupt() {
 		return;
 
 	if (cdr.Irq || cdr.Stat) {
-		CDREAD_INT(0x100);
+		SysPrintf("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
+		CDREAD_INT(0x1000);
 		return;
 	}
 
