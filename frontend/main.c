@@ -146,7 +146,6 @@ void emu_set_default_config(void)
 	// try to set sane config on which most games work
 	Config.Xa = Config.Cdda = Config.Sio =
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
-	Config.CdrReschedule = 0;
 	Config.PsxAuto = 1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto

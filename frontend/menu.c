@@ -278,7 +278,7 @@ static const struct {
 	CE_CONFIG_STR(Spu),
 //	CE_CONFIG_STR(Cdr),
 	CE_CONFIG_VAL(Xa),
-	CE_CONFIG_VAL(Sio),
+//	CE_CONFIG_VAL(Sio),
 	CE_CONFIG_VAL(Mdec),
 	CE_CONFIG_VAL(Cdda),
 	CE_CONFIG_VAL(Debug),
@@ -287,7 +287,6 @@ static const struct {
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(Cpu),
-	CE_CONFIG_VAL(CdrReschedule),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 2),
 	CE_INTVAL(g_layer_x),
@@ -1369,7 +1368,6 @@ static int menu_loop_speed_hacks(int id, int keys)
 	return 0;
 }
 
-static const char *men_cfg_cdrr[] = { "Auto", "ON", "OFF", NULL };
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"
 				   "(green: normal, red: fmod, blue: noise)";
@@ -1383,7 +1381,6 @@ static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
 				   "(timing hack, breaks other games)";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
-static const char h_cfg_cdrr[]   = "Compatibility tweak (CD timing hack, breaks FMVs)";
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
 static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
@@ -1396,11 +1393,10 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable Frame Limiter",  0, g_opts, OPT_NO_FRAMELIM, h_cfg_fl),
 	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
-	mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
+	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
 	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
-	mee_enum_h    ("CD read reschedule hack",0, Config.CdrReschedule, men_cfg_cdrr, h_cfg_cdrr),
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
