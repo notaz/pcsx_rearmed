@@ -429,37 +429,6 @@ static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
 	CDR_INT(ecycle);
 }
 
-
-void Set_Track()
-{
-	if (CDR_getTN(cdr.ResultTN) != -1) {
-		int lcv;
-
-		for( lcv = 1; lcv < cdr.ResultTN[1]; lcv++ ) {
-			if (CDR_getTD((u8)(lcv), cdr.ResultTD) != -1) {
-				CDR_LOG( "settrack %d %d %d | %d %d %d | %d\n",
-					cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
-					cdr.ResultTD[2], cdr.ResultTD[1], cdr.ResultTD[0],
-					cdr.CurTrack );
-
-				// check if time matches track start (only need min, sec accuracy)
-				// - m:s:f vs f:s:m
-				if( cdr.SetSectorPlay[0] == cdr.ResultTD[2] &&
-						cdr.SetSectorPlay[1] == cdr.ResultTD[1] ) {
-					// skip pregap frames
-					if( cdr.SetSectorPlay[2] < cdr.ResultTD[0] )
-						cdr.SetSectorPlay[2] = cdr.ResultTD[0];
-
-					break;
-				}
-				else if( cdr.SetSectorPlay[0] < cdr.ResultTD[2] )
-					break;
-			}
-		}
-	}
-}
-
-
 static u8 fake_subq_local[3], fake_subq_real[3], fake_subq_index, fake_subq_change;
 static void Create_Fake_Subq()
 {
@@ -725,6 +694,29 @@ void cdrInterrupt() {
 				cdr.Seeked = SEEK_DONE;
 			}
 
+			// BIOS CD Player
+			// - Pause player, hit Track 01/02/../xx (Setloc issued!!)
+
+			if (cdr.ParamC == 0 || cdr.Param[0] == 0) {
+				CDR_LOG("PLAY Resume @ %d:%d:%d\n",
+					cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
+			}
+			else
+			{
+				int track = btoi( cdr.Param[0] );
+
+				if (track <= cdr.ResultTN[1])
+					cdr.CurTrack = track;
+
+				CDR_LOG("PLAY track %d\n", cdr.CurTrack);
+
+				if (CDR_getTD((u8)cdr.CurTrack, cdr.ResultTD) != -1) {
+					cdr.SetSectorPlay[0] = cdr.ResultTD[2];
+					cdr.SetSectorPlay[1] = cdr.ResultTD[1];
+					cdr.SetSectorPlay[2] = cdr.ResultTD[0];
+				}
+			}
+
 			/*
 			Rayman: detect track changes
 			- fixes logo freeze
@@ -735,83 +727,14 @@ void cdrInterrupt() {
 			Wild 9: skip PREGAP + starting accurate SubQ
 			- plays tracks without retry play
 			*/
-			/* unneeded with correct cdriso?
-			Set_Track();
-			*/
 			Find_CurTrack();
-			ReadTrack( cdr.SetSectorPlay );
+			ReadTrack(cdr.SetSectorPlay);
 
-			// GameShark CD Player: Calls 2x + Play 2x
-			if( cdr.FastBackward || cdr.FastForward ) {
-				if( cdr.FastForward ) cdr.FastForward--;
-				if( cdr.FastBackward ) cdr.FastBackward--;
-
-				if( cdr.FastBackward == 0 && cdr.FastForward == 0 ) {
-					if( cdr.Play && CDR_getStatus(&stat) != -1 ) {
-						cdr.SetSectorPlay[0] = stat.Time[0];
-						cdr.SetSectorPlay[1] = stat.Time[1];
-						cdr.SetSectorPlay[2] = stat.Time[2];
-					}
-				}
-			}
-
-
-			if (!Config.Cdda) {
-				// BIOS CD Player
-				// - Pause player, hit Track 01/02/../xx (Setloc issued!!)
-
-				// GameShark CD Player: Resume play
-				if( cdr.ParamC == 0 ) {
-					CDR_LOG( "PLAY Resume @ %d:%d:%d\n",
-						cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-
-					//CDR_play( cdr.SetSectorPlay );
-				}
-				else
-				{
-					// BIOS CD Player: Resume play
-					if( cdr.Param[0] == 0 ) {
-						CDR_LOG( "PLAY Resume T0 @ %d:%d:%d\n",
-							cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-
-						//CDR_play( cdr.SetSectorPlay );
-					}
-					else {
-						CDR_LOG( "PLAY Resume Td @ %d:%d:%d\n",
-							cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
-
-						// BIOS CD Player: Allow track replaying
-						StopCdda();
-
-
-						cdr.CurTrack = btoi( cdr.Param[0] );
-
-						if (CDR_getTN(cdr.ResultTN) != -1) {
-							// check last track
-							if (cdr.CurTrack > cdr.ResultTN[1])
-								cdr.CurTrack = cdr.ResultTN[1];
-
-							if (CDR_getTD((u8)(cdr.CurTrack), cdr.ResultTD) != -1) {
-								cdr.SetSectorPlay[0] = cdr.ResultTD[2];
-								cdr.SetSectorPlay[1] = cdr.ResultTD[1];
-								cdr.SetSectorPlay[2] = cdr.ResultTD[0];
-
-								// reset data
-								//Set_Track();
-								Find_CurTrack();
-								ReadTrack( cdr.SetSectorPlay );
-
-								//CDR_play(cdr.SetSectorPlay);
-							}
-						}
-					}
-				}
-			}
-
+			if (!Config.Cdda)
+				CDR_play(cdr.SetSectorPlay);
 
 			// Vib Ribbon: gameplay checks flag
 			cdr.StatP &= ~STATUS_SEEK;
-
 
 			cdr.CmdProcess = 0;
 			SetResultSize(1);
@@ -1469,7 +1392,13 @@ void cdrWrite1(unsigned char rt) {
 		for (i = 0; i < 3; i++)
 			set_loc[i] = btoi(cdr.Param[i]);
 
-		i = abs(msf2sec(cdr.SetSector) - msf2sec(set_loc));
+		// FIXME: clean up this SetSector/SetSectorPlay mess,
+		// there should be single var tracking current sector pos
+		if (cdr.Play)
+			i = msf2sec(cdr.SetSectorPlay);
+		else
+			i = msf2sec(cdr.SetSector);
+		i = abs(i - msf2sec(set_loc));
 		if (i > 16)
 			cdr.Seeked = SEEK_PENDING;
 
@@ -1481,6 +1410,7 @@ void cdrWrite1(unsigned char rt) {
 		// Vib Ribbon: try same track again
 		StopCdda();
 
+#if 0
 		if (!cdr.SetSector[0] & !cdr.SetSector[1] & !cdr.SetSector[2]) {
 			if (CDR_getTN(cdr.ResultTN) != -1) {
 				if (cdr.CurTrack > cdr.ResultTN[1])
@@ -1492,10 +1422,8 @@ void cdrWrite1(unsigned char rt) {
 					if (!Config.Cdda) CDR_play(cdr.ResultTD);
 				}
 			}
-		} else if (!Config.Cdda) {
-			CDR_play(cdr.SetSector);
 		}
-
+#endif
 		// Vib Ribbon - decoded buffer IRQ for CDDA reading
 		// - fixes ribbon timing + music CD mode
 		//TODO?
@@ -1521,11 +1449,7 @@ void cdrWrite1(unsigned char rt) {
 
 	case CdlStop:
 		// GameShark CD Player: Reset CDDA to track start
-		if( cdr.Play && CDR_getStatus(&stat) != -1 ) {
-			cdr.SetSectorPlay[0] = stat.Time[0];
-			cdr.SetSectorPlay[1] = stat.Time[1];
-			cdr.SetSectorPlay[2] = stat.Time[2];
-
+		if (cdr.Play) {
 			Find_CurTrack();
 
 			// grab time for current track
