@@ -134,7 +134,6 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 enum seeked_state {
 	SEEK_PENDING = 0,
 	SEEK_DONE = 1,
-	SEEK_DOING_CMD = 2,
 };
 
 static struct CdrStat stat;
@@ -548,12 +547,6 @@ static void cdrPlayInterrupt_Autopause()
 	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
 	int track_changed = 0;
 	if (subq != NULL ) {
-		// update subq
-		ReadTrack( cdr.SetSectorPlay );
-
-		CDR_LOG( "CDDA SUB - %X:%X:%X\n",
-			subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
-
 		/*
 		CDDA Autopause
 
@@ -566,10 +559,6 @@ static void cdrPlayInterrupt_Autopause()
 		if( cdr.CurTrack + 1 == btoi( subq->TrackNumber ) )
 			track_changed = 1;
 	} else {
-		Create_Fake_Subq();
-		CDR_LOG( "CDDA FAKE SUB - %d:%d:%d\n",
-			fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
-
 		track_changed = fake_subq_change;
 		fake_subq_change = 0;
 	}
@@ -636,7 +625,7 @@ static void cdrPlayInterrupt_Autopause()
 // also handles seek
 void cdrPlayInterrupt()
 {
-	if (cdr.Seeked == SEEK_DOING_CMD) {
+	if (cdr.Seeked == SEEK_PENDING) {
 		if (cdr.Stat) {
 			CDR_LOG_I("cdrom: seek stat hack\n");
 			CDRMISC_INT(0x1000);
@@ -646,23 +635,24 @@ void cdrPlayInterrupt()
 		cdr.StatP |= STATUS_ROTATING;
 		cdr.StatP &= ~STATUS_SEEK;
 		cdr.Result[0] = cdr.StatP;
+		cdr.Seeked = SEEK_DONE;
 		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
 			setIrq();
 		}
 
-		cdr.Seeked = SEEK_PENDING;
-		CDRMISC_INT(cdReadTime * 20); // ???
-		return;
+		memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
+		Find_CurTrack();
+		ReadTrack(cdr.SetSectorPlay);
 	}
-	else if (cdr.Seeked == SEEK_PENDING) {
-		cdr.Seeked = SEEK_DONE;
-		if (!cdr.Play && !cdr.Reading) {
-			memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
-			Find_CurTrack();
-			ReadTrack(cdr.SetSector);
-		}
-	}
+
+	// update for CdlGetlocP/autopause
+	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
+	if (subq != NULL)
+		// update subq
+		ReadTrack(cdr.SetSectorPlay);
+	else
+		Create_Fake_Subq();
 
 	if (!cdr.Play) return;
 
@@ -671,7 +661,7 @@ void cdrPlayInterrupt()
 
 	CDRMISC_INT( cdReadTime );
 
-	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & MODE_CDDA) && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
+	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
 	cdr.SetSectorPlay[2]++;
@@ -986,9 +976,8 @@ void cdrInterrupt() {
 			subq = (struct SubQ *)CDR_getBufferSub();
 
 			if (subq != NULL) {
-				if( cdr.Play && (cdr.Mode & MODE_CDDA) && !(cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)) )
-					// update subq
-					ReadTrack( cdr.SetSectorPlay );
+				// update subq
+				ReadTrack( cdr.SetSector );
 
 				cdr.Result[0] = subq->TrackNumber;
 				cdr.Result[1] = subq->IndexNumber;
@@ -1003,9 +992,8 @@ void cdrInterrupt() {
 				}
 				}
 			} else {
-				if( cdr.Play == FALSE || !(cdr.Mode & MODE_CDDA) || !(cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)) )
+				if (cdr.Play == FALSE)
 					Create_Fake_Subq();
-
 
 				// track # / index #
 				cdr.Result[0] = itob(cdr.CurTrack);
@@ -1021,6 +1009,9 @@ void cdrInterrupt() {
 				cdr.Result[6] = itob( fake_subq_real[1] );
 				cdr.Result[7] = itob( fake_subq_real[2] );
 			}
+
+			if (!cdr.Play && !cdr.Reading)
+				cdr.Result[1] = 0; // HACK?
 
 			// redump.org - wipe time
 			if( !cdr.Play && CheckSBI(cdr.Result+5) ) {
@@ -1089,7 +1080,7 @@ void cdrInterrupt() {
 			- fix capcom logo
 			*/
 			CDRMISC_INT(cdr.Seeked == SEEK_DONE ? 0x800 : cdReadTime * 4);
-			cdr.Seeked = SEEK_DOING_CMD;
+			cdr.Seeked = SEEK_PENDING;
 			break;
 
 		case CdlTest:
