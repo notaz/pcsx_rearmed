@@ -60,7 +60,7 @@ typedef struct {
 	} subq;
 	unsigned char TrackChanged;
 	unsigned char pad1[3];
-	unsigned int  pad3;
+	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
 	unsigned char Param[8];

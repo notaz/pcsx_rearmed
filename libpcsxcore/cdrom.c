@@ -1648,6 +1648,7 @@ int cdrFreeze(void *f, int Mode) {
 	if (Mode == 0 && !Config.Cdda)
 		CDR_stop();
 	
+	cdr.freeze_ver = 0x63647201;
 	gzfreeze(&cdr, sizeof(cdr));
 	
 	if (Mode == 1) {
@@ -1671,6 +1672,14 @@ int cdrFreeze(void *f, int Mode) {
 			Find_CurTrack(cdr.SetSectorPlay);
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
+		}
+
+		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
+			// old versions did not latch Reg2, have to fixup..
+			if (cdr.Reg2 == 0) {
+				SysPrintf("cdrom: fixing up old savestate\n");
+				cdr.Reg2 = 7;
+			}
 		}
 	}
 
