@@ -138,8 +138,13 @@ enum seeked_state {
 
 static struct CdrStat stat;
 
-static unsigned int msf2sec(u8 *msf) {
+static unsigned int msf2sec(const u8 *msf) {
 	return ((msf[0] * 60 + msf[1]) * 75) + msf[2];
+}
+
+// for that weird psemu API..
+static unsigned int fsm2sec(const u8 *msf) {
+	return ((msf[2] * 60 + msf[1]) * 75) + msf[0];
 }
 
 static void sec2msf(unsigned int s, u8 *msf) {
@@ -375,49 +380,111 @@ static void Check_Shell( int Irq )
 	}
 }
 
-void Find_CurTrack() {
-	cdr.CurTrack = 0;
+static void Find_CurTrack(const u8 *time)
+{
+	int current, sect;
 
-	if (CDR_getTN(cdr.ResultTN) != -1) {
-		int lcv;
+	current = msf2sec(time);
 
-		for( lcv = 1; lcv <= cdr.ResultTN[1]; lcv++ ) {
-			if (CDR_getTD((u8)(lcv), cdr.ResultTD) != -1) {
-				u32 sect1, sect2;
-
-				CDR_LOG( "curtrack %d %d %d | %d %d %d | %d\n",
-					cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
-					cdr.ResultTD[2], cdr.ResultTD[1], cdr.ResultTD[0],
-					cdr.CurTrack );
-
-				// find next track boundary - only need m:s accuracy
-				sect1 = cdr.SetSectorPlay[0] * 60 * 75 + cdr.SetSectorPlay[1] * 75;
-				sect2 = cdr.ResultTD[2] * 60 * 75 + cdr.ResultTD[1] * 75;
-
-				// Twisted Metal 4 - psx cdda pregap (2-sec)
-				// - fix in-game music
-				sect2 -= 75 * 2;
-
-				if( sect1 >= sect2 ) {
-					cdr.CurTrack++;
-					continue;
-				}
-			}
-
+	for (cdr.CurTrack = 1; cdr.CurTrack < cdr.ResultTN[1]; cdr.CurTrack++) {
+		CDR_getTD(cdr.CurTrack + 1, cdr.ResultTD);
+		sect = fsm2sec(cdr.ResultTD);
+		if (sect - current >= 150)
 			break;
-		}
 	}
 }
 
-static void ReadTrack( u8 *time ) {
-	cdr.Prev[0] = itob( time[0] );
-	cdr.Prev[1] = itob( time[1] );
-	cdr.Prev[2] = itob( time[2] );
+static void ReadTrack(const u8 *time) {
+	unsigned char tmp[3];
+	struct SubQ *subq;
+	u16 crc;
 
-	CDR_LOG("ReadTrack() Log: KEY *** %x:%x:%x\n", cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
-	cdr.RErr = CDR_readTrack(cdr.Prev);
+	tmp[0] = itob(time[0]);
+	tmp[1] = itob(time[1]);
+	tmp[2] = itob(time[2]);
+
+	if (memcmp(cdr.Prev, tmp, 3) == 0)
+		return;
+
+	CDR_LOG("ReadTrack *** %02x:%02x:%02x\n", tmp[0], tmp[1], tmp[2]);
+
+	cdr.RErr = CDR_readTrack(tmp);
+	memcpy(cdr.Prev, tmp, 3);
+
+	cdr.TrackChanged = FALSE;
+
+	if (CheckSBI(time))
+		return;
+
+	subq = (struct SubQ *)CDR_getBufferSub();
+	if (subq != NULL) {
+		crc = calcCrc((u8 *)subq + 12, 10);
+		if (crc == (((u16)subq->CRC[0] << 8) | subq->CRC[1])) {
+			cdr.subq.Track = subq->TrackNumber;
+			cdr.subq.Index = subq->IndexNumber;
+			memcpy(cdr.subq.Relative, subq->TrackRelativeAddress, 3);
+			memcpy(cdr.subq.Absolute, subq->AbsoluteAddress, 3);
+
+			// .. + 1 is probably wrong, but deals with corrupted
+			// subq + good checksum
+			// (how does real thing handle that?)
+			if (cdr.CurTrack + 1 == btoi(subq->TrackNumber)) {
+				cdr.CurTrack++;
+				cdr.TrackChanged = TRUE;
+			}
+		}
+	}
+	else {
+		unsigned char start[3], next[3];
+		unsigned int this_s, start_s, next_s, pregap;
+		int relative_s;
+
+		CDR_getTD(cdr.CurTrack, start);
+		if (cdr.CurTrack + 1 <= cdr.ResultTN[1]) {
+			pregap = 150;
+			CDR_getTD(cdr.CurTrack + 1, next);
+		}
+		else {
+			// last track - cd size
+			pregap = 0;
+			next[0] = cdr.SetSectorEnd[2];
+			next[1] = cdr.SetSectorEnd[1];
+			next[2] = cdr.SetSectorEnd[0];
+		}
+
+		this_s = msf2sec(time);
+		start_s = fsm2sec(start);
+		next_s = fsm2sec(next);
+
+		if (next_s - this_s < pregap) {
+			cdr.TrackChanged = TRUE;
+			cdr.CurTrack++;
+			start_s = next_s;
+		}
+
+		cdr.subq.Index = 1;
+
+		relative_s = this_s - start_s;
+		if (relative_s < 0) {
+			cdr.subq.Index = 0;
+			relative_s = -relative_s;
+		}
+		sec2msf(relative_s, cdr.subq.Relative);
+
+		cdr.subq.Track = itob(cdr.CurTrack);
+		cdr.subq.Relative[0] = itob(cdr.subq.Relative[0]);
+		cdr.subq.Relative[1] = itob(cdr.subq.Relative[1]);
+		cdr.subq.Relative[2] = itob(cdr.subq.Relative[2]);
+		cdr.subq.Absolute[0] = tmp[0];
+		cdr.subq.Absolute[1] = tmp[1];
+		cdr.subq.Absolute[2] = tmp[2];
+	}
+
+	CDR_LOG(" -> %02x,%02x %02x:%02x:%02x %02x:%02x:%02x\n",
+		cdr.subq.Track, cdr.subq.Index,
+		cdr.subq.Relative[0], cdr.subq.Relative[1], cdr.subq.Relative[2],
+		cdr.subq.Absolute[0], cdr.subq.Absolute[1], cdr.subq.Absolute[2]);
 }
-
 
 static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
 	if (cdr.Irq != 0)
@@ -429,110 +496,9 @@ static void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
 	CDR_INT(ecycle);
 }
 
-static u8 fake_subq_local[3], fake_subq_real[3], fake_subq_index, fake_subq_change;
-static void Create_Fake_Subq()
-{
-	u8 temp_cur[3], temp_next[3], temp_start[3], pregap;
-	int diff;
-
-	if (CDR_getTN(cdr.ResultTN) == -1) return;
-	if( cdr.CurTrack+1 <= cdr.ResultTN[1] ) {
-		pregap = 150;
-		if( CDR_getTD(cdr.CurTrack+1, cdr.ResultTD) == -1 ) return;
-	} else {
-		// last track - cd size
-		pregap = 0;
-		if( CDR_getTD(0, cdr.ResultTD) == -1 ) return;
-	}
-
-	if( cdr.Play == TRUE ) {
-		temp_cur[0] = cdr.SetSectorPlay[0];
-		temp_cur[1] = cdr.SetSectorPlay[1];
-		temp_cur[2] = cdr.SetSectorPlay[2];
-	} else {
-		temp_cur[0] = btoi( cdr.Prev[0] );
-		temp_cur[1] = btoi( cdr.Prev[1] );
-		temp_cur[2] = btoi( cdr.Prev[2] );
-	}
-
-	fake_subq_real[0] = temp_cur[0];
-	fake_subq_real[1] = temp_cur[1];
-	fake_subq_real[2] = temp_cur[2];
-
-	temp_next[0] = cdr.ResultTD[2];
-	temp_next[1] = cdr.ResultTD[1];
-	temp_next[2] = cdr.ResultTD[0];
-
-
-	// flag- next track
-	if( msf2sec(temp_cur) >= msf2sec( temp_next )-pregap ) {
-		fake_subq_change = 1;
-
-		cdr.CurTrack++;
-
-		// end cd
-		if( pregap == 0 ) StopCdda();
-	}
-
-	//////////////////////////////////////////////////
-	//////////////////////////////////////////////////
-
-	// repair
-	if( cdr.CurTrack <= cdr.ResultTN[1] ) {
-		if( CDR_getTD(cdr.CurTrack, cdr.ResultTD) == -1 ) return;
-	} else {
-		// last track - cd size
-		if( CDR_getTD(0, cdr.ResultTD) == -1 ) return;
-	}
-	
-	temp_start[0] = cdr.ResultTD[2];
-	temp_start[1] = cdr.ResultTD[1];
-	temp_start[2] = cdr.ResultTD[0];
-
-
-	CDR_LOG( "CDDA FAKE SUB - %d:%d:%d / %d:%d:%d / %d:%d:%d\n",
-		temp_cur[0], temp_cur[1], temp_cur[2],
-		temp_start[0], temp_start[1], temp_start[2],
-		temp_next[0], temp_next[1], temp_next[2]);
-
-
-
-	// local time - pregap / real
-	diff = msf2sec(temp_cur) - msf2sec( temp_start );
-	if( diff < 0 ) {
-		fake_subq_index = 0;
-
-		sec2msf( -diff, fake_subq_local );
-	} else {
-		fake_subq_index = 1;
-
-		sec2msf( diff, fake_subq_local );
-	}
-}
-
-
 static void cdrPlayInterrupt_Autopause()
 {
-	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
-	int track_changed = 0;
-	if (subq != NULL ) {
-		/*
-		CDDA Autopause
-
-		Silhouette Mirage ($3)
-		Tomb Raider 1 ($7)
-		*/
-
-		// .. + 1 is probably wrong, but deals with corrupted subq + good checksum
-		// (how does real thing handle those?)
-		if( cdr.CurTrack + 1 == btoi( subq->TrackNumber ) )
-			track_changed = 1;
-	} else {
-		track_changed = fake_subq_change;
-		fake_subq_change = 0;
-	}
-
-	if ((cdr.Mode & MODE_AUTOPAUSE) && track_changed) {
+	if ((cdr.Mode & MODE_AUTOPAUSE) && cdr.TrackChanged) {
 		CDR_LOG( "CDDA STOP\n" );
 
 		// Magic the Gathering
@@ -547,40 +513,24 @@ static void cdrPlayInterrupt_Autopause()
 		StopCdda();
 	}
 	else if (cdr.Mode & MODE_REPORT) {
-		if (subq != NULL) {
-			CDR_LOG( "REPPLAY SUB - %X:%X:%X\n",
-				subq->AbsoluteAddress[0], subq->AbsoluteAddress[1], subq->AbsoluteAddress[2] );
 
-			// breaks when .sub doesn't have index 0 for some reason (bad rip?)
-			//cdr.CurTrack = btoi( subq->TrackNumber );
+		cdr.Result[0] = cdr.StatP;
+		cdr.Result[1] = cdr.subq.Track;
+		cdr.Result[2] = cdr.subq.Index;
 
-			if (subq->AbsoluteAddress[2] & 0xf)
-				return;
-
-			cdr.Result[0] = cdr.StatP;
-			// BIOS CD Player: data already BCD format
-			cdr.Result[1] = subq->TrackNumber;
-			cdr.Result[2] = subq->IndexNumber;
-
-			cdr.Result[3] = subq->AbsoluteAddress[0];
-			cdr.Result[4] = subq->AbsoluteAddress[1];
-			cdr.Result[5] = subq->AbsoluteAddress[2];
-		} else {
-			CDR_LOG( "REPPLAY FAKE - %d:%d:%d\n",
-				fake_subq_real[0], fake_subq_real[1], fake_subq_real[2] );
-
-			if (fake_subq_real[2] & 0xf)
-				return;
-
-			cdr.Result[0] = cdr.StatP;
-			// track # / index #
-			cdr.Result[1] = itob(cdr.CurTrack);
-			cdr.Result[2] = itob(fake_subq_index);
-			// absolute
-			cdr.Result[3] = itob( fake_subq_real[0] );
-			cdr.Result[4] = itob( fake_subq_real[1] );
-			cdr.Result[5] = itob( fake_subq_real[2] );
+		if (cdr.subq.Absolute[2] & 0x10) {
+			cdr.Result[3] = cdr.subq.Relative[0];
+			cdr.Result[4] = cdr.subq.Relative[1] | 0x80;
+			cdr.Result[5] = cdr.subq.Relative[2];
 		}
+		else {
+			cdr.Result[3] = cdr.subq.Absolute[0];
+			cdr.Result[4] = cdr.subq.Absolute[1];
+			cdr.Result[5] = cdr.subq.Absolute[2];
+		}
+
+		cdr.Result[6] = 0;
+		cdr.Result[7] = 0;
 
 		// Rayman: Logo freeze (resultready + dataready)
 		cdr.ResultReady = 1;
@@ -611,27 +561,25 @@ void cdrPlayInterrupt()
 		}
 
 		memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
-		Find_CurTrack();
+		Find_CurTrack(cdr.SetSectorPlay);
 		ReadTrack(cdr.SetSectorPlay);
+		cdr.TrackChanged = FALSE;
 	}
-
-	// update for CdlGetlocP/autopause
-	struct SubQ *subq = (struct SubQ *)CDR_getBufferSub();
-	if (subq != NULL)
-		// update subq
-		ReadTrack(cdr.SetSectorPlay);
-	else
-		Create_Fake_Subq();
 
 	if (!cdr.Play) return;
 
 	CDR_LOG( "CDDA - %d:%d:%d\n",
 		cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
 
-	CDRMISC_INT( cdReadTime );
+	if (memcmp(cdr.SetSectorPlay, cdr.SetSectorEnd, 3) == 0) {
+		StopCdda();
+		cdr.TrackChanged = TRUE;
+	}
 
 	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
+
+	if (!cdr.Play) return;
 
 	cdr.SetSectorPlay[2]++;
 	if (cdr.SetSectorPlay[2] == 75) {
@@ -643,13 +591,15 @@ void cdrPlayInterrupt()
 		}
 	}
 
-	//Check_Shell(0);
+	CDRMISC_INT(cdReadTime);
+
+	// update for CdlGetlocP/autopause
+	ReadTrack(cdr.SetSectorPlay);
 }
 
 void cdrInterrupt() {
 	int i;
 	unsigned char Irq = cdr.Irq;
-	struct SubQ *subq;
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
@@ -686,8 +636,6 @@ void cdrInterrupt() {
 			break;
 
 		case CdlPlay:
-			fake_subq_change = 0;
-
 			if (cdr.Seeked == SEEK_PENDING) {
 				// XXX: wrong, should seek instead..
 				memcpy( cdr.SetSectorPlay, cdr.SetSector, 4 );
@@ -727,8 +675,9 @@ void cdrInterrupt() {
 			Wild 9: skip PREGAP + starting accurate SubQ
 			- plays tracks without retry play
 			*/
-			Find_CurTrack();
+			Find_CurTrack(cdr.SetSectorPlay);
 			ReadTrack(cdr.SetSectorPlay);
+			cdr.TrackChanged = FALSE;
 
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
@@ -892,54 +841,11 @@ void cdrInterrupt() {
 			break;
 
 		case CdlGetlocP:
-			// GameShark CDX CD Player: uses 17 bytes output (wraps around)
-			SetResultSize(17);
-			memset( cdr.Result, 0, 16 );
-
-			subq = (struct SubQ *)CDR_getBufferSub();
-
-			if (subq != NULL) {
-				// update subq
-				ReadTrack( cdr.SetSector );
-
-				cdr.Result[0] = subq->TrackNumber;
-				cdr.Result[1] = subq->IndexNumber;
-				memcpy(cdr.Result + 2, subq->TrackRelativeAddress, 3);
-				memcpy(cdr.Result + 5, subq->AbsoluteAddress, 3);
-
-
-				// subQ integrity check - data only (skip audio)
-				if( subq->TrackNumber == 1 && stat.Type == 0x01 ) {
-				if (calcCrc((u8 *)subq + 12, 10) != (((u16)subq->CRC[0] << 8) | subq->CRC[1])) {
-					memset(cdr.Result + 2, 0, 3 + 3); // CRC wrong, wipe out time data
-				}
-				}
-			} else {
-				if (cdr.Play == FALSE)
-					Create_Fake_Subq();
-
-				// track # / index #
-				cdr.Result[0] = itob(cdr.CurTrack);
-				cdr.Result[1] = itob(fake_subq_index);
-
-				// local
-				cdr.Result[2] = itob( fake_subq_local[0] );
-				cdr.Result[3] = itob( fake_subq_local[1] );
-				cdr.Result[4] = itob( fake_subq_local[2] );
-
-				// absolute
-				cdr.Result[5] = itob( fake_subq_real[0] );
-				cdr.Result[6] = itob( fake_subq_real[1] );
-				cdr.Result[7] = itob( fake_subq_real[2] );
-			}
+			SetResultSize(8);
+			memcpy(&cdr.Result, &cdr.subq, 8);
 
 			if (!cdr.Play && !cdr.Reading)
 				cdr.Result[1] = 0; // HACK?
-
-			// redump.org - wipe time
-			if( !cdr.Play && CheckSBI(cdr.Result+5) ) {
-				memset( cdr.Result+2, 0, 6 );
-			}
 
 			cdr.Stat = Acknowledge;
 			break;
@@ -1107,10 +1013,10 @@ void cdrInterrupt() {
 		case CdlReadS:
 			if (!cdr.Reading) return;
 
-
 			// Fighting Force 2 - update subq time immediately
 			// - fixes new game
-			ReadTrack( cdr.SetSector );
+			cdr.CurTrack = 1;
+			ReadTrack(cdr.SetSector);
 
 
 			// Crusaders of Might and Magic - update getlocl now
@@ -1148,9 +1054,6 @@ void cdrInterrupt() {
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Acknowledge;
 			break;
-
-		case 0xff:
-			return;
 
 		default:
 			cdr.Stat = Complete;
@@ -1282,6 +1185,9 @@ void cdrReadInterrupt() {
 		cdr.Stat = DataReady;
 		setIrq();
 	}
+
+	// update for CdlGetlocP
+	ReadTrack(cdr.SetSector);
 
 	Check_Shell(0);
 }
@@ -1450,8 +1356,6 @@ void cdrWrite1(unsigned char rt) {
 	case CdlStop:
 		// GameShark CD Player: Reset CDDA to track start
 		if (cdr.Play) {
-			Find_CurTrack();
-
 			// grab time for current track
 			CDR_getTD((u8)(cdr.CurTrack), cdr.ResultTD);
 
@@ -1710,6 +1614,17 @@ void cdrDmaInterrupt()
 	}
 }
 
+static void getCdInfo(void)
+{
+	u8 tmp;
+
+	CDR_getTN(cdr.ResultTN);
+	CDR_getTD(0, cdr.SetSectorEnd);
+	tmp = cdr.SetSectorEnd[0];
+	cdr.SetSectorEnd[0] = cdr.SetSectorEnd[2];
+	cdr.SetSectorEnd[2] = tmp;
+}
+
 void cdrReset() {
 	memset(&cdr, 0, sizeof(cdr));
 	cdr.CurTrack = 1;
@@ -1722,14 +1637,16 @@ void cdrReset() {
 	cdr.AttenuatorLeft[1] = 0x00;
 	cdr.AttenuatorRight[0] = 0x00;
 	cdr.AttenuatorRight[1] = 0x80;
+
+	getCdInfo();
 }
 
 int cdrFreeze(void *f, int Mode) {
 	u32 tmp;
+	u8 tmpp[3];
 
-	if( Mode == 0 ) {
-		StopCdda();
-	}
+	if (Mode == 0 && !Config.Cdda)
+		CDR_stop();
 	
 	gzfreeze(&cdr, sizeof(cdr));
 	
@@ -1741,10 +1658,20 @@ int cdrFreeze(void *f, int Mode) {
 	gzfreeze(&tmp, sizeof(tmp));
 
 	if (Mode == 0) {
+		getCdInfo();
+
 		pTransfer = cdr.Transfer + tmp;
 
-		if (cdr.Play && !Config.Cdda)
-			CDR_play(cdr.SetSectorPlay);
+		// read right sub data
+		memcpy(tmpp, cdr.Prev, 3);
+		cdr.Prev[0]++;
+		ReadTrack(tmpp);
+
+		if (cdr.Play) {
+			Find_CurTrack(cdr.SetSectorPlay);
+			if (!Config.Cdda)
+				CDR_play(cdr.SetSectorPlay);
+		}
 	}
 
 	return 0;
@@ -1753,6 +1680,9 @@ int cdrFreeze(void *f, int Mode) {
 void LidInterrupt() {
 	cdr.LidCheck = 0x20; // start checker
 
+	getCdInfo();
+       
+	StopCdda();
 	CDRLID_INT( cdReadTime * 3 );
 
 	// generate interrupt if none active - open or close

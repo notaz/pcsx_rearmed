@@ -40,7 +40,7 @@ static inline int CheckSBI(const u8 *t)
 	if (sbi_sectors == NULL)
 		return 0;
 
-	s = MSF2SECT(btoi(t[0]), btoi(t[1]), btoi(t[2]));
+	s = MSF2SECT(t[0], t[1], t[2]);
 	return (sbi_sectors[s >> 3] >> (s & 7)) & 1;
 }
 
