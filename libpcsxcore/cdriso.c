@@ -499,7 +499,9 @@ static int parsecue(const char *isofile) {
 			pregapOffset = -1; // mark to fill track start_offset
 		}
 		else if (!strcmp(token, "FILE")) {
-			sscanf(linebuf, " FILE \"%[^\"]\"", tmpb);
+			t = sscanf(linebuf, " FILE \"%256[^\"]\"", tmpb);
+			if (t != 1)
+				sscanf(linebuf, " FILE %256s", tmpb);
 
 			// absolute path?
 			ti[numtracks + 1].handle = fopen(tmpb, "rb");
