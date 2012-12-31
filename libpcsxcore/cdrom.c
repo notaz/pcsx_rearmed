@@ -45,6 +45,7 @@
 
 cdrStruct cdr;
 static unsigned char *pTransfer;
+static int subq_broken;
 
 /* CD-ROM magic numbers */
 #define CdlSync        0
@@ -394,9 +395,10 @@ static void Find_CurTrack(const u8 *time)
 	}
 }
 
-static void ReadTrack(const u8 *time) {
+static void ReadTrack(const u8 *time, int after_seek) {
 	unsigned char tmp[3];
 	struct SubQ *subq;
+	int track, old_track;
 	u16 crc;
 
 	tmp[0] = itob(time[0]);
@@ -417,21 +419,29 @@ static void ReadTrack(const u8 *time) {
 		return;
 
 	subq = (struct SubQ *)CDR_getBufferSub();
-	if (subq != NULL) {
+	if (subq != NULL && !subq_broken) {
 		crc = calcCrc((u8 *)subq + 12, 10);
-		if (crc == (((u16)subq->CRC[0] << 8) | subq->CRC[1])) {
+		old_track = btoi(cdr.subq.Track);
+		track = btoi(subq->TrackNumber);
+
+		// track checks are probably wrong, but deals with corrupted
+		// subq + good checksum
+		// (how does the real thing handle that?)
+		if (crc == (((u16)subq->CRC[0] << 8) | subq->CRC[1])
+		    && (after_seek || track == old_track || track == old_track + 1)) {
 			cdr.subq.Track = subq->TrackNumber;
 			cdr.subq.Index = subq->IndexNumber;
 			memcpy(cdr.subq.Relative, subq->TrackRelativeAddress, 3);
 			memcpy(cdr.subq.Absolute, subq->AbsoluteAddress, 3);
 
-			// .. + 1 is probably wrong, but deals with corrupted
-			// subq + good checksum
-			// (how does real thing handle that?)
-			if (cdr.CurTrack + 1 == btoi(subq->TrackNumber)) {
+			if (track == cdr.CurTrack + 1) {
 				cdr.CurTrack++;
 				cdr.TrackChanged = TRUE;
 			}
+		}
+		else {
+			CDR_LOG_I("ignore subq @%02x:%02x:%02x\n",
+				tmp[0], tmp[1], tmp[2]);
 		}
 	}
 	else {
@@ -562,7 +572,7 @@ void cdrPlayInterrupt()
 
 		memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 		Find_CurTrack(cdr.SetSectorPlay);
-		ReadTrack(cdr.SetSectorPlay);
+		ReadTrack(cdr.SetSectorPlay, 1);
 		cdr.TrackChanged = FALSE;
 	}
 
@@ -594,7 +604,7 @@ void cdrPlayInterrupt()
 	CDRMISC_INT(cdReadTime);
 
 	// update for CdlGetlocP/autopause
-	ReadTrack(cdr.SetSectorPlay);
+	ReadTrack(cdr.SetSectorPlay, 0);
 }
 
 void cdrInterrupt() {
@@ -676,7 +686,7 @@ void cdrInterrupt() {
 			- plays tracks without retry play
 			*/
 			Find_CurTrack(cdr.SetSectorPlay);
-			ReadTrack(cdr.SetSectorPlay);
+			ReadTrack(cdr.SetSectorPlay, 1);
 			cdr.TrackChanged = FALSE;
 
 			if (!Config.Cdda)
@@ -1016,7 +1026,7 @@ void cdrInterrupt() {
 			// Fighting Force 2 - update subq time immediately
 			// - fixes new game
 			cdr.CurTrack = 1;
-			ReadTrack(cdr.SetSector);
+			ReadTrack(cdr.SetSector, 1);
 
 
 			// Crusaders of Might and Magic - update getlocl now
@@ -1094,7 +1104,7 @@ void cdrReadInterrupt() {
 	cdr.Result[0] = cdr.StatP;
 	cdr.Seeked = SEEK_DONE;
 
-	ReadTrack( cdr.SetSector );
+	ReadTrack(cdr.SetSector, 0);
 
 	buf = CDR_getBuffer();
 	if (buf == NULL)
@@ -1187,7 +1197,7 @@ void cdrReadInterrupt() {
 	}
 
 	// update for CdlGetlocP
-	ReadTrack(cdr.SetSector);
+	ReadTrack(cdr.SetSector, 0);
 
 	Check_Shell(0);
 }
@@ -1616,6 +1626,9 @@ void cdrDmaInterrupt()
 
 static void getCdInfo(void)
 {
+	unsigned int i, j, sector;
+	struct SubQ *subq;
+	u8 tmpp[3];
 	u8 tmp;
 
 	CDR_getTN(cdr.ResultTN);
@@ -1623,6 +1636,26 @@ static void getCdInfo(void)
 	tmp = cdr.SetSectorEnd[0];
 	cdr.SetSectorEnd[0] = cdr.SetSectorEnd[2];
 	cdr.SetSectorEnd[2] = tmp;
+
+	subq_broken = 0;
+	subq = (struct SubQ *)CDR_getBufferSub();
+	if (subq != NULL && cdr.ResultTN[1] >= 2) {
+		CDR_getTD(cdr.ResultTN[1], tmpp);
+		sector = fsm2sec(tmpp) - 33;
+		for (i = 0; i < 5; i++, sector += 2) {
+			sec2msf(sector, tmpp);
+			for (j = 0; j < 3; j++)
+				tmpp[j] = itob(tmpp[j]);
+			CDR_readTrack(tmpp);
+			subq = (struct SubQ *)CDR_getBufferSub();
+			if (subq->IndexNumber == 0)
+				break;
+		}
+		if (i == 5) {
+			SysPrintf("cdrom: subchannel data looks broken, not using it\n");
+			subq_broken = 1;
+		}
+	}
 }
 
 void cdrReset() {
@@ -1666,7 +1699,7 @@ int cdrFreeze(void *f, int Mode) {
 		// read right sub data
 		memcpy(tmpp, cdr.Prev, 3);
 		cdr.Prev[0]++;
-		ReadTrack(tmpp);
+		ReadTrack(tmpp, 1);
 
 		if (cdr.Play) {
 			Find_CurTrack(cdr.SetSectorPlay);
