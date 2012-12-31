@@ -45,7 +45,7 @@ static boolean subChanMixed = FALSE;
 static boolean subChanRaw = FALSE;
 static boolean subChanMissing = FALSE;
 
-static unsigned char cdbuffer[DATA_SIZE];
+static unsigned char cdbuffer[CD_FRAMESIZE_RAW];
 static unsigned char subbuffer[SUB_FRAMESIZE];
 
 static unsigned char sndbuffer[CD_FRAMESIZE_RAW * 10];
@@ -82,7 +82,7 @@ static struct {
 	unsigned int sector_in_blk;
 } *compr_img;
 
-int (*cdimg_read_func)(FILE *f, void *dest, int sector, int offset);
+int (*cdimg_read_func)(FILE *f, void *dest, int sector);
 
 char* CALLBACK CDR__getDriveLetter(void);
 long CALLBACK CDR__configure(void);
@@ -181,7 +181,7 @@ static void *playthread(void *param)
 	while (playing) {
 		s = 0;
 		for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
-			d = cdimg_read_func(cddaHandle, sndbuffer + s, cdda_cur_sector, 0);
+			d = cdimg_read_func(cddaHandle, sndbuffer + s, cdda_cur_sector);
 			if (d < CD_FRAMESIZE_RAW)
 				break;
 
@@ -1001,18 +1001,18 @@ static int opensbifile(const char *isoname) {
 	return LoadSBI(sbiname, s);
 }
 
-static int cdread_normal(FILE *f, void *dest, int sector, int offset)
+static int cdread_normal(FILE *f, void *dest, int sector)
 {
-	fseek(f, sector * CD_FRAMESIZE_RAW + offset, SEEK_SET);
-	return fread(dest, 1, CD_FRAMESIZE_RAW - offset, f);
+	fseek(f, sector * CD_FRAMESIZE_RAW, SEEK_SET);
+	return fread(dest, 1, CD_FRAMESIZE_RAW, f);
 }
 
-static int cdread_sub_mixed(FILE *f, void *dest, int sector, int offset)
+static int cdread_sub_mixed(FILE *f, void *dest, int sector)
 {
 	int ret;
 
-	fseek(f, sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE) + offset, SEEK_SET);
-	ret = fread(dest, 1, CD_FRAMESIZE_RAW - offset, f);
+	fseek(f, sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET);
+	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
 	fread(subbuffer, 1, SUB_FRAMESIZE, f);
 
 	if (subChanRaw) DecodeRawSubData();
@@ -1051,7 +1051,7 @@ static int uncompress2(void *out, unsigned long *out_size, void *in, unsigned lo
 	return ret == 1 ? 0 : ret;
 }
 
-static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
+static int cdread_compressed(FILE *f, void *dest, int sector)
 {
 	unsigned long cdbuffer_size, cdbuffer_size_expect;
 	unsigned int start_byte, size;
@@ -1112,22 +1112,22 @@ static int cdread_compressed(FILE *f, void *dest, int sector, int offset)
 
 finish:
 	if (dest != cdbuffer) // copy avoid HACK
-		memcpy(dest, compr_img->buff_raw[compr_img->sector_in_blk] + offset,
-			CD_FRAMESIZE_RAW - offset);
-	return CD_FRAMESIZE_RAW - offset;
+		memcpy(dest, compr_img->buff_raw[compr_img->sector_in_blk],
+			CD_FRAMESIZE_RAW);
+	return CD_FRAMESIZE_RAW;
 }
 
-static int cdread_2048(FILE *f, void *dest, int sector, int offset)
+static int cdread_2048(FILE *f, void *dest, int sector)
 {
 	int ret;
 
 	fseek(f, sector * 2048, SEEK_SET);
-	ret = fread((char *)dest + 12, 1, 2048, f);
+	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
 
 	// not really necessary, fake mode 2 header
-	memset(cdbuffer, 0, 12);
-	sec2msf(sector + 2 * 75, (char *)cdbuffer);
-	cdbuffer[3] = 1;
+	memset(cdbuffer, 0, 12 * 2);
+	sec2msf(sector + 2 * 75, (char *)&cdbuffer[12]);
+	cdbuffer[12 + 3] = 1;
 
 	return ret;
 }
@@ -1137,7 +1137,7 @@ static unsigned char * CALLBACK ISOgetBuffer_compr(void) {
 }
 
 static unsigned char * CALLBACK ISOgetBuffer(void) {
-	return cdbuffer;
+	return cdbuffer + 12;
 }
 
 static void PrintTracks(void) {
@@ -1363,7 +1363,7 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 		}
 	}
 
-	cdimg_read_func(cdHandle, cdbuffer, sector, 12);
+	cdimg_read_func(cdHandle, cdbuffer, sector);
 
 	if (subHandle != NULL) {
 		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
