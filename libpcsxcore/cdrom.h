@@ -102,13 +102,17 @@ typedef struct {
 	u8 FastBackward;
 	u8 pad;
 
-	u8 AttenuatorLeft[2], AttenuatorRight[2];
-	u32 pad2;
+	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
+	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
+	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
+	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
 } cdrStruct;
 
 extern cdrStruct cdr;
 
 void cdrReset();
+void cdrAttenuate(s16 *buf, int samples, int stereo);
+
 void cdrInterrupt();
 void cdrReadInterrupt();
 void cdrRepplayInterrupt();

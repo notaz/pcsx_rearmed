@@ -212,6 +212,8 @@ static void *playthread(void *param)
 				}
 			}
 
+			// can't do it yet due to readahead..
+			//cdrAttenuate((short *)sndbuffer, s / 4, 1);
 			do {
 				ret = SPU_playCDDAchannel((short *)sndbuffer, s);
 				if (ret == 0x7761)

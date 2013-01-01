@@ -1076,6 +1076,54 @@ void cdrInterrupt() {
 #endif
 }
 
+#ifdef __ARM_ARCH_7A__
+ #define ssat32_to_16(v) \
+  asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
+#else
+ #define ssat32_to_16(v) do { \
+  if (v < -32768) v = -32768; \
+  else if (v > 32767) v = 32767; \
+ } while (0)
+#endif
+
+void cdrAttenuate(s16 *buf, int samples, int stereo)
+{
+	int i, l, r;
+	int ll = cdr.AttenuatorLeftToLeft;
+	int lr = cdr.AttenuatorLeftToRight;
+	int rl = cdr.AttenuatorRightToLeft;
+	int rr = cdr.AttenuatorRightToRight;
+
+	if (lr == 0 && rl == 0 && 0x78 <= ll && ll <= 0x88 && 0x78 <= rr && rr <= 0x88)
+		return;
+
+	if (!stereo && ll == 0x40 && lr == 0x40 && rl == 0x40 && rr == 0x40)
+		return;
+
+	if (stereo) {
+		for (i = 0; i < samples; i++) {
+			l = buf[i * 2];
+			r = buf[i * 2 + 1];
+			l = (l * ll + r * rl) >> 7;
+			r = (r * rr + l * lr) >> 7;
+			ssat32_to_16(l);
+			ssat32_to_16(r);
+			buf[i * 2] = l;
+			buf[i * 2 + 1] = r;
+		}
+	}
+	else {
+		for (i = 0; i < samples; i++) {
+			l = buf[i];
+			l = l * (ll + rl) >> 7;
+			//r = r * (rr + lr) >> 7;
+			ssat32_to_16(l);
+			//ssat32_to_16(r);
+			buf[i] = l;
+		}
+	}
+}
+
 void cdrReadInterrupt() {
 	u8 *buf;
 
@@ -1127,25 +1175,9 @@ void cdrReadInterrupt() {
 			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
 			(cdr.Transfer[4 + 0] == cdr.File)) {
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
-
 			if (!ret) {
-				// only handle attenuator basic channel switch for now
-				if (cdr.Xa.stereo) {
-					int i;
-					if ((cdr.AttenuatorLeft[0] | cdr.AttenuatorLeft[1])
-					    && !(cdr.AttenuatorRight[0] | cdr.AttenuatorRight[1]))
-					{
-						for (i = 0; i < cdr.Xa.nsamples; i++)
-							cdr.Xa.pcm[i*2 + 1] = cdr.Xa.pcm[i*2];
-					}
-					else if (!(cdr.AttenuatorLeft[0] | cdr.AttenuatorLeft[1])
-					    && (cdr.AttenuatorRight[0] | cdr.AttenuatorRight[1]))
-					{
-						for (i = 0; i < cdr.Xa.nsamples; i++)
-							cdr.Xa.pcm[i*2] = cdr.Xa.pcm[i*2 + 1];
-					}
-				}
 
+				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
 				SPU_playADPCMchannel(&cdr.Xa);
 				cdr.FirstSector = 0;
 
@@ -1253,7 +1285,7 @@ void cdrWrite1(unsigned char rt) {
 	case 0:
 		break;
 	case 3:
-		cdr.AttenuatorRight[1] = rt;
+		cdr.AttenuatorRightToRightT = rt;
 		return;
 	default:
 		return;
@@ -1474,10 +1506,10 @@ void cdrWrite2(unsigned char rt) {
 		setIrq();
 		return;
 	case 2:
-		cdr.AttenuatorLeft[0] = rt;
+		cdr.AttenuatorLeftToLeftT = rt;
 		return;
 	case 3:
-		cdr.AttenuatorRight[0] = rt;
+		cdr.AttenuatorRightToLeftT = rt;
 		return;
 	}
 }
@@ -1505,13 +1537,15 @@ void cdrWrite3(unsigned char rt) {
 			cdr.ParamC = 0;
 		return;
 	case 2:
-		cdr.AttenuatorLeft[1] = rt;
+		cdr.AttenuatorLeftToRightT = rt;
 		return;
 	case 3:
-		if (rt == 0x20)
-		CDR_LOG( "CD-XA Volume: %X %X | %X %X\n",
-			cdr.AttenuatorLeft[0], cdr.AttenuatorLeft[1],
-			cdr.AttenuatorRight[0], cdr.AttenuatorRight[1] );
+		if (rt & 0x20) {
+			memcpy(&cdr.AttenuatorLeftToLeft, &cdr.AttenuatorLeftToLeftT, 4);
+			CDR_LOG_I("CD-XA Volume: %02x %02x | %02x %02x\n",
+				cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
+				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight);
+		}
 		return;
 	}
 
@@ -1634,10 +1668,10 @@ void cdrReset() {
 	pTransfer = cdr.Transfer;
 
 	// BIOS player - default values
-	cdr.AttenuatorLeft[0] = 0x80;
-	cdr.AttenuatorLeft[1] = 0x00;
-	cdr.AttenuatorRight[0] = 0x00;
-	cdr.AttenuatorRight[1] = 0x80;
+	cdr.AttenuatorLeftToLeft = 0x80;
+	cdr.AttenuatorLeftToRight = 0x00;
+	cdr.AttenuatorRightToLeft = 0x00;
+	cdr.AttenuatorRightToRight = 0x80;
 
 	getCdInfo();
 }
