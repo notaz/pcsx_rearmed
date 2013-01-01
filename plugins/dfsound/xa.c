@@ -78,8 +78,9 @@ INLINE void MixXA(void)
     r = ((int)(short)(v >> 16) * iLeftXAVol) >> 15;
     SSumLR[ns++] += l;
     SSumLR[ns++] += r;
-    spuMem[cursor] = l;
-    spuMem[cursor + 0x400/2] = r;
+
+    spuMem[cursor] = v;
+    spuMem[cursor + 0x400/2] = v >> 16;
     cursor = (cursor + 1) & 0x1ff;
    }
   XALastVal = v;
@@ -94,8 +95,9 @@ INLINE void MixXA(void)
    r = ((int)(short)(v >> 16) * iLeftXAVol) >> 15;
    SSumLR[ns++] += l;
    SSumLR[ns++] += r;
-   spuMem[cursor] = l;
-   spuMem[cursor + 0x400/2] = r;
+
+   spuMem[cursor] = v;
+   spuMem[cursor + 0x400/2] = v >> 16;
    cursor = (cursor + 1) & 0x1ff;
   }
 }
