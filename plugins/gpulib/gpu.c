@@ -367,46 +367,62 @@ static void finish_vram_transfer(int is_read)
 
 static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
 {
-  int cmd = 0, pos = 0, len, dummy;
+  int cmd = 0, pos = 0, len, dummy, v;
   int skip = 1;
 
   gpu.frameskip.pending_fill[0] = 0;
 
-  // XXX: polylines are not properly handled
   while (pos < count && skip) {
     uint32_t *list = data + pos;
     cmd = list[0] >> 24;
     len = 1 + cmd_lengths[cmd];
 
-    if (cmd == 0x02) {
-      if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
-        // clearing something large, don't skip
-        do_cmd_list(list, 3, &dummy);
-      else
-        memcpy(gpu.frameskip.pending_fill, list, 3 * 4);
+    switch (cmd) {
+      case 0x02:
+        if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
+          // clearing something large, don't skip
+          do_cmd_list(list, 3, &dummy);
+        else
+          memcpy(gpu.frameskip.pending_fill, list, 3 * 4);
+        break;
+      case 0x24 ... 0x27:
+      case 0x2c ... 0x2f:
+      case 0x34 ... 0x37:
+      case 0x3c ... 0x3f:
+        gpu.ex_regs[1] &= ~0x1ff;
+        gpu.ex_regs[1] |= list[4 + ((cmd >> 4) & 1)] & 0x1ff;
+        break;
+      case 0x48 ... 0x4F:
+        for (v = 3; pos + v < count; v++)
+        {
+          if ((list[v] & 0xf000f000) == 0x50005000)
+            break;
+        }
+        len += v - 3;
+        break;
+      case 0x58 ... 0x5F:
+        for (v = 4; pos + v < count; v += 2)
+        {
+          if ((list[v] & 0xf000f000) == 0x50005000)
+            break;
+        }
+        len += v - 4;
+        break;
+      default:
+        if (cmd == 0xe3)
+          skip = decide_frameskip_allow(list[0]);
+        if ((cmd & 0xf8) == 0xe0)
+          gpu.ex_regs[cmd & 7] = list[0];
+        break;
     }
-    else if ((cmd & 0xf4) == 0x24) {
-      // flat textured prim
-      gpu.ex_regs[1] &= ~0x1ff;
-      gpu.ex_regs[1] |= list[4] & 0x1ff;
-    }
-    else if ((cmd & 0xf4) == 0x34) {
-      // shaded textured prim
-      gpu.ex_regs[1] &= ~0x1ff;
-      gpu.ex_regs[1] |= list[5] & 0x1ff;
-    }
-    else if (cmd == 0xe3)
-      skip = decide_frameskip_allow(list[0]);
-
-    if ((cmd & 0xf8) == 0xe0)
-      gpu.ex_regs[cmd & 7] = list[0];
 
     if (pos + len > count) {
       cmd = -1;
       break; // incomplete cmd
     }
-    if (cmd == 0xa0 || cmd == 0xc0)
+    if (0xa0 <= cmd && cmd <= 0xdf)
       break; // image i/o
+
     pos += len;
   }
 
@@ -432,9 +448,9 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
     }
 
     cmd = data[pos] >> 24;
-    if (cmd == 0xa0 || cmd == 0xc0) {
+    if (0xa0 <= cmd && cmd <= 0xdf) {
       // consume vram write/read cmd
-      start_vram_transfer(data[pos + 1], data[pos + 2], cmd == 0xc0);
+      start_vram_transfer(data[pos + 1], data[pos + 2], (cmd & 0xe0) == 0xc0);
       pos += 3;
       continue;
     }
