@@ -311,12 +311,19 @@ do_state_slot:
 	hud_new_msg = 3;
 }
 
+static char basic_lcase(char c)
+{
+	if ('A' <= c && c <= 'Z')
+		return c - 'A' + 'a';
+	return c;
+}
+
 static int cdidcmp(const char *id1, const char *id2)
 {
 	while (*id1 != 0 && *id2 != 0) {
 		if (*id1 == '_') { id1++; continue; }
 		if (*id2 == '_') { id2++; continue; }
-		if (*id1 != *id2)
+		if (basic_lcase(*id1) != basic_lcase(*id2))
 			break;
 		id1++;
 		id2++;
