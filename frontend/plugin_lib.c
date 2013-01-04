@@ -44,7 +44,7 @@ void *tsdev;
 void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp; /* output display/layer */
-static int pl_vout_scale;
+static int pl_vout_scale, pl_vout_yoffset;
 static int psx_w, psx_h, psx_bpp;
 static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
@@ -230,6 +230,7 @@ static int resolution_ok(int w, int h)
 static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	int vout_w, vout_h, vout_bpp;
+	int buf_yoffset = 0;
 
 	// special h handling, Wipeout likes to change it by 1-6
 	static int vsync_cnt_ms_prev;
@@ -242,6 +243,12 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	vout_w = w;
 	vout_h = h;
 	vout_bpp = psx_bpp = bpp;
+
+	// don't use very low heights
+	if (vout_h < 192) {
+		buf_yoffset = (192 - vout_h) / 2;
+		vout_h = 192;
+	}
 
 	pl_vout_scale = 1;
 #ifdef __ARM_NEON__
@@ -268,7 +275,11 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 		pl_vout_w = vout_w;
 		pl_vout_h = vout_h;
 		pl_vout_bpp = vout_bpp;
+		pl_vout_yoffset = buf_yoffset;
 	}
+	if (pl_vout_buf != NULL)
+		pl_vout_buf = (char *)pl_vout_buf
+			+ pl_vout_yoffset * pl_vout_w * pl_vout_bpp / 8;
 
 	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
 }
@@ -366,6 +377,10 @@ out:
 
 	// let's flip now
 	pl_vout_buf = plat_gvideo_flip();
+	if (pl_vout_buf != NULL)
+		pl_vout_buf = (char *)pl_vout_buf
+			+ pl_vout_yoffset * pl_vout_w * pl_vout_bpp / 8;
+
 	pl_rearmed_cbs.flip_cnt++;
 }
 
