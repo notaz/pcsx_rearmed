@@ -48,7 +48,7 @@ extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iVolume;
 
-int ready_to_go;
+int ready_to_go, g_resetting;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
 int state_slot;
@@ -676,6 +676,7 @@ void SysReset() {
 	// so we need to prevent updateLace() call..
 	void *real_lace = GPU_updateLace;
 	GPU_updateLace = dummy_lace;
+	g_resetting = 1;
 
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
@@ -686,6 +687,7 @@ void SysReset() {
 	CDR_stop();
 
 	GPU_updateLace = real_lace;
+	g_resetting = 0;
 }
 
 void SysClose() {

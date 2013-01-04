@@ -606,6 +606,9 @@ void pl_frame_limit(void)
 	struct timeval now;
 	int diff, usadj;
 
+	if (g_resetting)
+		return;
+
 	vsync_cnt++;
 
 	/* doing input here because the pad is polled
