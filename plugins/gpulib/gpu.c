@@ -68,10 +68,11 @@ static noinline void update_width(void)
 
 static noinline void update_height(void)
 {
+  // TODO: emulate this properly..
   int sh = gpu.screen.y2 - gpu.screen.y1;
   if (gpu.status.dheight)
     sh *= 2;
-  if (sh <= 0)
+  if (sh <= 0 || sh > gpu.screen.vres)
     sh = gpu.screen.vres;
 
   gpu.screen.h = sh;
