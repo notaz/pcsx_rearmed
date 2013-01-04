@@ -689,25 +689,18 @@ static int do_samples(int forced_updates)
  int ch,d,silentch;
  int bIRQReturn=0;
 
+ // ok, at the beginning we are looking if there is
+ // enuff free place in the dsound/oss buffer to
+ // fill in new data, or if there is a new channel to start.
+ // if not, we return until enuff free place is available
+ // /a new channel gets started
+
+ if(!forced_updates && out_current->busy())            // still enuff data in sound buffer?
+  return 0;
+
  while(!bIRQReturn)
   {
-   // ok, at the beginning we are looking if there is
-   // enuff free place in the dsound/oss buffer to
-   // fill in new data, or if there is a new channel to start.
-   // if not, we wait (thread) or return (timer/spuasync)
-   // until enuff free place is available/a new channel gets
-   // started
-
-   if(!forced_updates && out_current->busy())          // still enuff data in sound buffer?
-    {
-     return 0;
-    }
-
    cycles_since_update = 0;
-   if(forced_updates > 0)
-    forced_updates--;
-
-   //--------------------------------------------------// continue from irq handling in timer mode? 
 
    ns_from=0;
    ns_to=NSSIZE;
@@ -872,12 +865,21 @@ static int do_samples(int forced_updates)
 
   // feed the sound
   // wanna have around 1/60 sec (16.666 ms) updates
-  if (iCycle++ > 16/FRAG_MSECS)
+  if (iCycle++ >= 16/FRAG_MSECS)
    {
-    out_current->feed(pSpuBuffer,
-                        ((unsigned char *)pS) - ((unsigned char *)pSpuBuffer));
+    out_current->feed(pSpuBuffer, (unsigned char *)pS - pSpuBuffer);
     pS = (short *)pSpuBuffer;
     iCycle = 0;
+
+    if(!forced_updates && out_current->busy())
+     break;
+   }
+
+  if(forced_updates > 0)
+   {
+    forced_updates--;
+    if(forced_updates == 0 && out_current->busy())
+     break;
    }
  }
 
