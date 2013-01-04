@@ -51,8 +51,16 @@ typedef struct {
 
 	unsigned char StatP;
 
-	unsigned char Transfer[CD_FRAMESIZE_RAW];
-	unsigned int  pad1;
+	unsigned char Transfer[DATA_SIZE];
+	struct {
+		unsigned char Track;
+		unsigned char Index;
+		unsigned char Relative[3];
+		unsigned char Absolute[3];
+	} subq;
+	unsigned char TrackChanged;
+	unsigned char pad1[3];
+	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
 	unsigned char Param[8];
@@ -70,7 +78,7 @@ typedef struct {
 	unsigned char ResultTN[6];
 	unsigned char ResultTD[4];
 	unsigned char SetSector[4];
-	unsigned char SetSectorSeek[4];
+	unsigned char SetSectorEnd[4];
 	unsigned char SetSectorPlay[4];
 	unsigned char Track;
 	boolean Play, Muted;
@@ -94,15 +102,17 @@ typedef struct {
 	u8 FastBackward;
 	u8 pad;
 
-	u8 AttenuatorLeft[2], AttenuatorRight[2];
-	u32 pad2;
+	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
+	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
+	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
+	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
 } cdrStruct;
 
 extern cdrStruct cdr;
 
-void cdrDecodedBufferInterrupt();
-
 void cdrReset();
+void cdrAttenuate(s16 *buf, int samples, int stereo);
+
 void cdrInterrupt();
 void cdrReadInterrupt();
 void cdrRepplayInterrupt();

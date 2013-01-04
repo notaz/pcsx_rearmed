@@ -689,7 +689,7 @@ static int do_samples(int forced_updates)
  int ch,d,silentch;
  int bIRQReturn=0;
 
- while(1)
+ while(!bIRQReturn)
   {
    // ok, at the beginning we are looking if there is
    // enuff free place in the dsound/oss buffer to
@@ -863,6 +863,7 @@ static int do_samples(int forced_updates)
      {
       //printf("decoder irq %x\n", decode_pos);
       do_irq();
+      bIRQReturn = 1;
      }
    }
   decode_pos = (decode_pos + NSSIZE) & 0x1ff;

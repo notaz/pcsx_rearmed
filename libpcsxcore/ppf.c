@@ -339,7 +339,7 @@ unsigned char *sbi_sectors;
 int LoadSBI(const char *fname, int sector_count) {
 	char buffer[16];
 	FILE *sbihandle;
-	u8 sbitime[3];
+	u8 sbitime[3], t;
 	int s;
 
 	sbihandle = fopen(fname, "rb");
@@ -352,9 +352,22 @@ int LoadSBI(const char *fname, int sector_count) {
 
 	// 4-byte SBI header
 	fread(buffer, 1, 4, sbihandle);
-	while (!feof(sbihandle)) {
-		fread(sbitime, 1, 3, sbihandle);
-		fread(buffer, 1, 11, sbihandle);
+	while (1) {
+		s = fread(sbitime, 1, 3, sbihandle);
+		if (s != 3)
+			break;
+		fread(&t, 1, 1, sbihandle);
+		switch (t) {
+		default:
+		case 1:
+			s = 10;
+			break;
+		case 2:
+		case 3:
+			s = 3;
+			break;
+		}
+		fseek(sbihandle, s, SEEK_CUR);
 
 		s = MSF2SECT(btoi(sbitime[0]), btoi(sbitime[1]), btoi(sbitime[2]));
 		if (s < sector_count)
