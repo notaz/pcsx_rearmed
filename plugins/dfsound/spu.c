@@ -444,23 +444,29 @@ static int decode_block(int ch)
 {
  unsigned char *start;
  int predict_nr,shift_factor,flags;
+ int stop = 0;
  int ret = 0;
 
- start=s_chan[ch].pCurr;                   // set up the current pos
+ start = s_chan[ch].pCurr;                 // set up the current pos
+ if(start == spuMemC)                      // ?
+  stop = 1;
 
  if(s_chan[ch].prevflags&1)                // 1: stop/loop
  {
   if(!(s_chan[ch].prevflags&2))
-  {
-   dwChannelOn&=~(1<<ch);                  // -> turn everything off
-   s_chan[ch].bStop=1;
-   s_chan[ch].ADSRX.EnvelopeVol=0;
-  }
+   stop = 1;
 
   start = s_chan[ch].pLoop;
  }
  else
   ret = check_irq(ch, start);              // hack, see check_irq below..
+
+ if(stop)
+ {
+  dwChannelOn &= ~(1<<ch);                 // -> turn everything off
+  s_chan[ch].bStop = 1;
+  s_chan[ch].ADSRX.EnvelopeVol = 0;
+ }
 
  predict_nr=(int)start[0];
  shift_factor=predict_nr&0xf;
@@ -770,9 +776,9 @@ static int do_samples(int forced_updates)
 
          // no need for bIRQReturn since the channel is silent
          skip_block(ch);
-         if(start == s_chan[ch].pCurr)
+         if(start == s_chan[ch].pCurr || start - spuMemC < 0x1000)
           {
-           // looping on self
+           // looping on self or stopped(?)
            dwChannelDead |= 1<<ch;
            s_chan[ch].spos = 0;
            break;
