@@ -671,12 +671,13 @@ static void noinline do_decode_bufs(int which, int start, int count)
 {
  const int *src = ChanBuf + start;
  unsigned short *dst = &spuMem[0x800/2 + which*0x400/2];
- int cursor = decode_pos;
+ int cursor = decode_pos + start;
 
  while (count-- > 0)
   {
+   cursor &= 0x1ff;
    dst[cursor] = *src++;
-   cursor = (cursor + 1) & 0x1ff;
+   cursor++;
   }
 
  // decode_pos is updated and irqs are checked later, after voice loop
