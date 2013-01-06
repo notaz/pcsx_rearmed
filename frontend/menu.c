@@ -211,7 +211,7 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 	const char *ext, *p;
 	char buf[256], buf2[256];
 	int i, d, ret, good_cue;
-	struct stat statf;
+	struct stat64 statf;
 	FILE *f;
 
 	for (i = 1; i < count; i++) {
@@ -255,7 +255,7 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 					p = buf2;
 
 				snprintf(buf, sizeof(buf), "%s/%s", basedir, p);
-				ret = stat(buf, &statf);
+				ret = stat64(buf, &statf);
 				if (ret == 0) {
 					rm_namelist_entry(namelist, count, p);
 					good_cue = 1;
@@ -510,7 +510,7 @@ static int menu_do_last_cd_img(int is_get)
 {
 	static const char *defaults[] = { "/media", "/mnt/sd", "/mnt" };
 	char path[256];
-	struct stat st;
+	struct stat64 st;
 	FILE *f;
 	int i, ret = -1;
 
@@ -533,7 +533,7 @@ static int menu_do_last_cd_img(int is_get)
 out:
 	if (is_get) {
 		for (i = 0; last_selected_fname[0] == 0
-		       || stat(last_selected_fname, &st) != 0; i++)
+		       || stat64(last_selected_fname, &st) != 0; i++)
 		{
 			if (i >= ARRAY_SIZE(defaults))
 				break;
@@ -721,8 +721,8 @@ static void draw_savestate_bg(int slot)
 	if (f == NULL)
 		return;
 
-	if (gzseek(f, 0x29933d, SEEK_SET) != 0x29933d) {
-		fprintf(stderr, "gzseek failed\n");
+	if ((ret = (int)gzseek(f, 0x29933d, SEEK_SET)) != 0x29933d) {
+		fprintf(stderr, "gzseek failed: %d\n", ret);
 		gzclose(f);
 		return;
 	}
