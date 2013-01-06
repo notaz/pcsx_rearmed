@@ -109,7 +109,14 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
-r17
+r18 (2013-01-06)
+* cdrom code greatly cleaned up
++ new GLES output mode for ARM Linux/R-Pi
+* various libretro improvements
+* fixed several compatibility regressions
+* various other tweaks and fixes
+
+r17 (2012-11-24)
 + added overlay support for generic Linux build
 * attempted to fix sound breakage with PulseAudio
 * fixed some regressions caused by hires mode code
