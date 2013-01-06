@@ -549,7 +549,12 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
         while(1)
         {
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+          if(list_position >= list_end) {
+            cmd = -1;
+            goto breakloop;
+          }
+
+          if((*list_position & 0xf000f000) == 0x50005000)
             break;
 
           list_position++;
@@ -567,7 +572,12 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
         while(1)
         {
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+          if(list_position >= list_end) {
+            cmd = -1;
+            goto breakloop;
+          }
+
+          if((*list_position & 0xf000f000) == 0x50005000)
             break;
 
           list_position += 2;
@@ -593,6 +603,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
     }
   }
 
+breakloop:
   gpu.ex_regs[1] &= ~0x1ff;
   gpu.ex_regs[1] |= lGPUstatusRet & 0x1ff;
 

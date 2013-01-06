@@ -307,7 +307,11 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+          if(list_position >= list_end) {
+            cmd = -1;
+            goto breakloop;
+          }
+          if((*list_position & 0xf000f000) == 0x50005000)
             break;
         }
 
@@ -338,7 +342,11 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
-          if((*list_position & 0xf000f000) == 0x50005000 || list_position >= list_end)
+          if(list_position >= list_end) {
+            cmd = -1;
+            goto breakloop;
+          }
+          if((*list_position & 0xf000f000) == 0x50005000)
             break;
         }
 
