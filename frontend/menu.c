@@ -666,7 +666,7 @@ fail:
 
 static const char *filter_exts[] = {
 	"bin", "img", "mdf", "iso", "cue", "z",
-	"bz",  "znx", "pbp", "cbn"
+	"bz",  "znx", "pbp", "cbn", NULL
 };
 
 // rrrr rggg gggb bbbb
@@ -681,7 +681,7 @@ static unsigned short fname2color(const char *fname)
 	if (ext == NULL)
 		return 0xffff;
 	ext++;
-	for (i = 0; i < array_size(filter_exts); i++)
+	for (i = 0; filter_exts[i] != NULL; i++)
 		if (strcasecmp(ext, filter_exts[i]) == 0)
 			return 0x7bff;
 	for (i = 0; i < array_size(other_exts); i++)
@@ -1936,10 +1936,11 @@ static int run_bios(void)
 
 static int run_exe(void)
 {
+	const char *exts[] = { "exe", NULL };
 	const char *fname;
 
 	fname = menu_loop_romsel(last_selected_fname,
-		sizeof(last_selected_fname), NULL);
+		sizeof(last_selected_fname), exts, NULL);
 	if (fname == NULL)
 		return -1;
 
@@ -1994,7 +1995,8 @@ static int romsel_run(void)
 	const char *fname;
 
 	fname = menu_loop_romsel(last_selected_fname,
-		sizeof(last_selected_fname), optional_cdimg_filter);
+			sizeof(last_selected_fname), filter_exts,
+			optional_cdimg_filter);
 	if (fname == NULL)
 		return -1;
 
@@ -2025,10 +2027,11 @@ static int romsel_run(void)
 
 static int swap_cd_image(void)
 {
-	char *fname;
+	const char *fname;
 
 	fname = menu_loop_romsel(last_selected_fname,
-		sizeof(last_selected_fname), optional_cdimg_filter);
+			sizeof(last_selected_fname), filter_exts,
+			optional_cdimg_filter);
 	if (fname == NULL)
 		return -1;
 
@@ -2074,11 +2077,12 @@ static int swap_cd_multidisk(void)
 
 static void load_pcsx_cht(void)
 {
+	const char *exts[] = { "cht", NULL };
+	const char *fname;
 	char path[256];
-	char *fname;
 
 	path[0] = 0;
-	fname = menu_loop_romsel(path, sizeof(path), NULL);
+	fname = menu_loop_romsel(path, sizeof(path), exts, NULL);
 	if (fname == NULL)
 		return;
 
