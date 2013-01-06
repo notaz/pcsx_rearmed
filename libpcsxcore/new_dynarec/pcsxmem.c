@@ -475,3 +475,9 @@ void new_dyna_pcsx_mem_reset(void)
 
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
 }
+
+void new_dyna_pcsx_mem_shutdown(void)
+{
+	psxUnmap(mem_readtab, 0x200000 * 4, MAP_TAG_LUTS);
+	mem_writetab = mem_readtab = NULL;
+}

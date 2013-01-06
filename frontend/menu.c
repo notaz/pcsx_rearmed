@@ -2499,9 +2499,12 @@ void menu_prepare_emu(void)
 	plat_video_menu_leave();
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
-	if (psxCpu != prev_cpu)
+	if (psxCpu != prev_cpu) {
+		prev_cpu->Shutdown();
+		psxCpu->Init();
 		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
+	}
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here

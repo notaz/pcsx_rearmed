@@ -344,6 +344,7 @@ static void ari64_clear(u32 addr, u32 size)
 static void ari64_shutdown()
 {
 	new_dynarec_cleanup();
+	new_dyna_pcsx_mem_shutdown();
 }
 
 extern void intExecute();
@@ -394,6 +395,7 @@ void invalidate_block(unsigned int block) {}
 void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
 void new_dyna_pcsx_mem_load_state(void) {}
+void new_dyna_pcsx_mem_shutdown(void) {}
 #endif
 
 #ifdef DRC_DBG
