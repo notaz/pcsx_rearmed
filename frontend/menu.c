@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2010-2011
+ * (C) Gražvydas "notaz" Ignotas, 2010-2013
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -8,6 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -16,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "main.h"
 #include "menu.h"
@@ -84,7 +86,6 @@ typedef enum
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
 static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
-static char rom_fname_reload[MAXPATHLEN];
 static char last_selected_fname[MAXPATHLEN];
 static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
@@ -185,6 +186,107 @@ static int emu_save_load_game(int load, int unused)
 		ret = emu_save_state(state_slot);
 
 	return ret;
+}
+
+static void rm_namelist_entry(struct dirent **namelist,
+	int count, const char *name)
+{
+	int i;
+
+	for (i = 1; i < count; i++) {
+		if (namelist[i] == NULL || namelist[i]->d_type == DT_DIR)
+			continue;
+
+		if (strcmp(name, namelist[i]->d_name) == 0) {
+			free(namelist[i]);
+			namelist[i] = NULL;
+			break;
+		}
+	}
+}
+
+static int optional_cdimg_filter(struct dirent **namelist, int count,
+	const char *basedir)
+{
+	const char *ext, *p;
+	char buf[256], buf2[256];
+	int i, d, ret, good_cue;
+	struct stat64 statf;
+	FILE *f;
+
+	for (i = 1; i < count; i++) {
+		if (namelist[i] == NULL || namelist[i]->d_type == DT_DIR)
+			continue;
+
+		ext = strrchr(namelist[i]->d_name, '.');
+		if (ext == NULL) {
+			// should not happen but whatever
+			free(namelist[i]);
+			namelist[i] = NULL;
+			continue;
+		}
+		ext++;
+
+		// first find .cue files and remove files they reference
+		if (strcasecmp(ext, "cue") == 0)
+		{
+			snprintf(buf, sizeof(buf), "%s/%s", basedir,
+				namelist[i]->d_name);
+
+			f = fopen(buf, "r");
+			if (f == NULL) {
+				free(namelist[i]);
+				namelist[i] = NULL;
+				continue;
+			}
+
+			good_cue = 0;
+			while (fgets(buf, sizeof(buf), f)) {
+				ret = sscanf(buf, " FILE \"%256[^\"]\"", buf2);
+				if (ret != 1)
+					ret = sscanf(buf, " FILE %256s", buf2);
+				if (ret != 1)
+					continue;
+
+				p = strrchr(buf2, '/');
+				if (p == NULL)
+					p = strrchr(buf2, '\\');
+				if (p == NULL)
+					p = buf2;
+
+				snprintf(buf, sizeof(buf), "%s/%s", basedir, p);
+				ret = stat64(buf, &statf);
+				if (ret == 0) {
+					rm_namelist_entry(namelist, count, p);
+					good_cue = 1;
+				}
+			}
+			fclose(f);
+
+			if (!good_cue) {
+				free(namelist[i]);
+				namelist[i] = NULL;
+			}
+			continue;
+		}
+
+		p = strcasestr(namelist[i]->d_name, "track");
+		if (p != NULL) {
+			ret = strtoul(p + 5, NULL, 10);
+			if (ret > 1) {
+				free(namelist[i]);
+				namelist[i] = NULL;
+				continue;
+			}
+		}
+	}
+
+	// compact namelist
+	for (i = d = 1; i < count; i++)
+		if (namelist[i] != NULL)
+			namelist[d++] = namelist[i];
+
+	return d;
 }
 
 // propagate menu settings to the emu vars
@@ -406,14 +508,18 @@ static int menu_write_config(int is_game)
 
 static int menu_do_last_cd_img(int is_get)
 {
+	static const char *defaults[] = { "/media", "/mnt/sd", "/mnt" };
 	char path[256];
+	struct stat64 st;
 	FILE *f;
-	int ret;
+	int i, ret = -1;
 
 	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
 	f = fopen(path, is_get ? "r" : "w");
-	if (f == NULL)
-		return -1;
+	if (f == NULL) {
+		ret = -1;
+		goto out;
+	}
 
 	if (is_get) {
 		ret = fread(last_selected_fname, 1, sizeof(last_selected_fname) - 1, f);
@@ -423,6 +529,17 @@ static int menu_do_last_cd_img(int is_get)
 	else
 		fprintf(f, "%s\n", last_selected_fname);
 	fclose(f);
+
+out:
+	if (is_get) {
+		for (i = 0; last_selected_fname[0] == 0
+		       || stat64(last_selected_fname, &st) != 0; i++)
+		{
+			if (i >= ARRAY_SIZE(defaults))
+				break;
+			strcpy(last_selected_fname, defaults[i]);
+		}
+	}
 
 	return 0;
 }
@@ -547,20 +664,25 @@ fail:
 	return ret;
 }
 
+static const char *filter_exts[] = {
+	"bin", "img", "mdf", "iso", "cue", "z",
+	"bz",  "znx", "pbp", "cbn", NULL
+};
+
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	static const char *cdimg_exts[] = { ".bin", ".img", ".mdf", ".iso", ".cue", ".z",
-					    ".bz", ".znx", ".pbp", ".cbn" };
-	static const char *other_exts[] = { ".ccd", ".toc", ".mds", ".sub",
-					    ".table", ".index", ".sbi" };
+	static const char *other_exts[] = {
+		"ccd", "toc", "mds", "sub", "table", "index", "sbi"
+	};
 	const char *ext = strrchr(fname, '.');
 	int i;
 
 	if (ext == NULL)
 		return 0xffff;
-	for (i = 0; i < array_size(cdimg_exts); i++)
-		if (strcasecmp(ext, cdimg_exts[i]) == 0)
+	ext++;
+	for (i = 0; filter_exts[i] != NULL; i++)
+		if (strcasecmp(ext, filter_exts[i]) == 0)
 			return 0x7bff;
 	for (i = 0; i < array_size(other_exts); i++)
 		if (strcasecmp(ext, other_exts[i]) == 0)
@@ -569,10 +691,6 @@ static unsigned short fname2color(const char *fname)
 }
 
 static void draw_savestate_bg(int slot);
-
-static const char *filter_exts[] = {
-	".mp3", ".MP3", ".txt", ".htm", "html",	".jpg", ".pnd"
-};
 
 #define MENU_ALIGN_LEFT
 #ifdef __ARM_ARCH_7A__ // assume hires device
@@ -603,8 +721,8 @@ static void draw_savestate_bg(int slot)
 	if (f == NULL)
 		return;
 
-	if (gzseek(f, 0x29933d, SEEK_SET) != 0x29933d) {
-		fprintf(stderr, "gzseek failed\n");
+	if ((ret = (int)gzseek(f, 0x29933d, SEEK_SET)) != 0x29933d) {
+		fprintf(stderr, "gzseek failed: %d\n", ret);
 		gzclose(f);
 		return;
 	}
@@ -1818,9 +1936,11 @@ static int run_bios(void)
 
 static int run_exe(void)
 {
+	const char *exts[] = { "exe", NULL };
 	const char *fname;
 
-	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	fname = menu_loop_romsel(last_selected_fname,
+		sizeof(last_selected_fname), exts, NULL);
 	if (fname == NULL)
 		return -1;
 
@@ -1874,7 +1994,9 @@ static int romsel_run(void)
 	int prev_gpu, prev_spu;
 	const char *fname;
 
-	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	fname = menu_loop_romsel(last_selected_fname,
+			sizeof(last_selected_fname), filter_exts,
+			optional_cdimg_filter);
 	if (fname == NULL)
 		return -1;
 
@@ -1898,16 +2020,18 @@ static int romsel_run(void)
 			return -1;
 	}
 
-	strcpy(last_selected_fname, rom_fname_reload);
+	strcpy(last_selected_fname, fname);
 	menu_do_last_cd_img(0);
 	return 0;
 }
 
 static int swap_cd_image(void)
 {
-	char *fname;
+	const char *fname;
 
-	fname = menu_loop_romsel(last_selected_fname, sizeof(last_selected_fname));
+	fname = menu_loop_romsel(last_selected_fname,
+			sizeof(last_selected_fname), filter_exts,
+			optional_cdimg_filter);
 	if (fname == NULL)
 		return -1;
 
@@ -1929,7 +2053,7 @@ static int swap_cd_image(void)
 	SetCdOpenCaseTime(time(NULL) + 2);
 	LidInterrupt();
 
-	strcpy(last_selected_fname, rom_fname_reload);
+	strcpy(last_selected_fname, fname);
 	return 0;
 }
 
@@ -1953,11 +2077,12 @@ static int swap_cd_multidisk(void)
 
 static void load_pcsx_cht(void)
 {
+	const char *exts[] = { "cht", NULL };
+	const char *fname;
 	char path[256];
-	char *fname;
 
 	path[0] = 0;
-	fname = menu_loop_romsel(path, sizeof(path));
+	fname = menu_loop_romsel(path, sizeof(path), exts, NULL);
 	if (fname == NULL)
 		return;
 
@@ -2278,8 +2403,6 @@ void menu_init(void)
 	char buff[MAXPATHLEN];
 	int i;
 
-	strcpy(last_selected_fname, "/media");
-
 	cpu_clock_st = cpu_clock = plat_target_cpu_clock_get();
 
 	scan_bios_plugins();
@@ -2380,9 +2503,12 @@ void menu_prepare_emu(void)
 	plat_video_menu_leave();
 
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
-	if (psxCpu != prev_cpu)
+	if (psxCpu != prev_cpu) {
+		prev_cpu->Shutdown();
+		psxCpu->Init();
 		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
+	}
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here

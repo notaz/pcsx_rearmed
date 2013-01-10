@@ -435,7 +435,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           num_vertexes++;
 
           if(list_position >= list_end)
-            break;
+          {
+            current_command = (u32)-1;
+            goto breakloop;
+          }
 
           xy = *list_position;
           if((xy & 0xF000F000) == 0x50005000)
@@ -496,7 +499,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           num_vertexes++;
 
           if(list_position >= list_end)
-            break;
+          {
+            current_command = (u32)-1;
+            goto breakloop;
+          }
 
           color = list_position[0];
           if((color & 0xF000F000) == 0x50005000)
@@ -774,9 +780,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   	}
   }
 
-#ifdef PCSX
 breakloop:
-#endif
   if (last_command != NULL)
     *last_command = current_command;
   return list - list_start;
@@ -1193,7 +1197,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           num_vertexes++;
 
           if(list_position >= list_end)
-            break;
+          {
+            current_command = (u32)-1;
+            goto breakloop;
+          }
 
           xy = *list_position;
           if((xy & 0xF000F000) == 0x50005000)
@@ -1259,7 +1266,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           num_vertexes++;
 
           if(list_position >= list_end)
-            break;
+          {
+            current_command = (u32)-1;
+            goto breakloop;
+          }
 
           color = list_position[0];
           if((color & 0xF000F000) == 0x50005000)

@@ -431,7 +431,7 @@ void psxHwWrite16(u32 add, u16 value) {
 #endif
 			if (Config.Sio) psxHu16ref(0x1070) |= SWAPu16(0x80);
 			if (Config.SpuIrq) psxHu16ref(0x1070) |= SWAPu16(0x200);
-			psxHu16ref(0x1070) &= SWAPu16((psxHu16(0x1074) & value));
+			psxHu16ref(0x1070) &= SWAPu16(value);
 			return;
 
 		case 0x1f801074:
@@ -546,7 +546,7 @@ void psxHwWrite32(u32 add, u32 value) {
 #endif
 			if (Config.Sio) psxHu32ref(0x1070) |= SWAPu32(0x80);
 			if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAPu32(0x200);
-			psxHu32ref(0x1070) &= SWAPu32((psxHu32(0x1074) & value));
+			psxHu32ref(0x1070) &= SWAPu32(value);
 			return;
 		case 0x1f801074:
 #ifdef PSXHW_LOG

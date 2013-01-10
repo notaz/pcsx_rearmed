@@ -147,9 +147,9 @@ make_rcnt_funcs(2)
 
 static void io_write_ireg16(u32 value)
 {
-	if (Config.Sio) psxHu16ref(0x1070) |= 0x80;
+	//if (Config.Sio) psxHu16ref(0x1070) |= 0x80;
 	if (Config.SpuIrq) psxHu16ref(0x1070) |= 0x200;
-	psxHu16ref(0x1070) &= psxHu16(0x1074) & value;
+	psxHu16ref(0x1070) &= value;
 }
 
 static void io_write_imask16(u32 value)
@@ -161,9 +161,9 @@ static void io_write_imask16(u32 value)
 
 static void io_write_ireg32(u32 value)
 {
-	if (Config.Sio) psxHu32ref(0x1070) |= 0x80;
+	//if (Config.Sio) psxHu32ref(0x1070) |= 0x80;
 	if (Config.SpuIrq) psxHu32ref(0x1070) |= 0x200;
-	psxHu32ref(0x1070) &= psxHu32(0x1074) & value;
+	psxHu32ref(0x1070) &= value;
 }
 
 static void io_write_imask32(u32 value)
@@ -474,4 +474,10 @@ void new_dyna_pcsx_mem_reset(void)
 		map_item(&mem_iortab[IOMEM16(i)], SPU_readRegister, 1);
 
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
+}
+
+void new_dyna_pcsx_mem_shutdown(void)
+{
+	psxUnmap(mem_readtab, 0x200000 * 4, MAP_TAG_LUTS);
+	mem_writetab = mem_readtab = NULL;
 }

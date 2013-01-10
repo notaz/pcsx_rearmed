@@ -106,6 +106,7 @@ long GPUopen(void **unused)
 
   cbs->pl_vout_open();
   check_mode_change(1);
+  vout_update();
   return 0;
 }
 

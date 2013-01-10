@@ -444,23 +444,29 @@ static int decode_block(int ch)
 {
  unsigned char *start;
  int predict_nr,shift_factor,flags;
+ int stop = 0;
  int ret = 0;
 
- start=s_chan[ch].pCurr;                   // set up the current pos
+ start = s_chan[ch].pCurr;                 // set up the current pos
+ if(start == spuMemC)                      // ?
+  stop = 1;
 
  if(s_chan[ch].prevflags&1)                // 1: stop/loop
  {
   if(!(s_chan[ch].prevflags&2))
-  {
-   dwChannelOn&=~(1<<ch);                  // -> turn everything off
-   s_chan[ch].bStop=1;
-   s_chan[ch].ADSRX.EnvelopeVol=0;
-  }
+   stop = 1;
 
   start = s_chan[ch].pLoop;
  }
  else
   ret = check_irq(ch, start);              // hack, see check_irq below..
+
+ if(stop)
+ {
+  dwChannelOn &= ~(1<<ch);                 // -> turn everything off
+  s_chan[ch].bStop = 1;
+  s_chan[ch].ADSRX.EnvelopeVol = 0;
+ }
 
  predict_nr=(int)start[0];
  shift_factor=predict_nr&0xf;
@@ -665,12 +671,13 @@ static void noinline do_decode_bufs(int which, int start, int count)
 {
  const int *src = ChanBuf + start;
  unsigned short *dst = &spuMem[0x800/2 + which*0x400/2];
- int cursor = decode_pos;
+ int cursor = decode_pos + start;
 
  while (count-- > 0)
   {
+   cursor &= 0x1ff;
    dst[cursor] = *src++;
-   cursor = (cursor + 1) & 0x1ff;
+   cursor++;
   }
 
  // decode_pos is updated and irqs are checked later, after voice loop
@@ -689,25 +696,18 @@ static int do_samples(int forced_updates)
  int ch,d,silentch;
  int bIRQReturn=0;
 
+ // ok, at the beginning we are looking if there is
+ // enuff free place in the dsound/oss buffer to
+ // fill in new data, or if there is a new channel to start.
+ // if not, we return until enuff free place is available
+ // /a new channel gets started
+
+ if(!forced_updates && out_current->busy())            // still enuff data in sound buffer?
+  return 0;
+
  while(!bIRQReturn)
   {
-   // ok, at the beginning we are looking if there is
-   // enuff free place in the dsound/oss buffer to
-   // fill in new data, or if there is a new channel to start.
-   // if not, we wait (thread) or return (timer/spuasync)
-   // until enuff free place is available/a new channel gets
-   // started
-
-   if(!forced_updates && out_current->busy())          // still enuff data in sound buffer?
-    {
-     return 0;
-    }
-
    cycles_since_update = 0;
-   if(forced_updates > 0)
-    forced_updates--;
-
-   //--------------------------------------------------// continue from irq handling in timer mode? 
 
    ns_from=0;
    ns_to=NSSIZE;
@@ -777,9 +777,9 @@ static int do_samples(int forced_updates)
 
          // no need for bIRQReturn since the channel is silent
          skip_block(ch);
-         if(start == s_chan[ch].pCurr)
+         if(start == s_chan[ch].pCurr || start - spuMemC < 0x1000)
           {
-           // looping on self
+           // looping on self or stopped(?)
            dwChannelDead |= 1<<ch;
            s_chan[ch].spos = 0;
            break;
@@ -872,12 +872,21 @@ static int do_samples(int forced_updates)
 
   // feed the sound
   // wanna have around 1/60 sec (16.666 ms) updates
-  if (iCycle++ > 16/FRAG_MSECS)
+  if (iCycle++ >= 16/FRAG_MSECS)
    {
-    out_current->feed(pSpuBuffer,
-                        ((unsigned char *)pS) - ((unsigned char *)pSpuBuffer));
+    out_current->feed(pSpuBuffer, (unsigned char *)pS - pSpuBuffer);
     pS = (short *)pSpuBuffer;
     iCycle = 0;
+
+    if(!forced_updates && out_current->busy())
+     break;
+   }
+
+  if(forced_updates > 0)
+   {
+    forced_updates--;
+    if(forced_updates == 0 && out_current->busy())
+     break;
    }
  }
 

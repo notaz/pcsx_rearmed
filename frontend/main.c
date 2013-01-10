@@ -48,7 +48,7 @@ extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iVolume;
 
-int ready_to_go;
+int ready_to_go, g_resetting;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
 int state_slot;
@@ -311,12 +311,19 @@ do_state_slot:
 	hud_new_msg = 3;
 }
 
+static char basic_lcase(char c)
+{
+	if ('A' <= c && c <= 'Z')
+		return c - 'A' + 'a';
+	return c;
+}
+
 static int cdidcmp(const char *id1, const char *id2)
 {
 	while (*id1 != 0 && *id2 != 0) {
 		if (*id1 == '_') { id1++; continue; }
 		if (*id2 == '_') { id2++; continue; }
-		if (*id1 != *id2)
+		if (basic_lcase(*id1) != basic_lcase(*id2))
 			break;
 		id1++;
 		id2++;
@@ -669,6 +676,7 @@ void SysReset() {
 	// so we need to prevent updateLace() call..
 	void *real_lace = GPU_updateLace;
 	GPU_updateLace = dummy_lace;
+	g_resetting = 1;
 
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
@@ -679,6 +687,7 @@ void SysReset() {
 	CDR_stop();
 
 	GPU_updateLace = real_lace;
+	g_resetting = 0;
 }
 
 void SysClose() {
