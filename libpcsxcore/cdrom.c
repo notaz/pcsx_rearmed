@@ -108,6 +108,7 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define MODE_STRSND      (1<<6) // 0x40 ADPCM on/off
 #define MODE_SIZE_2340   (1<<5) // 0x20
 #define MODE_SIZE_2328   (1<<4) // 0x10
+#define MODE_SIZE_2048   (0<<4) // 0x00
 #define MODE_SF          (1<<3) // 0x08 channel on/off
 #define MODE_REPORT      (1<<2) // 0x04
 #define MODE_AUTOPAUSE   (1<<1) // 0x02
@@ -122,7 +123,6 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define STATUS_UNKNOWN2  (1<<2) // 0x04
 #define STATUS_ROTATING  (1<<1) // 0x02
 #define STATUS_ERROR     (1<<0) // 0x01
-
 
 
 // 1x = 75 sectors per second
@@ -617,7 +617,7 @@ void cdrInterrupt() {
 			SetResultSize(1);
 			cdr.StatP |= STATUS_ROTATING;
 			cdr.Result[0] = cdr.StatP;
-			cdr.Stat = Acknowledge; 
+			cdr.Stat = Acknowledge;
 			break;
 
 		case CdlNop:
@@ -1160,24 +1160,14 @@ void cdrReadInterrupt() {
 			cdr.Channel = cdr.Transfer[4 + 1];
 		}
 
-		if ((cdr.Transfer[4 + 2] & 0x4) &&
+		if((cdr.Transfer[4 + 2] & 0x4) &&
 			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
-			(cdr.Transfer[4 + 0] == cdr.File)) {
+			 (cdr.Transfer[4 + 0] == cdr.File)) {
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
 			if (!ret) {
-
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
 				SPU_playADPCMchannel(&cdr.Xa);
 				cdr.FirstSector = 0;
-
-#if 0
-				// Crash Team Racing: music, speech
-				// - done using cdda decoded buffer (spu irq)
-				// - don't do here
-
-				// signal ADPCM data ready
-				setIrq();
-#endif
 			}
 			else cdr.FirstSector = -1;
 		}
@@ -1338,23 +1328,8 @@ void cdrWrite1(unsigned char rt) {
 		// Vib Ribbon: try same track again
 		StopCdda();
 
-#if 0
-		if (!cdr.SetSector[0] & !cdr.SetSector[1] & !cdr.SetSector[2]) {
-			if (CDR_getTN(cdr.ResultTN) != -1) {
-				if (cdr.CurTrack > cdr.ResultTN[1])
-					cdr.CurTrack = cdr.ResultTN[1];
-				if (CDR_getTD((unsigned char)(cdr.CurTrack), cdr.ResultTD) != -1) {
-					int tmp = cdr.ResultTD[2];
-					cdr.ResultTD[2] = cdr.ResultTD[0];
-					cdr.ResultTD[0] = tmp;
-					if (!Config.Cdda) CDR_play(cdr.ResultTD);
-				}
-			}
-		}
-#endif
 		// Vib Ribbon - decoded buffer IRQ for CDDA reading
 		// - fixes ribbon timing + music CD mode
-		//TODO?
 		//CDRDBUF_INT( PSXCLK / 44100 * 0x100 );
 
 		cdr.Play = TRUE;
@@ -1579,10 +1554,11 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			// - fix boot
 			if( cdsize == 0 )
 			{
-				switch (cdr.Mode & 0x30) {
-					case 0x00: cdsize = 2048; break;
-					case MODE_SIZE_2328: cdsize = 2328; break;
+				switch (cdr.Mode & (MODE_SIZE_2340|MODE_SIZE_2328)) {
 					case MODE_SIZE_2340: cdsize = 2340; break;
+					case MODE_SIZE_2328: cdsize = 2328; break;
+					default:
+					case MODE_SIZE_2048: cdsize = 2048; break;
 				}
 			}
 
