@@ -941,34 +941,23 @@ void cdrInterrupt() {
 
 		case CdlID + 0x20:
 			SetResultSize(8);
+			cdr.Result[0] = cdr.StatP;
+			cdr.Result[1] = 0;
+			cdr.Result[2] = 0;
+			cdr.Result[3] = 0;
 
+			// 0x10 - audio | 0x80 - unlicensed
 			if (CDR_getStatus(&stat) == -1) {
-				cdr.Result[0] = 0x00; // 0x08 and cdr.Result[1]|0x10 : audio cd, enters cd player
 				cdr.Result[1] = 0x80; // 0x80 leads to the menu in the bios, else loads CD
 			}
 			else {
-				if (stat.Type == 2) {
-					// Music CD
-					cdr.Result[0] = 0x08;
-					cdr.Result[1] = 0x10;
-
+				if (stat.Type == 2)
+					cdr.Result[1] |= 0x10;
+				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
-				}
-				else {
-					// Data CD
-					if (CdromId[0] == '\0') {
-						cdr.Result[0] = 0x00;
-						cdr.Result[1] = 0x80;
-					}
-					else {
-						cdr.Result[0] = 0x08;
-						cdr.Result[1] = 0x00;
-					}
-				}
 			}
+			cdr.Result[0] |= (cdr.Result[1] >> 4) & 0x08;
 
-			cdr.Result[2] = 0x00;
-			cdr.Result[3] = 0x00;
 			strncpy((char *)&cdr.Result[4], "PCSX", 4);
 			cdr.Stat = Complete;
 			break;
@@ -1000,7 +989,7 @@ void cdrInterrupt() {
 			cdr.StatP |= STATUS_ROTATING;
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Acknowledge;
-			AddIrqQueue(CdlReadToc + 0x20, 0x800);
+			AddIrqQueue(CdlReadToc + 0x20, cdReadTime * 16);
 			break;
 
 		case CdlReadToc + 0x20:
@@ -1068,8 +1057,8 @@ void cdrInterrupt() {
 	setIrq();
 
 #ifdef CDR_LOG_CMD_IRQ
-	SysPrintf("cdrInterrupt() Log: CDR Interrupt IRQ %d %02x: ",
-		cdr.Stat != NoIntr && cdr.Reg2 != 0x18, Irq);
+	SysPrintf("IRQ %d cmd %02x stat %02x: ",
+		!!(cdr.Stat & cdr.Reg2), Irq, cdr.Stat);
 	for (i = 0; i < cdr.ResultC; i++)
 		SysPrintf("%02x ", cdr.Result[i]);
 	SysPrintf("\n");
@@ -1295,7 +1284,7 @@ void cdrWrite1(unsigned char rt) {
 	cdr.OCUP = 0;
 
 #ifdef CDR_LOG_CMD_IRQ
-	SysPrintf("cdrWrite1() Log: CD1 write: %x (%s)", rt, CmdName[rt]);
+	SysPrintf("CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
 		for (i = 0; i < cdr.ParamC; i++)
