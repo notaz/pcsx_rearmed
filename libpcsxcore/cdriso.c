@@ -289,10 +289,11 @@ static void startCDDA(void) {
 static int parsetoc(const char *isofile) {
 	char			tocname[MAXPATHLEN];
 	FILE			*fi;
-	char			linebuf[256], dummy[256], name[256];
+	char			linebuf[256], tmp[256], name[256];
 	char			*token;
 	char			time[20], time2[20];
-	unsigned int	t, sector_offs;
+	unsigned int	t, sector_offs, sector_size;
+	unsigned int	current_zero_gap = 0;
 
 	numtracks = 0;
 
@@ -328,17 +329,21 @@ static int parsetoc(const char *isofile) {
 	memset(&ti, 0, sizeof(ti));
 	cddaBigEndian = TRUE; // cdrdao uses big-endian for CD Audio
 
+	sector_size = CD_FRAMESIZE_RAW;
 	sector_offs = 2 * 75;
 
 	// parse the .toc file
 	while (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
 		// search for tracks
-		strncpy(dummy, linebuf, sizeof(linebuf));
-		token = strtok(dummy, " ");
+		strncpy(tmp, linebuf, sizeof(linebuf));
+		token = strtok(tmp, " ");
 
 		if (token == NULL) continue;
 
 		if (!strcmp(token, "TRACK")) {
+			sector_offs += current_zero_gap;
+			current_zero_gap = 0;
+
 			// get type of track
 			token = strtok(NULL, " ");
 			numtracks++;
@@ -349,9 +354,11 @@ static int parsetoc(const char *isofile) {
 
 				// check if this image contains mixed subchannel data
 				token = strtok(NULL, " ");
-				if (token != NULL && !strncmp(token, "RW_RAW", 6)) {
+				if (token != NULL && !strncmp(token, "RW", 2)) {
+					sector_size = CD_FRAMESIZE_RAW + SUB_FRAMESIZE;
 					subChanMixed = TRUE;
-					subChanRaw = TRUE;
+					if (!strncmp(token, "RW_RAW", 6))
+						subChanRaw = TRUE;
 				}
 			}
 			else if (!strncmp(token, "AUDIO", 5)) {
@@ -362,8 +369,7 @@ static int parsetoc(const char *isofile) {
 			if (ti[numtracks].type == CDDA) {
 				sscanf(linebuf, "DATAFILE \"%[^\"]\" #%d %8s", name, &t, time2);
 				ti[numtracks].start_offset = t;
-				t /= CD_FRAMESIZE_RAW + (subChanMixed ? SUB_FRAMESIZE : 0);
-				t += sector_offs;
+				t = t / sector_size + sector_offs;
 				sec2msf(t, (char *)&ti[numtracks].start);
 				tok2msf((char *)&time2, (char *)&ti[numtracks].length);
 			}
@@ -375,20 +381,37 @@ static int parsetoc(const char *isofile) {
 		else if (!strcmp(token, "FILE")) {
 			sscanf(linebuf, "FILE \"%[^\"]\" #%d %8s %8s", name, &t, time, time2);
 			tok2msf((char *)&time, (char *)&ti[numtracks].start);
+			t += msf2sec(ti[numtracks].start) * sector_size;
 			ti[numtracks].start_offset = t;
-			t /= CD_FRAMESIZE_RAW + (subChanMixed ? SUB_FRAMESIZE : 0);
-			t += msf2sec(ti[numtracks].start) + sector_offs;
+			t = t / sector_size + sector_offs;
 			sec2msf(t, (char *)&ti[numtracks].start);
 			tok2msf((char *)&time2, (char *)&ti[numtracks].length);
 		}
-		else if (!strcmp(token, "ZERO")) {
-			sscanf(linebuf, "ZERO AUDIO RW_RAW %8s", time);
-			tok2msf((char *)&time, dummy);
-			sector_offs += msf2sec(dummy);
+		else if (!strcmp(token, "ZERO") || !strcmp(token, "SILENCE")) {
+			// skip unneeded optional fields
+			while (token != NULL) {
+				token = strtok(NULL, " ");
+				if (strchr(token, ':') != NULL)
+					break;
+			}
+			if (token != NULL) {
+				tok2msf(token, tmp);
+				current_zero_gap = msf2sec(tmp);
+			}
 			if (numtracks > 1) {
 				t = ti[numtracks - 1].start_offset;
-				t /= CD_FRAMESIZE_RAW + (subChanMixed ? SUB_FRAMESIZE : 0);
+				t /= sector_size;
 				pregapOffset = t + msf2sec(ti[numtracks - 1].length);
+			}
+		}
+		else if (!strcmp(token, "START")) {
+			token = strtok(NULL, " ");
+			if (token != NULL && strchr(token, ':')) {
+				tok2msf(token, tmp);
+				t = msf2sec(tmp);
+				ti[numtracks].start_offset += (t - current_zero_gap) * sector_size;
+				t = msf2sec(ti[numtracks].start) + t;
+				sec2msf(t, (char *)&ti[numtracks].start);
 			}
 		}
 	}
