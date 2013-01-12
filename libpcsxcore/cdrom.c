@@ -1630,6 +1630,8 @@ void cdrReset() {
 	cdr.CurTrack = 1;
 	cdr.File = 1;
 	cdr.Channel = 1;
+	cdr.Reg2 = 0x1f;
+	cdr.Stat = NoIntr;
 	pTransfer = cdr.Transfer;
 
 	// BIOS player - default values
