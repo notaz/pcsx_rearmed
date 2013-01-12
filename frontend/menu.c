@@ -8,7 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE 1
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -327,6 +327,7 @@ static void menu_set_defconfig(void)
 
 	g_opts = 0;
 	g_scaler = SCALE_4_3;
+	g_gamma = 100;
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 50;
@@ -391,6 +392,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 2),
+	CE_INTVAL(g_gamma),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
 	CE_INTVAL(g_layer_w),
