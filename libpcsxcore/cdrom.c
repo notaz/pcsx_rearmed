@@ -852,11 +852,6 @@ void cdrInterrupt() {
 			break;
 
 		case CdlGetTN:
-			// 5-Star Racing: don't stop CDDA
-			//
-			// Vib Ribbon: CD swap
-			StopReading();
-
 			cdr.CmdProcess = 0;
 			SetResultSize(3);
 			cdr.StatP |= STATUS_ROTATING;
