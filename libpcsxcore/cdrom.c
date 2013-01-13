@@ -298,13 +298,14 @@ static void Check_Shell( int Irq )
 				{
 					// Vib Ribbon: pre-CD swap
 					StopCdda();
+					StopReading();
 
 
 					// GameShark Lite: Death if DiskError happens
 					//
 					// Vib Ribbon: Needs DiskError for CD swap
 
-					if (Irq != CdlNop)
+					//if (Irq != CdlNop)
 					{
 						cdr.Stat = DiskError;
 
