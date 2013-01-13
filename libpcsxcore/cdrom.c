@@ -946,9 +946,9 @@ void cdrInterrupt() {
 			cdr.Result[2] = 0;
 			cdr.Result[3] = 0;
 
-			// 0x10 - audio | 0x80 - unlicensed
-			if (CDR_getStatus(&stat) == -1) {
-				cdr.Result[1] = 0x80; // 0x80 leads to the menu in the bios, else loads CD
+			// 0x10 - audio | 0x40 - disk missing | 0x80 - unlicensed
+			if (CDR_getStatus(&stat) == -1 || stat.Type == 0 || stat.Type == 0xff) {
+				cdr.Result[1] = 0xc0;
 			}
 			else {
 				if (stat.Type == 2)
