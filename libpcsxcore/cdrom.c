@@ -130,6 +130,13 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 // so (PSXCLK / 75) = cdr read time (linuzappz)
 #define cdReadTime (PSXCLK / 75)
 
+enum drive_state {
+	DRIVESTATE_STANDBY = 0,
+	DRIVESTATE_LID_OPEN,
+	DRIVESTATE_RESCAN_CD,
+	DRIVESTATE_PREPARE_CD,
+};
+
 // for cdr.Seeked
 enum seeked_state {
 	SEEK_PENDING = 0,
@@ -218,166 +225,76 @@ static void setIrq(void)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 }
 
+// timing used in this function was taken from tests on real hardware
+// (yes it's slow, but you probably don't want to modify it)
 void cdrLidSeekInterrupt()
 {
-	// turn back on checking
-	if( cdr.LidCheck == 0x10 )
-	{
-		cdr.LidCheck = 0;
-	}
-
-	// official lid close
-	else if( cdr.LidCheck == 0x30 )
-	{
-		// GS CDX 3.3: $13
-		cdr.StatP |= STATUS_ROTATING;
-
-
-		// GS CDX 3.3 - ~50 getlocp tries
-		CDRLID_INT( cdReadTime * 3 );
-		cdr.LidCheck = 0x40;
-	}
-
-	// turn off ready
-	else if( cdr.LidCheck == 0x40 )
-	{
-		// GS CDX 3.3: $01
-		cdr.StatP &= ~STATUS_SHELLOPEN;
-		cdr.StatP &= ~STATUS_ROTATING;
-
-
-		// GS CDX 3.3 - ~50 getlocp tries
-		CDRLID_INT( cdReadTime * 3 );
-		cdr.LidCheck = 0x50;
-	}
-
-	// now seek
-	else if( cdr.LidCheck == 0x50 )
-	{
-		// GameShark Lite: Start seeking ($42)
-		cdr.StatP |= STATUS_SEEK;
-		cdr.StatP |= STATUS_ROTATING;
-		cdr.StatP &= ~STATUS_ERROR;
-
-
-		CDRLID_INT( cdReadTime * 3 );
-		cdr.LidCheck = 0x60;
-	}
-
-	// done = cd ready
-	else if( cdr.LidCheck == 0x60 )
-	{
-		// GameShark Lite: Seek detection done ($02)
+	switch (cdr.DriveState) {
+	default:
+	case DRIVESTATE_STANDBY:
 		cdr.StatP &= ~STATUS_SEEK;
 
-		cdr.LidCheck = 0;
-	}
-}
+		if (CDR_getStatus(&stat) == -1)
+			return;
 
-static void Check_Shell( int Irq )
-{
-	// check case open/close
-	if (cdr.LidCheck > 0)
-	{
-		CDR_LOG( "LidCheck\n" );
-
-		// $20 = check lid state
-		if( cdr.LidCheck == 0x20 )
+		if (stat.Status & STATUS_SHELLOPEN)
 		{
-			u32 i;
+			StopCdda();
+			cdr.DriveState = DRIVESTATE_LID_OPEN;
+			CDRLID_INT(0x800);
+		}
+		break;
 
-			i = stat.Status;
-			if (CDR_getStatus(&stat) != -1)
-			{
-				// BIOS hangs + BIOS error messages
-				//if (stat.Type == 0xff)
-					//cdr.Stat = DiskError;
+	case DRIVESTATE_LID_OPEN:
+		if (CDR_getStatus(&stat) == -1)
+			stat.Status &= ~STATUS_SHELLOPEN;
 
-				// case now open
-				if (stat.Status & STATUS_SHELLOPEN)
-				{
-					// Vib Ribbon: pre-CD swap
-					StopCdda();
-					StopReading();
+		// 02, 12, 10
+		if (!(cdr.StatP & STATUS_SHELLOPEN)) {
+			StopReading();
+			cdr.StatP |= STATUS_SHELLOPEN;
 
+			// could generate error irq here, but real hardware
+			// only sometimes does that
+			// (not done when lots of commands are sent?)
 
-					// GameShark Lite: Death if DiskError happens
-					//
-					// Vib Ribbon: Needs DiskError for CD swap
+			CDRLID_INT(cdReadTime * 30);
+			break;
+		}
+		else if (cdr.StatP & STATUS_ROTATING) {
+			cdr.StatP &= ~STATUS_ROTATING;
+		}
+		else if (!(stat.Status & STATUS_SHELLOPEN)) {
+			// closed now
+			CheckCdrom();
 
-					//if (Irq != CdlNop)
-					{
-						cdr.Stat = DiskError;
+			// cdr.StatP STATUS_SHELLOPEN is "sticky"
+			// and is only cleared by CdlNop
 
-						cdr.StatP |= STATUS_ERROR;
-						cdr.Result[0] |= STATUS_ERROR;
-					}
-
-					// GameShark Lite: Wants -exactly- $10
-					cdr.StatP |= STATUS_SHELLOPEN;
-					cdr.StatP &= ~STATUS_ROTATING;
-
-
-					CDRLID_INT( cdReadTime * 3 );
-					cdr.LidCheck = 0x10;
-
-
-					// GS CDX 3.3 = $11
-				}
-
-				// case just closed
-				else if ( i & STATUS_SHELLOPEN )
-				{
-					cdr.StatP |= STATUS_ROTATING;
-
-					CheckCdrom();
-
-
-					if( cdr.Stat == NoIntr )
-						cdr.Stat = Acknowledge;
-
-					setIrq();
-
-					// begin close-seek-ready cycle
-					CDRLID_INT( cdReadTime * 3 );
-					cdr.LidCheck = 0x30;
-
-
-					// GameShark Lite: Wants -exactly- $42, then $02
-					// GS CDX 3.3: Wants $11/$80, $13/$80, $01/$00
-				}
-
-				// case still closed - wait for recheck
-				else
-				{
-					CDRLID_INT( cdReadTime * 3 );
-					cdr.LidCheck = 0x10;
-				}
-			}
+			cdr.DriveState = DRIVESTATE_RESCAN_CD;
+			CDRLID_INT(cdReadTime * 105);
+			break;
 		}
 
+		// recheck for close
+		CDRLID_INT(cdReadTime * 3);
+		break;
 
-		// GS CDX: clear all values but #1,#2
-		if( (cdr.LidCheck >= 0x30) || (cdr.StatP & STATUS_SHELLOPEN) )
-		{
-			SetResultSize(16);
-			memset( cdr.Result, 0, 16 );
+	case DRIVESTATE_RESCAN_CD:
+		cdr.StatP |= STATUS_ROTATING;
+		cdr.DriveState = DRIVESTATE_PREPARE_CD;
 
-			cdr.Result[0] = cdr.StatP;
+		// this is very long on real hardware, over 6 seconds
+		// make it a bit faster here...
+		CDRLID_INT(cdReadTime * 150);
+		break;
 
+	case DRIVESTATE_PREPARE_CD:
+		cdr.StatP |= STATUS_SEEK;
 
-			// GS CDX: special return value
-			if( cdr.StatP & STATUS_SHELLOPEN )
-			{
-				cdr.Result[1] = 0x80;
-			}
-
-
-			if( cdr.Stat == NoIntr )
-				cdr.Stat = Acknowledge;
-
-			setIrq();
-		}
+		cdr.DriveState = DRIVESTATE_STANDBY;
+		CDRLID_INT(cdReadTime * 26);
+		break;
 	}
 }
 
@@ -626,7 +543,8 @@ void cdrInterrupt() {
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Acknowledge;
 
-			if (cdr.LidCheck == 0) cdr.LidCheck = 0x20;
+			if (cdr.DriveState != DRIVESTATE_LID_OPEN)
+				cdr.StatP &= ~STATUS_SHELLOPEN;
 			break;
 
 		case CdlSetloc:
@@ -747,8 +665,6 @@ void cdrInterrupt() {
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
 //			cdr.Stat = Acknowledge;
-
-			if (cdr.LidCheck == 0) cdr.LidCheck = 0x20;
 			break;
 
 		case CdlPause:
@@ -1046,7 +962,18 @@ void cdrInterrupt() {
 			break;
 	}
 
-	Check_Shell( Irq );
+	if (Irq != CdlNop) {
+		switch (cdr.DriveState) {
+		case DRIVESTATE_LID_OPEN:
+		case DRIVESTATE_RESCAN_CD:
+		case DRIVESTATE_PREPARE_CD:
+			SetResultSize(2);
+			cdr.Result[0] = cdr.StatP | STATUS_ERROR;
+			cdr.Result[1] = 0x80;
+			cdr.Stat = DiskError;
+			break;
+		}
+	}
 
 	cdr.ParamC = 0;
 
@@ -1196,8 +1123,6 @@ void cdrReadInterrupt() {
 
 	// update for CdlGetlocP
 	ReadTrack(cdr.SetSector);
-
-	Check_Shell(0);
 }
 
 /*
@@ -1628,6 +1553,7 @@ void cdrReset() {
 	cdr.Channel = 1;
 	cdr.Reg2 = 0x1f;
 	cdr.Stat = NoIntr;
+	cdr.DriveState = DRIVESTATE_STANDBY;
 	pTransfer = cdr.Transfer;
 
 	// BIOS player - default values
@@ -1685,17 +1611,7 @@ int cdrFreeze(void *f, int Mode) {
 }
 
 void LidInterrupt() {
-	cdr.LidCheck = 0x20; // start checker
-
 	getCdInfo();
-       
 	StopCdda();
-	CDRLID_INT( cdReadTime * 3 );
-
-	// generate interrupt if none active - open or close
-	if (cdr.Irq == 0 || cdr.Irq == 0xff) {
-		cdr.Ctrl |= 0x80;
-		cdr.Stat = NoIntr;
-		AddIrqQueue(CdlNop, 0x800);
-	}
+	cdrLidSeekInterrupt();
 }
