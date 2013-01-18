@@ -575,6 +575,7 @@ void cdrInterrupt() {
 			break;
 
 		case CdlPlay:
+			StopCdda();
 			if (cdr.Seeked == SEEK_PENDING) {
 				// XXX: wrong, should seek instead..
 				memcpy( cdr.SetSectorPlay, cdr.SetSector, 4 );
@@ -669,6 +670,18 @@ void cdrInterrupt() {
 			break;
 
 		case CdlStop:
+			if (cdr.Play) {
+				// grab time for current track
+				CDR_getTD((u8)(cdr.CurTrack), cdr.ResultTD);
+
+				cdr.SetSectorPlay[0] = cdr.ResultTD[2];
+				cdr.SetSectorPlay[1] = cdr.ResultTD[1];
+				cdr.SetSectorPlay[2] = cdr.ResultTD[0];
+			}
+
+			StopCdda();
+			StopReading();
+
 			delay = 0x800;
 			if (cdr.DriveState == DRIVESTATE_STANDBY)
 				delay = cdReadTime * 30 / 2;
@@ -715,12 +728,16 @@ void cdrInterrupt() {
 			break;
 
 		case CdlMute:
+			cdr.Muted = TRUE;
 			break;
 
 		case CdlDemute:
+			cdr.Muted = FALSE;
 			break;
 
 		case CdlSetfilter:
+			cdr.File = cdr.Param[0];
+			cdr.Channel = cdr.Param[1];
 			break;
 
 		case CdlSetmode:
@@ -789,6 +806,8 @@ void cdrInterrupt() {
 
 		case CdlSeekL:
 		case CdlSeekP:
+			StopCdda();
+			StopReading();
 			cdr.StatP |= STATUS_SEEK;
 
 			/*
@@ -881,7 +900,8 @@ void cdrInterrupt() {
 
 		case CdlReadN:
 		case CdlReadS:
-			if (!cdr.Reading) return;
+			cdr.Reading = 1;
+			cdr.FirstSector = 1;
 
 			// Fighting Force 2 - update subq time immediately
 			// - fixes new game
@@ -1194,22 +1214,7 @@ void cdrWrite1(unsigned char rt) {
 	AddIrqQueue(cdr.Cmd, 0x800);
 
 	switch (cdr.Cmd) {
-	case CdlSync:
-	case CdlNop:
-	case CdlForward:
-	case CdlBackward:
-	case CdlReadT:
-	case CdlTest:
-	case CdlID:
-	case CdlReadToc:
-	case CdlGetmode:
-	case CdlGetlocL:
-	case CdlGetlocP:
-	case CdlGetTD:
-		break;
-
 	case CdlSetloc:
-		StopReading();
 		for (i = 0; i < 3; i++)
 			set_loc[i] = btoi(cdr.Param[i]);
 
@@ -1227,54 +1232,9 @@ void cdrWrite1(unsigned char rt) {
 		cdr.SetSector[3] = 0;
 		break;
 
-	case CdlPlay:
-		// Vib Ribbon: try same track again
-		StopCdda();
-
-		// Vib Ribbon - decoded buffer IRQ for CDDA reading
-		// - fixes ribbon timing + music CD mode
-		//CDRDBUF_INT( PSXCLK / 44100 * 0x100 );
-
-		cdr.Play = TRUE;
-
-		cdr.StatP |= STATUS_SEEK;
-		cdr.StatP &= ~STATUS_ROTATING;
-		break;
-
 	case CdlReadN:
-		StopReading();
-		cdr.Reading = 1;
-		cdr.FirstSector = 1;
-		cdr.Readed = 0xff;
-		break;
-
-	case CdlStandby:
-		StopCdda();
-		StopReading();
-		break;
-
-	case CdlStop:
-		// GameShark CD Player: Reset CDDA to track start
-		if (cdr.Play) {
-			// grab time for current track
-			CDR_getTD((u8)(cdr.CurTrack), cdr.ResultTD);
-
-			cdr.SetSectorPlay[0] = cdr.ResultTD[2];
-			cdr.SetSectorPlay[1] = cdr.ResultTD[1];
-			cdr.SetSectorPlay[2] = cdr.ResultTD[0];
-		}
-
-		StopCdda();
-		StopReading();
-		break;
-
+	case CdlReadS:
 	case CdlPause:
-		/*
-		   GameShark CD Player: save time for resume
-
-		   Twisted Metal - World Tour: don't mix Setloc / CdlPlay cursors
-		*/
-
 		StopCdda();
 		StopReading();
 		break;
@@ -1286,28 +1246,6 @@ void cdrWrite1(unsigned char rt) {
 		StopReading();
 		break;
 
-	case CdlMute:
-		cdr.Muted = TRUE;
-			// Duke Nukem - Time to Kill
-			// - do not directly set cd-xa volume
-			//SPU_writeRegister( H_CDLeft, 0x0000 );
-			//SPU_writeRegister( H_CDRight, 0x0000 );
-		break;
-
-	case CdlDemute:
-		cdr.Muted = FALSE;
-
-			// Duke Nukem - Time to Kill
-			// - do not directly set cd-xa volume
-			//SPU_writeRegister( H_CDLeft, 0x7f00 );
-			//SPU_writeRegister( H_CDRight, 0x7f00 );
-		break;
-
-    	case CdlSetfilter:
-        	cdr.File = cdr.Param[0];
-        	cdr.Channel = cdr.Param[1];
-        	break;
-
     	case CdlSetmode:
 		CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
 
@@ -1318,32 +1256,6 @@ void cdrWrite1(unsigned char rt) {
 		if( cdr.Play && (cdr.Mode & MODE_CDDA) == 0 )
 			StopCdda();
         	break;
-
-    	case CdlGetTN:
-		//AddIrqQueue(cdr.Cmd, 0x800);
-
-		// GameShark CDX CD Player: very long time
-		AddIrqQueue(cdr.Cmd, 0x100000);
-		break;
-
-    	case CdlSeekL:
-    	case CdlSeekP:
-		// Tomb Raider 2 - reset cdda
-		StopCdda();
-		StopReading();
-		break;
-
-    	case CdlReadS:
-		StopReading();
-		cdr.Reading = 2;
-		cdr.FirstSector = 1;
-		cdr.Readed = 0xff;
-		break;
-
-	default:
-		cdr.ParamC = 0;
-		CDR_LOG_I("cdrWrite1() Log: Unknown command: %x\n", cdr.Cmd);
-		return;
 	}
 }
 
