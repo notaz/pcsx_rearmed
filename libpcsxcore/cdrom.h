@@ -92,7 +92,8 @@ typedef struct {
 
 	int Init;
 
-	unsigned char Irq;
+	u16 Irq;
+	u8 IrqRepeated;
 	u32 eCycle;
 
 	u8 Seeked;
