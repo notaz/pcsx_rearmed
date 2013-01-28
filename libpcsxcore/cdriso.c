@@ -470,10 +470,12 @@ static int parsecue(const char *isofile) {
 
 	// build a path for files referenced in .cue
 	strncpy(filepath, cuename, sizeof(filepath));
-	tmp = strrchr(filepath, '/') + 1;
+	tmp = strrchr(filepath, '/');
 	if (tmp == NULL)
-		tmp = strrchr(filepath, '\\') + 1;
-	if (tmp == NULL)
+		tmp = strrchr(filepath, '\\');
+	if (tmp != NULL)
+		tmp++;
+	else
 		tmp = filepath;
 	*tmp = 0;
 	filepath[sizeof(filepath) - 1] = 0;
