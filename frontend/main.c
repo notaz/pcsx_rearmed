@@ -33,6 +33,8 @@
 #include "libpicofe/readpng.h"
 
 static void toggle_fast_forward(int force_off);
+static void check_profile(void);
+static void check_memcards(void);
 #endif
 #ifndef BOOT_MSG
 #define BOOT_MSG "Booting up..."
@@ -65,28 +67,6 @@ static void make_path(char *buf, size_t size, const char *dir, const char *fname
 }
 #define MAKE_PATH(buf, dir, fname) \
 	make_path(buf, sizeof(buf), dir, fname)
-
-static void create_profile_dir(const char *directory) {
-	char path[MAXPATHLEN];
-
-	MAKE_PATH(path, directory, NULL);
-	mkdir(path, S_IRWXU | S_IRWXG);
-}
-
-static void CheckSubDir() {
-	// make sure that ~/.pcsx exists
-	create_profile_dir(PCSX_DOT_DIR);
-
-	create_profile_dir(BIOS_DIR);
-	create_profile_dir(MEMCARD_DIR);
-	create_profile_dir(STATES_DIR);
-	create_profile_dir(PLUGINS_DIR);
-	create_profile_dir(PLUGINS_CFG_DIR);
-	create_profile_dir(CHEATS_DIR);
-	create_profile_dir(PATCHES_DIR);
-	create_profile_dir(PCSX_DOT_DIR "cfg");
-	create_profile_dir("/screenshots/");
-}
 
 static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
 	char trimlabel[33];
@@ -126,9 +106,12 @@ void set_cd_image(const char *fname)
 
 static void set_default_paths(void)
 {
+#ifndef NO_FRONTEND
+	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
 	strcpy(Config.BiosDir, "bios");
+#endif
 
 	strcpy(Config.PluginsDir, "plugins");
 	strcpy(Config.Gpu, "builtin_gpu");
@@ -137,8 +120,6 @@ static void set_default_paths(void)
 	strcpy(Config.Pad1, "builtin_pad");
 	strcpy(Config.Pad2, "builtin_pad");
 	strcpy(Config.Net, "Disabled");
-
-	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 }
 
 void emu_set_default_config(void)
@@ -173,25 +154,6 @@ void emu_set_default_config(void)
 
 	in_type1 = PSE_PAD_TYPE_STANDARD;
 	in_type2 = PSE_PAD_TYPE_STANDARD;
-}
-
-static void check_memcards(void)
-{
-	char buf[MAXPATHLEN];
-	FILE *f;
-	int i;
-
-	for (i = 1; i <= 9; i++) {
-		snprintf(buf, sizeof(buf), ".%scard%d.mcd", MEMCARD_DIR, i);
-
-		f = fopen(buf, "rb");
-		if (f == NULL) {
-			SysPrintf("Creating memcard: %s\n", buf);
-			CreateMcd(buf);
-		}
-		else
-			fclose(f);
-	}
 }
 
 void do_emu_action(void)
@@ -456,8 +418,10 @@ int emu_core_init(void)
 {
 	SysPrintf("Starting PCSX-ReARMed " REV "\n");
 
-	CheckSubDir();
+#ifndef NO_FRONTEND
+	check_profile();
 	check_memcards();
+#endif
 
 	if (EmuInit() == -1) {
 		SysPrintf("PSX emulator couldn't be initialized.\n");
@@ -474,6 +438,47 @@ int emu_core_init(void)
 }
 
 #ifndef NO_FRONTEND
+static void create_profile_dir(const char *directory) {
+	char path[MAXPATHLEN];
+
+	MAKE_PATH(path, directory, NULL);
+	mkdir(path, S_IRWXU | S_IRWXG);
+}
+
+static void check_profile(void) {
+	// make sure that ~/.pcsx exists
+	create_profile_dir(PCSX_DOT_DIR);
+
+	create_profile_dir(BIOS_DIR);
+	create_profile_dir(MEMCARD_DIR);
+	create_profile_dir(STATES_DIR);
+	create_profile_dir(PLUGINS_DIR);
+	create_profile_dir(PLUGINS_CFG_DIR);
+	create_profile_dir(CHEATS_DIR);
+	create_profile_dir(PATCHES_DIR);
+	create_profile_dir(PCSX_DOT_DIR "cfg");
+	create_profile_dir("/screenshots/");
+}
+
+static void check_memcards(void)
+{
+	char buf[MAXPATHLEN];
+	FILE *f;
+	int i;
+
+	for (i = 1; i <= 9; i++) {
+		snprintf(buf, sizeof(buf), ".%scard%d.mcd", MEMCARD_DIR, i);
+
+		f = fopen(buf, "rb");
+		if (f == NULL) {
+			SysPrintf("Creating memcard: %s\n", buf);
+			CreateMcd(buf);
+		}
+		else
+			fclose(f);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	char file[MAXPATHLEN] = "";
