@@ -35,6 +35,7 @@ static bool vout_can_dupe;
 
 static int samples_sent, samples_to_send;
 static int plugins_opened;
+static int is_pal_mode;
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
@@ -182,6 +183,7 @@ void pl_frame_limit(void)
 
 void pl_timing_prepare(int is_pal)
 {
+	is_pal_mode = is_pal;
 }
 
 void plat_trigger_vibrate(int is_strong)
@@ -254,7 +256,7 @@ void retro_get_system_info(struct retro_system_info *info)
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
 	memset(info, 0, sizeof(*info));
-	info->timing.fps            = 60;
+	info->timing.fps            = is_pal_mode ? 50 : 60;
 	info->timing.sample_rate    = 44100;
 	info->geometry.base_width   = 320;
 	info->geometry.base_height  = 240;
@@ -446,7 +448,7 @@ void retro_unload_game(void)
 
 unsigned retro_get_region(void)
 {
-	return RETRO_REGION_NTSC;
+	return is_pal_mode ? RETRO_REGION_PAL : RETRO_REGION_NTSC;
 }
 
 void *retro_get_memory_data(unsigned id)
@@ -501,7 +503,7 @@ void retro_run(void)
 	stop = 0;
 	psxCpu->Execute();
 
-	samples_to_send += 44100 / 60;
+	samples_to_send += is_pal_mode ? 44100 / 50 : 44100 / 60;
 
 	video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf : NULL,
 		vout_width, vout_height, vout_width * 2);
