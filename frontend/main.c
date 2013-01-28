@@ -454,6 +454,8 @@ int emu_core_preinit(void)
 
 int emu_core_init(void)
 {
+	SysPrintf("Starting PCSX-ReARMed " REV "\n");
+
 	CheckSubDir();
 	check_memcards();
 
@@ -553,7 +555,8 @@ int main(int argc, char *argv[])
 	plat_init();
 	menu_init(); // loads config
 
-	emu_core_init();
+	if (emu_core_init() != 0)
+		return 1;
 
 	if (psxout)
 		Config.PsxOut = 1;
@@ -761,6 +764,8 @@ int emu_load_state(int slot)
 	return LoadState(fname);
 }
 
+#ifndef ANDROID
+
 void SysPrintf(const char *fmt, ...) {
 	va_list list;
 
@@ -769,16 +774,31 @@ void SysPrintf(const char *fmt, ...) {
 	va_end(list);
 }
 
+#else
+
+#include <android/log.h>
+
+void SysPrintf(const char *fmt, ...) {
+	va_list list;
+
+	va_start(list, fmt);
+	__android_log_vprint(ANDROID_LOG_INFO, "PCSX", fmt, list);
+	va_end(list);
+}
+
+#endif
+
 void SysMessage(const char *fmt, ...) {
-        va_list list;
-        char msg[512];
+	va_list list;
+	char msg[512];
+	int ret;
 
-        va_start(list, fmt);
-        vsnprintf(msg, sizeof(msg), fmt, list);
-        va_end(list);
+	va_start(list, fmt);
+	ret = vsnprintf(msg, sizeof(msg), fmt, list);
+	va_end(list);
 
-        if (msg[strlen(msg) - 1] == '\n')
-                msg[strlen(msg) - 1] = 0;
+	if (ret < sizeof(msg) && msg[ret - 1] == '\n')
+		msg[ret - 1] = 0;
 
 	SysPrintf("%s\n", msg);
 }
