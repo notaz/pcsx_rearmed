@@ -409,10 +409,13 @@ void LoadMcd(int mcd, char *str) {
 	}
 
 	McdDisable[mcd - 1] = 0;
-	if (str == NULL || *str == 0) {
+	if (str == NULL || strcmp(str, "none") == 0) {
 		McdDisable[mcd - 1] = 1;
 		return;
 	}
+	if (*str == 0)
+		return;
+
 	f = fopen(str, "rb");
 	if (f == NULL) {
 		SysPrintf(_("The memory card %s doesn't exist - creating it\n"), str);
@@ -454,6 +457,9 @@ void LoadMcds(char *mcd1, char *mcd2) {
 
 void SaveMcd(char *mcd, char *data, uint32_t adr, int size) {
 	FILE *f;
+
+	if (mcd == NULL || *mcd == 0 || strcmp(mcd, "none") == 0)
+		return;
 
 	f = fopen(mcd, "r+b");
 	if (f != NULL) {

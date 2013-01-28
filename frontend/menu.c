@@ -1700,10 +1700,10 @@ out:
 
 static void handle_memcard_sel(void)
 {
-	Config.Mcd1[0] = 0;
+	strcpy(Config.Mcd1, "none");
 	if (memcard1_sel != 0)
 		snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s", MEMCARD_DIR, memcards[memcard1_sel]);
-	Config.Mcd2[0] = 0;
+	strcpy(Config.Mcd2, "none");
 	if (memcard2_sel != 0)
 		snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s", MEMCARD_DIR, memcards[memcard2_sel]);
 	LoadMcds(Config.Mcd1, Config.Mcd2);
