@@ -251,7 +251,9 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 				p = strrchr(buf2, '/');
 				if (p == NULL)
 					p = strrchr(buf2, '\\');
-				if (p == NULL)
+				if (p != NULL)
+					p++;
+				else
 					p = buf2;
 
 				snprintf(buf, sizeof(buf), "%s/%s", basedir, p);
