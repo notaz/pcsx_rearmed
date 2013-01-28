@@ -16,7 +16,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, write to the                         *
  *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
+ *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
 #include "psxcommon.h"
@@ -28,6 +28,7 @@
 #ifdef _WIN32
 #include <process.h>
 #include <windows.h>
+#define strcasecmp _stricmp
 #else
 #include <pthread.h>
 #include <sys/time.h>
@@ -45,6 +46,8 @@ static FILE *subHandle = NULL;
 static boolean subChanMixed = FALSE;
 static boolean subChanRaw = FALSE;
 static boolean subChanMissing = FALSE;
+
+static boolean multifile = FALSE;
 
 static unsigned char cdbuffer[CD_FRAMESIZE_RAW];
 static unsigned char subbuffer[SUB_FRAMESIZE];
@@ -71,6 +74,8 @@ static unsigned int cdda_file_offset;
  * XXX: there could be multiple pregaps but PSX dumps only have one? */
 static unsigned int pregapOffset;
 
+#define cddaCurPos cdda_cur_sector
+
 // compressed image stuff
 static struct {
 	unsigned char buff_raw[16][CD_FRAMESIZE_RAW];
@@ -93,10 +98,8 @@ long CALLBACK CDR__getStatus(struct CdrStat *stat);
 
 static void DecodeRawSubData(void);
 
-extern void *hCDRDriver;
-
 struct trackinfo {
-	enum {DATA, CDDA} type;
+	enum {DATA=1, CDDA} type;
 	char start[3];		// MSF-format
 	char length[3];		// MSF-format
 	FILE *handle;		// for multi-track images CDDA
@@ -558,8 +561,10 @@ static int parsecue(const char *isofile) {
 			}
 
 			// update global offset if this is not first file in this .cue
-			if (numtracks + 1 > 1)
+			if (numtracks + 1 > 1) {
+				multifile = 1;
 				sector_offs += file_len;
+			}
 
 			file_len = 0;
 			if (ti[numtracks + 1].handle == NULL) {
@@ -1215,6 +1220,7 @@ static long CALLBACK ISOopen(void) {
 	subChanRaw = FALSE;
 	pregapOffset = 0;
 	cdrIsoMultidiskCount = 1;
+	multifile = 0;
 
 	CDR_getBuffer = ISOgetBuffer;
 	cdimg_read_func = cdread_normal;
@@ -1349,7 +1355,6 @@ static long CALLBACK ISOgetTN(unsigned char *buffer) {
 //  byte 2 - minute
 static long CALLBACK ISOgetTD(unsigned char track, unsigned char *buffer) {
 	if (track == 0) {
-		// CD length according pcsxr-svn (done a bit different here)
 		unsigned int sect;
 		unsigned char time[3];
 		sect = msf2sec(ti[numtracks].start) + msf2sec(ti[numtracks].length);
@@ -1466,20 +1471,74 @@ static unsigned char* CALLBACK ISOgetBufferSub(void) {
 }
 
 static long CALLBACK ISOgetStatus(struct CdrStat *stat) {
-	int sec;
-
+	u32 sect;
+	
 	CDR__getStatus(stat);
-
+	
 	if (playing) {
 		stat->Type = 0x02;
 		stat->Status |= 0x80;
 	}
 	else {
-		stat->Type = 0x01;
+		// BIOS - boot ID (CD type)
+		stat->Type = ti[1].type;
+	}
+	
+	// relative -> absolute time
+	sect = cddaCurPos;
+	sec2msf(sect, (char *)stat->Time);
+	
+	return 0;
+}
+
+// read CDDA sector into buffer
+long CALLBACK ISOreadCDDA(unsigned char m, unsigned char s, unsigned char f, unsigned char *buffer) {
+	unsigned char msf[3] = {m, s, f};
+	unsigned int file, track, track_start = 0;
+	int ret;
+
+	cddaCurPos = msf2sec((char *)msf);
+
+	// find current track index
+	for (track = numtracks; ; track--) {
+		track_start = msf2sec(ti[track].start);
+		if (track_start <= cddaCurPos)
+			break;
+		if (track == 1)
+			break;
 	}
 
-	sec = cdda_cur_sector;
-	sec2msf(sec, (char *)stat->Time);
+	// data tracks play silent
+	if (ti[track].type != CDDA) {
+		memset(buffer, 0, CD_FRAMESIZE_RAW);
+		return 0;
+	}
+
+	file = 1;
+	if (multifile) {
+		// find the file that contains this track
+		for (file = track; file > 1; file--)
+			if (ti[file].handle != NULL)
+				break;
+	}
+
+	ret = cdimg_read_func(ti[file].handle, ti[track].start_offset,
+		buffer, cddaCurPos - track_start);
+	if (ret != CD_FRAMESIZE_RAW) {
+		memset(buffer, 0, CD_FRAMESIZE_RAW);
+		return -1;
+	}
+
+	if (cddaBigEndian) {
+		int i;
+		unsigned char tmp;
+
+		for (i = 0; i < CD_FRAMESIZE_RAW / 2; i++) {
+			tmp = buffer[i * 2];
+			buffer[i * 2] = buffer[i * 2 + 1];
+			buffer[i * 2 + 1] = tmp;
+		}
+	}
 
 	return 0;
 }
@@ -1497,6 +1556,7 @@ void cdrIsoInit(void) {
 	CDR_stop = ISOstop;
 	CDR_getBufferSub = ISOgetBufferSub;
 	CDR_getStatus = ISOgetStatus;
+	CDR_readCDDA = ISOreadCDDA;
 
 	CDR_getDriveLetter = CDR__getDriveLetter;
 	CDR_configure = CDR__configure;
