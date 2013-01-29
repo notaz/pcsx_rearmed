@@ -92,12 +92,13 @@ typedef struct {
 
 	int Init;
 
-	unsigned char Irq;
+	u16 Irq;
+	u8 IrqRepeated;
 	u32 eCycle;
 
 	u8 Seeked;
 
-	u8 LidCheck;
+	u8 DriveState;
 	u8 FastForward;
 	u8 FastBackward;
 	u8 pad;

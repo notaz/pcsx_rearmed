@@ -42,10 +42,15 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag)
 {
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+	int tried_to_align = 0;
+	unsigned long mask;
 	void *req, *ret;
 
-	if (psxMapHook != NULL)
-		return psxMapHook(addr, size, is_fixed, tag);
+retry:
+	if (psxMapHook != NULL) {
+		ret = psxMapHook(addr, size, is_fixed, tag);
+		goto out;
+	}
 
 	if (is_fixed)
 		flags |= MAP_FIXED;
@@ -55,9 +60,24 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 	if (ret == MAP_FAILED)
 		return NULL;
 
-	if (req != NULL && ret != req)
-		SysMessage("psxMap: warning: wanted to map @%p, got %p\n",
-			req, ret);
+out:
+	if (addr != 0 && ret != (void *)addr) {
+		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
+			addr, ret);
+
+		if (ret != NULL && ((addr ^ (long)ret) & 0x00ffffff)
+		    && !tried_to_align)
+		{
+			psxUnmap(ret, size, tag);
+
+			// try to use similarly aligned memory instead
+			// (recompiler needs this)
+			mask = (addr - 1) & ~addr & 0x07ffffff;
+			addr = (unsigned long)(ret + mask) & ~mask;
+			tried_to_align = 1;
+			goto retry;
+		}
+	}
 
 	return ret;
 }
@@ -110,7 +130,7 @@ int psxMemInit() {
 	psxM = psxMap(0x80000000, 0x00210000, 1, MAP_TAG_RAM);
 #ifndef RAM_FIXED
 	if (psxM == NULL)
-		psxM = psxMap(0x70000000, 0x00210000, 0, MAP_TAG_RAM);
+		psxM = psxMap(0x78000000, 0x00210000, 0, MAP_TAG_RAM);
 #endif
 	if (psxM == NULL) {
 		SysMessage(_("mapping main RAM failed"));
