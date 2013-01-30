@@ -72,6 +72,11 @@ static int change_video_mode(void)
   return plat_sdl_change_video_mode(w, h, 0);
 }
 
+static void quit_cb(void)
+{
+  emu_core_ask_exit();
+}
+
 void plat_init(void)
 {
   int ret;
@@ -95,6 +100,7 @@ void plat_init(void)
   pl_rearmed_cbs.only_16bpp = 1;
 
   bgr_to_uyvy_init();
+  plat_sdl_quit_cb = quit_cb;
 }
 
 void plat_finish(void)

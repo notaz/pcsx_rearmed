@@ -50,7 +50,7 @@ extern int iUseInterpolation;
 extern int iXAPitch;
 extern int iVolume;
 
-int ready_to_go, g_resetting;
+int ready_to_go, g_emu_want_quit, g_emu_resetting;
 unsigned long gpuDisp;
 char cfgfile_basename[MAXPATHLEN];
 int state_slot;
@@ -437,6 +437,12 @@ int emu_core_init(void)
 	return 0;
 }
 
+void emu_core_ask_exit(void)
+{
+	stop = 1;
+	g_emu_want_quit = 1;
+}
+
 #ifndef NO_FRONTEND
 static void create_profile_dir(const char *directory) {
 	char path[MAXPATHLEN];
@@ -622,7 +628,7 @@ int main(int argc, char *argv[])
 
 	pl_start_watchdog();
 
-	while (1)
+	while (!g_emu_want_quit)
 	{
 		stop = 0;
 		emu_action = SACTION_NONE;
@@ -631,6 +637,12 @@ int main(int argc, char *argv[])
 		if (emu_action != SACTION_NONE)
 			do_emu_action();
 	}
+
+	printf("Exit..\n");
+	ClosePlugins();
+	SysClose();
+	menu_finish();
+	plat_finish();
 
 	return 0;
 }
@@ -684,7 +696,7 @@ void SysReset() {
 	// so we need to prevent updateLace() call..
 	void *real_lace = GPU_updateLace;
 	GPU_updateLace = dummy_lace;
-	g_resetting = 1;
+	g_emu_resetting = 1;
 
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
@@ -695,7 +707,7 @@ void SysReset() {
 	CDR_stop();
 
 	GPU_updateLace = real_lace;
-	g_resetting = 0;
+	g_emu_resetting = 0;
 }
 
 void SysClose() {
@@ -704,20 +716,13 @@ void SysClose() {
 
 	StopDebugger();
 
-	if (emuLog != NULL) fclose(emuLog);
+	if (emuLog != NULL && emuLog != stdout && emuLog != stderr) {
+		fclose(emuLog);
+		emuLog = NULL;
+	}
 }
 
 void SysUpdate() {
-}
-
-void OnFile_Exit() {
-	printf("OnFile_Exit\n");
-	SysClose();
-#ifndef NO_FRONTEND
-	menu_finish();
-	plat_finish();
-	exit(0);
-#endif
 }
 
 int get_state_filename(char *buf, int size, int i) {
@@ -809,8 +814,7 @@ void SysMessage(const char *fmt, ...) {
 }
 
 static void SignalExit(int sig) {
-	ClosePlugins();
-	OnFile_Exit();
+	emu_core_ask_exit();
 }
 
 #define PARSEPATH(dst, src) \

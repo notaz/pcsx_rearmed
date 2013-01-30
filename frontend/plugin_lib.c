@@ -606,7 +606,7 @@ void pl_frame_limit(void)
 	struct timeval now;
 	int diff, usadj;
 
-	if (g_resetting)
+	if (g_emu_resetting)
 		return;
 
 	vsync_cnt++;
