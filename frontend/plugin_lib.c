@@ -240,9 +240,12 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 
 	psx_w = raw_w;
 	psx_h = raw_h;
+	psx_bpp = bpp;
 	vout_w = w;
 	vout_h = h;
-	vout_bpp = psx_bpp = bpp;
+	vout_bpp = bpp;
+	if (pl_rearmed_cbs.only_16bpp)
+		vout_bpp = 16;
 
 	// don't use very low heights
 	if (vout_h < 192) {
@@ -270,7 +273,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
 	if (pl_vout_buf == NULL && pl_plat_blit == NULL)
 		fprintf(stderr, "failed to set mode %dx%d@%d\n",
-			vout_w, vout_h, psx_bpp);
+			vout_w, vout_h, vout_bpp);
 	else {
 		pl_vout_w = vout_w;
 		pl_vout_h = vout_h;
