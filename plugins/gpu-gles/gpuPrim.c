@@ -44,9 +44,6 @@
 // globals
 ////////////////////////////////////////////////////////////////////////
 
-EGLSurface surface;
-EGLDisplay display;
-
 
 BOOL           bDrawTextured;                          // current active drawing states
 BOOL           bDrawSmoothShaded;
