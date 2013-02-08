@@ -129,6 +129,10 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 OBJS += frontend/cspace.o
 ifeq "$(HAVE_NEON)" "1"
 OBJS += frontend/cspace_neon.o
+else
+ifeq "$(ARCH)" "arm"
+OBJS += frontend/cspace_arm.o
+endif
 endif
 
 ifeq "$(PLATFORM)" "generic"

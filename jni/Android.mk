@@ -35,6 +35,7 @@ ifeq ($(TARGET_ARCH),arm)
       # gpu
       LOCAL_CFLAGS += -DREARMED
       LOCAL_SRC_FILES += ../plugins/gpu_unai/gpulib_if.cpp ../plugins/gpu_unai/gpu_arm.s
+      LOCAL_SRC_FILES += ../frontend/cspace_arm.S
    else
       LOCAL_ARM_NEON := true
       LOCAL_CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
