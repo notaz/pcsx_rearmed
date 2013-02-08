@@ -17,7 +17,7 @@
 #include "libpicofe/fonts.h"
 #include "libpicofe/plat_sdl.h"
 #include "libpicofe/gl.h"
-#include "../plugins/gpulib/cspace.h"
+#include "cspace.h"
 #include "plugin_lib.h"
 #include "plugin.h"
 #include "main.h"

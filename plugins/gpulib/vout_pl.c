@@ -11,7 +11,6 @@
 
 #include <string.h>
 #include "gpu.h"
-#include "cspace.h"
 #include "../../frontend/plugin_lib.h"
 
 static const struct rearmed_cbs *cbs;

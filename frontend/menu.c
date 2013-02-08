@@ -26,6 +26,7 @@
 #include "plugin_lib.h"
 #include "plat.h"
 #include "pcnt.h"
+#include "cspace.h"
 #include "libpicofe/plat.h"
 #include "libpicofe/input.h"
 #include "libpicofe/linux/in_evdev.h"
@@ -36,7 +37,6 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/externals.h"
-#include "../plugins/gpulib/cspace.h"
 #include "psemu_plugin_defs.h"
 #include "revision.h"
 

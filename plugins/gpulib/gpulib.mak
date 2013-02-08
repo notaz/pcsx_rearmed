@@ -1,5 +1,5 @@
 # depends on ARCH definition
-# always adding gpulib to deps in case cspace is needed
+# always adding gpulib to deps (XXX might be no longer needed)
 # users must include ../../config.mak
 
 LDFLAGS += -shared -Wl,--no-undefined

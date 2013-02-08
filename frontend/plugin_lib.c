@@ -28,10 +28,10 @@
 #include "plat.h"
 #include "pcnt.h"
 #include "pl_gun_ts.h"
+#include "cspace.h"
 #include "psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psxmem_map.h"
-#include "../plugins/gpulib/cspace.h"
 #include "../plugins/dfinput/externals.h"
 
 int in_type1, in_type2;

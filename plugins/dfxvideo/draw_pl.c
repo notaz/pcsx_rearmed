@@ -9,7 +9,6 @@
 
 #include "gpu.h"
 
-#include "../gpulib/cspace.h"
 #include "../../frontend/plugin_lib.h"
 #include "pcnt.h"
 

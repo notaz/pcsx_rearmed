@@ -15,7 +15,7 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
-#include "../plugins/gpulib/cspace.h"
+#include "cspace.h"
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
