@@ -11,7 +11,6 @@
 
 #include <string.h>
 #include "gpu.h"
-#include "cspace.h"
 #include "../../frontend/plugin_lib.h"
 
 static const struct rearmed_cbs *cbs;
@@ -50,8 +49,7 @@ static void check_mode_change(int force)
     old_status = gpu.status.reg;
     old_h = h;
 
-    cbs->pl_vout_set_mode(w_out, h_out, w, h,
-      (gpu.status.rgb24 && !cbs->only_16bpp) ? 24 : 16);
+    cbs->pl_vout_set_mode(w_out, h_out, w, h, gpu.status.rgb24 ? 24 : 16);
   }
 }
 

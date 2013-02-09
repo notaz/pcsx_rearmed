@@ -16,6 +16,6 @@ CFLAGS += $(CFLAGS_GLES)
 LDLIBS += $(LDLIBS_GLES)
 endif
 
-BIN_STANDLALONE = gpuGLES.so
+#BIN_STANDALONE = gpuGLES.so
 BIN_GPULIB = gpu_gles.so
 include ../gpulib/gpulib.mak

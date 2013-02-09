@@ -49,6 +49,7 @@ have_tslib=""
 have_gles=""
 enable_dynarec="yes"
 need_sdl="no"
+need_xlib="no"
 need_libpicofe="yes"
 need_warm="no"
 CFLAGS_GLES=""
@@ -84,6 +85,7 @@ set_platform()
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
+    need_xlib="yes"
     ;;
   maemo)
     ram_fixed="yes"
@@ -360,6 +362,15 @@ EOF
   compile_binary "$@"
 }
 
+check_xlib_headers()
+{
+  cat > $TMPC <<EOF
+  #include <X11/Xlib.h>
+  void *f() { return XOpenDisplay(0); }
+EOF
+  compile_object "$@"
+}
+
 MAIN_LDLIBS="$MAIN_LDLIBS -lz"
 check_zlib || fail "please install zlib (libz-dev)"
 
@@ -420,6 +431,7 @@ fi
 if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
   CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads"
   LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
+  need_xlib="yes"
 fi
 
 # check for GLES headers
@@ -443,6 +455,11 @@ if [ "$have_gles" = "yes" ]; then
 fi
 if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
   plugins="$plugins plugins/gpu_neon/gpu_neon.so"
+fi
+
+# check for xlib (only headers needed)
+if [ "x$need_xlib" = "xyes" ]; then
+  check_xlib_headers || fail "please install libx11-dev"
 fi
 
 cat > $TMPC <<EOF

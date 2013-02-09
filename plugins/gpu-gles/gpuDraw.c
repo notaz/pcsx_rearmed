@@ -248,9 +248,9 @@ void CreateScanLines(void)
 int use_fsaa = 0;
 
 EGLDisplay display;
-EGLConfig  config;
-EGLContext context;
 EGLSurface surface;
+static EGLConfig  config;
+static EGLContext context;
 
 #if defined(USE_X11)
 #include "X11/Xlib.h"
@@ -435,10 +435,19 @@ static int initEGL(void)
 	return 0;
 }
 
-int GLinitialize() 
+static int created_gles_context;
+
+int GLinitialize(void *ext_gles_display, void *ext_gles_surface)
 {
- if(initEGL()!=0)
-  return -1;
+ if(ext_gles_display != NULL && ext_gles_surface != NULL) { 
+  display = (EGLDisplay)ext_gles_display;
+  surface = (EGLSurface)ext_gles_surface;
+ }
+ else {
+  if(initEGL()!=0)
+   return -1;
+  created_gles_context=1;
+ }
 
  //----------------------------------------------------// 
 
@@ -448,7 +457,7 @@ int GLinitialize()
             iResY-(rRatioRect.top+rRatioRect.bottom),
             rRatioRect.right, 
             rRatioRect.bottom); glError();
-                                                      
+
  glScissor(0, 0, iResX, iResY); glError();             // init clipping (fullscreen)
  glEnable(GL_SCISSOR_TEST); glError();
 
@@ -532,16 +541,19 @@ void GLcleanup()
 {                                                     
  CleanupTextureStore();                                // bye textures
 
-	eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
-	eglDestroySurface( display, surface );
-	eglDestroyContext( display, context );
-	eglTerminate( display );
+ if(created_gles_context) {
+  eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
+  eglDestroySurface( display, surface );
+  eglDestroyContext( display, context );
+  eglTerminate( display );
 
 #if defined(USE_X11)
 		if (x11Window) XDestroyWindow(x11Display, x11Window);
 		if (x11Colormap) XFreeColormap( x11Display, x11Colormap );
 		if (x11Display) XCloseDisplay(x11Display);
 #endif
+  created_gles_context=0;
+ }
 }
 
 ////////////////////////////////////////////////////////////////////////

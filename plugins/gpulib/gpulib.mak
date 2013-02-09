@@ -1,5 +1,5 @@
 # depends on ARCH definition
-# always adding gpulib to deps in case cspace is needed
+# always adding gpulib to deps (XXX might be no longer needed)
 # users must include ../../config.mak
 
 LDFLAGS += -shared -Wl,--no-undefined
@@ -16,8 +16,8 @@ endif
 
 GPULIB_A = ../gpulib/gpulib$(EXT).a
 
-ifdef BIN_STANDLALONE
-TARGETS += $(BIN_STANDLALONE)
+ifdef BIN_STANDALONE
+TARGETS += $(BIN_STANDALONE)
 endif
 ifdef BIN_GPULIB
 TARGETS += $(BIN_GPULIB)
@@ -30,11 +30,11 @@ PLUGINDIR = $(shell basename $(WD))
 
 all: ../../config.mak $(TARGETS)
 
-ifdef BIN_STANDLALONE
+ifdef BIN_STANDALONE
 ifneq ($(findstring .cpp,$(SRC_STANDALONE)),)
 CC_STANDLALONE = $(CXX)
 endif
-$(BIN_STANDLALONE): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
+$(BIN_STANDALONE): $(SRC) $(SRC_STANDALONE) $(GPULIB_A)
 	$(CC_STANDLALONE) -o $@ $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) $(LDLIBS_STANDALONE)
 	ln -fs $(PLUGINDIR)/$@ ../
 endif

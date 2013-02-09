@@ -15,7 +15,7 @@
  * in favor of NEON version or platform-specific conversion
  */
 
-#ifndef __ARM_NEON__
+#ifndef __arm__
 
 void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 {
@@ -31,6 +31,10 @@ void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 		dst[x] = p;
 	}
 }
+
+#endif
+
+#ifndef __ARM_NEON__
 
 void bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
 {

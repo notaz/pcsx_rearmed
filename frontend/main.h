@@ -16,8 +16,8 @@
  *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA
  */
 
-#ifndef __LINUX_H__
-#define __LINUX_H__
+#ifndef __FRONTEND_MAIN_H__
+#define __FRONTEND_MAIN_H__
 
 #include "config.h"
 
@@ -41,6 +41,8 @@ extern int state_slot;
 int emu_core_preinit(void);
 int emu_core_init(void);
 
+void emu_core_ask_exit(void);
+
 void emu_set_default_config(void);
 void emu_on_new_cd(int show_hud_msg);
 
@@ -52,7 +54,7 @@ int emu_load_state(int slot);
 void set_cd_image(const char *fname);
 
 extern unsigned long gpuDisp;
-extern int ready_to_go, g_resetting;
+extern int ready_to_go, g_emu_want_quit, g_emu_resetting;
 
 extern char hud_msg[64];
 extern int hud_new_msg;
@@ -68,7 +70,7 @@ enum sched_action {
 	SACTION_SWITCH_DISPMODE,
 	SACTION_FAST_FORWARD,
 	SACTION_SCREENSHOT,
-	SACTION_VOLUME_UP,
+	SACTION_VOLUME_UP,	// 10
 	SACTION_VOLUME_DOWN,
 	SACTION_MINIMIZE,
 	SACTION_TOGGLE_FPS,
@@ -93,4 +95,4 @@ static inline void emu_set_action(enum sched_action action_)
 	emu_action = action_;
 }
 
-#endif /* __LINUX_H__ */
+#endif /* __FRONTEND_MAIN_H__ */

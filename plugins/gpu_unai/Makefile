@@ -11,6 +11,6 @@ ifeq "$(ARCH)" "arm"
 SRC += gpu_arm.s
 endif
 
-BIN_STANDLALONE = gpuPCSX4ALL.so
+#BIN_STANDALONE = gpuPCSX4ALL.so
 BIN_GPULIB = gpu_unai.so
 include ../gpulib/gpulib.mak

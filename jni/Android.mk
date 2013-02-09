@@ -29,14 +29,17 @@ ifeq ($(TARGET_ARCH),arm)
    # spu
    LOCAL_SRC_FILES += ../plugins/dfsound/arm_utils.S
 
+   # misc
+
    ifeq ($(NO_NEON_BUILD),1)
       # gpu
       LOCAL_CFLAGS += -DREARMED
-      LOCAL_SRC_FILES += ../plugins/gpulib/cspace.c ../plugins/gpu_unai/gpulib_if.cpp ../plugins/gpu_unai/gpu_arm.s
+      LOCAL_SRC_FILES += ../plugins/gpu_unai/gpulib_if.cpp ../plugins/gpu_unai/gpu_arm.s
+      LOCAL_SRC_FILES += ../frontend/cspace_arm.S
    else
       LOCAL_ARM_NEON := true
       LOCAL_CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-      LOCAL_SRC_FILES += ../libpcsxcore/gte_neon.S ../plugins/gpulib/cspace_neon.s
+      LOCAL_SRC_FILES += ../libpcsxcore/gte_neon.S ../frontend/cspace_neon.s
 
       # gpu
       LOCAL_SRC_FILES += ../plugins/gpu_neon/psx_gpu_if.c ../plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.S
@@ -54,7 +57,7 @@ endif
 ifneq ($(TARGET_ARCH),arm)
    # gpu
    LOCAL_CFLAGS += -DREARMED
-   LOCAL_SRC_FILES += ../plugins/gpulib/cspace.c ../plugins/gpu_unai/gpulib_if.cpp
+   LOCAL_SRC_FILES += ../plugins/gpu_unai/gpulib_if.cpp
 endif
 
 $(shell cd "$(LOCAL_PATH)" && ((git describe || echo) | sed -e 's/.*/#define REV "\0"/' > ../frontend/revision.h_))
@@ -84,7 +87,7 @@ LOCAL_SRC_FILES += ../plugins/cdrcimg/cdrcimg.c
 LOCAL_SRC_FILES += ../plugins/dfinput/main.c ../plugins/dfinput/pad.c ../plugins/dfinput/guncon.c
 
 # misc
-LOCAL_SRC_FILES += ../frontend/main.c ../frontend/plugin.c
+LOCAL_SRC_FILES += ../frontend/main.c ../frontend/plugin.c ../frontend/cspace.c
 
 # libretro
 LOCAL_SRC_FILES += ../frontend/libretro.c

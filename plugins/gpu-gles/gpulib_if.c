@@ -690,7 +690,7 @@ long GPUopen(void **dpy)
 
  InitializeTextureStore();                             // init texture mem
 
- ret = GLinitialize();
+ ret = GLinitialize(cbs->gles_display, cbs->gles_surface);
  MakeDisplayLists();
 
  is_opened = 1;
@@ -726,8 +726,15 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
  bUseFastMdec = cbs->gpu_peopsgl.bUseFastMdec;
  iTexGarbageCollection = cbs->gpu_peopsgl.iTexGarbageCollection;
  iVRamSize = cbs->gpu_peopsgl.iVRamSize;
+
  if (cbs->pl_set_gpu_caps)
   cbs->pl_set_gpu_caps(GPU_CAP_OWNS_DISPLAY);
+
+ if (is_opened && cbs->gles_display != NULL && cbs->gles_surface != NULL) {
+  // HACK..
+  GPUclose();
+  GPUopen(NULL);
+ }
 
  set_vram(gpu.vram);
 }

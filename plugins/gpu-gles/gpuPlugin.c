@@ -511,7 +511,7 @@ long CALLBACK GPUopen(int hwndGPU)
 // lGPUstatusRet = 0x74000000;
 
 // with some emus, we could do the OGL init right here... oh my
- if(bIsFirstFrame) GLinitialize();
+ if(bIsFirstFrame) GLinitialize(NULL, NULL);
 
  return 0;
 }
@@ -1170,7 +1170,7 @@ void CALLBACK GPUwriteStatus(unsigned long gdata)
 {
 unsigned long lCommand=(gdata>>24)&0xff;
 
-if(bIsFirstFrame) GLinitialize();                     // real ogl startup (needed by some emus)
+if(bIsFirstFrame) GLinitialize(NULL, NULL);           // real ogl startup (needed by some emus)
 
 ulStatusControl[lCommand]=gdata;
 
@@ -2183,7 +2183,7 @@ unsigned long dmaMem;
 unsigned char * baseAddrB;
 short count;unsigned int DMACommandCounter = 0;
 
-if(bIsFirstFrame) GLinitialize();
+if(bIsFirstFrame) GLinitialize(NULL, NULL);
 
 GPUIsBusy;
 

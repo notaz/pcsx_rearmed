@@ -26,6 +26,7 @@
 #include "plugin_lib.h"
 #include "plat.h"
 #include "pcnt.h"
+#include "cspace.h"
 #include "libpicofe/plat.h"
 #include "libpicofe/input.h"
 #include "libpicofe/linux/in_evdev.h"
@@ -36,7 +37,6 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/externals.h"
-#include "../plugins/gpulib/cspace.h"
 #include "psemu_plugin_defs.h"
 #include "revision.h"
 
@@ -1832,7 +1832,6 @@ static void menu_bios_warn(void)
 // ------------ main menu ------------
 
 static menu_entry e_menu_main[];
-void OnFile_Exit();
 
 static void draw_frame_main(void)
 {
@@ -2153,8 +2152,8 @@ static int main_menu_handler(int id, int keys)
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
 		break;
 	case MA_MAIN_EXIT:
-		OnFile_Exit();
-		break;
+		emu_core_ask_exit();
+		return 1;
 	default:
 		lprintf("%s: something unknown selected\n", __FUNCTION__);
 		break;
@@ -2240,7 +2239,7 @@ void menu_loop(void)
 
 	do {
 		me_loop_d(e_menu_main, &sel, NULL, draw_frame_main);
-	} while (!ready_to_go);
+	} while (!ready_to_go && !g_emu_want_quit);
 
 	/* wait until menu, ok, back is released */
 	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))

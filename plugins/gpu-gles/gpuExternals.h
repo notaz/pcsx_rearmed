@@ -41,6 +41,10 @@ extern "C" {
 #include <GLES/glext.h>
 #endif
 
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT GL_RGBA // ??
+#endif
+
 #ifdef __NANOGL__
 #define glTexParameteri(x,y,z) glTexParameterf(x,y,z) 
 #define glAlphaFuncx(x,y) glAlphaFunc(x,y) 

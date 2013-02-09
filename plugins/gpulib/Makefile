@@ -16,11 +16,6 @@ else
 OBJS += vout_pl.o
 EXT = $(ARCH).a
 endif
-ifeq "$(HAVE_NEON)" "1"
-OBJS += cspace_neon.o
-else
-OBJS += cspace.o
-endif
 CFLAGS += $(PLUGIN_CFLAGS)
 
 # need to compile to another dir, same files are compiled

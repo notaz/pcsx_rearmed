@@ -51,13 +51,15 @@ struct rearmed_cbs {
 	// some stats, for display by some plugins
 	int flips_per_sec, cpu_usage;
 	float vsps_cur; // currect vsync/s
+	// these are for gles plugin
+	unsigned int screen_w, screen_h;
+	void *gles_display, *gles_surface;
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
-	unsigned int screen_w, screen_h; // gles plugin wants this
 	unsigned int only_16bpp; // platform is 16bpp-only
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess

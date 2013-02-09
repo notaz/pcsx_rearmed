@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2011,2012
+ * (C) Gražvydas "notaz" Ignotas, 2011-2013
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -17,8 +17,9 @@
 #include "libpicofe/fonts.h"
 #include "libpicofe/plat_sdl.h"
 #include "libpicofe/gl.h"
-#include "../plugins/gpulib/cspace.h"
+#include "cspace.h"
 #include "plugin_lib.h"
+#include "plugin.h"
 #include "main.h"
 #include "plat.h"
 #include "revision.h"
@@ -56,7 +57,7 @@ static int psx_w, psx_h;
 static void *shadow_fb, *menubg_img;
 static int in_menu;
 
-static int change_video_mode(void)
+static int change_video_mode(int force)
 {
   int w, h;
 
@@ -69,12 +70,38 @@ static int change_video_mode(void)
     h = psx_h;
   }
 
-  return plat_sdl_change_video_mode(w, h, 0);
+  return plat_sdl_change_video_mode(w, h, force);
+}
+
+static void resize_cb(int w, int h)
+{
+  // used by some plugins..
+  pl_rearmed_cbs.screen_w = w;
+  pl_rearmed_cbs.screen_h = h;
+  pl_rearmed_cbs.gles_display = gl_es_display;
+  pl_rearmed_cbs.gles_surface = gl_es_surface;
+  plugin_call_rearmed_cbs();
+}
+
+static void quit_cb(void)
+{
+  emu_core_ask_exit();
+}
+
+static void get_layer_pos(int *x, int *y, int *w, int *h)
+{
+  // always fill entire SDL window
+  *x = *y = 0;
+  *w = pl_rearmed_cbs.screen_w;
+  *h = pl_rearmed_cbs.screen_h;
 }
 
 void plat_init(void)
 {
   int ret;
+
+  plat_sdl_quit_cb = quit_cb;
+  plat_sdl_resize_cb = resize_cb;
 
   ret = plat_sdl_init();
   if (ret != 0)
@@ -93,6 +120,7 @@ void plat_init(void)
   in_sdl_init(in_sdl_defbinds, plat_sdl_event_handler);
   in_probe();
   pl_rearmed_cbs.only_16bpp = 1;
+  pl_rearmed_cbs.pl_get_layer_pos = get_layer_pos;
 
   bgr_to_uyvy_init();
 }
@@ -162,7 +190,7 @@ void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
 {
   psx_w = *w;
   psx_h = *h;
-  change_video_mode();
+  change_video_mode(0);
   if (plat_sdl_overlay != NULL) {
     pl_plat_clear = plat_sdl_overlay_clear;
     pl_plat_blit = overlay_blit;
@@ -204,6 +232,8 @@ void plat_gvideo_close(void)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
+  int force_mode_change = 0;
+
   in_menu = 1;
 
   /* surface will be lost, must adjust pl_vout_buf for menu bg */
@@ -215,7 +245,11 @@ void plat_video_menu_enter(int is_rom_loaded)
     memcpy(menubg_img, plat_sdl_screen->pixels, psx_w * psx_h * 2);
   pl_vout_buf = menubg_img;
 
-  change_video_mode();
+  /* gles plugin messes stuff up.. */
+  if (pl_rearmed_cbs.gpu_caps & GPU_CAP_OWNS_DISPLAY)
+    force_mode_change = 1;
+
+  change_video_mode(force_mode_change);
 }
 
 void plat_video_menu_begin(void)

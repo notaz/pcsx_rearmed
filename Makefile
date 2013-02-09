@@ -99,10 +99,6 @@ endif
 
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
-OBJS += plugins/gpulib/cspace.o
-ifeq "$(HAVE_NEON)" "1"
-OBJS += plugins/gpulib/cspace_neon.o
-endif
 ifeq "$(BUILTIN_GPU)" "neon"
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
@@ -115,7 +111,6 @@ plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
 ifeq "$(BUILTIN_GPU)" "unai"
-OBJS += plugins/gpulib/cspace.o
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
@@ -131,6 +126,15 @@ OBJS += plugins/cdrcimg/cdrcimg.o
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # frontend/gui
+OBJS += frontend/cspace.o
+ifeq "$(HAVE_NEON)" "1"
+OBJS += frontend/cspace_neon.o
+else
+ifeq "$(ARCH)" "arm"
+OBJS += frontend/cspace_arm.o
+endif
+endif
+
 ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/libpicofe/in_sdl.o
 OBJS += frontend/libpicofe/plat_sdl.o

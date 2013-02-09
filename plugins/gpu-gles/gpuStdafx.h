@@ -82,12 +82,6 @@ extern "C" {
 #define SHADETEXBIT(x) ((x>>24) & 0x1)
 #define SEMITRANSBIT(x) ((x>>25) & 0x1)
 
-#ifndef _WINDOWS
-#ifndef GL_BGRA_EXT
-#define GL_BGRA_EXT GL_RGBA
-#endif
-#endif
-
 #if 0
 #define glError() { \
        GLenum err = glGetError(); \

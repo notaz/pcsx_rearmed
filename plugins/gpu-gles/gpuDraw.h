@@ -49,7 +49,7 @@ extern "C" {
 BOOL bSetupPixelFormat(HDC hDC);
 #endif
 
-int  GLinitialize();
+int  GLinitialize(void *ext_gles_display, void *ext_gles_surface);
 void GLcleanup();
 #ifdef _WINDOWS
 BOOL offset2(void);

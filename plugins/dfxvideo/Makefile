@@ -14,6 +14,6 @@ SRC_STANDALONE += draw_pl.c
 #LDLIBS_STANDALONE += -lX11 -lXv -lXext
 #endif
 
-BIN_STANDLALONE = gpuPEOPS.so
+#BIN_STANDALONE = gpuPEOPS.so
 BIN_GPULIB = gpu_peops.so
 include ../gpulib/gpulib.mak

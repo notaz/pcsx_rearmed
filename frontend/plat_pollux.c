@@ -46,8 +46,8 @@
 #include "main.h"
 #include "menu.h"
 #include "plat.h"
+#include "cspace.h"
 #include "../libpcsxcore/psxmem_map.h"
-#include "../plugins/gpulib/cspace.h"
 
 
 static int fbdev = -1;
