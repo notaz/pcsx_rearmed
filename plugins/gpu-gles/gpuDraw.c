@@ -427,6 +427,7 @@ static int initEGL(void)
 
 #ifdef FAKE_WINDOW
 	// broken Caanoo libs won't accept NULL window
+    // Note: this makes the eglCreateWindowSurface to fail on MAEMO
 	window = (NativeWindowType)1;
 #endif
 	surface = eglCreateWindowSurface( display, config, window, NULL );

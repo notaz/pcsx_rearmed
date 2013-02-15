@@ -210,7 +210,6 @@ int main(int argc, char **argv)
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
-		printf("%i = %s\n", i, argv[i]);
 		if (!strcmp(argv[i], "-psxout")) Config.PsxOut = 1;
 		else if (!strcmp(argv[i], "-load")) loadst = atol(argv[++i]);
 		else if (!strcmp(argv[i], "-cdfile")) {
