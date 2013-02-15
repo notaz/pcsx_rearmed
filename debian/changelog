@@ -1,0 +1,112 @@
+pcsxrearmed (0.4.0.14.13) unstable; urgency=low
+
+   * Updated source to notaz git version
+
+ -- sakya <sakya_tg@yahoo.it>  Fri,  15 Feb 2013 12:50:28 +0200
+
+pcsxrearmed (0.4.0.14.12) unstable; urgency=low
+
+   * Fixed a problem with controller and vibration (Gran Turismo 2, Wipeout 3)
+   * Added dependency to libts
+
+ -- sakya <sakya_tg@yahoo.it>  Wed,  16 May 2012 17:09:33 +0200
+
+pcsxrearmed (0.4.0.14.11) unstable; urgency=low
+
+   * Added option -guncon and -gunnotrigger to activate guncon controller type
+
+ -- sakya <sakya_tg@yahoo.it>  Wed,  16 May 2012 09:37:12 +0200
+
+pcsxrearmed (0.4.0.14.10) unstable; urgency=low
+
+   * Added option -corners to set action to execute when clicking on display corners
+   * Fixed problem with notification using gles plugin
+   * Fixed controller problem with game "Heart Of Darkness" (maybe others?)
+
+ -- sakya <sakya_tg@yahoo.it>  Fri, 11 May 2012 16:38:29 +0200
+
+pcsxrearmed (0.4.0.14.9) unstable; urgency=low
+
+   * Added support to .mdf extension
+   * Added option -vibration to activate vibration
+
+ -- sakya <sakya_tg@yahoo.it>  Tue,  1 May 2012 12:19:49 +0200
+
+pcsxrearmed (0.4.0.14.8) unstable; urgency=low
+
+  * Added option -disc to set the initial disc in multi discs images (used when loading a savestate with -load)
+  * Added option -autosave
+  * Fixed disc change for multi discs images (PBP)
+  * Merged commits from Notaz git
+    * drc: inv: fix ram ofset and mirror handling
+    * support emulated RAM mapped at offset
+
+ -- sakya <sakya_tg@yahoo.it>  Fri,  20 Apr 2012 20:27:19 +0200
+
+pcsxrearmed (0.4.0.14.7) unstable; urgency=low
+
+  * Fixed -displayon
+
+ -- sakya <sakya_tg@yahoo.it>  Sun,  15 Apr 2012 17:22:08 +0200
+
+pcsxrearmed (0.4.0.14.6) unstable; urgency=low
+
+  * Added option -keys to set the keys config file
+  * Fixed L1/L2/R1/R2
+  * Added autopause on incoming call
+
+ -- sakya <sakya_tg@yahoo.it>  Wed,  13 Apr 2012 12:51:35 +0200
+
+pcsxrearmed (0.4.0.14.5) unstable; urgency=low
+
+  * Fixed accelerometer using gles
+  * Added -analog option to use the accelerometer as the analog pad
+  * Added options to set accelerometer sens, max value, y_def
+  * Added -displayon option to keep the display on (useful when playing using the accelerometer)
+
+ -- sakya <sakya_tg@yahoo.it>  Tue,  10 Apr 2012 15:34:11 +0200
+
+pcsxrearmed (0.4.0.14.4) unstable; urgency=low
+
+  * Fixed -load option
+  * Added disc change (configured a new key)
+
+ -- sakya <sakya_tg@yahoo.it>  Fri,  06 Apr 2012 13:54:56 +0200
+
+pcsxrearmed (0.4.0.14.3) unstable; urgency=low
+
+  * Added options to set various gles settings
+  * Fixed save state slot selection
+  * Added notification on save state slot change
+
+ -- sakya <sakya_tg@yahoo.it>  Wed,  04 Apr 2012 10:20:18 +0200
+
+pcsxrearmed (0.4.0.14.2) unstable; urgency=low
+
+  * Fixed fullscreen using gpu-gles
+  * Fixed crash when saving savestate using gpu-gles
+  * Added options to set spu reverb and interpolation (disabled by default)
+
+ -- sakya <sakya_tg@yahoo.it>  Sun,  01 Apr 2012 11:42:20 +0200
+
+pcsxrearmed (0.4.0.14.1) unstable; urgency=low
+
+  * Added option to set psx region (NTSC/PAL/Auto)
+  * Use PulseAudio (better audio)
+
+ -- sakya <sakya_tg@yahoo.it>  Wed,  30 Mar 2012 09:44:51 +0200
+
+pcsxrearmed (0.4.0.14) unstable; urgency=low
+
+  * Updated to r14
+  * Added --help
+  * PCSX4All
+
+ -- sakya <sakya_tg@yahoo.it>  Sun,  27 Dec 2011 00:02:27 +0200
+
+pcsxrearmed (0.4.0.12.2) unstable; urgency=low
+
+  * gpu-gles
+
+
+ -- Bonapart <bonapart@programist.ru>  Sun,  27 Dec 2011 00:02:27 +0200
