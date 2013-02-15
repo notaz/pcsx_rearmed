@@ -177,6 +177,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	emu_core_preinit();
 	ChangeWorkingDirectory("c");
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
@@ -309,7 +310,6 @@ int main(int argc, char **argv)
 	}
 	
 	//hildon_init(&argc, &argv);
-	emu_core_preinit();
 	pl_init();
 	if (emu_core_init() == -1)
 		return 1;
