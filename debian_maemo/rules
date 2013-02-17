@@ -22,10 +22,10 @@ build-stamp:
 	dh_testdir
 	./configure --platform=maemo --gpu=neon --sound-drivers=pulseaudio --enable-neon
 	$(MAKE)
-	#strip pcsx
-	#strip plugins/gpu_unai/gpu_unai.so
-	#strip plugins/gpu-gles/gpu_gles.so
-	#strip plugins/spunull/spunull.so
+	strip pcsx
+	strip plugins/gpu_unai/gpu_unai.so
+	strip plugins/gpu-gles/gpu_gles.so
+	strip plugins/spunull/spunull.so
 	touch build-stamp
 
 clean:
