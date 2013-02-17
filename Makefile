@@ -171,11 +171,11 @@ USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "maemo"
-OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o
+OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
 maemo/%.o: maemo/%.c
 USE_PLUGIN_LIB = 1
 LDFLAGS += $(shell pkg-config --libs hildon-1 libpulse)
-EXTRA_CFLAGS +=  $(shell pkg-config --cflags hildon-1)
+EXTRA_CFLAGS +=  $(shell pkg-config --cflags hildon-1) -DHAVE_TSLIB
 #EXTRA_CFLAGS += -DMAEMO -DMAEMO_CHANGES -march=armv7-a -O3 -mtune=cortex-a8 -mfpu=neon -funsafe-math-optimizations \
 #                -mstructure-size-boundary=32 -falign-functions=32 -falign-loops
 CFLAGS += $(EXTRA_CFLAGS)
