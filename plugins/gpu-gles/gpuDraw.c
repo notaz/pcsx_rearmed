@@ -366,6 +366,12 @@ static int initEGL(void)
             x11Window = XCreateWindow( x11Display, RootWindow(x11Display, x11Screen), 0, 0, iResX, iResY,
                                         0, CopyFromParent, InputOutput, CopyFromParent, ui32Mask, &sWA);
 
+#ifdef MAEMO_CHANGES
+			XWMHints hints;
+			hints.input = True;
+			hints.flags = InputHint;
+			XSetWMHints(x11Display, x11Window, &hints);
+#endif
             // Make the window viewable and flush the output buffer.
             XMapWindow(x11Display, x11Window);
             XFlush(x11Display);
@@ -421,6 +427,7 @@ static int initEGL(void)
 
 #ifdef FAKE_WINDOW
 	// broken Caanoo libs won't accept NULL window
+    // Note: this makes the eglCreateWindowSurface to fail on MAEMO
 	window = (NativeWindowType)1;
 #endif
 	surface = eglCreateWindowSurface( display, config, window, NULL );

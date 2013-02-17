@@ -15,6 +15,9 @@ else
 CFLAGS += $(CFLAGS_GLES)
 LDLIBS += $(LDLIBS_GLES)
 endif
+ifeq "$(PLATFORM)" "maemo"
+CFLAGS += -DUSE_X11 -lX11
+endif
 
 #BIN_STANDALONE = gpuGLES.so
 BIN_GPULIB = gpu_gles.so

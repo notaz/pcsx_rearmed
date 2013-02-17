@@ -580,10 +580,25 @@ static void update_input(void)
 	emu_set_action(emu_act);
 
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
+#ifdef X11
+	extern int x11_update_keys(unsigned int *action);
+	in_keystate |= x11_update_keys(&emu_act);
+	emu_set_action(emu_act);
+#endif
 }
 #else /* MAEMO */
+#include <gtk/gtk.h>
 static void update_input(void)
 {
+	extern int g_maemo_opts;
+	extern int maemo_x11_update_keys();
+	if (g_maemo_opts&8)
+		maemo_x11_update_keys();
+	else{
+		/* process GTK+ events */
+		while (gtk_events_pending())
+			gtk_main_iteration();
+	}
 }
 #endif
 
