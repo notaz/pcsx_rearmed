@@ -5,9 +5,10 @@ nub0mode=`cat /proc/pandora/nub0/mode`
 nub1mode=`cat /proc/pandora/nub1/mode`
 /usr/pandora/scripts/op_nubchange.sh absolute absolute
 
-# 4MB for RAM (2+align) + 2MB for vram (1+overdraw) + 10MB for gpu_neon (8+overdraw)
+# 4MB for RAM (2+align) + 2MB for vram (1+overdraw)
+#  + 10MB for gpu_neon (8+overdraw) + 8MB LUTs
 # no big deal if this fails, only performance loss
-sudo -n /usr/pandora/scripts/op_hugetlb.sh 16
+sudo -n /usr/pandora/scripts/op_hugetlb.sh 24
 
 ./pcsx "$@"
 
