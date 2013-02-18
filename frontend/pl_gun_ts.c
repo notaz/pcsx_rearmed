@@ -16,6 +16,14 @@
 #include "pl_gun_ts.h"
 #include "menu.h"
 #include "../plugins/dfinput/externals.h"
+#include "../plugins/dfinput/main.h"
+
+#ifdef MAEMO
+#define N900_TSMAX_X 4096
+#define N900_TSOFFSET_X 0
+#define N900_TSMAX_Y 4096
+#define N900_TSOFFSET_Y 0
+#endif
 
 static int gun_x, gun_y, gun_in;
 static int ts_multiplier_x, ts_multiplier_y, ts_offs_x, ts_offs_y;
@@ -34,7 +42,11 @@ int pl_gun_ts_update_raw(struct tsdev *ts, int *x, int *y, int *p)
 	if (ts != NULL) {
 		while (pts_read(ts, &sample, 1) > 0) {
 			sx = sample.x;
+#ifdef MAEMO
+			sy = N900_TSMAX_Y - sample.y;
+#else
 			sy = sample.y;
+#endif
 			sp = sample.pressure;
 			updated = 1;
 		}
@@ -96,9 +108,13 @@ struct tsdev *pl_gun_ts_init(void)
 	struct tsdev *ts;
 	void *ltsh;
 
+#ifdef MAEMO
+	tsdevname = "/dev/input/ts";
+#else
 	tsdevname = getenv("TSLIB_TSDEVICE");
 	if (tsdevname == NULL)
 		tsdevname = "/dev/input/touchscreen0";
+#endif
 
 	// avoid hard dep on tslib
 	ltsh = dlopen("/usr/lib/libts-1.0.so.0", RTLD_NOW|RTLD_GLOBAL);
@@ -123,18 +139,27 @@ struct tsdev *pl_gun_ts_init(void)
 	}
 
 	ts = pts_open(tsdevname, 1);
-	if (ts == NULL)
+	if (ts == NULL){
+		printf("Failed pts_open, check permission on %s\n", tsdevname);
 		goto fail_open;
-	if (pts_config(ts) != 0)
+	}
+	if (pts_config(ts) != 0){
+		printf("Failed pts_config\n");
 		goto fail_config;
+	}
 
 	// FIXME: we should be able to get this somewhere
 	// the problem is this doesn't always match resolution due to different display modes
+#ifdef MAEMO
+	pl_set_gun_rect(N900_TSOFFSET_X, N900_TSOFFSET_Y, N900_TSMAX_X, N900_TSMAX_Y);
+#else
 #ifdef __ARM_ARCH_7A__
 	pl_set_gun_rect(0, 0, 800, 480);
 #else
 	pl_set_gun_rect(0, 0, 320, 240);
 #endif
+#endif
+	printf("Touchscreen configured, device=%s\n", tsdevname);
 	return ts;
 
 fail_config:

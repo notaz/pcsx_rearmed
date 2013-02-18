@@ -1,0 +1,68 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+#export DH_VERBOSE=1
+
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+
+#GAME_VERSION := $(shell head debian/changelog -n1 | sed -n 's/.* (\(.*\)) .*/\1/p')
+CFLAGS = -Wall -g
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CFLAGS += -O0
+else
+	CFLAGS += -O2
+endif
+
+build: build-stamp
+
+build-stamp:
+	dh_testdir
+	./configure --platform=maemo --gpu=neon --sound-drivers=pulseaudio --enable-neon
+	$(MAKE)
+	strip pcsx
+	strip plugins/gpu_unai/gpu_unai.so
+	strip plugins/gpu-gles/gpu_gles.so
+	strip plugins/spunull/spunull.so
+	touch build-stamp
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp
+	dh_clean
+	$(MAKE) clean clean_plugins
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_installdirs
+	mkdir -p "$(CURDIR)"/debian/pcsxrearmed/opt/maemo/usr/games/screenshots
+	chmod 777 "$(CURDIR)"/debian/pcsxrearmed/opt/maemo/usr/games/screenshots
+	chown user "$(CURDIR)"/debian/pcsxrearmed/opt/maemo/usr/games/screenshots
+	dh_install
+
+binary-indep: build install
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_installdocs
+	#dh_installmenu
+	dh_link
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_makeshlibs
+	dh_shlibdeps
+	dh_gencontrol
+	#maemo-optify
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install

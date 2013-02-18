@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+NAME=`head debian/changelog -n1 | sed -n 's/^\(.*\) (\(.*\)) .*/\1-\2/p'`
+[[ -z $NAME ]] && { echo "Could not extract package name and version from debian/changelog" 2>&1; exit 1; }
+
+rm -rf ../$NAME
+cp -r ../`basename $PWD` ../$NAME
+cd ../$NAME
+rm -rf .git*
+find . -depth -name .svn -type d -exec rm -r {} \;
+find . -name '*~' -exec rm {} \;
+
+LD_LIBRARY_PATH=/usr/lib dpkg-buildpackage -rfakeroot $*
