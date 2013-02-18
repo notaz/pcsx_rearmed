@@ -772,15 +772,19 @@ void *plat_gvideo_flip(void)
 		}
 	}
 
+	return pl_vout_buf;
+}
+
+// for frontend/plugin_lib.c
+void update_input(void)
+{
 	if (g_maemo_opts & 8)
 		maemo_x11_update_keys();
-	else{
-		//process GTK+ events 
-	while (gtk_events_pending())
-		gtk_main_iteration();
+	else {
+		/* process GTK+ events */
+		while (gtk_events_pending())
+			gtk_main_iteration();
 	}
-
-	return pl_vout_buf;
 }
 
 int omap_enable_layer(int enabled)
