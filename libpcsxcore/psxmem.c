@@ -198,7 +198,7 @@ void psxMemReset() {
 
 void psxMemShutdown() {
 	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM);
-	psxUnmap(psxH, 0x1f800000, MAP_TAG_OTHER);
+	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER);
 	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER);
 
 	free(psxMemRLUT);
