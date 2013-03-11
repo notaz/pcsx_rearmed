@@ -73,13 +73,14 @@ typedef struct {
 	unsigned char ResultReady;
 	unsigned char Cmd;
 	unsigned char Readed;
+	unsigned char SetlocPending;
 	u32 Reading;
 
 	unsigned char ResultTN[6];
 	unsigned char ResultTD[4];
-	unsigned char SetSector[4];
-	unsigned char SetSectorEnd[4];
 	unsigned char SetSectorPlay[4];
+	unsigned char SetSectorEnd[4];
+	unsigned char SetSector[4];
 	unsigned char Track;
 	boolean Play, Muted;
 	int CurTrack;
