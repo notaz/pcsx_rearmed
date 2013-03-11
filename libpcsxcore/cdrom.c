@@ -205,7 +205,7 @@ static void sec2msf(unsigned int s, u8 *msf) {
 		cdr.Reading = 0; \
 		psxRegs.interrupt &= ~(1 << PSXINT_CDREAD); \
 	} \
-	cdr.StatP &= ~STATUS_READ;\
+	cdr.StatP &= ~(STATUS_READ|STATUS_SEEK);\
 }
 
 #define StopCdda() { \
