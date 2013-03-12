@@ -4280,6 +4280,7 @@ function(blend_blocks_textured_unblended_on)
   beq 1f
 
  0:
+  vorr.u16 pixels, pixels, msb_mask
   vorr.u16 draw_mask, draw_mask, write_mask
   vbif.u16 fb_pixels, pixels, draw_mask
   vst1.u16 { fb_pixels }, [ fb_ptr ]
@@ -4294,6 +4295,7 @@ function(blend_blocks_textured_unblended_on)
   bne 0b
  
  1:
+  vorr.u16 pixels, pixels, msb_mask
   vorr.u16 draw_mask, draw_mask, write_mask
   vbif.u16 fb_pixels, pixels, draw_mask
   vst1.u16 { fb_pixels }, [ fb_ptr ]
