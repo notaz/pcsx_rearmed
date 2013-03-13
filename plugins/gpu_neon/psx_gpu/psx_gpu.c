@@ -4344,7 +4344,7 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
 }
 
 #define draw_pixel_line_mask_evaluate_yes()                                    \
-  if(*vram_ptr & 0x8000)                                                       \
+  if((*vram_ptr & 0x8000) == 0)                                                \
 
 #define draw_pixel_line_mask_evaluate_no()                                     \
     
