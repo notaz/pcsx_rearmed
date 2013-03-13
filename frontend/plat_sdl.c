@@ -98,6 +98,7 @@ static void get_layer_pos(int *x, int *y, int *w, int *h)
 
 void plat_init(void)
 {
+  int shadow_size;
   int ret;
 
   plat_sdl_quit_cb = quit_cb;
@@ -110,8 +111,12 @@ void plat_init(void)
   in_menu = 1;
   SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
 
-  shadow_fb = malloc(640 * 512 * 2);
-  menubg_img = malloc(640 * 512 * 2);
+  shadow_size = g_menuscreen_w * g_menuscreen_h * 2;
+  if (shadow_size < 640 * 512 * 2)
+    shadow_size = 640 * 512 * 2;
+
+  shadow_fb = malloc(shadow_size);
+  menubg_img = malloc(shadow_size);
   if (shadow_fb == NULL || menubg_img == NULL) {
     fprintf(stderr, "OOM\n");
     exit(1);
