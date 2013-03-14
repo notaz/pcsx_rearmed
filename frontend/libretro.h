@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 // Used for checking API/ABI mismatches that can break libretro implementations.
-// It is not incremented for compatible changes.
+// It is not incremented for compatible changes to the API.
 #define RETRO_API_VERSION         1
 
 // Libretro's fundamental device abstractions.
@@ -49,6 +49,28 @@ extern "C" {
 // of [-0x8000, 0x7fff]. Positive X axis is right. Positive Y axis is down.
 // Only use ANALOG type when polling for analog values of the axes.
 #define RETRO_DEVICE_ANALOG       5
+
+// Abstracts the concept of a pointing mechanism, e.g. touch.
+// This allows libretro to query in absolute coordinates where on the screen a mouse (or something similar) is being placed.
+// For a touch centric device, coordinates reported are the coordinates of the press.
+//
+// Coordinates in X and Y are reported as:
+// [-0x7fff, 0x7fff]: -0x7fff corresponds to the far left/top of the screen,
+// and 0x7fff corresponds to the far right/bottom of the screen.
+// The "screen" is here defined as area that is passed to the frontend and later displayed on the monitor.
+// The frontend is free to scale/resize this screen as it sees fit, however,
+// (X, Y) = (-0x7fff, -0x7fff) will correspond to the top-left pixel of the game image, etc.
+//
+// To check if the pointer coordinates are valid (e.g. a touch display actually being touched),
+// PRESSED returns 1 or 0.
+// If using a mouse, PRESSED will usually correspond to the left mouse button.
+// PRESSED will only return 1 if the pointer is inside the game screen.
+//
+// For multi-touch, the index variable can be used to successively query more presses.
+// If index = 0 returns true for _PRESSED, coordinates can be extracted
+// with _X, _Y for index = 0. One can then query _PRESSED, _X, _Y with index = 1, and so on.
+// Eventually _PRESSED will return false for an index. No further presses are registered at this point.
+#define RETRO_DEVICE_POINTER      6
 
 // These device types are specializations of the base types above.
 // They should only be used in retro_set_controller_type() to inform libretro implementations
@@ -100,6 +122,11 @@ extern "C" {
 #define RETRO_DEVICE_ID_LIGHTGUN_TURBO    4
 #define RETRO_DEVICE_ID_LIGHTGUN_PAUSE    5
 #define RETRO_DEVICE_ID_LIGHTGUN_START    6
+
+// Id values for POINTER.
+#define RETRO_DEVICE_ID_POINTER_X         0
+#define RETRO_DEVICE_ID_POINTER_Y         1
+#define RETRO_DEVICE_ID_POINTER_PRESSED   2
 
 // Returned from retro_get_region().
 #define RETRO_REGION_NTSC  0
@@ -285,8 +312,27 @@ enum retro_key
    RETROK_EURO           = 321,
    RETROK_UNDO           = 322,
 
-   RETROK_LAST
+   RETROK_LAST,
+
+   RETROK_DUMMY          = INT_MAX // Ensure sizeof(enum) == sizeof(int)
 };
+
+enum retro_mod
+{
+   RETROKMOD_NONE       = 0x0000,
+
+   RETROKMOD_SHIFT      = 0x01,
+   RETROKMOD_CTRL       = 0x02,
+   RETROKMOD_ALT        = 0x04,
+   RETROKMOD_META       = 0x08,
+
+   RETROKMOD_NUMLOCK    = 0x10,
+   RETROKMOD_CAPSLOCK   = 0x20,
+   RETROKMOD_SCROLLOCK  = 0x40,
+
+   RETROKMOD_DUMMY = INT_MAX // Ensure sizeof(enum) == sizeof(int)
+};
+
 
 // Environment commands.
 #define RETRO_ENVIRONMENT_SET_ROTATION  1  // const unsigned * --
@@ -331,7 +377,7 @@ enum retro_key
                                            //
                                            // It can be used by the frontend to potentially warn
                                            // about too demanding implementations.
-                                           // 
+                                           //
                                            // The levels are "floating", but roughly defined as:
                                            // 0: Low-powered embedded devices such as Raspberry Pi
                                            // 1: 6th generation consoles, such as Wii/Xbox 1, and phones, tablets, etc.
@@ -366,7 +412,78 @@ enum retro_key
                                            // It is up to the frontend to present this in a usable way.
                                            // The array is terminated by retro_input_descriptor::description being set to NULL.
                                            // This function can be called at any time, but it is recommended to call it as early as possible.
+#define RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK 12
+                                           // const struct retro_keyboard_callback * --
+                                           // Sets a callback function used to notify core about keyboard events.
+                                           //
+#define RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE 13
+                                           // const struct retro_disk_control_callback * --
+                                           // Sets an interface which frontend can use to eject and insert disk images.
+                                           // This is used for games which consist of multiple images and must be manually
+                                           // swapped out by the user (e.g. PSX).
 
+
+// Callback type passed in RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK. Called by the frontend in response to keyboard events.
+// down is set if the key is being pressed, or false if it is being released.
+// keycode is the RETROK value of the char.
+// character is the text character of the pressed key. (UTF-32).
+// key_modifiers is a set of RETROKMOD values or'ed together.
+typedef void (*retro_keyboard_event_t)(bool down, unsigned keycode, uint32_t character, uint16_t key_modifiers);
+
+struct retro_keyboard_callback
+{
+    retro_keyboard_event_t callback;
+};
+
+// Callbacks for RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE.
+// Should be set for implementations which can swap out multiple disk images in runtime.
+// If the implementation can do this automatically, it should strive to do so.
+// However, there are cases where the user must manually do so.
+//
+// Overview: To swap a disk image, eject the disk image with set_eject_state(true).
+// Set the disk index with set_image_index(index). Insert the disk again with set_eject_state(false).
+
+// If ejected is true, "ejects" the virtual disk tray.
+// When ejected, the disk image index can be set.
+typedef bool (*retro_set_eject_state_t)(bool ejected);
+// Gets current eject state. The initial state is 'not ejected'.
+typedef bool (*retro_get_eject_state_t)(void);
+// Gets current disk index. First disk is index 0.
+// If return value is >= get_num_images(), no disk is currently inserted.
+typedef unsigned (*retro_get_image_index_t)(void);
+// Sets image index. Can only be called when disk is ejected.
+// The implementation supports setting "no disk" by using an index >= get_num_images().
+typedef bool (*retro_set_image_index_t)(unsigned index);
+// Gets total number of images which are available to use.
+typedef unsigned (*retro_get_num_images_t)(void);
+//
+// Replaces the disk image associated with index.
+// Arguments to pass in info have same requirements as retro_load_game().
+// Virtual disk tray must be ejected when calling this.
+// Replacing a disk image with info = NULL will remove the disk image from the internal list.
+// As a result, calls to get_image_index() can change.
+//
+// E.g. replace_image_index(1, NULL), and previous get_image_index() returned 4 before.
+// Index 1 will be removed, and the new index is 3.
+struct retro_game_info;
+typedef bool (*retro_replace_image_index_t)(unsigned index, const struct retro_game_info *info);
+// Adds a new valid index (get_num_images()) to the internal disk list.
+// This will increment subsequent return values from get_num_images() by 1.
+// This image index cannot be used until a disk image has been set with replace_image_index.
+typedef bool (*retro_add_image_index_t)(void);
+
+struct retro_disk_control_callback
+{
+   retro_set_eject_state_t set_eject_state;
+   retro_get_eject_state_t get_eject_state;
+
+   retro_get_image_index_t get_image_index;
+   retro_set_image_index_t set_image_index;
+   retro_get_num_images_t  get_num_images;
+
+   retro_replace_image_index_t replace_image_index;
+   retro_add_image_index_t add_image_index;
+};
 
 enum retro_pixel_format
 {
