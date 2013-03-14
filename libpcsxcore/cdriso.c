@@ -1316,7 +1316,11 @@ static long CALLBACK ISOclose(void) {
 		}
 	}
 	numtracks = 0;
+	ti[1].type = 0;
 	UnloadSBI();
+
+	memset(cdbuffer, 0, sizeof(cdbuffer));
+	CDR_getBuffer = ISOgetBuffer;
 
 	return 0;
 }
@@ -1400,6 +1404,7 @@ static void DecodeRawSubData(void) {
 // uses bcd format
 static long CALLBACK ISOreadTrack(unsigned char *time) {
 	int sector = MSF2SECT(btoi(time[0]), btoi(time[1]), btoi(time[2]));
+	long ret;
 
 	if (cdHandle == NULL) {
 		return -1;
@@ -1414,7 +1419,9 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 		}
 	}
 
-	cdimg_read_func(cdHandle, 0, cdbuffer, sector);
+	ret = cdimg_read_func(cdHandle, 0, cdbuffer, sector);
+	if (ret < 0)
+		return -1;
 
 	if (subHandle != NULL) {
 		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
