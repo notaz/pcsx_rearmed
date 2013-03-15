@@ -279,6 +279,8 @@ int tracedebug=0;
 
 //#define DEBUG_CYCLE_COUNT 1
 
+#define NO_CYCLE_PENALTY_THR 12
+
 int cycle_multiplier; // 100 for 1.0
 
 static int CLOCK_ADJUST(int x)
@@ -4981,6 +4983,7 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
   int count;
   int jaddr;
   int idle=0;
+  int t=0;
   if(itype[i]==RJUMP)
   {
     *adj=0;
@@ -4988,7 +4991,7 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
   //if(ba[i]>=start && ba[i]<(start+slen*4))
   if(internal_branch(branch_regs[i].is32,ba[i]))
   {
-    int t=(ba[i]-start)>>2;
+    t=(ba[i]-start)>>2;
     if(is_ds[t]) *adj=-1; // Branch into delay slot adds an extra cycle
     else *adj=ccadj[t];
   }
@@ -5007,7 +5010,14 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
     emit_jmp(0);
   }
   else if(*adj==0||invert) {
-    emit_addimm_and_set_flags(CLOCK_ADJUST(count+2),HOST_CCREG);
+    int cycles=CLOCK_ADJUST(count+2);
+    // faster loop HACK
+    if (t&&*adj) {
+      int rel=t-i;
+      if(-NO_CYCLE_PENALTY_THR<rel&&rel<0)
+        cycles=CLOCK_ADJUST(*adj)+count+2-*adj;
+    }
+    emit_addimm_and_set_flags(cycles,HOST_CCREG);
     jaddr=(int)out;
     emit_jns(0);
   }
@@ -9853,7 +9863,7 @@ int new_recompile_block(int addr)
       // GTE runs in parallel until accessed, divide by 2 for a rough guess
       cc+=gte_cycletab[source[i]&0x3f]/2;
     }
-    else if(/*itype[i]==LOAD||*/itype[i]==STORE||itype[i]==C1LS) // load causes weird timing issues
+    else if(/*itype[i]==LOAD||itype[i]==STORE||*/itype[i]==C1LS) // load,store causes weird timing issues
     {
       cc+=2; // 2 cycle penalty (after CLOCK_DIVIDER)
     }
