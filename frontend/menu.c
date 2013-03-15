@@ -2080,12 +2080,12 @@ static int swap_cd_multidisk(void)
 
 static void load_pcsx_cht(void)
 {
-	const char *exts[] = { "cht", NULL };
+	static const char *exts[] = { "cht", NULL };
 	const char *fname;
-	char path[256];
+	char msg[64];
 
-	path[0] = 0;
-	fname = menu_loop_romsel(path, sizeof(path), exts, NULL);
+	fname = menu_loop_romsel(last_selected_fname,
+			sizeof(last_selected_fname), exts, NULL);
 	if (fname == NULL)
 		return;
 
@@ -2095,8 +2095,8 @@ static void load_pcsx_cht(void)
 	if (NumCheats == 0 && NumCodes == 0)
 		menu_update_msg("failed to load cheats");
 	else {
-		snprintf(path, sizeof(path), "%d cheat(s) loaded", NumCheats + NumCodes);
-		menu_update_msg(path);
+		snprintf(msg, sizeof(msg), "%d cheat(s) loaded", NumCheats + NumCodes);
+		menu_update_msg(msg);
 	}
 	me_enable(e_menu_main, MA_MAIN_CHEATS, ready_to_go && NumCheats);
 }
