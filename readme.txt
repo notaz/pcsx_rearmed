@@ -109,6 +109,14 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r19 (2013-03-17)
++ libretro: added region, multidisk support
+* more work on cdrom code
+* changed sound sync code
+* fixed masking bugs in NEON GPU (in collaboration with Exophase)
+* fixed some compatibility issues
+* various other tweaks and fixes
+
 r18 (2013-01-06)
 * cdrom code greatly cleaned up
 + new GLES output mode for ARM Linux/R-Pi
