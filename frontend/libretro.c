@@ -13,6 +13,8 @@
 #include "../libpcsxcore/psxcounters.h"
 #include "../libpcsxcore/psxmem_map.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+#include "../libpcsxcore/cdrom.h"
+#include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
 #include "cspace.h"
@@ -363,6 +365,7 @@ bool retro_unserialize(const void *data, size_t size)
 	return ret == 0 ? true : false;
 }
 
+/* cheats */
 void retro_cheat_reset(void)
 {
 	ClearAllCheats();
@@ -388,8 +391,132 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		Cheats[index].Enabled = enabled;
 }
 
+/* multidisk support */
+static bool disk_ejected;
+static unsigned int disk_current_index;
+static struct disks_state {
+	char *fname;
+	int internal_index; // for multidisk eboots
+} disks[8];
+
+static bool disk_set_eject_state(bool ejected)
+{
+	// weird PCSX API..
+	SetCdOpenCaseTime(ejected ? -1 : (time(NULL) + 2));
+	LidInterrupt();
+
+	disk_ejected = ejected;
+	return true;
+}
+
+static bool disk_get_eject_state(void)
+{
+	/* can't be controlled by emulated software */
+	return disk_ejected;
+}
+
+static unsigned int disk_get_image_index(void)
+{
+	return disk_current_index;
+}
+
+static bool disk_set_image_index(unsigned int index)
+{
+	if (index >= sizeof(disks) / sizeof(disks[0]))
+		return false;
+
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	if (disks[index].fname == NULL) {
+		SysPrintf("missing disk #%u\n", index);
+		CDR_shutdown();
+
+		// RetroArch specifies "no disk" with index == count,
+		// so don't fail here..
+		disk_current_index = index;
+		return true;
+	}
+
+	SysPrintf("switching to disk %u: \"%s\" #%d\n", index,
+		disks[index].fname, disks[index].internal_index);
+
+	cdrIsoMultidiskSelect = disks[index].internal_index;
+	set_cd_image(disks[index].fname);
+	if (ReloadCdromPlugin() < 0) {
+		SysPrintf("failed to load cdr plugin\n");
+		return false;
+	}
+	if (CDR_open() < 0) {
+		SysPrintf("failed to open cdr plugin\n");
+		return false;
+	}
+
+	if (!disk_ejected) {
+		SetCdOpenCaseTime(time(NULL) + 2);
+		LidInterrupt();
+	}
+
+	disk_current_index = index;
+	return true;
+}
+
+static unsigned int disk_get_num_images(void)
+{
+	unsigned int count = 0;
+	size_t i;
+
+	for (i = 0; i < sizeof(disks) / sizeof(disks[0]); i++)
+		if (disks[i].fname != NULL)
+			count++;
+
+	return count;
+}
+
+static bool disk_replace_image_index(unsigned index,
+	const struct retro_game_info *info)
+{
+	char *old_fname;
+	bool ret = true;
+
+	if (index >= sizeof(disks) / sizeof(disks[0]))
+		return false;
+
+	old_fname = disks[index].fname;
+	disks[index].fname = NULL;
+	disks[index].internal_index = 0;
+
+	if (info != NULL) {
+		disks[index].fname = strdup(info->path);
+		if (index == disk_current_index)
+			ret = disk_set_image_index(index);
+	}
+
+	if (old_fname != NULL)
+		free(old_fname);
+
+	return ret;
+}
+
+static bool disk_add_image_index(void)
+{
+	// TODO??
+	return true;
+}
+
+static struct retro_disk_control_callback disk_control = {
+	.set_eject_state = disk_set_eject_state,
+	.get_eject_state = disk_get_eject_state,
+	.get_image_index = disk_get_image_index,
+	.set_image_index = disk_set_image_index,
+	.get_num_images = disk_get_num_images,
+	.replace_image_index = disk_replace_image_index,
+	.add_image_index = disk_add_image_index,
+};
+
 bool retro_load_game(const struct retro_game_info *info)
 {
+	size_t i;
 #ifdef FRONTEND_SUPPORTS_RGB565
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
@@ -397,12 +524,28 @@ bool retro_load_game(const struct retro_game_info *info)
 	}
 #endif
 
+	if (info == NULL || info->path == NULL) {
+		SysPrintf("info->path required\n");
+		return false;
+	}
+
 	if (plugins_opened) {
 		ClosePlugins();
 		plugins_opened = 0;
 	}
 
-	set_cd_image(info->path);
+	for (i = 0; i < sizeof(disks) / sizeof(disks[0]); i++) {
+		if (disks[i].fname != NULL) {
+			free(disks[i].fname);
+			disks[i].fname = NULL;
+		}
+		disks[i].internal_index = 0;
+	}
+
+	disk_current_index = 0;
+	disks[0].fname = strdup(info->path);
+
+	set_cd_image(disks[0].fname);
 
 	/* have to reload after set_cd_image for correct cdr plugin */
 	if (LoadPlugins() == -1) {
@@ -433,6 +576,12 @@ bool retro_load_game(const struct retro_game_info *info)
 		return false;
 	}
 	emu_on_new_cd(0);
+
+	// multidisk images
+	for (i = 1; i < sizeof(disks) / sizeof(disks[0]) && i < cdrIsoMultidiskCount; i++) {
+		disks[i].fname = strdup(info->path);
+		disks[i].internal_index = i;
+	}
 
 	return true;
 }
@@ -551,6 +700,7 @@ void retro_init(void)
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
+	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties

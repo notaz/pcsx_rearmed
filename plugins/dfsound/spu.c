@@ -707,8 +707,6 @@ static int do_samples(int forced_updates)
 
  while(!bIRQReturn)
   {
-   cycles_since_update = 0;
-
    ns_from=0;
    ns_to=NSSIZE;
    ch=0;
@@ -837,6 +835,8 @@ static int do_samples(int forced_updates)
     ns++;
    }
 
+   cycles_since_update -= PSXCLK / 44100 * NSSIZE;
+
   //////////////////////////////////////////////////////                   
   // special irq handling in the decode buffers (0x0000-0x1000)
   // we know: 
@@ -888,7 +888,14 @@ static int do_samples(int forced_updates)
     if(forced_updates == 0 && out_current->busy())
      break;
    }
+
+  if(cycles_since_update <= -PSXCLK/60 / 4)
+   break;
  }
+
+ // this may cause desync, but help audio when the emu can't keep up..
+ if(cycles_since_update < 0)
+  cycles_since_update = 0;
 
  return 0;
 }
@@ -900,7 +907,6 @@ static int do_samples(int forced_updates)
 
 void CALLBACK SPUasync(unsigned long cycle)
 {
- static int old_ctrl;
  int forced_updates = 0;
  int do_update = 0;
 
@@ -915,16 +921,8 @@ void CALLBACK SPUasync(unsigned long cycle)
    had_dma = 0;
   }
 
- if((spuCtrl&CTRL_IRQ) && (((spuCtrl^old_ctrl)&CTRL_IRQ) // irq was enabled
-    || cycles_since_update > PSXCLK/60 / 4)) {
+ if(cycles_since_update > PSXCLK/60 * 5/4)
   do_update = 1;
-  forced_updates = cycles_since_update / (PSXCLK/44100) / NSSIZE;
- }
- // with no irqs, once per frame should be fine (using a bit more because of BIAS)
- else if(cycles_since_update > PSXCLK/60 * 5/4)
-  do_update = 1;
-
- old_ctrl = spuCtrl;
 
  if(do_update)
   do_samples(forced_updates);

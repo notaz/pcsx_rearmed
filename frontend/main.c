@@ -680,6 +680,12 @@ static void toggle_fast_forward(int force_off)
 		snprintf(hud_msg, sizeof(hud_msg), "FAST FORWARD %s",
 			fast_forward ? "ON" : "OFF");
 }
+
+static void SignalExit(int sig) {
+	// only to restore framebuffer/resolution on some devices
+	plat_finish();
+	exit(1);
+}
 #endif
 
 void SysRunGui() {
@@ -813,10 +819,6 @@ void SysMessage(const char *fmt, ...) {
 	SysPrintf("%s\n", msg);
 }
 
-static void SignalExit(int sig) {
-	emu_core_ask_exit();
-}
-
 #define PARSEPATH(dst, src) \
 	ptr = src + strlen(src); \
 	while (*ptr != '\\' && ptr != src) ptr--; \
@@ -827,8 +829,10 @@ static void SignalExit(int sig) {
 static int _OpenPlugins(void) {
 	int ret;
 
+#ifndef NO_FRONTEND
 	signal(SIGINT, SignalExit);
 	signal(SIGPIPE, SignalExit);
+#endif
 
 	GPU_clearDynarec(clearDynarec);
 
@@ -919,8 +923,11 @@ int OpenPlugins() {
 void ClosePlugins() {
 	int ret;
 
+#ifndef NO_FRONTEND
 	signal(SIGINT, SIG_DFL);
 	signal(SIGPIPE, SIG_DFL);
+#endif
+
 	ret = CDR_close();
 	if (ret < 0) { SysMessage(_("Error closing CD-ROM plugin!")); return; }
 	ret = SPU_close();

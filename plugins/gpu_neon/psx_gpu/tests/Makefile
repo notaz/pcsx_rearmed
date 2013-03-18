@@ -1,6 +1,7 @@
 CC = $(CROSS_COMPILE)gcc
 CFLAGS += -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 CFLAGS += -Wall -ggdb
+CFLAGS += -fno-strict-aliasing
 
 CFLAGS += `sdl-config --cflags`
 LDFLAGS += `sdl-config --libs`
@@ -13,7 +14,7 @@ ASFLAGS = $(CFLAGS)
 OBJ += psx_gpu_arm_neon.o
 endif
 ifndef DEBUG
-CFLAGS += -O2 -DNDEBUG -fno-strict-aliasing
+CFLAGS += -O2 -DNDEBUG
 endif
 
 OBJ += psx_gpu.o psx_gpu_parse.o psx_gpu_main.o

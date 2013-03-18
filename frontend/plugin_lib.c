@@ -582,9 +582,7 @@ static void update_input(void)
 	in_keystate = actions[IN_BINDTYPE_PLAYER12];
 }
 #else /* MAEMO */
-static void update_input(void)
-{
-}
+extern void update_input(void);
 #endif
 
 void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)

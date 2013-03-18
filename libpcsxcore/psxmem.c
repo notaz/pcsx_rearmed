@@ -198,7 +198,7 @@ void psxMemReset() {
 
 void psxMemShutdown() {
 	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM);
-	psxUnmap(psxH, 0x1f800000, MAP_TAG_OTHER);
+	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER);
 	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER);
 
 	free(psxMemRLUT);
@@ -212,8 +212,8 @@ u8 psxMemRead8(u32 mem) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			return psxHu8(mem);
 		else
 			return psxHwRead8(mem);
@@ -237,8 +237,8 @@ u16 psxMemRead16(u32 mem) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			return psxHu16(mem);
 		else
 			return psxHwRead16(mem);
@@ -262,8 +262,8 @@ u32 psxMemRead32(u32 mem) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			return psxHu32(mem);
 		else
 			return psxHwRead32(mem);
@@ -287,8 +287,8 @@ void psxMemWrite8(u32 mem, u8 value) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			psxHu8(mem) = value;
 		else
 			psxHwWrite8(mem, value);
@@ -314,8 +314,8 @@ void psxMemWrite16(u32 mem, u16 value) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			psxHu16ref(mem) = SWAPu16(value);
 		else
 			psxHwWrite16(mem, value);
@@ -342,8 +342,8 @@ void psxMemWrite32(u32 mem, u32 value) {
 
 //	if ((mem&0x1fffff) == 0x71E18 || value == 0x48088800) SysPrintf("t2fix!!\n");
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			psxHu32ref(mem) = SWAPu32(value);
 		else
 			psxHwWrite32(mem, value);
@@ -400,8 +400,8 @@ void *psxMemPointer(u32 mem) {
 	u32 t;
 
 	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if ((mem & 0xffff) < 0x400)
 			return (void *)&psxH[mem];
 		else
 			return NULL;

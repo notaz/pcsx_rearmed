@@ -338,11 +338,17 @@ void new_dyna_pcsx_mem_init(void)
 
 	// scratchpad
 	map_l1_mem(mem_readtab, 0, 0x1f800000, 0x1000, psxH);
+	map_l1_mem(mem_readtab, 0, 0x9f800000, 0x1000, psxH);
 	map_l1_mem(mem_writetab, 0, 0x1f800000, 0x1000, psxH);
+	map_l1_mem(mem_writetab, 0, 0x9f800000, 0x1000, psxH);
 
 	// I/O
 	map_item(&mem_readtab[0x1f801000 >> 12], mem_iortab, 1);
+	map_item(&mem_readtab[0x9f801000 >> 12], mem_iortab, 1);
+	map_item(&mem_readtab[0xbf801000 >> 12], mem_iortab, 1);
 	map_item(&mem_writetab[0x1f801000 >> 12], mem_iowtab, 1);
+	map_item(&mem_writetab[0x9f801000 >> 12], mem_iowtab, 1);
+	map_item(&mem_writetab[0xbf801000 >> 12], mem_iowtab, 1);
 
 	// L2
 	// unmapped tables

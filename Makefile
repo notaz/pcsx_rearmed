@@ -171,9 +171,13 @@ USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "maemo"
-OBJS += maemo/hildon.o maemo/main.o
+OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
 maemo/%.o: maemo/%.c
 USE_PLUGIN_LIB = 1
+LDFLAGS += $(shell pkg-config --libs hildon-1 libpulse)
+CFLAGS += $(shell pkg-config --cflags hildon-1) -DHAVE_TSLIB
+CFLAGS += `pkg-config --cflags glib-2.0 libosso dbus-1 hildon-fm-2`
+LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += frontend/libretro.o

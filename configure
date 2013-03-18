@@ -295,10 +295,7 @@ generic)
   need_sdl="yes"
   ;;
 maemo)
-  maemo_cflags=`pkg-config --cflags hildon-1`
-  maemo_ldlibs=`pkg-config --libs hildon-1`
-  CFLAGS="$CFLAGS -DMAEMO -DMAEMO_CHANGES $maemo_cflags"
-  MAIN_LDLIBS="$MAIN_LDLIBS $maemo_ldlibs"
+  CFLAGS="$CFLAGS -DMAEMO -DMAEMO_CHANGES"
   ;;
 libretro)
   CFLAGS="$CFLAGS -fPIC"
