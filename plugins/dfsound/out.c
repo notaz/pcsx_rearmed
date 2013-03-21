@@ -32,8 +32,9 @@ void SetupSound(void)
 #endif
 #ifdef HAVE_LIBRETRO
 		REGISTER_DRIVER(libretro);
-#endif
+#else
 		REGISTER_DRIVER(none);
+#endif
 	}
 
 	for (i = 0; i < driver_count; i++)
