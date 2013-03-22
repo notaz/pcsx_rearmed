@@ -11,14 +11,92 @@ CXXFLAGS += $(CFLAGS)
 
 all: target_ plugins_
 
+ifeq ($(platform),)
+platform = unix
+ifeq ($(shell uname -a),)
+   platform = win
+else ifneq ($(findstring MINGW,$(shell uname -a)),)
+   platform = win
+else ifneq ($(findstring Darwin,$(shell uname -a)),)
+   platform = osx
+else ifneq ($(findstring win,$(shell uname -a)),)
+   platform = win
+endif
+endif
+
 CC = gcc
 CXX = g++
 AS = as
-CFLAGS +=  -fPIC -Wno-unused-result
+
+ifeq ($(platform), unix)
+   TARGET := snes9x_next_libretro.so
+   fpic := -fPIC
+   SHARED := -shared -Wl,--version-script=libretro/link.T
+else ifeq ($(platform), osx)
+   TARGET := snes9x_next_libretro.dylib
+   fpic := -fPIC
+   SHARED := -dynamiclib
+else ifeq ($(platform), ios)
+ARCH := arm
+   TARGET := snes9x_next_libretro.dylib
+   fpic := -fPIC
+   SHARED := -dynamiclib
+
+CC = clang -arch armv7 -isysroot $(IOSSDK)
+CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+   HAVE_NEON = 1
+   CFLAGS += -DIOS
+else ifeq ($(platform), ps3)
+   TARGET := snes9x_next_libretro_ps3.a
+   CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
+   AR = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-ar.exe
+   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else ifeq ($(platform), sncps3)
+   TARGET := snes9x_next_libretro_ps3.a
+   CC = $(CELL_SDK)/host-win32/sn/bin/ps3ppusnc.exe
+   AR = $(CELL_SDK)/host-win32/sn/bin/ps3snarl.exe
+   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else ifeq ($(platform), psl1ght)
+   TARGET := snes9x_next_libretro_psl1ght.a
+   CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
+   AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
+   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else ifeq ($(platform), psp1)
+	TARGET := snes9x_next_libretro_psp1.a
+	CC = psp-gcc$(EXE_EXT)
+	AR = psp-ar$(EXE_EXT)
+	CFLAGS += -DPSP -G0
+else ifeq ($(platform), xenon)
+   TARGET := snes9x_next_libretro_xenon360.a
+   CC = xenon-gcc$(EXE_EXT)
+   AR = xenon-ar$(EXE_EXT)
+   CFLAGS += -D__LIBXENON__ -m32 -D__ppc__
+else ifeq ($(platform), ngc)
+   TARGET := snes9x_next_libretro_ngc.a
+   CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+   AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+   CFLAGS += -DGEKKO -DHW_DOL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else ifeq ($(platform), wii)
+   TARGET := snes9x_next_libretro_wii.a
+   CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+   AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+   CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else
+   TARGET := snes9x_next_retro.dll
+   CC = gcc
+   fpic := -fPIC
+   LD_FLAGS := -fPIC
+   SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
+   CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
+endif
+
+CFLAGS +=  -fPIC
 ASFLAGS += 
 LDFLAGS += 
 LDLIBS += -lpthread
-MAIN_LDFLAGS +=  -shared -Wl,--no-undefined
+MAIN_LDFLAGS +=  -shared
 MAIN_LDLIBS += -ldl -lm -lz
 PLUGIN_CFLAGS +=  -fPIC
 
