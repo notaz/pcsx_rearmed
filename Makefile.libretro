@@ -42,10 +42,11 @@ ARCH := arm
    fpic := -fPIC
    SHARED := -dynamiclib
 
-CC = clang -arch armv7 -isysroot $(IOSSDK)
-CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+CC = $(IOSSDK)../../usr/bin/gcc
+CXX = $(IOSSDK)../../usr/bin/g++
+CFLAGS += -cpu=cortex-a8 -mfpu=neon
+ASFLAGS += -cpu=cortex-a8 -mfpu=neon
+
    HAVE_NEON = 1
    CFLAGS += -DIOS
 else ifeq ($(platform), ps3)
