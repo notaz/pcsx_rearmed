@@ -182,7 +182,7 @@ gteRTPS_nf_arm:
     pop      {r0, r12}
 .endif
 1:
-    ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
+    ldrd     r6, r7, [r0, #4*(32+24)] @ gteOFXY
                                   cmp      r9, #0x20000
     add      r1, r0, #4*12        @ gteSXY0
                                   movhs    r9, #0x20000
@@ -194,7 +194,7 @@ gteRTPS_nf_arm:
     mov      r3, r7, asr #31
     smlal    r7, r3, r11, r9
     lsr      r6, #16
-             /* gteDQA, gteDQB */ ldrd     r10,[r0, #4*(32+27)]
+             /* gteDQA, gteDQB */ ldrd     r10,r11, [r0, #4*(32+27)]
     orr      r6, r2, lsl #16      @ (gteOFX + gteIR1 * q) >> 16
     ssatx_prep r2, 11
     lsr      r7, #16
@@ -224,7 +224,7 @@ gteRTPT_nf_arm:
 
 rtpt_arm_loop:
     add      r1, r0, lr, lsl #1
-    ldrd     r8, [r1]             @ VXYZ(v)
+    ldrd     r8, r9, [r1]         @ VXYZ(v)
     do_rtpx_mac
 
     ssatx_prep r6, 16
@@ -253,7 +253,7 @@ rtpt_arm_loop:
 1:                                cmp      r9, #0x20000
     add      r1, r0, #4*12
                                   movhs    r9, #0x20000
-    ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
+    ldrd     r6, r7, [r0,#4*(32+24)] @ gteOFXY
                    /* quotient */ subhs    r9, #1
     mov      r2, r6, asr #31
     smlal    r6, r2, r10, r9
@@ -272,7 +272,7 @@ rtpt_arm_loop:
     cmp      lr, #12
     blt      rtpt_arm_loop
 
-    ldrd     r4, [r0, #4*(32+27)] @ gteDQA, gteDQB
+    ldrd     r4, r5, [r0, #4*(32+27)] @ gteDQA, gteDQB
     add      r1, r0, #4*9         @ gteIR1
     mla      r3, r4, r9, r5       @ gteDQB + gteDQA * q
     stmia    r1, {r10,r11,r12}    @ gteIR123 save
@@ -464,7 +464,7 @@ gteNCLIP_arm:
 .endif
     str      r2, [r0, #4*9]
 #ifdef HAVE_ARMV5
-    ldrd     r2, [r0, #4*26]      @ gteMAC23
+    ldrd     r2, r3, [r0, #4*26]  @ gteMAC23
 #else
     ldr      r2, [r0, #4*26]
     ldr      r3, [r0, #4*27]
@@ -495,7 +495,7 @@ gteNCLIP_arm:
 .endif
     orrlt    r12, #1<<22
 #ifdef HAVE_ARMV5
-    strd     r2, [r0, #4*10]      @ gteIR23
+    strd     r2, r3, [r0, #4*10]  @ gteIR23
 #else
     str      r2, [r0, #4*10]
     str      r3, [r0, #4*11]

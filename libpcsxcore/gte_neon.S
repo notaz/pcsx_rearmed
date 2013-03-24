@@ -6,6 +6,8 @@
  */
 
 
+.syntax unified
+
 .bss
 .align 6 @ cacheline
 
@@ -271,11 +273,11 @@ gteRTPS_neon:
     orrne       lr, #(1<<13)   @ limG2
     orrne       lr, #(1<<31)
     adds        r2, r4, #1
-    addvcs      r3, r5, #1
+    addsvc      r3, r5, #1
     orrvs       lr, #(1<<16)   @ F
     orrvs       lr, #(1<<31)
     subs        r2, r4, #1
-    subvcs      r3, r5, #1
+    subsvc      r3, r5, #1
     orrvs       lr, #(1<<31)
 
     ldr         r4, [r0, #4*24] @ gteMAC0
@@ -506,13 +508,13 @@ gteRTPT_neon:
     add         r2, r4, #0x400<<16 @ min fSX
     add         r3, r6, #0x400<<16 @ max fSX
     lsrs        r2, #16+11
-    lsreqs      r3, #16+11
+    lsrseq      r3, #16+11
     orrne       lr, #(1<<31)   @ limG1
     orrne       lr, #(1<<14)
     add         r2, r5, #0x400<<16 @ min fSY
     add         r3, r7, #0x400<<16 @ max fSY
     lsrs        r2, #16+11
-    lsreqs      r3, #16+11
+    lsrseq      r3, #16+11
     orrne       lr, #(1<<31)   @ limG2
     orrne       lr, #(1<<13)
     adds        r2, r9, #1
