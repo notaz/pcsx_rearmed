@@ -121,6 +121,7 @@ while (<ASMFILE>) {
     s/\.global/.globl/x;
     # also catch .section .rodata since the equivalent to .const_data is .section __DATA,__const
     s/(.*)\.rodata/.const_data/x;
+    s/\.bss/.data/x;
     s/\.int/.long/x;
     s/\.float/.single/x;
 
