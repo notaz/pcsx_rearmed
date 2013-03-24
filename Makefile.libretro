@@ -27,6 +27,7 @@ endif
 CC ?= gcc
 CXX ?= g++
 AS ?= as
+CC_AS ?= $(CC)
 
 ifeq ($(platform), unix)
    TARGET := snes9x_next_libretro.so
@@ -44,6 +45,7 @@ ARCH := arm
 
 CC = clang -arch armv7 -isysroot $(IOSSDK)
 CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
    HAVE_NEON = 1
@@ -228,7 +230,7 @@ frontend/revision.h: FORCE
 	@rm $@_
 
 %.o: %.S
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC_AS) $(CFLAGS) -c $^ -o $@
 	
 %.o: %.s
 	$(CC) $(ASFLAGS) -c $^ -o $@
