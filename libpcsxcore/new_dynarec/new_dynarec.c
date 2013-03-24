@@ -41,6 +41,10 @@
 #include "assem_arm.h"
 #endif
 
+#undef __clear_cache
+#define __clear_cache(start,end) msync(start, (size_t)((void*)end - (void*)start), MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
+
+
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
