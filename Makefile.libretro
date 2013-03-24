@@ -24,9 +24,9 @@ else ifneq ($(findstring win,$(shell uname -a)),)
 endif
 endif
 
-CC = gcc
-CXX = g++
-AS = as
+CC ?= gcc
+CXX ?= g++
+AS ?= as
 
 ifeq ($(platform), unix)
    TARGET := snes9x_next_libretro.so
@@ -84,6 +84,15 @@ else ifeq ($(platform), wii)
    CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
    AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
    CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+else ifeq ($(platform), qnx)
+   TARGET := libretro_pcsx_rearmed_qnx.so
+   HAVE_NEON = 1
+   USE_DYNAREC = 1
+   DRC_CACHE_BASE = 0
+   BUILTIN_GPU = neon
+   ARCH = arm
+   CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+   ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 else
    TARGET := snes9x_next_retro.dll
    CC = gcc
@@ -96,16 +105,20 @@ endif
 CFLAGS +=  -fPIC
 ASFLAGS += 
 LDFLAGS += 
-LDLIBS += -lpthread
+
+ifneq ($(platform),qnx)
+   LDLIBS += -lpthread
+   MAIN_LDLIBS += -ldl
+endif
 MAIN_LDFLAGS +=  -shared
-MAIN_LDLIBS += -ldl -lm -lz
+MAIN_LDLIBS += -lm -lz
 PLUGIN_CFLAGS +=  -fPIC
 
-TARGET = libretro.so
+TARGET ?= libretro.so
 PLATFORM = libretro
-BUILTIN_GPU = peops
+BUILTIN_GPU ?= peops
 SOUND_DRIVERS = libretro
-PLUGINS = plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so
+#PLUGINS = plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so
 
 CC_LINK = $(CC)
 LDFLAGS += $(MAIN_LDFLAGS)
@@ -217,6 +230,9 @@ frontend/revision.h: FORCE
 
 %.o: %.S
 	$(CC) $(CFLAGS) -c $^ -o $@
+	
+%.o: %.s
+	$(CC) $(ASFLAGS) -c $^ -o $@
 
 
 target_: $(TARGET)
