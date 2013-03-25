@@ -26,8 +26,7 @@
 #endif
 .endm
 
-.global bgr555_to_rgb565 @ void *dst, const void *src, int bytes
-bgr555_to_rgb565:
+FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
     pld_     r1
     push     {r4-r11,lr}
     mov      lr, #0x001f

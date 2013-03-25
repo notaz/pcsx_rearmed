@@ -148,8 +148,7 @@
 .endm
 
 
-.global gteRTPS_nf_arm @ r0=CP2 (d,c),
-gteRTPS_nf_arm:
+FUNCTION(gteRTPS_nf_arm): @ r0=CP2 (d,c),
     push     {r4-r11,lr}
 
     ldmia    r0, {r8,r9}          @ VXYZ(0)
@@ -182,7 +181,7 @@ gteRTPS_nf_arm:
     pop      {r0, r12}
 .endif
 1:
-    ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
+    ldrd     r6, r7, [r0, #4*(32+24)] @ gteOFXY
                                   cmp      r9, #0x20000
     add      r1, r0, #4*12        @ gteSXY0
                                   movhs    r9, #0x20000
@@ -194,7 +193,7 @@ gteRTPS_nf_arm:
     mov      r3, r7, asr #31
     smlal    r7, r3, r11, r9
     lsr      r6, #16
-             /* gteDQA, gteDQB */ ldrd     r10,[r0, #4*(32+27)]
+             /* gteDQA, gteDQB */ ldrd     r10,r11, [r0, #4*(32+27)]
     orr      r6, r2, lsl #16      @ (gteOFX + gteIR1 * q) >> 16
     ssatx_prep r2, 11
     lsr      r7, #16
@@ -215,8 +214,7 @@ gteRTPS_nf_arm:
     .size    gteRTPS_nf_arm, .-gteRTPS_nf_arm
 
 
-.global gteRTPT_nf_arm @ r0=CP2 (d,c),
-gteRTPT_nf_arm:
+FUNCTION(gteRTPT_nf_arm): @ r0=CP2 (d,c),
     ldr      r1, [r0, #4*19]      @ gteSZ3
     push     {r4-r11,lr}
     str      r1, [r0, #4*16]      @ gteSZ0
@@ -224,7 +222,7 @@ gteRTPT_nf_arm:
 
 rtpt_arm_loop:
     add      r1, r0, lr, lsl #1
-    ldrd     r8, [r1]             @ VXYZ(v)
+    ldrd     r8, r9, [r1]         @ VXYZ(v)
     do_rtpx_mac
 
     ssatx_prep r6, 16
@@ -253,7 +251,7 @@ rtpt_arm_loop:
 1:                                cmp      r9, #0x20000
     add      r1, r0, #4*12
                                   movhs    r9, #0x20000
-    ldrd     r6, [r0,#4*(32+24)]  @ gteOFXY
+    ldrd     r6, r7, [r0,#4*(32+24)] @ gteOFXY
                    /* quotient */ subhs    r9, #1
     mov      r2, r6, asr #31
     smlal    r6, r2, r10, r9
@@ -272,7 +270,7 @@ rtpt_arm_loop:
     cmp      lr, #12
     blt      rtpt_arm_loop
 
-    ldrd     r4, [r0, #4*(32+27)] @ gteDQA, gteDQB
+    ldrd     r4, r5, [r0, #4*(32+27)] @ gteDQA, gteDQB
     add      r1, r0, #4*9         @ gteIR1
     mla      r3, r4, r9, r5       @ gteDQB + gteDQA * q
     stmia    r1, {r10,r11,r12}    @ gteIR123 save
@@ -360,13 +358,11 @@ rtpt_arm_loop:
     bx       lr
 .endm
 
-.global gteMVMVA_part_arm
-gteMVMVA_part_arm:
+FUNCTION(gteMVMVA_part_arm):
     mvma_op 1
     .size    gteMVMVA_part_arm, .-gteMVMVA_part_arm
  
-.global gteMVMVA_part_nf_arm
-gteMVMVA_part_nf_arm:
+FUNCTION(gteMVMVA_part_nf_arm):
     mvma_op 0
     .size    gteMVMVA_part_nf_arm, .-gteMVMVA_part_nf_arm
  
@@ -376,8 +372,7 @@ gteMVMVA_part_nf_arm:
 @ r0 = CP2 (d,c)  (must preserve)
 @ r4,r5 = VXYZ(v) packed
 @ r6 = &MX11(mx)
-.global gteMVMVA_part_cv3sh12_arm
-gteMVMVA_part_cv3sh12_arm:
+FUNCTION(gteMVMVA_part_cv3sh12_arm):
     push     {r8-r9}
     ldmia    r6!,{r7-r9}          @ MX1*,MX2*
     smulbb   r1, r7, r4           @ MX11 * vx
@@ -412,8 +407,7 @@ gteMVMVA_part_cv3sh12_arm:
 
 #endif /* HAVE_ARMV5 */
 
-.global gteNCLIP_arm @ r0=CP2 (d,c),
-gteNCLIP_arm:
+FUNCTION(gteNCLIP_arm): @ r0=CP2 (d,c),
     push        {r4-r6,lr}
     ldrsh       r4, [r0, #4*12+2]
     ldrsh       r5, [r0, #4*13+2]
@@ -464,7 +458,7 @@ gteNCLIP_arm:
 .endif
     str      r2, [r0, #4*9]
 #ifdef HAVE_ARMV5
-    ldrd     r2, [r0, #4*26]      @ gteMAC23
+    ldrd     r2, r3, [r0, #4*26]  @ gteMAC23
 #else
     ldr      r2, [r0, #4*26]
     ldr      r3, [r0, #4*27]
@@ -495,7 +489,7 @@ gteNCLIP_arm:
 .endif
     orrlt    r12, #1<<22
 #ifdef HAVE_ARMV5
-    strd     r2, [r0, #4*10]      @ gteIR23
+    strd     r2, r3, [r0, #4*10]  @ gteIR23
 #else
     str      r2, [r0, #4*10]
     str      r3, [r0, #4*11]
@@ -504,19 +498,16 @@ gteNCLIP_arm:
     bx       lr
 .endm
 
-.global gteMACtoIR_lm0 @ r0=CP2 (d,c)
-gteMACtoIR_lm0:
+FUNCTION(gteMACtoIR_lm0): @ r0=CP2 (d,c)
     gteMACtoIR 0
     .size    gteMACtoIR_lm0, .-gteMACtoIR_lm0
 
-.global gteMACtoIR_lm1 @ r0=CP2 (d,c)
-gteMACtoIR_lm1:
+FUNCTION(gteMACtoIR_lm1): @ r0=CP2 (d,c)
     gteMACtoIR 1
     .size    gteMACtoIR_lm1, .-gteMACtoIR_lm1
 
 
-.global gteMACtoIR_lm0_nf @ r0=CP2 (d,c)
-gteMACtoIR_lm0_nf:
+FUNCTION(gteMACtoIR_lm0_nf): @ r0=CP2 (d,c)
     add      r12, r0, #4*25
     ldmia    r12, {r1-r3}
     ssatx_prep r12, 16
@@ -529,8 +520,7 @@ gteMACtoIR_lm0_nf:
     .size    gteMACtoIR_lm0_nf, .-gteMACtoIR_lm0_nf
 
 
-.global gteMACtoIR_lm1_nf @ r0=CP2 (d,c)
-gteMACtoIR_lm1_nf:
+FUNCTION(gteMACtoIR_lm1_nf): @ r0=CP2 (d,c)
     add      r12, r0, #4*25
     ldmia    r12, {r1-r3}
     ssatx0_prep r12, 16
@@ -544,8 +534,7 @@ gteMACtoIR_lm1_nf:
 
 
 .if 0
-.global gteMVMVA_test
-gteMVMVA_test:
+FUNCTION(gteMVMVA_test):
     push     {r4-r7,lr}
     push     {r1}
     and      r2, r1, #0x18000     @ v

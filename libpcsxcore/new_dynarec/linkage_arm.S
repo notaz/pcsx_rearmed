@@ -292,9 +292,8 @@ FCR31 = align0
 
 	.text
 	.align	2
-	.global	dyna_linker
-	.type	dyna_linker, %function
-dyna_linker:
+
+FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
 	dyna_linker_main
@@ -310,9 +309,8 @@ dyna_linker:
 	mov	r1, r0
 	mov	r2, #8
 	.size	dyna_linker, .-dyna_linker
-	.global	exec_pagefault
-	.type	exec_pagefault, %function
-exec_pagefault:
+
+FUNCTION(exec_pagefault):
 	/* r0 = instruction pointer */
 	/* r1 = fault address */
 	/* r2 = cause */
@@ -338,9 +336,7 @@ exec_pagefault:
 
 /* Special dynamic linker for the case where a page fault
    may occur in a branch delay slot */
-	.global	dyna_linker_ds
-	.type	dyna_linker_ds, %function
-dyna_linker_ds:
+FUNCTION(dyna_linker_ds):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
 	dyna_linker_main
@@ -368,91 +364,66 @@ dyna_linker_ds:
 	.word	hash_table
 
 	.align	2
-	.global	jump_vaddr_r0
-	.type	jump_vaddr_r0, %function
-jump_vaddr_r0:
+
+FUNCTION(jump_vaddr_r0):
 	eor	r2, r0, r0, lsl #16
 	b	jump_vaddr
 	.size	jump_vaddr_r0, .-jump_vaddr_r0
-	.global	jump_vaddr_r1
-	.type	jump_vaddr_r1, %function
-jump_vaddr_r1:
+FUNCTION(jump_vaddr_r1):
 	eor	r2, r1, r1, lsl #16
 	mov	r0, r1
 	b	jump_vaddr
 	.size	jump_vaddr_r1, .-jump_vaddr_r1
-	.global	jump_vaddr_r2
-	.type	jump_vaddr_r2, %function
-jump_vaddr_r2:
+FUNCTION(jump_vaddr_r2):
 	mov	r0, r2
 	eor	r2, r2, r2, lsl #16
 	b	jump_vaddr
 	.size	jump_vaddr_r2, .-jump_vaddr_r2
-	.global	jump_vaddr_r3
-	.type	jump_vaddr_r3, %function
-jump_vaddr_r3:
+FUNCTION(jump_vaddr_r3):
 	eor	r2, r3, r3, lsl #16
 	mov	r0, r3
 	b	jump_vaddr
 	.size	jump_vaddr_r3, .-jump_vaddr_r3
-	.global	jump_vaddr_r4
-	.type	jump_vaddr_r4, %function
-jump_vaddr_r4:
+FUNCTION(jump_vaddr_r4):
 	eor	r2, r4, r4, lsl #16
 	mov	r0, r4
 	b	jump_vaddr
 	.size	jump_vaddr_r4, .-jump_vaddr_r4
-	.global	jump_vaddr_r5
-	.type	jump_vaddr_r5, %function
-jump_vaddr_r5:
+FUNCTION(jump_vaddr_r5):
 	eor	r2, r5, r5, lsl #16
 	mov	r0, r5
 	b	jump_vaddr
 	.size	jump_vaddr_r5, .-jump_vaddr_r5
-	.global	jump_vaddr_r6
-	.type	jump_vaddr_r6, %function
-jump_vaddr_r6:
+FUNCTION(jump_vaddr_r6):
 	eor	r2, r6, r6, lsl #16
 	mov	r0, r6
 	b	jump_vaddr
 	.size	jump_vaddr_r6, .-jump_vaddr_r6
-	.global	jump_vaddr_r8
-	.type	jump_vaddr_r8, %function
-jump_vaddr_r8:
+FUNCTION(jump_vaddr_r8):
 	eor	r2, r8, r8, lsl #16
 	mov	r0, r8
 	b	jump_vaddr
 	.size	jump_vaddr_r8, .-jump_vaddr_r8
-	.global	jump_vaddr_r9
-	.type	jump_vaddr_r9, %function
-jump_vaddr_r9:
+FUNCTION(jump_vaddr_r9):
 	eor	r2, r9, r9, lsl #16
 	mov	r0, r9
 	b	jump_vaddr
 	.size	jump_vaddr_r9, .-jump_vaddr_r9
-	.global	jump_vaddr_r10
-	.type	jump_vaddr_r10, %function
-jump_vaddr_r10:
+FUNCTION(jump_vaddr_r10):
 	eor	r2, r10, r10, lsl #16
 	mov	r0, r10
 	b	jump_vaddr
 	.size	jump_vaddr_r10, .-jump_vaddr_r10
-	.global	jump_vaddr_r12
-	.type	jump_vaddr_r12, %function
-jump_vaddr_r12:
+FUNCTION(jump_vaddr_r12):
 	eor	r2, r12, r12, lsl #16
 	mov	r0, r12
 	b	jump_vaddr
 	.size	jump_vaddr_r12, .-jump_vaddr_r12
-	.global	jump_vaddr_r7
-	.type	jump_vaddr_r7, %function
-jump_vaddr_r7:
+FUNCTION(jump_vaddr_r7):
 	eor	r2, r7, r7, lsl #16
 	add	r0, r7, #0
 	.size	jump_vaddr_r7, .-jump_vaddr_r7
-	.global	jump_vaddr
-	.type	jump_vaddr, %function
-jump_vaddr:
+FUNCTION(jump_vaddr):
 	ldr	r1, .htptr
 	mvn	r3, #15
 	and	r2, r3, r2, lsr #12
@@ -469,17 +440,11 @@ jump_vaddr:
 	.size	jump_vaddr, .-jump_vaddr
 
 	.align	2
-	.global	verify_code_ds
-	.type	verify_code_ds, %function
-verify_code_ds:
+
+FUNCTION(verify_code_ds):
 	str	r8, [fp, #branch_target-dynarec_local]
-	.size	verify_code_ds, .-verify_code_ds
-	.global	verify_code_vm
-	.type	verify_code_vm, %function
-verify_code_vm:
-	.global	verify_code
-	.type	verify_code, %function
-verify_code:
+FUNCTION(verify_code_vm):
+FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
 	/* r3 = length */
@@ -516,9 +481,7 @@ verify_code:
 	.size	verify_code_vm, .-verify_code_vm
 
 	.align	2
-	.global	cc_interrupt
-	.type	cc_interrupt, %function
-cc_interrupt:
+FUNCTION(cc_interrupt):
 	ldr	r0, [fp, #last_count-dynarec_local]
 	mov	r1, #0
 	mov	r2, #0x1fc
@@ -564,9 +527,7 @@ cc_interrupt:
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2
-	.global	do_interrupt
-	.type	do_interrupt, %function
-do_interrupt:
+FUNCTION(do_interrupt):
 	ldr	r0, [fp, #pcaddr-dynarec_local]
 	bl	get_addr_ht
 	add	r10, r10, #2
@@ -574,9 +535,7 @@ do_interrupt:
 	.size	do_interrupt, .-do_interrupt
 
 	.align	2
-	.global	fp_exception
-	.type	fp_exception, %function
-fp_exception:
+FUNCTION(fp_exception):
 	mov	r2, #0x10000000
 .E7:
 	ldr	r1, [fp, #reg_cop0+48-dynarec_local] /* Status */
@@ -591,17 +550,13 @@ fp_exception:
 	mov	pc, r0
 	.size	fp_exception, .-fp_exception
 	.align	2
-	.global	fp_exception_ds
-	.type	fp_exception_ds, %function
-fp_exception_ds:
+FUNCTION(fp_exception_ds):
 	mov	r2, #0x90000000 /* Set high bit if delay slot */
 	b	.E7
 	.size	fp_exception_ds, .-fp_exception_ds
 
 	.align	2
-	.global	jump_syscall
-	.type	jump_syscall, %function
-jump_syscall:
+FUNCTION(jump_syscall):
 	ldr	r1, [fp, #reg_cop0+48-dynarec_local] /* Status */
 	mov	r3, #0x80000000
 	str	r0, [fp, #reg_cop0+56-dynarec_local] /* EPC */
@@ -616,9 +571,7 @@ jump_syscall:
 	.align	2
 
 	.align	2
-	.global	jump_syscall_hle
-	.type	jump_syscall_hle, %function
-jump_syscall_hle:
+FUNCTION(jump_syscall_hle):
 	str	r0, [fp, #pcaddr-dynarec_local] /* PC must be set to EPC for psxException */
 	ldr	r2, [fp, #last_count-dynarec_local]
 	mov	r1, #0    /* in delay slot */
@@ -640,9 +593,7 @@ pcsx_return:
 	.size	jump_syscall_hle, .-jump_syscall_hle
 
 	.align	2
-	.global	jump_hlecall
-	.type	jump_hlecall, %function
-jump_hlecall:
+FUNCTION(jump_hlecall):
 	ldr	r2, [fp, #last_count-dynarec_local]
 	str	r0, [fp, #pcaddr-dynarec_local]
 	add	r2, r2, r10
@@ -652,9 +603,7 @@ jump_hlecall:
 	.size	jump_hlecall, .-jump_hlecall
 
 	.align	2
-	.global	jump_intcall
-	.type	jump_intcall, %function
-jump_intcall:
+FUNCTION(jump_intcall):
 	ldr	r2, [fp, #last_count-dynarec_local]
 	str	r0, [fp, #pcaddr-dynarec_local]
 	add	r2, r2, r10
@@ -663,10 +612,8 @@ jump_intcall:
 	b	execI
 	.size	jump_hlecall, .-jump_hlecall
 
-new_dyna_leave:
 	.align	2
-	.global	new_dyna_leave
-	.type	new_dyna_leave, %function
+FUNCTION(new_dyna_leave):
 	ldr	r0, [fp, #last_count-dynarec_local]
 	add	r12, fp, #28
 	add	r10, r0, r10
@@ -675,103 +622,77 @@ new_dyna_leave:
 	.size	new_dyna_leave, .-new_dyna_leave
 
 	.align	2
-	.global	invalidate_addr_r0
-	.type	invalidate_addr_r0, %function
-invalidate_addr_r0:
+FUNCTION(invalidate_addr_r0):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	b	invalidate_addr_call
 	.size	invalidate_addr_r0, .-invalidate_addr_r0
 	.align	2
-	.global	invalidate_addr_r1
-	.type	invalidate_addr_r1, %function
-invalidate_addr_r1:
+FUNCTION(invalidate_addr_r1):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r1
 	b	invalidate_addr_call
 	.size	invalidate_addr_r1, .-invalidate_addr_r1
 	.align	2
-	.global	invalidate_addr_r2
-	.type	invalidate_addr_r2, %function
-invalidate_addr_r2:
+FUNCTION(invalidate_addr_r2):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r2
 	b	invalidate_addr_call
 	.size	invalidate_addr_r2, .-invalidate_addr_r2
 	.align	2
-	.global	invalidate_addr_r3
-	.type	invalidate_addr_r3, %function
-invalidate_addr_r3:
+FUNCTION(invalidate_addr_r3):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r3
 	b	invalidate_addr_call
 	.size	invalidate_addr_r3, .-invalidate_addr_r3
 	.align	2
-	.global	invalidate_addr_r4
-	.type	invalidate_addr_r4, %function
-invalidate_addr_r4:
+FUNCTION(invalidate_addr_r4):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r4
 	b	invalidate_addr_call
 	.size	invalidate_addr_r4, .-invalidate_addr_r4
 	.align	2
-	.global	invalidate_addr_r5
-	.type	invalidate_addr_r5, %function
-invalidate_addr_r5:
+FUNCTION(invalidate_addr_r5):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r5
 	b	invalidate_addr_call
 	.size	invalidate_addr_r5, .-invalidate_addr_r5
 	.align	2
-	.global	invalidate_addr_r6
-	.type	invalidate_addr_r6, %function
-invalidate_addr_r6:
+FUNCTION(invalidate_addr_r6):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r6
 	b	invalidate_addr_call
 	.size	invalidate_addr_r6, .-invalidate_addr_r6
 	.align	2
-	.global	invalidate_addr_r7
-	.type	invalidate_addr_r7, %function
-invalidate_addr_r7:
+FUNCTION(invalidate_addr_r7):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r7
 	b	invalidate_addr_call
 	.size	invalidate_addr_r7, .-invalidate_addr_r7
 	.align	2
-	.global	invalidate_addr_r8
-	.type	invalidate_addr_r8, %function
-invalidate_addr_r8:
+FUNCTION(invalidate_addr_r8):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r8
 	b	invalidate_addr_call
 	.size	invalidate_addr_r8, .-invalidate_addr_r8
 	.align	2
-	.global	invalidate_addr_r9
-	.type	invalidate_addr_r9, %function
-invalidate_addr_r9:
+FUNCTION(invalidate_addr_r9):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r9
 	b	invalidate_addr_call
 	.size	invalidate_addr_r9, .-invalidate_addr_r9
 	.align	2
-	.global	invalidate_addr_r10
-	.type	invalidate_addr_r10, %function
-invalidate_addr_r10:
+FUNCTION(invalidate_addr_r10):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r10
 	b	invalidate_addr_call
 	.size	invalidate_addr_r10, .-invalidate_addr_r10
 	.align	2
-	.global	invalidate_addr_r12
-	.type	invalidate_addr_r12, %function
-invalidate_addr_r12:
+FUNCTION(invalidate_addr_r12):
 	stmia	fp, {r0, r1, r2, r3, r12, lr}
 	mov	r0, r12
 	.size	invalidate_addr_r12, .-invalidate_addr_r12
 	.align	2
-	.global	invalidate_addr_call
-	.type	invalidate_addr_call, %function
-invalidate_addr_call:
+FUNCTION(invalidate_addr_call):
 	ldr	r12, [fp, #inv_code_start-dynarec_local]
 	ldr	lr, [fp, #inv_code_end-dynarec_local]
 	cmp	r0, r12
@@ -781,9 +702,7 @@ invalidate_addr_call:
 	.size	invalidate_addr_call, .-invalidate_addr_call
 
 	.align	2
-	.global	new_dyna_start
-	.type	new_dyna_start, %function
-new_dyna_start:
+FUNCTION(new_dyna_start):
 	/* ip is stored to conform EABI alignment */
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
 	load_varadr fp, dynarec_local
@@ -799,22 +718,6 @@ new_dyna_start:
 /* --------------------------------------- */
 
 .align	2
-.global	jump_handler_read8
-.global	jump_handler_read16
-.global	jump_handler_read32
-.global	jump_handler_write8
-.global	jump_handler_write16
-.global	jump_handler_write32
-.global	jump_handler_write_h
-.global jump_handle_swl
-.global jump_handle_swr
-.global rcnt0_read_count_m0
-.global rcnt0_read_count_m1
-.global rcnt1_read_count_m0
-.global rcnt1_read_count_m1
-.global rcnt2_read_count_m0
-.global rcnt2_read_count_m1
-
 
 .macro pcsx_read_mem readop tab_shift
 	/* r0 = address, r1 = handler_tab, r2 = cycles */
@@ -835,15 +738,15 @@ new_dyna_start:
 	bx	r1
 .endm
 
-jump_handler_read8:
+FUNCTION(jump_handler_read8):
 	add     r1, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
 	pcsx_read_mem ldrccb, 0
 
-jump_handler_read16:
+FUNCTION(jump_handler_read16):
 	add     r1, #0x1000/4*4              @ shift to r16 part
 	pcsx_read_mem ldrcch, 1
 
-jump_handler_read32:
+FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldrcc, 2
 
 
@@ -876,18 +779,18 @@ jump_handler_read32:
 	bx	r3
 .endm
 
-jump_handler_write8:
+FUNCTION(jump_handler_write8):
 	add     r3, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
 	pcsx_write_mem strccb, 0
 
-jump_handler_write16:
+FUNCTION(jump_handler_write16):
 	add     r3, #0x1000/4*4              @ shift to r16 part
 	pcsx_write_mem strcch, 1
 
-jump_handler_write32:
+FUNCTION(jump_handler_write32):
 	pcsx_write_mem strcc, 2
 
-jump_handler_write_h:
+FUNCTION(jump_handler_write_h):
 	/* r0 = address, r1 = data, r2 = cycles, r3 = handler */
 	ldr	r12, [fp, #last_count-dynarec_local]
 	str	r0, [fp, #address-dynarec_local]      @ some handlers still need it..
@@ -903,7 +806,7 @@ jump_handler_write_h:
 	sub	r0, r2, r0
 	bx	r3
 
-jump_handle_swl:
+FUNCTION(jump_handle_swl):
 	/* r0 = address, r1 = data, r2 = cycles */
 	ldr	r3, [fp, #mem_wtab-dynarec_local]
 	mov	r12,r0,lsr #12
@@ -938,7 +841,7 @@ jump_handle_swl:
 	bx	lr		@ TODO?
 
 
-jump_handle_swr:
+FUNCTION(jump_handle_swr):
 	/* r0 = address, r1 = data, r2 = cycles */
 	ldr	r3, [fp, #mem_wtab-dynarec_local]
 	mov	r12,r0,lsr #12
@@ -973,16 +876,16 @@ jump_handle_swr:
 	bx	lr
 .endm
 
-rcnt0_read_count_m0:
+FUNCTION(rcnt0_read_count_m0):
 	rcntx_read_mode0 0
 
-rcnt1_read_count_m0:
+FUNCTION(rcnt1_read_count_m0):
 	rcntx_read_mode0 1
 
-rcnt2_read_count_m0:
+FUNCTION(rcnt2_read_count_m0):
 	rcntx_read_mode0 2
 
-rcnt0_read_count_m1:
+FUNCTION(rcnt0_read_count_m1):
 	/* r0 = address, r2 = cycles */
 	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*0] @ cycleStart
 	mov_16	r1, 0x3334
@@ -991,7 +894,7 @@ rcnt0_read_count_m1:
 	lsr	r0, #16
 	bx	lr
 
-rcnt1_read_count_m1:
+FUNCTION(rcnt1_read_count_m1):
 	/* r0 = address, r2 = cycles */
 	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*1]
 	mov_24	r1, 0x1e6cde
@@ -999,7 +902,7 @@ rcnt1_read_count_m1:
 	umull	r3, r0, r1, r2		@ ~ /= hsync_cycles, max ~0x1e6cdd
 	bx	lr
 
-rcnt2_read_count_m1:
+FUNCTION(rcnt2_read_count_m1):
 	/* r0 = address, r2 = cycles */
 	ldr	r3, [fp, #rcnts-dynarec_local+6*4+7*4*2]
 	mov	r0, r2, lsl #16-3
