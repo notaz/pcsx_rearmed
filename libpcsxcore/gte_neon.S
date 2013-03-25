@@ -5,6 +5,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include "arm_features.h"
 
 .syntax unified
 
@@ -145,8 +146,7 @@ scratch:
     vqmovn.s32  d10, q4        @ gteIR|123; losing 2 cycles?
 .endm
 
-.global gteRTPS_neon @ r0=CP2 (d,c),
-gteRTPS_neon:
+FUNCTION(gteRTPS_neon): @ r0=CP2 (d,c),
     push        {r4-r6,lr}
 
 @    fmrx        r4, fpscr      @ vmrs? at least 40 cycle hit
@@ -299,8 +299,7 @@ gteRTPS_neon:
  
 
 
-.global gteRTPT_neon @ r0=CP2 (d,c),
-gteRTPT_neon:
+FUNCTION(gteRTPT_neon): @ r0=CP2 (d,c),
     push        {r4-r11,lr}
 
     ldr_scratch r1
@@ -546,8 +545,7 @@ gteRTPT_neon:
 @ r4,r5 = VXYZ(v) packed
 @ r6 = &MX11(mx)
 @ r7 = &CV1(cv)
-.global gteMVMVA_part_neon
-gteMVMVA_part_neon:
+FUNCTION(gteMVMVA_part_neon):
     uxth        r5, r5
     vmov.32     d8[0], r4
     vmov.32     d8[1], r5       @ VXYZ(v)
@@ -594,8 +592,7 @@ gteMVMVA_part_neon:
 
 
 @ get flags after gteMVMVA_part_neon operation
-.global gteMACtoIR_flags_neon @ r0=CP2 (d,c), r1=lm
-gteMACtoIR_flags_neon:
+FUNCTION(gteMACtoIR_flags_neon): @ r0=CP2 (d,c), r1=lm
     push        {r4,r5,lr}
     tst         r1, r1         @ lm
     mov         lr, #0         @ gteFLAG

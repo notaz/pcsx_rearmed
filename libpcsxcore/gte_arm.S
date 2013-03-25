@@ -148,8 +148,7 @@
 .endm
 
 
-.global gteRTPS_nf_arm @ r0=CP2 (d,c),
-gteRTPS_nf_arm:
+FUNCTION(gteRTPS_nf_arm): @ r0=CP2 (d,c),
     push     {r4-r11,lr}
 
     ldmia    r0, {r8,r9}          @ VXYZ(0)
@@ -215,8 +214,7 @@ gteRTPS_nf_arm:
     .size    gteRTPS_nf_arm, .-gteRTPS_nf_arm
 
 
-.global gteRTPT_nf_arm @ r0=CP2 (d,c),
-gteRTPT_nf_arm:
+FUNCTION(gteRTPT_nf_arm): @ r0=CP2 (d,c),
     ldr      r1, [r0, #4*19]      @ gteSZ3
     push     {r4-r11,lr}
     str      r1, [r0, #4*16]      @ gteSZ0
@@ -360,13 +358,11 @@ rtpt_arm_loop:
     bx       lr
 .endm
 
-.global gteMVMVA_part_arm
-gteMVMVA_part_arm:
+FUNCTION(gteMVMVA_part_arm):
     mvma_op 1
     .size    gteMVMVA_part_arm, .-gteMVMVA_part_arm
  
-.global gteMVMVA_part_nf_arm
-gteMVMVA_part_nf_arm:
+FUNCTION(gteMVMVA_part_nf_arm):
     mvma_op 0
     .size    gteMVMVA_part_nf_arm, .-gteMVMVA_part_nf_arm
  
@@ -376,8 +372,7 @@ gteMVMVA_part_nf_arm:
 @ r0 = CP2 (d,c)  (must preserve)
 @ r4,r5 = VXYZ(v) packed
 @ r6 = &MX11(mx)
-.global gteMVMVA_part_cv3sh12_arm
-gteMVMVA_part_cv3sh12_arm:
+FUNCTION(gteMVMVA_part_cv3sh12_arm):
     push     {r8-r9}
     ldmia    r6!,{r7-r9}          @ MX1*,MX2*
     smulbb   r1, r7, r4           @ MX11 * vx
@@ -412,8 +407,7 @@ gteMVMVA_part_cv3sh12_arm:
 
 #endif /* HAVE_ARMV5 */
 
-.global gteNCLIP_arm @ r0=CP2 (d,c),
-gteNCLIP_arm:
+FUNCTION(gteNCLIP_arm): @ r0=CP2 (d,c),
     push        {r4-r6,lr}
     ldrsh       r4, [r0, #4*12+2]
     ldrsh       r5, [r0, #4*13+2]
@@ -504,19 +498,16 @@ gteNCLIP_arm:
     bx       lr
 .endm
 
-.global gteMACtoIR_lm0 @ r0=CP2 (d,c)
-gteMACtoIR_lm0:
+FUNCTION(gteMACtoIR_lm0): @ r0=CP2 (d,c)
     gteMACtoIR 0
     .size    gteMACtoIR_lm0, .-gteMACtoIR_lm0
 
-.global gteMACtoIR_lm1 @ r0=CP2 (d,c)
-gteMACtoIR_lm1:
+FUNCTION(gteMACtoIR_lm1): @ r0=CP2 (d,c)
     gteMACtoIR 1
     .size    gteMACtoIR_lm1, .-gteMACtoIR_lm1
 
 
-.global gteMACtoIR_lm0_nf @ r0=CP2 (d,c)
-gteMACtoIR_lm0_nf:
+FUNCTION(gteMACtoIR_lm0_nf): @ r0=CP2 (d,c)
     add      r12, r0, #4*25
     ldmia    r12, {r1-r3}
     ssatx_prep r12, 16
@@ -529,8 +520,7 @@ gteMACtoIR_lm0_nf:
     .size    gteMACtoIR_lm0_nf, .-gteMACtoIR_lm0_nf
 
 
-.global gteMACtoIR_lm1_nf @ r0=CP2 (d,c)
-gteMACtoIR_lm1_nf:
+FUNCTION(gteMACtoIR_lm1_nf): @ r0=CP2 (d,c)
     add      r12, r0, #4*25
     ldmia    r12, {r1-r3}
     ssatx0_prep r12, 16
@@ -544,8 +534,7 @@ gteMACtoIR_lm1_nf:
 
 
 .if 0
-.global gteMVMVA_test
-gteMVMVA_test:
+FUNCTION(gteMVMVA_test):
     push     {r4-r7,lr}
     push     {r1}
     and      r2, r1, #0x18000     @ v
