@@ -131,7 +131,7 @@ int psxMemInit() {
 #ifndef RAM_FIXED
 #ifdef __BLACKBERRY_QNX__
 	if (psxM == NULL)
-		psxM = psxMap(0x70000000, 0x00210000, 0, MAP_TAG_RAM);
+		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
 #else
 	if (psxM == NULL)
 		psxM = psxMap(0x78000000, 0x00210000, 0, MAP_TAG_RAM);
