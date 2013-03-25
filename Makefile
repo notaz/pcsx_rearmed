@@ -1,9 +1,8 @@
 # Makefile for PCSX ReARMed
 
 # default stuff goes here, so that config can override
-TARGET = pcsx
+TARGET ?= pcsx
 CFLAGS += -Wall -ggdb -Iinclude -ffast-math
-LDLIBS += -lpthread
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
@@ -13,6 +12,7 @@ CXXFLAGS += $(CFLAGS)
 
 all: config.mak target_ plugins_
 
+ifndef NO_CONFIG_MAK
 ifneq ($(wildcard config.mak),)
 config.mak: ./configure
 	@echo $@ is out-of-date, running configure
@@ -23,10 +23,16 @@ config.mak:
 	@echo "Please run ./configure before running make!"
 	@exit 1
 endif
+else # NO_CONFIG_MAK
+config.mak:
+endif
+
 -include Makefile.local
 
-CC_LINK = $(CC)
+CC_LINK ?= $(CC)
+CC_AS ?= $(CC)
 LDFLAGS += $(MAIN_LDFLAGS)
+EXTRA_LDFLAGS ?= -Wl,-Map=$@.map
 LDLIBS += $(MAIN_LDLIBS)
 ifdef PCNT
 CFLAGS += -DPCNT
@@ -228,13 +234,13 @@ frontend/revision.h: FORCE
 	@rm $@_
 
 %.o: %.S
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC_AS) $(CFLAGS) -c $^ -o $@
 
 
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$@.map
+	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
