@@ -39,7 +39,7 @@ ifeq ($(TARGET_ARCH),arm)
    else
       LOCAL_ARM_NEON := true
       LOCAL_CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-      LOCAL_SRC_FILES += ../libpcsxcore/gte_neon.S ../frontend/cspace_neon.s
+      LOCAL_SRC_FILES += ../libpcsxcore/gte_neon.S ../frontend/cspace_neon.S
 
       # gpu
       LOCAL_SRC_FILES += ../plugins/gpu_neon/psx_gpu_if.c ../plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.S
