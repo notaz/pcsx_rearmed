@@ -25,20 +25,23 @@
 
 /* no need for HAVE_NEON - GCC defines __ARM_NEON__ consistently */
 
-/* global function/external variable */
+/* global function/external symbol */
 #ifndef __MACH__
+#define ESYM(name) name
+
 #define FUNCTION(name) \
-  .global name; \
+  .globl name; \
   .type name, %function; \
   name
 
-#define EVAR(name) name
 #else
-#define FUNCTION(name) \
-  .globl _##name; \
-  _##name
+#define ESYM(name) _##name
 
-#define EVAR(name) _##name
+#define FUNCTION(name) \
+  .globl ESYM(name); \
+  name: \
+  ESYM(name)
+
 #endif
 
 #endif /* __ARM_FEATURES_H__ */
