@@ -44,6 +44,14 @@
 #ifdef __BLACKBERRY_QNX__
 #undef __clear_cache
 #define __clear_cache(start,end) msync(start, (size_t)((void*)end - (void*)start), MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
+#elif defined(__MACH__)
+#include <libkern/OSCacheControl.h>
+#define __clear_cache mach_clear_cache
+static void __clear_cache(void *start, void *end) {
+  size_t len = (char *)end - (char *)start;
+  sys_dcache_flush(start, len);
+  sys_icache_invalidate(start, len);
+}
 #endif
 
 #define MAXBLOCK 4096
@@ -656,7 +664,7 @@ uint64_t get_const(struct regstat *cur,signed char reg)
       return current_constmap[hr];
     }
   }
-  printf("Unknown constant in r%d\n",reg);
+  SysPrintf("Unknown constant in r%d\n",reg);
   exit(1);
 }
 
@@ -1997,7 +2005,7 @@ void delayslot_alloc(struct regstat *current,int i)
     case HLECALL:
     case SPAN:
       assem_debug("jump in the delay slot.  this shouldn't happen.\n");//exit(1);
-      printf("Disabled speculative precompilation\n");
+      SysPrintf("Disabled speculative precompilation\n");
       stop_after_jal=1;
       break;
     case IMM16:
@@ -3369,7 +3377,7 @@ void store_assemble(int i,struct regstat *i_regs)
   // basic current block modification detection..
   // not looking back as that should be in mips cache already
   if(c&&start+i*4<addr_val&&addr_val<start+slen*4) {
-    printf("write to %08x hits block %08x, pc=%08x\n",addr_val,start,start+i*4);
+    SysPrintf("write to %08x hits block %08x, pc=%08x\n",addr_val,start,start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
@@ -4077,7 +4085,7 @@ void ds_assemble(int i,struct regstat *i_regs)
     case CJUMP:
     case SJUMP:
     case FJUMP:
-      printf("Jump in the delay slot.  This is probably a bug.\n");
+      SysPrintf("Jump in the delay slot.  This is probably a bug.\n");
   }
   is_delayslot=0;
 }
@@ -4970,7 +4978,7 @@ void ds_assemble_entry(int i)
     case CJUMP:
     case SJUMP:
     case FJUMP:
-      printf("Jump in the delay slot.  This is probably a bug.\n");
+      SysPrintf("Jump in the delay slot.  This is probably a bug.\n");
   }
   store_regs_bt(regs[t].regmap,regs[t].is32,regs[t].dirty,ba[i]+4);
   load_regs_bt(regs[t].regmap,regs[t].is32,regs[t].dirty,ba[i]+4);
@@ -5248,7 +5256,7 @@ void do_ccstub(int n)
       }
       emit_writeword(r,(int)&pcaddr);
     }
-    else {printf("Unknown branch type in do_ccstub\n");exit(1);}
+    else {SysPrintf("Unknown branch type in do_ccstub\n");exit(1);}
   }
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
@@ -6805,7 +6813,7 @@ static void pagespan_ds()
     case CJUMP:
     case SJUMP:
     case FJUMP:
-      printf("Jump in the delay slot.  This is probably a bug.\n");
+      SysPrintf("Jump in the delay slot.  This is probably a bug.\n");
   }
   int btaddr=get_reg(regs[0].regmap,BTREG);
   if(btaddr<0) {
@@ -8037,11 +8045,11 @@ void new_dynarec_init()
   if (mmap (out, 1<<TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) <= 0) {printf("mmap() failed\n");}
+            -1, 0) <= 0) {SysPrintf("mmap() failed\n");}
 #else
   // not all systems allow execute in data segment by default
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
-    printf("mprotect() failed\n");
+    SysPrintf("mprotect() failed\n");
 #endif
 #ifdef MUPEN64
   rdword=&readmem_dword;
@@ -8100,20 +8108,20 @@ void new_dynarec_init()
   ram_offset=(u_int)rdram-0x80000000;
 #endif
   if (ram_offset!=0)
-    printf("warning: RAM is not directly mapped, performance will suffer\n");
+    SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
 }
 
 void new_dynarec_cleanup()
 {
   int n;
   #if BASE_ADDR_FIXED
-  if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {printf("munmap() failed\n");}
+  if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {SysPrintf("munmap() failed\n");}
   #endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
   #ifdef ROM_COPY
-  if (munmap (ROM_COPY, 67108864) < 0) {printf("munmap() failed\n");}
+  if (munmap (ROM_COPY, 67108864) < 0) {SysPrintf("munmap() failed\n");}
   #endif
 }
 
@@ -8210,7 +8218,7 @@ int new_recompile_block(int addr)
   }
 #endif
   else {
-    printf("Compile at bogus memory address: %x \n", (int)addr);
+    SysPrintf("Compile at bogus memory address: %x \n", (int)addr);
     exit(1);
   }
 
@@ -8539,7 +8547,7 @@ int new_recompile_block(int addr)
       case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
 #endif
       default: strcpy(insn[i],"???"); type=NI;
-        printf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
+        SysPrintf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
         break;
     }
     itype[i]=type;
@@ -8814,7 +8822,7 @@ int new_recompile_block(int addr)
       // branch in delay slot?
       if(type==RJUMP||type==UJUMP||type==CJUMP||type==SJUMP||type==FJUMP) {
         // don't handle first branch and call interpreter if it's hit
-        printf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
+        SysPrintf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
         do_in_intrp=1;
       }
       // basic load delay detection
@@ -8822,14 +8830,14 @@ int new_recompile_block(int addr)
         int t=(ba[i-1]-start)/4;
         if(0 <= t && t < i &&(rt1[i]==rs1[t]||rt1[i]==rs2[t])&&itype[t]!=CJUMP&&itype[t]!=SJUMP) {
           // jump target wants DS result - potential load delay effect
-          printf("load delay @%08x (%08x)\n", addr + i*4, addr);
+          SysPrintf("load delay @%08x (%08x)\n", addr + i*4, addr);
           do_in_intrp=1;
           bt[t+1]=1; // expected return from interpreter
         }
         else if(i>=2&&rt1[i-2]==2&&rt1[i]==2&&rs1[i]!=2&&rs2[i]!=2&&rs1[i-1]!=2&&rs2[i-1]!=2&&
               !(i>=3&&(itype[i-3]==RJUMP||itype[i-3]==UJUMP||itype[i-3]==CJUMP||itype[i-3]==SJUMP))) {
           // v0 overwrite like this is a sign of trouble, bail out
-          printf("v0 overwrite @%08x (%08x)\n", addr + i*4, addr);
+          SysPrintf("v0 overwrite @%08x (%08x)\n", addr + i*4, addr);
           do_in_intrp=1;
         }
       }
@@ -8876,7 +8884,7 @@ int new_recompile_block(int addr)
     // Stop if we're compiling junk
     if(itype[i]==NI&&opcode[i]==0x11) {
       done=stop_after_jal=1;
-      printf("Disabled speculative precompilation\n");
+      SysPrintf("Disabled speculative precompilation\n");
     }
   }
   slen=i;
@@ -9093,7 +9101,7 @@ int new_recompile_block(int addr)
         current.uu&=~((1LL<<us1[i])|(1LL<<us2[i]));
         current.u|=1;
         current.uu|=1;
-      } else { printf("oops, branch at end of block with no delay slot\n");exit(1); }
+      } else { SysPrintf("oops, branch at end of block with no delay slot\n");exit(1); }
     }
     is_ds[i]=ds;
     if(ds) {
@@ -10159,7 +10167,7 @@ int new_recompile_block(int addr)
                 if(regmap_pre[i+1][hr]!=regs[i].regmap[hr])
                 if(regs[i].regmap[hr]<64||!((regs[i].was32>>(regs[i].regmap[hr]&63))&1))
                 {
-                  printf("fail: %x (%d %d!=%d)\n",start+i*4,hr,regmap_pre[i+1][hr],regs[i].regmap[hr]);
+                  SysPrintf("fail: %x (%d %d!=%d)\n",start+i*4,hr,regmap_pre[i+1][hr],regs[i].regmap[hr]);
                   assert(regmap_pre[i+1][hr]==regs[i].regmap[hr]);
                 }
                 regmap_pre[i+1][hr]=-1;

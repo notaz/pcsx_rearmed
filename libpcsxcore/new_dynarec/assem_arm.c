@@ -493,7 +493,7 @@ void alloc_reg(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  printf("This shouldn't happen (alloc_reg)");exit(1);
+  SysPrintf("This shouldn't happen (alloc_reg)");exit(1);
 }
 
 void alloc_reg64(struct regstat *cur,int i,signed char reg)
@@ -659,7 +659,7 @@ void alloc_reg64(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  printf("This shouldn't happen");exit(1);
+  SysPrintf("This shouldn't happen");exit(1);
 }
 
 // Allocate a temporary register.  This is done without regard to
@@ -782,7 +782,7 @@ void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  printf("This shouldn't happen");exit(1);
+  SysPrintf("This shouldn't happen");exit(1);
 }
 // Allocate a specific ARM register.
 void alloc_arm_reg(struct regstat *cur,int i,signed char reg,char hr)
@@ -899,7 +899,7 @@ u_int genjmp(u_int addr)
   int offset=addr-(int)out-8;
   if(offset<-33554432||offset>=33554432) {
     if (addr>2) {
-      printf("genjmp: out of range: %08x\n", offset);
+      SysPrintf("genjmp: out of range: %08x\n", offset);
       exit(1);
     }
     return 0;
@@ -1033,7 +1033,7 @@ void emit_loadreg(int r, int hr)
 {
 #ifdef FORCE32
   if(r&64) {
-    printf("64bit load in 32bit mode!\n");
+    SysPrintf("64bit load in 32bit mode!\n");
     assert(0);
     return;
   }
@@ -1058,7 +1058,7 @@ void emit_storereg(int r, int hr)
 {
 #ifdef FORCE32
   if(r&64) {
-    printf("64bit store in 32bit mode!\n");
+    SysPrintf("64bit store in 32bit mode!\n");
     assert(0);
     return;
   }
@@ -3288,7 +3288,7 @@ do_writestub(int n)
     emit_writeword(rt,(int)&dword);
     emit_writeword(r?rth:rt,(int)&dword+4);
 #else
-    printf("STORED_STUB\n");
+    SysPrintf("STORED_STUB\n");
 #endif
   }
   //emit_pusha();
@@ -3397,7 +3397,7 @@ inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, 
     emit_writeword(rt,(int)&dword);
     emit_writeword(target?rth:rt,(int)&dword+4);
 #else
-    printf("STORED_STUB\n");
+    SysPrintf("STORED_STUB\n");
 #endif
   }
   //emit_pusha();
@@ -3720,12 +3720,12 @@ generate_map_const(u_int addr,int reg) {
 
 #else
 
-static int do_tlb_r() { return 0; }
-static int do_tlb_r_branch() { return 0; }
-static int gen_tlb_addr_r() { return 0; }
-static int do_tlb_w() { return 0; }
-static int do_tlb_w_branch() { return 0; }
-static int gen_tlb_addr_w() { return 0; }
+static int do_tlb_r(int a, ...) { return 0; }
+static int do_tlb_r_branch(int a, ...) { return 0; }
+static int gen_tlb_addr_r(int a, ...) { return 0; }
+static int do_tlb_w(int a, ...) { return 0; }
+static int do_tlb_w_branch(int a, ...) { return 0; }
+static int gen_tlb_addr_w(int a, ...) { return 0; }
 
 #endif // DISABLE_TLB
 

@@ -10,15 +10,28 @@
 
 #include "arm_features.h"
 
+#ifdef __MACH__
+.data
+.align 2
+ptr_ChanBuf:   .word _ChanBuf
+ptr_SSumLR:    .word _SSumLR
+ptr_sRVBStart: .word _sRVBStart
+#endif
+
 .text
 .align 2
 
 .macro load_varadr reg var
 #if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
-	movw	\reg, #:lower16:EVAR(\var)
-	movt	\reg, #:upper16:EVAR(\var)
+	movw	\reg, #:lower16:ESYM(\var)
+	movt	\reg, #:upper16:ESYM(\var)
+#elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
+	movw	\reg, #:lower16:(ptr_\var-(1678f+4))
+	movt	\reg, #:upper16:(ptr_\var-(1678f+4))
+1678:
+	ldr	\reg, [pc, \reg]
 #else
-	ldr	\reg, =EVAR(\var)
+	ldr	\reg, =ESYM(\var)
 #endif
 .endm
 

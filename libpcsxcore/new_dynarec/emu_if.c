@@ -25,6 +25,7 @@
 #define evprintf(...)
 
 char invalid_code[0x100000];
+static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 u32 event_cycles[PSXINT_COUNT];
 
 static void schedule_timeslice(void)
@@ -286,6 +287,7 @@ static int ari64_init()
 #endif
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
+	scratch_buf_ptr = scratch_buf;
 
 	return 0;
 }
@@ -386,6 +388,7 @@ int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u8 zero_mem[0x1000];
+void *scratch_buf_ptr;
 void new_dynarec_init() { (void)ari64_execute; }
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}

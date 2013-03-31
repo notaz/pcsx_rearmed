@@ -83,6 +83,7 @@ void rcnt2_read_count_m1(u32 addr, u32, u32 cycles);
 extern unsigned int address;
 extern void *psxH_ptr;
 extern void *zeromem_ptr;
+extern void *scratch_buf_ptr;
 
 // same as invalid_code, just a region for ram write checks (inclusive)
 extern u32 inv_code_start, inv_code_end;
@@ -97,6 +98,8 @@ void pcsx_mtc0_ds(u32 reg, u32 val);
 
 /* misc */
 extern void (*psxHLEt[])();
+
+extern void SysPrintf(const char *fmt, ...);
 
 #ifdef RAM_FIXED
 #define rdram ((u_int)0x80000000)
