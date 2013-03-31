@@ -3720,12 +3720,12 @@ generate_map_const(u_int addr,int reg) {
 
 #else
 
-static int do_tlb_r() { return 0; }
-static int do_tlb_r_branch() { return 0; }
-static int gen_tlb_addr_r() { return 0; }
-static int do_tlb_w() { return 0; }
-static int do_tlb_w_branch() { return 0; }
-static int gen_tlb_addr_w() { return 0; }
+static int do_tlb_r(int a, ...) { return 0; }
+static int do_tlb_r_branch(int a, ...) { return 0; }
+static int gen_tlb_addr_r(int a, ...) { return 0; }
+static int do_tlb_w(int a, ...) { return 0; }
+static int do_tlb_w_branch(int a, ...) { return 0; }
+static int gen_tlb_addr_w(int a, ...) { return 0; }
 
 #endif // DISABLE_TLB
 
