@@ -92,6 +92,22 @@ DRC_VAR(restore_candidate, 512)
 DRC_VAR(FCR0, 4)
 DRC_VAR(FCR31, 4)
 
+#ifdef __MACH__
+	.data
+	.align 2
+ptr_jump_in:
+	.word	ESYM(jump_in)
+ptr_jump_dirty:
+	.word	ESYM(jump_dirty)
+ptr_hash_table:
+	.word	ESYM(hash_table)
+#endif
+
+
+	.syntax unified
+	.text
+	.align	2
+
 #ifndef HAVE_ARMV5
 .macro blx rd
 	mov	lr, pc
@@ -103,8 +119,24 @@ DRC_VAR(FCR31, 4)
 #if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
 	movw	\reg, #:lower16:\var
 	movt	\reg, #:upper16:\var
+#elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
+	movw	\reg, #:lower16:(\var-(1678f+4))
+	movt	\reg, #:upper16:(\var-(1678f+4))
+1678:
+	add	\reg, pc
 #else
 	ldr	\reg, =\var
+#endif
+.endm
+
+.macro load_varadr_ext reg var
+#if defined(__ARM_ARCH_7A__) && defined(__MACH__) && defined(__PIC__)
+	movw	\reg, #:lower16:(ptr_\var-(1678f+4))
+	movt	\reg, #:upper16:(ptr_\var-(1678f+4))
+1678:
+	ldr	\reg, [pc, \reg]
+#else
+	load_varadr \reg \var
 #endif
 .endm
 
@@ -131,7 +163,7 @@ DRC_VAR(FCR31, 4)
 .macro dyna_linker_main
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	ldr	r3, .jiptr
+	load_varadr_ext r3, jump_in
 	/* get_page */
 	lsr     r2, r0, #12
 	mov	r6, #4096
@@ -181,10 +213,10 @@ DRC_VAR(FCR31, 4)
 3:
 	/* hash_table lookup */
 	cmp	r2, #2048
-	ldr	r3, .jdptr
+	load_varadr_ext r3, jump_dirty
 	eor	r4, r0, r0, lsl #16
 	lslcc	r2, r0, #9
-	ldr	r6, .htptr
+	load_varadr_ext r6, hash_table
 	lsr	r4, r4, #12
 	lsrcc	r2, r2, #21
 	bic	r4, r4, #15
@@ -216,8 +248,6 @@ DRC_VAR(FCR31, 4)
 8:
 .endm
 
-	.text
-	.align	2
 
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
@@ -282,12 +312,6 @@ FUNCTION(dyna_linker_ds):
 	sub	r0, r1, #4
 	b	exec_pagefault
 	.size	dyna_linker_ds, .-dyna_linker_ds
-.jiptr:
-	.word	jump_in
-.jdptr:
-	.word	jump_dirty
-.htptr:
-	.word	hash_table
 
 	.align	2
 
@@ -350,7 +374,7 @@ FUNCTION(jump_vaddr_r7):
 	add	r0, r7, #0
 	.size	jump_vaddr_r7, .-jump_vaddr_r7
 FUNCTION(jump_vaddr):
-	ldr	r1, .htptr
+	load_varadr_ext r1, hash_table
 	mvn	r3, #15
 	and	r2, r3, r2, lsr #12
 	ldr	r2, [r1, r2]!
@@ -431,7 +455,7 @@ FUNCTION(cc_interrupt):
 	str	r0, [fp, #LO_last_count]
 	sub	r10, r10, r0
 	tst	r2, r2
-	ldmnefd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
+	ldmfdne	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	tst	r1, r1
 	moveq	pc, lr
 .E2:
@@ -666,11 +690,11 @@ FUNCTION(new_dyna_start):
 
 FUNCTION(jump_handler_read8):
 	add     r1, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
-	pcsx_read_mem ldrccb, 0
+	pcsx_read_mem ldrbcc, 0
 
 FUNCTION(jump_handler_read16):
 	add     r1, #0x1000/4*4              @ shift to r16 part
-	pcsx_read_mem ldrcch, 1
+	pcsx_read_mem ldrbcc, 1
 
 FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldrcc, 2
@@ -707,11 +731,11 @@ FUNCTION(jump_handler_read32):
 
 FUNCTION(jump_handler_write8):
 	add     r3, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
-	pcsx_write_mem strccb, 0
+	pcsx_write_mem strbcc, 0
 
 FUNCTION(jump_handler_write16):
 	add     r3, #0x1000/4*4              @ shift to r16 part
-	pcsx_write_mem strcch, 1
+	pcsx_write_mem strhcc, 1
 
 FUNCTION(jump_handler_write32):
 	pcsx_write_mem strcc, 2
@@ -758,8 +782,8 @@ FUNCTION(jump_handle_swl):
 	tst	r3, #1
 	lsrne	r1, #16		@ 1
 	lsreq	r12, r1, #24	@ 0
-	strneh	r1, [r3, #-1]
-	streqb	r12, [r3]
+	strhne	r1, [r3, #-1]
+	strbeq	r12, [r3]
 	bx	lr
 4:
 	mov	r0, r2
@@ -778,8 +802,8 @@ FUNCTION(jump_handle_swr):
 	and	r12,r3, #3
 	mov	r0, r2
 	cmp	r12,#2
-	strgtb	r1, [r3]	@ 3
-	streqh	r1, [r3]	@ 2
+	strbgt	r1, [r3]	@ 3
+	strheq	r1, [r3]	@ 2
 	cmp	r12,#1
 	strlt	r1, [r3]	@ 0
 	bxne	lr
@@ -797,7 +821,7 @@ FUNCTION(jump_handle_swr):
 	/* r0 = address, r2 = cycles */
 	ldr	r3, [fp, #LO_rcnts+6*4+7*4*\num] @ cycleStart
 	mov	r0, r2, lsl #16
-	sub	r0, r3, lsl #16
+	sub	r0, r0, r3, lsl #16
 	lsr	r0, #16
 	bx	lr
 .endm
@@ -832,7 +856,7 @@ FUNCTION(rcnt2_read_count_m1):
 	/* r0 = address, r2 = cycles */
 	ldr	r3, [fp, #LO_rcnts+6*4+7*4*2]
 	mov	r0, r2, lsl #16-3
-	sub	r0, r3, lsl #16-3
+	sub	r0, r0, r3, lsl #16-3
 	lsr	r0, #16			@ /= 8
 	bx	lr
 
