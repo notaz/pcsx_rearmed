@@ -29,10 +29,13 @@
 #define LO_inv_code_start	(LO_zeromem_ptr + 4)
 #define LO_inv_code_end		(LO_inv_code_start + 4)
 #define LO_branch_target	(LO_inv_code_end + 4)
-#define LO_align0		(LO_branch_target + 4)
-#define LO_mini_ht		(LO_align0 + 16)
+#define LO_scratch_buf_ptr	(LO_branch_target + 4)
+#define LO_align0		(LO_scratch_buf_ptr + 4)
+#define LO_mini_ht		(LO_align0 + 12)
 #define LO_restore_candidate	(LO_mini_ht + 256)
 #define LO_dynarec_local_size	(LO_restore_candidate + 512)
 
 #define LO_FCR0			(LO_align0)
 #define LO_FCR31		(LO_align0)
+
+#define LO_cop2_to_scratch_buf	(LO_scratch_buf_ptr - LO_reg_cop2d)

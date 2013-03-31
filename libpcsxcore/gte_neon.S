@@ -6,28 +6,11 @@
  */
 
 #include "arm_features.h"
+#include "new_dynarec/linkage_offsets.h"
 
 .syntax unified
-
-.bss
-.align 6 @ cacheline
-
-scratch:
-.rept 8*8*2/4
-    .word 0
-.endr
-
 .text
 .align 2
-
-.macro ldr_scratch rd
-#ifndef __PIC__
-    movw        \rd, #:lower16:scratch
-    movt        \rd, #:upper16:scratch
-#else
-    ldr         \rd, =scratch
-#endif
-.endm
 
 @ XXX: gteMAC calc shouldn't be saturating, but it is here
 
@@ -150,7 +133,7 @@ FUNCTION(gteRTPS_neon): @ r0=CP2 (d,c),
     push        {r4-r6,lr}
 
 @    fmrx        r4, fpscr      @ vmrs? at least 40 cycle hit
-    ldr_scratch r1
+    ldr		r1, [r0, #LO_cop2_to_scratch_buf]
     mov         r12, #0
 
     vldmia      r0, {d8}       @ VXYZ(0)
@@ -302,7 +285,7 @@ FUNCTION(gteRTPS_neon): @ r0=CP2 (d,c),
 FUNCTION(gteRTPT_neon): @ r0=CP2 (d,c),
     push        {r4-r11,lr}
 
-    ldr_scratch r1
+    ldr		r1, [r0, #LO_cop2_to_scratch_buf]
     mov         r12, #0
 
     rtpx_preload

@@ -83,7 +83,8 @@ DRC_VAR(zeromem_ptr, 4)
 DRC_VAR(inv_code_start, 4)
 DRC_VAR(inv_code_end, 4)
 DRC_VAR(branch_target, 4)
-@DRC_VAR(align0, 16) /* unused/alignment */
+DRC_VAR(scratch_buf_ptr, 4)
+@DRC_VAR(align0, 12) /* unused/alignment */
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 
