@@ -44,6 +44,14 @@
 #ifdef __BLACKBERRY_QNX__
 #undef __clear_cache
 #define __clear_cache(start,end) msync(start, (size_t)((void*)end - (void*)start), MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
+#elif defined(__MACH__)
+#include <libkern/OSCacheControl.h>
+#define __clear_cache mach_clear_cache
+static void __clear_cache(void *start, void *end) {
+  size_t len = (char *)end - (char *)start;
+  sys_dcache_flush(start, len);
+  sys_icache_invalidate(start, len);
+}
 #endif
 
 #define MAXBLOCK 4096
