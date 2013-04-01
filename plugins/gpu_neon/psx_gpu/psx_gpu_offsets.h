@@ -48,6 +48,7 @@
 #define psx_gpu_offset_y_offset                           0x102
 #define psx_gpu_clut_settings_offset                      0x104
 #define psx_gpu_texture_settings_offset                   0x106
+#define psx_gpu_reciprocal_table_ptr_offset               0x108
 #define psx_gpu_blocks_offset                             0x200
 #define psx_gpu_span_uvrg_offset_offset                   0x2200
 #define psx_gpu_span_edge_data_offset                     0x4200

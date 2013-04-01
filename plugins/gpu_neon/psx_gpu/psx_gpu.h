@@ -180,6 +180,8 @@ typedef struct
   u16 clut_settings;
   u16 texture_settings;
 
+  u32 *reciprocal_table_ptr;
+
   // enhancement stuff
   u16 *enhancement_buf_ptr;
   u16 *enhancement_current_buf_ptr;
@@ -192,7 +194,7 @@ typedef struct
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[164];
+  u8 reserved_a[160];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

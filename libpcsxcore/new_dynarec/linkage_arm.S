@@ -120,8 +120,8 @@ ptr_hash_table:
 	movw	\reg, #:lower16:\var
 	movt	\reg, #:upper16:\var
 #elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
-	movw	\reg, #:lower16:(\var-(1678f+4))
-	movt	\reg, #:upper16:(\var-(1678f+4))
+	movw	\reg, #:lower16:(\var-(1678f+8))
+	movt	\reg, #:upper16:(\var-(1678f+8))
 1678:
 	add	\reg, pc
 #else
@@ -131,8 +131,8 @@ ptr_hash_table:
 
 .macro load_varadr_ext reg var
 #if defined(__ARM_ARCH_7A__) && defined(__MACH__) && defined(__PIC__)
-	movw	\reg, #:lower16:(ptr_\var-(1678f+4))
-	movt	\reg, #:upper16:(ptr_\var-(1678f+4))
+	movw	\reg, #:lower16:(ptr_\var-(1678f+8))
+	movt	\reg, #:upper16:(ptr_\var-(1678f+8))
 1678:
 	ldr	\reg, [pc, \reg]
 #else
