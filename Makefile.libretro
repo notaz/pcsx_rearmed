@@ -38,8 +38,7 @@ ARCH := arm
    CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
    HAVE_NEON = 1
-#TODO
-#   BUILTIN_GPU = neon
+   BUILTIN_GPU = neon
    USE_DYNAREC = 1
    CFLAGS += -DIOS
 else ifeq ($(platform), ps3)
@@ -117,3 +116,7 @@ include Makefile
 # Apple LLVM version 4.2 (clang-425.0.27) (based on LLVM 3.2svn)
 libpcsxcore/new_dynarec/pcsxmem.o: libpcsxcore/new_dynarec/pcsxmem.c
 	$(CC) -c -o $@ $< $(CPPFLAGS) $(CFLAGS) -Os
+
+# no special AS needed for gpu_neon
+plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o: plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.S
+	$(CC) $(CFLAGS) -c $^ -o $@
