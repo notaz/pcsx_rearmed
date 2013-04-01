@@ -20,16 +20,16 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 ifeq ($(platform), unix)
-   TARGET := libretro_pcsx_rearmed.so
+   TARGET := pcsx_rearmed_libretro.so
    fpic := -fPIC
    SHARED := -shared -Wl,--version-script=libretro/link.T
 else ifeq ($(platform), osx)
-   TARGET := libretro_pcsx_rearmed.dylib
+   TARGET := pcsx_rearmed_libretro.dylib
    fpic := -fPIC
    SHARED := -dynamiclib
 else ifeq ($(platform), ios)
 ARCH := arm
-   TARGET := libretro_pcsx_rearmed.dylib
+   TARGET := pcsx_rearmed_libretro.dylib
    fpic := -fPIC
    SHARED := -dynamiclib
 
@@ -89,7 +89,7 @@ else ifeq ($(platform), qnx)
    CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
    ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 else ifeq ($(platform), arm)
-   TARGET := libretro_pcsx_rearmed.so
+   TARGET := pcsx_rearmed_libretro.so
    HAVE_NEON = 1
    USE_DYNAREC = 1
    DRC_CACHE_BASE = 0
