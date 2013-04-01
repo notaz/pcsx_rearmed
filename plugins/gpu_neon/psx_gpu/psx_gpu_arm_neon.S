@@ -194,9 +194,37 @@
 
 .align 4
 
+#ifndef __MACH__
+
 #define function(name)                                                         \
   .global name;                                                                \
+  .type name, %function;                                                       \
   name:                                                                        \
+
+#define JT_OP_REL(table_label, index_reg, temp)
+#define JT_OP(x...) x
+#define JTE(start, target) target
+
+#else
+
+#define function(name)                                                         \
+  .globl _##name;                                                              \
+  name:                                                                        \
+  _##name:                                                                     \
+
+#define JT_OP_REL(table_label, index_reg, temp)                                \
+  adr temp, table_label;                                                       \
+  ldr temp, [ temp, index_reg, lsl #2 ];                                       \
+  add pc, pc, temp                                                             \
+
+#define JT_OP(x...)
+#define JTE(start, target) (target - start)
+
+#define flush_render_block_buffer _flush_render_block_buffer
+#define setup_sprite_untextured_simple _setup_sprite_untextured_simple
+#define update_texture_8bpp_cache _update_texture_8bpp_cache
+
+#endif
 
 @ r0: psx_gpu
 @ r1: v_a
@@ -2493,17 +2521,19 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_direct)       \
   vmlal.u8 pixels, g_whole_8, d64_4;                                           \
   vmlal.u8 pixels, b_whole_8, d64_128;                                         \
                                                                                \
-  ldr pc, [ pc, right_mask, lsl #2 ];                                          \
+  JT_OP_REL(100f, right_mask, temp);                                           \
+  JT_OP(ldr pc, [ pc, right_mask, lsl #2 ]);                                   \
   nop;                                                                         \
+ 100:                                                                          \
   nop;                                                                         \
-  .word 4f;                                                                    \
-  .word 5f;                                                                    \
-  .word 6f;                                                                    \
-  .word 7f;                                                                    \
-  .word 8f;                                                                    \
-  .word 9f;                                                                    \
-  .word 10f;                                                                   \
-  .word 11f;                                                                   \
+  .word JTE(100b, 4f);                                                         \
+  .word JTE(100b, 5f);                                                         \
+  .word JTE(100b, 6f);                                                         \
+  .word JTE(100b, 7f);                                                         \
+  .word JTE(100b, 8f);                                                         \
+  .word JTE(100b, 9f);                                                         \
+  .word JTE(100b, 10f);                                                        \
+  .word JTE(100b, 11f);                                                        \
                                                                                \
  4:                                                                            \
   vst1.u16 { pixels_low[0] }, [ fb_ptr ];                                      \
@@ -4392,6 +4422,8 @@ function(render_block_fill_body)
 #define fb_ptr_advance_column                             r12
 #define texture_block_ptr                                 r14
 
+#define temp                                              r14
+
 #define texture_page_ptr                                  r3
 #define left_block_mask                                   r4
 #define right_block_mask                                  r5
@@ -5212,24 +5244,26 @@ function(setup_sprite_##texture_mode##x4mode)                                  \
   add block, block, num_blocks, lsl #6;                                        \
                                                                                \
   orreq control_mask, control_mask, #0x2;                                      \
-  ldr pc, [ pc, control_mask, lsl #2 ];                                        \
+  JT_OP_REL(9f, control_mask, temp);                                           \
+  JT_OP(ldr pc, [ pc, control_mask, lsl #2 ]);                                 \
   nop;                                                                         \
                                                                                \
- .word setup_sprite_##texture_mode##_multi_multi_full_full##x4mode;            \
- .word setup_sprite_##texture_mode##_single_multi_full_none##x4mode;           \
- .word setup_sprite_##texture_mode##_multi_single_full_full##x4mode;           \
- .word setup_sprite_##texture_mode##_single_single_full_none##x4mode;          \
- .word setup_sprite_##texture_mode##_multi_multi_half_full##x4mode;            \
- .word setup_sprite_##texture_mode##_single_multi_half_right##x4mode;          \
- .word setup_sprite_##texture_mode##_multi_single_half_full##x4mode;           \
- .word setup_sprite_##texture_mode##_single_single_half_right##x4mode;         \
- .word setup_sprite_##texture_mode##_multi_multi_full_half##x4mode;            \
- .word setup_sprite_##texture_mode##_single_multi_half_left##x4mode;           \
- .word setup_sprite_##texture_mode##_multi_single_full_half##x4mode;           \
- .word setup_sprite_##texture_mode##_single_single_half_left##x4mode;          \
- .word setup_sprite_##texture_mode##_multi_multi_half_half##x4mode;            \
+ 9:                                                                            \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_multi_full_full##x4mode);   \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_multi_full_none##x4mode);  \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_single_full_full##x4mode);  \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_single_full_none##x4mode); \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_multi_half_full##x4mode);   \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_multi_half_right##x4mode); \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_single_half_full##x4mode);  \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_single_half_right##x4mode);\
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_multi_full_half##x4mode);   \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_multi_half_left##x4mode);  \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_single_full_half##x4mode);  \
+ .word JTE(9b, setup_sprite_##texture_mode##_single_single_half_left##x4mode); \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_multi_half_half##x4mode);   \
  .word 0x00000000;                                                             \
- .word setup_sprite_##texture_mode##_multi_single_half_half##x4mode;           \
+ .word JTE(9b, setup_sprite_##texture_mode##_multi_single_half_half##x4mode);  \
 
 
 setup_sprite_tiled_builder(4bpp,);
@@ -5334,6 +5368,7 @@ function(texture_sprite_blocks_8bpp)
 #undef texels_wide_high
 #undef texels_wide
 #undef fb_ptr2
+#undef temp
 
 #define psx_gpu                                           r0
 #define x                                                 r1
