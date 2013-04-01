@@ -402,7 +402,14 @@ int emu_core_preinit(void)
 	// it may be redefined by -cfg on the command line
 	strcpy(cfgfile_basename, "pcsx.cfg");
 
+#ifdef IOS
+	emuLog = fopen("/User/Documents/pcsxr.log", "w");
+	if (emuLog == NULL)
+		emuLog = fopen("pcsxr.log", "w");
+	if (emuLog == NULL)
+#endif
 	emuLog = stdout;
+
 	SetIsoFile(NULL);
 
 	memset(&Config, 0, sizeof(Config));
