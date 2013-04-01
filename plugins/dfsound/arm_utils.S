@@ -13,9 +13,9 @@
 #ifdef __MACH__
 .data
 .align 2
-ptr_ChanBuf:   .word _ChanBuf
-ptr_SSumLR:    .word _SSumLR
-ptr_sRVBStart: .word _sRVBStart
+ptr_ChanBuf:   .word ESYM(ChanBuf)
+ptr_SSumLR:    .word ESYM(SSumLR)
+ptr_sRVBStart: .word ESYM(sRVBStart)
 #endif
 
 .text
@@ -26,8 +26,8 @@ ptr_sRVBStart: .word _sRVBStart
 	movw	\reg, #:lower16:ESYM(\var)
 	movt	\reg, #:upper16:ESYM(\var)
 #elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
-	movw	\reg, #:lower16:(ptr_\var-(1678f+4))
-	movt	\reg, #:upper16:(ptr_\var-(1678f+4))
+	movw	\reg, #:lower16:(ptr_\var-(1678f+8))
+	movt	\reg, #:upper16:(ptr_\var-(1678f+8))
 1678:
 	ldr	\reg, [pc, \reg]
 #else
