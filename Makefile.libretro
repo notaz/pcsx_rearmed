@@ -17,6 +17,7 @@ CC ?= gcc
 CXX ?= g++
 AS ?= as
 CC_AS ?= $(CC)
+CFLAGS ?=
 
 ifeq ($(platform), unix)
    TARGET := libretro_pcsx_rearmed.so
@@ -78,8 +79,8 @@ else ifeq ($(platform), wii)
    CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
 else ifeq ($(platform), qnx)
    TARGET := libretro_pcsx_rearmed_qnx.so
-	CC = qcc -Vgcc_ntoarmv7le
-	AR = qcc -Vgcc_ntoarmv7le
+   CC ?= qcc -Vgcc_ntoarmv7le
+   CC_AS = $(CC)
    HAVE_NEON = 1
    USE_DYNAREC = 1
    DRC_CACHE_BASE = 0
@@ -94,8 +95,8 @@ else ifeq ($(platform), arm)
    DRC_CACHE_BASE = 0
    BUILTIN_GPU = neon
    ARCH = arm
-   CFLAGS += -DBASE_ADDR_FIXED=0 -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-   ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+   CFLAGS += -marm -mcpu=cortex-a8 -mfpu=neon
+   ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
 else
    TARGET := pcsx_rearmed_retro.dll
    CC = gcc

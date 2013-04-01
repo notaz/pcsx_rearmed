@@ -10,6 +10,12 @@
 
 #include "arm_features.h"
 
+/* sanity check */
+#ifndef __ARM_NEON__
+#error Compiling NEON code, but appropriate preprocessor flag is missing
+#error This usually means -mfpu=neon or -mfloat-abi= is not correctly specified
+#endif
+
 .text
 .align 2
 
