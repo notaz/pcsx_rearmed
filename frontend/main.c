@@ -795,6 +795,7 @@ void SysPrintf(const char *fmt, ...) {
 	va_start(list, fmt);
 	vfprintf(emuLog, fmt, list);
 	va_end(list);
+	fflush(emuLog);
 }
 
 #else
