@@ -85,8 +85,17 @@ else ifeq ($(platform), qnx)
    ARCH = arm
    CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
    ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+else ifeq ($(platform), arm)
+   TARGET := libretro_pcsx_rearmed.so
+   HAVE_NEON = 1
+   USE_DYNAREC = 1
+   DRC_CACHE_BASE = 0
+   BUILTIN_GPU = neon
+   ARCH = arm
+   CFLAGS += -DBASE_ADDR_FIXED=0 -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+   ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
 else
-   TARGET := snes9x_next_retro.dll
+   TARGET := pcsx_rearmed_retro.dll
    CC = gcc
    fpic := -fPIC
    LD_FLAGS := -fPIC
