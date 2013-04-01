@@ -52,8 +52,9 @@ retry:
 		goto out;
 	}
 
-	if (is_fixed)
-		flags |= MAP_FIXED;
+	/* avoid MAP_FIXED, it overrides existing mappings.. */
+	/* if (is_fixed)
+		flags |= MAP_FIXED; */
 
 	req = (void *)addr;
 	ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
@@ -64,6 +65,11 @@ out:
 	if (addr != 0 && ret != (void *)addr) {
 		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
 			addr, ret);
+
+		if (is_fixed) {
+			psxUnmap(ret, size, tag);
+			return NULL;
+		}
 
 		if (ret != NULL && ((addr ^ (long)ret) & 0x00ffffff)
 		    && !tried_to_align)
