@@ -31,6 +31,8 @@
 #define edge_data_right_mask_offset                       4
 #define edge_data_y_offset                                6
 
+.syntax unified
+.text
 
 #define psx_gpu                                           r0
 #define v_a                                               r1
@@ -191,18 +193,6 @@
 #define uvrgb_phase                                       q13
 
 .align 4
-
-/* FIXME: users of this should be in psx_gpu instead */
-#ifndef __PIC__
-#define load_pointer(register, pointer)                                        \
-  movw register, :lower16:pointer;                                             \
-  movt register, :upper16:pointer;                                             \
-
-#else
-#define load_pointer(register, pointer)                                        \
-  ldr  register, =pointer                                                      \
-
-#endif
 
 #define function(name)                                                         \
   .global name;                                                                \
@@ -576,7 +566,7 @@ function(compute_all_gradients)
   vld1.32 { uvrg }, [ temp ];                                                  \
   add temp, psx_gpu, #psx_gpu_uvrg_dy_offset;                                  \
   vld1.32 { uvrg_dy }, [ temp ];                                               \
-  load_pointer(reciprocal_table_ptr, reciprocal_table);                        \
+  ldr reciprocal_table_ptr, [ psx_gpu, #psx_gpu_reciprocal_table_ptr_offset ]; \
                                                                                \
   vmov.u32 c_0x01, #0x01                                                       \
 
@@ -624,7 +614,7 @@ function(compute_all_gradients)
 #define height_b_alt              r12
 
 #define compute_edge_delta_x3(start_c, height_a, height_b)                     \
-  vmov.u32 heights, height_a, height_b;                                        \
+  vmov heights, height_a, height_b;                                            \
   ldr temp, [ reciprocal_table_ptr, height_a, lsl #2 ];                        \
   vmov.u32 edge_shifts[0], temp;                                               \
   ldr temp, [ reciprocal_table_ptr, height_b, lsl #2 ];                        \
@@ -884,7 +874,7 @@ function(compute_all_gradients)
   add temp, temp, #(1 << 16);                                                  \
   add y_a, temp, #2;                                                           \
   add y_a, y_a, #(2 << 16);                                                    \
-  vmov.u32 y_x4, temp, y_a;                                                    \
+  vmov y_x4, temp, y_a;                                                        \
                                                                                \
   setup_spans_adjust_edges_alternate_##alternate_active(left_index,            \
    right_index);                                                               \
@@ -939,7 +929,7 @@ function(compute_all_gradients)
   sub temp, temp, #(1 << 16);                                                  \
   sub y_a, temp, #2;                                                           \
   sub y_a, y_a, #(2 << 16);                                                    \
-  vmov.u32 y_x4, temp, y_a;                                                    \
+  vmov y_x4, temp, y_a;                                                        \
                                                                                \
   vaddw.s32 edges_xy, edges_xy, edges_dx_dy;                                   \
                                                                                \
@@ -970,7 +960,7 @@ function(compute_all_gradients)
   sub height, y_a, y_c;                                                        \
                                                                                \
   vdup.u32 x_starts, x_a;                                                      \
-  vmov.u32 x_ends, x_c, x_b;                                                   \
+  vmov x_ends, x_c, x_b;                                                       \
                                                                                \
   compute_edge_delta_x3(x_b, height_major, height_minor_a);                    \
   setup_spans_up(major, minor, minor, yes);                                    \
@@ -982,8 +972,6 @@ function(setup_spans_up_left)
 function(setup_spans_up_right)
   setup_spans_up_up(right, left)
 
-.pool
-
 #define setup_spans_down_down(minor, major)                                    \
   setup_spans_prologue();                                                      \
   sub height_minor_a, y_b, y_a;                                                \
@@ -991,7 +979,7 @@ function(setup_spans_up_right)
   sub height, y_c, y_a;                                                        \
                                                                                \
   vdup.u32 x_starts, x_a;                                                      \
-  vmov.u32 x_ends, x_c, x_b;                                                   \
+  vmov x_ends, x_c, x_b;                                                       \
                                                                                \
   compute_edge_delta_x3(x_b, height_major, height_minor_a);                    \
   setup_spans_down(major, minor, minor, yes);                                  \
@@ -1014,7 +1002,7 @@ function(setup_spans_down_right)
 function(setup_spans_up_a)
   setup_spans_prologue()
 
-  vmov.u32 x_starts, x_a, x_b
+  vmov x_starts, x_a, x_b
   vdup.u32 x_ends, x_c
 
   setup_spans_up_flat()
@@ -1023,7 +1011,7 @@ function(setup_spans_up_b)
   setup_spans_prologue()
 
   vdup.u32 x_starts, x_a
-  vmov.u32 x_ends, x_b, x_c
+  vmov x_ends, x_b, x_c
 
   setup_spans_up_flat()
 
@@ -1037,7 +1025,7 @@ function(setup_spans_up_b)
 function(setup_spans_down_a)
   setup_spans_prologue()
 
-  vmov.u32 x_starts, x_a, x_b
+  vmov x_starts, x_a, x_b
   vdup.u32 x_ends, x_c
 
   setup_spans_down_flat()
@@ -1046,7 +1034,7 @@ function(setup_spans_down_b)
   setup_spans_prologue()
 
   vdup.u32 x_starts, x_a
-  vmov.u32 x_ends, x_b, x_c
+  vmov x_ends, x_b, x_c
 
   setup_spans_down_flat()
 
@@ -1077,13 +1065,13 @@ function(setup_spans_up_down)
   sub height_minor_b, y_c, y_a
   sub height_major, y_c, y_b
 
-  vmov.u32 x_starts, x_a, x_c
+  vmov x_starts, x_a, x_c
   vdup.u32 x_ends, x_b
 
   compute_edge_delta_x3(x_a, height_minor_a, height_major)
 
   mov temp, #0
-  vmov.u32 height_increment, temp, height_minor_b
+  vmov height_increment, temp, height_minor_b
   vmlal.s32 edges_xy, edges_dx_dy, height_increment
 
   vmov edges_xy_b_left, edge_alt_low, edge_alt_high
@@ -1120,7 +1108,7 @@ function(setup_spans_up_down)
   sub temp, temp, #(1 << 16)
   sub y_a, temp, #2
   sub y_a, y_a, #(2 << 16)
-  vmov.u32 y_x4, temp, y_a
+  vmov y_x4, temp, y_a
 
   vaddw.s32 edges_xy, edges_xy, edges_dx_dy
 
@@ -1170,7 +1158,7 @@ function(setup_spans_up_down)
   add temp, temp, #(1 << 16) 
   add y_a, temp, #2
   add y_a, y_a, #(2 << 16)
-  vmov.u32 y_x4, temp, y_a
+  vmov y_x4, temp, y_a
 
   setup_spans_adjust_edges_alternate_no(left, right)
 
@@ -1203,8 +1191,6 @@ function(setup_spans_up_down)
   strh temp, [ psx_gpu, #psx_gpu_num_spans_offset ]
   bne 2b
   bal 1b
-
-.pool
 
 #undef span_uvrg_offset
 #undef span_edge_data
@@ -1936,7 +1922,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
   vdup.u16 colors, color
 
   add span_edge_data, psx_gpu, #psx_gpu_span_edge_data_offset
-  orr color, color, lsl #16
+  orr color, color, color, lsl #16
 
 
  0:
@@ -1978,7 +1964,7 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_direct)
   moveq right_mask, right_mask, lsr #2
 
   tst right_mask, #0x1
-  streqh color, [ fb_ptr ]
+  strheq color, [ fb_ptr ]
 
  1:
   add span_edge_data, span_edge_data, #8
@@ -2690,7 +2676,7 @@ function(texture_blocks_4bpp)
   orr pixels_a, pixels_a, pixel_3, lsl #24
 
   orr pixels_b, pixels_b, pixel_7, lsl #24
-  vmov.u32 texels, pixels_a, pixels_b
+  vmov texels, pixels_a, pixels_b
 
   vtbl.8 texels_low, { clut_low_a, clut_low_b }, texels
   vtbl.8 texels_high, { clut_high_a, clut_high_b }, texels
@@ -4751,7 +4737,7 @@ setup_sprite_update_texture_8bpp_cache:
   mov fb_ptr_advance_column, #32;                                              \
   vdup.u8 draw_mask_fb_ptr_left, block_masks[0];                               \
                                                                                \
-  sub fb_ptr_advance_column, height, lsl #11;                                  \
+  sub fb_ptr_advance_column, fb_ptr_advance_column, height, lsl #11;           \
   vdup.u8 draw_mask_fb_ptr_right, block_masks[1]                               \
 
 #define setup_sprite_setup_right_draw_mask_fb_ptr()                            \
@@ -5095,7 +5081,7 @@ setup_sprite_update_texture_8bpp_cache:
   mov fb_ptr_advance_column, #32 * 2;                                          \
   vdup.u8 draw_mask_fb_ptr_left_a, block_masks[0];                             \
   vdup.u8 draw_mask_fb_ptr_left_b, block_masks[1];                             \
-  sub fb_ptr_advance_column, height, lsl #11 + 1;                              \
+  sub fb_ptr_advance_column, fb_ptr_advance_column, height, lsl #11 + 1;       \
   vdup.u8 draw_mask_fb_ptr_right_a, block_masks[2];                            \
   vdup.u8 draw_mask_fb_ptr_right_b, block_masks[3]                             \
 
@@ -5428,7 +5414,7 @@ function(setup_sprite_16bpp)
   add texture_offset_base, u, u
   add width_rounded, width, #7
 
-  add texture_offset_base, v, lsl #11
+  add texture_offset_base, texture_offset_base, v, lsl #11
   mov left_mask_bits, #0xFF
   
   ldrb texture_mask_width, [ psx_gpu, #psx_gpu_texture_mask_width_offset ]
@@ -5443,7 +5429,7 @@ function(setup_sprite_16bpp)
   and right_width, width_rounded, #0x7
   mvn left_mask_bits, left_mask_bits, lsl left_offset
 
-  add texture_mask, texture_mask_height, lsl #11
+  add texture_mask, texture_mask, texture_mask_height, lsl #11
   mov block_width, width_rounded, lsr #3
 
   mov right_mask_bits, right_mask_bits, lsl right_width
@@ -5590,7 +5576,7 @@ function(setup_sprite_16bpp_4x)
   add texture_offset_base, u, u
   add width_rounded, width, #7
 
-  add texture_offset_base, v, lsl #11
+  add texture_offset_base, texture_offset_base, v, lsl #11
   movw left_mask_bits, #0xFFFF
   
   ldrb texture_mask_width, [ psx_gpu, #psx_gpu_texture_mask_width_offset ]
@@ -5609,7 +5595,7 @@ function(setup_sprite_16bpp_4x)
 
   lsl right_width, #1
 
-  add texture_mask, texture_mask_height, lsl #11
+  add texture_mask, texture_mask, texture_mask_height, lsl #11
   mov block_width, width_rounded, lsr #3
 
   mov right_mask_bits, right_mask_bits, lsl right_width
@@ -5760,7 +5746,7 @@ function(setup_sprite_untextured)
   ldrh r12, [ psx_gpu, #psx_gpu_render_state_offset ]
   tst r12, #(RENDER_STATE_MASK_EVALUATE | RENDER_FLAGS_MODULATE_TEXELS         \
     | RENDER_FLAGS_BLEND)
-  ldreqb r12, [ psx_gpu, #psx_gpu_render_mode_offset ]
+  ldrbeq r12, [ psx_gpu, #psx_gpu_render_mode_offset ]
   tsteq r12, #RENDER_INTERLACE_ENABLED
   beq setup_sprite_untextured_simple
 
@@ -6081,7 +6067,7 @@ function(scale2x_tiles8)
   mov r14, r2
   add r0, #1024*2*2
   add r4, #1024*2
-  sub r0, r2, lsl #4+1
+  sub r0, r0, r2, lsl #4+1
   mov r1, r4
   add r12, r0, #1024*2
   bgt 0b
