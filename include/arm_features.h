@@ -34,6 +34,8 @@
   .type name, %function; \
   name
 
+#define EXTRA_UNSAVED_REGS
+
 #else
 #define ESYM(name) _##name
 
@@ -41,6 +43,9 @@
   .globl ESYM(name); \
   name: \
   ESYM(name)
+
+// r7 is preserved, but add it for EABI alignment..
+#define EXTRA_UNSAVED_REGS r7, r9,
 
 #endif
 
