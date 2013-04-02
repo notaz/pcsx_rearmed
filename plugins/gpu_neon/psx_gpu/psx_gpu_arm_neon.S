@@ -205,6 +205,8 @@
 #define JT_OP(x...) x
 #define JTE(start, target) target
 
+#define EXTRA_UNSAVED_REGS
+
 #else
 
 #define function(name)                                                         \
@@ -219,6 +221,9 @@
 
 #define JT_OP(x...)
 #define JTE(start, target) (target - start)
+
+// r7 is preserved, but add it for EABI alignment..
+#define EXTRA_UNSAVED_REGS r7, r9,
 
 #define flush_render_block_buffer _flush_render_block_buffer
 #define setup_sprite_untextured_simple _setup_sprite_untextured_simple
@@ -1588,9 +1593,9 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
-  stmdb sp!, { r0 - r3, r12, r14 };                                            \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, r12, r14 };                                            \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
                                                                                \
   vpop { uvrg_dx4 };                                                           \
   vpop { texture_mask };                                                       \
@@ -1785,9 +1790,9 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
-  stmdb sp!, { r0 - r3, r12, r14 };                                            \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, r12, r14 };                                            \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
                                                                                \
   vpop { uvrg_dx4 };                                                           \
   vpop { texture_mask };                                                       \
@@ -1901,9 +1906,9 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_indirect)
  2:
   vpush { colors }
 
-  stmdb sp!, { r0 - r3, r12, r14 }
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
   bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, r12, r14 }
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
 
   vpop { colors }
 
@@ -2316,9 +2321,9 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_indirect)     \
   /* TODO: Load from psx_gpu instead of saving/restoring these               */\
   vpush { rg_dx4 };                                                            \
                                                                                \
-  stmdb sp!, { r0 - r3, r12, r14 };                                            \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, r12, r14 };                                            \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
                                                                                \
   vpop { rg_dx4 };                                                             \
                                                                                \
@@ -2809,11 +2814,11 @@ function(texture_blocks_8bpp)
   ldmia sp!, { r3 - r11, pc }
 
 1:
-  stmdb sp!, { r1 - r2, r12 }
+  stmdb sp!, { r1 - r2, EXTRA_UNSAVED_REGS r12 }
 
   bl update_texture_8bpp_cache
 
-  ldmia sp!, { r1 - r2, r12 }
+  ldmia sp!, { r1 - r2, EXTRA_UNSAVED_REGS r12 }
   bal 0b
 
 
@@ -4479,9 +4484,9 @@ function(render_block_fill_body)
 setup_sprite_flush_blocks:
   vpush { q1 - q5 }
 
-  stmdb sp!, { r0 - r3, r12, r14 }
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
   bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, r12, r14 }
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
 
   vpop { q1 - q5 }
 
@@ -4496,9 +4501,9 @@ setup_sprite_update_texture_4bpp_cache:
 
 
 setup_sprite_update_texture_8bpp_cache:
-  stmdb sp!, { r0 - r3, r14 }
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r14 }
   bl update_texture_8bpp_cache
-  ldmia sp!, { r0 - r3, pc }
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS pc }
 
 
 #define setup_sprite_tiled_initialize_4bpp()                                   \
@@ -5422,9 +5427,9 @@ function(texture_sprite_blocks_8bpp)
 setup_sprites_16bpp_flush:
   vpush { d0 - d3 }
 
-  stmdb sp!, { r0 - r3, r12, r14 }
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
   bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, r12, r14 }
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
 
   vpop { d0 - d3 }
 
