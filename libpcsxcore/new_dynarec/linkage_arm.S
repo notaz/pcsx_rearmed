@@ -573,72 +573,72 @@ FUNCTION(new_dyna_leave):
 
 	.align	2
 FUNCTION(invalidate_addr_r0):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	b	invalidate_addr_call
 	.size	invalidate_addr_r0, .-invalidate_addr_r0
 	.align	2
 FUNCTION(invalidate_addr_r1):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r1
 	b	invalidate_addr_call
 	.size	invalidate_addr_r1, .-invalidate_addr_r1
 	.align	2
 FUNCTION(invalidate_addr_r2):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r2
 	b	invalidate_addr_call
 	.size	invalidate_addr_r2, .-invalidate_addr_r2
 	.align	2
 FUNCTION(invalidate_addr_r3):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r3
 	b	invalidate_addr_call
 	.size	invalidate_addr_r3, .-invalidate_addr_r3
 	.align	2
 FUNCTION(invalidate_addr_r4):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r4
 	b	invalidate_addr_call
 	.size	invalidate_addr_r4, .-invalidate_addr_r4
 	.align	2
 FUNCTION(invalidate_addr_r5):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r5
 	b	invalidate_addr_call
 	.size	invalidate_addr_r5, .-invalidate_addr_r5
 	.align	2
 FUNCTION(invalidate_addr_r6):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r6
 	b	invalidate_addr_call
 	.size	invalidate_addr_r6, .-invalidate_addr_r6
 	.align	2
 FUNCTION(invalidate_addr_r7):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r7
 	b	invalidate_addr_call
 	.size	invalidate_addr_r7, .-invalidate_addr_r7
 	.align	2
 FUNCTION(invalidate_addr_r8):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r8
 	b	invalidate_addr_call
 	.size	invalidate_addr_r8, .-invalidate_addr_r8
 	.align	2
 FUNCTION(invalidate_addr_r9):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r9
 	b	invalidate_addr_call
 	.size	invalidate_addr_r9, .-invalidate_addr_r9
 	.align	2
 FUNCTION(invalidate_addr_r10):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r10
 	b	invalidate_addr_call
 	.size	invalidate_addr_r10, .-invalidate_addr_r10
 	.align	2
 FUNCTION(invalidate_addr_r12):
-	stmia	fp, {r0, r1, r2, r3, r12, lr}
+	stmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, lr}
 	mov	r0, r12
 	.size	invalidate_addr_r12, .-invalidate_addr_r12
 	.align	2
@@ -648,7 +648,7 @@ invalidate_addr_call:
 	cmp	r0, r12
 	cmpcs   lr, r0
 	blcc	invalidate_addr
-	ldmia	fp, {r0, r1, r2, r3, r12, pc}
+	ldmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, pc}
 	.size	invalidate_addr_call, .-invalidate_addr_call
 
 	.align	2
