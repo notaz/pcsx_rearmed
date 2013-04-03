@@ -694,7 +694,7 @@ FUNCTION(jump_handler_read8):
 
 FUNCTION(jump_handler_read16):
 	add     r1, #0x1000/4*4              @ shift to r16 part
-	pcsx_read_mem ldrbcc, 1
+	pcsx_read_mem ldrhcc, 1
 
 FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldrcc, 2
