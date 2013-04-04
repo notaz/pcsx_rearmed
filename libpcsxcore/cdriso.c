@@ -1265,8 +1265,33 @@ static long CALLBACK ISOopen(void) {
 		SysPrintf("[+sbi]");
 	}
 
-	// guess whether it is mode1/2048
 	fseek(cdHandle, 0, SEEK_END);
+
+	// maybe user selected metadata file instead of main .bin ..
+	if (ftell(cdHandle) < 2352 * 0x10) {
+		static const char *exts[] = { ".bin", ".BIN", ".img", ".IMG" };
+		char tmp[MAXPATHLEN], *p;
+		FILE *tmpf;
+		size_t i;
+
+		strncpy(tmp, GetIsoFile(), sizeof(tmp));
+		tmp[MAXPATHLEN - 1] = '\0';
+		if (strlen(tmp) >= 4) {
+			p = tmp + strlen(tmp) - 4;
+			for (i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
+				strcpy(p, exts[i]);
+				tmpf = fopen(tmp, "rb");
+				if (tmpf != NULL) {
+					fclose(cdHandle);
+					cdHandle = tmpf;
+					fseek(cdHandle, 0, SEEK_END);
+					break;
+				}
+			}
+		}
+	}
+
+	// guess whether it is mode1/2048
 	if (ftell(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
