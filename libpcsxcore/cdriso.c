@@ -327,6 +327,14 @@ static int parsetoc(const char *isofile) {
 				return -1;
 			}
 		}
+		// check if it's really a TOC named as a .cue
+		fgets(linebuf, sizeof(linebuf), fi);
+		token = strtok(tmp, " ");
+		if (strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
+			fclose(fi);
+			return -1;
+		}
+		fseek(fi, 0, SEEK_SET);
 	}
 
 	memset(&ti, 0, sizeof(ti));
@@ -1227,10 +1235,7 @@ static long CALLBACK ISOopen(void) {
 	CDR_getBuffer = ISOgetBuffer;
 	cdimg_read_func = cdread_normal;
 
-	if (parsecue(GetIsoFile()) == 0) {
-		SysPrintf("[+cue]");
-	}
-	else if (parsetoc(GetIsoFile()) == 0) {
+	if (parsetoc(GetIsoFile()) == 0) {
 		SysPrintf("[+toc]");
 	}
 	else if (parseccd(GetIsoFile()) == 0) {
@@ -1238,6 +1243,9 @@ static long CALLBACK ISOopen(void) {
 	}
 	else if (parsemds(GetIsoFile()) == 0) {
 		SysPrintf("[+mds]");
+	}
+	else if (parsecue(GetIsoFile()) == 0) {
+		SysPrintf("[+cue]");
 	}
 	if (handlepbp(GetIsoFile()) == 0) {
 		SysPrintf("[pbp]");
