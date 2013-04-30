@@ -81,15 +81,15 @@ else ifeq ($(platform), wii)
    CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
 else ifeq ($(platform), qnx)
    TARGET := libretro_$(TARGET_NAME)_qnx.so
-   CC ?= qcc -Vgcc_ntoarmv7le
+   CC = qcc -Vgcc_ntoarmv7le
    CC_AS = $(CC)
    HAVE_NEON = 1
    USE_DYNAREC = 1
    DRC_CACHE_BASE = 0
    BUILTIN_GPU = neon
    ARCH = arm
-   CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-   ASFLAGS +=  -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
+   CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+   ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 else ifeq ($(platform), arm)
    TARGET := $(TARGET_NAME)_libretro.so
    HAVE_NEON = 1
