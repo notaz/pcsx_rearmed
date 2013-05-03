@@ -251,7 +251,7 @@ void retro_get_system_info(struct retro_system_info *info)
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
 	info->library_version = "r19";
-	info->valid_extensions = "bin|cue|img|mdf|pbp|cbn";
+	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn";
 	info->need_fullpath = true;
 }
 
