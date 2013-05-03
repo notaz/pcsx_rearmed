@@ -327,6 +327,7 @@ static int parsetoc(const char *isofile) {
 				return -1;
 			}
 		}
+#ifndef __LIBRETRO__
 		// check if it's really a TOC named as a .cue
 		fgets(linebuf, sizeof(linebuf), fi);
 		token = strtok(tmp, " ");
@@ -335,6 +336,7 @@ static int parsetoc(const char *isofile) {
 			return -1;
 		}
 		fseek(fi, 0, SEEK_SET);
+#endif
 	}
 
 	memset(&ti, 0, sizeof(ti));
