@@ -251,7 +251,7 @@ void retro_get_system_info(struct retro_system_info *info)
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
 	info->library_version = "r19";
-	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn";
+	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
 
@@ -514,9 +514,69 @@ static struct retro_disk_control_callback disk_control = {
 	.add_image_index = disk_add_image_index,
 };
 
+// just in case, maybe a win-rt port in the future?
+#ifdef _WIN32
+#define SLASH '\\'
+#else
+#define SLASH '/'
+#endif
+
+static char base_dir[PATH_MAX];
+
+static bool read_m3u(const char *file)
+{
+	char line[PATH_MAX];
+	char name[PATH_MAX];
+	size_t i = 0;
+	FILE *f = fopen(file, "r");
+	if (!f)
+		return false;
+
+	while (fgets(line, sizeof(line), f) && i < sizeof(disks) / sizeof(disks[0])) {
+		if (line[0] == '#')
+			continue;
+		char *carrige_return = strchr(line, '\r');
+		if (carrige_return)
+			*carrige_return = '\0';
+		char *newline = strchr(line, '\n');
+		if (newline)
+			*newline = '\0';
+
+		if (line[0] != '\0')
+		{
+			snprintf(name, sizeof(name), "%s%c%s", base_dir, SLASH, line);
+			disks[i++].fname = strdup(name);
+		}
+	}
+
+	fclose(f);
+	return (i != 0);
+}
+
+static void extract_directory(char *buf, const char *path, size_t size)
+{
+   char *base;
+   strncpy(buf, path, size - 1);
+   buf[size - 1] = '\0';
+
+   base = strrchr(buf, '/');
+   if (!base)
+      base = strrchr(buf, '\\');
+
+   if (base)
+      *base = '\0';
+   else
+   {
+      buf[0] = '.';
+      buf[1] = '\0';
+   }
+}
+
 bool retro_load_game(const struct retro_game_info *info)
 {
 	size_t i;
+	bool is_m3u = (strcasestr(info->path, ".m3u") != NULL);
+
 #ifdef FRONTEND_SUPPORTS_RGB565
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
@@ -543,7 +603,16 @@ bool retro_load_game(const struct retro_game_info *info)
 	}
 
 	disk_current_index = 0;
-	disks[0].fname = strdup(info->path);
+	extract_directory(base_dir, info->path, sizeof(base_dir));
+
+	if (is_m3u) {
+		if (!read_m3u(info->path)) {
+			SysPrintf("failed to read m3u file\n");
+			return false;
+		}
+	}
+	else
+		disks[0].fname = strdup(info->path);
 
 	set_cd_image(disks[0].fname);
 
@@ -578,9 +647,11 @@ bool retro_load_game(const struct retro_game_info *info)
 	emu_on_new_cd(0);
 
 	// multidisk images
-	for (i = 1; i < sizeof(disks) / sizeof(disks[0]) && i < cdrIsoMultidiskCount; i++) {
-		disks[i].fname = strdup(info->path);
-		disks[i].internal_index = i;
+	if (!is_m3u) {
+		for (i = 1; i < sizeof(disks) / sizeof(disks[0]) && i < cdrIsoMultidiskCount; i++) {
+			disks[i].fname = strdup(info->path);
+			disks[i].internal_index = i;
+		}
 	}
 
 	return true;
