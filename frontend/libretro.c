@@ -394,6 +394,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 /* multidisk support */
 static bool disk_ejected;
 static unsigned int disk_current_index;
+static unsigned int disk_count;
 static struct disks_state {
 	char *fname;
 	int internal_index; // for multidisk eboots
@@ -463,14 +464,7 @@ static bool disk_set_image_index(unsigned int index)
 
 static unsigned int disk_get_num_images(void)
 {
-	unsigned int count = 0;
-	size_t i;
-
-	for (i = 0; i < sizeof(disks) / sizeof(disks[0]); i++)
-		if (disks[i].fname != NULL)
-			count++;
-
-	return count;
+	return disk_count;
 }
 
 static bool disk_replace_image_index(unsigned index,
@@ -500,7 +494,10 @@ static bool disk_replace_image_index(unsigned index,
 
 static bool disk_add_image_index(void)
 {
-	// TODO??
+	if (disk_count >= 8)
+		return false;
+
+	disk_count++;
 	return true;
 }
 
@@ -527,12 +524,11 @@ static bool read_m3u(const char *file)
 {
 	char line[PATH_MAX];
 	char name[PATH_MAX];
-	size_t i = 0;
 	FILE *f = fopen(file, "r");
 	if (!f)
 		return false;
 
-	while (fgets(line, sizeof(line), f) && i < sizeof(disks) / sizeof(disks[0])) {
+	while (fgets(line, sizeof(line), f) && disk_count < sizeof(disks) / sizeof(disks[0])) {
 		if (line[0] == '#')
 			continue;
 		char *carrige_return = strchr(line, '\r');
@@ -545,12 +541,12 @@ static bool read_m3u(const char *file)
 		if (line[0] != '\0')
 		{
 			snprintf(name, sizeof(name), "%s%c%s", base_dir, SLASH, line);
-			disks[i++].fname = strdup(name);
+			disks[disk_count++].fname = strdup(name);
 		}
 	}
 
 	fclose(f);
-	return (i != 0);
+	return (disk_count != 0);
 }
 
 static void extract_directory(char *buf, const char *path, size_t size)
@@ -610,9 +606,10 @@ bool retro_load_game(const struct retro_game_info *info)
 			SysPrintf("failed to read m3u file\n");
 			return false;
 		}
-	}
-	else
+	} else {
+		disk_count = 1;
 		disks[0].fname = strdup(info->path);
+	}
 
 	set_cd_image(disks[0].fname);
 
@@ -648,6 +645,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	// multidisk images
 	if (!is_m3u) {
+		disk_count = cdrIsoMultidiskCount < 8 ? cdrIsoMultidiskCount : 8;
 		for (i = 1; i < sizeof(disks) / sizeof(disks[0]) && i < cdrIsoMultidiskCount; i++) {
 			disks[i].fname = strdup(info->path);
 			disks[i].internal_index = i;
