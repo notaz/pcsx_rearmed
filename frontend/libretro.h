@@ -452,6 +452,13 @@ enum retro_mod
                                            // Result is set to true if some variables are updated by
                                            // frontend since last call to RETRO_ENVIRONMENT_GET_VARIABLE.
                                            // Variables should be queried with GET_VARIABLE.
+                                           //
+#define RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME 18
+                                           // const bool * --
+                                           // If true, the libretro implementation supports calls to retro_load_game() with NULL as argument.
+                                           // Used by cores which can run without particular game data.
+                                           // This should be called within retro_set_environment() only.
+                                          
 
 // Pass this to retro_video_refresh_t if rendering to hardware.
 // Passing NULL to retro_video_refresh_t is still a frame dupe as normal.
@@ -496,7 +503,7 @@ typedef void (*retro_keyboard_event_t)(bool down, unsigned keycode, uint32_t cha
 
 struct retro_keyboard_callback
 {
-    retro_keyboard_event_t callback;
+   retro_keyboard_event_t callback;
 };
 
 // Callbacks for RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE.

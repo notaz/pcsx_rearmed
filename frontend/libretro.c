@@ -230,7 +230,22 @@ void out_register_libretro(struct out_driver *drv)
 }
 
 /* libretro */
-void retro_set_environment(retro_environment_t cb) { environ_cb = cb; }
+void retro_set_environment(retro_environment_t cb)
+{
+#ifdef __ARM_NEON__
+   static const struct retro_variable vars[] = {
+      { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
+      { NULL, NULL },
+   };
+
+   environ_cb = cb;
+
+   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars);
+#else
+   environ_cb = cb;
+#endif
+}
+
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
 void retro_set_audio_sample(retro_audio_sample_t cb) { (void)cb; }
 void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) { audio_batch_cb = cb; }
@@ -710,11 +725,33 @@ static const unsigned short retro_psx_map[] = {
 };
 #define RETRO_PSX_MAP_LEN (sizeof(retro_psx_map) / sizeof(retro_psx_map[0]))
 
+static void update_variables(void)
+{
+#ifdef __ARM_NEON__
+   struct retro_variable var;
+   var.value = NULL;
+   var.key = "neon_enhancement_enable";
+
+   if (!environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || !var.value)
+      return;
+
+   if (strcmp(var.value, "disabled") == 0)
+      pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
+   else if (strcmp(var.value, "enabled") == 0)
+      pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
+#endif
+}
+
 void retro_run(void) 
 {
 	int i;
 
 	input_poll_cb();
+
+   bool updated = false;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
+      update_variables();
+
 	in_keystate = 0;
 	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
 		if (input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, i))
@@ -795,6 +832,8 @@ void retro_init(void)
 	SaveFuncs.write = save_write;
 	SaveFuncs.seek = save_seek;
 	SaveFuncs.close = save_close;
+
+   update_variables();
 }
 
 void retro_deinit(void)
