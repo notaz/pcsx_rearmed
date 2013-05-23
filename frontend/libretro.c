@@ -39,6 +39,8 @@ static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int is_pal_mode;
 
+extern int soft_filter;
+
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
 extern char McdDisable[2];
@@ -232,18 +234,18 @@ void out_register_libretro(struct out_driver *drv)
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
-#ifdef __ARM_NEON__
    static const struct retro_variable vars[] = {
+      { "frameskip", "Frameskip; 0|1|2|3" },
+#ifdef __ARM_NEON__
+      { "soft_filter", "Software filter; none|scale2x|eagle2x" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
+#endif
       { NULL, NULL },
    };
 
    environ_cb = cb;
 
    cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars);
-#else
-   environ_cb = cb;
-#endif
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -727,18 +729,37 @@ static const unsigned short retro_psx_map[] = {
 
 static void update_variables(void)
 {
-#ifdef __ARM_NEON__
    struct retro_variable var;
+   
+   var.value = NULL;
+   var.key = "frameskip";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      pl_rearmed_cbs.frameskip = atoi(var.value);
+#ifdef __ARM_NEON__
+   var.value = NULL;
+   var.key = "soft_filter";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "none"))
+         soft_filter = 0;
+      else if (strcmp(var.value, "scale2x"))
+         soft_filter = 1;
+      else if (strcmp(var.value, "eagle2x"))
+         soft_filter = 2;
+   }
+
    var.value = NULL;
    var.key = "neon_enhancement_enable";
 
-   if (!environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || !var.value)
-      return;
-
-   if (strcmp(var.value, "disabled") == 0)
-      pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
-   else if (strcmp(var.value, "enabled") == 0)
-      pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
+   }
 #endif
 }
 
