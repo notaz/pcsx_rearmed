@@ -39,8 +39,6 @@ static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int is_pal_mode;
 
-extern int soft_filter;
-
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
 extern char McdDisable[2];
@@ -237,7 +235,6 @@ void retro_set_environment(retro_environment_t cb)
    static const struct retro_variable vars[] = {
       { "frameskip", "Frameskip; 0|1|2|3" },
 #ifdef __ARM_NEON__
-      { "soft_filter", "Software filter; none|scale2x|eagle2x" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
 #endif
       { NULL, NULL },
@@ -737,19 +734,6 @@ static void update_variables(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
       pl_rearmed_cbs.frameskip = atoi(var.value);
 #ifdef __ARM_NEON__
-   var.value = NULL;
-   var.key = "soft_filter";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      if (strcmp(var.value, "none"))
-         soft_filter = 0;
-      else if (strcmp(var.value, "scale2x"))
-         soft_filter = 1;
-      else if (strcmp(var.value, "eagle2x"))
-         soft_filter = 2;
-   }
-
    var.value = NULL;
    var.key = "neon_enhancement_enable";
 
