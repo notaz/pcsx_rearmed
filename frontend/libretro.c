@@ -234,7 +234,9 @@ void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
       { "frameskip", "Frameskip; 0|1|2|3" },
+      { "region", "Region; Auto|NTSC|PAL" },
 #ifdef __ARM_NEON__
+      { "neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
 #endif
       { NULL, NULL },
@@ -733,7 +735,33 @@ static void update_variables(void)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
       pl_rearmed_cbs.frameskip = atoi(var.value);
+
+   var.value = NULL;
+   var.key = "region";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      Config.PsxAuto = 0;
+      if (strcmp(var.value, "Automatic") == 0)
+         Config.PsxAuto = 1;
+      else if (strcmp(var.value, "NTSC") == 0)
+         Config.PsxType = 0;
+      else if (strcmp(var.value, "PAL") == 0)
+         Config.PsxType = 1;
+   }
 #ifdef __ARM_NEON__
+   var.value = "NULL";
+   var.key = "neon_interlace_enable";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_neon.allow_interlace = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_neon.allow_interlace = 1;
+   }
+
+
    var.value = NULL;
    var.key = "neon_enhancement_enable";
 
