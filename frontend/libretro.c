@@ -844,8 +844,12 @@ void retro_init(void)
 	else
    {
 		SysPrintf("no BIOS files found.\n");
-      const char *str = "no BIOS found, expect bugs!";
-      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&str);
+      struct retro_message msg = 
+      {
+         "no BIOS found, expect bugs!",
+         180
+      };
+      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
    }
 
 	level = 1;
