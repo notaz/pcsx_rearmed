@@ -842,7 +842,11 @@ void retro_init(void)
 		fclose(f);
 	}
 	else
+   {
 		SysPrintf("no BIOS files found.\n");
+      const char *str = "no BIOS found, expect bugs!";
+      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&str);
+   }
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
