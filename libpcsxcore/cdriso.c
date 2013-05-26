@@ -329,8 +329,8 @@ static int parsetoc(const char *isofile) {
 		}
 		// check if it's really a TOC named as a .cue
 		fgets(linebuf, sizeof(linebuf), fi);
-		token = strtok(tmp, " ");
-		if (strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
+		token = strtok(linebuf, " ");
+		if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
 			fclose(fi);
 			return -1;
 		}
