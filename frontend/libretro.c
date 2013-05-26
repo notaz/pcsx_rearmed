@@ -243,9 +243,7 @@ void retro_set_environment(retro_environment_t cb)
       { "region", "Region; Auto|NTSC|PAL" },
 #ifdef __ARM_NEON__
       { "neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
-#if 0
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
-#endif
 #endif
       { NULL, NULL },
    };
@@ -769,7 +767,6 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_neon.allow_interlace = 1;
    }
 
-#if 0
    var.value = NULL;
    var.key = "neon_enhancement_enable";
 
@@ -780,7 +777,6 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
    }
-#endif
 #endif
 
 	if (in_flight) {
