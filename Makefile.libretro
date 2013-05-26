@@ -108,8 +108,6 @@ else
    CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
 endif
 
-CFLAGS += -D__LIBRETRO__
-
 CFLAGS += -fPIC
 ifneq ($(platform),qnx)
    LDLIBS += -lpthread
