@@ -329,8 +329,8 @@ static int parsetoc(const char *isofile) {
 		}
 		// check if it's really a TOC named as a .cue
 		fgets(linebuf, sizeof(linebuf), fi);
-		token = strtok(tmp, " ");
-		if (strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
+		token = strtok(linebuf, " ");
+		if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
 			fclose(fi);
 			return -1;
 		}
@@ -1213,6 +1213,8 @@ static void PrintTracks(void) {
 // file for playback
 static long CALLBACK ISOopen(void) {
 	boolean isMode1ISO = FALSE;
+	char alt_bin_filename[MAXPATHLEN];
+	const char *bin_filename;
 
 	if (cdHandle != NULL) {
 		return 0; // it's already open
@@ -1268,26 +1270,29 @@ static long CALLBACK ISOopen(void) {
 	fseek(cdHandle, 0, SEEK_END);
 
 	// maybe user selected metadata file instead of main .bin ..
+	bin_filename = GetIsoFile();
 	if (ftell(cdHandle) < 2352 * 0x10) {
 		static const char *exts[] = { ".bin", ".BIN", ".img", ".IMG" };
-		char tmp[MAXPATHLEN], *p;
-		FILE *tmpf;
+		FILE *tmpf = NULL;
 		size_t i;
+		char *p;
 
-		strncpy(tmp, GetIsoFile(), sizeof(tmp));
-		tmp[MAXPATHLEN - 1] = '\0';
-		if (strlen(tmp) >= 4) {
-			p = tmp + strlen(tmp) - 4;
+		strncpy(alt_bin_filename, bin_filename, sizeof(alt_bin_filename));
+		alt_bin_filename[MAXPATHLEN - 1] = '\0';
+		if (strlen(alt_bin_filename) >= 4) {
+			p = alt_bin_filename + strlen(alt_bin_filename) - 4;
 			for (i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
 				strcpy(p, exts[i]);
-				tmpf = fopen(tmp, "rb");
-				if (tmpf != NULL) {
-					fclose(cdHandle);
-					cdHandle = tmpf;
-					fseek(cdHandle, 0, SEEK_END);
+				tmpf = fopen(alt_bin_filename, "rb");
+				if (tmpf != NULL)
 					break;
-				}
 			}
+		}
+		if (tmpf != NULL) {
+			bin_filename = alt_bin_filename;
+			fclose(cdHandle);
+			cdHandle = tmpf;
+			fseek(cdHandle, 0, SEEK_END);
 		}
 	}
 
@@ -1314,7 +1319,7 @@ static long CALLBACK ISOopen(void) {
 
 	// make sure we have another handle open for cdda
 	if (numtracks > 1 && ti[1].handle == NULL) {
-		ti[1].handle = fopen(GetIsoFile(), "rb");
+		ti[1].handle = fopen(bin_filename, "rb");
 	}
 	cdda_cur_sector = 0;
 	cdda_file_offset = 0;
