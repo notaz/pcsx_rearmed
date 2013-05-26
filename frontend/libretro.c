@@ -5,6 +5,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#define _GNU_SOURCE 1 // strcasestr
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,7 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
+#include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
 #include "plugin.h"
@@ -48,6 +50,10 @@ int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate;
 int in_enable_vibration;
+
+/* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
+#define VOUT_MAX_WIDTH 1024
+#define VOUT_MAX_HEIGHT 512
 
 static void init_memcard(char *mcd_data)
 {
@@ -280,8 +286,8 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->timing.sample_rate    = 44100;
 	info->geometry.base_width   = 320;
 	info->geometry.base_height  = 240;
-	info->geometry.max_width    = 640;
-	info->geometry.max_height   = 512;
+	info->geometry.max_width    = VOUT_MAX_WIDTH;
+	info->geometry.max_height   = VOUT_MAX_HEIGHT;
 	info->geometry.aspect_ratio = 4.0 / 3.0;
 }
 
@@ -728,7 +734,7 @@ static const unsigned short retro_psx_map[] = {
 };
 #define RETRO_PSX_MAP_LEN (sizeof(retro_psx_map) / sizeof(retro_psx_map[0]))
 
-static void update_variables(void)
+static void update_variables(bool in_flight)
 {
    struct retro_variable var;
    
@@ -776,6 +782,18 @@ static void update_variables(void)
    }
 #endif
 #endif
+
+	if (in_flight) {
+		// inform core things about possible config changes
+		plugin_call_rearmed_cbs();
+
+		if (GPU_open != NULL && GPU_close != NULL) {
+			GPU_close();
+			GPU_open(&gpuDisp, "PCSX", NULL);
+		}
+	}
+
+	dfinput_activate();
 }
 
 void retro_run(void) 
@@ -784,9 +802,9 @@ void retro_run(void)
 
 	input_poll_cb();
 
-   bool updated = false;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
-      update_variables();
+	bool updated = false;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
+		update_variables(true);
 
 	in_keystate = 0;
 	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
@@ -822,7 +840,7 @@ void retro_init(void)
 		exit(1);
 	}
 
-	vout_buf = malloc(640 * 512 * 2);
+	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
@@ -877,7 +895,7 @@ void retro_init(void)
 	SaveFuncs.seek = save_seek;
 	SaveFuncs.close = save_close;
 
-   update_variables();
+	update_variables(false);
 }
 
 void retro_deinit(void)
