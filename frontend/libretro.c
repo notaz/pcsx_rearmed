@@ -591,6 +591,33 @@ static void extract_directory(char *buf, const char *path, size_t size)
    }
 }
 
+#ifdef __QNX__
+/* Blackberry QNX doesn't have strcasestr */
+
+/*
+ * Find the first occurrence of find in s, ignore case.
+ */
+char *
+strcasestr(const char *s, const char*find)
+{
+	char c, sc;
+	size_t len;
+
+	if ((c = *find++) != 0) {
+		c = tolower((unsigned char)c);
+		len = strlen(find);
+		do {
+			do {
+				if ((sc = *s++) == 0)
+					return (NULL);
+			} while ((char)tolower((unsigned char)sc) != c);
+		} while (strncasecmp(s, find, len) != 0);
+		s--;
+	}
+	return ((char *)s);
+}
+#endif
+
 bool retro_load_game(const struct retro_game_info *info)
 {
 	size_t i;
