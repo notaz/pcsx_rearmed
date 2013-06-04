@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdint.h> //include for uint64_t
 #include <assert.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 #include "emu_if.h" //emulator interface
@@ -8005,6 +8006,28 @@ void disassemble_inst(int i)
 static void disassemble_inst(int i) {}
 #endif // DISASM
 
+#define DRC_TEST_VAL 0x74657374
+
+static int new_dynarec_test(void)
+{
+  int (*testfunc)(void) = (void *)out;
+  int ret;
+  emit_movimm(DRC_TEST_VAL,0); // test
+  emit_jmpreg(14);
+  literal_pool(0);
+#ifdef __arm__
+  __clear_cache((void *)testfunc, out);
+#endif
+  SysPrintf("testing if we can run recompiled code..\n");
+  ret = testfunc();
+  if (ret == DRC_TEST_VAL)
+    SysPrintf("test passed.\n");
+  else
+    SysPrintf("test failed: %08x\n", ret);
+  out=(u_char *)BASE_ADDR;
+  return ret == DRC_TEST_VAL;
+}
+
 // clear the state completely, instead of just marking
 // things invalid like invalidate_all_pages() does
 void new_dynarec_clear_full()
@@ -8039,17 +8062,19 @@ void new_dynarec_clear_full()
 
 void new_dynarec_init()
 {
-  printf("Init new dynarec\n");
+  SysPrintf("Init new dynarec\n");
   out=(u_char *)BASE_ADDR;
 #if BASE_ADDR_FIXED
   if (mmap (out, 1<<TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) <= 0) {SysPrintf("mmap() failed\n");}
+            -1, 0) <= 0) {
+    SysPrintf("mmap() failed: %s\n", strerror(errno));
+  }
 #else
   // not all systems allow execute in data segment by default
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
-    SysPrintf("mprotect() failed\n");
+    SysPrintf("mprotect() failed: %s\n", strerror(errno));
 #endif
 #ifdef MUPEN64
   rdword=&readmem_dword;
@@ -8104,6 +8129,7 @@ void new_dynarec_init()
 #endif
   tlb_hacks();
   arch_init();
+  new_dynarec_test();
 #ifndef RAM_FIXED
   ram_offset=(u_int)rdram-0x80000000;
 #endif
