@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/psxcounters.h"
@@ -861,13 +862,67 @@ void retro_run(void)
 	vout_fb_dirty = 0;
 }
 
+static bool try_use_bios(const char *path)
+{
+	FILE *f;
+	long size;
+	const char *name;
+
+	f = fopen(path, "rb");
+	if (f == NULL)
+		return false;
+
+	fseek(f, 0, SEEK_END);
+	size = ftell(f);
+	fclose(f);
+
+	if (size != 512 * 1024)
+		return false;
+
+	name = strrchr(path, SLASH);
+	if (name++ == NULL)
+		name = path;
+	snprintf(Config.Bios, sizeof(Config.Bios), "%s", name);
+	return true;
+}
+
+#if 1
+#include <sys/types.h>
+#include <dirent.h>
+
+static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
+{
+	DIR *dir;
+	struct dirent *ent;
+	bool ret = false;
+
+	dir = opendir(dirpath);
+	if (dir == NULL)
+		return false;
+
+	while ((ent = readdir(dir))) {
+		if (strncasecmp(ent->d_name, "scph", 4) != 0)
+			continue;
+
+		snprintf(path, path_size, "%s/%s", dirpath, ent->d_name);
+		ret = try_use_bios(path);
+		if (ret)
+			break;
+	}
+	closedir(dir);
+	return ret;
+}
+#else
+#define find_any_bios(...) false
+#endif
+
 void retro_init(void)
 {
 	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
 	const char *dir;
 	char path[256];
-	FILE *f = NULL;
 	int i, ret, level;
+	bool found_bios = false;
 
 	ret = emu_core_preinit();
 	ret |= emu_core_init();
@@ -884,27 +939,27 @@ void retro_init(void)
 
 		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
 			snprintf(path, sizeof(path), "%s/%s.bin", dir, bios[i]);
-			f = fopen(path, "r");
-			if (f != NULL) {
-				snprintf(Config.Bios, sizeof(Config.Bios), "%s.bin", bios[i]);
+			found_bios = try_use_bios(path);
+			if (found_bios)
 				break;
-			}
 		}
+
+		if (!found_bios)
+			found_bios = find_any_bios(dir, path, sizeof(path));
 	}
-	if (f != NULL) {
+	if (found_bios) {
 		SysPrintf("found BIOS file: %s\n", Config.Bios);
-		fclose(f);
 	}
 	else
-   {
+	{
 		SysPrintf("no BIOS files found.\n");
-      struct retro_message msg = 
-      {
-         "no BIOS found, expect bugs!",
-         180
-      };
-      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
-   }
+		struct retro_message msg = 
+		{
+			"no BIOS found, expect bugs!",
+			180
+		};
+		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
+	}
 
 	level = 1;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
