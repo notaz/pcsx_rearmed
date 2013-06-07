@@ -95,7 +95,8 @@ void psxUnmap(void *ptr, size_t size, enum psxMapTag tag)
 		return;
 	}
 
-	munmap(ptr, size);
+	if (ptr)
+		munmap(ptr, size);
 }
 
 s8 *psxM = NULL; // Kernel & User Memory (2 Meg)
@@ -155,6 +156,7 @@ int psxMemInit() {
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
 		psxR == NULL || psxP == NULL || psxH != (void *)0x1f800000) {
 		SysMessage(_("Error allocating memory!"));
+		psxMemShutdown();
 		return -1;
 	}
 
@@ -208,12 +210,12 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM);
-	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER);
-	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER);
+	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
+	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
+	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
 
-	free(psxMemRLUT);
-	free(psxMemWLUT);
+	free(psxMemRLUT); psxMemRLUT = NULL;
+	free(psxMemWLUT); psxMemWLUT = NULL;
 }
 
 static int writeok = 1;

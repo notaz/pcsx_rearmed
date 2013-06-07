@@ -34,6 +34,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #endif
+#include <errno.h>
 #include <zlib.h>
 
 unsigned int cdrIsoMultidiskCount;
@@ -1222,6 +1223,8 @@ static long CALLBACK ISOopen(void) {
 
 	cdHandle = fopen(GetIsoFile(), "rb");
 	if (cdHandle == NULL) {
+		SysPrintf(_("Could't open '%s' for reading: %s\n"),
+			GetIsoFile(), strerror(errno));
 		return -1;
 	}
 
