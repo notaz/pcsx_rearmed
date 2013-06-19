@@ -242,6 +242,7 @@ void retro_set_environment(retro_environment_t cb)
    static const struct retro_variable vars[] = {
       { "frameskip", "Frameskip; 0|1|2|3" },
       { "region", "Region; Auto|NTSC|PAL" },
+      { "pad1type", "Pad 1 Type; standard|analog" },
 #ifdef __ARM_NEON__
       { "neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
@@ -785,6 +786,17 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "PAL") == 0)
          Config.PsxType = 1;
    }
+
+   var.value = NULL;
+   var.key = "pad1type";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      in_type1 = PSE_PAD_TYPE_STANDARD;
+      if (strcmp(var.value, "analog") == 0)
+         in_type1 = PSE_PAD_TYPE_ANALOGPAD;
+   }
+
 #ifdef __ARM_NEON__
    var.value = "NULL";
    var.key = "neon_interlace_enable";
@@ -851,6 +863,14 @@ void retro_run(void)
 	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
 		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
 			in_keystate |= retro_psx_map[i];
+
+   if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
+   {
+      in_a1[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+      in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+      in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+      in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+   }
 
 	stop = 0;
 	psxCpu->Execute();
