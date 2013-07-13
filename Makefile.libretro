@@ -90,15 +90,33 @@ else ifeq ($(platform), qnx)
    ARCH = arm
    CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
    ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
-else ifeq ($(platform), arm)
+else ifneq (,$(findstring armv,$(platform)))
    TARGET := $(TARGET_NAME)_libretro.so
-   HAVE_NEON = 1
-   USE_DYNAREC = 1
+   SHARED := -shared -Wl,--no-undefined
    DRC_CACHE_BASE = 0
+ifneq (,$(findstring cortexa8,$(platform)))
+   CFLAGS += -marm -mcpu=cortex-a8
+   ASFLAGS += -mcpu=cortex-a8
+else ifneq (,$(findstring cortexa9,$(platform)))
+   CFLAGS += -marm -mcpu=cortex-a9
+   ASFLAGS += -mcpu=cortex-a9
+endif
+   CFLAGS += -marm
+ifneq (,$(findstring neon,$(platform)))
+   CFLAGS += -mfpu=neon
+   ASFLAGS += -mfpu=neon
+   HAVE_NEON = 1
    BUILTIN_GPU = neon
+endif
+ifneq (,$(findstring softfloat,$(platform)))
+   CFLAGS += -mfloat-abi=softfp
+   ASFLAGS += -mfloat-abi=softfp
+else ifneq (,$(findstring hardfloat,$(platform)))
+   CFLAGS += -mfloat-abi=hard
+   ASFLAGS += -mfloat-abi=hard
+endif
    ARCH = arm
-   CFLAGS += -marm -mcpu=cortex-a8 -mfpu=neon
-   ASFLAGS += -mcpu=cortex-a8 -mfpu=neon
+   USE_DYNAREC = 1
 else
    TARGET := $(TARGET_NAME)_retro.dll
    CC = gcc
