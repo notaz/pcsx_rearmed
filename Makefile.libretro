@@ -35,15 +35,15 @@ ARCH := arm
    fpic := -fPIC
    SHARED := -dynamiclib
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK)
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphone-version-min=5.0
+   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphone-version-min=5.0
+   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphone-version-min=5.0
+   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm -miphone-version-min=5.0
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
    HAVE_NEON = 1
    BUILTIN_GPU = neon
    USE_DYNAREC = 1
-   CFLAGS += -DIOS
+   CFLAGS += -DIOS -miphoneos-version-min=5.0
 else ifeq ($(platform), ps3)
    TARGET := $(TARGET_NAME)_libretro_ps3.a
    CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
