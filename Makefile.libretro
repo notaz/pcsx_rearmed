@@ -35,10 +35,10 @@ ARCH := arm
    fpic := -fPIC
    SHARED := -dynamiclib
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphone-version-min=5.0
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphone-version-min=5.0
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphone-version-min=5.0
-   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm -miphone-version-min=5.0
+   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
+   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
+   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphoneos-version-min=5.0
+   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm -miphoneos-version-min=5.0
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
    HAVE_NEON = 1
    BUILTIN_GPU = neon
