@@ -30,7 +30,12 @@ static u32 mem_ffwtab[(1+2+4) * 0x1000 / 4];
 //static u32 mem_unmrtab[(1+2+4) * 0x1000 / 4];
 static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
 
+// When this is called in a loop, and 'h' is a function pointer, clang will crash.
+#ifdef __clang__
+static __attribute__ ((noinline)) void map_item(u32 *out, const void *h, u32 flag)
+#else
 static void map_item(u32 *out, const void *h, u32 flag)
+#endif
 {
 	u32 hv = (u32)h;
 	if (hv & 1) {
