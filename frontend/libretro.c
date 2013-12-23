@@ -243,6 +243,9 @@ void retro_set_environment(retro_environment_t cb)
       { "frameskip", "Frameskip; 0|1|2|3" },
       { "region", "Region; Auto|NTSC|PAL" },
       { "pad1type", "Pad 1 Type; standard|analog" },
+#ifndef DRC_DISABLE
+      { "rearmed_drc", "Dynamic recompiler; enabled|disabled" },
+#endif
 #ifdef __ARM_NEON__
       { "neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
@@ -829,6 +832,27 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
       else if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_neon.enhancement_no_main = 1;
+   }
+#endif
+#ifndef DRC_DISABLE
+   var.value = NULL;
+   var.key = "rearmed_drc";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      R3000Acpu *prev_cpu = psxCpu;
+
+      if (strcmp(var.value, "disabled") == 0)
+         Config.Cpu = CPU_INTERPRETER;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.Cpu = CPU_DYNAREC;
+
+      psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
+      if (psxCpu != prev_cpu) {
+         prev_cpu->Shutdown();
+         psxCpu->Init();
+         psxCpu->Reset(); // not really a reset..
+      }
    }
 #endif
 
