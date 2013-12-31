@@ -37,6 +37,7 @@ static void *vout_buf;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
+static bool duping_enable;
 
 static int samples_sent, samples_to_send;
 static int plugins_opened;
@@ -251,6 +252,7 @@ void retro_set_environment(retro_environment_t cb)
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
+      { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
       { NULL, NULL },
    };
 
@@ -835,6 +837,17 @@ static void update_variables(bool in_flight)
    }
 #endif
 
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_duping_enable";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "off") == 0)
+         duping_enable = false;
+      else if (strcmp(var.value, "on") == 0)
+         duping_enable = true;
+   }
+
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "rearmed_drc";
@@ -902,7 +915,7 @@ void retro_run(void)
 
 	samples_to_send += is_pal_mode ? 44100 / 50 : 44100 / 60;
 
-	video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf : NULL,
+	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
 		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
