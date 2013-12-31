@@ -8,7 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
-#include <stdio.h>
+#include <stdint.h>
 #include <sys/mman.h>
 
 extern const unsigned char cmd_lengths[256];

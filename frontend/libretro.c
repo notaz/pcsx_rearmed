@@ -246,7 +246,7 @@ void retro_set_environment(retro_environment_t cb)
 #ifndef DRC_DISABLE
       { "rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
-#ifdef __ARM_NEON__
+#if defined(__ARM_NEON__) || defined(NEON_PC)
       { "neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
       { "neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
@@ -800,7 +800,7 @@ static void update_variables(bool in_flight)
          in_type1 = PSE_PAD_TYPE_ANALOGPAD;
    }
 
-#ifdef __ARM_NEON__
+#if defined(__ARM_NEON__) || defined(NEON_PC)
    var.value = "NULL";
    var.key = "neon_interlace_enable";
 
@@ -834,6 +834,7 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_neon.enhancement_no_main = 1;
    }
 #endif
+
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "rearmed_drc";
