@@ -989,7 +989,11 @@ void retro_init(void)
 		exit(1);
 	}
 
+#if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L)
 	posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
+#else
+	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
+#endif
 
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
