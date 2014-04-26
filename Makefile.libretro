@@ -29,25 +29,36 @@ ifeq ($(platform), unix)
 	CFLAGS += -DNEON_PC
 else ifeq ($(platform), osx)
    TARGET := $(TARGET_NAME)_libretro.dylib
-   fpic := -fPIC -mmacosx-version-min=10.6
+   fpic := -fPIC
    SHARED := -dynamiclib
    BUILTIN_GPU = neon
 	CFLAGS += -DNEON_PC
+OSXVER = `sw_vers -productVersion | cut -c 4`
+ifneq ($(OSXVER),9)
+   fpic += -mmacosx-version-min=10.5
+endif
 else ifeq ($(platform), ios)
 ARCH := arm
    TARGET := $(TARGET_NAME)_libretro_ios.dylib
    fpic := -fPIC
    SHARED := -dynamiclib
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphoneos-version-min=5.0
-   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm -miphoneos-version-min=5.0
+   CC = clang -arch armv7 -isysroot $(IOSSDK)
+   CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+   CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
    HAVE_NEON = 1
    BUILTIN_GPU = neon
    USE_DYNAREC = 1
-   CFLAGS += -DIOS -miphoneos-version-min=5.0
+   CFLAGS += -DIOS
+OSXVER = `sw_vers -productVersion | cut -c 4`
+ifneq ($(OSXVER),9)
+   CC +=  -miphoneos-version-min=5.0
+   CXX +=  -miphoneos-version-min=5.0
+   CC_AS +=  -miphoneos-version-min=5.0
+   CFLAGS += -miphoneos-version-min=5.0
+endif
 else ifeq ($(platform), ps3)
    TARGET := $(TARGET_NAME)_libretro_ps3.a
    CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
