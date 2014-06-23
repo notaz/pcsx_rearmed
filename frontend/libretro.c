@@ -974,6 +974,12 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 #define find_any_bios(...) false
 #endif
 
+static void check_system_specs(void)
+{
+   unsigned level = 6;
+   environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+}
+
 void retro_init(void)
 {
 	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
@@ -1049,6 +1055,7 @@ void retro_init(void)
 	SaveFuncs.close = save_close;
 
 	update_variables(false);
+   check_system_specs();
 }
 
 void retro_deinit(void)
