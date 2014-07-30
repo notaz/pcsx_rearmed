@@ -133,7 +133,7 @@ endif
    ARCH = arm
    USE_DYNAREC = 1
 else
-   TARGET := $(TARGET_NAME)_retro.dll
+   TARGET := $(TARGET_NAME)_libretro.dll
    CC = gcc
    fpic := -fPIC
    LD_FLAGS := -fPIC
