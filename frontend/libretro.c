@@ -870,17 +870,17 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-	if (in_flight) {
-		// inform core things about possible config changes
-		plugin_call_rearmed_cbs();
+   if (in_flight) {
+      // inform core things about possible config changes
+      plugin_call_rearmed_cbs();
 
-		if (GPU_open != NULL && GPU_close != NULL) {
-			GPU_close();
-			GPU_open(&gpuDisp, "PCSX", NULL);
-		}
+      if (GPU_open != NULL && GPU_close != NULL) {
+         GPU_close();
+         GPU_open(&gpuDisp, "PCSX", NULL);
+      }
 
-		dfinput_activate();
-	}
+      dfinput_activate();
+   }
 }
 
 void retro_run(void) 
@@ -902,13 +902,13 @@ void retro_run(void)
 		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
 			in_keystate |= retro_psx_map[i];
 
-   if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
-   {
-      in_a1[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-      in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-      in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-      in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-   }
+	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
+	{
+		in_a1[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+	}
 
 	stop = 0;
 	psxCpu->Execute();
@@ -1055,7 +1055,7 @@ void retro_init(void)
 	SaveFuncs.close = save_close;
 
 	update_variables(false);
-   check_system_specs();
+	check_system_specs();
 }
 
 void retro_deinit(void)
