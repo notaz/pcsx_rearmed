@@ -11,4 +11,4 @@ extern void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in);
 
 /* vibration trigger to frontend */
 extern int in_enable_vibration;
-extern void plat_trigger_vibrate(int is_strong);
+extern void plat_trigger_vibrate(int pad, uint32_t low, uint32_t high);
