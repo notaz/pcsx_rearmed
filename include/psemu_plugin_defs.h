@@ -205,7 +205,11 @@ typedef struct
 	// values are in range -128 - 127
 	unsigned char moveX, moveY;
 
-	unsigned char reserved[91];
+    uint8_t Vib[2];
+
+    volatile uint8_t VibF[2];
+
+    unsigned char reserved[87];
 
 } PadDataS;
 

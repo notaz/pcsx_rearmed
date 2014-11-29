@@ -33,6 +33,7 @@ static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
+static struct retro_rumble_interface rumble;
 
 static void *vout_buf;
 static int vout_width, vout_height;
@@ -51,7 +52,7 @@ extern char McdDisable[2];
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_keystate;
-int in_enable_vibration;
+int in_enable_vibration = 1;
 
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
 #define VOUT_MAX_WIDTH 1024
@@ -196,8 +197,10 @@ void pl_timing_prepare(int is_pal)
 	is_pal_mode = is_pal;
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, uint32_t low, uint32_t high)
 {
+    rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
+    rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
 }
 
 void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
@@ -238,11 +241,12 @@ void out_register_libretro(struct out_driver *drv)
 void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
-      { "frameskip", "Frameskip; 0|1|2|3" },
-      { "region", "Region; Auto|NTSC|PAL" },
-      { "pad1type", "Pad 1 Type; standard|analog" },
+      { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
+      { "pcsx_rearmed_region", "Region; Auto|NTSC|PAL" },
+      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog" },
+      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog" },
 #ifndef DRC_DISABLE
-      { "rearmed_drc", "Dynamic recompiler; enabled|disabled" },
+      { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
 #ifdef __ARM_NEON__
       { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
@@ -947,13 +951,13 @@ static void update_variables(bool in_flight)
    struct retro_variable var;
    
    var.value = NULL;
-   var.key = "frameskip";
+   var.key = "pcsx_rearmed_frameskip";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
       pl_rearmed_cbs.frameskip = atoi(var.value);
 
    var.value = NULL;
-   var.key = "region";
+   var.key = "pcsx_rearmed_region";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
@@ -967,13 +971,23 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
-   var.key = "pad1type";
+   var.key = "pcsx_rearmed_pad1type";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
       in_type1 = PSE_PAD_TYPE_STANDARD;
       if (strcmp(var.value, "analog") == 0)
          in_type1 = PSE_PAD_TYPE_ANALOGPAD;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_pad2type";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      in_type2 = PSE_PAD_TYPE_STANDARD;
+      if (strcmp(var.value, "analog") == 0)
+         in_type2 = PSE_PAD_TYPE_ANALOGPAD;
    }
 
 #ifdef __ARM_NEON__
@@ -1024,7 +1038,7 @@ static void update_variables(bool in_flight)
 
 #ifndef DRC_DISABLE
    var.value = NULL;
-   var.key = "rearmed_drc";
+   var.key = "pcsx_rearmed_drc";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
@@ -1229,6 +1243,7 @@ void retro_init(void)
 
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
+	environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble);
 
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
