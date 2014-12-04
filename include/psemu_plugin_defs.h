@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 // header version
 #define _PPDK_HEADER_VERSION		3
 
