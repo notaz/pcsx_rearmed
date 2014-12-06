@@ -109,6 +109,7 @@ void mmssdd( char *b, char *p )
 
 int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 	struct iso_directory_record *dir;
+	int retval = -1;
 	u8 ddir[4096];
 	u8 *buf;
 	int i;
@@ -138,11 +139,12 @@ int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 		} else {
 			if (!strnicmp((char *)&dir->name[0], filename, strlen(filename))) {
 				mmssdd(dir->extent, (char *)time);
+				retval = 0;
 				break;
 			}
 		}
 	}
-	return 0;
+	return retval;
 }
 
 static const unsigned int gpu_ctl_def[] = {
