@@ -3999,10 +3999,16 @@ static int emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
     type=0;
   }
   else if(type==MTYPE_1F80) { // scratchpad
-    emit_addimm(addr,-0x1f800000,HOST_TEMPREG);
-    emit_cmpimm(HOST_TEMPREG,0x1000);
-    jaddr=(int)out;
-    emit_jc(0);
+    if (psxH == (void *)0x1f800000) {
+      emit_addimm(addr,-0x1f800000,HOST_TEMPREG);
+      emit_cmpimm(HOST_TEMPREG,0x1000);
+      jaddr=(int)out;
+      emit_jc(0);
+    }
+    else {
+      // do usual RAM check, jump will go to the right handler
+      type=0;
+    }
   }
 #endif
 
