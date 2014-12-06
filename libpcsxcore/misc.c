@@ -123,7 +123,7 @@ int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 		if (dir->length[0] == 0) {
 			return -1;
 		}
-		i += dir->length[0];
+		i += (u8)dir->length[0];
 
 		if (dir->flags[0] & 0x2) { // it's a dir
 			if (!strnicmp((char *)&dir->name[0], filename, dir->name_len[0])) {
