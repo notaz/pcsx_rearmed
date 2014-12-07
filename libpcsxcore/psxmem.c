@@ -150,11 +150,11 @@ int psxMemInit() {
 	}
 
 	psxP = &psxM[0x200000];
-	psxH = psxMap(0x1f800000, 0x10000, 1, MAP_TAG_OTHER);
+	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxR == NULL || psxP == NULL || psxH != (void *)0x1f800000) {
+	    psxR == NULL || psxP == NULL || psxH == NULL) {
 		SysMessage(_("Error allocating memory!"));
 		psxMemShutdown();
 		return -1;
