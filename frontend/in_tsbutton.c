@@ -30,7 +30,7 @@ static const char * const in_tsbutton_keys[IN_TSBUTTON_COUNT] = {
 	"TS1", "TS2", "TS3", "TS4",
 };
 
-static void in_tsbutton_probe(void)
+static void in_tsbutton_probe(const in_drv_t *drv)
 {
 	struct tsdev *dev = tsdev;
 	if (dev == NULL) {
@@ -43,7 +43,7 @@ static void in_tsbutton_probe(void)
 }
 
 static const char * const *
-in_tsbutton_get_key_names(int *count)
+in_tsbutton_get_key_names(const in_drv_t *drv, int *count)
 {
 	*count = IN_TSBUTTON_COUNT;
 	return in_tsbutton_keys;
@@ -133,6 +133,6 @@ static const in_drv_t in_tsbutton_drv = {
 void in_tsbutton_init(void)
 {
 	tsbutton_down_id = last_tsbutton_id = -1;
-	in_register_driver(&in_tsbutton_drv, NULL);
+	in_register_driver(&in_tsbutton_drv, NULL, NULL);
 }
 

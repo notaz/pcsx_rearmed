@@ -84,6 +84,36 @@ static const struct in_default_bind in_evdev_defbinds[] = {
 	{ 0, 0, 0 },
 };
 
+static const struct menu_keymap key_pbtn_map[] =
+{
+	{ KEY_UP,	PBTN_UP },
+	{ KEY_DOWN,	PBTN_DOWN },
+	{ KEY_LEFT,	PBTN_LEFT },
+	{ KEY_RIGHT,	PBTN_RIGHT },
+	/* Caanoo */
+	{ BTN_THUMB2,	PBTN_MOK },
+	{ BTN_THUMB,	PBTN_MBACK },
+	{ BTN_TRIGGER,	PBTN_MA2 },
+	{ BTN_TOP,	PBTN_MA3 },
+	{ BTN_BASE,	PBTN_MENU },
+	{ BTN_TOP2,	PBTN_L },
+	{ BTN_PINKIE,	PBTN_R },
+	/* "normal" keyboards */
+	{ KEY_ENTER,	PBTN_MOK },
+	{ KEY_ESC,	PBTN_MBACK },
+	{ KEY_SEMICOLON,  PBTN_MA2 },
+	{ KEY_APOSTROPHE, PBTN_MA3 },
+	{ KEY_BACKSLASH,  PBTN_MENU },
+	{ KEY_LEFTBRACE,  PBTN_L },
+	{ KEY_RIGHTBRACE, PBTN_R },
+};
+
+static const struct in_pdata gp2x_evdev_pdata = {
+	.defbinds = in_evdev_defbinds,
+	.key_map = key_pbtn_map,
+	.kmap_size = sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]),
+};
+
 static void *fb_flip(void)
 {
 	memregl[0x406C>>2] = memregl[0x446C>>2] = fb_paddrs[fb_work_buf];
@@ -533,7 +563,7 @@ void plat_init(void)
 	DMA_REG(0x0c) = 0x20000; // pending IRQ clear
 
 	in_tsbutton_init();
-	in_evdev_init(in_evdev_defbinds);
+	in_evdev_init(&gp2x_evdev_pdata);
 	if (gp2x_dev_id == GP2X_DEV_CAANOO)
 		caanoo_init();
 	else

@@ -251,7 +251,11 @@ do_state_slot:
 		}
 	case SACTION_VOLUME_UP:
 	case SACTION_VOLUME_DOWN:
-		plat_target_step_volume(emu_action == SACTION_VOLUME_UP);
+		{
+			static int volume;
+			plat_target_step_volume(&volume,
+				emu_action == SACTION_VOLUME_UP ? 1 : -1);
+		}
 		return;
 	case SACTION_MINIMIZE:
 		if (GPU_close != NULL)
