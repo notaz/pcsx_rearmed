@@ -727,9 +727,9 @@ void psxLWR() {
 	*/
 }
 
-void psxSB() { psxMemWrite8 (_oB_, _u8 (_rRt_)); }
-void psxSH() { psxMemWrite16(_oB_, _u16(_rRt_)); }
-void psxSW() { psxMemWrite32(_oB_, _u32(_rRt_)); }
+void psxSB() { psxMemWrite8 (_oB_, _rRt_ &   0xff); }
+void psxSH() { psxMemWrite16(_oB_, _rRt_ & 0xffff); }
+void psxSW() { psxMemWrite32(_oB_, _rRt_); }
 
 u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
 u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
