@@ -692,7 +692,7 @@ static void noinline do_decode_bufs(int which, int start, int count)
 static int do_samples(int forced_updates)
 {
  int volmult = iVolume;
- int ns,ns_from,ns_to;
+ int ns,ns_from,ns_to,ns_len;
  int ch,d,silentch;
  int bIRQReturn=0;
 
@@ -740,21 +740,22 @@ static int do_samples(int forced_updates)
          lastch=ch; 
          lastns=ns_to=d;
         }
+       ns_len = ns_to - ns_from;
 
        MixADSR(ch, ns_from, ns_to);
 
        if(ch==1 || ch==3)
         {
-         do_decode_bufs(ch/2, ns_from, ns_to-ns_from);
+         do_decode_bufs(ch/2, ns_from, ns_len);
          decode_dirty_ch |= 1<<ch;
         }
 
        if(s_chan[ch].bFMod==2)                         // fmod freq channel
-        memcpy(iFMod, ChanBuf, sizeof(iFMod));
-       else if(s_chan[ch].bRVBActive)
-        mix_chan_rvb(ns_from,ns_to-ns_from,s_chan[ch].iLeftVolume,s_chan[ch].iRightVolume);
+        memcpy(&iFMod[ns_from], &ChanBuf[ns_from], ns_len * sizeof(iFMod[0]));
+       if(s_chan[ch].bRVBActive)
+        mix_chan_rvb(ns_from, ns_len, s_chan[ch].iLeftVolume, s_chan[ch].iRightVolume);
        else
-        mix_chan(ns_from,ns_to-ns_from,s_chan[ch].iLeftVolume,s_chan[ch].iRightVolume);
+        mix_chan(ns_from, ns_len, s_chan[ch].iLeftVolume, s_chan[ch].iRightVolume);
       }
     }
 
