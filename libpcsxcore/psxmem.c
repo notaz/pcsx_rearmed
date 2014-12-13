@@ -28,7 +28,8 @@
 #include "r3000a.h"
 #include "psxhw.h"
 #include "debug.h"
-#include <sys/mman.h>
+
+#include "memmap.h"
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON

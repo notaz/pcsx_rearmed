@@ -21,6 +21,8 @@ CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
 
+MMAP_WIN32=0
+
 ifeq ($(platform), unix)
    TARGET := $(TARGET_NAME)_libretro.so
    fpic := -fPIC
@@ -141,6 +143,7 @@ else
    LD_FLAGS := -fPIC
    SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
    CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
+   MMAP_WIN32=1
 endif
 
 CFLAGS += -fPIC
