@@ -1,5 +1,8 @@
 # Makefile for PCSX ReARMed (libretro)
 
+DEBUG=1 
+MMAP_WIN32=0
+
 ifeq ($(platform),)
 platform = unix
 ifeq ($(shell uname -a),)
@@ -147,6 +150,7 @@ else
    CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
    BUILTIN_GPU = neon
 	CFLAGS += -DNEON_PC
+	MMAP_WIN32=1
 endif
 
 CFLAGS += -fPIC

@@ -28,7 +28,12 @@
 #include "r3000a.h"
 #include "psxhw.h"
 #include "debug.h"
+
+#ifdef __LIBRETRO__
+#include "memmap.h"
+#else
 #include <sys/mman.h>
+#endif
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
