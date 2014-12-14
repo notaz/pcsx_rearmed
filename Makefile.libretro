@@ -4,16 +4,16 @@ DEBUG=1
 MMAP_WIN32=0
 
 ifeq ($(platform),)
-platform = unix
-ifeq ($(shell uname -a),)
-   platform = win
-else ifneq ($(findstring MINGW,$(shell uname -a)),)
-   platform = win
-else ifneq ($(findstring Darwin,$(shell uname -a)),)
-   platform = osx
-else ifneq ($(findstring win,$(shell uname -a)),)
-   platform = win
-endif
+	platform = unix
+	ifeq ($(shell uname -a),)
+		platform = win
+	else ifneq ($(findstring MINGW,$(shell uname -a)),)
+		platform = win
+	else ifneq ($(findstring Darwin,$(shell uname -a)),)
+		platform = osx
+	else ifneq ($(findstring win,$(shell uname -a)),)
+		platform = win
+	endif
 endif
 
 CC ?= gcc
@@ -24,139 +24,165 @@ CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
 
+# Unix
 ifeq ($(platform), unix)
-   TARGET := $(TARGET_NAME)_libretro.so
-   fpic := -fPIC
-   SHARED := -shared -Wl,--version-script=libretro/link.T
-   BUILTIN_GPU = neon
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	SHARED := -shared -Wl,--version-script=libretro/link.T
+	BUILTIN_GPU = neon
 	CFLAGS += -DNEON_PC
+
+# OS X
 else ifeq ($(platform), osx)
-   TARGET := $(TARGET_NAME)_libretro.dylib
-   fpic := -fPIC
-   SHARED := -dynamiclib
-   BUILTIN_GPU = neon
+	TARGET := $(TARGET_NAME)_libretro.dylib
+	fpic := -fPIC
+	SHARED := -dynamiclib
+	BUILTIN_GPU = neon
 	CFLAGS += -DNEON_PC
-   OSXVER = `sw_vers -productVersion | cut -d. -f 2`
-   OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-ifeq ($(OSX_LT_MAVERICKS),"YES")
-   fpic += -mmacosx-version-min=10.5
-endif
+	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
+	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
+	ifeq ($(OSX_LT_MAVERICKS),"YES")
+		fpic += -mmacosx-version-min=10.5
+	endif
+
+# iOS
 else ifeq ($(platform), ios)
-ARCH := arm
-   TARGET := $(TARGET_NAME)_libretro_ios.dylib
-   fpic := -fPIC
-   SHARED := -dynamiclib
+	ARCH := arm
+	TARGET := $(TARGET_NAME)_libretro_ios.dylib
+	fpic := -fPIC
+	SHARED := -dynamiclib
 
-ifeq ($(IOSSDK),)
-   IOSSDK := $(shell xcrun -sdk iphoneos -show-sdk-path)
-endif
+	ifeq ($(IOSSDK),)
+		IOSSDK := $(shell xcrun -sdk iphoneos -show-sdk-path)
+	endif
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK)
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
-   ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-   HAVE_NEON = 1
-   BUILTIN_GPU = neon
-   USE_DYNAREC = 1
-   CFLAGS += -DIOS
-   OSXVER = `sw_vers -productVersion | cut -d. -f 2`
-   OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-ifeq ($(OSX_LT_MAVERICKS),"YES")
-   CC +=  -miphoneos-version-min=5.0
-   CXX +=  -miphoneos-version-min=5.0
-   CC_AS +=  -miphoneos-version-min=5.0
-   CFLAGS += -miphoneos-version-min=5.0
-endif
+	CC = clang -arch armv7 -isysroot $(IOSSDK)
+	CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	HAVE_NEON = 1
+	BUILTIN_GPU = neon
+	USE_DYNAREC = 1
+	CFLAGS += -DIOS
+	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
+	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
+	ifeq ($(OSX_LT_MAVERICKS),"YES")
+		CC +=  -miphoneos-version-min=5.0
+		CXX +=  -miphoneos-version-min=5.0
+		CC_AS +=  -miphoneos-version-min=5.0
+		CFLAGS += -miphoneos-version-min=5.0
+	endif
+
+# PS3
 else ifeq ($(platform), ps3)
-   TARGET := $(TARGET_NAME)_libretro_ps3.a
-   CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
-   AR = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-ar.exe
-   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	TARGET := $(TARGET_NAME)_libretro_ps3.a
+	CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
+	AR = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-ar.exe
+	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+
+# sncps3
 else ifeq ($(platform), sncps3)
-   TARGET := $(TARGET_NAME)_libretro_ps3.a
-   CC = $(CELL_SDK)/host-win32/sn/bin/ps3ppusnc.exe
-   AR = $(CELL_SDK)/host-win32/sn/bin/ps3snarl.exe
-   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	TARGET := $(TARGET_NAME)_libretro_ps3.a
+	CC = $(CELL_SDK)/host-win32/sn/bin/ps3ppusnc.exe
+	AR = $(CELL_SDK)/host-win32/sn/bin/ps3snarl.exe
+	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+
+# Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
-   TARGET := $(TARGET_NAME)_libretro_psl1ght.a
-   CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
-   AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
-   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	TARGET := $(TARGET_NAME)_libretro_psl1ght.a
+	CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
+	AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
+	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+
+# PSP
 else ifeq ($(platform), psp1)
 	TARGET := $(TARGET_NAME)_libretro_psp1.a
 	CC = psp-gcc$(EXE_EXT)
 	AR = psp-ar$(EXE_EXT)
 	CFLAGS += -DPSP -G0
+
+# Xbox 360
 else ifeq ($(platform), xenon)
-   TARGET := $(TARGET_NAME)_libretro_xenon360.a
-   CC = xenon-gcc$(EXE_EXT)
-   AR = xenon-ar$(EXE_EXT)
-   CFLAGS += -D__LIBXENON__ -m32 -D__ppc__
+	TARGET := $(TARGET_NAME)_libretro_xenon360.a
+	CC = xenon-gcc$(EXE_EXT)
+	AR = xenon-ar$(EXE_EXT)
+	CFLAGS += -D__LIBXENON__ -m32 -D__ppc__
+
+# Nintendo Game Cube
 else ifeq ($(platform), ngc)
-   TARGET := $(TARGET_NAME)_libretro_ngc.a
-   CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
-   AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
-   CFLAGS += -DGEKKO -DHW_DOL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	TARGET := $(TARGET_NAME)_libretro_ngc.a
+	CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+	AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+	CFLAGS += -DGEKKO -DHW_DOL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+
+# Nintendo Wii
 else ifeq ($(platform), wii)
-   TARGET := libretro_$(TARGET_NAME)_wii.a
-   CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
-   AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
-   CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+	TARGET := libretro_$(TARGET_NAME)_wii.a
+	CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+	AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+	CFLAGS += -DGEKKO -DHW_RVL -mrvl -mcpu=750 -meabi -mhard-float -DBLARGG_BIG_ENDIAN=1 -D__ppc__
+
+# QNX
 else ifeq ($(platform), qnx)
-   TARGET := $(TARGET_NAME)_libretro_qnx.so
-   CC = qcc -Vgcc_ntoarmv7le
-   CC_AS = $(CC)
-   HAVE_NEON = 1
-   USE_DYNAREC = 1
-   DRC_CACHE_BASE = 0
-   BUILTIN_GPU = neon
-   ARCH = arm
-   CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
-   ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	TARGET := $(TARGET_NAME)_libretro_qnx.so
+	CC = qcc -Vgcc_ntoarmv7le
+	CC_AS = $(CC)
+	HAVE_NEON = 1
+	USE_DYNAREC = 1
+	DRC_CACHE_BASE = 0
+	BUILTIN_GPU = neon
+	ARCH = arm
+	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+
+# ARM
 else ifneq (,$(findstring armv,$(platform)))
-   TARGET := $(TARGET_NAME)_libretro.so
-   SHARED := -shared -Wl,--no-undefined
-   DRC_CACHE_BASE = 0
-ifneq (,$(findstring cortexa8,$(platform)))
-   CFLAGS += -marm -mcpu=cortex-a8
-   ASFLAGS += -mcpu=cortex-a8
-else ifneq (,$(findstring cortexa9,$(platform)))
-   CFLAGS += -marm -mcpu=cortex-a9
-   ASFLAGS += -mcpu=cortex-a9
-endif
-   CFLAGS += -marm
-ifneq (,$(findstring neon,$(platform)))
-   CFLAGS += -mfpu=neon
-   ASFLAGS += -mfpu=neon
-   HAVE_NEON = 1
-   BUILTIN_GPU = neon
-endif
-ifneq (,$(findstring softfloat,$(platform)))
-   CFLAGS += -mfloat-abi=softfp
-   ASFLAGS += -mfloat-abi=softfp
-else ifneq (,$(findstring hardfloat,$(platform)))
-   CFLAGS += -mfloat-abi=hard
-   ASFLAGS += -mfloat-abi=hard
-endif
-   ARCH = arm
-   USE_DYNAREC = 1
+	TARGET := $(TARGET_NAME)_libretro.so
+	SHARED := -shared -Wl,--no-undefined
+	DRC_CACHE_BASE = 0
+	ifneq (,$(findstring cortexa8,$(platform)))
+		CFLAGS += -marm -mcpu=cortex-a8
+		ASFLAGS += -mcpu=cortex-a8
+	else ifneq (,$(findstring cortexa9,$(platform)))
+		CFLAGS += -marm -mcpu=cortex-a9
+		ASFLAGS += -mcpu=cortex-a9
+	endif
+	CFLAGS += -marm
+	ifneq (,$(findstring neon,$(platform)))
+		CFLAGS += -mfpu=neon
+		ASFLAGS += -mfpu=neon
+		HAVE_NEON = 1
+		BUILTIN_GPU = neon
+	endif
+	ifneq (,$(findstring softfloat,$(platform)))
+		CFLAGS += -mfloat-abi=softfp
+		ASFLAGS += -mfloat-abi=softfp
+	else ifneq (,$(findstring hardfloat,$(platform)))
+		CFLAGS += -mfloat-abi=hard
+		ASFLAGS += -mfloat-abi=hard
+	endif
+	ARCH = arm
+	USE_DYNAREC = 1
+
+# Windows
 else
-   TARGET := $(TARGET_NAME)_libretro.dll
-   CC = gcc
-   fpic := -fPIC
-   LD_FLAGS := -fPIC
-   SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
-   CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
-   BUILTIN_GPU = neon
+	TARGET := $(TARGET_NAME)_libretro.dll
+	CC = gcc
+	fpic := -fPIC
+	LD_FLAGS := -fPIC
+	SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
+	CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
+	BUILTIN_GPU = neon
 	CFLAGS += -DNEON_PC
 	MMAP_WIN32=1
+
 endif
 
 CFLAGS += -fPIC
 ifneq ($(platform),qnx)
-   LDLIBS += -lpthread
-   MAIN_LDLIBS += -ldl
+	LDLIBS += -lpthread
+	MAIN_LDLIBS += -ldl
 endif
 MAIN_LDFLAGS += -shared
 MAIN_LDLIBS += -lm -lz
