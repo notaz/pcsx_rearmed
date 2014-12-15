@@ -1,8 +1,6 @@
 #ifndef _MEMMAP_H
 #define _MEMMAP_H
 
-#ifdef HAVE_MMAP
-
 #ifdef _WIN32
 
 #ifndef _WIN32_WINNT            // Allow use of features specific to Windows XP or later.                  
@@ -53,8 +51,6 @@ int     munlock(const void *addr, size_t len);
 
 #else
 #include <sys/mman.h>
-#endif
-
 #endif
 
 #endif
