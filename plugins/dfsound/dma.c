@@ -38,9 +38,12 @@ unsigned short CALLBACK SPUreadDMA(void)
 // READ DMA (many values)
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize)
+void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
+ unsigned int cycles)
 {
  int i;
+
+ do_samples_if_needed(cycles);
 
  for(i=0;i<iSize;i++)
   {
@@ -74,11 +77,12 @@ void CALLBACK SPUwriteDMA(unsigned short val)
 // WRITE DMA (many values)
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize)
+void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
+ unsigned int cycles)
 {
  int i;
  
- had_dma = 1;
+ do_samples_if_needed(cycles);
 
  if(spuAddr + iSize*2 < 0x80000)
   {

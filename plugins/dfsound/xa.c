@@ -56,7 +56,7 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void MixXA(void)
+INLINE void MixXA(int ns_to)
 {
  int ns;
  short l, r;
@@ -69,7 +69,7 @@ INLINE void MixXA(void)
    XARepeat--;
 
   v = XALastVal;
-  for(ns=0;ns<NSSIZE*2;)
+  for(ns = 0; ns < ns_to*2; )
    {
     if(XAPlay != XAFeed) v=*XAPlay++;
     if(XAPlay == XAEnd) XAPlay=XAStart;
@@ -86,7 +86,7 @@ INLINE void MixXA(void)
   XALastVal = v;
  }
 
- for(ns=0;ns<NSSIZE*2 && CDDAPlay!=CDDAFeed && (CDDAPlay!=CDDAEnd-1||CDDAFeed!=CDDAStart);)
+ for(ns = 0; ns < ns_to * 2 && CDDAPlay!=CDDAFeed && (CDDAPlay!=CDDAEnd-1||CDDAFeed!=CDDAStart);)
   {
    v=*CDDAPlay++;
    if(CDDAPlay==CDDAEnd) CDDAPlay=CDDAStart;

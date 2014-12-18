@@ -152,5 +152,5 @@
 
 ///////////////////////////////////////////////////////////
 
-void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val);
+void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val, unsigned int cycles);
 

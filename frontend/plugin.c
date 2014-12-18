@@ -25,20 +25,20 @@ extern long SPUinit(void);
 extern long SPUshutdown(void);
 extern long SPUclose(void);
 extern void SPUplaySample(unsigned char);
-extern void SPUwriteRegister(unsigned long, unsigned short);
+extern void SPUwriteRegister(unsigned long, unsigned short, unsigned int);
 extern unsigned short SPUreadRegister(unsigned long);
 extern void SPUwriteDMA(unsigned short);
 extern unsigned short SPUreadDMA(void);
-extern void SPUwriteDMAMem(unsigned short *, int);
-extern void SPUreadDMAMem(unsigned short *, int);
+extern void SPUwriteDMAMem(unsigned short *, int, unsigned int);
+extern void SPUreadDMAMem(unsigned short *, int, unsigned int);
 extern void SPUplayADPCMchannel(void *);
 extern void SPUregisterCallback(void (*cb)(void));
 extern void SPUregisterScheduleCb(void (*cb)(unsigned int));
 extern long SPUconfigure(void);
 extern long SPUtest(void);
 extern void SPUabout(void);
-extern long SPUfreeze(unsigned int, void *);
-extern void SPUasync(unsigned int);
+extern long SPUfreeze(unsigned int, void *, unsigned int);
+extern void SPUasync(unsigned int, unsigned int);
 extern int  SPUplayCDDAchannel(short *, int);
 
 /* PAD */
@@ -256,14 +256,14 @@ pc_hook_func              (GPU_readDataMem, (uint32_t *a0, int a1), (a0, a1), PC
 pc_hook_func_ret(long,     GPU_dmaChain, (uint32_t *a0, int32_t a1), (a0, a1), PCNT_GPU)
 pc_hook_func              (GPU_updateLace, (void), (), PCNT_GPU)
 
-pc_hook_func              (SPU_writeRegister, (unsigned long a0, unsigned short a1), (a0, a1), PCNT_SPU)
+pc_hook_func              (SPU_writeRegister, (unsigned long a0, unsigned short a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func_ret(unsigned short,SPU_readRegister, (unsigned long a0), (a0), PCNT_SPU)
 pc_hook_func              (SPU_writeDMA, (unsigned short a0), (a0), PCNT_SPU)
 pc_hook_func_ret(unsigned short,SPU_readDMA, (void), (), PCNT_SPU)
-pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1), (a0, a1), PCNT_SPU)
-pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1), (a0, a1), PCNT_SPU)
+pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
+pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func              (SPU_playADPCMchannel, (void *a0), (a0), PCNT_SPU)
-pc_hook_func              (SPU_async, (unsigned int a0), (a0), PCNT_SPU)
+pc_hook_func              (SPU_async, (uint32_t a0, uint32_t a1), (a0, a1), PCNT_SPU)
 pc_hook_func_ret(int,      SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), PCNT_SPU)
 
 #define hook_it(name) { \

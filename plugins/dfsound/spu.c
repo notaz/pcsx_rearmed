@@ -49,6 +49,9 @@
 
 #define PSXCLK	33868800	/* 33.8688 MHz */
 
+// intended to be ~1 frame
+#define IRQ_NEAR_BLOCKS 32
+
 /*
 #if defined (USEMACOSX)
 static char * libraryName     = N_("Mac OS X Sound");
@@ -106,6 +109,7 @@ unsigned int dwChannelDead=0;                          // silent+not useful chan
 
 void (CALLBACK *irqCallback)(void)=0;                  // func of main emu, called on spu irq
 void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
+void (CALLBACK *scheduleCallback)(unsigned int)=0;
 
 // certain globals (were local before, but with the new timeproc I need em global)
 
@@ -117,15 +121,11 @@ static const int f[8][2] = {   {    0,  0  },
 int ChanBuf[NSSIZE+3];
 int SSumLR[(NSSIZE+3)*2];
 int iFMod[NSSIZE];
-int iCycle = 0;
 short * pS;
 
 static int decode_dirty_ch;
 int decode_pos;
-int had_dma;
-int lastch=-1;             // last channel processed on spu irq in timer mode
-static int lastns=0;       // last ns pos
-static int cycles_since_update;
+unsigned int cycles_played;
 
 #define CDDA_BUFFER_SIZE (16384 * sizeof(uint32_t)) // must be power of 2
 
@@ -518,8 +518,48 @@ static int skip_block(int ch)
  return ret;
 }
 
+// if irq is going to trigger sooner than in upd_samples, set upd_samples
+static void scan_for_irq(int ch, unsigned int *upd_samples)
+{
+ int pos, sinc, sinc_inv, end;
+ unsigned char *block;
+ int flags;
+
+ block = s_chan[ch].pCurr;
+ pos = s_chan[ch].spos;
+ sinc = s_chan[ch].sinc;
+ end = pos + *upd_samples * sinc;
+
+ pos += (28 - s_chan[ch].iSBPos) << 16;
+ while (pos < end)
+ {
+  if (block == pSpuIrq)
+   break;
+  flags = block[1];
+  block += 16;
+  if (flags & 1) {                          // 1: stop/loop
+   block = s_chan[ch].pLoop;
+   if (block == pSpuIrq)                    // hack.. (see decode_block)
+    break;
+  }
+  pos += 28 << 16;
+ }
+
+ if (pos < end)
+ {
+  sinc_inv = s_chan[ch].sinc_inv;
+  if (sinc_inv == 0)
+   sinc_inv = s_chan[ch].sinc_inv = (0x80000000u / (uint32_t)sinc) << 1;
+
+  pos -= s_chan[ch].spos;
+  *upd_samples = (((uint64_t)pos * sinc_inv) >> 32) + 1;
+  //xprintf("ch%02d: irq sched: %3d %03d\n",
+  // ch, *upd_samples, *upd_samples * 60 * 263 / 44100);
+ }
+}
+
 #define make_do_samples(name, fmod_code, interp_start, interp1_code, interp2_code, interp_end) \
-static int do_samples_##name(int ch, int ns, int ns_to) \
+static noinline int do_samples_##name(int ch, int ns, int ns_to) \
 {                                            \
  int sinc = s_chan[ch].sinc;                 \
  int spos = s_chan[ch].spos;                 \
@@ -533,23 +573,23 @@ static int do_samples_##name(int ch, int ns, int ns_to) \
  {                                           \
   fmod_code;                                 \
                                              \
+  spos += sinc;                              \
   while (spos >= 0x10000)                    \
   {                                          \
-   if(sbpos == 28)                           \
+   fa = SB[sbpos++];                         \
+   if(sbpos >= 28)                           \
    {                                         \
     sbpos = 0;                               \
     d = decode_block(ch);                    \
     if(d)                                    \
-     ret = ns_to = ns + 1;                   \
+     ret = /*ns_to =*/ ns + 1;               \
    }                                         \
                                              \
-   fa = SB[sbpos++];                         \
    interp1_code;                             \
    spos -= 0x10000;                          \
   }                                          \
                                              \
   interp2_code;                              \
-  spos += sinc;                              \
  }                                           \
                                              \
  s_chan[ch].sinc = sinc;                     \
@@ -585,7 +625,7 @@ make_do_samples(noint, , fa = s_chan[ch].SB[29], , ChanBuf[ns] = fa, s_chan[ch].
 make_do_samples(simple, , ,
   simple_interp_store, simple_interp_get, )
 
-static int do_samples_noise(int ch, int ns, int ns_to)
+static noinline int do_samples_noise(int ch, int ns, int ns_to)
 {
  int level, shift, bit;
  int ret = -1, d;
@@ -667,7 +707,7 @@ static void mix_chan_rvb(int start, int count, int lv, int rv)
 
 // 0x0800-0x0bff  Voice 1
 // 0x0c00-0x0fff  Voice 3
-static void noinline do_decode_bufs(int which, int start, int count)
+static noinline void do_decode_bufs(int which, int start, int count)
 {
  const int *src = ChanBuf + start;
  unsigned short *dst = &spuMem[0x800/2 + which*0x400/2];
@@ -689,57 +729,84 @@ static void noinline do_decode_bufs(int which, int start, int count)
 // basically the whole sound processing is done in this fat func!
 ////////////////////////////////////////////////////////////////////////
 
-static int do_samples(int forced_updates)
+void do_samples(unsigned int cycles_to)
 {
+ const int ns_from = 0;
+ int ns,ns_to,ns_len;
  int volmult = iVolume;
- int ns,ns_from,ns_to,ns_len;
  int ch,d,silentch;
- int bIRQReturn=0;
+ int cycle_diff;
 
- // ok, at the beginning we are looking if there is
- // enuff free place in the dsound/oss buffer to
- // fill in new data, or if there is a new channel to start.
- // if not, we return until enuff free place is available
- // /a new channel gets started
-
- if(!forced_updates && out_current->busy())            // still enuff data in sound buffer?
-  return 0;
-
- while(!bIRQReturn)
+ cycle_diff = cycles_to - cycles_played;
+ if (cycle_diff < -2*1048576 || cycle_diff > 2*1048576)
   {
-   ns_from=0;
-   ns_to=NSSIZE;
-   ch=0;
-   if(lastch>=0)                                       // will be -1 if no continue is pending
-    {
-     ch=lastch; ns_from=lastns; lastch=-1;             // -> setup all kind of vars to continue
-    }
+   //xprintf("desync %u %d\n", cycles_to, cycle_diff);
+   cycles_played = cycles_to;
+   return;
+  }
 
+ if (cycle_diff < 2 * 768)
+  return;
+
+ ns_to = (cycle_diff / 768 + 1) & ~1;
+ if (ns_to > NSSIZE) {
+  // should never happen
+  //xprintf("ns_to oflow %d %d\n", ns_to, NSSIZE);
+  ns_to = NSSIZE;
+ }
+
+  //////////////////////////////////////////////////////
+  // special irq handling in the decode buffers (0x0000-0x1000)
+  // we know:
+  // the decode buffers are located in spu memory in the following way:
+  // 0x0000-0x03ff  CD audio left
+  // 0x0400-0x07ff  CD audio right
+  // 0x0800-0x0bff  Voice 1
+  // 0x0c00-0x0fff  Voice 3
+  // and decoded data is 16 bit for one sample
+  // we assume:
+  // even if voices 1/3 are off or no cd audio is playing, the internal
+  // play positions will move on and wrap after 0x400 bytes.
+  // Therefore: we just need a pointer from spumem+0 to spumem+3ff, and
+  // increase this pointer on each sample by 2 bytes. If this pointer
+  // (or 0x400 offsets of this pointer) hits the spuirq address, we generate
+  // an IRQ.
+
+  if (unlikely((spuCtrl & CTRL_IRQ) && pSpuIrq && pSpuIrq < spuMemC+0x1000))
+   {
+    int irq_pos = (pSpuIrq - spuMemC) / 2 & 0x1ff;
+    int left = (irq_pos - decode_pos) & 0x1ff;
+    if (0 < left && left <= ns_to)
+     {
+      //xprintf("decoder irq %x\n", decode_pos);
+      do_irq();
+      ns_to = left;
+     }
+   }
+
+  InitREVERB(ns_to);
+
+  {
    silentch=~(dwChannelOn|dwNewChannel);
 
    //--------------------------------------------------//
    //- main channel loop                              -// 
    //--------------------------------------------------//
     {
-     for(;ch<MAXCHAN;ch++)                             // loop em all... we will collect 1 ms of sound of each playing channel
+     for(ch=0;ch<MAXCHAN;ch++)                         // loop em all...
       {
        if(dwNewChannel&(1<<ch)) StartSound(ch);        // start new sound
        if(!(dwChannelOn&(1<<ch))) continue;            // channel not playing? next
 
        if(s_chan[ch].bNoise)
-        d=do_samples_noise(ch, ns_from, ns_to);
+        do_samples_noise(ch, ns_from, ns_to);
        else if(s_chan[ch].bFMod==2 || (s_chan[ch].bFMod==0 && iUseInterpolation==0))
-        d=do_samples_noint(ch, ns_from, ns_to);
+        do_samples_noint(ch, ns_from, ns_to);
        else if(s_chan[ch].bFMod==0 && iUseInterpolation==1)
-        d=do_samples_simple(ch, ns_from, ns_to);
+        do_samples_simple(ch, ns_from, ns_to);
        else
-        d=do_samples_default(ch, ns_from, ns_to);
-       if(d>=0)
-        {
-         bIRQReturn=1;
-         lastch=ch; 
-         lastns=ns_to=d;
-        }
+        do_samples_default(ch, ns_from, ns_to);
+
        ns_len = ns_to - ns_from;
 
        MixADSR(ch, ns_from, ns_to);
@@ -774,7 +841,6 @@ static int do_samples(int forced_updates)
         {
          unsigned char *start = s_chan[ch].pCurr;
 
-         // no need for bIRQReturn since the channel is silent
          skip_block(ch);
          if(start == s_chan[ch].pCurr || start - spuMemC < 0x1000)
           {
@@ -787,9 +853,6 @@ static int do_samples(int forced_updates)
          s_chan[ch].spos -= 28 * 0x10000;
         }
       }
-
-    if(bIRQReturn)                                     // special return for "spu irq - wait for cpu action"
-      return 0;
 
   if(unlikely(silentch & decode_dirty_ch & (1<<1)))    // must clear silent channel decode buffers
    {
@@ -807,21 +870,21 @@ static int do_samples(int forced_updates)
   //---------------------------------------------------//
   // mix XA infos (if any)
 
-  MixXA();
+  MixXA(ns_to);
   
   ///////////////////////////////////////////////////////
   // mix all channels (including reverb) into one buffer
 
   if(iUseReverb)
-   REVERBDo();
+   REVERBDo(ns_to);
 
   if((spuCtrl&0x4000)==0) // muted? (rare, don't optimize for this)
    {
-    memset(pS, 0, NSSIZE * 2 * sizeof(pS[0]));
-    pS += NSSIZE*2;
+    memset(pS, 0, ns_to * 2 * sizeof(pS[0]));
+    pS += ns_to * 2;
    }
   else
-  for (ns = 0; ns < NSSIZE*2; )
+  for (ns = 0; ns < ns_to * 2; )
    {
     d = SSumLR[ns]; SSumLR[ns] = 0;
     d = d * volmult >> 10;
@@ -836,97 +899,70 @@ static int do_samples(int forced_updates)
     ns++;
    }
 
-   cycles_since_update -= PSXCLK / 44100 * NSSIZE;
+  cycles_played += ns_to * 768;
 
-  //////////////////////////////////////////////////////                   
-  // special irq handling in the decode buffers (0x0000-0x1000)
-  // we know: 
-  // the decode buffers are located in spu memory in the following way:
-  // 0x0000-0x03ff  CD audio left
-  // 0x0400-0x07ff  CD audio right
-  // 0x0800-0x0bff  Voice 1
-  // 0x0c00-0x0fff  Voice 3
-  // and decoded data is 16 bit for one sample
-  // we assume: 
-  // even if voices 1/3 are off or no cd audio is playing, the internal
-  // play positions will move on and wrap after 0x400 bytes.
-  // Therefore: we just need a pointer from spumem+0 to spumem+3ff, and 
-  // increase this pointer on each sample by 2 bytes. If this pointer
-  // (or 0x400 offsets of this pointer) hits the spuirq address, we generate
-  // an IRQ. Only problem: the "wait for cpu" option is kinda hard to do here
-  // in some of Peops timer modes. So: we ignore this option here (for now).
+  decode_pos = (decode_pos + ns_to) & 0x1ff;
+ }
+}
 
-  if(unlikely((spuCtrl&CTRL_IRQ) && pSpuIrq && pSpuIrq<spuMemC+0x1000))
-   {
-    int irq_pos=(pSpuIrq-spuMemC)/2 & 0x1ff;
-    if((decode_pos <= irq_pos && irq_pos < decode_pos+NSSIZE)
-       || (decode_pos+NSSIZE > 0x200 && irq_pos < ((decode_pos+NSSIZE) & 0x1ff)))
-     {
-      //printf("decoder irq %x\n", decode_pos);
-      do_irq();
-      bIRQReturn = 1;
-     }
-   }
-  decode_pos = (decode_pos + NSSIZE) & 0x1ff;
+void schedule_next_irq(void)
+{
+ unsigned int upd_samples;
+ int ch;
 
-  InitREVERB();
+ if (scheduleCallback == NULL)
+  return;
 
-  // feed the sound
-  // wanna have around 1/60 sec (16.666 ms) updates
-  if (iCycle++ >= 16/FRAG_MSECS)
-   {
-    out_current->feed(pSpuBuffer, (unsigned char *)pS - pSpuBuffer);
-    pS = (short *)pSpuBuffer;
-    iCycle = 0;
+ upd_samples = 44100 / 50;
 
-    if(!forced_updates && out_current->busy())
-     break;
-   }
+ for (ch = 0; ch < MAXCHAN; ch++)
+ {
+  if (dwChannelDead & (1 << ch))
+   continue;
+  if ((unsigned long)(pSpuIrq - s_chan[ch].pCurr) > IRQ_NEAR_BLOCKS * 16
+    && (unsigned long)(pSpuIrq - s_chan[ch].pLoop) > IRQ_NEAR_BLOCKS * 16)
+   continue;
 
-  if(forced_updates > 0)
-   {
-    forced_updates--;
-    if(forced_updates == 0 && out_current->busy())
-     break;
-   }
-
-  if(cycles_since_update <= -PSXCLK/60 / 4)
-   break;
+  scan_for_irq(ch, &upd_samples);
  }
 
- // this may cause desync, but help audio when the emu can't keep up..
- if(cycles_since_update < 0)
-  cycles_since_update = 0;
+ if (unlikely(pSpuIrq < spuMemC + 0x1000))
+ {
+  int irq_pos = (pSpuIrq - spuMemC) / 2 & 0x1ff;
+  int left = (irq_pos - decode_pos) & 0x1ff;
+  if (0 < left && left < upd_samples) {
+   //xprintf("decode: %3d (%3d/%3d)\n", left, decode_pos, irq_pos);
+   upd_samples = left;
+  }
+ }
 
- return 0;
+ if (upd_samples < 44100 / 50)
+  scheduleCallback(upd_samples * 768);
 }
 
 // SPU ASYNC... even newer epsxe func
 //  1 time every 'cycle' cycles... harhar
 
-// rearmed: called every 2ms now
+// rearmed: called dynamically now
 
-void CALLBACK SPUasync(unsigned long cycle)
+void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 {
- int forced_updates = 0;
- int do_update = 0;
+ do_samples(cycle);
 
- if(!bSpuInit) return;                               // -> no init, no call
+ if (spuCtrl & CTRL_IRQ)
+  schedule_next_irq();
 
- cycles_since_update += cycle;
+ if (flags & 1) {
+  out_current->feed(pSpuBuffer, (unsigned char *)pS - pSpuBuffer);
+  pS = (short *)pSpuBuffer;
 
- if(dwNewChannel || had_dma)
-  {
-   forced_updates = 1;
-   do_update = 1;
-   had_dma = 0;
+  if (0) {
+   if (!out_current->busy())
+    // cause more samples to be generated
+    // (and break some games because of bad sync)
+    cycles_played -= 44100 / 60 / 2 * 768;
   }
-
- if(cycles_since_update > PSXCLK/60 * 5/4)
-  do_update = 1;
-
- if(do_update)
-  do_samples(forced_updates);
+ }
 }
 
 // SPU UPDATE... new epsxe func
@@ -940,7 +976,6 @@ void CALLBACK SPUasync(unsigned long cycle)
 
 void CALLBACK SPUupdate(void)
 {
- SPUasync(0);
 }
 
 // XA AUDIO
@@ -1003,6 +1038,7 @@ void SetupStreams(void)
 // slow us down:
 //   s_chan[i].hMutex=CreateMutex(NULL,FALSE,NULL);
    s_chan[i].ADSRX.SustainLevel = 0xf;                 // -> init sustain
+   s_chan[i].ADSRX.SustainIncrease = 1;
    s_chan[i].pLoop=spuMemC;
    s_chan[i].pCurr=spuMemC;
   }
@@ -1040,7 +1076,6 @@ long CALLBACK SPUinit(void)
  decode_pos = 0;
  memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
  pSpuIrq = 0;
- lastch = -1;
 
  SetupStreams();                                       // prepare streaming
 
@@ -1123,6 +1158,7 @@ void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned shor
 
 void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int))
 {
+ scheduleCallback = callback;
 }
 
 // COMMON PLUGIN INFO FUNCS

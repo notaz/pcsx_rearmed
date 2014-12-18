@@ -335,7 +335,7 @@ void psxRcntUpdate()
 
             if( SPU_async )
             {
-                SPU_async( SpuUpdInterval[Config.PsxType] * rcnts[3].target );
+                SPU_async( cycle, 1 );
             }
         }
         

@@ -46,10 +46,8 @@
 // num of channels
 #define MAXCHAN     24
 
-// ~ FRAG_MSECS ms of data
 // note: must be even due to the way reverb works now
-#define FRAG_MSECS 2
-#define NSSIZE ((44100 * FRAG_MSECS / 1000 + 1) & ~1)
+#define NSSIZE ((44100 / 50 + 16) & ~1)
 
 ///////////////////////////////////////////////////////////
 // struct defines
@@ -90,6 +88,7 @@ typedef struct
  int               iSBPos;                             // mixing stuff
  int               spos;
  int               sinc;
+ int               sinc_inv;
 
  unsigned char *   pCurr;                              // current pos in sound mem
  unsigned char *   pLoop;                              // loop ptr in sound mem
@@ -191,7 +190,6 @@ extern int        iUseReverb;
 extern int        iUseInterpolation;
 // MISC
 
-extern int had_dma;
 extern int decode_pos;
 
 extern SPUCHAN s_chan[];
@@ -209,10 +207,20 @@ extern unsigned int dwChannelDead;
 
 extern int      SSumR[];
 extern int      SSumL[];
-extern int      iCycle;
 extern short *  pS;
 
 extern void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
+
+extern unsigned int cycles_played;
+
+void do_samples(unsigned int cycles_to);
+void schedule_next_irq(void);
+
+#define do_samples_if_needed(c) \
+ do { \
+  if ((int)((c) - cycles_played) >= 16 * 768) \
+   do_samples(c); \
+ } while (0)
 
 #endif
 

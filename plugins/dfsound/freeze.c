@@ -132,9 +132,7 @@ typedef struct
 ////////////////////////////////////////////////////////////////////////
 
 void LoadStateV5(SPUFreeze_t * pF);                    // newest version
-void LoadStateUnknown(SPUFreeze_t * pF);               // unknown format
-
-extern int lastch;
+void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles); // unknown format
 
 // we want to retain compatibility between versions,
 // so use original channel struct
@@ -183,8 +181,10 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  memset(d, 0, sizeof(*d));
  if (s->bNew) dwNewChannel |= 1<<ch;
  d->iSBPos = s->iSBPos;
+ if ((uint32_t)d->iSBPos >= 28) d->iSBPos = 27;
  d->spos = s->spos;
  d->sinc = s->sinc;
+ d->sinc_inv = 0;
  memcpy(d->SB, s->SB, sizeof(d->SB));
  d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
@@ -212,11 +212,20 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  else d->ADSRX.EnvelopeVol = 0;
 }
 
+// force load from regArea to variables
+static void load_register(unsigned long reg, unsigned int cycles)
+{
+ unsigned short *r = &regArea[((reg & 0xfff) - 0xc00) >> 1];
+ *r ^= 1;
+ SPUwriteRegister(reg, *r ^ 1, cycles);
+}
+
 ////////////////////////////////////////////////////////////////////////
 // SPUFREEZE: called by main emu on savestate load/save
 ////////////////////////////////////////////////////////////////////////
 
-long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
+long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
+ uint32_t cycles)
 {
  int i;SPUOSSFreeze_t * pFO;
 
@@ -233,6 +242,8 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
    if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
                                                        // save mode:
+   do_samples(cycles);
+
    memcpy(pF->cSPURam,spuMem,0x80000);                 // copy common infos
    memcpy(pF->cSPUPort,regArea,0x200);
 
@@ -276,26 +287,25 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
  if(!strcmp(pF->szSPUName,"PBOSS") && pF->ulFreezeVersion==5)
    LoadStateV5(pF);
- else LoadStateUnknown(pF);
-
- lastch = -1;
+ else LoadStateUnknown(pF, cycles);
 
  // repair some globals
  for(i=0;i<=62;i+=2)
-  SPUwriteRegister(H_Reverb+i,regArea[(H_Reverb+i-0xc00)>>1]);
- SPUwriteRegister(H_SPUReverbAddr,regArea[(H_SPUReverbAddr-0xc00)>>1]);
- SPUwriteRegister(H_SPUrvolL,regArea[(H_SPUrvolL-0xc00)>>1]);
- SPUwriteRegister(H_SPUrvolR,regArea[(H_SPUrvolR-0xc00)>>1]);
+  load_register(H_Reverb+i, cycles);
+ load_register(H_SPUReverbAddr, cycles);
+ load_register(H_SPUrvolL, cycles);
+ load_register(H_SPUrvolR, cycles);
 
- SPUwriteRegister(H_SPUctrl,(unsigned short)(regArea[(H_SPUctrl-0xc00)>>1]|0x4000));
- SPUwriteRegister(H_SPUstat,regArea[(H_SPUstat-0xc00)>>1]);
- SPUwriteRegister(H_CDLeft,regArea[(H_CDLeft-0xc00)>>1]);
- SPUwriteRegister(H_CDRight,regArea[(H_CDRight-0xc00)>>1]);
+ load_register(H_SPUctrl, cycles);
+ load_register(H_SPUstat, cycles);
+ load_register(H_CDLeft, cycles);
+ load_register(H_CDRight, cycles);
 
  // fix to prevent new interpolations from crashing
  for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
 
  ClearWorkingState();
+ cycles_played = cycles;
 
  return 1;
 }
@@ -331,7 +341,7 @@ void LoadStateV5(SPUFreeze_t * pF)
 
 ////////////////////////////////////////////////////////////////////////
 
-void LoadStateUnknown(SPUFreeze_t * pF)
+void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
 {
  int i;
 
@@ -348,7 +358,7 @@ void LoadStateUnknown(SPUFreeze_t * pF)
 
  for(i=0;i<0xc0;i++)
   {
-   SPUwriteRegister(0x1f801c00+i*2,regArea[i]);
+   load_register(0x1f801c00 + i*2, cycles);
   }
 }
 

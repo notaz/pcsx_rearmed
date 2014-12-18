@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -153,7 +154,20 @@ static int oss_busy(void)
 
 static void oss_feed(void *buf, int bytes)
 {
+ audio_buf_info info;
+ char sbuf[4096];
+
  if(oss_audio_fd == -1) return;
+ if(ioctl(oss_audio_fd,SNDCTL_DSP_GETOSPACE,&info)==0)
+  {
+   if(info.fragments==info.fragstotal)
+    {
+     memset(sbuf, 0, sizeof(sbuf));
+     write(oss_audio_fd, sbuf, sizeof(sbuf));
+     write(oss_audio_fd, sbuf, sizeof(sbuf));
+    }
+  }
+
  write(oss_audio_fd, buf, bytes);
 }
 

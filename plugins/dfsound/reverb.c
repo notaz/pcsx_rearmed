@@ -53,21 +53,9 @@ INLINE void StartREVERB(int ch)
 // HELPER FOR NEILL'S REVERB: re-inits our reverb mixing buf
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void InitREVERB(void)
+INLINE void InitREVERB(int ns_to)
 {
- memset(sRVBStart,0,NSSIZE*2*4);
-}
-
-////////////////////////////////////////////////////////////////////////
-// STORE REVERB
-////////////////////////////////////////////////////////////////////////
-
-INLINE void StoreREVERB(int ch,int ns,int l,int r)
-{
- ns<<=1;
-
- sRVBStart[ns]  +=l;                                   // -> we mix all active reverb channels into an extra buffer
- sRVBStart[ns+1]+=r;
+ memset(sRVBStart,0,ns_to*sizeof(sRVBStart[0])*2);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -95,15 +83,15 @@ INLINE int rvb2ram_offs(int curr, int space, int iOff)
 ////////////////////////////////////////////////////////////////////////
 
 // portions based on spu2-x from PCSX2
-static void MixREVERB(void)
+static void MixREVERB(int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
  int curr_addr = rvb.CurrAddr;
  int space = 0x40000 - rvb.StartAddr;
- int l, r, ns;
+ int l = 0, r = 0, ns;
 
- for (ns = 0; ns < NSSIZE*2; )
+ for (ns = 0; ns < ns_to * 2; )
   {
    int IIR_ALPHA = rvb.IIR_ALPHA;
    int ACC0, ACC1, FB_A0, FB_A1, FB_B0, FB_B1;
@@ -180,15 +168,15 @@ static void MixREVERB(void)
  rvb.CurrAddr = curr_addr;
 }
 
-static void MixREVERB_off(void)
+static void MixREVERB_off(int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
  int curr_addr = rvb.CurrAddr;
  int space = 0x40000 - rvb.StartAddr;
- int l, r, ns;
+ int l = 0, r = 0, ns;
 
- for (ns = 0; ns < NSSIZE*2; )
+ for (ns = 0; ns < ns_to * 2; )
   {
    l = (g_buffer(MIX_DEST_A0) + g_buffer(MIX_DEST_B0)) / 2;
    r = (g_buffer(MIX_DEST_A1) + g_buffer(MIX_DEST_B1)) / 2;
@@ -258,7 +246,7 @@ static void prepare_offsets(void)
  rvb.dirty = 0;
 }
 
-INLINE void REVERBDo(void)
+INLINE void REVERBDo(int ns_to)
 {
  if (!rvb.StartAddr)                                   // reverb is off
  {
@@ -271,19 +259,19 @@ INLINE void REVERBDo(void)
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB();
+  MixREVERB(ns_to);
  }
  else if (rvb.VolLeft || rvb.VolRight)
  {
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB_off();
+  MixREVERB_off(ns_to);
  }
  else                                                  // -> reverb off
  {
   // reverb runs anyway
-  rvb.CurrAddr += NSSIZE/2;
+  rvb.CurrAddr += ns_to / 2;
   while (rvb.CurrAddr >= 0x40000)
    rvb.CurrAddr -= 0x40000 - rvb.StartAddr;
  }
