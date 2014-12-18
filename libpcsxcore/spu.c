@@ -26,3 +26,15 @@
 void CALLBACK SPUirq(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
 }
+
+// spuUpdate
+void CALLBACK SPUschedule(unsigned int cycles_after) {
+	psxRegs.interrupt |= (1 << PSXINT_SPU_UPDATE);
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle = cycles_after;
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle = psxRegs.cycle;
+	new_dyna_set_event(PSXINT_SPU_UPDATE, cycles_after);
+}
+
+void spuUpdate() {
+	SPU_async(psxRegs.cycle);
+}

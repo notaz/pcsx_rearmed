@@ -853,6 +853,7 @@ static int _OpenPlugins(void) {
 	ret = SPU_open();
 	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
 	SPU_registerCallback(SPUirq);
+	SPU_registerScheduleCb(SPUschedule);
 	// pcsx-rearmed: we handle gpu elsewhere
 	//ret = GPU_open(&gpuDisp, "PCSX", NULL);
 	//if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }

@@ -32,7 +32,8 @@ extern unsigned short SPUreadDMA(void);
 extern void SPUwriteDMAMem(unsigned short *, int);
 extern void SPUreadDMAMem(unsigned short *, int);
 extern void SPUplayADPCMchannel(void *);
-extern void SPUregisterCallback(void (*callback)(void));
+extern void SPUregisterCallback(void (*cb)(void));
+extern void SPUregisterScheduleCb(void (*cb)(unsigned int));
 extern long SPUconfigure(void);
 extern long SPUtest(void);
 extern void SPUabout(void);
@@ -135,6 +136,7 @@ static const struct {
 	DIRECT_SPU(SPUplayADPCMchannel),
 	DIRECT_SPU(SPUfreeze),
 	DIRECT_SPU(SPUregisterCallback),
+	DIRECT_SPU(SPUregisterScheduleCb),
 	DIRECT_SPU(SPUasync),
 	DIRECT_SPU(SPUplayCDDAchannel),
 	/* PAD */

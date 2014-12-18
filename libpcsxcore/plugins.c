@@ -88,6 +88,7 @@ SPUreadDMAMem         SPU_readDMAMem;
 SPUplayADPCMchannel   SPU_playADPCMchannel;
 SPUfreeze             SPU_freeze;
 SPUregisterCallback   SPU_registerCallback;
+SPUregisterScheduleCb SPU_registerScheduleCb;
 SPUasync              SPU_async;
 SPUplayCDDAchannel    SPU_playCDDAchannel;
 
@@ -320,6 +321,7 @@ void *hSPUDriver = NULL;
 long CALLBACK SPU__configure(void) { return 0; }
 void CALLBACK SPU__about(void) {}
 long CALLBACK SPU__test(void) { return 0; }
+void CALLBACK SPU__registerScheduleCb(void (CALLBACK *cb)(unsigned int)) {}
 
 #define LoadSpuSym1(dest, name) \
 	LoadSym(SPU_##dest, SPU##dest, name, TRUE);
@@ -356,6 +358,7 @@ static int LoadSPUplugin(const char *SPUdll) {
 	LoadSpuSym1(playADPCMchannel, "SPUplayADPCMchannel");
 	LoadSpuSym1(freeze, "SPUfreeze");
 	LoadSpuSym1(registerCallback, "SPUregisterCallback");
+	LoadSpuSym0(registerScheduleCb, "SPUregisterScheduleCb");
 	LoadSpuSymN(async, "SPUasync");
 	LoadSpuSymN(playCDDAchannel, "SPUplayCDDAchannel");
 

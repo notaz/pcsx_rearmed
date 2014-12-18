@@ -1121,6 +1121,10 @@ void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned shor
  cddavCallback = CDDAVcallback;
 }
 
+void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int))
+{
+}
+
 // COMMON PLUGIN INFO FUNCS
 /*
 char * CALLBACK PSEgetLibName(void)
