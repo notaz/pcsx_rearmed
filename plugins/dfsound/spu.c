@@ -780,7 +780,6 @@ void do_samples(unsigned int cycles_to)
      {
       //xprintf("decoder irq %x\n", decode_pos);
       do_irq();
-      ns_to = left;
      }
    }
 
