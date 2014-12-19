@@ -21,6 +21,7 @@
 
 #include "externals.h"
 #include "registers.h"
+#include "spu_config.h"
 
 static void SoundOn(int start,int end,unsigned short val);
 static void SoundOff(int start,int end,unsigned short val);
@@ -47,8 +48,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
 {
  int r = reg & 0xfff;
  int rofs = (r - 0xc00) >> 1;
- int changed = regArea[rofs] != val;
- regArea[rofs] = val;
+ int changed = spu.regArea[rofs] != val;
+ spu.regArea[rofs] = val;
 
  if (!changed && (ignore_dupe[rofs >> 5] & (1 << (rofs & 0x1f))))
   return;
@@ -110,7 +111,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
        break;
      //------------------------------------------------//
      case 14:                                          // loop?
-       s_chan[ch].pLoop=spuMemC+((val&~1)<<3);
+       s_chan[ch].pLoop=spu.spuMemC+((val&~1)<<3);
        goto upd_irq;
      //------------------------------------------------//
     }
@@ -121,26 +122,26 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
    {
     //-------------------------------------------------//
     case H_SPUaddr:
-      spuAddr = (unsigned long) val<<3;
+      spu.spuAddr = (unsigned long) val<<3;
       break;
     //-------------------------------------------------//
     case H_SPUdata:
-      spuMem[spuAddr>>1] = val;
-      spuAddr+=2;
-      if(spuAddr>0x7ffff) spuAddr=0;
+      spu.spuMem[spu.spuAddr>>1] = val;
+      spu.spuAddr+=2;
+      if(spu.spuAddr>0x7ffff) spu.spuAddr=0;
       break;
     //-------------------------------------------------//
     case H_SPUctrl:
-      if (!(spuCtrl & CTRL_IRQ)) {
-        spuStat&=~STAT_IRQ;
+      if (!(spu.spuCtrl & CTRL_IRQ)) {
+        spu.spuStat&=~STAT_IRQ;
         if (val & CTRL_IRQ)
          schedule_next_irq();
       }
-      spuCtrl=val;
+      spu.spuCtrl=val;
       break;
     //-------------------------------------------------//
     case H_SPUstat:
-      spuStat=val & 0xf800;
+      spu.spuStat=val&0xf800;
       break;
     //-------------------------------------------------//
     case H_SPUReverbAddr:
@@ -158,8 +159,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       goto rvbd;
     //-------------------------------------------------//
     case H_SPUirqAddr:
-      spuIrq = val;
-      pSpuIrq=spuMemC+(((unsigned long) val<<3)&~0xf);
+      spu.pSpuIrq=spu.spuMemC+(((unsigned long) val<<3)&~0xf);
       goto upd_irq;
     //-------------------------------------------------//
     case H_SPUrvolL:
@@ -214,12 +214,12 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_CDLeft:
-      iLeftXAVol=val  & 0x7fff;
-      if(cddavCallback) cddavCallback(0,val);
+      spu.iLeftXAVol=val  & 0x7fff;
+      if(spu.cddavCallback) spu.cddavCallback(0,val);
       break;
     case H_CDRight:
-      iRightXAVol=val & 0x7fff;
-      if(cddavCallback) cddavCallback(1,val);
+      spu.iRightXAVol=val & 0x7fff;
+      if(spu.cddavCallback) spu.cddavCallback(1,val);
       break;
     //-------------------------------------------------//
     case H_FMod1:
@@ -282,7 +282,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
  return;
 
 upd_irq:
- if (spuCtrl & CTRL_IRQ)
+ if (spu.spuCtrl & CTRL_IRQ)
   schedule_next_irq();
  return;
 
@@ -305,8 +305,8 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      case 12:                                          // get adsr vol
       {
        const int ch=(r>>4)-0xc0;
-       if(dwNewChannel&(1<<ch)) return 1;              // we are started, but not processed? return 1
-       if((dwChannelOn&(1<<ch)) &&                     // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
+       if(spu.dwNewChannel&(1<<ch)) return 1;          // we are started, but not processed? return 1
+       if((spu.dwChannelOn&(1<<ch)) &&                 // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
           !s_chan[ch].ADSRX.EnvelopeVol)
         return 1;
        return (unsigned short)(s_chan[ch].ADSRX.EnvelopeVol>>16);
@@ -315,7 +315,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      case 14:                                          // get loop address
       {
        const int ch=(r>>4)-0xc0;
-       return (unsigned short)((s_chan[ch].pLoop-spuMemC)>>3);
+       return (unsigned short)((s_chan[ch].pLoop-spu.spuMemC)>>3);
       }
     }
   }
@@ -323,24 +323,21 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
  switch(r)
   {
     case H_SPUctrl:
-     return spuCtrl;
+     return spu.spuCtrl;
 
     case H_SPUstat:
-     return spuStat;
+     return spu.spuStat;
         
     case H_SPUaddr:
-     return (unsigned short)(spuAddr>>3);
+     return (unsigned short)(spu.spuAddr>>3);
 
     case H_SPUdata:
      {
-      unsigned short s=spuMem[spuAddr>>1];
-      spuAddr+=2;
-      if(spuAddr>0x7ffff) spuAddr=0;
+      unsigned short s=spu.spuMem[spu.spuAddr>>1];
+      spu.spuAddr+=2;
+      if(spu.spuAddr>0x7ffff) spu.spuAddr=0;
       return s;
      }
-
-    case H_SPUirqAddr:
-     return spuIrq;
 
     //case H_SPUIsOn1:
     // return IsSoundOn(0,16);
@@ -350,7 +347,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
  
   }
 
- return regArea[(r-0xc00)>>1];
+ return spu.regArea[(r-0xc00)>>1];
 }
  
 ////////////////////////////////////////////////////////////////////////
@@ -368,13 +365,13 @@ static void SoundOn(int start,int end,unsigned short val)
      // do this here, not in StartSound
      // - fixes fussy timing issues
      s_chan[ch].bStop=0;
-     s_chan[ch].pCurr=spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
-     s_chan[ch].pLoop=spuMemC+((regAreaGet(ch,14)&~1)<<3);
+     s_chan[ch].pCurr=spu.spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
+     s_chan[ch].pLoop=spu.spuMemC+((regAreaGet(ch,14)&~1)<<3);
      s_chan[ch].prevflags=2;
 
-     dwNewChannel|=(1<<ch);                            // bitfield for faster testing
-     dwChannelOn|=1<<ch;
-     dwChannelDead&=~(1<<ch);
+     spu.dwNewChannel|=(1<<ch);
+     spu.dwChannelOn|=1<<ch;
+     spu.dwChannelDead&=~(1<<ch);
     }
   }
 }
@@ -394,7 +391,7 @@ static void SoundOff(int start,int end,unsigned short val)
 
      // Jungle Book - Rhythm 'n Groove
      // - turns off buzzing sound (loop hangs)
-     dwNewChannel &= ~(1<<ch);
+     spu.dwNewChannel &= ~(1<<ch);
     }                                                  
   }
 }
@@ -508,7 +505,7 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  s_chan[ch].iRawPitch=NP;
  s_chan[ch].sinc=(NP<<4)|8;
  s_chan[ch].sinc_inv=0;
- if(iUseInterpolation==1) s_chan[ch].SB[32]=1;         // -> freq change in simple interpolation mode: set flag
+ if(spu_config.iUseInterpolation==1) s_chan[ch].SB[32]=1; // -> freq change in simple interpolation mode: set flag
 }
 
 ////////////////////////////////////////////////////////////////////////

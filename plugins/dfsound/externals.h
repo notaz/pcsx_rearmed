@@ -166,95 +166,82 @@ typedef struct
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////
+
+// psx buffers / addresses
+
+typedef struct
+{
+ unsigned short  spuCtrl;
+ unsigned short  spuStat;
+
+ unsigned int    spuAddr;
+ unsigned char * spuMemC;
+ unsigned char * pSpuIrq;
+
+ unsigned int    cycles_played;
+ int             decode_pos;
+ int             decode_dirty_ch;
+ unsigned int    bSpuInit:1;
+ unsigned int    bSPUIsOpen:1;
+
+ unsigned int    dwNoiseVal;           // global noise generator
+ unsigned int    dwNoiseCount;
+ unsigned int    dwNewChannel;         // flags for faster testing, if new channel starts
+ unsigned int    dwChannelOn;          // not silent channels
+ unsigned int    dwChannelDead;        // silent+not useful channels
+
+ unsigned char * pSpuBuffer;
+ short         * pS;
+
+ void (CALLBACK *irqCallback)(void);   // func of main emu, called on spu irq
+ void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
+ void (CALLBACK *scheduleCallback)(unsigned int);
+
+ int           * sRVBStart;
+
+ xa_decode_t   * xapGlobal;
+ unsigned int  * XAFeed;
+ unsigned int  * XAPlay;
+ unsigned int  * XAStart;
+ unsigned int  * XAEnd;
+
+ unsigned int  * CDDAFeed;
+ unsigned int  * CDDAPlay;
+ unsigned int  * CDDAStart;
+ unsigned int  * CDDAEnd;
+
+ unsigned int    XARepeat;
+ unsigned int    XALastVal;
+
+ int             iLeftXAVol;
+ int             iRightXAVol;
+
+ int             pad[32];
+ unsigned short  regArea[0x400];
+ unsigned short  spuMem[256*1024];
+} SPUInfo;
+
+///////////////////////////////////////////////////////////
 // SPU.C globals
 ///////////////////////////////////////////////////////////
 
 #ifndef _IN_SPU
 
-// psx buffers / addresses
-
-extern unsigned short  regArea[];                        
-extern unsigned short  spuMem[];
-extern unsigned char * spuMemC;
-extern unsigned char * pSpuIrq;
-extern unsigned char * pSpuBuffer;
-
-#define regAreaGet(ch,offset) \
-  regArea[((ch<<4)|(offset))>>1]
-
-// user settings
-
-extern int        iVolume;
-extern int        iXAPitch;
-extern int        iUseReverb;
-extern int        iUseInterpolation;
-// MISC
-
-extern int decode_pos;
-
+extern SPUInfo spu;
 extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;
-
-extern unsigned short spuCtrl;
-extern unsigned short spuStat;
-extern unsigned short spuIrq;
-extern unsigned int   spuAddr;
-extern int      bSpuInit;
-extern unsigned int dwNewChannel;
-extern unsigned int dwChannelOn;
-extern unsigned int dwPendingChanOff;
-extern unsigned int dwChannelDead;
-
-extern int      SSumR[];
-extern int      SSumL[];
-extern short *  pS;
-
-extern void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
-
-extern unsigned int cycles_played;
 
 void do_samples(unsigned int cycles_to);
 void schedule_next_irq(void);
 
+#define regAreaGet(ch,offset) \
+  spu.regArea[((ch<<4)|(offset))>>1]
+
 #define do_samples_if_needed(c) \
  do { \
-  if ((int)((c) - cycles_played) >= 16 * 768) \
+  if ((int)((c) - spu.cycles_played) >= 16 * 768) \
    do_samples(c); \
  } while (0)
 
 #endif
 
-///////////////////////////////////////////////////////////
-// XA.C globals
-///////////////////////////////////////////////////////////
-
-#ifndef _IN_XA
-
-extern xa_decode_t   * xapGlobal;
-
-extern uint32_t * XAFeed;
-extern uint32_t * XAPlay;
-extern uint32_t * XAStart;
-extern uint32_t * XAEnd;
-
-extern uint32_t * CDDAFeed;
-extern uint32_t * CDDAPlay;
-extern uint32_t * CDDAStart;
-extern uint32_t * CDDAEnd;
-
-extern int           iLeftXAVol;
-extern int           iRightXAVol;
-
-#endif
-
-///////////////////////////////////////////////////////////
-// REVERB.C globals
-///////////////////////////////////////////////////////////
-
-#ifndef _IN_REVERB
-
-extern int *          sRVBPlay;
-extern int *          sRVBEnd;
-extern int *          sRVBStart;
-
-#endif

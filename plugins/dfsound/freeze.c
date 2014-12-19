@@ -139,7 +139,7 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles); // unknown format
 static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
 {
  memset(d, 0, sizeof(*d));
- d->bNew = !!(dwNewChannel & (1<<ch));
+ d->bNew = !!(spu.dwNewChannel & (1<<ch));
  d->iSBPos = s->iSBPos;
  d->spos = s->spos;
  d->sinc = s->sinc;
@@ -147,7 +147,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->iStart = (regAreaGet(ch,6)&~1)<<3;
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
- d->bOn = !!(dwChannelOn & (1<<ch));
+ d->bOn = !!(spu.dwChannelOn & (1<<ch));
  d->bStop = s->bStop;
  d->bReverb = s->bReverb;
  d->iActFreq = 1;
@@ -179,7 +179,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
 static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
 {
  memset(d, 0, sizeof(*d));
- if (s->bNew) dwNewChannel |= 1<<ch;
+ if (s->bNew) spu.dwNewChannel |= 1<<ch;
  d->iSBPos = s->iSBPos;
  if ((uint32_t)d->iSBPos >= 28) d->iSBPos = 27;
  d->spos = s->spos;
@@ -208,14 +208,14 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
  d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
  d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
- if (s->bOn) dwChannelOn |= 1<<ch;
+ if (s->bOn) spu.dwChannelOn |= 1<<ch;
  else d->ADSRX.EnvelopeVol = 0;
 }
 
 // force load from regArea to variables
 static void load_register(unsigned long reg, unsigned int cycles)
 {
- unsigned short *r = &regArea[((reg & 0xfff) - 0xc00) >> 1];
+ unsigned short *r = &spu.regArea[((reg & 0xfff) - 0xc00) >> 1];
  *r ^= 1;
  SPUwriteRegister(reg, *r ^ 1, cycles);
 }
@@ -244,31 +244,31 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
                                                        // save mode:
    do_samples(cycles);
 
-   memcpy(pF->cSPURam,spuMem,0x80000);                 // copy common infos
-   memcpy(pF->cSPUPort,regArea,0x200);
+   memcpy(pF->cSPURam,spu.spuMem,0x80000);             // copy common infos
+   memcpy(pF->cSPUPort,spu.regArea,0x200);
 
-   if(xapGlobal && XAPlay!=XAFeed)                     // some xa
+   if(spu.xapGlobal && spu.XAPlay!=spu.XAFeed)         // some xa
     {
-     pF->xaS=*xapGlobal;     
+     pF->xaS=*spu.xapGlobal;
     }
    else 
    memset(&pF->xaS,0,sizeof(xa_decode_t));             // or clean xa
 
    pFO=(SPUOSSFreeze_t *)(pF+1);                       // store special stuff
 
-   pFO->spuIrq=spuIrq;
-   if(pSpuIrq)  pFO->pSpuIrq  = (unsigned long)pSpuIrq-(unsigned long)spuMemC;
+   pFO->spuIrq = spu.regArea[(H_SPUirqAddr - 0x0c00) / 2];
+   if(spu.pSpuIrq) pFO->pSpuIrq  = (unsigned long)spu.pSpuIrq-(unsigned long)spu.spuMemC;
 
-   pFO->spuAddr=spuAddr;
+   pFO->spuAddr=spu.spuAddr;
    if(pFO->spuAddr==0) pFO->spuAddr=0xbaadf00d;
 
    for(i=0;i<MAXCHAN;i++)
     {
      save_channel(&pFO->s_chan[i],&s_chan[i],i);
      if(s_chan[i].pCurr)
-      pFO->s_chan[i].iCurr=s_chan[i].pCurr-spuMemC;
+      pFO->s_chan[i].iCurr=s_chan[i].pCurr-spu.spuMemC;
      if(s_chan[i].pLoop)
-      pFO->s_chan[i].iLoop=s_chan[i].pLoop-spuMemC;
+      pFO->s_chan[i].iLoop=s_chan[i].pLoop-spu.spuMemC;
     }
 
    return 1;
@@ -277,13 +277,13 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
                                                        
  if(ulFreezeMode!=0) return 0;                         // bad mode? bye
 
- memcpy(spuMem,pF->cSPURam,0x80000);                   // get ram
- memcpy(regArea,pF->cSPUPort,0x200);
+ memcpy(spu.spuMem,pF->cSPURam,0x80000);               // get ram
+ memcpy(spu.regArea,pF->cSPUPort,0x200);
 
  if(pF->xaS.nsamples<=4032)                            // start xa again
   SPUplayADPCMchannel(&pF->xaS);
 
- xapGlobal=0;
+ spu.xapGlobal=0;
 
  if(!strcmp(pF->szSPUName,"PBOSS") && pF->ulFreezeVersion==5)
    LoadStateV5(pF);
@@ -305,7 +305,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
 
  ClearWorkingState();
- cycles_played = cycles;
+ spu.cycles_played = cycles;
 
  return 1;
 }
@@ -318,24 +318,23 @@ void LoadStateV5(SPUFreeze_t * pF)
 
  pFO=(SPUOSSFreeze_t *)(pF+1);
 
- spuIrq = pFO->spuIrq;
- if(pFO->pSpuIrq) pSpuIrq = spuMemC+((long)pFO->pSpuIrq&0x7fff0); else pSpuIrq=NULL;
+ if(pFO->pSpuIrq) spu.pSpuIrq = spu.spuMemC+((long)pFO->pSpuIrq&0x7fff0); else spu.pSpuIrq=NULL;
 
  if(pFO->spuAddr)
   {
-   spuAddr = pFO->spuAddr;
-   if (spuAddr == 0xbaadf00d) spuAddr = 0;
+   spu.spuAddr = pFO->spuAddr;
+   if (spu.spuAddr == 0xbaadf00d) spu.spuAddr = 0;
   }
 
- dwNewChannel=0;
- dwChannelOn=0;
- dwChannelDead=0;
+ spu.dwNewChannel=0;
+ spu.dwChannelOn=0;
+ spu.dwChannelDead=0;
  for(i=0;i<MAXCHAN;i++)
   {
    load_channel(&s_chan[i],&pFO->s_chan[i],i);
 
-   s_chan[i].pCurr+=(unsigned long)spuMemC;
-   s_chan[i].pLoop+=(unsigned long)spuMemC;
+   s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
+   s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
   }
 }
 
@@ -348,13 +347,13 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
  for(i=0;i<MAXCHAN;i++)
   {
    s_chan[i].bStop=0;
-   s_chan[i].pLoop=spuMemC;
+   s_chan[i].pLoop=spu.spuMemC;
   }
 
- dwNewChannel=0;
- dwChannelOn=0;
- dwChannelDead=0;
- pSpuIrq=0;
+ spu.dwNewChannel=0;
+ spu.dwChannelOn=0;
+ spu.dwChannelDead=0;
+ spu.pSpuIrq=0;
 
  for(i=0;i<0xc0;i++)
   {

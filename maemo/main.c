@@ -18,15 +18,12 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/main.h"
+#include "../plugins/dfsound/spu_config.h"
 #include "maemo_common.h"
 
 extern int in_enable_vibration;
 extern int cycle_multiplier;
 extern int in_type1, in_type2;
-
-// sound plugin
-extern int iUseReverb;
-extern int iUseInterpolation;
 
 accel_option accelOptions;
 int ready_to_go, g_emu_want_quit, g_emu_resetting;
@@ -198,8 +195,8 @@ int main(int argc, char **argv)
 	Config.PsxAuto = 1;
 	pl_rearmed_cbs.frameskip = -1;
 	strcpy(Config.Bios, "HLE");
-    iUseReverb = 0;
-    iUseInterpolation = 0;
+	spu_config.iUseReverb = 1;
+	spu_config.iUseInterpolation = 1;
 
 	in_type1 = PSE_PAD_TYPE_STANDARD;
 	in_type2 = PSE_PAD_TYPE_STANDARD;
@@ -288,8 +285,8 @@ int main(int argc, char **argv)
 			}
 	}
 
-		else if (!strcmp(argv[i], "-spu_reverb"))           { if (atol(argv[++i]) > 0) iUseReverb = 2; }
-		else if (!strcmp(argv[i], "-spu_interpolation")) 	iUseInterpolation = atol(argv[++i]);
+		else if (!strcmp(argv[i], "-spu_reverb"))		spu_config.iUseReverb = atol(argv[++i]);
+		else if (!strcmp(argv[i], "-spu_interpolation")) 	spu_config.iUseInterpolation = atol(argv[++i]);
 
 		else if (!strcmp(argv[i], "-enhance")) 			pl_rearmed_cbs.gpu_neon.enhancement_enable = 1;
 		else if (!strcmp(argv[i], "-enhancehack")) 		pl_rearmed_cbs.gpu_neon.enhancement_no_main = 1;

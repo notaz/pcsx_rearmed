@@ -218,7 +218,7 @@ done:
 stop:
  memset(&ChanBuf[ns], 0, (ns_to - ns) * sizeof(ChanBuf[0]));
  s_chan[ch].ADSRX.EnvelopeVol = 0;
- dwChannelOn &= ~(1<<ch);
+ spu.dwChannelOn &= ~(1<<ch);
 }
 
 #endif
