@@ -805,7 +805,7 @@ void plat_step_volume(int is_up)
 {
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
 	const int vDuration = 10;
 
@@ -817,7 +817,8 @@ void plat_trigger_vibrate(int is_strong)
 												   "req_start_manual_vibration");
 	if (msg) {
 		dbus_message_iter_init_append(msg, &args);
-		int speed = is_strong ? 200 : 150;
+		// FIXME: somebody with hardware should tune this
+		int speed = high; // is_strong ? 200 : 150;
 		int duration = vDuration;
 		if (dbus_message_iter_append_basic(&args, DBUS_TYPE_INT32, &speed)) {
 			if (dbus_message_iter_append_basic(&args, DBUS_TYPE_INT32, &duration)) {

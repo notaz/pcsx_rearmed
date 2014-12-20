@@ -197,7 +197,7 @@ void pl_timing_prepare(int is_pal)
 	is_pal_mode = is_pal;
 }
 
-void plat_trigger_vibrate(int pad, uint32_t low, uint32_t high)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
     rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
     rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);

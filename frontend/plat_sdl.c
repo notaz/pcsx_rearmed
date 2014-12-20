@@ -336,7 +336,7 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
   return 0;
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
 }
 

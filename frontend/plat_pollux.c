@@ -704,9 +704,14 @@ static int haptic_init(void)
 	return 0;
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
+	int is_strong;
 	int ret;
+
+	if (low == 0 && high == 0)
+		return;
+	is_strong = (high >= 0xf0);
 
 	if (hapticdev == -2)
 		return; // it's broken

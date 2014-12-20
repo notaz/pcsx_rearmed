@@ -106,6 +106,6 @@ void plat_gvideo_open(int is_pal)
 	plat_omap_gvideo_open();
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
 }
