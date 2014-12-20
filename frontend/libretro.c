@@ -1183,7 +1183,7 @@ void retro_init(void)
 	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
 	const char *dir;
 	char path[256];
-	int i, ret, level;
+	int i, ret;
 	bool found_bios = false;
 
 	ret = emu_core_preinit();
@@ -1227,16 +1227,13 @@ void retro_init(void)
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
 	}
 
-	level = 1;
-	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
-
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
 	 * are not emulated. Warning: changing this may break compatibility. */
-#ifdef __ARM_ARCH_7A__
+#if !defined(__arm__) || defined(__ARM_ARCH_7A__)
 	cycle_multiplier = 175;
 #else
 	cycle_multiplier = 200;
