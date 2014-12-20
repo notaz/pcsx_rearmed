@@ -738,7 +738,7 @@ void do_samples(unsigned int cycles_to)
   // an IRQ.
 
   if (unlikely((spu.spuCtrl & CTRL_IRQ)
-      && spu.pSpuIrq && spu.pSpuIrq < spu.spuMemC+0x1000))
+       && spu.pSpuIrq < spu.spuMemC+0x1000))
    {
     int irq_pos = (spu.pSpuIrq - spu.spuMemC) / 2 & 0x1ff;
     int left = (irq_pos - spu.decode_pos) & 0x1ff;
@@ -1027,7 +1027,7 @@ long CALLBACK SPUinit(void)
  spu.spuAddr = 0xffffffff;
  spu.decode_pos = 0;
  memset((void *)s_chan, 0, sizeof(s_chan));
- spu.pSpuIrq = 0;
+ spu.pSpuIrq = spu.spuMemC;
 
  SetupStreams();                                       // prepare streaming
 
