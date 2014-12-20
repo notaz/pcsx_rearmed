@@ -39,7 +39,6 @@ static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
 
-static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int is_pal_mode;
 
@@ -216,16 +215,13 @@ static void snd_finish(void)
 
 static int snd_busy(void)
 {
-	if (samples_to_send > samples_sent)
-		return 0; /* give more samples */
-	else
-		return 1;
+	return 0;
 }
 
 static void snd_feed(void *buf, int bytes)
 {
-	audio_batch_cb(buf, bytes / 4);
-	samples_sent += bytes / 4;
+	if (audio_batch_cb != NULL)
+		audio_batch_cb(buf, bytes / 4);
 }
 
 void out_register_libretro(struct out_driver *drv)
@@ -1087,8 +1083,6 @@ void retro_run(void)
 
 	stop = 0;
 	psxCpu->Execute();
-
-	samples_to_send += is_pal_mode ? 44100 / 50 : 44100 / 60;
 
 	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
 		vout_width, vout_height, vout_width * 2);
