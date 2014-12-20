@@ -27,24 +27,14 @@
 #ifdef _IN_SPU
 
 ////////////////////////////////////////////////////////////////////////
-// globals
-////////////////////////////////////////////////////////////////////////
-
-// REVERB info and timing vars...
-
-int *          sRVBPlay      = 0;
-int *          sRVBEnd       = 0;
-int *          sRVBStart     = 0;
-
-////////////////////////////////////////////////////////////////////////
 // START REVERB
 ////////////////////////////////////////////////////////////////////////
 
 INLINE void StartREVERB(int ch)
 {
- if(s_chan[ch].bReverb && (spuCtrl&0x80))              // reverb possible?
+ if(s_chan[ch].bReverb && (spu.spuCtrl&0x80))          // reverb possible?
   {
-   s_chan[ch].bRVBActive=!!iUseReverb;
+   s_chan[ch].bRVBActive=!!spu_config.iUseReverb;
   }
  else s_chan[ch].bRVBActive=0;                         // else -> no reverb
 }
@@ -53,21 +43,9 @@ INLINE void StartREVERB(int ch)
 // HELPER FOR NEILL'S REVERB: re-inits our reverb mixing buf
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void InitREVERB(void)
+INLINE void InitREVERB(int ns_to)
 {
- memset(sRVBStart,0,NSSIZE*2*4);
-}
-
-////////////////////////////////////////////////////////////////////////
-// STORE REVERB
-////////////////////////////////////////////////////////////////////////
-
-INLINE void StoreREVERB(int ch,int ns,int l,int r)
-{
- ns<<=1;
-
- sRVBStart[ns]  +=l;                                   // -> we mix all active reverb channels into an extra buffer
- sRVBStart[ns+1]+=r;
+ memset(spu.sRVBStart,0,ns_to*sizeof(spu.sRVBStart[0])*2);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -81,36 +59,36 @@ INLINE int rvb2ram_offs(int curr, int space, int iOff)
 
 // get_buffer content helper: takes care about wraps
 #define g_buffer(var) \
- ((int)(signed short)spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)])
+ ((int)(signed short)spu.spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)])
 
 // saturate iVal and store it as var
 #define s_buffer(var, iVal) \
  ssat32_to_16(iVal); \
- spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var)] = iVal
 
 #define s_buffer1(var, iVal) \
  ssat32_to_16(iVal); \
- spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var + 1)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb.n##var + 1)] = iVal
 
 ////////////////////////////////////////////////////////////////////////
 
 // portions based on spu2-x from PCSX2
-static void MixREVERB(void)
+static void MixREVERB(int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
  int curr_addr = rvb.CurrAddr;
  int space = 0x40000 - rvb.StartAddr;
- int l, r, ns;
+ int l = 0, r = 0, ns;
 
- for (ns = 0; ns < NSSIZE*2; )
+ for (ns = 0; ns < ns_to * 2; )
   {
    int IIR_ALPHA = rvb.IIR_ALPHA;
    int ACC0, ACC1, FB_A0, FB_A1, FB_B0, FB_B1;
    int mix_dest_a0, mix_dest_a1, mix_dest_b0, mix_dest_b1;
 
-   int input_L = sRVBStart[ns]   * rvb.IN_COEF_L;
-   int input_R = sRVBStart[ns+1] * rvb.IN_COEF_R;
+   int input_L = spu.sRVBStart[ns]   * rvb.IN_COEF_L;
+   int input_R = spu.sRVBStart[ns+1] * rvb.IN_COEF_R;
 
    int IIR_INPUT_A0 = ((g_buffer(IIR_SRC_A0) * rvb.IIR_COEF) + input_L) >> 15;
    int IIR_INPUT_A1 = ((g_buffer(IIR_SRC_A1) * rvb.IIR_COEF) + input_R) >> 15;
@@ -180,15 +158,15 @@ static void MixREVERB(void)
  rvb.CurrAddr = curr_addr;
 }
 
-static void MixREVERB_off(void)
+static void MixREVERB_off(int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
  int curr_addr = rvb.CurrAddr;
  int space = 0x40000 - rvb.StartAddr;
- int l, r, ns;
+ int l = 0, r = 0, ns;
 
- for (ns = 0; ns < NSSIZE*2; )
+ for (ns = 0; ns < ns_to * 2; )
   {
    l = (g_buffer(MIX_DEST_A0) + g_buffer(MIX_DEST_B0)) / 2;
    r = (g_buffer(MIX_DEST_A1) + g_buffer(MIX_DEST_B1)) / 2;
@@ -258,7 +236,7 @@ static void prepare_offsets(void)
  rvb.dirty = 0;
 }
 
-INLINE void REVERBDo(void)
+INLINE void REVERBDo(int ns_to)
 {
  if (!rvb.StartAddr)                                   // reverb is off
  {
@@ -266,24 +244,24 @@ INLINE void REVERBDo(void)
   return;
  }
 
- if (spuCtrl & 0x80)                                   // -> reverb on? oki
+ if (spu.spuCtrl & 0x80)                               // -> reverb on? oki
  {
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB();
+  MixREVERB(ns_to);
  }
  else if (rvb.VolLeft || rvb.VolRight)
  {
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB_off();
+  MixREVERB_off(ns_to);
  }
  else                                                  // -> reverb off
  {
   // reverb runs anyway
-  rvb.CurrAddr += NSSIZE/2;
+  rvb.CurrAddr += ns_to / 2;
   while (rvb.CurrAddr >= 0x40000)
    rvb.CurrAddr -= 0x40000 - rvb.StartAddr;
  }

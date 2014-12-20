@@ -1,8 +1,5 @@
 # Makefile for PCSX ReARMed (libretro)
 
-DEBUG=1 
-MMAP_WIN32=0
-
 ifeq ($(platform),)
 	platform = unix
 	ifeq ($(shell uname -a),)
@@ -24,21 +21,19 @@ CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
 
+MMAP_WIN32=0
+
 # Unix
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
 	SHARED := -shared -Wl,--version-script=libretro/link.T
-	BUILTIN_GPU = neon
-	CFLAGS += -DNEON_PC
 
 # OS X
 else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
 	SHARED := -dynamiclib
-	BUILTIN_GPU = neon
-	CFLAGS += -DNEON_PC
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
 	ifeq ($(OSX_LT_MAVERICKS),"YES")
@@ -173,10 +168,7 @@ else
 	LD_FLAGS := -fPIC
 	SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
 	CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
-	BUILTIN_GPU = neon
-	CFLAGS += -DNEON_PC
 	MMAP_WIN32=1
-
 endif
 
 CFLAGS += -fPIC

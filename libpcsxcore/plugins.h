@@ -184,14 +184,15 @@ typedef long (CALLBACK* SPUinit)(void);
 typedef long (CALLBACK* SPUshutdown)(void);	
 typedef long (CALLBACK* SPUclose)(void);			
 typedef void (CALLBACK* SPUplaySample)(unsigned char);		
-typedef void (CALLBACK* SPUwriteRegister)(unsigned long, unsigned short);
+typedef void (CALLBACK* SPUwriteRegister)(unsigned long, unsigned short, unsigned int);
 typedef unsigned short (CALLBACK* SPUreadRegister)(unsigned long);
 typedef void (CALLBACK* SPUwriteDMA)(unsigned short);
 typedef unsigned short (CALLBACK* SPUreadDMA)(void);
-typedef void (CALLBACK* SPUwriteDMAMem)(unsigned short *, int);
-typedef void (CALLBACK* SPUreadDMAMem)(unsigned short *, int);
+typedef void (CALLBACK* SPUwriteDMAMem)(unsigned short *, int, unsigned int);
+typedef void (CALLBACK* SPUreadDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUplayADPCMchannel)(xa_decode_t *);
 typedef void (CALLBACK* SPUregisterCallback)(void (CALLBACK *callback)(void));
+typedef void (CALLBACK* SPUregisterScheduleCb)(void (CALLBACK *callback)(unsigned int cycles_after));
 typedef long (CALLBACK* SPUconfigure)(void);
 typedef long (CALLBACK* SPUtest)(void);
 typedef void (CALLBACK* SPUabout)(void);
@@ -204,8 +205,8 @@ typedef struct {
 	xa_decode_t xa;
 	unsigned char *SPUInfo;
 } SPUFreeze_t;
-typedef long (CALLBACK* SPUfreeze)(uint32_t, SPUFreeze_t *);
-typedef void (CALLBACK* SPUasync)(uint32_t);
+typedef long (CALLBACK* SPUfreeze)(uint32_t, SPUFreeze_t *, uint32_t);
+typedef void (CALLBACK* SPUasync)(uint32_t, uint32_t);
 typedef int  (CALLBACK* SPUplayCDDAchannel)(short *, int);
 
 // SPU function pointers
@@ -226,6 +227,7 @@ extern SPUreadDMAMem       SPU_readDMAMem;
 extern SPUplayADPCMchannel SPU_playADPCMchannel;
 extern SPUfreeze           SPU_freeze;
 extern SPUregisterCallback SPU_registerCallback;
+extern SPUregisterScheduleCb SPU_registerScheduleCb;
 extern SPUasync            SPU_async;
 extern SPUplayCDDAchannel  SPU_playCDDAchannel;
 

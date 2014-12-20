@@ -59,7 +59,7 @@ void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
 // CODE AREA
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val)
+void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val, unsigned int cycles)
 {
  unsigned long r=reg&0xfff;
  regArea[(r-0xc00)>>1] = val;
@@ -252,7 +252,7 @@ void CALLBACK SPUwriteDMA(unsigned short val)
 
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize)
+void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize,unsigned int cycles)
 {
  int i;
  for(i=0;i<iSize;i++)
@@ -265,7 +265,7 @@ void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize)
 
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize)
+void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize,unsigned int cycles)
 {
  int i;
  for(i=0;i<iSize;i++)
@@ -343,7 +343,7 @@ long CALLBACK SPUtest(void)
  return 0;
 }
 
-void SPUasync(unsigned int cycle)
+void SPUasync(unsigned int cycle, unsigned int flags)
 {
 }
 
@@ -413,7 +413,7 @@ typedef struct
 
 ////////////////////////////////////////////////////////////////////////
 
-long CALLBACK SPUfreeze(unsigned long ulFreezeMode,SPUFreeze_t * pF)
+long CALLBACK SPUfreeze(unsigned long ulFreezeMode,SPUFreeze_t * pF,unsigned int cycles)
 {
  int i;
 
@@ -445,10 +445,10 @@ long CALLBACK SPUfreeze(unsigned long ulFreezeMode,SPUFreeze_t * pF)
  for(i=0;i<0x100;i++)
   {
    if(i!=H_SPUon1-0xc00 && i!=H_SPUon2-0xc00)
-    SPUwriteRegister(0x1f801c00+i*2,regArea[i]);
+    SPUwriteRegister(0x1f801c00+i*2,regArea[i],cycles);
   }
- SPUwriteRegister(H_SPUon1,regArea[(H_SPUon1-0xc00)/2]);
- SPUwriteRegister(H_SPUon2,regArea[(H_SPUon2-0xc00)/2]);
+ SPUwriteRegister(H_SPUon1,regArea[(H_SPUon1-0xc00)/2],cycles);
+ SPUwriteRegister(H_SPUon2,regArea[(H_SPUon2-0xc00)/2],cycles);
 
  return 1;
 }

@@ -37,6 +37,7 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfinput/externals.h"
+#include "../plugins/dfsound/spu_config.h"
 #include "psemu_plugin_defs.h"
 #include "revision.h"
 
@@ -101,12 +102,6 @@ int soft_filter;
 #define DEFAULT_PSX_CLOCK 50
 #define DEFAULT_PSX_CLOCK_S "50"
 #endif
-
-// sound plugin
-extern int iUseReverb;
-extern int iUseInterpolation;
-extern int iXAPitch;
-extern int iVolume;
 
 static const char *bioses[24];
 static const char *gpu_plugins[16];
@@ -318,7 +313,7 @@ static void menu_sync_config(void)
 		allow_abs_only_old = in_evdev_allow_abs_only;
 	}
 
-	iVolume = 768 + 128 * volume_boost;
+	spu_config.iVolume = 768 + 128 * volume_boost;
 	pl_rearmed_cbs.frameskip = frameskip - 1;
 	pl_timing_prepare(Config.PsxType);
 }
@@ -431,9 +426,10 @@ static const struct {
 	CE_INTVAL_P(gpu_peopsgl.iVRamSize),
 	CE_INTVAL_P(gpu_peopsgl.iTexGarbageCollection),
 	CE_INTVAL_P(gpu_peopsgl.dwActFixes),
-	CE_INTVAL_V(iUseReverb, 3),
-	CE_INTVAL_V(iXAPitch, 3),
-	CE_INTVAL_V(iUseInterpolation, 3),
+	CE_INTVAL(spu_config.iUseReverb),
+	CE_INTVAL(spu_config.iXAPitch),
+	CE_INTVAL(spu_config.iUseInterpolation),
+	CE_INTVAL(spu_config.iTempo),
 	CE_INTVAL(config_save_counter),
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
@@ -1400,13 +1396,16 @@ static int menu_loop_plugin_gpu_peopsgl(int id, int keys)
 
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_volboost[]  = "Large values cause distortion";
+static const char h_spu_tempo[]     = "Slows down audio if emu is too slow\n"
+				      "This is inaccurate and breaks games";
 
 static menu_entry e_menu_plugin_spu[] =
 {
 	mee_range_h   ("Volume boost",              0, volume_boost, -5, 30, h_spu_volboost),
-	mee_onoff     ("Reverb",                    0, iUseReverb, 2),
-	mee_enum      ("Interpolation",             0, iUseInterpolation, men_spu_interp),
-	mee_onoff     ("Adjust XA pitch",           0, iXAPitch, 1),
+	mee_onoff     ("Reverb",                    0, spu_config.iUseReverb, 1),
+	mee_enum      ("Interpolation",             0, spu_config.iUseInterpolation, men_spu_interp),
+	mee_onoff     ("Adjust XA pitch",           0, spu_config.iXAPitch, 1),
+	mee_onoff_h   ("Adjust tempo",              0, spu_config.iTempo, 1, h_spu_tempo),
 	mee_end,
 };
 

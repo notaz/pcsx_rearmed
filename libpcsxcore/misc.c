@@ -601,11 +601,11 @@ int SaveState(const char *file) {
 
 	// spu
 	spufP = (SPUFreeze_t *) malloc(16);
-	SPU_freeze(2, spufP);
+	SPU_freeze(2, spufP, psxRegs.cycle);
 	Size = spufP->Size; SaveFuncs.write(f, &Size, 4);
 	free(spufP);
 	spufP = (SPUFreeze_t *) malloc(Size);
-	SPU_freeze(1, spufP);
+	SPU_freeze(1, spufP, psxRegs.cycle);
 	SaveFuncs.write(f, spufP, Size);
 	free(spufP);
 
@@ -670,7 +670,7 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, &Size, 4);
 	spufP = (SPUFreeze_t *)malloc(Size);
 	SaveFuncs.read(f, spufP, Size);
-	SPU_freeze(0, spufP);
+	SPU_freeze(0, spufP, psxRegs.cycle);
 	free(spufP);
 
 	sioFreeze(f, 0);

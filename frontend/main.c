@@ -25,6 +25,7 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
+#include "../plugins/dfsound/spu_config.h"
 #include "revision.h"
 
 #ifndef NO_FRONTEND
@@ -43,12 +44,6 @@ static void check_memcards(void);
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
 void StopDebugger();
-
-// sound plugin
-extern int iUseReverb;
-extern int iUseInterpolation;
-extern int iXAPitch;
-extern int iVolume;
 
 int ready_to_go, g_emu_want_quit, g_emu_resetting;
 unsigned long gpuDisp;
@@ -141,13 +136,15 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;
 
-	iUseReverb = 2;
-	iUseInterpolation = 1;
-	iXAPitch = 0;
-	iVolume = 768;
-#ifndef __ARM_ARCH_7A__ /* XXX */
-	iUseReverb = 0;
-	iUseInterpolation = 0;
+	spu_config.iUseReverb = 1;
+	spu_config.iUseInterpolation = 1;
+	spu_config.iXAPitch = 0;
+	spu_config.iVolume = 768;
+	spu_config.iTempo = 0;
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX */
+	spu_config.iUseReverb = 0;
+	spu_config.iUseInterpolation = 0;
+	spu_config.iTempo = 1;
 #endif
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
@@ -251,7 +248,11 @@ do_state_slot:
 		}
 	case SACTION_VOLUME_UP:
 	case SACTION_VOLUME_DOWN:
-		plat_target_step_volume(emu_action == SACTION_VOLUME_UP);
+		{
+			static int volume;
+			plat_target_step_volume(&volume,
+				emu_action == SACTION_VOLUME_UP ? 1 : -1);
+		}
 		return;
 	case SACTION_MINIMIZE:
 		if (GPU_close != NULL)
@@ -849,6 +850,7 @@ static int _OpenPlugins(void) {
 	ret = SPU_open();
 	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
 	SPU_registerCallback(SPUirq);
+	SPU_registerScheduleCb(SPUschedule);
 	// pcsx-rearmed: we handle gpu elsewhere
 	//ret = GPU_open(&gpuDisp, "PCSX", NULL);
 	//if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }

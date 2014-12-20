@@ -40,6 +40,8 @@ extern "C" {
 #define H_SPUoff2        0x0d8e
 
 void CALLBACK SPUirq(void);
+void CALLBACK SPUschedule(unsigned int cycles_after);
+void spuUpdate();
 
 #ifdef __cplusplus
 }

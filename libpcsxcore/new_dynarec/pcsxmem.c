@@ -210,7 +210,7 @@ make_dma_func(6)
 static void io_spu_write16(u32 value)
 {
 	// meh
-	SPU_writeRegister(address, value);
+	SPU_writeRegister(address, value, psxRegs.cycle);
 }
 
 static void io_spu_write32(u32 value)
@@ -218,8 +218,8 @@ static void io_spu_write32(u32 value)
 	SPUwriteRegister wfunc = SPU_writeRegister;
 	u32 a = address;
 
-	wfunc(a, value & 0xffff);
-	wfunc(a + 2, value >> 16);
+	wfunc(a, value & 0xffff, psxRegs.cycle);
+	wfunc(a + 2, value >> 16, psxRegs.cycle);
 }
 
 static u32 io_gpu_read_status(void)

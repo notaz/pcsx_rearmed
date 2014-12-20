@@ -206,20 +206,23 @@ static void do_cmd2(unsigned char value)
 	}
 }
 
-static void do_cmd3(unsigned char value)
+static void do_vibration(unsigned char value)
 {
+    int changed = 0;
     int i;
+
     switch (CurCmd) {
         case CMD_READ_DATA_AND_VIBRATE:
-            if (!in_enable_vibration)
-                break;
-            if (padstate[CurPad].pad.controllerType != PSE_PAD_TYPE_ANALOGPAD)
-                break;
-
             for (i = 0; i < 2; i++) {
-                if (padstate[CurPad].pad.Vib[i] == CurByte)
+                if (padstate[CurPad].pad.Vib[i] == CurByte
+                     && padstate[CurPad].pad.VibF[i] != value) {
                     padstate[CurPad].pad.VibF[i] = value;
+                    changed = 1;
+                }
             }
+
+            if (!in_enable_vibration || !changed)
+                break;
 
             plat_trigger_vibrate(CurPad,
                                  padstate[CurPad].pad.VibF[0],
@@ -252,7 +255,7 @@ unsigned char PADpoll(unsigned char value) {
 #endif
 
 unsigned char PADpoll_pad(unsigned char value) {
-    if (CurByte == 0) {
+	if (CurByte == 0) {
 		CurCmd = value;
 		CurByte++;
 
@@ -261,15 +264,16 @@ unsigned char PADpoll_pad(unsigned char value) {
 			CurCmd = CMD_READ_DATA_AND_VIBRATE;
 
 		return do_cmd();
-    }
+	}
 
-    if (CurByte >= CmdLen)
-        return 0xff;	// verified
+	if (CurByte >= CmdLen)
+		return 0xff;	// verified
 
-    if (CurByte == 2)
+	if (CurByte == 2)
 		do_cmd2(value);
 
-    do_cmd3(value);
+	if (padstate[CurPad].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD)
+		do_vibration(value);
 
 	return buf[CurByte++];
 }

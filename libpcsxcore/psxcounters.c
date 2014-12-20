@@ -61,7 +61,6 @@ static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
 static const u32 HSyncTotal[]     = { 263, 313 };
-static const u32 SpuUpdInterval[] = { 32, 32 };
 #define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
@@ -73,7 +72,6 @@ Rcnt rcnts[ CounterQuantity ];
 
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
-static u32 spuSyncCount = 0;
 static u32 hsync_steps = 0;
 static u32 base_cycle = 0;
 
@@ -323,22 +321,10 @@ void psxRcntUpdate()
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
         u32 leftover_cycles = cycle - rcnts[3].cycleStart - rcnts[3].cycle;
-        u32 next_vsync, next_lace;
+        u32 next_vsync;
 
-        spuSyncCount += hsync_steps;
         hSyncCount += hsync_steps;
 
-        // Update spu.
-        if( spuSyncCount >= SpuUpdInterval[Config.PsxType] )
-        {
-            spuSyncCount = 0;
-
-            if( SPU_async )
-            {
-                SPU_async( SpuUpdInterval[Config.PsxType] * rcnts[3].target );
-            }
-        }
-        
         // VSync irq.
         if( hSyncCount == VBlankStart )
         {
@@ -348,6 +334,11 @@ void psxRcntUpdate()
 
             EmuUpdate();
             GPU_updateLace();
+
+            if( SPU_async )
+            {
+                SPU_async( cycle, 1 );
+            }
         }
         
         // Update lace. (with InuYasha fix)
@@ -363,13 +354,10 @@ void psxRcntUpdate()
         }
 
         // Schedule next call, in hsyncs
-        hsync_steps = SpuUpdInterval[Config.PsxType] - spuSyncCount;
+        hsync_steps = HSyncTotal[Config.PsxType] - hSyncCount;
         next_vsync = VBlankStart - hSyncCount; // ok to overflow
-        next_lace = HSyncTotal[Config.PsxType] - hSyncCount;
         if( next_vsync && next_vsync < hsync_steps )
             hsync_steps = next_vsync;
-        if( next_lace && next_lace < hsync_steps )
-            hsync_steps = next_lace;
 
         rcnts[3].cycleStart = cycle - leftover_cycles;
         if (Config.PsxType)
@@ -493,7 +481,6 @@ void psxRcntInit()
     }
 
     hSyncCount = 0;
-    spuSyncCount = 0;
     hsync_steps = 1;
 
     psxRcntSet();
@@ -503,6 +490,7 @@ void psxRcntInit()
 
 s32 psxRcntFreeze( void *f, s32 Mode )
 {
+    u32 spuSyncCount = 0;
     u32 count;
     s32 i;
 

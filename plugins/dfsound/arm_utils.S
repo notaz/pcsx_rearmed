@@ -15,7 +15,6 @@
 .align 2
 ptr_ChanBuf:   .word ESYM(ChanBuf)
 ptr_SSumLR:    .word ESYM(SSumLR)
-ptr_sRVBStart: .word ESYM(sRVBStart)
 #endif
 
 .text
@@ -70,14 +69,13 @@ mc_finish:
     bx          lr
 
 
-FUNCTION(mix_chan_rvb): @ (int start, int count, int lv, int rv)
+FUNCTION(mix_chan_rvb): @ (int start, int count, int lv, int rv, int *rvb)
     vmov.32     d14[0], r2
     vmov.32     d14[1], r3             @ multipliers
     mov         r12, r0
     load_varadr r0, ChanBuf
-    load_varadr r3, sRVBStart
+    ldr         r3, [sp]               @ rvb
     load_varadr r2, SSumLR
-    ldr         r3, [r3]
     add         r0, r12, lsl #2
     add         r2, r12, lsl #3
     add         r3, r12, lsl #3
@@ -143,14 +141,13 @@ mc_finish:
     ldmfd       sp!, {r4-r8,pc}
 
 
-FUNCTION(mix_chan_rvb): @ (int start, int count, int lv, int rv)
+FUNCTION(mix_chan_rvb): @ (int start, int count, int lv, int rv, int *rvb)
     stmfd       sp!, {r4-r8,lr}
     orr         lr, r2, r3, lsl #16
     lsl         lr, #1
-    load_varadr r3, sRVBStart
+    ldr         r3, [sp]               @ rvb
     load_varadr r2, SSumLR
     load_varadr r4, ChanBuf
-    ldr         r3, [r3]
     add         r2, r2, r0, lsl #3
     add         r3, r3, r0, lsl #3
     add         r0, r4, r0, lsl #2

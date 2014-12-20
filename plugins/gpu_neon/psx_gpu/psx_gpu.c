@@ -4130,11 +4130,7 @@ void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
     num_width = width;
 
     vram_ptr = (void *)vram_ptr16;
-#ifdef NEON_PC
-    if((int32_t)vram_ptr16 & 2)
-#else
     if((long)vram_ptr16 & 2)
-#endif
     {
       *vram_ptr16 = color_32bpp;
       vram_ptr = (void *)(vram_ptr16 + 1);

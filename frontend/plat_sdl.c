@@ -53,6 +53,41 @@ static const struct in_default_bind in_sdl_defbinds[] = {
   { 0, 0, 0 }
 };
 
+const struct menu_keymap in_sdl_key_map[] =
+{
+  { SDLK_UP,     PBTN_UP },
+  { SDLK_DOWN,   PBTN_DOWN },
+  { SDLK_LEFT,   PBTN_LEFT },
+  { SDLK_RIGHT,  PBTN_RIGHT },
+  { SDLK_RETURN, PBTN_MOK },
+  { SDLK_ESCAPE, PBTN_MBACK },
+  { SDLK_SEMICOLON,    PBTN_MA2 },
+  { SDLK_QUOTE,        PBTN_MA3 },
+  { SDLK_LEFTBRACKET,  PBTN_L },
+  { SDLK_RIGHTBRACKET, PBTN_R },
+};
+
+const struct menu_keymap in_sdl_joy_map[] =
+{
+  { SDLK_UP,    PBTN_UP },
+  { SDLK_DOWN,  PBTN_DOWN },
+  { SDLK_LEFT,  PBTN_LEFT },
+  { SDLK_RIGHT, PBTN_RIGHT },
+  /* joystick */
+  { SDLK_WORLD_0, PBTN_MOK },
+  { SDLK_WORLD_1, PBTN_MBACK },
+  { SDLK_WORLD_2, PBTN_MA2 },
+  { SDLK_WORLD_3, PBTN_MA3 },
+};
+
+static const struct in_pdata in_sdl_platform_data = {
+  .defbinds  = in_sdl_defbinds,
+  .key_map   = in_sdl_key_map,
+  .kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
+  .joy_map   = in_sdl_joy_map,
+  .jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
+};
+
 static int psx_w, psx_h;
 static void *shadow_fb, *menubg_img;
 static int in_menu;
@@ -122,7 +157,7 @@ void plat_init(void)
     exit(1);
   }
 
-  in_sdl_init(in_sdl_defbinds, plat_sdl_event_handler);
+  in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
   in_probe();
   pl_rearmed_cbs.only_16bpp = 1;
   pl_rearmed_cbs.pl_get_layer_pos = get_layer_pos;
@@ -301,7 +336,7 @@ void *plat_prepare_screenshot(int *w, int *h, int *bpp)
   return 0;
 }
 
-void plat_trigger_vibrate(int is_strong)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
 }
 

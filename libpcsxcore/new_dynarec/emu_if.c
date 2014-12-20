@@ -60,6 +60,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_CDRDMA] = cdrDmaInterrupt,
 	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
 	[PSXINT_CDRPLAY] = cdrPlayInterrupt,
+	[PSXINT_SPU_UPDATE] = spuUpdate,
 	[PSXINT_RCNT] = psxRcntUpdate,
 };
 

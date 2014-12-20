@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include <stdio.h>
+#include <string.h>
 #define ALSA_PCM_NEW_HW_PARAMS_API
 #define ALSA_PCM_NEW_SW_PARAMS_API
 #include <alsa/asoundlib.h>
@@ -184,10 +185,17 @@ static int alsa_busy(void)
 // FEED SOUND DATA
 static void alsa_feed(void *pSound, int lBytes)
 {
+ char sbuf[4096];
+
  if (handle == NULL) return;
 
  if (snd_pcm_state(handle) == SND_PCM_STATE_XRUN)
-  snd_pcm_prepare(handle);
+  {
+   memset(sbuf, 0, sizeof(sbuf));
+   snd_pcm_prepare(handle);
+   snd_pcm_writei(handle, sbuf, sizeof(sbuf) / 4);
+   snd_pcm_writei(handle, sbuf, sizeof(sbuf) / 4);
+  }
  snd_pcm_writei(handle,pSound, lBytes / 4);
 }
 

@@ -19,6 +19,7 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
+#include "../plugins/dfsound/spu_config.h"
 #include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
@@ -40,7 +41,6 @@ static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
 
-static int samples_sent, samples_to_send;
 static int plugins_opened;
 static int is_pal_mode;
 
@@ -197,7 +197,7 @@ void pl_timing_prepare(int is_pal)
 	is_pal_mode = is_pal;
 }
 
-void plat_trigger_vibrate(int pad, uint32_t low, uint32_t high)
+void plat_trigger_vibrate(int pad, int low, int high)
 {
     rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
     rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
@@ -219,16 +219,13 @@ static void snd_finish(void)
 
 static int snd_busy(void)
 {
-	if (samples_to_send > samples_sent)
-		return 0; /* give more samples */
-	else
-		return 1;
+	return 0;
 }
 
 static void snd_feed(void *buf, int bytes)
 {
-	audio_batch_cb(buf, bytes / 4);
-	samples_sent += bytes / 4;
+	if (audio_batch_cb != NULL)
+		audio_batch_cb(buf, bytes / 4);
 }
 
 void out_register_libretro(struct out_driver *drv)
@@ -251,12 +248,14 @@ void retro_set_environment(retro_environment_t cb)
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
-#if defined(__ARM_NEON__) || defined(NEON_PC)
+#ifdef __ARM_NEON__
       { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
       { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
       { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
+      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
+      { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { NULL, NULL },
    };
 
@@ -991,7 +990,7 @@ static void update_variables(bool in_flight)
          in_type2 = PSE_PAD_TYPE_ANALOGPAD;
    }
 
-#if defined(__ARM_NEON__) || defined(NEON_PC)
+#ifdef __ARM_NEON__
    var.value = "NULL";
    var.key = "pcsx_rearmed_neon_interlace_enable";
 
@@ -1059,6 +1058,32 @@ static void update_variables(bool in_flight)
    }
 #endif
 
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_spu_reverb";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "off") == 0)
+         spu_config.iUseReverb = false;
+      else if (strcmp(var.value, "on") == 0)
+         spu_config.iUseReverb = true;
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_spu_interpolation";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "simple") == 0)
+         spu_config.iUseInterpolation = 1;
+      else if (strcmp(var.value, "gaussian") == 0)
+         spu_config.iUseInterpolation = 2;
+      else if (strcmp(var.value, "cubic") == 0)
+         spu_config.iUseInterpolation = 3;
+      else if (strcmp(var.value, "off") == 0)
+         spu_config.iUseInterpolation = 0;
+   }
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1101,8 +1126,6 @@ void retro_run(void)
 
 	stop = 0;
 	psxCpu->Execute();
-
-	samples_to_send += is_pal_mode ? 44100 / 50 : 44100 / 60;
 
 	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
 		vout_width, vout_height, vout_width * 2);
@@ -1174,7 +1197,7 @@ void retro_init(void)
 	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
 	const char *dir;
 	char path[256];
-	int i, ret, level;
+	int i, ret;
 	bool found_bios = false;
 
 	ret = emu_core_preinit();
@@ -1218,9 +1241,6 @@ void retro_init(void)
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
 	}
 
-	level = 1;
-	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
-
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 	environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble);
@@ -1228,7 +1248,7 @@ void retro_init(void)
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
 	 * are not emulated. Warning: changing this may break compatibility. */
-#ifdef __ARM_ARCH_7A__
+#if !defined(__arm__) || defined(__ARM_ARCH_7A__)
 	cycle_multiplier = 175;
 #else
 	cycle_multiplier = 200;
