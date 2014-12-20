@@ -19,6 +19,7 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../plugins/dfsound/out.h"
+#include "../plugins/dfsound/spu_config.h"
 #include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
@@ -249,6 +250,8 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
       { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
+      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
+      { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { NULL, NULL },
    };
 
@@ -1040,6 +1043,32 @@ static void update_variables(bool in_flight)
       }
    }
 #endif
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_spu_reverb";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "off") == 0)
+         spu_config.iUseReverb = false;
+      else if (strcmp(var.value, "on") == 0)
+         spu_config.iUseReverb = true;
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_spu_interpolation";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "simple") == 0)
+         spu_config.iUseInterpolation = 1;
+      else if (strcmp(var.value, "gaussian") == 0)
+         spu_config.iUseInterpolation = 2;
+      else if (strcmp(var.value, "cubic") == 0)
+         spu_config.iUseInterpolation = 3;
+      else if (strcmp(var.value, "off") == 0)
+         spu_config.iUseInterpolation = 0;
+   }
 
    if (in_flight) {
       // inform core things about possible config changes
