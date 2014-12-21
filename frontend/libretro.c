@@ -1253,6 +1253,7 @@ void retro_init(void)
 #else
 	cycle_multiplier = 200;
 #endif
+	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
 
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
