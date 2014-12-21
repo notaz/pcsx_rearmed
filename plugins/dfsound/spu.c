@@ -5,7 +5,7 @@
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
 
- Portions (C) Gražvydas "notaz" Ignotas, 2010-2012
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2012,2014
 
  ***************************************************************************/
 /***************************************************************************
@@ -253,14 +253,13 @@ INLINE void StartSound(int ch)
 
  s_chan[ch].SB[26]=0;                                  // init mixing vars
  s_chan[ch].SB[27]=0;
- s_chan[ch].iSBPos=28;
+ s_chan[ch].iSBPos=27;
 
+ s_chan[ch].SB[28]=0;
  s_chan[ch].SB[29]=0;                                  // init our interpolation helpers
  s_chan[ch].SB[30]=0;
-
- if(spu_config.iUseInterpolation>=2)                   // gauss interpolation?
-      {s_chan[ch].spos=0x30000L;s_chan[ch].SB[28]=0;}  // -> start with more decoding
- else {s_chan[ch].spos=0x10000L;s_chan[ch].SB[31]=0;}  // -> no/simple interpolation starts with one 44100 decoding
+ s_chan[ch].SB[31]=0;
+ s_chan[ch].spos=0;
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
 }
