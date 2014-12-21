@@ -5,7 +5,7 @@
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
 
- Portions (C) Gražvydas "notaz" Ignotas, 2010-2012
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2012,2014
 
  ***************************************************************************/
 /***************************************************************************
@@ -253,14 +253,13 @@ INLINE void StartSound(int ch)
 
  s_chan[ch].SB[26]=0;                                  // init mixing vars
  s_chan[ch].SB[27]=0;
- s_chan[ch].iSBPos=28;
+ s_chan[ch].iSBPos=27;
 
+ s_chan[ch].SB[28]=0;
  s_chan[ch].SB[29]=0;                                  // init our interpolation helpers
  s_chan[ch].SB[30]=0;
-
- if(spu_config.iUseInterpolation>=2)                   // gauss interpolation?
-      {s_chan[ch].spos=0x30000L;s_chan[ch].SB[28]=0;}  // -> start with more decoding
- else {s_chan[ch].spos=0x10000L;s_chan[ch].SB[31]=0;}  // -> no/simple interpolation starts with one 44100 decoding
+ s_chan[ch].SB[31]=0;
+ s_chan[ch].spos=0;
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
 }
@@ -738,7 +737,7 @@ void do_samples(unsigned int cycles_to)
   // an IRQ.
 
   if (unlikely((spu.spuCtrl & CTRL_IRQ)
-      && spu.pSpuIrq && spu.pSpuIrq < spu.spuMemC+0x1000))
+       && spu.pSpuIrq < spu.spuMemC+0x1000))
    {
     int irq_pos = (spu.pSpuIrq - spu.spuMemC) / 2 & 0x1ff;
     int left = (irq_pos - spu.decode_pos) & 0x1ff;
@@ -1027,7 +1026,7 @@ long CALLBACK SPUinit(void)
  spu.spuAddr = 0xffffffff;
  spu.decode_pos = 0;
  memset((void *)s_chan, 0, sizeof(s_chan));
- spu.pSpuIrq = 0;
+ spu.pSpuIrq = spu.spuMemC;
 
  SetupStreams();                                       // prepare streaming
 

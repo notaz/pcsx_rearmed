@@ -208,9 +208,9 @@ int LoadCdrom() {
 		// read the SYSTEM.CNF
 		READTRACK();
 
-		sscanf((char *)buf + 12, "BOOT = cdrom:\\%256s", exename);
+		sscanf((char *)buf + 12, "BOOT = cdrom:\\%255s", exename);
 		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf((char *)buf + 12, "BOOT = cdrom:%256s", exename);
+			sscanf((char *)buf + 12, "BOOT = cdrom:%255s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
 				char *ptr = strstr((char *)buf + 12, "cdrom:");
 				if (ptr != NULL) {
@@ -268,7 +268,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	u32 size, addr;
 	void *mem;
 
-	sscanf(filename, "cdrom:\\%256s", exename);
+	sscanf(filename, "cdrom:\\%255s", exename);
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
 
@@ -312,7 +312,7 @@ int CheckCdrom() {
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
-	int i, c;
+	int i, len, c;
 
 	FreePPFCache();
 
@@ -322,8 +322,9 @@ int CheckCdrom() {
 
 	READTRACK();
 
-	CdromLabel[0] = '\0';
-	CdromId[0] = '\0';
+	memset(CdromLabel, 0, sizeof(CdromLabel));
+	memset(CdromId, 0, sizeof(CdromId));
+	memset(exename, 0, sizeof(exename));
 
 	strncpy(CdromLabel, buf + 52, 32);
 
@@ -337,9 +338,9 @@ int CheckCdrom() {
 	if (GetCdromFile(mdir, time, "SYSTEM.CNF;1") != -1) {
 		READTRACK();
 
-		sscanf(buf + 12, "BOOT = cdrom:\\%256s", exename);
+		sscanf(buf + 12, "BOOT = cdrom:\\%255s", exename);
 		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf(buf + 12, "BOOT = cdrom:%256s", exename);
+			sscanf(buf + 12, "BOOT = cdrom:%255s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
 				char *ptr = strstr(buf + 12, "cdrom:");			// possibly the executable is in some subdir
 				if (ptr != NULL) {
@@ -363,14 +364,13 @@ int CheckCdrom() {
 		return -1;		// SYSTEM.CNF and PSX.EXE not found
 
 	if (CdromId[0] == '\0') {
-		i = strlen(exename);
-		if (i >= 2) {
-			if (exename[i - 2] == ';') i-= 2;
-			c = 8; i--;
-			while (i >= 0 && c >= 0) {
-				if (isalnum(exename[i])) CdromId[c--] = exename[i];
-				i--;
-			}
+		len = strlen(exename);
+		c = 0;
+		for (i = 0; i < len; ++i) {
+			if (exename[i] == ';' || c >= sizeof(CdromId) - 1)
+				break;
+			if (isalnum(exename[i]))
+				CdromId[c++] = exename[i];
 		}
 	}
 
@@ -388,6 +388,7 @@ int CheckCdrom() {
 	}
 	SysPrintf(_("CD-ROM Label: %.32s\n"), CdromLabel);
 	SysPrintf(_("CD-ROM ID: %.9s\n"), CdromId);
+	SysPrintf(_("CD-ROM EXE Name: %.255s\n"), exename);
 
 	BuildPPFCache();
 

@@ -552,9 +552,9 @@ static int parsecue(const char *isofile) {
 			pregapOffset = -1; // mark to fill track start_offset
 		}
 		else if (!strcmp(token, "FILE")) {
-			t = sscanf(linebuf, " FILE \"%256[^\"]\"", tmpb);
+			t = sscanf(linebuf, " FILE \"%255[^\"]\"", tmpb);
 			if (t != 1)
-				sscanf(linebuf, " FILE %256s", tmpb);
+				sscanf(linebuf, " FILE %255s", tmpb);
 
 			// absolute path?
 			ti[numtracks + 1].handle = fopen(tmpb, "rb");
@@ -795,6 +795,8 @@ static int handlepbp(const char *isofile) {
 	if (ext == NULL || (strcmp(ext, ".pbp") != 0 && strcmp(ext, ".PBP") != 0))
 		return -1;
 
+	fseek(cdHandle, 0, SEEK_SET);
+
 	numtracks = 0;
 
 	ret = fread(&pbp_hdr, 1, sizeof(pbp_hdr), cdHandle);
@@ -957,6 +959,8 @@ static int handlecbin(const char *isofile) {
 		ext = isofile + strlen(isofile) - 5;
 	if (ext == NULL || (strcasecmp(ext + 1, ".cbn") != 0 && strcasecmp(ext, ".cbin") != 0))
 		return -1;
+
+	fseek(cdHandle, 0, SEEK_SET);
 
 	ret = fread(&ciso_hdr, 1, sizeof(ciso_hdr), cdHandle);
 	if (ret != sizeof(ciso_hdr)) {

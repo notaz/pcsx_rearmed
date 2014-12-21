@@ -307,6 +307,9 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  ClearWorkingState();
  spu.cycles_played = cycles;
 
+ if (spu.spuCtrl & CTRL_IRQ)
+  schedule_next_irq();
+
  return 1;
 }
 
@@ -318,7 +321,7 @@ void LoadStateV5(SPUFreeze_t * pF)
 
  pFO=(SPUOSSFreeze_t *)(pF+1);
 
- if(pFO->pSpuIrq) spu.pSpuIrq = spu.spuMemC+((long)pFO->pSpuIrq&0x7fff0); else spu.pSpuIrq=NULL;
+ spu.pSpuIrq = spu.spuMemC + ((spu.regArea[(H_SPUirqAddr - 0x0c00) / 2] << 3) & ~0xf);
 
  if(pFO->spuAddr)
   {
@@ -353,7 +356,7 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
  spu.dwNewChannel=0;
  spu.dwChannelOn=0;
  spu.dwChannelDead=0;
- spu.pSpuIrq=0;
+ spu.pSpuIrq=spu.spuMemC;
 
  for(i=0;i<0xc0;i++)
   {
