@@ -573,7 +573,7 @@ int SaveState(const char *file) {
 	f = SaveFuncs.open(file, "wb");
 	if (f == NULL) return -1;
 
-	new_dyna_save();
+	new_dyna_before_save();
 
 	SaveFuncs.write(f, (void *)PcsxHeader, 32);
 	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
@@ -615,6 +615,7 @@ int SaveState(const char *file) {
 	psxHwFreeze(f, 1);
 	psxRcntFreeze(f, 1);
 	mdecFreeze(f, 1);
+	new_dyna_freeze(f, 1);
 
 	SaveFuncs.close(f);
 
@@ -679,9 +680,9 @@ int LoadState(const char *file) {
 	psxHwFreeze(f, 0);
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
+	new_dyna_freeze(f, 0);
 
 	SaveFuncs.close(f);
-	new_dyna_restore();
 
 	return 0;
 }

@@ -85,7 +85,6 @@ struct ll_entry
 
   u_int start;
   u_int *source;
-  u_int pagelimit;
   char insn[MAXBLOCK][10];
   u_char itype[MAXBLOCK];
   u_char opcode[MAXBLOCK];
@@ -8059,17 +8058,132 @@ void new_dynarec_cleanup()
   #endif
 }
 
+static u_int *get_source_start(u_int addr, u_int *limit)
+{
+  if (addr < 0x00200000 ||
+    (0xa0000000 <= addr && addr < 0xa0200000)) {
+    // used for BIOS calls mostly?
+    *limit = (addr&0xa0000000)|0x00200000;
+    return (u_int *)((u_int)rdram + (addr&0x1fffff));
+  }
+  else if (!Config.HLE && (
+    /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
+    (0xbfc00000 <= addr && addr < 0xbfc80000))) {
+    // BIOS
+    *limit = (addr & 0xfff00000) | 0x80000;
+    return (u_int *)((u_int)psxR + (addr&0x7ffff));
+  }
+  else if (addr >= 0x80000000 && addr < 0x80000000+RAM_SIZE) {
+    *limit = (addr & 0x80600000) + 0x00200000;
+    return (u_int *)((u_int)rdram + (addr&0x1fffff));
+  }
+}
+
+static u_int scan_for_ret(u_int addr)
+{
+  u_int limit = 0;
+  u_int *mem;
+
+  mem = get_source_start(addr, &limit);
+  if (mem == NULL)
+    return addr;
+
+  if (limit > addr + 0x1000)
+    limit = addr + 0x1000;
+  for (; addr < limit; addr += 4, mem++) {
+    if (*mem == 0x03e00008) // jr $ra
+      return addr + 8;
+  }
+}
+
+struct savestate_block {
+  uint32_t addr;
+  uint32_t regflags;
+};
+
+static int addr_cmp(const void *p1_, const void *p2_)
+{
+  const struct savestate_block *p1 = p1_, *p2 = p2_;
+  return p1->addr - p2->addr;
+}
+
+int new_dynarec_save_blocks(void *save, int size)
+{
+  struct savestate_block *blocks = save;
+  int maxcount = size / sizeof(blocks[0]);
+  struct savestate_block tmp_blocks[1024];
+  struct ll_entry *head;
+  int p, s, d, o, bcnt;
+  u_int addr;
+
+  o = 0;
+  for (p = 0; p < sizeof(jump_in) / sizeof(jump_in[0]); p++) {
+    bcnt = 0;
+    for (head = jump_in[p]; head != NULL; head = head->next) {
+      tmp_blocks[bcnt].addr = head->vaddr;
+      tmp_blocks[bcnt].regflags = head->reg_sv_flags;
+      bcnt++;
+    }
+    if (bcnt < 1)
+      continue;
+    qsort(tmp_blocks, bcnt, sizeof(tmp_blocks[0]), addr_cmp);
+
+    addr = tmp_blocks[0].addr;
+    for (s = d = 0; s < bcnt; s++) {
+      if (tmp_blocks[s].addr < addr)
+        continue;
+      if (d == 0 || tmp_blocks[d-1].addr != tmp_blocks[s].addr)
+        tmp_blocks[d++] = tmp_blocks[s];
+      addr = scan_for_ret(tmp_blocks[s].addr);
+    }
+
+    if (o + d > maxcount)
+      d = maxcount - o;
+    memcpy(&blocks[o], tmp_blocks, d * sizeof(blocks[0]));
+    o += d;
+  }
+
+  return o * sizeof(blocks[0]);
+}
+
+void new_dynarec_load_blocks(const void *save, int size)
+{
+  const struct savestate_block *blocks = save;
+  int count = size / sizeof(blocks[0]);
+  u_int regs_save[32];
+  uint32_t f;
+  int i, b;
+
+  get_addr(psxRegs.pc);
+
+  // change GPRs for speculation to at least partially work..
+  memcpy(regs_save, &psxRegs.GPR, sizeof(regs_save));
+  for (i = 1; i < 32; i++)
+    psxRegs.GPR.r[i] = 0x80000000;
+
+  for (b = 0; b < count; b++) {
+    for (f = blocks[b].regflags, i = 0; f; f >>= 1, i++) {
+      if (f & 1)
+        psxRegs.GPR.r[i] = 0x1f800000;
+    }
+
+    get_addr(blocks[b].addr);
+
+    for (f = blocks[b].regflags, i = 0; f; f >>= 1, i++) {
+      if (f & 1)
+        psxRegs.GPR.r[i] = 0x80000000;
+    }
+  }
+
+  memcpy(&psxRegs.GPR, regs_save, sizeof(regs_save));
+}
+
 int new_recompile_block(int addr)
 {
-/*
-  if(addr==0x800cd050) {
-    int block;
-    for(block=0x80000;block<0x80800;block++) invalidate_block(block);
-    int n;
-    for(n=0;n<=2048;n++) ll_clear(jump_dirty+n);
-  }
-*/
-  //if(Count==365117028) tracedebug=1;
+  u_int pagelimit = 0;
+  u_int state_rflags = 0;
+  int i;
+
   assem_debug("NOTCOMPILED: addr = %x -> %x\n", (int)addr, (int)out);
   //printf("NOTCOMPILED: addr = %x -> %x\n", (int)addr, (int)out);
   //printf("TRACE: count=%d next=%d (compile %x)\n",Count,next_interupt,addr);
@@ -8080,10 +8194,16 @@ int new_recompile_block(int addr)
     rlist();
   }*/
   //rlist();
+
+  // this is just for speculation
+  for (i = 1; i < 32; i++) {
+    if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
+      state_rflags |= 1 << i;
+  }
+
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
   new_dynarec_did_compile=1;
-#ifdef PCSX
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
@@ -8097,62 +8217,13 @@ int new_recompile_block(int addr)
 #ifdef __arm__
     __clear_cache((void *)beginning,out);
 #endif
-    ll_add(jump_in+page,start,(void *)beginning);
+    ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
     return 0;
   }
-  else if ((u_int)addr < 0x00200000 ||
-    (0xa0000000 <= addr && addr < 0xa0200000)) {
-    // used for BIOS calls mostly?
-    source = (u_int *)((u_int)rdram+(start&0x1fffff));
-    pagelimit = (addr&0xa0000000)|0x00200000;
-  }
-  else if (!Config.HLE && (
-/*    (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
-    (0xbfc00000 <= addr && addr < 0xbfc80000))) {
-    // BIOS
-    source = (u_int *)((u_int)psxR+(start&0x7ffff));
-    pagelimit = (addr&0xfff00000)|0x80000;
-  }
-  else
-#endif
-#ifdef MUPEN64
-  if ((int)addr >= 0xa4000000 && (int)addr < 0xa4001000) {
-    source = (u_int *)((u_int)SP_DMEM+start-0xa4000000);
-    pagelimit = 0xa4001000;
-  }
-  else
-#endif
-  if ((int)addr >= 0x80000000 && (int)addr < 0x80000000+RAM_SIZE) {
-    source = (u_int *)((u_int)rdram+start-0x80000000);
-    pagelimit = 0x80000000+RAM_SIZE;
-  }
-#ifndef DISABLE_TLB
-  else if ((signed int)addr >= (signed int)0xC0000000) {
-    //printf("addr=%x mm=%x\n",(u_int)addr,(memory_map[start>>12]<<2));
-    //if(tlb_LUT_r[start>>12])
-      //source = (u_int *)(((int)rdram)+(tlb_LUT_r[start>>12]&0xFFFFF000)+(((int)addr)&0xFFF)-0x80000000);
-    if((signed int)memory_map[start>>12]>=0) {
-      source = (u_int *)((u_int)(start+(memory_map[start>>12]<<2)));
-      pagelimit=(start+4096)&0xFFFFF000;
-      int map=memory_map[start>>12];
-      int i;
-      for(i=0;i<5;i++) {
-        //printf("start: %x next: %x\n",map,memory_map[pagelimit>>12]);
-        if((map&0xBFFFFFFF)==(memory_map[pagelimit>>12]&0xBFFFFFFF)) pagelimit+=4096;
-      }
-      assem_debug("pagelimit=%x\n",pagelimit);
-      assem_debug("mapping=%x (%x)\n",memory_map[start>>12],(memory_map[start>>12]<<2)+start);
-    }
-    else {
-      assem_debug("Compile at unmapped memory address: %x \n", (int)addr);
-      //assem_debug("start: %x next: %x\n",memory_map[start>>12],memory_map[(start+4096)>>12]);
-      return -1; // Caller will invoke exception handler
-    }
-    //printf("source= %x\n",(int)source);
-  }
-#endif
-  else {
-    SysPrintf("Compile at bogus memory address: %x \n", (int)addr);
+
+  source = get_source_start(start, &pagelimit);
+  if (source == NULL) {
+    SysPrintf("Compile at bogus memory address: %08x\n", addr);
     exit(1);
   }
 
@@ -8167,7 +8238,7 @@ int new_recompile_block(int addr)
   /* Pass 9: linker */
   /* Pass 10: garbage collection / free memory */
 
-  int i,j;
+  int j;
   int done=0;
   unsigned int type,op,op2;
 
@@ -11482,7 +11553,7 @@ int new_recompile_block(int addr)
           assem_debug("jump_in: %x\n",start+i*4);
           ll_add(jump_dirty+vpage,vaddr,(void *)out);
           int entry_point=do_dirty_stub(i);
-          ll_add(jump_in+page,vaddr,(void *)entry_point);
+          ll_add_flags(jump_in+page,vaddr,state_rflags,(void *)entry_point);
           // If there was an existing entry in the hash table,
           // replace it with the new address.
           // Don't add new entries.  We'll insert the

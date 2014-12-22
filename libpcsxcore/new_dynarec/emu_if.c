@@ -122,7 +122,7 @@ void pcsx_mtc0_ds(u32 reg, u32 val)
 	MTC0(reg, val);
 }
 
-void new_dyna_save(void)
+void new_dyna_before_save(void)
 {
 	psxRegs.interrupt &= ~(1 << PSXINT_RCNT); // old savestate compat
 
@@ -134,7 +134,7 @@ void new_dyna_after_save(void)
 	psxRegs.interrupt |= 1 << PSXINT_RCNT;
 }
 
-void new_dyna_restore(void)
+static void new_dyna_restore(void)
 {
 	int i;
 	for (i = 0; i < PSXINT_COUNT; i++)
@@ -145,6 +145,50 @@ void new_dyna_restore(void)
 	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
 
 	new_dyna_pcsx_mem_load_state();
+}
+
+void new_dyna_freeze(void *f, int mode)
+{
+	const char header_save[8] = "ariblks";
+	uint32_t addrs[1024 * 4];
+	int32_t size = 0;
+	int bytes;
+	char header[8];
+
+	if (mode != 0) { // save
+		size = new_dynarec_save_blocks(addrs, sizeof(addrs));
+		if (size == 0)
+			return;
+
+		SaveFuncs.write(f, header_save, sizeof(header_save));
+		SaveFuncs.write(f, &size, sizeof(size));
+		SaveFuncs.write(f, addrs, size);
+	}
+	else {
+		new_dyna_restore();
+
+		bytes = SaveFuncs.read(f, header, sizeof(header));
+		if (bytes != sizeof(header) || strcmp(header, header_save)) {
+			if (bytes > 0)
+				SaveFuncs.seek(f, -bytes, SEEK_CUR);
+			return;
+		}
+		SaveFuncs.read(f, &size, sizeof(size));
+		if (size <= 0)
+			return;
+		if (size > sizeof(addrs)) {
+			bytes = size - sizeof(addrs);
+			SaveFuncs.seek(f, bytes, SEEK_CUR);
+			size = sizeof(addrs);
+		}
+		bytes = SaveFuncs.read(f, addrs, size);
+		if (bytes != size)
+			return;
+
+		new_dynarec_load_blocks(addrs, size);
+	}
+
+	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");
 }
 
 /* GTE stuff */
@@ -407,6 +451,8 @@ void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
 void new_dyna_pcsx_mem_load_state(void) {}
 void new_dyna_pcsx_mem_shutdown(void) {}
+int  new_dynarec_save_blocks(void *save, int size) { return 0; }
+void new_dynarec_load_blocks(const void *save, int size) {}
 #endif
 
 #ifdef DRC_DBG
