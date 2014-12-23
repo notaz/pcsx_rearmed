@@ -184,13 +184,9 @@ ptr_hash_table:
 1:
 	movs	r4, r5
 	beq	2f
-	ldr	r3, [r5]
-	ldr	r5, [r4, #12]
+	ldr	r3, [r5]	 /* ll_entry .vaddr */
+	ldrd	r4, r5, [r4, #8] /* ll_entry .next, .addr */
 	teq	r3, r0
-	bne	1b
-	ldr	r3, [r4, #4]
-	ldr	r4, [r4, #8]
-	tst	r3, r3
 	bne	1b
 	teq	r4, r6
 	moveq	pc, r4 /* Stale i-cache */

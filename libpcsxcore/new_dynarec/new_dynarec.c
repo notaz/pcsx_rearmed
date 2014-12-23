@@ -74,10 +74,11 @@ struct regstat
   u_int waswritten;              // MIPS regs that were used as store base before
 };
 
+// note: asm depends on this layout
 struct ll_entry
 {
   u_int vaddr;
-  u_int reg32;
+  u_int reg_sv_flags;
   void *addr;
   struct ll_entry *next;
 };
@@ -140,7 +141,7 @@ struct ll_entry
   int is_delayslot;
   int cop1_usable;
   u_char *out;
-  struct ll_entry *jump_in[4096];
+  struct ll_entry *jump_in[4096] __attribute__((aligned(16)));
   struct ll_entry *jump_out[4096];
   struct ll_entry *jump_dirty[4096];
   u_int hash_table[65536][4]  __attribute__((aligned(16)));
@@ -395,7 +396,7 @@ void *get_addr(u_int vaddr)
   //printf("TRACE: count=%d next=%d (get_addr %x,page %d)\n",Count,next_interupt,vaddr,page);
   head=jump_in[page];
   while(head!=NULL) {
-    if(head->vaddr==vaddr&&head->reg32==0) {
+    if(head->vaddr==vaddr) {
   //printf("TRACE: count=%d next=%d (get_addr match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
       int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
       ht_bin[3]=ht_bin[1];
@@ -408,7 +409,7 @@ void *get_addr(u_int vaddr)
   }
   head=jump_dirty[vpage];
   while(head!=NULL) {
-    if(head->vaddr==vaddr&&head->reg32==0) {
+    if(head->vaddr==vaddr) {
       //printf("TRACE: count=%d next=%d (get_addr match dirty %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
       // Don't restore blocks which are about to expire from the cache
       if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
@@ -465,94 +466,6 @@ void *get_addr_ht(u_int vaddr)
   if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
   if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
   return get_addr(vaddr);
-}
-
-void *get_addr_32(u_int vaddr,u_int flags)
-{
-#ifdef FORCE32
-  return get_addr(vaddr);
-#else
-  //printf("TRACE: count=%d next=%d (get_addr_32 %x,flags %x)\n",Count,next_interupt,vaddr,flags);
-  int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
-  if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
-  if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
-  u_int page=get_page(vaddr);
-  u_int vpage=get_vpage(vaddr);
-  struct ll_entry *head;
-  head=jump_in[page];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr&&(head->reg32&flags)==0) {
-      //printf("TRACE: count=%d next=%d (get_addr_32 match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
-      if(head->reg32==0) {
-        int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
-        if(ht_bin[0]==-1) {
-          ht_bin[1]=(int)head->addr;
-          ht_bin[0]=vaddr;
-        }else if(ht_bin[2]==-1) {
-          ht_bin[3]=(int)head->addr;
-          ht_bin[2]=vaddr;
-        }
-        //ht_bin[3]=ht_bin[1];
-        //ht_bin[2]=ht_bin[0];
-        //ht_bin[1]=(int)head->addr;
-        //ht_bin[0]=vaddr;
-      }
-      return head->addr;
-    }
-    head=head->next;
-  }
-  head=jump_dirty[vpage];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr&&(head->reg32&flags)==0) {
-      //printf("TRACE: count=%d next=%d (get_addr_32 match dirty %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
-      // Don't restore blocks which are about to expire from the cache
-      if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
-      if(verify_dirty(head->addr)) {
-        //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
-        invalid_code[vaddr>>12]=0;
-        inv_code_start=inv_code_end=~0;
-        memory_map[vaddr>>12]|=0x40000000;
-        if(vpage<2048) {
-#ifndef DISABLE_TLB
-          if(tlb_LUT_r[vaddr>>12]) {
-            invalid_code[tlb_LUT_r[vaddr>>12]>>12]=0;
-            memory_map[tlb_LUT_r[vaddr>>12]>>12]|=0x40000000;
-          }
-#endif
-          restore_candidate[vpage>>3]|=1<<(vpage&7);
-        }
-        else restore_candidate[page>>3]|=1<<(page&7);
-        if(head->reg32==0) {
-          int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
-          if(ht_bin[0]==-1) {
-            ht_bin[1]=(int)head->addr;
-            ht_bin[0]=vaddr;
-          }else if(ht_bin[2]==-1) {
-            ht_bin[3]=(int)head->addr;
-            ht_bin[2]=vaddr;
-          }
-          //ht_bin[3]=ht_bin[1];
-          //ht_bin[2]=ht_bin[0];
-          //ht_bin[1]=(int)head->addr;
-          //ht_bin[0]=vaddr;
-        }
-        return head->addr;
-      }
-    }
-    head=head->next;
-  }
-  //printf("TRACE: count=%d next=%d (get_addr_32 no-match %x,flags %x)\n",Count,next_interupt,vaddr,flags);
-  int r=new_recompile_block(vaddr);
-  if(r==0) return get_addr(vaddr);
-  // Execute in unmapped page, generate pagefault execption
-  Status|=2;
-  Cause=(vaddr<<31)|0x8;
-  EPC=(vaddr&1)?vaddr-5:vaddr;
-  BadVAddr=(vaddr&~1);
-  Context=(Context&0xFF80000F)|((BadVAddr>>9)&0x007FFFF0);
-  EntryHi=BadVAddr&0xFFFFE000;
-  return get_addr_ht(0x80000000);
-#endif
 }
 
 void clear_all_regs(signed char regmap[])
@@ -1020,19 +933,16 @@ void ll_add(struct ll_entry **head,int vaddr,void *addr)
   new_entry=malloc(sizeof(struct ll_entry));
   assert(new_entry!=NULL);
   new_entry->vaddr=vaddr;
-  new_entry->reg32=0;
+  new_entry->reg_sv_flags=0;
   new_entry->addr=addr;
   new_entry->next=*head;
   *head=new_entry;
 }
 
-// Add virtual address mapping for 32-bit compiled block
-void ll_add_32(struct ll_entry **head,int vaddr,u_int reg32,void *addr)
+void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr)
 {
   ll_add(head,vaddr,addr);
-#ifndef FORCE32
-  (*head)->reg32=reg32;
-#endif
+  (*head)->reg_sv_flags=reg_sv_flags;
 }
 
 // Check if an address is already compiled
@@ -1052,7 +962,7 @@ void *check_addr(u_int vaddr)
   struct ll_entry *head;
   head=jump_in[page];
   while(head!=NULL) {
-    if(head->vaddr==vaddr&&head->reg32==0) {
+    if(head->vaddr==vaddr) {
       if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
         // Update existing entry with current address
         if(ht_bin[0]==vaddr) {
@@ -1401,15 +1311,13 @@ void clean_blocks(u_int page)
               inv_debug("INV: Restored %x (%x/%x)\n",head->vaddr, (int)head->addr, (int)clean_addr);
               //printf("page=%x, addr=%x\n",page,head->vaddr);
               //assert(head->vaddr>>12==(page|0x80000));
-              ll_add_32(jump_in+ppage,head->vaddr,head->reg32,clean_addr);
+              ll_add_flags(jump_in+ppage,head->vaddr,head->reg_sv_flags,clean_addr);
               int *ht_bin=hash_table[((head->vaddr>>16)^head->vaddr)&0xFFFF];
-              if(!head->reg32) {
-                if(ht_bin[0]==head->vaddr) {
-                  ht_bin[1]=(int)clean_addr; // Replace existing entry
-                }
-                if(ht_bin[2]==head->vaddr) {
-                  ht_bin[3]=(int)clean_addr; // Replace existing entry
-                }
+              if(ht_bin[0]==head->vaddr) {
+                ht_bin[1]=(int)clean_addr; // Replace existing entry
+              }
+              if(ht_bin[2]==head->vaddr) {
+                ht_bin[3]=(int)clean_addr; // Replace existing entry
               }
             }
           }
@@ -11569,12 +11477,6 @@ int new_recompile_block(int addr)
         u_int page=get_page(vaddr);
         u_int vpage=get_vpage(vaddr);
         literal_pool(256);
-        //if(!(is32[i]&(~unneeded_reg_upper[i])&~(1LL<<CCREG)))
-#ifndef FORCE32
-        if(!requires_32bit[i])
-#else
-        if(1)
-#endif
         {
           assem_debug("%8x (%d) <- %8x\n",instr_addr[i],i,start+i*4);
           assem_debug("jump_in: %x\n",start+i*4);
@@ -11592,23 +11494,6 @@ int new_recompile_block(int addr)
           if(ht_bin[2]==vaddr) {
             ht_bin[3]=entry_point;
           }
-        }
-        else
-        {
-          u_int r=requires_32bit[i]|!!(requires_32bit[i]>>32);
-          assem_debug("%8x (%d) <- %8x\n",instr_addr[i],i,start+i*4);
-          assem_debug("jump_in: %x (restricted - %x)\n",start+i*4,r);
-          //int entry_point=(int)out;
-          ////assem_debug("entry_point: %x\n",entry_point);
-          //load_regs_entry(i);
-          //if(entry_point==(int)out)
-          //  entry_point=instr_addr[i];
-          //else
-          //  emit_jmp(instr_addr[i]);
-          //ll_add_32(jump_in+page,vaddr,r,(void *)entry_point);
-          ll_add_32(jump_dirty+vpage,vaddr,r,(void *)out);
-          int entry_point=do_dirty_stub(i);
-          ll_add_32(jump_in+page,vaddr,r,(void *)entry_point);
         }
       }
     }
