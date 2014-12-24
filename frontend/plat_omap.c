@@ -99,7 +99,7 @@ void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
 	int l = 0, r = 0, t = 0, b = 0;
 	void *buf;
 
-	if (g_scaler == SCALE_1_1) {
+	if (g_scaler == SCALE_1_1 || g_scaler == SCALE_2_2) {
 		if (*w > g_menuscreen_w)
 			l = r = (*w - g_menuscreen_w) / 2;
 		if (*h > g_menuscreen_h)

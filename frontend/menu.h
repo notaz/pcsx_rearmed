@@ -15,6 +15,7 @@ enum g_opts_opts {
 
 enum g_scaler_opts {
 	SCALE_1_1,
+	SCALE_2_2,
 	SCALE_4_3,
 	SCALE_4_3v2,
 	SCALE_FULLSCREEN,

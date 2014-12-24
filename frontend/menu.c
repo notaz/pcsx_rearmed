@@ -391,7 +391,7 @@ static const struct {
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
-	CE_INTVAL_V(g_scaler, 2),
+	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
@@ -1194,13 +1194,17 @@ static int menu_loop_keyconfig(int id, int keys)
 
 // ------------ gfx options menu ------------
 
-static const char *men_scaler[] = { "1x1", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL };
+static const char *men_scaler[] = {
+	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL
+};
 static const char *men_soft_filter[] = { "None",
 #ifdef __ARM_NEON__
 	"scale2x", "eagle2x",
 #endif
 	NULL };
 static const char *men_dummy[] = { NULL };
+static const char h_scaler[]    = "int. 2x  - scales w. or h. 2x if it fits on screen\n"
+				  "int. 4:3 - uses integer if possible, else fractional";
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
 static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
@@ -1261,7 +1265,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler),
+	mee_enum_h    ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler, h_scaler),
 	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),

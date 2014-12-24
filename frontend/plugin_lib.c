@@ -180,6 +180,14 @@ static void update_layer_size(int w, int h)
 		g_layer_w = w; g_layer_h = h;
 		break;
 
+	case SCALE_2_2:
+		g_layer_w = w; g_layer_h = h;
+		if (w * 2 <= g_menuscreen_w)
+			g_layer_w = w * 2;
+		if (h * 2 <= g_menuscreen_h)
+			g_layer_h = h * 2;
+		break;
+
 	case SCALE_4_3v2:
 		if (h > g_menuscreen_h || (240 < h && h <= 360))
 			goto fractional_4_3;
