@@ -209,6 +209,9 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 	struct stat64 statf;
 	FILE *f;
 
+	if (count <= 1)
+		return count;
+
 	for (i = 1; i < count; i++) {
 		if (namelist[i] == NULL || namelist[i]->d_type == DT_DIR)
 			continue;
