@@ -9885,6 +9885,10 @@ int new_recompile_block(int addr)
     {
       cc+=2; // 2 cycle penalty (after CLOCK_DIVIDER)
     }
+    else if(i>1&&itype[i]==STORE&&itype[i-1]==STORE&&itype[i-2]==STORE&&!bt[i])
+    {
+      cc+=4;
+    }
     else if(itype[i]==C2LS)
     {
       cc+=4;
