@@ -83,6 +83,8 @@ typedef enum
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
 	MA_OPT_VOUT_MODE,
+	MA_OPT_SCANLINES,
+	MA_OPT_SCANLINE_LEVEL,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -90,8 +92,9 @@ static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
 static char last_selected_fname[MAXPATHLEN];
 static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
-static int memcard1_sel, memcard2_sel;
+static int memcard1_sel = -1, memcard2_sel = -1;
 int g_opts, g_scaler, g_gamma = 100;
+int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
 
@@ -333,6 +336,8 @@ static void menu_set_defconfig(void)
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
+	scanlines = 0;
+	scanline_level = 20;
 	plat_target.vout_fullscreen = 0;
 	psx_clock = DEFAULT_PSX_CLOCK;
 
@@ -398,6 +403,8 @@ static const struct {
 	CE_INTVAL(g_layer_w),
 	CE_INTVAL(g_layer_h),
 	CE_INTVAL(soft_filter),
+	CE_INTVAL(scanlines),
+	CE_INTVAL(scanline_level),
 	CE_INTVAL(plat_target.vout_method),
 	CE_INTVAL(plat_target.hwfilter),
 	CE_INTVAL(plat_target.vout_fullscreen),
@@ -407,6 +414,8 @@ static const struct {
 	CE_INTVAL(in_type_sel1),
 	CE_INTVAL(in_type_sel2),
 	CE_INTVAL(analog_deadzone),
+	CE_INTVAL(memcard1_sel),
+	CE_INTVAL(memcard2_sel),
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 3),
@@ -663,6 +672,29 @@ fail:
 	for (i = spu_plugsel = 0; spu_plugins[i] != NULL; i++)
 		if (strcmp(Config.Spu, spu_plugins[i]) == 0)
 			{ spu_plugsel = i; break; }
+
+	// memcard selections
+	char mcd1_old[sizeof(Config.Mcd1)];
+	char mcd2_old[sizeof(Config.Mcd2)];
+	strcpy(mcd1_old, Config.Mcd1);
+	strcpy(mcd2_old, Config.Mcd2);
+
+	if ((unsigned int)memcard1_sel < ARRAY_SIZE(memcards)) {
+		if (memcard1_sel == 0)
+			strcpy(Config.Mcd1, "none");
+		else if (memcards[memcard1_sel] != NULL)
+			snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s",
+				MEMCARD_DIR, memcards[memcard1_sel]);
+	}
+	if ((unsigned int)memcard2_sel < ARRAY_SIZE(memcards)) {
+		if (memcard2_sel == 0)
+			strcpy(Config.Mcd2, "none");
+		else if (memcards[memcard2_sel] != NULL)
+			snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s",
+				MEMCARD_DIR, memcards[memcard2_sel]);
+	}
+	if (strcmp(mcd1_old, Config.Mcd1) || strcmp(mcd2_old, Config.Mcd2))
+		LoadMcds(Config.Mcd1, Config.Mcd2);
 
 	return ret;
 }
@@ -1209,6 +1241,7 @@ static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\
 				  "using d-pad or move it using R+d-pad";
 static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
+static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
 
 static int menu_loop_cscaler(int id, int keys)
@@ -1270,6 +1303,10 @@ static menu_entry e_menu_gfx_options[] =
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
+#ifdef __ARM_NEON__
+	mee_onoff     ("Scanlines",                MA_OPT_SCANLINES, scanlines, 1),
+	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
+#endif
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 //	mee_onoff     ("Vsync",                    0, vsync, 1),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),

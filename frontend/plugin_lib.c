@@ -371,6 +371,19 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 		neon_eagle2x_16_16(src, (void *)dest, w,
 			stride * 2, dstride * 2, h);
 	}
+	else if (scanlines != 0 && scanline_level != 100)
+	{
+		int l = scanline_level * 2048 / 100;
+
+		for (; h1 >= 2; h1 -= 2)
+		{
+			bgr555_to_rgb565(dest, src, w * 2);
+			dest += dstride * 2, src += stride;
+
+			bgr555_to_rgb565_b(dest, src, w * 2, l);
+			dest += dstride * 2, src += stride;
+		}
+	}
 #endif
 	else
 	{

@@ -29,6 +29,7 @@ enum g_soft_filter_opts {
 };
 
 extern int g_opts, g_scaler, g_gamma;
+extern int scanlines, scanline_level;
 extern int soft_scaling, analog_deadzone;
 extern int soft_filter;
 
