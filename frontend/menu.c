@@ -93,6 +93,7 @@ static char last_selected_fname[MAXPATHLEN];
 static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel = -1, memcard2_sel = -1;
+extern int g_autostateld_opt;
 int g_opts, g_scaler, g_gamma = 100;
 int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
@@ -416,6 +417,7 @@ static const struct {
 	CE_INTVAL(analog_deadzone),
 	CE_INTVAL(memcard1_sel),
 	CE_INTVAL(memcard2_sel),
+	CE_INTVAL(g_autostateld_opt),
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 3),
@@ -2007,6 +2009,8 @@ static int run_exe(void)
 
 static int run_cd_image(const char *fname)
 {
+	int autoload_state = g_autostateld_opt;
+
 	ready_to_go = 0;
 	reload_plugins(fname);
 
@@ -2031,6 +2035,28 @@ static int run_cd_image(const char *fname)
 
 	emu_on_new_cd(1);
 	ready_to_go = 1;
+
+	if (autoload_state) {
+		unsigned int newest = 0;
+		int time, slot, newest_slot = -1;
+
+		for (slot = 0; slot < 10; slot++) {
+			if (emu_check_save_file(slot, &time)) {
+				if ((unsigned int)time > newest) {
+					newest = time;
+					newest_slot = slot;
+				}
+			}
+		}
+
+		if (newest_slot >= 0) {
+			lprintf("autoload slot %d\n", newest_slot);
+			emu_load_state(newest_slot);
+		}
+		else {
+			lprintf("no save to autoload.\n");
+		}
+	}
 
 	return 0;
 }
