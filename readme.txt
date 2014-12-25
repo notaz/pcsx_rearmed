@@ -22,7 +22,11 @@ plugin from PCSX4ALL project, and traditional P.E.Op.S. one.
 Compiling
 ---------
 
-'./configure && make' should work for the most part.
+For libretro build, just doing "make -f Makefile.libretro" is recommended as
+it's the way libretro team is building the core and only Makefile.libretro is
+maintained by them.
+
+For standalone build, './configure && make' should work for the most part.
 
 When compiling for ARM, it's advisable to tell configure script the CPU, FPU
 and ABI that matches your target system to get best performance, like this:
@@ -108,6 +112,23 @@ the main menu where it is possible to enable/disable individual cheats.
 
 Changelog
 ---------
+
+r20 (2014-12-25)
+* fixed various sound accuracy issues, like effects in ff7-ff9
+  for standalone build, audio will no longer slow down when emu is not fast
+  enough and stutter instead, as the former behavior causes accuracy issues.
+  Old mode can be restored in SPU plugin config options, but is not recommended.
+* savestates now save small parts of dynarec state to reduce dynarec related
+  slowdowns after savestate load
+* menu: fixed file browser issues with filesystems like exfat-fuse
+* menu: memcard manager: selected card is saved in config now
+* standalone: added some basic scanline efect
+* some CD image loading fixes
+* converted asm code to be compatible with more assemblers, like Apple's gas
++ libretro: added Makefile.libretro and support for various platforms like
+  iOS and QNX. Makefile.libretro is recommended way to do libretro builds
+  (patches from CatalystG, squarepusher, notaz and others, see git).
+* some other minor fixes
 
 r19 (2013-03-17)
 + libretro: added region, multidisk support
