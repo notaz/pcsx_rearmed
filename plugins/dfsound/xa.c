@@ -38,12 +38,12 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void MixXA(int ns_to)
+INLINE void MixXA(int ns_to, int decode_pos)
 {
+ int cursor = decode_pos;
  int ns;
  short l, r;
  uint32_t v;
- int cursor = spu.decode_pos;
 
  if(spu.XAPlay != spu.XAFeed || spu.XARepeat > 0)
  {

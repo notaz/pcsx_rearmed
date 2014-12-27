@@ -63,10 +63,10 @@ INLINE void StartADSR(int ch)                          // MIX ADSR
 
 ////////////////////////////////////////////////////////////////////////
 
-static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
+static int MixADSR(int ch, int ns_to)                  // MIX ADSR
 {
  int EnvelopeVol = s_chan[ch].ADSRX.EnvelopeVol;
- int val, rto, level;
+ int ns = 0, val, rto, level;
 
  if (s_chan[ch].bStop)                                 // should be stopped:
  {                                                     // do release
@@ -96,9 +96,6 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
        ChanBuf[ns] >>= 10;
      }
    }
-
-   if (EnvelopeVol <= 0)
-     goto stop;
 
    goto done;
  }
@@ -160,7 +157,10 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
      if (s_chan[ch].ADSRX.SustainIncrease)
      {
        if (EnvelopeVol >= 0x7fff0000)
+       {
+         ns = ns_to;
          break;
+       }
 
        rto = 0;
        if (s_chan[ch].ADSRX.SustainModeExp && EnvelopeVol >= 0x60000000)
@@ -173,6 +173,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
          if ((unsigned int)EnvelopeVol >= 0x7fe00000)
          {
            EnvelopeVol = 0x7fffffff;
+           ns = ns_to;
            break;
          }
 
@@ -189,7 +190,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
          {
            EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
            if (EnvelopeVol < 0) 
-             goto stop;
+             break;
 
            ChanBuf[ns] *= EnvelopeVol >> 21;
            ChanBuf[ns] >>= 10;
@@ -201,7 +202,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
          {
            EnvelopeVol += val;
            if (EnvelopeVol < 0) 
-             goto stop;
+             break;
 
            ChanBuf[ns] *= EnvelopeVol >> 21;
            ChanBuf[ns] >>= 10;
@@ -213,12 +214,7 @@ static void MixADSR(int ch, int ns, int ns_to)         // MIX ADSR
 
 done:
  s_chan[ch].ADSRX.EnvelopeVol = EnvelopeVol;
- return;
-
-stop:
- memset(&ChanBuf[ns], 0, (ns_to - ns) * sizeof(ChanBuf[0]));
- s_chan[ch].ADSRX.EnvelopeVol = 0;
- spu.dwChannelOn &= ~(1<<ch);
+ return ns;
 }
 
 #endif
