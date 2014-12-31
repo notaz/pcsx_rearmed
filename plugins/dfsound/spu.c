@@ -138,71 +138,70 @@ int iFMod[NSSIZE];
 //          /
 //
 
-
-INLINE void InterpolateUp(int ch)
+static void InterpolateUp(int *SB, int sinc)
 {
- if(s_chan[ch].SB[32]==1)                              // flag == 1? calc step and set flag... and don't change the value in this pass
+ if(SB[32]==1)                                         // flag == 1? calc step and set flag... and don't change the value in this pass
   {
-   const int id1=s_chan[ch].SB[30]-s_chan[ch].SB[29];  // curr delta to next val
-   const int id2=s_chan[ch].SB[31]-s_chan[ch].SB[30];  // and next delta to next-next val :)
+   const int id1=SB[30]-SB[29];                        // curr delta to next val
+   const int id2=SB[31]-SB[30];                        // and next delta to next-next val :)
 
-   s_chan[ch].SB[32]=0;
+   SB[32]=0;
 
    if(id1>0)                                           // curr delta positive
     {
      if(id2<id1)
-      {s_chan[ch].SB[28]=id1;s_chan[ch].SB[32]=2;}
+      {SB[28]=id1;SB[32]=2;}
      else
      if(id2<(id1<<1))
-      s_chan[ch].SB[28]=(id1*s_chan[ch].sinc)/0x10000L;
+      SB[28]=(id1*sinc)>>16;
      else
-      s_chan[ch].SB[28]=(id1*s_chan[ch].sinc)/0x20000L; 
+      SB[28]=(id1*sinc)>>17;
     }
    else                                                // curr delta negative
     {
      if(id2>id1)
-      {s_chan[ch].SB[28]=id1;s_chan[ch].SB[32]=2;}
+      {SB[28]=id1;SB[32]=2;}
      else
      if(id2>(id1<<1))
-      s_chan[ch].SB[28]=(id1*s_chan[ch].sinc)/0x10000L;
+      SB[28]=(id1*sinc)>>16;
      else
-      s_chan[ch].SB[28]=(id1*s_chan[ch].sinc)/0x20000L; 
+      SB[28]=(id1*sinc)>>17;
     }
   }
  else
- if(s_chan[ch].SB[32]==2)                              // flag 1: calc step and set flag... and don't change the value in this pass
+ if(SB[32]==2)                                         // flag 1: calc step and set flag... and don't change the value in this pass
   {
-   s_chan[ch].SB[32]=0;
+   SB[32]=0;
 
-   s_chan[ch].SB[28]=(s_chan[ch].SB[28]*s_chan[ch].sinc)/0x20000L;
-   //if(s_chan[ch].sinc<=0x8000)
-   //     s_chan[ch].SB[29]=s_chan[ch].SB[30]-(s_chan[ch].SB[28]*((0x10000/s_chan[ch].sinc)-1));
+   SB[28]=(SB[28]*sinc)>>17;
+   //if(sinc<=0x8000)
+   //     SB[29]=SB[30]-(SB[28]*((0x10000/sinc)-1));
    //else
-   s_chan[ch].SB[29]+=s_chan[ch].SB[28];
+   SB[29]+=SB[28];
   }
  else                                                  // no flags? add bigger val (if possible), calc smaller step, set flag1
-  s_chan[ch].SB[29]+=s_chan[ch].SB[28];
+  SB[29]+=SB[28];
 }
 
 //
 // even easier interpolation on downsampling, also no special filter, again just "Pete's common sense" tm
 //
 
-INLINE void InterpolateDown(int ch)
+static void InterpolateDown(int *SB, int sinc)
 {
- if(s_chan[ch].sinc>=0x20000L)                                 // we would skip at least one val?
+ if(sinc>=0x20000L)                                 // we would skip at least one val?
   {
-   s_chan[ch].SB[29]+=(s_chan[ch].SB[30]-s_chan[ch].SB[29])/2; // add easy weight
-   if(s_chan[ch].sinc>=0x30000L)                               // we would skip even more vals?
-    s_chan[ch].SB[29]+=(s_chan[ch].SB[31]-s_chan[ch].SB[30])/2;// add additional next weight
+   SB[29]+=(SB[30]-SB[29])/2;                                  // add easy weight
+   if(sinc>=0x30000L)                               // we would skip even more vals?
+    SB[29]+=(SB[31]-SB[30])/2;                                 // add additional next weight
   }
 }
 
 ////////////////////////////////////////////////////////////////////////
 // helpers for gauss interpolation
 
-#define gval0 (((short*)(&s_chan[ch].SB[29]))[gpos&3])
-#define gval(x) ((int)((short*)(&s_chan[ch].SB[29]))[(gpos+x)&3])
+#define gval0 (((short*)(&SB[29]))[gpos&3])
+#define gval(x) ((int)((short*)(&SB[29]))[(gpos+x)&3])
 
 #include "gauss_i.h"
 
@@ -261,19 +260,19 @@ INLINE void StartSound(int ch)
 // ALL KIND OF HELPERS
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int FModChangeFrequency(int ch,int ns)
+INLINE int FModChangeFrequency(int *SB, int pitch, int ns)
 {
- unsigned int NP=s_chan[ch].iRawPitch;
+ unsigned int NP=pitch;
  int sinc;
 
- NP=((32768L+iFMod[ns])*NP)/32768L;
+ NP=((32768L+iFMod[ns])*NP)>>15;
 
  if(NP>0x3fff) NP=0x3fff;
  if(NP<0x1)    NP=0x1;
 
  sinc=NP<<4;                                           // calc frequency
  if(spu_config.iUseInterpolation==1)                   // freq change in simple interpolation mode
-  s_chan[ch].SB[32]=1;
+  SB[32]=1;
  iFMod[ns]=0;
 
  return sinc;
@@ -281,50 +280,50 @@ INLINE int FModChangeFrequency(int ch,int ns)
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void StoreInterpolationVal(int ch,int fa)
+INLINE void StoreInterpolationVal(int *SB, int sinc, int fa, int fmod_freq)
 {
- if(s_chan[ch].bFMod==2)                               // fmod freq channel
-  s_chan[ch].SB[29]=fa;
+ if(fmod_freq)                                         // fmod freq channel
+  SB[29]=fa;
  else
   {
    ssat32_to_16(fa);
 
    if(spu_config.iUseInterpolation>=2)                 // gauss/cubic interpolation
-    {     
-     int gpos = s_chan[ch].SB[28];
-     gval0 = fa;          
+    {
+     int gpos = SB[28];
+     gval0 = fa;
      gpos = (gpos+1) & 3;
-     s_chan[ch].SB[28] = gpos;
+     SB[28] = gpos;
     }
    else
    if(spu_config.iUseInterpolation==1)                 // simple interpolation
     {
-     s_chan[ch].SB[28] = 0;                    
-     s_chan[ch].SB[29] = s_chan[ch].SB[30];            // -> helpers for simple linear interpolation: delay real val for two slots, and calc the two deltas, for a 'look at the future behaviour'
-     s_chan[ch].SB[30] = s_chan[ch].SB[31];
-     s_chan[ch].SB[31] = fa;
-     s_chan[ch].SB[32] = 1;                            // -> flag: calc new interolation
+     SB[28] = 0;
+     SB[29] = SB[30];                                  // -> helpers for simple linear interpolation: delay real val for two slots, and calc the two deltas, for a 'look at the future behaviour'
+     SB[30] = SB[31];
+     SB[31] = fa;
+     SB[32] = 1;                                       // -> flag: calc new interolation
     }
-   else s_chan[ch].SB[29]=fa;                          // no interpolation
+   else SB[29]=fa;                                     // no interpolation
   }
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int iGetInterpolationVal(int ch, int spos)
+INLINE int iGetInterpolationVal(int *SB, int sinc, int spos, int fmod_freq)
 {
  int fa;
 
- if(s_chan[ch].bFMod==2) return s_chan[ch].SB[29];
+ if(fmod_freq) return SB[29];
 
  switch(spu_config.iUseInterpolation)
-  {   
+  {
    //--------------------------------------------------//
    case 3:                                             // cubic interpolation
     {
      long xd;int gpos;
      xd = (spos >> 1)+1;
-     gpos = s_chan[ch].SB[28];
+     gpos = SB[28];
 
      fa  = gval(3) - 3*gval(2) + 3*gval(1) - gval0;
      fa *= (xd - (2<<15)) / 6;
@@ -343,7 +342,7 @@ INLINE int iGetInterpolationVal(int ch, int spos)
     {
      int vl, vr;int gpos;
      vl = (spos >> 6) & ~3;
-     gpos = s_chan[ch].SB[28];
+     gpos = SB[28];
      vr=(gauss[vl]*(int)gval0)&~2047;
      vr+=(gauss[vl+1]*gval(1))&~2047;
      vr+=(gauss[vl+2]*gval(2))&~2047;
@@ -353,15 +352,15 @@ INLINE int iGetInterpolationVal(int ch, int spos)
    //--------------------------------------------------//
    case 1:                                             // simple interpolation
     {
-     if(s_chan[ch].sinc<0x10000L)                      // -> upsampling?
-          InterpolateUp(ch);                           // --> interpolate up
-     else InterpolateDown(ch);                         // --> else down
-     fa=s_chan[ch].SB[29];
+     if(sinc<0x10000L)                                 // -> upsampling?
+          InterpolateUp(SB, sinc);                     // --> interpolate up
+     else InterpolateDown(SB, sinc);                   // --> else down
+     fa=SB[29];
     } break;
    //--------------------------------------------------//
    default:                                            // no interpolation
     {
-     fa=s_chan[ch].SB[29];                  
+     fa=SB[29];
     } break;
    //--------------------------------------------------//
   }
@@ -397,7 +396,7 @@ static void decode_block_data(int *dest, const unsigned char *src, int predict_n
  }
 }
 
-static int decode_block(int ch)
+static int decode_block(int ch, int *SB)
 {
  unsigned char *start;
  int predict_nr, shift_factor, flags;
@@ -421,7 +420,7 @@ static int decode_block(int ch)
  shift_factor = predict_nr & 0xf;
  predict_nr >>= 4;
 
- decode_block_data(s_chan[ch].SB, start + 2, predict_nr, shift_factor);
+ decode_block_data(SB, start + 2, predict_nr, shift_factor);
 
  flags = start[1];
  if (flags & 4)
@@ -538,7 +537,7 @@ static noinline int do_samples_##name(int ch, int ns_to) \
    if (sbpos >= 28)                          \
    {                                         \
     sbpos = 0;                               \
-    d = decode_block(ch);                    \
+    d = decode_block(ch, SB);                \
     if (d && ns < ret)                       \
      ret = ns;                               \
    }                                         \
@@ -560,12 +559,12 @@ static noinline int do_samples_##name(int ch, int ns_to) \
 
 #define fmod_recv_check \
   if(s_chan[ch].bFMod==1 && iFMod[ns]) \
-    sinc = FModChangeFrequency(ch,ns)
+    sinc = FModChangeFrequency(SB, s_chan[ch].iRawPitch, ns)
 
 make_do_samples(default, fmod_recv_check, ,
-  StoreInterpolationVal(ch, fa),
-  ChanBuf[ns] = iGetInterpolationVal(ch, spos), )
-make_do_samples(noint, , fa = s_chan[ch].SB[29], , ChanBuf[ns] = fa, s_chan[ch].SB[29] = fa)
+  StoreInterpolationVal(SB, sinc, fa, s_chan[ch].bFMod==2),
+  ChanBuf[ns] = iGetInterpolationVal(SB, sinc, spos, s_chan[ch].bFMod==2), )
+make_do_samples(noint, , fa = SB[29], , ChanBuf[ns] = fa, SB[29] = fa)
 
 #define simple_interp_store \
   SB[28] = 0; \
@@ -575,10 +574,10 @@ make_do_samples(noint, , fa = s_chan[ch].SB[29], , ChanBuf[ns] = fa, s_chan[ch].
   SB[32] = 1
 
 #define simple_interp_get \
-  if(sinc<0x10000)          /* -> upsampling? */ \
-       InterpolateUp(ch);   /* --> interpolate up */ \
-  else InterpolateDown(ch); /* --> else down */ \
-  ChanBuf[ns] = s_chan[ch].SB[29]
+  if(sinc<0x10000)                /* -> upsampling? */ \
+       InterpolateUp(SB, sinc);   /* --> interpolate up */ \
+  else InterpolateDown(SB, sinc); /* --> else down */ \
+  ChanBuf[ns] = SB[29]
 
 make_do_samples(simple, , ,
   simple_interp_store, simple_interp_get, )
