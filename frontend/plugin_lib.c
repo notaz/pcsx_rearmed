@@ -180,6 +180,14 @@ static void update_layer_size(int w, int h)
 		g_layer_w = w; g_layer_h = h;
 		break;
 
+	case SCALE_2_2:
+		g_layer_w = w; g_layer_h = h;
+		if (w * 2 <= g_menuscreen_w)
+			g_layer_w = w * 2;
+		if (h * 2 <= g_menuscreen_h)
+			g_layer_h = h * 2;
+		break;
+
 	case SCALE_4_3v2:
 		if (h > g_menuscreen_h || (240 < h && h <= 360))
 			goto fractional_4_3;
@@ -362,6 +370,19 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	{
 		neon_eagle2x_16_16(src, (void *)dest, w,
 			stride * 2, dstride * 2, h);
+	}
+	else if (scanlines != 0 && scanline_level != 100)
+	{
+		int l = scanline_level * 2048 / 100;
+
+		for (; h1 >= 2; h1 -= 2)
+		{
+			bgr555_to_rgb565(dest, src, w * 2);
+			dest += dstride * 2, src += stride;
+
+			bgr555_to_rgb565_b(dest, src, w * 2, l);
+			dest += dstride * 2, src += stride;
+		}
 	}
 #endif
 	else

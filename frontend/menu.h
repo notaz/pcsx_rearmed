@@ -15,6 +15,7 @@ enum g_opts_opts {
 
 enum g_scaler_opts {
 	SCALE_1_1,
+	SCALE_2_2,
 	SCALE_4_3,
 	SCALE_4_3v2,
 	SCALE_FULLSCREEN,
@@ -28,6 +29,7 @@ enum g_soft_filter_opts {
 };
 
 extern int g_opts, g_scaler, g_gamma;
+extern int scanlines, scanline_level;
 extern int soft_scaling, analog_deadzone;
 extern int soft_filter;
 

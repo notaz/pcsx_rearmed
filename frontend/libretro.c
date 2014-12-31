@@ -283,7 +283,7 @@ void retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
-	info->library_version = "r19";
+	info->library_version = "r20";
 	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
@@ -303,8 +303,9 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 /* savestates */
 size_t retro_serialize_size(void) 
 { 
-	// it's currently 4380651 bytes, but have some reserved for future
-	return 0x430000;
+	// it's currently 4380651-4397047 bytes,
+	// but have some reserved for future
+	return 0x440000;
 }
 
 struct save_fp {

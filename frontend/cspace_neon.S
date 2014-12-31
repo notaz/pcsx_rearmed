@@ -19,7 +19,7 @@
 .text
 .align 2
 
-FUNCTION(bgr555_to_rgb565):
+FUNCTION(bgr555_to_rgb565): @ dst, src, bytes
     pld         [r1]
     mov         r3, #0x07c0
     vdup.16     q15, r3
@@ -28,23 +28,23 @@ FUNCTION(bgr555_to_rgb565):
 0:
     pld         [r1, #64*2]
     vldmia      r1!, {q0-q3}
-    vshl.u16    q4, q0, #11
-    vshl.u16    q5, q1, #11
-    vshl.u16    q6, q2, #11
-    vshl.u16    q7, q3, #11
-    vsri.u16    q4, q0, #10
-    vsri.u16    q5, q1, #10
-    vsri.u16    q6, q2, #10
-    vsri.u16    q7, q3, #10
-    vshl.u16    q0, q0, #1
-    vshl.u16    q1, q1, #1
-    vshl.u16    q2, q2, #1
-    vshl.u16    q3, q3, #1
-    vbit        q4, q0, q15
-    vbit        q5, q1, q15
-    vbit        q6, q2, q15
-    vbit        q7, q3, q15
-    vstmia      r0!, {q4-q7}
+    vshl.u16    q8,  q0, #11
+    vshl.u16    q9,  q1, #11
+    vshl.u16    q10, q2, #11
+    vshl.u16    q11, q3, #11
+    vsri.u16    q8,  q0, #10
+    vsri.u16    q9,  q1, #10
+    vsri.u16    q10, q2, #10
+    vsri.u16    q11, q3, #10
+    vshl.u16    q0,  q0, #1
+    vshl.u16    q1,  q1, #1
+    vshl.u16    q2,  q2, #1
+    vshl.u16    q3,  q3, #1
+    vbit        q8,  q0, q15
+    vbit        q9,  q1, q15
+    vbit        q10, q2, q15
+    vbit        q11, q3, q15
+    vstmia      r0!, {q8-q11}
     subs        r2, r2, #64
     bge         0b
 
@@ -72,16 +72,97 @@ btr16_end16:
     bxlt        lr
 
     @ very rare
-    vld1.16     d0, [r1]!
+    vld1.16     {d0}, [r1]!
     vshl.u16    d1, d0, #11
     vshl.u16    d2, d0, #1
     vsri.u16    d1, d0, #10
     vbit        d1, d2, d30
-    vst1.16     d1, [r0]!
+    vst1.16     {d1}, [r0]!
     bx          lr
 
 
-FUNCTION(bgr888_to_rgb888):
+@ note: may overflow source
+FUNCTION(bgr555_to_rgb565_b): @ dst, src, bytes, int brightness2k // 0-0x0800
+    pld         [r1]
+    vdup.16     q15, r3
+    vpush       {q4-q7}
+    mov         r3, #0x1f
+    vdup.16     q14, r3
+0:
+    pld         [r1, #64*2]
+    vldmia      r1!, {q0-q3}
+    vand.u16    q8,  q0, q14
+    vand.u16    q9,  q1, q14
+    vand.u16    q10, q2, q14
+    vand.u16    q11, q3, q14
+    vmul.u16    q4, q8,  q15
+    vmul.u16    q5, q9,  q15
+    vmul.u16    q6, q10, q15
+    vmul.u16    q7, q11, q15
+
+    vshr.u16    q8,  q0, #5
+    vshr.u16    q9,  q1, #5
+    vshr.u16    q10, q2, #5
+    vshr.u16    q11, q3, #5
+    vand.u16    q8,  q14
+    vand.u16    q9,  q14
+    vand.u16    q10, q14
+    vand.u16    q11, q14
+    vmul.u16    q8,  q15
+    vmul.u16    q9,  q15
+    vmul.u16    q10, q15
+    vmul.u16    q11, q15
+    vsri.u16    q4, q8,  #5
+    vsri.u16    q5, q9,  #5
+    vsri.u16    q6, q10, #5
+    vsri.u16    q7, q11, #5
+
+    vshr.u16    q8,  q0, #10
+    vshr.u16    q9,  q1, #10
+    vshr.u16    q10, q2, #10
+    vshr.u16    q11, q3, #10
+    vand.u16    q8,  q14
+    vand.u16    q9,  q14
+    vand.u16    q10, q14
+    vand.u16    q11, q14
+    vmul.u16    q8,  q15
+    vmul.u16    q9,  q15
+    vmul.u16    q10, q15
+    vmul.u16    q11, q15
+    vsri.u16    q4, q8,  #11
+    vsri.u16    q5, q9,  #11
+    vsri.u16    q6, q10, #11
+    vsri.u16    q7, q11, #11
+
+    subs        r2, r2, #64
+    ble         1f
+    vstmia      r0!, {q4-q7}
+    b           0b
+
+1:
+    blt         0f
+    vstmia      r0!, {q4-q7}
+    b           btr16b_end
+0:
+    subs        r2, r2, #8
+    blt         btr16b_end
+    vst1.16     {q4}, [r0]!
+    subs        r2, r2, #8
+    blt         btr16b_end
+    vst1.16     {q5}, [r0]!
+    subs        r2, r2, #8
+    blt         btr16b_end
+    vst1.16     {q6}, [r0]!
+    subs        r2, r2, #8
+    blt         btr16b_end
+    vst1.16     {q7}, [r0]!
+
+btr16b_end:
+    vpop        {q4-q7}
+    bx          lr
+
+
+FUNCTION(bgr888_to_rgb888): @ dst, src, bytes
     pld         [r1]
     @ r2 /= 48
     mov         r2, r2, lsr #4
@@ -102,7 +183,7 @@ FUNCTION(bgr888_to_rgb888):
     bx          lr
 
 
-FUNCTION(bgr888_to_rgb565):
+FUNCTION(bgr888_to_rgb565): @ dst, src, bytes
     pld         [r1]
     @ r2 /= 48
     mov         r2, r2, lsr #4
@@ -134,7 +215,7 @@ FUNCTION(bgr888_to_rgb565):
     bx          lr
 
 
-FUNCTION(rgb888_to_rgb565):
+FUNCTION(rgb888_to_rgb565): @ dst, src, bytes
     pld         [r1]
     @ r2 /= 48
     mov         r2, r2, lsr #4

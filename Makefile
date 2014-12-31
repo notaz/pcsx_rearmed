@@ -165,6 +165,7 @@ OBJS += frontend/libpicofe/linux/fbdev.o frontend/libpicofe/linux/xenv.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pandora.o frontend/plat_omap.o
 frontend/main.o frontend/menu.o: CFLAGS += -include frontend/pandora/ui_feat.h
+frontend/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif

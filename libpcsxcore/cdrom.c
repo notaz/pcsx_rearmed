@@ -1514,6 +1514,12 @@ int cdrFreeze(void *f, int Mode) {
 				SysPrintf("cdrom: fixing up old savestate\n");
 				cdr.Reg2 = 7;
 			}
+			// also did not save Attenuator..
+			if ((cdr.AttenuatorLeftToLeft | cdr.AttenuatorLeftToRight
+			     | cdr.AttenuatorRightToLeft | cdr.AttenuatorRightToRight) == 0)
+			{
+				cdr.AttenuatorLeftToLeft = cdr.AttenuatorRightToRight = 0x80;
+			}
 		}
 	}
 
