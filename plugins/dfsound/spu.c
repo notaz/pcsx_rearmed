@@ -238,10 +238,8 @@ INLINE void StartSound(int ch)
  StartADSR(ch);
  StartREVERB(ch);
 
- // fussy timing issues - do in VoiceOn
- //s_chan[ch].pCurr=s_chan[ch].pStart;                   // set sample start
- //s_chan[ch].bStop=0;
- //s_chan[ch].bOn=1;
+ s_chan[ch].bStop=0;
+ s_chan[ch].prevflags=2;
 
  s_chan[ch].SB[26]=0;                                  // init mixing vars
  s_chan[ch].SB[27]=0;
@@ -254,6 +252,8 @@ INLINE void StartSound(int ch)
  s_chan[ch].spos=0;
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
+ spu.dwChannelOn|=1<<ch;
+ spu.dwChannelDead&=~(1<<ch);
 }
 
 ////////////////////////////////////////////////////////////////////////

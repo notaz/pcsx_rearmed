@@ -362,16 +362,9 @@ static void SoundOn(int start,int end,unsigned short val)
   {
    if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
     {
-     // do this here, not in StartSound
-     // - fixes fussy timing issues
-     s_chan[ch].bStop=0;
      s_chan[ch].pCurr=spu.spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
      s_chan[ch].pLoop=spu.spuMemC+((regAreaGet(ch,14)&~1)<<3);
-     s_chan[ch].prevflags=2;
-
      spu.dwNewChannel|=(1<<ch);
-     spu.dwChannelOn|=1<<ch;
-     spu.dwChannelDead&=~(1<<ch);
     }
   }
 }
