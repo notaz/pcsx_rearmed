@@ -53,10 +53,17 @@
 // struct defines
 ///////////////////////////////////////////////////////////
 
+enum ADSR_State {
+ ADSR_ATTACK = 0,
+ ADSR_DECAY = 1,
+ ADSR_SUSTAIN = 2,
+ ADSR_RELEASE = 3,
+};
+
 // ADSR INFOS PER CHANNEL
 typedef struct
 {
- unsigned char  State:2;
+ unsigned char  State:2;                               // ADSR_State
  unsigned char  AttackModeExp:1;
  unsigned char  SustainModeExp:1;
  unsigned char  SustainIncrease:1;
@@ -93,7 +100,6 @@ typedef struct
  unsigned char *   pCurr;                              // current pos in sound mem
  unsigned char *   pLoop;                              // loop ptr in sound mem
 
- unsigned int      bStop:1;                            // is channel stopped (sample _can_ still be playing, ADSR Release phase)
  unsigned int      bReverb:1;                          // can we do reverb on this channel? must have ctrl register bit, to get active
  unsigned int      bRVBActive:1;                       // reverb active flag
  unsigned int      bNoise:1;                           // noise active flag

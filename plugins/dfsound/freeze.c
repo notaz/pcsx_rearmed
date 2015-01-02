@@ -148,7 +148,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
  d->bOn = !!(spu.dwChannelOn & (1<<ch));
- d->bStop = s->bStop;
+ d->bStop = s->ADSRX.State == ADSR_RELEASE;
  d->bReverb = s->bReverb;
  d->iActFreq = 1;
  d->iUsedFreq = 2;
@@ -188,7 +188,6 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  memcpy(d->SB, s->SB, sizeof(d->SB));
  d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
- d->bStop = s->bStop;
  d->bReverb = s->bReverb;
  d->iLeftVolume = s->iLeftVolume;
  d->iRightVolume = s->iRightVolume;
@@ -198,6 +197,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->bFMod = s->bFMod;
  d->prevflags = (s->bIgnoreLoop >> 1) ^ 2;
  d->ADSRX.State = s->ADSRX.State;
+ if (s->bStop) d->ADSRX.State = ADSR_RELEASE;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;
  d->ADSRX.DecayRate = s->ADSRX.DecayRate;
@@ -349,7 +349,6 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
 
  for(i=0;i<MAXCHAN;i++)
   {
-   s_chan[i].bStop=0;
    s_chan[i].pLoop=spu.spuMemC;
   }
 

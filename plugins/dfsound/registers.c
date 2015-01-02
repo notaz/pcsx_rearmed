@@ -378,9 +378,9 @@ static void SoundOff(int start,int end,unsigned short val)
  int ch;
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   if(val&1)                                           // && s_chan[i].bOn)  mmm...
+   if(val&1)
     {
-     s_chan[ch].bStop=1;
+     s_chan[ch].ADSRX.State = ADSR_RELEASE;
 
      // Jungle Book - Rhythm 'n Groove
      // - turns off buzzing sound (loop hangs)

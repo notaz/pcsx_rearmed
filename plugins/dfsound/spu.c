@@ -238,7 +238,6 @@ INLINE void StartSound(int ch)
  StartADSR(ch);
  StartREVERB(ch);
 
- s_chan[ch].bStop=0;
  s_chan[ch].prevflags=2;
 
  s_chan[ch].SB[26]=0;                                  // init mixing vars
@@ -765,10 +764,9 @@ static void do_channels(int ns_to)
    else
     d = do_samples_default(ch, ns_to);
 
-   d = MixADSR(ch, d);
+   d = MixADSR(&s_chan[ch].ADSRX, d);
    if (d < ns_to) {
     spu.dwChannelOn &= ~(1 << ch);
-    s_chan[ch].bStop = 1;
     s_chan[ch].ADSRX.EnvelopeVol = 0;
     memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));
    }
