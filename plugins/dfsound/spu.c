@@ -5,7 +5,7 @@
     copyright            : (C) 2002 by Pete Bernert
     email                : BlackDove@addcom.de
 
- Portions (C) Gražvydas "notaz" Ignotas, 2010-2012,2014
+ Portions (C) Gražvydas "notaz" Ignotas, 2010-2012,2014,2015
 
  ***************************************************************************/
 /***************************************************************************
@@ -20,6 +20,7 @@
 
 #ifndef _WIN32
 #include <sys/time.h> // gettimeofday in xa.c
+#define THREAD_ENABLED 1
 #endif
 #include "stdafx.h"
 
@@ -73,6 +74,44 @@ SPUConfig       spu_config;
 
 SPUCHAN         s_chan[MAXCHAN+1];                     // channel + 1 infos (1 is security for fmod handling)
 REVERBInfo      rvb;
+
+#ifdef THREAD_ENABLED
+
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+// worker thread state
+static struct {
+ unsigned int pending:1;
+ unsigned int exit_thread:1;
+ int ns_to;
+ int ctrl;
+ int decode_pos;
+ int silentch;
+ int *sRVBStart;
+ unsigned char *ram;
+ unsigned int chmask;
+ unsigned int r_chan_end;
+ unsigned int r_decode_dirty;
+ pthread_t thread;
+ sem_t sem_avail;
+ sem_t sem_done;
+ struct {
+  int spos;
+  int sbpos;
+  int sinc;
+  int start;
+  int loop;
+  int ns_to;
+  ADSRInfoEx adsr;
+  // might want to add vol and fmod flags..
+ } ch[24];
+} *worker;
+
+#else
+static const void * const worker = NULL;
+#endif
 
 // certain globals (were local before, but with the new timeproc I need em global)
 
@@ -474,6 +513,38 @@ static int skip_block(int ch)
  return ret;
 }
 
+#ifdef THREAD_ENABLED
+
+static int decode_block_work(int ch, int *SB)
+{
+ int predict_nr, shift_factor, flags;
+ const unsigned char *ram = worker->ram;
+ int start = worker->ch[ch].start;
+ int loop = worker->ch[ch].loop;
+
+ predict_nr = ram[start];
+ shift_factor = predict_nr & 0xf;
+ predict_nr >>= 4;
+
+ decode_block_data(SB, ram + start + 2, predict_nr, shift_factor);
+
+ flags = ram[start + 1];
+ if (flags & 4)
+  loop = start;                            // loop adress
+
+ start += 16;
+
+ if (flags & 1)                            // 1: stop/loop
+  start = loop;
+
+ worker->ch[ch].start = start & 0x7ffff;
+ worker->ch[ch].loop = loop;
+
+ return 0;
+}
+
+#endif
+
 // if irq is going to trigger sooner than in upd_samples, set upd_samples
 static void scan_for_irq(int ch, unsigned int *upd_samples)
 {
@@ -515,12 +586,9 @@ static void scan_for_irq(int ch, unsigned int *upd_samples)
 }
 
 #define make_do_samples(name, fmod_code, interp_start, interp1_code, interp2_code, interp_end) \
-static noinline int do_samples_##name(int ch, int ns_to) \
+static noinline int do_samples_##name(int (*decode_f)(int ch, int *SB), int ch, \
+ int ns_to, int *SB, int sinc, int *spos, int *sbpos) \
 {                                            \
- int sinc = s_chan[ch].sinc;                 \
- int spos = s_chan[ch].spos;                 \
- int sbpos = s_chan[ch].iSBPos;              \
- int *SB = s_chan[ch].SB;                    \
  int ns, d, fa;                              \
  int ret = ns_to;                            \
  interp_start;                               \
@@ -529,28 +597,25 @@ static noinline int do_samples_##name(int ch, int ns_to) \
  {                                           \
   fmod_code;                                 \
                                              \
-  spos += sinc;                              \
-  while (spos >= 0x10000)                    \
+  *spos += sinc;                             \
+  while (*spos >= 0x10000)                   \
   {                                          \
-   fa = SB[sbpos++];                         \
-   if (sbpos >= 28)                          \
+   fa = SB[(*sbpos)++];                      \
+   if (*sbpos >= 28)                         \
    {                                         \
-    sbpos = 0;                               \
-    d = decode_block(ch, SB);                \
+    *sbpos = 0;                              \
+    d = decode_f(ch, SB);                    \
     if (d && ns < ret)                       \
      ret = ns;                               \
    }                                         \
                                              \
    interp1_code;                             \
-   spos -= 0x10000;                          \
+   *spos -= 0x10000;                         \
   }                                          \
                                              \
   interp2_code;                              \
  }                                           \
                                              \
- s_chan[ch].sinc = sinc;                     \
- s_chan[ch].spos = spos;                     \
- s_chan[ch].iSBPos = sbpos;                  \
  interp_end;                                 \
                                              \
  return ret;                                 \
@@ -562,7 +627,7 @@ static noinline int do_samples_##name(int ch, int ns_to) \
 
 make_do_samples(default, fmod_recv_check, ,
   StoreInterpolationVal(SB, sinc, fa, s_chan[ch].bFMod==2),
-  ChanBuf[ns] = iGetInterpolationVal(SB, sinc, spos, s_chan[ch].bFMod==2), )
+  ChanBuf[ns] = iGetInterpolationVal(SB, sinc, *spos, s_chan[ch].bFMod==2), )
 make_do_samples(noint, , fa = SB[29], , ChanBuf[ns] = fa, SB[29] = fa)
 
 #define simple_interp_store \
@@ -745,6 +810,7 @@ static void do_silent_chans(int ns_to, int silentch)
 static void do_channels(int ns_to)
 {
  unsigned int mask;
+ int *SB, sinc;
  int ch, d;
 
  InitREVERB(ns_to);
@@ -754,15 +820,21 @@ static void do_channels(int ns_to)
   {
    if (!(mask & 1)) continue;                      // channel not playing? next
 
+   SB = s_chan[ch].SB;
+   sinc = s_chan[ch].sinc;
+
    if (s_chan[ch].bNoise)
     d = do_samples_noise(ch, ns_to);
    else if (s_chan[ch].bFMod == 2
          || (s_chan[ch].bFMod == 0 && spu_config.iUseInterpolation == 0))
-    d = do_samples_noint(ch, ns_to);
+    d = do_samples_noint(decode_block, ch, ns_to,
+          SB, sinc, &s_chan[ch].spos, &s_chan[ch].iSBPos);
    else if (s_chan[ch].bFMod == 0 && spu_config.iUseInterpolation == 1)
-    d = do_samples_simple(ch, ns_to);
+    d = do_samples_simple(decode_block, ch, ns_to,
+          SB, sinc, &s_chan[ch].spos, &s_chan[ch].iSBPos);
    else
-    d = do_samples_default(ch, ns_to);
+    d = do_samples_default(decode_block, ch, ns_to,
+          SB, sinc, &s_chan[ch].spos, &s_chan[ch].iSBPos);
 
    d = MixADSR(&s_chan[ch].ADSRX, d);
    if (d < ns_to) {
@@ -786,14 +858,142 @@ static void do_channels(int ns_to)
   }
 }
 
+static void do_samples_finish(int ns_to, int silentch, int decode_pos);
+
+// optional worker thread handling
+
+#ifdef THREAD_ENABLED
+
+static void queue_channel_work(int ns_to, int silentch)
+{
+ unsigned int mask;
+ int ch;
+
+ worker->ns_to = ns_to;
+ worker->ctrl = spu.spuCtrl;
+ worker->decode_pos = spu.decode_pos;
+ worker->silentch = silentch;
+ worker->sRVBStart = spu.sRVBStart;
+ worker->ram = spu.spuMemC;
+
+ mask = worker->chmask = spu.dwChannelOn & 0xffffff;
+ for (ch = 0; mask != 0; ch++, mask >>= 1)
+  {
+   if (!(mask & 1)) continue;
+
+   worker->ch[ch].spos = s_chan[ch].spos;
+   worker->ch[ch].sbpos = s_chan[ch].iSBPos;
+   worker->ch[ch].sinc = s_chan[ch].sinc;
+   worker->ch[ch].adsr = s_chan[ch].ADSRX;
+   worker->ch[ch].start = s_chan[ch].pCurr - spu.spuMemC;
+   worker->ch[ch].loop = s_chan[ch].pLoop - spu.spuMemC;
+   if (s_chan[ch].prevflags & 1)
+    worker->ch[ch].start = worker->ch[ch].loop;
+
+   worker->ch[ch].ns_to = do_samples_skip(ch, ns_to);
+  }
+
+ worker->pending = 1;
+ sem_post(&worker->sem_avail);
+}
+
+static void do_channel_work(void)
+{
+ unsigned int mask, endmask = 0;
+ unsigned int decode_dirty_ch = 0;
+ int *SB, sinc, spos, sbpos;
+ int d, ch, ns_to;
+
+ ns_to = worker->ns_to;
+ memset(worker->sRVBStart, 0, ns_to * sizeof(worker->sRVBStart[0]) * 2);
+
+ mask = worker->chmask;
+ for (ch = 0; mask != 0; ch++, mask >>= 1)
+  {
+   if (!(mask & 1)) continue;
+
+   d = worker->ch[ch].ns_to;
+   spos = worker->ch[ch].spos;
+   sbpos = worker->ch[ch].sbpos;
+   sinc = worker->ch[ch].sinc;
+   SB = s_chan[ch].SB;
+
+   if (s_chan[ch].bNoise)
+    do_lsfr_samples(d, worker->ctrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
+   else if (s_chan[ch].bFMod == 2
+         || (s_chan[ch].bFMod == 0 && spu_config.iUseInterpolation == 0))
+    do_samples_noint(decode_block_work, ch, d, SB, sinc, &spos, &sbpos);
+   else if (s_chan[ch].bFMod == 0 && spu_config.iUseInterpolation == 1)
+    do_samples_simple(decode_block_work, ch, d, SB, sinc, &spos, &sbpos);
+   else
+    do_samples_default(decode_block_work, ch, d, SB, sinc, &spos, &sbpos);
+
+   d = MixADSR(&worker->ch[ch].adsr, d);
+   if (d < ns_to) {
+    endmask |= 1 << ch;
+    worker->ch[ch].adsr.EnvelopeVol = 0;
+    memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));
+   }
+
+   if (ch == 1 || ch == 3)
+    {
+     do_decode_bufs((void *)worker->ram, ch/2, ns_to, worker->decode_pos);
+     decode_dirty_ch |= 1 << ch;
+    }
+
+   if (s_chan[ch].bFMod == 2)                      // fmod freq channel
+    memcpy(iFMod, &ChanBuf, ns_to * sizeof(iFMod[0]));
+   if (s_chan[ch].bRVBActive)
+    mix_chan_rvb(0, ns_to, s_chan[ch].iLeftVolume, s_chan[ch].iRightVolume, worker->sRVBStart);
+   else
+    mix_chan(0, ns_to, s_chan[ch].iLeftVolume, s_chan[ch].iRightVolume);
+  }
+
+  worker->r_chan_end = endmask;
+  worker->r_decode_dirty = decode_dirty_ch;
+}
+
+static void sync_worker_thread(void)
+{
+ unsigned int mask;
+ int ch;
+
+ if (!worker->pending)
+  return;
+
+ sem_wait(&worker->sem_done);
+ worker->pending = 0;
+
+ mask = worker->chmask;
+ for (ch = 0; mask != 0; ch++, mask >>= 1) {
+  if (!(mask & 1)) continue;
+
+  // be sure there was no keyoff while thread was working
+  if (s_chan[ch].ADSRX.State != ADSR_RELEASE)
+    s_chan[ch].ADSRX.State = worker->ch[ch].adsr.State;
+  s_chan[ch].ADSRX.EnvelopeVol = worker->ch[ch].adsr.EnvelopeVol;
+ }
+
+ spu.dwChannelOn &= ~worker->r_chan_end;
+ spu.decode_dirty_ch |= worker->r_decode_dirty;
+
+ do_samples_finish(worker->ns_to, worker->silentch,
+  worker->decode_pos);
+}
+
+#else
+
+static void queue_channel_work(int ns_to, int silentch) {}
+static void sync_worker_thread(void) {}
+
+#endif // THREAD_ENABLED
+
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
 // here is the main job handler...
 ////////////////////////////////////////////////////////////////////////
 
-void do_samples_finish(int ns_to, int silentch);
-
-void do_samples(unsigned int cycles_to)
+void do_samples(unsigned int cycles_to, int do_sync)
 {
  unsigned int mask;
  int ch, ns_to;
@@ -847,7 +1047,8 @@ void do_samples(unsigned int cycles_to)
      }
    }
 
-  silentch = ~(spu.dwChannelOn|spu.dwNewChannel);
+  if (worker != NULL)
+   sync_worker_thread();
 
   mask = spu.dwNewChannel & 0xffffff;
   for (ch = 0; mask != 0; ch++, mask >>= 1) {
@@ -855,13 +1056,21 @@ void do_samples(unsigned int cycles_to)
     StartSound(ch);
   }
 
-  if (spu.dwChannelOn == 0)
-   InitREVERB(ns_to);
-  else {
-   do_channels(ns_to);
-  }
+  silentch = ~spu.dwChannelOn & 0xffffff;
 
-  do_samples_finish(ns_to, silentch);
+  if (spu.dwChannelOn == 0) {
+   InitREVERB(ns_to);
+   do_samples_finish(ns_to, silentch, spu.decode_pos);
+  }
+  else {
+   if (do_sync || worker == NULL || !spu_config.iUseThread) {
+    do_channels(ns_to);
+    do_samples_finish(ns_to, silentch, spu.decode_pos);
+   }
+   else {
+    queue_channel_work(ns_to, silentch);
+   }
+  }
 
   // advance "stopped" channels that can cause irqs
   // (all chans are always playing on the real thing..)
@@ -872,7 +1081,7 @@ void do_samples(unsigned int cycles_to)
   spu.decode_pos = (spu.decode_pos + ns_to) & 0x1ff;
 }
 
-void do_samples_finish(int ns_to, int silentch)
+static void do_samples_finish(int ns_to, int silentch, int decode_pos)
 {
   int volmult = spu_config.iVolume;
   int ns;
@@ -892,7 +1101,7 @@ void do_samples_finish(int ns_to, int silentch)
   //---------------------------------------------------//
   // mix XA infos (if any)
 
-  MixXA(ns_to, spu.decode_pos);
+  MixXA(ns_to, decode_pos);
   
   ///////////////////////////////////////////////////////
   // mix all channels (including reverb) into one buffer
@@ -964,7 +1173,7 @@ void schedule_next_irq(void)
 
 void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 {
- do_samples(cycle);
+ do_samples(cycle, 0);
 
  if (spu.spuCtrl & CTRL_IRQ)
   schedule_next_irq();
@@ -1069,7 +1278,79 @@ void RemoveStreams(void)
  spu.CDDAStart = NULL;
 }
 
-// INIT/EXIT STUFF
+#ifdef THREAD_ENABLED
+
+static void *spu_worker_thread(void *unused)
+{
+ while (1) {
+  sem_wait(&worker->sem_avail);
+  if (worker->exit_thread)
+   break;
+
+  do_channel_work();
+
+  sem_post(&worker->sem_done);
+ }
+
+ return NULL;
+}
+
+static void init_spu_thread(void)
+{
+ int ret;
+
+ if (sysconf(_SC_NPROCESSORS_ONLN) <= 1)
+  return;
+
+ worker = calloc(1, sizeof(*worker));
+ if (worker == NULL)
+  return;
+ ret = sem_init(&worker->sem_avail, 0, 0);
+ if (ret != 0)
+  goto fail_sem_avail;
+ ret = sem_init(&worker->sem_done, 0, 0);
+ if (ret != 0)
+  goto fail_sem_done;
+
+ ret = pthread_create(&worker->thread, NULL, spu_worker_thread, NULL);
+ if (ret != 0)
+  goto fail_thread;
+
+ return;
+
+fail_thread:
+ sem_destroy(&worker->sem_done);
+fail_sem_done:
+ sem_destroy(&worker->sem_avail);
+fail_sem_avail:
+ free(worker);
+ worker = NULL;
+}
+
+static void exit_spu_thread(void)
+{
+ if (worker == NULL)
+  return;
+ worker->exit_thread = 1;
+ sem_post(&worker->sem_avail);
+ pthread_join(worker->thread, NULL);
+ sem_destroy(&worker->sem_done);
+ sem_destroy(&worker->sem_avail);
+ free(worker);
+ worker = NULL;
+}
+
+#else // if !THREAD_ENABLED
+
+static void init_spu_thread(void)
+{
+}
+
+static void exit_spu_thread(void)
+{
+}
+
+#endif
 
 // SPUINIT: this func will be called first by the main emu
 long CALLBACK SPUinit(void)
@@ -1087,6 +1368,8 @@ long CALLBACK SPUinit(void)
 
  if (spu_config.iVolume == 0)
   spu_config.iVolume = 768; // 1024 is 1.0
+
+ init_spu_thread();
 
  return 0;
 }
@@ -1121,6 +1404,8 @@ long CALLBACK SPUshutdown(void)
  SPUclose();
  RemoveStreams();                                      // no more streaming
  spu.bSpuInit=0;
+
+ exit_spu_thread();
 
  return 0;
 }

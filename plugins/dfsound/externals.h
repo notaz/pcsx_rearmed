@@ -237,16 +237,16 @@ extern SPUInfo spu;
 extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;
 
-void do_samples(unsigned int cycles_to);
+void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);
 
 #define regAreaGet(ch,offset) \
   spu.regArea[((ch<<4)|(offset))>>1]
 
-#define do_samples_if_needed(c) \
+#define do_samples_if_needed(c, sync) \
  do { \
-  if ((int)((c) - spu.cycles_played) >= 16 * 768) \
-   do_samples(c); \
+  if (sync || (int)((c) - spu.cycles_played) >= 16 * 768) \
+   do_samples(c, sync); \
  } while (0)
 
 #endif

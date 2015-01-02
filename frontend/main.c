@@ -141,6 +141,7 @@ void emu_set_default_config(void)
 	spu_config.iXAPitch = 0;
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
+	spu_config.iUseThread = 1; // no effect if only 1 core is detected
 #if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
