@@ -172,7 +172,9 @@ else
 endif
 
 CFLAGS += -fPIC
-ifneq ($(platform),qnx)
+ifeq ($(platform),win)
+	MAIN_LDLIBS += -lws2_32
+else ifneq ($(platform),qnx)
 	LDLIBS += -lpthread
 	MAIN_LDLIBS += -ldl
 endif

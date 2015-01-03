@@ -90,9 +90,13 @@ INLINE void MixXA(int ns_to)
 
 static unsigned long timeGetTime_spu()
 {
+#ifdef _WIN32
+ return GetTickCount();
+#else
  struct timeval tv;
  gettimeofday(&tv, 0);                                 // well, maybe there are better ways
  return tv.tv_sec * 1000 + tv.tv_usec/1000;            // to do that, but at least it works
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////

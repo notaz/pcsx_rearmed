@@ -6,4 +6,4 @@ void new_dyna_pcsx_mem_reset(void);
 void new_dyna_pcsx_mem_load_state(void);
 void new_dyna_pcsx_mem_shutdown(void);
 
-int pcsxmem_is_handler_dynamic(u_int addr);
+int pcsxmem_is_handler_dynamic(unsigned int addr);

@@ -18,6 +18,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef _WIN32
+#include <sys/time.h> // gettimeofday in xa.c
+#endif
 #include "stdafx.h"
 
 #define _IN_SPU
@@ -27,16 +30,6 @@
 #include "out.h"
 #include "arm_features.h"
 #include "spu_config.h"
-
-#ifdef ENABLE_NLS
-#include <libintl.h>
-#include <locale.h>
-#define _(x)  gettext(x)
-#define N_(x) (x)
-#else
-#define _(x)  (x)
-#define N_(x) (x)
-#endif
 
 #ifdef __ARM_ARCH_7A__
  #define ssat32_to_16(v) \

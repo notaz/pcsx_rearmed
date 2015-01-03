@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2012
+ * (C) notaz, 2012,2014,2015
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -602,7 +602,7 @@ static void extract_directory(char *buf, const char *path, size_t size)
    }
 }
 
-#ifdef __QNX__
+#if defined(__QNX__) || defined(_WIN32)
 /* Blackberry QNX doesn't have strcasestr */
 
 /*

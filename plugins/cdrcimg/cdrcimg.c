@@ -12,7 +12,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <zlib.h>
+#ifndef _WIN32
+#define CALLBACK
 #include <dlfcn.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 #include "cdrcimg.h"
 
@@ -44,7 +50,7 @@ static struct {
 static int current_block, current_sect_in_blk;
 
 struct CdrStat;
-extern long CDR__getStatus(struct CdrStat *stat);
+extern long CALLBACK CDR__getStatus(struct CdrStat *stat);
 
 struct CdrStat
 {
@@ -279,6 +285,7 @@ static long CDRinit(void)
 			return -1;
 		}
 	}
+#ifndef _WIN32
 	if (pBZ2_bzBuffToBuffDecompress == NULL) {
 		void *h = dlopen("/usr/lib/libbz2.so.1", RTLD_LAZY);
 		if (h == NULL)
@@ -291,6 +298,7 @@ static long CDRinit(void)
 			}
 		}
 	}
+#endif
 	return 0;
 }
 
