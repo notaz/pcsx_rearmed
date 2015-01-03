@@ -57,8 +57,8 @@ void InitADSR(void)                                    // INIT ADSR
 
 INLINE void StartADSR(int ch)                          // MIX ADSR
 {
- s_chan[ch].ADSRX.State=ADSR_ATTACK;                   // and init some adsr vars
- s_chan[ch].ADSRX.EnvelopeVol=0;
+ spu.s_chan[ch].ADSRX.State = ADSR_ATTACK;             // and init some adsr vars
+ spu.s_chan[ch].ADSRX.EnvelopeVol = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////

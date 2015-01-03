@@ -85,10 +85,10 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
        {
         const unsigned long lval=val;
         //---------------------------------------------//
-        s_chan[ch].ADSRX.AttackModeExp=(lval&0x8000)?1:0; 
-        s_chan[ch].ADSRX.AttackRate=(lval>>8) & 0x007f;
-        s_chan[ch].ADSRX.DecayRate=(lval>>4) & 0x000f;
-        s_chan[ch].ADSRX.SustainLevel=lval & 0x000f;
+        spu.s_chan[ch].ADSRX.AttackModeExp=(lval&0x8000)?1:0;
+        spu.s_chan[ch].ADSRX.AttackRate=(lval>>8) & 0x007f;
+        spu.s_chan[ch].ADSRX.DecayRate=(lval>>4) & 0x000f;
+        spu.s_chan[ch].ADSRX.SustainLevel=lval & 0x000f;
         //---------------------------------------------//
        }
       break;
@@ -98,11 +98,11 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
        const unsigned long lval=val;
 
        //----------------------------------------------//
-       s_chan[ch].ADSRX.SustainModeExp = (lval&0x8000)?1:0;
-       s_chan[ch].ADSRX.SustainIncrease= (lval&0x4000)?0:1;
-       s_chan[ch].ADSRX.SustainRate = (lval>>6) & 0x007f;
-       s_chan[ch].ADSRX.ReleaseModeExp = (lval&0x0020)?1:0;
-       s_chan[ch].ADSRX.ReleaseRate = lval & 0x001f;
+       spu.s_chan[ch].ADSRX.SustainModeExp = (lval&0x8000)?1:0;
+       spu.s_chan[ch].ADSRX.SustainIncrease= (lval&0x4000)?0:1;
+       spu.s_chan[ch].ADSRX.SustainRate = (lval>>6) & 0x007f;
+       spu.s_chan[ch].ADSRX.ReleaseModeExp = (lval&0x0020)?1:0;
+       spu.s_chan[ch].ADSRX.ReleaseRate = lval & 0x001f;
        //----------------------------------------------//
       }
      break;
@@ -111,7 +111,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
        break;
      //------------------------------------------------//
      case 14:                                          // loop?
-       s_chan[ch].pLoop=spu.spuMemC+((val&~1)<<3);
+       spu.s_chan[ch].pLoop=spu.spuMemC+((val&~1)<<3);
        goto upd_irq;
      //------------------------------------------------//
     }
@@ -126,9 +126,9 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_SPUdata:
-      spu.spuMem[spu.spuAddr>>1] = val;
-      spu.spuAddr+=2;
-      if(spu.spuAddr>0x7ffff) spu.spuAddr=0;
+      *(unsigned short *)(spu.spuMemC + spu.spuAddr) = val;
+      spu.spuAddr += 2;
+      spu.spuAddr &= 0x7fffe;
       break;
     //-------------------------------------------------//
     case H_SPUctrl:
@@ -307,15 +307,15 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
        const int ch=(r>>4)-0xc0;
        if(spu.dwNewChannel&(1<<ch)) return 1;          // we are started, but not processed? return 1
        if((spu.dwChannelOn&(1<<ch)) &&                 // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
-          !s_chan[ch].ADSRX.EnvelopeVol)
+          !spu.s_chan[ch].ADSRX.EnvelopeVol)
         return 1;
-       return (unsigned short)(s_chan[ch].ADSRX.EnvelopeVol>>16);
+       return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol>>16);
       }
 
      case 14:                                          // get loop address
       {
        const int ch=(r>>4)-0xc0;
-       return (unsigned short)((s_chan[ch].pLoop-spu.spuMemC)>>3);
+       return (unsigned short)((spu.s_chan[ch].pLoop-spu.spuMemC)>>3);
       }
     }
   }
@@ -333,9 +333,9 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
 
     case H_SPUdata:
      {
-      unsigned short s=spu.spuMem[spu.spuAddr>>1];
-      spu.spuAddr+=2;
-      if(spu.spuAddr>0x7ffff) spu.spuAddr=0;
+      unsigned short s = *(unsigned short *)(spu.spuMemC + spu.spuAddr);
+      spu.spuAddr += 2;
+      spu.spuAddr &= 0x7fffe;
       return s;
      }
 
@@ -362,8 +362,8 @@ static void SoundOn(int start,int end,unsigned short val)
   {
    if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
     {
-     s_chan[ch].pCurr=spu.spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
-     s_chan[ch].pLoop=spu.spuMemC+((regAreaGet(ch,14)&~1)<<3);
+     spu.s_chan[ch].pCurr=spu.spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
+     spu.s_chan[ch].pLoop=spu.spuMemC+((regAreaGet(ch,14)&~1)<<3);
      spu.dwNewChannel|=(1<<ch);
     }
   }
@@ -380,7 +380,7 @@ static void SoundOff(int start,int end,unsigned short val)
   {
    if(val&1)
     {
-     s_chan[ch].ADSRX.State = ADSR_RELEASE;
+     spu.s_chan[ch].ADSRX.State = ADSR_RELEASE;
 
      // Jungle Book - Rhythm 'n Groove
      // - turns off buzzing sound (loop hangs)
@@ -403,15 +403,15 @@ static void FModOn(int start,int end,unsigned short val)
     {
      if(ch>0) 
       {
-       s_chan[ch].bFMod=1;                             // --> sound channel
-       s_chan[ch-1].bFMod=2;                           // --> freq channel
+       spu.s_chan[ch].bFMod=1;                         // --> sound channel
+       spu.s_chan[ch-1].bFMod=2;                       // --> freq channel
       }
     }
    else
     {
-     s_chan[ch].bFMod=0;                               // --> turn off fmod
-     if(ch>0&&s_chan[ch-1].bFMod==2)
-      s_chan[ch-1].bFMod=0;
+     spu.s_chan[ch].bFMod=0;                           // --> turn off fmod
+     if(ch>0&&spu.s_chan[ch-1].bFMod==2)
+      spu.s_chan[ch-1].bFMod=0;
     }
   }
 }
@@ -426,7 +426,7 @@ static void NoiseOn(int start,int end,unsigned short val)
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   s_chan[ch].bNoise=val&1;                            // -> noise on/off
+   spu.s_chan[ch].bNoise=val&1;                        // -> noise on/off
   }
 }
 
@@ -456,7 +456,7 @@ static void SetVolumeL(unsigned char ch,short vol)     // LEFT VOLUME
   }
 
  vol&=0x3fff;
- s_chan[ch].iLeftVolume=vol;                           // store volume
+ spu.s_chan[ch].iLeftVolume=vol;                       // store volume
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -482,7 +482,7 @@ static void SetVolumeR(unsigned char ch,short vol)     // RIGHT VOLUME
 
  vol&=0x3fff;
 
- s_chan[ch].iRightVolume=vol;
+ spu.s_chan[ch].iRightVolume=vol;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -495,10 +495,10 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  if(val>0x3fff) NP=0x3fff;                             // get pitch val
  else           NP=val;
 
- s_chan[ch].iRawPitch=NP;
- s_chan[ch].sinc=(NP<<4)|8;
- s_chan[ch].sinc_inv=0;
- if(spu_config.iUseInterpolation==1) s_chan[ch].SB[32]=1; // -> freq change in simple interpolation mode: set flag
+ spu.s_chan[ch].iRawPitch=NP;
+ spu.s_chan[ch].sinc=(NP<<4)|8;
+ spu.s_chan[ch].sinc_inv=0;
+ if(spu_config.iUseInterpolation==1) spu.s_chan[ch].SB[32]=1; // -> freq change in simple interpolation mode: set flag
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -511,6 +511,6 @@ static void ReverbOn(int start,int end,unsigned short val)
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   s_chan[ch].bReverb=val&1;                           // -> reverb on/off
+   spu.s_chan[ch].bReverb=val&1;                       // -> reverb on/off
   }
 }

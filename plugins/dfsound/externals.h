@@ -181,7 +181,10 @@ typedef struct
  unsigned short  spuStat;
 
  unsigned int    spuAddr;
- unsigned char * spuMemC;
+ union {
+  unsigned char  *spuMemC;
+  unsigned short *spuMem;
+ };
  unsigned char * pSpuIrq;
 
  unsigned int    cycles_played;
@@ -222,9 +225,10 @@ typedef struct
  int             iLeftXAVol;
  int             iRightXAVol;
 
- int             pad[32];
+ SPUCHAN       * s_chan;
+
+ int             pad[31];
  unsigned short  regArea[0x400];
- unsigned short  spuMem[256*1024];
 } SPUInfo;
 
 ///////////////////////////////////////////////////////////
@@ -234,7 +238,6 @@ typedef struct
 #ifndef _IN_SPU
 
 extern SPUInfo spu;
-extern SPUCHAN s_chan[];
 extern REVERBInfo rvb;
 
 void do_samples(unsigned int cycles_to, int do_sync);

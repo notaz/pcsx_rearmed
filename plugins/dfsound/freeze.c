@@ -264,11 +264,11 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
    for(i=0;i<MAXCHAN;i++)
     {
-     save_channel(&pFO->s_chan[i],&s_chan[i],i);
-     if(s_chan[i].pCurr)
-      pFO->s_chan[i].iCurr=s_chan[i].pCurr-spu.spuMemC;
-     if(s_chan[i].pLoop)
-      pFO->s_chan[i].iLoop=s_chan[i].pLoop-spu.spuMemC;
+     save_channel(&pFO->s_chan[i],&spu.s_chan[i],i);
+     if(spu.s_chan[i].pCurr)
+      pFO->s_chan[i].iCurr=spu.s_chan[i].pCurr-spu.spuMemC;
+     if(spu.s_chan[i].pLoop)
+      pFO->s_chan[i].iLoop=spu.s_chan[i].pLoop-spu.spuMemC;
     }
 
    return 1;
@@ -302,7 +302,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  load_register(H_CDRight, cycles);
 
  // fix to prevent new interpolations from crashing
- for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
+ for(i=0;i<MAXCHAN;i++) spu.s_chan[i].SB[28]=0;
 
  ClearWorkingState();
  spu.cycles_played = cycles;
@@ -325,8 +325,8 @@ void LoadStateV5(SPUFreeze_t * pF)
 
  if(pFO->spuAddr)
   {
-   spu.spuAddr = pFO->spuAddr;
-   if (spu.spuAddr == 0xbaadf00d) spu.spuAddr = 0;
+   if (pFO->spuAddr == 0xbaadf00d) spu.spuAddr = 0;
+   else spu.spuAddr = pFO->spuAddr & 0x7fffe;
   }
 
  spu.dwNewChannel=0;
@@ -334,10 +334,10 @@ void LoadStateV5(SPUFreeze_t * pF)
  spu.dwChannelDead=0;
  for(i=0;i<MAXCHAN;i++)
   {
-   load_channel(&s_chan[i],&pFO->s_chan[i],i);
+   load_channel(&spu.s_chan[i],&pFO->s_chan[i],i);
 
-   s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
-   s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
+   spu.s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
+   spu.s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
   }
 }
 
@@ -349,7 +349,7 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
 
  for(i=0;i<MAXCHAN;i++)
   {
-   s_chan[i].pLoop=spu.spuMemC;
+   spu.s_chan[i].pLoop=spu.spuMemC;
   }
 
  spu.dwNewChannel=0;

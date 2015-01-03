@@ -32,11 +32,11 @@
 
 INLINE void StartREVERB(int ch)
 {
- if(s_chan[ch].bReverb && (spu.spuCtrl&0x80))          // reverb possible?
+ if(spu.s_chan[ch].bReverb && (spu.spuCtrl&0x80))      // reverb possible?
   {
-   s_chan[ch].bRVBActive=!!spu_config.iUseReverb;
+   spu.s_chan[ch].bRVBActive=!!spu_config.iUseReverb;
   }
- else s_chan[ch].bRVBActive=0;                         // else -> no reverb
+ else spu.s_chan[ch].bRVBActive=0;                     // else -> no reverb
 }
 
 ////////////////////////////////////////////////////////////////////////
