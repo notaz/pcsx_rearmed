@@ -22,10 +22,13 @@
  */
 
 #include <dlfcn.h>
+#include <stddef.h>
+
 #include <inc_libc64_mini.h>
 #include "spu_c64x.h"
 
 static dsp_mem_region_t region;
+static dsp_component_id_t compid;
 
 static struct {
  void *handle;
@@ -37,20 +40,57 @@ static struct {
  int  (*dsp_cache_inv_virt)(void *_virtAddr, sU32 _size);
  int  (*dsp_rpc_send)(const dsp_msg_t *_msgTo);
  int  (*dsp_rpc_recv)(dsp_msg_t *_msgFrom);
+ int  (*dsp_rpc)(const dsp_msg_t *_msgTo, dsp_msg_t *_msgFrom);
  void (*dsp_logbuf_print)(void);
 } f;
 
 static void thread_work_start(void)
 {
- do_channel_work();
+ dsp_msg_t msg;
+ int ret;
+
+ DSP_MSG_INIT(&msg, compid, CCMD_DOIT, 0, 0);
+ ret = f.dsp_rpc_send(&msg);
+ if (ret != 0) {
+  fprintf(stderr, "dsp_rpc_send failed: %d\n", ret);
+  f.dsp_logbuf_print();
+  // maybe stop using the DSP?
+ }
 }
 
 static void thread_work_wait_sync(void)
 {
+ dsp_msg_t msg;
+ int ns_to;
+ int ret;
+
+ ns_to = worker->ns_to;
+ f.dsp_cache_inv_virt(spu.sRVBStart, sizeof(spu.sRVBStart[0]) * 2 * ns_to);
+ f.dsp_cache_inv_virt(SSumLR, sizeof(SSumLR[0]) * 2 * ns_to);
+ f.dsp_cache_inv_virt(&worker->r, sizeof(worker->r));
+ worker->stale_cache = 1; // SB, ram
+
+ ret = f.dsp_rpc_recv(&msg);
+ if (ret != 0) {
+  fprintf(stderr, "dsp_rpc_recv failed: %d\n", ret);
+  f.dsp_logbuf_print();
+ }
+ //f.dsp_logbuf_print();
+}
+
+// called before ARM decides to do SPU mixing itself
+static void thread_sync_caches(void)
+{
+ if (worker->stale_cache) {
+  f.dsp_cache_inv_virt(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24);
+  f.dsp_cache_inv_virt(spu.spuMemC + 0x800, 0x800);
+  worker->stale_cache = 0;
+ }
 }
 
 static void init_spu_thread(void)
 {
+ dsp_msg_t init_msg, msg_in;
  struct region_mem *mem;
  int ret;
 
@@ -73,6 +113,7 @@ static void init_spu_thread(void)
   LDS(dsp_component_load);
   LDS(dsp_rpc_send);
   LDS(dsp_rpc_recv);
+  LDS(dsp_rpc);
   LDS(dsp_logbuf_print);
   #undef LDS
   if (failed) {
@@ -89,12 +130,43 @@ static void init_spu_thread(void)
   return;
  }
 
+ ret = f.dsp_component_load(NULL, COMPONENT_NAME, &compid);
+ if (ret != 0) {
+  fprintf(stderr, "dsp_component_load failed: %d\n", ret);
+  goto fail_cload;
+ }
+
  region = f.dsp_shm_alloc(DSP_CACHE_R, sizeof(*mem)); // writethrough
  if (region.size < sizeof(*mem) || region.virt_addr == 0) {
   fprintf(stderr, "dsp_shm_alloc failed\n");
   goto fail_mem;
  }
  mem = (void *)region.virt_addr;
+
+ memcpy(&mem->spu_config, &spu_config, sizeof(mem->spu_config));
+
+ DSP_MSG_INIT(&init_msg, compid, CCMD_INIT, region.phys_addr, 0);
+ ret = f.dsp_rpc(&init_msg, &msg_in);
+ if (ret != 0) {
+  fprintf(stderr, "dsp_rpc failed: %d\n", ret);
+  goto fail_init;
+ }
+
+ if (mem->sizeof_region_mem != sizeof(*mem)) {
+  fprintf(stderr, "error: size mismatch 1: %d vs %zd\n",
+    mem->sizeof_region_mem, sizeof(*mem));
+  goto fail_init;
+ }
+ if (mem->offsetof_s_chan1 != offsetof(typeof(*mem), s_chan[1])) {
+  fprintf(stderr, "error: size mismatch 2: %d vs %zd\n",
+    mem->offsetof_s_chan1, offsetof(typeof(*mem), s_chan[1]));
+  goto fail_init;
+ }
+ if (mem->offsetof_worker_ram != offsetof(typeof(*mem), worker.ch[1])) {
+  fprintf(stderr, "error: size mismatch 3: %d vs %zd\n",
+    mem->offsetof_worker_ram, offsetof(typeof(*mem), worker.ch[1]));
+  goto fail_init;
+ }
 
  // override default allocations
  free(spu.spuMemC);
@@ -103,14 +175,26 @@ static void init_spu_thread(void)
  spu.sRVBStart = mem->RVB;
  free(SSumLR);
  SSumLR = mem->SSumLR;
+ free(spu.SB);
+ spu.SB = mem->SB;
  free(spu.s_chan);
  spu.s_chan = mem->s_chan;
  worker = &mem->worker;
 
- printf("C64x DSP ready.\n");
+ printf("spu: C64x DSP ready (id=%d).\n", (int)compid);
+ f.dsp_logbuf_print();
+
+pcnt_init();
+ (void)do_channel_work; // used by DSP instead
  return;
 
+fail_init:
+ f.dsp_shm_free(region);
 fail_mem:
+ // no component unload func?
+fail_cload:
+ printf("spu: C64x DSP init failed.\n");
+ f.dsp_logbuf_print();
  f.dsp_close();
  worker = NULL;
 }
@@ -128,6 +212,7 @@ static void exit_spu_thread(void)
  spu.spuMemC = NULL;
  spu.sRVBStart = NULL;
  SSumLR = NULL;
+ spu.SB = NULL;
  spu.s_chan = NULL;
  worker = NULL;
 }

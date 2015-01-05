@@ -110,8 +110,6 @@ typedef struct
  int               iRightVolume;                       // right volume
  ADSRInfoEx        ADSRX;
  int               iRawPitch;                          // raw pitch (0...3fff)
-
- int               SB[32+4];
 } SPUCHAN;
 
 ///////////////////////////////////////////////////////////
@@ -175,6 +173,8 @@ typedef struct
 
 // psx buffers / addresses
 
+#define SB_SIZE (32 + 4)
+
 typedef struct
 {
  unsigned short  spuCtrl;
@@ -226,8 +226,9 @@ typedef struct
  int             iRightXAVol;
 
  SPUCHAN       * s_chan;
+ int           * SB;
 
- int             pad[31];
+ int             pad[30];
  unsigned short  regArea[0x400];
 } SPUInfo;
 

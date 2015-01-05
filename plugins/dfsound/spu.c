@@ -18,7 +18,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_OS)
 #include <sys/time.h> // gettimeofday in xa.c
 #define THREAD_ENABLED 1
 #endif
@@ -29,8 +29,11 @@
 #include "externals.h"
 #include "registers.h"
 #include "out.h"
-#include "arm_features.h"
 #include "spu_config.h"
+
+#ifdef __arm__
+#include "arm_features.h"
+#endif
 
 #ifdef __ARM_ARCH_7A__
  #define ssat32_to_16(v) \
@@ -74,19 +77,18 @@ SPUConfig       spu_config;
 
 REVERBInfo      rvb;
 
-#ifdef THREAD_ENABLED
+#if defined(THREAD_ENABLED) || defined(WANT_THREAD_CODE)
 
 // worker thread state
 static struct spu_worker {
  unsigned int pending:1;
  unsigned int exit_thread:1;
+ unsigned int stale_cache:1;
  int ns_to;
  int ctrl;
  int decode_pos;
  int silentch;
  unsigned int chmask;
- unsigned int r_chan_end;
- unsigned int r_decode_dirty;
  struct {
   int spos;
   int sbpos;
@@ -97,6 +99,14 @@ static struct spu_worker {
   ADSRInfoEx adsr;
   // might want to add vol and fmod flags..
  } ch[24];
+ struct {
+  struct {
+   int adsrState;
+   int adsrEnvelopeVol;
+  } ch[24];
+  unsigned int chan_end;
+  unsigned int decode_dirty;
+ } r;
 } *worker;
 
 #else
@@ -260,20 +270,21 @@ static int check_irq(int ch, unsigned char *pos)
 INLINE void StartSound(int ch)
 {
  SPUCHAN *s_chan = &spu.s_chan[ch];
+ int *SB = spu.SB + ch * SB_SIZE;
 
  StartADSR(ch);
  StartREVERB(ch);
 
  s_chan->prevflags=2;
 
- s_chan->SB[26]=0;                                     // init mixing vars
- s_chan->SB[27]=0;
  s_chan->iSBPos=27;
+ SB[26]=0;                                             // init mixing vars
+ SB[27]=0;
 
- s_chan->SB[28]=0;
- s_chan->SB[29]=0;                                     // init our interpolation helpers
- s_chan->SB[30]=0;
- s_chan->SB[31]=0;
+ SB[28]=0;
+ SB[29]=0;                                             // init our interpolation helpers
+ SB[30]=0;
+ SB[31]=0;
  s_chan->spos=0;
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
@@ -509,7 +520,7 @@ static int skip_block(int ch)
  return ret;
 }
 
-#ifdef THREAD_ENABLED
+#if defined(THREAD_ENABLED) || defined(WANT_THREAD_CODE)
 
 static int decode_block_work(int ch, int *SB)
 {
@@ -825,7 +836,7 @@ static void do_channels(int ns_to)
    if (!(mask & 1)) continue;                      // channel not playing? next
 
    s_chan = &spu.s_chan[ch];
-   SB = s_chan->SB;
+   SB = spu.SB + ch * SB_SIZE;
    sinc = s_chan->sinc;
 
    if (s_chan->bNoise)
@@ -867,10 +878,11 @@ static void do_samples_finish(int ns_to, int silentch, int decode_pos);
 
 // optional worker thread handling
 
-#ifdef THREAD_ENABLED
+#if defined(THREAD_ENABLED) || defined(WANT_THREAD_CODE)
 
 static void thread_work_start(void);
 static void thread_work_wait_sync(void);
+static void thread_sync_caches(void);
 
 static void queue_channel_work(int ns_to, int silentch)
 {
@@ -927,7 +939,7 @@ static void do_channel_work(void)
    sinc = worker->ch[ch].sinc;
 
    s_chan = &spu.s_chan[ch];
-   SB = s_chan->SB;
+   SB = spu.SB + ch * SB_SIZE;
 
    if (s_chan->bNoise)
     do_lsfr_samples(d, worker->ctrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
@@ -945,6 +957,8 @@ static void do_channel_work(void)
     worker->ch[ch].adsr.EnvelopeVol = 0;
     memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));
    }
+   worker->r.ch[ch].adsrState = worker->ch[ch].adsr.State;
+   worker->r.ch[ch].adsrEnvelopeVol = worker->ch[ch].adsr.EnvelopeVol;
 
    if (ch == 1 || ch == 3)
     {
@@ -960,15 +974,17 @@ static void do_channel_work(void)
     mix_chan(0, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
   }
 
-  worker->r_chan_end = endmask;
-  worker->r_decode_dirty = decode_dirty_ch;
+  worker->r.chan_end = endmask;
+  worker->r.decode_dirty = decode_dirty_ch;
 }
 
-static void sync_worker_thread(void)
+static void sync_worker_thread(int do_direct)
 {
  unsigned int mask;
  int ch;
 
+ if (do_direct)
+  thread_sync_caches();
  if (!worker->pending)
   return;
 
@@ -981,12 +997,12 @@ static void sync_worker_thread(void)
 
   // be sure there was no keyoff while thread was working
   if (spu.s_chan[ch].ADSRX.State != ADSR_RELEASE)
-    spu.s_chan[ch].ADSRX.State = worker->ch[ch].adsr.State;
-  spu.s_chan[ch].ADSRX.EnvelopeVol = worker->ch[ch].adsr.EnvelopeVol;
+    spu.s_chan[ch].ADSRX.State = worker->r.ch[ch].adsrState;
+  spu.s_chan[ch].ADSRX.EnvelopeVol = worker->r.ch[ch].adsrEnvelopeVol;
  }
 
- spu.dwChannelOn &= ~worker->r_chan_end;
- spu.decode_dirty_ch |= worker->r_decode_dirty;
+ spu.dwChannelOn &= ~worker->r.chan_end;
+ spu.decode_dirty_ch |= worker->r.decode_dirty;
 
  do_samples_finish(worker->ns_to, worker->silentch,
   worker->decode_pos);
@@ -995,7 +1011,7 @@ static void sync_worker_thread(void)
 #else
 
 static void queue_channel_work(int ns_to, int silentch) {}
-static void sync_worker_thread(void) {}
+static void sync_worker_thread(int do_direct) {}
 
 #endif // THREAD_ENABLED
 
@@ -1004,7 +1020,7 @@ static void sync_worker_thread(void) {}
 // here is the main job handler...
 ////////////////////////////////////////////////////////////////////////
 
-void do_samples(unsigned int cycles_to, int do_sync)
+void do_samples(unsigned int cycles_to, int do_direct)
 {
  unsigned int mask;
  int ch, ns_to;
@@ -1018,6 +1034,10 @@ void do_samples(unsigned int cycles_to, int do_sync)
    spu.cycles_played = cycles_to;
    return;
   }
+
+ do_direct |= (cycle_diff < 64 * 768);
+ if (worker != NULL)
+  sync_worker_thread(do_direct);
 
  if (cycle_diff < 2 * 768)
   return;
@@ -1058,9 +1078,6 @@ void do_samples(unsigned int cycles_to, int do_sync)
      }
    }
 
-  if (worker != NULL)
-   sync_worker_thread();
-
   mask = spu.dwNewChannel & 0xffffff;
   for (ch = 0; mask != 0; ch++, mask >>= 1) {
    if (mask & 1)
@@ -1074,7 +1091,7 @@ void do_samples(unsigned int cycles_to, int do_sync)
    do_samples_finish(ns_to, silentch, spu.decode_pos);
   }
   else {
-   if (do_sync || worker == NULL || !spu_config.iUseThread) {
+   if (do_direct || worker == NULL || !spu_config.iUseThread) {
     do_channels(ns_to);
     do_samples_finish(ns_to, silentch, spu.decode_pos);
    }
@@ -1320,6 +1337,10 @@ static void thread_work_wait_sync(void)
  sem_wait(&t.sem_done);
 }
 
+static void thread_sync_caches(void)
+{
+}
+
 static void *spu_worker_thread(void *unused)
 {
  while (1) {
@@ -1400,6 +1421,7 @@ long CALLBACK SPUinit(void)
  InitADSR();
 
  spu.s_chan = calloc(MAXCHAN+1, sizeof(spu.s_chan[0])); // channel + 1 infos (1 is security for fmod handling)
+ spu.SB = calloc(MAXCHAN, sizeof(spu.SB[0]) * SB_SIZE);
 
  spu.spuAddr = 0;
  spu.decode_pos = 0;
@@ -1448,6 +1470,8 @@ long CALLBACK SPUshutdown(void)
 
  free(spu.spuMemC);
  spu.spuMemC = NULL;
+ free(spu.SB);
+ spu.SB = NULL;
  free(spu.s_chan);
  spu.s_chan = NULL;
 

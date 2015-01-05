@@ -90,7 +90,9 @@ INLINE void MixXA(int ns_to, int decode_pos)
 
 static unsigned long timeGetTime_spu()
 {
-#ifdef _WIN32
+#if defined(NO_OS)
+ return 0;
+#elif defined(_WIN32)
  return GetTickCount();
 #else
  struct timeval tv;
