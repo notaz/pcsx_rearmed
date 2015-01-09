@@ -206,8 +206,6 @@ typedef struct
  void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
  void (CALLBACK *scheduleCallback)(unsigned int);
 
- int           * sRVBStart;
-
  xa_decode_t   * xapGlobal;
  unsigned int  * XAFeed;
  unsigned int  * XAPlay;
@@ -228,7 +226,10 @@ typedef struct
  SPUCHAN       * s_chan;
  int           * SB;
 
- int             pad[30];
+ int           * RVB;
+ int           * SSumLR;
+
+ int             pad[29];
  unsigned short  regArea[0x400];
 } SPUInfo;
 

@@ -23,12 +23,10 @@
 
 #include <dlfcn.h>
 #include <stddef.h>
+#include <unistd.h>
 
 #include <inc_libc64_mini.h>
 #include "spu_c64x.h"
-
-static dsp_mem_region_t region;
-static dsp_component_id_t compid;
 
 static struct {
  void *handle;
@@ -42,49 +40,114 @@ static struct {
  int  (*dsp_rpc_recv)(dsp_msg_t *_msgFrom);
  int  (*dsp_rpc)(const dsp_msg_t *_msgTo, dsp_msg_t *_msgFrom);
  void (*dsp_logbuf_print)(void);
+
+ dsp_mem_region_t region;
+ dsp_component_id_t compid;
 } f;
 
 static void thread_work_start(void)
 {
+ struct region_mem *mem;
  dsp_msg_t msg;
  int ret;
 
- DSP_MSG_INIT(&msg, compid, CCMD_DOIT, 0, 0);
+ // make sure new work is written out
+ __sync_synchronize();
+
+ // this should be safe, as dsp checks for new work even
+ // after it decrements ->active
+ // cacheline: i_done, active
+ f.dsp_cache_inv_virt(&worker->i_done, 64);
+ if (worker->active == ACTIVE_CNT)
+  return;
+
+ // to start the DSP, dsp_rpc_send() must be used,
+ // but before that, previous request must be finished
+ if (worker->req_sent) {
+  if (worker->boot_cnt == worker->last_boot_cnt) {
+   // hopefully still booting
+   //printf("booting?\n");
+   return;
+  }
+
+  ret = f.dsp_rpc_recv(&msg);
+  if (ret != 0) {
+   fprintf(stderr, "dsp_rpc_recv failed: %d\n", ret);
+   f.dsp_logbuf_print();
+   worker->req_sent = 0;
+   spu_config.iUseThread = 0;
+   return;
+  }
+ }
+
+ f.dsp_cache_inv_virt(&worker->i_done, 64);
+ worker->last_boot_cnt = worker->boot_cnt;
+
+ mem = (void *)f.region.virt_addr;
+ memcpy(&mem->spu_config, &spu_config, sizeof(mem->spu_config));
+
+ DSP_MSG_INIT(&msg, f.compid, CCMD_DOIT, f.region.phys_addr, 0);
  ret = f.dsp_rpc_send(&msg);
  if (ret != 0) {
   fprintf(stderr, "dsp_rpc_send failed: %d\n", ret);
   f.dsp_logbuf_print();
-  // maybe stop using the DSP?
+  spu_config.iUseThread = 0;
+  return;
  }
+ worker->req_sent = 1;
 }
 
-static void thread_work_wait_sync(void)
+static int thread_get_i_done(void)
 {
- dsp_msg_t msg;
+ f.dsp_cache_inv_virt(&worker->i_done, sizeof(worker->i_done));
+ return worker->i_done;
+}
+
+static void thread_work_wait_sync(struct work_item *work, int force)
+{
+ int limit = 1000;
  int ns_to;
- int ret;
 
- ns_to = worker->ns_to;
- f.dsp_cache_inv_virt(spu.sRVBStart, sizeof(spu.sRVBStart[0]) * 2 * ns_to);
- f.dsp_cache_inv_virt(SSumLR, sizeof(SSumLR[0]) * 2 * ns_to);
- f.dsp_cache_inv_virt(&worker->r, sizeof(worker->r));
- worker->stale_cache = 1; // SB, ram
+ ns_to = work->ns_to;
+ f.dsp_cache_inv_virt(work->RVB, sizeof(work->RVB[0]) * 2 * ns_to);
+ f.dsp_cache_inv_virt(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to);
+ __builtin_prefetch(work->RVB);
+ __builtin_prefetch(work->SSumLR);
 
- ret = f.dsp_rpc_recv(&msg);
- if (ret != 0) {
-  fprintf(stderr, "dsp_rpc_recv failed: %d\n", ret);
-  f.dsp_logbuf_print();
+ while (worker->i_done == worker->i_reaped && limit-- > 0) {
+  if (!worker->active) {
+   printf("dsp: broken sync\n");
+   worker->last_boot_cnt = ~0;
+   break;
+  }
+
+  usleep(500);
+  f.dsp_cache_inv_virt(&worker->i_done, 64);
  }
- //f.dsp_logbuf_print();
-}
 
-// called before ARM decides to do SPU mixing itself
-static void thread_sync_caches(void)
-{
- if (worker->stale_cache) {
+ if (limit == 0)
+  printf("dsp: wait timeout\n");
+
+ // still in results loop?
+ if (worker->i_reaped != worker->i_done - 1)
+  return;
+
+ if (worker->req_sent && (force || worker->i_done == worker->i_ready)) {
+  dsp_msg_t msg;
+  int ret;
+
+  ret = f.dsp_rpc_recv(&msg);
+  if (ret != 0) {
+   fprintf(stderr, "dsp_rpc_recv failed: %d\n", ret);
+   f.dsp_logbuf_print();
+   spu_config.iUseThread = 0;
+  }
+  worker->req_sent = 0;
+ }
+
+ if (force) {
   f.dsp_cache_inv_virt(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24);
   f.dsp_cache_inv_virt(spu.spuMemC + 0x800, 0x800);
-  worker->stale_cache = 0;
  }
 }
 
@@ -101,7 +164,7 @@ static void init_spu_thread(void)
   f.handle = dlopen(lib, RTLD_NOW);
   if (f.handle == NULL) {
    fprintf(stderr, "can't load %s: %s\n", lib, dlerror());
-   return;
+   goto fail_open;
   }
   #define LDS(name) \
     failed |= (f.name = dlsym(f.handle, #name)) == NULL
@@ -120,32 +183,32 @@ static void init_spu_thread(void)
    fprintf(stderr, "missing symbol(s) in %s\n", lib);
    dlclose(f.handle);
    f.handle = NULL;
-   return;
+   goto fail_open;
   }
  }
 
  ret = f.dsp_open();
  if (ret != 0) {
   fprintf(stderr, "dsp_open failed: %d\n", ret);
-  return;
+  goto fail_open;
  }
 
- ret = f.dsp_component_load(NULL, COMPONENT_NAME, &compid);
+ ret = f.dsp_component_load(NULL, COMPONENT_NAME, &f.compid);
  if (ret != 0) {
   fprintf(stderr, "dsp_component_load failed: %d\n", ret);
   goto fail_cload;
  }
 
- region = f.dsp_shm_alloc(DSP_CACHE_R, sizeof(*mem)); // writethrough
- if (region.size < sizeof(*mem) || region.virt_addr == 0) {
+ f.region = f.dsp_shm_alloc(DSP_CACHE_R, sizeof(*mem)); // writethrough
+ if (f.region.size < sizeof(*mem) || f.region.virt_addr == 0) {
   fprintf(stderr, "dsp_shm_alloc failed\n");
   goto fail_mem;
  }
- mem = (void *)region.virt_addr;
+ mem = (void *)f.region.virt_addr;
 
  memcpy(&mem->spu_config, &spu_config, sizeof(mem->spu_config));
 
- DSP_MSG_INIT(&init_msg, compid, CCMD_INIT, region.phys_addr, 0);
+ DSP_MSG_INIT(&init_msg, f.compid, CCMD_INIT, f.region.phys_addr, 0);
  ret = f.dsp_rpc(&init_msg, &msg_in);
  if (ret != 0) {
   fprintf(stderr, "dsp_rpc failed: %d\n", ret);
@@ -162,56 +225,56 @@ static void init_spu_thread(void)
     mem->offsetof_s_chan1, offsetof(typeof(*mem), s_chan[1]));
   goto fail_init;
  }
- if (mem->offsetof_worker_ram != offsetof(typeof(*mem), worker.ch[1])) {
+ if (mem->offsetof_spos_3_20 != offsetof(typeof(*mem), worker.i[3].ch[20])) {
   fprintf(stderr, "error: size mismatch 3: %d vs %zd\n",
-    mem->offsetof_worker_ram, offsetof(typeof(*mem), worker.ch[1]));
+    mem->offsetof_spos_3_20, offsetof(typeof(*mem), worker.i[3].ch[20]));
   goto fail_init;
  }
 
  // override default allocations
  free(spu.spuMemC);
  spu.spuMemC = mem->spu_ram;
- free(spu.sRVBStart);
- spu.sRVBStart = mem->RVB;
- free(SSumLR);
- SSumLR = mem->SSumLR;
  free(spu.SB);
  spu.SB = mem->SB;
  free(spu.s_chan);
  spu.s_chan = mem->s_chan;
  worker = &mem->worker;
 
- printf("spu: C64x DSP ready (id=%d).\n", (int)compid);
+ printf("spu: C64x DSP ready (id=%d).\n", (int)f.compid);
  f.dsp_logbuf_print();
 
-pcnt_init();
+ spu_config.iThreadAvail = 1;
  (void)do_channel_work; // used by DSP instead
  return;
 
 fail_init:
- f.dsp_shm_free(region);
+ f.dsp_shm_free(f.region);
 fail_mem:
  // no component unload func?
 fail_cload:
- printf("spu: C64x DSP init failed.\n");
  f.dsp_logbuf_print();
  f.dsp_close();
+fail_open:
+ printf("spu: C64x DSP init failed.\n");
+ spu_config.iUseThread = spu_config.iThreadAvail = 0;
  worker = NULL;
 }
 
 static void exit_spu_thread(void)
 {
+ dsp_msg_t msg;
+
  if (worker == NULL)
   return;
 
- if (worker->pending)
-  thread_work_wait_sync();
- f.dsp_shm_free(region);
+ if (worker->req_sent)
+  f.dsp_rpc_recv(&msg);
+
+ f.dsp_logbuf_print();
+ f.dsp_shm_free(f.region);
  f.dsp_close();
 
  spu.spuMemC = NULL;
- spu.sRVBStart = NULL;
- SSumLR = NULL;
  spu.SB = NULL;
  spu.s_chan = NULL;
  worker = NULL;

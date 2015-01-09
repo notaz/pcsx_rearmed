@@ -40,15 +40,6 @@ INLINE void StartREVERB(int ch)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// HELPER FOR NEILL'S REVERB: re-inits our reverb mixing buf
-////////////////////////////////////////////////////////////////////////
-
-INLINE void InitREVERB(int ns_to)
-{
- memset(spu.sRVBStart,0,ns_to*sizeof(spu.sRVBStart[0])*2);
-}
-
-////////////////////////////////////////////////////////////////////////
 
 INLINE int rvb2ram_offs(int curr, int space, int iOff)
 {
@@ -73,7 +64,7 @@ INLINE int rvb2ram_offs(int curr, int space, int iOff)
 ////////////////////////////////////////////////////////////////////////
 
 // portions based on spu2-x from PCSX2
-static void MixREVERB(int ns_to)
+static void MixREVERB(int *SSumLR, int *RVB, int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
@@ -87,8 +78,8 @@ static void MixREVERB(int ns_to)
    int ACC0, ACC1, FB_A0, FB_A1, FB_B0, FB_B1;
    int mix_dest_a0, mix_dest_a1, mix_dest_b0, mix_dest_b1;
 
-   int input_L = spu.sRVBStart[ns]   * rvb.IN_COEF_L;
-   int input_R = spu.sRVBStart[ns+1] * rvb.IN_COEF_R;
+   int input_L = RVB[ns]   * rvb.IN_COEF_L;
+   int input_R = RVB[ns+1] * rvb.IN_COEF_R;
 
    int IIR_INPUT_A0 = ((g_buffer(IIR_SRC_A0) * rvb.IIR_COEF) + input_L) >> 15;
    int IIR_INPUT_A1 = ((g_buffer(IIR_SRC_A1) * rvb.IIR_COEF) + input_R) >> 15;
@@ -158,7 +149,7 @@ static void MixREVERB(int ns_to)
  rvb.CurrAddr = curr_addr;
 }
 
-static void MixREVERB_off(int ns_to)
+static void MixREVERB_off(int *SSumLR, int ns_to)
 {
  int l_old = rvb.iRVBLeft;
  int r_old = rvb.iRVBRight;
@@ -236,7 +227,7 @@ static void prepare_offsets(void)
  rvb.dirty = 0;
 }
 
-INLINE void REVERBDo(int ns_to)
+INLINE void REVERBDo(int *SSumLR, int *RVB, int ns_to)
 {
  if (!rvb.StartAddr)                                   // reverb is off
  {
@@ -249,14 +240,14 @@ INLINE void REVERBDo(int ns_to)
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB(ns_to);
+  MixREVERB(SSumLR, RVB, ns_to);
  }
  else if (rvb.VolLeft || rvb.VolRight)
  {
   if (unlikely(rvb.dirty))
    prepare_offsets();
 
-  MixREVERB_off(ns_to);
+  MixREVERB_off(SSumLR, ns_to);
  }
  else                                                  // -> reverb off
  {

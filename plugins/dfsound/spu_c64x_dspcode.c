@@ -30,38 +30,80 @@
 
 /* dummy deps, some bloat but avoids ifdef hell in SPU code.. */
 static void thread_work_start(void) {}
-static void thread_work_wait_sync(void) {}
-static void thread_sync_caches(void) {}
+static void thread_work_wait_sync(struct work_item *work, int force) {}
+static int  thread_get_i_done(void) { return 0; }
 struct out_driver *out_current;
 void SetupSound(void) {}
 
-#if 0
-// no use, c64_tools does BCACHE_wbInvAll..
-static void sync_caches(void)
+
+static void invalidate_cache(struct work_item *work)
 {
- int ns_to = worker->ns_to;
-
- syscalls.cache_wb(spu.sRVBStart, sizeof(spu.sRVBStart[0]) * 2 * ns_to, 1);
- syscalls.cache_wb(SSumLR, sizeof(SSumLR[0]) * 2 * ns_to, 1);
-
- syscalls.cache_wbInv(worker, sizeof(*worker), 1);
+ syscalls.cache_inv(work, offsetof(typeof(*work), RVB), 1);
+ syscalls.cache_inv(spu.s_chan, sizeof(spu.s_chan[0]) * 24, 0);
+ syscalls.cache_inv(work->SSumLR,
+   sizeof(work->SSumLR[0]) * 2 * work->ns_to, 0);
 }
-#endif
+
+static void writeout_cache(struct work_item *work)
+{
+ int ns_to = work->ns_to;
+
+ syscalls.cache_wb(work->RVB, sizeof(work->RVB[0]) * 2 * ns_to, 1);
+ syscalls.cache_wb(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to, 1);
+}
+
+static void do_processing(void)
+{
+ struct work_item *work;
+ int left, dirty = 0;
+
+ while (worker->active)
+ {
+  // i_ready is in first cacheline
+  syscalls.cache_inv(worker, 64, 1);
+
+  left = worker->i_ready - worker->i_done;
+  if (left > 0) {
+   dirty = 1;
+   worker->active = ACTIVE_CNT;
+   syscalls.cache_wb(&worker->active, 4, 1);
+
+   work = &worker->i[worker->i_done & WORK_I_MASK];
+   invalidate_cache(work);
+   do_channel_work(work);
+   writeout_cache(work);
+
+   worker->i_done++;
+   syscalls.cache_wb(&worker->i_done, 4, 1);
+   continue;
+  }
+
+  // nothing to do? Write out non-critical caches
+  if (dirty) {
+   syscalls.cache_wb(spu.spuMemC + 0x800, 0x800, 1);
+   syscalls.cache_wb(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24, 1);
+   dirty = 0;
+   continue;
+  }
+
+  // this ->active loop thing is to avoid a race where we miss
+  // new work and clear ->active just after ARM checks it
+  worker->active--;
+  syscalls.cache_wb(&worker->active, 4, 1);
+ }
+}
 
 static unsigned int exec(dsp_component_cmd_t cmd,
   unsigned int arg1, unsigned int arg2,
   unsigned int *ret1, unsigned int *ret2)
 {
  struct region_mem *mem = (void *)arg1;
- int i;
 
  switch (cmd) {
   case CCMD_INIT:
    InitADSR();
 
    spu.spuMemC = mem->spu_ram;
-   spu.sRVBStart = mem->RVB;
-   SSumLR = mem->SSumLR;
    spu.SB = mem->SB;
    spu.s_chan = mem->s_chan;
    worker = &mem->worker;
@@ -69,18 +111,22 @@ static unsigned int exec(dsp_component_cmd_t cmd,
 
    mem->sizeof_region_mem = sizeof(*mem);
    mem->offsetof_s_chan1 = offsetof(typeof(*mem), s_chan[1]);
-   mem->offsetof_worker_ram = offsetof(typeof(*mem), worker.ch[1]);
+   mem->offsetof_spos_3_20 = offsetof(typeof(*mem), worker.i[3].ch[20]);
    // seems to be unneeded, no write-alloc? but just in case..
    syscalls.cache_wb(&mem->sizeof_region_mem, 3 * 4, 1);
    break;
 
   case CCMD_DOIT:
-   do_channel_work();
+   worker->active = ACTIVE_CNT;
+   worker->boot_cnt++;
+   syscalls.cache_wb(&worker->i_done, 64, 1);
+   memcpy(&spu_config, &mem->spu_config, sizeof(spu_config));
+
+   do_processing();
+
    // c64_tools lib does BCACHE_wbInvAll() when it receives mailbox irq,
-   // so there is no benefit of syncing only what's needed.
-   // But call wbInvAll() anyway in case c64_tools is ever fixed..
-   //sync_caches();
-   syscalls.cache_wbInvAll();
+   // but invalidate anyway in case c64_tools is ever fixed..
+   syscalls.cache_inv(mem, sizeof(mem->spu_ram) + sizeof(mem->SB), 0);
    break;
 
   default:

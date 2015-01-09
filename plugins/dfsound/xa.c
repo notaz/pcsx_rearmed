@@ -38,7 +38,7 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void MixXA(int ns_to, int decode_pos)
+INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
 {
  int cursor = decode_pos;
  int ns;

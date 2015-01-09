@@ -217,6 +217,131 @@ done:
  return ns;
 }
 
+static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
+{
+ int EnvelopeVol = adsr->EnvelopeVol;
+ int ns = 0, val, rto, level;
+
+ if (adsr->State == ADSR_RELEASE)
+ {
+   val = RateTableSub[adsr->ReleaseRate * 4];
+   if (adsr->ReleaseModeExp)
+   {
+     for (; ns < ns_to; ns++)
+     {
+       EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
+       if (EnvelopeVol <= 0)
+         break;
+     }
+   }
+   else
+   {
+     EnvelopeVol += val * ns_to;
+     if (EnvelopeVol > 0)
+       ns = ns_to;
+   }
+   goto done;
+ }
+
+ switch (adsr->State)
+ {
+   case ADSR_ATTACK:                                   // -> attack
+     rto = 0;
+     if (adsr->AttackModeExp && EnvelopeVol >= 0x60000000)
+       rto = 8;
+     val = RateTableAdd[adsr->AttackRate + rto];
+
+     for (; ns < ns_to; ns++)
+     {
+       EnvelopeVol += val;
+       if (EnvelopeVol < 0)
+        break;
+     }
+     if (EnvelopeVol < 0) // overflow
+     {
+       EnvelopeVol = 0x7fffffff;
+       adsr->State = ADSR_DECAY;
+       ns++;
+       goto decay;
+     }
+     break;
+
+   //--------------------------------------------------//
+   decay:
+   case ADSR_DECAY:                                    // -> decay
+     val = RateTableSub[adsr->DecayRate * 4];
+     level = adsr->SustainLevel;
+
+     for (; ns < ns_to; )
+     {
+       EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
+       if (EnvelopeVol < 0)
+         EnvelopeVol = 0;
+
+       ns++;
+
+       if (((EnvelopeVol >> 27) & 0xf) <= level)
+       {
+         adsr->State = ADSR_SUSTAIN;
+         goto sustain;
+       }
+     }
+     break;
+
+   //--------------------------------------------------//
+   sustain:
+   case ADSR_SUSTAIN:                                  // -> sustain
+     if (adsr->SustainIncrease)
+     {
+       if (EnvelopeVol >= 0x7fff0000)
+       {
+         ns = ns_to;
+         break;
+       }
+
+       rto = 0;
+       if (adsr->SustainModeExp && EnvelopeVol >= 0x60000000)
+         rto = 8;
+       val = RateTableAdd[adsr->SustainRate + rto];
+
+       EnvelopeVol += val * (ns_to - ns);
+       if ((unsigned int)EnvelopeVol >= 0x7fe00000)
+       {
+         EnvelopeVol = 0x7fffffff;
+         ns = ns_to;
+         break;
+       }
+     }
+     else
+     {
+       val = RateTableSub[adsr->SustainRate];
+       if (adsr->SustainModeExp)
+       {
+         for (; ns < ns_to; ns++)
+         {
+           EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
+           if (EnvelopeVol < 0)
+             break;
+         }
+       }
+       else
+       {
+         EnvelopeVol += val * (ns_to - ns);
+         if (EnvelopeVol > 0)
+         {
+           ns = ns_to;
+           break;
+         }
+       }
+     }
+     break;
+ }
+
+done:
+ adsr->EnvelopeVol = EnvelopeVol;
+ return ns;
+}
+
 #endif
 
 /*
