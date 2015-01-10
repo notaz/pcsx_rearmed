@@ -13,8 +13,16 @@
 #include "gpu.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#ifdef __GNUC__
 #define unlikely(x) __builtin_expect((x), 0)
+#define preload __builtin_prefetch
 #define noinline __attribute__((noinline))
+#else
+#define unlikely(x)
+#define preload(...)
+#define noinline
+#error huh
+#endif
 
 #define gpu_log(fmt, ...) \
   printf("%d:%03d: " fmt, *gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
@@ -518,6 +526,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
   int len, left, count;
   long cpu_cycles = 0;
 
+  preload(rambase + (start_addr & 0x1fffff) / 4);
+
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
@@ -537,6 +547,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
     list = rambase + (addr & 0x1fffff) / 4;
     len = list[0] >> 24;
     addr = list[0] & 0xffffff;
+    preload(rambase + (addr & 0x1fffff) / 4);
+
     cpu_cycles += 10;
     if (len > 0)
       cpu_cycles += 5 + len;

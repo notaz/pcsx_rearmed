@@ -595,24 +595,26 @@ make_do_samples(simple, , ,
 static int do_samples_skip(int ch, int ns_to)
 {
  SPUCHAN *s_chan = &spu.s_chan[ch];
+ int spos = s_chan->spos;
+ int sinc = s_chan->sinc;
  int ret = ns_to, ns, d;
 
- s_chan->spos += s_chan->iSBPos << 16;
+ spos += s_chan->iSBPos << 16;
 
  for (ns = 0; ns < ns_to; ns++)
  {
-  s_chan->spos += s_chan->sinc;
-  while (s_chan->spos >= 28*0x10000)
+  spos += sinc;
+  while (spos >= 28*0x10000)
   {
    d = skip_block(ch);
    if (d && ns < ret)
     ret = ns;
-   s_chan->spos -= 28*0x10000;
+   spos -= 28*0x10000;
   }
  }
 
- s_chan->iSBPos = s_chan->spos >> 16;
- s_chan->spos &= 0xffff;
+ s_chan->iSBPos = spos >> 16;
+ s_chan->spos = spos & 0xffff;
 
  return ret;
 }
