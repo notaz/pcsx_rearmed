@@ -1606,7 +1606,11 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
+#ifdef C64X_DSP
+	mee_onoff     ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
+#else
 	mee_onoff     ("Threaded SPU",             MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
+#endif
 	mee_handler_id("[Display]",                MA_OPT_DISP_OPTS, menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
 	mee_handler   ("[Advanced]",               menu_loop_adv_options),
@@ -1619,10 +1623,9 @@ static menu_entry e_menu_options[] =
 static int menu_loop_options(int id, int keys)
 {
 	static int sel = 0;
-	int i;
 
-	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].enabled = cpu_clock_st > 0 ? 1 : 0;
+	me_enable(e_menu_options, MA_OPT_CPU_CLOCKS, cpu_clock_st > 0);
+	me_enable(e_menu_options, MA_OPT_SPU_THREAD, spu_config.iThreadAvail);
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
 	me_loop(e_menu_options, &sel);
