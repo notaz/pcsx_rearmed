@@ -283,7 +283,7 @@ void retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
-	info->library_version = "r20";
+	info->library_version = "r21";
 	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
