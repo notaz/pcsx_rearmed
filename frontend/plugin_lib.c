@@ -44,7 +44,7 @@ void *tsdev;
 void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp; /* output display/layer */
-static int pl_vout_scale, pl_vout_yoffset;
+static int pl_vout_scale_w, pl_vout_scale_h, pl_vout_yoffset;
 static int psx_w, psx_h, psx_bpp;
 static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
@@ -230,7 +230,7 @@ static void update_layer_size(int w, int h)
 }
 
 // XXX: this is platform specific really
-static int resolution_ok(int w, int h)
+static inline int resolution_ok(int w, int h)
 {
 	return w <= 1024 && h <= 512;
 }
@@ -261,20 +261,25 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 		vout_h = 192;
 	}
 
-	pl_vout_scale = 1;
+	pl_vout_scale_w = pl_vout_scale_h = 1;
 #ifdef __ARM_NEON__
 	if (soft_filter) {
 		if (resolution_ok(w * 2, h * 2) && bpp == 16) {
-			vout_w *= 2;
-			vout_h *= 2;
-			pl_vout_scale = 2;
+			pl_vout_scale_w = 2;
+			pl_vout_scale_h = 2;
 		}
 		else {
 			// filter unavailable
 			hud_msg[0] = 0;
 		}
 	}
+	else if (scanlines != 0 && scanline_level != 100 && bpp == 16) {
+		if (h <= 256)
+			pl_vout_scale_h = 2;
+	}
 #endif
+	vout_w *= pl_vout_scale_w;
+	vout_h *= pl_vout_scale_h;
 
 	update_layer_size(vout_w, vout_h);
 
@@ -316,7 +321,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 	// borders
-	doffs = (dstride - w * pl_vout_scale) / 2 & ~1;
+	doffs = (dstride - w * pl_vout_scale_w) / 2 & ~1;
 
 	if (doffs > doffs_old)
 		clear_counter = 2;
@@ -361,12 +366,12 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 		}
 	}
 #ifdef __ARM_NEON__
-	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale == 2)
+	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale_w == 2)
 	{
 		neon_scale2x_16_16(src, (void *)dest, w,
 			stride * 2, dstride * 2, h);
 	}
-	else if (soft_filter == SOFT_FILTER_EAGLE2X && pl_vout_scale == 2)
+	else if (soft_filter == SOFT_FILTER_EAGLE2X && pl_vout_scale_w == 2)
 	{
 		neon_eagle2x_16_16(src, (void *)dest, w,
 			stride * 2, dstride * 2, h);
@@ -374,11 +379,13 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	else if (scanlines != 0 && scanline_level != 100)
 	{
 		int l = scanline_level * 2048 / 100;
+		int stride_0 = pl_vout_scale_h >= 2 ? 0 : stride;
 
+		h1 *= pl_vout_scale_h;
 		for (; h1 >= 2; h1 -= 2)
 		{
 			bgr555_to_rgb565(dest, src, w * 2);
-			dest += dstride * 2, src += stride;
+			dest += dstride * 2, src += stride_0;
 
 			bgr555_to_rgb565_b(dest, src, w * 2, l);
 			dest += dstride * 2, src += stride;
@@ -394,7 +401,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out_hud:
-	print_hud(w * pl_vout_scale, h * pl_vout_scale, 0);
+	print_hud(w * pl_vout_scale_w, h * pl_vout_scale_h, 0);
 
 out:
 	pcnt_end(PCNT_BLIT);
@@ -457,7 +464,8 @@ static int dispmode_default(void)
 	return 1;
 }
 
-int dispmode_doubleres(void)
+#ifdef __ARM_NEON__
+static int dispmode_doubleres(void)
 {
 	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
 	    || !resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
@@ -469,7 +477,7 @@ int dispmode_doubleres(void)
 	return 1;
 }
 
-int dispmode_scale2x(void)
+static int dispmode_scale2x(void)
 {
 	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
 		return 0;
@@ -480,7 +488,7 @@ int dispmode_scale2x(void)
 	return 1;
 }
 
-int dispmode_eagle2x(void)
+static int dispmode_eagle2x(void)
 {
 	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
 		return 0;
@@ -490,6 +498,7 @@ int dispmode_eagle2x(void)
 	snprintf(hud_msg, sizeof(hud_msg), "eagle2x");
 	return 1;
 }
+#endif
 
 static int (*dispmode_switchers[])(void) = {
 	dispmode_default,
