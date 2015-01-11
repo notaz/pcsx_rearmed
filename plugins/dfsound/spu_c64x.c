@@ -43,6 +43,8 @@ static struct {
 
  dsp_mem_region_t region;
  dsp_component_id_t compid;
+ unsigned int stale_caches:1;
+ unsigned int req_sent:1;
 } f;
 
 static void thread_work_start(void)
@@ -63,7 +65,7 @@ static void thread_work_start(void)
 
  // to start the DSP, dsp_rpc_send() must be used,
  // but before that, previous request must be finished
- if (worker->req_sent) {
+ if (f.req_sent) {
   if (worker->boot_cnt == worker->last_boot_cnt) {
    // hopefully still booting
    //printf("booting?\n");
@@ -74,7 +76,7 @@ static void thread_work_start(void)
   if (ret != 0) {
    fprintf(stderr, "dsp_rpc_recv failed: %d\n", ret);
    f.dsp_logbuf_print();
-   worker->req_sent = 0;
+   f.req_sent = 0;
    spu_config.iUseThread = 0;
    return;
   }
@@ -94,7 +96,7 @@ static void thread_work_start(void)
   spu_config.iUseThread = 0;
   return;
  }
- worker->req_sent = 1;
+ f.req_sent = 1;
 }
 
 static int thread_get_i_done(void)
@@ -108,14 +110,13 @@ static void thread_work_wait_sync(struct work_item *work, int force)
  int limit = 1000;
  int ns_to;
 
- ns_to = work->ns_to;
- f.dsp_cache_inv_virt(work->RVB, sizeof(work->RVB[0]) * 2 * ns_to);
- f.dsp_cache_inv_virt(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to);
- __builtin_prefetch(work->RVB);
- __builtin_prefetch(work->SSumLR);
-
  while (worker->i_done == worker->i_reaped && limit-- > 0) {
-  if (!worker->active) {
+  if (!f.req_sent) {
+   printf("dsp: req not sent?\n");
+   break;
+  }
+
+  if (worker->boot_cnt != worker->last_boot_cnt && !worker->active) {
    printf("dsp: broken sync\n");
    worker->last_boot_cnt = ~0;
    break;
@@ -125,6 +126,13 @@ static void thread_work_wait_sync(struct work_item *work, int force)
   f.dsp_cache_inv_virt(&worker->i_done, 64);
  }
 
+ ns_to = work->ns_to;
+ f.dsp_cache_inv_virt(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to);
+ preload(work->SSumLR);
+ preload(work->SSumLR + 64/4);
+
+ f.stale_caches = 1; // SB, spuMem
+
  if (limit == 0)
   printf("dsp: wait timeout\n");
 
@@ -132,7 +140,7 @@ static void thread_work_wait_sync(struct work_item *work, int force)
  if (worker->i_reaped != worker->i_done - 1)
   return;
 
- if (worker->req_sent && (force || worker->i_done == worker->i_ready)) {
+ if (f.req_sent && (force || worker->i_done == worker->i_ready)) {
   dsp_msg_t msg;
   int ret;
 
@@ -142,12 +150,20 @@ static void thread_work_wait_sync(struct work_item *work, int force)
    f.dsp_logbuf_print();
    spu_config.iUseThread = 0;
   }
-  worker->req_sent = 0;
+  f.req_sent = 0;
  }
+}
 
- if (force) {
+static void thread_sync_caches(void)
+{
+ if (f.stale_caches) {
   f.dsp_cache_inv_virt(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24);
   f.dsp_cache_inv_virt(spu.spuMemC + 0x800, 0x800);
+  if (spu.rvb->StartAddr) {
+   int left = 0x40000 - spu.rvb->StartAddr;
+   f.dsp_cache_inv_virt(spu.spuMem + spu.rvb->StartAddr, left * 2);
+  }
+  f.stale_caches = 0;
  }
 }
 
@@ -220,9 +236,9 @@ static void init_spu_thread(void)
     mem->sizeof_region_mem, sizeof(*mem));
   goto fail_init;
  }
- if (mem->offsetof_s_chan1 != offsetof(typeof(*mem), s_chan[1])) {
+ if (mem->offsetof_s_chan1 != offsetof(typeof(*mem), in.s_chan[1])) {
   fprintf(stderr, "error: size mismatch 2: %d vs %zd\n",
-    mem->offsetof_s_chan1, offsetof(typeof(*mem), s_chan[1]));
+    mem->offsetof_s_chan1, offsetof(typeof(*mem), in.s_chan[1]));
   goto fail_init;
  }
  if (mem->offsetof_spos_3_20 != offsetof(typeof(*mem), worker.i[3].ch[20])) {
@@ -237,7 +253,9 @@ static void init_spu_thread(void)
  free(spu.SB);
  spu.SB = mem->SB;
  free(spu.s_chan);
- spu.s_chan = mem->s_chan;
+ spu.s_chan = mem->in.s_chan;
+ free(spu.rvb);
+ spu.rvb = &mem->in.rvb;
  worker = &mem->worker;
 
  printf("spu: C64x DSP ready (id=%d).\n", (int)f.compid);
@@ -267,8 +285,10 @@ static void exit_spu_thread(void)
  if (worker == NULL)
   return;
 
- if (worker->req_sent)
+ if (f.req_sent) {
   f.dsp_rpc_recv(&msg);
+  f.req_sent = 0;
+ }
 
  f.dsp_logbuf_print();
  f.dsp_shm_free(f.region);
@@ -277,6 +297,7 @@ static void exit_spu_thread(void)
  spu.spuMemC = NULL;
  spu.SB = NULL;
  spu.s_chan = NULL;
+ spu.rvb = NULL;
  worker = NULL;
 }
 

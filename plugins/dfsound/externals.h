@@ -28,6 +28,11 @@
 #define noinline
 #define unlikely(x) x
 #endif
+#if defined(__GNUC__) && !defined(_TMS320C6X)
+#define preload __builtin_prefetch
+#else
+#define preload(...)
+#endif
 
 #define PSE_LT_SPU                  4
 #define PSE_SPU_ERR_SUCCESS         0
@@ -121,8 +126,6 @@ typedef struct
 
  int VolLeft;
  int VolRight;
- int iRVBLeft;
- int iRVBRight;
 
  int FB_SRC_A;       // (offset)
  int FB_SRC_B;       // (offset)
@@ -224,9 +227,10 @@ typedef struct
  int             iRightXAVol;
 
  SPUCHAN       * s_chan;
- int           * SB;
+ REVERBInfo    * rvb;
 
- int           * RVB;
+ // buffers
+ int           * SB;
  int           * SSumLR;
 
  int             pad[29];
@@ -240,7 +244,6 @@ typedef struct
 #ifndef _IN_SPU
 
 extern SPUInfo spu;
-extern REVERBInfo rvb;
 
 void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);

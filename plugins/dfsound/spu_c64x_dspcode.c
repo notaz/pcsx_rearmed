@@ -31,6 +31,7 @@
 /* dummy deps, some bloat but avoids ifdef hell in SPU code.. */
 static void thread_work_start(void) {}
 static void thread_work_wait_sync(struct work_item *work, int force) {}
+static void thread_sync_caches(void) {}
 static int  thread_get_i_done(void) { return 0; }
 struct out_driver *out_current;
 void SetupSound(void) {}
@@ -38,7 +39,8 @@ void SetupSound(void) {}
 
 static void invalidate_cache(struct work_item *work)
 {
- syscalls.cache_inv(work, offsetof(typeof(*work), RVB), 1);
+ // see comment in writeout_cache()
+ //syscalls.cache_inv(work, offsetof(typeof(*work), SSumLR), 1);
  syscalls.cache_inv(spu.s_chan, sizeof(spu.s_chan[0]) * 24, 0);
  syscalls.cache_inv(work->SSumLR,
    sizeof(work->SSumLR[0]) * 2 * work->ns_to, 0);
@@ -48,14 +50,16 @@ static void writeout_cache(struct work_item *work)
 {
  int ns_to = work->ns_to;
 
- syscalls.cache_wb(work->RVB, sizeof(work->RVB[0]) * 2 * ns_to, 1);
  syscalls.cache_wb(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to, 1);
+ // have to invalidate now, otherwise there is a race between
+ // DSP evicting dirty lines and ARM writing new data to this area
+ syscalls.cache_inv(work, offsetof(typeof(*work), SSumLR), 0);
 }
 
 static void do_processing(void)
 {
+ int left, dirty = 0, had_rvb = 0;
  struct work_item *work;
- int left, dirty = 0;
 
  while (worker->active)
  {
@@ -70,6 +74,8 @@ static void do_processing(void)
 
    work = &worker->i[worker->i_done & WORK_I_MASK];
    invalidate_cache(work);
+   had_rvb |= work->rvb_addr;
+   spu.spuCtrl = work->ctrl;
    do_channel_work(work);
    writeout_cache(work);
 
@@ -82,6 +88,11 @@ static void do_processing(void)
   if (dirty) {
    syscalls.cache_wb(spu.spuMemC + 0x800, 0x800, 1);
    syscalls.cache_wb(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24, 1);
+   if (had_rvb) {
+    left = 0x40000 - spu.rvb->StartAddr;
+    syscalls.cache_wb(spu.spuMem + spu.rvb->StartAddr, left * 2, 1);
+    had_rvb = 0;
+   }
    dirty = 0;
    continue;
   }
@@ -105,12 +116,13 @@ static unsigned int exec(dsp_component_cmd_t cmd,
 
    spu.spuMemC = mem->spu_ram;
    spu.SB = mem->SB;
-   spu.s_chan = mem->s_chan;
+   spu.s_chan = mem->in.s_chan;
+   spu.rvb = &mem->in.rvb;
    worker = &mem->worker;
    memcpy(&spu_config, &mem->spu_config, sizeof(spu_config));
 
    mem->sizeof_region_mem = sizeof(*mem);
-   mem->offsetof_s_chan1 = offsetof(typeof(*mem), s_chan[1]);
+   mem->offsetof_s_chan1 = offsetof(typeof(*mem), in.s_chan[1]);
    mem->offsetof_spos_3_20 = offsetof(typeof(*mem), worker.i[3].ch[20]);
    // seems to be unneeded, no write-alloc? but just in case..
    syscalls.cache_wb(&mem->sizeof_region_mem, 3 * 4, 1);
@@ -126,7 +138,9 @@ static unsigned int exec(dsp_component_cmd_t cmd,
 
    // c64_tools lib does BCACHE_wbInvAll() when it receives mailbox irq,
    // but invalidate anyway in case c64_tools is ever fixed..
-   syscalls.cache_inv(mem, sizeof(mem->spu_ram) + sizeof(mem->SB), 0);
+   // XXX edit: don't bother as reverb is not handled, will fix if needed
+   //syscalls.cache_inv(mem, sizeof(mem->spu_ram) + sizeof(mem->SB), 0);
+   //syscalls.cache_inv(&mem->in, sizeof(mem->in), 0);
    break;
 
   default:

@@ -11,8 +11,12 @@ struct region_mem {
  // careful not to lose ARM writes by DSP overwriting
  // with old data when it's writing out neighbor cachelines
  int _pad1[128/4 - ((SB_SIZE * 24) & (128/4 - 1))];
- SPUCHAN s_chan[24 + 1];
- int _pad2[128/4 - ((sizeof(SPUCHAN) * 25 / 4) & (128/4 - 1))];
+ struct spu_in {
+  // these are not to be modified by DSP
+  SPUCHAN s_chan[24 + 1];
+  REVERBInfo rvb;
+ } in;
+ int _pad2[128/4 - ((sizeof(struct spu_in) / 4) & (128/4 - 1))];
  struct spu_worker worker;
  SPUConfig spu_config;
  // init/debug

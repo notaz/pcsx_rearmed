@@ -73,11 +73,8 @@ static char * libraryInfo     = N_("P.E.Op.S. Sound Driver V1.7\nCoded by Pete B
 SPUInfo         spu;
 SPUConfig       spu_config;
 
-// MAIN infos struct for each channel
-
-REVERBInfo      rvb;
-
 static int iFMod[NSSIZE];
+static int RVB[NSSIZE * 2];
 int ChanBuf[NSSIZE];
 
 #define CDDA_BUFFER_SIZE (16384 * sizeof(uint32_t)) // must be power of 2
@@ -763,11 +760,13 @@ static void do_silent_chans(int ns_to, int silentch)
 static void do_channels(int ns_to)
 {
  unsigned int mask;
+ int do_rvb, ch, d;
  SPUCHAN *s_chan;
  int *SB, sinc;
- int ch, d;
 
- memset(spu.RVB, 0, ns_to * sizeof(spu.RVB[0]) * 2);
+ do_rvb = spu.rvb->StartAddr && spu_config.iUseReverb;
+ if (do_rvb)
+  memset(RVB, 0, ns_to * sizeof(RVB[0]) * 2);
 
  mask = spu.dwNewChannel & 0xffffff;
  for (ch = 0; mask != 0; ch++, mask >>= 1) {
@@ -812,14 +811,27 @@ static void do_channels(int ns_to)
 
    if (s_chan->bFMod == 2)                         // fmod freq channel
     memcpy(iFMod, &ChanBuf, ns_to * sizeof(iFMod[0]));
-   if (s_chan->bRVBActive)
-    mix_chan_rvb(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume, spu.RVB);
+   if (s_chan->bRVBActive && do_rvb)
+    mix_chan_rvb(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume, RVB);
    else
     mix_chan(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
   }
+
+  if (spu.rvb->StartAddr) {
+   if (do_rvb) {
+    if (unlikely(spu.rvb->dirty))
+     REVERBPrep();
+
+    REVERBDo(spu.SSumLR, RVB, ns_to, spu.rvb->CurrAddr);
+   }
+
+   spu.rvb->CurrAddr += ns_to / 2;
+   while (spu.rvb->CurrAddr >= 0x40000)
+    spu.rvb->CurrAddr -= 0x40000 - spu.rvb->StartAddr;
+  }
 }
 
-static void do_samples_finish(int *SSumLR, int *RVB, int ns_to,
+static void do_samples_finish(int *SSumLR, int ns_to,
  int silentch, int decode_pos);
 
 // optional worker thread handling
@@ -833,8 +845,7 @@ static struct spu_worker {
    unsigned int exit_thread;
    unsigned int i_ready;
    unsigned int i_reaped;
-   unsigned int req_sent; // dsp
-   unsigned int last_boot_cnt;
+   unsigned int last_boot_cnt; // dsp
   };
   // aligning for C64X_DSP
   unsigned int _pad0[128/4];
@@ -851,6 +862,7 @@ static struct spu_worker {
   int ns_to;
   int ctrl;
   int decode_pos;
+  int rvb_addr;
   unsigned int channels_new;
   unsigned int channels_on;
   unsigned int channels_silent;
@@ -861,10 +873,11 @@ static struct spu_worker {
    int start;
    int loop;
    int ns_to;
+   short vol_l;
+   short vol_r;
    ADSRInfoEx adsr;
-   // might want to add vol and fmod flags..
+   // might also want to add fmod flags..
   } ch[24];
-  int RVB[NSSIZE * 2];
   int SSumLR[NSSIZE * 2];
  } i[4];
 } *worker;
@@ -874,6 +887,7 @@ static struct spu_worker {
 
 static void thread_work_start(void);
 static void thread_work_wait_sync(struct work_item *work, int force);
+static void thread_sync_caches(void);
 static int  thread_get_i_done(void);
 
 static int decode_block_work(void *context, int ch, int *SB)
@@ -936,6 +950,8 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    work->ch[ch].sbpos = s_chan->iSBPos;
    work->ch[ch].sinc = s_chan->sinc;
    work->ch[ch].adsr = s_chan->ADSRX;
+   work->ch[ch].vol_l = s_chan->iLeftVolume;
+   work->ch[ch].vol_r = s_chan->iRightVolume;
    work->ch[ch].start = s_chan->pCurr - spu.spuMemC;
    work->ch[ch].loop = s_chan->pLoop - spu.spuMemC;
    if (s_chan->prevflags & 1)
@@ -952,6 +968,19 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    }
   }
 
+ work->rvb_addr = 0;
+ if (spu.rvb->StartAddr) {
+  if (spu_config.iUseReverb) {
+   if (unlikely(spu.rvb->dirty))
+    REVERBPrep();
+   work->rvb_addr = spu.rvb->CurrAddr;
+  }
+
+  spu.rvb->CurrAddr += ns_to / 2;
+  while (spu.rvb->CurrAddr >= 0x40000)
+   spu.rvb->CurrAddr -= 0x40000 - spu.rvb->StartAddr;
+ }
+
  worker->i_ready++;
  thread_work_start();
 }
@@ -965,7 +994,9 @@ static void do_channel_work(struct work_item *work)
  SPUCHAN *s_chan;
 
  ns_to = work->ns_to;
- memset(work->RVB, 0, ns_to * sizeof(work->RVB[0]) * 2);
+
+ if (work->rvb_addr)
+  memset(RVB, 0, ns_to * sizeof(RVB[0]) * 2);
 
  mask = work->channels_new;
  for (ch = 0; mask != 0; ch++, mask >>= 1) {
@@ -1010,12 +1041,15 @@ static void do_channel_work(struct work_item *work)
 
    if (s_chan->bFMod == 2)                         // fmod freq channel
     memcpy(iFMod, &ChanBuf, ns_to * sizeof(iFMod[0]));
-   if (s_chan->bRVBActive)
+   if (s_chan->bRVBActive && work->rvb_addr)
     mix_chan_rvb(work->SSumLR, ns_to,
-      s_chan->iLeftVolume, s_chan->iRightVolume, work->RVB);
+      work->ch[ch].vol_l, work->ch[ch].vol_r, RVB);
    else
-    mix_chan(work->SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
+    mix_chan(work->SSumLR, ns_to, work->ch[ch].vol_l, work->ch[ch].vol_r);
   }
+
+  if (work->rvb_addr)
+   REVERBDo(work->SSumLR, RVB, ns_to, work->rvb_addr);
 }
 
 static void sync_worker_thread(int force)
@@ -1032,13 +1066,15 @@ static void sync_worker_thread(int force)
   work = &worker->i[worker->i_reaped & WORK_I_MASK];
   thread_work_wait_sync(work, force);
 
-  do_samples_finish(work->SSumLR, work->RVB, work->ns_to,
+  do_samples_finish(work->SSumLR, work->ns_to,
    work->channels_silent, work->decode_pos);
 
   worker->i_reaped++;
   done = thread_get_i_done() - worker->i_reaped;
   used_space = worker->i_ready - worker->i_reaped;
  }
+ if (force)
+  thread_sync_caches();
 }
 
 #else
@@ -1116,7 +1152,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
 
   if (do_direct || worker == NULL || !spu_config.iUseThread) {
    do_channels(ns_to);
-   do_samples_finish(spu.SSumLR, spu.RVB, ns_to, silentch, spu.decode_pos);
+   do_samples_finish(spu.SSumLR, ns_to, silentch, spu.decode_pos);
   }
   else {
    queue_channel_work(ns_to, silentch);
@@ -1131,7 +1167,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
   spu.decode_pos = (spu.decode_pos + ns_to) & 0x1ff;
 }
 
-static void do_samples_finish(int *SSumLR, int *RVB, int ns_to,
+static void do_samples_finish(int *SSumLR, int ns_to,
  int silentch, int decode_pos)
 {
   int volmult = spu_config.iVolume;
@@ -1150,17 +1186,8 @@ static void do_samples_finish(int *SSumLR, int *RVB, int ns_to,
     spu.decode_dirty_ch &= ~(1<<3);
    }
 
-  //---------------------------------------------------//
-  // mix XA infos (if any)
-
   MixXA(SSumLR, ns_to, decode_pos);
   
-  ///////////////////////////////////////////////////////
-  // mix all channels (including reverb) into one buffer
-
-  if(spu_config.iUseReverb)
-   REVERBDo(SSumLR, RVB, ns_to);
-
   if((spu.spuCtrl&0x4000)==0) // muted? (rare, don't optimize for this)
    {
     memset(spu.pS, 0, ns_to * 2 * sizeof(spu.pS[0]));
@@ -1283,12 +1310,9 @@ void ClearWorkingState(void)
 }
 
 // SETUPSTREAMS: init most of the spu buffers
-void SetupStreams(void)
+static void SetupStreams(void)
 { 
- int i;
-
  spu.pSpuBuffer = (unsigned char *)malloc(32768);      // alloc mixing buffer
- spu.RVB = calloc(NSSIZE * 2, sizeof(spu.RVB[0]));
  spu.SSumLR = calloc(NSSIZE * 2, sizeof(spu.SSumLR[0]));
 
  spu.XAStart =                                         // alloc xa buffer
@@ -1303,26 +1327,14 @@ void SetupStreams(void)
  spu.CDDAPlay  = spu.CDDAStart;
  spu.CDDAFeed  = spu.CDDAStart;
 
- for(i=0;i<MAXCHAN;i++)                                // loop sound channels
-  {
-   spu.s_chan[i].ADSRX.SustainLevel = 0xf;             // -> init sustain
-   spu.s_chan[i].ADSRX.SustainIncrease = 1;
-   spu.s_chan[i].pLoop=spu.spuMemC;
-   spu.s_chan[i].pCurr=spu.spuMemC;
-  }
-
  ClearWorkingState();
-
- spu.bSpuInit=1;                                       // flag: we are inited
 }
 
 // REMOVESTREAMS: free most buffer
-void RemoveStreams(void)
+static void RemoveStreams(void)
 { 
  free(spu.pSpuBuffer);                                 // free mixing buffer
  spu.pSpuBuffer = NULL;
- free(spu.RVB);                                        // free reverb buffer
- spu.RVB = NULL;
  free(spu.SSumLR);
  spu.SSumLR = NULL;
  free(spu.XAStart);                                    // free XA buffer
@@ -1363,6 +1375,10 @@ static void thread_work_wait_sync(struct work_item *work, int force)
 static int thread_get_i_done(void)
 {
  return worker->i_done;
+}
+
+static void thread_sync_caches(void)
+{
 }
 
 static void *spu_worker_thread(void *unused)
@@ -1446,11 +1462,13 @@ static void exit_spu_thread(void)
 // SPUINIT: this func will be called first by the main emu
 long CALLBACK SPUinit(void)
 {
+ int i;
+
  spu.spuMemC = calloc(1, 512 * 1024);
- memset((void *)&rvb, 0, sizeof(REVERBInfo));
  InitADSR();
 
  spu.s_chan = calloc(MAXCHAN+1, sizeof(spu.s_chan[0])); // channel + 1 infos (1 is security for fmod handling)
+ spu.rvb = calloc(1, sizeof(REVERBInfo));
  spu.SB = calloc(MAXCHAN, sizeof(spu.SB[0]) * SB_SIZE);
 
  spu.spuAddr = 0;
@@ -1463,6 +1481,16 @@ long CALLBACK SPUinit(void)
   spu_config.iVolume = 768; // 1024 is 1.0
 
  init_spu_thread();
+
+ for (i = 0; i < MAXCHAN; i++)                         // loop sound channels
+  {
+   spu.s_chan[i].ADSRX.SustainLevel = 0xf;             // -> init sustain
+   spu.s_chan[i].ADSRX.SustainIncrease = 1;
+   spu.s_chan[i].pLoop = spu.spuMemC;
+   spu.s_chan[i].pCurr = spu.spuMemC;
+  }
+
+ spu.bSpuInit=1;                                       // flag: we are inited
 
  return 0;
 }
@@ -1504,6 +1532,8 @@ long CALLBACK SPUshutdown(void)
  spu.SB = NULL;
  free(spu.s_chan);
  spu.s_chan = NULL;
+ free(spu.rvb);
+ spu.rvb = NULL;
 
  RemoveStreams();                                      // no more streaming
  spu.bSpuInit=0;
