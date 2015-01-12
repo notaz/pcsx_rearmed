@@ -221,6 +221,7 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
 {
  int EnvelopeVol = adsr->EnvelopeVol;
  int ns = 0, val, rto, level;
+ int64_t v64;
 
  if (adsr->State == ADSR_RELEASE)
  {
@@ -236,8 +237,10 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
    }
    else
    {
-     EnvelopeVol += val * ns_to;
-     if (EnvelopeVol > 0)
+     v64 = EnvelopeVol;
+     v64 += (int64_t)val * ns_to;
+     EnvelopeVol = (int)v64;
+     if (v64 > 0)
        ns = ns_to;
    }
    goto done;
@@ -293,24 +296,21 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
    case ADSR_SUSTAIN:                                  // -> sustain
      if (adsr->SustainIncrease)
      {
+       ns = ns_to;
+
        if (EnvelopeVol >= 0x7fff0000)
-       {
-         ns = ns_to;
          break;
-       }
 
        rto = 0;
        if (adsr->SustainModeExp && EnvelopeVol >= 0x60000000)
          rto = 8;
        val = RateTableAdd[adsr->SustainRate + rto];
 
-       EnvelopeVol += val * (ns_to - ns);
-       if ((unsigned int)EnvelopeVol >= 0x7fe00000)
-       {
+       v64 = EnvelopeVol;
+       v64 += (int64_t)val * (ns_to - ns);
+       EnvelopeVol = (int)v64;
+       if (v64 >= 0x7fe00000ll)
          EnvelopeVol = 0x7fffffff;
-         ns = ns_to;
-         break;
-       }
      }
      else
      {
@@ -326,8 +326,10 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
        }
        else
        {
-         EnvelopeVol += val * (ns_to - ns);
-         if (EnvelopeVol > 0)
+         v64 = EnvelopeVol;
+         v64 += (int64_t)val * (ns_to - ns);
+         EnvelopeVol = (int)v64;
+         if (v64 > 0)
          {
            ns = ns_to;
            break;
