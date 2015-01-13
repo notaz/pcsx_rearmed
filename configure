@@ -439,6 +439,9 @@ fi
 if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
   CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads -I/opt/vc/include/interface/vmcs_host/linux"
   LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
+  if [ -f /opt/vc/lib/libbcm_host.so ]; then
+    LDLIBS_GLES="$LDLIBS_GLES -lbcm_host"
+  fi
   need_xlib="yes"
 fi
 
