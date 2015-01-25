@@ -38,12 +38,12 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void MixXA(int ns_to)
+INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
 {
+ int cursor = decode_pos;
  int ns;
  short l, r;
  uint32_t v;
- int cursor = spu.decode_pos;
 
  if(spu.XAPlay != spu.XAFeed || spu.XARepeat > 0)
  {
@@ -90,9 +90,15 @@ INLINE void MixXA(int ns_to)
 
 static unsigned long timeGetTime_spu()
 {
+#if defined(NO_OS)
+ return 0;
+#elif defined(_WIN32)
+ return GetTickCount();
+#else
  struct timeval tv;
  gettimeofday(&tv, 0);                                 // well, maybe there are better ways
  return tv.tv_sec * 1000 + tv.tv_usec/1000;            // to do that, but at least it works
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////

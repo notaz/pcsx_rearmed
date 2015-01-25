@@ -8,6 +8,13 @@
  * See the COPYING file in the top-level directory.
  */
 
+#ifndef _WIN32
+#define CALLBACK
+#else
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #include "main.h"
 
 unsigned char CurPad, CurByte, CurCmd, CmdLen;
@@ -15,10 +22,10 @@ unsigned char CurPad, CurByte, CurCmd, CmdLen;
 /* since this is not a proper plugin, so we'll hook emu internals in a hackish way like this */
 extern void *PAD1_startPoll, *PAD1_poll;
 extern void *PAD2_startPoll, *PAD2_poll;
-extern unsigned char PAD1__startPoll(int pad);
-extern unsigned char PAD2__startPoll(int pad);
-extern unsigned char PAD1__poll(unsigned char value);
-extern unsigned char PAD2__poll(unsigned char value);
+extern unsigned char CALLBACK PAD1__startPoll(int pad);
+extern unsigned char CALLBACK PAD2__startPoll(int pad);
+extern unsigned char CALLBACK PAD1__poll(unsigned char value);
+extern unsigned char CALLBACK PAD2__poll(unsigned char value);
 
 static int old_controller_type1 = -1, old_controller_type2 = -1;
 

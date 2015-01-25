@@ -28,6 +28,11 @@
 #define noinline
 #define unlikely(x) x
 #endif
+#if defined(__GNUC__) && !defined(_TMS320C6X)
+#define preload __builtin_prefetch
+#else
+#define preload(...)
+#endif
 
 #define PSE_LT_SPU                  4
 #define PSE_SPU_ERR_SUCCESS         0
@@ -53,10 +58,17 @@
 // struct defines
 ///////////////////////////////////////////////////////////
 
+enum ADSR_State {
+ ADSR_ATTACK = 0,
+ ADSR_DECAY = 1,
+ ADSR_SUSTAIN = 2,
+ ADSR_RELEASE = 3,
+};
+
 // ADSR INFOS PER CHANNEL
 typedef struct
 {
- unsigned char  State:2;
+ unsigned char  State:2;                               // ADSR_State
  unsigned char  AttackModeExp:1;
  unsigned char  SustainModeExp:1;
  unsigned char  SustainIncrease:1;
@@ -93,7 +105,6 @@ typedef struct
  unsigned char *   pCurr;                              // current pos in sound mem
  unsigned char *   pLoop;                              // loop ptr in sound mem
 
- unsigned int      bStop:1;                            // is channel stopped (sample _can_ still be playing, ADSR Release phase)
  unsigned int      bReverb:1;                          // can we do reverb on this channel? must have ctrl register bit, to get active
  unsigned int      bRVBActive:1;                       // reverb active flag
  unsigned int      bNoise:1;                           // noise active flag
@@ -104,8 +115,6 @@ typedef struct
  int               iRightVolume;                       // right volume
  ADSRInfoEx        ADSRX;
  int               iRawPitch;                          // raw pitch (0...3fff)
-
- int               SB[32+4];
 } SPUCHAN;
 
 ///////////////////////////////////////////////////////////
@@ -117,8 +126,6 @@ typedef struct
 
  int VolLeft;
  int VolRight;
- int iRVBLeft;
- int iRVBRight;
 
  int FB_SRC_A;       // (offset)
  int FB_SRC_B;       // (offset)
@@ -169,13 +176,18 @@ typedef struct
 
 // psx buffers / addresses
 
+#define SB_SIZE (32 + 4)
+
 typedef struct
 {
  unsigned short  spuCtrl;
  unsigned short  spuStat;
 
  unsigned int    spuAddr;
- unsigned char * spuMemC;
+ union {
+  unsigned char  *spuMemC;
+  unsigned short *spuMem;
+ };
  unsigned char * pSpuIrq;
 
  unsigned int    cycles_played;
@@ -197,8 +209,6 @@ typedef struct
  void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
  void (CALLBACK *scheduleCallback)(unsigned int);
 
- int           * sRVBStart;
-
  xa_decode_t   * xapGlobal;
  unsigned int  * XAFeed;
  unsigned int  * XAPlay;
@@ -216,9 +226,15 @@ typedef struct
  int             iLeftXAVol;
  int             iRightXAVol;
 
- int             pad[32];
+ SPUCHAN       * s_chan;
+ REVERBInfo    * rvb;
+
+ // buffers
+ int           * SB;
+ int           * SSumLR;
+
+ int             pad[29];
  unsigned short  regArea[0x400];
- unsigned short  spuMem[256*1024];
 } SPUInfo;
 
 ///////////////////////////////////////////////////////////
@@ -228,19 +244,17 @@ typedef struct
 #ifndef _IN_SPU
 
 extern SPUInfo spu;
-extern SPUCHAN s_chan[];
-extern REVERBInfo rvb;
 
-void do_samples(unsigned int cycles_to);
+void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);
 
 #define regAreaGet(ch,offset) \
   spu.regArea[((ch<<4)|(offset))>>1]
 
-#define do_samples_if_needed(c) \
+#define do_samples_if_needed(c, sync) \
  do { \
-  if ((int)((c) - spu.cycles_played) >= 16 * 768) \
-   do_samples(c); \
+  if (sync || (int)((c) - spu.cycles_played) >= 16 * 768) \
+   do_samples(c, sync); \
  } while (0)
 
 #endif

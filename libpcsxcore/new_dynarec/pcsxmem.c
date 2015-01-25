@@ -292,7 +292,7 @@ void new_dyna_pcsx_mem_load_state(void)
 	map_rcnt_rcount2(rcnts[2].mode);
 }
 
-int pcsxmem_is_handler_dynamic(u_int addr)
+int pcsxmem_is_handler_dynamic(unsigned int addr)
 {
 	if ((addr & 0xfffff000) != 0x1f801000)
 		return 0;

@@ -33,23 +33,18 @@ extern "C" {
 typedef void* HWND;
 #define CALLBACK
 
-typedef long (*GPUopen)(unsigned long *, char *, char *);
-typedef long (*SPUopen)(void);
-typedef long (*PADopen)(unsigned long *);
-typedef long (*NETopen)(unsigned long *);
-typedef long (*SIO1open)(unsigned long *);
-
 #else
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-typedef long (CALLBACK* GPUopen)(HWND);
-typedef long (CALLBACK* SPUopen)(HWND);
-typedef long (CALLBACK* PADopen)(HWND);
-typedef long (CALLBACK* NETopen)(HWND);
-typedef long (CALLBACK* SIO1open)(HWND);
-
 #endif
+
+typedef long (CALLBACK *GPUopen)(unsigned long *, char *, char *);
+typedef long (CALLBACK *SPUopen)(void);
+typedef long (CALLBACK *PADopen)(unsigned long *);
+typedef long (CALLBACK *NETopen)(unsigned long *);
+typedef long (CALLBACK *SIO1open)(unsigned long *);
 
 #include "spu.h"
 

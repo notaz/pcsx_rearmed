@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2012
+ * (C) notaz, 2012,2014,2015
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
@@ -283,7 +283,7 @@ void retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
-	info->library_version = "r20";
+	info->library_version = "r21";
 	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
@@ -602,7 +602,7 @@ static void extract_directory(char *buf, const char *path, size_t size)
    }
 }
 
-#ifdef __QNX__
+#if defined(__QNX__) || defined(_WIN32)
 /* Blackberry QNX doesn't have strcasestr */
 
 /*

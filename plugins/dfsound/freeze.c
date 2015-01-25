@@ -143,12 +143,12 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->iSBPos = s->iSBPos;
  d->spos = s->spos;
  d->sinc = s->sinc;
- memcpy(d->SB, s->SB, sizeof(d->SB));
+ memcpy(d->SB, spu.SB + ch * SB_SIZE, sizeof(d->SB[0]) * SB_SIZE);
  d->iStart = (regAreaGet(ch,6)&~1)<<3;
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
  d->bOn = !!(spu.dwChannelOn & (1<<ch));
- d->bStop = s->bStop;
+ d->bStop = s->ADSRX.State == ADSR_RELEASE;
  d->bReverb = s->bReverb;
  d->iActFreq = 1;
  d->iUsedFreq = 2;
@@ -157,8 +157,8 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->bIgnoreLoop = (s->prevflags ^ 2) << 1;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
- d->s_1 = s->SB[27]; // yes it's reversed
- d->s_2 = s->SB[26];
+ d->s_1 = spu.SB[ch * SB_SIZE + 27]; // yes it's reversed
+ d->s_2 = spu.SB[ch * SB_SIZE + 26];
  d->bRVBActive = s->bRVBActive;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
@@ -185,10 +185,9 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  d->sinc_inv = 0;
- memcpy(d->SB, s->SB, sizeof(d->SB));
+ memcpy(spu.SB + ch * SB_SIZE, s->SB, sizeof(spu.SB[0]) * SB_SIZE);
  d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
- d->bStop = s->bStop;
  d->bReverb = s->bReverb;
  d->iLeftVolume = s->iLeftVolume;
  d->iRightVolume = s->iRightVolume;
@@ -198,6 +197,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->bFMod = s->bFMod;
  d->prevflags = (s->bIgnoreLoop >> 1) ^ 2;
  d->ADSRX.State = s->ADSRX.State;
+ if (s->bStop) d->ADSRX.State = ADSR_RELEASE;
  d->ADSRX.AttackModeExp = s->ADSRX.AttackModeExp;
  d->ADSRX.AttackRate = s->ADSRX.AttackRate;
  d->ADSRX.DecayRate = s->ADSRX.DecayRate;
@@ -242,7 +242,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
    if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
                                                        // save mode:
-   do_samples(cycles);
+   do_samples(cycles, 1);
 
    memcpy(pF->cSPURam,spu.spuMem,0x80000);             // copy common infos
    memcpy(pF->cSPUPort,spu.regArea,0x200);
@@ -264,11 +264,11 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
    for(i=0;i<MAXCHAN;i++)
     {
-     save_channel(&pFO->s_chan[i],&s_chan[i],i);
-     if(s_chan[i].pCurr)
-      pFO->s_chan[i].iCurr=s_chan[i].pCurr-spu.spuMemC;
-     if(s_chan[i].pLoop)
-      pFO->s_chan[i].iLoop=s_chan[i].pLoop-spu.spuMemC;
+     save_channel(&pFO->s_chan[i],&spu.s_chan[i],i);
+     if(spu.s_chan[i].pCurr)
+      pFO->s_chan[i].iCurr=spu.s_chan[i].pCurr-spu.spuMemC;
+     if(spu.s_chan[i].pLoop)
+      pFO->s_chan[i].iLoop=spu.s_chan[i].pLoop-spu.spuMemC;
     }
 
    return 1;
@@ -302,7 +302,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  load_register(H_CDRight, cycles);
 
  // fix to prevent new interpolations from crashing
- for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
+ for(i=0;i<MAXCHAN;i++) spu.SB[i * SB_SIZE + 28]=0;
 
  ClearWorkingState();
  spu.cycles_played = cycles;
@@ -325,8 +325,8 @@ void LoadStateV5(SPUFreeze_t * pF)
 
  if(pFO->spuAddr)
   {
-   spu.spuAddr = pFO->spuAddr;
-   if (spu.spuAddr == 0xbaadf00d) spu.spuAddr = 0;
+   if (pFO->spuAddr == 0xbaadf00d) spu.spuAddr = 0;
+   else spu.spuAddr = pFO->spuAddr & 0x7fffe;
   }
 
  spu.dwNewChannel=0;
@@ -334,10 +334,10 @@ void LoadStateV5(SPUFreeze_t * pF)
  spu.dwChannelDead=0;
  for(i=0;i<MAXCHAN;i++)
   {
-   load_channel(&s_chan[i],&pFO->s_chan[i],i);
+   load_channel(&spu.s_chan[i],&pFO->s_chan[i],i);
 
-   s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
-   s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
+   spu.s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
+   spu.s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
   }
 }
 
@@ -349,8 +349,7 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
 
  for(i=0;i<MAXCHAN;i++)
   {
-   s_chan[i].bStop=0;
-   s_chan[i].pLoop=spu.spuMemC;
+   spu.s_chan[i].pLoop=spu.spuMemC;
   }
 
  spu.dwNewChannel=0;

@@ -195,8 +195,21 @@ static void alsa_feed(void *pSound, int lBytes)
    snd_pcm_prepare(handle);
    snd_pcm_writei(handle, sbuf, sizeof(sbuf) / 4);
    snd_pcm_writei(handle, sbuf, sizeof(sbuf) / 4);
+   snd_pcm_writei(handle, sbuf, sizeof(sbuf) / 4);
   }
- snd_pcm_writei(handle,pSound, lBytes / 4);
+ else
+  {
+   int l = snd_pcm_avail(handle);
+   if (l < lBytes / 4)
+    {
+     if (l == 0)
+      return;
+
+     lBytes = l * 4;
+    }
+  }
+
+ snd_pcm_writei(handle, pSound, lBytes / 4);
 }
 
 void out_register_alsa(struct out_driver *drv)

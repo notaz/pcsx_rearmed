@@ -15,31 +15,38 @@
 #include "../libpcsxcore/system.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
+#ifndef _WIN32
+#define CALLBACK
+#else
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 static int dummy_func() {
 	return 0;
 }
 
 /* SPU */
-extern long SPUopen(void);
-extern long SPUinit(void);
-extern long SPUshutdown(void);
-extern long SPUclose(void);
-extern void SPUplaySample(unsigned char);
-extern void SPUwriteRegister(unsigned long, unsigned short, unsigned int);
-extern unsigned short SPUreadRegister(unsigned long);
-extern void SPUwriteDMA(unsigned short);
-extern unsigned short SPUreadDMA(void);
-extern void SPUwriteDMAMem(unsigned short *, int, unsigned int);
-extern void SPUreadDMAMem(unsigned short *, int, unsigned int);
-extern void SPUplayADPCMchannel(void *);
-extern void SPUregisterCallback(void (*cb)(void));
-extern void SPUregisterScheduleCb(void (*cb)(unsigned int));
-extern long SPUconfigure(void);
-extern long SPUtest(void);
-extern void SPUabout(void);
-extern long SPUfreeze(unsigned int, void *, unsigned int);
-extern void SPUasync(unsigned int, unsigned int);
-extern int  SPUplayCDDAchannel(short *, int);
+extern long CALLBACK SPUopen(void);
+extern long CALLBACK SPUinit(void);
+extern long CALLBACK SPUshutdown(void);
+extern long CALLBACK SPUclose(void);
+extern void CALLBACK SPUplaySample(unsigned char);
+extern void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
+extern unsigned short CALLBACK SPUreadRegister(unsigned long);
+extern void CALLBACK SPUwriteDMA(unsigned short);
+extern unsigned short CALLBACK SPUreadDMA(void);
+extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
+extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
+extern void CALLBACK SPUplayADPCMchannel(void *);
+extern void CALLBACK SPUregisterCallback(void (*cb)(void));
+extern void CALLBACK SPUregisterScheduleCb(void (*cb)(unsigned int));
+extern long CALLBACK SPUconfigure(void);
+extern long CALLBACK SPUtest(void);
+extern void CALLBACK SPUabout(void);
+extern long CALLBACK SPUfreeze(unsigned int, void *, unsigned int);
+extern void CALLBACK SPUasync(unsigned int, unsigned int);
+extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 
 /* PAD */
 static long PADreadPort1(PadDataS *pad)
