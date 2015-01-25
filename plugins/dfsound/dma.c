@@ -27,9 +27,9 @@
 
 unsigned short CALLBACK SPUreadDMA(void)
 {
- unsigned short s=spu.spuMem[spu.spuAddr>>1];
- spu.spuAddr+=2;
- if(spu.spuAddr>0x7ffff) spu.spuAddr=0;
+ unsigned short s = *(unsigned short *)(spu.spuMemC + spu.spuAddr);
+ spu.spuAddr += 2;
+ spu.spuAddr &= 0x7fffe;
 
  return s;
 }
@@ -43,13 +43,13 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
 {
  int i;
 
- do_samples_if_needed(cycles);
+ do_samples_if_needed(cycles, 1);
 
  for(i=0;i<iSize;i++)
   {
-   *pusPSXMem++=spu.spuMem[spu.spuAddr>>1];            // spu addr got by writeregister
-   spu.spuAddr+=2;                                     // inc spu addr
-   if(spu.spuAddr>0x7ffff) spu.spuAddr=0;              // wrap
+   *pusPSXMem++ = *(unsigned short *)(spu.spuMemC + spu.spuAddr);
+   spu.spuAddr += 2;
+   spu.spuAddr &= 0x7fffe;
   }
 }
 
@@ -67,10 +67,10 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
   
 void CALLBACK SPUwriteDMA(unsigned short val)
 {
- spu.spuMem[spu.spuAddr>>1] = val;                     // spu addr got by writeregister
+ *(unsigned short *)(spu.spuMemC + spu.spuAddr) = val;
 
- spu.spuAddr+=2;                                       // inc spu addr
- if(spu.spuAddr>0x7ffff) spu.spuAddr=0;                // wrap
+ spu.spuAddr += 2;
+ spu.spuAddr &= 0x7fffe;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -82,20 +82,20 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
 {
  int i;
  
- do_samples_if_needed(cycles);
+ do_samples_if_needed(cycles, 1);
 
  if(spu.spuAddr + iSize*2 < 0x80000)
   {
-   memcpy(&spu.spuMem[spu.spuAddr>>1], pusPSXMem, iSize*2);
+   memcpy(spu.spuMemC + spu.spuAddr, pusPSXMem, iSize*2);
    spu.spuAddr += iSize*2;
    return;
   }
 
  for(i=0;i<iSize;i++)
   {
-   spu.spuMem[spu.spuAddr>>1] = *pusPSXMem++;          // spu addr got by writeregister
-   spu.spuAddr+=2;                                     // inc spu addr
-   spu.spuAddr&=0x7ffff;                               // wrap
+   *(unsigned short *)(spu.spuMemC + spu.spuAddr) = *pusPSXMem++;
+   spu.spuAddr += 2;
+   spu.spuAddr &= 0x7fffe;
   }
 }
 

@@ -113,6 +113,15 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r21 (2015-01-12)
++ general: added ability to run SPU emulation on a separate thread, enabled it
+  by default when multicore CPU is detected. Significant effort was made to
+  avoid any compatibility problems which the old P.E.Op.S. implementation had.
++ pandora: added ability to run SPU emulation on TI C64x DSP by using bsp's
+  c64_tools.
+* libretro: fixed win32 build (mingw only)
+* some tweaks for the scanline effect and other things
+
 r20 (2014-12-25)
 * fixed various sound accuracy issues, like effects in ff7-ff9
   for standalone build, audio will no longer slow down when emu is not fast

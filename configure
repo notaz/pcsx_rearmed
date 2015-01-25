@@ -47,6 +47,7 @@ have_armv7=""
 have_arm_neon=""
 have_tslib=""
 have_gles=""
+have_c64x_dsp=""
 enable_dynarec="yes"
 need_sdl="no"
 need_xlib="no"
@@ -368,6 +369,16 @@ EOF
   compile_object "$@"
 }
 
+# see if we have c64_tools for TI C64x DSP
+check_c64_tools()
+{
+  cat > $TMPC <<EOF
+  #include <inc_libc64_mini.h>
+  int f() { return dsp_open(); }
+EOF
+  compile_object "$@"
+}
+
 MAIN_LDLIBS="$MAIN_LDLIBS -lz"
 check_zlib || fail "please install zlib (libz-dev)"
 
@@ -428,6 +439,9 @@ fi
 if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
   CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads -I/opt/vc/include/interface/vmcs_host/linux"
   LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
+  if [ -f /opt/vc/lib/libbcm_host.so ]; then
+    LDLIBS_GLES="$LDLIBS_GLES -lbcm_host"
+  fi
   need_xlib="yes"
 fi
 
@@ -445,6 +459,10 @@ if compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
 elif compile_binary $CFLAGS_GLES -lEGL -lGLESv1_CM $LDLIBS_GLES; then
   have_gles="yes"
   LDLIBS_GLES="-lEGL -lGLESv1_CM $LDLIBS_GLES"
+fi
+
+if check_c64_tools; then
+  have_c64x_dsp="yes"
 fi
 
 if [ "$have_gles" = "yes" ]; then
@@ -477,6 +495,7 @@ test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
 test "x$have_gles" != "x" || have_gles="no"
+test "x$have_c64x_dsp" != "x" || have_c64x_dsp="no"
 
 echo "architecture        $ARCH"
 echo "platform            $platform"
@@ -488,8 +507,11 @@ echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
-echo "ARMv7 optimizations $have_armv7"
-echo "enable ARM NEON     $have_arm_neon"
+if [ "$ARCH" = "arm" ]; then
+  echo "ARMv7 optimizations $have_armv7"
+  echo "enable ARM NEON     $have_arm_neon"
+  echo "TI C64x DSP support $have_c64x_dsp"
+fi
 echo "tslib support       $have_tslib"
 if [ "$platform" = "generic" ]; then
   echo "OpenGL ES output    $have_gles"
@@ -535,6 +557,9 @@ if [ "$enable_dynarec" = "yes" ]; then
 fi
 if [ "$drc_cache_base" = "yes" ]; then
   echo "DRC_CACHE_BASE = 1" >> $config_mak
+fi
+if [ "$have_c64x_dsp" = "yes" ]; then
+  echo "HAVE_C64_TOOLS = 1" >> $config_mak
 fi
 
 # use pandora's skin (for now)

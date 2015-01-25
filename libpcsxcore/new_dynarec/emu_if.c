@@ -305,7 +305,7 @@ static int ari64_init()
 {
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
-	extern u_char *out;
+	extern unsigned char *out;
 	size_t i;
 
 	new_dynarec_init();
@@ -438,7 +438,7 @@ int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u8 zero_mem[0x1000];
-u_char *out;
+unsigned char *out;
 void *mem_rtab;
 void *scratch_buf_ptr;
 void new_dynarec_init() { (void)ari64_execute; }

@@ -26,9 +26,11 @@
 #include "ppf.h"
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
+#define usleep(x) Sleep((x) / 1000)
 #else
 #include <pthread.h>
 #include <sys/time.h>

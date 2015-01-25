@@ -10,6 +10,9 @@ nub1mode=`cat /proc/pandora/nub1/mode`
 # no big deal if this fails, only performance loss
 sudo -n /usr/pandora/scripts/op_hugetlb.sh 24
 
+# C64x DSP for SPU
+sudo -n /usr/pandora/scripts/op_dsp_c64.sh
+
 ./pcsx "$@"
 
 # restore stuff if pcsx crashes

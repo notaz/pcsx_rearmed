@@ -8,12 +8,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
-#include <dlfcn.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
 
 #include "main.h"
 #include "plugin.h"
@@ -141,7 +141,8 @@ void emu_set_default_config(void)
 	spu_config.iXAPitch = 0;
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
-#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX */
+	spu_config.iUseThread = 1; // no effect if only 1 core is detected
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
 	spu_config.iTempo = 1;
@@ -452,6 +453,10 @@ void emu_core_ask_exit(void)
 }
 
 #ifndef NO_FRONTEND
+
+#include <sys/stat.h>
+#include <sys/types.h>
+
 static void create_profile_dir(const char *directory) {
 	char path[MAXPATHLEN];
 
@@ -766,7 +771,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#ifndef __ARM_ARCH_7A__ /* XXX */
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",
@@ -968,7 +973,7 @@ static const int builtin_plugin_ids[] = {
 
 void *SysLoadLibrary(const char *lib) {
 	const char *tmp = strrchr(lib, '/');
-	void *ret;
+	void *ret = NULL;
 	int i;
 
 	SysPrintf("plugin: %s\n", lib);
@@ -980,9 +985,14 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
+#ifndef _WIN32
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		SysMessage("dlopen: %s", dlerror());
+#else
+	/* no external plugin support, abi is no longer
+	 * compatible with psemu/pcsx anyway */
+#endif
 	return ret;
 }
 
@@ -992,11 +1002,19 @@ void *SysLoadSym(void *lib, const char *sym) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
 
+#ifndef _WIN32
 	return dlsym(lib, sym);
+#else
+	return NULL;
+#endif
 }
 
 const char *SysLibError() {
+#ifndef _WIN32
 	return dlerror();
+#else
+	return "not supported";
+#endif
 }
 
 void SysCloseLibrary(void *lib) {
@@ -1005,6 +1023,8 @@ void SysCloseLibrary(void *lib) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;
 
+#ifndef _WIN32
 	dlclose(lib);
+#endif
 }
 

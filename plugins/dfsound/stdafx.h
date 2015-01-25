@@ -15,26 +15,20 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef _MACOSX
-#include "config.h"
-#endif
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <pthread.h>
-#define RRand(range) (random()%range)  
 #include <string.h> 
-#include <sys/time.h>  
-#include <math.h>  
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #undef CALLBACK
 #define CALLBACK
 #define DWORD unsigned int
-#define LOWORD(l)           ((unsigned short)(l)) 
-#define HIWORD(l)           ((unsigned short)(((unsigned int)(l) >> 16) & 0xFFFF)) 
+#define LOWORD(l)           ((unsigned short)(l))
+#define HIWORD(l)           ((unsigned short)(((unsigned int)(l) >> 16) & 0xFFFF))
+#endif
 
 #ifndef INLINE
 #define INLINE static inline
