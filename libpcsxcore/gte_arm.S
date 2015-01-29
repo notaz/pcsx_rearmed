@@ -11,7 +11,7 @@
 .align 2
 
 .macro sgnxt16 rd rs
-#ifdef HAVE_ARMV7
+#ifdef HAVE_ARMV6
     sxth     \rd, \rs
 #else
     lsl      \rd, \rs, #16
@@ -28,7 +28,7 @@
 .endm
 
 .macro ssatx rd wr bit
-#ifdef HAVE_ARMV7
+#ifdef HAVE_ARMV6
     ssat     \rd, #\bit, \rd
 #else
     cmp      \rd, \wr
@@ -52,7 +52,7 @@
 .endm
 
 .macro usat16_ rd rs
-#ifdef HAVE_ARMV7
+#ifdef HAVE_ARMV6
     usat     \rd, #16, \rs
 #else
     subs     \rd, \rs, #0
