@@ -3,7 +3,7 @@ PCSX-ReARMed - yet another PCSX fork
 
 [![Build Status](https://travis-ci.org/notaz/pcsx_rearmed.svg?branch=master)](https://travis-ci.org/notaz/pcsx_rearmed)
 
-*see [readme.txt](blob/master/readme.txt) for more complete documentation*
+*see [readme.txt](readme.txt) for more complete documentation*
 
 PCSX ReARMed is yet another PCSX fork based on the PCSX-Reloaded project,
 which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
