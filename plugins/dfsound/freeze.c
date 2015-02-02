@@ -231,6 +231,8 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
  if(!pF) return 0;                                     // first check
 
+ do_samples(cycles, 1);
+
  if(ulFreezeMode)                                      // info or save?
   {//--------------------------------------------------//
    if(ulFreezeMode==1)                                 
@@ -242,8 +244,6 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
    if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
                                                        // save mode:
-   do_samples(cycles, 1);
-
    memcpy(pF->cSPURam,spu.spuMem,0x80000);             // copy common infos
    memcpy(pF->cSPUPort,spu.regArea,0x200);
 

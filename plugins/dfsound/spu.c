@@ -818,12 +818,8 @@ static void do_channels(int ns_to)
   }
 
   if (spu.rvb->StartAddr) {
-   if (do_rvb) {
-    if (unlikely(spu.rvb->dirty))
-     REVERBPrep();
-
+   if (do_rvb)
     REVERBDo(spu.SSumLR, RVB, ns_to, spu.rvb->CurrAddr);
-   }
 
    spu.rvb->CurrAddr += ns_to / 2;
    while (spu.rvb->CurrAddr >= 0x40000)
@@ -970,11 +966,8 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
 
  work->rvb_addr = 0;
  if (spu.rvb->StartAddr) {
-  if (spu_config.iUseReverb) {
-   if (unlikely(spu.rvb->dirty))
-    REVERBPrep();
+  if (spu_config.iUseReverb)
    work->rvb_addr = spu.rvb->CurrAddr;
-  }
 
   spu.rvb->CurrAddr += ns_to / 2;
   while (spu.rvb->CurrAddr >= 0x40000)
@@ -989,9 +982,9 @@ static void do_channel_work(struct work_item *work)
 {
  unsigned int mask;
  unsigned int decode_dirty_ch = 0;
+ const SPUCHAN *s_chan;
  int *SB, sinc, spos, sbpos;
  int d, ch, ns_to;
- SPUCHAN *s_chan;
 
  ns_to = work->ns_to;
 
@@ -1056,6 +1049,9 @@ static void sync_worker_thread(int force)
 {
  struct work_item *work;
  int done, used_space;
+
+ // rvb offsets will change, thread may be using them
+ force |= spu.rvb->dirty && spu.rvb->StartAddr;
 
  done = thread_get_i_done() - worker->i_reaped;
  used_space = worker->i_ready - worker->i_reaped;
@@ -1149,6 +1145,9 @@ void do_samples(unsigned int cycles_to, int do_direct)
       do_irq();
      }
    }
+
+  if (unlikely(spu.rvb->dirty))
+   REVERBPrep();
 
   if (do_direct || worker == NULL || !spu_config.iUseThread) {
    do_channels(ns_to);
