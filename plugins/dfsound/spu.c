@@ -842,6 +842,7 @@ static struct spu_worker {
    unsigned int i_ready;
    unsigned int i_reaped;
    unsigned int last_boot_cnt; // dsp
+   unsigned int ram_dirty;
   };
   // aligning for C64X_DSP
   unsigned int _pad0[128/4];
@@ -1055,6 +1056,7 @@ static void sync_worker_thread(int force)
 
  done = thread_get_i_done() - worker->i_reaped;
  used_space = worker->i_ready - worker->i_reaped;
+
  //printf("done: %d use: %d dsp: %u/%u\n", done, used_space,
  //  worker->boot_cnt, worker->i_done);
 

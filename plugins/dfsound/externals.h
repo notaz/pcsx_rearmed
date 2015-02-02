@@ -189,6 +189,7 @@ typedef struct
  int             decode_dirty_ch;
  unsigned int    bSpuInit:1;
  unsigned int    bSPUIsOpen:1;
+ unsigned int    bMemDirty:1;          // had external write to SPU RAM
 
  unsigned int    dwNoiseVal;           // global noise generator
  unsigned int    dwNoiseCount;

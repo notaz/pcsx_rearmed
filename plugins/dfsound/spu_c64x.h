@@ -15,10 +15,10 @@ struct region_mem {
   // these are not to be modified by DSP
   SPUCHAN s_chan[24 + 1];
   REVERBInfo rvb;
+  SPUConfig spu_config;
  } in;
  int _pad2[128/4 - ((sizeof(struct spu_in) / 4) & (128/4 - 1))];
  struct spu_worker worker;
- SPUConfig spu_config;
  // init/debug
  int sizeof_region_mem;
  int offsetof_s_chan1;

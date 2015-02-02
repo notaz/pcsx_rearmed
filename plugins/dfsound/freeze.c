@@ -279,6 +279,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
  memcpy(spu.spuMem,pF->cSPURam,0x80000);               // get ram
  memcpy(spu.regArea,pF->cSPUPort,0x200);
+ spu.bMemDirty = 1;
 
  if(pF->xaS.nsamples<=4032)                            // start xa again
   SPUplayADPCMchannel(&pF->xaS);
