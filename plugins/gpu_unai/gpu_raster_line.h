@@ -26,7 +26,7 @@
 #define GPU_DIGITS  16
 #define GPU_DIGITSC (GPU_DIGITS+3)
 
-INLINE long GPU_DIV(long rs, long rt)
+INLINE s32 GPU_DIV(s32 rs, s32 rt)
 {
 	return rt ? (rs / rt) : (0);
 }
