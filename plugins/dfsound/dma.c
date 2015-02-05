@@ -71,6 +71,7 @@ void CALLBACK SPUwriteDMA(unsigned short val)
 
  spu.spuAddr += 2;
  spu.spuAddr &= 0x7fffe;
+ spu.bMemDirty = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -83,6 +84,7 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
  int i;
  
  do_samples_if_needed(cycles, 1);
+ spu.bMemDirty = 1;
 
  if(spu.spuAddr + iSize*2 < 0x80000)
   {

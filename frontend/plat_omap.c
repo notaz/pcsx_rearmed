@@ -111,9 +111,10 @@ void *plat_gvideo_set_mode(int *w_in, int *h_in, int *bpp)
 		}
 	}
 
-	vout_fbdev_clear(layer_fb);
 	buf = vout_fbdev_resize(layer_fb, w, h, *bpp,
 		l, r, t, b, 3);
+
+	vout_fbdev_clear(layer_fb);
 
 	omap_enable_layer(1);
 

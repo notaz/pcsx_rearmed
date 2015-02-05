@@ -432,7 +432,7 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 	{
 		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
 		// lower 16 bit
-		u32 data = (unsigned long)pvram[px];
+		u32 data = pvram[px];
 
 		if (++px>=x_end) 
 		{
@@ -442,7 +442,7 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 
 		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
 		// higher 16 bit (always, even if it's an odd width)
-		data |= (unsigned long)(pvram[px])<<16;
+		data |= (u32)(pvram[px])<<16;
 		
 		*dmaAddress++ = data;
 

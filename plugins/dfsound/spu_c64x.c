@@ -47,6 +47,25 @@ static struct {
  unsigned int req_sent:1;
 } f;
 
+static noinline void dsp_fault(void)
+{
+ dsp_msg_t msg;
+
+ f.dsp_cache_inv_virt(worker, sizeof(*worker));
+ printf("dsp crash/fault/corruption:\n");
+ printf("state rdy/reap/done: %u %u %u\n",
+   worker->i_ready, worker->i_reaped, worker->i_done);
+ printf("active/boot: %u %u\n",
+   worker->active, worker->boot_cnt);
+
+ if (f.req_sent) {
+  f.dsp_rpc_recv(&msg);
+  f.req_sent = 0;
+ }
+ f.dsp_logbuf_print();
+ spu_config.iUseThread = 0;
+}
+
 static void thread_work_start(void)
 {
  struct region_mem *mem;
@@ -84,9 +103,11 @@ static void thread_work_start(void)
 
  f.dsp_cache_inv_virt(&worker->i_done, 64);
  worker->last_boot_cnt = worker->boot_cnt;
+ worker->ram_dirty = spu.bMemDirty;
+ spu.bMemDirty = 0;
 
  mem = (void *)f.region.virt_addr;
- memcpy(&mem->spu_config, &spu_config, sizeof(mem->spu_config));
+ memcpy(&mem->in.spu_config, &spu_config, sizeof(mem->in.spu_config));
 
  DSP_MSG_INIT(&msg, f.compid, CCMD_DOIT, f.region.phys_addr, 0);
  ret = f.dsp_rpc_send(&msg);
@@ -97,6 +118,11 @@ static void thread_work_start(void)
   return;
  }
  f.req_sent = 1;
+
+#if 0
+ f.dsp_rpc_recv(&msg);
+ f.req_sent = 0;
+#endif
 }
 
 static int thread_get_i_done(void)
@@ -109,6 +135,11 @@ static void thread_work_wait_sync(struct work_item *work, int force)
 {
  int limit = 1000;
  int ns_to;
+
+ if ((unsigned int)(worker->i_done - worker->i_reaped) > WORK_MAXCNT) {
+  dsp_fault();
+  return;
+ }
 
  while (worker->i_done == worker->i_reaped && limit-- > 0) {
   if (!f.req_sent) {
@@ -222,7 +253,7 @@ static void init_spu_thread(void)
  }
  mem = (void *)f.region.virt_addr;
 
- memcpy(&mem->spu_config, &spu_config, sizeof(mem->spu_config));
+ memcpy(&mem->in.spu_config, &spu_config, sizeof(mem->in.spu_config));
 
  DSP_MSG_INIT(&init_msg, f.compid, CCMD_INIT, f.region.phys_addr, 0);
  ret = f.dsp_rpc(&init_msg, &msg_in);
@@ -300,5 +331,24 @@ static void exit_spu_thread(void)
  spu.rvb = NULL;
  worker = NULL;
 }
+
+/* debug: "access" shared mem from gdb */
+#if 0
+struct region_mem *dbg_dsp_mem;
+
+void dbg_dsp_mem_update(void)
+{
+ struct region_mem *mem;
+
+ if (dbg_dsp_mem == NULL)
+  dbg_dsp_mem = malloc(sizeof(*dbg_dsp_mem));
+ if (dbg_dsp_mem == NULL)
+  return;
+
+ mem = (void *)f.region.virt_addr;
+ f.dsp_cache_inv_virt(mem, sizeof(*mem));
+ memcpy(dbg_dsp_mem, mem, sizeof(*dbg_dsp_mem));
+}
+#endif
 
 // vim:shiftwidth=1:expandtab

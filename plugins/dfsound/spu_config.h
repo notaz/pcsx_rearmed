@@ -8,6 +8,7 @@ typedef struct
  int        iUseInterpolation;
  int        iTempo;
  int        iUseThread;
+ int        iUseFixedUpdates;  // output fixed number of samples/frame
 
  // status
  int        iThreadAvail;

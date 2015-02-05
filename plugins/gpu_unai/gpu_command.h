@@ -21,9 +21,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSetTexture(u16 tpage)
 {
-	long tp;
-	long tx, ty;
-	GPU_GP1 = (GPU_GP1 & ~0x7FF) | (tpage & 0x7FF);
+	u32 tp;
+	u32 tx, ty;
+	GPU_GP1 = (GPU_GP1 & ~0x1FF) | (tpage & 0x1FF);
 
 	TextureWindow[0]&= ~TextureWindow[2];
 	TextureWindow[1]&= ~TextureWindow[3];
@@ -31,6 +31,7 @@ INLINE void gpuSetTexture(u16 tpage)
 	tp = (tpage >> 7) & 3;
 	tx = (tpage & 0x0F) << 6;
 	ty = (tpage & 0x10) << 4;
+	if (tp == 3) tp = 2;
 
 	tx += (TextureWindow[0] >> (2 - tp));
 	ty += TextureWindow[1];
@@ -437,8 +438,8 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0xE5:
 			{
 				const u32 temp = PacketBuffer.U4[0];
-				DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
-				DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+				DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
+				DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
 				//isSkip = false;
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));
 			}

@@ -347,8 +347,10 @@ int LoadSBI(const char *fname, int sector_count) {
 		return -1;
 
 	sbi_sectors = calloc(1, sector_count / 8);
-	if (sbi_sectors == NULL)
+	if (sbi_sectors == NULL) {
+		fclose(sbihandle);
 		return -1;
+	}
 
 	// 4-byte SBI header
 	fread(buffer, 1, 4, sbihandle);

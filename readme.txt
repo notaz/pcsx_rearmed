@@ -113,6 +113,14 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r22 (2015-02-05)
+* general: fixed a race condition/crash in threaded SPU mode
+* pandora: C64x: fixed compatibility with newer c64_tools, enabled L2 cache
+* frontend: fixed control config corruption on load for devices that are
+  disconnected on startup
+* some dma accuracy improvements, might fix occasional glitches in ff7
+* ARMv6 build and the dynarec now make use of available instructions (gizmo98)
+
 r21 (2015-01-12)
 + general: added ability to run SPU emulation on a separate thread, enabled it
   by default when multicore CPU is detected. Significant effort was made to

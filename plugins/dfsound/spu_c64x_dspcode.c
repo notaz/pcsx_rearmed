@@ -37,13 +37,40 @@ struct out_driver *out_current;
 void SetupSound(void) {}
 
 
+static void enable_l2_cache(void)
+{
+ volatile uint32_t *L2CFG = (volatile uint32_t *)0x01840000;
+ uint32_t *MARi = (void *)0x01848000;
+ int i;
+
+ // program Memory Attribute Registers
+ // (old c64_tools has the defaults messed up)
+ // 00000000-0fffffff - not configurable
+ // 10000000-7fffffff - system
+ for (i = 0x10; i < 0x80; i++)
+  MARi[i] = 0;
+ // 80000000-9fffffff - RAM
+ for ( ; i < 0xa0; i++)
+  MARi[i] = 1;
+ // 0xa00000-ffffffff - reserved, etc
+ for ( ; i < 0x100; i++)
+  MARi[i] = 0;
+
+ // enable L2 (1 for 32k, 2 for 64k)
+ if (!(*L2CFG & 2)) {
+  *L2CFG = 2;
+  // wait the for the write
+  *L2CFG;
+ }
+}
+
 static void invalidate_cache(struct work_item *work)
 {
  // see comment in writeout_cache()
  //syscalls.cache_inv(work, offsetof(typeof(*work), SSumLR), 1);
- syscalls.cache_inv(spu.s_chan, sizeof(spu.s_chan[0]) * 24, 0);
+ syscalls.cache_inv(spu.s_chan, sizeof(spu.s_chan[0]) * 24, 1);
  syscalls.cache_inv(work->SSumLR,
-   sizeof(work->SSumLR[0]) * 2 * work->ns_to, 0);
+   sizeof(work->SSumLR[0]) * 2 * work->ns_to, 1);
 }
 
 static void writeout_cache(struct work_item *work)
@@ -53,7 +80,7 @@ static void writeout_cache(struct work_item *work)
  syscalls.cache_wb(work->SSumLR, sizeof(work->SSumLR[0]) * 2 * ns_to, 1);
  // have to invalidate now, otherwise there is a race between
  // DSP evicting dirty lines and ARM writing new data to this area
- syscalls.cache_inv(work, offsetof(typeof(*work), SSumLR), 0);
+ syscalls.cache_inv(work, offsetof(typeof(*work), SSumLR), 1);
 }
 
 static void do_processing(void)
@@ -112,6 +139,7 @@ static unsigned int exec(dsp_component_cmd_t cmd,
 
  switch (cmd) {
   case CCMD_INIT:
+   enable_l2_cache();
    InitADSR();
 
    spu.spuMemC = mem->spu_ram;
@@ -119,7 +147,7 @@ static unsigned int exec(dsp_component_cmd_t cmd,
    spu.s_chan = mem->in.s_chan;
    spu.rvb = &mem->in.rvb;
    worker = &mem->worker;
-   memcpy(&spu_config, &mem->spu_config, sizeof(spu_config));
+   memcpy(&spu_config, &mem->in.spu_config, sizeof(spu_config));
 
    mem->sizeof_region_mem = sizeof(*mem);
    mem->offsetof_s_chan1 = offsetof(typeof(*mem), in.s_chan[1]);
@@ -131,16 +159,18 @@ static unsigned int exec(dsp_component_cmd_t cmd,
   case CCMD_DOIT:
    worker->active = ACTIVE_CNT;
    worker->boot_cnt++;
-   syscalls.cache_wb(&worker->i_done, 64, 1);
-   memcpy(&spu_config, &mem->spu_config, sizeof(spu_config));
+   syscalls.cache_inv(worker, 128, 1);
+   syscalls.cache_wb(&worker->i_done, 128, 1);
+   memcpy(&spu_config, &mem->in.spu_config, sizeof(spu_config));
+
+   if (worker->ram_dirty)
+    // it's faster to do it all than just a 512k buffer
+    syscalls.cache_wbInvAll();
 
    do_processing();
 
-   // c64_tools lib does BCACHE_wbInvAll() when it receives mailbox irq,
-   // but invalidate anyway in case c64_tools is ever fixed..
-   // XXX edit: don't bother as reverb is not handled, will fix if needed
-   //syscalls.cache_inv(mem, sizeof(mem->spu_ram) + sizeof(mem->SB), 0);
-   //syscalls.cache_inv(&mem->in, sizeof(mem->in), 0);
+   syscalls.cache_inv(&mem->SB, sizeof(mem->SB), 0);
+   syscalls.cache_inv(&mem->in, sizeof(mem->in), 0);
    break;
 
   default:

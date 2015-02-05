@@ -145,17 +145,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_SPUReverbAddr:
-      if(val==0xFFFF || val<=0x200)
-       {spu.rvb->StartAddr=spu.rvb->CurrAddr=0;}
-      else
-       {
-        const long iv=(unsigned long)val<<2;
-        if(spu.rvb->StartAddr!=iv)
-         {
-          spu.rvb->StartAddr=(unsigned long)val<<2;
-          spu.rvb->CurrAddr=spu.rvb->StartAddr;
-         }
-       }
       goto rvbd;
     //-------------------------------------------------//
     case H_SPUirqAddr:
@@ -246,38 +235,38 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       ReverbOn(16,24,val);
       break;
     //-------------------------------------------------//
-    case H_Reverb+0   : spu.rvb->FB_SRC_A=val*4;         goto rvbd;
-    case H_Reverb+2   : spu.rvb->FB_SRC_B=val*4;         goto rvbd;
-    case H_Reverb+4   : spu.rvb->IIR_ALPHA=(short)val;   goto rvbd;
-    case H_Reverb+6   : spu.rvb->ACC_COEF_A=(short)val;  goto rvbd;
-    case H_Reverb+8   : spu.rvb->ACC_COEF_B=(short)val;  goto rvbd;
-    case H_Reverb+10  : spu.rvb->ACC_COEF_C=(short)val;  goto rvbd;
-    case H_Reverb+12  : spu.rvb->ACC_COEF_D=(short)val;  goto rvbd;
-    case H_Reverb+14  : spu.rvb->IIR_COEF=(short)val;    goto rvbd;
-    case H_Reverb+16  : spu.rvb->FB_ALPHA=(short)val;    goto rvbd;
-    case H_Reverb+18  : spu.rvb->FB_X=(short)val;        goto rvbd;
-    case H_Reverb+20  : spu.rvb->IIR_DEST_A0=val*4;      goto rvbd;
-    case H_Reverb+22  : spu.rvb->IIR_DEST_A1=val*4;      goto rvbd;
-    case H_Reverb+24  : spu.rvb->ACC_SRC_A0=val*4;       goto rvbd;
-    case H_Reverb+26  : spu.rvb->ACC_SRC_A1=val*4;       goto rvbd;
-    case H_Reverb+28  : spu.rvb->ACC_SRC_B0=val*4;       goto rvbd;
-    case H_Reverb+30  : spu.rvb->ACC_SRC_B1=val*4;       goto rvbd;
-    case H_Reverb+32  : spu.rvb->IIR_SRC_A0=val*4;       goto rvbd;
-    case H_Reverb+34  : spu.rvb->IIR_SRC_A1=val*4;       goto rvbd;
-    case H_Reverb+36  : spu.rvb->IIR_DEST_B0=val*4;      goto rvbd;
-    case H_Reverb+38  : spu.rvb->IIR_DEST_B1=val*4;      goto rvbd;
-    case H_Reverb+40  : spu.rvb->ACC_SRC_C0=val*4;       goto rvbd;
-    case H_Reverb+42  : spu.rvb->ACC_SRC_C1=val*4;       goto rvbd;
-    case H_Reverb+44  : spu.rvb->ACC_SRC_D0=val*4;       goto rvbd;
-    case H_Reverb+46  : spu.rvb->ACC_SRC_D1=val*4;       goto rvbd;
-    case H_Reverb+48  : spu.rvb->IIR_SRC_B1=val*4;       goto rvbd;
-    case H_Reverb+50  : spu.rvb->IIR_SRC_B0=val*4;       goto rvbd;
-    case H_Reverb+52  : spu.rvb->MIX_DEST_A0=val*4;      goto rvbd;
-    case H_Reverb+54  : spu.rvb->MIX_DEST_A1=val*4;      goto rvbd;
-    case H_Reverb+56  : spu.rvb->MIX_DEST_B0=val*4;      goto rvbd;
-    case H_Reverb+58  : spu.rvb->MIX_DEST_B1=val*4;      goto rvbd;
-    case H_Reverb+60  : spu.rvb->IN_COEF_L=(short)val;   goto rvbd;
-    case H_Reverb+62  : spu.rvb->IN_COEF_R=(short)val;   goto rvbd;
+    case H_Reverb+0   : goto rvbd;
+    case H_Reverb+2   : goto rvbd;
+    case H_Reverb+4   : spu.rvb->IIR_ALPHA=(short)val;   break;
+    case H_Reverb+6   : spu.rvb->ACC_COEF_A=(short)val;  break;
+    case H_Reverb+8   : spu.rvb->ACC_COEF_B=(short)val;  break;
+    case H_Reverb+10  : spu.rvb->ACC_COEF_C=(short)val;  break;
+    case H_Reverb+12  : spu.rvb->ACC_COEF_D=(short)val;  break;
+    case H_Reverb+14  : spu.rvb->IIR_COEF=(short)val;    break;
+    case H_Reverb+16  : spu.rvb->FB_ALPHA=(short)val;    break;
+    case H_Reverb+18  : spu.rvb->FB_X=(short)val;        break;
+    case H_Reverb+20  : goto rvbd;
+    case H_Reverb+22  : goto rvbd;
+    case H_Reverb+24  : goto rvbd;
+    case H_Reverb+26  : goto rvbd;
+    case H_Reverb+28  : goto rvbd;
+    case H_Reverb+30  : goto rvbd;
+    case H_Reverb+32  : goto rvbd;
+    case H_Reverb+34  : goto rvbd;
+    case H_Reverb+36  : goto rvbd;
+    case H_Reverb+38  : goto rvbd;
+    case H_Reverb+40  : goto rvbd;
+    case H_Reverb+42  : goto rvbd;
+    case H_Reverb+44  : goto rvbd;
+    case H_Reverb+46  : goto rvbd;
+    case H_Reverb+48  : goto rvbd;
+    case H_Reverb+50  : goto rvbd;
+    case H_Reverb+52  : goto rvbd;
+    case H_Reverb+54  : goto rvbd;
+    case H_Reverb+56  : goto rvbd;
+    case H_Reverb+58  : goto rvbd;
+    case H_Reverb+60  : spu.rvb->IN_COEF_L=(short)val;   break;
+    case H_Reverb+62  : spu.rvb->IN_COEF_R=(short)val;   break;
    }
  return;
 

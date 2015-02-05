@@ -162,14 +162,8 @@ typedef struct
 
  int dirty;          // registers changed
 
- // normalized offsets
- int nIIR_DEST_A0, nIIR_DEST_A1, nIIR_DEST_B0, nIIR_DEST_B1,
- 	nACC_SRC_A0, nACC_SRC_A1, nACC_SRC_B0, nACC_SRC_B1, 
-	nIIR_SRC_A0, nIIR_SRC_A1, nIIR_SRC_B0, nIIR_SRC_B1,
-	nACC_SRC_C0, nACC_SRC_C1, nACC_SRC_D0, nACC_SRC_D1,
-	nMIX_DEST_A0, nMIX_DEST_A1, nMIX_DEST_B0, nMIX_DEST_B1;
  // MIX_DEST_xx - FB_SRC_x
- int nFB_SRC_A0, nFB_SRC_A1, nFB_SRC_B0, nFB_SRC_B1;
+ int FB_SRC_A0, FB_SRC_A1, FB_SRC_B0, FB_SRC_B1;
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////
@@ -195,6 +189,7 @@ typedef struct
  int             decode_dirty_ch;
  unsigned int    bSpuInit:1;
  unsigned int    bSPUIsOpen:1;
+ unsigned int    bMemDirty:1;          // had external write to SPU RAM
 
  unsigned int    dwNoiseVal;           // global noise generator
  unsigned int    dwNoiseCount;

@@ -1,12 +1,16 @@
 PCSX-ReARMed - yet another PCSX fork
--------------------------------
+====================================
+
+[![Build Status](https://travis-ci.org/notaz/pcsx_rearmed.svg?branch=master)](https://travis-ci.org/notaz/pcsx_rearmed)
+
+*see [readme.txt](readme.txt) for more complete documentation*
 
 PCSX ReARMed is yet another PCSX fork based on the PCSX-Reloaded project,
 which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
 version is ARM architecture oriented and features MIPS->ARM recompiler by
 Ari64, NEON GTE code and more performance improvements. It was created for
 Pandora handheld, but should be usable on other devices after some code
-adjustments (N900, GPH Wiz/Caanoo versions are also available).
+adjustments (N900, GPH Wiz/Caanoo, PlayBook versions are also available).
 
 PCSX ReARMed features ARM NEON GPU by Exophase, that in many cases produces
 pixel perfect graphics at very high performance. There is also Una-i's GPU
@@ -14,7 +18,7 @@ plugin from PCSX4ALL project, and traditional P.E.Op.S. one.
 
 
 PCSX-Reloaded
--------------------------------
+=============
 
 PCSX-Reloaded is a forked version of the dead PCSX emulator, with a nicer
 interface and several improvements to stability and functionality.
