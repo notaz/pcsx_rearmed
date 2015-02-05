@@ -220,7 +220,7 @@ void gpuInterrupt() {
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
-	u32 size;
+	u32 words;
 	u32 *mem = (u32 *)PSXM(madr);
 
 #ifdef PSXDMA_LOG
@@ -238,7 +238,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 		}
 
 		// already 32-bit size
-		size = bcr;
+		words = bcr;
 
 		while (bcr--) {
 			*mem-- = SWAP32((madr - 4) & 0xffffff);
@@ -246,7 +246,10 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 		}
 		mem++; *mem = 0xffffff;
 
-		GPUOTCDMA_INT(size);
+		//GPUOTCDMA_INT(size);
+		// halted
+		psxRegs.cycle += words;
+		GPUOTCDMA_INT(16);
 		return;
 	}
 #ifdef PSXDMA_LOG
