@@ -1255,6 +1255,7 @@ void retro_init(void)
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+	spu_config.iUseFixedUpdates = 1;
 
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;

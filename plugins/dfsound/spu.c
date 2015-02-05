@@ -1253,7 +1253,7 @@ void schedule_next_irq(void)
 
 void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 {
- do_samples(cycle, 0);
+ do_samples(cycle, spu_config.iUseFixedUpdates);
 
  if (spu.spuCtrl & CTRL_IRQ)
   schedule_next_irq();
