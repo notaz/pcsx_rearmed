@@ -37,7 +37,7 @@ void spuInterrupt() {
 
 void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 	u16 *ptr;
-	u32 size;
+	u32 words;
 
 	switch (chcr) {
 		case 0x01000201: //cpu to spu transfer
@@ -51,8 +51,10 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 #endif
 				break;
 			}
-			SPU_writeDMAMem(ptr, (bcr >> 16) * (bcr & 0xffff) * 2, psxRegs.cycle);
-			SPUDMA_INT((bcr >> 16) * (bcr & 0xffff) / 2);
+			words = (bcr >> 16) * (bcr & 0xffff);
+			SPU_writeDMAMem(ptr, words * 2, psxRegs.cycle);
+			HW_DMA4_MADR = SWAPu32(madr + words * 4);
+			SPUDMA_INT(words / 2);
 			return;
 
 		case 0x01000200: //spu to cpu transfer
@@ -66,10 +68,13 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 #endif
 				break;
 			}
-			size = (bcr >> 16) * (bcr & 0xffff) * 2;
-			SPU_readDMAMem(ptr, size, psxRegs.cycle);
-			psxCpu->Clear(madr, size);
-			break;
+			words = (bcr >> 16) * (bcr & 0xffff);
+			SPU_readDMAMem(ptr, words * 2, psxRegs.cycle);
+			psxCpu->Clear(madr, words);
+
+			HW_DMA4_MADR = SWAPu32(madr + words * 4);
+			SPUDMA_INT(words / 2);
+			return;
 
 #ifdef PSXDMA_LOG
 		default:
@@ -124,6 +129,7 @@ static u32 gpuDmaChainSize(u32 addr) {
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	u32 *ptr;
+	u32 words;
 	u32 size;
 
 	switch (chcr) {
@@ -139,12 +145,14 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 				break;
 			}
 			// BA blocks * BS words (word = 32-bits)
-			size = (bcr >> 16) * (bcr & 0xffff);
-			GPU_readDataMem(ptr, size);
-			psxCpu->Clear(madr, size);
+			words = (bcr >> 16) * (bcr & 0xffff);
+			GPU_readDataMem(ptr, words);
+			psxCpu->Clear(madr, words);
+
+			HW_DMA2_MADR = SWAPu32(madr + words * 4);
 
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(size / 4);
+			GPUDMA_INT(words / 4);
 			return;
 
 		case 0x01000201: // mem2vram
@@ -159,11 +167,13 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 				break;
 			}
 			// BA blocks * BS words (word = 32-bits)
-			size = (bcr >> 16) * (bcr & 0xffff);
-			GPU_writeDataMem(ptr, size);
+			words = (bcr >> 16) * (bcr & 0xffff);
+			GPU_writeDataMem(ptr, words);
+
+			HW_DMA2_MADR = SWAPu32(madr + words * 4);
 
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(size / 4);
+			GPUDMA_INT(words / 4);
 			return;
 
 		case 0x01000401: // dma chain
@@ -175,7 +185,11 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			if ((int)size <= 0)
 				size = gpuDmaChainSize(madr);
 			HW_GPU_STATUS &= ~PSXGPU_nBUSY;
-			
+
+			// we don't emulate progress, just busy flag and end irq,
+			// so pretend we're already at the last block
+			HW_DMA2_MADR = SWAPu32(0xffffff);
+
 			// Tekken 3 = use 1.0 only (not 1.5x)
 
 			// Einhander = parse linked list in pieces (todo)

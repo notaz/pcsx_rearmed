@@ -378,7 +378,7 @@ static void ari64_clear(u32 addr, u32 size)
 {
 	u32 start, end, main_ram;
 
-	size *= 4; /* PCSX uses DMA units */
+	size *= 4; /* PCSX uses DMA units (words) */
 
 	evprintf("ari64_clear %08x %04x\n", addr, size);
 
