@@ -5,7 +5,9 @@ endif
 include $(C64_TOOLS_DSP_ROOT)/install.mk
 
 TARGET_BASENAME = pcsxr_spu
-OPTFLAGS += -O2
+OPTFLAGS += -o3
+CFLAGS += -mo
+#CFLAGS += -k -mw
 CFLAGS += -DNO_OS -DWANT_THREAD_CODE
 
 OBJ = \

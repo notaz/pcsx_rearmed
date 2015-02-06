@@ -34,6 +34,8 @@
 #include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/dfinput/externals.h"
 
+#define HUD_HEIGHT 10
+
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
@@ -101,20 +103,20 @@ static void hud_printf(void *fb, int w, int x, int y, const char *texto, ...)
 
 static void print_msg(int h, int border)
 {
-	hud_print(pl_vout_buf, pl_vout_w, border + 2, h - 10, hud_msg);
+	hud_print(pl_vout_buf, pl_vout_w, border + 2, h - HUD_HEIGHT, hud_msg);
 }
 
 static void print_fps(int h, int border)
 {
-	hud_printf(pl_vout_buf, pl_vout_w, border + 2, h - 10,
+	hud_printf(pl_vout_buf, pl_vout_w, border + 2, h - HUD_HEIGHT,
 		"%2d %4.1f", pl_rearmed_cbs.flips_per_sec,
 		pl_rearmed_cbs.vsps_cur);
 }
 
 static void print_cpu_usage(int w, int h, int border)
 {
-	hud_printf(pl_vout_buf, pl_vout_w, pl_vout_w - border - 28, h - 10,
-		"%3d", pl_rearmed_cbs.cpu_usage);
+	hud_printf(pl_vout_buf, pl_vout_w, pl_vout_w - border - 28,
+		h - HUD_HEIGHT, "%3d", pl_rearmed_cbs.cpu_usage);
 }
 
 // draw 192x8 status of 24 sound channels
@@ -126,7 +128,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 
 	static const unsigned short colors[2] = { 0x1fe3, 0x0700 };
 	unsigned short *dest = (unsigned short *)pl_vout_buf +
-		vout_w * (vout_h - 10) + vout_w / 2 - 192/2;
+		vout_w * (vout_h - HUD_HEIGHT) + vout_w / 2 - 192/2;
 	unsigned short *d, p;
 	int c, x, y;
 

@@ -490,8 +490,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       }
       case 0xE5: {
         const u32 temp = PacketBuffer.U4[0];
-        DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
-        DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+        DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
+        DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
         gpu.ex_regs[5] = temp;
         break;
       }

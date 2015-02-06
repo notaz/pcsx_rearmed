@@ -21,7 +21,6 @@
 #define unlikely(x)
 #define preload(...)
 #define noinline
-#error huh
 #endif
 
 #define gpu_log(fmt, ...) \
@@ -522,7 +521,6 @@ void GPUwriteData(uint32_t data)
 long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
 {
   uint32_t addr, *list, ld_addr = 0;
-  uint32_t *llist_entry = NULL;
   int len, left, count;
   long cpu_cycles = 0;
 
@@ -530,15 +528,6 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
-
-  // ff7 sends it's main list twice, detect this
-  if (*gpu.state.frame_count == gpu.state.last_list.frame &&
-      *gpu.state.hcnt - gpu.state.last_list.hcnt <= 1 &&
-       gpu.state.last_list.cycles > 2048)
-  {
-    llist_entry = rambase + (gpu.state.last_list.addr & 0x1fffff) / 4;
-    *llist_entry |= 0x800000;
-  }
 
   log_io("gpu_dma_chain\n");
   addr = start_addr & 0xffffff;
@@ -585,9 +574,6 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
       list[0] &= ~0x800000;
     }
   }
-
-  if (llist_entry)
-    *llist_entry &= ~0x800000;
 
   gpu.state.last_list.frame = *gpu.state.frame_count;
   gpu.state.last_list.hcnt = *gpu.state.hcnt;

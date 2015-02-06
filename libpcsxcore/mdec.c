@@ -32,7 +32,7 @@
  * 320x240x16@60Hz => 9.216 MB/s
  * so 2.0 to 4.0 should be fine.
  */
-#define MDEC_BIAS 2.0f
+#define MDEC_BIAS 2
 
 #define DSIZE			8
 #define DSIZE2			(DSIZE * DSIZE)
@@ -545,15 +545,13 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 	int blk[DSIZE2 * 6];
 	u8 * image;
 	int size;
-	int dmacnt;
+	u32 words;
 
 	if (chcr != 0x01000200) return;
 
-	size = (bcr >> 16) * (bcr & 0xffff);
+	words = (bcr >> 16) * (bcr & 0xffff);
 	/* size in byte */
-	size *= 4;
-	/* I guess the memory speed is limitating */
-	dmacnt = size;
+	size = words * 4;
 
 	if (!(mdec.reg1 & MDEC1_BUSY)) {
 		/* add to pending */
@@ -625,7 +623,7 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 	}
 	
 	/* define the power of mdec */
-	MDECOUTDMA_INT((int) ((dmacnt* MDEC_BIAS)));
+	MDECOUTDMA_INT(words * MDEC_BIAS);
 	}
 }
 

@@ -50,16 +50,16 @@ INLINE int rvb2ram_offs(int curr, int space, int iOff)
 
 // get_buffer content helper: takes care about wraps
 #define g_buffer(var) \
- ((int)(signed short)spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->n##var)])
+ ((int)(signed short)spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)])
 
 // saturate iVal and store it as var
 #define s_buffer(var, iVal) \
  ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->n##var)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)] = iVal
 
 #define s_buffer1(var, iVal) \
  ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->n##var + 1)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var + 1)] = iVal
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -174,43 +174,54 @@ static void MixREVERB_off(int *SSumLR, int ns_to, int curr_addr)
 static void REVERBPrep(void)
 {
  REVERBInfo *rvb = spu.rvb;
- int space = 0x40000 - rvb->StartAddr;
- int t;
- #define prep_offs(v) \
-   t = rvb->v; \
-   while (t >= space) \
-     t -= space; \
-   rvb->n##v = t
- #define prep_offs2(d, v1, v2) \
-   t = rvb->v1 - rvb->v2; \
-   while (t >= space) \
-     t -= space; \
-   rvb->n##d = t
+ int space, t;
 
- prep_offs(IIR_SRC_A0);
- prep_offs(IIR_SRC_A1);
- prep_offs(IIR_SRC_B0);
- prep_offs(IIR_SRC_B1);
- prep_offs(IIR_DEST_A0);
- prep_offs(IIR_DEST_A1);
- prep_offs(IIR_DEST_B0);
- prep_offs(IIR_DEST_B1);
- prep_offs(ACC_SRC_A0);
- prep_offs(ACC_SRC_A1);
- prep_offs(ACC_SRC_B0);
- prep_offs(ACC_SRC_B1);
- prep_offs(ACC_SRC_C0);
- prep_offs(ACC_SRC_C1);
- prep_offs(ACC_SRC_D0);
- prep_offs(ACC_SRC_D1);
- prep_offs(MIX_DEST_A0);
- prep_offs(MIX_DEST_A1);
- prep_offs(MIX_DEST_B0);
- prep_offs(MIX_DEST_B1);
- prep_offs2(FB_SRC_A0, MIX_DEST_A0, FB_SRC_A);
- prep_offs2(FB_SRC_A1, MIX_DEST_A1, FB_SRC_A);
- prep_offs2(FB_SRC_B0, MIX_DEST_B0, FB_SRC_B);
- prep_offs2(FB_SRC_B1, MIX_DEST_B1, FB_SRC_B);
+ t = spu.regArea[(H_SPUReverbAddr - 0xc00) >> 1];
+ if (t == 0xFFFF || t <= 0x200)
+  spu.rvb->StartAddr = spu.rvb->CurrAddr = 0;
+ else if (spu.rvb->StartAddr != (t << 2))
+  spu.rvb->StartAddr = spu.rvb->CurrAddr = t << 2;
+
+ space = 0x40000 - rvb->StartAddr;
+
+ #define prep_offs(v, r) \
+   t = spu.regArea[(0x1c0 + r) >> 1] * 4; \
+   while (t >= space) \
+     t -= space; \
+   rvb->v = t
+ #define prep_offs2(d, r1, r2) \
+   t = spu.regArea[(0x1c0 + r1) >> 1] * 4; \
+   t -= spu.regArea[(0x1c0 + r2) >> 1] * 4; \
+   while (t < 0) \
+     t += space; \
+   while (t >= space) \
+     t -= space; \
+   rvb->d = t
+
+ prep_offs(IIR_SRC_A0, 32);
+ prep_offs(IIR_SRC_A1, 34);
+ prep_offs(IIR_SRC_B0, 36);
+ prep_offs(IIR_SRC_B1, 38);
+ prep_offs(IIR_DEST_A0, 20);
+ prep_offs(IIR_DEST_A1, 22);
+ prep_offs(IIR_DEST_B0, 36);
+ prep_offs(IIR_DEST_B1, 38);
+ prep_offs(ACC_SRC_A0, 24);
+ prep_offs(ACC_SRC_A1, 26);
+ prep_offs(ACC_SRC_B0, 28);
+ prep_offs(ACC_SRC_B1, 30);
+ prep_offs(ACC_SRC_C0, 40);
+ prep_offs(ACC_SRC_C1, 42);
+ prep_offs(ACC_SRC_D0, 44);
+ prep_offs(ACC_SRC_D1, 46);
+ prep_offs(MIX_DEST_A0, 52);
+ prep_offs(MIX_DEST_A1, 54);
+ prep_offs(MIX_DEST_B0, 56);
+ prep_offs(MIX_DEST_B1, 58);
+ prep_offs2(FB_SRC_A0, 52, 0);
+ prep_offs2(FB_SRC_A1, 54, 0);
+ prep_offs2(FB_SRC_B0, 56, 2);
+ prep_offs2(FB_SRC_B1, 58, 2);
 
 #undef prep_offs
 #undef prep_offs2
