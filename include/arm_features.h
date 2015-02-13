@@ -8,7 +8,7 @@
 #define HAVE_ARMV6
 #define HAVE_ARMV5
 
-#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
  || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
  || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_7S__)
 
