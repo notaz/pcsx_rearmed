@@ -1,7 +1,14 @@
 #ifndef __ARM_FEATURES_H__
 #define __ARM_FEATURES_H__
 
-#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
+#if defined(__ARM_ARCH_8A__)
+
+#define HAVE_ARMV8
+#define HAVE_ARMV7
+#define HAVE_ARMV6
+#define HAVE_ARMV5
+
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
  || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
  || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_7S__)
 
@@ -11,7 +18,8 @@
 
 #elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) \
    || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) \
-   || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__)
+   || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) \
+   || defined(__ARM_ARCH_6M__)
 
 #define HAVE_ARMV6
 #define HAVE_ARMV5
