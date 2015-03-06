@@ -20,8 +20,12 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
-
+LIBM := -lm
+LIBZ := -lz
+LIBPTHREAD := -lpthread
+LIBDL := -ldl
 MMAP_WIN32=0
+EXTRA_LDFLAGS =
 
 # Unix
 ifeq ($(platform), unix)
@@ -29,6 +33,15 @@ ifeq ($(platform), unix)
 	fpic := -fPIC
 	SHARED := -shared -Wl,--version-script=libretro/link.T
 
+else ifeq ($(platform), linux-portable)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC -nostdlib
+	EXTRA_LDFLAGS += -fPIC -nostdlib
+	LIBM :=
+	LIBZ :=
+	LIBPTHREAD :=
+	LIBDL :=
+	SHARED := -shared -Wl,--version-script=libretro/link.T
 # OS X
 else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
@@ -175,12 +188,11 @@ CFLAGS += -fPIC
 ifeq ($(platform),win)
 	MAIN_LDLIBS += -lws2_32
 else ifneq ($(platform),qnx)
-	LDLIBS += -lpthread
-	MAIN_LDLIBS += -ldl
+	LDLIBS += $(LIBPHTREAD)
+	MAIN_LDLIBS += $(LIBDL)
 endif
 MAIN_LDFLAGS += -shared
-MAIN_LDLIBS += -lm -lz
-EXTRA_LDFLAGS =
+MAIN_LDLIBS += $(LIBM) $(LIBZ)
 
 TARGET ?= libretro.so
 PLATFORM = libretro
