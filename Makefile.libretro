@@ -56,7 +56,12 @@ else ifeq ($(platform), osx)
 # iOS
 else ifeq ($(platform), ios)
 	ARCH := arm
+	USE_DYNAREC ?= 1
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
+ifeq ($(USE_DYNAREC),0)
+	# Override
+	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
+endif
 	fpic := -fPIC
 	SHARED := -dynamiclib
 
@@ -71,7 +76,6 @@ else ifeq ($(platform), ios)
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
-	USE_DYNAREC = 1
 	CFLAGS += -DIOS
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
@@ -200,6 +204,14 @@ BUILTIN_GPU ?= peops
 SOUND_DRIVERS = libretro
 PLUGINS =
 NO_CONFIG_MAK = yes
+
+libretro_all: all
+ifeq ($(platform),ios)
+ifeq ($(USE_DYNAREC),1)
+	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform) clean
+	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform)
+endif
+endif
 
 include Makefile
 
