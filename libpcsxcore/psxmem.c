@@ -49,20 +49,21 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 
 retry:
 	if (psxMapHook != NULL) {
-		ret = psxMapHook(addr, size, is_fixed, tag);
-		goto out;
+		ret = psxMapHook(addr, size, 0, tag);
+		if (ret == NULL)
+			return NULL;
+	}
+	else {
+		/* avoid MAP_FIXED, it overrides existing mappings.. */
+		/* if (is_fixed)
+			flags |= MAP_FIXED; */
+
+		req = (void *)addr;
+		ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
+		if (ret == MAP_FAILED)
+			return NULL;
 	}
 
-	/* avoid MAP_FIXED, it overrides existing mappings.. */
-	/* if (is_fixed)
-		flags |= MAP_FIXED; */
-
-	req = (void *)addr;
-	ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-	if (ret == MAP_FAILED)
-		return NULL;
-
-out:
 	if (addr != 0 && ret != (void *)addr) {
 		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
 			addr, ret);
@@ -72,8 +73,7 @@ out:
 			return NULL;
 		}
 
-		if (ret != NULL && ((addr ^ (long)ret) & 0x00ffffff)
-		    && !tried_to_align)
+		if (((addr ^ (long)ret) & 0x00ffffff) && !tried_to_align)
 		{
 			psxUnmap(ret, size, tag);
 
