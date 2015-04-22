@@ -51,6 +51,7 @@ extern char McdDisable[2];
 /* PCSX ReARMed core calls and stuff */
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+int in_a3[2] = { 127, 127 }, in_a4[2] = { 127, 127 };
 int in_keystate;
 int in_enable_vibration = 1;
 
@@ -1123,6 +1124,14 @@ void retro_run(void)
 		in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
 		in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
 		in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+	}
+
+	if (in_type2 == PSE_PAD_TYPE_ANALOGPAD)
+	{
+		in_a3[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_a3[1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		in_a4[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_a4[1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
 	}
 
 	stop = 0;
