@@ -257,6 +257,8 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
       { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
+      { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
+      { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
       { NULL, NULL },
    };
 
@@ -1084,6 +1086,28 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 3;
       else if (strcmp(var.value, "off") == 0)
          spu_config.iUseInterpolation = 0;
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_pe2_fix";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.RCntFix = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.RCntFix = 1;
+   }
+   
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_inuyasha_fix";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.VSyncWA = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.VSyncWA = 1;
    }
 
    if (in_flight) {
