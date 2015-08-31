@@ -112,6 +112,17 @@ else ifeq ($(platform), psp1)
 	AR = psp-ar$(EXE_EXT)
 	CFLAGS += -DPSP -G0
 
+# Vita
+else ifeq ($(platform), vita)
+	TARGET := $(TARGET_NAME)_libretro_vita.a
+	CC = arm-vita-eabi-gcc$(EXE_EXT)
+	AR = arm-vita-eabi-ar$(EXE_EXT)
+	CFLAGS += -DVITA
+	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	HAVE_NEON = 1
+	BUILTIN_GPU = neon
+
 # Xbox 360
 else ifeq ($(platform), xenon)
 	TARGET := $(TARGET_NAME)_libretro_xenon360.a
