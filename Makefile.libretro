@@ -123,6 +123,31 @@ else ifeq ($(platform), vita)
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 
+# CTR(3DS)
+else ifeq ($(platform), ctr)
+	TARGET := $(TARGET_NAME)_libretro_ctr.a
+	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+	CFLAGS += -DARM11 -D_3DS -DNO_OS
+	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp
+	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -fomit-frame-pointer -ffast-math	
+	CFLAGS += -I$(CTRULIB)/include -I$(DEVKITPRO)/portlibs/armv6k/include -Ifrontend/3ds
+	CFLAGS += -Werror=implicit-function-declaration
+
+	CXXFLAGS += -fno-rtti -fno-exceptions -std=gnu++11
+	OBJS += frontend/3ds/3ds_utils.o frontend/3ds/libkhax/khaxinit.o
+
+
+#	CFLAGS += -DPCSX
+#	BUILTIN_GPU = unai
+	USE_DYNAREC = 1
+	DRC_CACHE_BASE = 0
+	ARCH = arm
+
+	STATIC_LINKING = 1
+
 # Xbox 360
 else ifeq ($(platform), xenon)
 	TARGET := $(TARGET_NAME)_libretro_xenon360.a

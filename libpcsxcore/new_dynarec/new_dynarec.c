@@ -53,6 +53,9 @@ static void __clear_cache(void *start, void *end) {
   sys_dcache_flush(start, len);
   sys_icache_invalidate(start, len);
 }
+#elif defined(_3DS)
+#include "3ds_utils.h"
+#define __clear_cache(start,end) ctr_flush_invalidate_cache()
 #endif
 
 #define MAXBLOCK 4096

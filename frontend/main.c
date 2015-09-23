@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_3DS)
 #include <dlfcn.h>
 #endif
 
@@ -771,7 +771,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX GPH hack */
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) && !defined(_3DS) /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",
@@ -985,7 +985,7 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_3DS)
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		SysMessage("dlopen: %s", dlerror());
@@ -1002,7 +1002,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_3DS)
 	return dlsym(lib, sym);
 #else
 	return NULL;
@@ -1010,7 +1010,9 @@ void *SysLoadSym(void *lib, const char *sym) {
 }
 
 const char *SysLibError() {
-#ifndef _WIN32
+#if defined(_3DS)
+   return NULL;
+#elif !defined(_WIN32)
 	return dlerror();
 #else
 	return "not supported";
@@ -1023,7 +1025,7 @@ void SysCloseLibrary(void *lib) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_3DS)
 	dlclose(lib);
 #endif
 }

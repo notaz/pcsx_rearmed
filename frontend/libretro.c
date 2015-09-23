@@ -28,6 +28,12 @@
 #include "revision.h"
 #include "libretro.h"
 
+#ifdef _3DS
+#include "3ds.h"
+#include "3ds/3ds_utils.h"
+int ctr_svchack_init_success = 0;
+#endif
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -165,8 +171,87 @@ static void vout_close(void)
 {
 }
 
-static void *pl_mmap(unsigned int size)
+#ifdef _3DS
+typedef struct
 {
+   void* buffer;
+   uint32_t target_map;
+   size_t size;
+   enum psxMapTag tag;
+}psx_map_t;
+
+psx_map_t custom_psx_maps[] = {
+   {NULL, 0x13000000, 0x210000, MAP_TAG_RAM},   // 0x80000000
+   {NULL, 0x12800000, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
+   {NULL, 0x12c00000, 0x080000, MAP_TAG_OTHER}, // 0x1fc00000
+   {NULL, 0x11000000, 0x800000, MAP_TAG_LUTS},  // 0x08000000
+   {NULL, 0x12000000, 0x200000, MAP_TAG_VRAM},  // 0x00000000
+};
+
+void* pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+   (void)is_fixed;
+   (void)addr;
+
+   if (ctr_svchack_init_success)
+   {
+      psx_map_t* custom_map = custom_psx_maps;
+
+      for (; custom_map->size; custom_map++)
+      {
+         if ((custom_map->size == size) && (custom_map->tag == tag))
+         {
+            uint32_t ptr_aligned, tmp;
+
+            custom_map->buffer = malloc(size + 0x1000);
+            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
+
+            if(svcControlMemory(&tmp, custom_map->target_map, ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
+            {
+               SysPrintf("could not map memory @0x%08X\n", custom_map->target_map);
+               exit(1);
+            }
+
+            return (void*)custom_map->target_map;
+         }
+      }
+   }
+
+   return malloc(size);
+}
+
+void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)tag;
+
+   if (ctr_svchack_init_success)
+   {
+      psx_map_t* custom_map = custom_psx_maps;
+
+      for (; custom_map->size; custom_map++)
+      {
+         if ((custom_map->target_map == (uint32_t)ptr))
+         {
+            uint32_t ptr_aligned, tmp;
+
+            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
+
+            svcControlMemory(&tmp, custom_map->target_map, ptr_aligned, size, MEMOP_UNMAP, 0x3);
+
+            free(custom_map->buffer);
+            custom_map->buffer = NULL;
+            return;
+         }
+      }
+   }
+
+   free(ptr);
+}
+#endif
+
+static void *pl_mmap(unsigned int size)
+{   
 	return psxMap(0, size, 0, MAP_TAG_VRAM);
 }
 
@@ -1048,6 +1133,11 @@ static void update_variables(bool in_flight)
    {
       R3000Acpu *prev_cpu = psxCpu;
 
+#ifdef _3DS
+      if(!ctr_svchack_init_success)
+         Config.Cpu = CPU_INTERPRETER;
+      else
+#endif
       if (strcmp(var.value, "disabled") == 0)
          Config.Cpu = CPU_INTERPRETER;
       else if (strcmp(var.value, "enabled") == 0)
@@ -1234,6 +1324,11 @@ void retro_init(void)
 	int i, ret;
 	bool found_bios = false;
 
+#ifdef _3DS
+   ctr_svchack_init_success = ctr_svchack_init();
+   psxMapHook = pl_3ds_mmap;
+   psxUnmapHook = pl_3ds_munmap;
+#endif
 	ret = emu_core_preinit();
 	ret |= emu_core_init();
 	if (ret != 0) {
@@ -1249,7 +1344,7 @@ void retro_init(void)
 
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
-		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s/", dir);
+		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
 
 		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
 			snprintf(path, sizeof(path), "%s/%s.bin", dir, bios[i]);
