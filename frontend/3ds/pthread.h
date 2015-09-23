@@ -17,18 +17,9 @@ typedef struct
 }pthread_t;
 typedef int pthread_attr_t;
 
-//#ifndef DEBUG_HOLD
-//#include "stdio.h"
-//void wait_for_input(void);
-
-//#define DEBUG_HOLD() do{printf("%s@%s:%d.\n",__FUNCTION__, __FILE__, __LINE__);fflush(stdout);wait_for_input();}while(0)
-//#endif
-
 static inline int pthread_create(pthread_t *thread,
       const pthread_attr_t *attr, void *(*start_routine)(void*), void *arg)
 {
-
-//   DEBUG_HOLD();
 
    thread->stack =  linearMemAlign(CTR_PTHREAD_STACK_SIZE, 8);
 
@@ -44,7 +35,6 @@ static inline int pthread_join(pthread_t thread, void **retval)
 {
    (void)retval;
 
-//   DEBUG_HOLD();
    if(svcWaitSynchronization(thread.handle, INT64_MAX))
       return -1;
 
@@ -58,11 +48,9 @@ static inline void pthread_exit(void *retval)
 {   
    (void)retval;
 
-//   DEBUG_HOLD();
    svcExitThread();
 }
 
-//#undef DEBUG_HOLD
 
 #endif //_3DS_PTHREAD_WRAP__
 
