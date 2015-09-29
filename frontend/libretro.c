@@ -1280,7 +1280,7 @@ static bool try_use_bios(const char *path)
 	return true;
 }
 
-#if 1
+#ifndef VITA
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -1336,7 +1336,7 @@ void retro_init(void)
 		exit(1);
 	}
 
-#if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L)
+#if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && !defined(VITA)
 	posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
@@ -1405,3 +1405,11 @@ void retro_deinit(void)
 	free(vout_buf);
 	vout_buf = NULL;
 }
+
+#ifdef VITA
+#include <psp2/kernel/threadmgr.h>
+int usleep (unsigned long us)
+{
+   sceKernelDelayThread(us);
+}
+#endif

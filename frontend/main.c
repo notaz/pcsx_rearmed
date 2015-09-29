@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-#if !defined(_WIN32) && !defined(_3DS)
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 #include <dlfcn.h>
 #endif
 
@@ -985,7 +985,7 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
-#if !defined(_WIN32) && !defined(_3DS)
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		SysMessage("dlopen: %s", dlerror());
@@ -1002,7 +1002,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
 
-#if !defined(_WIN32) && !defined(_3DS)
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	return dlsym(lib, sym);
 #else
 	return NULL;
@@ -1010,7 +1010,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 }
 
 const char *SysLibError() {
-#if defined(_3DS)
+#if defined(NO_DYLIB)
    return NULL;
 #elif !defined(_WIN32)
 	return dlerror();
@@ -1025,7 +1025,7 @@ void SysCloseLibrary(void *lib) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;
 
-#if !defined(_WIN32) && !defined(_3DS)
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	dlclose(lib);
 #endif
 }

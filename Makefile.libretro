@@ -119,9 +119,19 @@ else ifeq ($(platform), vita)
 	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
+	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+
+#   CFLAGS += -U__ARM_NEON__
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
+
+#   USE_DYNAREC = 1
+#	DRC_CACHE_BASE = 0
+
+	ARCH = arm
+   STATIC_LINKING = 1
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
@@ -129,7 +139,7 @@ else ifeq ($(platform), ctr)
 	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
 	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
-	CFLAGS += -DARM11 -D_3DS -DNO_OS
+	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer -ffast-math	
@@ -172,6 +182,7 @@ else ifeq ($(platform), wii)
 # QNX
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
+   fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	HAVE_NEON = 1
@@ -186,6 +197,7 @@ else ifeq ($(platform), qnx)
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -Wl,--no-undefined
+   fpic := -fPIC
 	DRC_CACHE_BASE = 0
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
@@ -209,7 +221,7 @@ else ifneq (,$(findstring armv,$(platform)))
 		ASFLAGS += -mfloat-abi=hard
 	endif
 	ARCH = arm
-	USE_DYNAREC = 1
+	USE_DYNAREC = 1   
 
 # Windows
 else
@@ -222,7 +234,7 @@ else
 	MMAP_WIN32=1
 endif
 
-CFLAGS += -fPIC
+CFLAGS += $(fpic)
 ifeq ($(platform),win)
 	MAIN_LDLIBS += -lws2_32
 else ifneq ($(platform),qnx)
