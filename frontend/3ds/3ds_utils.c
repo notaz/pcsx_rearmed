@@ -1,8 +1,6 @@
 
 #include "3ds.h"
-#include "libkhax/khax.h"
-
-static int ninjhax_version = 0;
+#include "3ds_utils.h"
 
 typedef s32 (*ctr_callback_type)(void);
 
@@ -64,35 +62,13 @@ void ctr_flush_invalidate_cache(void)
 
 int ctr_svchack_init(void)
 {
-   Handle tempHandle;
-   Result res = srvGetServiceHandle(&tempHandle, "am:u");
-   if(res == 0)
-   {      
-      /* CFW */
-      svcCloseHandle(tempHandle);
-      ninjhax_version = 0;
-      ctr_enable_all_svc();
-      return 1;
-   }
-   else if(hbInit() == 0)
-   {
-      /* ninjhax 1.0 */
-      ninjhax_version = 1;
-      hbExit();
-      khaxInit();
-      return 1;
-   }
-   else
-   {
-      /* ninjhax 2.0 */
+   extern unsigned int __service_ptr;
 
+   if(__service_ptr)
       return 0;
-   }
+
+   /* CFW */
+   ctr_enable_all_svc();
+   return 1;
 }
 
-
-void ctr_svchack_exit(void)
-{
-   if (ninjhax_version == 1)
-      khaxExit();
-}

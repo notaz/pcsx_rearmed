@@ -1330,6 +1330,11 @@ void retro_init(void)
    psxUnmapHook = pl_3ds_munmap;
 #endif
 	ret = emu_core_preinit();
+#ifdef _3DS
+   /* emu_core_preinit sets the cpu to dynarec */
+   if(!ctr_svchack_init_success)
+      Config.Cpu = CPU_INTERPRETER;
+#endif
 	ret |= emu_core_init();
 	if (ret != 0) {
 		SysPrintf("PCSX init failed.\n");

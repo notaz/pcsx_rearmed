@@ -146,8 +146,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -I$(CTRULIB)/include -I$(DEVKITPRO)/portlibs/armv6k/include -Ifrontend/3ds
 	CFLAGS += -Werror=implicit-function-declaration
 
-	CXXFLAGS += -fno-rtti -fno-exceptions -std=gnu++11
-	OBJS += frontend/3ds/3ds_utils.o frontend/3ds/libkhax/khaxinit.o
+	OBJS += frontend/3ds/3ds_utils.o
 
 
 #	CFLAGS += -DPCSX
