@@ -48,6 +48,7 @@ static inline int mprotect(void *addr, size_t len, int prot)
       return 0;
    }
 
+   printf("mprotect called without svcControlProcessMemory access !\n");
    return -1;
 }
 
