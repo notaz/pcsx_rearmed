@@ -1341,7 +1341,9 @@ void retro_init(void)
 		exit(1);
 	}
 
-#if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && !defined(VITA)
+#ifdef _3DS
+   vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+#elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && !defined(VITA)
 	posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
@@ -1407,7 +1409,11 @@ void retro_init(void)
 void retro_deinit(void)
 {
 	SysClose();
+#ifdef _3DS
+   linearFree(vout_buf);
+#else
 	free(vout_buf);
+#endif
 	vout_buf = NULL;
 }
 
