@@ -55,7 +55,7 @@ static void __clear_cache(void *start, void *end) {
 }
 #elif defined(_3DS)
 #include "3ds_utils.h"
-#define __clear_cache(start,end) svcFlushProcessDataCache(0xFFFF8001, start, (end)-(start))
+#define __clear_cache(start,end) svcFlushProcessDataCache(0xFFFF8001, start, (u32)(end)-(u32)(start))
 #endif
 
 #define MAXBLOCK 4096
