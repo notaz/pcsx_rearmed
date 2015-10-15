@@ -52,7 +52,7 @@ else ifeq ($(platform), osx)
 	fpic += -mmacosx-version-min=10.1
 
 # iOS
-else ifeq ($(platform), ios)
+else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
 	USE_DYNAREC ?= 1
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
@@ -75,14 +75,17 @@ endif
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 	CFLAGS += -DIOS
-	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
-	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-	ifeq ($(OSX_LT_MAVERICKS),"YES")
-		CC +=  -miphoneos-version-min=5.0
-		CXX +=  -miphoneos-version-min=5.0
-		CC_AS +=  -miphoneos-version-min=5.0
-		CFLAGS += -miphoneos-version-min=5.0
-	endif
+ifeq ($(platform),ios9)
+	CC     += -miphoneos-version-min=8.0
+	CXX    += -miphoneos-version-min=8.0
+	CC_AS  += -miphoneos-version-min=8.0
+	CFLAGS += -miphoneos-version-min=8.0
+else
+	CC     += -miphoneos-version-min=5.0
+	CXX    += -miphoneos-version-min=5.0
+	CC_AS  += -miphoneos-version-min=5.0
+	CFLAGS += -miphoneos-version-min=5.0
+endif
 
 # PS3
 else ifeq ($(platform), ps3)
