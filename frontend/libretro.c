@@ -1220,7 +1220,7 @@ static void update_variables(bool in_flight)
 
 void retro_run(void) 
 {
-	int i;
+	int i, val;
 
 	input_poll_cb();
 
@@ -1284,16 +1284,16 @@ void retro_run(void)
         if (in_type2 == PSE_PAD_TYPE_NEGCON)
         {
 		/* left brake */
-		if(input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, 12))
+		if(input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, 12))
 			in_a3[1] = 255;
               	else
 			in_a3[1] =  0;
 
 		/* steer */
-                in_a4[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+                in_a4[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
 
 		/* thrust and fire */
-                val = ((input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 127));
+                val = ((input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 127));
                 if(val < -2) {
                         in_a3[0] = 256 - val;
                 } 
