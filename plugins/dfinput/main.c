@@ -15,9 +15,6 @@
 #include <windows.h>
 #endif
 
-#include <stdio.h>
-#include <string.h>
-
 #include "main.h"
 
 unsigned char CurPad, CurByte, CurCmd, CmdLen;
@@ -56,16 +53,10 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 		} \
 	}
 
-//                case PSE_PAD_TYPE_NEGCON: \
-//                        PAD##n##_startPoll = PADstartPoll_negcon; \
-//                        PAD##n##_poll = PADpoll_negcon; \
-//                        negcon_init(); \
-//                        break; \
 
 void dfinput_activate(void)
 {
 	PadDataS pad;
-	int i;
 
 	PAD1_readPort1(&pad);
 	select_pad(1);
