@@ -903,8 +903,6 @@ static void get_line(char *d, size_t size, const char *s)
 		len = size - 1;
 	strncpy(d, s, len);
 	d[len] = 0;
-
-	mystrip(d);
 }
 
 static void keys_write_all(FILE *f)
@@ -1011,7 +1009,10 @@ static void keys_load_all(const char *cfg)
 	while (p != NULL && (p = strstr(p, "binddev = ")) != NULL) {
 		p += 10;
 
+		// don't strip 'dev' because there are weird devices
+		// with names with space at the end
 		get_line(dev, sizeof(dev), p);
+
 		dev_id = in_config_parse_dev(dev);
 		if (dev_id < 0) {
 			printf("input: can't handle dev: %s\n", dev);
