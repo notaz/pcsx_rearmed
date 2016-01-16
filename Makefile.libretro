@@ -142,20 +142,17 @@ else ifeq ($(platform), ctr)
 	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
 	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
-	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB
-	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp
+	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET
+	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer -ffast-math	
-	CFLAGS += -I$(CTRULIB)/include -I$(DEVKITPRO)/portlibs/armv6k/include -Ifrontend/3ds
+	CFLAGS += -Ifrontend/3ds
 	CFLAGS += -Werror=implicit-function-declaration
-
-	OBJS += frontend/3ds/3ds_utils.o
-
 
 #	CFLAGS += -DPCSX
 #	BUILTIN_GPU = unai
 	USE_DYNAREC = 1
-	DRC_CACHE_BASE = 0
+	DRC_CACHE_BASE = 1
 	ARCH = arm
 
 	STATIC_LINKING = 1

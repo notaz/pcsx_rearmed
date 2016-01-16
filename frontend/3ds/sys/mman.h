@@ -5,27 +5,57 @@
 extern "C" {
 #endif
 
-#include "3ds.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <malloc.h>
 
-#define PROT_READ       MEMPERM_READ
-#define PROT_WRITE      MEMPERM_WRITE
-#define PROT_EXEC       MEMPERM_EXECUTE
+#include "3ds_utils.h"
+
+#define PROT_READ       0b001
+#define PROT_WRITE      0b010
+#define PROT_EXEC       0b100
 #define MAP_PRIVATE     2
+#define MAP_FIXED       0x10
 #define MAP_ANONYMOUS   0x20
 
 #define MAP_FAILED      ((void *)-1)
 
+static void* dynarec_cache = NULL;
+static void* dynarec_cache_mapping = NULL;
+
 static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-   (void)addr;
-   (void)prot;
-   (void)flags;
    (void)fd;
    (void)offset;
 
    void* addr_out;
+
+   if((prot == (PROT_READ | PROT_WRITE | PROT_EXEC)) &&
+      (flags == (MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS)))
+   {
+      if(__ctr_svchax)
+      {
+         /* this hack works only for pcsx_rearmed */
+         uint32_t currentHandle;
+
+         if(!dynarec_cache)
+            dynarec_cache = memalign(0x1000, len);
+
+         svcDuplicateHandle(&currentHandle, 0xFFFF8001);
+         svcControlProcessMemory(currentHandle, addr, dynarec_cache,
+                                 len, MEMOP_MAP, prot);
+         svcCloseHandle(currentHandle);
+         dynarec_cache_mapping = addr;
+         return addr;
+      }
+      else
+      {
+         printf("tried to mmap RWX pages without svcControlProcessMemory access !\n");
+         return MAP_FAILED;
+      }
+
+   }
 
    addr_out = malloc(len);
    if(!addr_out)
@@ -36,13 +66,11 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
 
 static inline int mprotect(void *addr, size_t len, int prot)
 {
-   extern int ctr_svchack_init_success;
-
-   if(ctr_svchack_init_success)
+   if(__ctr_svchax)
    {
       uint32_t currentHandle;
       svcDuplicateHandle(&currentHandle, 0xFFFF8001);
-      svcControlProcessMemory(currentHandle, (u32)addr, 0x0,
+      svcControlProcessMemory(currentHandle, addr, NULL,
                               len, MEMOP_PROT, prot);
       svcCloseHandle(currentHandle);
       return 0;
@@ -54,7 +82,20 @@ static inline int mprotect(void *addr, size_t len, int prot)
 
 static inline int munmap(void *addr, size_t len)
 {
-   free(addr);
+   if((addr == dynarec_cache_mapping) && __ctr_svchax)
+   {
+      uint32_t currentHandle;
+      svcDuplicateHandle(&currentHandle, 0xFFFF8001);
+      svcControlProcessMemory(currentHandle,
+                              dynarec_cache, dynarec_cache_mapping,
+                              len, MEMOP_UNMAP, 0b111);
+      svcCloseHandle(currentHandle);
+      dynarec_cache_mapping = NULL;
+
+   }
+   else
+      free(addr);
+
    return 0;
 }
 

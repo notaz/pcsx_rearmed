@@ -29,9 +29,7 @@
 #include "libretro.h"
 
 #ifdef _3DS
-#include "3ds.h"
 #include "3ds/3ds_utils.h"
-int ctr_svchack_init_success = 0;
 #endif
 
 static retro_video_refresh_t video_cb;
@@ -194,7 +192,7 @@ void* pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
    (void)is_fixed;
    (void)addr;
 
-   if (ctr_svchack_init_success)
+   if (__ctr_svchax)
    {
       psx_map_t* custom_map = custom_psx_maps;
 
@@ -207,7 +205,7 @@ void* pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
             custom_map->buffer = malloc(size + 0x1000);
             ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
 
-            if(svcControlMemory(&tmp, custom_map->target_map, ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
+            if(svcControlMemory(&tmp, (void*)custom_map->target_map, (void*)ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
             {
                SysPrintf("could not map memory @0x%08X\n", custom_map->target_map);
                exit(1);
@@ -225,7 +223,7 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 {
    (void)tag;
 
-   if (ctr_svchack_init_success)
+   if (__ctr_svchax)
    {
       psx_map_t* custom_map = custom_psx_maps;
 
@@ -237,7 +235,7 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 
             ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
 
-            svcControlMemory(&tmp, custom_map->target_map, ptr_aligned, size, MEMOP_UNMAP, 0x3);
+            svcControlMemory(&tmp, (void*)custom_map->target_map, (void*)ptr_aligned, size, MEMOP_UNMAP, 0x3);
 
             free(custom_map->buffer);
             custom_map->buffer = NULL;
@@ -1139,7 +1137,7 @@ static void update_variables(bool in_flight)
       R3000Acpu *prev_cpu = psxCpu;
 
 #ifdef _3DS
-      if(!ctr_svchack_init_success)
+      if(!__ctr_svchax)
          Config.Cpu = CPU_INTERPRETER;
       else
 #endif
@@ -1385,14 +1383,13 @@ void retro_init(void)
 	bool found_bios = false;
 
 #ifdef _3DS
-   ctr_svchack_init_success = ctr_svchack_init();
    psxMapHook = pl_3ds_mmap;
    psxUnmapHook = pl_3ds_munmap;
 #endif
 	ret = emu_core_preinit();
 #ifdef _3DS
    /* emu_core_preinit sets the cpu to dynarec */
-   if(!ctr_svchack_init_success)
+   if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
 	ret |= emu_core_init();
