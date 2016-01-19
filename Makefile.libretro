@@ -196,7 +196,7 @@ else ifeq ($(platform), qnx)
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -Wl,--no-undefined
-   fpic := -fPIC
+	fpic := -fPIC
 	DRC_CACHE_BASE = 0
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
@@ -220,7 +220,7 @@ else ifneq (,$(findstring armv,$(platform)))
 		ASFLAGS += -mfloat-abi=hard
 	endif
 	ARCH = arm
-	USE_DYNAREC = 1   
+	USE_DYNAREC = 1
 
 # Windows
 else
