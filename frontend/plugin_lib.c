@@ -38,6 +38,7 @@
 
 int in_type1, in_type2;
 int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+int in_a3[2] = { 127, 127 }, in_a4[2] = { 127, 127 };
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
 int in_adev_is_nublike[2];
 int in_keystate, in_state_gun;
