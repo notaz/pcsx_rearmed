@@ -1169,18 +1169,30 @@ void emit_addimm(u_int rs,int imm,u_int rt)
     }else if(genimm(-imm,&armval)) {
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],-imm);
       output_w32(0xe2400000|rd_rn_rm(rt,rs,0)|armval);
-    }else if(imm<0) {
-      assert(imm>-65536);
+    #ifdef HAVE_ARMV7
+    }else if(rt!=rs&&(u_int)imm<65536) {
+      emit_movw(imm&0x0000ffff,rt);
+      emit_add(rs,rt,rt);
+    }else if(rt!=rs&&(u_int)-imm<65536) {
+      emit_movw(-imm&0x0000ffff,rt);
+      emit_sub(rs,rt,rt);
+    #endif
+    }else if((u_int)-imm<65536) {
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],(-imm)&0xFF00);
       assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rt],(-imm)&0xFF);
       output_w32(0xe2400000|rd_rn_imm_shift(rt,rs,(-imm)>>8,8));
       output_w32(0xe2400000|rd_rn_imm_shift(rt,rt,(-imm)&0xff,0));
-    }else{
-      assert(imm<65536);
-      assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],imm&0xFF00);
-      assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
-      output_w32(0xe2800000|rd_rn_imm_shift(rt,rs,imm>>8,8));
-      output_w32(0xe2800000|rd_rn_imm_shift(rt,rt,imm&0xff,0));
+    }else {
+      do {
+        int shift = (ffs(imm) - 1) & ~1;
+        int imm8 = imm & (0xff << shift);
+        genimm_checked(imm8,&armval);
+        assem_debug("add %s,%s,#0x%x\n",regname[rt],regname[rs],imm8);
+        output_w32(0xe2800000|rd_rn_rm(rt,rs,0)|armval);
+        rs = rt;
+        imm &= ~imm8;
+      }
+      while (imm != 0);
     }
   }
   else if(rs!=rt) emit_mov(rs,rt);
