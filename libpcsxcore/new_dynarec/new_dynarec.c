@@ -134,7 +134,7 @@ struct ll_entry
   int ccadj[MAXBLOCK];
   int slen;
   u_int instr_addr[MAXBLOCK];
-  u_int link_addr[MAXBLOCK][3];
+  static u_int link_addr[MAXBLOCK][3];
   int linkcount;
   u_int stubs[MAXBLOCK*3][8];
   int stubcount;
