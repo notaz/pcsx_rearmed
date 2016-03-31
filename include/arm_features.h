@@ -1,33 +1,49 @@
 #ifndef __ARM_FEATURES_H__
 #define __ARM_FEATURES_H__
 
-#if defined(__ARM_ARCH_8A__)
+/* note: features only available since:
+ * __ARM_ARCH     gcc 4.8/clang 3.2
+ * ARMv8 support  gcc 4.8/clang 3.4
+ * ARM64 support  gcc 4.8/clang 3.5
+ */
+
+#if defined(__aarch64__)
+
+#elif (defined(__ARM_ARCH) && __ARM_ARCH >= 8)
 
 #define HAVE_ARMV8
 #define HAVE_ARMV7
 #define HAVE_ARMV6
 #define HAVE_ARMV5
 
-#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
- || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
- || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_7S__)
+#elif (defined(__ARM_ARCH) && __ARM_ARCH >= 7) \
+    || defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
+    || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
+    || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_7S__)
 
 #define HAVE_ARMV7
 #define HAVE_ARMV6
 #define HAVE_ARMV5
 
-#elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) \
-   || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) \
-   || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) \
-   || defined(__ARM_ARCH_6M__)
+#elif (defined(__ARM_ARCH) && __ARM_ARCH >= 6) \
+    || defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) \
+    || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) \
+    || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) \
+    || defined(__ARM_ARCH_6M__)
 
 #define HAVE_ARMV6
 #define HAVE_ARMV5
+#define HAVE_PRE_ARMV7
 
 #elif defined(__ARM_ARCH_5__) || defined(__ARM_ARCH_5E__) \
    || defined(__ARM_ARCH_5T__) || defined(__ARM_ARCH_5TE__) || defined(__ARM_ARCH_5TEJ__)
 
 #define HAVE_ARMV5
+#define HAVE_PRE_ARMV7
+
+#elif defined(__arm__)
+
+#define HAVE_PRE_ARMV7
 
 #endif
 
