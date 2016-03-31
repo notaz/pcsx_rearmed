@@ -39,6 +39,7 @@
 #include "../plugins/dfinput/externals.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "psemu_plugin_defs.h"
+#include "arm_features.h"
 #include "revision.h"
 
 #define REARMED_BIRTHDAY_TIME 1293306830	/* 25 Dec 2010 */
@@ -100,7 +101,7 @@ int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
 
-#ifdef __ARM_ARCH_7A__
+#ifndef HAVE_PRE_ARMV7
 #define DEFAULT_PSX_CLOCK 57
 #define DEFAULT_PSX_CLOCK_S "57"
 #else
@@ -732,7 +733,7 @@ static unsigned short fname2color(const char *fname)
 static void draw_savestate_bg(int slot);
 
 #define MENU_ALIGN_LEFT
-#ifdef __ARM_ARCH_7A__ // assume hires device
+#ifndef HAVE_PRE_ARMV7 // assume hires device
 #define MENU_X2 1
 #else
 #define MENU_X2 0
@@ -852,7 +853,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Toggle Frameskip ", 1 << SACTION_TOGGLE_FSKIP },
 	{ "Take Screenshot  ", 1 << SACTION_SCREENSHOT },
 	{ "Show/Hide FPS    ", 1 << SACTION_TOGGLE_FPS },
-#ifdef __ARM_ARCH_7A__
+#ifndef HAVE_PRE_ARMV7
 	{ "Switch Renderer  ", 1 << SACTION_SWITCH_DISPMODE },
 #endif
 	{ "Fast Forward     ", 1 << SACTION_FAST_FORWARD },
@@ -2521,7 +2522,7 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
 		plat_target.gamma_set != NULL);
 
-#ifndef __ARM_ARCH_7A__
+#ifdef HAVE_PRE_ARMV7
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
