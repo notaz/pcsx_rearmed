@@ -35,7 +35,7 @@
 #include "arm_features.h"
 #endif
 
-#ifdef __ARM_ARCH_7A__
+#ifdef HAVE_ARMV7
  #define ssat32_to_16(v) \
   asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
 #else

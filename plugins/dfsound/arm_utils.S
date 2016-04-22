@@ -20,10 +20,10 @@ ptr_ChanBuf:   .word ESYM(ChanBuf)
 .align 2
 
 .macro load_varadr reg var
-#if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
+#if defined(HAVE_ARMV7) && !defined(__PIC__)
 	movw	\reg, #:lower16:ESYM(\var)
 	movt	\reg, #:upper16:ESYM(\var)
-#elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
+#elif defined(HAVE_ARMV7) && defined(__MACH__)
 	movw	\reg, #:lower16:(ptr_\var-(1678f+8))
 	movt	\reg, #:upper16:(ptr_\var-(1678f+8))
 1678:
