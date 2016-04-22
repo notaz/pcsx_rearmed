@@ -25,6 +25,7 @@
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
+#include "arm_features.h"
 #include "revision.h"
 #include "libretro.h"
 
@@ -1441,9 +1442,8 @@ void retro_init(void)
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
 	 * are not emulated. Warning: changing this may break compatibility. */
-#if !defined(__arm__) || defined(__ARM_ARCH_7A__)
 	cycle_multiplier = 175;
-#else
+#ifdef HAVE_PRE_ARMV7
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
