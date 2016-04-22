@@ -116,10 +116,10 @@ ptr_hash_table:
 #endif
 
 .macro load_varadr reg var
-#if defined(__ARM_ARCH_7A__) && !defined(__PIC__)
+#if defined(HAVE_ARMV7) && !defined(__PIC__)
 	movw	\reg, #:lower16:\var
 	movt	\reg, #:upper16:\var
-#elif defined(__ARM_ARCH_7A__) && defined(__MACH__)
+#elif defined(HAVE_ARMV7) && defined(__MACH__)
 	movw	\reg, #:lower16:(\var-(1678f+8))
 	movt	\reg, #:upper16:(\var-(1678f+8))
 1678:
@@ -130,7 +130,7 @@ ptr_hash_table:
 .endm
 
 .macro load_varadr_ext reg var
-#if defined(__ARM_ARCH_7A__) && defined(__MACH__) && defined(__PIC__)
+#if defined(HAVE_ARMV7) && defined(__MACH__) && defined(__PIC__)
 	movw	\reg, #:lower16:(ptr_\var-(1678f+8))
 	movt	\reg, #:upper16:(ptr_\var-(1678f+8))
 1678:
@@ -141,7 +141,7 @@ ptr_hash_table:
 .endm
 
 .macro mov_16 reg imm
-#ifdef __ARM_ARCH_7A__
+#ifdef HAVE_ARMV7
 	movw	\reg, #\imm
 #else
 	mov	\reg, #(\imm & 0x00ff)
@@ -150,7 +150,7 @@ ptr_hash_table:
 .endm
 
 .macro mov_24 reg imm
-#ifdef __ARM_ARCH_7A__
+#ifdef HAVE_ARMV7
 	movw	\reg, #(\imm & 0xffff)
 	movt	\reg, #(\imm >> 16)
 #else

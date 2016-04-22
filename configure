@@ -24,7 +24,13 @@ compile_binary()
 
 check_define()
 {
-  $CC -E -dD $CFLAGS include/arm_features.h | grep -q $1 || return 1
+  $CC -E -dD $CFLAGS include/arm_features.h | grep -q "$1" || return 1
+  return 0
+}
+
+check_define_val()
+{
+  $CC -E -dD $CFLAGS include/arm_features.h | grep "$1" | awk '{print $3}'
   return 0
 }
 
@@ -475,6 +481,11 @@ fi
 # check for xlib (only headers needed)
 if [ "x$need_xlib" = "xyes" ]; then
   check_xlib_headers || fail "please install libx11-dev"
+fi
+
+sizeof_long=`check_define_val __SIZEOF_LONG__`
+if [ "x$sizeof_long" = "x4" ]; then
+  CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=64"
 fi
 
 cat > $TMPC <<EOF
