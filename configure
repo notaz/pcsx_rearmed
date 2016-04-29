@@ -73,6 +73,9 @@ AR="${AS-${CROSS_COMPILE}ar}"
 MAIN_LDLIBS="$LDLIBS -ldl -lm -lpthread"
 config_mak="config.mak"
 
+SYSROOT="$(${CC} --print-sysroot)"
+[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
+
 fail()
 {
   echo "$@"
@@ -410,7 +413,7 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers pulseaudio"
     MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
   fi
-  if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
+  if [ "$need_sdl" = "yes" ] || check_sdl `${SDL_CONFIG} --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
   fi
@@ -429,10 +432,10 @@ else
 fi
 
 if [ "$need_sdl" = "yes" ]; then
-  which sdl-config > /dev/null || \
+  which ${SDL_CONFIG} > /dev/null || \
     fail "sdl-config is missing; please install libsdl (libsdl1.2-dev)"
-  CFLAGS="$CFLAGS `sdl-config --cflags`"
-  MAIN_LDLIBS="`sdl-config --libs` $MAIN_LDLIBS"
+  CFLAGS="$CFLAGS `${SDL_CONFIG} --cflags`"
+  MAIN_LDLIBS="`${SDL_CONFIG} --libs` $MAIN_LDLIBS"
   check_sdl || fail "please install libsdl (libsdl1.2-dev)"
 fi
 
