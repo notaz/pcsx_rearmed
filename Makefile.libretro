@@ -198,6 +198,7 @@ else ifeq ($(platform), rpi2)
 	fpic := -fPIC
 	SHARED := -shared -Wl,--no-undefined
 	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
+	ASFLAGS += -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
