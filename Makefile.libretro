@@ -181,7 +181,7 @@ else ifeq ($(platform), wii)
 # QNX
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
-   fpic := -fPIC
+	fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	HAVE_NEON = 1
@@ -191,6 +191,17 @@ else ifeq ($(platform), qnx)
 	ARCH = arm
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+
+#Raspberry Pi 2
+else ifeq ($(platform), rpi2)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	SHARED := -shared -Wl,--no-undefined
+	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
+	HAVE_NEON = 1
+	ARCH = arm
+	BUILTIN_GPU = neon
+	USE_DYNAREC = 1
 
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
