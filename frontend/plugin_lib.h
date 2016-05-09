@@ -17,8 +17,6 @@ enum {
 	DKEY_CROSS,
 	DKEY_SQUARE,
 };
-//extern int in_type1, in_type2;
-//extern int in_keystate, in_state_gun, in_a1[2], in_a2[2], in_a3[2], in_a4[2];
 extern int  in_state_gun;
 extern int in_type[8];
 extern int in_analog_left[8][2];

@@ -484,31 +484,31 @@ inline void key_press_event(int key2,int type)
 			switch (psxkey1){
 				case DKEY_CROSS:
 					in_state_gun |= SACTION_GUN_A;
-					break;		
+					break;
 				case DKEY_CIRCLE:
 					in_state_gun |= SACTION_GUN_B;
-					break;		
+					break;
 				case DKEY_TRIANGLE:
 					in_state_gun |= SACTION_GUN_TRIGGER2;
-					break;		
+					break;
 				case DKEY_SQUARE:
 					in_state_gun |= SACTION_GUN_TRIGGER;
-					break;		
+					break;
 			}
 		}else if (type == 2) {
 			switch (psxkey1){
 				case DKEY_CROSS:
 					in_state_gun &= ~SACTION_GUN_A;
-					break;		
+					break;
 				case DKEY_CIRCLE:
 					in_state_gun &= ~SACTION_GUN_B;
-					break;		
+					break;
 				case DKEY_TRIANGLE:
 					in_state_gun &= ~SACTION_GUN_TRIGGER2;
-					break;		
+					break;
 				case DKEY_SQUARE:
 					in_state_gun &= ~SACTION_GUN_TRIGGER;
-					break;		
+					break;
 			}
 		}
 	}else{
@@ -599,7 +599,7 @@ int maemo_init(int *argc, char ***argv)
 		}
 		fclose(pFile);
 	}
-	
+
 	switch (in_type1){
 		case PSE_PAD_TYPE_GUNCON:
 			memset(cornerActions, 0, sizeof(cornerActions));
@@ -610,7 +610,7 @@ int maemo_init(int *argc, char ***argv)
 			break;
 		case PSE_PAD_TYPE_ANALOGPAD:
 			printf("Controller set to analog (SCPH-1150)\n");
-			break;	
+			break;
 	}
 
 	if (in_enable_vibration)
@@ -664,7 +664,7 @@ int maemo_init(int *argc, char ***argv)
 
 	if (bKeepDisplayOn){
 		if (pthread_create(&display_thread, NULL, displayThread, NULL))
-			printf("Failed to create display thread.\n");		
+			printf("Failed to create display thread.\n");
 	}
 
 	pl_rearmed_cbs.only_16bpp = 1;

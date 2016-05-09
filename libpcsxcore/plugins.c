@@ -380,7 +380,6 @@ unsigned char multitappar[35] = { 0x00, 0x80, 0x5a, 0x41, 0x5a, 0xff, 0xff, 0xff
 static int bufcount, bufc;
 
 //PadDataS padd1, padd2;
-
 unsigned char _PADstartPollPort1(PadDataS padd[4]) {
 	int i=0;
 	int decallage=2;
@@ -447,9 +446,6 @@ unsigned char _PADstartPollPort1(PadDataS padd[4]) {
     return buf[bufc++];
 }
 
-
-
-
 unsigned char _PADstartPoll(PadDataS *pad) {
 
     bufc = 0;
@@ -508,12 +504,8 @@ unsigned char _PADstartPoll(PadDataS *pad) {
         	bufcount = 4;
     }
 
-
     return buf[bufc++];
 }
-
-
-
 
 unsigned char _PADpoll(unsigned char value) {
 	if (bufc > bufcount) return 0;
