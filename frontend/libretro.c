@@ -25,7 +25,6 @@
 #include "main.h"
 #include "plugin.h"
 #include "plugin_lib.h"
-#include "arm_features.h"
 #include "revision.h"
 #include "libretro.h"
 
@@ -54,10 +53,19 @@ extern char Mcd1Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
-int in_type1, in_type2;
-int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
-int in_a3[2] = { 127, 127 }, in_a4[2] = { 127, 127 };
-int in_keystate;
+//int in_type1, in_type2;
+//int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
+//int in_a3[2] = { 127, 127 }, in_a4[2] = { 127, 127 };
+//int in_keystate;
+
+int in_type[8];
+int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
+int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
+unsigned short in_keystate[8];
+
+
+
+
 int in_enable_vibration = 1;
 
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
@@ -329,7 +337,13 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
       { "pcsx_rearmed_region", "Region; Auto|NTSC|PAL" },
       { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad3type", "Pad 3 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad4type", "Pad 4 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad5type", "Pad 5 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad6type", "Pad 6 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad7type", "Pad 7 Type; standard|analog|negcon" },
+	  { "pcsx_rearmed_pad8type", "Pad 8 Type; standard|analog|negcon" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -364,6 +378,7 @@ unsigned retro_api_version(void)
 
 void retro_set_controller_port_device(unsigned port, unsigned device)
 {
+	printf("port %u  device %u",port,device);
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -1046,7 +1061,6 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_region";
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
       Config.PsxAuto = 0;
@@ -1060,28 +1074,99 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_pad1type";
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      in_type1 = PSE_PAD_TYPE_STANDARD;
+      in_type[0] = PSE_PAD_TYPE_STANDARD;
       if (strcmp(var.value, "analog") == 0)
-         in_type1 = PSE_PAD_TYPE_ANALOGPAD;
+         in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
       if (strcmp(var.value, "negcon") == 0)
-         in_type1 = PSE_PAD_TYPE_NEGCON;
+         in_type[0] = PSE_PAD_TYPE_NEGCON;
    }
 
    var.value = NULL;
    var.key = "pcsx_rearmed_pad2type";
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      in_type2 = PSE_PAD_TYPE_STANDARD;
+      in_type[1] = PSE_PAD_TYPE_STANDARD;
       if (strcmp(var.value, "analog") == 0)
-         in_type2 = PSE_PAD_TYPE_ANALOGPAD;
+         in_type[1] = PSE_PAD_TYPE_ANALOGPAD;
       if (strcmp(var.value, "negcon") == 0)
-         in_type2 = PSE_PAD_TYPE_NEGCON;
-
+         in_type[1] = PSE_PAD_TYPE_NEGCON;
    }
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad3type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		in_type[2] = PSE_PAD_TYPE_STANDARD;
+		if (strcmp(var.value, "analog") == 0)
+			in_type[2] = PSE_PAD_TYPE_ANALOGPAD;
+		if (strcmp(var.value, "negcon") == 0)
+			in_type[2] = PSE_PAD_TYPE_NEGCON;
+	}
+
+   	var.value = NULL;
+	var.key = "pcsx_rearmed_pad4type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value){
+		in_type[3] = PSE_PAD_TYPE_STANDARD;
+		if (var.value != NULL){
+			if (strcmp(var.value, "analog") == 0)
+				in_type[3] = PSE_PAD_TYPE_ANALOGPAD;
+			if (strcmp(var.value, "negcon") == 0)
+				in_type[3] = PSE_PAD_TYPE_NEGCON;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad5type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		in_type[4] = PSE_PAD_TYPE_STANDARD;
+		if (var.value != NULL){
+			if (strcmp(var.value, "analog") == 0)
+				in_type[4] = PSE_PAD_TYPE_ANALOGPAD;
+			if (strcmp(var.value, "negcon") == 0)
+				in_type[4] = PSE_PAD_TYPE_NEGCON;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad6type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value){
+		in_type[5] = PSE_PAD_TYPE_STANDARD;
+		if (var.value != NULL){
+			if (strcmp(var.value, "analog") == 0)
+				in_type[5] = PSE_PAD_TYPE_ANALOGPAD;
+			if (strcmp(var.value, "negcon") == 0)
+				in_type[5] = PSE_PAD_TYPE_NEGCON;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad7type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value){
+		in_type[6] = PSE_PAD_TYPE_STANDARD;
+		if (var.value != NULL){
+			if (strcmp(var.value, "analog") == 0)
+				in_type[6] = PSE_PAD_TYPE_ANALOGPAD;
+			if (strcmp(var.value, "negcon") == 0)
+				in_type[6] = PSE_PAD_TYPE_NEGCON;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad8type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value){
+		in_type[7] = PSE_PAD_TYPE_STANDARD;
+		if (var.value != NULL){
+			if (strcmp(var.value, "analog") == 0)
+				in_type[7] = PSE_PAD_TYPE_ANALOGPAD;
+			if (strcmp(var.value, "negcon") == 0)
+				in_type[7] = PSE_PAD_TYPE_NEGCON;
+		}
+	}
+
+
 
 #ifdef __ARM_NEON__
    var.value = "NULL";
@@ -1219,7 +1304,8 @@ static void update_variables(bool in_flight)
 
 void retro_run(void) 
 {
-	int i, val;
+
+	int i;
 
 	input_poll_cb();
 
@@ -1227,85 +1313,47 @@ void retro_run(void)
 	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
 		update_variables(true);
 
-	in_keystate = 0;
-	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
-		if (input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, i))
-			in_keystate |= retro_psx_map[i];
-	in_keystate <<= 16;
-	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
-		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
-			in_keystate |= retro_psx_map[i];
 
 
-	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
-	{
-		in_a1[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-		in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+	// récupération de l'état des boutons par libretro
+
+//	in_keystate = 0;
+//	for (i = 0; i < RETRO_PSX_MAP_LEN; i++){
+//		if (input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, i))
+//			in_keystate |= retro_psx_map[i];
+//
+//	}
+//	in_keystate <<= 16;
+//	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
+//		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
+//			in_keystate |= retro_psx_map[i];
+
+	//reset all keystate, query from libretro for keystate
+	int j;
+	for(i=0;i<8;i++){
+		in_keystate[i] = 0;
+		//query from libretro for keystate
+		for (j = 0; j < RETRO_PSX_MAP_LEN; j++){
+			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
+				in_keystate[i] |= retro_psx_map[j];
+		}
 	}
 
-	if (in_type2 == PSE_PAD_TYPE_ANALOGPAD)
+	if (in_type[0] == PSE_PAD_TYPE_ANALOGPAD)
 	{
-		in_a3[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a3[1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-		in_a4[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a4[1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		in_analog_left[0][0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_analog_left[0][1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		in_analog_right[0][0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_analog_right[0][1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
 	}
 
-
-        if (in_type1 == PSE_PAD_TYPE_NEGCON)
-        {
-		/* left brake */
-		if(input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, 12))
-			in_a1[1] = 255;
-              	else
-			in_a1[1] =  0;
-
-		/* steer */
-                in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-
-		/* thrust and fire */
-                val = ((input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 127));
-                if(val < -2) {
-                        in_a1[0] = 256 - val;
-                } 
-                 if (val > 2) {
-                        in_a2[1] = val;
-                } 
-                if(val >= -2 && val <= 2)
-                {
-                        in_a2[1] = 0;
-                        in_a1[0] = 0;
-                }
-        }
-
-        if (in_type2 == PSE_PAD_TYPE_NEGCON)
-        {
-		/* left brake */
-		if(input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, 12))
-			in_a3[1] = 255;
-              	else
-			in_a3[1] =  0;
-
-		/* steer */
-                in_a4[0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-
-		/* thrust and fire */
-                val = ((input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 127));
-                if(val < -2) {
-                        in_a3[0] = 256 - val;
-                } 
-                 if (val > 2) {
-                        in_a4[1] = val;
-                } 
-                if(val >= -2 && val <= 2)
-                {
-                        in_a4[1] = 0;
-                        in_a3[0] = 0;
-                }
-        }
-
+	if (in_type[1] == PSE_PAD_TYPE_ANALOGPAD)
+	{
+		in_analog_left[1][0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_analog_left[1][1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		in_analog_right[1][0] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
+		in_analog_right[1][1] = (input_state_cb(1, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+	}
 
 	stop = 0;
 	psxCpu->Execute();
@@ -1442,8 +1490,9 @@ void retro_init(void)
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
 	 * are not emulated. Warning: changing this may break compatibility. */
+#if !defined(__arm__) || defined(__ARM_ARCH_7A__)
 	cycle_multiplier = 175;
-#ifdef HAVE_PRE_ARMV7
+#else
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;

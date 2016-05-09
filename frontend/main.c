@@ -26,7 +26,6 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "../plugins/dfsound/spu_config.h"
-#include "arm_features.h"
 #include "revision.h"
 
 #ifndef NO_FRONTEND
@@ -143,7 +142,7 @@ void emu_set_default_config(void)
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
 	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
 	spu_config.iTempo = 1;
@@ -151,8 +150,8 @@ void emu_set_default_config(void)
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
 
-	in_type1 = PSE_PAD_TYPE_STANDARD;
-	in_type2 = PSE_PAD_TYPE_STANDARD;
+	in_type[0] = PSE_PAD_TYPE_STANDARD;
+	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
 void do_emu_action(void)
@@ -772,7 +771,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
+#if defined(__arm__) && !defined(__ARM_ARCH_7A__) && !defined(_3DS) /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",

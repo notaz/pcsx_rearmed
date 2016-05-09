@@ -533,7 +533,7 @@ inline void key_press_event(int key2,int type)
 						in_a1[1] = 255;
 						break;
 				}
-	}
+			}
 		}
 		else if (type == 2) {
 		if (psxkey1 >= 0)
@@ -554,7 +554,7 @@ inline void key_press_event(int key2,int type)
 				}
 			}
 		emu_set_action(SACTION_NONE);
-	}
+		}
 	}
 }
 

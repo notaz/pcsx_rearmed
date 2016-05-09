@@ -234,7 +234,7 @@ typedef long (CALLBACK* PADshutdown)(void);
 typedef long (CALLBACK* PADtest)(void);		
 typedef long (CALLBACK* PADclose)(void);
 typedef long (CALLBACK* PADquery)(void);
-typedef long (CALLBACK* PADreadPort1)(PadDataS*);
+typedef long (CALLBACK* PADreadPort1)(PadDataS*, int pad_index);
 typedef long (CALLBACK* PADreadPort2)(PadDataS*);
 typedef long (CALLBACK* PADkeypressed)(void);
 typedef unsigned char (CALLBACK* PADstartPoll)(int);

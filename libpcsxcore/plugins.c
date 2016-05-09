@@ -372,12 +372,86 @@ static unsigned char buf[256];
 unsigned char stdpar[10] = { 0x00, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char mousepar[8] = { 0x00, 0x12, 0x5a, 0xff, 0xff, 0xff, 0xff };
 unsigned char analogpar[9] = { 0x00, 0xff, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+unsigned char multitappar[35] = { 0x00, 0x80, 0x5a, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 static int bufcount, bufc;
 
-PadDataS padd1, padd2;
+//PadDataS padd1, padd2;
+
+unsigned char _PADstartPollPort1(PadDataS padd[4]) {
+	int i=0;
+	int decallage=2;
+    bufc = 0;
+    PadDataS pad;
+    for(i=0;i<4;i++){
+    	decallage = 2 + (i*8);
+    	pad = padd[i];
+		switch (pad.controllerType) {
+			case PSE_PAD_TYPE_MOUSE:
+				multitappar[decallage+1] = 0x12;
+				multitappar[decallage+2] = 0x5a;
+				multitappar[decallage+3] = pad.buttonStatus & 0xff;
+				multitappar[decallage+4] = pad.buttonStatus >> 8;
+				multitappar[decallage+5] = pad.moveX;
+				multitappar[decallage+6] = pad.moveY;
+
+				break;
+			case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
+				multitappar[decallage+1] = 0x23;
+				multitappar[decallage+2] = 0x5a;
+				multitappar[decallage+3] = pad.buttonStatus & 0xff;
+				multitappar[decallage+4] = pad.buttonStatus >> 8;
+				multitappar[decallage+5] = pad.rightJoyX;
+				multitappar[decallage+6] = pad.rightJoyY;
+				multitappar[decallage+7] = pad.leftJoyX;
+				multitappar[decallage+8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_ANALOGPAD: // scph1150
+				multitappar[decallage+1] = 0x73;
+				multitappar[decallage+2] = 0x5a;
+				multitappar[decallage+3] = pad.buttonStatus & 0xff;
+				multitappar[decallage+4] = pad.buttonStatus >> 8;
+				multitappar[decallage+5] = pad.rightJoyX;
+				multitappar[decallage+6] = pad.rightJoyY;
+				multitappar[decallage+7] = pad.leftJoyX;
+				multitappar[decallage+8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_ANALOGJOY: // scph1110
+				multitappar[decallage+1] = 0x53;
+				multitappar[decallage+2] = 0x5a;
+				multitappar[decallage+3] = pad.buttonStatus & 0xff;
+				multitappar[decallage+4] = pad.buttonStatus >> 8;
+				multitappar[decallage+5] = pad.rightJoyX;
+				multitappar[decallage+6] = pad.rightJoyY;
+				multitappar[decallage+7] = pad.leftJoyX;
+				multitappar[decallage+8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_STANDARD:
+			default:
+				multitappar[decallage+1] = 0x41;
+				multitappar[decallage+2] = 0x5a;
+				multitappar[decallage+3] = pad.buttonStatus & 0xff;
+				multitappar[decallage+4] = pad.buttonStatus >> 8;
+		}
+    }
+
+    memcpy(buf, multitappar, 35);
+    bufcount = 34;
+
+    return buf[bufc++];
+}
+
+
+
 
 unsigned char _PADstartPoll(PadDataS *pad) {
+
     bufc = 0;
 
     switch (pad->controllerType) {
@@ -430,35 +504,60 @@ unsigned char _PADstartPoll(PadDataS *pad) {
         default:
             stdpar[3] = pad->buttonStatus & 0xff;
             stdpar[4] = pad->buttonStatus >> 8;
-
-            memcpy(buf, stdpar, 5);
-            bufcount = 4;
+        	memcpy(buf, stdpar, 5);
+        	bufcount = 4;
     }
 
+
     return buf[bufc++];
 }
+
+
+
 
 unsigned char _PADpoll(unsigned char value) {
-    if (bufc > bufcount) return 0;
+	if (bufc > bufcount) return 0;
     return buf[bufc++];
 }
 
+// rafraichissement de l'état des boutons sur port 1,
+// int pad dans le code d'origine ne sert a rien...
 unsigned char CALLBACK PAD1__startPoll(int pad) {
-    PadDataS padd;
-
-    PAD1_readPort1(&padd);
-
-    return _PADstartPoll(&padd);
+	int i=0;
+	PadDataS padd[4];
+	for(i=0;i<4;i++){
+		PAD1_readPort1(&padd[i],i);
+	}
+	return _PADstartPollPort1(padd);
 }
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
-    return _PADpoll(value);
+
+//	if(value !=0){
+//		int i;
+//		printf("%2x  %c\n", value, value);
+//		for (i = 0; i < 35; i++) {
+//		  printf("%2x", buf[i]);
+//		}
+//		printf("\n");
+//		}
+
+	if(value==42){
+		unsigned char bufmultitap[256];
+	    memcpy(bufmultitap, multitappar, 3);
+	    bufcount = 2;
+	    return bufmultitap[bufc++];
+	}else{
+		return _PADpoll(value);
+	}
 }
 
 long CALLBACK PAD1__configure(void) { return 0; }
 void CALLBACK PAD1__about(void) {}
 long CALLBACK PAD1__test(void) { return 0; }
-long CALLBACK PAD1__query(void) { return 3; }
+long CALLBACK PAD1__query(void) {
+	printf("PAD1__query");
+	return 3; }
 long CALLBACK PAD1__keypressed() { return 0; }
 
 #define LoadPad1Sym1(dest, name) \
