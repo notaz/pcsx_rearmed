@@ -368,7 +368,10 @@ static int LoadSPUplugin(const char *SPUdll) {
 void *hPAD1Driver = NULL;
 void *hPAD2Driver = NULL;
 
-static unsigned char buf[256];
+static int multitap1 = -1;
+static int multitap2 = -1;
+
+static unsigned char buf[512];
 unsigned char stdpar[10] = { 0x00, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char mousepar[8] = { 0x00, 0x12, 0x5a, 0xff, 0xff, 0xff, 0xff };
 unsigned char analogpar[9] = { 0x00, 0xff, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -380,7 +383,7 @@ unsigned char multitappar[35] = { 0x00, 0x80, 0x5a, 0x41, 0x5a, 0xff, 0xff, 0xff
 static int bufcount, bufc;
 
 //PadDataS padd1, padd2;
-unsigned char _PADstartPollPort1(PadDataS padd[4]) {
+unsigned char _PADstartPollMultitap(PadDataS padd[4]) {
 	int i=0;
 	int decallage=2;
     bufc = 0;
@@ -515,16 +518,29 @@ unsigned char _PADpoll(unsigned char value) {
 // rafraichissement de l'état des boutons sur port 1,
 // int pad dans le code d'origine ne sert a rien...
 unsigned char CALLBACK PAD1__startPoll(int pad) {
-	int i=0;
-	PadDataS padd[4];
-	for(i=0;i<4;i++){
-		PAD1_readPort1(&padd[i],i);
+	//first call the pad provide if a multitap is connected between the psx and himself
+	if(multitap1 == -1){
+		PadDataS padd;
+		PAD1_readPort1(&padd,0);
+		multitap1 = padd.portMultitap;
 	}
-	return _PADstartPollPort1(padd);
+	// just one pad is on port 1 : NO MULTITAP
+	if (multitap1 == 0){
+		PadDataS padd;
+		PAD1_readPort1(&padd,0);
+		return _PADstartPoll(&padd);
+	}else{
+		//a multitap is plugged : refresh all pad.
+		int i=0;
+		PadDataS padd[4];
+		for(i=0;i<4;i++){
+			PAD1_readPort1(&padd[i],i);
+		}
+		return _PADstartPollMultitap(padd);
+	}
 }
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
-
 //	if(value !=0){
 //		int i;
 //		printf("%2x  %c\n", value, value);
@@ -533,23 +549,24 @@ unsigned char CALLBACK PAD1__poll(unsigned char value) {
 //		}
 //		printf("\n");
 //		}
-
-	if(value==42){
-		unsigned char bufmultitap[256];
-	    memcpy(bufmultitap, multitappar, 3);
-	    bufcount = 2;
-	    return bufmultitap[bufc++];
-	}else{
+	if(multitap1==0){
 		return _PADpoll(value);
+	}else{
+		if(value==42){
+			unsigned char bufmultitap[256];
+			memcpy(bufmultitap, multitappar, 3);
+			bufcount = 2;
+			return bufmultitap[bufc++];
+		}else{
+			return _PADpoll(value);
+		}
 	}
 }
 
 long CALLBACK PAD1__configure(void) { return 0; }
 void CALLBACK PAD1__about(void) {}
 long CALLBACK PAD1__test(void) { return 0; }
-long CALLBACK PAD1__query(void) {
-	printf("PAD1__query");
-	return 3; }
+long CALLBACK PAD1__query(void) { return 3; }
 long CALLBACK PAD1__keypressed() { return 0; }
 
 #define LoadPad1Sym1(dest, name) \
@@ -589,15 +606,56 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 }
 
 unsigned char CALLBACK PAD2__startPoll(int pad) {
-	PadDataS padd;
+	int pad_index = 0;
+	if(multitap1 == 1){
+		pad_index+=4;
+	}else{
+		pad_index=1;
+	}
+	//first call the pad provide if a multitap is connected between the psx and himself
+	if(multitap2 == -1){
+		PadDataS padd;
+		PAD2_readPort2(&padd,pad_index);
+		multitap2 = padd.portMultitap;
+	}
 
-	PAD2_readPort2(&padd);
-    
-	return _PADstartPoll(&padd);
+	// just one pad is on port 2 : NO MULTITAP
+	if (multitap2 == 0){
+		PadDataS padd;
+		PAD2_readPort2(&padd,pad_index);
+		return _PADstartPoll(&padd);
+	}else{
+		//a multitap is plugged : refresh all pad.
+		int i=pad_index;
+		PadDataS padd[4];
+		for(i=0;i<4;i++){
+			PAD2_readPort2(&padd[i],i+pad_index);
+		}
+		return _PADstartPollMultitap(padd);
+	}
 }
 
 unsigned char CALLBACK PAD2__poll(unsigned char value) {
-	return _PADpoll(value);
+//	if(value !=0){
+//		int i;
+//		printf("%2x  %c\n", value, value);
+//		for (i = 0; i < 35; i++) {
+//		  printf("%2x", buf[i]);
+//		}
+//		printf("\n");
+//		}
+	if(multitap2==0){
+		return _PADpoll(value);
+	}else {
+		if(value==42){
+			unsigned char bufmultitap[256];
+			memcpy(bufmultitap, multitappar, 3);
+			bufcount = 2;
+			return bufmultitap[bufc++];
+		}else{
+			return _PADpoll(value);
+		}
+	}
 }
 
 long CALLBACK PAD2__configure(void) { return 0; }
