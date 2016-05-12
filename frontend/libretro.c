@@ -1331,8 +1331,7 @@ void retro_run(void)
 				in_keystate[i] |= retro_psx_map[j];
 		}
 
-
-		printf("%i : %i\n",i , input_state_cb(i, RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X));
+		//printf("%i : %i\n",i , input_state_cb(i, RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X));
 
 		if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 		{
