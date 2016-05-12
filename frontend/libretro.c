@@ -54,7 +54,10 @@ extern char Mcd1Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
-int in_type[8];
+int in_type[8] =  { PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
+                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
+                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
+                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD };
 int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 unsigned short in_keystate[8];
