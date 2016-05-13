@@ -384,8 +384,8 @@ static int bufcount, bufc;
 
 //PadDataS padd1, padd2;
 unsigned char _PADstartPollMultitap(PadDataS padd[4]) {
-	int i=0;
-	int decallage=2;
+    int i=0;
+    int decallage=2;
     bufc = 0;
     PadDataS pad;
     for(i=0;i<4;i++){
@@ -626,7 +626,7 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 		return _PADstartPoll(&padd);
 	}else{
 		//a multitap is plugged : refresh all pad.
-		int i=pad_index;
+		int i=0;
 		PadDataS padd[4];
 		for(i=0;i<4;i++){
 			PAD2_readPort2(&padd[i],i+pad_index);

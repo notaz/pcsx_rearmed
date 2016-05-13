@@ -67,7 +67,12 @@ static long PADreadPort1(PadDataS *pad, int pad_index) {
 }
 
 static long PADreadPort2(PadDataS *pad, int pad_index) {
-	pad->controllerType = in_type[pad_index];
+    /* Temporary hack to avoid segfault when pad_index is a crazy number */
+    if (pad_index <= 1 || pad_index > 8) {
+        pad_index = 1;
+    }
+
+    pad->controllerType = in_type[pad_index];
     pad->buttonStatus = ~in_keystate[pad_index];
     if(multitap2==1){
     	pad->portMultitap=2;
