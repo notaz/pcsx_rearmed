@@ -58,8 +58,6 @@ void dfinput_activate(void)
 {
 	PadDataS pad;
 
-
-
 	PAD1_readPort1(&pad);
 	select_pad(1);
 

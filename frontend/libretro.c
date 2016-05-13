@@ -1312,8 +1312,7 @@ static void update_variables(bool in_flight)
 
 void retro_run(void)
 {
-
-   int i;
+    int i;
 
 	input_poll_cb();
 
@@ -1321,17 +1320,14 @@ void retro_run(void)
 	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
 		update_variables(true);
 
-	// reset all keystate, query from libretro for keystate
+	// reset all keystate, query libretro for keystate
 	int j;
-	for(i=0;i<8;i++){
+	for(i = 0; i < 8; i++) {
 		in_keystate[i] = 0;
-		// query from libretro for keystate
-		for (j = 0; j < RETRO_PSX_MAP_LEN; j++){
+		// query libretro for keystate
+		for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
 			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
 				in_keystate[i] |= retro_psx_map[j];
-		}
-
-		//printf("%i : %i\n",i , input_state_cb(i, RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X));
 
 		if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 		{

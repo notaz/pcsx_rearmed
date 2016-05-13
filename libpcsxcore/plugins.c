@@ -384,62 +384,62 @@ static int bufcount, bufc;
 
 //PadDataS padd1, padd2;
 unsigned char _PADstartPollMultitap(PadDataS padd[4]) {
-    int i=0;
-    int decallage=2;
+    int i = 0;
+    int offset = 2;
     bufc = 0;
     PadDataS pad;
-    for(i=0;i<4;i++){
-    	decallage = 2 + (i*8);
+    for(i = 0; i < 4; i++) {
+    	offset = 2 + (i * 8);
     	pad = padd[i];
 		switch (pad.controllerType) {
 			case PSE_PAD_TYPE_MOUSE:
-				multitappar[decallage+1] = 0x12;
-				multitappar[decallage+2] = 0x5a;
-				multitappar[decallage+3] = pad.buttonStatus & 0xff;
-				multitappar[decallage+4] = pad.buttonStatus >> 8;
-				multitappar[decallage+5] = pad.moveX;
-				multitappar[decallage+6] = pad.moveY;
+				multitappar[offset + 1] = 0x12;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.moveX;
+				multitappar[offset + 6] = pad.moveY;
 
 				break;
 			case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
-				multitappar[decallage+1] = 0x23;
-				multitappar[decallage+2] = 0x5a;
-				multitappar[decallage+3] = pad.buttonStatus & 0xff;
-				multitappar[decallage+4] = pad.buttonStatus >> 8;
-				multitappar[decallage+5] = pad.rightJoyX;
-				multitappar[decallage+6] = pad.rightJoyY;
-				multitappar[decallage+7] = pad.leftJoyX;
-				multitappar[decallage+8] = pad.leftJoyY;
+				multitappar[offset + 1] = 0x23;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
 
 				break;
 			case PSE_PAD_TYPE_ANALOGPAD: // scph1150
-				multitappar[decallage+1] = 0x73;
-				multitappar[decallage+2] = 0x5a;
-				multitappar[decallage+3] = pad.buttonStatus & 0xff;
-				multitappar[decallage+4] = pad.buttonStatus >> 8;
-				multitappar[decallage+5] = pad.rightJoyX;
-				multitappar[decallage+6] = pad.rightJoyY;
-				multitappar[decallage+7] = pad.leftJoyX;
-				multitappar[decallage+8] = pad.leftJoyY;
+				multitappar[offset + 1] = 0x73;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
 
 				break;
 			case PSE_PAD_TYPE_ANALOGJOY: // scph1110
-				multitappar[decallage+1] = 0x53;
-				multitappar[decallage+2] = 0x5a;
-				multitappar[decallage+3] = pad.buttonStatus & 0xff;
-				multitappar[decallage+4] = pad.buttonStatus >> 8;
-				multitappar[decallage+5] = pad.rightJoyX;
-				multitappar[decallage+6] = pad.rightJoyY;
-				multitappar[decallage+7] = pad.leftJoyX;
-				multitappar[decallage+8] = pad.leftJoyY;
+				multitappar[offset + 1] = 0x53;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
 
 				break;
 			case PSE_PAD_TYPE_STANDARD:
 			default:
-				multitappar[decallage+1] = 0x41;
-				multitappar[decallage+2] = 0x5a;
-				multitappar[decallage+3] = pad.buttonStatus & 0xff;
-				multitappar[decallage+4] = pad.buttonStatus >> 8;
+				multitappar[offset + 1] = 0x41;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
 		}
     }
 
@@ -515,49 +515,44 @@ unsigned char _PADpoll(unsigned char value) {
     return buf[bufc++];
 }
 
-// rafraichissement de l'état des boutons sur port 1,
-// int pad dans le code d'origine ne sert a rien...
+// refresh the button state on port 1.
+// int pad is not needed.
 unsigned char CALLBACK PAD1__startPoll(int pad) {
-	//first call the pad provide if a multitap is connected between the psx and himself
-	if(multitap1 == -1){
+	// first call the pad provide if a multitap is connected between the psx and himself
+	if(multitap1 == -1)
+	{
 		PadDataS padd;
-		PAD1_readPort1(&padd,0);
+		PAD1_readPort1(&padd, 0);
 		multitap1 = padd.portMultitap;
 	}
 	// just one pad is on port 1 : NO MULTITAP
-	if (multitap1 == 0){
+	if (multitap1 == 0)
+	{
 		PadDataS padd;
-		PAD1_readPort1(&padd,0);
+		PAD1_readPort1(&padd, 0);
 		return _PADstartPoll(&padd);
-	}else{
-		//a multitap is plugged : refresh all pad.
+	} else {
+		// a multitap is plugged : refresh all pad.
 		int i=0;
 		PadDataS padd[4];
-		for(i=0;i<4;i++){
-			PAD1_readPort1(&padd[i],i);
+		for(i = 0; i < 4; i++) {
+			PAD1_readPort1(&padd[i], i);
 		}
 		return _PADstartPollMultitap(padd);
 	}
 }
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
-//	if(value !=0){
-//		int i;
-//		printf("%2x  %c\n", value, value);
-//		for (i = 0; i < 35; i++) {
-//		  printf("%2x", buf[i]);
-//		}
-//		printf("\n");
-//		}
-	if(multitap1==0){
+	if (multitap1 == 0)
+	{
 		return _PADpoll(value);
-	}else{
-		if(value==42){
+	} else {
+		if(value == 42) {
 			unsigned char bufmultitap[256];
 			memcpy(bufmultitap, multitappar, 3);
 			bufcount = 2;
 			return bufmultitap[bufc++];
-		}else{
+		} else {
 			return _PADpoll(value);
 		}
 	}
