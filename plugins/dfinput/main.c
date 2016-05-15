@@ -44,6 +44,7 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 			PAD##n##_poll = PADpoll_guncon; \
 			guncon_init(); \
 			break; \
+                case PSE_PAD_TYPE_NEGCON: \
 		case PSE_PAD_TYPE_GUN: \
 		default: \
 			PAD##n##_startPoll = PAD##n##__startPoll; \
@@ -51,6 +52,7 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 			break; \
 		} \
 	}
+
 
 void dfinput_activate(void)
 {

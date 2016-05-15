@@ -30,7 +30,9 @@
 #endif
 #include "arm_features.h"
 
-#if !BASE_ADDR_FIXED
+#ifdef VITA
+char* translation_cache = 0;
+#elif !BASE_ADDR_FIXED
 char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 #endif
 

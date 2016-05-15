@@ -53,6 +53,9 @@ static void __clear_cache(void *start, void *end) {
   sys_dcache_flush(start, len);
   sys_icache_invalidate(start, len);
 }
+#elif defined(_3DS)
+#include "3ds_utils.h"
+#define __clear_cache(start,end) svcFlushProcessDataCache(0xFFFF8001, start, (u32)(end)-(u32)(start))
 #endif
 
 #define MAXBLOCK 4096
@@ -131,7 +134,7 @@ struct ll_entry
   int ccadj[MAXBLOCK];
   int slen;
   u_int instr_addr[MAXBLOCK];
-  u_int link_addr[MAXBLOCK][3];
+  static u_int link_addr[MAXBLOCK][3];
   int linkcount;
   u_int stubs[MAXBLOCK*3][8];
   int stubcount;

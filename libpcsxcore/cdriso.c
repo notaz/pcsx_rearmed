@@ -30,7 +30,7 @@
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
-#define usleep(x) Sleep((x) / 1000)
+#define usleep(x) (Sleep((x) / 1000))
 #else
 #include <pthread.h>
 #include <sys/time.h>
@@ -225,7 +225,9 @@ static void *playthread(void *param)
 			do {
 				ret = SPU_playCDDAchannel((short *)sndbuffer, s);
 				if (ret == 0x7761)
+            {
 					usleep(6 * 1000);
+            }
 			} while (ret == 0x7761 && playing); // rearmed_wait
 		}
 
@@ -236,7 +238,9 @@ static void *playthread(void *param)
 			// HACK: stop feeding data while emu is paused
 			extern int stop;
 			while (stop && playing)
+         {
 				usleep(10000);
+         }
 
 			now = GetTickCount();
 			osleep = t - now;

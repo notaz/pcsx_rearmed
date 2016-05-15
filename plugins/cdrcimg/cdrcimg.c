@@ -14,7 +14,9 @@
 #include <zlib.h>
 #ifndef _WIN32
 #define CALLBACK
+#ifndef NO_DYLIB
 #include <dlfcn.h>
+#endif
 #else
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -285,7 +287,7 @@ static long CDRinit(void)
 			return -1;
 		}
 	}
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	if (pBZ2_bzBuffToBuffDecompress == NULL) {
 		void *h = dlopen("/usr/lib/libbz2.so.1", RTLD_LAZY);
 		if (h == NULL)

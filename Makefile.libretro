@@ -20,8 +20,12 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
-
+LIBM := -lm
+LIBZ := -lz
+LIBPTHREAD := -lpthread
+LIBDL := -ldl
 MMAP_WIN32=0
+EXTRA_LDFLAGS =
 
 # Unix
 ifeq ($(platform), unix)
@@ -29,6 +33,15 @@ ifeq ($(platform), unix)
 	fpic := -fPIC
 	SHARED := -shared -Wl,--version-script=libretro/link.T
 
+else ifeq ($(platform), linux-portable)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC -nostdlib
+	EXTRA_LDFLAGS += -fPIC -nostdlib
+	LIBM :=
+	LIBZ :=
+	LIBPTHREAD :=
+	LIBDL :=
+	SHARED := -shared -Wl,--version-script=libretro/link.T
 # OS X
 else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
@@ -36,19 +49,22 @@ else ifeq ($(platform), osx)
 	SHARED := -dynamiclib
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-	ifeq ($(OSX_LT_MAVERICKS),"YES")
-		fpic += -mmacosx-version-min=10.5
-	endif
+	fpic += -mmacosx-version-min=10.1
 
 # iOS
-else ifeq ($(platform), ios)
+else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
+	USE_DYNAREC ?= 1
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
+ifeq ($(USE_DYNAREC),0)
+	# Override
+	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
+endif
 	fpic := -fPIC
 	SHARED := -dynamiclib
 
 	ifeq ($(IOSSDK),)
-		IOSSDK := $(shell xcrun -sdk iphoneos -show-sdk-path)
+		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
 	endif
 
 	CC = clang -arch armv7 -isysroot $(IOSSDK)
@@ -58,16 +74,18 @@ else ifeq ($(platform), ios)
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
-	USE_DYNAREC = 1
 	CFLAGS += -DIOS
-	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
-	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-	ifeq ($(OSX_LT_MAVERICKS),"YES")
-		CC +=  -miphoneos-version-min=5.0
-		CXX +=  -miphoneos-version-min=5.0
-		CC_AS +=  -miphoneos-version-min=5.0
-		CFLAGS += -miphoneos-version-min=5.0
-	endif
+ifeq ($(platform),ios9)
+	CC     += -miphoneos-version-min=8.0
+	CXX    += -miphoneos-version-min=8.0
+	CC_AS  += -miphoneos-version-min=8.0
+	CFLAGS += -miphoneos-version-min=8.0
+else
+	CC     += -miphoneos-version-min=5.0
+	CXX    += -miphoneos-version-min=5.0
+	CC_AS  += -miphoneos-version-min=5.0
+	CFLAGS += -miphoneos-version-min=5.0
+endif
 
 # PS3
 else ifeq ($(platform), ps3)
@@ -97,6 +115,48 @@ else ifeq ($(platform), psp1)
 	AR = psp-ar$(EXE_EXT)
 	CFLAGS += -DPSP -G0
 
+# Vita
+else ifeq ($(platform), vita)
+	TARGET := $(TARGET_NAME)_libretro_vita.a
+	CC = arm-vita-eabi-gcc$(EXE_EXT)
+	AR = arm-vita-eabi-ar$(EXE_EXT)
+	CFLAGS += -DVITA
+	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
+	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
+	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+
+#   CFLAGS += -U__ARM_NEON__
+	HAVE_NEON = 1
+	BUILTIN_GPU = neon
+
+#   USE_DYNAREC = 1
+#	DRC_CACHE_BASE = 0
+
+	ARCH = arm
+   STATIC_LINKING = 1
+
+# CTR(3DS)
+else ifeq ($(platform), ctr)
+	TARGET := $(TARGET_NAME)_libretro_ctr.a
+	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET
+	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
+	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -fomit-frame-pointer -ffast-math	
+	CFLAGS += -Ifrontend/3ds
+	CFLAGS += -Werror=implicit-function-declaration
+
+#	CFLAGS += -DPCSX
+#	BUILTIN_GPU = unai
+	USE_DYNAREC = 1
+	DRC_CACHE_BASE = 1
+	ARCH = arm
+
+	STATIC_LINKING = 1
+
 # Xbox 360
 else ifeq ($(platform), xenon)
 	TARGET := $(TARGET_NAME)_libretro_xenon360.a
@@ -121,6 +181,7 @@ else ifeq ($(platform), wii)
 # QNX
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
+	fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	HAVE_NEON = 1
@@ -131,10 +192,35 @@ else ifeq ($(platform), qnx)
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 
+#Raspberry Pi 2
+else ifeq ($(platform), rpi2)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	SHARED := -shared -Wl,--no-undefined
+	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
+	ASFLAGS += -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
+	HAVE_NEON = 1
+	ARCH = arm
+	BUILTIN_GPU = neon
+	USE_DYNAREC = 1
+	
+#Raspberry Pi 3
+else ifeq ($(platform), rpi3)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	SHARED := -shared -Wl,--no-undefined
+	CFLAGS += -marm -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
+	ASFLAGS += -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
+	HAVE_NEON = 1
+	ARCH = arm
+	BUILTIN_GPU = neon
+	USE_DYNAREC = 1
+
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -Wl,--no-undefined
+	fpic := -fPIC
 	DRC_CACHE_BASE = 0
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
@@ -171,16 +257,15 @@ else
 	MMAP_WIN32=1
 endif
 
-CFLAGS += -fPIC
+CFLAGS += $(fpic)
 ifeq ($(platform),win)
 	MAIN_LDLIBS += -lws2_32
 else ifneq ($(platform),qnx)
-	LDLIBS += -lpthread
-	MAIN_LDLIBS += -ldl
+	LDLIBS += $(LIBPHTREAD)
+	MAIN_LDLIBS += $(LIBDL)
 endif
 MAIN_LDFLAGS += -shared
-MAIN_LDLIBS += -lm -lz
-EXTRA_LDFLAGS =
+MAIN_LDLIBS += $(LIBM) $(LIBZ)
 
 TARGET ?= libretro.so
 PLATFORM = libretro
@@ -188,6 +273,14 @@ BUILTIN_GPU ?= peops
 SOUND_DRIVERS = libretro
 PLUGINS =
 NO_CONFIG_MAK = yes
+
+libretro_all: all
+ifeq ($(platform),ios)
+ifeq ($(USE_DYNAREC),1)
+	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform) clean
+	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform)
+endif
+endif
 
 include Makefile
 

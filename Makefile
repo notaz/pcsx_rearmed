@@ -247,11 +247,19 @@ frontend/revision.h: FORCE
 %.o: %.S
 	$(CC_AS) $(CFLAGS) -c $^ -o $@
 
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+
 
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
+ifeq ($(STATIC_LINKING), 1)
+	$(AR) rcs $@ $(OBJS)
+else
 	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
+endif
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h

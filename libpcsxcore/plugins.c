@@ -368,16 +368,89 @@ static int LoadSPUplugin(const char *SPUdll) {
 void *hPAD1Driver = NULL;
 void *hPAD2Driver = NULL;
 
-static unsigned char buf[256];
+static int multitap1 = -1;
+static int multitap2 = -1;
+
+static unsigned char buf[512];
 unsigned char stdpar[10] = { 0x00, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char mousepar[8] = { 0x00, 0x12, 0x5a, 0xff, 0xff, 0xff, 0xff };
 unsigned char analogpar[9] = { 0x00, 0xff, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+unsigned char multitappar[35] = { 0x00, 0x80, 0x5a, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+													0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 static int bufcount, bufc;
 
-PadDataS padd1, padd2;
+//PadDataS padd1, padd2;
+unsigned char _PADstartPollMultitap(PadDataS padd[4]) {
+    int i = 0;
+    int offset = 2;
+    bufc = 0;
+    PadDataS pad;
+    for(i = 0; i < 4; i++) {
+    	offset = 2 + (i * 8);
+    	pad = padd[i];
+		switch (pad.controllerType) {
+			case PSE_PAD_TYPE_MOUSE:
+				multitappar[offset + 1] = 0x12;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.moveX;
+				multitappar[offset + 6] = pad.moveY;
+
+				break;
+			case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
+				multitappar[offset + 1] = 0x23;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_ANALOGPAD: // scph1150
+				multitappar[offset + 1] = 0x73;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_ANALOGJOY: // scph1110
+				multitappar[offset + 1] = 0x53;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+				multitappar[offset + 5] = pad.rightJoyX;
+				multitappar[offset + 6] = pad.rightJoyY;
+				multitappar[offset + 7] = pad.leftJoyX;
+				multitappar[offset + 8] = pad.leftJoyY;
+
+				break;
+			case PSE_PAD_TYPE_STANDARD:
+			default:
+				multitappar[offset + 1] = 0x41;
+				multitappar[offset + 2] = 0x5a;
+				multitappar[offset + 3] = pad.buttonStatus & 0xff;
+				multitappar[offset + 4] = pad.buttonStatus >> 8;
+		}
+    }
+
+    memcpy(buf, multitappar, 35);
+    bufcount = 34;
+
+    return buf[bufc++];
+}
 
 unsigned char _PADstartPoll(PadDataS *pad) {
+
     bufc = 0;
 
     switch (pad->controllerType) {
@@ -430,29 +503,59 @@ unsigned char _PADstartPoll(PadDataS *pad) {
         default:
             stdpar[3] = pad->buttonStatus & 0xff;
             stdpar[4] = pad->buttonStatus >> 8;
-
-            memcpy(buf, stdpar, 5);
-            bufcount = 4;
+        	memcpy(buf, stdpar, 5);
+        	bufcount = 4;
     }
 
     return buf[bufc++];
 }
 
 unsigned char _PADpoll(unsigned char value) {
-    if (bufc > bufcount) return 0;
+	if (bufc > bufcount) return 0;
     return buf[bufc++];
 }
 
+// refresh the button state on port 1.
+// int pad is not needed.
 unsigned char CALLBACK PAD1__startPoll(int pad) {
-    PadDataS padd;
-
-    PAD1_readPort1(&padd);
-
-    return _PADstartPoll(&padd);
+	// first call the pad provide if a multitap is connected between the psx and himself
+	if(multitap1 == -1)
+	{
+		PadDataS padd;
+		PAD1_readPort1(&padd, 0);
+		multitap1 = padd.portMultitap;
+	}
+	// just one pad is on port 1 : NO MULTITAP
+	if (multitap1 == 0)
+	{
+		PadDataS padd;
+		PAD1_readPort1(&padd, 0);
+		return _PADstartPoll(&padd);
+	} else {
+		// a multitap is plugged : refresh all pad.
+		int i=0;
+		PadDataS padd[4];
+		for(i = 0; i < 4; i++) {
+			PAD1_readPort1(&padd[i], i);
+		}
+		return _PADstartPollMultitap(padd);
+	}
 }
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
-    return _PADpoll(value);
+	if (multitap1 == 0)
+	{
+		return _PADpoll(value);
+	} else {
+		if(value == 42) {
+			unsigned char bufmultitap[256];
+			memcpy(bufmultitap, multitappar, 3);
+			bufcount = 2;
+			return bufmultitap[bufc++];
+		} else {
+			return _PADpoll(value);
+		}
+	}
 }
 
 long CALLBACK PAD1__configure(void) { return 0; }
@@ -498,15 +601,56 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 }
 
 unsigned char CALLBACK PAD2__startPoll(int pad) {
-	PadDataS padd;
+	int pad_index = 0;
+	if(multitap1 == 1){
+		pad_index+=4;
+	}else{
+		pad_index=1;
+	}
+	//first call the pad provide if a multitap is connected between the psx and himself
+	if(multitap2 == -1){
+		PadDataS padd;
+		PAD2_readPort2(&padd,pad_index);
+		multitap2 = padd.portMultitap;
+	}
 
-	PAD2_readPort2(&padd);
-    
-	return _PADstartPoll(&padd);
+	// just one pad is on port 2 : NO MULTITAP
+	if (multitap2 == 0){
+		PadDataS padd;
+		PAD2_readPort2(&padd,pad_index);
+		return _PADstartPoll(&padd);
+	}else{
+		//a multitap is plugged : refresh all pad.
+		int i=0;
+		PadDataS padd[4];
+		for(i=0;i<4;i++){
+			PAD2_readPort2(&padd[i],i+pad_index);
+		}
+		return _PADstartPollMultitap(padd);
+	}
 }
 
 unsigned char CALLBACK PAD2__poll(unsigned char value) {
-	return _PADpoll(value);
+//	if(value !=0){
+//		int i;
+//		printf("%2x  %c\n", value, value);
+//		for (i = 0; i < 35; i++) {
+//		  printf("%2x", buf[i]);
+//		}
+//		printf("\n");
+//		}
+	if(multitap2==0){
+		return _PADpoll(value);
+	}else {
+		if(value==42){
+			unsigned char bufmultitap[256];
+			memcpy(bufmultitap, multitappar, 3);
+			bufcount = 2;
+			return bufmultitap[bufc++];
+		}else{
+			return _PADpoll(value);
+		}
+	}
 }
 
 long CALLBACK PAD2__configure(void) { return 0; }
