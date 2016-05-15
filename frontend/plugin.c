@@ -49,30 +49,45 @@ extern void CALLBACK SPUasync(unsigned int, unsigned int);
 extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 
 /* PAD */
-static long PADreadPort1(PadDataS *pad)
-{
-	pad->controllerType = in_type1;
-	pad->buttonStatus = ~in_keystate;
-	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD || in_type1 == PSE_PAD_TYPE_NEGCON) {
-                pad->leftJoyX = in_a1[0];
-                pad->leftJoyY = in_a1[1];
-                pad->rightJoyX = in_a2[0];
-                pad->rightJoyY = in_a2[1];
-        }
-	return 0;
+static long PADreadPort1(PadDataS *pad, int pad_index) {
+    pad->controllerType = in_type[pad_index];
+    pad->buttonStatus = ~in_keystate[pad_index];
+    if (multitap1 == 1)
+    	pad->portMultitap = 1;
+    else
+    	pad->portMultitap = 0;
+    
+    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
+    {
+        pad->leftJoyX = in_analog_left[pad_index][0];
+        pad->leftJoyY = in_analog_left[pad_index][1];
+        pad->rightJoyX = in_analog_right[pad_index][0];
+        pad->rightJoyY = in_analog_right[pad_index][1];
+    }
+    return 0;
 }
 
-static long PADreadPort2(PadDataS *pad)
-{
-	pad->controllerType = in_type2;
-	pad->buttonStatus = ~in_keystate >> 16;
-	if (in_type2 == PSE_PAD_TYPE_ANALOGPAD || in_type2 == PSE_PAD_TYPE_NEGCON) {
-		pad->leftJoyX = in_a3[0];
-		pad->leftJoyY = in_a3[1];
-		pad->rightJoyX = in_a4[0];
-		pad->rightJoyY = in_a4[1];
-	}
-	return 0;
+static long PADreadPort2(PadDataS *pad, int pad_index) {
+    /* Temporary hack to avoid segfault when pad_index is a crazy number */
+    if (pad_index <= 1 || pad_index > 8) {
+        pad_index = 1;
+    }
+
+    pad->controllerType = in_type[pad_index];
+    pad->buttonStatus = ~in_keystate[pad_index];
+    if (multitap2 ==1 )
+    	pad->portMultitap = 2;
+    else
+    	pad->portMultitap = 0;
+    
+    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
+    {
+        pad->leftJoyX = in_analog_left[pad_index][0];
+        pad->leftJoyY = in_analog_left[pad_index][1];
+        pad->rightJoyX = in_analog_right[pad_index][0];
+        pad->rightJoyY = in_analog_right[pad_index][1];
+    }
+    return 0;
 }
 
 /* GPU */

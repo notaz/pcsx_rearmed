@@ -151,8 +151,8 @@ void emu_set_default_config(void)
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
 
-	in_type1 = PSE_PAD_TYPE_STANDARD;
-	in_type2 = PSE_PAD_TYPE_STANDARD;
+	in_type[0] = PSE_PAD_TYPE_STANDARD;
+	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
 void do_emu_action(void)
@@ -1030,4 +1030,3 @@ void SysCloseLibrary(void *lib) {
 	dlclose(lib);
 #endif
 }
-
