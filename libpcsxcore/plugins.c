@@ -371,7 +371,7 @@ void *hPAD2Driver = NULL;
 static int multitap1 = -1;
 static int multitap2 = -1;
 
-static unsigned char buf[512];
+static unsigned char buf[256];
 unsigned char stdpar[10] = { 0x00, 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char mousepar[8] = { 0x00, 0x12, 0x5a, 0xff, 0xff, 0xff, 0xff };
 unsigned char analogpar[9] = { 0x00, 0xff, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -522,21 +522,24 @@ unsigned char CALLBACK PAD1__startPoll(int pad) {
 	if(multitap1 == -1)
 	{
 		PadDataS padd;
-		PAD1_readPort1(&padd, 0);
+		padd.requestPadIndex = 0;
+		PAD1_readPort1(&padd);
 		multitap1 = padd.portMultitap;
 	}
 	// just one pad is on port 1 : NO MULTITAP
 	if (multitap1 == 0)
 	{
 		PadDataS padd;
-		PAD1_readPort1(&padd, 0);
+		padd.requestPadIndex = 0;
+		PAD1_readPort1(&padd);
 		return _PADstartPoll(&padd);
 	} else {
 		// a multitap is plugged : refresh all pad.
 		int i=0;
 		PadDataS padd[4];
 		for(i = 0; i < 4; i++) {
-			PAD1_readPort1(&padd[i], i);
+			padd[i].requestPadIndex = i;
+			PAD1_readPort1(&padd[i]);
 		}
 		return _PADstartPollMultitap(padd);
 	}
@@ -610,21 +613,24 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 	//first call the pad provide if a multitap is connected between the psx and himself
 	if(multitap2 == -1){
 		PadDataS padd;
-		PAD2_readPort2(&padd,pad_index);
+		padd.requestPadIndex = pad_index;
+		PAD2_readPort2(&padd);
 		multitap2 = padd.portMultitap;
 	}
 
 	// just one pad is on port 2 : NO MULTITAP
 	if (multitap2 == 0){
 		PadDataS padd;
-		PAD2_readPort2(&padd,pad_index);
+		padd.requestPadIndex = pad_index;
+		PAD2_readPort2(&padd);
 		return _PADstartPoll(&padd);
 	}else{
 		//a multitap is plugged : refresh all pad.
 		int i=0;
 		PadDataS padd[4];
 		for(i=0;i<4;i++){
-			PAD2_readPort2(&padd[i],i+pad_index);
+			padd[i].requestPadIndex = i+pad_index;
+			PAD2_readPort2(&padd[i]);
 		}
 		return _PADstartPollMultitap(padd);
 	}
