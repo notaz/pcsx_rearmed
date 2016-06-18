@@ -58,9 +58,12 @@ void dfinput_activate(void)
 {
 	PadDataS pad;
 
+	pad.portMultitap = -1;
+	pad.requestPadIndex = 0;
 	PAD1_readPort1(&pad);
 	select_pad(1);
 
+	pad.requestPadIndex = 1;
 	PAD2_readPort2(&pad);
 	select_pad(2);
 }

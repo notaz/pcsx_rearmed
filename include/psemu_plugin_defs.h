@@ -198,6 +198,7 @@ typedef struct
 	//1 : multitap between psx and pad on port 1
 	//2 : multitap between psx and pad on port 2
 	int portMultitap;
+	int requestPadIndex;
 
 	// status of buttons - every controller fills this field
 	unsigned short buttonStatus;

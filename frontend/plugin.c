@@ -49,7 +49,8 @@ extern void CALLBACK SPUasync(unsigned int, unsigned int);
 extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 
 /* PAD */
-static long PADreadPort1(PadDataS *pad, int pad_index) {
+static long PADreadPort1(PadDataS *pad) {
+	int pad_index = pad->requestPadIndex;
     pad->controllerType = in_type[pad_index];
     pad->buttonStatus = ~in_keystate[pad_index];
     if (multitap1 == 1)
@@ -67,12 +68,9 @@ static long PADreadPort1(PadDataS *pad, int pad_index) {
     return 0;
 }
 
-static long PADreadPort2(PadDataS *pad, int pad_index) {
-    /* Temporary hack to avoid segfault when pad_index is a crazy number */
-    if (pad_index <= 1 || pad_index > 8) {
-        pad_index = 1;
-    }
-
+static long PADreadPort2(PadDataS *pad) {
+	int pad_index = pad->requestPadIndex;
+    
     pad->controllerType = in_type[pad_index];
     pad->buttonStatus = ~in_keystate[pad_index];
     if (multitap2 ==1 )
