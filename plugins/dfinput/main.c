@@ -56,6 +56,7 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 
 void dfinput_activate(void)
 {
+	#ifndef HAVE_LIBRETRO
 	PadDataS pad;
 
 	pad.portMultitap = -1;
@@ -66,4 +67,5 @@ void dfinput_activate(void)
 	pad.requestPadIndex = 1;
 	PAD2_readPort2(&pad);
 	select_pad(2);
+	#endif
 }

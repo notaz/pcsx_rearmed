@@ -254,6 +254,7 @@ unsigned char PADpoll(unsigned char value) {
 #define PADpoll PADpoll_
 #endif
 
+#ifndef HAVE_LIBRETRO
 unsigned char PADpoll_pad(unsigned char value) {
 	if (CurByte == 0) {
 		CurCmd = value;
@@ -302,3 +303,4 @@ void pad_init(void)
 		padstate[i].PadMode = padstate[i].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD;
 	}
 }
+#endif
