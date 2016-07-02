@@ -215,7 +215,7 @@ typedef struct
 	unsigned char VibF[2];
 	
 	//configuration mode Request 0x43
-	boolean configMode;
+	int configMode;
 	unsigned char reserved[87];
 
 } PadDataS;

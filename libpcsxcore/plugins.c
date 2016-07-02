@@ -505,7 +505,7 @@ void initBufForRequest(int padIndex, char value){
 		//case CMD_READ_DATA_AND_VIBRATE :
 		//	break;
 		case CMD_CONFIG_MODE :
-			if(pad[padIndex].configMode == TRUE){
+			if(pad[padIndex].configMode == 1){
 				buf[0] = 0xF3;
 				buf[1] = 0x53;
 			}
@@ -558,9 +558,9 @@ void reqIndex2Treatment(int padIndex, char value){
 		case CMD_CONFIG_MODE :
 			//0x43
 			if(value == 0){
-				pad[padIndex].configMode = FALSE;
+				pad[padIndex].configMode = 0;
 			}else{
-				pad->configMode = TRUE;
+				pad->configMode = 1;
 			}
 			break;
 		case CMD_SET_MODE_AND_LOCK :
