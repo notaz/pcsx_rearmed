@@ -373,7 +373,8 @@ static int multitap2 = -1;
 //Pad information, keystate, mode, config mode, vibration
 static PadDataS pad[8];
 
-static int reqPos, respSize, req, ledStateReq44;
+static int reqPos, respSize, req;
+static int ledStateReq44[8];
 
 static unsigned char buf[256];
 unsigned char stdpar[8] = { 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -566,7 +567,7 @@ void reqIndex2Treatment(int padIndex, char value){
 			//0x44 store the led state for change mode if the next value = 0x02
 			//0x01 analog ON
 			//0x00 analog OFF
-			ledStateReq44 = value;
+			ledStateReq44[padIndex] = value;
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
@@ -599,71 +600,72 @@ void vibrate(int padIndex){
 		printf("new value for vibration pad %i", padIndex);
 	}
 }
-	
 
-
+//OLD FUNCTION -> DELETE if working
 //Build response for 0x42 request Multitap in port
-void _PADstartPollMultitap(PadDataS padd[4]) {
-    int i = 0;
-    int offset = 2;
-    PadDataS pad;
-    for(i = 0; i < 4; i++) {
-    	offset = 2 + (i * 8);
-    	pad = padd[i];
-		switch (pad.controllerType) {
-			case PSE_PAD_TYPE_MOUSE:
-				multitappar[offset] = 0x12;
-				multitappar[offset + 1] = 0x5a;
-				multitappar[offset + 2] = pad.buttonStatus & 0xff;
-				multitappar[offset + 3] = pad.buttonStatus >> 8;
-				multitappar[offset + 4] = pad.moveX;
-				multitappar[offset + 5] = pad.moveY;
+//void _PADstartPollMultitap(PadDataS padd[4]) {
+//    int i = 0;
+//    int offset = 2;
+//    PadDataS pad;
+//    for(i = 0; i < 4; i++) {
+//    	offset = 2 + (i * 8);
+//    	pad = padd[i];
+//		switch (pad.controllerType) {
+//			case PSE_PAD_TYPE_MOUSE:
+//				multitappar[offset] = 0x12;
+//				multitappar[offset + 1] = 0x5a;
+//				multitappar[offset + 2] = pad.buttonStatus & 0xff;
+//				multitappar[offset + 3] = pad.buttonStatus >> 8;
+//				multitappar[offset + 4] = pad.moveX;
+//				multitappar[offset + 5] = pad.moveY;
+//
+//				break;
+//			case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
+//				multitappar[offset] = 0x23;
+//				multitappar[offset + 1] = 0x5a;
+//				multitappar[offset + 2] = pad.buttonStatus & 0xff;
+//				multitappar[offset + 3] = pad.buttonStatus >> 8;
+//				multitappar[offset + 4] = pad.rightJoyX;
+//				multitappar[offset + 5] = pad.rightJoyY;
+//				multitappar[offset + 6] = pad.leftJoyX;
+//				multitappar[offset + 7] = pad.leftJoyY;
+//
+//				break;
+//			case PSE_PAD_TYPE_ANALOGPAD: // scph1150
+//				multitappar[offset] = 0x73;
+//				multitappar[offset + 1] = 0x5a;
+//				multitappar[offset + 2] = pad.buttonStatus & 0xff;
+//				multitappar[offset + 3] = pad.buttonStatus >> 8;
+//				multitappar[offset + 4] = pad.rightJoyX;
+//				multitappar[offset + 5] = pad.rightJoyY;
+//				multitappar[offset + 6] = pad.leftJoyX;
+//				multitappar[offset + 7] = pad.leftJoyY;
+//
+//				break;
+//			case PSE_PAD_TYPE_ANALOGJOY: // scph1110
+//				multitappar[offset] = 0x53;
+//				multitappar[offset + 1] = 0x5a;
+//				multitappar[offset + 2] = pad.buttonStatus & 0xff;
+//				multitappar[offset + 3] = pad.buttonStatus >> 8;
+//				multitappar[offset + 4] = pad.rightJoyX;
+//				multitappar[offset + 5] = pad.rightJoyY;
+//				multitappar[offset + 6] = pad.leftJoyX;
+//				multitappar[offset + 7] = pad.leftJoyY;
+//
+//				break;
+//			case PSE_PAD_TYPE_STANDARD:
+//			default:
+//				multitappar[offset] = 0x41;
+//				multitappar[offset + 1] = 0x5a;
+//				multitappar[offset + 2] = pad.buttonStatus & 0xff;
+//				multitappar[offset + 3] = pad.buttonStatus >> 8;
+//		}
+//    }
+//    memcpy(buf, multitappar, 34);
+//    respSize = 34;
+//}
 
-				break;
-			case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
-				multitappar[offset] = 0x23;
-				multitappar[offset + 1] = 0x5a;
-				multitappar[offset + 2] = pad.buttonStatus & 0xff;
-				multitappar[offset + 3] = pad.buttonStatus >> 8;
-				multitappar[offset + 4] = pad.rightJoyX;
-				multitappar[offset + 5] = pad.rightJoyY;
-				multitappar[offset + 6] = pad.leftJoyX;
-				multitappar[offset + 7] = pad.leftJoyY;
 
-				break;
-			case PSE_PAD_TYPE_ANALOGPAD: // scph1150
-				multitappar[offset] = 0x73;
-				multitappar[offset + 1] = 0x5a;
-				multitappar[offset + 2] = pad.buttonStatus & 0xff;
-				multitappar[offset + 3] = pad.buttonStatus >> 8;
-				multitappar[offset + 4] = pad.rightJoyX;
-				multitappar[offset + 5] = pad.rightJoyY;
-				multitappar[offset + 6] = pad.leftJoyX;
-				multitappar[offset + 7] = pad.leftJoyY;
-
-				break;
-			case PSE_PAD_TYPE_ANALOGJOY: // scph1110
-				multitappar[offset] = 0x53;
-				multitappar[offset + 1] = 0x5a;
-				multitappar[offset + 2] = pad.buttonStatus & 0xff;
-				multitappar[offset + 3] = pad.buttonStatus >> 8;
-				multitappar[offset + 4] = pad.rightJoyX;
-				multitappar[offset + 5] = pad.rightJoyY;
-				multitappar[offset + 6] = pad.leftJoyX;
-				multitappar[offset + 7] = pad.leftJoyY;
-
-				break;
-			case PSE_PAD_TYPE_STANDARD:
-			default:
-				multitappar[offset] = 0x41;
-				multitappar[offset + 1] = 0x5a;
-				multitappar[offset + 2] = pad.buttonStatus & 0xff;
-				multitappar[offset + 3] = pad.buttonStatus >> 8;
-		}
-    }
-    memcpy(buf, multitappar, 34);
-    respSize = 34;
-}
 
 //Build response for 0x42 request Pad in port
 void _PADstartPoll(PadDataS *pad) {
@@ -712,14 +714,35 @@ void _PADstartPoll(PadDataS *pad) {
             break;
         case PSE_PAD_TYPE_STANDARD:
         default:
+        	stdpar[0] = 0x41;
             stdpar[2] = pad->buttonStatus & 0xff;
             stdpar[3] = pad->buttonStatus >> 8;
+            //avoid analog value in multitap mode if change pad type in game.
+            stdpar[4] = 0xff;
+            stdpar[5] = 0xff;
+            stdpar[6] = 0xff;
+            stdpar[7] = 0xff;
         	memcpy(buf, stdpar, 4);
         	respSize = 8;
     }
 }
 
 
+//Build response for 0x42 request Multitap in port
+//Response header for multitap : 0x80, 0x5A, (Pad information port 1-2A), (Pad information port 1-2B), (Pad information port 1-2C), (Pad information port 1-2D)
+void _PADstartPollMultitap(PadDataS padd[4]) {
+    int i = 0;
+    int offset = 2;
+    PadDataS pad;
+    for(i = 0; i < 4; i++) {
+    	offset = 2 + (i * 8);
+    	pad = padd[i];
+		_PADstartPoll(&pad);
+		memcpy(multitappar+offset, stdpar,pad.controllerType == PSE_PAD_TYPE_STANDARD ?4 : 8);
+    }
+    memcpy(buf, multitappar, 34);
+    respSize = 34;
+}
 
 unsigned char _PADpoll(int padIndex, unsigned char value) {
 		
@@ -791,7 +814,7 @@ unsigned char CALLBACK PAD1__startPoll(int pad) {
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
 	char tmp = _PADpoll(0, value);
-	printf("%2x:%2x , ",value,tmp);
+	printf("%2x:%2x, ",value,tmp);
 	return tmp;
 	
 }
