@@ -826,11 +826,16 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 unsigned char CALLBACK PAD2__startPoll(int pad) {
 	reqPos = 0;
 	int pad_index = 0;
-	if(multitap2 == 2){
+	if(multitap1 == 0 && multitap2 == 0){
+		pad_index += 1;
+	}else if(multitap1 == 1 && multitap2 == 0){
 		pad_index += 4;
-	}else{
-		pad_index = 1;
+	}else if(multitap1 == 0 && multitap2 == 2){
+		pad_index += 1;
+	}else if(multitap1 == 1 && multitap2 == 2){
+		pad_index += 4;
 	}
+
 	//first call the pad provide if a multitap is connected between the psx and himself
 	if(multitap2 == -1){
 		PadDataS padd;
