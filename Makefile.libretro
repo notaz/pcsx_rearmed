@@ -267,6 +267,17 @@ endif
 MAIN_LDFLAGS += -shared
 MAIN_LDLIBS += $(LIBM) $(LIBZ)
 
+# try to autodetect stuff for the lazy
+ifndef ARCH
+ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+endif
+ifndef HAVE_NEON
+HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+endif
+ifeq ($(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+MAIN_LDFLAGS += -Wl,--no-undefined
+endif
+
 TARGET ?= libretro.so
 PLATFORM = libretro
 BUILTIN_GPU ?= peops
