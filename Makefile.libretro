@@ -261,7 +261,7 @@ CFLAGS += $(fpic)
 ifeq ($(platform),win)
 	MAIN_LDLIBS += -lws2_32
 else ifneq ($(platform),qnx)
-	LDLIBS += $(LIBPHTREAD)
+	LDLIBS += $(LIBPTHREAD)
 	MAIN_LDLIBS += $(LIBDL)
 endif
 MAIN_LDFLAGS += -shared
