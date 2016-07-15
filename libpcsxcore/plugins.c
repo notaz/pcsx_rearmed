@@ -612,7 +612,7 @@ void vibrate(int padIndex){
 		pad[padIndex].VibF[0] = pad[padIndex].Vib[0];
 		pad[padIndex].VibF[1] = pad[padIndex].Vib[1];
 		plat_trigger_vibrate(padIndex, pad[padIndex].VibF[0], pad[padIndex].VibF[1]);
-		printf("vibration pad %i", padIndex);
+		//printf("vibration pad %i", padIndex);
 	}
 }
 
@@ -764,7 +764,7 @@ unsigned char CALLBACK PAD1__startPoll(int pad) {
 		}
 		_PADstartPollMultitap(padd);
 	}
-	printf("\npad 1 : ");
+	//printf("\npad 1 : ");
 	return 0x00;
 }
 
@@ -775,7 +775,7 @@ unsigned char CALLBACK PAD1__poll(unsigned char value) {
 	}else{
 		tmp = _PADpoll(0, value);
 	}
-	printf("%2x:%2x, ",value,tmp);
+	//printf("%2x:%2x, ",value,tmp);
 	return tmp;
 	
 }
@@ -861,7 +861,7 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 		}
 		_PADstartPollMultitap(padd);
 	}
-	printf("\npad 2 : ");
+	//printf("\npad 2 : ");
 	return 0x00;
 }
 
@@ -872,7 +872,7 @@ unsigned char CALLBACK PAD2__poll(unsigned char value) {
 	}else{
 		tmp = _PADpoll(1, value);
 	}
-	printf("%2x:%2x, ",value,tmp);
+	//printf("%2x:%2x, ",value,tmp);
 	return tmp;
 }
 
