@@ -195,6 +195,7 @@ endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += frontend/libretro.o
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
+CFLAGS += -DHAVE_LIBRETRO
 
 ifeq ($(MMAP_WIN32),1)
 OBJS += libpcsxcore/memmap_win32.o
