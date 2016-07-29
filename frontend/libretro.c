@@ -343,8 +343,8 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_pad6type", "Pad 6 Type; none|standard|analog|negcon" },
       { "pcsx_rearmed_pad7type", "Pad 7 Type; none|standard|analog|negcon" },
       { "pcsx_rearmed_pad8type", "Pad 8 Type; none|standard|analog|negcon" },
-      { "pcsx_rearmed_multitap1", "Multitap 1; disabled|enabled" },
-      { "pcsx_rearmed_multitap2", "Multitap 2; disabled|enabled" },
+      { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
+      { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -403,6 +403,45 @@ static void update_controller_port_device(unsigned port)
 			in_type[0] = PSE_PAD_TYPE_NEGCON;
 		else // 'none' case
 			in_type[0] = PSE_PAD_TYPE_NONE;
+	}
+}
+
+static void update_multitap()
+{
+	struct retro_variable var;
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap1";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap1 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap1 = 0;
+		else // 'auto' case
+		{
+			// If a gamepad is plugged after port 2, we need a first multitap.
+			multitap1 = 0;
+			for (int port = 2; port < PORTS_NUMBER; port++)
+				multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap2";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap2 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap2 = 0;
+		else // 'auto' case
+		{
+			// If a gamepad is plugged after port 4, we need a second multitap.
+			multitap2 = 0;
+			for (int port = 4; port < PORTS_NUMBER; port++)
+				multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
+		}
 	}
 }
 
@@ -1104,23 +1143,7 @@ static void update_variables(bool in_flight)
    for (int i = 0; i < PORTS_NUMBER; i++)
       update_controller_port_device(i);
 
-   var.value = NULL;
-   var.key = "pcsx_rearmed_multitap1";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         multitap1 = 1;
-      else multitap1 = 0;
-   }
-    
-   var.value = NULL;
-   var.key = "pcsx_rearmed_multitap2";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         multitap2 = 1;
-      else multitap2 = 0;
-   }
+   update_multitap();
 
 #ifdef __ARM_NEON__
    var.value = "NULL";
