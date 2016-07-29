@@ -382,17 +382,36 @@ static void update_controller_port_device(unsigned port, unsigned device)
 	if (port >= PORTS_NUMBER)
 		return;
 
-	static const char **CONTROLLER_VARIABLE = {
-		"pcsx_rearmed_pad1type", "pcsx_rearmed_pad2type",
-		"pcsx_rearmed_pad3type", "pcsx_rearmed_pad4type",
-		"pcsx_rearmed_pad5type", "pcsx_rearmed_pad6type",
-		"pcsx_rearmed_pad7type", "pcsx_rearmed_pad8type",
-	};
-
 	struct retro_variable var;
 
 	var.value = NULL;
-	var.key = CONTROLLER_VARIABLE[port];
+	switch (port) {
+	case 0:
+		var.key = "pcsx_rearmed_pad1type";
+		break;
+	case 1:
+		var.key = "pcsx_rearmed_pad2type";
+		break;
+	case 2:
+		var.key = "pcsx_rearmed_pad3type";
+		break;
+	case 3:
+		var.key = "pcsx_rearmed_pad4type";
+		break;
+	case 4:
+		var.key = "pcsx_rearmed_pad5type";
+		break;
+	case 5:
+		var.key = "pcsx_rearmed_pad6type";
+		break;
+	case 6:
+		var.key = "pcsx_rearmed_pad7type";
+		break;
+	case 7:
+		var.key = "pcsx_rearmed_pad8type";
+		break;
+	}
+
 	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
 	{
 		if (strcmp(var.value, "standard") == 0)
