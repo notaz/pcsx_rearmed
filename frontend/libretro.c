@@ -33,6 +33,8 @@
 #include "3ds/3ds_utils.h"
 #endif
 
+#define PORTS_NUMBER 8
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -373,6 +375,32 @@ void retro_set_input_state(retro_input_state_t cb) { input_state_cb = cb; }
 unsigned retro_api_version(void)
 {
 	return RETRO_API_VERSION;
+}
+
+static void update_controller_port_device(unsigned port)
+{
+	if (port >= PORTS_NUMBER)
+		return;
+
+	static const char **CONTROLLER_VARIABLE = {
+		"pcsx_rearmed_pad1type", "pcsx_rearmed_pad2type",
+		"pcsx_rearmed_pad3type", "pcsx_rearmed_pad4type",
+		"pcsx_rearmed_pad5type", "pcsx_rearmed_pad6type",
+		"pcsx_rearmed_pad7type", "pcsx_rearmed_pad8type",
+	};
+
+	struct retro_variable var;
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_pad1type";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		in_type[0] = PSE_PAD_TYPE_STANDARD;
+		if (strcmp(var.value, "analog") == 0)
+			in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
+		else if (strcmp(var.value, "negcon") == 0)
+			in_type[0] = PSE_PAD_TYPE_NEGCON;
+	}
 }
 
 void retro_set_controller_port_device(unsigned port, unsigned device)
@@ -1070,93 +1098,8 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad1type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[0] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[0] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad2type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[1] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[1] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[1] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad3type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[2] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[2] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[2] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad4type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[3] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[3] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[3] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad5type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[4] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[4] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[4] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad6type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[5] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[5] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[5] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad7type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[6] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[6] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[6] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad8type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[7] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[7] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[7] = PSE_PAD_TYPE_NEGCON;
-   }
+   for (int i = 0; i < PORTS_NUMBER; i++)
+      update_controller_port_device(i);
 
    var.value = NULL;
    var.key = "pcsx_rearmed_multitap1";
