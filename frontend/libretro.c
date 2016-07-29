@@ -382,18 +382,38 @@ static void update_controller_port_device(unsigned port, unsigned device)
 	if (port >= PORTS_NUMBER)
 		return;
 
-	static const char **CONTROLLER_VARIABLE = {
-		"pcsx_rearmed_pad1type", "pcsx_rearmed_pad2type",
-		"pcsx_rearmed_pad3type", "pcsx_rearmed_pad4type",
-		"pcsx_rearmed_pad5type", "pcsx_rearmed_pad6type",
-		"pcsx_rearmed_pad7type", "pcsx_rearmed_pad8type",
-	};
-
 	struct retro_variable var;
+	int default_case = 0;
 
 	var.value = NULL;
-	var.key = CONTROLLER_VARIABLE[port];
-	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	switch (port) {
+	case 0:
+		var.key = "pcsx_rearmed_pad1type";
+		break;
+	case 1:
+		var.key = "pcsx_rearmed_pad2type";
+		break;
+	case 2:
+		var.key = "pcsx_rearmed_pad3type";
+		break;
+	case 3:
+		var.key = "pcsx_rearmed_pad4type";
+		break;
+	case 4:
+		var.key = "pcsx_rearmed_pad5type";
+		break;
+	case 5:
+		var.key = "pcsx_rearmed_pad6type";
+		break;
+	case 6:
+		var.key = "pcsx_rearmed_pad7type";
+		break;
+	case 7:
+		var.key = "pcsx_rearmed_pad8type";
+		break;
+	}
+
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
 	{
 		if (strcmp(var.value, "standard") == 0)
 			in_type[0] = PSE_PAD_TYPE_STANDARD;
@@ -404,65 +424,81 @@ static void update_controller_port_device(unsigned port, unsigned device)
 		else if (strcmp(var.value, "none") == 0)
 			in_type[0] = PSE_PAD_TYPE_NONE;
 		else // 'default' case
-		{
-			switch (device)
-			{
-			case RETRO_DEVICE_JOYPAD:
-				in_type[port] = PSE_PAD_TYPE_STANDARD;
-				break;
-			case RETRO_DEVICE_ANALOG:
-				in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
-				break;
-			case RETRO_DEVICE_MOUSE:
-				in_type[port] = PSE_PAD_TYPE_MOUSE;
-				break;
-			case RETRO_DEVICE_LIGHTGUN:
-				in_type[port] = PSE_PAD_TYPE_GUN;
-				break;
-			case RETRO_DEVICE_NONE:
-			default:
-				in_type[port] = PSE_PAD_TYPE_NONE;
-			}
-		}
+			default_case = 1;
 	}
+	else
+		default_case = 1;
+
+	if (default_case)
+		switch (device)
+		{
+		case RETRO_DEVICE_JOYPAD:
+			in_type[port] = PSE_PAD_TYPE_STANDARD;
+			break;
+		case RETRO_DEVICE_ANALOG:
+			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+			break;
+		case RETRO_DEVICE_MOUSE:
+			in_type[port] = PSE_PAD_TYPE_MOUSE;
+			break;
+		case RETRO_DEVICE_LIGHTGUN:
+			in_type[port] = PSE_PAD_TYPE_GUN;
+			break;
+		case RETRO_DEVICE_NONE:
+		default:
+			in_type[port] = PSE_PAD_TYPE_NONE;
+		}
 }
 
 static void update_multitap()
 {
 	struct retro_variable var;
+	int auto_case;
 
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap1";
-	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	auto_case = 0;
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
 	{
 		if (strcmp(var.value, "enabled") == 0)
 			multitap1 = 1;
 		else if (strcmp(var.value, "disabled") == 0)
 			multitap1 = 0;
 		else // 'auto' case
-		{
-			// If a gamepad is plugged after port 2, we need a first multitap.
-			multitap1 = 0;
-			for (int port = 2; port < PORTS_NUMBER; port++)
-				multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
-		}
+			auto_case = 1;
+	}
+	else
+		auto_case == 1;
+
+	if (auto_case)
+	{
+		// If a gamepad is plugged after port 2, we need a first multitap.
+		multitap1 = 0;
+		for (int port = 2; port < PORTS_NUMBER; port++)
+			multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap2";
-	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	auto_case = 0;
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
 	{
 		if (strcmp(var.value, "enabled") == 0)
 			multitap2 = 1;
 		else if (strcmp(var.value, "disabled") == 0)
 			multitap2 = 0;
 		else // 'auto' case
-		{
-			// If a gamepad is plugged after port 4, we need a second multitap.
-			multitap2 = 0;
-			for (int port = 4; port < PORTS_NUMBER; port++)
-				multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
-		}
+			auto_case = 1;
+	}
+	else
+		auto_case == 1;
+
+	if (auto_case)
+	{
+		// If a gamepad is plugged after port 4, we need a second multitap.
+		multitap2 = 0;
+		for (int port = 4; port < PORTS_NUMBER; port++)
+			multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 }
 
