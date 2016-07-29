@@ -33,6 +33,8 @@
 #include "3ds/3ds_utils.h"
 #endif
 
+#define PORTS_NUMBER 8
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -60,7 +62,7 @@ int in_type[8] =  { PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
                   PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD };
 int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
-unsigned short in_keystate[8];
+unsigned short in_keystate[PORTS_NUMBER];
 int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
@@ -333,16 +335,16 @@ void retro_set_environment(retro_environment_t cb)
    static const struct retro_variable vars[] = {
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
       { "pcsx_rearmed_region", "Region; Auto|NTSC|PAL" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad3type", "Pad 3 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad4type", "Pad 4 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad5type", "Pad 5 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad6type", "Pad 6 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad7type", "Pad 7 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_pad8type", "Pad 8 Type; standard|analog|negcon" },
-      { "pcsx_rearmed_multitap1", "Multitap 1; disabled|enabled" },
-      { "pcsx_rearmed_multitap2", "Multitap 2; disabled|enabled" },
+      { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad4type", "Pad 4 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad5type", "Pad 5 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad6type", "Pad 6 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad7type", "Pad 7 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
+      { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -375,9 +377,104 @@ unsigned retro_api_version(void)
 	return RETRO_API_VERSION;
 }
 
+static void update_controller_port_device(unsigned port, unsigned device)
+{
+	if (port >= PORTS_NUMBER)
+		return;
+
+	static const char **CONTROLLER_VARIABLE = {
+		"pcsx_rearmed_pad1type", "pcsx_rearmed_pad2type",
+		"pcsx_rearmed_pad3type", "pcsx_rearmed_pad4type",
+		"pcsx_rearmed_pad5type", "pcsx_rearmed_pad6type",
+		"pcsx_rearmed_pad7type", "pcsx_rearmed_pad8type",
+	};
+
+	struct retro_variable var;
+
+	var.value = NULL;
+	var.key = CONTROLLER_VARIABLE[port];
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		if (strcmp(var.value, "standard") == 0)
+			in_type[0] = PSE_PAD_TYPE_STANDARD;
+		else if (strcmp(var.value, "analog") == 0)
+			in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
+		else if (strcmp(var.value, "negcon") == 0)
+			in_type[0] = PSE_PAD_TYPE_NEGCON;
+		else if (strcmp(var.value, "none") == 0)
+			in_type[0] = PSE_PAD_TYPE_NONE;
+		else // 'default' case
+		{
+			switch (device)
+			{
+			case RETRO_DEVICE_JOYPAD:
+				in_type[port] = PSE_PAD_TYPE_STANDARD;
+				break;
+			case RETRO_DEVICE_ANALOG:
+				in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+				break;
+			case RETRO_DEVICE_MOUSE:
+				in_type[port] = PSE_PAD_TYPE_MOUSE;
+				break;
+			case RETRO_DEVICE_LIGHTGUN:
+				in_type[port] = PSE_PAD_TYPE_GUN;
+				break;
+			case RETRO_DEVICE_NONE:
+			default:
+				in_type[port] = PSE_PAD_TYPE_NONE;
+			}
+		}
+	}
+}
+
+static void update_multitap()
+{
+	struct retro_variable var;
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap1";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap1 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap1 = 0;
+		else // 'auto' case
+		{
+			// If a gamepad is plugged after port 2, we need a first multitap.
+			multitap1 = 0;
+			for (int port = 2; port < PORTS_NUMBER; port++)
+				multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
+		}
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap2";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap2 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap2 = 0;
+		else // 'auto' case
+		{
+			// If a gamepad is plugged after port 4, we need a second multitap.
+			multitap2 = 0;
+			for (int port = 4; port < PORTS_NUMBER; port++)
+				multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
+		}
+	}
+}
+
 void retro_set_controller_port_device(unsigned port, unsigned device)
 {
 	SysPrintf("port %u  device %u",port,device);
+
+	if (port >= PORTS_NUMBER)
+		return;
+
+	update_controller_port_device(port, device);
+	update_multitap();
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -1070,111 +1167,10 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad1type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[0] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[0] = PSE_PAD_TYPE_NEGCON;
-   }
+   for (int i = 0; i < PORTS_NUMBER; i++)
+      update_controller_port_device(i, RETRO_DEVICE_NONE);
 
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad2type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[1] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[1] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[1] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad3type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[2] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[2] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[2] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad4type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[3] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[3] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[3] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad5type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[4] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[4] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[4] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad6type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[5] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[5] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[5] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad7type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[6] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[6] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[6] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pad8type";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      in_type[7] = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type[7] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[7] = PSE_PAD_TYPE_NEGCON;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_multitap1";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         multitap1 = 1;
-      else multitap1 = 0;
-   }
-    
-   var.value = NULL;
-   var.key = "pcsx_rearmed_multitap2";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         multitap2 = 1;
-      else multitap2 = 0;
-   }
+   update_multitap();
 
 #ifdef __ARM_NEON__
    var.value = "NULL";
@@ -1322,8 +1318,12 @@ void retro_run(void)
 
 	// reset all keystate, query libretro for keystate
 	int j;
-	for(i = 0; i < 8; i++) {
+	for(i = 0; i < PORTS_NUMBER; i++) {
 		in_keystate[i] = 0;
+
+		if (in_type[i] == PSE_PAD_TYPE_NONE)
+			continue;
+
 		// query libretro for keystate
 		for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
 			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
