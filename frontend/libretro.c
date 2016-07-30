@@ -56,10 +56,10 @@ extern char Mcd1Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
-int in_type[8] =  { PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
-                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
-                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD,
-                  PSE_PAD_TYPE_STANDARD, PSE_PAD_TYPE_STANDARD };
+int in_type[8] =  { PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE };
 int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 unsigned short in_keystate[PORTS_NUMBER];
@@ -377,43 +377,53 @@ unsigned retro_api_version(void)
 	return RETRO_API_VERSION;
 }
 
-static void update_controller_port_device(unsigned port, unsigned device)
+static int controller_port_variable(unsigned port, struct retro_variable *var)
+{
+	if (port >= PORTS_NUMBER)
+		return 0;
+
+	if (!environ_cb)
+		return 0;
+
+	var->value = NULL;
+	switch (port) {
+	case 0:
+		var->key = "pcsx_rearmed_pad1type";
+		break;
+	case 1:
+		var->key = "pcsx_rearmed_pad2type";
+		break;
+	case 2:
+		var->key = "pcsx_rearmed_pad3type";
+		break;
+	case 3:
+		var->key = "pcsx_rearmed_pad4type";
+		break;
+	case 4:
+		var->key = "pcsx_rearmed_pad5type";
+		break;
+	case 5:
+		var->key = "pcsx_rearmed_pad6type";
+		break;
+	case 6:
+		var->key = "pcsx_rearmed_pad7type";
+		break;
+	case 7:
+		var->key = "pcsx_rearmed_pad8type";
+		break;
+	}
+
+	return environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, var) || var->value;
+}
+
+static void update_controller_port_variable(unsigned port)
 {
 	if (port >= PORTS_NUMBER)
 		return;
 
 	struct retro_variable var;
-	int default_case = 0;
 
-	var.value = NULL;
-	switch (port) {
-	case 0:
-		var.key = "pcsx_rearmed_pad1type";
-		break;
-	case 1:
-		var.key = "pcsx_rearmed_pad2type";
-		break;
-	case 2:
-		var.key = "pcsx_rearmed_pad3type";
-		break;
-	case 3:
-		var.key = "pcsx_rearmed_pad4type";
-		break;
-	case 4:
-		var.key = "pcsx_rearmed_pad5type";
-		break;
-	case 5:
-		var.key = "pcsx_rearmed_pad6type";
-		break;
-	case 6:
-		var.key = "pcsx_rearmed_pad7type";
-		break;
-	case 7:
-		var.key = "pcsx_rearmed_pad8type";
-		break;
-	}
-
-	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
+	if (controller_port_variable(port, &var))
 	{
 		if (strcmp(var.value, "standard") == 0)
 			in_type[0] = PSE_PAD_TYPE_STANDARD;
@@ -423,31 +433,41 @@ static void update_controller_port_device(unsigned port, unsigned device)
 			in_type[0] = PSE_PAD_TYPE_NEGCON;
 		else if (strcmp(var.value, "none") == 0)
 			in_type[0] = PSE_PAD_TYPE_NONE;
-		else // 'default' case
-			default_case = 1;
+		// else 'default' case, do nothing
 	}
-	else
-		default_case = 1;
+}
 
-	if (default_case)
-		switch (device)
-		{
-		case RETRO_DEVICE_JOYPAD:
-			in_type[port] = PSE_PAD_TYPE_STANDARD;
-			break;
-		case RETRO_DEVICE_ANALOG:
-			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
-			break;
-		case RETRO_DEVICE_MOUSE:
-			in_type[port] = PSE_PAD_TYPE_MOUSE;
-			break;
-		case RETRO_DEVICE_LIGHTGUN:
-			in_type[port] = PSE_PAD_TYPE_GUN;
-			break;
-		case RETRO_DEVICE_NONE:
-		default:
-			in_type[port] = PSE_PAD_TYPE_NONE;
-		}
+static void update_controller_port_device(unsigned port, unsigned device)
+{
+	if (port >= PORTS_NUMBER)
+		return;
+
+	struct retro_variable var;
+
+	if (!controller_port_variable(port, &var))
+		return;
+
+	if (strcmp(var.value, "default") != 0)
+		return;
+
+	switch (device)
+	{
+	case RETRO_DEVICE_JOYPAD:
+		in_type[port] = PSE_PAD_TYPE_STANDARD;
+		break;
+	case RETRO_DEVICE_ANALOG:
+		in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+	case RETRO_DEVICE_MOUSE:
+		in_type[port] = PSE_PAD_TYPE_MOUSE;
+		break;
+	case RETRO_DEVICE_LIGHTGUN:
+		in_type[port] = PSE_PAD_TYPE_GUN;
+		break;
+	case RETRO_DEVICE_NONE:
+	default:
+		in_type[port] = PSE_PAD_TYPE_NONE;
+	}
 }
 
 static void update_multitap()
@@ -468,7 +488,7 @@ static void update_multitap()
 			auto_case = 1;
 	}
 	else
-		auto_case == 1;
+		auto_case = 1;
 
 	if (auto_case)
 	{
@@ -491,7 +511,7 @@ static void update_multitap()
 			auto_case = 1;
 	}
 	else
-		auto_case == 1;
+		auto_case = 1;
 
 	if (auto_case)
 	{
@@ -1204,7 +1224,7 @@ static void update_variables(bool in_flight)
    }
 
    for (int i = 0; i < PORTS_NUMBER; i++)
-      update_controller_port_device(i, RETRO_DEVICE_NONE);
+      update_controller_port_variable(i);
 
    update_multitap();
 
