@@ -20,7 +20,6 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
-LIBM := -lm
 LIBZ := -lz
 LIBPTHREAD := -lpthread
 LIBDL := -ldl
@@ -31,24 +30,20 @@ EXTRA_LDFLAGS =
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-	SHARED := -shared -Wl,--version-script=libretro/link.T
 
 else ifeq ($(platform), linux-portable)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC -nostdlib
 	EXTRA_LDFLAGS += -fPIC -nostdlib
-	LIBM :=
 	LIBZ :=
 	LIBPTHREAD :=
 	LIBDL :=
-	SHARED := -shared -Wl,--version-script=libretro/link.T
+	NO_UNDEF_CHECK = 1
+
 # OS X
 else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
-	SHARED := -dynamiclib
-	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
-	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
 	fpic += -mmacosx-version-min=10.1
 
 # iOS
@@ -61,7 +56,6 @@ ifeq ($(USE_DYNAREC),0)
 	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 endif
 	fpic := -fPIC
-	SHARED := -dynamiclib
 
 	ifeq ($(IOSSDK),)
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
@@ -126,15 +120,15 @@ else ifeq ($(platform), vita)
 	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 
-#   CFLAGS += -U__ARM_NEON__
+#	CFLAGS += -U__ARM_NEON__
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 
-#   USE_DYNAREC = 1
+#	USE_DYNAREC = 1
 #	DRC_CACHE_BASE = 0
 
 	ARCH = arm
-   STATIC_LINKING = 1
+	STATIC_LINKING = 1
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
@@ -191,12 +185,14 @@ else ifeq ($(platform), qnx)
 	ARCH = arm
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	MAIN_LDLIBS += -lsocket
+	LIBPTHREAD :=
+	LIBDL :=
 
 #Raspberry Pi 2
 else ifeq ($(platform), rpi2)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-	SHARED := -shared -Wl,--no-undefined
 	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	HAVE_NEON = 1
@@ -208,7 +204,6 @@ else ifeq ($(platform), rpi2)
 else ifeq ($(platform), rpi3)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-	SHARED := -shared -Wl,--no-undefined
 	CFLAGS += -marm -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	HAVE_NEON = 1
@@ -219,7 +214,6 @@ else ifeq ($(platform), rpi3)
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
-	SHARED := -shared -Wl,--no-undefined
 	fpic := -fPIC
 	DRC_CACHE_BASE = 0
 	ifneq (,$(findstring cortexa8,$(platform)))
@@ -249,23 +243,28 @@ else ifneq (,$(findstring armv,$(platform)))
 # Windows
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
-	CC = gcc
-	fpic := -fPIC
-	LD_FLAGS := -fPIC
-	SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--version-script=libretro/link.T
-	CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
+	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
+	CFLAGS += -D__WIN32__
 	MMAP_WIN32=1
+	MAIN_LDLIBS += -lws2_32
+	LIBPTHREAD :=
+	LIBDL :=
 endif
 
 CFLAGS += $(fpic)
-ifeq ($(platform),win)
-	MAIN_LDLIBS += -lws2_32
-else ifneq ($(platform),qnx)
-	LDLIBS += $(LIBPHTREAD)
-	MAIN_LDLIBS += $(LIBDL)
-endif
 MAIN_LDFLAGS += -shared
-MAIN_LDLIBS += $(LIBM) $(LIBZ)
+MAIN_LDLIBS += $(LIBPTHREAD) $(LIBDL) $(LIBZ)
+
+# try to autodetect stuff for the lazy
+ifndef ARCH
+ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+endif
+ifndef HAVE_NEON
+HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+endif
+ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+MAIN_LDFLAGS += -Wl,--no-undefined
+endif
 
 TARGET ?= libretro.so
 PLATFORM = libretro

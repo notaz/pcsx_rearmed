@@ -153,6 +153,8 @@ typedef struct
 
 
 
+// No controller
+#define PSE_PAD_TYPE_NONE			0
 // MOUSE SCPH-1030
 #define PSE_PAD_TYPE_MOUSE			1
 // NEGCON - 16 button analog controller SLPH-00001
