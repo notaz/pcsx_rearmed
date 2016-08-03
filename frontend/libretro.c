@@ -473,7 +473,7 @@ static void update_controller_port_device(unsigned port, unsigned device)
 static void update_multitap()
 {
 	struct retro_variable var;
-	int auto_case;
+	int auto_case, port;
 
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap1";
@@ -494,7 +494,7 @@ static void update_multitap()
 	{
 		// If a gamepad is plugged after port 2, we need a first multitap.
 		multitap1 = 0;
-		for (int port = 2; port < PORTS_NUMBER; port++)
+		for (port = 2; port < PORTS_NUMBER; port++)
 			multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 
@@ -517,7 +517,7 @@ static void update_multitap()
 	{
 		// If a gamepad is plugged after port 4, we need a second multitap.
 		multitap2 = 0;
-		for (int port = 4; port < PORTS_NUMBER; port++)
+		for (port = 4; port < PORTS_NUMBER; port++)
 			multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 }
@@ -1204,6 +1204,7 @@ static const unsigned short retro_psx_map[] = {
 static void update_variables(bool in_flight)
 {
    struct retro_variable var;
+   int i;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
@@ -1223,7 +1224,7 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
-   for (int i = 0; i < PORTS_NUMBER; i++)
+   for (i = 0; i < PORTS_NUMBER; i++)
       update_controller_port_variable(i);
 
    update_multitap();
