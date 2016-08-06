@@ -124,8 +124,8 @@ else ifeq ($(platform), vita)
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 
-#	USE_DYNAREC = 1
-#	DRC_CACHE_BASE = 0
+	USE_DYNAREC = 1
+	DRC_CACHE_BASE = 1
 
 	ARCH = arm
 	STATIC_LINKING = 1
