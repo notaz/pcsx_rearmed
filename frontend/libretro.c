@@ -256,6 +256,85 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 }
 #endif
 
+#ifdef VITA
+typedef struct
+{
+   void* buffer;
+   uint32_t target_map;
+   size_t size;
+   enum psxMapTag tag;
+}psx_map_t;
+
+psx_map_t custom_psx_maps[] = {
+   {NULL, NULL, 0x210000, MAP_TAG_RAM},   // 0x80000000
+   {NULL, NULL, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
+   {NULL, NULL, 0x080000, MAP_TAG_OTHER}, // 0x1fc00000
+   {NULL, NULL, 0x800000, MAP_TAG_LUTS},  // 0x08000000
+   {NULL, NULL, 0x200000, MAP_TAG_VRAM},  // 0x00000000
+};
+
+void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+   (void)is_fixed;
+   (void)addr;
+
+
+    psx_map_t* custom_map = custom_psx_maps;
+
+    for (; custom_map->size; custom_map++)
+    {
+       if ((custom_map->size == size) && (custom_map->tag == tag))
+       {
+          int block, ret;
+          char blockname[32];
+          sprintf(blockname, "CODE 0x%08X",tag);
+
+          block = sceKernelAllocMemBlockForVM(blockname, size);
+          if(block<=0){
+            sceClibPrintf("could not alloc mem block @0x%08X 0x%08X \n", block, tag);
+            exit(1);
+          }
+
+          // get base address
+          ret = sceKernelGetMemBlockBase(block, &custom_map->buffer);
+          if (ret < 0)
+          {
+            sceClibPrintf("could get address @0x%08X 0x%08X 0x%08X \n", block, ret, tag);
+            exit(1);
+          }
+
+          custom_map->target_map = block;
+
+          return custom_map->buffer;
+       }
+    }
+
+
+   return malloc(size);
+}
+
+void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)tag;
+
+   psx_map_t* custom_map = custom_psx_maps;
+
+  for (; custom_map->size; custom_map++)
+  {
+     if ((custom_map->buffer == ptr))
+     {
+        sceKernelFreeMemBlock(custom_map->target_map);
+        custom_map->buffer = NULL;
+        custom_map->target_map = NULL;
+        return;
+     }
+  }
+
+   free(ptr);
+}
+#endif
+
 static void *pl_mmap(unsigned int size)
 {
 	return psxMap(0, size, 0, MAP_TAG_VRAM);
@@ -1474,6 +1553,10 @@ void retro_init(void)
 #ifdef _3DS
    psxMapHook = pl_3ds_mmap;
    psxUnmapHook = pl_3ds_munmap;
+#endif
+#ifdef VITA
+   psxMapHook = pl_vita_mmap;
+   psxUnmapHook = pl_vita_munmap;
 #endif
 	ret = emu_core_preinit();
 #ifdef _3DS
