@@ -7980,17 +7980,18 @@ void new_dynarec_clear_full()
 void new_dynarec_init()
 {
   SysPrintf("Init new dynarec\n");
-  out=(u_char *)BASE_ADDR;
-#if defined(VITA)
 
-  if (mmap (out, 1<<TARGET_SIZE_2,
+#if defined(VITA)
+  BASE_ADDR=mmap(BASE_ADDR, 1<<TARGET_SIZE_2,
             0,
             0,
-            -1, 0) <= 0) {
+            -1, 0);
+  if (out<=0) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
   }
-
+  out=(u_char *)BASE_ADDR;
 #else
+  out=(u_char *)BASE_ADDR;
   #if BASE_ADDR_FIXED
     if (mmap (out, 1<<TARGET_SIZE_2,
               PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -8068,7 +8069,7 @@ void new_dynarec_init()
 void new_dynarec_cleanup()
 {
   int n;
-  #if BASE_ADDR_FIXED
+  #if BASE_ADDR_FIXED || defined(VITA)
   if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {SysPrintf("munmap() failed\n");}
   #endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
