@@ -290,7 +290,7 @@ void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
           char blockname[32];
           sprintf(blockname, "CODE 0x%08X",tag);
 
-          block = sceKernelAllocMemBlockForVM(blockname, size);
+          block = sceKernelAllocMemBlock(blockname, size + 0x1000);
           if(block<=0){
             sceClibPrintf("could not alloc mem block @0x%08X 0x%08X \n", block, tag);
             exit(1);
@@ -303,7 +303,7 @@ void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
             sceClibPrintf("could get address @0x%08X 0x%08X 0x%08X \n", block, ret, tag);
             exit(1);
           }
-
+          custom_map->buffer = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
           custom_map->target_map = block;
 
           return custom_map->buffer;
