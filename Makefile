@@ -2,8 +2,10 @@
 
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
-CFLAGS += -Wall -ggdb -Iinclude -ffast-math
-ifndef DEBUG
+CFLAGS += -Wall -Iinclude -ffast-math
+ifeq ($(DEBUG), 1)
+CFLAGS += -O0 -ggdb -DOPENGL_DEBUG
+else
 CFLAGS += -O2 -DNDEBUG
 endif
 CXXFLAGS += $(CFLAGS)
