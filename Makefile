@@ -4,7 +4,7 @@
 TARGET ?= pcsx
 CFLAGS += -Wall -Iinclude -ffast-math
 ifeq ($(DEBUG), 1)
-CFLAGS += -O0 -ggdb -DOPENGL_DEBUG
+CFLAGS += -O0 -ggdb
 else
 CFLAGS += -O2 -DNDEBUG
 endif
