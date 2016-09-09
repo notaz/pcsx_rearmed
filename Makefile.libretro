@@ -24,7 +24,6 @@ CFLAGS ?=
 TARGET_NAME := pcsx_rearmed
 LIBZ := -lz
 LIBPTHREAD := -lpthread
-LIBDL := -ldl
 MMAP_WIN32=0
 EXTRA_LDFLAGS =
 
