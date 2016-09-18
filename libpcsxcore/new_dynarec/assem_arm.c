@@ -186,8 +186,8 @@ add_literal(int addr,int val)
   assert(literalcount<sizeof(literals)/sizeof(literals[0]));
   literals[literalcount][0]=addr;
   literals[literalcount][1]=val;
-  literalcount++; 
-} 
+  literalcount++;
+}
 
 void *kill_pointer(void *stub)
 {
@@ -315,19 +315,19 @@ void alloc_reg(struct regstat *cur,int i,signed char reg)
   int preferred_reg = (reg&7);
   if(reg==CCREG) preferred_reg=HOST_CCREG;
   if(reg==PTEMP||reg==FTEMP) preferred_reg=12;
-  
+
   // Don't allocate unused registers
   if((cur->u>>reg)&1) return;
-  
+
   // see if it's already allocated
   for(hr=0;hr<HOST_REGS;hr++)
   {
     if(cur->regmap[hr]==reg) return;
   }
-  
+
   // Keep the same mapping if the register was already allocated in a loop
   preferred_reg = loop_reg(i,reg,preferred_reg);
-  
+
   // Try to allocate the preferred register
   if(cur->regmap[preferred_reg]==-1) {
     cur->regmap[preferred_reg]=reg;
@@ -348,7 +348,7 @@ void alloc_reg(struct regstat *cur,int i,signed char reg)
     cur->isconst&=~(1<<preferred_reg);
     return;
   }
-  
+
   // Clear any unneeded registers
   // We try to keep the mapping consistent, if possible, because it
   // makes branches easier (especially loops).  So we try to allocate
@@ -391,7 +391,7 @@ void alloc_reg(struct regstat *cur,int i,signed char reg)
       return;
     }
   }
-  
+
   // Ok, now we have to evict someone
   // Pick a register we hopefully won't need soon
   u_char hsn[MAXREG+1];
@@ -478,22 +478,22 @@ void alloc_reg64(struct regstat *cur,int i,signed char reg)
 {
   int preferred_reg = 8+(reg&1);
   int r,hr;
-  
+
   // allocate the lower 32 bits
   alloc_reg(cur,i,reg);
-  
+
   // Don't allocate unused registers
   if((cur->uu>>reg)&1) return;
-  
+
   // see if the upper half is already allocated
   for(hr=0;hr<HOST_REGS;hr++)
   {
     if(cur->regmap[hr]==reg+64) return;
   }
-  
+
   // Keep the same mapping if the register was already allocated in a loop
   preferred_reg = loop_reg(i,reg,preferred_reg);
-  
+
   // Try to allocate the preferred register
   if(cur->regmap[preferred_reg]==-1) {
     cur->regmap[preferred_reg]=reg|64;
@@ -514,7 +514,7 @@ void alloc_reg64(struct regstat *cur,int i,signed char reg)
     cur->isconst&=~(1<<preferred_reg);
     return;
   }
-  
+
   // Clear any unneeded registers
   // We try to keep the mapping consistent, if possible, because it
   // makes branches easier (especially loops).  So we try to allocate
@@ -557,7 +557,7 @@ void alloc_reg64(struct regstat *cur,int i,signed char reg)
       return;
     }
   }
-  
+
   // Ok, now we have to evict someone
   // Pick a register we hopefully won't need soon
   u_char hsn[MAXREG+1];
@@ -647,13 +647,13 @@ void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 {
   int r,hr;
   int preferred_reg = -1;
-  
+
   // see if it's already allocated
   for(hr=0;hr<HOST_REGS;hr++)
   {
     if(hr!=EXCLUDE_REG&&cur->regmap[hr]==reg) return;
   }
-  
+
   // Try to allocate any available register
   for(hr=HOST_REGS-1;hr>=0;hr--) {
     if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
@@ -663,7 +663,7 @@ void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
       return;
     }
   }
-  
+
   // Find an unneeded register
   for(hr=HOST_REGS-1;hr>=0;hr--)
   {
@@ -692,7 +692,7 @@ void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  
+
   // Ok, now we have to evict someone
   // Pick a register we hopefully won't need soon
   // TODO: we might want to follow unconditional jumps here
@@ -767,7 +767,7 @@ void alloc_arm_reg(struct regstat *cur,int i,signed char reg,char hr)
 {
   int n;
   int dirty=0;
-  
+
   // see if it's already allocated (and dealloc it)
   for(n=0;n<HOST_REGS;n++)
   {
@@ -776,7 +776,7 @@ void alloc_arm_reg(struct regstat *cur,int i,signed char reg,char hr)
       cur->regmap[n]=-1;
     }
   }
-  
+
   cur->regmap[hr]=reg;
   cur->dirty&=~(1<<hr);
   cur->dirty|=dirty<<hr;
@@ -4031,7 +4031,7 @@ void do_clear_cache()
     u_int bitmap=needs_clear_cache[i];
     if(bitmap) {
       u_int start,end;
-      for(j=0;j<32;j++) 
+      for(j=0;j<32;j++)
       {
         if(bitmap&(1<<j)) {
           start=(u_int)BASE_ADDR+i*131072+j*4096;
