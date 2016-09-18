@@ -23,7 +23,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/mman.h>
+#ifdef __MACH__
+#include <libkern/OSCacheControl.h>
+#endif
 
+#include "new_dynarec_config.h"
 #include "emu_if.h" //emulator interface
 
 //#define DISASM
@@ -40,19 +44,6 @@
 #endif
 #ifdef __arm__
 #include "assem_arm.h"
-#endif
-
-#ifdef __BLACKBERRY_QNX__
-#undef __clear_cache
-#define __clear_cache(start,end) msync(start, (size_t)((void*)end - (void*)start), MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
-#elif defined(__MACH__)
-#include <libkern/OSCacheControl.h>
-#define __clear_cache mach_clear_cache
-static void __clear_cache(void *start, void *end) {
-  size_t len = (char *)end - (char *)start;
-  sys_dcache_flush(start, len);
-  sys_icache_invalidate(start, len);
-}
 #endif
 
 #define MAXBLOCK 4096
@@ -270,6 +261,56 @@ static void add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e
 static void add_to_linker(int addr,int target,int ext);
 
 static int tracedebug=0;
+
+static void mprotect_w_x(void *start, void *end, int is_x)
+{
+#ifdef NO_WRITE_EXEC
+  u_long mstart = (u_long)start & ~4095ul;
+  u_long mend = (u_long)end;
+  if (mprotect((void *)mstart, mend - mstart,
+               PROT_READ | (is_x ? PROT_EXEC : PROT_WRITE)) != 0)
+    SysPrintf("mprotect(%c) failed: %s\n", is_x ? 'x' : 'w', strerror(errno));
+#endif
+}
+
+static void start_tcache_write(void *start, void *end)
+{
+  mprotect_w_x(start, end, 0);
+}
+
+static void end_tcache_write(void *start, void *end)
+{
+#ifdef __arm__
+  size_t len = (char *)end - (char *)start;
+  #if   defined(__BLACKBERRY_QNX__)
+  msync(start, len, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
+  #elif defined(__MACH__)
+  sys_cache_control(kCacheFunctionPrepareForExecution, start, len);
+  #elif defined(VITA)
+  int block = sceKernelFindMemBlockByAddr(start, len);
+  sceKernelSyncVMDomain(block, start, len);
+  #else
+  __clear_cache(start, end);
+  #endif
+  (void)len;
+#endif
+
+  mprotect_w_x(start, end, 1);
+}
+
+static void *start_block(void)
+{
+  u_char *end = out + MAX_OUTPUT_BLOCK_SIZE;
+  if (end > (u_char *)BASE_ADDR + (1<<TARGET_SIZE_2))
+    end = (u_char *)BASE_ADDR + (1<<TARGET_SIZE_2);
+  start_tcache_write(out, end);
+  return out;
+}
+
+static void end_block(void *start)
+{
+  end_tcache_write(start, out);
+}
 
 //#define DEBUG_CYCLE_COUNT 1
 
@@ -829,7 +870,7 @@ void ll_clear(struct ll_entry **head)
 }
 
 // Dereference the pointers and remove if it matches
-void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
+static void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
 {
   while(head) {
     int ptr=get_pointer(head->addr);
@@ -838,10 +879,11 @@ void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
        (((ptr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift)))
     {
       inv_debug("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
-      u_int host_addr=(u_int)kill_pointer(head->addr);
+      void *host_addr=find_extjump_insn(head->addr);
       #ifdef __arm__
-        needs_clear_cache[(host_addr-(u_int)BASE_ADDR)>>17]|=1<<(((host_addr-(u_int)BASE_ADDR)>>12)&31);
+        mark_clear_cache(host_addr);
       #endif
+      set_jump_target((int)host_addr,(int)head->addr);
     }
     head=head->next;
   }
@@ -865,10 +907,11 @@ void invalidate_page(u_int page)
   jump_out[page]=0;
   while(head!=NULL) {
     inv_debug("INVALIDATE: kill pointer to %x (%x)\n",head->vaddr,(int)head->addr);
-    u_int host_addr=(u_int)kill_pointer(head->addr);
+    void *host_addr=find_extjump_insn(head->addr);
     #ifdef __arm__
-      needs_clear_cache[(host_addr-(u_int)BASE_ADDR)>>17]|=1<<(((host_addr-(u_int)BASE_ADDR)>>12)&31);
+      mark_clear_cache(host_addr);
     #endif
+    set_jump_target((int)host_addr,(int)head->addr);
     next=head->next;
     free(head);
     head=next;
@@ -6936,13 +6979,14 @@ static void disassemble_inst(int i) {}
 static int new_dynarec_test(void)
 {
   int (*testfunc)(void) = (void *)out;
+  void *beginning;
   int ret;
+
+  beginning = start_block();
   emit_movimm(DRC_TEST_VAL,0); // test
   emit_jmpreg(14);
   literal_pool(0);
-#ifdef __arm__
-  __clear_cache((void *)testfunc, out);
-#endif
+  end_block(beginning);
   SysPrintf("testing if we can run recompiled code..\n");
   ret = testfunc();
   if (ret == DRC_TEST_VAL)
@@ -6987,7 +7031,7 @@ void new_dynarec_init()
             -1, 0) <= 0) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
   }
-#else
+#elif !defined(NO_WRITE_EXEC)
   // not all systems allow execute in data segment by default
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
@@ -7172,16 +7216,15 @@ int new_recompile_block(int addr)
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
-    u_int beginning=(u_int)out;
+    void *beginning=start_block();
     u_int page=get_page(start);
+
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,(int)&pcaddr);
     emit_jmp((int)new_dyna_leave);
     literal_pool(0);
-#ifdef __arm__
-    __clear_cache((void *)beginning,out);
-#endif
+    end_block(beginning);
     ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
     return 0;
   }
@@ -9883,7 +9926,7 @@ int new_recompile_block(int addr)
   cop1_usable=0;
   uint64_t is32_pre=0;
   u_int dirty_pre=0;
-  u_int beginning=(u_int)out;
+  void *beginning=start_block();
   if((u_int)addr&1) {
     ds=1;
     pagespan_ds();
@@ -10173,14 +10216,12 @@ int new_recompile_block(int addr)
   // Align code
   if(((u_int)out)&7) emit_addnop(13);
   #endif
-  assert((u_int)out-beginning<MAX_OUTPUT_BLOCK_SIZE);
+  assert((u_int)out-(u_int)beginning<MAX_OUTPUT_BLOCK_SIZE);
   //printf("shadow buffer: %x-%x\n",(int)copy,(int)copy+slen*4);
   memcpy(copy,source,slen*4);
   copy+=slen*4;
 
-  #ifdef __arm__
-  __clear_cache((void *)beginning,out);
-  #endif
+  end_block(beginning);
 
   // If we're within 256K of the end of the buffer,
   // start over from the beginning. (Is 256K enough?)

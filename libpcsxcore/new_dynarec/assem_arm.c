@@ -114,7 +114,7 @@ const u_int invalidate_addr_reg[16] = {
   0,
   0};
 
-static unsigned int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
+static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
 
 /* Linker */
 
@@ -193,15 +193,15 @@ static void add_literal(int addr,int val)
   literalcount++;
 }
 
-static void *kill_pointer(void *stub)
+// from a pointer to external jump stub (which was produced by emit_extjump2)
+// find where the jumping insn is
+static void *find_extjump_insn(void *stub)
 {
   int *ptr=(int *)(stub+4);
-  assert((*ptr&0x0ff00000)==0x05900000);
+  assert((*ptr&0x0fff0000)==0x059f0000); // ldr rx, [pc, #ofs]
   u_int offset=*ptr&0xfff;
-  int **l_ptr=(void *)ptr+offset+8;
-  int *i_ptr=*l_ptr;
-  set_jump_target((int)i_ptr,(int)stub);
-  return i_ptr;
+  void **l_ptr=(void *)ptr+offset+8;
+  return *l_ptr;
 }
 
 // find where external branch is liked to using addr of it's stub:
@@ -211,11 +211,7 @@ static void *kill_pointer(void *stub)
 static int get_pointer(void *stub)
 {
   //printf("get_pointer(%x)\n",(int)stub);
-  int *ptr=(int *)(stub+4);
-  assert((*ptr&0x0fff0000)==0x059f0000);
-  u_int offset=*ptr&0xfff;
-  int **l_ptr=(void *)ptr+offset+8;
-  int *i_ptr=*l_ptr;
+  int *i_ptr=find_extjump_insn(stub);
   assert((*i_ptr&0x0f000000)==0x0a000000);
   return (int)i_ptr+((*i_ptr<<8)>>6)+8;
 }
@@ -4094,6 +4090,17 @@ static void wb_invalidate_arm(signed char pre[],signed char entry[],uint64_t dir
 #define wb_invalidate wb_invalidate_arm
 */
 
+static void mark_clear_cache(void *target)
+{
+  u_long offset = (char *)target - (char *)BASE_ADDR;
+  u_int mask = 1u << ((offset >> 12) & 31);
+  if (!(needs_clear_cache[offset >> 17] & mask)) {
+    char *start = (char *)((u_long)target & ~4095ul);
+    start_tcache_write(start, start + 4096);
+    needs_clear_cache[offset >> 17] |= mask;
+  }
+}
+
 // Clearing the cache is rather slow on ARM Linux, so mark the areas
 // that need to be cleared, and then only clear these areas once.
 static void do_clear_cache()
@@ -4115,7 +4122,7 @@ static void do_clear_cache()
               end+=4096;
               j++;
             }else{
-              __clear_cache((void *)start,(void *)end);
+              end_tcache_write((void *)start,(void *)end);
               break;
             }
           }
