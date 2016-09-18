@@ -9,11 +9,6 @@
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
 #define HAVE_CONDITIONAL_CALL 1
-#define DISABLE_TLB 1
-//#define MUPEN64
-#define FORCE32 1
-#define DISABLE_COP1 1
-#define PCSX 1
 #define RAM_SIZE 0x200000
 
 #ifndef __ARM_ARCH_7A__
@@ -25,11 +20,7 @@
 #define BASE_ADDR_FIXED 0
 #endif
 
-#ifdef FORCE32
 #define REG_SHIFT 2
-#else
-#define REG_SHIFT 3
-#endif
 
 /* ARM calling convention:
    r0-r3, r12: caller-save
