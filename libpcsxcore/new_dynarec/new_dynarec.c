@@ -83,22 +83,29 @@ struct ll_entry
   struct ll_entry *next;
 };
 
-  u_int start;
-  u_int *source;
-  char insn[MAXBLOCK][10];
-  u_char itype[MAXBLOCK];
-  u_char opcode[MAXBLOCK];
-  u_char opcode2[MAXBLOCK];
-  u_char bt[MAXBLOCK];
-  u_char rs1[MAXBLOCK];
-  u_char rs2[MAXBLOCK];
-  u_char rt1[MAXBLOCK];
-  u_char rt2[MAXBLOCK];
-  u_char us1[MAXBLOCK];
-  u_char us2[MAXBLOCK];
-  u_char dep1[MAXBLOCK];
-  u_char dep2[MAXBLOCK];
-  u_char lt1[MAXBLOCK];
+  // used by asm:
+  u_char *out;
+  u_int hash_table[65536][4]  __attribute__((aligned(16)));
+  struct ll_entry *jump_in[4096] __attribute__((aligned(16)));
+  struct ll_entry *jump_dirty[4096];
+
+  static struct ll_entry *jump_out[4096];
+  static u_int start;
+  static u_int *source;
+  static char insn[MAXBLOCK][10];
+  static u_char itype[MAXBLOCK];
+  static u_char opcode[MAXBLOCK];
+  static u_char opcode2[MAXBLOCK];
+  static u_char bt[MAXBLOCK];
+  static u_char rs1[MAXBLOCK];
+  static u_char rs2[MAXBLOCK];
+  static u_char rt1[MAXBLOCK];
+  static u_char rt2[MAXBLOCK];
+  static u_char us1[MAXBLOCK];
+  static u_char us2[MAXBLOCK];
+  static u_char dep1[MAXBLOCK];
+  static u_char dep2[MAXBLOCK];
+  static u_char lt1[MAXBLOCK];
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
   static uint64_t gte_rt[MAXBLOCK];
   static uint64_t gte_unneeded[MAXBLOCK];
@@ -107,52 +114,47 @@ struct ll_entry
   static u_int smrv_weak; // same, but somewhat less likely
   static u_int smrv_strong_next; // same, but after current insn executes
   static u_int smrv_weak_next;
-  int imm[MAXBLOCK];
-  u_int ba[MAXBLOCK];
-  char likely[MAXBLOCK];
-  char is_ds[MAXBLOCK];
-  char ooo[MAXBLOCK];
-  uint64_t unneeded_reg[MAXBLOCK];
-  uint64_t unneeded_reg_upper[MAXBLOCK];
-  uint64_t branch_unneeded_reg[MAXBLOCK];
-  uint64_t branch_unneeded_reg_upper[MAXBLOCK];
-  uint64_t pr32[MAXBLOCK];
-  signed char regmap_pre[MAXBLOCK][HOST_REGS];
+  static int imm[MAXBLOCK];
+  static u_int ba[MAXBLOCK];
+  static char likely[MAXBLOCK];
+  static char is_ds[MAXBLOCK];
+  static char ooo[MAXBLOCK];
+  static uint64_t unneeded_reg[MAXBLOCK];
+  static uint64_t unneeded_reg_upper[MAXBLOCK];
+  static uint64_t branch_unneeded_reg[MAXBLOCK];
+  static uint64_t branch_unneeded_reg_upper[MAXBLOCK];
+  static signed char regmap_pre[MAXBLOCK][HOST_REGS];
   static uint64_t current_constmap[HOST_REGS];
   static uint64_t constmap[MAXBLOCK][HOST_REGS];
   static struct regstat regs[MAXBLOCK];
   static struct regstat branch_regs[MAXBLOCK];
-  signed char minimum_free_regs[MAXBLOCK];
-  u_int needed_reg[MAXBLOCK];
-  u_int wont_dirty[MAXBLOCK];
-  u_int will_dirty[MAXBLOCK];
-  int ccadj[MAXBLOCK];
-  int slen;
-  u_int instr_addr[MAXBLOCK];
-  u_int link_addr[MAXBLOCK][3];
-  int linkcount;
-  u_int stubs[MAXBLOCK*3][8];
-  int stubcount;
-  u_int literals[1024][2];
-  int literalcount;
-  int is_delayslot;
-  int cop1_usable;
-  u_char *out;
-  struct ll_entry *jump_in[4096] __attribute__((aligned(16)));
-  struct ll_entry *jump_out[4096];
-  struct ll_entry *jump_dirty[4096];
-  u_int hash_table[65536][4]  __attribute__((aligned(16)));
-  char shadow[1048576]  __attribute__((aligned(16)));
-  void *copy;
-  int expirep;
-  int new_dynarec_did_compile;
-  int new_dynarec_hacks;
-  u_int stop_after_jal;
+  static signed char minimum_free_regs[MAXBLOCK];
+  static u_int needed_reg[MAXBLOCK];
+  static u_int wont_dirty[MAXBLOCK];
+  static u_int will_dirty[MAXBLOCK];
+  static int ccadj[MAXBLOCK];
+  static int slen;
+  static u_int instr_addr[MAXBLOCK];
+  static u_int link_addr[MAXBLOCK][3];
+  static int linkcount;
+  static u_int stubs[MAXBLOCK*3][8];
+  static int stubcount;
+  static u_int literals[1024][2];
+  static int literalcount;
+  static int is_delayslot;
+  static int cop1_usable;
+  static char shadow[1048576]  __attribute__((aligned(16)));
+  static void *copy;
+  static int expirep;
+  static u_int stop_after_jal;
 #ifndef RAM_FIXED
   static u_int ram_offset;
 #else
   static const u_int ram_offset=0;
 #endif
+
+  int new_dynarec_hacks;
+  int new_dynarec_did_compile;
   extern u_char restore_candidate[512];
   extern int cycle_count;
 
@@ -254,15 +256,20 @@ void jump_intcall();
 void new_dyna_leave();
 
 // Needed by assembler
-void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32);
-void wb_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty);
-void wb_needed_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,int addr);
-void load_all_regs(signed char i_regmap[]);
-void load_needed_regs(signed char i_regmap[],signed char next_regmap[]);
-void load_regs_entry(int t);
-void load_all_consts(signed char regmap[],int is32,u_int dirty,int i);
+static void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32);
+static void wb_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty);
+static void wb_needed_dirtys(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,int addr);
+static void load_all_regs(signed char i_regmap[]);
+static void load_needed_regs(signed char i_regmap[],signed char next_regmap[]);
+static void load_regs_entry(int t);
+static void load_all_consts(signed char regmap[],int is32,u_int dirty,int i);
 
-int tracedebug=0;
+static int verify_dirty(u_int *ptr);
+static int get_final_value(int hr, int i, int *value);
+static void add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e);
+static void add_to_linker(int addr,int target,int ext);
+
+static int tracedebug=0;
 
 //#define DEBUG_CYCLE_COUNT 1
 
@@ -1747,7 +1754,7 @@ static void pagespan_alloc(struct regstat *current,int i)
   //else ...
 }
 
-add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e)
+static void add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e)
 {
   stubs[stubcount][0]=type;
   stubs[stubcount][1]=addr;
@@ -3703,7 +3710,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
   }
 }
 
-int get_final_value(int hr, int i, int *value)
+static int get_final_value(int hr, int i, int *value)
 {
   int reg=regs[i].regmap[hr];
   while(i<slen-1) {
@@ -4584,7 +4591,7 @@ void do_ccstub(int n)
   emit_jmpreg(EAX);*/
 }
 
-add_to_linker(int addr,int target,int ext)
+static void add_to_linker(int addr,int target,int ext)
 {
   link_addr[linkcount][0]=addr;
   link_addr[linkcount][1]=target;
