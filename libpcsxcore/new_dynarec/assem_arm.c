@@ -241,7 +241,6 @@ static u_int get_clean_addr(int addr)
 
 static int verify_dirty(u_int *ptr)
 {
-  u_int *ptr=(u_int *)addr;
   #ifndef HAVE_ARMV7
   // get from literal pool
   assert((*ptr&0xFFFF0000)==0xe59f0000);
@@ -270,9 +269,9 @@ static int verify_dirty(u_int *ptr)
 static int isclean(int addr)
 {
   #ifndef HAVE_ARMV7
-  int *ptr=((u_int *)addr)+4;
+  u_int *ptr=((u_int *)addr)+4;
   #else
-  int *ptr=((u_int *)addr)+6;
+  u_int *ptr=((u_int *)addr)+6;
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   if((*ptr&0xFF000000)!=0xeb000000) return 1; // bl instruction
@@ -860,6 +859,7 @@ static void genimm_checked(u_int imm,u_int *encoded)
 {
   u_int ret=genimm(imm,encoded);
   assert(ret);
+  (void)ret;
 }
 
 static u_int genjmp(u_int addr)
@@ -2533,14 +2533,10 @@ static void do_readstub(int n)
   struct regstat *i_regs=(struct regstat *)stubs[n][5];
   u_int reglist=stubs[n][7];
   signed char *i_regmap=i_regs->regmap;
-  int addr=get_reg(i_regmap,AGEN1+(i&1));
-  int rth,rt;
-  int ds;
+  int rt;
   if(itype[i]==C1LS||itype[i]==C2LS||itype[i]==LOADLR) {
-    rth=get_reg(i_regmap,FTEMP|64);
     rt=get_reg(i_regmap,FTEMP);
   }else{
-    rth=get_reg(i_regmap,rt1[i]|64);
     rt=get_reg(i_regmap,rt1[i]);
   }
   assert(rs>=0);
@@ -2635,7 +2631,6 @@ static u_int get_direct_memhandler(void *table,u_int addr,int type,u_int *addr_h
 static void inline_readstub(int type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,target);
-  int rth=get_reg(regmap,target|64);
   int rt=get_reg(regmap,target);
   if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
@@ -2725,14 +2720,10 @@ static void do_writestub(int n)
   struct regstat *i_regs=(struct regstat *)stubs[n][5];
   u_int reglist=stubs[n][7];
   signed char *i_regmap=i_regs->regmap;
-  int addr=get_reg(i_regmap,AGEN1+(i&1));
-  int rth,rt,r;
-  int ds;
+  int rt,r;
   if(itype[i]==C1LS||itype[i]==C2LS) {
-    rth=get_reg(i_regmap,FTEMP|64);
     rt=get_reg(i_regmap,r=FTEMP);
   }else{
-    rth=get_reg(i_regmap,rs2[i]|64);
     rt=get_reg(i_regmap,r=rs2[i]);
   }
   assert(rs>=0);
@@ -2801,7 +2792,6 @@ static void do_writestub(int n)
 static void inline_writestub(int type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,-1);
-  int rth=get_reg(regmap,target|64);
   int rt=get_reg(regmap,target);
   assert(rs>=0);
   assert(rt>=0);
@@ -2848,7 +2838,6 @@ static void do_unalignedwritestub(int n)
   signed char *i_regmap=i_regs->regmap;
   int temp2=get_reg(i_regmap,FTEMP);
   int rt;
-  int ds, real_rs;
   rt=get_reg(i_regmap,rs2[i]);
   assert(rt>=0);
   assert(addr>=0);
@@ -3232,7 +3221,7 @@ static int get_ptr_mem_type(u_int a)
 
 static int emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
 {
-  int jaddr,type=0;
+  int jaddr=0,type=0;
   int mr=rs1[i];
   if(((smrv_strong|smrv_weak)>>mr)&1) {
     type=get_ptr_mem_type(smrv[mr]);
@@ -3700,7 +3689,6 @@ static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
 
 static void c2op_assemble(int i,struct regstat *i_regs)
 {
-  signed char temp=get_reg(i_regs->regmap,-1);
   u_int c2op=source[i]&0x3f;
   u_int hr,reglist_full=0,reglist;
   int need_flags,need_ir;
@@ -4025,7 +4013,7 @@ static void do_miniht_insert(u_int return_address,int rt,int temp) {
 static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t is32_pre,uint64_t u,uint64_t uu)
 {
   //if(dirty_pre==dirty) return;
-  int hr,reg,new_hr;
+  int hr,reg;
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG) {
       reg=pre[hr];

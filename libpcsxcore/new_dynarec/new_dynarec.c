@@ -311,10 +311,10 @@ void *get_addr(u_int vaddr)
   while(head!=NULL) {
     if(head->vaddr==vaddr) {
   //printf("TRACE: count=%d next=%d (get_addr match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
-      int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+      u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
       ht_bin[3]=ht_bin[1];
       ht_bin[2]=ht_bin[0];
-      ht_bin[1]=(int)head->addr;
+      ht_bin[1]=(u_int)head->addr;
       ht_bin[0]=vaddr;
       return head->addr;
     }
@@ -334,9 +334,9 @@ void *get_addr(u_int vaddr)
           restore_candidate[vpage>>3]|=1<<(vpage&7);
         }
         else restore_candidate[page>>3]|=1<<(page&7);
-        int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+        u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
         if(ht_bin[0]==vaddr) {
-          ht_bin[1]=(int)head->addr; // Replace existing entry
+          ht_bin[1]=(u_int)head->addr; // Replace existing entry
         }
         else
         {
@@ -366,7 +366,7 @@ void *get_addr(u_int vaddr)
 void *get_addr_ht(u_int vaddr)
 {
   //printf("TRACE: count=%d next=%d (get_addr_ht %x)\n",Count,next_interupt,vaddr);
-  int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+  u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
   if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
   if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
   return get_addr(vaddr);
@@ -634,6 +634,7 @@ int needed_again(int r, int i)
     }
   }*/
   if(rn<10) return 1;
+  (void)b;
   return 0;
 }
 
@@ -781,7 +782,7 @@ void *check_addr(u_int vaddr)
 void remove_hash(int vaddr)
 {
   //printf("remove hash: %x\n",vaddr);
-  int *ht_bin=hash_table[(((vaddr)>>16)^vaddr)&0xFFFF];
+  u_int *ht_bin=hash_table[(((vaddr)>>16)^vaddr)&0xFFFF];
   if(ht_bin[2]==vaddr) {
     ht_bin[2]=ht_bin[3]=-1;
   }
@@ -817,7 +818,7 @@ void ll_clear(struct ll_entry **head)
 {
   struct ll_entry *cur;
   struct ll_entry *next;
-  if(cur=*head) {
+  if((cur=*head)) {
     *head=0;
     while(cur) {
       next=cur->next;
@@ -991,7 +992,7 @@ void invalidate_addr(u_int addr)
 // Anything could have changed, so invalidate everything.
 void invalidate_all_pages()
 {
-  u_int page,n;
+  u_int page;
   for(page=0;page<4096;page++)
     invalidate_page(page);
   for(page=0;page<1048576;page++)
@@ -1014,6 +1015,7 @@ void add_link(u_int vaddr,void *src)
   inv_debug("add_link: %x -> %x (%d)\n",(int)src,vaddr,page);
   int *ptr=(int *)(src+4);
   assert((*ptr&0x0fff0000)==0x059f0000);
+  (void)ptr;
   ll_add(jump_out+page,vaddr,src);
   //int ptr=get_pointer(src);
   //inv_debug("add_link: Pointer is to %x\n",(int)ptr);
@@ -1033,7 +1035,7 @@ void clean_blocks(u_int page)
       // Don't restore blocks which are about to expire from the cache
       if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
         u_int start,end;
-        if(verify_dirty((int)head->addr)) {
+        if(verify_dirty(head->addr)) {
           //printf("Possibly Restore %x (%x)\n",head->vaddr, (int)head->addr);
           u_int i;
           u_int inv=0;
@@ -1054,12 +1056,12 @@ void clean_blocks(u_int page)
               //printf("page=%x, addr=%x\n",page,head->vaddr);
               //assert(head->vaddr>>12==(page|0x80000));
               ll_add_flags(jump_in+ppage,head->vaddr,head->reg_sv_flags,clean_addr);
-              int *ht_bin=hash_table[((head->vaddr>>16)^head->vaddr)&0xFFFF];
+              u_int *ht_bin=hash_table[((head->vaddr>>16)^head->vaddr)&0xFFFF];
               if(ht_bin[0]==head->vaddr) {
-                ht_bin[1]=(int)clean_addr; // Replace existing entry
+                ht_bin[1]=(u_int)clean_addr; // Replace existing entry
               }
               if(ht_bin[2]==head->vaddr) {
-                ht_bin[3]=(int)clean_addr; // Replace existing entry
+                ht_bin[3]=(u_int)clean_addr; // Replace existing entry
               }
             }
           }
@@ -2333,23 +2335,25 @@ void imm16_assemble(int i,struct regstat *i_regs)
                 emit_mov(sh,th);
               }
             }
-            if(opcode[i]==0x0d) //ORI
-            if(sl<0) {
-              emit_orimm(tl,imm[i],tl);
-            }else{
-              if(!((i_regs->wasconst>>sl)&1))
-                emit_orimm(sl,imm[i],tl);
-              else
-                emit_movimm(constmap[i][sl]|imm[i],tl);
+            if(opcode[i]==0x0d) { // ORI
+              if(sl<0) {
+                emit_orimm(tl,imm[i],tl);
+              }else{
+                if(!((i_regs->wasconst>>sl)&1))
+                  emit_orimm(sl,imm[i],tl);
+                else
+                  emit_movimm(constmap[i][sl]|imm[i],tl);
+              }
             }
-            if(opcode[i]==0x0e) //XORI
-            if(sl<0) {
-              emit_xorimm(tl,imm[i],tl);
-            }else{
-              if(!((i_regs->wasconst>>sl)&1))
-                emit_xorimm(sl,imm[i],tl);
-              else
-                emit_movimm(constmap[i][sl]^imm[i],tl);
+            if(opcode[i]==0x0e) { // XORI
+              if(sl<0) {
+                emit_xorimm(tl,imm[i],tl);
+              }else{
+                if(!((i_regs->wasconst>>sl)&1))
+                  emit_xorimm(sl,imm[i],tl);
+                else
+                  emit_movimm(constmap[i][sl]^imm[i],tl);
+              }
             }
           }
           else {
@@ -2533,7 +2537,7 @@ void load_assemble(int i,struct regstat *i_regs)
   //printf("load_assemble: c=%d\n",c);
   //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
   // FIXME: Even if the load is a NOP, we should check for pagefaults...
-  if(tl<0&&(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80)
+  if((tl<0&&(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80))
     ||rt1[i]==0) {
       // could be FIFO, must perform the read
       // ||dummy read
@@ -2790,7 +2794,7 @@ void load_assemble(int i,struct regstat *i_regs)
     emit_call((int)memdebug);
     //emit_popa();
     restore_regs(0x100f);
-  }/**/
+  }*/
 }
 
 #ifndef loadlr_assemble
@@ -2806,7 +2810,7 @@ void store_assemble(int i,struct regstat *i_regs)
   int s,th,tl,map=-1;
   int addr,temp;
   int offset;
-  int jaddr=0,jaddr2,type;
+  int jaddr=0,type;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
   int faststore_reg_override=0;
@@ -2925,7 +2929,7 @@ void store_assemble(int i,struct regstat *i_regs)
       #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
       emit_callne(invalidate_addr_reg[addr]);
       #else
-      jaddr2=(int)out;
+      int jaddr2=(int)out;
       emit_jne(0);
       add_stub(INVCODE_STUB,jaddr2,(int)out,reglist|(1<<HOST_CCREG),addr,0,0,0);
       #endif
@@ -2986,16 +2990,16 @@ void store_assemble(int i,struct regstat *i_regs)
     #ifdef __arm__
     restore_regs(0x100f);
     #endif
-  }/**/
+  }*/
 }
 
 void storelr_assemble(int i,struct regstat *i_regs)
 {
   int s,th,tl;
   int temp;
-  int temp2;
+  int temp2=-1;
   int offset;
-  int jaddr=0,jaddr2;
+  int jaddr=0;
   int case1,case2,case3;
   int done0,done1,done2;
   int memtarget=0,c=0;
@@ -3198,7 +3202,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[temp]);
     #else
-    jaddr2=(int)out;
+    int jaddr2=(int)out;
     emit_jne(0);
     add_stub(INVCODE_STUB,jaddr2,(int)out,reglist|(1<<HOST_CCREG),temp,0,0,0);
     #endif
@@ -3215,7 +3219,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
     emit_call((int)memdebug);
     emit_popa();
     //restore_regs(0x100f);
-  /**/
+  */
 }
 
 void c1ls_assemble(int i,struct regstat *i_regs)
@@ -3229,7 +3233,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   int ar;
   int offset;
   int memtarget=0,c=0;
-  int jaddr2=0,jaddr3,type;
+  int jaddr2=0,type;
   int agr=AGEN1+(i&1);
   int fastio_reg_override=0;
   u_int hr,reglist=0;
@@ -3310,7 +3314,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[ar]);
     #else
-    jaddr3=(int)out;
+    int jaddr3=(int)out;
     emit_jne(0);
     add_stub(INVCODE_STUB,jaddr3,(int)out,reglist|(1<<HOST_CCREG),ar,0,0,0);
     #endif
@@ -3371,6 +3375,7 @@ void syscall_assemble(int i,struct regstat *i_regs)
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
   assert(!is_delayslot);
+  (void)ccreg;
   emit_movimm(start+i*4,EAX); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
   emit_jmp((int)jump_syscall_hle); // XXX
@@ -3381,6 +3386,7 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
   assert(!is_delayslot);
+  (void)ccreg;
   emit_movimm(start+i*4+4,0); // Get PC
   emit_movimm((int)psxHLEt[source[i]&7],1);
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // XXX
@@ -3392,6 +3398,7 @@ void intcall_assemble(int i,struct regstat *i_regs)
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
   assert(!is_delayslot);
+  (void)ccreg;
   emit_movimm(start+i*4,0); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
   emit_jmp((int)jump_intcall);
@@ -4636,7 +4643,6 @@ static void ujump_assemble_write_ra(int i)
 
 void ujump_assemble(int i,struct regstat *i_regs)
 {
-  signed char *i_regmap=i_regs->regmap;
   int ra_done=0;
   if(i==(ba[i]-start)>>2) assem_debug("idle loop\n");
   address_generation(i+1,i_regs,regs[i].regmap_entry);
@@ -4644,6 +4650,7 @@ void ujump_assemble(int i,struct regstat *i_regs)
   int temp=get_reg(branch_regs[i].regmap,PTEMP);
   if(rt1[i]==31&&temp>=0)
   {
+    signed char *i_regmap=i_regs->regmap;
     int return_address=start+i*4+8;
     if(get_reg(branch_regs[i].regmap,31)>0)
     if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
@@ -4709,9 +4716,8 @@ static void rjump_assemble_write_ra(int i)
 
 void rjump_assemble(int i,struct regstat *i_regs)
 {
-  signed char *i_regmap=i_regs->regmap;
   int temp;
-  int rs,cc,adj;
+  int rs,cc;
   int ra_done=0;
   rs=get_reg(branch_regs[i].regmap,rs1[i]);
   assert(rs>=0);
@@ -4728,6 +4734,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
   if(rt1[i]==31)
   {
     if((temp=get_reg(branch_regs[i].regmap,PTEMP))>=0) {
+      signed char *i_regmap=i_regs->regmap;
       int return_address=start+i*4+8;
       if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table[((return_address>>16)^return_address)&0xFFFF],temp);
     }
@@ -4756,6 +4763,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
     rjump_assemble_write_ra(i);
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
+  (void)cc;
   #ifdef USE_MINI_HT
   int rh=get_reg(branch_regs[i].regmap,RHASH);
   int ht=get_reg(branch_regs[i].regmap,RHTBL);
@@ -5761,7 +5769,6 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
   int s1h=get_reg(i_regs->regmap,rs1[i]|64);
   int s2l=get_reg(i_regs->regmap,rs2[i]);
   int s2h=get_reg(i_regs->regmap,rs2[i]|64);
-  void *nt_branch=NULL;
   int taken=0;
   int nottaken=0;
   int unconditional=0;
@@ -5778,7 +5785,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
     s1h=s2h=-1;
   }
   int hr=0;
-  int addr,alt,ntaddr;
+  int addr=-1,alt=-1,ntaddr=-1;
   if(i_regs->regmap[HOST_BTREG]<0) {addr=HOST_BTREG;}
   else {
     while(hr<HOST_REGS)
@@ -6771,7 +6778,7 @@ void clean_registers(int istart,int iend,int wr)
               if(r!=EXCLUDE_REG) {
                 if(regs[i].regmap[r]==regmap_pre[i+2][r]) {
                   regs[i+2].wasdirty&=wont_dirty_i|~(1<<r);
-                }else {/*printf("i: %x (%d) mismatch(+2): %d\n",start+i*4,i,r);/*assert(!((wont_dirty_i>>r)&1));*/}
+                }else {/*printf("i: %x (%d) mismatch(+2): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
               }
             }
           }
@@ -6783,7 +6790,7 @@ void clean_registers(int istart,int iend,int wr)
               if(r!=EXCLUDE_REG) {
                 if(regs[i].regmap[r]==regmap_pre[i+1][r]) {
                   regs[i+1].wasdirty&=wont_dirty_i|~(1<<r);
-                }else {/*printf("i: %x (%d) mismatch(+1): %d\n",start+i*4,i,r);/*assert(!((wont_dirty_i>>r)&1));*/}
+                }else {/*printf("i: %x (%d) mismatch(+1): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
               }
             }
           }
@@ -6826,7 +6833,7 @@ void clean_registers(int istart,int iend,int wr)
             wont_dirty_i|=((unneeded_reg[i]>>(regmap_pre[i][r]&63))&1)<<r;
           } else {
             wont_dirty_i|=1<<r;
-            /*printf("i: %x (%d) mismatch: %d\n",start+i*4,i,r);/*assert(!((will_dirty>>r)&1));*/
+            /*printf("i: %x (%d) mismatch: %d\n",start+i*4,i,r);assert(!((will_dirty>>r)&1));*/
           }
         }
       }
@@ -6988,7 +6995,6 @@ void new_dynarec_init()
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
 #endif
-  int n;
   cycle_multiplier=200;
   new_dynarec_clear_full();
 #ifdef HOST_IMM8
@@ -7037,6 +7043,7 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     *limit = (addr & 0x80600000) + 0x00200000;
     return (u_int *)((u_int)rdram + (addr&0x1fffff));
   }
+  return NULL;
 }
 
 static u_int scan_for_ret(u_int addr)
@@ -7054,6 +7061,7 @@ static u_int scan_for_ret(u_int addr)
     if (*mem == 0x03e00008) // jr $ra
       return addr + 8;
   }
+  return addr;
 }
 
 struct savestate_block {
@@ -8359,7 +8367,7 @@ int new_recompile_block(int addr)
       // Create entry (branch target) regmap
       for(hr=0;hr<HOST_REGS;hr++)
       {
-        int r,or,er;
+        int r,or;
         r=current.regmap[hr];
         if(r>=0) {
           if(r!=regmap_pre[i][hr]) {
@@ -10151,7 +10159,7 @@ int new_recompile_block(int addr)
           // replace it with the new address.
           // Don't add new entries.  We'll insert the
           // ones that actually get used in check_addr().
-          int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+          u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
           if(ht_bin[0]==vaddr) {
             ht_bin[1]=entry_point;
           }
@@ -10219,7 +10227,7 @@ int new_recompile_block(int addr)
       case 2:
         // Clear hash table
         for(i=0;i<32;i++) {
-          int *ht_bin=hash_table[((expirep&2047)<<5)+i];
+          u_int *ht_bin=hash_table[((expirep&2047)<<5)+i];
           if((ht_bin[3]>>shift)==(base>>shift) ||
              ((ht_bin[3]-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(base>>shift)) {
             inv_debug("EXP: Remove hash %x -> %x\n",ht_bin[2],ht_bin[3]);
