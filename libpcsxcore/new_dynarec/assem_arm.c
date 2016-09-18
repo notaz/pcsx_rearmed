@@ -45,9 +45,7 @@ extern int pending_exception;
 extern int branch_target;
 extern uint64_t readmem_dword;
 extern void *dynarec_local;
-extern u_int memory_map[1048576];
 extern u_int mini_ht[32][2];
-extern u_int rounding_modes[4];
 
 void indirect_jump_indexed();
 void indirect_jump();
@@ -814,26 +812,6 @@ char regname[16][4] = {
  "lr",
  "pc"};
 
-void output_byte(u_char byte)
-{
-  *(out++)=byte;
-}
-void output_modrm(u_char mod,u_char rm,u_char ext)
-{
-  assert(mod<4);
-  assert(rm<8);
-  assert(ext<8);
-  u_char byte=(mod<<6)|(ext<<3)|rm;
-  *(out++)=byte;
-}
-void output_sib(u_char scale,u_char index,u_char base)
-{
-  assert(scale<4);
-  assert(index<8);
-  assert(base<8);
-  u_char byte=(scale<<6)|(index<<3)|base;
-  *(out++)=byte;
-}
 void output_w32(u_int word)
 {
   *((u_int *)out)=word;
@@ -1207,29 +1185,7 @@ void emit_adcimm(u_int rs,int imm,u_int rt)
   assem_debug("adc %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0xe2a00000|rd_rn_rm(rt,rs,0)|armval);
 }
-/*void emit_sbcimm(int imm,u_int rt)
-{
-  u_int armval;
-  genimm_checked(imm,&armval);
-  assem_debug("sbc %s,%s,#%d\n",regname[rt],regname[rt],imm);
-  output_w32(0xe2c00000|rd_rn_rm(rt,rt,0)|armval);
-}*/
-void emit_sbbimm(int imm,u_int rt)
-{
-  assem_debug("sbb $%d,%%%s\n",imm,regname[rt]);
-  assert(rt<8);
-  if(imm<128&&imm>=-128) {
-    output_byte(0x83);
-    output_modrm(3,rt,3);
-    output_byte(imm);
-  }
-  else
-  {
-    output_byte(0x81);
-    output_modrm(3,rt,3);
-    output_w32(imm);
-  }
-}
+
 void emit_rscimm(int rs,int imm,u_int rt)
 {
   assert(0);
@@ -1246,13 +1202,6 @@ void emit_addimm64_32(int rsh,int rsl,int imm,int rth,int rtl)
   emit_movimm(imm,HOST_TEMPREG);
   emit_adds(HOST_TEMPREG,rsl,rtl);
   emit_adcimm(rsh,0,rth);
-}
-
-void emit_sbb(int rs1,int rs2)
-{
-  assem_debug("sbb %%%s,%%%s\n",regname[rs2],regname[rs1]);
-  output_byte(0x19);
-  output_modrm(3,rs1,rs2);
 }
 
 void emit_andimm(int rs,int imm,int rt)
@@ -1445,32 +1394,7 @@ void emit_sar(u_int rs,u_int shift,u_int rt)
   assem_debug("asr %s,%s,%s\n",regname[rt],regname[rs],regname[shift]);
   output_w32(0xe1a00000|rd_rn_rm(rt,0,rs)|0x50|(shift<<8));
 }
-void emit_shlcl(int r)
-{
-  assem_debug("shl %%%s,%%cl\n",regname[r]);
-  assert(0);
-}
-void emit_shrcl(int r)
-{
-  assem_debug("shr %%%s,%%cl\n",regname[r]);
-  assert(0);
-}
-void emit_sarcl(int r)
-{
-  assem_debug("sar %%%s,%%cl\n",regname[r]);
-  assert(0);
-}
 
-void emit_shldcl(int r1,int r2)
-{
-  assem_debug("shld %%%s,%%%s,%%cl\n",regname[r1],regname[r2]);
-  assert(0);
-}
-void emit_shrdcl(int r1,int r2)
-{
-  assem_debug("shrd %%%s,%%%s,%%cl\n",regname[r1],regname[r2]);
-  assert(0);
-}
 void emit_orrshl(u_int rs,u_int shift,u_int rt)
 {
   assert(rs<16);
@@ -1510,21 +1434,6 @@ void emit_cmpimm(int rs,int imm)
   }
 }
 
-void emit_cmovne(u_int *addr,int rt)
-{
-  assem_debug("cmovne %x,%%%s",(int)addr,regname[rt]);
-  assert(0);
-}
-void emit_cmovl(u_int *addr,int rt)
-{
-  assem_debug("cmovl %x,%%%s",(int)addr,regname[rt]);
-  assert(0);
-}
-void emit_cmovs(u_int *addr,int rt)
-{
-  assem_debug("cmovs %x,%%%s",(int)addr,regname[rt]);
-  assert(0);
-}
 void emit_cmovne_imm(int imm,int rt)
 {
   assem_debug("movne %s,#%d\n",regname[rt],imm);
@@ -1758,31 +1667,6 @@ void emit_jcc(int a)
   output_w32(0x3a000000|offset);
 }
 
-void emit_pushimm(int imm)
-{
-  assem_debug("push $%x\n",imm);
-  assert(0);
-}
-void emit_pusha()
-{
-  assem_debug("pusha\n");
-  assert(0);
-}
-void emit_popa()
-{
-  assem_debug("popa\n");
-  assert(0);
-}
-void emit_pushreg(u_int r)
-{
-  assem_debug("push %%%s\n",regname[r]);
-  assert(0);
-}
-void emit_popreg(u_int r)
-{
-  assem_debug("pop %%%s\n",regname[r]);
-  assert(0);
-}
 void emit_callreg(u_int r)
 {
   assert(r<15);
@@ -1973,17 +1857,7 @@ void emit_movzwl(int addr, int rt)
   assem_debug("ldrh %s,fp+%d\n",regname[rt],offset);
   output_w32(0xe1d000b0|rd_rn_rm(rt,FP,0)|((offset<<4)&0xf00)|(offset&0xf));
 }
-void emit_movzwl_reg(int rs, int rt)
-{
-  assem_debug("movzwl %%%s,%%%s\n",regname[rs]+1,regname[rt]);
-  assert(0);
-}
 
-void emit_xchg(int rs, int rt)
-{
-  assem_debug("xchg %%%s,%%%s\n",regname[rs],regname[rt]);
-  assert(0);
-}
 void emit_writeword_indexed(int rt, int offset, int rs)
 {
   assert(offset>-4096&&offset<4096);
@@ -2096,27 +1970,7 @@ void emit_writebyte(int rt, int addr)
   assem_debug("strb %s,fp+%d\n",regname[rt],offset);
   output_w32(0xe5c00000|rd_rn_rm(rt,FP,0)|offset);
 }
-void emit_writeword_imm(int imm, int addr)
-{
-  assem_debug("movl $%x,%x\n",imm,addr);
-  assert(0);
-}
-void emit_writebyte_imm(int imm, int addr)
-{
-  assem_debug("movb $%x,%x\n",imm,addr);
-  assert(0);
-}
 
-void emit_mul(int rs)
-{
-  assem_debug("mul %%%s\n",regname[rs]);
-  assert(0);
-}
-void emit_imul(int rs)
-{
-  assem_debug("imul %%%s\n",regname[rs]);
-  assert(0);
-}
 void emit_umull(u_int rs1, u_int rs2, u_int hi, u_int lo)
 {
   assem_debug("umull %s, %s, %s, %s\n",regname[lo],regname[hi],regname[rs1],regname[rs2]);
@@ -2134,22 +1988,6 @@ void emit_smull(u_int rs1, u_int rs2, u_int hi, u_int lo)
   assert(hi<16);
   assert(lo<16);
   output_w32(0xe0c00090|(hi<<16)|(lo<<12)|(rs2<<8)|rs1);
-}
-
-void emit_div(int rs)
-{
-  assem_debug("div %%%s\n",regname[rs]);
-  assert(0);
-}
-void emit_idiv(int rs)
-{
-  assem_debug("idiv %%%s\n",regname[rs]);
-  assert(0);
-}
-void emit_cdq()
-{
-  assem_debug("cdq\n");
-  assert(0);
 }
 
 void emit_clz(int rs,int rt)
@@ -2305,12 +2143,6 @@ void emit_cmov2imm_e_ne_compact(int imm1,int imm2,u_int rt)
 }
 
 // special case for checking invalid_code
-void emit_cmpmem_indexedsr12_imm(int addr,int r,int imm)
-{
-  assert(0);
-}
-
-// special case for checking invalid_code
 void emit_cmpmem_indexedsr12_reg(int base,int r,int imm)
 {
   assert(imm<128&&imm>=0);
@@ -2318,13 +2150,6 @@ void emit_cmpmem_indexedsr12_reg(int base,int r,int imm)
   assem_debug("ldrb lr,%s,%s lsr #12\n",regname[base],regname[r]);
   output_w32(0xe7d00000|rd_rn_rm(HOST_TEMPREG,base,r)|0x620);
   emit_cmpimm(HOST_TEMPREG,imm);
-}
-
-// special case for tlb mapping
-void emit_addsr12(int rs1,int rs2,int rt)
-{
-  assem_debug("add %s,%s,%s lsr #12\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe0800620|rd_rn_rm(rt,rs1,rs2));
 }
 
 void emit_callne(int a)
@@ -2335,14 +2160,6 @@ void emit_callne(int a)
 }
 
 // Used to preload hash table entries
-void emit_prefetch(void *addr)
-{
-  assem_debug("prefetch %x\n",(int)addr);
-  output_byte(0x0F);
-  output_byte(0x18);
-  output_modrm(0,5,1);
-  output_w32((int)addr);
-}
 void emit_prefetchreg(int r)
 {
   assem_debug("pld %s\n",regname[r]);
@@ -2356,168 +2173,6 @@ void emit_ldreq_indexed(int rs, u_int offset, int rt)
   assem_debug("ldreq %s,[%s, #%d]\n",regname[rt],regname[rs],offset);
   output_w32(0x05900000|rd_rn_rm(rt,rs,0)|offset);
 }
-
-void emit_flds(int r,int sr)
-{
-  assem_debug("flds s%d,[%s]\n",sr,regname[r]);
-  output_w32(0xed900a00|((sr&14)<<11)|((sr&1)<<22)|(r<<16));
-} 
-
-void emit_vldr(int r,int vr)
-{
-  assem_debug("vldr d%d,[%s]\n",vr,regname[r]);
-  output_w32(0xed900b00|(vr<<12)|(r<<16));
-} 
-
-void emit_fsts(int sr,int r)
-{
-  assem_debug("fsts s%d,[%s]\n",sr,regname[r]);
-  output_w32(0xed800a00|((sr&14)<<11)|((sr&1)<<22)|(r<<16));
-} 
-
-void emit_vstr(int vr,int r)
-{
-  assem_debug("vstr d%d,[%s]\n",vr,regname[r]);
-  output_w32(0xed800b00|(vr<<12)|(r<<16));
-} 
-
-void emit_ftosizs(int s,int d)
-{
-  assem_debug("ftosizs s%d,s%d\n",d,s);
-  output_w32(0xeebd0ac0|((d&14)<<11)|((d&1)<<22)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_ftosizd(int s,int d)
-{
-  assem_debug("ftosizd s%d,d%d\n",d,s);
-  output_w32(0xeebd0bc0|((d&14)<<11)|((d&1)<<22)|(s&7));
-} 
-
-void emit_fsitos(int s,int d)
-{
-  assem_debug("fsitos s%d,s%d\n",d,s);
-  output_w32(0xeeb80ac0|((d&14)<<11)|((d&1)<<22)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fsitod(int s,int d)
-{
-  assem_debug("fsitod d%d,s%d\n",d,s);
-  output_w32(0xeeb80bc0|((d&7)<<12)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fcvtds(int s,int d)
-{
-  assem_debug("fcvtds d%d,s%d\n",d,s);
-  output_w32(0xeeb70ac0|((d&7)<<12)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fcvtsd(int s,int d)
-{
-  assem_debug("fcvtsd s%d,d%d\n",d,s);
-  output_w32(0xeeb70bc0|((d&14)<<11)|((d&1)<<22)|(s&7));
-} 
-
-void emit_fsqrts(int s,int d)
-{
-  assem_debug("fsqrts d%d,s%d\n",d,s);
-  output_w32(0xeeb10ac0|((d&14)<<11)|((d&1)<<22)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fsqrtd(int s,int d)
-{
-  assem_debug("fsqrtd s%d,d%d\n",d,s);
-  output_w32(0xeeb10bc0|((d&7)<<12)|(s&7));
-} 
-
-void emit_fabss(int s,int d)
-{
-  assem_debug("fabss d%d,s%d\n",d,s);
-  output_w32(0xeeb00ac0|((d&14)<<11)|((d&1)<<22)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fabsd(int s,int d)
-{
-  assem_debug("fabsd s%d,d%d\n",d,s);
-  output_w32(0xeeb00bc0|((d&7)<<12)|(s&7));
-} 
-
-void emit_fnegs(int s,int d)
-{
-  assem_debug("fnegs d%d,s%d\n",d,s);
-  output_w32(0xeeb10a40|((d&14)<<11)|((d&1)<<22)|((s&14)>>1)|((s&1)<<5));
-} 
-
-void emit_fnegd(int s,int d)
-{
-  assem_debug("fnegd s%d,d%d\n",d,s);
-  output_w32(0xeeb10b40|((d&7)<<12)|(s&7));
-} 
-
-void emit_fadds(int s1,int s2,int d)
-{
-  assem_debug("fadds s%d,s%d,s%d\n",d,s1,s2);
-  output_w32(0xee300a00|((d&14)<<11)|((d&1)<<22)|((s1&14)<<15)|((s1&1)<<7)|((s2&14)>>1)|((s2&1)<<5));
-} 
-
-void emit_faddd(int s1,int s2,int d)
-{
-  assem_debug("faddd d%d,d%d,d%d\n",d,s1,s2);
-  output_w32(0xee300b00|((d&7)<<12)|((s1&7)<<16)|(s2&7));
-} 
-
-void emit_fsubs(int s1,int s2,int d)
-{
-  assem_debug("fsubs s%d,s%d,s%d\n",d,s1,s2);
-  output_w32(0xee300a40|((d&14)<<11)|((d&1)<<22)|((s1&14)<<15)|((s1&1)<<7)|((s2&14)>>1)|((s2&1)<<5));
-} 
-
-void emit_fsubd(int s1,int s2,int d)
-{
-  assem_debug("fsubd d%d,d%d,d%d\n",d,s1,s2);
-  output_w32(0xee300b40|((d&7)<<12)|((s1&7)<<16)|(s2&7));
-} 
-
-void emit_fmuls(int s1,int s2,int d)
-{
-  assem_debug("fmuls s%d,s%d,s%d\n",d,s1,s2);
-  output_w32(0xee200a00|((d&14)<<11)|((d&1)<<22)|((s1&14)<<15)|((s1&1)<<7)|((s2&14)>>1)|((s2&1)<<5));
-} 
-
-void emit_fmuld(int s1,int s2,int d)
-{
-  assem_debug("fmuld d%d,d%d,d%d\n",d,s1,s2);
-  output_w32(0xee200b00|((d&7)<<12)|((s1&7)<<16)|(s2&7));
-} 
-
-void emit_fdivs(int s1,int s2,int d)
-{
-  assem_debug("fdivs s%d,s%d,s%d\n",d,s1,s2);
-  output_w32(0xee800a00|((d&14)<<11)|((d&1)<<22)|((s1&14)<<15)|((s1&1)<<7)|((s2&14)>>1)|((s2&1)<<5));
-} 
-
-void emit_fdivd(int s1,int s2,int d)
-{
-  assem_debug("fdivd d%d,d%d,d%d\n",d,s1,s2);
-  output_w32(0xee800b00|((d&7)<<12)|((s1&7)<<16)|(s2&7));
-} 
-
-void emit_fcmps(int x,int y)
-{
-  assem_debug("fcmps s14, s15\n");
-  output_w32(0xeeb47a67);
-} 
-
-void emit_fcmpd(int x,int y)
-{
-  assem_debug("fcmpd d6, d7\n");
-  output_w32(0xeeb46b47);
-} 
-
-void emit_fmstat()
-{
-  assem_debug("fmstat\n");
-  output_w32(0xeef1fa10);
-} 
 
 void emit_bicne_imm(int rs,int imm,int rt)
 {
@@ -2623,28 +2278,6 @@ static void restore_regs(u_int reglist)
 {
   reglist&=CALLER_SAVE_REGS;
   restore_regs_all(reglist);
-}
-
-// Write back consts using r14 so we don't disturb the other registers
-void wb_consts(signed char i_regmap[],uint64_t i_is32,u_int i_dirty,int i)
-{
-  int hr;
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG&&i_regmap[hr]>=0&&((i_dirty>>hr)&1)) {
-      if(((regs[i].isconst>>hr)&1)&&i_regmap[hr]>0) {
-        if(i_regmap[hr]<64 || !((i_is32>>(i_regmap[hr]&63))&1) ) {
-          int value=constmap[i][hr];
-          if(value==0) {
-            emit_zeroreg(HOST_TEMPREG);
-          }
-          else {
-            emit_movimm(value,HOST_TEMPREG);
-          }
-          emit_storereg(i_regmap[hr],HOST_TEMPREG);
-        }
-      }
-    }
-  }
 }
 
 /* Stubs/epilogue */
@@ -3282,13 +2915,6 @@ do_cop1stub(int n)
   emit_jmp(ds?(int)fp_exception_ds:(int)fp_exception);
 }
 
-static int do_tlb_r(int a, ...) { return 0; }
-static int do_tlb_r_branch(int a, ...) { return 0; }
-static int gen_tlb_addr_r(int a, ...) { return 0; }
-static int do_tlb_w(int a, ...) { return 0; }
-static int do_tlb_w_branch(int a, ...) { return 0; }
-static int gen_tlb_addr_w(int a, ...) { return 0; }
-
 /* Special assem */
 
 void shift_assemble_arm(int i,struct regstat *i_regs)
@@ -3609,52 +3235,30 @@ void loadlr_assemble_arm(int i,struct regstat *i_regs)
     c=(i_regs->wasconst>>s)&1;
     if(c) {
       memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
     }
   }
-  if(!using_tlb) {
-    if(!c) {
-      #ifdef RAM_OFFSET
-      map=get_reg(i_regs->regmap,ROREG);
-      if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
-      #endif
-      emit_shlimm(addr,3,temp);
-      if (opcode[i]==0x22||opcode[i]==0x26) {
-        emit_andimm(addr,0xFFFFFFFC,temp2); // LWL/LWR
-      }else{
-        emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
-      }
-      jaddr=emit_fastpath_cmp_jump(i,temp2,&fastload_reg_override);
-    }
-    else {
-      if(ram_offset&&memtarget) {
-        emit_addimm(temp2,ram_offset,HOST_TEMPREG);
-        fastload_reg_override=HOST_TEMPREG;
-      }
-      if (opcode[i]==0x22||opcode[i]==0x26) {
-        emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
-      }else{
-        emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
-      }
-    }
-  }else{ // using tlb
-    int a;
-    if(c) {
-      a=-1;
-    }else if (opcode[i]==0x22||opcode[i]==0x26) {
-      a=0xFFFFFFFC; // LWL/LWR
+  if(!c) {
+    #ifdef RAM_OFFSET
+    map=get_reg(i_regs->regmap,ROREG);
+    if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
+    #endif
+    emit_shlimm(addr,3,temp);
+    if (opcode[i]==0x22||opcode[i]==0x26) {
+      emit_andimm(addr,0xFFFFFFFC,temp2); // LWL/LWR
     }else{
-      a=0xFFFFFFF8; // LDL/LDR
+      emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
     }
-    map=get_reg(i_regs->regmap,TLREG);
-    assert(map>=0);
-    reglist&=~(1<<map);
-    if(c) {
-      if (opcode[i]==0x22||opcode[i]==0x26) {
-        emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
-      }else{
-        emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
-      }
+    jaddr=emit_fastpath_cmp_jump(i,temp2,&fastload_reg_override);
+  }
+  else {
+    if(ram_offset&&memtarget) {
+      emit_addimm(temp2,ram_offset,HOST_TEMPREG);
+      fastload_reg_override=HOST_TEMPREG;
+    }
+    if (opcode[i]==0x22||opcode[i]==0x26) {
+      emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
+    }else{
+      emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
     }
   }
   if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR

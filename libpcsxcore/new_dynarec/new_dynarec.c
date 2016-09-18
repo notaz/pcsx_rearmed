@@ -116,7 +116,6 @@ struct ll_entry
   uint64_t unneeded_reg_upper[MAXBLOCK];
   uint64_t branch_unneeded_reg[MAXBLOCK];
   uint64_t branch_unneeded_reg_upper[MAXBLOCK];
-  uint64_t p32[MAXBLOCK];
   uint64_t pr32[MAXBLOCK];
   signed char regmap_pre[MAXBLOCK][HOST_REGS];
   static uint64_t current_constmap[HOST_REGS];
@@ -125,7 +124,6 @@ struct ll_entry
   static struct regstat branch_regs[MAXBLOCK];
   signed char minimum_free_regs[MAXBLOCK];
   u_int needed_reg[MAXBLOCK];
-  uint64_t requires_32bit[MAXBLOCK];
   u_int wont_dirty[MAXBLOCK];
   u_int will_dirty[MAXBLOCK];
   int ccadj[MAXBLOCK];
@@ -147,7 +145,6 @@ struct ll_entry
   char shadow[1048576]  __attribute__((aligned(16)));
   void *copy;
   int expirep;
-  static const u_int using_tlb=0;
   int new_dynarec_did_compile;
   int new_dynarec_hacks;
   u_int stop_after_jal;
@@ -167,20 +164,20 @@ struct ll_entry
 #define CSREG 35 // Coprocessor status
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
-#define MMREG 38 // Pointer to memory_map
+//#define MMREG 38 // Pointer to memory_map
 #define ROREG 39 // ram offset (if rdram!=0x80000000)
 #define TEMPREG 40
 #define FTEMP 40 // FPU temporary register
 #define PTEMP 41 // Prefetch temporary register
-#define TLREG 42 // TLB mapping offset
+//#define TLREG 42 // TLB mapping offset
 #define RHASH 43 // Return address hash
 #define RHTBL 44 // Return address hash table address
 #define RTEMP 45 // JR/JALR address register
 #define MAXREG 45
 #define AGEN1 46 // Address generation temporary register
-#define AGEN2 47 // Address generation temporary register
-#define MGEN1 48 // Maptable address generation temporary register
-#define MGEN2 49 // Maptable address generation temporary register
+//#define AGEN2 47 // Address generation temporary register
+//#define MGEN1 48 // Maptable address generation temporary register
+//#define MGEN2 49 // Maptable address generation temporary register
 #define BTREG 50 // Branch target temporary register
 
   /* instruction types */
@@ -243,7 +240,6 @@ void *get_addr_ht(u_int vaddr);
 void invalidate_block(u_int block);
 void invalidate_addr(u_int addr);
 void remove_hash(int vaddr);
-void jump_vaddr();
 void dyna_linker();
 void dyna_linker_ds();
 void verify_code();
@@ -252,29 +248,10 @@ void verify_code_ds();
 void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
-void jump_syscall();
 void jump_syscall_hle();
-void jump_eret();
 void jump_hlecall();
 void jump_intcall();
 void new_dyna_leave();
-
-// TLB
-void TLBWI_new();
-void TLBWR_new();
-void read_nomem_new();
-void read_nomemb_new();
-void read_nomemh_new();
-void read_nomemd_new();
-void write_nomem_new();
-void write_nomemb_new();
-void write_nomemh_new();
-void write_nomemd_new();
-void write_rdram_new();
-void write_rdramb_new();
-void write_rdramh_new();
-void write_rdramd_new();
-extern u_int memory_map[1048576];
 
 // Needed by assembler
 void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32);
@@ -582,10 +559,6 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
   // Also SWL/SWR/SDL/SDR
   if(opcode[i]==0x2a||opcode[i]==0x2e||opcode[i]==0x2c||opcode[i]==0x2d) {
     hsn[FTEMP]=0;
-  }
-  // Don't remove the TLB registers either
-  if(itype[i]==LOAD || itype[i]==LOADLR || itype[i]==STORE || itype[i]==STORELR || itype[i]==C1LS || itype[i]==C2LS) {
-    hsn[TLREG]=0;
   }
   // Don't remove the miniht registers
   if(itype[i]==UJUMP||itype[i]==RJUMP)
@@ -1406,8 +1379,6 @@ void load_alloc(struct regstat *current,int i)
     }
     else current->is32|=1LL<<rt1[i];
     dirty_reg(current,rt1[i]);
-    // If using TLB, need a register for pointer to the mapping table
-    if(using_tlb) alloc_reg(current,i,TLREG);
     // LWL/LWR need a temporary register for the old value
     if(opcode[i]==0x22||opcode[i]==0x26)
     {
@@ -1424,8 +1395,6 @@ void load_alloc(struct regstat *current,int i)
     {
       alloc_reg(current,i,FTEMP); // LWL/LWR need another temporary
     }
-    // If using TLB, need a register for pointer to the mapping table
-    if(using_tlb) alloc_reg(current,i,TLREG);
     alloc_reg_temp(current,i,-1);
     minimum_free_regs[i]=1;
     if(opcode[i]==0x1A||opcode[i]==0x1B) // LDL/LDR
@@ -1447,8 +1416,6 @@ void store_alloc(struct regstat *current,int i)
     alloc_reg64(current,i,rs2[i]);
     if(rs2[i]) alloc_reg(current,i,FTEMP);
   }
-  // If using TLB, need a register for pointer to the mapping table
-  if(using_tlb) alloc_reg(current,i,TLREG);
   #if defined(HOST_IMM8)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
   else alloc_reg(current,i,INVCP);
@@ -1471,8 +1438,6 @@ void c1ls_alloc(struct regstat *current,int i)
   if(opcode[i]==0x35||opcode[i]==0x3d) { // 64-bit LDC1/SDC1
     alloc_reg64(current,i,FTEMP);
   }
-  // If using TLB, need a register for pointer to the mapping table
-  if(using_tlb) alloc_reg(current,i,TLREG);
   #if defined(HOST_IMM8)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
   else if((opcode[i]&0x3b)==0x39) // SWC1/SDC1
@@ -1487,11 +1452,9 @@ void c2ls_alloc(struct regstat *current,int i)
   clear_const(current,rt1[i]);
   if(needed_again(rs1[i],i)) alloc_reg(current,i,rs1[i]);
   alloc_reg(current,i,FTEMP);
-  // If using TLB, need a register for pointer to the mapping table
-  if(using_tlb) alloc_reg(current,i,TLREG);
   #if defined(HOST_IMM8)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
-  else if((opcode[i]&0x3b)==0x3a) // SWC2/SDC2
+  if((opcode[i]&0x3b)==0x3a) // SWC2/SDC2
     alloc_reg(current,i,INVCP);
   #endif
   // We need a temporary register for address generation
@@ -1875,11 +1838,6 @@ void memdebug(int i)
     //fflush(stdout);
   }
   //printf("TRACE: %x\n",(&i)[-1]);
-}
-
-void tlb_debug(u_int cause, u_int addr, u_int iaddr)
-{
-  printf("TLB Exception: instruction=%x addr=%x cause=%x\n",iaddr, addr, cause);
 }
 
 void alu_assemble(int i,struct regstat *i_regs)
@@ -2563,7 +2521,6 @@ void load_assemble(int i,struct regstat *i_regs)
     c=(i_regs->wasconst>>s)&1;
     if (c) {
       memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
     }
   }
   //printf("load_assemble: c=%d\n",c);
@@ -2586,34 +2543,22 @@ void load_assemble(int i,struct regstat *i_regs)
   assert(tl>=0); // Even if the load is a NOP, we must check for pagefaults and I/O
   reglist&=~(1<<tl);
   if(th>=0) reglist&=~(1<<th);
-  if(!using_tlb) {
-    if(!c) {
-      #ifdef RAM_OFFSET
-      map=get_reg(i_regs->regmap,ROREG);
-      if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
-      #endif
-//#define R29_HACK 1
-      #ifdef R29_HACK
-      // Strmnnrmn's speed hack
-      if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
-      #endif
-      {
-        jaddr=emit_fastpath_cmp_jump(i,addr,&fastload_reg_override);
-      }
+  if(!c) {
+    #ifdef RAM_OFFSET
+    map=get_reg(i_regs->regmap,ROREG);
+    if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
+    #endif
+    #ifdef R29_HACK
+    // Strmnnrmn's speed hack
+    if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
+    #endif
+    {
+      jaddr=emit_fastpath_cmp_jump(i,addr,&fastload_reg_override);
     }
-    else if(ram_offset&&memtarget) {
-      emit_addimm(addr,ram_offset,HOST_TEMPREG);
-      fastload_reg_override=HOST_TEMPREG;
-    }
-  }else{ // using tlb
-    int x=0;
-    if (opcode[i]==0x20||opcode[i]==0x24) x=3; // LB/LBU
-    if (opcode[i]==0x21||opcode[i]==0x25) x=2; // LH/LHU
-    map=get_reg(i_regs->regmap,TLREG);
-    assert(map>=0);
-    reglist&=~(1<<map);
-    map=do_tlb_r(addr,tl,map,x,-1,-1,c,constmap[i][s]+offset);
-    do_tlb_r_branch(map,c,constmap[i][s]+offset,&jaddr);
+  }
+  else if(ram_offset&&memtarget) {
+    emit_addimm(addr,ram_offset,HOST_TEMPREG);
+    fastload_reg_override=HOST_TEMPREG;
   }
   int dummy=(rt1[i]==0)||(tl!=get_reg(i_regs->regmap,rt1[i])); // ignore loads to r0 and unneeded reg
   if (opcode[i]==0x20) { // LB
@@ -2626,7 +2571,6 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           //emit_xorimm(addr,3,tl);
-          //gen_tlb_addr_r(tl,map);
           //emit_movsbl_indexed((int)rdram-0x80000000,tl,tl);
           int x=0,a=tl;
 #ifdef BIG_ENDIAN_MIPS
@@ -2667,7 +2611,6 @@ void load_assemble(int i,struct regstat *i_regs)
           //emit_movswl_indexed_tlb(x,tl,map,tl);
           //else
           if(map>=0) {
-            gen_tlb_addr_r(a,map);
             emit_movswl_indexed(x,a,tl);
           }else{
             #if 1 //def RAM_OFFSET
@@ -2713,7 +2656,6 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           //emit_xorimm(addr,3,tl);
-          //gen_tlb_addr_r(tl,map);
           //emit_movzbl_indexed((int)rdram-0x80000000,tl,tl);
           int x=0,a=tl;
 #ifdef BIG_ENDIAN_MIPS
@@ -2754,7 +2696,6 @@ void load_assemble(int i,struct regstat *i_regs)
           //emit_movzwl_indexed_tlb(x,tl,map,tl);
           //#else
           if(map>=0) {
-            gen_tlb_addr_r(a,map);
             emit_movzwl_indexed(x,a,tl);
           }else{
             #if 1 //def RAM_OFFSET
@@ -2798,7 +2739,6 @@ void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int a=addr;
         if(fastload_reg_override) a=fastload_reg_override;
-        //gen_tlb_addr_r(tl,map);
         //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,addr,th);
         //emit_readword_indexed((int)rdram-0x7FFFFFFC,addr,tl);
         #ifdef HOST_IMM_ADDR32
@@ -2874,7 +2814,6 @@ void store_assemble(int i,struct regstat *i_regs)
     c=(i_regs->wasconst>>s)&1;
     if(c) {
       memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
     }
   }
   assert(tl>=0);
@@ -2885,23 +2824,12 @@ void store_assemble(int i,struct regstat *i_regs)
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(offset||s<0||c) addr=temp;
   else addr=s;
-  if(!using_tlb) {
-    if(!c) {
-      jaddr=emit_fastpath_cmp_jump(i,addr,&faststore_reg_override);
-    }
-    else if(ram_offset&&memtarget) {
-      emit_addimm(addr,ram_offset,HOST_TEMPREG);
-      faststore_reg_override=HOST_TEMPREG;
-    }
-  }else{ // using tlb
-    int x=0;
-    if (opcode[i]==0x28) x=3; // SB
-    if (opcode[i]==0x29) x=2; // SH
-    map=get_reg(i_regs->regmap,TLREG);
-    assert(map>=0);
-    reglist&=~(1<<map);
-    map=do_tlb_w(addr,temp,map,x,c,constmap[i][s]+offset);
-    do_tlb_w_branch(map,c,constmap[i][s]+offset,&jaddr);
+  if(!c) {
+    jaddr=emit_fastpath_cmp_jump(i,addr,&faststore_reg_override);
+  }
+  else if(ram_offset&&memtarget) {
+    emit_addimm(addr,ram_offset,HOST_TEMPREG);
+    faststore_reg_override=HOST_TEMPREG;
   }
 
   if (opcode[i]==0x28) { // SB
@@ -2914,7 +2842,6 @@ void store_assemble(int i,struct regstat *i_regs)
       if(!c) a=addr;
 #endif
       if(faststore_reg_override) a=faststore_reg_override;
-      //gen_tlb_addr_w(temp,map);
       //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
       emit_writebyte_indexed_tlb(tl,x,a,map,a);
     }
@@ -2934,7 +2861,6 @@ void store_assemble(int i,struct regstat *i_regs)
       //emit_writehword_indexed_tlb(tl,x,temp,map,temp);
       //#else
       if(map>=0) {
-        gen_tlb_addr_w(a,map);
         emit_writehword_indexed(tl,x,a);
       }else
         //emit_writehword_indexed(tl,(int)rdram-0x80000000+x,a);
@@ -2975,7 +2901,7 @@ void store_assemble(int i,struct regstat *i_regs)
     add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
     jaddr=0;
   }
-  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
+  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     if(!c||memtarget) {
       #ifdef DESTRUCTIVE_SHIFT
       // The x86 shift operation is 'destructive'; it overwrites the
@@ -3078,7 +3004,6 @@ void storelr_assemble(int i,struct regstat *i_regs)
     c=(i_regs->isconst>>s)&1;
     if(c) {
       memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-      if(using_tlb&&((signed int)(constmap[i][s]+offset))>=(signed int)0xC0000000) memtarget=1;
     }
   }
   assert(tl>=0);
@@ -3086,41 +3011,26 @@ void storelr_assemble(int i,struct regstat *i_regs)
     if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
   }
   assert(temp>=0);
-  if(!using_tlb) {
-    if(!c) {
-      emit_cmpimm(s<0||offset?temp:s,RAM_SIZE);
-      if(!offset&&s!=temp) emit_mov(s,temp);
-      jaddr=(int)out;
-      emit_jno(0);
-    }
-    else
-    {
-      if(!memtarget||!rs1[i]) {
-        jaddr=(int)out;
-        emit_jmp(0);
-      }
-    }
-    #ifdef RAM_OFFSET
-    int map=get_reg(i_regs->regmap,ROREG);
-    if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
-    gen_tlb_addr_w(temp,map);
-    #else
-    if((u_int)rdram!=0x80000000) 
-      emit_addimm_no_flags((u_int)rdram-(u_int)0x80000000,temp);
-    #endif
-  }else{ // using tlb
-    int map=get_reg(i_regs->regmap,TLREG);
-    assert(map>=0);
-    reglist&=~(1<<map);
-    map=do_tlb_w(c||s<0||offset?temp:s,temp,map,0,c,constmap[i][s]+offset);
-    if(!c&&!offset&&s>=0) emit_mov(s,temp);
-    do_tlb_w_branch(map,c,constmap[i][s]+offset,&jaddr);
-    if(!jaddr&&!memtarget) {
+  if(!c) {
+    emit_cmpimm(s<0||offset?temp:s,RAM_SIZE);
+    if(!offset&&s!=temp) emit_mov(s,temp);
+    jaddr=(int)out;
+    emit_jno(0);
+  }
+  else
+  {
+    if(!memtarget||!rs1[i]) {
       jaddr=(int)out;
       emit_jmp(0);
     }
-    gen_tlb_addr_w(temp,map);
   }
+  #ifdef RAM_OFFSET
+  int map=get_reg(i_regs->regmap,ROREG);
+  if(map<0) emit_loadreg(ROREG,map=HOST_TEMPREG);
+  #else
+  if((u_int)rdram!=0x80000000) 
+    emit_addimm_no_flags((u_int)rdram-(u_int)0x80000000,temp);
+  #endif
 
   if (opcode[i]==0x2C||opcode[i]==0x2D) { // SDL/SDR
     temp2=get_reg(i_regs->regmap,FTEMP);
@@ -3263,7 +3173,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   }
   if(!c||!memtarget)
     add_stub(STORELR_STUB,jaddr,(int)out,i,(int)i_regs,temp,ccadj[i],reglist);
-  if(!using_tlb&&!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
+  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     #ifdef RAM_OFFSET
     int map=get_reg(i_regs->regmap,ROREG);
     if(map<0) map=HOST_TEMPREG;
@@ -3322,7 +3232,6 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   offset=imm[i];
   assert(rs1[i]>0);
   assert(tl>=0);
-  assert(!using_tlb);
 
   for(hr=0;hr<HOST_REGS;hr++) {
     if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
@@ -3689,7 +3598,6 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
   if(itype[i]==LOAD||itype[i]==LOADLR||itype[i]==STORE||itype[i]==STORELR||itype[i]==C1LS||itype[i]==C2LS) {
     int ra=-1;
     int agr=AGEN1+(i&1);
-    int mgr=MGEN1+(i&1);
     if(itype[i]==LOAD) {
       ra=get_reg(i_regs->regmap,rt1[i]);
       if(ra<0) ra=get_reg(i_regs->regmap,-1); 
@@ -3711,17 +3619,11 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
       }
     }
     int rs=get_reg(i_regs->regmap,rs1[i]);
-    int rm=get_reg(i_regs->regmap,TLREG);
     if(ra>=0) {
       int offset=imm[i];
       int c=(i_regs->wasconst>>rs)&1;
       if(rs1[i]==0) {
         // Using r0 as a base address
-        /*if(rm>=0) {
-          if(!entry||entry[rm]!=mgr) {
-            generate_map_const(offset,rm);
-          } // else did it in the previous cycle
-        }*/
         if(!entry||entry[ra]!=agr) {
           if (opcode[i]==0x22||opcode[i]==0x26) {
             emit_movimm(offset&0xFFFFFFFC,ra); // LWL/LWR
@@ -3747,8 +3649,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
               emit_movimm((constmap[i][rs]+offset)&0xFFFFFFF8,ra); // LDL/LDR
             }else{
               #ifdef HOST_IMM_ADDR32
-              if((itype[i]!=LOAD&&(opcode[i]&0x3b)!=0x31&&(opcode[i]&0x3b)!=0x32) || // LWC1/LDC1/LWC2/LDC2
-                 (using_tlb&&((signed int)constmap[i][rs]+offset)>=(signed int)0xC0000000))
+              if((itype[i]!=LOAD&&(opcode[i]&0x3b)!=0x31&&(opcode[i]&0x3b)!=0x32)) // LWC1/LDC1/LWC2/LDC2
               #endif
               emit_movimm(constmap[i][rs]+offset,ra);
               regs[i].loadedconst|=1<<ra;
@@ -3782,8 +3683,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
           emit_movimm((constmap[i+1][rs]+offset)&0xFFFFFFF8,ra); // LDL/LDR
         }else{
           #ifdef HOST_IMM_ADDR32
-          if((itype[i+1]!=LOAD&&(opcode[i+1]&0x3b)!=0x31&&(opcode[i+1]&0x3b)!=0x32) || // LWC1/LDC1/LWC2/LDC2
-             (using_tlb&&((signed int)constmap[i+1][rs]+offset)>=(signed int)0xC0000000))
+          if((itype[i+1]!=LOAD&&(opcode[i+1]&0x3b)!=0x31&&(opcode[i+1]&0x3b)!=0x32)) // LWC1/LDC1/LWC2/LDC2
           #endif
           emit_movimm(constmap[i+1][rs]+offset,ra);
           regs[i+1].loadedconst|=1<<ra;
@@ -3822,9 +3722,6 @@ int get_final_value(int hr, int i, int *value)
         // Load in delay slot, out-of-order execution
         if(itype[i+2]==LOAD&&rs1[i+2]==reg&&rt1[i+2]==reg&&((regs[i+1].wasconst>>hr)&1))
         {
-          #ifdef HOST_IMM_ADDR32
-          if(!using_tlb||((signed int)constmap[i][hr]+imm[i+2])<(signed int)0xC0000000) return 0;
-          #endif
           // Precompute load address
           *value=constmap[i][hr]+imm[i+2];
           return 1;
@@ -3832,9 +3729,6 @@ int get_final_value(int hr, int i, int *value)
       }
       if(itype[i+1]==LOAD&&rs1[i+1]==reg&&rt1[i+1]==reg)
       {
-        #ifdef HOST_IMM_ADDR32
-        if(!using_tlb||((signed int)constmap[i][hr]+imm[i+1])<(signed int)0xC0000000) return 0;
-        #endif
         // Precompute load address
         *value=constmap[i][hr]+imm[i+1];
         //printf("c=%x imm=%x\n",(int)constmap[i][hr],imm[i+1]);
@@ -9028,12 +8922,6 @@ int new_recompile_block(int addr)
             d1=dep1[i+1];
             d2=dep2[i+1];
           }
-          if(using_tlb) {
-            if(itype[i+1]==LOAD || itype[i+1]==LOADLR ||
-               itype[i+1]==STORE || itype[i+1]==STORELR ||
-               itype[i+1]==C1LS || itype[i+1]==C2LS)
-            map=TLREG;
-          } else
           if(itype[i+1]==STORE || itype[i+1]==STORELR ||
              (opcode[i+1]&0x3b)==0x39 || (opcode[i+1]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
             map=INVCP;
@@ -9088,12 +8976,7 @@ int new_recompile_block(int addr)
               d1=dep1[i];
               d2=dep2[i];
             }
-            if(using_tlb) {
-              if(itype[i]==LOAD || itype[i]==LOADLR ||
-                 itype[i]==STORE || itype[i]==STORELR ||
-                 itype[i]==C1LS || itype[i]==C2LS)
-              map=TLREG;
-            } else if(itype[i]==STORE || itype[i]==STORELR ||
+            if(itype[i]==STORE || itype[i]==STORELR ||
                       (opcode[i]&0x3b)==0x39 || (opcode[i]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
               map=INVCP;
             }
@@ -9483,14 +9366,14 @@ int new_recompile_block(int addr)
   // Cache memory offset or tlb map pointer if a register is available
   #ifndef HOST_IMM_ADDR32
   #ifndef RAM_OFFSET
-  if(using_tlb)
+  if(0)
   #endif
   {
     int earliest_available[HOST_REGS];
     int loop_start[HOST_REGS];
     int score[HOST_REGS];
     int end[HOST_REGS];
-    int reg=using_tlb?MMREG:ROREG;
+    int reg=ROREG;
 
     // Init
     for(hr=0;hr<HOST_REGS;hr++) {
@@ -9737,46 +9620,6 @@ int new_recompile_block(int addr)
               }
             }
           }
-          // Preload map address
-          #ifndef HOST_IMM_ADDR32
-          if(itype[i+1]==LOAD||itype[i+1]==LOADLR||itype[i+1]==STORE||itype[i+1]==STORELR||itype[i+1]==C1LS||itype[i+1]==C2LS) {
-            hr=get_reg(regs[i+1].regmap,TLREG);
-            if(hr>=0) {
-              int sr=get_reg(regs[i+1].regmap,rs1[i+1]);
-              if(sr>=0&&((regs[i+1].wasconst>>sr)&1)) {
-                int nr;
-                if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
-                {
-                  regs[i].regmap[hr]=MGEN1+((i+1)&1);
-                  regmap_pre[i+1][hr]=MGEN1+((i+1)&1);
-                  regs[i+1].regmap_entry[hr]=MGEN1+((i+1)&1);
-                  regs[i].isconst&=~(1<<hr);
-                  regs[i].isconst|=regs[i+1].isconst&(1<<hr);
-                  constmap[i][hr]=constmap[i+1][hr];
-                  regs[i+1].wasdirty&=~(1<<hr);
-                  regs[i].dirty&=~(1<<hr);
-                }
-                else if((nr=get_reg2(regs[i].regmap,regs[i+1].regmap,-1))>=0)
-                {
-                  // move it to another register
-                  regs[i+1].regmap[hr]=-1;
-                  regmap_pre[i+2][hr]=-1;
-                  regs[i+1].regmap[nr]=TLREG;
-                  regmap_pre[i+2][nr]=TLREG;
-                  regs[i].regmap[nr]=MGEN1+((i+1)&1);
-                  regmap_pre[i+1][nr]=MGEN1+((i+1)&1);
-                  regs[i+1].regmap_entry[nr]=MGEN1+((i+1)&1);
-                  regs[i].isconst&=~(1<<nr);
-                  regs[i+1].isconst&=~(1<<nr);
-                  regs[i].dirty&=~(1<<nr);
-                  regs[i+1].wasdirty&=~(1<<nr);
-                  regs[i+1].dirty&=~(1<<nr);
-                  regs[i+2].wasdirty&=~(1<<nr);
-                }
-              }
-            }
-          }
-          #endif
           // Address for store instruction (non-constant)
           if(itype[i+1]==STORE||itype[i+1]==STORELR
              ||(opcode[i+1]&0x3b)==0x39||(opcode[i+1]&0x3b)==0x3a) { // SB/SH/SW/SD/SWC1/SDC1/SWC2/SDC2
@@ -9908,29 +9751,7 @@ int new_recompile_block(int addr)
     if((needed_reg[i]>>5)&1) printf("ebp ");
     if((needed_reg[i]>>6)&1) printf("esi ");
     if((needed_reg[i]>>7)&1) printf("edi ");
-    printf("r:");
-    for(r=0;r<=CCREG;r++) {
-      //if(((requires_32bit[i]>>r)&(~unneeded_reg[i]>>r))&1) {
-      if((requires_32bit[i]>>r)&1) {
-        if(r==CCREG) printf(" CC");
-        else if(r==HIREG) printf(" HI");
-        else if(r==LOREG) printf(" LO");
-        else printf(" r%d",r);
-      }
-    }
     printf("\n");
-    /*printf("pr:");
-    for(r=0;r<=CCREG;r++) {
-      //if(((requires_32bit[i]>>r)&(~unneeded_reg[i]>>r))&1) {
-      if((pr32[i]>>r)&1) {
-        if(r==CCREG) printf(" CC");
-        else if(r==HIREG) printf(" HI");
-        else if(r==LOREG) printf(" LO");
-        else printf(" r%d",r);
-      }
-    }
-    if(pr32[i]!=requires_32bit[i]) printf(" OOPS");
-    printf("\n");*/
     #if defined(__i386__) || defined(__x86_64__)
     printf("entry: eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",regs[i].regmap_entry[0],regs[i].regmap_entry[1],regs[i].regmap_entry[2],regs[i].regmap_entry[3],regs[i].regmap_entry[5],regs[i].regmap_entry[6],regs[i].regmap_entry[7]);
     printf("dirty: ");
@@ -10014,17 +9835,6 @@ int new_recompile_block(int addr)
       #endif
       printf("\n");
     }
-    /*printf(" p32:");
-    for(r=0;r<=CCREG;r++) {
-      if((p32[i]>>r)&1) {
-        if(r==CCREG) printf(" CC");
-        else if(r==HIREG) printf(" HI");
-        else if(r==LOREG) printf(" LO");
-        else printf(" r%d",r);
-      }
-    }
-    if(p32[i]!=regs[i].is32) printf(" NO MATCH\n");
-    else printf("\n");*/
     if(itype[i]==RJUMP||itype[i]==UJUMP||itype[i]==CJUMP||itype[i]==SJUMP||itype[i]==FJUMP) {
       #if defined(__i386__) || defined(__x86_64__)
       printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d dirty: ",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
