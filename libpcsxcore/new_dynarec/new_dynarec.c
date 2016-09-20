@@ -1236,9 +1236,6 @@ void invalidate_addr(u_int addr)
 void invalidate_all_pages()
 {
   u_int page,n;
-  #if defined(VITA)
-    sceKernelOpenVMDomain();
-  #endif
   for(page=0;page<4096;page++)
     invalidate_page(page);
   for(page=0;page<1048576;page++)
@@ -1247,9 +1244,6 @@ void invalidate_all_pages()
       restore_candidate[((page&2047)>>3)+256]|=1<<(page&7);
     }
   #ifdef __arm__
-  #if defined(VITA)
-    sceKernelCloseVMDomain();
-  #endif
   __clear_cache((void *)BASE_ADDR,(void *)BASE_ADDR+(1<<TARGET_SIZE_2));
   #endif
   #ifdef USE_MINI_HT
@@ -7933,18 +7927,12 @@ static void disassemble_inst(int i) {}
 
 static int new_dynarec_test(void)
 {
-  #if defined(VITA)
-    sceKernelOpenVMDomain();
-  #endif
   int (*testfunc)(void) = (void *)out;
   int ret;
   emit_movimm(DRC_TEST_VAL,0); // test
   emit_jmpreg(14);
   literal_pool(0);
 #ifdef __arm__
-#if defined(VITA)
-  sceKernelCloseVMDomain();
-#endif
   __clear_cache((void *)testfunc, out);
 #endif
   SysPrintf("testing if we can run recompiled code..\n");
@@ -7994,7 +7982,7 @@ void new_dynarec_init()
   SysPrintf("Init new dynarec\n");
 
 #if defined(VITA)
-  out=(u_char *)mmap(translation_cache, 1<<TARGET_SIZE_2,
+  BASE_ADDR=mmap(BASE_ADDR, 1<<TARGET_SIZE_2,
             0,
             0,
             -1, 0);
@@ -8238,9 +8226,6 @@ int new_recompile_block(int addr)
   start = (u_int)addr&~3;
   //assert(((u_int)addr&1)==0);
   new_dynarec_did_compile=1;
-#if defined(VITA)
-  sceKernelOpenVMDomain();
-#endif
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
@@ -8252,9 +8237,6 @@ int new_recompile_block(int addr)
     emit_jmp((int)new_dyna_leave);
     literal_pool(0);
 #ifdef __arm__
-  #if defined(VITA)
-    sceKernelCloseVMDomain();
-  #endif
     __clear_cache((void *)beginning,out);
 #endif
     ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
@@ -11625,9 +11607,6 @@ int new_recompile_block(int addr)
   copy+=slen*4;
 
   #ifdef __arm__
-  #if defined(VITA)
-    sceKernelCloseVMDomain();
-  #endif
   __clear_cache((void *)beginning,out);
   #endif
 
