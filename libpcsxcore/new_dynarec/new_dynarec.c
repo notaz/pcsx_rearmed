@@ -26,6 +26,13 @@
 #ifdef __MACH__
 #include <libkern/OSCacheControl.h>
 #endif
+#ifdef _3DS
+#include <3ds_utils.h>
+#endif
+#ifdef VITA
+#include <psp2/kernel/sysmem.h>
+static int sceBlock;
+#endif
 
 #include "new_dynarec_config.h"
 #include "emu_if.h" //emulator interface
@@ -265,11 +272,20 @@ static int tracedebug=0;
 static void mprotect_w_x(void *start, void *end, int is_x)
 {
 #ifdef NO_WRITE_EXEC
+  #if defined(VITA)
+  // *Open* enables write on all memory that was
+  // allocated by sceKernelAllocMemBlockForVM()?
+  if (is_x)
+    sceKernelCloseVMDomain();
+  else
+    sceKernelOpenVMDomain();
+  #else
   u_long mstart = (u_long)start & ~4095ul;
   u_long mend = (u_long)end;
   if (mprotect((void *)mstart, mend - mstart,
                PROT_READ | (is_x ? PROT_EXEC : PROT_WRITE)) != 0)
     SysPrintf("mprotect(%c) failed: %s\n", is_x ? 'x' : 'w', strerror(errno));
+  #endif
 #endif
 }
 
@@ -287,8 +303,9 @@ static void end_tcache_write(void *start, void *end)
   #elif defined(__MACH__)
   sys_cache_control(kCacheFunctionPrepareForExecution, start, len);
   #elif defined(VITA)
-  int block = sceKernelFindMemBlockByAddr(start, len);
-  sceKernelSyncVMDomain(block, start, len);
+  sceKernelSyncVMDomain(sceBlock, start, len);
+  #elif defined(_3DS)
+  ctr_flush_invalidate_cache();
   #else
   __clear_cache(start, end);
   #endif
@@ -7023,19 +7040,43 @@ void new_dynarec_clear_full()
 void new_dynarec_init()
 {
   SysPrintf("Init new dynarec\n");
-  out=(u_char *)BASE_ADDR;
-#if BASE_ADDR_FIXED
-  if (mmap (out, 1<<TARGET_SIZE_2,
+
+  // allocate/prepare a buffer for translation cache
+  // see assem_arm.h for some explanation
+#if   defined(BASE_ADDR_FIXED)
+  if (mmap (translation_cache, 1 << TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) != out) {
+            -1, 0) != translation_cache) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
+    SysPrintf("disable BASE_ADDR_FIXED and recompile\n");
+    abort();
   }
-#elif !defined(NO_WRITE_EXEC)
+#elif defined(BASE_ADDR_DYNAMIC)
+  #ifdef VITA
+  sceBlock = sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
+  if (sceBlock < 0)
+    SysPrintf("sceKernelAllocMemBlockForVM failed\n");
+  int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&translation_cache);
+  if (ret < 0)
+    SysPrintf("sceKernelGetMemBlockBase failed\n");
+  #else
+  translation_cache = mmap (NULL, 1 << TARGET_SIZE_2,
+            PROT_READ | PROT_WRITE | PROT_EXEC,
+            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (translation_cache == MAP_FAILED) {
+    SysPrintf("mmap() failed: %s\n", strerror(errno));
+    abort();
+  }
+  #endif
+#else
+  #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
+  #endif
 #endif
+  out=(u_char *)BASE_ADDR;
   cycle_multiplier=200;
   new_dynarec_clear_full();
 #ifdef HOST_IMM8
@@ -7054,9 +7095,15 @@ void new_dynarec_init()
 void new_dynarec_cleanup()
 {
   int n;
-  #if BASE_ADDR_FIXED
-  if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0) {SysPrintf("munmap() failed\n");}
+#if defined(BASE_ADDR_FIXED) || defined(BASE_ADDR_DYNAMIC)
+  #ifdef VITA
+  sceKernelFreeMemBlock(sceBlock);
+  sceBlock = -1;
+  #else
+  if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0)
+    SysPrintf("munmap() failed\n");
   #endif
+#endif
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);

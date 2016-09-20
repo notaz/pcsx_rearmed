@@ -128,7 +128,7 @@ else ifeq ($(platform), qnx)
 	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = neon
 	ARCH = arm
-	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	CFLAGS += -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 
 # ARM

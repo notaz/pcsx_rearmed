@@ -4,10 +4,9 @@
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
 
-#ifndef BASE_ADDR_FIXED
-#define BASE_ADDR_FIXED 0
+#if defined(__MACH__) || defined(VITA)
+#define NO_WRITE_EXEC 1
 #endif
-
-#ifdef __MACH__
-#define NO_WRITE_EXEC
+#ifdef VITA
+#define BASE_ADDR_DYNAMIC 1
 #endif

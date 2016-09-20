@@ -28,7 +28,10 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#if !BASE_ADDR_FIXED
+#if   defined(BASE_ADDR_FIXED)
+#elif defined(BASE_ADDR_DYNAMIC)
+char *translation_cache;
+#else
 char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 #endif
 

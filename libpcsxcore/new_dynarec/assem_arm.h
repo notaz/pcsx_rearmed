@@ -39,10 +39,19 @@ extern char *invc_ptr;
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 // Code generator target address
-#if BASE_ADDR_FIXED
-// "round" address helpful for debug
-#define BASE_ADDR 0x1000000
+#if   defined(BASE_ADDR_FIXED)
+  // "round" address helpful for debug
+  // this produces best code, but not many platforms allow it,
+  // only use if you are sure this range is always free
+  #define BASE_ADDR 0x1000000
+  #define translation_cache (char *)BASE_ADDR
+#elif defined(BASE_ADDR_DYNAMIC)
+  // for platforms that can't just use .bss buffer, like vita
+  // otherwise better to use the next option for closer branches
+  extern char *translation_cache;
+  #define BASE_ADDR (u_int)translation_cache
 #else
-extern char translation_cache[1 << TARGET_SIZE_2];
-#define BASE_ADDR (u_int)translation_cache
+  // using a static buffer in .bss
+  extern char translation_cache[1 << TARGET_SIZE_2];
+  #define BASE_ADDR (u_int)translation_cache
 #endif
