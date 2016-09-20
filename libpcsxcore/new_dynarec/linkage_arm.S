@@ -20,6 +20,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "arm_features.h"
+#include "new_dynarec_config.h"
 #include "linkage_offsets.h"
 
 
@@ -160,9 +161,10 @@ ptr_hash_table:
 #endif
 .endm
 
+/* r0 = virtual target address */
+/* r1 = instruction to patch */
 .macro dyna_linker_main
-	/* r0 = virtual target address */
-	/* r1 = instruction to patch */
+#ifndef NO_WRITE_EXEC
 	load_varadr_ext r3, jump_in
 	/* get_page */
 	lsr     r2, r0, #12
@@ -242,6 +244,11 @@ ptr_hash_table:
 	str	r3, [r6, #12]
 	mov	pc, r1
 8:
+#else
+	/* XXX: should be able to do better than this... */
+	bl	get_addr_ht
+	mov	pc, r0
+#endif
 .endm
 
 

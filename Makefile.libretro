@@ -185,7 +185,7 @@ else ifeq ($(platform), qnx)
 	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = neon
 	ARCH = arm
-	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	CFLAGS += -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	MAIN_LDLIBS += -lsocket
 	LIBPTHREAD :=
@@ -265,6 +265,17 @@ ifndef HAVE_NEON
 HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+MAIN_LDFLAGS += -Wl,--no-undefined
+endif
+
+# try to autodetect stuff for the lazy
+ifndef ARCH
+ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+endif
+ifndef HAVE_NEON
+HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+endif
+ifeq ($(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 

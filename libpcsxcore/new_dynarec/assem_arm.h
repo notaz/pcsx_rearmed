@@ -5,31 +5,10 @@
 
 #define HOST_IMM8 1
 #define HAVE_CMOV_IMM 1
-#define CORTEX_A8_BRANCH_PREDICTION_HACK 1
-#define USE_MINI_HT 1
-//#define REG_PREFETCH 1
 #define HAVE_CONDITIONAL_CALL 1
-#define DISABLE_TLB 1
-//#define MUPEN64
-#define FORCE32 1
-#define DISABLE_COP1 1
-#define PCSX 1
 #define RAM_SIZE 0x200000
 
-#ifndef __ARM_ARCH_7A__
-//#undef CORTEX_A8_BRANCH_PREDICTION_HACK
-//#undef USE_MINI_HT
-#endif
-
-#ifndef BASE_ADDR_FIXED
-#define BASE_ADDR_FIXED 0
-#endif
-
-#ifdef FORCE32
 #define REG_SHIFT 2
-#else
-#define REG_SHIFT 3
-#endif
 
 /* ARM calling convention:
    r0-r3, r12: caller-save
@@ -60,10 +39,19 @@ extern char *invc_ptr;
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 // Code generator target address
-#if BASE_ADDR_FIXED
-// "round" address helpful for debug
-#define BASE_ADDR 0x1000000
+#if   defined(BASE_ADDR_FIXED)
+  // "round" address helpful for debug
+  // this produces best code, but not many platforms allow it,
+  // only use if you are sure this range is always free
+  #define BASE_ADDR 0x1000000
+  #define translation_cache (char *)BASE_ADDR
+#elif defined(BASE_ADDR_DYNAMIC)
+  // for platforms that can't just use .bss buffer, like vita
+  // otherwise better to use the next option for closer branches
+  extern char *translation_cache;
+  #define BASE_ADDR (u_int)translation_cache
 #else
-extern char translation_cache[1 << TARGET_SIZE_2];
-#define BASE_ADDR (u_int)translation_cache
+  // using a static buffer in .bss
+  extern char translation_cache[1 << TARGET_SIZE_2];
+  #define BASE_ADDR (u_int)translation_cache
 #endif

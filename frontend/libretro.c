@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#ifdef __MACH__
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
 
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/psxcounters.h"
@@ -1549,6 +1553,11 @@ void retro_init(void)
 	char path[256];
 	int i, ret;
 	bool found_bios = false;
+
+#ifdef __MACH__
+	// magic sauce to make the dynarec work on iOS
+	syscall(SYS_ptrace, 0 /*PTRACE_TRACEME*/, 0, 0, 0);
+#endif
 
 #ifdef _3DS
    psxMapHook = pl_3ds_mmap;
