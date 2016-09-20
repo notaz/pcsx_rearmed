@@ -7027,8 +7027,8 @@ void new_dynarec_init()
 #if BASE_ADDR_FIXED
   if (mmap (out, 1<<TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
-            MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) <= 0) {
+            MAP_PRIVATE | MAP_ANONYMOUS,
+            -1, 0) != out) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
   }
 #elif !defined(NO_WRITE_EXEC)
