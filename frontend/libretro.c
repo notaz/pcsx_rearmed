@@ -269,6 +269,8 @@ typedef struct
    enum psxMapTag tag;
 }psx_map_t;
 
+void* addr = NULL;
+
 psx_map_t custom_psx_maps[] = {
    {NULL, NULL, 0x210000, MAP_TAG_RAM},   // 0x80000000
    {NULL, NULL, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
@@ -276,6 +278,29 @@ psx_map_t custom_psx_maps[] = {
    {NULL, NULL, 0x800000, MAP_TAG_LUTS},  // 0x08000000
    {NULL, NULL, 0x200000, MAP_TAG_VRAM},  // 0x00000000
 };
+
+int init_vita_mmap(){
+  int n;
+  addr = malloc(64*1024*1024);
+  if(addr==NULL)
+    return -1;
+  addr = ((u32)(addr+0xFFFFFF))&~0xFFFFFF;
+  custom_psx_maps[0].buffer=addr+0x2000000;
+  custom_psx_maps[1].buffer=addr+0x1800000;
+  custom_psx_maps[2].buffer=addr+0x1c00000;
+  custom_psx_maps[3].buffer=addr+0x0000000;
+  custom_psx_maps[4].buffer=addr+0x1000000;
+#if 0
+  for(n = 0; n < 5; n++){
+    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
+  }
+#endif
+  return 0;
+}
+
+void deinit_vita_mmap(){
+  free(addr);
+}
 
 void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
 	enum psxMapTag tag)
@@ -290,26 +315,6 @@ void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
     {
        if ((custom_map->size == size) && (custom_map->tag == tag))
        {
-          int block, ret;
-          char blockname[32];
-          sprintf(blockname, "CODE 0x%08X",tag);
-
-          block = sceKernelAllocMemBlock(blockname, 0x0c20d060, size + 0x1000, 0);
-          if(block<=0){
-            sceClibPrintf("could not alloc mem block @0x%08X 0x%08X \n", block, tag);
-            exit(1);
-          }
-
-          // get base address
-          ret = sceKernelGetMemBlockBase(block, &custom_map->buffer);
-          if (ret < 0)
-          {
-            sceClibPrintf("could get address @0x%08X 0x%08X 0x%08X \n", block, ret, tag);
-            exit(1);
-          }
-          custom_map->buffer = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
-          custom_map->target_map = block;
-
           return custom_map->buffer;
        }
     }
@@ -328,9 +333,6 @@ void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
   {
      if ((custom_map->buffer == ptr))
      {
-        sceKernelFreeMemBlock(custom_map->target_map);
-        custom_map->buffer = NULL;
-        custom_map->target_map = NULL;
         return;
      }
   }
@@ -1564,15 +1566,19 @@ void retro_init(void)
    psxUnmapHook = pl_3ds_munmap;
 #endif
 #ifdef VITA
+   if(init_vita_mmap()<0)
+      abort();
    psxMapHook = pl_vita_mmap;
    psxUnmapHook = pl_vita_munmap;
 #endif
 	ret = emu_core_preinit();
-#ifdef _3DS
+#ifdef _3DS 
    /* emu_core_preinit sets the cpu to dynarec */
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
+  Config.Cpu = CPU_INTERPRETER;
+
 	ret |= emu_core_init();
 	if (ret != 0) {
 		SysPrintf("PCSX init failed.\n");
@@ -1652,6 +1658,8 @@ void retro_deinit(void)
 	free(vout_buf);
 #endif
 	vout_buf = NULL;
+  
+  deinit_vita_mmap();
 }
 
 #ifdef VITA
