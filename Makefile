@@ -6,7 +6,11 @@ CFLAGS += -Wall -Iinclude -ffast-math
 ifeq ($(DEBUG), 1)
 CFLAGS += -O0 -ggdb
 else
+ifeq ($(platform), vita)
+CFLAGS += -O1 -DNDEBUG
+else
 CFLAGS += -O2 -DNDEBUG
+endif
 endif
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1

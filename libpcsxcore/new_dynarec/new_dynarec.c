@@ -32,6 +32,7 @@
 #ifdef VITA
 #include <psp2/kernel/sysmem.h>
 static int sceBlock;
+int getVMBlock();
 #endif
 
 #include "new_dynarec_config.h"
@@ -51,6 +52,10 @@ static int sceBlock;
 #endif
 #ifdef __arm__
 #include "assem_arm.h"
+#endif
+
+#ifdef VITA
+int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 #endif
 
 #define MAXBLOCK 4096
@@ -7054,12 +7059,13 @@ void new_dynarec_init()
   }
 #elif defined(BASE_ADDR_DYNAMIC)
   #ifdef VITA
-  sceBlock = sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
+  sceBlock = getVMBlock();//sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
   if (sceBlock < 0)
     SysPrintf("sceKernelAllocMemBlockForVM failed\n");
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&translation_cache);
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
+  sceClibPrintf("translation_cache = 0x%08X \n ", translation_cache);
   #else
   translation_cache = mmap (NULL, 1 << TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -7097,8 +7103,8 @@ void new_dynarec_cleanup()
   int n;
 #if defined(BASE_ADDR_FIXED) || defined(BASE_ADDR_DYNAMIC)
   #ifdef VITA
-  sceKernelFreeMemBlock(sceBlock);
-  sceBlock = -1;
+  //sceKernelFreeMemBlock(sceBlock);
+  //sceBlock = -1;
   #else
   if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0)
     SysPrintf("munmap() failed\n");
