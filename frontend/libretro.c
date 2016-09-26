@@ -281,15 +281,16 @@ psx_map_t custom_psx_maps[] = {
 
 int init_vita_mmap(){
   int n;
+  void * tmpaddr;
   addr = malloc(64*1024*1024);
   if(addr==NULL)
     return -1;
-  addr = ((u32)(addr+0xFFFFFF))&~0xFFFFFF;
-  custom_psx_maps[0].buffer=addr+0x2000000;
-  custom_psx_maps[1].buffer=addr+0x1800000;
-  custom_psx_maps[2].buffer=addr+0x1c00000;
-  custom_psx_maps[3].buffer=addr+0x0000000;
-  custom_psx_maps[4].buffer=addr+0x1000000;
+  tmpaddr = ((u32)(addr+0xFFFFFF))&~0xFFFFFF;
+  custom_psx_maps[0].buffer=tmpaddr+0x2000000;
+  custom_psx_maps[1].buffer=tmpaddr+0x1800000;
+  custom_psx_maps[2].buffer=tmpaddr+0x1c00000;
+  custom_psx_maps[3].buffer=tmpaddr+0x0000000;
+  custom_psx_maps[4].buffer=tmpaddr+0x1000000;
 #if 0
   for(n = 0; n < 5; n++){
     sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
