@@ -1658,8 +1658,10 @@ void retro_deinit(void)
 	free(vout_buf);
 #endif
 	vout_buf = NULL;
-  
+
+#ifdef VITA
   deinit_vita_mmap();
+#endif
 }
 
 #ifdef VITA
