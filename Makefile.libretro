@@ -1,6 +1,6 @@
 # Makefile for PCSX ReARMed (libretro)
 
-DEBUG=1
+DEBUG=0
 
 ifeq ($(platform),)
 	platform = unix
