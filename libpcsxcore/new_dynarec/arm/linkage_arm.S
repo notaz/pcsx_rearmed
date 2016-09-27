@@ -20,7 +20,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "arm_features.h"
-#include "new_dynarec_config.h"
+#include "../new_dynarec_config.h"
 #include "linkage_offsets.h"
 
 

@@ -6,7 +6,7 @@
  */
 
 #include "arm_features.h"
-#include "new_dynarec/linkage_offsets.h"
+#include "new_dynarec/arm/linkage_offsets.h"
 
 .syntax unified
 .text

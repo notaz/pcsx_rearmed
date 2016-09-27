@@ -6,11 +6,11 @@
  */
 
 #include <stdio.h>
-#include "../psxhw.h"
-#include "../cdrom.h"
-#include "../mdec.h"
-#include "../gpu.h"
-#include "../psxmem_map.h"
+#include "../../../psxhw.h"
+#include "../../../cdrom.h"
+#include "../../../mdec.h"
+#include "../../../gpu.h"
+#include "../../../psxmem_map.h"
 #include "emu_if.h"
 #include "pcsxmem.h"
 

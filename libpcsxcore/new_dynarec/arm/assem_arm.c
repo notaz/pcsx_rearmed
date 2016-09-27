@@ -19,12 +19,12 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include "../gte.h"
+#include "../../gte.h"
 #define FLAGLESS
-#include "../gte.h"
+#include "../../gte.h"
 #undef FLAGLESS
-#include "../gte_arm.h"
-#include "../gte_neon.h"
+#include "../../gte_arm.h"
+#include "../../gte_neon.h"
 #include "pcnt.h"
 #include "arm_features.h"
 
@@ -2518,8 +2518,8 @@ static void mov_loadtype_adj(int type,int rs,int rt)
   }
 }
 
-#include "pcsxmem.h"
-#include "pcsxmem_inline.c"
+#include "../backends/psx/pcsxmem.h"
+#include "../backends/psx/pcsxmem_inline.c"
 
 static void do_readstub(int n)
 {

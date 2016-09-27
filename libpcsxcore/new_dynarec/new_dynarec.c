@@ -36,7 +36,7 @@ int getVMBlock();
 #endif
 
 #include "new_dynarec_config.h"
-#include "emu_if.h" //emulator interface
+#include "backends/psx/emu_if.h" //emulator interface
 
 //#define DISASM
 //#define assem_debug printf
@@ -51,7 +51,7 @@ int getVMBlock();
 #include "assem_x64.h"
 #endif
 #ifdef __arm__
-#include "assem_arm.h"
+#include "arm/assem_arm.h"
 #endif
 
 #ifdef VITA
@@ -774,7 +774,7 @@ void alloc_all(struct regstat *cur,int i)
 #include "assem_x64.c"
 #endif
 #ifdef __arm__
-#include "assem_arm.c"
+#include "arm/assem_arm.c"
 #endif
 
 // Add virtual address mapping to linked list

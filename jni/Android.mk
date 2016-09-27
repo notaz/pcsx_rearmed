@@ -27,7 +27,7 @@ ifeq ($(TARGET_ARCH),arm)
    LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.S
 
    # dynarec
-   LOCAL_SRC_FILES += ../libpcsxcore/new_dynarec/new_dynarec.c ../libpcsxcore/new_dynarec/linkage_arm.S ../libpcsxcore/new_dynarec/emu_if.c ../libpcsxcore/new_dynarec/pcsxmem.c
+   LOCAL_SRC_FILES += ../libpcsxcore/new_dynarec/new_dynarec.c ../libpcsxcore/new_dynarec/arm/linkage_arm.S ../libpcsxcore/new_dynarec/backends/psx/emu_if.c ../libpcsxcore/new_dynarec/backends/psx/pcsxmem.c
 
    # spu
    LOCAL_SRC_FILES += ../plugins/dfsound/arm_utils.S
