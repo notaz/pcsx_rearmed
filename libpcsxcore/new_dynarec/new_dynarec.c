@@ -45,10 +45,10 @@ int getVMBlock();
 #define inv_debug(...)
 
 #ifdef __i386__
-#include "assem_x86.h"
+#include "x86/assem_x86.h"
 #endif
 #ifdef __x86_64__
-#include "assem_x64.h"
+#include "x64/assem_x64.h"
 #endif
 #ifdef __arm__
 #include "arm/assem_arm.h"
@@ -768,10 +768,10 @@ void alloc_all(struct regstat *cur,int i)
 }
 
 #ifdef __i386__
-#include "assem_x86.c"
+#include "x86/assem_x86.c"
 #endif
 #ifdef __x86_64__
-#include "assem_x64.c"
+#include "x64/assem_x64.c"
 #endif
 #ifdef __arm__
 #include "arm/assem_arm.c"
@@ -1700,7 +1700,8 @@ void syscall_alloc(struct regstat *current,int i)
 
 void delayslot_alloc(struct regstat *current,int i)
 {
-  switch(itype[i]) {
+  switch(itype[i])
+  {
     case UJUMP:
     case CJUMP:
     case SJUMP:
@@ -1850,7 +1851,8 @@ void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32
   }
 }
 
-int mchecksum()
+#if 0
+static int mchecksum(void)
 {
   //if(!tracedebug) return 0;
   int i;
@@ -1863,7 +1865,8 @@ int mchecksum()
   }
   return sum;
 }
-int rchecksum()
+
+static int rchecksum(void)
 {
   int i;
   int sum=0;
@@ -1871,7 +1874,8 @@ int rchecksum()
     sum^=((u_int *)reg)[i];
   return sum;
 }
-void rlist()
+
+static void rlist(void)
 {
   int i;
   printf("TRACE: ");
@@ -1880,12 +1884,12 @@ void rlist()
   printf("\n");
 }
 
-void enabletrace()
+static void enabletrace(void)
 {
   tracedebug=1;
 }
 
-void memdebug(int i)
+static void memdebug(int i)
 {
   //printf("TRACE: count=%d next=%d (checksum %x) lo=%8x%8x\n",Count,next_interupt,mchecksum(),(int)(reg[LOREG]>>32),(int)reg[LOREG]);
   //printf("TRACE: count=%d next=%d (rchecksum %x)\n",Count,next_interupt,rchecksum());
@@ -1910,6 +1914,7 @@ void memdebug(int i)
   }
   //printf("TRACE: %x\n",(&i)[-1]);
 }
+#endif
 
 void alu_assemble(int i,struct regstat *i_regs)
 {
