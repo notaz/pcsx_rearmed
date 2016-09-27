@@ -62,8 +62,8 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifeq "$(USE_DYNAREC)" "1"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
-OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/arm/linkage_arm.o
+OBJS += libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
 else
 libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
 frontend/libretro.o: CFLAGS += -DDRC_DISABLE
