@@ -47,6 +47,7 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static struct retro_rumble_interface rumble;
 
 static void *vout_buf;
+static void * vout_buf_ptr;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
@@ -133,14 +134,14 @@ static void convert(void *buf, size_t bytes)
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
-	unsigned short *dest = vout_buf;
+	unsigned short *dest = vout_buf_ptr;
 	const unsigned short *src = vram;
 	int dstride = vout_width, h1 = h;
 	int doffs;
 
 	if (vram == NULL) {
 		// blanking
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		goto out;
 	}
 
@@ -148,7 +149,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	doffs += (dstride - w) / 2 & ~1;
 	if (doffs != vout_doffs_old) {
 		// clear borders
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		vout_doffs_old = doffs;
 	}
 	dest += doffs;
@@ -171,7 +172,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-	convert(vout_buf, vout_width * vout_height * 2);
+	convert(vout_buf_ptr, vout_width * vout_height * 2);
 #endif
 	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
@@ -1483,8 +1484,21 @@ void retro_run(void)
 
 	stop = 0;
 	psxCpu->Execute();
+  
+  struct retro_framebuffer fb = {0};
+  
+  fb.width           = vout_width;
+  fb.height          = vout_height;
+  fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
 
-	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
+  vout_buf_ptr = vout_buf; 
+   
+  if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
+  {
+     vout_buf_ptr  = (uint16_t*)fb.data;
+  }  
+
+	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
 		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
@@ -1593,7 +1607,9 @@ void retro_init(void)
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
-
+  
+  vout_buf_ptr = vout_buf;
+  
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
 		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
