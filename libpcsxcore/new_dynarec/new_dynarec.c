@@ -1055,19 +1055,23 @@ void invalidate_addr(u_int addr)
 
 // This is called when loading a save state.
 // Anything could have changed, so invalidate everything.
-void invalidate_all_pages()
+void invalidate_all_pages(void)
 {
   u_int page;
   for(page=0;page<4096;page++)
     invalidate_page(page);
   for(page=0;page<1048576;page++)
-    if(!invalid_code[page]) {
+  {
+    if(!invalid_code[page])
+    {
       restore_candidate[(page&2047)>>3]|=1<<(page&7);
       restore_candidate[((page&2047)>>3)+256]|=1<<(page&7);
     }
-  #ifdef USE_MINI_HT
+  }
+
+#ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
-  #endif
+#endif
 }
 
 // Add an entry to jump_out after making a link
@@ -7026,7 +7030,7 @@ static int new_dynarec_test(void)
 
 // clear the state completely, instead of just marking
 // things invalid like invalidate_all_pages() does
-void new_dynarec_clear_full()
+void new_dynarec_clear_full(void)
 {
   int n;
   out=(u_char *)BASE_ADDR;
@@ -7047,7 +7051,7 @@ void new_dynarec_clear_full()
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
 }
 
-void new_dynarec_init()
+void new_dynarec_init(void)
 {
   SysPrintf("Init new dynarec\n");
 
@@ -7103,7 +7107,7 @@ void new_dynarec_init()
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
 }
 
-void new_dynarec_cleanup()
+void new_dynarec_cleanup(void)
 {
   int n;
 #if defined(BASE_ADDR_FIXED) || defined(BASE_ADDR_DYNAMIC)
