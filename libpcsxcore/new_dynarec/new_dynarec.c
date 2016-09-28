@@ -366,14 +366,16 @@ static u_int get_vpage(u_int vaddr)
 // This is called from the recompiled JR/JALR instructions
 void *get_addr(u_int vaddr)
 {
-  u_int page=get_page(vaddr);
-  u_int vpage=get_vpage(vaddr);
-  struct ll_entry *head;
+  struct ll_entry *head = NULL;
+  u_int page            = get_page(vaddr);
+  u_int vpage           = get_vpage(vaddr);
   //printf("TRACE: count=%d next=%d (get_addr %x,page %d)\n",Count,next_interupt,vaddr,page);
   head=jump_in[page];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr) {
-  //printf("TRACE: count=%d next=%d (get_addr match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
+  while(head!=NULL)
+  {
+    if(head->vaddr==vaddr)
+    {
+      //printf("TRACE: count=%d next=%d (get_addr match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
       u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
       ht_bin[3]=ht_bin[1];
       ht_bin[2]=ht_bin[0];
@@ -384,39 +386,47 @@ void *get_addr(u_int vaddr)
     head=head->next;
   }
   head=jump_dirty[vpage];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr) {
+  while(head!=NULL)
+  {
+    if(head->vaddr==vaddr)
+    {
       //printf("TRACE: count=%d next=%d (get_addr match dirty %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
       // Don't restore blocks which are about to expire from the cache
       if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
-      if(verify_dirty(head->addr)) {
-        //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
-        invalid_code[vaddr>>12]=0;
-        inv_code_start=inv_code_end=~0;
-        if(vpage<2048) {
-          restore_candidate[vpage>>3]|=1<<(vpage&7);
-        }
-        else restore_candidate[page>>3]|=1<<(page&7);
-        u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
-        if(ht_bin[0]==vaddr) {
-          ht_bin[1]=(u_int)head->addr; // Replace existing entry
-        }
-        else
+        if(verify_dirty(head->addr))
         {
-          ht_bin[3]=ht_bin[1];
-          ht_bin[2]=ht_bin[0];
-          ht_bin[1]=(int)head->addr;
-          ht_bin[0]=vaddr;
+          //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
+          invalid_code[vaddr>>12]=0;
+          inv_code_start=inv_code_end=~0;
+          if(vpage<2048)
+          {
+            restore_candidate[vpage>>3]|=1<<(vpage&7);
+          }
+          else
+          {
+            restore_candidate[page>>3]|=1<<(page&7);
+          }
+          u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+
+          if(ht_bin[0]==vaddr)
+            ht_bin[1]=(u_int)head->addr; // Replace existing entry
+          else
+          {
+            ht_bin[3]=ht_bin[1];
+            ht_bin[2]=ht_bin[0];
+            ht_bin[1]=(int)head->addr;
+            ht_bin[0]=vaddr;
+          }
+          return head->addr;
         }
-        return head->addr;
-      }
     }
     head=head->next;
   }
   //printf("TRACE: count=%d next=%d (get_addr no-match %x)\n",Count,next_interupt,vaddr);
   int r=new_recompile_block(vaddr);
-  if(r==0) return get_addr(vaddr);
-  // Execute in unmapped page, generate pagefault execption
+  if(r==0)
+    return get_addr(vaddr);
+  // Execute in unmapped page, generate pagefault exception
   Status|=2;
   Cause=(vaddr<<31)|0x8;
   EPC=(vaddr&1)?vaddr-5:vaddr;
@@ -425,6 +435,7 @@ void *get_addr(u_int vaddr)
   EntryHi=BadVAddr&0xFFFFE000;
   return get_addr_ht(0x80000000);
 }
+
 // Look up address in hash table first
 void *get_addr_ht(u_int vaddr)
 {
@@ -948,23 +959,26 @@ static void invalidate_block_range(u_int block, u_int first, u_int last)
   assert(first+5>page); // NB: this assumes MAXBLOCK<=4096 (4 pages)
   assert(last<page+5);
   // Invalidate the adjacent pages if a block crosses a 4K boundary
-  while(first<page) {
+  while(first<page)
+  {
     invalidate_page(first);
     first++;
   }
-  for(first=page+1;first<last;first++) {
+  for(first=page+1;first<last;first++)
+  {
     invalidate_page(first);
   }
-  #ifdef __arm__
-    do_clear_cache();
-  #endif
+
+#ifdef __arm__
+  do_clear_cache();
+#endif
 
   // Don't trap writes
   invalid_code[block]=1;
 
-  #ifdef USE_MINI_HT
+#ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
-  #endif
+#endif
 }
 
 void invalidate_block(u_int block)
@@ -972,19 +986,22 @@ void invalidate_block(u_int block)
   u_int page=get_page(block<<12);
   u_int vpage=get_vpage(block<<12);
   inv_debug("INVALIDATE: %x (%d)\n",block<<12,page);
-  //inv_debug("invalid_code[block]=%d\n",invalid_code[block]);
   u_int first,last;
   first=last=page;
   struct ll_entry *head;
   head=jump_dirty[vpage];
   //printf("page=%d vpage=%d\n",page,vpage);
-  while(head!=NULL) {
+  while(head!=NULL)
+  {
     u_int start,end;
-    if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
+    if(vpage>2047||(head->vaddr>>12)==block)
+    { // Ignore vaddr hash collision
       get_bounds((int)head->addr,&start,&end);
       //printf("start: %x end: %x\n",start,end);
-      if(page<2048&&start>=(u_int)rdram&&end<(u_int)rdram+RAM_SIZE) {
-        if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page) {
+      if(page<2048&&start>=(u_int)rdram&&end<(u_int)rdram+RAM_SIZE)
+      {
+        if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page)
+        {
           if((((start-(u_int)rdram)>>12)&2047)<first) first=((start-(u_int)rdram)>>12)&2047;
           if((((end-1-(u_int)rdram)>>12)&2047)>last) last=((end-1-(u_int)rdram)>>12)&2047;
         }
@@ -1096,37 +1113,48 @@ void clean_blocks(u_int page)
   struct ll_entry *head;
   inv_debug("INV: clean_blocks page=%d\n",page);
   head=jump_dirty[page];
-  while(head!=NULL) {
-    if(!invalid_code[head->vaddr>>12]) {
+  while(head!=NULL)
+  {
+    if(!invalid_code[head->vaddr>>12])
+    {
       // Don't restore blocks which are about to expire from the cache
-      if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
+      if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
+      {
         u_int start,end;
-        if(verify_dirty(head->addr)) {
+        if(verify_dirty(head->addr))
+        {
           //printf("Possibly Restore %x (%x)\n",head->vaddr, (int)head->addr);
           u_int i;
           u_int inv=0;
           get_bounds((int)head->addr,&start,&end);
-          if(start-(u_int)rdram<RAM_SIZE) {
-            for(i=(start-(u_int)rdram+0x80000000)>>12;i<=(end-1-(u_int)rdram+0x80000000)>>12;i++) {
+          if(start-(u_int)rdram<RAM_SIZE)
+          {
+            for(i=(start-(u_int)rdram+0x80000000)>>12;i<=(end-1-(u_int)rdram+0x80000000)>>12;i++)
+            {
               inv|=invalid_code[i];
             }
           }
-          else if((signed int)head->vaddr>=(signed int)0x80000000+RAM_SIZE) {
+          else if((signed int)head->vaddr>=(signed int)0x80000000+RAM_SIZE)
+          {
             inv=1;
           }
-          if(!inv) {
+          if(!inv)
+          {
             void * clean_addr=(void *)get_clean_addr((int)head->addr);
-            if((((u_int)clean_addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
+            if((((u_int)clean_addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2)))
+            {
               u_int ppage=page;
               inv_debug("INV: Restored %x (%x/%x)\n",head->vaddr, (int)head->addr, (int)clean_addr);
               //printf("page=%x, addr=%x\n",page,head->vaddr);
               //assert(head->vaddr>>12==(page|0x80000));
               ll_add_flags(jump_in+ppage,head->vaddr,head->reg_sv_flags,clean_addr);
               u_int *ht_bin=hash_table[((head->vaddr>>16)^head->vaddr)&0xFFFF];
-              if(ht_bin[0]==head->vaddr) {
+              if(ht_bin[0]==head->vaddr)
+              {
                 ht_bin[1]=(u_int)clean_addr; // Replace existing entry
               }
-              if(ht_bin[2]==head->vaddr) {
+              if(ht_bin[2]==head->vaddr)
+              {
                 ht_bin[3]=(u_int)clean_addr; // Replace existing entry
               }
             }
@@ -1138,15 +1166,17 @@ void clean_blocks(u_int page)
   }
 }
 
-
-void mov_alloc(struct regstat *current,int i)
+static void mov_alloc(struct regstat *current,int i)
 {
   // Note: Don't need to actually alloc the source registers
-  if((~current->is32>>rs1[i])&1) {
+  if((~current->is32>>rs1[i])&1)
+  {
     //alloc_reg64(current,i,rs1[i]);
     alloc_reg64(current,i,rt1[i]);
     current->is32&=~(1LL<<rt1[i]);
-  } else {
+  }
+  else
+  {
     //alloc_reg(current,i,rs1[i]);
     alloc_reg(current,i,rt1[i]);
     current->is32|=(1LL<<rt1[i]);
@@ -7059,15 +7089,16 @@ void new_dynarec_init(void)
   // see assem_arm.h for some explanation
 #if   defined(BASE_ADDR_FIXED)
   if (mmap (translation_cache, 1 << TARGET_SIZE_2,
-            PROT_READ | PROT_WRITE | PROT_EXEC,
-            MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) != translation_cache) {
+        PROT_READ | PROT_WRITE | PROT_EXEC,
+        MAP_PRIVATE | MAP_ANONYMOUS,
+        -1, 0) != translation_cache)
+  {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
     SysPrintf("disable BASE_ADDR_FIXED and recompile\n");
     abort();
   }
 #elif defined(BASE_ADDR_DYNAMIC)
-  #ifdef VITA
+#ifdef VITA
   sceBlock = getVMBlock();//sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
   if (sceBlock < 0)
     SysPrintf("sceKernelAllocMemBlockForVM failed\n");
@@ -7075,22 +7106,26 @@ void new_dynarec_init(void)
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
   sceClibPrintf("translation_cache = 0x%08X \n ", translation_cache);
-  #else
+#elif defined(_MSC_VER)
+  base_addr = VirtualAlloc(NULL, 1<<TARGET_SIZE_2, MEM_COMMIT | MEM_RESERVE,
+      PAGE_EXECUTE_READWRITE);
+#else
   translation_cache = mmap (NULL, 1 << TARGET_SIZE_2,
-            PROT_READ | PROT_WRITE | PROT_EXEC,
-            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      PROT_READ | PROT_WRITE | PROT_EXEC,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (translation_cache == MAP_FAILED) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
     abort();
   }
-  #endif
+#endif
 #else
-  #ifndef NO_WRITE_EXEC
+#ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
   if (mprotect(out, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
-  #endif
 #endif
+#endif
+
   out=(u_char *)BASE_ADDR;
   cycle_multiplier=200;
   new_dynarec_clear_full();
@@ -7111,20 +7146,24 @@ void new_dynarec_cleanup(void)
 {
   int n;
 #if defined(BASE_ADDR_FIXED) || defined(BASE_ADDR_DYNAMIC)
-  #ifdef VITA
-  //sceKernelFreeMemBlock(sceBlock);
-  //sceBlock = -1;
-  #else
+#ifndef VITA
+#if defined(_MSC_VER)
+  VirtualFree(base_addr, 0, MEM_RELEASE);
+#else
   if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0)
     SysPrintf("munmap() failed\n");
-  #endif
 #endif
-  for(n=0;n<4096;n++) ll_clear(jump_in+n);
-  for(n=0;n<4096;n++) ll_clear(jump_out+n);
-  for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
-  #ifdef ROM_COPY
+#endif
+#endif
+  for(n=0;n<4096;n++)
+    ll_clear(jump_in+n);
+  for(n=0;n<4096;n++)
+    ll_clear(jump_out+n);
+  for(n=0;n<4096;n++)
+    ll_clear(jump_dirty+n);
+#ifdef ROM_COPY
   if (munmap (ROM_COPY, 67108864) < 0) {SysPrintf("munmap() failed\n");}
-  #endif
+#endif
 }
 
 static u_int *get_source_start(u_int addr, u_int *limit)
