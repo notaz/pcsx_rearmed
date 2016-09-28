@@ -118,6 +118,20 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	vout_width = w;
 	vout_height = h;
+
+  struct retro_framebuffer fb = {0};
+
+  fb.width           = vout_width;
+  fb.height          = vout_height;
+  fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
+
+  vout_buf_ptr = vout_buf;
+
+  if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
+  {
+     vout_buf_ptr  = (uint16_t*)fb.data;
+  }
+
 }
 
 #ifndef FRONTEND_SUPPORTS_RGB565
@@ -1484,19 +1498,6 @@ void retro_run(void)
 
 	stop = 0;
 	psxCpu->Execute();
-  
-  struct retro_framebuffer fb = {0};
-  
-  fb.width           = vout_width;
-  fb.height          = vout_height;
-  fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
-
-  vout_buf_ptr = vout_buf; 
-   
-  if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
-  {
-     vout_buf_ptr  = (uint16_t*)fb.data;
-  }  
 
 	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
 		vout_width, vout_height, vout_width * 2);
