@@ -7105,6 +7105,8 @@ void new_dynarec_init(void)
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&translation_cache);
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
+    
+  sceKernelOpenVMDomain();
   sceClibPrintf("translation_cache = 0x%08X \n ", translation_cache);
 #elif defined(_MSC_VER)
   base_addr = VirtualAlloc(NULL, 1<<TARGET_SIZE_2, MEM_COMMIT | MEM_RESERVE,
