@@ -1598,7 +1598,6 @@ void retro_init(void)
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
-  Config.Cpu = CPU_INTERPRETER;
 
 	ret |= emu_core_init();
 	if (ret != 0) {
