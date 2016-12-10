@@ -2,6 +2,11 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
+GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+ifneq ($(GIT_VERSION)," unknown")
+	LOCAL_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
+
 APP_DIR := ../../src
 
 #fix stupid change in ndk r11 that breaks compiling even when the exe would run fine
