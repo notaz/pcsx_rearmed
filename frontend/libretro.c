@@ -527,13 +527,13 @@ static void update_controller_port_variable(unsigned port)
 	if (controller_port_variable(port, &var))
 	{
 		if (strcmp(var.value, "standard") == 0)
-			in_type[0] = PSE_PAD_TYPE_STANDARD;
+			in_type[port] = PSE_PAD_TYPE_STANDARD;
 		else if (strcmp(var.value, "analog") == 0)
-			in_type[0] = PSE_PAD_TYPE_ANALOGPAD;
+			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
 		else if (strcmp(var.value, "negcon") == 0)
-			in_type[0] = PSE_PAD_TYPE_NEGCON;
+			in_type[port] = PSE_PAD_TYPE_NEGCON;
 		else if (strcmp(var.value, "none") == 0)
-			in_type[0] = PSE_PAD_TYPE_NONE;
+			in_type[port] = PSE_PAD_TYPE_NONE;
 		// else 'default' case, do nothing
 	}
 }
