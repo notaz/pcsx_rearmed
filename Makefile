@@ -2,9 +2,15 @@
 
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
-CFLAGS += -Wall -ggdb -Iinclude -ffast-math
-ifndef DEBUG
+CFLAGS += -Wall -Iinclude -ffast-math
+ifeq ($(DEBUG), 1)
+CFLAGS += -O0 -ggdb
+else
+ifeq ($(platform), vita)
+CFLAGS += -O3 -DNDEBUG
+else
 CFLAGS += -O2 -DNDEBUG
+endif
 endif
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
@@ -56,22 +62,23 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifeq "$(USE_DYNAREC)" "1"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
-OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/arm/linkage_arm.o
+OBJS += libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
 else
-libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -DDRC_DISABLE
+libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
 frontend/libretro.o: CFLAGS += -DDRC_DISABLE
 endif
-OBJS += libpcsxcore/new_dynarec/emu_if.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \
-	libpcsxcore/new_dynarec/pcsxmem_inline.c
-libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -Wno-all -Wno-pointer-sign
+OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
+	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
 ifdef DRC_DBG
-libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
+libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
 endif
 ifeq "$(DRC_CACHE_BASE)" "1"
 libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
+libpcsxcore/new_dynarec/backends/psx/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
+libpcsxcore/new_dynarec/arm/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
 endif
 
 # spu

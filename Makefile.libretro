@@ -1,5 +1,7 @@
 # Makefile for PCSX ReARMed (libretro)
 
+DEBUG=0
+
 ifeq ($(platform),)
 	platform = unix
 	ifeq ($(shell uname -a),)
@@ -20,6 +22,10 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
+GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+ifneq ($(GIT_VERSION)," unknown")
+	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
 LIBZ := -lz
 LIBPTHREAD := -lpthread
 LIBDL := -ldl
@@ -116,6 +122,9 @@ else ifeq ($(platform), vita)
 	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables 
+	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
+	CFLAGS +=  -fno-optimize-sibling-calls
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
@@ -124,8 +133,8 @@ else ifeq ($(platform), vita)
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 
-#	USE_DYNAREC = 1
-#	DRC_CACHE_BASE = 0
+	USE_DYNAREC = 1
+	DRC_CACHE_BASE = 0
 
 	ARCH = arm
 	STATIC_LINKING = 1
@@ -183,7 +192,7 @@ else ifeq ($(platform), qnx)
 	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = neon
 	ARCH = arm
-	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	CFLAGS += -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	MAIN_LDLIBS += -lsocket
 	LIBPTHREAD :=
@@ -263,6 +272,17 @@ ifndef HAVE_NEON
 HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+MAIN_LDFLAGS += -Wl,--no-undefined
+endif
+
+# try to autodetect stuff for the lazy
+ifndef ARCH
+ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+endif
+ifndef HAVE_NEON
+HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+endif
+ifeq ($(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 

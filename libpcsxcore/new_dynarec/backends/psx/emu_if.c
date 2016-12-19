@@ -9,15 +9,15 @@
 
 #include "emu_if.h"
 #include "pcsxmem.h"
-#include "../psxhle.h"
-#include "../r3000a.h"
-#include "../cdrom.h"
-#include "../psxdma.h"
-#include "../mdec.h"
-#include "../gte_arm.h"
-#include "../gte_neon.h"
+#include "../../../psxhle.h"
+#include "../../../r3000a.h"
+#include "../../../cdrom.h"
+#include "../../../psxdma.h"
+#include "../../../mdec.h"
+#include "../../../gte_arm.h"
+#include "../../../gte_neon.h"
 #define FLAGLESS
-#include "../gte.h"
+#include "../../../gte.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 

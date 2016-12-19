@@ -1,5 +1,5 @@
-#include "new_dynarec.h"
-#include "../r3000a.h"
+#include "../../new_dynarec.h"
+#include "../../../r3000a.h"
 
 extern char invalid_code[0x100000];
 

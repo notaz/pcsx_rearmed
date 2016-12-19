@@ -18,19 +18,32 @@ extern "C" {
 
 static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-   (void)addr;
    (void)prot;
    (void)flags;
    (void)fd;
    (void)offset;
 
-   void* addr_out;
+   int block, ret;
 
-   addr_out = malloc(len);
-   if(!addr_out)
+   block = sceKernelAllocMemBlockForVM("code", len);
+   if(block<=0){
+     sceClibPrintf("could not alloc mem block @0x%08X 0x%08X \n", block, len);
+     exit(1);
+   }
+
+   // get base address
+   ret = sceKernelGetMemBlockBase(block, &addr);
+   if (ret < 0)
+   {
+     sceClibPrintf("could get address @0x%08X 0x%08X  \n", block, addr);
+     exit(1);
+   }
+
+
+   if(!addr)
       return MAP_FAILED;
 
-   return addr_out;
+   return addr;
 }
 
 static inline int mprotect(void *addr, size_t len, int prot)
@@ -43,8 +56,9 @@ static inline int mprotect(void *addr, size_t len, int prot)
 
 static inline int munmap(void *addr, size_t len)
 {
-   free(addr);
-   return 0;
+  int uid = sceKernelFindMemBlockByAddr(addr, len);
+
+  return sceKernelFreeMemBlock(uid);
 
 }
 
@@ -53,4 +67,3 @@ static inline int munmap(void *addr, size_t len)
 #endif
 
 #endif // MMAN_H
-

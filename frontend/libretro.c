@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#ifdef __MACH__
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
 
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/psxcounters.h"
@@ -43,6 +47,7 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static struct retro_rumble_interface rumble;
 
 static void *vout_buf;
+static void * vout_buf_ptr;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
@@ -113,6 +118,20 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	vout_width = w;
 	vout_height = h;
+
+  struct retro_framebuffer fb = {0};
+
+  fb.width           = vout_width;
+  fb.height          = vout_height;
+  fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
+
+  vout_buf_ptr = vout_buf;
+
+  if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
+  {
+     vout_buf_ptr  = (uint16_t*)fb.data;
+  }
+
 }
 
 #ifndef FRONTEND_SUPPORTS_RGB565
@@ -129,14 +148,14 @@ static void convert(void *buf, size_t bytes)
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
-	unsigned short *dest = vout_buf;
+	unsigned short *dest = vout_buf_ptr;
 	const unsigned short *src = vram;
 	int dstride = vout_width, h1 = h;
 	int doffs;
 
 	if (vram == NULL) {
 		// blanking
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		goto out;
 	}
 
@@ -144,7 +163,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	doffs += (dstride - w) / 2 & ~1;
 	if (doffs != vout_doffs_old) {
 		// clear borders
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		vout_doffs_old = doffs;
 	}
 	dest += doffs;
@@ -167,7 +186,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-	convert(vout_buf, vout_width * vout_height * 2);
+	convert(vout_buf_ptr, vout_width * vout_height * 2);
 #endif
 	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
@@ -251,6 +270,88 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
          }
       }
    }
+
+   free(ptr);
+}
+#endif
+
+#ifdef VITA
+typedef struct
+{
+   void* buffer;
+   uint32_t target_map;
+   size_t size;
+   enum psxMapTag tag;
+}psx_map_t;
+
+void* addr = NULL;
+
+psx_map_t custom_psx_maps[] = {
+   {NULL, NULL, 0x210000, MAP_TAG_RAM},   // 0x80000000
+   {NULL, NULL, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
+   {NULL, NULL, 0x080000, MAP_TAG_OTHER}, // 0x1fc00000
+   {NULL, NULL, 0x800000, MAP_TAG_LUTS},  // 0x08000000
+   {NULL, NULL, 0x200000, MAP_TAG_VRAM},  // 0x00000000
+};
+
+int init_vita_mmap(){
+  int n;
+  void * tmpaddr;
+  addr = malloc(64*1024*1024);
+  if(addr==NULL)
+    return -1;
+  tmpaddr = ((u32)(addr+0xFFFFFF))&~0xFFFFFF;
+  custom_psx_maps[0].buffer=tmpaddr+0x2000000;
+  custom_psx_maps[1].buffer=tmpaddr+0x1800000;
+  custom_psx_maps[2].buffer=tmpaddr+0x1c00000;
+  custom_psx_maps[3].buffer=tmpaddr+0x0000000;
+  custom_psx_maps[4].buffer=tmpaddr+0x1000000;
+#if 0
+  for(n = 0; n < 5; n++){
+    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
+  }
+#endif
+  return 0;
+}
+
+void deinit_vita_mmap(){
+  free(addr);
+}
+
+void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+   (void)is_fixed;
+   (void)addr;
+
+
+    psx_map_t* custom_map = custom_psx_maps;
+
+    for (; custom_map->size; custom_map++)
+    {
+       if ((custom_map->size == size) && (custom_map->tag == tag))
+       {
+          return custom_map->buffer;
+       }
+    }
+
+
+   return malloc(size);
+}
+
+void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)tag;
+
+   psx_map_t* custom_map = custom_psx_maps;
+
+  for (; custom_map->size; custom_map++)
+  {
+     if ((custom_map->buffer == ptr))
+     {
+        return;
+     }
+  }
 
    free(ptr);
 }
@@ -473,7 +574,7 @@ static void update_controller_port_device(unsigned port, unsigned device)
 static void update_multitap()
 {
 	struct retro_variable var;
-	int auto_case;
+	int auto_case, port;
 
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap1";
@@ -494,7 +595,7 @@ static void update_multitap()
 	{
 		// If a gamepad is plugged after port 2, we need a first multitap.
 		multitap1 = 0;
-		for (int port = 2; port < PORTS_NUMBER; port++)
+		for (port = 2; port < PORTS_NUMBER; port++)
 			multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 
@@ -517,7 +618,7 @@ static void update_multitap()
 	{
 		// If a gamepad is plugged after port 4, we need a second multitap.
 		multitap2 = 0;
-		for (int port = 4; port < PORTS_NUMBER; port++)
+		for (port = 4; port < PORTS_NUMBER; port++)
 			multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
 	}
 }
@@ -537,7 +638,10 @@ void retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
-	info->library_version = "r22";
+#ifndef GIT_VERSION
+#define GIT_VERSION ""
+#endif
+	info->library_version = "r22" GIT_VERSION;
 	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
@@ -1204,6 +1308,7 @@ static const unsigned short retro_psx_map[] = {
 static void update_variables(bool in_flight)
 {
    struct retro_variable var;
+   int i;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
@@ -1223,7 +1328,7 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
-   for (int i = 0; i < PORTS_NUMBER; i++)
+   for (i = 0; i < PORTS_NUMBER; i++)
       update_controller_port_variable(i);
 
    update_multitap();
@@ -1362,6 +1467,11 @@ static void update_variables(bool in_flight)
    }
 }
 
+static int min(int a, int b)
+{
+    return a < b ? a : b;
+}
+
 void retro_run(void)
 {
     int i;
@@ -1387,17 +1497,17 @@ void retro_run(void)
 
 		if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 		{
-			in_analog_left[i][0] = (input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-			in_analog_left[i][1] = (input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-			in_analog_right[i][0] = (input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-			in_analog_right[i][1] = (input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+			in_analog_left[i][0] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_left[i][1] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+			in_analog_right[i][0] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_right[i][1] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
 		}
 	}
 
 	stop = 0;
 	psxCpu->Execute();
 
-	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
+	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
 		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
@@ -1470,16 +1580,28 @@ void retro_init(void)
 	int i, ret;
 	bool found_bios = false;
 
+#ifdef __MACH__
+	// magic sauce to make the dynarec work on iOS
+	syscall(SYS_ptrace, 0 /*PTRACE_TRACEME*/, 0, 0, 0);
+#endif
+
 #ifdef _3DS
    psxMapHook = pl_3ds_mmap;
    psxUnmapHook = pl_3ds_munmap;
 #endif
+#ifdef VITA
+   if(init_vita_mmap()<0)
+      abort();
+   psxMapHook = pl_vita_mmap;
+   psxUnmapHook = pl_vita_munmap;
+#endif
 	ret = emu_core_preinit();
-#ifdef _3DS
+#ifdef _3DS 
    /* emu_core_preinit sets the cpu to dynarec */
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
+
 	ret |= emu_core_init();
 	if (ret != 0) {
 		SysPrintf("PCSX init failed.\n");
@@ -1493,7 +1615,9 @@ void retro_init(void)
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
-
+  
+  vout_buf_ptr = vout_buf;
+  
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
 		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
@@ -1559,6 +1683,10 @@ void retro_deinit(void)
 	free(vout_buf);
 #endif
 	vout_buf = NULL;
+
+#ifdef VITA
+  deinit_vita_mmap();
+#endif
 }
 
 #ifdef VITA
