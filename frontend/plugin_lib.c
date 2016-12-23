@@ -43,7 +43,8 @@ int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },
 int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
 int in_adev_is_nublike[2];
-int in_keystate, in_state_gun;
+unsigned short in_keystate[8];
+int in_state_gun;
 int in_enable_vibration;
 void *tsdev;
 void *pl_vout_buf;

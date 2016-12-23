@@ -517,7 +517,7 @@ void initBufForRequest(int padIndex, char value){
 		//case CMD_READ_DATA_AND_VIBRATE :
 		//	break;
 		case CMD_CONFIG_MODE :
-			if(pad[padIndex].configMode == 1){
+			if (pad[padIndex].configMode == 1) {
 				memcpy(buf, resp43, 8);
 				break;
 			}
@@ -572,9 +572,9 @@ void reqIndex2Treatment(int padIndex, char value){
 	switch (req){
 		case CMD_CONFIG_MODE :
 			//0x43
-			if(value == 0){
+			if (value == 0) {
 				pad[padIndex].configMode = 0;
-			}else{
+			} else {
 				pad[padIndex].configMode = 1;
 			}
 			break;
@@ -586,13 +586,12 @@ void reqIndex2Treatment(int padIndex, char value){
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
-			if(value==1){
+			if (value == 1) {
 				memcpy(buf, resp46_01, 8);
 			}
 			break;
-		
 		case CMD_QUERY_MODE :
-			if(value==1){
+			if (value == 1) {
 				memcpy(buf, resp4C_01, 8);
 			}
 			break;
@@ -603,11 +602,12 @@ void reqIndex2Treatment(int padIndex, char value){
 		case CMD_READ_DATA_AND_VIBRATE:
 			//mem the vibration value for small motor;
 			pad[padIndex].Vib[0] = value;
+			break;
 	}
 }
 	
 void vibrate(int padIndex){
-	if(pad[padIndex].Vib[0] != pad[padIndex].VibF[0] || pad[padIndex].Vib[1] != pad[padIndex].VibF[1]){
+	if (pad[padIndex].Vib[0] != pad[padIndex].VibF[0] || pad[padIndex].Vib[1] != pad[padIndex].VibF[1]) {
 		//value is different update Value and call libretro for vibration
 		pad[padIndex].VibF[0] = pad[padIndex].Vib[0];
 		pad[padIndex].VibF[1] = pad[padIndex].Vib[1];
@@ -682,15 +682,12 @@ void _PADstartPoll(PadDataS *pad) {
 
 //Build response for 0x42 request Multitap in port
 //Response header for multitap : 0x80, 0x5A, (Pad information port 1-2A), (Pad information port 1-2B), (Pad information port 1-2C), (Pad information port 1-2D)
-void _PADstartPollMultitap(PadDataS padd[4]) {
-    int i = 0;
-    int offset = 2;
-    PadDataS pad;
+void _PADstartPollMultitap(PadDataS* padd) {
+    int i, offset;
     for(i = 0; i < 4; i++) {
     	offset = 2 + (i * 8);
-    	pad = padd[i];
-		_PADstartPoll(&pad);
-		memcpy(multitappar+offset, stdpar, 8);
+	_PADstartPoll(&padd[i]);
+	memcpy(multitappar+offset, stdpar, 8);
     }
     memcpy(bufMulti, multitappar, 34);
     respSize = 34;
@@ -698,15 +695,15 @@ void _PADstartPollMultitap(PadDataS padd[4]) {
 
 
 unsigned char _PADpoll(int port, unsigned char value) {
-	if(reqPos==0){
+	if (reqPos == 0) {
 		//mem the request number
 		req = value;
 		//copy the default value of request response in buffer instead of the keystate
-		initBufForRequest(port,value);
+		initBufForRequest(port, value);
 	}
 	
 	//if no new request the pad return 0xff, for signaling connected
-	if ( reqPos >= respSize) return 0xff;
+	if (reqPos >= respSize) return 0xff;
 	
 	switch(reqPos){
 		case 2:
@@ -723,16 +720,15 @@ unsigned char _PADpoll(int port, unsigned char value) {
 				//vibration
 				vibrate(port);
 				break;
-			
+			}
 		break;
-		}
 	}
 	return buf[reqPos++];
 }
 
 
 unsigned char _PADpollMultitap(int port, unsigned char value) {
-	if ( reqPos >= respSize) return 0xff;
+	if (reqPos >= respSize) return 0xff;
 	return bufMulti[reqPos++];
 }
 
@@ -742,21 +738,21 @@ unsigned char _PADpollMultitap(int port, unsigned char value) {
 unsigned char CALLBACK PAD1__startPoll(int pad) {
 	reqPos = 0;
 	// first call the pad provide if a multitap is connected between the psx and himself
-	if(multitap1 == -1){
+	if (multitap1 == -1) {
 		PadDataS padd;
 		padd.requestPadIndex = 0;
 		PAD1_readPort1(&padd);
 		multitap1 = padd.portMultitap;
 	}
 	// just one pad is on port 1 : NO MULTITAP
-	if (multitap1 == 0){
+	if (multitap1 == 0) {
 		PadDataS padd;
 		padd.requestPadIndex = 0;
 		PAD1_readPort1(&padd);
 		_PADstartPoll(&padd);
 	} else {
 		// a multitap is plugged : refresh all pad.
-		int i=0;
+		int i;
 		PadDataS padd[4];
 		for(i = 0; i < 4; i++) {
 			padd[i].requestPadIndex = i;
@@ -770,9 +766,9 @@ unsigned char CALLBACK PAD1__startPoll(int pad) {
 
 unsigned char CALLBACK PAD1__poll(unsigned char value) {
 	char tmp;
-	if(multitap1 == 1){
+	if (multitap1 == 1) {
 		tmp = _PADpollMultitap(0, value);
-	}else{
+	} else {
 		tmp = _PADpoll(0, value);
 	}
 	//printf("%2x:%2x, ",value,tmp);
@@ -824,20 +820,19 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 }
 
 unsigned char CALLBACK PAD2__startPoll(int pad) {
+	int pad_index;
+
 	reqPos = 0;
-	int pad_index = 0;
-	if(multitap1 == 0 && multitap2 == 0){
-		pad_index += 1;
-	}else if(multitap1 == 1 && multitap2 == 0){
-		pad_index += 4;
-	}else if(multitap1 == 0 && multitap2 == 2){
-		pad_index += 1;
-	}else if(multitap1 == 1 && multitap2 == 2){
-		pad_index += 4;
+	if (multitap1 == 0 && (multitap2 == 0 || multitap2 == 2)) {
+		pad_index = 1;
+	} else if(multitap1 == 1 && (multitap2 == 0 || multitap2 == 2)) {
+		pad_index = 4;
+	} else {
+		pad_index = 0;
 	}
 
 	//first call the pad provide if a multitap is connected between the psx and himself
-	if(multitap2 == -1){
+	if (multitap2 == -1) {
 		PadDataS padd;
 		padd.requestPadIndex = pad_index;
 		PAD2_readPort2(&padd);
@@ -845,17 +840,16 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 	}
 	
 	// just one pad is on port 1 : NO MULTITAP
-	if (multitap2 == 0){
+	if (multitap2 == 0) {
 		PadDataS padd;
 		padd.requestPadIndex = pad_index;
 		PAD2_readPort2(&padd);
 		_PADstartPoll(&padd);
 	} else {
 		// a multitap is plugged : refresh all pad.
-	//a multitap is plugged : refresh all pad.
-		int i=0;
+		int i;
 		PadDataS padd[4];
-		for(i=0;i<4;i++){
+		for(i = 0; i < 4; i++) {
 			padd[i].requestPadIndex = i+pad_index;
 			PAD2_readPort2(&padd[i]);
 		}
@@ -867,9 +861,9 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 
 unsigned char CALLBACK PAD2__poll(unsigned char value) {
 	char tmp;
-	if(multitap2 == 2){
+	if (multitap2 == 2) {
 		tmp = _PADpollMultitap(1, value);
-	}else{
+	} else {
 		tmp = _PADpoll(1, value);
 	}
 	//printf("%2x:%2x, ",value,tmp);
