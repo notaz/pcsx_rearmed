@@ -39,6 +39,9 @@
 
 #define PORTS_NUMBER 8
 
+//hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
+int rebootemu = 0;
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -1282,7 +1285,9 @@ size_t retro_get_memory_size(unsigned id)
 
 void retro_reset(void)
 {
-	SysReset();
+   //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
+   rebootemu = 1;
+	//SysReset();
 }
 
 static const unsigned short retro_psx_map[] = {
@@ -1475,6 +1480,11 @@ static int min(int a, int b)
 void retro_run(void)
 {
     int i;
+    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
+    if(rebootemu != 0){
+      rebootemu = 0;
+      SysReset();
+    }
 
 	input_poll_cb();
 
