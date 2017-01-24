@@ -100,7 +100,7 @@ static long CDRgetTD(unsigned char track, unsigned char *buffer)
 	return 0;
 }
 
-int uncompress2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
+int uncomp2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
 {
 	static z_stream z;
 	int ret = 0;
@@ -201,7 +201,7 @@ static long CDRreadTrack(unsigned char *time)
 		ret = uncompress(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
 		break;
 	case CDRC_ZLIB2:
-		ret = uncompress2(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
+		ret = uncomp2(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
 		break;
 	case CDRC_BZ:
 		ret = pBZ2_bzBuffToBuffDecompress((char *)cdbuffer->raw, (unsigned int *)&cdbuffer_size,
