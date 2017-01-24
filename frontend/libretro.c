@@ -39,6 +39,8 @@
 
 #define PORTS_NUMBER 8
 
+#define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
+
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
 int rebootemu = 0;
 
@@ -776,6 +778,21 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	// cheat funcs are destructive, need a copy..
 	strncpy(buf, code, sizeof(buf));
 	buf[sizeof(buf) - 1] = 0;
+	
+	//Prepare buffered cheat for PCSX's AddCheat fucntion.
+	int cursor=0;
+	int nonhexdec=0;
+	while (buf[cursor]){
+		if (!(ISHEXDEC)){
+			if (++nonhexdec%2){
+				buf[cursor]=' ';
+			} else {
+				buf[cursor]='\n';
+			}
+		}
+		cursor++;
+	}
+	
 
 	if (index < NumCheats)
 		ret = EditCheat(index, "", buf);
