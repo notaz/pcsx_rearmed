@@ -55,6 +55,7 @@ static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
+static bool found_bios;
 
 static int plugins_opened;
 static int is_pal_mode;
@@ -458,6 +459,7 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
       { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
+      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo; on|off" },
       { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
@@ -1470,6 +1472,20 @@ static void update_variables(bool in_flight)
 
       dfinput_activate();
    }
+   else{
+      //not yet running
+      
+      //bootlogo display hack
+      if (found_bios) {
+         var.value = "NULL";
+         var.key = "pcsx_rearmed_show_bios_bootlogo";
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+         {
+            if (strcmp(var.value, "on") == 0)
+               rebootemu = 1;
+         }
+      }
+   }
 }
 
 static int min(int a, int b)
@@ -1588,7 +1604,8 @@ void retro_init(void)
 	const char *dir;
 	char path[256];
 	int i, ret;
-	bool found_bios = false;
+   
+   found_bios = false;
 
 #ifdef __MACH__
 	// magic sauce to make the dynarec work on iOS
