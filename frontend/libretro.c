@@ -41,7 +41,6 @@
 
 #define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
 
-
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
 int rebootemu = 0;
 
@@ -801,7 +800,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		ret = AddCheat("", buf);
 
 	if (ret != 0)
-		SysPrintf("Failed to set cheat %#u: %s\n", index, code);
+		SysPrintf("Failed to set cheat %#u\n", index);
 	else if (index < NumCheats)
 		Cheats[index].Enabled = enabled;
 }
