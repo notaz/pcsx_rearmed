@@ -1011,9 +1011,6 @@ strcasestr(const char *s, const char*find)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
-	if (!info)
-	   return false;
-
 	size_t i;
 	bool is_m3u = (strcasestr(info->path, ".m3u") != NULL);
 
