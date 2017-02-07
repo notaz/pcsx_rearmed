@@ -42,7 +42,7 @@
 #define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
 
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
-int rebootemu = 0;
+static int rebootemu = 0;
 
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
@@ -461,7 +461,7 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
       { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
-      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo; on|off" },
+      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); off|on" },
       { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
