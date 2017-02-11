@@ -460,9 +460,9 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
-      { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
-      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); off|on" },
-      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
+      { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
+      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
+      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
       { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
@@ -1397,9 +1397,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          duping_enable = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          duping_enable = true;
    }
 
@@ -1435,9 +1435,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          spu_config.iUseReverb = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          spu_config.iUseReverb = true;
    }
 
@@ -1498,7 +1498,7 @@ static void update_variables(bool in_flight)
          var.key = "pcsx_rearmed_show_bios_bootlogo";
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
          {
-            if (strcmp(var.value, "on") == 0)
+            if (strcmp(var.value, "enabled") == 0)
                rebootemu = 1;
          }
       }
