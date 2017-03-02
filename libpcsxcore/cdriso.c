@@ -25,6 +25,9 @@
 #include "cdriso.h"
 #include "ppf.h"
 
+#include <errno.h>
+#include <zlib.h>
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <process.h>
@@ -36,8 +39,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 #endif
-#include <errno.h>
-#include <zlib.h>
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
