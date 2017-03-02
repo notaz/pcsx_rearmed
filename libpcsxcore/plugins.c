@@ -23,6 +23,7 @@
 
 #include "plugins.h"
 #include "cdriso.h"
+#include "../plugins/dfinput/externals.h"
 
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
