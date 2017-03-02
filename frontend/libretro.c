@@ -932,6 +932,10 @@ static struct retro_disk_control_callback disk_control = {
 #define SLASH '/'
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX  4096
+#endif
+
 static char base_dir[PATH_MAX];
 
 static bool read_m3u(const char *file)
