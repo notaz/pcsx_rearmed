@@ -1308,9 +1308,7 @@ size_t retro_get_memory_size(unsigned id)
 
 void retro_reset(void)
 {
-   //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
-   rebootemu = 1;
-	//SysReset();
+	SysReset();
 }
 
 static const unsigned short retro_psx_map[] = {
@@ -1517,11 +1515,6 @@ static int min(int a, int b)
 void retro_run(void)
 {
     int i;
-    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
-    if(rebootemu != 0){
-      rebootemu = 0;
-      SysReset();
-    }
 
 	input_poll_cb();
 
