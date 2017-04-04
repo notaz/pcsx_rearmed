@@ -32,7 +32,7 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
    void* addr_out;
 
    if((prot == (PROT_READ | PROT_WRITE | PROT_EXEC)) &&
-      (flags == (MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS)))
+      (flags == (MAP_PRIVATE | MAP_ANONYMOUS)))
    {
       if(__ctr_svchax)
       {
