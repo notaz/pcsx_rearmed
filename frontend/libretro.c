@@ -398,8 +398,11 @@ void pl_timing_prepare(int is_pal)
 
 void plat_trigger_vibrate(int pad, int low, int high)
 {
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+	if(in_enable_vibration)
+	{
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+    }
 }
 
 void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
@@ -452,6 +455,7 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
+      { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -1360,6 +1364,17 @@ static void update_variables(bool in_flight)
       update_controller_port_variable(i);
 
    update_multitap();
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_vibration";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         in_enable_vibration = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         in_enable_vibration = 1;
+   }
 
 #ifdef __ARM_NEON__
    var.value = "NULL";
