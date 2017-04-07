@@ -64,6 +64,7 @@ static int is_pal_mode;
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
+extern char Mcd2Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
@@ -1711,6 +1712,7 @@ void retro_init(void)
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
 	init_memcard(Mcd1Data);
+   init_memcard(Mcd2Data);
 
 	SaveFuncs.open = save_open;
 	SaveFuncs.read = save_read;

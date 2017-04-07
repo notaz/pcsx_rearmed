@@ -721,10 +721,10 @@ void SysReset() {
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
 
-	EmuReset();
-
-	// hmh core forgets this
+   // hmh core forgets this
 	CDR_stop();
+   
+	EmuReset();
 
 	GPU_updateLace = real_lace;
 	g_emu_resetting = 0;
