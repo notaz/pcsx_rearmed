@@ -39,8 +39,10 @@
 
 #define PORTS_NUMBER 8
 
+#define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
+
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
-int rebootemu = 0;
+static int rebootemu = 0;
 
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
@@ -55,6 +57,7 @@ static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
+static bool found_bios;
 
 static int plugins_opened;
 static int is_pal_mode;
@@ -457,8 +460,9 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
-      { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
-      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
+      { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
+      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
+      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
       { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
       { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
@@ -774,6 +778,21 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	// cheat funcs are destructive, need a copy..
 	strncpy(buf, code, sizeof(buf));
 	buf[sizeof(buf) - 1] = 0;
+	
+	//Prepare buffered cheat for PCSX's AddCheat fucntion.
+	int cursor=0;
+	int nonhexdec=0;
+	while (buf[cursor]){
+		if (!(ISHEXDEC)){
+			if (++nonhexdec%2){
+				buf[cursor]=' ';
+			} else {
+				buf[cursor]='\n';
+			}
+		}
+		cursor++;
+	}
+	
 
 	if (index < NumCheats)
 		ret = EditCheat(index, "", buf);
@@ -911,6 +930,10 @@ static struct retro_disk_control_callback disk_control = {
 #define SLASH '\\'
 #else
 #define SLASH '/'
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX  4096
 #endif
 
 static char base_dir[PATH_MAX];
@@ -1378,9 +1401,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          duping_enable = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          duping_enable = true;
    }
 
@@ -1416,9 +1439,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          spu_config.iUseReverb = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          spu_config.iUseReverb = true;
    }
 
@@ -1469,6 +1492,20 @@ static void update_variables(bool in_flight)
       }
 
       dfinput_activate();
+   }
+   else{
+      //not yet running
+      
+      //bootlogo display hack
+      if (found_bios) {
+         var.value = "NULL";
+         var.key = "pcsx_rearmed_show_bios_bootlogo";
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+         {
+            if (strcmp(var.value, "enabled") == 0)
+               rebootemu = 1;
+         }
+      }
    }
 }
 
@@ -1588,7 +1625,8 @@ void retro_init(void)
 	const char *dir;
 	char path[256];
 	int i, ret;
-	bool found_bios = false;
+   
+   found_bios = false;
 
 #ifdef __MACH__
 	// magic sauce to make the dynarec work on iOS

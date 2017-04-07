@@ -25,6 +25,9 @@
 #include "cdriso.h"
 #include "ppf.h"
 
+#include <errno.h>
+#include <zlib.h>
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <process.h>
@@ -36,8 +39,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 #endif
-#include <errno.h>
-#include <zlib.h>
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
@@ -1093,7 +1094,7 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 	return ret;
 }
 
-static int uncompress2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
+static int uncomp2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
 {
 	static z_stream z;
 	int ret = 0;
@@ -1173,7 +1174,7 @@ static int cdread_compressed(FILE *f, unsigned int base, void *dest, int sector)
 	if (is_compressed) {
 		cdbuffer_size_expect = sizeof(compr_img->buff_raw[0]) << compr_img->block_shift;
 		cdbuffer_size = cdbuffer_size_expect;
-		ret = uncompress2(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
+		ret = uncomp2(compr_img->buff_raw[0], &cdbuffer_size, compr_img->buff_compressed, size);
 		if (ret != 0) {
 			SysPrintf("uncompress failed with %d for block %d, sector %d\n",
 					ret, block, sector);
