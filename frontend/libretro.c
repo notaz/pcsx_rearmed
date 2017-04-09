@@ -64,6 +64,7 @@ static int is_pal_mode;
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
+extern char Mcd2Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
@@ -81,6 +82,15 @@ int in_enable_vibration = 1;
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
 #define VOUT_MAX_WIDTH 1024
 #define VOUT_MAX_HEIGHT 512
+
+//Dummy functions
+bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info){return false;}
+void retro_unload_game(void){}
+static int vout_open(void){return 0;}
+static void vout_close(void){}
+static int snd_init(void){return 0;}
+static void snd_finish(void){}
+static int snd_busy(void){return 0;}
 
 static void init_memcard(char *mcd_data)
 {
@@ -113,11 +123,6 @@ static void init_memcard(char *mcd_data)
 		mcd_data[off++] = 0xff;
 		off += 0x76;
 	}
-}
-
-static int vout_open(void)
-{
-	return 0;
 }
 
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
@@ -196,10 +201,6 @@ out:
 #endif
 	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
-}
-
-static void vout_close(void)
-{
 }
 
 #ifdef _3DS
@@ -410,20 +411,6 @@ void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 }
 
 /* sound calls */
-static int snd_init(void)
-{
-	return 0;
-}
-
-static void snd_finish(void)
-{
-}
-
-static int snd_busy(void)
-{
-	return 0;
-}
-
 static void snd_feed(void *buf, int bytes)
 {
 	if (audio_batch_cb != NULL)
@@ -1280,15 +1267,6 @@ bool retro_load_game(const struct retro_game_info *info)
 	return true;
 }
 
-bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info)
-{
-	return false;
-}
-
-void retro_unload_game(void)
-{
-}
-
 unsigned retro_get_region(void)
 {
 	return is_pal_mode ? RETRO_REGION_PAL : RETRO_REGION_NTSC;
@@ -1726,6 +1704,7 @@ void retro_init(void)
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
 	init_memcard(Mcd1Data);
+   init_memcard(Mcd2Data);
 
 	SaveFuncs.open = save_open;
 	SaveFuncs.read = save_read;
