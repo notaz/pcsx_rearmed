@@ -1680,7 +1680,7 @@ void retro_init(void)
 		SysPrintf("no BIOS files found.\n");
 		struct retro_message msg =
 		{
-			"no BIOS found, expect bugs!",
+			"No BIOS file found - add for better compatibility",
 			180
 		};
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
