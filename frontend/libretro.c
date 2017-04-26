@@ -1613,7 +1613,7 @@ static void check_system_specs(void)
 
 void retro_init(void)
 {
-	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
+	const char *bios[] = { "SCPH101", "SCPH7001", "SCPH5501", "SCPH1001" };
 	const char *dir;
 	char path[256];
 	int i, ret;
