@@ -93,7 +93,7 @@ DRC_VAR(restore_candidate, 512)
 DRC_VAR(FCR0, 4)
 DRC_VAR(FCR31, 4)
 
-#ifdef __MACH__
+#ifdef TEXRELS_FORBIDDEN
 	.data
 	.align 2
 ptr_jump_in:
@@ -117,21 +117,21 @@ ptr_hash_table:
 #endif
 
 .macro load_varadr reg var
-#if defined(HAVE_ARMV7) && !defined(__PIC__)
-	movw	\reg, #:lower16:\var
-	movt	\reg, #:upper16:\var
-#elif defined(HAVE_ARMV7) && defined(__MACH__)
+#if defined(HAVE_ARMV7) && defined(TEXRELS_FORBIDDEN)
 	movw	\reg, #:lower16:(\var-(1678f+8))
 	movt	\reg, #:upper16:(\var-(1678f+8))
 1678:
 	add	\reg, pc
+#elif defined(HAVE_ARMV7) && !defined(__PIC__)
+	movw	\reg, #:lower16:\var
+	movt	\reg, #:upper16:\var
 #else
 	ldr	\reg, =\var
 #endif
 .endm
 
 .macro load_varadr_ext reg var
-#if defined(HAVE_ARMV7) && defined(__MACH__) && defined(__PIC__)
+#if defined(HAVE_ARMV7) && defined(TEXRELS_FORBIDDEN)
 	movw	\reg, #:lower16:(ptr_\var-(1678f+8))
 	movt	\reg, #:upper16:(ptr_\var-(1678f+8))
 1678:
