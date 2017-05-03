@@ -194,25 +194,17 @@
 
 .align 4
 
-#ifndef __MACH__
+#include "arm_features.h"
 
-#define function(name)                                                         \
-  .global name;                                                                \
-  .type name, %function;                                                       \
-  name:                                                                        \
+#define function(name) FUNCTION(name):
+
+#ifndef TEXRELS_FORBIDDEN
 
 #define JT_OP_REL(table_label, index_reg, temp)
 #define JT_OP(x...) x
 #define JTE(start, target) target
 
-#define EXTRA_UNSAVED_REGS
-
 #else
-
-#define function(name)                                                         \
-  .globl _##name;                                                              \
-  name:                                                                        \
-  _##name:                                                                     \
 
 #define JT_OP_REL(table_label, index_reg, temp)                                \
   adr temp, table_label;                                                       \
@@ -222,13 +214,12 @@
 #define JT_OP(x...)
 #define JTE(start, target) (target - start)
 
-// r7 is preserved, but add it for EABI alignment..
-#define EXTRA_UNSAVED_REGS r7, r9,
+#endif
 
+#ifdef __MACH__
 #define flush_render_block_buffer _flush_render_block_buffer
 #define setup_sprite_untextured_simple _setup_sprite_untextured_simple
 #define update_texture_8bpp_cache _update_texture_8bpp_cache
-
 #endif
 
 @ r0: psx_gpu

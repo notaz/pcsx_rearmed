@@ -73,4 +73,8 @@
 
 #endif
 
+#if defined(__MACH__) || defined(__PIC__)
+#define TEXRELS_FORBIDDEN
+#endif
+
 #endif /* __ARM_FEATURES_H__ */
