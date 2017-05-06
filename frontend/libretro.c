@@ -456,6 +456,7 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
       { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
+      { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -1374,6 +1375,27 @@ static void update_variables(bool in_flight)
          in_enable_vibration = 0;
       else if (strcmp(var.value, "enabled") == 0)
          in_enable_vibration = 1;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_dithering";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 0;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
+#endif
+      }
+      else if (strcmp(var.value, "enabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
+#endif
+      }
    }
 
 #ifdef __ARM_NEON__
