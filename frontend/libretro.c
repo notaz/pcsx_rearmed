@@ -1702,7 +1702,7 @@ void retro_init(void)
 		SysPrintf("no BIOS files found.\n");
 		struct retro_message msg =
 		{
-			"No BIOS file found - add for better compatibility",
+			"No PlayStation BIOS file found - add for better compatibility",
 			180
 		};
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
