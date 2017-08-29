@@ -155,7 +155,7 @@ else ifeq ($(platform), ctr)
 #	CFLAGS += -DPCSX
 #	BUILTIN_GPU = unai
 	USE_DYNAREC = 1
-	DRC_CACHE_BASE = 1
+	DRC_CACHE_BASE = 0
 	ARCH = arm
 	HAVE_NEON = 0
 
