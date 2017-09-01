@@ -39,6 +39,10 @@
 
 #define PORTS_NUMBER 8
 
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 #define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
 
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
@@ -399,8 +403,11 @@ void pl_timing_prepare(int is_pal)
 
 void plat_trigger_vibrate(int pad, int low, int high)
 {
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+	if(in_enable_vibration)
+	{
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+    }
 }
 
 void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
@@ -439,6 +446,8 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
+      { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
+      { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -1339,6 +1348,38 @@ static void update_variables(bool in_flight)
 
    update_multitap();
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_vibration";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         in_enable_vibration = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         in_enable_vibration = 1;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_dithering";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 0;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
+#endif
+      }
+      else if (strcmp(var.value, "enabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
+#endif
+      }
+   }
+
 #ifdef __ARM_NEON__
    var.value = "NULL";
    var.key = "pcsx_rearmed_neon_interlace_enable";
@@ -1487,11 +1528,6 @@ static void update_variables(bool in_flight)
    }
 }
 
-static int min(int a, int b)
-{
-    return a < b ? a : b;
-}
-
 void retro_run(void)
 {
     int i;
@@ -1522,10 +1558,10 @@ void retro_run(void)
 
 		if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 		{
-			in_analog_left[i][0] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
-			in_analog_left[i][1] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
-			in_analog_right[i][0] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
-			in_analog_right[i][1] = min((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+			in_analog_left[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_left[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+			in_analog_right[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_right[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
 		}
 	}
 
@@ -1599,7 +1635,7 @@ static void check_system_specs(void)
 
 void retro_init(void)
 {
-	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
+	const char *bios[] = { "SCPH101", "SCPH7001", "SCPH5501", "SCPH1001" };
 	const char *dir;
 	char path[256];
 	int i, ret;
@@ -1666,7 +1702,7 @@ void retro_init(void)
 		SysPrintf("no BIOS files found.\n");
 		struct retro_message msg =
 		{
-			"no BIOS found, expect bugs!",
+			"No PlayStation BIOS file found - add for better compatibility",
 			180
 		};
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);

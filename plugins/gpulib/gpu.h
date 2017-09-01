@@ -88,6 +88,7 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
+  int useDithering:1; /* 0 - off , 1 - on */
   uint16_t *(*get_enhancement_bufer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   void *(*mmap)(unsigned int size);

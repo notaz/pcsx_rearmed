@@ -7123,7 +7123,7 @@ void new_dynarec_init(void)
 #else
 #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
-  if (mprotect((void*)BASE_ADDR, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+  if (mprotect((void *)BASE_ADDR, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
 #endif
 #endif
