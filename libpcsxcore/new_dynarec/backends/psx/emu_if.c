@@ -16,8 +16,12 @@
 #include "../../../mdec.h"
 #include "../../../gte_arm.h"
 #include "../../../gte_neon.h"
+
+#include "../../../gte.h"
+
 #define FLAGLESS
 #include "../../../gte.h"
+#undef  FLAGLESS
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -331,6 +335,7 @@ static int ari64_init()
 #ifdef DRC_DBG
 	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
 #endif
+   
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
 	scratch_buf_ptr = scratch_buf;
