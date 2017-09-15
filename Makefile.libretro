@@ -253,8 +253,10 @@ else ifneq (,$(findstring armv,$(platform)))
 # Windows
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
+   BUILTIN_GPU = peops
+   PLATFORM = libretro
 	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
-	CFLAGS += -D__WIN32__
+	CFLAGS += -D__WIN32__ -DNO_DYLIB 
 	MMAP_WIN32=1
 	MAIN_LDLIBS += -lws2_32
 	LIBPTHREAD :=
