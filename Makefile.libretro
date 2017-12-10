@@ -53,13 +53,6 @@ else ifeq ($(platform), osx)
 	fpic += -mmacosx-version-min=10.1
 
 # iOS
-else ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
-    ARCH := arm64
-    USE_DYNAREC = 0
-    HAVE_NEON = 0
-    BUILTIN_GPU = peops
-    TARGET := $(TARGET_NAME)_libretro_ios.dylib
-
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
 	USE_DYNAREC ?= 1
