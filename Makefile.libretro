@@ -63,6 +63,8 @@ else ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
 	USE_DYNAREC ?= 1
+    HAVE_NEON = 1
+    BUILTIN_GPU = neon
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 ifeq ($(USE_DYNAREC),0)
 	# Override
@@ -79,8 +81,6 @@ endif
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-	HAVE_NEON = 1
-	BUILTIN_GPU = neon
 	CFLAGS += -DIOS
 ifeq ($(platform),ios9)
 	CC     += -miphoneos-version-min=8.0
@@ -129,7 +129,7 @@ else ifeq ($(platform), vita)
 	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
-	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables 
+	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
 	CFLAGS +=  -fno-optimize-sibling-calls
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
@@ -155,7 +155,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
-	CFLAGS += -fomit-frame-pointer -ffast-math	
+	CFLAGS += -fomit-frame-pointer -ffast-math
 	CFLAGS += -Ifrontend/3ds
 	CFLAGS += -Werror=implicit-function-declaration
 
@@ -216,7 +216,7 @@ else ifeq ($(platform), rpi2)
 	ARCH = arm
 	BUILTIN_GPU = neon
 	USE_DYNAREC = 1
-	
+
 #Raspberry Pi 3
 else ifeq ($(platform), rpi3)
 	TARGET := $(TARGET_NAME)_libretro.so
@@ -263,7 +263,7 @@ else
    BUILTIN_GPU = peops
    PLATFORM = libretro
 	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
-	CFLAGS += -D__WIN32__ -DNO_DYLIB 
+	CFLAGS += -D__WIN32__ -DNO_DYLIB
 	MMAP_WIN32=1
 	MAIN_LDLIBS += -lws2_32
 	LIBPTHREAD :=
