@@ -36,6 +36,9 @@ EXTRA_LDFLAGS =
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
+ifneq ($(findstring SunOS,$(shell uname -a)),)
+	CC = gcc
+endif
 
 else ifeq ($(platform), linux-portable)
 	TARGET := $(TARGET_NAME)_libretro.so
