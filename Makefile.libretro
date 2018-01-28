@@ -28,7 +28,11 @@ ifneq ($(GIT_VERSION)," unknown")
 endif
 LIBZ := -lz
 LIBPTHREAD := -lpthread
+ifneq ($(findstring Haiku,$(shell uname -s)),)
+LIBDL := -lroot -lnetwork
+else
 LIBDL := -ldl
+endif
 MMAP_WIN32=0
 EXTRA_LDFLAGS =
 
@@ -36,7 +40,7 @@ EXTRA_LDFLAGS =
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-ifneq ($(findstring SunOS,$(shell uname -a)),)
+ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
 endif
 
