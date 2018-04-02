@@ -62,9 +62,9 @@ static int alsa_init(void)
  name = snd_ctl_card_info_get_name(info);
  if (name != NULL) {
   if (strcasecmp(name, "PulseAudio") == 0) {
-    // PulseAudio's ALSA emulation is known to be broken..
-    printf("alsa: refusing to run under PulseAudio's emulation\n");
-    return -1;
+    // PulseAudio's ALSA emulation is known to be broken.
+    printf("WARNING: alsa: running under PulseAudio, sound may not work. \n");
+    // return -1;
   }
   else {
     printf("alsa: using '%s', set ALSA_NAME to change\n", name);
