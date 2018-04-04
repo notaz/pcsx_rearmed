@@ -102,6 +102,7 @@ LOCAL_SRC_FILES += ../frontend/libretro.c
 
 LOCAL_CFLAGS += -O3 -ffast-math -funroll-loops -DNDEBUG -D_FILE_OFFSET_BITS=64 -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
+LOCAL_LDFLAGS := -Wl,-Bsymbolic -shared
 LOCAL_LDLIBS := -lz -llog
 
 include $(BUILD_SHARED_LIBRARY)
