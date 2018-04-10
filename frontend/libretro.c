@@ -54,6 +54,8 @@ static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 static struct retro_rumble_interface rumble;
+static struct retro_log_callback logging;
+static retro_log_printf_t log_cb;
 
 static void *vout_buf;
 static void * vout_buf_ptr;
@@ -464,6 +466,9 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
       { NULL, NULL },
    };
+
+    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
+        log_cb = logging.log;
 
    environ_cb = cb;
 
@@ -1219,7 +1224,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	if (is_m3u) {
 		if (!read_m3u(info->path)) {
-			SysPrintf("failed to read m3u file\n");
+			log_cb(RETRO_LOG_INFO, "failed to read m3u file\n");
 			return false;
 		}
 	} else {
@@ -1231,7 +1236,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	/* have to reload after set_cd_image for correct cdr plugin */
 	if (LoadPlugins() == -1) {
-		SysPrintf("failed to load plugins\n");
+		log_cb(RETRO_LOG_INFO, "failed to load plugins\n");
 		return false;
 	}
 
@@ -1239,7 +1244,7 @@ bool retro_load_game(const struct retro_game_info *info)
 	NetOpened = 0;
 
 	if (OpenPlugins() == -1) {
-		SysPrintf("failed to open plugins\n");
+		log_cb(RETRO_LOG_INFO, "failed to open plugins\n");
 		return false;
 	}
 
@@ -1248,14 +1253,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	Config.PsxAuto = 1;
 	if (CheckCdrom() == -1) {
-		SysPrintf("unsupported/invalid CD image: %s\n", info->path);
+        log_cb(RETRO_LOG_INFO, "unsupported/invalid CD image: %s\n", info->path);
 		return false;
 	}
 
 	SysReset();
 
 	if (LoadCdrom() == -1) {
-		SysPrintf("could not load CD-ROM!\n");
+		log_cb(RETRO_LOG_INFO, "could not load CD\n");
 		return false;
 	}
 	emu_on_new_cd(0);
