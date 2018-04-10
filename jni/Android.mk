@@ -1,108 +1,122 @@
 LOCAL_PATH := $(call my-dir)
 
-include $(CLEAR_VARS)
-
-GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
-ifneq ($(GIT_VERSION)," unknown")
-	LOCAL_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
-endif
-
-APP_DIR := ../../src
-
-#fix stupid change in ndk r11 that breaks compiling even when the exe would run fine
-LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
-
-ifneq ($(TARGET_ARCH_ABI),armeabi-v7a)
-   NO_NEON_BUILD := 1
-else
-   NO_NEON_BUILD := $(NO_NEON)
-endif
-
-ifeq ($(NO_NEON_BUILD)$(TARGET_ARCH_ABI),1armeabi-v7a)
-   LOCAL_MODULE    := retro-noneon
-else
-   LOCAL_MODULE    := retro
-endif
-
-ifeq ($(TARGET_ARCH),arm)
-   LOCAL_ARM_MODE := arm
-
-   LOCAL_CFLAGS += -DANDROID_ARM
-
-   LOCAL_SRC_FILES += ../libpcsxcore/gte_arm.S
-
-   # dynarec
-   LOCAL_SRC_FILES += ../libpcsxcore/new_dynarec/new_dynarec.c ../libpcsxcore/new_dynarec/arm/linkage_arm.S ../libpcsxcore/new_dynarec/backends/psx/emu_if.c ../libpcsxcore/new_dynarec/backends/psx/pcsxmem.c
-
-   # spu
-   LOCAL_SRC_FILES += ../plugins/dfsound/arm_utils.S
-
-   # misc
-
-   ifeq ($(NO_NEON_BUILD),1)
-      # gpu
-      LOCAL_CFLAGS += -DREARMED
-      LOCAL_SRC_FILES += ../plugins/gpu_unai/gpulib_if.cpp ../plugins/gpu_unai/gpu_arm.s
-      LOCAL_SRC_FILES += ../frontend/cspace_arm.S
-   else
-      LOCAL_ARM_NEON := true
-      LOCAL_CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-      LOCAL_SRC_FILES += ../libpcsxcore/gte_neon.S ../frontend/cspace_neon.S
-
-      # gpu
-      LOCAL_SRC_FILES += ../plugins/gpu_neon/psx_gpu_if.c ../plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.S
-   endif
-endif
-
-ifeq ($(TARGET_ARCH),x86)
-   LOCAL_CFLAGS += -DANDROID_X86
-endif
-
-ifeq ($(TARGET_ARCH),mips)
-   LOCAL_CFLAGS += -DANDROID_MIPS -D__mips__ -D__MIPSEL__
-endif
-
-ifneq ($(TARGET_ARCH),arm)
-   # gpu
-   LOCAL_CFLAGS += -DREARMED
-   LOCAL_SRC_FILES += ../plugins/gpu_unai/gpulib_if.cpp
-endif
-
 $(shell cd "$(LOCAL_PATH)" && ((git describe || echo) | sed -e 's/.*/#define REV "\0"/' > ../frontend/revision.h_))
 $(shell cd "$(LOCAL_PATH)" && (diff -q ../frontend/revision.h_ ../frontend/revision.h > /dev/null 2>&1 || cp ../frontend/revision.h_ ../frontend/revision.h))
 $(shell cd "$(LOCAL_PATH)" && (rm ../frontend/revision.h_))
 
-LOCAL_SRC_FILES += ../libpcsxcore/cdriso.c ../libpcsxcore/cdrom.c ../libpcsxcore/cheat.c ../libpcsxcore/debug.c \
-   ../libpcsxcore/decode_xa.c ../libpcsxcore/disr3000a.c ../libpcsxcore/mdec.c \
-   ../libpcsxcore/misc.c ../libpcsxcore/plugins.c ../libpcsxcore/ppf.c ../libpcsxcore/psxbios.c \
-   ../libpcsxcore/psxcommon.c ../libpcsxcore/psxcounters.c ../libpcsxcore/psxdma.c ../libpcsxcore/psxhle.c \
-   ../libpcsxcore/psxhw.c ../libpcsxcore/psxinterpreter.c ../libpcsxcore/psxmem.c ../libpcsxcore/r3000a.c \
-   ../libpcsxcore/sio.c ../libpcsxcore/socket.c ../libpcsxcore/spu.c
-LOCAL_SRC_FILES += ../libpcsxcore/gte.c ../libpcsxcore/gte_nf.c ../libpcsxcore/gte_divider.c
+ROOT_DIR     := $(LOCAL_PATH)/..
+CORE_DIR     := $(ROOT_DIR)/libpcsxcore
+SPU_DIR      := $(ROOT_DIR)/plugins/dfsound
+GPU_DIR      := $(ROOT_DIR)/plugins/gpulib
+CDR_DIR      := $(ROOT_DIR)/plugins/cdrcimg
+INPUT_DIR    := $(ROOT_DIR)/plugins/dfinput
+FRONTEND_DIR := $(ROOT_DIR)/frontend
+NEON_DIR     := $(ROOT_DIR)/plugins/gpu_neon
+UNAI_DIR     := $(ROOT_DIR)/plugins/gpu_unai
+DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
+
+# core
+SOURCES_C := $(CORE_DIR)/cdriso.c \
+             $(CORE_DIR)/cdrom.c \
+             $(CORE_DIR)/cheat.c \
+             $(CORE_DIR)/debug.c \
+             $(CORE_DIR)/decode_xa.c \
+             $(CORE_DIR)/disr3000a.c \
+             $(CORE_DIR)/mdec.c \
+             $(CORE_DIR)/misc.c \
+             $(CORE_DIR)/plugins.c \
+             $(CORE_DIR)/ppf.c \
+             $(CORE_DIR)/psxbios.c \
+             $(CORE_DIR)/psxcommon.c \
+             $(CORE_DIR)/psxcounters.c \
+             $(CORE_DIR)/psxdma.c \
+             $(CORE_DIR)/psxhle.c \
+             $(CORE_DIR)/psxhw.c \
+             $(CORE_DIR)/psxinterpreter.c \
+             $(CORE_DIR)/psxmem.c \
+             $(CORE_DIR)/r3000a.c \
+             $(CORE_DIR)/sio.c \
+             $(CORE_DIR)/socket.c \
+             $(CORE_DIR)/spu.c \
+             $(CORE_DIR)/gte.c \
+             $(CORE_DIR)/gte_nf.c \
+             $(CORE_DIR)/gte_divider.c
 
 # spu
-LOCAL_SRC_FILES += ../plugins/dfsound/dma.c ../plugins/dfsound/freeze.c \
-   ../plugins/dfsound/registers.c ../plugins/dfsound/spu.c \
-   ../plugins/dfsound/out.c ../plugins/dfsound/nullsnd.c
+SOURCES_C += $(SPU_DIR)/dma.c \
+             $(SPU_DIR)/freeze.c \
+             $(SPU_DIR)/registers.c \
+             $(SPU_DIR)/spu.c \
+             $(SPU_DIR)/out.c \
+             $(SPU_DIR)/nullsnd.c
 
-# builtin gpu
-LOCAL_SRC_FILES += ../plugins/gpulib/gpu.c ../plugins/gpulib/vout_pl.c
+# gpu
+SOURCES_C += $(GPU_DIR)/gpu.c \
+             $(GPU_DIR)/vout_pl.c
 
 # cdrcimg
-LOCAL_SRC_FILES += ../plugins/cdrcimg/cdrcimg.c
+SOURCES_C += $(CDR_DIR)/cdrcimg.c
 
 # dfinput
-LOCAL_SRC_FILES += ../plugins/dfinput/main.c ../plugins/dfinput/pad.c ../plugins/dfinput/guncon.c
+SOURCES_C += $(INPUT_DIR)/main.c \
+             $(INPUT_DIR)/pad.c \
+             $(INPUT_DIR)/guncon.c
 
-# misc
-LOCAL_SRC_FILES += ../frontend/main.c ../frontend/plugin.c ../frontend/cspace.c
+# frontend
+SOURCES_C += $(FRONTEND_DIR)/main.c \
+             $(FRONTEND_DIR)/plugin.c \
+             $(FRONTEND_DIR)/cspace.c \
+             $(FRONTEND_DIR)/libretro.c
 
-# libretro
-LOCAL_SRC_FILES += ../frontend/libretro.c
+# dynarec
+SOURCES_C += $(DYNAREC_DIR)/backends/psx/emu_if.c
 
-LOCAL_CFLAGS += -O3 -ffast-math -funroll-loops -DNDEBUG -D_FILE_OFFSET_BITS=64 -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../include
-LOCAL_LDFLAGS := -Wl,-Bsymbolic -shared
-LOCAL_LDLIBS := -lz -llog
+COREFLAGS := -ffast-math -funroll-loops -D_FILE_OFFSET_BITS=64 -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
+
+ifeq ($(TARGET_ARCH),arm)
+  SOURCES_ASM := $(CORE_DIR)/gte_arm.S \
+                 $(SPU_DIR)/arm_utils.S \
+                 $(DYNAREC_DIR)/arm/linkage_arm.S
+  SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
+                 $(DYNAREC_DIR)/backends/psx/pcsxmem.c
+else
+  COREFLAGS   += -DDRC_DISABLE
+  SOURCES_ASM :=
+endif
+
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+  COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+  SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
+                 $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
+                 $(FRONTEND_DIR)/cspace_neon.S
+  SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
+else ifeq ($(TARGET_ARCH_ABI),armeabi)
+  SOURCES_ASM += $(UNAI_DIR)/gpu_arm.s \
+                 $(FRONTEND_DIR)/cspace_arm.S
+  SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
+else
+  SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
+endif
+
+GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+ifneq ($(GIT_VERSION)," unknown")
+  COREFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
+
+include $(CLEAR_VARS)
+LOCAL_MODULE        := retro
+LOCAL_SRC_FILES     := $(SOURCES_C) $(SOURCES_ASM)
+LOCAL_CFLAGS        := $(COREFLAGS)
+LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
+LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
+LOCAL_LDLIBS        := -lz -llog
+LOCAL_ARM_MODE      := arm
+
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+  LOCAL_ARM_NEON  := true
+endif
+ifeq ($(TARGET_ARCH),arm)
+  LOCAL_LDLIBS    += -Wl,-no-warn-shared-textrel
+endif
 
 include $(BUILD_SHARED_LIBRARY)
