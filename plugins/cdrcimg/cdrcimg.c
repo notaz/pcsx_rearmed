@@ -14,7 +14,9 @@
 #include <zlib.h>
 #ifndef _WIN32
 #define CALLBACK
+#ifndef NO_DYLIB
 #include <dlfcn.h>
+#endif
 #else
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -98,7 +100,7 @@ static long CDRgetTD(unsigned char track, unsigned char *buffer)
 	return 0;
 }
 
-int uncompress2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
+int uncomp2(void *out, unsigned long *out_size, void *in, unsigned long in_size)
 {
 	static z_stream z;
 	int ret = 0;
@@ -199,7 +201,7 @@ static long CDRreadTrack(unsigned char *time)
 		ret = uncompress(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
 		break;
 	case CDRC_ZLIB2:
-		ret = uncompress2(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
+		ret = uncomp2(cdbuffer->raw[0], &cdbuffer_size, cdbuffer->compressed, size);
 		break;
 	case CDRC_BZ:
 		ret = pBZ2_bzBuffToBuffDecompress((char *)cdbuffer->raw, (unsigned int *)&cdbuffer_size,
@@ -285,7 +287,7 @@ static long CDRinit(void)
 			return -1;
 		}
 	}
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	if (pBZ2_bzBuffToBuffDecompress == NULL) {
 		void *h = dlopen("/usr/lib/libbz2.so.1", RTLD_LAZY);
 		if (h == NULL)

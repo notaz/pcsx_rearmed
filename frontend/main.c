@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 #include <dlfcn.h>
 #endif
 
@@ -151,8 +151,8 @@ void emu_set_default_config(void)
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
 
-	in_type1 = PSE_PAD_TYPE_STANDARD;
-	in_type2 = PSE_PAD_TYPE_STANDARD;
+	in_type[0] = PSE_PAD_TYPE_STANDARD;
+	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
 void do_emu_action(void)
@@ -721,10 +721,10 @@ void SysReset() {
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
 
-	EmuReset();
-
-	// hmh core forgets this
+   // hmh core forgets this
 	CDR_stop();
+   
+	EmuReset();
 
 	GPU_updateLace = real_lace;
 	g_emu_resetting = 0;
@@ -772,7 +772,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS) /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",
@@ -986,7 +986,7 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		SysMessage("dlopen: %s", dlerror());
@@ -1003,7 +1003,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	return dlsym(lib, sym);
 #else
 	return NULL;
@@ -1011,7 +1011,9 @@ void *SysLoadSym(void *lib, const char *sym) {
 }
 
 const char *SysLibError() {
-#ifndef _WIN32
+#if defined(NO_DYLIB)
+   return NULL;
+#elif !defined(_WIN32)
 	return dlerror();
 #else
 	return "not supported";
@@ -1024,8 +1026,7 @@ void SysCloseLibrary(void *lib) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 	dlclose(lib);
 #endif
 }
-

@@ -726,6 +726,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
 
+  gpu.useDithering = cbs->gpu_neon.allow_dithering;
   gpu.mmap = cbs->mmap;
   gpu.munmap = cbs->munmap;
 

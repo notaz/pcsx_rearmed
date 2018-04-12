@@ -33,35 +33,70 @@
 #include "revision.h"
 #include "libretro.h"
 
+#ifdef _3DS
+#include "3ds/3ds_utils.h"
+#endif
+
+#define PORTS_NUMBER 8
+
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
+
+//hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
+static int rebootemu = 0;
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 static struct retro_rumble_interface rumble;
+static struct retro_log_callback logging;
+static retro_log_printf_t log_cb;
 
 static void *vout_buf;
+static void * vout_buf_ptr;
 static int vout_width, vout_height;
 static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
+static bool found_bios;
 
 static int plugins_opened;
 static int is_pal_mode;
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
+extern char Mcd2Data[MCD_SIZE];
 extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
-int in_type1, in_type2;
-int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
-int in_keystate;
+int in_type[8] =  { PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE,
+                  PSE_PAD_TYPE_NONE, PSE_PAD_TYPE_NONE };
+int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
+int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
+unsigned short in_keystate[PORTS_NUMBER];
+int multitap1 = 0;
+int multitap2 = 0;
 int in_enable_vibration = 1;
 
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
 #define VOUT_MAX_WIDTH 1024
 #define VOUT_MAX_HEIGHT 512
+
+//Dummy functions
+bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info){return false;}
+void retro_unload_game(void){}
+static int vout_open(void){return 0;}
+static void vout_close(void){}
+static int snd_init(void){return 0;}
+static void snd_finish(void){}
+static int snd_busy(void){return 0;}
 
 static void init_memcard(char *mcd_data)
 {
@@ -96,15 +131,24 @@ static void init_memcard(char *mcd_data)
 	}
 }
 
-static int vout_open(void)
-{
-	return 0;
-}
-
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	vout_width = w;
 	vout_height = h;
+
+  struct retro_framebuffer fb = {0};
+
+  fb.width           = vout_width;
+  fb.height          = vout_height;
+  fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
+
+  vout_buf_ptr = vout_buf;
+
+  if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
+  {
+     vout_buf_ptr  = (uint16_t*)fb.data;
+  }
+
 }
 
 #ifndef FRONTEND_SUPPORTS_RGB565
@@ -121,14 +165,14 @@ static void convert(void *buf, size_t bytes)
 
 static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 {
-	unsigned short *dest = vout_buf;
+	unsigned short *dest = vout_buf_ptr;
 	const unsigned short *src = vram;
 	int dstride = vout_width, h1 = h;
 	int doffs;
 
 	if (vram == NULL) {
 		// blanking
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		goto out;
 	}
 
@@ -136,7 +180,7 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	doffs += (dstride - w) / 2 & ~1;
 	if (doffs != vout_doffs_old) {
 		// clear borders
-		memset(vout_buf, 0, dstride * h * 2);
+		memset(vout_buf_ptr, 0, dstride * h * 2);
 		vout_doffs_old = doffs;
 	}
 	dest += doffs;
@@ -159,15 +203,172 @@ static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-	convert(vout_buf, vout_width * vout_height * 2);
+	convert(vout_buf_ptr, vout_width * vout_height * 2);
 #endif
 	vout_fb_dirty = 1;
 	pl_rearmed_cbs.flip_cnt++;
 }
 
-static void vout_close(void)
+#ifdef _3DS
+typedef struct
 {
+   void* buffer;
+   uint32_t target_map;
+   size_t size;
+   enum psxMapTag tag;
+}psx_map_t;
+
+psx_map_t custom_psx_maps[] = {
+   {NULL, 0x13000000, 0x210000, MAP_TAG_RAM},   // 0x80000000
+   {NULL, 0x12800000, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
+   {NULL, 0x12c00000, 0x080000, MAP_TAG_OTHER}, // 0x1fc00000
+   {NULL, 0x11000000, 0x800000, MAP_TAG_LUTS},  // 0x08000000
+   {NULL, 0x12000000, 0x200000, MAP_TAG_VRAM},  // 0x00000000
+};
+
+void* pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+   (void)is_fixed;
+   (void)addr;
+
+   if (__ctr_svchax)
+   {
+      psx_map_t* custom_map = custom_psx_maps;
+
+      for (; custom_map->size; custom_map++)
+      {
+         if ((custom_map->size == size) && (custom_map->tag == tag))
+         {
+            uint32_t ptr_aligned, tmp;
+
+            custom_map->buffer = malloc(size + 0x1000);
+            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
+
+            if(svcControlMemory(&tmp, (void*)custom_map->target_map, (void*)ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
+            {
+               SysPrintf("could not map memory @0x%08X\n", custom_map->target_map);
+               exit(1);
+            }
+
+            return (void*)custom_map->target_map;
+         }
+      }
+   }
+
+   return malloc(size);
 }
+
+void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)tag;
+
+   if (__ctr_svchax)
+   {
+      psx_map_t* custom_map = custom_psx_maps;
+
+      for (; custom_map->size; custom_map++)
+      {
+         if ((custom_map->target_map == (uint32_t)ptr))
+         {
+            uint32_t ptr_aligned, tmp;
+
+            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
+
+            svcControlMemory(&tmp, (void*)custom_map->target_map, (void*)ptr_aligned, size, MEMOP_UNMAP, 0x3);
+
+            free(custom_map->buffer);
+            custom_map->buffer = NULL;
+            return;
+         }
+      }
+   }
+
+   free(ptr);
+}
+#endif
+
+#ifdef VITA
+typedef struct
+{
+   void* buffer;
+   uint32_t target_map;
+   size_t size;
+   enum psxMapTag tag;
+}psx_map_t;
+
+void* addr = NULL;
+
+psx_map_t custom_psx_maps[] = {
+   {NULL, NULL, 0x210000, MAP_TAG_RAM},   // 0x80000000
+   {NULL, NULL, 0x010000, MAP_TAG_OTHER}, // 0x1f800000
+   {NULL, NULL, 0x080000, MAP_TAG_OTHER}, // 0x1fc00000
+   {NULL, NULL, 0x800000, MAP_TAG_LUTS},  // 0x08000000
+   {NULL, NULL, 0x200000, MAP_TAG_VRAM},  // 0x00000000
+};
+
+int init_vita_mmap(){
+  int n;
+  void * tmpaddr;
+  addr = malloc(64*1024*1024);
+  if(addr==NULL)
+    return -1;
+  tmpaddr = ((u32)(addr+0xFFFFFF))&~0xFFFFFF;
+  custom_psx_maps[0].buffer=tmpaddr+0x2000000;
+  custom_psx_maps[1].buffer=tmpaddr+0x1800000;
+  custom_psx_maps[2].buffer=tmpaddr+0x1c00000;
+  custom_psx_maps[3].buffer=tmpaddr+0x0000000;
+  custom_psx_maps[4].buffer=tmpaddr+0x1000000;
+#if 0
+  for(n = 0; n < 5; n++){
+    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
+  }
+#endif
+  return 0;
+}
+
+void deinit_vita_mmap(){
+  free(addr);
+}
+
+void* pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
+	enum psxMapTag tag)
+{
+   (void)is_fixed;
+   (void)addr;
+
+
+    psx_map_t* custom_map = custom_psx_maps;
+
+    for (; custom_map->size; custom_map++)
+    {
+       if ((custom_map->size == size) && (custom_map->tag == tag))
+       {
+          return custom_map->buffer;
+       }
+    }
+
+
+   return malloc(size);
+}
+
+void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)tag;
+
+   psx_map_t* custom_map = custom_psx_maps;
+
+  for (; custom_map->size; custom_map++)
+  {
+     if ((custom_map->buffer == ptr))
+     {
+        return;
+     }
+  }
+
+   free(ptr);
+}
+#endif
 
 static void *pl_mmap(unsigned int size)
 {
@@ -204,8 +405,11 @@ void pl_timing_prepare(int is_pal)
 
 void plat_trigger_vibrate(int pad, int low, int high)
 {
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
-    rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+	if(in_enable_vibration)
+	{
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
+    	rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+    }
 }
 
 void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
@@ -213,20 +417,6 @@ void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 }
 
 /* sound calls */
-static int snd_init(void)
-{
-	return 0;
-}
-
-static void snd_finish(void)
-{
-}
-
-static int snd_busy(void)
-{
-	return 0;
-}
-
 static void snd_feed(void *buf, int bytes)
 {
 	if (audio_batch_cb != NULL)
@@ -248,8 +438,18 @@ void retro_set_environment(retro_environment_t cb)
    static const struct retro_variable vars[] = {
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
       { "pcsx_rearmed_region", "Region; Auto|NTSC|PAL" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog" },
+      { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad4type", "Pad 4 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad5type", "Pad 5 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad6type", "Pad 6 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad7type", "Pad 7 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
+      { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
+      { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
+      { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
 #endif
@@ -258,11 +458,17 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
-      { "pcsx_rearmed_duping_enable", "Frame duping; on|off" },
-      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; on|off" },
+      { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
+      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
+      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
+      { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
+      { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
       { NULL, NULL },
    };
+
+    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
+        log_cb = logging.log;
 
    environ_cb = cb;
 
@@ -280,15 +486,170 @@ unsigned retro_api_version(void)
 	return RETRO_API_VERSION;
 }
 
+static int controller_port_variable(unsigned port, struct retro_variable *var)
+{
+	if (port >= PORTS_NUMBER)
+		return 0;
+
+	if (!environ_cb)
+		return 0;
+
+	var->value = NULL;
+	switch (port) {
+	case 0:
+		var->key = "pcsx_rearmed_pad1type";
+		break;
+	case 1:
+		var->key = "pcsx_rearmed_pad2type";
+		break;
+	case 2:
+		var->key = "pcsx_rearmed_pad3type";
+		break;
+	case 3:
+		var->key = "pcsx_rearmed_pad4type";
+		break;
+	case 4:
+		var->key = "pcsx_rearmed_pad5type";
+		break;
+	case 5:
+		var->key = "pcsx_rearmed_pad6type";
+		break;
+	case 6:
+		var->key = "pcsx_rearmed_pad7type";
+		break;
+	case 7:
+		var->key = "pcsx_rearmed_pad8type";
+		break;
+	}
+
+	return environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, var) || var->value;
+}
+
+static void update_controller_port_variable(unsigned port)
+{
+	if (port >= PORTS_NUMBER)
+		return;
+
+	struct retro_variable var;
+
+	if (controller_port_variable(port, &var))
+	{
+		if (strcmp(var.value, "standard") == 0)
+			in_type[port] = PSE_PAD_TYPE_STANDARD;
+		else if (strcmp(var.value, "analog") == 0)
+			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+		else if (strcmp(var.value, "negcon") == 0)
+			in_type[port] = PSE_PAD_TYPE_NEGCON;
+		else if (strcmp(var.value, "none") == 0)
+			in_type[port] = PSE_PAD_TYPE_NONE;
+		// else 'default' case, do nothing
+	}
+}
+
+static void update_controller_port_device(unsigned port, unsigned device)
+{
+	if (port >= PORTS_NUMBER)
+		return;
+
+	struct retro_variable var;
+
+	if (!controller_port_variable(port, &var))
+		return;
+
+	if (strcmp(var.value, "default") != 0)
+		return;
+
+	switch (device)
+	{
+	case RETRO_DEVICE_JOYPAD:
+		in_type[port] = PSE_PAD_TYPE_STANDARD;
+		break;
+	case RETRO_DEVICE_ANALOG:
+		in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+	case RETRO_DEVICE_MOUSE:
+		in_type[port] = PSE_PAD_TYPE_MOUSE;
+		break;
+	case RETRO_DEVICE_LIGHTGUN:
+		in_type[port] = PSE_PAD_TYPE_GUN;
+		break;
+	case RETRO_DEVICE_NONE:
+	default:
+		in_type[port] = PSE_PAD_TYPE_NONE;
+	}
+}
+
+static void update_multitap()
+{
+	struct retro_variable var;
+	int auto_case, port;
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap1";
+	auto_case = 0;
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap1 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap1 = 0;
+		else // 'auto' case
+			auto_case = 1;
+	}
+	else
+		auto_case = 1;
+
+	if (auto_case)
+	{
+		// If a gamepad is plugged after port 2, we need a first multitap.
+		multitap1 = 0;
+		for (port = 2; port < PORTS_NUMBER; port++)
+			multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
+	}
+
+	var.value = NULL;
+	var.key = "pcsx_rearmed_multitap2";
+	auto_case = 0;
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
+	{
+		if (strcmp(var.value, "enabled") == 0)
+			multitap2 = 1;
+		else if (strcmp(var.value, "disabled") == 0)
+			multitap2 = 0;
+		else // 'auto' case
+			auto_case = 1;
+	}
+	else
+		auto_case = 1;
+
+	if (auto_case)
+	{
+		// If a gamepad is plugged after port 4, we need a second multitap.
+		multitap2 = 0;
+		for (port = 4; port < PORTS_NUMBER; port++)
+			multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
+	}
+}
+
 void retro_set_controller_port_device(unsigned port, unsigned device)
 {
+	SysPrintf("port %u  device %u",port,device);
+
+	if (port >= PORTS_NUMBER)
+		return;
+
+	update_controller_port_device(port, device);
+	update_multitap();
 }
 
 void retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "PCSX-ReARMed";
-	info->library_version = "r22";
+#ifndef GIT_VERSION
+#define GIT_VERSION ""
+#endif
+	info->library_version = "r22" GIT_VERSION;
 	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
 	info->need_fullpath = true;
 }
@@ -306,8 +667,8 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 }
 
 /* savestates */
-size_t retro_serialize_size(void) 
-{ 
+size_t retro_serialize_size(void)
+{
 	// it's currently 4380651-4397047 bytes,
 	// but have some reserved for future
 	return 0x440000;
@@ -393,7 +754,7 @@ static void save_close(void *file)
 }
 
 bool retro_serialize(void *data, size_t size)
-{ 
+{
 	int ret = SaveState(data);
 	return ret == 0 ? true : false;
 }
@@ -418,6 +779,21 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	// cheat funcs are destructive, need a copy..
 	strncpy(buf, code, sizeof(buf));
 	buf[sizeof(buf) - 1] = 0;
+	
+	//Prepare buffered cheat for PCSX's AddCheat fucntion.
+	int cursor=0;
+	int nonhexdec=0;
+	while (buf[cursor]){
+		if (!(ISHEXDEC)){
+			if (++nonhexdec%2){
+				buf[cursor]=' ';
+			} else {
+				buf[cursor]='\n';
+			}
+		}
+		cursor++;
+	}
+	
 
 	if (index < NumCheats)
 		ret = EditCheat(index, "", buf);
@@ -555,6 +931,10 @@ static struct retro_disk_control_callback disk_control = {
 #define SLASH '\\'
 #else
 #define SLASH '/'
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX  4096
 #endif
 
 static char base_dir[PATH_MAX];
@@ -761,7 +1141,7 @@ bool retro_load_game(const struct retro_game_info *info)
       { 5, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,    "R2" },
       { 5, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,    "R3" },
       { 5, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT,    "Select" },
-      { 5, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" }, 
+      { 5, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" },
       { 5, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Left Analog X" },
       { 5, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Left Analog Y" },
       { 5, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Right Analog X" },
@@ -782,7 +1162,7 @@ bool retro_load_game(const struct retro_game_info *info)
       { 6, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,    "R2" },
       { 6, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,    "R3" },
       { 6, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT,    "Select" },
-      { 6, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" }, 
+      { 6, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" },
       { 6, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Left Analog X" },
       { 6, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Left Analog Y" },
       { 6, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Right Analog X" },
@@ -803,7 +1183,7 @@ bool retro_load_game(const struct retro_game_info *info)
       { 7, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,    "R2" },
       { 7, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3,    "R3" },
       { 7, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT,    "Select" },
-      { 7, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" }, 
+      { 7, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,    "Start" },
       { 7, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Left Analog X" },
       { 7, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Left Analog Y" },
       { 7, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Right Analog X" },
@@ -844,7 +1224,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	if (is_m3u) {
 		if (!read_m3u(info->path)) {
-			SysPrintf("failed to read m3u file\n");
+			log_cb(RETRO_LOG_INFO, "failed to read m3u file\n");
 			return false;
 		}
 	} else {
@@ -856,7 +1236,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	/* have to reload after set_cd_image for correct cdr plugin */
 	if (LoadPlugins() == -1) {
-		SysPrintf("failed to load plugins\n");
+		log_cb(RETRO_LOG_INFO, "failed to load plugins\n");
 		return false;
 	}
 
@@ -864,7 +1244,7 @@ bool retro_load_game(const struct retro_game_info *info)
 	NetOpened = 0;
 
 	if (OpenPlugins() == -1) {
-		SysPrintf("failed to open plugins\n");
+		log_cb(RETRO_LOG_INFO, "failed to open plugins\n");
 		return false;
 	}
 
@@ -873,14 +1253,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	Config.PsxAuto = 1;
 	if (CheckCdrom() == -1) {
-		SysPrintf("unsupported/invalid CD image: %s\n", info->path);
+        log_cb(RETRO_LOG_INFO, "unsupported/invalid CD image: %s\n", info->path);
 		return false;
 	}
 
 	SysReset();
 
 	if (LoadCdrom() == -1) {
-		SysPrintf("could not load CD-ROM!\n");
+		log_cb(RETRO_LOG_INFO, "could not load CD\n");
 		return false;
 	}
 	emu_on_new_cd(0);
@@ -895,15 +1275,6 @@ bool retro_load_game(const struct retro_game_info *info)
 	}
 
 	return true;
-}
-
-bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info)
-{
-	return false;
-}
-
-void retro_unload_game(void) 
-{
 }
 
 unsigned retro_get_region(void)
@@ -929,7 +1300,9 @@ size_t retro_get_memory_size(unsigned id)
 
 void retro_reset(void)
 {
-	SysReset();
+   //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
+   rebootemu = 1;
+	//SysReset();
 }
 
 static const unsigned short retro_psx_map[] = {
@@ -955,16 +1328,15 @@ static const unsigned short retro_psx_map[] = {
 static void update_variables(bool in_flight)
 {
    struct retro_variable var;
-   
+   int i;
+
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
       pl_rearmed_cbs.frameskip = atoi(var.value);
 
    var.value = NULL;
    var.key = "pcsx_rearmed_region";
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
       Config.PsxAuto = 0;
@@ -976,24 +1348,41 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
+   for (i = 0; i < PORTS_NUMBER; i++)
+      update_controller_port_variable(i);
+
+   update_multitap();
+
    var.value = NULL;
-   var.key = "pcsx_rearmed_pad1type";
+   var.key = "pcsx_rearmed_vibration";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      in_type1 = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type1 = PSE_PAD_TYPE_ANALOGPAD;
+      if (strcmp(var.value, "disabled") == 0)
+         in_enable_vibration = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         in_enable_vibration = 1;
    }
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_pad2type";
+   var.key = "pcsx_rearmed_dithering";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      in_type2 = PSE_PAD_TYPE_STANDARD;
-      if (strcmp(var.value, "analog") == 0)
-         in_type2 = PSE_PAD_TYPE_ANALOGPAD;
+      if (strcmp(var.value, "disabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 0;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
+#endif
+      }
+      else if (strcmp(var.value, "enabled") == 0) {
+         pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
+#ifdef __ARM_NEON__
+         pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
+#endif
+      }
    }
 
 #ifdef __ARM_NEON__
@@ -1036,9 +1425,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          duping_enable = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          duping_enable = true;
    }
 
@@ -1050,6 +1439,11 @@ static void update_variables(bool in_flight)
    {
       R3000Acpu *prev_cpu = psxCpu;
 
+#ifdef _3DS
+      if(!__ctr_svchax)
+         Config.Cpu = CPU_INTERPRETER;
+      else
+#endif
       if (strcmp(var.value, "disabled") == 0)
          Config.Cpu = CPU_INTERPRETER;
       else if (strcmp(var.value, "enabled") == 0)
@@ -1069,9 +1463,9 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      if (strcmp(var.value, "off") == 0)
+      if (strcmp(var.value, "disabled") == 0)
          spu_config.iUseReverb = false;
-      else if (strcmp(var.value, "on") == 0)
+      else if (strcmp(var.value, "enabled") == 0)
          spu_config.iUseReverb = true;
    }
 
@@ -1090,6 +1484,28 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_pe2_fix";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.RCntFix = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.RCntFix = 1;
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_inuyasha_fix";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.VSyncWA = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.VSyncWA = 1;
+   }
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1101,11 +1517,30 @@ static void update_variables(bool in_flight)
 
       dfinput_activate();
    }
+   else{
+      //not yet running
+      
+      //bootlogo display hack
+      if (found_bios) {
+         var.value = "NULL";
+         var.key = "pcsx_rearmed_show_bios_bootlogo";
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+         {
+            if (strcmp(var.value, "enabled") == 0)
+               rebootemu = 1;
+         }
+      }
+   }
 }
 
-void retro_run(void) 
+void retro_run(void)
 {
-	int i;
+    int i;
+    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
+    if(rebootemu != 0){
+      rebootemu = 0;
+      SysReset();
+    }
 
 	input_poll_cb();
 
@@ -1113,27 +1548,32 @@ void retro_run(void)
 	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
 		update_variables(true);
 
-	in_keystate = 0;
-	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
-		if (input_state_cb(1, RETRO_DEVICE_JOYPAD, 0, i))
-			in_keystate |= retro_psx_map[i];
-	in_keystate <<= 16;
-	for (i = 0; i < RETRO_PSX_MAP_LEN; i++)
-		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
-			in_keystate |= retro_psx_map[i];
+	// reset all keystate, query libretro for keystate
+	int j;
+	for(i = 0; i < PORTS_NUMBER; i++) {
+		in_keystate[i] = 0;
 
-	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
-	{
-		in_a1[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a1[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
-		in_a2[0] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 256) + 128;
-		in_a2[1] = (input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 256) + 128;
+		if (in_type[i] == PSE_PAD_TYPE_NONE)
+			continue;
+
+		// query libretro for keystate
+		for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
+			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
+				in_keystate[i] |= retro_psx_map[j];
+
+		if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
+		{
+			in_analog_left[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_left[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+			in_analog_right[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			in_analog_right[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+		}
 	}
 
 	stop = 0;
 	psxCpu->Execute();
 
-	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf : NULL,
+	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
 		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
 }
@@ -1162,7 +1602,7 @@ static bool try_use_bios(const char *path)
 	return true;
 }
 
-#if 1
+#ifndef VITA
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -1200,33 +1640,54 @@ static void check_system_specs(void)
 
 void retro_init(void)
 {
-	const char *bios[] = { "scph1001", "scph5501", "scph7001" };
+	const char *bios[] = { "SCPH101", "SCPH7001", "SCPH5501", "SCPH1001" };
 	const char *dir;
 	char path[256];
 	int i, ret;
-	bool found_bios = false;
+   
+   found_bios = false;
 
 #ifdef __MACH__
 	// magic sauce to make the dynarec work on iOS
 	syscall(SYS_ptrace, 0 /*PTRACE_TRACEME*/, 0, 0, 0);
 #endif
 
+#ifdef _3DS
+   psxMapHook = pl_3ds_mmap;
+   psxUnmapHook = pl_3ds_munmap;
+#endif
+#ifdef VITA
+   if(init_vita_mmap()<0)
+      abort();
+   psxMapHook = pl_vita_mmap;
+   psxUnmapHook = pl_vita_munmap;
+#endif
 	ret = emu_core_preinit();
+#ifdef _3DS 
+   /* emu_core_preinit sets the cpu to dynarec */
+   if(!__ctr_svchax)
+      Config.Cpu = CPU_INTERPRETER;
+#endif
+
 	ret |= emu_core_init();
 	if (ret != 0) {
 		SysPrintf("PCSX init failed.\n");
 		exit(1);
 	}
 
-#if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L)
+#ifdef _3DS
+   vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+#elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && !defined(VITA)
 	posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
-
+  
+  vout_buf_ptr = vout_buf;
+  
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
-		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s/", dir);
+		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
 
 		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
 			snprintf(path, sizeof(path), "%s/%s.bin", dir, bios[i]);
@@ -1244,9 +1705,9 @@ void retro_init(void)
 	else
 	{
 		SysPrintf("no BIOS files found.\n");
-		struct retro_message msg = 
+		struct retro_message msg =
 		{
-			"no BIOS found, expect bugs!",
+			"No PlayStation BIOS file found - add for better compatibility",
 			180
 		};
 		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
@@ -1269,6 +1730,7 @@ void retro_init(void)
 	McdDisable[0] = 0;
 	McdDisable[1] = 1;
 	init_memcard(Mcd1Data);
+   init_memcard(Mcd2Data);
 
 	SaveFuncs.open = save_open;
 	SaveFuncs.read = save_read;
@@ -1283,6 +1745,22 @@ void retro_init(void)
 void retro_deinit(void)
 {
 	SysClose();
+#ifdef _3DS
+   linearFree(vout_buf);
+#else
 	free(vout_buf);
+#endif
 	vout_buf = NULL;
+
+#ifdef VITA
+  deinit_vita_mmap();
+#endif
 }
+
+#ifdef VITA
+#include <psp2/kernel/threadmgr.h>
+int usleep (unsigned long us)
+{
+   sceKernelDelayThread(us);
+}
+#endif

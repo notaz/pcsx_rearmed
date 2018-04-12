@@ -50,7 +50,7 @@ int psxInit() {
 void psxReset() {
 	psxMemReset();
 
-	memset(&psxRegs, 0, sizeof(psxRegs));
+	memset(&psxRegs, 0x00, sizeof(psxRegs));
 
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 

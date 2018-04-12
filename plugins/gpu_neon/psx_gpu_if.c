@@ -184,4 +184,18 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     map_enhancement_buffer();
   if (cbs->pl_set_gpu_caps)
     cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
+  
+  egpu.use_dithering = cbs->gpu_neon.allow_dithering;
+  if(!egpu.use_dithering) {
+    egpu.dither_table[0] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[1] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[2] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[3] = dither_table_row(0, 0, 0, 0);
+  } else {
+    egpu.dither_table[0] = dither_table_row(-4, 0, -3, 1);
+    egpu.dither_table[1] = dither_table_row(2, -2, 3, -1);
+    egpu.dither_table[2] = dither_table_row(-3, 1, -4, 0);
+    egpu.dither_table[3] = dither_table_row(3, -1, 2, -2); 
+  }
+
 }
