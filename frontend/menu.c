@@ -101,13 +101,10 @@ int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
 
-#ifndef HAVE_PRE_ARMV7
-#define DEFAULT_PSX_CLOCK 57
-#define DEFAULT_PSX_CLOCK_S "57"
-#else
-#define DEFAULT_PSX_CLOCK 50
-#define DEFAULT_PSX_CLOCK_S "50"
-#endif
+// Default to 100% CPU speed as most hardware can handle it nowadays using the dynamic recompiler.
+// If not, the option is in the advanced speed hacks menu, so in a logical place.
+#define DEFAULT_PSX_CLOCK 100
+#define DEFAULT_PSX_CLOCK_S "100"
 
 static const char *bioses[24];
 static const char *gpu_plugins[16];
