@@ -437,7 +437,7 @@ void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
-      { "pcsx_rearmed_region", "Region; Auto|NTSC|PAL" },
+      { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
       { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|negcon" },
       { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|negcon" },
       { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|negcon" },
@@ -1251,7 +1251,6 @@ bool retro_load_game(const struct retro_game_info *info)
 	plugin_call_rearmed_cbs();
 	dfinput_activate();
 
-	Config.PsxAuto = 1;
 	if (CheckCdrom() == -1) {
         log_cb(RETRO_LOG_INFO, "unsupported/invalid CD image: %s\n", info->path);
 		return false;
@@ -1340,7 +1339,7 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
       Config.PsxAuto = 0;
-      if (strcmp(var.value, "Automatic") == 0)
+      if (strcmp(var.value, "auto") == 0)
          Config.PsxAuto = 1;
       else if (strcmp(var.value, "NTSC") == 0)
          Config.PsxType = 0;
