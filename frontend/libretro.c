@@ -1667,6 +1667,7 @@ void retro_init(void)
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
+	strcpy(Config.Mcd2, "memcard2.mcd");
 
 	ret |= emu_core_init();
 	if (ret != 0) {
@@ -1729,7 +1730,6 @@ void retro_init(void)
 	McdDisable[0] = 0;
 	McdDisable[1] = 0;
 	init_memcard(Mcd1Data);
-   init_memcard(Mcd2Data);
 
 	SaveFuncs.open = save_open;
 	SaveFuncs.read = save_read;
