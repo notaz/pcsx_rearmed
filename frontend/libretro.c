@@ -1667,7 +1667,15 @@ void retro_init(void)
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
 #endif
-	strcpy(Config.Mcd2, "memcard2.mcd");
+	if (environ_cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &dir) && dir) {
+		const char CARD_FILE[] = "pcsx-card2.mcd";
+		if (strlen(dir) + strlen(CARD_FILE) + 2 > sizeof(Config.Mcd2)) {
+			SysPrintf("Path '%s' is too long. Cannot use memcard 2. Use a shorter path.\n", dir);
+		} else {
+			snprintf(Config.Mcd2, sizeof(Config.Mcd2), "%s/%s", dir, CARD_FILE);
+			SysPrintf("Use memory card2: %s\n", Config.Mcd2);
+		}
+	}
 
 	ret |= emu_core_init();
 	if (ret != 0) {
