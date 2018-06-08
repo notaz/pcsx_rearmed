@@ -1619,7 +1619,7 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 		if (strncasecmp(ent->d_name, "scph", 4) != 0)
 			continue;
 
-		snprintf(path, path_size, "%s/%s", dirpath, ent->d_name);
+		snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
 		ret = try_use_bios(path);
 		if (ret)
 			break;
@@ -1639,7 +1639,10 @@ static void check_system_specs(void)
 
 void retro_init(void)
 {
-	const char *bios[] = { "SCPH101", "SCPH7001", "SCPH5501", "SCPH1001" };
+	const char *bios[] = {
+		"SCPH101", "SCPH7001", "SCPH5501", "SCPH1001",
+		"scph101", "scph7001", "scph5501", "scph1001"
+	};
 	const char *dir;
 	char path[256];
 	int i, ret;
@@ -1689,7 +1692,7 @@ void retro_init(void)
 		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
 
 		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
-			snprintf(path, sizeof(path), "%s/%s.bin", dir, bios[i]);
+			snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
 			found_bios = try_use_bios(path);
 			if (found_bios)
 				break;
