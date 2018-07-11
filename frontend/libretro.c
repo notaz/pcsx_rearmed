@@ -131,24 +131,26 @@ static void init_memcard(char *mcd_data)
 	}
 }
 
-static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
+static void set_vout_fb()
 {
-	vout_width = w;
-	vout_height = h;
-
   struct retro_framebuffer fb = {0};
 
   fb.width           = vout_width;
   fb.height          = vout_height;
   fb.access_flags    = RETRO_MEMORY_ACCESS_WRITE;
 
-  vout_buf_ptr = vout_buf;
-
   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
-  {
-     vout_buf_ptr  = (uint16_t*)fb.data;
-  }
+     vout_buf_ptr = (uint16_t*)fb.data;
+  else
+     vout_buf_ptr = vout_buf;
+}
 
+static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
+{
+  vout_width = w;
+  vout_height = h;
+
+  set_vout_fb();
 }
 
 #ifndef FRONTEND_SUPPORTS_RGB565
@@ -1575,6 +1577,8 @@ void retro_run(void)
 	video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
 		vout_width, vout_height, vout_width * 2);
 	vout_fb_dirty = 0;
+
+    set_vout_fb();
 }
 
 static bool try_use_bios(const char *path)
