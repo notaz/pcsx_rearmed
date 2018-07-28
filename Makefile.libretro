@@ -243,6 +243,9 @@ else ifneq (,$(findstring armv,$(platform)))
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
 		ASFLAGS += -mcpu=cortex-a8
+	else ifneq (,$(findstring cortexa7,$(platform)))
+		CFLAGS += -marm -mcpu=cortex-a7
+		ASFLAGS += -mcpu=cortex-a7
 	else ifneq (,$(findstring cortexa9,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a9
 		ASFLAGS += -mcpu=cortex-a9
