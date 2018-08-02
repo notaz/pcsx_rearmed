@@ -89,6 +89,25 @@ int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
 
+// NegCon adjustment parameters
+// > The NegCon 'twist' action is somewhat awkward when mapped
+//   to a standard analog stick -> user should be able to tweak
+//   response/deadzone for comfort
+// > When response is linear, 'additional' deadzone (set here)
+//   may be left at zero, since this is normally handled via in-game
+//   options menus
+// > When response is non-linear, deadzone should be set to match the
+//   controller being used (otherwise precision may be lost)
+// > negcon_linearity:
+//   - 1: Response is linear - recommended when using racing wheel
+//        peripherals, not recommended for standard gamepads
+//   - 2: Response is quadratic - optimal setting for gamepads
+//   - 3: Response is cubic - enables precise fine control, but
+//        difficult to use...
+#define NEGCON_RANGE 0x7FFF
+static int negcon_deadzone = 0;
+static int negcon_linearity = 1;
+
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
 #define VOUT_MAX_WIDTH 1024
 #define VOUT_MAX_HEIGHT 512
@@ -454,6 +473,8 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
+      { "pcsx_rearmed_negcon_deadzone", "NegCon Twist Deadzone (percent); 0|5|10|15|20|25|30" },
+      { "pcsx_rearmed_negcon_response", "NegCon Twist Response; linear|quadratic|cubic" },
       { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
       { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
@@ -1359,6 +1380,26 @@ static void update_variables(bool in_flight)
    update_multitap();
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_negcon_deadzone";
+   negcon_deadzone = 0;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      negcon_deadzone = (int)(atoi(var.value) * 0.01f * NEGCON_RANGE);
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_negcon_response";
+   negcon_linearity = 1;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "quadratic") == 0){
+         negcon_linearity = 2;
+      } else if (strcmp(var.value, "cubic") == 0){
+         negcon_linearity = 3;
+      }
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_vibration";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
@@ -1587,6 +1628,8 @@ void retro_run(void)
 
 	// reset all keystate, query libretro for keystate
 	int j;
+	int lsx;
+	float negcon_twist_amplitude;
 	for(i = 0; i < PORTS_NUMBER; i++) {
 		in_keystate[i] = 0;
 
@@ -1640,7 +1683,28 @@ void retro_run(void)
 			// appropriate inputs...
 			//
 			// > NeGcon twist
-			in_analog_right[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
+			// >> Get raw analog stick value and account for deadzone
+			lsx = input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
+			if (lsx > negcon_deadzone){
+				lsx = lsx - negcon_deadzone;
+			} else if (lsx < -negcon_deadzone){
+				lsx = lsx + negcon_deadzone;
+			} else {
+				lsx = 0;
+			}
+			// >> Convert to an 'amplitude' [-1.0,1.0] and adjust response
+			negcon_twist_amplitude = (float)lsx / (float)(NEGCON_RANGE - negcon_deadzone);
+			if (negcon_linearity == 2){
+				if (negcon_twist_amplitude < 0.0){
+					negcon_twist_amplitude = -(negcon_twist_amplitude * negcon_twist_amplitude);
+				} else {
+					negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude;
+				}
+			} else if (negcon_linearity == 3){
+				negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude * negcon_twist_amplitude;
+			}
+			// >> Convert to final 'in_analog' integer value [0,255]
+			in_analog_right[i][0] = MAX(MIN((int)(negcon_twist_amplitude * 128.0f) + 128, 255), 0);
 			// > NeGcon I
 			in_analog_right[i][1] = MAX(
 				get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
