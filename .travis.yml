@@ -5,4 +5,4 @@ compiler:
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y libsdl1.2-dev libasound2-dev libpng-dev libz-dev
-script: ./configure && make
+script: ./configure --platform=libretro && make
