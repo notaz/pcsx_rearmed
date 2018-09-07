@@ -1630,7 +1630,10 @@ void retro_run(void)
 	// reset all keystate, query libretro for keystate
 	int j;
 	int lsx;
+	int rsy;
 	float negcon_twist_amplitude;
+	int negcon_i_rs;
+	int negcon_ii_rs;
 	for(i = 0; i < PORTS_NUMBER; i++) {
 		in_keystate[i] = 0;
 
@@ -1706,15 +1709,48 @@ void retro_run(void)
 			}
 			// >> Convert to final 'in_analog' integer value [0,255]
 			in_analog_right[i][0] = MAX(MIN((int)(negcon_twist_amplitude * 128.0f) + 128, 255), 0);
-			// > NeGcon I
+			// > NeGcon I + II
+			// >> Handle right analog stick vertical axis mapping...
+			//    - Up (-Y) == accelerate == neGcon I
+			//    - Down (+Y) == brake == neGcon II
+			negcon_i_rs = 0;
+			negcon_ii_rs = 0;
+			rsy = input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y);
+			if (rsy >= 0){
+				// Account for deadzone
+				// (Note: have never encountered a gamepad with significant differences
+				// in deadzone between left/right analog sticks, so use the regular 'twist'
+				// deadzone here)
+				if (rsy > negcon_deadzone){
+					rsy = rsy - negcon_deadzone;
+				} else {
+					rsy = 0;
+				}
+				// Convert to 'in_analog' integer value [0,255]
+				negcon_ii_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
+			} else {
+				if (rsy < -negcon_deadzone){
+					rsy = -1 * (rsy + negcon_deadzone);
+				} else {
+					rsy = 0;
+				}
+				negcon_i_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
+			}
+			// >> NeGcon I
 			in_analog_right[i][1] = MAX(
-				get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
-				get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_B)
+				MAX(
+					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
+					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_B)
+				),
+				negcon_i_rs
 			);
-			// > NeGcon II
+			// >> NeGcon II
 			in_analog_left[i][0] = MAX(
-				get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L2),
-				get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_Y)
+				MAX(
+					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L2),
+					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_Y)
+				),
+				negcon_ii_rs
 			);
 			// > NeGcon L
 			in_analog_left[i][1] = get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L);
