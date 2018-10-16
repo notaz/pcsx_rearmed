@@ -237,6 +237,7 @@ else ifeq ($(platform), rpi3)
 
 # Classic Platforms ####################
 # Platform affix = classic_<ISA>_<µARCH>
+# Help at https://modmyclassic.com/comp
 
 # (armv7 a7, hard point, neon based) ### 
 # NESC, SNESC, C64 mini 
@@ -251,6 +252,8 @@ else ifeq ($(platform), classic_armv7_a7)
 	-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-unroll-loops \
 	-fmerge-all-constants -fno-math-errno \
 	-marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
+	CXXFLAGS += $(CFLAGS)
+	CPPFLAGS += $(CFLAGS)
 	ASFLAGS += $(CFLAGS)
 	HAVE_NEON = 1
 	ARCH = arm
@@ -262,11 +265,9 @@ else ifeq ($(platform), classic_armv7_a7)
 	  CFLAGS += -march=armv7ve
 	  # If gcc is 5.0 or later
 	  ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
-	    MAIN_LDFLAGS += -static-libgcc -static-libstdc++
+	    LDFLAGS += -static-libgcc -static-libstdc++
 	  endif
 	endif
-
-
 #######################################
 
 # ARM
