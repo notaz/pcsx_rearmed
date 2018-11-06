@@ -464,14 +464,14 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
       { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
       { "pcsx_rearmed_memcard2", "Enable second memory card; disabled|enabled" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad4type", "Pad 4 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad5type", "Pad 5 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad6type", "Pad 6 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad7type", "Pad 7 Type; default|none|standard|analog|negcon" },
-      { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|negcon" },
+      { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad4type", "Pad 4 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad5type", "Pad 5 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad6type", "Pad 6 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad7type", "Pad 7 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|dualshock|negcon" },
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
       { "pcsx_rearmed_negcon_deadzone", "NegCon Twist Deadzone (percent); 0|5|10|15|20|25|30" },
@@ -565,6 +565,8 @@ static void update_controller_port_variable(unsigned port)
 		if (strcmp(var.value, "standard") == 0)
 			in_type[port] = PSE_PAD_TYPE_STANDARD;
 		else if (strcmp(var.value, "analog") == 0)
+			in_type[port] = PSE_PAD_TYPE_ANALOGJOY;
+		else if (strcmp(var.value, "dualshock") == 0)
 			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
 		else if (strcmp(var.value, "negcon") == 0)
 			in_type[port] = PSE_PAD_TYPE_NEGCON;
@@ -1764,7 +1766,7 @@ void retro_run(void)
 				}
 			}
 			// Query analog inputs
-			if (in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
+			if (in_type[i] == PSE_PAD_TYPE_ANALOGJOY || in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 			{
 				in_analog_left[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
 				in_analog_left[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);

@@ -58,7 +58,7 @@ static long PADreadPort1(PadDataS *pad) {
     else
     	pad->portMultitap = 0;
     
-    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
+    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
     {
         pad->leftJoyX = in_analog_left[pad_index][0];
         pad->leftJoyY = in_analog_left[pad_index][1];
@@ -78,7 +78,7 @@ static long PADreadPort2(PadDataS *pad) {
     else
     	pad->portMultitap = 0;
     
-    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
+    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON)
     {
         pad->leftJoyX = in_analog_left[pad_index][0];
         pad->leftJoyY = in_analog_left[pad_index][1];
