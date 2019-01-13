@@ -1,6 +1,7 @@
 # Makefile for PCSX ReARMed (libretro)
 
 DEBUG=0
+WANT_ZLIB=1
 
 ifeq ($(platform),)
 	platform = unix
@@ -26,7 +27,9 @@ GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
 ifneq ($(GIT_VERSION)," unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
+ifneq ($(WANT_ZLIB),1)
 LIBZ := -lz
+endif
 LIBPTHREAD := -lpthread
 ifneq ($(findstring Haiku,$(shell uname -s)),)
 LIBDL := -lroot -lnetwork

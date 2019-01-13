@@ -52,6 +52,22 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
+ifeq ($(WANT_ZLIB),1)
+OBJS += deps/zlib/adler32.o \
+        deps/zlib/compress.o \
+        deps/zlib/crc32.o \
+        deps/zlib/deflate.o \
+        deps/zlib/gzclose.o \
+        deps/zlib/gzlib.o \
+        deps/zlib/gzread.o \
+        deps/zlib/gzwrite.o \
+        deps/zlib/inffast.o \
+        deps/zlib/inflate.o \
+        deps/zlib/inftrees.o \
+        deps/zlib/trees.o \
+        deps/zlib/uncompr.o \
+        deps/zlib/zutil.o
+endif
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
@@ -258,7 +274,8 @@ frontend/revision.h: FORCE
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 target_: $(TARGET)
 
