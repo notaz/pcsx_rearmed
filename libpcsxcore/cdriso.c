@@ -565,20 +565,15 @@ static int parsecue(const char *isofile) {
 			if (t != 1)
 				sscanf(linebuf, " FILE %255s", tmpb);
 
-			// absolute path?
-			ti[numtracks + 1].handle = fopen(tmpb, "rb");
-			if (ti[numtracks + 1].handle == NULL) {
-				// relative to .cue?
-				tmp = strrchr(tmpb, '\\');
-				if (tmp == NULL)
-					tmp = strrchr(tmpb, '/');
-				if (tmp != NULL)
-					tmp++;
-				else
-					tmp = tmpb;
-				strncpy(incue_fname, tmp, incue_max_len);
-				ti[numtracks + 1].handle = fopen(filepath, "rb");
-			}
+			tmp = strrchr(tmpb, '\\');
+			if (tmp == NULL)
+				tmp = strrchr(tmpb, '/');
+			if (tmp != NULL)
+				tmp++;
+			else
+				tmp = tmpb;
+			strncpy(incue_fname, tmp, incue_max_len);
+			ti[numtracks + 1].handle = fopen(filepath, "rb");
 
 			// update global offset if this is not first file in this .cue
 			if (numtracks + 1 > 1) {
