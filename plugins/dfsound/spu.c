@@ -348,11 +348,11 @@ INLINE int iGetInterpolationVal(int *SB, int sinc, int spos, int fmod_freq)
      int vl, vr;int gpos;
      vl = (spos >> 6) & ~3;
      gpos = SB[28];
-     vr=(gauss[vl]*(int)gval0)&~2047;
-     vr+=(gauss[vl+1]*gval(1))&~2047;
-     vr+=(gauss[vl+2]*gval(2))&~2047;
-     vr+=(gauss[vl+3]*gval(3))&~2047;
-     fa = vr>>11;
+     vr=(gauss[vl]*(int)gval0) >> 15;
+     vr+=(gauss[vl+1]*gval(1)) >> 15;
+     vr+=(gauss[vl+2]*gval(2)) >> 15;
+     vr+=(gauss[vl+3]*gval(3)) >> 15;
+     fa = vr;
     } break;
    //--------------------------------------------------//
    case 1:                                             // simple interpolation
