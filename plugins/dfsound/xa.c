@@ -189,16 +189,16 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0)&~2047;
-         vr+=(gauss[vl+1]*gvall(1))&~2047;
-         vr+=(gauss[vl+2]*gvall(2))&~2047;
-         vr+=(gauss[vl+3]*gvall(3))&~2047;
-         l= (vr >> 11) & 0xffff;
-         vr=(gauss[vl]*gvalr0)&~2047;
-         vr+=(gauss[vl+1]*gvalr(1))&~2047;
-         vr+=(gauss[vl+2]*gvalr(2))&~2047;
-         vr+=(gauss[vl+3]*gvalr(3))&~2047;
-         l |= vr << 5;
+         vr=(gauss[vl]*gvall0) >> 15;
+         vr+=(gauss[vl+1]*gvall(1)) >> 15;
+         vr+=(gauss[vl+2]*gvall(2)) >> 15;
+         vr+=(gauss[vl+3]*gvall(3)) >> 15;
+         l= vr & 0xffff;
+         vr=(gauss[vl]*gvalr0) >> 15;
+         vr+=(gauss[vl+1]*gvalr(1)) >> 15;
+         vr+=(gauss[vl+2]*gvalr(2)) >> 15;
+         vr+=(gauss[vl+3]*gvalr(3)) >> 15;
+         l |= vr << 16;
         }
        else
         {
@@ -246,16 +246,16 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0)&~2047;
-         vr+=(gauss[vl+1]*gvall(1))&~2047;
-         vr+=(gauss[vl+2]*gvall(2))&~2047;
-         vr+=(gauss[vl+3]*gvall(3))&~2047;
-         l= (vr >> 11) & 0xffff;
-         vr=(gauss[vl]*gvalr0)&~2047;
-         vr+=(gauss[vl+1]*gvalr(1))&~2047;
-         vr+=(gauss[vl+2]*gvalr(2))&~2047;
-         vr+=(gauss[vl+3]*gvalr(3))&~2047;
-         l |= vr << 5;
+         vr=(gauss[vl]*gvall0) >> 15;
+         vr+=(gauss[vl+1]*gvall(1)) >> 15;
+         vr+=(gauss[vl+2]*gvall(2)) >> 15;
+         vr+=(gauss[vl+3]*gvall(3)) >> 15;
+         l= vr & 0xffff;
+         vr=(gauss[vl]*gvalr0) >> 15;
+         vr+=(gauss[vl+1]*gvalr(1)) >> 15;
+         vr+=(gauss[vl+2]*gvalr(2)) >> 15;
+         vr+=(gauss[vl+3]*gvalr(3)) >> 15;
+         l |= vr << 16;
         }
        else
         {
@@ -298,11 +298,11 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0)&~2047;
-         vr+=(gauss[vl+1]*gvall(1))&~2047;
-         vr+=(gauss[vl+2]*gvall(2))&~2047;
-         vr+=(gauss[vl+3]*gvall(3))&~2047;
-         l1=s= vr >> 11;
+         vr=(gauss[vl]*gvall0) >> 15;
+         vr+=(gauss[vl+1]*gvall(1)) >> 15;
+         vr+=(gauss[vl+2]*gvall(2)) >> 15;
+         vr+=(gauss[vl+3]*gvall(3)) >> 15;
+         l1=s= vr;
          l1 &= 0xffff;
         }
        else
@@ -343,11 +343,11 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0)&~2047;
-         vr+=(gauss[vl+1]*gvall(1))&~2047;
-         vr+=(gauss[vl+2]*gvall(2))&~2047;
-         vr+=(gauss[vl+3]*gvall(3))&~2047;
-         l=s= vr >> 11;
+         vr=(gauss[vl]*gvall0) >> 15;
+         vr+=(gauss[vl+1]*gvall(1)) >> 15;
+         vr+=(gauss[vl+2]*gvall(2)) >> 15;
+         vr+=(gauss[vl+3]*gvall(3)) >> 15;
+         l=s= vr;
         }
        else
         {
