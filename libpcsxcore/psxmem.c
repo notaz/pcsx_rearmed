@@ -187,7 +187,7 @@ void psxMemReset() {
 	char bios[1024];
 
 	memset(psxM, 0, 0x00200000);
-	memset(psxP, 0, 0x00010000);
+	memset(psxP, 0xff, 0x00010000);
 
 	if (strcmp(Config.Bios, "HLE") != 0) {
 		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);

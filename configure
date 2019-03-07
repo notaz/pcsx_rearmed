@@ -442,13 +442,14 @@ EOF
 fi
 
 # check for VideoCore stuff for Raspberry Pi
-if [ -d /opt/vc/include -a -d /opt/vc/lib ]; then
+if [ -d /opt/vc/include -a -d /opt/vc/lib -a "$VIDEOCORE" != "no" ]; then
   CFLAGS_GLES="$CFLAGS_GLES -I/opt/vc/include -I/opt/vc/include/interface/vcos/pthreads -I/opt/vc/include/interface/vmcs_host/linux"
   LDLIBS_GLES="$LDLIBS_GLES -L/opt/vc/lib"
   if [ -f /opt/vc/lib/libbcm_host.so ]; then
     LDLIBS_GLES="$LDLIBS_GLES -lbcm_host"
   fi
   need_xlib="yes"
+  VIDEOCORE="yes"
 fi
 
 # check for GLES headers
@@ -459,7 +460,10 @@ int main(void) {
   return (int)eglGetDisplay( (EGLNativeDisplayType)0 );
 }
 EOF
-if compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
+if [ "$VIDEOCORE" = "yes" ] && compile_binary $CFLAGS_GLES -lbrcmEGL -lbrcmGLESv2 $LDLIBS_GLES; then
+  have_gles="yes"
+  LDLIBS_GLES="-lbrcmEGL -lbrcmGLESv2 $LDLIBS_GLES"
+elif compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
   have_gles="yes"
   LDLIBS_GLES="-lEGL -lGLES_CM $LDLIBS_GLES"
 elif compile_binary $CFLAGS_GLES -lEGL -lGLESv1_CM $LDLIBS_GLES; then
