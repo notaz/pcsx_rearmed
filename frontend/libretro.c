@@ -1633,7 +1633,6 @@ void retro_run(void)
 		if (!Config.HLE && !Config.SlowBoot) {
 			// skip BIOS logos
 			psxRegs.pc = psxRegs.GPR.n.ra;
-			return 0;
 		}
     }
 
