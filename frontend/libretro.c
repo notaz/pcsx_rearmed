@@ -1289,7 +1289,10 @@ bool retro_load_game(const struct retro_game_info *info)
 		return false;
 	}
 
-	SysReset();
+	/* TODO: Calling SysReset() outside retro_run for some system
+	 * causes RetroArch to freeze, e.g Ludo */
+	//SysReset();
+	rebootemu = 1;
 
 	if (LoadCdrom() == -1) {
 		log_cb(RETRO_LOG_INFO, "could not load CD\n");
