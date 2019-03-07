@@ -180,7 +180,7 @@ int LoadCdrom() {
 	// is just below, do it here
 	fake_bios_gpu_setup();
 
-	if (!Config.HLE) {
+	if (!Config.HLE && !Config.SlowBoot) {
 		// skip BIOS logos
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;

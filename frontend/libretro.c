@@ -22,6 +22,7 @@
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
+#include "../libpcsxcore/r3000a.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "../plugins/dfinput/externals.h"
@@ -1582,7 +1583,9 @@ static void update_variables(bool in_flight)
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
          {
             if (strcmp(var.value, "enabled") == 0)
-               rebootemu = 1;
+               Config.SlowBoot = 1;
+            else
+               Config.SlowBoot = 0;
          }
       }
    }
@@ -1622,11 +1625,16 @@ static uint16_t get_analog_button(retro_input_state_t input_state_cb, int player
 
 void retro_run(void)
 {
-    int i;
-    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
-    if(rebootemu != 0){
-      rebootemu = 0;
-      SysReset();
+	int i;
+	//SysReset must be run while core is running,Not in menu (Locks up Retroarch)
+	if (rebootemu != 0) {
+		rebootemu = 0;
+		SysReset();
+		if (!Config.HLE && !Config.SlowBoot) {
+			// skip BIOS logos
+			psxRegs.pc = psxRegs.GPR.n.ra;
+			return 0;
+		}
     }
 
 	input_poll_cb();
@@ -1938,7 +1946,7 @@ void retro_init(void)
 #endif
   
   vout_buf_ptr = vout_buf;
-  
+
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
 		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
