@@ -36,6 +36,7 @@ LIBDL := -lroot -lnetwork
 else
 LIBDL := -ldl
 endif
+LIBM := -lm
 MMAP_WIN32=0
 EXTRA_LDFLAGS =
 
@@ -54,6 +55,7 @@ else ifeq ($(platform), linux-portable)
 	LIBZ :=
 	LIBPTHREAD :=
 	LIBDL :=
+	LIBM :=
 	NO_UNDEF_CHECK = 1
 
 # OS X
@@ -215,6 +217,7 @@ else ifeq ($(platform), qnx)
 	MAIN_LDLIBS += -lsocket
 	LIBPTHREAD :=
 	LIBDL :=
+	LIBM :=
 
 #Raspberry Pi 2
 else ifeq ($(platform), rpi2)
@@ -317,11 +320,12 @@ else
 	MAIN_LDLIBS += -lws2_32
 	LIBPTHREAD :=
 	LIBDL :=
+	LIBM :=
 endif
 
 CFLAGS += $(fpic)
 MAIN_LDFLAGS += -shared
-MAIN_LDLIBS += $(LIBPTHREAD) $(LIBDL) $(LIBZ)
+MAIN_LDLIBS += $(LIBPTHREAD) $(LIBM) $(LIBDL) $(LIBZ)
 
 # try to autodetect stuff for the lazy
 ifndef ARCH

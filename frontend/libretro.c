@@ -22,6 +22,7 @@
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
+#include "../libpcsxcore/r3000a.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "../plugins/dfinput/externals.h"
@@ -57,7 +58,7 @@ static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
-static struct retro_rumble_interface rumble;
+static retro_set_rumble_state_t rumble_cb;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
@@ -430,10 +431,13 @@ void pl_timing_prepare(int is_pal)
 
 void plat_trigger_vibrate(int pad, int low, int high)
 {
-	if(in_enable_vibration)
+	if (!rumble_cb)
+		return;
+
+	if (in_enable_vibration)
 	{
-    	rumble.set_rumble_state(pad, RETRO_RUMBLE_STRONG, high << 8);
-    	rumble.set_rumble_state(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
+		rumble_cb(pad, RETRO_RUMBLE_STRONG, high << 8);
+		rumble_cb(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
     }
 }
 
@@ -1286,7 +1290,10 @@ bool retro_load_game(const struct retro_game_info *info)
 		return false;
 	}
 
-	SysReset();
+	/* TODO: Calling SysReset() outside retro_run for some system
+	 * causes RetroArch to freeze, e.g Ludo */
+	//SysReset();
+	rebootemu = 1;
 
 	if (LoadCdrom() == -1) {
 		log_cb(RETRO_LOG_INFO, "could not load CD\n");
@@ -1576,7 +1583,9 @@ static void update_variables(bool in_flight)
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
          {
             if (strcmp(var.value, "enabled") == 0)
-               rebootemu = 1;
+               Config.SlowBoot = 1;
+            else
+               Config.SlowBoot = 0;
          }
       }
    }
@@ -1616,11 +1625,15 @@ static uint16_t get_analog_button(retro_input_state_t input_state_cb, int player
 
 void retro_run(void)
 {
-    int i;
-    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
-    if(rebootemu != 0){
-      rebootemu = 0;
-      SysReset();
+	int i;
+	//SysReset must be run while core is running,Not in menu (Locks up Retroarch)
+	if (rebootemu != 0) {
+		rebootemu = 0;
+		SysReset();
+		if (!Config.HLE && !Config.SlowBoot) {
+			// skip BIOS logos
+			psxRegs.pc = psxRegs.GPR.n.ra;
+		}
     }
 
 	input_poll_cb();
@@ -1883,6 +1896,7 @@ static int init_memcards(void)
 
 void retro_init(void)
 {
+	struct retro_rumble_interface rumble;
 	const char *bios[] = {
 		"SCPH101", "SCPH7001", "SCPH5501", "SCPH1001",
 		"scph101", "scph7001", "scph5501", "scph1001"
@@ -1931,7 +1945,7 @@ void retro_init(void)
 #endif
   
   vout_buf_ptr = vout_buf;
-  
+
 	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
 	{
 		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
@@ -1962,7 +1976,10 @@ void retro_init(void)
 
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
-	environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble);
+
+	rumble_cb = NULL;
+	if (environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble))
+		rumble_cb = rumble.set_rumble_state;
 
 	/* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
 	 * we have to do this because cache misses and some IO penalties
