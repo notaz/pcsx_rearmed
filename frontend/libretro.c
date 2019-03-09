@@ -466,6 +466,7 @@ void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
+      { "pcsx_rearmed_bios", "Use BIOS; auto|HLE" },
       { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
       { "pcsx_rearmed_memcard2", "Enable second memory card; disabled|enabled" },
       { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|dualshock|negcon" },
@@ -1894,18 +1895,67 @@ static int init_memcards(void)
 	return ret;
 }
 
-void retro_init(void)
+static void loadPSXBios(void)
 {
-	struct retro_rumble_interface rumble;
+	const char *dir;
+	char path[256];
+	unsigned useHLE = 0;
+
 	const char *bios[] = {
 		"SCPH101", "SCPH7001", "SCPH5501", "SCPH1001",
 		"scph101", "scph7001", "scph5501", "scph1001"
 	};
-	const char *dir;
-	char path[256];
-	int i, ret;
-   
-   found_bios = false;
+
+	struct retro_variable var = {
+		.key = "pcsx_rearmed_bios",
+		.value = NULL
+	};
+
+	found_bios = 0;
+
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+		if (!strcmp(var.value, "HLE"))
+			useHLE = 1;
+	}
+
+	if (!useHLE)
+	{
+		if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
+		{
+			unsigned i;
+			snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
+
+			for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
+				snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
+				found_bios = try_use_bios(path);
+				if (found_bios)
+					break;
+			}
+
+			if (!found_bios)
+				found_bios = find_any_bios(dir, path, sizeof(path));
+		}
+		if (found_bios) {
+			SysPrintf("found BIOS file: %s\n", Config.Bios);
+		}
+	}
+
+	if (useHLE || !found_bios)
+	{
+		SysPrintf("no BIOS files found.\n");
+		struct retro_message msg =
+		{
+			"No PlayStation BIOS file found - add for better compatibility",
+			180
+		};
+		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
+	}
+}
+
+void retro_init(void)
+{
+	struct retro_rumble_interface rumble;
+	int ret;
 
 #ifdef __MACH__
 	// magic sauce to make the dynarec work on iOS
@@ -1944,35 +1994,9 @@ void retro_init(void)
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
   
-  vout_buf_ptr = vout_buf;
+	vout_buf_ptr = vout_buf;
 
-	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
-	{
-		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
-
-		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
-			snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
-			found_bios = try_use_bios(path);
-			if (found_bios)
-				break;
-		}
-
-		if (!found_bios)
-			found_bios = find_any_bios(dir, path, sizeof(path));
-	}
-	if (found_bios) {
-		SysPrintf("found BIOS file: %s\n", Config.Bios);
-	}
-	else
-	{
-		SysPrintf("no BIOS files found.\n");
-		struct retro_message msg =
-		{
-			"No PlayStation BIOS file found - add for better compatibility",
-			180
-		};
-		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
-	}
+	loadPSXBios();
 
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
