@@ -485,6 +485,11 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
+#ifdef HAVE_PRE_ARMV7
+      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 50); 50|51|52|53|54|55|5657|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49" },
+#else
+      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 57); 57|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56" },
+#endif
 #endif
 #ifdef __ARM_NEON__
       { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
@@ -1589,6 +1594,15 @@ static void update_variables(bool in_flight)
                Config.SlowBoot = 0;
          }
       }
+#ifndef DRC_DISABLE
+      var.value = "NULL";
+      var.key = "pcsx_rearmed_psxclock";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      {
+         int psxclock = atoi(var.value);
+         cycle_multiplier = 10000 / psxclock;
+      }
+#endif
    }
 }
 
@@ -1635,7 +1649,7 @@ void retro_run(void)
 			// skip BIOS logos
 			psxRegs.pc = psxRegs.GPR.n.ra;
 		}
-    }
+	}
 
 	input_poll_cb();
 
