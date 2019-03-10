@@ -819,7 +819,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	// cheat funcs are destructive, need a copy..
 	strncpy(buf, code, sizeof(buf));
 	buf[sizeof(buf) - 1] = 0;
-	
+
 	//Prepare buffered cheat for PCSX's AddCheat fucntion.
 	int cursor=0;
 	int nonhexdec=0;
@@ -833,7 +833,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		}
 		cursor++;
 	}
-	
+
 
 	if (index < NumCheats)
 		ret = EditCheat(index, "", buf);
@@ -1581,7 +1581,7 @@ static void update_variables(bool in_flight)
    }
    else{
       //not yet running
-      
+
       //bootlogo display hack
       if (found_bios) {
          var.value = "NULL";
@@ -1881,9 +1881,12 @@ static int init_memcards(void)
 	struct retro_variable var = { .key="pcsx_rearmed_memcard2", .value=NULL };
 	static const char CARD2_FILE[] = "pcsx-card2.mcd";
 
-	McdDisable[0] = 0;
-	// Disable memcard 2 by default
-	McdDisable[1] = 1;
+	// Memcard2 will be handled and is re-enabled if needed using core
+	// operations.
+	// Memcard1 is handled by libretro, doing this will set core to
+	// skip file io operations for memcard1 like SaveMcd
+	snprintf(Config.Mcd1, sizeof(Config.Mcd1), "none");
+	snprintf(Config.Mcd2, sizeof(Config.Mcd2), "none");
 	init_memcard(Mcd1Data);
 	// Memcard 2 is managed by the emulator on the filesystem,
 	// There is no need to initialize Mcd2Data like Mcd1Data.
@@ -1987,7 +1990,7 @@ void retro_init(void)
    psxUnmapHook = pl_vita_munmap;
 #endif
 	ret = emu_core_preinit();
-#ifdef _3DS 
+#ifdef _3DS
    /* emu_core_preinit sets the cpu to dynarec */
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
@@ -2007,7 +2010,7 @@ void retro_init(void)
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
-  
+
 	vout_buf_ptr = vout_buf;
 
 	loadPSXBios();
