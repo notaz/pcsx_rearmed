@@ -423,6 +423,12 @@ void LoadMcd(int mcd, char *str) {
 	}
 
 	McdDisable[mcd - 1] = 0;
+#ifdef HAVE_LIBRETRO
+	// memcard1 is handled by libretro
+	if (mcd == 1)
+		return;
+#endif
+
 	if (str == NULL || strcmp(str, "none") == 0) {
 		McdDisable[mcd - 1] = 1;
 		return;

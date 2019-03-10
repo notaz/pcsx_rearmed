@@ -26,6 +26,7 @@
 #include "psxbios.h"
 #include "psxhw.h"
 #include "gpu.h"
+#include "sio.h"
 #include <zlib.h>
 
 #undef SysPrintf
@@ -261,7 +262,7 @@ static int CardState = -1;
 static TCB Thread[8];
 static int CurThread = 0;
 static FileDesc FDesc[32];
-static u32 card_active_chan;
+static u32 card_active_chan = 0;
 
 boolean hleSoftCall = FALSE;
 
@@ -1271,14 +1272,35 @@ void psxBios_SetMem() { // 9f
 }
 
 void psxBios__card_info() { // ab
+	u8 ret, port;
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosA0n[0xab], a0);
 #endif
 
 	card_active_chan = a0;
+	port = card_active_chan >> 4;
+
+	switch (port) {
+	case 0x0:
+	case 0x1:
+		ret = 0x2;
+		if (McdDisable[port & 1])
+			ret = 0x8;
+		break;
+	default:
+#ifdef PSXBIOS_LOG
+		PSXBIOS_LOG("psxBios_%s: UNKNOWN PORT 0x%x\n", biosA0n[0xab], card_active_chan);
+#endif
+		ret = 0x11;
+		break;
+	}
+
+	if (McdDisable[0] && McdDisable[1])
+		ret = 0x8;
 
 //	DeliverEvent(0x11, 0x2); // 0xf0000011, 0x0004
-	DeliverEvent(0x81, 0x2); // 0xf4000001, 0x0004
+//	DeliverEvent(0x81, 0x2); // 0xf4000001, 0x0004
+	DeliverEvent(0x81, ret); // 0xf4000001, 0x0004
 
 	v0 = 1; pc0 = ra;
 }
@@ -2643,6 +2665,7 @@ void psxBiosInit() {
 	CardState = -1;
 	CurThread = 0;
 	memset(FDesc, 0, sizeof(FDesc));
+	card_active_chan = 0;
 
 	psxMu32ref(0x0150) = SWAPu32(0x160);
 	psxMu32ref(0x0154) = SWAPu32(0x320);

@@ -466,16 +466,17 @@ void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
       { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
+      { "pcsx_rearmed_bios", "Use BIOS; auto|HLE" },
       { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
       { "pcsx_rearmed_memcard2", "Enable second memory card; disabled|enabled" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad3type", "Pad 3 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad4type", "Pad 4 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad5type", "Pad 5 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad6type", "Pad 6 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad7type", "Pad 7 Type; default|none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad8type", "Pad 8 Type; default|none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog|dualshock|negcon|none" },
+      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|dualshock|negcon|none" },
+      { "pcsx_rearmed_pad3type", "Pad 3 Type; none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad4type", "Pad 4 Type; none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad5type", "Pad 5 Type; none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad6type", "Pad 6 Type; none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad7type", "Pad 7 Type; none|standard|analog|dualshock|negcon" },
+      { "pcsx_rearmed_pad8type", "Pad 8 Type; none|standard|analog|dualshock|negcon" },
       { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
       { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
       { "pcsx_rearmed_negcon_deadzone", "NegCon Twist Deadzone (percent); 0|5|10|15|20|25|30" },
@@ -484,6 +485,11 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
 #ifndef DRC_DISABLE
       { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
+#ifdef HAVE_PRE_ARMV7
+      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 50); 50|51|52|53|54|55|5657|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49" },
+#else
+      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 57); 57|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56" },
+#endif
 #endif
 #ifdef __ARM_NEON__
       { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
@@ -813,7 +819,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	// cheat funcs are destructive, need a copy..
 	strncpy(buf, code, sizeof(buf));
 	buf[sizeof(buf) - 1] = 0;
-	
+
 	//Prepare buffered cheat for PCSX's AddCheat fucntion.
 	int cursor=0;
 	int nonhexdec=0;
@@ -827,7 +833,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		}
 		cursor++;
 	}
-	
+
 
 	if (index < NumCheats)
 		ret = EditCheat(index, "", buf);
@@ -1575,7 +1581,7 @@ static void update_variables(bool in_flight)
    }
    else{
       //not yet running
-      
+
       //bootlogo display hack
       if (found_bios) {
          var.value = "NULL";
@@ -1588,6 +1594,15 @@ static void update_variables(bool in_flight)
                Config.SlowBoot = 0;
          }
       }
+#ifndef DRC_DISABLE
+      var.value = "NULL";
+      var.key = "pcsx_rearmed_psxclock";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      {
+         int psxclock = atoi(var.value);
+         cycle_multiplier = 10000 / psxclock;
+      }
+#endif
    }
 }
 
@@ -1634,7 +1649,7 @@ void retro_run(void)
 			// skip BIOS logos
 			psxRegs.pc = psxRegs.GPR.n.ra;
 		}
-    }
+	}
 
 	input_poll_cb();
 
@@ -1866,9 +1881,12 @@ static int init_memcards(void)
 	struct retro_variable var = { .key="pcsx_rearmed_memcard2", .value=NULL };
 	static const char CARD2_FILE[] = "pcsx-card2.mcd";
 
-	McdDisable[0] = 0;
-	// Disable memcard 2 by default
-	McdDisable[1] = 1;
+	// Memcard2 will be handled and is re-enabled if needed using core
+	// operations.
+	// Memcard1 is handled by libretro, doing this will set core to
+	// skip file io operations for memcard1 like SaveMcd
+	snprintf(Config.Mcd1, sizeof(Config.Mcd1), "none");
+	snprintf(Config.Mcd2, sizeof(Config.Mcd2), "none");
 	init_memcard(Mcd1Data);
 	// Memcard 2 is managed by the emulator on the filesystem,
 	// There is no need to initialize Mcd2Data like Mcd1Data.
@@ -1894,18 +1912,67 @@ static int init_memcards(void)
 	return ret;
 }
 
-void retro_init(void)
+static void loadPSXBios(void)
 {
-	struct retro_rumble_interface rumble;
+	const char *dir;
+	char path[256];
+	unsigned useHLE = 0;
+
 	const char *bios[] = {
 		"SCPH101", "SCPH7001", "SCPH5501", "SCPH1001",
 		"scph101", "scph7001", "scph5501", "scph1001"
 	};
-	const char *dir;
-	char path[256];
-	int i, ret;
-   
-   found_bios = false;
+
+	struct retro_variable var = {
+		.key = "pcsx_rearmed_bios",
+		.value = NULL
+	};
+
+	found_bios = 0;
+
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+		if (!strcmp(var.value, "HLE"))
+			useHLE = 1;
+	}
+
+	if (!useHLE)
+	{
+		if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
+		{
+			unsigned i;
+			snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
+
+			for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
+				snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
+				found_bios = try_use_bios(path);
+				if (found_bios)
+					break;
+			}
+
+			if (!found_bios)
+				found_bios = find_any_bios(dir, path, sizeof(path));
+		}
+		if (found_bios) {
+			SysPrintf("found BIOS file: %s\n", Config.Bios);
+		}
+	}
+
+	if (useHLE || !found_bios)
+	{
+		SysPrintf("no BIOS files found.\n");
+		struct retro_message msg =
+		{
+			"No PlayStation BIOS file found - add for better compatibility",
+			180
+		};
+		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
+	}
+}
+
+void retro_init(void)
+{
+	struct retro_rumble_interface rumble;
+	int ret;
 
 #ifdef __MACH__
 	// magic sauce to make the dynarec work on iOS
@@ -1923,7 +1990,7 @@ void retro_init(void)
    psxUnmapHook = pl_vita_munmap;
 #endif
 	ret = emu_core_preinit();
-#ifdef _3DS 
+#ifdef _3DS
    /* emu_core_preinit sets the cpu to dynarec */
    if(!__ctr_svchax)
       Config.Cpu = CPU_INTERPRETER;
@@ -1943,36 +2010,10 @@ void retro_init(void)
 #else
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
-  
-  vout_buf_ptr = vout_buf;
 
-	if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
-	{
-		snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
+	vout_buf_ptr = vout_buf;
 
-		for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++) {
-			snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
-			found_bios = try_use_bios(path);
-			if (found_bios)
-				break;
-		}
-
-		if (!found_bios)
-			found_bios = find_any_bios(dir, path, sizeof(path));
-	}
-	if (found_bios) {
-		SysPrintf("found BIOS file: %s\n", Config.Bios);
-	}
-	else
-	{
-		SysPrintf("no BIOS files found.\n");
-		struct retro_message msg =
-		{
-			"No PlayStation BIOS file found - add for better compatibility",
-			180
-		};
-		environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void*)&msg);
-	}
+	loadPSXBios();
 
 	environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);

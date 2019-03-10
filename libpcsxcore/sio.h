@@ -34,6 +34,7 @@ extern "C" {
 #define MCD_SIZE	(1024 * 8 * 16)
 
 extern char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
+extern char McdDisable[2];
 
 void sioWrite8(unsigned char value);
 void sioWriteStat16(unsigned short value);
