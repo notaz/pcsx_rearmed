@@ -1919,8 +1919,10 @@ static void loadPSXBios(void)
 	unsigned useHLE = 0;
 
 	const char *bios[] = {
-		"SCPH101", "SCPH7001", "SCPH5501", "SCPH1001",
-		"scph101", "scph7001", "scph5501", "scph1001"
+		"SCPH101", "scph101",
+		"SCPH5501", "scph5501",
+		"SCPH7001", "scph7001",
+		"SCPH1001", "scph1001"
 	};
 
 	struct retro_variable var = {
