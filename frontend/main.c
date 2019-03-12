@@ -138,6 +138,7 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;
 
 	spu_config.iUseReverb = 1;
+	spu_config.idiablofix = 0;
 	spu_config.iUseInterpolation = 1;
 	spu_config.iXAPitch = 0;
 	spu_config.iVolume = 768;
