@@ -91,7 +91,7 @@ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
                  $(FRONTEND_DIR)/cspace_neon.S
   SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
-  SOURCES_ASM += $(UNAI_DIR)/gpu_arm.s \
+  SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
 else

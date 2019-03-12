@@ -297,7 +297,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x48 ... 0x4F:
       {
         u32 num_vertexes = 1;
-        u32 *list_position = &(list[2]);
+        u32 *list_position = (u32*)&(list[2]);
 
         gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
@@ -308,7 +308,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
-          if(list_position >= list_end) {
+          if(list_position >= (u32*)list_end) {
             cmd = -1;
             goto breakloop;
           }
@@ -330,7 +330,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x58 ... 0x5F:
       {
         u32 num_vertexes = 1;
-        u32 *list_position = &(list[2]);
+        u32 *list_position = (u32*)&(list[2]);
 
         gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
@@ -343,7 +343,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
 
           num_vertexes++;
-          if(list_position >= list_end) {
+          if(list_position >= (u32*)list_end) {
             cmd = -1;
             goto breakloop;
           }
