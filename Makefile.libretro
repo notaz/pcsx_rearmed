@@ -177,7 +177,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -Werror=implicit-function-declaration
 
 #	CFLAGS += -DPCSX
-	BUILTIN_GPU = unai
+#	BUILTIN_GPU = unai
 	USE_DYNAREC = 1
 	DRC_CACHE_BASE = 0
 	ARCH = arm
