@@ -285,7 +285,9 @@ else ifeq ($(platform), classic_armv7_a7)
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
+	HAVE_NEON = 0
 	DRC_CACHE_BASE = 0
+	BUILTIN_GPU = peops
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
 		ASFLAGS += -mcpu=cortex-a8
