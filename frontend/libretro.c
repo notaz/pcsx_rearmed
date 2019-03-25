@@ -1588,7 +1588,8 @@ static void update_variables(bool in_flight)
 
       dfinput_activate();
    }
-   else{
+   else
+   {
       //not yet running
 
       //bootlogo display hack
@@ -1597,10 +1598,13 @@ static void update_variables(bool in_flight)
          var.key = "pcsx_rearmed_show_bios_bootlogo";
          if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
          {
+            Config.SlowBoot = 0;
+            rebootemu = 0;
             if (strcmp(var.value, "enabled") == 0)
+            {
                Config.SlowBoot = 1;
-            else
-               Config.SlowBoot = 0;
+               rebootemu = 1;
+            }
          }
       }
 #ifndef DRC_DISABLE
