@@ -404,6 +404,7 @@ static u32 DIVIDE_(s16 n, u16 d) {
 
 void gteRTPS(psxCP2Regs *regs) {
 	int quotient;
+	s64 tmp;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE RTPS\n");
@@ -426,14 +427,16 @@ void gteRTPS(psxCP2Regs *regs) {
 	gteSX2 = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 	gteSY2 = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+	tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp >> 12);
 }
 
 void gteRTPT(psxCP2Regs *regs) {
 	int quotient;
 	int v;
 	s32 vx, vy, vz;
+	s64 tmp;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE RTPT\n");
@@ -456,8 +459,10 @@ void gteRTPT(psxCP2Regs *regs) {
 		fSX(v) = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 		fSY(v) = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 	}
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+
+	tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp >> 12);
 }
 
 void gteMVMVA(psxCP2Regs *regs) {
