@@ -53,6 +53,7 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 ifeq ($(WANT_ZLIB),1)
+CFLAGS += -Ideps/zlib
 OBJS += deps/zlib/adler32.o \
         deps/zlib/compress.o \
         deps/zlib/crc32.o \
