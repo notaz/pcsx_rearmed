@@ -1,7 +1,7 @@
 # Makefile for PCSX ReARMed (libretro)
 
-DEBUG=0
-WANT_ZLIB=1
+DEBUG ?= 0
+WANT_ZLIB ?= 1
 
 ifeq ($(platform),)
 	platform = unix
@@ -37,7 +37,7 @@ else
 LIBDL := -ldl
 endif
 LIBM := -lm
-MMAP_WIN32=0
+MMAP_WIN32 = 0
 EXTRA_LDFLAGS =
 
 # Unix
@@ -71,11 +71,11 @@ endif
 
 # iOS
 else ifeq ($(platform),$(filter $(platform),ios-arm64))
-    ARCH := arm64
-    USE_DYNAREC = 0
-    HAVE_NEON = 0
-    BUILTIN_GPU = peops
-    TARGET := $(TARGET_NAME)_libretro_ios.dylib
+	ARCH := arm64
+	USE_DYNAREC = 0
+	HAVE_NEON = 0
+	BUILTIN_GPU = peops
+	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
@@ -148,7 +148,7 @@ else ifeq ($(platform), vita)
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
-	CFLAGS +=  -fno-optimize-sibling-calls
+	CFLAGS += -fno-optimize-sibling-calls
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
@@ -218,7 +218,7 @@ else ifeq ($(platform), qnx)
 	BUILTIN_GPU = neon
 	ARCH = arm
 	CFLAGS += -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
-	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
+	ASFLAGS += -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	MAIN_LDLIBS += -lsocket
 	LIBPTHREAD :=
 	LIBDL :=
@@ -271,13 +271,13 @@ else ifeq ($(platform), classic_armv7_a7)
 	BUILTIN_GPU = neon
 	USE_DYNAREC = 1
 	ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
-	  CFLAGS += -march=armv7-a
+		CFLAGS += -march=armv7-a
 	else
-	  CFLAGS += -march=armv7ve
-	  # If gcc is 5.0 or later
-	  ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
-	    LDFLAGS += -static-libgcc -static-libstdc++
-	  endif
+		CFLAGS += -march=armv7ve
+		# If gcc is 5.0 or later
+		ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
+			LDFLAGS += -static-libgcc -static-libstdc++
+		endif
 	endif
 #######################################
 
@@ -319,8 +319,8 @@ else ifneq (,$(findstring armv,$(platform)))
 # Windows
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
-   BUILTIN_GPU = peops
-   PLATFORM = libretro
+	BUILTIN_GPU = peops
+	PLATFORM = libretro
 	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
 	CFLAGS += -D__WIN32__ -DNO_DYLIB
 	MMAP_WIN32=1
@@ -334,15 +334,9 @@ CFLAGS += $(fpic)
 MAIN_LDFLAGS += -shared
 MAIN_LDLIBS += $(LIBPTHREAD) $(LIBM) $(LIBDL) $(LIBZ)
 
-# try to autodetect stuff for the lazy
-ifndef ARCH
-ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
-endif
-ifndef HAVE_NEON
-HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
-endif
-ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
-MAIN_LDFLAGS += -Wl,--no-undefined
+# enable large file support if available
+ifeq ($(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep __SIZEOF_LONG__ | awk '{print $$3}'),4)
+CFLAGS += -D_FILE_OFFSET_BITS=64
 endif
 
 # try to autodetect stuff for the lazy
@@ -352,7 +346,7 @@ endif
 ifndef HAVE_NEON
 HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
 endif
-ifeq ($(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 
