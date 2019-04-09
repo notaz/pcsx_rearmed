@@ -334,6 +334,11 @@ CFLAGS += $(fpic)
 MAIN_LDFLAGS += -shared
 MAIN_LDLIBS += $(LIBPTHREAD) $(LIBM) $(LIBDL) $(LIBZ)
 
+# enable large file support if available
+ifeq ($(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep __SIZEOF_LONG__ | awk '{print $$3}'),4)
+CFLAGS += -D_FILE_OFFSET_BITS=64
+endif
+
 # try to autodetect stuff for the lazy
 ifndef ARCH
 ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
