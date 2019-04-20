@@ -47,6 +47,12 @@ ifeq ($(platform), unix)
 ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
 endif
+ifeq ($(ARCH), arm)
+ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
+	# must disable thumb as recompiler can't handle it
+	CFLAGS += -marm
+endif
+endif
 
 else ifeq ($(platform), linux-portable)
 	TARGET := $(TARGET_NAME)_libretro.so
