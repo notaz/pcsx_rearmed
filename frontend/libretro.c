@@ -50,6 +50,8 @@
 
 #define ISHEXDEC ((buf[cursor]>='0') && (buf[cursor]<='9')) || ((buf[cursor]>='a') && (buf[cursor]<='f')) || ((buf[cursor]>='A') && (buf[cursor]<='F'))
 
+#define INTERNAL_FPS_SAMPLE_PERIOD 64
+
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
 static int rebootemu = 0;
 
@@ -69,6 +71,8 @@ static int vout_doffs_old, vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
 static bool found_bios;
+static bool display_internal_fps = false;
+static unsigned frame_count = 0;
 
 static int plugins_opened;
 static int is_pal_mode;
@@ -497,6 +501,7 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
 #endif
       { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
+      { "pcsx_rearmed_display_internal_fps", "Display Internal FPS; disabled|enabled" },
       { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
       { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
       { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
@@ -1233,6 +1238,8 @@ bool retro_load_game(const struct retro_game_info *info)
       { 0 },
    };
 
+	 frame_count = 0;
+
    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
 
 #ifdef FRONTEND_SUPPORTS_RGB565
@@ -1491,6 +1498,17 @@ static void update_variables(bool in_flight)
          duping_enable = true;
    }
 
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_display_internal_fps";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         display_internal_fps = false;
+      else if (strcmp(var.value, "enabled") == 0)
+         display_internal_fps = true;
+   }
+
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "pcsx_rearmed_drc";
@@ -1662,6 +1680,31 @@ void retro_run(void)
 			// skip BIOS logos
 			psxRegs.pc = psxRegs.GPR.n.ra;
 		}
+	}
+
+	if (display_internal_fps) {
+		frame_count++;
+
+		if (frame_count % INTERNAL_FPS_SAMPLE_PERIOD == 0) {
+			unsigned internal_fps = pl_rearmed_cbs.flip_cnt * (is_pal_mode ? 50 : 60) / INTERNAL_FPS_SAMPLE_PERIOD;
+			char str[64];
+			const char *strc = (const char*)str;
+			struct retro_message msg =
+			{
+				strc,
+				180
+			};
+
+			str[0] = '\0';
+
+			snprintf(str, sizeof(str), "Internal FPS: %2d", internal_fps);
+
+			pl_rearmed_cbs.flip_cnt = 0;
+
+			environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+		}
+	} else {
+		frame_count = 0;
 	}
 
 	input_poll_cb();
