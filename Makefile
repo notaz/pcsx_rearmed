@@ -158,6 +158,59 @@ endif
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
 
+# libchdr
+CFLAGS += -Ideps/libchdr
+OBJS += deps/crypto/md5.o
+OBJS += deps/crypto/sha1.o
+OBJS += deps/flac-1.3.2/src/libFLAC/bitmath.o
+OBJS += deps/flac-1.3.2/src/libFLAC/bitreader.o
+OBJS += deps/flac-1.3.2/src/libFLAC/cpu.o
+OBJS += deps/flac-1.3.2/src/libFLAC/crc.o
+OBJS += deps/flac-1.3.2/src/libFLAC/fixed.o
+OBJS += deps/flac-1.3.2/src/libFLAC/fixed_intrin_sse2.o
+OBJS += deps/flac-1.3.2/src/libFLAC/fixed_intrin_ssse3.o
+OBJS += deps/flac-1.3.2/src/libFLAC/float.o
+OBJS += deps/flac-1.3.2/src/libFLAC/format.o
+OBJS += deps/flac-1.3.2/src/libFLAC/lpc.o
+OBJS += deps/flac-1.3.2/src/libFLAC/lpc_intrin_avx2.o
+OBJS += deps/flac-1.3.2/src/libFLAC/lpc_intrin_sse2.o
+OBJS += deps/flac-1.3.2/src/libFLAC/lpc_intrin_sse41.o
+OBJS += deps/flac-1.3.2/src/libFLAC/lpc_intrin_sse.o
+OBJS += deps/flac-1.3.2/src/libFLAC/md5.o
+OBJS += deps/flac-1.3.2/src/libFLAC/memory.o
+OBJS += deps/flac-1.3.2/src/libFLAC/metadata_iterators.o
+OBJS += deps/flac-1.3.2/src/libFLAC/metadata_object.o
+OBJS += deps/flac-1.3.2/src/libFLAC/stream_decoder.o
+OBJS += deps/flac-1.3.2/src/libFLAC/window.o
+OBJS += deps/lzma-16.04/C/Alloc.o
+OBJS += deps/lzma-16.04/C/Bra86.o
+OBJS += deps/lzma-16.04/C/Bra.o
+OBJS += deps/lzma-16.04/C/BraIA64.o
+OBJS += deps/lzma-16.04/C/CpuArch.o
+OBJS += deps/lzma-16.04/C/Delta.o
+OBJS += deps/lzma-16.04/C/LzFind.o
+OBJS += deps/lzma-16.04/C/Lzma86Dec.o
+OBJS += deps/lzma-16.04/C/Lzma86Enc.o
+OBJS += deps/lzma-16.04/C/LzmaDec.o
+OBJS += deps/lzma-16.04/C/LzmaEnc.o
+OBJS += deps/lzma-16.04/C/LzmaLib.o
+OBJS += deps/lzma-16.04/C/Sort.o
+OBJS += deps/libchdr/bitstream.o
+OBJS += deps/libchdr/cdrom.o
+OBJS += deps/libchdr/chd.o
+OBJS += deps/libchdr/flac.o
+OBJS += deps/libchdr/huffman.o
+
+ifneq (,$(findstring win,$(platform)))
+  OBJS += deps/flac-1.3.2/src/libFLAC/windows_unicode_filenames.o
+else
+  CFLAGS += -DHAVE_SYS_PARAM_H
+endif
+
+CFLAGS += -Ideps/crypto -Ideps/flac-1.3.2/include -Ideps/flac-1.3.2/src/libFLAC/include -Ideps/flac-1.3.2/src/libFLAC/include -Ideps/lzma-16.04/C
+CFLAGS += -D'PACKAGE_VERSION="1.3.2"' -DFLAC__HAS_OGG=0 -DFLAC__NO_DLL -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DFLAC__NO_DLL -D_7ZIP_ST
+LDFLAGS += -lm
+
 # dfinput
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 

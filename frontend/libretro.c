@@ -696,7 +696,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define GIT_VERSION ""
 #endif
 	info->library_version = "r22" GIT_VERSION;
-	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u";
+	info->valid_extensions = "bin|cue|img|mdf|pbp|toc|cbn|m3u|chd";
 	info->need_fullpath = true;
 }
 
