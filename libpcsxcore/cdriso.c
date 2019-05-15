@@ -1059,7 +1059,7 @@ static int handlechd(const char *isofile) {
    cddaBigEndian = TRUE;
 
 	numtracks = 0;
-	int frame_offset = 0;
+	int frame_offset = 150;
 	memset(ti, 0, sizeof(ti));
 
    while (1)
@@ -1087,14 +1087,14 @@ static int handlechd(const char *isofile) {
 		ti[md.track].type = !strncmp(md.type, "AUDIO", 5) ? CDDA : DATA;
 
       sec2msf(frame_offset + md.pregap, ti[md.track].start);
-      sec2msf(md.frames, ti[md.track].length);
+      sec2msf(md.frames - md.pregap, ti[md.track].length);
 
       if (!strcmp(md.type, md.pgtype))
          frame_offset += md.pregap;
 
       ti[md.track].start_offset = frame_offset * CD_FRAMESIZE_RAW;
 
-		frame_offset += (md.frames + 3) & ~3;
+		frame_offset += md.frames;
 		frame_offset += md.postgap;
 		numtracks++;
 	}
