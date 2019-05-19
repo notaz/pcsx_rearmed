@@ -2,6 +2,7 @@
 
 DEBUG ?= 0
 WANT_ZLIB ?= 1
+HAVE_CHD ?= 1
 
 ifeq ($(platform),)
 	platform = unix
@@ -188,7 +189,7 @@ else ifeq ($(platform), ctr)
 	DRC_CACHE_BASE = 0
 	ARCH = arm
 	HAVE_NEON = 0
-
+	HAVE_CHD = 0
 	STATIC_LINKING = 1
 
 # Xbox 360
