@@ -203,6 +203,7 @@ OBJS += deps/libchdr/flac.o
 OBJS += deps/libchdr/huffman.o
 
 ifneq (,$(findstring win,$(platform)))
+  CFLAGS += -DHAVE_FSEEKO
   OBJS += deps/flac-1.3.2/src/libFLAC/windows_unicode_filenames.o
 else
   CFLAGS += -DHAVE_SYS_PARAM_H
