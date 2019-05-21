@@ -4,6 +4,8 @@ $(shell cd "$(LOCAL_PATH)" && ((git describe || echo) | sed -e 's/.*/#define REV
 $(shell cd "$(LOCAL_PATH)" && (diff -q ../frontend/revision.h_ ../frontend/revision.h > /dev/null 2>&1 || cp ../frontend/revision.h_ ../frontend/revision.h))
 $(shell cd "$(LOCAL_PATH)" && (rm ../frontend/revision.h_))
 
+HAVE_CHD ?= 1
+
 ROOT_DIR     := $(LOCAL_PATH)/..
 CORE_DIR     := $(ROOT_DIR)/libpcsxcore
 SPU_DIR      := $(ROOT_DIR)/plugins/dfsound
