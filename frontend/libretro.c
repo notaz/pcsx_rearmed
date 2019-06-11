@@ -28,6 +28,7 @@
 #include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
+#include "menu.h"
 #include "plugin.h"
 #include "plugin_lib.h"
 #include "arm_features.h"
@@ -508,7 +509,17 @@ void retro_set_environment(retro_environment_t cb)
       { "pcsx_rearmed_idiablofix", "Diablo Music Fix; disabled|enabled" },
       { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
       { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
-      { NULL, NULL },
+
+      /* Advance options */
+      { "pcsx_rearmed_noxadecoding", "XA Decoding; enabled|disabled" },
+      { "pcsx_rearmed_nocdaudio", "CD Audio; enabled|disabled" },
+#ifndef DRC_DISABLE
+      { "pcsx_rearmed_nosmccheck", "(Speed Hack) Disable SMC Checks; disabled|enabled" },
+      { "pcsx_rearmed_gteregsunneeded", "(Speed Hack) Assume GTE Regs Unneeded; disabled|enabled" },
+      { "pcsx_rearmed_nogteflags", "(Speed Hack) Disable GTE Flags; disabled|enabled" },
+#endif
+
+      { NULL, NULL }
    };
 
     if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
@@ -1595,6 +1606,26 @@ static void update_variables(bool in_flight)
          Config.VSyncWA = 1;
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_noxadecoding";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.Xa = 1;
+      else
+         Config.Xa = 0;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nocdaudio";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.Cdda = 1;
+      else
+         Config.Cdda = 0;
+   }
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1632,6 +1663,36 @@ static void update_variables(bool in_flight)
       {
          int psxclock = atoi(var.value);
          cycle_multiplier = 10000 / psxclock;
+      }
+
+      var.value = NULL;
+      var.key = "pcsx_rearmed_nosmccheck";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      {
+         if (strcmp(var.value, "enabled") == 0)
+            new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
+         else
+            new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
+      }
+
+      var.value = NULL;
+      var.key = "pcsx_rearmed_gteregsunneeded";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      {
+         if (strcmp(var.value, "enabled") == 0)
+            new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
+         else
+            new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
+      }
+
+      var.value = NULL;
+      var.key = "pcsx_rearmed_nogteflags";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      {
+         if (strcmp(var.value, "enabled") == 0)
+            new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
+         else
+            new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
       }
 #endif
    }
