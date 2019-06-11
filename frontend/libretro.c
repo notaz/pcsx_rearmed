@@ -1626,6 +1626,38 @@ static void update_variables(bool in_flight)
          Config.Cdda = 0;
    }
 
+#ifndef DRC_DISABLE
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nosmccheck";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
+      else
+         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gteregsunneeded";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nogteflags";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
+   }
+#endif
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1663,36 +1695,6 @@ static void update_variables(bool in_flight)
       {
          int psxclock = atoi(var.value);
          cycle_multiplier = 10000 / psxclock;
-      }
-
-      var.value = NULL;
-      var.key = "pcsx_rearmed_nosmccheck";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-      {
-         if (strcmp(var.value, "enabled") == 0)
-            new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
-         else
-            new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
-      }
-
-      var.value = NULL;
-      var.key = "pcsx_rearmed_gteregsunneeded";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-      {
-         if (strcmp(var.value, "enabled") == 0)
-            new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
-         else
-            new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
-      }
-
-      var.value = NULL;
-      var.key = "pcsx_rearmed_nogteflags";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
-      {
-         if (strcmp(var.value, "enabled") == 0)
-            new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
-         else
-            new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
       }
 #endif
    }
