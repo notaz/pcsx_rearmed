@@ -74,6 +74,7 @@ static bool duping_enable;
 static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
+static bool libretro_supports_bitmasks = false;
 
 static int plugins_opened;
 static int is_pal_mode;
@@ -1701,15 +1702,13 @@ static void update_variables(bool in_flight)
 }
 
 // Taken from beetle-psx-libretro
-static uint16_t get_analog_button(retro_input_state_t input_state_cb, int player_index, int id)
+static uint16_t get_analog_button(int16_t ret, retro_input_state_t input_state_cb, int player_index, int id)
 {
-	uint16_t button;
-
 	// NOTE: Analog buttons were added Nov 2017. Not all front-ends support this
 	// feature (or pre-date it) so we need to handle this in a graceful way.
 
 	// First, try and get an analog value using the new libretro API constant
-	button = input_state_cb(player_index,
+	uint16_t button = input_state_cb(player_index,
 									RETRO_DEVICE_ANALOG,
 									RETRO_DEVICE_INDEX_ANALOG_BUTTON,
 									id);
@@ -1723,10 +1722,7 @@ static uint16_t get_analog_button(retro_input_state_t input_state_cb, int player
 
 		// NOTE: If we're really just not holding the button, we're still going to get zero.
 
-		button = input_state_cb(player_index,
-										RETRO_DEVICE_JOYPAD,
-										0,
-										id) ? 255 : 0;
+		button = (ret & (1 << id)) ? 255 : 0;
 	}
 
 	return button;
@@ -1766,9 +1762,9 @@ void retro_run(void)
 
 			environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
 		}
-	} else {
-		frame_count = 0;
 	}
+   else
+		frame_count = 0;
 
 	input_poll_cb();
 
@@ -1783,48 +1779,54 @@ void retro_run(void)
 	float negcon_twist_amplitude;
 	int negcon_i_rs;
 	int negcon_ii_rs;
-	for(i = 0; i < PORTS_NUMBER; i++) {
+	for(i = 0; i < PORTS_NUMBER; i++)
+   {
+      int16_t ret    = 0;
 		in_keystate[i] = 0;
 
 		if (in_type[i] == PSE_PAD_TYPE_NONE)
 			continue;
+      
+      if (libretro_supports_bitmasks)
+         ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
+      else
+      {
+         unsigned i;
+         for (i = 0; i < RETRO_DEVICE_ID_JOYPAD_R3+1; i++)
+         {
+            if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, i))
+               ret |= (1 << i);
+         }
+      }
 
 		if (in_type[i] == PSE_PAD_TYPE_NEGCON)
 		{
 			// Query digital inputs
 			//
 			// > Pad-Up
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP)){
+			if (ret & (1 < RETRO_DEVICE_ID_JOYPAD_UP))
 				in_keystate[i] |= (1 << DKEY_UP);
-			}
 			// > Pad-Right
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_RIGHT))
 				in_keystate[i] |= (1 << DKEY_RIGHT);
-			}
 			// > Pad-Down
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_DOWN))
 				in_keystate[i] |= (1 << DKEY_DOWN);
-			}
 			// > Pad-Left
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_LEFT))
 				in_keystate[i] |= (1 << DKEY_LEFT);
-			}
 			// > Start
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_START))
 				in_keystate[i] |= (1 << DKEY_START);
-			}
 			// > neGcon A
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_A))
 				in_keystate[i] |= (1 << DKEY_CIRCLE);
-			}
 			// > neGcon B
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_X))
 				in_keystate[i] |= (1 << DKEY_TRIANGLE);
-			}
 			// > neGcon R shoulder (digital)
-			if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R)){
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_R))
 				in_keystate[i] |= (1 << DKEY_R1);
-			}
 			// Query analog inputs
 			//
 			// From studying 'libpcsxcore/plugins.c' and 'frontend/plugin.c':
@@ -1838,24 +1840,23 @@ void retro_run(void)
 			// > NeGcon twist
 			// >> Get raw analog stick value and account for deadzone
 			lsx = input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
-			if (lsx > negcon_deadzone){
+			if (lsx > negcon_deadzone)
 				lsx = lsx - negcon_deadzone;
-			} else if (lsx < -negcon_deadzone){
+			else if (lsx < -negcon_deadzone)
 				lsx = lsx + negcon_deadzone;
-			} else {
+			else
 				lsx = 0;
-			}
 			// >> Convert to an 'amplitude' [-1.0,1.0] and adjust response
 			negcon_twist_amplitude = (float)lsx / (float)(NEGCON_RANGE - negcon_deadzone);
-			if (negcon_linearity == 2){
-				if (negcon_twist_amplitude < 0.0){
+			if (negcon_linearity == 2)
+         {
+				if (negcon_twist_amplitude < 0.0)
 					negcon_twist_amplitude = -(negcon_twist_amplitude * negcon_twist_amplitude);
-				} else {
+            else
 					negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude;
-				}
-			} else if (negcon_linearity == 3){
-				negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude * negcon_twist_amplitude;
 			}
+         else if (negcon_linearity == 3)
+				negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude * negcon_twist_amplitude;
 			// >> Convert to final 'in_analog' integer value [0,255]
 			in_analog_right[i][0] = MAX(MIN((int)(negcon_twist_amplitude * 128.0f) + 128, 255), 0);
 			// > NeGcon I + II
@@ -1870,48 +1871,45 @@ void retro_run(void)
 				// (Note: have never encountered a gamepad with significant differences
 				// in deadzone between left/right analog sticks, so use the regular 'twist'
 				// deadzone here)
-				if (rsy > negcon_deadzone){
+				if (rsy > negcon_deadzone)
 					rsy = rsy - negcon_deadzone;
-				} else {
+            else
 					rsy = 0;
-				}
 				// Convert to 'in_analog' integer value [0,255]
 				negcon_ii_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
 			} else {
-				if (rsy < -negcon_deadzone){
+				if (rsy < -negcon_deadzone)
 					rsy = -1 * (rsy + negcon_deadzone);
-				} else {
+            else
 					rsy = 0;
-				}
 				negcon_i_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
 			}
 			// >> NeGcon I
 			in_analog_right[i][1] = MAX(
 				MAX(
-					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
-					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_B)
+					get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
+					get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_B)
 				),
 				negcon_i_rs
 			);
 			// >> NeGcon II
 			in_analog_left[i][0] = MAX(
 				MAX(
-					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L2),
-					get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_Y)
+					get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L2),
+					get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_Y)
 				),
 				negcon_ii_rs
 			);
 			// > NeGcon L
-			in_analog_left[i][1] = get_analog_button(input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L);
+			in_analog_left[i][1] = get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L);
 		}
 		else
 		{
 			// Query digital inputs
-			for (j = 0; j < RETRO_PSX_MAP_LEN; j++){
-				if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j)){
+			for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
+				if (ret & (1 << j))
 					in_keystate[i] |= retro_psx_map[j];
-				}
-			}
+
 			// Query analog inputs
 			if (in_type[i] == PSE_PAD_TYPE_ANALOGJOY || in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 			{
@@ -2159,6 +2157,9 @@ void retro_init(void)
 	SaveFuncs.seek = save_seek;
 	SaveFuncs.close = save_close;
 
+   if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
+      libretro_supports_bitmasks = true;
+
 	update_variables(false);
 	check_system_specs();
 }
@@ -2176,6 +2177,7 @@ void retro_deinit(void)
 #ifdef VITA
   deinit_vita_mmap();
 #endif
+   libretro_supports_bitmasks = false;
 }
 
 #ifdef VITA
