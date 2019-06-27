@@ -1791,11 +1791,11 @@ void retro_run(void)
          ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
       else
       {
-         unsigned i;
-         for (i = 0; i < RETRO_DEVICE_ID_JOYPAD_R3+1; i++)
+         unsigned j;
+         for (j = 0; j < (RETRO_DEVICE_ID_JOYPAD_R3+1); j++)
          {
-            if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, i))
-               ret |= (1 << i);
+            if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
+               ret |= (1 << j);
          }
       }
 
