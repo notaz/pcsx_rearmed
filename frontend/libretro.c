@@ -180,6 +180,12 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
   vout_width = w;
   vout_height = h;
 
+	SysPrintf("setting mode width: %d height %d\n", vout_width, vout_height);
+
+	struct retro_system_av_info info;
+	retro_get_system_av_info(&info);
+	environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &info.geometry);
+
   set_vout_fb();
 }
 
@@ -714,11 +720,15 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
+
+	unsigned geom_height = vout_height > 0 ? vout_height : 240;
+	unsigned geom_width = vout_width > 0 ? vout_width : 320;
+
 	memset(info, 0, sizeof(*info));
 	info->timing.fps            = is_pal_mode ? 50 : 60;
 	info->timing.sample_rate    = 44100;
-	info->geometry.base_width   = 320;
-	info->geometry.base_height  = 240;
+	info->geometry.base_width   = geom_width;
+	info->geometry.base_height  = geom_height;
 	info->geometry.max_width    = VOUT_MAX_WIDTH;
 	info->geometry.max_height   = VOUT_MAX_HEIGHT;
 	info->geometry.aspect_ratio = 4.0 / 3.0;
