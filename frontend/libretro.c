@@ -76,6 +76,9 @@ static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
 
+static unsigned previous_width = 0;
+static unsigned previous_height = 0;
+
 static int plugins_opened;
 static int is_pal_mode;
 
@@ -180,11 +183,17 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
   vout_width = w;
   vout_height = h;
 
+	if (previous_width != vout_width || previous_height != vout_height)
+	{
+		previous_width = vout_width;
+		previous_height = vout_height;
+
 	SysPrintf("setting mode width: %d height %d\n", vout_width, vout_height);
 
 	struct retro_system_av_info info;
 	retro_get_system_av_info(&info);
 	environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &info.geometry);
+	}
 
   set_vout_fb();
 }
