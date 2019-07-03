@@ -253,6 +253,17 @@ else ifeq ($(platform), rpi3)
 	BUILTIN_GPU = neon
 	USE_DYNAREC = 1
 
+#Raspberry Pi 4
+else ifeq ($(platform), rpi4)
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	CFLAGS += -marm -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
+	ASFLAGS += -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
+	HAVE_NEON = 1
+	ARCH = arm
+	BUILTIN_GPU = neon
+	USE_DYNAREC = 1
+
 # Classic Platforms ####################
 # Platform affix = classic_<ISA>_<µARCH>
 # Help at https://modmyclassic.com/comp
