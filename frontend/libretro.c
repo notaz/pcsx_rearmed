@@ -1823,7 +1823,7 @@ void retro_run(void)
 			// Query digital inputs
 			//
 			// > Pad-Up
-			if (ret & (1 < RETRO_DEVICE_ID_JOYPAD_UP))
+			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_UP))
 				in_keystate[i] |= (1 << DKEY_UP);
 			// > Pad-Right
 			if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_RIGHT))
