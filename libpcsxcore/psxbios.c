@@ -1681,43 +1681,70 @@ void psxBios_UnDeliverEvent() { // 0x20
 	pc0 = ra;
 }
 
-#define buopen(mcd) { \
-	strcpy(FDesc[1 + mcd].name, Ra0+5); \
-	FDesc[1 + mcd].offset = 0; \
-	FDesc[1 + mcd].mode   = a1; \
- \
-	for (i=1; i<16; i++) { \
-		ptr = Mcd##mcd##Data + 128 * i; \
-		if ((*ptr & 0xF0) != 0x50) continue; \
-		if (strcmp(FDesc[1 + mcd].name, ptr+0xa)) continue; \
-		FDesc[1 + mcd].mcfile = i; \
-		SysPrintf("open %s\n", ptr+0xa); \
-		v0 = 1 + mcd; \
-		break; \
-	} \
-	if (a1 & 0x200 && v0 == -1) { /* FCREAT */ \
-		for (i=1; i<16; i++) { \
-			int j, xor = 0; \
- \
-			ptr = Mcd##mcd##Data + 128 * i; \
-			if ((*ptr & 0xF0) == 0x50) continue; \
-			ptr[0] = 0x50 | (u8)(a1 >> 16); \
-			ptr[4] = 0x00; \
-			ptr[5] = 0x20; \
-			ptr[6] = 0x00; \
-			ptr[7] = 0x00; \
-			ptr[8] = 'B'; \
-			ptr[9] = 'I'; \
-			strcpy(ptr+0xa, FDesc[1 + mcd].name); \
-			for (j=0; j<127; j++) xor^= ptr[j]; \
-			ptr[127] = xor; \
-			FDesc[1 + mcd].mcfile = i; \
-			SysPrintf("openC %s\n", ptr); \
-			v0 = 1 + mcd; \
-			SaveMcd(Config.Mcd##mcd, Mcd##mcd##Data, 128 * i, 128); \
-			break; \
-		} \
-	} \
+char ffile[64], *pfile;
+int nfile;
+static void buopen(int mcd, u8 *ptr, u8 *cfg)
+{
+	int i;
+	u8 *fptr = ptr;
+
+	strcpy(FDesc[1 + mcd].name, Ra0+5);
+	FDesc[1 + mcd].offset = 0;
+	FDesc[1 + mcd].mode   = a1;
+
+	for (i=1; i<16; i++) {
+		fptr += 128;
+		if ((*fptr & 0xF0) != 0x50) continue;
+		if (strcmp(FDesc[1 + mcd].name, fptr+0xa)) continue;
+		FDesc[1 + mcd].mcfile = i;
+		SysPrintf("open %s\n", fptr+0xa);
+		v0 = 1 + mcd;
+		break;
+	}
+	if (a1 & 0x200 && v0 == -1) { /* FCREAT */
+		fptr = ptr;
+		for (i=1; i<16; i++) {
+			int j, xor, nblk = a1 >> 16;
+			u8 *pptr, *fptr2;
+
+			fptr += 128;
+			if ((*fptr & 0xF0) != 0xa0) continue;
+
+			FDesc[1 + mcd].mcfile = i;
+			fptr[0] = 0x51;
+			fptr[4] = 0x00;
+			fptr[5] = 0x20 * nblk;
+			fptr[6] = 0x00;
+			fptr[7] = 0x00;
+			strcpy(fptr+0xa, FDesc[1 + mcd].name);
+			pptr = fptr2 = fptr;
+			for(j=2; j<=nblk; j++) {
+				int k;
+				for(i++; i<16; i++) {
+					fptr2 += 128;
+					
+					memset(fptr2, 0, 128);
+					fptr2[0] = j < nblk ? 0x52 : 0x53;
+					pptr[8] = i - 1;
+					pptr[9] = 0;
+					for (k=0, xor=0; k<127; k++) xor^= pptr[k];
+					pptr[127] = xor;
+					pptr = fptr2;
+					break;
+				}
+				/* shouldn't this return ENOSPC if i == 16? */
+			}
+			pptr[8] = pptr[9] = 0xff;
+			for (j=0, xor=0; j<127; j++) xor^= pptr[j];
+			pptr[127] = xor;
+			SysPrintf("openC %s %d\n", ptr, nblk);
+			v0 = 1 + mcd;
+			/* just go ahead and resave them all */
+			SaveMcd(cfg, ptr, 128, 128 * 15);
+			break;
+		}
+		/* shouldn't this return ENOSPC if i == 16? */
+	}
 }
 
 /*
@@ -1737,11 +1764,11 @@ void psxBios_open() { // 0x32
 
 	if (pa0) {
 		if (!strncmp(pa0, "bu00", 4)) {
-			buopen(1);
+			buopen(1, Mcd1Data, Config.Mcd1);
 		}
 
 		if (!strncmp(pa0, "bu10", 4)) {
-			buopen(2);
+			buopen(2, Mcd2Data, Config.Mcd2);
 		}
 	}
 
@@ -1774,16 +1801,18 @@ void psxBios_lseek() { // 0x33
 	pc0 = ra;
 }
 
-#define buread(Ra1, mcd) { \
+#define buread(Ra1, mcd, length) { \
 	SysPrintf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
 	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	memcpy(Ra1, ptr, a2); \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = a2; \
-	FDesc[1 + mcd].offset += v0; \
+	memcpy(Ra1, ptr, length); \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
 	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	else v0 = length; \
+	FDesc[1 + mcd].offset += v0; \
 }
+
+
 
 /*
  *	int read(int fd , void *buf , int nbytes);
@@ -1801,25 +1830,24 @@ void psxBios_read() { // 0x34
 
 	if (pa1) {
 		switch (a0) {
-			case 2: buread(pa1, 1); break;
-			case 3: buread(pa1, 2); break;
+			case 2: buread(pa1, 1, a2); break;
+			case 3: buread(pa1, 2, a2); break;
 		}
 	}
   		
 	pc0 = ra;
 }
 
-#define buwrite(Ra1, mcd) { \
+#define buwrite(Ra1, mcd, length) { \
 	u32 offset =  + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
 	SysPrintf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
 	ptr = Mcd##mcd##Data + offset; \
-	memcpy(ptr, Ra1, a2); \
-	FDesc[1 + mcd].offset += a2; \
-	SaveMcd(Config.Mcd##mcd, Mcd##mcd##Data, offset, a2); \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = a2; \
+	memcpy(ptr, Ra1, length); \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
 	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+	FDesc[1 + mcd].offset += length; \
+	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	else v0 = length; \
 }
 
 /*
@@ -1851,8 +1879,8 @@ void psxBios_write() { // 0x35/0x03
 	}
 
 	switch (a0) {
-		case 2: buwrite(pa1, 1); break;
-		case 3: buwrite(pa1, 2); break;
+		case 2: buwrite(pa1, 1, a2); break;
+		case 3: buwrite(pa1, 2, a2); break;
 	}
 
 	pc0 = ra;
@@ -1888,17 +1916,18 @@ int nfile;
 	while (nfile < 16) { \
 		int match=1; \
  \
-		ptr = Mcd##mcd##Data + 128 * nfile; \
+		ptr = Mcd##mcd##Data + 128 * (nfile + 1); \
 		nfile++; \
 		if ((*ptr & 0xF0) != 0x50) continue; \
+		/* Bug link files show up as free block. */ \
+		if (!ptr[0xa]) continue; \
 		ptr+= 0xa; \
 		if (pfile[0] == 0) { \
 			strncpy(dir->name, ptr, sizeof(dir->name)); \
 			dir->name[sizeof(dir->name) - 1] = '\0'; \
 		} else for (i=0; i<20; i++) { \
 			if (pfile[i] == ptr[i]) { \
-				dir->name[i] = ptr[i]; \
-				if (ptr[i] == 0) break; else continue; } \
+								dir->name[i] = ptr[i]; continue; } \
 			if (pfile[i] == '?') { \
 				dir->name[i] = ptr[i]; continue; } \
 			if (pfile[i] == '*') { \
@@ -1906,7 +1935,7 @@ int nfile;
 			match = 0; break; \
 		} \
 		SysPrintf("%d : %s = %s + %s (match=%d)\n", nfile, dir->name, pfile, ptr, match); \
-		if (match == 0) continue; \
+		if (match == 0) { continue; } \
 		dir->size = 8192; \
 		v0 = _dir; \
 		break; \
