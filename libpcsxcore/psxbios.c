@@ -369,6 +369,33 @@ void psxBios_putc(void) // 0x09, 0x3B
 	pc0 = ra;
 }
 
+void psxBios_todigit(void) // 0x0a
+{
+	int c = a0;
+#ifdef PSXBIOS_LOG
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x0a]);
+#endif
+	c &= 0xFF;
+	if (c >= 0x30 && c < 0x3A) {
+		c -= 0x30;
+	}
+	else if (c > 0x60 && c < 0x7B) {
+		c -= 0x20;
+	}
+	else if (c > 0x40 && c < 0x5B) {
+		c = c - 0x41 + 10;
+	}
+	else if (c >= 0x80) {
+		c = -1;
+	}
+	else
+	{
+		c = 0x0098967F;
+	}
+	v0 = c;
+	pc0 = ra;
+}
+
 void psxBios_abs() { // 0x0e
 	if ((s32)a0 < 0) v0 = -(s32)a0;
 	else v0 = a0;
@@ -2432,7 +2459,7 @@ void psxBiosInit() {
 	//biosA0[0x07] = psxBios_sys_a0_07;
 	biosA0[0x08] = psxBios_getc;
 	biosA0[0x09] = psxBios_putc;
-	//biosA0[0x0a] = psxBios_todigit;
+	biosA0[0x0a] = psxBios_todigit;
 	//biosA0[0x0b] = psxBios_atof;
 	//biosA0[0x0c] = psxBios_strtoul;
 	//biosA0[0x0d] = psxBios_strtol;
