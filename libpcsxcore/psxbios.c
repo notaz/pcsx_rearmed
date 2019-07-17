@@ -2907,8 +2907,9 @@ void psxBiosException() {
 #endif
 			switch (a0) {
 				case 1: // EnterCritical - disable irq's
-					psxRegs.CP0.n.Status &= ~0x404; 
-v0=1;	// HDHOSHY experimental patch: Spongebob, Coldblood, fearEffect, Medievil2, Martian Gothic
+					/* Fixes Medievil 2 not loading up new game, Digimon World not booting up and possibly others */
+					v0 = (psxRegs.CP0.n.Status & 0x404) == 0x404;
+					psxRegs.CP0.n.Status &= ~0x404;
 					break;
 
 				case 2: // ExitCritical - enable irq's
