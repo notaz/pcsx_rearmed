@@ -316,6 +316,58 @@ static inline void LoadRegs() {
 //                                           *
 //               System calls A0             */
 
+/* Internally redirects to "FileRead(fd,tempbuf,1)".*/
+/* For some strange reason, the returned character is sign-expanded; */
+/* So if a return value of FFFFFFFFh could mean either character FFh, or error. */
+/* TODO FIX ME : Properly implement this behaviour */
+void psxBios_getc(void) // 0x03, 0x35
+{
+	void *pa1 = Ra1;
+#ifdef PSXBIOS_LOG
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x03]);
+#endif
+	v0 = -1;
+
+	if (pa1) {
+		switch (a0) {
+			case 2: buread(pa1, 1, 1); break;
+			case 3: buread(pa1, 2, 1); break;
+		}
+	}
+
+	pc0 = ra;
+}
+
+/* Copy of psxBios_write, except size is 1. */
+void psxBios_putc(void) // 0x09, 0x3B
+{
+	void *pa1 = Ra1;
+#ifdef PSXBIOS_LOG
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x09]);
+#endif
+	v0 = -1;
+	if (!pa1) {
+		pc0 = ra;
+		return;
+	}
+
+	if (a0 == 1) { // stdout
+		char *ptr = (char *)pa1;
+
+		v0 = a2;
+		while (a2 > 0) {
+			printf("%c", *ptr++); a2--;
+		}
+		pc0 = ra; return;
+	}
+
+	switch (a0) {
+		case 2: buwrite(pa1, 1, 1); break;
+		case 3: buwrite(pa1, 2, 1); break;
+	}
+
+	pc0 = ra;
+}
 
 void psxBios_abs() { // 0x0e
 	if ((s32)a0 < 0) v0 = -(s32)a0;
@@ -2378,8 +2430,8 @@ void psxBiosInit() {
 	//biosA0[0x05] = psxBios_ioctl;
 	//biosA0[0x06] = psxBios_exit;
 	//biosA0[0x07] = psxBios_sys_a0_07;
-	//biosA0[0x08] = psxBios_getc;
-	//biosA0[0x09] = psxBios_putc;
+	biosA0[0x08] = psxBios_getc;
+	biosA0[0x09] = psxBios_putc;
 	//biosA0[0x0a] = psxBios_todigit;
 	//biosA0[0x0b] = psxBios_atof;
 	//biosA0[0x0c] = psxBios_strtoul;
