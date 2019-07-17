@@ -1279,11 +1279,29 @@ void psxBios__card_info() { // ab
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosA0n[0xab], a0);
 #endif
-
+	u32 ret;
 	card_active_chan = a0;
 
+	switch (card_active_chan) 
+	{
+	case 0x00: case 0x01: case 0x02: case 0x03:
+		ret = Config.Mcd1[0] ? 0x2 : 0x8;
+		break;
+	case 0x10: case 0x11: case 0x12: case 0x13:
+		ret = Config.Mcd2[0] ? 0x2 : 0x8;
+		break;
+	default:
+#ifdef PSXBIOS_LOG
+		PSXBIOS_LOG("psxBios_%s: UNKNOWN PORT 0x%x\n", biosA0n[0xab], card_active_chan);
+#endif
+		ret = 0x11;
+		break;
+	}
+	
+//	DeliverEvent(0x11, 0x2); // 0xf0000011, 0x0004
 //	DeliverEvent(0x11, 0x2); // 0xf0000011, 0x0004
 	DeliverEvent(0x81, 0x2); // 0xf4000001, 0x0004
+	DeliverEvent(0x81, ret); // 0xf4000001, 0x0004
 
 	v0 = 1; pc0 = ra;
 }
