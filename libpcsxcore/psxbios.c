@@ -1191,7 +1191,7 @@ void psxBios_sys_a0_4c() { // 0x4c GPU relate
 	GPU_writeData(0x0400000);
 	GPU_writeData(0x0200000);
 	GPU_writeData(0x0100000);
-
+	v0 = 0x1f801814;
 	pc0 = ra;
 }
 
