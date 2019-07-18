@@ -1,5 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2007 Ryan Schultz, PCSX-df Team, PCSX team              *
+ *   Copyright (C) 2019 Ryan Schultz, PCSX-df Team, PCSX team, gameblabla, *
+ * 	 dmitrysmagin, senquack												   *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -16,6 +17,12 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
+
+/* Gameblabla 2018-2019 : 
+ * Numerous changes to bios calls as well as improvements in order to conform to nocash's findings
+ * for the PSX bios calls. Thanks senquack for helping out with some of the changes
+ * and helping to spot issues and refine my patches.
+ * */
 
 /*
  * Internal simulated HLE BIOS.
