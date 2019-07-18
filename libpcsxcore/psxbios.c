@@ -541,13 +541,35 @@ void psxBios_strncat() { // 0x16
 
 void psxBios_strcmp() { // 0x17
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-
+	s32 n=0;
+	if (a0 == 0 && a1 == 0)
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
+	else if (a0 == 0 && a1 != 0)
+	{
+		v0 = -1;
+		pc0 = ra;
+		return;
+	}
+	else if (a0 != 0 && a1 == 0)
+	{
+		v0 = 1;
+		pc0 = ra;
+		return;
+	}
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x)\n", biosA0n[0x17], Ra0, a0, Ra1, a1);
 #endif
 
 	while (*p1 == *p2++) {
+		n++;
 		if (*p1++ == '\0') {
+			v1=n-1;
+			a0+=n;
+			a1+=n;
 			v0 = 0;
 			pc0 = ra;
 			return;
@@ -555,6 +577,9 @@ void psxBios_strcmp() { // 0x17
 	}
 
 	v0 = (*p1 - *--p2);
+	v1 = n;
+	a0+=n;
+	a1+=n;
 	pc0 = ra;
 }
 
