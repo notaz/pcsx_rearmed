@@ -493,7 +493,12 @@ void psxBios_strncat() { // 0x16
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x), %d\n", biosA0n[0x16], Ra0, a0, Ra1, a1, a2);
 #endif
-
+	if (a0 == 0 || a1 == 0)
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
 	while (*p1++);
 	--p1;
 	while ((*p1++ = *p2++) != '\0') {
