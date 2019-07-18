@@ -2417,6 +2417,13 @@ void psxBios__new_card() { // 0x50
 	pc0 = ra;
 }
 
+/* According to a user, this allows Final Fantasy Tactics to save/load properly */
+void psxBios__get_error(void) // 55
+{ 
+	v0 = 0;
+	pc0 = ra;
+}
+
 void psxBios_Krom2RawAdd() { // 0x51
 	int i = 0;
 
@@ -2839,7 +2846,7 @@ void psxBiosInit() {
 	//biosB0[0x52] = psxBios_sys_b0_52;
 	//biosB0[0x53] = psxBios_sys_b0_53;
 	//biosB0[0x54] = psxBios__get_errno;
-	//biosB0[0x55] = psxBios__get_error;
+	biosB0[0x55] = psxBios__get_error;
 	biosB0[0x56] = psxBios_GetC0Table;
 	biosB0[0x57] = psxBios_GetB0Table;
 	biosB0[0x58] = psxBios__card_chan;
