@@ -1610,7 +1610,6 @@ void psxBios_WaitEvent() { // 0a
 
 	v0 = 0;
 	pc0 = ra;
-	ResetIoCycle();
 }
 
 void psxBios_TestEvent() { // 0b
