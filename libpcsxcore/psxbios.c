@@ -3005,6 +3005,7 @@ void psxBiosInit() {
 	memset(Thread, 0, sizeof(Thread));
 	Thread[0].status = 2; // main thread
 
+	pad_stopped = 1;
 	jmp_int = NULL;
 	pad_buf = NULL;
 	pad_buf1 = NULL;
@@ -3016,6 +3017,7 @@ void psxBiosInit() {
 	CardState = -1;
 	CurThread = 0;
 	memset(FDesc, 0, sizeof(FDesc));
+	card_active_chan = 0;
 
 	psxMu32ref(0x0150) = SWAPu32(0x160);
 	psxMu32ref(0x0154) = SWAPu32(0x320);
