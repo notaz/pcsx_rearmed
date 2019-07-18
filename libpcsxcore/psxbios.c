@@ -1772,9 +1772,10 @@ void psxBios_StopPAD() { // 14
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x14]);
 #endif
-
+	if (pad_buf == 0){
 	pad_buf1 = NULL;
 	pad_buf2 = NULL;
+	}
 	pc0 = ra;
 }
 
