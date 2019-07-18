@@ -3196,6 +3196,9 @@ void psxBiosException() {
 				case 2: // ExitCritical - enable irq's
 					psxRegs.CP0.n.Status |= 0x404; 
 					break;
+				/* Normally this should cover SYS(00h, SYS(04h but they don't do anything relevant so... */
+				default:
+					break;
 			}
 			pc0 = psxRegs.CP0.n.EPC + 4;
 
