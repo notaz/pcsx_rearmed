@@ -1667,8 +1667,20 @@ void psxBios_OpenTh() { // 0e
 	int th;
 
 	for (th=1; th<8; th++)
+	{
 		if (Thread[th].status == 0) break;
 
+	}
+	if (th == 8) {
+		// Feb 2019 - Added out-of-bounds fix caught by cppcheck:
+		// When no free TCB is found, return 0xffffffff according to Nocash doc.
+#ifdef PSXBIOS_LOG
+		PSXBIOS_LOG("\t%s() WARNING! No Free TCBs found!\n", __func__);
+#endif
+		v0 = 0xffffffff;
+		pc0 = ra;
+		return;
+	}
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x0e], th);
 #endif
