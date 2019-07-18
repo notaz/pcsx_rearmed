@@ -2110,14 +2110,15 @@ void psxBios_firstfile() { // 42
 		pfile = ffile+5;
 		nfile = 1;
 		if (!strncmp(pa0, "bu00", 4)) {
+			// firstfile() calls _card_read() internally, so deliver it's event
+			DeliverEvent(0x11, 0x2);
 			bufile(1);
 		} else if (!strncmp(pa0, "bu10", 4)) {
+			// firstfile() calls _card_read() internally, so deliver it's event
+			DeliverEvent(0x11, 0x2);
 			bufile(2);
 		}
 	}
-
-	// firstfile() calls _card_read() internally, so deliver it's event
-	DeliverEvent(0x11, 0x2);
 
 	pc0 = ra;
 }
