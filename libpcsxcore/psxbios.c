@@ -245,6 +245,7 @@ static u32 *jmp_int = NULL;
 static int *pad_buf = NULL;
 static char *pad_buf1 = NULL, *pad_buf2 = NULL;
 static int pad_buf1len, pad_buf2len;
+static int pad_stopped = 0;
 
 static u32 regs[35];
 static EvCB *Event;
@@ -1914,7 +1915,7 @@ void psxBios_StartPAD() { // 13
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x13]);
 #endif
-
+	pad_stopped = 0;
 	psxHwWrite16(0x1f801074, (unsigned short)(psxHwRead16(0x1f801074) | 0x1));
 	psxRegs.CP0.n.Status |= 0x401;
 	pc0 = ra;
@@ -1924,6 +1925,7 @@ void psxBios_StopPAD() { // 14
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x14]);
 #endif
+	pad_stopped = 1;
 	if (pad_buf == 0){
 	pad_buf1 = NULL;
 	pad_buf2 = NULL;
@@ -3138,12 +3140,14 @@ void biosInterrupt() {
 			if (NET_recvPadData(pad_buf2, 2) == -1)
 				netError();
 		} else {
-			if (pad_buf1) {
-				psxBios_PADpoll(1);
-			}
+			if (!pad_stopped)  {
+				if (pad_buf1) {
+					psxBios_PADpoll(1);
+				}
 
-			if (pad_buf2) {
-				psxBios_PADpoll(2);
+				if (pad_buf2) {
+					psxBios_PADpoll(2);
+				}
 			}
 		}
 
@@ -3271,6 +3275,7 @@ void psxBiosException() {
 void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
+	pad_stopped = 0;
 	bfreezepsxMptr(jmp_int, u32);
 	bfreezepsxMptr(pad_buf, int);
 	bfreezepsxMptr(pad_buf1, char);
