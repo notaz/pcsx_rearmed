@@ -1762,9 +1762,15 @@ void psxBios_TestEvent() { // 0b
 	ev   = a0 & 0xff;
 	spec = (a0 >> 8) & 0xff;
 
-	if (Event[ev][spec].status == EvStALREADY) {
-		Event[ev][spec].status = EvStACTIVE; v0 = 1;
-	} else v0 = 0;
+	if (Event[ev][spec].status == EvStALREADY) 
+	{
+		if (!(Event[ev][spec].mode == EvMdINTR)) Event[ev][spec].status = EvStACTIVE;
+		v0 = 1;
+	} 
+	else 
+	{
+		v0 = 0;
+	}
 
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s %x,%x: %x\n", biosB0n[0x0b], ev, spec, v0);
