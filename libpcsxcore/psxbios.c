@@ -2586,6 +2586,15 @@ void psxBios_ChangeClearPad() { // 5b
 	pc0 = ra;
 }
 
+void psxBios__card_status() { // 5c
+#ifdef PSXBIOS_LOG
+	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x5c], a0);
+#endif
+
+	v0 = 1;
+	pc0 = ra;
+}
+
 /* System calls C0 */
 
 /*
@@ -2939,7 +2948,7 @@ void psxBiosInit() {
 	//biosB0[0x59] = psxBios_sys_b0_59;
 	//biosB0[0x5a] = psxBios_sys_b0_5a;
 	biosB0[0x5b] = psxBios_ChangeClearPad;
-	//biosB0[0x5c] = psxBios__card_status;
+	biosB0[0x5c] = psxBios__card_status;
 	//biosB0[0x5d] = psxBios__card_wait;
 //*******************C0 CALLS****************************
 	//biosC0[0x00] = psxBios_InitRCnt;
