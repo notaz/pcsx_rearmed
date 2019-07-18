@@ -322,9 +322,10 @@ static inline void LoadRegs() {
 	SysPrintf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
 	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
 	memcpy(Ra1, ptr, length); \
+	if (FDesc[1 + mcd].mode & 0x8000) { \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
 	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	v0 = 0; } \
 	else v0 = length; \
 	FDesc[1 + mcd].offset += v0; \
 }
@@ -334,10 +335,11 @@ static inline void LoadRegs() {
 	SysPrintf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
 	ptr = Mcd##mcd##Data + offset; \
 	memcpy(ptr, Ra1, length); \
+	FDesc[1 + mcd].offset += length; \
+	if (FDesc[1 + mcd].mode & 0x8000) { \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
 	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
-	FDesc[1 + mcd].offset += length; \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	v0 = 0; } \
 	else v0 = length; \
 }
 
@@ -2208,7 +2210,18 @@ void psxBios_puts() { // 3e/3f
 char ffile[64], *pfile;
 int nfile;
 
+
+/* To avoid any issues with different behaviour when using the libc's own strlen instead.
+ * We want to mimic the PSX's behaviour in this case for bufile. */
+static size_t strlen_internal(char* p) 
+{
+	size_t size_of_array = 0;
+	while (*p++) size_of_array++;
+	return size_of_array;
+}
+
 #define bufile(mcd) { \
+	size_t size_of_name = strlen_internal(dir->name); \
 	while (nfile < 16) { \
 		int match=1; \
  \
@@ -2219,8 +2232,8 @@ int nfile;
 		if (!ptr[0xa]) continue; \
 		ptr+= 0xa; \
 		if (pfile[0] == 0) { \
-			strncpy(dir->name, ptr, sizeof(dir->name)); \
-			dir->name[sizeof(dir->name) - 1] = '\0'; \
+			strncpy(dir->name, ptr, sizeof(dir->name) - 1); \
+			if (size_of_name < sizeof(dir->name)) dir->name[size_of_name] = '\0'; \
 		} else for (i=0; i<20; i++) { \
 			if (pfile[i] == ptr[i]) { \
 								dir->name[i] = ptr[i]; continue; } \
