@@ -1010,9 +1010,24 @@ void psxBios_realloc() { // 0x38
 #endif
 
 	a0 = block;
-	psxBios_free();
-	a0 = size;
-	psxBios_malloc();
+	/* If "old_buf" is zero, executes malloc(new_size), and returns r2=new_buf (or 0=failed). */
+	if (block == 0)
+	{
+		psxBios_malloc();
+	}
+	/* Else, if "new_size" is zero, executes free(old_buf), and returns r2=garbage. */
+	else if (size == 0)
+	{
+		psxBios_free();
+	}
+	/* Else, executes malloc(new_size), bcopy(old_buf,new_buf,new_size), and free(old_buf), and returns r2=new_buf (or 0=failed). */
+	/* Note that it is not quite implemented this way here. */
+	else
+	{
+		psxBios_free();
+		a0 = size;
+		psxBios_malloc();
+	}
 }
 
 
