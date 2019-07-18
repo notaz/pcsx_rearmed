@@ -586,7 +586,24 @@ void psxBios_strcmp() { // 0x17
 void psxBios_strncmp() { // 0x18
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
 	s32 n = a2;
-
+	if (a0 == 0 && a1 == 0)
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
+	else if (a0 == 0 && a1 != 0)
+	{
+		v0 = -1;
+		pc0 = ra;
+		return;
+	}
+	else if (a0 != 0 && a1 == 0)
+	{
+		v0 = 1;
+		pc0 = ra;
+		return;
+	}
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x), %d\n", biosA0n[0x18], Ra0, a0, Ra1, a1, a2);
 #endif
@@ -595,12 +612,20 @@ void psxBios_strncmp() { // 0x18
 		if (*p1++ == '\0') {
 			v0 = 0;
 			pc0 = ra;
+			v1 = a2 - ((a2-n) - 1);
+			a0 += (a2-n) - 1;
+			a1 += (a2-n) - 1;
+			a2 = n;
 			return;
 		}
 	}
 
 	v0 = (n < 0 ? 0 : *p1 - *--p2);
 	pc0 = ra;
+	v1 = a2 - ((a2-n) - 1);
+	a0 += (a2-n) - 1;
+	a1 += (a2-n) - 1;
+	a2 = n;
 }
 
 void psxBios_strcpy() { // 0x19
@@ -1114,7 +1139,8 @@ void psxBios_free() { // 0x34
 
 	SysPrintf("free %x: %x bytes\n", a0, *(u32*)(Ra0-4));
 
-	*(u32*)(Ra0-4) |= 1;	// set chunk to free
+	if (a0)
+		*(u32*)(Ra0-4) |= 1;	// set chunk to free
 	pc0 = ra;
 }
 
