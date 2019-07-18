@@ -824,7 +824,12 @@ void psxBios_memset() { // 0x2b
 
 void psxBios_memmove() { // 0x2c
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-
+	v0 = a0;
+	if (a0 == 0 || a2 > 0x7FFFFFFF)
+	{
+		pc0 = ra;
+		return;
+	}
 	if (p2 <= p1 && p2 + a2 > p1) {
 		a2++; // BUG: copy one more byte here
 		p1 += a2;
@@ -833,8 +838,7 @@ void psxBios_memmove() { // 0x2c
 	} else {
 		while ((s32)a2-- > 0) *p1++ = *p2++;
 	}
-
-	v0 = a0; pc0 = ra;
+	pc0 = ra;
 }
 
 void psxBios_memcmp() { // 0x2d
