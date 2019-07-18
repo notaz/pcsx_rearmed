@@ -1562,14 +1562,28 @@ void psxBios_WaitEvent() { // 0a
 
 	ev   = a0 & 0xff;
 	spec = (a0 >> 8) & 0xff;
-
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x0a], ev, spec);
 #endif
+	if (Event[ev][spec].status == EvStUNUSED)
+	{
+		v0 = 0;
+		pc0 = ra;	
+		return;
+	}
 
-	Event[ev][spec].status = EvStACTIVE;
+	if (Event[ev][spec].status == EvStALREADY) 
+	{
+		/* Callback events (mode=EvMdINTR) do never set the ready flag (and thus WaitEvent would hang forever). */
+		if (!(Event[ev][spec].mode == EvMdINTR)) Event[ev][spec].status = EvStACTIVE;
+		v0 = 1;
+		pc0 = ra;
+		return;
+	}
 
-	v0 = 1; pc0 = ra;
+	v0 = 0;
+	pc0 = ra;
+	ResetIoCycle();
 }
 
 void psxBios_TestEvent() { // 0b
