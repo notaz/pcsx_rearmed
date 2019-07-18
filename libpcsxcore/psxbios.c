@@ -610,7 +610,13 @@ void psxBios_strlen() { // 0x1b
 
 void psxBios_index() { // 0x1c
 	char *p = (char *)Ra0;
-
+	if (a0 == 0)
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
+	
 	do {
 		if (*p == a1) {
 			v0 = a0 + (p - (char *)Ra0);
@@ -626,7 +632,11 @@ void psxBios_rindex() { // 0x1d
 	char *p = (char *)Ra0;
 
 	v0 = 0;
-
+	if (a0 == 0)
+	{
+		pc0 = ra;
+		return;
+	}
 	do {
 		if (*p == a1)
 			v0 = a0 + (p - (char *)Ra0);
