@@ -788,9 +788,19 @@ void psxBios_bcmp() { // 0x29
 
 void psxBios_memcpy() { // 0x2a
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-	while ((s32)a2-- > 0) *p1++ = *p2++;
-
-	v0 = a0; pc0 = ra;
+	s32 n=0;
+	v0 = a0;
+	if (a0 == 0 || a2 > 0x7FFFFFFF)
+	{
+		pc0 = ra;
+		return;
+	}
+	while ((s32)a2-- > 0) {
+		n++;
+		*p1++ = *p2++;
+	}
+	a2 = 0;
+	pc0 = ra;
 }
 
 void psxBios_memset() { // 0x2b
