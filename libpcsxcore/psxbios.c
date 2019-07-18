@@ -316,12 +316,38 @@ static inline void LoadRegs() {
 //                                           *
 //               System calls A0             */
 
+
+#define buread(Ra1, mcd, length) { \
+	SysPrintf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
+	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
+	memcpy(Ra1, ptr, length); \
+	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
+	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	else v0 = length; \
+	FDesc[1 + mcd].offset += v0; \
+}
+
+#define buwrite(Ra1, mcd, length) { \
+	u32 offset =  + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
+	SysPrintf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
+	ptr = Mcd##mcd##Data + offset; \
+	memcpy(ptr, Ra1, length); \
+	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
+	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+	FDesc[1 + mcd].offset += length; \
+	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
+	else v0 = length; \
+}
+
+
 /* Internally redirects to "FileRead(fd,tempbuf,1)".*/
 /* For some strange reason, the returned character is sign-expanded; */
 /* So if a return value of FFFFFFFFh could mean either character FFh, or error. */
 /* TODO FIX ME : Properly implement this behaviour */
 void psxBios_getc(void) // 0x03, 0x35
 {
+	char *ptr;
 	void *pa1 = Ra1;
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x03]);
@@ -341,6 +367,7 @@ void psxBios_getc(void) // 0x03, 0x35
 /* Copy of psxBios_write, except size is 1. */
 void psxBios_putc(void) // 0x09, 0x3B
 {
+	char *ptr;
 	void *pa1 = Ra1;
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x09]);
@@ -1932,18 +1959,6 @@ void psxBios_lseek() { // 0x33
 	pc0 = ra;
 }
 
-#define buread(Ra1, mcd, length) { \
-	SysPrintf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
-	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	memcpy(Ra1, ptr, length); \
-	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
-	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = length; \
-	FDesc[1 + mcd].offset += v0; \
-}
-
-
 
 /*
  *	int read(int fd , void *buf , int nbytes);
@@ -1967,18 +1982,6 @@ void psxBios_read() { // 0x34
 	}
   		
 	pc0 = ra;
-}
-
-#define buwrite(Ra1, mcd, length) { \
-	u32 offset =  + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	SysPrintf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
-	ptr = Mcd##mcd##Data + offset; \
-	memcpy(ptr, Ra1, length); \
-	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
-	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
-	FDesc[1 + mcd].offset += length; \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = length; \
 }
 
 /*
