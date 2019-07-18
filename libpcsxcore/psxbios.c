@@ -254,6 +254,7 @@ static EvCB *RcEV; // 0xf2
 static EvCB *UeEV; // 0xf3
 static EvCB *SwEV; // 0xf4
 static EvCB *ThEV; // 0xff
+static u32 heap_size = 0;
 static u32 *heap_addr = NULL;
 static u32 *heap_end = NULL;
 static u32 SysIntRP[8];
@@ -983,6 +984,11 @@ void psxBios_malloc() { // 0x33
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x33]);
 #endif
+	if (!a0 || (!heap_size || !heap_addr)) {
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
 
 	// scan through heap and combine free chunks of space
 	chunk = heap_addr;
@@ -991,6 +997,15 @@ void psxBios_malloc() { // 0x33
 		// get size and status of actual chunk
 		csize = ((u32)*chunk) & 0xfffffffc;
 		cstat = ((u32)*chunk) & 1;
+
+		// most probably broken heap descriptor
+		// this fixes Burning Road
+		if (*chunk == 0) {
+			newchunk = chunk;
+			dsize = ((uptr)heap_end - (uptr)chunk) - 4;
+			colflag = 1;
+			break;
+		}
 
 		// it's a free chunk
 		if(cstat == 1) {
@@ -1023,28 +1038,36 @@ void psxBios_malloc() { // 0x33
 
 	// exit on uninitialized heap
 	if (chunk == NULL) {
-		SysPrintf("malloc %x,%x: Uninitialized Heap!\n", v0, a0);
+		printf("malloc %x,%x: Uninitialized Heap!\n", v0, a0);
 		v0 = 0;
 		pc0 = ra;
 		return;
 	}
 
 	// search an unused chunk that is big enough until the end of the heap
-	while ((dsize > csize || cstat == 0) && chunk < heap_end ) {
+	while ((dsize > csize || cstat==0) && chunk < heap_end ) {
 		chunk = (u32*)((uptr)chunk + csize + 4);
+
+			// catch out of memory
+			if(chunk >= heap_end) {
+				printf("malloc %x,%x: Out of memory error!\n",
+					v0, a0);
+				v0 = 0; pc0 = ra;
+				return;
+			}
+
 		csize = ((u32)*chunk) & 0xfffffffc;
 		cstat = ((u32)*chunk) & 1;
 	}
 
-	// catch out of memory
-	if(chunk >= heap_end) { SysPrintf("malloc %x,%x: Out of memory error!\n", v0, a0); v0 = 0; pc0 = ra; return; }
-	
 	// allocate memory
 	if(dsize == csize) {
 		// chunk has same size
 		*chunk &= 0xfffffffc;
-	}
-	else {
+	} else if (dsize > csize) {
+		v0 = 0; pc0 = ra;
+		return;
+	} else {
 		// split free chunk
 		*chunk = SWAP32(dsize);
 		newchunk = (u32*)((uptr)chunk + dsize + 4);
@@ -1052,9 +1075,9 @@ void psxBios_malloc() { // 0x33
 	}
 
 	// return pointer to allocated memory
-	v0 = ((unsigned long)chunk - (unsigned long)psxM) + 4;
+	v0 = ((uptr)chunk - (uptr)psxM) + 4;
 	v0|= 0x80000000;
-	SysPrintf ("malloc %x,%x\n", v0, a0);
+	//printf ("malloc %x,%x\n", v0, a0);
 	pc0 = ra;
 }
 
@@ -2885,6 +2908,7 @@ void psxBiosInit() {
 	pad_buf1len = pad_buf2len = 0;
 	heap_addr = NULL;
 	heap_end = NULL;
+	heap_size = 0;
 	CardState = -1;
 	CurThread = 0;
 	memset(FDesc, 0, sizeof(FDesc));
