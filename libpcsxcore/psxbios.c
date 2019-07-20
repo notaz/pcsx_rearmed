@@ -3288,7 +3288,6 @@ void psxBiosException() {
 void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
-	pad_stopped = 0;
 	bfreezepsxMptr(jmp_int, u32);
 	bfreezepsxMptr(pad_buf, int);
 	bfreezepsxMptr(pad_buf1, char);
@@ -3303,4 +3302,5 @@ void psxBiosFreeze(int Mode) {
 	bfreezel(&CurThread);
 	bfreezes(FDesc);
 	bfreezel(&card_active_chan);
+	bfreezel(&pad_stopped);
 }
