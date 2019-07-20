@@ -865,7 +865,6 @@ void psxBios_bcmp() { // 0x29
 
 void psxBios_memcpy() { // 0x2a
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-	s32 n=0;
 	v0 = a0;
 	if (a0 == 0 || a2 > 0x7FFFFFFF)
 	{
@@ -873,7 +872,6 @@ void psxBios_memcpy() { // 0x2a
 		return;
 	}
 	while ((s32)a2-- > 0) {
-		n++;
 		*p1++ = *p2++;
 	}
 	a2 = 0;
@@ -1935,10 +1933,8 @@ void psxBios_StopPAD() { // 14
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x14]);
 #endif
 	pad_stopped = 1;
-	if (pad_buf == 0){
 	pad_buf1 = NULL;
 	pad_buf2 = NULL;
-	}
 	pc0 = ra;
 }
 
@@ -2217,9 +2213,6 @@ void psxBios_puts() { // 3e/3f
 	SysPrintf("%s", Ra0);
 	pc0 = ra;
 }
-
-char ffile[64], *pfile;
-int nfile;
 
 
 /* To avoid any issues with different behaviour when using the libc's own strlen instead.
