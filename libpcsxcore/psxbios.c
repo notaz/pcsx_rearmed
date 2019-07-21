@@ -1557,6 +1557,13 @@ void psxBios_SetMem() { // 9f
 	pc0 = ra;
 }
 
+/* TODO FIXME : Not compliant. -1 indicates failure but using 1 for now. */
+void psxBios_get_cd_status(void) //a6
+{
+	v0 = 1;
+	pc0 = ra;
+}
+
 void psxBios__card_info() { // ab
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosA0n[0xab], a0);
@@ -2858,7 +2865,7 @@ void psxBiosInit() {
 	//biosA0[0xa3] = psxBios_DequeueCdIntr;
 	//biosA0[0xa4] = psxBios_sys_a0_a4;
 	//biosA0[0xa5] = psxBios_ReadSector;
-	//biosA0[0xa6] = psxBios_get_cd_status;
+	biosA0[0xa6] = psxBios_get_cd_status;
 	//biosA0[0xa7] = psxBios_bufs_cb_0;
 	//biosA0[0xa8] = psxBios_bufs_cb_1;
 	//biosA0[0xa9] = psxBios_bufs_cb_2;
