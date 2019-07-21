@@ -3303,4 +3303,5 @@ void psxBiosFreeze(int Mode) {
 	bfreezes(FDesc);
 	bfreezel(&card_active_chan);
 	bfreezel(&pad_stopped);
+	bfreezel(&heap_size);
 }
