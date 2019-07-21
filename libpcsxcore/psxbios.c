@@ -3052,7 +3052,9 @@ void psxBiosInit() {
 */
 	// opcode HLE
 	psxRu32ref(0x0000) = SWAPu32((0x3b << 26) | 4);
-	psxMu32ref(0x0000) = SWAPu32((0x3b << 26) | 0);
+	/* Whatever this does, it actually breaks CTR, even without the uninitiliazed memory patch. 
+	Normally games shouldn't read from address 0 yet they do. See explanation below in details. */
+	//psxMu32ref(0x0000) = SWAPu32((0x3b << 26) | 0);
 	psxMu32ref(0x00a0) = SWAPu32((0x3b << 26) | 1);
 	psxMu32ref(0x00b0) = SWAPu32((0x3b << 26) | 2);
 	psxMu32ref(0x00c0) = SWAPu32((0x3b << 26) | 3);
@@ -3078,6 +3080,21 @@ void psxBiosInit() {
 	psxHu32ref(0x1060) = SWAPu32(0x00000b88);
 
 	hleSoftCall = FALSE;
+	
+	/*	Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
+		See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
+		R-type will work if PsxM[0] is non-zero. (Meaning that it should not be 00000003h as he implies).
+		Crash Team Racing will refuse to boot if psxM[2] and psx[3] are not set to 0.
+		Fade to Black can crash upon memory card access if byte 5 is set to the wrong value.
+	*/
+	psxM[0] = SWAPu32(0x3C);
+	psxM[1] = SWAPu32(0x1A);
+	psxM[2] = SWAPu32(0x00);
+	psxM[3] = SWAPu32(0x00);
+	psxM[4] = SWAPu32(0x27);
+	psxM[5] = SWAPu32(0x5A);
+	psxM[6] = SWAPu32(0x0C);
+	psxM[7] = SWAPu32(0x80);
 }
 
 void psxBiosShutdown() {
