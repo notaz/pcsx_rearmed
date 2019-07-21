@@ -2598,7 +2598,7 @@ void psxBios__card_status() { // 5c
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x5c], a0);
 #endif
 
-	v0 = 1;
+	v0 = card_active_chan;
 	pc0 = ra;
 }
 
