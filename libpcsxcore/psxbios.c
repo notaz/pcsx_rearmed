@@ -1878,12 +1878,10 @@ void psxBios_CloseTh() { // 0f
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x0f], th);
 #endif
-
-	if (Thread[th].status == 0) {
-		v0 = 0;
-	} else {
+	/* The return value is always 1 (even if the handle was already closed). */
+	v0 = 1;
+	if (Thread[th].status != 0) {
 		Thread[th].status = 0;
-		v0 = 1;
 	}
 
 	pc0 = ra;
@@ -1899,14 +1897,11 @@ void psxBios_ChangeTh() { // 10
 #ifdef PSXBIOS_LOG
 //	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x10], th);
 #endif
-
+	/* The return value is always 1. */
+	v0 = 1;
 	if (Thread[th].status == 0 || CurThread == th) {
-		v0 = 0;
-
 		pc0 = ra;
 	} else {
-		v0 = 1;
-
 		if (Thread[CurThread].status == 2) {
 			Thread[CurThread].status = 1;
 			Thread[CurThread].func = ra;
