@@ -307,6 +307,8 @@ static inline void DeliverEvent(u32 ev, u32 spec) {
 	} else Event[ev][spec].status = EvStALREADY;
 }
 
+static unsigned interrupt_r26=0x8004E8B0;
+
 static inline void SaveRegs() {
 	memcpy(regs, psxRegs.GPR.r, 32*4);
 	regs[32] = psxRegs.GPR.n.lo;
@@ -1968,6 +1970,7 @@ void psxBios_ReturnFromException() { // 17
 	LoadRegs();
 
 	pc0 = psxRegs.CP0.n.EPC;
+	k0 = interrupt_r26;
 	if (psxRegs.CP0.n.Cause & 0x80000000) pc0 += 4;
 
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
@@ -3190,6 +3193,7 @@ void psxBiosException() {
 
 	switch (psxRegs.CP0.n.Cause & 0x3c) {
 		case 0x00: // Interrupt
+			interrupt_r26=psxRegs.CP0.n.EPC;
 #ifdef PSXCPU_LOG
 //			PSXCPU_LOG("interrupt\n");
 #endif
