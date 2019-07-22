@@ -2450,8 +2450,11 @@ void psxBios__card_write() { // 0x4e
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x,%x,%x\n", biosB0n[0x4e], a0, a1, a2);
 #endif
-	/* Function also accepts sector 400h (a bug) */
-	if (!(a1 <= 0x400))
+	/*
+	Function also accepts sector 400h (a bug).
+	But notaz said we shouldn't allow sector 400h because it can corrupt the emulator.
+	*/
+	if (!(a1 <= 0x3FF))
 	{
 		/* Invalid sectors */
 		v0 = 0; pc0 = ra;
@@ -2483,8 +2486,11 @@ void psxBios__card_read() { // 0x4f
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x4f]);
 #endif
-	/* Function also accepts sector 400h (a bug) */
-	if (!(a1 <= 0x400))
+	/*
+	Function also accepts sector 400h (a bug).
+	But notaz said we shouldn't allow sector 400h because it can corrupt the emulator.
+	*/
+	if (!(a1 <= 0x3FF))
 	{
 		/* Invalid sectors */
 		v0 = 0; pc0 = ra;
