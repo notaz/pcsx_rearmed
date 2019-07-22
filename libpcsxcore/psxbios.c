@@ -3081,18 +3081,19 @@ void psxBiosInit() {
 	
 	/*	Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
 		See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
-		R-type will work if PsxM[0] is non-zero. (Meaning that it should not be 00000003h as he implies).
-		Crash Team Racing will refuse to boot if psxM[2] and psx[3] are not set to 0.
-		Fade to Black can crash upon memory card access if byte 5 is set to the wrong value.
+		Here are some examples of games not working with this fix in place :
+		R-type won't get past the Irem logo if not implemented.
+		Crash Team Racing will softlock after the Sony logo.
 	*/
-	psxM[0] = SWAPu32(0x3C);
-	psxM[1] = SWAPu32(0x1A);
-	psxM[2] = SWAPu32(0x00);
-	psxM[3] = SWAPu32(0x00);
-	psxM[4] = SWAPu32(0x27);
-	psxM[5] = SWAPu32(0x5A);
-	psxM[6] = SWAPu32(0x0C);
-	psxM[7] = SWAPu32(0x80);
+	
+	psxMu32ref(0x0000) = SWAPu32(0x00000003);
+	/*
+	But overwritten by 00000003h after soon.
+	psxMu32ref(0x0000) = SWAPu32(0x00001A3C);
+	*/
+	psxMu32ref(0x0004) = SWAPu32(0x800C5A27);
+	psxMu32ref(0x0008) = SWAPu32(0x08000403);
+	psxMu32ref(0x000C) = SWAPu32(0x00000000);
 }
 
 void psxBiosShutdown() {
