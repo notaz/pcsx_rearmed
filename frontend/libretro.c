@@ -33,7 +33,9 @@
 #include "plugin_lib.h"
 #include "arm_features.h"
 #include "revision.h"
-#include "libretro.h"
+
+#include <libretro.h>
+#include "libretro_core_options.h"
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
@@ -485,65 +487,12 @@ void out_register_libretro(struct out_driver *drv)
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
-   static const struct retro_variable vars[] = {
-      { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
-      { "pcsx_rearmed_bios", "Use BIOS; auto|HLE" },
-      { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
-      { "pcsx_rearmed_memcard2", "Enable second memory card; disabled|enabled" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog|dualshock|negcon|none" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|dualshock|negcon|none" },
-      { "pcsx_rearmed_pad3type", "Pad 3 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad4type", "Pad 4 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad5type", "Pad 5 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad6type", "Pad 6 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad7type", "Pad 7 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad8type", "Pad 8 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
-      { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
-      { "pcsx_rearmed_negcon_deadzone", "NegCon Twist Deadzone (percent); 0|5|10|15|20|25|30" },
-      { "pcsx_rearmed_negcon_response", "NegCon Twist Response; linear|quadratic|cubic" },
-      { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
-      { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
-#ifndef DRC_DISABLE
-      { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
-#ifdef HAVE_PRE_ARMV7
-      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 50); 50|51|52|53|54|55|5657|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49" },
-#else
-      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 57); 57|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56" },
-#endif
-#endif
-#ifdef __ARM_NEON__
-      { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
-      { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
-      { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
-#endif
-      { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
-      { "pcsx_rearmed_display_internal_fps", "Display Internal FPS; disabled|enabled" },
-      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
-      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
-      { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
-      { "pcsx_rearmed_idiablofix", "Diablo Music Fix; disabled|enabled" },
-      { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
-      { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
-
-      /* Advance options */
-      { "pcsx_rearmed_noxadecoding", "XA Decoding; enabled|disabled" },
-      { "pcsx_rearmed_nocdaudio", "CD Audio; enabled|disabled" },
-#ifndef DRC_DISABLE
-      { "pcsx_rearmed_nosmccheck", "(Speed Hack) Disable SMC Checks; disabled|enabled" },
-      { "pcsx_rearmed_gteregsunneeded", "(Speed Hack) Assume GTE Regs Unneeded; disabled|enabled" },
-      { "pcsx_rearmed_nogteflags", "(Speed Hack) Disable GTE Flags; disabled|enabled" },
-#endif
-
-      { NULL, NULL }
-   };
-
-    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
-        log_cb = logging.log;
-
    environ_cb = cb;
 
-   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars);
+   if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
+      log_cb = logging.log;
+
+   libretro_set_core_options(environ_cb);
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
