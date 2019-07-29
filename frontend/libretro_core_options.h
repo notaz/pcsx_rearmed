@@ -75,7 +75,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_memcard2",
       "Enable Second Memory Card (Shared)",
-      "Enabled the memory card slot 2. This memory card is shared amongs all games.",
+      "Enabled the memory card slot 2. This memory card is shared amongst all games.",
       {
          { "disable",  NULL },
          { "enabled",  NULL },
@@ -207,7 +207,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_multitap2",
       "Multitap 2",
-      "Enables/Disables multitap on port 2, allowing upto 8 players in games that permit it. Multitap 1 has to be enabled for this to work.",
+      "Enables/Disables multitap on port 2, allowing up to 8 players in games that permit it. Multitap 1 has to be enabled for this to work.",
       {
          { "auto", NULL },
          { "disabled",  NULL },
@@ -271,7 +271,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_drc",
       "Dynamic Recompiler",
-      "Enables core to use dynamic recompiler or interpreter (slower) cpu instructions.",
+      "Enables core to use dynamic recompiler or interpreter (slower) CPU instructions.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -376,7 +376,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_neon_enhancement_enable",
       "Enhanced Resolution (Slow)",
-      "Renders in double resolution at the cost of lower performance",
+      "Renders in double resolution at the cost of lower performance.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -425,7 +425,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_show_gpu_peops_settings",
       "Show Advance GPU Settings",
-      "Enable or disable various gpu fixes. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      "Enable or disable various GPU fixes. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -458,7 +458,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_fix_2",
       "(GPU) Ignore Brightness Color",
-      "Black screens in Lunar",
+      "Black screens in Lunar Silver Star Story games",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -502,7 +502,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_fix_8",
       "(GPU) Repeated Flat Tex Triangles",
-      "Needed by Dark Forces",
+      "Needed by Star Wars: Dark Forces",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -537,7 +537,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_show_bios_bootlogo",
       "Show Bios Bootlogo",
-      "When enabled, shows the playstation logo when starting or resetting. (Breaks some games).",
+      "When enabled, shows the PlayStation logo when starting or resetting. (Breaks some games).",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
