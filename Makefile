@@ -337,13 +337,11 @@ frontend/revision.h: FORCE
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-	@echo "** BUILDING $(TARGET) FOR PLATFORM $(PLATFORM) **"
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $(OBJS)
 else
 	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
 endif
-	@echo "** BUILD SUCCESSFUL! GG NO RE **"
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
