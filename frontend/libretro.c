@@ -33,7 +33,9 @@
 #include "plugin_lib.h"
 #include "arm_features.h"
 #include "revision.h"
-#include "libretro.h"
+
+#include <libretro.h>
+#include "libretro_core_options.h"
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
@@ -75,6 +77,7 @@ static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
+static int show_advanced_gpu_peops_settings = -1;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -485,65 +488,12 @@ void out_register_libretro(struct out_driver *drv)
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
-   static const struct retro_variable vars[] = {
-      { "pcsx_rearmed_frameskip", "Frameskip; 0|1|2|3" },
-      { "pcsx_rearmed_bios", "Use BIOS; auto|HLE" },
-      { "pcsx_rearmed_region", "Region; auto|NTSC|PAL" },
-      { "pcsx_rearmed_memcard2", "Enable second memory card; disabled|enabled" },
-      { "pcsx_rearmed_pad1type", "Pad 1 Type; standard|analog|dualshock|negcon|none" },
-      { "pcsx_rearmed_pad2type", "Pad 2 Type; standard|analog|dualshock|negcon|none" },
-      { "pcsx_rearmed_pad3type", "Pad 3 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad4type", "Pad 4 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad5type", "Pad 5 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad6type", "Pad 6 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad7type", "Pad 7 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_pad8type", "Pad 8 Type; none|standard|analog|dualshock|negcon" },
-      { "pcsx_rearmed_multitap1", "Multitap 1; auto|disabled|enabled" },
-      { "pcsx_rearmed_multitap2", "Multitap 2; auto|disabled|enabled" },
-      { "pcsx_rearmed_negcon_deadzone", "NegCon Twist Deadzone (percent); 0|5|10|15|20|25|30" },
-      { "pcsx_rearmed_negcon_response", "NegCon Twist Response; linear|quadratic|cubic" },
-      { "pcsx_rearmed_vibration", "Enable Vibration; enabled|disabled" },
-      { "pcsx_rearmed_dithering", "Enable Dithering; enabled|disabled" },
-#ifndef DRC_DISABLE
-      { "pcsx_rearmed_drc", "Dynamic recompiler; enabled|disabled" },
-#ifdef HAVE_PRE_ARMV7
-      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 50); 50|51|52|53|54|55|5657|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49" },
-#else
-      { "pcsx_rearmed_psxclock", "PSX cpu clock (default 57); 57|58|59|60|61|62|63|64|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|91|92|93|94|95|96|97|98|99|100|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56" },
-#endif
-#endif
-#ifdef __ARM_NEON__
-      { "pcsx_rearmed_neon_interlace_enable", "Enable interlacing mode(s); disabled|enabled" },
-      { "pcsx_rearmed_neon_enhancement_enable", "Enhanced resolution (slow); disabled|enabled" },
-      { "pcsx_rearmed_neon_enhancement_no_main", "Enhanced resolution speed hack; disabled|enabled" },
-#endif
-      { "pcsx_rearmed_duping_enable", "Frame duping; enabled|disabled" },
-      { "pcsx_rearmed_display_internal_fps", "Display Internal FPS; disabled|enabled" },
-      { "pcsx_rearmed_show_bios_bootlogo", "Show Bios Bootlogo(Breaks some games); disabled|enabled" },
-      { "pcsx_rearmed_spu_reverb", "Sound: Reverb; enabled|disabled" },
-      { "pcsx_rearmed_spu_interpolation", "Sound: Interpolation; simple|gaussian|cubic|off" },
-      { "pcsx_rearmed_idiablofix", "Diablo Music Fix; disabled|enabled" },
-      { "pcsx_rearmed_pe2_fix", "Parasite Eve 2/Vandal Hearts 1/2 Fix; disabled|enabled" },
-      { "pcsx_rearmed_inuyasha_fix", "InuYasha Sengoku Battle Fix; disabled|enabled" },
-
-      /* Advance options */
-      { "pcsx_rearmed_noxadecoding", "XA Decoding; enabled|disabled" },
-      { "pcsx_rearmed_nocdaudio", "CD Audio; enabled|disabled" },
-#ifndef DRC_DISABLE
-      { "pcsx_rearmed_nosmccheck", "(Speed Hack) Disable SMC Checks; disabled|enabled" },
-      { "pcsx_rearmed_gteregsunneeded", "(Speed Hack) Assume GTE Regs Unneeded; disabled|enabled" },
-      { "pcsx_rearmed_nogteflags", "(Speed Hack) Disable GTE Flags; disabled|enabled" },
-#endif
-
-      { NULL, NULL }
-   };
-
-    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
-        log_cb = logging.log;
-
    environ_cb = cb;
 
-   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void*)vars);
+   if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
+      log_cb = logging.log;
+
+   libretro_set_core_options(environ_cb);
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -1411,6 +1361,7 @@ static void update_variables(bool in_flight)
 {
    struct retro_variable var;
    int i;
+   int gpu_peops_fix = 0;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
@@ -1682,6 +1633,132 @@ static void update_variables(bool in_flight)
    }
 #endif
 
+#ifdef DRC_DISABLE
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_0";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 0);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_1";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 1);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_2";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 2);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_3";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 3);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_6";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 6);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_7";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 7);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_8";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 8);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_9";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 9);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_10";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 10);
+   }
+
+   if (pl_rearmed_cbs.gpu_peops.dwActFixes != gpu_peops_fix)
+      pl_rearmed_cbs.gpu_peops.dwActFixes = gpu_peops_fix;
+
+
+    /* Show/hide core options */
+
+   var.key = "pcsx_rearmed_show_gpu_peops_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int show_advanced_gpu_peops_settings_prev = show_advanced_gpu_peops_settings;
+
+      show_advanced_gpu_peops_settings = 1;
+      if (strcmp(var.value, "disabled") == 0)
+         show_advanced_gpu_peops_settings = 0;
+
+      if (show_advanced_gpu_peops_settings != show_advanced_gpu_peops_settings_prev)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_peops_option[9][32] = {
+            "pcsx_rearmed_gpu_peops_fix_0",
+            "pcsx_rearmed_gpu_peops_fix_1",
+            "pcsx_rearmed_gpu_peops_fix_2",
+            "pcsx_rearmed_gpu_peops_fix_3",
+            "pcsx_rearmed_gpu_peops_fix_6",
+            "pcsx_rearmed_gpu_peops_fix_7",
+            "pcsx_rearmed_gpu_peops_fix_8",
+            "pcsx_rearmed_gpu_peops_fix_9",
+            "pcsx_rearmed_gpu_peops_fix_10",
+         };
+
+         option_display.visible = show_advanced_gpu_peops_settings;
+
+         for (i = 0; i < 9; i++)
+         {
+            option_display.key = gpu_peops_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+         }
+      }
+   }
+#endif
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1809,7 +1886,7 @@ void retro_run(void)
 
 		if (in_type[i] == PSE_PAD_TYPE_NONE)
 			continue;
-      
+
       if (libretro_supports_bitmasks)
          ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
       else
@@ -2172,6 +2249,7 @@ void retro_init(void)
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+   pl_rearmed_cbs.gpu_peops.dwActFixes = 1 << 7;
 	spu_config.iUseFixedUpdates = 1;
 
 	SaveFuncs.open = save_open;
