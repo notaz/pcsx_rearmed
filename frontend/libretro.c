@@ -77,6 +77,7 @@ static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
+static int show_advanced_gpu_peops_settings = -1;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -1360,6 +1361,7 @@ static void update_variables(bool in_flight)
 {
    struct retro_variable var;
    int i;
+   int gpu_peops_fix = 0;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
@@ -1631,6 +1633,132 @@ static void update_variables(bool in_flight)
    }
 #endif
 
+#ifdef DRC_DISABLE
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_0";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 0);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_1";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 1);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_2";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 2);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_3";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 3);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_6";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 6);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_7";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 7);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_8";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 8);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_9";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 9);
+   }
+
+   var.value = "NULL";
+   var.key = "pcsx_rearmed_gpu_peops_fix_10";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         gpu_peops_fix |= (1 << 10);
+   }
+
+   if (pl_rearmed_cbs.gpu_peops.dwActFixes != gpu_peops_fix)
+      pl_rearmed_cbs.gpu_peops.dwActFixes = gpu_peops_fix;
+
+
+    /* Show/hide core options */
+
+   var.key = "pcsx_rearmed_show_gpu_peops_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int show_advanced_gpu_peops_settings_prev = show_advanced_gpu_peops_settings;
+
+      show_advanced_gpu_peops_settings = 1;
+      if (strcmp(var.value, "disabled") == 0)
+         show_advanced_gpu_peops_settings = 0;
+
+      if (show_advanced_gpu_peops_settings != show_advanced_gpu_peops_settings_prev)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_peops_option[9][32] = {
+            "pcsx_rearmed_gpu_peops_fix_0",
+            "pcsx_rearmed_gpu_peops_fix_1",
+            "pcsx_rearmed_gpu_peops_fix_2",
+            "pcsx_rearmed_gpu_peops_fix_3",
+            "pcsx_rearmed_gpu_peops_fix_6",
+            "pcsx_rearmed_gpu_peops_fix_7",
+            "pcsx_rearmed_gpu_peops_fix_8",
+            "pcsx_rearmed_gpu_peops_fix_9",
+            "pcsx_rearmed_gpu_peops_fix_10",
+         };
+
+         option_display.visible = show_advanced_gpu_peops_settings;
+
+         for (i = 0; i < 9; i++)
+         {
+            option_display.key = gpu_peops_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+         }
+      }
+   }
+#endif
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -1758,7 +1886,7 @@ void retro_run(void)
 
 		if (in_type[i] == PSE_PAD_TYPE_NONE)
 			continue;
-      
+
       if (libretro_supports_bitmasks)
          ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
       else
@@ -2121,6 +2249,7 @@ void retro_init(void)
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
+   pl_rearmed_cbs.gpu_peops.dwActFixes = 1 << 7;
 	spu_config.iUseFixedUpdates = 1;
 
 	SaveFuncs.open = save_open;

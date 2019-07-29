@@ -74,8 +74,8 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_memcard2",
-      "Enable second memory card (shared)",
-      "Enabled the memory card slot 2. This is shared amongs all games.",
+      "Enable Second Memory Card (Shared)",
+      "Enabled the memory card slot 2. This memory card is shared amongs all games.",
       {
          { "disable",  NULL },
          { "enabled",  NULL },
@@ -218,7 +218,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_negcon_deadzone",
-      "NegCon Twist Deadzone (percent)",
+      "NegCon Twist Deadzone (Percent)",
       "Sets the deadzone of the RetroPad left analog stick when simulating the 'twist' action of emulated neGcon Controllers. Used to eliminate drift/unwanted input.",
       {
          { "0",  NULL },
@@ -247,7 +247,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_vibration",
       "Enable Vibration",
-      "Enables Vibration feedback for controllers that supports vibration features.",
+      "Enables vibration feedback for controllers that supports vibration features.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -270,7 +270,7 @@ struct retro_core_option_definition option_defs_us[] = {
 #ifndef DRC_DISABLE
    {
       "pcsx_rearmed_drc",
-      "Dynamic recompiler",
+      "Dynamic Recompiler",
       "Enables core to use dynamic recompiler or interpreter (slower) cpu instructions.",
       {
          { "disabled", NULL },
@@ -281,7 +281,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_psxclock",
-      "PSX CPU clock",
+      "PSX CPU Clock",
       PSX_CLOCK_LABEL,
       {
          { "30", NULL },
@@ -364,7 +364,7 @@ struct retro_core_option_definition option_defs_us[] = {
 #ifdef __ARM_NEON__
    {
       "pcsx_rearmed_neon_interlace_enable",
-      "Enable interlacing mode(s)",
+      "Enable Interlacing Mode",
       "Enables fake scanlines effect.",
       {
          { "disabled", NULL },
@@ -375,7 +375,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_enable",
-      "Enhanced resolution (slow)",
+      "Enhanced Resolution (Slow)",
       "Renders in double resolution at the cost of lower performance",
       {
          { "disabled", NULL },
@@ -386,7 +386,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_no_main",
-      "Enhanced resolution speed hack",
+      "Enhanced Resolution (Speed Hack)",
       "Speed hack for Enhanced resolution option (glitches some games).",
       {
          { "disabled", NULL },
@@ -399,7 +399,7 @@ struct retro_core_option_definition option_defs_us[] = {
 
    {
       "pcsx_rearmed_duping_enable",
-      "Frame duping",
+      "Frame Duping",
       "A speedup, redraws/reuses the last frame if there was no new data.",
       {
          { "disabled", NULL },
@@ -419,6 +419,121 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
+
+   /* GPU PEOPS OPTIONS */
+#ifdef DRC_DISABLE
+   {
+      "pcsx_rearmed_show_gpu_peops_settings",
+      "Show Advance GPU Settings",
+      "Enable or disable various gpu fixes. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_0",
+      "(GPU) Odd/Even Bit Hack",
+      "Needed for Chrono Cross.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_1",
+      "(GPU) Expand Screen Width",
+      "Capcom fighting games",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_2",
+      "(GPU) Ignore Brightness Color",
+      "Black screens in Lunar",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_3",
+      "(GPU) Disable Coordinate Check",
+      "Compatibility mode",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_6",
+      "(GPU) Lazy Screen Update",
+      "Pandemonium 2",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_7",
+      "(GPU) Old Frame Skipping",
+      "Skip every second frame",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_8",
+      "(GPU) Repeated Flat Tex Triangles",
+      "Needed by Dark Forces",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_9",
+      "(GPU) Draw Quads with Triangles",
+      "Better g-colors, worse textures",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_10",
+      "(GPU) Fake 'Gpu Busy' States",
+      "Toggle busy flags after drawing",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+#endif
+
    {
       "pcsx_rearmed_show_bios_bootlogo",
       "Show Bios Bootlogo",
@@ -443,7 +558,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_spu_interpolation",
-      "Sound: Interpolation",
+      "Sound Interpolation",
       NULL,
       {
          { "simple", NULL },
@@ -692,7 +807,7 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
 
          /* Skip options that are irrelevant when using the
           * old style core options interface */
-         if ((strcmp(key, "fceumm_advance_sound_options") == 0))
+         if ((strcmp(key, "pcsx_rearmed_show_gpu_peops_settings") == 0))
             continue;
 
          if (desc)
