@@ -702,6 +702,491 @@ struct retro_core_option_definition option_defs_us[] = {
 
 /* RETRO_LANGUAGE_TURKISH */
 
+struct retro_core_option_definition option_defs_tr[] = {
+   {
+      "pcsx_rearmed_frameskip",
+      "Kare Atlama",
+      "Görsel pürüzsüzlük pahasına performansı artırmak için ne kadar karenin atlanması gerektiğini seçin.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_bios",
+      "BIOS Kullan",
+      "Gerçek bios dosyasını (varsa) veya öykünmüş bios'u (HLE) kullanmanızı sağlar. Daha iyi uyumluluk için resmi bios dosyasını kullanmanız önerilir.",
+      {
+         { "auto", "otomatik" },
+         { "HLE", "hle" },
+         { NULL, NULL},
+      },
+      "auto",
+   },
+   {
+      "pcsx_rearmed_region",
+      "Bölge",
+      "Sistemin hangi bölgeden olduğunu seçin. NTSC için 60 Hz, PAL için 50 Hz.",
+      {
+         { "auto", "otomatik" },
+         { "NTSC", "ntsc" },
+         { "PAL", "pal" },
+         { NULL, NULL},
+      },
+      "auto",
+   },
+   {
+      "pcsx_rearmed_memcard2",
+      "İkinci Bellek Kartını Etkinleştir (Paylaşılan)",
+      "2. Hafıza kartı yuvasını etkinleştirin. Bu hafıza kartı tüm oyunlar arasında paylaşılır.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_pad1type",
+      "Kumanda 1 Tipi",
+      "1. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog", NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "standard",
+   },
+   {
+      "pcsx_rearmed_pad2type",
+      "Kumanda 2 Tipi",
+      "2. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog", NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "standard",
+   },
+   {
+      "pcsx_rearmed_pad3type",
+      "Kumanda 3 Tipi",
+      "3. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog", NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },
+   {
+      "pcsx_rearmed_pad4type",
+      "Kumanda 4 Tipi",
+      "4. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog", NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },
+   {
+      "pcsx_rearmed_pad5type",
+      "Kumanda 5 Tipi",
+      "5. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog",  NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },{
+      "pcsx_rearmed_pad6type",
+      "Kumanda 6 Tipi",
+      "6. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog",  NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },{
+      "pcsx_rearmed_pad7type",
+      "Kumanda 7 Tipi",
+      "7. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog",  NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },{
+      "pcsx_rearmed_pad8type",
+      "Kumanda 8 Tipi",
+      "8. Oyuncu için kontrolör tipi",
+      {
+         { "standard", NULL },
+         { "analog",  NULL },
+         { "dualshock", NULL },
+         { "negcon", NULL },
+         { "none", "hiçbiri" },
+         { NULL, NULL},
+      },
+      "none",
+   },
+   {
+      "pcsx_rearmed_multitap1",
+      "Multitap 1",
+      "Bağlantı noktası 1'deki multitap'ı etkinleştirir / devre dışı bırakır ve izin veren oyunlarda 5 oyuncuya kadar izin verir.",
+      {
+         { "auto", "otomatik" },
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "auto",
+   },
+   {
+      "pcsx_rearmed_multitap2",
+      "Multitap 2",
+      "Bağlantı noktası 2'deki multitap'ı etkinleştirir/devre dışı bırakır ve izin veren oyunlarda 8 oyuncuya kadar izin verir. Bunun çalışması için Multitap 1'in etkinleştirilmesi gerekir.",
+      {
+         { "auto", "otomatik" },
+         { "disabled",  NULL },
+         { "enabled",   NULL },
+         { NULL, NULL},
+      },
+      "auto",
+   },
+   {
+      "pcsx_rearmed_negcon_deadzone",
+      "NegCon Twist Deadzone (Yüzdelik)",
+      "Öykünülmüş neGcon kontrolörünün 'büküm' eylemini simüle ederken RetroPad sol analog çubuğunun ölü bölgesini ayarlar. Sürüklenme/istenmeyen girişi ortadan kaldırmak için kullanılır.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_negcon_response",
+      "NegCon Twist Response",
+      "Öykünülmüş neGcon kontrolörünün 'bükümünü' simule etmek için bir RetroPad sol analog çubuğu kullanırken analog cevabını belirtir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_vibration",
+      "Titreşimi Etkinleştir",
+      "Titreşim özelliklerini destekleyen kontrolörler için titreşim geri bildirimini etkinleştirir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_dithering",
+      "Dithering Etkinleştir",
+      "Kapalı ise, PSX'in renk bantlarıyla mücadele etmek için uyguladığı renk taklidi düzenini devre dışı bırakır.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+
+#ifndef DRC_DISABLE
+   {
+      "pcsx_rearmed_drc",
+      "Dinamik Yeniden Derleyici",
+      "Çekirdeğin dinamik yeniden derleyici veya tercüman(daha yavaş) CPU talimatlarını kullanmasını sağlar.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_psxclock",
+      "PSX CPU Saat Hızı",
+      PSX_CLOCK_LABEL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+#endif /* DRC_DISABLE */
+
+#ifdef __ARM_NEON__
+   {
+      "pcsx_rearmed_neon_interlace_enable",
+      "Interlacing Mode'u etkinleştir",
+      "Sahte tarama çizgileri efektini etkinleştirir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_neon_enhancement_enable",
+      "Geliştirilmiş Çözünürlük (Yavaş)",
+      "Düşük performans pahasına çift çözünürlükte işler.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_neon_enhancement_no_main",
+      "Geliştirilmiş Çözünürlük (Speed Hack)",
+      "Geliştirilmiş çözünürlük seçeneği için hız aşırtma(bazı oyunlarda sorun çıkartabilir).",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+#endif /* __ARM_NEON__ */
+
+   {
+      "pcsx_rearmed_duping_enable",
+      "Frame Duping",
+      "Yeni bir veri yoksa, bir hızlandırma, son kareyi yeniden çizer/yeniden kullanır.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_display_internal_fps",
+      "Dahili FPS'yi görüntüle",
+      "Etkinleştirildiğinde ekranda saniye başına kareyi gösterir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+
+   /* GPU PEOPS OPTIONS */
+#ifdef DRC_DISABLE
+   {
+      "pcsx_rearmed_show_gpu_peops_settings",
+      "Gelişmiş GPU Ayarlarını Göster",
+      "Çeşitli GPU düzeltmelerini etkinleştirin veya devre dışı bırakın. Ayarların etkili olması için core'un yeniden başlatılması gerekebilir. NOT: Bu ayarın etkili olabilmesi için Hızlı Menü’nün değiştirilmesi gerekir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_0",
+      "(GPU) Odd/Even Bit Hack",
+      "Chrono Cross için gerekli.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_1",
+      "(GPU) Ekran Genişliğini Genişlet",
+      "Capcom dövüş oyunları",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_2",
+      "(GPU) Parlaklık Rengini Yoksay",
+      "Lunar Silver Star Story oyunlarında siyah ekran",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_3",
+      "(GPU) Koordinat Kontrolünü Devre Dışı Bırak",
+      "Uyumluluk modu",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_6",
+      "(GPU) Tembel Ekran Güncellemesi",
+      "Pandemonium 2",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_7",
+      "(GPU) Eski Çerçeve Atlama",
+      "Her ikinci kareyi atla",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_8",
+      "(GPU) Tekrarlanan Düz Doku Üçgenleri",
+      "Star Wars: Dark Forces için gerekli",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_9",
+      "(GPU) Üçgenler ile Dörtlü Çiz",
+      "Daha iyi g renkler, daha kötü dokular",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gpu_peops_fix_10",
+      "(GPU) Sahte 'Gpu Meşgul' Konumları",
+      "Çizimden sonra meşgul bayraklarını değiştir",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+#endif
+
+   {
+      "pcsx_rearmed_show_bios_bootlogo",
+      "Bios Bootlogo'yu Göster",
+      "Etkinleştirildiğinde, başlatırken veya sıfırlarken PlayStation logosunu gösterir. (Bazı oyunları bozabilir).",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_spu_reverb",
+      "Ses Yankısı",
+      "Ses yankı efektini etkinleştirir veya devre dışı bırakır.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_spu_interpolation",
+      "Ses Enterpolasyonu",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_idiablofix",
+      "Diablo Müzik Düzeltmesi",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_pe2_fix",
+      "Parasite Eve 2/Vandal Hearts 1/2 Düzeltmleri",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_inuyasha_fix",
+      "InuYasha Sengoku Battle Düzeltmesi",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+
+   /* ADVANCED OPTIONS */
+   {
+      "pcsx_rearmed_noxadecoding",
+      "XA Kod Çözme",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_nocdaudio",
+      "CD Ses",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+
+#ifndef DRC_DISABLE
+   {
+      "pcsx_rearmed_nosmccheck",
+      "(Speed Hack) SMC Kontrollerini Devre Dışı Bırak",
+      "Yükleme sırasında çökmelere neden olabilir, hafıza kartını bozabilir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_gteregsunneeded",
+      "(Speed Hack) GTE'nin Gereksiz Olduğunu Varsayın",
+      "Grafiksel bozukluklara neden olabilir.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
+      "pcsx_rearmed_nogteflags",
+      "(Speed Hack) GTE Bayraklarını Devredışı Bırakın",
+      "Grafiksel bozukluklara neden olur.",
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+#endif /* DRC_DISABLE */
+
+   { NULL, NULL, NULL, { NULL, NULL }, NULL },
+};
+
+
 /*
  ********************************
  * Language Mapping
@@ -727,7 +1212,7 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
    NULL,           /* RETRO_LANGUAGE_VIETNAMESE */
    NULL,           /* RETRO_LANGUAGE_ARABIC */
    NULL,           /* RETRO_LANGUAGE_GREEK */
-   NULL,           /* RETRO_LANGUAGE_TURKISH */
+   option_defs_tr  /* RETRO_LANGUAGE_TURKISH */
 };
 
 /*
