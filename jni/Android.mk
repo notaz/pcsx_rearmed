@@ -17,6 +17,7 @@ NEON_DIR     := $(ROOT_DIR)/plugins/gpu_neon
 UNAI_DIR     := $(ROOT_DIR)/plugins/gpu_unai
 DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
 DEPS_DIR     := $(ROOT_DIR)/deps
+LIBRETRO_COMMON := $(ROOT_DIR)/libretro-common
 
 # core
 SOURCES_C := $(CORE_DIR)/cdriso.c \
@@ -157,6 +158,7 @@ LOCAL_SRC_FILES     := $(SOURCES_C) $(SOURCES_ASM)
 LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
 LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/flac-1.3.2/include $(DEPS_DIR)/flac-1.3.2/src/libFLAC/include $(DEPS_DIR)/lzma-16.04/C $(DEPS_DIR)/libchdr
+LOCAL_C_INCLUDES    += $(LIBRETRO_COMMON)/include
 LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
 LOCAL_LDLIBS        := -lz -llog
 LOCAL_ARM_MODE      := arm
