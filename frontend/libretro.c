@@ -191,8 +191,6 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 		previous_width = vout_width;
 		previous_height = vout_height;
 
-	SysPrintf("setting mode width: %d height %d\n", vout_width, vout_height);
-
 	struct retro_system_av_info info;
 	retro_get_system_av_info(&info);
 	environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &info.geometry);
@@ -1633,7 +1631,7 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-#ifdef DRC_DISABLE
+#ifdef GPU_PEOPS
    var.value = "NULL";
    var.key = "pcsx_rearmed_gpu_peops_fix_0";
 
