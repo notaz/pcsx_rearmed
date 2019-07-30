@@ -421,11 +421,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
 
    /* GPU PEOPS OPTIONS */
-#ifdef DRC_DISABLE
+#ifdef GPU_PEOPS
    {
       "pcsx_rearmed_show_gpu_peops_settings",
-      "Show Advance GPU Settings",
-      "Enable or disable various GPU fixes. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      "Advanced GPU P.E.Op.S. Settings",
+      "Shows or hides advanced GPU plugin settings. NOTE: Quick Menu must be toggled for this setting to take effect.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },

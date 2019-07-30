@@ -1633,7 +1633,7 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-#ifdef DRC_DISABLE
+#ifdef GPU_PEOPS
    var.value = "NULL";
    var.key = "pcsx_rearmed_gpu_peops_fix_0";
 

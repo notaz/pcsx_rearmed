@@ -136,17 +136,20 @@ endif
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(BUILTIN_GPU)" "neon"
+CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
 endif
 ifeq "$(BUILTIN_GPU)" "peops"
+CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
 ifeq "$(BUILTIN_GPU)" "unai"
+CFLAGS += -DGPU_UNAI
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
