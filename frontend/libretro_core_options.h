@@ -663,7 +663,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
 #endif /* DRC_DISABLE */
 
-   { NULL, NULL, NULL, { NULL, NULL }, NULL },
+   { NULL, NULL, NULL, { {0} }, NULL },
 };
 
 /* RETRO_LANGUAGE_JAPANESE */
@@ -1183,7 +1183,7 @@ struct retro_core_option_definition option_defs_tr[] = {
    },
 #endif /* DRC_DISABLE */
 
-   { NULL, NULL, NULL, { NULL, NULL }, NULL },
+   { NULL, NULL, NULL, { {0} }, NULL },
 };
 
 

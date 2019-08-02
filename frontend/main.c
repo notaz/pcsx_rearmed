@@ -795,6 +795,7 @@ int emu_load_state(int slot)
 	return LoadState(fname);
 }
 
+#ifndef HAVE_LIBRETRO
 #ifndef ANDROID
 
 void SysPrintf(const char *fmt, ...) {
@@ -819,6 +820,7 @@ void SysPrintf(const char *fmt, ...) {
 }
 
 #endif
+#endif /* HAVE_LIBRETRO */
 
 void SysMessage(const char *fmt, ...) {
 	va_list list;

@@ -54,7 +54,7 @@ static void ChangeWorkingDirectory(char *exe)
 
 void PrintHelp()
 {
-	printf("PCSX-ReARMed version %s for Maemo\n\n", PACKAGE_VERSION);
+	printf("PCSX-ReARMed version %s for Maemo\n\n", PCSX_VERSION);
 
 	printf("Usage:\n");
 	printf("  pcsx [options] -cdfile FILE\n\n");
