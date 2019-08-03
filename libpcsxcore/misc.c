@@ -73,7 +73,7 @@ void mmssdd( char *b, char *p )
 
 	m = ((m / 10) << 4) | m % 10;
 	s = ((s / 10) << 4) | s % 10;
-	d = ((d / 10) << 4) | d % 10;	
+	d = ((d / 10) << 4) | d % 10;
 
 	p[0] = m;
 	p[1] = s;
@@ -191,7 +191,7 @@ int LoadCdrom() {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record*) &buf[12+156]; 
+	dir = (struct iso_directory_record*) &buf[12+156];
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -236,7 +236,7 @@ int LoadCdrom() {
 
 	psxRegs.pc = SWAP32(tmpHead.pc0);
 	psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
+	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
 	if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
@@ -275,7 +275,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156]; 
+	dir = (struct iso_directory_record *)&buf[12 + 156];
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -329,7 +329,7 @@ int CheckCdrom() {
 	strncpy(CdromLabel, buf + 52, 32);
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156]; 
+	dir = (struct iso_directory_record *)&buf[12 + 156];
 
 	mmssdd(dir->extent, (char *)time);
 
@@ -356,6 +356,14 @@ int CheckCdrom() {
 				} else
 					return -1;
 			}
+		}
+		/* Workaround for Wild Arms EU/US which has non-standard string causing incorrect region detection */
+		if (exename[0] == 'E' && exename[1] == 'X' && exename[2] == 'E' && exename[3] == '\\') {
+			size_t offset = 4;
+			size_t i, len = strlen(exename) - offset;
+			for (i = 0; i < len; i++)
+				exename[i] = exename[i + offset];
+			exename[i] = '\0';
 		}
 	} else if (GetCdromFile(mdir, time, "PSX.EXE;1") != -1) {
 		strcpy(exename, "PSX.EXE;1");
@@ -426,7 +434,7 @@ size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	void *tmp;
 	size_t ret = 0;
-	
+
 	tmp = malloc(size * nmemb);
 	if (tmp) {
 		ret = fread(tmp, size, nmemb, stream);
@@ -445,8 +453,8 @@ int Load(const char *ExePath) {
 	u32 section_address, section_size;
 	void *mem;
 
-	strncpy(CdromId, "SLUS99999", 9);
-	strncpy(CdromLabel, "SLUS_999.99", 11);
+	strcpy(CdromId, "SLUS99999");
+	strcpy(CdromLabel, "SLUS_999.99");
 
 	tmpFile = fopen(ExePath, "rb");
 	if (tmpFile == NULL) {
@@ -461,14 +469,14 @@ int Load(const char *ExePath) {
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
 				if (mem != NULL) {
-					fseek(tmpFile, 0x800, SEEK_SET);		
+					fseek(tmpFile, 0x800, SEEK_SET);
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
 				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
+				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
 				if (psxRegs.GPR.n.sp == 0)
 					psxRegs.GPR.n.sp = 0x801fff00;
 				retval = 0;
