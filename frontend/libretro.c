@@ -962,11 +962,11 @@ static struct retro_disk_control_callback disk_control = {
 #define PATH_MAX  4096
 #endif
 
-static char base_dir[PATH_MAX];
+static char base_dir[1024];
 
 static bool read_m3u(const char *file)
 {
-	char line[PATH_MAX];
+	char line[1024];
 	char name[PATH_MAX];
 	FILE *f = fopen(file, "r");
 	if (!f)
@@ -2130,7 +2130,7 @@ static int init_memcards(void)
 static void loadPSXBios(void)
 {
 	const char *dir;
-	char path[256];
+	char path[PATH_MAX];
 	unsigned useHLE = 0;
 
 	const char *bios[] = {

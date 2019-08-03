@@ -1182,7 +1182,7 @@ void SetIsoFile(const char *filename) {
 		IsoFile[0] = '\0';
 		return;
 	}
-	strncpy(IsoFile, filename, MAXPATHLEN);
+	strncpy(IsoFile, filename, MAXPATHLEN - 1);
 }
 
 const char *GetIsoFile(void) {

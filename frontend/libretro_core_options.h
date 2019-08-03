@@ -77,11 +77,11 @@ struct retro_core_option_definition option_defs_us[] = {
       "Enable Second Memory Card (Shared)",
       "Enabled the memory card slot 2. This memory card is shared amongst all games.",
       {
-         { "disable",  NULL },
+         { "disabled",  NULL },
          { "enabled",  NULL },
          { NULL, NULL},
       },
-      "disable",
+      "disabled",
    },
    {
       "pcsx_rearmed_pad1type",
