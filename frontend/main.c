@@ -870,7 +870,7 @@ static int _OpenPlugins(void) {
 
 	if (Config.UseNet && !NetOpened) {
 		netInfo info;
-		char path[MAXPATHLEN];
+		char path[MAXPATHLEN * 2];
 		char dotdir[MAXPATHLEN];
 
 		MAKE_PATH(dotdir, "/.pcsx/plugins/", NULL);

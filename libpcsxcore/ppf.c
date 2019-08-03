@@ -183,7 +183,7 @@ void BuildPPFCache() {
 	char			method, undo = 0, blockcheck = 0;
 	int				dizlen, dizyn;
 	unsigned char	ppfmem[512];
-	char			szPPF[MAXPATHLEN];
+	char			szPPF[MAXPATHLEN * 2];
 	int				count, seekpos, pos;
 	u32				anz; // use 32-bit to avoid stupid overflows
 	s32				ladr, off, anx;

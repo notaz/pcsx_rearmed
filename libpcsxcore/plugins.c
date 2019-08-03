@@ -1064,7 +1064,7 @@ void CALLBACK clearDynarec(void) {
 
 int LoadPlugins() {
 	int ret;
-	char Plugin[MAXPATHLEN];
+	char Plugin[MAXPATHLEN * 2];
 
 	ReleasePlugins();
 	SysLibError();
@@ -1169,7 +1169,7 @@ int ReloadCdromPlugin()
 	if (UsingIso()) {
 		LoadCDRplugin(NULL);
 	} else {
-		char Plugin[MAXPATHLEN];
+		char Plugin[MAXPATHLEN * 2];
 		sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Cdr);
 		if (LoadCDRplugin(Plugin) == -1) return -1;
 	}
