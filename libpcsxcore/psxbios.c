@@ -346,6 +346,7 @@ static inline void LoadRegs() {
 	ptr = Mcd##mcd##Data + offset; \
 	memcpy(ptr, Ra1, length); \
 	FDesc[1 + mcd].offset += length; \
+	SaveMcd(Config.Mcd##mcd, Mcd##mcd##Data, offset, length); \
 	if (FDesc[1 + mcd].mode & 0x8000) { \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
 	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
