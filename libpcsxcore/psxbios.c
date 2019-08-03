@@ -2025,17 +2025,18 @@ void psxBios_UnDeliverEvent() { // 0x20
 
 char ffile[64], *pfile;
 int nfile;
-static void buopen(int mcd, u8 *ptr, u8 *cfg)
+
+static void buopen(int mcd, char *ptr, char *cfg)
 {
 	int i;
-	u8 *fptr = ptr;
+	char *mcd_data = ptr;
 
 	strcpy(FDesc[1 + mcd].name, Ra0+5);
 	FDesc[1 + mcd].offset = 0;
 	FDesc[1 + mcd].mode   = a1;
 
 	for (i=1; i<16; i++) {
-		fptr += 128;
+		const char *fptr = mcd_data + 128 * i;
 		if ((*fptr & 0xF0) != 0x50) continue;
 		if (strcmp(FDesc[1 + mcd].name, fptr+0xa)) continue;
 		FDesc[1 + mcd].mcfile = i;
@@ -2044,12 +2045,11 @@ static void buopen(int mcd, u8 *ptr, u8 *cfg)
 		break;
 	}
 	if (a1 & 0x200 && v0 == -1) { /* FCREAT */
-		fptr = ptr;
 		for (i=1; i<16; i++) {
 			int j, xor, nblk = a1 >> 16;
-			u8 *pptr, *fptr2;
+			char *pptr, *fptr2;
+			char *fptr = mcd_data + 128 * i;
 
-			fptr += 128;
 			if ((*fptr & 0xF0) != 0xa0) continue;
 
 			FDesc[1 + mcd].mcfile = i;
@@ -2094,8 +2094,6 @@ static void buopen(int mcd, u8 *ptr, u8 *cfg)
  */
 
 void psxBios_open() { // 0x32
-	int i;
-	char *ptr;
 	void *pa0 = Ra0;
 
 #ifdef PSXBIOS_LOG
