@@ -357,6 +357,14 @@ int CheckCdrom() {
 					return -1;
 			}
 		}
+		/* Workaround for Wild Arms EU/US which has non-standard string causing incorrect region detection */
+		if (exename[0] == 'E' && exename[1] == 'X' && exename[2] == 'E' && exename[3] == '\\') {
+			size_t offset = 4;
+			size_t i, len = strlen(exename) - offset;
+			for (i = 0; i < len; i++)
+				exename[i] = exename[i + offset];
+			exename[i] = '\0';
+		}
 	} else if (GetCdromFile(mdir, time, "PSX.EXE;1") != -1) {
 		strcpy(exename, "PSX.EXE;1");
 		strcpy(CdromId, "SLUS99999");
