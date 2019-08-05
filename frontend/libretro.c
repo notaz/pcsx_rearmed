@@ -2275,6 +2275,7 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+	ClosePlugins();
 	SysClose();
 #ifdef _3DS
    linearFree(vout_buf);
