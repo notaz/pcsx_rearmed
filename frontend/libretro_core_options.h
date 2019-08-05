@@ -434,7 +434,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_0",
+      "pcsx_rearmed_gpu_peops_odd_even_bit",
       "(GPU) Odd/Even Bit Hack",
       "Needed for Chrono Cross.",
       {
@@ -445,7 +445,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_1",
+      "pcsx_rearmed_gpu_peops_expand_screen_width",
       "(GPU) Expand Screen Width",
       "Capcom fighting games",
       {
@@ -456,7 +456,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_2",
+      "pcsx_rearmed_gpu_peops_ignore_brightness",
       "(GPU) Ignore Brightness Color",
       "Black screens in Lunar Silver Star Story games",
       {
@@ -467,7 +467,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_3",
+      "pcsx_rearmed_gpu_peops_disable_coord_check",
       "(GPU) Disable Coordinate Check",
       "Compatibility mode",
       {
@@ -478,7 +478,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_6",
+      "pcsx_rearmed_gpu_peops_lazy_screen_update",
       "(GPU) Lazy Screen Update",
       "Pandemonium 2",
       {
@@ -489,7 +489,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_7",
+      "pcsx_rearmed_gpu_peops_old_frame_skip",
       "(GPU) Old Frame Skipping",
       "Skip every second frame",
       {
@@ -500,7 +500,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "enabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_8",
+      "pcsx_rearmed_gpu_peops_repeated_triangles",
       "(GPU) Repeated Flat Tex Triangles",
       "Needed by Star Wars: Dark Forces",
       {
@@ -511,7 +511,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_9",
+      "pcsx_rearmed_gpu_peops_quads_with_triangles",
       "(GPU) Draw Quads with Triangles",
       "Better g-colors, worse textures",
       {
@@ -522,7 +522,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_10",
+      "pcsx_rearmed_gpu_peops_fake_busy_state",
       "(GPU) Fake 'Gpu Busy' States",
       "Toggle busy flags after drawing",
       {
@@ -996,7 +996,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_0",
+      "pcsx_rearmed_gpu_peops_odd_even_bit",
       "(GPU) Odd/Even Bit Hack",
       "Chrono Cross için gerekli.",
       {
@@ -1005,7 +1005,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_1",
+      "pcsx_rearmed_gpu_peops_expand_screen_width",
       "(GPU) Ekran Genişliğini Genişlet",
       "Capcom dövüş oyunları",
       {
@@ -1014,7 +1014,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_2",
+      "pcsx_rearmed_gpu_peops_ignore_brightness",
       "(GPU) Parlaklık Rengini Yoksay",
       "Lunar Silver Star Story oyunlarında siyah ekran",
       {
@@ -1023,7 +1023,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_3",
+      "pcsx_rearmed_gpu_peops_disable_coord_check",
       "(GPU) Koordinat Kontrolünü Devre Dışı Bırak",
       "Uyumluluk modu",
       {
@@ -1032,7 +1032,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_6",
+      "pcsx_rearmed_gpu_peops_lazy_screen_update",
       "(GPU) Tembel Ekran Güncellemesi",
       "Pandemonium 2",
       {
@@ -1041,7 +1041,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_7",
+      "pcsx_rearmed_gpu_peops_old_frame_skip",
       "(GPU) Eski Çerçeve Atlama",
       "Her ikinci kareyi atla",
       {
@@ -1050,7 +1050,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_8",
+      "pcsx_rearmed_gpu_peops_repeated_triangles",
       "(GPU) Tekrarlanan Düz Doku Üçgenleri",
       "Star Wars: Dark Forces için gerekli",
       {
@@ -1059,7 +1059,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_9",
+      "pcsx_rearmed_gpu_peops_quads_with_triangles",
       "(GPU) Üçgenler ile Dörtlü Çiz",
       "Daha iyi g renkler, daha kötü dokular",
       {
@@ -1068,7 +1068,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_gpu_peops_fix_10",
+      "pcsx_rearmed_gpu_peops_fake_busy_state",
       "(GPU) Sahte 'Gpu Meşgul' Konumları",
       "Çizimden sonra meşgul bayraklarını değiştir",
       {

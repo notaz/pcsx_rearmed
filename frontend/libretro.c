@@ -134,6 +134,16 @@ static int snd_init(void){return 0;}
 static void snd_finish(void){}
 static int snd_busy(void){return 0;}
 
+#define GPU_PEOPS_ODD_EVEN_BIT         (1 << 0)
+#define GPU_PEOPS_EXPAND_SCREEN_WIDTH  (1 << 1)
+#define GPU_PEOPS_IGNORE_BRIGHTNESS    (1 << 2)
+#define GPU_PEOPS_DISABLE_COORD_CHECK  (1 << 3)
+#define GPU_PEOPS_LAZY_SCREEN_UPDATE   (1 << 6)
+#define GPU_PEOPS_OLD_FRAME_SKIP       (1 << 7)
+#define GPU_PEOPS_REPEATED_TRIANGLES   (1 << 8)
+#define GPU_PEOPS_QUADS_WITH_TRIANGLES (1 << 9)
+#define GPU_PEOPS_FAKE_BUSY_STATE      (1 << 10)
+
 static void init_memcard(char *mcd_data)
 {
 	unsigned off = 0;
@@ -1633,91 +1643,91 @@ static void update_variables(bool in_flight)
 
 #ifdef GPU_PEOPS
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_0";
+   var.key = "pcsx_rearmed_gpu_peops_odd_even_bit";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 0);
+         gpu_peops_fix |= GPU_PEOPS_ODD_EVEN_BIT;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_1";
+   var.key = "pcsx_rearmed_gpu_peops_expand_screen_width";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 1);
+         gpu_peops_fix |= GPU_PEOPS_EXPAND_SCREEN_WIDTH;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_2";
+   var.key = "pcsx_rearmed_gpu_peops_ignore_brightness";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 2);
+         gpu_peops_fix |= GPU_PEOPS_IGNORE_BRIGHTNESS;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_3";
+   var.key = "pcsx_rearmed_gpu_peops_disable_coord_check";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 3);
+         gpu_peops_fix |= GPU_PEOPS_DISABLE_COORD_CHECK;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_6";
+   var.key = "pcsx_rearmed_gpu_peops_lazy_screen_update";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 6);
+         gpu_peops_fix |= GPU_PEOPS_LAZY_SCREEN_UPDATE;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_7";
+   var.key = "pcsx_rearmed_gpu_peops_old_frame_skip";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 7);
+         gpu_peops_fix |= GPU_PEOPS_OLD_FRAME_SKIP;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_8";
+   var.key = "pcsx_rearmed_gpu_peops_repeated_triangles";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 8);
+         gpu_peops_fix |= GPU_PEOPS_REPEATED_TRIANGLES;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_9";
+   var.key = "pcsx_rearmed_gpu_peops_quads_with_triangles";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 9);
+         gpu_peops_fix |= GPU_PEOPS_QUADS_WITH_TRIANGLES;
    }
 
    var.value = "NULL";
-   var.key = "pcsx_rearmed_gpu_peops_fix_10";
+   var.key = "pcsx_rearmed_gpu_peops_fake_busy_state";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= (1 << 10);
+         gpu_peops_fix |= GPU_PEOPS_FAKE_BUSY_STATE;
    }
 
    if (pl_rearmed_cbs.gpu_peops.dwActFixes != gpu_peops_fix)
       pl_rearmed_cbs.gpu_peops.dwActFixes = gpu_peops_fix;
 
 
-    /* Show/hide core options */
+   /* Show/hide core options */
 
    var.key = "pcsx_rearmed_show_gpu_peops_settings";
    var.value = NULL;
@@ -1734,16 +1744,16 @@ static void update_variables(bool in_flight)
       {
          unsigned i;
          struct retro_core_option_display option_display;
-         char gpu_peops_option[9][32] = {
-            "pcsx_rearmed_gpu_peops_fix_0",
-            "pcsx_rearmed_gpu_peops_fix_1",
-            "pcsx_rearmed_gpu_peops_fix_2",
-            "pcsx_rearmed_gpu_peops_fix_3",
-            "pcsx_rearmed_gpu_peops_fix_6",
-            "pcsx_rearmed_gpu_peops_fix_7",
-            "pcsx_rearmed_gpu_peops_fix_8",
-            "pcsx_rearmed_gpu_peops_fix_9",
-            "pcsx_rearmed_gpu_peops_fix_10",
+         char gpu_peops_option[9][45] = {
+            "pcsx_rearmed_gpu_peops_odd_even_bit",
+            "pcsx_rearmed_gpu_peops_expand_screen_width",
+            "pcsx_rearmed_gpu_peops_ignore_brightness",
+            "pcsx_rearmed_gpu_peops_disable_coord_check",
+            "pcsx_rearmed_gpu_peops_lazy_screen_update",
+            "pcsx_rearmed_gpu_peops_old_frame_skip",
+            "pcsx_rearmed_gpu_peops_repeated_triangles",
+            "pcsx_rearmed_gpu_peops_quads_with_triangles",
+            "pcsx_rearmed_gpu_peops_fake_busy_state",
          };
 
          option_display.visible = show_advanced_gpu_peops_settings;
@@ -2247,7 +2257,7 @@ void retro_init(void)
 	cycle_multiplier = 200;
 #endif
 	pl_rearmed_cbs.gpu_peops.iUseDither = 1;
-   pl_rearmed_cbs.gpu_peops.dwActFixes = 1 << 7;
+	pl_rearmed_cbs.gpu_peops.dwActFixes = GPU_PEOPS_OLD_FRAME_SKIP;
 	spu_config.iUseFixedUpdates = 1;
 
 	SaveFuncs.open = save_open;
@@ -2265,6 +2275,7 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+	ClosePlugins();
 	SysClose();
 #ifdef _3DS
    linearFree(vout_buf);
