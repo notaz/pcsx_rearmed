@@ -550,12 +550,15 @@ echo >> $config_mak
 
 if [ "$platform" = "libretro" ]; then
   echo "TARGET = libretro.so" >> $config_mak
+  echo "HAVE_CHD = 1" >> $config_mak
 fi
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-echo "PLUGINS = $plugins" >> $config_mak
+if [ "$platform" != "libretro" ]; then
+  echo "PLUGINS = $plugins" >> $config_mak
+fi
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
 fi
