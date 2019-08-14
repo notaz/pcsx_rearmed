@@ -82,7 +82,11 @@ else ifeq ($(platform),$(filter $(platform),ios-arm64))
 	USE_DYNAREC = 0
 	HAVE_NEON = 0
 	BUILTIN_GPU = peops
-	TARGET := $(TARGET_NAME)_libretro_ios.dylib
+	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
+
+	CC = clang -arch arm64 -isysroot $(IOSSDK) -miphoneos-version-min=8.0
+	CXX = clang++ -arch arm64 -isysroot $(IOSSDK) -miphoneos-version-min=8.0
+	CFLAGS += -marm -DIOS
 
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
