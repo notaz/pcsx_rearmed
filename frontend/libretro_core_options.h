@@ -534,6 +534,76 @@ struct retro_core_option_definition option_defs_us[] = {
    },
 #endif
 
+    /* GPU UNAI Advanced Options */
+#ifdef GPU_UNAI
+   {
+      "pcsx_rearmed_show_gpu_unai_settings",
+      "Advance GPU UNAI/PCSX4All Settings",
+      "Shows or hides advanced gpu settings. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_unai_blending",
+      "(GPU) Enable Blending",
+      NULL,
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_gpu_unai_lighting",
+      "(GPU) Enable Lighting",
+      NULL,
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_gpu_unai_fast_lighting",
+      "(GPU) Enable Fast Lighting",
+      NULL,
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_gpu_unai_ilace_force",
+      "(GPU) Enable Forced Interlace",
+      NULL,
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_gpu_unai_pixel_skip",
+      "(GPU) Enable Pixel Skip",
+      NULL,
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+#endif /* GPU UNAI Advanced Settings */
+
    {
       "pcsx_rearmed_show_bios_bootlogo",
       "Show Bios Bootlogo",

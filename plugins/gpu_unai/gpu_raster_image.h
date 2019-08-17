@@ -19,71 +19,79 @@
  ***************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////
-INLINE void gpuLoadImage(void)
+#ifndef USE_GPULIB
+void gpuLoadImage(PtrUnion packet)
 {
 	u16 x0, y0, w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	w0 = PacketBuffer.U2[4];
-	h0 = PacketBuffer.U2[5];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	w0 = packet.U2[4];
+	h0 = packet.U2[5];
 
 	if ((y0 + h0) > FRAME_HEIGHT)
 	{
 		h0 = FRAME_HEIGHT - y0;
 	}
 
-	FrameToWrite = ((w0)&&(h0));
+	gpu_unai.dma.FrameToWrite = ((w0)&&(h0));
 
-	px = 0;
-	py = 0;
-	x_end = w0;
-	y_end = h0;
-	pvram = &((u16*)GPU_FrameBuffer)[x0+(y0*1024)];
+	gpu_unai.dma.px = 0;
+	gpu_unai.dma.py = 0;
+	gpu_unai.dma.x_end = w0;
+	gpu_unai.dma.y_end = h0;
+	gpu_unai.dma.pvram = &((u16*)gpu_unai.vram)[x0+(y0*1024)];
 
-	GPU_GP1 |= 0x08000000;
+	gpu_unai.GPU_GP1 |= 0x08000000;
 }
+#endif // !USE_GPULIB
 
 ///////////////////////////////////////////////////////////////////////////////
-INLINE void gpuStoreImage(void)
+#ifndef USE_GPULIB
+void gpuStoreImage(PtrUnion packet)
 {
 	u16 x0, y0, w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	w0 = PacketBuffer.U2[4];
-	h0 = PacketBuffer.U2[5];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	w0 = packet.U2[4];
+	h0 = packet.U2[5];
 
 	if ((y0 + h0) > FRAME_HEIGHT)
 	{
 		h0 = FRAME_HEIGHT - y0;
 	}
-	FrameToRead = ((w0)&&(h0));
+	gpu_unai.dma.FrameToRead = ((w0)&&(h0));
 
-	px = 0;
-	py = 0;
-	x_end = w0;
-	y_end = h0;
-	pvram = &((u16*)GPU_FrameBuffer)[x0+(y0*1024)];
+	gpu_unai.dma.px = 0;
+	gpu_unai.dma.py = 0;
+	gpu_unai.dma.x_end = w0;
+	gpu_unai.dma.y_end = h0;
+	gpu_unai.dma.pvram = &((u16*)gpu_unai.vram)[x0+(y0*1024)];
 	
-	GPU_GP1 |= 0x08000000;
+	gpu_unai.GPU_GP1 |= 0x08000000;
 }
+#endif // !USE_GPULIB
 
-INLINE void gpuMoveImage(void)
+void gpuMoveImage(PtrUnion packet)
 {
 	u32 x0, y0, x1, y1;
 	s32 w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	x1 = PacketBuffer.U2[4] & 1023;
-	y1 = PacketBuffer.U2[5] & 511;
-	w0 = PacketBuffer.U2[6];
-	h0 = PacketBuffer.U2[7];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	x1 = packet.U2[4] & 1023;
+	y1 = packet.U2[5] & 511;
+	w0 = packet.U2[6];
+	h0 = packet.U2[7];
 
 	if( (x0==x1) && (y0==y1) ) return;
 	if ((w0<=0) || (h0<=0)) return;
 	
+	#ifdef ENABLE_GPU_LOG_SUPPORT
+		fprintf(stdout,"gpuMoveImage(x0=%u,y0=%u,x1=%u,y1=%u,w0=%d,h0=%d)\n",x0,y0,x1,y1,w0,h0);
+	#endif
+	
 	if (((y0+h0)>512)||((x0+w0)>1024)||((y1+h0)>512)||((x1+w0)>1024))
 	{
-		u16 *psxVuw=GPU_FrameBuffer;
+		u16 *psxVuw=gpu_unai.vram;
 		s32 i,j;
 	    for(j=0;j<h0;j++)
 		 for(i=0;i<w0;i++)
@@ -93,7 +101,7 @@ INLINE void gpuMoveImage(void)
 	else if ((x0&1)||(x1&1))
 	{
 		u16 *lpDst, *lpSrc;
-		lpDst = lpSrc = (u16*)GPU_FrameBuffer;
+		lpDst = lpSrc = (u16*)gpu_unai.vram;
 		lpSrc += FRAME_OFFSET(x0, y0);
 		lpDst += FRAME_OFFSET(x1, y1);
 		x1 = FRAME_WIDTH - w0;
@@ -107,7 +115,7 @@ INLINE void gpuMoveImage(void)
 	else
 	{
 		u32 *lpDst, *lpSrc;
-		lpDst = lpSrc = (u32*)(void*)GPU_FrameBuffer;
+		lpDst = lpSrc = (u32*)(void*)gpu_unai.vram;
 		lpSrc += ((FRAME_OFFSET(x0, y0))>>1);
 		lpDst += ((FRAME_OFFSET(x1, y1))>>1);
 		if (w0&1)
@@ -143,13 +151,13 @@ INLINE void gpuMoveImage(void)
 	}
 }
 
-INLINE void gpuClearImage(void)
+void gpuClearImage(PtrUnion packet)
 {
 	s32   x0, y0, w0, h0;
-	x0 = PacketBuffer.S2[2];
-	y0 = PacketBuffer.S2[3];
-	w0 = PacketBuffer.S2[4] & 0x3ff;
-	h0 = PacketBuffer.S2[5] & 0x3ff;
+	x0 = packet.S2[2];
+	y0 = packet.S2[3];
+	w0 = packet.S2[4] & 0x3ff;
+	h0 = packet.S2[5] & 0x3ff;
 	 
 	w0 += x0;
 	if (x0 < 0) x0 = 0;
@@ -162,10 +170,14 @@ INLINE void gpuClearImage(void)
 	h0 -= y0;
 	if (h0 <= 0) return;
 
+	#ifdef ENABLE_GPU_LOG_SUPPORT
+		fprintf(stdout,"gpuClearImage(x0=%d,y0=%d,w0=%d,h0=%d)\n",x0,y0,w0,h0);
+	#endif
+	
 	if (x0&1)
 	{
-		u16* pixel = (u16*)GPU_FrameBuffer + FRAME_OFFSET(x0, y0);
-		u16 rgb = GPU_RGB16(PacketBuffer.S4[0]);
+		u16* pixel = (u16*)gpu_unai.vram + FRAME_OFFSET(x0, y0);
+		u16 rgb = GPU_RGB16(packet.U4[0]);
 		y0 = FRAME_WIDTH - w0;
 		do {
 			x0=w0;
@@ -175,8 +187,8 @@ INLINE void gpuClearImage(void)
 	}
 	else
 	{
-		u32* pixel = (u32*)(void*)GPU_FrameBuffer + ((FRAME_OFFSET(x0, y0))>>1);
-		u32 rgb = GPU_RGB16(PacketBuffer.S4[0]);
+		u32* pixel = (u32*)gpu_unai.vram + ((FRAME_OFFSET(x0, y0))>>1);
+		u32 rgb = GPU_RGB16(packet.U4[0]);
 		rgb |= (rgb<<16);
 		if (w0&1)
 		{

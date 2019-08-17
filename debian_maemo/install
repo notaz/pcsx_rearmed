@@ -1,0 +1,6 @@
+pcsx opt/maemo/usr/games/
+plugins/spunull/spunull.so opt/maemo/usr/games/plugins
+plugins/gpu_unai/gpu_unai.so opt/maemo/usr/games/plugins
+#plugins/gpu_unai/gpuPCSX4ALL.so opt/maemo/usr/games/plugins
+plugins/dfxvideo/gpu_peops.so opt/maemo/usr/games/plugins
+plugins/gpu-gles/gpu_gles.so opt/maemo/usr/games/plugins

@@ -150,6 +150,9 @@ OBJS += plugins/dfxvideo/gpulib_if.o
 endif
 ifeq "$(BUILTIN_GPU)" "unai"
 CFLAGS += -DGPU_UNAI
+CFLAGS += -DUSE_GPULIB=1
+#CFLAGS += -DINLINE="static __inline__"
+#CFLAGS += -Dasm="__asm__ __volatile__"
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
