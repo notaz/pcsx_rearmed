@@ -2078,7 +2078,7 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 		return false;
 
 	while ((ent = readdir(dir))) {
-		if (strncasecmp(ent->d_name, "scph", 4) != 0)
+		if ((strncasecmp(ent->d_name, "scph", 4) != 0) && (strncasecmp(ent->d_name, "psx", 3) != 0))
 			continue;
 
 		snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
@@ -2144,6 +2144,7 @@ static void loadPSXBios(void)
 	unsigned useHLE = 0;
 
 	const char *bios[] = {
+		"PSXONPSP660", "psxonpsp660",
 		"SCPH101", "scph101",
 		"SCPH5501", "scph5501",
 		"SCPH7001", "scph7001",
