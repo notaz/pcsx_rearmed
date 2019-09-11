@@ -26,7 +26,7 @@ extern "C" {
 
 #include "psxcommon.h"
 
-#if defined(__BIGENDIAN__)
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
 #define _SWAP16(b) ((((unsigned char *)&(b))[0] & 0xff) | (((unsigned char *)&(b))[1] & 0xff) << 8)
 #define _SWAP32(b) ((((unsigned char *)&(b))[0] & 0xff) | ((((unsigned char *)&(b))[1] & 0xff) << 8) | ((((unsigned char *)&(b))[2] & 0xff) << 16) | (((unsigned char *)&(b))[3] << 24))
