@@ -19,6 +19,18 @@ extern "C" {
 
 #define CMD_BUFFER_LEN          1024
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define HTOLE32(x) __builtin_bswap32(x)
+#define HTOLE16(x) __builtin_bswap16(x)
+#define LE32TOH(x) __builtin_bswap32(x)
+#define LE16TOH(x) __builtin_bswap16(x)
+#else
+#define HTOLE32(x) (x)
+#define HTOLE16(x) (x)
+#define LE32TOH(x) (x)
+#define LE16TOH(x) (x)
+#endif
+
 #define BIT(x) (1 << (x))
 
 #define PSX_GPU_STATUS_DHEIGHT		BIT(19)
