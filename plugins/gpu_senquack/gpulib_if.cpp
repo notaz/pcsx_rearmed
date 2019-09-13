@@ -226,10 +226,10 @@ int do_cmd_list(u32 *list, int list_len, int *last_cmd)
   gpu_senquack.ilace_mask = gpu_senquack.config.ilace_force;
 
 #ifdef HAVE_PRE_ARMV7 /* XXX */
-  gpu_senquack.ilace_mask |= gpu.status.interlace;
+  gpu_senquack.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
 #endif
   if (gpu_senquack.config.scale_hires) {
-    gpu_senquack.ilace_mask |= gpu.status.interlace;
+    gpu_senquack.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   for (; list < list_end; list += 1 + len)

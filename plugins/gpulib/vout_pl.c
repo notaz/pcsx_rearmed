@@ -36,7 +36,7 @@ static void check_mode_change(int force)
 
   gpu.state.enhancement_active =
     gpu.get_enhancement_bufer != NULL && gpu.state.enhancement_enable
-    && w <= 512 && h <= 256 && !gpu.status.rgb24;
+    && w <= 512 && h <= 256 && !(gpu.status & PSX_GPU_STATUS_RGB24);
 
   if (gpu.state.enhancement_active) {
     w_out *= 2;
@@ -44,12 +44,13 @@ static void check_mode_change(int force)
   }
 
   // width|rgb24 change?
-  if (force || (gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
+  if (force || (gpu.status ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
   {
-    old_status = gpu.status.reg;
+    old_status = gpu.status;
     old_h = h;
 
-    cbs->pl_vout_set_mode(w_out, h_out, w, h, gpu.status.rgb24 ? 24 : 16);
+    cbs->pl_vout_set_mode(w_out, h_out, w, h,
+          (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16);
   }
 }
 
@@ -82,7 +83,7 @@ void vout_update(void)
 
   vram += y * 1024 + x;
 
-  cbs->pl_vout_flip(vram, 1024, gpu.status.rgb24, w, h);
+  cbs->pl_vout_flip(vram, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), w, h);
 }
 
 void vout_blank(void)
@@ -95,7 +96,7 @@ void vout_blank(void)
     w *= 2;
     h *= 2;
   }
-  cbs->pl_vout_flip(NULL, 1024, gpu.status.rgb24, w, h);
+  cbs->pl_vout_flip(NULL, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), w, h);
 }
 
 long GPUopen(void **unused)
