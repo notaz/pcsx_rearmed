@@ -38,8 +38,8 @@
 #define PSXGPU_TIMING_BITS (PSXGPU_LCF | PSXGPU_nBUSY)
 
 #define gpuSyncPluginSR() { \
-	HW_GPU_STATUS &= PSXGPU_TIMING_BITS; \
-	HW_GPU_STATUS |= GPU_readStatus() & ~PSXGPU_TIMING_BITS; \
+	HW_GPU_STATUS &= SWAP32(PSXGPU_TIMING_BITS); \
+	HW_GPU_STATUS |= SWAP32(GPU_readStatus() & ~PSXGPU_TIMING_BITS); \
 }
 
 #endif /* __GPU_H__ */

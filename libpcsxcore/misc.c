@@ -724,7 +724,7 @@ int LoadState(const char *file) {
 	GPU_freeze(0, gpufP);
 	free(gpufP);
 	if (HW_GPU_STATUS == 0)
-		HW_GPU_STATUS = GPU_readStatus();
+		HW_GPU_STATUS = SWAP32(GPU_readStatus());
 
 	// spu
 	SaveFuncs.read(f, &Size, 4);
