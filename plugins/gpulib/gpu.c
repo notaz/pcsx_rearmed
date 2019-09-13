@@ -59,7 +59,7 @@ static noinline void do_reset(void)
   memset(gpu.regs, 0, sizeof(gpu.regs));
   for (i = 0; i < sizeof(gpu.ex_regs) / sizeof(gpu.ex_regs[0]); i++)
     gpu.ex_regs[i] = (0xe0 + i) << 24;
-  gpu.status.reg = 0x14802000;
+  gpu.status = 0x14802000;
   gpu.gp0 = 0;
   gpu.regs[3] = 1;
   gpu.screen.hres = gpu.screen.w = 256;
@@ -80,7 +80,7 @@ static noinline void update_height(void)
 {
   // TODO: emulate this properly..
   int sh = gpu.screen.y2 - gpu.screen.y1;
-  if (gpu.status.dheight)
+  if (gpu.status & PSX_GPU_STATUS_DHEIGHT)
     sh *= 2;
   if (sh <= 0 || sh > gpu.screen.vres)
     sh = gpu.screen.vres;
@@ -121,7 +121,7 @@ static noinline int decide_frameskip_allow(uint32_t cmd_e3)
   // but not for interlace since it'll most likely always do that
   uint32_t x = cmd_e3 & 0x3ff;
   uint32_t y = (cmd_e3 >> 10) & 0x3ff;
-  gpu.frameskip.allow = gpu.status.interlace ||
+  gpu.frameskip.allow = (gpu.status & PSX_GPU_STATUS_INTERLACE) ||
     (uint32_t)(x - gpu.screen.x) >= (uint32_t)gpu.screen.w ||
     (uint32_t)(y - gpu.screen.y) >= (uint32_t)gpu.screen.h;
   return gpu.frameskip.allow;
@@ -289,10 +289,14 @@ void GPUwriteStatus(uint32_t data)
       do_cmd_reset();
       break;
     case 0x03:
-      gpu.status.blanking = data & 1;
+      if (data & 1)
+        gpu.status |= PSX_GPU_STATUS_BLANKING;
+      else
+        gpu.status &= ~PSX_GPU_STATUS_BLANKING;
       break;
     case 0x04:
-      gpu.status.dma = data & 3;
+      gpu.status &= ~PSX_GPU_STATUS_DMA_MASK;
+      gpu.status |= PSX_GPU_STATUS_DMA(data & 3);
       break;
     case 0x05:
       gpu.screen.x = data & 0x3ff;
@@ -316,9 +320,9 @@ void GPUwriteStatus(uint32_t data)
       update_height();
       break;
     case 0x08:
-      gpu.status.reg = (gpu.status.reg & ~0x7f0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
-      gpu.screen.hres = hres[(gpu.status.reg >> 16) & 7];
-      gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
+      gpu.status = (gpu.status & ~0x7f0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
+      gpu.screen.hres = hres[(gpu.status >> 16) & 7];
+      gpu.screen.vres = vres[(gpu.status >> 19) & 3];
       update_width();
       update_height();
       renderer_notify_res_change();
@@ -432,7 +436,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 
   renderer_flush_queues();
   if (is_read) {
-    gpu.status.img = 1;
+    gpu.status |= PSX_GPU_STATUS_IMG;
     // XXX: wrong for width 1
     memcpy(&gpu.gp0, VRAM_MEM_XY(gpu.dma.x, gpu.dma.y), 4);
     gpu.state.last_vram_read_frame = *gpu.state.frame_count;
@@ -445,7 +449,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 static void finish_vram_transfer(int is_read)
 {
   if (is_read)
-    gpu.status.img = 0;
+    gpu.status &= ~PSX_GPU_STATUS_IMG;
   else
     renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
                            gpu.dma_start.w, gpu.dma_start.h);
@@ -560,9 +564,9 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
       break;
   }
 
-  gpu.status.reg &= ~0x1fff;
-  gpu.status.reg |= gpu.ex_regs[1] & 0x7ff;
-  gpu.status.reg |= (gpu.ex_regs[6] & 3) << 11;
+  gpu.status &= ~0x1fff;
+  gpu.status |= gpu.ex_regs[1] & 0x7ff;
+  gpu.status |= (gpu.ex_regs[6] & 3) << 11;
 
   gpu.state.fb_dirty |= vram_dirty;
 
@@ -700,7 +704,7 @@ uint32_t GPUreadStatus(void)
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
-  ret = gpu.status.reg;
+  ret = gpu.status;
   log_io("gpu_read_status %08x\n", ret);
   return ret;
 }
@@ -726,14 +730,14 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
       memcpy(freeze->psxVRam, gpu.vram, 1024 * 512 * 2);
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
       memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
-      freeze->ulStatus = gpu.status.reg;
+      freeze->ulStatus = gpu.status;
       break;
     case 0: // load
       renderer_sync();
       memcpy(gpu.vram, freeze->psxVRam, 1024 * 512 * 2);
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
-      gpu.status.reg = freeze->ulStatus;
+      gpu.status = freeze->ulStatus;
       gpu.cmd_len = 0;
       for (i = 8; i > 0; i--) {
         gpu.regs[i] ^= 1; // avoid reg change detection
@@ -753,7 +757,7 @@ void GPUupdateLace(void)
     flush_cmd_buffer();
   renderer_flush_queues();
 
-  if (gpu.status.blanking) {
+  if (gpu.status & PSX_GPU_STATUS_BLANKING) {
     if (!gpu.state.blanked) {
       vout_blank();
       gpu.state.blanked = 1;
@@ -785,7 +789,8 @@ void GPUupdateLace(void)
 void GPUvBlank(int is_vblank, int lcf)
 {
   int interlace = gpu.state.allow_interlace
-    && gpu.status.interlace && gpu.status.dheight;
+    && (gpu.status & PSX_GPU_STATUS_INTERLACE)
+    && (gpu.status & PSX_GPU_STATUS_DHEIGHT);
   // interlace doesn't look nice on progressive displays,
   // so we have this "auto" mode here for games that don't read vram
   if (gpu.state.allow_interlace == 2
