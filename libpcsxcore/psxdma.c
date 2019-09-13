@@ -185,7 +185,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
 			if ((int)size <= 0)
 				size = gpuDmaChainSize(madr);
-			HW_GPU_STATUS &= ~PSXGPU_nBUSY;
+			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 
 			// we don't emulate progress, just busy flag and end irq,
 			// so pretend we're already at the last block
@@ -217,7 +217,7 @@ void gpuInterrupt() {
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);
 		DMA_INTERRUPT(2);
 	}
-	HW_GPU_STATUS |= PSXGPU_nBUSY; // GPU no longer busy
+	HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY); // GPU no longer busy
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
@@ -245,7 +245,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 			*mem-- = SWAP32((madr - 4) & 0xffffff);
 			madr -= 4;
 		}
-		mem++; *mem = 0xffffff;
+		*++mem = SWAP32(0xffffff);
 
 		//GPUOTCDMA_INT(size);
 		// halted

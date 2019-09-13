@@ -38,7 +38,7 @@ void psxHwReset() {
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
 	psxRcntInit();
-	HW_GPU_STATUS = 0x14802000;
+	HW_GPU_STATUS = SWAP32(0x14802000);
 }
 
 u8 psxHwRead8(u32 add) {
@@ -248,8 +248,8 @@ u32 psxHwRead32(u32 add) {
 			return hard;
 		case 0x1f801814:
 			gpuSyncPluginSR();
-			hard = HW_GPU_STATUS;
-			if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+			hard = SWAP32(HW_GPU_STATUS);
+			if (hSyncCount < 240 && (hard & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
 				hard |= PSXGPU_LCF & (psxRegs.cycle << 20);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
@@ -446,7 +446,7 @@ void psxHwWrite16(u32 add, u16 value) {
 			PSXHW_LOG("IMASK 16bit write %x\n", value);
 #endif
 			psxHu16ref(0x1074) = SWAPu16(value);
-			if (psxHu16ref(0x1070) & value)
+			if (psxHu16ref(0x1070) & SWAPu16(value))
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 
@@ -560,7 +560,7 @@ void psxHwWrite32(u32 add, u32 value) {
 			PSXHW_LOG("IMASK 32bit write %x\n", value);
 #endif
 			psxHu32ref(0x1074) = SWAPu32(value);
-			if (psxHu32ref(0x1070) & value)
+			if (psxHu32ref(0x1070) & SWAPu32(value))
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 
