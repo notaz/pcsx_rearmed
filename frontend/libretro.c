@@ -1927,7 +1927,6 @@ void retro_run(void)
 			//GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
 			
 			// Trigger
-			//input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_O)
 			//The 1 is hardcoded instead of i to prevent the overlay mouse button libretro crash bug
 			if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT)){
 				in_keystate[i] |= (1 << DKEY_CIRCLE);
