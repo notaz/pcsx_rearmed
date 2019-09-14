@@ -220,7 +220,7 @@ typedef struct
 	int configMode;
 	unsigned char reserved[87];
 	
-	//Lightgun values
+	//Lightgun values 
 	int absoluteX,absoluteY;
 
 } PadDataS;
