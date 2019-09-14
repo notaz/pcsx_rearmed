@@ -219,6 +219,9 @@ typedef struct
 	//configuration mode Request 0x43
 	int configMode;
 	unsigned char reserved[87];
+	
+	//Lightgun values
+	int absoluteX,absoluteY;
 
 } PadDataS;
 
