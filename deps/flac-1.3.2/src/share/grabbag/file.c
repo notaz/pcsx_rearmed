@@ -58,7 +58,9 @@ void grabbag__file_copy_metadata(const char *srcpath, const char *destpath)
 		srctime.actime = srcstat.st_atime;
 		srctime.modtime = srcstat.st_mtime;
 		(void)flac_chmod(destpath, srcstat.st_mode);
+#if !defined _3DS
 		(void)flac_utime(destpath, &srctime);
+#endif
 	}
 }
 
