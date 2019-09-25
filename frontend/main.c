@@ -130,6 +130,13 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
+	pl_rearmed_cbs.gpu_unai.ilace_force = 0;
+	pl_rearmed_cbs.gpu_unai.pixel_skip = 1;
+	pl_rearmed_cbs.gpu_unai.lighting = 1;
+	pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
+	pl_rearmed_cbs.gpu_unai.blending = 1;
+	pl_rearmed_cbs.gpu_unai.dithering = 0;
+	// old gpu_unai config
 	pl_rearmed_cbs.gpu_unai.abe_hack =
 	pl_rearmed_cbs.gpu_unai.no_light =
 	pl_rearmed_cbs.gpu_unai.no_blend = 0;

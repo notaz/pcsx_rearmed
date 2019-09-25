@@ -23,132 +23,166 @@
 
 //  GPU Blending operations functions
 
-#ifdef __arm__
-#define gpuBlending00(uSrc,uDst) \
-{ \
-	asm ("and  %[src], %[src], %[msk]\n" \
-	     "and  %[dst], %[dst], %[msk]\n" \
-	     "add  %[src], %[dst], %[src]\n" \
-	     "mov  %[src], %[src], lsr #1\n" \
-	 : [src] "=&r" (uSrc), [dst] "=&r" (uDst) : "0" (uSrc), "1" (uDst), [msk] "r" (uMsk)); \
-}
-#else
-#define gpuBlending00(uSrc,uDst) \
-{ \
-	uSrc = (((uDst & uMsk) + (uSrc & uMsk)) >> 1); \
-}
-#endif
-
-//	1.0 x Back + 1.0 x Forward
-#ifdef __arm__
-#define gpuBlending01(uSrc,uDst) \
-{ \
-	u32 st,dt,out; \
-	asm ("and    %[dt],  %[dst],   #0x7C00\n" \
-	     "and    %[st],  %[src],   #0x7C00\n" \
-	     "add    %[out], %[dt],    %[st]  \n" \
-	     "cmp    %[out], #0x7C00          \n" \
-	     "movhi  %[out], #0x7C00          \n" \
-	     "and    %[dt],  %[dst],   #0x03E0\n" \
-	     "and    %[st],  %[src],   #0x03E0\n" \
-	     "add    %[dt],  %[dt],    %[st]  \n" \
-	     "cmp    %[dt],  #0x03E0          \n" \
-	     "movhi  %[dt],  #0x03E0          \n" \
-	     "orr    %[out], %[out],   %[dt]  \n" \
-	     "and    %[dt],  %[dst],   #0x001F\n" \
-	     "and    %[st],  %[src],   #0x001F\n" \
-	     "add    %[dt],  %[dt],    %[st]  \n" \
-	     "cmp    %[dt],  #0x001F          \n" \
-	     "movhi  %[dt],  #0x001F          \n" \
-	     "orr    %[src], %[out],  %[dt]  \n" \
-	 : [src] "=r" (uSrc), [st] "=&r" (st), [dt] "=&r" (dt), [out] "=&r" (out) \
-	 : [dst] "r" (uDst), "0" (uSrc) : "cc"); \
-}
-#else
-#define gpuBlending01(uSrc,uDst) \
-{ \
-	u16 rr, gg, bb; \
-	bb = (uDst & 0x7C00) + (uSrc & 0x7C00);   if (bb > 0x7C00)  bb = 0x7C00; \
-	gg = (uDst & 0x03E0) + (uSrc & 0x03E0);   if (gg > 0x03E0)  gg = 0x03E0;  bb |= gg; \
-	rr = (uDst & 0x001F) + (uSrc & 0x001F);   if (rr > 0x001F)  rr = 0x001F;  bb |= rr; \
-	uSrc = bb; \
-}
-#endif
-
-//	1.0 x Back - 1.0 x Forward	*/
-#ifdef __arm__
-#define gpuBlending02(uSrc,uDst) \
-{ \
-	u32 st,dt,out; \
-	asm ("and    %[dt],  %[dst],   #0x7C00\n" \
-	     "and    %[st],  %[src],   #0x7C00\n" \
-	     "subs   %[out], %[dt],    %[st]  \n" \
-	     "movmi  %[out], #0x0000          \n" \
-	     "and    %[dt],  %[dst],   #0x03E0\n" \
-	     "and    %[st],  %[src],   #0x03E0\n" \
-	     "subs   %[dt],  %[dt],    %[st]  \n" \
-	     "orrpl  %[out], %[out],   %[dt]  \n" \
-	     "and    %[dt],  %[dst],   #0x001F\n" \
-	     "and    %[st],  %[src],   #0x001F\n" \
-	     "subs   %[dt],  %[dt],    %[st]  \n" \
-	     "orrpl  %[out], %[out],   %[dt]  \n" \
-	     "mov    %[src], %[out]           \n" \
-	 : [src] "=r" (uSrc), [st] "=&r" (st), [dt] "=&r" (dt), [out] "=&r" (out) \
-	 : [dst] "r" (uDst), "0" (uSrc) : "cc"); \
-}
-
-int btest(int s, int d)
+////////////////////////////////////////////////////////////////////////////////
+// Blend bgr555 color in 'uSrc' (foreground) with bgr555 color
+//  in 'uDst' (background), returning resulting color.
+//
+// INPUT:
+//  'uSrc','uDst' input: -bbbbbgggggrrrrr
+//                       ^ bit 16
+// OUTPUT:
+//           u16 output: 0bbbbbgggggrrrrr
+//                       ^ bit 16
+// RETURNS:
+// Where '0' is zero-padding, and '-' is don't care
+////////////////////////////////////////////////////////////////////////////////
+template <int BLENDMODE, bool SKIP_USRC_MSB_MASK>
+GPU_INLINE u16 gpuBlending(u16 uSrc, u16 uDst)
 {
-	gpuBlending02(s, d);
-	return s;
-}
-#else
-#define gpuBlending02(uSrc,uDst) \
-{ \
-	s32 rr, gg, bb; \
-	bb = (uDst & 0x7C00) - (uSrc & 0x7C00);   if (bb < 0)  bb  =  0; \
-	gg = (uDst & 0x03E0) - (uSrc & 0x03E0);   if (gg > 0)  bb |= gg; \
-	rr = (uDst & 0x001F) - (uSrc & 0x001F);   if (rr > 0)  bb |= rr; \
-	uSrc = bb; \
-}
-#endif
+	// These use Blargg's bitwise modulo-clamping:
+	//  http://blargg.8bitalley.com/info/rgb_mixing.html
+	//  http://blargg.8bitalley.com/info/rgb_clamped_add.html
+	//  http://blargg.8bitalley.com/info/rgb_clamped_sub.html
 
-//	1.0 x Back + 0.25 x Forward	*/
-#ifdef __arm__
-#define gpuBlending03(uSrc,uDst) \
-{ \
-	u32 st,dt,out; \
-	asm ("mov    %[src], %[src],   lsr #2 \n" \
-	     "and    %[dt],  %[dst],   #0x7C00\n" \
-	     "and    %[st],  %[src],   #0x1C00\n" \
-	     "add    %[out], %[dt],    %[st]  \n" \
-	     "cmp    %[out], #0x7C00          \n" \
-	     "movhi  %[out], #0x7C00          \n" \
-	     "and    %[dt],  %[dst],   #0x03E0\n" \
-	     "and    %[st],  %[src],   #0x00E0\n" \
-	     "add    %[dt],  %[dt],    %[st]  \n" \
-	     "cmp    %[dt],  #0x03E0          \n" \
-	     "movhi  %[dt],  #0x03E0          \n" \
-	     "orr    %[out], %[out],   %[dt]  \n" \
-	     "and    %[dt],  %[dst],   #0x001F\n" \
-	     "and    %[st],  %[src],   #0x0007\n" \
-	     "add    %[dt],  %[dt],    %[st]  \n" \
-	     "cmp    %[dt],  #0x001F          \n" \
-	     "movhi  %[dt],  #0x001F          \n" \
-	     "orr    %[src], %[out],   %[dt]  \n" \
-	 : [src] "=r" (uSrc), [st] "=&r" (st), [dt] "=&r" (dt), [out] "=&r" (out) \
-	 : [dst] "r" (uDst), "0" (uSrc) : "cc"); \
-}
+	u16 mix;
+
+	// 0.5 x Back + 0.5 x Forward
+	if (BLENDMODE==0) {
+#ifdef GPU_UNAI_USE_ACCURATE_BLENDING
+		// Slower, but more accurate (doesn't lose LSB data)
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		mix = ((uSrc + uDst) - ((uSrc ^ uDst) & 0x0421)) >> 1;
 #else
-#define gpuBlending03(uSrc,uDst) \
-{ \
-	u16 rr, gg, bb; \
-	uSrc >>= 2; \
-	bb = (uDst & 0x7C00) + (uSrc & 0x1C00);   if (bb > 0x7C00)  bb = 0x7C00; \
-	gg = (uDst & 0x03E0) + (uSrc & 0x00E0);   if (gg > 0x03E0)  gg = 0x03E0;  bb |= gg; \
-	rr = (uDst & 0x001F) + (uSrc & 0x0007);   if (rr > 0x001F)  rr = 0x001F;  bb |= rr; \
-	uSrc = bb; \
-}
+		mix = ((uDst & 0x7bde) + (uSrc & 0x7bde)) >> 1;
 #endif
+	}
+
+	// 1.0 x Back + 1.0 x Forward
+	if (BLENDMODE==1) {
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		u32 sum      = uSrc + uDst;
+		u32 low_bits = (uSrc ^ uDst) & 0x0421;
+		u32 carries  = (sum - low_bits) & 0x8420;
+		u32 modulo   = sum - carries;
+		u32 clamp    = carries - (carries >> 5);
+		mix = modulo | clamp;
+	}
+
+	// 1.0 x Back - 1.0 x Forward
+	if (BLENDMODE==2) {
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		u32 diff     = uDst - uSrc + 0x8420;
+		u32 low_bits = (uDst ^ uSrc) & 0x8420;
+		u32 borrows  = (diff - low_bits) & 0x8420;
+		u32 modulo   = diff - borrows;
+		u32 clamp    = borrows - (borrows >> 5);
+		mix = modulo & clamp;
+	}
+
+	// 1.0 x Back + 0.25 x Forward
+	if (BLENDMODE==3) {
+		uDst &= 0x7fff;
+		uSrc = ((uSrc >> 2) & 0x1ce7);
+		u32 sum      = uSrc + uDst;
+		u32 low_bits = (uSrc ^ uDst) & 0x0421;
+		u32 carries  = (sum - low_bits) & 0x8420;
+		u32 modulo   = sum - carries;
+		u32 clamp    = carries - (carries >> 5);
+		mix = modulo | clamp;
+	}
+
+	return mix;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Convert bgr555 color in uSrc to padded u32 5.4:5.4:5.4 bgr fixed-pt
+//  color triplet suitable for use with HQ 24-bit quantization.
+//
+// INPUT:
+//       'uDst' input: -bbbbbgggggrrrrr
+//                     ^ bit 16
+// RETURNS:
+//         u32 output: 000bbbbbXXXX0gggggXXXX0rrrrrXXXX
+//                     ^ bit 31
+// Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
+////////////////////////////////////////////////////////////////////////////////
+GPU_INLINE u32 gpuGetRGB24(u16 uSrc)
+{
+	return ((uSrc & 0x7C00)<<14)
+	     | ((uSrc & 0x03E0)<< 9)
+	     | ((uSrc & 0x001F)<< 4);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Blend padded u32 5.4:5.4:5.4 bgr fixed-pt color triplet in 'uSrc24'
+//  (foreground color) with bgr555 color in 'uDst' (background color),
+//  returning the resulting u32 5.4:5.4:5.4 color.
+//
+// INPUT:
+//     'uSrc24' input: 000bbbbbXXXX0gggggXXXX0rrrrrXXXX
+//                     ^ bit 31
+//       'uDst' input: -bbbbbgggggrrrrr
+//                     ^ bit 16
+// RETURNS:
+//         u32 output: 000bbbbbXXXX0gggggXXXX0rrrrrXXXX
+//                     ^ bit 31
+// Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
+////////////////////////////////////////////////////////////////////////////////
+template <int BLENDMODE>
+GPU_INLINE u32 gpuBlending24(u32 uSrc24, u16 uDst)
+{
+	// These use techniques adapted from Blargg's techniques mentioned in
+	//  in gpuBlending() comments above. Not as much bitwise trickery is
+	//  necessary because of presence of 0 padding in uSrc24 format.
+
+	u32 uDst24 = gpuGetRGB24(uDst);
+	u32 mix;
+
+	// 0.5 x Back + 0.5 x Forward
+	if (BLENDMODE==0) {
+		const u32 uMsk = 0x1FE7F9FE;
+		// Only need to mask LSBs of uSrc24, uDst24's LSBs are 0 already
+		mix = (uDst24 + (uSrc24 & uMsk)) >> 1;
+	}
+
+	// 1.0 x Back + 1.0 x Forward
+	if (BLENDMODE==1) {
+		u32 sum     = uSrc24 + uDst24;
+		u32 carries = sum & 0x20080200;
+		u32 modulo  = sum - carries;
+		u32 clamp   = carries - (carries >> 9);
+		mix = modulo | clamp;
+	}
+
+	// 1.0 x Back - 1.0 x Forward
+	if (BLENDMODE==2) {
+		// Insert ones in 0-padded borrow slot of color to be subtracted from
+		uDst24 |= 0x20080200;
+		u32 diff    = uDst24 - uSrc24;
+		u32 borrows = diff & 0x20080200;
+		u32 clamp   = borrows - (borrows >> 9);
+		mix = diff & clamp;
+	}
+
+	// 1.0 x Back + 0.25 x Forward
+	if (BLENDMODE==3) {
+		uSrc24 = (uSrc24 & 0x1FC7F1FC) >> 2;
+		u32 sum     = uSrc24 + uDst24;
+		u32 carries = sum & 0x20080200;
+		u32 modulo  = sum - carries;
+		u32 clamp   = carries - (carries >> 9);
+		mix = modulo | clamp;
+	}
+
+	return mix;
+}
 
 #endif  //_OP_BLEND_H_
