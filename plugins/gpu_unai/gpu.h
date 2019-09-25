@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -18,70 +19,52 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
-#ifndef NEW_GPU_H
-#define NEW_GPU_H
+#ifndef GPU_UNAI_GPU_H
+#define GPU_UNAI_GPU_H
 
-///////////////////////////////////////////////////////////////////////////////
-//  GPU global definitions
-#define	FRAME_BUFFER_SIZE	(1024*512*2)
-#define	FRAME_WIDTH			  1024
-#define	FRAME_HEIGHT		  512
-#define	FRAME_OFFSET(x,y)	(((y)<<10)+(x))
+struct gpu_unai_config_t {
+	uint8_t pixel_skip:1;     // If 1, allows skipping rendering pixels that
+	                          //  would not be visible when a high horizontal
+	                          //  resolution PS1 video mode is set.
+	                          //  Only applies to devices with low resolutions
+	                          //  like 320x240. Should not be used if a
+	                          //  down-scaling framebuffer blitter is in use.
+	                          //  Can cause gfx artifacts if game reads VRAM
+	                          //  to do framebuffer effects.
 
-#define VIDEO_WIDTH 320
+	uint8_t ilace_force:3;    // Option to force skipping rendering of lines,
+	                          //  for very slow platforms. Value will be
+	                          //  assigned to 'ilace_mask' in gpu_unai struct.
+	                          //  Normally 0. Value '1' will skip rendering
+	                          //  odd lines.
 
-typedef char				s8;
-typedef signed short		s16;
-typedef signed int			s32;
-typedef signed long long	s64;
+	uint8_t lighting:1;
+	uint8_t fast_lighting:1;
+	uint8_t blending:1;
+	uint8_t dithering:1;
 
-typedef unsigned char		u8;
-typedef unsigned short		u16;
-typedef unsigned int		u32;
-typedef unsigned long long	u64;
+	//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
+	// don't think it's necessary. It would require adding 'AH' flag to
+	// gpuSpriteSpanFn() increasing size of sprite span function array.
+	//uint8_t enableAbbeyHack:1;  // Abe's Odyssey hack
 
-#include "gpu_fixedpoint.h"
-
-///////////////////////////////////////////////////////////////////////////////
-//  Tweaks and Hacks
-extern  int  skipCount;
-extern  bool enableAbbeyHack;
-extern  bool show_fps;
-extern  bool alt_fps;
-
-///////////////////////////////////////////////////////////////////////////////
-//  interlaced rendering
-extern  int linesInterlace_user;
-extern  bool progressInterlace;
-
-extern  bool light;
-extern  bool blend;
-
-typedef struct {
-	u32 Version;
-	u32 GPU_gp1;
-	u32 Control[256];
-	unsigned char FrameBuffer[1024*512*2];
-} GPUFreeze_t;
-
-struct  GPUPacket
-{
-	union
-	{
-		u32 U4[16];
-		s32 S4[16];
-		u16 U2[32];
-		s16 S2[32];
-		u8  U1[64];
-		s8  S1[64];
-	};
+	////////////////////////////////////////////////////////////////////////////
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
+#ifndef USE_GPULIB
+	uint8_t prog_ilace:1;         // Progressive interlace option (old option)
+	                              //  This option was somewhat oddly named:
+	                              //  When in interlaced video mode, on a low-res
+	                              //  320x240 device, only the even lines are
+	                              //  rendered. This option will take that one
+	                              //  step further and only render half the even
+	                              //  even lines one frame, and then the other half.
+	uint8_t frameskip_count:3;    // Frame skip (0..7)
+#endif
 };
 
-///////////////////////////////////////////////////////////////////////////////
-//  Compile Options
+extern gpu_unai_config_t gpu_unai_config_ext;
 
-//#define ENABLE_GPU_NULL_SUPPORT   // Enables NullGPU support
-//#define ENABLE_GPU_LOG_SUPPORT    // Enables gpu logger, very slow only for windows debugging
+// TODO: clean up show_fps frontend option
+extern  bool show_fps;
 
-///////////////////////////////////////////////////////////////////////////////
-#endif  // NEW_GPU_H
+#endif // GPU_UNAI_GPU_H

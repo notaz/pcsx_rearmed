@@ -78,6 +78,7 @@ static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
 static int show_advanced_gpu_peops_settings = -1;
+static int show_advanced_gpu_unai_settings  = -1;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -1433,6 +1434,7 @@ static void update_variables(bool in_flight)
       if (strcmp(var.value, "disabled") == 0) {
          pl_rearmed_cbs.gpu_peops.iUseDither = 0;
          pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
+         pl_rearmed_cbs.gpu_unai.dithering = 0;
 #ifdef __ARM_NEON__
          pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
 #endif
@@ -1440,6 +1442,7 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "enabled") == 0) {
          pl_rearmed_cbs.gpu_peops.iUseDither = 1;
          pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
+         pl_rearmed_cbs.gpu_unai.dithering = 1;
 #ifdef __ARM_NEON__
          pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
 #endif
@@ -1766,6 +1769,96 @@ static void update_variables(bool in_flight)
       }
    }
 #endif
+
+#ifdef GPU_UNAI
+   var.key = "pcsx_rearmed_gpu_unai_ilace_force";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_unai.ilace_force = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.ilace_force = 1;
+   }
+
+   var.key = "pcsx_rearmed_gpu_unai_pixel_skip";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.pixel_skip = 1;
+   }
+
+   var.key = "pcsx_rearmed_gpu_unai_lighting";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_unai.lighting = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.lighting = 1;
+   }
+
+   var.key = "pcsx_rearmed_gpu_unai_fast_lighting";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_unai.fast_lighting = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
+   }
+
+   var.key = "pcsx_rearmed_gpu_unai_blending";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.gpu_unai.blending = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.blending = 1;
+   }
+
+   var.key = "pcsx_rearmed_show_gpu_unai_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int show_advanced_gpu_unai_settings_prev = show_advanced_gpu_unai_settings;
+
+      show_advanced_gpu_unai_settings = 1;
+      if (strcmp(var.value, "disabled") == 0)
+         show_advanced_gpu_unai_settings = 0;
+
+      if (show_advanced_gpu_unai_settings != show_advanced_gpu_unai_settings_prev)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_unai_option[5][40] = {
+            "pcsx_rearmed_gpu_unai_blending",
+            "pcsx_rearmed_gpu_unai_lighting",
+            "pcsx_rearmed_gpu_unai_fast_lighting",
+            "pcsx_rearmed_gpu_unai_ilace_force",
+            "pcsx_rearmed_gpu_unai_pixel_skip",
+         };
+
+         option_display.visible = show_advanced_gpu_unai_settings;
+
+         for (i = 0; i < 5; i++)
+         {
+            option_display.key = gpu_unai_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+         }
+      }
+   }
+#endif // GPU_UNAI
 
    if (in_flight) {
       // inform core things about possible config changes
