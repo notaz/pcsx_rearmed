@@ -25,7 +25,7 @@ static inline int pthread_create(pthread_t *thread,
 
    svcCreateThread(&thread->handle, start_routine, arg,
                    (uint32_t*)((uint32_t)thread->stack + CTR_PTHREAD_STACK_SIZE),
-                   0x25, 1);
+                   0x25, -2);
 
    return 1;
 }
