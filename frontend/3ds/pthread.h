@@ -10,23 +10,13 @@
 
 #define CTR_PTHREAD_STACK_SIZE 0x10000
 
-typedef struct
-{
-   int32_t handle;
-   uint32_t* stack;
-}pthread_t;
+typedef int32_t pthread_t;
 typedef int pthread_attr_t;
 
 static inline int pthread_create(pthread_t *thread,
       const pthread_attr_t *attr, void *(*start_routine)(void*), void *arg)
 {
-
-   thread->stack =  linearMemAlign(CTR_PTHREAD_STACK_SIZE, 8);
-
-   svcCreateThread(&thread->handle, start_routine, arg,
-                   (uint32_t*)((uint32_t)thread->stack + CTR_PTHREAD_STACK_SIZE),
-                   0x25, -2);
-
+   thread = threadCreate(start_routine, arg, CTR_PTHREAD_STACK_SIZE, 0x25, -2, FALSE);
    return 1;
 }
 
@@ -35,10 +25,10 @@ static inline int pthread_join(pthread_t thread, void **retval)
 {
    (void)retval;
 
-   if(svcWaitSynchronization(thread.handle, INT64_MAX))
+   if(threadJoin(thread, INT64_MAX))
       return -1;
 
-   linearFree(thread.stack);
+   threadFree(thread);
 
    return 0;
 }
@@ -48,7 +38,7 @@ static inline void pthread_exit(void *retval)
 {   
    (void)retval;
 
-   svcExitThread();
+   threadExit(0);
 }
 
 
