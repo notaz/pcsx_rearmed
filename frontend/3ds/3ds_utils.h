@@ -2,6 +2,7 @@
 #define _3DS_UTILS_H
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #define MEMOP_PROT      6
 #define MEMOP_MAP       4
@@ -15,9 +16,10 @@ int32_t svcCloseHandle(uint32_t handle);
 int32_t svcControlMemory(void* addr_out, void* addr0, void* addr1, uint32_t size, uint32_t op, uint32_t perm);
 int32_t svcControlProcessMemory(uint32_t process, void* addr0, void* addr1, uint32_t size, uint32_t op, uint32_t perm);
 
-int32_t svcCreateThread(int32_t* thread, void *(*entrypoint)(void*), void* arg, void* stack_top, int32_t thread_priority, int32_t processor_id);
-int32_t svcWaitSynchronization(int32_t handle, int64_t nanoseconds);
-void svcExitThread(void) __attribute__((noreturn));
+int32_t threadCreate(void *(*entrypoint)(void*), void* arg, size_t stack_size, int32_t prio, int32_t affinity, bool detached);
+int32_t threadJoin(int32_t thread, int64_t timeout_ns);
+void threadFree(int32_t thread);
+void threadExit(int32_t rc)  __attribute__((noreturn));
 
 int32_t svcBackdoor(int32_t (*callback)(void));
 
