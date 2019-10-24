@@ -1140,13 +1140,18 @@ static int opensubfile(const char *isoname) {
 }
 
 static int opensbifile(const char *isoname) {
-	char		sbiname[MAXPATHLEN];
+	char		sbiname[MAXPATHLEN], disknum[MAXPATHLEN] = "0";
 	int		s;
 
 	strncpy(sbiname, isoname, sizeof(sbiname));
 	sbiname[MAXPATHLEN - 1] = '\0';
 	if (strlen(sbiname) >= 4) {
-		strcpy(sbiname + strlen(sbiname) - 4, ".sbi");
+		if (cdrIsoMultidiskCount > 1) {
+			sprintf(disknum, "_%i.sbi", cdrIsoMultidiskSelect + 1);
+			strcpy(sbiname + strlen(sbiname) - 4, disknum);
+		}
+		else
+			strcpy(sbiname + strlen(sbiname) - 4, ".sbi");
 	}
 	else {
 		return -1;
