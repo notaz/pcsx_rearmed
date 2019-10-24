@@ -643,6 +643,48 @@ void _PADstartPoll(PadDataS *pad) {
             memcpy(buf, stdpar, 8);
             respSize = 8;
             break;
+	case PSE_PAD_TYPE_GUNCON: // GUNCON - gun controller SLPH-00034 from Namco
+            stdpar[0] = 0x63;
+	    stdpar[1] = 0x5a;
+            stdpar[2] = pad->buttonStatus & 0xff;
+            stdpar[3] = pad->buttonStatus >> 8;
+		    
+            //This code assumes an X resolution of 256 and a Y resolution of 240
+	    int xres = 256;
+	    int yres = 240;
+	    
+	    //The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767 
+	    int absX = (pad->absoluteX / 64) + 512;
+	    int absY = (pad->absoluteY / 64) + 512;
+		       
+	    //Keep within limits
+	    if (absX > 1023) absX = 1023;
+	    if (absX < 0) absX = 0;
+	    if (absY > 1023) absY = 1023;
+	    if (absY < 0) absY = 0;
+		    
+	    stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);	
+	    stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
+	    stdpar[6] = 0x20 + (yres * absY >> 10);
+	    stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
+		    
+	    //Offscreen - Point at the side of the screen so PSX thinks you are pointing offscreen
+	    //Required as a mouse can't be offscreen
+	    //Coordinates X=0001h, Y=000Ah indicates "no light"
+	    //This will mean you cannot shoot the very each of the screen
+            //ToDo read offscreen range from settings if useful to change
+	    int OffscreenRange = 2;
+	    if (absX < (OffscreenRange) || absX > (1023 - OffscreenRange) || absY < (OffscreenRange) || absY > (1023 - OffscreenRange))
+	    {
+		stdpar[4] = 0x01;
+	    	stdpar[5] = 0x00;
+		stdpar[6] = 0x0A;
+	    	stdpar[7] = 0x00;	    
+	    }
+		    
+            memcpy(buf, stdpar, 8);
+            respSize = 8;
+            break;
         case PSE_PAD_TYPE_ANALOGPAD: // scph1150
             stdpar[0] = 0x73;
             stdpar[2] = pad->buttonStatus & 0xff;

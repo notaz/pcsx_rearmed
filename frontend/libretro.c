@@ -572,6 +572,8 @@ static void update_controller_port_variable(unsigned port)
 			in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
 		else if (strcmp(var.value, "negcon") == 0)
 			in_type[port] = PSE_PAD_TYPE_NEGCON;
+		else if (strcmp(var.value, "guncon") == 0)
+			in_type[port] = PSE_PAD_TYPE_GUNCON;
 		else if (strcmp(var.value, "none") == 0)
 			in_type[port] = PSE_PAD_TYPE_NONE;
 		// else 'default' case, do nothing
@@ -2000,6 +2002,93 @@ void retro_run(void)
          }
       }
 
+		if (in_type[i] == PSE_PAD_TYPE_GUNCON)
+		{
+			//ToDo move across to:
+			//RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X
+			//RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y   
+			//RETRO_DEVICE_ID_LIGHTGUN_TRIGGER
+			//RETRO_DEVICE_ID_LIGHTGUN_RELOAD
+			//RETRO_DEVICE_ID_LIGHTGUN_AUX_A 
+			//RETRO_DEVICE_ID_LIGHTGUN_AUX_B
+			//Though not sure these are hooked up properly on the Pi
+			
+			//ToDo
+			//Put the controller index back to i instead of hardcoding to 1 when the libretro overlay crash bug is fixed
+			//This is required for 2 player
+			
+			//GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
+			
+			// Trigger
+			//The 1 is hardcoded instead of i to prevent the overlay mouse button libretro crash bug
+			if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT)){
+				in_keystate[i] |= (1 << DKEY_CIRCLE);
+			}
+			
+			// A
+			if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT)){
+				in_keystate[i] |= (1 << DKEY_START);
+			}
+			
+			// B
+			if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE)){
+				in_keystate[i] |= (1 << DKEY_CROSS);
+			}
+			
+			//The 1 is hardcoded instead of i to prevent the overlay mouse button libretro crash bug
+			int gunx = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
+			int guny = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+			
+			//This adjustment process gives the user the ability to manually align the mouse up better 
+			//with where the shots are in the emulator.
+			
+			//Percentage distance of screen to adjust 
+			int GunconAdjustX = 0;
+			int GunconAdjustY = 0;
+			
+			//Used when out by a percentage
+			float GunconAdjustRatioX = 1;
+			float GunconAdjustRatioY = 1;
+				
+			struct retro_variable var;
+   			var.value = NULL;
+   			var.key = "pcsx_rearmed_gunconadjustx";
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+			{
+				GunconAdjustX = atoi(var.value);	
+			}
+      			
+   			var.value = NULL;
+   			var.key = "pcsx_rearmed_gunconadjusty";
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+			{
+				GunconAdjustY = atoi(var.value);	
+			} 
+			
+			
+   			var.value = NULL;
+   			var.key = "pcsx_rearmed_gunconadjustratiox";
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+			{
+				GunconAdjustRatioX = atof(var.value);	
+			} 
+			
+			
+   			var.value = NULL;
+   			var.key = "pcsx_rearmed_gunconadjustratioy";
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+			{
+				GunconAdjustRatioY = atof(var.value);	
+			} 
+			
+			//Mouse range is -32767 -> 32767
+			//1% is about 655
+			//Use the left analog stick field to store the absolute coordinates
+			in_analog_left[0][0] = (gunx*GunconAdjustRatioX) + (GunconAdjustX * 655);
+			in_analog_left[0][1] = (guny*GunconAdjustRatioY) + (GunconAdjustY * 655);
+			
+			
+		}
 		if (in_type[i] == PSE_PAD_TYPE_NEGCON)
 		{
 			// Query digital inputs
@@ -2104,7 +2193,7 @@ void retro_run(void)
 			// > NeGcon L
 			in_analog_left[i][1] = get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L);
 		}
-		else
+		if (in_type[i] != PSE_PAD_TYPE_NEGCON && in_type[i] != PSE_PAD_TYPE_GUNCON)
 		{
 			// Query digital inputs
 			for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
