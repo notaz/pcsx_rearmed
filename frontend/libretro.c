@@ -1614,6 +1614,16 @@ static void update_variables(bool in_flight)
          Config.Cdda = 0;
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_spuirq";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.SpuIrq = 0;
+      else
+         Config.SpuIrq = 1;
+   }
+
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "pcsx_rearmed_nosmccheck";

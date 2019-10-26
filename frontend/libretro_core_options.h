@@ -970,6 +970,17 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "enabled",
    },
+   {
+      "pcsx_rearmed_spuirq",
+      "SPU IRQ Always Enabled",
+      "Compatibility tweak, should be left to off in most cases.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
 
 #ifndef DRC_DISABLE
    {
