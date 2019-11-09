@@ -528,6 +528,12 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
 
     cmd = data[pos] >> 24;
     if (0xa0 <= cmd && cmd <= 0xdf) {
+      if (unlikely((pos+2) >= count)) {
+        // incomplete vram write/read cmd, can't consume yet
+        cmd = -1;
+        break;
+      }
+
       // consume vram write/read cmd
       start_vram_transfer(data[pos + 1], data[pos + 2], (cmd & 0xe0) == 0xc0);
       pos += 3;
