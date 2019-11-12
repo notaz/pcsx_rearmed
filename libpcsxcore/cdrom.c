@@ -1499,7 +1499,9 @@ int cdrFreeze(void *f, int Mode) {
 		pTransfer = cdr.Transfer + tmp;
 
 		// read right sub data
-		memcpy(tmpp, cdr.Prev, 3);
+		tmpp[0] = btoi(cdr.Prev[0]);
+		tmpp[1] = btoi(cdr.Prev[1]);
+		tmpp[2] = btoi(cdr.Prev[2]);
 		cdr.Prev[0]++;
 		ReadTrack(tmpp);
 
