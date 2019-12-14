@@ -1052,6 +1052,20 @@ strcasestr(const char *s, const char*find)
 }
 #endif
 
+static void set_retro_memmap(void)
+{
+	struct retro_memory_map retromap = { 0 };
+	struct retro_memory_descriptor mmap =
+	{
+		0, psxM, 0, 0, 0, 0, 0x200000
+	};
+
+	retromap.descriptors = &mmap;
+	retromap.num_descriptors = 1;
+
+    environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &retromap);
+}
+
 bool retro_load_game(const struct retro_game_info *info)
 {
 	size_t i;
@@ -1312,6 +1326,8 @@ bool retro_load_game(const struct retro_game_info *info)
 			disks[i].internal_index = i;
 		}
 	}
+
+	set_retro_memmap();
 
 	return true;
 }
