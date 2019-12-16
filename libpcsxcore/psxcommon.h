@@ -40,7 +40,9 @@ extern "C" {
 #include <math.h>
 #include <time.h>
 #include <ctype.h>
+#ifndef __SWITCH__
 #include <sys/types.h>
+#endif
 #include <assert.h>
 
 // Define types

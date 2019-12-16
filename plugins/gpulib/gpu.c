@@ -10,6 +10,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h> /* for calloc */
+
 #include "gpu.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -126,11 +128,11 @@ static noinline void get_gpu_info(uint32_t data)
     case 0x02:
     case 0x03:
     case 0x04:
-    case 0x05:
       gpu.gp0 = gpu.ex_regs[data & 7] & 0xfffff;
       break;
+    case 0x05:
     case 0x06:
-      gpu.gp0 = gpu.ex_regs[5] & 0xfffff;
+      gpu.gp0 = gpu.ex_regs[5] & 0x3fffff;
       break;
     case 0x07:
       gpu.gp0 = 2;
@@ -142,13 +144,30 @@ static noinline void get_gpu_info(uint32_t data)
 }
 
 // double, for overdraw guard
-#define VRAM_SIZE (1024 * 512 * 2 * 2)
+#define VRAM_SIZE ((1024 * 512 * 2 * 2) + 4096)
 
+//  Minimum 16-byte VRAM alignment needed by gpu_unai's pixel-skipping
+//  renderer/downscaler it uses in high res modes:
+#ifdef GCW_ZERO
+	// On GCW platform (MIPS), align to 8192 bytes (1 TLB entry) to reduce # of
+	// fills. (Will change this value if it ever gets large page support)
+	#define VRAM_ALIGN 8192
+#else
+	#define VRAM_ALIGN 16
+#endif
+
+// vram ptr received from mmap/malloc/alloc (will deallocate using this)
+static uint16_t *vram_ptr_orig = NULL;
+
+#ifdef GPULIB_USE_MMAP
 static int map_vram(void)
 {
-  gpu.vram = gpu.mmap(VRAM_SIZE);
+  gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE + (VRAM_ALIGN-1));
   if (gpu.vram != NULL) {
-    gpu.vram += 4096 / 2;
+	// 4kb guard in front
+    gpu.vram += (4096 / 2);
+	// Align
+	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
     return 0;
   }
   else {
@@ -156,9 +175,54 @@ static int map_vram(void)
     return -1;
   }
 }
+#else
+static int map_vram(void)
+{
+  gpu.vram = vram_ptr_orig = (uint16_t*)calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
+  if (gpu.vram != NULL) {
+	// 4kb guard in front
+    gpu.vram += (4096 / 2);
+	// Align
+	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
+    return 0;
+  } else {
+    fprintf(stderr, "could not allocate vram, expect crashes\n");
+    return -1;
+  }
+}
+
+static int allocate_vram(void)
+{
+  gpu.vram = vram_ptr_orig = (uint16_t*)calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
+  if (gpu.vram != NULL) {
+	// 4kb guard in front
+    gpu.vram += (4096 / 2);
+	// Align
+	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
+    return 0;
+  } else {
+    fprintf(stderr, "could not allocate vram, expect crashes\n");
+    return -1;
+  }
+}
+#endif
 
 long GPUinit(void)
 {
+#ifndef GPULIB_USE_MMAP
+  if (gpu.vram == NULL) {
+    if (allocate_vram() != 0) {
+      printf("ERROR: could not allocate VRAM, exiting..\n");
+	  exit(1);
+	}
+  }
+#endif
+
+  //extern uint32_t hSyncCount;         // in psxcounters.cpp
+  //extern uint32_t frame_counter;      // in psxcounters.cpp
+  //gpu.state.hcnt = &hSyncCount;
+  //gpu.state.frame_count = &frame_counter;
+
   int ret;
   ret  = vout_init();
   ret |= renderer_init();
@@ -169,10 +233,10 @@ long GPUinit(void)
   gpu.cmd_len = 0;
   do_reset();
 
-  if (gpu.mmap != NULL) {
+  /*if (gpu.mmap != NULL) {
     if (map_vram() != 0)
       ret = -1;
-  }
+  }*/
   return ret;
 }
 
@@ -182,17 +246,24 @@ long GPUshutdown(void)
 
   renderer_finish();
   ret = vout_finish();
-  if (gpu.vram != NULL) {
-    gpu.vram -= 4096 / 2;
-    gpu.munmap(gpu.vram, VRAM_SIZE);
+
+  if (vram_ptr_orig != NULL) {
+#ifdef GPULIB_USE_MMAP
+    gpu.munmap(vram_ptr_orig, VRAM_SIZE);
+#else
+    free(vram_ptr_orig);
+#endif
   }
-  gpu.vram = NULL;
+  vram_ptr_orig = gpu.vram = NULL;
 
   return ret;
 }
 
 void GPUwriteStatus(uint32_t data)
 {
+	//senquack TODO: Would it be wise to add cmd buffer flush here, since
+	// status settings can affect commands already in buffer?
+
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
   static const short vres[4] = { 240, 480, 256, 480 };
   uint32_t cmd = data >> 24;
@@ -387,7 +458,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
 
     switch (cmd) {
       case 0x02:
-        if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
+        if ((int)(list[2] & 0x3ff) > gpu.screen.w || (int)((list[2] >> 16) & 0x1ff) > gpu.screen.h)
           // clearing something large, don't skip
           do_cmd_list(list, 3, &dummy);
         else

@@ -122,6 +122,34 @@ else
 	CFLAGS += -miphoneos-version-min=5.0
 endif
 
+# Nintendo Switch (libnx)
+else ifeq ($(platform), libnx)
+   export DEPSDIR := $(CURDIR)/
+   include $(DEVKITPRO)/libnx/switch_rules
+   TARGET := $(TARGET_NAME)_libretro_$(platform).a
+   ARCH := arm64
+   BUILTIN_GPU = unai
+   HAVE_VFS_FD = 0
+   CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition -include $(LIBNX)/include/switch.h
+   CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_OS -DNO_DYLIB -DNO_SOCKET -D__arm64__ -D__ARM_NEON__
+   CFLAGS += -D__SWITCH__
+   CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
+   CFLAGS += -ftree-vectorize
+   CFLAGS += -Ifrontend/switch -ftree-vectorize
+   LIBPTHREAD :=
+   USE_DYNAREC = 0
+   STATIC_LINKING=1
+
+# Lakka Switch (arm64)
+else ifeq ($(platform), arm64)
+   TARGET := $(TARGET_NAME)_libretro.so
+   ARCH := arm64
+   BUILTIN_GPU = unai
+   fpic := -fPIC
+   CFLAGS := $(filter-out -O2, $(CFLAGS))
+   CFLAGS += -O3 -ftree-vectorize
+   USE_DYNAREC = 0
+
 # PS3
 else ifeq ($(platform), ps3)
 	TARGET := $(TARGET_NAME)_libretro_ps3.a
