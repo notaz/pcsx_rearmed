@@ -256,7 +256,7 @@ static int pad_buf1len, pad_buf2len;
 static int pad_stopped = 0;
 
 static u32 regs[35];
-static EvCB *Event;
+static EvCB *EventCB;
 static EvCB *HwEV; // 0xf0
 static EvCB *EvEV; // 0xf1
 static EvCB *RcEV; // 0xf2
@@ -268,7 +268,7 @@ static u32 *heap_addr = NULL;
 static u32 *heap_end = NULL;
 static u32 SysIntRP[8];
 static int CardState = -1;
-static TCB Thread[8];
+static TCB ThreadCB[8];
 static int CurThread = 0;
 static FileDesc FDesc[32];
 static u32 card_active_chan = 0;
@@ -300,12 +300,12 @@ static inline void softCall2(u32 pc) {
 }
 
 static inline void DeliverEvent(u32 ev, u32 spec) {
-	if (Event[ev][spec].status != EvStACTIVE) return;
+	if (EventCB[ev][spec].status != EvStACTIVE) return;
 
-//	Event[ev][spec].status = EvStALREADY;
-	if (Event[ev][spec].mode == EvMdINTR) {
-		softCall2(Event[ev][spec].fhandler);
-	} else Event[ev][spec].status = EvStALREADY;
+//	EventCB[ev][spec].status = EvStALREADY;
+	if (EventCB[ev][spec].mode == EvMdINTR) {
+		softCall2(EventCB[ev][spec].fhandler);
+	} else EventCB[ev][spec].status = EvStALREADY;
 }
 
 static unsigned interrupt_r26=0x8004E8B0;
@@ -1688,14 +1688,14 @@ void psxBios_ResetRCnt() { // 06
 }
 
 
-/* gets ev for use with Event */
+/* gets ev for use with EventCB */
 #define GetEv() \
 	ev = (a0 >> 24) & 0xf; \
 	if (ev == 0xf) ev = 0x5; \
 	ev*= 32; \
 	ev+= a0&0x1f;
 
-/* gets spec for use with Event */
+/* gets spec for use with EventCB */
 #define GetSpec() \
 	spec = 0; \
 	switch (a1) { \
@@ -1733,9 +1733,9 @@ void psxBios_OpenEvent() { // 08
 	PSXBIOS_LOG("psxBios_%s %x,%x (class:%x, spec:%x, mode:%x, func:%x)\n", biosB0n[0x08], ev, spec, a0, a1, a2, a3);
 #endif
 
-	Event[ev][spec].status = EvStWAIT;
-	Event[ev][spec].mode = a2;
-	Event[ev][spec].fhandler = a3;
+	EventCB[ev][spec].status = EvStWAIT;
+	EventCB[ev][spec].mode = a2;
+	EventCB[ev][spec].fhandler = a3;
 
 	v0 = ev | (spec << 8);
 	pc0 = ra;
@@ -1751,7 +1751,7 @@ void psxBios_CloseEvent() { // 09
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x09], ev, spec);
 #endif
 
-	Event[ev][spec].status = EvStUNUSED;
+	EventCB[ev][spec].status = EvStUNUSED;
 
 	v0 = 1; pc0 = ra;
 }
@@ -1764,17 +1764,17 @@ void psxBios_WaitEvent() { // 0a
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x0a], ev, spec);
 #endif
-	if (Event[ev][spec].status == EvStUNUSED)
+	if (EventCB[ev][spec].status == EvStUNUSED)
 	{
 		v0 = 0;
 		pc0 = ra;
 		return;
 	}
 
-	if (Event[ev][spec].status == EvStALREADY)
+	if (EventCB[ev][spec].status == EvStALREADY)
 	{
 		/* Callback events (mode=EvMdINTR) do never set the ready flag (and thus WaitEvent would hang forever). */
-		if (!(Event[ev][spec].mode == EvMdINTR)) Event[ev][spec].status = EvStACTIVE;
+		if (!(EventCB[ev][spec].mode == EvMdINTR)) EventCB[ev][spec].status = EvStACTIVE;
 		v0 = 1;
 		pc0 = ra;
 		return;
@@ -1790,9 +1790,9 @@ void psxBios_TestEvent() { // 0b
 	ev   = a0 & 0xff;
 	spec = (a0 >> 8) & 0xff;
 
-	if (Event[ev][spec].status == EvStALREADY)
+	if (EventCB[ev][spec].status == EvStALREADY)
 	{
-		if (!(Event[ev][spec].mode == EvMdINTR)) Event[ev][spec].status = EvStACTIVE;
+		if (!(EventCB[ev][spec].mode == EvMdINTR)) EventCB[ev][spec].status = EvStACTIVE;
 		v0 = 1;
 	}
 	else
@@ -1817,7 +1817,7 @@ void psxBios_EnableEvent() { // 0c
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x0c], ev, spec);
 #endif
 
-	Event[ev][spec].status = EvStACTIVE;
+	EventCB[ev][spec].status = EvStACTIVE;
 
 	v0 = 1; pc0 = ra;
 }
@@ -1832,7 +1832,7 @@ void psxBios_DisableEvent() { // 0d
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x0d], ev, spec);
 #endif
 
-	Event[ev][spec].status = EvStWAIT;
+	EventCB[ev][spec].status = EvStWAIT;
 
 	v0 = 1; pc0 = ra;
 }
@@ -1846,7 +1846,7 @@ void psxBios_OpenTh() { // 0e
 
 	for (th=1; th<8; th++)
 	{
-		if (Thread[th].status == 0) break;
+		if (ThreadCB[th].status == 0) break;
 
 	}
 	if (th == 8) {
@@ -1863,10 +1863,10 @@ void psxBios_OpenTh() { // 0e
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x0e], th);
 #endif
 
-	Thread[th].status = 1;
-	Thread[th].func    = a0;
-	Thread[th].reg[29] = a1;
-	Thread[th].reg[28] = a2;
+	ThreadCB[th].status = 1;
+	ThreadCB[th].func    = a0;
+	ThreadCB[th].reg[29] = a1;
+	ThreadCB[th].reg[28] = a2;
 
 	v0 = th; pc0 = ra;
 }
@@ -1883,8 +1883,8 @@ void psxBios_CloseTh() { // 0f
 #endif
 	/* The return value is always 1 (even if the handle was already closed). */
 	v0 = 1;
-	if (Thread[th].status != 0) {
-		Thread[th].status = 0;
+	if (ThreadCB[th].status != 0) {
+		ThreadCB[th].status = 0;
 	}
 
 	pc0 = ra;
@@ -1902,18 +1902,18 @@ void psxBios_ChangeTh() { // 10
 #endif
 	/* The return value is always 1. */
 	v0 = 1;
-	if (Thread[th].status == 0 || CurThread == th) {
+	if (ThreadCB[th].status == 0 || CurThread == th) {
 		pc0 = ra;
 	} else {
-		if (Thread[CurThread].status == 2) {
-			Thread[CurThread].status = 1;
-			Thread[CurThread].func = ra;
-			memcpy(Thread[CurThread].reg, psxRegs.GPR.r, 32*4);
+		if (ThreadCB[CurThread].status == 2) {
+			ThreadCB[CurThread].status = 1;
+			ThreadCB[CurThread].func = ra;
+			memcpy(ThreadCB[CurThread].reg, psxRegs.GPR.r, 32*4);
 		}
 
-		memcpy(psxRegs.GPR.r, Thread[th].reg, 32*4);
-		pc0 = Thread[th].func;
-		Thread[th].status = 2;
+		memcpy(psxRegs.GPR.r, ThreadCB[th].reg, 32*4);
+		pc0 = ThreadCB[th].func;
+		ThreadCB[th].status = 2;
 		CurThread = th;
 	}
 }
@@ -2017,9 +2017,9 @@ void psxBios_UnDeliverEvent() { // 0x20
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x20], ev, spec);
 #endif
 
-	if (Event[ev][spec].status == EvStALREADY &&
-		Event[ev][spec].mode == EvMdNOINTR)
-		Event[ev][spec].status = EvStACTIVE;
+	if (EventCB[ev][spec].status == EvStALREADY &&
+		EventCB[ev][spec].mode == EvMdNOINTR)
+		EventCB[ev][spec].status = EvStACTIVE;
 
 	pc0 = ra;
 }
@@ -3015,14 +3015,14 @@ void psxBiosInit() {
 /**/
 	base = 0x1000;
 	size = sizeof(EvCB) * 32;
-	Event = (void *)&psxR[base]; base += size * 6;
-	memset(Event, 0, size * 6);
-	HwEV = Event;
-	EvEV = Event + 32;
-	RcEV = Event + 32 * 2;
-	UeEV = Event + 32 * 3;
-	SwEV = Event + 32 * 4;
-	ThEV = Event + 32 * 5;
+	EventCB = (void *)&psxR[base]; base += size * 6;
+	memset(EventCB, 0, size * 6);
+	HwEV = EventCB;
+	EvEV = EventCB + 32;
+	RcEV = EventCB + 32 * 2;
+	UeEV = EventCB + 32 * 3;
+	SwEV = EventCB + 32 * 4;
+	ThEV = EventCB + 32 * 5;
 
 	ptr = (u32 *)&psxM[0x0874]; // b0 table
 	ptr[0] = SWAPu32(0x4c54 - 0x884);
@@ -3031,8 +3031,8 @@ void psxBiosInit() {
 	ptr[6] = SWAPu32(0xc80);
 
 	memset(SysIntRP, 0, sizeof(SysIntRP));
-	memset(Thread, 0, sizeof(Thread));
-	Thread[0].status = 2; // main thread
+	memset(ThreadCB, 0, sizeof(ThreadCB));
+	ThreadCB[0].status = 2; // main thread
 
 	pad_stopped = 1;
 	jmp_int = NULL;
@@ -3335,7 +3335,7 @@ void psxBiosFreeze(int Mode) {
 	bfreezes(regs);
 	bfreezes(SysIntRP);
 	bfreezel(&CardState);
-	bfreezes(Thread);
+	bfreezes(ThreadCB);
 	bfreezel(&CurThread);
 	bfreezes(FDesc);
 	bfreezel(&card_active_chan);
