@@ -278,7 +278,11 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
+#ifdef HAVE_LIBNX
+	  "disabled",
+#else
       "enabled",
+#endif
    },
 
 #ifndef DRC_DISABLE

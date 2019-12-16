@@ -143,6 +143,7 @@ void renderer_notify_res_change(void)
   */
 }
 
+#ifdef USE_GPULIB
 // Handles GP0 draw settings commands 0xE1...0xE6
 static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 {
@@ -209,6 +210,7 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
     } break;
   }
 }
+#endif
 
 extern const unsigned char cmd_lengths[256];
 

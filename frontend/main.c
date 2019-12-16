@@ -780,7 +780,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS) /* XXX GPH hack */
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS) && !defined(__SWITCH__) /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",
