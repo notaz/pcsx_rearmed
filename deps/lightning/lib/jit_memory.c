@@ -19,7 +19,7 @@
 
 #include <lightning.h>
 #include <lightning/jit_private.h>
-#include <sys/mman.h>
+#include <mman.h>
 
 /*
  * Prototypes

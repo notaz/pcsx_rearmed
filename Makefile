@@ -78,16 +78,40 @@ endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
-ifeq "$(USE_DYNAREC)" "1"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/arm/linkage_arm.o
-OBJS += libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
+ifeq "$(DYNAREC)" "lightrec"
+CFLAGS += -Ideps/lightning/include -Ideps/lightrec \
+		  -I deps/mman -DLIGHTREC -DLIGHTREC_STATIC
+OBJS += libpcsxcore/lightrec/plugin.o
+OBJS += deps/lightning/lib/jit_disasm.o \
+		deps/lightning/lib/jit_memory.o \
+		deps/lightning/lib/jit_names.o \
+		deps/lightning/lib/jit_note.o \
+		deps/lightning/lib/jit_print.o \
+		deps/lightning/lib/jit_size.o \
+		deps/lightning/lib/lightning.o \
+		deps/lightrec/blockcache.o \
+		deps/lightrec/disassembler.o \
+		deps/lightrec/emitter.o \
+		deps/lightrec/interpreter.o \
+		deps/lightrec/lightrec.o \
+		deps/lightrec/memmanager.o \
+		deps/lightrec/optimizer.o \
+		deps/lightrec/regcache.o \
+		deps/lightrec/recompiler.o
+ifeq ($(MMAP_WIN32),1)
+OBJS += deps/mman/mman.o
+endif
+else ifeq "$(DYNAREC)" "ari64"
+OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o \
+		libpcsxcore/new_dynarec/new_dynarec.o \
+		libpcsxcore/new_dynarec/arm/linkage_arm.o \
+		libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
+	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
 else
 libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
 frontend/libretro.o: CFLAGS += -DDRC_DISABLE
 endif
-OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
-	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
@@ -284,8 +308,10 @@ CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 CFLAGS += -DHAVE_LIBRETRO
 
+ifneq ($(DYNAREC),lightrec)
 ifeq ($(MMAP_WIN32),1)
 OBJS += libpcsxcore/memmap_win32.o
+endif
 endif
 endif
 
