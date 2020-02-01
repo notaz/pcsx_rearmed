@@ -126,6 +126,8 @@ int in_enable_vibration = 1;
 static int negcon_deadzone = 0;
 static int negcon_linearity = 1;
 
+static bool axis_bounds_modifier;
+
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
 #define VOUT_MAX_WIDTH 1024
 #define VOUT_MAX_HEIGHT 512
@@ -1644,6 +1646,18 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_analog_axis_modifier";
+   axis_bounds_modifier = true;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "square") == 0) {
+        axis_bounds_modifier = true;
+	  } else if (strcmp(var.value, "circle") == 0) {
+        axis_bounds_modifier = false;
+	  }
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_vibration";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
@@ -2167,6 +2181,23 @@ static uint16_t get_analog_button(int16_t ret, retro_input_state_t input_state_c
 	return button;
 }
 
+unsigned char axis_range_modifier(int16_t axis_value, bool is_square) {
+	float modifier_axis_range = 0;
+
+	if(is_square) {
+		modifier_axis_range = round((axis_value >> 8) / 0.785) + 128;
+		if(modifier_axis_range < 0) {
+			modifier_axis_range = 0;
+		} else if(modifier_axis_range > 255) {
+			modifier_axis_range = 255;
+		}
+	} else {
+		modifier_axis_range = MIN(((axis_value >> 8) + 128), 255);
+	}
+
+	return modifier_axis_range;
+}
+
 void retro_run(void)
 {
 	int i;
@@ -2439,10 +2470,10 @@ void retro_run(void)
 			// Query analog inputs
 			if (in_type[i] == PSE_PAD_TYPE_ANALOGJOY || in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
 			{
-				in_analog_left[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
-				in_analog_left[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
-				in_analog_right[i][0] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / 255) + 128, 255);
-				in_analog_right[i][1] = MIN((input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / 255) + 128, 255);
+				in_analog_left[i][0] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
+				in_analog_left[i][1] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
+				in_analog_right[i][0] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
+				in_analog_right[i][1] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
 			}
 		}
 	}
