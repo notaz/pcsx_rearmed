@@ -267,6 +267,17 @@ struct retro_core_option_definition option_defs_us[] = {
       "linear",
    },
    {
+      "pcsx_rearmed_analog_axis_modifier",
+      "Analog axis bounds.",
+      "Range bounds for analog axis. Square bounds help controllers with highly circular ranges that are unable to fully saturate the x and y axis at 45degree deflections.",
+      {
+         { "circle", NULL },
+         { "square", NULL },
+         { NULL, NULL },
+      },
+      "circle",
+   },
+   {
       "pcsx_rearmed_vibration",
       "Enable Vibration",
       "Enables vibration feedback for controllers that supports vibration features.",
