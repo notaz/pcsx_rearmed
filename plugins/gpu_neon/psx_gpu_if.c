@@ -9,7 +9,12 @@
  */
 
 #include <stdio.h>
+
+#ifdef _WIN32
+#include <mman.h>
+#else
 #include <sys/mman.h>
+#endif
 
 extern const unsigned char cmd_lengths[256];
 #define command_lengths cmd_lengths
