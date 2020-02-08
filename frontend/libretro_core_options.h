@@ -650,7 +650,7 @@ struct retro_core_option_definition option_defs_us[] = {
    },
 #endif /* DRC_DISABLE */
 
-#ifdef __ARM_NEON__
+#ifdef GPU_NEON
    {
       "pcsx_rearmed_neon_interlace_enable",
       "Enable Interlacing Mode",
@@ -684,7 +684,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif /* __ARM_NEON__ */
+#endif /* GPU_NEON */
 
    {
       "pcsx_rearmed_duping_enable",

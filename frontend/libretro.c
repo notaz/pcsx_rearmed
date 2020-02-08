@@ -1691,7 +1691,7 @@ static void update_variables(bool in_flight)
       }
    }
 
-#ifdef __ARM_NEON__
+#ifdef GPU_NEON
    var.value = "NULL";
    var.key = "pcsx_rearmed_neon_interlace_enable";
 
