@@ -70,10 +70,11 @@ else ifeq ($(platform), linux-portable)
 
 # OS X
 else ifeq ($(platform), osx)
+	DYNAREC ?= ari64
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
 	fpic += -mmacosx-version-min=10.1
-ifeq ($(DYNAREC),)
+ifeq ($(DYNAREC),lightrec)
 	# Override
 	TARGET := $(TARGET_NAME)_interpreter_libretro.dylib
 endif
@@ -91,10 +92,11 @@ else ifeq ($(platform),$(filter $(platform),ios-arm64))
 
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
+	DYNAREC ?= ari64
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
-ifeq ($(DYNAREC),)
+ifeq ($(DYNAREC),lightrec)
 	# Override
 	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 endif
@@ -194,6 +196,7 @@ else ifeq ($(platform), vita)
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 
+	DYNAREC = ari64
 	DRC_CACHE_BASE = 0
 
 	ARCH = arm
@@ -214,6 +217,7 @@ else ifeq ($(platform), ctr)
 
 #	CFLAGS += -DPCSX
 	BUILTIN_GPU = unai
+	DYNAREC = ari64
 	DRC_CACHE_BASE = 0
 	ARCH = arm
 	HAVE_NEON = 0
@@ -247,6 +251,7 @@ else ifeq ($(platform), qnx)
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	HAVE_NEON = 1
+	DYNAREC = ari64
 	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = neon
 	ARCH = arm
@@ -266,6 +271,7 @@ else ifeq ($(platform), rpi2)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
+	DYNAREC = ari64
 
 #Raspberry Pi 3
 else ifeq ($(platform), rpi3)
@@ -276,6 +282,7 @@ else ifeq ($(platform), rpi3)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
+	DYNAREC = ari64
 
 #Raspberry Pi 4
 else ifeq ($(platform), rpi4)
@@ -286,6 +293,7 @@ else ifeq ($(platform), rpi4)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
+	DYNAREC = ari64
 
 # Classic Platforms ####################
 # Platform affix = classic_<ISA>_<µARCH>
@@ -310,6 +318,7 @@ else ifeq ($(platform), classic_armv7_a7)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
+	DYNAREC = ari64
 	ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
 		CFLAGS += -march=armv7-a
 	else
@@ -331,6 +340,7 @@ else ifeq ($(platform), classic_armv8_a35)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
+	DYNAREC = ari64
 	LDFLAGS += -static-libgcc -static-libstdc++ -fPIC
 
 #######################################
@@ -368,6 +378,7 @@ else ifneq (,$(findstring armv,$(platform)))
 		ASFLAGS += -mfloat-abi=hard
 	endif
 	ARCH = arm
+	DYNAREC = ari64
 
 # Windows
 else
@@ -413,9 +424,9 @@ NO_CONFIG_MAK = yes
 # what does this do
 #libretro_all: all
 #ifeq ($(platform),ios)
-#ifeq ($(USE_DYNAREC),1)
-#	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform) clean
-#	make -f Makefile.libretro USE_DYNAREC=0 platform=$(platform)
+#ifeq ($(DYNAREC),1)
+#	make -f Makefile.libretro DYNAREC=0 platform=$(platform) clean
+#	make -f Makefile.libretro DYNAREC=0 platform=$(platform)
 #endif
 #endif
 
