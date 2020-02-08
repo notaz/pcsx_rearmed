@@ -279,8 +279,6 @@ arm*)
   fi
   ;;
 *)
-  # dynarec only available on ARM
-  enable_dynarec="no"
   ;;
 esac
 

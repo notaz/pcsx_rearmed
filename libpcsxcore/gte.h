@@ -67,6 +67,10 @@ extern "C" {
 
 struct psxCP2Regs;
 
+u32 MFC2(int reg);
+void MTC2(u32 value, int reg);
+void CTC2(u32 value, int reg);
+
 void gteMFC2();
 void gteCFC2();
 void gteMTC2();

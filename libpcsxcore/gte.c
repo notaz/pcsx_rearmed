@@ -258,7 +258,7 @@ static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 
 #ifndef FLAGLESS
 
-static inline u32 MFC2(int reg) {
+u32 MFC2(int reg) {
 	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 1:
@@ -293,7 +293,7 @@ static inline u32 MFC2(int reg) {
 	return psxRegs.CP2D.r[reg];
 }
 
-static inline void MTC2(u32 value, int reg) {
+void MTC2(u32 value, int reg) {
 	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 15:
@@ -339,7 +339,7 @@ static inline void MTC2(u32 value, int reg) {
 	}
 }
 
-static inline void CTC2(u32 value, int reg) {
+void CTC2(u32 value, int reg) {
 	switch (reg) {
 		case 4:
 		case 12:
