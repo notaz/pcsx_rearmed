@@ -19,7 +19,11 @@
 
 #include <lightning.h>
 #include <lightning/jit_private.h>
-#include <mman.h>
+#ifdef _WIN32
+#  include <mman.h>
+#else
+#  include <sys/mman.h>
+#endif
 #if defined(__sgi)
 #  include <fcntl.h>
 #endif

@@ -80,7 +80,7 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec \
-		  -I deps/mman -DLIGHTREC -DLIGHTREC_STATIC
+		  -DLIGHTREC -DLIGHTREC_STATIC
 OBJS += libpcsxcore/lightrec/plugin.o
 OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightning/lib/jit_memory.o \
@@ -99,6 +99,7 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightrec/regcache.o \
 		deps/lightrec/recompiler.o
 ifeq ($(MMAP_WIN32),1)
+CFLAGS += -Ideps/mman
 OBJS += deps/mman/mman.o
 endif
 else ifeq "$(DYNAREC)" "ari64"
