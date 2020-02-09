@@ -76,6 +76,7 @@ else ifeq ($(platform), osx)
 	fpic += -mmacosx-version-min=10.1
 ifeq ($(DYNAREC),lightrec)
 	# Override
+	DYNAREC = 0
 	TARGET := $(TARGET_NAME)_interpreter_libretro.dylib
 endif
 
@@ -84,6 +85,7 @@ else ifeq ($(platform),$(filter $(platform),ios-arm64))
 	ARCH := arm64
 	HAVE_NEON = 0
 	BUILTIN_GPU = peops
+	DYNAREC = 0
 	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 
 	CC = clang -arch arm64 -isysroot $(IOSSDK) -miphoneos-version-min=8.0
@@ -98,6 +100,7 @@ else ifneq (,$(findstring ios,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 ifeq ($(DYNAREC),lightrec)
 	# Override
+	DYNAREC = 0
 	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 endif
 	fpic := -fPIC
