@@ -59,6 +59,18 @@
 
 #define INTERNAL_FPS_SAMPLE_PERIOD 64
 
+#ifdef DRC_DISABLE
+int stop;
+u32 next_interupt;
+u32 event_cycles[PSXINT_COUNT];
+int cycle_multiplier;
+int new_dynarec_hacks;
+
+void new_dyna_before_save(void) { }
+void new_dyna_after_save(void) { }
+void new_dyna_freeze(void *f, int i) { }
+#endif
+
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
 static int rebootemu = 0;
 
@@ -2142,7 +2154,8 @@ static void update_variables(bool in_flight)
             }
          }
       }
-#ifndef DRC_DISABLE
+
+#if defined(LIGHTREC) || defined(NEW_DYNAREC)
       var.value = "NULL";
       var.key = "pcsx_rearmed_psxclock";
       if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)

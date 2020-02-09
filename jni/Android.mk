@@ -18,6 +18,7 @@ UNAI_DIR     := $(ROOT_DIR)/plugins/gpu_unai
 DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
 DEPS_DIR     := $(ROOT_DIR)/deps
 LIBRETRO_COMMON := $(ROOT_DIR)/libretro-common
+EXTRA_INCLUDES :=
 
 # core
 SOURCES_C := $(CORE_DIR)/cdriso.c \
@@ -114,24 +115,60 @@ SOURCES_C += \
              $(DEPS_DIR)/libchdr/chd.c \
              $(DEPS_DIR)/libchdr/flac.c \
              $(DEPS_DIR)/libchdr/huffman.c
-
-# dynarec
-SOURCES_C += $(DYNAREC_DIR)/backends/psx/emu_if.c
+SOURCES_ASM :=
 
 COREFLAGS := -ffast-math -funroll-loops -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
 COREFLAGS += -DPACKAGE_VERSION=\"1.3.2\" -DFLAC__HAS_OGG=0 -DFLAC__NO_DLL -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DFLAC__NO_DLL -D_7ZIP_ST -DHAVE_SYS_PARAM_H
 COREFLAGS += -DHAVE_CHD
 
-ifeq ($(TARGET_ARCH),arm)
-  SOURCES_ASM := $(CORE_DIR)/gte_arm.S \
+HAVE_ARI64=0
+HAVE_LIGHTREC=0
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+  HAVE_ARI64=1
+else ifeq ($(TARGET_ARCH_ABI),armeabi)
+  HAVE_ARI64=1
+else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+  HAVE_LIGHTREC=1
+else ifeq ($(TARGET_ARCH_ABI),x86_64)
+  HAVE_LIGHTREC=1
+else ifeq ($(TARGET_ARCH_ABI),x86)
+  HAVE_LIGHTREC=1
+else
+  COREFLAGS   += -DDRC_DISABLE
+endif
+
+ifeq ($(HAVE_ARI64),1)
+  COREFLAGS   += -DNEW_DYNAREC
+  SOURCES_ASM += $(CORE_DIR)/gte_arm.S \
                  $(SPU_DIR)/arm_utils.S \
                  $(DYNAREC_DIR)/arm/linkage_arm.S
   SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
                  $(DYNAREC_DIR)/backends/psx/pcsxmem.c
-else
-  COREFLAGS   += -DDRC_DISABLE
-  SOURCES_ASM :=
 endif
+
+ifeq ($(HAVE_LIGHTREC),1)
+  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
+  EXTRA_INCLUDES += $(DEPS_DIR)/lightning/include \
+						  $(DEPS_DIR)/lightrec
+  SOURCES_C   += $(DEPS_DIR)/lightrec/blockcache.c \
+					  $(DEPS_DIR)/lightrec/disassembler.c \
+					  $(DEPS_DIR)/lightrec/emitter.c \
+					  $(DEPS_DIR)/lightrec/interpreter.c \
+					  $(DEPS_DIR)/lightrec/lightrec.c \
+					  $(DEPS_DIR)/lightrec/memmanager.c \
+					  $(DEPS_DIR)/lightrec/optimizer.c \
+					  $(DEPS_DIR)/lightrec/regcache.c \
+					  $(DEPS_DIR)/lightrec/recompiler.c
+  SOURCES_C   += $(DEPS_DIR)/lightning/lib/jit_disasm.c \
+					  $(DEPS_DIR)/lightning/lib/jit_memory.c \
+					  $(DEPS_DIR)/lightning/lib/jit_names.c \
+					  $(DEPS_DIR)/lightning/lib/jit_note.c \
+					  $(DEPS_DIR)/lightning/lib/jit_print.c \
+					  $(DEPS_DIR)/lightning/lib/jit_size.c \
+					  $(DEPS_DIR)/lightning/lib/lightning.c
+  SOURCES_C   += $(CORE_DIR)/lightrec/plugin.c
+endif
+
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
@@ -139,6 +176,7 @@ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
                  $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
                  $(FRONTEND_DIR)/cspace_neon.S
   SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
+  SOURCES_C   += $(DYNAREC_DIR)/backends/psx/emu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
   COREFLAGS += -DINLINE="static __inline__" -Dasm="__asm__ __volatile__"
@@ -163,6 +201,7 @@ LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
 LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/flac-1.3.2/include $(DEPS_DIR)/flac-1.3.2/src/libFLAC/include $(DEPS_DIR)/lzma-16.04/C $(DEPS_DIR)/libchdr
 LOCAL_C_INCLUDES    += $(LIBRETRO_COMMON)/include
+LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
 LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
 LOCAL_LDLIBS        := -lz -llog
 LOCAL_ARM_MODE      := arm

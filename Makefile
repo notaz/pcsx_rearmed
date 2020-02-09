@@ -103,6 +103,7 @@ CFLAGS += -Ideps/mman
 OBJS += deps/mman/mman.o
 endif
 else ifeq "$(DYNAREC)" "ari64"
+CFLAGS += -DNEW_DYNAREC
 OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o \
 		libpcsxcore/new_dynarec/new_dynarec.o \
 		libpcsxcore/new_dynarec/arm/linkage_arm.o \
