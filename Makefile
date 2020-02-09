@@ -110,6 +110,7 @@ OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o \
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
 	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
 else
+OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o
 libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
 frontend/libretro.o: CFLAGS += -DDRC_DISABLE
 endif
