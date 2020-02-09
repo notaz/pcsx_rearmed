@@ -171,7 +171,7 @@ endif
 
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
-  COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+  COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP -DGPU_NEON
   SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
                  $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
                  $(FRONTEND_DIR)/cspace_neon.S
