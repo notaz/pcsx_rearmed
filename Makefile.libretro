@@ -70,7 +70,7 @@ else ifeq ($(platform), linux-portable)
 
 # OS X
 else ifeq ($(platform), osx)
-	DYNAREC ?= ari64
+	DYNAREC ?= lightrec
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
 	fpic += -mmacosx-version-min=10.1
