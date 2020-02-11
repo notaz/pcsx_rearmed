@@ -1,12 +1,12 @@
 /*
- * (C) Gra≈ævydas "notaz" Ignotas, 2011
+ * (C) Graûvydas "notaz" Ignotas, 2011
  *
  * This work is licensed under the terms of GNU GPL version 2 or later.
  * See the COPYING file in the top-level directory.
  */
 
 #include "arm_features.h"
-#include "new_dynarec/arm/linkage_offsets.h"
+#include "new_dynarec/linkage_offsets.h"
 
 .syntax unified
 .text
@@ -290,10 +290,8 @@ FUNCTION(gteRTPT_neon): @ r0=CP2 (d,c),
 
     rtpx_preload
 
-    vmov.i32    d23, #1
-    vmov.i32    d22, #0x80000000
-    vsub.i32    d22, d22, d23
-    vmov.i32    d23, #0
+    vmvn.i32    d22, #0x80000000 @ #0x7fffffff
+    vmov.i32    d23, #0x80000000
     mov         r3, #3         @ counter
     mov         r2, r0         @ VXYZ(0)
 0:
