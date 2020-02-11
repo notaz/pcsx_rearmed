@@ -290,7 +290,7 @@ FUNCTION(gteRTPT_neon): @ r0=CP2 (d,c),
 
     rtpx_preload
 
-    vmov.i32    d22, #0x7fffffff
+    vmvn.i32    d22, #0x80000000 @ #0x7fffffff
     vmov.i32    d23, #0x80000000
     mov         r3, #3         @ counter
     mov         r2, r0         @ VXYZ(0)
