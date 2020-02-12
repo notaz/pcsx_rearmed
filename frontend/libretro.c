@@ -93,8 +93,12 @@ static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
+#ifdef GPU_PEOPS
 static int show_advanced_gpu_peops_settings = -1;
+#endif
+#ifdef GPU_UNAI
 static int show_advanced_gpu_unai_settings  = -1;
+#endif
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -1612,7 +1616,9 @@ static void update_variables(bool in_flight)
 {
    struct retro_variable var;
    int i;
+#ifdef GPU_PEOPS
    int gpu_peops_fix = 0;
+#endif
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
