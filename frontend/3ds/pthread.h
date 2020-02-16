@@ -8,7 +8,7 @@
 
 #include "3ds_utils.h"
 
-#define CTR_PTHREAD_STACK_SIZE 0x10000
+#define CTR_PTHREAD_STACK_SIZE (1000000 * 12)
 
 typedef int32_t pthread_t;
 typedef int pthread_attr_t;
