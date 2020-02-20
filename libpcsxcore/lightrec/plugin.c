@@ -564,8 +564,10 @@ static void lightrec_plugin_shutdown(void)
 
 static void lightrec_plugin_reset(void)
 {
-	lightrec_plugin_shutdown();
-	lightrec_plugin_init();
+// Called in every frame (or every frame where input changes) when using runahead
+//	lightrec_plugin_shutdown();
+//	lightrec_plugin_init();
+	lightrec_invalidate_all(lightrec_state);
 }
 
 R3000Acpu psxRec =
