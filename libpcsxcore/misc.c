@@ -657,6 +657,11 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosInit();
 
+#if defined(LIGHTREC)
+	if (Config.Cpu != CPU_INTERPRETER)
+		psxCpu->Clear(0, UINT32_MAX); //clear all
+	else
+#endif
 	psxCpu->Reset();
 	SaveFuncs.seek(f, 128 * 96 * 3, SEEK_CUR);
 

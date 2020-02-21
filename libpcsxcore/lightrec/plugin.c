@@ -553,8 +553,11 @@ static void lightrec_plugin_execute(void)
 
 static void lightrec_plugin_clear(u32 addr, u32 size)
 {
-	/* size * 4: PCSX uses DMA units */
-	lightrec_invalidate(lightrec_state, addr, size * 4);
+	if (addr == 0 && size == UINT32_MAX)
+		lightrec_invalidate_all(lightrec_state);
+	else
+		/* size * 4: PCSX uses DMA units */
+		lightrec_invalidate(lightrec_state, addr, size * 4);
 }
 
 static void lightrec_plugin_shutdown(void)
