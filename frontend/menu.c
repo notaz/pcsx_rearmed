@@ -818,7 +818,7 @@ static void draw_savestate_bg(int slot)
 
 		// darken this so that menu text is visible
 		if (g_menuscreen_w - w < 320)
-			menu_darken_bg(d, d, w * 2, 0);
+			menu_darken_bg(d, d, w, 0);
 	}
 
 out:
