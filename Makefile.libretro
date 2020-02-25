@@ -213,6 +213,8 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -Ifrontend/3ds
 	CFLAGS += -Werror=implicit-function-declaration
 
+	OBJS += frontend/3ds/utils.o
+
 #	CFLAGS += -DPCSX
 	BUILTIN_GPU = unai
 	DYNAREC = ari64

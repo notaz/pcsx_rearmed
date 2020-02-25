@@ -8,6 +8,8 @@
 #define MEMOP_MAP       4
 #define MEMOP_UNMAP     5
 
+#define GET_VERSION_MAJOR(version)    ((version) >>24)
+
 void* linearMemAlign(size_t size, size_t alignment);
 void linearFree(void* mem);
 
@@ -21,6 +23,7 @@ int32_t threadJoin(int32_t thread, int64_t timeout_ns);
 void threadFree(int32_t thread);
 void threadExit(int32_t rc)  __attribute__((noreturn));
 
+int32_t svcGetSystemInfo(int64_t* out, uint32_t type, int32_t param);
 int32_t svcBackdoor(int32_t (*callback)(void));
 
 #define DEBUG_HOLD() do{printf("%s@%s:%d.\n",__FUNCTION__, __FILE__, __LINE__);fflush(stdout);wait_for_input();}while(0)
@@ -28,6 +31,24 @@ int32_t svcBackdoor(int32_t (*callback)(void));
 void wait_for_input(void);
 
 extern __attribute__((weak)) int  __ctr_svchax;
+
+bool has_rosalina;
+
+static void check_rosalina() {
+  int64_t version;
+  uint32_t major;
+
+  has_rosalina = false;
+
+  if (!svcGetSystemInfo(&version, 0x10000, 0)) {
+     major = GET_VERSION_MAJOR(version);
+
+     if (major >= 8)
+       has_rosalina = true;
+  }
+}
+
+void ctr_clear_cache(void);
 
 typedef int32_t (*ctr_callback_type)(void);
 
@@ -57,12 +78,14 @@ static inline void ctr_flush_DCache(void)
    svcBackdoor((ctr_callback_type)ctr_flush_DCache_kernel);
 }
 
-
 static inline void ctr_flush_invalidate_cache(void)
 {
-   ctr_flush_DCache();
-   ctr_invalidate_ICache();
+   if (has_rosalina) {
+      ctr_clear_cache();
+   } else {
+      ctr_flush_DCache();
+      ctr_invalidate_ICache();
+   }
 }
-
 
 #endif // _3DS_UTILS_H

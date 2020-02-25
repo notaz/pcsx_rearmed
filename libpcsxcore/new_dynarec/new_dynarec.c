@@ -7085,6 +7085,10 @@ void new_dynarec_init(void)
 {
   SysPrintf("Init new dynarec\n");
 
+#ifdef _3DS
+  check_rosalina();
+#endif
+
   // allocate/prepare a buffer for translation cache
   // see assem_arm.h for some explanation
 #if   defined(BASE_ADDR_FIXED)
