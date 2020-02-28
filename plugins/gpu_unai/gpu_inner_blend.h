@@ -37,7 +37,7 @@
 // Where '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int BLENDMODE, bool SKIP_USRC_MSB_MASK>
-GPU_INLINE u16 gpuBlending(u16 uSrc, u16 uDst)
+GPU_INLINE u16 gpuBlendingGeneric(u16 uSrc, u16 uDst)
 {
 	// These use Blargg's bitwise modulo-clamping:
 	//  http://blargg.8bitalley.com/info/rgb_mixing.html

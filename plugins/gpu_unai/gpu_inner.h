@@ -48,11 +48,29 @@
 //#include "gpu_inner_blend.h"
 //#endif
 
-// TODO: use the arm-optimized gpu_inner_blends for arm builds
 #include "gpu_inner_blend.h"
+
+#ifdef __arm__
+#include "gpu_inner_blend_arm.h"
+#define gpuBlending gpuBlendingARM
+#else
+#define gpuBlending gpuBlendingGeneric
+#endif
 
 #include "gpu_inner_quantization.h"
 #include "gpu_inner_light.h"
+
+#ifdef __arm__
+#include "gpu_inner_light_arm.h"
+#define gpuLightingRGB gpuLightingRGBARM
+#define gpuLightingTXT gpuLightingTXTARM
+#define gpuLightingTXTGouraud gpuLightingTXTGouraudARM
+#else
+#define gpuLightingRGB gpuLightingRGBGeneric
+#define gpuLightingTXT gpuLightingTXTGeneric
+#define gpuLightingTXTGouraud gpuLightingTXTGouraudGeneric
+#endif
+
 
 // If defined, Gouraud colors are fixed-point 5.11, otherwise they are 8.16
 // This is only for debugging/verification of low-precision colors in C.

@@ -127,7 +127,7 @@ GPU_INLINE u32 gpuPackGouraudColInc(s32 dr, s32 dg, s32 db)
 //                 ^ bit 16
 // Where 'r,g,b' are integer bits of colors, 'X' fixed-pt, and '0' zero
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE u16 gpuLightingRGB(u32 gCol)
+GPU_INLINE u16 gpuLightingRGBGeneric(u32 gCol)
 {
 	return ((gCol<< 5)&0x7C00) |
 	       ((gCol>>11)&0x03E0) |
@@ -168,7 +168,7 @@ GPU_INLINE u32 gpuLightingRGB24(u32 gCol)
 //          u16 output:  0bbbbbgggggrrrrr
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE u16 gpuLightingTXT(u16 uSrc, u8 r5, u8 g5, u8 b5)
+GPU_INLINE u16 gpuLightingTXTGeneric(u16 uSrc, u8 r5, u8 g5, u8 b5)
 {
 	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | b5] << 10) |
 	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | g5] <<  5) |
@@ -190,7 +190,7 @@ GPU_INLINE u16 gpuLightingTXT(u16 uSrc, u8 r5, u8 g5, u8 b5)
 //          u16 output:  0bbbbbgggggrrrrr
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE u16 gpuLightingTXTGouraud(u16 uSrc, u32 gCol)
+GPU_INLINE u16 gpuLightingTXTGouraudGeneric(u16 uSrc, u32 gCol)
 {
 	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | ((gCol>> 5)&0x1F)]<<10) |
 	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | ((gCol>>16)&0x1F)]<< 5) |
