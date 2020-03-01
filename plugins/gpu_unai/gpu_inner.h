@@ -49,26 +49,25 @@
 //#endif
 
 #include "gpu_inner_blend.h"
-
-#ifdef __arm__
-#include "gpu_inner_blend_arm.h"
-#define gpuBlending gpuBlendingARM
-#else
-#define gpuBlending gpuBlendingGeneric
-#endif
-
 #include "gpu_inner_quantization.h"
 #include "gpu_inner_light.h"
 
 #ifdef __arm__
+#include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
+#define gpuBlending gpuBlendingARM
 #define gpuLightingRGB gpuLightingRGBARM
 #define gpuLightingTXT gpuLightingTXTARM
 #define gpuLightingTXTGouraud gpuLightingTXTGouraudARM
+// Non-dithering lighting and blending functions preserve uSrc
+// MSB. This saves a few operations and useless load/stores.
+#define MSB_PRESERVED (!CF_DITHER)
 #else
+#define gpuBlending gpuBlendingGeneric
 #define gpuLightingRGB gpuLightingRGBGeneric
 #define gpuLightingTXT gpuLightingTXTGeneric
 #define gpuLightingTXTGouraud gpuLightingTXTGouraudGeneric
+#define MSB_PRESERVED 0
 #endif
 
 
@@ -158,10 +157,10 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 					else            { *(u16*)pDst = col;          }
 				}
 			} else {
-				u16 uDst = *(u16*)pDst;
+				uint_fast16_t uDst = *(u16*)pDst;
 				if (CF_MASKCHECK) { if (uDst & 0x8000) goto endpixel; }
 
-				u16 uSrc = col;
+				uint_fast16_t uSrc = col;
 
 				if (CF_BLEND)
 					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
@@ -184,11 +183,11 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 					else            { *(u16*)pDst = col;          }
 				}
 			} else {
-				u16 uDst = *(u16*)pDst;
+				uint_fast16_t uDst = *(u16*)pDst;
 				if (CF_MASKCHECK) { if (uDst & 0x8000) goto endpixel; }
 				col = gpuGouraudColor15bpp(r, g, b);
 
-				u16 uSrc = col;
+				uint_fast16_t uSrc = col;
 
 				// Blend func can save an operation if it knows uSrc MSB is
 				//  unset. For untextured prims, this is always true.
@@ -294,7 +293,7 @@ static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 		//  unset. For untextured prims, this is always true.
 		const bool skip_uSrc_mask = true;
 
-		u16 uSrc, uDst;
+		uint_fast16_t uSrc, uDst;
 		do
 		{
 			if (CF_MASKCHECK || CF_BLEND) { uDst = *pDst; }
@@ -357,10 +356,11 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip (source color always comes with MSB=0).
-	//  For textured prims, lighting funcs always return it unset. (bonus!)
-	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
+	//  For textured prims, the generic lighting funcs always return it unset. (bonus!)
+  const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
 
-	u16 uSrc, uDst, srcMSB;
+	uint_fast16_t uSrc, uDst, srcMSB;
+  bool should_blend;
 	u32 u0_mask = gpu_unai.TextureWindow[2];
 
 	u8 r5, g5, b5;
@@ -402,12 +402,14 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 		if (CF_LIGHT)
 			uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 
-		if (CF_BLEND && srcMSB)
+    should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
+
+		if (CF_BLEND && should_blend)
 			uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
-		if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
-		else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
-		else                           { *pDst = uSrc;          }
+		if (CF_MASKSET)                                    { *pDst = uSrc | 0x8000; }
+		else if (!MSB_PRESERVED && (CF_BLEND || CF_LIGHT)) { *pDst = uSrc | srcMSB; }
+		else                                               { *pDst = uSrc;          }
 
 endsprite:
 		u0 += (CF_TEXTMODE==3) ? 2 : 1;
@@ -484,8 +486,9 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip this (src color MSB is always 0).
-	//  For textured prims, lighting funcs always return it unset. (bonus!)
-	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
+	//  For textured prims, the generic lighting funcs always return it unset. (bonus!)
+  const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
+  bool should_blend;
 
 	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
 
@@ -496,7 +499,7 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 			// UNTEXTURED, NO GOURAUD
 			const u16 pix15 = gpu_unai.PixelData;
 			do {
-				u16 uSrc, uDst;
+				uint_fast16_t uSrc, uDst;
 
 				// NOTE: Don't enable CF_BLITMASK  pixel skipping (speed hack)
 				//  on untextured polys. It seems to do more harm than good: see
@@ -525,7 +528,7 @@ endpolynotextnogou:
 			u32 l_gInc = gpu_unai.gInc;
 
 			do {
-				u16 uDst, uSrc;
+				uint_fast16_t uDst, uSrc;
 
 				// See note in above loop regarding CF_BLITMASK
 				//if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotextgou; }
@@ -563,7 +566,7 @@ endpolynotextgou:
 	{
 		// TEXTURED
 
-		u16 uDst, uSrc, srcMSB;
+		uint_fast16_t uDst, uSrc, srcMSB;
 
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
 		// one 32-bit unsigned int, but this proved to lose too much accuracy
@@ -650,13 +653,14 @@ endpolynotextgou:
 						uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 				}
 
-				if (CF_BLEND && srcMSB)
+        should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
+				if (CF_BLEND && should_blend)
 					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 			}
 
-			if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
-			else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
-			else                           { *pDst = uSrc;          }
+			if (CF_MASKSET)                                    { *pDst = uSrc | 0x8000; }
+			else if (!MSB_PRESERVED && (CF_BLEND || CF_LIGHT)) { *pDst = uSrc | srcMSB; }
+			else                                               { *pDst = uSrc;          }
 endpolytext:
 			pDst++;
 			l_u = (l_u + l_u_inc) & l_u_msk;

@@ -15,7 +15,7 @@
 // Where '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int BLENDMODE, bool SKIP_USRC_MSB_MASK>
-GPU_INLINE u16 gpuBlendingARM(u16 uSrc, u16 uDst)
+GPU_INLINE uint_fast16_t gpuBlendingARM(uint_fast16_t uSrc, uint_fast16_t uDst)
 {
 	// These use Blargg's bitwise modulo-clamping:
 	//  http://blargg.8bitalley.com/info/rgb_mixing.html
@@ -23,7 +23,7 @@ GPU_INLINE u16 gpuBlendingARM(u16 uSrc, u16 uDst)
 	//  http://blargg.8bitalley.com/info/rgb_clamped_sub.html
 
   
-	u16 mix;
+	uint_fast16_t mix;
 
   asm ("bic %[uDst], %[uDst], #0x8000" : [uDst] "+r" (uDst));
 
@@ -89,6 +89,12 @@ GPU_INLINE u16 gpuBlendingARM(u16 uSrc, u16 uDst)
          : [diff] "=&r" (diff), [mix] "=&r" (mix)
          : [uSrc] "r" (uSrc), [uDst] "r" (uDst), [mask] "r" (0x8420));
 	}
+
+  // There's not a case where we can get into this function,
+  // SKIP_USRC_MSB_MASK is false, and the msb of uSrc is unset.
+  if (!SKIP_USRC_MSB_MASK) {
+    asm ("orr %[mix], %[mix], #0x8000" : [mix] "+r" (mix));
+  }
   
 	return mix;
 }
