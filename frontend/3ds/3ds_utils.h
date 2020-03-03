@@ -24,6 +24,20 @@ void threadFree(int32_t thread);
 void threadExit(int32_t rc)  __attribute__((noreturn));
 
 int32_t svcGetSystemInfo(int64_t* out, uint32_t type, int32_t param);
+
+int32_t svcCreateSemaphore(uint32_t *sem, int32_t initial_count, uint32_t max_count);
+int32_t svcReleaseSemaphore(int32_t *count, uint32_t sem, int32_t release_count);
+int32_t svcWaitSynchronization(uint32_t handle, int64_t nanoseconds);
+
+typedef int32_t LightLock;
+
+void LightLock_Init(LightLock* lock);
+void LightLock_Lock(LightLock* lock);
+int LightLock_TryLock(LightLock* lock);
+void LightLock_Unlock(LightLock* lock);
+
+int32_t APT_CheckNew3DS(bool *out);
+
 int32_t svcBackdoor(int32_t (*callback)(void));
 
 #define DEBUG_HOLD() do{printf("%s@%s:%d.\n",__FUNCTION__, __FILE__, __LINE__);fflush(stdout);wait_for_input();}while(0)
