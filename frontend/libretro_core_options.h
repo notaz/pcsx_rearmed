@@ -541,7 +541,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
-#ifdef HAVE_LIBNX
+#if defined HAVE_LIBNX || defined _3DS
 	  "disabled",
 #else
       "enabled",
