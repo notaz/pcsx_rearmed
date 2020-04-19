@@ -357,10 +357,10 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip (source color always comes with MSB=0).
 	//  For textured prims, the generic lighting funcs always return it unset. (bonus!)
-  const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
+	const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
 
 	uint_fast16_t uSrc, uDst, srcMSB;
-  bool should_blend;
+	bool should_blend;
 	u32 u0_mask = gpu_unai.TextureWindow[2];
 
 	u8 r5, g5, b5;
@@ -402,7 +402,7 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 		if (CF_LIGHT)
 			uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 
-    should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
+		should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
 
 		if (CF_BLEND && should_blend)
 			uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
@@ -487,8 +487,8 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip this (src color MSB is always 0).
 	//  For textured prims, the generic lighting funcs always return it unset. (bonus!)
-  const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
-  bool should_blend;
+	const bool skip_uSrc_mask = MSB_PRESERVED ? (!CF_TEXTMODE) : (!CF_TEXTMODE) || CF_LIGHT;
+	bool should_blend;
 
 	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
 
@@ -653,7 +653,7 @@ endpolynotextgou:
 						uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 				}
 
-        should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
+				should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
 				if (CF_BLEND && should_blend)
 					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 			}
