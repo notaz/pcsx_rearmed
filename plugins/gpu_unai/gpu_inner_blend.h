@@ -37,14 +37,14 @@
 // Where '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int BLENDMODE, bool SKIP_USRC_MSB_MASK>
-GPU_INLINE u16 gpuBlending(u16 uSrc, u16 uDst)
+GPU_INLINE uint_fast16_t gpuBlendingGeneric(uint_fast16_t uSrc, uint_fast16_t uDst)
 {
 	// These use Blargg's bitwise modulo-clamping:
 	//  http://blargg.8bitalley.com/info/rgb_mixing.html
 	//  http://blargg.8bitalley.com/info/rgb_clamped_add.html
 	//  http://blargg.8bitalley.com/info/rgb_clamped_sub.html
 
-	u16 mix;
+	uint_fast16_t mix;
 
 	// 0.5 x Back + 0.5 x Forward
 	if (BLENDMODE==0) {
@@ -113,7 +113,7 @@ GPU_INLINE u16 gpuBlending(u16 uSrc, u16 uDst)
 //                     ^ bit 31
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE u32 gpuGetRGB24(u16 uSrc)
+GPU_INLINE u32 gpuGetRGB24(uint_fast16_t uSrc)
 {
 	return ((uSrc & 0x7C00)<<14)
 	     | ((uSrc & 0x03E0)<< 9)
@@ -137,7 +137,7 @@ GPU_INLINE u32 gpuGetRGB24(u16 uSrc)
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int BLENDMODE>
-GPU_INLINE u32 gpuBlending24(u32 uSrc24, u16 uDst)
+GPU_INLINE u32 gpuBlending24(u32 uSrc24, uint_fast16_t uDst)
 {
 	// These use techniques adapted from Blargg's techniques mentioned in
 	//  in gpuBlending() comments above. Not as much bitwise trickery is
