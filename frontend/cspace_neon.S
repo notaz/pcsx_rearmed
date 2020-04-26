@@ -27,19 +27,31 @@ FUNCTION(bgr555_to_rgb565): @ dst, src, bytes
     blt         btr16_end64
 0:
     pld         [r1, #64*2]
+    @ Pulls 15-bit BGR color values (which are actually 16 bits) into q0-q3.
+    @ example:  q0 = 0111 1110 0101 0011
     vldmia      r1!, {q0-q3}
-    vshl.u16    q8,  q0, #11
-    vshl.u16    q9,  q1, #11
-    vshl.u16    q10, q2, #11
-    vshl.u16    q11, q3, #11
-    vsri.u16    q8,  q0, #10
-    vsri.u16    q9,  q1, #10
-    vsri.u16    q10, q2, #10
-    vsri.u16    q11, q3, #10
+    @ Shift BGR color 1 bit to the left, discarding MSB and preparing for vbit.
+    @ MSB is used for transparency (not needed here, and can mess with green).
+    @ example:  q0 = 1111 1100 1010 0110
     vshl.u16    q0,  q0, #1
     vshl.u16    q1,  q1, #1
     vshl.u16    q2,  q2, #1
     vshl.u16    q3,  q3, #1
+    @ Places red value in left most bits, clears bits to the right.
+    @ example:  q8 = 1001 1000 0000 0000
+    vshl.u16    q8,  q0, #10
+    vshl.u16    q9,  q1, #10
+    vshl.u16    q10, q2, #10
+    vshl.u16    q11, q3, #10
+    @ Places blue value in right most bits, leaving bits to the left unchanged.
+    @ example:  q8 = 1001 1000 0001 1111
+    vsri.u16    q8,  q0, #11
+    vsri.u16    q9,  q1, #11
+    vsri.u16    q10, q2, #11
+    vsri.u16    q11, q3, #11
+    @ Sets green value from shifted BGR color by apply a mask.
+    @ example: q15 = 0000 0111 1100 0000
+    @           q8 = 1001 1100 1001 1111
     vbit        q8,  q0, q15
     vbit        q9,  q1, q15
     vbit        q10, q2, q15
@@ -57,10 +69,10 @@ btr16_end64:
     @ handle the remainder (reasonably rare)
 0:
     vld1.16     {q0}, [r1]!
-    vshl.u16    q1, q0, #11
-    vshl.u16    q2, q0, #1
-    vsri.u16    q1, q0, #10
-    vbit        q1, q2, q15
+    vshl.u16    q0, q0, #1
+    vshl.u16    q1, q0, #10
+    vsri.u16    q1, q0, #11
+    vbit        q1, q0, q15
     subs        r2, r2, #16
     vst1.16     {q1}, [r0]!
     bge         0b
@@ -73,10 +85,10 @@ btr16_end16:
 
     @ very rare
     vld1.16     {d0}, [r1]!
-    vshl.u16    d1, d0, #11
-    vshl.u16    d2, d0, #1
-    vsri.u16    d1, d0, #10
-    vbit        d1, d2, d30
+    vshl.u16    d0, d0, #1
+    vshl.u16    d1, d0, #10
+    vsri.u16    d1, d0, #11
+    vbit        d1, d0, d30
     vst1.16     {d1}, [r0]!
     bx          lr
 
