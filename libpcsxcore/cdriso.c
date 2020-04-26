@@ -1768,7 +1768,10 @@ static long CALLBACK ISOclose(void) {
 	memset(cdbuffer, 0, sizeof(cdbuffer));
 	CDR_getBuffer = ISOgetBuffer;
 
-  readThreadStop();
+	if (Config.AsyncCD) {
+		readThreadStop();
+	}
+
 	return 0;
 }
 
