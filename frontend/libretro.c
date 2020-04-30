@@ -1773,13 +1773,18 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
       R3000Acpu *prev_cpu = psxCpu;
+#if defined(LIGHTREC)
+      bool can_use_dynarec = found_bios;
+#else
+      bool can_use_dynarec = 1;
+#endif
 
 #ifdef _3DS
       if(!__ctr_svchax)
          Config.Cpu = CPU_INTERPRETER;
       else
 #endif
-      if (strcmp(var.value, "disabled") == 0)
+      if (strcmp(var.value, "disabled") == 0 || !can_use_dynarec)
          Config.Cpu = CPU_INTERPRETER;
       else if (strcmp(var.value, "enabled") == 0)
          Config.Cpu = CPU_DYNAREC;
