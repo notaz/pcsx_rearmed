@@ -1227,6 +1227,7 @@ static void set_retro_memmap(void)
     environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &retromap);
 }
 
+static void update_variables(bool in_flight);
 bool retro_load_game(const struct retro_game_info *info)
 {
 	size_t i;
@@ -1421,6 +1422,8 @@ bool retro_load_game(const struct retro_game_info *info)
 		SysPrintf("info->path required\n");
 		return false;
 	}
+
+	update_variables(false);
 
 	if (plugins_opened) {
 		ClosePlugins();
@@ -1772,7 +1775,7 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
    {
-      R3000Acpu *prev_cpu = psxCpu;
+	  R3000Acpu *prev_cpu = psxCpu;
 #if defined(LIGHTREC)
       bool can_use_dynarec = found_bios;
 #else
@@ -2762,13 +2765,15 @@ void retro_init(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
       libretro_supports_bitmasks = true;
 
-	update_variables(false);
 	check_system_specs();
 }
 
 void retro_deinit(void)
 {
-	ClosePlugins();
+	if (plugins_opened) {
+		ClosePlugins();
+		plugins_opened = 0;
+	}
 	SysClose();
 #ifdef _3DS
    linearFree(vout_buf);
