@@ -643,7 +643,7 @@ static void update_multitap()
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap1";
 	auto_case = 0;
-	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
 	{
 		if (strcmp(var.value, "enabled") == 0)
 			multitap1 = 1;
@@ -666,7 +666,7 @@ static void update_multitap()
 	var.value = NULL;
 	var.key = "pcsx_rearmed_multitap2";
 	auto_case = 0;
-	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value))
+	if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
 	{
 		if (strcmp(var.value, "enabled") == 0)
 			multitap2 = 1;
@@ -1625,12 +1625,12 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
       pl_rearmed_cbs.frameskip = atoi(var.value);
 
    var.value = NULL;
    var.key = "pcsx_rearmed_region";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       Config.PsxAuto = 0;
       if (strcmp(var.value, "auto") == 0)
@@ -1649,7 +1649,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_negcon_deadzone";
    negcon_deadzone = 0;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       negcon_deadzone = (int)(atoi(var.value) * 0.01f * NEGCON_RANGE);
    }
@@ -1657,7 +1657,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_negcon_response";
    negcon_linearity = 1;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "quadratic") == 0){
          negcon_linearity = 2;
@@ -1669,7 +1669,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_analog_axis_modifier";
    axis_bounds_modifier = true;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "square") == 0) {
         axis_bounds_modifier = true;
@@ -1681,7 +1681,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_vibration";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          in_enable_vibration = 0;
@@ -1692,7 +1692,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_dithering";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0) {
          pl_rearmed_cbs.gpu_peops.iUseDither = 0;
@@ -1713,10 +1713,10 @@ static void update_variables(bool in_flight)
    }
 
 #ifdef GPU_NEON
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_neon_interlace_enable";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_neon.allow_interlace = 0;
@@ -1727,7 +1727,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_neon_enhancement_enable";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
@@ -1738,7 +1738,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_neon_enhancement_no_main";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
@@ -1747,10 +1747,10 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_duping_enable";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          duping_enable = false;
@@ -1758,10 +1758,10 @@ static void update_variables(bool in_flight)
          duping_enable = true;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_display_internal_fps";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          display_internal_fps = false;
@@ -1773,7 +1773,7 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_drc";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
 	  R3000Acpu *prev_cpu = psxCpu;
 #if defined(LIGHTREC)
@@ -1801,10 +1801,10 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_spu_reverb";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          spu_config.iUseReverb = false;
@@ -1812,10 +1812,10 @@ static void update_variables(bool in_flight)
          spu_config.iUseReverb = true;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_spu_interpolation";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "simple") == 0)
          spu_config.iUseInterpolation = 1;
@@ -1827,10 +1827,10 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_pe2_fix";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          Config.RCntFix = 0;
@@ -1838,10 +1838,10 @@ static void update_variables(bool in_flight)
          Config.RCntFix = 1;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_idiablofix";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          spu_config.idiablofix = 0;
@@ -1849,10 +1849,10 @@ static void update_variables(bool in_flight)
          spu_config.idiablofix = 1;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_inuyasha_fix";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          Config.VSyncWA = 0;
@@ -1863,7 +1863,7 @@ static void update_variables(bool in_flight)
 #ifndef _WIN32
    var.value = NULL;
    var.key = "pcsx_rearmed_async_cd";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "async") == 0)
         Config.AsyncCD = 1;
@@ -1874,7 +1874,7 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_noxadecoding";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          Config.Xa = 1;
@@ -1884,7 +1884,7 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_nocdaudio";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          Config.Cdda = 1;
@@ -1894,7 +1894,7 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_spuirq";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          Config.SpuIrq = 0;
@@ -1905,7 +1905,7 @@ static void update_variables(bool in_flight)
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "pcsx_rearmed_nosmccheck";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
          new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
@@ -1915,7 +1915,7 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_gteregsunneeded";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
          new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
@@ -1925,7 +1925,7 @@ static void update_variables(bool in_flight)
 
    var.value = NULL;
    var.key = "pcsx_rearmed_nogteflags";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
          new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
@@ -1935,7 +1935,7 @@ static void update_variables(bool in_flight)
 #endif
 
 #ifdef GPU_PEOPS
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_odd_even_bit";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1944,7 +1944,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_ODD_EVEN_BIT;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_expand_screen_width";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1953,7 +1953,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_EXPAND_SCREEN_WIDTH;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_ignore_brightness";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1962,7 +1962,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_IGNORE_BRIGHTNESS;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_disable_coord_check";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1971,7 +1971,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_DISABLE_COORD_CHECK;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_lazy_screen_update";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1980,7 +1980,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_LAZY_SCREEN_UPDATE;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_old_frame_skip";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1989,7 +1989,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_OLD_FRAME_SKIP;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_repeated_triangles";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1998,7 +1998,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_REPEATED_TRIANGLES;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_quads_with_triangles";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -2007,7 +2007,7 @@ static void update_variables(bool in_flight)
          gpu_peops_fix |= GPU_PEOPS_QUADS_WITH_TRIANGLES;
    }
 
-   var.value = "NULL";
+   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_fake_busy_state";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -2064,7 +2064,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_gpu_unai_ilace_force";
    var.value = NULL;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_unai.ilace_force = 0;
@@ -2075,7 +2075,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_gpu_unai_pixel_skip";
    var.value = NULL;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
@@ -2086,7 +2086,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_gpu_unai_lighting";
    var.value = NULL;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_unai.lighting = 0;
@@ -2097,7 +2097,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_gpu_unai_fast_lighting";
    var.value = NULL;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_unai.fast_lighting = 0;
@@ -2108,7 +2108,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_gpu_unai_blending";
    var.value = NULL;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.gpu_unai.blending = 0;
@@ -2167,9 +2167,9 @@ static void update_variables(bool in_flight)
 
       //bootlogo display hack
       if (found_bios) {
-         var.value = "NULL";
+         var.value = NULL;
          var.key = "pcsx_rearmed_show_bios_bootlogo";
-         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
          {
             Config.SlowBoot = 0;
             rebootemu = 0;
@@ -2182,9 +2182,9 @@ static void update_variables(bool in_flight)
       }
 
 #if defined(LIGHTREC) || defined(NEW_DYNAREC)
-      var.value = "NULL";
+      var.value = NULL;
       var.key = "pcsx_rearmed_psxclock";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
       {
          int psxclock = atoi(var.value);
          cycle_multiplier = 10000 / psxclock;
@@ -2359,14 +2359,14 @@ void retro_run(void)
 			struct retro_variable var;
    			var.value = NULL;
    			var.key = "pcsx_rearmed_gunconadjustx";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 			{
 				GunconAdjustX = atoi(var.value);	
 			}
       			
    			var.value = NULL;
    			var.key = "pcsx_rearmed_gunconadjusty";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 			{
 				GunconAdjustY = atoi(var.value);	
 			} 
@@ -2374,7 +2374,7 @@ void retro_run(void)
 			
    			var.value = NULL;
    			var.key = "pcsx_rearmed_gunconadjustratiox";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 			{
 				GunconAdjustRatioX = atof(var.value);	
 			} 
@@ -2382,7 +2382,7 @@ void retro_run(void)
 			
    			var.value = NULL;
    			var.key = "pcsx_rearmed_gunconadjustratioy";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
 			{
 				GunconAdjustRatioY = atof(var.value);	
 			} 
