@@ -1615,6 +1615,14 @@ static const unsigned short retro_psx_map[] = {
 };
 #define RETRO_PSX_MAP_LEN (sizeof(retro_psx_map) / sizeof(retro_psx_map[0]))
 
+//Percentage distance of screen to adjust 
+static int GunconAdjustX = 0;
+static int GunconAdjustY = 0;
+
+//Used when out by a percentage
+static float GunconAdjustRatioX = 1;
+static float GunconAdjustRatioY = 1;
+
 static void update_variables(bool in_flight)
 {
    struct retro_variable var;
@@ -2150,6 +2158,41 @@ static void update_variables(bool in_flight)
    }
 #endif // GPU_UNAI
 
+   //This adjustment process gives the user the ability to manually align the mouse up better 
+   //with where the shots are in the emulator.
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gunconadjustx";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      GunconAdjustX = atoi(var.value);	
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gunconadjusty";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      GunconAdjustY = atoi(var.value);	
+   } 
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gunconadjustratiox";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      GunconAdjustRatioX = atof(var.value);	
+   } 
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gunconadjustratioy";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      GunconAdjustRatioY = atof(var.value);	
+   }
+
    if (in_flight) {
       // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -2345,55 +2388,11 @@ void retro_run(void)
 			int gunx = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
 			int guny = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
 			
-			//This adjustment process gives the user the ability to manually align the mouse up better 
-			//with where the shots are in the emulator.
-			
-			//Percentage distance of screen to adjust 
-			int GunconAdjustX = 0;
-			int GunconAdjustY = 0;
-			
-			//Used when out by a percentage
-			float GunconAdjustRatioX = 1;
-			float GunconAdjustRatioY = 1;
-				
-			struct retro_variable var;
-   			var.value = NULL;
-   			var.key = "pcsx_rearmed_gunconadjustx";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-			{
-				GunconAdjustX = atoi(var.value);	
-			}
-      			
-   			var.value = NULL;
-   			var.key = "pcsx_rearmed_gunconadjusty";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-			{
-				GunconAdjustY = atoi(var.value);	
-			} 
-			
-			
-   			var.value = NULL;
-   			var.key = "pcsx_rearmed_gunconadjustratiox";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-			{
-				GunconAdjustRatioX = atof(var.value);	
-			} 
-			
-			
-   			var.value = NULL;
-   			var.key = "pcsx_rearmed_gunconadjustratioy";
-   			if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-			{
-				GunconAdjustRatioY = atof(var.value);	
-			} 
-			
 			//Mouse range is -32767 -> 32767
 			//1% is about 655
 			//Use the left analog stick field to store the absolute coordinates
 			in_analog_left[0][0] = (gunx*GunconAdjustRatioX) + (GunconAdjustX * 655);
 			in_analog_left[0][1] = (guny*GunconAdjustRatioY) + (GunconAdjustY * 655);
-			
-			
 		}
 		if (in_type[i] == PSE_PAD_TYPE_NEGCON)
 		{
