@@ -285,7 +285,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
 
-#ifndef DRC_DISABLE
+#ifdef NEW_DYNAREC
    {
       "pcsx_rearmed_drc",
       "Dinamik Yeniden Derleyici",
@@ -308,7 +308,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       },
       NULL
    },
-#endif /* DRC_DISABLE */
+#endif /* NEW_DYNAREC */
 
 #ifdef __ARM_NEON__
    {
@@ -360,7 +360,7 @@ struct retro_core_option_definition option_defs_tr[] = {
    },
 
    /* GPU PEOPS OPTIONS */
-#ifdef DRC_DISABLE
+#ifdef GPU_PEOPS
    {
       "pcsx_rearmed_show_gpu_peops_settings",
       "Gelişmiş GPU Ayarlarını Göster",
@@ -451,7 +451,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       },
       NULL
    },
-#endif
+#endif /* GPU_PEOPS */
 
    {
       "pcsx_rearmed_show_bios_bootlogo",
@@ -528,7 +528,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
 
-#ifndef DRC_DISABLE
+#ifdef NEW_DYNAREC
    {
       "pcsx_rearmed_nosmccheck",
       "(Speed Hack) SMC Kontrollerini Devre Dışı Bırak",
@@ -556,7 +556,7 @@ struct retro_core_option_definition option_defs_tr[] = {
       },
       NULL
    },
-#endif /* DRC_DISABLE */
+#endif /* NEW_DYNAREC */
 
    { NULL, NULL, NULL, {{0}}, NULL },
 };

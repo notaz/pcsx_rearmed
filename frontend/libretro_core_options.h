@@ -548,7 +548,7 @@ struct retro_core_option_definition option_defs_us[] = {
 #endif
    },
 
-#ifndef DRC_DISABLE
+#if defined(LIGHTREC) || defined(NEW_DYNAREC)
    {
       "pcsx_rearmed_drc",
       "Dynamic Recompiler",
@@ -560,6 +560,9 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "enabled",
    },
+#endif /* LIGHTREC || NEW_DYNAREC */
+
+#ifdef NEW_DYNAREC
    {
       "pcsx_rearmed_psxclock",
       "PSX CPU Clock",
@@ -648,7 +651,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "57",
 #endif
    },
-#endif /* DRC_DISABLE */
+#endif /* NEW_DYNAREC */
 
 #ifdef GPU_NEON
    {
@@ -1009,7 +1012,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
 
-#ifndef DRC_DISABLE
+#ifdef NEW_DYNAREC
    {
       "pcsx_rearmed_nosmccheck",
       "(Speed Hack) Disable SMC Checks",
@@ -1043,7 +1046,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif /* DRC_DISABLE */
+#endif /* NEW_DYNAREC */
 
    { NULL, NULL, NULL, {{0}}, NULL },
 };

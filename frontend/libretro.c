@@ -574,7 +574,7 @@ static int controller_port_variable(unsigned port, struct retro_variable *var)
 		break;
 	}
 
-	return environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, var) || var->value;
+	return environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, var) && var->value;
 }
 
 static void update_controller_port_variable(unsigned port)
@@ -1777,7 +1777,7 @@ static void update_variables(bool in_flight)
          display_internal_fps = true;
    }
 
-#ifndef DRC_DISABLE
+#if defined(LIGHTREC) || defined(NEW_DYNAREC)
    var.value = NULL;
    var.key = "pcsx_rearmed_drc";
 
@@ -1807,7 +1807,7 @@ static void update_variables(bool in_flight)
          psxCpu->Reset(); // not really a reset..
       }
    }
-#endif
+#endif /* LIGHTREC || NEW_DYNAREC */
 
    var.value = NULL;
    var.key = "pcsx_rearmed_spu_reverb";
@@ -1910,7 +1910,7 @@ static void update_variables(bool in_flight)
          Config.SpuIrq = 1;
    }
 
-#ifndef DRC_DISABLE
+#ifdef NEW_DYNAREC
    var.value = NULL;
    var.key = "pcsx_rearmed_nosmccheck";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1940,7 +1940,7 @@ static void update_variables(bool in_flight)
       else
          new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
    }
-#endif
+#endif /* NEW_DYNAREC */
 
 #ifdef GPU_PEOPS
    var.value = NULL;
@@ -2224,7 +2224,7 @@ static void update_variables(bool in_flight)
          }
       }
 
-#if defined(LIGHTREC) || defined(NEW_DYNAREC)
+#ifdef NEW_DYNAREC
       var.value = NULL;
       var.key = "pcsx_rearmed_psxclock";
       if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
