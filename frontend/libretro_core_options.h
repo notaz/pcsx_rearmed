@@ -98,6 +98,17 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
+      "pcsx_rearmed_show_other_input_settings",
+      "Show other input settings",
+      "Shows or hides other inputs settings like multitaps, player 3-8 ports, analog fine-tunings, etc.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
       "pcsx_rearmed_pad1type",
       "Pad 1 Type",
       "Pad type for player 1",

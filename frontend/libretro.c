@@ -99,6 +99,7 @@ static int show_advanced_gpu_peops_settings = -1;
 #ifdef GPU_UNAI
 static int show_advanced_gpu_unai_settings  = -1;
 #endif
+static int show_other_input_settings = -1;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -1771,38 +1772,6 @@ static void update_variables(bool in_flight)
          Config.SpuIrq = 1;
    }
 
-#ifdef NEW_DYNAREC
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nosmccheck";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
-      else
-         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_gteregsunneeded";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
-      else
-         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nogteflags";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
-      else
-         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
-   }
-#endif /* NEW_DYNAREC */
-
 #ifdef GPU_PEOPS
    var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_odd_even_bit";
@@ -2053,6 +2022,91 @@ static void update_variables(bool in_flight)
       GunconAdjustRatioY = atof(var.value);
    }
 
+#ifdef NEW_DYNAREC
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nosmccheck";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
+      else
+         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gteregsunneeded";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nogteflags";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
+   }
+
+   /* this probably is safe to change in real-time */
+   var.value = NULL;
+   var.key = "pcsx_rearmed_psxclock";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int psxclock = atoi(var.value);
+      cycle_multiplier = 10000 / psxclock;
+   }
+#endif /* NEW_DYNAREC */
+
+   var.key = "pcsx_rearmed_show_other_input_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int previous_settings = show_other_input_settings;
+
+      show_other_input_settings = 1;
+      if (strcmp(var.value, "disabled") == 0)
+         show_other_input_settings = 0;
+
+      if (show_other_input_settings != previous_settings)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_peops_option[][50] = {
+            "pcsx_rearmed_multitap1",
+            "pcsx_rearmed_multitap2",
+            "pcsx_rearmed_pad3type",
+            "pcsx_rearmed_pad4type",
+            "pcsx_rearmed_pad5type",
+            "pcsx_rearmed_pad6type",
+            "pcsx_rearmed_pad7type",
+            "pcsx_rearmed_pad8type",
+            "pcsx_rearmed_negcon_deadzone",
+            "pcsx_rearmed_negcon_response",
+            "pcsx_rearmed_analog_axis_modifier",
+            "pcsx_rearmed_gunconadjustx",
+            "pcsx_rearmed_gunconadjusty",
+            "pcsx_rearmed_gunconadjustratiox",
+            "pcsx_rearmed_gunconadjustratioy"
+         };
+         #define INPUT_LIST (sizeof(gpu_peops_option) / sizeof(gpu_peops_option[0]))
+
+         option_display.visible = show_other_input_settings;
+
+         for (i = 0; i < INPUT_LIST; i++)
+         {
+            option_display.key = gpu_peops_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
+         }
+      }
+   }
+
    if (in_flight) {
     // inform core things about possible config changes
       plugin_call_rearmed_cbs();
@@ -2083,15 +2137,6 @@ static void update_variables(bool in_flight)
             }
          }
       }
-#ifdef NEW_DYNAREC
-      var.value = NULL;
-      var.key = "pcsx_rearmed_psxclock";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      {
-         int psxclock = atoi(var.value);
-         cycle_multiplier = 10000 / psxclock;
-      }
-#endif
    }
 }
 
