@@ -2244,21 +2244,218 @@ unsigned char axis_range_modifier(int16_t axis_value, bool is_square)
    return modifier_axis_range;
 }
 
-void retro_run(void)
+static void update_input_guncon(int port, int ret)
 {
-   int i;
-   //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
-   if (rebootemu != 0)
+   //ToDo move across to:
+   //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X
+   //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y
+   //RETRO_DEVICE_ID_LIGHTGUN_TRIGGER
+   //RETRO_DEVICE_ID_LIGHTGUN_RELOAD
+   //RETRO_DEVICE_ID_LIGHTGUN_AUX_A
+   //RETRO_DEVICE_ID_LIGHTGUN_AUX_B
+   //Though not sure these are hooked up properly on the Pi
+
+   //ToDo
+   //Put the controller index back to port instead of hardcoding to 1 when the libretro overlay crash bug is fixed
+   //This is required for 2 player
+
+   //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
+
+   // Trigger
+   //The 1 is hardcoded instead of port to prevent the overlay mouse button libretro crash bug
+   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
    {
-      rebootemu = 0;
-      SysReset();
-      if (!Config.HLE && !Config.SlowBoot)
-      {
-         // skip BIOS logos
-         psxRegs.pc = psxRegs.GPR.n.ra;
-      }
+      in_keystate[port] |= (1 << DKEY_CIRCLE);
    }
 
+   // A
+   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
+   {
+      in_keystate[port] |= (1 << DKEY_START);
+   }
+
+   // B
+   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE))
+   {
+      in_keystate[port] |= (1 << DKEY_CROSS);
+   }
+
+   //The 1 is hardcoded instead of port to prevent the overlay mouse button libretro crash bug
+   int gunx = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
+   int guny = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+
+   //Mouse range is -32767 -> 32767
+   //1% is about 655
+   //Use the left analog stick field to store the absolute coordinates
+   in_analog_left[0][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
+   in_analog_left[0][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
+}
+
+static void update_input_negcon(int port, int ret)
+{
+   int lsx;
+   int rsy;
+   int negcon_i_rs;
+   int negcon_ii_rs;
+   float negcon_twist_amplitude;
+
+   // Query digital inputs
+   //
+   // > Pad-Up
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_UP))
+      in_keystate[port] |= (1 << DKEY_UP);
+   // > Pad-Right
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_RIGHT))
+      in_keystate[port] |= (1 << DKEY_RIGHT);
+   // > Pad-Down
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_DOWN))
+      in_keystate[port] |= (1 << DKEY_DOWN);
+   // > Pad-Left
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_LEFT))
+      in_keystate[port] |= (1 << DKEY_LEFT);
+   // > Start
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_START))
+      in_keystate[port] |= (1 << DKEY_START);
+   // > neGcon A
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_A))
+      in_keystate[port] |= (1 << DKEY_CIRCLE);
+   // > neGcon B
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_X))
+      in_keystate[port] |= (1 << DKEY_TRIANGLE);
+   // > neGcon R shoulder (digital)
+   if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_R))
+      in_keystate[port] |= (1 << DKEY_R1);
+   // Query analog inputs
+   //
+   // From studying 'libpcsxcore/plugins.c' and 'frontend/plugin.c':
+   // >> pad->leftJoyX  == in_analog_left[port][0]  == NeGcon II
+   // >> pad->leftJoyY  == in_analog_left[port][1]  == NeGcon L
+   // >> pad->rightJoyX == in_analog_right[port][0] == NeGcon twist
+   // >> pad->rightJoyY == in_analog_right[port][1] == NeGcon I
+   // So we just have to map in_analog_left/right to more
+   // appropriate inputs...
+   //
+   // > NeGcon twist
+   // >> Get raw analog stick value and account for deadzone
+   lsx = input_state_cb(port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
+   if (lsx > negcon_deadzone)
+      lsx = lsx - negcon_deadzone;
+   else if (lsx < -negcon_deadzone)
+      lsx = lsx + negcon_deadzone;
+   else
+      lsx = 0;
+   // >> Convert to an 'amplitude' [-1.0,1.0] and adjust response
+   negcon_twist_amplitude = (float)lsx / (float)(NEGCON_RANGE - negcon_deadzone);
+   if (negcon_linearity == 2)
+   {
+      if (negcon_twist_amplitude < 0.0)
+         negcon_twist_amplitude = -(negcon_twist_amplitude * negcon_twist_amplitude);
+      else
+         negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude;
+   }
+   else if (negcon_linearity == 3)
+      negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude * negcon_twist_amplitude;
+   // >> Convert to final 'in_analog' integer value [0,255]
+   in_analog_right[port][0] = MAX(MIN((int)(negcon_twist_amplitude * 128.0f) + 128, 255), 0);
+   // > NeGcon I + II
+   // >> Handle right analog stick vertical axis mapping...
+   //    - Up (-Y) == accelerate == neGcon I
+   //    - Down (+Y) == brake == neGcon II
+   negcon_i_rs = 0;
+   negcon_ii_rs = 0;
+   rsy = input_state_cb(port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y);
+   if (rsy >= 0)
+   {
+      // Account for deadzone
+      // (Note: have never encountered a gamepad with significant differences
+      // in deadzone between left/right analog sticks, so use the regular 'twist'
+      // deadzone here)
+      if (rsy > negcon_deadzone)
+         rsy = rsy - negcon_deadzone;
+      else
+         rsy = 0;
+      // Convert to 'in_analog' integer value [0,255]
+      negcon_ii_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
+   }
+   else
+   {
+      if (rsy < -negcon_deadzone)
+         rsy = -1 * (rsy + negcon_deadzone);
+      else
+         rsy = 0;
+      negcon_i_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
+   }
+   // >> NeGcon I
+   in_analog_right[port][1] = MAX(
+       MAX(
+           get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_R2),
+           get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_B)),
+       negcon_i_rs);
+   // >> NeGcon II
+   in_analog_left[port][0] = MAX(
+       MAX(
+           get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_L2),
+           get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_Y)),
+       negcon_ii_rs);
+   // > NeGcon L
+   in_analog_left[port][1] = get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_L);
+}
+
+static void update_input(void)
+{
+   // reset all keystate, query libretro for keystate
+   int i;
+   int j;
+
+   for (i = 0; i < PORTS_NUMBER; i++)
+   {
+      int16_t ret = 0;
+      int type = in_type[i];
+
+      in_keystate[i] = 0;
+
+      if (type == PSE_PAD_TYPE_NONE)
+         continue;
+
+      if (libretro_supports_bitmasks)
+         ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
+      else
+      {
+         for (j = 0; j < (RETRO_DEVICE_ID_JOYPAD_R3 + 1); j++)
+         {
+            if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
+               ret |= (1 << j);
+         }
+      }
+
+      switch (type)
+      {
+      case PSE_PAD_TYPE_GUNCON:
+         update_input_guncon(i, ret);
+         break;
+      case PSE_PAD_TYPE_NEGCON:
+         update_input_negcon(i, ret);
+         break;
+      default:
+         // Query digital inputs
+         for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
+            if (ret & (1 << j))
+               in_keystate[i] |= retro_psx_map[j];
+
+         // Query analog inputs
+         if (type == PSE_PAD_TYPE_ANALOGJOY || type == PSE_PAD_TYPE_ANALOGPAD)
+         {
+            in_analog_left[i][0]  = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
+            in_analog_left[i][1]  = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
+            in_analog_right[i][0] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
+            in_analog_right[i][1] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
+         }
+      }
+   }
+}
+
+static void print_internal_fps(void)
+{
    if (display_internal_fps)
    {
       frame_count++;
@@ -2284,207 +2481,32 @@ void retro_run(void)
    }
    else
       frame_count = 0;
+}
+
+void retro_run(void)
+{
+   int i;
+   //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
+   if (rebootemu != 0)
+   {
+      rebootemu = 0;
+      SysReset();
+      if (!Config.HLE && !Config.SlowBoot)
+      {
+         // skip BIOS logos
+         psxRegs.pc = psxRegs.GPR.n.ra;
+      }
+   }
+
+   print_internal_fps();
 
    input_poll_cb();
+
+   update_input();
 
    bool updated = false;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       update_variables(true);
-
-   // reset all keystate, query libretro for keystate
-   int j;
-   int lsx;
-   int rsy;
-   float negcon_twist_amplitude;
-   int negcon_i_rs;
-   int negcon_ii_rs;
-
-   for (i = 0; i < PORTS_NUMBER; i++)
-   {
-      int16_t ret = 0;
-      in_keystate[i] = 0;
-
-      if (in_type[i] == PSE_PAD_TYPE_NONE)
-         continue;
-
-      if (libretro_supports_bitmasks)
-         ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
-      else
-      {
-         unsigned j;
-         for (j = 0; j < (RETRO_DEVICE_ID_JOYPAD_R3 + 1); j++)
-         {
-            if (input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, j))
-               ret |= (1 << j);
-         }
-      }
-
-      if (in_type[i] == PSE_PAD_TYPE_GUNCON)
-      {
-         //ToDo move across to:
-         //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X
-         //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y
-         //RETRO_DEVICE_ID_LIGHTGUN_TRIGGER
-         //RETRO_DEVICE_ID_LIGHTGUN_RELOAD
-         //RETRO_DEVICE_ID_LIGHTGUN_AUX_A
-         //RETRO_DEVICE_ID_LIGHTGUN_AUX_B
-         //Though not sure these are hooked up properly on the Pi
-
-         //ToDo
-         //Put the controller index back to i instead of hardcoding to 1 when the libretro overlay crash bug is fixed
-         //This is required for 2 player
-
-         //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
-
-         // Trigger
-         //The 1 is hardcoded instead of i to prevent the overlay mouse button libretro crash bug
-         if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
-         {
-            in_keystate[i] |= (1 << DKEY_CIRCLE);
-         }
-
-         // A
-         if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
-         {
-            in_keystate[i] |= (1 << DKEY_START);
-         }
-
-         // B
-         if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE))
-         {
-            in_keystate[i] |= (1 << DKEY_CROSS);
-         }
-
-         //The 1 is hardcoded instead of i to prevent the overlay mouse button libretro crash bug
-         int gunx = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
-         int guny = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
-
-         //Mouse range is -32767 -> 32767
-         //1% is about 655
-         //Use the left analog stick field to store the absolute coordinates
-         in_analog_left[0][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
-         in_analog_left[0][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
-      }
-      if (in_type[i] == PSE_PAD_TYPE_NEGCON)
-      {
-         // Query digital inputs
-         //
-         // > Pad-Up
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_UP))
-            in_keystate[i] |= (1 << DKEY_UP);
-         // > Pad-Right
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_RIGHT))
-            in_keystate[i] |= (1 << DKEY_RIGHT);
-         // > Pad-Down
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_DOWN))
-            in_keystate[i] |= (1 << DKEY_DOWN);
-         // > Pad-Left
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_LEFT))
-            in_keystate[i] |= (1 << DKEY_LEFT);
-         // > Start
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_START))
-            in_keystate[i] |= (1 << DKEY_START);
-         // > neGcon A
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_A))
-            in_keystate[i] |= (1 << DKEY_CIRCLE);
-         // > neGcon B
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_X))
-            in_keystate[i] |= (1 << DKEY_TRIANGLE);
-         // > neGcon R shoulder (digital)
-         if (ret & (1 << RETRO_DEVICE_ID_JOYPAD_R))
-            in_keystate[i] |= (1 << DKEY_R1);
-         // Query analog inputs
-         //
-         // From studying 'libpcsxcore/plugins.c' and 'frontend/plugin.c':
-         // >> pad->leftJoyX  == in_analog_left[i][0]  == NeGcon II
-         // >> pad->leftJoyY  == in_analog_left[i][1]  == NeGcon L
-         // >> pad->rightJoyX == in_analog_right[i][0] == NeGcon twist
-         // >> pad->rightJoyY == in_analog_right[i][1] == NeGcon I
-         // So we just have to map in_analog_left/right to more
-         // appropriate inputs...
-         //
-         // > NeGcon twist
-         // >> Get raw analog stick value and account for deadzone
-         lsx = input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
-         if (lsx > negcon_deadzone)
-            lsx = lsx - negcon_deadzone;
-         else if (lsx < -negcon_deadzone)
-            lsx = lsx + negcon_deadzone;
-         else
-            lsx = 0;
-         // >> Convert to an 'amplitude' [-1.0,1.0] and adjust response
-         negcon_twist_amplitude = (float)lsx / (float)(NEGCON_RANGE - negcon_deadzone);
-         if (negcon_linearity == 2)
-         {
-            if (negcon_twist_amplitude < 0.0)
-               negcon_twist_amplitude = -(negcon_twist_amplitude * negcon_twist_amplitude);
-            else
-               negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude;
-         }
-         else if (negcon_linearity == 3)
-            negcon_twist_amplitude = negcon_twist_amplitude * negcon_twist_amplitude * negcon_twist_amplitude;
-         // >> Convert to final 'in_analog' integer value [0,255]
-         in_analog_right[i][0] = MAX(MIN((int)(negcon_twist_amplitude * 128.0f) + 128, 255), 0);
-         // > NeGcon I + II
-         // >> Handle right analog stick vertical axis mapping...
-         //    - Up (-Y) == accelerate == neGcon I
-         //    - Down (+Y) == brake == neGcon II
-         negcon_i_rs = 0;
-         negcon_ii_rs = 0;
-         rsy = input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y);
-         if (rsy >= 0)
-         {
-            // Account for deadzone
-            // (Note: have never encountered a gamepad with significant differences
-            // in deadzone between left/right analog sticks, so use the regular 'twist'
-            // deadzone here)
-            if (rsy > negcon_deadzone)
-               rsy = rsy - negcon_deadzone;
-            else
-               rsy = 0;
-            // Convert to 'in_analog' integer value [0,255]
-            negcon_ii_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
-         }
-         else
-         {
-            if (rsy < -negcon_deadzone)
-               rsy = -1 * (rsy + negcon_deadzone);
-            else
-               rsy = 0;
-            negcon_i_rs = MIN((int)(((float)rsy / (float)(NEGCON_RANGE - negcon_deadzone)) * 255.0f), 255);
-         }
-         // >> NeGcon I
-         in_analog_right[i][1] = MAX(
-             MAX(
-                 get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_R2),
-                 get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_B)),
-             negcon_i_rs);
-         // >> NeGcon II
-         in_analog_left[i][0] = MAX(
-             MAX(
-                 get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L2),
-                 get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_Y)),
-             negcon_ii_rs);
-         // > NeGcon L
-         in_analog_left[i][1] = get_analog_button(ret, input_state_cb, i, RETRO_DEVICE_ID_JOYPAD_L);
-      }
-      if (in_type[i] != PSE_PAD_TYPE_NEGCON && in_type[i] != PSE_PAD_TYPE_GUNCON)
-      {
-         // Query digital inputs
-         for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
-            if (ret & (1 << j))
-               in_keystate[i] |= retro_psx_map[j];
-
-         // Query analog inputs
-         if (in_type[i] == PSE_PAD_TYPE_ANALOGJOY || in_type[i] == PSE_PAD_TYPE_ANALOGPAD)
-         {
-            in_analog_left[i][0] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
-            in_analog_left[i][1] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
-            in_analog_right[i][0] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X), axis_bounds_modifier);
-            in_analog_right[i][1] = axis_range_modifier(input_state_cb(i, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y), axis_bounds_modifier);
-         }
-      }
-   }
 
    stop = 0;
    psxCpu->Execute();
