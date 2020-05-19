@@ -1242,6 +1242,7 @@ strcasestr(const char *s, const char *find)
 
 static void set_retro_memmap(void)
 {
+#ifndef NDEBUG
    struct retro_memory_map retromap = { 0 };
    struct retro_memory_descriptor mmap = {
       0, psxM, 0, 0, 0, 0, 0x200000
@@ -1251,6 +1252,7 @@ static void set_retro_memmap(void)
    retromap.num_descriptors = 1;
 
    environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &retromap);
+#endif
 }
 
 static void update_variables(bool in_flight);
@@ -2485,7 +2487,6 @@ static void print_internal_fps(void)
 
 void retro_run(void)
 {
-   int i;
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (rebootemu != 0)
    {
