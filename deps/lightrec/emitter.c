@@ -1250,7 +1250,8 @@ static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
-	if (op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
+	if (op->i.op == OP_CP0 && !(op->flags & LIGHTREC_NO_DS) &&
+	    (op->r.rd == 12 || op->r.rd == 13))
 		lightrec_emit_end_of_block(block, op, pc, -1, pc + 4, 0, 0, true);
 }
 
@@ -1427,7 +1428,7 @@ static void rec_meta_sync(const struct block *block,
 		 op->offset << 2);
 	target = &state->targets[state->nb_targets++];
 	target->offset = op->offset;
-	target->label = jit_label();
+	target->label = jit_indirect();
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {

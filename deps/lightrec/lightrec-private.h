@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Paul Cercueil <paul@crapouillou.net>
+ * Copyright (C) 2016-2020 Paul Cercueil <paul@crapouillou.net>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -50,6 +50,7 @@
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
 #define BLOCK_FULLY_TAGGED	BIT(2)
+#define BLOCK_IS_DEAD		BIT(3)
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
@@ -66,6 +67,7 @@ struct recompiler;
 struct regcache;
 struct opcode;
 struct tinymm;
+struct reaper;
 
 struct block {
 	jit_state_t *_jit;
@@ -115,9 +117,11 @@ struct lightrec_state {
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	struct recompiler *rec;
+	struct reaper *reaper;
 	void (*eob_wrapper_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
+	unsigned int nb_precompile;
 	unsigned int cycles;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;

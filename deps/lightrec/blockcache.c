@@ -60,12 +60,6 @@ void remove_from_code_lut(struct blockcache *cache, struct block *block)
 
 }
 
-void lightrec_mark_for_recompilation(struct blockcache *cache,
-				     struct block *block)
-{
-	block->flags |= BLOCK_SHOULD_RECOMPILE;
-}
-
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
 	u32 pc = kunseg(block->pc);
@@ -84,8 +78,6 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 {
 	u32 pc = kunseg(block->pc);
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-
-	remove_from_code_lut(cache, block);
 
 	if (old == block) {
 		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
