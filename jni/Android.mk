@@ -158,7 +158,8 @@ ifeq ($(HAVE_LIGHTREC),1)
 					  $(DEPS_DIR)/lightrec/memmanager.c \
 					  $(DEPS_DIR)/lightrec/optimizer.c \
 					  $(DEPS_DIR)/lightrec/regcache.c \
-					  $(DEPS_DIR)/lightrec/recompiler.c
+					  $(DEPS_DIR)/lightrec/recompiler.c \
+					  $(DEPS_DIR)/lightrec/reaper.c
   SOURCES_C   += $(DEPS_DIR)/lightning/lib/jit_disasm.c \
 					  $(DEPS_DIR)/lightning/lib/jit_memory.c \
 					  $(DEPS_DIR)/lightning/lib/jit_names.c \
