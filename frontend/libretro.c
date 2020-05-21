@@ -83,6 +83,8 @@ static retro_set_rumble_state_t rumble_cb;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
+static unsigned msg_interface_version = 0;
+
 static void *vout_buf;
 static void *vout_buf_ptr;
 static int vout_width, vout_height;
@@ -2467,10 +2469,6 @@ static void print_internal_fps(void)
          unsigned internal_fps = pl_rearmed_cbs.flip_cnt * (is_pal_mode ? 50 : 60) / INTERNAL_FPS_SAMPLE_PERIOD;
          char str[64];
          const char *strc = (const char *)str;
-         struct retro_message msg = {
-            strc,
-            180
-         };
 
          str[0] = '\0';
 
@@ -2478,7 +2476,27 @@ static void print_internal_fps(void)
 
          pl_rearmed_cbs.flip_cnt = 0;
 
-         environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+         if (msg_interface_version >= 1)
+         {
+            struct retro_message_ext msg = {
+               strc,
+               3000,
+               1,
+               RETRO_LOG_INFO,
+               RETRO_MESSAGE_TARGET_OSD,
+               RETRO_MESSAGE_TYPE_STATUS,
+               -1
+            };
+            environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
+         }
+         else
+         {
+            struct retro_message msg = {
+               strc,
+               180
+            };
+            environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+         }
       }
    }
    else
@@ -2679,12 +2697,31 @@ static void loadPSXBios(void)
 
    if (useHLE || !found_bios)
    {
+      const char *msg_str = "No PlayStation BIOS file found - add for better compatibility";
+
       SysPrintf("no BIOS files found.\n");
-      struct retro_message msg = {
-         "No PlayStation BIOS file found - add for better compatibility",
-         180
-      };
-      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, (void *)&msg);
+
+      if (msg_interface_version >= 1)
+      {
+         struct retro_message_ext msg = {
+            msg_str,
+            3000,
+            3,
+            RETRO_LOG_WARN,
+            RETRO_MESSAGE_TARGET_ALL,
+            RETRO_MESSAGE_TYPE_NOTIFICATION,
+            -1
+         };
+         environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
+      }
+      else
+      {
+         struct retro_message msg = {
+            msg_str,
+            180
+         };
+         environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+      }
    }
 }
 
@@ -2693,6 +2730,9 @@ void retro_init(void)
    unsigned dci_version = 0;
    struct retro_rumble_interface rumble;
    int ret;
+
+   msg_interface_version = 0;
+   environ_cb(RETRO_ENVIRONMENT_GET_MESSAGE_INTERFACE_VERSION, &msg_interface_version);
 
 #ifdef __MACH__
    // magic sauce to make the dynarec work on iOS
