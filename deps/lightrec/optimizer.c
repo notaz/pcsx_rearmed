@@ -675,7 +675,7 @@ static int lightrec_switch_delay_slots(struct block *block)
 		list->c = next_op;
 		list->next->c = op;
 		list->next->flags = list->flags | LIGHTREC_NO_DS;
-		list->flags = flags;
+		list->flags = flags | LIGHTREC_NO_DS;
 		list->offset++;
 		list->next->offset--;
 	}
@@ -877,11 +877,12 @@ static int lightrec_flag_stores(struct block *block)
 		case OP_SB:
 		case OP_SH:
 		case OP_SW:
-			/* Mark all store operations that target $sp, $gp, $k0
-			 * or $k1 as not requiring code invalidation. This is
-			 * based on the heuristic that stores using one of these
+			/* Mark all store operations that target $sp or $gp
+			 * as not requiring code invalidation. This is based
+			 * on the heuristic that stores using one of these
 			 * registers as address will never hit a code page. */
-			if (list->i.rs >= 26 && list->i.rs <= 29) {
+			if (list->i.rs >= 28 && list->i.rs <= 29 &&
+			    !block->state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
 				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
 					 list->opcode);
 				list->flags |= LIGHTREC_NO_INVALIDATE;

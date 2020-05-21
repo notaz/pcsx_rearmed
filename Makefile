@@ -97,7 +97,8 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightrec/memmanager.o \
 		deps/lightrec/optimizer.o \
 		deps/lightrec/regcache.o \
-		deps/lightrec/recompiler.o
+		deps/lightrec/recompiler.o \
+		deps/lightrec/reaper.o
 ifeq ($(MMAP_WIN32),1)
 CFLAGS += -Ideps/mman
 OBJS += deps/mman/mman.o

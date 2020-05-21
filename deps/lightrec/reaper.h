@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Paul Cercueil <paul@crapouillou.net>
+ * Copyright (C) 2020 Paul Cercueil <paul@crapouillou.net>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,18 @@
  * Lesser General Public License for more details.
  */
 
-#ifndef __LIGHTREC_INTERPRETER_H__
-#define __LIGHTREC_INTERPRETER_H__
+#ifndef __LIGHTREC_REAPER_H__
+#define __LIGHTREC_REAPER_H__
 
-#include "lightrec.h"
+struct lightrec_state;
+struct reaper;
 
-struct block;
+typedef void (*reap_func_t)(void *);
 
-u32 lightrec_emulate_block(struct block *block, u32 pc);
+struct reaper *lightrec_reaper_init(struct lightrec_state *state);
+void lightrec_reaper_destroy(struct reaper *reaper);
 
-#endif /* __LIGHTREC_INTERPRETER_H__ */
+int lightrec_reaper_add(struct reaper *reaper, reap_func_t f, void *data);
+void lightrec_reaper_reap(struct reaper *reaper);
+
+#endif /* __LIGHTREC_REAPER_H__ */

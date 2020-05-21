@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Paul Cercueil <paul@crapouillou.net>
+ * Copyright (C) 2016-2020 Paul Cercueil <paul@crapouillou.net>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -78,12 +78,15 @@ enum mem_type {
 };
 
 struct lightrec_mem_map_ops {
-	void (*sb)(struct lightrec_state *, u32 addr, u8 data);
-	void (*sh)(struct lightrec_state *, u32 addr, u16 data);
-	void (*sw)(struct lightrec_state *, u32 addr, u32 data);
-	u8 (*lb)(struct lightrec_state *, u32 addr);
-	u16 (*lh)(struct lightrec_state *, u32 addr);
-	u32 (*lw)(struct lightrec_state *, u32 addr);
+	void (*sb)(struct lightrec_state *, u32 opcode,
+		   void *host, u32 addr, u8 data);
+	void (*sh)(struct lightrec_state *, u32 opcode,
+		   void *host, u32 addr, u16 data);
+	void (*sw)(struct lightrec_state *, u32 opcode,
+		   void *host, u32 addr, u32 data);
+	u8 (*lb)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
+	u16 (*lh)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
+	u32 (*lw)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
 };
 
 struct lightrec_mem_map {
@@ -95,11 +98,11 @@ struct lightrec_mem_map {
 };
 
 struct lightrec_cop_ops {
-	u32 (*mfc)(struct lightrec_state *state, u8 reg);
-	u32 (*cfc)(struct lightrec_state *state, u8 reg);
-	void (*mtc)(struct lightrec_state *state, u8 reg, u32 value);
-	void (*ctc)(struct lightrec_state *state, u8 reg, u32 value);
-	void (*op)(struct lightrec_state *state, u32 opcode);
+	u32 (*mfc)(struct lightrec_state *state, u32 op, u8 reg);
+	u32 (*cfc)(struct lightrec_state *state, u32 op, u8 reg);
+	void (*mtc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
+	void (*ctc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
+	void (*op)(struct lightrec_state *state, u32 op);
 };
 
 struct lightrec_ops {

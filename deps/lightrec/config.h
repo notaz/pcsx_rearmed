@@ -21,4 +21,3 @@
 #define ENABLE_TINYMM 0
 
 #endif /* __LIGHTREC_CONFIG_H__ */
-

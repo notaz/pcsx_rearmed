@@ -53,7 +53,7 @@ option(ENABLE_FIRST_PASS "Run the interpreter as first-pass optimization" ON)
 
 option(ENABLE_THREADED_COMPILER "Enable threaded compiler" ON)
 if (ENABLE_THREADED_COMPILER)
-	list(APPEND LIGHTREC_SOURCES recompiler.c)
+	list(APPEND LIGHTREC_SOURCES recompiler.c reaper.c)
 
 	if (NOT ENABLE_FIRST_PASS)
 		message(SEND_ERROR "Threaded compiler requires first-pass optimization")
