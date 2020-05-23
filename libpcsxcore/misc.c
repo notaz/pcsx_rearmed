@@ -392,7 +392,7 @@ int CheckCdrom() {
 	}
 
 	if (CdromLabel[0] == ' ') {
-		strncpy(CdromLabel, CdromId, 9);
+		memcpy(CdromLabel, CdromId, 9);
 	}
 	SysPrintf(_("CD-ROM Label: %.32s\n"), CdromLabel);
 	SysPrintf(_("CD-ROM ID: %.9s\n"), CdromId);

@@ -307,7 +307,7 @@ static int cdidcmp(const char *id1, const char *id2)
 
 static void parse_cwcheat(void)
 {
-	char line[256], buf[64], name[64], *p;
+	char line[256], buf[256], name[256], *p;
 	int newcheat = 1;
 	u32 a, v;
 	FILE *f;
@@ -883,8 +883,9 @@ static int _OpenPlugins(void) {
 		MAKE_PATH(dotdir, "/.pcsx/plugins/", NULL);
 
 		strcpy(info.EmuName, "PCSX");
-		strncpy(info.CdromID, CdromId, 9);
-		strncpy(info.CdromLabel, CdromLabel, 9);
+		memcpy(info.CdromID, CdromId, 9); /* no \0 trailing character? */
+		memcpy(info.CdromLabel, CdromLabel, 9);
+		info.CdromLabel[9] = '\0';
 		info.psxMem = psxM;
 		info.GPU_showScreenPic = GPU_showScreenPic;
 		info.GPU_displayText = GPU_displayText;
