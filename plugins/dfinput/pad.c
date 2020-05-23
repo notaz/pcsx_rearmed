@@ -42,6 +42,7 @@ enum {
 	CMD_VIBRATION_TOGGLE = 0x4D,
 };
 
+#ifndef HAVE_LIBRETRO
 static struct {
 	uint8_t PadMode;
 	uint8_t PadID;
@@ -242,6 +243,7 @@ static void do_vibration(unsigned char value)
             break;
     }
 }
+#endif
 
 #if 0
 #include <stdio.h>
