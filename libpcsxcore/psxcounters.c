@@ -64,7 +64,9 @@ static const u32 HSyncTotal[]     = { 263, 313 };
 #define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
+#if VERBOSE_LEVEL > 0
 static const s32 VerboseLevel     = VERBOSE_LEVEL;
+#endif
 
 /******************************************************************************/
 

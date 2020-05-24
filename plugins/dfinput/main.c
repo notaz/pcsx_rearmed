@@ -27,6 +27,8 @@ extern unsigned char CALLBACK PAD2__startPoll(int pad);
 extern unsigned char CALLBACK PAD1__poll(unsigned char value);
 extern unsigned char CALLBACK PAD2__poll(unsigned char value);
 
+#ifndef HAVE_LIBRETRO
+
 static int old_controller_type1 = -1, old_controller_type2 = -1;
 
 #define select_pad(n) \
@@ -40,12 +42,12 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 			pad_init(); \
 			break; \
 		case PSE_PAD_TYPE_GUNCON: \
-			//Removed for new Guncon functionality, may have been required for very old touchscreen support
-			//PAD##n##_startPoll = PADstartPoll_guncon; \
-			//PAD##n##_poll = PADpoll_guncon; \
-			//guncon_init(); \
-			//break; \
-                case PSE_PAD_TYPE_NEGCON: \
+			/* Removed for new Guncon functionality, may have been required for very old touchscreen support */ \
+			/* PAD##n##_startPoll = PADstartPoll_guncon; */ \
+			/* PAD##n##_poll = PADpoll_guncon; */ \
+			/* guncon_init(); */ \
+			/* break; */ \
+		case PSE_PAD_TYPE_NEGCON: \
 		case PSE_PAD_TYPE_GUN: \
 		default: \
 			PAD##n##_startPoll = PAD##n##__startPoll; \
@@ -53,6 +55,7 @@ static int old_controller_type1 = -1, old_controller_type2 = -1;
 			break; \
 		} \
 	}
+#endif /* HAVE_LIBRETRO */
 
 
 void dfinput_activate(void)
