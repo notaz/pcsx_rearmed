@@ -194,11 +194,20 @@ extern "C" {
 #define CHDFLAGS_IS_WRITEABLE		0x00000002
 #define CHDFLAGS_UNDEFINED			0xfffffffc
 
+#define CHD_MAKE_TAG(a,b,c,d)       (((a) << 24) | ((b) << 16) | ((c) << 8) | (d))
+
 /* compression types */
 #define CHDCOMPRESSION_NONE			0
 #define CHDCOMPRESSION_ZLIB			1
 #define CHDCOMPRESSION_ZLIB_PLUS	2
 #define CHDCOMPRESSION_AV			3
+
+#define CHD_CODEC_NONE 0
+#define CHD_CODEC_ZLIB				CHD_MAKE_TAG('z','l','i','b')
+/* general codecs with CD frontend */
+#define CHD_CODEC_CD_ZLIB			CHD_MAKE_TAG('c','d','z','l')
+#define CHD_CODEC_CD_LZMA			CHD_MAKE_TAG('c','d','l','z')
+#define CHD_CODEC_CD_FLAC			CHD_MAKE_TAG('c','d','f','l')
 
 /* A/V codec configuration parameters */
 #define AV_CODEC_COMPRESS_CONFIG	1
@@ -212,33 +221,34 @@ extern "C" {
 #define CHD_MDFLAGS_CHECKSUM		0x01		/* indicates data is checksummed */
 
 /* standard hard disk metadata */
-#define HARD_DISK_METADATA_TAG		0x47444444	/* 'GDDD' */
+#define HARD_DISK_METADATA_TAG		CHD_MAKE_TAG('G','D','D','D')
 #define HARD_DISK_METADATA_FORMAT	"CYLS:%d,HEADS:%d,SECS:%d,BPS:%d"
 
 /* hard disk identify information */
-#define HARD_DISK_IDENT_METADATA_TAG 0x49444e54 /* 'IDNT' */
+#define HARD_DISK_IDENT_METADATA_TAG CHD_MAKE_TAG('I','D','N','T')
 
 /* hard disk key information */
-#define HARD_DISK_KEY_METADATA_TAG	0x4b455920  /* 'KEY '  */
+#define HARD_DISK_KEY_METADATA_TAG	CHD_MAKE_TAG('K','E','Y',' ')
 
 /* pcmcia CIS information */
-#define PCMCIA_CIS_METADATA_TAG		0x43495320  /* 'CIS '  */
+#define PCMCIA_CIS_METADATA_TAG		CHD_MAKE_TAG('C','I','S',' ')
 
 /* standard CD-ROM metadata */
-#define CDROM_OLD_METADATA_TAG		0x43484344	/* 'CHCD' */
-#define CDROM_TRACK_METADATA_TAG	0x43485452	/* 'CHTR' */
+#define CDROM_OLD_METADATA_TAG		CHD_MAKE_TAG('C','H','C','D')
+#define CDROM_TRACK_METADATA_TAG	CHD_MAKE_TAG('C','H','T','R')
 #define CDROM_TRACK_METADATA_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d"
-#define CDROM_TRACK_METADATA2_TAG	0x43485432	/* 'CHT2' */
+#define CDROM_TRACK_METADATA2_TAG	CHD_MAKE_TAG('C','H','T','2')
 #define CDROM_TRACK_METADATA2_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
-#define GDROM_TRACK_METADATA_TAG	0x43484744	/* 'CHTD' */
+#define GDROM_OLD_METADATA_TAG		CHD_MAKE_TAG('C','H','G','T')
+#define GDROM_TRACK_METADATA_TAG	CHD_MAKE_TAG('C', 'H', 'G', 'D')
 #define GDROM_TRACK_METADATA_FORMAT	"TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PAD:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d"
 
 /* standard A/V metadata */
-#define AV_METADATA_TAG				0x41564156	/* 'AVAV' */
+#define AV_METADATA_TAG				CHD_MAKE_TAG('A','V','A','V')
 #define AV_METADATA_FORMAT			"FPS:%d.%06d WIDTH:%d HEIGHT:%d INTERLACED:%d CHANNELS:%d SAMPLERATE:%d"
 
 /* A/V laserdisc frame metadata */
-#define AV_LD_METADATA_TAG			0x41564C44	/* 'AVLD' */
+#define AV_LD_METADATA_TAG			CHD_MAKE_TAG('A','V','L','D')
 
 /* CHD open values */
 #define CHD_OPEN_READ				1
@@ -305,14 +315,14 @@ struct _chd_header
 	UINT8		parentmd5[CHD_MD5_BYTES];	/* overall MD5 checksum of parent */
 	UINT8		sha1[CHD_SHA1_BYTES];		/* overall SHA1 checksum */
 	UINT8		rawsha1[CHD_SHA1_BYTES];	/* SHA1 checksum of raw data */
-	UINT8		parentsha1[CHD_SHA1_BYTES];	/* overall SHA1 checksum of parent */	
+	UINT8		parentsha1[CHD_SHA1_BYTES];	/* overall SHA1 checksum of parent */
 	UINT32		unitbytes;					/* TODO V5 */
-	UINT64		unitcount;					/* TODO V5 */	
+	UINT64		unitcount;					/* TODO V5 */
     UINT32      hunkcount;                  /* TODO V5 */
 
-    // map information
-    UINT32      mapentrybytes;              // length of each entry in a map (V5)
-    UINT8*      rawmap;                     // raw map data
+    /* map information */
+    UINT32      mapentrybytes;              /* length of each entry in a map (V5) */
+    UINT8*      rawmap;                     /* raw map data */
 
 	UINT32		obsolete_cylinders;			/* obsolete field -- do not use! */
 	UINT32		obsolete_sectors;			/* obsolete field -- do not use! */
@@ -341,10 +351,10 @@ struct _chd_verify_result
 /* ----- CHD file management ----- */
 
 /* create a new CHD file fitting the given description */
-// chd_error chd_create(const char *filename, UINT64 logicalbytes, UINT32 hunkbytes, UINT32 compression, chd_file *parent);
+/* chd_error chd_create(const char *filename, UINT64 logicalbytes, UINT32 hunkbytes, UINT32 compression, chd_file *parent); */
 
 /* same as chd_create(), but accepts an already-opened core_file object */
-// chd_error chd_create_file(core_file *file, UINT64 logicalbytes, UINT32 hunkbytes, UINT32 compression, chd_file *parent);
+/* chd_error chd_create_file(core_file *file, UINT64 logicalbytes, UINT32 hunkbytes, UINT32 compression, chd_file *parent); */
 
 /* open an existing CHD file */
 chd_error chd_open(const char *filename, int mode, chd_file *parent, chd_file **chd);

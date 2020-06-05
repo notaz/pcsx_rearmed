@@ -1,6 +1,6 @@
-// license:BSD-3-Clause
-// copyright-holders:Aaron Giles
-/***************************************************************************
+/* license:BSD-3-Clause
+ * copyright-holders:Aaron Giles
+***************************************************************************
 
     cdrom.h
 
@@ -20,7 +20,7 @@
     CONSTANTS
 ***************************************************************************/
 
-// tracks are padded to a multiple of this many frames
+/* tracks are padded to a multiple of this many frames */
 extern const uint32_t CD_TRACK_PADDING;
 
 #define CD_MAX_TRACKS           (99)    /* AFAIK the theoretical limit */
@@ -53,14 +53,14 @@ enum
 	CD_SUB_NONE                 /* no subcode data stored */
 };
 
-#define CD_FLAG_GDROM   0x00000001  // disc is a GD-ROM, all tracks should be stored with GD-ROM metadata
-#define CD_FLAG_GDROMLE 0x00000002  // legacy GD-ROM, with little-endian CDDA data
+#define CD_FLAG_GDROM   0x00000001  /* disc is a GD-ROM, all tracks should be stored with GD-ROM metadata */
+#define CD_FLAG_GDROMLE 0x00000002  /* legacy GD-ROM, with little-endian CDDA data */
 
 /***************************************************************************
     FUNCTION PROTOTYPES
 ***************************************************************************/
 
-// ECC utilities
+/* ECC utilities */
 int ecc_verify(const uint8_t *sector);
 void ecc_generate(uint8_t *sector);
 void ecc_clear(uint8_t *sector);
@@ -90,9 +90,11 @@ static inline uint32_t lba_to_msf(uint32_t lba)
 			((f / 10) <<  4) | ((f % 10) <<  0);
 }
 
-// segacd needs it like this.. investigate
-// Angelo also says PCE tracks often start playing at the
-// wrong address.. related?
+/**
+ * segacd needs it like this.. investigate
+ * Angelo also says PCE tracks often start playing at the
+ * wrong address.. related?
+ **/
 static inline uint32_t lba_to_msf_alt(int lba)
 {
 	uint32_t ret = 0;
@@ -104,4 +106,4 @@ static inline uint32_t lba_to_msf_alt(int lba)
 	return ret;
 }
 
-#endif  // __CDROM_H__
+#endif  /* __CDROM_H__ */
