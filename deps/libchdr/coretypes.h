@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef __LIBRETRO__
-#include <streams/file_stream_transforms.h>
-#endif
-
 #define ARRAY_LENGTH(x) (sizeof(x)/sizeof(x[0]))
 
 typedef uint64_t UINT64;
@@ -26,15 +22,13 @@ typedef int8_t INT8;
 #define core_fread(fc, buff, len) fread(buff, 1, len, fc)
 #define core_fclose fclose
 #define core_ftell ftell
-
-static size_t core_fsize(core_file* f)
+static size_t core_fsize(core_file *f)
 {
-   size_t rv;
-   size_t p = ftell(f);
-   fseek(f, 0, SEEK_END);
-   rv = ftell(f);
-   fseek(f, p, SEEK_SET);
-   return rv;
+    long p = ftell(f);
+    fseek(f, 0, SEEK_END);
+    long rv = ftell(f);
+    fseek(f, p, SEEK_SET);
+    return rv;
 }
 
 #endif
