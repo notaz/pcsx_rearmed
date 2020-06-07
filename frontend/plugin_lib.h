@@ -24,6 +24,7 @@ extern int multitap2;
 extern int in_analog_left[8][2];
 extern int in_analog_right[8][2];
 extern unsigned short in_keystate[8];
+extern int in_mouse[8][2];
 
 extern int in_adev[2], in_adev_axis[2][2];
 extern int in_adev_is_nublike[2];
