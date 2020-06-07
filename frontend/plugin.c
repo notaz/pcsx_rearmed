@@ -51,47 +51,64 @@ extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 /* PAD */
 static long PADreadPort1(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
-    pad->controllerType = in_type[pad_index];
-    pad->buttonStatus = ~in_keystate[pad_index];
-    if (multitap1 == 1)
-    	pad->portMultitap = 1;
-    else
-    	pad->portMultitap = 0;
-    
-    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
-    {
-        pad->leftJoyX = in_analog_left[pad_index][0];
-        pad->leftJoyY = in_analog_left[pad_index][1];
-        pad->rightJoyX = in_analog_right[pad_index][0];
-        pad->rightJoyY = in_analog_right[pad_index][1];
-	    
-	pad->absoluteX = in_analog_left[pad_index][0];
-        pad->absoluteY = in_analog_left[pad_index][1];
-    }
-    return 0;
+
+	pad->controllerType = in_type[pad_index];
+	pad->buttonStatus = ~in_keystate[pad_index];
+
+	if (multitap1 == 1)
+		pad->portMultitap = 1;
+	else
+		pad->portMultitap = 0;
+
+	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
+	{
+		pad->leftJoyX = in_analog_left[pad_index][0];
+		pad->leftJoyY = in_analog_left[pad_index][1];
+		pad->rightJoyX = in_analog_right[pad_index][0];
+		pad->rightJoyY = in_analog_right[pad_index][1];
+
+		pad->absoluteX = in_analog_left[pad_index][0];
+		pad->absoluteY = in_analog_left[pad_index][1];
+	}
+
+	if (in_type[pad_index] == PSE_PAD_TYPE_MOUSE)
+	{
+		pad->moveX = in_mouse[pad_index][0];
+		pad->moveY = in_mouse[pad_index][1];
+	}
+
+	return 0;
 }
 
 static long PADreadPort2(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
-    
-    pad->controllerType = in_type[pad_index];
-    pad->buttonStatus = ~in_keystate[pad_index];
-    if (multitap2 == 1)
-    	pad->portMultitap = 2;
-    else
-    	pad->portMultitap = 0;
-    
-    if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
-    {
-        pad->leftJoyX = in_analog_left[pad_index][0];
-        pad->leftJoyY = in_analog_left[pad_index][1];
-        pad->rightJoyX = in_analog_right[pad_index][0];
-        pad->rightJoyY = in_analog_right[pad_index][1];
-	    
-	pad->absoluteX = in_analog_left[pad_index][0];
-        pad->absoluteY = in_analog_left[pad_index][1];
-    }
-    return 0;
+
+	pad->controllerType = in_type[pad_index];
+	pad->buttonStatus = ~in_keystate[pad_index];
+
+	if (multitap2 == 1)
+		pad->portMultitap = 2;
+	else
+		pad->portMultitap = 0;
+
+	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
+	{
+		pad->leftJoyX = in_analog_left[pad_index][0];
+		pad->leftJoyY = in_analog_left[pad_index][1];
+		pad->rightJoyX = in_analog_right[pad_index][0];
+		pad->rightJoyY = in_analog_right[pad_index][1];
+
+		pad->absoluteX = in_analog_left[pad_index][0];
+		pad->absoluteY = in_analog_left[pad_index][1];
+	}
+
+	if (in_type[pad_index] == PSE_PAD_TYPE_MOUSE)
+	{
+		pad->moveX = in_mouse[pad_index][0];
+		pad->moveY = in_mouse[pad_index][1];
+	}
+
+	return 0;
 }
 
 /* GPU */

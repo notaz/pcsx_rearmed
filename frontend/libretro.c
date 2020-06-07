@@ -112,6 +112,7 @@ int in_type[8] = {
 int in_analog_left[8][2] = { { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 } };
 int in_analog_right[8][2] = { { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 }, { 127, 127 } };
 unsigned short in_keystate[PORTS_NUMBER];
+int in_mouse[8][2];
 int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
@@ -595,6 +596,8 @@ static void update_controller_port_variable(unsigned port)
          in_type[port] = PSE_PAD_TYPE_NEGCON;
       else if (strcmp(var.value, "guncon") == 0)
          in_type[port] = PSE_PAD_TYPE_GUNCON;
+      else if (strcmp(var.value, "mouse") == 0)
+         in_type[port] = PSE_PAD_TYPE_MOUSE;
       else if (strcmp(var.value, "none") == 0)
          in_type[port] = PSE_PAD_TYPE_NONE;
       // else 'default' case, do nothing
@@ -2428,6 +2431,39 @@ static void update_input(void)
       case PSE_PAD_TYPE_NEGCON:
          update_input_negcon(i, ret);
          break;
+      case PSE_PAD_TYPE_MOUSE:
+      {
+         /* mouse x/y movement, range -128 to +127 */
+         float accum_x = 0, accum_y = 0;
+         
+         float x = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_X);
+         float y = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y);
+
+         accum_x += x;
+         accum_y += y;
+
+         if (accum_x > 127)
+            accum_x = 127;
+         else if (accum_x < -128)
+            accum_x = -128;
+
+         if (accum_y > 127)
+            accum_y = 127;
+         else if (accum_y < -128)
+            accum_y = -128;
+
+         in_mouse[i][0] = (int)accum_x;
+         in_mouse[i][1] = (int)accum_y;
+
+         /* mouse button state */
+         if (input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
+            in_keystate[i] |= 1 << 11;
+
+         if (input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
+            in_keystate[i] |= 1 << 10;
+
+         break;
+      }
       default:
          // Query digital inputs
          for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
