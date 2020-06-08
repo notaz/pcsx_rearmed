@@ -76,7 +76,7 @@ static void * lightrec_recompiler_thd(void *d)
 
 	pthread_mutex_lock(&rec->mutex);
 
-	do {
+	while (!rec->stop) {
 		do {
 			pthread_cond_wait(&rec->cond, &rec->mutex);
 
@@ -86,7 +86,7 @@ static void * lightrec_recompiler_thd(void *d)
 		} while (slist_empty(&rec->slist));
 
 		lightrec_compile_list(rec);
-	} while (!rec->stop);
+	}
 
 out_unlock:
 	pthread_mutex_unlock(&rec->mutex);
