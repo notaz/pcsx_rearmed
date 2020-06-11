@@ -90,6 +90,7 @@ static int show_advanced_gpu_peops_settings = -1;
 static int show_advanced_gpu_unai_settings = -1;
 #endif
 static int show_other_input_settings = -1;
+static float mouse_sensitivity = 1.0f;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -2108,6 +2109,13 @@ static void update_variables(bool in_flight)
    }
 #endif /* NEW_DYNAREC */
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_input_sensitivity";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      mouse_sensitivity = atof(var.value);
+   }
+
    var.key = "pcsx_rearmed_show_other_input_settings";
    var.value = NULL;
 
@@ -2396,6 +2404,32 @@ static void update_input_negcon(int port, int ret)
    in_analog_left[port][1] = get_analog_button(ret, input_state_cb, port, RETRO_DEVICE_ID_JOYPAD_L);
 }
 
+static void update_input_mouse(int port, int ret)
+{
+   float raw_x = input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_X);
+   float raw_y = input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y);
+
+   int x = (int)roundf(raw_x * mouse_sensitivity);
+   int y = (int)roundf(raw_y * mouse_sensitivity);
+
+   if (x > 127) x = 127;
+   else if (x < -128) x = -128;
+
+   if (y > 127) y = 127;
+   else if (y < -128) y = -128;
+
+   in_mouse[port][0] = x; /* -128..+128 left/right movement, 0 = no movement */
+   in_mouse[port][1] = y; /* -128..+128 down/up movement, 0 = no movement    */
+
+   /* left mouse button state */
+   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
+      in_keystate[port] |= 1 << 11;
+
+   /* right mouse button state */
+   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
+      in_keystate[port] |= 1 << 10;
+}
+
 static void update_input(void)
 {
    // reset all keystate, query libretro for keystate
@@ -2432,38 +2466,8 @@ static void update_input(void)
          update_input_negcon(i, ret);
          break;
       case PSE_PAD_TYPE_MOUSE:
-      {
-         /* mouse x/y movement, range -128 to +127 */
-         float accum_x = 0, accum_y = 0;
-         
-         float x = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_X);
-         float y = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y);
-
-         accum_x += x;
-         accum_y += y;
-
-         if (accum_x > 127)
-            accum_x = 127;
-         else if (accum_x < -128)
-            accum_x = -128;
-
-         if (accum_y > 127)
-            accum_y = 127;
-         else if (accum_y < -128)
-            accum_y = -128;
-
-         in_mouse[i][0] = (int)accum_x;
-         in_mouse[i][1] = (int)accum_y;
-
-         /* mouse button state */
-         if (input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
-            in_keystate[i] |= 1 << 11;
-
-         if (input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
-            in_keystate[i] |= 1 << 10;
-
-         break;
-      }
+         update_input_mouse(i, ret);
+         break;      
       default:
          // Query digital inputs
          for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
