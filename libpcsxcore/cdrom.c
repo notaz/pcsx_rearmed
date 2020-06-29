@@ -539,6 +539,7 @@ void cdrInterrupt() {
 	int start_rotating = 0;
 	int error = 0;
 	int delay;
+	int seekTime = 0;
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
@@ -909,6 +910,7 @@ void cdrInterrupt() {
 		case CdlReadN:
 		case CdlReadS:
 			if (cdr.SetlocPending) {
+			    seekTime = abs(msf2sec(cdr.SetSectorPlay) - msf2sec(cdr.SetSector)) + 1;
 				memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 				cdr.SetlocPending = 0;
 			}
@@ -948,7 +950,7 @@ void cdrInterrupt() {
 				// - fix cutscene speech (startup)
 
 				// ??? - use more accurate seek time later
-				CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime * 1);
+				CDREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime * 1) * seekTime / 100);
 			} else {
 				cdr.StatP |= STATUS_READ;
 				cdr.StatP &= ~STATUS_SEEK;
