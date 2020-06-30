@@ -539,7 +539,7 @@ void cdrInterrupt() {
 	int start_rotating = 0;
 	int error = 0;
 	int delay;
-	int seekTime = 0;
+	int seekTime = 1;
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
@@ -910,7 +910,7 @@ void cdrInterrupt() {
 		case CdlReadN:
 		case CdlReadS:
 			if (cdr.SetlocPending) {
-			    seekTime = abs(msf2sec(cdr.SetSectorPlay) - msf2sec(cdr.SetSector)) + 1;
+				seekTime = abs(msf2sec(cdr.SetSectorPlay) - msf2sec(cdr.SetSector)) + 1;
 				memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 				cdr.SetlocPending = 0;
 			}
