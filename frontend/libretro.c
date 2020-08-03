@@ -2885,3 +2885,17 @@ void SysPrintf(const char *fmt, ...)
    if (log_cb)
       log_cb(RETRO_LOG_INFO, "%s", msg);
 }
+
+/* Prints debug-level logs */
+void SysDLog(const char *fmt, ...)
+{
+   va_list list;
+   char msg[512];
+
+   va_start(list, fmt);
+   vsprintf(msg, fmt, list);
+   va_end(list);
+
+   if (log_cb)
+      log_cb(RETRO_LOG_DEBUG, "%s", msg);
+}

@@ -549,7 +549,7 @@ static void lightrec_plugin_execute_block(void)
 	}
 
 	if ((psxRegs.cycle & ~0xfffffff) != old_cycle_counter) {
-		printf("RAM usage: Lightrec %u KiB, IR %u KiB, CODE %u KiB, "
+		SysDLog("RAM usage: Lightrec %u KiB, IR %u KiB, CODE %u KiB, "
 		       "MIPS %u KiB, TOTAL %u KiB, avg. IPI %f\n",
 		       lightrec_get_mem_usage(MEM_FOR_LIGHTREC) / 1024,
 		       lightrec_get_mem_usage(MEM_FOR_IR) / 1024,

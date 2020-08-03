@@ -35,6 +35,7 @@ void SysCloseLibrary(void *lib);		// Closes Library
 void SysUpdate();						// Called on VBlank (to update i.e. pads)
 void SysRunGui();						// Returns to the Gui
 void SysClose();						// Close mem and plugins
+void SysDLog(const char *fmt, ...);		// Prints debug-level logs
 
 #ifdef __cplusplus
 }
