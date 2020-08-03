@@ -937,7 +937,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL},
       },
-      "enabled",
+      "disabled",
    },
    {
       "pcsx_rearmed_gpu_unai_ilace_force",
