@@ -1,3 +1,6 @@
+#ifndef __NEW_DYNAREC_H__
+#define __NEW_DYNAREC_H__
+
 /* #define NEW_DYNAREC 1 */
 
 extern int pcaddr;
@@ -20,3 +23,5 @@ void new_dynarec_load_blocks(const void *save, int size);
 
 void invalidate_all_pages(void);
 void invalidate_block(unsigned int block);
+
+#endif /* __NEW_DYNAREC_H__ */

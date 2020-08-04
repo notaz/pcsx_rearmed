@@ -19,6 +19,9 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#ifndef __GPU_UNAI_GPU_INNER_H__
+#define __GPU_UNAI_GPU_INNER_H__
+
 ///////////////////////////////////////////////////////////////////////////////
 // Inner loop driver instantiation file
 
@@ -727,3 +730,5 @@ const PP gpuPolySpanDrivers[2048] = {
 #undef TI
 #undef TN
 #undef TIBLOCK
+
+#endif /* __GPU_UNAI_GPU_INNER_H__ */

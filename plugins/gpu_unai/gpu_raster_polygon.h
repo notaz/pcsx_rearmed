@@ -18,6 +18,9 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#ifndef __GPU_UNAI_GPU_RASTER_POLYGON_H__
+#define __GPU_UNAI_GPU_RASTER_POLYGON_H__
+
 //senquack - NOTE: GPU Unai poly routines have been rewritten/adapted
 // from DrHell routines to fix multiple issues. See README_senquack.txt
 
@@ -1446,3 +1449,5 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 		}
 	} while (++cur_pass < total_passes);
 }
+
+#endif /* __GPU_UNAI_GPU_RASTER_POLYGON_H__ */

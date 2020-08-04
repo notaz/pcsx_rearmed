@@ -1,3 +1,6 @@
+#ifndef __EMU_IF_H__
+#define __EMU_IF_H__
+
 #include "../../new_dynarec.h"
 #include "../../../r3000a.h"
 
@@ -106,3 +109,5 @@ extern void SysPrintf(const char *fmt, ...);
 #else
 #define rdram ((u_int)psxM)
 #endif
+
+#endif /* __EMU_IF_H__ */

@@ -1,3 +1,6 @@
+#ifndef __CSPACE_H__
+#define __CSPACE_H__
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -19,3 +22,5 @@ void bgr888_to_uyvy(void *d, const void *s, int pixels);
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* __CSPACE_H__ */

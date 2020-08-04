@@ -15,6 +15,11 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef __P_SPU_H__
+#define __P_SPU_H__
+
 void ClearWorkingState(void);
 void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap);
 int  CALLBACK SPUplayCDDAchannel(short *pcm, int bytes);
+
+#endif /* __P_SPU_H__ */
