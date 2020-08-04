@@ -15,6 +15,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef __P_REGISTERS_H__
+#define __P_REGISTERS_H__
+
 #define H_SPUReverbAddr  0x0da2
 #define H_SPUirqAddr     0x0da4
 #define H_SPUaddr        0x0da6
@@ -154,3 +157,4 @@
 
 void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val, unsigned int cycles);
 
+#endif /* __P_REGISTERS_H__ */

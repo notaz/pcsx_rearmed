@@ -15,6 +15,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef __P_STDAFX_H__
+#define __P_STDAFX_H__
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h> 
@@ -35,3 +38,5 @@
 #endif
 
 #include "psemuxa.h"
+
+#endif /* __P_STDAFX_H__ */

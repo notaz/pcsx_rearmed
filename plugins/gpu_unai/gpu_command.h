@@ -19,6 +19,9 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#ifndef __GPU_UNAI_GPU_COMMAND_H__
+#define __GPU_UNAI_GPU_COMMAND_H__
+
 ///////////////////////////////////////////////////////////////////////////////
 void gpuSetTexture(u16 tpage)
 {
@@ -614,3 +617,5 @@ void gpuSendPacketFunction(const int PRIM)
 ///////////////////////////////////////////////////////////////////////////////
 // End of code specific to non-gpulib standalone version of gpu_unai
 ///////////////////////////////////////////////////////////////////////////////
+
+#endif /* __GPU_UNAI_GPU_COMMAND_H__ */

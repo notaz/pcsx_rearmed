@@ -1,3 +1,5 @@
+#ifndef __LINKAGE_OFFSETS_H__
+#define __LINKAGE_OFFSETS_H__
 
 #define LO_next_interupt	64
 #define LO_cycle_count		(LO_next_interupt + 4)
@@ -39,3 +41,5 @@
 #define LO_FCR31		(LO_align0)
 
 #define LO_cop2_to_scratch_buf	(LO_scratch_buf_ptr - LO_reg_cop2d)
+
+#endif /* __LINKAGE_OFFSETS_H__ */

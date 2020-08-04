@@ -1,3 +1,6 @@
+#ifndef __ASSEM_ARM_H__
+#define __ASSEM_ARM_H__
+
 #define HOST_REGS 13
 #define HOST_CCREG 10
 #define HOST_BTREG 8
@@ -55,3 +58,5 @@ extern char *invc_ptr;
   extern char translation_cache[1 << TARGET_SIZE_2];
   #define BASE_ADDR (u_int)translation_cache
 #endif
+
+#endif /* __ASSEM_ARM_H__ */

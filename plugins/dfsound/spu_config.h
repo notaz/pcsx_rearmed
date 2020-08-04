@@ -1,3 +1,6 @@
+#ifndef __P_SPU_CONFIG_H__
+#define __P_SPU_CONFIG_H__
+
 // user settings
 
 typedef struct
@@ -16,3 +19,5 @@ typedef struct
 } SPUConfig;
 
 extern SPUConfig spu_config;
+
+#endif /* __P_SPU_CONFIG_H__ */

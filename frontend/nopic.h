@@ -1,3 +1,6 @@
+#ifndef __NOPIC_H__
+#define __NOPIC_H__
+
 /* these are just deps, to be removed */
 
 static const struct {
@@ -54,4 +57,4 @@ void DrawNumBorPic(unsigned char *pMem, int lSelectedSlot)
   }
 }
 
-
+#endif /* __NOPIC_H__ */

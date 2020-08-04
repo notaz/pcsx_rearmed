@@ -1,3 +1,5 @@
+#ifndef __PCNT_H__
+#define __PCNT_H__
 
 enum pcounters {
 	PCNT_ALL,
@@ -130,3 +132,5 @@ void pcnt_gte_end(int op);
 #define pcnt_print(fps)
 
 #endif
+
+#endif /* __PCNT_H__ */

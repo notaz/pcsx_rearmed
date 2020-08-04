@@ -24,8 +24,12 @@
 //
 //*************************************************************************//
 
+#ifndef __P_DMA_H__
+#define __P_DMA_H__
 
 unsigned short CALLBACK SPUreadDMA(void);
 void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize);
 void CALLBACK SPUwriteDMA(unsigned short val);
 void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize);
+
+#endif /* __P_DMA_H__ */

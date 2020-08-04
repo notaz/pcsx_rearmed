@@ -1,3 +1,5 @@
+#ifndef __PLUGIN_LIB_H__
+#define __PLUGIN_LIB_H__
 
 enum {
 	DKEY_SELECT = 0,
@@ -118,3 +120,5 @@ extern void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
+
+#endif /* __PLUGIN_LIB_H__ */

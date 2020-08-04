@@ -15,5 +15,10 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef __P_ADER_H__
+#define __P_ADER_H__
+
 INLINE void StartADSR(int ch);
 INLINE int  MixADSR(int ch);
+
+#endif /* __P_ADER_H__ */

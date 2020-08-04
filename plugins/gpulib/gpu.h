@@ -8,6 +8,9 @@
  * See the COPYING file in the top-level directory.
  */
 
+#ifndef __GPULIB_GPU_H__
+#define __GPULIB_GPU_H__
+
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -140,3 +143,5 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* __GPULIB_GPU_H__ */
