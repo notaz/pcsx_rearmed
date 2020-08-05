@@ -185,7 +185,7 @@ else ifeq ($(platform), vita)
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
-	CFLAGS += -fno-optimize-sibling-calls
+	CFLAGS += -fno-optimize-sibling-calls -fcommon
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
