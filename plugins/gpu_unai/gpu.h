@@ -38,6 +38,10 @@ struct gpu_unai_config_t {
 	                          //  Normally 0. Value '1' will skip rendering
 	                          //  odd lines.
 
+	uint8_t scale_hires:1;    // If 1, will scale hi-res output to
+	                          //  320x240 when gpulib reads the frame.
+	                          //  Implies pixel_skip and ilace_force
+	                          //  (when height > 240).
 	uint8_t lighting:1;
 	uint8_t fast_lighting:1;
 	uint8_t blending:1;

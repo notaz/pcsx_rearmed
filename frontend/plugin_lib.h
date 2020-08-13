@@ -93,6 +93,7 @@ struct rearmed_cbs {
 		int   abe_hack;
 		int   no_light, no_blend;
 		int   lineskip;
+		int   scale_hires;
 	} gpu_unai;
 	struct {
 		int   dwActFixes;

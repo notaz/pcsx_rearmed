@@ -138,6 +138,9 @@ struct gpu_unai_t {
 	GPUPacket PacketBuffer;
 	u16 *vram;
 
+#ifdef USE_GPULIB
+	u16 *downscale_vram;
+#endif
 	////////////////////////////////////////////////////////////////////////////
 	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
 #ifndef USE_GPULIB
@@ -307,7 +310,7 @@ static inline bool ProgressiveInterlaceEnabled()
 //       running on higher-res device or a resampling downscaler is enabled.
 static inline bool PixelSkipEnabled()
 {
-	return gpu_unai.config.pixel_skip;
+	return gpu_unai.config.pixel_skip || gpu_unai.config.scale_hires;
 }
 
 static inline bool LineSkipEnabled()

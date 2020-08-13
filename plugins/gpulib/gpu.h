@@ -71,6 +71,8 @@ struct psx_gpu {
     uint32_t blanked:1;
     uint32_t enhancement_enable:1;
     uint32_t enhancement_active:1;
+    uint32_t downscale_enable:1;
+    uint32_t downscale_active:1;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {
@@ -93,6 +95,8 @@ struct psx_gpu {
   } frameskip;
   int useDithering:1; /* 0 - off , 1 - on */
   uint16_t *(*get_enhancement_bufer)
+    (int *x, int *y, int *w, int *h, int *vram_h);
+  uint16_t *(*get_downscale_buffer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);

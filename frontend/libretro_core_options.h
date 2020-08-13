@@ -961,6 +961,17 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
+   {
+      "pcsx_rearmed_gpu_unai_scale_hires",
+      "(GPU) Enable Hi-Res Downscaling",
+      "When enabled, will scale hi-res modes to 320x240, skipping unrendered pixels.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
 #endif /* GPU UNAI Advanced Settings */
 
    {
