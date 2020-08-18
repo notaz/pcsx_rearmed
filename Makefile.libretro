@@ -208,9 +208,9 @@ else ifeq ($(platform), ctr)
 	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
 	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
-	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -Wall -mword-relocations -fcommon
 	CFLAGS += -fomit-frame-pointer -ffast-math -funroll-loops
-	CFLAGS += -Ifrontend/3ds
+	CFLAGS += -Ifrontend/3ds -I$(CTRULIB)/include
 	CFLAGS += -Werror=implicit-function-declaration
 
 	OBJS += frontend/3ds/utils.o
