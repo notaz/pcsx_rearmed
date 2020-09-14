@@ -972,6 +972,20 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
+#ifdef THREAD_RENDERING
+   {
+      "pcsx_rearmed_gpu_thread_rendering",
+      "Threaded Rendering",
+      "When enabled, runs GPU commands in a thread. Sync waits for drawing to finish before vsync. Async will not wait unless there's another frame behind it.",
+      {
+         { "disabled", NULL },
+         { "sync",  NULL },
+         { "async",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+#endif
 #endif /* GPU UNAI Advanced Settings */
 
    {

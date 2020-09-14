@@ -204,3 +204,9 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   }
 
 }
+void renderer_sync(void)
+{
+}
+void renderer_notify_update_lace(int updated)
+{
+}

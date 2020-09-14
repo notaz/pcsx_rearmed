@@ -25,6 +25,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../gpulib/gpu.h"
+
+#ifdef THREAD_RENDERING
+#include "../gpulib/gpulib_thread_if.h"
+#define do_cmd_list real_do_cmd_list
+#define renderer_init real_renderer_init
+#define renderer_finish real_renderer_finish
+#define renderer_sync_ecmds real_renderer_sync_ecmds
+#define renderer_update_caches real_renderer_update_caches
+#define renderer_flush_queues real_renderer_flush_queues
+#define renderer_set_interlace real_renderer_set_interlace
+#define renderer_set_config real_renderer_set_config
+#define renderer_notify_res_change real_renderer_notify_res_change
+#define renderer_notify_update_lace real_renderer_notify_update_lace
+#define renderer_sync real_renderer_sync
+#define ex_regs scratch_ex_regs
+#endif
+
 //#include "port.h"
 #include "gpu_unai.h"
 
@@ -800,6 +817,14 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   } else {
     unmap_downscale_buffer();
   }
+}
+
+void renderer_sync(void)
+{
+}
+
+void renderer_notify_update_lace(int updated)
+{
 }
 
 // vim:shiftwidth=2:expandtab

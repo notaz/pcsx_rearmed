@@ -426,6 +426,14 @@ void renderer_set_interlace(int enable, int is_odd)
 {
 }
 
+void renderer_sync(void)
+{
+}
+
+void renderer_notify_update_lace(int updated)
+{
+}
+
 #include "../../frontend/plugin_lib.h"
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
