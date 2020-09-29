@@ -1260,14 +1260,19 @@ static void *readThreadMain(void *param) {
       last_read_sector = requested_sector_end;
     }
 
+    index = ra_sector % SECTOR_BUFFER_SIZE;
+
     // check for end of CD
     if (ra_count && ra_sector >= max_sector) {
       ra_count = 0;
+      pthread_mutex_lock(&sectorbuffer_lock);
+      sectorbuffer[index].ret = -1;
+      sectorbuffer[index].sector = ra_sector;
+      pthread_cond_signal(&sectorbuffer_cond);
+      pthread_mutex_unlock(&sectorbuffer_lock);
     }
 
     if (ra_count) {
-
-      index = ra_sector % SECTOR_BUFFER_SIZE;
       pthread_mutex_lock(&sectorbuffer_lock);
       if (sectorbuffer[index].sector != ra_sector) {
         pthread_mutex_unlock(&sectorbuffer_lock);
