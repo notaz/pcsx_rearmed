@@ -2270,40 +2270,35 @@ static void update_input_guncon(int port, int ret)
    //RETRO_DEVICE_ID_LIGHTGUN_AUX_B
    //Though not sure these are hooked up properly on the Pi
 
-   //ToDo
-   //Put the controller index back to port instead of hardcoding to 1 when the libretro overlay crash bug is fixed
-   //This is required for 2 player
-
    //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
 
    // Trigger
    //The 1 is hardcoded instead of port to prevent the overlay mouse button libretro crash bug
-   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
+   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
    {
       in_keystate[port] |= (1 << DKEY_CIRCLE);
    }
 
    // A
-   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
+   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
    {
       in_keystate[port] |= (1 << DKEY_START);
    }
 
    // B
-   if (input_state_cb(1, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE))
+   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE))
    {
       in_keystate[port] |= (1 << DKEY_CROSS);
    }
 
-   //The 1 is hardcoded instead of port to prevent the overlay mouse button libretro crash bug
-   int gunx = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
-   int guny = input_state_cb(1, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+   int gunx = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
+   int guny = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
 
    //Mouse range is -32767 -> 32767
    //1% is about 655
    //Use the left analog stick field to store the absolute coordinates
-   in_analog_left[0][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
-   in_analog_left[0][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
+   in_analog_left[port][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
+   in_analog_left[port][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
 }
 
 static void update_input_negcon(int port, int ret)
