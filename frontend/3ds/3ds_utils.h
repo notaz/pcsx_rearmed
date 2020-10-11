@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <3ds.h>
 
+#ifdef OS_HEAP_AREA_BEGIN // defined in libctru 2.0+
+#define USE_CTRULIB_2 1
+#endif
+
 #define MEMOP_PROT      6
 #define MEMOP_MAP       4
 #define MEMOP_UNMAP     5
