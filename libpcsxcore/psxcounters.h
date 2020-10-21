@@ -39,6 +39,7 @@ typedef struct Rcnt
     u32 rate, irq, counterState, irqState;
     u32 cycle, cycleStart;
 } Rcnt;
+
 extern Rcnt rcnts[];
 
 void psxRcntInit();

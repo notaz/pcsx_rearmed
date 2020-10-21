@@ -27,7 +27,6 @@
 #include "gte.h"
 
 R3000Acpu *psxCpu = NULL;
-psxRegisters psxRegs;
 
 int psxInit() {
 	SysPrintf(_("Running PCSX Version %s (%s).\n"), PCSX_VERSION, __DATE__);
