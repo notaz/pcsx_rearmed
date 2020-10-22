@@ -2828,7 +2828,7 @@ void retro_init(void)
     * we have to do this because cache misses and some IO penalties
     * are not emulated. Warning: changing this may break compatibility. */
    cycle_multiplier = 175;
-#ifdef HAVE_PRE_ARMV7
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
    cycle_multiplier = 200;
 #endif
    pl_rearmed_cbs.gpu_peops.iUseDither = 1;
