@@ -48,6 +48,7 @@ EXTRA_LDFLAGS =
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
+	THREAD_RENDERING = 1
 ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
 endif

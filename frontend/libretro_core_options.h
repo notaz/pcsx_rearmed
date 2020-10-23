@@ -972,6 +972,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
+#endif /* GPU UNAI Advanced Settings */
 #ifdef THREAD_RENDERING
    {
       "pcsx_rearmed_gpu_thread_rendering",
@@ -986,7 +987,6 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
 #endif
-#endif /* GPU UNAI Advanced Settings */
 
    {
       "pcsx_rearmed_show_bios_bootlogo",

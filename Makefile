@@ -184,10 +184,6 @@ endif
 ifeq "$(BUILTIN_GPU)" "unai"
 CFLAGS += -DGPU_UNAI
 CFLAGS += -DUSE_GPULIB=1
-ifeq "$(THREAD_RENDERING)" "1"
-CFLAGS += -DTHREAD_RENDERING
-OBJS += plugins/gpulib/gpulib_thread_if.o
-endif
 #CFLAGS += -DINLINE="static __inline__"
 #CFLAGS += -Dasm="__asm__ __volatile__"
 OBJS += plugins/gpu_unai/gpulib_if.o
@@ -196,6 +192,10 @@ OBJS += plugins/gpu_unai/gpu_arm.o
 endif
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
 CC_LINK = $(CXX)
+endif
+ifeq "$(THREAD_RENDERING)" "1"
+CFLAGS += -DTHREAD_RENDERING
+OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
 
 # cdrcimg
