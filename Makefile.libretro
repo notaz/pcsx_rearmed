@@ -89,7 +89,7 @@ else ifeq ($(platform),$(filter $(platform),ios-arm64))
 
 else ifneq (,$(findstring ios,$(platform)))
 	ARCH := arm
-	DYNAREC ?= ari64
+#	DYNAREC ?= ari64
 	HAVE_NEON = 1
 	BUILTIN_GPU = neon
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
