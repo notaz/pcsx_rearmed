@@ -18,11 +18,16 @@
 ***************************************************************************/
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 #include "../gpulib/gpu.h"
 #include "../../frontend/plugin_lib.h"
 #include "gpulib_thread_if.h"
+
+#define FALSE 0
+#define TRUE 1
+#define BOOL unsigned short
 
 typedef struct {
 	uint32_t *cmd_list;
@@ -47,14 +52,14 @@ typedef struct {
 	pthread_cond_t cond_queue_empty;
 	video_thread_queue *queue;
 	video_thread_queue *bg_queue;
-	bool running;
+	BOOL running;
 } video_thread_state;
 
 static video_thread_state thread;
 static video_thread_queue queues[2];
 static int thread_rendering;
-static bool hold_cmds;
-static bool needs_display;
+static BOOL hold_cmds;
+static BOOL needs_display;
 
 extern const unsigned char cmd_lengths[];
 
@@ -62,7 +67,10 @@ static void *video_thread_main(void *arg) {
 	video_thread_state *thread = (video_thread_state *)arg;
 	video_thread_cmd *cmd;
 	int i;
+
+#ifdef _3DS
 	static int processed = 0;
+#endif /* _3DS */
 
 	while(1) {
 		int result, last_cmd, start, end;
@@ -99,7 +107,7 @@ static void *video_thread_main(void *arg) {
 				svcSleepThread(1);
 				processed %= 512;
 			}
-#endif
+#endif /* _3DS */
 		}
 
 		pthread_mutex_lock(&thread->queue_lock);
@@ -124,7 +132,7 @@ static void cmd_queue_swap() {
 		tmp = thread.queue;
 		thread.queue = thread.bg_queue;
 		thread.bg_queue = tmp;
-		needs_display = true;
+		needs_display = TRUE;
 		pthread_cond_signal(&thread.cond_msg_avail);
 	}
 	pthread_mutex_unlock(&thread.queue_lock);
@@ -169,7 +177,7 @@ void renderer_sync(void) {
 	 * drop a frame. */
 	renderer_wait();
 	cmd_queue_swap();
-	hold_cmds = false;
+	hold_cmds = FALSE;
 	renderer_wait();
 }
 
@@ -178,7 +186,7 @@ static void video_thread_stop() {
 	renderer_sync();
 
 	if (thread.running) {
-		thread.running = false;
+		thread.running = FALSE;
 		pthread_cond_signal(&thread.cond_msg_avail);
 		pthread_join(thread.thread, NULL);
 	}
@@ -215,7 +223,7 @@ static void video_thread_start() {
 	thread.queue = &queues[0];
 	thread.bg_queue = &queues[1];
 
-	thread.running = true;
+	thread.running = TRUE;
 	return;
 
  error:
@@ -227,7 +235,7 @@ static void video_thread_queue_cmd(uint32_t *list, int count, int last_cmd) {
 	video_thread_cmd *cmd;
 	uint32_t *cmd_list;
 	video_thread_queue *queue;
-	bool lock;
+	BOOL lock;
 
 	cmd_list = (uint32_t *)calloc(count, sizeof(uint32_t));
 
@@ -248,10 +256,10 @@ static void video_thread_queue_cmd(uint32_t *list, int count, int last_cmd) {
 
 	if (hold_cmds) {
 		queue = thread.bg_queue;
-		lock = false;
+		lock = FALSE;
 	} else {
 		queue = thread.queue;
-		lock = true;
+		lock = TRUE;
 	}
 
 	if (lock) {
@@ -436,23 +444,23 @@ void renderer_notify_update_lace(int updated) {
 		/* We are no longer holding commands back, so the next frame may
 		 * get mixed into the following frame. This is usually fine, but can
 		 * result in frameskip-like effects for 60fps games. */
-		hold_cmds = false;
-		needs_display = true;
-		gpu.state.fb_dirty = true;
+		hold_cmds = FALSE;
+		needs_display = TRUE;
+		gpu.state.fb_dirty = TRUE;
 	} else if (thread.queue->used) {
 		/* We are still drawing during a vblank. Cut off the current frame
 		 * by sending new commands to the background queue and skip
 		 * drawing our partly rendered frame to the display. */
-		hold_cmds = true;
-		needs_display = true;
-		gpu.state.fb_dirty = false;
+		hold_cmds = TRUE;
+		needs_display = TRUE;
+		gpu.state.fb_dirty = FALSE;
 	} else if (needs_display && !thread.queue->used) {
 		/* We have processed all commands in the queue, render the
 		 * buffer. We know we have something to render, because
-		 * needs_display is true. */
-		hold_cmds = false;
-		needs_display = false;
-		gpu.state.fb_dirty = true;
+		 * needs_display is TRUE. */
+		hold_cmds = FALSE;
+		needs_display = FALSE;
+		gpu.state.fb_dirty = TRUE;
 	} else {
 		/* Everything went normally, so do the normal thing. */
 	}
