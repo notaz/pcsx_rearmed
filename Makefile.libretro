@@ -217,6 +217,7 @@ else ifeq ($(platform), ctr)
 
 #	CFLAGS += -DPCSX
 	BUILTIN_GPU = unai
+	THREAD_RENDERING = 1
 	DYNAREC = ari64
 	DRC_CACHE_BASE = 0
 	ARCH = arm

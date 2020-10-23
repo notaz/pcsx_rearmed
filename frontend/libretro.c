@@ -1818,6 +1818,21 @@ static void update_variables(bool in_flight)
          Config.SpuIrq = 1;
    }
 
+#ifdef THREAD_RENDERING
+   var.key = "pcsx_rearmed_gpu_thread_rendering";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_OFF;
+      else if (strcmp(var.value, "sync") == 0)
+         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_SYNC;
+      else if (strcmp(var.value, "async") == 0)
+         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_ASYNC;
+   }
+#endif
+
 #ifdef GPU_PEOPS
    var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_odd_even_bit";
@@ -2031,7 +2046,7 @@ static void update_variables(bool in_flight)
             "pcsx_rearmed_gpu_unai_fast_lighting",
             "pcsx_rearmed_gpu_unai_ilace_force",
             "pcsx_rearmed_gpu_unai_pixel_skip",
-            "pcsx_rearmed_gpu_unai_scale_hires"
+            "pcsx_rearmed_gpu_unai_scale_hires",
          };
 
          option_display.visible = show_advanced_gpu_unai_settings;

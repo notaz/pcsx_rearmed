@@ -40,6 +40,8 @@ static void finish_vram_transfer(int is_read);
 
 static noinline void do_cmd_reset(void)
 {
+  renderer_sync();
+
   if (unlikely(gpu.cmd_len > 0))
     do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
   gpu.cmd_len = 0;
@@ -52,7 +54,6 @@ static noinline void do_cmd_reset(void)
 static noinline void do_reset(void)
 {
   unsigned int i;
-
   do_cmd_reset();
 
   memset(gpu.regs, 0, sizeof(gpu.regs));
@@ -369,6 +370,8 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   int o = gpu.dma.offset;
   int l;
   count *= 2; // operate in 16bpp pixels
+
+  renderer_sync();
 
   if (gpu.dma.offset) {
     l = w - gpu.dma.offset;
@@ -714,12 +717,15 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
     case 1: // save
       if (gpu.cmd_len > 0)
         flush_cmd_buffer();
+
+      renderer_sync();
       memcpy(freeze->psxVRam, gpu.vram, 1024 * 512 * 2);
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
       memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
       freeze->ulStatus = gpu.status.reg;
       break;
     case 0: // load
+      renderer_sync();
       memcpy(gpu.vram, freeze->psxVRam, 1024 * 512 * 2);
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
@@ -752,6 +758,8 @@ void GPUupdateLace(void)
     return;
   }
 
+  renderer_notify_update_lace(0);
+
   if (!gpu.state.fb_dirty)
     return;
 
@@ -767,6 +775,7 @@ void GPUupdateLace(void)
   vout_update();
   gpu.state.fb_dirty = 0;
   gpu.state.blanked = 0;
+  renderer_notify_update_lace(1);
 }
 
 void GPUvBlank(int is_vblank, int lcf)
