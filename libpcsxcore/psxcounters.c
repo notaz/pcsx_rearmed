@@ -70,7 +70,9 @@ static const s32 VerboseLevel     = VERBOSE_LEVEL;
 
 /******************************************************************************/
 
+#ifndef NEW_DYNAREC
 Rcnt rcnts[ CounterQuantity ];
+#endif
 
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
@@ -496,7 +498,7 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     u32 count;
     s32 i;
 
-    gzfreeze( &rcnts, sizeof(rcnts) );
+    gzfreeze( &rcnts, sizeof(Rcnt) * CounterQuantity );
     gzfreeze( &hSyncCount, sizeof(hSyncCount) );
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
     gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
