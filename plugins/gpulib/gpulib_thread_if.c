@@ -60,6 +60,7 @@ static video_thread_queue queues[2];
 static int thread_rendering;
 static BOOL hold_cmds;
 static BOOL needs_display;
+static BOOL flushed;
 
 extern const unsigned char cmd_lengths[];
 
@@ -132,7 +133,6 @@ static void cmd_queue_swap() {
 		tmp = thread.queue;
 		thread.queue = thread.bg_queue;
 		thread.bg_queue = tmp;
-		needs_display = TRUE;
 		pthread_cond_signal(&thread.cond_msg_avail);
 	}
 	pthread_mutex_unlock(&thread.queue_lock);
@@ -166,6 +166,13 @@ void renderer_sync(void) {
 	 * only decreases used, and we check again inside the lock. */
 	if (!thread.queue->used && !thread.bg_queue->used) {
 		return;
+	}
+
+	if (thread.bg_queue->used) {
+		/* When we flush the background queue, the vblank handler can't
+		 * know that we had a frame pending, and we delay rendering too
+		 * long. Force it. */
+		flushed = TRUE;
 	}
 
 	/* Flush both queues. This is necessary because gpulib could be
@@ -433,7 +440,7 @@ void renderer_notify_update_lace(int updated) {
 	}
 
 	pthread_mutex_lock(&thread.queue_lock);
-	if (thread.bg_queue->used) {
+	if (thread.bg_queue->used || flushed) {
 		/* We have commands for a future frame to run. Force a wait until
 		 * the current frame is finished, and start processing the next
 		 * frame after it's drawn (see the `updated` clause above). */
@@ -444,6 +451,7 @@ void renderer_notify_update_lace(int updated) {
 		/* We are no longer holding commands back, so the next frame may
 		 * get mixed into the following frame. This is usually fine, but can
 		 * result in frameskip-like effects for 60fps games. */
+		flushed = FALSE;
 		hold_cmds = FALSE;
 		needs_display = TRUE;
 		gpu.state.fb_dirty = TRUE;
