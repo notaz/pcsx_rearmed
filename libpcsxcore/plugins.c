@@ -30,7 +30,7 @@ static s64 cdOpenCaseTime = 0;
 
 GPUupdateLace         GPU_updateLace;
 GPUinit               GPU_init;
-GPUshutdown           GPU_shutdown; 
+GPUshutdown           GPU_shutdown;
 GPUconfigure          GPU_configure;
 GPUtest               GPU_test;
 GPUabout              GPU_about;
@@ -39,7 +39,7 @@ GPUclose              GPU_close;
 GPUreadStatus         GPU_readStatus;
 GPUreadData           GPU_readData;
 GPUreadDataMem        GPU_readDataMem;
-GPUwriteStatus        GPU_writeStatus; 
+GPUwriteStatus        GPU_writeStatus;
 GPUwriteData          GPU_writeData;
 GPUwriteDataMem       GPU_writeDataMem;
 GPUdmaChain           GPU_dmaChain;
@@ -55,7 +55,7 @@ GPUvBlank             GPU_vBlank;
 CDRinit               CDR_init;
 CDRshutdown           CDR_shutdown;
 CDRopen               CDR_open;
-CDRclose              CDR_close; 
+CDRclose              CDR_close;
 CDRtest               CDR_test;
 CDRgetTN              CDR_getTN;
 CDRgetTD              CDR_getTD;
@@ -124,7 +124,7 @@ PADsetSensitive       PAD2_setSensitive;
 NETinit               NET_init;
 NETshutdown           NET_shutdown;
 NETopen               NET_open;
-NETclose              NET_close; 
+NETclose              NET_close;
 NETtest               NET_test;
 NETconfigure          NET_configure;
 NETabout              NET_about;
@@ -143,7 +143,7 @@ NETkeypressed         NET_keypressed;
 SIO1init              SIO1_init;
 SIO1shutdown          SIO1_shutdown;
 SIO1open              SIO1_open;
-SIO1close             SIO1_close; 
+SIO1close             SIO1_close;
 SIO1test              SIO1_test;
 SIO1configure         SIO1_configure;
 SIO1about             SIO1_about;
@@ -218,9 +218,9 @@ static int LoadGPUplugin(const char *GPUdll) {
 	void *drv;
 
 	hGPUDriver = SysLoadLibrary(GPUdll);
-	if (hGPUDriver == NULL) { 
+	if (hGPUDriver == NULL) {
 		GPU_configure = NULL;
-		SysMessage (_("Could not load GPU plugin %s!"), GPUdll); return -1; 
+		SysMessage (_("Could not load GPU plugin %s!"), GPUdll); return -1;
 	}
 	drv = hGPUDriver;
 	LoadGpuSym1(init, "GPUinit");
@@ -351,7 +351,7 @@ static int LoadSPUplugin(const char *SPUdll) {
 	LoadSpuSym0(about, "SPUabout");
 	LoadSpuSym0(test, "SPUtest");
 	LoadSpuSym1(writeRegister, "SPUwriteRegister");
-	LoadSpuSym1(readRegister, "SPUreadRegister");		
+	LoadSpuSym1(readRegister, "SPUreadRegister");
 	LoadSpuSym1(writeDMA, "SPUwriteDMA");
 	LoadSpuSym1(readDMA, "SPUreadDMA");
 	LoadSpuSym1(writeDMAMem, "SPUwriteDMAMem");
@@ -381,19 +381,19 @@ static int ledStateReq44[8];
 static int PadMode[8]; /* 0 : digital 1: analog */
 
 static unsigned char buf[256];
-static unsigned char bufMulti[34] = { 0x80, 0x5a, 
+static unsigned char bufMulti[34] = { 0x80, 0x5a,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-									
+
 unsigned char stdpar[8] = { 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-unsigned char multitappar[34] = { 0x80, 0x5a, 
+unsigned char multitappar[34] = { 0x80, 0x5a,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-									
+
 //response for request 44, 45, 46, 47, 4C, 4D
 static unsigned char resp45[8]    = {0xF3, 0x5A, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00};
 static unsigned char resp46_00[8] = {0xF3, 0x5A, 0x00, 0x00, 0x01, 0x02, 0x00, 0x0A};
@@ -426,26 +426,26 @@ enum {
 	// AA rumble large motor speed 0x00 -> 0xFF
 	// RESPONSE
 	// header 3 Bytes
-	// 0x00 
-	// PadId -> 0x41 for digital pas, 0x73 for analog pad 
+	// 0x00
+	// PadId -> 0x41 for digital pas, 0x73 for analog pad
 	// 0x5A mode has not change (no press on analog button on the center of pad), 0x00 the analog button have been pressed and the mode switch
 	// 6 Bytes for keystates
 	CMD_READ_DATA_AND_VIBRATE = 0x42,
-	
+
 	// REQUEST
 	// Header
 	// 0x0N, 0x43, 0x00, XX, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	// XX = 00 -> Normal mode : Seconde bytes of response = padId
 	// XX = 01 -> Configuration mode : Seconde bytes of response = 0xF3
 	// RESPONSE
-	// enter in config mode example : 
+	// enter in config mode example :
 	// req : 01 43 00 01 00 00 00 00 00 00
 	// res : 00 41 5A buttons state, analog states
-	// exit config mode : 
+	// exit config mode :
 	// req : 01 43 00 00 00 00 00 00 00 00
 	// res : 00 F3 5A buttons state, analog states
 	CMD_CONFIG_MODE = 0x43,
-	
+
 	// Set led State
 	// REQUEST
 	// 0x0N, 0x44, 0x00, VAL, SEL, 0x00, 0x00, 0x00, 0x00
@@ -455,7 +455,7 @@ enum {
 	// RESPONSE
 	// 0x00, 0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	CMD_SET_MODE_AND_LOCK = 0x44,
-	
+
 	// Get Analog Led state
 	// REQUEST
 	// 0x0N, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -464,7 +464,7 @@ enum {
 	// VAL = 00 Led OFF
 	// VAL = 01 Led ON
 	CMD_QUERY_MODEL_AND_MODE = 0x45,
-	
+
 	//Get Variable A
 	// REQUEST
 	// 0x0N, 0x46, 0x00, 0xXX, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -474,13 +474,13 @@ enum {
 	// XX=01
 	// 0x00, 0xF3, 0x5A, 0x00, 0x00, 0x01, 0x01, 0x01, 0x14
 	CMD_QUERY_ACT = 0x46,
-	
+
 	// REQUEST
 	// 0x0N, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	// RESPONSE
 	// 0x00, 0xF3, 0x5A, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00
 	CMD_QUERY_COMB = 0x47,
-	
+
 	// REQUEST
 	// 0x0N, 0x4C, 0x00, 0xXX, 0x00, 0x00, 0x00, 0x00, 0x00
 	// RESPONSE
@@ -489,7 +489,7 @@ enum {
 	// XX = 1
 	// 0x00, 0xF3, 0x5A, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00
 	CMD_QUERY_MODE = 0x4C,
-	
+
 	// REQUEST
 	// 0x0N, 0x4D, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF
 	// RESPONSE
@@ -611,7 +611,7 @@ void reqIndex2Treatment(int padIndex, char value){
 			break;
 	}
 }
-	
+
 void vibrate(int padIndex){
 	if (pad[padIndex].Vib[0] != pad[padIndex].VibF[0] || pad[padIndex].Vib[1] != pad[padIndex].VibF[1]) {
 		//value is different update Value and call libretro for vibration
@@ -653,26 +653,26 @@ void _PADstartPoll(PadDataS *pad) {
 	    stdpar[1] = 0x5a;
             stdpar[2] = pad->buttonStatus & 0xff;
             stdpar[3] = pad->buttonStatus >> 8;
-		    
+
             //This code assumes an X resolution of 256 and a Y resolution of 240
 	    int xres = 256;
 	    int yres = 240;
-	    
-	    //The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767 
+
+	    //The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767
 	    int absX = (pad->absoluteX / 64) + 512;
 	    int absY = (pad->absoluteY / 64) + 512;
-		       
+
 	    //Keep within limits
 	    if (absX > 1023) absX = 1023;
 	    if (absX < 0) absX = 0;
 	    if (absY > 1023) absY = 1023;
 	    if (absY < 0) absY = 0;
-		    
-	    stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);	
+
+	    stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
 	    stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
 	    stdpar[6] = 0x20 + (yres * absY >> 10);
 	    stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
-		    
+
 	    //Offscreen - Point at the side of the screen so PSX thinks you are pointing offscreen
 	    //Required as a mouse can't be offscreen
 	    //Coordinates X=0001h, Y=000Ah indicates "no light"
@@ -684,9 +684,9 @@ void _PADstartPoll(PadDataS *pad) {
 		stdpar[4] = 0x01;
 	    	stdpar[5] = 0x00;
 		stdpar[6] = 0x0A;
-	    	stdpar[7] = 0x00;	    
+	    	stdpar[7] = 0x00;
 	    }
-		    
+
             memcpy(buf, stdpar, 8);
             respSize = 8;
             break;
@@ -746,7 +746,7 @@ unsigned char _PADpoll(int port, unsigned char value) {
 	if (reqPos == 0) {
 		//mem the request number
 		req = value;
-		
+
 		// Don't enable Analog/Vibration for a standard pad
 		if (in_type[port] == PSE_PAD_TYPE_STANDARD) {
 			; // Pad keystate already in buffer
@@ -757,10 +757,10 @@ unsigned char _PADpoll(int port, unsigned char value) {
 			initBufForRequest(port, value);
 		}
 	}
-	
+
 	//if no new request the pad return 0xff, for signaling connected
 	if (reqPos >= respSize) return 0xff;
-	
+
 	switch(reqPos){
 		case 2:
 			reqIndex2Treatment(port, value);
@@ -830,7 +830,7 @@ unsigned char CALLBACK PAD1__poll(unsigned char value) {
 	}
 	//printf("%2x:%2x, ",value,tmp);
 	return tmp;
-	
+
 }
 
 
@@ -895,7 +895,7 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 		PAD2_readPort2(&padd);
 		multitap2 = padd.portMultitap;
 	}
-	
+
 	// just one pad is on port 1 : NO MULTITAP
 	if (multitap2 == 0) {
 		PadDataS padd;
@@ -1195,7 +1195,7 @@ void ReleasePlugins() {
 	if (hPAD1Driver != NULL) PAD1_shutdown();
 	if (hPAD2Driver != NULL) PAD2_shutdown();
 
-	if (Config.UseNet && hNETDriver != NULL) NET_shutdown(); 
+	if (Config.UseNet && hNETDriver != NULL) NET_shutdown();
 
 	if (hCDRDriver != NULL) { SysCloseLibrary(hCDRDriver); hCDRDriver = NULL; }
 	if (hGPUDriver != NULL) { SysCloseLibrary(hGPUDriver); hGPUDriver = NULL; }
