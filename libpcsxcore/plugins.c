@@ -366,6 +366,8 @@ static int LoadSPUplugin(const char *SPUdll) {
 	return 0;
 }
 
+extern int in_type[8];
+
 void *hPAD1Driver = NULL;
 void *hPAD2Driver = NULL;
 
@@ -376,6 +378,7 @@ static PadDataS pad[8];
 
 static int reqPos, respSize, req;
 static int ledStateReq44[8];
+static int PadMode[8]; /* 0 : digital 1: analog */
 
 static unsigned char buf[256];
 static unsigned char bufMulti[34] = { 0x80, 0x5a, 
@@ -529,6 +532,7 @@ void initBufForRequest(int padIndex, char value){
 			break;
 		case CMD_QUERY_MODEL_AND_MODE :
 			memcpy(buf, resp45, 8);
+			buf[4] = PadMode[padIndex];
 			break;
 		case CMD_QUERY_ACT :
 			memcpy(buf, resp46_00, 8);
@@ -584,6 +588,7 @@ void reqIndex2Treatment(int padIndex, char value){
 			//0x01 analog ON
 			//0x00 analog OFF
 			ledStateReq44[padIndex] = value;
+			PadMode[padIndex] = value;
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
@@ -741,8 +746,16 @@ unsigned char _PADpoll(int port, unsigned char value) {
 	if (reqPos == 0) {
 		//mem the request number
 		req = value;
-		//copy the default value of request response in buffer instead of the keystate
-		initBufForRequest(port, value);
+		
+		// Don't enable Analog/Vibration for a standard pad
+		if (in_type[port] == PSE_PAD_TYPE_STANDARD) {
+			; // Pad keystate already in buffer
+		}
+		else
+		{
+			//copy the default value of request response in buffer instead of the keystate
+			initBufForRequest(port, value);
+		}
 	}
 	
 	//if no new request the pad return 0xff, for signaling connected
@@ -761,7 +774,8 @@ unsigned char _PADpoll(int port, unsigned char value) {
 				//mem the vibration value for Large motor;
 				pad[port].Vib[1] = value;
 				//vibration
-				vibrate(port);
+				if (in_type[port] != PSE_PAD_TYPE_STANDARD)
+					vibrate(port);
 				break;
 			}
 		break;
