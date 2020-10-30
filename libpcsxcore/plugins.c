@@ -242,7 +242,7 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym0(getScreenPic, "GPUgetScreenPic");
 	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
 	LoadGpuSym0(clearDynarec, "GPUclearDynarec");
-    LoadGpuSym0(vBlank, "GPUvBlank");
+	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(configure, "GPUconfigure");
 	LoadGpuSym0(test, "GPUtest");
 	LoadGpuSym0(about, "GPUabout");
@@ -627,118 +627,117 @@ void vibrate(int padIndex){
 
 //Build response for 0x42 request Pad in port
 void _PADstartPoll(PadDataS *pad) {
-    switch (pad->controllerType) {
-        case PSE_PAD_TYPE_MOUSE:
+	switch (pad->controllerType) {
+		case PSE_PAD_TYPE_MOUSE:
 			stdpar[0] = 0x12;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
-            stdpar[4] = pad->moveX;
-            stdpar[5] = pad->moveY;
-            memcpy(buf, stdpar, 6);
-            respSize = 6;
-            break;
-        case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
-            stdpar[0] = 0x23;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
-            stdpar[4] = pad->rightJoyX;
-            stdpar[5] = pad->rightJoyY;
-            stdpar[6] = pad->leftJoyX;
-            stdpar[7] = pad->leftJoyY;
-            memcpy(buf, stdpar, 8);
-            respSize = 8;
-            break;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			stdpar[4] = pad->moveX;
+			stdpar[5] = pad->moveY;
+			memcpy(buf, stdpar, 6);
+			respSize = 6;
+			break;
+		case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
+			stdpar[0] = 0x23;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			stdpar[4] = pad->rightJoyX;
+			stdpar[5] = pad->rightJoyY;
+			stdpar[6] = pad->leftJoyX;
+			stdpar[7] = pad->leftJoyY;
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+			break;
 	case PSE_PAD_TYPE_GUNCON: // GUNCON - gun controller SLPH-00034 from Namco
-            stdpar[0] = 0x63;
-	    stdpar[1] = 0x5a;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
+			stdpar[0] = 0x63;
+			stdpar[1] = 0x5a;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
 
-            //This code assumes an X resolution of 256 and a Y resolution of 240
-	    int xres = 256;
-	    int yres = 240;
+			//This code assumes an X resolution of 256 and a Y resolution of 240
+			int xres = 256;
+			int yres = 240;
 
-	    //The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767
-	    int absX = (pad->absoluteX / 64) + 512;
-	    int absY = (pad->absoluteY / 64) + 512;
+			//The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767
+			int absX = (pad->absoluteX / 64) + 512;
+			int absY = (pad->absoluteY / 64) + 512;
 
-	    //Keep within limits
-	    if (absX > 1023) absX = 1023;
-	    if (absX < 0) absX = 0;
-	    if (absY > 1023) absY = 1023;
-	    if (absY < 0) absY = 0;
+			//Keep within limits
+			if (absX > 1023) absX = 1023;
+			if (absX < 0) absX = 0;
+			if (absY > 1023) absY = 1023;
+			if (absY < 0) absY = 0;
 
-	    stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
-	    stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
-	    stdpar[6] = 0x20 + (yres * absY >> 10);
-	    stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
+			stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
+			stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
+			stdpar[6] = 0x20 + (yres * absY >> 10);
+			stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
 
-	    //Offscreen - Point at the side of the screen so PSX thinks you are pointing offscreen
-	    //Required as a mouse can't be offscreen
-	    //Coordinates X=0001h, Y=000Ah indicates "no light"
-	    //This will mean you cannot shoot the very each of the screen
-            //ToDo read offscreen range from settings if useful to change
-	    int OffscreenRange = 2;
-	    if (absX < (OffscreenRange) || absX > (1023 - OffscreenRange) || absY < (OffscreenRange) || absY > (1023 - OffscreenRange))
-	    {
-		stdpar[4] = 0x01;
-	    	stdpar[5] = 0x00;
-		stdpar[6] = 0x0A;
-	    	stdpar[7] = 0x00;
-	    }
+			//Offscreen - Point at the side of the screen so PSX thinks you are pointing offscreen
+			//Required as a mouse can't be offscreen
+			//Coordinates X=0001h, Y=000Ah indicates "no light"
+			//This will mean you cannot shoot the very each of the screen
+			//ToDo read offscreen range from settings if useful to change
+			int OffscreenRange = 2;
+			if (absX < (OffscreenRange) || absX > (1023 - OffscreenRange) || absY < (OffscreenRange) || absY > (1023 - OffscreenRange)) {
+				stdpar[4] = 0x01;
+				stdpar[5] = 0x00;
+				stdpar[6] = 0x0A;
+				stdpar[7] = 0x00;
+			}
 
-            memcpy(buf, stdpar, 8);
-            respSize = 8;
-            break;
-        case PSE_PAD_TYPE_ANALOGPAD: // scph1150
-            stdpar[0] = 0x73;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
-            stdpar[4] = pad->rightJoyX;
-            stdpar[5] = pad->rightJoyY;
-            stdpar[6] = pad->leftJoyX;
-            stdpar[7] = pad->leftJoyY;
-            memcpy(buf, stdpar, 8);
-            respSize = 8;
-            break;
-        case PSE_PAD_TYPE_ANALOGJOY: // scph1110
-            stdpar[0] = 0x53;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
-            stdpar[4] = pad->rightJoyX;
-            stdpar[5] = pad->rightJoyY;
-            stdpar[6] = pad->leftJoyX;
-            stdpar[7] = pad->leftJoyY;
-            memcpy(buf, stdpar, 8);
-            respSize = 8;
-            break;
-        case PSE_PAD_TYPE_STANDARD:
-        default:
-        	stdpar[0] = 0x41;
-            stdpar[2] = pad->buttonStatus & 0xff;
-            stdpar[3] = pad->buttonStatus >> 8;
-            //avoid analog value in multitap mode if change pad type in game.
-            stdpar[4] = 0xff;
-            stdpar[5] = 0xff;
-            stdpar[6] = 0xff;
-            stdpar[7] = 0xff;
-        	memcpy(buf, stdpar, 8);
-        	respSize = 8;
-    }
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+			break;
+		case PSE_PAD_TYPE_ANALOGPAD: // scph1150
+			stdpar[0] = 0x73;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			stdpar[4] = pad->rightJoyX;
+			stdpar[5] = pad->rightJoyY;
+			stdpar[6] = pad->leftJoyX;
+			stdpar[7] = pad->leftJoyY;
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+			break;
+		case PSE_PAD_TYPE_ANALOGJOY: // scph1110
+			stdpar[0] = 0x53;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			stdpar[4] = pad->rightJoyX;
+			stdpar[5] = pad->rightJoyY;
+			stdpar[6] = pad->leftJoyX;
+			stdpar[7] = pad->leftJoyY;
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+			break;
+		case PSE_PAD_TYPE_STANDARD:
+		default:
+			stdpar[0] = 0x41;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			//avoid analog value in multitap mode if change pad type in game.
+			stdpar[4] = 0xff;
+			stdpar[5] = 0xff;
+			stdpar[6] = 0xff;
+			stdpar[7] = 0xff;
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+	}
 }
 
 
 //Build response for 0x42 request Multitap in port
 //Response header for multitap : 0x80, 0x5A, (Pad information port 1-2A), (Pad information port 1-2B), (Pad information port 1-2C), (Pad information port 1-2D)
 void _PADstartPollMultitap(PadDataS* padd) {
-    int i, offset;
-    for(i = 0; i < 4; i++) {
-    	offset = 2 + (i * 8);
+	int i, offset;
+	for(i = 0; i < 4; i++) {
+		offset = 2 + (i * 8);
 	_PADstartPoll(&padd[i]);
 	memcpy(multitappar+offset, stdpar, 8);
-    }
-    memcpy(bufMulti, multitappar, 34);
-    respSize = 34;
+	}
+	memcpy(bufMulti, multitappar, 34);
+	respSize = 34;
 }
 
 
@@ -1054,62 +1053,62 @@ unsigned long CALLBACK SIO1__readBaud32(void) { return 0; }
 void CALLBACK SIO1__registerCallback(void (CALLBACK *callback)(void)) {};
 
 void CALLBACK SIO1irq(void) {
-    psxHu32ref(0x1070) |= SWAPu32(0x100);
+	psxHu32ref(0x1070) |= SWAPu32(0x100);
 }
 
 #define LoadSio1Sym1(dest, name) \
-    LoadSym(SIO1_##dest, SIO1##dest, name, TRUE);
+	LoadSym(SIO1_##dest, SIO1##dest, name, TRUE);
 
 #define LoadSio1SymN(dest, name) \
-    LoadSym(SIO1_##dest, SIO1##dest, name, FALSE);
+	LoadSym(SIO1_##dest, SIO1##dest, name, FALSE);
 
 #define LoadSio1Sym0(dest, name) \
-    LoadSym(SIO1_##dest, SIO1##dest, name, FALSE); \
-    if (SIO1_##dest == NULL) SIO1_##dest = (SIO1##dest) SIO1__##dest;
+	LoadSym(SIO1_##dest, SIO1##dest, name, FALSE); \
+	if (SIO1_##dest == NULL) SIO1_##dest = (SIO1##dest) SIO1__##dest;
 
 static int LoadSIO1plugin(const char *SIO1dll) {
-    void *drv;
+	void *drv;
 
-    hSIO1Driver = SysLoadLibrary(SIO1dll);
-    if (hSIO1Driver == NULL) {
-        SysMessage (_("Could not load SIO1 plugin %s!"), SIO1dll); return -1;
-    }
-    drv = hSIO1Driver;
+	hSIO1Driver = SysLoadLibrary(SIO1dll);
+	if (hSIO1Driver == NULL) {
+		SysMessage (_("Could not load SIO1 plugin %s!"), SIO1dll); return -1;
+	}
+	drv = hSIO1Driver;
 
-    LoadSio1Sym0(init, "SIO1init");
-    LoadSio1Sym0(shutdown, "SIO1shutdown");
-    LoadSio1Sym0(open, "SIO1open");
-    LoadSio1Sym0(close, "SIO1close");
-    LoadSio1Sym0(pause, "SIO1pause");
-    LoadSio1Sym0(resume, "SIO1resume");
-    LoadSio1Sym0(keypressed, "SIO1keypressed");
-    LoadSio1Sym0(configure, "SIO1configure");
-    LoadSio1Sym0(test, "SIO1test");
-    LoadSio1Sym0(about, "SIO1about");
-    LoadSio1Sym0(writeData8, "SIO1writeData8");
-    LoadSio1Sym0(writeData16, "SIO1writeData16");
-    LoadSio1Sym0(writeData32, "SIO1writeData32");
-    LoadSio1Sym0(writeStat16, "SIO1writeStat16");
-    LoadSio1Sym0(writeStat32, "SIO1writeStat32");
-    LoadSio1Sym0(writeMode16, "SIO1writeMode16");
-    LoadSio1Sym0(writeMode32, "SIO1writeMode32");
-    LoadSio1Sym0(writeCtrl16, "SIO1writeCtrl16");
-    LoadSio1Sym0(writeCtrl32, "SIO1writeCtrl32");
-    LoadSio1Sym0(writeBaud16, "SIO1writeBaud16");
-    LoadSio1Sym0(writeBaud32, "SIO1writeBaud32");
-    LoadSio1Sym0(readData16, "SIO1readData16");
-    LoadSio1Sym0(readData32, "SIO1readData32");
-    LoadSio1Sym0(readStat16, "SIO1readStat16");
-    LoadSio1Sym0(readStat32, "SIO1readStat32");
-    LoadSio1Sym0(readMode16, "SIO1readMode16");
-    LoadSio1Sym0(readMode32, "SIO1readMode32");
-    LoadSio1Sym0(readCtrl16, "SIO1readCtrl16");
-    LoadSio1Sym0(readCtrl32, "SIO1readCtrl32");
-    LoadSio1Sym0(readBaud16, "SIO1readBaud16");
-    LoadSio1Sym0(readBaud32, "SIO1readBaud32");
-    LoadSio1Sym0(registerCallback, "SIO1registerCallback");
+	LoadSio1Sym0(init, "SIO1init");
+	LoadSio1Sym0(shutdown, "SIO1shutdown");
+	LoadSio1Sym0(open, "SIO1open");
+	LoadSio1Sym0(close, "SIO1close");
+	LoadSio1Sym0(pause, "SIO1pause");
+	LoadSio1Sym0(resume, "SIO1resume");
+	LoadSio1Sym0(keypressed, "SIO1keypressed");
+	LoadSio1Sym0(configure, "SIO1configure");
+	LoadSio1Sym0(test, "SIO1test");
+	LoadSio1Sym0(about, "SIO1about");
+	LoadSio1Sym0(writeData8, "SIO1writeData8");
+	LoadSio1Sym0(writeData16, "SIO1writeData16");
+	LoadSio1Sym0(writeData32, "SIO1writeData32");
+	LoadSio1Sym0(writeStat16, "SIO1writeStat16");
+	LoadSio1Sym0(writeStat32, "SIO1writeStat32");
+	LoadSio1Sym0(writeMode16, "SIO1writeMode16");
+	LoadSio1Sym0(writeMode32, "SIO1writeMode32");
+	LoadSio1Sym0(writeCtrl16, "SIO1writeCtrl16");
+	LoadSio1Sym0(writeCtrl32, "SIO1writeCtrl32");
+	LoadSio1Sym0(writeBaud16, "SIO1writeBaud16");
+	LoadSio1Sym0(writeBaud32, "SIO1writeBaud32");
+	LoadSio1Sym0(readData16, "SIO1readData16");
+	LoadSio1Sym0(readData32, "SIO1readData32");
+	LoadSio1Sym0(readStat16, "SIO1readStat16");
+	LoadSio1Sym0(readStat32, "SIO1readStat32");
+	LoadSio1Sym0(readMode16, "SIO1readMode16");
+	LoadSio1Sym0(readMode32, "SIO1readMode32");
+	LoadSio1Sym0(readCtrl16, "SIO1readCtrl16");
+	LoadSio1Sym0(readCtrl32, "SIO1readCtrl32");
+	LoadSio1Sym0(readBaud16, "SIO1readBaud16");
+	LoadSio1Sym0(readBaud32, "SIO1readBaud32");
+	LoadSio1Sym0(registerCallback, "SIO1registerCallback");
 
-    return 0;
+	return 0;
 }
 
 #endif
