@@ -747,7 +747,8 @@ unsigned char _PADpoll(int port, unsigned char value) {
 		req = value;
 
 		// Don't enable Analog/Vibration for a standard pad
-		if (in_type[port] == PSE_PAD_TYPE_STANDARD) {
+		if (in_type[port] == PSE_PAD_TYPE_STANDARD ||
+			in_type[port] == PSE_PAD_TYPE_NEGCON) {
 			; // Pad keystate already in buffer
 		}
 		else
@@ -772,9 +773,13 @@ unsigned char _PADpoll(int port, unsigned char value) {
 				case CMD_READ_DATA_AND_VIBRATE:
 				//mem the vibration value for Large motor;
 				pad[port].Vib[1] = value;
+
+				if (in_type[port] == PSE_PAD_TYPE_STANDARD &&
+					in_type[port] == PSE_PAD_TYPE_NEGCON)
+					break;
+
 				//vibration
-				if (in_type[port] != PSE_PAD_TYPE_STANDARD)
-					vibrate(port);
+				vibrate(port);
 				break;
 			}
 		break;

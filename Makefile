@@ -258,7 +258,9 @@ LDFLAGS += -lm
 endif
 
 # dfinput
+ifneq "$(PLATFORM)" "libretro"
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
+endif
 
 # frontend/gui
 OBJS += frontend/cspace.o

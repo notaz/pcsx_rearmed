@@ -1440,7 +1440,7 @@ bool retro_load_game(const struct retro_game_info *info)
    }
 
    plugin_call_rearmed_cbs();
-   dfinput_activate();
+   /* dfinput_activate(); */
 
    if (CheckCdrom() == -1)
    {
@@ -2198,7 +2198,7 @@ static void update_variables(bool in_flight)
          GPU_open(&gpuDisp, "PCSX", NULL);
       }
 
-      dfinput_activate();
+      /* dfinput_activate(); */
    }
    else
    {
