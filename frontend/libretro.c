@@ -516,6 +516,41 @@ void out_register_libretro(struct out_driver *drv)
    drv->feed   = snd_feed;
 }
 
+#define RETRO_DEVICE_PSE_STANDARD   RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD,   0)
+#define RETRO_DEVICE_PSE_ANALOG     RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,   0)
+#define RETRO_DEVICE_PSE_DUALSHOCK  RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,   1)
+#define RETRO_DEVICE_PSE_NEGCON     RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,   2)
+#define RETRO_DEVICE_PSE_GUNCON     RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 0)
+#define RETRO_DEVICE_PSE_MOUSE      RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_MOUSE,    0)
+
+static char *get_pse_pad_label[] = {
+   "none", "mouse", "negcon", "konami gun", "standard", "analog", "guncon", "dualshock"
+};
+
+static const struct retro_controller_description pads[7] =
+{
+   { "standard",  RETRO_DEVICE_JOYPAD },
+   { "analog",    RETRO_DEVICE_PSE_ANALOG },
+   { "dualshock", RETRO_DEVICE_PSE_DUALSHOCK },
+   { "negcon",    RETRO_DEVICE_PSE_NEGCON },
+   { "guncon",    RETRO_DEVICE_PSE_GUNCON },
+   { "mouse",     RETRO_DEVICE_PSE_MOUSE },
+   { NULL, 0 },
+};
+
+static const struct retro_controller_info ports[9] =
+{
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { pads, 7 },
+   { NULL, 0 },
+};
+
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
@@ -524,6 +559,7 @@ void retro_set_environment(retro_environment_t cb)
    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
       log_cb = logging.log;
 
+   environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
    libretro_set_core_options(environ_cb);
 }
 
@@ -638,7 +674,7 @@ static void update_controller_port_device(unsigned port, unsigned device)
    }
 }
 
-static void update_multitap()
+static void update_multitap(void)
 {
    struct retro_variable var;
    int auto_case, port;
@@ -692,13 +728,37 @@ static void update_multitap()
 
 void retro_set_controller_port_device(unsigned port, unsigned device)
 {
-   SysPrintf("port %u  device %u", port, device);
-
    if (port >= PORTS_NUMBER)
       return;
 
-   update_controller_port_device(port, device);
-   update_multitap();
+   switch (device)
+   {
+   case RETRO_DEVICE_JOYPAD:
+   case RETRO_DEVICE_PSE_STANDARD:
+      in_type[port] = PSE_PAD_TYPE_STANDARD;
+      break;
+   case RETRO_DEVICE_PSE_ANALOG:
+      in_type[port] = PSE_PAD_TYPE_ANALOGJOY;
+      break;
+   case RETRO_DEVICE_PSE_DUALSHOCK:
+      in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
+      break;
+   case RETRO_DEVICE_PSE_MOUSE:
+      in_type[port] = PSE_PAD_TYPE_MOUSE;
+      break;
+   case RETRO_DEVICE_PSE_NEGCON:
+      in_type[port] = PSE_PAD_TYPE_NEGCON;
+      break;
+   case RETRO_DEVICE_PSE_GUNCON:
+      in_type[port] = PSE_PAD_TYPE_GUNCON;
+      break;
+   case RETRO_DEVICE_NONE:
+   default:
+      in_type[port] = PSE_PAD_TYPE_NONE;
+      break;
+   }
+
+   SysPrintf("port: %u  device: %s\n", port + 1, get_pse_pad_label[in_type[port]]);
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -1548,8 +1608,8 @@ static void update_variables(bool in_flight)
          Config.PsxType = 1;
    }
 
-   for (i = 0; i < PORTS_NUMBER; i++)
-      update_controller_port_variable(i);
+   /*for (i = 0; i < PORTS_NUMBER; i++)
+      update_controller_port_variable(i);*/
 
    update_multitap();
 
@@ -2221,6 +2281,12 @@ static void update_variables(bool in_flight)
          }
       }
    }
+
+   for (i = 0; i < 8; i++) {
+      SysPrintf("[DEBUG] Player %d: %s\n", i + 1, get_pse_pad_label[in_type[i]]);
+   }
+   SysPrintf("Multiplayer 1: %s\n", multitap1 ? "enabled" : "disabled");
+   SysPrintf("Multiplayer 2: %s\n", multitap2 ? "enabled" : "disabled");
 }
 
 // Taken from beetle-psx-libretro
