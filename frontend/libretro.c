@@ -117,6 +117,7 @@ int in_mouse[8][2];
 int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
+static int input_changed = 0;
 
 // NegCon adjustment parameters
 // > The NegCon 'twist' action is somewhat awkward when mapped
@@ -572,106 +573,6 @@ void retro_set_input_state(retro_input_state_t cb) { input_state_cb = cb; }
 unsigned retro_api_version(void)
 {
    return RETRO_API_VERSION;
-}
-
-static int controller_port_variable(unsigned port, struct retro_variable *var)
-{
-   if (port >= PORTS_NUMBER)
-      return 0;
-
-   if (!environ_cb)
-      return 0;
-
-   var->value = NULL;
-   switch (port)
-   {
-   case 0:
-      var->key = "pcsx_rearmed_pad1type";
-      break;
-   case 1:
-      var->key = "pcsx_rearmed_pad2type";
-      break;
-   case 2:
-      var->key = "pcsx_rearmed_pad3type";
-      break;
-   case 3:
-      var->key = "pcsx_rearmed_pad4type";
-      break;
-   case 4:
-      var->key = "pcsx_rearmed_pad5type";
-      break;
-   case 5:
-      var->key = "pcsx_rearmed_pad6type";
-      break;
-   case 6:
-      var->key = "pcsx_rearmed_pad7type";
-      break;
-   case 7:
-      var->key = "pcsx_rearmed_pad8type";
-      break;
-   }
-
-   return environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, var) && var->value;
-}
-
-static void update_controller_port_variable(unsigned port)
-{
-   if (port >= PORTS_NUMBER)
-      return;
-
-   struct retro_variable var;
-
-   if (controller_port_variable(port, &var))
-   {
-      if (strcmp(var.value, "standard") == 0)
-         in_type[port] = PSE_PAD_TYPE_STANDARD;
-      else if (strcmp(var.value, "analog") == 0)
-         in_type[port] = PSE_PAD_TYPE_ANALOGJOY;
-      else if (strcmp(var.value, "dualshock") == 0)
-         in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
-      else if (strcmp(var.value, "negcon") == 0)
-         in_type[port] = PSE_PAD_TYPE_NEGCON;
-      else if (strcmp(var.value, "guncon") == 0)
-         in_type[port] = PSE_PAD_TYPE_GUNCON;
-      else if (strcmp(var.value, "mouse") == 0)
-         in_type[port] = PSE_PAD_TYPE_MOUSE;
-      else if (strcmp(var.value, "none") == 0)
-         in_type[port] = PSE_PAD_TYPE_NONE;
-      // else 'default' case, do nothing
-   }
-}
-
-static void update_controller_port_device(unsigned port, unsigned device)
-{
-   if (port >= PORTS_NUMBER)
-      return;
-
-   struct retro_variable var;
-
-   if (!controller_port_variable(port, &var))
-      return;
-
-   if (strcmp(var.value, "default") != 0)
-      return;
-
-   switch (device)
-   {
-   case RETRO_DEVICE_JOYPAD:
-      in_type[port] = PSE_PAD_TYPE_STANDARD;
-      break;
-   case RETRO_DEVICE_ANALOG:
-      in_type[port] = PSE_PAD_TYPE_ANALOGPAD;
-      break;
-   case RETRO_DEVICE_MOUSE:
-      in_type[port] = PSE_PAD_TYPE_MOUSE;
-      break;
-   case RETRO_DEVICE_LIGHTGUN:
-      in_type[port] = PSE_PAD_TYPE_GUN;
-      break;
-   case RETRO_DEVICE_NONE:
-   default:
-      in_type[port] = PSE_PAD_TYPE_NONE;
-   }
 }
 
 static void update_multitap(void)
@@ -1519,6 +1420,8 @@ bool retro_load_game(const struct retro_game_info *info)
 
    set_retro_memmap();
 
+   input_changed = 1;
+
    return true;
 }
 
@@ -1585,7 +1488,6 @@ static float GunconAdjustRatioY = 1;
 static void update_variables(bool in_flight)
 {
    struct retro_variable var;
-   int i;
 #ifdef GPU_PEOPS
    int gpu_peops_fix = 0;
 #endif
@@ -2221,12 +2123,6 @@ static void update_variables(bool in_flight)
          char gpu_peops_option[][50] = {
             "pcsx_rearmed_multitap1",
             "pcsx_rearmed_multitap2",
-            "pcsx_rearmed_pad3type",
-            "pcsx_rearmed_pad4type",
-            "pcsx_rearmed_pad5type",
-            "pcsx_rearmed_pad6type",
-            "pcsx_rearmed_pad7type",
-            "pcsx_rearmed_pad8type",
             "pcsx_rearmed_negcon_deadzone",
             "pcsx_rearmed_negcon_response",
             "pcsx_rearmed_analog_axis_modifier",
@@ -2281,12 +2177,6 @@ static void update_variables(bool in_flight)
          }
       }
    }
-
-   for (i = 0; i < 8; i++) {
-      SysPrintf("[DEBUG] Player %d: %s\n", i + 1, get_pse_pad_label[in_type[i]]);
-   }
-   SysPrintf("Multiplayer 1: %s\n", multitap1 ? "enabled" : "disabled");
-   SysPrintf("Multiplayer 2: %s\n", multitap2 ? "enabled" : "disabled");
 }
 
 // Taken from beetle-psx-libretro
@@ -2621,6 +2511,19 @@ static void print_internal_fps(void)
 
 void retro_run(void)
 {
+   /* update multitap when inputs have changed */
+   /* this is only applied on core restart */
+   if (input_changed)
+   {
+      int i;
+      input_changed = 0;
+      update_multitap();
+      for (i = 0; i < 8; i++)
+         SysDLog("Player %d: %s\n", i + 1, get_pse_pad_label[in_type[i]]);
+      SysDLog("Multiplayer 1: %s\n", multitap1 ? "enabled" : "disabled");
+      SysDLog("Multiplayer 2: %s\n", multitap2 ? "enabled" : "disabled");
+   }
+
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (rebootemu != 0)
    {
@@ -2631,6 +2534,7 @@ void retro_run(void)
          // skip BIOS logos
          psxRegs.pc = psxRegs.GPR.n.ra;
       }
+      return;
    }
 
    print_internal_fps();
