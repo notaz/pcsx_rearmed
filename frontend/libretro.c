@@ -1744,9 +1744,20 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "async") == 0)
+      {
          Config.AsyncCD = 1;
-      else
+         Config.CHD_Precache = 0;
+      }
+      else if (strcmp(var.value, "sync") == 0)
+      {
          Config.AsyncCD = 0;
+         Config.CHD_Precache = 0;
+      }
+      else if (strcmp(var.value, "precache") == 0)
+      {
+         Config.AsyncCD = 0;
+         Config.CHD_Precache = 1;
+      }
    }
 #endif
 

@@ -1057,7 +1057,10 @@ static int handlechd(const char *isofile) {
 		goto fail_io;
 
 	if(chd_open(isofile, CHD_OPEN_READ, NULL, &chd_img->chd) != CHDERR_NONE)
-      goto fail_io;
+		goto fail_io;
+
+	if (Config.CHD_Precache && (chd_precache(chd_img->chd) != CHDERR_NONE))
+		goto fail_io;
 
    chd_img->header = chd_get_header(chd_img->chd);
 

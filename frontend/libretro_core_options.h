@@ -935,10 +935,11 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_async_cd",
       "CD Access Method (Restart)",
-      "Select method used to read data from content disk images. 'Synchronous' mimics original hardware. 'Asynchronous' can reduce stuttering on devices with slow storage.",
+      "Select method used to read data from content disk images. 'Synchronous' mimics original hardware. 'Asynchronous' can reduce stuttering on devices with slow storage. 'Precache' loads disk image into memory for faster access (CHD only).",
       {
-         { "sync", "Synchronous" },
-         { "async",  "Asynchronous" },
+         { "sync",     "Synchronous" },
+         { "async",    "Asynchronous" },
+         { "precache", "Precache" },
          { NULL, NULL},
       },
       "sync",
