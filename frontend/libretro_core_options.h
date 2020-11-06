@@ -166,7 +166,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
-      "auto",
+      "disabled",
    },
    {
       "pcsx_rearmed_multitap2",
@@ -178,7 +178,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
-      "auto",
+      "disabled",
    },
    {
       "pcsx_rearmed_negcon_deadzone",
