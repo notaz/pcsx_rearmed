@@ -96,7 +96,9 @@ else ifneq (,$(findstring ios,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 ifeq ($(DYNAREC),lightrec)
 	# Override
-	DYNAREC = 0
+	DYNAREC := 0
+endif
+ifeq ($(DYNAREC),0)
 	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 endif
 	fpic := -fPIC
