@@ -288,7 +288,7 @@ else ifeq ($(platform), rpi3)
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
 
-#Raspberry Pi 4
+#Raspberry Pi 4 with a 32bit GNU/Linux OS
 else ifeq ($(platform), rpi4)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
@@ -298,6 +298,15 @@ else ifeq ($(platform), rpi4)
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
+
+#Raspberry Pi 4 with a 64bit GNU/Linux OS
+else ifeq ($(platform), rpi4_64)
+        TARGET := $(TARGET_NAME)_libretro.so
+        ARCH := arm64
+        BUILTIN_GPU = unai
+        DYNAREC = lightrec
+        fpic := -fPIC
+        CFLAGS += -march=armv8-a+crc+simd -mtune=cortex-a72 -ftree-vectorize
 
 # Classic Platforms ####################
 # Platform affix = classic_<ISA>_<µARCH>
