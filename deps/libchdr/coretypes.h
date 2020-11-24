@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef __LIBRETRO__
-#include <streams/file_stream_transforms.h>
-#endif
-
 #define ARRAY_LENGTH(x) (sizeof(x)/sizeof(x[0]))
 
 typedef uint64_t UINT64;
