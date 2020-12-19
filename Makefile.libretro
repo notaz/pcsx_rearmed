@@ -151,20 +151,6 @@ else ifeq ($(platform), arm64)
    CFLAGS := $(filter-out -O2, $(CFLAGS))
    CFLAGS += -O3 -ftree-vectorize
 
-# PS3
-else ifeq ($(platform), ps3)
-	TARGET := $(TARGET_NAME)_libretro_ps3.a
-	CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
-	AR = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-ar.exe
-	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
-
-# sncps3
-else ifeq ($(platform), sncps3)
-	TARGET := $(TARGET_NAME)_libretro_ps3.a
-	CC = $(CELL_SDK)/host-win32/sn/bin/ps3ppusnc.exe
-	AR = $(CELL_SDK)/host-win32/sn/bin/ps3snarl.exe
-	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
-
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
 	TARGET := $(TARGET_NAME)_libretro_psl1ght.a
