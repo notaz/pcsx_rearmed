@@ -1,0 +1,121 @@
+# DESCRIPTION: GitLab CI/CD for libRetro (NOT FOR GitLab-proper)
+
+##############################################################################
+################################# BOILERPLATE ################################
+##############################################################################
+
+# Core definitions
+.core-defs:
+  variables:
+    JNI_PATH: .
+    CORENAME: pcsx_rearmed
+
+# Inclusion templates, required for the build to work
+include:
+  ################################## DESKTOPS ################################
+  # Windows 64-bit
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/windows-x64-mingw.yml'
+  
+  # Linux 64-bit
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/linux-x64.yml'
+    
+  # MacOS 64-bit
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/osx-x64.yml'
+
+  ################################## CELLULAR ################################
+  # Android
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/android-jni.yml'
+    
+  ################################## CONSOLES ################################
+  # PlayStation Portable
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/psp-static.yml'
+  
+  # PlayStation Vita
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/vita-static.yml'
+    
+  # Nintendo 3DS
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/ctr-static.yml'
+    
+  # Nintendo Switch
+  - project: 'libretro-infrastructure/ci-templates'
+    file: '/libnx-static.yml'
+
+# Stages for building
+stages:
+  - build-prepare
+  - build-shared
+  - build-static
+
+##############################################################################
+#################################### STAGES ##################################
+##############################################################################
+#
+################################### DESKTOPS #################################
+# Windows 64-bit
+libretro-build-windows-x64:
+  extends:
+    - .libretro-windows-x64-mingw-make-default
+    - .core-defs
+    
+# Linux 64-bit
+libretro-build-linux-x64:
+  extends:
+    - .libretro-linux-x64-make-default
+    - .core-defs
+
+# MacOS 64-bit
+libretro-build-osx-x64:
+  extends:
+    - .libretro-osx-x64-make-default
+    - .core-defs
+
+################################### CELLULAR #################################
+# Android ARMv7a
+android-armeabi-v7a:
+  extends:
+    - .core-defs
+    - .libretro-android-jni-armeabi-v7a
+
+# Android ARMv8a
+android-arm64-v8a:
+  extends:
+    - .libretro-android-jni-arm64-v8a
+    - .core-defs
+
+# Android 64-bit x86
+android-x86_64:
+  extends:
+    - .libretro-android-jni-x86_64
+    - .core-defs
+
+# Android 32-bit x86
+android-x86:
+  extends:
+    - .libretro-android-jni-x86
+    - .core-defs
+    
+################################### CONSOLES #################################
+# PlayStation Vita
+libretro-build-vita:
+  extends:
+    - .libretro-vita-static-retroarch-master
+    - .core-defs
+    
+# Nintendo 3DS
+libretro-build-ctr:
+  extends:
+    - .libretro-ctr-static-retroarch-master
+    - .core-defs
+    
+# Nintendo Switch
+libretro-build-libnx-aarch64:
+  extends:
+    - .libretro-libnx-static-retroarch-master
+    - .core-defs
