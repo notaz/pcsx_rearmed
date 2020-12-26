@@ -180,13 +180,11 @@ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   SOURCES_C   += $(DYNAREC_DIR)/backends/psx/emu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
-  COREFLAGS += -DINLINE="static __inline__" -Dasm="__asm__ __volatile__"
   SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
 else
   COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
-  COREFLAGS += -DINLINE="static __inline__" -Dasm="__asm__ __volatile__"
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
 endif
 
