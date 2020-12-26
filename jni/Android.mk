@@ -208,8 +208,5 @@ LOCAL_ARM_MODE      := arm
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   LOCAL_ARM_NEON  := true
 endif
-ifeq ($(TARGET_ARCH),arm)
-  LOCAL_LDLIBS    += -Wl,-no-warn-shared-textrel
-endif
 
 include $(BUILD_SHARED_LIBRARY)
