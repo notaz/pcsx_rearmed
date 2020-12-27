@@ -8,6 +8,7 @@
 .core-defs:
   variables:
     JNI_PATH: .
+    MAKEFILE: Makefile.libretro
     CORENAME: pcsx_rearmed
 
 # Inclusion templates, required for the build to work
