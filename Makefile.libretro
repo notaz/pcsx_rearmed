@@ -160,6 +160,8 @@ else ifeq ($(platform), libnx)
    CFLAGS += -Ifrontend/switch -ftree-vectorize
    LIBPTHREAD :=
    STATIC_LINKING=1
+   # Lightning requires rw/rx patches first
+   DYNAREC := 0
 
 # Lakka Switch (arm64)
 else ifeq ($(platform), arm64)
