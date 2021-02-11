@@ -180,6 +180,10 @@ CFLAGS += -DGPU_PEOPS
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
+ifeq "$(THREAD_RENDERING)" "1"
+CFLAGS += -DTHREAD_RENDERING
+OBJS += plugins/gpulib/gpulib_thread_if.o
+endif
 endif
 ifeq "$(BUILTIN_GPU)" "unai"
 CFLAGS += -DGPU_UNAI
@@ -190,12 +194,12 @@ OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
-CC_LINK = $(CXX)
-endif
 ifeq "$(THREAD_RENDERING)" "1"
 CFLAGS += -DTHREAD_RENDERING
 OBJS += plugins/gpulib/gpulib_thread_if.o
+endif
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
+CC_LINK = $(CXX)
 endif
 
 # cdrcimg
