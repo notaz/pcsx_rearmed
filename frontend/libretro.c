@@ -589,11 +589,11 @@ static void update_multitap(void)
          multitap1 = 1;
       else if (strcmp(var.value, "disabled") == 0)
          multitap1 = 0;
-      else // 'auto' case
+      else if (strcmp(var.value, "automatic") == 0)
          auto_case = 1;
    }
    else
-      auto_case = 1;
+      multitap1 = 0;
 
    if (auto_case)
    {
@@ -612,11 +612,11 @@ static void update_multitap(void)
          multitap2 = 1;
       else if (strcmp(var.value, "disabled") == 0)
          multitap2 = 0;
-      else // 'auto' case
+      else if (strcmp(var.value, "automatic") == 0)
          auto_case = 1;
    }
    else
-      auto_case = 1;
+      multitap2 = 0;
 
    if (auto_case)
    {
@@ -2132,8 +2132,6 @@ static void update_variables(bool in_flight)
          unsigned i;
          struct retro_core_option_display option_display;
          char gpu_peops_option[][50] = {
-            "pcsx_rearmed_multitap1",
-            "pcsx_rearmed_multitap2",
             "pcsx_rearmed_negcon_deadzone",
             "pcsx_rearmed_negcon_response",
             "pcsx_rearmed_analog_axis_modifier",

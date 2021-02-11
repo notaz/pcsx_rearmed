@@ -161,7 +161,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "Multitap 1 (Restart)",
       "Enables/Disables multitap on port 1, allowing upto 5 players in games that permit it.",
       {
-         { "auto",     NULL },
+         { "automatic",     NULL },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL },
@@ -173,7 +173,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "Multitap 2 (Restart)",
       "Enables/Disables multitap on port 2, allowing up to 8 players in games that permit it. Multitap 1 has to be enabled for this to work.",
       {
-         { "auto",     NULL },
+         { "automatic",     NULL },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL },
