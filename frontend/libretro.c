@@ -2132,8 +2132,6 @@ static void update_variables(bool in_flight)
          unsigned i;
          struct retro_core_option_display option_display;
          char gpu_peops_option[][50] = {
-            "pcsx_rearmed_multitap1",
-            "pcsx_rearmed_multitap2",
             "pcsx_rearmed_negcon_deadzone",
             "pcsx_rearmed_negcon_response",
             "pcsx_rearmed_analog_axis_modifier",
