@@ -2725,11 +2725,19 @@ static void loadPSXBios(void)
       }
    }
 
-   if (useHLE || !found_bios)
+   if (!found_bios)
    {
-      const char *msg_str = "No PlayStation BIOS file found - add for better compatibility";
-
-      SysPrintf("no BIOS files found.\n");
+      const char *msg_str;
+      if (useHLE)
+      {
+         msg_str = "BIOS set to \'hle\' in core options - real BIOS will be ignored";
+         SysPrintf("Using HLE BIOS.\n");
+      }
+      else
+      {
+         msg_str = "No PlayStation BIOS file found - add for better compatibility";
+         SysPrintf("No BIOS files found.\n");
+      }
 
       if (msg_interface_version >= 1)
       {
