@@ -77,26 +77,6 @@ SOURCES_C += $(FRONTEND_DIR)/main.c \
 SOURCES_C += \
              $(DEPS_DIR)/crypto/md5.c \
              $(DEPS_DIR)/crypto/sha1.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/bitmath.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/bitreader.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/cpu.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/crc.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/fixed.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/fixed_intrin_sse2.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/fixed_intrin_ssse3.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/float.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/format.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/lpc.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/lpc_intrin_avx2.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/lpc_intrin_sse2.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/lpc_intrin_sse41.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/lpc_intrin_sse.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/md5.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/memory.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/metadata_iterators.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/metadata_object.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/stream_decoder.c \
-             $(DEPS_DIR)/flac-1.3.2/src/libFLAC/window.c \
              $(DEPS_DIR)/lzma-16.04/C/Alloc.c \
              $(DEPS_DIR)/lzma-16.04/C/Bra86.c \
              $(DEPS_DIR)/lzma-16.04/C/Bra.c \
@@ -110,16 +90,15 @@ SOURCES_C += \
              $(DEPS_DIR)/lzma-16.04/C/LzmaEnc.c \
              $(DEPS_DIR)/lzma-16.04/C/LzmaLib.c \
              $(DEPS_DIR)/lzma-16.04/C/Sort.c \
-             $(DEPS_DIR)/libchdr/bitstream.c \
-             $(DEPS_DIR)/libchdr/cdrom.c \
-             $(DEPS_DIR)/libchdr/chd.c \
-             $(DEPS_DIR)/libchdr/flac.c \
-             $(DEPS_DIR)/libchdr/huffman.c
+             $(DEPS_DIR)/libchdr/src/libchdr_bitstream.c \
+             $(DEPS_DIR)/libchdr/src/libchdr_cdrom.c \
+             $(DEPS_DIR)/libchdr/src/libchdr_chd.c \
+             $(DEPS_DIR)/libchdr/src/libchdr_flac.c \
+             $(DEPS_DIR)/libchdr/src/libchdr_huffman.c
 SOURCES_ASM :=
 
 COREFLAGS := -ffast-math -funroll-loops -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
-COREFLAGS += -DPACKAGE_VERSION=\"1.3.2\" -DFLAC__HAS_OGG=0 -DFLAC__NO_DLL -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DFLAC__NO_DLL -D_7ZIP_ST -DHAVE_SYS_PARAM_H
-COREFLAGS += -DHAVE_CHD
+COREFLAGS += -DHAVE_CHD -D_7ZIP_ST
 
 HAVE_ARI64=0
 HAVE_LIGHTREC=0
@@ -198,7 +177,7 @@ LOCAL_MODULE        := retro
 LOCAL_SRC_FILES     := $(SOURCES_C) $(SOURCES_ASM)
 LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
-LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/flac-1.3.2/include $(DEPS_DIR)/flac-1.3.2/src/libFLAC/include $(DEPS_DIR)/lzma-16.04/C $(DEPS_DIR)/libchdr
+LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/lzma-16.04/C $(DEPS_DIR)/libchdr/include $(DEPS_DIR)/libchdr/include/libchdr
 LOCAL_C_INCLUDES    += $(LIBRETRO_COMMON)/include
 LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
 LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
