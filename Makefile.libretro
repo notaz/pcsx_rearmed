@@ -90,29 +90,36 @@ else ifeq ($(platform), linux-portable)
 
 # OS X
 else ifeq ($(platform), osx)
-	DYNAREC ?= lightrec
+	DYNAREC := 0
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
-	fpic += -mmacosx-version-min=10.1
+	HAVE_NEON = 0
+ifeq ($(DYNAREC),0)
+	TARGET := $(TARGET_NAME)_interpreter_libretro.dylib
+endif
+   MACSOSVER = `sw_vers -productVersion | cut -d. -f 1`
+   OSXVER = `sw_vers -productVersion | cut -d. -f 2`
+   OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
+   ifeq ($(OSX_LT_MAVERICKS),YES)
+   	   fpic += -mmacosx-version-min=10.1
+   endif
+
+   ifeq ($(CROSS_COMPILE),1)
+		TARGET_RULE   = -target $(LIBRETRO_APPLE_PLATFORM) -isysroot $(LIBRETRO_APPLE_ISYSROOT)
+		CFLAGS   += $(TARGET_RULE)
+		CPPFLAGS += $(TARGET_RULE)
+		CXXFLAGS += $(TARGET_RULE)
+		LDFLAGS  += $(TARGET_RULE)
+   endif
+
+	CFLAGS  += $(ARCHFLAGS)
+	CXXFLAGS  += $(ARCHFLAGS)
+	LDFLAGS += $(ARCHFLAGS)
 
 # iOS
-else ifeq ($(platform),$(filter $(platform),ios-arm64))
-	ARCH := arm64
-	HAVE_NEON = 0
-	BUILTIN_GPU = peops
-	DYNAREC = 0
-	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
-
-	CC = clang -arch arm64 -isysroot $(IOSSDK) -miphoneos-version-min=8.0
-	CXX = clang++ -arch arm64 -isysroot $(IOSSDK) -miphoneos-version-min=8.0
-	CFLAGS += -marm -DIOS
-
 else ifneq (,$(findstring ios,$(platform)))
-	ARCH := arm
-#	DYNAREC ?= ari64
-	HAVE_NEON = 1
-	BUILTIN_GPU = neon
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
+	MINVERSION :=
 ifeq ($(DYNAREC),lightrec)
 	# Override
 	DYNAREC := 0
@@ -126,23 +133,55 @@ endif
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
 	endif
 
-	CC = clang -arch armv7 -isysroot $(IOSSDK)
-	CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
-	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-	CFLAGS += -DIOS
-ifeq ($(platform),ios9)
-	CC     += -miphoneos-version-min=8.0
-	CXX    += -miphoneos-version-min=8.0
-	CC_AS  += -miphoneos-version-min=8.0
-	CFLAGS += -miphoneos-version-min=8.0
+	CFLAGS += -DIOS -marm
+ifeq ($(platform),ios-arm64)
+        CC = cc -arch arm64 -isysroot $(IOSSDK)
+	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+	ARCH := arm64
+	HAVE_NEON = 0
+	BUILTIN_GPU = peops
+	DYNAREC = 0
 else
-	CC     += -miphoneos-version-min=5.0
-	CXX    += -miphoneos-version-min=5.0
-	CC_AS  += -miphoneos-version-min=5.0
-	CFLAGS += -miphoneos-version-min=5.0
+	CC = cc -arch armv7 -isysroot $(IOSSDK)
+	CXX = c++ -arch armv7 -isysroot $(IOSSDK)
+	ARCH := arm
+	HAVE_NEON = 1
+	BUILTIN_GPU = neon
+	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 endif
+	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
+	MINVERSION = -miphoneos-version-min=8.0
+else
+	MINVERSION = -miphoneos-version-min=5.0
+endif
+	CFLAGS += $(MINVERSION)
+
+else ifeq ($(platform), tvos-arm64)
+	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
+	MINVERSION :=
+ifeq ($(DYNAREC),lightrec)
+	# Override
+	DYNAREC := 0
+endif
+ifeq ($(DYNAREC),0)
+	TARGET := $(TARGET_NAME)_interpreter_libretro_tvos.dylib
+endif
+	fpic := -fPIC
+
+	ifeq ($(IOSSDK),)
+		IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
+	endif
+
+	CFLAGS += -DIOS -DTVOS -marm
+        CC = cc -arch arm64 -isysroot $(IOSSDK)
+	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+	ARCH := arm64
+	HAVE_NEON = 0
+	BUILTIN_GPU = peops
+	DYNAREC = 0
+	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 
 # Nintendo Switch (libnx)
 else ifeq ($(platform), libnx)

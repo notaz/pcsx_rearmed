@@ -2772,7 +2772,7 @@ void retro_init(void)
    msg_interface_version = 0;
    environ_cb(RETRO_ENVIRONMENT_GET_MESSAGE_INTERFACE_VERSION, &msg_interface_version);
 
-#ifdef __MACH__
+#if defined(__MACH__) && !defined(TVOS)
    // magic sauce to make the dynarec work on iOS
    syscall(SYS_ptrace, 0 /*PTRACE_TRACEME*/, 0, 0, 0);
 #endif
