@@ -94,9 +94,6 @@ else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
 	HAVE_NEON = 0
-ifeq ($(DYNAREC),0)
-	TARGET := $(TARGET_NAME)_interpreter_libretro.dylib
-endif
    MACSOSVER = `sw_vers -productVersion | cut -d. -f 1`
    OSXVER = `sw_vers -productVersion | cut -d. -f 2`
    OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
@@ -123,9 +120,6 @@ else ifneq (,$(findstring ios,$(platform)))
 ifeq ($(DYNAREC),lightrec)
 	# Override
 	DYNAREC := 0
-endif
-ifeq ($(DYNAREC),0)
-	TARGET := $(TARGET_NAME)_interpreter_libretro_ios.dylib
 endif
 	fpic := -fPIC
 
@@ -164,9 +158,6 @@ else ifeq ($(platform), tvos-arm64)
 ifeq ($(DYNAREC),lightrec)
 	# Override
 	DYNAREC := 0
-endif
-ifeq ($(DYNAREC),0)
-	TARGET := $(TARGET_NAME)_interpreter_libretro_tvos.dylib
 endif
 	fpic := -fPIC
 
