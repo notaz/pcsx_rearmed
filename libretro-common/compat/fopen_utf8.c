@@ -1,7 +1,7 @@
 /* Copyright  (C) 2010-2020 The RetroArch team
  *
  * ---------------------------------------------------------------------------------------
- * The following license statement only applies to this file (retro_inline.h).
+ * The following license statement only applies to this file (fopen_utf8.c).
  * ---------------------------------------------------------------------------------------
  *
  * Permission is hereby granted, free of charge,
@@ -20,20 +20,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIBRETRO_SDK_INLINE_H
-#define __LIBRETRO_SDK_INLINE_H
+#include <compat/fopen_utf8.h>
+#include <encodings/utf.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-#ifndef INLINE
+#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0500 || defined(_XBOX)
+#ifndef LEGACY_WIN32
+#define LEGACY_WIN32
+#endif
+#endif
 
-#if defined(_WIN32) || defined(__INTEL_COMPILER)
-#define INLINE __inline
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__>=199901L
-#define INLINE inline
-#elif defined(__GNUC__)
-#define INLINE __inline__
+#ifdef _WIN32
+#undef fopen
+
+void *fopen_utf8(const char * filename, const char * mode)
+{
+#if defined(LEGACY_WIN32)
+   FILE             *ret = NULL;
+   char * filename_local = utf8_to_local_string_alloc(filename);
+
+   if (!filename_local)
+      return NULL;
+   ret = fopen(filename_local, mode);
+   if (filename_local)
+      free(filename_local);
+   return ret;
 #else
-#define INLINE
-#endif
+   wchar_t * filename_w = utf8_to_utf16_string_alloc(filename);
+   wchar_t * mode_w = utf8_to_utf16_string_alloc(mode);
+   FILE* ret = NULL;
 
+   if (filename_w && mode_w)
+      ret = _wfopen(filename_w, mode_w);
+   if (filename_w)
+      free(filename_w);
+   if (mode_w)
+      free(mode_w);
+   return ret;
 #endif
+}
 #endif

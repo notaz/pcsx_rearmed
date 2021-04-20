@@ -1,7 +1,7 @@
 /* Copyright  (C) 2010-2020 The RetroArch team
  *
  * ---------------------------------------------------------------------------------------
- * The following license statement only applies to this file (retro_inline.h).
+ * The following license statement only applies to this file (fopen_utf8.h).
  * ---------------------------------------------------------------------------------------
  *
  * Permission is hereby granted, free of charge,
@@ -20,20 +20,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIBRETRO_SDK_INLINE_H
-#define __LIBRETRO_SDK_INLINE_H
+#ifndef __LIBRETRO_SDK_COMPAT_FOPEN_UTF8_H
+#define __LIBRETRO_SDK_COMPAT_FOPEN_UTF8_H
 
-#ifndef INLINE
-
-#if defined(_WIN32) || defined(__INTEL_COMPILER)
-#define INLINE __inline
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__>=199901L
-#define INLINE inline
-#elif defined(__GNUC__)
-#define INLINE __inline__
+#ifdef _WIN32
+/* Defined to error rather than fopen_utf8, to make it clear to everyone reading the code that not worrying about utf16 is fine */
+/* TODO: enable */
+/* #define fopen (use fopen_utf8 instead) */
+void *fopen_utf8(const char * filename, const char * mode);
 #else
-#define INLINE
-#endif
-
+#define fopen_utf8 fopen
 #endif
 #endif

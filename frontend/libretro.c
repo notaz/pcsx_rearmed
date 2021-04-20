@@ -39,6 +39,7 @@
 #include "revision.h"
 
 #include <libretro.h>
+#include <compat/fopen_utf8.h>
 #include "libretro_core_options.h"
 
 #ifdef _3DS
@@ -1112,7 +1113,7 @@ static bool read_m3u(const char *file)
 {
    char line[1024];
    char name[PATH_MAX];
-   FILE *f = fopen(file, "r");
+   FILE *f = fopen_utf8(file, "r");
    if (!f)
       return false;
 
@@ -2572,7 +2573,7 @@ static bool try_use_bios(const char *path)
    long size;
    const char *name;
 
-   f = fopen(path, "rb");
+   f = fopen_utf8(path, "rb");
    if (f == NULL)
       return false;
 
