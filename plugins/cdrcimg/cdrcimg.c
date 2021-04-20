@@ -8,6 +8,8 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include <compat/fopen_utf8.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -321,7 +323,7 @@ static long handle_eboot(void)
 	int i, ret;
 	FILE *f;
 
-	f = fopen(cd_fname, "rb");
+	f = fopen_utf8(cd_fname, "rb");
 	if (f == NULL) {
 		err("missing file: %s: ", cd_fname);
 		perror(NULL);
@@ -460,7 +462,7 @@ static long CDRopen(void)
 		return -1;
 	}
 
-	f = fopen(table_fname, "rb");
+	f = fopen_utf8(table_fname, "rb");
 	if (f == NULL) {
 		err("missing file: %s: ", table_fname);
 		perror(NULL);
@@ -525,7 +527,7 @@ static long CDRopen(void)
 		break;
 	}
 
-	cd_file = fopen(cd_fname, "rb");
+	cd_file = fopen_utf8(cd_fname, "rb");
 	if (cd_file == NULL) {
 		err("failed to open: %s: ", table_fname);
 		perror(NULL);
