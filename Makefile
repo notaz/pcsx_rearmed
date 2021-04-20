@@ -296,6 +296,8 @@ LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += libretro-common/compat/fopen_utf8.o
+OBJS += libretro-common/encodings/compat_strl.o
+OBJS += libretro-common/encodings/encoding_utf.o
 OBJS += frontend/libretro.o
 CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
