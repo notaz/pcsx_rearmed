@@ -17,14 +17,16 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
-#include <compat/fopen_utf8.h>
-
 /*
 * SIO functions.
 */
 
 #include "sio.h"
 #include <sys/stat.h>
+
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#endif
 
 // Status Flags
 #define TX_RDY		0x0001
@@ -438,11 +440,11 @@ void LoadMcd(int mcd, char *str) {
 	if (*str == 0)
 		return;
 
-	f = fopen_utf8(str, "rb");
+	f = fopen(str, "rb");
 	if (f == NULL) {
 		SysPrintf(_("The memory card %s doesn't exist - creating it\n"), str);
 		CreateMcd(str);
-		f = fopen_utf8(str, "rb");
+		f = fopen(str, "rb");
 		if (f != NULL) {
 			struct stat buf;
 
@@ -483,7 +485,7 @@ void SaveMcd(char *mcd, char *data, uint32_t adr, int size) {
 	if (mcd == NULL || *mcd == 0 || strcmp(mcd, "none") == 0)
 		return;
 
-	f = fopen_utf8(mcd, "r+b");
+	f = fopen(mcd, "r+b");
 	if (f != NULL) {
 		struct stat buf;
 
@@ -520,7 +522,7 @@ void CreateMcd(char *mcd) {
 	int s = MCD_SIZE;
 	int i = 0, j;
 
-	f = fopen_utf8(mcd, "wb");
+	f = fopen(mcd, "wb");
 	if (f == NULL)
 		return;
 

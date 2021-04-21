@@ -19,8 +19,6 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
-#include <compat/fopen_utf8.h>
-
 #include "psxcommon.h"
 #include "plugins.h"
 #include "cdrom.h"
@@ -45,6 +43,13 @@
 #include <unistd.h>
 #endif
 
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#undef fseeko
+#undef ftello
+#define ftello rftell
+#define fseeko rfseek
+#endif
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
 unsigned int cdrIsoMultidiskCount;
@@ -336,16 +341,16 @@ static int parsetoc(const char *isofile) {
 		return -1;
 	}
 
-	if ((fi = fopen_utf8(tocname, "r")) == NULL) {
+	if ((fi = fopen(tocname, "r")) == NULL) {
 		// try changing extension to .cue (to satisfy some stupid tutorials)
 		strcpy(tocname + strlen(tocname) - 4, ".cue");
-		if ((fi = fopen_utf8(tocname, "r")) == NULL) {
+		if ((fi = fopen(tocname, "r")) == NULL) {
 			// if filename is image.toc.bin, try removing .bin (for Brasero)
 			strcpy(tocname, isofile);
 			t = strlen(tocname);
 			if (t >= 8 && strcmp(tocname + t - 8, ".toc.bin") == 0) {
 				tocname[t - 4] = '\0';
-				if ((fi = fopen_utf8(tocname, "r")) == NULL) {
+				if ((fi = fopen(tocname, "r")) == NULL) {
 					return -1;
 				}
 			}
@@ -488,7 +493,7 @@ static int parsecue(const char *isofile) {
 		return -1;
 	}
 
-	if ((fi = fopen_utf8(cuename, "r")) == NULL) {
+	if ((fi = fopen(cuename, "r")) == NULL) {
 		return -1;
 	}
 
@@ -592,7 +597,7 @@ static int parsecue(const char *isofile) {
 			else
 				tmp = tmpb;
 			strncpy(incue_fname, tmp, incue_max_len);
-			ti[numtracks + 1].handle = fopen_utf8(filepath, "rb");
+			ti[numtracks + 1].handle = fopen(filepath, "rb");
 
 			// update global offset if this is not first file in this .cue
 			if (numtracks + 1 > 1) {
@@ -613,7 +618,7 @@ static int parsecue(const char *isofile) {
 				strncasecmp(isofile + strlen(isofile) - 4, ".cd", 3) == 0)) {
 				// user selected .cue/.cdX as image file, use it's data track instead
 				fclose(cdHandle);
-				cdHandle = fopen_utf8(filepath, "rb");
+				cdHandle = fopen(filepath, "rb");
 			}
 		}
 	}
@@ -647,7 +652,7 @@ static int parseccd(const char *isofile) {
 		return -1;
 	}
 
-	if ((fi = fopen_utf8(ccdname, "r")) == NULL) {
+	if ((fi = fopen(ccdname, "r")) == NULL) {
 		return -1;
 	}
 
@@ -706,7 +711,7 @@ static int parsemds(const char *isofile) {
 		return -1;
 	}
 
-	if ((fi = fopen_utf8(mdsname, "rb")) == NULL) {
+	if ((fi = fopen(mdsname, "rb")) == NULL) {
 		return -1;
 	}
 
@@ -1146,7 +1151,7 @@ static int opensubfile(const char *isoname) {
 		return -1;
 	}
 
-	subHandle = fopen_utf8(subname, "rb");
+	subHandle = fopen(subname, "rb");
 	if (subHandle == NULL) {
 		return -1;
 	}
@@ -1625,7 +1630,7 @@ static long CALLBACK ISOopen(void) {
 		return 0; // it's already open
 	}
 
-	cdHandle = fopen_utf8(GetIsoFile(), "rb");
+	cdHandle = fopen(GetIsoFile(), "rb");
 	if (cdHandle == NULL) {
 		SysPrintf(_("Could't open '%s' for reading: %s\n"),
 			GetIsoFile(), strerror(errno));
@@ -1697,7 +1702,7 @@ static long CALLBACK ISOopen(void) {
 			p = alt_bin_filename + strlen(alt_bin_filename) - 4;
 			for (i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
 				strcpy(p, exts[i]);
-				tmpf = fopen_utf8(alt_bin_filename, "rb");
+				tmpf = fopen(alt_bin_filename, "rb");
 				if (tmpf != NULL)
 					break;
 			}
@@ -1733,7 +1738,7 @@ static long CALLBACK ISOopen(void) {
 
 	// make sure we have another handle open for cdda
 	if (numtracks > 1 && ti[1].handle == NULL) {
-		ti[1].handle = fopen_utf8(bin_filename, "rb");
+		ti[1].handle = fopen(bin_filename, "rb");
 	}
 	cdda_cur_sector = 0;
 	cdda_file_offset = 0;
