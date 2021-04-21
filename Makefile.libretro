@@ -252,6 +252,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -fomit-frame-pointer -ffast-math -funroll-loops
 	CFLAGS += -Ifrontend/3ds -I$(CTRULIB)/include
 	CFLAGS += -Werror=implicit-function-declaration
+	CFLAGS += -DHAVE_UNISTD_H
 
 	OBJS += frontend/3ds/utils.o
 
