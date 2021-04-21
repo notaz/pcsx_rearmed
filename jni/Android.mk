@@ -75,21 +75,16 @@ SOURCES_C += $(FRONTEND_DIR)/main.c \
 
 # libchdr
 SOURCES_C += \
-             $(DEPS_DIR)/crypto/md5.c \
-             $(DEPS_DIR)/crypto/sha1.c \
-             $(DEPS_DIR)/lzma-16.04/C/Alloc.c \
-             $(DEPS_DIR)/lzma-16.04/C/Bra86.c \
-             $(DEPS_DIR)/lzma-16.04/C/Bra.c \
-             $(DEPS_DIR)/lzma-16.04/C/BraIA64.c \
-             $(DEPS_DIR)/lzma-16.04/C/CpuArch.c \
-             $(DEPS_DIR)/lzma-16.04/C/Delta.c \
-             $(DEPS_DIR)/lzma-16.04/C/LzFind.c \
-             $(DEPS_DIR)/lzma-16.04/C/Lzma86Dec.c \
-             $(DEPS_DIR)/lzma-16.04/C/Lzma86Enc.c \
-             $(DEPS_DIR)/lzma-16.04/C/LzmaDec.c \
-             $(DEPS_DIR)/lzma-16.04/C/LzmaEnc.c \
-             $(DEPS_DIR)/lzma-16.04/C/LzmaLib.c \
-             $(DEPS_DIR)/lzma-16.04/C/Sort.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/Alloc.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/Bra86.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/BraIA64.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/CpuArch.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/Delta.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/LzFind.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/Lzma86Dec.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/LzmaDec.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/LzmaEnc.c \
+             $(DEPS_DIR)/libchdr/deps/lzma-19.00/src/Sort.c \
              $(DEPS_DIR)/libchdr/src/libchdr_bitstream.c \
              $(DEPS_DIR)/libchdr/src/libchdr_cdrom.c \
              $(DEPS_DIR)/libchdr/src/libchdr_chd.c \
@@ -177,7 +172,7 @@ LOCAL_MODULE        := retro
 LOCAL_SRC_FILES     := $(SOURCES_C) $(SOURCES_ASM)
 LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
-LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/lzma-16.04/C $(DEPS_DIR)/libchdr/include $(DEPS_DIR)/libchdr/include/libchdr
+LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto $(DEPS_DIR)/libchdr/deps/lzma-19.00/include $(DEPS_DIR)/libchdr/include $(DEPS_DIR)/libchdr/include/libchdr
 LOCAL_C_INCLUDES    += $(LIBRETRO_COMMON)/include
 LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
 LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
