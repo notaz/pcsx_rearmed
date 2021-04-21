@@ -578,53 +578,37 @@ unsigned retro_api_version(void)
 
 static void update_multitap(void)
 {
-   struct retro_variable var;
-   int auto_case, port;
+   struct retro_variable var = {};
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_multitap1";
-   auto_case = 0;
+   var.key = "pcsx_rearmed_multitap";
    if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
    {
-      if (strcmp(var.value, "enabled") == 0)
+      if (strcmp(var.value, "port 1 only") == 0)
+      {
          multitap1 = 1;
-      else if (strcmp(var.value, "disabled") == 0)
-         multitap1 = 0;
-      else if (strcmp(var.value, "automatic") == 0)
-         auto_case = 1;
-   }
-   else
-      multitap1 = 0;
-
-   if (auto_case)
-   {
-      // If a gamepad is plugged after port 2, we need a first multitap.
-      multitap1 = 0;
-      for (port = 2; port < PORTS_NUMBER; port++)
-         multitap1 |= in_type[port] != PSE_PAD_TYPE_NONE;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_multitap2";
-   auto_case = 0;
-   if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         multitap2 = 1;
-      else if (strcmp(var.value, "disabled") == 0)
          multitap2 = 0;
-      else if (strcmp(var.value, "automatic") == 0)
-         auto_case = 1;
+      }
+      else if (strcmp(var.value, "port 2 only") == 0)
+      {
+         multitap1 = 0;
+         multitap2 = 1;
+      }
+      else if (strcmp(var.value, "both") == 0)
+      {
+         multitap1 = 1;
+         multitap2 = 1;
+      }
+      else
+      {
+         multitap1 = 0;
+         multitap2 = 0;
+      }
    }
    else
-      multitap2 = 0;
-
-   if (auto_case)
    {
-      // If a gamepad is plugged after port 4, we need a second multitap.
+      multitap1 = 0;
       multitap2 = 0;
-      for (port = 4; port < PORTS_NUMBER; port++)
-         multitap2 |= in_type[port] != PSE_PAD_TYPE_NONE;
    }
 }
 
@@ -661,6 +645,7 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
    }
 
    SysPrintf("port: %u  device: %s\n", port + 1, get_pse_pad_label[in_type[port]]);
+   input_changed = 1;
 }
 
 void retro_get_system_info(struct retro_system_info *info)
