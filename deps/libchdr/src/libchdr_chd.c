@@ -1382,8 +1382,15 @@ CHD_EXPORT chd_error chd_open_file(core_file *file, int mode, chd_file *parent, 
 		EARLY_EXIT(err = CHDERR_UNSUPPORTED_VERSION);
 
 	/* if we need a parent, make sure we have one */
-	if (parent == NULL && (newchd->header.flags & CHDFLAGS_HAS_PARENT))
-		EARLY_EXIT(err = CHDERR_REQUIRES_PARENT);
+	if (parent == NULL)
+	{
+		/* Detect parent requirement for versions below 5 */
+		if (newchd->header.version < 5 && newchd->header.flags & CHDFLAGS_HAS_PARENT)
+			EARLY_EXIT(err = CHDERR_REQUIRES_PARENT);
+		/* Detection for version 5 and above - if parentsha1 != 0, we have a parent */
+		else if (newchd->header.version >= 5 && memcmp(nullsha1, newchd->header.parentsha1, sizeof(newchd->header.parentsha1)) != 0)
+			EARLY_EXIT(err = CHDERR_REQUIRES_PARENT);
+	}
 
 	/* make sure we have a valid parent */
 	if (parent != NULL)
@@ -1676,6 +1683,9 @@ CHD_EXPORT void chd_close(chd_file *chd)
 	if (chd->file_cache)
 		free(chd->file_cache);
 
+	if (chd->parent)
+		chd_close(chd->parent);
+
 	/* free our memory */
 	free(chd);
 }
@@ -1747,6 +1757,41 @@ CHD_EXPORT const chd_header *chd_get_header(chd_file *chd)
 		return NULL;
 
 	return &chd->header;
+}
+
+/*-------------------------------------------------
+    chd_read_header - read CHD header data
+	from file into the pointed struct
+-------------------------------------------------*/
+CHD_EXPORT chd_error chd_read_header(const char *filename, chd_header *header)
+{
+	chd_error err = CHDERR_NONE;
+	chd_file chd;
+
+	/* punt if NULL */
+	if (filename == NULL || header == NULL)
+		EARLY_EXIT(err = CHDERR_INVALID_PARAMETER);
+
+	/* open the file */
+	chd.file = core_fopen(filename);
+	if (chd.file == NULL)
+		EARLY_EXIT(err = CHDERR_FILE_NOT_FOUND);
+
+	/* attempt to read the header */
+	err = header_read(&chd, header);
+	if (err != CHDERR_NONE)
+		EARLY_EXIT(err);
+
+	/* validate the header */
+	err = header_validate(header);
+	if (err != CHDERR_NONE)
+		EARLY_EXIT(err);
+
+cleanup:
+	if (chd.file != NULL)
+		core_fclose(chd.file);
+
+	return err;
 }
 
 /***************************************************************************
@@ -2343,13 +2388,33 @@ static chd_error hunk_read_into_memory(chd_file *chd, UINT32 hunknum, UINT8 *des
 				return hunk_read_into_memory(chd, blockoffs, dest);
 
 			case COMPRESSION_PARENT:
-#if 0
-				/* TODO */
-				if (m_parent_missing)
+				if (chd->parent == NULL)
 					return CHDERR_REQUIRES_PARENT;
-				return m_parent->read_bytes(uint64_t(blockoffs) * uint64_t(m_parent->unit_bytes()), dest, m_hunkbytes);
-#endif
-				return CHDERR_DECOMPRESSION_ERROR;
+				UINT8 units_in_hunk = chd->header.hunkbytes / chd->header.unitbytes;
+
+				/* blockoffs is aligned to units_in_hunk */
+				if (blockoffs % units_in_hunk == 0) {
+					return hunk_read_into_memory(chd->parent, blockoffs / units_in_hunk, dest);
+				/* blockoffs is not aligned to units_in_hunk */
+				} else {
+					UINT32 unit_in_hunk = blockoffs % units_in_hunk;
+					UINT8 *buf = malloc(chd->header.hunkbytes);
+					/* Read first half of hunk which contains blockoffs */
+					err = hunk_read_into_memory(chd->parent, blockoffs / units_in_hunk, buf);
+					if (err != CHDERR_NONE) {
+						free(buf);
+						return err;
+					}
+					memcpy(dest, buf + unit_in_hunk * chd->header.unitbytes, (units_in_hunk - unit_in_hunk) * chd->header.unitbytes);
+					/* Read second half of hunk which contains blockoffs */
+					err = hunk_read_into_memory(chd->parent, (blockoffs / units_in_hunk) + 1, buf);
+					if (err != CHDERR_NONE) {
+						free(buf);
+						return err;
+					}
+					memcpy(dest + (units_in_hunk - unit_in_hunk) * chd->header.unitbytes, buf, unit_in_hunk * chd->header.unitbytes);
+					free(buf);
+				}
 		}
 		return CHDERR_NONE;
 	}

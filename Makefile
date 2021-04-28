@@ -53,21 +53,22 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 ifeq ($(WANT_ZLIB),1)
-CFLAGS += -Ideps/zlib
-OBJS += deps/zlib/adler32.o \
-        deps/zlib/compress.o \
-        deps/zlib/crc32.o \
-        deps/zlib/deflate.o \
-        deps/zlib/gzclose.o \
-        deps/zlib/gzlib.o \
-        deps/zlib/gzread.o \
-        deps/zlib/gzwrite.o \
-        deps/zlib/inffast.o \
-        deps/zlib/inflate.o \
-        deps/zlib/inftrees.o \
-        deps/zlib/trees.o \
-        deps/zlib/uncompr.o \
-        deps/zlib/zutil.o
+CFLAGS += -Ideps/libchdr/deps/zlib-1.2.11
+OBJS += deps/libchdr/deps/zlib-1.2.11/adler32.o \
+        deps/libchdr/deps/zlib-1.2.11/compress.o \
+        deps/libchdr/deps/zlib-1.2.11/crc32.o \
+        deps/libchdr/deps/zlib-1.2.11/deflate.o \
+        deps/libchdr/deps/zlib-1.2.11/gzclose.o \
+        deps/libchdr/deps/zlib-1.2.11/gzlib.o \
+        deps/libchdr/deps/zlib-1.2.11/gzread.o \
+        deps/libchdr/deps/zlib-1.2.11/gzwrite.o \
+        deps/libchdr/deps/zlib-1.2.11/infback.o \
+        deps/libchdr/deps/zlib-1.2.11/inffast.o \
+        deps/libchdr/deps/zlib-1.2.11/inflate.o \
+        deps/libchdr/deps/zlib-1.2.11/inftrees.o \
+        deps/libchdr/deps/zlib-1.2.11/trees.o \
+        deps/libchdr/deps/zlib-1.2.11/uncompr.o \
+        deps/libchdr/deps/zlib-1.2.11/zutil.o
 endif
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
@@ -209,27 +210,22 @@ OBJS += plugins/cdrcimg/cdrcimg.o
 ifeq "$(HAVE_CHD)" "1"
 CFLAGS += -Ideps/libchdr/include
 CFLAGS += -Ideps/libchdr/include/libchdr
-OBJS += deps/crypto/md5.o
-OBJS += deps/crypto/sha1.o
-OBJS += deps/lzma-16.04/C/Alloc.o
-OBJS += deps/lzma-16.04/C/Bra86.o
-OBJS += deps/lzma-16.04/C/Bra.o
-OBJS += deps/lzma-16.04/C/BraIA64.o
-OBJS += deps/lzma-16.04/C/CpuArch.o
-OBJS += deps/lzma-16.04/C/Delta.o
-OBJS += deps/lzma-16.04/C/LzFind.o
-OBJS += deps/lzma-16.04/C/Lzma86Dec.o
-OBJS += deps/lzma-16.04/C/Lzma86Enc.o
-OBJS += deps/lzma-16.04/C/LzmaDec.o
-OBJS += deps/lzma-16.04/C/LzmaEnc.o
-OBJS += deps/lzma-16.04/C/LzmaLib.o
-OBJS += deps/lzma-16.04/C/Sort.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/Alloc.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/Bra86.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/BraIA64.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/CpuArch.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/Delta.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/LzFind.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/Lzma86Dec.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/LzmaDec.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/LzmaEnc.o
+OBJS += deps/libchdr/deps/lzma-19.00/src/Sort.o
 OBJS += deps/libchdr/src/libchdr_bitstream.o
 OBJS += deps/libchdr/src/libchdr_cdrom.o
 OBJS += deps/libchdr/src/libchdr_chd.o
 OBJS += deps/libchdr/src/libchdr_flac.o
 OBJS += deps/libchdr/src/libchdr_huffman.o
-CFLAGS += -Ideps/crypto -Ideps/lzma-16.04/C
+CFLAGS += -Ideps/libchdr/deps/lzma-19.00/include
 CFLAGS += -DHAVE_CHD -D_7ZIP_ST
 LDFLAGS += -lm
 endif
