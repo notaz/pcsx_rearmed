@@ -1116,7 +1116,7 @@ static bool read_m3u(const char *file)
    if (!fp)
       return false;
 
-   while (fgets(fp, line, sizeof(line)) && disk_count < sizeof(disks) / sizeof(disks[0]))
+   while (fgets(line, sizeof(line), fp) && disk_count < sizeof(disks) / sizeof(disks[0]))
    {
       if (line[0] == '#')
          continue;
