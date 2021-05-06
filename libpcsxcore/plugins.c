@@ -630,6 +630,7 @@ void _PADstartPoll(PadDataS *pad) {
 	switch (pad->controllerType) {
 		case PSE_PAD_TYPE_MOUSE:
 			stdpar[0] = 0x12;
+			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 			stdpar[4] = pad->moveX;
@@ -639,6 +640,7 @@ void _PADstartPoll(PadDataS *pad) {
 			break;
 		case PSE_PAD_TYPE_NEGCON: // npc101/npc104(slph00001/slph00069)
 			stdpar[0] = 0x23;
+			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 			stdpar[4] = pad->rightJoyX;
@@ -691,6 +693,7 @@ void _PADstartPoll(PadDataS *pad) {
 			break;
 		case PSE_PAD_TYPE_ANALOGPAD: // scph1150
 			stdpar[0] = 0x73;
+			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 			stdpar[4] = pad->rightJoyX;
@@ -702,6 +705,7 @@ void _PADstartPoll(PadDataS *pad) {
 			break;
 		case PSE_PAD_TYPE_ANALOGJOY: // scph1110
 			stdpar[0] = 0x53;
+			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 			stdpar[4] = pad->rightJoyX;
@@ -712,8 +716,8 @@ void _PADstartPoll(PadDataS *pad) {
 			respSize = 8;
 			break;
 		case PSE_PAD_TYPE_STANDARD:
-		default:
 			stdpar[0] = 0x41;
+			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 			//avoid analog value in multitap mode if change pad type in game.
@@ -723,6 +727,19 @@ void _PADstartPoll(PadDataS *pad) {
 			stdpar[7] = 0xff;
 			memcpy(buf, stdpar, 8);
 			respSize = 8;
+			break;
+		default:
+			stdpar[0] = 0xff;
+			stdpar[1] = 0xff;
+			stdpar[2] = 0xff;
+			stdpar[3] = 0xff;
+			stdpar[4] = 0xff;
+			stdpar[5] = 0xff;
+			stdpar[6] = 0xff;
+			stdpar[7] = 0xff;
+			memcpy(buf, stdpar, 8);
+			respSize = 8;
+			break;
 	}
 }
 
