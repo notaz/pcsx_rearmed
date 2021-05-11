@@ -5,6 +5,7 @@ $(shell cd "$(LOCAL_PATH)" && (diff -q ../frontend/revision.h_ ../frontend/revis
 $(shell cd "$(LOCAL_PATH)" && (rm ../frontend/revision.h_))
 
 HAVE_CHD ?= 1
+USE_LIBRETRO_VFS ?= 0
 
 ROOT_DIR     := $(LOCAL_PATH)/..
 CORE_DIR     := $(ROOT_DIR)/libpcsxcore
@@ -94,6 +95,21 @@ SOURCES_ASM :=
 
 COREFLAGS := -ffast-math -funroll-loops -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
 COREFLAGS += -DHAVE_CHD -D_7ZIP_ST
+
+ifeq ($(USE_LIBRETRO_VFS),1)
+SOURCES_C += \
+             $(LIBRETRO_COMMON)/compat/compat_posix_string.c \
+             $(LIBRETRO_COMMON)/compat/fopen_utf8.c \
+             $(LIBRETRO_COMMON)/encodings/compat_strl.c \
+             $(LIBRETRO_COMMON)/encodings/encoding_utf.c \
+             $(LIBRETRO_COMMON)/file/file_path.c \
+             $(LIBRETRO_COMMON)/streams/file_stream.c \
+             $(LIBRETRO_COMMON)/streams/file_stream_transforms.c \
+             $(LIBRETRO_COMMON)/string/stdstring.c \
+             $(LIBRETRO_COMMON)/time/rtime.c \
+             $(LIBRETRO_COMMON)/vfs/vfs_implementation.c
+COREFLAGS += -DUSE_LIBRETRO_VFS
+endif
 
 HAVE_ARI64=0
 HAVE_LIGHTREC=0

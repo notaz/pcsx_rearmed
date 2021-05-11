@@ -291,9 +291,19 @@ CFLAGS += `pkg-config --cflags glib-2.0 libosso dbus-1 hildon-fm-2`
 LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
+ifeq "$(USE_LIBRETRO_VFS)" "1"
+OBJS += libretro-common/compat/compat_posix_string.o
 OBJS += libretro-common/compat/fopen_utf8.o
 OBJS += libretro-common/encodings/compat_strl.o
 OBJS += libretro-common/encodings/encoding_utf.o
+OBJS += libretro-common/file/file_path.o
+OBJS += libretro-common/streams/file_stream.o
+OBJS += libretro-common/streams/file_stream_transforms.o
+OBJS += libretro-common/string/stdstring.o
+OBJS += libretro-common/time/rtime.o
+OBJS += libretro-common/vfs/vfs_implementation.o
+CFLAGS += -DUSE_LIBRETRO_VFS
+endif
 OBJS += frontend/libretro.o
 CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565

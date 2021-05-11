@@ -3,6 +3,7 @@
 DEBUG ?= 0
 WANT_ZLIB ?= 1
 HAVE_CHD ?= 1
+USE_LIBRETRO_VFS ?= 0
 
 # Dynarec options: lightrec, ari64
 DYNAREC ?= lightrec
@@ -451,6 +452,7 @@ else
 	LIBPTHREAD :=
 	LIBDL :=
 	LIBM :=
+	USE_LIBRETRO_VFS = 1
 endif
 
 CFLAGS += $(fpic)

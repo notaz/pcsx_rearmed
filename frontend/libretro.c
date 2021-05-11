@@ -39,8 +39,11 @@
 #include "revision.h"
 
 #include <libretro.h>
-#include <compat/fopen_utf8.h>
 #include "libretro_core_options.h"
+
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#endif
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
@@ -556,6 +559,10 @@ static const struct retro_controller_info ports[9] =
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
+#ifdef USE_LIBRETRO_VFS
+   struct retro_vfs_interface_info vfs_iface_info;
+#endif
+
    environ_cb = cb;
 
    if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
@@ -563,6 +570,13 @@ void retro_set_environment(retro_environment_t cb)
 
    environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
    libretro_set_core_options(environ_cb);
+
+#ifdef USE_LIBRETRO_VFS
+   vfs_iface_info.required_interface_version = 1;
+   vfs_iface_info.iface                      = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
+	   filestream_vfs_init(&vfs_iface_info);
+#endif
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -1098,11 +1112,11 @@ static bool read_m3u(const char *file)
 {
    char line[1024];
    char name[PATH_MAX];
-   FILE *f = fopen_utf8(file, "r");
-   if (!f)
+   FILE *fp = fopen(file, "r");
+   if (!fp)
       return false;
 
-   while (fgets(line, sizeof(line), f) && disk_count < sizeof(disks) / sizeof(disks[0]))
+   while (fgets(line, sizeof(line), fp) && disk_count < sizeof(disks) / sizeof(disks[0]))
    {
       if (line[0] == '#')
          continue;
@@ -1128,7 +1142,7 @@ static bool read_m3u(const char *file)
       }
    }
 
-   fclose(f);
+   fclose(fp);
    return (disk_count != 0);
 }
 
@@ -2554,17 +2568,15 @@ void retro_run(void)
 
 static bool try_use_bios(const char *path)
 {
-   FILE *f;
    long size;
    const char *name;
-
-   f = fopen_utf8(path, "rb");
-   if (f == NULL)
+   FILE *fp = fopen(path, "rb");
+   if (fp == NULL)
       return false;
 
-   fseek(f, 0, SEEK_END);
-   size = ftell(f);
-   fclose(f);
+   fseek(fp, 0, SEEK_END);
+   size = ftell(fp);
+   fclose(fp);
 
    if (size != 512 * 1024)
       return false;

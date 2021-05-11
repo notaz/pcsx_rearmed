@@ -23,8 +23,6 @@
 
 // TODO: Implement caches & cycle penalty.
 
-#include <compat/fopen_utf8.h>
-
 #include "psxmem.h"
 #include "psxmem_map.h"
 #include "r3000a.h"
@@ -32,6 +30,10 @@
 #include "debug.h"
 
 #include "memmap.h"
+
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#endif
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
@@ -219,7 +221,7 @@ void psxMemReset() {
 
 	if (strcmp(Config.Bios, "HLE") != 0) {
 		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);
-		f = fopen_utf8(bios, "rb");
+		f = fopen(bios, "rb");
 
 		if (f == NULL) {
 			SysMessage(_("Could not open BIOS:\"%s\". Enabling HLE Bios!\n"), bios);
