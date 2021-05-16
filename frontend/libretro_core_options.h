@@ -159,12 +159,12 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_multitap",
       "Multitap Mode (Restart)",
-      "Enables/Disables multitap on port 1 and/or port 2, allowing upto 5 players in games that permit it.",
+      "Sets the playstation multitap peripheral to either controller port 1 or controller port 2 to support of upto 5 players simultaneously, or on both for upto 8 players simultaneously. Option depends on games that has support for multitap feature. Leave option on disabled if not such compatible games to avoid any input-related problems.",
       {
-         { "disable",     NULL },
-         { "port 1 only", NULL },
-         { "port 2 only", NULL },
-         { "both",        NULL },
+         { "disabled",      NULL },
+         { "port 1",        NULL },
+         { "port 2",        NULL },
+         { "ports 1 and 2", NULL },
          { NULL, NULL },
       },
       "disabled",

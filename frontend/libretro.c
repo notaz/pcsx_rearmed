@@ -592,37 +592,24 @@ unsigned retro_api_version(void)
 
 static void update_multitap(void)
 {
-   struct retro_variable var = {};
+   struct retro_variable var = { 0 };
+
+   multitap1 = 0;
+   multitap2 = 0;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_multitap";
    if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
    {
-      if (strcmp(var.value, "port 1 only") == 0)
-      {
+      if (strcmp(var.value, "port 1") == 0)
          multitap1 = 1;
-         multitap2 = 0;
-      }
-      else if (strcmp(var.value, "port 2 only") == 0)
-      {
-         multitap1 = 0;
+      else if (strcmp(var.value, "port 2") == 0)
          multitap2 = 1;
-      }
-      else if (strcmp(var.value, "both") == 0)
+      else if (strcmp(var.value, "ports 1 and 2") == 0)
       {
          multitap1 = 1;
          multitap2 = 1;
       }
-      else
-      {
-         multitap1 = 0;
-         multitap2 = 0;
-      }
-   }
-   else
-   {
-      multitap1 = 0;
-      multitap2 = 0;
    }
 }
 
