@@ -121,7 +121,6 @@ int in_mouse[8][2];
 int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
-static int input_changed = 0;
 
 // NegCon adjustment parameters
 // > The NegCon 'twist' action is somewhat awkward when mapped
@@ -592,37 +591,24 @@ unsigned retro_api_version(void)
 
 static void update_multitap(void)
 {
-   struct retro_variable var = {};
+   struct retro_variable var = { 0 };
+
+   multitap1 = 0;
+   multitap2 = 0;
 
    var.value = NULL;
    var.key = "pcsx_rearmed_multitap";
    if (environ_cb && (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value))
    {
-      if (strcmp(var.value, "port 1 only") == 0)
-      {
+      if (strcmp(var.value, "port 1") == 0)
          multitap1 = 1;
-         multitap2 = 0;
-      }
-      else if (strcmp(var.value, "port 2 only") == 0)
-      {
-         multitap1 = 0;
+      else if (strcmp(var.value, "port 2") == 0)
          multitap2 = 1;
-      }
-      else if (strcmp(var.value, "both") == 0)
+      else if (strcmp(var.value, "ports 1 and 2") == 0)
       {
          multitap1 = 1;
          multitap2 = 1;
       }
-      else
-      {
-         multitap1 = 0;
-         multitap2 = 0;
-      }
-   }
-   else
-   {
-      multitap1 = 0;
-      multitap2 = 0;
    }
 }
 
@@ -659,7 +645,6 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
    }
 
    SysPrintf("port: %u  device: %s\n", port + 1, get_pse_pad_label[in_type[port]]);
-   input_changed = 1;
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -1420,8 +1405,6 @@ bool retro_load_game(const struct retro_game_info *info)
 
    set_retro_memmap();
 
-   input_changed = 1;
-
    return true;
 }
 
@@ -1509,9 +1492,6 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "PAL") == 0)
          Config.PsxType = 1;
    }
-
-   /*for (i = 0; i < PORTS_NUMBER; i++)
-      update_controller_port_variable(i);*/
 
    update_multitap();
 
@@ -2520,19 +2500,6 @@ static void print_internal_fps(void)
 
 void retro_run(void)
 {
-   /* update multitap when inputs have changed */
-   /* this is only applied on core restart */
-   if (input_changed)
-   {
-      int i;
-      input_changed = 0;
-      update_multitap();
-      for (i = 0; i < 8; i++)
-         SysDLog("Player %d: %s\n", i + 1, get_pse_pad_label[in_type[i]]);
-      SysDLog("Multiplayer 1: %s\n", multitap1 ? "enabled" : "disabled");
-      SysDLog("Multiplayer 2: %s\n", multitap2 ? "enabled" : "disabled");
-   }
-
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (rebootemu != 0)
    {
