@@ -1385,6 +1385,10 @@ bool retro_load_game(const struct retro_game_info *info)
       }
    }
 
+   /* set ports to use "standard controller" initially */
+   for (i = 0; i < 8; ++i)
+      in_type[i] = PSE_PAD_TYPE_STANDARD;
+
    plugin_call_rearmed_cbs();
    /* dfinput_activate(); */
 
