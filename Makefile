@@ -45,13 +45,18 @@ CFLAGS += -DPCNT
 endif
 
 # core
-OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
-	libpcsxcore/decode_xa.o libpcsxcore/disr3000a.o libpcsxcore/mdec.o \
+OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o \
+	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
 	libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o \
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
-	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
+	libpcsxcore/sio.o libpcsxcore/spu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
+
+ifeq ($(DEBUG), 1)
+OBJS += libpcsxcore/debug.o	libpcsxcore/socket.o libpcsxcore/disr3000a.o
+endif
+
 ifeq ($(WANT_ZLIB),1)
 CFLAGS += -Ideps/libchdr/deps/zlib-1.2.11
 OBJS += deps/libchdr/deps/zlib-1.2.11/adler32.o \

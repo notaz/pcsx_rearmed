@@ -39,6 +39,10 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifdef NDEBUG
+void DebugCheckBP(u32 address, enum breakpoint_types type) {}
+#endif
+
 void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag);
 void (*psxUnmapHook)(void *ptr, size_t size, enum psxMapTag tag);

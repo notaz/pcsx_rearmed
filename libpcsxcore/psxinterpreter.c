@@ -39,6 +39,12 @@ static u32 branchPC;
 #define debugI()
 #endif
 
+#ifdef NDEBUG
+void StartDebugger() {}
+void ProcessDebug() {}
+void StopDebugger() {}
+#endif
+
 void execI();
 
 // Subsets
