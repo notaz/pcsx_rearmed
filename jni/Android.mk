@@ -25,9 +25,7 @@ EXTRA_INCLUDES :=
 SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/cdrom.c \
              $(CORE_DIR)/cheat.c \
-             $(CORE_DIR)/debug.c \
              $(CORE_DIR)/decode_xa.c \
-             $(CORE_DIR)/disr3000a.c \
              $(CORE_DIR)/mdec.c \
              $(CORE_DIR)/misc.c \
              $(CORE_DIR)/plugins.c \
@@ -42,7 +40,6 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/psxmem.c \
              $(CORE_DIR)/r3000a.c \
              $(CORE_DIR)/sio.c \
-             $(CORE_DIR)/socket.c \
              $(CORE_DIR)/spu.c \
              $(CORE_DIR)/gte.c \
              $(CORE_DIR)/gte_nf.c \
