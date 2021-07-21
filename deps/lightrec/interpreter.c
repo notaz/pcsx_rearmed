@@ -801,6 +801,9 @@ static u32 int_special_DIV(struct interpreter *inter)
 	if (rt == 0) {
 		hi = rs;
 		lo = (rs < 0) * 2 - 1;
+	} else if ((rs == 0x80000000) && (rt == 0xFFFFFFFF)) {
+		lo = rs;
+		hi = 0;
 	} else {
 		lo = rs / rt;
 		hi = rs % rt;

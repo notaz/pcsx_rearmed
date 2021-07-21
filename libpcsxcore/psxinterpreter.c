@@ -507,14 +507,20 @@ void psxSLTU() 	{ if (!_Rd_) return; _rRd_ = _u32(_rRs_) < _u32(_rRt_); }	// Rd 
 * Format:  OP rs, rt                                     *
 *********************************************************/
 void psxDIV() {
-	if (_i32(_rRt_) != 0) {
-		_i32(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
-		_i32(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
-	}
-	else {
-		_i32(_rLo_) = _i32(_rRs_) >= 0 ? 0xffffffff : 1;
-		_i32(_rHi_) = _i32(_rRs_);
-	}
+    if (!_i32(_rRt_)) {
+        _i32(_rHi_) = _i32(_rRs_);
+        if (_i32(_rRs_) & 0x80000000) {
+            _i32(_rLo_) = 1;
+        } else {
+            _i32(_rLo_) = 0xFFFFFFFF;
+        }
+    } else if (_i32(_rRs_) == 0x80000000 && _i32(_rRt_) == 0xFFFFFFFF) {
+        _i32(_rLo_) = 0x80000000;
+        _i32(_rHi_) = 0;
+    } else {
+        _i32(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
+        _i32(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
+    }
 }
 
 void psxDIVU() {
