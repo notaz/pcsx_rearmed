@@ -1634,7 +1634,9 @@ static void update_variables(bool in_flight)
    var.value = NULL;
    var.key = "pcsx_rearmed_drc";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   if (!environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
+      var.value = "enabled";
+
    {
       R3000Acpu *prev_cpu = psxCpu;
 #if defined(LIGHTREC)
