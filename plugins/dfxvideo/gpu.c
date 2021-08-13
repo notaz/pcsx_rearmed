@@ -1060,8 +1060,8 @@ long CALLBACK GPUdmaChain(uint32_t * baseAddrL, uint32_t addr)
    if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
 
    addr = GETLE32(&baseAddrL[addr>>2])&0xffffff;
-  }
- while (addr != 0xffffff);
+   } while (!(addr & 0x800000)); // contrary to some documentation, the end-of-linked-list marker is not actually 0xFF'FFFF
+                                  // any pointer with bit 23 set will do.
 
  GPUIsIdle;
 
