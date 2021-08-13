@@ -83,6 +83,7 @@ typedef struct {
 	unsigned char SetSector[4];
 	unsigned char Track;
 	boolean Play, Muted;
+	boolean m_locationChanged;
 	int CurTrack;
 	int Mode, File, Channel;
 	int Reset;
