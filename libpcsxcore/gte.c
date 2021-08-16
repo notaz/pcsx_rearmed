@@ -149,7 +149,13 @@
 #define gteBFC (((s32 *)regs->CP2C.r)[23])
 #define gteOFX (((s32 *)regs->CP2C.r)[24])
 #define gteOFY (((s32 *)regs->CP2C.r)[25])
-#define gteH   (regs->CP2C.p[26].sw.l)
+// senquack - gteH register is u16, not s16, and used in GTE that way.
+//  HOWEVER when read back by CPU using CFC2, it will be incorrectly
+//  sign-extended by bug in original hardware, according to Nocash docs
+//  GTE section 'Screen Offset and Distance'. The emulator does this
+//  sign extension when it is loaded to GTE by CTC2.
+//#define gteH   (psxRegs.CP2C.p[26].sw.l)
+#define gteH   (psxRegs.CP2C.p[26].w.l)
 #define gteDQA (regs->CP2C.p[27].sw.l)
 #define gteDQB (((s32 *)regs->CP2C.r)[28])
 #define gteZSF3 (regs->CP2C.p[29].sw.l)
@@ -254,7 +260,18 @@ static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 #define A3U(x) (x)
 #endif
 
+
+//senquack - n param should be unsigned (will be 'gteH' reg which is u16)
+#ifdef GTE_USE_NATIVE_DIVIDE
+INLINE u32 DIVIDE(u16 n, u16 d) {
+	if (n < d * 2) {
+		return ((u32)n << 16) / d;
+	}
+	return 0xffffffff;
+}
+#else
 #include "gte_divider.h"
+#endif // GTE_USE_NATIVE_DIVIDE
 
 #ifndef FLAGLESS
 
