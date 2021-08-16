@@ -20,6 +20,11 @@
 #include "debug.h"
 #include "socket.h"
 
+// XXX: don't care but maybe fix it someday
+#if defined(__GNUC__) && __GNUC__ >= 7
+#pragma GCC diagnostic ignored "-Wrestrict"
+#endif
+
 /*
 PCSX Debug console protocol description, version 1.0
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

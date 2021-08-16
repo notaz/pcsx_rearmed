@@ -35,6 +35,10 @@
 #include "gpu.h"
 #include <zlib.h>
 
+#if (defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__)
+#pragma GCC diagnostic ignored "-Wpointer-sign"
+#endif
+
 #undef SysPrintf
 #define SysPrintf if (Config.PsxOut) printf
 
@@ -2090,8 +2094,6 @@ static void buopen(int mcd, u8 *ptr, u8 *cfg)
  */
 
 void psxBios_open() { // 0x32
-	int i;
-	char *ptr;
 	void *pa0 = Ra0;
 
 #ifdef PSXBIOS_LOG

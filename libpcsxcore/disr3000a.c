@@ -23,6 +23,11 @@
 
 #include "psxcommon.h"
 
+// XXX: don't care but maybe fix it someday
+#if defined(__GNUC__) && __GNUC__ >= 7
+#pragma GCC diagnostic ignored "-Wrestrict"
+#endif
+
 char ostr[256];
 
 // Names of registers
