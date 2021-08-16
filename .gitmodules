@@ -4,3 +4,6 @@
 [submodule "warm"]
 	path = frontend/warm
 	url = git://notaz.gp2x.de/~notaz/warm.git
+[submodule "libchdr"]
+	path = libchdr
+	url = https://github.com/rtissera/libchdr.git
