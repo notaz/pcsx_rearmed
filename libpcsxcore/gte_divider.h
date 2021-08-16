@@ -15,4 +15,4 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-u32 DIVIDE(s16 n, u16 d);
+u32 DIVIDE(u16 n, u16 d);
