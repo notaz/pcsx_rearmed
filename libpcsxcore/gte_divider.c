@@ -10,6 +10,7 @@
  */
 
 #include "gte.h"
+#include "gte_divider.h"
 
 static const u8 table[] =
 {
