@@ -212,7 +212,8 @@ void BuildPPFCache() {
 	if (ppffile == NULL) return;
 
 	memset(buffer, 0, 5);
-	fread(buffer, 3, 1, ppffile);
+	if (fread(buffer, 3, 1, ppffile) != 3)
+		goto fail_io;
 
 	if (strcmp(buffer, "PPF") != 0) {
 		SysPrintf(_("Invalid PPF patch: %s.\n"), szPPF);
@@ -235,12 +236,14 @@ void BuildPPFCache() {
 			fseek(ppffile, -8, SEEK_END);
 
 			memset(buffer, 0, 5);
-			fread(buffer, 4, 1, ppffile);
+			if (fread(buffer, 4, 1, ppffile) != 4)
+				goto fail_io;
 
 			if (strcmp(".DIZ", buffer) != 0) {
 				dizyn = 0;
 			} else {
-				fread(&dizlen, 4, 1, ppffile);
+				if (fread(&dizlen, 4, 1, ppffile) != 4)
+					goto fail_io;
 				dizlen = SWAP32(dizlen);
 				dizyn = 1;
 			}
@@ -266,12 +269,15 @@ void BuildPPFCache() {
 
 			fseek(ppffile, -6, SEEK_END);
 			memset(buffer, 0, 5);
-			fread(buffer, 4, 1, ppffile);
+			if (fread(buffer, 4, 1, ppffile) != 4)
+				goto fail_io;
 			dizlen = 0;
 
 			if (strcmp(".DIZ", buffer) == 0) {
 				fseek(ppffile, -2, SEEK_END);
-				fread(&dizlen, 2, 1, ppffile);
+				// TODO: Endian/size unsafe?
+				if (fread(&dizlen, 2, 1, ppffile) != 2)
+					goto fail_io;
 				dizlen = SWAP32(dizlen);
 				dizlen += 36;
 			}
@@ -298,13 +304,19 @@ void BuildPPFCache() {
 	// now do the data reading
 	do {                                                
 		fseek(ppffile, seekpos, SEEK_SET);
-		fread(&pos, 4, 1, ppffile);
+		if (fread(&pos, sizeof(pos), 1, ppffile) != sizeof(pos))
+			goto fail_io;
 		pos = SWAP32(pos);
 
-		if (method == 2) fread(buffer, 4, 1, ppffile); // skip 4 bytes on ppf3 (no int64 support here)
+		if (method == 2) {
+			// skip 4 bytes on ppf3 (no int64 support here)
+			if (fread(buffer, 4, 1, ppffile) != 4)
+				goto fail_io;
+		}
 
 		anz = fgetc(ppffile);
-		fread(ppfmem, anz, 1, ppffile);   
+		if (fread(ppfmem, anz, 1, ppffile) != anz)
+			goto fail_io;
 
 		ladr = pos / CD_FRAMESIZE_RAW;
 		off = pos % CD_FRAMESIZE_RAW;
@@ -331,6 +343,12 @@ void BuildPPFCache() {
 	FillPPFCache(); // build address array
 
 	SysPrintf(_("Loaded PPF %d.0 patch: %s.\n"), method + 1, szPPF);
+
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(ppffile);
 }
 
 // redump.org SBI files, slightly different handling from PCSX-Reloaded
@@ -353,12 +371,15 @@ int LoadSBI(const char *fname, int sector_count) {
 	}
 
 	// 4-byte SBI header
-	fread(buffer, 1, 4, sbihandle);
+	if (fread(buffer, 1, 4, sbihandle) != 4)
+		goto fail_io;
+
 	while (1) {
 		s = fread(sbitime, 1, 3, sbihandle);
 		if (s != 3)
-			break;
-		fread(&t, 1, 1, sbihandle);
+			goto fail_io;
+		if (fread(&t, sizeof(t), 1, sbihandle) != sizeof(t))
+			goto fail_io;
 		switch (t) {
 		default:
 		case 1:
@@ -379,8 +400,14 @@ int LoadSBI(const char *fname, int sector_count) {
 	}
 
 	fclose(sbihandle);
-
 	return 0;
+
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(sbihandle);
+	return -1;
 }
 
 void UnloadSBI(void) {

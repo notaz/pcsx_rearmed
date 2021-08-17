@@ -401,11 +401,11 @@ static int lightrec_plugin_init(void)
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
 
-	fprintf(stderr, "M=0x%lx, P=0x%lx, R=0x%lx, H=0x%lx\n",
-			(uintptr_t) psxM,
-			(uintptr_t) psxP,
-			(uintptr_t) psxR,
-			(uintptr_t) psxH);
+	// fprintf(stderr, "M=0x%lx, P=0x%lx, R=0x%lx, H=0x%lx\n",
+	// 		(uintptr_t) psxM,
+	// 		(uintptr_t) psxP,
+	// 		(uintptr_t) psxR,
+	// 		(uintptr_t) psxH);
 
 #ifndef _WIN32
 	signal(SIGPIPE, exit);

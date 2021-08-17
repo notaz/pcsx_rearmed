@@ -44,6 +44,9 @@ typedef int8_t INT8;
 #define core_fclose fclose
 #endif
 
+#ifdef __GNUC__
+__attribute__ ((unused))
+#endif
 static UINT64 core_fsize(core_file *f)
 {
     UINT64 rv;

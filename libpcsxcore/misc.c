@@ -411,7 +411,9 @@ static int PSXGetFileType(FILE *f) {
 
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
-	fread(mybuf, 2048, 1, f);
+	if (fread(&mybuf, sizeof(mybuf), 1, f) != sizeof(mybuf))
+		goto io_fail;
+	
 	fseek(f, current, SEEK_SET);
 
 	exe_hdr = (EXE_HEADER *)mybuf;
@@ -425,6 +427,12 @@ static int PSXGetFileType(FILE *f) {
 	if (SWAPu16(coff_hdr->f_magic) == 0x0162)
 		return COFF_EXE;
 
+	return INVALID_EXE;
+
+io_fail:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
 	return INVALID_EXE;
 }
 
@@ -464,7 +472,8 @@ int Load(const char *ExePath) {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
-				fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile);
+				if (fread(&tmpHead, sizeof(EXE_HEADER), 1, tmpFile) != sizeof(EXE_HEADER))
+					goto fail_io;
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
@@ -473,7 +482,6 @@ int Load(const char *ExePath) {
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
 				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
@@ -484,11 +492,14 @@ int Load(const char *ExePath) {
 			case CPE_EXE:
 				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
 				do {
-					fread(&opcode, 1, 1, tmpFile);
+					if (fread(&opcode, sizeof(opcode), 1, tmpFile) != sizeof(opcode))
+						goto fail_io;
 					switch (opcode) {
 						case 1: /* Section loading */
-							fread(&section_address, 4, 1, tmpFile);
-							fread(&section_size, 4, 1, tmpFile);
+							if (fread(&section_address, sizeof(section_address), 1, tmpFile) != sizeof(section_address))
+								goto fail_io;
+							if (fread(&section_size, sizeof(section_size), 1, tmpFile) != sizeof(section_size))
+								goto fail_io;
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 #ifdef EMU_LOG
@@ -502,7 +513,8 @@ int Load(const char *ExePath) {
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-							fread(&psxRegs.pc, 4, 1, tmpFile);
+							if (fread(&psxRegs.pc, sizeof(psxRegs.pc), 1, tmpFile) != sizeof(psxRegs.pc))
+								goto fail_io;
 							psxRegs.pc = SWAPu32(psxRegs.pc);
 							break;
 						case 0: /* End of file */
@@ -531,7 +543,15 @@ int Load(const char *ExePath) {
 		CdromLabel[0] = '\0';
 	}
 
+	fclose(tmpFile);
 	return retval;
+
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(tmpFile);
+	return -1;
 }
 
 // STATES

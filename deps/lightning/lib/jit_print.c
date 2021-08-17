@@ -280,12 +280,12 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	case jit_code_name:
 	    print_chr(' ');
 	    if (node->v.p && _jitc->emit)
-		print_str(node->v.n->u.p);
+		print_ptr(node->v.n->u.p);
 	    break;
 	case jit_code_note:
 	    print_chr(' ');
 	    if (node->v.p && _jitc->emit)
-		print_str(node->v.n->u.p);
+		print_ptr(node->v.n->u.p);
 	    if (node->v.p && _jitc->emit && node->w.w)
 		print_chr(':');
 	    if (node->w.w)

@@ -454,7 +454,12 @@ void LoadMcd(int mcd, char *str) {
 				else if(buf.st_size == MCD_SIZE + 3904)
 					fseek(f, 3904, SEEK_SET);
 			}
-			fread(data, 1, MCD_SIZE, f);
+			if (fread(data, 1, MCD_SIZE, f) != MCD_SIZE) {
+#ifndef NDEBUG
+				SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+				memset(data, 0x00, MCD_SIZE);
+			}
 			fclose(f);
 		}
 		else
@@ -469,7 +474,12 @@ void LoadMcd(int mcd, char *str) {
 			else if(buf.st_size == MCD_SIZE + 3904)
 				fseek(f, 3904, SEEK_SET);
 		}
-		fread(data, 1, MCD_SIZE, f);
+		if (fread(data, 1, MCD_SIZE, f) != MCD_SIZE) {
+#ifndef NDEBUG
+			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+			memset(data, 0x00, MCD_SIZE);
+		}
 		fclose(f);
 	}
 }

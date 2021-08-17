@@ -39,7 +39,9 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-#ifdef NDEBUG
+#ifndef NDEBUG
+#include "debug.h"
+#else
 void DebugCheckBP(u32 address, enum breakpoint_types type) {}
 #endif
 
@@ -223,6 +225,8 @@ void psxMemReset() {
 	memset(psxM, 0, 0x00200000);
 	memset(psxP, 0xff, 0x00010000);
 
+	Config.HLE = TRUE;
+
 	if (strcmp(Config.Bios, "HLE") != 0) {
 		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);
 		f = fopen(bios, "rb");
@@ -230,13 +234,15 @@ void psxMemReset() {
 		if (f == NULL) {
 			SysMessage(_("Could not open BIOS:\"%s\". Enabling HLE Bios!\n"), bios);
 			memset(psxR, 0, 0x80000);
-			Config.HLE = TRUE;
 		} else {
-			fread(psxR, 1, 0x80000, f);
+			if (fread(psxR, 1, 0x80000, f) == 0x80000) {
+				Config.HLE = FALSE;
+			} else {
+				SysMessage(_("The selected BIOS:\"%s\" is of wrong size. Enabling HLE Bios!\n"), bios);
+			}
 			fclose(f);
-			Config.HLE = FALSE;
 		}
-	} else Config.HLE = TRUE;
+	}
 }
 
 void psxMemShutdown() {
