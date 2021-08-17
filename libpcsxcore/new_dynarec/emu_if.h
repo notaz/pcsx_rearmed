@@ -97,8 +97,6 @@ void pcsx_mtc0(u32 reg, u32 val);
 void pcsx_mtc0_ds(u32 reg, u32 val);
 
 /* misc */
-extern void (*psxHLEt[])();
-
 extern void SysPrintf(const char *fmt, ...);
 
 #ifdef RAM_FIXED
