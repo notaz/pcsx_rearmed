@@ -50,6 +50,7 @@
 #define ftello rftell
 #define fseeko rfseek
 #endif
+
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
 unsigned int cdrIsoMultidiskCount;
@@ -359,11 +360,12 @@ static int parsetoc(const char *isofile) {
 			}
 		}
 		// check if it's really a TOC named as a .cue
-		fgets(linebuf, sizeof(linebuf), fi);
-		token = strtok(linebuf, " ");
-		if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
-			fclose(fi);
-			return -1;
+		if (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
+			token = strtok(linebuf, " ");
+			if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
+				fclose(fi);
+				return -1;
+			}
 		}
 		fseek(fi, 0, SEEK_SET);
 	}
@@ -718,7 +720,8 @@ static int parsemds(const char *isofile) {
 	memset(&ti, 0, sizeof(ti));
 
 	// check if it's a valid mds file
-	fread(&i, 1, sizeof(unsigned int), fi);
+	if (fread(&i, 1, sizeof(i), fi) != sizeof(i))
+		goto fail_io;
 	i = SWAP32(i);
 	if (i != 0x4944454D) {
 		// not an valid mds file
@@ -728,19 +731,22 @@ static int parsemds(const char *isofile) {
 
 	// get offset to session block
 	fseek(fi, 0x50, SEEK_SET);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fread(&offset, 1, sizeof(offset), fi) != sizeof(offset))
+		goto fail_io;
 	offset = SWAP32(offset);
 
 	// get total number of tracks
 	offset += 14;
 	fseek(fi, offset, SEEK_SET);
-	fread(&s, 1, sizeof(unsigned short), fi);
+	if (fread(&s, 1, sizeof(s), fi) != sizeof(s))
+		goto fail_io;
 	s = SWAP16(s);
 	numtracks = s;
 
 	// get offset to track blocks
 	fseek(fi, 4, SEEK_CUR);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fread(&offset, 1, sizeof(offset), fi) != sizeof(offset))
+		goto fail_io;
 	offset = SWAP32(offset);
 
 	// skip lead-in data
@@ -769,32 +775,41 @@ static int parsemds(const char *isofile) {
 		ti[i].start[1] = fgetc(fi);
 		ti[i].start[2] = fgetc(fi);
 
-		fread(&extra_offset, 1, sizeof(unsigned int), fi);
+		if (fread(&extra_offset, 1, sizeof(extra_offset), fi) != sizeof(extra_offset))
+			goto fail_io;
 		extra_offset = SWAP32(extra_offset);
 
 		// get track start offset (in .mdf)
 		fseek(fi, offset + 0x28, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		ti[i].start_offset = l;
 
 		// get pregap
 		fseek(fi, extra_offset, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		if (l != 0 && i > 1)
 			pregapOffset = msf2sec(ti[i].start);
 
 		// get the track length
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		sec2msf(l, ti[i].length);
 
 		offset += 0x50;
 	}
-
 	fclose(fi);
 	return 0;
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(fi);
+	return -1;
 }
 
 static int handlepbp(const char *isofile) {
@@ -845,7 +860,8 @@ static int handlepbp(const char *isofile) {
 	}
 
 	psisoimg_offs = pbp_hdr.psar_offs;
-	fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+	if (fread(psar_sig, 1, sizeof(psar_sig), cdHandle) != sizeof(psar_sig))
+		goto fail_io;
 	psar_sig[10] = 0;
 	if (strcmp(psar_sig, "PSTITLEIMG") == 0) {
 		// multidisk image?
@@ -881,7 +897,8 @@ static int handlepbp(const char *isofile) {
 			goto fail_io;
 		}
 
-		fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+		if (fread(psar_sig, 1, sizeof(psar_sig), cdHandle) != sizeof(psar_sig))
+			goto fail_io;
 		psar_sig[10] = 0;
 	}
 
@@ -899,15 +916,18 @@ static int handlepbp(const char *isofile) {
 
 	// first 3 entries are special
 	fseek(cdHandle, sizeof(toc_entry), SEEK_CUR);
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+		goto fail_io;
 	numtracks = btoi(toc_entry.index1[0]);
 
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+		goto fail_io;
 	cd_length = btoi(toc_entry.index1[0]) * 60 * 75 +
 		btoi(toc_entry.index1[1]) * 75 + btoi(toc_entry.index1[2]);
 
 	for (i = 1; i <= numtracks; i++) {
-		fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+		if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+			goto fail_io;
 
 		ti[i].type = (toc_entry.type == 1) ? CDDA : DATA;
 
@@ -965,7 +985,14 @@ static int handlepbp(const char *isofile) {
 fail_index:
 	free(compr_img->index_table);
 	compr_img->index_table = NULL;
+	goto done;
+
 fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+
+done:
 	if (compr_img != NULL) {
 		free(compr_img);
 		compr_img = NULL;
@@ -1388,10 +1415,18 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 
 	fseek(f, base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET);
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
-	fread(subbuffer, 1, SUB_FRAMESIZE, f);
+	if (fread(subbuffer, 1, SUB_FRAMESIZE, f) != SUB_FRAMESIZE)
+		goto fail_io;
 
 	if (subChanRaw) DecodeRawSubData();
+	goto done;
 
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+
+done:
 	return ret;
 }
 
@@ -1719,7 +1754,12 @@ static long CALLBACK ISOopen(void) {
 	if (ftello(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
-		fread(&modeTest, 4, 1, cdHandle);
+		if (fread(&modeTest, sizeof(modeTest), 1, cdHandle) != sizeof(modeTest)) {
+#ifndef NDEBUG
+			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+			return -1;
+		}
 		if (SWAP32(modeTest) != 0xffffff00) {
 			strcat(image_str, "[2048]");
 			isMode1ISO = TRUE;
@@ -1898,7 +1938,9 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 
 	if (subHandle != NULL) {
 		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
-		fread(subbuffer, 1, SUB_FRAMESIZE, subHandle);
+		if (fread(subbuffer, 1, SUB_FRAMESIZE, subHandle) != SUB_FRAMESIZE)
+			/* Faulty subchannel data shouldn't cause a read failure */
+			return 0;
 
 		if (subChanRaw) DecodeRawSubData();
 	}

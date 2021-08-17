@@ -900,7 +900,7 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	jit_node_t *to_not_ram, *to_end;
+	jit_node_t *to_not_ram, *to_end = 0;
 	u8 tmp, tmp2, tmp3, rs, rt;
 
 	jit_note(__FILE__, __LINE__);
@@ -1016,7 +1016,7 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
+	jit_node_t *to_not_ram, *to_not_bios = 0, *to_end, *to_end2;
 	u8 tmp, rs, rt, addr_reg;
 	s16 imm;
 

@@ -73,17 +73,17 @@ typedef char* (*TdisR3000AF)(u32 code, u32 pc);
 #define _Branch_  (pc + 4 + ((short)_Im_ * 4))
 #define _OfB_     _Im_, _nRs_
 
-#define dName(i)	sprintf(ostr, "%s %-7s,", ostr, i)
-#define dGPR(i)		sprintf(ostr, "%s %8.8x (%s),", ostr, psxRegs.GPR.r[i], disRNameGPR[i])
-#define dCP0(i)		sprintf(ostr, "%s %8.8x (%s),", ostr, psxRegs.CP0.r[i], disRNameCP0[i])
-#define dHI()		sprintf(ostr, "%s %8.8x (%s),", ostr, psxRegs.GPR.n.hi, "hi")
-#define dLO()		sprintf(ostr, "%s %8.8x (%s),", ostr, psxRegs.GPR.n.lo, "lo")
-#define dImm()		sprintf(ostr, "%s %4.4x (%d),", ostr, _Im_, _Im_)
-#define dTarget()	sprintf(ostr, "%s %8.8x,", ostr, _Target_)
-#define dSa()		sprintf(ostr, "%s %2.2x (%d),", ostr, _Sa_, _Sa_)
-#define dOfB()		sprintf(ostr, "%s %4.4x (%8.8x (%s)),", ostr, _Im_, psxRegs.GPR.r[_Rs_], disRNameGPR[_Rs_])
-#define dOffset()	sprintf(ostr, "%s %8.8x,", ostr, _Branch_)
-#define dCode()		sprintf(ostr, "%s %8.8x,", ostr, (code >> 6) & 0xffffff)
+#define dName(i)	snprintf(ostr, sizeof(ostr), "%s %-7s,", ostr, i)
+#define dGPR(i)		snprintf(ostr, sizeof(ostr), "%s %8.8x (%s),", ostr, psxRegs.GPR.r[i], disRNameGPR[i])
+#define dCP0(i)		snprintf(ostr, sizeof(ostr), "%s %8.8x (%s),", ostr, psxRegs.CP0.r[i], disRNameCP0[i])
+#define dHI()		snprintf(ostr, sizeof(ostr), "%s %8.8x (%s),", ostr, psxRegs.GPR.n.hi, "hi")
+#define dLO()		snprintf(ostr, sizeof(ostr), "%s %8.8x (%s),", ostr, psxRegs.GPR.n.lo, "lo")
+#define dImm()		snprintf(ostr, sizeof(ostr), "%s %4.4x (%d),", ostr, _Im_, _Im_)
+#define dTarget()	snprintf(ostr, sizeof(ostr), "%s %8.8x,", ostr, _Target_)
+#define dSa()		snprintf(ostr, sizeof(ostr), "%s %2.2x (%d),", ostr, _Sa_, _Sa_)
+#define dOfB()		snprintf(ostr, sizeof(ostr), "%s %4.4x (%8.8x (%s)),", ostr, _Im_, psxRegs.GPR.r[_Rs_], disRNameGPR[_Rs_])
+#define dOffset()	snprintf(ostr, sizeof(ostr), "%s %8.8x,", ostr, _Branch_)
+#define dCode()		snprintf(ostr, sizeof(ostr), "%s %8.8x,", ostr, (code >> 6) & 0xffffff)
 
 /*********************************************************
 * Arithmetic with immediate operand                      *

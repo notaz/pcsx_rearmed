@@ -47,6 +47,6 @@ void SetupSound(void)
 	}
 
 	out_current = &out_drivers[i];
-	printf("selected sound output driver: %s\n", out_current->name);
+	// printf("selected sound output driver: %s\n", out_current->name);
 }
 

@@ -39,7 +39,9 @@ static u32 branchPC;
 #define debugI()
 #endif
 
-#ifdef NDEBUG
+#ifndef NDEBUG
+#include "debug.h"
+#else
 void StartDebugger() {}
 void ProcessDebug() {}
 void StopDebugger() {}

@@ -16,6 +16,9 @@ CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
 
+# Suppress minor warnings for dependencies
+deps/%: CFLAGS += -Wno-unused -Wno-unused-function
+
 all: config.mak target_ plugins_
 
 ifndef NO_CONFIG_MAK
