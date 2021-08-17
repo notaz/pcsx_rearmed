@@ -26,6 +26,7 @@
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
+#include "database.h"
 #include <zlib.h>
 
 char CdromId[10] = "";
@@ -389,6 +390,8 @@ int CheckCdrom() {
 	SysPrintf(_("CD-ROM Label: %.32s\n"), CdromLabel);
 	SysPrintf(_("CD-ROM ID: %.9s\n"), CdromId);
 	SysPrintf(_("CD-ROM EXE Name: %.255s\n"), exename);
+	
+	Apply_Hacks_Cdrom();
 
 	BuildPPFCache();
 
