@@ -315,7 +315,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      return spu.spuCtrl;
 
     case H_SPUstat:
-     return spu.spuStat;
+     return (spu.spuStat & ~0x3F) | (spu.spuCtrl & 0x3F);
         
     case H_SPUaddr:
      return (unsigned short)(spu.spuAddr>>3);
