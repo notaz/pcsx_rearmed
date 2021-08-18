@@ -112,6 +112,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
      //------------------------------------------------//
      case 14:                                          // loop?
        spu.s_chan[ch].pLoop=spu.spuMemC+((val&~1)<<3);
+       spu.s_chan[ch].bIgnoreLoop = 1;
        goto upd_irq;
      //------------------------------------------------//
     }
@@ -351,8 +352,7 @@ static void SoundOn(int start,int end,unsigned short val)
   {
    if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
     {
-     spu.s_chan[ch].pCurr=spu.spuMemC+((regAreaGet(ch,6)&~1)<<3); // must be block aligned
-     if (spu_config.idiablofix == 0) spu.s_chan[ch].pLoop=spu.spuMemC+((regAreaGet(ch,14)&~1)<<3);
+     spu.s_chan[ch].bIgnoreLoop = 0;
      spu.dwNewChannel|=(1<<ch);
     }
   }
