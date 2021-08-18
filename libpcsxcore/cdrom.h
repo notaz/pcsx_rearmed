@@ -59,7 +59,8 @@ typedef struct {
 		unsigned char Absolute[3];
 	} subq;
 	unsigned char TrackChanged;
-	unsigned char pad1[3];
+	boolean m_locationChanged;
+	unsigned char pad1[2];
 	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
