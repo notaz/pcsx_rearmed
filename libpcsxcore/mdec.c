@@ -32,7 +32,14 @@
  * 320x240x16@60Hz => 9.216 MB/s
  * so 2.0 to 4.0 should be fine.
  */
-#define MDEC_BIAS 2
+ 
+/* Was set to 2 before but it would cause issues in R-types and Vandal Hearts videos. 
+ * Setting it to 6 as dmitrysmagin did fix those... except for Galerians.
+ * Galerians needs this to be set to 10 (!!) before it looks properly.
+ * I've tried this with a few other games (including R-Types) and so far, this
+ * has not backfired.
+ * */
+#define MDEC_BIAS 10
 
 #define DSIZE			8
 #define DSIZE2			(DSIZE * DSIZE)
