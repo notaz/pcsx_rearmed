@@ -888,17 +888,6 @@ struct retro_core_option_definition option_defs_us[] = {
       "simple",
    },
    {
-      "pcsx_rearmed_idiablofix",
-      "Diablo Music Fix",
-      NULL,
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
       "pcsx_rearmed_pe2_fix",
       "Parasite Eve 2/Vandal Hearts 1/2 Fix",
       NULL,

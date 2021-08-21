@@ -10,7 +10,6 @@ typedef struct
  int        iUseReverb;
  int        iUseInterpolation;
  int        iTempo;
- int        idiablofix;
  int        iUseThread;
  int        iUseFixedUpdates;  // output fixed number of samples/frame
 

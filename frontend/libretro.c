@@ -1701,17 +1701,6 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_idiablofix";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         spu_config.idiablofix = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         spu_config.idiablofix = 1;
-   }
-
-   var.value = NULL;
    var.key = "pcsx_rearmed_inuyasha_fix";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)

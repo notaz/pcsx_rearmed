@@ -372,15 +372,6 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_idiablofix",
-      "Diablo Müzik Düzeltmesi",
-      NULL,
-      {
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
       "pcsx_rearmed_pe2_fix",
       "Parasite Eve 2/Vandal Hearts 1/2 Düzeltmleri",
       NULL,
