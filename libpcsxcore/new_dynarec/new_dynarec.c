@@ -35,6 +35,7 @@ static int sceBlock;
 #endif
 
 #include "new_dynarec_config.h"
+#include "../psxhle.h" //emulator interface
 #include "emu_if.h" //emulator interface
 
 //#define DISASM
@@ -3445,7 +3446,11 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   assert(!is_delayslot);
   (void)ccreg;
   emit_movimm(start+i*4+4,0); // Get PC
-  emit_movimm((int)psxHLEt[source[i]&7],1);
+  uint32_t hleCode = source[i] & 0x03ffffff;
+  if (hleCode >= (sizeof(psxHLEt) / sizeof(psxHLEt[0])))
+    emit_movimm((int)psxNULL,1);
+  else
+    emit_movimm((int)psxHLEt[hleCode],1);
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // XXX
   emit_jmp((int)jump_hlecall);
 }
