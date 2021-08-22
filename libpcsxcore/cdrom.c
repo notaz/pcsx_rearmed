@@ -1117,9 +1117,14 @@ void cdrReadInterrupt() {
 			cdr.Channel = cdr.Transfer[4 + 1];
 		}
 
+		/* Gameblabla 
+		 * Skips playing on channel 255.
+		 * Fixes missing audio in Blue's Clues : Blue's Big Musical. (Should also fix Taxi 2)
+		 * TODO : Check if this is the proper behaviour.
+		 * */
 		if((cdr.Transfer[4 + 2] & 0x4) &&
 			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
-			 (cdr.Transfer[4 + 0] == cdr.File)) {
+			 (cdr.Transfer[4 + 0] == cdr.File) && cdr.Channel != 255) {
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
 			if (!ret) {
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
