@@ -110,7 +110,7 @@ typedef struct
  unsigned int      bNoise:1;                           // noise active flag
  unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
  unsigned int      prevflags:3;                        // flags from previous block
-
+ unsigned int      bIgnoreLoop:1;                      // Ignore loop
  int               iLeftVolume;                        // left volume
  int               iRightVolume;                       // right volume
  ADSRInfoEx        ADSRX;
@@ -232,6 +232,9 @@ typedef struct
  unsigned short  regArea[0x400];
 } SPUInfo;
 
+#define regAreaGet(ch,offset) \
+  spu.regArea[((ch<<4)|(offset))>>1]
+
 ///////////////////////////////////////////////////////////
 // SPU.C globals
 ///////////////////////////////////////////////////////////
@@ -242,9 +245,6 @@ extern SPUInfo spu;
 
 void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);
-
-#define regAreaGet(ch,offset) \
-  spu.regArea[((ch<<4)|(offset))>>1]
 
 #define do_samples_if_needed(c, sync) \
  do { \

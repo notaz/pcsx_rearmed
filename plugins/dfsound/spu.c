@@ -247,6 +247,8 @@ static void StartSoundMain(int ch)
  s_chan->iSBPos=27;
  s_chan->spos=0;
 
+ s_chan->pCurr = spu.spuMemC+((regAreaGet(ch,6)&~1)<<3);
+
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
  spu.dwChannelOn|=1<<ch;
  spu.dwChannelDead&=~(1<<ch);
@@ -433,7 +435,7 @@ static int decode_block(void *unused, int ch, int *SB)
  decode_block_data(SB, start + 2, predict_nr, shift_factor);
 
  flags = start[1];
- if (flags & 4)
+ if (flags & 4 && (!s_chan->bIgnoreLoop))
   s_chan->pLoop = start;                   // loop adress
 
  start += 16;
@@ -1489,6 +1491,7 @@ long CALLBACK SPUinit(void)
    spu.s_chan[i].ADSRX.SustainIncrease = 1;
    spu.s_chan[i].pLoop = spu.spuMemC;
    spu.s_chan[i].pCurr = spu.spuMemC;
+   spu.s_chan[i].bIgnoreLoop = 0;
   }
 
  spu.bSpuInit=1;                                       // flag: we are inited

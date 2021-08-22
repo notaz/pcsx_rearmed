@@ -197,7 +197,6 @@ int main(int argc, char **argv)
 	strcpy(Config.Bios, "HLE");
 	spu_config.iUseReverb = 1;
 	spu_config.iUseInterpolation = 1;
-	spu_config.idiablofix = 0;
 	in_type1 = PSE_PAD_TYPE_STANDARD;
 	in_type2 = PSE_PAD_TYPE_STANDARD;
 
