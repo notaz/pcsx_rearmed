@@ -787,8 +787,8 @@ void cdrInterrupt() {
 			break;
 
 		case CdlReadT: // SetSession?
-			// really long
-			AddIrqQueue(CdlReadT + 0x100, cdReadTime * 290 / 4);
+			/* The 44100 * 768 / 1000 value is taken from mednafen */
+			AddIrqQueue(CdlReadT + 0x100, (44100 * 768 / 1000));
 			start_rotating = 1;
 			break;
 
