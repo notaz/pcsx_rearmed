@@ -100,7 +100,7 @@ void pcsx_mtc0(u32 reg, u32 val);
 void pcsx_mtc0_ds(u32 reg, u32 val);
 
 /* misc */
-extern void (*psxHLEt[8])();
+extern const void (*psxHLEt[8])();
 
 extern void SysPrintf(const char *fmt, ...);
 
