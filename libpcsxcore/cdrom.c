@@ -48,7 +48,7 @@ cdrStruct cdr;
 static unsigned char *pTransfer;
 
 /* CD-ROM magic numbers */
-#define CdlSync        0
+#define CdlSync        0  /* nocash documentation : "Uh, actually, returns error code 40h = Invalid Command...?" */
 #define CdlNop         1
 #define CdlSetloc      2
 #define CdlPlay        3
@@ -575,10 +575,6 @@ void cdrInterrupt() {
 	cdr.Irq = 0;
 
 	switch (Irq) {
-		case CdlSync:
-			// TOOD: sometimes/always return error?
-			break;
-
 		case CdlNop:
 			if (cdr.DriveState != DRIVESTATE_LID_OPEN)
 				cdr.StatP &= ~STATUS_SHELLOPEN;
@@ -973,7 +969,7 @@ void cdrInterrupt() {
 			cdr.Result[0] = cdr.StatP;
 			start_rotating = 1;
 			break;
-
+		case CdlSync:
 		default:
 			CDR_LOG_I("Invalid command: %02x\n", Irq);
 			error = ERROR_INVALIDCMD;
