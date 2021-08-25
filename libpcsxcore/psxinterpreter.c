@@ -856,7 +856,13 @@ void psxBASIC(struct psxCP2Regs *regs) {
 
 void psxHLE() {
 //	psxHLEt[psxRegs.code & 0xffff]();
-	psxHLEt[psxRegs.code & 0x07]();		// HDHOSHY experimental patch
+//	psxHLEt[psxRegs.code & 0x07]();		// HDHOSHY experimental patch
+    uint32_t hleCode = psxRegs.code & 0x03ffffff;
+    if (hleCode >= (sizeof(psxHLEt) / sizeof(psxHLEt[0]))) {
+        psxNULL();
+    } else {
+        psxHLEt[hleCode]();
+    }
 }
 
 void (*psxBSC[64])() = {

@@ -95,7 +95,7 @@ static void hleExecRet() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 }
 
-void (*psxHLEt[256])() = {
+const void (*psxHLEt[8])() = {
 	hleDummy, hleA0, hleB0, hleC0,
 	hleBootstrap, hleExecRet,
 	hleDummy, hleDummy
