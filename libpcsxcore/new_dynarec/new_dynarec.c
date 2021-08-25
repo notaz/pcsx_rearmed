@@ -3484,6 +3484,7 @@ void syscall_assemble(int i,struct regstat *i_regs)
 
 void hlecall_assemble(int i,struct regstat *i_regs)
 {
+  extern void psxNULL();
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
   assert(!is_delayslot);
