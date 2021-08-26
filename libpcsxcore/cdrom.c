@@ -58,7 +58,7 @@ static unsigned char *pTransfer;
 #define CdlStandby     7
 #define CdlStop        8
 #define CdlPause       9
-#define CdlInit        10
+#define CdlReset       10
 #define CdlMute        11
 #define CdlDemute      12
 #define CdlSetfilter   13
@@ -76,19 +76,19 @@ static unsigned char *pTransfer;
 #define CdlTest        25
 #define CdlID          26
 #define CdlReadS       27
-#define CdlReset       28
+#define CdlInit        28
 #define CdlGetQ        29
 #define CdlReadToc     30
 
 char *CmdName[0x100]= {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
-    "CdlStop",     "CdlPause",     "CdlInit",    "CdlMute",
+    "CdlStop",     "CdlPause",     "CdlReset",    "CdlMute",
     "CdlDemute",   "CdlSetfilter", "CdlSetmode", "CdlGetparam",
     "CdlGetlocL",  "CdlGetlocP",   "CdlReadT",   "CdlGetTN",
     "CdlGetTD",    "CdlSeekL",     "CdlSeekP",   "CdlSetclock",
     "CdlGetclock", "CdlTest",      "CdlID",      "CdlReadS",
-    "CdlReset",    NULL,           "CDlReadToc", NULL
+    "CdlInit",     NULL,           "CDlReadToc", NULL
 };
 
 unsigned char Test04[] = { 0 };
@@ -732,13 +732,15 @@ void cdrInterrupt() {
 			cdr.Stat = Complete;
 			break;
 
-		case CdlInit:
-			AddIrqQueue(CdlInit + 0x100, cdReadTime * 6);
+		case CdlReset:
+			cdr.Muted = FALSE;
+			cdr.Mode = 0x20; /* This fixes This is Football 2, Pooh's Party lockups */
+			AddIrqQueue(CdlReset + 0x100, 4100000);
 			no_busy_error = 1;
 			start_rotating = 1;
 			break;
 
-		case CdlInit + 0x100:
+		case CdlReset + 0x100:
 			cdr.Stat = Complete;
 			break;
 
@@ -890,7 +892,7 @@ void cdrInterrupt() {
 			cdr.Stat = Complete;
 			break;
 
-		case CdlReset:
+		case CdlInit:
 			// yes, it really sets STATUS_SHELLOPEN
 			cdr.StatP |= STATUS_SHELLOPEN;
 			cdr.DriveState = DRIVESTATE_RESCAN_CD;
@@ -1286,8 +1288,8 @@ void cdrWrite1(unsigned char rt) {
 		StopReading();
 		break;
 
-	case CdlReset:
 	case CdlInit:
+	case CdlReset:
 		cdr.Seeked = SEEK_DONE;
 		StopCdda();
 		StopReading();
