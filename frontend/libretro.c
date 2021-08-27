@@ -1041,6 +1041,18 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "on") == 0)
          duping_enable = true;
    }
+   
+#ifndef _WIN32
+   var.value = NULL;
+   var.key = "pcsx_rearmed_async_cd";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || var.value)
+   {
+      if (strcmp(var.value, "async") == 0)
+        Config.AsyncCD = 1;
+      else
+        Config.AsyncCD = 0;
+   }
+#endif
 
 #ifndef DRC_DISABLE
    var.value = NULL;

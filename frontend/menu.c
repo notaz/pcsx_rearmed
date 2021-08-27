@@ -392,6 +392,7 @@ static const struct {
 //	CE_CONFIG_VAL(Sio),
 	CE_CONFIG_VAL(Mdec),
 	CE_CONFIG_VAL(Cdda),
+	CE_CONFIG_VAL(AsyncCD),
 	CE_CONFIG_VAL(Debug),
 	CE_CONFIG_VAL(PsxOut),
 	CE_CONFIG_VAL(SpuIrq),
@@ -1594,6 +1595,8 @@ static int mh_restore_defaults(int id, int keys)
 
 static const char *men_region[]       = { "Auto", "NTSC", "PAL", NULL };
 static const char *men_frameskip[]    = { "Auto", "Off", "1", "2", "3", NULL };
+
+static const char *men_async[]    = { "SYNC", "ASYNC", NULL };
 /*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
@@ -1603,6 +1606,9 @@ static const char h_restore_def[]     = "Switches back to default / recommended\
 					"configuration";
 static const char h_frameskip[]       = "Warning: frameskip sometimes causes glitches\n";
 
+static const char h_cfg_cdasync[]  = "CD Access Method.\n"
+				   "(ASYNC for slow storage, SYNC for everything else)";
+
 static menu_entry e_menu_options[] =
 {
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
@@ -1611,6 +1617,7 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
+	mee_enum_h    ("CD Access Method",         0, Config.AsyncCD, men_async, h_cfg_cdasync),
 #ifdef C64X_DSP
 	mee_onoff     ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
 #else

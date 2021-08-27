@@ -255,6 +255,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-sio"))		Config.Sio = 1;
 		else if (!strcmp(argv[i], "-spuirq"))	Config.SpuIrq = 1;
 		else if (!strcmp(argv[i], "-vsync"))	Config.VSyncWA = 1;
+		else if (!strcmp(argv[i], "-async"))	Config.AsyncCD = 1;
 		else if (!strcmp(argv[i], "-fps")) 		            g_opts |=OPT_SHOWFPS;
 		else if (!strcmp(argv[i], "-cpu")) 		            g_opts |=OPT_SHOWCPU;
 		else if (!strcmp(argv[i], "-spu")) 		            g_opts |=OPT_SHOWSPU;
