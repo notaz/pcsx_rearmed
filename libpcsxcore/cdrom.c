@@ -722,7 +722,17 @@ void cdrInterrupt() {
 			InuYasha - Feudal Fairy Tale: slower
 			- Fixes battles
 			*/
-			AddIrqQueue(CdlPause + 0x100, cdReadTime * 3);
+			/* Gameblabla - Tightening the timings (as taken from Mednafen). */
+			if (cdr.DriveState != DRIVESTATE_STANDBY)
+			{
+				delay = 5000;
+			}
+			else
+			{
+				delay = (1124584 + (msf2sec(cdr.SetSectorPlay) * 42596 / (75 * 60))) * ((cdr.Mode & MODE_SPEED) ? 1 : 2);
+				CDRMISC_INT((cdr.Mode & MODE_SPEED) ? cdReadTime / 2 : cdReadTime);
+			}
+			AddIrqQueue(CdlPause + 0x100, delay);
 			cdr.Ctrl |= 0x80;
 			break;
 
