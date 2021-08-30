@@ -722,14 +722,18 @@ void cdrInterrupt() {
 			InuYasha - Feudal Fairy Tale: slower
 			- Fixes battles
 			*/
-			/* Gameblabla - Tightening the timings (as taken from Mednafen). */
+			/* Gameblabla - Tightening the timings (as taken from Duckstation). 
+			 * The timings from Duckstation are based upon hardware tests.
+			 * Mednafen's timing don't work for Gundam Battle Assault 2 in PAL/50hz mode,
+			 * seems to be timing sensitive as it can depend on the CPU's clock speed.
+			 * */
 			if (cdr.DriveState != DRIVESTATE_STANDBY)
 			{
-				delay = 5000;
+				delay = 7000;
 			}
 			else
 			{
-				delay = (1124584 + (msf2sec(cdr.SetSectorPlay) * 42596 / (75 * 60))) * ((cdr.Mode & MODE_SPEED) ? 1 : 2);
+				delay = (((cdr.Mode & MODE_SPEED) ? 2 : 1) * (1000000));
 				CDRMISC_INT((cdr.Mode & MODE_SPEED) ? cdReadTime / 2 : cdReadTime);
 			}
 			AddIrqQueue(CdlPause + 0x100, delay);
