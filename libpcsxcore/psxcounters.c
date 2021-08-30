@@ -66,9 +66,9 @@ static const u32 HSyncTotal[]     = { 263, 313 };
 #define VERBOSE_LEVEL 0
 
 /******************************************************************************/
-
+#ifdef DRC_DISABLE
 Rcnt rcnts[ CounterQuantity ];
-
+#endif
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
@@ -493,7 +493,7 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     u32 count;
     s32 i;
 
-    gzfreeze( &rcnts, sizeof(rcnts) );
+    gzfreeze( &rcnts, sizeof(Rcnt) * CounterQuantity );
     gzfreeze( &hSyncCount, sizeof(hSyncCount) );
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
     gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
