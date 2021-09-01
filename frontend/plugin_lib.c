@@ -257,10 +257,15 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	if (pl_rearmed_cbs.only_16bpp)
 		vout_bpp = 16;
 
-	// don't use very low heights
-	if (vout_h < 192) {
-		buf_yoffset = (192 - vout_h) / 2;
-		vout_h = 192;
+	/* Gameblabla :
+	 * For some strange reasons, Sim Theme Park and Alundra 2 both try to set a low height resolution.
+	 * In the case of Alundra 2, it sets it to 128x32 and in the case of Sim Theme Park, it's 320x176.
+	 * If you don't allow these games to go below 192 for the height (as it was set before), then the games will do
+	 * an internal crash. (either during SDL_Flip, or when setting the new resolution with SDL_SetVideoMode)
+	 * */
+	if (vout_h < 32) {
+		buf_yoffset = (32 - vout_h) / 2;
+		vout_h = 32;
 	}
 
 	pl_vout_scale_w = pl_vout_scale_h = 1;
