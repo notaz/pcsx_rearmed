@@ -27,12 +27,14 @@
 #include "gte.h"
 
 R3000Acpu *psxCpu = NULL;
+#ifdef DRC_DISABLE
 psxRegisters psxRegs;
+#endif
 
 int psxInit() {
 	SysPrintf(_("Running PCSX Version %s (%s).\n"), PACKAGE_VERSION, __DATE__);
 
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 	if (Config.Cpu == CPU_INTERPRETER) {
 		psxCpu = &psxInt;
 	} else psxCpu = &psxRec;

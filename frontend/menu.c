@@ -2585,7 +2585,11 @@ void menu_prepare_emu(void)
 
 	plat_video_menu_leave();
 
+	#ifndef DRC_DISABLE
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
+	#else
+	psxCpu = &psxInt;
+	#endif
 	if (psxCpu != prev_cpu) {
 		prev_cpu->Shutdown();
 		psxCpu->Init();

@@ -59,8 +59,7 @@ ifeq "$(USE_DYNAREC)" "1"
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 else
-libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -DDRC_DISABLE
-frontend/libretro.o: CFLAGS += -DDRC_DISABLE
+CFLAGS += -DDRC_DISABLE
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \

@@ -307,7 +307,7 @@ void psxMemWrite8(u32 mem, u8 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W1);
 			*(u8 *)(p + (mem & 0xffff)) = value;
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
@@ -334,7 +334,7 @@ void psxMemWrite16(u32 mem, u16 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W2);
 			*(u16 *)(p + (mem & 0xffff)) = SWAPu16(value);
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
@@ -362,12 +362,12 @@ void psxMemWrite32(u32 mem, u32 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W4);
 			*(u32 *)(p + (mem & 0xffff)) = SWAPu32(value);
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear(mem, 1);
 #endif
 		} else {
 			if (mem != 0xfffe0130) {
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 				if (!writeok)
 					psxCpu->Clear(mem, 1);
 #endif
