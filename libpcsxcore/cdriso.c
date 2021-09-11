@@ -65,11 +65,6 @@ static unsigned char sndbuffer[CD_FRAMESIZE_RAW * 10];
 
 #define CDDA_FRAMETIME			(1000 * (sizeof(sndbuffer) / CD_FRAMESIZE_RAW) / 75)
 
-#ifdef _WIN32
-static HANDLE threadid;
-#else
-static pthread_t threadid;
-#endif
 static unsigned int initial_offset = 0;
 static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
@@ -190,123 +185,9 @@ static long GetTickCount(void) {
 }
 #endif
 
-// this thread plays audio data
-#ifdef _WIN32
-static void playthread(void *param)
-#else
-static void *playthread(void *param)
-#endif
-{
-	long osleep, d, t, i, s;
-	unsigned char	tmp;
-	int ret = 0, sector_offs;
-
-	t = GetTickCount();
-
-	while (playing) {
-		s = 0;
-		for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
-			sector_offs = cdda_cur_sector - cdda_first_sector;
-			if (sector_offs < 0) {
-				d = CD_FRAMESIZE_RAW;
-				memset(sndbuffer + s, 0, d);
-			}
-			else {
-				d = cdimg_read_func(cddaHandle, cdda_file_offset,
-					sndbuffer + s, sector_offs);
-				if (d < CD_FRAMESIZE_RAW)
-					break;
-			}
-
-			s += d;
-			cdda_cur_sector++;
-		}
-
-		if (s == 0) {
-			playing = FALSE;
-			initial_offset = 0;
-			break;
-		}
-
-		if (!cdr.Muted && playing) {
-			if (cddaBigEndian) {
-				for (i = 0; i < s / 2; i++) {
-					tmp = sndbuffer[i * 2];
-					sndbuffer[i * 2] = sndbuffer[i * 2 + 1];
-					sndbuffer[i * 2 + 1] = tmp;
-				}
-			}
-
-			// can't do it yet due to readahead..
-			//cdrAttenuate((short *)sndbuffer, s / 4, 1);
-			do {
-				ret = SPU_playCDDAchannel((short *)sndbuffer, s);
-				if (ret == 0x7761)
-					usleep(6 * 1000);
-			} while (ret == 0x7761 && playing); // rearmed_wait
-		}
-
-		if (ret != 0x676f) { // !rearmed_go
-			// do approx sleep
-			long now;
-
-			// HACK: stop feeding data while emu is paused
-			extern int stop;
-			while (stop && playing)
-				usleep(10000);
-
-			now = GetTickCount();
-			osleep = t - now;
-			if (osleep <= 0) {
-				osleep = 1;
-				t = now;
-			}
-			else if (osleep > CDDA_FRAMETIME) {
-				osleep = CDDA_FRAMETIME;
-				t = now;
-			}
-
-			usleep(osleep * 1000);
-			t += CDDA_FRAMETIME;
-		}
-
-	}
-
-#ifdef _WIN32
-	_endthread();
-#else
-	pthread_exit(0);
-	return NULL;
-#endif
-}
-
 // stop the CDDA playback
 static void stopCDDA() {
-	if (!playing) {
-		return;
-	}
-
 	playing = FALSE;
-#ifdef _WIN32
-	WaitForSingleObject(threadid, INFINITE);
-#else
-	pthread_join(threadid, NULL);
-#endif
-}
-
-// start the CDDA playback
-static void startCDDA(void) {
-	if (playing) {
-		stopCDDA();
-	}
-
-	playing = TRUE;
-
-#ifdef _WIN32
-	threadid = (HANDLE)_beginthread(playthread, 0, NULL);
-#else
-	pthread_create(&threadid, NULL, playthread, NULL);
-#endif
 }
 
 // this function tries to get the .toc file of the given .bin
@@ -1634,30 +1515,7 @@ static long CALLBACK ISOreadTrack(unsigned char *time) {
 // sector: byte 0 - minute; byte 1 - second; byte 2 - frame
 // does NOT uses bcd format
 static long CALLBACK ISOplay(unsigned char *time) {
-	unsigned int i;
-
-	if (numtracks <= 1)
-		return 0;
-
-	// find the track
-	cdda_cur_sector = msf2sec((char *)time);
-	for (i = numtracks; i > 1; i--) {
-		cdda_first_sector = msf2sec(ti[i].start);
-		if (cdda_first_sector <= cdda_cur_sector + 2 * 75)
-			break;
-	}
-	cdda_file_offset = ti[i].start_offset;
-
-	// find the file that contains this track
-	for (; i > 1; i--)
-		if (ti[i].handle != NULL)
-			break;
-
-	cddaHandle = ti[i].handle;
-
-	if (SPU_playCDDAchannel != NULL)
-		startCDDA();
-
+	playing = TRUE;
 	return 0;
 }
 
