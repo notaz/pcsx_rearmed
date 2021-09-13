@@ -29,11 +29,14 @@
 //#undef PSXHW_LOG
 //#define PSXHW_LOG printf
 
+static boolean dmaGpuListHackEn=FALSE;
+
 void psxHwReset() {
 	if (Config.Sio) psxHu32ref(0x1070) |= SWAP32(0x80);
 	if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAP32(0x200);
 
 	memset(psxH, 0, 0x10000);
+	dmaGpuListHackEn = FALSE;
 
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
@@ -599,7 +602,28 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("DMA2 CHCR 32bit write %x\n", value);
 #endif
+			/* A hack that makes Vampire Hunter D title screen visible,
+			/* but makes Tomb Raider II water effect to stay opaque
+			/* Root cause for this problem is that when DMA2 is issued
+			/* it is incompletele and still beign built by the game.
+			/* Maybe it is ready when some signal comes in or within given delay?
+			*/
+			if (Config.VampireHunterHack)
+			{
+				if (dmaGpuListHackEn)
+				{
+					if (value == 0x00000401 && HW_DMA2_BCR == 0x0)
+					{
+						psxDma2(SWAPu32(HW_DMA2_MADR), SWAPu32(HW_DMA2_BCR), SWAPu32(value));
+						return;
+					}
+				}
+			}
 			DmaExec(2);                  // DMA2 chcr (GPU DMA)
+			if (HW_DMA2_CHCR == 0x1000401)
+			{
+				dmaGpuListHackEn=TRUE;
+			}
 			return;
 
 #ifdef PSXHW_LOG
@@ -687,6 +711,10 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit write %x\n", value);
 #endif
+			if (value & 0x8000000)
+			{
+				dmaGpuListHackEn = FALSE;
+			}
 			GPU_writeStatus(value);
 			gpuSyncPluginSR();
 			return;

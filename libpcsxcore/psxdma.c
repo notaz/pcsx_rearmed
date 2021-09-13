@@ -131,7 +131,6 @@ static u32 gpuDmaChainSize(u32 addr) {
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	u32 *ptr;
 	u32 words;
-	u32 size;
 
 	switch (chcr) {
 		case 0x01000200: // vram2mem
@@ -176,20 +175,20 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			// already 32-bit word size ((size * 4) / 4)
 			GPUDMA_INT(words / 4);
 			return;
-
+		case 0x00000401:
 		case 0x01000401: // dma chain
 #ifdef PSXDMA_LOG
 			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 
-			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
-			if ((int)size <= 0)
-				size = gpuDmaChainSize(madr);
+			words = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
+			if ((int)words <= 0)
+				words = gpuDmaChainSize(madr);
 			HW_GPU_STATUS &= ~PSXGPU_nBUSY;
 
 			// we don't emulate progress, just busy flag and end irq,
 			// so pretend we're already at the last block
-			HW_DMA2_MADR = SWAPu32(0xffffff);
+			if (!Config.VampireHunterHack) HW_DMA2_MADR = SWAPu32(0xffffff);
 
 			// Tekken 3 = use 1.0 only (not 1.5x)
 
@@ -197,7 +196,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			// Final Fantasy 4 = internal vram time (todo)
 			// Rebel Assault 2 = parse linked list in pieces (todo)
 			// Vampire Hunter D = allow edits to linked list (todo)
-			GPUDMA_INT(size);
+			GPUDMA_INT(words);
 			return;
 
 #ifdef PSXDMA_LOG
