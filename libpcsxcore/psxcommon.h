@@ -129,7 +129,6 @@ typedef struct {
 	boolean Debug;
 	boolean PsxOut;
 	boolean SpuIrq;
-	boolean RCntFix;
 	boolean UseNet;
 	boolean VSyncWA;
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER

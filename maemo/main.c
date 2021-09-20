@@ -251,7 +251,6 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-unai"))		            strcpy(Config.Gpu, "gpu_unai.so");
 		else if (!strcmp(argv[i], "-cdda"))		Config.Cdda = 1;
 		else if (!strcmp(argv[i], "-xa"))		Config.Xa = 1;
-		else if (!strcmp(argv[i], "-rcnt"))		Config.RCntFix = 1 ;
 		else if (!strcmp(argv[i], "-sio"))		Config.Sio = 1;
 		else if (!strcmp(argv[i], "-spuirq"))	Config.SpuIrq = 1;
 		else if (!strcmp(argv[i], "-vsync"))	Config.VSyncWA = 1;

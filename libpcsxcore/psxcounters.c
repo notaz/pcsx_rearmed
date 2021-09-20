@@ -45,7 +45,7 @@ enum
     Rc0Unknown9       = 0x0200, // 9    ?
     Rc1Unknown9       = 0x0200, // 9    ?
     Rc2OneEighthClock = 0x0200, // 9
-    RcUnknown10       = 0x0400, // 10   ?
+    RcIrqRequest      = 0x0400, // 10   Interrupt request flag (0 disabled or during int, 1 request)
     RcCountEqTarget   = 0x0800, // 11
     RcOverflow        = 0x1000, // 12
     RcUnknown13       = 0x2000, // 13   ? (always zero)
@@ -62,6 +62,8 @@ static const u32 CountToTarget    = 1;
 static const u32 FrameRate[]      = { 60, 50 };
 static const u32 HSyncTotal[]     = { 263, 313 };
 #define VBlankStart 240
+
+static const u16 JITTER_FLAGS     = (Rc2OneEighthClock|RcIrqRegenerate|RcCountToTarget);
 
 #define VERBOSE_LEVEL 0
 
@@ -233,7 +235,7 @@ void psxRcntReset( u32 index )
 {
     u32 rcycles;
 
-    rcnts[index].mode |= RcUnknown10;
+    rcnts[index].mode |= RcIrqRequest;
 
     if( rcnts[index].counterState == CountToTarget )
     {
@@ -412,19 +414,31 @@ void psxRcntWtarget( u32 index, u32 value )
 u32 psxRcntRcount( u32 index )
 {
     u32 count;
+    
+    psxRcntUpdate();
 
     count = _psxRcntRcount( index );
 
-    // Parasite Eve 2 fix.
-    if( Config.RCntFix )
+    // Parasite Eve 2 fix - artificial clock jitter based on BIAS
+    if( index == 2)
     {
-        if( index == 2 )
-        {
-            if( rcnts[index].counterState == CountToTarget )
-            {
-                count /= BIAS;
-            }
-        }
+        /*
+        *Comment from PCSX Reloaded :
+        *The problem is that...
+        *
+        *We generate too many cycles during PSX HW hardware operations.
+        *
+        *OR
+        *
+        *We simply count too many cycles here for RCNTs.
+        *
+        *OR
+        *RCNT implementation here is only 99% compatible. Assumed this since easities to fix (only PE2 known to be affected).
+        */
+		if( rcnts[index].counterState == CountToTarget && (rcnts[index].mode & 0x2FF) == JITTER_FLAGS)
+		{
+			count /= BIAS;
+		}
     }
 
     verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
