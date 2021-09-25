@@ -820,7 +820,9 @@ void cdrInterrupt() {
 				cdr.Result[0] = cdr.StatP;
 				cdr.Result[1] = itob(cdr.ResultTD[2]);
 				cdr.Result[2] = itob(cdr.ResultTD[1]);
-				cdr.Result[3] = itob(cdr.ResultTD[0]);
+				/* According to Nocash's documentation, the function doesn't care about ff.
+				 * This can be seen also in Mednafen's implementation. */
+				//cdr.Result[3] = itob(cdr.ResultTD[0]);
 			}
 			break;
 
