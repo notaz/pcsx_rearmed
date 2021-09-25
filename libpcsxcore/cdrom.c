@@ -445,7 +445,7 @@ static void cdrPlayInterrupt_Autopause()
 
 		StopCdda();
 	}
-	else if (cdr.Mode & MODE_REPORT) {
+	else if (((cdr.Mode & MODE_REPORT) || cdr.FastForward || cdr.FastBackward)) {
 
 		cdr.Result[0] = cdr.StatP;
 		cdr.Result[1] = cdr.subq.Track;
@@ -490,6 +490,7 @@ void cdrPlayInterrupt()
 		cdr.Seeked = SEEK_DONE;
 		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			setIrq();
 		}
 
@@ -591,10 +592,12 @@ void cdrInterrupt() {
 		do_CdlPlay:
 		case CdlPlay:
 			StopCdda();
-			if (cdr.Seeked == SEEK_PENDING) {
-				// XXX: wrong, should seek instead..
-				cdr.Seeked = SEEK_DONE;
-			}
+			/* It would set it to SEEK_DONE*/
+			cdr.Seeked = SEEK_PENDING;
+
+			cdr.FastBackward = 0;
+			cdr.FastForward = 0;
+
 			if (cdr.SetlocPending) {
 				memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 				cdr.SetlocPending = 0;
@@ -657,11 +660,9 @@ void cdrInterrupt() {
 		case CdlForward:
 			// TODO: error 80 if stopped
 			cdr.Stat = Complete;
-
+			cdr.RErr = 1;
 			// GameShark CD Player: Calls 2x + Play 2x
-			if( cdr.FastForward == 0 ) cdr.FastForward = 2;
-			else cdr.FastForward++;
-
+			cdr.FastForward = 1;
 			cdr.FastBackward = 0;
 			break;
 
@@ -669,9 +670,7 @@ void cdrInterrupt() {
 			cdr.Stat = Complete;
 
 			// GameShark CD Player: Calls 2x + Play 2x
-			if( cdr.FastBackward == 0 ) cdr.FastBackward = 2;
-			else cdr.FastBackward++;
-
+			cdr.FastBackward =1;
 			cdr.FastForward = 0;
 			break;
 
@@ -686,6 +685,7 @@ void cdrInterrupt() {
 
 		case CdlStandby + 0x100:
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlStop:
@@ -713,6 +713,7 @@ void cdrInterrupt() {
 			cdr.StatP &= ~STATUS_ROTATING;
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlPause:
@@ -734,6 +735,7 @@ void cdrInterrupt() {
 			cdr.StatP &= ~STATUS_READ;
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlReset:
@@ -746,6 +748,7 @@ void cdrInterrupt() {
 
 		case CdlReset + 0x100:
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlMute:
@@ -796,6 +799,7 @@ void cdrInterrupt() {
 
 		case CdlReadT + 0x100:
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlGetTN:
@@ -893,6 +897,7 @@ void cdrInterrupt() {
 			/* This adds the string "PCSX" in Playstation bios boot screen */
 			memcpy((char *)&cdr.Result[4], "PCSX", 4);
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			break;
 
 		case CdlInit:
@@ -917,6 +922,7 @@ void cdrInterrupt() {
 
 		case CdlReadToc + 0x100:
 			cdr.Stat = Complete;
+			cdr.RErr = 1;
 			no_busy_error = 1;
 			break;
 
@@ -924,7 +930,22 @@ void cdrInterrupt() {
 		case CdlReadS:
 			if (cdr.SetlocPending) {
 				seekTime = abs(msf2sec(cdr.SetSectorPlay) - msf2sec(cdr.SetSector)) * (cdReadTime / 200);
-				if(seekTime > 1000000) seekTime = 1000000;
+				/*
+				* Gameblabla :
+				* It was originally set to 1000000 for Driver, however it is not high enough for Worms Pinball
+				* and was unreliable for that game.
+				* I also tested it against Mednafen and Driver's titlescreen music starts 25 frames later, not immediatly.
+				* 
+				* Obviously, this isn't perfect but right now, it should be a bit better.
+				* Games to test this against if you change that setting :
+				* - Driver (titlescreen music delay and retry mission)
+				* - Worms Pinball (Will either not boot or crash in the memory card screen)
+				* - Viewpoint (short pauses if the delay in the ingame music is too long)
+				* 
+				* It seems that 3386880 * 5 is too much for Driver's titlescreen and it starts skipping.
+				* However, 1000000 is not enough for Worms Pinball to reliably boot.
+				*/
+				if(seekTime > 3386880 * 2) seekTime = 3386880 * 2;
 				memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 				cdr.SetlocPending = 0;
 				cdr.m_locationChanged = TRUE;
@@ -957,21 +978,26 @@ void cdrInterrupt() {
 			C-12 - Final Resistance - doesn't like seek
 			*/
 
-			if (cdr.Seeked != SEEK_DONE) {
-				cdr.StatP |= STATUS_SEEK;
-				cdr.StatP &= ~STATUS_READ;
-
-				// Crusaders of Might and Magic - use short time
-				// - fix cutscene speech (startup)
-
-				// ??? - use more accurate seek time later
-				CDREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime * 1) + seekTime);
-			} else {
-				cdr.StatP |= STATUS_READ;
-				cdr.StatP &= ~STATUS_SEEK;
-
-				CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime * 1);
-			}
+			/*	
+				By nicolasnoble from PCSX Redux :
+				"It LOOKS like this logic is wrong, therefore disabling it with `&& false` for now.
+				For "PoPoLoCrois Monogatari II", the game logic will soft lock and will never issue GetLocP to detect
+				the end of its XA streams, as it seems to assume ReadS will not return a status byte with the SEEK
+				flag set. I think the reasonning is that since it's invalid to call GetLocP while seeking, the game
+				tries to protect itself against errors by preventing from issuing a GetLocP while it knows the
+				last status was "seek". But this makes the logic just softlock as it'll never get a notification
+				about the fact the drive is done seeking and the read actually started.
+				In other words, this state machine here is probably wrong in assuming the response to ReadS/ReadN is
+				done right away. It's rather when it's done seeking, and the read has actually started. This probably
+				requires a bit more work to make sure seek delays are processed properly.
+				Checked with a few games, this seems to work fine."
+				
+				Gameblabla additional notes :
+				This still needs the "+ seekTime" that PCSX Redux doesn't have for the Driver "retry" mission error.
+			*/
+			cdr.StatP |= STATUS_READ;
+			cdr.StatP &= ~STATUS_SEEK;
+			CDREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
 
 			cdr.Result[0] = cdr.StatP;
 			start_rotating = 1;
@@ -1095,9 +1121,9 @@ void cdrReadInterrupt() {
 
 	buf = CDR_getBuffer();
 	if (buf == NULL)
-		cdr.RErr = -1;
+		cdr.RErr = 0;
 
-	if (cdr.RErr == -1) {
+	if (cdr.RErr == 0) {
 		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
 		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdr.Stat = DiskError;
