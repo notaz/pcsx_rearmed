@@ -1283,17 +1283,29 @@ void cdrWrite1(unsigned char rt) {
 
 	switch (cdr.Cmd) {
 	case CdlSetloc:
-		for (i = 0; i < 3; i++)
-			set_loc[i] = btoi(cdr.Param[i]);
+		CDR_LOG("CDROM setloc command (%02X, %02X, %02X)\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
 
-		i = msf2sec(cdr.SetSectorPlay);
-		i = abs(i - msf2sec(set_loc));
-		if (i > 16)
-			cdr.Seeked = SEEK_PENDING;
+		// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
+		if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
+		{
+			CDR_LOG("Invalid/out of range seek to %02X:%02X:%02X\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
+		}
+		else
+		{
+			for (i = 0; i < 3; i++)
+			{
+				set_loc[i] = btoi(cdr.Param[i]);
+			}
 
-		memcpy(cdr.SetSector, set_loc, 3);
-		cdr.SetSector[3] = 0;
-		cdr.SetlocPending = 1;
+			i = msf2sec(cdr.SetSectorPlay);
+			i = abs(i - msf2sec(set_loc));
+			if (i > 16)
+				cdr.Seeked = SEEK_PENDING;
+
+			memcpy(cdr.SetSector, set_loc, 3);
+			cdr.SetSector[3] = 0;
+			cdr.SetlocPending = 1;
+		}
 		break;
 
 	case CdlReadN:
