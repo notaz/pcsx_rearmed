@@ -48,7 +48,7 @@ cdrStruct cdr;
 static unsigned char *pTransfer;
 
 /* CD-ROM magic numbers */
-#define CdlSync        0
+#define CdlSync        0 /* nocash documentation : "Uh, actually, returns error code 40h = Invalid Command...?" */
 #define CdlNop         1
 #define CdlSetloc      2
 #define CdlPlay        3
@@ -63,7 +63,7 @@ static unsigned char *pTransfer;
 #define CdlDemute      12
 #define CdlSetfilter   13
 #define CdlSetmode     14
-#define CdlGetmode     15
+#define CdlGetparam    15
 #define CdlGetlocL     16
 #define CdlGetlocP     17
 #define CdlReadT       18
@@ -83,8 +83,8 @@ static unsigned char *pTransfer;
 char *CmdName[0x100]= {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
-    "CdlStop",     "CdlPause",     "CdlReset",    "CdlMute",
-    "CdlDemute",   "CdlSetfilter", "CdlSetmode", "CdlGetmode",
+    "CdlStop",     "CdlPause",     "CdlReset",   "CdlMute",
+    "CdlDemute",   "CdlSetfilter", "CdlSetmode", "CdlGetparam",
     "CdlGetlocL",  "CdlGetlocP",   "CdlReadT",   "CdlGetTN",
     "CdlGetTD",    "CdlSeekL",     "CdlSeekP",   "CdlSetclock",
     "CdlGetclock", "CdlTest",      "CdlID",      "CdlReadS",
@@ -576,10 +576,6 @@ void cdrInterrupt() {
 	cdr.Irq = 0;
 
 	switch (Irq) {
-		case CdlSync:
-			// TOOD: sometimes/always return error?
-			break;
-
 		case CdlNop:
 			if (cdr.DriveState != DRIVESTATE_LID_OPEN)
 				cdr.StatP &= ~STATUS_SHELLOPEN;
@@ -720,14 +716,28 @@ void cdrInterrupt() {
 			/*
 			Gundam Battle Assault 2: much slower (*)
 			- Fixes boot, gameplay
-
 			Hokuto no Ken 2: slower
 			- Fixes intro + subtitles
-
 			InuYasha - Feudal Fairy Tale: slower
 			- Fixes battles
 			*/
-			AddIrqQueue(CdlPause + 0x100, cdReadTime * 3);
+			/* Gameblabla - Tightening the timings (as taken from Duckstation). 
+			 * The timings from Duckstation are based upon hardware tests.
+			 * Mednafen's timing don't work for Gundam Battle Assault 2 in PAL/50hz mode,
+			 * seems to be timing sensitive as it can depend on the CPU's clock speed.
+			 * 
+			 * We will need to get around this for Bedlam/Rise 2 later...
+			 * */
+			if (cdr.DriveState != DRIVESTATE_STANDBY)
+			{
+				delay = 7000;
+			}
+			else
+			{
+				delay = (((cdr.Mode & MODE_SPEED) ? 2 : 1) * (1000000));
+				CDRMISC_INT((cdr.Mode & MODE_SPEED) ? cdReadTime / 2 : cdReadTime);
+			}
+			AddIrqQueue(CdlPause + 0x100, delay);
 			cdr.Ctrl |= 0x80;
 			break;
 
@@ -768,13 +778,12 @@ void cdrInterrupt() {
 			no_busy_error = 1;
 			break;
 
-		case CdlGetmode:
-			SetResultSize(6);
+		case CdlGetparam:
+			SetResultSize(5);
 			cdr.Result[1] = cdr.Mode;
-			cdr.Result[2] = cdr.File;
-			cdr.Result[3] = cdr.Channel;
-			cdr.Result[4] = 0;
-			cdr.Result[5] = 0;
+			cdr.Result[2] = 0;
+			cdr.Result[3] = cdr.File;
+			cdr.Result[4] = cdr.Channel;
 			no_busy_error = 1;
 			break;
 
@@ -825,7 +834,9 @@ void cdrInterrupt() {
 				cdr.Result[0] = cdr.StatP;
 				cdr.Result[1] = itob(cdr.ResultTD[2]);
 				cdr.Result[2] = itob(cdr.ResultTD[1]);
-				cdr.Result[3] = itob(cdr.ResultTD[0]);
+				/* According to Nocash's documentation, the function doesn't care about ff.
+				 * This can be seen also in Mednafen's implementation. */
+				//cdr.Result[3] = itob(cdr.ResultTD[0]);
 			}
 			break;
 
@@ -910,8 +921,7 @@ void cdrInterrupt() {
 			break;
 
 		case CdlGetQ:
-			// TODO?
-			CDR_LOG_I("got CdlGetQ\n");
+			no_busy_error = 1;
 			break;
 
 		case CdlReadToc:
@@ -1003,6 +1013,7 @@ void cdrInterrupt() {
 			start_rotating = 1;
 			break;
 
+		case CdlSync:
 		default:
 			CDR_LOG_I("Invalid command: %02x\n", Irq);
 			error = ERROR_INVALIDCMD;
@@ -1286,17 +1297,29 @@ void cdrWrite1(unsigned char rt) {
 
 	switch (cdr.Cmd) {
 	case CdlSetloc:
-		for (i = 0; i < 3; i++)
-			set_loc[i] = btoi(cdr.Param[i]);
+		CDR_LOG("CDROM setloc command (%02X, %02X, %02X)\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
 
-		i = msf2sec(cdr.SetSectorPlay);
-		i = abs(i - msf2sec(set_loc));
-		if (i > 16)
-			cdr.Seeked = SEEK_PENDING;
+		// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
+		if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
+		{
+			CDR_LOG("Invalid/out of range seek to %02X:%02X:%02X\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
+		}
+		else
+		{
+			for (i = 0; i < 3; i++)
+			{
+				set_loc[i] = btoi(cdr.Param[i]);
+			}
 
-		memcpy(cdr.SetSector, set_loc, 3);
-		cdr.SetSector[3] = 0;
-		cdr.SetlocPending = 1;
+			i = msf2sec(cdr.SetSectorPlay);
+			i = abs(i - msf2sec(set_loc));
+			if (i > 16)
+				cdr.Seeked = SEEK_PENDING;
+
+			memcpy(cdr.SetSector, set_loc, 3);
+			cdr.SetSector[3] = 0;
+			cdr.SetlocPending = 1;
+		}
 		break;
 
 	case CdlReadN:
