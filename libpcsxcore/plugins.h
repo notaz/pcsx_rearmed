@@ -129,7 +129,7 @@ typedef unsigned char* (CALLBACK* CDRgetBufferSub)(void);
 typedef long (CALLBACK* CDRconfigure)(void);
 typedef long (CALLBACK* CDRtest)(void);
 typedef void (CALLBACK* CDRabout)(void);
-typedef long (CALLBACK* CDRplay)(unsigned char *);
+typedef long (CALLBACK* CDRplay)(void);
 typedef long (CALLBACK* CDRstop)(void);
 typedef long (CALLBACK* CDRsetfilename)(char *);
 struct CdrStat {
