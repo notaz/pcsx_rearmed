@@ -11,6 +11,10 @@ assignees: ''
 
 If the issue also occurs in standalone PCSX-ReARMed, the upstream repo is probably a better place for it.
 
+That said, we would suggest that you also try it on other PCSX-based forks such as PCSX Reloaded, PCSX Redux and the upstream version
+as well because these share a similar codebase (or derive from it) and are helpful for regression testing, thus making it more 
+likely for the bug to be fixed if it is indeed specific to the libretro core only.
+
 ## Description
 
 Please describe the issue. If this is a feature request, please add [feature request] to the title of the issue report.
