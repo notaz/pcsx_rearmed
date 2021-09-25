@@ -1754,7 +1754,7 @@ static long CALLBACK ISOopen(void) {
 	if (ftello(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
-		if (fread(&modeTest, sizeof(modeTest), 1, cdHandle) != sizeof(modeTest)) {
+		if (!fread(&modeTest, sizeof(modeTest), 1, cdHandle)) {
 #ifndef NDEBUG
 			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
 #endif
