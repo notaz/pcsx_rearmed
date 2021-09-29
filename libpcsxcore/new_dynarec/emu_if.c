@@ -393,6 +393,24 @@ static void ari64_clear(u32 addr, u32 size)
 			invalidate_block(start);
 }
 
+#ifdef ICACHE_EMULATION
+static void ari64_notify(int note, void *data) {
+	/*
+	Should be fixed when ARM dynarec has proper icache emulation.
+	switch (note)
+	{
+		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+			break;
+		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
+		Sent from psxDma3().
+		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
+		default:
+			break;
+	}
+	*/
+}
+#endif
+
 static void ari64_shutdown()
 {
 	new_dynarec_cleanup();
@@ -419,6 +437,9 @@ R3000Acpu psxRec = {
 	intExecuteBlockT,
 #endif
 	ari64_clear,
+#ifdef ICACHE_EMULATION
+	ari64_notify,
+#endif
 	ari64_shutdown
 };
 
