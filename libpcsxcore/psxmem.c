@@ -236,7 +236,7 @@ u8 psxMemRead8(u32 mem) {
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lb %8.8lx\n", mem);
 #endif
-			return 0;
+			return 0xFF;
 		}
 	}
 }
@@ -261,7 +261,7 @@ u16 psxMemRead16(u32 mem) {
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lh %8.8lx\n", mem);
 #endif
-			return 0;
+			return 0xFFFF;
 		}
 	}
 }
@@ -286,7 +286,7 @@ u32 psxMemRead32(u32 mem) {
 #ifdef PSXMEM_LOG
 			if (writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
 #endif
-			return 0;
+			return 0xFFFFFFFF;
 		}
 	}
 }
