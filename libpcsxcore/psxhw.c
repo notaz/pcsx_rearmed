@@ -44,7 +44,7 @@ void psxHwReset() {
 u8 psxHwRead8(u32 add) {
 	unsigned char hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040: hard = sioRead8();break; 
 #ifdef ENABLE_SIO1API
 		case 0x1f801050: hard = SIO1_readData8(); break;
@@ -70,7 +70,7 @@ u8 psxHwRead8(u32 add) {
 u16 psxHwRead16(u32 add) {
 	unsigned short hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 #ifdef PSXHW_LOG
 		case 0x1f801070: PSXHW_LOG("IREG 16bit read %x\n", psxHu16(0x1070));
 			return psxHu16(0x1070);
@@ -204,7 +204,7 @@ u16 psxHwRead16(u32 add) {
 u32 psxHwRead32(u32 add) {
 	u32 hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040:
 			hard = sioRead8();
 			hard |= sioRead8() << 8;
@@ -355,7 +355,7 @@ u32 psxHwRead32(u32 add) {
 }
 
 void psxHwWrite8(u32 add, u8 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040: sioWrite8(value); break;
 #ifdef ENABLE_SIO1API
 		case 0x1f801050: SIO1_writeData8(value); break;
@@ -379,7 +379,7 @@ void psxHwWrite8(u32 add, u8 value) {
 }
 
 void psxHwWrite16(u32 add, u16 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040:
 			sioWrite8((unsigned char)value);
 			sioWrite8((unsigned char)(value>>8));
@@ -518,7 +518,7 @@ void psxHwWrite16(u32 add, u16 value) {
 }
 
 void psxHwWrite32(u32 add, u32 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 	    case 0x1f801040:
 			sioWrite8((unsigned char)value);
 			sioWrite8((unsigned char)((value&0xff) >>  8));

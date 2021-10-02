@@ -49,6 +49,65 @@ void (*psxCP0[32])();
 void (*psxCP2[64])(struct psxCP2Regs *regs);
 void (*psxCP2BSC[32])();
 
+#ifdef ICACHE_EMULATION
+/*
+Formula One 2001 :
+Use old CPU cache code when the RAM location is updated with new code (affects in-game racing)
+*/
+static u8* ICache_Addr;
+static u8* ICache_Code;
+uint32_t *Read_ICache(uint32_t pc)
+{
+	uint32_t pc_bank, pc_offset, pc_cache;
+	uint8_t *IAddr, *ICode;
+
+	pc_bank = pc >> 24;
+	pc_offset = pc & 0xffffff;
+	pc_cache = pc & 0xfff;
+
+	IAddr = ICache_Addr;
+	ICode = ICache_Code;
+
+	// cached - RAM
+	if (pc_bank == 0x80 || pc_bank == 0x00)
+	{
+		if (SWAP32(*(uint32_t *)(IAddr + pc_cache)) == pc_offset)
+		{
+			// Cache hit - return last opcode used
+			return (uint32_t *)(ICode + pc_cache);
+		}
+		else
+		{
+			// Cache miss - addresses don't match
+			// - default: 0xffffffff (not init)
+
+			// cache line is 4 bytes wide
+			pc_offset &= ~0xf;
+			pc_cache &= ~0xf;
+
+			// address line
+			*(uint32_t *)(IAddr + pc_cache + 0x0) = SWAP32(pc_offset + 0x0);
+			*(uint32_t *)(IAddr + pc_cache + 0x4) = SWAP32(pc_offset + 0x4);
+			*(uint32_t *)(IAddr + pc_cache + 0x8) = SWAP32(pc_offset + 0x8);
+			*(uint32_t *)(IAddr + pc_cache + 0xc) = SWAP32(pc_offset + 0xc);
+
+			// opcode line
+			pc_offset = pc & ~0xf;
+			*(uint32_t *)(ICode + pc_cache + 0x0) = psxMu32ref(pc_offset + 0x0);
+			*(uint32_t *)(ICode + pc_cache + 0x4) = psxMu32ref(pc_offset + 0x4);
+			*(uint32_t *)(ICode + pc_cache + 0x8) = psxMu32ref(pc_offset + 0x8);
+			*(uint32_t *)(ICode + pc_cache + 0xc) = psxMu32ref(pc_offset + 0xc);
+		}
+	}
+
+	/*
+	TODO: Probably should add cached BIOS
+	*/
+	// default
+	return (uint32_t *)PSXM(pc);
+}
+#endif
+
 static void delayRead(int reg, u32 bpc) {
 	u32 rold, rnew;
 
@@ -266,7 +325,17 @@ void psxDelayTest(int reg, u32 bpc) {
 	u32 *code;
 	u32 tmp;
 
-	code = (u32 *)PSXM(bpc);
+	#ifdef ICACHE_EMULATION
+	if (Config.icache_emulation)
+	{
+		code = Read_ICache(psxRegs.pc);
+	}
+	else
+	#endif
+	{
+		code = (u32 *)PSXM(psxRegs.pc);
+	}
+
 	tmp = ((code == NULL) ? 0 : SWAP32(*code));
 	branch = 1;
 
@@ -290,7 +359,16 @@ static u32 psxBranchNoDelay(void) {
 	u32 *code;
 	u32 temp;
 
-	code = (u32 *)PSXM(psxRegs.pc);
+	#ifdef ICACHE_EMULATION
+	if (Config.icache_emulation)
+	{
+		code = Read_ICache(psxRegs.pc);
+	}
+	else
+	#endif
+	{
+		code = (u32 *)PSXM(psxRegs.pc);
+	}
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 	switch (_Op_) {
 		case 0x00: // SPECIAL
@@ -419,7 +497,16 @@ static void doBranch(u32 tar) {
 	if (psxDelayBranchTest(tar))
 		return;
 
-	code = (u32 *)PSXM(psxRegs.pc);
+	#ifdef ICACHE_EMULATION
+	if (Config.icache_emulation)
+	{
+		code = Read_ICache(psxRegs.pc);
+	}
+	else
+	#endif
+	{
+		code = (u32 *)PSXM(psxRegs.pc);
+	}
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 
 	debugI();
@@ -554,7 +641,7 @@ void psxMULTU() {
 * Format:  OP rs, offset                                 *
 *********************************************************/
 #define RepZBranchi32(op)      if(_i32(_rRs_) op 0) doBranch(_BranchTarget_);
-#define RepZBranchLinki32(op)  if(_i32(_rRs_) op 0) { _SetLink(31); doBranch(_BranchTarget_); }
+#define RepZBranchLinki32(op)  { _SetLink(31); if(_i32(_rRs_) op 0) { doBranch(_BranchTarget_); } }
 
 void psxBGEZ()   { RepZBranchi32(>=) }      // Branch if Rs >= 0
 void psxBGEZAL() { RepZBranchLinki32(>=) }  // Branch if Rs >= 0 and link
@@ -575,9 +662,9 @@ void psxSRL() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> _Sa_; } // Rd = 
 * Shift arithmetic with variant register shift           *
 * Format:  OP rd, rt, rs                                 *
 *********************************************************/
-void psxSLLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) << _u32(_rRs_); } // Rd = Rt << rs
-void psxSRAV() { if (!_Rd_) return; _i32(_rRd_) = _i32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (arithmetic)
-void psxSRLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (logical)
+void psxSLLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) << (_u32(_rRs_) & 0x1F); } // Rd = Rt << rs
+void psxSRAV() { if (!_Rd_) return; _i32(_rRd_) = _i32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (arithmetic)
+void psxSRLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (logical)
 
 /*********************************************************
 * Load higher 16 bits of the first word in GPR with imm  *
@@ -604,7 +691,8 @@ void psxMTLO() { _rLo_ = _rRs_; } // Lo = Rs
 * Format:  OP                                            *
 *********************************************************/
 void psxBREAK() {
-	// Break exception - psx rom doens't handles this
+	psxRegs.pc -= 4;
+	psxException(0x24, branch);
 }
 
 void psxSYSCALL() {
@@ -616,6 +704,7 @@ void psxRFE() {
 //	SysPrintf("psxRFE\n");
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
 						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
+	psxTestSWInts();
 }
 
 /*********************************************************
@@ -639,14 +728,14 @@ void psxJAL() {	_SetLink(31); doBranch(_JumpTarget_); }
 * Format:  OP rs, rd                                     *
 *********************************************************/
 void psxJR()   {
-	doBranch(_u32(_rRs_));
+	doBranch(_rRs_ & ~3);
 	psxJumpTest();
 }
 
 void psxJALR() {
 	u32 temp = _u32(_rRs_);
 	if (_Rd_) { _SetLink(_Rd_); }
-	doBranch(temp);
+	doBranch(temp & ~3);
 }
 
 /*********************************************************
@@ -923,10 +1012,38 @@ void (*psxCP2BSC[32])() = {
 ///////////////////////////////////////////
 
 static int intInit() {
+	#ifdef ICACHE_EMULATION
+	/* We have to allocate the icache memory even if 
+	 * the user has not enabled it as otherwise it can cause issues.
+	 */
+	if (!ICache_Addr)
+	{
+		ICache_Addr = malloc(0x1000);
+		if (!ICache_Addr)
+		{
+			return -1;
+		}
+	}
+
+	if (!ICache_Code)
+	{
+		ICache_Code = malloc(0x1000);
+		if (!ICache_Code)
+		{
+			return -1;
+		}
+	}
+	memset(ICache_Addr, 0xff, 0x1000);
+	memset(ICache_Code, 0xff, 0x1000);
+	#endif
 	return 0;
 }
 
 static void intReset() {
+	#ifdef ICACHE_EMULATION
+	memset(ICache_Addr, 0xff, 0x1000);
+	memset(ICache_Code, 0xff, 0x1000);
+	#endif
 }
 
 void intExecute() {
@@ -943,12 +1060,46 @@ void intExecuteBlock() {
 static void intClear(u32 Addr, u32 Size) {
 }
 
+void intNotify (int note, void *data) {
+	#ifdef ICACHE_EMULATION
+	/* Gameblabla - Only clear the icache if it's isolated */
+	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
+	{
+		memset(ICache_Addr, 0xff, 0x1000);
+		memset(ICache_Code, 0xff, 0x1000);
+	}
+	#endif
+}
+
 static void intShutdown() {
+	#ifdef ICACHE_EMULATION
+	if (ICache_Addr)
+	{
+		free(ICache_Addr);
+		ICache_Addr = NULL;
+	}
+
+	if (ICache_Code)
+	{
+		free(ICache_Code);
+		ICache_Code = NULL;
+	}
+	#endif
 }
 
 // interpreter execution
 void execI() {
-	u32 *code = (u32 *)PSXM(psxRegs.pc);
+	u32 *code;
+	#ifdef ICACHE_EMULATION
+	if (Config.icache_emulation)
+	{
+		code = Read_ICache(psxRegs.pc);
+	}
+	else
+	#endif
+	{
+		code = (u32 *)PSXM(psxRegs.pc);
+	}
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 
 	debugI();
@@ -967,5 +1118,8 @@ R3000Acpu psxInt = {
 	intExecute,
 	intExecuteBlock,
 	intClear,
+#ifdef ICACHE_EMULATION
+	intNotify,
+#endif
 	intShutdown
 };

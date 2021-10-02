@@ -81,7 +81,21 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
-	if (!Config.HLE && ((((psxRegs.code = PSXMu32(psxRegs.pc)) >> 24) & 0xfe) == 0x4a)) {
+	#ifdef ICACHE_EMULATION
+	/* Dynarecs may use this codepath and crash as a result.
+	 * This should only be used for the interpreter. - Gameblabla
+	 * */
+	if (Config.icache_emulation && Config.Cpu == CPU_INTERPRETER)
+	{
+		psxRegs.code = SWAPu32(*Read_ICache(psxRegs.pc));
+	}
+	else
+	#endif
+	{
+		psxRegs.code = PSXMu32(psxRegs.pc);
+	}
+	
+	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
@@ -98,7 +112,6 @@ void psxException(u32 code, u32 bd) {
 #ifdef PSXCPU_LOG
 		PSXCPU_LOG("bd set!!!\n");
 #endif
-		SysPrintf("bd set!!!\n");
 		psxRegs.CP0.n.Cause |= 0x80000000;
 		psxRegs.CP0.n.EPC = (psxRegs.pc - 4);
 	} else
