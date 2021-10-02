@@ -901,7 +901,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_icache_emulation",
       "Instruction Cache emulation",
-      "Enables or disables instruction cache emulation. Slower, but more accurate. Fails to run Spyro 2 PAL. This allows you to run F1 2001, Formula One Arcade, F1 99 and other games that may need instruction cache emulation. Interpreter/Lightrec only, does nothing on the ARMv7 backend.",
+      "Enables or disables instruction cache emulation. Slower, but more accurate. Fails to run Spyro 2 PAL. This allows you to run F1 2001, Formula One Arcade, F1 99 and other games that may need instruction cache emulation. Interpreter only and partial on lightrec, does nothing on the ARMv7 backend.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
