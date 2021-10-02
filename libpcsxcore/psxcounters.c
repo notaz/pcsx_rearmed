@@ -60,7 +60,7 @@ static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
-static const u32 HSyncTotal[]     = { 263, 313 };
+static const u32 HSyncTotal[]     = { 263, 314 }; // actually one more on odd lines for PAL
 #define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
