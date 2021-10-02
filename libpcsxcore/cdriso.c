@@ -61,24 +61,15 @@ static boolean multifile = FALSE;
 static unsigned char cdbuffer[CD_FRAMESIZE_RAW];
 static unsigned char subbuffer[SUB_FRAMESIZE];
 
-static unsigned char sndbuffer[CD_FRAMESIZE_RAW * 10];
-
-#define CDDA_FRAMETIME			(1000 * (sizeof(sndbuffer) / CD_FRAMESIZE_RAW) / 75)
-
-static unsigned int initial_offset = 0;
 static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
-// cdda sectors in toc, byte offset in file
-static unsigned int cdda_cur_sector;
-static unsigned int cdda_first_sector;
-static unsigned int cdda_file_offset;
 /* Frame offset into CD image where pregap data would be found if it was there.
  * If a game seeks there we must *not* return subchannel data since it's
  * not in the CD image, so that cdrom code can fake subchannel data instead.
  * XXX: there could be multiple pregaps but PSX dumps only have one? */
 static unsigned int pregapOffset;
 
-#define cddaCurPos cdda_cur_sector
+static unsigned int cddaCurPos;
 
 // compressed image stuff
 static struct {
@@ -169,21 +160,6 @@ static void tok2msf(char *time, char *msf) {
 		msf[2] = 0;
 	}
 }
-
-#ifndef _WIN32
-static long GetTickCount(void) {
-	static time_t		initial_time = 0;
-	struct timeval		now;
-
-	gettimeofday(&now, NULL);
-
-	if (initial_time == 0) {
-		initial_time = now.tv_sec;
-	}
-
-	return (now.tv_sec - initial_time) * 1000L + now.tv_usec / 1000L;
-}
-#endif
 
 // stop the CDDA playback
 static void stopCDDA() {
@@ -1352,8 +1328,6 @@ static long CALLBACK ISOopen(void) {
 	if (numtracks > 1 && ti[1].handle == NULL) {
 		ti[1].handle = fopen(bin_filename, "rb");
 	}
-	cdda_cur_sector = 0;
-	cdda_file_offset = 0;
 
 	return 0;
 }

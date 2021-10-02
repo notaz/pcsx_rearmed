@@ -534,9 +534,9 @@ void cdrPlayInterrupt()
 	if (!cdr.Play) return;
 	
 	if (CDR_readCDDA && !cdr.Muted && cdr.Mode & MODE_REPORT) {
-		cdrAttenuate((u8 *)read_buf, CD_FRAMESIZE_RAW / 4, 1);
+		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
 		if (SPU_playCDDAchannel)
-			SPU_playCDDAchannel((u8 *)read_buf, CD_FRAMESIZE_RAW);
+			SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW);
 	}
 
 	cdr.SetSectorPlay[2]++;
