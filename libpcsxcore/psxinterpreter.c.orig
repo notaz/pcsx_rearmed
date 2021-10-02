@@ -641,7 +641,7 @@ void psxMULTU() {
 * Format:  OP rs, offset                                 *
 *********************************************************/
 #define RepZBranchi32(op)      if(_i32(_rRs_) op 0) doBranch(_BranchTarget_);
-#define RepZBranchLinki32(op)  { _SetLink(31); if(_i32(_rRs_) op 0) { doBranch(_BranchTarget_); } }
+#define RepZBranchLinki32(op)  if(_i32(_rRs_) op 0) { _SetLink(31); doBranch(_BranchTarget_); }
 
 void psxBGEZ()   { RepZBranchi32(>=) }      // Branch if Rs >= 0
 void psxBGEZAL() { RepZBranchLinki32(>=) }  // Branch if Rs >= 0 and link
@@ -932,20 +932,8 @@ void psxCOP0() {
 	psxCP0[_Rs_]();
 }
 
-void psxCOP1() {
-#ifdef PSXCPU_LOG
-	PSXCPU_LOG("Attempted to use an invalid floating point instruction. Ignored.\n");
-#endif
-}
-
 void psxCOP2() {
 	psxCP2[_Funct_]((struct psxCP2Regs *)&psxRegs.CP2D);
-}
-
-void psxCOP3() {
-#ifdef PSXCPU_LOG
-	PSXCPU_LOG("Attempted to access COP3. Ignored\n");
-#endif
 }
 
 void psxBASIC(struct psxCP2Regs *regs) {
@@ -966,7 +954,7 @@ void psxHLE() {
 void (*psxBSC[64])() = {
 	psxSPECIAL, psxREGIMM, psxJ   , psxJAL  , psxBEQ , psxBNE , psxBLEZ, psxBGTZ,
 	psxADDI   , psxADDIU , psxSLTI, psxSLTIU, psxANDI, psxORI , psxXORI, psxLUI ,
-	psxCOP0   , psxCOP1  , psxCOP2, psxCOP3 , psxNULL, psxNULL, psxNULL, psxNULL,
+	psxCOP0   , psxNULL  , psxCOP2, psxNULL , psxNULL, psxNULL, psxNULL, psxNULL,
 	psxNULL   , psxNULL  , psxNULL, psxNULL , psxNULL, psxNULL, psxNULL, psxNULL,
 	psxLB     , psxLH    , psxLWL , psxLW   , psxLBU , psxLHU , psxLWR , psxNULL,
 	psxSB     , psxSH    , psxSWL , psxSW   , psxNULL, psxNULL, psxSWR , psxNULL, 
