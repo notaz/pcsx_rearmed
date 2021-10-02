@@ -383,7 +383,7 @@ static void ReadTrack(const u8 *time) {
 
 	CDR_LOG("ReadTrack *** %02x:%02x:%02x\n", tmp[0], tmp[1], tmp[2]);
 
-	cdr.RErr = CDR_readTrack(tmp);
+	cdr.NoErr = CDR_readTrack(tmp);
 	memcpy(cdr.Prev, tmp, 3);
 
 	if (CheckSBI(time))
@@ -505,7 +505,6 @@ void cdrPlayInterrupt()
 		cdr.Seeked = SEEK_DONE;
 		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			setIrq();
 		}
 
@@ -609,8 +608,10 @@ void cdrInterrupt() {
 		do_CdlPlay:
 		case CdlPlay:
 			StopCdda();
-			/* It would set it to SEEK_DONE*/
-			cdr.Seeked = SEEK_PENDING;
+			if (cdr.Seeked == SEEK_PENDING) {
+				// XXX: wrong, should seek instead..
+				cdr.Seeked = SEEK_DONE;
+			}
 
 			cdr.FastBackward = 0;
 			cdr.FastForward = 0;
@@ -677,7 +678,6 @@ void cdrInterrupt() {
 		case CdlForward:
 			// TODO: error 80 if stopped
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			// GameShark CD Player: Calls 2x + Play 2x
 			cdr.FastForward = 1;
 			cdr.FastBackward = 0;
@@ -702,7 +702,6 @@ void cdrInterrupt() {
 
 		case CdlStandby + 0x100:
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlStop:
@@ -730,7 +729,6 @@ void cdrInterrupt() {
 			cdr.StatP &= ~STATUS_ROTATING;
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlPause:
@@ -766,7 +764,6 @@ void cdrInterrupt() {
 			cdr.StatP &= ~STATUS_READ;
 			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlReset:
@@ -779,7 +776,6 @@ void cdrInterrupt() {
 
 		case CdlReset + 0x100:
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlMute:
@@ -829,7 +825,6 @@ void cdrInterrupt() {
 
 		case CdlReadT + 0x100:
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlGetTN:
@@ -929,7 +924,6 @@ void cdrInterrupt() {
 			/* This adds the string "PCSX" in Playstation bios boot screen */
 			memcpy((char *)&cdr.Result[4], "PCSX", 4);
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			break;
 
 		case CdlInit:
@@ -953,7 +947,6 @@ void cdrInterrupt() {
 
 		case CdlReadToc + 0x100:
 			cdr.Stat = Complete;
-			cdr.RErr = 1;
 			no_busy_error = 1;
 			break;
 
@@ -1153,9 +1146,9 @@ void cdrReadInterrupt() {
 
 	buf = CDR_getBuffer();
 	if (buf == NULL)
-		cdr.RErr = 0;
+		cdr.NoErr = 0;
 
-	if (cdr.RErr == 0) {
+	if (cdr.NoErr == 0) {
 		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
 		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdr.Stat = DiskError;

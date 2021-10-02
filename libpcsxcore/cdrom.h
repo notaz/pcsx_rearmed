@@ -90,7 +90,7 @@ typedef struct {
 	int CurTrack;
 	int Mode, File, Channel;
 	int Reset;
-	int RErr;
+	int NoErr;
 	int FirstSector;
 
 	xa_decode_t Xa;
