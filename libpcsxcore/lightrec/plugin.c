@@ -578,6 +578,25 @@ static void lightrec_plugin_clear(u32 addr, u32 size)
 		lightrec_invalidate(lightrec_state, addr, size * 4);
 }
 
+#ifdef ICACHE_EMULATION
+static void lightrec_plugin_notify(int note, void *data)
+{
+	/*
+	To change once proper icache emulation is emulated
+	switch (note)
+	{
+		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+			lightrec_plugin_clear(0, 0x200000/4);
+			break;
+		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
+		// Sent from psxDma3().
+		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
+		default:
+			break;
+	}*/
+}
+#endif
+
 static void lightrec_plugin_shutdown(void)
 {
 	lightrec_destroy(lightrec_state);
@@ -596,5 +615,8 @@ R3000Acpu psxRec =
 	lightrec_plugin_execute,
 	lightrec_plugin_execute_block,
 	lightrec_plugin_clear,
+#ifdef ICACHE_EMULATION
+	lightrec_plugin_notify,
+#endif
 	lightrec_plugin_shutdown,
 };

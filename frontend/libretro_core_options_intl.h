@@ -381,6 +381,15 @@ struct retro_core_option_definition option_defs_tr[] = {
       NULL
    },
    {
+      "pcsx_rearmed_icache_emulation",
+      "ICache Düzeltmleri",
+      NULL,
+      {
+         { NULL, NULL },
+      },
+      NULL
+   },
+   {
       "pcsx_rearmed_inuyasha_fix",
       "InuYasha Sengoku Battle Düzeltmesi",
       NULL,

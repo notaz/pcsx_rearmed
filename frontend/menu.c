@@ -394,6 +394,7 @@ static const struct {
 	CE_CONFIG_VAL(SpuIrq),
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
+	CE_CONFIG_VAL(icache_emulation),
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
@@ -1567,6 +1568,8 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 				   "Might be useful to overcome some dynarec bugs";
 static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
 				   "must reload game for any change to take effect";
+static const char h_cfg_icache[] = "Allows you to play the F1 games.\n"
+				   "Note: This breaks the PAL version of Spyro 2.";
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1577,6 +1580,9 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
+#ifdef ICACHE_EMULATION
+	mee_onoff_h   ("ICache emulation",       0, Config.icache_emulation, 1, h_cfg_icache),
+#endif
 	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
