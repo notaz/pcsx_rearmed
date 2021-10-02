@@ -124,6 +124,13 @@ u16 psxHwRead16(u32 add) {
 		case 0x1f80105e:
 			hard = SIO1_readBaud16();
 			return hard;
+#else
+		/* Fixes Armored Core misdetecting the Link cable being detected.
+		 * We want to turn that thing off and force it to do local multiplayer instead.
+		 * Thanks Sony for the fix, they fixed it in their PS Classic fork.
+		 */
+		case 0x1f801054:
+			return 0x80;
 #endif
 		case 0x1f801100:
 			hard = psxRcntRcount(0);
