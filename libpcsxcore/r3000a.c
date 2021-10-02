@@ -53,7 +53,7 @@ void psxReset() {
 	psxMemReset();
 
 	memset(&psxRegs, 0x00, sizeof(psxRegs));
-
+	writeok = TRUE;
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 
 	psxRegs.CP0.r[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
@@ -81,7 +81,21 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
-	if (!Config.HLE && ((((psxRegs.code = PSXMu32(psxRegs.pc)) >> 24) & 0xfe) == 0x4a)) {
+	#ifdef ICACHE_EMULATION
+	/* Without the CPU_INTERPRETER condition, this will make Lightrec crash.
+	 * Hopefully a better solution than this mess is found. - Gameblabla
+	*/
+	if (Config.icache_emulation && Config.Cpu == CPU_INTERPRETER)
+	{
+		psxRegs.code = SWAPu32(*Read_ICache(psxRegs.pc));
+	}
+	else
+	#endif
+	{
+		psxRegs.code = PSXMu32(psxRegs.pc);
+	}
+
+	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)

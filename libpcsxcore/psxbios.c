@@ -1402,7 +1402,10 @@ void psxBios_FlushCache() { // 44
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x44]);
 #endif
-
+#ifdef ICACHE_EMULATION
+    psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
+    psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
+#endif
 	pc0 = ra;
 }
 

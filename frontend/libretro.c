@@ -1699,6 +1699,19 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "enabled") == 0)
          Config.RCntFix = 1;
    }
+   
+#ifdef ICACHE_EMULATION
+   var.value = NULL;
+   var.key = "pcsx_rearmed_icache_emulation";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.icache_emulation = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.icache_emulation = 1;
+   }
+#endif
 
    var.value = NULL;
    var.key = "pcsx_rearmed_inuyasha_fix";

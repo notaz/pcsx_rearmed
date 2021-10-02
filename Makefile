@@ -312,6 +312,9 @@ OBJS += libretro-common/time/rtime.o
 OBJS += libretro-common/vfs/vfs_implementation.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
+ifeq "$(ENABLE_ICACHE_EMULATION)" "1"
+CFLAGS += -DICACHE_EMULATION
+endif
 OBJS += frontend/libretro.o
 CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
