@@ -241,14 +241,21 @@ static u_int get_clean_addr(int addr)
 static int verify_dirty(u_int *ptr)
 {
   #ifndef HAVE_ARMV7
+  u_int offset;
   // get from literal pool
   assert((*ptr&0xFFFF0000)==0xe59f0000);
-  u_int offset=*ptr&0xfff;
-  u_int *l_ptr=(void *)ptr+offset+8;
-  u_int source=l_ptr[0];
-  u_int copy=l_ptr[1];
-  u_int len=l_ptr[2];
-  ptr+=4;
+  offset=*ptr&0xfff;
+  u_int source=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  assert((*ptr&0xFFFF0000)==0xe59f0000);
+  offset=*ptr&0xfff;
+  u_int copy=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  assert((*ptr&0xFFFF0000)==0xe59f0000);
+  offset=*ptr&0xfff;
+  u_int len=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  ptr++;
   #else
   // ARMv7 movw/movt
   assert((*ptr&0xFFF00000)==0xe3000000);
@@ -285,14 +292,21 @@ static void get_bounds(int addr,u_int *start,u_int *end)
 {
   u_int *ptr=(u_int *)addr;
   #ifndef HAVE_ARMV7
+  u_int offset;
   // get from literal pool
   assert((*ptr&0xFFFF0000)==0xe59f0000);
-  u_int offset=*ptr&0xfff;
-  u_int *l_ptr=(void *)ptr+offset+8;
-  u_int source=l_ptr[0];
-  //u_int copy=l_ptr[1];
-  u_int len=l_ptr[2];
-  ptr+=4;
+  offset=*ptr&0xfff;
+  u_int source=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  //assert((*ptr&0xFFFF0000)==0xe59f0000);
+  //offset=*ptr&0xfff;
+  //u_int copy=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  assert((*ptr&0xFFFF0000)==0xe59f0000);
+  offset=*ptr&0xfff;
+  u_int len=*(u_int*)((void *)ptr+offset+8);
+  ptr++;
+  ptr++;
   #else
   // ARMv7 movw/movt
   assert((*ptr&0xFFF00000)==0xe3000000);
