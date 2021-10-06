@@ -1650,6 +1650,7 @@ static long CALLBACK ISOclose(void) {
 		fclose(subHandle);
 		subHandle = NULL;
 	}
+	playing = FALSE;
 	cddaHandle = NULL;
 
 	if (compr_img != NULL) {
