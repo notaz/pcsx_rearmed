@@ -3319,7 +3319,7 @@ void psxBiosException() {
 
 #define bfreezepsxMptr(ptr, type) { \
 	if (Mode == 1) { \
-		if (ptr) psxRu32ref(base) = SWAPu32((s8 *)(ptr) - psxM); \
+		if (ptr) psxRu32ref(base) = SWAPu32((u8 *)(ptr) - psxM); \
 		else psxRu32ref(base) = 0; \
 	} else { \
 		if (psxRu32(base) != 0) ptr = (type *)(psxM + psxRu32(base)); \

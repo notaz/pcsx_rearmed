@@ -100,10 +100,10 @@ void psxUnmap(void *ptr, size_t size, enum psxMapTag tag)
 		munmap(ptr, size);
 }
 
-s8 *psxM = NULL; // Kernel & User Memory (2 Meg)
-s8 *psxP = NULL; // Parallel Port (64K)
-s8 *psxR = NULL; // BIOS ROM (512K)
-s8 *psxH = NULL; // Scratch Pad (1K) & Hardware Registers (8K)
+u8 *psxM = NULL; // Kernel & User Memory (2 Meg)
+u8 *psxP = NULL; // Parallel Port (64K)
+u8 *psxR = NULL; // BIOS ROM (512K)
+u8 *psxH = NULL; // Scratch Pad (1K) & Hardware Registers (8K)
 
 u8 **psxMemWLUT = NULL;
 u8 **psxMemRLUT = NULL;
