@@ -1408,7 +1408,7 @@ switch(lCommand)
   // ask about GPU version and other stuff
   case 0x10: 
 
-   gdata&=0xff;
+   gdata&=0xFFF00000;
 
    switch(gdata) 
     {
@@ -1426,13 +1426,18 @@ switch(lCommand)
       GPUdataRet=ulGPUInfoVals[INFO_DRAWOFF];         // draw offset
       return;
      case 0x07:
+	  /* On Old 180pin GPUs, 06h-07h = Returns Nothing (old value in GPUREAD remains unchanged) */
       if(dwGPUVersion==2)
-           GPUdataRet=0x01;
-      else GPUdataRet=0x02;                           // gpu type
+      {
+		//GPUdataRet=0x01;
+      }
+      else
+      gdata = GPUdataRet=0x02;                           // gpu type
       return;
      case 0x08:
-     case 0x0F:                                       // some bios addr?
-      GPUdataRet=0xBFC03720;
+     //case 0x0F:                                       // some bios addr?
+      /* Only returns  on newer PS1s */
+      gdata = GPUdataRet=0;
       return;
     }
    return;

@@ -664,9 +664,10 @@ void CALLBACK GPUwriteStatus(uint32_t gdata)      // WRITE STATUS
     return;
    //--------------------------------------------------//
    // ask about GPU version and other stuff
+   /* We will be assuming that we are emulating a newer PS1 here */
    case 0x10: 
 
-    gdata&=0xff;
+    gdata&=0xFFF00000;
 
     switch(gdata) 
      {
@@ -684,11 +685,13 @@ void CALLBACK GPUwriteStatus(uint32_t gdata)      // WRITE STATUS
        lGPUdataRet=lGPUInfoVals[INFO_DRAWOFF];         // draw offset
        return;
       case 0x07:
-       lGPUdataRet=0x02;                               // gpu type
+       gdata = lGPUdataRet=0x02;                               // gpu type
        return;
+      
       case 0x08:
-      case 0x0F:                                       // some bios addr?
-       lGPUdataRet=0xBFC03720;
+      /* TO FIX :   10h-FFFFFFh = Mirrors of 00h..0Fh */
+      //case 0x0F:                                       // some bios addr?
+       gdata = lGPUdataRet=0;
        return;
      }
     return;
