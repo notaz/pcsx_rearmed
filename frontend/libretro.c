@@ -2651,7 +2651,6 @@ static void loadPSXBios(void)
    unsigned useHLE = 0;
 
    const char *bios[] = {
-      "PS1_ROM", "ps1_rom",
       "PSXONPSP660", "psxonpsp660",
       "SCPH101", "scph101",
       "SCPH5501", "scph5501",
