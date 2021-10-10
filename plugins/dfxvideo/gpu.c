@@ -915,10 +915,14 @@ STARTVRAM:
 
        gdata=GETLE32(pMem); pMem++;
 
-       PUTLE16(VRAMWrite.ImagePtr, (unsigned short)gdata); VRAMWrite.ImagePtr++;
-       if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=512*1024;
+       // Write odd pixel - Wrap from beginning to next index if going past GPU width
+       if(VRAMWrite.Width+VRAMWrite.x-VRAMWrite.RowsRemaining >= 1024) {
+         PUTLE16(VRAMWrite.ImagePtr-1024, (unsigned short)gdata); VRAMWrite.ImagePtr++;
+       } else { PUTLE16(VRAMWrite.ImagePtr, (unsigned short)gdata); VRAMWrite.ImagePtr++; }
+       if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;// Check if went past framebuffer
        VRAMWrite.RowsRemaining --;
 
+       // Check if end at odd pixel drawn
        if(VRAMWrite.RowsRemaining <= 0)
         {
          VRAMWrite.ColsRemaining--;
@@ -933,8 +937,11 @@ STARTVRAM:
          VRAMWrite.ImagePtr += 1024 - VRAMWrite.Width;
         }
 
-       PUTLE16(VRAMWrite.ImagePtr, (unsigned short)(gdata>>16)); VRAMWrite.ImagePtr++;
-       if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=512*1024;
+       // Write even pixel - Wrap from beginning to next index if going past GPU width
+       if(VRAMWrite.Width+VRAMWrite.x-VRAMWrite.RowsRemaining >= 1024) {
+         PUTLE16(VRAMWrite.ImagePtr-1024, (unsigned short)(gdata>>16)); VRAMWrite.ImagePtr++;
+       } else { PUTLE16(VRAMWrite.ImagePtr, (unsigned short)(gdata>>16)); VRAMWrite.ImagePtr++; }
+       if(VRAMWrite.ImagePtr>=psxVuw_eom) VRAMWrite.ImagePtr-=iGPUHeight*1024;// Check if went past framebuffer
        VRAMWrite.RowsRemaining --;
       }
 
