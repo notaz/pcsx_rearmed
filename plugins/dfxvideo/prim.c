@@ -1261,7 +1261,7 @@ static void primLineGEx(unsigned char *baseAddr)
     {
      slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
      sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
-     if(CheckCoordL(slx0,sly0,slx1,sly1)) bDraw=FALSE; else bDraw=TRUE;
+     bDraw = !CheckCoordL(slx0, sly0, slx1, sly1);
     }
 
    if ((lx0 != lx1) || (ly0 != ly1))
@@ -1272,7 +1272,7 @@ static void primLineGEx(unsigned char *baseAddr)
      lx1=slx1;
               
      offsetPSX2();
-     if(bDraw) DrawSoftwareLineShade(lc0, lc1);
+     if (bDraw) DrawSoftwareLineShade(lc0, lc1);
     }
    i++;  
    if(i>iMax) break;
@@ -1362,7 +1362,7 @@ static void primLineFEx(unsigned char *baseAddr)
      slx1=(short)(((int)slx1<<SIGNSHIFT)>>SIGNSHIFT);
      sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
 
-     if(CheckCoordL(slx0,sly0,slx1,sly1)) bDraw=FALSE; else bDraw=TRUE;
+     bDraw = !CheckCoordL(slx0, sly0, slx1, sly1);
     }
 
    ly0=sly0;
