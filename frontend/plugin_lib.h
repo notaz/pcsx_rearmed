@@ -1,3 +1,9 @@
+#ifndef __PLUGIN_LIB_H__
+#define __PLUGIN_LIB_H__
+
+#define THREAD_RENDERING_OFF   0
+#define THREAD_RENDERING_SYNC  1
+#define THREAD_RENDERING_ASYNC 2
 
 enum {
 	DKEY_SELECT = 0,
@@ -61,10 +67,14 @@ struct rearmed_cbs {
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
 	unsigned int only_16bpp; // platform is 16bpp-only
+	#ifdef THREAD_RENDERING
+	unsigned int thread_rendering;
+	#endif
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 		int   enhancement_enable;
 		int   enhancement_no_main;
+		int   allow_dithering;
 	} gpu_neon;
 	struct {
 		int   iUseDither;
@@ -73,9 +83,17 @@ struct rearmed_cbs {
 		int   dwFrameRateTicks;
 	} gpu_peops;
 	struct {
+		int ilace_force;
+		int pixel_skip;
+		int lighting;
+		int fast_lighting;
+		int blending;
+		int dithering;
+		// old gpu_unai config for compatibility
 		int   abe_hack;
 		int   no_light, no_blend;
 		int   lineskip;
+		int   scale_hires;
 	} gpu_unai;
 	struct {
 		int   dwActFixes;
@@ -103,3 +121,5 @@ extern void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
+
+#endif /* __PLUGIN_LIB_H__ */

@@ -109,6 +109,11 @@ endif
 
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
+ifeq "$(THREAD_RENDERING)" "1"
+CFLAGS += -DUSE_GPULIB
+OBJS +=  plugins/gpulib/gpulib_thread_if.o
+endif
+
 ifeq "$(BUILTIN_GPU)" "neon"
 OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
@@ -125,7 +130,7 @@ OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB -O3 
 CC_LINK = $(CXX)
 endif
 

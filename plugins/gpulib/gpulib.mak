@@ -3,6 +3,10 @@
 # users must include ../../config.mak
 
 LDFLAGS += -shared -Wl,--no-undefined
+ifdef THREAD_RENDERING
+LDFLAGS += -pthread
+endif
+
 CFLAGS += $(PLUGIN_CFLAGS)
 ifeq "$(ARCH)" "arm"
  EXT =

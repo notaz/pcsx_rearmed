@@ -7,6 +7,10 @@ include ../../config.mak
 
 OBJS += gpu.o
 
+ifeq "$(THREAD_RENDERING)" "1"
+OBJS += gpulib_thread_if.o
+endif
+
 ifeq "$(ARCH)" "arm"
 OBJS += vout_pl.o
 EXT = a

@@ -426,6 +426,12 @@ static const struct {
 	CE_INTVAL_V(frameskip, 3),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
+	CE_INTVAL_P(gpu_unai.ilace_force),
+	CE_INTVAL_P(gpu_unai.pixel_skip),
+	CE_INTVAL_P(gpu_unai.lighting),
+	CE_INTVAL_P(gpu_unai.fast_lighting),
+	CE_INTVAL_P(gpu_unai.blending),
+	CE_INTVAL_P(gpu_unai.dithering),
 	CE_INTVAL_P(gpu_unai.lineskip),
 	CE_INTVAL_P(gpu_unai.abe_hack),
 	CE_INTVAL_P(gpu_unai.no_light),
@@ -433,6 +439,7 @@ static const struct {
 	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_P(gpu_neon.enhancement_enable),
 	CE_INTVAL_P(gpu_neon.enhancement_no_main),
+	CE_INTVAL_P(gpu_neon.allow_dithering),
 	CE_INTVAL_P(gpu_peopsgl.bDrawDither),
 	CE_INTVAL_P(gpu_peopsgl.iFilterType),
 	CE_INTVAL_P(gpu_peopsgl.iFrameTexType),
@@ -454,6 +461,9 @@ static const struct {
 	CE_INTVAL(psx_clock),
 	CE_INTVAL(new_dynarec_hacks),
 	CE_INTVAL(in_enable_vibration),
+	#ifdef THREAD_RENDERING
+	CE_INTVAL_P(thread_rendering),
+	#endif
 };
 
 static char *get_cd_label(void)
@@ -1343,6 +1353,8 @@ static const char h_gpu_neon_enhanced[] =
 	"(not available for high resolution games)";
 static const char h_gpu_neon_enhanced_hack[] =
 	"Speed hack for above option (glitches some games)";
+static const char h_gpu_neon_dithering[] =
+	"Enable Dithering";
 static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
 
 static menu_entry e_menu_plugin_gpu_neon[] =
@@ -1350,6 +1362,7 @@ static menu_entry e_menu_plugin_gpu_neon[] =
 	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
 	mee_onoff_h   ("Enhanced resolution (slow)", 0, pl_rearmed_cbs.gpu_neon.enhancement_enable, 1, h_gpu_neon_enhanced),
 	mee_onoff_h   ("Enhanced res. speed hack",   0, pl_rearmed_cbs.gpu_neon.enhancement_no_main, 1, h_gpu_neon_enhanced_hack),
+	mee_onoff_h   ("Enable Dithering",   0, pl_rearmed_cbs.gpu_neon.allow_dithering, 1, h_gpu_neon_dithering),
 	mee_end,
 };
 
@@ -1364,10 +1377,16 @@ static int menu_loop_plugin_gpu_neon(int id, int keys)
 
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
-	mee_onoff     ("Skip every 2nd line",        0, pl_rearmed_cbs.gpu_unai.lineskip, 1),
-	mee_onoff     ("Abe's Odyssey hack",         0, pl_rearmed_cbs.gpu_unai.abe_hack, 1),
-	mee_onoff     ("Disable lighting",           0, pl_rearmed_cbs.gpu_unai.no_light, 1),
-	mee_onoff     ("Disable blending",           0, pl_rearmed_cbs.gpu_unai.no_blend, 1),
+	//mee_onoff     ("Skip every 2nd line",        0, pl_rearmed_cbs.gpu_unai.lineskip, 1),
+	//mee_onoff     ("Abe's Odyssey hack",         0, pl_rearmed_cbs.gpu_unai.abe_hack, 1),
+	//mee_onoff     ("Disable lighting",           0, pl_rearmed_cbs.gpu_unai.no_light, 1),
+	//mee_onoff     ("Disable blending",           0, pl_rearmed_cbs.gpu_unai.no_blend, 1),
+	mee_onoff     ("Interlace",                  0, pl_rearmed_cbs.gpu_unai.ilace_force, 1),
+	mee_onoff     ("Dithering",                  0, pl_rearmed_cbs.gpu_unai.dithering, 1),
+	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
+	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
+	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
+	mee_onoff     ("Pixel skip",                 0, pl_rearmed_cbs.gpu_unai.pixel_skip, 1),
 	mee_end,
 };
 
@@ -1609,6 +1628,8 @@ static const char h_restore_def[]     = "Switches back to default / recommended\
 					"configuration";
 static const char h_frameskip[]       = "Warning: frameskip sometimes causes glitches\n";
 
+static const char *h_threaded[]       = { "OFF", "SYNC", "ASYNC", NULL };
+
 static menu_entry e_menu_options[] =
 {
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
@@ -1621,6 +1642,9 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
 #else
 	mee_onoff     ("Threaded SPU",             MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
+#endif
+#ifdef THREAD_RENDERING
+	mee_enum      ("Threaded Rendering",     0, pl_rearmed_cbs.thread_rendering, h_threaded),
 #endif
 	mee_handler_id("[Display]",                MA_OPT_DISP_OPTS, menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
