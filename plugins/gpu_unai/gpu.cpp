@@ -276,7 +276,7 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 	#endif
 
 	u32 addr, *list;
-	u32 len, count;
+	u32 len, count = 0;
 	long dma_words = 0;
 
 	if (gpu_unai.dma.last_dma) *gpu_unai.dma.last_dma |= 0x800000;
@@ -284,7 +284,6 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 	gpu_unai.GPU_GP1 &= ~0x14000000;
 	
 	addr = start_addr & 0xffffff;
-	for (count = 0; addr != 0xffffff; count++)
 	{
 		list = rambase + (addr & 0x1fffff) / 4;
 		len = list[0] >> 24;
@@ -296,15 +295,9 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 		list[0] |= 0x800000;
 
 		if (len) GPU_writeDataMem(list + 1, len);
-
-		if (addr & 0x800000)
-		{
-			#ifdef ENABLE_GPU_LOG_SUPPORT
-				fprintf(stdout,"GPU_dmaChain(LOOP)\n");
-			#endif
-			break;
-		}
-	}
+		count++;
+	} while (!(addr & 0x800000)); // contrary to some documentation, the end-of-linked-list marker is not actually 0xFF'FFFF
+                                  // any pointer with bit 23 set will do.
 
 	// remove loop detection markers
 	addr = start_addr & 0x1fffff;
