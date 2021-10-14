@@ -204,12 +204,12 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_CDLeft:
-      spu.iLeftXAVol=val  & 0x7fff;
-      if(spu.cddavCallback) spu.cddavCallback(0,val);
+      spu.iLeftXAVol=(int16_t)val;
+      if(spu.cddavCallback) spu.cddavCallback(0,(int16_t)val);
       break;
     case H_CDRight:
-      spu.iRightXAVol=val & 0x7fff;
-      if(spu.cddavCallback) spu.cddavCallback(1,val);
+      spu.iRightXAVol=(int16_t)val;
+      if(spu.cddavCallback) spu.cddavCallback(1,(int16_t)val);
       break;
     //-------------------------------------------------//
     case H_FMod1:
