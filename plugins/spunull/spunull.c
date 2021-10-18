@@ -53,7 +53,7 @@ char *         pConfigFile=0;
 ////////////////////////////////////////////////////////////////////////
 
 void (CALLBACK *irqCallback)(void)=0;                   // func of main emu, called on spu irq
-void (CALLBACK *cddavCallback)(unsigned short,unsigned short)=0;
+void (CALLBACK *cddavCallback)(short, short)=0;
 
 ////////////////////////////////////////////////////////////////////////
 // CODE AREA
@@ -361,7 +361,7 @@ void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
  irqCallback = callback;
 }
 
-void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned short,unsigned short))
+void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(short, short))
 {
  cddavCallback = CDDAVcallback;
 }

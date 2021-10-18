@@ -201,7 +201,7 @@ typedef struct
  short         * pS;
 
  void (CALLBACK *irqCallback)(void);   // func of main emu, called on spu irq
- void (CALLBACK *cddavCallback)(unsigned short,unsigned short);
+ void (CALLBACK *cddavCallback)(short, short);
  void (CALLBACK *scheduleCallback)(unsigned int);
 
  xa_decode_t   * xapGlobal;

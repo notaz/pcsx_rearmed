@@ -1580,7 +1580,7 @@ void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
  spu.irqCallback = callback;
 }
 
-void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned short,unsigned short))
+void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(short, short))
 {
  spu.cddavCallback = CDDAVcallback;
 }
