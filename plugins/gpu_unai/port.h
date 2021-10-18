@@ -1,3 +1,6 @@
+#ifndef __GPU_UNAI_GPU_PORT_H__
+#define __GPU_UNAI_GPU_PORT_H__
+
 #include <stddef.h>
 #include <string.h>
 
@@ -34,3 +37,5 @@ void GPUwriteStatus(u32 data);
 #undef s32
 
 }
+
+#endif /* __GPU_UNAI_GPU_PORT_H__ */

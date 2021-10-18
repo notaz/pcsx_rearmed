@@ -43,6 +43,15 @@ static void check_mode_change(int force)
     h_out *= 2;
   }
 
+  gpu.state.downscale_active =
+    gpu.get_downscale_buffer != NULL && gpu.state.downscale_enable
+    && (w >= 512 || h >= 256);
+
+  if (gpu.state.downscale_active) {
+    w_out = w < 512 ? w : 320;
+    h_out = h < 256 ? h : h / 2;
+  }
+
   // width|rgb24 change?
   if (force || (gpu.status.reg ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
   {
@@ -68,6 +77,9 @@ void vout_update(void)
   check_mode_change(0);
   if (gpu.state.enhancement_active)
     vram = gpu.get_enhancement_bufer(&x, &y, &w, &h, &vram_h);
+
+  if (gpu.state.downscale_active)
+    vram = gpu.get_downscale_buffer(&x, &y, &w, &h, &vram_h);
 
   if (y + h > vram_h) {
     if (y + h - vram_h > h / 2) {

@@ -32,10 +32,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Blitting code with rescale and interlace support.
 
-INLINE void GPU_BlitWW(const void* src, u16* dst16, u32 isRGB24)
+INLINE void GPU_BlitWW(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 20;
@@ -85,10 +85,10 @@ INLINE void GPU_BlitWW(const void* src, u16* dst16, u32 isRGB24)
 	}
 }
 
-INLINE void GPU_BlitWWSWWSWS(const void* src, u16* dst16, u32 isRGB24)
+INLINE void GPU_BlitWWSWWSWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 32;
@@ -145,10 +145,10 @@ INLINE void GPU_BlitWWSWWSWS(const void* src, u16* dst16, u32 isRGB24)
 	}
 }
 
-INLINE void GPU_BlitWWWWWS(const void* src, u16* dst16, u32 isRGB24)
+INLINE void GPU_BlitWWWWWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 32;
@@ -201,10 +201,10 @@ INLINE void GPU_BlitWWWWWS(const void* src, u16* dst16, u32 isRGB24)
 	}
 }
 
-INLINE void GPU_BlitWWWWWWWWS(const void* src, u16* dst16, u32 isRGB24, u32 uClip_src)
+INLINE void GPU_BlitWWWWWWWWS(const void* src, u16* dst16, bool isRGB24, u32 uClip_src)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 20;
@@ -274,10 +274,10 @@ INLINE void GPU_BlitWWWWWWWWS(const void* src, u16* dst16, u32 isRGB24, u32 uCli
 	}
 }
 
-INLINE void GPU_BlitWWDWW(const void* src, u16* dst16, u32 isRGB24)
+INLINE void GPU_BlitWWDWW(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 32;
@@ -331,10 +331,10 @@ INLINE void GPU_BlitWWDWW(const void* src, u16* dst16, u32 isRGB24)
 }
 
 
-INLINE void GPU_BlitWS(const void* src, u16* dst16, u32 isRGB24)
+INLINE void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(isRGB24 == 0)
+	if(!isRGB24)
 	{
 		#ifndef USE_BGR15
 			uCount = 20;

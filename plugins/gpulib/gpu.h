@@ -8,6 +8,9 @@
  * See the COPYING file in the top-level directory.
  */
 
+#ifndef __GPULIB_GPU_H__
+#define __GPULIB_GPU_H__
+
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -68,6 +71,8 @@ struct psx_gpu {
     uint32_t blanked:1;
     uint32_t enhancement_enable:1;
     uint32_t enhancement_active:1;
+    uint32_t downscale_enable:1;
+    uint32_t downscale_active:1;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {
@@ -88,7 +93,11 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
+  uint32_t scratch_ex_regs[8]; // for threaded rendering
+  int useDithering:1; /* 0 - off , 1 - on */
   uint16_t *(*get_enhancement_bufer)
+    (int *x, int *y, int *w, int *h, int *vram_h);
+  uint16_t *(*get_downscale_buffer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);
@@ -110,6 +119,8 @@ void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);
 void renderer_notify_res_change(void);
+void renderer_notify_update_lace(int updated);
+void renderer_sync(void);
 
 int  vout_init(void);
 int  vout_finish(void);
@@ -139,3 +150,5 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* __GPULIB_GPU_H__ */

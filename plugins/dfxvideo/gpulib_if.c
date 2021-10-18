@@ -17,6 +17,22 @@
 #include <string.h>
 #include "../gpulib/gpu.h"
 
+#ifdef THREAD_RENDERING
+#include "../gpulib/gpulib_thread_if.h"
+#define do_cmd_list real_do_cmd_list
+#define renderer_init real_renderer_init
+#define renderer_finish real_renderer_finish
+#define renderer_sync_ecmds real_renderer_sync_ecmds
+#define renderer_update_caches real_renderer_update_caches
+#define renderer_flush_queues real_renderer_flush_queues
+#define renderer_set_interlace real_renderer_set_interlace
+#define renderer_set_config real_renderer_set_config
+#define renderer_notify_res_change real_renderer_notify_res_change
+#define renderer_notify_update_lace real_renderer_notify_update_lace
+#define renderer_sync real_renderer_sync
+#define ex_regs scratch_ex_regs
+#endif
+
 #define u32 uint32_t
 
 #define INFO_TW        0
@@ -309,11 +325,11 @@ void renderer_notify_res_change(void)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
+int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 {
   unsigned int cmd = 0, len;
-  unsigned int *list_start = list;
-  unsigned int *list_end = list + list_len;
+  uint32_t *list_start = list;
+  uint32_t *list_end = list + list_len;
 
   for (; list < list_end; list += 1 + len)
   {
@@ -435,4 +451,13 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
  if (cbs->pl_set_gpu_caps)
   cbs->pl_set_gpu_caps(0);
  set_vram(gpu.vram);
+}
+
+
+void renderer_sync(void)
+{
+}
+
+void renderer_notify_update_lace(int updated)
+{
 }

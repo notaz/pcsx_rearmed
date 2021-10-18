@@ -21,60 +21,73 @@
 #ifndef FIXED_H
 #define FIXED_H
 
-#include "arm_features.h"
-
 typedef s32 fixed;
 
-#ifdef GPU_TABLE_10_BITS
-#define TABLE_BITS 10
-#else
-#define TABLE_BITS 16
-#endif
-
-#define FIXED_BITS 16
+//senquack - The gpu_drhell poly routines I adapted use 22.10 fixed point,
+//           while original Unai used 16.16: (see README_senquack.txt)
+//#define FIXED_BITS 16
+#define FIXED_BITS 10
 
 #define fixed_ZERO ((fixed)0)
 #define fixed_ONE  ((fixed)1<<FIXED_BITS)
 #define fixed_TWO  ((fixed)2<<FIXED_BITS)
 #define fixed_HALF ((fixed)((1<<FIXED_BITS)>>1))
 
+#define fixed_LOMASK ((fixed)((1<<FIXED_BITS)-1))
+#define fixed_HIMASK ((fixed)(~fixed_LOMASK))
+
+// int<->fixed conversions:
+#define i2x(x) ((x)<<FIXED_BITS)
+#define x2i(x) ((x)>>FIXED_BITS)
+
+INLINE fixed FixedCeil(const fixed x)
+{
+	return (x + (fixed_ONE - 1)) & fixed_HIMASK;
+}
+
+INLINE s32 FixedCeilToInt(const fixed x)
+{
+	return (x + (fixed_ONE - 1)) >> FIXED_BITS;
+}
+
+//senquack - float<->fixed conversions:
+#define f2x(x) ((s32)((x) * (float)(1<<FIXED_BITS)))
+#define x2f(x) ((float)(x) / (float)(1<<FIXED_BITS))
+
+//senquack - floating point reciprocal:
+//NOTE: These assume x is always != 0 !!!
+#ifdef GPU_UNAI_USE_FLOATMATH
+#if defined(_MIPS_ARCH_MIPS32R2) || (__mips == 64)
+INLINE float FloatInv(const float x)
+{
+	float res;
+	asm("recip.s %0,%1" : "=f" (res) : "f" (x));
+	return res;
+}
+#else
+INLINE float FloatInv(const float x)
+{
+	return (1.0f / x);
+}
+#endif
+#endif
+
+///////////////////////////////////////////////////////////////////////////
+// --- BEGIN INVERSE APPROXIMATION SECTION ---
+///////////////////////////////////////////////////////////////////////////
+#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
+
 //  big precision inverse table.
+#define TABLE_BITS 16
 s32 s_invTable[(1<<TABLE_BITS)];
 
-INLINE  fixed i2x(const int   _x) { return  ((_x)<<FIXED_BITS); }
-INLINE  fixed x2i(const fixed _x) { return  ((_x)>>FIXED_BITS); }
-
-/*
-INLINE u32 Log2(u32 _a)
-{
-  u32 c = 0; // result of log2(v) will go here
-  if (_a & 0xFFFF0000) { _a >>= 16; c |= 16;  }
-  if (_a & 0xFF00) { _a >>= 8; c |= 8;  }
-  if (_a & 0xF0) { _a >>= 4; c |= 4;  }
-  if (_a & 0xC) { _a >>= 2; c |= 2;  }
-  if (_a & 0x2) { _a >>= 1; c |= 1;  }
-  return c;
-}
-*/
-
-#ifdef HAVE_ARMV5
+//senquack - MIPS32 happens to have same instruction/format:
+#if defined(__arm__) || (__mips == 32)
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }
 #else
 INLINE u32 Log2(u32 x) { u32 i = 0; for ( ; x > 0; ++i, x >>= 1); return i - 1; }
 #endif
 
-#ifdef GPU_TABLE_10_BITS
-INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
-{
-    u32 uD   = (_b<0) ? -_b : _b ;
-    u32 uLog = Log2(uD);
-    uLog = uLog>(TABLE_BITS-1) ? uLog-(TABLE_BITS-1) : 0;
-    u32 uDen = uD>>uLog;
-    iFactor_ = s_invTable[uDen];
-    iFactor_ = (_b<0) ? -iFactor_ :iFactor_;
-    iShift_  = 15+uLog;
-}
-#else
 INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
 {
   u32 uD = (_b<0) ? -_b : _b;
@@ -82,10 +95,12 @@ INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
   {
 	u32 uLog = Log2(uD);
     uLog = uLog>(TABLE_BITS-1) ? uLog-(TABLE_BITS-1) : 0;
-    u32 uDen = (uD>>uLog)-1;
+    u32 uDen = (uD>>uLog);
     iFactor_ = s_invTable[uDen];
     iFactor_ = (_b<0) ? -iFactor_ :iFactor_;
-    iShift_  = 15+uLog;
+    //senquack - Adapted to 22.10 fixed point (originally 16.16):
+    //iShift_  = 15+uLog;
+    iShift_  = 21+uLog;
   }
   else
   {
@@ -93,7 +108,6 @@ INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
     iShift_ = 0;
   }
 }
-#endif
 
 INLINE  fixed xInvMulx  (const fixed _a, const s32 _iFact, const s32 _iShift)
 {
@@ -112,20 +126,9 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
   xInv(_b, iFact, iShift);
   return xInvMulx(_a, iFact, iShift);
 }
-
+#endif // GPU_UNAI_USE_INT_DIV_MULTINV
 ///////////////////////////////////////////////////////////////////////////
-template<typename T>
-INLINE  T Min2 (const T _a, const T _b)             { return (_a<_b)?_a:_b; }
-
-template<typename T>
-INLINE  T Min3 (const T _a, const T _b, const T _c) { return  Min2(Min2(_a,_b),_c); }
-
+// --- END INVERSE APPROXIMATION SECTION ---
 ///////////////////////////////////////////////////////////////////////////
-template<typename T>
-INLINE  T Max2 (const T _a, const T _b)             { return  (_a>_b)?_a:_b; }
 
-template<typename T>
-INLINE  T Max3 (const T _a, const T _b, const T _c) { return  Max2(Max2(_a,_b),_c); }
-
-///////////////////////////////////////////////////////////////////////////
 #endif  //FIXED_H

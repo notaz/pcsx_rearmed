@@ -25,6 +25,22 @@ static int initialized;
 #include "psx_gpu/psx_gpu_parse.c"
 #include "../gpulib/gpu.h"
 
+#ifdef THREAD_RENDERING
+#include "../gpulib/gpulib_thread_if.h"
+#define do_cmd_list real_do_cmd_list
+#define renderer_init real_renderer_init
+#define renderer_finish real_renderer_finish
+#define renderer_sync_ecmds real_renderer_sync_ecmds
+#define renderer_update_caches real_renderer_update_caches
+#define renderer_flush_queues real_renderer_flush_queues
+#define renderer_set_interlace real_renderer_set_interlace
+#define renderer_set_config real_renderer_set_config
+#define renderer_notify_res_change real_renderer_notify_res_change
+#define renderer_notify_update_lace real_renderer_notify_update_lace
+#define renderer_sync real_renderer_sync
+#define ex_regs scratch_ex_regs
+#endif
+
 static psx_gpu_struct egpu __attribute__((aligned(256)));
 
 int do_cmd_list(uint32_t *list, int count, int *last_cmd)
@@ -184,4 +200,25 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     map_enhancement_buffer();
   if (cbs->pl_set_gpu_caps)
     cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
+    
+  egpu.use_dithering = cbs->gpu_neon.allow_dithering;
+  if(!egpu.use_dithering) {
+    egpu.dither_table[0] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[1] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[2] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[3] = dither_table_row(0, 0, 0, 0);
+  } else {
+    egpu.dither_table[0] = dither_table_row(-4, 0, -3, 1);
+    egpu.dither_table[1] = dither_table_row(2, -2, 3, -1);
+    egpu.dither_table[2] = dither_table_row(-3, 1, -4, 0);
+    egpu.dither_table[3] = dither_table_row(3, -1, 2, -2); 
+  }
+}
+
+void renderer_sync(void)
+{
+}
+
+void renderer_notify_update_lace(int updated)
+{
 }

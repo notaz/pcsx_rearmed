@@ -4003,10 +4003,10 @@ void CompressTextureSpace(void)
  int i,j,k,m,n,iMax;EXLong * ul, r,opos;
  short sOldDST=DrawSemiTrans,cx,cy;
  long  lOGTP=GlobalTexturePage;
- unsigned long l,row;
- unsigned long * lSRCPtr;
+ uint32_t l,row;
+ uint32_t * lSRCPtr;
 
- opos.l=*((unsigned long *)&gl_ux[4]);
+ opos.l=*((uint32_t *)&gl_ux[4]);
 
  // 1. mark all textures as free
  for(i=0;i<iSortTexCnt;i++)
@@ -4059,7 +4059,7 @@ void CompressTextureSpace(void)
              if(j!=2)
               {
                // palette check sum
-               l=0;lSRCPtr=(unsigned long *)(psxVuw+cx+(cy*1024));
+               l=0;lSRCPtr=(uint32_t *)(psxVuw+cx+(cy*1024));
                if(j==1) for(row=1;row<129;row++) l+=((*lSRCPtr++)-1)*row;
                else     for(row=1;row<9;row++)   l+=((*lSRCPtr++)-1)<<row;
                l=((l+HIWORD(l))&0x3fffL)<<16;
@@ -4086,7 +4086,7 @@ void CompressTextureSpace(void)
                usLRUTexPage=0;
                DrawSemiTrans=sOldDST;
                GlobalTexturePage=lOGTP;
-               *((unsigned long *)&gl_ux[4])=opos.l;
+               *((uint32_t *)&gl_ux[4])=opos.l;
                dwTexPageComp=0;
 
                return;
@@ -4094,7 +4094,7 @@ void CompressTextureSpace(void)
 
              if(tsx->ClutID&(1<<30)) DrawSemiTrans=1;
              else                    DrawSemiTrans=0;
-             *((unsigned long *)&gl_ux[4])=r.l;
+             *((uint32_t *)&gl_ux[4])=r.l;
    
              gTexName=uiStexturePage[tsx->cTexID];
              LoadSubTexFn(k,j,cx,cy);
@@ -4117,7 +4117,7 @@ void CompressTextureSpace(void)
 
  if(dwTexPageComp==0xffffffff) dwTexPageComp=0;
 
- *((unsigned long *)&gl_ux[4])=opos.l;
+ *((uint32_t *)&gl_ux[4])=opos.l;
  GlobalTexturePage=lOGTP;
  DrawSemiTrans=sOldDST;
 }

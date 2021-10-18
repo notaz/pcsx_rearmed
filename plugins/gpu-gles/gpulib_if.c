@@ -769,3 +769,11 @@ static void fps_update(void)
   DisplayText(buf, 1);
  }
 }
+
+void renderer_sync(void)
+{
+}
+
+void renderer_notify_update_lace(int updated)
+{
+}
