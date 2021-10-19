@@ -39,12 +39,12 @@ check_define_val()
 
 platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
-builtin_gpu_list="peops unai neon"
+builtin_gpu_list="peops unai neon senquack"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
-plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
+plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so plugins/gpu_senquack/gpu_senquack.so"
 ram_fixed="no"
 drc_cache_base="no"
 have_armv5=""
