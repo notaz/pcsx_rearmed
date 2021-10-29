@@ -78,6 +78,15 @@ struct rearmed_cbs {
 		int   lineskip;
 	} gpu_unai;
 	struct {
+		int ilace_force;
+		int pixel_skip;
+		int lighting;
+		int fast_lighting;
+		int blending;
+		int dithering;
+		int scale_hires;
+	} gpu_senquack;
+	struct {
 		int   dwActFixes;
 		int   bDrawDither, iFilterType, iFrameTexType;
 		int   iUseMask, bOpaquePass, bAdvancedBlend, bUseFastMdec;

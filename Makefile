@@ -129,6 +129,15 @@ plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3
 CC_LINK = $(CXX)
 endif
 
+ifeq "$(BUILTIN_GPU)" "senquack"
+OBJS += plugins/gpu_senquack/gpulib_if.o
+ifeq "$(ARCH)" "arm"
+OBJS += plugins/gpu_senquack/gpu_arm.o
+endif
+plugins/gpu_senquack/gpulib_if.o: CFLAGS += -DREARMED -O3 
+CC_LINK = $(CXX)
+endif
+
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
 ifeq "$(CHD_SUPPORT)" "1"
