@@ -43,6 +43,12 @@ char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 
 #define unused __attribute__((unused))
 
+#ifdef DRC_DBG
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
+
 extern int cycle_count;
 extern int last_count;
 extern int pcaddr;
@@ -1651,16 +1657,57 @@ static void emit_set_if_carry64_32(int u1, int l1, int u2, int l2, int rt)
   emit_cmovb_imm(1,rt);
 }
 
+#ifdef DRC_DBG
+extern void gen_interupt();
+extern void do_insn_cmp();
+#define FUNCNAME(f) { (intptr_t)f, " " #f }
+static const struct {
+  intptr_t addr;
+  const char *name;
+} function_names[] = {
+  FUNCNAME(cc_interrupt),
+  FUNCNAME(gen_interupt),
+  FUNCNAME(get_addr_ht),
+  FUNCNAME(get_addr),
+  FUNCNAME(jump_handler_read8),
+  FUNCNAME(jump_handler_read16),
+  FUNCNAME(jump_handler_read32),
+  FUNCNAME(jump_handler_write8),
+  FUNCNAME(jump_handler_write16),
+  FUNCNAME(jump_handler_write32),
+  FUNCNAME(invalidate_addr),
+  FUNCNAME(verify_code_vm),
+  FUNCNAME(verify_code),
+  FUNCNAME(jump_hlecall),
+  FUNCNAME(jump_syscall_hle),
+  FUNCNAME(new_dyna_leave),
+  FUNCNAME(pcsx_mtc0),
+  FUNCNAME(pcsx_mtc0_ds),
+  FUNCNAME(do_insn_cmp),
+};
+
+static const char *func_name(intptr_t a)
+{
+  int i;
+  for (i = 0; i < sizeof(function_names)/sizeof(function_names[0]); i++)
+    if (function_names[i].addr == a)
+      return function_names[i].name;
+  return "";
+}
+#else
+#define func_name(x) ""
+#endif
+
 static void emit_call(int a)
 {
-  assem_debug("bl %x (%x+%x)\n",a,(int)out,a-(int)out-8);
+  assem_debug("bl %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a));
   u_int offset=genjmp(a);
   output_w32(0xeb000000|offset);
 }
 
 static void emit_jmp(int a)
 {
-  assem_debug("b %x (%x+%x)\n",a,(int)out,a-(int)out-8);
+  assem_debug("b %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a));
   u_int offset=genjmp(a);
   output_w32(0xea000000|offset);
 }

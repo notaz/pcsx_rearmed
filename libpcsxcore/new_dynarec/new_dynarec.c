@@ -4263,6 +4263,28 @@ int match_bt(signed char i_regmap[],uint64_t i_is32,uint64_t i_dirty,int addr)
   return 1;
 }
 
+#ifdef DRC_DBG
+static void drc_dbg_emit_do_cmp(int i)
+{
+  extern void do_insn_cmp();
+  extern int cycle;
+  u_int hr,reglist=0;
+
+  for(hr=0;hr<HOST_REGS;hr++)
+    if(regs[i].regmap[hr]>=0) reglist|=1<<hr;
+  save_regs(reglist);
+  emit_movimm(start+i*4,0);
+  emit_writeword(0,(int)&pcaddr);
+  emit_call((int)do_insn_cmp);
+  //emit_readword((int)&cycle,0);
+  //emit_addimm(0,2,0);
+  //emit_writeword(0,(int)&cycle);
+  restore_regs(reglist);
+}
+#else
+#define drc_dbg_emit_do_cmp(x)
+#endif
+
 // Used when a branch jumps into the delay slot of another branch
 void ds_assemble_entry(int i)
 {
@@ -4270,6 +4292,7 @@ void ds_assemble_entry(int i)
   if(!instr_addr[t]) instr_addr[t]=(u_int)out;
   assem_debug("Assemble delay slot at %x\n",ba[i]);
   assem_debug("<->\n");
+  drc_dbg_emit_do_cmp(t);
   if(regs[t].regmap_entry[HOST_CCREG]==CCREG&&regs[t].regmap[HOST_CCREG]!=CCREG)
     wb_register(CCREG,regs[t].regmap_entry,regs[t].wasdirty,regs[t].was32);
   load_regs(regs[t].regmap_entry,regs[t].regmap,regs[t].was32,rs1[t],rs2[t]);
@@ -10033,6 +10056,8 @@ int new_recompile_block(int addr)
       // branch target entry point
       instr_addr[i]=(u_int)out;
       assem_debug("<->\n");
+      drc_dbg_emit_do_cmp(i);
+
       // load regs
       if(regs[i].regmap_entry[HOST_CCREG]==CCREG&&regs[i].regmap[HOST_CCREG]!=CCREG)
         wb_register(CCREG,regs[i].regmap_entry,regs[i].wasdirty,regs[i].was32);

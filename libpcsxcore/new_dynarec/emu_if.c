@@ -489,6 +489,7 @@ static u32 memcheck_read(u32 a)
 	return *(u32 *)(psxM + (a & 0x1ffffc));
 }
 
+#if 0
 void do_insn_trace(void)
 {
 	static psxRegisters oldregs;
@@ -550,6 +551,7 @@ void do_insn_trace(void)
 	}
 #endif
 }
+#endif
 
 static const char *regnames[offsetof(psxRegisters, intCycle) / 4] = {
 	"r0",  "r1",  "r2",  "r3",  "r4",  "r5",  "r6",  "r7",
