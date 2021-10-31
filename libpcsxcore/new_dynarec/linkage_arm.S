@@ -221,8 +221,8 @@ ptr_hash_table:
 	ldr	r5, [r3, r2, lsl #2]
 	ldr	r7, [r6, r4]!
 	teq	r7, r0
-	ldreq	pc, [r6, #4]
-	ldr	r7, [r6, #8]
+	ldreq	pc, [r6, #8]
+	ldr	r7, [r6, #4]
 	teq	r7, r0
 	ldreq	pc, [r6, #12]
 	/* jump_dirty lookup */
@@ -237,10 +237,10 @@ ptr_hash_table:
 	ldr	r1, [r4, #8]
 	/* hash_table insert */
 	ldr	r2, [r6]
-	ldr	r3, [r6, #4]
+	ldr	r3, [r6, #8]
 	str	r0, [r6]
-	str	r1, [r6, #4]
-	str	r2, [r6, #8]
+	str	r1, [r6, #8]
+	str	r2, [r6, #4]
 	str	r3, [r6, #12]
 	mov	pc, r1
 8:
@@ -382,8 +382,8 @@ FUNCTION(jump_vaddr):
 	and	r2, r3, r2, lsr #12
 	ldr	r2, [r1, r2]!
 	teq	r2, r0
-	ldreq	pc, [r1, #4]
-	ldr	r2, [r1, #8]
+	ldreq	pc, [r1, #8]
+	ldr	r2, [r1, #4]
 	teq	r2, r0
 	ldreq	pc, [r1, #12]
 	str	r10, [fp, #LO_cycle_count]
