@@ -1,0 +1,269 @@
+diff --git a/libpcsxcore/new_dynarec/linkage_arm.S b/libpcsxcore/new_dynarec/linkage_arm.S
+index d32dc0b..e52dde8 100644
+--- a/libpcsxcore/new_dynarec/linkage_arm.S
++++ b/libpcsxcore/new_dynarec/linkage_arm.S
+@@ -442,7 +442,7 @@ FUNCTION(cc_interrupt):
+ 	str	r1, [fp, #LO_pending_exception]
+ 	and	r2, r2, r10, lsr #17
+ 	add	r3, fp, #LO_restore_candidate
+-	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
++@@@	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
+ @@	str	r10, [fp, #LO_reg_cop0+36]	/* Count */
+ 	ldr	r4, [r2, r3]
+ 	mov	r10, lr
+@@ -530,7 +530,7 @@ FUNCTION(jump_syscall_hle):
+ 	mov	r1, #0    /* in delay slot */
+ 	add	r2, r2, r10
+ 	mov	r0, #0x20 /* cause */
+-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
++@@@	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
+ 	bl	psxException
+ 
+ 	/* note: psxException might do recursive recompiler call from it's HLE code,
+@@ -551,7 +551,7 @@ FUNCTION(jump_hlecall):
+ 	str	r0, [fp, #LO_pcaddr]
+ 	add	r2, r2, r10
+ 	adr	lr, pcsx_return
+-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
++@@@	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
+ 	bx	r1
+ 	.size	jump_hlecall, .-jump_hlecall
+ 
+@@ -561,7 +561,7 @@ FUNCTION(jump_intcall):
+ 	str	r0, [fp, #LO_pcaddr]
+ 	add	r2, r2, r10
+ 	adr	lr, pcsx_return
+-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
++@@@	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
+ 	b	execI
+ 	.size	jump_hlecall, .-jump_hlecall
+ 
+@@ -570,7 +570,7 @@ FUNCTION(new_dyna_leave):
+ 	ldr	r0, [fp, #LO_last_count]
+ 	add	r12, fp, #28
+ 	add	r10, r0, r10
+-	str	r10, [fp, #LO_cycle]
++@@@	str	r10, [fp, #LO_cycle]
+ 	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
+ 	.size	new_dyna_leave, .-new_dyna_leave
+ 
+@@ -687,7 +687,7 @@ FUNCTION(new_dyna_start):
+ 	\readop	r0, [r1, r3, lsl #\tab_shift]
+ .endif
+ 	movcc	pc, lr
+-	str	r2, [fp, #LO_cycle]
++@@@	str	r2, [fp, #LO_cycle]
+ 	bx	r1
+ .endm
+ 
+@@ -722,7 +722,7 @@ FUNCTION(jump_handler_read32):
+ 	mov     r0, r1
+ 	add	r2, r2, r12
+ 	push	{r2, lr}
+-	str	r2, [fp, #LO_cycle]
++@@@	str	r2, [fp, #LO_cycle]
+ 	blx	r3
+ 
+ 	ldr	r0, [fp, #LO_next_interupt]
+@@ -750,7 +750,7 @@ FUNCTION(jump_handler_write_h):
+ 	add	r2, r2, r12
+ 	mov     r0, r1
+ 	push	{r2, lr}
+-	str	r2, [fp, #LO_cycle]
++@@@	str	r2, [fp, #LO_cycle]
+ 	blx	r3
+ 
+ 	ldr	r0, [fp, #LO_next_interupt]
+diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
+index 6d7069d..586a6db 100644
+--- a/libpcsxcore/new_dynarec/new_dynarec.c
++++ b/libpcsxcore/new_dynarec/new_dynarec.c
+@@ -38,10 +38,10 @@ static int sceBlock;
+ #include "../psxhle.h" //emulator interface
+ #include "emu_if.h" //emulator interface
+ 
+-//#define DISASM
+-//#define assem_debug printf
++#define DISASM
++#define assem_debug printf
+ //#define inv_debug printf
+-#define assem_debug(...)
++//#define assem_debug(...)
+ #define inv_debug(...)
+ 
+ #ifdef __i386__
+@@ -362,6 +362,9 @@ static u_int get_vpage(u_int vaddr)
+ // This is called from the recompiled JR/JALR instructions
+ void *get_addr(u_int vaddr)
+ {
++#ifdef DRC_DBG
++printf("get_addr %08x, pc=%08x\n", vaddr, psxRegs.pc);
++#endif
+   u_int page=get_page(vaddr);
+   u_int vpage=get_vpage(vaddr);
+   struct ll_entry *head;
+@@ -4403,13 +4406,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
+     }
+     emit_addimm_and_set_flags(cycles,HOST_CCREG);
+     jaddr=(int)out;
+-    emit_jns(0);
++//    emit_jns(0);
++emit_jmp(0);
+   }
+   else
+   {
+     emit_cmpimm(HOST_CCREG,-CLOCK_ADJUST(count+2));
+     jaddr=(int)out;
+-    emit_jns(0);
++//    emit_jns(0);
++emit_jmp(0);
+   }
+   add_stub(CC_STUB,jaddr,idle?idle:(int)out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
+ }
+@@ -4884,7 +4889,8 @@ void rjump_assemble(int i,struct regstat *i_regs)
+     // special case for RFE
+     emit_jmp(0);
+   else
+-    emit_jns(0);
++    //emit_jns(0);
++    emit_jmp(0);
+   //load_regs_bt(branch_regs[i].regmap,branch_regs[i].is32,branch_regs[i].dirty,-1);
+   #ifdef USE_MINI_HT
+   if(rs1[i]==31) {
+@@ -5034,7 +5040,8 @@ void cjump_assemble(int i,struct regstat *i_regs)
+     else if(nop) {
+       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
+       int jaddr=(int)out;
+-      emit_jns(0);
++//      emit_jns(0);
++emit_jmp(0);
+       add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+     }
+     else {
+@@ -5300,7 +5307,8 @@ void cjump_assemble(int i,struct regstat *i_regs)
+         emit_loadreg(CCREG,HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+         emit_storereg(CCREG,HOST_CCREG);
+       }
+@@ -5309,7 +5317,8 @@ void cjump_assemble(int i,struct regstat *i_regs)
+         assert(cc==HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+       }
+     }
+@@ -5419,7 +5428,8 @@ void sjump_assemble(int i,struct regstat *i_regs)
+     else if(nevertaken) {
+       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
+       int jaddr=(int)out;
+-      emit_jns(0);
++//      emit_jns(0);
++emit_jmp(0);
+       add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+     }
+     else {
+@@ -5628,7 +5638,8 @@ void sjump_assemble(int i,struct regstat *i_regs)
+         emit_loadreg(CCREG,HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+         emit_storereg(CCREG,HOST_CCREG);
+       }
+@@ -5637,7 +5648,8 @@ void sjump_assemble(int i,struct regstat *i_regs)
+         assert(cc==HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+       }
+     }
+@@ -5833,7 +5845,8 @@ void fjump_assemble(int i,struct regstat *i_regs)
+         emit_loadreg(CCREG,HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+         emit_storereg(CCREG,HOST_CCREG);
+       }
+@@ -5842,7 +5855,8 @@ void fjump_assemble(int i,struct regstat *i_regs)
+         assert(cc==HOST_CCREG);
+         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
+         int jaddr=(int)out;
+-        emit_jns(0);
++//        emit_jns(0);
++emit_jmp(0);
+         add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+       }
+     }
+@@ -6463,7 +6477,7 @@ void unneeded_registers(int istart,int iend,int r)
+     // R0 is always unneeded
+     u|=1;uu|=1;
+     // Save it
+-    unneeded_reg[i]=u;
++    unneeded_reg[i]=1;//u;
+     unneeded_reg_upper[i]=uu;
+     gte_unneeded[i]=gte_u;
+     /*
+@@ -9676,6 +9690,7 @@ int new_recompile_block(int addr)
+ 
+   // This allocates registers (if possible) one instruction prior
+   // to use, which can avoid a load-use penalty on certain CPUs.
++#if 0
+   for(i=0;i<slen-1;i++)
+   {
+     if(!i||(itype[i-1]!=UJUMP&&itype[i-1]!=CJUMP&&itype[i-1]!=SJUMP&&itype[i-1]!=RJUMP&&itype[i-1]!=FJUMP))
+@@ -9832,6 +9847,7 @@ int new_recompile_block(int addr)
+       }
+     }
+   }
++#endif
+ 
+   /* Pass 6 - Optimize clean/dirty state */
+   clean_registers(0,slen-1,1);
+@@ -10149,6 +10165,11 @@ int new_recompile_block(int addr)
+         case SPAN:
+           pagespan_assemble(i,&regs[i]);break;
+       }
++
++#ifdef DRC_DBG
++      if(itype[i]!=UJUMP&&itype[i]!=CJUMP&&itype[i]!=SJUMP&&itype[i]!=RJUMP)
++        wb_dirtys(regs[i].regmap,regs[i].is32,regs[i].dirty);
++#endif
+       if(itype[i]==UJUMP||itype[i]==RJUMP||(source[i]>>16)==0x1000)
+         literal_pool(1024);
+       else
+@@ -10256,7 +10277,7 @@ int new_recompile_block(int addr)
+     }
+   }
+   // External Branch Targets (jump_in)
+-  if(copy+slen*4>(void *)shadow+sizeof(shadow)) copy=shadow;
++  if(copy+slen*4>(void *)shadow+sizeof(shadow)) {copy=shadow;printf("shadow overflow\n");}
+   for(i=0;i<slen;i++)
+   {
+     if(bt[i]||i==0)
+@@ -10370,6 +10391,10 @@ int new_recompile_block(int addr)
+     }
+     expirep=(expirep+1)&65535;
+   }
++#ifdef DRC_DBG
++printf("new_recompile_block done\n");
++fflush(stdout);
++#endif
+   return 0;
+ }
+ 
