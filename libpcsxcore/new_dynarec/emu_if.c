@@ -25,7 +25,6 @@
 #define evprintf(...)
 
 char invalid_code[0x100000];
-static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 u32 event_cycles[PSXINT_COUNT];
 
 static void schedule_timeslice(void)
@@ -191,6 +190,8 @@ void new_dyna_freeze(void *f, int mode)
 	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");
 }
 
+#ifndef DRC_DISABLE
+
 /* GTE stuff */
 void *gte_handlers[64];
 
@@ -303,6 +304,7 @@ const uint64_t gte_reg_writes[64] = {
 
 static int ari64_init()
 {
+	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
 	extern unsigned char *out;
@@ -417,25 +419,11 @@ static void ari64_shutdown()
 	new_dyna_pcsx_mem_shutdown();
 }
 
-extern void intExecute();
-extern void intExecuteT();
-extern void intExecuteBlock();
-extern void intExecuteBlockT();
-#ifndef DRC_DBG
-#define intExecuteT intExecute
-#define intExecuteBlockT intExecuteBlock
-#endif
-
 R3000Acpu psxRec = {
 	ari64_init,
 	ari64_reset,
-#ifndef DRC_DISABLE
 	ari64_execute,
 	ari64_execute_until,
-#else
-	intExecuteT,
-	intExecuteBlockT,
-#endif
 	ari64_clear,
 #ifdef ICACHE_EMULATION
 	ari64_notify,
@@ -443,13 +431,8 @@ R3000Acpu psxRec = {
 	ari64_shutdown
 };
 
-// TODO: rm
-#ifndef DRC_DBG
-void do_insn_trace() {}
-void do_insn_cmp() {}
-#endif
+#else // if DRC_DISABLE
 
-#ifdef DRC_DISABLE
 unsigned int address;
 int pending_exception, stop;
 unsigned int next_interupt;
@@ -462,7 +445,7 @@ u8 zero_mem[0x1000];
 unsigned char *out;
 void *mem_rtab;
 void *scratch_buf_ptr;
-void new_dynarec_init() { (void)ari64_execute; }
+void new_dynarec_init() {}
 void new_dyna_start() {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}
