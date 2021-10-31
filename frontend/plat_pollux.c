@@ -555,7 +555,7 @@ void plat_init(void)
 	memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
 
 	pollux_changemode(16, 0);
-	g_menuscreen_w = 320;
+	g_menuscreen_w = g_menuscreen_pp = 320;
 	g_menuscreen_h = 240;
 	g_menuscreen_ptr = fb_flip();
 

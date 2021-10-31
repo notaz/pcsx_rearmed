@@ -1,9 +1,9 @@
 [submodule "libpicofe"]
 	path = frontend/libpicofe
-	url = git://notaz.gp2x.de/~notaz/libpicofe.git
+	url = https://github.com/notaz/libpicofe.git
 [submodule "warm"]
 	path = frontend/warm
-	url = git://notaz.gp2x.de/~notaz/warm.git
+	url = https://github.com/notaz/warm.git
 [submodule "libchdr"]
 	path = libchdr
 	url = https://github.com/rtissera/libchdr.git

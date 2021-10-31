@@ -222,6 +222,7 @@ ifeq "$(USE_PLUGIN_LIB)" "1"
 OBJS += frontend/plugin_lib.o
 OBJS += frontend/libpicofe/linux/plat.o
 OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
+frontend/libpicofe/linux/plat.o: CFLAGS += -DNO_HOME_DIR
 ifeq "$(HAVE_NEON)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o
