@@ -2032,10 +2032,10 @@ void psxBios_UnDeliverEvent() { // 0x20
 
 char ffile[64], *pfile;
 int nfile;
-static void buopen(int mcd, u8 *ptr, u8 *cfg)
+static void buopen(int mcd, char *ptr, char *cfg)
 {
 	int i;
-	u8 *fptr = ptr;
+	char *fptr = ptr;
 
 	strcpy(FDesc[1 + mcd].name, Ra0+5);
 	FDesc[1 + mcd].offset = 0;
@@ -2066,7 +2066,7 @@ static void buopen(int mcd, u8 *ptr, u8 *cfg)
 			fptr[6] = 0x00;
 			fptr[7] = 0x00;
 			strcpy(fptr+0xa, FDesc[1 + mcd].name);
-			pptr = fptr2 = fptr;
+			pptr = fptr2 = (u8 *)fptr;
 			for(j=2; j<=nblk; j++) {
 				int k;
 				for(i++; i<16; i++) {

@@ -1256,10 +1256,11 @@ static const char h_scaler[]    = "int. 2x  - scales w. or h. 2x if it fits on s
 				  "int. 4:3 - uses integer if possible, else fractional";
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
-static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
-static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
+#ifdef __ARM_NEON__
+static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
+#endif
 
 static int menu_loop_cscaler(int id, int keys)
 {
@@ -1579,10 +1580,10 @@ static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running to
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
-static const char h_cfg_sio[]    = "You should not need this, breaks games";
+//static const char h_cfg_sio[]    = "You should not need this, breaks games";
 static const char h_cfg_spuirq[] = "Compatibility tweak; should be left off";
-static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
-				   "(timing hack, breaks other games)";
+//static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
+//				   "(timing hack, breaks other games)";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"

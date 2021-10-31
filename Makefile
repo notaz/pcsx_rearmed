@@ -290,6 +290,12 @@ endif
 
 .PHONY: all clean target_ plugins_ clean_plugins FORCE
 
+ifneq "$(PLATFORM)" "pandora"
+ifdef CPATH
+$(warning warning: CPATH is defined)
+endif
+endif
+
 # ----------- release -----------
 
 VER ?= $(shell git describe HEAD)
