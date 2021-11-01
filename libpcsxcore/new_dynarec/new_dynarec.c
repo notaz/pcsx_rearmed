@@ -38,6 +38,10 @@ static int sceBlock;
 #include "../psxhle.h" //emulator interface
 #include "emu_if.h" //emulator interface
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#endif
+
 //#define DISASM
 //#define assem_debug printf
 //#define inv_debug printf
@@ -56,6 +60,24 @@ static int sceBlock;
 
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
+
+// stubs
+enum stub_type {
+  CC_STUB = 1,
+  FP_STUB = 2,
+  LOADB_STUB = 3,
+  LOADH_STUB = 4,
+  LOADW_STUB = 5,
+  LOADD_STUB = 6,
+  LOADBU_STUB = 7,
+  LOADHU_STUB = 8,
+  STOREB_STUB = 9,
+  STOREH_STUB = 10,
+  STOREW_STUB = 11,
+  STORED_STUB = 12,
+  STORELR_STUB = 13,
+  INVCODE_STUB = 14,
+};
 
 struct regstat
 {
@@ -86,6 +108,18 @@ struct ht_entry
 {
   u_int vaddr[2];
   void *tcaddr[2];
+};
+
+struct code_stub
+{
+  enum stub_type type;
+  void *addr;
+  void *retaddr;
+  u_int a;
+  uintptr_t b;
+  uintptr_t c;
+  u_int d;
+  u_int e;
 };
 
   // used by asm:
@@ -142,7 +176,7 @@ struct ht_entry
   static void *instr_addr[MAXBLOCK];
   static u_int link_addr[MAXBLOCK][3];
   static int linkcount;
-  static u_int stubs[MAXBLOCK*3][8];
+  static struct code_stub stubs[MAXBLOCK*3];
   static int stubcount;
   static u_int literals[1024][2];
   static int literalcount;
@@ -220,22 +254,6 @@ struct ht_entry
 #define C2OP 29   // Coprocessor 2 operation
 #define INTCALL 30// Call interpreter to handle rare corner cases
 
-  /* stubs */
-#define CC_STUB 1
-#define FP_STUB 2
-#define LOADB_STUB 3
-#define LOADH_STUB 4
-#define LOADW_STUB 5
-#define LOADD_STUB 6
-#define LOADBU_STUB 7
-#define LOADHU_STUB 8
-#define STOREB_STUB 9
-#define STOREH_STUB 10
-#define STOREW_STUB 11
-#define STORED_STUB 12
-#define STORELR_STUB 13
-#define INVCODE_STUB 14
-
   /* branch codes */
 #define TAKEN 1
 #define NOTTAKEN 2
@@ -271,7 +289,10 @@ static void load_all_consts(signed char regmap[],int is32,u_int dirty,int i);
 
 static int verify_dirty(u_int *ptr);
 static int get_final_value(int hr, int i, int *value);
-static void add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e);
+static void add_stub(enum stub_type type, void *addr, void *retaddr,
+  u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
+static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
+  int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(int addr,int target,int ext);
 
 static int tracedebug=0;
@@ -815,7 +836,7 @@ void *check_addr(u_int vaddr)
 {
   struct ht_entry *ht_bin = hash_table_get(vaddr);
   size_t i;
-  for (i = 0; i < sizeof(ht_bin->vaddr)/sizeof(ht_bin->vaddr[0]); i++) {
+  for (i = 0; i < ARRAY_SIZE(ht_bin->vaddr); i++) {
     if (ht_bin->vaddr[i] == vaddr)
       if (doesnt_expire_soon((u_char *)ht_bin->tcaddr[i] - MAX_OUTPUT_BLOCK_SIZE))
         if (isclean(ht_bin->tcaddr[i]))
@@ -1831,17 +1852,25 @@ static void pagespan_alloc(struct regstat *current,int i)
   //else ...
 }
 
-static void add_stub(int type,int addr,int retaddr,int a,int b,int c,int d,int e)
+static void add_stub(enum stub_type type, void *addr, void *retaddr,
+  u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e)
 {
-  stubs[stubcount][0]=type;
-  stubs[stubcount][1]=addr;
-  stubs[stubcount][2]=retaddr;
-  stubs[stubcount][3]=a;
-  stubs[stubcount][4]=b;
-  stubs[stubcount][5]=c;
-  stubs[stubcount][6]=d;
-  stubs[stubcount][7]=e;
+  assert(a < ARRAY_SIZE(stubs));
+  stubs[stubcount].type = type;
+  stubs[stubcount].addr = addr;
+  stubs[stubcount].retaddr = retaddr;
+  stubs[stubcount].a = a;
+  stubs[stubcount].b = b;
+  stubs[stubcount].c = c;
+  stubs[stubcount].d = d;
+  stubs[stubcount].e = e;
   stubcount++;
+}
+
+static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
+  int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist)
+{
+  add_stub(type, addr, retaddr, i, addr_reg, (uintptr_t)i_regs, ccadj, reglist);
 }
 
 // Write out a single register
@@ -2591,7 +2620,7 @@ void load_assemble(int i,struct regstat *i_regs)
 {
   int s,th,tl,addr,map=-1;
   int offset;
-  int jaddr=0;
+  void *jaddr=0;
   int memtarget=0,c=0;
   int fastload_reg_override=0;
   u_int hr,reglist=0;
@@ -2671,7 +2700,7 @@ void load_assemble(int i,struct regstat *i_regs)
         }
       }
       if(jaddr)
-        add_stub(LOADB_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADB_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADB_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2708,7 +2737,7 @@ void load_assemble(int i,struct regstat *i_regs)
         }
       }
       if(jaddr)
-        add_stub(LOADH_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADH_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADH_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2727,7 +2756,7 @@ void load_assemble(int i,struct regstat *i_regs)
         emit_readword_indexed_tlb(0,a,map,tl);
       }
       if(jaddr)
-        add_stub(LOADW_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2756,7 +2785,7 @@ void load_assemble(int i,struct regstat *i_regs)
         }
       }
       if(jaddr)
-        add_stub(LOADBU_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADBU_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADBU_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2793,7 +2822,7 @@ void load_assemble(int i,struct regstat *i_regs)
         }
       }
       if(jaddr)
-        add_stub(LOADHU_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADHU_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADHU_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2813,7 +2842,7 @@ void load_assemble(int i,struct regstat *i_regs)
         emit_readword_indexed_tlb(0,a,map,tl);
       }
       if(jaddr)
-        add_stub(LOADW_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else {
       inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2835,7 +2864,7 @@ void load_assemble(int i,struct regstat *i_regs)
         emit_readdword_indexed_tlb(0,a,map,th,tl);
       }
       if(jaddr)
-        add_stub(LOADD_STUB,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+        add_stub_r(LOADD_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADD_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
@@ -2885,7 +2914,8 @@ void store_assemble(int i,struct regstat *i_regs)
   int s,th,tl,map=-1;
   int addr,temp;
   int offset;
-  int jaddr=0,type;
+  void *jaddr=0;
+  enum stub_type type;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
   int faststore_reg_override=0;
@@ -2984,7 +3014,7 @@ void store_assemble(int i,struct regstat *i_regs)
   if(jaddr) {
     // PCSX store handlers don't check invcode again
     reglist|=1<<addr;
-    add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+    add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     jaddr=0;
   }
   if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
@@ -3004,15 +3034,15 @@ void store_assemble(int i,struct regstat *i_regs)
       #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
       emit_callne(invalidate_addr_reg[addr]);
       #else
-      int jaddr2=(int)out;
+      void *jaddr2 = out;
       emit_jne(0);
-      add_stub(INVCODE_STUB,jaddr2,(int)out,reglist|(1<<HOST_CCREG),addr,0,0,0);
+      add_stub(INVCODE_STUB,jaddr2,out,reglist|(1<<HOST_CCREG),addr,0,0,0);
       #endif
     }
   }
   u_int addr_val=constmap[i][s]+offset;
   if(jaddr) {
-    add_stub(type,jaddr,(int)out,i,addr,(int)i_regs,ccadj[i],reglist);
+    add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
   } else if(c&&!memtarget) {
     inline_writestub(type,i,addr_val,i_regs->regmap,rs2[i],ccadj[i],reglist);
   }
@@ -3026,7 +3056,7 @@ void store_assemble(int i,struct regstat *i_regs)
       wb_dirtys(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty);
       emit_movimm(start+i*4+4,0);
       emit_writeword(0,(int)&pcaddr);
-      emit_jmp((int)do_interrupt);
+      emit_jmp(do_interrupt);
     }
   }
   //if(opcode[i]==0x2B || opcode[i]==0x3F)
@@ -3074,7 +3104,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
   int temp;
   int temp2=-1;
   int offset;
-  int jaddr=0;
+  void *jaddr=0;
   void *case1, *case2, *case3;
   void *done0, *done1, *done2;
   int memtarget=0,c=0;
@@ -3100,13 +3130,13 @@ void storelr_assemble(int i,struct regstat *i_regs)
   if(!c) {
     emit_cmpimm(s<0||offset?temp:s,RAM_SIZE);
     if(!offset&&s!=temp) emit_mov(s,temp);
-    jaddr=(int)out;
+    jaddr=out;
     emit_jno(0);
   }
   else
   {
     if(!memtarget||!rs1[i]) {
-      jaddr=(int)out;
+      jaddr=out;
       emit_jmp(0);
     }
   }
@@ -3258,7 +3288,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
     set_jump_target(done0, out);
   }
   if(!c||!memtarget)
-    add_stub(STORELR_STUB,jaddr,(int)out,i,(int)i_regs,temp,ccadj[i],reglist);
+    add_stub_r(STORELR_STUB,jaddr,out,i,temp,i_regs,ccadj[i],reglist);
   if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
     #ifdef RAM_OFFSET
     int map=get_reg(i_regs->regmap,ROREG);
@@ -3277,9 +3307,9 @@ void storelr_assemble(int i,struct regstat *i_regs)
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[temp]);
     #else
-    int jaddr2=(int)out;
+    void *jaddr2 = out;
     emit_jne(0);
-    add_stub(INVCODE_STUB,jaddr2,(int)out,reglist|(1<<HOST_CCREG),temp,0,0,0);
+    add_stub(INVCODE_STUB,jaddr2,out,reglist|(1<<HOST_CCREG),temp,0,0,0);
     #endif
   }
   /*
@@ -3308,7 +3338,8 @@ void c2ls_assemble(int i,struct regstat *i_regs)
   int ar;
   int offset;
   int memtarget=0,c=0;
-  int jaddr2=0,type;
+  void *jaddr2=NULL;
+  enum stub_type type;
   int agr=AGEN1+(i&1);
   int fastio_reg_override=0;
   u_int hr,reglist=0;
@@ -3346,7 +3377,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
     type=LOADW_STUB;
 
   if(c&&!memtarget) {
-    jaddr2=(int)out;
+    jaddr2=out;
     emit_jmp(0); // inline_readstub/inline_writestub?
   }
   else {
@@ -3376,7 +3407,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
     }
   }
   if(jaddr2)
-    add_stub(type,jaddr2,(int)out,i,ar,(int)i_regs,ccadj[i],reglist);
+    add_stub_r(type,jaddr2,out,i,ar,i_regs,ccadj[i],reglist);
   if(opcode[i]==0x3a) // SWC2
   if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
 #if defined(HOST_IMM8)
@@ -3389,9 +3420,9 @@ void c2ls_assemble(int i,struct regstat *i_regs)
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[ar]);
     #else
-    int jaddr3=(int)out;
+    void *jaddr3 = out;
     emit_jne(0);
-    add_stub(INVCODE_STUB,jaddr3,(int)out,reglist|(1<<HOST_CCREG),ar,0,0,0);
+    add_stub(INVCODE_STUB,jaddr3,out,reglist|(1<<HOST_CCREG),ar,0,0,0);
     #endif
   }
   if (opcode[i]==0x32) { // LWC2
@@ -3453,7 +3484,7 @@ void syscall_assemble(int i,struct regstat *i_regs)
   (void)ccreg;
   emit_movimm(start+i*4,EAX); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
-  emit_jmp((int)jump_syscall_hle); // XXX
+  emit_jmp(jump_syscall_hle); // XXX
 }
 
 void hlecall_assemble(int i,struct regstat *i_regs)
@@ -3465,12 +3496,12 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   (void)ccreg;
   emit_movimm(start+i*4+4,0); // Get PC
   uint32_t hleCode = source[i] & 0x03ffffff;
-  if (hleCode >= (sizeof(psxHLEt) / sizeof(psxHLEt[0])))
+  if (hleCode >= ARRAY_SIZE(psxHLEt))
     emit_movimm((int)psxNULL,1);
   else
     emit_movimm((int)psxHLEt[hleCode],1);
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // XXX
-  emit_jmp((int)jump_hlecall);
+  emit_jmp(jump_hlecall);
 }
 
 void intcall_assemble(int i,struct regstat *i_regs)
@@ -3481,7 +3512,7 @@ void intcall_assemble(int i,struct regstat *i_regs)
   (void)ccreg;
   emit_movimm(start+i*4,0); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG);
-  emit_jmp((int)jump_intcall);
+  emit_jmp(jump_intcall);
 }
 
 void ds_assemble(int i,struct regstat *i_regs)
@@ -4383,8 +4414,8 @@ void ds_assemble_entry(int i)
 void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
 {
   int count;
-  int jaddr;
-  int idle=0;
+  void *jaddr;
+  void *idle=NULL;
   int t=0;
   if(itype[i]==RJUMP)
   {
@@ -4405,10 +4436,10 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
   if(taken==TAKEN && i==(ba[i]-start)>>2 && source[i+1]==0) {
     // Idle loop
     if(count&1) emit_addimm_and_set_flags(2*(count+2),HOST_CCREG);
-    idle=(int)out;
+    idle=out;
     //emit_subfrommem(&idlecount,HOST_CCREG); // Count idle cycles
     emit_andimm(HOST_CCREG,3,HOST_CCREG);
-    jaddr=(int)out;
+    jaddr=out;
     emit_jmp(0);
   }
   else if(*adj==0||invert) {
@@ -4420,39 +4451,39 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
         cycles=CLOCK_ADJUST(*adj)+count+2-*adj;
     }
     emit_addimm_and_set_flags(cycles,HOST_CCREG);
-    jaddr=(int)out;
+    jaddr=out;
     emit_jns(0);
   }
   else
   {
     emit_cmpimm(HOST_CCREG,-CLOCK_ADJUST(count+2));
-    jaddr=(int)out;
+    jaddr=out;
     emit_jns(0);
   }
-  add_stub(CC_STUB,jaddr,idle?idle:(int)out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
+  add_stub(CC_STUB,jaddr,idle?idle:out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
 }
 
-void do_ccstub(int n)
+static void do_ccstub(int n)
 {
   literal_pool(256);
-  assem_debug("do_ccstub %x\n",start+stubs[n][4]*4);
-  set_jump_target(stubs[n][1], out);
-  int i=stubs[n][4];
-  if(stubs[n][6]==NULLDS) {
+  assem_debug("do_ccstub %x\n",start+stubs[n].b*4);
+  set_jump_target(stubs[n].addr, out);
+  int i=stubs[n].b;
+  if(stubs[n].d==NULLDS) {
     // Delay slot instruction is nullified ("likely" branch)
     wb_dirtys(regs[i].regmap,regs[i].is32,regs[i].dirty);
   }
-  else if(stubs[n][6]!=TAKEN) {
+  else if(stubs[n].d!=TAKEN) {
     wb_dirtys(branch_regs[i].regmap,branch_regs[i].is32,branch_regs[i].dirty);
   }
   else {
     if(internal_branch(branch_regs[i].is32,ba[i]))
       wb_needed_dirtys(branch_regs[i].regmap,branch_regs[i].is32,branch_regs[i].dirty,ba[i]);
   }
-  if(stubs[n][5]!=-1)
+  if(stubs[n].c!=-1)
   {
     // Save PC as return address
-    emit_movimm(stubs[n][5],EAX);
+    emit_movimm(stubs[n].c,EAX);
     emit_writeword(EAX,(int)&pcaddr);
   }
   else
@@ -4649,10 +4680,10 @@ void do_ccstub(int n)
   }
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
-  if(stubs[n][3]) emit_addimm(HOST_CCREG,CLOCK_ADJUST((int)stubs[n][3]),HOST_CCREG);
+  if(stubs[n].a) emit_addimm(HOST_CCREG,CLOCK_ADJUST((int)stubs[n].a),HOST_CCREG);
   emit_call((int)cc_interrupt);
-  if(stubs[n][3]) emit_addimm(HOST_CCREG,-CLOCK_ADJUST((int)stubs[n][3]),HOST_CCREG);
-  if(stubs[n][6]==TAKEN) {
+  if(stubs[n].a) emit_addimm(HOST_CCREG,-CLOCK_ADJUST((int)stubs[n].a),HOST_CCREG);
+  if(stubs[n].d==TAKEN) {
     if(internal_branch(branch_regs[i].is32,ba[i]))
       load_needed_regs(branch_regs[i].regmap,regs[(ba[i]-start)>>2].regmap_entry);
     else if(itype[i]==RJUMP) {
@@ -4661,17 +4692,17 @@ void do_ccstub(int n)
       else
         emit_loadreg(rs1[i],get_reg(branch_regs[i].regmap,rs1[i]));
     }
-  }else if(stubs[n][6]==NOTTAKEN) {
+  }else if(stubs[n].d==NOTTAKEN) {
     if(i<slen-2) load_needed_regs(branch_regs[i].regmap,regmap_pre[i+2]);
     else load_all_regs(branch_regs[i].regmap);
-  }else if(stubs[n][6]==NULLDS) {
+  }else if(stubs[n].d==NULLDS) {
     // Delay slot instruction is nullified ("likely" branch)
     if(i<slen-2) load_needed_regs(regs[i].regmap,regmap_pre[i+2]);
     else load_all_regs(regs[i].regmap);
   }else{
     load_all_regs(branch_regs[i].regmap);
   }
-  emit_jmp(stubs[n][2]); // return address
+  emit_jmp(stubs[n].retaddr);
 
   /* This works but uses a lot of memory...
   emit_readword((int)&last_count,ECX);
@@ -4686,9 +4717,9 @@ void do_ccstub(int n)
   emit_test(EBX,EBX);
   int jne_instr=(int)out;
   emit_jne(0);
-  if(stubs[n][3]) emit_addimm(HOST_CCREG,-2*stubs[n][3],HOST_CCREG);
+  if(stubs[n].a) emit_addimm(HOST_CCREG,-2*stubs[n].a,HOST_CCREG);
   load_all_regs(branch_regs[i].regmap);
-  emit_jmp(stubs[n][2]); // return address
+  emit_jmp(stubs[n].retaddr); // return address
   set_jump_target(jne_instr,(int)out);
   emit_readword((int)&pcaddr,EAX);
   // Call get_addr_ht instead of doing the hash table here.
@@ -4897,7 +4928,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
   //if(adj) emit_addimm(cc,2*(ccadj[i]+2-adj),cc); // ??? - Shouldn't happen
   //assert(adj==0);
   emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-  add_stub(CC_STUB,(int)out,jump_vaddr_reg[rs],0,i,-1,TAKEN,0);
+  add_stub(CC_STUB,out,jump_vaddr_reg[rs],0,i,-1,TAKEN,0);
   if(itype[i+1]==COP0&&(source[i+1]&0x3f)==0x10)
     // special case for RFE
     emit_jmp(0);
@@ -4912,7 +4943,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
   #endif
   {
     //if(rs!=EAX) emit_mov(rs,EAX);
-    //emit_jmp((int)jump_vaddr_eax);
+    //emit_jmp(jump_vaddr_eax);
     emit_jmp(jump_vaddr_reg[rs]);
   }
   /* Check hash table
@@ -5051,9 +5082,9 @@ void cjump_assemble(int i,struct regstat *i_regs)
     }
     else if(nop) {
       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-      int jaddr=(int)out;
+      void *jaddr=out;
       emit_jns(0);
-      add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+      add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
     }
     else {
       void *taken = NULL, *nottaken = NULL, *nottaken1 = NULL;
@@ -5317,18 +5348,18 @@ void cjump_assemble(int i,struct regstat *i_regs)
         // Cycle count isn't in a register, temporarily load it then write it out
         emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
         emit_storereg(CCREG,HOST_CCREG);
       }
       else{
         cc=get_reg(i_regmap,CCREG);
         assert(cc==HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
       }
     }
   }
@@ -5436,9 +5467,9 @@ void sjump_assemble(int i,struct regstat *i_regs)
     }
     else if(nevertaken) {
       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-      int jaddr=(int)out;
+      void *jaddr=out;
       emit_jns(0);
-      add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+      add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
     }
     else {
       void *nottaken = NULL;
@@ -5645,18 +5676,18 @@ void sjump_assemble(int i,struct regstat *i_regs)
         // Cycle count isn't in a register, temporarily load it then write it out
         emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
         emit_storereg(CCREG,HOST_CCREG);
       }
       else{
         cc=get_reg(i_regmap,CCREG);
         assert(cc==HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
       }
     }
   }
@@ -5670,7 +5701,7 @@ void fjump_assemble(int i,struct regstat *i_regs)
   match=match_bt(branch_regs[i].regmap,branch_regs[i].is32,branch_regs[i].dirty,ba[i]);
   assem_debug("fmatch=%d\n",match);
   int fs,cs;
-  int eaddr;
+  void *eaddr;
   int invert=0;
   int internal=internal_branch(branch_regs[i].is32,ba[i]);
   if(i==(ba[i]-start)>>2) assem_debug("idle loop\n");
@@ -5692,9 +5723,9 @@ void fjump_assemble(int i,struct regstat *i_regs)
     cs=get_reg(i_regmap,CSREG);
     assert(cs>=0);
     emit_testimm(cs,0x20000000);
-    eaddr=(int)out;
+    eaddr=out;
     emit_jeq(0);
-    add_stub(FP_STUB,eaddr,(int)out,i,cs,(int)i_regs,0,0);
+    add_stub_r(FP_STUB,eaddr,out,i,cs,i_regs,0,0);
     cop1_usable=1;
   }
 
@@ -5850,18 +5881,18 @@ void fjump_assemble(int i,struct regstat *i_regs)
         // Cycle count isn't in a register, temporarily load it then write it out
         emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
         emit_storereg(CCREG,HOST_CCREG);
       }
       else{
         cc=get_reg(i_regmap,CCREG);
         assert(cc==HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-        int jaddr=(int)out;
+        void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,(int)out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
       }
     }
   }
@@ -7220,7 +7251,7 @@ int new_dynarec_save_blocks(void *save, int size)
   u_int addr;
 
   o = 0;
-  for (p = 0; p < sizeof(jump_in) / sizeof(jump_in[0]); p++) {
+  for (p = 0; p < ARRAY_SIZE(jump_in); p++) {
     bcnt = 0;
     for (head = jump_in[p]; head != NULL; head = head->next) {
       tmp_blocks[bcnt].addr = head->vaddr;
@@ -7316,7 +7347,7 @@ int new_recompile_block(int addr)
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,(int)&pcaddr);
-    emit_jmp((int)new_dyna_leave);
+    emit_jmp(new_dyna_leave);
     literal_pool(0);
     end_block(beginning);
     ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
@@ -10216,7 +10247,7 @@ int new_recompile_block(int addr)
   // Stubs
   for(i=0;i<stubcount;i++)
   {
-    switch(stubs[i][0])
+    switch(stubs[i].type)
     {
       case LOADB_STUB:
       case LOADH_STUB:
