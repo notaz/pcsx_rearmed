@@ -86,6 +86,7 @@ extern void *zeromem_ptr;
 extern void *scratch_buf_ptr;
 
 // same as invalid_code, just a region for ram write checks (inclusive)
+// (psx/guest address range)
 extern u32 inv_code_start, inv_code_end;
 
 /* cycles/irqs */
@@ -100,7 +101,7 @@ void pcsx_mtc0_ds(u32 reg, u32 val);
 extern void SysPrintf(const char *fmt, ...);
 
 #ifdef RAM_FIXED
-#define rdram ((u_int)0x80000000)
+#define rdram ((u_char *)0x80000000)
 #else
-#define rdram ((u_int)psxM)
+#define rdram ((u_char *)psxM)
 #endif

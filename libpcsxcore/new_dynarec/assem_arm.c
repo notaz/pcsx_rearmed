@@ -296,7 +296,7 @@ static int isclean(void *addr)
 }
 
 // get source that block at addr was compiled from (host pointers)
-static void get_bounds(void *addr,u_int *start,u_int *end)
+static void get_bounds(void *addr, u_char **start, u_char **end)
 {
   u_int *ptr = addr;
   #ifndef HAVE_ARMV7
@@ -325,8 +325,8 @@ static void get_bounds(void *addr,u_int *start,u_int *end)
   #endif
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  *start=source;
-  *end=source+len;
+  *start=(u_char *)source;
+  *end=(u_char *)source+len;
 }
 
 /* Register allocation */

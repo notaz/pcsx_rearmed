@@ -194,9 +194,9 @@ struct link_entry
   static int expirep;
   static u_int stop_after_jal;
 #ifndef RAM_FIXED
-  static u_int ram_offset;
+  static uintptr_t ram_offset;
 #else
-  static const u_int ram_offset=0;
+  static const uintptr_t ram_offset=0;
 #endif
 
   int new_dynarec_hacks;
@@ -1020,14 +1020,14 @@ void invalidate_block(u_int block)
   head=jump_dirty[vpage];
   //printf("page=%d vpage=%d\n",page,vpage);
   while(head!=NULL) {
-    u_int start,end;
     if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
-      get_bounds(head->addr,&start,&end);
-      //printf("start: %x end: %x\n",start,end);
-      if(page<2048&&start>=(u_int)rdram&&end<(u_int)rdram+RAM_SIZE) {
-        if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page) {
-          if((((start-(u_int)rdram)>>12)&2047)<first) first=((start-(u_int)rdram)>>12)&2047;
-          if((((end-1-(u_int)rdram)>>12)&2047)>last) last=((end-1-(u_int)rdram)>>12)&2047;
+      u_char *start, *end;
+      get_bounds(head->addr, &start, &end);
+      //printf("start: %p end: %p\n", start, end);
+      if (page < 2048 && start >= rdram && end < rdram+RAM_SIZE) {
+        if (((start-rdram)>>12) <= page && ((end-1-rdram)>>12) >= page) {
+          if ((((start-rdram)>>12)&2047) < first) first = ((start-rdram)>>12)&2047;
+          if ((((end-1-rdram)>>12)&2047) > last)  last = ((end-1-rdram)>>12)&2047;
         }
       }
     }
@@ -1058,12 +1058,11 @@ void invalidate_addr(u_int addr)
     }
     for(;pg1<=page;pg1++) {
       for(head=jump_dirty[pg1];head!=NULL;head=head->next) {
-        u_int start,end;
-        get_bounds(head->addr,&start,&end);
-        if(ram_offset) {
-          start-=ram_offset;
-          end-=ram_offset;
-        }
+        u_char *start_h, *end_h;
+        u_int start, end;
+        get_bounds(head->addr, &start_h, &end_h);
+        start = (uintptr_t)start_h - ram_offset;
+        end = (uintptr_t)end_h - ram_offset;
         if(start<=addr_main&&addr_main<end) {
           if(start<addr_min) addr_min=start;
           if(end>addr_max) addr_max=end;
@@ -1137,14 +1136,14 @@ void clean_blocks(u_int page)
     if(!invalid_code[head->vaddr>>12]) {
       // Don't restore blocks which are about to expire from the cache
       if (doesnt_expire_soon(head->addr)) {
-        u_int start,end;
         if(verify_dirty(head->addr)) {
+          u_char *start, *end;
           //printf("Possibly Restore %x (%p)\n",head->vaddr, head->addr);
           u_int i;
           u_int inv=0;
-          get_bounds(head->addr,&start,&end);
-          if(start-(u_int)rdram<RAM_SIZE) {
-            for(i=(start-(u_int)rdram+0x80000000)>>12;i<=(end-1-(u_int)rdram+0x80000000)>>12;i++) {
+          get_bounds(head->addr, &start, &end);
+          if (start - rdram < RAM_SIZE) {
+            for (i = (start-rdram+0x80000000)>>12; i <= (end-1-rdram+0x80000000)>>12; i++) {
               inv|=invalid_code[i];
             }
           }
@@ -6671,7 +6670,7 @@ void new_dynarec_init()
   arch_init();
   new_dynarec_test();
 #ifndef RAM_FIXED
-  ram_offset=(u_int)rdram-0x80000000;
+  ram_offset=(uintptr_t)rdram-0x80000000;
 #endif
   if (ram_offset!=0)
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
@@ -6703,18 +6702,18 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     (0xa0000000 <= addr && addr < 0xa0200000)) {
     // used for BIOS calls mostly?
     *limit = (addr&0xa0000000)|0x00200000;
-    return (u_int *)((u_int)rdram + (addr&0x1fffff));
+    return (u_int *)(rdram + (addr&0x1fffff));
   }
   else if (!Config.HLE && (
     /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
     (0xbfc00000 <= addr && addr < 0xbfc80000))) {
     // BIOS
     *limit = (addr & 0xfff00000) | 0x80000;
-    return (u_int *)((u_int)psxR + (addr&0x7ffff));
+    return (u_int *)((u_char *)psxR + (addr&0x7ffff));
   }
   else if (addr >= 0x80000000 && addr < 0x80000000+RAM_SIZE) {
     *limit = (addr & 0x80600000) + 0x00200000;
-    return (u_int *)((u_int)rdram + (addr&0x1fffff));
+    return (u_int *)(rdram + (addr&0x1fffff));
   }
   return NULL;
 }
@@ -9651,7 +9650,7 @@ int new_recompile_block(int addr)
   // Align code
   if(((u_int)out)&7) emit_addnop(13);
   #endif
-  assert((u_int)out-(u_int)beginning<MAX_OUTPUT_BLOCK_SIZE);
+  assert(out - (u_char *)beginning < MAX_OUTPUT_BLOCK_SIZE);
   //printf("shadow buffer: %p-%p\n",copy,(u_char *)copy+slen*4);
   memcpy(copy,source,slen*4);
   copy+=slen*4;
