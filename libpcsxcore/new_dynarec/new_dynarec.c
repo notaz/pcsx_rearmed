@@ -1894,7 +1894,6 @@ void wb_register(signed char r,signed char regmap[],uint64_t dirty,uint64_t is32
 
 int mchecksum()
 {
-  //if(!tracedebug) return 0;
   int i;
   int sum=0;
   for(i=0;i<2097152;i++) {
@@ -1920,37 +1919,6 @@ void rlist()
   for(i=0;i<32;i++)
     printf("r%d:%8x%8x ",i,((int *)(reg+i))[1],((int *)(reg+i))[0]);
   printf("\n");
-}
-
-void enabletrace()
-{
-  tracedebug=1;
-}
-
-void memdebug(int i)
-{
-  //printf("TRACE: count=%d next=%d (checksum %x) lo=%8x%8x\n",Count,next_interupt,mchecksum(),(int)(reg[LOREG]>>32),(int)reg[LOREG]);
-  //printf("TRACE: count=%d next=%d (rchecksum %x)\n",Count,next_interupt,rchecksum());
-  //rlist();
-  //if(tracedebug) {
-  //if(Count>=-2084597794) {
-  if((signed int)Count>=-2084597794&&(signed int)Count<0) {
-  //if(0) {
-    printf("TRACE: count=%d next=%d (checksum %x)\n",Count,next_interupt,mchecksum());
-    //printf("TRACE: count=%d next=%d (checksum %x) Status=%x\n",Count,next_interupt,mchecksum(),Status);
-    //printf("TRACE: count=%d next=%d (checksum %x) hi=%8x%8x\n",Count,next_interupt,mchecksum(),(int)(reg[HIREG]>>32),(int)reg[HIREG]);
-    rlist();
-    #ifdef __i386__
-    printf("TRACE: %x\n",(&i)[-1]);
-    #endif
-    #ifdef __arm__
-    int j;
-    printf("TRACE: %x \n",(&j)[10]);
-    printf("TRACE: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\n",(&j)[1],(&j)[2],(&j)[3],(&j)[4],(&j)[5],(&j)[6],(&j)[7],(&j)[8],(&j)[9],(&j)[10],(&j)[11],(&j)[12],(&j)[13],(&j)[14],(&j)[15],(&j)[16],(&j)[17],(&j)[18],(&j)[19],(&j)[20]);
-    #endif
-    //fflush(stdout);
-  }
-  //printf("TRACE: %x\n",(&i)[-1]);
 }
 
 void alu_assemble(int i,struct regstat *i_regs)
@@ -2870,35 +2838,6 @@ void load_assemble(int i,struct regstat *i_regs)
       inline_readstub(LOADD_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
   }
  }
-  //emit_storereg(rt1[i],tl); // DEBUG
-  //if(opcode[i]==0x23)
-  //if(opcode[i]==0x24)
-  //if(opcode[i]==0x23||opcode[i]==0x24)
-  /*if(opcode[i]==0x21||opcode[i]==0x23||opcode[i]==0x24)
-  {
-    //emit_pusha();
-    save_regs(0x100f);
-        emit_readword((int)&last_count,ECX);
-        #ifdef __i386__
-        if(get_reg(i_regs->regmap,CCREG)<0)
-          emit_loadreg(CCREG,HOST_CCREG);
-        emit_add(HOST_CCREG,ECX,HOST_CCREG);
-        emit_addimm(HOST_CCREG,2*ccadj[i],HOST_CCREG);
-        emit_writeword(HOST_CCREG,(int)&Count);
-        #endif
-        #ifdef __arm__
-        if(get_reg(i_regs->regmap,CCREG)<0)
-          emit_loadreg(CCREG,0);
-        else
-          emit_mov(HOST_CCREG,0);
-        emit_add(0,ECX,0);
-        emit_addimm(0,2*ccadj[i],0);
-        emit_writeword(0,(int)&Count);
-        #endif
-    emit_call((int)memdebug);
-    //emit_popa();
-    restore_regs(0x100f);
-  }*/
 }
 
 #ifndef loadlr_assemble
@@ -3059,43 +2998,6 @@ void store_assemble(int i,struct regstat *i_regs)
       emit_jmp(do_interrupt);
     }
   }
-  //if(opcode[i]==0x2B || opcode[i]==0x3F)
-  //if(opcode[i]==0x2B || opcode[i]==0x28)
-  //if(opcode[i]==0x2B || opcode[i]==0x29)
-  //if(opcode[i]==0x2B)
-  /*if(opcode[i]==0x2B || opcode[i]==0x28 || opcode[i]==0x29 || opcode[i]==0x3F)
-  {
-    #ifdef __i386__
-    emit_pusha();
-    #endif
-    #ifdef __arm__
-    save_regs(0x100f);
-    #endif
-        emit_readword((int)&last_count,ECX);
-        #ifdef __i386__
-        if(get_reg(i_regs->regmap,CCREG)<0)
-          emit_loadreg(CCREG,HOST_CCREG);
-        emit_add(HOST_CCREG,ECX,HOST_CCREG);
-        emit_addimm(HOST_CCREG,2*ccadj[i],HOST_CCREG);
-        emit_writeword(HOST_CCREG,(int)&Count);
-        #endif
-        #ifdef __arm__
-        if(get_reg(i_regs->regmap,CCREG)<0)
-          emit_loadreg(CCREG,0);
-        else
-          emit_mov(HOST_CCREG,0);
-        emit_add(0,ECX,0);
-        emit_addimm(0,2*ccadj[i],0);
-        emit_writeword(0,(int)&Count);
-        #endif
-    emit_call((int)memdebug);
-    #ifdef __i386__
-    emit_popa();
-    #endif
-    #ifdef __arm__
-    restore_regs(0x100f);
-    #endif
-  }*/
 }
 
 void storelr_assemble(int i,struct regstat *i_regs)
@@ -3312,19 +3214,6 @@ void storelr_assemble(int i,struct regstat *i_regs)
     add_stub(INVCODE_STUB,jaddr2,out,reglist|(1<<HOST_CCREG),temp,0,0,0);
     #endif
   }
-  /*
-    emit_pusha();
-    //save_regs(0x100f);
-        emit_readword((int)&last_count,ECX);
-        if(get_reg(i_regs->regmap,CCREG)<0)
-          emit_loadreg(CCREG,HOST_CCREG);
-        emit_add(HOST_CCREG,ECX,HOST_CCREG);
-        emit_addimm(HOST_CCREG,2*ccadj[i],HOST_CCREG);
-        emit_writeword(HOST_CCREG,(int)&Count);
-    emit_call((int)memdebug);
-    emit_popa();
-    //restore_regs(0x100f);
-  */
 }
 
 void c1ls_assemble(int i,struct regstat *i_regs)
@@ -4703,34 +4592,6 @@ static void do_ccstub(int n)
     load_all_regs(branch_regs[i].regmap);
   }
   emit_jmp(stubs[n].retaddr);
-
-  /* This works but uses a lot of memory...
-  emit_readword((int)&last_count,ECX);
-  emit_add(HOST_CCREG,ECX,EAX);
-  emit_writeword(EAX,(int)&Count);
-  emit_call((int)gen_interupt);
-  emit_readword((int)&Count,HOST_CCREG);
-  emit_readword((int)&next_interupt,EAX);
-  emit_readword((int)&pending_exception,EBX);
-  emit_writeword(EAX,(int)&last_count);
-  emit_sub(HOST_CCREG,EAX,HOST_CCREG);
-  emit_test(EBX,EBX);
-  int jne_instr=(int)out;
-  emit_jne(0);
-  if(stubs[n].a) emit_addimm(HOST_CCREG,-2*stubs[n].a,HOST_CCREG);
-  load_all_regs(branch_regs[i].regmap);
-  emit_jmp(stubs[n].retaddr); // return address
-  set_jump_target(jne_instr,(int)out);
-  emit_readword((int)&pcaddr,EAX);
-  // Call get_addr_ht instead of doing the hash table here.
-  // This code is executed infrequently and takes up a lot of space
-  // so smaller is better.
-  emit_storereg(CCREG,HOST_CCREG);
-  emit_pushreg(EAX);
-  emit_call((int)get_addr_ht);
-  emit_loadreg(CCREG,HOST_CCREG);
-  emit_addimm(ESP,4,ESP);
-  emit_jmpreg(EAX);*/
 }
 
 static void add_to_linker(int addr,int target,int ext)
@@ -4942,41 +4803,8 @@ void rjump_assemble(int i,struct regstat *i_regs)
   else
   #endif
   {
-    //if(rs!=EAX) emit_mov(rs,EAX);
-    //emit_jmp(jump_vaddr_eax);
     emit_jmp(jump_vaddr_reg[rs]);
   }
-  /* Check hash table
-  temp=!rs;
-  emit_mov(rs,temp);
-  emit_shrimm(rs,16,rs);
-  emit_xor(temp,rs,rs);
-  emit_movzwl_reg(rs,rs);
-  emit_shlimm(rs,4,rs);
-  emit_cmpmem_indexed((int)hash_table,rs,temp);
-  emit_jne((int)out+14);
-  emit_readword_indexed((int)hash_table+4,rs,rs);
-  emit_jmpreg(rs);
-  emit_cmpmem_indexed((int)hash_table+8,rs,temp);
-  emit_addimm_no_flags(8,rs);
-  emit_jeq((int)out-17);
-  // No hit on hash table, call compiler
-  emit_pushreg(temp);
-//DEBUG >
-#ifdef DEBUG_CYCLE_COUNT
-  emit_readword((int)&last_count,ECX);
-  emit_add(HOST_CCREG,ECX,HOST_CCREG);
-  emit_readword((int)&next_interupt,ECX);
-  emit_writeword(HOST_CCREG,(int)&Count);
-  emit_sub(HOST_CCREG,ECX,HOST_CCREG);
-  emit_writeword(ECX,(int)&last_count);
-#endif
-//DEBUG <
-  emit_storereg(CCREG,HOST_CCREG);
-  emit_call((int)get_addr);
-  emit_loadreg(CCREG,HOST_CCREG);
-  emit_addimm(ESP,4,ESP);
-  emit_jmpreg(EAX);*/
   #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
   if(rt1[i]!=31&&i<slen-2&&(((u_int)out)&7)) emit_mov(13,13);
   #endif
@@ -7318,16 +7146,11 @@ int new_recompile_block(int addr)
   u_int state_rflags = 0;
   int i;
 
-  assem_debug("NOTCOMPILED: addr = %x -> %x\n", (int)addr, (int)out);
-  //printf("NOTCOMPILED: addr = %x -> %x\n", (int)addr, (int)out);
+  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, out);
   //printf("TRACE: count=%d next=%d (compile %x)\n",Count,next_interupt,addr);
   //if(debug)
   //printf("TRACE: count=%d next=%d (checksum %x)\n",Count,next_interupt,mchecksum());
   //printf("fpu mapping=%x enabled=%x\n",(Status & 0x04000000)>>26,(Status & 0x20000000)>>29);
-  /*if(Count>=312978186) {
-    rlist();
-  }*/
-  //rlist();
 
   // this is just for speculation
   for (i = 1; i < 32; i++) {
