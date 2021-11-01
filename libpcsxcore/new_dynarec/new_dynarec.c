@@ -122,6 +122,13 @@ struct code_stub
   u_int e;
 };
 
+struct link_entry
+{
+  void *addr;
+  u_int target;
+  u_int ext;
+};
+
   // used by asm:
   u_char *out;
   struct ht_entry hash_table[65536]  __attribute__((aligned(16)));
@@ -174,7 +181,7 @@ struct code_stub
   static int ccadj[MAXBLOCK];
   static int slen;
   static void *instr_addr[MAXBLOCK];
-  static u_int link_addr[MAXBLOCK][3];
+  static struct link_entry link_addr[MAXBLOCK];
   static int linkcount;
   static struct code_stub stubs[MAXBLOCK*3];
   static int stubcount;
@@ -293,9 +300,7 @@ static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
   int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist);
-static void add_to_linker(int addr,int target,int ext);
-
-static int tracedebug=0;
+static void add_to_linker(void *addr, u_int target, int ext);
 
 static void mprotect_w_x(void *start, void *end, int is_x)
 {
@@ -346,8 +351,8 @@ static void end_tcache_write(void *start, void *end)
 static void *start_block(void)
 {
   u_char *end = out + MAX_OUTPUT_BLOCK_SIZE;
-  if (end > (u_char *)BASE_ADDR + (1<<TARGET_SIZE_2))
-    end = (u_char *)BASE_ADDR + (1<<TARGET_SIZE_2);
+  if (end > translation_cache + (1<<TARGET_SIZE_2))
+    end = translation_cache + (1<<TARGET_SIZE_2);
   start_tcache_write(out, end);
   return out;
 }
@@ -416,7 +421,7 @@ void *get_addr(u_int vaddr)
   head=jump_in[page];
   while(head!=NULL) {
     if(head->vaddr==vaddr) {
-  //printf("TRACE: count=%d next=%d (get_addr match %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
+  //printf("TRACE: count=%d next=%d (get_addr match %x: %p)\n",Count,next_interupt,vaddr,head->addr);
       hash_table_add(hash_table_get(vaddr), vaddr, head->addr);
       return head->addr;
     }
@@ -425,7 +430,7 @@ void *get_addr(u_int vaddr)
   head=jump_dirty[vpage];
   while(head!=NULL) {
     if(head->vaddr==vaddr) {
-      //printf("TRACE: count=%d next=%d (get_addr match dirty %x: %x)\n",Count,next_interupt,vaddr,(int)head->addr);
+      //printf("TRACE: count=%d next=%d (get_addr match dirty %x: %p)\n",Count,next_interupt,vaddr,head->addr);
       // Don't restore blocks which are about to expire from the cache
       if (doesnt_expire_soon(head->addr))
       if (verify_dirty(head->addr)) {
@@ -892,14 +897,14 @@ void remove_hash(int vaddr)
   }
 }
 
-void ll_remove_matching_addrs(struct ll_entry **head,int addr,int shift)
+void ll_remove_matching_addrs(struct ll_entry **head,uintptr_t addr,int shift)
 {
   struct ll_entry *next;
   while(*head) {
-    if(((u_int)((*head)->addr)>>shift)==(addr>>shift) ||
-       ((u_int)((*head)->addr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift))
+    if(((uintptr_t)((*head)->addr)>>shift)==(addr>>shift) ||
+       ((uintptr_t)((*head)->addr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift))
     {
-      inv_debug("EXP: Remove pointer to %x (%x)\n",(int)(*head)->addr,(*head)->vaddr);
+      inv_debug("EXP: Remove pointer to %p (%x)\n",(*head)->addr,(*head)->vaddr);
       remove_hash((*head)->vaddr);
       next=(*head)->next;
       free(*head);
@@ -928,15 +933,15 @@ void ll_clear(struct ll_entry **head)
 }
 
 // Dereference the pointers and remove if it matches
-static void ll_kill_pointers(struct ll_entry *head,int addr,int shift)
+static void ll_kill_pointers(struct ll_entry *head,uintptr_t addr,int shift)
 {
   while(head) {
-    int ptr=get_pointer(head->addr);
-    inv_debug("EXP: Lookup pointer to %x at %x (%x)\n",(int)ptr,(int)head->addr,head->vaddr);
+    uintptr_t ptr = (uintptr_t)get_pointer(head->addr);
+    inv_debug("EXP: Lookup pointer to %lx at %p (%x)\n",(long)ptr,head->addr,head->vaddr);
     if(((ptr>>shift)==(addr>>shift)) ||
        (((ptr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift)))
     {
-      inv_debug("EXP: Kill pointer at %x (%x)\n",(int)head->addr,head->vaddr);
+      inv_debug("EXP: Kill pointer at %p (%x)\n",head->addr,head->vaddr);
       void *host_addr=find_extjump_insn(head->addr);
       #ifdef __arm__
         mark_clear_cache(host_addr);
@@ -964,7 +969,7 @@ void invalidate_page(u_int page)
   head=jump_out[page];
   jump_out[page]=0;
   while(head!=NULL) {
-    inv_debug("INVALIDATE: kill pointer to %x (%x)\n",head->vaddr,(int)head->addr);
+    inv_debug("INVALIDATE: kill pointer to %x (%p)\n",head->vaddr,head->addr);
     void *host_addr=find_extjump_insn(head->addr);
     #ifdef __arm__
       mark_clear_cache(host_addr);
@@ -1017,7 +1022,7 @@ void invalidate_block(u_int block)
   while(head!=NULL) {
     u_int start,end;
     if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
-      get_bounds((int)head->addr,&start,&end);
+      get_bounds(head->addr,&start,&end);
       //printf("start: %x end: %x\n",start,end);
       if(page<2048&&start>=(u_int)rdram&&end<(u_int)rdram+RAM_SIZE) {
         if(((start-(u_int)rdram)>>12)<=page&&((end-1-(u_int)rdram)>>12)>=page) {
@@ -1054,7 +1059,7 @@ void invalidate_addr(u_int addr)
     for(;pg1<=page;pg1++) {
       for(head=jump_dirty[pg1];head!=NULL;head=head->next) {
         u_int start,end;
-        get_bounds((int)head->addr,&start,&end);
+        get_bounds(head->addr,&start,&end);
         if(ram_offset) {
           start-=ram_offset;
           end-=ram_offset;
@@ -1110,13 +1115,13 @@ void invalidate_all_pages()
 void add_link(u_int vaddr,void *src)
 {
   u_int page=get_page(vaddr);
-  inv_debug("add_link: %x -> %x (%d)\n",(int)src,vaddr,page);
+  inv_debug("add_link: %p -> %x (%d)\n",src,vaddr,page);
   int *ptr=(int *)(src+4);
   assert((*ptr&0x0fff0000)==0x059f0000);
   (void)ptr;
   ll_add(jump_out+page,vaddr,src);
-  //int ptr=get_pointer(src);
-  //inv_debug("add_link: Pointer is to %x\n",(int)ptr);
+  //void *ptr=get_pointer(src);
+  //inv_debug("add_link: Pointer is to %p\n",ptr);
 }
 
 // If a code block was found to be unmodified (bit was set in
@@ -1134,10 +1139,10 @@ void clean_blocks(u_int page)
       if (doesnt_expire_soon(head->addr)) {
         u_int start,end;
         if(verify_dirty(head->addr)) {
-          //printf("Possibly Restore %x (%x)\n",head->vaddr, (int)head->addr);
+          //printf("Possibly Restore %x (%p)\n",head->vaddr, head->addr);
           u_int i;
           u_int inv=0;
-          get_bounds((int)head->addr,&start,&end);
+          get_bounds(head->addr,&start,&end);
           if(start-(u_int)rdram<RAM_SIZE) {
             for(i=(start-(u_int)rdram+0x80000000)>>12;i<=(end-1-(u_int)rdram+0x80000000)>>12;i++) {
               inv|=invalid_code[i];
@@ -1150,7 +1155,7 @@ void clean_blocks(u_int page)
             void *clean_addr = get_clean_addr(head->addr);
             if (doesnt_expire_soon(clean_addr)) {
               u_int ppage=page;
-              inv_debug("INV: Restored %x (%x/%x)\n",head->vaddr, (int)head->addr, (int)clean_addr);
+              inv_debug("INV: Restored %x (%p/%p)\n",head->vaddr, head->addr, clean_addr);
               //printf("page=%x, addr=%x\n",page,head->vaddr);
               //assert(head->vaddr>>12==(page|0x80000));
               ll_add_flags(jump_in+ppage,head->vaddr,head->reg_sv_flags,clean_addr);
@@ -2607,7 +2612,7 @@ void load_assemble(int i,struct regstat *i_regs)
     }
   }
   //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
+  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
   // FIXME: Even if the load is a NOP, we should check for pagefaults...
   if((tl<0&&(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80))
     ||rt1[i]==0) {
@@ -2622,7 +2627,7 @@ void load_assemble(int i,struct regstat *i_regs)
   //if(tl<0) tl=get_reg(i_regs->regmap,-1);
  if(tl>=0) {
   //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%x\n",(int)constmap[i][s]+offset);
+  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
   assert(tl>=0); // Even if the load is a NOP, we must check for pagefaults and I/O
   reglist&=~(1<<tl);
   if(th>=0) reglist&=~(1<<th);
@@ -2654,7 +2659,7 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           //emit_xorimm(addr,3,tl);
-          //emit_movsbl_indexed((int)rdram-0x80000000,tl,tl);
+          //emit_movsbl_indexed(rdram-0x80000000,tl,tl);
           int x=0,a=tl;
 #ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,3,tl);
@@ -2699,7 +2704,7 @@ void load_assemble(int i,struct regstat *i_regs)
             #if 1 //def RAM_OFFSET
             emit_movswl_indexed(x,a,tl);
             #else
-            emit_movswl_indexed((int)rdram-0x80000000+x,a,tl);
+            emit_movswl_indexed(rdram-0x80000000+x,a,tl);
             #endif
           }
         }
@@ -2715,7 +2720,7 @@ void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int a=addr;
         if(fastload_reg_override) a=fastload_reg_override;
-        //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
+        //emit_readword_indexed(rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
           emit_readword_tlb(constmap[i][s]+offset,map,tl);
@@ -2739,7 +2744,7 @@ void load_assemble(int i,struct regstat *i_regs)
         #endif
         {
           //emit_xorimm(addr,3,tl);
-          //emit_movzbl_indexed((int)rdram-0x80000000,tl,tl);
+          //emit_movzbl_indexed(rdram-0x80000000,tl,tl);
           int x=0,a=tl;
 #ifdef BIG_ENDIAN_MIPS
           if(!c) emit_xorimm(addr,3,tl);
@@ -2784,7 +2789,7 @@ void load_assemble(int i,struct regstat *i_regs)
             #if 1 //def RAM_OFFSET
             emit_movzwl_indexed(x,a,tl);
             #else
-            emit_movzwl_indexed((int)rdram-0x80000000+x,a,tl);
+            emit_movzwl_indexed(rdram-0x80000000+x,a,tl);
             #endif
           }
         }
@@ -2801,7 +2806,7 @@ void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int a=addr;
         if(fastload_reg_override) a=fastload_reg_override;
-        //emit_readword_indexed((int)rdram-0x80000000,addr,tl);
+        //emit_readword_indexed(rdram-0x80000000,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
           emit_readword_tlb(constmap[i][s]+offset,map,tl);
@@ -2822,8 +2827,8 @@ void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int a=addr;
         if(fastload_reg_override) a=fastload_reg_override;
-        //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,addr,th);
-        //emit_readword_indexed((int)rdram-0x7FFFFFFC,addr,tl);
+        //if(th>=0) emit_readword_indexed(rdram-0x80000000,addr,th);
+        //emit_readword_indexed(rdram-0x7FFFFFFC,addr,tl);
         #ifdef HOST_IMM_ADDR32
         if(c)
           emit_readdword_tlb(constmap[i][s]+offset,map,th,tl);
@@ -2897,7 +2902,7 @@ void store_assemble(int i,struct regstat *i_regs)
       if(!c) a=addr;
 #endif
       if(faststore_reg_override) a=faststore_reg_override;
-      //emit_writebyte_indexed(tl,(int)rdram-0x80000000,temp);
+      //emit_writebyte_indexed(tl,rdram-0x80000000,temp);
       emit_writebyte_indexed_tlb(tl,x,a,map,a);
     }
     type=STOREB_STUB;
@@ -2918,7 +2923,7 @@ void store_assemble(int i,struct regstat *i_regs)
       if(map>=0) {
         emit_writehword_indexed(tl,x,a);
       }else
-        //emit_writehword_indexed(tl,(int)rdram-0x80000000+x,a);
+        //emit_writehword_indexed(tl,rdram-0x80000000+x,a);
         emit_writehword_indexed(tl,x,a);
     }
     type=STOREH_STUB;
@@ -2927,7 +2932,7 @@ void store_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       int a=addr;
       if(faststore_reg_override) a=faststore_reg_override;
-      //emit_writeword_indexed(tl,(int)rdram-0x80000000,addr);
+      //emit_writeword_indexed(tl,rdram-0x80000000,addr);
       emit_writeword_indexed_tlb(tl,0,a,map,temp);
     }
     type=STOREW_STUB;
@@ -2938,13 +2943,13 @@ void store_assemble(int i,struct regstat *i_regs)
       if(faststore_reg_override) a=faststore_reg_override;
       if(rs2[i]) {
         assert(th>=0);
-        //emit_writeword_indexed(th,(int)rdram-0x80000000,addr);
-        //emit_writeword_indexed(tl,(int)rdram-0x7FFFFFFC,addr);
+        //emit_writeword_indexed(th,rdram-0x80000000,addr);
+        //emit_writeword_indexed(tl,rdram-0x7FFFFFFC,addr);
         emit_writedword_indexed_tlb(th,tl,0,a,map,temp);
       }else{
         // Store zero
-        //emit_writeword_indexed(tl,(int)rdram-0x80000000,temp);
-        //emit_writeword_indexed(tl,(int)rdram-0x7FFFFFFC,temp);
+        //emit_writeword_indexed(tl,rdram-0x80000000,temp);
+        //emit_writeword_indexed(tl,rdram-0x7FFFFFFC,temp);
         emit_writedword_indexed_tlb(tl,tl,0,a,map,temp);
       }
     }
@@ -2968,7 +2973,7 @@ void store_assemble(int i,struct regstat *i_regs)
       assert(ir>=0);
       emit_cmpmem_indexedsr12_reg(ir,addr,1);
       #else
-      emit_cmpmem_indexedsr12_imm((int)invalid_code,addr,1);
+      emit_cmpmem_indexedsr12_imm(invalid_code,addr,1);
       #endif
       #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
       emit_callne(invalidate_addr_reg[addr]);
@@ -2994,7 +2999,7 @@ void store_assemble(int i,struct regstat *i_regs)
       load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
       wb_dirtys(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty);
       emit_movimm(start+i*4+4,0);
-      emit_writeword(0,(int)&pcaddr);
+      emit_writeword(0,&pcaddr);
       emit_jmp(do_interrupt);
     }
   }
@@ -3204,7 +3209,7 @@ void storelr_assemble(int i,struct regstat *i_regs)
     assert(ir>=0);
     emit_cmpmem_indexedsr12_reg(ir,temp,1);
     #else
-    emit_cmpmem_indexedsr12_imm((int)invalid_code,temp,1);
+    emit_cmpmem_indexedsr12_imm(invalid_code,temp,1);
     #endif
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[temp]);
@@ -3304,7 +3309,7 @@ void c2ls_assemble(int i,struct regstat *i_regs)
     assert(ir>=0);
     emit_cmpmem_indexedsr12_reg(ir,ar,1);
 #else
-    emit_cmpmem_indexedsr12_imm((int)invalid_code,ar,1);
+    emit_cmpmem_indexedsr12_imm(invalid_code,ar,1);
 #endif
     #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
     emit_callne(invalidate_addr_reg[ar]);
@@ -3386,9 +3391,9 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   emit_movimm(start+i*4+4,0); // Get PC
   uint32_t hleCode = source[i] & 0x03ffffff;
   if (hleCode >= ARRAY_SIZE(psxHLEt))
-    emit_movimm((int)psxNULL,1);
+    emit_movimm((uintptr_t)psxNULL,1);
   else
-    emit_movimm((int)psxHLEt[hleCode],1);
+    emit_movimm((uintptr_t)psxHLEt[hleCode],1);
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // XXX
   emit_jmp(jump_hlecall);
 }
@@ -3745,13 +3750,13 @@ static int get_final_value(int hr, int i, int *value)
       {
         // Precompute load address
         *value=constmap[i][hr]+imm[i+1];
-        //printf("c=%x imm=%x\n",(int)constmap[i][hr],imm[i+1]);
+        //printf("c=%x imm=%lx\n",(long)constmap[i][hr],imm[i+1]);
         return 1;
       }
     }
   }
   *value=constmap[i][hr];
-  //printf("c=%x\n",(int)constmap[i][hr]);
+  //printf("c=%lx\n",(long)constmap[i][hr]);
   if(i==slen-1) return 1;
   if(reg<64) {
     return !((unneeded_reg[i+1]>>reg)&1);
@@ -4211,11 +4216,11 @@ static void drc_dbg_emit_do_cmp(int i)
     if(regs[i].regmap[hr]>=0) reglist|=1<<hr;
   save_regs(reglist);
   emit_movimm(start+i*4,0);
-  emit_writeword(0,(int)&pcaddr);
-  emit_call((int)do_insn_cmp);
-  //emit_readword((int)&cycle,0);
+  emit_writeword(0,&pcaddr);
+  emit_call(do_insn_cmp);
+  //emit_readword(&cycle,0);
   //emit_addimm(0,2,0);
-  //emit_writeword(0,(int)&cycle);
+  //emit_writeword(0,&cycle);
   restore_regs(reglist);
 }
 #else
@@ -4296,7 +4301,7 @@ void ds_assemble_entry(int i)
   else
     assem_debug("branch: external\n");
   assert(internal_branch(regs[t].is32,ba[i]+4));
-  add_to_linker((int)out,ba[i]+4,internal_branch(regs[t].is32,ba[i]+4));
+  add_to_linker(out,ba[i]+4,internal_branch(regs[t].is32,ba[i]+4));
   emit_jmp(0);
 }
 
@@ -4373,7 +4378,7 @@ static void do_ccstub(int n)
   {
     // Save PC as return address
     emit_movimm(stubs[n].c,EAX);
-    emit_writeword(EAX,(int)&pcaddr);
+    emit_writeword(EAX,&pcaddr);
   }
   else
   {
@@ -4554,7 +4559,7 @@ static void do_ccstub(int n)
           emit_cmovne_reg(alt,addr);
         }
       }
-      emit_writeword(addr,(int)&pcaddr);
+      emit_writeword(addr,&pcaddr);
     }
     else
     if(itype[i]==RJUMP)
@@ -4563,21 +4568,21 @@ static void do_ccstub(int n)
       if(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]) {
         r=get_reg(branch_regs[i].regmap,RTEMP);
       }
-      emit_writeword(r,(int)&pcaddr);
+      emit_writeword(r,&pcaddr);
     }
     else {SysPrintf("Unknown branch type in do_ccstub\n");exit(1);}
   }
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
-  if(stubs[n].a) emit_addimm(HOST_CCREG,CLOCK_ADJUST((int)stubs[n].a),HOST_CCREG);
-  emit_call((int)cc_interrupt);
-  if(stubs[n].a) emit_addimm(HOST_CCREG,-CLOCK_ADJUST((int)stubs[n].a),HOST_CCREG);
+  if(stubs[n].a) emit_addimm(HOST_CCREG,CLOCK_ADJUST((signed int)stubs[n].a),HOST_CCREG);
+  emit_call(cc_interrupt);
+  if(stubs[n].a) emit_addimm(HOST_CCREG,-CLOCK_ADJUST((signed int)stubs[n].a),HOST_CCREG);
   if(stubs[n].d==TAKEN) {
     if(internal_branch(branch_regs[i].is32,ba[i]))
       load_needed_regs(branch_regs[i].regmap,regs[(ba[i]-start)>>2].regmap_entry);
     else if(itype[i]==RJUMP) {
       if(get_reg(branch_regs[i].regmap,RTEMP)>=0)
-        emit_readword((int)&pcaddr,get_reg(branch_regs[i].regmap,RTEMP));
+        emit_readword(&pcaddr,get_reg(branch_regs[i].regmap,RTEMP));
       else
         emit_loadreg(rs1[i],get_reg(branch_regs[i].regmap,rs1[i]));
     }
@@ -4594,11 +4599,12 @@ static void do_ccstub(int n)
   emit_jmp(stubs[n].retaddr);
 }
 
-static void add_to_linker(int addr,int target,int ext)
+static void add_to_linker(void *addr, u_int target, int ext)
 {
-  link_addr[linkcount][0]=addr;
-  link_addr[linkcount][1]=target;
-  link_addr[linkcount][2]=ext;
+  assert(linkcount < ARRAY_SIZE(link_addr));
+  link_addr[linkcount].addr = addr;
+  link_addr[linkcount].target = target;
+  link_addr[linkcount].ext = ext;
   linkcount++;
 }
 
@@ -4626,7 +4632,7 @@ static void ujump_assemble_write_ra(int i)
       #ifdef REG_PREFETCH
       if(temp>=0)
       {
-        if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table_get(return_address),temp);
+        if(i_regmap[temp]!=PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
       }
       #endif
       emit_movimm(return_address,rt); // PC into link register
@@ -4649,7 +4655,7 @@ void ujump_assemble(int i,struct regstat *i_regs)
     signed char *i_regmap=i_regs->regmap;
     int return_address=start+i*4+8;
     if(get_reg(branch_regs[i].regmap,31)>0)
-    if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table_get(return_address),temp);
+    if(i_regmap[temp]==PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
   }
   #endif
   if(rt1[i]==31&&(rt1[i]==rs1[i+1]||rt1[i]==rs2[i+1])) {
@@ -4684,7 +4690,7 @@ void ujump_assemble(int i,struct regstat *i_regs)
     ds_assemble_entry(i);
   }
   else {
-    add_to_linker((int)out,ba[i],internal_branch(branch_regs[i].is32,ba[i]));
+    add_to_linker(out,ba[i],internal_branch(branch_regs[i].is32,ba[i]));
     emit_jmp(0);
   }
 }
@@ -4701,7 +4707,7 @@ static void rjump_assemble_write_ra(int i)
   #ifdef REG_PREFETCH
   if(temp>=0)
   {
-    if(i_regmap[temp]!=PTEMP) emit_movimm((int)hash_table_get(return_address),temp);
+    if(i_regmap[temp]!=PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
   }
   #endif
   emit_movimm(return_address,rt); // PC into link register
@@ -4732,7 +4738,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
     if((temp=get_reg(branch_regs[i].regmap,PTEMP))>=0) {
       signed char *i_regmap=i_regs->regmap;
       int return_address=start+i*4+8;
-      if(i_regmap[temp]==PTEMP) emit_movimm((int)hash_table_get(return_address),temp);
+      if(i_regmap[temp]==PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
     }
   }
   #endif
@@ -4900,7 +4906,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           ds_assemble_entry(i);
         }
         else {
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jmp(0);
         }
         #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
@@ -4926,24 +4932,24 @@ void cjump_assemble(int i,struct regstat *i_regs)
           if(s2h>=0) emit_cmp(s1h,s2h);
           else emit_test(s1h,s1h);
           nottaken1=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }
         if(opcode[i]==5) // BNE
         {
           if(s2h>=0) emit_cmp(s1h,s2h);
           else emit_test(s1h,s1h);
           if(invert) taken=out;
-          else add_to_linker((int)out,ba[i],internal);
+          else add_to_linker(out,ba[i],internal);
           emit_jne(0);
         }
         if(opcode[i]==6) // BLEZ
         {
           emit_test(s1h,s1h);
           if(invert) taken=out;
-          else add_to_linker((int)out,ba[i],internal);
+          else add_to_linker(out,ba[i],internal);
           emit_js(0);
           nottaken1=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }
         if(opcode[i]==7) // BGTZ
         {
@@ -4951,7 +4957,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           nottaken1=out;
           emit_js(1);
           if(invert) taken=out;
-          else add_to_linker((int)out,ba[i],internal);
+          else add_to_linker(out,ba[i],internal);
           emit_jne(0);
         }
       } // if(!only32)
@@ -4964,9 +4970,9 @@ void cjump_assemble(int i,struct regstat *i_regs)
         else emit_test(s1l,s1l);
         if(invert){
           nottaken=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }else{
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jeq(0);
         }
       }
@@ -4978,7 +4984,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           nottaken=out;
           emit_jeq(1);
         }else{
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jne(0);
         }
       }
@@ -4989,7 +4995,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           nottaken=out;
           emit_jge(1);
         }else{
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jl(0);
         }
       }
@@ -5000,7 +5006,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           nottaken=out;
           emit_jl(1);
         }else{
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jge(0);
         }
       }
@@ -5010,10 +5016,10 @@ void cjump_assemble(int i,struct regstat *i_regs)
         if(match&&(!internal||!is_ds[(ba[i]-start)>>2])) {
           if(adj) {
             emit_addimm(cc,-CLOCK_ADJUST(adj),cc);
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
           }else{
             emit_addnop(13);
-            add_to_linker((int)out,ba[i],internal*2);
+            add_to_linker(out,ba[i],internal*2);
           }
           emit_jmp(0);
         }else
@@ -5030,7 +5036,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
             ds_assemble_entry(i);
           }
           else {
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jmp(0);
           }
         }
@@ -5059,14 +5065,14 @@ void cjump_assemble(int i,struct regstat *i_regs)
           if(s2h>=0) emit_cmp(s1h,s2h);
           else emit_test(s1h,s1h);
           nottaken1=out;
-          emit_jne(2);
+          emit_jne((void *)2l);
         }
         if((opcode[i]&0x2f)==5) // BNE
         {
           if(s2h>=0) emit_cmp(s1h,s2h);
           else emit_test(s1h,s1h);
           taken=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }
         if((opcode[i]&0x2f)==6) // BLEZ
         {
@@ -5074,7 +5080,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           taken=out;
           emit_js(1);
           nottaken1=out;
-          emit_jne(2);
+          emit_jne((void *)2l);
         }
         if((opcode[i]&0x2f)==7) // BGTZ
         {
@@ -5082,7 +5088,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
           nottaken1=out;
           emit_js(2);
           taken=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }
       } // if(!only32)
 
@@ -5093,7 +5099,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         if(s2l>=0) emit_cmp(s1l,s2l);
         else emit_test(s1l,s1l);
         nottaken=out;
-        emit_jne(2);
+        emit_jne((void *)2l);
       }
       if((opcode[i]&0x2f)==5) // BNE
       {
@@ -5153,7 +5159,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         ds_assemble_entry(i);
       }
       else {
-        add_to_linker((int)out,ba[i],internal);
+        add_to_linker(out,ba[i],internal);
         emit_jmp(0);
       }
     }
@@ -5285,7 +5291,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
           ds_assemble_entry(i);
         }
         else {
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jmp(0);
         }
         #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
@@ -5313,7 +5319,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             nottaken=out;
             emit_jns(1);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_js(0);
           }
         }
@@ -5324,7 +5330,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             nottaken=out;
             emit_js(1);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jns(0);
           }
         }
@@ -5339,7 +5345,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             nottaken=out;
             emit_jns(1);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_js(0);
           }
         }
@@ -5350,7 +5356,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             nottaken=out;
             emit_js(1);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jns(0);
           }
         }
@@ -5361,10 +5367,10 @@ void sjump_assemble(int i,struct regstat *i_regs)
         if(match&&(!internal||!is_ds[(ba[i]-start)>>2])) {
           if(adj) {
             emit_addimm(cc,-CLOCK_ADJUST(adj),cc);
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
           }else{
             emit_addnop(13);
-            add_to_linker((int)out,ba[i],internal*2);
+            add_to_linker(out,ba[i],internal*2);
           }
           emit_jmp(0);
         }else
@@ -5381,7 +5387,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
             ds_assemble_entry(i);
           }
           else {
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jmp(0);
           }
         }
@@ -5482,7 +5488,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
         ds_assemble_entry(i);
       }
       else {
-        add_to_linker((int)out,ba[i],internal);
+        add_to_linker(out,ba[i],internal);
         emit_jmp(0);
       }
     }
@@ -5588,16 +5594,16 @@ void fjump_assemble(int i,struct regstat *i_regs)
             nottaken=out;
             emit_jeq(1);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jne(0);
           }
         }
         else // BC1F
           if(invert){
             nottaken=out;
-            emit_jne(1);
+            emit_jne((void *)1l);
           }else{
-            add_to_linker((int)out,ba[i],internal);
+            add_to_linker(out,ba[i],internal);
             emit_jeq(0);
           }
         {
@@ -5619,7 +5625,7 @@ void fjump_assemble(int i,struct regstat *i_regs)
           ds_assemble_entry(i);
         }
         else {
-          add_to_linker((int)out,ba[i],internal);
+          add_to_linker(out,ba[i],internal);
           emit_jmp(0);
         }
         set_jump_target(nottaken, out);
@@ -5648,7 +5654,7 @@ void fjump_assemble(int i,struct regstat *i_regs)
         else // BC1F
         {
           nottaken=out;
-          emit_jne(1);
+          emit_jne((void *)1l);
         }
       }
     } // if(!unconditional)
@@ -5688,7 +5694,7 @@ void fjump_assemble(int i,struct regstat *i_regs)
       ds_assemble_entry(i);
     }
     else {
-      add_to_linker((int)out,ba[i],internal);
+      add_to_linker(out,ba[i],internal);
       emit_jmp(0);
     }
 
@@ -5966,7 +5972,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
   int target_addr=start+i*4+5;
   void *stub=out;
   void *compiled_target_addr=check_addr(target_addr);
-  emit_extjump_ds((int)branch_addr,target_addr);
+  emit_extjump_ds(branch_addr, target_addr);
   if(compiled_target_addr) {
     set_jump_target(branch_addr, compiled_target_addr);
     add_link(target_addr,stub);
@@ -5981,7 +5987,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
     int target_addr=start+i*4+8;
     void *stub=out;
     void *compiled_target_addr=check_addr(target_addr);
-    emit_extjump_ds((int)branch_addr,target_addr);
+    emit_extjump_ds(branch_addr, target_addr);
     if(compiled_target_addr) {
       set_jump_target(branch_addr, compiled_target_addr);
       add_link(target_addr,stub);
@@ -6004,7 +6010,7 @@ static void pagespan_ds()
   if(regs[0].regmap[HOST_CCREG]!=CCREG)
     wb_register(CCREG,regs[0].regmap_entry,regs[0].wasdirty,regs[0].was32);
   if(regs[0].regmap[HOST_BTREG]!=BTREG)
-    emit_writeword(HOST_BTREG,(int)&branch_target);
+    emit_writeword(HOST_BTREG,&branch_target);
   load_regs(regs[0].regmap_entry,regs[0].regmap,regs[0].was32,rs1[0],rs2[0]);
   address_generation(0,&regs[0],regs[0].regmap_entry);
   if(itype[0]==STORE||itype[0]==STORELR||(opcode[0]&0x3b)==0x39||(opcode[0]&0x3b)==0x3a)
@@ -6064,7 +6070,7 @@ static void pagespan_ds()
   int btaddr=get_reg(regs[0].regmap,BTREG);
   if(btaddr<0) {
     btaddr=get_reg(regs[0].regmap,-1);
-    emit_readword((int)&branch_target,btaddr);
+    emit_readword(&branch_target,btaddr);
   }
   assert(btaddr!=HOST_CCREG);
   if(regs[0].regmap[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
@@ -6916,7 +6922,7 @@ static int new_dynarec_test(void)
     SysPrintf("test passed.\n");
   else
     SysPrintf("test failed: %08x\n", ret);
-  out=(u_char *)BASE_ADDR;
+  out = translation_cache;
   return ret == DRC_TEST_VAL;
 }
 
@@ -6925,7 +6931,7 @@ static int new_dynarec_test(void)
 void new_dynarec_clear_full()
 {
   int n;
-  out=(u_char *)BASE_ADDR;
+  out = translation_cache;
   memset(invalid_code,1,sizeof(invalid_code));
   memset(hash_table,0xff,sizeof(hash_table));
   memset(mini_ht,-1,sizeof(mini_ht));
@@ -6950,7 +6956,7 @@ void new_dynarec_init()
   // allocate/prepare a buffer for translation cache
   // see assem_arm.h for some explanation
 #if   defined(BASE_ADDR_FIXED)
-  if (mmap (translation_cache, 1 << TARGET_SIZE_2,
+  if (mmap(translation_cache, 1 << TARGET_SIZE_2,
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_PRIVATE | MAP_ANONYMOUS,
             -1, 0) != translation_cache) {
@@ -6978,11 +6984,11 @@ void new_dynarec_init()
 #else
   #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
-  if (mprotect((void *)BASE_ADDR, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+  if (mprotect(translation_cache, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
   #endif
 #endif
-  out=(u_char *)BASE_ADDR;
+  out = translation_cache;
   cycle_multiplier=200;
   new_dynarec_clear_full();
 #ifdef HOST_IMM8
@@ -7006,7 +7012,7 @@ void new_dynarec_cleanup()
   sceKernelFreeMemBlock(sceBlock);
   sceBlock = -1;
   #else
-  if (munmap ((void *)BASE_ADDR, 1<<TARGET_SIZE_2) < 0)
+  if (munmap(translation_cache, 1<<TARGET_SIZE_2) < 0)
     SysPrintf("munmap() failed\n");
   #endif
 #endif
@@ -7169,7 +7175,7 @@ int new_recompile_block(int addr)
 
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
-    emit_writeword(0,(int)&pcaddr);
+    emit_writeword(0,&pcaddr);
     emit_jmp(new_dyna_leave);
     literal_pool(0);
     end_block(beginning);
@@ -9814,27 +9820,19 @@ int new_recompile_block(int addr)
     if(regs[i].isconst) {
       printf("constants: ");
       #if defined(__i386__) || defined(__x86_64__)
-      if(regs[i].isconst&1) printf("eax=%x ",(int)constmap[i][0]);
-      if((regs[i].isconst>>1)&1) printf("ecx=%x ",(int)constmap[i][1]);
-      if((regs[i].isconst>>2)&1) printf("edx=%x ",(int)constmap[i][2]);
-      if((regs[i].isconst>>3)&1) printf("ebx=%x ",(int)constmap[i][3]);
-      if((regs[i].isconst>>5)&1) printf("ebp=%x ",(int)constmap[i][5]);
-      if((regs[i].isconst>>6)&1) printf("esi=%x ",(int)constmap[i][6]);
-      if((regs[i].isconst>>7)&1) printf("edi=%x ",(int)constmap[i][7]);
+      if(regs[i].isconst&1) printf("eax=%x ",(u_int)constmap[i][0]);
+      if((regs[i].isconst>>1)&1) printf("ecx=%x ",(u_int)constmap[i][1]);
+      if((regs[i].isconst>>2)&1) printf("edx=%x ",(u_int)constmap[i][2]);
+      if((regs[i].isconst>>3)&1) printf("ebx=%x ",(u_int)constmap[i][3]);
+      if((regs[i].isconst>>5)&1) printf("ebp=%x ",(u_int)constmap[i][5]);
+      if((regs[i].isconst>>6)&1) printf("esi=%x ",(u_int)constmap[i][6]);
+      if((regs[i].isconst>>7)&1) printf("edi=%x ",(u_int)constmap[i][7]);
       #endif
       #ifdef __arm__
-      if(regs[i].isconst&1) printf("r0=%x ",(int)constmap[i][0]);
-      if((regs[i].isconst>>1)&1) printf("r1=%x ",(int)constmap[i][1]);
-      if((regs[i].isconst>>2)&1) printf("r2=%x ",(int)constmap[i][2]);
-      if((regs[i].isconst>>3)&1) printf("r3=%x ",(int)constmap[i][3]);
-      if((regs[i].isconst>>4)&1) printf("r4=%x ",(int)constmap[i][4]);
-      if((regs[i].isconst>>5)&1) printf("r5=%x ",(int)constmap[i][5]);
-      if((regs[i].isconst>>6)&1) printf("r6=%x ",(int)constmap[i][6]);
-      if((regs[i].isconst>>7)&1) printf("r7=%x ",(int)constmap[i][7]);
-      if((regs[i].isconst>>8)&1) printf("r8=%x ",(int)constmap[i][8]);
-      if((regs[i].isconst>>9)&1) printf("r9=%x ",(int)constmap[i][9]);
-      if((regs[i].isconst>>10)&1) printf("r10=%x ",(int)constmap[i][10]);
-      if((regs[i].isconst>>12)&1) printf("r12=%x ",(int)constmap[i][12]);
+      int r;
+      for (r = 0; r < ARRAY_SIZE(constmap[i]); r++)
+        if ((regs[i].isconst >> r) & 1)
+          printf(" r%d=%x", r, (u_int)constmap[i][r]);
       #endif
       printf("\n");
     }
@@ -9888,11 +9886,11 @@ int new_recompile_block(int addr)
     emit_movimm(start,0);
     // abuse io address var as a flag that we
     // have already returned here once
-    emit_readword((int)&address,1);
-    emit_writeword(0,(int)&pcaddr);
-    emit_writeword(0,(int)&address);
+    emit_readword(&address,1);
+    emit_writeword(0,&pcaddr);
+    emit_writeword(0,&address);
     emit_cmp(0,1);
-    emit_jne((int)new_dyna_leave);
+    emit_jne(new_dyna_leave);
   }
   for(i=0;i<slen;i++)
   {
@@ -10050,7 +10048,7 @@ int new_recompile_block(int addr)
         store_regs_bt(regs[i-2].regmap,regs[i-2].is32,regs[i-2].dirty,start+i*4);
         assert(regs[i-2].regmap[HOST_CCREG]==CCREG);
       }
-      add_to_linker((int)out,start+i*4,0);
+      add_to_linker(out,start+i*4,0);
       emit_jmp(0);
     }
   }
@@ -10062,7 +10060,7 @@ int new_recompile_block(int addr)
     if(regs[i-1].regmap[HOST_CCREG]!=CCREG)
       emit_loadreg(CCREG,HOST_CCREG);
     emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i-1]+1),HOST_CCREG);
-    add_to_linker((int)out,start+i*4,0);
+    add_to_linker(out,start+i*4,0);
     emit_jmp(0);
   }
 
@@ -10101,29 +10099,30 @@ int new_recompile_block(int addr)
   /* Pass 9 - Linker */
   for(i=0;i<linkcount;i++)
   {
-    assem_debug("%8x -> %8x\n",link_addr[i][0],link_addr[i][1]);
+    assem_debug("%p -> %8x\n",link_addr[i].addr,link_addr[i].target);
     literal_pool(64);
-    if(!link_addr[i][2])
+    if (!link_addr[i].ext)
     {
-      void *stub=out;
-      void *addr=check_addr(link_addr[i][1]);
-      emit_extjump(link_addr[i][0],link_addr[i][1]);
-      if(addr) {
-        set_jump_target(link_addr[i][0], addr);
-        add_link(link_addr[i][1],stub);
+      void *stub = out;
+      void *addr = check_addr(link_addr[i].target);
+      emit_extjump(link_addr[i].addr, link_addr[i].target);
+      if (addr) {
+        set_jump_target(link_addr[i].addr, addr);
+        add_link(link_addr[i].target,stub);
       }
-      else set_jump_target(link_addr[i][0], stub);
+      else
+        set_jump_target(link_addr[i].addr, stub);
     }
     else
     {
       // Internal branch
-      int target=(link_addr[i][1]-start)>>2;
+      int target=(link_addr[i].target-start)>>2;
       assert(target>=0&&target<slen);
       assert(instr_addr[target]);
       //#ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
-      //set_jump_target_fillslot(link_addr[i][0],instr_addr[target],link_addr[i][2]>>1);
+      //set_jump_target_fillslot(link_addr[i].addr,instr_addr[target],link_addr[i].ext>>1);
       //#else
-      set_jump_target(link_addr[i][0],instr_addr[target]);
+      set_jump_target(link_addr[i].addr, instr_addr[target]);
       //#endif
     }
   }
@@ -10165,7 +10164,7 @@ int new_recompile_block(int addr)
   if(((u_int)out)&7) emit_addnop(13);
   #endif
   assert((u_int)out-(u_int)beginning<MAX_OUTPUT_BLOCK_SIZE);
-  //printf("shadow buffer: %x-%x\n",(int)copy,(int)copy+slen*4);
+  //printf("shadow buffer: %p-%p\n",copy,(u_char *)copy+slen*4);
   memcpy(copy,source,slen*4);
   copy+=slen*4;
 
@@ -10173,7 +10172,8 @@ int new_recompile_block(int addr)
 
   // If we're within 256K of the end of the buffer,
   // start over from the beginning. (Is 256K enough?)
-  if((u_int)out>(u_int)BASE_ADDR+(1<<TARGET_SIZE_2)-MAX_OUTPUT_BLOCK_SIZE) out=(u_char *)BASE_ADDR;
+  if (out > translation_cache+(1<<TARGET_SIZE_2)-MAX_OUTPUT_BLOCK_SIZE)
+    out = translation_cache;
 
   // Trap writes to any of the pages we compiled
   for(i=start>>12;i<=(start+slen*4)>>12;i++) {
@@ -10190,11 +10190,11 @@ int new_recompile_block(int addr)
 
   /* Pass 10 - Free memory by expiring oldest blocks */
 
-  int end=((((int)out-(int)BASE_ADDR)>>(TARGET_SIZE_2-16))+16384)&65535;
+  int end=(((out-translation_cache)>>(TARGET_SIZE_2-16))+16384)&65535;
   while(expirep!=end)
   {
     int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    uintptr_t base=(uintptr_t)BASE_ADDR+((expirep>>13)<<shift); // Base address of this block
+    uintptr_t base=(uintptr_t)translation_cache+((expirep>>13)<<shift); // Base address of this block
     inv_debug("EXP: Phase %d\n",expirep);
     switch((expirep>>11)&3)
     {

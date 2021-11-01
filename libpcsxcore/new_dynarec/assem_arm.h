@@ -43,15 +43,13 @@ extern char *invc_ptr;
   // "round" address helpful for debug
   // this produces best code, but not many platforms allow it,
   // only use if you are sure this range is always free
-  #define BASE_ADDR 0x1000000
-  #define translation_cache (char *)BASE_ADDR
+  #define BASE_ADDR_ 0x1000000
+  #define translation_cache (u_char *)BASE_ADDR_
 #elif defined(BASE_ADDR_DYNAMIC)
   // for platforms that can't just use .bss buffer, like vita
   // otherwise better to use the next option for closer branches
-  extern char *translation_cache;
-  #define BASE_ADDR (u_int)translation_cache
+  extern u_char *translation_cache;
 #else
   // using a static buffer in .bss
-  extern char translation_cache[1 << TARGET_SIZE_2];
-  #define BASE_ADDR (u_int)translation_cache
+  extern u_char translation_cache[1 << TARGET_SIZE_2];
 #endif

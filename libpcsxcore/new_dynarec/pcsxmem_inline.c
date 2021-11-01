@@ -15,10 +15,10 @@ static int pcsx_direct_read(int type, u_int addr, int cc_adj, int cc, int rs, in
       case 0x1120: // rcnt2 count
         if (rt < 0) goto dont_care;
         if (cc < 0) return 0;
-        emit_readword((int)&rcnts[2].mode, HOST_TEMPREG);
-        emit_readword((int)&rcnts[2].cycleStart, rt);
+        emit_readword(&rcnts[2].mode, HOST_TEMPREG);
+        emit_readword(&rcnts[2].cycleStart, rt);
         emit_testimm(HOST_TEMPREG, 0x200);
-        emit_readword((int)&last_count, HOST_TEMPREG);
+        emit_readword(&last_count, HOST_TEMPREG);
         emit_sub(HOST_TEMPREG, rt, HOST_TEMPREG);
         emit_add(HOST_TEMPREG, cc, HOST_TEMPREG);
         if (cc_adj)
@@ -31,9 +31,9 @@ static int pcsx_direct_read(int type, u_int addr, int cc_adj, int cc, int rs, in
       case 0x1124: // rcnt mode
         if (rt < 0) return 0;
         t = (addr >> 4) & 3;
-        emit_readword((int)&rcnts[t].mode, rt);
+        emit_readword(&rcnts[t].mode, rt);
         emit_andimm(rt, ~0x1800, HOST_TEMPREG);
-        emit_writeword(HOST_TEMPREG, (int)&rcnts[t].mode);
+        emit_writeword(HOST_TEMPREG, &rcnts[t].mode);
         mov_loadtype_adj(type, rt, rt);
         goto hit;
     }
