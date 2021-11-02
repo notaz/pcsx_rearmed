@@ -1,6 +1,8 @@
 
-
+#ifdef __arm__
 #define CORTEX_A8_BRANCH_PREDICTION_HACK 1
+#endif
+
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
 

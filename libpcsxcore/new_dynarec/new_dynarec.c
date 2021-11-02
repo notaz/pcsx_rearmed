@@ -57,6 +57,9 @@ static int sceBlock;
 #ifdef __arm__
 #include "assem_arm.h"
 #endif
+#ifdef __aarch64__
+#include "assem_arm64.h"
+#endif
 
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
@@ -338,6 +341,8 @@ static void end_tcache_write(void *start, void *end)
   __clear_cache(start, end);
   #endif
   (void)len;
+#else
+  __clear_cache(start, end);
 #endif
 
   mprotect_w_x(start, end, 1);
@@ -834,6 +839,9 @@ static const char *func_name(intptr_t a)
 #ifdef __arm__
 #include "assem_arm.c"
 #endif
+#ifdef __aarch64__
+#include "assem_arm64.c"
+#endif
 
 // Add virtual address mapping to linked list
 void ll_add(struct ll_entry **head,int vaddr,void *addr)
@@ -1015,7 +1023,7 @@ static void invalidate_block_range(u_int block, u_int first, u_int last)
   for(first=page+1;first<last;first++) {
     invalidate_page(first);
   }
-  #ifdef __arm__
+  #if defined(__arm__) || defined(__aarch64__)
     do_clear_cache();
   #endif
 
@@ -3112,7 +3120,7 @@ static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
     case 30:
       emit_movs(sl,temp);
       emit_mvnmi(temp,temp);
-#ifdef HAVE_ARMV5
+#if defined(HAVE_ARMV5) || defined(__aarch64__)
       emit_clz(temp,temp);
 #else
       emit_movs(temp,HOST_TEMPREG);
@@ -4193,7 +4201,7 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
 static void do_ccstub(int n)
 {
   literal_pool(256);
-  assem_debug("do_ccstub %x\n",start+stubs[n].b*4);
+  assem_debug("do_ccstub %lx\n",start+stubs[n].b*4);
   set_jump_target(stubs[n].addr, out);
   int i=stubs[n].b;
   if(stubs[n].d==NULLDS) {
@@ -6183,25 +6191,32 @@ static void disassemble_inst(int i) {}
 
 #define DRC_TEST_VAL 0x74657374
 
-static int new_dynarec_test(void)
+static void new_dynarec_test(void)
 {
-  int (*testfunc)(void) = (void *)out;
+  int (*testfunc)(void);
   void *beginning;
-  int ret;
+  int ret[2];
+  size_t i;
 
-  beginning = start_block();
-  emit_movimm(DRC_TEST_VAL,0); // test
-  emit_jmpreg(14);
-  literal_pool(0);
-  end_block(beginning);
-  SysPrintf("testing if we can run recompiled code..\n");
-  ret = testfunc();
-  if (ret == DRC_TEST_VAL)
+  SysPrintf("testing if we can run recompiled code...\n");
+  ((volatile u_int *)out)[0]++; // make cache dirty
+
+  for (i = 0; i < ARRAY_SIZE(ret); i++) {
+    out = translation_cache;
+    beginning = start_block();
+    emit_movimm(DRC_TEST_VAL + i, 0); // test
+    emit_ret();
+    literal_pool(0);
+    end_block(beginning);
+    testfunc = beginning;
+    ret[i] = testfunc();
+  }
+
+  if (ret[0] == DRC_TEST_VAL && ret[1] == DRC_TEST_VAL + 1)
     SysPrintf("test passed.\n");
   else
-    SysPrintf("test failed: %08x\n", ret);
+    SysPrintf("test failed, will likely crash soon (r=%08x %08x)\n", ret[0], ret[1]);
   out = translation_cache;
-  return ret == DRC_TEST_VAL;
 }
 
 // clear the state completely, instead of just marking
@@ -6645,7 +6660,7 @@ int new_recompile_block(int addr)
 #endif
       case 0x12: strcpy(insn[i],"COP2"); type=NI;
         op2=(source[i]>>21)&0x1f;
-        //if (op2 & 0x10) {
+        //if (op2 & 0x10)
         if (source[i]&0x3f) { // use this hack to support old savestates with patched gte insns
           if (gte_handlers[source[i]&0x3f]!=NULL) {
             if (gte_regnames[source[i]&0x3f]!=NULL)
@@ -8893,7 +8908,7 @@ int new_recompile_block(int addr)
         break;
       case 3:
         // Clear jump_out
-        #ifdef __arm__
+        #if defined(__arm__) || defined(__aarch64__)
         if((expirep&2047)==0)
           do_clear_cache();
         #endif

@@ -56,8 +56,15 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifeq "$(USE_DYNAREC)" "1"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/linkage_arm.o
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+ ifeq "$(ARCH)" "arm"
+ OBJS += libpcsxcore/new_dynarec/linkage_arm.o
+ else ifeq "$(ARCH)" "aarch64"
+ OBJS += libpcsxcore/new_dynarec/linkage_arm64.o
+ else
+ $(error no dynarec support for architecture $(ARCH))
+ endif
 else
 CFLAGS += -DDRC_DISABLE
 endif

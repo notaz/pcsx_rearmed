@@ -7,6 +7,8 @@ extern char invalid_code[0x100000];
 #define EAX 0
 #define ECX 1
 
+extern int dynarec_local[];
+
 /* same as psxRegs */
 extern int reg[];
 

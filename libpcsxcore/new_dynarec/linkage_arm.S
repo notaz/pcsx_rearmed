@@ -655,7 +655,7 @@ invalidate_addr_call:
 FUNCTION(new_dyna_start):
 	/* ip is stored to conform EABI alignment */
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
-	load_varadr fp, dynarec_local
+	mov	fp, r0 /* dynarec_local */
 	ldr	r0, [fp, #LO_pcaddr]
 	bl	get_addr_ht
 	ldr	r1, [fp, #LO_next_interupt]

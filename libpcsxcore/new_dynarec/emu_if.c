@@ -362,7 +362,7 @@ static void ari64_execute_until()
 	evprintf("ari64_execute %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
 
-	new_dyna_start();
+	new_dyna_start(dynarec_local);
 
 	evprintf("ari64_execute end %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
@@ -446,7 +446,7 @@ unsigned char *out;
 void *mem_rtab;
 void *scratch_buf_ptr;
 void new_dynarec_init() {}
-void new_dyna_start() {}
+void new_dyna_start(void *context) {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}
 void invalidate_all_pages() {}

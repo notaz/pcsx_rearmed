@@ -55,7 +55,6 @@ extern int pcaddr;
 extern int pending_exception;
 extern int branch_target;
 extern uint64_t readmem_dword;
-extern void *dynarec_local;
 extern u_int mini_ht[32][2];
 
 void indirect_jump_indexed();
@@ -1139,6 +1138,11 @@ static void emit_jmpreg(u_int r)
 {
   assem_debug("mov pc,%s\n",regname[r]);
   output_w32(0xe1a00000|rd_rn_rm(15,0,r));
+}
+
+static void emit_ret(void)
+{
+  emit_jmpreg(14);
 }
 
 static void emit_readword_indexed(int offset, int rs, int rt)
