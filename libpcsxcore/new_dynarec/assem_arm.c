@@ -418,7 +418,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
     // Don't evict the cycle count at entry points, otherwise the entry
     // stub will have to write it.
     if(bt[i]&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if(i>1&&hsn[CCREG]>2&&(itype[i-2]==RJUMP||itype[i-2]==UJUMP||itype[i-2]==CJUMP||itype[i-2]==SJUMP||itype[i-2]==FJUMP)) hsn[CCREG]=2;
+    if(i>1&&hsn[CCREG]>2&&(itype[i-2]==RJUMP||itype[i-2]==UJUMP||itype[i-2]==CJUMP||itype[i-2]==SJUMP)) hsn[CCREG]=2;
     for(j=10;j>=3;j--)
     {
       // Alloc preferred register if available
@@ -488,12 +488,6 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
   SysPrintf("This shouldn't happen (alloc_reg)");exit(1);
 }
 
-static void alloc_reg64(struct regstat *cur,int i,signed char reg)
-{
-  // allocate the lower 32 bits
-  alloc_reg(cur,i,reg);
-}
-
 // Allocate a temporary register.  This is done without regard to
 // dirty status or whether the register we request is on the unneeded list
 // Note: This will only allocate one register, even if called multiple times
@@ -548,7 +542,7 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
     // Don't evict the cycle count at entry points, otherwise the entry
     // stub will have to write it.
     if(bt[i]&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if(i>1&&hsn[CCREG]>2&&(itype[i-2]==RJUMP||itype[i-2]==UJUMP||itype[i-2]==CJUMP||itype[i-2]==SJUMP||itype[i-2]==FJUMP)) hsn[CCREG]=2;
+    if(i>1&&hsn[CCREG]>2&&(itype[i-2]==RJUMP||itype[i-2]==UJUMP||itype[i-2]==CJUMP||itype[i-2]==SJUMP)) hsn[CCREG]=2;
     for(j=10;j>=3;j--)
     {
       for(r=1;r<=MAXREG;r++)
@@ -744,12 +738,6 @@ static void emit_adcs(int rs1,int rs2,int rt)
   output_w32(0xe0b00000|rd_rn_rm(rt,rs1,rs2));
 }
 
-static void emit_sbcs(int rs1,int rs2,int rt)
-{
-  assem_debug("sbcs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe0d00000|rd_rn_rm(rt,rs1,rs2));
-}
-
 static void emit_neg(int rs, int rt)
 {
   assem_debug("rsb %s,%s,#0\n",regname[rt],regname[rs]);
@@ -906,12 +894,6 @@ static void emit_or(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("orr %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe1800000|rd_rn_rm(rt,rs1,rs2));
-}
-
-static void emit_or_and_set_flags(int rs1,int rs2,int rt)
-{
-  assem_debug("orrs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe1900000|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_orrshl_imm(u_int rs,u_int imm,u_int rt)
@@ -1264,14 +1246,6 @@ static void emit_cmovb_imm(int imm,int rt)
   output_w32(0x33a00000|rd_rn_rm(rt,0,0)|armval);
 }
 
-static void emit_cmovs_imm(int imm,int rt)
-{
-  assem_debug("movmi %s,#%d\n",regname[rt],imm);
-  u_int armval;
-  genimm_checked(imm,&armval);
-  output_w32(0x43a00000|rd_rn_rm(rt,0,0)|armval);
-}
-
 static void emit_cmovne_reg(int rs,int rt)
 {
   assem_debug("movne %s,%s\n",regname[rt],regname[rs]);
@@ -1306,40 +1280,6 @@ static void emit_sltiu32(int rs,int imm,int rt)
   emit_cmovb_imm(1,rt);
 }
 
-static void emit_slti64_32(int rsh,int rsl,int imm,int rt)
-{
-  assert(rsh!=rt);
-  emit_slti32(rsl,imm,rt);
-  if(imm>=0)
-  {
-    emit_test(rsh,rsh);
-    emit_cmovne_imm(0,rt);
-    emit_cmovs_imm(1,rt);
-  }
-  else
-  {
-    emit_cmpimm(rsh,-1);
-    emit_cmovne_imm(0,rt);
-    emit_cmovl_imm(1,rt);
-  }
-}
-
-static void emit_sltiu64_32(int rsh,int rsl,int imm,int rt)
-{
-  assert(rsh!=rt);
-  emit_sltiu32(rsl,imm,rt);
-  if(imm>=0)
-  {
-    emit_test(rsh,rsh);
-    emit_cmovne_imm(0,rt);
-  }
-  else
-  {
-    emit_cmpimm(rsh,-1);
-    emit_cmovne_imm(1,rt);
-  }
-}
-
 static void emit_cmp(int rs,int rt)
 {
   assem_debug("cmp %s,%s\n",regname[rs],regname[rt]);
@@ -1362,22 +1302,6 @@ static void emit_set_nz32(int rs, int rt)
   emit_cmovne_imm(1,rt);
 }
 
-static void emit_set_gz64_32(int rsh, int rsl, int rt)
-{
-  //assem_debug("set_gz64\n");
-  emit_set_gz32(rsl,rt);
-  emit_test(rsh,rsh);
-  emit_cmovne_imm(1,rt);
-  emit_cmovs_imm(0,rt);
-}
-
-static void emit_set_nz64_32(int rsh, int rsl, int rt)
-{
-  //assem_debug("set_nz64\n");
-  emit_or_and_set_flags(rsh,rsl,rt);
-  emit_cmovne_imm(1,rt);
-}
-
 static void emit_set_if_less32(int rs1, int rs2, int rt)
 {
   //assem_debug("set if less (%%%s,%%%s),%%%s\n",regname[rs1],regname[rs2],regname[rt]);
@@ -1393,28 +1317,6 @@ static void emit_set_if_carry32(int rs1, int rs2, int rt)
   if(rs1!=rt&&rs2!=rt) emit_zeroreg(rt);
   emit_cmp(rs1,rs2);
   if(rs1==rt||rs2==rt) emit_movimm(0,rt);
-  emit_cmovb_imm(1,rt);
-}
-
-static void emit_set_if_less64_32(int u1, int l1, int u2, int l2, int rt)
-{
-  //assem_debug("set if less64 (%%%s,%%%s,%%%s,%%%s),%%%s\n",regname[u1],regname[l1],regname[u2],regname[l2],regname[rt]);
-  assert(u1!=rt);
-  assert(u2!=rt);
-  emit_cmp(l1,l2);
-  emit_movimm(0,rt);
-  emit_sbcs(u1,u2,HOST_TEMPREG);
-  emit_cmovl_imm(1,rt);
-}
-
-static void emit_set_if_carry64_32(int u1, int l1, int u2, int l2, int rt)
-{
-  //assem_debug("set if carry64 (%%%s,%%%s,%%%s,%%%s),%%%s\n",regname[u1],regname[l1],regname[u2],regname[l2],regname[rt]);
-  assert(u1!=rt);
-  assert(u2!=rt);
-  emit_cmp(l1,l2);
-  emit_movimm(0,rt);
-  emit_sbcs(u1,u2,HOST_TEMPREG);
   emit_cmovb_imm(1,rt);
 }
 
@@ -2576,11 +2478,11 @@ static void do_cop1stub(int n)
   struct regstat *i_regs=(struct regstat *)stubs[n].c;
   int ds=stubs[n].d;
   if(!ds) {
-    load_all_consts(regs[i].regmap_entry,regs[i].was32,regs[i].wasdirty,i);
+    load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
     //if(i_regs!=&regs[i]) printf("oops: regs[i]=%x i_regs=%x",(int)&regs[i],(int)i_regs);
   }
   //else {printf("fp exception in delay slot\n");}
-  wb_dirtys(i_regs->regmap_entry,i_regs->was32,i_regs->wasdirty);
+  wb_dirtys(i_regs->regmap_entry,i_regs->wasdirty);
   if(regs[i].regmap_entry[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
   emit_movimm(start+(i-ds)*4,EAX); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
@@ -2981,7 +2883,7 @@ static void cop0_assemble(int i,struct regstat *i_regs)
     signed char s=get_reg(i_regs->regmap,rs1[i]);
     char copr=(source[i]>>11)&0x1f;
     assert(s>=0);
-    wb_register(rs1[i],i_regs->regmap,i_regs->dirty,i_regs->is32);
+    wb_register(rs1[i],i_regs->regmap,i_regs->dirty);
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword(&last_count,HOST_TEMPREG);
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
@@ -3546,7 +3448,7 @@ static void do_miniht_insert(u_int return_address,int rt,int temp) {
   #endif
 }
 
-static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t is32_pre,uint64_t u)
+static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t u)
 {
   //if(dirty_pre==dirty) return;
   int hr,reg;
