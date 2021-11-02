@@ -57,9 +57,6 @@ extern const char gte_cycletab[64];
 extern const uint64_t gte_reg_reads[64];
 extern const uint64_t gte_reg_writes[64];
 
-/* dummy */
-extern int FCR0, FCR31;
-
 /* mem */
 extern void *mem_rtab;
 extern void *mem_wtab;

@@ -35,7 +35,4 @@
 #define LO_restore_candidate	(LO_mini_ht + 256)
 #define LO_dynarec_local_size	(LO_restore_candidate + 512)
 
-#define LO_FCR0			(LO_align0)
-#define LO_FCR31		(LO_align0)
-
 #define LO_cop2_to_scratch_buf	(LO_scratch_buf_ptr - LO_reg_cop2d)

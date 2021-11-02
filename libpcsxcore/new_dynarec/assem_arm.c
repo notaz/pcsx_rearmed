@@ -360,13 +360,8 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
     return;
   }
   r=cur->regmap[preferred_reg];
-  if(r<64&&((cur->u>>r)&1)) {
-    cur->regmap[preferred_reg]=reg;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
-    return;
-  }
-  if(r>=64&&((cur->uu>>(r&63))&1)) {
+  assert(r < 64);
+  if((cur->u>>r)&1) {
     cur->regmap[preferred_reg]=reg;
     cur->dirty&=~(1<<preferred_reg);
     cur->isconst&=~(1<<preferred_reg);
@@ -383,13 +378,8 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
   {
     r=cur->regmap[hr];
     if(r>=0) {
-      if(r<64) {
-        if((cur->u>>r)&1) {cur->regmap[hr]=-1;break;}
-      }
-      else
-      {
-        if((cur->uu>>(r&63))&1) {cur->regmap[hr]=-1;break;}
-      }
+      assert(r < 64);
+      if((cur->u>>r)&1) {cur->regmap[hr]=-1;break;}
     }
   }
   // Try to allocate any available register, but prefer
@@ -500,168 +490,8 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
 
 static void alloc_reg64(struct regstat *cur,int i,signed char reg)
 {
-  int preferred_reg = 8+(reg&1);
-  int r,hr;
-
   // allocate the lower 32 bits
   alloc_reg(cur,i,reg);
-
-  // Don't allocate unused registers
-  if((cur->uu>>reg)&1) return;
-
-  // see if the upper half is already allocated
-  for(hr=0;hr<HOST_REGS;hr++)
-  {
-    if(cur->regmap[hr]==reg+64) return;
-  }
-
-  // Keep the same mapping if the register was already allocated in a loop
-  preferred_reg = loop_reg(i,reg,preferred_reg);
-
-  // Try to allocate the preferred register
-  if(cur->regmap[preferred_reg]==-1) {
-    cur->regmap[preferred_reg]=reg|64;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
-    return;
-  }
-  r=cur->regmap[preferred_reg];
-  if(r<64&&((cur->u>>r)&1)) {
-    cur->regmap[preferred_reg]=reg|64;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
-    return;
-  }
-  if(r>=64&&((cur->uu>>(r&63))&1)) {
-    cur->regmap[preferred_reg]=reg|64;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
-    return;
-  }
-
-  // Clear any unneeded registers
-  // We try to keep the mapping consistent, if possible, because it
-  // makes branches easier (especially loops).  So we try to allocate
-  // first (see above) before removing old mappings.  If this is not
-  // possible then go ahead and clear out the registers that are no
-  // longer needed.
-  for(hr=HOST_REGS-1;hr>=0;hr--)
-  {
-    r=cur->regmap[hr];
-    if(r>=0) {
-      if(r<64) {
-        if((cur->u>>r)&1) {cur->regmap[hr]=-1;break;}
-      }
-      else
-      {
-        if((cur->uu>>(r&63))&1) {cur->regmap[hr]=-1;break;}
-      }
-    }
-  }
-  // Try to allocate any available register, but prefer
-  // registers that have not been used recently.
-  if(i>0) {
-    for(hr=0;hr<HOST_REGS;hr++) {
-      if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
-        if(regs[i-1].regmap[hr]!=rs1[i-1]&&regs[i-1].regmap[hr]!=rs2[i-1]&&regs[i-1].regmap[hr]!=rt1[i-1]&&regs[i-1].regmap[hr]!=rt2[i-1]) {
-          cur->regmap[hr]=reg|64;
-          cur->dirty&=~(1<<hr);
-          cur->isconst&=~(1<<hr);
-          return;
-        }
-      }
-    }
-  }
-  // Try to allocate any available register
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
-      cur->regmap[hr]=reg|64;
-      cur->dirty&=~(1<<hr);
-      cur->isconst&=~(1<<hr);
-      return;
-    }
-  }
-
-  // Ok, now we have to evict someone
-  // Pick a register we hopefully won't need soon
-  u_char hsn[MAXREG+1];
-  memset(hsn,10,sizeof(hsn));
-  int j;
-  lsn(hsn,i,&preferred_reg);
-  //printf("eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",cur->regmap[0],cur->regmap[1],cur->regmap[2],cur->regmap[3],cur->regmap[5],cur->regmap[6],cur->regmap[7]);
-  //printf("hsn(%x): %d %d %d %d %d %d %d\n",start+i*4,hsn[cur->regmap[0]&63],hsn[cur->regmap[1]&63],hsn[cur->regmap[2]&63],hsn[cur->regmap[3]&63],hsn[cur->regmap[5]&63],hsn[cur->regmap[6]&63],hsn[cur->regmap[7]&63]);
-  if(i>0) {
-    // Don't evict the cycle count at entry points, otherwise the entry
-    // stub will have to write it.
-    if(bt[i]&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if(i>1&&hsn[CCREG]>2&&(itype[i-2]==RJUMP||itype[i-2]==UJUMP||itype[i-2]==CJUMP||itype[i-2]==SJUMP||itype[i-2]==FJUMP)) hsn[CCREG]=2;
-    for(j=10;j>=3;j--)
-    {
-      // Alloc preferred register if available
-      if(hsn[r=cur->regmap[preferred_reg]&63]==j) {
-        for(hr=0;hr<HOST_REGS;hr++) {
-          // Evict both parts of a 64-bit register
-          if((cur->regmap[hr]&63)==r) {
-            cur->regmap[hr]=-1;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-          }
-        }
-        cur->regmap[preferred_reg]=reg|64;
-        return;
-      }
-      for(r=1;r<=MAXREG;r++)
-      {
-        if(hsn[r]==j&&r!=rs1[i-1]&&r!=rs2[i-1]&&r!=rt1[i-1]&&r!=rt2[i-1]) {
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||j<hsn[CCREG]) {
-              if(cur->regmap[hr]==r+64) {
-                cur->regmap[hr]=reg|64;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||j<hsn[CCREG]) {
-              if(cur->regmap[hr]==r) {
-                cur->regmap[hr]=reg|64;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  for(j=10;j>=0;j--)
-  {
-    for(r=1;r<=MAXREG;r++)
-    {
-      if(hsn[r]==j) {
-        for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r+64) {
-            cur->regmap[hr]=reg|64;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-        for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r) {
-            cur->regmap[hr]=reg|64;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-      }
-    }
-  }
-  SysPrintf("This shouldn't happen");exit(1);
 }
 
 // Allocate a temporary register.  This is done without regard to
@@ -693,25 +523,13 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
   {
     r=cur->regmap[hr];
     if(r>=0) {
-      if(r<64) {
-        if((cur->u>>r)&1) {
-          if(i==0||((unneeded_reg[i-1]>>r)&1)) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-      }
-      else
-      {
-        if((cur->uu>>(r&63))&1) {
-          if(i==0||((unneeded_reg_upper[i-1]>>(r&63))&1)) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
+      assert(r < 64);
+      if((cur->u>>r)&1) {
+        if(i==0||((unneeded_reg[i-1]>>r)&1)) {
+          cur->regmap[hr]=reg;
+          cur->dirty&=~(1<<hr);
+          cur->isconst&=~(1<<hr);
+          return;
         }
       }
     }
@@ -926,12 +744,6 @@ static void emit_adcs(int rs1,int rs2,int rt)
   output_w32(0xe0b00000|rd_rn_rm(rt,rs1,rs2));
 }
 
-static void emit_sbc(int rs1,int rs2,int rt)
-{
-  assem_debug("sbc %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe0c00000|rd_rn_rm(rt,rs1,rs2));
-}
-
 static void emit_sbcs(int rs1,int rs2,int rt)
 {
   assem_debug("sbcs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
@@ -944,22 +756,10 @@ static void emit_neg(int rs, int rt)
   output_w32(0xe2600000|rd_rn_rm(rt,rs,0));
 }
 
-static void emit_negs(int rs, int rt)
-{
-  assem_debug("rsbs %s,%s,#0\n",regname[rt],regname[rs]);
-  output_w32(0xe2700000|rd_rn_rm(rt,rs,0));
-}
-
 static void emit_sub(int rs1,int rs2,int rt)
 {
   assem_debug("sub %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0400000|rd_rn_rm(rt,rs1,rs2));
-}
-
-static void emit_subs(int rs1,int rs2,int rt)
-{
-  assem_debug("subs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe0500000|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_zeroreg(int rt)
@@ -1037,7 +837,6 @@ static void emit_loadreg(int r, int hr)
     if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
     if(r==CCREG) addr=(int)&cycle_count;
     if(r==CSREG) addr=(int)&Status;
-    if(r==FSREG) addr=(int)&FCR31;
     if(r==INVCP) addr=(int)&invc_ptr;
     u_int offset = addr-(u_int)&dynarec_local;
     assert(offset<4096);
@@ -1057,7 +856,6 @@ static void emit_storereg(int r, int hr)
   if((r&63)==HIREG) addr=(int)&hi+((r&64)>>4);
   if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
   if(r==CCREG) addr=(int)&cycle_count;
-  if(r==FSREG) addr=(int)&FCR31;
   u_int offset = addr-(u_int)&dynarec_local;
   assert(offset<4096);
   assem_debug("str %s,fp+%d\n",regname[hr],offset);
@@ -1222,15 +1020,6 @@ static void emit_adcimm(u_int rs,int imm,u_int rt)
   genimm_checked(imm,&armval);
   assem_debug("adc %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0xe2a00000|rd_rn_rm(rt,rs,0)|armval);
-}
-
-static void emit_rscimm(int rs,int imm,u_int rt)
-{
-  assert(0);
-  u_int armval;
-  genimm_checked(imm,&armval);
-  assem_debug("rsc %s,%s,#%d\n",regname[rt],regname[rs],imm);
-  output_w32(0xe2e00000|rd_rn_rm(rt,rs,0)|armval);
 }
 
 static void emit_addimm64_32(int rsh,int rsl,int imm,int rth,int rtl)
@@ -2776,6 +2565,7 @@ static void do_dirty_stub_ds()
   emit_call(&verify_code_ds);
 }
 
+// FP_STUB
 static void do_cop1stub(int n)
 {
   literal_pool(256);
@@ -3247,12 +3037,11 @@ static void cop0_assemble(int i,struct regstat *i_regs)
     emit_loadreg(rs1[i],s);
     if(get_reg(i_regs->regmap,rs1[i]|64)>=0)
       emit_loadreg(rs1[i]|64,get_reg(i_regs->regmap,rs1[i]|64));
-    cop1_usable=0;
   }
   else
   {
     assert(opcode2[i]==0x10);
-    if((source[i]&0x3f)==0x10) // RFE
+    //if((source[i]&0x3f)==0x10) // RFE
     {
       emit_readword(&Status,0);
       emit_andimm(0,0x3c,1);
@@ -3573,31 +3362,15 @@ static void c2op_assemble(int i,struct regstat *i_regs)
 static void cop1_unusable(int i,struct regstat *i_regs)
 {
   // XXX: should just just do the exception instead
-  if(!cop1_usable) {
+  //if(!cop1_usable)
+  {
     void *jaddr=out;
     emit_jmp(0);
     add_stub_r(FP_STUB,jaddr,out,i,0,i_regs,is_delayslot,0);
-    cop1_usable=1;
   }
 }
 
 static void cop1_assemble(int i,struct regstat *i_regs)
-{
-  cop1_unusable(i, i_regs);
-}
-
-static void fconv_assemble_arm(int i,struct regstat *i_regs)
-{
-  cop1_unusable(i, i_regs);
-}
-#define fconv_assemble fconv_assemble_arm
-
-static void fcomp_assemble(int i,struct regstat *i_regs)
-{
-  cop1_unusable(i, i_regs);
-}
-
-static void float_assemble(int i,struct regstat *i_regs)
 {
   cop1_unusable(i, i_regs);
 }
@@ -3773,7 +3546,7 @@ static void do_miniht_insert(u_int return_address,int rt,int temp) {
   #endif
 }
 
-static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t is32_pre,uint64_t u,uint64_t uu)
+static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t is32_pre,uint64_t u)
 {
   //if(dirty_pre==dirty) return;
   int hr,reg;
@@ -3785,13 +3558,9 @@ static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int
           if(((dirty_pre&~dirty)>>hr)&1) {
             if(reg>0&&reg<34) {
               emit_storereg(reg,hr);
-              if( ((is32_pre&~uu)>>reg)&1 ) {
-                emit_sarimm(hr,31,HOST_TEMPREG);
-                emit_storereg(reg|64,HOST_TEMPREG);
-              }
             }
             else if(reg>=64) {
-              emit_storereg(reg,hr);
+              assert(0);
             }
           }
         }

@@ -89,9 +89,6 @@ DRC_VAR(scratch_buf_ptr, 4)
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 
-/* unused */
-DRC_VAR(FCR0, 4)
-DRC_VAR(FCR31, 4)
 
 #ifdef TEXRELS_FORBIDDEN
 	.data
