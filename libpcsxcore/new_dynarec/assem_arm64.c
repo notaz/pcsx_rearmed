@@ -32,13 +32,6 @@ u_char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 
 #define unused __attribute__((unused))
 
-extern int cycle_count;
-extern int last_count;
-extern int pcaddr;
-extern int pending_exception;
-extern int branch_target;
-extern u_int mini_ht[32][2];
-
 static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
 
 //void indirect_jump_indexed();
@@ -141,11 +134,17 @@ static unused const char *regname[32] = {
  "r24", "r25", "r26", "r27", "r28",  "fp",  "lr",  "sp"
 };
 
-#pragma GCC diagnostic ignored "-Wunused-function"
 static void output_w32(u_int word)
 {
   *((u_int *)out) = word;
   out += 4;
+}
+
+static u_int rm_rd(u_int rm, u_int rd)
+{
+  assert(rm < 31);
+  assert(rd < 31);
+  return (rm << 16) | rd;
 }
 
 static u_int rm_rn_rd(u_int rm, u_int rn, u_int rd)
@@ -156,6 +155,12 @@ static u_int rm_rn_rd(u_int rm, u_int rn, u_int rd)
   return (rm << 16) | (rn << 5) | rd;
 }
 
+static u_int rm_imm6_rn_rd(u_int rm, u_int imm6, u_int rn, u_int rd)
+{
+  assert(imm6 <= 63);
+  return rm_rn_rd(rm, rn, rd) | (imm6 << 10);
+}
+
 static u_int imm16_rd(u_int imm16, u_int rd)
 {
   assert(imm16 < 0x10000);
@@ -163,6 +168,15 @@ static u_int imm16_rd(u_int imm16, u_int rd)
   return (imm16 << 5) | rd;
 }
 
+static u_int imm12_rn_rd(u_int imm12, u_int rn, u_int rd)
+{
+  assert(imm12 < 0x1000);
+  assert(rn < 31);
+  assert(rd < 31);
+  return (imm12 << 10) | (rn << 5) | rd;
+}
+
+#pragma GCC diagnostic ignored "-Wunused-function"
 static u_int genjmp(u_char *addr)
 {
   intptr_t offset = addr - out;
@@ -191,20 +205,20 @@ static u_int genjmpcc(u_char *addr)
 
 static void emit_mov(u_int rs, u_int rt)
 {
-  assem_debug("mov %s,%s\n",regname[rt],regname[rs]);
-  assert(0);
+  assem_debug("mov %s,%s\n", regname[rt], regname[rs]);
+  output_w32(0x2a0003e0 | rm_rd(rs, rt));
 }
 
 static void emit_movs(u_int rs, u_int rt)
 {
-  assem_debug("mov %s,%s\n",regname[rt],regname[rs]);
-  assert(0);
+  assem_debug("movs %s,%s\n", regname[rt], regname[rs]);
+  output_w32(0x31000000 | imm12_rn_rd(0, rs, rt));
 }
 
-static void emit_add(u_int rs1,u_int rs2,u_int rt)
+static void emit_add(u_int rs1, u_int rs2, u_int rt)
 {
-  assem_debug("add %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
+  assem_debug("add %s, %s, %s\n", regname[rt], regname[rs1], regname[rs2]);
+  output_w32(0x0b000000 | rm_imm6_rn_rd(rs2, 0, rs1, rt));
 }
 
 static void emit_sbc(u_int rs1,u_int rs2,u_int rt)
@@ -225,10 +239,10 @@ static void emit_negs(u_int rs, u_int rt)
   assert(0);
 }
 
-static void emit_sub(u_int rs1,u_int rs2,u_int rt)
+static void emit_sub(u_int rs1, u_int rs2, u_int rt)
 {
-  assem_debug("sub %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
+  assem_debug("sub %s, %s, %s\n", regname[rt], regname[rs1], regname[rs2]);
+  output_w32(0x4b000000 | rm_imm6_rn_rd(rs2, 0, rs1, rt));
 }
 
 static void emit_subs(u_int rs1,u_int rs2,u_int rt)
@@ -243,22 +257,9 @@ static void emit_zeroreg(u_int rt)
   assert(0);
 }
 
-static void emit_movw(u_int imm,u_int rt)
-{
-  assert(imm<65536);
-  assem_debug("movw %s,#%d (0x%x)\n",regname[rt],imm,imm);
-  assert(0);
-}
-
-static void emit_movt(u_int imm,u_int rt)
-{
-  assem_debug("movt %s,#%d (0x%x)\n",regname[rt],imm&0xffff0000,imm&0xffff0000);
-  assert(0);
-}
-
 static void emit_movimm(u_int imm, u_int rt)
 {
-  assem_debug("mov %s,#%x\n", regname[rt], imm);
+  assem_debug("mov %s,#%#x\n", regname[rt], imm);
   if      ((imm & 0xffff0000) == 0)
     output_w32(0x52800000 | imm16_rd(imm, rt));
   else if ((imm & 0xffff0000) == 0xffff0000)
@@ -267,6 +268,17 @@ static void emit_movimm(u_int imm, u_int rt)
     output_w32(0x52800000 | imm16_rd(imm & 0xffff, rt));
     output_w32(0x72a00000 | imm16_rd(imm >> 16, rt));
   }
+}
+
+static void emit_readword(void *addr, u_int rt)
+{
+  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
+  if (!(offset & 3) && offset <= 16380) {
+    assem_debug("ldr %s,[x%d+%#lx]\n", regname[rt], FP, offset);
+    output_w32(0xb9400000 | imm12_rn_rd(offset >> 2, FP, rt));
+  }
+  else
+    assert(0);
 }
 
 static void emit_loadreg(u_int r, u_int hr)
@@ -284,14 +296,22 @@ static void emit_loadreg(u_int r, u_int hr)
     case INVCP: addr = &invc_ptr; break;
     default: assert(r < 32); break;
     }
-    uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
-    assert(offset < 4096);
-    assem_debug("ldr %s,fp+%lx\n", regname[hr], offset);
-    assert(0);
+    emit_readword(addr, hr);
   }
 }
 
-static void emit_storereg(u_int r, int hr)
+static void emit_writeword(u_int rt, void *addr)
+{
+  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
+  if (!(offset & 3) && offset <= 16380) {
+    assem_debug("str %s,[x%d+%#lx]\n", regname[rt], FP, offset);
+    output_w32(0xb9000000 | imm12_rn_rd(offset >> 2, FP, rt));
+  }
+  else
+    assert(0);
+}
+
+static void emit_storereg(u_int r, u_int hr)
 {
   assert(r < 64);
   void *addr = &reg[r];
@@ -301,10 +321,7 @@ static void emit_storereg(u_int r, int hr)
   case CCREG: addr = &cycle_count; break;
   default: assert(r < 32); break;
   }
-  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
-  assert(offset < 4096);
-  assem_debug("str %s,fp+%lx\n", regname[hr], offset);
-  assert(0);
+  emit_writeword(hr, addr);
 }
 
 static void emit_test(u_int rs, u_int rt)
@@ -315,7 +332,7 @@ static void emit_test(u_int rs, u_int rt)
 
 static void emit_testimm(u_int rs,int imm)
 {
-  assem_debug("tst %s,#%d\n",regname[rs],imm);
+  assem_debug("tst %s,#%#x\n", regname[rs], imm);
   assert(0);
 }
 
@@ -381,9 +398,16 @@ static void emit_xor(u_int rs1,u_int rs2,u_int rt)
 
 static void emit_addimm(u_int rs, uintptr_t imm, u_int rt)
 {
-  assert(rs < 31);
-  assert(rt < 31);
-  assert(0);
+  if (imm < 4096) {
+    assem_debug("add %s,%s,%#lx\n", regname[rt], regname[rs], imm);
+    output_w32(0x11000000 | imm12_rn_rd(imm, rs, rt));
+  }
+  else if (-imm < 4096) {
+    assem_debug("sub %s,%s,%#lx\n", regname[rt], regname[rs], imm);
+    output_w32(0x51000000 | imm12_rn_rd(imm, rs, rt));
+  }
+  else
+    assert(0);
 }
 
 static void emit_addimm_and_set_flags(int imm, u_int rt)
@@ -396,22 +420,15 @@ static void emit_addimm_no_flags(u_int imm,u_int rt)
   emit_addimm(rt,imm,rt);
 }
 
-static void emit_addnop(u_int r)
-{
-  assert(r<16);
-  assem_debug("add %s,%s,#0 (nop)\n",regname[r],regname[r]);
-  assert(0);
-}
-
 static void emit_adcimm(u_int rs,int imm,u_int rt)
 {
-  assem_debug("adc %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  assem_debug("adc %s,%s,#%#x\n",regname[rt],regname[rs],imm);
   assert(0);
 }
 
 static void emit_rscimm(u_int rs,int imm,u_int rt)
 {
-  assem_debug("rsc %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  assem_debug("rsc %s,%s,#%#x\n",regname[rt],regname[rs],imm);
   assert(0);
 }
 
@@ -540,25 +557,25 @@ static void emit_cmpimm(u_int rs,int imm)
 
 static void emit_cmovne_imm(int imm,u_int rt)
 {
-  assem_debug("movne %s,#%d\n",regname[rt],imm);
+  assem_debug("movne %s,#%#x\n",regname[rt],imm);
   assert(0);
 }
 
 static void emit_cmovl_imm(int imm,u_int rt)
 {
-  assem_debug("movlt %s,#%d\n",regname[rt],imm);
+  assem_debug("movlt %s,#%#x\n",regname[rt],imm);
   assert(0);
 }
 
 static void emit_cmovb_imm(int imm,u_int rt)
 {
-  assem_debug("movcc %s,#%d\n",regname[rt],imm);
+  assem_debug("movcc %s,#%#x\n",regname[rt],imm);
   assert(0);
 }
 
 static void emit_cmovs_imm(int imm,u_int rt)
 {
-  assem_debug("movmi %s,#%d\n",regname[rt],imm);
+  assem_debug("movmi %s,#%#x\n",regname[rt],imm);
   assert(0);
 }
 
@@ -634,14 +651,18 @@ static void emit_set_if_carry32(u_int rs1, u_int rs2, u_int rt)
   emit_cmovb_imm(1,rt);
 }
 
-#pragma GCC diagnostic ignored "-Wunused-variable"
 static void emit_call(const void *a_)
 {
-  uintptr_t a = (uintptr_t)a_;
-  assem_debug("bl %p (%p+%lx)%s\n", a_, out, (u_char *)a_ - out, func_name(a));
-  assert(0);
+  intptr_t diff = (u_char *)a_ - out;
+  assem_debug("bl %p (%p+%lx)%s\n", a_, out, diff, func_name(a));
+  assert(!(diff & 3));
+  if (-134217728 <= diff && diff <= 134217727)
+    output_w32(0x94000000 | ((diff >> 2) & 0x03ffffff));
+  else
+    assert(0);
 }
 
+#pragma GCC diagnostic ignored "-Wunused-variable"
 static void emit_jmp(const void *a_)
 {
   uintptr_t a = (uintptr_t)a_;
@@ -735,42 +756,6 @@ static void emit_readword_indexed(int offset, u_int rs, u_int rt)
   assert(0);
 }
 
-static void emit_readword_dualindexedx4(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldr %s,%s,%s lsl #2\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_ldrcc_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldrcc %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_ldrccb_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldrccb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_ldrccsb_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldrccsb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_ldrcch_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldrcch %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_ldrccsh_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("ldrccsh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
 static void emit_movsbl_indexed(int offset, u_int rs, u_int rt)
 {
   assem_debug("ldrsb %s,%s+%d\n",regname[rt],regname[rs],offset);
@@ -795,65 +780,31 @@ static void emit_movzwl_indexed(int offset, u_int rs, u_int rt)
   assert(0);
 }
 
-static void emit_ldrd(int offset, u_int rs, u_int rt)
-{
-  assem_debug("ldrd %s,%s+%d\n",regname[rt],regname[rs],offset);
-  assert(0);
-}
-
-static void emit_readword(void *addr, u_int rt)
-{
-  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
-  assert(offset<4096);
-  assem_debug("ldr %s,fp+%lx\n", regname[rt], offset);
-  assert(0);
-}
-
 static void emit_writeword_indexed(u_int rt, int offset, u_int rs)
 {
-  assert(offset>-4096&&offset<4096);
-  assem_debug("str %s,%s+%x\n",regname[rt],regname[rs],offset);
-  assert(0);
+  assem_debug("str %s,[%s+%#x]\n", regname[rt], regname[rs], offset);
+  if (!(offset & 3) && offset <= 16380)
+    output_w32(0xb9000000 | imm12_rn_rd(offset >> 2, rs, rt));
+  else
+    assert(0);
 }
 
 static void emit_writehword_indexed(u_int rt, int offset, u_int rs)
 {
-  assert(offset>-256&&offset<256);
-  assem_debug("strh %s,%s+%d\n",regname[rt],regname[rs],offset);
-  assert(0);
+  assem_debug("strh %s,[%s+%#x]\n", regname[rt], regname[rs], offset);
+  if (!(offset & 1) && offset <= 8190)
+    output_w32(0x79000000 | imm12_rn_rd(offset >> 1, rs, rt));
+  else
+    assert(0);
 }
 
 static void emit_writebyte_indexed(u_int rt, int offset, u_int rs)
 {
-  assert(offset>-4096&&offset<4096);
-  assem_debug("strb %s,%s+%d\n",regname[rt],regname[rs],offset);
-  assert(0);
-}
-
-static void emit_strcc_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("strcc %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_strccb_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("strccb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_strcch_dualindexed(u_int rs1, u_int rs2, u_int rt)
-{
-  assem_debug("strcch %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  assert(0);
-}
-
-static void emit_writeword(u_int rt, void *addr)
-{
-  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
-  assert(offset<4096);
-  assem_debug("str %s,fp+%lx\n", regname[rt], offset);
-  assert(0);
+  assem_debug("strb %s,[%s+%#x]\n", regname[rt], regname[rs], offset);
+  if ((u_int)offset < 4096)
+    output_w32(0x39000000 | imm12_rn_rd(offset, rs, rt));
+  else
+    assert(0);
 }
 
 static void emit_umull(u_int rs1, u_int rs2, u_int hi, u_int lo)
@@ -915,52 +866,91 @@ static unused void emit_prefetchreg(u_int r)
 static void emit_ldreq_indexed(u_int rs, u_int offset, u_int rt)
 {
   assert(offset<4096);
-  assem_debug("ldreq %s,[%s, #%d]\n",regname[rt],regname[rs],offset);
+  assem_debug("ldreq %s,[%s, #%#x]\n",regname[rt],regname[rs],offset);
   assert(0);
 }
 
 static void emit_orrne_imm(u_int rs,int imm,u_int rt)
 {
-  assem_debug("orrne %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  assem_debug("orrne %s,%s,#%#x\n",regname[rt],regname[rs],imm);
   assert(0);
 }
 
 static void emit_andne_imm(u_int rs,int imm,u_int rt)
 {
-  assem_debug("andne %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  assem_debug("andne %s,%s,#%#x\n",regname[rt],regname[rs],imm);
   assert(0);
 }
 
 static unused void emit_addpl_imm(u_int rs,int imm,u_int rt)
 {
-  assem_debug("addpl %s,%s,#%d\n",regname[rt],regname[rs],imm);
+  assem_debug("addpl %s,%s,#%#x\n",regname[rt],regname[rs],imm);
   assert(0);
 }
 
-static void save_regs_all(u_int reglist)
+static void emit_ldst(int is_st, int is64, u_int rt, u_int rn, u_int ofs)
 {
-  if(!reglist) return;
-  assert(0);
+  u_int op = 0xb9000000;
+  const char *ldst = is_st ? "st" : "ld";
+  char rp = is64 ? 'x' : 'w';
+  assem_debug("%sr %c%d,[x%d,#%#x]\n", ldst, rp, rt, rn, ofs);
+  is64 = is64 ? 1 : 0;
+  assert((ofs & ((1 << (2+is64)) - 1)) == 0);
+  ofs = (ofs >> (2+is64));
+  assert(ofs <= 0xfff);
+  if (!is_st) op |= 0x00400000;
+  if (is64)   op |= 0x40000000;
+  output_w32(op | (ofs << 15) | imm12_rn_rd(ofs, rn, rt));
 }
 
-static void restore_regs_all(u_int reglist)
+static void emit_ldstp(int is_st, int is64, u_int rt1, u_int rt2, u_int rn, int ofs)
 {
-  if(!reglist) return;
-  assert(0);
+  u_int op = 0x29000000;
+  const char *ldst = is_st ? "st" : "ld";
+  char rp = is64 ? 'x' : 'w';
+  assem_debug("%sp %c%d,%c%d,[x%d,#%#x]\n", ldst, rp, rt1, rp, rt2, rn, ofs);
+  is64 = is64 ? 1 : 0;
+  assert((ofs & ((1 << (2+is64)) - 1)) == 0);
+  ofs = (ofs >> (2+is64));
+  assert(-64 <= ofs && ofs <= 63);
+  ofs &= 0x7f;
+  if (!is_st) op |= 0x00400000;
+  if (is64)   op |= 0x80000000;
+  output_w32(op | (ofs << 15) | rm_rn_rd(rt2, rn, rt1));
+}
+
+static void save_load_regs_all(int is_store, u_int reglist)
+{
+  int ofs = 0, c = 0;
+  u_int r, pair[2];
+  for (r = 0; reglist; r++, reglist >>= 1) {
+    if (reglist & 1)
+      pair[c++] = r;
+    if (c == 2) {
+      emit_ldstp(is_store, 1, pair[0], pair[1], SP, SSP_CALLEE_REGS + ofs);
+      ofs += 8 * 2;
+      c = 0;
+    }
+  }
+  if (c) {
+    emit_ldst(is_store, 1, pair[0], SP, SSP_CALLEE_REGS + ofs);
+    ofs += 8;
+  }
+  assert(ofs <= SSP_CALLER_REGS);
 }
 
 // Save registers before function call
 static void save_regs(u_int reglist)
 {
   reglist &= CALLER_SAVE_REGS; // only save the caller-save registers
-  save_regs_all(reglist);
+  save_load_regs_all(1, reglist);
 }
 
 // Restore registers after function call
 static void restore_regs(u_int reglist)
 {
   reglist &= CALLER_SAVE_REGS;
-  restore_regs_all(reglist);
+  save_load_regs_all(0, reglist);
 }
 
 /* Stubs/epilogue */
@@ -990,16 +980,21 @@ static void emit_extjump_ds(void *addr, int target)
 }
 
 // put rt_val into rt, potentially making use of rs with value rs_val
-static void emit_movimm_from(u_int rs_val,u_int rs,u_int rt_val,u_int rt)
+static void emit_movimm_from(u_int rs_val, u_int rs, uintptr_t rt_val, u_int rt)
 {
-  assert(0);
+  intptr_t diff = rt_val - rs_val;
+  if (-4096 < diff && diff < 4096)
+    emit_addimm(rs, diff, rt);
+  else
+    // TODO: for inline_writestub, etc
+    assert(0);
 }
 
 // return 1 if above function can do it's job cheaply
-static int is_similar_value(u_int v1,u_int v2)
+static int is_similar_value(u_int v1, u_int v2)
 {
-  assert(0);
-  return 0;
+  int diff = v1 - v2;
+  return -4096 < diff && diff < 4096;
 }
 
 //#include "pcsxmem.h"
@@ -1024,7 +1019,46 @@ static void do_writestub(int n)
 
 static void inline_writestub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
 {
-  assert(0);
+  int rs = get_reg(regmap,-1);
+  int rt = get_reg(regmap,target);
+  assert(rs >= 0);
+  assert(rt >= 0);
+  uintptr_t host_addr = 0;
+  void *handler = get_direct_memhandler(mem_wtab, addr, type, &host_addr);
+  if (handler == NULL) {
+    if (addr != host_addr)
+      emit_movimm_from(addr, rs, host_addr, rs);
+    switch(type) {
+      case STOREB_STUB: emit_writebyte_indexed(rt, 0, rs); break;
+      case STOREH_STUB: emit_writehword_indexed(rt, 0, rs); break;
+      case STOREW_STUB: emit_writeword_indexed(rt, 0, rs); break;
+      default:          assert(0);
+    }
+    return;
+  }
+
+  // call a memhandler
+  save_regs(reglist);
+  //pass_args(rs, rt);
+  int cc = get_reg(regmap, CCREG);
+  assert(cc >= 0);
+  emit_addimm(cc, CLOCK_ADJUST(adj+1), 2);
+  //emit_movimm((uintptr_t)handler, 3);
+  // returns new cycle_count
+
+  emit_readword(&last_count, HOST_TEMPREG);
+  emit_writeword(rs, &address); // some handlers still need it
+  emit_add(2, HOST_TEMPREG, 2);
+  emit_writeword(2, &Count);
+  emit_mov(1, 0);
+  emit_call(handler);
+  emit_readword(&next_interupt, 0);
+  emit_readword(&Count, 1);
+  emit_writeword(0, &last_count);
+  emit_sub(1, 0, cc);
+
+  emit_addimm(cc,-CLOCK_ADJUST(adj+1),cc);
+  restore_regs(reglist);
 }
 
 static void do_unalignedwritestub(int n)

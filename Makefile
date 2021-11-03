@@ -60,8 +60,10 @@ OBJS += libpcsxcore/new_dynarec/new_dynarec.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
  ifeq "$(ARCH)" "arm"
  OBJS += libpcsxcore/new_dynarec/linkage_arm.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
  else ifeq "$(ARCH)" "aarch64"
  OBJS += libpcsxcore/new_dynarec/linkage_arm64.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm64.c
  else
  $(error no dynarec support for architecture $(ARCH))
  endif
@@ -69,8 +71,7 @@ else
 CFLAGS += -DDRC_DISABLE
 endif
 OBJS += libpcsxcore/new_dynarec/emu_if.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c \
-	libpcsxcore/new_dynarec/pcsxmem_inline.c
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG

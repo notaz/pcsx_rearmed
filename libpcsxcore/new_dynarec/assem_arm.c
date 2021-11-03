@@ -49,14 +49,6 @@ u_char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #endif
 
-extern int cycle_count;
-extern int last_count;
-extern int pcaddr;
-extern int pending_exception;
-extern int branch_target;
-extern uint64_t readmem_dword;
-extern u_int mini_ht[32][2];
-
 void indirect_jump_indexed();
 void indirect_jump();
 void do_interrupt();
@@ -1674,23 +1666,6 @@ static int is_similar_value(u_int v1,u_int v2)
   return 0;
 }
 
-// trashes r2
-static void pass_args(int a0, int a1)
-{
-  if(a0==1&&a1==0) {
-    // must swap
-    emit_mov(a0,2); emit_mov(a1,1); emit_mov(2,0);
-  }
-  else if(a0!=0&&a1==0) {
-    emit_mov(a1,1);
-    if (a0>=0) emit_mov(a0,0);
-  }
-  else {
-    if(a0>=0&&a0!=0) emit_mov(a0,0);
-    if(a1>=0&&a1!=1) emit_mov(a1,1);
-  }
-}
-
 static void mov_loadtype_adj(enum stub_type type,int rs,int rt)
 {
   switch(type) {
@@ -1787,40 +1762,14 @@ static void do_readstub(int n)
   emit_jmp(stubs[n].retaddr); // return address
 }
 
-// return memhandler, or get directly accessable address and return 0
-static void *get_direct_memhandler(void *table,u_int addr,enum stub_type type,u_int *addr_host)
-{
-  u_int l1,l2=0;
-  l1=((u_int *)table)[addr>>12];
-  if((l1&(1<<31))==0) {
-    u_int v=l1<<1;
-    *addr_host=v+addr;
-    return NULL;
-  }
-  else {
-    l1<<=1;
-    if(type==LOADB_STUB||type==LOADBU_STUB||type==STOREB_STUB)
-      l2=((u_int *)l1)[0x1000/4 + 0x1000/2 + (addr&0xfff)];
-    else if(type==LOADH_STUB||type==LOADHU_STUB||type==STOREH_STUB)
-      l2=((u_int *)l1)[0x1000/4 + (addr&0xfff)/2];
-    else
-      l2=((u_int *)l1)[(addr&0xfff)/4];
-    if((l2&(1<<31))==0) {
-      u_int v=l2<<1;
-      *addr_host=v+(addr&0xfff);
-      return NULL;
-    }
-    return (void *)(l2<<1);
-  }
-}
-
 static void inline_readstub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,target);
   int rt=get_reg(regmap,target);
   if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
-  u_int host_addr=0,is_dynamic,far_call=0;
+  u_int is_dynamic,far_call=0;
+  uintptr_t host_addr = 0;
   void *handler;
   int cc=get_reg(regmap,CCREG);
   if(pcsx_direct_read(type,addr,CLOCK_ADJUST(adj+1),cc,target?rs:-1,rt))
@@ -1983,7 +1932,7 @@ static void inline_writestub(enum stub_type type, int i, u_int addr, signed char
   int rt=get_reg(regmap,target);
   assert(rs>=0);
   assert(rt>=0);
-  u_int host_addr=0;
+  uintptr_t host_addr = 0;
   void *handler = get_direct_memhandler(mem_wtab, addr, type, &host_addr);
   if (handler == NULL) {
     if(addr!=host_addr)

@@ -46,8 +46,9 @@ DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
 DRC_VAR(pending_exception, 4)
 DRC_VAR(stop, 4)
-DRC_VAR(invc_ptr, 4)
+DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
+#DRC_VAR(align0, 16) /* unused/alignment */
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
@@ -64,15 +65,15 @@ DRC_VAR(pcaddr, 4)
 #DRC_VAR(intCycle, 256)
 
 DRC_VAR(rcnts, 7*4*4)
-DRC_VAR(mem_rtab, 4)
-DRC_VAR(mem_wtab, 4)
-DRC_VAR(psxH_ptr, 4)
-DRC_VAR(zeromem_ptr, 4)
 DRC_VAR(inv_code_start, 4)
 DRC_VAR(inv_code_end, 4)
-DRC_VAR(branch_target, 4)
-DRC_VAR(scratch_buf_ptr, 4)
-#DRC_VAR(align0, 12) /* unused/alignment */
+DRC_VAR(mem_rtab, 8)
+DRC_VAR(mem_wtab, 8)
+DRC_VAR(psxH_ptr, 8)
+DRC_VAR(invc_ptr, 8)
+DRC_VAR(zeromem_ptr, 8)
+DRC_VAR(scratch_buf_ptr, 8)
+#DRC_VAR(align1, 16) /* unused/alignment */
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 
@@ -202,9 +203,10 @@ FUNCTION(jump_intcall):
 	bl	abort
 	.size	jump_intcall, .-jump_intcall
 
+	/* stack must be aligned by 16, and include space for save_regs() use */
 	.align	2
 FUNCTION(new_dyna_start):
-	stp	x29, x30, [sp, #-96]!	// must be aligned by 16
+	stp	x29, x30, [sp, #-SSP_ALL]!
 	ldr	w1,  [x0, #LO_next_interupt]
 	ldr	w2,  [x0, #LO_cycle]
 	stp	x19, x20, [sp, #16*1]
@@ -230,7 +232,7 @@ FUNCTION(new_dyna_leave):
 	ldp	x23, x24, [sp, #16*3]
 	ldp	x25, x26, [sp, #16*4]
 	ldp	x27, x28, [sp, #16*5]
-	ldp	x29, x30, [sp], #96
+	ldp	x29, x30, [sp], #SSP_ALL
 	ret
 	.size	new_dyna_leave, .-new_dyna_leave
 

@@ -198,8 +198,14 @@ struct link_entry
 
   int new_dynarec_hacks;
   int new_dynarec_did_compile;
+
+  extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
+  extern int last_count;  // last absolute target, often = next_interupt
+  extern int pcaddr;
+  extern int pending_exception;
+  extern int branch_target;
+  extern u_int mini_ht[32][2];
   extern u_char restore_candidate[512];
-  extern int cycle_count;
 
   /* registers that may be allocated */
   /* 1-31 gpr */
@@ -299,6 +305,9 @@ static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
   int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(void *addr, u_int target, int ext);
 static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override);
+static void *get_direct_memhandler(void *table, u_int addr,
+  enum stub_type type, uintptr_t *addr_host);
+static void pass_args(int a0, int a1);
 
 static void mprotect_w_x(void *start, void *end, int is_x)
 {
@@ -970,7 +979,7 @@ static void ll_kill_pointers(struct ll_entry *head,uintptr_t addr,int shift)
     {
       inv_debug("EXP: Kill pointer at %p (%x)\n",head->addr,head->vaddr);
       void *host_addr=find_extjump_insn(head->addr);
-      #ifdef __arm__
+      #if defined(__arm__) || defined(__aarch64__)
         mark_clear_cache(host_addr);
       #endif
       set_jump_target(host_addr, head->addr);
@@ -998,7 +1007,7 @@ void invalidate_page(u_int page)
   while(head!=NULL) {
     inv_debug("INVALIDATE: kill pointer to %x (%p)\n",head->vaddr,head->addr);
     void *host_addr=find_extjump_insn(head->addr);
-    #ifdef __arm__
+    #if defined(__arm__) || defined(__aarch64__)
       mark_clear_cache(host_addr);
     #endif
     set_jump_target(host_addr, head->addr);
@@ -2003,7 +2012,24 @@ void rlist()
   printf("\n");
 }
 
-void alu_assemble(int i,struct regstat *i_regs)
+// trashes r2
+static void pass_args(int a0, int a1)
+{
+  if(a0==1&&a1==0) {
+    // must swap
+    emit_mov(a0,2); emit_mov(a1,1); emit_mov(2,0);
+  }
+  else if(a0!=0&&a1==0) {
+    emit_mov(a1,1);
+    if (a0>=0) emit_mov(a0,0);
+  }
+  else {
+    if(a0>=0&&a0!=0) emit_mov(a0,0);
+    if(a1>=0&&a1!=1) emit_mov(a1,1);
+  }
+}
+
+static void alu_assemble(int i,struct regstat *i_regs)
 {
   if(opcode2[i]>=0x20&&opcode2[i]<=0x23) { // ADD/ADDU/SUB/SUBU
     if(rt1[i]) {
@@ -2469,6 +2495,34 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
   }
 
   return jaddr;
+}
+
+// return memhandler, or get directly accessable address and return 0
+static void *get_direct_memhandler(void *table, u_int addr,
+  enum stub_type type, uintptr_t *addr_host)
+{
+  uintptr_t l1, l2 = 0;
+  l1 = ((uintptr_t *)table)[addr>>12];
+  if ((l1 & (1ul << (sizeof(l1)*8-1))) == 0) {
+    uintptr_t v = l1 << 1;
+    *addr_host = v + addr;
+    return NULL;
+  }
+  else {
+    l1 <<= 1;
+    if (type == LOADB_STUB || type == LOADBU_STUB || type == STOREB_STUB)
+      l2 = ((uintptr_t *)l1)[0x1000/4 + 0x1000/2 + (addr&0xfff)];
+    else if (type == LOADH_STUB || type == LOADHU_STUB || type == STOREH_STUB)
+      l2=((uintptr_t *)l1)[0x1000/4 + (addr&0xfff)/2];
+    else
+      l2=((uintptr_t *)l1)[(addr&0xfff)/4];
+    if ((l2 & (1<<31)) == 0) {
+      uintptr_t v = l2 << 1;
+      *addr_host = v + (addr&0xfff);
+      return NULL;
+    }
+    return (void *)(l2 << 1);
+  }
 }
 
 static void load_assemble(int i,struct regstat *i_regs)
@@ -6197,6 +6251,13 @@ static void new_dynarec_test(void)
   void *beginning;
   int ret[2];
   size_t i;
+
+  // check structure linkage
+  if ((void *)reg != (void *)&psxRegs
+      || (u_char *)rcnts - (u_char *)reg != sizeof(psxRegs))
+  {
+    SysPrintf("linkage_arm miscompilation/breakage detected.\n");
+  }
 
   SysPrintf("testing if we can run recompiled code...\n");
   ((volatile u_int *)out)[0]++; // make cache dirty

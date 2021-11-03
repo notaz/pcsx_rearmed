@@ -17,6 +17,8 @@
 #define ARG3_REG 2
 #define ARG4_REG 3
 
+#define SP 30
+
 #define LR 30
 #define HOST_TEMPREG LR
 
@@ -27,6 +29,11 @@
 
 #define HOST_CCREG 28
 #define rCC w28
+
+// stack space
+#define SSP_CALLEE_REGS (8*12)
+#define SSP_CALLER_REGS (8*20)
+#define SSP_ALL (SSP_CALLEE_REGS+SSP_CALLER_REGS)
 
 #ifndef __ASSEMBLER__
 

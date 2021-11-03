@@ -59,8 +59,9 @@ DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
 DRC_VAR(pending_exception, 4)
 DRC_VAR(stop, 4)
-DRC_VAR(invc_ptr, 4)
+DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
+@DRC_VAR(align0, 4) /* unused/alignment */
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
@@ -77,15 +78,15 @@ DRC_VAR(pcaddr, 4)
 @DRC_VAR(intCycle, 256)
 
 DRC_VAR(rcnts, 7*4*4)
+DRC_VAR(inv_code_start, 4)
+DRC_VAR(inv_code_end, 4)
 DRC_VAR(mem_rtab, 4)
 DRC_VAR(mem_wtab, 4)
 DRC_VAR(psxH_ptr, 4)
 DRC_VAR(zeromem_ptr, 4)
-DRC_VAR(inv_code_start, 4)
-DRC_VAR(inv_code_end, 4)
-DRC_VAR(branch_target, 4)
+DRC_VAR(invc_ptr, 4)
 DRC_VAR(scratch_buf_ptr, 4)
-@DRC_VAR(align0, 12) /* unused/alignment */
+@DRC_VAR(align1, 8) /* unused/alignment */
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 
@@ -723,10 +724,10 @@ FUNCTION(jump_handler_read32):
 	blx	r3
 
 	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, r3}
+	pop	{r2, lr}
 	str	r0, [fp, #LO_last_count]
 	sub	r0, r2, r0
-	bx	r3
+	bx	lr
 .endm
 
 FUNCTION(jump_handler_write8):
@@ -751,10 +752,10 @@ FUNCTION(jump_handler_write_h):
 	blx	r3
 
 	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, r3}
+	pop	{r2, lr}
 	str	r0, [fp, #LO_last_count]
 	sub	r0, r2, r0
-	bx	r3
+	bx	lr
 
 FUNCTION(jump_handle_swl):
 	/* r0 = address, r1 = data, r2 = cycles */
