@@ -65,7 +65,7 @@ DRC_VAR(address, 4)
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
-DRC_VAR(reg, 128)
+@DRC_VAR(reg, 128)
 DRC_VAR(lo, 4)
 DRC_VAR(hi, 4)
 DRC_VAR(reg_cop0, 128)
@@ -394,7 +394,6 @@ FUNCTION(jump_vaddr):
 
 FUNCTION(verify_code_ds):
 	str	r8, [fp, #LO_branch_target]
-FUNCTION(verify_code_vm):
 FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
@@ -429,7 +428,7 @@ FUNCTION(verify_code):
 	bl	get_addr
 	mov	pc, r0
 	.size	verify_code, .-verify_code
-	.size	verify_code_vm, .-verify_code_vm
+	.size	verify_code_ds, .-verify_code_ds
 
 	.align	2
 FUNCTION(cc_interrupt):

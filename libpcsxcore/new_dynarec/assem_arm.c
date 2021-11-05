@@ -281,7 +281,6 @@ static int isclean(void *addr)
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   if((*ptr&0xFF000000)!=0xeb000000) return 1; // bl instruction
   if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code) return 0;
-  if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code_vm) return 0;
   if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code_ds) return 0;
   return 1;
 }
@@ -415,12 +414,11 @@ static void genimm_checked(u_int imm,u_int *encoded)
 
 static u_int genjmp(u_int addr)
 {
-  int offset=addr-(int)out-8;
-  if(offset<-33554432||offset>=33554432) {
-    if (addr>2) {
-      SysPrintf("genjmp: out of range: %08x\n", offset);
-      exit(1);
-    }
+  if (addr < 3) return 0; // a branch that will be patched later
+  int offset = addr-(int)out-8;
+  if (offset < -33554432 || offset >= 33554432) {
+    SysPrintf("genjmp: out of range: %08x\n", offset);
+    abort();
     return 0;
   }
   return ((u_int)offset>>2)&0xffffff;
@@ -442,12 +440,6 @@ static void emit_add(int rs1,int rs2,int rt)
 {
   assem_debug("add %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0800000|rd_rn_rm(rt,rs1,rs2));
-}
-
-static void emit_adds(int rs1,int rs2,int rt)
-{
-  assem_debug("adds %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
-  output_w32(0xe0900000|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_adcs(int rs1,int rs2,int rt)
@@ -538,12 +530,15 @@ static void emit_loadreg(int r, int hr)
   if((r&63)==0)
     emit_zeroreg(hr);
   else {
-    int addr=((int)reg)+((r&63)<<REG_SHIFT)+((r&64)>>4);
-    if((r&63)==HIREG) addr=(int)&hi+((r&64)>>4);
-    if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
-    if(r==CCREG) addr=(int)&cycle_count;
-    if(r==CSREG) addr=(int)&Status;
-    if(r==INVCP) addr=(int)&invc_ptr;
+    int addr = (int)&psxRegs.GPR.r[r];
+    switch (r) {
+    //case HIREG: addr = &hi; break;
+    //case LOREG: addr = &lo; break;
+    case CCREG: addr = (int)&cycle_count; break;
+    case CSREG: addr = (int)&Status; break;
+    case INVCP: addr = (int)&invc_ptr; break;
+    default: assert(r < 34); break;
+    }
     u_int offset = addr-(u_int)&dynarec_local;
     assert(offset<4096);
     assem_debug("ldr %s,fp+%d\n",regname[hr],offset);
@@ -558,10 +553,13 @@ static void emit_storereg(int r, int hr)
     assert(0);
     return;
   }
-  int addr=((int)reg)+((r&63)<<REG_SHIFT)+((r&64)>>4);
-  if((r&63)==HIREG) addr=(int)&hi+((r&64)>>4);
-  if((r&63)==LOREG) addr=(int)&lo+((r&64)>>4);
-  if(r==CCREG) addr=(int)&cycle_count;
+  int addr = (int)&psxRegs.GPR.r[r];
+  switch (r) {
+  //case HIREG: addr = &hi; break;
+  //case LOREG: addr = &lo; break;
+  case CCREG: addr = (int)&cycle_count; break;
+  default: assert(r < 34); break;
+  }
   u_int offset = addr-(u_int)&dynarec_local;
   assert(offset<4096);
   assem_debug("str %s,fp+%d\n",regname[hr],offset);
@@ -712,23 +710,6 @@ static void emit_addnop(u_int r)
   assert(r<16);
   assem_debug("add %s,%s,#0 (nop)\n",regname[r],regname[r]);
   output_w32(0xe2800000|rd_rn_rm(r,r,0));
-}
-
-static void emit_adcimm(u_int rs,int imm,u_int rt)
-{
-  u_int armval;
-  genimm_checked(imm,&armval);
-  assem_debug("adc %s,%s,#%d\n",regname[rt],regname[rs],imm);
-  output_w32(0xe2a00000|rd_rn_rm(rt,rs,0)|armval);
-}
-
-static void emit_addimm64_32(int rsh,int rsl,int imm,int rth,int rtl)
-{
-  // TODO: if(genimm(imm,&armval)) ...
-  // else
-  emit_movimm(imm,HOST_TEMPREG);
-  emit_adds(HOST_TEMPREG,rsl,rtl);
-  emit_adcimm(rsh,0,rth);
 }
 
 static void emit_andimm(int rs,int imm,int rt)
@@ -1062,56 +1043,63 @@ static void emit_jne(const void *a_)
   output_w32(0x1a000000|offset);
 }
 
-static void emit_jeq(int a)
+static void emit_jeq(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("beq %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0x0a000000|offset);
 }
 
-static void emit_js(int a)
+static void emit_js(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("bmi %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0x4a000000|offset);
 }
 
-static void emit_jns(int a)
+static void emit_jns(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("bpl %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0x5a000000|offset);
 }
 
-static void emit_jl(int a)
+static void emit_jl(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("blt %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0xba000000|offset);
 }
 
-static void emit_jge(int a)
+static void emit_jge(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("bge %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0xaa000000|offset);
 }
 
-static void emit_jno(int a)
+static void emit_jno(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("bvc %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0x7a000000|offset);
 }
 
-static void emit_jc(int a)
+static void emit_jc(const void *a_)
 {
+  int a = (int)a_;
   assem_debug("bcs %x\n",a);
   u_int offset=genjmp(a);
   output_w32(0x2a000000|offset);
 }
 
-static void emit_jcc(void *a_)
+static void emit_jcc(const void *a_)
 {
   int a = (int)a_;
   assem_debug("bcc %x\n",a);
@@ -1589,7 +1577,8 @@ static void literal_pool_jumpover(int n)
   set_jump_target(jaddr, out);
 }
 
-static void emit_extjump2(u_char *addr, int target, void *linker)
+// parsed by get_pointer, find_extjump_insn
+static void emit_extjump2(u_char *addr, u_int target, void *linker)
 {
   u_char *ptr=(u_char *)addr;
   assert((ptr[3]&0x0e)==0xa);
@@ -1610,16 +1599,6 @@ static void emit_extjump2(u_char *addr, int target, void *linker)
 #endif
 //DEBUG <
   emit_jmp(linker);
-}
-
-static void emit_extjump(void *addr, int target)
-{
-  emit_extjump2(addr, target, dyna_linker);
-}
-
-static void emit_extjump_ds(void *addr, int target)
-{
-  emit_extjump2(addr, target, dyna_linker_ds);
 }
 
 // put rt_val into rt, potentially making use of rs with value rs_val
@@ -2062,24 +2041,28 @@ static void do_invstub(int n)
   emit_jmp(stubs[n].retaddr); // return address
 }
 
-void *do_dirty_stub(int i)
+// this output is parsed by verify_dirty, get_bounds
+static void do_dirty_stub_emit_args(u_int arg0)
+{
+  #ifndef HAVE_ARMV7
+  emit_loadlp((int)source, 1);
+  emit_loadlp((int)copy, 2);
+  emit_loadlp(slen*4, 3);
+  #else
+  emit_movw(((u_int)source)&0x0000FFFF, 1);
+  emit_movw(((u_int)copy)&0x0000FFFF, 2);
+  emit_movt(((u_int)source)&0xFFFF0000, 1);
+  emit_movt(((u_int)copy)&0xFFFF0000, 2);
+  emit_movw(slen*4, 3);
+  #endif
+  emit_movimm(arg0, 0);
+}
+
+static void *do_dirty_stub(int i)
 {
   assem_debug("do_dirty_stub %x\n",start+i*4);
-  u_int addr=(u_int)source;
-  // Careful about the code output here, verify_dirty needs to parse it.
-  #ifndef HAVE_ARMV7
-  emit_loadlp(addr,1);
-  emit_loadlp((int)copy,2);
-  emit_loadlp(slen*4,3);
-  #else
-  emit_movw(addr&0x0000FFFF,1);
-  emit_movw(((u_int)copy)&0x0000FFFF,2);
-  emit_movt(addr&0xFFFF0000,1);
-  emit_movt(((u_int)copy)&0xFFFF0000,2);
-  emit_movw(slen*4,3);
-  #endif
-  emit_movimm(start+i*4,0);
-  emit_call((int)start<(int)0xC0000000?&verify_code:&verify_code_vm);
+  do_dirty_stub_emit_args(start + i*4);
+  emit_call(verify_code);
   void *entry = out;
   load_regs_entry(i);
   if (entry == out)
@@ -2090,20 +2073,8 @@ void *do_dirty_stub(int i)
 
 static void do_dirty_stub_ds()
 {
-  // Careful about the code output here, verify_dirty needs to parse it.
-  #ifndef HAVE_ARMV7
-  emit_loadlp((int)start<(int)0xC0000000?(int)source:(int)start,1);
-  emit_loadlp((int)copy,2);
-  emit_loadlp(slen*4,3);
-  #else
-  emit_movw(((int)start<(int)0xC0000000?(u_int)source:(u_int)start)&0x0000FFFF,1);
-  emit_movw(((u_int)copy)&0x0000FFFF,2);
-  emit_movt(((int)start<(int)0xC0000000?(u_int)source:(u_int)start)&0xFFFF0000,1);
-  emit_movt(((u_int)copy)&0xFFFF0000,2);
-  emit_movw(slen*4,3);
-  #endif
-  emit_movimm(start+1,0);
-  emit_call(&verify_code_ds);
+  do_dirty_stub_emit_args(start + 1);
+  emit_call(verify_code_ds);
 }
 
 /* Special assem */
@@ -2512,7 +2483,7 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_negmi(quotient,quotient); // .. quotient and ..
         emit_negmi(remainder,remainder); // .. remainder for div0 case (will be negated back after jump)
         emit_movs(d2,HOST_TEMPREG);
-        emit_jeq((int)out+52); // Division by zero
+        emit_jeq(out+52); // Division by zero
         emit_negsmi(HOST_TEMPREG,HOST_TEMPREG);
 #ifdef HAVE_ARMV5
         emit_clz(HOST_TEMPREG,quotient);
@@ -2521,7 +2492,7 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_movimm(0,quotient);
         emit_addpl_imm(quotient,1,quotient);
         emit_lslpls_imm(HOST_TEMPREG,1,HOST_TEMPREG);
-        emit_jns((int)out-2*4);
+        emit_jns(out-2*4);
 #endif
         emit_orimm(quotient,1<<31,quotient);
         emit_shr(quotient,quotient,quotient);
@@ -2548,7 +2519,7 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_mov(d1,remainder);
         emit_movimm(0xffffffff,quotient); // div0 case
         emit_test(d2,d2);
-        emit_jeq((int)out+40); // Division by zero
+        emit_jeq(out+40); // Division by zero
 #ifdef HAVE_ARMV5
         emit_clz(d2,HOST_TEMPREG);
         emit_movimm(1<<31,quotient);
@@ -2557,7 +2528,7 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_movimm(0,HOST_TEMPREG);
         emit_addpl_imm(HOST_TEMPREG,1,HOST_TEMPREG);
         emit_lslpls_imm(d2,1,d2);
-        emit_jns((int)out-2*4);
+        emit_jns(out-2*4);
         emit_movimm(1<<31,quotient);
 #endif
         emit_shr(quotient,HOST_TEMPREG,quotient);

@@ -8,16 +8,9 @@
 #define HAVE_CONDITIONAL_CALL 1
 #define RAM_SIZE 0x200000
 
-#define REG_SHIFT 2
-
 /* ARM calling convention:
    r0-r3, r12: caller-save
    r4-r11: callee-save */
-
-#define ARG1_REG 0
-#define ARG2_REG 1
-#define ARG3_REG 2
-#define ARG4_REG 3
 
 /* GCC register naming convention:
    r10 = sl (base)

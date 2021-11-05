@@ -52,7 +52,7 @@ DRC_VAR(address, 4)
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
-DRC_VAR(reg, 128)
+#DRC_VAR(reg, 128)
 DRC_VAR(lo, 4)
 DRC_VAR(hi, 4)
 DRC_VAR(reg_cop0, 128)
@@ -121,14 +121,13 @@ FUNCTION(jump_vaddr):
 
 FUNCTION(verify_code_ds):
 	bl	abort
-FUNCTION(verify_code_vm):
 FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
 	/* r3 = length */
 	bl	abort
 	.size	verify_code, .-verify_code
-	.size	verify_code_vm, .-verify_code_vm
+	.size	verify_code_ds, .-verify_code_ds
 
 	.align	2
 FUNCTION(cc_interrupt):

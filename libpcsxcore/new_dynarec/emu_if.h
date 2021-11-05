@@ -9,9 +9,6 @@ extern char invalid_code[0x100000];
 
 extern int dynarec_local[];
 
-/* same as psxRegs */
-extern int reg[];
-
 /* same as psxRegs.GPR.n.* */
 extern int hi, lo;
 

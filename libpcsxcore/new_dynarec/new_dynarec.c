@@ -147,8 +147,6 @@ struct link_entry
   static u_char rs2[MAXBLOCK];
   static u_char rt1[MAXBLOCK];
   static u_char rt2[MAXBLOCK];
-  static u_char us1[MAXBLOCK];
-  static u_char us2[MAXBLOCK];
   static u_char dep1[MAXBLOCK];
   static u_char dep2[MAXBLOCK];
   static u_char lt1[MAXBLOCK];
@@ -209,8 +207,8 @@ struct link_entry
 
   /* registers that may be allocated */
   /* 1-31 gpr */
-#define HIREG 32 // hi
-#define LOREG 33 // lo
+#define LOREG 32 // lo
+#define HIREG 33 // hi
 //#define FSREG 34 // FPU status (FCSR)
 #define CSREG 35 // Coprocessor status
 #define CCREG 36 // Cycle count
@@ -269,6 +267,9 @@ struct link_entry
 #define NOTTAKEN 2
 #define NULLDS 3
 
+#define DJT_1 (void *)1l // no function, just a label in assem_debug log
+#define DJT_2 (void *)2l
+
 // asm linkage
 int new_recompile_block(int addr);
 void *get_addr_ht(u_int vaddr);
@@ -278,7 +279,6 @@ void remove_hash(int vaddr);
 void dyna_linker();
 void dyna_linker_ds();
 void verify_code();
-void verify_code_vm();
 void verify_code_ds();
 void cc_interrupt();
 void fp_exception();
@@ -537,10 +537,6 @@ void set_const(struct regstat *cur,signed char reg,uint64_t value)
       cur->isconst|=1<<hr;
       current_constmap[hr]=value;
     }
-    else if((cur->regmap[hr]^64)==reg) {
-      cur->isconst|=1<<hr;
-      current_constmap[hr]=value>>32;
-    }
   }
 }
 
@@ -577,7 +573,7 @@ uint64_t get_const(struct regstat *cur,signed char reg)
     }
   }
   SysPrintf("Unknown constant in r%d\n",reg);
-  exit(1);
+  abort();
 }
 
 // Least soon needed registers
@@ -817,7 +813,6 @@ static const struct {
   FUNCNAME(jump_handler_write16),
   FUNCNAME(jump_handler_write32),
   FUNCNAME(invalidate_addr),
-  FUNCNAME(verify_code_vm),
   FUNCNAME(verify_code),
   FUNCNAME(jump_hlecall),
   FUNCNAME(jump_syscall_hle),
@@ -1318,16 +1313,6 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
         if(hsn[r]==j&&r!=rs1[i-1]&&r!=rs2[i-1]&&r!=rt1[i-1]&&r!=rt2[i-1]) {
           for(hr=0;hr<HOST_REGS;hr++) {
             if(hr!=HOST_CCREG||j<hsn[CCREG]) {
-              if(cur->regmap[hr]==r+64) {
-                cur->regmap[hr]=reg;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||j<hsn[CCREG]) {
               if(cur->regmap[hr]==r) {
                 cur->regmap[hr]=reg;
                 cur->dirty&=~(1<<hr);
@@ -1346,14 +1331,6 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
     {
       if(hsn[r]==j) {
         for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r+64) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-        for(hr=0;hr<HOST_REGS;hr++) {
           if(cur->regmap[hr]==r) {
             cur->regmap[hr]=reg;
             cur->dirty&=~(1<<hr);
@@ -1364,7 +1341,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  SysPrintf("This shouldn't happen (alloc_reg)");exit(1);
+  SysPrintf("This shouldn't happen (alloc_reg)");abort();
 }
 
 // Allocate a temporary register.  This is done without regard to
@@ -1429,16 +1406,6 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
         if(hsn[r]==j&&r!=rs1[i-1]&&r!=rs2[i-1]&&r!=rt1[i-1]&&r!=rt2[i-1]) {
           for(hr=0;hr<HOST_REGS;hr++) {
             if(hr!=HOST_CCREG||hsn[CCREG]>2) {
-              if(cur->regmap[hr]==r+64) {
-                cur->regmap[hr]=reg;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||hsn[CCREG]>2) {
               if(cur->regmap[hr]==r) {
                 cur->regmap[hr]=reg;
                 cur->dirty&=~(1<<hr);
@@ -1457,14 +1424,6 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
     {
       if(hsn[r]==j) {
         for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r+64) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-        for(hr=0;hr<HOST_REGS;hr++) {
           if(cur->regmap[hr]==r) {
             cur->regmap[hr]=reg;
             cur->dirty&=~(1<<hr);
@@ -1475,7 +1434,7 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
       }
     }
   }
-  SysPrintf("This shouldn't happen");exit(1);
+  SysPrintf("This shouldn't happen");abort();
 }
 
 static void mov_alloc(struct regstat *current,int i)
@@ -1858,7 +1817,7 @@ void delayslot_alloc(struct regstat *current,int i)
     case SYSCALL:
     case HLECALL:
     case SPAN:
-      assem_debug("jump in the delay slot.  this shouldn't happen.\n");//exit(1);
+      assem_debug("jump in the delay slot.  this shouldn't happen.\n");//abort();
       SysPrintf("Disabled speculative precompilation\n");
       stop_after_jal=1;
       break;
@@ -2001,15 +1960,6 @@ static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int
       }
     }
   }
-}
-
-void rlist()
-{
-  int i;
-  printf("TRACE: ");
-  for(i=0;i<32;i++)
-    printf("r%d:%8x%8x ",i,((int *)(reg+i))[1],((int *)(reg+i))[0]);
-  printf("\n");
 }
 
 // trashes r2
@@ -2212,24 +2162,15 @@ void imm16_assemble(int i,struct regstat *i_regs)
   }
   if(opcode[i]==0x18||opcode[i]==0x19) { // DADDI/DADDIU
     if(rt1[i]) {
-      signed char sh,sl,th,tl;
-      th=get_reg(i_regs->regmap,rt1[i]|64);
+      signed char sl,tl;
       tl=get_reg(i_regs->regmap,rt1[i]);
-      sh=get_reg(i_regs->regmap,rs1[i]|64);
       sl=get_reg(i_regs->regmap,rs1[i]);
       if(tl>=0) {
         if(rs1[i]) {
-          assert(sh>=0);
           assert(sl>=0);
-          if(th>=0) {
-            emit_addimm64_32(sh,sl,imm[i],th,tl);
-          }
-          else {
-            emit_addimm(sl,imm[i],tl);
-          }
+          emit_addimm(sl,imm[i],tl);
         } else {
           emit_movimm(imm[i],tl);
-          if(th>=0) emit_movimm(((signed int)imm[i])>>31,th);
         }
       }
     }
@@ -2276,10 +2217,8 @@ void imm16_assemble(int i,struct regstat *i_regs)
   }
   else if(opcode[i]>=0x0c&&opcode[i]<=0x0e) { // ANDI/ORI/XORI
     if(rt1[i]) {
-      signed char sh,sl,th,tl;
-      th=get_reg(i_regs->regmap,rt1[i]|64);
+      signed char sl,tl;
       tl=get_reg(i_regs->regmap,rt1[i]);
-      sh=get_reg(i_regs->regmap,rs1[i]|64);
       sl=get_reg(i_regs->regmap,rs1[i]);
       if(tl>=0 && !((i_regs->isconst>>tl)&1)) {
         if(opcode[i]==0x0c) //ANDI
@@ -2297,20 +2236,12 @@ void imm16_assemble(int i,struct regstat *i_regs)
           }
           else
             emit_zeroreg(tl);
-          if(th>=0) emit_zeroreg(th);
         }
         else
         {
           if(rs1[i]) {
             if(sl<0) {
               if(i_regs->regmap_entry[tl]!=rs1[i]) emit_loadreg(rs1[i],tl);
-            }
-            if(th>=0) {
-              if(sh<0) {
-                emit_loadreg(rs1[i]|64,th);
-              }else{
-                emit_mov(sh,th);
-              }
             }
             if(opcode[i]==0x0d) { // ORI
               if(sl<0) {
@@ -2335,7 +2266,6 @@ void imm16_assemble(int i,struct regstat *i_regs)
           }
           else {
             emit_movimm(imm[i],tl);
-            if(th>=0) emit_zeroreg(th);
           }
         }
       }
@@ -2404,7 +2334,7 @@ void shiftimm_assemble(int i,struct regstat *i_regs)
 void shift_assemble(int i,struct regstat *i_regs)
 {
   printf("Need shift_assemble for this architecture.\n");
-  exit(1);
+  abort();
 }
 #endif
 
@@ -2527,13 +2457,12 @@ static void *get_direct_memhandler(void *table, u_int addr,
 
 static void load_assemble(int i,struct regstat *i_regs)
 {
-  int s,th,tl,addr;
+  int s,tl,addr;
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
   int fastload_reg_override=0;
   u_int hr,reglist=0;
-  th=get_reg(i_regs->regmap,rt1[i]|64);
   tl=get_reg(i_regs->regmap,rt1[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
   offset=imm[i];
@@ -2566,7 +2495,6 @@ static void load_assemble(int i,struct regstat *i_regs)
   //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
   assert(tl>=0); // Even if the load is a NOP, we must check for pagefaults and I/O
   reglist&=~(1<<tl);
-  if(th>=0) reglist&=~(1<<th);
   if(!c) {
     #ifdef R29_HACK
     // Strmnnrmn's speed hack
@@ -2655,20 +2583,7 @@ static void load_assemble(int i,struct regstat *i_regs)
       inline_readstub(LOADHU_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
   }
   if (opcode[i]==0x27) { // LWU
-    assert(th>=0);
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a=addr;
-        if(fastload_reg_override) a=fastload_reg_override;
-        emit_readword_indexed(0,a,tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
-    }
-    else {
-      inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,rt1[i],ccadj[i],reglist);
-    }
-    emit_zeroreg(th);
+    assert(0);
   }
   if (opcode[i]==0x37) { // LD
     assert(0);
@@ -2680,7 +2595,7 @@ static void load_assemble(int i,struct regstat *i_regs)
 void loadlr_assemble(int i,struct regstat *i_regs)
 {
   printf("Need loadlr_assemble for this architecture.\n");
-  exit(1);
+  abort();
 }
 #endif
 
@@ -3036,8 +2951,6 @@ static void cop0_assemble(int i,struct regstat *i_regs)
       emit_jne(&do_interrupt);
     }
     emit_loadreg(rs1[i],s);
-    if(get_reg(i_regs->regmap,rs1[i]|64)>=0)
-      emit_loadreg(rs1[i]|64,get_reg(i_regs->regmap,rs1[i]|64));
   }
   else
   {
@@ -3344,33 +3257,27 @@ static void cop2_assemble(int i,struct regstat *i_regs)
 void multdiv_assemble(int i,struct regstat *i_regs)
 {
   printf("Need multdiv_assemble for this architecture.\n");
-  exit(1);
+  abort();
 }
 #endif
 
-void mov_assemble(int i,struct regstat *i_regs)
+static void mov_assemble(int i,struct regstat *i_regs)
 {
   //if(opcode2[i]==0x10||opcode2[i]==0x12) { // MFHI/MFLO
   //if(opcode2[i]==0x11||opcode2[i]==0x13) { // MTHI/MTLO
   if(rt1[i]) {
-    signed char sh,sl,th,tl;
-    th=get_reg(i_regs->regmap,rt1[i]|64);
+    signed char sl,tl;
     tl=get_reg(i_regs->regmap,rt1[i]);
     //assert(tl>=0);
     if(tl>=0) {
-      sh=get_reg(i_regs->regmap,rs1[i]|64);
       sl=get_reg(i_regs->regmap,rs1[i]);
       if(sl>=0) emit_mov(sl,tl);
       else emit_loadreg(rs1[i],tl);
-      if(th>=0) {
-        if(sh>=0) emit_mov(sh,th);
-        else emit_loadreg(rs1[i]|64,th);
-      }
     }
   }
 }
 
-void syscall_assemble(int i,struct regstat *i_regs)
+static void syscall_assemble(int i,struct regstat *i_regs)
 {
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
@@ -3381,7 +3288,7 @@ void syscall_assemble(int i,struct regstat *i_regs)
   emit_jmp(jump_syscall_hle); // XXX
 }
 
-void hlecall_assemble(int i,struct regstat *i_regs)
+static void hlecall_assemble(int i,struct regstat *i_regs)
 {
   extern void psxNULL();
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
@@ -3398,7 +3305,7 @@ void hlecall_assemble(int i,struct regstat *i_regs)
   emit_jmp(jump_hlecall);
 }
 
-void intcall_assemble(int i,struct regstat *i_regs)
+static void intcall_assemble(int i,struct regstat *i_regs)
 {
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
@@ -3501,7 +3408,7 @@ static void speculate_register_values(int i)
 #endif
 }
 
-void ds_assemble(int i,struct regstat *i_regs)
+static void ds_assemble(int i,struct regstat *i_regs)
 {
   speculate_register_values(i);
   is_delayslot=1;
@@ -4131,7 +4038,7 @@ static void drc_dbg_emit_do_cmp(int i)
 #endif
 
 // Used when a branch jumps into the delay slot of another branch
-void ds_assemble_entry(int i)
+static void ds_assemble_entry(int i)
 {
   int t=(ba[i]-start)>>2;
   if (!instr_addr[t])
@@ -4198,6 +4105,16 @@ void ds_assemble_entry(int i)
   assert(internal_branch(ba[i]+4));
   add_to_linker(out,ba[i]+4,internal_branch(ba[i]+4));
   emit_jmp(0);
+}
+
+static void emit_extjump(void *addr, u_int target)
+{
+  emit_extjump2(addr, target, dyna_linker);
+}
+
+static void emit_extjump_ds(void *addr, u_int target)
+{
+  emit_extjump2(addr, target, dyna_linker_ds);
 }
 
 void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
@@ -4428,7 +4345,7 @@ static void do_ccstub(int n)
       }
       emit_writeword(r,&pcaddr);
     }
-    else {SysPrintf("Unknown branch type in do_ccstub\n");exit(1);}
+    else {SysPrintf("Unknown branch type in do_ccstub\n");abort();}
   }
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
@@ -4501,7 +4418,7 @@ static void ujump_assemble_write_ra(int i)
   }
 }
 
-void ujump_assemble(int i,struct regstat *i_regs)
+static void ujump_assemble(int i,struct regstat *i_regs)
 {
   int ra_done=0;
   if(i==(ba[i]-start)>>2) assem_debug("idle loop\n");
@@ -4571,7 +4488,7 @@ static void rjump_assemble_write_ra(int i)
   #endif
 }
 
-void rjump_assemble(int i,struct regstat *i_regs)
+static void rjump_assemble(int i,struct regstat *i_regs)
 {
   int temp;
   int rs,cc;
@@ -4668,7 +4585,7 @@ void rjump_assemble(int i,struct regstat *i_regs)
   #endif
 }
 
-void cjump_assemble(int i,struct regstat *i_regs)
+static void cjump_assemble(int i,struct regstat *i_regs)
 {
   signed char *i_regmap=i_regs->regmap;
   int cc;
@@ -4770,7 +4687,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         else emit_test(s1l,s1l);
         if(invert){
           nottaken=out;
-          emit_jne((void *)1l);
+          emit_jne(DJT_1);
         }else{
           add_to_linker(out,ba[i],internal);
           emit_jeq(0);
@@ -4782,7 +4699,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         else emit_test(s1l,s1l);
         if(invert){
           nottaken=out;
-          emit_jeq(1);
+          emit_jeq(DJT_1);
         }else{
           add_to_linker(out,ba[i],internal);
           emit_jne(0);
@@ -4793,7 +4710,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         emit_cmpimm(s1l,1);
         if(invert){
           nottaken=out;
-          emit_jge(1);
+          emit_jge(DJT_1);
         }else{
           add_to_linker(out,ba[i],internal);
           emit_jl(0);
@@ -4804,7 +4721,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
         emit_cmpimm(s1l,1);
         if(invert){
           nottaken=out;
-          emit_jl(1);
+          emit_jl(DJT_1);
         }else{
           add_to_linker(out,ba[i],internal);
           emit_jge(0);
@@ -4864,26 +4781,26 @@ void cjump_assemble(int i,struct regstat *i_regs)
         if(s2l>=0) emit_cmp(s1l,s2l);
         else emit_test(s1l,s1l);
         nottaken=out;
-        emit_jne((void *)2l);
+        emit_jne(DJT_2);
       }
       if((opcode[i]&0x2f)==5) // BNE
       {
         if(s2l>=0) emit_cmp(s1l,s2l);
         else emit_test(s1l,s1l);
         nottaken=out;
-        emit_jeq(2);
+        emit_jeq(DJT_2);
       }
       if((opcode[i]&0x2f)==6) // BLEZ
       {
         emit_cmpimm(s1l,1);
         nottaken=out;
-        emit_jge(2);
+        emit_jge(DJT_2);
       }
       if((opcode[i]&0x2f)==7) // BGTZ
       {
         emit_cmpimm(s1l,1);
         nottaken=out;
-        emit_jl(2);
+        emit_jl(DJT_2);
       }
     } // if(!unconditional)
     int adj;
@@ -4957,7 +4874,7 @@ void cjump_assemble(int i,struct regstat *i_regs)
   }
 }
 
-void sjump_assemble(int i,struct regstat *i_regs)
+static void sjump_assemble(int i,struct regstat *i_regs)
 {
   signed char *i_regmap=i_regs->regmap;
   int cc;
@@ -5063,7 +4980,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
           emit_test(s1l,s1l);
           if(invert){
             nottaken=out;
-            emit_jns(1);
+            emit_jns(DJT_1);
           }else{
             add_to_linker(out,ba[i],internal);
             emit_js(0);
@@ -5074,7 +4991,7 @@ void sjump_assemble(int i,struct regstat *i_regs)
           emit_test(s1l,s1l);
           if(invert){
             nottaken=out;
-            emit_js(1);
+            emit_js(DJT_1);
           }else{
             add_to_linker(out,ba[i],internal);
             emit_jns(0);
@@ -5143,13 +5060,13 @@ void sjump_assemble(int i,struct regstat *i_regs)
         {
           emit_test(s1l,s1l);
           nottaken=out;
-          emit_jns(1);
+          emit_jns(DJT_1);
         }
         if((opcode2[i]&0x0d)==1) // BGEZ/BGEZL/BGEZAL/BGEZALL
         {
           emit_test(s1l,s1l);
           nottaken=out;
-          emit_js(1);
+          emit_js(DJT_1);
         }
     } // if(!unconditional)
     int adj;
@@ -6253,10 +6170,9 @@ static void new_dynarec_test(void)
   size_t i;
 
   // check structure linkage
-  if ((void *)reg != (void *)&psxRegs
-      || (u_char *)rcnts - (u_char *)reg != sizeof(psxRegs))
+  if ((u_char *)rcnts - (u_char *)&psxRegs != sizeof(psxRegs))
   {
-    SysPrintf("linkage_arm miscompilation/breakage detected.\n");
+    SysPrintf("linkage_arm* miscompilation/breakage detected.\n");
   }
 
   SysPrintf("testing if we can run recompiled code...\n");
@@ -6518,7 +6434,7 @@ int new_recompile_block(int addr)
   }
 
   start = (u_int)addr&~3;
-  //assert(((u_int)addr&1)==0);
+  //assert(((u_int)addr&1)==0); // start-in-delay-slot flag
   new_dynarec_did_compile=1;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
@@ -6539,7 +6455,7 @@ int new_recompile_block(int addr)
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {
     SysPrintf("Compile at bogus memory address: %08x\n", addr);
-    exit(1);
+    abort();
   }
 
   /* Pass 1: disassemble */
@@ -6750,8 +6666,6 @@ int new_recompile_block(int addr)
     opcode2[i]=op2;
     /* Get registers/immediates */
     lt1[i]=0;
-    us1[i]=0;
-    us2[i]=0;
     dep1[i]=0;
     dep2[i]=0;
     gte_rs[i]=gte_rt[i]=0;
@@ -6770,7 +6684,6 @@ int new_recompile_block(int addr)
         rt1[i]=0;
         rt2[i]=0;
         imm[i]=(short)source[i];
-        if(op==0x2c||op==0x2d||op==0x3f) us1[i]=rs2[i]; // 64-bit SDL/SDR/SD
         break;
       case LOADLR:
         // LWL/LWR only load part of the register,
@@ -6780,7 +6693,6 @@ int new_recompile_block(int addr)
         rt1[i]=(source[i]>>16)&0x1f;
         rt2[i]=0;
         imm[i]=(short)source[i];
-        if(op==0x1a||op==0x1b) us1[i]=rs2[i]; // LDR/LDL
         if(op==0x26) dep1[i]=rt1[i]; // LWR
         break;
       case IMM16:
@@ -6794,8 +6706,6 @@ int new_recompile_block(int addr)
         }else{
           imm[i]=(short)source[i];
         }
-        if(op==0x18||op==0x19) us1[i]=rs1[i]; // DADDI/DADDIU
-        if(op==0x0a||op==0x0b) us1[i]=rs1[i]; // SLTI/SLTIU
         if(op==0x0d||op==0x0e) dep1[i]=rs1[i]; // ORI/XORI
         break;
       case UJUMP:
@@ -6828,8 +6738,6 @@ int new_recompile_block(int addr)
         if(op&2) { // BGTZ/BLEZ
           rs2[i]=0;
         }
-        us1[i]=rs1[i];
-        us2[i]=rs2[i];
         likely[i]=op>>4;
         break;
       case SJUMP:
@@ -6837,7 +6745,6 @@ int new_recompile_block(int addr)
         rs2[i]=CCREG;
         rt1[i]=0;
         rt2[i]=0;
-        us1[i]=rs1[i];
         if(op2&0x10) { // BxxAL
           rt1[i]=31;
           // NOTE: If the branch is not taken, r31 is still overwritten
@@ -6849,10 +6756,7 @@ int new_recompile_block(int addr)
         rs2[i]=(source[i]>>16)&0x1f; // subtract amount
         rt1[i]=(source[i]>>11)&0x1f; // destination
         rt2[i]=0;
-        if(op2==0x2a||op2==0x2b) { // SLT/SLTU
-          us1[i]=rs1[i];us2[i]=rs2[i];
-        }
-        else if(op2>=0x24&&op2<=0x27) { // AND/OR/XOR/NOR
+        if(op2>=0x24&&op2<=0x27) { // AND/OR/XOR/NOR
           dep1[i]=rs1[i];dep2[i]=rs2[i];
         }
         else if(op2>=0x2c&&op2<=0x2f) { // DADD/DSUB
@@ -6864,9 +6768,6 @@ int new_recompile_block(int addr)
         rs2[i]=(source[i]>>16)&0x1f; // divisor
         rt1[i]=HIREG;
         rt2[i]=LOREG;
-        if (op2>=0x1c&&op2<=0x1f) { // DMULT/DMULTU/DDIV/DDIVU
-          us1[i]=rs1[i];us2[i]=rs2[i];
-        }
         break;
       case MOV:
         rs1[i]=0;
@@ -6886,8 +6787,6 @@ int new_recompile_block(int addr)
         rs2[i]=(source[i]>>21)&0x1f; // shift amount
         rt1[i]=(source[i]>>11)&0x1f; // destination
         rt2[i]=0;
-        // DSLLV/DSRLV/DSRAV are 64-bit
-        if(op2>=0x14&&op2<=0x17) us1[i]=rs1[i];
         break;
       case SHIFTIMM:
         rs1[i]=(source[i]>>16)&0x1f;
@@ -6897,8 +6796,6 @@ int new_recompile_block(int addr)
         imm[i]=(source[i]>>6)&0x1f;
         // DSxx32 instructions
         if(op2>=0x3c) imm[i]|=0x20;
-        // DSLL/DSRL/DSRA/DSRA32/DSRL32 but not DSLL32 require 64-bit source
-        if(op2>=0x38&&op2!=0x3c) us1[i]=rs1[i];
         break;
       case COP0:
         rs1[i]=0;
@@ -6917,7 +6814,6 @@ int new_recompile_block(int addr)
         rt2[i]=0;
         if(op2<3) rt1[i]=(source[i]>>16)&0x1F; // MFC1/DMFC1/CFC1
         if(op2>3) rs1[i]=(source[i]>>16)&0x1F; // MTC1/DMTC1/CTC1
-        if(op2==5) us1[i]=rs1[i]; // DMTC1
         rs2[i]=CSREG;
         break;
       case COP2:
@@ -7110,23 +7006,6 @@ int new_recompile_block(int addr)
       current.isconst=0;
       current.waswritten=0;
     }
-    if(i>1)
-    {
-      if((opcode[i-2]&0x2f)==0x05) // BNE/BNEL
-      {
-        if(rs1[i-2]==0||rs2[i-2]==0)
-        {
-          if(rs1[i-2]) {
-            int hr=get_reg(current.regmap,rs1[i-2]|64);
-            if(hr>=0) current.regmap[hr]=-1;
-          }
-          if(rs2[i-2]) {
-            int hr=get_reg(current.regmap,rs2[i-2]|64);
-            if(hr>=0) current.regmap[hr]=-1;
-          }
-        }
-      }
-    }
 
     memcpy(regmap_pre[i],current.regmap,sizeof(current.regmap));
     regs[i].wasconst=current.isconst;
@@ -7144,7 +7023,7 @@ int new_recompile_block(int addr)
         current.u=branch_unneeded_reg[i]&~((1LL<<rs1[i+1])|(1LL<<rs2[i+1]));
         current.u&=~((1LL<<rs1[i])|(1LL<<rs2[i]));
         current.u|=1;
-      } else { SysPrintf("oops, branch at end of block with no delay slot\n");exit(1); }
+      } else { SysPrintf("oops, branch at end of block with no delay slot\n");abort(); }
     }
     is_ds[i]=ds;
     if(ds) {
@@ -7178,7 +7057,7 @@ int new_recompile_block(int addr)
           }
           else
           {
-            if(r<64){
+              assert(r < 64);
               if((current.u>>r)&1) {
                 regs[i].regmap_entry[hr]=-1;
                 regs[i].regmap[hr]=-1;
@@ -7186,10 +7065,6 @@ int new_recompile_block(int addr)
                 //current.regmap[hr]=-1;
               }else
                 regs[i].regmap_entry[hr]=r;
-            }
-            else {
-              assert(0);
-            }
           }
         } else {
           // First instruction expects CCREG to be allocated
@@ -7463,16 +7338,14 @@ int new_recompile_block(int addr)
               regs[i].regmap_entry[hr]=0;
             }
             else
-            if(r<64){
+            {
+              assert(r<64);
               if((current.u>>r)&1) {
                 regs[i].regmap_entry[hr]=-1;
                 //regs[i].regmap[hr]=-1;
                 current.regmap[hr]=-1;
               }else
                 regs[i].regmap_entry[hr]=r;
-            }
-            else {
-              assert(0);
             }
           }
         } else {
@@ -7798,12 +7671,8 @@ int new_recompile_block(int addr)
           if(rt1[i+1]&&rt1[i+1]==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
           if(rt2[i+1]&&rt2[i+1]==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
         }
-        if(us1[i+1]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
-        if(us2[i+1]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
         if(rs1[i+1]==regmap_pre[i][hr]) nr|=1<<hr;
         if(rs2[i+1]==regmap_pre[i][hr]) nr|=1<<hr;
-        if(us1[i+1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
-        if(us2[i+1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
         if(rs1[i+1]==regs[i].regmap_entry[hr]) nr|=1<<hr;
         if(rs2[i+1]==regs[i].regmap_entry[hr]) nr|=1<<hr;
         if(itype[i+1]==STORE || itype[i+1]==STORELR || (opcode[i+1]&0x3b)==0x39 || (opcode[i+1]&0x3b)==0x3a) {
@@ -7840,12 +7709,8 @@ int new_recompile_block(int addr)
       if(rt2[i]&&rt2[i]==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
       if(FTEMP==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
       // Source registers are needed
-      if(us1[i]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
-      if(us2[i]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
       if(rs1[i]==regmap_pre[i][hr]) nr|=1<<hr;
       if(rs2[i]==regmap_pre[i][hr]) nr|=1<<hr;
-      if(us1[i]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
-      if(us2[i]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
       if(rs1[i]==regs[i].regmap_entry[hr]) nr|=1<<hr;
       if(rs2[i]==regs[i].regmap_entry[hr]) nr|=1<<hr;
       if(itype[i]==STORE || itype[i]==STORELR || (opcode[i]&0x3b)==0x39 || (opcode[i]&0x3b)==0x3a) {
@@ -7857,11 +7722,11 @@ int new_recompile_block(int addr)
       // But do so if this is a branch target, otherwise we
       // might have to load the register before the branch.
       if(i>0&&!bt[i]&&((regs[i].wasdirty>>hr)&1)) {
-        if((regmap_pre[i][hr]>0&&regmap_pre[i][hr]<64&&!((unneeded_reg[i]>>regmap_pre[i][hr])&1))) {
+        if((regmap_pre[i][hr]>0&&!((unneeded_reg[i]>>regmap_pre[i][hr])&1))) {
           if(rt1[i-1]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
           if(rt2[i-1]==(regmap_pre[i][hr]&63)) nr|=1<<hr;
         }
-        if((regs[i].regmap_entry[hr]>0&&regs[i].regmap_entry[hr]<64&&!((unneeded_reg[i]>>regs[i].regmap_entry[hr])&1))) {
+        if((regs[i].regmap_entry[hr]>0&&!((unneeded_reg[i]>>regs[i].regmap_entry[hr])&1))) {
           if(rt1[i-1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
           if(rt2[i-1]==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
         }
@@ -7898,12 +7763,7 @@ int new_recompile_block(int addr)
         }
         if(itype[i]==RJUMP||itype[i]==UJUMP||itype[i]==CJUMP||itype[i]==SJUMP)
         {
-          int d1=0,d2=0,map=0,temp=0;
-          if(get_reg(regs[i].regmap,rt1[i+1]|64)>=0||get_reg(branch_regs[i].regmap,rt1[i+1]|64)>=0)
-          {
-            d1=dep1[i+1];
-            d2=dep2[i+1];
-          }
+          int map=0,temp=0;
           if(itype[i+1]==STORE || itype[i+1]==STORELR ||
              (opcode[i+1]&0x3b)==0x39 || (opcode[i+1]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
             map=INVCP;
@@ -7914,8 +7774,6 @@ int new_recompile_block(int addr)
           if((regs[i].regmap[hr]&63)!=rs1[i] && (regs[i].regmap[hr]&63)!=rs2[i] &&
              (regs[i].regmap[hr]&63)!=rt1[i] && (regs[i].regmap[hr]&63)!=rt2[i] &&
              (regs[i].regmap[hr]&63)!=rt1[i+1] && (regs[i].regmap[hr]&63)!=rt2[i+1] &&
-             (regs[i].regmap[hr]^64)!=us1[i+1] && (regs[i].regmap[hr]^64)!=us2[i+1] &&
-             (regs[i].regmap[hr]^64)!=d1 && (regs[i].regmap[hr]^64)!=d2 &&
              regs[i].regmap[hr]!=rs1[i+1] && regs[i].regmap[hr]!=rs2[i+1] &&
              (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=PTEMP &&
              regs[i].regmap[hr]!=RHASH && regs[i].regmap[hr]!=RHTBL &&
@@ -7927,8 +7785,6 @@ int new_recompile_block(int addr)
             if((branch_regs[i].regmap[hr]&63)!=rs1[i] && (branch_regs[i].regmap[hr]&63)!=rs2[i] &&
                (branch_regs[i].regmap[hr]&63)!=rt1[i] && (branch_regs[i].regmap[hr]&63)!=rt2[i] &&
                (branch_regs[i].regmap[hr]&63)!=rt1[i+1] && (branch_regs[i].regmap[hr]&63)!=rt2[i+1] &&
-               (branch_regs[i].regmap[hr]^64)!=us1[i+1] && (branch_regs[i].regmap[hr]^64)!=us2[i+1] &&
-               (branch_regs[i].regmap[hr]^64)!=d1 && (branch_regs[i].regmap[hr]^64)!=d2 &&
                branch_regs[i].regmap[hr]!=rs1[i+1] && branch_regs[i].regmap[hr]!=rs2[i+1] &&
                (branch_regs[i].regmap[hr]&63)!=temp && branch_regs[i].regmap[hr]!=PTEMP &&
                branch_regs[i].regmap[hr]!=RHASH && branch_regs[i].regmap[hr]!=RHTBL &&
@@ -7952,12 +7808,7 @@ int new_recompile_block(int addr)
           // Non-branch
           if(i>0)
           {
-            int d1=0,d2=0,map=-1,temp=-1;
-            if(get_reg(regs[i].regmap,rt1[i]|64)>=0)
-            {
-              d1=dep1[i];
-              d2=dep2[i];
-            }
+            int map=-1,temp=-1;
             if(itype[i]==STORE || itype[i]==STORELR ||
                       (opcode[i]&0x3b)==0x39 || (opcode[i]&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
               map=INVCP;
@@ -7966,8 +7817,6 @@ int new_recompile_block(int addr)
                itype[i]==C1LS || itype[i]==C2LS)
               temp=FTEMP;
             if((regs[i].regmap[hr]&63)!=rt1[i] && (regs[i].regmap[hr]&63)!=rt2[i] &&
-               (regs[i].regmap[hr]^64)!=us1[i] && (regs[i].regmap[hr]^64)!=us2[i] &&
-               (regs[i].regmap[hr]^64)!=d1 && (regs[i].regmap[hr]^64)!=d2 &&
                regs[i].regmap[hr]!=rs1[i] && regs[i].regmap[hr]!=rs2[i] &&
                (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=map &&
                (itype[i]!=SPAN||regs[i].regmap[hr]!=CCREG))
@@ -8017,12 +7866,7 @@ int new_recompile_block(int addr)
         if(t<2||(itype[t-2]!=UJUMP&&itype[t-2]!=RJUMP)||rt1[t-2]!=31) // call/ret assumes no registers allocated
         for(hr=0;hr<HOST_REGS;hr++)
         {
-          if(regs[i].regmap[hr]>64) {
-            if(!((regs[i].dirty>>hr)&1))
-              f_regmap[hr]=regs[i].regmap[hr];
-            else f_regmap[hr]=-1;
-          }
-          else if(regs[i].regmap[hr]>=0) {
+          if(regs[i].regmap[hr]>=0) {
             if(f_regmap[hr]!=regs[i].regmap[hr]) {
               // dealloc old register
               int n;
@@ -8034,12 +7878,7 @@ int new_recompile_block(int addr)
               f_regmap[hr]=regs[i].regmap[hr];
             }
           }
-          if(branch_regs[i].regmap[hr]>64) {
-            if(!((branch_regs[i].dirty>>hr)&1))
-              f_regmap[hr]=branch_regs[i].regmap[hr];
-            else f_regmap[hr]=-1;
-          }
-          else if(branch_regs[i].regmap[hr]>=0) {
+          if(branch_regs[i].regmap[hr]>=0) {
             if(f_regmap[hr]!=branch_regs[i].regmap[hr]) {
               // dealloc old register
               int n;
@@ -8222,11 +8061,7 @@ int new_recompile_block(int addr)
       for(hr=0;hr<HOST_REGS;hr++)
       {
         if(hr!=EXCLUDE_REG) {
-          if(regs[i].regmap[hr]>64) {
-            if(!((regs[i].dirty>>hr)&1))
-              f_regmap[hr]=regs[i].regmap[hr];
-          }
-          else if(regs[i].regmap[hr]>=0) {
+          if(regs[i].regmap[hr]>=0) {
             if(f_regmap[hr]!=regs[i].regmap[hr]) {
               // dealloc old register
               int n;
@@ -8504,6 +8339,7 @@ int new_recompile_block(int addr)
     #ifdef __arm__
     printf("pre: r0=%d r1=%d r2=%d r3=%d r4=%d r5=%d r6=%d r7=%d r8=%d r9=%d r10=%d r12=%d\n",regmap_pre[i][0],regmap_pre[i][1],regmap_pre[i][2],regmap_pre[i][3],regmap_pre[i][4],regmap_pre[i][5],regmap_pre[i][6],regmap_pre[i][7],regmap_pre[i][8],regmap_pre[i][9],regmap_pre[i][10],regmap_pre[i][12]);
     #endif
+    #if defined(__i386__) || defined(__x86_64__)
     printf("needs: ");
     if(needed_reg[i]&1) printf("eax ");
     if((needed_reg[i]>>1)&1) printf("ecx ");
@@ -8513,7 +8349,6 @@ int new_recompile_block(int addr)
     if((needed_reg[i]>>6)&1) printf("esi ");
     if((needed_reg[i]>>7)&1) printf("edi ");
     printf("\n");
-    #if defined(__i386__) || defined(__x86_64__)
     printf("entry: eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",regs[i].regmap_entry[0],regs[i].regmap_entry[1],regs[i].regmap_entry[2],regs[i].regmap_entry[3],regs[i].regmap_entry[5],regs[i].regmap_entry[6],regs[i].regmap_entry[7]);
     printf("dirty: ");
     if(regs[i].wasdirty&1) printf("eax ");
@@ -8580,7 +8415,7 @@ int new_recompile_block(int addr)
       if((regs[i].isconst>>6)&1) printf("esi=%x ",(u_int)constmap[i][6]);
       if((regs[i].isconst>>7)&1) printf("edi=%x ",(u_int)constmap[i][7]);
       #endif
-      #ifdef __arm__
+      #if defined(__arm__) || defined(__aarch64__)
       int r;
       for (r = 0; r < ARRAY_SIZE(constmap[i]); r++)
         if ((regs[i].isconst >> r) & 1)

@@ -287,14 +287,14 @@ static void emit_loadreg(u_int r, u_int hr)
   if (r == 0)
     emit_zeroreg(hr);
   else {
-    void *addr = &reg[r];
+    void *addr = &psxRegs.GPR.r[r];
     switch (r) {
-    case HIREG: addr = &hi; break;
-    case LOREG: addr = &lo; break;
+    //case HIREG: addr = &hi; break;
+    //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
     case CSREG: addr = &Status; break;
     case INVCP: addr = &invc_ptr; break;
-    default: assert(r < 32); break;
+    default: assert(r < 34); break;
     }
     emit_readword(addr, hr);
   }
@@ -314,12 +314,12 @@ static void emit_writeword(u_int rt, void *addr)
 static void emit_storereg(u_int r, u_int hr)
 {
   assert(r < 64);
-  void *addr = &reg[r];
+  void *addr = &psxRegs.GPR.r[r];
   switch (r) {
-  case HIREG: addr = &hi; break;
-  case LOREG: addr = &lo; break;
+  //case HIREG: addr = &hi; break;
+  //case LOREG: addr = &lo; break;
   case CCREG: addr = &cycle_count; break;
-  default: assert(r < 32); break;
+  default: assert(r < 34); break;
   }
   emit_writeword(hr, addr);
 }
@@ -677,52 +677,51 @@ static void emit_jne(const void *a_)
   assert(0);
 }
 
-static void emit_jeq(int a)
+static void emit_jeq(const void *a)
 {
-  assem_debug("beq %x\n",a);
+  assem_debug("beq %p\n",a);
   assert(0);
 }
 
-static void emit_js(int a)
+static void emit_js(const void *a)
 {
-  assem_debug("bmi %x\n",a);
+  assem_debug("bmi %p\n",a);
   assert(0);
 }
 
-static void emit_jns(int a)
+static void emit_jns(const void *a)
 {
-  assem_debug("bpl %x\n",a);
+  assem_debug("bpl %p\n",a);
   assert(0);
 }
 
-static void emit_jl(int a)
+static void emit_jl(const void *a)
 {
-  assem_debug("blt %x\n",a);
+  assem_debug("blt %p\n",a);
   assert(0);
 }
 
-static void emit_jge(int a)
+static void emit_jge(const void *a)
 {
-  assem_debug("bge %x\n",a);
+  assem_debug("bge %p\n",a);
   assert(0);
 }
 
-static void emit_jno(int a)
+static void emit_jno(const void *a)
 {
-  assem_debug("bvc %x\n",a);
+  assem_debug("bvc %p\n",a);
   assert(0);
 }
 
-static void emit_jc(int a)
+static void emit_jc(const void *a)
 {
-  assem_debug("bcs %x\n",a);
+  assem_debug("bcs %p\n",a);
   assert(0);
 }
 
-static void emit_jcc(void *a_)
+static void emit_jcc(const void *a)
 {
-  uintptr_t a = (uintptr_t)a_;
-  assem_debug("bcc %p\n", a_);
+  assem_debug("bcc %p\n", a);
   assert(0);
 }
 
