@@ -3,21 +3,15 @@
 #define EXCLUDE_REG -1
 
 #define HOST_IMM8 1
-#define HAVE_CMOV_IMM 1
 #define RAM_SIZE 0x200000
-
-//#define REG_SHIFT 2
 
 /* calling convention:
    r0 -r17: caller-save
    r19-r29: callee-save */
 
-#define ARG1_REG 0
-#define ARG2_REG 1
-#define ARG3_REG 2
-#define ARG4_REG 3
-
-#define SP 30
+#define SP 31
+#define WZR SP
+#define XZR SP
 
 #define LR 30
 #define HOST_TEMPREG LR

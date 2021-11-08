@@ -38,6 +38,7 @@ static int sceBlock;
 #include "../psxhle.h" //emulator interface
 #include "emu_if.h" //emulator interface
 
+#define noinline __attribute__((noinline,noclone))
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
@@ -202,7 +203,7 @@ struct link_entry
   extern int pcaddr;
   extern int pending_exception;
   extern int branch_target;
-  extern u_int mini_ht[32][2];
+  extern uintptr_t mini_ht[32][2];
   extern u_char restore_candidate[512];
 
   /* registers that may be allocated */
@@ -421,7 +422,7 @@ static int doesnt_expire_soon(void *tcaddr)
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
-void *get_addr(u_int vaddr)
+void noinline *get_addr(u_int vaddr)
 {
   u_int page=get_page(vaddr);
   u_int vpage=get_vpage(vaddr);
@@ -489,7 +490,7 @@ void clear_all_regs(signed char regmap[])
   for (hr=0;hr<HOST_REGS;hr++) regmap[hr]=-1;
 }
 
-signed char get_reg(signed char regmap[],int r)
+static signed char get_reg(const signed char regmap[],int r)
 {
   int hr;
   for (hr=0;hr<HOST_REGS;hr++) if(hr!=EXCLUDE_REG&&regmap[hr]==r) return hr;
@@ -497,7 +498,7 @@ signed char get_reg(signed char regmap[],int r)
 }
 
 // Find a register that is available for two consecutive cycles
-signed char get_reg2(signed char regmap1[],signed char regmap2[],int r)
+static signed char get_reg2(signed char regmap1[], const signed char regmap2[], int r)
 {
   int hr;
   for (hr=0;hr<HOST_REGS;hr++) if(hr!=EXCLUDE_REG&&regmap1[hr]==r&&regmap2[hr]==r) return hr;
@@ -794,12 +795,30 @@ void alloc_all(struct regstat *cur,int i)
   }
 }
 
+#ifndef NDEBUG
+static int host_tempreg_in_use;
+
+static void host_tempreg_acquire(void)
+{
+  assert(!host_tempreg_in_use);
+  host_tempreg_in_use = 1;
+}
+
+static void host_tempreg_release(void)
+{
+  host_tempreg_in_use = 0;
+}
+#else
+static void host_tempreg_acquire(void) {}
+static void host_tempreg_release(void) {}
+#endif
+
 #ifdef DRC_DBG
 extern void gen_interupt();
 extern void do_insn_cmp();
-#define FUNCNAME(f) { (intptr_t)f, " " #f }
+#define FUNCNAME(f) { f, " " #f }
 static const struct {
-  intptr_t addr;
+  void *addr;
   const char *name;
 } function_names[] = {
   FUNCNAME(cc_interrupt),
@@ -822,7 +841,7 @@ static const struct {
   FUNCNAME(do_insn_cmp),
 };
 
-static const char *func_name(intptr_t a)
+static const char *func_name(const void *a)
 {
   int i;
   for (i = 0; i < sizeof(function_names)/sizeof(function_names[0]); i++)
@@ -984,7 +1003,7 @@ static void ll_kill_pointers(struct ll_entry *head,uintptr_t addr,int shift)
 }
 
 // This is called when we write to a compiled block (see do_invstub)
-void invalidate_page(u_int page)
+static void invalidate_page(u_int page)
 {
   struct ll_entry *head;
   struct ll_entry *next;
@@ -1141,14 +1160,25 @@ void invalidate_all_pages()
   #endif
 }
 
+static void do_invstub(int n)
+{
+  literal_pool(20);
+  u_int reglist=stubs[n].a;
+  set_jump_target(stubs[n].addr, out);
+  save_regs(reglist);
+  if(stubs[n].b!=0) emit_mov(stubs[n].b,0);
+  emit_call(invalidate_addr);
+  restore_regs(reglist);
+  emit_jmp(stubs[n].retaddr); // return address
+}
+
 // Add an entry to jump_out after making a link
+// src should point to code by emit_extjump2()
 void add_link(u_int vaddr,void *src)
 {
   u_int page=get_page(vaddr);
   inv_debug("add_link: %p -> %x (%d)\n",src,vaddr,page);
-  int *ptr=(int *)(src+4);
-  assert((*ptr&0x0fff0000)==0x059f0000);
-  (void)ptr;
+  check_extjump2(src);
   ll_add(jump_out+page,vaddr,src);
   //void *ptr=get_pointer(src);
   //inv_debug("add_link: Pointer is to %p\n",ptr);
@@ -1905,7 +1935,7 @@ static void pagespan_alloc(struct regstat *current,int i)
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e)
 {
-  assert(a < ARRAY_SIZE(stubs));
+  assert(stubcount < ARRAY_SIZE(stubs));
   stubs[stubcount].type = type;
   stubs[stubcount].addr = addr;
   stubs[stubcount].retaddr = retaddr;
@@ -2380,24 +2410,29 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
   }
 
   if(type==MTYPE_8020) { // RAM 80200000+ mirror
+    host_tempreg_acquire();
     emit_andimm(addr,~0x00e00000,HOST_TEMPREG);
     addr=*addr_reg_override=HOST_TEMPREG;
     type=0;
   }
   else if(type==MTYPE_0000) { // RAM 0 mirror
+    host_tempreg_acquire();
     emit_orimm(addr,0x80000000,HOST_TEMPREG);
     addr=*addr_reg_override=HOST_TEMPREG;
     type=0;
   }
   else if(type==MTYPE_A000) { // RAM A mirror
+    host_tempreg_acquire();
     emit_andimm(addr,~0x20000000,HOST_TEMPREG);
     addr=*addr_reg_override=HOST_TEMPREG;
     type=0;
   }
   else if(type==MTYPE_1F80) { // scratchpad
     if (psxH == (void *)0x1f800000) {
+      host_tempreg_acquire();
       emit_addimm(addr,-0x1f800000,HOST_TEMPREG);
       emit_cmpimm(HOST_TEMPREG,0x1000);
+      host_tempreg_release();
       jaddr=out;
       emit_jc(0);
     }
@@ -2419,6 +2454,7 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
     #endif
       emit_jno(0);
     if(ram_offset!=0) {
+      host_tempreg_acquire();
       emit_addimm(addr,ram_offset,HOST_TEMPREG);
       addr=*addr_reg_override=HOST_TEMPREG;
     }
@@ -2461,7 +2497,7 @@ static void load_assemble(int i,struct regstat *i_regs)
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
-  int fastload_reg_override=0;
+  int fastio_reg_override=-1;
   u_int hr,reglist=0;
   tl=get_reg(i_regs->regmap,rt1[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
@@ -2501,12 +2537,13 @@ static void load_assemble(int i,struct regstat *i_regs)
     if(rs1[i]!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
     #endif
     {
-      jaddr=emit_fastpath_cmp_jump(i,addr,&fastload_reg_override);
+      jaddr=emit_fastpath_cmp_jump(i,addr,&fastio_reg_override);
     }
   }
   else if(ram_offset&&memtarget) {
+    host_tempreg_acquire();
     emit_addimm(addr,ram_offset,HOST_TEMPREG);
-    fastload_reg_override=HOST_TEMPREG;
+    fastio_reg_override=HOST_TEMPREG;
   }
   int dummy=(rt1[i]==0)||(tl!=get_reg(i_regs->regmap,rt1[i])); // ignore loads to r0 and unneeded reg
   if (opcode[i]==0x20) { // LB
@@ -2515,7 +2552,7 @@ static void load_assemble(int i,struct regstat *i_regs)
         {
           int x=0,a=tl;
           if(!c) a=addr;
-          if(fastload_reg_override) a=fastload_reg_override;
+          if(fastio_reg_override>=0) a=fastio_reg_override;
 
           emit_movsbl_indexed(x,a,tl);
         }
@@ -2531,7 +2568,7 @@ static void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int x=0,a=tl;
         if(!c) a=addr;
-        if(fastload_reg_override) a=fastload_reg_override;
+        if(fastio_reg_override>=0) a=fastio_reg_override;
         emit_movswl_indexed(x,a,tl);
       }
       if(jaddr)
@@ -2544,7 +2581,7 @@ static void load_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       if(!dummy) {
         int a=addr;
-        if(fastload_reg_override) a=fastload_reg_override;
+        if(fastio_reg_override>=0) a=fastio_reg_override;
         emit_readword_indexed(0,a,tl);
       }
       if(jaddr)
@@ -2558,7 +2595,7 @@ static void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int x=0,a=tl;
         if(!c) a=addr;
-        if(fastload_reg_override) a=fastload_reg_override;
+        if(fastio_reg_override>=0) a=fastio_reg_override;
 
         emit_movzbl_indexed(x,a,tl);
       }
@@ -2573,7 +2610,7 @@ static void load_assemble(int i,struct regstat *i_regs)
       if(!dummy) {
         int x=0,a=tl;
         if(!c) a=addr;
-        if(fastload_reg_override) a=fastload_reg_override;
+        if(fastio_reg_override>=0) a=fastio_reg_override;
         emit_movzwl_indexed(x,a,tl);
       }
       if(jaddr)
@@ -2589,6 +2626,8 @@ static void load_assemble(int i,struct regstat *i_regs)
     assert(0);
   }
  }
+ if (fastio_reg_override == HOST_TEMPREG)
+   host_tempreg_release();
 }
 
 #ifndef loadlr_assemble
@@ -2608,7 +2647,7 @@ void store_assemble(int i,struct regstat *i_regs)
   enum stub_type type;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
-  int faststore_reg_override=0;
+  int fastio_reg_override=-1;
   u_int hr,reglist=0;
   tl=get_reg(i_regs->regmap,rs2[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
@@ -2630,18 +2669,19 @@ void store_assemble(int i,struct regstat *i_regs)
   if(offset||s<0||c) addr=temp;
   else addr=s;
   if(!c) {
-    jaddr=emit_fastpath_cmp_jump(i,addr,&faststore_reg_override);
+    jaddr=emit_fastpath_cmp_jump(i,addr,&fastio_reg_override);
   }
   else if(ram_offset&&memtarget) {
+    host_tempreg_acquire();
     emit_addimm(addr,ram_offset,HOST_TEMPREG);
-    faststore_reg_override=HOST_TEMPREG;
+    fastio_reg_override=HOST_TEMPREG;
   }
 
   if (opcode[i]==0x28) { // SB
     if(!c||memtarget) {
       int x=0,a=temp;
       if(!c) a=addr;
-      if(faststore_reg_override) a=faststore_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_writebyte_indexed(tl,x,a);
     }
     type=STOREB_STUB;
@@ -2650,7 +2690,7 @@ void store_assemble(int i,struct regstat *i_regs)
     if(!c||memtarget) {
       int x=0,a=temp;
       if(!c) a=addr;
-      if(faststore_reg_override) a=faststore_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_writehword_indexed(tl,x,a);
     }
     type=STOREH_STUB;
@@ -2658,7 +2698,7 @@ void store_assemble(int i,struct regstat *i_regs)
   if (opcode[i]==0x2B) { // SW
     if(!c||memtarget) {
       int a=addr;
-      if(faststore_reg_override) a=faststore_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_writeword_indexed(tl,0,a);
     }
     type=STOREW_STUB;
@@ -2667,6 +2707,8 @@ void store_assemble(int i,struct regstat *i_regs)
     assert(0);
     type=STORED_STUB;
   }
+  if(fastio_reg_override==HOST_TEMPREG)
+    host_tempreg_release();
   if(jaddr) {
     // PCSX store handlers don't check invcode again
     reglist|=1<<addr;
@@ -2704,6 +2746,7 @@ void store_assemble(int i,struct regstat *i_regs)
   }
   // basic current block modification detection..
   // not looking back as that should be in mips cache already
+  // (note: doesn't seem to trigger, migh be broken)
   if(c&&start+i*4<addr_val&&addr_val<start+slen*4) {
     SysPrintf("write to %08x hits block %08x, pc=%08x\n",addr_val,start,start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
@@ -2712,7 +2755,9 @@ void store_assemble(int i,struct regstat *i_regs)
       wb_dirtys(regs[i].regmap_entry,regs[i].wasdirty);
       emit_movimm(start+i*4+4,0);
       emit_writeword(0,&pcaddr);
-      emit_jmp(do_interrupt);
+      emit_addimm(HOST_CCREG,2,HOST_CCREG);
+      emit_call(get_addr_ht);
+      emit_jmpreg(0);
     }
   }
 }
@@ -2948,7 +2993,13 @@ static void cop0_assemble(int i,struct regstat *i_regs)
       assert(!is_delayslot);
       emit_readword(&pending_exception,14);
       emit_test(14,14);
-      emit_jne(&do_interrupt);
+      void *jaddr = out;
+      emit_jeq(0);
+      emit_readword(&pcaddr, 0);
+      emit_addimm(HOST_CCREG,2,HOST_CCREG);
+      emit_call(get_addr_ht);
+      emit_jmpreg(0);
+      set_jump_target(jaddr, out);
     }
     emit_loadreg(rs1[i],s);
   }
@@ -3117,7 +3168,7 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   void *jaddr2=NULL;
   enum stub_type type;
   int agr=AGEN1+(i&1);
-  int fastio_reg_override=0;
+  int fastio_reg_override=-1;
   u_int hr,reglist=0;
   u_int copr=(source[i]>>16)&0x1f;
   s=get_reg(i_regs->regmap,rs1[i]);
@@ -3161,12 +3212,13 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
       jaddr2=emit_fastpath_cmp_jump(i,ar,&fastio_reg_override);
     }
     else if(ram_offset&&memtarget) {
+      host_tempreg_acquire();
       emit_addimm(ar,ram_offset,HOST_TEMPREG);
       fastio_reg_override=HOST_TEMPREG;
     }
     if (opcode[i]==0x32) { // LWC2
       int a=ar;
-      if(fastio_reg_override) a=fastio_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_readword_indexed(0,a,tl);
     }
     if (opcode[i]==0x3a) { // SWC2
@@ -3174,10 +3226,12 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
       if(!offset&&!c&&s>=0) emit_mov(s,ar);
       #endif
       int a=ar;
-      if(fastio_reg_override) a=fastio_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_writeword_indexed(tl,0,a);
     }
   }
+  if(fastio_reg_override==HOST_TEMPREG)
+    host_tempreg_release();
   if(jaddr2)
     add_stub_r(type,jaddr2,out,i,ar,i_regs,ccadj[i],reglist);
   if(opcode[i]==0x3a) // SWC2
@@ -3198,7 +3252,9 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
     #endif
   }
   if (opcode[i]==0x32) { // LWC2
+    host_tempreg_acquire();
     cop2_put_dreg(copr,tl,HOST_TEMPREG);
+    host_tempreg_release();
   }
 }
 
@@ -4117,6 +4173,13 @@ static void emit_extjump_ds(void *addr, u_int target)
   emit_extjump2(addr, target, dyna_linker_ds);
 }
 
+// Load 2 immediates optimizing for small code size
+static void emit_mov2imm_compact(int imm1,u_int rt1,int imm2,u_int rt2)
+{
+  emit_movimm(imm1,rt1);
+  emit_movimm_from(imm1,rt1,imm2,rt2);
+}
+
 void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
 {
   int count;
@@ -4172,7 +4235,7 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
 static void do_ccstub(int n)
 {
   literal_pool(256);
-  assem_debug("do_ccstub %lx\n",start+stubs[n].b*4);
+  assem_debug("do_ccstub %x\n",start+(u_int)stubs[n].b*4);
   set_jump_target(stubs[n].addr, out);
   int i=stubs[n].b;
   if(stubs[n].d==NULLDS) {
@@ -4371,7 +4434,10 @@ static void do_ccstub(int n)
   }else{
     load_all_regs(branch_regs[i].regmap);
   }
-  emit_jmp(stubs[n].retaddr);
+  if (stubs[n].retaddr)
+    emit_jmp(stubs[n].retaddr);
+  else
+    do_jump_vaddr(stubs[n].e);
 }
 
 static void add_to_linker(void *addr, u_int target, int ext)
@@ -4564,7 +4630,7 @@ static void rjump_assemble(int i,struct regstat *i_regs)
   //if(adj) emit_addimm(cc,2*(ccadj[i]+2-adj),cc); // ??? - Shouldn't happen
   //assert(adj==0);
   emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-  add_stub(CC_STUB,out,jump_vaddr_reg[rs],0,i,-1,TAKEN,0);
+  add_stub(CC_STUB,out,NULL,0,i,-1,TAKEN,rs);
   if(itype[i+1]==COP0&&(source[i+1]&0x3f)==0x10)
     // special case for RFE
     emit_jmp(0);
@@ -4578,7 +4644,7 @@ static void rjump_assemble(int i,struct regstat *i_regs)
   else
   #endif
   {
-    emit_jmp(jump_vaddr_reg[rs]);
+    do_jump_vaddr(rs);
   }
   #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
   if(rt1[i]!=31&&i<slen-2&&(((u_int)out)&7)) emit_mov(13,13);
@@ -5430,15 +5496,17 @@ static void pagespan_ds()
   assert(btaddr!=HOST_CCREG);
   if(regs[0].regmap[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
 #ifdef HOST_IMM8
+  host_tempreg_acquire();
   emit_movimm(start+4,HOST_TEMPREG);
   emit_cmp(btaddr,HOST_TEMPREG);
+  host_tempreg_release();
 #else
   emit_cmpimm(btaddr,start+4);
 #endif
   void *branch = out;
   emit_jeq(0);
   store_regs_bt(regs[0].regmap,regs[0].dirty,-1);
-  emit_jmp(jump_vaddr_reg[btaddr]);
+  do_jump_vaddr(btaddr);
   set_jump_target(branch, out);
   store_regs_bt(regs[0].regmap,regs[0].dirty,start+4);
   load_regs_bt(regs[0].regmap,regs[0].dirty,start+4);

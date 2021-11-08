@@ -84,7 +84,7 @@ DRC_VAR(restore_candidate, 512)
 /* r0 = virtual target address */
 /* r1 = instruction to patch */
 .macro dyna_linker_main
-	/* XXX: should be able to do better than this... */
+	/* XXX TODO: should be able to do better than this... */
 	bl	get_addr_ht
 	br	x0
 .endm
@@ -113,12 +113,6 @@ FUNCTION(dyna_linker_ds):
 
 	.align	2
 
-FUNCTION(jump_vaddr):
-	bl	abort
-	.size	jump_vaddr, .-jump_vaddr
-
-	.align	2
-
 FUNCTION(verify_code_ds):
 	bl	abort
 FUNCTION(verify_code):
@@ -131,13 +125,48 @@ FUNCTION(verify_code):
 
 	.align	2
 FUNCTION(cc_interrupt):
-	bl	abort
+	ldr	w0, [rFP, #LO_last_count]
+	mov	w2, #0x1fc
+	add	rCC, w0, rCC
+	str	wzr, [rFP, #LO_pending_exception]
+	and	w2, w2, rCC, lsr #17
+	add	x3, rFP, #LO_restore_candidate
+	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
+#	str	rCC, [rFP, #LO_reg_cop0+36]	/* Count */
+	ldr	w19, [x3, w2, uxtw]
+	mov	x21, lr
+	cbnz	w19, 4f
+1:
+	bl	gen_interupt
+	mov	lr, x21
+	ldr	rCC, [rFP, #LO_cycle]
+	ldr	w0, [rFP, #LO_next_interupt]
+	ldr	w1, [rFP, #LO_pending_exception]
+	ldr	w2, [rFP, #LO_stop]
+	str	w0, [rFP, #LO_last_count]
+	sub	rCC, rCC, w0
+	cbnz	w2, new_dyna_leave
+	cbnz	w1, 2f
+	ret
+2:
+	ldr	w0, [rFP, #LO_pcaddr]
+	bl	get_addr_ht
+	br	x0
+4:
+	/* Move 'dirty' blocks to the 'clean' list */
+	lsl	w20, w2, #3
+	str	wzr, [x3, w2, uxtw]
+5:
+	mov	w0, w20
+	add	w20, w20, #1
+	tbz	w19, #0, 6f
+	bl	clean_blocks
+6:
+	lsr	w19, w19, #1
+	tst	w20, #31
+	bne	5b
+	b	1b
 	.size	cc_interrupt, .-cc_interrupt
-
-	.align	2
-FUNCTION(do_interrupt):
-	bl	abort
-	.size	do_interrupt, .-do_interrupt
 
 	.align	2
 FUNCTION(fp_exception):
@@ -239,26 +268,94 @@ FUNCTION(new_dyna_leave):
 
 .align	2
 
+.macro memhandler_pre
+	/* w0 = adddr/data, x1 = rhandler, w2 = cycles, x3 = whandler */
+	ldr	w4, [rFP, #LO_last_count]
+	add	w4, w4, w2
+	str	w4, [rFP, #LO_cycle]
+.endm
+
+.macro memhandler_post
+	ldr	w2, [rFP, #LO_next_interupt]
+	ldr	w1, [rFP, #LO_cycle]
+	sub	w0, w1, w2
+	str	w2, [rFP, #LO_last_count]
+.endm
+
+FUNCTION(do_memhandler_pre):
+	memhandler_pre
+	ret
+
+FUNCTION(do_memhandler_post):
+	memhandler_post
+	ret
+
+.macro pcsx_read_mem readop tab_shift
+	/* w0 = address, x1 = handler_tab, w2 = cycles */
+	stp	xzr, x30, [sp, #-16]!
+	ubfm	w4, w0, #\tab_shift, #11
+	ldr	x3, [x1, w4, uxtw #3]
+	adds	x3, x3, x3
+	bcs	0f
+	\readop	w0, [x3, w4, uxtw #\tab_shift]
+	ret
+0:
+	memhandler_pre
+	blr	x3
+.endm
+
 FUNCTION(jump_handler_read8):
-	bl	abort
+	add     x1, x1, #0x1000/4*4 + 0x1000/2*4  /* shift to r8 part */
+	pcsx_read_mem ldrb, 0
+	b	handler_read_end
 
 FUNCTION(jump_handler_read16):
-	bl	abort
+	add     x1, x1, #0x1000/4*4               /* shift to r16 part */
+	pcsx_read_mem ldrh, 1
+	b	handler_read_end
 
 FUNCTION(jump_handler_read32):
-	bl	abort
+	pcsx_read_mem ldr, 2
+
+handler_read_end:
+	ldp	xzr, x30, [sp], #16
+	ret
+
+.macro pcsx_write_mem wrtop movop tab_shift
+	/* w0 = address, w1 = data, w2 = cycles, x3 = handler_tab */
+	stp	xzr, x30, [sp, #-16]!
+	ubfm	w4, w0, #\tab_shift, #11
+	ldr	x3, [x3, w4, uxtw #3]
+	str	w0, [rFP, #LO_address]    /* some handlers still need it... */
+	adds	x3, x3, x3
+#	str	lr, [rFP, #0]
+	bcs	0f
+	mov	w0, w2                    /* cycle return */
+	\wrtop	w1, [x3, w4, uxtw #\tab_shift]
+	ret
+0:
+	\movop	w0, w1
+	memhandler_pre
+	blr	x3
+.endm
 
 FUNCTION(jump_handler_write8):
-	bl	abort
+	add     x3, x3, #0x1000/4*4 + 0x1000/2*4  /* shift to r8 part */
+	pcsx_write_mem strb uxtb 0
+	b	handler_write_end
 
 FUNCTION(jump_handler_write16):
-	bl	abort
+	add     x3, x3, #0x1000/4*4               /* shift to r16 part */
+	pcsx_write_mem strh uxth 1
+	b	handler_write_end
 
 FUNCTION(jump_handler_write32):
-	bl	abort
+	pcsx_write_mem str mov 2
 
-FUNCTION(jump_handler_write_h):
-	bl	abort
+handler_write_end:
+	memhandler_post
+	ldp	xzr, x30, [sp], #16
+	ret
 
 FUNCTION(jump_handle_swl):
 	bl	abort

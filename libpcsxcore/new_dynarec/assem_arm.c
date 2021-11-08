@@ -424,6 +424,13 @@ static u_int genjmp(u_int addr)
   return ((u_int)offset>>2)&0xffffff;
 }
 
+static unused void emit_breakpoint(void)
+{
+  assem_debug("bkpt #0\n");
+  //output_w32(0xe1200070);
+  output_w32(0xe7f001f0);
+}
+
 static void emit_mov(int rs,int rt)
 {
   assem_debug("mov %s,%s\n",regname[rt],regname[rs]);
@@ -1022,7 +1029,7 @@ static void emit_set_if_carry32(int rs1, int rs2, int rt)
 static void emit_call(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bl %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a));
+  assem_debug("bl %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a_));
   u_int offset=genjmp(a);
   output_w32(0xeb000000|offset);
 }
@@ -1030,7 +1037,7 @@ static void emit_call(const void *a_)
 static void emit_jmp(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("b %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a));
+  assem_debug("b %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a_));
   u_int offset=genjmp(a);
   output_w32(0xea000000|offset);
 }
@@ -1380,21 +1387,6 @@ static void emit_rsbimm(int rs, int imm, int rt)
   output_w32(0xe2600000|rd_rn_rm(rt,rs,0)|armval);
 }
 
-// Load 2 immediates optimizing for small code size
-static void emit_mov2imm_compact(int imm1,u_int rt1,int imm2,u_int rt2)
-{
-  emit_movimm(imm1,rt1);
-  u_int armval;
-  if(genimm(imm2-imm1,&armval)) {
-    assem_debug("add %s,%s,#%d\n",regname[rt2],regname[rt1],imm2-imm1);
-    output_w32(0xe2800000|rd_rn_rm(rt2,rt1,0)|armval);
-  }else if(genimm(imm1-imm2,&armval)) {
-    assem_debug("sub %s,%s,#%d\n",regname[rt2],regname[rt1],imm1-imm2);
-    output_w32(0xe2400000|rd_rn_rm(rt2,rt1,0)|armval);
-  }
-  else emit_movimm(imm2,rt2);
-}
-
 // Conditionally select one of two immediates, optimizing for small code size
 // This will only be called if HAVE_CMOV_IMM is defined
 static void emit_cmov2imm_e_ne_compact(int imm1,int imm2,u_int rt)
@@ -1599,6 +1591,13 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
 #endif
 //DEBUG <
   emit_jmp(linker);
+}
+
+static void check_extjump2(void *src)
+{
+  u_int *ptr = src;
+  assert((ptr[1] & 0x0fff0000) == 0x059f0000); // ldr rx, [pc, #ofs]
+  (void)ptr;
 }
 
 // put rt_val into rt, potentially making use of rs with value rs_val
@@ -2029,19 +2028,7 @@ static void do_unalignedwritestub(int n)
 #endif
 }
 
-static void do_invstub(int n)
-{
-  literal_pool(20);
-  u_int reglist=stubs[n].a;
-  set_jump_target(stubs[n].addr, out);
-  save_regs(reglist);
-  if(stubs[n].b!=0) emit_mov(stubs[n].b,0);
-  emit_call(&invalidate_addr);
-  restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr); // return address
-}
-
-// this output is parsed by verify_dirty, get_bounds
+// this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
 static void do_dirty_stub_emit_args(u_int arg0)
 {
   #ifndef HAVE_ARMV7
@@ -2196,7 +2183,7 @@ static void loadlr_assemble_arm(int i,struct regstat *i_regs)
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
-  int fastload_reg_override=0;
+  int fastio_reg_override=-1;
   u_int hr,reglist=0;
   tl=get_reg(i_regs->regmap,rt1[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
@@ -2224,12 +2211,13 @@ static void loadlr_assemble_arm(int i,struct regstat *i_regs)
     }else{
       emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
     }
-    jaddr=emit_fastpath_cmp_jump(i,temp2,&fastload_reg_override);
+    jaddr=emit_fastpath_cmp_jump(i,temp2,&fastio_reg_override);
   }
   else {
     if(ram_offset&&memtarget) {
+      host_tempreg_acquire();
       emit_addimm(temp2,ram_offset,HOST_TEMPREG);
-      fastload_reg_override=HOST_TEMPREG;
+      fastio_reg_override=HOST_TEMPREG;
     }
     if (opcode[i]==0x22||opcode[i]==0x26) {
       emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
@@ -2240,8 +2228,9 @@ static void loadlr_assemble_arm(int i,struct regstat *i_regs)
   if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
     if(!c||memtarget) {
       int a=temp2;
-      if(fastload_reg_override) a=fastload_reg_override;
+      if(fastio_reg_override>=0) a=fastio_reg_override;
       emit_readword_indexed(0,a,temp2);
+      if(fastio_reg_override==HOST_TEMPREG) host_tempreg_release();
       if(jaddr) add_stub_r(LOADW_STUB,jaddr,out,i,temp2,i_regs,ccadj[i],reglist);
     }
     else
@@ -2555,6 +2544,11 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
 }
 #define multdiv_assemble multdiv_assemble_arm
 
+static void do_jump_vaddr(int rs)
+{
+  emit_jmp(jump_vaddr_reg[rs]);
+}
+
 static void do_preload_rhash(int r) {
   // Don't need this for ARM.  On x86, this puts the value 0xf8 into the
   // register.  On ARM the hash can be done with a single instruction (below)
@@ -2577,11 +2571,11 @@ static void do_miniht_jump(int rs,int rh,int ht) {
   emit_cmp(rh,rs);
   emit_ldreq_indexed(ht,4,15);
   #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
-  emit_mov(rs,7);
-  emit_jmp(jump_vaddr_reg[7]);
-  #else
-  emit_jmp(jump_vaddr_reg[rs]);
+  if(rs!=7)
+    emit_mov(rs,7);
+  rs=7;
   #endif
+  do_jump_vaddr(rs);
 }
 
 static void do_miniht_insert(u_int return_address,int rt,int temp) {

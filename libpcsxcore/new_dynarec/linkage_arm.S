@@ -477,14 +477,6 @@ FUNCTION(cc_interrupt):
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2
-FUNCTION(do_interrupt):
-	ldr	r0, [fp, #LO_pcaddr]
-	bl	get_addr_ht
-	add	r10, r10, #2
-	mov	pc, r0
-	.size	do_interrupt, .-do_interrupt
-
-	.align	2
 FUNCTION(fp_exception):
 	mov	r2, #0x10000000
 .E7:
