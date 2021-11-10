@@ -166,7 +166,7 @@ struct link_entry
   static char ooo[MAXBLOCK];
   static uint64_t unneeded_reg[MAXBLOCK];
   static uint64_t branch_unneeded_reg[MAXBLOCK];
-  static signed char regmap_pre[MAXBLOCK][HOST_REGS];
+  static signed char regmap_pre[MAXBLOCK][HOST_REGS]; // pre-instruction i?
   static uint64_t current_constmap[HOST_REGS];
   static uint64_t constmap[MAXBLOCK][HOST_REGS];
   static struct regstat regs[MAXBLOCK];
@@ -7891,7 +7891,7 @@ int new_recompile_block(int addr)
             {
               if(i<slen-1&&!is_ds[i]) {
                 assert(regs[i].regmap[hr]<64);
-                if(regmap_pre[i+1][hr]!=-1 || regs[i].regmap[hr]!=-1)
+                if(regmap_pre[i+1][hr]!=-1 || regs[i].regmap[hr]>0)
                 if(regmap_pre[i+1][hr]!=regs[i].regmap[hr])
                 {
                   SysPrintf("fail: %x (%d %d!=%d)\n",start+i*4,hr,regmap_pre[i+1][hr],regs[i].regmap[hr]);
