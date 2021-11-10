@@ -214,7 +214,11 @@ int psxMemInit() {
 	memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
 	memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
 
-	psxMemWLUT[0x1f00] = (u8 *)psxP;
+	// Don't allow writes to PIO Expansion region (psxP) to take effect.
+	// NOTE: Not sure if this is needed to fix any games but seems wise,
+	//       seeing as some games do read from PIO as part of copy-protection
+	//       check. (See fix in psxMemReset() regarding psxP region reads).
+	psxMemWLUT[0x1f00] = NULL;
 	psxMemWLUT[0x1f80] = (u8 *)psxH;
 
 	return 0;
