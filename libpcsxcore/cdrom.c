@@ -812,9 +812,6 @@ void cdrInterrupt() {
 		case CdlGetlocP:
 			SetResultSize(8);
 			memcpy(&cdr.Result, &cdr.subq, 8);
-
-			if (!cdr.Play && !cdr.Reading)
-				cdr.Result[1] = 0; // HACK?
 			break;
 
 		case CdlReadT: // SetSession?
