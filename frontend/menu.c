@@ -1590,8 +1590,10 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 				   "Might be useful to overcome some dynarec bugs";
 static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
 				   "must reload game for any change to take effect";
+#ifdef ICACHE_EMULATION
 static const char h_cfg_icache[] = "Allows you to play the F1 games.\n"
 				   "Note: This breaks the PAL version of Spyro 2.";
+#endif
 				   
 static menu_entry e_menu_adv_options[] =
 {

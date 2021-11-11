@@ -237,7 +237,7 @@ static void *get_clean_addr(void *addr)
   return ptr;
 }
 
-static int verify_dirty(u_int *ptr)
+static int verify_dirty(const u_int *ptr)
 {
   #ifndef HAVE_ARMV7
   u_int offset;
@@ -601,12 +601,6 @@ static void emit_not(int rs,int rt)
   output_w32(0xe1e00000|rd_rn_rm(rt,0,rs));
 }
 
-static void emit_mvnmi(int rs,int rt)
-{
-  assem_debug("mvnmi %s,%s\n",regname[rt],regname[rs]);
-  output_w32(0x41e00000|rd_rn_rm(rt,0,rs));
-}
-
 static void emit_and(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("and %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
@@ -641,6 +635,12 @@ static void emit_xor(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("eor %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0200000|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_xorsar_imm(u_int rs1,u_int rs2,u_int imm,u_int rt)
+{
+  assem_debug("eor %s,%s,%s,asr #%d\n",regname[rt],regname[rs1],regname[rs2],imm);
+  output_w32(0xe0200040|rd_rn_rm(rt,rs1,rs2)|(imm<<7));
 }
 
 static void emit_addimm(u_int rs,int imm,u_int rt)
@@ -888,7 +888,7 @@ static void emit_sar(u_int rs,u_int shift,u_int rt)
   output_w32(0xe1a00000|rd_rn_rm(rt,0,rs)|0x50|(shift<<8));
 }
 
-static void emit_orrshl(u_int rs,u_int shift,u_int rt)
+static unused void emit_orrshl(u_int rs,u_int shift,u_int rt)
 {
   assert(rs<16);
   assert(rt<16);
@@ -897,7 +897,7 @@ static void emit_orrshl(u_int rs,u_int shift,u_int rt)
   output_w32(0xe1800000|rd_rn_rm(rt,rt,rs)|0x10|(shift<<8));
 }
 
-static void emit_orrshr(u_int rs,u_int shift,u_int rt)
+static unused void emit_orrshr(u_int rs,u_int shift,u_int rt)
 {
   assert(rs<16);
   assert(rt<16);
@@ -950,6 +950,14 @@ static void emit_cmovb_imm(int imm,int rt)
   u_int armval;
   genimm_checked(imm,&armval);
   output_w32(0x33a00000|rd_rn_rm(rt,0,0)|armval);
+}
+
+static void emit_cmovae_imm(int imm,int rt)
+{
+  assem_debug("movcs %s,#%d\n",regname[rt],imm);
+  u_int armval;
+  genimm_checked(imm,&armval);
+  output_w32(0x23a00000|rd_rn_rm(rt,0,0)|armval);
 }
 
 static void emit_cmovne_reg(int rs,int rt)
@@ -1114,7 +1122,7 @@ static void emit_jcc(const void *a_)
   output_w32(0x3a000000|offset);
 }
 
-static void emit_callreg(u_int r)
+static unused void emit_callreg(u_int r)
 {
   assert(r<15);
   assem_debug("blx %s\n",regname[r]);
@@ -1379,7 +1387,7 @@ static void emit_teq(int rs, int rt)
   output_w32(0xe1300000|rd_rn_rm(0,rs,rt));
 }
 
-static void emit_rsbimm(int rs, int imm, int rt)
+static unused void emit_rsbimm(int rs, int imm, int rt)
 {
   u_int armval;
   genimm_checked(imm,&armval);
@@ -1940,94 +1948,6 @@ static void inline_writestub(enum stub_type type, int i, u_int addr, signed char
   restore_regs(reglist);
 }
 
-static void do_unalignedwritestub(int n)
-{
-  assem_debug("do_unalignedwritestub %x\n",start+stubs[n].a*4);
-  literal_pool(256);
-  set_jump_target(stubs[n].addr, out);
-
-  int i=stubs[n].a;
-  struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  int addr=stubs[n].b;
-  u_int reglist=stubs[n].e;
-  signed char *i_regmap=i_regs->regmap;
-  int temp2=get_reg(i_regmap,FTEMP);
-  int rt;
-  rt=get_reg(i_regmap,rs2[i]);
-  assert(rt>=0);
-  assert(addr>=0);
-  assert(opcode[i]==0x2a||opcode[i]==0x2e); // SWL/SWR only implemented
-  reglist|=(1<<addr);
-  reglist&=~(1<<temp2);
-
-#if 1
-  // don't bother with it and call write handler
-  save_regs(reglist);
-  pass_args(addr,rt);
-  int cc=get_reg(i_regmap,CCREG);
-  if(cc<0)
-    emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
-  emit_call((opcode[i]==0x2a?jump_handle_swl:jump_handle_swr));
-  emit_addimm(0,-CLOCK_ADJUST((int)stubs[n].d+1),cc<0?2:cc);
-  if(cc<0)
-    emit_storereg(CCREG,2);
-  restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr); // return address
-#else
-  emit_andimm(addr,0xfffffffc,temp2);
-  emit_writeword(temp2,&address);
-
-  save_regs(reglist);
-  emit_shrimm(addr,16,1);
-  int cc=get_reg(i_regmap,CCREG);
-  if(cc<0) {
-    emit_loadreg(CCREG,2);
-  }
-  emit_movimm((u_int)readmem,0);
-  emit_addimm(cc<0?2:cc,2*stubs[n].d+2,2);
-  emit_call((int)&indirect_jump_indexed);
-  restore_regs(reglist);
-
-  emit_readword(&readmem_dword,temp2);
-  int temp=addr; //hmh
-  emit_shlimm(addr,3,temp);
-  emit_andimm(temp,24,temp);
-#ifdef BIG_ENDIAN_MIPS
-  if (opcode[i]==0x2e) // SWR
-#else
-  if (opcode[i]==0x2a) // SWL
-#endif
-    emit_xorimm(temp,24,temp);
-  emit_movimm(-1,HOST_TEMPREG);
-  if (opcode[i]==0x2a) { // SWL
-    emit_bic_lsr(temp2,HOST_TEMPREG,temp,temp2);
-    emit_orrshr(rt,temp,temp2);
-  }else{
-    emit_bic_lsl(temp2,HOST_TEMPREG,temp,temp2);
-    emit_orrshl(rt,temp,temp2);
-  }
-  emit_readword(&address,addr);
-  emit_writeword(temp2,&word);
-  //save_regs(reglist); // don't need to, no state changes
-  emit_shrimm(addr,16,1);
-  emit_movimm((u_int)writemem,0);
-  //emit_call((int)&indirect_jump_indexed);
-  emit_mov(15,14);
-  emit_readword_dualindexedx4(0,1,15);
-  emit_readword(&Count,HOST_TEMPREG);
-  emit_readword(&next_interupt,2);
-  emit_addimm(HOST_TEMPREG,-2*stubs[n].d-2,HOST_TEMPREG);
-  emit_writeword(2,&last_count);
-  emit_sub(HOST_TEMPREG,2,cc<0?HOST_TEMPREG:cc);
-  if(cc<0) {
-    emit_storereg(CCREG,HOST_TEMPREG);
-  }
-  restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr); // return address
-#endif
-}
-
 // this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
 static void do_dirty_stub_emit_args(u_int arg0)
 {
@@ -2066,208 +1986,12 @@ static void do_dirty_stub_ds()
 
 /* Special assem */
 
-static void shift_assemble_arm(int i,struct regstat *i_regs)
-{
-  if(rt1[i]) {
-    if(opcode2[i]<=0x07) // SLLV/SRLV/SRAV
-    {
-      signed char s,t,shift;
-      t=get_reg(i_regs->regmap,rt1[i]);
-      s=get_reg(i_regs->regmap,rs1[i]);
-      shift=get_reg(i_regs->regmap,rs2[i]);
-      if(t>=0){
-        if(rs1[i]==0)
-        {
-          emit_zeroreg(t);
-        }
-        else if(rs2[i]==0)
-        {
-          assert(s>=0);
-          if(s!=t) emit_mov(s,t);
-        }
-        else
-        {
-          emit_andimm(shift,31,HOST_TEMPREG);
-          if(opcode2[i]==4) // SLLV
-          {
-            emit_shl(s,HOST_TEMPREG,t);
-          }
-          if(opcode2[i]==6) // SRLV
-          {
-            emit_shr(s,HOST_TEMPREG,t);
-          }
-          if(opcode2[i]==7) // SRAV
-          {
-            emit_sar(s,HOST_TEMPREG,t);
-          }
-        }
-      }
-    } else { // DSLLV/DSRLV/DSRAV
-      signed char sh,sl,th,tl,shift;
-      th=get_reg(i_regs->regmap,rt1[i]|64);
-      tl=get_reg(i_regs->regmap,rt1[i]);
-      sh=get_reg(i_regs->regmap,rs1[i]|64);
-      sl=get_reg(i_regs->regmap,rs1[i]);
-      shift=get_reg(i_regs->regmap,rs2[i]);
-      if(tl>=0){
-        if(rs1[i]==0)
-        {
-          emit_zeroreg(tl);
-          if(th>=0) emit_zeroreg(th);
-        }
-        else if(rs2[i]==0)
-        {
-          assert(sl>=0);
-          if(sl!=tl) emit_mov(sl,tl);
-          if(th>=0&&sh!=th) emit_mov(sh,th);
-        }
-        else
-        {
-          // FIXME: What if shift==tl ?
-          assert(shift!=tl);
-          int temp=get_reg(i_regs->regmap,-1);
-          int real_th=th;
-          if(th<0&&opcode2[i]!=0x14) {th=temp;} // DSLLV doesn't need a temporary register
-          assert(sl>=0);
-          assert(sh>=0);
-          emit_andimm(shift,31,HOST_TEMPREG);
-          if(opcode2[i]==0x14) // DSLLV
-          {
-            if(th>=0) emit_shl(sh,HOST_TEMPREG,th);
-            emit_rsbimm(HOST_TEMPREG,32,HOST_TEMPREG);
-            emit_orrshr(sl,HOST_TEMPREG,th);
-            emit_andimm(shift,31,HOST_TEMPREG);
-            emit_testimm(shift,32);
-            emit_shl(sl,HOST_TEMPREG,tl);
-            if(th>=0) emit_cmovne_reg(tl,th);
-            emit_cmovne_imm(0,tl);
-          }
-          if(opcode2[i]==0x16) // DSRLV
-          {
-            assert(th>=0);
-            emit_shr(sl,HOST_TEMPREG,tl);
-            emit_rsbimm(HOST_TEMPREG,32,HOST_TEMPREG);
-            emit_orrshl(sh,HOST_TEMPREG,tl);
-            emit_andimm(shift,31,HOST_TEMPREG);
-            emit_testimm(shift,32);
-            emit_shr(sh,HOST_TEMPREG,th);
-            emit_cmovne_reg(th,tl);
-            if(real_th>=0) emit_cmovne_imm(0,th);
-          }
-          if(opcode2[i]==0x17) // DSRAV
-          {
-            assert(th>=0);
-            emit_shr(sl,HOST_TEMPREG,tl);
-            emit_rsbimm(HOST_TEMPREG,32,HOST_TEMPREG);
-            if(real_th>=0) {
-              assert(temp>=0);
-              emit_sarimm(th,31,temp);
-            }
-            emit_orrshl(sh,HOST_TEMPREG,tl);
-            emit_andimm(shift,31,HOST_TEMPREG);
-            emit_testimm(shift,32);
-            emit_sar(sh,HOST_TEMPREG,th);
-            emit_cmovne_reg(th,tl);
-            if(real_th>=0) emit_cmovne_reg(temp,th);
-          }
-        }
-      }
-    }
-  }
-}
-#define shift_assemble shift_assemble_arm
-
-static void loadlr_assemble_arm(int i,struct regstat *i_regs)
-{
-  int s,tl,temp,temp2,addr;
-  int offset;
-  void *jaddr=0;
-  int memtarget=0,c=0;
-  int fastio_reg_override=-1;
-  u_int hr,reglist=0;
-  tl=get_reg(i_regs->regmap,rt1[i]);
-  s=get_reg(i_regs->regmap,rs1[i]);
-  temp=get_reg(i_regs->regmap,-1);
-  temp2=get_reg(i_regs->regmap,FTEMP);
-  addr=get_reg(i_regs->regmap,AGEN1+(i&1));
-  assert(addr<0);
-  offset=imm[i];
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
-  reglist|=1<<temp;
-  if(offset||s<0||c) addr=temp2;
-  else addr=s;
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if(c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    }
-  }
-  if(!c) {
-    emit_shlimm(addr,3,temp);
-    if (opcode[i]==0x22||opcode[i]==0x26) {
-      emit_andimm(addr,0xFFFFFFFC,temp2); // LWL/LWR
-    }else{
-      emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
-    }
-    jaddr=emit_fastpath_cmp_jump(i,temp2,&fastio_reg_override);
-  }
-  else {
-    if(ram_offset&&memtarget) {
-      host_tempreg_acquire();
-      emit_addimm(temp2,ram_offset,HOST_TEMPREG);
-      fastio_reg_override=HOST_TEMPREG;
-    }
-    if (opcode[i]==0x22||opcode[i]==0x26) {
-      emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
-    }else{
-      emit_movimm(((constmap[i][s]+offset)<<3)&56,temp); // LDL/LDR
-    }
-  }
-  if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
-    if(!c||memtarget) {
-      int a=temp2;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_readword_indexed(0,a,temp2);
-      if(fastio_reg_override==HOST_TEMPREG) host_tempreg_release();
-      if(jaddr) add_stub_r(LOADW_STUB,jaddr,out,i,temp2,i_regs,ccadj[i],reglist);
-    }
-    else
-      inline_readstub(LOADW_STUB,i,(constmap[i][s]+offset)&0xFFFFFFFC,i_regs->regmap,FTEMP,ccadj[i],reglist);
-    if(rt1[i]) {
-      assert(tl>=0);
-      emit_andimm(temp,24,temp);
-#ifdef BIG_ENDIAN_MIPS
-      if (opcode[i]==0x26) // LWR
-#else
-      if (opcode[i]==0x22) // LWL
-#endif
-        emit_xorimm(temp,24,temp);
-      emit_movimm(-1,HOST_TEMPREG);
-      if (opcode[i]==0x26) {
-        emit_shr(temp2,temp,temp2);
-        emit_bic_lsr(tl,HOST_TEMPREG,temp,tl);
-      }else{
-        emit_shl(temp2,temp,temp2);
-        emit_bic_lsl(tl,HOST_TEMPREG,temp,tl);
-      }
-      emit_or(temp2,tl,tl);
-    }
-    //emit_storereg(rt1[i],tl); // DEBUG
-  }
-  if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
-    assert(0);
-  }
-}
-#define loadlr_assemble loadlr_assemble_arm
-
 static void c2op_prologue(u_int op,u_int reglist)
 {
   save_regs_all(reglist);
 #ifdef PCNT
   emit_movimm(op,0);
-  emit_call((int)pcnt_gte_start);
+  emit_call(pcnt_gte_start);
 #endif
   emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
 }
@@ -2276,7 +2000,7 @@ static void c2op_epilogue(u_int op,u_int reglist)
 {
 #ifdef PCNT
   emit_movimm(op,0);
-  emit_call((int)pcnt_gte_end);
+  emit_call(pcnt_gte_end);
 #endif
   restore_regs_all(reglist);
 }
@@ -2417,6 +2141,45 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     }
     c2op_epilogue(c2op,reglist);
   }
+}
+
+static void c2op_ctc2_31_assemble(signed char sl, signed char temp)
+{
+  //value = value & 0x7ffff000;
+  //if (value & 0x7f87e000) value |= 0x80000000;
+  emit_shrimm(sl,12,temp);
+  emit_shlimm(temp,12,temp);
+  emit_testimm(temp,0x7f000000);
+  emit_testeqimm(temp,0x00870000);
+  emit_testeqimm(temp,0x0000e000);
+  emit_orrne_imm(temp,0x80000000,temp);
+}
+
+static void do_mfc2_31_one(u_int copr,signed char temp)
+{
+  emit_readword(&reg_cop2d[copr],temp);
+  emit_testimm(temp,0x8000); // do we need this?
+  emit_andne_imm(temp,0,temp);
+  emit_cmpimm(temp,0xf80);
+  emit_andimm(temp,0xf80,temp);
+  emit_cmovae_imm(0xf80,temp);
+}
+
+static void c2op_mfc2_29_assemble(signed char tl, signed char temp)
+{
+  if (temp < 0) {
+    host_tempreg_acquire();
+    temp = HOST_TEMPREG;
+  }
+  do_mfc2_31_one(9,temp);
+  emit_shrimm(temp,7,tl);
+  do_mfc2_31_one(10,temp);
+  emit_orrshr_imm(temp,2,tl);
+  do_mfc2_31_one(11,temp);
+  emit_orrshl_imm(temp,3,tl);
+  emit_writeword(tl,&reg_cop2d[29]);
+  if (temp == HOST_TEMPREG)
+    host_tempreg_release();
 }
 
 static void multdiv_assemble_arm(int i,struct regstat *i_regs)

@@ -338,7 +338,7 @@ static int ari64_init()
 	scratch_buf_ptr = scratch_buf;
 
 	SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
-	SysPrintf("%08x/%08x/%08x/%08x/%08x\n",
+	SysPrintf("%p/%p/%p/%p/%p\n",
 		psxM, psxH, psxR, mem_rtab, out);
 
 	return 0;
@@ -657,6 +657,8 @@ void do_insn_cmp(void)
 		if (allregs_p[i] != allregs_e[i]) {
 			miss_log_add(i, allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
 			bad++;
+			if (i > 32+2)
+				goto end;
 		}
 	}
 

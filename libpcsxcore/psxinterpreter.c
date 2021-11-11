@@ -26,6 +26,7 @@
 #include "gte.h"
 #include "psxhle.h"
 #include "debug.h"
+#include "psxinterpreter.h"
 
 static int branch = 0;
 static int branch2 = 0;
@@ -38,8 +39,6 @@ static u32 branchPC;
 #else
 #define debugI()
 #endif
-
-void execI();
 
 // Subsets
 void (*psxBSC[64])();

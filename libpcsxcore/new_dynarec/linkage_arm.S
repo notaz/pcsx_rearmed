@@ -32,8 +32,6 @@
 #define get_addr_ht		ESYM(get_addr_ht)
 #define clean_blocks		ESYM(clean_blocks)
 #define gen_interupt		ESYM(gen_interupt)
-#define psxException		ESYM(psxException)
-#define execI			ESYM(execI)
 #define invalidate_addr		ESYM(invalidate_addr)
 #endif
 
@@ -393,7 +391,7 @@ FUNCTION(jump_vaddr):
 	.align	2
 
 FUNCTION(verify_code_ds):
-	str	r8, [fp, #LO_branch_target]
+	str	r8, [fp, #LO_branch_target]  @ preserve HOST_BTREG?
 FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
@@ -512,19 +510,9 @@ FUNCTION(jump_syscall):
 	.size	jump_syscall, .-jump_syscall
 	.align	2
 
-	.align	2
-FUNCTION(jump_syscall_hle):
-	str	r0, [fp, #LO_pcaddr] /* PC must be set to EPC for psxException */
-	ldr	r2, [fp, #LO_last_count]
-	mov	r1, #0    /* in delay slot */
-	add	r2, r2, r10
-	mov	r0, #0x20 /* cause */
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	bl	psxException
-
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
-pcsx_return:
+FUNCTION(jump_to_new_pc):
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	ldr	r0, [fp, #LO_pcaddr]
@@ -532,27 +520,7 @@ pcsx_return:
 	str	r1, [fp, #LO_last_count]
 	bl	get_addr_ht
 	mov	pc, r0
-	.size	jump_syscall_hle, .-jump_syscall_hle
-
-	.align	2
-FUNCTION(jump_hlecall):
-	ldr	r2, [fp, #LO_last_count]
-	str	r0, [fp, #LO_pcaddr]
-	add	r2, r2, r10
-	adr	lr, pcsx_return
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	bx	r1
-	.size	jump_hlecall, .-jump_hlecall
-
-	.align	2
-FUNCTION(jump_intcall):
-	ldr	r2, [fp, #LO_last_count]
-	str	r0, [fp, #LO_pcaddr]
-	add	r2, r2, r10
-	adr	lr, pcsx_return
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	b	execI
-	.size	jump_hlecall, .-jump_hlecall
+	.size	jump_to_new_pc, .-jump_to_new_pc
 
 	.align	2
 FUNCTION(new_dyna_leave):

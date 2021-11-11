@@ -322,9 +322,10 @@ static inline void MTC2(u32 value, int reg) {
 
 		case 28:
 			gteIRGB = value;
-			gteIR1 = (value & 0x1f) << 7;
-			gteIR2 = (value & 0x3e0) << 2;
-			gteIR3 = (value & 0x7c00) >> 3;
+			// not gteIR1 etc. just to be consistent with dynarec
+			regs->CP2D.n.ir1 = (value & 0x1f) << 7;
+			regs->CP2D.n.ir2 = (value & 0x3e0) << 2;
+			regs->CP2D.n.ir3 = (value & 0x7c00) >> 3;
 			break;
 
 		case 30:

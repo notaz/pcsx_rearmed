@@ -112,18 +112,6 @@ FUNCTION(dyna_linker_ds):
 	.size	dyna_linker_ds, .-dyna_linker_ds
 
 	.align	2
-
-FUNCTION(verify_code_ds):
-	bl	abort
-FUNCTION(verify_code):
-	/* r1 = source */
-	/* r2 = target */
-	/* r3 = length */
-	bl	abort
-	.size	verify_code, .-verify_code
-	.size	verify_code_ds, .-verify_code_ds
-
-	.align	2
 FUNCTION(cc_interrupt):
 	ldr	w0, [rFP, #LO_last_count]
 	mov	w2, #0x1fc
@@ -204,32 +192,17 @@ FUNCTION(jump_syscall):
 	.size	jump_syscall, .-jump_syscall
 	.align	2
 
-	.align	2
-FUNCTION(jump_syscall_hle):
-	bl	abort
-
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
-pcsx_return:
-	bl	abort // w10
+FUNCTION(jump_to_new_pc):
 	ldr	w1, [fp, #LO_next_interupt]
-	ldr	w10, [fp, #LO_cycle]
+	ldr	rCC, [fp, #LO_cycle]
 	ldr	w0, [fp, #LO_pcaddr]
-	sub	w10, w10, w1
+	sub	rCC, rCC, w1
 	str	w1, [fp, #LO_last_count]
 	bl	get_addr_ht
 	br	x0
-	.size	jump_syscall_hle, .-jump_syscall_hle
-
-	.align	2
-FUNCTION(jump_hlecall):
-	bl	abort
-	.size	jump_hlecall, .-jump_hlecall
-
-	.align	2
-FUNCTION(jump_intcall):
-	bl	abort
-	.size	jump_intcall, .-jump_intcall
+	.size	jump_to_new_pc, .-jump_to_new_pc
 
 	/* stack must be aligned by 16, and include space for save_regs() use */
 	.align	2
@@ -292,7 +265,6 @@ FUNCTION(do_memhandler_post):
 
 .macro pcsx_read_mem readop tab_shift
 	/* w0 = address, x1 = handler_tab, w2 = cycles */
-	stp	xzr, x30, [sp, #-16]!
 	ubfm	w4, w0, #\tab_shift, #11
 	ldr	x3, [x1, w4, uxtw #3]
 	adds	x3, x3, x3
@@ -300,17 +272,18 @@ FUNCTION(do_memhandler_post):
 	\readop	w0, [x3, w4, uxtw #\tab_shift]
 	ret
 0:
+	stp	xzr, x30, [sp, #-16]!
 	memhandler_pre
 	blr	x3
 .endm
 
 FUNCTION(jump_handler_read8):
-	add     x1, x1, #0x1000/4*4 + 0x1000/2*4  /* shift to r8 part */
+	add     x1, x1, #0x1000/4*8 + 0x1000/2*8  /* shift to r8 part */
 	pcsx_read_mem ldrb, 0
 	b	handler_read_end
 
 FUNCTION(jump_handler_read16):
-	add     x1, x1, #0x1000/4*4               /* shift to r16 part */
+	add     x1, x1, #0x1000/4*8               /* shift to r16 part */
 	pcsx_read_mem ldrh, 1
 	b	handler_read_end
 
@@ -323,29 +296,28 @@ handler_read_end:
 
 .macro pcsx_write_mem wrtop movop tab_shift
 	/* w0 = address, w1 = data, w2 = cycles, x3 = handler_tab */
-	stp	xzr, x30, [sp, #-16]!
 	ubfm	w4, w0, #\tab_shift, #11
 	ldr	x3, [x3, w4, uxtw #3]
-	str	w0, [rFP, #LO_address]    /* some handlers still need it... */
 	adds	x3, x3, x3
-#	str	lr, [rFP, #0]
 	bcs	0f
 	mov	w0, w2                    /* cycle return */
 	\wrtop	w1, [x3, w4, uxtw #\tab_shift]
 	ret
 0:
+	stp	xzr, x30, [sp, #-16]!
+	str	w0, [rFP, #LO_address]    /* some handlers still need it... */
 	\movop	w0, w1
 	memhandler_pre
 	blr	x3
 .endm
 
 FUNCTION(jump_handler_write8):
-	add     x3, x3, #0x1000/4*4 + 0x1000/2*4  /* shift to r8 part */
+	add     x3, x3, #0x1000/4*8 + 0x1000/2*8  /* shift to r8 part */
 	pcsx_write_mem strb uxtb 0
 	b	handler_write_end
 
 FUNCTION(jump_handler_write16):
-	add     x3, x3, #0x1000/4*4               /* shift to r16 part */
+	add     x3, x3, #0x1000/4*8               /* shift to r16 part */
 	pcsx_write_mem strh uxth 1
 	b	handler_write_end
 
@@ -358,8 +330,69 @@ handler_write_end:
 	ret
 
 FUNCTION(jump_handle_swl):
+	/* w0 = address, w1 = data, w2 = cycles */
+	ldr	x3, [fp, #LO_mem_wtab]
+	mov	w4, w0, lsr #12
+	ldr	x3, [x3, w4, uxtw #3]
+	adds	x3, x3, x3
+	bcs	4f
+	add	x3, x0, x3
+	mov	w0, w2
+	tbz	x3, #1, 10f	// & 2
+	tbz	x3, #0, 2f	// & 1
+3:
+	stur	w1, [x3, #-3]
+	ret
+2:
+	lsr	w2, w1, #8
+	lsr	w1, w1, #24
+	sturh	w2, [x3, #-2]
+	strb	w1, [x3]
+	ret
+10:
+	tbz	x3, #0, 0f	// & 1
+1:
+	lsr	w1, w1, #16
+	sturh	w1, [x3, #-1]
+	ret
+0:
+	lsr	w2, w1, #24
+	strb	w2, [x3]
+	ret
+4:
+	mov	w0, w2		// todo
 	bl	abort
+	ret
 
 FUNCTION(jump_handle_swr):
+	/* w0 = address, w1 = data, w2 = cycles */
+	ldr	x3, [fp, #LO_mem_wtab]
+	mov	w4, w0, lsr #12
+	ldr	x3, [x3, w4, uxtw #3]
+	adds	x3, x3, x3
+	bcs	4f
+	add	x3, x0, x3
+	mov	w0, w2
+	tbz	x3, #1, 10f	// & 2
+	tbz	x3, #0, 2f	// & 1
+3:
+	strb	w1, [x3]
+	ret
+2:
+	strh	w1, [x3]
+	ret
+10:
+	tbz	x3, #0, 0f	// & 1
+1:
+	lsr	w2, w1, #8
+	strb	w1, [x3]
+	sturh	w2, [x3, #1]
+	ret
+0:
+	str	w1, [x3]
+	ret
+4:
+	mov	w0, w2		// todo
 	bl	abort
+	ret
 
