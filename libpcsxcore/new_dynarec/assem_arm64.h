@@ -29,19 +29,18 @@
 #define SSP_CALLER_REGS (8*20)
 #define SSP_ALL (SSP_CALLEE_REGS+SSP_CALLER_REGS)
 
+#define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
+
 #ifndef __ASSEMBLER__
 
 extern char *invc_ptr;
 
-#define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
+struct tramp_insns
+{
+  u_int ldr;
+  u_int br;
+};
 
-// Code generator target address
-#if defined(BASE_ADDR_DYNAMIC)
-  // for platforms that can't just use .bss buffer (are there any on arm64?)
-  extern u_char *translation_cache;
-#else
-  // using a static buffer in .bss
-  extern u_char translation_cache[1 << TARGET_SIZE_2];
-#endif
+static void clear_cache_arm64(char *start, char *end);
 
 #endif // !__ASSEMBLY__

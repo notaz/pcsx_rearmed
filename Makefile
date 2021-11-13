@@ -76,8 +76,8 @@ ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
 endif
-ifeq "$(DRC_CACHE_BASE)" "1"
-libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
+ifeq "$(BASE_ADDR_DYNAMIC)" "1"
+libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_DYNAMIC=1
 endif
 
 # spu

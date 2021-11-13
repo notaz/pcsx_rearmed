@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *   Mupen64plus/PCSX - assem_arm.c                                        *
  *   Copyright (C) 2009-2011 Ari64                                         *
- *   Copyright (C) 2010-2011 Gražvydas "notaz" Ignotas                     *
+ *   Copyright (C) 2010-2021 Gražvydas "notaz" Ignotas                     *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -27,13 +27,6 @@
 #include "../gte_neon.h"
 #include "pcnt.h"
 #include "arm_features.h"
-
-#if   defined(BASE_ADDR_FIXED)
-#elif defined(BASE_ADDR_DYNAMIC)
-u_char *translation_cache;
-#else
-u_char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
-#endif
 
 #ifndef __MACH__
 #define CALLER_SAVE_REGS 0x100f
@@ -1034,6 +1027,12 @@ static void emit_set_if_carry32(int rs1, int rs2, int rt)
   emit_cmovb_imm(1,rt);
 }
 
+static int can_jump_or_call(const void *a)
+{
+  intptr_t offset = (u_char *)a - out - 8;
+  return (-33554432 <= offset && offset < 33554432);
+}
+
 static void emit_call(const void *a_)
 {
   int a = (int)a_;
@@ -1598,7 +1597,7 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
   emit_writeword(ECX,&last_count);
 #endif
 //DEBUG <
-  emit_jmp(linker);
+  emit_far_jump(linker);
 }
 
 static void check_extjump2(void *src)
@@ -1738,7 +1737,7 @@ static void do_readstub(int n)
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
-  emit_call(handler);
+  emit_far_call(handler);
   if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
     mov_loadtype_adj(type,0,rt);
   }
@@ -1754,7 +1753,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr, signed char 
   int rt=get_reg(regmap,target);
   if(rs<0) rs=get_reg(regmap,-1);
   assert(rs>=0);
-  u_int is_dynamic,far_call=0;
+  u_int is_dynamic;
   uintptr_t host_addr = 0;
   void *handler;
   int cc=get_reg(regmap,CCREG);
@@ -1794,12 +1793,6 @@ static void inline_readstub(enum stub_type type, int i, u_int addr, signed char 
     emit_movimm(addr,0);
   else if(rs!=0)
     emit_mov(rs,0);
-  int offset=(u_char *)handler-out-8;
-  if(offset<-33554432||offset>=33554432) {
-    // unreachable memhandler, a plugin func perhaps
-    emit_movimm((u_int)handler,12);
-    far_call=1;
-  }
   if(cc<0)
     emit_loadreg(CCREG,2);
   if(is_dynamic) {
@@ -1813,10 +1806,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr, signed char 
     emit_writeword(2,&Count);
   }
 
-  if(far_call)
-    emit_callreg(12);
-  else
-    emit_call(handler);
+  emit_far_call(handler);
 
   if(rt>=0&&rt1[i]!=0) {
     switch(type) {
@@ -1902,7 +1892,7 @@ static void do_writestub(int n)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
   // returns new cycle_count
-  emit_call(handler);
+  emit_far_call(handler);
   emit_addimm(0,-CLOCK_ADJUST((int)stubs[n].d+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
@@ -1941,7 +1931,7 @@ static void inline_writestub(enum stub_type type, int i, u_int addr, signed char
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj+1),2);
   emit_movimm((u_int)handler,3);
   // returns new cycle_count
-  emit_call(jump_handler_write_h);
+  emit_far_call(jump_handler_write_h);
   emit_addimm(0,-CLOCK_ADJUST(adj+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
@@ -1969,7 +1959,7 @@ static void *do_dirty_stub(int i)
 {
   assem_debug("do_dirty_stub %x\n",start+i*4);
   do_dirty_stub_emit_args(start + i*4);
-  emit_call(verify_code);
+  emit_far_call(verify_code);
   void *entry = out;
   load_regs_entry(i);
   if (entry == out)
@@ -1981,7 +1971,7 @@ static void *do_dirty_stub(int i)
 static void do_dirty_stub_ds()
 {
   do_dirty_stub_emit_args(start + 1);
-  emit_call(verify_code_ds);
+  emit_far_call(verify_code_ds);
 }
 
 /* Special assem */
@@ -1991,7 +1981,7 @@ static void c2op_prologue(u_int op,u_int reglist)
   save_regs_all(reglist);
 #ifdef PCNT
   emit_movimm(op,0);
-  emit_call(pcnt_gte_start);
+  emit_far_call(pcnt_gte_start);
 #endif
   emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
 }
@@ -2000,7 +1990,7 @@ static void c2op_epilogue(u_int op,u_int reglist)
 {
 #ifdef PCNT
   emit_movimm(op,0);
-  emit_call(pcnt_gte_end);
+  emit_far_call(pcnt_gte_end);
 #endif
   restore_regs_all(reglist);
 }
@@ -2008,19 +1998,19 @@ static void c2op_epilogue(u_int op,u_int reglist)
 static void c2op_call_MACtoIR(int lm,int need_flags)
 {
   if(need_flags)
-    emit_call(lm?gteMACtoIR_lm1:gteMACtoIR_lm0);
+    emit_far_call(lm?gteMACtoIR_lm1:gteMACtoIR_lm0);
   else
-    emit_call(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf);
+    emit_far_call(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf);
 }
 
 static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
 {
-  emit_call(func);
+  emit_far_call(func);
   // func is C code and trashes r0
   emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
   if(need_flags||need_ir)
     c2op_call_MACtoIR(lm,need_flags);
-  emit_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
+  emit_far_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
 }
 
 static void c2op_assemble(int i,struct regstat *i_regs)
@@ -2070,17 +2060,17 @@ static void c2op_assemble(int i,struct regstat *i_regs)
           emit_readword(&zeromem_ptr,7);
 #ifdef __ARM_NEON__
         emit_movimm(source[i],1); // opcode
-        emit_call(gteMVMVA_part_neon);
+        emit_far_call(gteMVMVA_part_neon);
         if(need_flags) {
           emit_movimm(lm,1);
-          emit_call(gteMACtoIR_flags_neon);
+          emit_far_call(gteMACtoIR_flags_neon);
         }
 #else
         if(cv==3&&shift)
-          emit_call((int)gteMVMVA_part_cv3sh12_arm);
+          emit_far_call((int)gteMVMVA_part_cv3sh12_arm);
         else {
           emit_movimm(shift,1);
-          emit_call((int)(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm));
+          emit_far_call((int)(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm));
         }
         if(need_flags||need_ir)
           c2op_call_MACtoIR(lm,need_flags);
@@ -2089,13 +2079,13 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         c2op_prologue(c2op,reglist);
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);
-        emit_call((int)(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]));
+        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
 #endif
         break;
       }
       case GTE_OP:
         c2op_prologue(c2op,reglist);
-        emit_call(shift?gteOP_part_shift:gteOP_part_noshift);
+        emit_far_call(shift?gteOP_part_shift:gteOP_part_noshift);
         if(need_flags||need_ir) {
           emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
           c2op_call_MACtoIR(lm,need_flags);
@@ -2111,7 +2101,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         break;
       case GTE_SQR:
         c2op_prologue(c2op,reglist);
-        emit_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
+        emit_far_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
         if(need_flags||need_ir) {
           emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
           c2op_call_MACtoIR(lm,need_flags);
@@ -2136,7 +2126,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);
 #endif
-        emit_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
+        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
         break;
     }
     c2op_epilogue(c2op,reglist);
@@ -2309,7 +2299,7 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
 
 static void do_jump_vaddr(int rs)
 {
-  emit_jmp(jump_vaddr_reg[rs]);
+  emit_far_jump(jump_vaddr_reg[rs]);
 }
 
 static void do_preload_rhash(int r) {
@@ -2402,7 +2392,17 @@ static void do_clear_cache()
 }
 
 // CPU-architecture-specific initialization
-static void arch_init() {
+static void arch_init(void)
+{
+  uintptr_t diff = (u_char *)&ndrc->tramp.f - (u_char *)&ndrc->tramp.ops - 8;
+  struct tramp_insns *ops = ndrc->tramp.ops;
+  size_t i;
+  assert(!(diff & 3));
+  assert(diff < 0x1000);
+  start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
+  for (i = 0; i < ARRAY_SIZE(ndrc->tramp.ops); i++)
+    ops[i].ldrpc = 0xe5900000 | rd_rn_rm(15,15,0) | diff; // ldr pc, [=val]
+  end_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
 }
 
 // vim:shiftwidth=2:expandtab

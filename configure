@@ -584,7 +584,7 @@ if [ "$enable_dynarec" = "yes" ]; then
   echo "USE_DYNAREC = 1" >> $config_mak
 fi
 if [ "$drc_cache_base" = "yes" ]; then
-  echo "DRC_CACHE_BASE = 1" >> $config_mak
+  echo "BASE_ADDR_DYNAMIC = 1" >> $config_mak
 fi
 if [ "$have_c64x_dsp" = "yes" ]; then
   echo "HAVE_C64_TOOLS = 1" >> $config_mak

@@ -66,6 +66,23 @@ static int sceBlock;
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
+struct ndrc_mem
+{
+  u_char translation_cache[1 << TARGET_SIZE_2];
+  struct
+  {
+    struct tramp_insns ops[2048 / sizeof(struct tramp_insns)];
+    const void *f[2048 / sizeof(void *)];
+  } tramp;
+};
+
+#ifdef BASE_ADDR_DYNAMIC
+static struct ndrc_mem *ndrc;
+#else
+static struct ndrc_mem ndrc_ __attribute__((aligned(4096)));
+static struct ndrc_mem *ndrc = &ndrc_;
+#endif
+
 // stubs
 enum stub_type {
   CC_STUB = 1,
@@ -308,6 +325,8 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
 static void pass_args(int a0, int a1);
+static void emit_far_jump(const void *f);
+static void emit_far_call(const void *f);
 
 static void mprotect_w_x(void *start, void *end, int is_x)
 {
@@ -360,8 +379,8 @@ static void end_tcache_write(void *start, void *end)
 static void *start_block(void)
 {
   u_char *end = out + MAX_OUTPUT_BLOCK_SIZE;
-  if (end > translation_cache + (1<<TARGET_SIZE_2))
-    end = translation_cache + (1<<TARGET_SIZE_2);
+  if (end > ndrc->translation_cache + sizeof(ndrc->translation_cache))
+    end = ndrc->translation_cache + sizeof(ndrc->translation_cache);
   start_tcache_write(out, end);
   return out;
 }
@@ -866,6 +885,48 @@ static const char *func_name(const void *a)
 #include "assem_arm64.c"
 #endif
 
+static void *get_trampoline(const void *f)
+{
+  size_t i;
+
+  for (i = 0; i < ARRAY_SIZE(ndrc->tramp.f); i++) {
+    if (ndrc->tramp.f[i] == f || ndrc->tramp.f[i] == NULL)
+      break;
+  }
+  if (i == ARRAY_SIZE(ndrc->tramp.f)) {
+    SysPrintf("trampoline table is full, last func %p\n", f);
+    abort();
+  }
+  if (ndrc->tramp.f[i] == NULL) {
+    start_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
+    ndrc->tramp.f[i] = f;
+    end_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
+  }
+  return &ndrc->tramp.ops[i];
+}
+
+static void emit_far_jump(const void *f)
+{
+  if (can_jump_or_call(f)) {
+    emit_jmp(f);
+    return;
+  }
+
+  f = get_trampoline(f);
+  emit_jmp(f);
+}
+
+static void emit_far_call(const void *f)
+{
+  if (can_jump_or_call(f)) {
+    emit_call(f);
+    return;
+  }
+
+  f = get_trampoline(f);
+  emit_call(f);
+}
+
 // Add virtual address mapping to linked list
 void ll_add(struct ll_entry **head,int vaddr,void *addr)
 {
@@ -1167,7 +1228,7 @@ static void do_invstub(int n)
   set_jump_target(stubs[n].addr, out);
   save_regs(reglist);
   if(stubs[n].b!=0) emit_mov(stubs[n].b,0);
-  emit_call(invalidate_addr);
+  emit_far_call(invalidate_addr);
   restore_regs(reglist);
   emit_jmp(stubs[n].retaddr); // return address
 }
@@ -2865,7 +2926,7 @@ void store_assemble(int i,struct regstat *i_regs)
       emit_movimm(start+i*4+4,0);
       emit_writeword(0,&pcaddr);
       emit_addimm(HOST_CCREG,2,HOST_CCREG);
-      emit_call(get_addr_ht);
+      emit_far_call(get_addr_ht);
       emit_jmpreg(0);
     }
   }
@@ -3046,7 +3107,7 @@ static void cop0_assemble(int i,struct regstat *i_regs)
         emit_storereg(CCREG,HOST_CCREG);
         emit_loadreg(rs1[i],1);
         emit_movimm(copr,0);
-        emit_call(pcsx_mtc0_ds);
+        emit_far_call(pcsx_mtc0_ds);
         emit_loadreg(rs1[i],s);
         return;
       }
@@ -3055,14 +3116,12 @@ static void cop0_assemble(int i,struct regstat *i_regs)
       emit_movimm(0,HOST_TEMPREG);
       emit_writeword(HOST_TEMPREG,&pending_exception);
     }
-    //else if(copr==12&&is_delayslot) emit_call((int)MTC0_R12);
-    //else
     if(s==HOST_CCREG)
       emit_loadreg(rs1[i],1);
     else if(s!=1)
       emit_mov(s,1);
     emit_movimm(copr,0);
-    emit_call(pcsx_mtc0);
+    emit_far_call(pcsx_mtc0);
     if(copr==9||copr==11||copr==12||copr==13) {
       emit_readword(&Count,HOST_CCREG);
       emit_readword(&next_interupt,HOST_TEMPREG);
@@ -3079,7 +3138,7 @@ static void cop0_assemble(int i,struct regstat *i_regs)
       emit_jeq(0);
       emit_readword(&pcaddr, 0);
       emit_addimm(HOST_CCREG,2,HOST_CCREG);
-      emit_call(get_addr_ht);
+      emit_far_call(get_addr_ht);
       emit_jmpreg(0);
       set_jump_target(jaddr, out);
     }
@@ -3139,7 +3198,7 @@ static void do_cop1stub(int n)
   if(regs[i].regmap_entry[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
   emit_movimm(start+(i-ds)*4,EAX); // Get PC
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
-  emit_jmp(ds?fp_exception_ds:fp_exception);
+  emit_far_jump(ds?fp_exception_ds:fp_exception);
 }
 
 static void cop2_get_dreg(u_int copr,signed char tl,signed char temp)
@@ -3396,7 +3455,7 @@ static void do_unalignedwritestub(int n)
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
-  emit_call((opcode[i]==0x2a?jump_handle_swl:jump_handle_swr));
+  emit_far_call((opcode[i]==0x2a?jump_handle_swl:jump_handle_swr));
   emit_addimm(0,-CLOCK_ADJUST((int)stubs[n].d+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
@@ -3490,8 +3549,8 @@ static void call_c_cpu_handler(int i, const struct regstat *i_regs, u_int pc, vo
   emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i]),HOST_CCREG); // XXX
   emit_add(2,HOST_CCREG,2);
   emit_writeword(2,&psxRegs.cycle);
-  emit_call(func);
-  emit_jmp(jump_to_new_pc);
+  emit_far_call(func);
+  emit_far_jump(jump_to_new_pc);
 }
 
 static void syscall_assemble(int i,struct regstat *i_regs)
@@ -4227,7 +4286,7 @@ static void drc_dbg_emit_do_cmp(int i)
   save_regs(reglist);
   emit_movimm(start+i*4,0);
   emit_writeword(0,&pcaddr);
-  emit_call(do_insn_cmp);
+  emit_far_call(do_insn_cmp);
   //emit_readword(&cycle,0);
   //emit_addimm(0,2,0);
   //emit_writeword(0,&cycle);
@@ -4558,7 +4617,7 @@ static void do_ccstub(int n)
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
   if(stubs[n].a) emit_addimm(HOST_CCREG,CLOCK_ADJUST((signed int)stubs[n].a),HOST_CCREG);
-  emit_call(cc_interrupt);
+  emit_far_call(cc_interrupt);
   if(stubs[n].a) emit_addimm(HOST_CCREG,-CLOCK_ADJUST((signed int)stubs[n].a),HOST_CCREG);
   if(stubs[n].d==TAKEN) {
     if(internal_branch(ba[i]))
@@ -6398,7 +6457,7 @@ static void new_dynarec_test(void)
   ((volatile u_int *)out)[0]++; // make cache dirty
 
   for (i = 0; i < ARRAY_SIZE(ret); i++) {
-    out = translation_cache;
+    out = ndrc->translation_cache;
     beginning = start_block();
     emit_movimm(DRC_TEST_VAL + i, 0); // test
     emit_ret();
@@ -6412,7 +6471,7 @@ static void new_dynarec_test(void)
     SysPrintf("test passed.\n");
   else
     SysPrintf("test failed, will likely crash soon (r=%08x %08x)\n", ret[0], ret[1]);
-  out = translation_cache;
+  out = ndrc->translation_cache;
 }
 
 // clear the state completely, instead of just marking
@@ -6420,7 +6479,7 @@ static void new_dynarec_test(void)
 void new_dynarec_clear_full()
 {
   int n;
-  out = translation_cache;
+  out = ndrc->translation_cache;
   memset(invalid_code,1,sizeof(invalid_code));
   memset(hash_table,0xff,sizeof(hash_table));
   memset(mini_ht,-1,sizeof(mini_ht));
@@ -6442,30 +6501,24 @@ void new_dynarec_init()
 {
   SysPrintf("Init new dynarec\n");
 
-  // allocate/prepare a buffer for translation cache
-  // see assem_arm.h for some explanation
-#if   defined(BASE_ADDR_FIXED)
-  if (mmap(translation_cache, 1 << TARGET_SIZE_2,
-            PROT_READ | PROT_WRITE | PROT_EXEC,
-            MAP_PRIVATE | MAP_ANONYMOUS,
-            -1, 0) != translation_cache) {
-    SysPrintf("mmap() failed: %s\n", strerror(errno));
-    SysPrintf("disable BASE_ADDR_FIXED and recompile\n");
-    abort();
-  }
-#elif defined(BASE_ADDR_DYNAMIC)
+#ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
   sceBlock = sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
   if (sceBlock < 0)
     SysPrintf("sceKernelAllocMemBlockForVM failed\n");
-  int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&translation_cache);
+  int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&ndrc);
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
   #else
-  translation_cache = mmap (NULL, 1 << TARGET_SIZE_2,
+  uintptr_t desired_addr = 0;
+  #ifdef __ELF__
+  extern char _end;
+  desired_addr = ((uintptr_t)&_end + 0xffffff) & ~0xffffffl;
+  #endif
+  ndrc = mmap((void *)desired_addr, sizeof(*ndrc),
             PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (translation_cache == MAP_FAILED) {
+  if (ndrc == MAP_FAILED) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
     abort();
   }
@@ -6473,11 +6526,12 @@ void new_dynarec_init()
 #else
   #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
-  if (mprotect(translation_cache, 1<<TARGET_SIZE_2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+  if (mprotect(ndrc, sizeof(ndrc->translation_cache) + sizeof(ndrc->tramp.ops),
+               PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
   #endif
 #endif
-  out = translation_cache;
+  out = ndrc->translation_cache;
   cycle_multiplier=200;
   new_dynarec_clear_full();
 #ifdef HOST_IMM8
@@ -6496,12 +6550,12 @@ void new_dynarec_init()
 void new_dynarec_cleanup()
 {
   int n;
-#if defined(BASE_ADDR_FIXED) || defined(BASE_ADDR_DYNAMIC)
+#ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
   sceKernelFreeMemBlock(sceBlock);
   sceBlock = -1;
   #else
-  if (munmap(translation_cache, 1<<TARGET_SIZE_2) < 0)
+  if (munmap(ndrc, sizeof(*ndrc)) < 0)
     SysPrintf("munmap() failed\n");
   #endif
 #endif
@@ -6664,7 +6718,7 @@ int new_recompile_block(u_int addr)
     invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,&pcaddr);
-    emit_jmp(new_dyna_leave);
+    emit_far_jump(new_dyna_leave);
     literal_pool(0);
     end_block(beginning);
     ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
@@ -8696,7 +8750,7 @@ int new_recompile_block(u_int addr)
     emit_cmp(0,1);
     #ifdef __aarch64__
     emit_jeq(out + 4*2);
-    emit_jmp(new_dyna_leave);
+    emit_far_jump(new_dyna_leave);
     #else
     emit_jne(new_dyna_leave);
     #endif
@@ -8968,8 +9022,8 @@ int new_recompile_block(u_int addr)
 
   // If we're within 256K of the end of the buffer,
   // start over from the beginning. (Is 256K enough?)
-  if (out > translation_cache+(1<<TARGET_SIZE_2)-MAX_OUTPUT_BLOCK_SIZE)
-    out = translation_cache;
+  if (out > ndrc->translation_cache + sizeof(ndrc->translation_cache) - MAX_OUTPUT_BLOCK_SIZE)
+    out = ndrc->translation_cache;
 
   // Trap writes to any of the pages we compiled
   for(i=start>>12;i<=(start+slen*4)>>12;i++) {
@@ -8986,11 +9040,11 @@ int new_recompile_block(u_int addr)
 
   /* Pass 10 - Free memory by expiring oldest blocks */
 
-  int end=(((out-translation_cache)>>(TARGET_SIZE_2-16))+16384)&65535;
+  int end=(((out-ndrc->translation_cache)>>(TARGET_SIZE_2-16))+16384)&65535;
   while(expirep!=end)
   {
     int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    uintptr_t base=(uintptr_t)translation_cache+((expirep>>13)<<shift); // Base address of this block
+    uintptr_t base=(uintptr_t)ndrc->translation_cache+((expirep>>13)<<shift); // Base address of this block
     inv_debug("EXP: Phase %d\n",expirep);
     switch((expirep>>11)&3)
     {

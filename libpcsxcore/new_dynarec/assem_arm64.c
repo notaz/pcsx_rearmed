@@ -23,14 +23,6 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#if   defined(BASE_ADDR_FIXED)
-#elif defined(BASE_ADDR_DYNAMIC)
-u_char *translation_cache;
-#else
-u_char translation_cache[1 << TARGET_SIZE_2] __attribute__((aligned(4096)));
-#endif
-static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
-
 #define CALLER_SAVE_REGS 0x0007ffff
 
 #define unused __attribute__((unused))
@@ -889,6 +881,12 @@ static void emit_set_if_carry32(u_int rs1, u_int rs2, u_int rt)
   emit_cmovb_imm(1,rt);
 }
 
+static int can_jump_or_call(const void *a)
+{
+  intptr_t diff = (u_char *)a - out;
+  return (-134217728 <= diff && diff <= 134217727);
+}
+
 static void emit_call(const void *a)
 {
   intptr_t diff = (u_char *)a - out;
@@ -1295,7 +1293,7 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
   // addr is in the current recompiled block (max 256k)
   // offset shouldn't exceed +/-1MB
   emit_adr(addr, 1);
-  emit_jmp(linker);
+  emit_far_jump(linker);
 }
 
 static void check_extjump2(void *src)
@@ -1439,7 +1437,7 @@ static void do_readstub(int n)
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
-  emit_call(handler);
+  emit_far_call(handler);
   // (no cycle reload after read)
   if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
     loadstore_extend(type,0,rt);
@@ -1508,9 +1506,9 @@ static void inline_readstub(enum stub_type type, int i, u_int addr, signed char 
     emit_addimm64(1, l1 & 0xfff, 1);
   }
   else
-    emit_call(do_memhandler_pre);
+    emit_far_call(do_memhandler_pre);
 
-  emit_call(handler);
+  emit_far_call(handler);
 
   // (no cycle reload after read)
   if(rt>=0&&rt1[i]!=0)
@@ -1599,7 +1597,7 @@ static void do_writestub(int n)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d+1),2);
   // returns new cycle_count
-  emit_call(handler);
+  emit_far_call(handler);
   emit_addimm(0,-CLOCK_ADJUST((int)stubs[n].d+1),cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
@@ -1642,9 +1640,9 @@ static void inline_writestub(enum stub_type type, int i, u_int addr, signed char
     emit_loadreg(CCREG, (cc_use = 2));
   emit_addimm(cc_use, CLOCK_ADJUST(adj+1), 2);
 
-  emit_call(do_memhandler_pre);
-  emit_call(handler);
-  emit_call(do_memhandler_post);
+  emit_far_call(do_memhandler_pre);
+  emit_far_call(handler);
+  emit_far_call(do_memhandler_post);
   emit_addimm(0, -CLOCK_ADJUST(adj+1), cc_use);
   if (cc < 0)
     emit_storereg(CCREG, cc_use);
@@ -1665,12 +1663,12 @@ static void do_dirty_stub_base(u_int vaddr)
   emit_loadlp_ofs(0, 0); // ldr x1, source
   emit_loadlp_ofs(0, 1); // ldr x2, copy
   emit_movz(slen*4, 2);
-  emit_call(verify_code_arm64);
+  emit_far_call(verify_code_arm64);
   void *jmp = out;
   emit_cbz(0, 0);
   emit_movz(vaddr & 0xffff, 0);
   emit_movk_lsl16(vaddr >> 16, 0);
-  emit_call(get_addr);
+  emit_far_call(get_addr);
   emit_jmpreg(0);
   set_jump_target(jmp, out);
 }
@@ -1784,7 +1782,7 @@ static void c2op_prologue(u_int op,u_int reglist)
   save_load_regs_all(1, reglist);
 #ifdef PCNT
   emit_movimm(op, 0);
-  emit_call(pcnt_gte_start);
+  emit_far_call(pcnt_gte_start);
 #endif
   // pointer to cop2 regs
   emit_addimm64(FP, (u_char *)&psxRegs.CP2D.r[0] - (u_char *)&dynarec_local, 0);
@@ -1794,7 +1792,7 @@ static void c2op_epilogue(u_int op,u_int reglist)
 {
 #ifdef PCNT
   emit_movimm(op, 0);
-  emit_call(pcnt_gte_end);
+  emit_far_call(pcnt_gte_end);
 #endif
   save_load_regs_all(0, reglist);
 }
@@ -1824,7 +1822,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         c2op_prologue(c2op,reglist);
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);
-        emit_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
+        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
         break;
     }
     c2op_epilogue(c2op,reglist);
@@ -1973,7 +1971,7 @@ static void do_jump_vaddr(u_int rs)
 {
   if (rs != 0)
     emit_mov(rs, 0);
-  emit_call(get_addr_ht);
+  emit_far_call(get_addr_ht);
   emit_jmpreg(0);
 }
 
@@ -2061,7 +2059,18 @@ static void do_clear_cache()
 }
 
 // CPU-architecture-specific initialization
-static void arch_init() {
+static void arch_init(void)
+{
+  uintptr_t diff = (u_char *)&ndrc->tramp.f - (u_char *)&ndrc->tramp.ops;
+  struct tramp_insns *ops = ndrc->tramp.ops;
+  size_t i;
+  assert(!(diff & 3));
+  start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
+  for (i = 0; i < ARRAY_SIZE(ndrc->tramp.ops); i++) {
+    ops[i].ldr = 0x58000000 | imm19_rt(diff >> 2, 17); // ldr x17, [=val]
+    ops[i].br  = 0xd61f0000 | rm_rn_rd(0, 17, 0);      // br x17
+  }
+  end_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
 }
 
 // vim:shiftwidth=2:expandtab
