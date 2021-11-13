@@ -355,7 +355,7 @@ static void start_tcache_write(void *start, void *end)
 
 static void end_tcache_write(void *start, void *end)
 {
-#ifdef __arm__
+#if defined(__arm__) || defined(__aarch64__)
   size_t len = (char *)end - (char *)start;
   #if   defined(__BLACKBERRY_QNX__)
   msync(start, len, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
@@ -365,12 +365,14 @@ static void end_tcache_write(void *start, void *end)
   sceKernelSyncVMDomain(sceBlock, start, len);
   #elif defined(_3DS)
   ctr_flush_invalidate_cache();
+  #elif defined(__aarch64__)
+  // as of 2021, __clear_cache() is still broken on arm64
+  // so here is a custom one :(
+  clear_cache_arm64(start, end);
   #else
   __clear_cache(start, end);
   #endif
   (void)len;
-#else
-  __clear_cache(start, end);
 #endif
 
   mprotect_w_x(start, end, 1);
@@ -388,6 +390,49 @@ static void *start_block(void)
 static void end_block(void *start)
 {
   end_tcache_write(start, out);
+}
+
+// also takes care of w^x mappings when patching code
+static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
+
+static void mark_clear_cache(void *target)
+{
+  uintptr_t offset = (u_char *)target - ndrc->translation_cache;
+  u_int mask = 1u << ((offset >> 12) & 31);
+  if (!(needs_clear_cache[offset >> 17] & mask)) {
+    char *start = (char *)((uintptr_t)target & ~4095l);
+    start_tcache_write(start, start + 4095);
+    needs_clear_cache[offset >> 17] |= mask;
+  }
+}
+
+// Clearing the cache is rather slow on ARM Linux, so mark the areas
+// that need to be cleared, and then only clear these areas once.
+static void do_clear_cache(void)
+{
+  int i, j;
+  for (i = 0; i < (1<<(TARGET_SIZE_2-17)); i++)
+  {
+    u_int bitmap = needs_clear_cache[i];
+    if (!bitmap)
+      continue;
+    for (j = 0; j < 32; j++)
+    {
+      u_char *start, *end;
+      if (!(bitmap & (1<<j)))
+        continue;
+
+      start = ndrc->translation_cache + i*131072 + j*4096;
+      end = start + 4095;
+      for (j++; j < 32; j++) {
+        if (!(bitmap & (1<<j)))
+          break;
+        end += 4096;
+      }
+      end_tcache_write(start, end);
+    }
+    needs_clear_cache[i] = 0;
+  }
 }
 
 //#define DEBUG_CYCLE_COUNT 1
@@ -1054,9 +1099,7 @@ static void ll_kill_pointers(struct ll_entry *head,uintptr_t addr,int shift)
     {
       inv_debug("EXP: Kill pointer at %p (%x)\n",head->addr,head->vaddr);
       void *host_addr=find_extjump_insn(head->addr);
-      #if defined(__arm__) || defined(__aarch64__)
-        mark_clear_cache(host_addr);
-      #endif
+      mark_clear_cache(host_addr);
       set_jump_target(host_addr, head->addr);
     }
     head=head->next;
@@ -1082,9 +1125,7 @@ static void invalidate_page(u_int page)
   while(head!=NULL) {
     inv_debug("INVALIDATE: kill pointer to %x (%p)\n",head->vaddr,head->addr);
     void *host_addr=find_extjump_insn(head->addr);
-    #if defined(__arm__) || defined(__aarch64__)
-      mark_clear_cache(host_addr);
-    #endif
+    mark_clear_cache(host_addr);
     set_jump_target(host_addr, head->addr);
     next=head->next;
     free(head);
@@ -1107,9 +1148,7 @@ static void invalidate_block_range(u_int block, u_int first, u_int last)
   for(first=page+1;first<last;first++) {
     invalidate_page(first);
   }
-  #if defined(__arm__) || defined(__aarch64__)
-    do_clear_cache();
-  #endif
+  do_clear_cache();
 
   // Don't trap writes
   invalid_code[block]=1;
@@ -1206,7 +1245,7 @@ void invalidate_addr(u_int addr)
 
 // This is called when loading a save state.
 // Anything could have changed, so invalidate everything.
-void invalidate_all_pages()
+void invalidate_all_pages(void)
 {
   u_int page;
   for(page=0;page<4096;page++)
@@ -1219,6 +1258,7 @@ void invalidate_all_pages()
   #ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
   #endif
+  do_clear_cache();
 }
 
 static void do_invstub(int n)
@@ -6476,7 +6516,7 @@ static void new_dynarec_test(void)
 
 // clear the state completely, instead of just marking
 // things invalid like invalidate_all_pages() does
-void new_dynarec_clear_full()
+void new_dynarec_clear_full(void)
 {
   int n;
   out = ndrc->translation_cache;
@@ -6497,7 +6537,7 @@ void new_dynarec_clear_full()
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
 }
 
-void new_dynarec_init()
+void new_dynarec_init(void)
 {
   SysPrintf("Init new dynarec\n");
 
@@ -6547,7 +6587,7 @@ void new_dynarec_init()
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
 }
 
-void new_dynarec_cleanup()
+void new_dynarec_cleanup(void)
 {
   int n;
 #ifdef BASE_ADDR_DYNAMIC
@@ -9082,10 +9122,8 @@ int new_recompile_block(u_int addr)
         break;
       case 3:
         // Clear jump_out
-        #if defined(__arm__) || defined(__aarch64__)
         if((expirep&2047)==0)
           do_clear_cache();
-        #endif
         ll_remove_matching_addrs(jump_out+(expirep&2047),base,shift);
         ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base,shift);
         break;

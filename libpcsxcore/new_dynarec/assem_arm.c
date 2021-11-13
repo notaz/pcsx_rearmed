@@ -2348,49 +2348,6 @@ static void do_miniht_insert(u_int return_address,int rt,int temp) {
   #endif
 }
 
-static void mark_clear_cache(void *target)
-{
-  u_long offset = (u_char *)target - translation_cache;
-  u_int mask = 1u << ((offset >> 12) & 31);
-  if (!(needs_clear_cache[offset >> 17] & mask)) {
-    char *start = (char *)((u_long)target & ~4095ul);
-    start_tcache_write(start, start + 4096);
-    needs_clear_cache[offset >> 17] |= mask;
-  }
-}
-
-// Clearing the cache is rather slow on ARM Linux, so mark the areas
-// that need to be cleared, and then only clear these areas once.
-static void do_clear_cache()
-{
-  int i,j;
-  for (i=0;i<(1<<(TARGET_SIZE_2-17));i++)
-  {
-    u_int bitmap=needs_clear_cache[i];
-    if(bitmap) {
-      u_char *start, *end;
-      for(j=0;j<32;j++)
-      {
-        if(bitmap&(1<<j)) {
-          start=translation_cache+i*131072+j*4096;
-          end=start+4095;
-          j++;
-          while(j<32) {
-            if(bitmap&(1<<j)) {
-              end+=4096;
-              j++;
-            }else{
-              end_tcache_write(start, end);
-              break;
-            }
-          }
-        }
-      }
-      needs_clear_cache[i]=0;
-    }
-  }
-}
-
 // CPU-architecture-specific initialization
 static void arch_init(void)
 {

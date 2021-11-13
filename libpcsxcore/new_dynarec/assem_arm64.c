@@ -2015,47 +2015,45 @@ static void do_miniht_insert(u_int return_address,u_int rt,int temp) {
   emit_writeword(rt,&mini_ht[(return_address&0xFF)>>3][0]);
 }
 
-static void mark_clear_cache(void *target)
+static void clear_cache_arm64(char *start, char *end)
 {
-  u_long offset = (u_char *)target - translation_cache;
-  u_int mask = 1u << ((offset >> 12) & 31);
-  if (!(needs_clear_cache[offset >> 17] & mask)) {
-    char *start = (char *)((u_long)target & ~4095ul);
-    start_tcache_write(start, start + 4096);
-    needs_clear_cache[offset >> 17] |= mask;
-  }
-}
+  // Don't rely on GCC's __clear_cache implementation, as it caches
+  // icache/dcache cache line sizes, that can vary between cores on
+  // big.LITTLE architectures.
+  uint64_t addr, ctr_el0;
+  static size_t icache_line_size = 0xffff, dcache_line_size = 0xffff;
+  size_t isize, dsize;
 
-// Clearing the cache is rather slow on ARM Linux, so mark the areas
-// that need to be cleared, and then only clear these areas once.
-static void do_clear_cache()
-{
-  int i,j;
-  for (i=0;i<(1<<(TARGET_SIZE_2-17));i++)
-  {
-    u_int bitmap=needs_clear_cache[i];
-    if(bitmap) {
-      u_char *start, *end;
-      for(j=0;j<32;j++)
-      {
-        if(bitmap&(1<<j)) {
-          start=translation_cache+i*131072+j*4096;
-          end=start+4095;
-          j++;
-          while(j<32) {
-            if(bitmap&(1<<j)) {
-              end+=4096;
-              j++;
-            }else{
-              end_tcache_write(start, end);
-              break;
-            }
-          }
-        }
-      }
-      needs_clear_cache[i]=0;
-    }
+  __asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr_el0));
+  isize = 4 << ((ctr_el0 >> 0) & 0xf);
+  dsize = 4 << ((ctr_el0 >> 16) & 0xf);
+
+  // use the global minimum cache line size
+  icache_line_size = isize = icache_line_size < isize ? icache_line_size : isize;
+  dcache_line_size = dsize = dcache_line_size < dsize ? dcache_line_size : dsize;
+
+  /* If CTR_EL0.IDC is enabled, Data cache clean to the Point of Unification is
+     not required for instruction to data coherence.  */
+  if ((ctr_el0 & (1 << 28)) == 0x0) {
+    addr = (uint64_t)start & ~(uint64_t)(dsize - 1);
+    for (; addr < (uint64_t)end; addr += dsize)
+      // use "civac" instead of "cvau", as this is the suggested workaround for
+      // Cortex-A53 errata 819472, 826319, 827319 and 824069.
+      __asm__ volatile("dc civac, %0" : : "r"(addr) : "memory");
   }
+  __asm__ volatile("dsb ish" : : : "memory");
+
+  /* If CTR_EL0.DIC is enabled, Instruction cache cleaning to the Point of
+     Unification is not required for instruction to data coherence.  */
+  if ((ctr_el0 & (1 << 29)) == 0x0) {
+    addr = (uint64_t)start & ~(uint64_t)(isize - 1);
+    for (; addr < (uint64_t)end; addr += isize)
+      __asm__ volatile("ic ivau, %0" : : "r"(addr) : "memory");
+
+    __asm__ volatile("dsb ish" : : : "memory");
+  }
+
+  __asm__ volatile("isb" : : : "memory");
 }
 
 // CPU-architecture-specific initialization
