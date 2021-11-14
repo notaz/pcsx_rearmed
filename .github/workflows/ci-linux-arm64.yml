@@ -1,0 +1,22 @@
+name: CI (Linux arm64)
+on: [push, pull_request]
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install dependencies
+      run: |
+        whoami
+        sudo bash -c 'echo ''deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe'' > /etc/apt/sources.list.d/arm64.list'
+        sudo sed -i 's/^deb \([^[]\)/deb [arch=amd64] \1/' /etc/apt/sources.list
+        sudo dpkg --add-architecture arm64
+        sudo apt-get update -qq
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        .github/extract-foreign-all.sh arm64
+    - name: configure
+      run: DUMP_CONFIG_LOG=1 CROSS_COMPILE=aarch64-linux-gnu- PATH=$PATH:usr/bin CFLAGS='-Iusr/include/ -Iusr/include/SDL' LDFLAGS='-Lusr/lib/aarch64-linux-gnu/ -Llib/aarch64-linux-gnu/ -Wl,-rpath-link=lib/aarch64-linux-gnu/,-rpath-link=usr/lib/aarch64-linux-gnu/,-rpath-link=usr/lib/aarch64-linux-gnu/pulseaudio/' ./configure
+    - name: make
+      run: make
