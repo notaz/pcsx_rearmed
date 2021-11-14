@@ -287,6 +287,8 @@ arm*)
     echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
   ;;
+aarch64)
+  ;;
 *)
   # dynarec only available on ARM
   enable_dynarec="no"
