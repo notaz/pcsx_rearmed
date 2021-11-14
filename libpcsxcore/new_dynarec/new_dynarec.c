@@ -2157,10 +2157,11 @@ static void alu_assemble(int i,struct regstat *i_regs)
           s2l=get_reg(i_regs->regmap,rs2[i]);
           if(rs2[i]==0) // rx<r0
           {
-            assert(s1l>=0);
-            if(opcode2[i]==0x2a) // SLT
+            if(opcode2[i]==0x2a&&rs1[i]!=0) { // SLT
+              assert(s1l>=0);
               emit_shrimm(s1l,31,t);
-            else // SLTU (unsigned can not be less than zero)
+            }
+            else // SLTU (unsigned can not be less than zero, 0<0)
               emit_zeroreg(t);
           }
           else if(rs1[i]==0) // r0<rx
