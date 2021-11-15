@@ -48,7 +48,7 @@ index bbc52c3..83c5b08 100644
  
  	ldr	r0, [fp, #LO_next_interupt]
 diff --git a/libpcsxcore/new_dynarec/linkage_arm64.S b/libpcsxcore/new_dynarec/linkage_arm64.S
-index 698bd78..798abea 100644
+index 444545c..031cee2 100644
 --- a/libpcsxcore/new_dynarec/linkage_arm64.S
 +++ b/libpcsxcore/new_dynarec/linkage_arm64.S
 @@ -119,7 +119,7 @@ FUNCTION(cc_interrupt):
@@ -79,7 +79,7 @@ index 698bd78..798abea 100644
  
  .macro memhandler_post
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index 1452db3..8200e44 100644
+index a1d7f6a..3960f3b 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
 @@ -44,10 +44,10 @@ static int sceBlock;
@@ -96,7 +96,7 @@ index 1452db3..8200e44 100644
  #define inv_debug(...)
  
  #ifdef __i386__
-@@ -423,6 +423,9 @@ static int doesnt_expire_soon(void *tcaddr)
+@@ -489,6 +489,9 @@ static int doesnt_expire_soon(void *tcaddr)
  // This is called from the recompiled JR/JALR instructions
  void noinline *get_addr(u_int vaddr)
  {
@@ -106,7 +106,7 @@ index 1452db3..8200e44 100644
    u_int page=get_page(vaddr);
    u_int vpage=get_vpage(vaddr);
    struct ll_entry *head;
-@@ -4393,13 +4396,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
+@@ -4485,13 +4492,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
      }
      emit_addimm_and_set_flags(cycles,HOST_CCREG);
      jaddr=out;
@@ -124,7 +124,7 @@ index 1452db3..8200e44 100644
    }
    add_stub(CC_STUB,jaddr,idle?idle:out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
  }
-@@ -4807,7 +4812,8 @@ static void rjump_assemble(int i,struct regstat *i_regs)
+@@ -4899,7 +4908,8 @@ static void rjump_assemble(int i,struct regstat *i_regs)
      // special case for RFE
      emit_jmp(0);
    else
@@ -134,7 +134,7 @@ index 1452db3..8200e44 100644
    //load_regs_bt(branch_regs[i].regmap,branch_regs[i].dirty,-1);
    #ifdef USE_MINI_HT
    if(rs1[i]==31) {
-@@ -4912,7 +4918,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+@@ -5004,7 +5014,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
      else if(nop) {
        emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
        void *jaddr=out;
@@ -144,7 +144,7 @@ index 1452db3..8200e44 100644
        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
      }
      else {
-@@ -5099,7 +5106,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+@@ -5191,7 +5202,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
          emit_loadreg(CCREG,HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
          void *jaddr=out;
@@ -154,7 +154,7 @@ index 1452db3..8200e44 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
          emit_storereg(CCREG,HOST_CCREG);
        }
-@@ -5108,7 +5116,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+@@ -5200,7 +5212,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
          assert(cc==HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
          void *jaddr=out;
@@ -164,7 +164,7 @@ index 1452db3..8200e44 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
        }
      }
-@@ -5210,7 +5219,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5302,7 +5315,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
      else if(nevertaken) {
        emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
        void *jaddr=out;
@@ -174,7 +174,7 @@ index 1452db3..8200e44 100644
        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
      }
      else {
-@@ -5366,7 +5376,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5458,7 +5472,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
          emit_loadreg(CCREG,HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
          void *jaddr=out;
@@ -184,7 +184,7 @@ index 1452db3..8200e44 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
          emit_storereg(CCREG,HOST_CCREG);
        }
-@@ -5375,7 +5386,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5467,7 +5482,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
          assert(cc==HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
          void *jaddr=out;
@@ -194,7 +194,7 @@ index 1452db3..8200e44 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
        }
      }
-@@ -5863,7 +5875,7 @@ void unneeded_registers(int istart,int iend,int r)
+@@ -5955,7 +5971,7 @@ void unneeded_registers(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -203,7 +203,7 @@ index 1452db3..8200e44 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8387,6 +8399,7 @@ int new_recompile_block(int addr)
+@@ -8474,6 +8491,7 @@ int new_recompile_block(u_int addr)
  
    // This allocates registers (if possible) one instruction prior
    // to use, which can avoid a load-use penalty on certain CPUs.
@@ -211,7 +211,7 @@ index 1452db3..8200e44 100644
    for(i=0;i<slen-1;i++)
    {
      if(!i||(itype[i-1]!=UJUMP&&itype[i-1]!=CJUMP&&itype[i-1]!=SJUMP&&itype[i-1]!=RJUMP))
-@@ -8543,6 +8556,7 @@ int new_recompile_block(int addr)
+@@ -8630,6 +8648,7 @@ int new_recompile_block(u_int addr)
        }
      }
    }
@@ -219,19 +219,20 @@ index 1452db3..8200e44 100644
  
    /* Pass 6 - Optimize clean/dirty state */
    clean_registers(0,slen-1,1);
-@@ -8842,6 +8856,11 @@ int new_recompile_block(int addr)
+@@ -8929,6 +8948,12 @@ int new_recompile_block(u_int addr)
          case SPAN:
            pagespan_assemble(i,&regs[i]);break;
        }
 +
 +#ifdef DRC_DBG
++      // write-out non-consts, consts are likely different because of get_final_value()
 +      if(itype[i]!=UJUMP&&itype[i]!=CJUMP&&itype[i]!=SJUMP&&itype[i]!=RJUMP)
-+        wb_dirtys(regs[i].regmap,regs[i].dirty);
++        wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
 +#endif
        if(itype[i]==UJUMP||itype[i]==RJUMP||(source[i]>>16)==0x1000)
          literal_pool(1024);
        else
-@@ -8950,7 +8969,7 @@ int new_recompile_block(int addr)
+@@ -9037,7 +9062,7 @@ int new_recompile_block(u_int addr)
      }
    }
    // External Branch Targets (jump_in)
@@ -240,7 +241,7 @@ index 1452db3..8200e44 100644
    for(i=0;i<slen;i++)
    {
      if(bt[i]||i==0)
-@@ -9065,6 +9084,10 @@ int new_recompile_block(int addr)
+@@ -9150,6 +9175,10 @@ int new_recompile_block(u_int addr)
      }
      expirep=(expirep+1)&65535;
    }

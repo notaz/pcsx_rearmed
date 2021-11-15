@@ -185,8 +185,10 @@ struct link_entry
   static uint64_t unneeded_reg[MAXBLOCK];
   static uint64_t branch_unneeded_reg[MAXBLOCK];
   static signed char regmap_pre[MAXBLOCK][HOST_REGS]; // pre-instruction i?
-  static uint64_t current_constmap[HOST_REGS];
-  static uint64_t constmap[MAXBLOCK][HOST_REGS];
+  // contains 'real' consts at [i] insn, but may differ from what's actually
+  // loaded in host reg as 'final' value is always loaded, see get_final_value()
+  static uint32_t current_constmap[HOST_REGS];
+  static uint32_t constmap[MAXBLOCK][HOST_REGS];
   static struct regstat regs[MAXBLOCK];
   static struct regstat branch_regs[MAXBLOCK];
   static signed char minimum_free_regs[MAXBLOCK];
@@ -592,7 +594,7 @@ void dirty_reg(struct regstat *cur,signed char reg)
   }
 }
 
-void set_const(struct regstat *cur,signed char reg,uint64_t value)
+static void set_const(struct regstat *cur, signed char reg, uint32_t value)
 {
   int hr;
   if(!reg) return;
@@ -604,7 +606,7 @@ void set_const(struct regstat *cur,signed char reg,uint64_t value)
   }
 }
 
-void clear_const(struct regstat *cur,signed char reg)
+static void clear_const(struct regstat *cur, signed char reg)
 {
   int hr;
   if(!reg) return;
@@ -615,7 +617,7 @@ void clear_const(struct regstat *cur,signed char reg)
   }
 }
 
-int is_const(struct regstat *cur,signed char reg)
+static int is_const(struct regstat *cur, signed char reg)
 {
   int hr;
   if(reg<0) return 0;
@@ -627,7 +629,8 @@ int is_const(struct regstat *cur,signed char reg)
   }
   return 0;
 }
-uint64_t get_const(struct regstat *cur,signed char reg)
+
+static uint32_t get_const(struct regstat *cur, signed char reg)
 {
   int hr;
   if(!reg) return 0;
@@ -1717,7 +1720,7 @@ static void imm16_alloc(struct regstat *current,int i)
     else clear_const(current,rt1[i]);
   }
   else {
-    set_const(current,rt1[i],((long long)((short)imm[i]))<<16); // LUI
+    set_const(current,rt1[i],imm[i]<<16); // LUI
   }
   dirty_reg(current,rt1[i]);
 }
@@ -4322,9 +4325,24 @@ static void drc_dbg_emit_do_cmp(int i)
   //extern int cycle;
   u_int hr,reglist=0;
 
-  for(hr=0;hr<HOST_REGS;hr++)
+  assem_debug("//do_insn_cmp %08x\n", start+i*4);
+  for (hr = 0; hr < HOST_REGS; hr++)
     if(regs[i].regmap[hr]>=0) reglist|=1<<hr;
   save_regs(reglist);
+  // write out changed consts to match the interpreter
+  if (i > 0 && !bt[i]) {
+    for (hr = 0; hr < HOST_REGS; hr++) {
+      int reg = regs[i-1].regmap[hr];
+      if (hr == EXCLUDE_REG || reg < 0)
+        continue;
+      if (!((regs[i-1].isconst >> hr) & 1))
+        continue;
+      if (i > 1 && reg == regs[i-2].regmap[hr] && constmap[i-1][hr] == constmap[i-2][hr])
+        continue;
+      emit_movimm(constmap[i-1][hr],0);
+      emit_storereg(reg, 0);
+    }
+  }
   emit_movimm(start+i*4,0);
   emit_writeword(0,&pcaddr);
   emit_far_call(do_insn_cmp);
@@ -4333,6 +4351,7 @@ static void drc_dbg_emit_do_cmp(int i)
   //emit_writeword(0,&cycle);
   (void)get_reg2;
   restore_regs(reglist);
+  assem_debug("\\\\do_insn_cmp\n");
 }
 #else
 #define drc_dbg_emit_do_cmp(x)
@@ -7697,7 +7716,7 @@ int new_recompile_block(u_int addr)
             dirty_reg(&branch_regs[i-1],31);
           }
           memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
+          memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           break;
         case RJUMP:
           memcpy(&branch_regs[i-1],&current,sizeof(current));
@@ -7718,7 +7737,7 @@ int new_recompile_block(u_int addr)
           }
           #endif
           memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
+          memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           break;
         case CJUMP:
           if((opcode[i-1]&0x3E)==4) // BEQ/BNE
@@ -7745,7 +7764,7 @@ int new_recompile_block(u_int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           }
           else
           if((opcode[i-1]&0x3E)==6) // BLEZ/BGTZ
@@ -7770,7 +7789,7 @@ int new_recompile_block(u_int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           }
           else
           // Alloc the delay slot in case the branch is taken
@@ -7824,7 +7843,7 @@ int new_recompile_block(u_int addr)
             branch_regs[i-1].isconst=0;
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
-            memcpy(constmap[i],constmap[i-1],sizeof(current_constmap));
+            memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           }
           else
           // Alloc the delay slot in case the branch is taken
@@ -7921,7 +7940,7 @@ int new_recompile_block(u_int addr)
     if(!is_ds[i]) {
       regs[i].dirty=current.dirty;
       regs[i].isconst=current.isconst;
-      memcpy(constmap[i],current_constmap,sizeof(current_constmap));
+      memcpy(constmap[i],current_constmap,sizeof(constmap[i]));
     }
     for(hr=0;hr<HOST_REGS;hr++) {
       if(hr!=EXCLUDE_REG&&regs[i].regmap[hr]>=0) {
