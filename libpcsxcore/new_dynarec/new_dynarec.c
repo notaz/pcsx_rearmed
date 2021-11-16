@@ -442,11 +442,14 @@ static void do_clear_cache(void)
 #define NO_CYCLE_PENALTY_THR 12
 
 int cycle_multiplier; // 100 for 1.0
+int cycle_multiplier_override;
 
 static int CLOCK_ADJUST(int x)
 {
+  int m = cycle_multiplier_override
+        ? cycle_multiplier_override : cycle_multiplier;
   int s=(x>>31)|1;
-  return (x * cycle_multiplier + s * 50) / 100;
+  return (x * m + s * 50) / 100;
 }
 
 static u_int get_page(u_int vaddr)
@@ -6631,16 +6634,25 @@ void new_dynarec_cleanup(void)
 
 static u_int *get_source_start(u_int addr, u_int *limit)
 {
+  if (!(new_dynarec_hacks & NDHACK_OVERRIDE_CYCLE_M))
+    cycle_multiplier_override = 0;
+
   if (addr < 0x00200000 ||
-    (0xa0000000 <= addr && addr < 0xa0200000)) {
+    (0xa0000000 <= addr && addr < 0xa0200000))
+  {
     // used for BIOS calls mostly?
     *limit = (addr&0xa0000000)|0x00200000;
     return (u_int *)(rdram + (addr&0x1fffff));
   }
   else if (!Config.HLE && (
     /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
-    (0xbfc00000 <= addr && addr < 0xbfc80000))) {
-    // BIOS
+    (0xbfc00000 <= addr && addr < 0xbfc80000)))
+  {
+    // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
+    // but timings in PCSX are too tied to the interpreter's BIAS
+    if (!(new_dynarec_hacks & NDHACK_OVERRIDE_CYCLE_M))
+      cycle_multiplier_override = 200;
+
     *limit = (addr & 0xfff00000) | 0x80000;
     return (u_int *)((u_char *)psxR + (addr&0x7ffff));
   }

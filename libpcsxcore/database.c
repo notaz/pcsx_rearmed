@@ -1,6 +1,6 @@
 #include "misc.h"
-#include "../plugins/dfsound/spu_config.h"
 #include "sio.h"
+#include "new_dynarec/new_dynarec.h"
 
 /* It's duplicated from emu_if.c */
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -32,5 +32,15 @@ void Apply_Hacks_Cdrom()
 			/* This also needs to be done because in sio.c, they don't use Config.Mcd2 for that purpose */
 			McdDisable[1] = 1;
 		}
+	}
+
+	/* Dynarec game-specific hacks */
+	new_dynarec_hacks &= ~NDHACK_OVERRIDE_CYCLE_M;
+
+	/* Internal Section is fussy about timings */
+	if (strcmp(CdromId, "SLPS01868") == 0)
+	{
+		cycle_multiplier_override = 200;
+		new_dynarec_hacks |= NDHACK_OVERRIDE_CYCLE_M;
 	}
 }
