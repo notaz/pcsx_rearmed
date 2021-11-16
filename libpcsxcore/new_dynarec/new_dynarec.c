@@ -4478,11 +4478,13 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
   else if(*adj==0||invert) {
     int cycles=CLOCK_ADJUST(count+2);
     // faster loop HACK
+#if 0
     if (t&&*adj) {
       int rel=t-i;
       if(-NO_CYCLE_PENALTY_THR<rel&&rel<0)
         cycles=CLOCK_ADJUST(*adj)+count+2-*adj;
     }
+#endif
     emit_addimm_and_set_flags(cycles,HOST_CCREG);
     jaddr=out;
     emit_jns(0);
