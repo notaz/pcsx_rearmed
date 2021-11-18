@@ -11,6 +11,7 @@ extern int cycle_multiplier_override;
 #define NDHACK_GTE_UNNEEDED	(1<<1)
 #define NDHACK_GTE_NO_FLAGS	(1<<2)
 #define NDHACK_OVERRIDE_CYCLE_M	(1<<3)
+#define NDHACK_GTE_NO_STALL	(1<<4)
 extern int new_dynarec_hacks;
 extern int new_dynarec_hacks_pergame;
 

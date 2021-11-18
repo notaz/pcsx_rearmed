@@ -160,13 +160,13 @@ FUNCTION(cc_interrupt):
 FUNCTION(fp_exception):
 	mov	w2, #0x10000000
 0:
-	ldr	w1, [fp, #LO_reg_cop0+48] /* Status */
+	ldr	w1, [rFP, #LO_reg_cop0+48] /* Status */
 	mov	w3, #0x80000000
-	str	w0, [fp, #LO_reg_cop0+56] /* EPC */
+	str	w0, [rFP, #LO_reg_cop0+56] /* EPC */
 	orr	w1, w1, #2
 	add	w2, w2, #0x2c
-	str	w1, [fp, #LO_reg_cop0+48] /* Status */
-	str	w2, [fp, #LO_reg_cop0+52] /* Cause */
+	str	w1, [rFP, #LO_reg_cop0+48] /* Status */
+	str	w2, [rFP, #LO_reg_cop0+52] /* Cause */
 	add	w0, w3, #0x80
 	bl	get_addr_ht
 	br	x0
@@ -179,13 +179,13 @@ FUNCTION(fp_exception_ds):
 
 	.align	2
 FUNCTION(jump_syscall):
-	ldr	w1, [fp, #LO_reg_cop0+48] /* Status */
+	ldr	w1, [rFP, #LO_reg_cop0+48] /* Status */
 	mov	w3, #0x80000000
-	str	w0, [fp, #LO_reg_cop0+56] /* EPC */
+	str	w0, [rFP, #LO_reg_cop0+56] /* EPC */
 	orr	w1, w1, #2
 	mov	w2, #0x20
-	str	w1, [fp, #LO_reg_cop0+48] /* Status */
-	str	w2, [fp, #LO_reg_cop0+52] /* Cause */
+	str	w1, [rFP, #LO_reg_cop0+48] /* Status */
+	str	w2, [rFP, #LO_reg_cop0+52] /* Cause */
 	add	w0, w3, #0x80
 	bl	get_addr_ht
 	br	x0
@@ -195,11 +195,11 @@ FUNCTION(jump_syscall):
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
 FUNCTION(jump_to_new_pc):
-	ldr	w1, [fp, #LO_next_interupt]
-	ldr	rCC, [fp, #LO_cycle]
-	ldr	w0, [fp, #LO_pcaddr]
+	ldr	w1, [rFP, #LO_next_interupt]
+	ldr	rCC, [rFP, #LO_cycle]
+	ldr	w0, [rFP, #LO_pcaddr]
 	sub	rCC, rCC, w1
-	str	w1, [fp, #LO_last_count]
+	str	w1, [rFP, #LO_last_count]
 	bl	get_addr_ht
 	br	x0
 	.size	jump_to_new_pc, .-jump_to_new_pc
@@ -331,7 +331,7 @@ handler_write_end:
 
 FUNCTION(jump_handle_swl):
 	/* w0 = address, w1 = data, w2 = cycles */
-	ldr	x3, [fp, #LO_mem_wtab]
+	ldr	x3, [rFP, #LO_mem_wtab]
 	mov	w4, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
@@ -366,7 +366,7 @@ FUNCTION(jump_handle_swl):
 
 FUNCTION(jump_handle_swr):
 	/* w0 = address, w1 = data, w2 = cycles */
-	ldr	x3, [fp, #LO_mem_wtab]
+	ldr	x3, [rFP, #LO_mem_wtab]
 	mov	w4, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
@@ -394,5 +394,17 @@ FUNCTION(jump_handle_swr):
 4:
 	mov	w0, w2		// todo
 	bl	abort
+	ret
+
+FUNCTION(call_gteStall):
+	/* w0 = op_cycles, w1 = cycles */
+	ldr	w2, [rFP, #LO_last_count]
+	str	lr, [rFP, #LO_saved_lr]
+	add	w1, w1, w2
+	str	w1, [rFP, #LO_cycle]
+	add	x1, rFP, #LO_psxRegs
+	bl	gteCheckStallRaw
+	ldr	lr, [rFP, #LO_saved_lr]
+	add	rCC, rCC, w0
 	ret
 

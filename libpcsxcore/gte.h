@@ -67,6 +67,11 @@ extern "C" {
 
 struct psxCP2Regs;
 
+extern const char gte_cycletab[64];
+
+int  gteCheckStallRaw(u32 op_cycles, psxRegisters *regs);
+void gteCheckStall(u32 op);
+
 void gteMFC2();
 void gteCFC2();
 void gteMTC2();

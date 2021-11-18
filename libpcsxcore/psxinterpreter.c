@@ -934,7 +934,10 @@ void psxCOP0() {
 }
 
 void psxCOP2() {
-	psxCP2[_Funct_]((struct psxCP2Regs *)&psxRegs.CP2D);
+	u32 f = _Funct_;
+	if (f != 0 || _Rs_ < 4) // not MTC2/CTC2
+		gteCheckStall(f);
+	psxCP2[f]((struct psxCP2Regs *)&psxRegs.CP2D);
 }
 
 void psxBASIC(struct psxCP2Regs *regs) {

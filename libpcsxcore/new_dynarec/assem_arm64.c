@@ -1448,7 +1448,8 @@ static void do_readstub(int n)
   emit_jmp(stubs[n].retaddr);
 }
 
-static void inline_readstub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
+static void inline_readstub(enum stub_type type, int i, u_int addr,
+  const signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,target);
   int rt=get_reg(regmap,target);
@@ -1607,7 +1608,8 @@ static void do_writestub(int n)
   emit_jmp(stubs[n].retaddr);
 }
 
-static void inline_writestub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
+static void inline_writestub(enum stub_type type, int i, u_int addr,
+  const signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs = get_reg(regmap,-1);
   int rt = get_reg(regmap,target);
@@ -1777,9 +1779,10 @@ static void get_bounds(void *addr, u_char **start, u_char **end)
 
 /* Special assem */
 
-static void c2op_prologue(u_int op,u_int reglist)
+static void c2op_prologue(u_int op, int i, const struct regstat *i_regs, u_int reglist)
 {
   save_load_regs_all(1, reglist);
+  cop2_call_stall_check(op, i, i_regs, 0);
 #ifdef PCNT
   emit_movimm(op, 0);
   emit_far_call(pcnt_gte_start);
@@ -1797,7 +1800,7 @@ static void c2op_epilogue(u_int op,u_int reglist)
   save_load_regs_all(0, reglist);
 }
 
-static void c2op_assemble(int i,struct regstat *i_regs)
+static void c2op_assemble(int i, const struct regstat *i_regs)
 {
   u_int c2op=source[i]&0x3f;
   u_int hr,reglist_full=0,reglist;
@@ -1819,7 +1822,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     switch(c2op) {
       default:
         (void)need_ir;
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op, i, i_regs, reglist);
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);
         emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);

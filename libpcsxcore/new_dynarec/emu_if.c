@@ -218,15 +218,6 @@ const char *gte_regnames[64] = {
 	NULL  , NULL   , NULL   , NULL  , NULL , "GPF"  , "GPL"  , "NCCT", // 38
 };
 
-/* from gte.txt.. not sure if this is any good. */
-const char gte_cycletab[64] = {
-	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
-	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
-	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
-	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
-	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
-};
-
 #define GCBIT(x) \
 	(1ll << (32+x))
 #define GDBIT(x) \

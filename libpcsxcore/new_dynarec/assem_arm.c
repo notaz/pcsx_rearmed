@@ -19,7 +19,6 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include "../gte.h"
 #define FLAGLESS
 #include "../gte.h"
 #undef FLAGLESS
@@ -1674,9 +1673,9 @@ static void do_readstub(int n)
   enum stub_type type=stubs[n].type;
   int i=stubs[n].a;
   int rs=stubs[n].b;
-  struct regstat *i_regs=(struct regstat *)stubs[n].c;
+  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
   u_int reglist=stubs[n].e;
-  signed char *i_regmap=i_regs->regmap;
+  const signed char *i_regmap=i_regs->regmap;
   int rt;
   if(itype[i]==C1LS||itype[i]==C2LS||itype[i]==LOADLR) {
     rt=get_reg(i_regmap,FTEMP);
@@ -1747,7 +1746,8 @@ static void do_readstub(int n)
   emit_jmp(stubs[n].retaddr); // return address
 }
 
-static void inline_readstub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
+static void inline_readstub(enum stub_type type, int i, u_int addr,
+  const signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,target);
   int rt=get_reg(regmap,target);
@@ -1829,9 +1829,9 @@ static void do_writestub(int n)
   enum stub_type type=stubs[n].type;
   int i=stubs[n].a;
   int rs=stubs[n].b;
-  struct regstat *i_regs=(struct regstat *)stubs[n].c;
+  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
   u_int reglist=stubs[n].e;
-  signed char *i_regmap=i_regs->regmap;
+  const signed char *i_regmap=i_regs->regmap;
   int rt,r;
   if(itype[i]==C1LS||itype[i]==C2LS) {
     rt=get_reg(i_regmap,r=FTEMP);
@@ -1902,7 +1902,8 @@ static void do_writestub(int n)
   emit_jmp(stubs[n].retaddr);
 }
 
-static void inline_writestub(enum stub_type type, int i, u_int addr, signed char regmap[], int target, int adj, u_int reglist)
+static void inline_writestub(enum stub_type type, int i, u_int addr,
+  const signed char regmap[], int target, int adj, u_int reglist)
 {
   int rs=get_reg(regmap,-1);
   int rt=get_reg(regmap,target);
@@ -1976,14 +1977,15 @@ static void do_dirty_stub_ds()
 
 /* Special assem */
 
-static void c2op_prologue(u_int op,u_int reglist)
+static void c2op_prologue(u_int op, int i, const struct regstat *i_regs, u_int reglist)
 {
   save_regs_all(reglist);
+  cop2_call_stall_check(op, i, i_regs, 0);
 #ifdef PCNT
-  emit_movimm(op,0);
+  emit_movimm(op, 0);
   emit_far_call(pcnt_gte_start);
 #endif
-  emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0); // cop2 regs
+  emit_addimm(FP, (u_char *)&psxRegs.CP2D.r[0] - (u_char *)&dynarec_local, 0); // cop2 regs
 }
 
 static void c2op_epilogue(u_int op,u_int reglist)
@@ -2013,22 +2015,19 @@ static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
   emit_far_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
 }
 
-static void c2op_assemble(int i,struct regstat *i_regs)
+static void c2op_assemble(int i, const struct regstat *i_regs)
 {
-  u_int c2op=source[i]&0x3f;
-  u_int hr,reglist_full=0,reglist;
-  int need_flags,need_ir;
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist_full|=1<<hr;
-  }
-  reglist=reglist_full&CALLER_SAVE_REGS;
+  u_int c2op = source[i] & 0x3f;
+  u_int reglist_full = get_host_reglist(i_regs->regmap);
+  u_int reglist = reglist_full & CALLER_SAVE_REGS;
+  int need_flags, need_ir;
 
   if (gte_handlers[c2op]!=NULL) {
     need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
     need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
     assem_debug("gte op %08x, unneeded %016llx, need_flags %d, need_ir %d\n",
       source[i],gte_unneeded[i+1],need_flags,need_ir);
-    if(new_dynarec_hacks&NDHACK_GTE_NO_FLAGS)
+    if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
       need_flags=0;
     int shift = (source[i] >> 19) & 1;
     int lm = (source[i] >> 10) & 1;
@@ -2040,7 +2039,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         int cv = (source[i] >> 13) & 3;
         int mx = (source[i] >> 17) & 3;
         reglist=reglist_full&(CALLER_SAVE_REGS|0xf0); // +{r4-r7}
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         /* r4,r5 = VXYZ(v) packed; r6 = &MX11(mx); r7 = &CV1(cv) */
         if(v<3)
           emit_ldrd(v*8,0,4);
@@ -2076,7 +2075,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
           c2op_call_MACtoIR(lm,need_flags);
 #endif
 #else /* if not HAVE_ARMV5 */
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);
         emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
@@ -2084,7 +2083,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         break;
       }
       case GTE_OP:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         emit_far_call(shift?gteOP_part_shift:gteOP_part_noshift);
         if(need_flags||need_ir) {
           emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
@@ -2092,15 +2091,15 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         }
         break;
       case GTE_DPCS:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteDPCS_part_shift:gteDPCS_part_noshift,lm,need_ir,need_flags);
         break;
       case GTE_INTPL:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteINTPL_part_shift:gteINTPL_part_noshift,lm,need_ir,need_flags);
         break;
       case GTE_SQR:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         emit_far_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
         if(need_flags||need_ir) {
           emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
@@ -2108,20 +2107,20 @@ static void c2op_assemble(int i,struct regstat *i_regs)
         }
         break;
       case GTE_DCPL:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         c2op_call_rgb_func(gteDCPL_part,lm,need_ir,need_flags);
         break;
       case GTE_GPF:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPF_part_shift:gteGPF_part_noshift,lm,need_ir,need_flags);
         break;
       case GTE_GPL:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
         break;
 #endif
       default:
-        c2op_prologue(c2op,reglist);
+        c2op_prologue(c2op,i,i_regs,reglist);
 #ifdef DRC_DBG
         emit_movimm(source[i],1); // opcode
         emit_writeword(1,&psxRegs.code);

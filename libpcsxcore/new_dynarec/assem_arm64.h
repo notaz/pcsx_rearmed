@@ -3,7 +3,6 @@
 #define EXCLUDE_REG -1
 
 #define HOST_IMM8 1
-#define RAM_SIZE 0x200000
 
 /* calling convention:
    r0 -r17: caller-save

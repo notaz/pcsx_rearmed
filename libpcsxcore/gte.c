@@ -275,6 +275,32 @@ INLINE u32 DIVIDE(u16 n, u16 d) {
 
 #ifndef FLAGLESS
 
+const char gte_cycletab[64] = {
+	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
+	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
+	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
+	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
+	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
+};
+
+// warning: called by the dynarec
+int gteCheckStallRaw(u32 op_cycles, psxRegisters *regs) {
+	u32 left = regs->gteBusyCycle - regs->cycle;
+	int stall = 0;
+
+	if (left <= 44) {
+		//printf("c %2u stall %2u %u\n", op_cycles, left, regs->cycle);
+		regs->cycle = regs->gteBusyCycle;
+		stall = left;
+	}
+	regs->gteBusyCycle = regs->cycle + op_cycles;
+	return stall;
+}
+
+void gteCheckStall(u32 op) {
+	gteCheckStallRaw(gte_cycletab[op], &psxRegs);
+}
+
 static inline u32 MFC2(int reg) {
 	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
@@ -403,6 +429,7 @@ void gteLWC2() {
 }
 
 void gteSWC2() {
+	gteCheckStall(0);
 	psxMemWrite32(_oB_, MFC2(_Rt_));
 }
 

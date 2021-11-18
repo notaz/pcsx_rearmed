@@ -1564,6 +1564,7 @@ static menu_entry e_menu_speed_hacks[] =
 	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+	mee_onoff_h   ("Disable GTE stalls",       0, new_dynarec_hacks, NDHACK_GTE_NO_STALL, h_cfg_gtestll),
 	mee_end,
 };
 

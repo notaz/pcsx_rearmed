@@ -6,7 +6,6 @@
 #define HOST_IMM8 1
 #define HAVE_CMOV_IMM 1
 #define HAVE_CONDITIONAL_CALL 1
-#define RAM_SIZE 0x200000
 
 /* ARM calling convention:
    r0-r3, r12: caller-save

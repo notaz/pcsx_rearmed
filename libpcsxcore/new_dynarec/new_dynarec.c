@@ -37,7 +37,8 @@ static int sceBlock;
 #include "new_dynarec_config.h"
 #include "../psxhle.h"
 #include "../psxinterpreter.h"
-#include "emu_if.h" //emulator interface
+#include "../gte.h"
+#include "emu_if.h" // emulator interface
 
 #define noinline __attribute__((noinline,noclone))
 #ifndef ARRAY_SIZE
@@ -63,6 +64,7 @@ static int sceBlock;
 #include "assem_arm64.h"
 #endif
 
+#define RAM_SIZE 0x200000
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
@@ -308,6 +310,7 @@ void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
 void jump_to_new_pc();
+void call_gteStall();
 void new_dyna_leave();
 
 // Needed by assembler
@@ -318,17 +321,19 @@ static void load_all_regs(signed char i_regmap[]);
 static void load_needed_regs(signed char i_regmap[],signed char next_regmap[]);
 static void load_regs_entry(int t);
 static void load_all_consts(signed char regmap[],u_int dirty,int i);
+static u_int get_host_reglist(const signed char *regmap);
 
 static int verify_dirty(const u_int *ptr);
 static int get_final_value(int hr, int i, int *value);
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist);
+  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(void *addr, u_int target, int ext);
 static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
+static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist);
 static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
@@ -917,6 +922,7 @@ static const struct {
   FUNCNAME(jump_handler_write32),
   FUNCNAME(invalidate_addr),
   FUNCNAME(jump_to_new_pc),
+  FUNCNAME(call_gteStall),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
@@ -1918,19 +1924,19 @@ void cop0_alloc(struct regstat *current,int i)
   minimum_free_regs[i]=HOST_REGS;
 }
 
-static void cop12_alloc(struct regstat *current,int i)
+static void cop2_alloc(struct regstat *current,int i)
 {
-  alloc_reg(current,i,CSREG); // Load status
-  if(opcode2[i]<3) // MFC1/CFC1
+  if (opcode2[i] < 3) // MFC2/CFC2
   {
+    alloc_cc(current,i); // for stalls
+    dirty_reg(current,CCREG);
     if(rt1[i]){
       clear_const(current,rt1[i]);
       alloc_reg(current,i,rt1[i]);
       dirty_reg(current,rt1[i]);
     }
-    alloc_reg_temp(current,i,-1);
   }
-  else if(opcode2[i]>3) // MTC1/CTC1
+  else if (opcode2[i] > 3) // MTC2/CTC2
   {
     if(rs1[i]){
       clear_const(current,rs1[i]);
@@ -1940,13 +1946,15 @@ static void cop12_alloc(struct regstat *current,int i)
       current->u&=~1LL;
       alloc_reg(current,i,0);
     }
-    alloc_reg_temp(current,i,-1);
   }
+  alloc_reg_temp(current,i,-1);
   minimum_free_regs[i]=1;
 }
 
 void c2op_alloc(struct regstat *current,int i)
 {
+  alloc_cc(current,i); // for stalls
+  dirty_reg(current,CCREG);
   alloc_reg_temp(current,i,-1);
 }
 
@@ -2003,8 +2011,9 @@ void delayslot_alloc(struct regstat *current,int i)
       cop0_alloc(current,i);
       break;
     case COP1:
+      break;
     case COP2:
-      cop12_alloc(current,i);
+      cop2_alloc(current,i);
       break;
     case C1LS:
       c1ls_alloc(current,i);
@@ -2070,7 +2079,7 @@ static void add_stub(enum stub_type type, void *addr, void *retaddr,
 }
 
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, struct regstat *i_regs, int ccadj, u_int reglist)
+  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist)
 {
   add_stub(type, addr, retaddr, i, addr_reg, (uintptr_t)i_regs, ccadj, reglist);
 }
@@ -2647,20 +2656,36 @@ static void *get_direct_memhandler(void *table, u_int addr,
   }
 }
 
-static void load_assemble(int i,struct regstat *i_regs)
+static u_int get_host_reglist(const signed char *regmap)
+{
+  u_int reglist = 0, hr;
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    if (hr != EXCLUDE_REG && regmap[hr] >= 0)
+      reglist |= 1 << hr;
+  }
+  return reglist;
+}
+
+static u_int reglist_exclude(u_int reglist, int r1, int r2)
+{
+  if (r1 >= 0)
+    reglist &= ~(1u << r1);
+  if (r2 >= 0)
+    reglist &= ~(1u << r2);
+  return reglist;
+}
+
+static void load_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl,addr;
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
   int fastio_reg_override=-1;
-  u_int hr,reglist=0;
+  u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,rt1[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
   offset=imm[i];
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
@@ -2787,14 +2812,14 @@ static void load_assemble(int i,struct regstat *i_regs)
 }
 
 #ifndef loadlr_assemble
-static void loadlr_assemble(int i,struct regstat *i_regs)
+static void loadlr_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl,temp,temp2,addr;
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
   int fastio_reg_override=-1;
-  u_int hr,reglist=0;
+  u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,rt1[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
   temp=get_reg(i_regs->regmap,-1);
@@ -2802,9 +2827,6 @@ static void loadlr_assemble(int i,struct regstat *i_regs)
   addr=get_reg(i_regs->regmap,AGEN1+(i&1));
   assert(addr<0);
   offset=imm[i];
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
   reglist|=1<<temp;
   if(offset||s<0||c) addr=temp2;
   else addr=s;
@@ -2870,7 +2892,7 @@ static void loadlr_assemble(int i,struct regstat *i_regs)
 }
 #endif
 
-void store_assemble(int i,struct regstat *i_regs)
+void store_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl;
   int addr,temp;
@@ -2880,7 +2902,7 @@ void store_assemble(int i,struct regstat *i_regs)
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
   int fastio_reg_override=-1;
-  u_int hr,reglist=0;
+  u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,rs2[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
   temp=get_reg(i_regs->regmap,agr);
@@ -2894,9 +2916,6 @@ void store_assemble(int i,struct regstat *i_regs)
   }
   assert(tl>=0);
   assert(temp>=0);
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(offset||s<0||c) addr=temp;
   else addr=s;
@@ -2994,7 +3013,7 @@ void store_assemble(int i,struct regstat *i_regs)
   }
 }
 
-static void storelr_assemble(int i,struct regstat *i_regs)
+static void storelr_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl;
   int temp;
@@ -3004,7 +3023,7 @@ static void storelr_assemble(int i,struct regstat *i_regs)
   void *done0, *done1, *done2;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
-  u_int hr,reglist=0;
+  u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,rs2[i]);
   s=get_reg(i_regs->regmap,rs1[i]);
   temp=get_reg(i_regs->regmap,agr);
@@ -3017,9 +3036,6 @@ static void storelr_assemble(int i,struct regstat *i_regs)
     }
   }
   assert(tl>=0);
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
   assert(temp>=0);
   if(!c) {
     emit_cmpimm(s<0||offset?temp:s,RAM_SIZE);
@@ -3263,6 +3279,25 @@ static void do_cop1stub(int n)
   emit_far_jump(ds?fp_exception_ds:fp_exception);
 }
 
+// assumes callee-save regs are already saved
+static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist)
+{
+  if (HACK_ENABLED(NDHACK_GTE_NO_STALL))
+    return;
+  //assert(get_reg(i_regs->regmap, CCREG) == HOST_CCREG);
+  if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG) {
+    // happens occasionally... cc evicted? Don't bother then
+    //printf("no cc %08x\n", start + i*4);
+    return;
+  }
+  assem_debug("cop2_call_stall_check\n");
+  save_regs(reglist);
+  emit_movimm(gte_cycletab[op], 0);
+  emit_addimm(HOST_CCREG, CLOCK_ADJUST(ccadj[i]), 1);
+  emit_far_call(call_gteStall);
+  restore_regs(reglist);
+}
+
 static void cop2_get_dreg(u_int copr,signed char tl,signed char temp)
 {
   switch (copr) {
@@ -3346,7 +3381,7 @@ static void cop2_put_dreg(u_int copr,signed char sl,signed char temp)
   }
 }
 
-static void c2ls_assemble(int i,struct regstat *i_regs)
+static void c2ls_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl;
   int ar;
@@ -3356,7 +3391,7 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   enum stub_type type;
   int agr=AGEN1+(i&1);
   int fastio_reg_override=-1;
-  u_int hr,reglist=0;
+  u_int reglist=get_host_reglist(i_regs->regmap);
   u_int copr=(source[i]>>16)&0x1f;
   s=get_reg(i_regs->regmap,rs1[i]);
   tl=get_reg(i_regs->regmap,FTEMP);
@@ -3364,9 +3399,6 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   assert(rs1[i]>0);
   assert(tl>=0);
 
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(i_regs->regmap[hr]>=0) reglist|=1<<hr;
-  }
   if(i_regs->regmap[HOST_CCREG]==CCREG)
     reglist&=~(1<<HOST_CCREG);
 
@@ -3384,6 +3416,7 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   assert(ar>=0);
 
   if (opcode[i]==0x3a) { // SWC2
+    cop2_call_stall_check(0, i, i_regs, reglist_exclude(reglist, tl, -1));
     cop2_get_dreg(copr,tl,-1);
     type=STOREW_STUB;
   }
@@ -3445,10 +3478,18 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   }
 }
 
-static void cop2_assemble(int i,struct regstat *i_regs)
+static void cop2_assemble(int i, const struct regstat *i_regs)
 {
-  u_int copr=(source[i]>>11)&0x1f;
-  signed char temp=get_reg(i_regs->regmap,-1);
+  u_int copr = (source[i]>>11) & 0x1f;
+  signed char temp = get_reg(i_regs->regmap, -1);
+
+  if (opcode2[i] == 0 || opcode2[i] == 2) { // MFC2/CFC2
+    if (!HACK_ENABLED(NDHACK_GTE_NO_STALL)) {
+      signed char tl = get_reg(i_regs->regmap, rt1[i]);
+      u_int reglist = reglist_exclude(get_host_reglist(i_regs->regmap), tl, temp);
+      cop2_call_stall_check(0, i, i_regs, reglist);
+    }
+  }
   if (opcode2[i]==0) { // MFC2
     signed char tl=get_reg(i_regs->regmap,rt1[i]);
     if(tl>=0&&rt1[i]!=0)
@@ -4341,11 +4382,9 @@ static void drc_dbg_emit_do_cmp(int i)
 {
   extern void do_insn_cmp();
   //extern int cycle;
-  u_int hr,reglist=0;
+  u_int hr, reglist = get_host_reglist(regs[i].regmap);
 
   assem_debug("//do_insn_cmp %08x\n", start+i*4);
-  for (hr = 0; hr < HOST_REGS; hr++)
-    if(regs[i].regmap[hr]>=0) reglist|=1<<hr;
   save_regs(reglist);
   // write out changed consts to match the interpreter
   if (i > 0 && !bt[i]) {
@@ -7651,8 +7690,9 @@ int new_recompile_block(u_int addr)
           cop0_alloc(&current,i);
           break;
         case COP1:
+          break;
         case COP2:
-          cop12_alloc(&current,i);
+          cop2_alloc(&current,i);
           break;
         case C1LS:
           c1ls_alloc(&current,i);
@@ -7945,12 +7985,10 @@ int new_recompile_block(u_int addr)
 #if !defined(DRC_DBG)
     else if(itype[i]==C2OP&&gte_cycletab[source[i]&0x3f]>2)
     {
-      // GTE runs in parallel until accessed, divide by 2 for a rough guess
-      cc+=gte_cycletab[source[i]&0x3f]/2;
-    }
-    else if(/*itype[i]==LOAD||itype[i]==STORE||*/itype[i]==C1LS) // load,store causes weird timing issues
-    {
-      cc+=2; // 2 cycle penalty (after CLOCK_DIVIDER)
+      // this should really be removed since the real stalls have been implemented,
+      // but doing so causes sizeable perf regression against the older version
+      u_int gtec = gte_cycletab[source[i] & 0x3f];
+      cc += HACK_ENABLED(NDHACK_GTE_NO_STALL) ? gtec/2 : 2;
     }
     else if(i>1&&itype[i]==STORE&&itype[i-1]==STORE&&itype[i-2]==STORE&&!bt[i])
     {
@@ -7958,7 +7996,8 @@ int new_recompile_block(u_int addr)
     }
     else if(itype[i]==C2LS)
     {
-      cc+=4;
+      // same as with C2OP
+      cc += HACK_ENABLED(NDHACK_GTE_NO_STALL) ? 4 : 2;
     }
 #endif
     else

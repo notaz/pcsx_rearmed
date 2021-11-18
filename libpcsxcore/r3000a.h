@@ -193,6 +193,10 @@ typedef struct {
 	u32 cycle;
 	u32 interrupt;
 	struct { u32 sCycle, cycle; } intCycle[32];
+	u32 gteBusyCycle;
+	// warning: changing anything in psxRegisters requires update of all
+	// asm in libpcsxcore/new_dynarec/, but this member can be replaced
+	u32 reserved[3];
 } psxRegisters;
 
 extern psxRegisters psxRegs;

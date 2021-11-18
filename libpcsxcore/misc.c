@@ -21,6 +21,7 @@
 * Miscellaneous functions, including savestates and CD-ROM loading.
 */
 
+#include <stddef.h>
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
@@ -602,7 +603,8 @@ int SaveState(const char *file) {
 	SaveFuncs.write(f, psxM, 0x00200000);
 	SaveFuncs.write(f, psxR, 0x00080000);
 	SaveFuncs.write(f, psxH, 0x00010000);
-	SaveFuncs.write(f, (void *)&psxRegs, sizeof(psxRegs));
+	// only partial save of psxRegisters to maintain savestate compat
+	SaveFuncs.write(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 
 	// gpu
 	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
@@ -666,7 +668,8 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, psxM, 0x00200000);
 	SaveFuncs.read(f, psxR, 0x00080000);
 	SaveFuncs.read(f, psxH, 0x00010000);
-	SaveFuncs.read(f, (void *)&psxRegs, sizeof(psxRegs));
+	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
+	psxRegs.gteBusyCycle = psxRegs.cycle;
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
