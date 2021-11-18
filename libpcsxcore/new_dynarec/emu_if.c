@@ -439,6 +439,7 @@ unsigned int next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier;
 int cycle_multiplier_override;
+int new_dynarec_hacks_pergame;
 int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;

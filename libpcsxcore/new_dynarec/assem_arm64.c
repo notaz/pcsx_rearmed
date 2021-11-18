@@ -1812,7 +1812,7 @@ static void c2op_assemble(int i,struct regstat *i_regs)
     need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
     assem_debug("gte op %08x, unneeded %016lx, need_flags %d, need_ir %d\n",
       source[i],gte_unneeded[i+1],need_flags,need_ir);
-    if(new_dynarec_hacks&NDHACK_GTE_NO_FLAGS)
+    if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
       need_flags=0;
     //int shift = (source[i] >> 19) & 1;
     //int lm = (source[i] >> 10) & 1;

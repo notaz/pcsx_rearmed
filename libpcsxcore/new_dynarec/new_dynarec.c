@@ -216,7 +216,10 @@ struct link_entry
 #endif
 
   int new_dynarec_hacks;
+  int new_dynarec_hacks_pergame;
   int new_dynarec_did_compile;
+
+  #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
 
   extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
   extern int last_count;  // last absolute target, often = next_interupt
@@ -2932,7 +2935,7 @@ void store_assemble(int i,struct regstat *i_regs)
     add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     jaddr=0;
   }
-  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
+  if(!(i_regs->waswritten&(1<<rs1[i])) && !HACK_ENABLED(NDHACK_NO_SMC_CHECK)) {
     if(!c||memtarget) {
       #ifdef DESTRUCTIVE_SHIFT
       // The x86 shift operation is 'destructive'; it overwrites the
@@ -3097,7 +3100,7 @@ static void storelr_assemble(int i,struct regstat *i_regs)
   set_jump_target(done2, out);
   if(!c||!memtarget)
     add_stub_r(STORELR_STUB,jaddr,out,i,temp,i_regs,ccadj[i],reglist);
-  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
+  if(!(i_regs->waswritten&(1<<rs1[i])) && !HACK_ENABLED(NDHACK_NO_SMC_CHECK)) {
     emit_addimm_no_flags(-ram_offset,temp);
     #if defined(HOST_IMM8)
     int ir=get_reg(i_regs->regmap,INVCP);
@@ -3407,7 +3410,7 @@ static void c2ls_assemble(int i,struct regstat *i_regs)
   if(jaddr2)
     add_stub_r(type,jaddr2,out,i,ar,i_regs,ccadj[i],reglist);
   if(opcode[i]==0x3a) // SWC2
-  if(!(i_regs->waswritten&(1<<rs1[i]))&&!(new_dynarec_hacks&NDHACK_NO_SMC_CHECK)) {
+  if(!(i_regs->waswritten&(1<<rs1[i])) && !HACK_ENABLED(NDHACK_NO_SMC_CHECK)) {
 #if defined(HOST_IMM8)
     int ir=get_reg(i_regs->regmap,INVCP);
     assert(ir>=0);
@@ -5794,7 +5797,7 @@ void unneeded_registers(int istart,int iend,int r)
   uint64_t u,gte_u,b,gte_b;
   uint64_t temp_u,temp_gte_u=0;
   uint64_t gte_u_unknown=0;
-  if(new_dynarec_hacks&NDHACK_GTE_UNNEEDED)
+  if (HACK_ENABLED(NDHACK_GTE_UNNEEDED))
     gte_u_unknown=~0ll;
   if(iend==slen-1) {
     u=1;
@@ -6634,7 +6637,7 @@ void new_dynarec_cleanup(void)
 
 static u_int *get_source_start(u_int addr, u_int *limit)
 {
-  if (!(new_dynarec_hacks & NDHACK_OVERRIDE_CYCLE_M))
+  if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
     cycle_multiplier_override = 0;
 
   if (addr < 0x00200000 ||
@@ -6650,7 +6653,7 @@ static u_int *get_source_start(u_int addr, u_int *limit)
   {
     // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
     // but timings in PCSX are too tied to the interpreter's BIAS
-    if (!(new_dynarec_hacks & NDHACK_OVERRIDE_CYCLE_M))
+    if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
       cycle_multiplier_override = 200;
 
     *limit = (addr & 0xfff00000) | 0x80000;
