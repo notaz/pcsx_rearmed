@@ -502,13 +502,16 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     if (Mode == 0)
     {
         // don't trust things from a savestate
+        rcnts[3].rate = 1;
         for( i = 0; i < CounterQuantity; ++i )
         {
             _psxRcntWmode( i, rcnts[i].mode );
             count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
             _psxRcntWcount( i, count );
         }
-        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        hsync_steps = 0;
+        if (rcnts[3].target)
+           hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
         psxRcntSet();
 
         base_cycle = 0;
