@@ -964,6 +964,12 @@ static void emit_cmovl_reg(int rs,int rt)
   output_w32(0xb1a00000|rd_rn_rm(rt,0,rs));
 }
 
+static void emit_cmovb_reg(int rs,int rt)
+{
+  assem_debug("movcc %s,%s\n",regname[rt],regname[rs]);
+  output_w32(0x31a00000|rd_rn_rm(rt,0,rs));
+}
+
 static void emit_cmovs_reg(int rs,int rt)
 {
   assem_debug("movmi %s,%s\n",regname[rt],regname[rs]);
