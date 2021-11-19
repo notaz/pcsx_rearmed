@@ -184,7 +184,8 @@ void new_dyna_freeze(void *f, int mode)
 		if (bytes != size)
 			return;
 
-		new_dynarec_load_blocks(addrs, size);
+		if (psxCpu != &psxInt)
+			new_dynarec_load_blocks(addrs, size);
 	}
 
 	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");

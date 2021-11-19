@@ -1556,6 +1556,7 @@ static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFA
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+static const char h_cfg_gtestll[] = "Some games will run too fast";
 
 static menu_entry e_menu_speed_hacks[] =
 {
@@ -2329,8 +2330,11 @@ static void menu_leave_emu(void);
 
 void menu_loop(void)
 {
+	int cycle_multiplier_old = cycle_multiplier;
+	int ndrc_hacks_old = new_dynarec_hacks;
 	static int warned_about_bios = 0;
 	static int sel = 0;
+	int ndrc_changed;
 
 	menu_leave_emu();
 
@@ -2365,7 +2369,9 @@ void menu_loop(void)
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 
-	menu_prepare_emu();
+	ndrc_changed = cycle_multiplier_old != cycle_multiplier
+		|| ndrc_hacks_old != new_dynarec_hacks;
+	menu_prepare_emu(ndrc_changed);
 }
 
 static int qsort_strcmp(const void *p1, const void *p2)
@@ -2617,7 +2623,7 @@ static void menu_leave_emu(void)
 		cpu_clock = plat_target_cpu_clock_get();
 }
 
-void menu_prepare_emu(void)
+void menu_prepare_emu(int ndrc_config_changed)
 {
 	R3000Acpu *prev_cpu = psxCpu;
 
@@ -2634,6 +2640,8 @@ void menu_prepare_emu(void)
 		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
 	}
+	else if (ndrc_config_changed)
+		new_dynarec_clear_full();
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here
