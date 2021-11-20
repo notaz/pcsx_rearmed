@@ -27,6 +27,7 @@
 #include "psxhle.h"
 #include "debug.h"
 #include "psxinterpreter.h"
+#include <assert.h>
 
 static int branch = 0;
 static int branch2 = 0;
@@ -610,6 +611,11 @@ void psxDIV() {
     }
 }
 
+void psxDIV_stall() {
+	psxRegs.muldivBusyCycle = psxRegs.cycle + 37;
+	psxDIV();
+}
+
 void psxDIVU() {
 	if (_rRt_ != 0) {
 		_rLo_ = _rRs_ / _rRt_;
@@ -621,6 +627,11 @@ void psxDIVU() {
 	}
 }
 
+void psxDIVU_stall() {
+	psxRegs.muldivBusyCycle = psxRegs.cycle + 37;
+	psxDIVU();
+}
+
 void psxMULT() {
 	u64 res = (s64)((s64)_i32(_rRs_) * (s64)_i32(_rRt_));
 
@@ -628,11 +639,28 @@ void psxMULT() {
 	psxRegs.GPR.n.hi = (u32)((res >> 32) & 0xffffffff);
 }
 
+void psxMULT_stall() {
+	// approximate, but maybe good enough
+	u32 rs = _rRs_;
+	u32 lz = __builtin_clz(((rs ^ ((s32)rs >> 21)) | 1));
+	u32 c = 7 + (2 - (lz / 11)) * 4;
+	psxRegs.muldivBusyCycle = psxRegs.cycle + c;
+	psxMULT();
+}
+
 void psxMULTU() {
 	u64 res = (u64)((u64)_u32(_rRs_) * (u64)_u32(_rRt_));
 
 	psxRegs.GPR.n.lo = (u32)(res & 0xffffffff);
 	psxRegs.GPR.n.hi = (u32)((res >> 32) & 0xffffffff);
+}
+
+void psxMULTU_stall() {
+	// approximate, but maybe good enough
+	u32 lz = __builtin_clz(_rRs_ | 1);
+	u32 c = 7 + (2 - (lz / 11)) * 4;
+	psxRegs.muldivBusyCycle = psxRegs.cycle + c;
+	psxMULTU();
 }
 
 /*********************************************************
@@ -677,6 +705,18 @@ void psxLUI() { if (!_Rt_) return; _u32(_rRt_) = psxRegs.code << 16; } // Upper 
 *********************************************************/
 void psxMFHI() { if (!_Rd_) return; _rRd_ = _rHi_; } // Rd = Hi
 void psxMFLO() { if (!_Rd_) return; _rRd_ = _rLo_; } // Rd = Lo
+
+static void mflohiCheckStall(void)
+{
+	u32 left = psxRegs.muldivBusyCycle - psxRegs.cycle;
+	if (left <= 37) {
+		//printf("muldiv stall %u\n", left);
+		psxRegs.cycle = psxRegs.muldivBusyCycle;
+	}
+}
+
+void psxMFHI_stall() { mflohiCheckStall(); psxMFHI(); }
+void psxMFLO_stall() { mflohiCheckStall(); psxMFLO(); }
 
 /*********************************************************
 * Move to GPR to HI/LO & Register jump                   *
@@ -934,9 +974,12 @@ void psxCOP0() {
 }
 
 void psxCOP2() {
+	psxCP2[_Funct_]((struct psxCP2Regs *)&psxRegs.CP2D);
+}
+
+void psxCOP2_stall() {
 	u32 f = _Funct_;
-	if (f != 0 || _Rs_ < 4) // not MTC2/CTC2
-		gteCheckStall(f);
+	gteCheckStall(f);
 	psxCP2[f]((struct psxCP2Regs *)&psxRegs.CP2D);
 }
 
@@ -1073,6 +1116,40 @@ void intNotify (int note, void *data) {
 	#endif
 }
 
+void applyConfig() {
+	assert(psxBSC[18] == psxCOP2  || psxBSC[18] == psxCOP2_stall);
+	assert(psxBSC[50] == gteLWC2  || psxBSC[50] == gteLWC2_stall);
+	assert(psxBSC[58] == gteSWC2  || psxBSC[58] == gteSWC2_stall);
+	assert(psxSPC[16] == psxMFHI  || psxSPC[16] == psxMFHI_stall);
+	assert(psxSPC[18] == psxMFLO  || psxSPC[18] == psxMFLO_stall);
+	assert(psxSPC[24] == psxMULT  || psxSPC[24] == psxMULT_stall);
+	assert(psxSPC[25] == psxMULTU || psxSPC[25] == psxMULTU_stall);
+	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
+	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);
+
+	if (Config.DisableStalls) {
+		psxBSC[18] = psxCOP2;
+		psxBSC[50] = gteLWC2;
+		psxBSC[58] = gteSWC2;
+		psxSPC[16] = psxMFHI;
+		psxSPC[18] = psxMFLO;
+		psxSPC[24] = psxMULT;
+		psxSPC[25] = psxMULTU;
+		psxSPC[26] = psxDIV;
+		psxSPC[27] = psxDIVU;
+	} else {
+		psxBSC[18] = psxCOP2_stall;
+		psxBSC[50] = gteLWC2_stall;
+		psxBSC[58] = gteSWC2_stall;
+		psxSPC[16] = psxMFHI_stall;
+		psxSPC[18] = psxMFLO_stall;
+		psxSPC[24] = psxMULT_stall;
+		psxSPC[25] = psxMULTU_stall;
+		psxSPC[26] = psxDIV_stall;
+		psxSPC[27] = psxDIVU_stall;
+	}
+}
+
 static void intShutdown() {
 	#ifdef ICACHE_EMULATION
 	if (ICache_Addr)
@@ -1123,5 +1200,6 @@ R3000Acpu psxInt = {
 #ifdef ICACHE_EMULATION
 	intNotify,
 #endif
+	applyConfig,
 	intShutdown
 };

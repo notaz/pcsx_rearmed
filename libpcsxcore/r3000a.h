@@ -47,6 +47,7 @@ typedef struct {
 #ifdef ICACHE_EMULATION
 	void (*Notify)(int note, void *data);
 #endif
+	void (*ApplyConfig)();
 	void (*Shutdown)();
 } R3000Acpu;
 
@@ -194,9 +195,10 @@ typedef struct {
 	u32 interrupt;
 	struct { u32 sCycle, cycle; } intCycle[32];
 	u32 gteBusyCycle;
+	u32 muldivBusyCycle;
 	// warning: changing anything in psxRegisters requires update of all
 	// asm in libpcsxcore/new_dynarec/, but this member can be replaced
-	u32 reserved[3];
+	u32 reserved[2];
 } psxRegisters;
 
 extern psxRegisters psxRegs;

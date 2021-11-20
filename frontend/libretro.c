@@ -1063,6 +1063,7 @@ static void update_variables(bool in_flight)
       }
    }
 #endif
+   psxCpu->ApplyConfig();
 
    var.value = "NULL";
    var.key = "pcsx_rearmed_spu_reverb";

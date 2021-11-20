@@ -634,7 +634,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (ready_to_go) {
-		menu_prepare_emu(0);
+		menu_prepare_emu();
 
 		// If a state has been specified, then load that
 		if (loadst) {

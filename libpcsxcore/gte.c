@@ -275,7 +275,7 @@ INLINE u32 DIVIDE(u16 n, u16 d) {
 
 #ifndef FLAGLESS
 
-const char gte_cycletab[64] = {
+const unsigned char gte_cycletab[64] = {
 	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
 	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
 	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
@@ -429,8 +429,17 @@ void gteLWC2() {
 }
 
 void gteSWC2() {
-	gteCheckStall(0);
 	psxMemWrite32(_oB_, MFC2(_Rt_));
+}
+
+void gteLWC2_stall() {
+	gteCheckStall(0);
+	gteLWC2();
+}
+
+void gteSWC2_stall() {
+	gteCheckStall(0);
+	gteSWC2();
 }
 
 #endif // FLAGLESS

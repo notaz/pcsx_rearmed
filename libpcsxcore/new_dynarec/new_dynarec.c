@@ -47,11 +47,19 @@ static int sceBlock;
 #ifndef min
 #define min(a, b) ((b) < (a) ? (b) : (a))
 #endif
+#ifndef max
+#define max(a, b) ((b) > (a) ? (b) : (a))
+#endif
 
 //#define DISASM
-//#define assem_debug printf
-//#define inv_debug printf
+//#define ASSEM_PRINT
+
+#ifdef ASSEM_PRINT
+#define assem_debug printf
+#else
 #define assem_debug(...)
+#endif
+//#define inv_debug printf
 #define inv_debug(...)
 
 #ifdef __i386__
@@ -222,6 +230,7 @@ struct link_entry
 
   int new_dynarec_hacks;
   int new_dynarec_hacks_pergame;
+  int new_dynarec_hacks_old;
   int new_dynarec_did_compile;
 
   #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
@@ -336,7 +345,7 @@ static void add_to_linker(void *addr, u_int target, int ext);
 static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
-static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist);
+static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist);
 static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
@@ -454,6 +463,7 @@ static void do_clear_cache(void)
 
 int cycle_multiplier; // 100 for 1.0
 int cycle_multiplier_override;
+int cycle_multiplier_old;
 
 static int CLOCK_ADJUST(int x)
 {
@@ -905,7 +915,7 @@ static void host_tempreg_acquire(void) {}
 static void host_tempreg_release(void) {}
 #endif
 
-#ifdef DRC_DBG
+#ifdef ASSEM_PRINT
 extern void gen_interupt();
 extern void do_insn_cmp();
 #define FUNCNAME(f) { f, " " #f }
@@ -929,7 +939,9 @@ static const struct {
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
+#ifdef DRC_DBG
   FUNCNAME(do_insn_cmp),
+#endif
 #ifdef __arm__
   FUNCNAME(verify_code),
 #endif
@@ -1600,6 +1612,12 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 
 static void mov_alloc(struct regstat *current,int i)
 {
+  if (rs1[i] == HIREG || rs1[i] == LOREG) {
+    // logically this is needed but just won't work, no idea why
+    //alloc_cc(current,i); // for stalls
+    //dirty_reg(current,CCREG);
+  }
+
   // Note: Don't need to actually alloc the source registers
   //alloc_reg(current,i,rs1[i]);
   alloc_reg(current,i,rt1[i]);
@@ -1863,6 +1881,7 @@ void multdiv_alloc(struct regstat *current,int i)
   //  case 0x1F: DDIVU
   clear_const(current,rs1[i]);
   clear_const(current,rs2[i]);
+  alloc_cc(current,i); // for stalls
   if(rs1[i]&&rs2[i])
   {
     if((opcode2[i]&4)==0) // 32-bit
@@ -3314,7 +3333,6 @@ static void log_gte_stall(int stall, u_int cycle)
 {
   if ((u_int)stall <= 44)
     printf("x    stall %2d %u\n", stall, cycle + last_count);
- if (cycle + last_count > 1215348544) exit(1);
 }
 
 static void emit_log_gte_stall(int i, int stall, u_int reglist)
@@ -3330,14 +3348,13 @@ static void emit_log_gte_stall(int i, int stall, u_int reglist)
 }
 #endif
 
-static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist)
+static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist)
 {
   int j = i, other_gte_op_cycles = -1, stall = -MAXBLOCK, cycles_passed;
   int rtmp = reglist_find_free(reglist);
 
-  if (HACK_ENABLED(NDHACK_GTE_NO_STALL))
+  if (HACK_ENABLED(NDHACK_NO_STALLS))
     return;
-  //assert(get_reg(i_regs->regmap, CCREG) == HOST_CCREG);
   if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG) {
     // happens occasionally... cc evicted? Don't bother then
     //printf("no cc %08x\n", start + i*4);
@@ -3349,6 +3366,7 @@ static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs,
       if (cop2_is_stalling_op(j, &other_gte_op_cycles) || bt[j])
         break;
     }
+    j = max(j, 0);
   }
   cycles_passed = CLOCK_ADJUST(ccadj[i] - ccadj[j]);
   if (other_gte_op_cycles >= 0)
@@ -3357,7 +3375,7 @@ static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs,
     stall = 0; // can't stall
   if (stall == -MAXBLOCK && rtmp >= 0) {
     // unknown stall, do the expensive runtime check
-    assem_debug("; cop2_call_stall_check\n");
+    assem_debug("; cop2_do_stall_check\n");
 #if 0 // too slow
     save_regs(reglist);
     emit_movimm(gte_cycletab[op], 0);
@@ -3412,6 +3430,98 @@ static void cop2_call_stall_check(u_int op, int i, const struct regstat *i_regs,
   emit_addimm(HOST_CCREG, CLOCK_ADJUST(ccadj[i]) + gte_cycletab[op], HOST_TEMPREG);
   emit_writeword(HOST_TEMPREG, &psxRegs.gteBusyCycle);
 #endif
+  host_tempreg_release();
+}
+
+static int is_mflohi(int i)
+{
+  return (itype[i] == MOV && (rs1[i] == HIREG || rs1[i] == LOREG));
+}
+
+static int check_multdiv(int i, int *cycles)
+{
+  if (itype[i] != MULTDIV)
+    return 0;
+  if (opcode2[i] == 0x18 || opcode2[i] == 0x19) // MULT(U)
+    *cycles = 11; // approx from 7 11 14
+  else
+    *cycles = 37;
+  return 1;
+}
+
+static void multdiv_prepare_stall(int i, const struct regstat *i_regs)
+{
+  int j, found = 0, c = 0;
+  if (HACK_ENABLED(NDHACK_NO_STALLS))
+    return;
+  if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG) {
+    // happens occasionally... cc evicted? Don't bother then
+    return;
+  }
+  for (j = i + 1; j < slen; j++) {
+    if (bt[j])
+      break;
+    if ((found = is_mflohi(j)))
+      break;
+    if (is_jump(j)) {
+      // check ds
+      if (j + 1 < slen && (found = is_mflohi(j + 1)))
+        j++;
+      break;
+    }
+  }
+  if (found)
+    // handle all in multdiv_do_stall()
+    return;
+  check_multdiv(i, &c);
+  assert(c > 0);
+  assem_debug("; muldiv prepare stall %d\n", c);
+  host_tempreg_acquire();
+  emit_addimm(HOST_CCREG, CLOCK_ADJUST(ccadj[i]) + c, HOST_TEMPREG);
+  emit_writeword(HOST_TEMPREG, &psxRegs.muldivBusyCycle);
+  host_tempreg_release();
+}
+
+static void multdiv_do_stall(int i, const struct regstat *i_regs)
+{
+  int j, known_cycles = 0;
+  u_int reglist = get_host_reglist(i_regs->regmap);
+  int rtmp = get_reg(i_regs->regmap, -1);
+  if (rtmp < 0)
+    rtmp = reglist_find_free(reglist);
+  if (HACK_ENABLED(NDHACK_NO_STALLS))
+    return;
+  if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG || rtmp < 0) {
+    // happens occasionally... cc evicted? Don't bother then
+    //printf("no cc/rtmp %08x\n", start + i*4);
+    return;
+  }
+  if (!bt[i]) {
+    for (j = i - 1; j >= 0; j--) {
+      if (is_ds[j]) break;
+      if (check_multdiv(j, &known_cycles) || bt[j])
+        break;
+      if (is_mflohi(j))
+        // already handled by this op
+        return;
+    }
+    j = max(j, 0);
+  }
+  if (known_cycles > 0) {
+    known_cycles -= CLOCK_ADJUST(ccadj[i] - ccadj[j]);
+    assem_debug("; muldiv stall resolved %d\n", known_cycles);
+    if (known_cycles > 0)
+      emit_addimm(HOST_CCREG, known_cycles, HOST_CCREG);
+    return;
+  }
+  assem_debug("; muldiv stall unresolved\n");
+  host_tempreg_acquire();
+  emit_readword(&psxRegs.muldivBusyCycle, rtmp);
+  emit_addimm(rtmp, -CLOCK_ADJUST(ccadj[i]), rtmp);
+  emit_sub(rtmp, HOST_CCREG, HOST_TEMPREG);
+  emit_cmpimm(HOST_TEMPREG, 37);
+  emit_cmovb_reg(rtmp, HOST_CCREG);
+  //emit_log_gte_stall(i, 0, reglist);
   host_tempreg_release();
 }
 
@@ -3532,8 +3642,9 @@ static void c2ls_assemble(int i, const struct regstat *i_regs)
   if (!offset&&!c&&s>=0) ar=s;
   assert(ar>=0);
 
+  cop2_do_stall_check(0, i, i_regs, reglist);
+
   if (opcode[i]==0x3a) { // SWC2
-    cop2_call_stall_check(0, i, i_regs, reglist_exclude(reglist, tl, -1));
     cop2_get_dreg(copr,tl,-1);
     type=STOREW_STUB;
   }
@@ -3600,12 +3711,13 @@ static void cop2_assemble(int i, const struct regstat *i_regs)
   u_int copr = (source[i]>>11) & 0x1f;
   signed char temp = get_reg(i_regs->regmap, -1);
 
-  if (opcode2[i] == 0 || opcode2[i] == 2) { // MFC2/CFC2
-    if (!HACK_ENABLED(NDHACK_GTE_NO_STALL)) {
+  if (!HACK_ENABLED(NDHACK_NO_STALLS)) {
+    u_int reglist = reglist_exclude(get_host_reglist(i_regs->regmap), temp, -1);
+    if (opcode2[i] == 0 || opcode2[i] == 2) { // MFC2/CFC2
       signed char tl = get_reg(i_regs->regmap, rt1[i]);
-      u_int reglist = reglist_exclude(get_host_reglist(i_regs->regmap), tl, temp);
-      cop2_call_stall_check(0, i, i_regs, reglist);
+      reglist = reglist_exclude(reglist, tl, -1);
     }
+    cop2_do_stall_check(0, i, i_regs, reglist);
   }
   if (opcode2[i]==0) { // MFC2
     signed char tl=get_reg(i_regs->regmap,rt1[i]);
@@ -3753,6 +3865,8 @@ static void mov_assemble(int i,struct regstat *i_regs)
       else emit_loadreg(rs1[i],tl);
     }
   }
+  if (rs1[i] == HIREG || rs1[i] == LOREG) // MFHI/MFLO
+    multdiv_do_stall(i, i_regs);
 }
 
 // call interpreter, exception handler, things that change pc/regs/cycles ...
@@ -3921,7 +4035,9 @@ static void ds_assemble(int i,struct regstat *i_regs)
     case C2OP:
       c2op_assemble(i,i_regs);break;
     case MULTDIV:
-      multdiv_assemble(i,i_regs);break;
+      multdiv_assemble(i,i_regs);
+      multdiv_prepare_stall(i,i_regs);
+      break;
     case MOV:
       mov_assemble(i,i_regs);break;
     case SYSCALL:
@@ -4577,7 +4693,9 @@ static void ds_assemble_entry(int i)
     case C2OP:
       c2op_assemble(t,&regs[t]);break;
     case MULTDIV:
-      multdiv_assemble(t,&regs[t]);break;
+      multdiv_assemble(t,&regs[t]);
+      multdiv_prepare_stall(i,&regs[t]);
+      break;
     case MOV:
       mov_assemble(t,&regs[t]);break;
     case SYSCALL:
@@ -5921,7 +6039,9 @@ static void pagespan_ds()
     case C2OP:
       c2op_assemble(0,&regs[0]);break;
     case MULTDIV:
-      multdiv_assemble(0,&regs[0]);break;
+      multdiv_assemble(0,&regs[0]);
+      multdiv_prepare_stall(0,&regs[0]);
+      break;
     case MOV:
       mov_assemble(0,&regs[0]);break;
     case SYSCALL:
@@ -6731,6 +6851,9 @@ void new_dynarec_clear_full(void)
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
   for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
+
+  cycle_multiplier_old = cycle_multiplier;
+  new_dynarec_hacks_old = new_dynarec_hacks;
 }
 
 void new_dynarec_init(void)
@@ -8105,7 +8228,7 @@ int new_recompile_block(u_int addr)
       // this should really be removed since the real stalls have been implemented,
       // but doing so causes sizeable perf regression against the older version
       u_int gtec = gte_cycletab[source[i] & 0x3f];
-      cc += HACK_ENABLED(NDHACK_GTE_NO_STALL) ? gtec/2 : 2;
+      cc += HACK_ENABLED(NDHACK_NO_STALLS) ? gtec/2 : 2;
     }
     else if(i>1&&itype[i]==STORE&&itype[i-1]==STORE&&itype[i-2]==STORE&&!bt[i])
     {
@@ -8114,7 +8237,7 @@ int new_recompile_block(u_int addr)
     else if(itype[i]==C2LS)
     {
       // same as with C2OP
-      cc += HACK_ENABLED(NDHACK_GTE_NO_STALL) ? 4 : 2;
+      cc += HACK_ENABLED(NDHACK_NO_STALLS) ? 4 : 2;
     }
 #endif
     else
@@ -9094,7 +9217,9 @@ int new_recompile_block(u_int addr)
         case C2OP:
           c2op_assemble(i,&regs[i]);break;
         case MULTDIV:
-          multdiv_assemble(i,&regs[i]);break;
+          multdiv_assemble(i,&regs[i]);
+          multdiv_prepare_stall(i,&regs[i]);
+          break;
         case MOV:
           mov_assemble(i,&regs[i]);break;
         case SYSCALL:

@@ -405,6 +405,20 @@ static void ari64_notify(int note, void *data) {
 }
 #endif
 
+static void ari64_apply_config()
+{
+	if (Config.DisableStalls)
+		new_dynarec_hacks |= NDHACK_NO_STALLS;
+	else
+		new_dynarec_hacks &= ~NDHACK_NO_STALLS;
+
+	if (cycle_multiplier != cycle_multiplier_old
+	    || new_dynarec_hacks != new_dynarec_hacks_old)
+	{
+		new_dynarec_clear_full();
+	}
+}
+
 static void ari64_shutdown()
 {
 	new_dynarec_cleanup();
@@ -420,6 +434,7 @@ R3000Acpu psxRec = {
 #ifdef ICACHE_EMULATION
 	ari64_notify,
 #endif
+	ari64_apply_config,
 	ari64_shutdown
 };
 
@@ -431,7 +446,9 @@ unsigned int next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier;
 int cycle_multiplier_override;
+int cycle_multiplier_old;
 int new_dynarec_hacks_pergame;
+int new_dynarec_hacks_old;
 int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;

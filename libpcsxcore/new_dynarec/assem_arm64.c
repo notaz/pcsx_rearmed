@@ -1788,7 +1788,7 @@ static void get_bounds(void *addr, u_char **start, u_char **end)
 static void c2op_prologue(u_int op, int i, const struct regstat *i_regs, u_int reglist)
 {
   save_load_regs_all(1, reglist);
-  cop2_call_stall_check(op, i, i_regs, 0);
+  cop2_do_stall_check(op, i, i_regs, 0);
 #ifdef PCNT
   emit_movimm(op, 0);
   emit_far_call(pcnt_gte_start);

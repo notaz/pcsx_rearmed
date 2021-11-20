@@ -398,6 +398,7 @@ static const struct {
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(icache_emulation),
+	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
@@ -1556,7 +1557,7 @@ static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFA
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
-static const char h_cfg_gtestll[] = "Some games will run too fast";
+static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 
 static menu_entry e_menu_speed_hacks[] =
 {
@@ -1564,7 +1565,7 @@ static menu_entry e_menu_speed_hacks[] =
 	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
-	mee_onoff_h   ("Disable GTE stalls",       0, new_dynarec_hacks, NDHACK_GTE_NO_STALL, h_cfg_gtestll),
+	mee_onoff_h   ("Disable CPU/GTE stalls",   0, Config.DisableStalls, 1, h_cfg_stalls),
 	mee_end,
 };
 
@@ -2331,11 +2332,8 @@ static void menu_leave_emu(void);
 
 void menu_loop(void)
 {
-	int cycle_multiplier_old = cycle_multiplier;
-	int ndrc_hacks_old = new_dynarec_hacks;
 	static int warned_about_bios = 0;
 	static int sel = 0;
-	int ndrc_changed;
 
 	menu_leave_emu();
 
@@ -2370,9 +2368,7 @@ void menu_loop(void)
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 
-	ndrc_changed = cycle_multiplier_old != cycle_multiplier
-		|| ndrc_hacks_old != new_dynarec_hacks;
-	menu_prepare_emu(ndrc_changed);
+	menu_prepare_emu();
 }
 
 static int qsort_strcmp(const void *p1, const void *p2)
@@ -2624,7 +2620,7 @@ static void menu_leave_emu(void)
 		cpu_clock = plat_target_cpu_clock_get();
 }
 
-void menu_prepare_emu(int ndrc_config_changed)
+void menu_prepare_emu(void)
 {
 	R3000Acpu *prev_cpu = psxCpu;
 
@@ -2641,8 +2637,8 @@ void menu_prepare_emu(int ndrc_config_changed)
 		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
 	}
-	else if (ndrc_config_changed)
-		new_dynarec_clear_full();
+
+	psxCpu->ApplyConfig();
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here
