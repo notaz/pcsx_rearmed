@@ -396,6 +396,8 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 #endif
 	else
 	{
+		src = (void *)((uintptr_t)src & ~3); // align for the blitter
+
 		for (; h1-- > 0; dest += dstride * 2, src += stride)
 		{
 			bgr555_to_rgb565(dest, src, w * 2);

@@ -55,7 +55,7 @@ static void check_mode_change(int force)
 
 void vout_update(void)
 {
-  int x = gpu.screen.x & ~1; // alignment needed by blitter
+  int x = gpu.screen.x;
   int y = gpu.screen.y;
   int w = gpu.screen.w;
   int h = gpu.screen.h;
