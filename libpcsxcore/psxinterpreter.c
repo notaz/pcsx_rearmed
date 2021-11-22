@@ -49,14 +49,19 @@ void (*psxCP0[32])();
 void (*psxCP2[64])(struct psxCP2Regs *regs);
 void (*psxCP2BSC[32])();
 
-#ifdef ICACHE_EMULATION
+static u32 fetchNoCache(u32 pc)
+{
+	u32 *code = (u32 *)PSXM(pc);
+	return ((code == NULL) ? 0 : SWAP32(*code));
+}
+
 /*
 Formula One 2001 :
 Use old CPU cache code when the RAM location is updated with new code (affects in-game racing)
 */
 static u8* ICache_Addr;
 static u8* ICache_Code;
-uint32_t *Read_ICache(uint32_t pc)
+static u32 fetchICache(u32 pc)
 {
 	uint32_t pc_bank, pc_offset, pc_cache;
 	uint8_t *IAddr, *ICode;
@@ -74,7 +79,7 @@ uint32_t *Read_ICache(uint32_t pc)
 		if (SWAP32(*(uint32_t *)(IAddr + pc_cache)) == pc_offset)
 		{
 			// Cache hit - return last opcode used
-			return (uint32_t *)(ICode + pc_cache);
+			return *(uint32_t *)(ICode + pc_cache);
 		}
 		else
 		{
@@ -104,9 +109,10 @@ uint32_t *Read_ICache(uint32_t pc)
 	TODO: Probably should add cached BIOS
 	*/
 	// default
-	return (uint32_t *)PSXM(pc);
+	return fetchNoCache(pc);
 }
-#endif
+
+u32 (*fetch)(u32 pc) = fetchNoCache;
 
 static void delayRead(int reg, u32 bpc) {
 	u32 rold, rnew;
@@ -322,21 +328,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 }
 
 void psxDelayTest(int reg, u32 bpc) {
-	u32 *code;
-	u32 tmp;
-
-	#ifdef ICACHE_EMULATION
-	if (Config.icache_emulation)
-	{
-		code = Read_ICache(psxRegs.pc);
-	}
-	else
-	#endif
-	{
-		code = (u32 *)PSXM(psxRegs.pc);
-	}
-
-	tmp = ((code == NULL) ? 0 : SWAP32(*code));
+	u32 tmp = fetch(psxRegs.pc);
 	branch = 1;
 
 	switch (psxTestLoadDelay(reg, tmp)) {
@@ -356,20 +348,9 @@ void psxDelayTest(int reg, u32 bpc) {
 }
 
 static u32 psxBranchNoDelay(void) {
-	u32 *code;
 	u32 temp;
 
-	#ifdef ICACHE_EMULATION
-	if (Config.icache_emulation)
-	{
-		code = Read_ICache(psxRegs.pc);
-	}
-	else
-	#endif
-	{
-		code = (u32 *)PSXM(psxRegs.pc);
-	}
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 	switch (_Op_) {
 		case 0x00: // SPECIAL
 			switch (_Funct_) {
@@ -487,7 +468,6 @@ static int psxDelayBranchTest(u32 tar1) {
 }
 
 static void doBranch(u32 tar) {
-	u32 *code;
 	u32 tmp;
 
 	branch2 = branch = 1;
@@ -497,17 +477,7 @@ static void doBranch(u32 tar) {
 	if (psxDelayBranchTest(tar))
 		return;
 
-	#ifdef ICACHE_EMULATION
-	if (Config.icache_emulation)
-	{
-		code = Read_ICache(psxRegs.pc);
-	}
-	else
-	#endif
-	{
-		code = (u32 *)PSXM(psxRegs.pc);
-	}
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 
 	debugI();
 
@@ -1057,7 +1027,6 @@ void (*psxCP2BSC[32])() = {
 ///////////////////////////////////////////
 
 static int intInit() {
-	#ifdef ICACHE_EMULATION
 	/* We have to allocate the icache memory even if 
 	 * the user has not enabled it as otherwise it can cause issues.
 	 */
@@ -1080,15 +1049,12 @@ static int intInit() {
 	}
 	memset(ICache_Addr, 0xff, 0x1000);
 	memset(ICache_Code, 0xff, 0x1000);
-	#endif
 	return 0;
 }
 
 static void intReset() {
-	#ifdef ICACHE_EMULATION
 	memset(ICache_Addr, 0xff, 0x1000);
 	memset(ICache_Code, 0xff, 0x1000);
-	#endif
 }
 
 void intExecute() {
@@ -1106,17 +1072,15 @@ static void intClear(u32 Addr, u32 Size) {
 }
 
 void intNotify (int note, void *data) {
-	#ifdef ICACHE_EMULATION
 	/* Gameblabla - Only clear the icache if it's isolated */
 	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
 	{
 		memset(ICache_Addr, 0xff, 0x1000);
 		memset(ICache_Code, 0xff, 0x1000);
 	}
-	#endif
 }
 
-void applyConfig() {
+void intApplyConfig() {
 	assert(psxBSC[18] == psxCOP2  || psxBSC[18] == psxCOP2_stall);
 	assert(psxBSC[50] == gteLWC2  || psxBSC[50] == gteLWC2_stall);
 	assert(psxBSC[58] == gteSWC2  || psxBSC[58] == gteSWC2_stall);
@@ -1148,10 +1112,16 @@ void applyConfig() {
 		psxSPC[26] = psxDIV_stall;
 		psxSPC[27] = psxDIVU_stall;
 	}
+
+	// dynarec may occasionally call the interpreter, in such a case the
+	// cache won't work (cache only works right if all fetches go through it)
+	if (!Config.icache_emulation || psxCpu != &psxInt)
+		fetch = fetchNoCache;
+	else
+		fetch = fetchICache;
 }
 
 static void intShutdown() {
-	#ifdef ICACHE_EMULATION
 	if (ICache_Addr)
 	{
 		free(ICache_Addr);
@@ -1163,23 +1133,11 @@ static void intShutdown() {
 		free(ICache_Code);
 		ICache_Code = NULL;
 	}
-	#endif
 }
 
 // interpreter execution
 void execI() {
-	u32 *code;
-	#ifdef ICACHE_EMULATION
-	if (Config.icache_emulation)
-	{
-		code = Read_ICache(psxRegs.pc);
-	}
-	else
-	#endif
-	{
-		code = (u32 *)PSXM(psxRegs.pc);
-	}
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 
 	debugI();
 
@@ -1197,9 +1155,7 @@ R3000Acpu psxInt = {
 	intExecute,
 	intExecuteBlock,
 	intClear,
-#ifdef ICACHE_EMULATION
 	intNotify,
-#endif
-	applyConfig,
+	intApplyConfig,
 	intShutdown
 };

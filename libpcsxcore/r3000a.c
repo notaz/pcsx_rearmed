@@ -25,6 +25,7 @@
 #include "cdrom.h"
 #include "mdec.h"
 #include "gte.h"
+#include "psxinterpreter.h"
 
 R3000Acpu *psxCpu = NULL;
 #ifdef DRC_DISABLE
@@ -39,6 +40,7 @@ int psxInit() {
 		psxCpu = &psxInt;
 	} else psxCpu = &psxRec;
 #else
+	Config.Cpu = CPU_INTERPRETER;
 	psxCpu = &psxInt;
 #endif
 
@@ -81,19 +83,7 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
-	#ifdef ICACHE_EMULATION
-	/* Dynarecs may use this codepath and crash as a result.
-	 * This should only be used for the interpreter. - Gameblabla
-	 * */
-	if (Config.icache_emulation && Config.Cpu == CPU_INTERPRETER)
-	{
-		psxRegs.code = SWAPu32(*Read_ICache(psxRegs.pc));
-	}
-	else
-	#endif
-	{
-		psxRegs.code = PSXMu32(psxRegs.pc);
-	}
+	psxRegs.code = fetch(psxRegs.pc);
 	
 	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...

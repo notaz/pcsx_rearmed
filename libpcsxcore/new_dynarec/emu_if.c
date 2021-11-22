@@ -10,6 +10,7 @@
 #include "emu_if.h"
 #include "pcsxmem.h"
 #include "../psxhle.h"
+#include "../psxinterpreter.h"
 #include "../r3000a.h"
 #include "../cdrom.h"
 #include "../psxdma.h"
@@ -387,7 +388,6 @@ static void ari64_clear(u32 addr, u32 size)
 			invalidate_block(start);
 }
 
-#ifdef ICACHE_EMULATION
 static void ari64_notify(int note, void *data) {
 	/*
 	Should be fixed when ARM dynarec has proper icache emulation.
@@ -403,10 +403,11 @@ static void ari64_notify(int note, void *data) {
 	}
 	*/
 }
-#endif
 
 static void ari64_apply_config()
 {
+	intApplyConfig();
+
 	if (Config.DisableStalls)
 		new_dynarec_hacks |= NDHACK_NO_STALLS;
 	else
@@ -431,9 +432,7 @@ R3000Acpu psxRec = {
 	ari64_execute,
 	ari64_execute_until,
 	ari64_clear,
-#ifdef ICACHE_EMULATION
 	ari64_notify,
-#endif
 	ari64_apply_config,
 	ari64_shutdown
 };

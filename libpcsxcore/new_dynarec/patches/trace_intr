@@ -1,15 +1,3 @@
-diff --git a/Makefile b/Makefile
-index 0db94f7..e4fe560 100644
---- a/Makefile
-+++ b/Makefile
-@@ -26,6 +26,7 @@ endif
- else # NO_CONFIG_MAK
- config.mak:
- endif
-+CFLAGS += -UICACHE_EMULATION
- 
- -include Makefile.local
- 
 diff --git a/libpcsxcore/new_dynarec/emu_if.c b/libpcsxcore/new_dynarec/emu_if.c
 index 2df259b..2a15e6e 100644
 --- a/libpcsxcore/new_dynarec/emu_if.c

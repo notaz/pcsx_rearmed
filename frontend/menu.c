@@ -1552,19 +1552,23 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+#ifndef DRC_DISABLE
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(lower value - less work for the emu, may be faster)";
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+#endif
 static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 
 static menu_entry e_menu_speed_hacks[] =
 {
+#ifndef DRC_DISABLE
 	mee_range_h   ("PSX CPU clock, %%",        0, psx_clock, 1, 500, h_cfg_psxclk),
 	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+#endif
 	mee_onoff_h   ("Disable CPU/GTE stalls",   0, Config.DisableStalls, 1, h_cfg_stalls),
 	mee_end,
 };
@@ -1589,14 +1593,13 @@ static const char h_cfg_spuirq[] = "Compatibility tweak; should be left off";
 //				   "(timing hack, breaks other games)";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
+#ifndef DRC_DISABLE
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
-static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
-				   "must reload game for any change to take effect";
-#ifdef ICACHE_EMULATION
-static const char h_cfg_icache[] = "Allows you to play the F1 games.\n"
-				   "Note: This breaks the PAL version of Spyro 2.";
 #endif
+static const char h_cfg_shacks[] = "Breaks games but may give better performance";
+static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off).\n"
+				   "Note: This breaks the PAL version of Spyro 2.";
 				   
 static menu_entry e_menu_adv_options[] =
 {
@@ -1607,12 +1610,12 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
-#ifdef ICACHE_EMULATION
 	mee_onoff_h   ("ICache emulation",       0, Config.icache_emulation, 1, h_cfg_icache),
-#endif
 	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+#ifndef DRC_DISABLE
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
+#endif
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
 };

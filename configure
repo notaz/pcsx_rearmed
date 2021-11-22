@@ -59,7 +59,6 @@ need_sdl="no"
 need_xlib="no"
 need_libpicofe="yes"
 need_warm="no"
-enable_icache_emu="yes"
 CFLAGS_GLES=""
 LDLIBS_GLES=""
 # these are for known platforms
@@ -95,14 +94,12 @@ set_platform()
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     need_xlib="yes"
-    enable_icache_emu="no"
     ;;
   maemo)
     ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
-    enable_icache_emu="no"
     ;;
   caanoo)
     sound_drivers="oss"
@@ -110,7 +107,6 @@ set_platform()
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     need_warm="yes"
-    enable_icache_emu="no"
     ;;
   libretro)
     sound_drivers="libretro"
@@ -138,10 +134,6 @@ for opt do
   --disable-neon) have_arm_neon="no"
   ;;
   --disable-dynarec) enable_dynarec="no"
-  ;;
-  --disable-icache-emu) enable_icache_emu="no"
-  ;;
-  --enable-icache-emu) enable_icache_emu="yes"
   ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
@@ -502,10 +494,6 @@ fi
 sizeof_long=`check_define_val __SIZEOF_LONG__`
 if [ "x$sizeof_long" = "x4" ]; then
   CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=64"
-fi
-
-if [ "$enable_icache_emu" = "yes" ]; then
-  CFLAGS="$CFLAGS -DICACHE_EMULATION"
 fi
 
 cat > $TMPC <<EOF
