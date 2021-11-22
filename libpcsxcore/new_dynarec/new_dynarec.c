@@ -172,9 +172,10 @@ static struct decoded_insn
   u_char rt2;
   u_char lt1;
   u_char bt:1;
-  u_char likely:1;
   u_char ooo:1;
   u_char is_ds:1;
+  u_char is_jump:1;
+  u_char is_ujump:1;
 } dops[MAXBLOCK];
 
   // used by asm:
@@ -475,18 +476,6 @@ static int CLOCK_ADJUST(int x)
   return (x * m + s * 50) / 100;
 }
 
-// is the op an unconditional jump?
-static int is_ujump(int i)
-{
-  return dops[i].itype == UJUMP || dops[i].itype == RJUMP
-    || (source[i] >> 16) == 0x1000; // beq r0, r0, offset // b offset
-}
-
-static int is_jump(int i)
-{
-  return dops[i].itype == RJUMP || dops[i].itype == UJUMP || dops[i].itype == CJUMP || dops[i].itype == SJUMP;
-}
-
 static int ds_writes_rjump_rs(int i)
 {
   return dops[i].rs1 != 0 && (dops[i].rs1 == dops[i+1].rt1 || dops[i].rs1 == dops[i+1].rt2);
@@ -699,7 +688,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
       j=slen-i-1;
       break;
     }
-    if (is_ujump(i+j))
+    if (dops[i+j].is_ujump)
     {
       // Don't go past an unconditonal jump
       j++;
@@ -747,7 +736,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     // TODO: preferred register based on backward branch
   }
   // Delay slot should preferably not overwrite branch conditions or cycle count
-  if (i > 0 && is_jump(i-1)) {
+  if (i > 0 && dops[i-1].is_jump) {
     if(dops[i-1].rs1) if(hsn[dops[i-1].rs1]>1) hsn[dops[i-1].rs1]=1;
     if(dops[i-1].rs2) if(hsn[dops[i-1].rs2]>1) hsn[dops[i-1].rs2]=1;
     hsn[CCREG]=1;
@@ -782,7 +771,7 @@ int needed_again(int r, int i)
   int b=-1;
   int rn=10;
 
-  if (i > 0 && is_ujump(i-1))
+  if (i > 0 && dops[i-1].is_ujump)
   {
     if(ba[i-1]<start || ba[i-1]>start+slen*4-4)
       return 0; // Don't need any registers if exiting the block
@@ -793,7 +782,7 @@ int needed_again(int r, int i)
       j=slen-i-1;
       break;
     }
-    if (is_ujump(i+j))
+    if (dops[i+j].is_ujump)
     {
       // Don't go past an unconditonal jump
       j++;
@@ -830,7 +819,7 @@ int loop_reg(int i, int r, int hr)
       j=slen-i-1;
       break;
     }
-    if (is_ujump(i+j))
+    if (dops[i+j].is_ujump)
     {
       // Don't go past an unconditonal jump
       j++;
@@ -1456,7 +1445,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
     // Don't evict the cycle count at entry points, otherwise the entry
     // stub will have to write it.
     if(dops[i].bt&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if(i>1&&hsn[CCREG]>2&&(dops[i-2].itype==RJUMP||dops[i-2].itype==UJUMP||dops[i-2].itype==CJUMP||dops[i-2].itype==SJUMP)) hsn[CCREG]=2;
+    if (i>1 && hsn[CCREG] > 2 && dops[i-2].is_jump) hsn[CCREG]=2;
     for(j=10;j>=3;j--)
     {
       // Alloc preferred register if available
@@ -1562,7 +1551,7 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
     // Don't evict the cycle count at entry points, otherwise the entry
     // stub will have to write it.
     if(dops[i].bt&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if(i>1&&hsn[CCREG]>2&&(dops[i-2].itype==RJUMP||dops[i-2].itype==UJUMP||dops[i-2].itype==CJUMP||dops[i-2].itype==SJUMP)) hsn[CCREG]=2;
+    if (i>1 && hsn[CCREG] > 2 && dops[i-2].is_jump) hsn[CCREG]=2;
     for(j=10;j>=3;j--)
     {
       for(r=1;r<=MAXREG;r++)
@@ -3396,7 +3385,7 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
   for (j = i + 1; j < slen; j++) {
     if (cop2_is_stalling_op(j, &other_gte_op_cycles))
       break;
-    if (is_jump(j)) {
+    if (dops[j].is_jump) {
       // check ds
       if (j + 1 < slen && cop2_is_stalling_op(j + 1, &other_gte_op_cycles))
         j++;
@@ -3454,7 +3443,7 @@ static void multdiv_prepare_stall(int i, const struct regstat *i_regs)
       break;
     if ((found = is_mflohi(j)))
       break;
-    if (is_jump(j)) {
+    if (dops[j].is_jump) {
       // check ds
       if (j + 1 < slen && (found = is_mflohi(j + 1)))
         j++;
@@ -4210,12 +4199,12 @@ static int get_final_value(int hr, int i, int *value)
     i++;
   }
   if(i<slen-1) {
-    if(dops[i].itype==UJUMP||dops[i].itype==RJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP) {
+    if (dops[i].is_jump) {
       *value=constmap[i][hr];
       return 1;
     }
     if(!dops[i+1].bt) {
-      if(dops[i+1].itype==UJUMP||dops[i+1].itype==RJUMP||dops[i+1].itype==CJUMP||dops[i+1].itype==SJUMP) {
+      if (dops[i+1].is_jump) {
         // Load in delay slot, out-of-order execution
         if(dops[i+2].itype==LOAD&&dops[i+2].rs1==reg&&dops[i+2].rt1==reg&&((regs[i+1].wasconst>>hr)&1))
         {
@@ -4525,7 +4514,7 @@ static int match_bt(signed char i_regmap[],uint64_t i_dirty,int addr)
       }
     }
     // Delay slots are not valid branch targets
-    //if(t>0&&(dops[t-1].itype==RJUMP||dops[t-1].itype==UJUMP||dops[t-1].itype==CJUMP||dops[t-1].itype==SJUMP)) return 0;
+    //if(t>0&&(dops[t-1].is_jump) return 0;
     // Delay slots require additional processing, so do not match
     if(dops[t].is_ds) return 0;
   }
@@ -5338,9 +5327,6 @@ static void cjump_assemble(int i,struct regstat *i_regs)
   else
   {
     // In-order execution (branch first)
-    //if(dops[i].likely) printf("IOL\n");
-    //else
-    //printf("IOE\n");
     void *taken = NULL, *nottaken = NULL, *nottaken1 = NULL;
     if(!unconditional&&!nop) {
       //printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
@@ -5414,15 +5400,13 @@ static void cjump_assemble(int i,struct regstat *i_regs)
       if(nottaken1) set_jump_target(nottaken1, out);
       set_jump_target(nottaken, out);
       assem_debug("2:\n");
-      if(!dops[i].likely) {
-        wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
-        load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
-        address_generation(i+1,&branch_regs[i],0);
-        load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
-        ds_assemble(i+1,&branch_regs[i]);
-      }
+      wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
+      address_generation(i+1,&branch_regs[i],0);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+      ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
-      if(cc==-1&&!dops[i].likely) {
+      if (cc == -1) {
         // Cycle count isn't in a register, temporarily load it then write it out
         emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
@@ -5437,7 +5421,7 @@ static void cjump_assemble(int i,struct regstat *i_regs)
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
         void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,dops[i].likely?NULLDS:NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
       }
     }
   }
@@ -5681,15 +5665,13 @@ static void sjump_assemble(int i,struct regstat *i_regs)
     if(!unconditional) {
       set_jump_target(nottaken, out);
       assem_debug("1:\n");
-      if(!dops[i].likely) {
-        wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
-        load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
-        address_generation(i+1,&branch_regs[i],0);
-        load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
-        ds_assemble(i+1,&branch_regs[i]);
-      }
+      wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
+      address_generation(i+1,&branch_regs[i],0);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+      ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
-      if(cc==-1&&!dops[i].likely) {
+      if (cc == -1) {
         // Cycle count isn't in a register, temporarily load it then write it out
         emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
@@ -5704,7 +5686,7 @@ static void sjump_assemble(int i,struct regstat *i_regs)
         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
         void *jaddr=out;
         emit_jns(0);
-        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,dops[i].likely?NULLDS:NOTTAKEN,0);
+        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
       }
     }
   }
@@ -5894,7 +5876,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
 
   assert(i_regs->regmap[HOST_CCREG]==CCREG);
   wb_dirtys(regs[i].regmap,regs[i].dirty);
-  if(dops[i].likely||unconditional)
+  if(unconditional)
   {
     emit_movimm(ba[i],HOST_BTREG);
   }
@@ -5913,22 +5895,6 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
     add_jump_out(target_addr,stub);
   }
   else set_jump_target(branch_addr, stub);
-  if(dops[i].likely) {
-    // Not-taken path
-    set_jump_target(nottaken, out);
-    wb_dirtys(regs[i].regmap,regs[i].dirty);
-    void *branch_addr=out;
-    emit_jmp(0);
-    int target_addr=start+i*4+8;
-    void *stub=out;
-    void *compiled_target_addr=check_addr(target_addr);
-    emit_extjump_ds(branch_addr, target_addr);
-    if(compiled_target_addr) {
-      set_jump_target(branch_addr, compiled_target_addr);
-      add_jump_out(target_addr,stub);
-    }
-    else set_jump_target(branch_addr, stub);
-  }
 }
 
 // Assemble the delay slot for the above
@@ -6041,7 +6007,7 @@ void unneeded_registers(int istart,int iend,int r)
   for (i=iend;i>=istart;i--)
   {
     //printf("unneeded registers i=%d (%d,%d) r=%d\n",i,istart,iend,r);
-    if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+    if(dops[i].is_jump)
     {
       // If subroutine call, flag return address as a possible branch target
       if(dops[i].rt1==31 && i<slen-2) dops[i+2].bt=1;
@@ -6058,19 +6024,6 @@ void unneeded_registers(int istart,int iend,int r)
         u|=1;
         gte_u|=gte_rt[i+1];
         gte_u&=~gte_rs[i+1];
-        // If branch is "likely" (and conditional)
-        // then we skip the delay slot on the fall-thru path
-        if(dops[i].likely) {
-          if(i<slen-1) {
-            u&=unneeded_reg[i+2];
-            gte_u&=gte_unneeded[i+2];
-          }
-          else
-          {
-            u=1;
-            gte_u=gte_u_unknown;
-          }
-        }
       }
       else
       {
@@ -6078,7 +6031,7 @@ void unneeded_registers(int istart,int iend,int r)
         dops[(ba[i]-start)>>2].bt=1;
         if(ba[i]<=start+i*4) {
           // Backward branch
-          if(is_ujump(i))
+          if(dops[i].is_ujump)
           {
             // Unconditional branch
             temp_u=1;
@@ -6094,19 +6047,6 @@ void unneeded_registers(int istart,int iend,int r)
           temp_u|=1;
           temp_gte_u|=gte_rt[i+1];
           temp_gte_u&=~gte_rs[i+1];
-          // If branch is "likely" (and conditional)
-          // then we skip the delay slot on the fall-thru path
-          if(dops[i].likely) {
-            if(i<slen-1) {
-              temp_u&=unneeded_reg[i+2];
-              temp_gte_u&=gte_unneeded[i+2];
-            }
-            else
-            {
-              temp_u=1;
-              temp_gte_u=gte_u_unknown;
-            }
-          }
           temp_u|=(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2);
           temp_u&=~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2));
           temp_u|=1;
@@ -6123,7 +6063,7 @@ void unneeded_registers(int istart,int iend,int r)
             gte_unneeded[(ba[i]-start)>>2]=gte_u_unknown;
           }
         } /*else*/ if(1) {
-          if (is_ujump(i))
+          if (dops[i].is_ujump)
           {
             // Unconditional branch
             u=unneeded_reg[(ba[i]-start)>>2];
@@ -6146,19 +6086,8 @@ void unneeded_registers(int istart,int iend,int r)
             b|=1;
             gte_b|=gte_rt[i+1];
             gte_b&=~gte_rs[i+1];
-            // If branch is "likely" then we skip the
-            // delay slot on the fall-thru path
-            if(dops[i].likely) {
-              u=b;
-              gte_u=gte_b;
-              if(i<slen-1) {
-                u&=unneeded_reg[i+2];
-                gte_u&=gte_unneeded[i+2];
-              }
-            } else {
-              u&=b;
-              gte_u&=gte_b;
-            }
+            u&=b;
+            gte_u&=gte_b;
             if(i<slen-1) {
               branch_unneeded_reg[i]&=unneeded_reg[i+2];
             } else {
@@ -6228,12 +6157,12 @@ void clean_registers(int istart,int iend,int wr)
   }
   for (i=iend;i>=istart;i--)
   {
-    if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+    if(dops[i].is_jump)
     {
       if(ba[i]<start || ba[i]>=(start+slen*4))
       {
         // Branch out of this block, flush all regs
-        if (is_ujump(i))
+        if (dops[i].is_ujump)
         {
           // Unconditional branch
           will_dirty_i=0;
@@ -6266,7 +6195,7 @@ void clean_registers(int istart,int iend,int wr)
           // Merge in delay slot (will dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
-              if(!dops[i].likely) {
+              if (1) { // !dops[i].likely) {
                 // Might not dirty if likely branch is not taken
                 if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
                 if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
@@ -6313,7 +6242,7 @@ void clean_registers(int istart,int iend,int wr)
         // Internal branch
         if(ba[i]<=start+i*4) {
           // Backward branch
-          if (is_ujump(i))
+          if (dops[i].is_ujump)
           {
             // Unconditional branch
             temp_will_dirty=0;
@@ -6344,7 +6273,7 @@ void clean_registers(int istart,int iend,int wr)
             // Merge in delay slot (will dirty)
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if(!dops[i].likely) {
+                if (1) { // !dops[i].likely) {
                   // Will not dirty if likely branch is not taken
                   if((branch_regs[i].regmap[r]&63)==dops[i].rt1) temp_will_dirty|=1<<r;
                   if((branch_regs[i].regmap[r]&63)==dops[i].rt2) temp_will_dirty|=1<<r;
@@ -6410,7 +6339,7 @@ void clean_registers(int istart,int iend,int wr)
         }
         /*else*/ if(1)
         {
-          if (is_ujump(i))
+          if (dops[i].is_ujump)
           {
             // Unconditional branch
             will_dirty_i=0;
@@ -6470,7 +6399,7 @@ void clean_registers(int istart,int iend,int wr)
             // Merge in delay slot
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if(!dops[i].likely) {
+                if (1) { // !dops[i].likely) {
                   // Might not dirty if likely branch is not taken
                   if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
                   if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
@@ -6539,7 +6468,7 @@ void clean_registers(int istart,int iend,int wr)
         if((regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
         if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
         if(i>istart) {
-          if(dops[i].itype!=RJUMP&&dops[i].itype!=UJUMP&&dops[i].itype!=CJUMP&&dops[i].itype!=SJUMP)
+          if (!dops[i].is_jump)
           {
             // Don't store a register immediately after writing it,
             // may prevent dual-issue.
@@ -6557,9 +6486,9 @@ void clean_registers(int istart,int iend,int wr)
         regs[i].dirty|=will_dirty_i;
         #ifndef DESTRUCTIVE_WRITEBACK
         regs[i].dirty&=wont_dirty_i;
-        if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+        if(dops[i].is_jump)
         {
-          if (i < iend-1 && !is_ujump(i)) {
+          if (i < iend-1 && !dops[i].is_ujump) {
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
                 if(regs[i].regmap[r]==regmap_pre[i+2][r]) {
@@ -7044,7 +6973,6 @@ int new_recompile_block(u_int addr)
 
   for(i=0;!done;i++) {
     dops[i].bt=0;
-    dops[i].likely=0;
     dops[i].ooo=0;
     op2=0;
     minimum_free_regs[i]=0;
@@ -7302,7 +7230,6 @@ int new_recompile_block(u_int addr)
         if(op&2) { // BGTZ/BLEZ
           dops[i].rs2=0;
         }
-        dops[i].likely=(op>>4)?1:0;
         break;
       case SJUMP:
         dops[i].rs1=(source[i]>>21)&0x1f;
@@ -7313,7 +7240,6 @@ int new_recompile_block(u_int addr)
           dops[i].rt1=31;
           // NOTE: If the branch is not taken, r31 is still overwritten
         }
-        dops[i].likely=(op2&2)?1:0;
         break;
       case ALU:
         dops[i].rs1=(source[i]>>21)&0x1f; // source
@@ -7457,11 +7383,14 @@ int new_recompile_block(u_int addr)
     else if (type == SJUMP && dops[i].rs1 == 0 && (op2 & 1))
       dops[i].itype = type = UJUMP;
 
+    dops[i].is_jump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP || dops[i].itype == CJUMP || dops[i].itype == SJUMP);
+    dops[i].is_ujump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP); // || (source[i] >> 16) == 0x1000 // beq r0,r0
+
     /* messy cases to just pass over to the interpreter */
-    if (i > 0 && is_jump(i-1)) {
+    if (i > 0 && dops[i-1].is_jump) {
       int do_in_intrp=0;
       // branch in delay slot?
-      if (is_jump(i)) {
+      if (dops[i].is_jump) {
         // don't handle first branch and call interpreter if it's hit
         SysPrintf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
         do_in_intrp=1;
@@ -7476,7 +7405,7 @@ int new_recompile_block(u_int addr)
           dops[t+1].bt=1; // expected return from interpreter
         }
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
-              !(i>=3&&is_jump(i-3))) {
+              !(i>=3&&dops[i-3].is_jump)) {
           // v0 overwrite like this is a sign of trouble, bail out
           SysPrintf("v0 overwrite @%08x (%08x)\n", addr + i*4, addr);
           do_in_intrp=1;
@@ -7493,7 +7422,7 @@ int new_recompile_block(u_int addr)
     }
 
     /* Is this the end of the block? */
-    if (i > 0 && is_ujump(i-1)) {
+    if (i > 0 && dops[i-1].is_ujump) {
       if(dops[i-1].rt1==0) { // Continue past subroutine call (JAL)
         done=2;
       }
@@ -7529,7 +7458,7 @@ int new_recompile_block(u_int addr)
     }
   }
   slen=i;
-  if(dops[i-1].itype==UJUMP||dops[i-1].itype==CJUMP||dops[i-1].itype==SJUMP||dops[i-1].itype==RJUMP) {
+  if (dops[i-1].is_jump) {
     if(start+i*4==pagelimit) {
       dops[i-1].itype=SPAN;
     }
@@ -7582,7 +7511,7 @@ int new_recompile_block(u_int addr)
     regs[i].wasconst=current.isconst;
     regs[i].wasdirty=current.dirty;
     regs[i].loadedconst=0;
-    if(dops[i].itype!=UJUMP&&dops[i].itype!=CJUMP&&dops[i].itype!=SJUMP&&dops[i].itype!=RJUMP) {
+    if (!dops[i].is_jump) {
       if(i+1<slen) {
         current.u=unneeded_reg[i+1]&~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2));
         current.u|=1;
@@ -8106,7 +8035,7 @@ int new_recompile_block(u_int addr)
           break;
       }
 
-      if (is_ujump(i-1))
+      if (dops[i-1].is_ujump)
       {
         if(dops[i-1].rt1==31) // JAL/JALR
         {
@@ -8148,7 +8077,7 @@ int new_recompile_block(u_int addr)
 
     // Count cycles in between branches
     ccadj[i]=cc;
-    if(i>0&&(dops[i-1].itype==RJUMP||dops[i-1].itype==UJUMP||dops[i-1].itype==CJUMP||dops[i-1].itype==SJUMP||dops[i].itype==SYSCALL||dops[i].itype==HLECALL))
+    if (i > 0 && (dops[i-1].is_jump || dops[i].itype == SYSCALL || dops[i].itype == HLECALL))
     {
       cc=0;
     }
@@ -8198,7 +8127,7 @@ int new_recompile_block(u_int addr)
   for (i=slen-1;i>=0;i--)
   {
     int hr;
-    if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+    if(dops[i].is_jump)
     {
       if(ba[i]<start || ba[i]>=(start+slen*4))
       {
@@ -8219,7 +8148,7 @@ int new_recompile_block(u_int addr)
         }
       }
       // Conditional branch may need registers for following instructions
-      if (!is_ujump(i))
+      if (!dops[i].is_ujump)
       {
         if(i<slen-2) {
           nr|=needed_reg[i+2];
@@ -8236,12 +8165,8 @@ int new_recompile_block(u_int addr)
       // Merge in delay slot
       for(hr=0;hr<HOST_REGS;hr++)
       {
-        if(!dops[i].likely) {
-          // These are overwritten unless the branch is "likely"
-          // and the delay slot is nullified if not taken
-          if(dops[i+1].rt1&&dops[i+1].rt1==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
-          if(dops[i+1].rt2&&dops[i+1].rt2==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
-        }
+        if(dops[i+1].rt1&&dops[i+1].rt1==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
+        if(dops[i+1].rt2&&dops[i+1].rt2==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
         if(dops[i+1].rs1==regmap_pre[i][hr]) nr|=1<<hr;
         if(dops[i+1].rs2==regmap_pre[i][hr]) nr|=1<<hr;
         if(dops[i+1].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
@@ -8316,23 +8241,7 @@ int new_recompile_block(u_int addr)
     {
       if(!((nr>>hr)&1)) {
         if(regs[i].regmap_entry[hr]!=CCREG) regs[i].regmap_entry[hr]=-1;
-        if((regs[i].regmap[hr]&63)!=dops[i].rs1 && (regs[i].regmap[hr]&63)!=dops[i].rs2 &&
-           (regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
-           (regs[i].regmap[hr]&63)!=PTEMP && (regs[i].regmap[hr]&63)!=CCREG)
-        {
-          if (!is_ujump(i))
-          {
-            if(dops[i].likely) {
-              regs[i].regmap[hr]=-1;
-              regs[i].isconst&=~(1<<hr);
-              if(i<slen-2) {
-                regmap_pre[i+2][hr]=-1;
-                regs[i+2].wasconst&=~(1<<hr);
-              }
-            }
-          }
-        }
-        if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+        if(dops[i].is_jump)
         {
           int map=0,temp=0;
           if(dops[i+1].itype==STORE || dops[i+1].itype==STORELR ||
@@ -8364,9 +8273,9 @@ int new_recompile_block(u_int addr)
             {
               branch_regs[i].regmap[hr]=-1;
               branch_regs[i].regmap_entry[hr]=-1;
-              if (!is_ujump(i))
+              if (!dops[i].is_ujump)
               {
-                if(!dops[i].likely&&i<slen-2) {
+                if (i < slen-2) {
                   regmap_pre[i+2][hr]=-1;
                   regs[i+2].wasconst&=~(1<<hr);
                 }
@@ -8433,7 +8342,7 @@ int new_recompile_block(u_int addr)
       ||dops[i+1].itype==COP2||dops[i+1].itype==C2LS||dops[i+1].itype==C2OP)
       {
         int t=(ba[i]-start)>>2;
-        if(t>0&&(dops[t-1].itype!=UJUMP&&dops[t-1].itype!=RJUMP&&dops[t-1].itype!=CJUMP&&dops[t-1].itype!=SJUMP)) // loop_preload can't handle jumps into delay slots
+        if(t > 0 && !dops[t-1].is_jump) // loop_preload can't handle jumps into delay slots
         if(t<2||(dops[t-2].itype!=UJUMP&&dops[t-2].itype!=RJUMP)||dops[t-2].rt1!=31) // call/ret assumes no registers allocated
         for(hr=0;hr<HOST_REGS;hr++)
         {
@@ -8506,7 +8415,7 @@ int new_recompile_block(u_int addr)
                         //printf("no-match due to different register\n");
                         break;
                       }
-                      if(dops[k-2].itype==UJUMP||dops[k-2].itype==RJUMP||dops[k-2].itype==CJUMP||dops[k-2].itype==SJUMP) {
+                      if (dops[k-2].is_jump) {
                         //printf("no-match due to branch\n");
                         break;
                       }
@@ -8555,7 +8464,7 @@ int new_recompile_block(u_int addr)
                       branch_regs[i].dirty|=(1<<hr)&regs[i].dirty;
                       branch_regs[i].wasconst&=~(1<<hr);
                       branch_regs[i].isconst&=~(1<<hr);
-                      if (!is_ujump(i)) {
+                      if (!dops[i].is_ujump) {
                         regmap_pre[i+2][hr]=f_regmap[hr];
                         regs[i+2].wasdirty&=~(1<<hr);
                         regs[i+2].wasdirty|=(1<<hr)&regs[i].dirty;
@@ -8570,13 +8479,13 @@ int new_recompile_block(u_int addr)
                     regs[k].dirty&=~(1<<hr);
                     regs[k].wasconst&=~(1<<hr);
                     regs[k].isconst&=~(1<<hr);
-                    if(dops[k].itype==UJUMP||dops[k].itype==RJUMP||dops[k].itype==CJUMP||dops[k].itype==SJUMP) {
+                    if (dops[k].is_jump) {
                       branch_regs[k].regmap_entry[hr]=f_regmap[hr];
                       branch_regs[k].regmap[hr]=f_regmap[hr];
                       branch_regs[k].dirty&=~(1<<hr);
                       branch_regs[k].wasconst&=~(1<<hr);
                       branch_regs[k].isconst&=~(1<<hr);
-                      if (!is_ujump(k)) {
+                      if (!dops[k].is_ujump) {
                         regmap_pre[k+2][hr]=f_regmap[hr];
                         regs[k+2].wasdirty&=~(1<<hr);
                       }
@@ -8598,7 +8507,7 @@ int new_recompile_block(u_int addr)
                   //printf("no-match due to different register\n");
                   break;
                 }
-                if (is_ujump(j))
+                if (dops[j].is_ujump)
                 {
                   // Stop on unconditional branch
                   break;
@@ -8714,7 +8623,7 @@ int new_recompile_block(u_int addr)
   // to use, which can avoid a load-use penalty on certain CPUs.
   for(i=0;i<slen-1;i++)
   {
-    if(!i||(dops[i-1].itype!=UJUMP&&dops[i-1].itype!=CJUMP&&dops[i-1].itype!=SJUMP&&dops[i-1].itype!=RJUMP))
+    if (!i || !dops[i-1].is_jump)
     {
       if(!dops[i+1].bt)
       {
@@ -8994,7 +8903,7 @@ int new_recompile_block(u_int addr)
       #endif
       printf("\n");
     }
-    if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP) {
+    if(dops[i].is_jump) {
       #if defined(__i386__) || defined(__x86_64__)
       printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d dirty: ",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
       if(branch_regs[i].dirty&1) printf("eax ");
@@ -9064,18 +8973,18 @@ int new_recompile_block(u_int addr)
     } else {
       speculate_register_values(i);
       #ifndef DESTRUCTIVE_WRITEBACK
-      if (i < 2 || !is_ujump(i-2))
+      if (i < 2 || !dops[i-2].is_ujump)
       {
         wb_valid(regmap_pre[i],regs[i].regmap_entry,dirty_pre,regs[i].wasdirty,unneeded_reg[i]);
       }
-      if((dops[i].itype==CJUMP||dops[i].itype==SJUMP)&&!dops[i].likely) {
+      if((dops[i].itype==CJUMP||dops[i].itype==SJUMP)) {
         dirty_pre=branch_regs[i].dirty;
       }else{
         dirty_pre=regs[i].dirty;
       }
       #endif
       // write back
-      if (i < 2 || !is_ujump(i-2))
+      if (i < 2 || !dops[i-2].is_ujump)
       {
         wb_invalidate(regmap_pre[i],regs[i].regmap_entry,regs[i].wasdirty,unneeded_reg[i]);
         loop_preload(regmap_pre[i],regs[i].regmap_entry);
@@ -9091,7 +9000,7 @@ int new_recompile_block(u_int addr)
       load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i].rs1,dops[i].rs2);
       address_generation(i,&regs[i],regs[i].regmap_entry);
       load_consts(regmap_pre[i],regs[i].regmap,i);
-      if(dops[i].itype==RJUMP||dops[i].itype==UJUMP||dops[i].itype==CJUMP||dops[i].itype==SJUMP)
+      if(dops[i].is_jump)
       {
         // Load the delay slot registers if necessary
         if(dops[i+1].rs1!=dops[i].rs1&&dops[i+1].rs1!=dops[i].rs2&&(dops[i+1].rs1!=dops[i].rt1||dops[i].rt1==0))
@@ -9169,7 +9078,7 @@ int new_recompile_block(u_int addr)
         case SPAN:
           pagespan_assemble(i,&regs[i]);break;
       }
-      if (is_ujump(i))
+      if (dops[i].is_ujump)
         literal_pool(1024);
       else
         literal_pool_jumpover(256);
@@ -9183,8 +9092,8 @@ int new_recompile_block(u_int addr)
   // If the block did not end with an unconditional branch,
   // add a jump to the next instruction.
   else if (i > 1) {
-    if(!is_ujump(i-2)&&dops[i-1].itype!=SPAN) {
-      assert(dops[i-1].itype!=UJUMP&&dops[i-1].itype!=CJUMP&&dops[i-1].itype!=SJUMP&&dops[i-1].itype!=RJUMP);
+    if (!dops[i-2].is_ujump && dops[i-1].itype != SPAN) {
+      assert(!dops[i-1].is_jump);
       assert(i==slen);
       if(dops[i-2].itype!=CJUMP&&dops[i-2].itype!=SJUMP) {
         store_regs_bt(regs[i-1].regmap,regs[i-1].dirty,start+i*4);
@@ -9192,15 +9101,10 @@ int new_recompile_block(u_int addr)
           emit_loadreg(CCREG,HOST_CCREG);
         emit_addimm(HOST_CCREG,CLOCK_ADJUST(ccadj[i-1]+1),HOST_CCREG);
       }
-      else if(!dops[i-2].likely)
+      else
       {
         store_regs_bt(branch_regs[i-2].regmap,branch_regs[i-2].dirty,start+i*4);
         assert(branch_regs[i-2].regmap[HOST_CCREG]==CCREG);
-      }
-      else
-      {
-        store_regs_bt(regs[i-2].regmap,regs[i-2].dirty,start+i*4);
-        assert(regs[i-2].regmap[HOST_CCREG]==CCREG);
       }
       add_to_linker(out,start+i*4,0);
       emit_jmp(0);
@@ -9209,7 +9113,7 @@ int new_recompile_block(u_int addr)
   else
   {
     assert(i>0);
-    assert(dops[i-1].itype!=UJUMP&&dops[i-1].itype!=CJUMP&&dops[i-1].itype!=SJUMP&&dops[i-1].itype!=RJUMP);
+    assert(!dops[i-1].is_jump);
     store_regs_bt(regs[i-1].regmap,regs[i-1].dirty,start+i*4);
     if(regs[i-1].regmap[HOST_CCREG]!=CCREG)
       emit_loadreg(CCREG,HOST_CCREG);
