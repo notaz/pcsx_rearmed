@@ -206,7 +206,7 @@ static void *get_pointer(void *stub)
 {
   //printf("get_pointer(%x)\n",(int)stub);
   int *i_ptr=find_extjump_insn(stub);
-  assert((*i_ptr&0x0f000000)==0x0a000000);
+  assert((*i_ptr&0x0f000000)==0x0a000000); // b
   return (u_char *)i_ptr+((*i_ptr<<8)>>6)+8;
 }
 
@@ -1946,26 +1946,26 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
 }
 
 // this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
-static void do_dirty_stub_emit_args(u_int arg0)
+static void do_dirty_stub_emit_args(u_int arg0, u_int source_len)
 {
   #ifndef HAVE_ARMV7
   emit_loadlp((int)source, 1);
   emit_loadlp((int)copy, 2);
-  emit_loadlp(slen*4, 3);
+  emit_loadlp(source_len, 3);
   #else
   emit_movw(((u_int)source)&0x0000FFFF, 1);
   emit_movw(((u_int)copy)&0x0000FFFF, 2);
   emit_movt(((u_int)source)&0xFFFF0000, 1);
   emit_movt(((u_int)copy)&0xFFFF0000, 2);
-  emit_movw(slen*4, 3);
+  emit_movw(source_len, 3);
   #endif
   emit_movimm(arg0, 0);
 }
 
-static void *do_dirty_stub(int i)
+static void *do_dirty_stub(int i, u_int source_len)
 {
   assem_debug("do_dirty_stub %x\n",start+i*4);
-  do_dirty_stub_emit_args(start + i*4);
+  do_dirty_stub_emit_args(start + i*4, source_len);
   emit_far_call(verify_code);
   void *entry = out;
   load_regs_entry(i);
@@ -1975,9 +1975,9 @@ static void *do_dirty_stub(int i)
   return entry;
 }
 
-static void do_dirty_stub_ds()
+static void do_dirty_stub_ds(u_int source_len)
 {
-  do_dirty_stub_emit_args(start + 1);
+  do_dirty_stub_emit_args(start + 1, source_len);
   emit_far_call(verify_code_ds);
 }
 

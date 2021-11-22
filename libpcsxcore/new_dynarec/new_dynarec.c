@@ -1172,7 +1172,7 @@ static void invalidate_page(u_int page)
     inv_debug("INVALIDATE: kill pointer to %x (%p)\n",head->vaddr,head->addr);
     void *host_addr=find_extjump_insn(head->addr);
     mark_clear_cache(host_addr);
-    set_jump_target(host_addr, head->addr);
+    set_jump_target(host_addr, head->addr); // point back to dyna_linker
     next=head->next;
     free(head);
     head=next;
@@ -1321,14 +1321,13 @@ static void do_invstub(int n)
 
 // Add an entry to jump_out after making a link
 // src should point to code by emit_extjump2()
-void add_link(u_int vaddr,void *src)
+void add_jump_out(u_int vaddr,void *src)
 {
   u_int page=get_page(vaddr);
-  inv_debug("add_link: %p -> %x (%d)\n",src,vaddr,page);
+  inv_debug("add_jump_out: %p -> %x (%d)\n",src,vaddr,page);
   check_extjump2(src);
   ll_add(jump_out+page,vaddr,src);
-  //void *ptr=get_pointer(src);
-  //inv_debug("add_link: Pointer is to %p\n",ptr);
+  //inv_debug("add_jump_out:  to %p\n",get_pointer(src));
 }
 
 // If a code block was found to be unmodified (bit was set in
@@ -5972,7 +5971,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
   emit_extjump_ds(branch_addr, target_addr);
   if(compiled_target_addr) {
     set_jump_target(branch_addr, compiled_target_addr);
-    add_link(target_addr,stub);
+    add_jump_out(target_addr,stub);
   }
   else set_jump_target(branch_addr, stub);
   if(likely[i]) {
@@ -5987,7 +5986,7 @@ static void pagespan_assemble(int i,struct regstat *i_regs)
     emit_extjump_ds(branch_addr, target_addr);
     if(compiled_target_addr) {
       set_jump_target(branch_addr, compiled_target_addr);
-      add_link(target_addr,stub);
+      add_jump_out(target_addr,stub);
     }
     else set_jump_target(branch_addr, stub);
   }
@@ -6001,7 +6000,7 @@ static void pagespan_ds()
   u_int page=get_page(vaddr);
   u_int vpage=get_vpage(vaddr);
   ll_add(jump_dirty+vpage,vaddr,(void *)out);
-  do_dirty_stub_ds();
+  do_dirty_stub_ds(slen*4);
   ll_add(jump_in+page,vaddr,(void *)out);
   assert(regs[0].regmap_entry[HOST_CCREG]==CCREG);
   if(regs[0].regmap[HOST_CCREG]!=CCREG)
@@ -9249,10 +9248,14 @@ int new_recompile_block(u_int addr)
         literal_pool_jumpover(256);
     }
   }
-  //assert(is_ujump(i-2));
+
+  assert(slen > 0);
+  if (itype[slen-1] == INTCALL) {
+    // no ending needed for this block since INTCALL never returns
+  }
   // If the block did not end with an unconditional branch,
   // add a jump to the next instruction.
-  if(i>1) {
+  else if (i > 1) {
     if(!is_ujump(i-2)&&itype[i-1]!=SPAN) {
       assert(itype[i-1]!=UJUMP&&itype[i-1]!=CJUMP&&itype[i-1]!=SJUMP&&itype[i-1]!=RJUMP);
       assert(i==slen);
@@ -9332,7 +9335,7 @@ int new_recompile_block(u_int addr)
       emit_extjump(link_addr[i].addr, link_addr[i].target);
       if (addr) {
         set_jump_target(link_addr[i].addr, addr);
-        add_link(link_addr[i].target,stub);
+        add_jump_out(link_addr[i].target,stub);
       }
       else
         set_jump_target(link_addr[i].addr, stub);
@@ -9350,8 +9353,17 @@ int new_recompile_block(u_int addr)
       //#endif
     }
   }
+
+  u_int source_len = slen*4;
+  if (itype[slen-1] == INTCALL && source_len > 4)
+    // no need to treat the last instruction as compiled
+    // as interpreter fully handles it
+    source_len -= 4;
+
+  if ((u_char *)copy + source_len > (u_char *)shadow + sizeof(shadow))
+    copy = shadow;
+
   // External Branch Targets (jump_in)
-  if(copy+slen*4>(void *)shadow+sizeof(shadow)) copy=shadow;
   for(i=0;i<slen;i++)
   {
     if(bt[i]||i==0)
@@ -9366,7 +9378,7 @@ int new_recompile_block(u_int addr)
           assem_debug("%p (%d) <- %8x\n",instr_addr[i],i,start+i*4);
           assem_debug("jump_in: %x\n",start+i*4);
           ll_add(jump_dirty+vpage,vaddr,out);
-          void *entry_point = do_dirty_stub(i);
+          void *entry_point = do_dirty_stub(i, source_len);
           ll_add_flags(jump_in+page,vaddr,state_rflags,entry_point);
           // If there was an existing entry in the hash table,
           // replace it with the new address.
@@ -9389,8 +9401,8 @@ int new_recompile_block(u_int addr)
   #endif
   assert(out - (u_char *)beginning < MAX_OUTPUT_BLOCK_SIZE);
   //printf("shadow buffer: %p-%p\n",copy,(u_char *)copy+slen*4);
-  memcpy(copy,source,slen*4);
-  copy+=slen*4;
+  memcpy(copy, source, source_len);
+  copy += source_len;
 
   end_block(beginning);
 

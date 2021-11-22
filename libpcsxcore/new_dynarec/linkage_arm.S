@@ -26,7 +26,7 @@
 
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
-#define add_link		ESYM(add_link)
+#define add_jump_out		ESYM(add_jump_out)
 #define new_recompile_block	ESYM(new_recompile_block)
 #define get_addr		ESYM(get_addr)
 #define get_addr_ht		ESYM(get_addr_ht)
@@ -177,7 +177,7 @@ ptr_hash_table:
 	orrcs	r2, r6, #2048
 	ldr	r5, [r3, r2, lsl #2]
 	lsl	r12, r12, #8
-	add	r6, r1, r12, asr #6
+	add	r6, r1, r12, asr #6  /* old target */
 	mov	r8, #0
 	/* jump_in lookup */
 1:
@@ -197,7 +197,7 @@ ptr_hash_table:
 
 	mov	r5, r1
 	mov	r1, r6
-	bl	add_link
+	bl	add_jump_out
 	sub	r2, r8, r5
 	and	r1, r7, #0xff000000
 	lsl	r2, r2, #6

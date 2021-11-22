@@ -44,7 +44,7 @@ static void set_jump_target(void *addr, void *target)
         || (*ptr&0x7e000000) == 0x34000000) { // cbz/cbnz
     // Conditional branch are limited to +/- 1MB
     // block max size is 256k so branching beyond the +/- 1MB limit
-    // should only happen when jumping to an already compiled block (see add_link)
+    // should only happen when jumping to an already compiled block (see add_jump_out)
     // a workaround would be to do a trampoline jump via a stub at the end of the block
     assert(-1048576 <= offset && offset < 1048576);
     *ptr=(*ptr&0xFF00000F)|(((offset>>2)&0x7ffff)<<5);
@@ -1665,12 +1665,12 @@ static int verify_code_arm64(const void *source, const void *copy, u_int size)
 }
 
 // this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
-static void do_dirty_stub_base(u_int vaddr)
+static void do_dirty_stub_base(u_int vaddr, u_int source_len)
 {
-  assert(slen <= MAXBLOCK);
+  assert(source_len <= MAXBLOCK*4);
   emit_loadlp_ofs(0, 0); // ldr x1, source
   emit_loadlp_ofs(0, 1); // ldr x2, copy
-  emit_movz(slen*4, 2);
+  emit_movz(source_len, 2);
   emit_far_call(verify_code_arm64);
   void *jmp = out;
   emit_cbz(0, 0);
@@ -1685,7 +1685,7 @@ static void assert_dirty_stub(const u_int *ptr)
 {
   assert((ptr[0] & 0xff00001f) == 0x58000000); // ldr x0, source
   assert((ptr[1] & 0xff00001f) == 0x58000001); // ldr x1, copy
-  assert((ptr[2] & 0xffe0001f) == 0x52800002); // movz w2, #slen*4
+  assert((ptr[2] & 0xffe0001f) == 0x52800002); // movz w2, #source_len
   assert( ptr[8]               == 0xd61f0000); // br x0
 }
 
@@ -1706,11 +1706,11 @@ static void do_dirty_stub_emit_literals(u_int *loadlps)
   output_w64((uintptr_t)copy);
 }
 
-static void *do_dirty_stub(int i)
+static void *do_dirty_stub(int i, u_int source_len)
 {
   assem_debug("do_dirty_stub %x\n",start+i*4);
   u_int *loadlps = (void *)out;
-  do_dirty_stub_base(start + i*4);
+  do_dirty_stub_base(start + i*4, source_len);
   void *entry = out;
   load_regs_entry(i);
   if (entry == out)
@@ -1720,10 +1720,10 @@ static void *do_dirty_stub(int i)
   return entry;
 }
 
-static void do_dirty_stub_ds(void)
+static void do_dirty_stub_ds(u_int source_len)
 {
   u_int *loadlps = (void *)out;
-  do_dirty_stub_base(start + 1);
+  do_dirty_stub_base(start + 1, source_len);
   void *lit_jumpover = out;
   emit_jmp(out + 8*2);
   do_dirty_stub_emit_literals(loadlps);
@@ -1760,7 +1760,7 @@ static int verify_dirty(const u_int *ptr)
   assert_dirty_stub(ptr);
   source = (void *)get_from_ldr_literal(&ptr[0]); // ldr x1, source
   copy   = (void *)get_from_ldr_literal(&ptr[1]); // ldr x1, copy
-  len = get_from_movz(&ptr[2]);                   // movz w3, #slen*4
+  len = get_from_movz(&ptr[2]);                   // movz w3, #source_len
   return !memcmp(source, copy, len);
 }
 
@@ -1780,7 +1780,7 @@ static void get_bounds(void *addr, u_char **start, u_char **end)
   const u_int *ptr = addr;
   assert_dirty_stub(ptr);
   *start = (u_char *)get_from_ldr_literal(&ptr[0]); // ldr x1, source
-  *end = *start + get_from_movz(&ptr[2]);           // movz w3, #slen*4
+  *end = *start + get_from_movz(&ptr[2]);           // movz w3, #source_len
 }
 
 /* Special assem */
