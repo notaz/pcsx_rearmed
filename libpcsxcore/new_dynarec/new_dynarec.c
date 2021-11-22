@@ -1095,12 +1095,14 @@ void remove_hash(int vaddr)
   }
 }
 
-void ll_remove_matching_addrs(struct ll_entry **head,uintptr_t addr,int shift)
+static void ll_remove_matching_addrs(struct ll_entry **head,
+  uintptr_t base_offs_s, int shift)
 {
   struct ll_entry *next;
   while(*head) {
-    if(((uintptr_t)((*head)->addr)>>shift)==(addr>>shift) ||
-       ((uintptr_t)((*head)->addr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift))
+    uintptr_t o1 = (u_char *)(*head)->addr - ndrc->translation_cache;
+    uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
     {
       inv_debug("EXP: Remove pointer to %p (%x)\n",(*head)->addr,(*head)->vaddr);
       remove_hash((*head)->vaddr);
@@ -1131,13 +1133,15 @@ void ll_clear(struct ll_entry **head)
 }
 
 // Dereference the pointers and remove if it matches
-static void ll_kill_pointers(struct ll_entry *head,uintptr_t addr,int shift)
+static void ll_kill_pointers(struct ll_entry *head,
+  uintptr_t base_offs_s, int shift)
 {
   while(head) {
-    uintptr_t ptr = (uintptr_t)get_pointer(head->addr);
-    inv_debug("EXP: Lookup pointer to %lx at %p (%x)\n",(long)ptr,head->addr,head->vaddr);
-    if(((ptr>>shift)==(addr>>shift)) ||
-       (((ptr-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(addr>>shift)))
+    u_char *ptr = get_pointer(head->addr);
+    uintptr_t o1 = ptr - ndrc->translation_cache;
+    uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+    inv_debug("EXP: Lookup pointer to %p at %p (%x)\n",ptr,head->addr,head->vaddr);
+    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
     {
       inv_debug("EXP: Kill pointer at %p (%x)\n",head->addr,head->vaddr);
       void *host_addr=find_extjump_insn(head->addr);
@@ -9414,34 +9418,37 @@ int new_recompile_block(u_int addr)
   while(expirep!=end)
   {
     int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    uintptr_t base=(uintptr_t)ndrc->translation_cache+((expirep>>13)<<shift); // Base address of this block
+    uintptr_t base_offs = ((uintptr_t)(expirep >> 13) << shift); // Base offset of this block
+    uintptr_t base_offs_s = base_offs >> shift;
     inv_debug("EXP: Phase %d\n",expirep);
     switch((expirep>>11)&3)
     {
       case 0:
         // Clear jump_in and jump_dirty
-        ll_remove_matching_addrs(jump_in+(expirep&2047),base,shift);
-        ll_remove_matching_addrs(jump_dirty+(expirep&2047),base,shift);
-        ll_remove_matching_addrs(jump_in+2048+(expirep&2047),base,shift);
-        ll_remove_matching_addrs(jump_dirty+2048+(expirep&2047),base,shift);
+        ll_remove_matching_addrs(jump_in+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_dirty+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_in+2048+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_dirty+2048+(expirep&2047),base_offs_s,shift);
         break;
       case 1:
         // Clear pointers
-        ll_kill_pointers(jump_out[expirep&2047],base,shift);
-        ll_kill_pointers(jump_out[(expirep&2047)+2048],base,shift);
+        ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
+        ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
         break;
       case 2:
         // Clear hash table
         for(i=0;i<32;i++) {
           struct ht_entry *ht_bin = &hash_table[((expirep&2047)<<5)+i];
-          if (((uintptr_t)ht_bin->tcaddr[1]>>shift) == (base>>shift) ||
-             (((uintptr_t)ht_bin->tcaddr[1]-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(base>>shift)) {
+          uintptr_t o1 = (u_char *)ht_bin->tcaddr[1] - ndrc->translation_cache;
+          uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
             inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[1],ht_bin->tcaddr[1]);
             ht_bin->vaddr[1] = -1;
             ht_bin->tcaddr[1] = NULL;
           }
-          if (((uintptr_t)ht_bin->tcaddr[0]>>shift) == (base>>shift) ||
-             (((uintptr_t)ht_bin->tcaddr[0]-MAX_OUTPUT_BLOCK_SIZE)>>shift)==(base>>shift)) {
+          o1 = (u_char *)ht_bin->tcaddr[0] - ndrc->translation_cache;
+          o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
             inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[0],ht_bin->tcaddr[0]);
             ht_bin->vaddr[0] = ht_bin->vaddr[1];
             ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
@@ -9454,8 +9461,8 @@ int new_recompile_block(u_int addr)
         // Clear jump_out
         if((expirep&2047)==0)
           do_clear_cache();
-        ll_remove_matching_addrs(jump_out+(expirep&2047),base,shift);
-        ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base,shift);
+        ll_remove_matching_addrs(jump_out+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base_offs_s,shift);
         break;
     }
     expirep=(expirep+1)&65535;
