@@ -485,6 +485,11 @@ static int is_jump(int i)
   return itype[i] == RJUMP || itype[i] == UJUMP || itype[i] == CJUMP || itype[i] == SJUMP;
 }
 
+static int ds_writes_rjump_rs(int i)
+{
+  return rs1[i] != 0 && (rs1[i] == rt1[i+1] || rs1[i] == rt2[i+1]);
+}
+
 static u_int get_page(u_int vaddr)
 {
   u_int page=vaddr&~0xe0000000;
@@ -4964,7 +4969,7 @@ static void do_ccstub(int n)
     if(itype[i]==RJUMP)
     {
       int r=get_reg(branch_regs[i].regmap,rs1[i]);
-      if(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]) {
+      if (ds_writes_rjump_rs(i)) {
         r=get_reg(branch_regs[i].regmap,RTEMP);
       }
       emit_writeword(r,&pcaddr);
@@ -5122,7 +5127,7 @@ static void rjump_assemble(int i,struct regstat *i_regs)
   int ra_done=0;
   rs=get_reg(branch_regs[i].regmap,rs1[i]);
   assert(rs>=0);
-  if(rs1[i]==rt1[i+1]||rs1[i]==rt2[i+1]) {
+  if (ds_writes_rjump_rs(i)) {
     // Delay slot abuse, make a copy of the branch address register
     temp=get_reg(branch_regs[i].regmap,RTEMP);
     assert(temp>=0);
@@ -7193,18 +7198,18 @@ int new_recompile_block(u_int addr)
         {
           case 0x00: strcpy(insn[i],"BLTZ"); type=SJUMP; break;
           case 0x01: strcpy(insn[i],"BGEZ"); type=SJUMP; break;
-          case 0x02: strcpy(insn[i],"BLTZL"); type=SJUMP; break;
-          case 0x03: strcpy(insn[i],"BGEZL"); type=SJUMP; break;
-          case 0x08: strcpy(insn[i],"TGEI"); type=NI; break;
-          case 0x09: strcpy(insn[i],"TGEIU"); type=NI; break;
-          case 0x0A: strcpy(insn[i],"TLTI"); type=NI; break;
-          case 0x0B: strcpy(insn[i],"TLTIU"); type=NI; break;
-          case 0x0C: strcpy(insn[i],"TEQI"); type=NI; break;
-          case 0x0E: strcpy(insn[i],"TNEI"); type=NI; break;
+          //case 0x02: strcpy(insn[i],"BLTZL"); type=SJUMP; break;
+          //case 0x03: strcpy(insn[i],"BGEZL"); type=SJUMP; break;
+          //case 0x08: strcpy(insn[i],"TGEI"); type=NI; break;
+          //case 0x09: strcpy(insn[i],"TGEIU"); type=NI; break;
+          //case 0x0A: strcpy(insn[i],"TLTI"); type=NI; break;
+          //case 0x0B: strcpy(insn[i],"TLTIU"); type=NI; break;
+          //case 0x0C: strcpy(insn[i],"TEQI"); type=NI; break;
+          //case 0x0E: strcpy(insn[i],"TNEI"); type=NI; break;
           case 0x10: strcpy(insn[i],"BLTZAL"); type=SJUMP; break;
           case 0x11: strcpy(insn[i],"BGEZAL"); type=SJUMP; break;
-          case 0x12: strcpy(insn[i],"BLTZALL"); type=SJUMP; break;
-          case 0x13: strcpy(insn[i],"BGEZALL"); type=SJUMP; break;
+          //case 0x12: strcpy(insn[i],"BLTZALL"); type=SJUMP; break;
+          //case 0x13: strcpy(insn[i],"BGEZALL"); type=SJUMP; break;
         }
         break;
       case 0x02: strcpy(insn[i],"J"); type=UJUMP; break;
@@ -7532,10 +7537,23 @@ int new_recompile_block(u_int addr)
     else if(type==CJUMP||type==SJUMP)
       ba[i]=start+i*4+4+((signed int)((unsigned int)source[i]<<16)>>14);
     else ba[i]=-1;
+
+    /* simplify always (not)taken branches */
+    if (type == CJUMP && rs1[i] == rs2[i]) {
+      rs1[i] = rs2[i] = 0;
+      if (!(op & 1)) {
+        itype[i] = type = UJUMP;
+        rs2[i] = CCREG;
+      }
+    }
+    else if (type == SJUMP && rs1[i] == 0 && (op2 & 1))
+      itype[i] = type = UJUMP;
+
+    /* messy cases to just pass over to the interpreter */
     if (i > 0 && is_jump(i-1)) {
       int do_in_intrp=0;
       // branch in delay slot?
-      if(type==RJUMP||type==UJUMP||type==CJUMP||type==SJUMP) {
+      if (is_jump(i)) {
         // don't handle first branch and call interpreter if it's hit
         SysPrintf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
         do_in_intrp=1;
@@ -7565,6 +7583,7 @@ int new_recompile_block(u_int addr)
         i--; // don't compile the DS
       }
     }
+
     /* Is this the end of the block? */
     if (i > 0 && is_ujump(i-1)) {
       if(rt1[i-1]==0) { // Continue past subroutine call (JAL)
@@ -7751,7 +7770,7 @@ int new_recompile_block(u_int addr)
           clear_const(&current,rt1[i]);
           alloc_cc(&current,i);
           dirty_reg(&current,CCREG);
-          if(rs1[i]!=rt1[i+1]&&rs1[i]!=rt2[i+1]) {
+          if (!ds_writes_rjump_rs(i)) {
             alloc_reg(&current,i,rs1[i]);
             if (rt1[i]!=0) {
               alloc_reg(&current,i,rt1[i]);
