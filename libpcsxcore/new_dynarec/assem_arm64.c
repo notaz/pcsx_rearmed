@@ -1380,10 +1380,10 @@ static void do_readstub(int n)
   u_int reglist = stubs[n].e;
   const signed char *i_regmap = i_regs->regmap;
   int rt;
-  if(itype[i]==C1LS||itype[i]==C2LS||itype[i]==LOADLR) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||dops[i].itype==LOADLR) {
     rt=get_reg(i_regmap,FTEMP);
   }else{
-    rt=get_reg(i_regmap,rt1[i]);
+    rt=get_reg(i_regmap,dops[i].rt1);
   }
   assert(rs>=0);
   int r,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
@@ -1395,7 +1395,7 @@ static void do_readstub(int n)
       break;
     }
   }
-  if(rt>=0&&rt1[i]!=0)
+  if(rt>=0&&dops[i].rt1!=0)
     reglist&=~(1<<rt);
   if(temp==-1) {
     save_regs(reglist);
@@ -1410,7 +1410,7 @@ static void do_readstub(int n)
   emit_adds64(temp2,temp2,temp2);
   handler_jump=out;
   emit_jc(0);
-  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     switch(type) {
       case LOADB_STUB:  emit_ldrsb_dualindexed(temp2,rs,rt); break;
       case LOADBU_STUB: emit_ldrb_dualindexed(temp2,rs,rt); break;
@@ -1445,7 +1445,7 @@ static void do_readstub(int n)
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d),2);
   emit_far_call(handler);
   // (no cycle reload after read)
-  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     loadstore_extend(type,0,rt);
   }
   if(restore_jump)
@@ -1469,7 +1469,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   //  return;
   handler = get_direct_memhandler(mem_rtab, addr, type, &host_addr);
   if (handler == NULL) {
-    if(rt<0||rt1[i]==0)
+    if(rt<0||dops[i].rt1==0)
       return;
     if (addr != host_addr) {
       if (host_addr >= 0x100000000ull)
@@ -1497,7 +1497,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   }
 
   // call a memhandler
-  if(rt>=0&&rt1[i]!=0)
+  if(rt>=0&&dops[i].rt1!=0)
     reglist&=~(1<<rt);
   save_regs(reglist);
   if(target==0)
@@ -1518,7 +1518,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   emit_far_call(handler);
 
   // (no cycle reload after read)
-  if(rt>=0&&rt1[i]!=0)
+  if(rt>=0&&dops[i].rt1!=0)
     loadstore_extend(type, 0, rt);
   restore_regs(reglist);
 }
@@ -1534,10 +1534,10 @@ static void do_writestub(int n)
   u_int reglist=stubs[n].e;
   signed char *i_regmap=i_regs->regmap;
   int rt,r;
-  if(itype[i]==C1LS||itype[i]==C2LS) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS) {
     rt=get_reg(i_regmap,r=FTEMP);
   }else{
-    rt=get_reg(i_regmap,r=rs2[i]);
+    rt=get_reg(i_regmap,r=dops[i].rs2);
   }
   assert(rs>=0);
   assert(rt>=0);
@@ -1885,15 +1885,15 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
   //  case 0x19: MULTU
   //  case 0x1A: DIV
   //  case 0x1B: DIVU
-  if(rs1[i]&&rs2[i])
+  if(dops[i].rs1&&dops[i].rs2)
   {
-    switch(opcode2[i])
+    switch(dops[i].opcode2)
     {
     case 0x18: // MULT
     case 0x19: // MULTU
       {
-        signed char m1=get_reg(i_regs->regmap,rs1[i]);
-        signed char m2=get_reg(i_regs->regmap,rs2[i]);
+        signed char m1=get_reg(i_regs->regmap,dops[i].rs1);
+        signed char m2=get_reg(i_regs->regmap,dops[i].rs2);
         signed char hi=get_reg(i_regs->regmap,HIREG);
         signed char lo=get_reg(i_regs->regmap,LOREG);
         assert(m1>=0);
@@ -1901,7 +1901,7 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
         assert(hi>=0);
         assert(lo>=0);
 
-        if(opcode2[i]==0x18) // MULT
+        if(dops[i].opcode2==0x18) // MULT
           emit_smull(m1,m2,hi);
         else                 // MULTU
           emit_umull(m1,m2,hi);
@@ -1913,8 +1913,8 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
     case 0x1A: // DIV
     case 0x1B: // DIVU
       {
-        signed char numerator=get_reg(i_regs->regmap,rs1[i]);
-        signed char denominator=get_reg(i_regs->regmap,rs2[i]);
+        signed char numerator=get_reg(i_regs->regmap,dops[i].rs1);
+        signed char denominator=get_reg(i_regs->regmap,dops[i].rs2);
         signed char quotient=get_reg(i_regs->regmap,LOREG);
         signed char remainder=get_reg(i_regs->regmap,HIREG);
         assert(numerator>=0);
@@ -1922,7 +1922,7 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
         assert(quotient>=0);
         assert(remainder>=0);
 
-        if (opcode2[i] == 0x1A) // DIV
+        if (dops[i].opcode2 == 0x1A) // DIV
           emit_sdiv(numerator,denominator,quotient);
         else                    // DIVU
           emit_udiv(numerator,denominator,quotient);
@@ -1930,7 +1930,7 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
 
         // div 0 quotient (remainder is already correct)
         host_tempreg_acquire();
-        if (opcode2[i] == 0x1A) // DIV
+        if (dops[i].opcode2 == 0x1A) // DIV
           emit_sub_asrimm(0,numerator,31,HOST_TEMPREG);
         else
           emit_movimm(~0,HOST_TEMPREG);
@@ -1947,15 +1947,15 @@ static void multdiv_assemble_arm64(int i,struct regstat *i_regs)
   {
     signed char hr=get_reg(i_regs->regmap,HIREG);
     signed char lr=get_reg(i_regs->regmap,LOREG);
-    if ((opcode2[i]==0x1A || opcode2[i]==0x1B) && rs2[i]==0) // div 0
+    if ((dops[i].opcode2==0x1A || dops[i].opcode2==0x1B) && dops[i].rs2==0) // div 0
     {
-      if (rs1[i]) {
-        signed char numerator = get_reg(i_regs->regmap, rs1[i]);
+      if (dops[i].rs1) {
+        signed char numerator = get_reg(i_regs->regmap, dops[i].rs1);
         assert(numerator >= 0);
         if (hr >= 0)
           emit_mov(numerator,hr);
         if (lr >= 0) {
-          if (opcode2[i] == 0x1A) // DIV
+          if (dops[i].opcode2 == 0x1A) // DIV
             emit_sub_asrimm(0,numerator,31,lr);
           else
             emit_movimm(~0,lr);

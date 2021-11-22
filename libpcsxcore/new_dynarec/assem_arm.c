@@ -1683,10 +1683,10 @@ static void do_readstub(int n)
   u_int reglist=stubs[n].e;
   const signed char *i_regmap=i_regs->regmap;
   int rt;
-  if(itype[i]==C1LS||itype[i]==C2LS||itype[i]==LOADLR) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||dops[i].itype==LOADLR) {
     rt=get_reg(i_regmap,FTEMP);
   }else{
-    rt=get_reg(i_regmap,rt1[i]);
+    rt=get_reg(i_regmap,dops[i].rt1);
   }
   assert(rs>=0);
   int r,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
@@ -1697,7 +1697,7 @@ static void do_readstub(int n)
       temp=r; break;
     }
   }
-  if(rt>=0&&rt1[i]!=0)
+  if(rt>=0&&dops[i].rt1!=0)
     reglist&=~(1<<rt);
   if(temp==-1) {
     save_regs(reglist);
@@ -1710,7 +1710,7 @@ static void do_readstub(int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     switch(type) {
       case LOADB_STUB:  emit_ldrccsb_dualindexed(temp2,rs,rt); break;
       case LOADBU_STUB: emit_ldrccb_dualindexed(temp2,rs,rt); break;
@@ -1743,7 +1743,7 @@ static void do_readstub(int n)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d),2);
   emit_far_call(handler);
-  if(itype[i]==C1LS||itype[i]==C2LS||(rt>=0&&rt1[i]!=0)) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     mov_loadtype_adj(type,0,rt);
   }
   if(restore_jump)
@@ -1767,7 +1767,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
     return;
   handler = get_direct_memhandler(mem_rtab, addr, type, &host_addr);
   if (handler == NULL) {
-    if(rt<0||rt1[i]==0)
+    if(rt<0||dops[i].rt1==0)
       return;
     if(addr!=host_addr)
       emit_movimm_from(addr,rs,host_addr,rs);
@@ -1792,7 +1792,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   }
 
   // call a memhandler
-  if(rt>=0&&rt1[i]!=0)
+  if(rt>=0&&dops[i].rt1!=0)
     reglist&=~(1<<rt);
   save_regs(reglist);
   if(target==0)
@@ -1814,7 +1814,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
 
   emit_far_call(handler);
 
-  if(rt>=0&&rt1[i]!=0) {
+  if(rt>=0&&dops[i].rt1!=0) {
     switch(type) {
       case LOADB_STUB:  emit_signextend8(0,rt); break;
       case LOADBU_STUB: emit_andimm(0,0xff,rt); break;
@@ -1839,10 +1839,10 @@ static void do_writestub(int n)
   u_int reglist=stubs[n].e;
   const signed char *i_regmap=i_regs->regmap;
   int rt,r;
-  if(itype[i]==C1LS||itype[i]==C2LS) {
+  if(dops[i].itype==C1LS||dops[i].itype==C2LS) {
     rt=get_reg(i_regmap,r=FTEMP);
   }else{
-    rt=get_reg(i_regmap,r=rs2[i]);
+    rt=get_reg(i_regmap,r=dops[i].rs2);
   }
   assert(rs>=0);
   assert(rt>=0);
@@ -2187,14 +2187,14 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
   //  case 0x1D: DMULTU
   //  case 0x1E: DDIV
   //  case 0x1F: DDIVU
-  if(rs1[i]&&rs2[i])
+  if(dops[i].rs1&&dops[i].rs2)
   {
-    if((opcode2[i]&4)==0) // 32-bit
+    if((dops[i].opcode2&4)==0) // 32-bit
     {
-      if(opcode2[i]==0x18) // MULT
+      if(dops[i].opcode2==0x18) // MULT
       {
-        signed char m1=get_reg(i_regs->regmap,rs1[i]);
-        signed char m2=get_reg(i_regs->regmap,rs2[i]);
+        signed char m1=get_reg(i_regs->regmap,dops[i].rs1);
+        signed char m2=get_reg(i_regs->regmap,dops[i].rs2);
         signed char hi=get_reg(i_regs->regmap,HIREG);
         signed char lo=get_reg(i_regs->regmap,LOREG);
         assert(m1>=0);
@@ -2203,10 +2203,10 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         assert(lo>=0);
         emit_smull(m1,m2,hi,lo);
       }
-      if(opcode2[i]==0x19) // MULTU
+      if(dops[i].opcode2==0x19) // MULTU
       {
-        signed char m1=get_reg(i_regs->regmap,rs1[i]);
-        signed char m2=get_reg(i_regs->regmap,rs2[i]);
+        signed char m1=get_reg(i_regs->regmap,dops[i].rs1);
+        signed char m2=get_reg(i_regs->regmap,dops[i].rs2);
         signed char hi=get_reg(i_regs->regmap,HIREG);
         signed char lo=get_reg(i_regs->regmap,LOREG);
         assert(m1>=0);
@@ -2215,10 +2215,10 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         assert(lo>=0);
         emit_umull(m1,m2,hi,lo);
       }
-      if(opcode2[i]==0x1A) // DIV
+      if(dops[i].opcode2==0x1A) // DIV
       {
-        signed char d1=get_reg(i_regs->regmap,rs1[i]);
-        signed char d2=get_reg(i_regs->regmap,rs2[i]);
+        signed char d1=get_reg(i_regs->regmap,dops[i].rs1);
+        signed char d2=get_reg(i_regs->regmap,dops[i].rs2);
         assert(d1>=0);
         assert(d2>=0);
         signed char quotient=get_reg(i_regs->regmap,LOREG);
@@ -2253,10 +2253,10 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         emit_test(d1,d1);
         emit_negmi(remainder,remainder);
       }
-      if(opcode2[i]==0x1B) // DIVU
+      if(dops[i].opcode2==0x1B) // DIVU
       {
-        signed char d1=get_reg(i_regs->regmap,rs1[i]); // dividend
-        signed char d2=get_reg(i_regs->regmap,rs2[i]); // divisor
+        signed char d1=get_reg(i_regs->regmap,dops[i].rs1); // dividend
+        signed char d2=get_reg(i_regs->regmap,dops[i].rs2); // divisor
         assert(d1>=0);
         assert(d2>=0);
         signed char quotient=get_reg(i_regs->regmap,LOREG);
