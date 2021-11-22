@@ -59,56 +59,38 @@ static u32 fetchNoCache(u32 pc)
 Formula One 2001 :
 Use old CPU cache code when the RAM location is updated with new code (affects in-game racing)
 */
-static u8* ICache_Addr;
-static u8* ICache_Code;
+static struct cache_entry {
+	u32 tag;
+	u32 data[4];
+} ICache[256];
+
 static u32 fetchICache(u32 pc)
 {
-	uint32_t pc_bank, pc_offset, pc_cache;
-	uint8_t *IAddr, *ICode;
-
-	pc_bank = pc >> 24;
-	pc_offset = pc & 0xffffff;
-	pc_cache = pc & 0xfff;
-
-	IAddr = ICache_Addr;
-	ICode = ICache_Code;
-
-	// cached - RAM
-	if (pc_bank == 0x80 || pc_bank == 0x00)
+	// cached?
+	if (pc < 0xa0000000)
 	{
-		if (SWAP32(*(uint32_t *)(IAddr + pc_cache)) == pc_offset)
+		// this is not how the hardware works but whatever
+		struct cache_entry *entry = &ICache[(pc & 0xff0) >> 4];
+
+		if (((entry->tag ^ pc) & 0xfffffff0) != 0 || pc < entry->tag)
 		{
-			// Cache hit - return last opcode used
-			return *(uint32_t *)(ICode + pc_cache);
+			u32 *code = (u32 *)PSXM(pc & ~0x0f);
+			if (!code)
+				return 0;
+
+			entry->tag = pc;
+			// treat as 4 words, although other configurations are said to be possible
+			switch (pc & 0x0c)
+			{
+				case 0x00: entry->data[0] = SWAP32(code[0]);
+				case 0x04: entry->data[1] = SWAP32(code[1]);
+				case 0x08: entry->data[2] = SWAP32(code[2]);
+				case 0x0c: entry->data[3] = SWAP32(code[3]);
+			}
 		}
-		else
-		{
-			// Cache miss - addresses don't match
-			// - default: 0xffffffff (not init)
-
-			// cache line is 4 bytes wide
-			pc_offset &= ~0xf;
-			pc_cache &= ~0xf;
-
-			// address line
-			*(uint32_t *)(IAddr + pc_cache + 0x0) = SWAP32(pc_offset + 0x0);
-			*(uint32_t *)(IAddr + pc_cache + 0x4) = SWAP32(pc_offset + 0x4);
-			*(uint32_t *)(IAddr + pc_cache + 0x8) = SWAP32(pc_offset + 0x8);
-			*(uint32_t *)(IAddr + pc_cache + 0xc) = SWAP32(pc_offset + 0xc);
-
-			// opcode line
-			pc_offset = pc & ~0xf;
-			*(uint32_t *)(ICode + pc_cache + 0x0) = psxMu32ref(pc_offset + 0x0);
-			*(uint32_t *)(ICode + pc_cache + 0x4) = psxMu32ref(pc_offset + 0x4);
-			*(uint32_t *)(ICode + pc_cache + 0x8) = psxMu32ref(pc_offset + 0x8);
-			*(uint32_t *)(ICode + pc_cache + 0xc) = psxMu32ref(pc_offset + 0xc);
-		}
+		return entry->data[(pc & 0x0f) >> 2];
 	}
 
-	/*
-	TODO: Probably should add cached BIOS
-	*/
-	// default
 	return fetchNoCache(pc);
 }
 
@@ -1027,34 +1009,11 @@ void (*psxCP2BSC[32])() = {
 ///////////////////////////////////////////
 
 static int intInit() {
-	/* We have to allocate the icache memory even if 
-	 * the user has not enabled it as otherwise it can cause issues.
-	 */
-	if (!ICache_Addr)
-	{
-		ICache_Addr = malloc(0x1000);
-		if (!ICache_Addr)
-		{
-			return -1;
-		}
-	}
-
-	if (!ICache_Code)
-	{
-		ICache_Code = malloc(0x1000);
-		if (!ICache_Code)
-		{
-			return -1;
-		}
-	}
-	memset(ICache_Addr, 0xff, 0x1000);
-	memset(ICache_Code, 0xff, 0x1000);
 	return 0;
 }
 
 static void intReset() {
-	memset(ICache_Addr, 0xff, 0x1000);
-	memset(ICache_Code, 0xff, 0x1000);
+	memset(&ICache, 0xff, sizeof(ICache));
 }
 
 void intExecute() {
@@ -1075,8 +1034,7 @@ void intNotify (int note, void *data) {
 	/* Gameblabla - Only clear the icache if it's isolated */
 	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
 	{
-		memset(ICache_Addr, 0xff, 0x1000);
-		memset(ICache_Code, 0xff, 0x1000);
+		memset(&ICache, 0xff, sizeof(ICache));
 	}
 }
 
@@ -1122,17 +1080,6 @@ void intApplyConfig() {
 }
 
 static void intShutdown() {
-	if (ICache_Addr)
-	{
-		free(ICache_Addr);
-		ICache_Addr = NULL;
-	}
-
-	if (ICache_Code)
-	{
-		free(ICache_Code);
-		ICache_Code = NULL;
-	}
 }
 
 // interpreter execution
