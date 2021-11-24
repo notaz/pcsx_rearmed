@@ -40,7 +40,7 @@ void Apply_Hacks_Cdrom()
 	/* Internal Section is fussy about timings */
 	if (strcmp(CdromId, "SLPS01868") == 0)
 	{
-		cycle_multiplier_override = 200;
+		cycle_multiplier_override = 202;
 		new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
 	}
 }

@@ -102,7 +102,7 @@ int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
 
 #ifndef HAVE_PRE_ARMV7
-#define DEFAULT_PSX_CLOCK 57
+#define DEFAULT_PSX_CLOCK (10000 / CYCLE_MULT_DEFAULT)
 #define DEFAULT_PSX_CLOCK_S "57"
 #else
 #define DEFAULT_PSX_CLOCK 50

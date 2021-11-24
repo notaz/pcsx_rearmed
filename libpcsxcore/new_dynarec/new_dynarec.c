@@ -465,13 +465,13 @@ static void do_clear_cache(void)
 
 #define NO_CYCLE_PENALTY_THR 12
 
-int cycle_multiplier; // 100 for 1.0
+int cycle_multiplier = CYCLE_MULT_DEFAULT; // 100 for 1.0
 int cycle_multiplier_override;
 int cycle_multiplier_old;
 
 static int CLOCK_ADJUST(int x)
 {
-  int m = cycle_multiplier_override
+  int m = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
         ? cycle_multiplier_override : cycle_multiplier;
   int s=(x>>31)|1;
   return (x * m + s * 50) / 100;
