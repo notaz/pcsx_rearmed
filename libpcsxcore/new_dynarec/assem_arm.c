@@ -441,6 +441,13 @@ static void emit_add(int rs1,int rs2,int rt)
   output_w32(0xe0800000|rd_rn_rm(rt,rs1,rs2));
 }
 
+static void emit_adds(int rs1,int rs2,int rt)
+{
+  assem_debug("adds %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe0900000|rd_rn_rm(rt,rs1,rs2));
+}
+#define emit_adds_ptr emit_adds
+
 static void emit_adcs(int rs1,int rs2,int rt)
 {
   assem_debug("adcs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
@@ -1160,6 +1167,13 @@ static void emit_readword_dualindexedx4(int rs1, int rs2, int rt)
   assem_debug("ldr %s,%s,%s lsl #2\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe7900000|rd_rn_rm(rt,rs1,rs2)|0x100);
 }
+#define emit_readptr_dualindexedx_ptrlen emit_readword_dualindexedx4
+
+static void emit_ldr_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldr %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe7900000|rd_rn_rm(rt,rs1,rs2));
+}
 
 static void emit_ldrcc_dualindexed(int rs1, int rs2, int rt)
 {
@@ -1253,6 +1267,7 @@ static void emit_readword(void *addr, int rt)
   assem_debug("ldr %s,fp+%d\n",regname[rt],offset);
   output_w32(0xe5900000|rd_rn_rm(rt,FP,0)|offset);
 }
+#define emit_readptr emit_readword
 
 static void emit_writeword_indexed(int rt, int offset, int rs)
 {

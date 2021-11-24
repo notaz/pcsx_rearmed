@@ -24,6 +24,10 @@
 #include "assem_arm64.h"
 #include "linkage_offsets.h"
 
+#if (LO_mem_wtab & 7)
+#error misligned pointers
+#endif
+
 .bss
 	.align	4
 	.global dynarec_local

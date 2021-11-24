@@ -330,6 +330,7 @@ static void emit_adds64(u_int rs1, u_int rs2, u_int rt)
   assem_debug("adds %s,%s,%s\n",regname64[rt],regname64[rs1],regname64[rs2]);
   output_w32(0xab000000 | rm_rn_rd(rs2, rs1, rt));
 }
+#define emit_adds_ptr emit_adds64
 
 static void emit_neg(u_int rs, u_int rt)
 {
@@ -434,6 +435,7 @@ static void emit_readdword(void *addr, u_int rt)
   else
     abort();
 }
+#define emit_readptr emit_readdword
 
 static void emit_readshword(void *addr, u_int rt)
 {
@@ -1047,6 +1049,7 @@ static void emit_readdword_dualindexedx8(u_int rs1, u_int rs2, u_int rt)
   assem_debug("ldr %s, [%s,%s, uxtw #3]\n",regname64[rt],regname64[rs1],regname[rs2]);
   output_w32(0xf8605800 | rm_rn_rd(rs2, rs1, rt));
 }
+#define emit_readptr_dualindexedx_ptrlen emit_readdword_dualindexedx8
 
 static void emit_ldrb_dualindexed(u_int rs1, u_int rs2, u_int rt)
 {
