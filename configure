@@ -45,7 +45,6 @@ sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so plugins/gpu_senquack/gpu_senquack.so"
-ram_fixed="no"
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
@@ -89,21 +88,18 @@ set_platform()
     ;;
   pandora)
     sound_drivers="oss alsa"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     need_xlib="yes"
     ;;
   maemo)
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     ;;
   caanoo)
     sound_drivers="oss"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     need_warm="yes"
@@ -295,10 +291,6 @@ fi
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
   PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
-fi
-
-if [ "$ram_fixed" = "yes" ]; then
-  CFLAGS="$CFLAGS -DRAM_FIXED"
 fi
 
 case "$platform" in

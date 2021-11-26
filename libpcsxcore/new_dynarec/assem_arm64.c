@@ -462,6 +462,7 @@ static void emit_loadreg(u_int r, u_int hr)
     case CCREG: addr = &cycle_count; break;
     case CSREG: addr = &Status; break;
     case INVCP: addr = &invc_ptr; is64 = 1; break;
+    case ROREG: addr = &ram_offset; is64 = 1; break;
     default: assert(r < 34); break;
     }
     if (is64)
@@ -621,11 +622,6 @@ static void emit_addimm64(u_int rs, uintptr_t imm, u_int rt)
 static void emit_addimm_and_set_flags(int imm, u_int rt)
 {
   emit_addimm_s(1, 0, rt, imm, rt);
-}
-
-static void emit_addimm_no_flags(u_int imm,u_int rt)
-{
-  emit_addimm(rt,imm,rt);
 }
 
 static void emit_logicop_imm(u_int op, u_int rs, u_int imm, u_int rt)
@@ -1337,7 +1333,27 @@ static int is_similar_value(u_int v1, u_int v2)
     || is_rotated_mask(v1 ^ v2);
 }
 
-// trashes r2
+static void emit_movimm_from64(u_int rs_val, u_int rs, uintptr_t rt_val, u_int rt)
+{
+  if (rt_val < 0x100000000ull) {
+    emit_movimm_from(rs_val, rs, rt_val, rt);
+    return;
+  }
+  // just move the whole thing. At least on Linux all addresses
+  // seem to be 48bit, so 3 insns - not great not terrible
+  assem_debug("movz %s,#%#lx\n", regname64[rt], rt_val & 0xffff);
+  output_w32(0xd2800000 | imm16_rd(rt_val & 0xffff, rt));
+  assem_debug("movk %s,#%#lx,lsl #16\n", regname64[rt], (rt_val >> 16) & 0xffff);
+  output_w32(0xf2a00000 | imm16_rd((rt_val >> 16) & 0xffff, rt));
+  assem_debug("movk %s,#%#lx,lsl #32\n", regname64[rt], (rt_val >> 32) & 0xffff);
+  output_w32(0xf2c00000 | imm16_rd((rt_val >> 32) & 0xffff, rt));
+  if (rt_val >> 48) {
+    assem_debug("movk %s,#%#lx,lsl #48\n", regname64[rt], (rt_val >> 48) & 0xffff);
+    output_w32(0xf2e00000 | imm16_rd((rt_val >> 48) & 0xffff, rt));
+  }
+}
+
+// trashes x2
 static void pass_args64(u_int a0, u_int a1)
 {
   if(a0==1&&a1==0) {
@@ -1474,11 +1490,8 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   if (handler == NULL) {
     if(rt<0||dops[i].rt1==0)
       return;
-    if (addr != host_addr) {
-      if (host_addr >= 0x100000000ull)
-        abort(); // ROREG not implemented
-      emit_movimm_from(addr, rs, host_addr, rs);
-    }
+    if (addr != host_addr)
+      emit_movimm_from64(addr, rs, host_addr, rs);
     switch(type) {
       case LOADB_STUB:  emit_movsbl_indexed(0,rs,rt); break;
       case LOADBU_STUB: emit_movzbl_indexed(0,rs,rt); break;
@@ -1489,8 +1502,8 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
     }
     return;
   }
-  is_dynamic=pcsxmem_is_handler_dynamic(addr);
-  if(is_dynamic) {
+  is_dynamic = pcsxmem_is_handler_dynamic(addr);
+  if (is_dynamic) {
     if(type==LOADB_STUB||type==LOADBU_STUB)
       handler=jump_handler_read8;
     if(type==LOADH_STUB||type==LOADHU_STUB)
@@ -1627,11 +1640,8 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
   uintptr_t host_addr = 0;
   void *handler = get_direct_memhandler(mem_wtab, addr, type, &host_addr);
   if (handler == NULL) {
-    if (addr != host_addr) {
-      if (host_addr >= 0x100000000ull)
-        abort(); // ROREG not implemented
-      emit_movimm_from(addr, rs, host_addr, rs);
-    }
+    if (addr != host_addr)
+      emit_movimm_from64(addr, rs, host_addr, rs);
     switch (type) {
       case STOREB_STUB: emit_writebyte_indexed(rt, 0, rs); break;
       case STOREH_STUB: emit_writehword_indexed(rt, 0, rs); break;

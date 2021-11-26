@@ -37,8 +37,8 @@
 #define LO_invc_ptr		(LO_zeromem_ptr + PTRSZ)
 #define LO_scratch_buf_ptr	(LO_invc_ptr + PTRSZ)
 #define LO_saved_lr		(LO_scratch_buf_ptr + PTRSZ)
-#define LO_align1		(LO_saved_lr + PTRSZ)
-#define LO_mini_ht		(LO_align1 + PTRSZ)
+#define LO_ram_offset		(LO_saved_lr + PTRSZ)
+#define LO_mini_ht		(LO_ram_offset + PTRSZ)
 #define LO_restore_candidate	(LO_mini_ht + PTRSZ*32*2)
 #define LO_dynarec_local_size	(LO_restore_candidate + 512)
 

@@ -176,6 +176,8 @@ static struct decoded_insn
   u_char is_ds:1;
   u_char is_jump:1;
   u_char is_ujump:1;
+  u_char is_load:1;
+  u_char is_store:1;
 } dops[MAXBLOCK];
 
   // used by asm:
@@ -226,11 +228,6 @@ static struct decoded_insn
   static int expirep;
   static u_int stop_after_jal;
   static u_int f1_hack; // 0 - off, ~0 - capture address, else addr
-#ifndef RAM_FIXED
-  static uintptr_t ram_offset;
-#else
-  static const uintptr_t ram_offset=0;
-#endif
 
   int new_dynarec_hacks;
   int new_dynarec_hacks_pergame;
@@ -244,6 +241,7 @@ static struct decoded_insn
   extern int pcaddr;
   extern int pending_exception;
   extern int branch_target;
+  extern uintptr_t ram_offset;
   extern uintptr_t mini_ht[32][2];
   extern u_char restore_candidate[512];
 
@@ -256,7 +254,7 @@ static struct decoded_insn
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
 //#define MMREG 38 // Pointer to memory_map
-//#define ROREG 39 // ram offset (if rdram!=0x80000000)
+#define ROREG 39 // ram offset (if rdram!=0x80000000)
 #define TEMPREG 40
 #define FTEMP 40 // FPU temporary register
 #define PTEMP 41 // Prefetch temporary register
@@ -346,7 +344,8 @@ static void add_stub(enum stub_type type, void *addr, void *retaddr,
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
   int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(void *addr, u_int target, int ext);
-static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override);
+static void *emit_fastpath_cmp_jump(int i, const struct regstat *i_regs,
+  int addr, int *offset_reg, int *addr_reg_override);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
 static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist);
@@ -707,11 +706,12 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
       hsn[dops[i+j].rs1]=j;
       hsn[dops[i+j].rs2]=j;
     }
+    if (ram_offset && (dops[i+j].is_load || dops[i+j].is_store))
+      hsn[ROREG] = j;
     // On some architectures stores need invc_ptr
     #if defined(HOST_IMM8)
-    if(dops[i+j].itype==STORE || dops[i+j].itype==STORELR || (dops[i+j].opcode&0x3b)==0x39 || (dops[i+j].opcode&0x3b)==0x3a) {
-      hsn[INVCP]=j;
-    }
+    if (dops[i+j].is_store)
+      hsn[INVCP] = j;
     #endif
     if(i+j>=0&&(dops[i+j].itype==UJUMP||dops[i+j].itype==CJUMP||dops[i+j].itype==SJUMP))
     {
@@ -746,7 +746,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
     hsn[RHTBL]=1;
   }
   // Coprocessor load/store needs FTEMP, even if not declared
-  if(dops[i].itype==C1LS||dops[i].itype==C2LS) {
+  if(dops[i].itype==C2LS) {
     hsn[FTEMP]=0;
   }
   // Load L/R also uses FTEMP as a temporary register
@@ -1756,7 +1756,10 @@ static void load_alloc(struct regstat *current,int i)
   clear_const(current,dops[i].rt1);
   //if(dops[i].rs1!=dops[i].rt1&&needed_again(dops[i].rs1,i)) clear_const(current,dops[i].rs1); // Does this help or hurt?
   if(!dops[i].rs1) current->u&=~1LL; // Allow allocating r0 if it's the source register
-  if(needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
+  if (needed_again(dops[i].rs1, i))
+    alloc_reg(current, i, dops[i].rs1);
+  if (ram_offset)
+    alloc_reg(current, i, ROREG);
   if(dops[i].rt1&&!((current->u>>dops[i].rt1)&1)) {
     alloc_reg(current,i,dops[i].rt1);
     assert(get_reg(current->regmap,dops[i].rt1)>=0);
@@ -1803,9 +1806,11 @@ void store_alloc(struct regstat *current,int i)
   if(dops[i].opcode==0x2c||dops[i].opcode==0x2d||dops[i].opcode==0x3f) { // 64-bit SDL/SDR/SD
     assert(0);
   }
+  if (ram_offset)
+    alloc_reg(current, i, ROREG);
   #if defined(HOST_IMM8)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
-  else alloc_reg(current,i,INVCP);
+  alloc_reg(current, i, INVCP);
   #endif
   if(dops[i].opcode==0x2a||dops[i].opcode==0x2e||dops[i].opcode==0x2c||dops[i].opcode==0x2d) { // SWL/SWL/SDL/SDR
     alloc_reg(current,i,FTEMP);
@@ -1817,21 +1822,8 @@ void store_alloc(struct regstat *current,int i)
 
 void c1ls_alloc(struct regstat *current,int i)
 {
-  //clear_const(current,dops[i].rs1); // FIXME
   clear_const(current,dops[i].rt1);
-  if(needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
   alloc_reg(current,i,CSREG); // Status
-  alloc_reg(current,i,FTEMP);
-  if(dops[i].opcode==0x35||dops[i].opcode==0x3d) { // 64-bit LDC1/SDC1
-    assert(0);
-  }
-  #if defined(HOST_IMM8)
-  // On CPUs without 32-bit immediates we need a pointer to invalid_code
-  else if((dops[i].opcode&0x3b)==0x39) // SWC1/SDC1
-    alloc_reg(current,i,INVCP);
-  #endif
-  // We need a temporary register for address generation
-  alloc_reg_temp(current,i,-1);
 }
 
 void c2ls_alloc(struct regstat *current,int i)
@@ -1839,9 +1831,11 @@ void c2ls_alloc(struct regstat *current,int i)
   clear_const(current,dops[i].rt1);
   if(needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
   alloc_reg(current,i,FTEMP);
+  if (ram_offset)
+    alloc_reg(current, i, ROREG);
   #if defined(HOST_IMM8)
   // On CPUs without 32-bit immediates we need a pointer to invalid_code
-  if((dops[i].opcode&0x3b)==0x3a) // SWC2/SDC2
+  if (dops[i].opcode == 0x3a) // SWC2
     alloc_reg(current,i,INVCP);
   #endif
   // We need a temporary register for address generation
@@ -2562,11 +2556,25 @@ static int get_ptr_mem_type(u_int a)
   return MTYPE_8000;
 }
 
-static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
+static int get_ro_reg(const struct regstat *i_regs, int host_tempreg_free)
+{
+  int r = get_reg(i_regs->regmap, ROREG);
+  if (r < 0 && host_tempreg_free) {
+    host_tempreg_acquire();
+    emit_loadreg(ROREG, r = HOST_TEMPREG);
+  }
+  if (r < 0)
+    abort();
+  return r;
+}
+
+static void *emit_fastpath_cmp_jump(int i, const struct regstat *i_regs,
+  int addr, int *offset_reg, int *addr_reg_override)
 {
   void *jaddr = NULL;
-  int type=0;
-  int mr=dops[i].rs1;
+  int type = 0;
+  int mr = dops[i].rs1;
+  *offset_reg = -1;
   if(((smrv_strong|smrv_weak)>>mr)&1) {
     type=get_ptr_mem_type(smrv[mr]);
     //printf("set %08x @%08x r%d %d\n", smrv[mr], start+i*4, mr, type);
@@ -2610,22 +2618,19 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
     }
   }
 
-  if(type==0)
+  if (type == 0) // need ram check
   {
     emit_cmpimm(addr,RAM_SIZE);
-    jaddr=out;
+    jaddr = out;
     #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
     // Hint to branch predictor that the branch is unlikely to be taken
-    if(dops[i].rs1>=28)
+    if (dops[i].rs1 >= 28)
       emit_jno_unlikely(0);
     else
     #endif
       emit_jno(0);
-    if(ram_offset!=0) {
-      host_tempreg_acquire();
-      emit_addimm(addr,ram_offset,HOST_TEMPREG);
-      addr=*addr_reg_override=HOST_TEMPREG;
-    }
+    if (ram_offset != 0)
+      *offset_reg = get_ro_reg(i_regs, 0);
   }
 
   return jaddr;
@@ -2688,13 +2693,56 @@ static int reglist_find_free(u_int reglist)
   return __builtin_ctz(free_regs);
 }
 
+static void do_load_word(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldr_dualindexed(offset_reg, a, rt);
+  else
+    emit_readword_indexed(0, a, rt);
+}
+
+static void do_store_word(int a, int ofs, int rt, int offset_reg, int preseve_a)
+{
+  if (offset_reg < 0) {
+    emit_writeword_indexed(rt, ofs, a);
+    return;
+  }
+  if (ofs != 0)
+    emit_addimm(a, ofs, a);
+  emit_str_dualindexed(offset_reg, a, rt);
+  if (ofs != 0 && preseve_a)
+    emit_addimm(a, -ofs, a);
+}
+
+static void do_store_hword(int a, int ofs, int rt, int offset_reg, int preseve_a)
+{
+  if (offset_reg < 0) {
+    emit_writehword_indexed(rt, ofs, a);
+    return;
+  }
+  if (ofs != 0)
+    emit_addimm(a, ofs, a);
+  emit_strh_dualindexed(offset_reg, a, rt);
+  if (ofs != 0 && preseve_a)
+    emit_addimm(a, -ofs, a);
+}
+
+static void do_store_byte(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_strb_dualindexed(offset_reg, a, rt);
+  else
+    emit_writebyte_indexed(rt, 0, a);
+}
+
 static void load_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl,addr;
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
-  int fastio_reg_override=-1;
+  int offset_reg = -1;
+  int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rt1);
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -2731,96 +2779,110 @@ static void load_assemble(int i, const struct regstat *i_regs)
     if(dops[i].rs1!=29||start<0x80001000||start>=0x80000000+RAM_SIZE)
     #endif
     {
-      jaddr=emit_fastpath_cmp_jump(i,addr,&fastio_reg_override);
+      jaddr = emit_fastpath_cmp_jump(i, i_regs, addr,
+                &offset_reg, &fastio_reg_override);
     }
   }
-  else if(ram_offset&&memtarget) {
-    host_tempreg_acquire();
-    emit_addimm(addr,ram_offset,HOST_TEMPREG);
-    fastio_reg_override=HOST_TEMPREG;
+  else if (ram_offset && memtarget) {
+    offset_reg = get_ro_reg(i_regs, 0);
   }
   int dummy=(dops[i].rt1==0)||(tl!=get_reg(i_regs->regmap,dops[i].rt1)); // ignore loads to r0 and unneeded reg
-  if (dops[i].opcode==0x20) { // LB
+  switch (dops[i].opcode) {
+  case 0x20: // LB
     if(!c||memtarget) {
       if(!dummy) {
-        {
-          int x=0,a=tl;
-          if(!c) a=addr;
-          if(fastio_reg_override>=0) a=fastio_reg_override;
+        int a = tl;
+        if (!c) a = addr;
+        if (fastio_reg_override >= 0)
+          a = fastio_reg_override;
 
-          emit_movsbl_indexed(x,a,tl);
-        }
+        if (offset_reg >= 0)
+          emit_ldrsb_dualindexed(offset_reg, a, tl);
+        else
+          emit_movsbl_indexed(0, a, tl);
       }
       if(jaddr)
         add_stub_r(LOADB_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADB_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj[i],reglist);
-  }
-  if (dops[i].opcode==0x21) { // LH
+    break;
+  case 0x21: // LH
     if(!c||memtarget) {
       if(!dummy) {
-        int x=0,a=tl;
-        if(!c) a=addr;
-        if(fastio_reg_override>=0) a=fastio_reg_override;
-        emit_movswl_indexed(x,a,tl);
+        int a = tl;
+        if (!c) a = addr;
+        if (fastio_reg_override >= 0)
+          a = fastio_reg_override;
+        if (offset_reg >= 0)
+          emit_ldrsh_dualindexed(offset_reg, a, tl);
+        else
+          emit_movswl_indexed(0, a, tl);
       }
       if(jaddr)
         add_stub_r(LOADH_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADH_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj[i],reglist);
-  }
-  if (dops[i].opcode==0x23) { // LW
+    break;
+  case 0x23: // LW
     if(!c||memtarget) {
       if(!dummy) {
-        int a=addr;
-        if(fastio_reg_override>=0) a=fastio_reg_override;
-        emit_readword_indexed(0,a,tl);
+        int a = addr;
+        if (fastio_reg_override >= 0)
+          a = fastio_reg_override;
+        do_load_word(a, tl, offset_reg);
       }
       if(jaddr)
         add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj[i],reglist);
-  }
-  if (dops[i].opcode==0x24) { // LBU
+    break;
+  case 0x24: // LBU
     if(!c||memtarget) {
       if(!dummy) {
-        int x=0,a=tl;
-        if(!c) a=addr;
-        if(fastio_reg_override>=0) a=fastio_reg_override;
+        int a = tl;
+        if (!c) a = addr;
+        if (fastio_reg_override >= 0)
+          a = fastio_reg_override;
 
-        emit_movzbl_indexed(x,a,tl);
+        if (offset_reg >= 0)
+          emit_ldrb_dualindexed(offset_reg, a, tl);
+        else
+          emit_movzbl_indexed(0, a, tl);
       }
       if(jaddr)
         add_stub_r(LOADBU_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADBU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj[i],reglist);
-  }
-  if (dops[i].opcode==0x25) { // LHU
+    break;
+  case 0x25: // LHU
     if(!c||memtarget) {
       if(!dummy) {
-        int x=0,a=tl;
-        if(!c) a=addr;
-        if(fastio_reg_override>=0) a=fastio_reg_override;
-        emit_movzwl_indexed(x,a,tl);
+        int a = tl;
+        if(!c) a = addr;
+        if (fastio_reg_override >= 0)
+          a = fastio_reg_override;
+        if (offset_reg >= 0)
+          emit_ldrh_dualindexed(offset_reg, a, tl);
+        else
+          emit_movzwl_indexed(0, a, tl);
       }
       if(jaddr)
         add_stub_r(LOADHU_STUB,jaddr,out,i,addr,i_regs,ccadj[i],reglist);
     }
     else
       inline_readstub(LOADHU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj[i],reglist);
-  }
-  if (dops[i].opcode==0x27) { // LWU
-    assert(0);
-  }
-  if (dops[i].opcode==0x37) { // LD
+    break;
+  case 0x27: // LWU
+  case 0x37: // LD
+  default:
     assert(0);
   }
  }
- if (fastio_reg_override == HOST_TEMPREG)
+ if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
    host_tempreg_release();
 }
 
@@ -2831,7 +2893,8 @@ static void loadlr_assemble(int i, const struct regstat *i_regs)
   int offset;
   void *jaddr=0;
   int memtarget=0,c=0;
-  int fastio_reg_override=-1;
+  int offset_reg = -1;
+  int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rt1);
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -2856,13 +2919,12 @@ static void loadlr_assemble(int i, const struct regstat *i_regs)
     }else{
       emit_andimm(addr,0xFFFFFFF8,temp2); // LDL/LDR
     }
-    jaddr=emit_fastpath_cmp_jump(i,temp2,&fastio_reg_override);
+    jaddr = emit_fastpath_cmp_jump(i, i_regs, temp2,
+              &offset_reg, &fastio_reg_override);
   }
   else {
-    if(ram_offset&&memtarget) {
-      host_tempreg_acquire();
-      emit_addimm(temp2,ram_offset,HOST_TEMPREG);
-      fastio_reg_override=HOST_TEMPREG;
+    if (ram_offset && memtarget) {
+      offset_reg = get_ro_reg(i_regs, 0);
     }
     if (dops[i].opcode==0x22||dops[i].opcode==0x26) {
       emit_movimm(((constmap[i][s]+offset)<<3)&24,temp); // LWL/LWR
@@ -2872,10 +2934,12 @@ static void loadlr_assemble(int i, const struct regstat *i_regs)
   }
   if (dops[i].opcode==0x22||dops[i].opcode==0x26) { // LWL/LWR
     if(!c||memtarget) {
-      int a=temp2;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_readword_indexed(0,a,temp2);
-      if(fastio_reg_override==HOST_TEMPREG) host_tempreg_release();
+      int a = temp2;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_load_word(a, temp2, offset_reg);
+      if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
+        host_tempreg_release();
       if(jaddr) add_stub_r(LOADW_STUB,jaddr,out,i,temp2,i_regs,ccadj[i],reglist);
     }
     else
@@ -2905,16 +2969,17 @@ static void loadlr_assemble(int i, const struct regstat *i_regs)
 }
 #endif
 
-void store_assemble(int i, const struct regstat *i_regs)
+static void store_assemble(int i, const struct regstat *i_regs)
 {
   int s,tl;
   int addr,temp;
   int offset;
   void *jaddr=0;
-  enum stub_type type;
+  enum stub_type type=0;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
-  int fastio_reg_override=-1;
+  int offset_reg = -1;
+  int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -2932,46 +2997,49 @@ void store_assemble(int i, const struct regstat *i_regs)
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
   if(offset||s<0||c) addr=temp;
   else addr=s;
-  if(!c) {
-    jaddr=emit_fastpath_cmp_jump(i,addr,&fastio_reg_override);
+  if (!c) {
+    jaddr = emit_fastpath_cmp_jump(i, i_regs, addr,
+              &offset_reg, &fastio_reg_override);
   }
-  else if(ram_offset&&memtarget) {
-    host_tempreg_acquire();
-    emit_addimm(addr,ram_offset,HOST_TEMPREG);
-    fastio_reg_override=HOST_TEMPREG;
+  else if (ram_offset && memtarget) {
+    offset_reg = get_ro_reg(i_regs, 0);
   }
 
-  if (dops[i].opcode==0x28) { // SB
+  switch (dops[i].opcode) {
+  case 0x28: // SB
     if(!c||memtarget) {
-      int x=0,a=temp;
-      if(!c) a=addr;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_writebyte_indexed(tl,x,a);
+      int a = temp;
+      if (!c) a = addr;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_store_byte(a, tl, offset_reg);
     }
-    type=STOREB_STUB;
-  }
-  if (dops[i].opcode==0x29) { // SH
+    type = STOREB_STUB;
+    break;
+  case 0x29: // SH
     if(!c||memtarget) {
-      int x=0,a=temp;
-      if(!c) a=addr;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_writehword_indexed(tl,x,a);
+      int a = temp;
+      if (!c) a = addr;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_store_hword(a, 0, tl, offset_reg, 1);
     }
-    type=STOREH_STUB;
-  }
-  if (dops[i].opcode==0x2B) { // SW
+    type = STOREH_STUB;
+    break;
+  case 0x2B: // SW
     if(!c||memtarget) {
-      int a=addr;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_writeword_indexed(tl,0,a);
+      int a = addr;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_store_word(a, 0, tl, offset_reg, 1);
     }
-    type=STOREW_STUB;
-  }
-  if (dops[i].opcode==0x3F) { // SD
+    type = STOREW_STUB;
+    break;
+  case 0x3F: // SD
+  default:
     assert(0);
-    type=STORED_STUB;
   }
-  if(fastio_reg_override==HOST_TEMPREG)
+  if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
     host_tempreg_release();
   if(jaddr) {
     // PCSX store handlers don't check invcode again
@@ -3032,10 +3100,11 @@ static void storelr_assemble(int i, const struct regstat *i_regs)
   int temp;
   int offset;
   void *jaddr=0;
-  void *case1, *case2, *case3;
+  void *case1, *case23, *case3;
   void *done0, *done1, *done2;
   int memtarget=0,c=0;
   int agr=AGEN1+(i&1);
+  int offset_reg = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -3063,86 +3132,85 @@ static void storelr_assemble(int i, const struct regstat *i_regs)
       emit_jmp(0);
     }
   }
-  if(ram_offset)
-    emit_addimm_no_flags(ram_offset,temp);
+  if (ram_offset)
+    offset_reg = get_ro_reg(i_regs, 0);
 
   if (dops[i].opcode==0x2C||dops[i].opcode==0x2D) { // SDL/SDR
     assert(0);
   }
 
-  emit_xorimm(temp,3,temp);
   emit_testimm(temp,2);
-  case2=out;
+  case23=out;
   emit_jne(0);
   emit_testimm(temp,1);
   case1=out;
   emit_jne(0);
   // 0
-  if (dops[i].opcode==0x2A) { // SWL
-    emit_writeword_indexed(tl,0,temp);
+  if (dops[i].opcode == 0x2A) { // SWL
+    // Write msb into least significant byte
+    if (dops[i].rs2) emit_rorimm(tl, 24, tl);
+    do_store_byte(temp, tl, offset_reg);
+    if (dops[i].rs2) emit_rorimm(tl, 8, tl);
   }
-  else if (dops[i].opcode==0x2E) { // SWR
-    emit_writebyte_indexed(tl,3,temp);
+  else if (dops[i].opcode == 0x2E) { // SWR
+    // Write entire word
+    do_store_word(temp, 0, tl, offset_reg, 1);
   }
-  else
-    assert(0);
-  done0=out;
+  done0 = out;
   emit_jmp(0);
   // 1
   set_jump_target(case1, out);
-  if (dops[i].opcode==0x2A) { // SWL
-    // Write 3 msb into three least significant bytes
-    if(dops[i].rs2) emit_rorimm(tl,8,tl);
-    emit_writehword_indexed(tl,-1,temp);
-    if(dops[i].rs2) emit_rorimm(tl,16,tl);
-    emit_writebyte_indexed(tl,1,temp);
-    if(dops[i].rs2) emit_rorimm(tl,8,tl);
+  if (dops[i].opcode == 0x2A) { // SWL
+    // Write two msb into two least significant bytes
+    if (dops[i].rs2) emit_rorimm(tl, 16, tl);
+    do_store_hword(temp, -1, tl, offset_reg, 0);
+    if (dops[i].rs2) emit_rorimm(tl, 16, tl);
   }
-  else if (dops[i].opcode==0x2E) { // SWR
-    // Write two lsb into two most significant bytes
-    emit_writehword_indexed(tl,1,temp);
+  else if (dops[i].opcode == 0x2E) { // SWR
+    // Write 3 lsb into three most significant bytes
+    do_store_byte(temp, tl, offset_reg);
+    if (dops[i].rs2) emit_rorimm(tl, 8, tl);
+    do_store_hword(temp, 1, tl, offset_reg, 0);
+    if (dops[i].rs2) emit_rorimm(tl, 24, tl);
   }
   done1=out;
   emit_jmp(0);
-  // 2
-  set_jump_target(case2, out);
+  // 2,3
+  set_jump_target(case23, out);
   emit_testimm(temp,1);
-  case3=out;
+  case3 = out;
   emit_jne(0);
+  // 2
   if (dops[i].opcode==0x2A) { // SWL
-    // Write two msb into two least significant bytes
-    if(dops[i].rs2) emit_rorimm(tl,16,tl);
-    emit_writehword_indexed(tl,-2,temp);
-    if(dops[i].rs2) emit_rorimm(tl,16,tl);
+    // Write 3 msb into three least significant bytes
+    if (dops[i].rs2) emit_rorimm(tl, 8, tl);
+    do_store_hword(temp, -2, tl, offset_reg, 1);
+    if (dops[i].rs2) emit_rorimm(tl, 16, tl);
+    do_store_byte(temp, tl, offset_reg);
+    if (dops[i].rs2) emit_rorimm(tl, 8, tl);
   }
-  else if (dops[i].opcode==0x2E) { // SWR
-    // Write 3 lsb into three most significant bytes
-    emit_writebyte_indexed(tl,-1,temp);
-    if(dops[i].rs2) emit_rorimm(tl,8,tl);
-    emit_writehword_indexed(tl,0,temp);
-    if(dops[i].rs2) emit_rorimm(tl,24,tl);
+  else if (dops[i].opcode == 0x2E) { // SWR
+    // Write two lsb into two most significant bytes
+    do_store_hword(temp, 0, tl, offset_reg, 1);
   }
-  done2=out;
+  done2 = out;
   emit_jmp(0);
   // 3
   set_jump_target(case3, out);
-  if (dops[i].opcode==0x2A) { // SWL
-    // Write msb into least significant byte
-    if(dops[i].rs2) emit_rorimm(tl,24,tl);
-    emit_writebyte_indexed(tl,-3,temp);
-    if(dops[i].rs2) emit_rorimm(tl,8,tl);
+  if (dops[i].opcode == 0x2A) { // SWL
+    do_store_word(temp, -3, tl, offset_reg, 0);
   }
-  else if (dops[i].opcode==0x2E) { // SWR
-    // Write entire word
-    emit_writeword_indexed(tl,-3,temp);
+  else if (dops[i].opcode == 0x2E) { // SWR
+    do_store_byte(temp, tl, offset_reg);
   }
   set_jump_target(done0, out);
   set_jump_target(done1, out);
   set_jump_target(done2, out);
+  if (offset_reg == HOST_TEMPREG)
+    host_tempreg_release();
   if(!c||!memtarget)
     add_stub_r(STORELR_STUB,jaddr,out,i,temp,i_regs,ccadj[i],reglist);
   if(!(i_regs->waswritten&(1<<dops[i].rs1)) && !HACK_ENABLED(NDHACK_NO_SMC_CHECK)) {
-    emit_addimm_no_flags(-ram_offset,temp);
     #if defined(HOST_IMM8)
     int ir=get_reg(i_regs->regmap,INVCP);
     assert(ir>=0);
@@ -3599,7 +3667,8 @@ static void c2ls_assemble(int i, const struct regstat *i_regs)
   void *jaddr2=NULL;
   enum stub_type type;
   int agr=AGEN1+(i&1);
-  int fastio_reg_override=-1;
+  int offset_reg = -1;
+  int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
   u_int copr=(source[i]>>16)&0x1f;
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -3639,28 +3708,35 @@ static void c2ls_assemble(int i, const struct regstat *i_regs)
   }
   else {
     if(!c) {
-      jaddr2=emit_fastpath_cmp_jump(i,ar,&fastio_reg_override);
+      jaddr2 = emit_fastpath_cmp_jump(i, i_regs, ar,
+                &offset_reg, &fastio_reg_override);
     }
-    else if(ram_offset&&memtarget) {
-      host_tempreg_acquire();
-      emit_addimm(ar,ram_offset,HOST_TEMPREG);
-      fastio_reg_override=HOST_TEMPREG;
+    else if (ram_offset && memtarget) {
+      offset_reg = get_ro_reg(i_regs, 0);
     }
-    if (dops[i].opcode==0x32) { // LWC2
-      int a=ar;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_readword_indexed(0,a,tl);
+    switch (dops[i].opcode) {
+    case 0x32: { // LWC2
+      int a = ar;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_load_word(a, tl, offset_reg);
+      break;
     }
-    if (dops[i].opcode==0x3a) { // SWC2
+    case 0x3a: { // SWC2
       #ifdef DESTRUCTIVE_SHIFT
       if(!offset&&!c&&s>=0) emit_mov(s,ar);
       #endif
-      int a=ar;
-      if(fastio_reg_override>=0) a=fastio_reg_override;
-      emit_writeword_indexed(tl,0,a);
+      int a = ar;
+      if (fastio_reg_override >= 0)
+        a = fastio_reg_override;
+      do_store_word(a, 0, tl, offset_reg, 1);
+      break;
+    }
+    default:
+      assert(0);
     }
   }
-  if(fastio_reg_override==HOST_TEMPREG)
+  if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
     host_tempreg_release();
   if(jaddr2)
     add_stub_r(type,jaddr2,out,i,ar,i_regs,ccadj[i],reglist);
@@ -4089,7 +4165,7 @@ static void loop_preload(signed char pre[],signed char entry[])
 // goes to AGEN for writes, FTEMP for LOADLR and cop1/2 loads
 void address_generation(int i,struct regstat *i_regs,signed char entry[])
 {
-  if(dops[i].itype==LOAD||dops[i].itype==LOADLR||dops[i].itype==STORE||dops[i].itype==STORELR||dops[i].itype==C1LS||dops[i].itype==C2LS) {
+  if (dops[i].is_load || dops[i].is_store) {
     int ra=-1;
     int agr=AGEN1+(i&1);
     if(dops[i].itype==LOAD) {
@@ -4104,7 +4180,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
       ra=get_reg(i_regs->regmap,agr);
       if(ra<0) ra=get_reg(i_regs->regmap,-1);
     }
-    if(dops[i].itype==C1LS||dops[i].itype==C2LS) {
+    if(dops[i].itype==C2LS) {
       if ((dops[i].opcode&0x3b)==0x31||(dops[i].opcode&0x3b)==0x32) // LWC1/LDC1/LWC2/LDC2
         ra=get_reg(i_regs->regmap,FTEMP);
       else { // SWC1/SDC1/SWC2/SDC2
@@ -4158,7 +4234,7 @@ void address_generation(int i,struct regstat *i_regs,signed char entry[])
     }
   }
   // Preload constants for next instruction
-  if(dops[i+1].itype==LOAD||dops[i+1].itype==LOADLR||dops[i+1].itype==STORE||dops[i+1].itype==STORELR||dops[i+1].itype==C1LS||dops[i+1].itype==C2LS) {
+  if (dops[i+1].is_load || dops[i+1].is_store) {
     int agr,ra;
     // Actual address
     agr=AGEN1+((i+1)&1);
@@ -4593,7 +4669,9 @@ static void ds_assemble_entry(int i)
     wb_register(CCREG,regs[t].regmap_entry,regs[t].wasdirty);
   load_regs(regs[t].regmap_entry,regs[t].regmap,dops[t].rs1,dops[t].rs2);
   address_generation(t,&regs[t],regs[t].regmap_entry);
-  if(dops[t].itype==STORE||dops[t].itype==STORELR||(dops[t].opcode&0x3b)==0x39||(dops[t].opcode&0x3b)==0x3a)
+  if (ram_offset && (dops[t].is_load || dops[t].is_store))
+    load_regs(regs[t].regmap_entry,regs[t].regmap,ROREG,ROREG);
+  if (dops[t].is_store)
     load_regs(regs[t].regmap_entry,regs[t].regmap,INVCP,INVCP);
   is_delayslot=0;
   switch(dops[t].itype) {
@@ -5372,6 +5450,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
       // load regs
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
+      if (ram_offset)
+        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5403,9 +5483,12 @@ static void cjump_assemble(int i,struct regstat *i_regs)
       set_jump_target(nottaken, out);
       assem_debug("2:\n");
       wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
+      // load regs
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
-      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+      if (ram_offset)
+        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
       if (cc == -1) {
@@ -5638,6 +5721,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
       // load regs
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
+      if (ram_offset)
+        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5916,7 +6001,9 @@ static void pagespan_ds()
     emit_writeword(HOST_BTREG,&branch_target);
   load_regs(regs[0].regmap_entry,regs[0].regmap,dops[0].rs1,dops[0].rs2);
   address_generation(0,&regs[0],regs[0].regmap_entry);
-  if(dops[0].itype==STORE||dops[0].itype==STORELR||(dops[0].opcode&0x3b)==0x39||(dops[0].opcode&0x3b)==0x3a)
+  if (ram_offset && (dops[0].is_load || dops[0].is_store))
+    load_regs(regs[0].regmap_entry,regs[0].regmap,ROREG,ROREG);
+  if (dops[0].is_store)
     load_regs(regs[0].regmap_entry,regs[0].regmap,INVCP,INVCP);
   is_delayslot=0;
   switch(dops[0].itype) {
@@ -6755,9 +6842,7 @@ void new_dynarec_init(void)
 #endif
   arch_init();
   new_dynarec_test();
-#ifndef RAM_FIXED
   ram_offset=(uintptr_t)rdram-0x80000000;
-#endif
   if (ram_offset!=0)
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
 }
@@ -7409,6 +7494,8 @@ int new_recompile_block(u_int addr)
 
     dops[i].is_jump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP || dops[i].itype == CJUMP || dops[i].itype == SJUMP);
     dops[i].is_ujump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP); // || (source[i] >> 16) == 0x1000 // beq r0,r0
+    dops[i].is_load = (dops[i].itype == LOAD || dops[i].itype == LOADLR || op == 0x32); // LWC2
+    dops[i].is_store = (dops[i].itype == STORE || dops[i].itype == STORELR || op == 0x3a); // SWC2
 
     /* messy cases to just pass over to the interpreter */
     if (i > 0 && dops[i-1].is_jump) {
@@ -8213,7 +8300,11 @@ int new_recompile_block(u_int addr)
         if(dops[i+1].rs2==regmap_pre[i][hr]) nr|=1<<hr;
         if(dops[i+1].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
         if(dops[i+1].rs2==regs[i].regmap_entry[hr]) nr|=1<<hr;
-        if(dops[i+1].itype==STORE || dops[i+1].itype==STORELR || (dops[i+1].opcode&0x3b)==0x39 || (dops[i+1].opcode&0x3b)==0x3a) {
+        if(ram_offset && (dops[i+1].is_load || dops[i+1].is_store)) {
+          if(regmap_pre[i][hr]==ROREG) nr|=1<<hr;
+          if(regs[i].regmap_entry[hr]==ROREG) nr|=1<<hr;
+        }
+        if(dops[i+1].is_store) {
           if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
           if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
         }
@@ -8251,7 +8342,11 @@ int new_recompile_block(u_int addr)
       if(dops[i].rs2==regmap_pre[i][hr]) nr|=1<<hr;
       if(dops[i].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
       if(dops[i].rs2==regs[i].regmap_entry[hr]) nr|=1<<hr;
-      if(dops[i].itype==STORE || dops[i].itype==STORELR || (dops[i].opcode&0x3b)==0x39 || (dops[i].opcode&0x3b)==0x3a) {
+      if(ram_offset && (dops[i].is_load || dops[i].is_store)) {
+        if(regmap_pre[i][hr]==ROREG) nr|=1<<hr;
+        if(regs[i].regmap_entry[hr]==ROREG) nr|=1<<hr;
+      }
+      if(dops[i].is_store) {
         if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
         if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
       }
@@ -8285,14 +8380,13 @@ int new_recompile_block(u_int addr)
         if(regs[i].regmap_entry[hr]!=CCREG) regs[i].regmap_entry[hr]=-1;
         if(dops[i].is_jump)
         {
-          int map=0,temp=0;
-          if(dops[i+1].itype==STORE || dops[i+1].itype==STORELR ||
-             (dops[i+1].opcode&0x3b)==0x39 || (dops[i+1].opcode&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
-            map=INVCP;
-          }
-          if(dops[i+1].itype==LOADLR || dops[i+1].itype==STORELR ||
-             dops[i+1].itype==C1LS || dops[i+1].itype==C2LS)
-            temp=FTEMP;
+          int map1 = 0, map2 = 0, temp = 0; // or -1 ??
+          if (dops[i+1].is_load || dops[i+1].is_store)
+            map1 = ROREG;
+          if (dops[i+1].is_store)
+            map2 = INVCP;
+          if(dops[i+1].itype==LOADLR || dops[i+1].itype==STORELR || dops[i+1].itype==C2LS)
+            temp = FTEMP;
           if((regs[i].regmap[hr]&63)!=dops[i].rs1 && (regs[i].regmap[hr]&63)!=dops[i].rs2 &&
              (regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
              (regs[i].regmap[hr]&63)!=dops[i+1].rt1 && (regs[i].regmap[hr]&63)!=dops[i+1].rt2 &&
@@ -8300,7 +8394,7 @@ int new_recompile_block(u_int addr)
              (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=PTEMP &&
              regs[i].regmap[hr]!=RHASH && regs[i].regmap[hr]!=RHTBL &&
              regs[i].regmap[hr]!=RTEMP && regs[i].regmap[hr]!=CCREG &&
-             regs[i].regmap[hr]!=map )
+             regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2)
           {
             regs[i].regmap[hr]=-1;
             regs[i].isconst&=~(1<<hr);
@@ -8311,7 +8405,7 @@ int new_recompile_block(u_int addr)
                (branch_regs[i].regmap[hr]&63)!=temp && branch_regs[i].regmap[hr]!=PTEMP &&
                branch_regs[i].regmap[hr]!=RHASH && branch_regs[i].regmap[hr]!=RHTBL &&
                branch_regs[i].regmap[hr]!=RTEMP && branch_regs[i].regmap[hr]!=CCREG &&
-               branch_regs[i].regmap[hr]!=map)
+               branch_regs[i].regmap[hr]!=map1 && branch_regs[i].regmap[hr]!=map2)
             {
               branch_regs[i].regmap[hr]=-1;
               branch_regs[i].regmap_entry[hr]=-1;
@@ -8330,17 +8424,16 @@ int new_recompile_block(u_int addr)
           // Non-branch
           if(i>0)
           {
-            int map=-1,temp=-1;
-            if(dops[i].itype==STORE || dops[i].itype==STORELR ||
-                      (dops[i].opcode&0x3b)==0x39 || (dops[i].opcode&0x3b)==0x3a) { // SWC1/SDC1 || SWC2/SDC2
-              map=INVCP;
-            }
-            if(dops[i].itype==LOADLR || dops[i].itype==STORELR ||
-               dops[i].itype==C1LS || dops[i].itype==C2LS)
-              temp=FTEMP;
+            int map1 = -1, map2 = -1, temp=-1;
+            if (dops[i].is_load || dops[i].is_store)
+              map1 = ROREG;
+            if (dops[i].is_store)
+              map2 = INVCP;
+            if (dops[i].itype==LOADLR || dops[i].itype==STORELR || dops[i].itype==C2LS)
+              temp = FTEMP;
             if((regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
                regs[i].regmap[hr]!=dops[i].rs1 && regs[i].regmap[hr]!=dops[i].rs2 &&
-               (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=map &&
+               (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2 &&
                (dops[i].itype!=SPAN||regs[i].regmap[hr]!=CCREG))
             {
               if(i<slen-1&&!dops[i].is_ds) {
@@ -9049,7 +9142,9 @@ int new_recompile_block(u_int addr)
           load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i+1].rs1,dops[i+1].rs1);
         if(dops[i+1].rs2!=dops[i+1].rs1&&dops[i+1].rs2!=dops[i].rs1&&dops[i+1].rs2!=dops[i].rs2&&(dops[i+1].rs2!=dops[i].rt1||dops[i].rt1==0))
           load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i+1].rs2,dops[i+1].rs2);
-        if(dops[i+1].itype==STORE||dops[i+1].itype==STORELR||(dops[i+1].opcode&0x3b)==0x39||(dops[i+1].opcode&0x3b)==0x3a)
+        if (ram_offset && (dops[i+1].is_load || dops[i+1].is_store))
+          load_regs(regs[i].regmap_entry,regs[i].regmap,ROREG,ROREG);
+        if (dops[i+1].is_store)
           load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
       }
       else if(i+1<slen)
@@ -9063,9 +9158,11 @@ int new_recompile_block(u_int addr)
             load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i+1].rs2,dops[i+1].rs2);
       }
       // TODO: if(is_ooo(i)) address_generation(i+1);
-      if(dops[i].itype==CJUMP)
+      if (dops[i].itype == CJUMP)
         load_regs(regs[i].regmap_entry,regs[i].regmap,CCREG,CCREG);
-      if(dops[i].itype==STORE||dops[i].itype==STORELR||(dops[i].opcode&0x3b)==0x39||(dops[i].opcode&0x3b)==0x3a)
+      if (ram_offset && (dops[i].is_load || dops[i].is_store))
+        load_regs(regs[i].regmap_entry,regs[i].regmap,ROREG,ROREG);
+      if (dops[i].is_store)
         load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
       // assemble
       switch(dops[i].itype) {
@@ -9352,6 +9449,9 @@ int new_recompile_block(u_int addr)
     }
     expirep=(expirep+1)&65535;
   }
+#ifdef ASSEM_PRINT
+  fflush(stdout);
+#endif
   return 0;
 }
 

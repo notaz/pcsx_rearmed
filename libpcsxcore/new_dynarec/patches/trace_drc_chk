@@ -1,8 +1,8 @@
 diff --git a/libpcsxcore/new_dynarec/linkage_arm.S b/libpcsxcore/new_dynarec/linkage_arm.S
-index bbc52c3..83c5b08 100644
+index 1d8cefa..528929f 100644
 --- a/libpcsxcore/new_dynarec/linkage_arm.S
 +++ b/libpcsxcore/new_dynarec/linkage_arm.S
-@@ -437,7 +437,7 @@ FUNCTION(cc_interrupt):
+@@ -438,7 +438,7 @@ FUNCTION(cc_interrupt):
  	str	r1, [fp, #LO_pending_exception]
  	and	r2, r2, r10, lsr #17
  	add	r3, fp, #LO_restore_candidate
@@ -11,7 +11,7 @@ index bbc52c3..83c5b08 100644
  @@	str	r10, [fp, #LO_reg_cop0+36]	/* Count */
  	ldr	r4, [r2, r3]
  	mov	r10, lr
-@@ -527,7 +527,7 @@ FUNCTION(new_dyna_leave):
+@@ -528,7 +528,7 @@ FUNCTION(new_dyna_leave):
  	ldr	r0, [fp, #LO_last_count]
  	add	r12, fp, #28
  	add	r10, r0, r10
@@ -20,7 +20,7 @@ index bbc52c3..83c5b08 100644
  	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
  	.size	new_dyna_leave, .-new_dyna_leave
  
-@@ -644,7 +644,7 @@ FUNCTION(new_dyna_start):
+@@ -645,7 +645,7 @@ FUNCTION(new_dyna_start):
  	\readop	r0, [r1, r3, lsl #\tab_shift]
  .endif
  	movcc	pc, lr
@@ -29,7 +29,7 @@ index bbc52c3..83c5b08 100644
  	bx	r1
  .endm
  
-@@ -679,7 +679,7 @@ FUNCTION(jump_handler_read32):
+@@ -680,7 +680,7 @@ FUNCTION(jump_handler_read32):
  	mov     r0, r1
  	add	r2, r2, r12
  	push	{r2, lr}
@@ -38,7 +38,7 @@ index bbc52c3..83c5b08 100644
  	blx	r3
  
  	ldr	r0, [fp, #LO_next_interupt]
-@@ -707,7 +707,7 @@ FUNCTION(jump_handler_write_h):
+@@ -708,7 +708,7 @@ FUNCTION(jump_handler_write_h):
  	add	r2, r2, r12
  	mov     r0, r1
  	push	{r2, lr}
@@ -48,10 +48,10 @@ index bbc52c3..83c5b08 100644
  
  	ldr	r0, [fp, #LO_next_interupt]
 diff --git a/libpcsxcore/new_dynarec/linkage_arm64.S b/libpcsxcore/new_dynarec/linkage_arm64.S
-index 444545c..031cee2 100644
+index 7df82b4..79298e4 100644
 --- a/libpcsxcore/new_dynarec/linkage_arm64.S
 +++ b/libpcsxcore/new_dynarec/linkage_arm64.S
-@@ -119,7 +119,7 @@ FUNCTION(cc_interrupt):
+@@ -123,7 +123,7 @@ FUNCTION(cc_interrupt):
  	str	wzr, [rFP, #LO_pending_exception]
  	and	w2, w2, rCC, lsr #17
  	add	x3, rFP, #LO_restore_candidate
@@ -60,7 +60,7 @@ index 444545c..031cee2 100644
  #	str	rCC, [rFP, #LO_reg_cop0+36]	/* Count */
  	ldr	w19, [x3, w2, uxtw]
  	mov	x21, lr
-@@ -227,7 +227,7 @@ FUNCTION(new_dyna_start):
+@@ -231,7 +231,7 @@ FUNCTION(new_dyna_start):
  FUNCTION(new_dyna_leave):
  	ldr	w0,  [rFP, #LO_last_count]
  	add	rCC, rCC, w0
@@ -69,7 +69,7 @@ index 444545c..031cee2 100644
  	ldp	x19, x20, [sp, #16*1]
  	ldp	x21, x22, [sp, #16*2]
  	ldp	x23, x24, [sp, #16*3]
-@@ -245,7 +245,7 @@ FUNCTION(new_dyna_leave):
+@@ -249,7 +249,7 @@ FUNCTION(new_dyna_leave):
  	/* w0 = adddr/data, x1 = rhandler, w2 = cycles, x3 = whandler */
  	ldr	w4, [rFP, #LO_last_count]
  	add	w4, w4, w2
@@ -79,24 +79,10 @@ index 444545c..031cee2 100644
  
  .macro memhandler_post
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index a1d7f6a..3960f3b 100644
+index 2f77516..21481bc 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
-@@ -44,10 +44,10 @@ static int sceBlock;
- #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
- #endif
- 
--//#define DISASM
--//#define assem_debug printf
-+#define DISASM
-+#define assem_debug printf
- //#define inv_debug printf
--#define assem_debug(...)
-+//#define assem_debug(...)
- #define inv_debug(...)
- 
- #ifdef __i386__
-@@ -489,6 +489,9 @@ static int doesnt_expire_soon(void *tcaddr)
+@@ -521,6 +521,9 @@ static int doesnt_expire_soon(void *tcaddr)
  // This is called from the recompiled JR/JALR instructions
  void noinline *get_addr(u_int vaddr)
  {
@@ -106,8 +92,8 @@ index a1d7f6a..3960f3b 100644
    u_int page=get_page(vaddr);
    u_int vpage=get_vpage(vaddr);
    struct ll_entry *head;
-@@ -4485,13 +4492,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
-     }
+@@ -4790,13 +4793,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
+ #endif
      emit_addimm_and_set_flags(cycles,HOST_CCREG);
      jaddr=out;
 -    emit_jns(0);
@@ -124,7 +110,7 @@ index a1d7f6a..3960f3b 100644
    }
    add_stub(CC_STUB,jaddr,idle?idle:out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
  }
-@@ -4899,7 +4908,8 @@ static void rjump_assemble(int i,struct regstat *i_regs)
+@@ -5204,7 +5209,8 @@ static void rjump_assemble(int i,struct regstat *i_regs)
      // special case for RFE
      emit_jmp(0);
    else
@@ -133,8 +119,8 @@ index a1d7f6a..3960f3b 100644
 +   emit_jmp(0);
    //load_regs_bt(branch_regs[i].regmap,branch_regs[i].dirty,-1);
    #ifdef USE_MINI_HT
-   if(rs1[i]==31) {
-@@ -5004,7 +5014,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+   if(dops[i].rs1==31) {
+@@ -5309,7 +5315,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
      else if(nop) {
        emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
        void *jaddr=out;
@@ -144,7 +130,7 @@ index a1d7f6a..3960f3b 100644
        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
      }
      else {
-@@ -5191,7 +5202,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+@@ -5496,7 +5503,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
          emit_loadreg(CCREG,HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
          void *jaddr=out;
@@ -154,17 +140,17 @@ index a1d7f6a..3960f3b 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
          emit_storereg(CCREG,HOST_CCREG);
        }
-@@ -5200,7 +5212,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
+@@ -5505,7 +5513,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
          assert(cc==HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
          void *jaddr=out;
 -        emit_jns(0);
 +        //emit_jns(0);
 +       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
        }
      }
-@@ -5302,7 +5315,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5607,7 +5616,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
      else if(nevertaken) {
        emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
        void *jaddr=out;
@@ -174,7 +160,7 @@ index a1d7f6a..3960f3b 100644
        add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
      }
      else {
-@@ -5458,7 +5472,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5763,7 +5773,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
          emit_loadreg(CCREG,HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
          void *jaddr=out;
@@ -184,17 +170,17 @@ index a1d7f6a..3960f3b 100644
          add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
          emit_storereg(CCREG,HOST_CCREG);
        }
-@@ -5467,7 +5482,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
+@@ -5772,7 +5783,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
          assert(cc==HOST_CCREG);
          emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
          void *jaddr=out;
 -        emit_jns(0);
 +        //emit_jns(0);
 +       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,likely[i]?NULLDS:NOTTAKEN,0);
+         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
        }
      }
-@@ -5955,7 +5971,7 @@ void unneeded_registers(int istart,int iend,int r)
+@@ -6211,7 +6223,7 @@ void unneeded_registers(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -203,15 +189,15 @@ index a1d7f6a..3960f3b 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8474,6 +8491,7 @@ int new_recompile_block(u_int addr)
+@@ -8756,6 +8768,7 @@ int new_recompile_block(u_int addr)
  
    // This allocates registers (if possible) one instruction prior
    // to use, which can avoid a load-use penalty on certain CPUs.
 +#if 0
    for(i=0;i<slen-1;i++)
    {
-     if(!i||(itype[i-1]!=UJUMP&&itype[i-1]!=CJUMP&&itype[i-1]!=SJUMP&&itype[i-1]!=RJUMP))
-@@ -8630,6 +8648,7 @@ int new_recompile_block(u_int addr)
+     if (!i || !dops[i-1].is_jump)
+@@ -8912,6 +8925,7 @@ int new_recompile_block(u_int addr)
        }
      }
    }
@@ -219,36 +205,26 @@ index a1d7f6a..3960f3b 100644
  
    /* Pass 6 - Optimize clean/dirty state */
    clean_registers(0,slen-1,1);
-@@ -8929,6 +8948,12 @@ int new_recompile_block(u_int addr)
+@@ -9217,6 +9231,11 @@ int new_recompile_block(u_int addr)
          case SPAN:
            pagespan_assemble(i,&regs[i]);break;
        }
-+
 +#ifdef DRC_DBG
-+      // write-out non-consts, consts are likely different because of get_final_value()
-+      if(itype[i]!=UJUMP&&itype[i]!=CJUMP&&itype[i]!=SJUMP&&itype[i]!=RJUMP)
-+        wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
++       // write-out non-consts, consts are likely different because of get_final_value()
++       if (!dops[i].is_jump)
++         wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
 +#endif
-       if(itype[i]==UJUMP||itype[i]==RJUMP||(source[i]>>16)==0x1000)
+       if (dops[i].is_ujump)
          literal_pool(1024);
        else
-@@ -9037,7 +9062,7 @@ int new_recompile_block(u_int addr)
-     }
+@@ -9451,6 +9470,10 @@ int new_recompile_block(u_int addr)
    }
-   // External Branch Targets (jump_in)
--  if(copy+slen*4>(void *)shadow+sizeof(shadow)) copy=shadow;
-+  if(copy+slen*4>(void *)shadow+sizeof(shadow)) {copy=shadow;printf("shadow overflow\n");}
-   for(i=0;i<slen;i++)
-   {
-     if(bt[i]||i==0)
-@@ -9150,6 +9175,10 @@ int new_recompile_block(u_int addr)
-     }
-     expirep=(expirep+1)&65535;
-   }
+ #ifdef ASSEM_PRINT
+   fflush(stdout);
++#endif
 +#ifdef DRC_DBG
 +printf("new_recompile_block done\n");
 +fflush(stdout);
-+#endif
+ #endif
    return 0;
  }
- 

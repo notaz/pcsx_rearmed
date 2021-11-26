@@ -77,7 +77,7 @@ DRC_VAR(psxH_ptr, 8)
 DRC_VAR(invc_ptr, 8)
 DRC_VAR(zeromem_ptr, 8)
 DRC_VAR(scratch_buf_ptr, 8)
-#DRC_VAR(align1, 16) /* unused/alignment */
+DRC_VAR(ram_offset, 8)
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 

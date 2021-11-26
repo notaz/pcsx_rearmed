@@ -543,6 +543,7 @@ static void emit_loadreg(int r, int hr)
     case CCREG: addr = (int)&cycle_count; break;
     case CSREG: addr = (int)&Status; break;
     case INVCP: addr = (int)&invc_ptr; break;
+    case ROREG: addr = (int)&ram_offset; break;
     default: assert(r < 34); break;
     }
     u_int offset = addr-(u_int)&dynarec_local;
@@ -704,11 +705,6 @@ static void emit_addimm_and_set_flags(int imm,int rt)
     output_w32(0xe2800000|rd_rn_imm_shift(rt,rt,imm>>8,8));
     output_w32(0xe2900000|rd_rn_imm_shift(rt,rt,imm&0xff,0));
   }
-}
-
-static void emit_addimm_no_flags(u_int imm,u_int rt)
-{
-  emit_addimm(rt,imm,rt);
 }
 
 static void emit_addnop(u_int r)
@@ -1181,10 +1177,22 @@ static void emit_ldrcc_dualindexed(int rs1, int rs2, int rt)
   output_w32(0x37900000|rd_rn_rm(rt,rs1,rs2));
 }
 
+static void emit_ldrb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe7d00000|rd_rn_rm(rt,rs1,rs2));
+}
+
 static void emit_ldrccb_dualindexed(int rs1, int rs2, int rt)
 {
   assem_debug("ldrccb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0x37d00000|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_ldrsb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrsb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe19000d0|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_ldrccsb_dualindexed(int rs1, int rs2, int rt)
@@ -1193,16 +1201,46 @@ static void emit_ldrccsb_dualindexed(int rs1, int rs2, int rt)
   output_w32(0x319000d0|rd_rn_rm(rt,rs1,rs2));
 }
 
+static void emit_ldrh_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe19000b0|rd_rn_rm(rt,rs1,rs2));
+}
+
 static void emit_ldrcch_dualindexed(int rs1, int rs2, int rt)
 {
   assem_debug("ldrcch %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0x319000b0|rd_rn_rm(rt,rs1,rs2));
 }
 
+static void emit_ldrsh_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("ldrsh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe19000f0|rd_rn_rm(rt,rs1,rs2));
+}
+
 static void emit_ldrccsh_dualindexed(int rs1, int rs2, int rt)
 {
   assem_debug("ldrccsh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0x319000f0|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_str_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("str %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe7800000|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_strb_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("strb %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe7c00000|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_strh_dualindexed(int rs1, int rs2, int rt)
+{
+  assem_debug("strh %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe18000b0|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_movsbl_indexed(int offset, int rs, int rt)
