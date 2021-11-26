@@ -2635,9 +2635,10 @@ static void *emit_fastpath_cmp_jump(int i,int addr,int *addr_reg_override)
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host)
 {
+  uintptr_t msb = 1ull << (sizeof(uintptr_t)*8 - 1);
   uintptr_t l1, l2 = 0;
   l1 = ((uintptr_t *)table)[addr>>12];
-  if ((l1 & (1ul << (sizeof(l1)*8-1))) == 0) {
+  if (!(l1 & msb)) {
     uintptr_t v = l1 << 1;
     *addr_host = v + addr;
     return NULL;
@@ -2647,10 +2648,10 @@ static void *get_direct_memhandler(void *table, u_int addr,
     if (type == LOADB_STUB || type == LOADBU_STUB || type == STOREB_STUB)
       l2 = ((uintptr_t *)l1)[0x1000/4 + 0x1000/2 + (addr&0xfff)];
     else if (type == LOADH_STUB || type == LOADHU_STUB || type == STOREH_STUB)
-      l2=((uintptr_t *)l1)[0x1000/4 + (addr&0xfff)/2];
+      l2 = ((uintptr_t *)l1)[0x1000/4 + (addr&0xfff)/2];
     else
-      l2=((uintptr_t *)l1)[(addr&0xfff)/4];
-    if ((l2 & (1<<31)) == 0) {
+      l2 = ((uintptr_t *)l1)[(addr&0xfff)/4];
+    if (!(l2 & msb)) {
       uintptr_t v = l2 << 1;
       *addr_host = v + (addr&0xfff);
       return NULL;
@@ -7501,7 +7502,8 @@ int new_recompile_block(u_int addr)
       && dops[i-1].itype == STORELR && dops[i-1].rs1 == 6)
     {
       SysPrintf("F1 hack from %08x\n", start);
-      f1_hack = ~0u;
+      if (f1_hack == 0)
+        f1_hack = ~0u;
     }
   }
 
