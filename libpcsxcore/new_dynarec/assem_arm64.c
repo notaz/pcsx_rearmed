@@ -23,8 +23,6 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#define CALLER_SAVE_REGS 0x0007ffff
-
 #define unused __attribute__((unused))
 
 void do_memhandler_pre();
@@ -1599,7 +1597,6 @@ static void do_writestub(int n)
     emit_jmp(stubs[n].retaddr); // return address (invcode check)
   set_jump_target(handler_jump, out);
 
-  // TODO FIXME: regalloc should prefer callee-saved regs
   if(!regs_saved)
     save_regs(reglist);
   void *handler=NULL;

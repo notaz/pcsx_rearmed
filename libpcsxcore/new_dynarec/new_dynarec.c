@@ -1364,9 +1364,11 @@ void clean_blocks(u_int page)
 static void alloc_reg(struct regstat *cur,int i,signed char reg)
 {
   int r,hr;
-  int preferred_reg = (reg&7);
-  if(reg==CCREG) preferred_reg=HOST_CCREG;
-  if(reg==PTEMP||reg==FTEMP) preferred_reg=12;
+  int preferred_reg = PREFERRED_REG_FIRST
+    + reg % (PREFERRED_REG_LAST - PREFERRED_REG_FIRST + 1);
+  if (reg == CCREG) preferred_reg = HOST_CCREG;
+  if (reg == PTEMP || reg == FTEMP) preferred_reg = 12;
+  assert(PREFERRED_REG_FIRST != EXCLUDE_REG && EXCLUDE_REG != HOST_REGS);
 
   // Don't allocate unused registers
   if((cur->u>>reg)&1) return;
@@ -1410,28 +1412,47 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
       if((cur->u>>r)&1) {cur->regmap[hr]=-1;break;}
     }
   }
+
   // Try to allocate any available register, but prefer
   // registers that have not been used recently.
-  if(i>0) {
-    for(hr=0;hr<HOST_REGS;hr++) {
-      if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
-        if(regs[i-1].regmap[hr]!=dops[i-1].rs1&&regs[i-1].regmap[hr]!=dops[i-1].rs2&&regs[i-1].regmap[hr]!=dops[i-1].rt1&&regs[i-1].regmap[hr]!=dops[i-1].rt2) {
+  if (i > 0) {
+    for (hr = PREFERRED_REG_FIRST; ; ) {
+      if (cur->regmap[hr] < 0) {
+        int oldreg = regs[i-1].regmap[hr];
+        if (oldreg < 0 || (oldreg != dops[i-1].rs1 && oldreg != dops[i-1].rs2
+             && oldreg != dops[i-1].rt1 && oldreg != dops[i-1].rt2))
+        {
           cur->regmap[hr]=reg;
           cur->dirty&=~(1<<hr);
           cur->isconst&=~(1<<hr);
           return;
         }
       }
+      hr++;
+      if (hr == EXCLUDE_REG)
+        hr++;
+      if (hr == HOST_REGS)
+        hr = 0;
+      if (hr == PREFERRED_REG_FIRST)
+        break;
     }
   }
+
   // Try to allocate any available register
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
+  for (hr = PREFERRED_REG_FIRST; ; ) {
+    if (cur->regmap[hr] < 0) {
       cur->regmap[hr]=reg;
       cur->dirty&=~(1<<hr);
       cur->isconst&=~(1<<hr);
       return;
     }
+    hr++;
+    if (hr == EXCLUDE_REG)
+      hr++;
+    if (hr == HOST_REGS)
+      hr = 0;
+    if (hr == PREFERRED_REG_FIRST)
+      break;
   }
 
   // Ok, now we have to evict someone

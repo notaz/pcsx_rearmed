@@ -1,12 +1,12 @@
-#define HOST_REGS 29
-#define HOST_BTREG 27
-#define EXCLUDE_REG -1
-
 #define HOST_IMM8 1
 
 /* calling convention:
    r0 -r17: caller-save
    r19-r29: callee-save */
+
+#define HOST_REGS 29
+#define HOST_BTREG 27
+#define EXCLUDE_REG -1
 
 #define SP 31
 #define WZR SP
@@ -22,6 +22,10 @@
 
 #define HOST_CCREG 28
 #define rCC w28
+
+#define CALLER_SAVE_REGS 0x0007ffff
+#define PREFERRED_REG_FIRST 19
+#define PREFERRED_REG_LAST  27
 
 // stack space
 #define SSP_CALLEE_REGS (8*12)

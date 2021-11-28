@@ -27,12 +27,6 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#ifndef __MACH__
-#define CALLER_SAVE_REGS 0x100f
-#else
-#define CALLER_SAVE_REGS 0x120f
-#endif
-
 #define unused __attribute__((unused))
 
 #ifdef DRC_DBG
