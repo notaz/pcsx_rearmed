@@ -473,7 +473,9 @@ void new_dynarec_load_blocks(const void *save, int size) {}
 
 #include <stddef.h>
 static FILE *f;
-extern u32 last_io_addr;
+u32 irq_test_cycle;
+u32 handler_cycle;
+u32 last_io_addr;
 
 static void dump_mem(const char *fname, void *mem, size_t size)
 {
@@ -503,8 +505,6 @@ static u32 memcheck_read(u32 a)
 void do_insn_trace(void)
 {
 	static psxRegisters oldregs;
-	static u32 old_io_addr = (u32)-1;
-	static u32 old_io_data = 0xbad0c0de;
 	static u32 event_cycles_o[PSXINT_COUNT];
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_o = (void *)&oldregs;
@@ -528,27 +528,27 @@ void do_insn_trace(void)
 	// log event changes
 	for (i = 0; i < PSXINT_COUNT; i++) {
 		if (event_cycles[i] != event_cycles_o[i]) {
-			byte = 0xfc;
+			byte = 0xf8;
 			fwrite(&byte, 1, 1, f);
 			fwrite(&i, 1, 1, f);
 			fwrite(&event_cycles[i], 1, 4, f);
 			event_cycles_o[i] = event_cycles[i];
 		}
 	}
-	// log last io
-	if (old_io_addr != last_io_addr) {
-		byte = 0xfd;
-		fwrite(&byte, 1, 1, f);
-		fwrite(&last_io_addr, 1, 4, f);
-		old_io_addr = last_io_addr;
+	#define SAVE_IF_CHANGED(code_, name_) { \
+		static u32 old_##name_ = 0xbad0c0de; \
+		if (old_##name_ != name_) { \
+			byte = code_; \
+			fwrite(&byte, 1, 1, f); \
+			fwrite(&name_, 1, 4, f); \
+			old_##name_ = name_; \
+		} \
 	}
+	SAVE_IF_CHANGED(0xfb, irq_test_cycle);
+	SAVE_IF_CHANGED(0xfc, handler_cycle);
+	SAVE_IF_CHANGED(0xfd, last_io_addr);
 	io_data = memcheck_read(last_io_addr);
-	if (old_io_data != io_data) {
-		byte = 0xfe;
-		fwrite(&byte, 1, 1, f);
-		fwrite(&io_data, 1, 4, f);
-		old_io_data = io_data;
-	}
+	SAVE_IF_CHANGED(0xfe, io_data);
 	byte = 0xff;
 	fwrite(&byte, 1, 1, f);
 
@@ -610,12 +610,15 @@ void breakme() {}
 
 void do_insn_cmp(void)
 {
+	extern int last_count;
 	static psxRegisters rregs;
 	static u32 mem_addr, mem_val;
+	static u32 irq_test_cycle_intr;
+	static u32 handler_cycle_intr;
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_e = (void *)&rregs;
 	static u32 ppc, failcount;
-	int i, ret, bad = 0, which_event = -1;
+	int i, ret, bad = 0, fatal = 0, which_event = -1;
 	u32 ev_cycles = 0;
 	u8 code;
 
@@ -630,10 +633,16 @@ void do_insn_cmp(void)
 		if (code == 0xff)
 			break;
 		switch (code) {
-		case 0xfc:
+		case 0xf8:
 			which_event = 0;
 			fread(&which_event, 1, 1, f);
 			fread(&ev_cycles, 1, 4, f);
+			continue;
+		case 0xfb:
+			fread(&irq_test_cycle_intr, 1, 4, f);
+			continue;
+		case 0xfc:
+			fread(&handler_cycle_intr, 1, 4, f);
 			continue;
 		case 0xfd:
 			fread(&mem_addr, 1, 4, f);
@@ -642,23 +651,43 @@ void do_insn_cmp(void)
 			fread(&mem_val, 1, 4, f);
 			continue;
 		}
+		assert(code < offsetof(psxRegisters, intCycle) / 4);
 		fread(&allregs_e[code], 1, 4, f);
 	}
 
 	if (ret <= 0) {
 		printf("EOF?\n");
-		goto end;
+		exit(1);
 	}
 
 	psxRegs.code = rregs.code; // don't care
-	psxRegs.cycle = rregs.cycle;
+	psxRegs.cycle += last_count;
+	//psxRegs.cycle = rregs.cycle;
 	psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
 	//if (psxRegs.cycle == 166172) breakme();
 
-	if (memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle)) == 0 &&
-			mem_val == memcheck_read(mem_addr)
-	   ) {
+	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
+		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
+		fatal = 1;
+	}
+
+	if (irq_test_cycle > irq_test_cycle_intr) {
+		printf("bad irq_test_cycle: %u %u\n", irq_test_cycle, irq_test_cycle_intr);
+		fatal = 1;
+	}
+
+	if (handler_cycle != handler_cycle_intr) {
+		printf("bad handler_cycle: %u %u\n", handler_cycle, handler_cycle_intr);
+		fatal = 1;
+	}
+
+	if (mem_val != memcheck_read(mem_addr)) {
+		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
+		fatal = 1;
+	}
+
+	if (!fatal && !memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle))) {
 		failcount = 0;
 		goto ok;
 	}
@@ -668,21 +697,11 @@ void do_insn_cmp(void)
 			miss_log_add(i, allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
 			bad++;
 			if (i > 32+2)
-				goto end;
+				fatal = 1;
 		}
 	}
 
-	if (mem_val != memcheck_read(mem_addr)) {
-		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
-		goto end;
-	}
-
-	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
-		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
-		goto end;
-	}
-
-	if (psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
+	if (!fatal && psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
 		static int last_mcycle;
 		if (last_mcycle != psxRegs.cycle >> 20) {
 			printf("%u\n", psxRegs.cycle);
@@ -692,7 +711,6 @@ void do_insn_cmp(void)
 		goto ok;
 	}
 
-end:
 	for (i = 0; i < miss_log_len; i++, miss_log_i = (miss_log_i + 1) & miss_log_mask)
 		printf("bad %5s: %08x %08x, pc=%08x, cycle %u\n",
 			regnames[miss_log[miss_log_i].reg], miss_log[miss_log_i].val,
@@ -706,7 +724,7 @@ end:
 	dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
 	exit(1);
 ok:
-	psxRegs.cycle = rregs.cycle + 2; // sync timing
+	//psxRegs.cycle = rregs.cycle + 2; // sync timing
 	ppc = psxRegs.pc;
 }
 

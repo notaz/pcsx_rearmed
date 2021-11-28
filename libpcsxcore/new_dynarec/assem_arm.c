@@ -1788,7 +1788,7 @@ static void do_readstub(int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d),2);
+  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
   emit_far_call(handler);
   if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     mov_loadtype_adj(type,0,rt);
@@ -1810,7 +1810,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   uintptr_t host_addr = 0;
   void *handler;
   int cc=get_reg(regmap,CCREG);
-  if(pcsx_direct_read(type,addr,CLOCK_ADJUST(adj),cc,target?rs:-1,rt))
+  if(pcsx_direct_read(type,addr,adj,cc,target?rs:-1,rt))
     return;
   handler = get_direct_memhandler(mem_rtab, addr, type, &host_addr);
   if (handler == NULL) {
@@ -1850,11 +1850,11 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
     emit_loadreg(CCREG,2);
   if(is_dynamic) {
     emit_movimm(((u_int *)mem_rtab)[addr>>12]<<1,1);
-    emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj),2);
+    emit_addimm(cc<0?2:cc,adj,2);
   }
   else {
     emit_readword(&last_count,3);
-    emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj),2);
+    emit_addimm(cc<0?2:cc,adj,2);
     emit_add(2,3,2);
     emit_writeword(2,&Count);
   }
@@ -1943,10 +1943,10 @@ static void do_writestub(int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_ADJUST((int)stubs[n].d),2);
+  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
   // returns new cycle_count
   emit_far_call(handler);
-  emit_addimm(0,-CLOCK_ADJUST((int)stubs[n].d),cc<0?2:cc);
+  emit_addimm(0,-(int)stubs[n].d,cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   if(restore_jump)
@@ -1982,11 +1982,11 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
   int cc=get_reg(regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,CLOCK_ADJUST(adj),2);
+  emit_addimm(cc<0?2:cc,adj,2);
   emit_movimm((u_int)handler,3);
   // returns new cycle_count
   emit_far_call(jump_handler_write_h);
-  emit_addimm(0,-CLOCK_ADJUST(adj),cc<0?2:cc);
+  emit_addimm(0,-adj,cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   restore_regs(reglist);
@@ -2224,7 +2224,7 @@ static void c2op_mfc2_29_assemble(signed char tl, signed char temp)
     host_tempreg_release();
 }
 
-static void multdiv_assemble_arm(int i,struct regstat *i_regs)
+static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
 {
   //  case 0x18: MULT
   //  case 0x19: MULTU

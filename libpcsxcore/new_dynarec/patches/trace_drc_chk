@@ -1,88 +1,25 @@
-diff --git a/libpcsxcore/new_dynarec/linkage_arm.S b/libpcsxcore/new_dynarec/linkage_arm.S
-index 1d8cefa..528929f 100644
---- a/libpcsxcore/new_dynarec/linkage_arm.S
-+++ b/libpcsxcore/new_dynarec/linkage_arm.S
-@@ -438,7 +438,7 @@ FUNCTION(cc_interrupt):
- 	str	r1, [fp, #LO_pending_exception]
- 	and	r2, r2, r10, lsr #17
- 	add	r3, fp, #LO_restore_candidate
--	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
-+@@@	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
- @@	str	r10, [fp, #LO_reg_cop0+36]	/* Count */
- 	ldr	r4, [r2, r3]
- 	mov	r10, lr
-@@ -528,7 +528,7 @@ FUNCTION(new_dyna_leave):
- 	ldr	r0, [fp, #LO_last_count]
- 	add	r12, fp, #28
- 	add	r10, r0, r10
--	str	r10, [fp, #LO_cycle]
-+@@@	str	r10, [fp, #LO_cycle]
- 	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
- 	.size	new_dyna_leave, .-new_dyna_leave
- 
-@@ -645,7 +645,7 @@ FUNCTION(new_dyna_start):
- 	\readop	r0, [r1, r3, lsl #\tab_shift]
- .endif
- 	movcc	pc, lr
--	str	r2, [fp, #LO_cycle]
-+@@@	str	r2, [fp, #LO_cycle]
- 	bx	r1
- .endm
- 
-@@ -680,7 +680,7 @@ FUNCTION(jump_handler_read32):
- 	mov     r0, r1
- 	add	r2, r2, r12
- 	push	{r2, lr}
--	str	r2, [fp, #LO_cycle]
-+@@@	str	r2, [fp, #LO_cycle]
- 	blx	r3
- 
- 	ldr	r0, [fp, #LO_next_interupt]
-@@ -708,7 +708,7 @@ FUNCTION(jump_handler_write_h):
- 	add	r2, r2, r12
- 	mov     r0, r1
- 	push	{r2, lr}
--	str	r2, [fp, #LO_cycle]
-+@@@	str	r2, [fp, #LO_cycle]
- 	blx	r3
- 
- 	ldr	r0, [fp, #LO_next_interupt]
-diff --git a/libpcsxcore/new_dynarec/linkage_arm64.S b/libpcsxcore/new_dynarec/linkage_arm64.S
-index 7df82b4..79298e4 100644
---- a/libpcsxcore/new_dynarec/linkage_arm64.S
-+++ b/libpcsxcore/new_dynarec/linkage_arm64.S
-@@ -123,7 +123,7 @@ FUNCTION(cc_interrupt):
- 	str	wzr, [rFP, #LO_pending_exception]
- 	and	w2, w2, rCC, lsr #17
- 	add	x3, rFP, #LO_restore_candidate
--	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
-+##	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
- #	str	rCC, [rFP, #LO_reg_cop0+36]	/* Count */
- 	ldr	w19, [x3, w2, uxtw]
- 	mov	x21, lr
-@@ -231,7 +231,7 @@ FUNCTION(new_dyna_start):
- FUNCTION(new_dyna_leave):
- 	ldr	w0,  [rFP, #LO_last_count]
- 	add	rCC, rCC, w0
--	str	rCC, [rFP, #LO_cycle]
-+##	str	rCC, [rFP, #LO_cycle]
- 	ldp	x19, x20, [sp, #16*1]
- 	ldp	x21, x22, [sp, #16*2]
- 	ldp	x23, x24, [sp, #16*3]
-@@ -249,7 +249,7 @@ FUNCTION(new_dyna_leave):
- 	/* w0 = adddr/data, x1 = rhandler, w2 = cycles, x3 = whandler */
- 	ldr	w4, [rFP, #LO_last_count]
- 	add	w4, w4, w2
--	str	w4, [rFP, #LO_cycle]
-+##	str	w4, [rFP, #LO_cycle]
- .endm
- 
- .macro memhandler_post
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index 2f77516..21481bc 100644
+index f1005db..ebd1d4f 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
-@@ -521,6 +521,9 @@ static int doesnt_expire_soon(void *tcaddr)
+@@ -235,7 +235,7 @@ static struct decoded_insn
+   int new_dynarec_hacks_old;
+   int new_dynarec_did_compile;
+ 
+-  #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
++  #define HACK_ENABLED(x) ((NDHACK_NO_STALLS) & (x))
+ 
+   extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
+   extern int last_count;  // last absolute target, often = next_interupt
+@@ -471,6 +471,7 @@ int cycle_multiplier_old;
+ 
+ static int CLOCK_ADJUST(int x)
+ {
++  return x * 2;
+   int m = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
+         ? cycle_multiplier_override : cycle_multiplier;
+   int s=(x>>31)|1;
+@@ -522,6 +523,9 @@ static int doesnt_expire_soon(void *tcaddr)
  // This is called from the recompiled JR/JALR instructions
  void noinline *get_addr(u_int vaddr)
  {
@@ -92,95 +29,7 @@ index 2f77516..21481bc 100644
    u_int page=get_page(vaddr);
    u_int vpage=get_vpage(vaddr);
    struct ll_entry *head;
-@@ -4790,13 +4793,15 @@ void do_cc(int i,signed char i_regmap[],int *adj,int addr,int taken,int invert)
- #endif
-     emit_addimm_and_set_flags(cycles,HOST_CCREG);
-     jaddr=out;
--    emit_jns(0);
-+    //emit_jns(0);
-+   emit_jmp(0);
-   }
-   else
-   {
-     emit_cmpimm(HOST_CCREG,-CLOCK_ADJUST(count+2));
-     jaddr=out;
--    emit_jns(0);
-+    //emit_jns(0);
-+   emit_jmp(0);
-   }
-   add_stub(CC_STUB,jaddr,idle?idle:out,(*adj==0||invert||idle)?0:(count+2),i,addr,taken,0);
- }
-@@ -5204,7 +5209,8 @@ static void rjump_assemble(int i,struct regstat *i_regs)
-     // special case for RFE
-     emit_jmp(0);
-   else
--    emit_jns(0);
-+    //emit_jns(0);
-+   emit_jmp(0);
-   //load_regs_bt(branch_regs[i].regmap,branch_regs[i].dirty,-1);
-   #ifdef USE_MINI_HT
-   if(dops[i].rs1==31) {
-@@ -5309,7 +5315,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
-     else if(nop) {
-       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-       void *jaddr=out;
--      emit_jns(0);
-+      //emit_jns(0);
-+     emit_jmp(0);
-       add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-     }
-     else {
-@@ -5496,7 +5503,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
-         emit_loadreg(CCREG,HOST_CCREG);
-         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-         void *jaddr=out;
--        emit_jns(0);
-+        //emit_jns(0);
-+       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-         emit_storereg(CCREG,HOST_CCREG);
-       }
-@@ -5505,7 +5513,8 @@ static void cjump_assemble(int i,struct regstat *i_regs)
-         assert(cc==HOST_CCREG);
-         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-         void *jaddr=out;
--        emit_jns(0);
-+        //emit_jns(0);
-+       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-       }
-     }
-@@ -5607,7 +5616,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
-     else if(nevertaken) {
-       emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-       void *jaddr=out;
--      emit_jns(0);
-+      //emit_jns(0);
-+     emit_jmp(0);
-       add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-     }
-     else {
-@@ -5763,7 +5773,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
-         emit_loadreg(CCREG,HOST_CCREG);
-         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),HOST_CCREG);
-         void *jaddr=out;
--        emit_jns(0);
-+        //emit_jns(0);
-+       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-         emit_storereg(CCREG,HOST_CCREG);
-       }
-@@ -5772,7 +5783,8 @@ static void sjump_assemble(int i,struct regstat *i_regs)
-         assert(cc==HOST_CCREG);
-         emit_addimm_and_set_flags(CLOCK_ADJUST(ccadj[i]+2),cc);
-         void *jaddr=out;
--        emit_jns(0);
-+        //emit_jns(0);
-+       emit_jmp(0);
-         add_stub(CC_STUB,jaddr,out,0,i,start+i*4+8,NOTTAKEN,0);
-       }
-     }
-@@ -6211,7 +6223,7 @@ void unneeded_registers(int istart,int iend,int r)
+@@ -6248,7 +6252,7 @@ void unneeded_registers(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -189,7 +38,7 @@ index 2f77516..21481bc 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8756,6 +8768,7 @@ int new_recompile_block(u_int addr)
+@@ -8794,6 +8798,7 @@ int new_recompile_block(u_int addr)
  
    // This allocates registers (if possible) one instruction prior
    // to use, which can avoid a load-use penalty on certain CPUs.
@@ -197,7 +46,7 @@ index 2f77516..21481bc 100644
    for(i=0;i<slen-1;i++)
    {
      if (!i || !dops[i-1].is_jump)
-@@ -8912,6 +8925,7 @@ int new_recompile_block(u_int addr)
+@@ -8950,6 +8955,7 @@ int new_recompile_block(u_int addr)
        }
      }
    }
@@ -205,19 +54,19 @@ index 2f77516..21481bc 100644
  
    /* Pass 6 - Optimize clean/dirty state */
    clean_registers(0,slen-1,1);
-@@ -9217,6 +9231,11 @@ int new_recompile_block(u_int addr)
-         case SPAN:
-           pagespan_assemble(i,&regs[i]);break;
-       }
+@@ -9204,6 +9210,11 @@ int new_recompile_block(u_int addr)
+         load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
+ 
+       ds = assemble(i, &regs[i], ccadj[i]);
 +#ifdef DRC_DBG
 +       // write-out non-consts, consts are likely different because of get_final_value()
 +       if (!dops[i].is_jump)
 +         wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
 +#endif
+ 
        if (dops[i].is_ujump)
          literal_pool(1024);
-       else
-@@ -9451,6 +9470,10 @@ int new_recompile_block(u_int addr)
+@@ -9439,6 +9450,10 @@ int new_recompile_block(u_int addr)
    }
  #ifdef ASSEM_PRINT
    fflush(stdout);
@@ -228,3 +77,57 @@ index 2f77516..21481bc 100644
  #endif
    return 0;
  }
+diff --git a/libpcsxcore/new_dynarec/pcsxmem.c b/libpcsxcore/new_dynarec/pcsxmem.c
+index bb471b6..8f68a3b 100644
+--- a/libpcsxcore/new_dynarec/pcsxmem.c
++++ b/libpcsxcore/new_dynarec/pcsxmem.c
+@@ -272,6 +272,8 @@ static void write_biu(u32 value)
+ 	if (address != 0xfffe0130)
+ 		return;
+ 
++extern u32 handler_cycle;
++handler_cycle = psxRegs.cycle;
+ 	switch (value) {
+ 	case 0x800: case 0x804:
+ 		unmap_ram_write();
+diff --git a/libpcsxcore/psxcounters.c b/libpcsxcore/psxcounters.c
+index b2cc07b..f916580 100644
+--- a/libpcsxcore/psxcounters.c
++++ b/libpcsxcore/psxcounters.c
+@@ -378,9 +378,12 @@ void psxRcntUpdate()
+ 
+ /******************************************************************************/
+ 
++extern u32 handler_cycle;
++
+ void psxRcntWcount( u32 index, u32 value )
+ {
+     verboseLog( 2, "[RCNT %i] wcount: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     _psxRcntWcount( index, value );
+     psxRcntSet();
+@@ -389,6 +392,7 @@ void psxRcntWcount( u32 index, u32 value )
+ void psxRcntWmode( u32 index, u32 value )
+ {
+     verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     _psxRcntWmode( index, value );
+     _psxRcntWcount( index, 0 );
+@@ -400,6 +404,7 @@ void psxRcntWmode( u32 index, u32 value )
+ void psxRcntWtarget( u32 index, u32 value )
+ {
+     verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     rcnts[index].target = value;
+ 
+@@ -412,6 +417,7 @@ void psxRcntWtarget( u32 index, u32 value )
+ u32 psxRcntRcount( u32 index )
+ {
+     u32 count;
++handler_cycle = psxRegs.cycle;
+ 
+     count = _psxRcntRcount( index );
+ 
