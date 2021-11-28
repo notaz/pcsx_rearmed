@@ -8472,7 +8472,8 @@ int new_recompile_block(u_int addr)
             if((regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
                regs[i].regmap[hr]!=dops[i].rs1 && regs[i].regmap[hr]!=dops[i].rs2 &&
                (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2 &&
-               (dops[i].itype!=SPAN||regs[i].regmap[hr]!=CCREG))
+               //(dops[i].itype!=SPAN||regs[i].regmap[hr]!=CCREG)
+               regs[i].regmap[hr] != CCREG)
             {
               if(i<slen-1&&!dops[i].is_ds) {
                 assert(regs[i].regmap[hr]<64);
