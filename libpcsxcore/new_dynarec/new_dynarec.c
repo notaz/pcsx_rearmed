@@ -1616,9 +1616,8 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 static void mov_alloc(struct regstat *current,int i)
 {
   if (dops[i].rs1 == HIREG || dops[i].rs1 == LOREG) {
-    // logically this is needed but just won't work, no idea why
-    //alloc_cc(current,i); // for stalls
-    //dirty_reg(current,CCREG);
+    alloc_cc(current,i); // for stalls
+    dirty_reg(current,CCREG);
   }
 
   // Note: Don't need to actually alloc the source registers
@@ -9197,7 +9196,7 @@ int new_recompile_block(u_int addr)
             load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i+1].rs2,dops[i+1].rs2);
       }
       // TODO: if(is_ooo(i)) address_generation(i+1);
-      if (dops[i].itype == CJUMP)
+      if (!dops[i].is_jump || dops[i].itype == CJUMP)
         load_regs(regs[i].regmap_entry,regs[i].regmap,CCREG,CCREG);
       if (ram_offset && (dops[i].is_load || dops[i].is_store))
         load_regs(regs[i].regmap_entry,regs[i].regmap,ROREG,ROREG);
