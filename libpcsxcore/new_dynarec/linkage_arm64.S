@@ -253,10 +253,10 @@ FUNCTION(new_dyna_leave):
 .endm
 
 .macro memhandler_post
-	ldr	w2, [rFP, #LO_next_interupt]
-	ldr	w1, [rFP, #LO_cycle]
-	sub	w0, w1, w2
-	str	w2, [rFP, #LO_last_count]
+	ldr	w0, [rFP, #LO_next_interupt]
+	ldr	w2, [rFP, #LO_cycle]        // memhandlers can modify cc, like dma
+	str	w0, [rFP, #LO_last_count]
+	sub	w0, w2, w0
 .endm
 
 FUNCTION(do_memhandler_pre):

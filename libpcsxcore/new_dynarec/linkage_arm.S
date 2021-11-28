@@ -661,6 +661,13 @@ FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldrcc, 2
 
 
+.macro memhandler_post
+	ldr	r0, [fp, #LO_next_interupt]
+	ldr	r2, [fp, #LO_cycle]        @ memhandlers can modify cc, like dma
+	str	r0, [fp, #LO_last_count]
+	sub	r0, r2, r0
+.endm
+
 .macro pcsx_write_mem wrtop tab_shift
 	/* r0 = address, r1 = data, r2 = cycles, r3 = handler_tab */
 	lsl	r12,r0, #20
@@ -668,7 +675,7 @@ FUNCTION(jump_handler_read32):
 	ldr	r3, [r3, r12, lsl #2]
 	str	r0, [fp, #LO_address]      @ some handlers still need it..
 	lsls	r3, #1
-	mov     r0, r2                                @ cycle return in case of direct store
+	mov     r0, r2                     @ cycle return in case of direct store
 .if \tab_shift == 1
 	lsl	r12, #1
 	\wrtop	r1, [r3, r12]
@@ -679,14 +686,13 @@ FUNCTION(jump_handler_read32):
 	ldr	r12, [fp, #LO_last_count]
 	mov     r0, r1
 	add	r2, r2, r12
-	push	{r2, lr}
 	str	r2, [fp, #LO_cycle]
-	blx	r3
 
-	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, lr}
-	str	r0, [fp, #LO_last_count]
-	sub	r0, r2, r0
+	str	lr, [fp, #LO_saved_lr]
+	blx	r3
+	ldr	lr, [fp, #LO_saved_lr]
+
+	memhandler_post
 	bx	lr
 .endm
 
@@ -707,14 +713,13 @@ FUNCTION(jump_handler_write_h):
 	str	r0, [fp, #LO_address]      @ some handlers still need it..
 	add	r2, r2, r12
 	mov     r0, r1
-	push	{r2, lr}
 	str	r2, [fp, #LO_cycle]
-	blx	r3
 
-	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, lr}
-	str	r0, [fp, #LO_last_count]
-	sub	r0, r2, r0
+	str	lr, [fp, #LO_saved_lr]
+	blx	r3
+	ldr	lr, [fp, #LO_saved_lr]
+
+	memhandler_post
 	bx	lr
 
 FUNCTION(jump_handle_swl):
