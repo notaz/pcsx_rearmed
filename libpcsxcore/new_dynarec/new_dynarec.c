@@ -121,8 +121,8 @@ struct regstat
   uint64_t wasdirty;
   uint64_t dirty;
   uint64_t u;
-  u_int wasconst;
-  u_int isconst;
+  u_int wasconst;                // before; for example 'lw r2, (r2)' wasconst is true
+  u_int isconst;                 //  ... but isconst is false when r2 is known
   u_int loadedconst;             // host regs that have constants loaded
   u_int waswritten;              // MIPS regs that were used as store base before
 };
@@ -468,12 +468,12 @@ static void do_clear_cache(void)
 int cycle_multiplier = CYCLE_MULT_DEFAULT; // 100 for 1.0
 int cycle_multiplier_override;
 int cycle_multiplier_old;
+static int cycle_multiplier_active;
 
 static int CLOCK_ADJUST(int x)
 {
-  int m = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
-        ? cycle_multiplier_override : cycle_multiplier;
-  int s=(x>>31)|1;
+  int m = cycle_multiplier_active;
+  int s = (x >> 31) | 1;
   return (x * m + s * 50) / 100;
 }
 
@@ -4122,6 +4122,7 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
     case SPAN:
       pagespan_assemble(i, i_regs);
       break;
+    case NOP:
     case OTHER:
     case NI:
       // not handled, just skip
@@ -6906,9 +6907,6 @@ void new_dynarec_cleanup(void)
 
 static u_int *get_source_start(u_int addr, u_int *limit)
 {
-  if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
-    cycle_multiplier_override = 0;
-
   if (addr < 0x00200000 ||
     (0xa0000000 <= addr && addr < 0xa0200000))
   {
@@ -6923,7 +6921,7 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
     // but timings in PCSX are too tied to the interpreter's BIAS
     if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
-      cycle_multiplier_override = 200;
+      cycle_multiplier_active = 200;
 
     *limit = (addr & 0xfff00000) | 0x80000;
     return (u_int *)((u_char *)psxR + (addr&0x7ffff));
@@ -7035,6 +7033,42 @@ void new_dynarec_load_blocks(const void *save, int size)
   memcpy(&psxRegs.GPR, regs_save, sizeof(regs_save));
 }
 
+static void apply_hacks(void)
+{
+  int i;
+  if (HACK_ENABLED(NDHACK_NO_COMPAT_HACKS))
+    return;
+  /* special hack(s) */
+  for (i = 0; i < slen - 4; i++)
+  {
+    // lui a4, 0xf200; jal <rcnt_read>; addu a0, 2; slti v0, 28224
+    if (source[i] == 0x3c04f200 && dops[i+1].itype == UJUMP
+        && source[i+2] == 0x34840002 && dops[i+3].opcode == 0x0a
+        && imm[i+3] == 0x6e40 && dops[i+3].rs1 == 2)
+    {
+      SysPrintf("PE2 hack @%08x\n", start + (i+3)*4);
+      dops[i + 3].itype = NOP;
+    }
+  }
+  i = slen;
+  if (i > 10 && source[i-1] == 0 && source[i-2] == 0x03e00008
+      && source[i-4] == 0x8fbf0018 && source[i-6] == 0x00c0f809
+      && dops[i-7].itype == STORE)
+  {
+    i = i-8;
+    if (dops[i].itype == IMM16)
+      i--;
+    // swl r2, 15(r6); swr r2, 12(r6); sw r6, *; jalr r6
+    if (dops[i].itype == STORELR && dops[i].rs1 == 6
+      && dops[i-1].itype == STORELR && dops[i-1].rs1 == 6)
+    {
+      SysPrintf("F1 hack from %08x\n", start);
+      if (f1_hack == 0)
+        f1_hack = ~0u;
+    }
+  }
+}
+
 int new_recompile_block(u_int addr)
 {
   u_int pagelimit = 0;
@@ -7091,6 +7125,9 @@ int new_recompile_block(u_int addr)
     f1_hack = start;
     return 0;
   }
+
+  cycle_multiplier_active = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
+    ? cycle_multiplier_override : cycle_multiplier;
 
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {
@@ -7613,23 +7650,7 @@ int new_recompile_block(u_int addr)
   }
   assert(slen>0);
 
-  /* spacial hack(s) */
-  if (i > 10 && source[i-1] == 0 && source[i-2] == 0x03e00008
-      && source[i-4] == 0x8fbf0018 && source[i-6] == 0x00c0f809
-      && dops[i-7].itype == STORE)
-  {
-    i = i-8;
-    if (dops[i].itype == IMM16)
-      i--;
-    // swl r2, 15(r6); swr r2, 12(r6); sw r6, *; jalr r6
-    if (dops[i].itype == STORELR && dops[i].rs1 == 6
-      && dops[i-1].itype == STORELR && dops[i-1].rs1 == 6)
-    {
-      SysPrintf("F1 hack from %08x\n", start);
-      if (f1_hack == 0)
-        f1_hack = ~0u;
-    }
-  }
+  apply_hacks();
 
   /* Pass 2 - Register dependencies and branch targets */
 

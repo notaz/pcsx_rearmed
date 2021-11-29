@@ -36,6 +36,7 @@ void Apply_Hacks_Cdrom()
 
 	/* Dynarec game-specific hacks */
 	new_dynarec_hacks_pergame = 0;
+	cycle_multiplier_override = 0;
 
 	/* Internal Section is fussy about timings */
 	if (strcmp(CdromId, "SLPS01868") == 0)
