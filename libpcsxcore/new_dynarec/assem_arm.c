@@ -949,6 +949,14 @@ static void emit_cmovae_imm(int imm,int rt)
   output_w32(0x23a00000|rd_rn_rm(rt,0,0)|armval);
 }
 
+static void emit_cmovs_imm(int imm,int rt)
+{
+  assem_debug("movmi %s,#%d\n",regname[rt],imm);
+  u_int armval;
+  genimm_checked(imm,&armval);
+  output_w32(0x43a00000|rd_rn_rm(rt,0,0)|armval);
+}
+
 static void emit_cmovne_reg(int rs,int rt)
 {
   assem_debug("movne %s,%s\n",regname[rt],regname[rs]);
@@ -1519,14 +1527,6 @@ static void emit_orrne_imm(int rs,int imm,int rt)
   genimm_checked(imm,&armval);
   assem_debug("orrne %s,%s,#%d\n",regname[rt],regname[rs],imm);
   output_w32(0x13800000|rd_rn_rm(rt,rs,0)|armval);
-}
-
-static void emit_andne_imm(int rs,int imm,int rt)
-{
-  u_int armval;
-  genimm_checked(imm,&armval);
-  assem_debug("andne %s,%s,#%d\n",regname[rt],regname[rs],imm);
-  output_w32(0x12000000|rd_rn_rm(rt,rs,0)|armval);
 }
 
 static unused void emit_addpl_imm(int rs,int imm,int rt)
@@ -2200,11 +2200,11 @@ static void c2op_ctc2_31_assemble(signed char sl, signed char temp)
 static void do_mfc2_31_one(u_int copr,signed char temp)
 {
   emit_readword(&reg_cop2d[copr],temp);
-  emit_testimm(temp,0x8000); // do we need this?
-  emit_andne_imm(temp,0,temp);
-  emit_cmpimm(temp,0xf80);
-  emit_andimm(temp,0xf80,temp);
-  emit_cmovae_imm(0xf80,temp);
+  emit_lsls_imm(temp,16,temp);
+  emit_cmovs_imm(0,temp);
+  emit_cmpimm(temp,0xf80<<16);
+  emit_andimm(temp,0xf80<<16,temp);
+  emit_cmovae_imm(0xf80<<16,temp);
 }
 
 static void c2op_mfc2_29_assemble(signed char tl, signed char temp)
@@ -2214,11 +2214,11 @@ static void c2op_mfc2_29_assemble(signed char tl, signed char temp)
     temp = HOST_TEMPREG;
   }
   do_mfc2_31_one(9,temp);
-  emit_shrimm(temp,7,tl);
+  emit_shrimm(temp,7+16,tl);
   do_mfc2_31_one(10,temp);
-  emit_orrshr_imm(temp,2,tl);
+  emit_orrshr_imm(temp,2+16,tl);
   do_mfc2_31_one(11,temp);
-  emit_orrshl_imm(temp,3,tl);
+  emit_orrshr_imm(temp,-3+16,tl);
   emit_writeword(tl,&reg_cop2d[29]);
   if (temp == HOST_TEMPREG)
     host_tempreg_release();
