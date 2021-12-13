@@ -9,19 +9,16 @@
 
 #include "emu_if.h"
 #include "pcsxmem.h"
-#include "../../../psxhle.h"
-#include "../../../r3000a.h"
-#include "../../../cdrom.h"
-#include "../../../psxdma.h"
-#include "../../../mdec.h"
-#include "../../../gte_arm.h"
-#include "../../../gte_neon.h"
-
-#include "../../../gte.h"
-
+#include "../psxhle.h"
+#include "../psxinterpreter.h"
+#include "../r3000a.h"
+#include "../cdrom.h"
+#include "../psxdma.h"
+#include "../mdec.h"
+#include "../gte_arm.h"
+#include "../gte_neon.h"
 #define FLAGLESS
-#include "../../../gte.h"
-#undef  FLAGLESS
+#include "../gte.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -29,7 +26,6 @@
 #define evprintf(...)
 
 char invalid_code[0x100000];
-static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 u32 event_cycles[PSXINT_COUNT];
 
 static void schedule_timeslice(void)
@@ -189,11 +185,14 @@ void new_dyna_freeze(void *f, int mode)
 		if (bytes != size)
 			return;
 
-		new_dynarec_load_blocks(addrs, size);
+		if (psxCpu != &psxInt)
+			new_dynarec_load_blocks(addrs, size);
 	}
 
 	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");
 }
+
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
 
 /* GTE stuff */
 void *gte_handlers[64];
@@ -218,15 +217,6 @@ const char *gte_regnames[64] = {
 	"SQR" , "DCPL" , "DPCT" , NULL  , NULL , "AVSZ3", "AVSZ4", NULL  , // 28 
 	"RTPT", NULL   , NULL   , NULL  , NULL , NULL   , NULL   , NULL  , // 30
 	NULL  , NULL   , NULL   , NULL  , NULL , "GPF"  , "GPL"  , "NCCT", // 38
-};
-
-/* from gte.txt.. not sure if this is any good. */
-const char gte_cycletab[64] = {
-	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
-	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
-	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
-	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
-	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
 };
 
 #define GCBIT(x) \
@@ -307,6 +297,7 @@ const uint64_t gte_reg_writes[64] = {
 
 static int ari64_init()
 {
+	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
 	extern unsigned char *out;
@@ -335,13 +326,12 @@ static int ari64_init()
 #ifdef DRC_DBG
 	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
 #endif
-   
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
 	scratch_buf_ptr = scratch_buf;
 
 	SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
-	SysPrintf("%08x/%08x/%08x/%08x/%08x\n",
+	SysPrintf("%p/%p/%p/%p/%p\n",
 		psxM, psxH, psxR, mem_rtab, out);
 
 	return 0;
@@ -365,7 +355,7 @@ static void ari64_execute_until()
 	evprintf("ari64_execute %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
 
-	new_dyna_start();
+	new_dyna_start(dynarec_local);
 
 	evprintf("ari64_execute end %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
@@ -398,23 +388,37 @@ static void ari64_clear(u32 addr, u32 size)
 			invalidate_block(start);
 }
 
-#ifdef ICACHE_EMULATION
 static void ari64_notify(int note, void *data) {
 	/*
-	To change once we have proper icache emulation
+	Should be fixed when ARM dynarec has proper icache emulation.
 	switch (note)
 	{
 		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
-			ari64_clear(0, 0x200000/4);
 			break;
 		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
-		// Sent from psxDma3().
+		Sent from psxDma3().
 		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
 		default:
 			break;
-	}*/
+	}
+	*/
 }
-#endif
+
+static void ari64_apply_config()
+{
+	intApplyConfig();
+
+	if (Config.DisableStalls)
+		new_dynarec_hacks |= NDHACK_NO_STALLS;
+	else
+		new_dynarec_hacks &= ~NDHACK_NO_STALLS;
+
+	if (cycle_multiplier != cycle_multiplier_old
+	    || new_dynarec_hacks != new_dynarec_hacks_old)
+	{
+		new_dynarec_clear_full();
+	}
+}
 
 static void ari64_shutdown()
 {
@@ -422,44 +426,28 @@ static void ari64_shutdown()
 	new_dyna_pcsx_mem_shutdown();
 }
 
-extern void intExecute();
-extern void intExecuteT();
-extern void intExecuteBlock();
-extern void intExecuteBlockT();
-#ifndef DRC_DBG
-#define intExecuteT intExecute
-#define intExecuteBlockT intExecuteBlock
-#endif
-
 R3000Acpu psxRec = {
 	ari64_init,
 	ari64_reset,
-#ifndef DRC_DISABLE
 	ari64_execute,
 	ari64_execute_until,
-#else
-	intExecuteT,
-	intExecuteBlockT,
-#endif
 	ari64_clear,
-#ifdef ICACHE_EMULATION
 	ari64_notify,
-#endif
+	ari64_apply_config,
 	ari64_shutdown
 };
 
-// TODO: rm
-#ifndef DRC_DBG
-void do_insn_trace() {}
-void do_insn_cmp() {}
-#endif
+#else // if DRC_DISABLE
 
-#ifdef DRC_DISABLE
 unsigned int address;
 int pending_exception, stop;
-u32 next_interupt;
+unsigned int next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier;
+int cycle_multiplier_override;
+int cycle_multiplier_old;
+int new_dynarec_hacks_pergame;
+int new_dynarec_hacks_old;
 int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
@@ -467,8 +455,8 @@ u8 zero_mem[0x1000];
 unsigned char *out;
 void *mem_rtab;
 void *scratch_buf_ptr;
-void new_dynarec_init() { (void)ari64_execute; }
-void new_dyna_start() {}
+void new_dynarec_init() {}
+void new_dyna_start(void *context) {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}
 void invalidate_all_pages() {}
@@ -485,7 +473,9 @@ void new_dynarec_load_blocks(const void *save, int size) {}
 
 #include <stddef.h>
 static FILE *f;
-extern u32 last_io_addr;
+u32 irq_test_cycle;
+u32 handler_cycle;
+u32 last_io_addr;
 
 static void dump_mem(const char *fname, void *mem, size_t size)
 {
@@ -511,11 +501,10 @@ static u32 memcheck_read(u32 a)
 	return *(u32 *)(psxM + (a & 0x1ffffc));
 }
 
+#if 0
 void do_insn_trace(void)
 {
 	static psxRegisters oldregs;
-	static u32 old_io_addr = (u32)-1;
-	static u32 old_io_data = 0xbad0c0de;
 	static u32 event_cycles_o[PSXINT_COUNT];
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_o = (void *)&oldregs;
@@ -539,27 +528,27 @@ void do_insn_trace(void)
 	// log event changes
 	for (i = 0; i < PSXINT_COUNT; i++) {
 		if (event_cycles[i] != event_cycles_o[i]) {
-			byte = 0xfc;
+			byte = 0xf8;
 			fwrite(&byte, 1, 1, f);
 			fwrite(&i, 1, 1, f);
 			fwrite(&event_cycles[i], 1, 4, f);
 			event_cycles_o[i] = event_cycles[i];
 		}
 	}
-	// log last io
-	if (old_io_addr != last_io_addr) {
-		byte = 0xfd;
-		fwrite(&byte, 1, 1, f);
-		fwrite(&last_io_addr, 1, 4, f);
-		old_io_addr = last_io_addr;
+	#define SAVE_IF_CHANGED(code_, name_) { \
+		static u32 old_##name_ = 0xbad0c0de; \
+		if (old_##name_ != name_) { \
+			byte = code_; \
+			fwrite(&byte, 1, 1, f); \
+			fwrite(&name_, 1, 4, f); \
+			old_##name_ = name_; \
+		} \
 	}
+	SAVE_IF_CHANGED(0xfb, irq_test_cycle);
+	SAVE_IF_CHANGED(0xfc, handler_cycle);
+	SAVE_IF_CHANGED(0xfd, last_io_addr);
 	io_data = memcheck_read(last_io_addr);
-	if (old_io_data != io_data) {
-		byte = 0xfe;
-		fwrite(&byte, 1, 1, f);
-		fwrite(&io_data, 1, 4, f);
-		old_io_data = io_data;
-	}
+	SAVE_IF_CHANGED(0xfe, io_data);
 	byte = 0xff;
 	fwrite(&byte, 1, 1, f);
 
@@ -572,6 +561,7 @@ void do_insn_trace(void)
 	}
 #endif
 }
+#endif
 
 static const char *regnames[offsetof(psxRegisters, intCycle) / 4] = {
 	"r0",  "r1",  "r2",  "r3",  "r4",  "r5",  "r6",  "r7",
@@ -620,12 +610,15 @@ void breakme() {}
 
 void do_insn_cmp(void)
 {
+	extern int last_count;
 	static psxRegisters rregs;
 	static u32 mem_addr, mem_val;
+	static u32 irq_test_cycle_intr;
+	static u32 handler_cycle_intr;
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_e = (void *)&rregs;
 	static u32 ppc, failcount;
-	int i, ret, bad = 0, which_event = -1;
+	int i, ret, bad = 0, fatal = 0, which_event = -1;
 	u32 ev_cycles = 0;
 	u8 code;
 
@@ -640,10 +633,16 @@ void do_insn_cmp(void)
 		if (code == 0xff)
 			break;
 		switch (code) {
-		case 0xfc:
+		case 0xf8:
 			which_event = 0;
 			fread(&which_event, 1, 1, f);
 			fread(&ev_cycles, 1, 4, f);
+			continue;
+		case 0xfb:
+			fread(&irq_test_cycle_intr, 1, 4, f);
+			continue;
+		case 0xfc:
+			fread(&handler_cycle_intr, 1, 4, f);
 			continue;
 		case 0xfd:
 			fread(&mem_addr, 1, 4, f);
@@ -652,23 +651,43 @@ void do_insn_cmp(void)
 			fread(&mem_val, 1, 4, f);
 			continue;
 		}
+		assert(code < offsetof(psxRegisters, intCycle) / 4);
 		fread(&allregs_e[code], 1, 4, f);
 	}
 
 	if (ret <= 0) {
 		printf("EOF?\n");
-		goto end;
+		exit(1);
 	}
 
 	psxRegs.code = rregs.code; // don't care
-	psxRegs.cycle = rregs.cycle;
+	psxRegs.cycle += last_count;
+	//psxRegs.cycle = rregs.cycle;
 	psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
 	//if (psxRegs.cycle == 166172) breakme();
 
-	if (memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle)) == 0 &&
-			mem_val == memcheck_read(mem_addr)
-	   ) {
+	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
+		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
+		fatal = 1;
+	}
+
+	if (irq_test_cycle > irq_test_cycle_intr) {
+		printf("bad irq_test_cycle: %u %u\n", irq_test_cycle, irq_test_cycle_intr);
+		fatal = 1;
+	}
+
+	if (handler_cycle != handler_cycle_intr) {
+		printf("bad handler_cycle: %u %u\n", handler_cycle, handler_cycle_intr);
+		fatal = 1;
+	}
+
+	if (mem_val != memcheck_read(mem_addr)) {
+		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
+		fatal = 1;
+	}
+
+	if (!fatal && !memcmp(&psxRegs, &rregs, offsetof(psxRegisters, intCycle))) {
 		failcount = 0;
 		goto ok;
 	}
@@ -677,20 +696,12 @@ void do_insn_cmp(void)
 		if (allregs_p[i] != allregs_e[i]) {
 			miss_log_add(i, allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
 			bad++;
+			if (i > 32+2)
+				fatal = 1;
 		}
 	}
 
-	if (mem_val != memcheck_read(mem_addr)) {
-		printf("bad mem @%08x: %08x %08x\n", mem_addr, memcheck_read(mem_addr), mem_val);
-		goto end;
-	}
-
-	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
-		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
-		goto end;
-	}
-
-	if (psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
+	if (!fatal && psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
 		static int last_mcycle;
 		if (last_mcycle != psxRegs.cycle >> 20) {
 			printf("%u\n", psxRegs.cycle);
@@ -700,7 +711,6 @@ void do_insn_cmp(void)
 		goto ok;
 	}
 
-end:
 	for (i = 0; i < miss_log_len; i++, miss_log_i = (miss_log_i + 1) & miss_log_mask)
 		printf("bad %5s: %08x %08x, pc=%08x, cycle %u\n",
 			regnames[miss_log[miss_log_i].reg], miss_log[miss_log_i].val,
@@ -714,7 +724,7 @@ end:
 	dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
 	exit(1);
 ok:
-	psxRegs.cycle = rregs.cycle + 2; // sync timing
+	//psxRegs.cycle = rregs.cycle + 2; // sync timing
 	ppc = psxRegs.pc;
 }
 

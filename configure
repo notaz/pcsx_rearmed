@@ -45,7 +45,6 @@ sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
 plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
-ram_fixed="no"
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
@@ -76,6 +75,7 @@ config_mak="config.mak"
 fail()
 {
   echo "$@"
+  if test -n "$DUMP_CONFIG_LOG"; then cat config.log; fi
   exit 1
 }
 
@@ -88,21 +88,18 @@ set_platform()
     ;;
   pandora)
     sound_drivers="oss alsa"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     need_xlib="yes"
     ;;
   maemo)
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     ;;
   caanoo)
     sound_drivers="oss"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     need_warm="yes"
@@ -278,7 +275,11 @@ arm*)
     echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
   ;;
+aarch64)
+  ;;
 *)
+  # dynarec only available on ARM
+  enable_dynarec="no"
   ;;
 esac
 
@@ -289,10 +290,6 @@ fi
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
   PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
-fi
-
-if [ "$ram_fixed" = "yes" ]; then
-  CFLAGS="$CFLAGS -DRAM_FIXED"
 fi
 
 case "$platform" in
@@ -548,15 +545,12 @@ echo >> $config_mak
 
 if [ "$platform" = "libretro" ]; then
   echo "TARGET = libretro.so" >> $config_mak
-  echo "HAVE_CHD = 1" >> $config_mak
 fi
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-if [ "$platform" != "libretro" ]; then
-  echo "PLUGINS = $plugins" >> $config_mak
-fi
+echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
 fi
@@ -572,7 +566,7 @@ if [ "$enable_dynarec" = "yes" ]; then
   echo "USE_DYNAREC = 1" >> $config_mak
 fi
 if [ "$drc_cache_base" = "yes" ]; then
-  echo "DRC_CACHE_BASE = 1" >> $config_mak
+  echo "BASE_ADDR_DYNAMIC = 1" >> $config_mak
 fi
 if [ "$have_c64x_dsp" = "yes" ]; then
   echo "HAVE_C64_TOOLS = 1" >> $config_mak

@@ -67,6 +67,12 @@ extern "C" {
 
 struct psxCP2Regs;
 
+extern const unsigned char gte_cycletab[64];
+
+int  gteCheckStallRaw(u32 op_cycles, psxRegisters *regs);
+void gteCheckStall(u32 op);
+
+// for lightrec
 u32 MFC2(int reg);
 void MTC2(u32 value, int reg);
 void CTC2(u32 value, int reg);
@@ -77,6 +83,8 @@ void gteMTC2();
 void gteCTC2();
 void gteLWC2();
 void gteSWC2();
+void gteLWC2_stall();
+void gteSWC2_stall();
 
 void gteRTPS(struct psxCP2Regs *regs);
 void gteOP(struct psxCP2Regs *regs);

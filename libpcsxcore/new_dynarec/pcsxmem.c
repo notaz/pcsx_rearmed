@@ -6,11 +6,11 @@
  */
 
 #include <stdio.h>
-#include "../../../psxhw.h"
-#include "../../../cdrom.h"
-#include "../../../mdec.h"
-#include "../../../gpu.h"
-#include "../../../psxmem_map.h"
+#include "../psxhw.h"
+#include "../cdrom.h"
+#include "../mdec.h"
+#include "../gpu.h"
+#include "../psxmem_map.h"
 #include "emu_if.h"
 #include "pcsxmem.h"
 
@@ -22,27 +22,27 @@
 //#define memprintf printf
 #define memprintf(...)
 
-static u32 *mem_readtab;
-static u32 *mem_writetab;
-static u32 mem_iortab[(1+2+4) * 0x1000 / 4];
-static u32 mem_iowtab[(1+2+4) * 0x1000 / 4];
-static u32 mem_ffwtab[(1+2+4) * 0x1000 / 4];
-//static u32 mem_unmrtab[(1+2+4) * 0x1000 / 4];
-static u32 mem_unmwtab[(1+2+4) * 0x1000 / 4];
+static uintptr_t *mem_readtab;
+static uintptr_t *mem_writetab;
+static uintptr_t mem_iortab[(1+2+4) * 0x1000 / 4];
+static uintptr_t mem_iowtab[(1+2+4) * 0x1000 / 4];
+static uintptr_t mem_ffwtab[(1+2+4) * 0x1000 / 4];
+//static uintptr_t mem_unmrtab[(1+2+4) * 0x1000 / 4];
+static uintptr_t mem_unmwtab[(1+2+4) * 0x1000 / 4];
 
-// When this is called in a loop, and 'h' is a function pointer, clang will crash.
+static
 #ifdef __clang__
-static __attribute__ ((noinline)) void map_item(u32 *out, const void *h, u32 flag)
-#else
-static void map_item(u32 *out, const void *h, u32 flag)
+// When this is called in a loop, and 'h' is a function pointer, clang will crash.
+__attribute__ ((noinline))
 #endif
+void map_item(uintptr_t *out, const void *h, uintptr_t flag)
 {
-	u32 hv = (u32)h;
+	uintptr_t hv = (uintptr_t)h;
 	if (hv & 1) {
 		SysPrintf("FATAL: %p has LSB set\n", h);
 		abort();
 	}
-	*out = (hv >> 1) | (flag << 31);
+	*out = (hv >> 1) | (flag << (sizeof(hv) * 8 - 1));
 }
 
 // size must be power of 2, at least 4k
@@ -90,7 +90,7 @@ static void io_write_sio32(u32 value)
 	sioWrite8((unsigned char)(value >> 24));
 }
 
-#ifndef DRC_DBG
+#if !defined(DRC_DBG) && defined(__arm__)
 
 static void map_rcnt_rcount0(u32 mode)
 {
@@ -306,7 +306,7 @@ void new_dyna_pcsx_mem_init(void)
 	int i;
 
 	// have to map these further to keep tcache close to .text
-	mem_readtab = psxMap(0x08000000, 0x200000 * 4, 0, MAP_TAG_LUTS);
+	mem_readtab = psxMap(0x08000000, 0x200000 * sizeof(mem_readtab[0]), 0, MAP_TAG_LUTS);
 	if (mem_readtab == NULL) {
 		SysPrintf("failed to map mem tables\n");
 		exit(1);

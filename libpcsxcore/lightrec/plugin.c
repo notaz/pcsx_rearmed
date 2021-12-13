@@ -37,6 +37,9 @@
 #	define unlikely(x)     (x)
 #endif
 
+psxRegisters psxRegs;
+Rcnt rcnts[4];
+
 static struct lightrec_state *lightrec_state;
 
 static char *name = "retroarch.exe";
@@ -46,18 +49,6 @@ static bool use_pcsx_interpreter;
 static bool lightrec_debug;
 static bool lightrec_very_debug;
 static u32 lightrec_begin_cycles;
-
-int stop;
-u32 cycle_multiplier;
-int new_dynarec_hacks;
-
-/* Unused for now */
-u32 event_cycles[PSXINT_COUNT];
-u32 next_interupt;
-
-void new_dyna_before_save() {}
-void new_dyna_after_save() {}
-void new_dyna_freeze(void *f, int i) {}
 
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
@@ -578,7 +569,6 @@ static void lightrec_plugin_clear(u32 addr, u32 size)
 		lightrec_invalidate(lightrec_state, addr, size * 4);
 }
 
-#ifdef ICACHE_EMULATION
 static void lightrec_plugin_notify(int note, void *data)
 {
 	/*
@@ -595,7 +585,10 @@ static void lightrec_plugin_notify(int note, void *data)
 			break;
 	}*/
 }
-#endif
+
+static void lightrec_plugin_apply_config()
+{
+}
 
 static void lightrec_plugin_shutdown(void)
 {
@@ -615,8 +608,7 @@ R3000Acpu psxRec =
 	lightrec_plugin_execute,
 	lightrec_plugin_execute_block,
 	lightrec_plugin_clear,
-#ifdef ICACHE_EMULATION
 	lightrec_plugin_notify,
-#endif
+	lightrec_plugin_apply_config,
 	lightrec_plugin_shutdown,
 };

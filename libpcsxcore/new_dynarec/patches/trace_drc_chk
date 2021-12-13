@@ -1,0 +1,133 @@
+diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
+index f1005db..ebd1d4f 100644
+--- a/libpcsxcore/new_dynarec/new_dynarec.c
++++ b/libpcsxcore/new_dynarec/new_dynarec.c
+@@ -235,7 +235,7 @@ static struct decoded_insn
+   int new_dynarec_hacks_old;
+   int new_dynarec_did_compile;
+ 
+-  #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
++  #define HACK_ENABLED(x) ((NDHACK_NO_STALLS) & (x))
+ 
+   extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
+   extern int last_count;  // last absolute target, often = next_interupt
+@@ -471,6 +471,7 @@ int cycle_multiplier_old;
+ 
+ static int CLOCK_ADJUST(int x)
+ {
++  return x * 2;
+   int m = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
+         ? cycle_multiplier_override : cycle_multiplier;
+   int s=(x>>31)|1;
+@@ -522,6 +523,9 @@ static int doesnt_expire_soon(void *tcaddr)
+ // This is called from the recompiled JR/JALR instructions
+ void noinline *get_addr(u_int vaddr)
+ {
++#ifdef DRC_DBG
++printf("get_addr %08x, pc=%08x\n", vaddr, psxRegs.pc);
++#endif
+   u_int page=get_page(vaddr);
+   u_int vpage=get_vpage(vaddr);
+   struct ll_entry *head;
+@@ -6248,7 +6252,7 @@ void unneeded_registers(int istart,int iend,int r)
+     // R0 is always unneeded
+     u|=1;
+     // Save it
+-    unneeded_reg[i]=u;
++    unneeded_reg[i]=1;//u;
+     gte_unneeded[i]=gte_u;
+     /*
+     printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
+@@ -8794,6 +8798,7 @@ int new_recompile_block(u_int addr)
+ 
+   // This allocates registers (if possible) one instruction prior
+   // to use, which can avoid a load-use penalty on certain CPUs.
++#if 0
+   for(i=0;i<slen-1;i++)
+   {
+     if (!i || !dops[i-1].is_jump)
+@@ -8950,6 +8955,7 @@ int new_recompile_block(u_int addr)
+       }
+     }
+   }
++#endif
+ 
+   /* Pass 6 - Optimize clean/dirty state */
+   clean_registers(0,slen-1,1);
+@@ -9204,6 +9210,11 @@ int new_recompile_block(u_int addr)
+         load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
+ 
+       ds = assemble(i, &regs[i], ccadj[i]);
++#ifdef DRC_DBG
++       // write-out non-consts, consts are likely different because of get_final_value()
++       if (!dops[i].is_jump)
++         wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
++#endif
+ 
+       if (dops[i].is_ujump)
+         literal_pool(1024);
+@@ -9439,6 +9450,10 @@ int new_recompile_block(u_int addr)
+   }
+ #ifdef ASSEM_PRINT
+   fflush(stdout);
++#endif
++#ifdef DRC_DBG
++printf("new_recompile_block done\n");
++fflush(stdout);
+ #endif
+   return 0;
+ }
+diff --git a/libpcsxcore/new_dynarec/pcsxmem.c b/libpcsxcore/new_dynarec/pcsxmem.c
+index bb471b6..8f68a3b 100644
+--- a/libpcsxcore/new_dynarec/pcsxmem.c
++++ b/libpcsxcore/new_dynarec/pcsxmem.c
+@@ -272,6 +272,8 @@ static void write_biu(u32 value)
+ 	if (address != 0xfffe0130)
+ 		return;
+ 
++extern u32 handler_cycle;
++handler_cycle = psxRegs.cycle;
+ 	switch (value) {
+ 	case 0x800: case 0x804:
+ 		unmap_ram_write();
+diff --git a/libpcsxcore/psxcounters.c b/libpcsxcore/psxcounters.c
+index b2cc07b..f916580 100644
+--- a/libpcsxcore/psxcounters.c
++++ b/libpcsxcore/psxcounters.c
+@@ -378,9 +378,12 @@ void psxRcntUpdate()
+ 
+ /******************************************************************************/
+ 
++extern u32 handler_cycle;
++
+ void psxRcntWcount( u32 index, u32 value )
+ {
+     verboseLog( 2, "[RCNT %i] wcount: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     _psxRcntWcount( index, value );
+     psxRcntSet();
+@@ -389,6 +392,7 @@ void psxRcntWcount( u32 index, u32 value )
+ void psxRcntWmode( u32 index, u32 value )
+ {
+     verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     _psxRcntWmode( index, value );
+     _psxRcntWcount( index, 0 );
+@@ -400,6 +404,7 @@ void psxRcntWmode( u32 index, u32 value )
+ void psxRcntWtarget( u32 index, u32 value )
+ {
+     verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
++handler_cycle = psxRegs.cycle;
+ 
+     rcnts[index].target = value;
+ 
+@@ -412,6 +417,7 @@ void psxRcntWtarget( u32 index, u32 value )
+ u32 psxRcntRcount( u32 index )
+ {
+     u32 count;
++handler_cycle = psxRegs.cycle;
+ 
+     count = _psxRcntRcount( index );
+ 

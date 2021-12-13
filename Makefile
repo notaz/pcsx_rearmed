@@ -48,7 +48,7 @@ CFLAGS += -DPCNT
 endif
 
 # core
-OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o \
+OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/database.o \
 	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
 	libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o \
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
@@ -113,26 +113,28 @@ CFLAGS += -Ideps/mman
 OBJS += deps/mman/mman.o
 endif
 else ifeq "$(DYNAREC)" "ari64"
-CFLAGS += -DNEW_DYNAREC
-OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o \
-		libpcsxcore/new_dynarec/new_dynarec.o \
-		libpcsxcore/new_dynarec/arm/linkage_arm.o \
-		libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
-	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o
+OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+ ifeq "$(ARCH)" "arm"
+ OBJS += libpcsxcore/new_dynarec/linkage_arm.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
+ else ifneq (,$(findstring $(ARCH),aarch64 arm64))
+ OBJS += libpcsxcore/new_dynarec/linkage_arm64.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm64.c
+ else
+ $(error no dynarec support for architecture $(ARCH))
+ endif
 else
-OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o
-libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
-frontend/libretro.o: CFLAGS += -DDRC_DISABLE
+CFLAGS += -DDRC_DISABLE
 endif
+OBJS += libpcsxcore/new_dynarec/emu_if.o
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
-libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
+libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
 endif
-ifeq "$(DRC_CACHE_BASE)" "1"
-libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
-libpcsxcore/new_dynarec/backends/psx/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
-libpcsxcore/new_dynarec/arm/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
+ifeq "$(BASE_ADDR_DYNAMIC)" "1"
+libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_DYNAMIC=1
 endif
 
 # spu
@@ -312,9 +314,6 @@ OBJS += libretro-common/time/rtime.o
 OBJS += libretro-common/vfs/vfs_implementation.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
-ifeq "$(ENABLE_ICACHE_EMULATION)" "1"
-CFLAGS += -DICACHE_EMULATION
-endif
 OBJS += frontend/libretro.o
 CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
@@ -331,6 +330,7 @@ ifeq "$(USE_PLUGIN_LIB)" "1"
 OBJS += frontend/plugin_lib.o
 OBJS += frontend/libpicofe/linux/plat.o
 OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
+frontend/libpicofe/linux/plat.o: CFLAGS += -DNO_HOME_DIR
 ifeq "$(HAVE_NEON)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o

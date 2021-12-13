@@ -777,9 +777,7 @@ unsigned char _PADpoll(int port, unsigned char value) {
 
 	//if no new request the pad return 0xff, for signaling connected
 	if (reqPos >= respSize
-#ifdef ICACHE_EMULATION
 	 && writeok
-#endif
 	 ) return 0xff;
 
 	switch(reqPos){

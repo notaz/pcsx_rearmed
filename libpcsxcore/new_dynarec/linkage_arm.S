@@ -20,21 +20,20 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "arm_features.h"
-#include "../new_dynarec_config.h"
+#include "new_dynarec_config.h"
 #include "linkage_offsets.h"
 
 
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
-#define add_link		ESYM(add_link)
+#define add_jump_out		ESYM(add_jump_out)
 #define new_recompile_block	ESYM(new_recompile_block)
 #define get_addr		ESYM(get_addr)
 #define get_addr_ht		ESYM(get_addr_ht)
 #define clean_blocks		ESYM(clean_blocks)
 #define gen_interupt		ESYM(gen_interupt)
-#define psxException		ESYM(psxException)
-#define execI			ESYM(execI)
 #define invalidate_addr		ESYM(invalidate_addr)
+#define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #endif
 
 	.bss
@@ -59,12 +58,13 @@ DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
 DRC_VAR(pending_exception, 4)
 DRC_VAR(stop, 4)
-DRC_VAR(invc_ptr, 4)
+DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
+@DRC_VAR(align0, 4) /* unused/alignment */
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
-DRC_VAR(reg, 128)
+@DRC_VAR(reg, 128)
 DRC_VAR(lo, 4)
 DRC_VAR(hi, 4)
 DRC_VAR(reg_cop0, 128)
@@ -77,21 +77,18 @@ DRC_VAR(pcaddr, 4)
 @DRC_VAR(intCycle, 256)
 
 DRC_VAR(rcnts, 7*4*4)
+DRC_VAR(inv_code_start, 4)
+DRC_VAR(inv_code_end, 4)
 DRC_VAR(mem_rtab, 4)
 DRC_VAR(mem_wtab, 4)
 DRC_VAR(psxH_ptr, 4)
 DRC_VAR(zeromem_ptr, 4)
-DRC_VAR(inv_code_start, 4)
-DRC_VAR(inv_code_end, 4)
-DRC_VAR(branch_target, 4)
+DRC_VAR(invc_ptr, 4)
 DRC_VAR(scratch_buf_ptr, 4)
-@DRC_VAR(align0, 12) /* unused/alignment */
+DRC_VAR(ram_offset, 4)
 DRC_VAR(mini_ht, 256)
 DRC_VAR(restore_candidate, 512)
 
-/* unused */
-DRC_VAR(FCR0, 4)
-DRC_VAR(FCR31, 4)
 
 #ifdef TEXRELS_FORBIDDEN
 	.data
@@ -180,7 +177,7 @@ ptr_hash_table:
 	orrcs	r2, r6, #2048
 	ldr	r5, [r3, r2, lsl #2]
 	lsl	r12, r12, #8
-	add	r6, r1, r12, asr #6
+	add	r6, r1, r12, asr #6  /* old target */
 	mov	r8, #0
 	/* jump_in lookup */
 1:
@@ -200,7 +197,7 @@ ptr_hash_table:
 
 	mov	r5, r1
 	mov	r1, r6
-	bl	add_link
+	bl	add_jump_out
 	sub	r2, r8, r5
 	and	r1, r7, #0xff000000
 	lsl	r2, r2, #6
@@ -221,8 +218,8 @@ ptr_hash_table:
 	ldr	r5, [r3, r2, lsl #2]
 	ldr	r7, [r6, r4]!
 	teq	r7, r0
-	ldreq	pc, [r6, #4]
-	ldr	r7, [r6, #8]
+	ldreq	pc, [r6, #8]
+	ldr	r7, [r6, #4]
 	teq	r7, r0
 	ldreq	pc, [r6, #12]
 	/* jump_dirty lookup */
@@ -237,10 +234,10 @@ ptr_hash_table:
 	ldr	r1, [r4, #8]
 	/* hash_table insert */
 	ldr	r2, [r6]
-	ldr	r3, [r6, #4]
+	ldr	r3, [r6, #8]
 	str	r0, [r6]
-	str	r1, [r6, #4]
-	str	r2, [r6, #8]
+	str	r1, [r6, #8]
+	str	r2, [r6, #4]
 	str	r3, [r6, #12]
 	mov	pc, r1
 8:
@@ -382,8 +379,8 @@ FUNCTION(jump_vaddr):
 	and	r2, r3, r2, lsr #12
 	ldr	r2, [r1, r2]!
 	teq	r2, r0
-	ldreq	pc, [r1, #4]
-	ldr	r2, [r1, #8]
+	ldreq	pc, [r1, #8]
+	ldr	r2, [r1, #4]
 	teq	r2, r0
 	ldreq	pc, [r1, #12]
 	str	r10, [fp, #LO_cycle_count]
@@ -395,8 +392,7 @@ FUNCTION(jump_vaddr):
 	.align	2
 
 FUNCTION(verify_code_ds):
-	str	r8, [fp, #LO_branch_target]
-FUNCTION(verify_code_vm):
+	str	r8, [fp, #LO_branch_target]  @ preserve HOST_BTREG?
 FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
@@ -431,7 +427,7 @@ FUNCTION(verify_code):
 	bl	get_addr
 	mov	pc, r0
 	.size	verify_code, .-verify_code
-	.size	verify_code_vm, .-verify_code_vm
+	.size	verify_code_ds, .-verify_code_ds
 
 	.align	2
 FUNCTION(cc_interrupt):
@@ -480,14 +476,6 @@ FUNCTION(cc_interrupt):
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2
-FUNCTION(do_interrupt):
-	ldr	r0, [fp, #LO_pcaddr]
-	bl	get_addr_ht
-	add	r10, r10, #2
-	mov	pc, r0
-	.size	do_interrupt, .-do_interrupt
-
-	.align	2
 FUNCTION(fp_exception):
 	mov	r2, #0x10000000
 .E7:
@@ -523,19 +511,9 @@ FUNCTION(jump_syscall):
 	.size	jump_syscall, .-jump_syscall
 	.align	2
 
-	.align	2
-FUNCTION(jump_syscall_hle):
-	str	r0, [fp, #LO_pcaddr] /* PC must be set to EPC for psxException */
-	ldr	r2, [fp, #LO_last_count]
-	mov	r1, #0    /* in delay slot */
-	add	r2, r2, r10
-	mov	r0, #0x20 /* cause */
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	bl	psxException
-
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
-pcsx_return:
+FUNCTION(jump_to_new_pc):
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	ldr	r0, [fp, #LO_pcaddr]
@@ -543,27 +521,7 @@ pcsx_return:
 	str	r1, [fp, #LO_last_count]
 	bl	get_addr_ht
 	mov	pc, r0
-	.size	jump_syscall_hle, .-jump_syscall_hle
-
-	.align	2
-FUNCTION(jump_hlecall):
-	ldr	r2, [fp, #LO_last_count]
-	str	r0, [fp, #LO_pcaddr]
-	add	r2, r2, r10
-	adr	lr, pcsx_return
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	bx	r1
-	.size	jump_hlecall, .-jump_hlecall
-
-	.align	2
-FUNCTION(jump_intcall):
-	ldr	r2, [fp, #LO_last_count]
-	str	r0, [fp, #LO_pcaddr]
-	add	r2, r2, r10
-	adr	lr, pcsx_return
-	str	r2, [fp, #LO_cycle] /* PCSX cycle counter */
-	b	execI
-	.size	jump_hlecall, .-jump_hlecall
+	.size	jump_to_new_pc, .-jump_to_new_pc
 
 	.align	2
 FUNCTION(new_dyna_leave):
@@ -658,7 +616,7 @@ invalidate_addr_call:
 FUNCTION(new_dyna_start):
 	/* ip is stored to conform EABI alignment */
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
-	load_varadr fp, dynarec_local
+	mov	fp, r0 /* dynarec_local */
 	ldr	r0, [fp, #LO_pcaddr]
 	bl	get_addr_ht
 	ldr	r1, [fp, #LO_next_interupt]
@@ -703,6 +661,13 @@ FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldrcc, 2
 
 
+.macro memhandler_post
+	ldr	r0, [fp, #LO_next_interupt]
+	ldr	r2, [fp, #LO_cycle]        @ memhandlers can modify cc, like dma
+	str	r0, [fp, #LO_last_count]
+	sub	r0, r2, r0
+.endm
+
 .macro pcsx_write_mem wrtop tab_shift
 	/* r0 = address, r1 = data, r2 = cycles, r3 = handler_tab */
 	lsl	r12,r0, #20
@@ -710,7 +675,7 @@ FUNCTION(jump_handler_read32):
 	ldr	r3, [r3, r12, lsl #2]
 	str	r0, [fp, #LO_address]      @ some handlers still need it..
 	lsls	r3, #1
-	mov     r0, r2                                @ cycle return in case of direct store
+	mov     r0, r2                     @ cycle return in case of direct store
 .if \tab_shift == 1
 	lsl	r12, #1
 	\wrtop	r1, [r3, r12]
@@ -721,15 +686,14 @@ FUNCTION(jump_handler_read32):
 	ldr	r12, [fp, #LO_last_count]
 	mov     r0, r1
 	add	r2, r2, r12
-	push	{r2, lr}
 	str	r2, [fp, #LO_cycle]
-	blx	r3
 
-	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, r3}
-	str	r0, [fp, #LO_last_count]
-	sub	r0, r2, r0
-	bx	r3
+	str	lr, [fp, #LO_saved_lr]
+	blx	r3
+	ldr	lr, [fp, #LO_saved_lr]
+
+	memhandler_post
+	bx	lr
 .endm
 
 FUNCTION(jump_handler_write8):
@@ -749,15 +713,14 @@ FUNCTION(jump_handler_write_h):
 	str	r0, [fp, #LO_address]      @ some handlers still need it..
 	add	r2, r2, r12
 	mov     r0, r1
-	push	{r2, lr}
 	str	r2, [fp, #LO_cycle]
-	blx	r3
 
-	ldr	r0, [fp, #LO_next_interupt]
-	pop	{r2, r3}
-	str	r0, [fp, #LO_last_count]
-	sub	r0, r2, r0
-	bx	r3
+	str	lr, [fp, #LO_saved_lr]
+	blx	r3
+	ldr	lr, [fp, #LO_saved_lr]
+
+	memhandler_post
+	bx	lr
 
 FUNCTION(jump_handle_swl):
 	/* r0 = address, r1 = data, r2 = cycles */
@@ -861,6 +824,18 @@ FUNCTION(rcnt2_read_count_m1):
 	mov	r0, r2, lsl #16-3
 	sub	r0, r0, r3, lsl #16-3
 	lsr	r0, #16			@ /= 8
+	bx	lr
+
+FUNCTION(call_gteStall):
+	/* r0 = op_cycles, r1 = cycles */
+	ldr	r2, [fp, #LO_last_count]
+	str	lr, [fp, #LO_saved_lr]
+	add	r1, r1, r2
+	str	r1, [fp, #LO_cycle]
+	add	r1, fp, #LO_psxRegs
+	bl	gteCheckStallRaw
+	ldr	lr, [fp, #LO_saved_lr]
+	add	r10, r10, r0
 	bx	lr
 
 @ vim:filetype=armasm

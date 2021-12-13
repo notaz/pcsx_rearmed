@@ -29,14 +29,11 @@ extern "C" {
 #include "psxcounters.h"
 #include "psxbios.h"
 
-#ifdef ICACHE_EMULATION
 enum {
 	R3000ACPU_NOTIFY_CACHE_ISOLATED = 0,
 	R3000ACPU_NOTIFY_CACHE_UNISOLATED = 1,
 	R3000ACPU_NOTIFY_DMA3_EXE_LOAD = 2
 };
-extern uint32_t *Read_ICache(uint32_t pc);
-#endif
 
 typedef struct {
 	int  (*Init)();
@@ -44,16 +41,14 @@ typedef struct {
 	void (*Execute)();		/* executes up to a break */
 	void (*ExecuteBlock)();	/* executes up to a jump */
 	void (*Clear)(u32 Addr, u32 Size);
-#ifdef ICACHE_EMULATION
 	void (*Notify)(int note, void *data);
-#endif
+	void (*ApplyConfig)();
 	void (*Shutdown)();
 } R3000Acpu;
 
 extern R3000Acpu *psxCpu;
 extern R3000Acpu psxInt;
 extern R3000Acpu psxRec;
-#define PSXREC
 
 typedef union {
 #if defined(__BIGENDIAN__)
@@ -194,6 +189,11 @@ typedef struct {
 	u32 cycle;
 	u32 interrupt;
 	struct { u32 sCycle, cycle; } intCycle[32];
+	u32 gteBusyCycle;
+	u32 muldivBusyCycle;
+	// warning: changing anything in psxRegisters requires update of all
+	// asm in libpcsxcore/new_dynarec/, but this member can be replaced
+	u32 reserved[2];
 } psxRegisters;
 
 extern boolean writeok;
