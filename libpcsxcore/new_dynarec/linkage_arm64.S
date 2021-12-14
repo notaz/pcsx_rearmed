@@ -336,7 +336,7 @@ handler_write_end:
 FUNCTION(jump_handle_swl):
 	/* w0 = address, w1 = data, w2 = cycles */
 	ldr	x3, [rFP, #LO_mem_wtab]
-	mov	w4, w0, lsr #12
+	orr	w4, wzr, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
 	bcs	4f
@@ -371,7 +371,7 @@ FUNCTION(jump_handle_swl):
 FUNCTION(jump_handle_swr):
 	/* w0 = address, w1 = data, w2 = cycles */
 	ldr	x3, [rFP, #LO_mem_wtab]
-	mov	w4, w0, lsr #12
+	orr	w4, wzr, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
 	bcs	4f
