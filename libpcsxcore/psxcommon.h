@@ -37,6 +37,10 @@ extern "C" {
 #pragma GCC diagnostic ignored "-Wformat-overflow"
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
+// devkitpro has uint32_t as long, unfortunately
+#ifdef _3DS
+#pragma GCC diagnostic ignored "-Wformat"
+#endif
 
 // System includes
 #include <stdio.h>

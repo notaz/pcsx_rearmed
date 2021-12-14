@@ -1318,14 +1318,12 @@ static void SetupStreams(void)
  spu.pSpuBuffer = (unsigned char *)malloc(32768);      // alloc mixing buffer
  spu.SSumLR = calloc(NSSIZE * 2, sizeof(spu.SSumLR[0]));
 
- spu.XAStart =                                         // alloc xa buffer
-  (uint32_t *)malloc(44100 * sizeof(uint32_t));
+ spu.XAStart = malloc(44100 * sizeof(uint32_t));       // alloc xa buffer
  spu.XAEnd   = spu.XAStart + 44100;
  spu.XAPlay  = spu.XAStart;
  spu.XAFeed  = spu.XAStart;
 
- spu.CDDAStart =                                       // alloc cdda buffer
-  (uint32_t *)malloc(CDDA_BUFFER_SIZE);
+ spu.CDDAStart = malloc(CDDA_BUFFER_SIZE);             // alloc cdda buffer
  spu.CDDAEnd   = spu.CDDAStart + 16384;
  spu.CDDAPlay  = spu.CDDAStart;
  spu.CDDAFeed  = spu.CDDAStart;

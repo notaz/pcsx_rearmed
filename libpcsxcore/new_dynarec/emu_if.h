@@ -85,7 +85,7 @@ extern void *scratch_buf_ptr;
 extern u32 inv_code_start, inv_code_end;
 
 /* cycles/irqs */
-extern unsigned int next_interupt;
+extern u32 next_interupt;
 extern int pending_exception;
 
 /* called by drc */
