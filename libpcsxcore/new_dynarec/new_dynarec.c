@@ -6841,14 +6841,22 @@ void new_dynarec_init(void)
 {
   SysPrintf("Init new dynarec\n");
 
+#ifdef _3DS
+  check_rosalina();
+#endif
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
-  sceBlock = sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
+  sceBlock = getVMBlock(); //sceKernelAllocMemBlockForVM("code", sizeof(*ndrc));
   if (sceBlock < 0)
     SysPrintf("sceKernelAllocMemBlockForVM failed\n");
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&ndrc);
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
+  sceKernelOpenVMDomain();
+  sceClibPrintf("translation_cache = 0x%08lx\n ", (long)ndrc->translation_cache);
+  #elif defined(_MSC_VER)
+  ndrc = VirtualAlloc(NULL, sizeof(*ndrc), MEM_COMMIT | MEM_RESERVE,
+    PAGE_EXECUTE_READWRITE);
   #else
   uintptr_t desired_addr = 0;
   #ifdef __ELF__
