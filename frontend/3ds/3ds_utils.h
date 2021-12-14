@@ -21,7 +21,7 @@ extern __attribute__((weak)) int  __ctr_svchax;
 
 static bool has_rosalina;
 
-static void check_rosalina() {
+static inline void check_rosalina() {
   int64_t version;
   uint32_t major;
 
