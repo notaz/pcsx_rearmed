@@ -60,20 +60,15 @@ static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
-static const u32 HSyncTotal[] = { 263, 314 }; // actually one more on odd lines for PAL
+static const u32 HSyncTotal[]     = { 263, 314 }; // actually one more on odd lines for PAL
 #define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
-#if VERBOSE_LEVEL > 0
-static const s32 VerboseLevel     = VERBOSE_LEVEL;
-#endif
 
 /******************************************************************************/
-
-#ifndef NEW_DYNAREC
+#ifdef DRC_DISABLE
 Rcnt rcnts[ CounterQuantity ];
 #endif
-
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
@@ -93,7 +88,7 @@ static
 void verboseLog( u32 level, const char *str, ... )
 {
 #if VERBOSE_LEVEL > 0
-    if( level <= VerboseLevel )
+    if( level <= VERBOSE_LEVEL )
     {
         va_list va;
         char buf[ 4096 ];
@@ -507,13 +502,16 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     if (Mode == 0)
     {
         // don't trust things from a savestate
+        rcnts[3].rate = 1;
         for( i = 0; i < CounterQuantity; ++i )
         {
             _psxRcntWmode( i, rcnts[i].mode );
             count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
             _psxRcntWcount( i, count );
         }
-        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        hsync_steps = 0;
+        if (rcnts[3].target)
+           hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
         psxRcntSet();
 
         base_cycle = 0;

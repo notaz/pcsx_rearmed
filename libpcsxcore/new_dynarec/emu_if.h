@@ -1,8 +1,5 @@
-#ifndef __EMU_IF_H__
-#define __EMU_IF_H__
-
-#include "../../new_dynarec.h"
-#include "../../../r3000a.h"
+#include "new_dynarec.h"
+#include "../r3000a.h"
 
 extern char invalid_code[0x100000];
 
@@ -10,8 +7,7 @@ extern char invalid_code[0x100000];
 #define EAX 0
 #define ECX 1
 
-/* same as psxRegs */
-extern int reg[];
+extern int dynarec_local[];
 
 /* same as psxRegs.GPR.n.* */
 extern int hi, lo;
@@ -56,12 +52,8 @@ extern int reg_cop2d[], reg_cop2c[];
 extern void *gte_handlers[64];
 extern void *gte_handlers_nf[64];
 extern const char *gte_regnames[64];
-extern const char gte_cycletab[64];
 extern const uint64_t gte_reg_reads[64];
 extern const uint64_t gte_reg_writes[64];
-
-/* dummy */
-extern int FCR0, FCR31;
 
 /* mem */
 extern void *mem_rtab;
@@ -89,10 +81,11 @@ extern void *zeromem_ptr;
 extern void *scratch_buf_ptr;
 
 // same as invalid_code, just a region for ram write checks (inclusive)
+// (psx/guest address range)
 extern u32 inv_code_start, inv_code_end;
 
 /* cycles/irqs */
-extern u32 next_interupt;
+extern unsigned int next_interupt;
 extern int pending_exception;
 
 /* called by drc */
@@ -100,14 +93,6 @@ void pcsx_mtc0(u32 reg, u32 val);
 void pcsx_mtc0_ds(u32 reg, u32 val);
 
 /* misc */
-extern const void (*psxHLEt[8])();
-
 extern void SysPrintf(const char *fmt, ...);
 
-#ifdef RAM_FIXED
-#define rdram ((u_int)0x80000000)
-#else
-#define rdram ((u_int)psxM)
-#endif
-
-#endif /* __EMU_IF_H__ */
+#define rdram ((u_char *)psxM)

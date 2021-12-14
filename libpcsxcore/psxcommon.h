@@ -31,6 +31,13 @@ extern "C" {
 
 #include "config.h"
 
+// XXX: don't care but maybe fix it someday
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#pragma GCC diagnostic ignored "-Wformat-overflow"
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+
 // System includes
 #include <stdio.h>
 #include <string.h>
@@ -131,6 +138,7 @@ typedef struct {
 	boolean UseNet;
 	boolean VSyncWA;
 	boolean icache_emulation;
+	boolean DisableStalls;
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
 #ifdef _WIN32

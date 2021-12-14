@@ -122,12 +122,6 @@ extern u8 **psxMemRLUT;
 
 #define PSXMu32ref(mem)	(*(u32 *)PSXM(mem))
 
-#ifndef PSXREC
-#if defined(NEW_DYNAREC) || defined(LIGHTREC)
-#define PSXREC
-#endif
-#endif
-
 int psxMemInit();
 void psxMemReset();
 void psxMemShutdown();

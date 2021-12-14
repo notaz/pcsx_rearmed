@@ -25,6 +25,7 @@ EXTRA_INCLUDES :=
 SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/cdrom.c \
              $(CORE_DIR)/cheat.c \
+             $(CORE_DIR)/database.c \
              $(CORE_DIR)/decode_xa.c \
              $(CORE_DIR)/mdec.c \
              $(CORE_DIR)/misc.c \
@@ -115,7 +116,7 @@ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   HAVE_ARI64=1
 else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
-  HAVE_LIGHTREC=1
+  HAVE_ARI64=1
 else ifeq ($(TARGET_ARCH_ABI),x86_64)
   HAVE_LIGHTREC=1
 else ifeq ($(TARGET_ARCH_ABI),x86)
@@ -125,13 +126,17 @@ else
 endif
 
 ifeq ($(HAVE_ARI64),1)
-  COREFLAGS   += -DNEW_DYNAREC
-  SOURCES_ASM += $(CORE_DIR)/gte_arm.S \
-                 $(SPU_DIR)/arm_utils.S \
-                 $(DYNAREC_DIR)/arm/linkage_arm.S
   SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
-                 $(DYNAREC_DIR)/backends/psx/pcsxmem.c
+                 $(DYNAREC_DIR)/pcsxmem.c
+  ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+    SOURCES_ASM += $(DYNAREC_DIR)/linkage_arm64.S
+  else
+    SOURCES_ASM += $(CORE_DIR)/gte_arm.S \
+                   $(SPU_DIR)/arm_utils.S \
+                   $(DYNAREC_DIR)/linkage_arm.S
+  endif
 endif
+  SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
 
 ifeq ($(HAVE_LIGHTREC),1)
   COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
@@ -164,7 +169,6 @@ ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
                  $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
                  $(FRONTEND_DIR)/cspace_neon.S
   SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
-  SOURCES_C   += $(DYNAREC_DIR)/backends/psx/emu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
   SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \

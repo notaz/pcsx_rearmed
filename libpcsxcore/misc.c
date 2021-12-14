@@ -21,11 +21,13 @@
 * Miscellaneous functions, including savestates and CD-ROM loading.
 */
 
+#include <stddef.h>
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
+#include "database.h"
 #include <zlib.h>
 
 char CdromId[10] = "";
@@ -388,17 +390,25 @@ int CheckCdrom() {
 		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
-		if (CdromId[2] == 'e' || CdromId[2] == 'E')
+		if (
+			/* Make sure Wild Arms SCUS-94608 is not detected as a PAL game. */
+			((CdromId[0] == 's' || CdromId[0] == 'S') && (CdromId[2] == 'e' || CdromId[2] == 'E')) ||
+			!strncmp(CdromId, "DTLS3035", 8) ||
+			!strncmp(CdromId, "PBPX95001", 9) || // according to redump.org, these PAL
+			!strncmp(CdromId, "PBPX95007", 9) || // discs have a non-standard ID;
+			!strncmp(CdromId, "PBPX95008", 9))   // add more serials if they are discovered.
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
 	}
 
 	if (CdromLabel[0] == ' ') {
-		memcpy(CdromLabel, CdromId, 9);
+		strncpy(CdromLabel, CdromId, 9);
 	}
 	SysPrintf(_("CD-ROM Label: %.32s\n"), CdromLabel);
 	SysPrintf(_("CD-ROM ID: %.9s\n"), CdromId);
 	SysPrintf(_("CD-ROM EXE Name: %.255s\n"), exename);
+	
+	Apply_Hacks_Cdrom();
 
 	BuildPPFCache();
 
@@ -621,7 +631,8 @@ int SaveState(const char *file) {
 	SaveFuncs.write(f, psxM, 0x00200000);
 	SaveFuncs.write(f, psxR, 0x00080000);
 	SaveFuncs.write(f, psxH, 0x00010000);
-	SaveFuncs.write(f, (void *)&psxRegs, sizeof(psxRegs));
+	// only partial save of psxRegisters to maintain savestate compat
+	SaveFuncs.write(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 
 	// gpu
 	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
@@ -690,7 +701,8 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, psxM, 0x00200000);
 	SaveFuncs.read(f, psxR, 0x00080000);
 	SaveFuncs.read(f, psxH, 0x00010000);
-	SaveFuncs.read(f, (void *)&psxRegs, sizeof(psxRegs));
+	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
+	psxRegs.gteBusyCycle = psxRegs.cycle;
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
@@ -777,7 +789,7 @@ int RecvPcsxInfo() {
 	NET_recvData(&Config.Cpu, sizeof(Config.Cpu), PSE_NET_BLOCKING);
 	if (tmp != Config.Cpu) {
 		psxCpu->Shutdown();
-#if defined(NEW_DYNAREC) || defined(LIGHTREC)
+#ifndef DRC_DISABLE
 		if (Config.Cpu == CPU_INTERPRETER) psxCpu = &psxInt;
 		else psxCpu = &psxRec;
 #else
