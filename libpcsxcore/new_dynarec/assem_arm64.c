@@ -453,7 +453,7 @@ static void emit_loadreg(u_int r, u_int hr)
   if (r == 0)
     emit_zeroreg(hr);
   else {
-    void *addr = &psxRegs.GPR.r[r];
+    void *addr;
     switch (r) {
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
@@ -461,7 +461,10 @@ static void emit_loadreg(u_int r, u_int hr)
     case CSREG: addr = &Status; break;
     case INVCP: addr = &invc_ptr; is64 = 1; break;
     case ROREG: addr = &ram_offset; is64 = 1; break;
-    default: assert(r < 34); break;
+    default:
+      assert(r < 34);
+      addr = &psxRegs.GPR.r[r];
+      break;
     }
     if (is64)
       emit_readdword(addr, hr);
