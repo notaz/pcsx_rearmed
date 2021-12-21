@@ -6841,14 +6841,22 @@ void new_dynarec_init(void)
 {
   SysPrintf("Init new dynarec\n");
 
+#ifdef _3DS
+  check_rosalina();
+#endif
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
-  sceBlock = sceKernelAllocMemBlockForVM("code", 1 << TARGET_SIZE_2);
+  sceBlock = getVMBlock(); //sceKernelAllocMemBlockForVM("code", sizeof(*ndrc));
   if (sceBlock < 0)
     SysPrintf("sceKernelAllocMemBlockForVM failed\n");
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&ndrc);
   if (ret < 0)
     SysPrintf("sceKernelGetMemBlockBase failed\n");
+  sceKernelOpenVMDomain();
+  sceClibPrintf("translation_cache = 0x%08lx\n ", (long)ndrc->translation_cache);
+  #elif defined(_MSC_VER)
+  ndrc = VirtualAlloc(NULL, sizeof(*ndrc), MEM_COMMIT | MEM_RESERVE,
+    PAGE_EXECUTE_READWRITE);
   #else
   uintptr_t desired_addr = 0;
   #ifdef __ELF__
@@ -7154,9 +7162,9 @@ int new_recompile_block(u_int addr)
 
   /* Pass 1 disassembly */
 
-  for(i=0;!done;i++) {
-    dops[i].bt=0;
-    dops[i].ooo=0;
+  for (i = 0; !done; i++)
+  {
+    memset(&dops[i], 0, sizeof(dops[i]));
     op2=0;
     minimum_free_regs[i]=0;
     dops[i].opcode=op=source[i]>>26;
@@ -7596,12 +7604,12 @@ int new_recompile_block(u_int addr)
           do_in_intrp=1;
         }
       }
-      if(do_in_intrp) {
-        dops[i-1].rs1=CCREG;
-        dops[i-1].rs2=dops[i-1].rt1=dops[i-1].rt2=0;
-        ba[i-1]=-1;
-        dops[i-1].itype=INTCALL;
-        done=2;
+      if (do_in_intrp) {
+        memset(&dops[i-1], 0, sizeof(dops[i-1]));
+        dops[i-1].itype = INTCALL;
+        dops[i-1].rs1 = CCREG;
+        ba[i-1] = -1;
+        done = 2;
         i--; // don't compile the DS
       }
     }
@@ -7710,7 +7718,10 @@ int new_recompile_block(u_int addr)
         current.u=branch_unneeded_reg[i]&~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
         current.u&=~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2));
         current.u|=1;
-      } else { SysPrintf("oops, branch at end of block with no delay slot\n");abort(); }
+      } else {
+        SysPrintf("oops, branch at end of block with no delay slot @%08x\n", start + i*4);
+        abort();
+      }
     }
     dops[i].is_ds=ds;
     if(ds) {

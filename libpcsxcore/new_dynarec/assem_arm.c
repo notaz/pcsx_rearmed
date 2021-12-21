@@ -473,6 +473,7 @@ static void emit_loadlp(u_int imm,u_int rt)
   output_w32(0xe5900000|rd_rn_rm(rt,15,0));
 }
 
+#ifdef HAVE_ARMV7
 static void emit_movw(u_int imm,u_int rt)
 {
   assert(imm<65536);
@@ -485,6 +486,7 @@ static void emit_movt(u_int imm,u_int rt)
   assem_debug("movt %s,#%d (0x%x)\n",regname[rt],imm&0xffff0000,imm&0xffff0000);
   output_w32(0xe3400000|rd_rn_rm(rt,0,0)|((imm>>16)&0xfff)|((imm>>12)&0xf0000));
 }
+#endif
 
 static void emit_movimm(u_int imm,u_int rt)
 {
@@ -530,17 +532,20 @@ static void emit_loadreg(int r, int hr)
   if((r&63)==0)
     emit_zeroreg(hr);
   else {
-    int addr = (int)&psxRegs.GPR.r[r];
+    void *addr;
     switch (r) {
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
-    case CCREG: addr = (int)&cycle_count; break;
-    case CSREG: addr = (int)&Status; break;
-    case INVCP: addr = (int)&invc_ptr; break;
-    case ROREG: addr = (int)&ram_offset; break;
-    default: assert(r < 34); break;
+    case CCREG: addr = &cycle_count; break;
+    case CSREG: addr = &Status; break;
+    case INVCP: addr = &invc_ptr; break;
+    case ROREG: addr = &ram_offset; break;
+    default:
+      assert(r < 34);
+      addr = &psxRegs.GPR.r[r];
+      break;
     }
-    u_int offset = addr-(u_int)&dynarec_local;
+    u_int offset = (u_char *)addr - (u_char *)&dynarec_local;
     assert(offset<4096);
     assem_debug("ldr %s,fp+%d\n",regname[hr],offset);
     output_w32(0xe5900000|rd_rn_rm(hr,FP,0)|offset);
@@ -2119,10 +2124,10 @@ static void c2op_assemble(int i, const struct regstat *i_regs)
         }
 #else
         if(cv==3&&shift)
-          emit_far_call((int)gteMVMVA_part_cv3sh12_arm);
+          emit_far_call(gteMVMVA_part_cv3sh12_arm);
         else {
           emit_movimm(shift,1);
-          emit_far_call((int)(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm));
+          emit_far_call(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm);
         }
         if(need_flags||need_ir)
           c2op_call_MACtoIR(lm,need_flags);

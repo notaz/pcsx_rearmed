@@ -236,8 +236,6 @@ else ifeq ($(platform), vita)
 	BUILTIN_GPU = neon
 
 	DYNAREC = ari64
-	DRC_CACHE_BASE = 0
-
 	ARCH = arm
 	STATIC_LINKING = 1
 
@@ -261,7 +259,6 @@ else ifeq ($(platform), ctr)
 	BUILTIN_GPU = unai
 	THREAD_RENDERING = 1
 	DYNAREC = ari64
-	DRC_CACHE_BASE = 0
 	ARCH = arm
 	HAVE_NEON = 0
 	STATIC_LINKING = 1
@@ -295,7 +292,6 @@ else ifeq ($(platform), qnx)
 	CC_AS = $(CC)
 	HAVE_NEON = 1
 	DYNAREC = ari64
-	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = neon
 	ARCH = arm
 	CFLAGS += -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
@@ -422,7 +418,6 @@ else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
 	HAVE_NEON = 0
-	DRC_CACHE_BASE = 0
 	BUILTIN_GPU = peops
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a8
