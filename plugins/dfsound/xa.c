@@ -43,14 +43,13 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
  int cursor = decode_pos;
  int ns;
  short l, r;
- uint32_t v;
+ uint32_t v = spu.XALastVal;
 
  if(spu.XAPlay != spu.XAFeed || spu.XARepeat > 0)
  {
   if(spu.XAPlay == spu.XAFeed)
    spu.XARepeat--;
 
-  v = spu.XALastVal;
   for(ns = 0; ns < ns_to*2; )
    {
     if(spu.XAPlay != spu.XAFeed) v=*spu.XAPlay++;
@@ -67,21 +66,28 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
    }
   spu.XALastVal = v;
  }
+ // occasionally CDDAFeed underflows by a few samples due to poor timing,
+ // hence this 'ns_to < 8'
+ else if(spu.CDDAPlay != spu.CDDAFeed || ns_to < 8)
+ {
+  for(ns = 0; ns < ns_to*2; )
+   {
+    if(spu.CDDAPlay != spu.CDDAFeed) v=*spu.CDDAPlay++;
+    if(spu.CDDAPlay == spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
 
- for(ns = 0; ns < ns_to * 2 && spu.CDDAPlay!=spu.CDDAFeed && (spu.CDDAPlay!=spu.CDDAEnd-1||spu.CDDAFeed!=spu.CDDAStart);)
-  {
-   v=*spu.CDDAPlay++;
-   if(spu.CDDAPlay==spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
+    l = ((int)(short)v * spu.iLeftXAVol) >> 15;
+    r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
+    SSumLR[ns++] += l;
+    SSumLR[ns++] += r;
 
-   l = ((int)(short)v * spu.iLeftXAVol) >> 15;
-   r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
-
-   spu.spuMem[cursor] = v;
-   spu.spuMem[cursor + 0x400/2] = v >> 16;
-   cursor = (cursor + 1) & 0x1ff;
-  }
+    spu.spuMem[cursor] = v;
+    spu.spuMem[cursor + 0x400/2] = v >> 16;
+    cursor = (cursor + 1) & 0x1ff;
+   }
+  spu.XALastVal = v;
+ }
+ else
+  spu.XALastVal = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
