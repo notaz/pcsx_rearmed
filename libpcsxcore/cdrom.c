@@ -451,7 +451,6 @@ static void cdrPlayInterrupt_Autopause()
 		StopCdda();
 	}
 	else if (((cdr.Mode & MODE_REPORT) || cdr.FastForward || cdr.FastBackward)) {
-		CDR_readCDDA(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2], (u8 *)read_buf);
 		cdr.Result[0] = cdr.StatP;
 		cdr.Result[1] = cdr.subq.Track;
 		cdr.Result[2] = cdr.subq.Index;
@@ -527,13 +526,14 @@ void cdrPlayInterrupt()
 		StopCdda();
 		cdr.TrackChanged = TRUE;
 	}
+	else {
+		CDR_readCDDA(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2], (u8 *)read_buf);
+	}
 
 	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
-	if (!cdr.Play) return;
-	
-	if (CDR_readCDDA && !cdr.Muted && cdr.Mode & MODE_REPORT) {
+	if (CDR_readCDDA && !cdr.Muted && !Config.Cdda) {
 		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
 		if (SPU_playCDDAchannel)
 			SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW);
