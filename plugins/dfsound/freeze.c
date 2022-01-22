@@ -119,6 +119,7 @@ typedef struct
 typedef struct
 {
  unsigned short  spuIrq;
+ unsigned short  decode_pos;
  uint32_t   pSpuIrq;
  uint32_t   spuAddr;
  uint32_t   dummy1;
@@ -261,6 +262,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
 
    pFO->spuAddr=spu.spuAddr;
    if(pFO->spuAddr==0) pFO->spuAddr=0xbaadf00d;
+   pFO->decode_pos = spu.decode_pos;
 
    for(i=0;i<MAXCHAN;i++)
     {
@@ -329,6 +331,7 @@ void LoadStateV5(SPUFreeze_t * pF)
    if (pFO->spuAddr == 0xbaadf00d) spu.spuAddr = 0;
    else spu.spuAddr = pFO->spuAddr & 0x7fffe;
   }
+ spu.decode_pos = pFO->decode_pos & 0x1ff;
 
  spu.dwNewChannel=0;
  spu.dwChannelOn=0;
