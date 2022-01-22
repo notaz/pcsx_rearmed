@@ -6789,7 +6789,7 @@ static void new_dynarec_test(void)
     SysPrintf("linkage_arm* miscompilation/breakage detected.\n");
   }
 
-  SysPrintf("testing if we can run recompiled code...\n");
+  SysPrintf("testing if we can run recompiled code @%p...\n", out);
   ((volatile u_int *)out)[0]++; // make cache dirty
 
   for (i = 0; i < ARRAY_SIZE(ret); i++) {
@@ -6874,7 +6874,8 @@ void new_dynarec_init(void)
 #else
   #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
-  if (mprotect(ndrc, sizeof(ndrc->translation_cache) + sizeof(ndrc->tramp.ops),
+  // size must be 4K aligned for 3DS?
+  if (mprotect(ndrc, sizeof(*ndrc),
                PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect() failed: %s\n", strerror(errno));
   #endif
