@@ -366,7 +366,7 @@ libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
 
 frontend/revision.h: FORCE
-	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
+	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
 	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
 	@rm $@_
 
@@ -410,7 +410,7 @@ endif
 
 # ----------- release -----------
 
-VER ?= $(shell git describe HEAD)
+VER ?= $(shell git describe --always HEAD)
 
 ifeq "$(PLATFORM)" "generic"
 OUT = pcsx_rearmed_$(VER)
