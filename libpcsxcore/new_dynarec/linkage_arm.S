@@ -60,7 +60,7 @@ DRC_VAR(pending_exception, 4)
 DRC_VAR(stop, 4)
 DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
-@DRC_VAR(align0, 4) /* unused/alignment */
+DRC_VAR(hack_addr, 4)
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
