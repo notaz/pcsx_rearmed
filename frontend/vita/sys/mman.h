@@ -1,12 +1,13 @@
 #ifndef MMAN_H
 #define MMAN_H
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <psp2/kernel/sysmem.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "stdlib.h"
-#include "stdio.h"
 
 #define PROT_READ       0b001
 #define PROT_WRITE      0b010
