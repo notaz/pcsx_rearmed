@@ -29,10 +29,6 @@
 #ifdef _3DS
 #include <3ds_utils.h>
 #endif
-#ifdef VITA
-#include <psp2/kernel/sysmem.h>
-static int sceBlock;
-#endif
 
 #include "new_dynarec_config.h"
 #include "../psxhle.h"
@@ -353,6 +349,14 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
 static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
+
+#ifdef VITA
+#include <psp2/kernel/sysmem.h>
+static int sceBlock;
+// note: this interacts with RetroArch's Vita bootstrap code: bootstrap/vita/sbrk.c
+extern int getVMBlock();
+int _newlib_vm_size_user = sizeof(*ndrc);
+#endif
 
 static void mprotect_w_x(void *start, void *end, int is_x)
 {
@@ -6899,8 +6903,8 @@ void new_dynarec_cleanup(void)
   int n;
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
-  sceKernelFreeMemBlock(sceBlock);
-  sceBlock = -1;
+  //sceKernelFreeMemBlock(sceBlock);
+  //sceBlock = -1;
   #else
   if (munmap(ndrc, sizeof(*ndrc)) < 0)
     SysPrintf("munmap() failed\n");
