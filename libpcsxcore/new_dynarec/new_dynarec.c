@@ -224,7 +224,7 @@ static struct decoded_insn
   static void *copy;
   static int expirep;
   static u_int stop_after_jal;
-  static u_int f1_hack; // 0 - off, ~0 - capture address, else addr
+  static u_int f1_hack;
 
   int new_dynarec_hacks;
   int new_dynarec_hacks_pergame;
@@ -6831,6 +6831,7 @@ void new_dynarec_clear_full(void)
   literalcount=0;
   stop_after_jal=0;
   inv_code_start=inv_code_end=~0;
+  hack_addr=0;
   f1_hack=0;
   // TLB
   for(n=0;n<4096;n++) ll_clear(jump_in+n);
@@ -7046,11 +7047,11 @@ void new_dynarec_load_blocks(const void *save, int size)
   memcpy(&psxRegs.GPR, regs_save, sizeof(regs_save));
 }
 
-static void apply_hacks(void)
+static int apply_hacks(void)
 {
   int i;
   if (HACK_ENABLED(NDHACK_NO_COMPAT_HACKS))
-    return;
+    return 0;
   /* special hack(s) */
   for (i = 0; i < slen - 4; i++)
   {
@@ -7075,11 +7076,12 @@ static void apply_hacks(void)
     if (dops[i].itype == STORELR && dops[i].rs1 == 6
       && dops[i-1].itype == STORELR && dops[i-1].rs1 == 6)
     {
-      SysPrintf("F1 hack from %08x\n", start);
-      if (f1_hack == 0)
-        f1_hack = ~0u;
+      SysPrintf("F1 hack from %08x, old dst %08x\n", start, hack_addr);
+      f1_hack = 1;
+      return 1;
     }
   }
+  return 0;
 }
 
 int new_recompile_block(u_int addr)
@@ -7117,9 +7119,11 @@ int new_recompile_block(u_int addr)
     ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
     return 0;
   }
-  else if (f1_hack == ~0u || (f1_hack != 0 && start == f1_hack)) {
+  else if (f1_hack && hack_addr == 0) {
     void *beginning = start_block();
     u_int page = get_page(start);
+    emit_movimm(start, 0);
+    emit_writeword(0, &hack_addr);
     emit_readword(&psxRegs.GPR.n.sp, 0);
     emit_readptr(&mem_rtab, 1);
     emit_shrimm(0, 12, 2);
@@ -7135,7 +7139,6 @@ int new_recompile_block(u_int addr)
 
     ll_add_flags(jump_in + page, start, state_rflags, beginning);
     SysPrintf("F1 hack to   %08x\n", start);
-    f1_hack = start;
     return 0;
   }
 
@@ -7663,7 +7666,7 @@ int new_recompile_block(u_int addr)
   }
   assert(slen>0);
 
-  apply_hacks();
+  int clear_hack_addr = apply_hacks();
 
   /* Pass 2 - Register dependencies and branch targets */
 
@@ -9203,6 +9206,11 @@ int new_recompile_block(u_int addr)
       instr_addr[i] = out;
       assem_debug("<->\n");
       drc_dbg_emit_do_cmp(i, ccadj[i]);
+      if (clear_hack_addr) {
+        emit_movimm(0, 0);
+        emit_writeword(0, &hack_addr);
+        clear_hack_addr = 0;
+      }
 
       // load regs
       if(regs[i].regmap_entry[HOST_CCREG]==CCREG&&regs[i].regmap[HOST_CCREG]!=CCREG)

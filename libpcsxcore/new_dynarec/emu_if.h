@@ -76,6 +76,7 @@ void rcnt2_read_count_m0(u32 addr, u32, u32 cycles);
 void rcnt2_read_count_m1(u32 addr, u32, u32 cycles);
 
 extern unsigned int address;
+extern unsigned int hack_addr;
 extern void *psxH_ptr;
 extern void *zeromem_ptr;
 extern void *scratch_buf_ptr;
