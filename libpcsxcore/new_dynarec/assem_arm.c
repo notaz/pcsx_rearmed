@@ -101,8 +101,6 @@ const u_int invalidate_addr_reg[16] = {
   0,
   0};
 
-static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
-
 /* Linker */
 
 static void set_jump_target(void *addr, void *target_)
@@ -1642,7 +1640,8 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
 
   emit_loadlp(target,0);
   emit_loadlp((u_int)addr,1);
-  assert(addr>=ndrc->translation_cache&&addr<(ndrc->translation_cache+(1<<TARGET_SIZE_2)));
+  assert(ndrc->translation_cache <= addr &&
+         addr < ndrc->translation_cache + sizeof(ndrc->translation_cache));
   //assert((target>=0x80000000&&target<0x80800000)||(target>0xA4000000&&target<0xA4001000));
 //DEBUG >
 #ifdef DEBUG_CYCLE_COUNT
