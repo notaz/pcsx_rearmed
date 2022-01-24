@@ -75,9 +75,17 @@
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
+#ifdef VITA
+// apparently Vita has a 16MB limit, so either we cut tc in half,
+// or use this hack (it's a hack because tc size was designed to be power-of-2)
+#define TC_REDUCE_BYTES 4096
+#else
+#define TC_REDUCE_BYTES 0
+#endif
+
 struct ndrc_mem
 {
-  u_char translation_cache[1 << TARGET_SIZE_2];
+  u_char translation_cache[(1 << TARGET_SIZE_2) - TC_REDUCE_BYTES];
   struct
   {
     struct tramp_insns ops[2048 / sizeof(struct tramp_insns)];
@@ -6844,7 +6852,7 @@ void new_dynarec_clear_full(void)
 
 void new_dynarec_init(void)
 {
-  SysPrintf("Init new dynarec\n");
+  SysPrintf("Init new dynarec, ndrc size %x\n", (int)sizeof(*ndrc));
 
 #ifdef _3DS
   check_rosalina();
@@ -6852,11 +6860,11 @@ void new_dynarec_init(void)
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
   sceBlock = getVMBlock(); //sceKernelAllocMemBlockForVM("code", sizeof(*ndrc));
-  if (sceBlock < 0)
-    SysPrintf("sceKernelAllocMemBlockForVM failed\n");
+  if (sceBlock <= 0)
+    SysPrintf("sceKernelAllocMemBlockForVM failed: %x\n", sceBlock);
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&ndrc);
   if (ret < 0)
-    SysPrintf("sceKernelGetMemBlockBase failed\n");
+    SysPrintf("sceKernelGetMemBlockBase failed: %x\n", ret);
   sceKernelOpenVMDomain();
   sceClibPrintf("translation_cache = 0x%08lx\n ", (long)ndrc->translation_cache);
   #elif defined(_MSC_VER)
@@ -6904,6 +6912,7 @@ void new_dynarec_cleanup(void)
   int n;
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
+  // sceBlock is managed by retroarch's bootstrap code
   //sceKernelFreeMemBlock(sceBlock);
   //sceBlock = -1;
   #else
