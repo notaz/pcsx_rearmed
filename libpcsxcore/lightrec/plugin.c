@@ -126,6 +126,12 @@ static u32 cop2_cfc(struct lightrec_state *state, u32 op, u8 reg)
 	return cop2_mfc_cfc(state, reg, true);
 }
 
+static void lightrec_restore_state(struct lightrec_state *state)
+{
+	lightrec_reset_cycle_count(state, psxRegs.cycle);
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+}
+
 static void cop0_mtc_ctc(struct lightrec_state *state,
 			 u8 reg, u32 value, bool ctc)
 {
@@ -146,17 +152,17 @@ static void cop0_mtc_ctc(struct lightrec_state *state,
 		}
 
 		psxRegs.CP0.n.Status = value;
-		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 		break;
 	case 13: /* Cause */
 		psxRegs.CP0.n.Cause &= ~0x0300;
 		psxRegs.CP0.n.Cause |= value & 0x0300;
-		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 		break;
 	default:
 		psxRegs.CP0.r[reg] = value;
 		break;
 	}
+
+	lightrec_restore_state(state);
 }
 
 static void cop2_mtc_ctc(struct lightrec_state *state,
@@ -209,9 +215,8 @@ static void hw_write_byte(struct lightrec_state *state,
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
 	psxHwWrite8(mem, val);
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+	lightrec_restore_state(state);
 }
 
 static void hw_write_half(struct lightrec_state *state,
@@ -220,9 +225,8 @@ static void hw_write_half(struct lightrec_state *state,
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
 	psxHwWrite16(mem, val);
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+	lightrec_restore_state(state);
 }
 
 static void hw_write_word(struct lightrec_state *state,
@@ -231,9 +235,8 @@ static void hw_write_word(struct lightrec_state *state,
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
 	psxHwWrite32(mem, val);
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+	lightrec_restore_state(state);
 }
 
 static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem)
@@ -242,9 +245,9 @@ static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem
 
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	val = psxHwRead8(mem);
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+
+	lightrec_restore_state(state);
 
 	return val;
 }
@@ -256,9 +259,9 @@ static u16 hw_read_half(struct lightrec_state *state,
 
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	val = psxHwRead16(mem);
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+
+	lightrec_restore_state(state);
 
 	return val;
 }
@@ -270,9 +273,9 @@ static u32 hw_read_word(struct lightrec_state *state,
 
 	psxRegs.cycle = lightrec_current_cycle_count(state);
 
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	val = psxHwRead32(mem);
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+
+	lightrec_restore_state(state);
 
 	return val;
 }
