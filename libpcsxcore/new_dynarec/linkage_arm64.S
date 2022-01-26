@@ -182,19 +182,28 @@ FUNCTION(fp_exception_ds):
 	.size	fp_exception_ds, .-fp_exception_ds
 
 	.align	2
+FUNCTION(jump_break_ds):
+	mov	w0, #0x24
+	mov	w1, #1
+	b	call_psxException
+FUNCTION(jump_break):
+	mov	w0, #0x24
+	mov	w1, #0
+	b	call_psxException
+FUNCTION(jump_syscall_ds):
+	mov	w0, #0x20
+	mov	w1, #1
+	b	call_psxException
 FUNCTION(jump_syscall):
-	ldr	w1, [rFP, #LO_reg_cop0+48] /* Status */
-	mov	w3, #0x80000000
-	str	w0, [rFP, #LO_reg_cop0+56] /* EPC */
-	orr	w1, w1, #2
-	mov	w2, #0x20
-	str	w1, [rFP, #LO_reg_cop0+48] /* Status */
-	str	w2, [rFP, #LO_reg_cop0+52] /* Cause */
-	add	w0, w3, #0x80
-	bl	get_addr_ht
-	br	x0
-	.size	jump_syscall, .-jump_syscall
-	.align	2
+	mov	w0, #0x20
+	mov	w1, #0
+
+call_psxException:
+	ldr	w3, [rFP, #LO_last_count]
+	str	w2, [rFP, #LO_pcaddr]
+	add	rCC, w3, rCC
+	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
+	bl	psxException
 
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */

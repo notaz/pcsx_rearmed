@@ -49,6 +49,7 @@
 
 //#define DISASM
 //#define ASSEM_PRINT
+//#define REG_ALLOC_PRINT
 
 #ifdef ASSEM_PRINT
 #define assem_debug printf
@@ -297,7 +298,7 @@ static struct decoded_insn
 //#define FLOAT 19  // Floating point unit
 //#define FCONV 20  // Convert integer to float
 //#define FCOMP 21  // Floating point compare (sets FSREG)
-#define SYSCALL 22// SYSCALL
+#define SYSCALL 22// SYSCALL,BREAK
 #define OTHER 23  // Other
 #define SPAN 24   // Branch/delay slot spans 2 pages
 #define NI 25     // Not implemented
@@ -328,6 +329,10 @@ void verify_code_ds();
 void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
+void jump_syscall   (u_int u0, u_int u1, u_int pc);
+void jump_syscall_ds(u_int u0, u_int u1, u_int pc);
+void jump_break   (u_int u0, u_int u1, u_int pc);
+void jump_break_ds(u_int u0, u_int u1, u_int pc);
 void jump_to_new_pc();
 void call_gteStall();
 void new_dyna_leave();
@@ -926,6 +931,10 @@ static const struct {
   FUNCNAME(jump_handler_write32),
   FUNCNAME(invalidate_addr),
   FUNCNAME(jump_to_new_pc),
+  FUNCNAME(jump_break),
+  FUNCNAME(jump_break_ds),
+  FUNCNAME(jump_syscall),
+  FUNCNAME(jump_syscall_ds),
   FUNCNAME(call_gteStall),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
@@ -3935,9 +3944,16 @@ static void call_c_cpu_handler(int i, const struct regstat *i_regs, int ccadj_, 
 
 static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
-  emit_movimm(0x20,0); // cause code
-  emit_movimm(0,1);    // not in delay slot
-  call_c_cpu_handler(i, i_regs, ccadj_, start+i*4, psxException);
+  // 'break' tends to be littered around to catch things like
+  // division by 0 and is almost never executed, so don't emit much code here
+  void *func = (dops[i].opcode2 == 0x0C)
+    ? (is_delayslot ? jump_syscall_ds : jump_syscall)
+    : (is_delayslot ? jump_break_ds : jump_break);
+  signed char ccreg = get_reg(i_regs->regmap, CCREG);
+  assert(ccreg == HOST_CCREG);
+  emit_movimm(start + i*4, 2); // pc
+  emit_addimm(HOST_CCREG, ccadj_ + CLOCK_ADJUST(1), HOST_CCREG);
+  emit_far_jump(func);
 }
 
 static void hlecall_assemble(int i, const struct regstat *i_regs, int ccadj_)
@@ -7200,7 +7216,7 @@ int new_recompile_block(u_int addr)
           case 0x08: strcpy(insn[i],"JR"); type=RJUMP; break;
           case 0x09: strcpy(insn[i],"JALR"); type=RJUMP; break;
           case 0x0C: strcpy(insn[i],"SYSCALL"); type=SYSCALL; break;
-          case 0x0D: strcpy(insn[i],"BREAK"); type=OTHER; break;
+          case 0x0D: strcpy(insn[i],"BREAK"); type=SYSCALL; break;
           case 0x0F: strcpy(insn[i],"SYNC"); type=OTHER; break;
           case 0x10: strcpy(insn[i],"MFHI"); type=MOV; break;
           case 0x11: strcpy(insn[i],"MTHI"); type=MOV; break;
@@ -7646,9 +7662,9 @@ int new_recompile_block(u_int addr)
       // Don't get too close to the limit
       if(i>MAXBLOCK/2) done=1;
     }
-    if(dops[i].itype==SYSCALL&&stop_after_jal) done=1;
-    if(dops[i].itype==HLECALL||dops[i].itype==INTCALL) done=2;
-    if(done==2) {
+    if (dops[i].itype == SYSCALL || dops[i].itype == HLECALL || dops[i].itype == INTCALL)
+      done = stop_after_jal ? 1 : 2;
+    if (done == 2) {
       // Does the block continue due to a branch?
       for(j=i-1;j>=0;j--)
       {
@@ -9021,7 +9037,7 @@ int new_recompile_block(u_int addr)
     dops[slen-1].bt=1; // Mark as a branch target so instruction can restart after exception
   }
 
-#ifdef DISASM
+#ifdef REG_ALLOC_PRINT
   /* Debug/disassembly */
   for(i=0;i<slen;i++)
   {
@@ -9153,7 +9169,7 @@ int new_recompile_block(u_int addr)
       #endif
     }
   }
-#endif // DISASM
+#endif // REG_ALLOC_PRINT
 
   /* Pass 8 - Assembly */
   linkcount=0;stubcount=0;
