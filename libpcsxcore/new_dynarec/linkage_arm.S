@@ -34,6 +34,7 @@
 #define gen_interupt		ESYM(gen_interupt)
 #define invalidate_addr		ESYM(invalidate_addr)
 #define gteCheckStallRaw	ESYM(gteCheckStallRaw)
+#define psxException		ESYM(psxException)
 #endif
 
 	.bss
@@ -497,19 +498,28 @@ FUNCTION(fp_exception_ds):
 	.size	fp_exception_ds, .-fp_exception_ds
 
 	.align	2
+FUNCTION(jump_break_ds):
+	mov	r0, #0x24
+	mov	r1, #1
+	b	call_psxException
+FUNCTION(jump_break):
+	mov	r0, #0x24
+	mov	r1, #0
+	b	call_psxException
+FUNCTION(jump_syscall_ds):
+	mov	r0, #0x20
+	mov	r1, #1
+	b	call_psxException
 FUNCTION(jump_syscall):
-	ldr	r1, [fp, #LO_reg_cop0+48] /* Status */
-	mov	r3, #0x80000000
-	str	r0, [fp, #LO_reg_cop0+56] /* EPC */
-	orr	r1, #2
-	mov	r2, #0x20
-	str	r1, [fp, #LO_reg_cop0+48] /* Status */
-	str	r2, [fp, #LO_reg_cop0+52] /* Cause */
-	add	r0, r3, #0x80
-	bl	get_addr_ht
-	mov	pc, r0
-	.size	jump_syscall, .-jump_syscall
-	.align	2
+	mov	r0, #0x20
+	mov	r1, #0
+
+call_psxException:
+	ldr	r3, [fp, #LO_last_count]
+	str	r2, [fp, #LO_pcaddr]
+	add	r10, r3, r10
+	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
+	bl	psxException
 
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
