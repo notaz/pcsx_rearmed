@@ -67,22 +67,18 @@ static irq_func * const irq_funcs[] = {
 /* local dupe of psxBranchTest, using event_cycles */
 static void irq_test(void)
 {
-	u32 irqs = psxRegs.interrupt;
 	u32 cycle = psxRegs.cycle;
 	u32 irq, irq_bits;
 
-	// irq_funcs() may queue more irqs
-	psxRegs.interrupt = 0;
-
-	for (irq = 0, irq_bits = irqs; irq_bits != 0; irq++, irq_bits >>= 1) {
+	for (irq = 0, irq_bits = psxRegs.interrupt; irq_bits != 0; irq++, irq_bits >>= 1) {
 		if (!(irq_bits & 1))
 			continue;
 		if ((s32)(cycle - event_cycles[irq]) >= 0) {
-			irqs &= ~(1 << irq);
+			// note: irq_funcs() also modify psxRegs.interrupt
+			psxRegs.interrupt &= ~(1u << irq);
 			irq_funcs[irq]();
 		}
 	}
-	psxRegs.interrupt |= irqs;
 
 	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (Status & 0x401) == 0x401) {
 		psxException(0x400, 0);
@@ -477,7 +473,7 @@ u32 irq_test_cycle;
 u32 handler_cycle;
 u32 last_io_addr;
 
-static void dump_mem(const char *fname, void *mem, size_t size)
+void dump_mem(const char *fname, void *mem, size_t size)
 {
 	FILE *f1 = fopen(fname, "wb");
 	if (f1 == NULL)
@@ -662,7 +658,7 @@ void do_insn_cmp(void)
 
 	psxRegs.code = rregs.code; // don't care
 	psxRegs.cycle += last_count;
-	//psxRegs.cycle = rregs.cycle;
+	//psxRegs.cycle = rregs.cycle; // needs reload in _cmp
 	psxRegs.CP0.r[9] = rregs.CP0.r[9]; // Count
 
 	//if (psxRegs.cycle == 166172) breakme();
@@ -719,9 +715,9 @@ void do_insn_cmp(void)
 	for (i = 0; i < 8; i++)
 		printf("r%d=%08x r%2d=%08x r%2d=%08x r%2d=%08x\n", i, allregs_p[i],
 			i+8, allregs_p[i+8], i+16, allregs_p[i+16], i+24, allregs_p[i+24]);
-	printf("PC: %08x/%08x, cycle %u\n", psxRegs.pc, ppc, psxRegs.cycle);
-	dump_mem("/mnt/ntz/dev/pnd/tmp/psxram.dump", psxM, 0x200000);
-	dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
+	printf("PC: %08x/%08x, cycle %u, next %u\n", psxRegs.pc, ppc, psxRegs.cycle, next_interupt);
+	//dump_mem("/tmp/psxram.dump", psxM, 0x200000);
+	//dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
 	exit(1);
 ok:
 	//psxRegs.cycle = rregs.cycle + 2; // sync timing
