@@ -8508,6 +8508,8 @@ int new_recompile_block(u_int addr)
           {
             regs[i].regmap[hr]=-1;
             regs[i].isconst&=~(1<<hr);
+            regs[i].dirty&=~(1<<hr);
+            regs[i+1].wasdirty&=~(1<<hr);
             if((branch_regs[i].regmap[hr]&63)!=dops[i].rs1 && (branch_regs[i].regmap[hr]&63)!=dops[i].rs2 &&
                (branch_regs[i].regmap[hr]&63)!=dops[i].rt1 && (branch_regs[i].regmap[hr]&63)!=dops[i].rt2 &&
                (branch_regs[i].regmap[hr]&63)!=dops[i+1].rt1 && (branch_regs[i].regmap[hr]&63)!=dops[i+1].rt2 &&
@@ -8561,6 +8563,8 @@ int new_recompile_block(u_int addr)
               }
               regs[i].regmap[hr]=-1;
               regs[i].isconst&=~(1<<hr);
+              regs[i].dirty&=~(1<<hr);
+              regs[i+1].wasdirty&=~(1<<hr);
             }
           }
         }
