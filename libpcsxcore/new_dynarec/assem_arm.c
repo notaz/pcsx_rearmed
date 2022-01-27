@@ -545,7 +545,7 @@ static void emit_loadreg(int r, int hr)
     }
     u_int offset = (u_char *)addr - (u_char *)&dynarec_local;
     assert(offset<4096);
-    assem_debug("ldr %s,fp+%d\n",regname[hr],offset);
+    assem_debug("ldr %s,fp+%d # r%d\n",regname[hr],offset,r);
     output_w32(0xe5900000|rd_rn_rm(hr,FP,0)|offset);
   }
 }
@@ -566,7 +566,7 @@ static void emit_storereg(int r, int hr)
   }
   u_int offset = addr-(u_int)&dynarec_local;
   assert(offset<4096);
-  assem_debug("str %s,fp+%d\n",regname[hr],offset);
+  assem_debug("str %s,fp+%d # r%d\n",regname[hr],offset,r);
   output_w32(0xe5800000|rd_rn_rm(hr,FP,0)|offset);
 }
 

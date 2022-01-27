@@ -119,9 +119,13 @@ enum stub_type {
   INVCODE_STUB = 14,
 };
 
+// regmap_pre[i]    - regs before [i] insn starts; dirty things here that
+//                    don't match .regmap will be written back
+// [i].regmap_entry - regs that must be set up if someone jumps here
+// [i].regmap       - regs [i] insn will read/(over)write
 struct regstat
 {
-  signed char regmap_entry[HOST_REGS]; // pre-insn + loop preloaded regs?
+  signed char regmap_entry[HOST_REGS];
   signed char regmap[HOST_REGS];
   uint64_t wasdirty;
   uint64_t dirty;
@@ -207,7 +211,7 @@ static struct decoded_insn
   static u_int ba[MAXBLOCK];
   static uint64_t unneeded_reg[MAXBLOCK];
   static uint64_t branch_unneeded_reg[MAXBLOCK];
-  // pre-instruction [i], excluding loop-preload regs?
+  // see 'struct regstat' for a description
   static signed char regmap_pre[MAXBLOCK][HOST_REGS];
   // contains 'real' consts at [i] insn, but may differ from what's actually
   // loaded in host reg as 'final' value is always loaded, see get_final_value()
@@ -599,10 +603,9 @@ void *get_addr_ht(u_int vaddr)
   return get_addr(vaddr);
 }
 
-void clear_all_regs(signed char regmap[])
+static void clear_all_regs(signed char regmap[])
 {
-  int hr;
-  for (hr=0;hr<HOST_REGS;hr++) regmap[hr]=-1;
+  memset(regmap, -1, sizeof(regmap[0]) * HOST_REGS);
 }
 
 static signed char get_reg(const signed char regmap[],int r)
@@ -7700,14 +7703,16 @@ int new_recompile_block(u_int addr)
   /* Pass 3 - Register allocation */
 
   struct regstat current; // Current register allocations/status
-  current.dirty=0;
-  current.u=unneeded_reg[0];
+  clear_all_regs(current.regmap_entry);
   clear_all_regs(current.regmap);
-  alloc_reg(&current,0,CCREG);
-  dirty_reg(&current,CCREG);
-  current.isconst=0;
-  current.wasconst=0;
-  current.waswritten=0;
+  current.wasdirty = current.dirty = 0;
+  current.u = unneeded_reg[0];
+  alloc_reg(&current, 0, CCREG);
+  dirty_reg(&current, CCREG);
+  current.wasconst = 0;
+  current.isconst = 0;
+  current.loadedconst = 0;
+  current.waswritten = 0;
   int ds=0;
   int cc=0;
   int hr=-1;
@@ -7738,6 +7743,9 @@ int new_recompile_block(u_int addr)
     memcpy(regmap_pre[i],current.regmap,sizeof(current.regmap));
     regs[i].wasconst=current.isconst;
     regs[i].wasdirty=current.dirty;
+    regs[i].dirty=0;
+    regs[i].u=0;
+    regs[i].isconst=0;
     regs[i].loadedconst=0;
     if (!dops[i].is_jump) {
       if(i+1<slen) {
@@ -8940,7 +8948,10 @@ int new_recompile_block(u_int addr)
             if(get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
               hr=get_reg2(regs[i].regmap,regs[i+1].regmap,-1);
               if(hr<0) hr=get_reg(regs[i+1].regmap,-1);
-              else {regs[i+1].regmap[hr]=AGEN1+((i+1)&1);regs[i+1].isconst&=~(1<<hr);}
+              else {
+                regs[i+1].regmap[hr]=AGEN1+((i+1)&1);
+                regs[i+1].isconst&=~(1<<hr);
+              }
               assert(hr>=0);
               if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
               {
