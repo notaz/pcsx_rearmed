@@ -6144,8 +6144,21 @@ static void pagespan_ds()
   load_regs_bt(regs[0].regmap,regs[0].dirty,start+4);
 }
 
+static void check_regmap(signed char *regmap)
+{
+#ifndef NDEBUG
+  int i,j;
+  for (i = 0; i < HOST_REGS; i++) {
+    if (regmap[i] < 0)
+      continue;
+    for (j = i + 1; j < HOST_REGS; j++)
+      assert(regmap[i] != regmap[j]);
+  }
+#endif
+}
+
 // Basic liveness analysis for MIPS registers
-void unneeded_registers(int istart,int iend,int r)
+static void unneeded_registers(int istart,int iend,int r)
 {
   int i;
   uint64_t u,gte_u,b,gte_b;
@@ -8650,11 +8663,8 @@ int new_recompile_block(u_int addr)
                   //printf("Hit %x -> %x, %x %d/%d\n",start+i*4,ba[i],start+j*4,hr,r);
                   int k;
                   if(regs[i].regmap[hr]==-1&&branch_regs[i].regmap[hr]==-1) {
+                    if(get_reg(regs[i].regmap,f_regmap[hr])>=0) break;
                     if(get_reg(regs[i+2].regmap,f_regmap[hr])>=0) break;
-                    if(r>63) {
-                      if(get_reg(regs[i].regmap,r&63)<0) break;
-                      if(get_reg(branch_regs[i].regmap,r&63)<0) break;
-                    }
                     k=i;
                     while(k>1&&regs[k-1].regmap[hr]==-1) {
                       if(count_free_regs(regs[k-1].regmap)<=minimum_free_regs[k-1]) {
@@ -8673,7 +8683,6 @@ int new_recompile_block(u_int addr)
                       if(k>2&&(dops[k-3].itype==UJUMP||dops[k-3].itype==RJUMP)&&dops[k-3].rt1==31) {
                         break;
                       }
-                      assert(r < 64);
                       k--;
                     }
                     if(regs[k-1].regmap[hr]==f_regmap[hr]&&regmap_pre[k][hr]==f_regmap[hr]) {
@@ -9217,6 +9226,9 @@ int new_recompile_block(u_int addr)
   }
   for(i=0;i<slen;i++)
   {
+    check_regmap(regmap_pre[i]);
+    check_regmap(regs[i].regmap_entry);
+    check_regmap(regs[i].regmap);
     //if(ds) printf("ds: ");
     disassemble_inst(i);
     if(ds) {
