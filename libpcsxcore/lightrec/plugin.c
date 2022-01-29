@@ -48,6 +48,7 @@ static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
 static bool lightrec_debug;
 static bool lightrec_very_debug;
+static bool booting;
 static u32 lightrec_begin_cycles;
 
 enum my_cp2_opcodes {
@@ -126,15 +127,28 @@ static u32 cop2_cfc(struct lightrec_state *state, u32 op, u8 reg)
 	return cop2_mfc_cfc(state, reg, true);
 }
 
+static bool has_interrupt(void)
+{
+	return ((psxHu32(0x1070) & psxHu32(0x1074)) &&
+	     (psxRegs.CP0.n.Status & 0x401) == 0x401) ||
+	    (psxRegs.CP0.n.Status & psxRegs.CP0.n.Cause & 0x0300);
+}
+
 static void lightrec_restore_state(struct lightrec_state *state)
 {
 	lightrec_reset_cycle_count(state, psxRegs.cycle);
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+
+	if (booting || has_interrupt())
+		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+	else
+		lightrec_set_target_cycle_count(state, next_interupt);
 }
 
 static void cop0_mtc_ctc(struct lightrec_state *state,
 			 u8 reg, u32 value, bool ctc)
 {
+	psxRegs.cycle = lightrec_current_cycle_count(state);
+
 	switch (reg) {
 	case 1:
 	case 4:
@@ -493,6 +507,7 @@ static void print_for_big_ass_debugger(void)
 
 
 extern void intExecuteBlock();
+extern void gen_interupt();
 
 static u32 old_cycle_counter;
 
@@ -501,18 +516,24 @@ static void lightrec_plugin_execute_block(void)
 	u32 old_pc = psxRegs.pc;
 	u32 flags;
 
+	gen_interupt();
+
 	if (use_pcsx_interpreter) {
 		intExecuteBlock();
 	} else {
 		lightrec_reset_cycle_count(lightrec_state, psxRegs.cycle);
 		lightrec_restore_registers(lightrec_state, psxRegs.GPR.r);
 
-		if (use_lightrec_interpreter)
+		if (unlikely(use_lightrec_interpreter))
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
 							      psxRegs.pc);
-		else
+		// step during early boot so that 0x80030000 fastboot hack works
+		else if (unlikely(booting))
 			psxRegs.pc = lightrec_execute_one(lightrec_state,
 							  psxRegs.pc);
+		else
+			psxRegs.pc = lightrec_execute(lightrec_state,
+						      psxRegs.pc, next_interupt);
 
 		psxRegs.cycle = lightrec_current_cycle_count(lightrec_state);
 
@@ -527,9 +548,10 @@ static void lightrec_plugin_execute_block(void)
 
 		if (flags & LIGHTREC_EXIT_SYSCALL)
 			psxException(0x20, 0);
-	}
 
-	psxBranchTest();
+		if (booting && (psxRegs.pc & 0xff800000) == 0x80000000)
+			booting = false;
+	}
 
 	if (lightrec_debug && psxRegs.cycle >= lightrec_begin_cycles
 			&& psxRegs.pc != old_pc)
@@ -602,6 +624,7 @@ static void lightrec_plugin_reset(void)
 {
 	lightrec_plugin_shutdown();
 	lightrec_plugin_init();
+	booting = true;
 }
 
 R3000Acpu psxRec =
