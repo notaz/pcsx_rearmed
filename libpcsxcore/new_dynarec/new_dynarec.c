@@ -123,6 +123,7 @@ enum stub_type {
 //                    don't match .regmap will be written back
 // [i].regmap_entry - regs that must be set up if someone jumps here
 // [i].regmap       - regs [i] insn will read/(over)write
+// branch_regs[i].* - same as above but for branches, takes delay slot into account
 struct regstat
 {
   signed char regmap_entry[HOST_REGS];
@@ -3952,8 +3953,7 @@ static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
   void *func = (dops[i].opcode2 == 0x0C)
     ? (is_delayslot ? jump_syscall_ds : jump_syscall)
     : (is_delayslot ? jump_break_ds : jump_break);
-  signed char ccreg = get_reg(i_regs->regmap, CCREG);
-  assert(ccreg == HOST_CCREG);
+  assert(get_reg(i_regs->regmap, CCREG) == HOST_CCREG);
   emit_movimm(start + i*4, 2); // pc
   emit_addimm(HOST_CCREG, ccadj_ + CLOCK_ADJUST(1), HOST_CCREG);
   emit_far_jump(func);
@@ -5618,7 +5618,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
   int cc;
   int match;
   match=match_bt(branch_regs[i].regmap,branch_regs[i].dirty,ba[i]);
-  assem_debug("smatch=%d\n",match);
+  assem_debug("smatch=%d ooo=%d\n", match, dops[i].ooo);
   int s1l;
   int unconditional=0,nevertaken=0;
   int invert=0;
@@ -6728,6 +6728,24 @@ void clean_registers(int istart,int iend,int wr)
 }
 
 #ifdef DISASM
+#include <inttypes.h>
+void print_regmap(const char *name, const signed char *regmap)
+{
+  char buf[5];
+  int i, l;
+  fputs(name, stdout);
+  for (i = 0; i < HOST_REGS; i++) {
+    l = 0;
+    if (regmap[i] >= 0)
+      l = snprintf(buf, sizeof(buf), "$%d", regmap[i]);
+    for (; l < 3; l++)
+      buf[l] = ' ';
+    buf[l] = 0;
+    printf(" r%d=%s", i, buf);
+  }
+  fputs("\n", stdout);
+}
+
   /* disassembly */
 void disassemble_inst(int i)
 {
@@ -6812,6 +6830,16 @@ void disassemble_inst(int i)
       default:
         //printf (" %s %8x\n",insn[i],source[i]);
         printf (" %x: %s\n",start+i*4,insn[i]);
+    }
+    return;
+    printf("D: %"PRIu64"  WD: %"PRIu64"  U: %"PRIu64"\n",
+      regs[i].dirty, regs[i].wasdirty, unneeded_reg[i]);
+    print_regmap("pre:   ", regmap_pre[i]);
+    print_regmap("entry: ", regs[i].regmap_entry);
+    print_regmap("map:   ", regs[i].regmap);
+    if (dops[i].is_jump) {
+      print_regmap("bentry:", branch_regs[i].regmap_entry);
+      print_regmap("bmap:  ", branch_regs[i].regmap);
     }
 }
 #else
