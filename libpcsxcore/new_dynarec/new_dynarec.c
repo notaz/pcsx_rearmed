@@ -5855,7 +5855,9 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
       wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
-      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+      if (ram_offset)
+        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+      load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
       if (cc == -1) {
