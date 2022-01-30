@@ -585,14 +585,12 @@ void noinline *get_addr(u_int vaddr)
   //printf("TRACE: count=%d next=%d (get_addr no-match %x)\n",Count,next_interupt,vaddr);
   int r=new_recompile_block(vaddr);
   if(r==0) return get_addr(vaddr);
-  // Execute in unmapped page, generate pagefault execption
+  // generate an address error
   Status|=2;
-  Cause=(vaddr<<31)|0x8;
+  Cause=(vaddr<<31)|(4<<2);
   EPC=(vaddr&1)?vaddr-5:vaddr;
   BadVAddr=(vaddr&~1);
-  Context=(Context&0xFF80000F)|((BadVAddr>>9)&0x007FFFF0);
-  EntryHi=BadVAddr&0xFFFFE000;
-  return get_addr_ht(0x80000000);
+  return get_addr_ht(0x80000080);
 }
 // Look up address in hash table first
 void *get_addr_ht(u_int vaddr)
@@ -7218,8 +7216,12 @@ int new_recompile_block(u_int addr)
 
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {
-    SysPrintf("Compile at bogus memory address: %08x\n", addr);
-    abort();
+    if (addr != hack_addr) {
+      SysPrintf("Compile at bogus memory address: %08x\n", addr);
+      hack_addr = addr;
+    }
+    //abort();
+    return -1;
   }
 
   /* Pass 1: disassemble */
@@ -7234,7 +7236,7 @@ int new_recompile_block(u_int addr)
   /* Pass 10: garbage collection / free memory */
 
   int j;
-  int done=0;
+  int done = 0, ni_count = 0;
   unsigned int type,op,op2;
 
   //printf("addr = %x source = %x %x\n", addr,source,source[0]);
@@ -7724,7 +7726,7 @@ int new_recompile_block(u_int addr)
     assert(start+i*4<pagelimit);
     if (i==MAXBLOCK-1) done=1;
     // Stop if we're compiling junk
-    if(dops[i].itype==NI&&dops[i].opcode==0x11) {
+    if(dops[i].itype == NI && (++ni_count > 8 || dops[i].opcode == 0x11)) {
       done=stop_after_jal=1;
       SysPrintf("Disabled speculative precompilation\n");
     }

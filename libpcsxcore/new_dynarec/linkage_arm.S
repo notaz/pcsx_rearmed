@@ -264,7 +264,7 @@ FUNCTION(dyna_linker):
 	beq	dyna_linker
 	/* pagefault */
 	mov	r1, r0
-	mov	r2, #8
+	mov	r2, #(4<<2)  /* Address error (fetch) */
 	.size	dyna_linker, .-dyna_linker
 
 FUNCTION(exec_pagefault):
@@ -272,21 +272,13 @@ FUNCTION(exec_pagefault):
 	/* r1 = fault address */
 	/* r2 = cause */
 	ldr	r3, [fp, #LO_reg_cop0+48] /* Status */
-	mvn	r6, #0xF000000F
-	ldr	r4, [fp, #LO_reg_cop0+16] /* Context */
-	bic	r6, r6, #0x0F800000
 	str	r0, [fp, #LO_reg_cop0+56] /* EPC */
 	orr	r3, r3, #2
 	str	r1, [fp, #LO_reg_cop0+32] /* BadVAddr */
-	bic	r4, r4, r6
 	str	r3, [fp, #LO_reg_cop0+48] /* Status */
-	and	r5, r6, r1, lsr #9
 	str	r2, [fp, #LO_reg_cop0+52] /* Cause */
-	and	r1, r1, r6, lsl #9
-	str	r1, [fp, #LO_reg_cop0+40] /* EntryHi */
-	orr	r4, r4, r5
-	str	r4, [fp, #LO_reg_cop0+16] /* Context */
 	mov	r0, #0x80000000
+	orr	r0, r0, #0x80
 	bl	get_addr_ht
 	mov	pc, r0
 	.size	exec_pagefault, .-exec_pagefault
@@ -440,7 +432,7 @@ FUNCTION(cc_interrupt):
 	and	r2, r2, r10, lsr #17
 	add	r3, fp, #LO_restore_candidate
 	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
-@@	str	r10, [fp, #LO_reg_cop0+36]	/* Count */
+@@	str	r10, [fp, #LO_reg_cop0+36]	/* Count - not on PSX */
 	ldr	r4, [r2, r3]
 	mov	r10, lr
 	tst	r4, r4
