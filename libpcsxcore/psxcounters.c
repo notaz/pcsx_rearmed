@@ -23,7 +23,8 @@
 
 #include "psxcounters.h"
 #include "gpu.h"
-#include "debug.h"
+//#include "debug.h"
+#define DebugVSync()
 
 /******************************************************************************/
 

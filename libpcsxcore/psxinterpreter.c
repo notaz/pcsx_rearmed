@@ -25,9 +25,10 @@
 #include "r3000a.h"
 #include "gte.h"
 #include "psxhle.h"
-#include "debug.h"
 #include "psxinterpreter.h"
 #include <assert.h>
+//#include "debug.h"
+#define ProcessDebug()
 
 static int branch = 0;
 static int branch2 = 0;
