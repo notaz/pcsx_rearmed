@@ -18,8 +18,6 @@ extern int reg_cop0[];
 #define Cause    psxRegs.CP0.n.Cause
 #define EPC      psxRegs.CP0.n.EPC
 #define BadVAddr psxRegs.CP0.n.BadVAddr
-#define Context  psxRegs.CP0.n.Context
-#define EntryHi  psxRegs.CP0.n.EntryHi
 #define Count    psxRegs.cycle // psxRegs.CP0.n.Count
 
 /* COP2/GTE */
