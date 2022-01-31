@@ -3935,7 +3935,7 @@ blend_blocks_add_untextured_builder(on)
 #define blend_blocks_subtract_combine_textured()                               \
   vbif.u16 blend_pixels, pixels, blend_mask                                    \
 
-#define blend_blocks_subtract_set_stb_textured()                               \
+#define blend_blocks_subtract_set_stp_textured()                               \
   vorr.u16 blend_pixels, #0x8000                                               \
 
 #define blend_blocks_subtract_msb_mask_textured()                              \
@@ -3945,7 +3945,7 @@ blend_blocks_add_untextured_builder(on)
 
 #define blend_blocks_subtract_combine_untextured()                             \
 
-#define blend_blocks_subtract_set_stb_untextured()                             \
+#define blend_blocks_subtract_set_stp_untextured()                             \
   vorr.u16 blend_pixels, blend_pixels, msb_mask                                \
 
 #define blend_blocks_subtract_msb_mask_untextured()                            \
@@ -4010,7 +4010,7 @@ function(blend_blocks_##texturing##_subtract_##mask_evaluate)                  \
   vld1.u32 { pixels_next }, [pixel_ptr, :128], c_64;                           \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
   vand.u16 pixels_rb, pixels_next, d128_0x7C1F;                                \
-  blend_blocks_subtract_set_stb_##texturing();                                 \
+  blend_blocks_subtract_set_stp_##texturing();                                 \
   vand.u16 pixels_g, pixels_next, d128_0x03E0;                                 \
   blend_blocks_subtract_combine_##texturing();                                 \
   blend_blocks_subtract_set_blend_mask_##texturing();                          \
@@ -4038,7 +4038,7 @@ function(blend_blocks_##texturing##_subtract_##mask_evaluate)                  \
                                                                                \
   blend_blocks_subtract_msb_mask_##texturing();                                \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
-  blend_blocks_subtract_set_stb_##texturing();                                 \
+  blend_blocks_subtract_set_stp_##texturing();                                 \
   blend_blocks_subtract_combine_##texturing();                                 \
   vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
   vst1.u16 { blend_pixels }, [fb_ptr_next];                                    \
@@ -4110,6 +4110,7 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
   ldr fb_ptr_next, [pixel_ptr, #28];                                           \
                                                                                \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
+  vorr.u16 blend_pixels, #0x8000;  /* stp */                                   \
   vbif.u16 blend_pixels, pixels, blend_mask;                                   \
                                                                                \
   vld1.u32 { pixels }, [pixel_ptr, :128], c_64;                                \
@@ -4145,8 +4146,9 @@ function(blend_blocks_textured_add_fourth_##mask_evaluate)                     \
                                                                                \
  1:                                                                            \
   vorr.u16 blend_pixels, fb_pixels_rb, fb_pixels_g;                            \
-  vorr.u16 blend_pixels, blend_pixels, msb_mask;                               \
+  vorr.u16 blend_pixels, #0x8000;  /* stp */                                   \
   vbif.u16 blend_pixels, pixels, blend_mask;                                   \
+  vorr.u16 blend_pixels, blend_pixels, msb_mask;                               \
   vbit.u16 blend_pixels, fb_pixels, draw_mask;                                 \
   vst1.u16 { blend_pixels }, [fb_ptr_next];                                    \
                                                                                \
