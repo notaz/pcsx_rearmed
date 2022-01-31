@@ -291,7 +291,7 @@ static void setup_sprite_untextured_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,
   render_sprite_blocks_switch_block_texture_mode_4x(4bpp),                     \
   render_sprite_blocks_switch_block_texture_mode_4x(8bpp),                     \
   render_sprite_blocks_switch_block_texture_mode_4x(16bpp),                    \
-  render_sprite_blocks_switch_block_texture_mode_4x(4bpp)                      \
+  render_sprite_blocks_switch_block_texture_mode_4x(16bpp)                     \
 
 
 render_block_handler_struct render_sprite_block_handlers_4x[] =

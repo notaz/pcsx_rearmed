@@ -45,7 +45,6 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
 
   switch((psx_gpu->render_state_base >> 8) & 0x3)
   {
-    default:
     case TEXTURE_MODE_4BPP:
       texture_base = psx_gpu->texture_4bpp_cache[psx_gpu->current_texture_page];
 
@@ -75,6 +74,7 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
       texture_ptr += (psx_gpu->texture_window_y >> 4) << 12;
       break;
 
+    default:
     case TEXTURE_MODE_16BPP:
       texture_base = (u8 *)(psx_gpu->vram_ptr);
       texture_base += (psx_gpu->current_texture_page & 0xF) * 128;
