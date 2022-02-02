@@ -1479,7 +1479,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
 {
   int rs=get_reg(regmap,target);
   int rt=get_reg(regmap,target);
-  if(rs<0) rs=get_reg(regmap,-1);
+  if(rs<0) rs=get_reg_temp(regmap);
   assert(rs>=0);
   u_int is_dynamic=0;
   uintptr_t host_addr = 0;
@@ -1633,7 +1633,7 @@ static void do_writestub(int n)
 static void inline_writestub(enum stub_type type, int i, u_int addr,
   const signed char regmap[], int target, int adj, u_int reglist)
 {
-  int rs = get_reg(regmap,-1);
+  int rs = get_reg_temp(regmap);
   int rt = get_reg(regmap,target);
   assert(rs >= 0);
   assert(rt >= 0);

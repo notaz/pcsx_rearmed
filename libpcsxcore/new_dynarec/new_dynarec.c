@@ -607,10 +607,27 @@ static void clear_all_regs(signed char regmap[])
   memset(regmap, -1, sizeof(regmap[0]) * HOST_REGS);
 }
 
-static signed char get_reg(const signed char regmap[],int r)
+static signed char get_reg(const signed char regmap[], signed char r)
 {
   int hr;
-  for (hr=0;hr<HOST_REGS;hr++) if(hr!=EXCLUDE_REG&&regmap[hr]==r) return hr;
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    if (hr == EXCLUDE_REG)
+      continue;
+    if (regmap[hr] == r)
+      return hr;
+  }
+  return -1;
+}
+
+static signed char get_reg_temp(const signed char regmap[])
+{
+  int hr;
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    if (hr == EXCLUDE_REG)
+      continue;
+    if (regmap[hr] == (signed char)-1)
+      return hr;
+  }
   return -1;
 }
 
@@ -622,7 +639,7 @@ static signed char get_reg2(signed char regmap1[], const signed char regmap2[], 
   return -1;
 }
 
-int count_free_regs(signed char regmap[])
+static int count_free_regs(const signed char regmap[])
 {
   int count=0;
   int hr;
@@ -635,63 +652,55 @@ int count_free_regs(signed char regmap[])
   return count;
 }
 
-void dirty_reg(struct regstat *cur,signed char reg)
+static void dirty_reg(struct regstat *cur, signed char reg)
 {
   int hr;
-  if(!reg) return;
-  for (hr=0;hr<HOST_REGS;hr++) {
-    if((cur->regmap[hr]&63)==reg) {
-      cur->dirty|=1<<hr;
-    }
-  }
+  if (!reg) return;
+  hr = get_reg(cur->regmap, reg);
+  if (hr >= 0)
+    cur->dirty |= 1<<hr;
 }
 
 static void set_const(struct regstat *cur, signed char reg, uint32_t value)
 {
   int hr;
-  if(!reg) return;
-  for (hr=0;hr<HOST_REGS;hr++) {
-    if(cur->regmap[hr]==reg) {
-      cur->isconst|=1<<hr;
-      current_constmap[hr]=value;
-    }
+  if (!reg) return;
+  hr = get_reg(cur->regmap, reg);
+  if (hr >= 0) {
+    cur->isconst |= 1<<hr;
+    current_constmap[hr] = value;
   }
 }
 
 static void clear_const(struct regstat *cur, signed char reg)
 {
   int hr;
-  if(!reg) return;
-  for (hr=0;hr<HOST_REGS;hr++) {
-    if((cur->regmap[hr]&63)==reg) {
-      cur->isconst&=~(1<<hr);
-    }
-  }
+  if (!reg) return;
+  hr = get_reg(cur->regmap, reg);
+  if (hr >= 0)
+    cur->isconst &= ~(1<<hr);
 }
 
-static int is_const(struct regstat *cur, signed char reg)
+static int is_const(const struct regstat *cur, signed char reg)
 {
   int hr;
-  if(reg<0) return 0;
-  if(!reg) return 1;
-  for (hr=0;hr<HOST_REGS;hr++) {
-    if((cur->regmap[hr]&63)==reg) {
-      return (cur->isconst>>hr)&1;
-    }
-  }
+  if (reg < 0) return 0;
+  if (!reg) return 1;
+  hr = get_reg(cur->regmap, reg);
+  if (hr >= 0)
+    return (cur->isconst>>hr)&1;
   return 0;
 }
 
-static uint32_t get_const(struct regstat *cur, signed char reg)
+static uint32_t get_const(const struct regstat *cur, signed char reg)
 {
   int hr;
-  if(!reg) return 0;
-  for (hr=0;hr<HOST_REGS;hr++) {
-    if(cur->regmap[hr]==reg) {
-      return current_constmap[hr];
-    }
-  }
-  SysPrintf("Unknown constant in r%d\n",reg);
+  if (!reg) return 0;
+  hr = get_reg(cur->regmap, reg);
+  if (hr >= 0)
+    return current_constmap[hr];
+
+  SysPrintf("Unknown constant in r%d\n", reg);
   abort();
 }
 
@@ -879,14 +888,14 @@ void alloc_all(struct regstat *cur,int i)
 
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG) {
-      if(((cur->regmap[hr]&63)!=dops[i].rs1)&&((cur->regmap[hr]&63)!=dops[i].rs2)&&
-         ((cur->regmap[hr]&63)!=dops[i].rt1)&&((cur->regmap[hr]&63)!=dops[i].rt2))
+      if((cur->regmap[hr]!=dops[i].rs1)&&(cur->regmap[hr]!=dops[i].rs2)&&
+         (cur->regmap[hr]!=dops[i].rt1)&&(cur->regmap[hr]!=dops[i].rt2))
       {
         cur->regmap[hr]=-1;
         cur->dirty&=~(1<<hr);
       }
       // Don't need zeros
-      if((cur->regmap[hr]&63)==0)
+      if(cur->regmap[hr]==0)
       {
         cur->regmap[hr]=-1;
         cur->dirty&=~(1<<hr);
@@ -1498,7 +1507,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
       if(hsn[r=cur->regmap[preferred_reg]&63]==j) {
         for(hr=0;hr<HOST_REGS;hr++) {
           // Evict both parts of a 64-bit register
-          if((cur->regmap[hr]&63)==r) {
+          if(cur->regmap[hr]==r) {
             cur->regmap[hr]=-1;
             cur->dirty&=~(1<<hr);
             cur->isconst&=~(1<<hr);
@@ -2131,7 +2140,7 @@ static void wb_register(signed char r, const signed char regmap[], uint64_t dirt
   int hr;
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG) {
-      if((regmap[hr]&63)==r) {
+      if(regmap[hr]==r) {
         if((dirty>>hr)&1) {
           assert(regmap[hr]<64);
           emit_storereg(r,hr);
@@ -2148,7 +2157,7 @@ static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG) {
       reg=pre[hr];
-      if(((~u)>>(reg&63))&1) {
+      if(((~u)>>reg)&1) {
         if(reg>0) {
           if(((dirty_pre&~dirty)>>hr)&1) {
             if(reg>0&&reg<34) {
@@ -2806,12 +2815,12 @@ static void load_assemble(int i, const struct regstat *i_regs, int ccadj_)
       // could be FIFO, must perform the read
       // ||dummy read
       assem_debug("(forced read)\n");
-      tl=get_reg(i_regs->regmap,-1);
+      tl=get_reg_temp(i_regs->regmap);
       assert(tl>=0);
   }
   if(offset||s<0||c) addr=tl;
   else addr=s;
-  //if(tl<0) tl=get_reg(i_regs->regmap,-1);
+  //if(tl<0) tl=get_reg_temp(i_regs->regmap);
  if(tl>=0) {
   //printf("load_assemble: c=%d\n",c);
   //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
@@ -2942,7 +2951,7 @@ static void loadlr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rt1);
   s=get_reg(i_regs->regmap,dops[i].rs1);
-  temp=get_reg(i_regs->regmap,-1);
+  temp=get_reg_temp(i_regs->regmap);
   temp2=get_reg(i_regs->regmap,FTEMP);
   addr=get_reg(i_regs->regmap,AGEN1+(i&1));
   assert(addr<0);
@@ -3028,7 +3037,7 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   temp=get_reg(i_regs->regmap,agr);
-  if(temp<0) temp=get_reg(i_regs->regmap,-1);
+  if(temp<0) temp=get_reg_temp(i_regs->regmap);
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
@@ -3153,7 +3162,7 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   temp=get_reg(i_regs->regmap,agr);
-  if(temp<0) temp=get_reg(i_regs->regmap,-1);
+  if(temp<0) temp=get_reg_temp(i_regs->regmap);
   offset=imm[i];
   if(s>=0) {
     c=(i_regs->isconst>>s)&1;
@@ -3582,7 +3591,7 @@ static void multdiv_do_stall(int i, const struct regstat *i_regs)
 {
   int j, known_cycles = 0;
   u_int reglist = get_host_reglist(i_regs->regmap);
-  int rtmp = get_reg(i_regs->regmap, -1);
+  int rtmp = get_reg_temp(i_regs->regmap);
   if (rtmp < 0)
     rtmp = reglist_find_free(reglist);
   if (HACK_ENABLED(NDHACK_NO_STALLS))
@@ -3731,7 +3740,7 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
   // get the address
   if (dops[i].opcode==0x3a) { // SWC2
     ar=get_reg(i_regs->regmap,agr);
-    if(ar<0) ar=get_reg(i_regs->regmap,-1);
+    if(ar<0) ar=get_reg_temp(i_regs->regmap);
     reglist|=1<<ar;
   } else { // LWC2
     ar=tl;
@@ -3815,7 +3824,7 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
 static void cop2_assemble(int i, const struct regstat *i_regs)
 {
   u_int copr = (source[i]>>11) & 0x1f;
-  signed char temp = get_reg(i_regs->regmap, -1);
+  signed char temp = get_reg_temp(i_regs->regmap);
 
   if (!HACK_ENABLED(NDHACK_NO_STALLS)) {
     u_int reglist = reglist_exclude(get_host_reglist(i_regs->regmap), temp, -1);
@@ -4216,7 +4225,7 @@ static void wb_invalidate(signed char pre[],signed char entry[],uint64_t dirty,u
   for(hr=0;hr<HOST_REGS;hr++) {
     if(hr!=EXCLUDE_REG) {
       if(pre[hr]!=entry[hr]) {
-        if(pre[hr]>=0&&(pre[hr]&63)<TEMPREG) {
+        if(pre[hr]>=0&&pre[hr]<TEMPREG) {
           int nr;
           if((nr=get_reg(entry,pre[hr]))>=0) {
             emit_mov(hr,nr);
@@ -4291,7 +4300,7 @@ void address_generation(int i, const struct regstat *i_regs, signed char entry[]
     int agr=AGEN1+(i&1);
     if(dops[i].itype==LOAD) {
       ra=get_reg(i_regs->regmap,dops[i].rt1);
-      if(ra<0) ra=get_reg(i_regs->regmap,-1);
+      if(ra<0) ra=get_reg_temp(i_regs->regmap);
       assert(ra>=0);
     }
     if(dops[i].itype==LOADLR) {
@@ -4299,14 +4308,14 @@ void address_generation(int i, const struct regstat *i_regs, signed char entry[]
     }
     if(dops[i].itype==STORE||dops[i].itype==STORELR) {
       ra=get_reg(i_regs->regmap,agr);
-      if(ra<0) ra=get_reg(i_regs->regmap,-1);
+      if(ra<0) ra=get_reg_temp(i_regs->regmap);
     }
     if(dops[i].itype==C2LS) {
       if ((dops[i].opcode&0x3b)==0x31||(dops[i].opcode&0x3b)==0x32) // LWC1/LDC1/LWC2/LDC2
         ra=get_reg(i_regs->regmap,FTEMP);
       else { // SWC1/SDC1/SWC2/SDC2
         ra=get_reg(i_regs->regmap,agr);
-        if(ra<0) ra=get_reg(i_regs->regmap,-1);
+        if(ra<0) ra=get_reg_temp(i_regs->regmap);
       }
     }
     int rs=get_reg(i_regs->regmap,dops[i].rs1);
@@ -4553,7 +4562,7 @@ static void load_all_regs(const signed char i_regmap[])
         emit_zeroreg(hr);
       }
       else
-      if(i_regmap[hr]>0 && (i_regmap[hr]&63)<TEMPREG && i_regmap[hr]!=CCREG)
+      if(i_regmap[hr]>0 && i_regmap[hr]<TEMPREG && i_regmap[hr]!=CCREG)
       {
         emit_loadreg(i_regmap[hr],hr);
       }
@@ -4572,7 +4581,7 @@ static void load_needed_regs(const signed char i_regmap[], const signed char nex
           emit_zeroreg(hr);
         }
         else
-        if(i_regmap[hr]>0 && (i_regmap[hr]&63)<TEMPREG && i_regmap[hr]!=CCREG)
+        if(i_regmap[hr]>0 && i_regmap[hr]<TEMPREG && i_regmap[hr]!=CCREG)
         {
           emit_loadreg(i_regmap[hr],hr);
         }
@@ -4957,8 +4966,8 @@ static void do_ccstub(int n)
       while(hr<HOST_REGS)
       {
         if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
-           (branch_regs[i].regmap[hr]&63)!=dops[i].rs1 &&
-           (branch_regs[i].regmap[hr]&63)!=dops[i].rs2 )
+           branch_regs[i].regmap[hr]!=dops[i].rs1 &&
+           branch_regs[i].regmap[hr]!=dops[i].rs2 )
         {
           addr=hr++;break;
         }
@@ -4967,8 +4976,8 @@ static void do_ccstub(int n)
       while(hr<HOST_REGS)
       {
         if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
-           (branch_regs[i].regmap[hr]&63)!=dops[i].rs1 &&
-           (branch_regs[i].regmap[hr]&63)!=dops[i].rs2 )
+           branch_regs[i].regmap[hr]!=dops[i].rs1 &&
+           branch_regs[i].regmap[hr]!=dops[i].rs2 )
         {
           alt=hr++;break;
         }
@@ -4979,8 +4988,8 @@ static void do_ccstub(int n)
         while(hr<HOST_REGS)
         {
           if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
-             (branch_regs[i].regmap[hr]&63)!=dops[i].rs1 &&
-             (branch_regs[i].regmap[hr]&63)!=dops[i].rs2 )
+             branch_regs[i].regmap[hr]!=dops[i].rs1 &&
+             branch_regs[i].regmap[hr]!=dops[i].rs2 )
           {
             ntaddr=hr;break;
           }
@@ -5902,8 +5911,8 @@ static void pagespan_assemble(int i, const struct regstat *i_regs)
     while(hr<HOST_REGS)
     {
       if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
-         (i_regs->regmap[hr]&63)!=dops[i].rs1 &&
-         (i_regs->regmap[hr]&63)!=dops[i].rs2 )
+         i_regs->regmap[hr]!=dops[i].rs1 &&
+         i_regs->regmap[hr]!=dops[i].rs2 )
       {
         addr=hr++;break;
       }
@@ -5913,8 +5922,8 @@ static void pagespan_assemble(int i, const struct regstat *i_regs)
   while(hr<HOST_REGS)
   {
     if(hr!=EXCLUDE_REG && hr!=HOST_CCREG && hr!=HOST_BTREG &&
-       (i_regs->regmap[hr]&63)!=dops[i].rs1 &&
-       (i_regs->regmap[hr]&63)!=dops[i].rs2 )
+       i_regs->regmap[hr]!=dops[i].rs1 &&
+       i_regs->regmap[hr]!=dops[i].rs2 )
     {
       alt=hr++;break;
     }
@@ -5925,8 +5934,8 @@ static void pagespan_assemble(int i, const struct regstat *i_regs)
     while(hr<HOST_REGS)
     {
       if(hr!=EXCLUDE_REG && hr!=HOST_CCREG && hr!=HOST_BTREG &&
-         (i_regs->regmap[hr]&63)!=dops[i].rs1 &&
-         (i_regs->regmap[hr]&63)!=dops[i].rs2 )
+         i_regs->regmap[hr]!=dops[i].rs1 &&
+         i_regs->regmap[hr]!=dops[i].rs2 )
       {
         ntaddr=hr;break;
       }
@@ -6122,7 +6131,7 @@ static void pagespan_ds()
   }
   int btaddr=get_reg(regs[0].regmap,BTREG);
   if(btaddr<0) {
-    btaddr=get_reg(regs[0].regmap,-1);
+    btaddr=get_reg_temp(regs[0].regmap);
     emit_readword(&branch_target,btaddr);
   }
   assert(btaddr!=HOST_CCREG);
@@ -6328,6 +6337,7 @@ void clean_registers(int istart,int iend,int wr)
   }
   for (i=iend;i>=istart;i--)
   {
+    __builtin_prefetch(regs[i-1].regmap);
     if(dops[i].is_jump)
     {
       if(ba[i]<start || ba[i]>=(start+slen*4))
@@ -6341,18 +6351,18 @@ void clean_registers(int istart,int iend,int wr)
           // Merge in delay slot (will dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+              if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
               if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
               if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+              if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+              if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
               if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
               if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
             }
@@ -6366,20 +6376,20 @@ void clean_registers(int istart,int iend,int wr)
           // Merge in delay slot (will dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
-              if (1) { // !dops[i].likely) {
+              if (1) { // !dops[i].likely)
                 // Might not dirty if likely branch is not taken
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                 if(branch_regs[i].regmap[r]==0) will_dirty_i&=~(1<<r);
                 if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                //if((regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                //if((regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                //if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                //if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                 if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
                 if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
               }
@@ -6389,15 +6399,15 @@ void clean_registers(int istart,int iend,int wr)
         // Merge in delay slot (wont dirty)
         for(r=0;r<HOST_REGS;r++) {
           if(r!=EXCLUDE_REG) {
-            if((regs[i].regmap[r]&63)==dops[i].rt1) wont_dirty_i|=1<<r;
-            if((regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
-            if((regs[i].regmap[r]&63)==dops[i+1].rt1) wont_dirty_i|=1<<r;
-            if((regs[i].regmap[r]&63)==dops[i+1].rt2) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
             if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-            if((branch_regs[i].regmap[r]&63)==dops[i].rt1) wont_dirty_i|=1<<r;
-            if((branch_regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
-            if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) wont_dirty_i|=1<<r;
-            if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) wont_dirty_i|=1<<r;
+            if(branch_regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
+            if(branch_regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
+            if(branch_regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
+            if(branch_regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
             if(branch_regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
           }
         }
@@ -6421,18 +6431,18 @@ void clean_registers(int istart,int iend,int wr)
             // Merge in delay slot (will dirty)
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt1) temp_will_dirty|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt2) temp_will_dirty|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                if((branch_regs[i].regmap[r]&63)>33) temp_will_dirty&=~(1<<r);
+                if(branch_regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
+                if(branch_regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
                 if(branch_regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
                 if(branch_regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i].rt1) temp_will_dirty|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i].rt2) temp_will_dirty|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                if((regs[i].regmap[r]&63)>33) temp_will_dirty&=~(1<<r);
+                if(regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
+                if(regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
+                if(regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
                 if(regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
                 if(regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
               }
@@ -6444,20 +6454,20 @@ void clean_registers(int istart,int iend,int wr)
             // Merge in delay slot (will dirty)
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if (1) { // !dops[i].likely) {
+                if (1) { // !dops[i].likely)
                   // Will not dirty if likely branch is not taken
-                  if((branch_regs[i].regmap[r]&63)==dops[i].rt1) temp_will_dirty|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i].rt2) temp_will_dirty|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)>33) temp_will_dirty&=~(1<<r);
+                  if(branch_regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
+                  if(branch_regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
                   if(branch_regs[i].regmap[r]==0) temp_will_dirty&=~(1<<r);
                   if(branch_regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-                  //if((regs[i].regmap[r]&63)==dops[i].rt1) temp_will_dirty|=1<<r;
-                  //if((regs[i].regmap[r]&63)==dops[i].rt2) temp_will_dirty|=1<<r;
-                  if((regs[i].regmap[r]&63)==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                  if((regs[i].regmap[r]&63)==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                  if((regs[i].regmap[r]&63)>33) temp_will_dirty&=~(1<<r);
+                  //if(regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
+                  //if(regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
+                  if(regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
+                  if(regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
+                  if(regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
                   if(regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
                   if(regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
                 }
@@ -6467,15 +6477,15 @@ void clean_registers(int istart,int iend,int wr)
           // Merge in delay slot (wont dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
-              if((regs[i].regmap[r]&63)==dops[i].rt1) temp_wont_dirty|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i].rt2) temp_wont_dirty|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt1) temp_wont_dirty|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt2) temp_wont_dirty|=1<<r;
+              if(regs[i].regmap[r]==dops[i].rt1) temp_wont_dirty|=1<<r;
+              if(regs[i].regmap[r]==dops[i].rt2) temp_wont_dirty|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt1) temp_wont_dirty|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt2) temp_wont_dirty|=1<<r;
               if(regs[i].regmap[r]==CCREG) temp_wont_dirty|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt1) temp_wont_dirty|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt2) temp_wont_dirty|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) temp_wont_dirty|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) temp_wont_dirty|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i].rt1) temp_wont_dirty|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i].rt2) temp_wont_dirty|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_wont_dirty|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_wont_dirty|=1<<r;
               if(branch_regs[i].regmap[r]==CCREG) temp_wont_dirty|=1<<r;
             }
           }
@@ -6486,9 +6496,9 @@ void clean_registers(int istart,int iend,int wr)
                 if(regs[i].regmap[r]!=regmap_pre[i][r]) {
                   temp_will_dirty&=~(1<<r);
                   temp_wont_dirty&=~(1<<r);
-                  if((regmap_pre[i][r]&63)>0 && (regmap_pre[i][r]&63)<34) {
-                    temp_will_dirty|=((unneeded_reg[i]>>(regmap_pre[i][r]&63))&1)<<r;
-                    temp_wont_dirty|=((unneeded_reg[i]>>(regmap_pre[i][r]&63))&1)<<r;
+                  if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
+                    temp_will_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+                    temp_wont_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
                   } else {
                     temp_will_dirty|=1<<r;
                     temp_wont_dirty|=1<<r;
@@ -6523,8 +6533,8 @@ void clean_registers(int istart,int iend,int wr)
                   wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
                 }
                 if(branch_regs[i].regmap[r]>=0) {
-                  will_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(branch_regs[i].regmap[r]&63))&1)<<r;
-                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(branch_regs[i].regmap[r]&63))&1)<<r;
+                  will_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
                 }
               }
             }
@@ -6532,18 +6542,18 @@ void clean_registers(int istart,int iend,int wr)
             // Merge in delay slot
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if((branch_regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                 if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
                 if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if((regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                 if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
                 if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
               }
@@ -6552,7 +6562,7 @@ void clean_registers(int istart,int iend,int wr)
             // Conditional branch
             will_dirty_i=will_dirty_next;
             wont_dirty_i=wont_dirty_next;
-          //if(ba[i]>start+i*4) { // Disable recursion (for debugging)
+          //if(ba[i]>start+i*4) // Disable recursion (for debugging)
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
                 signed char target_reg=branch_regs[i].regmap[r];
@@ -6561,29 +6571,28 @@ void clean_registers(int istart,int iend,int wr)
                   wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
                 }
                 else if(target_reg>=0) {
-                  will_dirty_i&=((unneeded_reg[(ba[i]-start)>>2]>>(target_reg&63))&1)<<r;
-                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>(target_reg&63))&1)<<r;
+                  will_dirty_i&=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
                 }
               }
             }
-          //}
             // Merge in delay slot
             for(r=0;r<HOST_REGS;r++) {
               if(r!=EXCLUDE_REG) {
-                if (1) { // !dops[i].likely) {
+                if (1) { // !dops[i].likely)
                   // Might not dirty if likely branch is not taken
-                  if((branch_regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                  if((branch_regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                  if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                  if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                  if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                   if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
                   if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                  //if((regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-                  //if((regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-                  if((regs[i].regmap[r]&63)==dops[i+1].rt1) will_dirty_i|=1<<r;
-                  if((regs[i].regmap[r]&63)==dops[i+1].rt2) will_dirty_i|=1<<r;
-                  if((regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+                  //if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+                  //if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+                  if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
+                  if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
+                  if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
                   if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
                   if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
                 }
@@ -6593,15 +6602,15 @@ void clean_registers(int istart,int iend,int wr)
           // Merge in delay slot (won't dirty)
           for(r=0;r<HOST_REGS;r++) {
             if(r!=EXCLUDE_REG) {
-              if((regs[i].regmap[r]&63)==dops[i].rt1) wont_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt1) wont_dirty_i|=1<<r;
-              if((regs[i].regmap[r]&63)==dops[i+1].rt2) wont_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
+              if(regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
               if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt1) wont_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt1) wont_dirty_i|=1<<r;
-              if((branch_regs[i].regmap[r]&63)==dops[i+1].rt2) wont_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
+              if(branch_regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
               if(branch_regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
             }
           }
@@ -6630,21 +6639,21 @@ void clean_registers(int istart,int iend,int wr)
     wont_dirty_next=wont_dirty_i;
     for(r=0;r<HOST_REGS;r++) {
       if(r!=EXCLUDE_REG) {
-        if((regs[i].regmap[r]&63)==dops[i].rt1) will_dirty_i|=1<<r;
-        if((regs[i].regmap[r]&63)==dops[i].rt2) will_dirty_i|=1<<r;
-        if((regs[i].regmap[r]&63)>33) will_dirty_i&=~(1<<r);
+        if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
+        if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
+        if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
         if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
         if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-        if((regs[i].regmap[r]&63)==dops[i].rt1) wont_dirty_i|=1<<r;
-        if((regs[i].regmap[r]&63)==dops[i].rt2) wont_dirty_i|=1<<r;
+        if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
+        if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
         if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
         if(i>istart) {
           if (!dops[i].is_jump)
           {
             // Don't store a register immediately after writing it,
             // may prevent dual-issue.
-            if((regs[i].regmap[r]&63)==dops[i-1].rt1) wont_dirty_i|=1<<r;
-            if((regs[i].regmap[r]&63)==dops[i-1].rt2) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i-1].rt1) wont_dirty_i|=1<<r;
+            if(regs[i].regmap[r]==dops[i-1].rt2) wont_dirty_i|=1<<r;
           }
         }
       }
@@ -6682,7 +6691,6 @@ void clean_registers(int istart,int iend,int wr)
           }
         }
         #endif
-      //}
     }
     // Deal with changed mappings
     temp_will_dirty=will_dirty_i;
@@ -6714,9 +6722,9 @@ void clean_registers(int istart,int iend,int wr)
         else {
           will_dirty_i&=~(1<<r);
           wont_dirty_i&=~(1<<r);
-          if((regmap_pre[i][r]&63)>0 && (regmap_pre[i][r]&63)<34) {
-            will_dirty_i|=((unneeded_reg[i]>>(regmap_pre[i][r]&63))&1)<<r;
-            wont_dirty_i|=((unneeded_reg[i]>>(regmap_pre[i][r]&63))&1)<<r;
+          if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
+            will_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+            wont_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
           } else {
             wont_dirty_i|=1<<r;
             /*printf("i: %x (%d) mismatch: %d\n",start+i*4,i,r);assert(!((will_dirty>>r)&1));*/
@@ -8105,7 +8113,7 @@ int new_recompile_block(u_int addr)
           if(r!=regmap_pre[i][hr]) {
             // TODO: delay slot (?)
             or=get_reg(regmap_pre[i],r); // Get old mapping for this register
-            if(or<0||(r&63)>=TEMPREG){
+            if(or<0||r>=TEMPREG){
               regs[i].regmap_entry[hr]=-1;
             }
             else
@@ -8113,7 +8121,7 @@ int new_recompile_block(u_int addr)
               // Just move it to a different register
               regs[i].regmap_entry[hr]=r;
               // If it was dirty before, it's still dirty
-              if((regs[i].wasdirty>>or)&1) dirty_reg(&current,r&63);
+              if((regs[i].wasdirty>>or)&1) dirty_reg(&current,r);
             }
           }
           else
@@ -8449,8 +8457,8 @@ int new_recompile_block(u_int addr)
       // Merge in delay slot
       for(hr=0;hr<HOST_REGS;hr++)
       {
-        if(dops[i+1].rt1&&dops[i+1].rt1==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
-        if(dops[i+1].rt2&&dops[i+1].rt2==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
+        if(dops[i+1].rt1&&dops[i+1].rt1==regs[i].regmap[hr]) nr&=~(1<<hr);
+        if(dops[i+1].rt2&&dops[i+1].rt2==regs[i].regmap[hr]) nr&=~(1<<hr);
         if(dops[i+1].rs1==regmap_pre[i][hr]) nr|=1<<hr;
         if(dops[i+1].rs2==regmap_pre[i][hr]) nr|=1<<hr;
         if(dops[i+1].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
@@ -8489,9 +8497,9 @@ int new_recompile_block(u_int addr)
     for(hr=0;hr<HOST_REGS;hr++)
     {
       // Overwritten registers are not needed
-      if(dops[i].rt1&&dops[i].rt1==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
-      if(dops[i].rt2&&dops[i].rt2==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
-      if(FTEMP==(regs[i].regmap[hr]&63)) nr&=~(1<<hr);
+      if(dops[i].rt1&&dops[i].rt1==regs[i].regmap[hr]) nr&=~(1<<hr);
+      if(dops[i].rt2&&dops[i].rt2==regs[i].regmap[hr]) nr&=~(1<<hr);
+      if(FTEMP==regs[i].regmap[hr]) nr&=~(1<<hr);
       // Source registers are needed
       if(dops[i].rs1==regmap_pre[i][hr]) nr|=1<<hr;
       if(dops[i].rs2==regmap_pre[i][hr]) nr|=1<<hr;
@@ -8511,12 +8519,12 @@ int new_recompile_block(u_int addr)
       // might have to load the register before the branch.
       if(i>0&&!dops[i].bt&&((regs[i].wasdirty>>hr)&1)) {
         if((regmap_pre[i][hr]>0&&!((unneeded_reg[i]>>regmap_pre[i][hr])&1))) {
-          if(dops[i-1].rt1==(regmap_pre[i][hr]&63)) nr|=1<<hr;
-          if(dops[i-1].rt2==(regmap_pre[i][hr]&63)) nr|=1<<hr;
+          if(dops[i-1].rt1==regmap_pre[i][hr]) nr|=1<<hr;
+          if(dops[i-1].rt2==regmap_pre[i][hr]) nr|=1<<hr;
         }
         if((regs[i].regmap_entry[hr]>0&&!((unneeded_reg[i]>>regs[i].regmap_entry[hr])&1))) {
-          if(dops[i-1].rt1==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
-          if(dops[i-1].rt2==(regs[i].regmap_entry[hr]&63)) nr|=1<<hr;
+          if(dops[i-1].rt1==regs[i].regmap_entry[hr]) nr|=1<<hr;
+          if(dops[i-1].rt2==regs[i].regmap_entry[hr]) nr|=1<<hr;
         }
       }
     }
@@ -8542,11 +8550,11 @@ int new_recompile_block(u_int addr)
             map2 = INVCP;
           if(dops[i+1].itype==LOADLR || dops[i+1].itype==STORELR || dops[i+1].itype==C2LS)
             temp = FTEMP;
-          if((regs[i].regmap[hr]&63)!=dops[i].rs1 && (regs[i].regmap[hr]&63)!=dops[i].rs2 &&
-             (regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
-             (regs[i].regmap[hr]&63)!=dops[i+1].rt1 && (regs[i].regmap[hr]&63)!=dops[i+1].rt2 &&
+          if(regs[i].regmap[hr]!=dops[i].rs1 && regs[i].regmap[hr]!=dops[i].rs2 &&
+             regs[i].regmap[hr]!=dops[i].rt1 && regs[i].regmap[hr]!=dops[i].rt2 &&
+             regs[i].regmap[hr]!=dops[i+1].rt1 && regs[i].regmap[hr]!=dops[i+1].rt2 &&
              regs[i].regmap[hr]!=dops[i+1].rs1 && regs[i].regmap[hr]!=dops[i+1].rs2 &&
-             (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=PTEMP &&
+             regs[i].regmap[hr]!=temp && regs[i].regmap[hr]!=PTEMP &&
              regs[i].regmap[hr]!=RHASH && regs[i].regmap[hr]!=RHTBL &&
              regs[i].regmap[hr]!=RTEMP && regs[i].regmap[hr]!=CCREG &&
              regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2)
@@ -8555,11 +8563,11 @@ int new_recompile_block(u_int addr)
             regs[i].isconst&=~(1<<hr);
             regs[i].dirty&=~(1<<hr);
             regs[i+1].wasdirty&=~(1<<hr);
-            if((branch_regs[i].regmap[hr]&63)!=dops[i].rs1 && (branch_regs[i].regmap[hr]&63)!=dops[i].rs2 &&
-               (branch_regs[i].regmap[hr]&63)!=dops[i].rt1 && (branch_regs[i].regmap[hr]&63)!=dops[i].rt2 &&
-               (branch_regs[i].regmap[hr]&63)!=dops[i+1].rt1 && (branch_regs[i].regmap[hr]&63)!=dops[i+1].rt2 &&
+            if(branch_regs[i].regmap[hr]!=dops[i].rs1 && branch_regs[i].regmap[hr]!=dops[i].rs2 &&
+               branch_regs[i].regmap[hr]!=dops[i].rt1 && branch_regs[i].regmap[hr]!=dops[i].rt2 &&
+               branch_regs[i].regmap[hr]!=dops[i+1].rt1 && branch_regs[i].regmap[hr]!=dops[i+1].rt2 &&
                branch_regs[i].regmap[hr]!=dops[i+1].rs1 && branch_regs[i].regmap[hr]!=dops[i+1].rs2 &&
-               (branch_regs[i].regmap[hr]&63)!=temp && branch_regs[i].regmap[hr]!=PTEMP &&
+               branch_regs[i].regmap[hr]!=temp && branch_regs[i].regmap[hr]!=PTEMP &&
                branch_regs[i].regmap[hr]!=RHASH && branch_regs[i].regmap[hr]!=RHTBL &&
                branch_regs[i].regmap[hr]!=RTEMP && branch_regs[i].regmap[hr]!=CCREG &&
                branch_regs[i].regmap[hr]!=map1 && branch_regs[i].regmap[hr]!=map2)
@@ -8588,9 +8596,9 @@ int new_recompile_block(u_int addr)
               map2 = INVCP;
             if (dops[i].itype==LOADLR || dops[i].itype==STORELR || dops[i].itype==C2LS)
               temp = FTEMP;
-            if((regs[i].regmap[hr]&63)!=dops[i].rt1 && (regs[i].regmap[hr]&63)!=dops[i].rt2 &&
+            if(regs[i].regmap[hr]!=dops[i].rt1 && regs[i].regmap[hr]!=dops[i].rt2 &&
                regs[i].regmap[hr]!=dops[i].rs1 && regs[i].regmap[hr]!=dops[i].rs2 &&
-               (regs[i].regmap[hr]&63)!=temp && regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2 &&
+               regs[i].regmap[hr]!=temp && regs[i].regmap[hr]!=map1 && regs[i].regmap[hr]!=map2 &&
                //(dops[i].itype!=SPAN||regs[i].regmap[hr]!=CCREG)
                regs[i].regmap[hr] != CCREG)
             {
@@ -8691,7 +8699,7 @@ int new_recompile_block(u_int addr)
                 //printf("Test %x -> %x, %x %d/%d\n",start+i*4,ba[i],start+j*4,hr,r);
                 if(r<34&&((unneeded_reg[j]>>r)&1)) break;
                 assert(r < 64);
-                if(regs[j].regmap[hr]==f_regmap[hr]&&(f_regmap[hr]&63)<TEMPREG) {
+                if(regs[j].regmap[hr]==f_regmap[hr]&&f_regmap[hr]<TEMPREG) {
                   //printf("Hit %x -> %x, %x %d/%d\n",start+i*4,ba[i],start+j*4,hr,r);
                   int k;
                   if(regs[i].regmap[hr]==-1&&branch_regs[i].regmap[hr]==-1) {
@@ -8992,7 +9000,7 @@ int new_recompile_block(u_int addr)
              ||(dops[i+1].opcode&0x3b)==0x39||(dops[i+1].opcode&0x3b)==0x3a) { // SB/SH/SW/SD/SWC1/SDC1/SWC2/SDC2
             if(get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
               hr=get_reg2(regs[i].regmap,regs[i+1].regmap,-1);
-              if(hr<0) hr=get_reg(regs[i+1].regmap,-1);
+              if(hr<0) hr=get_reg_temp(regs[i+1].regmap);
               else {
                 regs[i+1].regmap[hr]=AGEN1+((i+1)&1);
                 regs[i+1].isconst&=~(1<<hr);
@@ -9053,7 +9061,7 @@ int new_recompile_block(u_int addr)
               hr=get_reg(regs[i+1].regmap,FTEMP);
             if(dops[i+1].itype==STORE||dops[i+1].itype==STORELR||(dops[i+1].opcode&0x3b)==0x39||(dops[i+1].opcode&0x3b)==0x3a) { // SWC1/SDC1/SWC2/SDC2
               hr=get_reg(regs[i+1].regmap,AGEN1+((i+1)&1));
-              if(hr<0) hr=get_reg(regs[i+1].regmap,-1);
+              if(hr<0) hr=get_reg_temp(regs[i+1].regmap);
             }
             if(hr>=0&&regs[i].regmap[hr]<0) {
               int rs=get_reg(regs[i+1].regmap,dops[i+1].rs1);
@@ -9258,6 +9266,7 @@ int new_recompile_block(u_int addr)
   }
   for(i=0;i<slen;i++)
   {
+    __builtin_prefetch(regs[i+1].regmap);
     check_regmap(regmap_pre[i]);
     check_regmap(regs[i].regmap_entry);
     check_regmap(regs[i].regmap);
