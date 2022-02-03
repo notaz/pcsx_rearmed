@@ -35,6 +35,7 @@
 #include "../psxinterpreter.h"
 #include "../gte.h"
 #include "emu_if.h" // emulator interface
+#include "arm_features.h"
 
 #define noinline __attribute__((noinline,noclone))
 #ifndef ARRAY_SIZE
@@ -607,6 +608,12 @@ static void clear_all_regs(signed char regmap[])
   memset(regmap, -1, sizeof(regmap[0]) * HOST_REGS);
 }
 
+#if defined(__arm__) && defined(HAVE_ARMV6) && HOST_REGS == 13 && EXCLUDE_REG == 11
+
+extern signed char get_reg(const signed char regmap[], signed char r);
+
+#else
+
 static signed char get_reg(const signed char regmap[], signed char r)
 {
   int hr;
@@ -618,6 +625,8 @@ static signed char get_reg(const signed char regmap[], signed char r)
   }
   return -1;
 }
+
+#endif
 
 static signed char get_reg_temp(const signed char regmap[])
 {
