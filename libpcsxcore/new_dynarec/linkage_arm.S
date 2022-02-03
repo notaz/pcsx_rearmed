@@ -840,4 +840,44 @@ FUNCTION(call_gteStall):
 	add	r10, r10, r0
 	bx	lr
 
+#ifdef HAVE_ARMV6
+
+FUNCTION(get_reg):
+	ldr	r12, [r0]
+	and	r1, r1, #0xff
+	ldr	r2, [r0, #4]
+	orr	r1, r1, r1, lsl #8
+	ldr	r3, [r0, #8]
+	orr	r1, r1, r1, lsl #16   @ searched char in every byte
+	ldrb    r0, [r0, #12]         @ last byte
+	eor	r12, r12, r1
+	eor	r2, r2, r1
+	eor	r3, r3, r1
+	cmp     r0, r1, lsr #24
+	mov	r0, #12
+	mvn	r1, #0                @ r1=~0
+	bxeq	lr
+	orr	r3, r3, #0xff000000   @ EXCLUDE_REG
+	uadd8	r0, r12, r1           @ add and set GE bits when not 0 (match)
+	mov	r12, #0
+	sel	r0, r12, r1           @ 0 if no match, else ff in some byte
+	uadd8	r2, r2, r1
+	sel	r2, r12, r1
+	uadd8	r3, r3, r1
+	sel	r3, r12, r1
+	mov	r12, #3
+	clz     r0, r0                @ 0, 8, 16, 24 or 32
+	clz     r2, r2
+	clz     r3, r3
+	sub	r0, r12, r0, lsr #3   @ 3, 2, 1, 0 or -1
+	sub	r2, r12, r2, lsr #3
+	sub	r3, r12, r3, lsr #3
+	orr	r2, r2, #4
+	orr	r3, r3, #8
+	and	r0, r0, r2
+	and	r0, r0, r3
+	bx	lr
+
+#endif /* HAVE_ARMV6 */
+
 @ vim:filetype=armasm
