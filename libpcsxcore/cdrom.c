@@ -774,7 +774,7 @@ void cdrInterrupt() {
 			 * 
 			 * We will need to get around this for Bedlam/Rise 2 later...
 			 * */
-			if (cdr.DriveState != DRIVESTATE_STANDBY)
+			if (cdr.DriveState == DRIVESTATE_STANDBY)
 			{
 				delay = 7000;
 			}
