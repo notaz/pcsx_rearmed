@@ -775,7 +775,7 @@ void cdrInterrupt() {
 			 * Mednafen's timing don't work for Gundam Battle Assault 2 in PAL/50hz mode,
 			 * seems to be timing sensitive as it can depend on the CPU's clock speed.
 			 * */
-			if (cdr.DriveState != DRIVESTATE_STANDBY)
+			if (cdr.DriveState == DRIVESTATE_STANDBY)
 			{
 				delay = 7000;
 			}
