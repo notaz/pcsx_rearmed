@@ -181,7 +181,7 @@ static struct decoded_insn
   u_char rs2;
   u_char rt1;
   u_char rt2;
-  u_char lt1;
+  u_char use_lt1:1;
   u_char bt:1;
   u_char ooo:1;
   u_char is_ds:1;
@@ -200,7 +200,6 @@ static struct decoded_insn
   static struct ll_entry *jump_out[4096];
   static u_int start;
   static u_int *source;
-  static char insn[MAXBLOCK][10];
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
   static uint64_t gte_rt[MAXBLOCK];
   static uint64_t gte_unneeded[MAXBLOCK];
@@ -646,6 +645,36 @@ static signed char get_reg2(signed char regmap1[], const signed char regmap2[], 
   int hr;
   for (hr=0;hr<HOST_REGS;hr++) if(hr!=EXCLUDE_REG&&regmap1[hr]==r&&regmap2[hr]==r) return hr;
   return -1;
+}
+
+// reverse reg map: mips -> host
+#define RRMAP_SIZE 64
+static void make_rregs(const signed char regmap[], signed char rrmap[RRMAP_SIZE],
+  u_int *regs_can_change)
+{
+  u_int r, hr, hr_can_change = 0;
+  memset(rrmap, -1, RRMAP_SIZE);
+  for (hr = 0; hr < HOST_REGS; )
+  {
+    r = regmap[hr];
+    rrmap[r & (RRMAP_SIZE - 1)] = hr;
+    // only add mips $1-$31+$lo, others shifted out
+    hr_can_change |= (uint64_t)1 << (hr + ((r - 1) & 32));
+    hr++;
+    if (hr == EXCLUDE_REG)
+      hr++;
+  }
+  hr_can_change |= 1u << (rrmap[33] & 31);
+  hr_can_change |= 1u << (rrmap[CCREG] & 31);
+  hr_can_change &= ~(1u << 31);
+  *regs_can_change = hr_can_change;
+}
+
+// same as get_reg, but takes rrmap
+static signed char get_rreg(signed char rrmap[RRMAP_SIZE], signed char r)
+{
+  assert(0 <= r && r < RRMAP_SIZE);
+  return rrmap[r];
 }
 
 static int count_free_regs(const signed char regmap[])
@@ -1676,7 +1705,7 @@ static void shiftimm_alloc(struct regstat *current,int i)
   {
     if(dops[i].rt1) {
       if(dops[i].rs1&&needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
-      else dops[i].lt1=dops[i].rs1;
+      else dops[i].use_lt1=!!dops[i].rs1;
       alloc_reg(current,i,dops[i].rt1);
       dirty_reg(current,dops[i].rt1);
       if(is_const(current,dops[i].rs1)) {
@@ -1782,7 +1811,7 @@ static void alu_alloc(struct regstat *current,int i)
 static void imm16_alloc(struct regstat *current,int i)
 {
   if(dops[i].rs1&&needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
-  else dops[i].lt1=dops[i].rs1;
+  else dops[i].use_lt1=!!dops[i].rs1;
   if(dops[i].rt1) alloc_reg(current,i,dops[i].rt1);
   if(dops[i].opcode==0x18||dops[i].opcode==0x19) { // DADDI/DADDIU
     assert(0);
@@ -6331,7 +6360,7 @@ static void unneeded_registers(int istart,int iend,int r)
 
 // Write back dirty registers as soon as we will no longer modify them,
 // so that we don't end up with lots of writes at the branches.
-void clean_registers(int istart,int iend,int wr)
+static void clean_registers(int istart, int iend, int wr)
 {
   int i;
   int r;
@@ -6346,80 +6375,63 @@ void clean_registers(int istart,int iend,int wr)
   }
   for (i=iend;i>=istart;i--)
   {
+    signed char rregmap_i[RRMAP_SIZE];
+    u_int hr_candirty = 0;
+    assert(HOST_REGS < 32);
+    make_rregs(regs[i].regmap, rregmap_i, &hr_candirty);
     __builtin_prefetch(regs[i-1].regmap);
     if(dops[i].is_jump)
     {
+      signed char branch_rregmap_i[RRMAP_SIZE];
+      u_int branch_hr_candirty = 0;
+      make_rregs(branch_regs[i].regmap, branch_rregmap_i, &branch_hr_candirty);
       if(ba[i]<start || ba[i]>=(start+slen*4))
       {
         // Branch out of this block, flush all regs
+        will_dirty_i = 0;
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+        will_dirty_i &= branch_hr_candirty;
         if (dops[i].is_ujump)
         {
           // Unconditional branch
-          will_dirty_i=0;
-          wont_dirty_i=0;
+          wont_dirty_i = 0;
           // Merge in delay slot (will dirty)
-          for(r=0;r<HOST_REGS;r++) {
-            if(r!=EXCLUDE_REG) {
-              if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-              if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-              if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-              if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-              if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-              if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-            }
-          }
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          will_dirty_i &= hr_candirty;
         }
         else
         {
           // Conditional branch
-          will_dirty_i=0;
-          wont_dirty_i=wont_dirty_next;
+          wont_dirty_i = wont_dirty_next;
           // Merge in delay slot (will dirty)
-          for(r=0;r<HOST_REGS;r++) {
-            if(r!=EXCLUDE_REG) {
-              if (1) { // !dops[i].likely)
-                // Might not dirty if likely branch is not taken
-                if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                if(branch_regs[i].regmap[r]==0) will_dirty_i&=~(1<<r);
-                if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                //if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                //if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-                if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-              }
-            }
-          }
+          // (the original code had no explanation why these 2 are commented out)
+          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          will_dirty_i &= hr_candirty;
         }
         // Merge in delay slot (wont dirty)
-        for(r=0;r<HOST_REGS;r++) {
-          if(r!=EXCLUDE_REG) {
-            if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
-            if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
-            if(regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
-            if(regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
-            if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-            if(branch_regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
-            if(branch_regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
-            if(branch_regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
-            if(branch_regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
-            if(branch_regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-          }
-        }
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+        wont_dirty_i &= ~(1u << 31);
         if(wr) {
           #ifndef DESTRUCTIVE_WRITEBACK
           branch_regs[i].dirty&=wont_dirty_i;
@@ -6438,66 +6450,48 @@ void clean_registers(int istart,int iend,int wr)
             temp_will_dirty=0;
             temp_wont_dirty=0;
             // Merge in delay slot (will dirty)
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(branch_regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                if(branch_regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
-                if(branch_regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
-                if(branch_regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-                if(regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
-                if(regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                if(regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
-                if(regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
-                if(regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-              }
-            }
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            temp_will_dirty &= branch_hr_candirty;
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            temp_will_dirty &= hr_candirty;
           } else {
             // Conditional branch (not taken case)
             temp_will_dirty=will_dirty_next;
             temp_wont_dirty=wont_dirty_next;
             // Merge in delay slot (will dirty)
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if (1) { // !dops[i].likely)
-                  // Will not dirty if likely branch is not taken
-                  if(branch_regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                  if(branch_regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
-                  if(branch_regs[i].regmap[r]==0) temp_will_dirty&=~(1<<r);
-                  if(branch_regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-                  //if(regs[i].regmap[r]==dops[i].rt1) temp_will_dirty|=1<<r;
-                  //if(regs[i].regmap[r]==dops[i].rt2) temp_will_dirty|=1<<r;
-                  if(regs[i].regmap[r]==dops[i+1].rt1) temp_will_dirty|=1<<r;
-                  if(regs[i].regmap[r]==dops[i+1].rt2) temp_will_dirty|=1<<r;
-                  if(regs[i].regmap[r]>33) temp_will_dirty&=~(1<<r);
-                  if(regs[i].regmap[r]<=0) temp_will_dirty&=~(1<<r);
-                  if(regs[i].regmap[r]==CCREG) temp_will_dirty|=1<<r;
-                }
-              }
-            }
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            temp_will_dirty &= branch_hr_candirty;
+            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            temp_will_dirty &= hr_candirty;
           }
           // Merge in delay slot (wont dirty)
-          for(r=0;r<HOST_REGS;r++) {
-            if(r!=EXCLUDE_REG) {
-              if(regs[i].regmap[r]==dops[i].rt1) temp_wont_dirty|=1<<r;
-              if(regs[i].regmap[r]==dops[i].rt2) temp_wont_dirty|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt1) temp_wont_dirty|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt2) temp_wont_dirty|=1<<r;
-              if(regs[i].regmap[r]==CCREG) temp_wont_dirty|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i].rt1) temp_wont_dirty|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i].rt2) temp_wont_dirty|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt1) temp_wont_dirty|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt2) temp_wont_dirty|=1<<r;
-              if(branch_regs[i].regmap[r]==CCREG) temp_wont_dirty|=1<<r;
-            }
-          }
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+          temp_wont_dirty &= ~(1u << 31);
           // Deal with changed mappings
           if(i<iend) {
             for(r=0;r<HOST_REGS;r++) {
@@ -6549,24 +6543,18 @@ void clean_registers(int istart,int iend,int wr)
             }
           //}
             // Merge in delay slot
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-                if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-                if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-              }
-            }
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            will_dirty_i &= branch_hr_candirty;
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            will_dirty_i &= hr_candirty;
           } else {
             // Conditional branch
             will_dirty_i=will_dirty_next;
@@ -6586,43 +6574,31 @@ void clean_registers(int istart,int iend,int wr)
               }
             }
             // Merge in delay slot
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if (1) { // !dops[i].likely)
-                  // Might not dirty if likely branch is not taken
-                  if(branch_regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                  if(branch_regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                  if(branch_regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                  if(branch_regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-                  if(branch_regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                  //if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-                  //if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-                  if(regs[i].regmap[r]==dops[i+1].rt1) will_dirty_i|=1<<r;
-                  if(regs[i].regmap[r]==dops[i+1].rt2) will_dirty_i|=1<<r;
-                  if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-                  if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-                  if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-                }
-              }
-            }
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            will_dirty_i &= branch_hr_candirty;
+            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            will_dirty_i &= hr_candirty;
           }
           // Merge in delay slot (won't dirty)
-          for(r=0;r<HOST_REGS;r++) {
-            if(r!=EXCLUDE_REG) {
-              if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
-              if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt1) wont_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==dops[i+1].rt2) wont_dirty_i|=1<<r;
-              if(branch_regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-            }
-          }
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+          wont_dirty_i &= ~(1u << 31);
           if(wr) {
             #ifndef DESTRUCTIVE_WRITEBACK
             branch_regs[i].dirty&=wont_dirty_i;
@@ -6646,26 +6622,19 @@ void clean_registers(int istart,int iend,int wr)
     }
     will_dirty_next=will_dirty_i;
     wont_dirty_next=wont_dirty_i;
-    for(r=0;r<HOST_REGS;r++) {
-      if(r!=EXCLUDE_REG) {
-        if(regs[i].regmap[r]==dops[i].rt1) will_dirty_i|=1<<r;
-        if(regs[i].regmap[r]==dops[i].rt2) will_dirty_i|=1<<r;
-        if(regs[i].regmap[r]>33) will_dirty_i&=~(1<<r);
-        if(regs[i].regmap[r]<=0) will_dirty_i&=~(1<<r);
-        if(regs[i].regmap[r]==CCREG) will_dirty_i|=1<<r;
-        if(regs[i].regmap[r]==dops[i].rt1) wont_dirty_i|=1<<r;
-        if(regs[i].regmap[r]==dops[i].rt2) wont_dirty_i|=1<<r;
-        if(regs[i].regmap[r]==CCREG) wont_dirty_i|=1<<r;
-        if(i>istart) {
-          if (!dops[i].is_jump)
-          {
-            // Don't store a register immediately after writing it,
-            // may prevent dual-issue.
-            if(regs[i].regmap[r]==dops[i-1].rt1) wont_dirty_i|=1<<r;
-            if(regs[i].regmap[r]==dops[i-1].rt2) wont_dirty_i|=1<<r;
-          }
-        }
-      }
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+    will_dirty_i &= hr_candirty;
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+    wont_dirty_i &= ~(1u << 31);
+    if (i > istart && !dops[i].is_jump) {
+      // Don't store a register immediately after writing it,
+      // may prevent dual-issue.
+      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt1) & 31);
+      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt2) & 31);
     }
     // Save it
     will_dirty[i]=will_dirty_i;
@@ -6715,7 +6684,7 @@ void clean_registers(int istart,int iend,int wr)
             regs[i].wasdirty|=will_dirty_i&(1<<r);
           }
         }
-        else if(regmap_pre[i][r]>=0&&(nr=get_reg(regs[i].regmap,regmap_pre[i][r]))>=0) {
+        else if(regmap_pre[i][r]>=0&&(nr=get_rreg(rregmap_i,regmap_pre[i][r]))>=0) {
           // Register moved to a different register
           will_dirty_i&=~(1<<r);
           wont_dirty_i&=~(1<<r);
@@ -6746,6 +6715,11 @@ void clean_registers(int istart,int iend,int wr)
 
 #ifdef DISASM
 #include <inttypes.h>
+static char insn[MAXBLOCK][10];
+
+#define set_mnemonic(i_, n_) \
+  strcpy(insn[i_], n_)
+
 void print_regmap(const char *name, const signed char *regmap)
 {
   char buf[5];
@@ -6860,6 +6834,7 @@ void disassemble_inst(int i)
     }
 }
 #else
+#define set_mnemonic(i_, n_)
 static void disassemble_inst(int i) {}
 #endif // DISASM
 
@@ -7268,189 +7243,191 @@ int new_recompile_block(u_int addr)
     dops[i].opcode=op=source[i]>>26;
     switch(op)
     {
-      case 0x00: strcpy(insn[i],"special"); type=NI;
+      case 0x00: set_mnemonic(i, "special"); type=NI;
         op2=source[i]&0x3f;
         switch(op2)
         {
-          case 0x00: strcpy(insn[i],"SLL"); type=SHIFTIMM; break;
-          case 0x02: strcpy(insn[i],"SRL"); type=SHIFTIMM; break;
-          case 0x03: strcpy(insn[i],"SRA"); type=SHIFTIMM; break;
-          case 0x04: strcpy(insn[i],"SLLV"); type=SHIFT; break;
-          case 0x06: strcpy(insn[i],"SRLV"); type=SHIFT; break;
-          case 0x07: strcpy(insn[i],"SRAV"); type=SHIFT; break;
-          case 0x08: strcpy(insn[i],"JR"); type=RJUMP; break;
-          case 0x09: strcpy(insn[i],"JALR"); type=RJUMP; break;
-          case 0x0C: strcpy(insn[i],"SYSCALL"); type=SYSCALL; break;
-          case 0x0D: strcpy(insn[i],"BREAK"); type=SYSCALL; break;
-          case 0x0F: strcpy(insn[i],"SYNC"); type=OTHER; break;
-          case 0x10: strcpy(insn[i],"MFHI"); type=MOV; break;
-          case 0x11: strcpy(insn[i],"MTHI"); type=MOV; break;
-          case 0x12: strcpy(insn[i],"MFLO"); type=MOV; break;
-          case 0x13: strcpy(insn[i],"MTLO"); type=MOV; break;
-          case 0x18: strcpy(insn[i],"MULT"); type=MULTDIV; break;
-          case 0x19: strcpy(insn[i],"MULTU"); type=MULTDIV; break;
-          case 0x1A: strcpy(insn[i],"DIV"); type=MULTDIV; break;
-          case 0x1B: strcpy(insn[i],"DIVU"); type=MULTDIV; break;
-          case 0x20: strcpy(insn[i],"ADD"); type=ALU; break;
-          case 0x21: strcpy(insn[i],"ADDU"); type=ALU; break;
-          case 0x22: strcpy(insn[i],"SUB"); type=ALU; break;
-          case 0x23: strcpy(insn[i],"SUBU"); type=ALU; break;
-          case 0x24: strcpy(insn[i],"AND"); type=ALU; break;
-          case 0x25: strcpy(insn[i],"OR"); type=ALU; break;
-          case 0x26: strcpy(insn[i],"XOR"); type=ALU; break;
-          case 0x27: strcpy(insn[i],"NOR"); type=ALU; break;
-          case 0x2A: strcpy(insn[i],"SLT"); type=ALU; break;
-          case 0x2B: strcpy(insn[i],"SLTU"); type=ALU; break;
-          case 0x30: strcpy(insn[i],"TGE"); type=NI; break;
-          case 0x31: strcpy(insn[i],"TGEU"); type=NI; break;
-          case 0x32: strcpy(insn[i],"TLT"); type=NI; break;
-          case 0x33: strcpy(insn[i],"TLTU"); type=NI; break;
-          case 0x34: strcpy(insn[i],"TEQ"); type=NI; break;
-          case 0x36: strcpy(insn[i],"TNE"); type=NI; break;
+          case 0x00: set_mnemonic(i, "SLL"); type=SHIFTIMM; break;
+          case 0x02: set_mnemonic(i, "SRL"); type=SHIFTIMM; break;
+          case 0x03: set_mnemonic(i, "SRA"); type=SHIFTIMM; break;
+          case 0x04: set_mnemonic(i, "SLLV"); type=SHIFT; break;
+          case 0x06: set_mnemonic(i, "SRLV"); type=SHIFT; break;
+          case 0x07: set_mnemonic(i, "SRAV"); type=SHIFT; break;
+          case 0x08: set_mnemonic(i, "JR"); type=RJUMP; break;
+          case 0x09: set_mnemonic(i, "JALR"); type=RJUMP; break;
+          case 0x0C: set_mnemonic(i, "SYSCALL"); type=SYSCALL; break;
+          case 0x0D: set_mnemonic(i, "BREAK"); type=SYSCALL; break;
+          case 0x0F: set_mnemonic(i, "SYNC"); type=OTHER; break;
+          case 0x10: set_mnemonic(i, "MFHI"); type=MOV; break;
+          case 0x11: set_mnemonic(i, "MTHI"); type=MOV; break;
+          case 0x12: set_mnemonic(i, "MFLO"); type=MOV; break;
+          case 0x13: set_mnemonic(i, "MTLO"); type=MOV; break;
+          case 0x18: set_mnemonic(i, "MULT"); type=MULTDIV; break;
+          case 0x19: set_mnemonic(i, "MULTU"); type=MULTDIV; break;
+          case 0x1A: set_mnemonic(i, "DIV"); type=MULTDIV; break;
+          case 0x1B: set_mnemonic(i, "DIVU"); type=MULTDIV; break;
+          case 0x20: set_mnemonic(i, "ADD"); type=ALU; break;
+          case 0x21: set_mnemonic(i, "ADDU"); type=ALU; break;
+          case 0x22: set_mnemonic(i, "SUB"); type=ALU; break;
+          case 0x23: set_mnemonic(i, "SUBU"); type=ALU; break;
+          case 0x24: set_mnemonic(i, "AND"); type=ALU; break;
+          case 0x25: set_mnemonic(i, "OR"); type=ALU; break;
+          case 0x26: set_mnemonic(i, "XOR"); type=ALU; break;
+          case 0x27: set_mnemonic(i, "NOR"); type=ALU; break;
+          case 0x2A: set_mnemonic(i, "SLT"); type=ALU; break;
+          case 0x2B: set_mnemonic(i, "SLTU"); type=ALU; break;
+          case 0x30: set_mnemonic(i, "TGE"); type=NI; break;
+          case 0x31: set_mnemonic(i, "TGEU"); type=NI; break;
+          case 0x32: set_mnemonic(i, "TLT"); type=NI; break;
+          case 0x33: set_mnemonic(i, "TLTU"); type=NI; break;
+          case 0x34: set_mnemonic(i, "TEQ"); type=NI; break;
+          case 0x36: set_mnemonic(i, "TNE"); type=NI; break;
 #if 0
-          case 0x14: strcpy(insn[i],"DSLLV"); type=SHIFT; break;
-          case 0x16: strcpy(insn[i],"DSRLV"); type=SHIFT; break;
-          case 0x17: strcpy(insn[i],"DSRAV"); type=SHIFT; break;
-          case 0x1C: strcpy(insn[i],"DMULT"); type=MULTDIV; break;
-          case 0x1D: strcpy(insn[i],"DMULTU"); type=MULTDIV; break;
-          case 0x1E: strcpy(insn[i],"DDIV"); type=MULTDIV; break;
-          case 0x1F: strcpy(insn[i],"DDIVU"); type=MULTDIV; break;
-          case 0x2C: strcpy(insn[i],"DADD"); type=ALU; break;
-          case 0x2D: strcpy(insn[i],"DADDU"); type=ALU; break;
-          case 0x2E: strcpy(insn[i],"DSUB"); type=ALU; break;
-          case 0x2F: strcpy(insn[i],"DSUBU"); type=ALU; break;
-          case 0x38: strcpy(insn[i],"DSLL"); type=SHIFTIMM; break;
-          case 0x3A: strcpy(insn[i],"DSRL"); type=SHIFTIMM; break;
-          case 0x3B: strcpy(insn[i],"DSRA"); type=SHIFTIMM; break;
-          case 0x3C: strcpy(insn[i],"DSLL32"); type=SHIFTIMM; break;
-          case 0x3E: strcpy(insn[i],"DSRL32"); type=SHIFTIMM; break;
-          case 0x3F: strcpy(insn[i],"DSRA32"); type=SHIFTIMM; break;
+          case 0x14: set_mnemonic(i, "DSLLV"); type=SHIFT; break;
+          case 0x16: set_mnemonic(i, "DSRLV"); type=SHIFT; break;
+          case 0x17: set_mnemonic(i, "DSRAV"); type=SHIFT; break;
+          case 0x1C: set_mnemonic(i, "DMULT"); type=MULTDIV; break;
+          case 0x1D: set_mnemonic(i, "DMULTU"); type=MULTDIV; break;
+          case 0x1E: set_mnemonic(i, "DDIV"); type=MULTDIV; break;
+          case 0x1F: set_mnemonic(i, "DDIVU"); type=MULTDIV; break;
+          case 0x2C: set_mnemonic(i, "DADD"); type=ALU; break;
+          case 0x2D: set_mnemonic(i, "DADDU"); type=ALU; break;
+          case 0x2E: set_mnemonic(i, "DSUB"); type=ALU; break;
+          case 0x2F: set_mnemonic(i, "DSUBU"); type=ALU; break;
+          case 0x38: set_mnemonic(i, "DSLL"); type=SHIFTIMM; break;
+          case 0x3A: set_mnemonic(i, "DSRL"); type=SHIFTIMM; break;
+          case 0x3B: set_mnemonic(i, "DSRA"); type=SHIFTIMM; break;
+          case 0x3C: set_mnemonic(i, "DSLL32"); type=SHIFTIMM; break;
+          case 0x3E: set_mnemonic(i, "DSRL32"); type=SHIFTIMM; break;
+          case 0x3F: set_mnemonic(i, "DSRA32"); type=SHIFTIMM; break;
 #endif
         }
         break;
-      case 0x01: strcpy(insn[i],"regimm"); type=NI;
+      case 0x01: set_mnemonic(i, "regimm"); type=NI;
         op2=(source[i]>>16)&0x1f;
         switch(op2)
         {
-          case 0x00: strcpy(insn[i],"BLTZ"); type=SJUMP; break;
-          case 0x01: strcpy(insn[i],"BGEZ"); type=SJUMP; break;
-          //case 0x02: strcpy(insn[i],"BLTZL"); type=SJUMP; break;
-          //case 0x03: strcpy(insn[i],"BGEZL"); type=SJUMP; break;
-          //case 0x08: strcpy(insn[i],"TGEI"); type=NI; break;
-          //case 0x09: strcpy(insn[i],"TGEIU"); type=NI; break;
-          //case 0x0A: strcpy(insn[i],"TLTI"); type=NI; break;
-          //case 0x0B: strcpy(insn[i],"TLTIU"); type=NI; break;
-          //case 0x0C: strcpy(insn[i],"TEQI"); type=NI; break;
-          //case 0x0E: strcpy(insn[i],"TNEI"); type=NI; break;
-          case 0x10: strcpy(insn[i],"BLTZAL"); type=SJUMP; break;
-          case 0x11: strcpy(insn[i],"BGEZAL"); type=SJUMP; break;
-          //case 0x12: strcpy(insn[i],"BLTZALL"); type=SJUMP; break;
-          //case 0x13: strcpy(insn[i],"BGEZALL"); type=SJUMP; break;
+          case 0x00: set_mnemonic(i, "BLTZ"); type=SJUMP; break;
+          case 0x01: set_mnemonic(i, "BGEZ"); type=SJUMP; break;
+          //case 0x02: set_mnemonic(i, "BLTZL"); type=SJUMP; break;
+          //case 0x03: set_mnemonic(i, "BGEZL"); type=SJUMP; break;
+          //case 0x08: set_mnemonic(i, "TGEI"); type=NI; break;
+          //case 0x09: set_mnemonic(i, "TGEIU"); type=NI; break;
+          //case 0x0A: set_mnemonic(i, "TLTI"); type=NI; break;
+          //case 0x0B: set_mnemonic(i, "TLTIU"); type=NI; break;
+          //case 0x0C: set_mnemonic(i, "TEQI"); type=NI; break;
+          //case 0x0E: set_mnemonic(i, "TNEI"); type=NI; break;
+          case 0x10: set_mnemonic(i, "BLTZAL"); type=SJUMP; break;
+          case 0x11: set_mnemonic(i, "BGEZAL"); type=SJUMP; break;
+          //case 0x12: set_mnemonic(i, "BLTZALL"); type=SJUMP; break;
+          //case 0x13: set_mnemonic(i, "BGEZALL"); type=SJUMP; break;
         }
         break;
-      case 0x02: strcpy(insn[i],"J"); type=UJUMP; break;
-      case 0x03: strcpy(insn[i],"JAL"); type=UJUMP; break;
-      case 0x04: strcpy(insn[i],"BEQ"); type=CJUMP; break;
-      case 0x05: strcpy(insn[i],"BNE"); type=CJUMP; break;
-      case 0x06: strcpy(insn[i],"BLEZ"); type=CJUMP; break;
-      case 0x07: strcpy(insn[i],"BGTZ"); type=CJUMP; break;
-      case 0x08: strcpy(insn[i],"ADDI"); type=IMM16; break;
-      case 0x09: strcpy(insn[i],"ADDIU"); type=IMM16; break;
-      case 0x0A: strcpy(insn[i],"SLTI"); type=IMM16; break;
-      case 0x0B: strcpy(insn[i],"SLTIU"); type=IMM16; break;
-      case 0x0C: strcpy(insn[i],"ANDI"); type=IMM16; break;
-      case 0x0D: strcpy(insn[i],"ORI"); type=IMM16; break;
-      case 0x0E: strcpy(insn[i],"XORI"); type=IMM16; break;
-      case 0x0F: strcpy(insn[i],"LUI"); type=IMM16; break;
-      case 0x10: strcpy(insn[i],"cop0"); type=NI;
+      case 0x02: set_mnemonic(i, "J"); type=UJUMP; break;
+      case 0x03: set_mnemonic(i, "JAL"); type=UJUMP; break;
+      case 0x04: set_mnemonic(i, "BEQ"); type=CJUMP; break;
+      case 0x05: set_mnemonic(i, "BNE"); type=CJUMP; break;
+      case 0x06: set_mnemonic(i, "BLEZ"); type=CJUMP; break;
+      case 0x07: set_mnemonic(i, "BGTZ"); type=CJUMP; break;
+      case 0x08: set_mnemonic(i, "ADDI"); type=IMM16; break;
+      case 0x09: set_mnemonic(i, "ADDIU"); type=IMM16; break;
+      case 0x0A: set_mnemonic(i, "SLTI"); type=IMM16; break;
+      case 0x0B: set_mnemonic(i, "SLTIU"); type=IMM16; break;
+      case 0x0C: set_mnemonic(i, "ANDI"); type=IMM16; break;
+      case 0x0D: set_mnemonic(i, "ORI"); type=IMM16; break;
+      case 0x0E: set_mnemonic(i, "XORI"); type=IMM16; break;
+      case 0x0F: set_mnemonic(i, "LUI"); type=IMM16; break;
+      case 0x10: set_mnemonic(i, "cop0"); type=NI;
         op2=(source[i]>>21)&0x1f;
         switch(op2)
         {
-          case 0x00: strcpy(insn[i],"MFC0"); type=COP0; break;
-          case 0x02: strcpy(insn[i],"CFC0"); type=COP0; break;
-          case 0x04: strcpy(insn[i],"MTC0"); type=COP0; break;
-          case 0x06: strcpy(insn[i],"CTC0"); type=COP0; break;
-          case 0x10: strcpy(insn[i],"RFE"); type=COP0; break;
+          case 0x00: set_mnemonic(i, "MFC0"); type=COP0; break;
+          case 0x02: set_mnemonic(i, "CFC0"); type=COP0; break;
+          case 0x04: set_mnemonic(i, "MTC0"); type=COP0; break;
+          case 0x06: set_mnemonic(i, "CTC0"); type=COP0; break;
+          case 0x10: set_mnemonic(i, "RFE"); type=COP0; break;
         }
         break;
-      case 0x11: strcpy(insn[i],"cop1"); type=COP1;
+      case 0x11: set_mnemonic(i, "cop1"); type=COP1;
         op2=(source[i]>>21)&0x1f;
         break;
 #if 0
-      case 0x14: strcpy(insn[i],"BEQL"); type=CJUMP; break;
-      case 0x15: strcpy(insn[i],"BNEL"); type=CJUMP; break;
-      case 0x16: strcpy(insn[i],"BLEZL"); type=CJUMP; break;
-      case 0x17: strcpy(insn[i],"BGTZL"); type=CJUMP; break;
-      case 0x18: strcpy(insn[i],"DADDI"); type=IMM16; break;
-      case 0x19: strcpy(insn[i],"DADDIU"); type=IMM16; break;
-      case 0x1A: strcpy(insn[i],"LDL"); type=LOADLR; break;
-      case 0x1B: strcpy(insn[i],"LDR"); type=LOADLR; break;
+      case 0x14: set_mnemonic(i, "BEQL"); type=CJUMP; break;
+      case 0x15: set_mnemonic(i, "BNEL"); type=CJUMP; break;
+      case 0x16: set_mnemonic(i, "BLEZL"); type=CJUMP; break;
+      case 0x17: set_mnemonic(i, "BGTZL"); type=CJUMP; break;
+      case 0x18: set_mnemonic(i, "DADDI"); type=IMM16; break;
+      case 0x19: set_mnemonic(i, "DADDIU"); type=IMM16; break;
+      case 0x1A: set_mnemonic(i, "LDL"); type=LOADLR; break;
+      case 0x1B: set_mnemonic(i, "LDR"); type=LOADLR; break;
 #endif
-      case 0x20: strcpy(insn[i],"LB"); type=LOAD; break;
-      case 0x21: strcpy(insn[i],"LH"); type=LOAD; break;
-      case 0x22: strcpy(insn[i],"LWL"); type=LOADLR; break;
-      case 0x23: strcpy(insn[i],"LW"); type=LOAD; break;
-      case 0x24: strcpy(insn[i],"LBU"); type=LOAD; break;
-      case 0x25: strcpy(insn[i],"LHU"); type=LOAD; break;
-      case 0x26: strcpy(insn[i],"LWR"); type=LOADLR; break;
+      case 0x20: set_mnemonic(i, "LB"); type=LOAD; break;
+      case 0x21: set_mnemonic(i, "LH"); type=LOAD; break;
+      case 0x22: set_mnemonic(i, "LWL"); type=LOADLR; break;
+      case 0x23: set_mnemonic(i, "LW"); type=LOAD; break;
+      case 0x24: set_mnemonic(i, "LBU"); type=LOAD; break;
+      case 0x25: set_mnemonic(i, "LHU"); type=LOAD; break;
+      case 0x26: set_mnemonic(i, "LWR"); type=LOADLR; break;
 #if 0
-      case 0x27: strcpy(insn[i],"LWU"); type=LOAD; break;
+      case 0x27: set_mnemonic(i, "LWU"); type=LOAD; break;
 #endif
-      case 0x28: strcpy(insn[i],"SB"); type=STORE; break;
-      case 0x29: strcpy(insn[i],"SH"); type=STORE; break;
-      case 0x2A: strcpy(insn[i],"SWL"); type=STORELR; break;
-      case 0x2B: strcpy(insn[i],"SW"); type=STORE; break;
+      case 0x28: set_mnemonic(i, "SB"); type=STORE; break;
+      case 0x29: set_mnemonic(i, "SH"); type=STORE; break;
+      case 0x2A: set_mnemonic(i, "SWL"); type=STORELR; break;
+      case 0x2B: set_mnemonic(i, "SW"); type=STORE; break;
 #if 0
-      case 0x2C: strcpy(insn[i],"SDL"); type=STORELR; break;
-      case 0x2D: strcpy(insn[i],"SDR"); type=STORELR; break;
+      case 0x2C: set_mnemonic(i, "SDL"); type=STORELR; break;
+      case 0x2D: set_mnemonic(i, "SDR"); type=STORELR; break;
 #endif
-      case 0x2E: strcpy(insn[i],"SWR"); type=STORELR; break;
-      case 0x2F: strcpy(insn[i],"CACHE"); type=NOP; break;
-      case 0x30: strcpy(insn[i],"LL"); type=NI; break;
-      case 0x31: strcpy(insn[i],"LWC1"); type=C1LS; break;
+      case 0x2E: set_mnemonic(i, "SWR"); type=STORELR; break;
+      case 0x2F: set_mnemonic(i, "CACHE"); type=NOP; break;
+      case 0x30: set_mnemonic(i, "LL"); type=NI; break;
+      case 0x31: set_mnemonic(i, "LWC1"); type=C1LS; break;
 #if 0
-      case 0x34: strcpy(insn[i],"LLD"); type=NI; break;
-      case 0x35: strcpy(insn[i],"LDC1"); type=C1LS; break;
-      case 0x37: strcpy(insn[i],"LD"); type=LOAD; break;
+      case 0x34: set_mnemonic(i, "LLD"); type=NI; break;
+      case 0x35: set_mnemonic(i, "LDC1"); type=C1LS; break;
+      case 0x37: set_mnemonic(i, "LD"); type=LOAD; break;
 #endif
-      case 0x38: strcpy(insn[i],"SC"); type=NI; break;
-      case 0x39: strcpy(insn[i],"SWC1"); type=C1LS; break;
+      case 0x38: set_mnemonic(i, "SC"); type=NI; break;
+      case 0x39: set_mnemonic(i, "SWC1"); type=C1LS; break;
 #if 0
-      case 0x3C: strcpy(insn[i],"SCD"); type=NI; break;
-      case 0x3D: strcpy(insn[i],"SDC1"); type=C1LS; break;
-      case 0x3F: strcpy(insn[i],"SD"); type=STORE; break;
+      case 0x3C: set_mnemonic(i, "SCD"); type=NI; break;
+      case 0x3D: set_mnemonic(i, "SDC1"); type=C1LS; break;
+      case 0x3F: set_mnemonic(i, "SD"); type=STORE; break;
 #endif
-      case 0x12: strcpy(insn[i],"COP2"); type=NI;
+      case 0x12: set_mnemonic(i, "COP2"); type=NI;
         op2=(source[i]>>21)&0x1f;
         //if (op2 & 0x10)
         if (source[i]&0x3f) { // use this hack to support old savestates with patched gte insns
           if (gte_handlers[source[i]&0x3f]!=NULL) {
+#ifdef DISASM
             if (gte_regnames[source[i]&0x3f]!=NULL)
               strcpy(insn[i],gte_regnames[source[i]&0x3f]);
             else
               snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
+#endif
             type=C2OP;
           }
         }
         else switch(op2)
         {
-          case 0x00: strcpy(insn[i],"MFC2"); type=COP2; break;
-          case 0x02: strcpy(insn[i],"CFC2"); type=COP2; break;
-          case 0x04: strcpy(insn[i],"MTC2"); type=COP2; break;
-          case 0x06: strcpy(insn[i],"CTC2"); type=COP2; break;
+          case 0x00: set_mnemonic(i, "MFC2"); type=COP2; break;
+          case 0x02: set_mnemonic(i, "CFC2"); type=COP2; break;
+          case 0x04: set_mnemonic(i, "MTC2"); type=COP2; break;
+          case 0x06: set_mnemonic(i, "CTC2"); type=COP2; break;
         }
         break;
-      case 0x32: strcpy(insn[i],"LWC2"); type=C2LS; break;
-      case 0x3A: strcpy(insn[i],"SWC2"); type=C2LS; break;
-      case 0x3B: strcpy(insn[i],"HLECALL"); type=HLECALL; break;
-      default: strcpy(insn[i],"???"); type=NI;
+      case 0x32: set_mnemonic(i, "LWC2"); type=C2LS; break;
+      case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; break;
+      case 0x3B: set_mnemonic(i, "HLECALL"); type=HLECALL; break;
+      default: set_mnemonic(i, "???"); type=NI;
         SysPrintf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
         break;
     }
     dops[i].itype=type;
     dops[i].opcode2=op2;
     /* Get registers/immediates */
-    dops[i].lt1=0;
+    dops[i].use_lt1=0;
     gte_rs[i]=gte_rt[i]=0;
     switch(type) {
       case LOAD:
@@ -8988,7 +8965,7 @@ int new_recompile_block(u_int addr)
             }
           }
           // Load source into target register
-          if(dops[i+1].lt1&&get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
+          if(dops[i+1].use_lt1&&get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
             if((hr=get_reg(regs[i+1].regmap,dops[i+1].rt1))>=0)
             {
               if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
