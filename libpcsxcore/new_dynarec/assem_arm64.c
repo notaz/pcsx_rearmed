@@ -449,7 +449,6 @@ static void emit_readshword(void *addr, u_int rt)
 static void emit_loadreg(u_int r, u_int hr)
 {
   int is64 = 0;
-  assert(r < 64);
   if (r == 0)
     emit_zeroreg(hr);
   else {

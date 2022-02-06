@@ -220,9 +220,6 @@ static struct decoded_insn
   static struct regstat regs[MAXBLOCK];
   static struct regstat branch_regs[MAXBLOCK];
   static signed char minimum_free_regs[MAXBLOCK];
-  static u_int needed_reg[MAXBLOCK];
-  static u_int wont_dirty[MAXBLOCK];
-  static u_int will_dirty[MAXBLOCK];
   static int ccadj[MAXBLOCK];
   static int slen;
   static void *instr_addr[MAXBLOCK];
@@ -608,6 +605,8 @@ static void clear_all_regs(signed char regmap[])
   memset(regmap, -1, sizeof(regmap[0]) * HOST_REGS);
 }
 
+// get_reg: get allocated host reg from mips reg
+// returns -1 if no such mips reg was allocated
 #if defined(__arm__) && defined(HAVE_ARMV6) && HOST_REGS == 13 && EXCLUDE_REG == 11
 
 extern signed char get_reg(const signed char regmap[], signed char r);
@@ -627,6 +626,12 @@ static signed char get_reg(const signed char regmap[], signed char r)
 }
 
 #endif
+
+// get reg as mask bit (1 << hr)
+static u_int get_regm(const signed char regmap[], signed char r)
+{
+  return (1u << (get_reg(regmap, r) & 31)) & ~(1u << 31);
+}
 
 static signed char get_reg_temp(const signed char regmap[])
 {
@@ -1442,15 +1447,14 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
   if (reg == CCREG) preferred_reg = HOST_CCREG;
   if (reg == PTEMP || reg == FTEMP) preferred_reg = 12;
   assert(PREFERRED_REG_FIRST != EXCLUDE_REG && EXCLUDE_REG != HOST_REGS);
+  assert(reg >= 0);
 
   // Don't allocate unused registers
   if((cur->u>>reg)&1) return;
 
   // see if it's already allocated
-  for(hr=0;hr<HOST_REGS;hr++)
-  {
-    if(cur->regmap[hr]==reg) return;
-  }
+  if (get_reg(cur->regmap, reg) >= 0)
+    return;
 
   // Keep the same mapping if the register was already allocated in a loop
   preferred_reg = loop_reg(i,reg,preferred_reg);
@@ -2193,23 +2197,13 @@ static void wb_register(signed char r, const signed char regmap[], uint64_t dirt
 static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int dirty,uint64_t u)
 {
   //if(dirty_pre==dirty) return;
-  int hr,reg;
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG) {
-      reg=pre[hr];
-      if(((~u)>>reg)&1) {
-        if(reg>0) {
-          if(((dirty_pre&~dirty)>>hr)&1) {
-            if(reg>0&&reg<34) {
-              emit_storereg(reg,hr);
-            }
-            else if(reg>=64) {
-              assert(0);
-            }
-          }
-        }
-      }
-    }
+  int hr, r;
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    r = pre[hr];
+    if (r < 1 || r > 33 || ((u >> r) & 1))
+      continue;
+    if (((dirty_pre & ~dirty) >> hr) & 1)
+      emit_storereg(r, hr);
   }
 }
 
@@ -4279,26 +4273,18 @@ static void wb_invalidate(signed char pre[],signed char entry[],uint64_t dirty,u
 // Load the specified registers
 // This only loads the registers given as arguments because
 // we don't want to load things that will be overwritten
-static void load_regs(signed char entry[],signed char regmap[],int rs1,int rs2)
+static inline void load_reg(signed char entry[], signed char regmap[], int rs)
 {
-  int hr;
-  // Load 32-bit regs
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG&&regmap[hr]>=0) {
-      if(entry[hr]!=regmap[hr]) {
-        if(regmap[hr]==rs1||regmap[hr]==rs2)
-        {
-          if(regmap[hr]==0) {
-            emit_zeroreg(hr);
-          }
-          else
-          {
-            emit_loadreg(regmap[hr],hr);
-          }
-        }
-      }
-    }
-  }
+  int hr = get_reg(regmap, rs);
+  if (hr >= 0 && entry[hr] != regmap[hr])
+    emit_loadreg(regmap[hr], hr);
+}
+
+static void load_regs(signed char entry[], signed char regmap[], int rs1, int rs2)
+{
+  load_reg(entry, regmap, rs1);
+  if (rs1 != rs2)
+    load_reg(entry, regmap, rs2);
 }
 
 // Load registers prior to the start of a loop
@@ -4306,27 +4292,12 @@ static void load_regs(signed char entry[],signed char regmap[],int rs1,int rs2)
 static void loop_preload(signed char pre[],signed char entry[])
 {
   int hr;
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG) {
-      if(pre[hr]!=entry[hr]) {
-        if(entry[hr]>=0) {
-          if(get_reg(pre,entry[hr])<0) {
-            assem_debug("loop preload:\n");
-            //printf("loop preload: %d\n",hr);
-            if(entry[hr]==0) {
-              emit_zeroreg(hr);
-            }
-            else if(entry[hr]<TEMPREG)
-            {
-              emit_loadreg(entry[hr],hr);
-            }
-            else if(entry[hr]-64<TEMPREG)
-            {
-              emit_loadreg(entry[hr],hr);
-            }
-          }
-        }
-      }
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    int r = entry[hr];
+    if (r >= 0 && pre[hr] != r && get_reg(pre, r) < 0) {
+      assem_debug("loop preload:\n");
+      if (r < TEMPREG)
+        emit_loadreg(r, hr);
     }
   }
 }
@@ -4846,9 +4817,9 @@ static void ds_assemble_entry(int i)
   load_regs(regs[t].regmap_entry,regs[t].regmap,dops[t].rs1,dops[t].rs2);
   address_generation(t,&regs[t],regs[t].regmap_entry);
   if (ram_offset && (dops[t].is_load || dops[t].is_store))
-    load_regs(regs[t].regmap_entry,regs[t].regmap,ROREG,ROREG);
+    load_reg(regs[t].regmap_entry,regs[t].regmap,ROREG);
   if (dops[t].is_store)
-    load_regs(regs[t].regmap_entry,regs[t].regmap,INVCP,INVCP);
+    load_reg(regs[t].regmap_entry,regs[t].regmap,INVCP);
   is_delayslot=0;
   switch (dops[t].itype) {
     case SYSCALL:
@@ -5223,7 +5194,7 @@ static void ujump_assemble(int i, const struct regstat *i_regs)
   uint64_t bc_unneeded=branch_regs[i].u;
   bc_unneeded|=1|(1LL<<dops[i].rt1);
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,bc_unneeded);
-  load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+  load_reg(regs[i].regmap,branch_regs[i].regmap,CCREG);
   if(!ra_done&&dops[i].rt1==31)
     ujump_assemble_write_ra(i);
   int cc,adj;
@@ -5425,7 +5396,7 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
     bc_unneeded|=1;
     wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,bc_unneeded);
     load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i].rs1,dops[i].rs2);
-    load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+    load_reg(regs[i].regmap,branch_regs[i].regmap,CCREG);
     cc=get_reg(branch_regs[i].regmap,CCREG);
     assert(cc==HOST_CCREG);
     if(unconditional)
@@ -5598,7 +5569,7 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
       if (ram_offset)
-        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+        load_reg(regs[i].regmap,branch_regs[i].regmap,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5634,7 +5605,7 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
       if (ram_offset)
-        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+        load_reg(regs[i].regmap,branch_regs[i].regmap,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5710,7 +5681,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
     bc_unneeded|=1;
     wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,bc_unneeded);
     load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i].rs1,dops[i].rs1);
-    load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,CCREG);
+    load_reg(regs[i].regmap,branch_regs[i].regmap,CCREG);
     if(dops[i].rt1==31) {
       int rt,return_address;
       rt=get_reg(branch_regs[i].regmap,31);
@@ -5869,7 +5840,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
       if (ram_offset)
-        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+        load_reg(regs[i].regmap,branch_regs[i].regmap,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5903,7 +5874,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
       address_generation(i+1,&branch_regs[i],0);
       if (ram_offset)
-        load_regs(regs[i].regmap,branch_regs[i].regmap,ROREG,ROREG);
+        load_reg(regs[i].regmap,branch_regs[i].regmap,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
@@ -5984,7 +5955,7 @@ static void pagespan_assemble(int i, const struct regstat *i_regs)
   }
   assert(hr<HOST_REGS);
   if((dops[i].opcode&0x2e)==4||dops[i].opcode==0x11) { // BEQ/BNE/BEQL/BNEL/BC1
-    load_regs(regs[i].regmap_entry,regs[i].regmap,CCREG,CCREG);
+    load_reg(regs[i].regmap_entry,regs[i].regmap,CCREG);
   }
   emit_addimm(HOST_CCREG, ccadj[i] + CLOCK_ADJUST(2), HOST_CCREG);
   if(dops[i].opcode==2) // J
@@ -6151,9 +6122,9 @@ static void pagespan_ds()
   load_regs(regs[0].regmap_entry,regs[0].regmap,dops[0].rs1,dops[0].rs2);
   address_generation(0,&regs[0],regs[0].regmap_entry);
   if (ram_offset && (dops[0].is_load || dops[0].is_store))
-    load_regs(regs[0].regmap_entry,regs[0].regmap,ROREG,ROREG);
+    load_reg(regs[0].regmap_entry,regs[0].regmap,ROREG);
   if (dops[0].is_store)
-    load_regs(regs[0].regmap_entry,regs[0].regmap,INVCP,INVCP);
+    load_reg(regs[0].regmap_entry,regs[0].regmap,INVCP);
   is_delayslot=0;
   switch (dops[0].itype) {
     case SYSCALL:
@@ -7958,12 +7929,14 @@ static noinline void pass3_register_alloc(u_int addr)
 
 static noinline void pass4_cull_unused_regs(void)
 {
+  u_int last_needed_regs[4] = {0,0,0,0};
   u_int nr=0;
   int i;
 
   for (i=slen-1;i>=0;i--)
   {
     int hr;
+    __builtin_prefetch(regs[i-2].regmap);
     if(dops[i].is_jump)
     {
       if(ba[i]<start || ba[i]>=(start+slen*4))
@@ -7988,7 +7961,7 @@ static noinline void pass4_cull_unused_regs(void)
       if (!dops[i].is_ujump)
       {
         if(i<slen-2) {
-          nr|=needed_reg[i+2];
+          nr |= last_needed_regs[(i+2) & 3];
           for(hr=0;hr<HOST_REGS;hr++)
           {
             if(regmap_pre[i+2][hr]>=0&&get_reg(regs[i+2].regmap_entry,regmap_pre[i+2][hr])<0) nr&=~(1<<hr);
@@ -8000,22 +7973,19 @@ static noinline void pass4_cull_unused_regs(void)
       //if(regs[i].regmap[hr]!=regmap_pre[i][hr]) nr&=~(1<<hr);
       //if(regs[i].regmap[hr]<0) nr&=~(1<<hr);
       // Merge in delay slot
-      for(hr=0;hr<HOST_REGS;hr++)
-      {
-        if(dops[i+1].rt1&&dops[i+1].rt1==regs[i].regmap[hr]) nr&=~(1<<hr);
-        if(dops[i+1].rt2&&dops[i+1].rt2==regs[i].regmap[hr]) nr&=~(1<<hr);
-        if(dops[i+1].rs1==regmap_pre[i][hr]) nr|=1<<hr;
-        if(dops[i+1].rs2==regmap_pre[i][hr]) nr|=1<<hr;
-        if(dops[i+1].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
-        if(dops[i+1].rs2==regs[i].regmap_entry[hr]) nr|=1<<hr;
-        if(ram_offset && (dops[i+1].is_load || dops[i+1].is_store)) {
-          if(regmap_pre[i][hr]==ROREG) nr|=1<<hr;
-          if(regs[i].regmap_entry[hr]==ROREG) nr|=1<<hr;
-        }
-        if(dops[i+1].is_store) {
-          if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
-          if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
-        }
+      if (dops[i+1].rt1) nr &= ~get_regm(regs[i].regmap, dops[i+1].rt1);
+      if (dops[i+1].rt2) nr &= ~get_regm(regs[i].regmap, dops[i+1].rt2);
+      nr |= get_regm(regmap_pre[i], dops[i+1].rs1);
+      nr |= get_regm(regmap_pre[i], dops[i+1].rs2);
+      nr |= get_regm(regs[i].regmap_entry, dops[i+1].rs1);
+      nr |= get_regm(regs[i].regmap_entry, dops[i+1].rs2);
+      if (ram_offset && (dops[i+1].is_load || dops[i+1].is_store)) {
+        nr |= get_regm(regmap_pre[i], ROREG);
+        nr |= get_regm(regs[i].regmap_entry, ROREG);
+      }
+      if (dops[i+1].is_store) {
+        nr |= get_regm(regmap_pre[i], INVCP);
+        nr |= get_regm(regs[i].regmap_entry, INVCP);
       }
     }
     else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
@@ -8039,30 +8009,32 @@ static noinline void pass4_cull_unused_regs(void)
         }
       }
     }
+    // Overwritten registers are not needed
+    if (dops[i].rt1) nr &= ~get_regm(regs[i].regmap, dops[i].rt1);
+    if (dops[i].rt2) nr &= ~get_regm(regs[i].regmap, dops[i].rt2);
+    nr &= ~get_regm(regs[i].regmap, FTEMP);
+    // Source registers are needed
+    nr |= get_regm(regmap_pre[i], dops[i].rs1);
+    nr |= get_regm(regmap_pre[i], dops[i].rs2);
+    nr |= get_regm(regs[i].regmap_entry, dops[i].rs1);
+    nr |= get_regm(regs[i].regmap_entry, dops[i].rs2);
+    if (ram_offset && (dops[i].is_load || dops[i].is_store)) {
+      nr |= get_regm(regmap_pre[i], ROREG);
+      nr |= get_regm(regs[i].regmap_entry, ROREG);
+    }
+    if (dops[i].is_store) {
+      nr |= get_regm(regmap_pre[i], INVCP);
+      nr |= get_regm(regs[i].regmap_entry, INVCP);
+    }
+
+    if (i > 0 && !dops[i].bt && regs[i].wasdirty)
     for(hr=0;hr<HOST_REGS;hr++)
     {
-      // Overwritten registers are not needed
-      if(dops[i].rt1&&dops[i].rt1==regs[i].regmap[hr]) nr&=~(1<<hr);
-      if(dops[i].rt2&&dops[i].rt2==regs[i].regmap[hr]) nr&=~(1<<hr);
-      if(FTEMP==regs[i].regmap[hr]) nr&=~(1<<hr);
-      // Source registers are needed
-      if(dops[i].rs1==regmap_pre[i][hr]) nr|=1<<hr;
-      if(dops[i].rs2==regmap_pre[i][hr]) nr|=1<<hr;
-      if(dops[i].rs1==regs[i].regmap_entry[hr]) nr|=1<<hr;
-      if(dops[i].rs2==regs[i].regmap_entry[hr]) nr|=1<<hr;
-      if(ram_offset && (dops[i].is_load || dops[i].is_store)) {
-        if(regmap_pre[i][hr]==ROREG) nr|=1<<hr;
-        if(regs[i].regmap_entry[hr]==ROREG) nr|=1<<hr;
-      }
-      if(dops[i].is_store) {
-        if(regmap_pre[i][hr]==INVCP) nr|=1<<hr;
-        if(regs[i].regmap_entry[hr]==INVCP) nr|=1<<hr;
-      }
       // Don't store a register immediately after writing it,
       // may prevent dual-issue.
       // But do so if this is a branch target, otherwise we
       // might have to load the register before the branch.
-      if(i>0&&!dops[i].bt&&((regs[i].wasdirty>>hr)&1)) {
+      if((regs[i].wasdirty>>hr)&1) {
         if((regmap_pre[i][hr]>0&&!((unneeded_reg[i]>>regmap_pre[i][hr])&1))) {
           if(dops[i-1].rt1==regmap_pre[i][hr]) nr|=1<<hr;
           if(dops[i-1].rt2==regmap_pre[i][hr]) nr|=1<<hr;
@@ -8079,7 +8051,7 @@ static noinline void pass4_cull_unused_regs(void)
       if(regs[i].regmap_entry[HOST_CCREG]==CCREG) nr|=1<<HOST_CCREG;
     }
     // Save it
-    needed_reg[i]=nr;
+    last_needed_regs[i & 3] = nr;
 
     // Deallocate unneeded registers
     for(hr=0;hr<HOST_REGS;hr++)
@@ -8636,6 +8608,8 @@ static noinline void pass5b_preallocate2(void)
 // so that we don't end up with lots of writes at the branches.
 static noinline void pass6_clean_registers(int istart, int iend, int wr)
 {
+  static u_int wont_dirty[MAXBLOCK];
+  static u_int will_dirty[MAXBLOCK];
   int i;
   int r;
   u_int will_dirty_i,will_dirty_next,temp_will_dirty;
@@ -9253,9 +9227,9 @@ int new_recompile_block(u_int addr)
         if(dops[i+1].rs2!=dops[i+1].rs1&&dops[i+1].rs2!=dops[i].rs1&&dops[i+1].rs2!=dops[i].rs2&&(dops[i+1].rs2!=dops[i].rt1||dops[i].rt1==0))
           load_regs(regs[i].regmap_entry,regs[i].regmap,dops[i+1].rs2,dops[i+1].rs2);
         if (ram_offset && (dops[i+1].is_load || dops[i+1].is_store))
-          load_regs(regs[i].regmap_entry,regs[i].regmap,ROREG,ROREG);
+          load_reg(regs[i].regmap_entry,regs[i].regmap,ROREG);
         if (dops[i+1].is_store)
-          load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
+          load_reg(regs[i].regmap_entry,regs[i].regmap,INVCP);
       }
       else if(i+1<slen)
       {
@@ -9269,11 +9243,11 @@ int new_recompile_block(u_int addr)
       }
       // TODO: if(is_ooo(i)) address_generation(i+1);
       if (!dops[i].is_jump || dops[i].itype == CJUMP)
-        load_regs(regs[i].regmap_entry,regs[i].regmap,CCREG,CCREG);
+        load_reg(regs[i].regmap_entry,regs[i].regmap,CCREG);
       if (ram_offset && (dops[i].is_load || dops[i].is_store))
-        load_regs(regs[i].regmap_entry,regs[i].regmap,ROREG,ROREG);
+        load_reg(regs[i].regmap_entry,regs[i].regmap,ROREG);
       if (dops[i].is_store)
-        load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
+        load_reg(regs[i].regmap_entry,regs[i].regmap,INVCP);
 
       ds = assemble(i, &regs[i], ccadj[i]);
 
