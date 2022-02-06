@@ -50,7 +50,6 @@
 
 //#define DISASM
 //#define ASSEM_PRINT
-//#define REG_ALLOC_PRINT
 
 #ifdef ASSEM_PRINT
 #define assem_debug printf
@@ -340,6 +339,8 @@ void jump_break   (u_int u0, u_int u1, u_int pc);
 void jump_break_ds(u_int u0, u_int u1, u_int pc);
 void jump_to_new_pc();
 void call_gteStall();
+void clean_blocks(u_int page);
+void add_jump_out(u_int vaddr, void *src);
 void new_dyna_leave();
 
 // Needed by assembler
@@ -745,7 +746,7 @@ static uint32_t get_const(const struct regstat *cur, signed char reg)
 // Least soon needed registers
 // Look at the next ten instructions and see which registers
 // will be used.  Try not to reallocate these.
-void lsn(u_char hsn[], int i, int *preferred_reg)
+static void lsn(u_char hsn[], int i, int *preferred_reg)
 {
   int j;
   int b=-1;
@@ -833,7 +834,7 @@ void lsn(u_char hsn[], int i, int *preferred_reg)
 }
 
 // We only want to allocate registers if we're going to use them again soon
-int needed_again(int r, int i)
+static int needed_again(int r, int i)
 {
   int j;
   int b=-1;
@@ -878,7 +879,7 @@ int needed_again(int r, int i)
 
 // Try to match register allocations at the end of a loop with those
 // at the beginning
-int loop_reg(int i, int r, int hr)
+static int loop_reg(int i, int r, int hr)
 {
   int j,k;
   for(j=0;j<9;j++)
@@ -920,7 +921,7 @@ int loop_reg(int i, int r, int hr)
 
 
 // Allocate every register, preserving source/target regs
-void alloc_all(struct regstat *cur,int i)
+static void alloc_all(struct regstat *cur,int i)
 {
   int hr;
 
@@ -985,6 +986,7 @@ static const struct {
   FUNCNAME(jump_syscall),
   FUNCNAME(jump_syscall_ds),
   FUNCNAME(call_gteStall),
+  FUNCNAME(clean_blocks),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
@@ -1064,7 +1066,7 @@ static void emit_far_call(const void *f)
 }
 
 // Add virtual address mapping to linked list
-void ll_add(struct ll_entry **head,int vaddr,void *addr)
+static void ll_add(struct ll_entry **head,int vaddr,void *addr)
 {
   struct ll_entry *new_entry;
   new_entry=malloc(sizeof(struct ll_entry));
@@ -1076,7 +1078,7 @@ void ll_add(struct ll_entry **head,int vaddr,void *addr)
   *head=new_entry;
 }
 
-void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr)
+static void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr)
 {
   ll_add(head,vaddr,addr);
   (*head)->reg_sv_flags=reg_sv_flags;
@@ -1084,7 +1086,7 @@ void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr
 
 // Check if an address is already compiled
 // but don't return addresses which are about to expire from the cache
-void *check_addr(u_int vaddr)
+static void *check_addr(u_int vaddr)
 {
   struct ht_entry *ht_bin = hash_table_get(vaddr);
   size_t i;
@@ -1167,7 +1169,7 @@ static void ll_remove_matching_addrs(struct ll_entry **head,
 }
 
 // Remove all entries from linked list
-void ll_clear(struct ll_entry **head)
+static void ll_clear(struct ll_entry **head)
 {
   struct ll_entry *cur;
   struct ll_entry *next;
@@ -1888,7 +1890,7 @@ static void load_alloc(struct regstat *current,int i)
   }
 }
 
-void store_alloc(struct regstat *current,int i)
+static void store_alloc(struct regstat *current,int i)
 {
   clear_const(current,dops[i].rs2);
   if(!(dops[i].rs2)) current->u&=~1LL; // Allow allocating r0 if necessary
@@ -1911,13 +1913,13 @@ void store_alloc(struct regstat *current,int i)
   minimum_free_regs[i]=1;
 }
 
-void c1ls_alloc(struct regstat *current,int i)
+static void c1ls_alloc(struct regstat *current,int i)
 {
   clear_const(current,dops[i].rt1);
   alloc_reg(current,i,CSREG); // Status
 }
 
-void c2ls_alloc(struct regstat *current,int i)
+static void c2ls_alloc(struct regstat *current,int i)
 {
   clear_const(current,dops[i].rt1);
   if(needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
@@ -1935,7 +1937,7 @@ void c2ls_alloc(struct regstat *current,int i)
 }
 
 #ifndef multdiv_alloc
-void multdiv_alloc(struct regstat *current,int i)
+static void multdiv_alloc(struct regstat *current,int i)
 {
   //  case 0x18: MULT
   //  case 0x19: MULTU
@@ -1979,7 +1981,7 @@ void multdiv_alloc(struct regstat *current,int i)
 }
 #endif
 
-void cop0_alloc(struct regstat *current,int i)
+static void cop0_alloc(struct regstat *current,int i)
 {
   if(dops[i].opcode2==0) // MFC0
   {
@@ -2039,14 +2041,14 @@ static void cop2_alloc(struct regstat *current,int i)
   minimum_free_regs[i]=1;
 }
 
-void c2op_alloc(struct regstat *current,int i)
+static void c2op_alloc(struct regstat *current,int i)
 {
   alloc_cc(current,i); // for stalls
   dirty_reg(current,CCREG);
   alloc_reg_temp(current,i,-1);
 }
 
-void syscall_alloc(struct regstat *current,int i)
+static void syscall_alloc(struct regstat *current,int i)
 {
   alloc_cc(current,i);
   dirty_reg(current,CCREG);
@@ -2055,7 +2057,7 @@ void syscall_alloc(struct regstat *current,int i)
   current->isconst=0;
 }
 
-void delayslot_alloc(struct regstat *current,int i)
+static void delayslot_alloc(struct regstat *current,int i)
 {
   switch(dops[i].itype) {
     case UJUMP:
@@ -4331,7 +4333,7 @@ static void loop_preload(signed char pre[],signed char entry[])
 
 // Generate address for load/store instruction
 // goes to AGEN for writes, FTEMP for LOADLR and cop1/2 loads
-void address_generation(int i, const struct regstat *i_regs, signed char entry[])
+static void address_generation(int i, const struct regstat *i_regs, signed char entry[])
 {
   if (dops[i].is_load || dops[i].is_store) {
     int ra=-1;
@@ -4652,7 +4654,7 @@ static void load_regs_entry(int t)
 }
 
 // Store dirty registers prior to branch
-void store_regs_bt(signed char i_regmap[],uint64_t i_dirty,int addr)
+static void store_regs_bt(signed char i_regmap[],uint64_t i_dirty,int addr)
 {
   if(internal_branch(addr))
   {
@@ -6204,515 +6206,6 @@ static void check_regmap(signed char *regmap)
 #endif
 }
 
-// Basic liveness analysis for MIPS registers
-static void unneeded_registers(int istart,int iend,int r)
-{
-  int i;
-  uint64_t u,gte_u,b,gte_b;
-  uint64_t temp_u,temp_gte_u=0;
-  uint64_t gte_u_unknown=0;
-  if (HACK_ENABLED(NDHACK_GTE_UNNEEDED))
-    gte_u_unknown=~0ll;
-  if(iend==slen-1) {
-    u=1;
-    gte_u=gte_u_unknown;
-  }else{
-    //u=unneeded_reg[iend+1];
-    u=1;
-    gte_u=gte_unneeded[iend+1];
-  }
-
-  for (i=iend;i>=istart;i--)
-  {
-    //printf("unneeded registers i=%d (%d,%d) r=%d\n",i,istart,iend,r);
-    if(dops[i].is_jump)
-    {
-      // If subroutine call, flag return address as a possible branch target
-      if(dops[i].rt1==31 && i<slen-2) dops[i+2].bt=1;
-
-      if(ba[i]<start || ba[i]>=(start+slen*4))
-      {
-        // Branch out of this block, flush all regs
-        u=1;
-        gte_u=gte_u_unknown;
-        branch_unneeded_reg[i]=u;
-        // Merge in delay slot
-        u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
-        u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
-        u|=1;
-        gte_u|=gte_rt[i+1];
-        gte_u&=~gte_rs[i+1];
-      }
-      else
-      {
-        // Internal branch, flag target
-        dops[(ba[i]-start)>>2].bt=1;
-        if(ba[i]<=start+i*4) {
-          // Backward branch
-          if(dops[i].is_ujump)
-          {
-            // Unconditional branch
-            temp_u=1;
-            temp_gte_u=0;
-          } else {
-            // Conditional branch (not taken case)
-            temp_u=unneeded_reg[i+2];
-            temp_gte_u&=gte_unneeded[i+2];
-          }
-          // Merge in delay slot
-          temp_u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
-          temp_u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
-          temp_u|=1;
-          temp_gte_u|=gte_rt[i+1];
-          temp_gte_u&=~gte_rs[i+1];
-          temp_u|=(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2);
-          temp_u&=~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2));
-          temp_u|=1;
-          temp_gte_u|=gte_rt[i];
-          temp_gte_u&=~gte_rs[i];
-          unneeded_reg[i]=temp_u;
-          gte_unneeded[i]=temp_gte_u;
-          // Only go three levels deep.  This recursion can take an
-          // excessive amount of time if there are a lot of nested loops.
-          if(r<2) {
-            unneeded_registers((ba[i]-start)>>2,i-1,r+1);
-          }else{
-            unneeded_reg[(ba[i]-start)>>2]=1;
-            gte_unneeded[(ba[i]-start)>>2]=gte_u_unknown;
-          }
-        } /*else*/ if(1) {
-          if (dops[i].is_ujump)
-          {
-            // Unconditional branch
-            u=unneeded_reg[(ba[i]-start)>>2];
-            gte_u=gte_unneeded[(ba[i]-start)>>2];
-            branch_unneeded_reg[i]=u;
-            // Merge in delay slot
-            u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
-            u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
-            u|=1;
-            gte_u|=gte_rt[i+1];
-            gte_u&=~gte_rs[i+1];
-          } else {
-            // Conditional branch
-            b=unneeded_reg[(ba[i]-start)>>2];
-            gte_b=gte_unneeded[(ba[i]-start)>>2];
-            branch_unneeded_reg[i]=b;
-            // Branch delay slot
-            b|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
-            b&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
-            b|=1;
-            gte_b|=gte_rt[i+1];
-            gte_b&=~gte_rs[i+1];
-            u&=b;
-            gte_u&=gte_b;
-            if(i<slen-1) {
-              branch_unneeded_reg[i]&=unneeded_reg[i+2];
-            } else {
-              branch_unneeded_reg[i]=1;
-            }
-          }
-        }
-      }
-    }
-    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
-    {
-      // SYSCALL instruction (software interrupt)
-      u=1;
-    }
-    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
-    {
-      // ERET instruction (return from interrupt)
-      u=1;
-    }
-    //u=1; // DEBUG
-    // Written registers are unneeded
-    u|=1LL<<dops[i].rt1;
-    u|=1LL<<dops[i].rt2;
-    gte_u|=gte_rt[i];
-    // Accessed registers are needed
-    u&=~(1LL<<dops[i].rs1);
-    u&=~(1LL<<dops[i].rs2);
-    gte_u&=~gte_rs[i];
-    if(gte_rs[i]&&dops[i].rt1&&(unneeded_reg[i+1]&(1ll<<dops[i].rt1)))
-      gte_u|=gte_rs[i]&gte_unneeded[i+1]; // MFC2/CFC2 to dead register, unneeded
-    // Source-target dependencies
-    // R0 is always unneeded
-    u|=1;
-    // Save it
-    unneeded_reg[i]=u;
-    gte_unneeded[i]=gte_u;
-    /*
-    printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-    printf("U:");
-    int r;
-    for(r=1;r<=CCREG;r++) {
-      if((unneeded_reg[i]>>r)&1) {
-        if(r==HIREG) printf(" HI");
-        else if(r==LOREG) printf(" LO");
-        else printf(" r%d",r);
-      }
-    }
-    printf("\n");
-    */
-  }
-}
-
-// Write back dirty registers as soon as we will no longer modify them,
-// so that we don't end up with lots of writes at the branches.
-static void clean_registers(int istart, int iend, int wr)
-{
-  int i;
-  int r;
-  u_int will_dirty_i,will_dirty_next,temp_will_dirty;
-  u_int wont_dirty_i,wont_dirty_next,temp_wont_dirty;
-  if(iend==slen-1) {
-    will_dirty_i=will_dirty_next=0;
-    wont_dirty_i=wont_dirty_next=0;
-  }else{
-    will_dirty_i=will_dirty_next=will_dirty[iend+1];
-    wont_dirty_i=wont_dirty_next=wont_dirty[iend+1];
-  }
-  for (i=iend;i>=istart;i--)
-  {
-    signed char rregmap_i[RRMAP_SIZE];
-    u_int hr_candirty = 0;
-    assert(HOST_REGS < 32);
-    make_rregs(regs[i].regmap, rregmap_i, &hr_candirty);
-    __builtin_prefetch(regs[i-1].regmap);
-    if(dops[i].is_jump)
-    {
-      signed char branch_rregmap_i[RRMAP_SIZE];
-      u_int branch_hr_candirty = 0;
-      make_rregs(branch_regs[i].regmap, branch_rregmap_i, &branch_hr_candirty);
-      if(ba[i]<start || ba[i]>=(start+slen*4))
-      {
-        // Branch out of this block, flush all regs
-        will_dirty_i = 0;
-        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-        will_dirty_i &= branch_hr_candirty;
-        if (dops[i].is_ujump)
-        {
-          // Unconditional branch
-          wont_dirty_i = 0;
-          // Merge in delay slot (will dirty)
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-          will_dirty_i &= hr_candirty;
-        }
-        else
-        {
-          // Conditional branch
-          wont_dirty_i = wont_dirty_next;
-          // Merge in delay slot (will dirty)
-          // (the original code had no explanation why these 2 are commented out)
-          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-          will_dirty_i &= hr_candirty;
-        }
-        // Merge in delay slot (wont dirty)
-        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-        wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-        wont_dirty_i &= ~(1u << 31);
-        if(wr) {
-          #ifndef DESTRUCTIVE_WRITEBACK
-          branch_regs[i].dirty&=wont_dirty_i;
-          #endif
-          branch_regs[i].dirty|=will_dirty_i;
-        }
-      }
-      else
-      {
-        // Internal branch
-        if(ba[i]<=start+i*4) {
-          // Backward branch
-          if (dops[i].is_ujump)
-          {
-            // Unconditional branch
-            temp_will_dirty=0;
-            temp_wont_dirty=0;
-            // Merge in delay slot (will dirty)
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-            temp_will_dirty &= branch_hr_candirty;
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-            temp_will_dirty &= hr_candirty;
-          } else {
-            // Conditional branch (not taken case)
-            temp_will_dirty=will_dirty_next;
-            temp_wont_dirty=wont_dirty_next;
-            // Merge in delay slot (will dirty)
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-            temp_will_dirty &= branch_hr_candirty;
-            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-            temp_will_dirty &= hr_candirty;
-          }
-          // Merge in delay slot (wont dirty)
-          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-          temp_wont_dirty &= ~(1u << 31);
-          // Deal with changed mappings
-          if(i<iend) {
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(regs[i].regmap[r]!=regmap_pre[i][r]) {
-                  temp_will_dirty&=~(1<<r);
-                  temp_wont_dirty&=~(1<<r);
-                  if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
-                    temp_will_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
-                    temp_wont_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
-                  } else {
-                    temp_will_dirty|=1<<r;
-                    temp_wont_dirty|=1<<r;
-                  }
-                }
-              }
-            }
-          }
-          if(wr) {
-            will_dirty[i]=temp_will_dirty;
-            wont_dirty[i]=temp_wont_dirty;
-            clean_registers((ba[i]-start)>>2,i-1,0);
-          }else{
-            // Limit recursion.  It can take an excessive amount
-            // of time if there are a lot of nested loops.
-            will_dirty[(ba[i]-start)>>2]=0;
-            wont_dirty[(ba[i]-start)>>2]=-1;
-          }
-        }
-        /*else*/ if(1)
-        {
-          if (dops[i].is_ujump)
-          {
-            // Unconditional branch
-            will_dirty_i=0;
-            wont_dirty_i=0;
-          //if(ba[i]>start+i*4) { // Disable recursion (for debugging)
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(branch_regs[i].regmap[r]==regs[(ba[i]-start)>>2].regmap_entry[r]) {
-                  will_dirty_i|=will_dirty[(ba[i]-start)>>2]&(1<<r);
-                  wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
-                }
-                if(branch_regs[i].regmap[r]>=0) {
-                  will_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
-                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
-                }
-              }
-            }
-          //}
-            // Merge in delay slot
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-            will_dirty_i &= branch_hr_candirty;
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-            will_dirty_i &= hr_candirty;
-          } else {
-            // Conditional branch
-            will_dirty_i=will_dirty_next;
-            wont_dirty_i=wont_dirty_next;
-          //if(ba[i]>start+i*4) // Disable recursion (for debugging)
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                signed char target_reg=branch_regs[i].regmap[r];
-                if(target_reg==regs[(ba[i]-start)>>2].regmap_entry[r]) {
-                  will_dirty_i&=will_dirty[(ba[i]-start)>>2]&(1<<r);
-                  wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
-                }
-                else if(target_reg>=0) {
-                  will_dirty_i&=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
-                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
-                }
-              }
-            }
-            // Merge in delay slot
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-            will_dirty_i &= branch_hr_candirty;
-            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-            will_dirty_i &= hr_candirty;
-          }
-          // Merge in delay slot (won't dirty)
-          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
-          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
-          wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
-          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
-          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
-          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
-          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
-          wont_dirty_i &= ~(1u << 31);
-          if(wr) {
-            #ifndef DESTRUCTIVE_WRITEBACK
-            branch_regs[i].dirty&=wont_dirty_i;
-            #endif
-            branch_regs[i].dirty|=will_dirty_i;
-          }
-        }
-      }
-    }
-    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
-    {
-      // SYSCALL instruction (software interrupt)
-      will_dirty_i=0;
-      wont_dirty_i=0;
-    }
-    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
-    {
-      // ERET instruction (return from interrupt)
-      will_dirty_i=0;
-      wont_dirty_i=0;
-    }
-    will_dirty_next=will_dirty_i;
-    wont_dirty_next=wont_dirty_i;
-    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-    will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-    will_dirty_i &= hr_candirty;
-    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
-    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
-    wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
-    wont_dirty_i &= ~(1u << 31);
-    if (i > istart && !dops[i].is_jump) {
-      // Don't store a register immediately after writing it,
-      // may prevent dual-issue.
-      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt1) & 31);
-      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt2) & 31);
-    }
-    // Save it
-    will_dirty[i]=will_dirty_i;
-    wont_dirty[i]=wont_dirty_i;
-    // Mark registers that won't be dirtied as not dirty
-    if(wr) {
-        regs[i].dirty|=will_dirty_i;
-        #ifndef DESTRUCTIVE_WRITEBACK
-        regs[i].dirty&=wont_dirty_i;
-        if(dops[i].is_jump)
-        {
-          if (i < iend-1 && !dops[i].is_ujump) {
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(regs[i].regmap[r]==regmap_pre[i+2][r]) {
-                  regs[i+2].wasdirty&=wont_dirty_i|~(1<<r);
-                }else {/*printf("i: %x (%d) mismatch(+2): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
-              }
-            }
-          }
-        }
-        else
-        {
-          if(i<iend) {
-            for(r=0;r<HOST_REGS;r++) {
-              if(r!=EXCLUDE_REG) {
-                if(regs[i].regmap[r]==regmap_pre[i+1][r]) {
-                  regs[i+1].wasdirty&=wont_dirty_i|~(1<<r);
-                }else {/*printf("i: %x (%d) mismatch(+1): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
-              }
-            }
-          }
-        }
-        #endif
-    }
-    // Deal with changed mappings
-    temp_will_dirty=will_dirty_i;
-    temp_wont_dirty=wont_dirty_i;
-    for(r=0;r<HOST_REGS;r++) {
-      if(r!=EXCLUDE_REG) {
-        int nr;
-        if(regs[i].regmap[r]==regmap_pre[i][r]) {
-          if(wr) {
-            #ifndef DESTRUCTIVE_WRITEBACK
-            regs[i].wasdirty&=wont_dirty_i|~(1<<r);
-            #endif
-            regs[i].wasdirty|=will_dirty_i&(1<<r);
-          }
-        }
-        else if(regmap_pre[i][r]>=0&&(nr=get_rreg(rregmap_i,regmap_pre[i][r]))>=0) {
-          // Register moved to a different register
-          will_dirty_i&=~(1<<r);
-          wont_dirty_i&=~(1<<r);
-          will_dirty_i|=((temp_will_dirty>>nr)&1)<<r;
-          wont_dirty_i|=((temp_wont_dirty>>nr)&1)<<r;
-          if(wr) {
-            #ifndef DESTRUCTIVE_WRITEBACK
-            regs[i].wasdirty&=wont_dirty_i|~(1<<r);
-            #endif
-            regs[i].wasdirty|=will_dirty_i&(1<<r);
-          }
-        }
-        else {
-          will_dirty_i&=~(1<<r);
-          wont_dirty_i&=~(1<<r);
-          if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
-            will_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
-            wont_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
-          } else {
-            wont_dirty_i|=1<<r;
-            /*printf("i: %x (%d) mismatch: %d\n",start+i*4,i,r);assert(!((will_dirty>>r)&1));*/
-          }
-        }
-      }
-    }
-  }
-}
-
 #ifdef DISASM
 #include <inttypes.h>
 static char insn[MAXBLOCK][10];
@@ -7145,95 +6638,10 @@ static int apply_hacks(void)
   return 0;
 }
 
-int new_recompile_block(u_int addr)
+static noinline void pass1_disassemble(u_int pagelimit)
 {
-  u_int pagelimit = 0;
-  u_int state_rflags = 0;
-  int i;
-
-  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, out);
-  //printf("TRACE: count=%d next=%d (compile %x)\n",Count,next_interupt,addr);
-  //if(debug)
-  //printf("fpu mapping=%x enabled=%x\n",(Status & 0x04000000)>>26,(Status & 0x20000000)>>29);
-
-  // this is just for speculation
-  for (i = 1; i < 32; i++) {
-    if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
-      state_rflags |= 1 << i;
-  }
-
-  start = (u_int)addr&~3;
-  //assert(((u_int)addr&1)==0); // start-in-delay-slot flag
-  new_dynarec_did_compile=1;
-  if (Config.HLE && start == 0x80001000) // hlecall
-  {
-    // XXX: is this enough? Maybe check hleSoftCall?
-    void *beginning=start_block();
-    u_int page=get_page(start);
-
-    invalid_code[start>>12]=0;
-    emit_movimm(start,0);
-    emit_writeword(0,&pcaddr);
-    emit_far_jump(new_dyna_leave);
-    literal_pool(0);
-    end_block(beginning);
-    ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
-    return 0;
-  }
-  else if (f1_hack && hack_addr == 0) {
-    void *beginning = start_block();
-    u_int page = get_page(start);
-    emit_movimm(start, 0);
-    emit_writeword(0, &hack_addr);
-    emit_readword(&psxRegs.GPR.n.sp, 0);
-    emit_readptr(&mem_rtab, 1);
-    emit_shrimm(0, 12, 2);
-    emit_readptr_dualindexedx_ptrlen(1, 2, 1);
-    emit_addimm(0, 0x18, 0);
-    emit_adds_ptr(1, 1, 1);
-    emit_ldr_dualindexed(1, 0, 0);
-    emit_writeword(0, &psxRegs.GPR.r[26]); // lw k0, 0x18(sp)
-    emit_far_call(get_addr_ht);
-    emit_jmpreg(0); // jr k0
-    literal_pool(0);
-    end_block(beginning);
-
-    ll_add_flags(jump_in + page, start, state_rflags, beginning);
-    SysPrintf("F1 hack to   %08x\n", start);
-    return 0;
-  }
-
-  cycle_multiplier_active = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
-    ? cycle_multiplier_override : cycle_multiplier;
-
-  source = get_source_start(start, &pagelimit);
-  if (source == NULL) {
-    if (addr != hack_addr) {
-      SysPrintf("Compile at bogus memory address: %08x\n", addr);
-      hack_addr = addr;
-    }
-    //abort();
-    return -1;
-  }
-
-  /* Pass 1: disassemble */
-  /* Pass 2: register dependencies, branch targets */
-  /* Pass 3: register allocation */
-  /* Pass 4: branch dependencies */
-  /* Pass 5: pre-alloc */
-  /* Pass 6: optimize clean/dirty state */
-  /* Pass 7: flag 32-bit registers */
-  /* Pass 8: assembly */
-  /* Pass 9: linker */
-  /* Pass 10: garbage collection / free memory */
-
-  int j;
-  int done = 0, ni_count = 0;
+  int i, j, done = 0, ni_count = 0;
   unsigned int type,op,op2;
-
-  //printf("addr = %x source = %x %x\n", addr,source,source[0]);
-
-  /* Pass 1 disassembly */
 
   for (i = 0; !done; i++)
   {
@@ -7421,7 +6829,7 @@ int new_recompile_block(u_int addr)
       case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; break;
       case 0x3B: set_mnemonic(i, "HLECALL"); type=HLECALL; break;
       default: set_mnemonic(i, "???"); type=NI;
-        SysPrintf("NI %08x @%08x (%08x)\n", source[i], addr + i*4, addr);
+        SysPrintf("NI %08x @%08x (%08x)\n", source[i], start + i*4, start);
         break;
     }
     dops[i].itype=type;
@@ -7660,7 +7068,7 @@ int new_recompile_block(u_int addr)
       // branch in delay slot?
       if (dops[i].is_jump) {
         // don't handle first branch and call interpreter if it's hit
-        SysPrintf("branch in delay slot @%08x (%08x)\n", addr + i*4, addr);
+        SysPrintf("branch in delay slot @%08x (%08x)\n", start + i*4, start);
         do_in_intrp=1;
       }
       // basic load delay detection
@@ -7668,14 +7076,14 @@ int new_recompile_block(u_int addr)
         int t=(ba[i-1]-start)/4;
         if(0 <= t && t < i &&(dops[i].rt1==dops[t].rs1||dops[i].rt1==dops[t].rs2)&&dops[t].itype!=CJUMP&&dops[t].itype!=SJUMP) {
           // jump target wants DS result - potential load delay effect
-          SysPrintf("load delay @%08x (%08x)\n", addr + i*4, addr);
+          SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
           do_in_intrp=1;
           dops[t+1].bt=1; // expected return from interpreter
         }
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
               !(i>=3&&dops[i-3].is_jump)) {
           // v0 overwrite like this is a sign of trouble, bail out
-          SysPrintf("v0 overwrite @%08x (%08x)\n", addr + i*4, addr);
+          SysPrintf("v0 overwrite @%08x (%08x)\n", start + i*4, start);
           do_in_intrp=1;
         }
       }
@@ -7732,15 +7140,164 @@ int new_recompile_block(u_int addr)
     }
   }
   assert(slen>0);
+}
 
-  int clear_hack_addr = apply_hacks();
+// Basic liveness analysis for MIPS registers
+static noinline void pass2_unneeded_regs(int istart,int iend,int r)
+{
+  int i;
+  uint64_t u,gte_u,b,gte_b;
+  uint64_t temp_u,temp_gte_u=0;
+  uint64_t gte_u_unknown=0;
+  if (HACK_ENABLED(NDHACK_GTE_UNNEEDED))
+    gte_u_unknown=~0ll;
+  if(iend==slen-1) {
+    u=1;
+    gte_u=gte_u_unknown;
+  }else{
+    //u=unneeded_reg[iend+1];
+    u=1;
+    gte_u=gte_unneeded[iend+1];
+  }
 
-  /* Pass 2 - Register dependencies and branch targets */
+  for (i=iend;i>=istart;i--)
+  {
+    //printf("unneeded registers i=%d (%d,%d) r=%d\n",i,istart,iend,r);
+    if(dops[i].is_jump)
+    {
+      // If subroutine call, flag return address as a possible branch target
+      if(dops[i].rt1==31 && i<slen-2) dops[i+2].bt=1;
 
-  unneeded_registers(0,slen-1,0);
+      if(ba[i]<start || ba[i]>=(start+slen*4))
+      {
+        // Branch out of this block, flush all regs
+        u=1;
+        gte_u=gte_u_unknown;
+        branch_unneeded_reg[i]=u;
+        // Merge in delay slot
+        u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
+        u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
+        u|=1;
+        gte_u|=gte_rt[i+1];
+        gte_u&=~gte_rs[i+1];
+      }
+      else
+      {
+        // Internal branch, flag target
+        dops[(ba[i]-start)>>2].bt=1;
+        if(ba[i]<=start+i*4) {
+          // Backward branch
+          if(dops[i].is_ujump)
+          {
+            // Unconditional branch
+            temp_u=1;
+            temp_gte_u=0;
+          } else {
+            // Conditional branch (not taken case)
+            temp_u=unneeded_reg[i+2];
+            temp_gte_u&=gte_unneeded[i+2];
+          }
+          // Merge in delay slot
+          temp_u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
+          temp_u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
+          temp_u|=1;
+          temp_gte_u|=gte_rt[i+1];
+          temp_gte_u&=~gte_rs[i+1];
+          temp_u|=(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2);
+          temp_u&=~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2));
+          temp_u|=1;
+          temp_gte_u|=gte_rt[i];
+          temp_gte_u&=~gte_rs[i];
+          unneeded_reg[i]=temp_u;
+          gte_unneeded[i]=temp_gte_u;
+          // Only go three levels deep.  This recursion can take an
+          // excessive amount of time if there are a lot of nested loops.
+          if(r<2) {
+            pass2_unneeded_regs((ba[i]-start)>>2,i-1,r+1);
+          }else{
+            unneeded_reg[(ba[i]-start)>>2]=1;
+            gte_unneeded[(ba[i]-start)>>2]=gte_u_unknown;
+          }
+        } /*else*/ if(1) {
+          if (dops[i].is_ujump)
+          {
+            // Unconditional branch
+            u=unneeded_reg[(ba[i]-start)>>2];
+            gte_u=gte_unneeded[(ba[i]-start)>>2];
+            branch_unneeded_reg[i]=u;
+            // Merge in delay slot
+            u|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
+            u&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
+            u|=1;
+            gte_u|=gte_rt[i+1];
+            gte_u&=~gte_rs[i+1];
+          } else {
+            // Conditional branch
+            b=unneeded_reg[(ba[i]-start)>>2];
+            gte_b=gte_unneeded[(ba[i]-start)>>2];
+            branch_unneeded_reg[i]=b;
+            // Branch delay slot
+            b|=(1LL<<dops[i+1].rt1)|(1LL<<dops[i+1].rt2);
+            b&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
+            b|=1;
+            gte_b|=gte_rt[i+1];
+            gte_b&=~gte_rs[i+1];
+            u&=b;
+            gte_u&=gte_b;
+            if(i<slen-1) {
+              branch_unneeded_reg[i]&=unneeded_reg[i+2];
+            } else {
+              branch_unneeded_reg[i]=1;
+            }
+          }
+        }
+      }
+    }
+    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
+    {
+      // SYSCALL instruction (software interrupt)
+      u=1;
+    }
+    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
+    {
+      // ERET instruction (return from interrupt)
+      u=1;
+    }
+    //u=1; // DEBUG
+    // Written registers are unneeded
+    u|=1LL<<dops[i].rt1;
+    u|=1LL<<dops[i].rt2;
+    gte_u|=gte_rt[i];
+    // Accessed registers are needed
+    u&=~(1LL<<dops[i].rs1);
+    u&=~(1LL<<dops[i].rs2);
+    gte_u&=~gte_rs[i];
+    if(gte_rs[i]&&dops[i].rt1&&(unneeded_reg[i+1]&(1ll<<dops[i].rt1)))
+      gte_u|=gte_rs[i]&gte_unneeded[i+1]; // MFC2/CFC2 to dead register, unneeded
+    // Source-target dependencies
+    // R0 is always unneeded
+    u|=1;
+    // Save it
+    unneeded_reg[i]=u;
+    gte_unneeded[i]=gte_u;
+    /*
+    printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
+    printf("U:");
+    int r;
+    for(r=1;r<=CCREG;r++) {
+      if((unneeded_reg[i]>>r)&1) {
+        if(r==HIREG) printf(" HI");
+        else if(r==LOREG) printf(" LO");
+        else printf(" r%d",r);
+      }
+    }
+    printf("\n");
+    */
+  }
+}
 
-  /* Pass 3 - Register allocation */
-
+static noinline void pass3_register_alloc(u_int addr)
+{
   struct regstat current; // Current register allocations/status
   clear_all_regs(current.regmap_entry);
   clear_all_regs(current.regmap);
@@ -7754,9 +7311,10 @@ int new_recompile_block(u_int addr)
   current.waswritten = 0;
   int ds=0;
   int cc=0;
-  int hr=-1;
+  int hr;
+  int i, j;
 
-  if((u_int)addr&1) {
+  if (addr & 1) {
     // First instruction is delay slot
     cc=-1;
     dops[1].bt=1;
@@ -7769,7 +7327,6 @@ int new_recompile_block(u_int addr)
   {
     if(dops[i].bt)
     {
-      int hr;
       for(hr=0;hr<HOST_REGS;hr++)
       {
         // Is this really necessary?
@@ -8397,10 +7954,12 @@ int new_recompile_block(u_int addr)
     if(current.regmap[HOST_BTREG]==BTREG) current.regmap[HOST_BTREG]=-1;
     regs[i].waswritten=current.waswritten;
   }
+}
 
-  /* Pass 4 - Cull unused host registers */
-
-  uint64_t nr=0;
+static noinline void pass4_cull_unused_regs(void)
+{
+  u_int nr=0;
+  int i;
 
   for (i=slen-1;i>=0;i--)
   {
@@ -8610,13 +8169,14 @@ int new_recompile_block(u_int addr)
       } // if needed
     } // for hr
   }
+}
 
-  /* Pass 5 - Pre-allocate registers */
-
-  // If a register is allocated during a loop, try to allocate it for the
-  // entire loop, if possible.  This avoids loading/storing registers
-  // inside of the loop.
-
+// If a register is allocated during a loop, try to allocate it for the
+// entire loop, if possible.  This avoids loading/storing registers
+// inside of the loop.
+static noinline void pass5a_preallocate1(void)
+{
+  int i, j, hr;
   signed char f_regmap[HOST_REGS];
   clear_all_regs(f_regmap);
   for(i=0;i<slen-1;i++)
@@ -8903,9 +8463,13 @@ int new_recompile_block(u_int addr)
       }
     }
   }
+}
 
-  // This allocates registers (if possible) one instruction prior
-  // to use, which can avoid a load-use penalty on certain CPUs.
+// This allocates registers (if possible) one instruction prior
+// to use, which can avoid a load-use penalty on certain CPUs.
+static noinline void pass5b_preallocate2(void)
+{
+  int i, hr;
   for(i=0;i<slen-1;i++)
   {
     if (!i || !dops[i-1].is_jump)
@@ -9041,6 +8605,7 @@ int new_recompile_block(u_int addr)
             }
           }
           if(dops[i+1].itype==LOAD||dops[i+1].itype==LOADLR||dops[i+1].itype==STORE||dops[i+1].itype==STORELR/*||dops[i+1].itype==C1LS||||dops[i+1].itype==C2LS*/) {
+            hr = -1;
             if(dops[i+1].itype==LOAD)
               hr=get_reg(regs[i+1].regmap,dops[i+1].rt1);
             if(dops[i+1].itype==LOADLR||(dops[i+1].opcode&0x3b)==0x31||(dops[i+1].opcode&0x3b)==0x32) // LWC1/LDC1, LWC2/LDC2
@@ -9065,9 +8630,525 @@ int new_recompile_block(u_int addr)
       }
     }
   }
+}
+
+// Write back dirty registers as soon as we will no longer modify them,
+// so that we don't end up with lots of writes at the branches.
+static noinline void pass6_clean_registers(int istart, int iend, int wr)
+{
+  int i;
+  int r;
+  u_int will_dirty_i,will_dirty_next,temp_will_dirty;
+  u_int wont_dirty_i,wont_dirty_next,temp_wont_dirty;
+  if(iend==slen-1) {
+    will_dirty_i=will_dirty_next=0;
+    wont_dirty_i=wont_dirty_next=0;
+  }else{
+    will_dirty_i=will_dirty_next=will_dirty[iend+1];
+    wont_dirty_i=wont_dirty_next=wont_dirty[iend+1];
+  }
+  for (i=iend;i>=istart;i--)
+  {
+    signed char rregmap_i[RRMAP_SIZE];
+    u_int hr_candirty = 0;
+    assert(HOST_REGS < 32);
+    make_rregs(regs[i].regmap, rregmap_i, &hr_candirty);
+    __builtin_prefetch(regs[i-1].regmap);
+    if(dops[i].is_jump)
+    {
+      signed char branch_rregmap_i[RRMAP_SIZE];
+      u_int branch_hr_candirty = 0;
+      make_rregs(branch_regs[i].regmap, branch_rregmap_i, &branch_hr_candirty);
+      if(ba[i]<start || ba[i]>=(start+slen*4))
+      {
+        // Branch out of this block, flush all regs
+        will_dirty_i = 0;
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+        will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+        will_dirty_i &= branch_hr_candirty;
+        if (dops[i].is_ujump)
+        {
+          // Unconditional branch
+          wont_dirty_i = 0;
+          // Merge in delay slot (will dirty)
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          will_dirty_i &= hr_candirty;
+        }
+        else
+        {
+          // Conditional branch
+          wont_dirty_i = wont_dirty_next;
+          // Merge in delay slot (will dirty)
+          // (the original code had no explanation why these 2 are commented out)
+          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          will_dirty_i &= hr_candirty;
+        }
+        // Merge in delay slot (wont dirty)
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+        wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+        wont_dirty_i &= ~(1u << 31);
+        if(wr) {
+          #ifndef DESTRUCTIVE_WRITEBACK
+          branch_regs[i].dirty&=wont_dirty_i;
+          #endif
+          branch_regs[i].dirty|=will_dirty_i;
+        }
+      }
+      else
+      {
+        // Internal branch
+        if(ba[i]<=start+i*4) {
+          // Backward branch
+          if (dops[i].is_ujump)
+          {
+            // Unconditional branch
+            temp_will_dirty=0;
+            temp_wont_dirty=0;
+            // Merge in delay slot (will dirty)
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            temp_will_dirty &= branch_hr_candirty;
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            temp_will_dirty &= hr_candirty;
+          } else {
+            // Conditional branch (not taken case)
+            temp_will_dirty=will_dirty_next;
+            temp_wont_dirty=wont_dirty_next;
+            // Merge in delay slot (will dirty)
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            temp_will_dirty &= branch_hr_candirty;
+            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            //temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            temp_will_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            temp_will_dirty &= hr_candirty;
+          }
+          // Merge in delay slot (wont dirty)
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+          temp_wont_dirty |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+          temp_wont_dirty &= ~(1u << 31);
+          // Deal with changed mappings
+          if(i<iend) {
+            for(r=0;r<HOST_REGS;r++) {
+              if(r!=EXCLUDE_REG) {
+                if(regs[i].regmap[r]!=regmap_pre[i][r]) {
+                  temp_will_dirty&=~(1<<r);
+                  temp_wont_dirty&=~(1<<r);
+                  if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
+                    temp_will_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+                    temp_wont_dirty|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+                  } else {
+                    temp_will_dirty|=1<<r;
+                    temp_wont_dirty|=1<<r;
+                  }
+                }
+              }
+            }
+          }
+          if(wr) {
+            will_dirty[i]=temp_will_dirty;
+            wont_dirty[i]=temp_wont_dirty;
+            pass6_clean_registers((ba[i]-start)>>2,i-1,0);
+          }else{
+            // Limit recursion.  It can take an excessive amount
+            // of time if there are a lot of nested loops.
+            will_dirty[(ba[i]-start)>>2]=0;
+            wont_dirty[(ba[i]-start)>>2]=-1;
+          }
+        }
+        /*else*/ if(1)
+        {
+          if (dops[i].is_ujump)
+          {
+            // Unconditional branch
+            will_dirty_i=0;
+            wont_dirty_i=0;
+          //if(ba[i]>start+i*4) { // Disable recursion (for debugging)
+            for(r=0;r<HOST_REGS;r++) {
+              if(r!=EXCLUDE_REG) {
+                if(branch_regs[i].regmap[r]==regs[(ba[i]-start)>>2].regmap_entry[r]) {
+                  will_dirty_i|=will_dirty[(ba[i]-start)>>2]&(1<<r);
+                  wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
+                }
+                if(branch_regs[i].regmap[r]>=0) {
+                  will_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>branch_regs[i].regmap[r])&1)<<r;
+                }
+              }
+            }
+          //}
+            // Merge in delay slot
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            will_dirty_i &= branch_hr_candirty;
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            will_dirty_i &= hr_candirty;
+          } else {
+            // Conditional branch
+            will_dirty_i=will_dirty_next;
+            wont_dirty_i=wont_dirty_next;
+          //if(ba[i]>start+i*4) // Disable recursion (for debugging)
+            for(r=0;r<HOST_REGS;r++) {
+              if(r!=EXCLUDE_REG) {
+                signed char target_reg=branch_regs[i].regmap[r];
+                if(target_reg==regs[(ba[i]-start)>>2].regmap_entry[r]) {
+                  will_dirty_i&=will_dirty[(ba[i]-start)>>2]&(1<<r);
+                  wont_dirty_i|=wont_dirty[(ba[i]-start)>>2]&(1<<r);
+                }
+                else if(target_reg>=0) {
+                  will_dirty_i&=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
+                  wont_dirty_i|=((unneeded_reg[(ba[i]-start)>>2]>>target_reg)&1)<<r;
+                }
+              }
+            }
+            // Merge in delay slot
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+            will_dirty_i &= branch_hr_candirty;
+            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+            //will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+            will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+            will_dirty_i &= hr_candirty;
+          }
+          // Merge in delay slot (won't dirty)
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i+1].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt1) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, dops[i+1].rt2) & 31);
+          wont_dirty_i |= 1u << (get_rreg(branch_rregmap_i, CCREG) & 31);
+          wont_dirty_i &= ~(1u << 31);
+          if(wr) {
+            #ifndef DESTRUCTIVE_WRITEBACK
+            branch_regs[i].dirty&=wont_dirty_i;
+            #endif
+            branch_regs[i].dirty|=will_dirty_i;
+          }
+        }
+      }
+    }
+    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
+    {
+      // SYSCALL instruction (software interrupt)
+      will_dirty_i=0;
+      wont_dirty_i=0;
+    }
+    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
+    {
+      // ERET instruction (return from interrupt)
+      will_dirty_i=0;
+      wont_dirty_i=0;
+    }
+    will_dirty_next=will_dirty_i;
+    wont_dirty_next=wont_dirty_i;
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+    will_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+    will_dirty_i &= hr_candirty;
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt1) & 31);
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
+    wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
+    wont_dirty_i &= ~(1u << 31);
+    if (i > istart && !dops[i].is_jump) {
+      // Don't store a register immediately after writing it,
+      // may prevent dual-issue.
+      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt1) & 31);
+      wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt2) & 31);
+    }
+    // Save it
+    will_dirty[i]=will_dirty_i;
+    wont_dirty[i]=wont_dirty_i;
+    // Mark registers that won't be dirtied as not dirty
+    if(wr) {
+        regs[i].dirty|=will_dirty_i;
+        #ifndef DESTRUCTIVE_WRITEBACK
+        regs[i].dirty&=wont_dirty_i;
+        if(dops[i].is_jump)
+        {
+          if (i < iend-1 && !dops[i].is_ujump) {
+            for(r=0;r<HOST_REGS;r++) {
+              if(r!=EXCLUDE_REG) {
+                if(regs[i].regmap[r]==regmap_pre[i+2][r]) {
+                  regs[i+2].wasdirty&=wont_dirty_i|~(1<<r);
+                }else {/*printf("i: %x (%d) mismatch(+2): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
+              }
+            }
+          }
+        }
+        else
+        {
+          if(i<iend) {
+            for(r=0;r<HOST_REGS;r++) {
+              if(r!=EXCLUDE_REG) {
+                if(regs[i].regmap[r]==regmap_pre[i+1][r]) {
+                  regs[i+1].wasdirty&=wont_dirty_i|~(1<<r);
+                }else {/*printf("i: %x (%d) mismatch(+1): %d\n",start+i*4,i,r);assert(!((wont_dirty_i>>r)&1));*/}
+              }
+            }
+          }
+        }
+        #endif
+    }
+    // Deal with changed mappings
+    temp_will_dirty=will_dirty_i;
+    temp_wont_dirty=wont_dirty_i;
+    for(r=0;r<HOST_REGS;r++) {
+      if(r!=EXCLUDE_REG) {
+        int nr;
+        if(regs[i].regmap[r]==regmap_pre[i][r]) {
+          if(wr) {
+            #ifndef DESTRUCTIVE_WRITEBACK
+            regs[i].wasdirty&=wont_dirty_i|~(1<<r);
+            #endif
+            regs[i].wasdirty|=will_dirty_i&(1<<r);
+          }
+        }
+        else if(regmap_pre[i][r]>=0&&(nr=get_rreg(rregmap_i,regmap_pre[i][r]))>=0) {
+          // Register moved to a different register
+          will_dirty_i&=~(1<<r);
+          wont_dirty_i&=~(1<<r);
+          will_dirty_i|=((temp_will_dirty>>nr)&1)<<r;
+          wont_dirty_i|=((temp_wont_dirty>>nr)&1)<<r;
+          if(wr) {
+            #ifndef DESTRUCTIVE_WRITEBACK
+            regs[i].wasdirty&=wont_dirty_i|~(1<<r);
+            #endif
+            regs[i].wasdirty|=will_dirty_i&(1<<r);
+          }
+        }
+        else {
+          will_dirty_i&=~(1<<r);
+          wont_dirty_i&=~(1<<r);
+          if(regmap_pre[i][r]>0 && regmap_pre[i][r]<34) {
+            will_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+            wont_dirty_i|=((unneeded_reg[i]>>regmap_pre[i][r])&1)<<r;
+          } else {
+            wont_dirty_i|=1<<r;
+            /*printf("i: %x (%d) mismatch: %d\n",start+i*4,i,r);assert(!((will_dirty>>r)&1));*/
+          }
+        }
+      }
+    }
+  }
+}
+
+static noinline void pass10_expire_blocks(void)
+{
+  int i, end;
+  end = (((out-ndrc->translation_cache)>>(TARGET_SIZE_2-16)) + 16384) & 65535;
+  while (expirep != end)
+  {
+    int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
+    uintptr_t base_offs = ((uintptr_t)(expirep >> 13) << shift); // Base offset of this block
+    uintptr_t base_offs_s = base_offs >> shift;
+    inv_debug("EXP: Phase %d\n",expirep);
+    switch((expirep>>11)&3)
+    {
+      case 0:
+        // Clear jump_in and jump_dirty
+        ll_remove_matching_addrs(jump_in+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_dirty+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_in+2048+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_dirty+2048+(expirep&2047),base_offs_s,shift);
+        break;
+      case 1:
+        // Clear pointers
+        ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
+        ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
+        break;
+      case 2:
+        // Clear hash table
+        for(i=0;i<32;i++) {
+          struct ht_entry *ht_bin = &hash_table[((expirep&2047)<<5)+i];
+          uintptr_t o1 = (u_char *)ht_bin->tcaddr[1] - ndrc->translation_cache;
+          uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
+            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[1],ht_bin->tcaddr[1]);
+            ht_bin->vaddr[1] = -1;
+            ht_bin->tcaddr[1] = NULL;
+          }
+          o1 = (u_char *)ht_bin->tcaddr[0] - ndrc->translation_cache;
+          o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
+            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[0],ht_bin->tcaddr[0]);
+            ht_bin->vaddr[0] = ht_bin->vaddr[1];
+            ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
+            ht_bin->vaddr[1] = -1;
+            ht_bin->tcaddr[1] = NULL;
+          }
+        }
+        break;
+      case 3:
+        // Clear jump_out
+        if((expirep&2047)==0)
+          do_clear_cache();
+        ll_remove_matching_addrs(jump_out+(expirep&2047),base_offs_s,shift);
+        ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base_offs_s,shift);
+        break;
+    }
+    expirep=(expirep+1)&65535;
+  }
+}
+
+int new_recompile_block(u_int addr)
+{
+  u_int pagelimit = 0;
+  u_int state_rflags = 0;
+  int i;
+
+  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, out);
+
+  // this is just for speculation
+  for (i = 1; i < 32; i++) {
+    if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
+      state_rflags |= 1 << i;
+  }
+
+  start = (u_int)addr&~3;
+  //assert(((u_int)addr&1)==0); // start-in-delay-slot flag
+  new_dynarec_did_compile=1;
+  if (Config.HLE && start == 0x80001000) // hlecall
+  {
+    // XXX: is this enough? Maybe check hleSoftCall?
+    void *beginning=start_block();
+    u_int page=get_page(start);
+
+    invalid_code[start>>12]=0;
+    emit_movimm(start,0);
+    emit_writeword(0,&pcaddr);
+    emit_far_jump(new_dyna_leave);
+    literal_pool(0);
+    end_block(beginning);
+    ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
+    return 0;
+  }
+  else if (f1_hack && hack_addr == 0) {
+    void *beginning = start_block();
+    u_int page = get_page(start);
+    emit_movimm(start, 0);
+    emit_writeword(0, &hack_addr);
+    emit_readword(&psxRegs.GPR.n.sp, 0);
+    emit_readptr(&mem_rtab, 1);
+    emit_shrimm(0, 12, 2);
+    emit_readptr_dualindexedx_ptrlen(1, 2, 1);
+    emit_addimm(0, 0x18, 0);
+    emit_adds_ptr(1, 1, 1);
+    emit_ldr_dualindexed(1, 0, 0);
+    emit_writeword(0, &psxRegs.GPR.r[26]); // lw k0, 0x18(sp)
+    emit_far_call(get_addr_ht);
+    emit_jmpreg(0); // jr k0
+    literal_pool(0);
+    end_block(beginning);
+
+    ll_add_flags(jump_in + page, start, state_rflags, beginning);
+    SysPrintf("F1 hack to   %08x\n", start);
+    return 0;
+  }
+
+  cycle_multiplier_active = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
+    ? cycle_multiplier_override : cycle_multiplier;
+
+  source = get_source_start(start, &pagelimit);
+  if (source == NULL) {
+    if (addr != hack_addr) {
+      SysPrintf("Compile at bogus memory address: %08x\n", addr);
+      hack_addr = addr;
+    }
+    //abort();
+    return -1;
+  }
+
+  /* Pass 1: disassemble */
+  /* Pass 2: register dependencies, branch targets */
+  /* Pass 3: register allocation */
+  /* Pass 4: branch dependencies */
+  /* Pass 5: pre-alloc */
+  /* Pass 6: optimize clean/dirty state */
+  /* Pass 7: flag 32-bit registers */
+  /* Pass 8: assembly */
+  /* Pass 9: linker */
+  /* Pass 10: garbage collection / free memory */
+
+  /* Pass 1 disassembly */
+
+  pass1_disassemble(pagelimit);
+
+  int clear_hack_addr = apply_hacks();
+
+  /* Pass 2 - Register dependencies and branch targets */
+
+  pass2_unneeded_regs(0,slen-1,0);
+
+  /* Pass 3 - Register allocation */
+
+  pass3_register_alloc(addr);
+
+  /* Pass 4 - Cull unused host registers */
+
+  pass4_cull_unused_regs();
+
+  /* Pass 5 - Pre-allocate registers */
+
+  pass5a_preallocate1();
+  pass5b_preallocate2();
 
   /* Pass 6 - Optimize clean/dirty state */
-  clean_registers(0,slen-1,1);
+  pass6_clean_registers(0, slen-1, 1);
 
   /* Pass 7 - Identify 32-bit registers */
   for (i=slen-1;i>=0;i--)
@@ -9087,145 +9168,12 @@ int new_recompile_block(u_int addr)
     dops[slen-1].bt=1; // Mark as a branch target so instruction can restart after exception
   }
 
-#ifdef REG_ALLOC_PRINT
-  /* Debug/disassembly */
-  for(i=0;i<slen;i++)
-  {
-    printf("U:");
-    int r;
-    for(r=1;r<=CCREG;r++) {
-      if((unneeded_reg[i]>>r)&1) {
-        if(r==HIREG) printf(" HI");
-        else if(r==LOREG) printf(" LO");
-        else printf(" r%d",r);
-      }
-    }
-    printf("\n");
-    #if defined(__i386__) || defined(__x86_64__)
-    printf("pre: eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",regmap_pre[i][0],regmap_pre[i][1],regmap_pre[i][2],regmap_pre[i][3],regmap_pre[i][5],regmap_pre[i][6],regmap_pre[i][7]);
-    #endif
-    #ifdef __arm__
-    printf("pre: r0=%d r1=%d r2=%d r3=%d r4=%d r5=%d r6=%d r7=%d r8=%d r9=%d r10=%d r12=%d\n",regmap_pre[i][0],regmap_pre[i][1],regmap_pre[i][2],regmap_pre[i][3],regmap_pre[i][4],regmap_pre[i][5],regmap_pre[i][6],regmap_pre[i][7],regmap_pre[i][8],regmap_pre[i][9],regmap_pre[i][10],regmap_pre[i][12]);
-    #endif
-    #if defined(__i386__) || defined(__x86_64__)
-    printf("needs: ");
-    if(needed_reg[i]&1) printf("eax ");
-    if((needed_reg[i]>>1)&1) printf("ecx ");
-    if((needed_reg[i]>>2)&1) printf("edx ");
-    if((needed_reg[i]>>3)&1) printf("ebx ");
-    if((needed_reg[i]>>5)&1) printf("ebp ");
-    if((needed_reg[i]>>6)&1) printf("esi ");
-    if((needed_reg[i]>>7)&1) printf("edi ");
-    printf("\n");
-    printf("entry: eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",regs[i].regmap_entry[0],regs[i].regmap_entry[1],regs[i].regmap_entry[2],regs[i].regmap_entry[3],regs[i].regmap_entry[5],regs[i].regmap_entry[6],regs[i].regmap_entry[7]);
-    printf("dirty: ");
-    if(regs[i].wasdirty&1) printf("eax ");
-    if((regs[i].wasdirty>>1)&1) printf("ecx ");
-    if((regs[i].wasdirty>>2)&1) printf("edx ");
-    if((regs[i].wasdirty>>3)&1) printf("ebx ");
-    if((regs[i].wasdirty>>5)&1) printf("ebp ");
-    if((regs[i].wasdirty>>6)&1) printf("esi ");
-    if((regs[i].wasdirty>>7)&1) printf("edi ");
-    #endif
-    #ifdef __arm__
-    printf("entry: r0=%d r1=%d r2=%d r3=%d r4=%d r5=%d r6=%d r7=%d r8=%d r9=%d r10=%d r12=%d\n",regs[i].regmap_entry[0],regs[i].regmap_entry[1],regs[i].regmap_entry[2],regs[i].regmap_entry[3],regs[i].regmap_entry[4],regs[i].regmap_entry[5],regs[i].regmap_entry[6],regs[i].regmap_entry[7],regs[i].regmap_entry[8],regs[i].regmap_entry[9],regs[i].regmap_entry[10],regs[i].regmap_entry[12]);
-    printf("dirty: ");
-    if(regs[i].wasdirty&1) printf("r0 ");
-    if((regs[i].wasdirty>>1)&1) printf("r1 ");
-    if((regs[i].wasdirty>>2)&1) printf("r2 ");
-    if((regs[i].wasdirty>>3)&1) printf("r3 ");
-    if((regs[i].wasdirty>>4)&1) printf("r4 ");
-    if((regs[i].wasdirty>>5)&1) printf("r5 ");
-    if((regs[i].wasdirty>>6)&1) printf("r6 ");
-    if((regs[i].wasdirty>>7)&1) printf("r7 ");
-    if((regs[i].wasdirty>>8)&1) printf("r8 ");
-    if((regs[i].wasdirty>>9)&1) printf("r9 ");
-    if((regs[i].wasdirty>>10)&1) printf("r10 ");
-    if((regs[i].wasdirty>>12)&1) printf("r12 ");
-    #endif
-    printf("\n");
-    disassemble_inst(i);
-    //printf ("ccadj[%d] = %d\n",i,ccadj[i]);
-    #if defined(__i386__) || defined(__x86_64__)
-    printf("eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d dirty: ",regs[i].regmap[0],regs[i].regmap[1],regs[i].regmap[2],regs[i].regmap[3],regs[i].regmap[5],regs[i].regmap[6],regs[i].regmap[7]);
-    if(regs[i].dirty&1) printf("eax ");
-    if((regs[i].dirty>>1)&1) printf("ecx ");
-    if((regs[i].dirty>>2)&1) printf("edx ");
-    if((regs[i].dirty>>3)&1) printf("ebx ");
-    if((regs[i].dirty>>5)&1) printf("ebp ");
-    if((regs[i].dirty>>6)&1) printf("esi ");
-    if((regs[i].dirty>>7)&1) printf("edi ");
-    #endif
-    #ifdef __arm__
-    printf("r0=%d r1=%d r2=%d r3=%d r4=%d r5=%d r6=%d r7=%d r8=%d r9=%d r10=%d r12=%d dirty: ",regs[i].regmap[0],regs[i].regmap[1],regs[i].regmap[2],regs[i].regmap[3],regs[i].regmap[4],regs[i].regmap[5],regs[i].regmap[6],regs[i].regmap[7],regs[i].regmap[8],regs[i].regmap[9],regs[i].regmap[10],regs[i].regmap[12]);
-    if(regs[i].dirty&1) printf("r0 ");
-    if((regs[i].dirty>>1)&1) printf("r1 ");
-    if((regs[i].dirty>>2)&1) printf("r2 ");
-    if((regs[i].dirty>>3)&1) printf("r3 ");
-    if((regs[i].dirty>>4)&1) printf("r4 ");
-    if((regs[i].dirty>>5)&1) printf("r5 ");
-    if((regs[i].dirty>>6)&1) printf("r6 ");
-    if((regs[i].dirty>>7)&1) printf("r7 ");
-    if((regs[i].dirty>>8)&1) printf("r8 ");
-    if((regs[i].dirty>>9)&1) printf("r9 ");
-    if((regs[i].dirty>>10)&1) printf("r10 ");
-    if((regs[i].dirty>>12)&1) printf("r12 ");
-    #endif
-    printf("\n");
-    if(regs[i].isconst) {
-      printf("constants: ");
-      #if defined(__i386__) || defined(__x86_64__)
-      if(regs[i].isconst&1) printf("eax=%x ",(u_int)constmap[i][0]);
-      if((regs[i].isconst>>1)&1) printf("ecx=%x ",(u_int)constmap[i][1]);
-      if((regs[i].isconst>>2)&1) printf("edx=%x ",(u_int)constmap[i][2]);
-      if((regs[i].isconst>>3)&1) printf("ebx=%x ",(u_int)constmap[i][3]);
-      if((regs[i].isconst>>5)&1) printf("ebp=%x ",(u_int)constmap[i][5]);
-      if((regs[i].isconst>>6)&1) printf("esi=%x ",(u_int)constmap[i][6]);
-      if((regs[i].isconst>>7)&1) printf("edi=%x ",(u_int)constmap[i][7]);
-      #endif
-      #if defined(__arm__) || defined(__aarch64__)
-      int r;
-      for (r = 0; r < ARRAY_SIZE(constmap[i]); r++)
-        if ((regs[i].isconst >> r) & 1)
-          printf(" r%d=%x", r, (u_int)constmap[i][r]);
-      #endif
-      printf("\n");
-    }
-    if(dops[i].is_jump) {
-      #if defined(__i386__) || defined(__x86_64__)
-      printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d dirty: ",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
-      if(branch_regs[i].dirty&1) printf("eax ");
-      if((branch_regs[i].dirty>>1)&1) printf("ecx ");
-      if((branch_regs[i].dirty>>2)&1) printf("edx ");
-      if((branch_regs[i].dirty>>3)&1) printf("ebx ");
-      if((branch_regs[i].dirty>>5)&1) printf("ebp ");
-      if((branch_regs[i].dirty>>6)&1) printf("esi ");
-      if((branch_regs[i].dirty>>7)&1) printf("edi ");
-      #endif
-      #ifdef __arm__
-      printf("branch(%d): r0=%d r1=%d r2=%d r3=%d r4=%d r5=%d r6=%d r7=%d r8=%d r9=%d r10=%d r12=%d dirty: ",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[4],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7],branch_regs[i].regmap[8],branch_regs[i].regmap[9],branch_regs[i].regmap[10],branch_regs[i].regmap[12]);
-      if(branch_regs[i].dirty&1) printf("r0 ");
-      if((branch_regs[i].dirty>>1)&1) printf("r1 ");
-      if((branch_regs[i].dirty>>2)&1) printf("r2 ");
-      if((branch_regs[i].dirty>>3)&1) printf("r3 ");
-      if((branch_regs[i].dirty>>4)&1) printf("r4 ");
-      if((branch_regs[i].dirty>>5)&1) printf("r5 ");
-      if((branch_regs[i].dirty>>6)&1) printf("r6 ");
-      if((branch_regs[i].dirty>>7)&1) printf("r7 ");
-      if((branch_regs[i].dirty>>8)&1) printf("r8 ");
-      if((branch_regs[i].dirty>>9)&1) printf("r9 ");
-      if((branch_regs[i].dirty>>10)&1) printf("r10 ");
-      if((branch_regs[i].dirty>>12)&1) printf("r12 ");
-      #endif
-    }
-  }
-#endif // REG_ALLOC_PRINT
-
   /* Pass 8 - Assembly */
   linkcount=0;stubcount=0;
-  ds=0;is_delayslot=0;
+  is_delayslot=0;
   u_int dirty_pre=0;
   void *beginning=start_block();
+  int ds = 0;
   if((u_int)addr&1) {
     ds=1;
     pagespan_ds();
@@ -9508,59 +9456,8 @@ int new_recompile_block(u_int addr)
 
   /* Pass 10 - Free memory by expiring oldest blocks */
 
-  int end=(((out-ndrc->translation_cache)>>(TARGET_SIZE_2-16))+16384)&65535;
-  while(expirep!=end)
-  {
-    int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    uintptr_t base_offs = ((uintptr_t)(expirep >> 13) << shift); // Base offset of this block
-    uintptr_t base_offs_s = base_offs >> shift;
-    inv_debug("EXP: Phase %d\n",expirep);
-    switch((expirep>>11)&3)
-    {
-      case 0:
-        // Clear jump_in and jump_dirty
-        ll_remove_matching_addrs(jump_in+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_dirty+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_in+2048+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_dirty+2048+(expirep&2047),base_offs_s,shift);
-        break;
-      case 1:
-        // Clear pointers
-        ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
-        ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
-        break;
-      case 2:
-        // Clear hash table
-        for(i=0;i<32;i++) {
-          struct ht_entry *ht_bin = &hash_table[((expirep&2047)<<5)+i];
-          uintptr_t o1 = (u_char *)ht_bin->tcaddr[1] - ndrc->translation_cache;
-          uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
-            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[1],ht_bin->tcaddr[1]);
-            ht_bin->vaddr[1] = -1;
-            ht_bin->tcaddr[1] = NULL;
-          }
-          o1 = (u_char *)ht_bin->tcaddr[0] - ndrc->translation_cache;
-          o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
-            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[0],ht_bin->tcaddr[0]);
-            ht_bin->vaddr[0] = ht_bin->vaddr[1];
-            ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
-            ht_bin->vaddr[1] = -1;
-            ht_bin->tcaddr[1] = NULL;
-          }
-        }
-        break;
-      case 3:
-        // Clear jump_out
-        if((expirep&2047)==0)
-          do_clear_cache();
-        ll_remove_matching_addrs(jump_out+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base_offs_s,shift);
-        break;
-    }
-    expirep=(expirep+1)&65535;
-  }
+  pass10_expire_blocks();
+
 #ifdef ASSEM_PRINT
   fflush(stdout);
 #endif
