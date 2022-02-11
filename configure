@@ -563,7 +563,7 @@ if [ "$have_gles" = "yes" ]; then
   echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
 if [ "$enable_dynarec" = "yes" ]; then
-  echo "USE_DYNAREC = 1" >> $config_mak
+  echo "DYNAREC = ari64" >> $config_mak
 fi
 if [ "$drc_cache_base" = "yes" ]; then
   echo "BASE_ADDR_DYNAMIC = 1" >> $config_mak

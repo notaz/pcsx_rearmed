@@ -309,6 +309,7 @@ static void name(int doffs, const void *vram_, int w, int h, int sstride, int bg
         int i;                                                                          \
                                                                                         \
         vram += psx_offset_y * 1024 + psx_offset_x;                                     \
+        vram = (void *)((long)vram & ~3);                                               \
         for (i = psx_src_height; i > 0; i--, vram += psx_step * 1024, dst += dst_stride)\
                 blitfunc(dst, vram, len);                                               \
 }
@@ -555,7 +556,7 @@ void plat_init(void)
 	memset(fb_vaddrs[0], 0, FB_VRAM_SIZE);
 
 	pollux_changemode(16, 0);
-	g_menuscreen_w = 320;
+	g_menuscreen_w = g_menuscreen_pp = 320;
 	g_menuscreen_h = 240;
 	g_menuscreen_ptr = fb_flip();
 

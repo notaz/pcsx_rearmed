@@ -101,10 +101,13 @@ int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
 
-// Default to 100% CPU speed as most hardware can handle it nowadays using the dynamic recompiler.
-// If not, the option is in the advanced speed hacks menu, so in a logical place.
-#define DEFAULT_PSX_CLOCK 100
-#define DEFAULT_PSX_CLOCK_S "100"
+#ifndef HAVE_PRE_ARMV7
+#define DEFAULT_PSX_CLOCK (10000 / CYCLE_MULT_DEFAULT)
+#define DEFAULT_PSX_CLOCK_S "57"
+#else
+#define DEFAULT_PSX_CLOCK 50
+#define DEFAULT_PSX_CLOCK_S "50"
+#endif
 
 static const char *bioses[24];
 static const char *gpu_plugins[16];
@@ -395,6 +398,7 @@ static const struct {
 	CE_CONFIG_VAL(RCntFix),
 	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(icache_emulation),
+	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
@@ -712,6 +716,9 @@ fail:
 
 static const char *filter_exts[] = {
 	"bin", "img", "mdf", "iso", "cue", "z",
+	#ifdef HAVE_CHD
+	"chd",
+	#endif
 	"bz",  "znx", "pbp", "cbn", NULL
 };
 
@@ -1251,10 +1258,11 @@ static const char h_scaler[]    = "int. 2x  - scales w. or h. 2x if it fits on s
 				  "int. 4:3 - uses integer if possible, else fractional";
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
 				  "using d-pad or move it using R+d-pad";
-static const char h_overlay[]   = "Overlay provides hardware accelerated scaling";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
-static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
+#ifdef __ARM_NEON__
+static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
+#endif
 
 static int menu_loop_cscaler(int id, int keys)
 {
@@ -1529,18 +1537,26 @@ static int menu_loop_plugin_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+#ifndef DRC_DISABLE
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(lower value - less work for the emu, may be faster)";
+static const char h_cfg_noch[]    = "Disables game-specific compatibility hacks";
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
 static const char h_cfg_gteflgs[] = "Will cause graphical glitches";
+#endif
+static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 
 static menu_entry e_menu_speed_hacks[] =
 {
+#ifndef DRC_DISABLE
 	mee_range_h   ("PSX CPU clock, %%",        0, psx_clock, 1, 500, h_cfg_psxclk),
+	mee_onoff_h   ("Disable compat hacks",     0, new_dynarec_hacks, NDHACK_NO_COMPAT_HACKS, h_cfg_noch),
 	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+#endif
+	mee_onoff_h   ("Disable CPU/GTE stalls",   0, Config.DisableStalls, 1, h_cfg_stalls),
 	mee_end,
 };
 
@@ -1558,18 +1574,19 @@ static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running to
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
-static const char h_cfg_sio[]    = "You should not need this, breaks games";
+//static const char h_cfg_sio[]    = "You should not need this, breaks games";
 static const char h_cfg_spuirq[] = "Compatibility tweak; should be left off";
-static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
-				   "(timing hack, breaks other games)";
 static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
 				   "(timing hack, breaks other games)";
+#ifdef DRC_DISABLE
+static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
+				   "(timing hack, breaks other games)";
+#else
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
-static const char h_cfg_shacks[] = "Breaks games but may give better performance\n"
-				   "must reload game for any change to take effect";
-static const char h_cfg_icache[] = "Allows you to play the F1 games.\n"
-				   "Note: This breaks the PAL version of Spyro 2.";
+#endif
+static const char h_cfg_shacks[] = "Breaks games but may give better performance";
+static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1580,12 +1597,14 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
 	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
 	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
-#ifdef ICACHE_EMULATION
 	mee_onoff_h   ("ICache emulation",       0, Config.icache_emulation, 1, h_cfg_icache),
+#ifdef DRC_DISABLE
+	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 #endif
-	//mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+#ifndef DRC_DISABLE
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
+#endif
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
 };
@@ -2599,13 +2618,19 @@ void menu_prepare_emu(void)
 
 	plat_video_menu_leave();
 
+	#ifndef DRC_DISABLE
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
+	#else
+	psxCpu = &psxInt;
+	#endif
 	if (psxCpu != prev_cpu) {
 		prev_cpu->Shutdown();
 		psxCpu->Init();
 		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
 	}
+
+	psxCpu->ApplyConfig();
 
 	// core doesn't care about Config.Cdda changes,
 	// so handle them manually here
