@@ -17,6 +17,21 @@ static const char MemorycardHack_db[8][10] =
 	{"SCUS94409"}
 };
 
+static const struct
+{
+	const char * const id;
+	int mult;
+}
+new_dynarec_clock_overrides[] =
+{
+	/* Internal Section - fussy about timings */
+	{ "SLPS01868", 202 },
+	/* Super Robot Taisen Alpha - on the edge with 175,
+	 * changing memcard settings is enough to break/unbreak it */
+	{ "SLPS02528", 190 },
+	{ "SLPS02636", 190 },
+};
+
 /* Function for automatic patching according to GameID. */
 void Apply_Hacks_Cdrom()
 {
@@ -38,10 +53,15 @@ void Apply_Hacks_Cdrom()
 	new_dynarec_hacks_pergame = 0;
 	cycle_multiplier_override = 0;
 
-	/* Internal Section is fussy about timings */
-	if (strcmp(CdromId, "SLPS01868") == 0)
+	for (i = 0; i < ARRAY_SIZE(new_dynarec_clock_overrides); i++)
 	{
-		cycle_multiplier_override = 202;
-		new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
+		if (strcmp(CdromId, new_dynarec_clock_overrides[i].id) == 0)
+		{
+			cycle_multiplier_override = new_dynarec_clock_overrides[i].mult;
+			new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
+			SysPrintf("using new_dynarec clock override: %d\n",
+				cycle_multiplier_override);
+			break;
+		}
 	}
 }
