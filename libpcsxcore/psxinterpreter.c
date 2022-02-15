@@ -311,7 +311,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 }
 
 void psxDelayTest(int reg, u32 bpc) {
-	u32 tmp = fetch(psxRegs.pc);
+	u32 tmp = fetch(bpc);
 	branch = 1;
 
 	switch (psxTestLoadDelay(reg, tmp)) {
