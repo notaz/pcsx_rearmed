@@ -7070,8 +7070,24 @@ static noinline void pass1_disassemble(u_int pagelimit)
 
     /* Is this the end of the block? */
     if (i > 0 && dops[i-1].is_ujump) {
-      if(dops[i-1].rt1==0) { // Continue past subroutine call (JAL)
-        done=2;
+      if (dops[i-1].rt1 == 0) { // not jal
+        int found_bbranch = 0, t = (ba[i-1] - start) / 4;
+        if ((u_int)(t - i) < 64 && start + (t+64)*4 < pagelimit) {
+          // scan for a branch back to i+1
+          for (j = t; j < t + 64; j++) {
+            int tmpop = source[j] >> 26;
+            if (tmpop == 1 || ((tmpop & ~3) == 4)) {
+              int t2 = j + 1 + (int)(signed short)source[j];
+              if (t2 == i + 1) {
+                //printf("blk expand %08x<-%08x\n", start + (i+1)*4, start + j*4);
+                found_bbranch = 1;
+                break;
+              }
+            }
+          }
+        }
+        if (!found_bbranch)
+          done = 2;
       }
       else {
         if(stop_after_jal) done=1;
