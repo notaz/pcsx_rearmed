@@ -1279,8 +1279,8 @@ unsigned char cdrRead0(void) {
 
 	if (cdr.OCUP)
 		cdr.Ctrl |= 0x40;
-	else
-		cdr.Ctrl &= ~0x40;
+//  else
+//		cdr.Ctrl &= ~0x40;
 
 	// What means the 0x10 and the 0x08 bits? I only saw it used by the bios
 	cdr.Ctrl |= 0x18;
@@ -1375,7 +1375,6 @@ unsigned char cdrRead2(void) {
 	unsigned char ret;
 
 	if (cdr.Readed == 0) {
-		cdr.OCUP = 0;
 		ret = 0;
 	} else {
 		ret = *pTransfer++;
