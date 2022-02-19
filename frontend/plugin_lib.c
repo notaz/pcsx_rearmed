@@ -672,6 +672,7 @@ void pl_frame_limit(void)
 				hud_msg[0] = 0;
 		}
 		tv_old = now;
+		//new_dynarec_print_stats();
 	}
 #ifdef PCNT
 	static int ya_vsync_count;
