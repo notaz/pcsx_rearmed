@@ -3791,11 +3791,11 @@ execute(int argc, char *argv[])
     function = jit_emit();
     if (flag_verbose > 1 || flag_disasm) {
 	jit_print();
-	fprintf(stdout, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
+	fprintf(stderr, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
     }
     if (flag_verbose > 0 || flag_disasm) {
 	jit_disassemble();
-	fprintf(stdout, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
+	fprintf(stderr, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
     }
 
     jit_clear_state();

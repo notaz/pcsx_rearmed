@@ -661,10 +661,22 @@ static jit_word_t _bxsubi_u(jit_state_t*,jit_word_t,jit_int32_t,jit_word_t);
 static void _callr(jit_state_t*, jit_int32_t);
 #  define calli(i0)			_calli(_jit, i0)
 static jit_word_t _calli(jit_state_t*, jit_word_t);
+#  if __X64
+#    define calli_p(i0)			_calli_p(_jit, i0)
+static jit_word_t _calli_p(jit_state_t*, jit_word_t);
+#  else
+#    define calli_p(i0)			calli(i0)
+#  endif
 #  define jmpr(r0)			_jmpr(_jit, r0)
 static void _jmpr(jit_state_t*, jit_int32_t);
 #  define jmpi(i0)			_jmpi(_jit, i0)
 static jit_word_t _jmpi(jit_state_t*, jit_word_t);
+#  if __X64
+#    define jmpi_p(i0)			_jmpi_p(_jit, i0)
+static jit_word_t _jmpi_p(jit_state_t*, jit_word_t);
+#  else
+#    define jmpi_p(i0)			jmpi(i0)
+#  endif
 #  define jmpsi(i0)			_jmpsi(_jit, i0)
 static void _jmpsi(jit_state_t*, jit_uint8_t);
 #  define prolog(node)			_prolog(_jit, node)
@@ -3411,27 +3423,41 @@ static jit_word_t
 _calli(jit_state_t *_jit, jit_word_t i0)
 {
     jit_word_t		word;
-#if __X64
-    jit_int32_t		reg;
-
-    reg = jit_get_reg(jit_class_gpr);
-    word = movi_p(rn(reg), i0);
-    callr(rn(reg));
-    jit_unget_reg(reg);
-#else
     jit_word_t		w;
-    ic(0xe8);
-    w = i0 - (_jit->pc.w + 4);
-    ii(w);
-    word = _jit->pc.w;
+#if __X64
+    w = i0 - (_jit->pc.w + 5);
+    if ((jit_int32_t)w == w) {
+#endif
+	ic(0xe8);
+	w = i0 - (_jit->pc.w + 4);
+	ii(w);
+	word = _jit->pc.w;
+#if __X64
+    }
+    else
+	word = calli_p(i0);
 #endif
     return (word);
 }
 
+#if __X64
+static jit_word_t
+_calli_p(jit_state_t *_jit, jit_word_t i0)
+{
+    jit_word_t		word;
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    word = movi_p(rn(reg), i0);
+    callr(rn(reg));
+    jit_unget_reg(reg);
+    return (word);
+}
+#endif
+
 static void
 _jmpr(jit_state_t *_jit, jit_int32_t r0)
 {
-    rex(0, WIDE, _NOREG, _NOREG, r0);
+    rex(0, 0, _NOREG, _NOREG, r0);
     ic(0xff);
     mrm(0x03, 0x04, r7(r0));
 }
@@ -3439,12 +3465,37 @@ _jmpr(jit_state_t *_jit, jit_int32_t r0)
 static jit_word_t
 _jmpi(jit_state_t *_jit, jit_word_t i0)
 {
+    jit_word_t		word;
     jit_word_t		w;
-    ic(0xe9);
-    w = i0 - (_jit->pc.w + 4);
-    ii(w);
-    return (_jit->pc.w);
+#if __X64
+    w = i0 - (_jit->pc.w + 5);
+    if ((jit_int32_t)w == w) {
+#endif
+	ic(0xe9);
+	w = i0 - (_jit->pc.w + 4);
+	ii(w);
+	word = _jit->pc.w;
+#if __X64
+    }
+    else
+	word = jmpi_p(i0);
+#endif
+    return (word);
 }
+
+#if __X64
+static jit_word_t
+_jmpi_p(jit_state_t *_jit, jit_word_t i0)
+{
+    jit_word_t		word;
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr|jit_class_nospill);
+    word = movi_p(rn(reg), i0);
+    jmpr(rn(reg));
+    jit_unget_reg(reg);
+    return (word);
+}
+#endif
 
 static void
 _jmpsi(jit_state_t *_jit, jit_uint8_t i0)
@@ -3830,6 +3881,7 @@ _patch_at(jit_state_t *_jit, jit_node_t *node,
     switch (node->code) {
 #  if __X64
 	case jit_code_calli:
+	case jit_code_jmpi:
 #  endif
 	case jit_code_movi:
 	    patch_abs(instr, label);

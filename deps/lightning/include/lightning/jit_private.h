@@ -672,14 +672,6 @@ _jit_regarg_set(jit_state_t*, jit_node_t*, jit_int32_t);
 extern void
 _jit_regarg_clr(jit_state_t*, jit_node_t*, jit_int32_t);
 
-#define jit_get_reg(s)		_jit_get_reg(_jit,s)
-extern jit_int32_t
-_jit_get_reg(jit_state_t*, jit_int32_t);
-
-#define jit_unget_reg(r)	_jit_unget_reg(_jit,r)
-extern void
-_jit_unget_reg(jit_state_t*, jit_int32_t);
-
 #define jit_save(reg)		_jit_save(_jit, reg)
 extern void
 _jit_save(jit_state_t*, jit_int32_t);

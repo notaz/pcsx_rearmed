@@ -107,6 +107,10 @@ typedef union {
 #  endif
 #  define can_sign_extend_short_p(im)	((im) >= -32678 && (im) <= 32767)
 #  define can_zero_extend_short_p(im)	((im) >= 0 && (im) <= 65535)
+#  define is_low_mask(im)		(((im) & 1) ? (__builtin_popcountl((im) + 1) == 1) : 0)
+#  define is_high_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) == 0) : 0)
+#  define masked_bits_count(im)		__builtin_popcountl(im)
+#  define unmasked_bits_count(im)	(__WORDSIZE - masked_bits_count(im))
 #  if __WORDSIZE == 32
 #    define can_sign_extend_int_p(im)	1
 #    define can_zero_extend_int_p(im)	1
@@ -340,8 +344,10 @@ static void _nop(jit_state_t*,jit_int32_t);
 #  define DSRLV(rd,rt,rs)		rrr_t(rs,rt,rd,MIPS_DSRLV)
 #  define DSRL(rd,rt,sa)		rrit(rt,rd,sa,MIPS_DSRL)
 #  define DSRL32(rd,rt,sa)		rrit(rt,rd,sa,MIPS_DSRL32)
-#  define INS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos,pos+size-1,MIPS_INS)
-#  define DINS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos,pos+size-1,MIPS_DINS)
+#  define INS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-1,pos,MIPS_INS)
+#  define DINS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-1,pos,MIPS_DINS)
+#  define EXT(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-1,pos,MIPS_EXT)
+#  define DEXT(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-1,pos,MIPS_DEXT)
 #  define ROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_SRL)
 #  define DROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_DSRL)
 #  define MFHI(rd)			rrr_t(_ZERO_REGNO,_ZERO_REGNO,rd,MIPS_MFHI)
@@ -494,7 +500,8 @@ static void _ori(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #  define xorr(r0,r1,r2)		XOR(r0,r1,r2)
 #  define xori(r0,r1,i0)		_xori(_jit,r0,r1,i0)
 static void _xori(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
-#  define movr(r0,r1)			orr(r0,r1,_ZERO_REGNO)
+#  define movr(r0,r1)			_movr(_jit,r0,r1)
+static void _movr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi(r0,i0)			_movi(_jit,r0,i0)
 static void _movi(jit_state_t*,jit_int32_t,jit_word_t);
 #  define movi_p(r0,i0)			_movi_p(_jit,r0,i0)
@@ -1160,7 +1167,20 @@ _andi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
     jit_int32_t		reg;
     if (can_zero_extend_short_p(i0))
 	ANDI(r0, r1, i0);
-    else {
+    else if (is_low_mask(i0)) {
+#if defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS64R2)
+	if (masked_bits_count(i0) <= 32)
+	    EXT(r0, r1, 0, masked_bits_count(i0));
+	else
+#endif
+	{
+		lshi(r0, r1, unmasked_bits_count(i0));
+		rshi_u(r0, r0, unmasked_bits_count(i0));
+	}
+    } else if (is_high_mask(i0)) {
+	rshi(r0, r1, unmasked_bits_count(i0));
+	lshi(r0, r0, unmasked_bits_count(i0));
+    } else {
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), i0);
 	AND(r0, r1, rn(reg));
@@ -1194,6 +1214,13 @@ _xori(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 	XOR(r0, r1, rn(reg));
 	jit_unget_reg(reg);
     }
+}
+
+static void
+_movr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (r0 != r1)
+	orr(r0, r1, _ZERO_REGNO);
 }
 
 static void
@@ -2869,10 +2896,11 @@ _bmci(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
 static void
 _callr(jit_state_t *_jit, jit_int32_t r0)
 {
+    JALR(r0);
     if (r0 != _T9_REGNO)
 	movr(_T9_REGNO, r0);
-    JALR(r0);
-    NOP(1);
+    else
+	NOP(1);
 }
 
 static void

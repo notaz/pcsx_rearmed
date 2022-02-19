@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://git.savannah.gnu.org/git/lightning.git
 	branch = master
-	commit = b0b8eb5e856c0d29053dc842e1919a2eb58c8cda
-	parent = 819f3dfc11f81f58cb52bd7b1f7cc5025791af62
+	commit = 876c1043bec5bfd594482b40700c84693e40d0eb
+	parent = cef02748fe77c0d29b441447659262ce1da47c4b
 	method = merge
-	cmdver = 0.4.1
+	cmdver = 0.4.3
