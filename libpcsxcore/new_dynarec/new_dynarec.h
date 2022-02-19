@@ -26,6 +26,7 @@ void new_dynarec_clear_full(void);
 void new_dyna_start(void *context);
 int  new_dynarec_save_blocks(void *save, int size);
 void new_dynarec_load_blocks(const void *save, int size);
+void new_dynarec_print_stats(void);
 
 void invalidate_all_pages(void);
 void invalidate_block(unsigned int block);
