@@ -230,16 +230,12 @@ FUNCTION(dyna_linker):
 	tst	r0, r0
 	beq	10b
 
-	/* pagefault */
 	mov	r0, r4
 	mov	r1, r0
 	mov	r2, #(4<<2)  /* Address error (fetch) */
-	.size	dyna_linker, .-dyna_linker
 
-FUNCTION(exec_pagefault):
 	/* r0 = instruction pointer */
 	/* r1 = fault address */
-	/* r2 = cause */
 	ldr	r3, [fp, #LO_reg_cop0+48] /* Status */
 	str	r0, [fp, #LO_reg_cop0+56] /* EPC */
 	orr	r3, r3, #2
@@ -250,34 +246,9 @@ FUNCTION(exec_pagefault):
 	orr	r0, r0, #0x80
 	bl	get_addr_ht
 	mov	pc, r0
-	.size	exec_pagefault, .-exec_pagefault
-
-/* Special dynamic linker for the case where a page fault
-   may occur in a branch delay slot */
-FUNCTION(dyna_linker_ds):
-	/* r0 = virtual target address */
-	/* r1 = instruction to patch */
-	mov	r4, r0
-	mov	r5, r1
-10:
-	dyna_linker_main
-
-	bic	r0, r4, #7
-	orr	r0, r0, #1
-	bl	new_recompile_block
-	tst	r0, r0
-	beq	10b
-
-	/* pagefault */
-	mov	r0, r4
-	bic	r1, r0, #7
-	mov	r2, #0x80000008 /* High bit set indicates pagefault in delay slot */
-	sub	r0, r1, #4
-	b	exec_pagefault
-	.size	dyna_linker_ds, .-dyna_linker_ds
+	.size	dyna_linker, .-dyna_linker
 
 	.align	2
-
 FUNCTION(jump_vaddr_r0):
 	eor	r2, r0, r0, lsl #16
 	b	jump_vaddr
@@ -354,8 +325,6 @@ FUNCTION(jump_vaddr):
 
 	.align	2
 
-FUNCTION(verify_code_ds):
-	str	r8, [fp, #LO_branch_target]  @ preserve HOST_BTREG?
 FUNCTION(verify_code):
 	/* r1 = source */
 	/* r2 = target */
@@ -390,7 +359,6 @@ FUNCTION(verify_code):
 	bl	get_addr
 	mov	pc, r0
 	.size	verify_code, .-verify_code
-	.size	verify_code_ds, .-verify_code_ds
 
 	.align	2
 FUNCTION(cc_interrupt):

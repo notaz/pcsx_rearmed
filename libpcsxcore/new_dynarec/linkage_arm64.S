@@ -84,35 +84,12 @@ DRC_VAR(mini_ht, 256)
 	.text
 	.align	2
 
-/* r0 = virtual target address */
-/* r1 = instruction to patch */
-.macro dyna_linker_main
-	/* XXX TODO: should be able to do better than this... */
-	bl	get_addr_ht
-	br	x0
-.endm
-
-
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	dyna_linker_main
+	bl	get_addr_ht
+	br	x0
 	.size	dyna_linker, .-dyna_linker
-
-FUNCTION(exec_pagefault):
-	/* r0 = instruction pointer */
-	/* r1 = fault address */
-	/* r2 = cause */
-	bl	abort
-	.size	exec_pagefault, .-exec_pagefault
-
-/* Special dynamic linker for the case where a page fault
-   may occur in a branch delay slot */
-FUNCTION(dyna_linker_ds):
-	/* r0 = virtual target address */
-	/* r1 = instruction to patch */
-	dyna_linker_main
-	.size	dyna_linker_ds, .-dyna_linker_ds
 
 	.align	2
 FUNCTION(cc_interrupt):

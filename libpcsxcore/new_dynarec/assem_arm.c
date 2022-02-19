@@ -265,7 +265,6 @@ static int isclean(void *addr)
   if((*ptr&0xFF000000)!=0xeb000000) ptr++;
   if((*ptr&0xFF000000)!=0xeb000000) return 1; // bl instruction
   if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code) return 0;
-  if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code_ds) return 0;
   return 1;
 }
 
@@ -2016,12 +2015,6 @@ static void *do_dirty_stub(int i, u_int source_len)
     entry = instr_addr[i];
   emit_jmp(instr_addr[i]);
   return entry;
-}
-
-static void do_dirty_stub_ds(u_int source_len)
-{
-  do_dirty_stub_emit_args(start + 1, source_len);
-  emit_far_call(verify_code_ds);
 }
 
 /* Special assem */
