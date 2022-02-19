@@ -314,7 +314,7 @@ static struct decoded_insn
 //#define FCOMP 21  // Floating point compare (sets FSREG)
 #define SYSCALL 22// SYSCALL,BREAK
 #define OTHER 23  // Other
-#define SPAN 24   // Branch/delay slot spans 2 pages
+//#define SPAN 24   // Branch/delay slot spans 2 pages
 #define NI 25     // Not implemented
 #define HLECALL 26// PCSX fake opcodes for HLE
 #define COP2 27   // Coprocessor 2 move
@@ -336,9 +336,7 @@ void *get_addr_ht(u_int vaddr);
 void invalidate_block(u_int block);
 void invalidate_addr(u_int addr);
 void dyna_linker();
-void dyna_linker_ds();
 void verify_code();
-void verify_code_ds();
 void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
@@ -2090,11 +2088,6 @@ static void delayslot_alloc(struct regstat *current,int i)
     case RJUMP:
     case SYSCALL:
     case HLECALL:
-    case SPAN:
-      assem_debug("jump in the delay slot.  this shouldn't happen.\n");//abort();
-      SysPrintf("Disabled speculative precompilation\n");
-      stop_after_jal=1;
-      break;
     case IMM16:
       imm16_alloc(current,i);
       break;
@@ -2139,42 +2132,6 @@ static void delayslot_alloc(struct regstat *current,int i)
       c2op_alloc(current,i);
       break;
   }
-}
-
-// Special case where a branch and delay slot span two pages in virtual memory
-static void pagespan_alloc(struct regstat *current,int i)
-{
-  current->isconst=0;
-  current->wasconst=0;
-  regs[i].wasconst=0;
-  minimum_free_regs[i]=HOST_REGS;
-  alloc_all(current,i);
-  alloc_cc(current,i);
-  dirty_reg(current,CCREG);
-  if(dops[i].opcode==3) // JAL
-  {
-    alloc_reg(current,i,31);
-    dirty_reg(current,31);
-  }
-  if(dops[i].opcode==0&&(dops[i].opcode2&0x3E)==8) // JR/JALR
-  {
-    alloc_reg(current,i,dops[i].rs1);
-    if (dops[i].rt1!=0) {
-      alloc_reg(current,i,dops[i].rt1);
-      dirty_reg(current,dops[i].rt1);
-    }
-  }
-  if((dops[i].opcode&0x2E)==4) // BEQ/BNE/BEQL/BNEL
-  {
-    if(dops[i].rs1) alloc_reg(current,i,dops[i].rs1);
-    if(dops[i].rs2) alloc_reg(current,i,dops[i].rs2);
-  }
-  else
-  if((dops[i].opcode&0x2E)==6) // BLEZ/BGTZ/BLEZL/BGTZL
-  {
-    if(dops[i].rs1) alloc_reg(current,i,dops[i].rs1);
-  }
-  //else ...
 }
 
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
@@ -4131,7 +4088,6 @@ static void ujump_assemble(int i, const struct regstat *i_regs);
 static void rjump_assemble(int i, const struct regstat *i_regs);
 static void cjump_assemble(int i, const struct regstat *i_regs);
 static void sjump_assemble(int i, const struct regstat *i_regs);
-static void pagespan_assemble(int i, const struct regstat *i_regs);
 
 static int assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
@@ -4211,9 +4167,6 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
       sjump_assemble(i, i_regs);
       ds = 1;
       break;
-    case SPAN:
-      pagespan_assemble(i, i_regs);
-      break;
     case NOP:
     case OTHER:
     case NI:
@@ -4233,7 +4186,6 @@ static void ds_assemble(int i, const struct regstat *i_regs)
     case SYSCALL:
     case HLECALL:
     case INTCALL:
-    case SPAN:
     case UJUMP:
     case RJUMP:
     case CJUMP:
@@ -4845,7 +4797,6 @@ static void ds_assemble_entry(int i)
     case SYSCALL:
     case HLECALL:
     case INTCALL:
-    case SPAN:
     case UJUMP:
     case RJUMP:
     case CJUMP:
@@ -4869,11 +4820,6 @@ static void ds_assemble_entry(int i)
 static void emit_extjump(void *addr, u_int target)
 {
   emit_extjump2(addr, target, dyna_linker);
-}
-
-static void emit_extjump_ds(void *addr, u_int target)
-{
-  emit_extjump2(addr, target, dyna_linker_ds);
 }
 
 // Load 2 immediates optimizing for small code size
@@ -5919,271 +5865,6 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
   }
 }
 
-static void pagespan_assemble(int i, const struct regstat *i_regs)
-{
-  int s1l=get_reg(i_regs->regmap,dops[i].rs1);
-  int s2l=get_reg(i_regs->regmap,dops[i].rs2);
-  void *taken = NULL;
-  void *nottaken = NULL;
-  int unconditional=0;
-  if(dops[i].rs1==0)
-  {
-    s1l=s2l;
-    s2l=-1;
-  }
-  else if(dops[i].rs2==0)
-  {
-    s2l=-1;
-  }
-  int hr=0;
-  int addr=-1,alt=-1,ntaddr=-1;
-  if(i_regs->regmap[HOST_BTREG]<0) {addr=HOST_BTREG;}
-  else {
-    while(hr<HOST_REGS)
-    {
-      if(hr!=EXCLUDE_REG && hr!=HOST_CCREG &&
-         i_regs->regmap[hr]!=dops[i].rs1 &&
-         i_regs->regmap[hr]!=dops[i].rs2 )
-      {
-        addr=hr++;break;
-      }
-      hr++;
-    }
-  }
-  while(hr<HOST_REGS)
-  {
-    if(hr!=EXCLUDE_REG && hr!=HOST_CCREG && hr!=HOST_BTREG &&
-       i_regs->regmap[hr]!=dops[i].rs1 &&
-       i_regs->regmap[hr]!=dops[i].rs2 )
-    {
-      alt=hr++;break;
-    }
-    hr++;
-  }
-  if((dops[i].opcode&0x2E)==6) // BLEZ/BGTZ needs another register
-  {
-    while(hr<HOST_REGS)
-    {
-      if(hr!=EXCLUDE_REG && hr!=HOST_CCREG && hr!=HOST_BTREG &&
-         i_regs->regmap[hr]!=dops[i].rs1 &&
-         i_regs->regmap[hr]!=dops[i].rs2 )
-      {
-        ntaddr=hr;break;
-      }
-      hr++;
-    }
-  }
-  assert(hr<HOST_REGS);
-  if((dops[i].opcode&0x2e)==4||dops[i].opcode==0x11) { // BEQ/BNE/BEQL/BNEL/BC1
-    load_reg(regs[i].regmap_entry,regs[i].regmap,CCREG);
-  }
-  emit_addimm(HOST_CCREG, ccadj[i] + CLOCK_ADJUST(2), HOST_CCREG);
-  if(dops[i].opcode==2) // J
-  {
-    unconditional=1;
-  }
-  if(dops[i].opcode==3) // JAL
-  {
-    // TODO: mini_ht
-    int rt=get_reg(i_regs->regmap,31);
-    emit_movimm(start+i*4+8,rt);
-    unconditional=1;
-  }
-  if(dops[i].opcode==0&&(dops[i].opcode2&0x3E)==8) // JR/JALR
-  {
-    emit_mov(s1l,addr);
-    if(dops[i].opcode2==9) // JALR
-    {
-      int rt=get_reg(i_regs->regmap,dops[i].rt1);
-      emit_movimm(start+i*4+8,rt);
-    }
-  }
-  if((dops[i].opcode&0x3f)==4) // BEQ
-  {
-    if(dops[i].rs1==dops[i].rs2)
-    {
-      unconditional=1;
-    }
-    else
-    #ifdef HAVE_CMOV_IMM
-    if(1) {
-      if(s2l>=0) emit_cmp(s1l,s2l);
-      else emit_test(s1l,s1l);
-      emit_cmov2imm_e_ne_compact(ba[i],start+i*4+8,addr);
-    }
-    else
-    #endif
-    {
-      assert(s1l>=0);
-      emit_mov2imm_compact(ba[i],addr,start+i*4+8,alt);
-      if(s2l>=0) emit_cmp(s1l,s2l);
-      else emit_test(s1l,s1l);
-      emit_cmovne_reg(alt,addr);
-    }
-  }
-  if((dops[i].opcode&0x3f)==5) // BNE
-  {
-    #ifdef HAVE_CMOV_IMM
-    if(s2l>=0) emit_cmp(s1l,s2l);
-    else emit_test(s1l,s1l);
-    emit_cmov2imm_e_ne_compact(start+i*4+8,ba[i],addr);
-    #else
-    assert(s1l>=0);
-    emit_mov2imm_compact(start+i*4+8,addr,ba[i],alt);
-    if(s2l>=0) emit_cmp(s1l,s2l);
-    else emit_test(s1l,s1l);
-    emit_cmovne_reg(alt,addr);
-    #endif
-  }
-  if((dops[i].opcode&0x3f)==0x14) // BEQL
-  {
-    if(s2l>=0) emit_cmp(s1l,s2l);
-    else emit_test(s1l,s1l);
-    if(nottaken) set_jump_target(nottaken, out);
-    nottaken=out;
-    emit_jne(0);
-  }
-  if((dops[i].opcode&0x3f)==0x15) // BNEL
-  {
-    if(s2l>=0) emit_cmp(s1l,s2l);
-    else emit_test(s1l,s1l);
-    nottaken=out;
-    emit_jeq(0);
-    if(taken) set_jump_target(taken, out);
-  }
-  if((dops[i].opcode&0x3f)==6) // BLEZ
-  {
-    emit_mov2imm_compact(ba[i],alt,start+i*4+8,addr);
-    emit_cmpimm(s1l,1);
-    emit_cmovl_reg(alt,addr);
-  }
-  if((dops[i].opcode&0x3f)==7) // BGTZ
-  {
-    emit_mov2imm_compact(ba[i],addr,start+i*4+8,ntaddr);
-    emit_cmpimm(s1l,1);
-    emit_cmovl_reg(ntaddr,addr);
-  }
-  if((dops[i].opcode&0x3f)==0x16) // BLEZL
-  {
-    assert((dops[i].opcode&0x3f)!=0x16);
-  }
-  if((dops[i].opcode&0x3f)==0x17) // BGTZL
-  {
-    assert((dops[i].opcode&0x3f)!=0x17);
-  }
-  assert(dops[i].opcode!=1); // BLTZ/BGEZ
-
-  //FIXME: Check CSREG
-  if(dops[i].opcode==0x11 && dops[i].opcode2==0x08 ) {
-    if((source[i]&0x30000)==0) // BC1F
-    {
-      emit_mov2imm_compact(ba[i],addr,start+i*4+8,alt);
-      emit_testimm(s1l,0x800000);
-      emit_cmovne_reg(alt,addr);
-    }
-    if((source[i]&0x30000)==0x10000) // BC1T
-    {
-      emit_mov2imm_compact(ba[i],alt,start+i*4+8,addr);
-      emit_testimm(s1l,0x800000);
-      emit_cmovne_reg(alt,addr);
-    }
-    if((source[i]&0x30000)==0x20000) // BC1FL
-    {
-      emit_testimm(s1l,0x800000);
-      nottaken=out;
-      emit_jne(0);
-    }
-    if((source[i]&0x30000)==0x30000) // BC1TL
-    {
-      emit_testimm(s1l,0x800000);
-      nottaken=out;
-      emit_jeq(0);
-    }
-  }
-
-  assert(i_regs->regmap[HOST_CCREG]==CCREG);
-  wb_dirtys(regs[i].regmap,regs[i].dirty);
-  if(unconditional)
-  {
-    emit_movimm(ba[i],HOST_BTREG);
-  }
-  else if(addr!=HOST_BTREG)
-  {
-    emit_mov(addr,HOST_BTREG);
-  }
-  void *branch_addr=out;
-  emit_jmp(0);
-  int target_addr=start+i*4+5;
-  void *stub=out;
-  void *compiled_target_addr=check_addr(target_addr);
-  emit_extjump_ds(branch_addr, target_addr);
-  if(compiled_target_addr) {
-    set_jump_target(branch_addr, compiled_target_addr);
-    add_jump_out(target_addr,stub);
-  }
-  else set_jump_target(branch_addr, stub);
-}
-
-// Assemble the delay slot for the above
-static void pagespan_ds()
-{
-  assem_debug("initial delay slot:\n");
-  u_int vaddr=start+1;
-  u_int page=get_page(vaddr);
-  u_int vpage=get_vpage(vaddr);
-  ll_add(jump_dirty+vpage,vaddr,(void *)out);
-  do_dirty_stub_ds(slen*4);
-  ll_add(jump_in+page,vaddr,(void *)out);
-  assert(regs[0].regmap_entry[HOST_CCREG]==CCREG);
-  if(regs[0].regmap[HOST_CCREG]!=CCREG)
-    wb_register(CCREG,regs[0].regmap_entry,regs[0].wasdirty);
-  if(regs[0].regmap[HOST_BTREG]!=BTREG)
-    emit_writeword(HOST_BTREG,&branch_target);
-  load_regs(regs[0].regmap_entry,regs[0].regmap,dops[0].rs1,dops[0].rs2);
-  address_generation(0,&regs[0],regs[0].regmap_entry);
-  if (ram_offset && (dops[0].is_load || dops[0].is_store))
-    load_reg(regs[0].regmap_entry,regs[0].regmap,ROREG);
-  if (dops[0].is_store)
-    load_reg(regs[0].regmap_entry,regs[0].regmap,INVCP);
-  is_delayslot=0;
-  switch (dops[0].itype) {
-    case SYSCALL:
-    case HLECALL:
-    case INTCALL:
-    case SPAN:
-    case UJUMP:
-    case RJUMP:
-    case CJUMP:
-    case SJUMP:
-      SysPrintf("Jump in the delay slot.  This is probably a bug.\n");
-      break;
-    default:
-      assemble(0, &regs[0], 0);
-  }
-  int btaddr=get_reg(regs[0].regmap,BTREG);
-  if(btaddr<0) {
-    btaddr=get_reg_temp(regs[0].regmap);
-    emit_readword(&branch_target,btaddr);
-  }
-  assert(btaddr!=HOST_CCREG);
-  if(regs[0].regmap[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
-#ifdef HOST_IMM8
-  host_tempreg_acquire();
-  emit_movimm(start+4,HOST_TEMPREG);
-  emit_cmp(btaddr,HOST_TEMPREG);
-  host_tempreg_release();
-#else
-  emit_cmpimm(btaddr,start+4);
-#endif
-  void *branch = out;
-  emit_jeq(0);
-  store_regs_bt(regs[0].regmap,regs[0].dirty,-1);
-  do_jump_vaddr(btaddr);
-  set_jump_target(branch, out);
-  store_regs_bt(regs[0].regmap,regs[0].dirty,start+4);
-  load_regs_bt(regs[0].regmap,regs[0].dirty,start+4);
-}
-
 static void check_regmap(signed char *regmap)
 {
 #ifndef NDEBUG
@@ -6238,8 +5919,6 @@ void disassemble_inst(int i)
         else
           printf (" %x: %s r%d\n",start+i*4,insn[i],dops[i].rs1);
         break;
-      case SPAN:
-        printf (" %x: %s (pagespan) r%d,r%d,%8x\n",start+i*4,insn[i],dops[i].rs1,dops[i].rs2,ba[i]);break;
       case IMM16:
         if(dops[i].opcode==0xf) //LUI
           printf (" %x: %s r%d,%4x0000\n",start+i*4,insn[i],dops[i].rt1,imm[i]&0xffff);
@@ -7156,13 +6835,11 @@ static noinline void pass1_disassemble(u_int pagelimit)
       SysPrintf("Disabled speculative precompilation\n");
     }
   }
-  slen=i;
-  if (dops[i-1].is_jump) {
-    if(start+i*4==pagelimit) {
-      dops[i-1].itype=SPAN;
-    }
-  }
-  assert(slen>0);
+  while (i > 0 && dops[i-1].is_jump)
+    i--;
+  assert(i > 0);
+  assert(!dops[i-1].is_jump);
+  slen = i;
 }
 
 // Basic liveness analysis for MIPS registers
@@ -7665,9 +7342,6 @@ static noinline void pass3_register_alloc(u_int addr)
         case INTCALL:
           syscall_alloc(&current,i);
           break;
-        case SPAN:
-          pagespan_alloc(&current,i);
-          break;
       }
 
       // Create entry (branch target) regmap
@@ -8098,7 +7772,7 @@ static noinline void pass4_cull_unused_regs(void)
       }
     }
     // Cycle count is needed at branches.  Assume it is needed at the target too.
-    if(i==0||dops[i].bt||dops[i].itype==CJUMP||dops[i].itype==SPAN) {
+    if(i==0||dops[i].bt||dops[i].itype==CJUMP) {
       if(regmap_pre[i][HOST_CCREG]==CCREG) nr|=1<<HOST_CCREG;
       if(regs[i].regmap_entry[HOST_CCREG]==CCREG) nr|=1<<HOST_CCREG;
     }
@@ -9085,8 +8759,8 @@ int new_recompile_block(u_int addr)
       state_rflags |= 1 << i;
   }
 
-  start = (u_int)addr&~3;
-  //assert(((u_int)addr&1)==0); // start-in-delay-slot flag
+  assert(!(addr & 3));
+  start = addr & ~3;
   new_dynarec_did_compile=1;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
@@ -9190,21 +8864,13 @@ int new_recompile_block(u_int addr)
     }
   }
 
-  if(dops[slen-1].itype==SPAN) {
-    dops[slen-1].bt=1; // Mark as a branch target so instruction can restart after exception
-  }
-
   /* Pass 8 - Assembly */
   linkcount=0;stubcount=0;
   is_delayslot=0;
   u_int dirty_pre=0;
   void *beginning=start_block();
-  int ds = 0;
-  if((u_int)addr&1) {
-    ds=1;
-    pagespan_ds();
-  }
   void *instr_addr0_override = NULL;
+  int ds = 0;
 
   if (start == 0x80030000) {
     // nasty hack for the fastbios thing
@@ -9317,7 +8983,7 @@ int new_recompile_block(u_int addr)
   // If the block did not end with an unconditional branch,
   // add a jump to the next instruction.
   else if (i > 1) {
-    if (!dops[i-2].is_ujump && dops[i-1].itype != SPAN) {
+    if (!dops[i-2].is_ujump) {
       assert(!dops[i-1].is_jump);
       assert(i==slen);
       if(dops[i-2].itype!=CJUMP&&dops[i-2].itype!=SJUMP) {

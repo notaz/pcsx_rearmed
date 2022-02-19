@@ -1732,16 +1732,6 @@ static void *do_dirty_stub(int i, u_int source_len)
   return entry;
 }
 
-static void do_dirty_stub_ds(u_int source_len)
-{
-  u_int *loadlps = (void *)out;
-  do_dirty_stub_base(start + 1, source_len);
-  void *lit_jumpover = out;
-  emit_jmp(out + 8*2);
-  do_dirty_stub_emit_literals(loadlps);
-  set_jump_target(lit_jumpover, out);
-}
-
 static uint64_t get_from_ldr_literal(const u_int *i)
 {
   signed int ofs;
