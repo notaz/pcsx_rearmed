@@ -88,7 +88,7 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
-CFLAGS += -Ideps/lightning/include -Ideps/lightrec \
+CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightrec \
 		  -DLIGHTREC -DLIGHTREC_STATIC
 OBJS += libpcsxcore/lightrec/plugin.o
 OBJS += deps/lightning/lib/jit_disasm.o \
