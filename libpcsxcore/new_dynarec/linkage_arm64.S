@@ -79,7 +79,6 @@ DRC_VAR(zeromem_ptr, 8)
 DRC_VAR(scratch_buf_ptr, 8)
 DRC_VAR(ram_offset, 8)
 DRC_VAR(mini_ht, 256)
-DRC_VAR(restore_candidate, 512)
 
 
 	.text
@@ -118,16 +117,11 @@ FUNCTION(dyna_linker_ds):
 	.align	2
 FUNCTION(cc_interrupt):
 	ldr	w0, [rFP, #LO_last_count]
-	mov	w2, #0x1fc
 	add	rCC, w0, rCC
 	str	wzr, [rFP, #LO_pending_exception]
-	and	w2, w2, rCC, lsr #17
-	add	x3, rFP, #LO_restore_candidate
 	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
 #	str	rCC, [rFP, #LO_reg_cop0+36]	/* Count */
-	ldr	w19, [x3, w2, uxtw]
 	mov	x21, lr
-	cbnz	w19, 4f
 1:
 	bl	gen_interupt
 	mov	lr, x21
@@ -144,20 +138,6 @@ FUNCTION(cc_interrupt):
 	ldr	w0, [rFP, #LO_pcaddr]
 	bl	get_addr_ht
 	br	x0
-4:
-	/* Move 'dirty' blocks to the 'clean' list */
-	lsl	w20, w2, #3
-	str	wzr, [x3, w2, uxtw]
-5:
-	mov	w0, w20
-	add	w20, w20, #1
-	tbz	w19, #0, 6f
-	bl	clean_blocks
-6:
-	lsr	w19, w19, #1
-	tst	w20, #31
-	bne	5b
-	b	1b
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2

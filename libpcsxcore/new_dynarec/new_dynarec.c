@@ -191,11 +191,11 @@ static struct decoded_insn
 } dops[MAXBLOCK];
 
   // used by asm:
-  u_char *out;
   struct ht_entry hash_table[65536]  __attribute__((aligned(16)));
   struct ll_entry *jump_in[4096] __attribute__((aligned(16)));
-  struct ll_entry *jump_dirty[4096];
 
+  static u_char *out;
+  static struct ll_entry *jump_dirty[4096];
   static struct ll_entry *jump_out[4096];
   static u_int start;
   static u_int *source;
@@ -250,7 +250,6 @@ static struct decoded_insn
   extern int branch_target;
   extern uintptr_t ram_offset;
   extern uintptr_t mini_ht[32][2];
-  extern u_char restore_candidate[512];
 
   /* registers that may be allocated */
   /* 1-31 gpr */
@@ -336,9 +335,12 @@ void jump_break   (u_int u0, u_int u1, u_int pc);
 void jump_break_ds(u_int u0, u_int u1, u_int pc);
 void jump_to_new_pc();
 void call_gteStall();
-void clean_blocks(u_int page);
 void add_jump_out(u_int vaddr, void *src);
 void new_dyna_leave();
+
+static void *get_clean_addr(void *addr);
+static void get_bounds(void *addr, u_char **start, u_char **end);
+static void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr);
 
 // Needed by assembler
 static void wb_register(signed char r, const signed char regmap[], uint64_t dirty);
@@ -531,6 +533,21 @@ static void hash_table_add(struct ht_entry *ht_bin, u_int vaddr, void *tcaddr)
   ht_bin->tcaddr[0] = tcaddr;
 }
 
+static void mark_valid_code(u_int vaddr, u_int len)
+{
+  u_int i, j;
+  vaddr &= 0x1fffffff;
+  for (i = vaddr & ~0xfff; i < vaddr + len; i += 0x1000) {
+    // ram mirrors, but should not hurt bios
+    for (j = 0; j < 0x800000; j += 0x200000) {
+      invalid_code[(i|j) >> 12] =
+      invalid_code[(i|j|0x80000000u) >> 12] =
+      invalid_code[(i|j|0xa0000000u) >> 12] = 0;
+    }
+  }
+  inv_code_start = inv_code_end = ~0;
+}
+
 // some messy ari64's code, seems to rely on unsigned 32bit overflow
 static int doesnt_expire_soon(void *tcaddr)
 {
@@ -538,51 +555,69 @@ static int doesnt_expire_soon(void *tcaddr)
   return diff > (u_int)(0x60000000 + (MAX_OUTPUT_BLOCK_SIZE << (32-TARGET_SIZE_2)));
 }
 
+void *ndrc_try_restore_block(u_int vaddr)
+{
+  u_int page = get_page(vaddr);
+  struct ll_entry *head;
+
+  for (head = jump_dirty[page]; head != NULL; head = head->next)
+  {
+    if (head->vaddr != vaddr)
+      continue;
+    // don't restore blocks which are about to expire from the cache
+    if (!doesnt_expire_soon(head->addr))
+      continue;
+    if (!verify_dirty(head->addr))
+      continue;
+
+    // restore
+    u_char *start, *end;
+    get_bounds(head->addr, &start, &end);
+    mark_valid_code(vaddr, end - start);
+
+    void *clean_addr = get_clean_addr(head->addr);
+    ll_add_flags(jump_in + page, vaddr, head->reg_sv_flags, clean_addr);
+
+    struct ht_entry *ht_bin = hash_table_get(vaddr);
+    int in_ht = 0;
+    if (ht_bin->vaddr[0] == vaddr) {
+      ht_bin->tcaddr[0] = clean_addr; // Replace existing entry
+      in_ht = 1;
+    }
+    if (ht_bin->vaddr[1] == vaddr) {
+      ht_bin->tcaddr[1] = clean_addr; // Replace existing entry
+      in_ht = 1;
+    }
+    if (!in_ht)
+      hash_table_add(ht_bin, vaddr, clean_addr);
+    inv_debug("INV: Restored %08x (%p/%p)\n", head->vaddr, head->addr, clean_addr);
+    return clean_addr;
+  }
+  return NULL;
+}
+
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
 void noinline *get_addr(u_int vaddr)
 {
-  u_int page=get_page(vaddr);
-  u_int vpage=get_vpage(vaddr);
+  u_int page = get_page(vaddr);
   struct ll_entry *head;
-  //printf("TRACE: count=%d next=%d (get_addr %x,page %d)\n",Count,next_interupt,vaddr,page);
-  head=jump_in[page];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr) {
-  //printf("TRACE: count=%d next=%d (get_addr match %x: %p)\n",Count,next_interupt,vaddr,head->addr);
+  void *code;
+
+  for (head = jump_in[page]; head != NULL; head = head->next) {
+    if (head->vaddr == vaddr) {
       hash_table_add(hash_table_get(vaddr), vaddr, head->addr);
       return head->addr;
     }
-    head=head->next;
   }
-  head=jump_dirty[vpage];
-  while(head!=NULL) {
-    if(head->vaddr==vaddr) {
-      //printf("TRACE: count=%d next=%d (get_addr match dirty %x: %p)\n",Count,next_interupt,vaddr,head->addr);
-      // Don't restore blocks which are about to expire from the cache
-      if (doesnt_expire_soon(head->addr))
-      if (verify_dirty(head->addr)) {
-        //printf("restore candidate: %x (%d) d=%d\n",vaddr,page,invalid_code[vaddr>>12]);
-        invalid_code[vaddr>>12]=0;
-        inv_code_start=inv_code_end=~0;
-        if(vpage<2048) {
-          restore_candidate[vpage>>3]|=1<<(vpage&7);
-        }
-        else restore_candidate[page>>3]|=1<<(page&7);
-        struct ht_entry *ht_bin = hash_table_get(vaddr);
-        if (ht_bin->vaddr[0] == vaddr)
-          ht_bin->tcaddr[0] = head->addr; // Replace existing entry
-        else
-          hash_table_add(ht_bin, vaddr, head->addr);
+  code = ndrc_try_restore_block(vaddr);
+  if (code)
+    return code;
 
-        return head->addr;
-      }
-    }
-    head=head->next;
-  }
-  //printf("TRACE: count=%d next=%d (get_addr no-match %x)\n",Count,next_interupt,vaddr);
-  int r=new_recompile_block(vaddr);
-  if(r==0) return get_addr(vaddr);
+  int r = new_recompile_block(vaddr);
+  if (r == 0)
+    return get_addr(vaddr);
+
   // generate an address error
   Status|=2;
   Cause=(vaddr<<31)|(4<<2);
@@ -991,7 +1026,6 @@ static const struct {
   FUNCNAME(jump_syscall),
   FUNCNAME(jump_syscall_ds),
   FUNCNAME(call_gteStall),
-  FUNCNAME(clean_blocks),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
@@ -1352,11 +1386,6 @@ void invalidate_all_pages(void)
   u_int page;
   for(page=0;page<4096;page++)
     invalidate_page(page);
-  for(page=0;page<1048576;page++)
-    if(!invalid_code[page]) {
-      restore_candidate[(page&2047)>>3]|=1<<(page&7);
-      restore_candidate[((page&2047)>>3)+256]|=1<<(page&7);
-    }
   #ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
   #endif
@@ -1384,55 +1413,6 @@ void add_jump_out(u_int vaddr,void *src)
   check_extjump2(src);
   ll_add(jump_out+page,vaddr,src);
   //inv_debug("add_jump_out:  to %p\n",get_pointer(src));
-}
-
-// If a code block was found to be unmodified (bit was set in
-// restore_candidate) and it remains unmodified (bit is clear
-// in invalid_code) then move the entries for that 4K page from
-// the dirty list to the clean list.
-void clean_blocks(u_int page)
-{
-  struct ll_entry *head;
-  inv_debug("INV: clean_blocks page=%d\n",page);
-  head=jump_dirty[page];
-  while(head!=NULL) {
-    if(!invalid_code[head->vaddr>>12]) {
-      // Don't restore blocks which are about to expire from the cache
-      if (doesnt_expire_soon(head->addr)) {
-        if(verify_dirty(head->addr)) {
-          u_char *start, *end;
-          //printf("Possibly Restore %x (%p)\n",head->vaddr, head->addr);
-          u_int i;
-          u_int inv=0;
-          get_bounds(head->addr, &start, &end);
-          if (start - rdram < RAM_SIZE) {
-            for (i = (start-rdram+0x80000000)>>12; i <= (end-1-rdram+0x80000000)>>12; i++) {
-              inv|=invalid_code[i];
-            }
-          }
-          else if((signed int)head->vaddr>=(signed int)0x80000000+RAM_SIZE) {
-            inv=1;
-          }
-          if(!inv) {
-            void *clean_addr = get_clean_addr(head->addr);
-            if (doesnt_expire_soon(clean_addr)) {
-              u_int ppage=page;
-              inv_debug("INV: Restored %x (%p/%p)\n",head->vaddr, head->addr, clean_addr);
-              //printf("page=%x, addr=%x\n",page,head->vaddr);
-              //assert(head->vaddr>>12==(page|0x80000));
-              ll_add_flags(jump_in+ppage,head->vaddr,head->reg_sv_flags,clean_addr);
-              struct ht_entry *ht_bin = hash_table_get(head->vaddr);
-              if (ht_bin->vaddr[0] == head->vaddr)
-                ht_bin->tcaddr[0] = clean_addr; // Replace existing entry
-              if (ht_bin->vaddr[1] == head->vaddr)
-                ht_bin->tcaddr[1] = clean_addr; // Replace existing entry
-            }
-          }
-        }
-      }
-    }
-    head=head->next;
-  }
 }
 
 /* Register allocation */
@@ -6347,7 +6327,6 @@ void new_dynarec_clear_full(void)
   memset(invalid_code,1,sizeof(invalid_code));
   memset(hash_table,0xff,sizeof(hash_table));
   memset(mini_ht,-1,sizeof(mini_ht));
-  memset(restore_candidate,0,sizeof(restore_candidate));
   memset(shadow,0,sizeof(shadow));
   copy=shadow;
   expirep=16384; // Expiry pointer, +2 blocks
@@ -6421,6 +6400,8 @@ void new_dynarec_init(void)
   ram_offset=(uintptr_t)rdram-0x80000000;
   if (ram_offset!=0)
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
+  SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
+  SysPrintf("%p/%p/%p/%p/%p\n", psxM, psxH, psxR, mem_rtab, out);
 }
 
 void new_dynarec_cleanup(void)
@@ -9432,17 +9413,7 @@ int new_recompile_block(u_int addr)
     out = ndrc->translation_cache;
 
   // Trap writes to any of the pages we compiled
-  for(i=start>>12;i<=(start+slen*4)>>12;i++) {
-    invalid_code[i]=0;
-  }
-  inv_code_start=inv_code_end=~0;
-
-  // for PCSX we need to mark all mirrors too
-  if(get_page(start)<(RAM_SIZE>>12))
-    for(i=start>>12;i<=(start+slen*4)>>12;i++)
-      invalid_code[((u_int)0x00000000>>12)|(i&0x1ff)]=
-      invalid_code[((u_int)0x80000000>>12)|(i&0x1ff)]=
-      invalid_code[((u_int)0xa0000000>>12)|(i&0x1ff)]=0;
+  mark_valid_code(start, slen*4);
 
   /* Pass 10 - Free memory by expiring oldest blocks */
 

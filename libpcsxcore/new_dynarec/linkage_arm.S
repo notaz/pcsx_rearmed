@@ -28,9 +28,9 @@
 #define dynarec_local		ESYM(dynarec_local)
 #define add_jump_out		ESYM(add_jump_out)
 #define new_recompile_block	ESYM(new_recompile_block)
+#define ndrc_try_restore_block	ESYM(ndrc_try_restore_block)
 #define get_addr		ESYM(get_addr)
 #define get_addr_ht		ESYM(get_addr_ht)
-#define clean_blocks		ESYM(clean_blocks)
 #define gen_interupt		ESYM(gen_interupt)
 #define invalidate_addr		ESYM(invalidate_addr)
 #define gteCheckStallRaw	ESYM(gteCheckStallRaw)
@@ -88,7 +88,6 @@ DRC_VAR(invc_ptr, 4)
 DRC_VAR(scratch_buf_ptr, 4)
 DRC_VAR(ram_offset, 4)
 DRC_VAR(mini_ht, 256)
-DRC_VAR(restore_candidate, 512)
 
 
 #ifdef TEXRELS_FORBIDDEN
@@ -96,8 +95,6 @@ DRC_VAR(restore_candidate, 512)
 	.align 2
 ptr_jump_in:
 	.word	ESYM(jump_in)
-ptr_jump_dirty:
-	.word	ESYM(jump_dirty)
 ptr_hash_table:
 	.word	ESYM(hash_table)
 #endif
@@ -159,44 +156,44 @@ ptr_hash_table:
 #endif
 .endm
 
-/* r0 = virtual target address */
-/* r1 = instruction to patch */
+/* r4 = virtual target address */
+/* r5 = instruction to patch */
 .macro dyna_linker_main
 #ifndef NO_WRITE_EXEC
 	load_varadr_ext r3, jump_in
 	/* get_page */
-	lsr     r2, r0, #12
+	lsr     r2, r4, #12
 	mov	r6, #4096
 	bic	r2, r2, #0xe0000
 	sub	r6, r6, #1
 	cmp     r2, #0x1000
-	ldr	r7, [r1]
+	ldr	r7, [r5]
 	biclt   r2, #0x0e00
 	and	r6, r6, r2
 	cmp	r2, #2048
 	add	r12, r7, #2
 	orrcs	r2, r6, #2048
-	ldr	r5, [r3, r2, lsl #2]
+	ldr	r1, [r3, r2, lsl #2]
 	lsl	r12, r12, #8
-	add	r6, r1, r12, asr #6  /* old target */
+	add	r6, r5, r12, asr #6  /* old target */
 	mov	r8, #0
 	/* jump_in lookup */
 1:
-	movs	r4, r5
+	movs	r0, r1
 	beq	2f
-	ldr	r3, [r5]	 /* ll_entry .vaddr */
-	ldrd	r4, r5, [r4, #8] /* ll_entry .next, .addr */
-	teq	r3, r0
+	ldr	r3, [r1]	 /* ll_entry .vaddr */
+	ldrd	r0, r1, [r0, #8] /* ll_entry .addr, .next */
+	teq	r3, r4
 	bne	1b
-	teq	r4, r6
-	moveq	pc, r4 /* Stale i-cache */
-	mov	r8, r4
+	teq	r0, r6
+	moveq	pc, r0 /* Stale i-cache */
+	mov	r8, r0
 	b  	1b     /* jump_in may have dupes, continue search */
 2:
 	tst     r8, r8
-	beq	3f     /* r0 not in jump_in */
+	beq	3f     /* r4 not in jump_in */
 
-	mov	r5, r1
+	mov	r0, r4
 	mov	r1, r6
 	bl	add_jump_out
 	sub	r2, r8, r5
@@ -207,43 +204,13 @@ ptr_hash_table:
 	str	r1, [r5]
 	mov	pc, r8
 3:
-	/* hash_table lookup */
-	cmp	r2, #2048
-	load_varadr_ext r3, jump_dirty
-	eor	r4, r0, r0, lsl #16
-	lslcc	r2, r0, #9
-	load_varadr_ext r6, hash_table
-	lsr	r4, r4, #12
-	lsrcc	r2, r2, #21
-	bic	r4, r4, #15
-	ldr	r5, [r3, r2, lsl #2]
-	ldr	r7, [r6, r4]!
-	teq	r7, r0
-	ldreq	pc, [r6, #8]
-	ldr	r7, [r6, #4]
-	teq	r7, r0
-	ldreq	pc, [r6, #12]
-	/* jump_dirty lookup */
-6:
-	movs	r4, r5
-	beq	8f
-	ldr	r3, [r5]
-	ldr	r5, [r4, #12]
-	teq	r3, r0
-	bne	6b
-7:
-	ldr	r1, [r4, #8]
-	/* hash_table insert */
-	ldr	r2, [r6]
-	ldr	r3, [r6, #8]
-	str	r0, [r6]
-	str	r1, [r6, #8]
-	str	r2, [r6, #4]
-	str	r3, [r6, #12]
-	mov	pc, r1
-8:
+	mov	r0, r4
+	bl	ndrc_try_restore_block
+	tst	r0, r0
+	movne	pc, r0
 #else
 	/* XXX: should be able to do better than this... */
+	mov	r0, r4
 	bl	get_addr_ht
 	mov	pc, r0
 #endif
@@ -253,16 +220,18 @@ ptr_hash_table:
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	dyna_linker_main
-
 	mov	r4, r0
 	mov	r5, r1
+10:
+	dyna_linker_main
+
+	mov	r0, r4
 	bl	new_recompile_block
 	tst	r0, r0
-	mov	r0, r4
-	mov	r1, r5
-	beq	dyna_linker
+	beq	10b
+
 	/* pagefault */
+	mov	r0, r4
 	mov	r1, r0
 	mov	r2, #(4<<2)  /* Address error (fetch) */
 	.size	dyna_linker, .-dyna_linker
@@ -288,18 +257,19 @@ FUNCTION(exec_pagefault):
 FUNCTION(dyna_linker_ds):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
+	mov	r4, r0
+	mov	r5, r1
+10:
 	dyna_linker_main
 
-	mov	r4, r0
-	bic	r0, r0, #7
-	mov	r5, r1
+	bic	r0, r4, #7
 	orr	r0, r0, #1
 	bl	new_recompile_block
 	tst	r0, r0
-	mov	r0, r4
-	mov	r1, r5
-	beq	dyna_linker_ds
+	beq	10b
+
 	/* pagefault */
+	mov	r0, r4
 	bic	r1, r0, #7
 	mov	r2, #0x80000008 /* High bit set indicates pagefault in delay slot */
 	sub	r0, r1, #4
@@ -426,18 +396,12 @@ FUNCTION(verify_code):
 FUNCTION(cc_interrupt):
 	ldr	r0, [fp, #LO_last_count]
 	mov	r1, #0
-	mov	r2, #0x1fc
 	add	r10, r0, r10
 	str	r1, [fp, #LO_pending_exception]
-	and	r2, r2, r10, lsr #17
-	add	r3, fp, #LO_restore_candidate
 	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
 @@	str	r10, [fp, #LO_reg_cop0+36]	/* Count - not on PSX */
-	ldr	r4, [r2, r3]
 	mov	r10, lr
-	tst	r4, r4
-	bne	.E4
-.E1:
+
 	bl	gen_interupt
 	mov	lr, r10
 	ldr	r10, [fp, #LO_cycle]
@@ -450,22 +414,9 @@ FUNCTION(cc_interrupt):
 	ldmfdne	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	tst	r1, r1
 	moveq	pc, lr
-.E2:
 	ldr	r0, [fp, #LO_pcaddr]
 	bl	get_addr_ht
 	mov	pc, r0
-.E4:
-	/* Move 'dirty' blocks to the 'clean' list */
-	lsl	r5, r2, #3
-	str	r1, [r2, r3]
-.E5:
-	lsrs	r4, r4, #1
-	mov	r0, r5
-	add	r5, r5, #1
-	blcs	clean_blocks
-	tst	r5, #31
-	bne	.E5
-	b	.E1
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2

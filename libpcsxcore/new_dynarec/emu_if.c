@@ -296,7 +296,6 @@ static int ari64_init()
 	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 	extern void (*psxCP2[64])();
 	extern void psxNULL();
-	extern unsigned char *out;
 	size_t i;
 
 	new_dynarec_init();
@@ -325,10 +324,6 @@ static int ari64_init()
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
 	scratch_buf_ptr = scratch_buf;
-
-	SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
-	SysPrintf("%p/%p/%p/%p/%p\n",
-		psxM, psxH, psxR, mem_rtab, out);
 
 	return 0;
 }
@@ -448,7 +443,6 @@ int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u8 zero_mem[0x1000];
-unsigned char *out;
 void *mem_rtab;
 void *scratch_buf_ptr;
 void new_dynarec_init() {}
