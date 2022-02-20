@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 /*
- * Copyright (C) 2016-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2016-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #ifndef __LIGHTREC_H__
@@ -52,9 +43,9 @@ struct lightrec_mem_map;
 
 /* Exit flags */
 #define LIGHTREC_EXIT_NORMAL	(0)
-#define LIGHTREC_EXIT_SYSCALL	(1 << 0)
+#define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 0)
 #define LIGHTREC_EXIT_BREAK	(1 << 1)
-#define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
+#define LIGHTREC_EXIT_SYSCALL	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
 enum psx_map {
@@ -67,14 +58,6 @@ enum psx_map {
 	PSX_MAP_MIRROR1,
 	PSX_MAP_MIRROR2,
 	PSX_MAP_MIRROR3,
-};
-
-enum mem_type {
-	MEM_FOR_CODE,
-	MEM_FOR_MIPS_CODE,
-	MEM_FOR_IR,
-	MEM_FOR_LIGHTREC,
-	MEM_TYPE_END,
 };
 
 struct lightrec_mem_map_ops {
@@ -97,17 +80,16 @@ struct lightrec_mem_map {
 	const struct lightrec_mem_map *mirror_of;
 };
 
-struct lightrec_cop_ops {
-	u32 (*mfc)(struct lightrec_state *state, u32 op, u8 reg);
-	u32 (*cfc)(struct lightrec_state *state, u32 op, u8 reg);
-	void (*mtc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
-	void (*ctc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
-	void (*op)(struct lightrec_state *state, u32 op);
+struct lightrec_ops {
+	void (*cop2_op)(struct lightrec_state *state, u32 op);
+	void (*enable_ram)(struct lightrec_state *state, _Bool enable);
 };
 
-struct lightrec_ops {
-	struct lightrec_cop_ops cop0_ops;
-	struct lightrec_cop_ops cop2_ops;
+struct lightrec_registers {
+	u32 gpr[34];
+	u32 cp0[32];
+	u32 cp2d[32];
+	u32 cp2c[32];
 };
 
 __api struct lightrec_state *lightrec_init(char *argv0,
@@ -130,18 +112,12 @@ __api void lightrec_set_invalidate_mode(struct lightrec_state *state,
 __api void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
 __api u32 lightrec_exit_flags(struct lightrec_state *state);
 
-__api void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
-__api void lightrec_restore_registers(struct lightrec_state *state,
-				      u32 regs[34]);
+__api struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state);
 
 __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 __api void lightrec_set_target_cycle_count(struct lightrec_state *state,
 					   u32 cycles);
-
-__api unsigned int lightrec_get_mem_usage(enum mem_type type);
-__api unsigned int lightrec_get_total_mem_usage(void);
-__api float lightrec_get_average_ipi(void);
 
 #ifdef __cplusplus
 };

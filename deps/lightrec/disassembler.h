@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 /*
- * Copyright (C) 2014-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #ifndef __DISASSEMBLER_H__
@@ -22,14 +13,29 @@
 #define __packed __attribute__((packed))
 #endif
 
-#define LIGHTREC_DIRECT_IO	(1 << 0)
-#define LIGHTREC_NO_INVALIDATE	(1 << 1)
-#define LIGHTREC_NO_DS		(1 << 2)
-#define LIGHTREC_SMC		(1 << 3)
-#define LIGHTREC_EMULATE_BRANCH	(1 << 4)
-#define LIGHTREC_LOCAL_BRANCH	(1 << 5)
-#define LIGHTREC_HW_IO		(1 << 6)
-#define LIGHTREC_MULT32		(1 << 7)
+#define BIT(x) (1ULL << (x))
+
+/* Flags for all opcodes */
+#define LIGHTREC_NO_DS		BIT(0)
+#define LIGHTREC_UNLOAD_RS	BIT(1)
+#define LIGHTREC_UNLOAD_RT	BIT(2)
+#define LIGHTREC_UNLOAD_RD	BIT(3)
+#define LIGHTREC_SYNC		BIT(4)
+
+/* Flags for load/store opcodes */
+#define LIGHTREC_DIRECT_IO	BIT(5)
+#define LIGHTREC_HW_IO		BIT(6)
+#define LIGHTREC_SMC		BIT(7)
+#define LIGHTREC_NO_INVALIDATE	BIT(8)
+
+/* Flags for branches */
+#define LIGHTREC_EMULATE_BRANCH	BIT(5)
+#define LIGHTREC_LOCAL_BRANCH	BIT(6)
+
+/* Flags for div/mult opcodes */
+#define LIGHTREC_NO_LO		BIT(5)
+#define LIGHTREC_NO_HI		BIT(6)
+#define LIGHTREC_NO_DIV_CHECK	BIT(7)
 
 struct block;
 
@@ -67,13 +73,10 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 
-	OP_META_REG_UNLOAD	= 0x11,
-
-	OP_META_BEQZ		= 0x14,
-	OP_META_BNEZ		= 0x15,
-
 	OP_META_MOV		= 0x16,
-	OP_META_SYNC		= 0x17,
+
+	OP_META_EXTC		= 0x17,
+	OP_META_EXTS		= 0x18,
 };
 
 enum special_opcodes {
@@ -195,18 +198,8 @@ struct opcode {
 		struct opcode_j j;
 	};
 	u16 flags;
-	u16 offset;
-	struct opcode *next;
 };
 
-struct opcode * lightrec_disassemble(struct lightrec_state *state,
-				     const u32 *src, unsigned int *len);
-void lightrec_free_opcode_list(struct lightrec_state *state,
-			       struct opcode *list);
-
-unsigned int lightrec_cycles_of_opcode(union code code);
-
-void lightrec_print_disassembly(const struct block *block,
-				const u32 *code, unsigned int length);
+void lightrec_print_disassembly(const struct block *block, const u32 *code);
 
 #endif /* __DISASSEMBLER_H__ */

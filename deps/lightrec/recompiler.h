@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 /*
- * Copyright (C) 2019-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2019-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #ifndef __LIGHTREC_RECOMPILER_H__
@@ -24,6 +15,7 @@ void lightrec_free_recompiler(struct recompiler *rec);
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block);
 void lightrec_recompiler_remove(struct recompiler *rec, struct block *block);
 
-void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc);
+void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
+					  struct block *block, u32 *pc);
 
 #endif /* __LIGHTREC_RECOMPILER_H__ */

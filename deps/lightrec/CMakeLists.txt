@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(lightrec LANGUAGES C VERSION 0.3)
+project(lightrec LANGUAGES C VERSION 0.4)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 if (NOT BUILD_SHARED_LIBS)
@@ -25,9 +25,10 @@ if (CMAKE_COMPILER_IS_GNUCC)
 	add_compile_options(-fvisibility=hidden)
 endif()
 
+set(HAS_DEFAULT_ELM ${CMAKE_COMPILER_IS_GNUCC})
+
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
-	disassembler.c
 	emitter.c
 	interpreter.c
 	lightrec.c
@@ -60,6 +61,17 @@ if (ENABLE_THREADED_COMPILER)
 	endif (NOT ENABLE_FIRST_PASS)
 endif (ENABLE_THREADED_COMPILER)
 
+option(OPT_REMOVE_DIV_BY_ZERO_SEQ "(optimization) Remove div-by-zero check sequence" ON)
+option(OPT_REPLACE_MEMSET "(optimization) Detect and replace memset with host variant" ON)
+option(OPT_DETECT_IMPOSSIBLE_BRANCHES "(optimization) Detect impossible branches" ON)
+option(OPT_TRANSFORM_OPS "(optimization) Transform opcodes" ON)
+option(OPT_LOCAL_BRANCHES "(optimization) Detect local branches" ON)
+option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
+option(OPT_FLAG_STORES "(optimization) Flag stores that don't require invalidation" ON)
+option(OPT_FLAG_IO "(optimization) Flag I/O opcodes whose target is known" ON)
+option(OPT_FLAG_MULT_DIV "(optimization) Flag MULT/DIV that only use one of HI/LO" ON)
+option(OPT_EARLY_UNLOAD "(optimization) Unload registers early" ON)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(${PROJECT_NAME} ${LIGHTREC_SOURCES} ${LIGHTREC_HEADERS})
@@ -71,6 +83,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	C_STANDARD_REQUIRED ON
 	C_EXTENSIONS OFF
 )
+
+if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wno-parentheses)
+endif()
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)
+endif()
 
 option(ENABLE_TINYMM "Enable optional libtinymm dependency" OFF)
 if (ENABLE_TINYMM)
@@ -96,19 +115,11 @@ include_directories(${LIBLIGHTNING_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBLIGHTNING})
 
 if (LOG_LEVEL STREQUAL Debug)
-	find_library(LIBOPCODES NAMES opcodes-multiarch opcodes)
-	find_path(LIBOPCODES_INCLUDE_DIR dis-asm.h)
-
-	if (NOT LIBOPCODES OR NOT LIBOPCODES_INCLUDE_DIR)
-		message(SEND_ERROR "Debug log level requires libopcodes (from binutils) to be installed.")
-	endif ()
-
 	set(ENABLE_DISASSEMBLER ON)
-	include_directories(${LIBOPCODES_INCLUDE_DIR})
-	target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBOPCODES})
+	target_sources(${PROJECT_NAME} PRIVATE disassembler.c)
 endif()
 
-configure_file(config.h.cmakein config.h @ONLY)
+configure_file(lightrec-config.h.cmakein lightrec-config.h @ONLY)
 
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}

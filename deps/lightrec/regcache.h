@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 /*
- * Copyright (C) 2014-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #ifndef __REGCACHE_H__
@@ -22,8 +13,9 @@
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
 #define LIGHTREC_REG_CYCLE (JIT_V(JIT_V_NUM - 2))
 
-#define REG_LO 32
-#define REG_HI 33
+/* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
+#define REG_EXT		BIT(0) /* register is sign-extended */
+#define REG_ZEXT	BIT(1) /* register is zero-extended */
 
 struct register_value {
 	_Bool known;
@@ -35,14 +27,16 @@ struct regcache;
 
 u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit);
-u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_out_ext(struct regcache *cache,
-			      jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_in_ext(struct regcache *cache, jit_state_t *_jit, u8 reg);
+u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
+			  u8 reg, u8 flags);
+u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
+			 u8 reg, u8 flags);
 
 u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 			   u8 reg, u8 jit_reg);
+
+u8 lightrec_get_reg_in_flags(struct regcache *cache, u8 jit_reg);
+void lightrec_set_reg_out_flags(struct regcache *cache, u8 jit_reg, u8 flags);
 
 void lightrec_regcache_reset(struct regcache *cache);
 

@@ -1,27 +1,19 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /*
- * Copyright (C) 2014-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #include "debug.h"
 #include "memmanager.h"
+#include "lightning-wrapper.h"
 #include "regcache.h"
 
-#include <lightning.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 struct native_register {
-	bool used, loaded, dirty, output, extend, extended, locked;
+	bool used, loaded, dirty, output, extend, extended,
+	     zero_extend, zero_extended, locked;
 	s8 emulated_register;
 };
 
@@ -46,6 +38,24 @@ static const char * mips_regs[] = {
 const char * lightrec_reg_name(u8 reg)
 {
 	return mips_regs[reg];
+}
+
+static inline bool lightrec_reg_is_zero(u8 jit_reg)
+{
+#if defined(__mips__) || defined(__alpha__) || defined(__riscv)
+	if (jit_reg == _ZERO)
+		return true;
+#endif
+	return false;
+}
+
+static inline s8 lightrec_get_hardwired_reg(u8 reg)
+{
+#if defined(__mips__) || defined(__alpha__) || defined(__riscv)
+	if (reg == 0)
+		return _ZERO;
+#endif
+	return -1;
 }
 
 static inline u8 lightrec_reg_number(const struct regcache *cache,
@@ -76,6 +86,34 @@ static inline struct native_register * lightning_reg_to_lightrec(
 			return &cache->lightrec_regs[NUM_REGS + reg - JIT_R0];
 		else
 			return &cache->lightrec_regs[NUM_REGS + JIT_R0 - reg];
+	}
+}
+
+u8 lightrec_get_reg_in_flags(struct regcache *cache, u8 jit_reg)
+{
+	struct native_register *reg;
+	u8 flags = 0;
+
+	if (lightrec_reg_is_zero(jit_reg))
+		return REG_EXT | REG_ZEXT;
+
+	reg = lightning_reg_to_lightrec(cache, jit_reg);
+	if (reg->extended)
+		flags |= REG_EXT;
+	if (reg->zero_extended)
+		flags |= REG_ZEXT;
+
+	return flags;
+}
+
+void lightrec_set_reg_out_flags(struct regcache *cache, u8 jit_reg, u8 flags)
+{
+	struct native_register *reg;
+
+	if (!lightrec_reg_is_zero(jit_reg)) {
+		reg = lightning_reg_to_lightrec(cache, jit_reg);
+		reg->extend = flags & REG_EXT;
+		reg->zero_extend = flags & REG_ZEXT;
 	}
 }
 
@@ -157,6 +195,7 @@ static struct native_register * alloc_in_out(struct regcache *cache,
 static void lightrec_discard_nreg(struct native_register *nreg)
 {
 	nreg->extended = false;
+	nreg->zero_extended = false;
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->dirty = false;
@@ -170,7 +209,7 @@ static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 {
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
@@ -181,6 +220,9 @@ static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 
 void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
+	if (lightrec_reg_is_zero(jit_reg))
+		return;
+
 	lightrec_unload_nreg(cache, _jit,
 			lightning_reg_to_lightrec(cache, jit_reg), jit_reg);
 }
@@ -189,8 +231,12 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
  * A locked register cannot only be used as input, not output. */
 void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
-	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
+	struct native_register *reg;
 
+	if (lightrec_reg_is_zero(jit_reg))
+		return;
+
+	reg = lightning_reg_to_lightrec(cache, jit_reg);
 	lightrec_clean_reg(cache, _jit, jit_reg);
 
 	reg->locked = true;
@@ -198,8 +244,12 @@ void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 
 u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
-	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
+	struct native_register *reg;
 
+	if (lightrec_reg_is_zero(jit_reg))
+		return jit_reg;
+
+	reg = lightning_reg_to_lightrec(cache, jit_reg);
 	lightrec_unload_nreg(cache, _jit, reg, jit_reg);
 
 	reg->used = true;
@@ -223,10 +273,18 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	return jit_reg;
 }
 
-u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
+u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
+			  u8 reg, u8 flags)
 {
+	struct native_register *nreg;
 	u8 jit_reg;
-	struct native_register *nreg = alloc_in_out(cache, reg, true);
+	s8 hw_reg;
+
+	hw_reg = lightrec_get_hardwired_reg(reg);
+	if (hw_reg >= 0)
+		return (u8) hw_reg;
+
+	nreg = alloc_in_out(cache, reg, true);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -240,18 +298,27 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (nreg->emulated_register != reg)
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
-	nreg->extend = false;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
+	nreg->extend = flags & REG_EXT;
+	nreg->zero_extend = flags & REG_ZEXT;
 	return jit_reg;
 }
 
-u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
+u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
+			 u8 reg, u8 flags)
 {
+	struct native_register *nreg;
 	u8 jit_reg;
 	bool reg_changed;
-	struct native_register *nreg = alloc_in_out(cache, reg, false);
+	s8 hw_reg;
+
+	hw_reg = lightrec_get_hardwired_reg(reg);
+	if (hw_reg >= 0)
+		return (u8) hw_reg;
+
+	nreg = alloc_in_out(cache, reg, false);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -267,55 +334,44 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	if (!nreg->loaded && !nreg->dirty && reg != 0) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (reg << 2);
 
+		nreg->zero_extended = flags & REG_ZEXT;
+		nreg->extended = !nreg->zero_extended;
+
 		/* Load previous value from register cache */
-		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+		if (nreg->zero_extended)
+			jit_ldxi_ui(jit_reg, LIGHTREC_REG_STATE, offset);
+		else
+			jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+
 		nreg->loaded = true;
-		nreg->extended = true;
 	}
 
 	/* Clear register r0 before use */
 	if (reg == 0 && (!nreg->loaded || nreg->dirty)) {
 		jit_movi(jit_reg, 0);
 		nreg->extended = true;
+		nreg->zero_extended = true;
 		nreg->loaded = true;
 	}
 
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
-	return jit_reg;
-}
 
-u8 lightrec_alloc_reg_out_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
-{
-	struct native_register *nreg;
-	u8 jit_reg;
-
-	jit_reg = lightrec_alloc_reg_out(cache, _jit, reg);
-	nreg = lightning_reg_to_lightrec(cache, jit_reg);
-
-	nreg->extend = true;
-
-	return jit_reg;
-}
-
-u8 lightrec_alloc_reg_in_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
-{
-	struct native_register *nreg;
-	u8 jit_reg;
-
-	jit_reg = lightrec_alloc_reg_in(cache, _jit, reg);
-	nreg = lightning_reg_to_lightrec(cache, jit_reg);
-
-#if __WORDSIZE == 64
-	if (!nreg->extended) {
+	if ((flags & REG_EXT) && !nreg->extended &&
+	    (!nreg->zero_extended || !(flags & REG_ZEXT))) {
 		nreg->extended = true;
+		nreg->zero_extended = false;
 		jit_extr_i(jit_reg, jit_reg);
+	} else if (!(flags & REG_EXT) && (flags & REG_ZEXT) &&
+		   !nreg->zero_extended) {
+		nreg->zero_extended = true;
+		nreg->extended = false;
+		jit_extr_ui(jit_reg, jit_reg);
 	}
-#endif
 
 	return jit_reg;
 }
@@ -337,10 +393,11 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	/* Load previous value from register cache */
-	offset = offsetof(struct lightrec_state, native_reg_cache) + (reg << 2);
+	offset = offsetof(struct lightrec_state, regs.gpr) + (reg << 2);
 	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 
 	nreg->extended = true;
+	nreg->zero_extended = false;
 	nreg->used = true;
 	nreg->loaded = true;
 	nreg->emulated_register = reg;
@@ -353,14 +410,17 @@ static void free_reg(struct native_register *nreg)
 	/* Set output registers as dirty */
 	if (nreg->used && nreg->output && nreg->emulated_register > 0)
 		nreg->dirty = true;
-	if (nreg->output)
+	if (nreg->output) {
 		nreg->extended = nreg->extend;
+		nreg->zero_extended = nreg->zero_extend;
+	}
 	nreg->used = false;
 }
 
 void lightrec_free_reg(struct regcache *cache, u8 jit_reg)
 {
-	free_reg(lightning_reg_to_lightrec(cache, jit_reg));
+	if (!lightrec_reg_is_zero(jit_reg))
+		free_reg(lightning_reg_to_lightrec(cache, jit_reg));
 }
 
 void lightrec_free_regs(struct regcache *cache)
@@ -375,7 +435,7 @@ static void clean_reg(jit_state_t *_jit,
 		struct native_register *nreg, u8 jit_reg, bool clean)
 {
 	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
@@ -408,8 +468,12 @@ void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit)
 
 void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
-	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
-	clean_reg(_jit, reg, jit_reg, true);
+	struct native_register *reg;
+
+	if (!lightrec_reg_is_zero(jit_reg)) {
+		reg = lightning_reg_to_lightrec(cache, jit_reg);
+		clean_reg(_jit, reg, jit_reg, true);
+	}
 }
 
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
