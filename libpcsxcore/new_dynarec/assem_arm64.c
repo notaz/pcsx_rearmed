@@ -66,6 +66,7 @@ static void *find_extjump_insn(void *stub)
   return ptr + offset / 4;
 }
 
+#if 0
 // find where external branch is liked to using addr of it's stub:
 // get address that the stub loads (dyna_linker arg1),
 // treat it as a pointer to branch insn,
@@ -81,6 +82,7 @@ static void *get_pointer(void *stub)
   assert(0);
   return NULL;
 }
+#endif
 
 // Allocate a specific ARM register.
 static void alloc_arm_reg(struct regstat *cur,int i,signed char reg,int hr)
@@ -143,21 +145,6 @@ static void output_w32(u_int word)
   *((u_int *)out) = word;
   out += 4;
 }
-
-static void output_w64(uint64_t dword)
-{
-  *((uint64_t *)out) = dword;
-  out+=8;
-}
-
-/*
-static u_int rm_rd(u_int rm, u_int rd)
-{
-  assert(rm < 31);
-  assert(rd < 31);
-  return (rm << 16) | rd;
-}
-*/
 
 static u_int rn_rd(u_int rn, u_int rd)
 {
@@ -974,7 +961,7 @@ static void emit_cb(u_int isnz, u_int is64, const void *a, u_int r)
   output_w32(0x34000000 | is64 | isnz | imm19_rt(offset, r));
 }
 
-static void emit_cbz(const void *a, u_int r)
+static unused void emit_cbz(const void *a, u_int r)
 {
   emit_cb(0, 0, a, r);
 }
@@ -1207,11 +1194,6 @@ static void emit_bic_lsr(u_int rs1,u_int rs2,u_int shift,u_int rt)
   emit_bic(rs1, rs2, rt);
 }
 
-static void emit_loadlp_ofs(u_int ofs, u_int rt)
-{
-  output_w32(0x58000000 | imm19_rt(ofs, rt));
-}
-
 static void emit_ldst(int is_st, int is64, u_int rt, u_int rn, u_int ofs)
 {
   u_int op = 0xb9000000;
@@ -1288,7 +1270,7 @@ static void literal_pool_jumpover(int n)
 }
 
 // parsed by get_pointer, find_extjump_insn
-static void emit_extjump2(u_char *addr, u_int target, void *linker)
+static void emit_extjump(u_char *addr, u_int target)
 {
   assert(((addr[3]&0xfc)==0x14) || ((addr[3]&0xff)==0x54)); // b or b.cond
 
@@ -1298,7 +1280,7 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
   // addr is in the current recompiled block (max 256k)
   // offset shouldn't exceed +/-1MB
   emit_adr(addr, 1);
-  emit_far_jump(linker);
+  emit_far_jump(dyna_linker);
 }
 
 static void check_extjump2(void *src)
@@ -1669,122 +1651,6 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
   restore_regs(reglist);
 }
 
-static int verify_code_arm64(const void *source, const void *copy, u_int size)
-{
-  int ret = memcmp(source, copy, size);
-  //printf("%s %p,%#x = %d\n", __func__, source, size, ret);
-  return ret;
-}
-
-// this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
-static void do_dirty_stub_base(u_int vaddr, u_int source_len)
-{
-  assert(source_len <= MAXBLOCK*4);
-  emit_loadlp_ofs(0, 0); // ldr x1, source
-  emit_loadlp_ofs(0, 1); // ldr x2, copy
-  emit_movz(source_len, 2);
-  emit_far_call(verify_code_arm64);
-  void *jmp = out;
-  emit_cbz(0, 0);
-  emit_movz(vaddr & 0xffff, 0);
-  emit_movk_lsl16(vaddr >> 16, 0);
-  emit_far_call(get_addr);
-  emit_jmpreg(0);
-  set_jump_target(jmp, out);
-}
-
-static void assert_dirty_stub(const u_int *ptr)
-{
-  assert((ptr[0] & 0xff00001f) == 0x58000000); // ldr x0, source
-  assert((ptr[1] & 0xff00001f) == 0x58000001); // ldr x1, copy
-  assert((ptr[2] & 0xffe0001f) == 0x52800002); // movz w2, #source_len
-  assert( ptr[8]               == 0xd61f0000); // br x0
-}
-
-static void set_loadlp(u_int *loadl, void *lit)
-{
-  uintptr_t ofs = (u_char *)lit - (u_char *)loadl;
-  assert((*loadl & ~0x1f) == 0x58000000);
-  assert((ofs & 3) == 0);
-  assert(ofs < 0x100000);
-  *loadl |= (ofs >> 2) << 5;
-}
-
-static void do_dirty_stub_emit_literals(u_int *loadlps)
-{
-  set_loadlp(&loadlps[0], out);
-  output_w64((uintptr_t)source);
-  set_loadlp(&loadlps[1], out);
-  output_w64((uintptr_t)copy);
-}
-
-static void *do_dirty_stub(int i, u_int source_len)
-{
-  assem_debug("do_dirty_stub %x\n",start+i*4);
-  u_int *loadlps = (void *)out;
-  do_dirty_stub_base(start + i*4, source_len);
-  void *entry = out;
-  load_regs_entry(i);
-  if (entry == out)
-    entry = instr_addr[i];
-  emit_jmp(instr_addr[i]);
-  do_dirty_stub_emit_literals(loadlps);
-  return entry;
-}
-
-static uint64_t get_from_ldr_literal(const u_int *i)
-{
-  signed int ofs;
-  assert((i[0] & 0xff000000) == 0x58000000);
-  ofs = i[0] << 8;
-  ofs >>= 5+8;
-  return *(uint64_t *)(i + ofs);
-}
-
-static uint64_t get_from_movz(const u_int *i)
-{
-  assert((i[0] & 0x7fe00000) == 0x52800000);
-  return (i[0] >> 5) & 0xffff;
-}
-
-// Find the "clean" entry point from a "dirty" entry point
-// by skipping past the call to verify_code
-static void *get_clean_addr(u_int *addr)
-{
-  assert_dirty_stub(addr);
-  return addr + 9;
-}
-
-static int verify_dirty(const u_int *ptr)
-{
-  const void *source, *copy;
-  u_int len;
-  assert_dirty_stub(ptr);
-  source = (void *)get_from_ldr_literal(&ptr[0]); // ldr x1, source
-  copy   = (void *)get_from_ldr_literal(&ptr[1]); // ldr x1, copy
-  len = get_from_movz(&ptr[2]);                   // movz w3, #source_len
-  return !memcmp(source, copy, len);
-}
-
-static int isclean(void *addr)
-{
-  const u_int *ptr = addr;
-  if ((*ptr >> 24) == 0x58) { // the only place ldr (literal) is used
-    assert_dirty_stub(ptr);
-    return 0;
-  }
-  return 1;
-}
-
-// get source that block at addr was compiled from (host pointers)
-static void get_bounds(void *addr, u_char **start, u_char **end)
-{
-  const u_int *ptr = addr;
-  assert_dirty_stub(ptr);
-  *start = (u_char *)get_from_ldr_literal(&ptr[0]); // ldr x1, source
-  *end = *start + get_from_movz(&ptr[2]);           // movz w3, #source_len
-}
-
 /* Special assem */
 
 static void c2op_prologue(u_int op, int i, const struct regstat *i_regs, u_int reglist)
@@ -1982,7 +1848,7 @@ static void do_jump_vaddr(u_int rs)
 {
   if (rs != 0)
     emit_mov(rs, 0);
-  emit_far_call(get_addr_ht);
+  emit_far_call(ndrc_get_addr_ht);
   emit_jmpreg(0);
 }
 

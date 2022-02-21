@@ -142,7 +142,6 @@ struct regstat
 struct ll_entry
 {
   u_int vaddr;
-  u_int reg_sv_flags;
   void *addr;
   struct ll_entry *next;
 };
@@ -169,7 +168,25 @@ struct link_entry
 {
   void *addr;
   u_int target;
-  u_int ext;
+  u_int internal;
+};
+
+struct block_info
+{
+  struct block_info *next;
+  const void *source;
+  const void *copy;
+  u_int start; // vaddr of the block start
+  u_int len;   // of the whole block source
+  u_int tc_offs;
+  //u_int tc_len;
+  u_int reg_sv_flags;
+  u_short is_dirty;
+  u_short jump_in_cnt;
+  struct {
+    u_int vaddr;
+    void *addr;
+  } jump_in[0];
 };
 
 static struct decoded_insn
@@ -191,12 +208,9 @@ static struct decoded_insn
   u_char is_store:1;
 } dops[MAXBLOCK];
 
-  // used by asm:
-  struct ht_entry hash_table[65536]  __attribute__((aligned(16)));
-  struct ll_entry *jump_in[4096] __attribute__((aligned(16)));
-
   static u_char *out;
-  static struct ll_entry *jump_dirty[4096];
+  static struct ht_entry hash_table[65536];
+  static struct block_info *blocks[4096];
   static struct ll_entry *jump_out[4096];
   static u_int start;
   static u_int *source;
@@ -240,14 +254,21 @@ static struct decoded_insn
   static int stat_bc_direct;
   static int stat_bc_pre;
   static int stat_bc_restore;
+  static int stat_ht_lookups;
   static int stat_jump_in_lookups;
   static int stat_restore_tries;
   static int stat_restore_compares;
   static int stat_inv_addr_calls;
   static int stat_inv_hits;
+  static int stat_blocks;
+  static int stat_links;
   #define stat_inc(s) s++
+  #define stat_dec(s) s--
+  #define stat_clear(s) s = 0
 #else
   #define stat_inc(s)
+  #define stat_dec(s)
+  #define stat_clear(s)
 #endif
 
   int new_dynarec_hacks;
@@ -331,12 +352,7 @@ static struct decoded_insn
 #define DJT_2 (void *)2l
 
 // asm linkage
-int new_recompile_block(u_int addr);
-void *get_addr_ht(u_int vaddr);
-void invalidate_block(u_int block);
-void invalidate_addr(u_int addr);
 void dyna_linker();
-void verify_code();
 void cc_interrupt();
 void fp_exception();
 void fp_exception_ds();
@@ -346,12 +362,15 @@ void jump_break   (u_int u0, u_int u1, u_int pc);
 void jump_break_ds(u_int u0, u_int u1, u_int pc);
 void jump_to_new_pc();
 void call_gteStall();
-void add_jump_out(u_int vaddr, void *src);
 void new_dyna_leave();
 
-static void *get_clean_addr(void *addr);
-static void get_bounds(void *addr, u_char **start, u_char **end);
-static void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr);
+void *ndrc_get_addr_ht_param(u_int vaddr, int can_compile);
+void *ndrc_get_addr_ht(u_int vaddr);
+void ndrc_invalidate_addr(u_int addr);
+void ndrc_add_jump_out(u_int vaddr, void *src);
+
+static int new_recompile_block(u_int addr);
+static void invalidate_block(struct block_info *block);
 
 // Needed by assembler
 static void wb_register(signed char r, const signed char regmap[], uint64_t dirty);
@@ -363,7 +382,6 @@ static void load_regs_entry(int t);
 static void load_all_consts(const signed char regmap[], u_int dirty, int i);
 static u_int get_host_reglist(const signed char *regmap);
 
-static int verify_dirty(const u_int *ptr);
 static int get_final_value(int hr, int i, int *value);
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
@@ -515,20 +533,31 @@ static int ds_writes_rjump_rs(int i)
   return dops[i].rs1 != 0 && (dops[i].rs1 == dops[i+1].rt1 || dops[i].rs1 == dops[i+1].rt2);
 }
 
+// psx addr mirror masking (for invalidation)
+static u_int pmmask(u_int vaddr)
+{
+  vaddr &= ~0xe0000000;
+  if (vaddr < 0x01000000)
+    vaddr &= ~0x00e00000; // RAM mirrors
+  return vaddr;
+}
+
 static u_int get_page(u_int vaddr)
 {
-  u_int page=vaddr&~0xe0000000;
-  if (page < 0x1000000)
-    page &= ~0x0e00000; // RAM mirrors
-  page>>=12;
+  u_int page = pmmask(vaddr) >> 12;
   if(page>2048) page=2048+(page&2047);
   return page;
 }
 
-// no virtual mem in PCSX
-static u_int get_vpage(u_int vaddr)
+// get a page for looking for a block that has vaddr
+// (needed because the block may start in previous page)
+static u_int get_page_prev(u_int vaddr)
 {
-  return get_page(vaddr);
+  assert(MAXBLOCK <= (1 << 12));
+  u_int page = get_page(vaddr);
+  if (page & 511)
+    page--;
+  return page;
 }
 
 static struct ht_entry *hash_table_get(u_int vaddr)
@@ -536,15 +565,33 @@ static struct ht_entry *hash_table_get(u_int vaddr)
   return &hash_table[((vaddr>>16)^vaddr)&0xFFFF];
 }
 
-static void hash_table_add(struct ht_entry *ht_bin, u_int vaddr, void *tcaddr)
+static void hash_table_add(u_int vaddr, void *tcaddr)
 {
+  struct ht_entry *ht_bin = hash_table_get(vaddr);
+  assert(tcaddr);
   ht_bin->vaddr[1] = ht_bin->vaddr[0];
   ht_bin->tcaddr[1] = ht_bin->tcaddr[0];
   ht_bin->vaddr[0] = vaddr;
   ht_bin->tcaddr[0] = tcaddr;
 }
 
-static void mark_valid_code(u_int vaddr, u_int len)
+static void hash_table_remove(int vaddr)
+{
+  //printf("remove hash: %x\n",vaddr);
+  struct ht_entry *ht_bin = hash_table_get(vaddr);
+  if (ht_bin->vaddr[1] == vaddr) {
+    ht_bin->vaddr[1] = -1;
+    ht_bin->tcaddr[1] = NULL;
+  }
+  if (ht_bin->vaddr[0] == vaddr) {
+    ht_bin->vaddr[0] = ht_bin->vaddr[1];
+    ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
+    ht_bin->vaddr[1] = -1;
+    ht_bin->tcaddr[1] = NULL;
+  }
+}
+
+static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
 {
   u_int i, j;
   vaddr &= 0x1fffffff;
@@ -553,10 +600,11 @@ static void mark_valid_code(u_int vaddr, u_int len)
     for (j = 0; j < 0x800000; j += 0x200000) {
       invalid_code[(i|j) >> 12] =
       invalid_code[(i|j|0x80000000u) >> 12] =
-      invalid_code[(i|j|0xa0000000u) >> 12] = 0;
+      invalid_code[(i|j|0xa0000000u) >> 12] = invalid;
     }
   }
-  inv_code_start = inv_code_end = ~0;
+  if (!invalid)
+    inv_code_start = inv_code_end = ~0;
 }
 
 // some messy ari64's code, seems to rely on unsigned 32bit overflow
@@ -566,109 +614,99 @@ static int doesnt_expire_soon(void *tcaddr)
   return diff > (u_int)(0x60000000 + (MAX_OUTPUT_BLOCK_SIZE << (32-TARGET_SIZE_2)));
 }
 
-void *ndrc_try_restore_block(u_int vaddr)
+static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
 {
-  u_char *source_start = NULL, *source_end = NULL;
-  void *found_stub = NULL, *found_clean = NULL;
-  u_int len, page = get_page(vaddr);
-  const struct ll_entry *head;
-  int ep_count = 0;
+  void *found_clean = NULL;
+  u_int i, page;
 
   stat_inc(stat_restore_tries);
-  for (head = jump_dirty[page]; head != NULL; head = head->next)
-  {
-    if (head->vaddr != vaddr)
-      continue;
-    // don't restore blocks which are about to expire from the cache
-    if (!doesnt_expire_soon(head->addr))
-      continue;
-    stat_inc(stat_restore_compares);
-    if (!verify_dirty(head->addr))
-      continue;
+  for (page = start_page; page <= end_page; page++) {
+    struct block_info *block;
+    for (block = blocks[page]; block != NULL; block = block->next) {
+      if (vaddr < block->start)
+        break;
+      if (!block->is_dirty || vaddr >= block->start + block->len)
+        continue;
+      for (i = 0; i < block->jump_in_cnt; i++)
+        if (block->jump_in[i].vaddr == vaddr)
+          break;
+      if (i == block->jump_in_cnt)
+        continue;
+      assert(block->source && block->copy);
+      stat_inc(stat_restore_compares);
+      if (memcmp(block->source, block->copy, block->len))
+        continue;
 
-    found_stub = head->addr;
-    break;
-  }
-  if (!found_stub)
-    return NULL;
-
-  found_clean = get_clean_addr(found_stub);
-  get_bounds(found_stub, &source_start, &source_end);
-  assert(source_start < source_end);
-  len = source_end - source_start;
-  mark_valid_code(vaddr, len);
-
-  // restore all entry points
-  for (head = jump_dirty[page]; head != NULL; head = head->next)
-  {
-    if (head->vaddr < vaddr || head->vaddr >= vaddr + len)
-      continue;
-
-    u_char *start = NULL, *end = NULL;
-    get_bounds(head->addr, &start, &end);
-    if (start != source_start || end != source_end)
-      continue;
-
-    void *clean_addr = get_clean_addr(head->addr);
-    ll_add_flags(jump_in + page, head->vaddr, head->reg_sv_flags, clean_addr);
-
-    int in_ht = 0;
-    struct ht_entry *ht_bin = hash_table_get(head->vaddr);
-    if (ht_bin->vaddr[0] == head->vaddr) {
-      ht_bin->tcaddr[0] = clean_addr; // Replace existing entry
-      in_ht = 1;
+      block->is_dirty = 0;
+      found_clean = block->jump_in[i].addr;
+      hash_table_add(vaddr, found_clean);
+      mark_invalid_code(block->start, block->len, 0);
+      stat_inc(stat_bc_restore);
+      inv_debug("INV: restored %08x %p (%d)\n", vaddr, found_clean, block->jump_in_cnt);
+      return found_clean;
     }
-    if (ht_bin->vaddr[1] == head->vaddr) {
-      ht_bin->tcaddr[1] = clean_addr; // Replace existing entry
-      in_ht = 1;
-    }
-    if (!in_ht)
-      hash_table_add(ht_bin, head->vaddr, clean_addr);
-    ep_count++;
   }
-  inv_debug("INV: Restored %08x %p (%d)\n", vaddr, found_stub, ep_count);
-  stat_inc(stat_bc_restore);
-  return found_clean;
+  return NULL;
 }
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
-void noinline *get_addr(u_int vaddr)
+static void noinline *get_addr(u_int vaddr, int can_compile)
 {
-  u_int page = get_page(vaddr);
-  struct ll_entry *head;
-  void *code;
+  u_int start_page = get_page_prev(vaddr);
+  u_int i, page, end_page = get_page(vaddr);
+  void *found_clean = NULL;
 
   stat_inc(stat_jump_in_lookups);
-  for (head = jump_in[page]; head != NULL; head = head->next) {
-    if (head->vaddr == vaddr) {
-      hash_table_add(hash_table_get(vaddr), vaddr, head->addr);
-      return head->addr;
+  for (page = start_page; page <= end_page; page++) {
+    const struct block_info *block;
+    for (block = blocks[page]; block != NULL; block = block->next) {
+      if (vaddr < block->start)
+        break;
+      if (block->is_dirty || vaddr >= block->start + block->len)
+        continue;
+      for (i = 0; i < block->jump_in_cnt; i++)
+        if (block->jump_in[i].vaddr == vaddr)
+          break;
+      if (i == block->jump_in_cnt)
+        continue;
+      found_clean = block->jump_in[i].addr;
+      hash_table_add(vaddr, found_clean);
+      return found_clean;
     }
   }
-  code = ndrc_try_restore_block(vaddr);
-  if (code)
-    return code;
+  found_clean = try_restore_block(vaddr, start_page, end_page);
+  if (found_clean)
+    return found_clean;
+
+  if (!can_compile)
+    return NULL;
 
   int r = new_recompile_block(vaddr);
   if (r == 0)
-    return get_addr(vaddr);
+    return ndrc_get_addr_ht(vaddr);
 
   // generate an address error
   Status|=2;
   Cause=(vaddr<<31)|(4<<2);
   EPC=(vaddr&1)?vaddr-5:vaddr;
   BadVAddr=(vaddr&~1);
-  return get_addr_ht(0x80000080);
+  return ndrc_get_addr_ht(0x80000080);
 }
+
 // Look up address in hash table first
-void *get_addr_ht(u_int vaddr)
+void *ndrc_get_addr_ht_param(u_int vaddr, int can_compile)
 {
-  //printf("TRACE: count=%d next=%d (get_addr_ht %x)\n",Count,next_interupt,vaddr);
   const struct ht_entry *ht_bin = hash_table_get(vaddr);
+  stat_inc(stat_ht_lookups);
   if (ht_bin->vaddr[0] == vaddr) return ht_bin->tcaddr[0];
   if (ht_bin->vaddr[1] == vaddr) return ht_bin->tcaddr[1];
-  return get_addr(vaddr);
+  return get_addr(vaddr, can_compile);
+}
+
+void *ndrc_get_addr_ht(u_int vaddr)
+{
+  return ndrc_get_addr_ht_param(vaddr, 1);
 }
 
 static void clear_all_regs(signed char regmap[])
@@ -1047,15 +1085,14 @@ static const struct {
 } function_names[] = {
   FUNCNAME(cc_interrupt),
   FUNCNAME(gen_interupt),
-  FUNCNAME(get_addr_ht),
-  FUNCNAME(get_addr),
+  FUNCNAME(ndrc_get_addr_ht),
   FUNCNAME(jump_handler_read8),
   FUNCNAME(jump_handler_read16),
   FUNCNAME(jump_handler_read32),
   FUNCNAME(jump_handler_write8),
   FUNCNAME(jump_handler_write16),
   FUNCNAME(jump_handler_write32),
-  FUNCNAME(invalidate_addr),
+  FUNCNAME(ndrc_invalidate_addr),
   FUNCNAME(jump_to_new_pc),
   FUNCNAME(jump_break),
   FUNCNAME(jump_break_ds),
@@ -1067,9 +1104,6 @@ static const struct {
   FUNCNAME(pcsx_mtc0_ds),
 #ifdef DRC_DBG
   FUNCNAME(do_insn_cmp),
-#endif
-#ifdef __arm__
-  FUNCNAME(verify_code),
 #endif
 };
 
@@ -1147,16 +1181,9 @@ static void ll_add(struct ll_entry **head,int vaddr,void *addr)
   new_entry=malloc(sizeof(struct ll_entry));
   assert(new_entry!=NULL);
   new_entry->vaddr=vaddr;
-  new_entry->reg_sv_flags=0;
   new_entry->addr=addr;
   new_entry->next=*head;
   *head=new_entry;
-}
-
-static void ll_add_flags(struct ll_entry **head,int vaddr,u_int reg_sv_flags,void *addr)
-{
-  ll_add(head,vaddr,addr);
-  (*head)->reg_sv_flags=reg_sv_flags;
 }
 
 // Check if an address is already compiled
@@ -1168,57 +1195,54 @@ static void *check_addr(u_int vaddr)
   for (i = 0; i < ARRAY_SIZE(ht_bin->vaddr); i++) {
     if (ht_bin->vaddr[i] == vaddr)
       if (doesnt_expire_soon((u_char *)ht_bin->tcaddr[i] - MAX_OUTPUT_BLOCK_SIZE))
-        if (isclean(ht_bin->tcaddr[i]))
-          return ht_bin->tcaddr[i];
+        return ht_bin->tcaddr[i];
   }
-  u_int page=get_page(vaddr);
-  struct ll_entry *head;
-  head=jump_in[page];
-  while (head != NULL) {
-    if (head->vaddr == vaddr) {
-      if (doesnt_expire_soon(head->addr)) {
-        // Update existing entry with current address
-        if (ht_bin->vaddr[0] == vaddr) {
-          ht_bin->tcaddr[0] = head->addr;
-          return head->addr;
-        }
-        if (ht_bin->vaddr[1] == vaddr) {
-          ht_bin->tcaddr[1] = head->addr;
-          return head->addr;
-        }
-        // Insert into hash table with low priority.
-        // Don't evict existing entries, as they are probably
-        // addresses that are being accessed frequently.
-        if (ht_bin->vaddr[0] == -1) {
-          ht_bin->vaddr[0] = vaddr;
-          ht_bin->tcaddr[0] = head->addr;
-        }
-        else if (ht_bin->vaddr[1] == -1) {
-          ht_bin->vaddr[1] = vaddr;
-          ht_bin->tcaddr[1] = head->addr;
-        }
-        return head->addr;
-      }
-    }
-    head=head->next;
-  }
-  return 0;
-}
 
-static void remove_hash(int vaddr)
-{
-  //printf("remove hash: %x\n",vaddr);
-  struct ht_entry *ht_bin = hash_table_get(vaddr);
-  if (ht_bin->vaddr[1] == vaddr) {
-    ht_bin->vaddr[1] = -1;
-    ht_bin->tcaddr[1] = NULL;
+  // refactor to get_addr_nocompile?
+  u_int start_page = get_page_prev(vaddr);
+  u_int page, end_page = get_page(vaddr);
+
+  stat_inc(stat_jump_in_lookups);
+  for (page = start_page; page <= end_page; page++) {
+    const struct block_info *block;
+    for (block = blocks[page]; block != NULL; block = block->next) {
+      if (vaddr < block->start)
+        break;
+      if (block->is_dirty || vaddr >= block->start + block->len)
+        continue;
+      if (!doesnt_expire_soon(ndrc->translation_cache + block->tc_offs))
+        continue;
+      for (i = 0; i < block->jump_in_cnt; i++)
+        if (block->jump_in[i].vaddr == vaddr)
+          break;
+      if (i == block->jump_in_cnt)
+        continue;
+
+      // Update existing entry with current address
+      void *addr = block->jump_in[i].addr;
+      if (ht_bin->vaddr[0] == vaddr) {
+        ht_bin->tcaddr[0] = addr;
+        return addr;
+      }
+      if (ht_bin->vaddr[1] == vaddr) {
+        ht_bin->tcaddr[1] = addr;
+        return addr;
+      }
+      // Insert into hash table with low priority.
+      // Don't evict existing entries, as they are probably
+      // addresses that are being accessed frequently.
+      if (ht_bin->vaddr[0] == -1) {
+        ht_bin->vaddr[0] = vaddr;
+        ht_bin->tcaddr[0] = addr;
+      }
+      else if (ht_bin->vaddr[1] == -1) {
+        ht_bin->vaddr[1] = vaddr;
+        ht_bin->tcaddr[1] = addr;
+      }
+      return addr;
+    }
   }
-  if (ht_bin->vaddr[0] == vaddr) {
-    ht_bin->vaddr[0] = ht_bin->vaddr[1];
-    ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
-    ht_bin->vaddr[1] = -1;
-    ht_bin->tcaddr[1] = NULL;
-  }
+  return NULL;
 }
 
 static void ll_remove_matching_addrs(struct ll_entry **head,
@@ -1230,11 +1254,12 @@ static void ll_remove_matching_addrs(struct ll_entry **head,
     uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
     if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
     {
-      inv_debug("EXP: Remove pointer to %p (%x)\n",(*head)->addr,(*head)->vaddr);
-      remove_hash((*head)->vaddr);
+      inv_debug("EXP: rm pointer to %08x (%p)\n", (*head)->vaddr, (*head)->addr);
+      hash_table_remove((*head)->vaddr);
       next=(*head)->next;
       free(*head);
       *head=next;
+      stat_dec(stat_links);
     }
     else
     {
@@ -1258,6 +1283,7 @@ static void ll_clear(struct ll_entry **head)
   }
 }
 
+#if 0
 // Dereference the pointers and remove if it matches
 static void ll_kill_pointers(struct ll_entry *head,
   uintptr_t base_offs_s, int shift)
@@ -1277,153 +1303,169 @@ static void ll_kill_pointers(struct ll_entry *head,
     head=head->next;
   }
 }
+#endif
+
+static void blocks_clear(struct block_info **head)
+{
+  struct block_info *cur, *next;
+
+  if ((cur = *head)) {
+    *head = NULL;
+    while (cur) {
+      next = cur->next;
+      free(cur);
+      cur = next;
+    }
+  }
+}
+
+static void blocks_remove_matching_addrs(struct block_info **head,
+  uintptr_t base_offs_s, int shift)
+{
+  struct block_info *next;
+  while (*head) {
+    u_int o1 = (*head)->tc_offs;
+    u_int o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
+    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
+    {
+      inv_debug("EXP: rm block %08x (tc_offs %u)\n", (*head)->start, o1);
+      invalidate_block(*head);
+      next = (*head)->next;
+      free(*head);
+      *head = next;
+      stat_dec(stat_blocks);
+    }
+    else
+    {
+      head = &((*head)->next);
+    }
+  }
+}
 
 // This is called when we write to a compiled block (see do_invstub)
-static void invalidate_page(u_int page)
+static void unlink_jumps_range(u_int start, u_int end)
 {
-  struct ll_entry *head;
-  struct ll_entry *next;
-  head=jump_in[page];
-  if (head) stat_inc(stat_inv_hits);
-  jump_in[page]=0;
-  while(head!=NULL) {
-    inv_debug("INVALIDATE: %x\n",head->vaddr);
-    remove_hash(head->vaddr);
-    next=head->next;
-    free(head);
-    head=next;
-  }
-  head=jump_out[page];
-  jump_out[page]=0;
-  while(head!=NULL) {
-    inv_debug("INVALIDATE: kill pointer to %x (%p)\n",head->vaddr,head->addr);
-    void *host_addr=find_extjump_insn(head->addr);
-    mark_clear_cache(host_addr);
-    set_jump_target(host_addr, head->addr); // point back to dyna_linker
-    next=head->next;
-    free(head);
-    head=next;
-  }
-}
+  u_int page, start_page = get_page(start), end_page = get_page(end - 1);
+  struct ll_entry **head, *next;
 
-static void invalidate_block_range(u_int block, u_int first, u_int last)
-{
-  u_int page=get_page(block<<12);
-  //printf("first=%d last=%d\n",first,last);
-  invalidate_page(page);
-  assert(first+5>page); // NB: this assumes MAXBLOCK<=4096 (4 pages)
-  assert(last<page+5);
-  // Invalidate the adjacent pages if a block crosses a 4K boundary
-  while(first<page) {
-    invalidate_page(first);
-    first++;
-  }
-  for(first=page+1;first<last;first++) {
-    invalidate_page(first);
-  }
-  do_clear_cache();
-
-  // Don't trap writes
-  invalid_code[block]=1;
-
-  #ifdef USE_MINI_HT
-  memset(mini_ht,-1,sizeof(mini_ht));
-  #endif
-}
-
-void invalidate_block(u_int block)
-{
-  u_int page=get_page(block<<12);
-  u_int vpage=get_vpage(block<<12);
-  inv_debug("INVALIDATE: %x (%d)\n",block<<12,page);
-  //inv_debug("invalid_code[block]=%d\n",invalid_code[block]);
-  u_int first,last;
-  first=last=page;
-  struct ll_entry *head;
-  head=jump_dirty[vpage];
-  //printf("page=%d vpage=%d\n",page,vpage);
-  while(head!=NULL) {
-    if(vpage>2047||(head->vaddr>>12)==block) { // Ignore vaddr hash collision
-      u_char *start, *end;
-      get_bounds(head->addr, &start, &end);
-      //printf("start: %p end: %p\n", start, end);
-      if (page < 2048 && start >= rdram && end < rdram+RAM_SIZE) {
-        if (((start-rdram)>>12) <= page && ((end-1-rdram)>>12) >= page) {
-          if ((((start-rdram)>>12)&2047) < first) first = ((start-rdram)>>12)&2047;
-          if ((((end-1-rdram)>>12)&2047) > last)  last = ((end-1-rdram)>>12)&2047;
-        }
+  for (page = start_page; page <= end_page; page++) {
+    for (head = &jump_out[page]; *head; ) {
+      if ((*head)->vaddr < start || (*head)->vaddr >= end) {
+        head = &((*head)->next);
+        continue;
       }
+      inv_debug("INV: rm pointer to %08x (%p)\n", (*head)->vaddr, (*head)->addr);
+      void *host_addr = find_extjump_insn((*head)->addr);
+      mark_clear_cache(host_addr);
+      set_jump_target(host_addr, (*head)->addr); // point back to dyna_linker stub
+
+      next = (*head)->next;
+      free(*head);
+      *head = next;
+      stat_dec(stat_links);
     }
-    head=head->next;
   }
-  invalidate_block_range(block,first,last);
 }
 
-void invalidate_addr(u_int addr)
+static void invalidate_block(struct block_info *block)
 {
-  //static int rhits;
+  u_int i;
+
+  block->is_dirty = 1;
+  unlink_jumps_range(block->start, block->start + block->len);
+  for (i = 0; i < block->jump_in_cnt; i++)
+    hash_table_remove(block->jump_in[i].vaddr);
+}
+
+static int invalidate_range(u_int start, u_int end,
+  u32 *inv_start_ret, u32 *inv_end_ret)
+{
+  u_int start_page = get_page_prev(start);
+  u_int end_page = get_page(end - 1);
+  u_int start_m = pmmask(start);
+  u_int end_m = pmmask(end);
+  u_int inv_start, inv_end;
+  u_int blk_start_m, blk_end_m;
+  u_int page;
+  int hit = 0;
+
+  // additional area without code (to supplement invalid_code[]), [start, end)
+  // avoids excessive ndrc_invalidate_addr() calls
+  inv_start = start_m & ~0xfff;
+  inv_end = end_m | 0xfff;
+
+  for (page = start_page; page <= end_page; page++) {
+    struct block_info *block;
+    for (block = blocks[page]; block != NULL; block = block->next) {
+      if (block->is_dirty)
+        continue;
+      blk_end_m = pmmask(block->start + block->len);
+      if (blk_end_m <= start_m) {
+        inv_start = max(inv_start, blk_end_m);
+        continue;
+      }
+      blk_start_m = pmmask(block->start);
+      if (end_m <= blk_start_m) {
+        inv_end = min(inv_end, blk_start_m - 1);
+        continue;
+      }
+      if (!block->source) // "hack" block - leave it alone
+        continue;
+
+      hit++;
+      invalidate_block(block);
+      stat_inc(stat_inv_hits);
+    }
+  }
+
+  if (hit) {
+    do_clear_cache();
+#ifdef USE_MINI_HT
+    memset(mini_ht, -1, sizeof(mini_ht));
+#endif
+  }
+  if (inv_start <= (start_m & ~0xfff) && inv_end >= (start_m | 0xfff))
+    // the whole page is empty now
+    mark_invalid_code(start, 1, 1);
+
+  if (inv_start_ret) *inv_start_ret = inv_start | (start & 0xe0000000);
+  if (inv_end_ret) *inv_end_ret = inv_end | (end & 0xe0000000);
+  return hit;
+}
+
+void new_dynarec_invalidate_range(unsigned int start, unsigned int end)
+{
+  invalidate_range(start, end, NULL, NULL);
+}
+
+void ndrc_invalidate_addr(u_int addr)
+{
   // this check is done by the caller
   //if (inv_code_start<=addr&&addr<=inv_code_end) { rhits++; return; }
+  int ret = invalidate_range(addr, addr + 4, &inv_code_start, &inv_code_end);
+  if (ret)
+    inv_debug("INV ADDR: %08x hit %d blocks\n", addr, ret);
+  else
+    inv_debug("INV ADDR: %08x miss, inv %08x-%08x\n", addr, inv_code_start, inv_code_end);
   stat_inc(stat_inv_addr_calls);
-  u_int page=get_vpage(addr);
-  if(page<2048) { // RAM
-    struct ll_entry *head;
-    u_int addr_min=~0, addr_max=0;
-    u_int mask=RAM_SIZE-1;
-    u_int addr_main=0x80000000|(addr&mask);
-    int pg1;
-    inv_code_start=addr_main&~0xfff;
-    inv_code_end=addr_main|0xfff;
-    pg1=page;
-    if (pg1>0) {
-      // must check previous page too because of spans..
-      pg1--;
-      inv_code_start-=0x1000;
-    }
-    for(;pg1<=page;pg1++) {
-      for(head=jump_dirty[pg1];head!=NULL;head=head->next) {
-        u_char *start_h, *end_h;
-        u_int start, end;
-        get_bounds(head->addr, &start_h, &end_h);
-        start = (uintptr_t)start_h - ram_offset;
-        end = (uintptr_t)end_h - ram_offset;
-        if(start<=addr_main&&addr_main<end) {
-          if(start<addr_min) addr_min=start;
-          if(end>addr_max) addr_max=end;
-        }
-        else if(addr_main<start) {
-          if(start<inv_code_end)
-            inv_code_end=start-1;
-        }
-        else {
-          if(end>inv_code_start)
-            inv_code_start=end;
-        }
-      }
-    }
-    if (addr_min!=~0) {
-      inv_debug("INV ADDR: %08x hit %08x-%08x\n", addr, addr_min, addr_max);
-      inv_code_start=inv_code_end=~0;
-      invalidate_block_range(addr>>12,(addr_min&mask)>>12,(addr_max&mask)>>12);
-      return;
-    }
-    else {
-      inv_code_start=(addr&~mask)|(inv_code_start&mask);
-      inv_code_end=(addr&~mask)|(inv_code_end&mask);
-      inv_debug("INV ADDR: %08x miss, inv %08x-%08x, sk %d\n", addr, inv_code_start, inv_code_end, 0);
-      return;
-    }
-  }
-  invalidate_block(addr>>12);
 }
 
 // This is called when loading a save state.
 // Anything could have changed, so invalidate everything.
-void invalidate_all_pages(void)
+void new_dynarec_invalidate_all_pages(void)
 {
+  struct block_info *block;
   u_int page;
-  for(page=0;page<4096;page++)
-    invalidate_page(page);
+  for (page = 0; page < ARRAY_SIZE(blocks); page++) {
+    for (block = blocks[page]; block != NULL; block = block->next) {
+      if (block->is_dirty)
+        continue;
+      if (!block->source) // hack block?
+        continue;
+      invalidate_block(block);
+    }
+  }
+
   #ifdef USE_MINI_HT
   memset(mini_ht,-1,sizeof(mini_ht));
   #endif
@@ -1437,20 +1479,21 @@ static void do_invstub(int n)
   set_jump_target(stubs[n].addr, out);
   save_regs(reglist);
   if(stubs[n].b!=0) emit_mov(stubs[n].b,0);
-  emit_far_call(invalidate_addr);
+  emit_far_call(ndrc_invalidate_addr);
   restore_regs(reglist);
   emit_jmp(stubs[n].retaddr); // return address
 }
 
 // Add an entry to jump_out after making a link
-// src should point to code by emit_extjump2()
-void add_jump_out(u_int vaddr,void *src)
+// src should point to code by emit_extjump()
+void ndrc_add_jump_out(u_int vaddr,void *src)
 {
   u_int page=get_page(vaddr);
-  inv_debug("add_jump_out: %p -> %x (%d)\n",src,vaddr,page);
+  inv_debug("ndrc_add_jump_out: %p -> %x (%d)\n",src,vaddr,page);
   check_extjump2(src);
   ll_add(jump_out+page,vaddr,src);
-  //inv_debug("add_jump_out:  to %p\n",get_pointer(src));
+  //inv_debug("ndrc_add_jump_out:  to %p\n",get_pointer(src));
+  stat_inc(stat_links);
 }
 
 /* Register allocation */
@@ -3152,7 +3195,7 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_movimm(start+i*4+4,0);
       emit_writeword(0,&pcaddr);
       emit_addimm(HOST_CCREG,2,HOST_CCREG);
-      emit_far_call(get_addr_ht);
+      emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
     }
   }
@@ -3361,7 +3404,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_jeq(0);
       emit_readword(&pcaddr, 0);
       emit_addimm(HOST_CCREG,2,HOST_CCREG);
-      emit_far_call(get_addr_ht);
+      emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
       set_jump_target(jaddr, out);
     }
@@ -4817,11 +4860,6 @@ static void ds_assemble_entry(int i)
   emit_jmp(0);
 }
 
-static void emit_extjump(void *addr, u_int target)
-{
-  emit_extjump2(addr, target, dyna_linker);
-}
-
 // Load 2 immediates optimizing for small code size
 static void emit_mov2imm_compact(int imm1,u_int rt1,int imm2,u_int rt2)
 {
@@ -5093,12 +5131,12 @@ static void do_ccstub(int n)
     do_jump_vaddr(stubs[n].e);
 }
 
-static void add_to_linker(void *addr, u_int target, int ext)
+static void add_to_linker(void *addr, u_int target, int is_internal)
 {
   assert(linkcount < ARRAY_SIZE(link_addr));
   link_addr[linkcount].addr = addr;
   link_addr[linkcount].target = target;
-  link_addr[linkcount].ext = ext;
+  link_addr[linkcount].internal = is_internal;
   linkcount++;
 }
 
@@ -6056,9 +6094,10 @@ void new_dynarec_clear_full(void)
   hack_addr=0;
   f1_hack=0;
   // TLB
-  for(n=0;n<4096;n++) ll_clear(jump_in+n);
+  for(n=0;n<4096;n++) blocks_clear(&blocks[n]);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
-  for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
+  stat_clear(stat_blocks);
+  stat_clear(stat_links);
 
   cycle_multiplier_old = cycle_multiplier;
   new_dynarec_hacks_old = new_dynarec_hacks;
@@ -6136,9 +6175,10 @@ void new_dynarec_cleanup(void)
     SysPrintf("munmap() failed\n");
   #endif
 #endif
-  for(n=0;n<4096;n++) ll_clear(jump_in+n);
+  for(n=0;n<4096;n++) blocks_clear(&blocks[n]);
   for(n=0;n<4096;n++) ll_clear(jump_out+n);
-  for(n=0;n<4096;n++) ll_clear(jump_dirty+n);
+  stat_clear(stat_blocks);
+  stat_clear(stat_links);
   #ifdef ROM_COPY
   if (munmap (ROM_COPY, 67108864) < 0) {SysPrintf("munmap() failed\n");}
   #endif
@@ -6204,19 +6244,21 @@ static int addr_cmp(const void *p1_, const void *p2_)
 
 int new_dynarec_save_blocks(void *save, int size)
 {
-  struct savestate_block *blocks = save;
-  int maxcount = size / sizeof(blocks[0]);
+  struct savestate_block *sblocks = save;
+  int maxcount = size / sizeof(sblocks[0]);
   struct savestate_block tmp_blocks[1024];
-  struct ll_entry *head;
+  struct block_info *block;
   int p, s, d, o, bcnt;
   u_int addr;
 
   o = 0;
-  for (p = 0; p < ARRAY_SIZE(jump_in); p++) {
+  for (p = 0; p < ARRAY_SIZE(blocks); p++) {
     bcnt = 0;
-    for (head = jump_in[p]; head != NULL; head = head->next) {
-      tmp_blocks[bcnt].addr = head->vaddr;
-      tmp_blocks[bcnt].regflags = head->reg_sv_flags;
+    for (block = blocks[p]; block != NULL; block = block->next) {
+      if (block->is_dirty)
+        continue;
+      tmp_blocks[bcnt].addr = block->start;
+      tmp_blocks[bcnt].regflags = block->reg_sv_flags;
       bcnt++;
     }
     if (bcnt < 1)
@@ -6234,22 +6276,39 @@ int new_dynarec_save_blocks(void *save, int size)
 
     if (o + d > maxcount)
       d = maxcount - o;
-    memcpy(&blocks[o], tmp_blocks, d * sizeof(blocks[0]));
+    memcpy(&sblocks[o], tmp_blocks, d * sizeof(sblocks[0]));
     o += d;
   }
 
-  return o * sizeof(blocks[0]);
+  return o * sizeof(sblocks[0]);
 }
 
 void new_dynarec_load_blocks(const void *save, int size)
 {
-  const struct savestate_block *blocks = save;
-  int count = size / sizeof(blocks[0]);
+  const struct savestate_block *sblocks = save;
+  int count = size / sizeof(sblocks[0]);
+  struct block_info *block;
   u_int regs_save[32];
+  u_int page;
   uint32_t f;
   int i, b;
 
-  get_addr(psxRegs.pc);
+  // restore clean blocks, if any
+  for (page = 0, b = i = 0; page < ARRAY_SIZE(blocks); page++) {
+    for (block = blocks[page]; block != NULL; block = block->next, b++) {
+      if (!block->is_dirty)
+        continue;
+      assert(block->source && block->copy);
+      if (memcmp(block->source, block->copy, block->len))
+        continue;
+
+      // see try_restore_block
+      block->is_dirty = 0;
+      mark_invalid_code(block->start, block->len, 0);
+      i++;
+    }
+  }
+  inv_debug("load_blocks: %d/%d clean blocks\n", i, b);
 
   // change GPRs for speculation to at least partially work..
   memcpy(regs_save, &psxRegs.GPR, sizeof(regs_save));
@@ -6257,14 +6316,14 @@ void new_dynarec_load_blocks(const void *save, int size)
     psxRegs.GPR.r[i] = 0x80000000;
 
   for (b = 0; b < count; b++) {
-    for (f = blocks[b].regflags, i = 0; f; f >>= 1, i++) {
+    for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
         psxRegs.GPR.r[i] = 0x1f800000;
     }
 
-    get_addr(blocks[b].addr);
+    ndrc_get_addr_ht(sblocks[b].addr);
 
-    for (f = blocks[b].regflags, i = 0; f; f >>= 1, i++) {
+    for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
         psxRegs.GPR.r[i] = 0x80000000;
     }
@@ -6276,14 +6335,14 @@ void new_dynarec_load_blocks(const void *save, int size)
 void new_dynarec_print_stats(void)
 {
 #ifdef STAT_PRINT
-  printf("cc %3d,%3d,%3d lu%3d,%3d c%3d inv%3d,%3d tc_offs %zu\n",
+  printf("cc %3d,%3d,%3d lu%6d,%3d,%3d c%3d inv%3d,%3d tc_offs %zu b %u,%u\n",
     stat_bc_pre, stat_bc_direct, stat_bc_restore,
-    stat_jump_in_lookups, stat_restore_tries, stat_restore_compares,
-    stat_inv_addr_calls, stat_inv_hits,
-    out - ndrc->translation_cache);
+    stat_ht_lookups, stat_jump_in_lookups, stat_restore_tries,
+    stat_restore_compares, stat_inv_addr_calls, stat_inv_hits,
+    out - ndrc->translation_cache, stat_blocks, stat_links);
   stat_bc_direct = stat_bc_pre = stat_bc_restore =
-  stat_jump_in_lookups = stat_restore_tries = stat_restore_compares =
-  stat_inv_addr_calls = stat_inv_hits = 0;
+  stat_ht_lookups = stat_jump_in_lookups = stat_restore_tries =
+  stat_restore_compares = stat_inv_addr_calls = stat_inv_hits = 0;
 #endif
 }
 
@@ -8696,20 +8755,19 @@ static noinline void pass10_expire_blocks(void)
     int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
     uintptr_t base_offs = ((uintptr_t)(expirep >> 13) << shift); // Base offset of this block
     uintptr_t base_offs_s = base_offs >> shift;
-    inv_debug("EXP: Phase %d\n",expirep);
+    if (!(expirep & ((1 << 13) - 1)))
+      inv_debug("EXP: base_offs %x\n", base_offs);
     switch((expirep>>11)&3)
     {
       case 0:
-        // Clear jump_in and jump_dirty
-        ll_remove_matching_addrs(jump_in+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_dirty+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_in+2048+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_dirty+2048+(expirep&2047),base_offs_s,shift);
+        // Clear blocks
+        blocks_remove_matching_addrs(&blocks[expirep & 2047], base_offs_s, shift);
+        blocks_remove_matching_addrs(&blocks[2048 + (expirep & 2047)], base_offs_s, shift);
         break;
       case 1:
         // Clear pointers
-        ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
-        ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
+        //ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
+        //ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
         break;
       case 2:
         // Clear hash table
@@ -8745,7 +8803,39 @@ static noinline void pass10_expire_blocks(void)
   }
 }
 
-int new_recompile_block(u_int addr)
+static struct block_info *new_block_info(u_int start, u_int len,
+  const void *source, const void *copy, u_char *beginning, u_short jump_in_count)
+{
+  struct block_info **b_pptr;
+  struct block_info *block;
+  u_int page = get_page(start);
+
+  block = malloc(sizeof(*block) + jump_in_count * sizeof(block->jump_in[0]));
+  assert(block);
+  assert(jump_in_count > 0);
+  block->source = source;
+  block->copy = copy;
+  block->start = start;
+  block->len = len;
+  block->reg_sv_flags = 0;
+  block->tc_offs = beginning - ndrc->translation_cache;
+  //block->tc_len = out - beginning;
+  block->is_dirty = 0;
+  block->jump_in_cnt = jump_in_count;
+
+  // insert sorted by start vaddr
+  for (b_pptr = &blocks[page]; ; b_pptr = &((*b_pptr)->next)) {
+    if (*b_pptr == NULL || (*b_pptr)->start >= start) {
+      block->next = *b_pptr;
+      *b_pptr = block;
+      break;
+    }
+  }
+  stat_inc(stat_blocks);
+  return block;
+}
+
+static int new_recompile_block(u_int addr)
 {
   u_int pagelimit = 0;
   u_int state_rflags = 0;
@@ -8765,21 +8855,20 @@ int new_recompile_block(u_int addr)
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     // XXX: is this enough? Maybe check hleSoftCall?
-    void *beginning=start_block();
-    u_int page=get_page(start);
+    void *beginning = start_block();
 
-    invalid_code[start>>12]=0;
     emit_movimm(start,0);
     emit_writeword(0,&pcaddr);
     emit_far_jump(new_dyna_leave);
     literal_pool(0);
     end_block(beginning);
-    ll_add_flags(jump_in+page,start,state_rflags,(void *)beginning);
+    struct block_info *block = new_block_info(start, 4, NULL, NULL, beginning, 1);
+    block->jump_in[0].vaddr = start;
+    block->jump_in[0].addr = beginning;
     return 0;
   }
   else if (f1_hack && hack_addr == 0) {
     void *beginning = start_block();
-    u_int page = get_page(start);
     emit_movimm(start, 0);
     emit_writeword(0, &hack_addr);
     emit_readword(&psxRegs.GPR.n.sp, 0);
@@ -8790,12 +8879,14 @@ int new_recompile_block(u_int addr)
     emit_adds_ptr(1, 1, 1);
     emit_ldr_dualindexed(1, 0, 0);
     emit_writeword(0, &psxRegs.GPR.r[26]); // lw k0, 0x18(sp)
-    emit_far_call(get_addr_ht);
+    emit_far_call(ndrc_get_addr_ht);
     emit_jmpreg(0); // jr k0
     literal_pool(0);
     end_block(beginning);
 
-    ll_add_flags(jump_in + page, start, state_rflags, beginning);
+    struct block_info *block = new_block_info(start, 4, NULL, NULL, beginning, 1);
+    block->jump_in[0].vaddr = start;
+    block->jump_in[0].addr = beginning;
     SysPrintf("F1 hack to   %08x\n", start);
     return 0;
   }
@@ -9050,14 +9141,14 @@ int new_recompile_block(u_int addr)
   {
     assem_debug("%p -> %8x\n",link_addr[i].addr,link_addr[i].target);
     literal_pool(64);
-    if (!link_addr[i].ext)
+    if (!link_addr[i].internal)
     {
       void *stub = out;
       void *addr = check_addr(link_addr[i].target);
       emit_extjump(link_addr[i].addr, link_addr[i].target);
       if (addr) {
         set_jump_target(link_addr[i].addr, addr);
-        add_jump_out(link_addr[i].target,stub);
+        ndrc_add_jump_out(link_addr[i].target,stub);
       }
       else
         set_jump_target(link_addr[i].addr, stub);
@@ -9086,35 +9177,41 @@ int new_recompile_block(u_int addr)
     copy = shadow;
 
   // External Branch Targets (jump_in)
-  for(i=0;i<slen;i++)
+  int jump_in_count = 1;
+  assert(instr_addr[0]);
+  for (i = 1; i < slen; i++)
   {
-    if(dops[i].bt||i==0)
+    if (dops[i].bt && instr_addr[i])
+      jump_in_count++;
+  }
+
+  struct block_info *block =
+    new_block_info(start, slen * 4, source, copy, beginning, jump_in_count);
+  block->reg_sv_flags = state_rflags;
+
+  int jump_in_i = 0;
+  for (i = 0; i < slen; i++)
+  {
+    if ((i == 0 || dops[i].bt) && instr_addr[i])
     {
-      if(instr_addr[i]) // TODO - delay slots (=null)
-      {
-        u_int vaddr=start+i*4;
-        u_int page=get_page(vaddr);
-        u_int vpage=get_vpage(vaddr);
-        literal_pool(256);
-        {
-          assem_debug("%p (%d) <- %8x\n",instr_addr[i],i,start+i*4);
-          assem_debug("jump_in: %x\n",start+i*4);
-          ll_add(jump_dirty+vpage,vaddr,out);
-          void *entry_point = do_dirty_stub(i, source_len);
-          ll_add_flags(jump_in+page,vaddr,state_rflags,entry_point);
-          // If there was an existing entry in the hash table,
-          // replace it with the new address.
-          // Don't add new entries.  We'll insert the
-          // ones that actually get used in check_addr().
-          struct ht_entry *ht_bin = hash_table_get(vaddr);
-          if (ht_bin->vaddr[0] == vaddr)
-            ht_bin->tcaddr[0] = entry_point;
-          if (ht_bin->vaddr[1] == vaddr)
-            ht_bin->tcaddr[1] = entry_point;
-        }
-      }
+      assem_debug("%p (%d) <- %8x\n", instr_addr[i], i, start + i*4);
+      u_int vaddr = start + i*4;
+
+      literal_pool(256);
+      void *entry = out;
+      load_regs_entry(i);
+      if (entry == out)
+        entry = instr_addr[i];
+      else
+        emit_jmp(instr_addr[i]);
+
+      block->jump_in[jump_in_i].vaddr = vaddr;
+      block->jump_in[jump_in_i].addr = entry;
+      jump_in_i++;
     }
   }
+  assert(jump_in_i == jump_in_count);
+  hash_table_add(block->jump_in[0].vaddr, block->jump_in[0].addr);
   // Write out the literal pool if necessary
   literal_pool(0);
   #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
@@ -9134,7 +9231,7 @@ int new_recompile_block(u_int addr)
     out = ndrc->translation_cache;
 
   // Trap writes to any of the pages we compiled
-  mark_valid_code(start, slen*4);
+  mark_invalid_code(start, slen*4, 0);
 
   /* Pass 10 - Free memory by expiring oldest blocks */
 

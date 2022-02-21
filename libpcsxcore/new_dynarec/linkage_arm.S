@@ -26,13 +26,12 @@
 
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
-#define add_jump_out		ESYM(add_jump_out)
-#define new_recompile_block	ESYM(new_recompile_block)
+#define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
 #define ndrc_try_restore_block	ESYM(ndrc_try_restore_block)
-#define get_addr		ESYM(get_addr)
-#define get_addr_ht		ESYM(get_addr_ht)
+#define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
+#define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
+#define ndrc_invalidate_addr	ESYM(ndrc_invalidate_addr)
 #define gen_interupt		ESYM(gen_interupt)
-#define invalidate_addr		ESYM(invalidate_addr)
 #define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
 #endif
@@ -88,16 +87,6 @@ DRC_VAR(invc_ptr, 4)
 DRC_VAR(scratch_buf_ptr, 4)
 DRC_VAR(ram_offset, 4)
 DRC_VAR(mini_ht, 256)
-
-
-#ifdef TEXRELS_FORBIDDEN
-	.data
-	.align 2
-ptr_jump_in:
-	.word	ESYM(jump_in)
-ptr_hash_table:
-	.word	ESYM(hash_table)
-#endif
 
 
 	.syntax unified
@@ -156,46 +145,28 @@ ptr_hash_table:
 #endif
 .endm
 
-/* r4 = virtual target address */
-/* r5 = instruction to patch */
-.macro dyna_linker_main
+FUNCTION(dyna_linker):
+	/* r0 = virtual target address */
+	/* r1 = pointer to an instruction to patch */
 #ifndef NO_WRITE_EXEC
-	load_varadr_ext r3, jump_in
-	/* get_page */
-	lsr     r2, r4, #12
-	mov	r6, #4096
-	bic	r2, r2, #0xe0000
-	sub	r6, r6, #1
-	cmp     r2, #0x1000
-	ldr	r7, [r5]
-	biclt   r2, #0x0e00
-	and	r6, r6, r2
-	cmp	r2, #2048
-	add	r12, r7, #2
-	orrcs	r2, r6, #2048
-	ldr	r1, [r3, r2, lsl #2]
-	lsl	r12, r12, #8
-	add	r6, r5, r12, asr #6  /* old target */
-	mov	r8, #0
-	/* jump_in lookup */
-1:
-	movs	r0, r1
-	beq	2f
-	ldr	r3, [r1]	 /* ll_entry .vaddr */
-	ldrd	r0, r1, [r0, #8] /* ll_entry .addr, .next */
-	teq	r3, r4
-	bne	1b
+	ldr	r7, [r1]
+	mov	r4, r0
+	add	r6, r7, #2
+	mov	r5, r1
+	lsl	r6, r6, #8
+	/* must not compile - that might expire the caller block */
+	mov	r1, #0
+	bl	ndrc_get_addr_ht_param
+
+	movs	r8, r0
+	beq	0f
+	add	r6, r5, r6, asr #6  /* old target */
 	teq	r0, r6
 	moveq	pc, r0 /* Stale i-cache */
-	mov	r8, r0
-	b  	1b     /* jump_in may have dupes, continue search */
-2:
-	tst     r8, r8
-	beq	3f     /* r4 not in jump_in */
-
 	mov	r0, r4
 	mov	r1, r6
-	bl	add_jump_out
+	bl	ndrc_add_jump_out
+
 	sub	r2, r8, r5
 	and	r1, r7, #0xff000000
 	lsl	r2, r2, #6
@@ -203,162 +174,63 @@ ptr_hash_table:
 	add	r1, r1, r2, lsr #8
 	str	r1, [r5]
 	mov	pc, r8
-3:
+0:
 	mov	r0, r4
-	bl	ndrc_try_restore_block
-	tst	r0, r0
-	movne	pc, r0
 #else
 	/* XXX: should be able to do better than this... */
-	mov	r0, r4
-	bl	get_addr_ht
-	mov	pc, r0
 #endif
-.endm
-
-
-FUNCTION(dyna_linker):
-	/* r0 = virtual target address */
-	/* r1 = instruction to patch */
-	mov	r4, r0
-	mov	r5, r1
-10:
-	dyna_linker_main
-
-	mov	r0, r4
-	bl	new_recompile_block
-	tst	r0, r0
-	beq	10b
-
-	mov	r0, r4
-	mov	r1, r0
-	mov	r2, #(4<<2)  /* Address error (fetch) */
-
-	/* r0 = instruction pointer */
-	/* r1 = fault address */
-	ldr	r3, [fp, #LO_reg_cop0+48] /* Status */
-	str	r0, [fp, #LO_reg_cop0+56] /* EPC */
-	orr	r3, r3, #2
-	str	r1, [fp, #LO_reg_cop0+32] /* BadVAddr */
-	str	r3, [fp, #LO_reg_cop0+48] /* Status */
-	str	r2, [fp, #LO_reg_cop0+52] /* Cause */
-	mov	r0, #0x80000000
-	orr	r0, r0, #0x80
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	dyna_linker, .-dyna_linker
 
 	.align	2
-FUNCTION(jump_vaddr_r0):
-	eor	r2, r0, r0, lsl #16
-	b	jump_vaddr
-	.size	jump_vaddr_r0, .-jump_vaddr_r0
 FUNCTION(jump_vaddr_r1):
-	eor	r2, r1, r1, lsl #16
 	mov	r0, r1
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r1, .-jump_vaddr_r1
 FUNCTION(jump_vaddr_r2):
 	mov	r0, r2
-	eor	r2, r2, r2, lsl #16
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r2, .-jump_vaddr_r2
 FUNCTION(jump_vaddr_r3):
-	eor	r2, r3, r3, lsl #16
 	mov	r0, r3
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r3, .-jump_vaddr_r3
 FUNCTION(jump_vaddr_r4):
-	eor	r2, r4, r4, lsl #16
 	mov	r0, r4
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r4, .-jump_vaddr_r4
 FUNCTION(jump_vaddr_r5):
-	eor	r2, r5, r5, lsl #16
 	mov	r0, r5
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r5, .-jump_vaddr_r5
 FUNCTION(jump_vaddr_r6):
-	eor	r2, r6, r6, lsl #16
 	mov	r0, r6
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r6, .-jump_vaddr_r6
 FUNCTION(jump_vaddr_r8):
-	eor	r2, r8, r8, lsl #16
 	mov	r0, r8
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r8, .-jump_vaddr_r8
 FUNCTION(jump_vaddr_r9):
-	eor	r2, r9, r9, lsl #16
 	mov	r0, r9
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r9, .-jump_vaddr_r9
 FUNCTION(jump_vaddr_r10):
-	eor	r2, r10, r10, lsl #16
 	mov	r0, r10
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r10, .-jump_vaddr_r10
 FUNCTION(jump_vaddr_r12):
-	eor	r2, r12, r12, lsl #16
 	mov	r0, r12
-	b	jump_vaddr
+	b	jump_vaddr_r0
 	.size	jump_vaddr_r12, .-jump_vaddr_r12
 FUNCTION(jump_vaddr_r7):
-	eor	r2, r7, r7, lsl #16
 	add	r0, r7, #0
 	.size	jump_vaddr_r7, .-jump_vaddr_r7
-FUNCTION(jump_vaddr):
-	load_varadr_ext r1, hash_table
-	mvn	r3, #15
-	and	r2, r3, r2, lsr #12
-	ldr	r2, [r1, r2]!
-	teq	r2, r0
-	ldreq	pc, [r1, #8]
-	ldr	r2, [r1, #4]
-	teq	r2, r0
-	ldreq	pc, [r1, #12]
-	str	r10, [fp, #LO_cycle_count]
-	bl	get_addr
-	ldr	r10, [fp, #LO_cycle_count]
+FUNCTION(jump_vaddr_r0):
+	bl	ndrc_get_addr_ht
 	mov	pc, r0
-	.size	jump_vaddr, .-jump_vaddr
-
-	.align	2
-
-FUNCTION(verify_code):
-	/* r1 = source */
-	/* r2 = target */
-	/* r3 = length */
-	tst	r3, #4
-	mov	r4, #0
-	add	r3, r1, r3
-	mov	r5, #0
-	ldrne	r4, [r1], #4
-	mov	r12, #0
-	ldrne	r5, [r2], #4
-	teq	r1, r3
-	beq	.D3
-.D2:
-	ldr	r7, [r1], #4
-	eor	r9, r4, r5
-	ldr	r8, [r2], #4
-	orrs	r9, r9, r12
-	bne	.D4
-	ldr	r4, [r1], #4
-	eor	r12, r7, r8
-	ldr	r5, [r2], #4
-	cmp	r1, r3
-	bcc	.D2
-	teq	r7, r8
-.D3:
-	teqeq	r4, r5
-.D4:
-	ldr	r8, [fp, #LO_branch_target]
-	moveq	pc, lr
-.D5:
-	bl	get_addr
-	mov	pc, r0
-	.size	verify_code, .-verify_code
+	.size	jump_vaddr_r0, .-jump_vaddr_r0
 
 	.align	2
 FUNCTION(cc_interrupt):
@@ -383,7 +255,7 @@ FUNCTION(cc_interrupt):
 	tst	r1, r1
 	moveq	pc, lr
 	ldr	r0, [fp, #LO_pcaddr]
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	cc_interrupt, .-cc_interrupt
 
@@ -399,7 +271,7 @@ FUNCTION(fp_exception):
 	str	r1, [fp, #LO_reg_cop0+48] /* Status */
 	str	r2, [fp, #LO_reg_cop0+52] /* Cause */
 	add	r0, r3, #0x80
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	fp_exception, .-fp_exception
 	.align	2
@@ -440,7 +312,7 @@ FUNCTION(jump_to_new_pc):
 	ldr	r0, [fp, #LO_pcaddr]
 	sub	r10, r10, r1
 	str	r1, [fp, #LO_last_count]
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	jump_to_new_pc, .-jump_to_new_pc
 
@@ -529,7 +401,7 @@ invalidate_addr_call:
 	ldr	lr, [fp, #LO_inv_code_end]
 	cmp	r0, r12
 	cmpcs   lr, r0
-	blcc	invalidate_addr
+	blcc	ndrc_invalidate_addr
 	ldmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, pc}
 	.size	invalidate_addr_call, .-invalidate_addr_call
 
@@ -539,7 +411,7 @@ FUNCTION(new_dyna_start):
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
 	mov	fp, r0 /* dynarec_local */
 	ldr	r0, [fp, #LO_pcaddr]
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	str	r1, [fp, #LO_last_count]
