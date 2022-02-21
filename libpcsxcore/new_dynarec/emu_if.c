@@ -332,7 +332,7 @@ static void ari64_reset()
 {
 	printf("ari64_reset\n");
 	new_dyna_pcsx_mem_reset();
-	invalidate_all_pages();
+	new_dynarec_invalidate_all_pages();
 	new_dyna_restore();
 	pending_exception = 1;
 }
@@ -362,21 +362,11 @@ static void ari64_execute()
 
 static void ari64_clear(u32 addr, u32 size)
 {
-	u32 start, end, main_ram;
-
 	size *= 4; /* PCSX uses DMA units (words) */
 
 	evprintf("ari64_clear %08x %04x\n", addr, size);
 
-	/* check for RAM mirrors */
-	main_ram = (addr & 0xffe00000) == 0x80000000;
-
-	start = addr >> 12;
-	end = (addr + size) >> 12;
-
-	for (; start <= end; start++)
-		if (!main_ram || !invalid_code[start])
-			invalidate_block(start);
+	new_dynarec_invalidate_range(addr, addr + size);
 }
 
 static void ari64_notify(int note, void *data) {
@@ -449,8 +439,8 @@ void new_dynarec_init() {}
 void new_dyna_start(void *context) {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}
-void invalidate_all_pages() {}
-void invalidate_block(unsigned int block) {}
+void new_dynarec_invalidate_all_pages() {}
+void new_dynarec_invalidate_range(unsigned int start, unsigned int end) { return 0; }
 void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
 void new_dyna_pcsx_mem_load_state(void) {}

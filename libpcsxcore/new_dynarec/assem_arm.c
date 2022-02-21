@@ -194,6 +194,7 @@ static void *find_extjump_insn(void *stub)
 // get address that insn one after stub loads (dyna_linker arg1),
 // treat it as a pointer to branch insn,
 // return addr where that branch jumps to
+#if 0
 static void *get_pointer(void *stub)
 {
   //printf("get_pointer(%x)\n",(int)stub);
@@ -201,106 +202,7 @@ static void *get_pointer(void *stub)
   assert((*i_ptr&0x0f000000)==0x0a000000); // b
   return (u_char *)i_ptr+((*i_ptr<<8)>>6)+8;
 }
-
-// Find the "clean" entry point from a "dirty" entry point
-// by skipping past the call to verify_code
-static void *get_clean_addr(void *addr)
-{
-  signed int *ptr = addr;
-  #ifndef HAVE_ARMV7
-  ptr+=4;
-  #else
-  ptr+=6;
-  #endif
-  if((*ptr&0xFF000000)!=0xeb000000) ptr++;
-  assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  ptr++;
-  if((*ptr&0xFF000000)==0xea000000) {
-    return (char *)ptr+((*ptr<<8)>>6)+8; // follow jump
-  }
-  return ptr;
-}
-
-static int verify_dirty(const u_int *ptr)
-{
-  #ifndef HAVE_ARMV7
-  u_int offset;
-  // get from literal pool
-  assert((*ptr&0xFFFF0000)==0xe59f0000);
-  offset=*ptr&0xfff;
-  u_int source=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  assert((*ptr&0xFFFF0000)==0xe59f0000);
-  offset=*ptr&0xfff;
-  u_int copy=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  assert((*ptr&0xFFFF0000)==0xe59f0000);
-  offset=*ptr&0xfff;
-  u_int len=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  ptr++;
-  #else
-  // ARMv7 movw/movt
-  assert((*ptr&0xFFF00000)==0xe3000000);
-  u_int source=(ptr[0]&0xFFF)+((ptr[0]>>4)&0xF000)+((ptr[2]<<16)&0xFFF0000)+((ptr[2]<<12)&0xF0000000);
-  u_int copy=(ptr[1]&0xFFF)+((ptr[1]>>4)&0xF000)+((ptr[3]<<16)&0xFFF0000)+((ptr[3]<<12)&0xF0000000);
-  u_int len=(ptr[4]&0xFFF)+((ptr[4]>>4)&0xF000);
-  ptr+=6;
-  #endif
-  if((*ptr&0xFF000000)!=0xeb000000) ptr++;
-  assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  //printf("verify_dirty: %x %x %x\n",source,copy,len);
-  return !memcmp((void *)source,(void *)copy,len);
-}
-
-// This doesn't necessarily find all clean entry points, just
-// guarantees that it's not dirty
-static int isclean(void *addr)
-{
-  #ifndef HAVE_ARMV7
-  u_int *ptr=((u_int *)addr)+4;
-  #else
-  u_int *ptr=((u_int *)addr)+6;
-  #endif
-  if((*ptr&0xFF000000)!=0xeb000000) ptr++;
-  if((*ptr&0xFF000000)!=0xeb000000) return 1; // bl instruction
-  if((int)ptr+((*ptr<<8)>>6)+8==(int)verify_code) return 0;
-  return 1;
-}
-
-// get source that block at addr was compiled from (host pointers)
-static void get_bounds(void *addr, u_char **start, u_char **end)
-{
-  u_int *ptr = addr;
-  #ifndef HAVE_ARMV7
-  u_int offset;
-  // get from literal pool
-  assert((*ptr&0xFFFF0000)==0xe59f0000);
-  offset=*ptr&0xfff;
-  u_int source=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  //assert((*ptr&0xFFFF0000)==0xe59f0000);
-  //offset=*ptr&0xfff;
-  //u_int copy=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  assert((*ptr&0xFFFF0000)==0xe59f0000);
-  offset=*ptr&0xfff;
-  u_int len=*(u_int*)((void *)ptr+offset+8);
-  ptr++;
-  ptr++;
-  #else
-  // ARMv7 movw/movt
-  assert((*ptr&0xFFF00000)==0xe3000000);
-  u_int source=(ptr[0]&0xFFF)+((ptr[0]>>4)&0xF000)+((ptr[2]<<16)&0xFFF0000)+((ptr[2]<<12)&0xF0000000);
-  //u_int copy=(ptr[1]&0xFFF)+((ptr[1]>>4)&0xF000)+((ptr[3]<<16)&0xFFF0000)+((ptr[3]<<12)&0xF0000000);
-  u_int len=(ptr[4]&0xFFF)+((ptr[4]>>4)&0xF000);
-  ptr+=6;
-  #endif
-  if((*ptr&0xFF000000)!=0xeb000000) ptr++;
-  assert((*ptr&0xFF000000)==0xeb000000); // bl instruction
-  *start=(u_char *)source;
-  *end=(u_char *)source+len;
-}
+#endif
 
 // Allocate a specific ARM register.
 static void alloc_arm_reg(struct regstat *cur,int i,signed char reg,int hr)
@@ -1623,7 +1525,7 @@ static void literal_pool_jumpover(int n)
 }
 
 // parsed by get_pointer, find_extjump_insn
-static void emit_extjump2(u_char *addr, u_int target, void *linker)
+static void emit_extjump(u_char *addr, u_int target)
 {
   u_char *ptr=(u_char *)addr;
   assert((ptr[3]&0x0e)==0xa);
@@ -1633,18 +1535,7 @@ static void emit_extjump2(u_char *addr, u_int target, void *linker)
   emit_loadlp((u_int)addr,1);
   assert(ndrc->translation_cache <= addr &&
          addr < ndrc->translation_cache + sizeof(ndrc->translation_cache));
-  //assert((target>=0x80000000&&target<0x80800000)||(target>0xA4000000&&target<0xA4001000));
-//DEBUG >
-#ifdef DEBUG_CYCLE_COUNT
-  emit_readword(&last_count,ECX);
-  emit_add(HOST_CCREG,ECX,HOST_CCREG);
-  emit_readword(&next_interupt,ECX);
-  emit_writeword(HOST_CCREG,&Count);
-  emit_sub(HOST_CCREG,ECX,HOST_CCREG);
-  emit_writeword(ECX,&last_count);
-#endif
-//DEBUG <
-  emit_far_jump(linker);
+  emit_far_jump(dyna_linker);
 }
 
 static void check_extjump2(void *src)
@@ -1985,36 +1876,6 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
   if(cc<0)
     emit_storereg(CCREG,2);
   restore_regs(reglist);
-}
-
-// this output is parsed by verify_dirty, get_bounds, isclean, get_clean_addr
-static void do_dirty_stub_emit_args(u_int arg0, u_int source_len)
-{
-  #ifndef HAVE_ARMV7
-  emit_loadlp((int)source, 1);
-  emit_loadlp((int)copy, 2);
-  emit_loadlp(source_len, 3);
-  #else
-  emit_movw(((u_int)source)&0x0000FFFF, 1);
-  emit_movw(((u_int)copy)&0x0000FFFF, 2);
-  emit_movt(((u_int)source)&0xFFFF0000, 1);
-  emit_movt(((u_int)copy)&0xFFFF0000, 2);
-  emit_movw(source_len, 3);
-  #endif
-  emit_movimm(arg0, 0);
-}
-
-static void *do_dirty_stub(int i, u_int source_len)
-{
-  assem_debug("do_dirty_stub %x\n",start+i*4);
-  do_dirty_stub_emit_args(start + i*4, source_len);
-  emit_far_call(verify_code);
-  void *entry = out;
-  load_regs_entry(i);
-  if (entry == out)
-    entry = instr_addr[i];
-  emit_jmp(instr_addr[i]);
-  return entry;
 }
 
 /* Special assem */

@@ -87,7 +87,7 @@ DRC_VAR(mini_ht, 256)
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	br	x0
 	.size	dyna_linker, .-dyna_linker
 
@@ -113,7 +113,7 @@ FUNCTION(cc_interrupt):
 	ret
 2:
 	ldr	w0, [rFP, #LO_pcaddr]
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	br	x0
 	.size	cc_interrupt, .-cc_interrupt
 
@@ -129,7 +129,7 @@ FUNCTION(fp_exception):
 	str	w1, [rFP, #LO_reg_cop0+48] /* Status */
 	str	w2, [rFP, #LO_reg_cop0+52] /* Cause */
 	add	w0, w3, #0x80
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	br	x0
 	.size	fp_exception, .-fp_exception
 	.align	2
@@ -170,7 +170,7 @@ FUNCTION(jump_to_new_pc):
 	ldr	w0, [rFP, #LO_pcaddr]
 	sub	rCC, rCC, w1
 	str	w1, [rFP, #LO_last_count]
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	br	x0
 	.size	jump_to_new_pc, .-jump_to_new_pc
 
@@ -189,7 +189,7 @@ FUNCTION(new_dyna_start):
 	ldr	w0,  [rFP, #LO_pcaddr]
 	str	w1,  [rFP, #LO_last_count]
 	sub	rCC, w2, w1
-	bl	get_addr_ht
+	bl	ndrc_get_addr_ht
 	br	x0
 	.size	new_dyna_start, .-new_dyna_start
 
