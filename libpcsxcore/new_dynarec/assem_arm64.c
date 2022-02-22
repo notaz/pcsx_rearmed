@@ -838,6 +838,12 @@ static void emit_cmp(u_int rs,u_int rt)
   output_w32(0x6b000000 | rm_rn_rd(rt, rs, WZR));
 }
 
+static void emit_cmpcs(u_int rs,u_int rt)
+{
+  assem_debug("ccmp %s,%s,#0,cs\n",regname[rs],regname[rt]);
+  output_w32(0x7a400000 | (COND_CS << 12) | rm_rn_rd(rt, rs, 0));
+}
+
 static void emit_set_gz32(u_int rs, u_int rt)
 {
   //assem_debug("set_gz32\n");

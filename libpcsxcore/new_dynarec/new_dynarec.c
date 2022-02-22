@@ -77,6 +77,10 @@
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 
+#if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+#define INVALIDATE_USE_COND_CALL
+#endif
+
 #ifdef VITA
 // apparently Vita has a 16MB limit, so either we cut tc in half,
 // or use this hack (it's a hack because tc size was designed to be power-of-2)
@@ -603,7 +607,7 @@ static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
       invalid_code[(i|j|0xa0000000u) >> 12] = invalid;
     }
   }
-  if (!invalid)
+  if (!invalid && vaddr + len > inv_code_start && vaddr <= inv_code_end)
     inv_code_start = inv_code_end = ~0;
 }
 
@@ -1475,11 +1479,19 @@ void new_dynarec_invalidate_all_pages(void)
 static void do_invstub(int n)
 {
   literal_pool(20);
-  u_int reglist=stubs[n].a;
+  u_int reglist = stubs[n].a;
   set_jump_target(stubs[n].addr, out);
   save_regs(reglist);
-  if(stubs[n].b!=0) emit_mov(stubs[n].b,0);
+  if (stubs[n].b != 0)
+    emit_mov(stubs[n].b, 0);
+  emit_readword(&inv_code_start, 1);
+  emit_readword(&inv_code_end, 2);
+  emit_cmp(0, 1);
+  emit_cmpcs(2, 0);
+  void *jaddr = out;
+  emit_jc(0);
   emit_far_call(ndrc_invalidate_addr);
+  set_jump_target(jaddr, out);
   restore_regs(reglist);
   emit_jmp(stubs[n].retaddr); // return address
 }
@@ -3168,7 +3180,7 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
       #else
       emit_cmpmem_indexedsr12_imm(invalid_code,addr,1);
       #endif
-      #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+      #ifdef INVALIDATE_USE_COND_CALL
       emit_callne(invalidate_addr_reg[addr]);
       #else
       void *jaddr2 = out;
@@ -3325,7 +3337,7 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
     #else
     emit_cmpmem_indexedsr12_imm(invalid_code,temp,1);
     #endif
-    #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+    #ifdef INVALIDATE_USE_COND_CALL
     emit_callne(invalidate_addr_reg[temp]);
     #else
     void *jaddr2 = out;
@@ -3860,7 +3872,7 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
 #else
     emit_cmpmem_indexedsr12_imm(invalid_code,ar,1);
 #endif
-    #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
+    #ifdef INVALIDATE_USE_COND_CALL
     emit_callne(invalidate_addr_reg[ar]);
     #else
     void *jaddr3 = out;

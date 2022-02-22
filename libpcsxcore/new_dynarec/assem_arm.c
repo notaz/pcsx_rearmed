@@ -899,6 +899,12 @@ static void emit_cmp(int rs,int rt)
   output_w32(0xe1500000|rd_rn_rm(0,rs,rt));
 }
 
+static void emit_cmpcs(int rs,int rt)
+{
+  assem_debug("cmpcs %s,%s\n",regname[rs],regname[rt]);
+  output_w32(0x21500000|rd_rn_rm(0,rs,rt));
+}
+
 static void emit_set_gz32(int rs, int rt)
 {
   //assem_debug("set_gz32\n");
