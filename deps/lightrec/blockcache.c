@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /*
- * Copyright (C) 2015-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2015-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #include "blockcache.h"
@@ -19,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Must be power of two */
 #define LUT_SIZE 0x4000
@@ -27,6 +19,11 @@ struct blockcache {
 	struct lightrec_state *state;
 	struct block * lut[LUT_SIZE];
 };
+
+u16 lightrec_get_lut_entry(const struct block *block)
+{
+	return (kunseg(block->pc) >> 2) & (LUT_SIZE - 1);
+}
 
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
@@ -42,22 +39,33 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 	return NULL;
 }
 
+struct block * lightrec_find_block_from_lut(struct blockcache *cache,
+					    u16 lut_entry, u32 addr_in_block)
+{
+	struct block *block;
+	u32 pc;
+
+	addr_in_block = kunseg(addr_in_block);
+
+	for (block = cache->lut[lut_entry]; block; block = block->next) {
+		pc = kunseg(block->pc);
+		if (addr_in_block >= pc &&
+		    addr_in_block < pc + (block->nb_ops << 2))
+			return block;
+	}
+
+	return NULL;
+}
+
 void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
-	struct lightrec_state *state = block->state;
-	const struct opcode *op;
+	struct lightrec_state *state = cache->state;
 	u32 offset = lut_offset(block->pc);
 
-	/* Use state->get_next_block in the code LUT, which basically
-	 * calls back get_next_block_func(), until the compiler
-	 * overrides this. This is required, as a NULL value in the code
-	 * LUT means an outdated block. */
-	state->code_lut[offset] = state->get_next_block;
-
-	for (op = block->opcode_list; op; op = op->next)
-		if (op->c.i.op == OP_META_SYNC)
-			state->code_lut[offset + op->offset] = NULL;
-
+	if (block->function) {
+		memset(&state->code_lut[offset], 0,
+		       block->nb_ops * sizeof(*state->code_lut));
+	}
 }
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
@@ -102,7 +110,7 @@ void lightrec_free_block_cache(struct blockcache *cache)
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
 			next = block->next;
-			lightrec_free_block(block);
+			lightrec_free_block(cache->state, block);
 		}
 	}
 
@@ -124,17 +132,9 @@ struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 
 u32 lightrec_calculate_block_hash(const struct block *block)
 {
-	const struct lightrec_mem_map *map = block->map;
-	u32 pc, hash = 0xffffffff;
-	const u32 *code;
+	const u32 *code = block->code;
+	u32 hash = 0xffffffff;
 	unsigned int i;
-
-	pc = kunseg(block->pc) - map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	code = map->address + pc;
 
 	/* Jenkins one-at-a-time hash algorithm */
 	for (i = 0; i < block->nb_ops; i++) {
@@ -150,9 +150,9 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 	return hash;
 }
 
-bool lightrec_block_is_outdated(struct block *block)
+bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block)
 {
-	void **lut_entry = &block->state->code_lut[lut_offset(block->pc)];
+	void **lut_entry = &state->code_lut[lut_offset(block->pc)];
 	bool outdated;
 
 	if (*lut_entry)
@@ -165,7 +165,7 @@ bool lightrec_block_is_outdated(struct block *block)
 		if (block->function)
 			*lut_entry = block->function;
 		else
-			*lut_entry = block->state->get_next_block;
+			*lut_entry = state->get_next_block;
 	}
 
 	return outdated;

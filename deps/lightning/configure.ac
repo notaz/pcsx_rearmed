@@ -7,26 +7,29 @@ dnl GNU lightning is free software; you can redistribute it and/or modify it
 dnl under the terms of the GNU Lesser General Public License as published
 dnl by the Free Software Foundation; either version 3, or (at your option)
 dnl any later version.
-dnl 
+dnl
 dnl GNU lightning is distributed in the hope that it will be useful, but
 dnl WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
 dnl or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 dnl License for more details.
 dnl
 
-AC_PREREQ(2.57)
+AC_PREREQ(2.64)
 AC_INIT([GNU lightning], 2.1.3, pcpa@gnu.org, lightning)
+AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([dist-bzip2])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AC_CONFIG_MACRO_DIR(m4)
+AC_CONFIG_MACRO_DIR([m4])
 
-AC_CONFIG_HEADERS(config.h)
+AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_CC
-AC_PROG_INSTALL
-AC_PROG_LIBTOOL
+gl_EARLY
+AM_PROG_AR
+LT_INIT
+gl_INIT
 
 case "$target_cpu" in
     ia64)
@@ -291,6 +294,7 @@ fi
 
 AC_OUTPUT([Makefile
 	   lightning.pc
+           gnulib-lib/Makefile
 	   doc/Makefile
 	   include/Makefile
 	   include/lightning/Makefile

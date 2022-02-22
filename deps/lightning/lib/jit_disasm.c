@@ -50,7 +50,7 @@ static asymbol			 *disasm_synthetic;
 static long			  disasm_num_symbols;
 static long			  disasm_num_synthetic;
 static jit_state_t		 *disasm_jit;
-#define disasm_stream		  stdout
+static FILE			 *disasm_stream;
 #endif
 
 /*
@@ -73,6 +73,8 @@ jit_init_debug(const char *progname)
     }
     bfd_check_format(disasm_bfd, bfd_object);
     bfd_check_format(disasm_bfd, bfd_archive);
+    if (!disasm_stream)
+	disasm_stream = stderr;
     INIT_DISASSEMBLE_INFO(disasm_info, disasm_stream, fprintf);
 #  if defined(__i386__) || defined(__x86_64__)
     disasm_info.arch = bfd_arch_i386;

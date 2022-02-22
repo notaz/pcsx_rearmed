@@ -1160,7 +1160,11 @@ _htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     ROTLWI(rn(reg), r1, 8);
     RLWIMI(rn(reg), r1, 24, 0, 7);
     RLWIMI(rn(reg), r1, 24, 16, 23);
+#  if __WORDSIZE == 64
     CLRLDI(r0, rn(reg), 32);
+#  else
+    MR(r0,rn(reg));
+#  endif
     jit_unget_reg(reg);
 }
 

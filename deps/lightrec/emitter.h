@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 /*
- * Copyright (C) 2014-2020 Paul Cercueil <paul@crapouillou.net>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
 #ifndef __EMITTER_H__
@@ -18,11 +9,11 @@
 #include "lightrec.h"
 
 struct block;
+struct lightrec_cstate;
 struct opcode;
 
-void lightrec_rec_opcode(const struct block *block,
-			 const struct opcode *op, u32 pc);
-void lightrec_emit_eob(const struct block *block,
-		       const struct opcode *op, u32 pc);
+void lightrec_rec_opcode(struct lightrec_cstate *state, const struct block *block, u16 offset);
+void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
+		       u16 offset, _Bool after_op);
 
 #endif /* __EMITTER_H__ */

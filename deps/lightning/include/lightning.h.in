@@ -1011,6 +1011,12 @@ extern void _jit_retr_d(jit_state_t*, jit_fpr_t);
 extern void _jit_reti_d(jit_state_t*, jit_float64_t);
 extern void _jit_retval_d(jit_state_t*, jit_fpr_t);
 
+#define jit_get_reg(s)		_jit_get_reg(_jit,s)
+extern jit_int32_t _jit_get_reg(jit_state_t*, jit_int32_t);
+
+#define jit_unget_reg(r)	_jit_unget_reg(_jit,r)
+extern void _jit_unget_reg(jit_state_t*, jit_int32_t);
+
 #define jit_new_node(c)		_jit_new_node(_jit,c)
 extern jit_node_t *_jit_new_node(jit_state_t*, jit_code_t);
 #define jit_new_node_w(c,u)	_jit_new_node_w(_jit,c,u)
