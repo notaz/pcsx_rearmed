@@ -76,6 +76,8 @@
 #define RAM_SIZE 0x200000
 #define MAXBLOCK 4096
 #define MAX_OUTPUT_BLOCK_SIZE 262144
+#define EXPIRITY_OFFSET (MAX_OUTPUT_BLOCK_SIZE * 2)
+#define PAGE_COUNT 1024
 
 #if defined(HAVE_CONDITIONAL_CALL) && !defined(DESTRUCTIVE_SHIFT)
 #define INVALIDATE_USE_COND_CALL
@@ -214,8 +216,8 @@ static struct decoded_insn
 
   static u_char *out;
   static struct ht_entry hash_table[65536];
-  static struct block_info *blocks[4096];
-  static struct ll_entry *jump_out[4096];
+  static struct block_info *blocks[PAGE_COUNT];
+  static struct ll_entry *jump_out[PAGE_COUNT];
   static u_int start;
   static u_int *source;
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
@@ -251,7 +253,7 @@ static struct decoded_insn
   static int is_delayslot;
   static char shadow[1048576]  __attribute__((aligned(16)));
   static void *copy;
-  static int expirep;
+  static u_int expirep;
   static u_int stop_after_jal;
   static u_int f1_hack;
 #ifdef STAT_PRINT
@@ -500,13 +502,13 @@ static void do_clear_cache(void)
     for (j = 0; j < 32; j++)
     {
       u_char *start, *end;
-      if (!(bitmap & (1<<j)))
+      if (!(bitmap & (1u << j)))
         continue;
 
       start = ndrc->translation_cache + i*131072 + j*4096;
       end = start + 4095;
       for (j++; j < 32; j++) {
-        if (!(bitmap & (1<<j)))
+        if (!(bitmap & (1u << j)))
           break;
         end += 4096;
       }
@@ -549,7 +551,8 @@ static u_int pmmask(u_int vaddr)
 static u_int get_page(u_int vaddr)
 {
   u_int page = pmmask(vaddr) >> 12;
-  if(page>2048) page=2048+(page&2047);
+  if (page >= PAGE_COUNT / 2)
+    page = PAGE_COUNT / 2 + (page & (PAGE_COUNT / 2 - 1));
   return page;
 }
 
@@ -611,11 +614,10 @@ static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
     inv_code_start = inv_code_end = ~0;
 }
 
-// some messy ari64's code, seems to rely on unsigned 32bit overflow
-static int doesnt_expire_soon(void *tcaddr)
+static int doesnt_expire_soon(u_char *tcaddr)
 {
-  u_int diff = (u_int)((u_char *)tcaddr - out) << (32-TARGET_SIZE_2);
-  return diff > (u_int)(0x60000000 + (MAX_OUTPUT_BLOCK_SIZE << (32-TARGET_SIZE_2)));
+  u_int diff = (u_int)(tcaddr - out) & ((1u << TARGET_SIZE_2) - 1u);
+  return diff > EXPIRITY_OFFSET + MAX_OUTPUT_BLOCK_SIZE;
 }
 
 static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
@@ -1198,7 +1200,7 @@ static void *check_addr(u_int vaddr)
   size_t i;
   for (i = 0; i < ARRAY_SIZE(ht_bin->vaddr); i++) {
     if (ht_bin->vaddr[i] == vaddr)
-      if (doesnt_expire_soon((u_char *)ht_bin->tcaddr[i] - MAX_OUTPUT_BLOCK_SIZE))
+      if (doesnt_expire_soon(ht_bin->tcaddr[i]))
         return ht_bin->tcaddr[i];
   }
 
@@ -1249,25 +1251,20 @@ static void *check_addr(u_int vaddr)
   return NULL;
 }
 
-static void ll_remove_matching_addrs(struct ll_entry **head,
-  uintptr_t base_offs_s, int shift)
+static void ll_remove_matching_addrs(struct ll_entry **head, u_int base_offs, int shift)
 {
   struct ll_entry *next;
-  while(*head) {
-    uintptr_t o1 = (u_char *)(*head)->addr - ndrc->translation_cache;
-    uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
-    {
-      inv_debug("EXP: rm pointer to %08x (%p)\n", (*head)->vaddr, (*head)->addr);
-      hash_table_remove((*head)->vaddr);
-      next=(*head)->next;
+  while (*head) {
+    u_int tc_offs = (u_char *)((*head)->addr) - ndrc->translation_cache;
+    if (((tc_offs ^ base_offs) >> shift) == 0) {
+      inv_debug("EXP: rm link from tc_offs %x)\n", tc_offs);
+      next = (*head)->next;
       free(*head);
-      *head=next;
-      stat_dec(stat_links);
+      *head = next;
     }
     else
     {
-      head=&((*head)->next);
+      head = &((*head)->next);
     }
   }
 }
@@ -1287,28 +1284,6 @@ static void ll_clear(struct ll_entry **head)
   }
 }
 
-#if 0
-// Dereference the pointers and remove if it matches
-static void ll_kill_pointers(struct ll_entry *head,
-  uintptr_t base_offs_s, int shift)
-{
-  while(head) {
-    u_char *ptr = get_pointer(head->addr);
-    uintptr_t o1 = ptr - ndrc->translation_cache;
-    uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-    inv_debug("EXP: Lookup pointer to %p at %p (%x)\n",ptr,head->addr,head->vaddr);
-    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
-    {
-      inv_debug("EXP: Kill pointer at %p (%x)\n",head->addr,head->vaddr);
-      void *host_addr=find_extjump_insn(head->addr);
-      mark_clear_cache(host_addr);
-      set_jump_target(host_addr, head->addr);
-    }
-    head=head->next;
-  }
-}
-#endif
-
 static void blocks_clear(struct block_info **head)
 {
   struct block_info *cur, *next;
@@ -1323,27 +1298,27 @@ static void blocks_clear(struct block_info **head)
   }
 }
 
-static void blocks_remove_matching_addrs(struct block_info **head,
-  uintptr_t base_offs_s, int shift)
+static int blocks_remove_matching_addrs(struct block_info **head,
+  u_int base_offs, int shift)
 {
   struct block_info *next;
+  int hit = 0;
   while (*head) {
-    u_int o1 = (*head)->tc_offs;
-    u_int o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-    if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s)
-    {
-      inv_debug("EXP: rm block %08x (tc_offs %u)\n", (*head)->start, o1);
+    if ((((*head)->tc_offs ^ base_offs) >> shift) == 0) {
+      inv_debug("EXP: rm block %08x (tc_offs %zx)\n", (*head)->start, (*head)->tc_offs);
       invalidate_block(*head);
       next = (*head)->next;
       free(*head);
       *head = next;
       stat_dec(stat_blocks);
+      hit = 1;
     }
     else
     {
       head = &((*head)->next);
     }
   }
+  return hit;
 }
 
 // This is called when we write to a compiled block (see do_invstub)
@@ -1358,7 +1333,8 @@ static void unlink_jumps_range(u_int start, u_int end)
         head = &((*head)->next);
         continue;
       }
-      inv_debug("INV: rm pointer to %08x (%p)\n", (*head)->vaddr, (*head)->addr);
+      inv_debug("INV: rm link to %08x (tc_offs %zx)\n",
+        (*head)->vaddr, (u_char *)((*head)->addr) - ndrc->translation_cache);
       void *host_addr = find_extjump_insn((*head)->addr);
       mark_clear_cache(host_addr);
       set_jump_target(host_addr, (*head)->addr); // point back to dyna_linker stub
@@ -1471,7 +1447,7 @@ void new_dynarec_invalidate_all_pages(void)
   }
 
   #ifdef USE_MINI_HT
-  memset(mini_ht,-1,sizeof(mini_ht));
+  memset(mini_ht, -1, sizeof(mini_ht));
   #endif
   do_clear_cache();
 }
@@ -6098,16 +6074,17 @@ void new_dynarec_clear_full(void)
   memset(mini_ht,-1,sizeof(mini_ht));
   memset(shadow,0,sizeof(shadow));
   copy=shadow;
-  expirep=16384; // Expiry pointer, +2 blocks
+  expirep = EXPIRITY_OFFSET;
   pending_exception=0;
   literalcount=0;
   stop_after_jal=0;
   inv_code_start=inv_code_end=~0;
   hack_addr=0;
   f1_hack=0;
-  // TLB
-  for(n=0;n<4096;n++) blocks_clear(&blocks[n]);
-  for(n=0;n<4096;n++) ll_clear(jump_out+n);
+  for (n = 0; n < ARRAY_SIZE(blocks); n++)
+    blocks_clear(&blocks[n]);
+  for (n = 0; n < ARRAY_SIZE(jump_out); n++)
+    ll_clear(&jump_out[n]);
   stat_clear(stat_blocks);
   stat_clear(stat_links);
 
@@ -6187,8 +6164,10 @@ void new_dynarec_cleanup(void)
     SysPrintf("munmap() failed\n");
   #endif
 #endif
-  for(n=0;n<4096;n++) blocks_clear(&blocks[n]);
-  for(n=0;n<4096;n++) ll_clear(jump_out+n);
+  for (n = 0; n < ARRAY_SIZE(blocks); n++)
+    blocks_clear(&blocks[n]);
+  for (n = 0; n < ARRAY_SIZE(jump_out); n++)
+    ll_clear(&jump_out[n]);
   stat_clear(stat_blocks);
   stat_clear(stat_links);
   #ifdef ROM_COPY
@@ -8760,58 +8739,34 @@ static noinline void pass6_clean_registers(int istart, int iend, int wr)
 
 static noinline void pass10_expire_blocks(void)
 {
-  int i, end;
-  end = (((out-ndrc->translation_cache)>>(TARGET_SIZE_2-16)) + 16384) & 65535;
-  while (expirep != end)
+  u_int step = MAX_OUTPUT_BLOCK_SIZE / PAGE_COUNT / 2;
+  // not sizeof(ndrc->translation_cache) due to vita hack
+  u_int step_mask = ((1u << TARGET_SIZE_2) - 1u) & ~(step - 1u);
+  u_int end = (out - ndrc->translation_cache + EXPIRITY_OFFSET) & step_mask;
+  u_int base_shift = __builtin_ctz(MAX_OUTPUT_BLOCK_SIZE);
+  int hit;
+
+  for (; expirep != end; expirep = ((expirep + step) & step_mask))
   {
-    int shift=TARGET_SIZE_2-3; // Divide into 8 blocks
-    uintptr_t base_offs = ((uintptr_t)(expirep >> 13) << shift); // Base offset of this block
-    uintptr_t base_offs_s = base_offs >> shift;
-    if (!(expirep & ((1 << 13) - 1)))
-      inv_debug("EXP: base_offs %x\n", base_offs);
-    switch((expirep>>11)&3)
-    {
-      case 0:
-        // Clear blocks
-        blocks_remove_matching_addrs(&blocks[expirep & 2047], base_offs_s, shift);
-        blocks_remove_matching_addrs(&blocks[2048 + (expirep & 2047)], base_offs_s, shift);
-        break;
-      case 1:
-        // Clear pointers
-        //ll_kill_pointers(jump_out[expirep&2047],base_offs_s,shift);
-        //ll_kill_pointers(jump_out[(expirep&2047)+2048],base_offs_s,shift);
-        break;
-      case 2:
-        // Clear hash table
-        for(i=0;i<32;i++) {
-          struct ht_entry *ht_bin = &hash_table[((expirep&2047)<<5)+i];
-          uintptr_t o1 = (u_char *)ht_bin->tcaddr[1] - ndrc->translation_cache;
-          uintptr_t o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
-            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[1],ht_bin->tcaddr[1]);
-            ht_bin->vaddr[1] = -1;
-            ht_bin->tcaddr[1] = NULL;
-          }
-          o1 = (u_char *)ht_bin->tcaddr[0] - ndrc->translation_cache;
-          o2 = o1 - MAX_OUTPUT_BLOCK_SIZE;
-          if ((o1 >> shift) == base_offs_s || (o2 >> shift) == base_offs_s) {
-            inv_debug("EXP: Remove hash %x -> %p\n",ht_bin->vaddr[0],ht_bin->tcaddr[0]);
-            ht_bin->vaddr[0] = ht_bin->vaddr[1];
-            ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
-            ht_bin->vaddr[1] = -1;
-            ht_bin->tcaddr[1] = NULL;
-          }
-        }
-        break;
-      case 3:
-        // Clear jump_out
-        if((expirep&2047)==0)
-          do_clear_cache();
-        ll_remove_matching_addrs(jump_out+(expirep&2047),base_offs_s,shift);
-        ll_remove_matching_addrs(jump_out+2048+(expirep&2047),base_offs_s,shift);
-        break;
+    u_int base_offs = expirep & ~(MAX_OUTPUT_BLOCK_SIZE - 1);
+    u_int block_i = expirep / step & (PAGE_COUNT - 1);
+    u_int phase = (expirep >> (base_shift - 1)) & 1u;
+    if (!(expirep & (MAX_OUTPUT_BLOCK_SIZE / 2 - 1))) {
+      inv_debug("EXP: base_offs %x/%x phase %u\n", base_offs,
+        out - ndrc->translation_cache phase);
     }
-    expirep=(expirep+1)&65535;
+
+    if (!phase) {
+      hit = blocks_remove_matching_addrs(&blocks[block_i], base_offs, base_shift);
+      if (hit) {
+        do_clear_cache();
+        #ifdef USE_MINI_HT
+        memset(mini_ht, -1, sizeof(mini_ht));
+        #endif
+      }
+    }
+    else
+      ll_remove_matching_addrs(&jump_out[block_i], base_offs, base_shift);
   }
 }
 
@@ -8835,7 +8790,7 @@ static struct block_info *new_block_info(u_int start, u_int len,
   block->is_dirty = 0;
   block->jump_in_cnt = jump_in_count;
 
-  // insert sorted by start vaddr
+  // insert sorted by start mirror-unmasked vaddr
   for (b_pptr = &blocks[page]; ; b_pptr = &((*b_pptr)->next)) {
     if (*b_pptr == NULL || (*b_pptr)->start >= start) {
       block->next = *b_pptr;
@@ -9147,6 +9102,17 @@ static int new_recompile_block(u_int addr)
 
   if (instr_addr0_override)
     instr_addr[0] = instr_addr0_override;
+
+#if 0
+  /* check for improper expiration */
+  for (i = 0; i < ARRAY_SIZE(jumps); i++) {
+    int j;
+    if (!jumps[i])
+      continue;
+    for (j = 0; j < jumps[i]->count; j++)
+      assert(jumps[i]->e[j].stub < beginning || (u_char *)jumps[i]->e[j].stub > out);
+  }
+#endif
 
   /* Pass 9 - Linker */
   for(i=0;i<linkcount;i++)
