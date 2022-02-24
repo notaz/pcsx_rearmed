@@ -1283,7 +1283,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		}
 	}
 
-	if (ENABLE_DISASSEMBLER)
+	if (ENABLE_THREADED_COMPILER)
 		lightrec_reaper_continue(state->reaper);
 
 	jit_get_code(&code_size);
