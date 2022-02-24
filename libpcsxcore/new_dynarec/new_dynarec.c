@@ -144,14 +144,6 @@ struct regstat
   u_int waswritten;              // MIPS regs that were used as store base before
 };
 
-// note: asm depends on this layout
-struct ll_entry
-{
-  u_int vaddr;
-  void *addr;
-  struct ll_entry *next;
-};
-
 struct ht_entry
 {
   u_int vaddr[2];
@@ -195,6 +187,16 @@ struct block_info
   } jump_in[0];
 };
 
+struct jump_info
+{
+  int alloc;
+  int count;
+  struct {
+    u_int target_vaddr;
+    void *stub;
+  } e[0];
+};
+
 static struct decoded_insn
 {
   u_char itype;
@@ -217,7 +219,7 @@ static struct decoded_insn
   static u_char *out;
   static struct ht_entry hash_table[65536];
   static struct block_info *blocks[PAGE_COUNT];
-  static struct ll_entry *jump_out[PAGE_COUNT];
+  static struct jump_info *jumps[PAGE_COUNT];
   static u_int start;
   static u_int *source;
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
@@ -1180,18 +1182,6 @@ static void emit_far_call(const void *f)
   emit_call(f);
 }
 
-// Add virtual address mapping to linked list
-static void ll_add(struct ll_entry **head,int vaddr,void *addr)
-{
-  struct ll_entry *new_entry;
-  new_entry=malloc(sizeof(struct ll_entry));
-  assert(new_entry!=NULL);
-  new_entry->vaddr=vaddr;
-  new_entry->addr=addr;
-  new_entry->next=*head;
-  *head=new_entry;
-}
-
 // Check if an address is already compiled
 // but don't return addresses which are about to expire from the cache
 static void *check_addr(u_int vaddr)
@@ -1251,39 +1241,6 @@ static void *check_addr(u_int vaddr)
   return NULL;
 }
 
-static void ll_remove_matching_addrs(struct ll_entry **head, u_int base_offs, int shift)
-{
-  struct ll_entry *next;
-  while (*head) {
-    u_int tc_offs = (u_char *)((*head)->addr) - ndrc->translation_cache;
-    if (((tc_offs ^ base_offs) >> shift) == 0) {
-      inv_debug("EXP: rm link from tc_offs %x)\n", tc_offs);
-      next = (*head)->next;
-      free(*head);
-      *head = next;
-    }
-    else
-    {
-      head = &((*head)->next);
-    }
-  }
-}
-
-// Remove all entries from linked list
-static void ll_clear(struct ll_entry **head)
-{
-  struct ll_entry *cur;
-  struct ll_entry *next;
-  if((cur=*head)) {
-    *head=0;
-    while(cur) {
-      next=cur->next;
-      free(cur);
-      cur=next;
-    }
-  }
-}
-
 static void blocks_clear(struct block_info **head)
 {
   struct block_info *cur, *next;
@@ -1322,28 +1279,58 @@ static int blocks_remove_matching_addrs(struct block_info **head,
 }
 
 // This is called when we write to a compiled block (see do_invstub)
-static void unlink_jumps_range(u_int start, u_int end)
+static void unlink_jumps_vaddr_range(u_int start, u_int end)
 {
   u_int page, start_page = get_page(start), end_page = get_page(end - 1);
-  struct ll_entry **head, *next;
+  int i;
 
   for (page = start_page; page <= end_page; page++) {
-    for (head = &jump_out[page]; *head; ) {
-      if ((*head)->vaddr < start || (*head)->vaddr >= end) {
-        head = &((*head)->next);
+    struct jump_info *ji = jumps[page];
+    if (ji == NULL)
+      continue;
+    for (i = 0; i < ji->count; ) {
+      if (ji->e[i].target_vaddr < start || ji->e[i].target_vaddr >= end) {
+        i++;
         continue;
       }
-      inv_debug("INV: rm link to %08x (tc_offs %zx)\n",
-        (*head)->vaddr, (u_char *)((*head)->addr) - ndrc->translation_cache);
-      void *host_addr = find_extjump_insn((*head)->addr);
-      mark_clear_cache(host_addr);
-      set_jump_target(host_addr, (*head)->addr); // point back to dyna_linker stub
 
-      next = (*head)->next;
-      free(*head);
-      *head = next;
+      inv_debug("INV: rm link to %08x (tc_offs %zx)\n", ji->e[i].target_vaddr,
+        (u_char *)ji->e[i].stub - ndrc->translation_cache);
+      void *host_addr = find_extjump_insn(ji->e[i].stub);
+      mark_clear_cache(host_addr);
+      set_jump_target(host_addr, ji->e[i].stub); // point back to dyna_linker stub
+
       stat_dec(stat_links);
+      ji->count--;
+      if (i < ji->count) {
+        ji->e[i] = ji->e[ji->count];
+        continue;
+      }
+      i++;
     }
+  }
+}
+
+static void unlink_jumps_tc_range(struct jump_info *ji, u_int base_offs, int shift)
+{
+  int i;
+  if (ji == NULL)
+    return;
+  for (i = 0; i < ji->count; ) {
+    u_int tc_offs = (u_char *)ji->e[i].stub - ndrc->translation_cache;
+    if (((tc_offs ^ base_offs) >> shift) != 0) {
+      i++;
+      continue;
+    }
+
+    inv_debug("EXP: rm link to %08x (tc_offs %zx)\n", ji->e[i].target_vaddr, tc_offs);
+    stat_dec(stat_links);
+    ji->count--;
+    if (i < ji->count) {
+      ji->e[i] = ji->e[ji->count];
+      continue;
+    }
+    i++;
   }
 }
 
@@ -1352,7 +1339,7 @@ static void invalidate_block(struct block_info *block)
   u_int i;
 
   block->is_dirty = 1;
-  unlink_jumps_range(block->start, block->start + block->len);
+  unlink_jumps_vaddr_range(block->start, block->start + block->len);
   for (i = 0; i < block->jump_in_cnt; i++)
     hash_table_remove(block->jump_in[i].vaddr);
 }
@@ -1474,14 +1461,28 @@ static void do_invstub(int n)
 
 // Add an entry to jump_out after making a link
 // src should point to code by emit_extjump()
-void ndrc_add_jump_out(u_int vaddr,void *src)
+void ndrc_add_jump_out(u_int vaddr, void *src)
 {
-  u_int page=get_page(vaddr);
-  inv_debug("ndrc_add_jump_out: %p -> %x (%d)\n",src,vaddr,page);
-  check_extjump2(src);
-  ll_add(jump_out+page,vaddr,src);
-  //inv_debug("ndrc_add_jump_out:  to %p\n",get_pointer(src));
+  inv_debug("ndrc_add_jump_out: %p -> %x\n", src, vaddr);
+  u_int page = get_page(vaddr);
+  struct jump_info *ji;
+
   stat_inc(stat_links);
+  check_extjump2(src);
+  ji = jumps[page];
+  if (ji == NULL) {
+    ji = malloc(sizeof(*ji) + sizeof(ji->e[0]) * 16);
+    ji->alloc = 16;
+    ji->count = 0;
+  }
+  else if (ji->count >= ji->alloc) {
+    ji->alloc += 16;
+    ji = realloc(ji, sizeof(*ji) + sizeof(ji->e[0]) * ji->alloc);
+  }
+  jumps[page] = ji;
+  ji->e[ji->count].target_vaddr = vaddr;
+  ji->e[ji->count].stub = src;
+  ji->count++;
 }
 
 /* Register allocation */
@@ -6083,8 +6084,10 @@ void new_dynarec_clear_full(void)
   f1_hack=0;
   for (n = 0; n < ARRAY_SIZE(blocks); n++)
     blocks_clear(&blocks[n]);
-  for (n = 0; n < ARRAY_SIZE(jump_out); n++)
-    ll_clear(&jump_out[n]);
+  for (n = 0; n < ARRAY_SIZE(jumps); n++) {
+    free(jumps[n]);
+    jumps[n] = NULL;
+  }
   stat_clear(stat_blocks);
   stat_clear(stat_links);
 
@@ -6166,8 +6169,10 @@ void new_dynarec_cleanup(void)
 #endif
   for (n = 0; n < ARRAY_SIZE(blocks); n++)
     blocks_clear(&blocks[n]);
-  for (n = 0; n < ARRAY_SIZE(jump_out); n++)
-    ll_clear(&jump_out[n]);
+  for (n = 0; n < ARRAY_SIZE(jumps); n++) {
+    free(jumps[n]);
+    jumps[n] = NULL;
+  }
   stat_clear(stat_blocks);
   stat_clear(stat_links);
   #ifdef ROM_COPY
@@ -8766,7 +8771,7 @@ static noinline void pass10_expire_blocks(void)
       }
     }
     else
-      ll_remove_matching_addrs(&jump_out[block_i], base_offs, base_shift);
+      unlink_jumps_tc_range(jumps[block_i], base_offs, base_shift);
   }
 }
 
