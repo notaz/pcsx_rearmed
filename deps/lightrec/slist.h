@@ -6,6 +6,8 @@
 #ifndef __LIGHTREC_SLIST_H__
 #define __LIGHTREC_SLIST_H__
 
+#include <stddef.h>
+
 #define container_of(ptr, type, member)	\
 	((type *)((void *)(ptr) - offsetof(type, member)))
 

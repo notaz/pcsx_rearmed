@@ -141,7 +141,9 @@ endif
 ifeq ($(HAVE_LIGHTREC),1)
   COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
   EXTRA_INCLUDES += $(DEPS_DIR)/lightning/include \
-						  $(DEPS_DIR)/lightrec
+		    $(DEPS_DIR)/lightrec \
+		    $(ROOT_DIR)/include/lightning \
+		    $(ROOT_DIR)/include/lightrec
   SOURCES_C   += $(DEPS_DIR)/lightrec/blockcache.c \
 					  $(DEPS_DIR)/lightrec/disassembler.c \
 					  $(DEPS_DIR)/lightrec/emitter.c \

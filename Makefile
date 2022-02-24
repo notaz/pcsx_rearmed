@@ -109,7 +109,7 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightrec/recompiler.o \
 		deps/lightrec/reaper.o
 ifeq ($(MMAP_WIN32),1)
-CFLAGS += -Ideps/mman
+CFLAGS += -Iinclude/mman
 OBJS += deps/mman/mman.o
 endif
 else ifeq "$(DYNAREC)" "ari64"
