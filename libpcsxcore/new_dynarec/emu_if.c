@@ -440,7 +440,7 @@ void new_dyna_start(void *context) {}
 void new_dynarec_cleanup() {}
 void new_dynarec_clear_full() {}
 void new_dynarec_invalidate_all_pages() {}
-void new_dynarec_invalidate_range(unsigned int start, unsigned int end) { return 0; }
+void new_dynarec_invalidate_range(unsigned int start, unsigned int end) {}
 void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
 void new_dyna_pcsx_mem_load_state(void) {}
