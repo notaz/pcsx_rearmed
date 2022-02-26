@@ -179,7 +179,8 @@ struct block_info
   u_int tc_offs;
   //u_int tc_len;
   u_int reg_sv_flags;
-  u_short is_dirty;
+  u_char is_dirty;
+  u_char inv_near_misses;
   u_short jump_in_cnt;
   struct {
     u_int vaddr;
@@ -645,7 +646,7 @@ static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
       if (memcmp(block->source, block->copy, block->len))
         continue;
 
-      block->is_dirty = 0;
+      block->is_dirty = block->inv_near_misses = 0;
       found_clean = block->jump_in[i].addr;
       hash_table_add(vaddr, found_clean);
       mark_invalid_code(block->start, block->len, 0);
@@ -1347,6 +1348,7 @@ static void invalidate_block(struct block_info *block)
 static int invalidate_range(u_int start, u_int end,
   u32 *inv_start_ret, u32 *inv_end_ret)
 {
+  struct block_info *last_block = NULL;
   u_int start_page = get_page_prev(start);
   u_int end_page = get_page(end - 1);
   u_int start_m = pmmask(start);
@@ -1366,6 +1368,7 @@ static int invalidate_range(u_int start, u_int end,
     for (block = blocks[page]; block != NULL; block = block->next) {
       if (block->is_dirty)
         continue;
+      last_block = block;
       blk_end_m = pmmask(block->start + block->len);
       if (blk_end_m <= start_m) {
         inv_start = max(inv_start, blk_end_m);
@@ -1385,12 +1388,22 @@ static int invalidate_range(u_int start, u_int end,
     }
   }
 
+  if (!hit && last_block && last_block->source) {
+    // could be some leftover unused block, uselessly trapping writes
+    last_block->inv_near_misses++;
+    if (last_block->inv_near_misses > 128) {
+      invalidate_block(last_block);
+      stat_inc(stat_inv_hits);
+      hit++;
+    }
+  }
   if (hit) {
     do_clear_cache();
 #ifdef USE_MINI_HT
     memset(mini_ht, -1, sizeof(mini_ht));
 #endif
   }
+
   if (inv_start <= (start_m & ~0xfff) && inv_end >= (start_m | 0xfff))
     // the whole page is empty now
     mark_invalid_code(start, 1, 1);
@@ -8793,6 +8806,7 @@ static struct block_info *new_block_info(u_int start, u_int len,
   block->tc_offs = beginning - ndrc->translation_cache;
   //block->tc_len = out - beginning;
   block->is_dirty = 0;
+  block->inv_near_misses = 0;
   block->jump_in_cnt = jump_in_count;
 
   // insert sorted by start mirror-unmasked vaddr
