@@ -603,9 +603,9 @@ static void hash_table_remove(int vaddr)
 
 static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
 {
+  u_int vaddr_m = vaddr & 0x1fffffff;
   u_int i, j;
-  vaddr &= 0x1fffffff;
-  for (i = vaddr & ~0xfff; i < vaddr + len; i += 0x1000) {
+  for (i = vaddr_m & ~0xfff; i < vaddr_m + len; i += 0x1000) {
     // ram mirrors, but should not hurt bios
     for (j = 0; j < 0x800000; j += 0x200000) {
       invalid_code[(i|j) >> 12] =
@@ -1352,7 +1352,7 @@ static int invalidate_range(u_int start, u_int end,
   u_int start_page = get_page_prev(start);
   u_int end_page = get_page(end - 1);
   u_int start_m = pmmask(start);
-  u_int end_m = pmmask(end);
+  u_int end_m = pmmask(end - 1);
   u_int inv_start, inv_end;
   u_int blk_start_m, blk_end_m;
   u_int page;
