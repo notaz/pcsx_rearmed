@@ -984,8 +984,16 @@ static int handlechd(const char *isofile) {
       else
          break;
 
-		if(md.track == 1)
+		SysPrintf("chd: %s\n", meta);
+
+		if (md.track == 1) {
 			md.pregap = 150;
+			if (!strncmp(md.subtype, "RW", 2)) {
+				subChanMixed = TRUE;
+				if (!strcmp(md.subtype, "RW_RAW"))
+					subChanRaw = TRUE;
+			}
+		}
 		else
 			sec2msf(msf2sec(ti[md.track-1].length) + md.pregap, ti[md.track-1].length);
 
@@ -1401,6 +1409,12 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 	if (dest != cdbuffer) // copy avoid HACK
 		memcpy(dest, chd_img->buffer[chd_img->sector_in_hunk],
 			CD_FRAMESIZE_RAW);
+	if (subChanMixed) {
+		memcpy(subbuffer, chd_img->buffer[chd_img->sector_in_hunk] + CD_FRAMESIZE_RAW,
+			SUB_FRAMESIZE);
+		if (subChanRaw)
+			DecodeRawSubData();
+	}
 	return CD_FRAMESIZE_RAW;
 }
 #endif
@@ -1509,7 +1523,8 @@ static long CALLBACK ISOopen(void) {
 	boolean isMode1ISO = FALSE;
 	char alt_bin_filename[MAXPATHLEN];
 	const char *bin_filename;
-	char image_str[1024] = {0};
+	char image_str[1024];
+	int is_chd = 0;
 
 	if (cdHandle != NULL) {
 		return 0; // it's already open
@@ -1522,7 +1537,8 @@ static long CALLBACK ISOopen(void) {
 		return -1;
 	}
 
-	sprintf(image_str, "Loaded CD Image: %s", GetIsoFile());
+	snprintf(image_str, sizeof(image_str) - 6*4 - 1,
+		"Loaded CD Image: %s", GetIsoFile());
 
 	cddaBigEndian = FALSE;
 	subChanMixed = FALSE;
@@ -1561,6 +1577,7 @@ static long CALLBACK ISOopen(void) {
 		strcat(image_str, "[+chd]");
 		CDR_getBuffer = ISOgetBuffer_chd;
 		cdimg_read_func = cdread_chd;
+		is_chd = 1;
 	}
 #endif
 
@@ -1621,7 +1638,7 @@ static long CALLBACK ISOopen(void) {
 
 	PrintTracks();
 
-	if (subChanMixed)
+	if (subChanMixed && !is_chd)
 		cdimg_read_func = cdread_sub_mixed;
 	else if (isMode1ISO)
 		cdimg_read_func = cdread_2048;
