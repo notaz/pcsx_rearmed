@@ -149,7 +149,7 @@ endif
 
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
-ifeq "$(CHD_SUPPORT)" "1"
+#ifeq "$(CHD_SUPPORT)" "1"
 OBJS += libchdr/src/libchdr_bitstream.o
 OBJS += libchdr/src/libchdr_cdrom.o
 OBJS += libchdr/src/libchdr_chd.o
@@ -157,8 +157,11 @@ OBJS += libchdr/src/libchdr_flac.o
 OBJS += libchdr/src/libchdr_huffman.o
 OBJS += libchdr/deps/lzma-19.00/src/Alloc.o libchdr/deps/lzma-19.00/src/Bra86.o libchdr/deps/lzma-19.00/src/BraIA64.o libchdr/deps/lzma-19.00/src/CpuArch.o libchdr/deps/lzma-19.00/src/Delta.o
 OBJS += libchdr/deps/lzma-19.00/src/LzFind.o libchdr/deps/lzma-19.00/src/Lzma86Dec.o libchdr/deps/lzma-19.00/src/LzmaDec.o libchdr/deps/lzma-19.00/src/LzmaEnc.o libchdr/deps/lzma-19.00/src/Sort.o
-CFLAGS += -DHAVE_CHD -D_7ZIP_ST -Ilibchdr/include/libchdr -Ilibchdr/include/dr_libs -Ilibchdr/include -Ilibchdr/deps/lzma-19.00/include
-endif
+CFLAGS += -DHAVE_CHD -Ilibchdr/include
+libpcsxcore/cdriso.o: CFLAGS += -Wno-unused-function
+libchdr/src/%.o: CFLAGS += -Wno-unused -Ilibchdr/deps/lzma-19.00/include
+libchdr/deps/lzma-19.00/src/%.o: CFLAGS += -Wno-unused -D_7ZIP_ST -Ilibchdr/deps/lzma-19.00/include
+#endif
 
 # dfinput
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o

@@ -40,7 +40,7 @@
 #include <zlib.h>
 
 #ifdef HAVE_CHD
-#include "chd.h"
+#include "libchdr/chd.h"
 #endif
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
