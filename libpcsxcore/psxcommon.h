@@ -129,6 +129,7 @@ typedef struct {
 	boolean Mdec;
 	boolean PsxAuto;
 	boolean Cdda;
+	boolean CHD_Precache; /* loads disk image into memory, works with CHD only. */
 	boolean HLE;
 	boolean Debug;
 	boolean PsxOut;

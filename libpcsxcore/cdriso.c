@@ -83,16 +83,14 @@ static struct {
 } *compr_img;
 
 #ifdef HAVE_CHD
-typedef struct {
+static struct {
 	unsigned char (*buffer)[CD_FRAMESIZE_RAW + SUB_FRAMESIZE];
 	chd_file* chd;
 	const chd_header* header;
 	unsigned int sectors_per_hunk;
 	unsigned int current_hunk;
 	unsigned int sector_in_hunk;
-} CHD_IMG;
-
-static CHD_IMG *chd_img;
+} *chd_img;
 #endif
 
 int (*cdimg_read_func)(FILE *f, unsigned int base, void *dest, int sector);
@@ -161,11 +159,6 @@ static void tok2msf(char *time, char *msf) {
 	}
 }
 
-// stop the CDDA playback
-static void stopCDDA() {
-	playing = FALSE;
-}
-
 // this function tries to get the .toc file of the given .bin
 // the necessary data is put into the ti (trackinformation)-array
 static int parsetoc(const char *isofile) {
@@ -207,11 +200,12 @@ static int parsetoc(const char *isofile) {
 			}
 		}
 		// check if it's really a TOC named as a .cue
-		fgets(linebuf, sizeof(linebuf), fi);
+		if (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
 		token = strtok(linebuf, " ");
 		if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
 			fclose(fi);
 			return -1;
+		}
 		}
 		fseek(fi, 0, SEEK_SET);
 	}
@@ -332,6 +326,9 @@ static int parsecue(const char *isofile) {
 	strncpy(cuename, isofile, sizeof(cuename));
 	cuename[MAXPATHLEN - 1] = '\0';
 	if (strlen(cuename) >= 4) {
+		// If 'isofile' is a '.cd<X>' file, use it as a .cue file
+		//  and don't try to search the additional .cue file
+		if (strncasecmp(cuename + strlen(cuename) - 4, ".cd", 3) != 0 )
 		strcpy(cuename + strlen(cuename) - 4, ".cue");
 	}
 	else {
@@ -464,9 +461,9 @@ static int parsecue(const char *isofile) {
 			file_len = ftell(ti[numtracks + 1].handle) / 2352;
 
 			if (numtracks == 0 && strlen(isofile) >= 4 &&
-				strcmp(isofile + strlen(isofile) - 4, ".cue") == 0)
-			{
-				// user selected .cue as image file, use it's data track instead
+				(strcmp(isofile + strlen(isofile) - 4, ".cue") == 0 ||
+				strncasecmp(isofile + strlen(isofile) - 4, ".cd", 3) == 0)) {
+				// user selected .cue/.cdX as image file, use it's data track instead
 				fclose(cdHandle);
 				cdHandle = fopen(filepath, "rb");
 			}
@@ -474,6 +471,10 @@ static int parsecue(const char *isofile) {
 	}
 
 	fclose(fi);
+
+	// if there are no tracks detected, then it's not a cue file
+	if (!numtracks)
+		return -1;
 
 	return 0;
 }
@@ -564,7 +565,8 @@ static int parsemds(const char *isofile) {
 	memset(&ti, 0, sizeof(ti));
 
 	// check if it's a valid mds file
-	fread(&i, 1, sizeof(unsigned int), fi);
+	if (fread(&i, 1, sizeof(i), fi) != sizeof(i))
+		goto fail_io;
 	i = SWAP32(i);
 	if (i != 0x4944454D) {
 		// not an valid mds file
@@ -574,19 +576,22 @@ static int parsemds(const char *isofile) {
 
 	// get offset to session block
 	fseek(fi, 0x50, SEEK_SET);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fread(&offset, 1, sizeof(offset), fi) != sizeof(offset))
+		goto fail_io;
 	offset = SWAP32(offset);
 
 	// get total number of tracks
 	offset += 14;
 	fseek(fi, offset, SEEK_SET);
-	fread(&s, 1, sizeof(unsigned short), fi);
+	if (fread(&s, 1, sizeof(s), fi) != sizeof(s))
+		goto fail_io;
 	s = SWAP16(s);
 	numtracks = s;
 
 	// get offset to track blocks
 	fseek(fi, 4, SEEK_CUR);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fread(&offset, 1, sizeof(offset), fi) != sizeof(offset))
+		goto fail_io;
 	offset = SWAP32(offset);
 
 	// skip lead-in data
@@ -615,32 +620,41 @@ static int parsemds(const char *isofile) {
 		ti[i].start[1] = fgetc(fi);
 		ti[i].start[2] = fgetc(fi);
 
-		fread(&extra_offset, 1, sizeof(unsigned int), fi);
+		if (fread(&extra_offset, 1, sizeof(extra_offset), fi) != sizeof(extra_offset))
+			goto fail_io;
 		extra_offset = SWAP32(extra_offset);
 
 		// get track start offset (in .mdf)
 		fseek(fi, offset + 0x28, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		ti[i].start_offset = l;
 
 		// get pregap
 		fseek(fi, extra_offset, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		if (l != 0 && i > 1)
 			pregapOffset = msf2sec(ti[i].start);
 
 		// get the track length
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 1, sizeof(l), fi) != sizeof(l))
+			goto fail_io;
 		l = SWAP32(l);
 		sec2msf(l, ti[i].length);
 
 		offset += 0x50;
 	}
-
 	fclose(fi);
 	return 0;
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(fi);
+	return -1;
 }
 
 static int handlepbp(const char *isofile) {
@@ -691,7 +705,8 @@ static int handlepbp(const char *isofile) {
 	}
 
 	psisoimg_offs = pbp_hdr.psar_offs;
-	fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+	if (fread(psar_sig, 1, sizeof(psar_sig), cdHandle) != sizeof(psar_sig))
+		goto fail_io;
 	psar_sig[10] = 0;
 	if (strcmp(psar_sig, "PSTITLEIMG") == 0) {
 		// multidisk image?
@@ -727,7 +742,8 @@ static int handlepbp(const char *isofile) {
 			goto fail_io;
 		}
 
-		fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+		if (fread(psar_sig, 1, sizeof(psar_sig), cdHandle) != sizeof(psar_sig))
+			goto fail_io;
 		psar_sig[10] = 0;
 	}
 
@@ -745,15 +761,18 @@ static int handlepbp(const char *isofile) {
 
 	// first 3 entries are special
 	fseek(cdHandle, sizeof(toc_entry), SEEK_CUR);
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+		goto fail_io;
 	numtracks = btoi(toc_entry.index1[0]);
 
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+		goto fail_io;
 	cd_length = btoi(toc_entry.index1[0]) * 60 * 75 +
 		btoi(toc_entry.index1[1]) * 75 + btoi(toc_entry.index1[2]);
 
 	for (i = 1; i <= numtracks; i++) {
-		fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+		if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry))
+			goto fail_io;
 
 		ti[i].type = (toc_entry.type == 1) ? CDDA : DATA;
 
@@ -811,7 +830,14 @@ static int handlepbp(const char *isofile) {
 fail_index:
 	free(compr_img->index_table);
 	compr_img->index_table = NULL;
+	goto done;
+
 fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+
+done:
 	if (compr_img != NULL) {
 		free(compr_img);
 		compr_img = NULL;
@@ -908,16 +934,19 @@ static int handlechd(const char *isofile) {
 	int frame_offset = 0;
 	int file_offset = 0;
 
-	chd_img = (CHD_IMG *)calloc(1, sizeof(*chd_img));
+	chd_img = calloc(1, sizeof(*chd_img));
 	if (chd_img == NULL)
 		goto fail_io;
 
 	if(chd_open(isofile, CHD_OPEN_READ, NULL, &chd_img->chd) != CHDERR_NONE)
 		goto fail_io;
 
+	if (Config.CHD_Precache && (chd_precache(chd_img->chd) != CHDERR_NONE))
+		goto fail_io;
+
 	chd_img->header = chd_get_header(chd_img->chd);
 
-	chd_img->buffer = (unsigned char (*)[CD_FRAMESIZE_RAW + SUB_FRAMESIZE])malloc(chd_img->header->hunkbytes);
+	chd_img->buffer = malloc(chd_img->header->hunkbytes);
 	if (chd_img->buffer == NULL)
 		goto fail_io;
 
@@ -1004,12 +1033,17 @@ static int opensubfile(const char *isoname) {
 }
 
 static int opensbifile(const char *isoname) {
-	char		sbiname[MAXPATHLEN];
+	char		sbiname[MAXPATHLEN], disknum[MAXPATHLEN] = "0";
 	int		s;
 
 	strncpy(sbiname, isoname, sizeof(sbiname));
 	sbiname[MAXPATHLEN - 1] = '\0';
 	if (strlen(sbiname) >= 4) {
+		if (cdrIsoMultidiskCount > 1) {
+			sprintf(disknum, "_%i.sbi", cdrIsoMultidiskSelect + 1);
+			strcpy(sbiname + strlen(sbiname) - 4, disknum);
+		}
+		else
 		strcpy(sbiname + strlen(sbiname) - 4, ".sbi");
 	}
 	else {
@@ -1034,10 +1068,18 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 
 	fseek(f, base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET);
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
-	fread(subbuffer, 1, SUB_FRAMESIZE, f);
+	if (fread(subbuffer, 1, SUB_FRAMESIZE, f) != SUB_FRAMESIZE)
+		goto fail_io;
 
 	if (subChanRaw) DecodeRawSubData();
+	goto done;
 
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+
+done:
 	return ret;
 }
 
@@ -1186,7 +1228,7 @@ static unsigned char * CALLBACK ISOgetBuffer_compr(void) {
 }
 
 #ifdef HAVE_CHD
-static unsigned char *ISOgetBuffer_chd(void) {
+static unsigned char * CALLBACK ISOgetBuffer_chd(void) {
 	return chd_img->buffer[chd_img->sector_in_hunk] + 12;
 }
 #endif
@@ -1212,6 +1254,7 @@ static long CALLBACK ISOopen(void) {
 	boolean isMode1ISO = FALSE;
 	char alt_bin_filename[MAXPATHLEN];
 	const char *bin_filename;
+	char image_str[1024] = {0};
 
 	if (cdHandle != NULL) {
 		return 0; // it's already open
@@ -1224,7 +1267,7 @@ static long CALLBACK ISOopen(void) {
 		return -1;
 	}
 
-	SysPrintf(_("Loaded CD Image: %s"), GetIsoFile());
+	sprintf(image_str, "Loaded CD Image: %s", GetIsoFile());
 
 	cddaBigEndian = FALSE;
 	subChanMixed = FALSE;
@@ -1237,41 +1280,40 @@ static long CALLBACK ISOopen(void) {
 	cdimg_read_func = cdread_normal;
 
 	if (parsetoc(GetIsoFile()) == 0) {
-		SysPrintf("[+toc]");
+		strcat(image_str, "[+toc]");
 	}
 	else if (parseccd(GetIsoFile()) == 0) {
-		SysPrintf("[+ccd]");
+		strcat(image_str, "[+ccd]");
 	}
 	else if (parsemds(GetIsoFile()) == 0) {
-		SysPrintf("[+mds]");
+		strcat(image_str, "[+mds]");
 	}
 	else if (parsecue(GetIsoFile()) == 0) {
-		SysPrintf("[+cue]");
+		strcat(image_str, "[+cue]");
 	}
 	if (handlepbp(GetIsoFile()) == 0) {
-		SysPrintf("[pbp]");
+		strcat(image_str, "[+pbp]");
 		CDR_getBuffer = ISOgetBuffer_compr;
 		cdimg_read_func = cdread_compressed;
 	}
 	else if (handlecbin(GetIsoFile()) == 0) {
-		SysPrintf("[cbin]");
+		strcat(image_str, "[+cbin]");
 		CDR_getBuffer = ISOgetBuffer_compr;
 		cdimg_read_func = cdread_compressed;
 	}
-	
 #ifdef HAVE_CHD
 	else if (handlechd(GetIsoFile()) == 0) {
-		printf("[chd]");
+		strcat(image_str, "[+chd]");
 		CDR_getBuffer = ISOgetBuffer_chd;
 		cdimg_read_func = cdread_chd;
 	}
 #endif
 
 	if (!subChanMixed && opensubfile(GetIsoFile()) == 0) {
-		SysPrintf("[+sub]");
+		strcat(image_str, "[+sub]");
 	}
 	if (opensbifile(GetIsoFile()) == 0) {
-		SysPrintf("[+sbi]");
+		strcat(image_str, "[+sbi]");
 	}
 
 	fseeko(cdHandle, 0, SEEK_END);
@@ -1307,15 +1349,20 @@ static long CALLBACK ISOopen(void) {
 	if (ftello(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
-		fread(&modeTest, 4, 1, cdHandle);
+		if (!fread(&modeTest, sizeof(modeTest), 1, cdHandle)) {
+#ifndef NDEBUG
+			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+			return -1;
+		}
 		if (SWAP32(modeTest) != 0xffffff00) {
-			SysPrintf("[2048]");
+			strcat(image_str, "[2048]");
 			isMode1ISO = TRUE;
 		}
 	}
 	fseek(cdHandle, 0, SEEK_SET);
 
-	SysPrintf(".\n");
+	SysPrintf("%s.\n", image_str);
 
 	PrintTracks();
 
@@ -1343,7 +1390,7 @@ static long CALLBACK ISOclose(void) {
 		fclose(subHandle);
 		subHandle = NULL;
 	}
-	stopCDDA();
+	playing = FALSE;
 	cddaHandle = NULL;
 
 	if (compr_img != NULL) {
@@ -1477,7 +1524,9 @@ static boolean CALLBACK ISOreadTrack(unsigned char *time) {
 
 	if (subHandle != NULL) {
 		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
-		fread(subbuffer, 1, SUB_FRAMESIZE, subHandle);
+		if (fread(subbuffer, 1, SUB_FRAMESIZE, subHandle) != SUB_FRAMESIZE)
+			/* Faulty subchannel data shouldn't cause a read failure */
+			return 0;
 
 		if (subChanRaw) DecodeRawSubData();
 	}
@@ -1495,7 +1544,7 @@ static long CALLBACK ISOplay(unsigned char *time) {
 
 // stops cdda audio
 static long CALLBACK ISOstop(void) {
-	stopCDDA();
+	playing = FALSE;
 	return 0;
 }
 
