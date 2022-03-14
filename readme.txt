@@ -113,6 +113,12 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r23 (2022-03-14)
+* many fixes from various contributors on github and from the libretro fork
+* dynarec related slowdowns have been greatly reduced
+* many dynarec bug fixes
++ added chd disk image support
+
 r22 (2015-02-05)
 * general: fixed a race condition/crash in threaded SPU mode
 * pandora: C64x: fixed compatibility with newer c64_tools, enabled L2 cache
