@@ -834,7 +834,11 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL},
       },
+#ifdef _MIYOO
+      "enabled",
+#else
       "disabled",
+#endif
    },
 #endif /* GPU UNAI Advanced Settings */
 #ifdef THREAD_RENDERING
