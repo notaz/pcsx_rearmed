@@ -447,6 +447,18 @@ else ifneq (,$(findstring armv,$(platform)))
 	ARCH = arm
 	DYNAREC = ari64
 
+else ifeq ($(platform), miyoo)
+	TARGET := $(TARGET_NAME)_libretro.so
+	CC = /opt/miyoo/usr/bin/arm-linux-gcc
+	CXX = /opt/miyoo/usr/bin/arm-linux-g++
+	fpic := -fPIC
+	CFLAGS += -mcpu=arm926ej-s -fsingle-precision-constant
+	CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -D_MIYOO
+	ARCH = arm
+	BUILTIN_GPU = unai
+	DYNAREC = ari64
+	HAVE_NEON = 0
+
 # Emscripten
 else ifeq ($(platform), emscripten)
    TARGET  := $(TARGET_NAME)_libretro_$(platform).bc
