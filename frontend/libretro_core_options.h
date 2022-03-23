@@ -876,7 +876,11 @@ struct retro_core_option_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
+#ifdef HAVE_PRE_ARMV7
+      "disabled",
+#else
       "enabled",
+#endif
    },
    {
       "pcsx_rearmed_spu_interpolation",
@@ -889,7 +893,11 @@ struct retro_core_option_definition option_defs_us[] = {
          { "off",      "disabled" },
          { NULL, NULL },
       },
+#ifdef HAVE_PRE_ARMV7
+      "off",
+#else
       "simple",
+#endif
    },
    {
       "pcsx_rearmed_pe2_fix",
