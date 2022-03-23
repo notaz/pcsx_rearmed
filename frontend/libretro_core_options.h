@@ -51,17 +51,61 @@ extern "C" {
 
 struct retro_core_option_definition option_defs_us[] = {
    {
-      "pcsx_rearmed_frameskip",
+      "pcsx_rearmed_frameskip_type",
       "Frameskip",
-      "Choose how much frames should be skipped to improve performance at the expense of visual smoothness.",
+      "Skip frames to avoid audio buffer under-run (crackling). Improves performance at the expense of visual smoothness. 'Auto' skips frames when advised by the frontend. 'Auto (Threshold)' utilises the 'Frameskip Threshold (%)' setting. 'Fixed Interval' utilises the 'Frameskip Interval' setting.",
       {
-         { "0", NULL },
-         { "1", NULL },
-         { "2", NULL },
-         { "3", NULL },
+         { "disabled",       NULL },
+         { "auto",           "Auto" },
+         { "auto_threshold", "Auto (Threshold)" },
+         { "fixed_interval", "Fixed Interval" },
          { NULL, NULL },
       },
-      "0",
+      "disabled"
+   },
+   {
+      "pcsx_rearmed_frameskip_threshold",
+      "Frameskip Threshold (%)",
+      "When 'Frameskip' is set to 'Auto (Threshold)', specifies the audio buffer occupancy threshold (percentage) below which frames will be skipped. Higher values reduce the risk of crackling by causing frames to be dropped more frequently.",
+      {
+         { "15", NULL },
+         { "18", NULL },
+         { "21", NULL },
+         { "24", NULL },
+         { "27", NULL },
+         { "30", NULL },
+         { "33", NULL },
+         { "36", NULL },
+         { "39", NULL },
+         { "42", NULL },
+         { "45", NULL },
+         { "48", NULL },
+         { "51", NULL },
+         { "54", NULL },
+         { "57", NULL },
+         { "60", NULL },
+         { NULL, NULL },
+      },
+      "33"
+   },
+   {
+      "pcsx_rearmed_frameskip",
+      "Frameskip Interval",
+      "Specifies the maximum number of frames that can be skipped before a new frame is rendered.",
+      {
+         { "1",  NULL },
+         { "2",  NULL },
+         { "3",  NULL },
+         { "4",  NULL },
+         { "5",  NULL },
+         { "6",  NULL },
+         { "7",  NULL },
+         { "8",  NULL },
+         { "9",  NULL },
+         { "10", NULL },
+         { NULL, NULL },
+      },
+      "1"
    },
    {
       "pcsx_rearmed_bios",
