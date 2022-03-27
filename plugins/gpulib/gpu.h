@@ -90,8 +90,6 @@ struct psx_gpu {
     uint32_t allow:1;
     uint32_t frame_ready:1;
     const int *advice;
-    const int *force;
-    int *dirty;
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
