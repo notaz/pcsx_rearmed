@@ -90,8 +90,6 @@ static noinline void update_height(void)
 
 static noinline void decide_frameskip(void)
 {
-  *gpu.frameskip.dirty = 1;
-
   if (gpu.frameskip.active)
     gpu.frameskip.cnt++;
   else {
@@ -99,9 +97,7 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.frame_ready = 1;
   }
 
-  if (*gpu.frameskip.force)
-    gpu.frameskip.active = 1;
-  else if (!gpu.frameskip.active && *gpu.frameskip.advice)
+  if (!gpu.frameskip.active && *gpu.frameskip.advice)
     gpu.frameskip.active = 1;
   else if (gpu.frameskip.set > 0 && gpu.frameskip.cnt < gpu.frameskip.set)
     gpu.frameskip.active = 1;
@@ -809,8 +805,6 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 {
   gpu.frameskip.set = cbs->frameskip;
   gpu.frameskip.advice = &cbs->fskip_advice;
-  gpu.frameskip.force = &cbs->fskip_force;
-  gpu.frameskip.dirty = &cbs->fskip_dirty;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
   gpu.state.hcnt = cbs->gpu_hcnt;
