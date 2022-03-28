@@ -96,6 +96,18 @@ static int show_advanced_gpu_unai_settings = -1;
 static int show_other_input_settings = -1;
 static float mouse_sensitivity = 1.0f;
 
+unsigned frameskip_type                  = 0;
+unsigned frameskip_threshold             = 0;
+unsigned frameskip_counter               = 0;
+unsigned frameskip_interval              = 0;
+
+int retro_audio_buff_active              = false;
+unsigned retro_audio_buff_occupancy      = 0;
+int retro_audio_buff_underrun            = false;
+
+unsigned retro_audio_latency             = 0;
+int update_audio_latency                 = false;
+
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
 
@@ -1195,6 +1207,52 @@ static void set_retro_memmap(void)
 #endif
 }
 
+static void retro_audio_buff_status_cb(
+   bool active, unsigned occupancy, bool underrun_likely)
+{
+   retro_audio_buff_active    = active;
+   retro_audio_buff_occupancy = occupancy;
+   retro_audio_buff_underrun  = underrun_likely;
+}
+
+static void retro_set_audio_buff_status_cb(void)
+{
+   if (frameskip_type > 0)
+   {
+      struct retro_audio_buffer_status_callback buf_status_cb;
+
+      buf_status_cb.callback = retro_audio_buff_status_cb;
+      if (!environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK,
+            &buf_status_cb))
+      {
+         retro_audio_buff_active    = false;
+         retro_audio_buff_occupancy = 0;
+         retro_audio_buff_underrun  = false;
+         retro_audio_latency        = 0;
+      }
+      else
+      {
+         /* Frameskip is enabled - increase frontend
+          * audio latency to minimise potential
+          * buffer underruns */
+         uint32_t frame_time_usec = 1000000.0 / (is_pal_mode ? 50.0 : 60.0);
+
+         /* Set latency to 6x current frame time... */
+         retro_audio_latency = (unsigned)(6 * frame_time_usec / 1000);
+
+         /* ...then round up to nearest multiple of 32 */
+         retro_audio_latency = (retro_audio_latency + 0x1F) & ~0x1F;
+      }
+   }
+   else
+   {
+      environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
+      retro_audio_latency = 0;
+   }
+
+   update_audio_latency = true;
+}
+
 static void update_variables(bool in_flight);
 bool retro_load_game(const struct retro_game_info *info)
 {
@@ -1406,6 +1464,7 @@ bool retro_load_game(const struct retro_game_info *info)
    emu_on_new_cd(0);
 
    set_retro_memmap();
+   retro_set_audio_buff_status_cb();
 
    return true;
 }
@@ -1476,11 +1535,43 @@ static void update_variables(bool in_flight)
 #ifdef GPU_PEOPS
    int gpu_peops_fix = 0;
 #endif
+   unsigned prev_frameskip_type;
 
+   var.key = "pcsx_rearmed_frameskip_type";
    var.value = NULL;
-   var.key = "pcsx_rearmed_frameskip";
+
+   prev_frameskip_type = frameskip_type;
+   frameskip_type = 0;
+   pl_rearmed_cbs.frameskip = 0;
+
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      pl_rearmed_cbs.frameskip = atoi(var.value);
+   {
+      if (strcmp(var.value, "auto") == 0)
+         frameskip_type = 1;
+      if (strcmp(var.value, "auto_threshold") == 0)
+         frameskip_type = 2;
+      if (strcmp(var.value, "fixed_interval") == 0)
+         frameskip_type = 3;
+   }
+
+   if (frameskip_type != 0)
+      pl_rearmed_cbs.frameskip = -1;
+
+   var.key = "pcsx_rearmed_frameskip_threshold";
+   var.value = NULL;
+
+   frameskip_threshold = 30;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      frameskip_threshold = strtol(var.value, NULL, 10);
+
+   var.key = "pcsx_rearmed_frameskip";
+   var.value = NULL;
+
+   frameskip_interval = 1;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      frameskip_interval = strtol(var.value, NULL, 10);
 
    var.value = NULL;
    var.key = "pcsx_rearmed_region";
@@ -2168,6 +2259,10 @@ static void update_variables(bool in_flight)
          GPU_open(&gpuDisp, "PCSX", NULL);
       }
 
+      /* Reinitialise frameskipping, if required */
+      if (((frameskip_type     != prev_frameskip_type)))
+         retro_set_audio_buff_status_cb();
+
       /* dfinput_activate(); */
    }
    else
@@ -2540,6 +2635,46 @@ void retro_run(void)
 
    print_internal_fps();
 
+   /* Check whether current frame should
+    * be skipped */
+   pl_rearmed_cbs.fskip_force = 0;
+   pl_rearmed_cbs.fskip_dirty = 0;
+   if ((frameskip_type > 0) && retro_audio_buff_active)
+   {
+      bool skip_frame;
+
+      switch (frameskip_type)
+      {
+         case 1: /* auto */
+            skip_frame = retro_audio_buff_underrun;
+            break;
+         case 2: /* threshold */
+            skip_frame = (retro_audio_buff_occupancy < frameskip_threshold);
+            break;
+         case 3: /* fixed */
+            skip_frame = true;
+            break;
+         default:
+            skip_frame = false;
+            break;
+      }
+
+      if (skip_frame && frameskip_counter < frameskip_interval)
+         pl_rearmed_cbs.fskip_force = 1;
+   }
+
+   /* If frameskip/timing settings have changed,
+    * update frontend audio latency
+    * > Can do this before or after the frameskip
+    *   check, but doing it after means we at least
+    *   retain the current frame's audio output */
+   if (update_audio_latency)
+   {
+      environ_cb(RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY,
+            &retro_audio_latency);
+      update_audio_latency = false;
+   }
+
    input_poll_cb();
 
    update_input();
@@ -2550,6 +2685,13 @@ void retro_run(void)
 
    stop = 0;
    psxCpu->Execute();
+
+   if (pl_rearmed_cbs.fskip_dirty == 1) {
+      if (frameskip_counter < frameskip_interval)
+         frameskip_counter++;
+      else if (frameskip_counter >= frameskip_interval || !pl_rearmed_cbs.fskip_force)
+         frameskip_counter = 0;
+   }
 
    video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
        vout_width, vout_height, vout_width * 2);
@@ -2863,6 +3005,14 @@ void retro_deinit(void)
    /* Have to reset disks struct, otherwise
     * fnames/flabels will leak memory */
    disk_init();
+   frameskip_type             = 0;
+   frameskip_threshold        = 0;
+   frameskip_counter          = 0;
+   retro_audio_buff_active    = false;
+   retro_audio_buff_occupancy = 0;
+   retro_audio_buff_underrun  = false;
+   retro_audio_latency        = 0;
+   update_audio_latency       = false;
 }
 
 #ifdef VITA
