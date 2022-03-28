@@ -70,6 +70,8 @@ struct rearmed_cbs {
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;
+	int   fskip_force;
+	int   fskip_dirty;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
