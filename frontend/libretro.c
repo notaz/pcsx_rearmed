@@ -96,17 +96,25 @@ static int show_advanced_gpu_unai_settings = -1;
 static int show_other_input_settings = -1;
 static float mouse_sensitivity = 1.0f;
 
-unsigned frameskip_type                  = 0;
-unsigned frameskip_threshold             = 0;
-unsigned frameskip_counter               = 0;
-unsigned frameskip_interval              = 0;
+typedef enum
+{
+   FRAMESKIP_NONE = 0,
+   FRAMESKIP_AUTO,
+   FRAMESKIP_AUTO_THRESHOLD,
+   FRAMESKIP_FIXED_INTERVAL
+} frameskip_type_t;
 
-int retro_audio_buff_active              = false;
-unsigned retro_audio_buff_occupancy      = 0;
-int retro_audio_buff_underrun            = false;
+static unsigned frameskip_type                  = FRAMESKIP_NONE;
+static unsigned frameskip_threshold             = 0;
+static unsigned frameskip_interval              = 0;
+static unsigned frameskip_counter               = 0;
 
-unsigned retro_audio_latency             = 0;
-int update_audio_latency                 = false;
+static int retro_audio_buff_active              = false;
+static unsigned retro_audio_buff_occupancy      = 0;
+static int retro_audio_buff_underrun            = false;
+
+static unsigned retro_audio_latency             = 0;
+static int update_audio_latency                 = false;
 
 static unsigned previous_width = 0;
 static unsigned previous_height = 0;
@@ -1217,20 +1225,33 @@ static void retro_audio_buff_status_cb(
 
 static void retro_set_audio_buff_status_cb(void)
 {
-   if (frameskip_type > 0)
+   if (frameskip_type == FRAMESKIP_NONE)
    {
-      struct retro_audio_buffer_status_callback buf_status_cb;
+      environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
+      retro_audio_latency = 0;
+   }
+   else
+   {
+      bool calculate_audio_latency = true;
 
-      buf_status_cb.callback = retro_audio_buff_status_cb;
-      if (!environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK,
-            &buf_status_cb))
-      {
-         retro_audio_buff_active    = false;
-         retro_audio_buff_occupancy = 0;
-         retro_audio_buff_underrun  = false;
-         retro_audio_latency        = 0;
-      }
+      if (frameskip_type == FRAMESKIP_FIXED_INTERVAL)
+         environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
       else
+      {
+         struct retro_audio_buffer_status_callback buf_status_cb;
+         buf_status_cb.callback = retro_audio_buff_status_cb;
+         if (!environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK,
+                         &buf_status_cb))
+         {
+            retro_audio_buff_active    = false;
+            retro_audio_buff_occupancy = 0;
+            retro_audio_buff_underrun  = false;
+            retro_audio_latency        = 0;
+            calculate_audio_latency    = false;
+         }
+      }
+
+      if (calculate_audio_latency)
       {
          /* Frameskip is enabled - increase frontend
           * audio latency to minimise potential
@@ -1244,13 +1265,9 @@ static void retro_set_audio_buff_status_cb(void)
          retro_audio_latency = (retro_audio_latency + 0x1F) & ~0x1F;
       }
    }
-   else
-   {
-      environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
-      retro_audio_latency = 0;
-   }
 
    update_audio_latency = true;
+   frameskip_counter    = 0;
 }
 
 static void update_variables(bool in_flight);
@@ -1535,23 +1552,23 @@ static void update_variables(bool in_flight)
 #ifdef GPU_PEOPS
    int gpu_peops_fix = 0;
 #endif
-   unsigned prev_frameskip_type;
+   frameskip_type_t prev_frameskip_type;
 
    var.key = "pcsx_rearmed_frameskip_type";
    var.value = NULL;
 
    prev_frameskip_type = frameskip_type;
-   frameskip_type = 0;
+   frameskip_type = FRAMESKIP_NONE;
    pl_rearmed_cbs.frameskip = 0;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "auto") == 0)
-         frameskip_type = 1;
+         frameskip_type = FRAMESKIP_AUTO;
       if (strcmp(var.value, "auto_threshold") == 0)
-         frameskip_type = 2;
+         frameskip_type = FRAMESKIP_AUTO_THRESHOLD;
       if (strcmp(var.value, "fixed_interval") == 0)
-         frameskip_type = 3;
+         frameskip_type = FRAMESKIP_FIXED_INTERVAL;
    }
 
    if (frameskip_type != 0)
@@ -1568,7 +1585,7 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_frameskip";
    var.value = NULL;
 
-   frameskip_interval = 1;
+   frameskip_interval = 3;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
       frameskip_interval = strtol(var.value, NULL, 10);
@@ -2639,23 +2656,23 @@ void retro_run(void)
     * be skipped */
    pl_rearmed_cbs.fskip_force = 0;
    pl_rearmed_cbs.fskip_dirty = 0;
-   if ((frameskip_type > 0) && retro_audio_buff_active)
+
+   if (frameskip_type != FRAMESKIP_NONE)
    {
-      bool skip_frame;
+      bool skip_frame = false;
 
       switch (frameskip_type)
       {
-         case 1: /* auto */
-            skip_frame = retro_audio_buff_underrun;
+         case FRAMESKIP_AUTO:
+            skip_frame = retro_audio_buff_active && retro_audio_buff_underrun;
             break;
-         case 2: /* threshold */
-            skip_frame = (retro_audio_buff_occupancy < frameskip_threshold);
+         case FRAMESKIP_AUTO_THRESHOLD:
+            skip_frame = retro_audio_buff_active && (retro_audio_buff_occupancy < frameskip_threshold);
             break;
-         case 3: /* fixed */
+         case FRAMESKIP_FIXED_INTERVAL:
             skip_frame = true;
             break;
          default:
-            skip_frame = false;
             break;
       }
 
@@ -3005,8 +3022,9 @@ void retro_deinit(void)
    /* Have to reset disks struct, otherwise
     * fnames/flabels will leak memory */
    disk_init();
-   frameskip_type             = 0;
+   frameskip_type             = FRAMESKIP_NONE;
    frameskip_threshold        = 0;
+   frameskip_interval         = 0;
    frameskip_counter          = 0;
    retro_audio_buff_active    = false;
    retro_audio_buff_occupancy = 0;
