@@ -156,7 +156,7 @@ void emu_set_default_config(void)
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS) /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
-#ifndef(_MIYOO)
+#ifndef HAVE_LIBRETRO
 	spu_config.iTempo = 1;
 #endif
 #endif
