@@ -1554,8 +1554,8 @@ static void update_variables(bool in_flight)
 #endif
    frameskip_type_t prev_frameskip_type;
 
-   var.key = "pcsx_rearmed_frameskip_type";
    var.value = NULL;
+   var.key = "pcsx_rearmed_frameskip_type";
 
    prev_frameskip_type = frameskip_type;
    frameskip_type = FRAMESKIP_NONE;
@@ -1573,22 +1573,20 @@ static void update_variables(bool in_flight)
 
    if (frameskip_type != 0)
       pl_rearmed_cbs.frameskip = -1;
-
+   
+   var.value = NULL;
    var.key = "pcsx_rearmed_frameskip_threshold";
-   var.value = NULL;
-
-   frameskip_threshold = 30;
-
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      frameskip_threshold = strtol(var.value, NULL, 10);
+   {
+     frameskip_threshold = strtol(var.value, NULL, 10);
+   }
 
-   var.key = "pcsx_rearmed_frameskip";
    var.value = NULL;
-
-   frameskip_interval = 3;
-
+   var.key = "pcsx_rearmed_frameskip_interval";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      frameskip_interval = strtol(var.value, NULL, 10);
+   {
+     frameskip_interval = strtol(var.value, NULL, 10);
+   }   
 
    var.value = NULL;
    var.key = "pcsx_rearmed_region";
