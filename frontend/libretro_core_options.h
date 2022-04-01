@@ -105,7 +105,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "10", NULL },
          { NULL, NULL },
       },
-      "1"
+      "3"
    },
    {
       "pcsx_rearmed_bios",
