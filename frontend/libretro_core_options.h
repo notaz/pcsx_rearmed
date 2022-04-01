@@ -89,7 +89,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "33"
    },
    {
-      "pcsx_rearmed_frameskip",
+      "pcsx_rearmed_frameskip_interval",
       "Frameskip Interval",
       "Specifies the maximum number of frames that can be skipped before a new frame is rendered.",
       {
@@ -105,7 +105,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { "10", NULL },
          { NULL, NULL },
       },
-      "3"
+      "1"
    },
    {
       "pcsx_rearmed_bios",
