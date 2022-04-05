@@ -66,6 +66,7 @@ else ifneq (,$(findstring CortexA73_G12B,$(platform)))
 	fpic := -fPIC
 	SHARED := -shared -Wl,-version-script=link.T
 	ARCH = arm64
+	DYNAREC ?= ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
 	CPUFLAGS += -march=armv8-a+crc -mfpu=neon-fp-armv8 -mcpu=cortex-a73 -mtune=cortex-a73.cortex-a53
 
@@ -198,6 +199,7 @@ else ifeq ($(platform), libnx)
 else ifeq ($(platform), arm64)
    TARGET := $(TARGET_NAME)_libretro.so
    ARCH := arm64
+   DYNAREC = ari64
    BUILTIN_GPU = unai
    fpic := -fPIC
    CFLAGS := $(filter-out -O2, $(CFLAGS))
@@ -500,6 +502,9 @@ HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
+endif
+ifdef ALLOW_LIGHTREC_ON_ARM
+CFLAGS += -DALLOW_LIGHTREC_ON_ARM
 endif
 
 TARGET ?= libretro.so

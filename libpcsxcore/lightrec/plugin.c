@@ -15,6 +15,10 @@
 
 #include "../frontend/main.h"
 
+#if (defined(__arm__) || defined(__aarch64__)) && !defined(ALLOW_LIGHTREC_ON_ARM)
+#error "Lightrec should not be used on ARM (please specify DYNAREC=ari64 to make)"
+#endif
+
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
