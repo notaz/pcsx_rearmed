@@ -1298,8 +1298,12 @@ bool retro_load_game(const struct retro_game_info *info)
       { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X,  "Left Analog X" },  \
       { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y,  "Left Analog Y" },  \
       { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X, "Right Analog X" }, \
-      { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y, "Right Analog Y" },
-
+      { port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y, "Right Analog Y" }, \
+      { port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_TRIGGER, "Gun Trigger" },                        \
+      { port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_RELOAD,  "Gun Reload" },                         \
+      { port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_AUX_A,   "Gun Aux A" },                          \
+      { port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_AUX_B,   "Gun Aux B" },
+      
       JOYP(0)
       JOYP(1)
       JOYP(2)
@@ -2356,44 +2360,42 @@ unsigned char axis_range_modifier(int16_t axis_value, bool is_square)
 
 static void update_input_guncon(int port, int ret)
 {
-   //ToDo move across to:
-   //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X
-   //RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y
-   //RETRO_DEVICE_ID_LIGHTGUN_TRIGGER
-   //RETRO_DEVICE_ID_LIGHTGUN_RELOAD
-   //RETRO_DEVICE_ID_LIGHTGUN_AUX_A
-   //RETRO_DEVICE_ID_LIGHTGUN_AUX_B
-   //Though not sure these are hooked up properly on the Pi
-
-   //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
-
-   // Trigger
-   //The 1 is hardcoded instead of port to prevent the overlay mouse button libretro crash bug
-   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT))
-   {
-      in_keystate[port] |= (1 << DKEY_CIRCLE);
-   }
-
-   // A
-   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT))
-   {
-      in_keystate[port] |= (1 << DKEY_START);
-   }
-
-   // B
-   if (input_state_cb(port, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE))
-   {
-      in_keystate[port] |= (1 << DKEY_CROSS);
-   }
-
-   int gunx = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
-   int guny = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+   //ToDo:
+   //Core option for cursors for both players
+   //Separate pointer and lightgun control types
 
    //Mouse range is -32767 -> 32767
    //1% is about 655
    //Use the left analog stick field to store the absolute coordinates
-   in_analog_left[port][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
-   in_analog_left[port][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
+   //Fix cursor to top-left when gun is detected as "offscreen"
+   if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN) || input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_RELOAD))
+   {
+      in_analog_left[port][0] = -32767;
+      in_analog_left[port][1] = -32767;
+   }
+   else
+   {
+      int gunx = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X);
+      int guny = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y);
+	   
+      in_analog_left[port][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
+      in_analog_left[port][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
+   }
+	
+   //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross
+
+   // Trigger
+   if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_TRIGGER) || input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_RELOAD))
+      in_keystate[port] |= (1 << DKEY_CIRCLE);
+
+   // A
+   if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_AUX_A))
+      in_keystate[port] |= (1 << DKEY_START);
+
+   // B
+   if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_AUX_B))
+      in_keystate[port] |= (1 << DKEY_CROSS);
+	   
 }
 
 static void update_input_negcon(int port, int ret)
