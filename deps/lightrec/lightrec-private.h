@@ -98,7 +98,6 @@ struct lightrec_branch_target {
 enum c_wrappers {
 	C_WRAPPER_RW,
 	C_WRAPPER_RW_GENERIC,
-	C_WRAPPER_MFC,
 	C_WRAPPER_MTC,
 	C_WRAPPER_CP,
 	C_WRAPPER_SYSCALL,
@@ -128,7 +127,8 @@ struct lightrec_state {
 	u32 exit_flags;
 	u32 old_cycle_counter;
 	struct block *dispatcher, *c_wrapper_block;
-	void *c_wrapper, *c_wrappers[C_WRAPPERS_COUNT];
+	void *c_wrappers[C_WRAPPERS_COUNT];
+	void *wrappers_eps[C_WRAPPERS_COUNT];
 	struct tinymm *tinymm;
 	struct blockcache *block_cache;
 	struct recompiler *rec;
