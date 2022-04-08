@@ -244,6 +244,8 @@ lshr                 O1 = O2 << O3
 lshi                 O1 = O2 << O3
 rshr     _u          O1 = O2 >> O3@footnote{The sign bit is propagated unless using the @code{_u} modifier.}
 rshi     _u          O1 = O2 >> O3@footnote{The sign bit is propagated unless using the @code{_u} modifier.}
+movzr                O1 = O3 ? O1 : O2
+movnr                O1 = O3 ? O2 : O1
 @end example
 
 @item Four operand binary ALU operations

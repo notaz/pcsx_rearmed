@@ -406,17 +406,9 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 		return state->regs.cp2c[op.r.rd];
 }
 
-static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
-{
-	u32 rt = lightrec_mfc(state, op);
-
-	if (op.r.rt)
-		state->regs.gpr[op.r.rt] = rt;
-}
-
 static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 {
-	u32 status, cause;
+	u32 status, oldstatus, cause;
 
 	switch (reg) {
 	case 1:
@@ -426,12 +418,13 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 	case 15:
 		/* Those registers are read-only */
 		return;
-	default: /* fall-through */
+	default:
 		break;
 	}
 
 	if (reg == 12) {
 		status = state->regs.cp0[12];
+		oldstatus = status;
 
 		if (status & ~data & BIT(16)) {
 			state->ops.enable_ram(state, true);
@@ -441,13 +434,23 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 		}
 	}
 
-	state->regs.cp0[reg] = data;
+	if (reg == 13) {
+		state->regs.cp0[13] &= ~0x300;
+		state->regs.cp0[13] |= data & 0x300;
+	} else {
+		state->regs.cp0[reg] = data;
+	}
 
 	if (reg == 12 || reg == 13) {
 		cause = state->regs.cp0[13];
 		status = state->regs.cp0[12];
 
+		/* Handle software interrupts */
 		if (!!(status & cause & 0x300) & status)
+			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+
+		/* Handle hardware interrupts */
+		if (reg == 12 && !(~status & 0x401) && (~oldstatus & 0x401))
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	}
 }
@@ -684,6 +687,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	int stack_ptr;
 	jit_word_t code_size;
 	jit_node_t *to_tramp, *to_fn_epilog;
+	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -698,9 +702,22 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Wrapper entry point */
 	jit_prolog();
+	jit_tramp(256);
+
+	/* Add entry points; separate them by opcodes that increment
+	 * LIGHTREC_REG_STATE (since we cannot touch other registers).
+	 * The difference will then tell us which C function to call. */
+	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
+		jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE, __WORDSIZE / 8);
+		addr[i - 1] = jit_indirect();
+	}
+
+	jit_epilog();
+	jit_prolog();
 
 	stack_ptr = jit_allocai(sizeof(uintptr_t) * NUM_TEMPS);
 
+	/* Save all temporaries on stack */
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
 
@@ -710,6 +727,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	/* The trampoline will jump back here */
 	to_fn_epilog = jit_label();
 
+	/* Restore temporaries from stack */
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_ldxi(JIT_R(i), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
 
@@ -723,6 +741,13 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_prolog();
 	jit_tramp(256);
 	jit_patch(to_tramp);
+
+	/* Retrieve the wrapper function */
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, c_wrappers));
+
+	/* Restore LIGHTREC_REG_STATE to its correct value */
+	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
@@ -740,6 +765,11 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	block->opcode_list = NULL;
 	block->flags = 0;
 	block->nb_ops = 0;
+
+	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
+
+	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
+		state->wrappers_eps[i] = jit_address(addr[i]);
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);
@@ -943,7 +973,7 @@ err_no_mem:
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 {
-	void *host;
+	void *host = NULL;
 
 	lightrec_get_map(state, &host, kunseg(pc));
 
@@ -1261,13 +1291,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			 * finishes. */
 			if (ENABLE_THREADED_COMPILER)
 				lightrec_recompiler_remove(state->rec, block2);
+		}
 
-			/* We know from now on that block2 isn't going to be
-			 * compiled. We can override the LUT entry with our
-			 * new block's entry point. */
-			offset = lut_offset(block->pc) + target->offset;
-			state->code_lut[offset] = jit_address(target->label);
+		/* We know from now on that block2 (if present) isn't going to
+		 * be compiled. We can override the LUT entry with our new
+		 * block's entry point. */
+		offset = lut_offset(block->pc) + target->offset;
+		state->code_lut[offset] = jit_address(target->label);
 
+		if (block2) {
 			pr_debug("Reap block 0x%08x as it's covered by block "
 				 "0x%08x\n", block2->pc, block->pc);
 
@@ -1487,11 +1519,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->c_wrapper_block)
 		goto err_free_dispatcher;
 
-	state->c_wrapper = state->c_wrapper_block->function;
-
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
-	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp;
 	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;

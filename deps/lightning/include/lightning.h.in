@@ -891,6 +891,10 @@ typedef enum {
 #define jit_movr_d_w(u, v)	jit_new_node_ww(jit_code_movr_d_w, u, v)
 #define jit_movi_d_w(u, v)	jit_new_node_wd(jit_code_movi_d_w, u, v)
 
+#define jit_movnr(u,v,w)	jit_new_node_www(jit_code_movnr,u,v,w)
+#define jit_movzr(u,v,w)	jit_new_node_www(jit_code_movzr,u,v,w)
+    jit_code_movnr,		jit_code_movzr,
+
     jit_code_last_code
 } jit_code_t;
 
