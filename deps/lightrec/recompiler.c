@@ -154,7 +154,7 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 	for (i = 0; i < nb_recs; i++) {
 		rec->thds[i].cstate = lightrec_create_cstate(state);
-		if (!rec->state) {
+		if (!rec->thds[i].cstate) {
 			pr_err("Cannot create recompiler: Out of memory\n");
 			goto err_free_cstates;
 		}
