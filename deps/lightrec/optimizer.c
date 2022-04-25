@@ -277,7 +277,8 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 			return true;
 
 		if (has_delay_slot(list[i].c)) {
-			if (list[i].flags & LIGHTREC_NO_DS)
+			if (list[i].flags & LIGHTREC_NO_DS ||
+			    opcode_reads_register(list[i + 1].c, reg))
 				return false;
 
 			return opcode_writes_register(list[i + 1].c, reg);
@@ -459,16 +460,18 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static u32 lightrec_propagate_consts(const struct opcode *op, u32 known, u32 *v)
+static u32 lightrec_propagate_consts(const struct opcode *op,
+				     const struct opcode *prev,
+				     u32 known, u32 *v)
 {
-	union code c = op->c;
+	union code c = prev->c;
 
 	/* Register $zero is always, well, zero */
 	known |= BIT(0);
 	v[0] = 0;
 
 	if (op->flags & LIGHTREC_SYNC)
-		return 0;
+		return BIT(0);
 
 	switch (c.i.op) {
 	case OP_SPECIAL:
@@ -817,14 +820,18 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
-	struct opcode *op;
+	struct opcode *prev, *op = NULL;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
 	int reader;
 
 	for (i = 0; i < block->nb_ops; i++) {
+		prev = op;
 		op = &list[i];
+
+		if (prev)
+			known = lightrec_propagate_consts(op, prev, known, values);
 
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
@@ -933,8 +940,6 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		default: /* fall-through */
 			break;
 		}
-
-		known = lightrec_propagate_consts(op, known, values);
 	}
 
 	return 0;
@@ -1229,14 +1234,19 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
 	const struct lightrec_mem_map *map;
-	struct opcode *list;
+	struct opcode *prev2, *prev = NULL, *list = NULL;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
 	u32 val;
 
 	for (i = 0; i < block->nb_ops; i++) {
+		prev2 = prev;
+		prev = list;
 		list = &block->opcode_list[i];
+
+		if (prev)
+			known = lightrec_propagate_consts(list, prev, known, values);
 
 		switch (list->i.op) {
 		case OP_SB:
@@ -1279,24 +1289,47 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWR:
 		case OP_LWC2:
 			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
-				val = kunseg(values[list->i.rs] + (s16) list->i.imm);
-				map = lightrec_get_map(state, NULL, val);
+				if (prev && prev->i.op == OP_LUI &&
+				    !(prev2 && has_delay_slot(prev2->c)) &&
+				    prev->i.rt == list->i.rs &&
+				    list->i.rt == list->i.rs &&
+				    prev->i.imm & 0x8000) {
+					pr_debug("Convert LUI at offset 0x%x to kuseg\n",
+						 i - 1 << 2);
+
+					val = kunseg(prev->i.imm << 16);
+					prev->i.imm = val >> 16;
+					values[list->i.rs] = val;
+				}
+
+				val = values[list->i.rs] + (s16) list->i.imm;
+				map = lightrec_get_map(state, NULL, kunseg(val));
 
 				if (!map || map->ops ||
 				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
-					pr_debug("Flagging opcode %u as accessing I/O registers\n",
+					pr_debug("Flagging opcode %u as I/O access\n",
 						 i);
-					list->flags |= LIGHTREC_HW_IO;
-				} else {
-					pr_debug("Flaging opcode %u as direct memory access\n", i);
-					list->flags |= LIGHTREC_DIRECT_IO;
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
+					break;
+				}
+
+				if (val - map->pc < map->length)
+					list->flags |= LIGHTREC_NO_MASK;
+
+				if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+					pr_debug("Flaging opcode %u as RAM access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+				} else if (map == &state->maps[PSX_MAP_BIOS]) {
+					pr_debug("Flaging opcode %u as BIOS access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
+				} else if (map == &state->maps[PSX_MAP_SCRATCH_PAD]) {
+					pr_debug("Flaging opcode %u as scratchpad access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
 				}
 			}
 		default: /* fall-through */
 			break;
 		}
-
-		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;
@@ -1483,14 +1516,18 @@ static bool lightrec_always_skip_div_check(void)
 
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *list;
+	struct opcode *prev, *list = NULL;
 	u8 reg_hi, reg_lo;
 	unsigned int i;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
+		prev = list;
 		list = &block->opcode_list[i];
+
+		if (prev)
+			known = lightrec_propagate_consts(list, prev, known, values);
 
 		if (list->i.op != OP_SPECIAL)
 			continue;
@@ -1507,14 +1544,12 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		case OP_SPECIAL_MULTU:
 			break;
 		default:
-			known = lightrec_propagate_consts(list, known, values);
 			continue;
 		}
 
 		/* Don't support opcodes in delay slots */
 		if ((i && has_delay_slot(block->opcode_list[i - 1].c)) ||
 		    (list->flags & LIGHTREC_NO_DS)) {
-			known = lightrec_propagate_consts(list, known, values);
 			continue;
 		}
 
@@ -1558,8 +1593,6 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		} else {
 			list->r.imm = 0;
 		}
-
-		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;

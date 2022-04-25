@@ -23,10 +23,22 @@
 #define LIGHTREC_SYNC		BIT(4)
 
 /* Flags for load/store opcodes */
-#define LIGHTREC_DIRECT_IO	BIT(5)
-#define LIGHTREC_HW_IO		BIT(6)
-#define LIGHTREC_SMC		BIT(7)
-#define LIGHTREC_NO_INVALIDATE	BIT(8)
+#define LIGHTREC_SMC		BIT(5)
+#define LIGHTREC_NO_INVALIDATE	BIT(6)
+#define LIGHTREC_NO_MASK	BIT(7)
+
+/* I/O mode for load/store opcodes */
+#define LIGHTREC_IO_MODE_LSB	8
+#define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
+#define LIGHTREC_IO_UNKNOWN	0x0
+#define LIGHTREC_IO_DIRECT	0x1
+#define LIGHTREC_IO_HW		0x2
+#define LIGHTREC_IO_RAM		0x3
+#define LIGHTREC_IO_BIOS	0x4
+#define LIGHTREC_IO_SCRATCH	0x5
+#define LIGHTREC_IO_MASK	LIGHTREC_IO_MODE(0x7)
+#define LIGHTREC_FLAGS_GET_IO_MODE(x) \
+	(((x) & LIGHTREC_IO_MASK) >> LIGHTREC_IO_MODE_LSB)
 
 /* Flags for branches */
 #define LIGHTREC_EMULATE_BRANCH	BIT(5)

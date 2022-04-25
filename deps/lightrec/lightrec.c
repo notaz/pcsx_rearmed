@@ -250,13 +250,13 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	}
 
 	if (unlikely(map->ops)) {
-		if (flags)
-			*flags |= LIGHTREC_HW_IO;
+		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags))
+			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 
 		ops = map->ops;
 	} else {
-		if (flags)
-			*flags |= LIGHTREC_DIRECT_IO;
+		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags))
+			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 
 		ops = &lightrec_default_ops;
 	}
@@ -323,16 +323,17 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	}
 }
 
-static void lightrec_rw_cb(struct lightrec_state *state, union code op)
+static void lightrec_rw_cb(struct lightrec_state *state)
 {
-	lightrec_rw_helper(state, op, NULL, NULL);
+	lightrec_rw_helper(state, (union code)state->c_wrapper_arg, NULL, NULL);
 }
 
-static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
+static void lightrec_rw_generic_cb(struct lightrec_state *state)
 {
 	struct block *block;
 	struct opcode *op;
 	bool was_tagged;
+	u32 arg = state->c_wrapper_arg;
 	u16 offset = (u16)arg;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
@@ -344,7 +345,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 
 	op = &block->opcode_list[offset];
-	was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
+	was_tagged = LIGHTREC_FLAGS_GET_IO_MODE(op->flags);
 
 	lightrec_rw_helper(state, op->c, &op->flags, block);
 
@@ -529,8 +530,10 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 		lightrec_mtc2(state, op.r.rd, data);
 }
 
-static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
+static void lightrec_mtc_cb(struct lightrec_state *state)
 {
+	union code op = (union code) state->c_wrapper_arg;
+
 	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
 }
 
@@ -558,12 +561,17 @@ void lightrec_cp(struct lightrec_state *state, union code op)
 	(*state->ops.cop2_op)(state, op.opcode);
 }
 
-static void lightrec_syscall_cb(struct lightrec_state *state, union code op)
+static void lightrec_cp_cb(struct lightrec_state *state)
+{
+	lightrec_cp(state, (union code) state->c_wrapper_arg);
+}
+
+static void lightrec_syscall_cb(struct lightrec_state *state)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SYSCALL);
 }
 
-static void lightrec_break_cb(struct lightrec_state *state, union code op)
+static void lightrec_break_cb(struct lightrec_state *state)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
 }
@@ -669,12 +677,11 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 }
 
 static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *, u32 d),
-			      u32 d)
+			      void (*f)(struct lightrec_state *))
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
-	(*f)(state, d);
+	(*f)(state);
 
 	return state->target_cycle - state->current_cycle;
 }
@@ -753,7 +760,6 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargr(JIT_R0);
-	jit_pushargr(JIT_R1);
 	jit_finishi(c_function_wrapper);
 	jit_retval_i(LIGHTREC_REG_CYCLE);
 
@@ -1130,8 +1136,7 @@ static bool lightrec_block_is_fully_tagged(const struct block *block)
 		case OP_SWR:
 		case OP_LWC2:
 		case OP_SWC2:
-			if (!(op->flags & (LIGHTREC_DIRECT_IO |
-					   LIGHTREC_HW_IO)))
+			if (!LIGHTREC_FLAGS_GET_IO_MODE(op->flags))
 				return false;
 		default: /* fall-through */
 			continue;
@@ -1522,7 +1527,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
-	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp;
+	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
 	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;
 	state->c_wrappers[C_WRAPPER_BREAK] = lightrec_break_cb;
 

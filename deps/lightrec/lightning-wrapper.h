@@ -19,4 +19,6 @@
 
 #endif
 
+#define jit_b()			jit_beqr(0, 0)
+
 #endif /* __LIGHTNING_WRAPPER_H__ */
