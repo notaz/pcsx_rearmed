@@ -603,6 +603,15 @@ static const char PcsxHeader[32] = "STv4 PCSX v" PCSX_VERSION;
 // If you make changes to the savestate version, please increment the value below.
 static const u32 SaveVersion = 0x8b410006;
 
+static int drc_is_lightrec(void)
+{
+#if defined(LIGHTREC)
+	return 1;
+#else
+	return 0;
+#endif
+}
+
 int SaveState(const char *file) {
 	void *f;
 	GPUFreeze_t *gpufP;
@@ -614,6 +623,9 @@ int SaveState(const char *file) {
 	if (f == NULL) return -1;
 
 	new_dyna_before_save();
+
+	if (drc_is_lightrec())
+		lightrec_plugin_prepare_save_state();
 
 	SaveFuncs.write(f, (void *)PcsxHeader, 32);
 	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
@@ -690,12 +702,8 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosInit();
 
-#if defined(LIGHTREC)
-	if (Config.Cpu != CPU_INTERPRETER)
-		psxCpu->Clear(0, UINT32_MAX); //clear all
-	else
-#endif
-	psxCpu->Reset();
+	if (!drc_is_lightrec() || Config.Cpu == CPU_INTERPRETER)
+		psxCpu->Reset();
 	SaveFuncs.seek(f, 128 * 96 * 3, SEEK_CUR);
 
 	SaveFuncs.read(f, psxM, 0x00200000);
@@ -703,6 +711,9 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, psxH, 0x00010000);
 	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
+
+	if (drc_is_lightrec() && Config.Cpu != CPU_INTERPRETER)
+		lightrec_plugin_prepare_load_state();
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
