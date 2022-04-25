@@ -204,6 +204,9 @@ extern psxRegisters psxRegs;
 extern u32 event_cycles[PSXINT_COUNT];
 extern u32 next_interupt;
 
+void lightrec_plugin_prepare_save_state(void);
+void lightrec_plugin_prepare_load_state(void);
+
 void new_dyna_before_save(void);
 void new_dyna_after_save(void);
 void new_dyna_freeze(void *f, int mode);

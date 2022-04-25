@@ -554,6 +554,28 @@ static void lightrec_plugin_reset(void)
 	booting = true;
 }
 
+void lightrec_plugin_prepare_load_state(void)
+{
+	struct lightrec_registers *regs;
+
+	regs = lightrec_get_registers(lightrec_state);
+	memcpy(regs->cp2d, &psxRegs.CP2, sizeof(regs->cp2d) + sizeof(regs->cp2c));
+	memcpy(regs->cp0, &psxRegs.CP0, sizeof(regs->cp0));
+	memcpy(regs->gpr, &psxRegs.GPR, sizeof(regs->gpr));
+
+	lightrec_invalidate_all(lightrec_state);
+}
+
+void lightrec_plugin_prepare_save_state(void)
+{
+	struct lightrec_registers *regs;
+
+	regs = lightrec_get_registers(lightrec_state);
+	memcpy(&psxRegs.CP2, regs->cp2d, sizeof(regs->cp2d) + sizeof(regs->cp2c));
+	memcpy(&psxRegs.CP0, regs->cp0, sizeof(regs->cp0));
+	memcpy(&psxRegs.GPR, regs->gpr, sizeof(regs->gpr));
+}
+
 R3000Acpu psxRec =
 {
 	lightrec_plugin_init,
