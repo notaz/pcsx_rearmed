@@ -28,6 +28,7 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := pcsx_rearmed
+ARCH_DETECTED := $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
 ifneq ($(GIT_VERSION)," unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
@@ -53,9 +54,11 @@ ifeq ($(platform), unix)
 ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
 endif
-ifeq ($(ARCH), arm)
+ifneq (,$(findstring $(ARCH_DETECTED),arm aarch64))
+	DYNAREC = ari64
+
 ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
-	# must disable thumb as recompiler can't handle it
+	# must disable thumb as ari64 can't handle it
 	CFLAGS += -marm
 endif
 endif
@@ -495,7 +498,7 @@ endif
 
 # try to autodetect stuff for the lazy
 ifndef ARCH
-ARCH = $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+ARCH = $(ARCH_DETECTED)
 endif
 ifndef HAVE_NEON
 HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
