@@ -624,7 +624,7 @@ int SaveState(const char *file) {
 
 	new_dyna_before_save();
 
-	if (drc_is_lightrec())
+	if (drc_is_lightrec() && Config.Cpu != CPU_INTERPRETER)
 		lightrec_plugin_prepare_save_state();
 
 	SaveFuncs.write(f, (void *)PcsxHeader, 32);
