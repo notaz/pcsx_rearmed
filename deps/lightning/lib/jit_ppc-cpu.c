@@ -505,6 +505,10 @@ static void _nop(jit_state_t*,jit_int32_t);
 static void _movr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi(r0,i0)			_movi(_jit,r0,i0)
 static void _movi(jit_state_t*,jit_int32_t,jit_word_t);
+#  define movnr(r0,r1,r2)		_movnr(_jit,r0,r1,r2)
+static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define movzr(r0,r1,r2)		_movzr(_jit,r0,r1,r2)
+static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define movi_p(r0,i0)			_movi_p(_jit,r0,i0)
 static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
 #  define negr(r0,r1)			NEG(r0,r1)
@@ -1118,6 +1122,22 @@ _movi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 	if (i0 & 0xffff)
 	    ORI(r0, r0, (jit_uint16_t)i0);
     }
+}
+
+static void
+_movnr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    CMPWI(r2, 0);
+    BEQ(8);
+    MR(r0, r1);
+}
+
+static void
+_movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    CMPWI(r2, 0);
+    BNE(8);
+    MR(r0, r1);
 }
 
 static jit_word_t

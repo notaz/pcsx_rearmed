@@ -290,6 +290,7 @@ typedef union {
 #  define A64_CBNZ			0x35000000
 #  define A64_B_C			0x54000000
 #  define A64_CSINC			0x1a800400
+#  define A64_CSSEL			0x1a800000
 #  define A64_REV			0xdac00c00
 #  define A64_UDIV			0x1ac00800
 #  define A64_SDIV			0x1ac00c00
@@ -461,6 +462,7 @@ typedef union {
 #  define LDPI_PRE(Rt,Rt2,Rn,Simm7)	oxxx7(A64_LDP_PRE|XS,Rt,Rt2,Rn,Simm7)
 #  define STPI_POS(Rt,Rt2,Rn,Simm7)	oxxx7(A64_STP_POS|XS,Rt,Rt2,Rn,Simm7)
 #  define CSET(Rd,Cc)			CSINC(Rd,XZR_REGNO,XZR_REGNO,Cc)
+#  define CSEL(Rd,Rn,Rm,Cc)		oxxxc(A64_CSSEL|XS,Rd,Rn,Rm,Cc)
 #  define B(Simm26)			o26(A64_B,Simm26)
 #  define BL(Simm26)			o26(A64_BL,Simm26)
 #  define BR(Rn)			o_x_(A64_BR,Rn)
@@ -572,6 +574,10 @@ static void _rshi(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #  define rshr_u(r0,r1,r2)		LSR(r0,r1,r2)
 #  define rshi_u(r0,r1,i0)		_rshi_u(_jit,r0,r1,i0)
 static void _rshi_u(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define movnr(r0,r1,r2)		_movnr(_jit,r0,r1,r2)
+static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define movzr(r0,r1,r2)		_movzr(_jit,r0,r1,r2)
+static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define negr(r0,r1)			NEG(r0,r1)
 #  define comr(r0,r1)			MVN(r0,r1)
 #  define andr(r0,r1,r2)		AND(r0,r1,r2)
@@ -1373,6 +1379,20 @@ _rshi_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 	assert(i0 > 0 && i0 < 64);
 	LSRI(r0, r1, i0);
     }
+}
+
+static void
+_movnr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+	CMPI(r2, 0);
+	CSEL(r0, r0, r1, CC_NE);
+}
+
+static void
+_movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+	CMPI(r2, 0);
+	CSEL(r0, r0, r1, CC_EQ);
 }
 
 static void
