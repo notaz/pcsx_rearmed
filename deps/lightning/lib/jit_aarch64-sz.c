@@ -399,4 +399,6 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
+    8,	/* movnr */
+    8,	/* movzr */
 #endif /* __WORDSIZE */

@@ -843,6 +843,10 @@ static void _movr(jit_state_t*,jit_int32_t,jit_int32_t);
 static void _movi(jit_state_t*,jit_int32_t,jit_word_t);
 #  define movi_p(r0,i0)			_movi_p(_jit,r0,i0)
 static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
+#  define movnr(r0,r1,r2)		_movnr(_jit,r0,r1,r2)
+static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define movzr(r0,r1,r2)		_movzr(_jit,r0,r1,r2)
+static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define comr(r0,r1)			_comr(_jit,r0,r1)
 static void _comr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define negr(r0,r1)			_negr(_jit,r0,r1)
@@ -1580,6 +1584,35 @@ _movi_p(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
     else
 	load_const(1, r0, 0);
     return (w);
+}
+
+static void
+_movznr(jit_state_t *_jit, int ct, jit_int32_t r0,
+        jit_int32_t r1, jit_int32_t r2)
+{
+    if (jit_thumb_p()) {
+        if (r2 < 7)
+            T1_CMPI(r2, 0);
+        else
+            T2_CMPI(r2, 0);
+        IT(ct);
+        T1_MOV(r0, r1);
+    } else {
+        CMPI(r2, 0);
+        CC_MOV(ct, r0, r1);
+    }
+}
+
+static void
+_movnr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    _movznr(_jit, ARM_CC_NE, r0, r1, r2);
+}
+
+static void
+_movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    _movznr(_jit, ARM_CC_EQ, r0, r1, r2);
 }
 
 static void

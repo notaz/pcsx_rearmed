@@ -401,6 +401,8 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
+    12,  /* movnr */
+    12,  /* movzr */
 #endif /* _CALL_SYV */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
@@ -809,6 +811,8 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
+    12,  /* movnr */
+    12,  /* movzr */
 #endif /* _CALL_AIX */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
@@ -1216,6 +1220,8 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
+    12,  /* movnr */
+    12,  /* movzr */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */
@@ -1622,6 +1628,8 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
+    12,  /* movnr */
+    12,  /* movzr */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */

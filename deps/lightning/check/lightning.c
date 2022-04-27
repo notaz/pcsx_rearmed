@@ -327,6 +327,7 @@ static void htonr_ui(void);	static void ntohr_ui(void);
 static void htonr_ul(void);	static void ntohr_ul(void);
 #endif
 static void htonr(void);	static void ntohr(void);
+static void movnr(void);	static void movzr(void);
 static void ldr_c(void);	static void ldi_c(void);
 static void ldr_uc(void);	static void ldi_uc(void);
 static void ldr_s(void);	static void ldi_s(void);
@@ -641,6 +642,7 @@ static instr_t		  instr_vector[] = {
     entry(htonr_ul),	entry(ntohr_ul),
 #endif
     entry(htonr),	entry(ntohr),
+    entry(movnr),	entry(movzr),
     entry(ldr_c),	entry(ldi_c),
     entry(ldr_uc), 	entry(ldi_uc),
     entry(ldr_s),	entry(ldi_s),
@@ -1489,6 +1491,7 @@ entry_ir_ir(htonr_ui)		entry_ir_ir(ntohr_ui)
 entry_ir_ir(htonr_ul)		entry_ir_ir(ntohr_ul)
 #endif
 entry_ir_ir(htonr)		entry_ir_ir(ntohr)
+entry_ir_ir_ir(movnr)		entry_ir_ir_ir(movzr)
 entry_ir_ir(ldr_c)		entry_ir_pm(ldi_c)
 entry_ir_ir(ldr_uc)		entry_ir_pm(ldi_uc)
 entry_ir_ir(ldr_s)		entry_ir_pm(ldi_s)
