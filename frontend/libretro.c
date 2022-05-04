@@ -87,13 +87,14 @@ static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
 static bool libretro_supports_bitmasks = false;
+static bool libretro_supports_option_categories = false;
+static bool show_input_settings = true;
 #ifdef GPU_PEOPS
-static int show_advanced_gpu_peops_settings = -1;
+static bool show_advanced_gpu_peops_settings = true;
 #endif
 #ifdef GPU_UNAI
-static int show_advanced_gpu_unai_settings = -1;
+static bool show_advanced_gpu_unai_settings = true;
 #endif
-static int show_other_input_settings = -1;
 static float mouse_sensitivity = 1.0f;
 
 typedef enum
@@ -576,8 +577,155 @@ static const struct retro_controller_info ports[9] =
 };
 
 /* libretro */
+
+static bool update_option_visibility(void)
+{
+   struct retro_variable var                       = {0};
+   struct retro_core_option_display option_display = {0};
+   bool updated                                    = false;
+   unsigned i;
+
+   /* If frontend supports core option categories
+    * then show/hide core option entries are ignored
+    * and no options should be hidden */
+   if (libretro_supports_option_categories)
+      return false;
+
+   var.key = "pcsx_rearmed_show_input_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      bool show_input_settings_prev =
+            show_input_settings;
+
+      show_input_settings = true;
+      if (strcmp(var.value, "disabled") == 0)
+         show_input_settings = false;
+
+      if (show_input_settings !=
+            show_input_settings_prev)
+      {
+         char input_option[][50] = {
+            "pcsx_rearmed_analog_axis_modifier",
+            "pcsx_rearmed_vibration",
+            "pcsx_rearmed_multitap",
+            "pcsx_rearmed_negcon_deadzone",
+            "pcsx_rearmed_negcon_response",
+            "pcsx_rearmed_input_sensitivity",
+            "pcsx_rearmed_gunconadjustx",
+            "pcsx_rearmed_gunconadjusty",
+            "pcsx_rearmed_gunconadjustratiox",
+            "pcsx_rearmed_gunconadjustratioy"
+         };
+
+         option_display.visible = show_input_settings;
+
+         for (i = 0;
+              i < (sizeof(input_option) /
+                     sizeof(input_option[0]));
+              i++)
+         {
+            option_display.key = input_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+                  &option_display);
+         }
+
+         updated = true;
+      }
+   }
+#ifdef GPU_PEOPS
+   var.key = "pcsx_rearmed_show_gpu_peops_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      bool show_advanced_gpu_peops_settings_prev =
+            show_advanced_gpu_peops_settings;
+
+      show_advanced_gpu_peops_settings = true;
+      if (strcmp(var.value, "disabled") == 0)
+         show_advanced_gpu_peops_settings = false;
+
+      if (show_advanced_gpu_peops_settings !=
+            show_advanced_gpu_peops_settings_prev)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_peops_option[][45] = {
+            "pcsx_rearmed_gpu_peops_odd_even_bit",
+            "pcsx_rearmed_gpu_peops_expand_screen_width",
+            "pcsx_rearmed_gpu_peops_ignore_brightness",
+            "pcsx_rearmed_gpu_peops_disable_coord_check",
+            "pcsx_rearmed_gpu_peops_lazy_screen_update",
+            "pcsx_rearmed_gpu_peops_repeated_triangles",
+            "pcsx_rearmed_gpu_peops_quads_with_triangles",
+            "pcsx_rearmed_gpu_peops_fake_busy_state"
+         };
+
+         option_display.visible = show_advanced_gpu_peops_settings;
+
+         for (i = 0;
+              i < (sizeof(gpu_peops_option) /
+                     sizeof(gpu_peops_option[0]));
+              i++)
+         {
+            option_display.key = gpu_peops_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+                  &option_display);
+         }
+
+         updated = true;
+      }
+   }
+#endif
+#ifdef GPU_UNAI
+   var.key = "pcsx_rearmed_show_gpu_unai_settings";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      bool show_advanced_gpu_unai_settings_prev =
+            show_advanced_gpu_unai_settings;
+
+      show_advanced_gpu_unai_settings = true;
+      if (strcmp(var.value, "disabled") == 0)
+         show_advanced_gpu_unai_settings = false;
+
+      if (show_advanced_gpu_unai_settings !=
+            show_advanced_gpu_unai_settings_prev)
+      {
+         unsigned i;
+         struct retro_core_option_display option_display;
+         char gpu_unai_option[][40] = {
+            "pcsx_rearmed_gpu_unai_blending",
+            "pcsx_rearmed_gpu_unai_lighting",
+            "pcsx_rearmed_gpu_unai_fast_lighting",
+            "pcsx_rearmed_gpu_unai_scale_hires",
+         };
+
+         option_display.visible = show_advanced_gpu_unai_settings;
+
+         for (i = 0;
+              i < (sizeof(gpu_unai_option) /
+                     sizeof(gpu_unai_option[0]));
+              i++)
+         {
+            option_display.key = gpu_unai_option[i];
+            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+                  &option_display);
+         }
+
+         updated = true;
+      }
+   }
+#endif
+   return updated;
+}
+
 void retro_set_environment(retro_environment_t cb)
 {
+   bool option_categories = false;
 #ifdef USE_LIBRETRO_VFS
    struct retro_vfs_interface_info vfs_iface_info;
 #endif
@@ -588,7 +736,54 @@ void retro_set_environment(retro_environment_t cb)
       log_cb = logging.log;
 
    environ_cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
-   libretro_set_core_options(environ_cb);
+
+   /* Set core options
+    * An annoyance: retro_set_environment() can be called
+    * multiple times, and depending upon the current frontend
+    * state various environment callbacks may be disabled.
+    * This means the reported 'categories_supported' status
+    * may change on subsequent iterations. We therefore have
+    * to record whether 'categories_supported' is true on any
+    * iteration, and latch the result */
+   libretro_set_core_options(environ_cb, &option_categories);
+   libretro_supports_option_categories |= option_categories;
+
+   /* If frontend supports core option categories,
+    * any show/hide core option entries are unused
+    * and should be hidden */
+   if (libretro_supports_option_categories)
+   {
+      struct retro_core_option_display option_display;
+      option_display.visible = false;
+
+      option_display.key = "pcsx_rearmed_show_input_settings";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+            &option_display);
+
+#ifdef GPU_PEOPS
+      option_display.key = "pcsx_rearmed_show_gpu_peops_settings";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+            &option_display);
+#endif
+#ifdef GPU_UNAI
+      option_display.key = "pcsx_rearmed_show_gpu_unai_settings";
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY,
+            &option_display);
+#endif
+   }
+   /* If frontend does not support core option
+    * categories, core options may be shown/hidden
+    * at runtime. In this case, register 'update
+    * display' callback, so frontend can update
+    * core options menu without calling retro_run() */
+   else
+   {
+      struct retro_core_options_update_display_callback update_display_cb;
+      update_display_cb.callback = update_option_visibility;
+
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK,
+            &update_display_cb);
+   }
 
 #ifdef USE_LIBRETRO_VFS
    vfs_iface_info.required_interface_version = 1;
@@ -1554,7 +1749,10 @@ static void update_variables(bool in_flight)
 {
    struct retro_variable var;
 #ifdef GPU_PEOPS
-   int gpu_peops_fix = 0;
+   // Always enable GPU_PEOPS_OLD_FRAME_SKIP flag
+   // (this is set in standalone, with no option
+   // to change it)
+   int gpu_peops_fix = GPU_PEOPS_OLD_FRAME_SKIP;
 #endif
    frameskip_type_t prev_frameskip_type;
 
@@ -1948,15 +2146,6 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_gpu_peops_old_frame_skip";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         gpu_peops_fix |= GPU_PEOPS_OLD_FRAME_SKIP;
-   }
-
-   var.value = NULL;
    var.key = "pcsx_rearmed_gpu_peops_repeated_triangles";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -1985,69 +2174,18 @@ static void update_variables(bool in_flight)
 
    if (pl_rearmed_cbs.gpu_peops.dwActFixes != gpu_peops_fix)
       pl_rearmed_cbs.gpu_peops.dwActFixes = gpu_peops_fix;
-
-   /* Show/hide core options */
-
-   var.key = "pcsx_rearmed_show_gpu_peops_settings";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      int show_advanced_gpu_peops_settings_prev = show_advanced_gpu_peops_settings;
-
-      show_advanced_gpu_peops_settings = 1;
-      if (strcmp(var.value, "disabled") == 0)
-         show_advanced_gpu_peops_settings = 0;
-
-      if (show_advanced_gpu_peops_settings != show_advanced_gpu_peops_settings_prev)
-      {
-         unsigned i;
-         struct retro_core_option_display option_display;
-         char gpu_peops_option[9][45] = {
-            "pcsx_rearmed_gpu_peops_odd_even_bit",
-            "pcsx_rearmed_gpu_peops_expand_screen_width",
-            "pcsx_rearmed_gpu_peops_ignore_brightness",
-            "pcsx_rearmed_gpu_peops_disable_coord_check",
-            "pcsx_rearmed_gpu_peops_lazy_screen_update",
-            "pcsx_rearmed_gpu_peops_old_frame_skip",
-            "pcsx_rearmed_gpu_peops_repeated_triangles",
-            "pcsx_rearmed_gpu_peops_quads_with_triangles",
-            "pcsx_rearmed_gpu_peops_fake_busy_state"
-         };
-
-         option_display.visible = show_advanced_gpu_peops_settings;
-
-         for (i = 0; i < 9; i++)
-         {
-            option_display.key = gpu_peops_option[i];
-            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
-         }
-      }
-   }
 #endif
 
 #ifdef GPU_UNAI
-   var.key = "pcsx_rearmed_gpu_unai_ilace_force";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         pl_rearmed_cbs.gpu_unai.ilace_force = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         pl_rearmed_cbs.gpu_unai.ilace_force = 1;
-   }
-
-   var.key = "pcsx_rearmed_gpu_unai_pixel_skip";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         pl_rearmed_cbs.gpu_unai.pixel_skip = 1;
-   }
+   /* Note: This used to be an option, but it only works
+    * (correctly) when running high resolution games
+    * (480i, 512i) and has been obsoleted by
+    * pcsx_rearmed_gpu_unai_scale_hires */
+   pl_rearmed_cbs.gpu_unai.ilace_force = 0;
+   /* Note: This used to be an option, but it has no
+    * discernable effect and has been obsoleted by
+    * pcsx_rearmed_gpu_unai_scale_hires */
+   pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
 
    var.key = "pcsx_rearmed_gpu_unai_lighting";
    var.value = NULL;
@@ -2091,40 +2229,6 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_unai.scale_hires = 0;
       else if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_unai.scale_hires = 1;
-   }
-
-   var.key = "pcsx_rearmed_show_gpu_unai_settings";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      int show_advanced_gpu_unai_settings_prev = show_advanced_gpu_unai_settings;
-
-      show_advanced_gpu_unai_settings = 1;
-      if (strcmp(var.value, "disabled") == 0)
-         show_advanced_gpu_unai_settings = 0;
-
-      if (show_advanced_gpu_unai_settings != show_advanced_gpu_unai_settings_prev)
-      {
-         unsigned i;
-         struct retro_core_option_display option_display;
-         char gpu_unai_option[6][40] = {
-            "pcsx_rearmed_gpu_unai_blending",
-            "pcsx_rearmed_gpu_unai_lighting",
-            "pcsx_rearmed_gpu_unai_fast_lighting",
-            "pcsx_rearmed_gpu_unai_ilace_force",
-            "pcsx_rearmed_gpu_unai_pixel_skip",
-            "pcsx_rearmed_gpu_unai_scale_hires",
-         };
-
-         option_display.visible = show_advanced_gpu_unai_settings;
-
-         for (i = 0; i < 6; i++)
-         {
-            option_display.key = gpu_unai_option[i];
-            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
-         }
-      }
    }
 #endif // GPU_UNAI
 
@@ -2231,42 +2335,6 @@ static void update_variables(bool in_flight)
       mouse_sensitivity = atof(var.value);
    }
 
-   var.key = "pcsx_rearmed_show_other_input_settings";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      int previous_settings = show_other_input_settings;
-
-      show_other_input_settings = 1;
-      if (strcmp(var.value, "disabled") == 0)
-         show_other_input_settings = 0;
-
-      if (show_other_input_settings != previous_settings)
-      {
-         unsigned i;
-         struct retro_core_option_display option_display;
-         char gpu_peops_option[][50] = {
-            "pcsx_rearmed_negcon_deadzone",
-            "pcsx_rearmed_negcon_response",
-            "pcsx_rearmed_analog_axis_modifier",
-            "pcsx_rearmed_gunconadjustx",
-            "pcsx_rearmed_gunconadjusty",
-            "pcsx_rearmed_gunconadjustratiox",
-            "pcsx_rearmed_gunconadjustratioy"
-         };
-         #define INPUT_LIST (sizeof(gpu_peops_option) / sizeof(gpu_peops_option[0]))
-
-         option_display.visible = show_other_input_settings;
-
-         for (i = 0; i < INPUT_LIST; i++)
-         {
-            option_display.key = gpu_peops_option[i];
-            environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
-         }
-      }
-   }
-
    if (in_flight)
    {
       // inform core things about possible config changes
@@ -2305,6 +2373,8 @@ static void update_variables(bool in_flight)
          }
       }
    }
+
+   update_option_visibility();
 }
 
 // Taken from beetle-psx-libretro
@@ -3018,6 +3088,15 @@ void retro_deinit(void)
    deinit_vita_mmap();
 #endif
    libretro_supports_bitmasks = false;
+   libretro_supports_option_categories = false;
+
+   show_input_settings = true;
+#ifdef GPU_PEOPS
+   show_advanced_gpu_peops_settings = true;
+#endif
+#ifdef GPU_UNAI
+   show_advanced_gpu_unai_settings = true;
+#endif
 
    /* Have to reset disks struct, otherwise
     * fnames/flabels will leak memory */
