@@ -13,9 +13,10 @@
 
 /*
  ********************************
- * VERSION: 1.3
+ * VERSION: 2.0
  ********************************
  *
+ * - 2.0: Add support for core options v2 interface
  * - 1.3: Move translations to libretro_core_options_intl.h
  *        - libretro_core_options_intl.h includes BOM and utf-8
  *          fix for MSVC 2010-2013
@@ -49,91 +50,114 @@ extern "C" {
  *   frontend language definition
  */
 
-struct retro_core_option_definition option_defs_us[] = {
+struct retro_core_option_v2_category option_cats_us[] = {
    {
-      "pcsx_rearmed_frameskip_type",
-      "Frameskip",
-      "Skip frames to avoid audio buffer under-run (crackling). Improves performance at the expense of visual smoothness. 'Auto' skips frames when advised by the frontend. 'Auto (Threshold)' utilises the 'Frameskip Threshold (%)' setting. 'Fixed Interval' utilises the 'Frameskip Interval' setting.",
-      {
-         { "disabled",       NULL },
-         { "auto",           "Auto" },
-         { "auto_threshold", "Auto (Threshold)" },
-         { "fixed_interval", "Fixed Interval" },
-         { NULL, NULL },
-      },
-      "disabled"
+      "system",
+      "System",
+      "Configure base hardware parameters: region, BIOS selection, memory cards, etc."
    },
    {
-      "pcsx_rearmed_frameskip_threshold",
-      "Frameskip Threshold (%)",
-      "When 'Frameskip' is set to 'Auto (Threshold)', specifies the audio buffer occupancy threshold (percentage) below which frames will be skipped. Higher values reduce the risk of crackling by causing frames to be dropped more frequently.",
-      {
-         { "15", NULL },
-         { "18", NULL },
-         { "21", NULL },
-         { "24", NULL },
-         { "27", NULL },
-         { "30", NULL },
-         { "33", NULL },
-         { "36", NULL },
-         { "39", NULL },
-         { "42", NULL },
-         { "45", NULL },
-         { "48", NULL },
-         { "51", NULL },
-         { "54", NULL },
-         { "57", NULL },
-         { "60", NULL },
-         { NULL, NULL },
-      },
-      "33"
+      "video",
+      "Video",
+      "Configure base display parameters."
+   },
+#ifdef GPU_NEON
+   {
+      "gpu_neon",
+      "GPU Plugin",
+      "Configure low-level settings of the NEON GPU plugin."
+   },
+#endif
+#ifdef GPU_PEOPS
+   {
+      "gpu_peops",
+      "GPU Plugin (Advanced)",
+      "Configure low-level settings of the P.E.Op.S. GPU plugin."
+   },
+#endif
+#ifdef GPU_UNAI
+   {
+      "gpu_unai",
+      "GPU Plugin (Advanced)",
+      "Configure low-level settings of the UNAI GPU plugin."
+   },
+#endif
+   {
+      "audio",
+      "Audio",
+      "Configure sound emulation: reverb, interpolation, CD audio decoding."
    },
    {
-      "pcsx_rearmed_frameskip_interval",
-      "Frameskip Interval",
-      "Specifies the maximum number of frames that can be skipped before a new frame is rendered.",
-      {
-         { "1",  NULL },
-         { "2",  NULL },
-         { "3",  NULL },
-         { "4",  NULL },
-         { "5",  NULL },
-         { "6",  NULL },
-         { "7",  NULL },
-         { "8",  NULL },
-         { "9",  NULL },
-         { "10", NULL },
-         { NULL, NULL },
-      },
-      "3"
+      "input",
+      "Input",
+      "Configure input devices: analog response, haptic feedback, Multitaps, light guns, etc."
    },
    {
-      "pcsx_rearmed_bios",
-      "Use BIOS",
-      "Allows you to use real bios file (if available) or emulated bios (HLE). Its recommended to use official bios file for better compatibility.",
-      {
-         { "auto", "auto" },
-         { "HLE",  "hle" },
-         { NULL, NULL },
-      },
-      "auto",
+      "compat_hack",
+      "Compatibility Fixes",
+      "Configure settings/workarounds required for correct operation of specific games."
    },
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+   {
+      "speed_hack",
+      "Speed Hacks (Advanced)",
+      "Configure hacks that may improve performance at the expense of decreased accuracy/stability."
+   },
+#endif
+   { NULL, NULL, NULL },
+};
+
+struct retro_core_option_v2_definition option_defs_us[] = {
    {
       "pcsx_rearmed_region",
       "Region",
-      "Choose what region the system is from. 60 Hz for NTSC, 50 Hz for PAL.",
+      NULL,
+      "Specify which region the system is from. 'NTSC' is 60 Hz while 'PAL' is 50 Hz. 'Auto' will detect the region of the currently loaded content. Games may run faster or slower than normal if the incorrect region is selected.",
+      NULL,
+      "system",
       {
-         { "auto", "auto" },
-         { "NTSC", "ntsc" },
-         { "PAL",  "pal" },
+         { "auto", "Auto" },
+         { "NTSC", NULL },
+         { "PAL",  NULL },
          { NULL, NULL },
       },
       "auto",
+   },
+   {
+      "pcsx_rearmed_bios",
+      "BIOS Selection",
+      NULL,
+      "Specify which BIOS to use. 'Auto' will attempt to load a real bios file from the frontend 'system' directory, falling back to high level emulation if unavailable. 'HLE' forces high level BIOS emulation. It is recommended to use an official bios file for better compatibility.",
+      NULL,
+      "system",
+      {
+         { "auto", "Auto" },
+         { "HLE",  NULL },
+         { NULL, NULL },
+      },
+      "auto",
+   },
+   {
+      "pcsx_rearmed_show_bios_bootlogo",
+      "Show BIOS Boot Logo",
+      NULL,
+      "When using an official BIOS file, specify whether to show the PlayStation logo upon starting or resetting content. Warning: Enabling the boot logo may reduce game compatibility.",
+      NULL,
+      "system",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
    },
    {
       "pcsx_rearmed_memcard2",
       "Enable Second Memory Card (Shared)",
-      "Enabled the memory card slot 2. This memory card is shared amongst all games.",
+      NULL,
+      "Emulate a second memory card in slot 2. This will be shared by all games.",
+      NULL,
+      "system",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -141,393 +165,31 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
+#ifndef _WIN32
    {
-      "pcsx_rearmed_show_other_input_settings",
-      "Show other input settings",
-      "Shows or hides other inputs settings like multitaps, player 3-8 ports, analog fine-tunings, etc.",
+      "pcsx_rearmed_async_cd",
+      "CD Access Method (Restart)",
+      NULL,
+      "Select method used to read data from content disk images. 'Synchronous' mimics original hardware. 'Asynchronous' can reduce stuttering on devices with slow storage. 'Pre-Cache (CHD)' loads disk image into memory for faster access (CHD files only).",
+      NULL,
+      "system",
       {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
+         { "sync",     "Synchronous" },
+         { "async",    "Asynchronous" },
+         { "precache", "Pre-Cache (CHD)" },
+         { NULL, NULL},
       },
-      "disabled",
+      "sync",
    },
-   {
-      "pcsx_rearmed_input_sensitivity",
-      "Emulated Mouse Sensitivity",
-      "Adjust responsiveness when using mouse controller (Default 1.0).",
-      {
-         { "0.05", NULL },
-         { "0.10", NULL },
-         { "0.15", NULL },
-         { "0.20", NULL },
-         { "0.25", NULL },
-         { "0.30", NULL },
-         { "0.35", NULL },
-         { "0.40", NULL },
-         { "0.45", NULL },
-         { "0.50", NULL },
-         { "0.55", NULL },
-         { "0.60", NULL },
-         { "0.65", NULL },
-         { "0.70", NULL },
-         { "0.75", NULL },
-         { "0.80", NULL },
-         { "0.85", NULL },
-         { "0.90", NULL },
-         { "0.95", NULL },
-         { "1.00", NULL },
-         { "1.05", NULL },
-         { "1.10", NULL },
-         { "1.15", NULL },
-         { "1.20", NULL },
-         { "1.25", NULL },
-         { "1.30", NULL },
-         { "1.35", NULL },
-         { "1.40", NULL },
-         { "1.45", NULL },
-         { "1.50", NULL },
-         { "1.55", NULL },
-         { "1.60", NULL },
-         { "1.65", NULL },
-         { "1.70", NULL },
-         { "1.75", NULL },
-         { "1.80", NULL },
-         { "1.85", NULL },
-         { "1.90", NULL },
-         { "1.95", NULL },
-         { "2.00", NULL },
-      },
-      "1.00",
-   },
-   {
-      "pcsx_rearmed_multitap",
-      "Multitap Mode (Restart)",
-      "Sets the playstation multitap peripheral to either controller port 1 or controller port 2 to support of upto 5 players simultaneously, or on both for upto 8 players simultaneously. Option depends on games that has support for multitap feature. Leave option on disabled if not such compatible games to avoid any input-related problems.",
-      {
-         { "disabled",      NULL },
-         { "port 1",        NULL },
-         { "port 2",        NULL },
-         { "ports 1 and 2", NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_negcon_deadzone",
-      "NegCon Twist Deadzone (Percent)",
-      "Sets the deadzone of the RetroPad left analog stick when simulating the 'twist' action of emulated neGcon Controllers. Used to eliminate drift/unwanted input.",
-      {
-         { "0",  NULL },
-         { "5",  NULL },
-         { "10", NULL },
-         { "15", NULL },
-         { "20", NULL },
-         { "25", NULL },
-         { "30", NULL },
-         { NULL, NULL },
-      },
-      "0",
-   },
-   {
-      "pcsx_rearmed_negcon_response",
-      "NegCon Twist Response",
-      "Specifies the analog response when using a RetroPad left analog stick to simulate the 'twist' action of emulated neGcon Controllers.",
-      {
-         { "linear",    NULL },
-         { "quadratic", NULL },
-         { "cubic",     NULL },
-         { NULL, NULL },
-      },
-      "linear",
-   },
-   {
-      "pcsx_rearmed_analog_axis_modifier",
-      "Analog axis bounds.",
-      "Range bounds for analog axis. Square bounds help controllers with highly circular ranges that are unable to fully saturate the x and y axis at 45degree deflections.",
-      {
-         { "circle", NULL },
-         { "square", NULL },
-         { NULL, NULL },
-      },
-      "circle",
-   },
-   {
-      "pcsx_rearmed_vibration",
-      "Enable Vibration",
-      "Enables vibration feedback for controllers that supports vibration features.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
-   },
-   {
-      "pcsx_rearmed_gunconadjustx",
-      "Guncon Adjust X",
-      "When using Guncon mode, you can override aim in emulator if shots misaligned, this applies an increment on the x axis.",
-      {
-         { "0", NULL },
-         { "-25", NULL },
-         { "-24", NULL },
-         { "-23", NULL },
-         { "-22", NULL },
-         { "-21", NULL },
-         { "-20", NULL },
-         { "-19", NULL },
-         { "-18", NULL },
-         { "-17", NULL },
-         { "-16", NULL },
-         { "-15", NULL },
-         { "-14", NULL },
-         { "-13", NULL },
-         { "-12", NULL },
-         { "-11", NULL },
-         { "-10", NULL },
-         { "-09", NULL },
-         { "-08", NULL },
-         { "-07", NULL },
-         { "-06", NULL },
-         { "-05", NULL },
-         { "-04", NULL },
-         { "-03", NULL },
-         { "-02", NULL },
-         { "-01", NULL },
-         { "00", NULL },
-         { "01", NULL },
-         { "02", NULL },
-         { "03", NULL },
-         { "04", NULL },
-         { "05", NULL },
-         { "06", NULL },
-         { "07", NULL },
-         { "08", NULL },
-         { "09", NULL },
-         { "10", NULL },
-         { "11", NULL },
-         { "12", NULL },
-         { "13", NULL },
-         { "14", NULL },
-         { "15", NULL },
-         { "16", NULL },
-         { "17", NULL },
-         { "18", NULL },
-         { "19", NULL },
-         { "20", NULL },
-         { "21", NULL },
-         { "22", NULL },
-         { "23", NULL },
-         { "24", NULL },
-         { "25", NULL },
-         { NULL, NULL },
-      },
-      "0",
-   },
-   {
-      "pcsx_rearmed_gunconadjusty",
-      "Guncon Adjust Y",
-      "When using Guncon mode, you can override aim in emulator if shots misaligned, this applies an increment on the y axis.",
-      {
-         { "0", NULL },
-         { "-25", NULL },
-         { "-24", NULL },
-         { "-23", NULL },
-         { "-22", NULL },
-         { "-21", NULL },
-         { "-20", NULL },
-         { "-19", NULL },
-         { "-18", NULL },
-         { "-17", NULL },
-         { "-16", NULL },
-         { "-15", NULL },
-         { "-14", NULL },
-         { "-13", NULL },
-         { "-12", NULL },
-         { "-11", NULL },
-         { "-10", NULL },
-         { "-09", NULL },
-         { "-08", NULL },
-         { "-07", NULL },
-         { "-06", NULL },
-         { "-05", NULL },
-         { "-04", NULL },
-         { "-03", NULL },
-         { "-02", NULL },
-         { "-01", NULL },
-         { "00", NULL },
-         { "01", NULL },
-         { "02", NULL },
-         { "03", NULL },
-         { "04", NULL },
-         { "05", NULL },
-         { "06", NULL },
-         { "07", NULL },
-         { "08", NULL },
-         { "09", NULL },
-         { "10", NULL },
-         { "11", NULL },
-         { "12", NULL },
-         { "13", NULL },
-         { "14", NULL },
-         { "15", NULL },
-         { "16", NULL },
-         { "17", NULL },
-         { "18", NULL },
-         { "19", NULL },
-         { "20", NULL },
-         { "21", NULL },
-         { "22", NULL },
-         { "23", NULL },
-         { "24", NULL },
-         { "25", NULL },
-         { NULL, NULL },
-      },
-      "0",
-   },
-   {
-      "pcsx_rearmed_gunconadjustratiox",
-      "Guncon Adjust Ratio X",
-      "When using Guncon mode, you can override aim in emulator if shots misaligned, this applies a ratio on the x axis.",
-      {
-         { "1", NULL },
-         { "0.75", NULL },
-         { "0.76", NULL },
-         { "0.77", NULL },
-         { "0.78", NULL },
-         { "0.79", NULL },
-         { "0.80", NULL },
-         { "0.81", NULL },
-         { "0.82", NULL },
-         { "0.83", NULL },
-         { "0.84", NULL },
-         { "0.85", NULL },
-         { "0.86", NULL },
-         { "0.87", NULL },
-         { "0.88", NULL },
-         { "0.89", NULL },
-         { "0.90", NULL },
-         { "0.91", NULL },
-         { "0.92", NULL },
-         { "0.93", NULL },
-         { "0.94", NULL },
-         { "0.95", NULL },
-         { "0.96", NULL },
-         { "0.97", NULL },
-         { "0.98", NULL },
-         { "0.99", NULL },
-         { "1.00", NULL },
-         { "1.01", NULL },
-         { "1.02", NULL },
-         { "1.03", NULL },
-         { "1.04", NULL },
-         { "1.05", NULL },
-         { "1.06", NULL },
-         { "1.07", NULL },
-         { "1.08", NULL },
-         { "1.09", NULL },
-         { "1.10", NULL },
-         { "1.11", NULL },
-         { "1.12", NULL },
-         { "1.13", NULL },
-         { "1.14", NULL },
-         { "1.15", NULL },
-         { "1.16", NULL },
-         { "1.17", NULL },
-         { "1.18", NULL },
-         { "1.19", NULL },
-         { "1.20", NULL },
-         { "1.21", NULL },
-         { "1.22", NULL },
-         { "1.23", NULL },
-         { "1.24", NULL },
-         { "1.25", NULL },
-         { NULL, NULL },
-      },
-      "1",
-   },
-   {
-      "pcsx_rearmed_gunconadjustratioy",
-      "Guncon Adjust Ratio Y",
-      "When using Guncon mode, you can override aim in emulator if shots misaligned, this applies a ratio on the y axis.",
-      {
-         { "1", NULL },
-         { "0.75", NULL },
-         { "0.76", NULL },
-         { "0.77", NULL },
-         { "0.78", NULL },
-         { "0.79", NULL },
-         { "0.80", NULL },
-         { "0.81", NULL },
-         { "0.82", NULL },
-         { "0.83", NULL },
-         { "0.84", NULL },
-         { "0.85", NULL },
-         { "0.86", NULL },
-         { "0.87", NULL },
-         { "0.88", NULL },
-         { "0.89", NULL },
-         { "0.90", NULL },
-         { "0.91", NULL },
-         { "0.92", NULL },
-         { "0.93", NULL },
-         { "0.94", NULL },
-         { "0.95", NULL },
-         { "0.96", NULL },
-         { "0.97", NULL },
-         { "0.98", NULL },
-         { "0.99", NULL },
-         { "1.00", NULL },
-         { "1.01", NULL },
-         { "1.02", NULL },
-         { "1.03", NULL },
-         { "1.04", NULL },
-         { "1.05", NULL },
-         { "1.06", NULL },
-         { "1.07", NULL },
-         { "1.08", NULL },
-         { "1.09", NULL },
-         { "1.10", NULL },
-         { "1.11", NULL },
-         { "1.12", NULL },
-         { "1.13", NULL },
-         { "1.14", NULL },
-         { "1.15", NULL },
-         { "1.16", NULL },
-         { "1.17", NULL },
-         { "1.18", NULL },
-         { "1.19", NULL },
-         { "1.20", NULL },
-         { "1.21", NULL },
-         { "1.22", NULL },
-         { "1.23", NULL },
-         { "1.24", NULL },
-         { "1.25", NULL },
-         { NULL, NULL },
-      },
-      "1",
-   },
-   {
-      "pcsx_rearmed_dithering",
-      "Enable Dithering",
-      "If Off, disables the dithering pattern the PSX applies to combat color banding.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-#if defined HAVE_LIBNX || defined _3DS
-	  "disabled",
-#else
-      "enabled",
 #endif
-   },
-
 #ifndef DRC_DISABLE
    {
       "pcsx_rearmed_drc",
       "Dynamic Recompiler",
-      "Enables core to use dynamic recompiler or interpreter (slower) CPU instructions.",
+      NULL,
+      "Dynamically recompile PSX CPU instructions to native instructions. Much faster than using an interpreter, but may be less accurate on some platforms.",
+      NULL,
+      "system",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -536,16 +198,18 @@ struct retro_core_option_definition option_defs_us[] = {
       "enabled",
    },
 #endif
-
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
    {
       "pcsx_rearmed_psxclock",
-      "PSX CPU Clock",
+      "PSX CPU Clock Speed",
+      NULL,
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-      "Overclock or underclock the PSX clock. Default is 50",
+      "Overclock or under-clock the PSX CPU. Lower values may reduce performance requirements while higher values may improve frame rates in demanding games at the expense of increased overheads; setting the value too low or high may reduce compatibility. Default is 50.",
 #else
-      "Overclock or underclock the PSX clock. Default is 57",
+      "Overclock or under-clock the PSX CPU. Lower values may reduce performance requirements while higher values may improve frame rates in demanding games at the expense of increased overheads; setting the value too low or high may reduce compatibility. Default is 57.",
 #endif
+      NULL,
+      "system",
       {
          { "30",  NULL },
          { "31",  NULL },
@@ -627,12 +291,143 @@ struct retro_core_option_definition option_defs_us[] = {
 #endif
    },
 #endif /* !DRC_DISABLE && !LIGHTREC */
-
+   {
+      "pcsx_rearmed_dithering",
+      "Dithering Pattern",
+      NULL,
+      "Enable emulation of the dithering technique used by the PSX to smooth out color banding artifacts. Increases performance requirements.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+#if defined HAVE_LIBNX || defined _3DS
+      "disabled",
+#else
+      "enabled",
+#endif
+   },
+   {
+      "pcsx_rearmed_duping_enable",
+      "Frame Duping (Speedup)",
+      NULL,
+      "When enabled and supported by the libretro frontend, provides a small performance increase by directing the frontend to repeat the previous frame if the core has nothing new to display.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+#ifdef THREAD_RENDERING
+   {
+      "pcsx_rearmed_gpu_thread_rendering",
+      "Threaded Rendering",
+      NULL,
+      "When enabled, runs GPU commands in a secondary thread. 'Synchronous' improves performance while maintaining proper frame pacing. 'Asynchronous' improves performance even further, but may cause dropped frames and increased latency. Produces best results with games that run natively at less than 60 frames per second.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "sync",     "Synchronous" },
+         { "async",    "Asynchronous" },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+#endif
+   {
+      "pcsx_rearmed_frameskip_type",
+      "Frameskip",
+      NULL,
+      "Skip frames to avoid audio buffer under-run (crackling). Improves performance at the expense of visual smoothness. 'Auto' skips frames when advised by the frontend. 'Auto (Threshold)' utilises the 'Frameskip Threshold (%)' setting. 'Fixed Interval' utilises the 'Frameskip Interval' setting.",
+      NULL,
+      "video",
+      {
+         { "disabled",       NULL },
+         { "auto",           "Auto" },
+         { "auto_threshold", "Auto (Threshold)" },
+         { "fixed_interval", "Fixed Interval" },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
+      "pcsx_rearmed_frameskip_threshold",
+      "Frameskip Threshold (%)",
+      NULL,
+      "When 'Frameskip' is set to 'Auto (Threshold)', specifies the audio buffer occupancy threshold (percentage) below which frames will be skipped. Higher values reduce the risk of crackling by causing frames to be dropped more frequently.",
+      NULL,
+      "video",
+      {
+         { "15", NULL },
+         { "18", NULL },
+         { "21", NULL },
+         { "24", NULL },
+         { "27", NULL },
+         { "30", NULL },
+         { "33", NULL },
+         { "36", NULL },
+         { "39", NULL },
+         { "42", NULL },
+         { "45", NULL },
+         { "48", NULL },
+         { "51", NULL },
+         { "54", NULL },
+         { "57", NULL },
+         { "60", NULL },
+         { NULL, NULL },
+      },
+      "33"
+   },
+   {
+      "pcsx_rearmed_frameskip_interval",
+      "Frameskip Interval",
+      NULL,
+      "Specify the maximum number of frames that can be skipped before a new frame is rendered.",
+      NULL,
+      "video",
+      {
+         { "1",  NULL },
+         { "2",  NULL },
+         { "3",  NULL },
+         { "4",  NULL },
+         { "5",  NULL },
+         { "6",  NULL },
+         { "7",  NULL },
+         { "8",  NULL },
+         { "9",  NULL },
+         { "10", NULL },
+         { NULL, NULL },
+      },
+      "3"
+   },
+   {
+      "pcsx_rearmed_display_internal_fps",
+      "Display Internal FPS",
+      NULL,
+      "Show the internal frame rate at which the emulated PlayStation system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
 #ifdef GPU_NEON
    {
       "pcsx_rearmed_neon_interlace_enable",
-      "Enable Interlacing Mode",
-      "Enables fake scanlines effect.",
+      "(GPU) Show Interlaced Video",
+      "Show Interlaced Video",
+      "When enabled, games that run in high resolution video modes (480i, 512i) will produced interlaced video output. While this displays correctly on CRT televisions, it will produce artifacts on modern displays. When disabled, all video is output in progressive format.",
+      NULL,
+      "gpu_neon",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -642,8 +437,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_enable",
+      "(GPU) Enhanced Resolution (Slow)",
       "Enhanced Resolution (Slow)",
-      "Renders in double resolution at the cost of lower performance.",
+      "Render games that do not already run in high resolution video modes (480i, 512i) at twice the native internal resolution. Improves the fidelity of 3D models at the expense of increased performance requirements. 2D elements are generally unaffected by this setting.",
+      NULL,
+      "gpu_neon",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -653,8 +451,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_no_main",
-      "Enhanced Resolution (Speed Hack)",
-      "Speed hack for Enhanced resolution option (glitches some games).",
+      "(GPU) Enhanced Resolution Speed Hack",
+      "Enhanced Resolution Speed Hack",
+      "Improves performance when 'Enhanced Resolution (Slow)' is enabled, but reduces compatibility and may cause rendering errors.",
+      NULL,
+      "gpu_neon",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -663,36 +464,14 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
 #endif /* GPU_NEON */
-
-   {
-      "pcsx_rearmed_duping_enable",
-      "Frame Duping",
-      "A speedup, redraws/reuses the last frame if there was no new data.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
-   },
-   {
-      "pcsx_rearmed_display_internal_fps",
-      "Display Internal FPS",
-      "Shows an on-screen frames per second counter when enabled.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-
-   /* GPU PEOPS OPTIONS */
 #ifdef GPU_PEOPS
    {
       "pcsx_rearmed_show_gpu_peops_settings",
-      "Advanced GPU P.E.Op.S. Settings",
-      "Shows or hides advanced GPU plugin settings. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      "Show Advanced P.E.Op.S. GPU Settings",
+      NULL,
+      "Show low-level configuration options for the P.E.Op.S. GPU plugin. Quick Menu may need to be toggled for this setting to take effect.",
+      NULL,
+      NULL,
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -703,7 +482,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_odd_even_bit",
       "(GPU) Odd/Even Bit Hack",
-      "Needed for Chrono Cross.",
+      "Odd/Even Bit Hack",
+      "A hack fix used to correct lock-ups that may occur in games such as Chrono Cross. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -714,7 +496,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_expand_screen_width",
       "(GPU) Expand Screen Width",
-      "Capcom fighting games",
+      "Expand Screen Width",
+      "Intended for use only with Capcom 2D fighting games. Enlarges the display area at the right side of the screen to show all background elements without cut-off. May cause rendering errors.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -725,7 +510,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_ignore_brightness",
       "(GPU) Ignore Brightness Color",
-      "Black screens in Lunar Silver Star Story games",
+      "Ignore Brightness Color",
+      "A hack fix used to repair black screens in Lunar Silver Star Story Complete when entering a house or a menu. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -736,7 +524,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_disable_coord_check",
       "(GPU) Disable Coordinate Check",
-      "Compatibility mode",
+      "Disable Coordinate Check",
+      "Legacy compatibility mode. May improve games that fail to run correctly on newer GPU hardware. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -747,7 +538,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_gpu_peops_lazy_screen_update",
       "(GPU) Lazy Screen Update",
-      "Pandemonium 2",
+      "Lazy Screen Update",
+      "A partial fix to prevent text box flickering in Dragon Warrior VII. May also improve Pandemonium 2. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -756,20 +550,12 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_gpu_peops_old_frame_skip",
-      "(GPU) Old Frame Skipping",
-      "Skip every second frame",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
-   },
-   {
       "pcsx_rearmed_gpu_peops_repeated_triangles",
-      "(GPU) Repeated Flat Tex Triangles",
-      "Needed by Star Wars: Dark Forces",
+      "(GPU) Repeat Flat Tex Triangles",
+      "Repeat Flat Tex Triangles",
+      "A hack fix used to correct rendering errors in Star Wars: Dark Forces. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -779,8 +565,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_peops_quads_with_triangles",
-      "(GPU) Draw Quads with Triangles",
-      "Better g-colors, worse textures",
+      "(GPU) Draw Tex-Quads as Triangles",
+      "Draw Tex-Quads as Triangles",
+      "Corrects graphical distortions that may occur when games utilize Gouraud Shading, at the expense of reduced texture quality. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -790,8 +579,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_peops_fake_busy_state",
-      "(GPU) Fake 'Gpu Busy' States",
-      "Toggle busy flags after drawing",
+      "(GPU) Fake 'GPU Busy' States",
+      "Fake 'GPU Busy' States",
+      "Emulate the 'GPU is busy' (drawing primitives) status flag of the original hardware instead of assuming the GPU is always ready for commands. May improve compatibility at the expense of reduced performance. Disable unless required.",
+      NULL,
+      "gpu_peops",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -799,14 +591,15 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif
-
-    /* GPU UNAI Advanced Options */
+#endif /* GPU_PEOPS */
 #ifdef GPU_UNAI
    {
       "pcsx_rearmed_show_gpu_unai_settings",
-      "Advance GPU UNAI/PCSX4All Settings",
-      "Shows or hides advanced gpu settings. A core restart might be needed for settings to take effect. NOTE: Quick Menu must be toggled for this setting to take effect.",
+      "Show Advanced UNAI GPU Settings",
+      NULL,
+      "Show low-level configuration options for the UNAI GPU plugin. Quick Menu may need to be toggled for this setting to take effect.",
+      NULL,
+      NULL,
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -816,8 +609,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_unai_blending",
-      "(GPU) Enable Blending",
+      "(GPU) Texture Blending",
+      "Texture Blending",
+      "Enable alpha-based (and additive) texture blending. Required for various rendering effects, including transparency (e.g. water, shadows). Can be disabled to improve performance at the expense of severe display errors/inaccuracies.",
       NULL,
+      "gpu_unai",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -827,8 +623,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_unai_lighting",
-      "(GPU) Enable Lighting",
+      "(GPU) Lighting Effects",
+      "Lighting Effects",
+      "Enable simulated lighting effects (via vertex coloring combined with texture mapping). Required by almost all 3D games. Can be disabled to improve performance at the expense of severe display errors/inaccuracies (missing shadows, flat textures, etc.).",
       NULL,
+      "gpu_unai",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -838,30 +637,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_unai_fast_lighting",
-      "(GPU) Enable Fast Lighting",
+      "(GPU) Fast Lighting",
+      "Fast Lighting",
+      "Improves performance when 'Lighting Effects' are enabled, but may cause moderate/severe rendering errors.",
       NULL,
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL},
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_gpu_unai_ilace_force",
-      "(GPU) Enable Forced Interlace",
-      NULL,
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL},
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_gpu_unai_pixel_skip",
-      "(GPU) Enable Pixel Skip",
-      NULL,
+      "gpu_unai",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -871,8 +651,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gpu_unai_scale_hires",
-      "(GPU) Enable Hi-Res Downscaling",
-      "When enabled, will scale hi-res modes to 320x240, skipping unrendered pixels.",
+      "(GPU) Hi-Res Downscaling",
+      "Hi-Res Downscaling",
+      "When enabled, games that run in high resolution video modes (480i, 512i) will be downscaled to 320x240. Can improve performance, and is recommended on devices with native 240p display resolutions.",
+      NULL,
+      "gpu_unai",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -884,37 +667,14 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
 #endif
    },
-#endif /* GPU UNAI Advanced Settings */
-#ifdef THREAD_RENDERING
-   {
-      "pcsx_rearmed_gpu_thread_rendering",
-      "Threaded Rendering",
-      "When enabled, runs GPU commands in a thread. Sync waits for drawing to finish before vsync. Async will not wait unless there's another frame behind it.",
-      {
-         { "disabled", NULL },
-         { "sync",  NULL },
-         { "async",  NULL },
-         { NULL, NULL},
-      },
-      "disabled",
-   },
-#endif
-
-   {
-      "pcsx_rearmed_show_bios_bootlogo",
-      "Show Bios Bootlogo",
-      "When enabled, shows the PlayStation logo when starting or resetting. (Breaks some games).",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
+#endif /* GPU_UNAI */
    {
       "pcsx_rearmed_spu_reverb",
-      "Sound Reverb",
-      "Enables or disables audio reverb effect.",
+      "Audio Reverb Effects",
+      "Reverb Effects",
+      "Enable emulation of the reverb feature provided by the PSX SPU. Can be disabled to improve performance at the expense of reduced audio quality/authenticity.",
+      NULL,
+      "audio",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -930,6 +690,9 @@ struct retro_core_option_definition option_defs_us[] = {
       "pcsx_rearmed_spu_interpolation",
       "Sound Interpolation",
       NULL,
+      "Enable emulation of the in-built audio interpolation provided by the PSX SPU. 'Gaussian' sounds closest to original hardware. 'Simple' improves performance but reduces quality. 'Cubic' has the highest performance requirements but produces increased clarity. Can be disabled entirely for maximum performance, at the expense of greatly reduced audio quality.",
+      NULL,
+      "audio",
       {
          { "simple",   "Simple" },
          { "gaussian", "Gaussian" },
@@ -944,8 +707,39 @@ struct retro_core_option_definition option_defs_us[] = {
 #endif
    },
    {
-      "pcsx_rearmed_pe2_fix",
-      "Parasite Eve 2/Vandal Hearts 1/2 Fix",
+      "pcsx_rearmed_nocdaudio",
+      "CD Audio",
+      NULL,
+      "Enable playback of CD (CD-DA) audio tracks. Can be disabled to improve performance in games that include CD audio, at the expense of missing music.",
+      NULL,
+      "audio",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_noxadecoding",
+      "XA Decoding",
+      NULL,
+      "Enable playback of XA (eXtended Architecture ADPCM) audio tracks. Can be disabled to improve performance in games that include XA audio, at the expense of missing music.",
+      NULL,
+      "audio",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_show_input_settings",
+      "Show Input Settings",
+      NULL,
+      "Show configuration options for all input devices: analog response, Multitaps, light guns, etc. Quick Menu may need to be toggled for this setting to take effect.",
+      NULL,
       NULL,
       {
          { "disabled", NULL },
@@ -955,9 +749,399 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_icache_emulation",
-      "Instruction Cache emulation",
-      "Enables or disables instruction cache emulation. Slower, but more accurate. Fails to run Spyro 2 PAL. This allows you to run F1 2001, Formula One Arcade, F1 99 and other games that may need instruction cache emulation. Interpreter only and partial on lightrec, does nothing on the ARMv7 backend.",
+      "pcsx_rearmed_analog_axis_modifier",
+      "Analog Axis Bounds",
+      NULL,
+      "Specify range limits for the left and right analog sticks when input device is set to 'analog' or 'dualshock'. 'Square' bounds improve input response when using controllers with highly circular ranges that are unable to fully saturate the X and Y axes at 45 degree deflections.",
+      NULL,
+      "input",
+      {
+         { "circle", "Circle" },
+         { "square", "Square" },
+         { NULL, NULL },
+      },
+      "circle",
+   },
+   {
+      "pcsx_rearmed_vibration",
+      "Rumble Effects",
+      NULL,
+      "Enable haptic feedback when using a rumble-equipped gamepad with input device set to 'dualshock'.",
+      NULL,
+      "input",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_multitap",
+      "Multitap Mode (Restart)",
+      NULL,
+      "Connect a virtual PSX Multitap peripheral to either controller 'Port 1' or controller 'Port 2' for 5 player simultaneous input, or to both 'Ports 1 and 2' for 8 player input. Mutlitap usage requires compatible games. To avoid input defects, option should be disabled when running games that have no support for Multitap features.",
+      NULL,
+      "input",
+      {
+         { "disabled",      NULL },
+         { "port 1",        "Port 1" },
+         { "port 2",        "Port 2" },
+         { "ports 1 and 2", "Ports 1 and 2" },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
+      "pcsx_rearmed_negcon_deadzone",
+      "NegCon Twist Deadzone",
+      NULL,
+      "Set the deadzone of the RetroPad left analog stick when simulating the 'twist' action of emulated neGcon Controllers. Used to eliminate drift/unwanted input.",
+      NULL,
+      "input",
+      {
+         { "0",  "0%" },
+         { "3",  "3%" },
+         { "5",  "5%" },
+         { "7",  "7%" },
+         { "10", "10%" },
+         { "13", "13%" },
+         { "15", "15%" },
+         { "17", "17%" },
+         { "20", "20%" },
+         { "23", "23%" },
+         { "25", "25%" },
+         { "27", "27%" },
+         { "30", "30%" },
+         { NULL, NULL },
+      },
+      "0",
+   },
+   {
+      "pcsx_rearmed_negcon_response",
+      "NegCon Twist Response",
+      NULL,
+      "Specify the analog response when using a RetroPad left analog stick to simulate the 'twist' action of emulated neGcon Controllers.",
+      NULL,
+      "input",
+      {
+         { "linear",    "Linear" },
+         { "quadratic", "Quadratic" },
+         { "cubic",     "Cubic" },
+         { NULL, NULL },
+      },
+      "linear",
+   },
+   {
+      "pcsx_rearmed_input_sensitivity",
+      "Mouse Sensitivity",
+      NULL,
+      "Adjust responsiveness of emulated 'mouse' input devices.",
+      NULL,
+      "input",
+      {
+         { "0.05", NULL },
+         { "0.10", NULL },
+         { "0.15", NULL },
+         { "0.20", NULL },
+         { "0.25", NULL },
+         { "0.30", NULL },
+         { "0.35", NULL },
+         { "0.40", NULL },
+         { "0.45", NULL },
+         { "0.50", NULL },
+         { "0.55", NULL },
+         { "0.60", NULL },
+         { "0.65", NULL },
+         { "0.70", NULL },
+         { "0.75", NULL },
+         { "0.80", NULL },
+         { "0.85", NULL },
+         { "0.90", NULL },
+         { "0.95", NULL },
+         { "1.00", NULL },
+         { "1.05", NULL },
+         { "1.10", NULL },
+         { "1.15", NULL },
+         { "1.20", NULL },
+         { "1.25", NULL },
+         { "1.30", NULL },
+         { "1.35", NULL },
+         { "1.40", NULL },
+         { "1.45", NULL },
+         { "1.50", NULL },
+         { "1.55", NULL },
+         { "1.60", NULL },
+         { "1.65", NULL },
+         { "1.70", NULL },
+         { "1.75", NULL },
+         { "1.80", NULL },
+         { "1.85", NULL },
+         { "1.90", NULL },
+         { "1.95", NULL },
+         { "2.00", NULL },
+      },
+      "1.00",
+   },
+   {
+      "pcsx_rearmed_gunconadjustx",
+      "Guncon X Axis Offset",
+      NULL,
+      "Apply an X axis offset to light gun input when emulating a Guncon device. Can be used to correct aiming misalignments.",
+      NULL,
+      "input",
+      {
+         { "-25", NULL },
+         { "-24", NULL },
+         { "-23", NULL },
+         { "-22", NULL },
+         { "-21", NULL },
+         { "-20", NULL },
+         { "-19", NULL },
+         { "-18", NULL },
+         { "-17", NULL },
+         { "-16", NULL },
+         { "-15", NULL },
+         { "-14", NULL },
+         { "-13", NULL },
+         { "-12", NULL },
+         { "-11", NULL },
+         { "-10", NULL },
+         { "-9",  NULL },
+         { "-8",  NULL },
+         { "-7",  NULL },
+         { "-6",  NULL },
+         { "-5",  NULL },
+         { "-4",  NULL },
+         { "-3",  NULL },
+         { "-2",  NULL },
+         { "-1",  NULL },
+         { "0",   NULL },
+         { "1",   NULL },
+         { "2",   NULL },
+         { "3",   NULL },
+         { "4",   NULL },
+         { "5",   NULL },
+         { "6",   NULL },
+         { "7",   NULL },
+         { "8",   NULL },
+         { "9",   NULL },
+         { "10",  NULL },
+         { "11",  NULL },
+         { "12",  NULL },
+         { "13",  NULL },
+         { "14",  NULL },
+         { "15",  NULL },
+         { "16",  NULL },
+         { "17",  NULL },
+         { "18",  NULL },
+         { "19",  NULL },
+         { "20",  NULL },
+         { "21",  NULL },
+         { "22",  NULL },
+         { "23",  NULL },
+         { "24",  NULL },
+         { "25",  NULL },
+         { NULL, NULL },
+      },
+      "0",
+   },
+   {
+      "pcsx_rearmed_gunconadjusty",
+      "Guncon Y Axis Offset",
+      NULL,
+      "Apply a Y axis offset to light gun input when emulating a Guncon device. Can be used to correct aiming misalignments.",
+      NULL,
+      "input",
+      {
+         { "-25", NULL },
+         { "-24", NULL },
+         { "-23", NULL },
+         { "-22", NULL },
+         { "-21", NULL },
+         { "-20", NULL },
+         { "-19", NULL },
+         { "-18", NULL },
+         { "-17", NULL },
+         { "-16", NULL },
+         { "-15", NULL },
+         { "-14", NULL },
+         { "-13", NULL },
+         { "-12", NULL },
+         { "-11", NULL },
+         { "-10", NULL },
+         { "-9",  NULL },
+         { "-8",  NULL },
+         { "-7",  NULL },
+         { "-6",  NULL },
+         { "-5",  NULL },
+         { "-4",  NULL },
+         { "-3",  NULL },
+         { "-2",  NULL },
+         { "-1",  NULL },
+         { "0",   NULL },
+         { "1",   NULL },
+         { "2",   NULL },
+         { "3",   NULL },
+         { "4",   NULL },
+         { "5",   NULL },
+         { "6",   NULL },
+         { "7",   NULL },
+         { "8",   NULL },
+         { "9",   NULL },
+         { "10",  NULL },
+         { "11",  NULL },
+         { "12",  NULL },
+         { "13",  NULL },
+         { "14",  NULL },
+         { "15",  NULL },
+         { "16",  NULL },
+         { "17",  NULL },
+         { "18",  NULL },
+         { "19",  NULL },
+         { "20",  NULL },
+         { "21",  NULL },
+         { "22",  NULL },
+         { "23",  NULL },
+         { "24",  NULL },
+         { "25",  NULL },
+         { NULL, NULL },
+      },
+      "0",
+   },
+   {
+      "pcsx_rearmed_gunconadjustratiox",
+      "Guncon X Axis Response",
+      NULL,
+      "Adjust relative magnitude of horizontal light gun motion when emulating a Guncon device. Can be used to correct aiming misalignments.",
+      NULL,
+      "input",
+      {
+         { "0.75", NULL },
+         { "0.76", NULL },
+         { "0.77", NULL },
+         { "0.78", NULL },
+         { "0.79", NULL },
+         { "0.80", NULL },
+         { "0.81", NULL },
+         { "0.82", NULL },
+         { "0.83", NULL },
+         { "0.84", NULL },
+         { "0.85", NULL },
+         { "0.86", NULL },
+         { "0.87", NULL },
+         { "0.88", NULL },
+         { "0.89", NULL },
+         { "0.90", NULL },
+         { "0.91", NULL },
+         { "0.92", NULL },
+         { "0.93", NULL },
+         { "0.94", NULL },
+         { "0.95", NULL },
+         { "0.96", NULL },
+         { "0.97", NULL },
+         { "0.98", NULL },
+         { "0.99", NULL },
+         { "1.00", NULL },
+         { "1.01", NULL },
+         { "1.02", NULL },
+         { "1.03", NULL },
+         { "1.04", NULL },
+         { "1.05", NULL },
+         { "1.06", NULL },
+         { "1.07", NULL },
+         { "1.08", NULL },
+         { "1.09", NULL },
+         { "1.10", NULL },
+         { "1.11", NULL },
+         { "1.12", NULL },
+         { "1.13", NULL },
+         { "1.14", NULL },
+         { "1.15", NULL },
+         { "1.16", NULL },
+         { "1.17", NULL },
+         { "1.18", NULL },
+         { "1.19", NULL },
+         { "1.20", NULL },
+         { "1.21", NULL },
+         { "1.22", NULL },
+         { "1.23", NULL },
+         { "1.24", NULL },
+         { "1.25", NULL },
+         { NULL, NULL },
+      },
+      "1.00",
+   },
+   {
+      "pcsx_rearmed_gunconadjustratioy",
+      "Guncon Y Axis Response",
+      NULL,
+      "Adjust relative magnitude of vertical light gun motion when emulating a Guncon device. Can be used to correct aiming misalignments.",
+      NULL,
+      "input",
+      {
+         { "0.75", NULL },
+         { "0.76", NULL },
+         { "0.77", NULL },
+         { "0.78", NULL },
+         { "0.79", NULL },
+         { "0.80", NULL },
+         { "0.81", NULL },
+         { "0.82", NULL },
+         { "0.83", NULL },
+         { "0.84", NULL },
+         { "0.85", NULL },
+         { "0.86", NULL },
+         { "0.87", NULL },
+         { "0.88", NULL },
+         { "0.89", NULL },
+         { "0.90", NULL },
+         { "0.91", NULL },
+         { "0.92", NULL },
+         { "0.93", NULL },
+         { "0.94", NULL },
+         { "0.95", NULL },
+         { "0.96", NULL },
+         { "0.97", NULL },
+         { "0.98", NULL },
+         { "0.99", NULL },
+         { "1.00", NULL },
+         { "1.01", NULL },
+         { "1.02", NULL },
+         { "1.03", NULL },
+         { "1.04", NULL },
+         { "1.05", NULL },
+         { "1.06", NULL },
+         { "1.07", NULL },
+         { "1.08", NULL },
+         { "1.09", NULL },
+         { "1.10", NULL },
+         { "1.11", NULL },
+         { "1.12", NULL },
+         { "1.13", NULL },
+         { "1.14", NULL },
+         { "1.15", NULL },
+         { "1.16", NULL },
+         { "1.17", NULL },
+         { "1.18", NULL },
+         { "1.19", NULL },
+         { "1.20", NULL },
+         { "1.21", NULL },
+         { "1.22", NULL },
+         { "1.23", NULL },
+         { "1.24", NULL },
+         { "1.25", NULL },
+         { NULL, NULL },
+      },
+      "1.00",
+   },
+   {
+      "pcsx_rearmed_pe2_fix",
+      "Parasite Eve 2/Vandal Hearts 1/2 Fix",
+      NULL,
+      "Hack fix required for correct operation of Parasite Eve 2 and Vandal Hearts 1/2. Should be disabled for all other games.",
+      NULL,
+      "compat_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -969,54 +1153,23 @@ struct retro_core_option_definition option_defs_us[] = {
       "pcsx_rearmed_inuyasha_fix",
       "InuYasha Sengoku Battle Fix",
       NULL,
+      "Hack fix required for correct operation of Inuyasha Sengoku Otogi Kassen. Should be disabled for all other games.",
+      NULL,
+      "compat_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL },
       },
       "disabled",
-   },
-#ifndef _WIN32
-   {
-      "pcsx_rearmed_async_cd",
-      "CD Access Method (Restart)",
-      "Select method used to read data from content disk images. 'Synchronous' mimics original hardware. 'Asynchronous' can reduce stuttering on devices with slow storage. 'Precache' loads disk image into memory for faster access (CHD only).",
-      {
-         { "sync",     "Synchronous" },
-         { "async",    "Asynchronous" },
-         { "precache", "Precache" },
-         { NULL, NULL},
-      },
-      "sync",
-   },
-#endif
-   /* ADVANCED OPTIONS */
-   {
-      "pcsx_rearmed_noxadecoding",
-      "XA Decoding",
-      NULL,
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
-   },
-   {
-      "pcsx_rearmed_nocdaudio",
-      "CD Audio",
-      NULL,
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
    },
    {
       "pcsx_rearmed_spuirq",
       "SPU IRQ Always Enabled",
-      "Compatibility tweak, should be left to off in most cases.",
+      NULL,
+      "Hack for certain games where events tied to audio cues do not trigger correctly. Fixes unopenable doors in Alien Resurrection. Fixes desynchronised FMV audio in Legend of Mana. Should be disabled unless required.",
+      NULL,
+      "compat_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1024,12 +1177,42 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled",
    },
-
+   {
+      "pcsx_rearmed_icache_emulation",
+      "Instruction Cache Emulation",
+      NULL,
+      "Enable emulation of the PSX CPU instruction cache. Improves accuracy at the expense of increased performance overheads. Required for Formula One 2001, Formula One Arcade and Formula One 99. May cause certain games to fail (e.g. Spyro 2: Gateway to Glimmer, PAL version) so should be disabled unless needed. [Interpreter only and partial on lightrec, unsupported when using ARMv7 backend]",
+      NULL,
+      "compat_hack",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+   {
+      "pcsx_rearmed_nocompathacks",
+      "Disable Automatic Compatibility Hacks",
+      NULL,
+      "By default, PCSX-ReARMed will apply auxiliary compatibility hacks automatically, based on the currently loaded content. This behaviour is required for correct operation, but may be disabled if desired.",
+      NULL,
+      "compat_hack",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
    {
       "pcsx_rearmed_nosmccheck",
       "(Speed Hack) Disable SMC Checks",
-      "Will cause crashes when loading, break memcards.",
+      "Disable SMC Checks",
+      "Will cause crashes when loading, and lead to memory card failure.",
+      NULL,
+      "speed_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1039,8 +1222,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_gteregsunneeded",
-      "(Speed Hack) Assume GTE Regs Unneeded",
-      "May cause graphical glitches.",
+      "(Speed Hack) Assume GTE Registers Unneeded",
+      "Assume GTE Registers Unneeded",
+      "May cause rendering errors.",
+      NULL,
+      "speed_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1051,7 +1237,10 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "pcsx_rearmed_nogteflags",
       "(Speed Hack) Disable GTE Flags",
-      "Will cause graphical glitches.",
+      "Disable GTE Flags",
+      "Will cause rendering errors.",
+      NULL,
+      "speed_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1061,19 +1250,11 @@ struct retro_core_option_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_nostalls",
-      "Disable CPU/GTE stalls",
-      "Will cause some games to run too fast.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_nocompathacks",
-      "Disable compat hacks",
-      "Disables game-specific compatibility hacks.",
+      "(Speed Hack) Disable CPU/GTE Stalls",
+      "Disable CPU/GTE Stalls",
+      "Will cause some games to run too quickly.",
+      NULL,
+      "speed_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1082,8 +1263,12 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled",
    },
 #endif /* !DRC_DISABLE && !LIGHTREC */
+   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
+};
 
-   { NULL, NULL, NULL, {{0}}, NULL },
+struct retro_core_options_v2 options_us = {
+   option_cats_us,
+   option_defs_us
 };
 
 /*
@@ -1093,26 +1278,26 @@ struct retro_core_option_definition option_defs_us[] = {
 */
 
 #ifndef HAVE_NO_LANGEXTRA
-struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
-   option_defs_us, /* RETRO_LANGUAGE_ENGLISH */
-   NULL,           /* RETRO_LANGUAGE_JAPANESE */
-   NULL,           /* RETRO_LANGUAGE_FRENCH */
-   NULL,           /* RETRO_LANGUAGE_SPANISH */
-   NULL,           /* RETRO_LANGUAGE_GERMAN */
-   NULL,           /* RETRO_LANGUAGE_ITALIAN */
-   NULL,           /* RETRO_LANGUAGE_DUTCH */
-   NULL,           /* RETRO_LANGUAGE_PORTUGUESE_BRAZIL */
-   NULL,           /* RETRO_LANGUAGE_PORTUGUESE_PORTUGAL */
-   NULL,           /* RETRO_LANGUAGE_RUSSIAN */
-   NULL,           /* RETRO_LANGUAGE_KOREAN */
-   NULL,           /* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
-   NULL,           /* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
-   NULL,           /* RETRO_LANGUAGE_ESPERANTO */
-   NULL,           /* RETRO_LANGUAGE_POLISH */
-   NULL,           /* RETRO_LANGUAGE_VIETNAMESE */
-   NULL,           /* RETRO_LANGUAGE_ARABIC */
-   NULL,           /* RETRO_LANGUAGE_GREEK */
-   option_defs_tr, /* RETRO_LANGUAGE_TURKISH */
+struct retro_core_options_v2 *options_intl[RETRO_LANGUAGE_LAST] = {
+   &options_us, /* RETRO_LANGUAGE_ENGLISH */
+   NULL,        /* RETRO_LANGUAGE_JAPANESE */
+   NULL,        /* RETRO_LANGUAGE_FRENCH */
+   NULL,        /* RETRO_LANGUAGE_SPANISH */
+   NULL,        /* RETRO_LANGUAGE_GERMAN */
+   NULL,        /* RETRO_LANGUAGE_ITALIAN */
+   NULL,        /* RETRO_LANGUAGE_DUTCH */
+   NULL,        /* RETRO_LANGUAGE_PORTUGUESE_BRAZIL */
+   NULL,        /* RETRO_LANGUAGE_PORTUGUESE_PORTUGAL */
+   NULL,        /* RETRO_LANGUAGE_RUSSIAN */
+   NULL,        /* RETRO_LANGUAGE_KOREAN */
+   NULL,        /* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
+   NULL,        /* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
+   NULL,        /* RETRO_LANGUAGE_ESPERANTO */
+   NULL,        /* RETRO_LANGUAGE_POLISH */
+   NULL,        /* RETRO_LANGUAGE_VIETNAMESE */
+   NULL,        /* RETRO_LANGUAGE_ARABIC */
+   NULL,        /* RETRO_LANGUAGE_GREEK */
+   &options_tr, /* RETRO_LANGUAGE_TURKISH */
 };
 #endif
 
@@ -1130,45 +1315,61 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
  *   be as painless as possible for core devs)
  */
 
-static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
+static INLINE void libretro_set_core_options(retro_environment_t environ_cb,
+      bool *categories_supported)
 {
-   unsigned version = 0;
+   unsigned version  = 0;
+#ifndef HAVE_NO_LANGEXTRA
+   unsigned language = 0;
+#endif
 
-   if (!environ_cb)
+   if (!environ_cb || !categories_supported)
       return;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
+   *categories_supported = false;
+
+   if (!environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version))
+      version = 0;
+
+   if (version >= 2)
    {
 #ifndef HAVE_NO_LANGEXTRA
-      struct retro_core_options_intl core_options_intl;
-      unsigned language = 0;
+      struct retro_core_options_v2_intl core_options_intl;
 
-      core_options_intl.us    = option_defs_us;
+      core_options_intl.us    = &options_us;
       core_options_intl.local = NULL;
 
       if (environ_cb(RETRO_ENVIRONMENT_GET_LANGUAGE, &language) &&
           (language < RETRO_LANGUAGE_LAST) && (language != RETRO_LANGUAGE_ENGLISH))
-         core_options_intl.local = option_defs_intl[language];
+         core_options_intl.local = options_intl[language];
 
-      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL, &core_options_intl);
+      *categories_supported = environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL,
+            &core_options_intl);
 #else
-      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &option_defs_us);
+      *categories_supported = environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2,
+            &options_us);
 #endif
    }
    else
    {
-      size_t i;
+      size_t i, j;
       size_t option_index              = 0;
       size_t num_options               = 0;
+      struct retro_core_option_definition
+            *option_v1_defs_us         = NULL;
+#ifndef HAVE_NO_LANGEXTRA
+      size_t num_options_intl          = 0;
+      struct retro_core_option_v2_definition
+            *option_defs_intl          = NULL;
+      struct retro_core_option_definition
+            *option_v1_defs_intl       = NULL;
+      struct retro_core_options_intl
+            core_options_v1_intl;
+#endif
       struct retro_variable *variables = NULL;
       char **values_buf                = NULL;
 
-      /* Determine number of options
-       * > Note: We are going to skip a number of irrelevant
-       *   core options when building the retro_variable array,
-       *   but we'll allocate space for all of them. The difference
-       *   in resource usage is negligible, and this allows us to
-       *   keep the code 'cleaner' */
+      /* Determine total number of options */
       while (true)
       {
          if (option_defs_us[num_options].key)
@@ -1177,92 +1378,194 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
             break;
       }
 
-      /* Allocate arrays */
-      variables  = (struct retro_variable *)calloc(num_options + 1, sizeof(struct retro_variable));
-      values_buf = (char **)calloc(num_options, sizeof(char *));
-
-      if (!variables || !values_buf)
-         goto error;
-
-      /* Copy parameters from option_defs_us array */
-      for (i = 0; i < num_options; i++)
+      if (version >= 1)
       {
-         const char *key                        = option_defs_us[i].key;
-         const char *desc                       = option_defs_us[i].desc;
-         const char *default_value              = option_defs_us[i].default_value;
-         struct retro_core_option_value *values = option_defs_us[i].values;
-         size_t buf_len                         = 3;
-         size_t default_index                   = 0;
+         /* Allocate US array */
+         option_v1_defs_us = (struct retro_core_option_definition *)
+               calloc(num_options + 1, sizeof(struct retro_core_option_definition));
 
-         values_buf[i] = NULL;
-
-         /* Skip options that are irrelevant when using the
-          * old style core options interface */
-         if ((strcmp(key, "pcsx_rearmed_show_gpu_peops_settings") == 0))
-            continue;
-
-         if (desc)
+         /* Copy parameters from option_defs_us array */
+         for (i = 0; i < num_options; i++)
          {
-            size_t num_values = 0;
+            struct retro_core_option_v2_definition *option_def_us = &option_defs_us[i];
+            struct retro_core_option_value *option_values         = option_def_us->values;
+            struct retro_core_option_definition *option_v1_def_us = &option_v1_defs_us[i];
+            struct retro_core_option_value *option_v1_values      = option_v1_def_us->values;
 
-            /* Determine number of values */
+            option_v1_def_us->key           = option_def_us->key;
+            option_v1_def_us->desc          = option_def_us->desc;
+            option_v1_def_us->info          = option_def_us->info;
+            option_v1_def_us->default_value = option_def_us->default_value;
+
+            /* Values must be copied individually... */
+            while (option_values->value)
+            {
+               option_v1_values->value = option_values->value;
+               option_v1_values->label = option_values->label;
+
+               option_values++;
+               option_v1_values++;
+            }
+         }
+
+#ifndef HAVE_NO_LANGEXTRA
+         if (environ_cb(RETRO_ENVIRONMENT_GET_LANGUAGE, &language) &&
+             (language < RETRO_LANGUAGE_LAST) && (language != RETRO_LANGUAGE_ENGLISH) &&
+             options_intl[language])
+            option_defs_intl = options_intl[language]->definitions;
+
+         if (option_defs_intl)
+         {
+            /* Determine number of intl options */
             while (true)
             {
-               if (values[num_values].value)
-               {
-                  /* Check if this is the default value */
-                  if (default_value)
-                     if (strcmp(values[num_values].value, default_value) == 0)
-                        default_index = num_values;
-
-                  buf_len += strlen(values[num_values].value);
-                  num_values++;
-               }
+               if (option_defs_intl[num_options_intl].key)
+                  num_options_intl++;
                else
                   break;
             }
 
-            /* Build values string */
-            if (num_values > 0)
+            /* Allocate intl array */
+            option_v1_defs_intl = (struct retro_core_option_definition *)
+                  calloc(num_options_intl + 1, sizeof(struct retro_core_option_definition));
+
+            /* Copy parameters from option_defs_intl array */
+            for (i = 0; i < num_options_intl; i++)
             {
-               size_t j;
+               struct retro_core_option_v2_definition *option_def_intl = &option_defs_intl[i];
+               struct retro_core_option_value *option_values           = option_def_intl->values;
+               struct retro_core_option_definition *option_v1_def_intl = &option_v1_defs_intl[i];
+               struct retro_core_option_value *option_v1_values        = option_v1_def_intl->values;
 
-               buf_len += num_values - 1;
-               buf_len += strlen(desc);
+               option_v1_def_intl->key           = option_def_intl->key;
+               option_v1_def_intl->desc          = option_def_intl->desc;
+               option_v1_def_intl->info          = option_def_intl->info;
+               option_v1_def_intl->default_value = option_def_intl->default_value;
 
-               values_buf[i] = (char *)calloc(buf_len, sizeof(char));
-               if (!values_buf[i])
-                  goto error;
-
-               strcpy(values_buf[i], desc);
-               strcat(values_buf[i], "; ");
-
-               /* Default value goes first */
-               strcat(values_buf[i], values[default_index].value);
-
-               /* Add remaining values */
-               for (j = 0; j < num_values; j++)
+               /* Values must be copied individually... */
+               while (option_values->value)
                {
-                  if (j != default_index)
-                  {
-                     strcat(values_buf[i], "|");
-                     strcat(values_buf[i], values[j].value);
-                  }
+                  option_v1_values->value = option_values->value;
+                  option_v1_values->label = option_values->label;
+
+                  option_values++;
+                  option_v1_values++;
                }
             }
          }
 
-         variables[option_index].key   = key;
-         variables[option_index].value = values_buf[i];
-         option_index++;
+         core_options_v1_intl.us    = option_v1_defs_us;
+         core_options_v1_intl.local = option_v1_defs_intl;
+
+         environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL, &core_options_v1_intl);
+#else
+         environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS, option_v1_defs_us);
+#endif
+      }
+      else
+      {
+         /* Allocate arrays */
+         variables  = (struct retro_variable *)calloc(num_options + 1,
+               sizeof(struct retro_variable));
+         values_buf = (char **)calloc(num_options, sizeof(char *));
+
+         if (!variables || !values_buf)
+            goto error;
+
+         /* Copy parameters from option_defs_us array */
+         for (i = 0; i < num_options; i++)
+         {
+            const char *key                        = option_defs_us[i].key;
+            const char *desc                       = option_defs_us[i].desc;
+            const char *default_value              = option_defs_us[i].default_value;
+            struct retro_core_option_value *values = option_defs_us[i].values;
+            size_t buf_len                         = 3;
+            size_t default_index                   = 0;
+
+            values_buf[i] = NULL;
+
+            /* Skip options that are irrelevant when using the
+             * old style core options interface */
+            if ((strcmp(key, "pcsx_rearmed_show_input_settings") == 0) ||
+                (strcmp(key, "pcsx_rearmed_show_gpu_peops_settings") == 0) ||
+                (strcmp(key, "pcsx_rearmed_show_gpu_unai_settings") == 0))
+               continue;
+
+            if (desc)
+            {
+               size_t num_values = 0;
+
+               /* Determine number of values */
+               while (true)
+               {
+                  if (values[num_values].value)
+                  {
+                     /* Check if this is the default value */
+                     if (default_value)
+                        if (strcmp(values[num_values].value, default_value) == 0)
+                           default_index = num_values;
+
+                     buf_len += strlen(values[num_values].value);
+                     num_values++;
+                  }
+                  else
+                     break;
+               }
+
+               /* Build values string */
+               if (num_values > 0)
+               {
+                  buf_len += num_values - 1;
+                  buf_len += strlen(desc);
+
+                  values_buf[i] = (char *)calloc(buf_len, sizeof(char));
+                  if (!values_buf[i])
+                     goto error;
+
+                  strcpy(values_buf[i], desc);
+                  strcat(values_buf[i], "; ");
+
+                  /* Default value goes first */
+                  strcat(values_buf[i], values[default_index].value);
+
+                  /* Add remaining values */
+                  for (j = 0; j < num_values; j++)
+                  {
+                     if (j != default_index)
+                     {
+                        strcat(values_buf[i], "|");
+                        strcat(values_buf[i], values[j].value);
+                     }
+                  }
+               }
+            }
+
+            variables[option_index].key   = key;
+            variables[option_index].value = values_buf[i];
+            option_index++;
+         }
+
+         /* Set variables */
+         environ_cb(RETRO_ENVIRONMENT_SET_VARIABLES, variables);
       }
 
-      /* Set variables */
-      environ_cb(RETRO_ENVIRONMENT_SET_VARIABLES, variables);
-
 error:
-
       /* Clean up */
+
+      if (option_v1_defs_us)
+      {
+         free(option_v1_defs_us);
+         option_v1_defs_us = NULL;
+      }
+
+#ifndef HAVE_NO_LANGEXTRA
+      if (option_v1_defs_intl)
+      {
+         free(option_v1_defs_intl);
+         option_v1_defs_intl = NULL;
+      }
+#endif
+
       if (values_buf)
       {
          for (i = 0; i < num_options; i++)
