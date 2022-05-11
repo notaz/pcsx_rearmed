@@ -29,6 +29,7 @@
 #include "psxhw.h"
 #include "debug.h"
 
+#include "lightrec/mem.h"
 #include "memmap.h"
 
 #ifdef USE_LIBRETRO_VFS
@@ -139,9 +140,8 @@ u8 **psxMemRLUT = NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS Mirror (512K) Uncached
 */
 
-int psxMemInit() {
-	int i;
-
+static int psxMemInitMap(void)
+{
 	psxM = psxMap(0x80000000, 0x00210000, 1, MAP_TAG_RAM);
 	if (psxM == MAP_FAILED)
 		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
@@ -155,6 +155,31 @@ int psxMemInit() {
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
 
 	if (psxR == MAP_FAILED || psxH == MAP_FAILED) {
+		SysMessage(_("Error allocating memory!"));
+		psxMemShutdown();
+		return -1;
+	}
+
+	return 0;
+}
+
+static void psxMemFreeMap(void)
+{
+	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
+	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
+	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
+}
+
+int psxMemInit(void)
+{
+	unsigned int i;
+	int ret;
+
+	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+		ret = lightrec_init_mmap();
+	else
+		ret = psxMemInitMap();
+	if (ret) {
 		SysMessage(_("Error allocating memory!"));
 		psxMemShutdown();
 		return -1;
@@ -230,9 +255,10 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
-	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
-	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
+	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+		lightrec_free_mmap();
+	else
+		psxMemFreeMap();
 
 	free(psxMemRLUT); psxMemRLUT = NULL;
 	free(psxMemWLUT); psxMemWLUT = NULL;
