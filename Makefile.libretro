@@ -51,6 +51,9 @@ ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
 	THREAD_RENDERING = 1
+ifeq ($(shell uname),Linux)
+	LIGHTREC_CUSTOM_MAP := 1
+endif
 ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
 endif
@@ -92,6 +95,7 @@ else ifeq ($(platform), linux-portable)
 	LIBDL :=
 	LIBM :=
 	NO_UNDEF_CHECK = 1
+	LIGHTREC_CUSTOM_MAP := 1
 
 # OS X
 else ifeq ($(platform), osx)
