@@ -373,7 +373,7 @@ void psxBios_getc(void) // 0x03, 0x35
 #endif
 	v0 = -1;
 
-	if (pa1) {
+	if (pa1 != INVALID_PTR) {
 		switch (a0) {
 			case 2: buread(pa1, 1, 1); break;
 			case 3: buread(pa1, 2, 1); break;
@@ -392,7 +392,7 @@ void psxBios_putc(void) // 0x09, 0x3B
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x09]);
 #endif
 	v0 = -1;
-	if (!pa1) {
+	if (pa1 == INVALID_PTR) {
 		pc0 = ra;
 		return;
 	}
@@ -1261,7 +1261,7 @@ void psxBios_printf() { // 0x3f
 	void *psp;
 
 	psp = PSXM(sp);
-	if (psp) {
+	if (psp != INVALID_PTR) {
 		memcpy(save, psp, 4 * 4);
 		psxMu32ref(sp) = SWAP32((u32)a0);
 		psxMu32ref(sp + 4) = SWAP32((u32)a1);
@@ -2112,7 +2112,7 @@ void psxBios_open() { // 0x32
 
 	v0 = -1;
 
-	if (pa0) {
+	if (pa0 != INVALID_PTR) {
 		if (!strncmp(pa0, "bu00", 4)) {
 			buopen(1, Mcd1Data, Config.Mcd1);
 		}
@@ -2166,7 +2166,7 @@ void psxBios_read() { // 0x34
 
 	v0 = -1;
 
-	if (pa1) {
+	if (pa1 != INVALID_PTR) {
 		switch (a0) {
 			case 2: buread(pa1, 1, a2); break;
 			case 3: buread(pa1, 2, a2); break;
@@ -2189,7 +2189,7 @@ void psxBios_write() { // 0x35/0x03
 #endif
 
 	v0 = -1;
-	if (!pa1) {
+	if (pa1 == INVALID_PTR) {
 		pc0 = ra;
 		return;
 	}
@@ -2293,7 +2293,7 @@ void psxBios_firstfile() { // 42
 
 	v0 = 0;
 
-	if (pa0) {
+	if (pa0 != INVALID_PTR) {
 		strcpy(ffile, pa0);
 		pfile = ffile+5;
 		nfile = 0;
@@ -2371,7 +2371,7 @@ void psxBios_rename() { // 44
 
 	v0 = 0;
 
-	if (pa0 && pa1) {
+	if (pa0 != INVALID_PTR && pa1 != INVALID_PTR) {
 		if (!strncmp(pa0, "bu00", 4) && !strncmp(pa1, "bu00", 4)) {
 			burename(1);
 		}
@@ -2413,7 +2413,7 @@ void psxBios_delete() { // 45
 
 	v0 = 0;
 
-	if (pa0) {
+	if (pa0 != INVALID_PTR) {
 		if (!strncmp(pa0, "bu00", 4)) {
 			budelete(1);
 		}
@@ -2476,7 +2476,7 @@ void psxBios__card_write() { // 0x4e
 	card_active_chan = a0;
 	port = a0 >> 4;
 
-	if (pa2) {
+	if (pa2 != INVALID_PTR) {
 		if (port == 0) {
 			memcpy(Mcd1Data + a1 * 128, pa2, 128);
 			SaveMcd(Config.Mcd1, Mcd1Data, a1 * 128, 128);
@@ -2512,7 +2512,7 @@ void psxBios__card_read() { // 0x4f
 	card_active_chan = a0;
 	port = a0 >> 4;
 
-	if (pa2) {
+	if (pa2 != INVALID_PTR) {
 		if (port == 0) {
 			memcpy(pa2, Mcd1Data + a1 * 128, 128);
 		} else {
