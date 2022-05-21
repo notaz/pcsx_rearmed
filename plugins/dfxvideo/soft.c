@@ -292,7 +292,7 @@ static inline void GetShadeTransCol32(uint32_t * pdest,uint32_t color)
     {
      int32_t sr,sb,sg,src,sbc,sgc,c;
      src=XCOL1(color);sbc=XCOL2(color);sgc=XCOL3(color);
-     c=GETLE32(pdest)>>16;
+     c=HIWORD(GETLE32(pdest));
      sr=(XCOL1(c))-src;   if(sr&0x8000) sr=0;
      sb=(XCOL2(c))-sbc;  if(sb&0x8000) sb=0;
      sg=(XCOL3(c))-sgc; if(sg&0x8000) sg=0;
@@ -327,8 +327,8 @@ static inline void GetShadeTransCol32(uint32_t * pdest,uint32_t color)
     {
      uint32_t ma=GETLE32(pdest);
      PUTLE32(pdest, (X32PSXCOL(r,g,b))|lSetMask);//0x80008000;
-     if(ma&0x80000000) PUTLE32(pdest, (ma&0xFFFF0000)|(*pdest&0xFFFF));
-     if(ma&0x00008000) PUTLE32(pdest, (ma&0xFFFF)    |(*pdest&0xFFFF0000));
+     if(ma&0x80000000) PUTLE32(pdest, (ma&0xFFFF0000)|(GETLE32(pdest)&0xFFFF));
+     if(ma&0x00008000) PUTLE32(pdest, (ma&0xFFFF)    |(GETLE32(pdest)&0xFFFF0000));
      return;
     }
    PUTLE32(pdest, (X32PSXCOL(r,g,b))|lSetMask);//0x80008000;
@@ -950,7 +950,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
   {
    static int iCheat=0;
    col+=iCheat;
-   if(iCheat==1) iCheat=0; else iCheat=1;
+   iCheat ^= 1;
   }
 
 
@@ -971,7 +971,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
   {
    uint32_t *DSTPtr;
    unsigned short LineOffset;
-   uint32_t lcol=lSetMask|(((uint32_t)(col))<<16)|col;
+   uint32_t lcol = HOST2LE32(lSetMask | (((uint32_t)(col)) << 16) | col);
    dx>>=1;
    DSTPtr = (uint32_t *)(psxVuw + (1024*y0) + x0);
    LineOffset = 512 - dx;
@@ -980,7 +980,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
     {
      for(i=0;i<dy;i++)
       {
-       for(j=0;j<dx;j++) { PUTLE32(DSTPtr, lcol); DSTPtr++; }
+       for(j=0;j<dx;j++) { *DSTPtr++ = lcol; }
        DSTPtr += LineOffset;
       }
     }
@@ -1035,14 +1035,14 @@ static void FillSoftwareArea(short x0,short y0,short x1,      // FILL AREA (BLK 
   {
    uint32_t *DSTPtr;
    unsigned short LineOffset;
-   uint32_t lcol=(((int32_t)col)<<16)|col;
+   uint32_t lcol = HOST2LE32((((uint32_t)(col)) << 16) | col);
    dx>>=1;
    DSTPtr = (uint32_t *)(psxVuw + (1024*y0) + x0);
    LineOffset = 512 - dx;
 
    for(i=0;i<dy;i++)
     {
-     for(j=0;j<dx;j++) { PUTLE32(DSTPtr, lcol); DSTPtr++; }
+     for(j=0;j<dx;j++) { *DSTPtr++ = lcol; }
      DSTPtr += LineOffset;
     } 
   }
