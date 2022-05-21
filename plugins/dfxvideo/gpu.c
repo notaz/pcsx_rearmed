@@ -985,7 +985,7 @@ ENDVRAM:
          if((gpuDataC==254 && gpuDataP>=3) ||
             (gpuDataC==255 && gpuDataP>=4 && !(gpuDataP&1)))
           {
-           if((gpuDataM[gpuDataP] & 0xF000F000) == 0x50005000)
+           if((gpuDataM[gpuDataP] & HOST2LE32(0xF000F000)) == HOST2LE32(0x50005000))
             gpuDataP=gpuDataC-1;
           }
         }

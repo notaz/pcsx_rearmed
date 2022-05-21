@@ -438,7 +438,7 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
   if (is_read) {
     gpu.status |= PSX_GPU_STATUS_IMG;
     // XXX: wrong for width 1
-    memcpy(&gpu.gp0, VRAM_MEM_XY(gpu.dma.x, gpu.dma.y), 4);
+    gpu.gp0 = LE32TOH(*(uint32_t *) VRAM_MEM_XY(gpu.dma.x, gpu.dma.y));
     gpu.state.last_vram_read_frame = *gpu.state.frame_count;
   }
 
@@ -690,8 +690,11 @@ uint32_t GPUreadData(void)
     flush_cmd_buffer();
 
   ret = gpu.gp0;
-  if (gpu.dma.h)
+  if (gpu.dma.h) {
+    ret = HTOLE32(ret);
     do_vram_io(&ret, 1, 1);
+    ret = LE32TOH(ret);
+  }
 
   log_io("gpu_read %08x\n", ret);
   return ret;
