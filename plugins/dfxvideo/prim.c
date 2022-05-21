@@ -1240,7 +1240,7 @@ static void primLineGEx(unsigned char *baseAddr)
    sly1=(short)(((int)sly1<<SIGNSHIFT)>>SIGNSHIFT);
   }
 
- lc1 = gpuData[0] & 0xffffff;
+ lc1 = GETLE32(&gpuData[0]) & 0xffffff;
 
  DrawSemiTrans = (SEMITRANSBIT(GETLE32(&gpuData[0]))) ? TRUE : FALSE;
 

@@ -37,8 +37,8 @@
 
 // byteswappings
 
-#define SWAP16(x) ({ uint16_t y=(x); (((y)>>8 & 0xff) | ((y)<<8 & 0xff00)); })
-#define SWAP32(x) ({ uint32_t y=(x); (((y)>>24 & 0xfful) | ((y)>>8 & 0xff00ul) | ((y)<<8 & 0xff0000ul) | ((y)<<24 & 0xff000000ul)); })
+#define SWAP16(x) __builtin_bswap16(x)
+#define SWAP32(x) __builtin_bswap32(x)
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
@@ -75,7 +75,7 @@
 #define GETLE32_(X) LE2HOST32(*(uint32_t *)X)
 #define GETLE16D(X) ({uint32_t val = GETLE32(X); (val<<16 | val >> 16);})
 #define PUTLE16(X, Y) do{*((uint16_t *)X)=HOST2LE16((uint16_t)Y);}while(0)
-#define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE16((uint32_t)Y);}while(0)
+#define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE32((uint32_t)Y);}while(0)
 #ifdef __arm__
 #define GETLE32(X) (*(uint16_t *)(X)|(((uint16_t *)(X))[1]<<16))
 #define PUTLE32(X, Y) do{uint16_t *p_=(uint16_t *)(X);uint32_t y_=Y;p_[0]=y_;p_[1]=y_>>16;}while(0)
@@ -315,7 +315,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
   for (; list < list_end; list += 1 + len)
   {
-    cmd = *list >> 24;
+    cmd = GETLE32(list) >> 24;
     len = cmd_lengths[cmd];
     if (list + 1 + len > list_end) {
       cmd = -1;
@@ -326,7 +326,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
     if (cmd == 0xa0 || cmd == 0xc0)
       break; // image i/o, forward to upper layer
     else if ((cmd & 0xf8) == 0xe0)
-      gpu.ex_regs[cmd & 7] = list[0];
+      gpu.ex_regs[cmd & 7] = GETLE32(list);
 #endif
 
     primTableJ[cmd]((void *)list);
@@ -345,7 +345,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
             goto breakloop;
           }
 
-          if((*list_position & 0xf000f000) == 0x50005000)
+          if((*list_position & HOST2LE32(0xf000f000)) == HOST2LE32(0x50005000))
             break;
 
           list_position++;
@@ -368,7 +368,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
             goto breakloop;
           }
 
-          if((*list_position & 0xf000f000) == 0x50005000)
+          if((*list_position & HOST2LE32(0xf000f000)) == HOST2LE32(0x50005000))
             break;
 
           list_position += 2;
@@ -383,8 +383,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0xA0:          //  sys -> vid
       {
         short *slist = (void *)list;
-        u32 load_width = slist[4];
-        u32 load_height = slist[5];
+        u32 load_width = LE2HOST32(slist[4]);
+        u32 load_height = LE2HOST32(slist[5]);
         u32 load_size = load_width * load_height;
 
         len += load_size / 2;
