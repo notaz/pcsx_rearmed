@@ -685,6 +685,7 @@ static int handlepbp(const char *isofile) {
 	off_t psisoimg_offs, cdimg_base;
 	unsigned int t, cd_length;
 	unsigned int offsettab[8];
+	unsigned int psar_offs, index_entry_size, index_entry_offset;
 	const char *ext = NULL;
 	int i, ret;
 
@@ -703,21 +704,23 @@ static int handlepbp(const char *isofile) {
 		goto fail_io;
 	}
 
-	ret = fseeko(cdHandle, pbp_hdr.psar_offs, SEEK_SET);
+	psar_offs = SWAP32(pbp_hdr.psar_offs);
+
+	ret = fseeko(cdHandle, psar_offs, SEEK_SET);
 	if (ret != 0) {
-		SysPrintf("failed to seek to %x\n", pbp_hdr.psar_offs);
+		SysPrintf("failed to seek to %x\n", psar_offs);
 		goto fail_io;
 	}
 
-	psisoimg_offs = pbp_hdr.psar_offs;
+	psisoimg_offs = psar_offs;
 	if (fread(psar_sig, 1, sizeof(psar_sig), cdHandle) != sizeof(psar_sig))
 		goto fail_io;
 	psar_sig[10] = 0;
 	if (strcmp(psar_sig, "PSTITLEIMG") == 0) {
 		// multidisk image?
-		ret = fseeko(cdHandle, pbp_hdr.psar_offs + 0x200, SEEK_SET);
+		ret = fseeko(cdHandle, psar_offs + 0x200, SEEK_SET);
 		if (ret != 0) {
-			SysPrintf("failed to seek to %x\n", pbp_hdr.psar_offs + 0x200);
+			SysPrintf("failed to seek to %x\n", psar_offs + 0x200);
 			goto fail_io;
 		}
 
@@ -739,7 +742,7 @@ static int handlepbp(const char *isofile) {
 		if (cdrIsoMultidiskSelect >= cdrIsoMultidiskCount)
 			cdrIsoMultidiskSelect = 0;
 
-		psisoimg_offs += offsettab[cdrIsoMultidiskSelect];
+		psisoimg_offs += SWAP32(offsettab[cdrIsoMultidiskSelect]);
 
 		ret = fseeko(cdHandle, psisoimg_offs, SEEK_SET);
 		if (ret != 0) {
@@ -823,12 +826,15 @@ static int handlepbp(const char *isofile) {
 			goto fail_index;
 		}
 
-		if (index_entry.size == 0)
+		index_entry_size = SWAP32(index_entry.size);
+		index_entry_offset = SWAP32(index_entry.offset);
+
+		if (index_entry_size == 0)
 			break;
 
-		compr_img->index_table[i] = cdimg_base + index_entry.offset;
+		compr_img->index_table[i] = cdimg_base + index_entry_offset;
 	}
-	compr_img->index_table[i] = cdimg_base + index_entry.offset + index_entry.size;
+	compr_img->index_table[i] = cdimg_base + index_entry_offset + index_entry_size;
 
 	return 0;
 
