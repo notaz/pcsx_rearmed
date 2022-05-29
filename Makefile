@@ -94,12 +94,13 @@ ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
 		  -DLIGHTREC -DLIGHTREC_STATIC
 LIGHTREC_CUSTOM_MAP ?= 0
+LIGHTREC_CUSTOM_MAP_OBJ ?= libpcsxcore/lightrec/mem.o
 LIGHTREC_THREADED_COMPILER ?= 0
 CFLAGS += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP) \
 	  -DLIGHTREC_ENABLE_THREADED_COMPILER=$(LIGHTREC_THREADED_COMPILER)
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt
-OBJS += libpcsxcore/lightrec/mem.o
+OBJS += $(LIGHTREC_CUSTOM_MAP_OBJ)
 endif
 ifeq ($(LIGHTREC_THREADED_COMPILER),1)
 OBJS += deps/lightrec/recompiler.o \
