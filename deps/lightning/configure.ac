@@ -63,7 +63,7 @@ case "$target_cpu" in
     *)						;;
 esac
 
-AC_CHECK_FUNCS(mremap ffsl getopt_long_only isnan isinf,,)
+AC_CHECK_FUNCS(mmap mremap ffsl getopt_long_only isnan isinf,,)
 
 AC_CHECK_HEADERS([getopt.h stdint.h],,,)
 
@@ -72,7 +72,7 @@ AC_ARG_ENABLE(disassembler,
 			     [Enable jit disassembler using binutils]),
 	      [DISASSEMBLER=$enableval], [DISASSEMBLER=auto])
 if test "x$DISASSEMBLER" != "xno"; then
-    # FIXME need to check for libiberty first or will fail to link
+
     AC_CHECK_LIB(iberty, htab_try_create, ,
 		 [HAVE_IBERTY="no"])
     AC_CHECK_LIB(bfd, bfd_init, ,
@@ -81,17 +81,43 @@ if test "x$DISASSEMBLER" != "xno"; then
 		 [HAVE_Z="no"])
     AC_CHECK_LIB(opcodes, init_disassemble_info, ,
 		 [HAVE_OPCODES="no"])
-    if test "x$HAVE_IBERTY"  = "xno" -o \
-	    "x$HAVE_BFD"     = "xno" -o \
-	    "x$HAVE_Z"       = "xno" -o \
-	    "x$HAVE_OPCODES" = "xno"; then
-	if test "x$DISASSEMBLER" != "xauto"; then
-	    AC_MSG_ERROR([binutils not found, see http://www.gnu.org/software/binutils/])
-	else
-	    AC_MSG_WARN([binutils not found, see http://www.gnu.org/software/binutils/])
-	    DISASSEMBLER="no"
-	fi
+
+    if test "x$HAVE_IBERTY" = "xno"; then
+        if test "x$DISASSEMBLER" = "xyes"; then
+            AC_MSG_ERROR([libiberty not found])
+        else
+            AC_MSG_WARN([libiberty not found])
+            DISASSEMBLER="no"
+        fi
     fi
+
+    if test "x$HAVE_BFD" = "xno"; then
+        if test "x$DISASSEMBLER" = "xyes"; then
+            AC_MSG_ERROR([binutils BFD not found, see http://www.gnu.org/software/binutils/])
+        else
+            AC_MSG_WARN([binutils BFD not found, see http://www.gnu.org/software/binutils/])
+            DISASSEMBLER="no"
+        fi
+    fi
+
+    if test "x$HAVE_Z" = "xno"; then
+        if test "x$DISASSEMBLER" = "xyes"; then
+            AC_MSG_ERROR([zlib not found, see https://zlib.net/])
+        else
+            AC_MSG_WARN([zlib not found, see https://zlib.net/])
+            DISASSEMBLER="no"
+        fi
+    fi
+
+    if test "x$HAVE_OPCODES" = "xno"; then
+        if test "x$DISASSEMBLER" = "xyes"; then
+            AC_MSG_ERROR([binutils opcodes not found, see https://www.gnu.org/software/binutils/])
+        else
+            AC_MSG_WARN([binutils opcodes not found, see https://www.gnu.org/software/binutils/])
+            DISASSEMBLER="no"
+        fi
+    fi
+
 fi
 AM_CONDITIONAL(with_disassembler, [test "x$DISASSEMBLER" != "xno"])
 if test "x$DISASSEMBLER" != "xno"; then

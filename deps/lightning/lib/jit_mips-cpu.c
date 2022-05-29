@@ -54,8 +54,11 @@ typedef union {
 #endif
     int					op;
 } jit_instr_t;
-/* FIXME */
+#if defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS64R2)
+#  define jit_mips2_p()			1
+#else
 #  define jit_mips2_p()			0
+#endif
 #  define _ZERO_REGNO			0
 #  define _T0_REGNO			0x08
 #  define _T1_REGNO			0x09
@@ -107,7 +110,8 @@ typedef union {
 #  endif
 #  define can_sign_extend_short_p(im)	((im) >= -32678 && (im) <= 32767)
 #  define can_zero_extend_short_p(im)	((im) >= 0 && (im) <= 65535)
-#  define is_low_mask(im)		(((im) & 1) ? (__builtin_popcountl((im) + 1) == 1) : 0)
+#  define is_low_mask(im)		(((im) & 1) ? (__builtin_popcountl((im) + 1) <= 1) : 0)
+#  define is_middle_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) <= 1) : 0)
 #  define is_high_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) == 0) : 0)
 #  define masked_bits_count(im)		__builtin_popcountl(im)
 #  define unmasked_bits_count(im)	(__WORDSIZE - masked_bits_count(im))
@@ -321,6 +325,7 @@ static void _nop(jit_state_t*,jit_int32_t);
 #  define DADDIU(rt,rs,im)		hrri(MIPS_DADDIU,rs,rt,im)
 #  define SUBU(rd,rs,rt)		rrr_t(rs,rt,rd,MIPS_SUBU)
 #  define DSUBU(rd,rs,rt)		rrr_t(rs,rt,rd,MIPS_DSUBU)
+#  define MUL(rd,rs,rt)			hrrr_t(MIPS_SPECIAL2,rs,rt,rd,MIPS_MUL)
 #  define MULT(rs,rt)			rrr_t(rs,rt,_ZERO_REGNO,MIPS_MULT)
 #  define MULTU(rs,rt)			rrr_t(rs,rt,_ZERO_REGNO,MIPS_MULTU)
 #  define DMULT(rs,rt)			rrr_t(rs,rt,_ZERO_REGNO,MIPS_DMULT)
@@ -346,8 +351,12 @@ static void _nop(jit_state_t*,jit_int32_t);
 #  define DSRL32(rd,rt,sa)		rrit(rt,rd,sa,MIPS_DSRL32)
 #  define INS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-1,pos,MIPS_INS)
 #  define DINS(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-1,pos,MIPS_DINS)
+#  define DINSU(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-32-1,pos-32,MIPS_DINSU)
+#  define DINSM(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,pos+size-32-1,pos,MIPS_DINSM)
 #  define EXT(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-1,pos,MIPS_EXT)
 #  define DEXT(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-1,pos,MIPS_DEXT)
+#  define DEXTU(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-1,pos-32,MIPS_DEXTU)
+#  define DEXTM(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-32-1,pos,MIPS_DEXTM)
 #  define ROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_SRL)
 #  define DROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_DSRL)
 #  define MFHI(rd)			rrr_t(_ZERO_REGNO,_ZERO_REGNO,rd,MIPS_MFHI)
@@ -412,6 +421,10 @@ static void _nop(jit_state_t*,jit_int32_t);
 #    define div(rs,rt)			DDIV(rs,rt)
 #    define divu(rs,rt)			DDIVU(rs,rt)
 #  endif
+#  define extr(rd,rt,lsb,nb)	_extr(_jit,rd,rt,lsb,nb)
+static void _extr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define insr(rd,rt,lsb,nb)	_insr(_jit,rd,rt,lsb,nb)
+static void _insr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define addi(r0,r1,i0)		_addi(_jit,r0,r1,i0)
 static void _addi(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #define addcr(r0,r1,r2)			_addcr(_jit,r0,r1,r2)
@@ -594,23 +607,12 @@ static void _stxr_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #    define stxi_l(i0,r0,r1)		_stxi_l(_jit,i0,r0,r1)
 static void _stxi_l(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 #  endif
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
-#    define htonr_us(r0,r1)		_htonr_us(_jit,r0,r1)
-static void _htonr_us(jit_state_t*,jit_int32_t,jit_int32_t);
-#    define htonr_ui(r0,r1)		_htonr_ui(_jit,r0,r1)
-static void _htonr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
-#    if __WORDSIZE == 64
-#      define htonr_ul(r0,r1)		_htonr_ul(_jit,r0,r1)
-static void _htonr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
-#    endif
-#  else
-#    define htonr_us(r0,r1)		extr_us(r0,r1)
-#    if __WORDSIZE == 32
-#      define htonr_ui(r0,r1)		movr(r0,r1)
-#    else
-#      define htonr_ui(r0,r1)		extr_ui(r0,r1)
-#      define htonr_ul(r0,r1)		movr(r0,r1)
-#    endif
+#  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1)
+static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1)
+static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
+#  if __WORDSIZE == 64
+#    define bswapr_ul(r0,r1)		generic_bswapr_ul(_jit,r0,r1)
 #  endif
 #  define extr_c(r0,r1)			_extr_c(_jit,r0,r1)
 static void _extr_c(jit_state_t*,jit_int32_t,jit_int32_t);
@@ -810,6 +812,38 @@ _nop(jit_state_t *_jit, jit_int32_t i0)
 }
 
 static void
+_extr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t pos, jit_int32_t size)
+{
+    assert(size > 0);
+
+    if (__WORDSIZE == 32)
+        EXT(r0, r1, pos, size);
+    else if (pos >= 32)
+        DEXTU(r0, r1, pos, size);
+    else if (size > 32)
+        DEXTM(r0, r1, pos, size);
+    else
+        DEXT(r0, r1, pos, size);
+}
+
+static void
+_insr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t pos, jit_int32_t size)
+{
+    assert(size > 0);
+
+    if (__WORDSIZE == 32)
+        INS(r0, r1, pos, size);
+    else if (pos >= 32)
+        DINSU(r0, r1, pos, size);
+    else if (size > 32)
+        DINSM(r0, r1, pos, size);
+    else
+        DINS(r0, r1, pos, size);
+}
+
+static void
 _addi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
@@ -1003,8 +1037,12 @@ _rsbi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 static void
 _mulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
-    multu(r1, r2);
-    MFLO(r0);
+    if (__WORDSIZE == 32)
+        MUL(r0, r1, r2);
+    else {
+        multu(r1, r2);
+        MFLO(r0);
+    }
 }
 
 static void
@@ -1169,25 +1207,33 @@ _andi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
     if (can_zero_extend_short_p(i0))
-	ANDI(r0, r1, i0);
+        ANDI(r0, r1, i0);
     else if (is_low_mask(i0)) {
-#if defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS64R2)
-	if (masked_bits_count(i0) <= 32)
-	    EXT(r0, r1, 0, masked_bits_count(i0));
-	else
-#endif
-	{
-		lshi(r0, r1, unmasked_bits_count(i0));
-		rshi_u(r0, r0, unmasked_bits_count(i0));
-	}
+        if (jit_mips2_p())
+            extr(r0, r1, 0, masked_bits_count(i0));
+        else {
+            lshi(r0, r1, unmasked_bits_count(i0));
+            rshi_u(r0, r0, unmasked_bits_count(i0));
+        }
     } else if (is_high_mask(i0)) {
-	rshi(r0, r1, unmasked_bits_count(i0));
-	lshi(r0, r0, unmasked_bits_count(i0));
+        if (jit_mips2_p() && r0 == r1)
+            insr(r0, _ZERO_REGNO, 0, unmasked_bits_count(i0));
+        else {
+            rshi(r0, r1, unmasked_bits_count(i0));
+            lshi(r0, r0, unmasked_bits_count(i0));
+        }
+    } else if (jit_mips2_p() && is_middle_mask(i0)) {
+        extr(r0, r1, __builtin_ctzl(i0), masked_bits_count(i0));
+        lshi(r0, r0, __builtin_ctzl(i0));
+    } else if (jit_mips2_p() && is_middle_mask(~i0)) {
+        if (r0 != r1)
+            movr(r0, r1);
+        insr(r0, _ZERO_REGNO, __builtin_ctzl(~i0), masked_bits_count(~i0));
     } else {
-	reg = jit_get_reg(jit_class_gpr);
-	movi(rn(reg), i0);
-	AND(r0, r1, rn(reg));
-	jit_unget_reg(reg);
+        reg = jit_get_reg(jit_class_gpr);
+        movi(rn(reg), i0);
+        AND(r0, r1, rn(reg));
+        jit_unget_reg(reg);
     }
 }
 
@@ -1708,60 +1754,34 @@ _stxi_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 }
 #endif
 
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
 static void
-_htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    jit_int32_t		t0;
-    t0 = jit_get_reg(jit_class_gpr);
-    rshi(rn(t0), r1, 8);
-    andi(r0, r1, 0xff);
-    andi(rn(t0), rn(t0), 0xff);
-    lshi(r0, r0, 8);
-    orr(r0, r0, rn(t0));
-    jit_unget_reg(t0);
+    if (jit_mips2_p()) {
+        extr_us(r0, r1);
+        WSBH(r0, r0);
+    } else {
+        generic_bswapr_us(_jit, r0, r1);
+    }
 }
 
 static void
-_htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    jit_int32_t		t0;
-    jit_int32_t		t1;
-    jit_int32_t		t2;
-    t0 = jit_get_reg(jit_class_gpr);
-    t1 = jit_get_reg(jit_class_gpr);
-    t2 = jit_get_reg(jit_class_gpr);
-    rshi(rn(t0), r1, 24);
-    rshi(rn(t1), r1, 16);
-    rshi(rn(t2), r1,  8);
-    andi(rn(t0), rn(t0), 0xff);
-    andi(rn(t1), rn(t1), 0xff);
-    andi(rn(t2), rn(t2), 0xff);
-    andi(r0, r1, 0xff);
-    lshi(r0, r0, 24);
-    lshi(rn(t1), rn(t1), 8);
-    orr(r0, r0, rn(t0));
-    lshi(rn(t2), rn(t2), 16);
-    orr(r0, r0, rn(t1));
-    orr(r0, r0, rn(t2));
-    jit_unget_reg(t2);
-    jit_unget_reg(t1);
-    jit_unget_reg(t0);
+    if (jit_mips2_p()) {
+        if (__WORDSIZE == 64) {
+            SLL(r0, r1, 0);
+            WSBH(r0, r0);
+            ROTR(r0, r0, 16);
+            extr(r0, r0, 0, 32);
+        } else {
+            WSBH(r0, r1);
+            ROTR(r0, r0, 16);
+        }
+    } else {
+        generic_bswapr_ui(_jit, r0, r1);
+    }
 }
-
-static void
-_htonr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
-{
-    jit_int32_t		reg;
-    reg = jit_get_reg(jit_class_gpr);
-    rshi_u(rn(reg), r1, 32);
-    htonr_ui(r0, r1);
-    htonr_ui(rn(reg), rn(reg));
-    lshi(r0, r0, 32);
-    orr(r0, r0, rn(reg));
-    jit_unget_reg(reg);
-}
-#  endif
 
 static void
 _extr_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
@@ -1789,8 +1809,12 @@ _extr_s(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 static void
 _extr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    lshi(r0, r1, 32);
-    rshi_u(r0, r0, 32);
+    if (jit_mips2_p())
+        DEXT(r0, r1, 0, 32);
+    else {
+        lshi(r0, r1, 32);
+        rshi_u(r0, r0, 32);
+    }
 }
 #  endif
 
@@ -1836,10 +1860,8 @@ _lei(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
 
-    if (i0 == 0) {
-	SLT(r0, _ZERO_REGNO, r1);
-	XORI(r0, r0, 1);
-    }
+    if (can_sign_extend_short_p(i0 + 1))
+        SLTI(r0, r1, i0 + 1);
     else {
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), i0);
@@ -1860,10 +1882,8 @@ _lei_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
 
-    if (i0 == 0) {
-	SLTU(r0, _ZERO_REGNO, r1);
-	XORI(r0, r0, 1);
-    }
+    if (can_sign_extend_short_p(i0 + 1))
+        SLTIU(r0, r1, i0 + 1);
     else {
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), i0);
@@ -1904,10 +1924,15 @@ _gei(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
 
-    reg = jit_get_reg(jit_class_gpr);
-    movi(rn(reg), i0);
-    ger(r0, r1, rn(reg));
-    jit_unget_reg(reg);
+    if (can_sign_extend_short_p(i0)) {
+        SLTI(r0, r1, i0);
+        XORI(r0, r0, 1);
+    } else {
+        reg = jit_get_reg(jit_class_gpr);
+        movi(rn(reg), i0);
+        ger(r0, r1, rn(reg));
+        jit_unget_reg(reg);
+    }
 }
 
 static void
@@ -1922,10 +1947,15 @@ _gei_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
 
-    reg = jit_get_reg(jit_class_gpr);
-    movi(rn(reg), i0);
-    ger_u(r0, r1, rn(reg));
-    jit_unget_reg(reg);
+    if (can_sign_extend_short_p(i0)) {
+        SLTIU(r0, r1, i0);
+        XORI(r0, r0, 1);
+    } else {
+        reg = jit_get_reg(jit_class_gpr);
+        movi(rn(reg), i0);
+        ger_u(r0, r1, rn(reg));
+        jit_unget_reg(reg);
+    }
 }
 
 static void
@@ -2848,16 +2878,12 @@ _bmsi(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
     jit_word_t		w;
     jit_int32_t		t0;
     t0 = jit_get_reg(jit_class_gpr|jit_class_nospill);
-    if (can_zero_extend_short_p(i1)) {
-	ANDI(rn(t0), r0, i1);
-	w = _jit->pc.w;
-	BNE(_ZERO_REGNO, rn(t0), ((i0 - w) >> 2) - 1);
-	NOP(1);
-    }
-    else {
-	movi(rn(t0), i1);
-	w = bmsr(i0, r0, rn(t0));
-    }
+
+    andi(rn(t0), r0, i1);
+    w = _jit->pc.w;
+    BNE(_ZERO_REGNO, rn(t0), ((i0 - w) >> 2) - 1);
+    NOP(1);
+
     jit_unget_reg(t0);
     return (w);
 }
@@ -2882,16 +2908,12 @@ _bmci(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
     jit_word_t		w;
     jit_int32_t		t0;
     t0 = jit_get_reg(jit_class_gpr|jit_class_nospill);
-    if (can_zero_extend_short_p(i1)) {
-	ANDI(rn(t0), r0, i1);
-	w = _jit->pc.w;
-	BEQ(_ZERO_REGNO, rn(t0), ((i0 - w) >> 2) - 1);
-	NOP(1);
-    }
-    else {
-	movi(rn(t0), i1);
-	w = bmcr(i0, r0, rn(t0));
-    }
+
+    andi(rn(t0), r0, i1);
+    w = _jit->pc.w;
+    BEQ(_ZERO_REGNO, rn(t0), ((i0 - w) >> 2) - 1);
+    NOP(1);
+
     jit_unget_reg(t0);
     return (w);
 }

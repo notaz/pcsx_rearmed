@@ -1,3 +1,24 @@
+2022-05-14 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning.h.in: Reorder jit_mov{n,z}r in instruction list.
+	* lib/jit_alpha.c, lib/jit_alpha-cpu.c, lib/jit_hppa.c,
+	lib/jit_hppa-cpu.c, lib/jit_ia64.c, lib/jit_ia64-cpu.c,
+	lib/jit_riscv.c, lib/jit_riscv-cpu.c, lib/jit_s390.c,
+	lib/jit_s390-cpu.c, lib/jit_sparc.c, lib/jit_sparc-cpu.c:
+	Implement fallback jit_mov{n,z}r. These are a somewhat cheap
+	implementation, but should be reviewed for the arches that already
+	have a proper conditional move.
+	* lib/jit_arm-sz.c, lib/jit_mips-sz.c: Add missing maximum size
+	estimative and reorder.
+	* lib/jit_aarch64-sz.c, lib/jit_x86-sz.c, lib/jit_ppc-sz.c:
+	Reorder entry to match definition order.
+	* lib/jit_aarch64-sz.c, lib/jit_alpha-sz.c, lib/jit_hppa-sz.c,
+	lib/jit_ia64-sz.c, lib/jit_riscv-sz.c, lib/jit_s390-sz.c,
+	lib/jit_sparc-sz.c: Add heuristic value, basically the sum of
+	the cost of a movr + beqr.
+	* lib/jit_names.c: Add entries for debug output of mov{n,z}r.
+	* lib/lightning.c: Use proper bitmask in jit_classify.
+
 2021-04-03  Marc Nieper-Wißkirchen  <marc@nieper-wisskirchen.de>
 
 	* check/Makefile.am: Add test for the live instruction.

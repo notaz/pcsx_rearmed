@@ -612,7 +612,7 @@ static void _torl(jit_state_t*,int,int,int) maybe_unused;
 #  define CMNI(rn,im)			CC_CMNI(ARM_CC_AL,rn,im)
 #  define T2_CMNI(rn,im)		torri(THUMB2_CMNI,rn,_R15_REGNO,im)
 #  define CC_TST(cc,rn,rm)		corrr(cc,ARM_TST,rn,r0,rm)
-#  define TST(rn,rm)			CC_TST(ARM_CC_AL,rn,rm)
+#  define TST(rn,rm)			corrr(ARM_CC_AL,ARM_TST,rn,0,rm)
 #  define T1_TST(rn,rm)			is(THUMB_TST|(_u3(rm)<<3)|_u3(rn))
 #  define T2_TST(rn,rm)			torrr(THUMB2_TST,rn,_R15_REGNO,rm)
 #  define CC_TSTI(cc,rn,im)		corri(cc,ARM_TST|ARM_I,rn,0,im)
@@ -1095,15 +1095,10 @@ static void _sti_i(jit_state_t*,jit_word_t,jit_int32_t);
 static void _stxr_i(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 #  define stxi_i(r0,r1,i0)		_stxi_i(_jit,r0,r1,i0)
 static void _stxi_i(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define htonr_us(r0,r1)		_htonr_us(_jit,r0,r1)
-static void _htonr_us(jit_state_t*,jit_int32_t,jit_int32_t);
-#  define htonr_ui(r0,r1)		_htonr_ui(_jit,r0,r1)
-static void _htonr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
-#  else
-#    define htonr_us(r0,r1)		extr_us(r0,r1)
-#    define htonr(r0,r1)		movr(r0,r1)
-#  endif
+#  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1)
+static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1)
+static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define extr_c(r0,r1)			_extr_c(_jit,r0,r1)
 static void _extr_c(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define extr_uc(r0,r1)		_extr_uc(_jit,r0,r1)
@@ -3609,11 +3604,9 @@ _stxi_i(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
     }
 }
 
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
 static void
-_htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    jit_int32_t		t0;
     if (jit_thumb_p()) {
 	if ((r0|r1) < 8)
 	    T1_REV(r0, r1);
@@ -3627,20 +3620,14 @@ _htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 	    rshi_u(r0, r0, 16);
 	}
 	else {
-	    t0 = jit_get_reg(jit_class_gpr);
-	    rshi(rn(t0), r1, 8);
-	    andi(r0, r1, 0xff);
-	    andi(rn(t0), rn(t0), 0xff);
-	    lshi(r0, r0, 8);
-	    orr(r0, r0, rn(t0));
-	    jit_unget_reg(t0);
+		generic_bswapr_us(_jit, r0, r1);
 	}
     }
 }
 
 /* inline glibc htonl (without register clobber) */
 static void
-_htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     jit_int32_t		reg;
     if (jit_thumb_p()) {
@@ -3662,7 +3649,6 @@ _htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 	}
     }
 }
-#endif
 
 static void
 _extr_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)

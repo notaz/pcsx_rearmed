@@ -379,13 +379,13 @@ static void _movir(jit_state_t*,jit_int32_t,jit_int32_t);
 #    define movir_u(r0, r1)		_movir_u(_jit, r0, r1)
 static void _movir_u(jit_state_t*,jit_int32_t,jit_int32_t);
 #  endif
-#  define htonr_us(r0, r1)		_htonr_us(_jit, r0, r1)
-static void _htonr_us(jit_state_t*,jit_int32_t,jit_int32_t);
-#  define htonr_ui(r0, r1)		_htonr_ui(_jit, r0, r1)
-static void _htonr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_us(r0, r1)		_bswapr_us(_jit, r0, r1)
+static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_ui(r0, r1)		_bswapr_ui(_jit, r0, r1)
+static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 #  if __X64 && !__X64_32
-#define htonr_ul(r0, r1)		_htonr_ul(_jit, r0, r1)
-static void _htonr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
+#define bswapr_ul(r0, r1)		_bswapr_ul(_jit, r0, r1)
+static void _bswapr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
 #endif
 #  define extr_c(r0, r1)		_extr_c(_jit, r0, r1)
 static void _extr_c(jit_state_t*,jit_int32_t,jit_int32_t);
@@ -2263,7 +2263,7 @@ _movir_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 #endif
 
 static void
-_htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     extr_us(r0, r1);
     ic(0x66);
@@ -2274,7 +2274,7 @@ _htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 }
 
 static void
-_htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     movr(r0, r1);
     rex(0, 0, _NOREG, _NOREG, r0);
@@ -2284,7 +2284,7 @@ _htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 
 #if __X64 && !__X64_32
 static void
-_htonr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     movr(r0, r1);
     rex(0, 1, _NOREG, _NOREG, r0);

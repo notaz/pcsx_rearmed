@@ -97,6 +97,8 @@
     16,	/* nei */
     4,	/* movr */
     8,	/* movi */
+    12,  /* movnr */
+    12,  /* movzr */
     4,	/* extr_c */
     4,	/* extr_uc */
     4,	/* extr_s */
@@ -401,8 +403,9 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
-    12,  /* movnr */
-    12,  /* movzr */
+    20,	/* bswapr_us */
+    16,	/* bswapr_ui */
+    0,	/* bswapr_ul */
 #endif /* _CALL_SYV */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
@@ -507,6 +510,8 @@
     16,	/* nei */
     4,	/* movr */
     8,	/* movi */
+    12,  /* movnr */
+    12,  /* movzr */
     4,	/* extr_c */
     4,	/* extr_uc */
     4,	/* extr_s */
@@ -811,8 +816,9 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
-    12,  /* movnr */
-    12,  /* movzr */
+    20,	/* bswapr_us */
+    16,	/* bswapr_ui */
+    0,	/* bswapr_ul */
 #endif /* _CALL_AIX */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
@@ -916,6 +922,8 @@
     16,	/* nei */
     4,	/* movr */
     36,	/* movi */
+    12,  /* movnr */
+    12,  /* movzr */
     4,	/* extr_c */
     4,	/* extr_uc */
     4,	/* extr_s */
@@ -1220,8 +1228,9 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
-    12,  /* movnr */
-    12,  /* movzr */
+    20,	/* bswapr_us */
+    16,	/* bswapr_ui */
+    44,	/* bswapr_ul */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */
@@ -1324,6 +1333,8 @@
     16,	/* nei */
     4,	/* movr */
     36,	/* movi */
+    12,  /* movnr */
+    12,  /* movzr */
     4,	/* extr_c */
     4,	/* extr_uc */
     4,	/* extr_s */
@@ -1628,8 +1639,9 @@
     0,	/* movi_d_ww */
     0,	/* movr_d_w */
     0,	/* movi_d_w */
-    12,  /* movnr */
-    12,  /* movzr */
+    20,	/* bswapr_us */
+    16,	/* bswapr_ui */
+    44,	/* bswapr_ul */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */

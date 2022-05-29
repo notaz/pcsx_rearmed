@@ -663,17 +663,11 @@ static void _stxi_i(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 #  define stxr_l(r0,r1,r2)		STR(r2,r1,r0)
 #  define stxi_l(i0,r0,r1)		_stxi_l(_jit,i0,r0,r1)
 static void _stxi_l(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
-#  if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define htonr_us(r0,r1)		_htonr_us(_jit,r0,r1)
-static void _htonr_us(jit_state_t*,jit_int32_t,jit_int32_t);
-#  define htonr_ui(r0,r1)		_htonr_ui(_jit,r0,r1)
-static void _htonr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
-#    define htonr_ul(r0,r1)		REV(r0,r1)
-#  else
-#    define htonr_us(r0,r1)		extr_us(r0,r1)
-#    define htonr_ui(r0,r1)		extr_ui(r0,r1)
-#    define htonr_ul(r0,r1)		movr(r0,r1)
-#  endif
+#  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1)
+static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1)
+static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_ul(r0,r1)		REV(r0,r1)
 #  define extr_c(r0,r1)			SXTB(r0,r1)
 #  define extr_uc(r0,r1)		UXTB(r0,r1)
 #  define extr_s(r0,r1)			SXTH(r0,r1)
@@ -1461,21 +1455,19 @@ _xori(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
     }
 }
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
 static void
-_htonr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    htonr_ul(r0, r1);
+    bswapr_ul(r0, r1);
     rshi_u(r0, r0, 48);
 }
 
 static void
-_htonr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    htonr_ul(r0, r1);
+    bswapr_ul(r0, r1);
     rshi_u(r0, r0, 32);
 }
-#endif
 
 static void
 _ldi_c(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)

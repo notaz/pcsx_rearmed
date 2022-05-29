@@ -55,12 +55,16 @@ static FILE	*print_stream;
  * Implementation
  */
 void
+jit_init_print(void)
+{
+    if (!print_stream)
+	print_stream = stderr;
+}
+
+void
 _jit_print(jit_state_t *_jit)
 {
     jit_node_t		*node;
-
-    if (!print_stream)
-	print_stream = stderr;
 
     if ((node = _jitc->head)) {
 	jit_print_node(node);
