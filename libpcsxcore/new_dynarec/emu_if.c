@@ -326,7 +326,7 @@ R3000Acpu psxRec = {
 
 unsigned int address;
 int pending_exception, stop;
-unsigned int next_interupt;
+u32 next_interupt;
 int new_dynarec_did_compile;
 int cycle_multiplier_old;
 int new_dynarec_hacks_pergame;
