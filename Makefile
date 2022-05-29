@@ -92,7 +92,7 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
-		  -DLIGHTREC -DLIGHTREC_STATIC
+		  -DLIGHTREC -DLIGHTREC_STATIC -DHAVE_MMAP
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt
 OBJS += libpcsxcore/lightrec/mem.o

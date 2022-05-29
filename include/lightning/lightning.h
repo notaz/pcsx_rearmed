@@ -123,6 +123,11 @@ typedef jit_int32_t		jit_bool_t;
 typedef jit_int32_t		jit_gpr_t;
 typedef jit_int32_t		jit_fpr_t;
 
+#if !defined(__powerpc__) && \
+	(defined(__POWERPC__) || defined(__ppc__) || defined(__PPC__))
+#define __powerpc__ 1
+#endif
+
 #if defined(__i386__) || defined(__x86_64__)
 #  include <lightning/jit_x86.h>
 #elif defined(__mips__)
@@ -305,10 +310,6 @@ typedef enum {
 #define jit_comr(u,v)		jit_new_node_ww(jit_code_comr,u,v)
     jit_code_negr,		jit_code_comr,
 
-#define jit_ffsr(u,v)		jit_new_node_ww(jit_code_ffsr,u,v)
-#define jit_clzr(u,v)		jit_new_node_ww(jit_code_clzr,u,v)
-    jit_code_ffsr,		jit_code_clzr,
-
 #define jit_ltr(u,v,w)		jit_new_node_www(jit_code_ltr,u,v,w)
 #define jit_lti(u,v,w)		jit_new_node_www(jit_code_lti,u,v,w)
     jit_code_ltr,		jit_code_lti,
@@ -343,9 +344,11 @@ typedef enum {
 #define jit_movr(u,v)		jit_new_node_ww(jit_code_movr,u,v)
 #define jit_movi(u,v)		jit_new_node_ww(jit_code_movi,u,v)
     jit_code_movr,		jit_code_movi,
+
 #define jit_movnr(u,v,w)	jit_new_node_www(jit_code_movnr,u,v,w)
 #define jit_movzr(u,v,w)	jit_new_node_www(jit_code_movzr,u,v,w)
     jit_code_movnr,		jit_code_movzr,
+
 #define jit_extr_c(u,v)		jit_new_node_ww(jit_code_extr_c,u,v)
 #define jit_extr_uc(u,v)	jit_new_node_ww(jit_code_extr_uc,u,v)
     jit_code_extr_c,		jit_code_extr_uc,
@@ -897,6 +900,18 @@ typedef enum {
     jit_code_movr_d_w,		jit_code_movi_d_w,	/* d -> w */
 #define jit_movr_d_w(u, v)	jit_new_node_ww(jit_code_movr_d_w, u, v)
 #define jit_movi_d_w(u, v)	jit_new_node_wd(jit_code_movi_d_w, u, v)
+
+#define jit_bswapr_us(u,v)	jit_new_node_ww(jit_code_bswapr_us,u,v)
+    jit_code_bswapr_us,
+#define jit_bswapr_ui(u,v)	jit_new_node_ww(jit_code_bswapr_ui,u,v)
+    jit_code_bswapr_ui,
+#define jit_bswapr_ul(u,v)	jit_new_node_ww(jit_code_bswapr_ul,u,v)
+    jit_code_bswapr_ul,
+#if __WORDSIZE == 32
+#define jit_bswapr(u,v)		jit_new_node_ww(jit_code_bswapr_ui,u,v)
+#else
+#define jit_bswapr(u,v)		jit_new_node_ww(jit_code_bswapr_ul,u,v)
+#endif
 
     jit_code_last_code
 } jit_code_t;
