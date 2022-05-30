@@ -25,6 +25,10 @@
 #define MAP_FIXED_NOREPLACE 0x100000
 #endif
 
+#ifndef MFD_HUGETLB
+#define MFD_HUGETLB 0x0004
+#endif
+
 static const uintptr_t supported_io_bases[] = {
 	0x0,
 	0x10000000,
