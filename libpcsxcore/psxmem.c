@@ -29,6 +29,7 @@
 #include "psxhw.h"
 #include "debug.h"
 
+#include "lightrec/mem.h"
 #include "memmap.h"
 
 #ifdef USE_LIBRETRO_VFS
@@ -63,7 +64,7 @@ retry:
 	if (psxMapHook != NULL) {
 		ret = psxMapHook(addr, size, 0, tag);
 		if (ret == NULL)
-			return NULL;
+			return MAP_FAILED;
 	}
 	else {
 		/* avoid MAP_FIXED, it overrides existing mappings.. */
@@ -73,7 +74,7 @@ retry:
 		req = (void *)addr;
 		ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
 		if (ret == MAP_FAILED)
-			return NULL;
+			return ret;
 	}
 
 	if (addr != 0 && ret != (void *)addr) {
@@ -82,7 +83,7 @@ retry:
 
 		if (is_fixed) {
 			psxUnmap(ret, size, tag);
-			return NULL;
+			return MAP_FAILED;
 		}
 
 		if (((addr ^ (unsigned long)ret) & ~0xff000000l) && try_ < 2)
@@ -139,18 +140,12 @@ u8 **psxMemRLUT = NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS Mirror (512K) Uncached
 */
 
-int psxMemInit() {
-	int i;
-
-	psxMemRLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	psxMemWLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
-	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
-
+static int psxMemInitMap(void)
+{
 	psxM = psxMap(0x80000000, 0x00210000, 1, MAP_TAG_RAM);
-	if (psxM == NULL)
+	if (psxM == MAP_FAILED)
 		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
-	if (psxM == NULL) {
+	if (psxM == MAP_FAILED) {
 		SysMessage(_("mapping main RAM failed"));
 		return -1;
 	}
@@ -159,12 +154,48 @@ int psxMemInit() {
 	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
 
-	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-	    psxR == NULL || psxP == NULL || psxH == NULL) {
+	if (psxR == MAP_FAILED || psxH == MAP_FAILED) {
 		SysMessage(_("Error allocating memory!"));
 		psxMemShutdown();
 		return -1;
 	}
+
+	return 0;
+}
+
+static void psxMemFreeMap(void)
+{
+	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
+	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
+	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
+}
+
+int psxMemInit(void)
+{
+	unsigned int i;
+	int ret;
+
+	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+		ret = lightrec_init_mmap();
+	else
+		ret = psxMemInitMap();
+	if (ret) {
+		SysMessage(_("Error allocating memory!"));
+		psxMemShutdown();
+		return -1;
+	}
+
+	psxMemRLUT = (u8 **)malloc(0x10000 * sizeof(void *));
+	psxMemWLUT = (u8 **)malloc(0x10000 * sizeof(void *));
+
+	if (psxMemRLUT == NULL || psxMemWLUT == NULL) {
+		SysMessage(_("Error allocating memory!"));
+		psxMemShutdown();
+		return -1;
+	}
+
+	memset(psxMemRLUT, 0xff, 0x10000 * sizeof(void *));
+	memset(psxMemWLUT, 0xff, 0x10000 * sizeof(void *));
 
 // MemR
 	for (i = 0; i < 0x80; i++) psxMemRLUT[i + 0x0000] = (u8 *)&psxM[(i & 0x1f) << 16];
@@ -190,7 +221,7 @@ int psxMemInit() {
 	// NOTE: Not sure if this is needed to fix any games but seems wise,
 	//       seeing as some games do read from PIO as part of copy-protection
 	//       check. (See fix in psxMemReset() regarding psxP region reads).
-	psxMemWLUT[0x1f00] = NULL;
+	psxMemWLUT[0x1f00] = INVALID_PTR;
 	psxMemWLUT[0x1f80] = (u8 *)psxH;
 
 	return 0;
@@ -224,9 +255,10 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
-	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
-	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
+	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+		lightrec_free_mmap();
+	else
+		psxMemFreeMap();
 
 	free(psxMemRLUT); psxMemRLUT = NULL;
 	free(psxMemWLUT); psxMemWLUT = NULL;
@@ -244,7 +276,7 @@ u8 psxMemRead8(u32 mem) {
 			return psxHwRead8(mem);
 	} else {
 		p = (char *)(psxMemRLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, R1);
 			return *(u8 *)(p + (mem & 0xffff));
@@ -269,7 +301,7 @@ u16 psxMemRead16(u32 mem) {
 			return psxHwRead16(mem);
 	} else {
 		p = (char *)(psxMemRLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, R2);
 			return SWAPu16(*(u16 *)(p + (mem & 0xffff)));
@@ -294,7 +326,7 @@ u32 psxMemRead32(u32 mem) {
 			return psxHwRead32(mem);
 	} else {
 		p = (char *)(psxMemRLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, R4);
 			return SWAPu32(*(u32 *)(p + (mem & 0xffff)));
@@ -319,7 +351,7 @@ void psxMemWrite8(u32 mem, u8 value) {
 			psxHwWrite8(mem, value);
 	} else {
 		p = (char *)(psxMemWLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W1);
 			*(u8 *)(p + (mem & 0xffff)) = value;
@@ -346,7 +378,7 @@ void psxMemWrite16(u32 mem, u16 value) {
 			psxHwWrite16(mem, value);
 	} else {
 		p = (char *)(psxMemWLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W2);
 			*(u16 *)(p + (mem & 0xffff)) = SWAPu16(value);
@@ -374,7 +406,7 @@ void psxMemWrite32(u32 mem, u32 value) {
 			psxHwWrite32(mem, value);
 	} else {
 		p = (char *)(psxMemWLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W4);
 			*(u32 *)(p + (mem & 0xffff)) = SWAPu32(value);
@@ -398,9 +430,9 @@ void psxMemWrite32(u32 mem, u32 value) {
 					case 0x800: case 0x804:
 						if (writeok == 0) break;
 						writeok = 0;
-						memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0x0000, 0xff, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0x8000, 0xff, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0xa000, 0xff, 0x80 * sizeof(void *));
 						/* Required for icache interpreter otherwise Armored Core won't boot on icache interpreter */
 						psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
 						break;
@@ -436,7 +468,7 @@ void *psxMemPointer(u32 mem) {
 			return NULL;
 	} else {
 		p = (char *)(psxMemWLUT[t]);
-		if (p != NULL) {
+		if (p != INVALID_PTR) {
 			return (void *)(p + (mem & 0xffff));
 		}
 		return NULL;

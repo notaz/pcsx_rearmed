@@ -47,6 +47,8 @@ ifdef PCNT
 CFLAGS += -DPCNT
 endif
 
+LIGHTREC_CUSTOM_MAP ?= 0
+
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/database.o \
 	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
@@ -89,7 +91,12 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
-		  -DLIGHTREC -DLIGHTREC_STATIC
+		  -DLIGHTREC -DLIGHTREC_STATIC \
+		  -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
+LDLIBS += -lrt
+ifeq ($(LIGHTREC_CUSTOM_MAP),1)
+OBJS += libpcsxcore/lightrec/mem.o
+endif
 OBJS += libpcsxcore/lightrec/plugin.o
 OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightning/lib/jit_memory.o \
@@ -108,6 +115,7 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightrec/regcache.o \
 		deps/lightrec/recompiler.o \
 		deps/lightrec/reaper.o
+libpcsxcore/lightrec/mem.o: CFLAGS += -D_GNU_SOURCE
 ifeq ($(MMAP_WIN32),1)
 CFLAGS += -Iinclude/mman
 OBJS += deps/mman/mman.o

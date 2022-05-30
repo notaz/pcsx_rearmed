@@ -254,7 +254,7 @@ int LoadCdrom() {
 		incTime();
 		READTRACK();
 
-		if (ptr != NULL) memcpy(ptr, buf+12, 2048);
+		if (ptr != INVALID_PTR) memcpy(ptr, buf+12, 2048);
 
 		tmpHead.t_size -= 2048;
 		tmpHead.t_addr += 2048;
@@ -300,7 +300,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 		READTRACK();
 
 		mem = PSXM(addr);
-		if (mem)
+		if (mem != INVALID_PTR)
 			memcpy(mem, buf + 12, 2048);
 
 		size -= 2048;
@@ -489,7 +489,7 @@ int Load(const char *ExePath) {
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
-				if (mem != NULL) {
+				if (mem != INVALID_PTR) {
 					fseek(tmpFile, 0x800, SEEK_SET);
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
@@ -518,7 +518,7 @@ int Load(const char *ExePath) {
 							EMU_LOG("Loading %08X bytes from %08X to %08X\n", section_size, ftell(tmpFile), section_address);
 #endif
 							mem = PSXM(section_address);
-							if (mem != NULL) {
+							if (mem != INVALID_PTR) {
 								fread_to_ram(mem, section_size, 1, tmpFile);
 								psxCpu->Clear(section_address, section_size / 4);
 							}

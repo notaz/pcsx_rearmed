@@ -45,7 +45,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			PSXDMA_LOG("*** DMA4 SPU - mem2spu *** %x addr = %x size = %x\n", chcr, madr, bcr);
 #endif
 			ptr = (u16 *)PSXM(madr);
-			if (ptr == NULL) {
+			if (ptr == INVALID_PTR) {
 #ifdef CPU_LOG
 				CPU_LOG("*** DMA4 SPU - mem2spu *** NULL Pointer!!!\n");
 #endif
@@ -62,7 +62,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			PSXDMA_LOG("*** DMA4 SPU - spu2mem *** %x addr = %x size = %x\n", chcr, madr, bcr);
 #endif
 			ptr = (u16 *)PSXM(madr);
-			if (ptr == NULL) {
+			if (ptr == INVALID_PTR) {
 #ifdef CPU_LOG
 				CPU_LOG("*** DMA4 SPU - spu2mem *** NULL Pointer!!!\n");
 #endif
@@ -138,7 +138,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			PSXDMA_LOG("*** DMA2 GPU - vram2mem *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 			ptr = (u32 *)PSXM(madr);
-			if (ptr == NULL) {
+			if (ptr == INVALID_PTR) {
 #ifdef CPU_LOG
 				CPU_LOG("*** DMA2 GPU - vram2mem *** NULL Pointer!!!\n");
 #endif
@@ -160,7 +160,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			PSXDMA_LOG("*** DMA 2 - GPU mem2vram *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
 			ptr = (u32 *)PSXM(madr);
-			if (ptr == NULL) {
+			if (ptr == INVALID_PTR) {
 #ifdef CPU_LOG
 				CPU_LOG("*** DMA2 GPU - mem2vram *** NULL Pointer!!!\n");
 #endif
@@ -228,7 +228,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 #endif
 
 	if (chcr == 0x11000002) {
-		if (mem == NULL) {
+		if (mem == INVALID_PTR) {
 #ifdef CPU_LOG
 			CPU_LOG("*** DMA6 OT *** NULL Pointer!!!\n");
 #endif

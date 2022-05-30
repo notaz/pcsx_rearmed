@@ -60,7 +60,7 @@ void (*psxCP2BSC[32])();
 static u32 fetchNoCache(u32 pc)
 {
 	u32 *code = (u32 *)PSXM(pc);
-	return ((code == NULL) ? 0 : SWAP32(*code));
+	return ((code == INVALID_PTR) ? 0 : SWAP32(*code));
 }
 
 /*
@@ -83,7 +83,7 @@ static u32 fetchICache(u32 pc)
 		if (((entry->tag ^ pc) & 0xfffffff0) != 0 || pc < entry->tag)
 		{
 			u32 *code = (u32 *)PSXM(pc & ~0x0f);
-			if (!code)
+			if (code == INVALID_PTR)
 				return 0;
 
 			entry->tag = pc;
