@@ -164,7 +164,9 @@ ifeq ($(HAVE_LIGHTREC),1)
 					  $(DEPS_DIR)/lightning/lib/jit_size.c \
 					  $(DEPS_DIR)/lightning/lib/lightning.c
   SOURCES_C   += $(CORE_DIR)/lightrec/plugin.c
+ifeq ($(LIGHTREC_CUSTOM_MAP),1)
   SOURCES_C   += $(CORE_DIR)/lightrec/mem.c
+endif
 endif
 
 
