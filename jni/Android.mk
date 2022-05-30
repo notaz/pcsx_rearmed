@@ -111,6 +111,7 @@ endif
 
 HAVE_ARI64=0
 HAVE_LIGHTREC=0
+LIGHTREC_CUSTOM_MAP=0
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   HAVE_ARI64=1
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
@@ -119,8 +120,10 @@ else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
   HAVE_ARI64=1
 else ifeq ($(TARGET_ARCH_ABI),x86_64)
   HAVE_LIGHTREC=1
+  LIGHTREC_CUSTOM_MAP=1
 else ifeq ($(TARGET_ARCH_ABI),x86)
   HAVE_LIGHTREC=1
+  LIGHTREC_CUSTOM_MAP=1
 else
   COREFLAGS   += -DDRC_DISABLE
 endif
@@ -139,7 +142,7 @@ endif
   SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
 
 ifeq ($(HAVE_LIGHTREC),1)
-  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
+  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
   EXTRA_INCLUDES += $(DEPS_DIR)/lightning/include \
 		    $(DEPS_DIR)/lightrec \
 		    $(ROOT_DIR)/include/lightning \
