@@ -382,22 +382,23 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 	}
 }
 
-void lightrec_print_disassembly(const struct block *block, const u32 *code)
+void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 {
 	const struct opcode *op;
 	const char **flags_ptr;
 	size_t nb_flags, count, count2;
 	char buf[256], buf2[256], buf3[256];
 	unsigned int i;
-	u32 pc, branch_pc;
+	u32 pc, branch_pc, code;
 	bool is_io;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &block->opcode_list[i];
 		branch_pc = get_branch_pc(block, i, 0);
 		pc = block->pc + (i << 2);
+		code = LE32TOH(code_ptr[i]);
 
-		count = print_op((union code)code[i], pc, buf, sizeof(buf),
+		count = print_op((union code)code, pc, buf, sizeof(buf),
 				 &flags_ptr, &nb_flags, &is_io);
 
 		flags_ptr = NULL;
@@ -406,7 +407,7 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code)
 		count2 = print_op(op->c, branch_pc, buf2, sizeof(buf2),
 				  &flags_ptr, &nb_flags, &is_io);
 
-		if (code[i] == op->c.opcode) {
+		if (code == op->c.opcode) {
 			*buf2 = '\0';
 			count2 = 0;
 		}

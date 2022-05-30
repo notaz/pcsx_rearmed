@@ -63,8 +63,8 @@ void remove_from_code_lut(struct blockcache *cache, struct block *block)
 	u32 offset = lut_offset(block->pc);
 
 	if (block->function) {
-		memset(&state->code_lut[offset], 0,
-		       block->nb_ops * sizeof(*state->code_lut));
+		memset(lut_address(state, offset), 0,
+		       block->nb_ops * lut_elm_size(state));
 	}
 }
 
@@ -152,10 +152,11 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 
 bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block)
 {
-	void **lut_entry = &state->code_lut[lut_offset(block->pc)];
+	u32 offset = lut_offset(block->pc);
 	bool outdated;
+	void *addr;
 
-	if (*lut_entry)
+	if (lut_read(state, offset))
 		return false;
 
 	outdated = block->hash != lightrec_calculate_block_hash(block);
@@ -163,9 +164,11 @@ bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *bloc
 		/* The block was marked as outdated, but the content is still
 		 * the same */
 		if (block->function)
-			*lut_entry = block->function;
+			addr = block->function;
 		else
-			*lut_entry = state->get_next_block;
+			addr = state->get_next_block;
+
+		lut_write(state, offset, addr);
 	}
 
 	return outdated;
