@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <lightning.h>
 #include <dlfcn.h>
+#include <math.h>
 
 #if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
 #  include <fpu_control.h>
@@ -327,6 +328,11 @@ static void htonr_ui(void);	static void ntohr_ui(void);
 static void htonr_ul(void);	static void ntohr_ul(void);
 #endif
 static void htonr(void);	static void ntohr(void);
+static void bswapr_us(void);	static void bswapr_ui(void);
+#if __WORDSIZE == 64
+static void bswapr_ul(void);
+#endif
+static void bswapr(void);
 static void movnr(void);	static void movzr(void);
 static void ldr_c(void);	static void ldi_c(void);
 static void ldr_uc(void);	static void ldi_uc(void);
@@ -642,6 +648,11 @@ static instr_t		  instr_vector[] = {
     entry(htonr_ul),	entry(ntohr_ul),
 #endif
     entry(htonr),	entry(ntohr),
+    entry(bswapr_us),	entry(bswapr_ui),
+#if __WORDSIZE == 64
+    entry(bswapr_ul),
+#endif
+    entry(bswapr),
     entry(movnr),	entry(movzr),
     entry(ldr_c),	entry(ldi_c),
     entry(ldr_uc), 	entry(ldi_uc),
@@ -1491,6 +1502,11 @@ entry_ir_ir(htonr_ui)		entry_ir_ir(ntohr_ui)
 entry_ir_ir(htonr_ul)		entry_ir_ir(ntohr_ul)
 #endif
 entry_ir_ir(htonr)		entry_ir_ir(ntohr)
+entry_ir_ir(bswapr_us)		entry_ir_ir(bswapr_ui)
+#if __WORDSIZE == 64
+entry_ir_ir(bswapr_ul)
+#endif
+entry_ir_ir(bswapr)
 entry_ir_ir_ir(movnr)		entry_ir_ir_ir(movzr)
 entry_ir_ir(ldr_c)		entry_ir_pm(ldi_c)
 entry_ir_ir(ldr_uc)		entry_ir_pm(ldi_uc)

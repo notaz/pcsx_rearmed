@@ -59,6 +59,7 @@ static FILE			 *disasm_stream;
 void
 jit_init_debug(const char *progname)
 {
+    jit_init_print();
 #if DISASSEMBLER
     bfd_init();
 
@@ -74,65 +75,24 @@ jit_init_debug(const char *progname)
     bfd_check_format(disasm_bfd, bfd_object);
     bfd_check_format(disasm_bfd, bfd_archive);
     if (!disasm_stream)
-	disasm_stream = stderr;
+	disasm_stream = stdout;
+
     INIT_DISASSEMBLE_INFO(disasm_info, disasm_stream, fprintf);
-#  if defined(__i386__) || defined(__x86_64__)
-    disasm_info.arch = bfd_arch_i386;
-#    if defined(__x86_64__)
-#      if __WORDSIZE == 32
-    disasm_info.mach = bfd_mach_x64_32;
-#      else
-    disasm_info.mach = bfd_mach_x86_64;
-#      endif
-#    else
-    disasm_info.mach = bfd_mach_i386_i386;
-#    endif
-#  endif
-#  if defined(__powerpc__)
-    disasm_info.arch = bfd_arch_powerpc;
-    disasm_info.mach = bfd_mach_ppc64;
-#    if HAVE_DISASSEMBLE_INIT_FOR_TARGET
+    disasm_info.arch = bfd_get_arch(disasm_bfd);
+    disasm_info.mach = bfd_get_mach(disasm_bfd);
+
+#  if HAVE_DISASSEMBLE_INIT_FOR_TARGET
     disassemble_init_for_target(&disasm_info);
-#    elif HAVE_DISASSEMBLE_INIT_POWERPC
-    disassemble_init_powerpc(&disasm_info);
-#    endif
-#    if defined(__powerpc64__)
+#  endif
+
+#  if defined(__powerpc64__)
     disasm_info.disassembler_options = "64";
-#    endif
-#    if HAVE_DISASSEMBLE_INIT_FOR_TARGET
-    disassemble_init_for_target(&disasm_info);
-#    elif HAVE_DISASSEMBLE_INIT_POWERPC
-    disassemble_init_powerpc(&disasm_info);
-#    endif
 #  endif
-#  if defined(__sparc__)
+#  if defined(__sparc__) || defined(__s390__) || defined(__s390x__)
     disasm_info.endian = disasm_info.display_endian = BFD_ENDIAN_BIG;
 #  endif
 #  if defined(__s390__) || defined(__s390x__)
-    disasm_info.arch = bfd_arch_s390;
-#    if __WORDSIZE == 32
-    disasm_info.mach = bfd_mach_s390_31;
-#    else
-    disasm_info.mach = bfd_mach_s390_64;
-#    endif
-    disasm_info.endian = disasm_info.display_endian = BFD_ENDIAN_BIG;
     disasm_info.disassembler_options = "zarch";
-#  endif
-#  if defined(__alpha__)
-    disasm_info.arch = bfd_arch_alpha;
-    disasm_info.mach = bfd_mach_alpha_ev6;
-#  endif
-#  if defined(__hppa__)
-    disasm_info.arch = bfd_arch_hppa;
-    disasm_info.mach = bfd_mach_hppa10;
-#  endif
-#  if defined(__riscv)
-    disasm_info.arch = bfd_arch_riscv;
-#  if __WORDSIZE == 32
-    disasm_info.mach = bfd_mach_riscv32;
-#  else
-    disasm_info.mach = bfd_mach_riscv64;
-#  endif
 #  endif
     disasm_info.print_address_func = disasm_print_address;
 

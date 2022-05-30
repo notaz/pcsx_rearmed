@@ -22,6 +22,12 @@ for Debian-based systems such as Ubuntu:
 
 ** Building
 
+If you intend to do development work with lightning, it's useful to build
+lightning with its disassembler feature enabled.  This optional feature
+requires additional dependencies.  On Ubuntu, this command should work:
+
+    $ sudo apt-get install binutils-dev libiberty-dev zlib1g-dev
+
 After getting the git sources, and installing the tools above, you can run
 
     $ ./bootstrap
@@ -37,6 +43,10 @@ your local copy, and the master copy:
 should output no difference.
 
 After that first time, running make should suffice.
+
+To install lightning:
+
+    $ sudo make install
 
 ** Gnulib
 

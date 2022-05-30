@@ -1699,6 +1699,11 @@ _emit_code(jit_state_t *_jit)
 #if __X64 && !__X64_32
 		case_rr(hton, _ul);
 #endif
+		case_rr(bswap, _us);
+		case_rr(bswap, _ui);
+#if __X64 && !__X64_32
+		case_rr(bswap, _ul);
+#endif
 		case_rr(ext, _c);
 		case_rr(ext, _uc);
 		case_rr(ext, _s);
