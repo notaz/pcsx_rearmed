@@ -127,6 +127,7 @@ else ifeq ($(TARGET_ARCH_ABI),x86)
 else
   COREFLAGS   += -DDRC_DISABLE
 endif
+  COREFLAGS   += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
 
 ifeq ($(HAVE_ARI64),1)
   SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
@@ -142,7 +143,7 @@ endif
   SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
 
 ifeq ($(HAVE_LIGHTREC),1)
-  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
+  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
   EXTRA_INCLUDES += $(DEPS_DIR)/lightning/include \
 		    $(DEPS_DIR)/lightrec \
 		    $(ROOT_DIR)/include/lightning \
@@ -165,6 +166,7 @@ ifeq ($(HAVE_LIGHTREC),1)
 					  $(DEPS_DIR)/lightning/lib/jit_size.c \
 					  $(DEPS_DIR)/lightning/lib/lightning.c
   SOURCES_C   += $(CORE_DIR)/lightrec/plugin.c
+  SOURCES_C   += $(CORE_DIR)/lightrec/mem.c
 endif
 
 
