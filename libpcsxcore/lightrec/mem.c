@@ -3,6 +3,7 @@
  * Copyright (C) 2022 Paul Cercueil <paul@crapouillou.net>
  */
 
+#define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -11,6 +12,7 @@
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include "../psxhw.h"
@@ -68,7 +70,8 @@ static int lightrec_mmap_ram(bool hugetlb)
 	if (hugetlb)
 		flags |= MFD_HUGETLB;
 
-	memfd = memfd_create("/lightrec_memfd", flags);
+        memfd = syscall(SYS_memfd_create, "/lightrec_memfd",
+			flags);
 	if (memfd < 0) {
 		err = -errno;
 		fprintf(stderr, "Failed to create memfd: %d\n", err);
@@ -124,9 +127,7 @@ int lightrec_init_mmap(void)
 	unsigned int i;
 	uintptr_t base;
 	void *map;
-	int err;
-
-	err = lightrec_mmap_ram(true);
+	int err = lightrec_mmap_ram(true);
 	if (err) {
 		err = lightrec_mmap_ram(false);
 		if (err) {
