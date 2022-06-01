@@ -1,8 +1,8 @@
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index f1005db..ebd1d4f 100644
+index b160a4a..0d91999 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
-@@ -235,7 +235,7 @@ static struct decoded_insn
+@@ -285,7 +285,7 @@ static struct decoded_insn
    int new_dynarec_hacks_old;
    int new_dynarec_did_compile;
  
@@ -11,25 +11,25 @@ index f1005db..ebd1d4f 100644
  
    extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
    extern int last_count;  // last absolute target, often = next_interupt
-@@ -471,6 +471,7 @@ int cycle_multiplier_old;
+@@ -532,6 +532,7 @@ static int cycle_multiplier_active;
  
  static int CLOCK_ADJUST(int x)
  {
 +  return x * 2;
-   int m = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
-         ? cycle_multiplier_override : cycle_multiplier;
-   int s=(x>>31)|1;
-@@ -522,6 +523,9 @@ static int doesnt_expire_soon(void *tcaddr)
+   int m = cycle_multiplier_active;
+   int s = (x >> 31) | 1;
+   return (x * m + s * 50) / 100;
+@@ -662,6 +663,9 @@ static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
  // This is called from the recompiled JR/JALR instructions
- void noinline *get_addr(u_int vaddr)
+ static void noinline *get_addr(u_int vaddr, int can_compile)
  {
 +#ifdef DRC_DBG
 +printf("get_addr %08x, pc=%08x\n", vaddr, psxRegs.pc);
 +#endif
-   u_int page=get_page(vaddr);
-   u_int vpage=get_vpage(vaddr);
-   struct ll_entry *head;
-@@ -6248,7 +6252,7 @@ void unneeded_registers(int istart,int iend,int r)
+   u_int start_page = get_page_prev(vaddr);
+   u_int i, page, end_page = get_page(vaddr);
+   void *found_clean = NULL;
+@@ -7046,7 +7050,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -38,24 +38,16 @@ index f1005db..ebd1d4f 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8794,6 +8798,7 @@ int new_recompile_block(u_int addr)
- 
-   // This allocates registers (if possible) one instruction prior
-   // to use, which can avoid a load-use penalty on certain CPUs.
-+#if 0
+@@ -8236,6 +8240,7 @@ static noinline void pass5a_preallocate1(void)
+ static noinline void pass5b_preallocate2(void)
+ {
+   int i, hr;
++ return;
    for(i=0;i<slen-1;i++)
    {
      if (!i || !dops[i-1].is_jump)
-@@ -8950,6 +8955,7 @@ int new_recompile_block(u_int addr)
-       }
-     }
-   }
-+#endif
- 
-   /* Pass 6 - Optimize clean/dirty state */
-   clean_registers(0,slen-1,1);
-@@ -9204,6 +9210,11 @@ int new_recompile_block(u_int addr)
-         load_regs(regs[i].regmap_entry,regs[i].regmap,INVCP,INVCP);
+@@ -9045,6 +9050,11 @@ static int new_recompile_block(u_int addr)
+         load_reg(regs[i].regmap_entry,regs[i].regmap,INVCP);
  
        ds = assemble(i, &regs[i], ccadj[i]);
 +#ifdef DRC_DBG
@@ -66,8 +58,8 @@ index f1005db..ebd1d4f 100644
  
        if (dops[i].is_ujump)
          literal_pool(1024);
-@@ -9439,6 +9450,10 @@ int new_recompile_block(u_int addr)
-   }
+@@ -9236,6 +9246,10 @@ static int new_recompile_block(u_int addr)
+ 
  #ifdef ASSEM_PRINT
    fflush(stdout);
 +#endif
@@ -75,8 +67,8 @@ index f1005db..ebd1d4f 100644
 +printf("new_recompile_block done\n");
 +fflush(stdout);
  #endif
+   stat_inc(stat_bc_direct);
    return 0;
- }
 diff --git a/libpcsxcore/new_dynarec/pcsxmem.c b/libpcsxcore/new_dynarec/pcsxmem.c
 index bb471b6..8f68a3b 100644
 --- a/libpcsxcore/new_dynarec/pcsxmem.c
@@ -91,10 +83,10 @@ index bb471b6..8f68a3b 100644
  	case 0x800: case 0x804:
  		unmap_ram_write();
 diff --git a/libpcsxcore/psxcounters.c b/libpcsxcore/psxcounters.c
-index b2cc07b..f916580 100644
+index ff0efbc..4459644 100644
 --- a/libpcsxcore/psxcounters.c
 +++ b/libpcsxcore/psxcounters.c
-@@ -378,9 +378,12 @@ void psxRcntUpdate()
+@@ -379,9 +379,12 @@ void psxRcntUpdate()
  
  /******************************************************************************/
  
@@ -107,7 +99,7 @@ index b2cc07b..f916580 100644
  
      _psxRcntWcount( index, value );
      psxRcntSet();
-@@ -389,6 +392,7 @@ void psxRcntWcount( u32 index, u32 value )
+@@ -390,6 +393,7 @@ void psxRcntWcount( u32 index, u32 value )
  void psxRcntWmode( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
@@ -115,7 +107,7 @@ index b2cc07b..f916580 100644
  
      _psxRcntWmode( index, value );
      _psxRcntWcount( index, 0 );
-@@ -400,6 +404,7 @@ void psxRcntWmode( u32 index, u32 value )
+@@ -401,6 +405,7 @@ void psxRcntWmode( u32 index, u32 value )
  void psxRcntWtarget( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
@@ -123,7 +115,7 @@ index b2cc07b..f916580 100644
  
      rcnts[index].target = value;
  
-@@ -412,6 +417,7 @@ void psxRcntWtarget( u32 index, u32 value )
+@@ -413,6 +418,7 @@ void psxRcntWtarget( u32 index, u32 value )
  u32 psxRcntRcount( u32 index )
  {
      u32 count;
@@ -131,3 +123,4 @@ index b2cc07b..f916580 100644
  
      count = _psxRcntRcount( index );
  
+
