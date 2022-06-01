@@ -2074,7 +2074,7 @@ static void cop0_alloc(struct regstat *current,int i)
   }
   else
   {
-    // TLBR/TLBWI/TLBWR/TLBP/ERET
+    // RFE
     assert(dops[i].opcode2==0x10);
     alloc_all(current,i);
   }
@@ -5324,7 +5324,7 @@ static void rjump_assemble(int i, const struct regstat *i_regs)
   //assert(adj==0);
   emit_addimm_and_set_flags(ccadj[i] + CLOCK_ADJUST(2), HOST_CCREG);
   add_stub(CC_STUB,out,NULL,0,i,-1,TAKEN,rs);
-  if(dops[i+1].itype==COP0&&(source[i+1]&0x3f)==0x10)
+  if(dops[i+1].itype==COP0 && dops[i+1].opcode2==0x10)
     // special case for RFE
     emit_jmp(0);
   else
@@ -7026,9 +7026,9 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
       // SYSCALL instruction (software interrupt)
       u=1;
     }
-    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
+    else if(dops[i].itype==COP0 && dops[i].opcode2==0x10)
     {
-      // ERET instruction (return from interrupt)
+      // RFE
       u=1;
     }
     //u=1; // DEBUG
@@ -8771,7 +8771,7 @@ static noinline void pass10_expire_blocks(void)
     u_int phase = (expirep >> (base_shift - 1)) & 1u;
     if (!(expirep & (MAX_OUTPUT_BLOCK_SIZE / 2 - 1))) {
       inv_debug("EXP: base_offs %x/%x phase %u\n", base_offs,
-        out - ndrc->translation_cache phase);
+        out - ndrc->translation_cache, phase);
     }
 
     if (!phase) {

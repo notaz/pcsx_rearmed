@@ -1,8 +1,8 @@
 diff --git a/libpcsxcore/new_dynarec/emu_if.c b/libpcsxcore/new_dynarec/emu_if.c
-index 90c4660..441eaca 100644
+index 10d99ba..1e097ae 100644
 --- a/libpcsxcore/new_dynarec/emu_if.c
 +++ b/libpcsxcore/new_dynarec/emu_if.c
-@@ -424,13 +424,17 @@ static void ari64_shutdown()
+@@ -405,13 +407,17 @@ static void ari64_shutdown()
  {
  	new_dynarec_cleanup();
  	new_dyna_pcsx_mem_shutdown();
@@ -22,7 +22,7 @@ index 90c4660..441eaca 100644
  	ari64_clear,
  	ari64_notify,
  	ari64_apply_config,
-@@ -501,7 +505,7 @@ static u32 memcheck_read(u32 a)
+@@ -481,7 +487,7 @@ static u32 memcheck_read(u32 a)
  	return *(u32 *)(psxM + (a & 0x1ffffc));
  }
  
@@ -45,10 +45,10 @@ index bb471b6..8f68a3b 100644
  	case 0x800: case 0x804:
  		unmap_ram_write();
 diff --git a/libpcsxcore/psxcounters.c b/libpcsxcore/psxcounters.c
-index b2cc07b..f916580 100644
+index ff0efbc..4459644 100644
 --- a/libpcsxcore/psxcounters.c
 +++ b/libpcsxcore/psxcounters.c
-@@ -378,9 +378,12 @@ void psxRcntUpdate()
+@@ -379,9 +379,12 @@ void psxRcntUpdate()
  
  /******************************************************************************/
  
@@ -61,7 +61,7 @@ index b2cc07b..f916580 100644
  
      _psxRcntWcount( index, value );
      psxRcntSet();
-@@ -389,6 +392,7 @@ void psxRcntWcount( u32 index, u32 value )
+@@ -390,6 +393,7 @@ void psxRcntWcount( u32 index, u32 value )
  void psxRcntWmode( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
@@ -69,7 +69,7 @@ index b2cc07b..f916580 100644
  
      _psxRcntWmode( index, value );
      _psxRcntWcount( index, 0 );
-@@ -400,6 +404,7 @@ void psxRcntWmode( u32 index, u32 value )
+@@ -401,6 +405,7 @@ void psxRcntWmode( u32 index, u32 value )
  void psxRcntWtarget( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
@@ -77,7 +77,7 @@ index b2cc07b..f916580 100644
  
      rcnts[index].target = value;
  
-@@ -412,6 +417,7 @@ void psxRcntWtarget( u32 index, u32 value )
+@@ -413,6 +418,7 @@ void psxRcntWtarget( u32 index, u32 value )
  u32 psxRcntRcount( u32 index )
  {
      u32 count;
@@ -134,10 +134,10 @@ index dbcb989..0716f5e 100644
  #ifdef PSXHW_LOG
  			PSXHW_LOG("*Unknown 32bit write at address %x value %x\n", add, value);
 diff --git a/libpcsxcore/psxinterpreter.c b/libpcsxcore/psxinterpreter.c
-index f7898e9..1f125ed 100644
+index e7e3269..8f4004d 100644
 --- a/libpcsxcore/psxinterpreter.c
 +++ b/libpcsxcore/psxinterpreter.c
-@@ -466,6 +466,8 @@ static void doBranch(u32 tar) {
+@@ -467,6 +467,8 @@ static void doBranch(u32 tar) {
  	psxRegs.pc += 4;
  	psxRegs.cycle += BIAS;
  
@@ -146,7 +146,7 @@ index f7898e9..1f125ed 100644
  	// check for load delay
  	tmp = psxRegs.code >> 26;
  	switch (tmp) {
-@@ -499,13 +501,15 @@ static void doBranch(u32 tar) {
+@@ -500,13 +502,15 @@ static void doBranch(u32 tar) {
  			}
  			break;
  	}
@@ -163,7 +163,7 @@ index f7898e9..1f125ed 100644
  }
  
  /*********************************************************
-@@ -615,12 +619,13 @@ void psxMULTU_stall() {
+@@ -616,12 +620,13 @@ void psxMULTU_stall() {
  	psxMULTU();
  }
  
@@ -179,7 +179,7 @@ index f7898e9..1f125ed 100644
  
  void psxBGEZ()   { RepZBranchi32(>=) }      // Branch if Rs >= 0
  void psxBGEZAL() { RepZBranchLinki32(>=) }  // Branch if Rs >= 0 and link
-@@ -702,7 +707,7 @@ void psxRFE() {
+@@ -703,7 +708,7 @@ void psxRFE() {
  * Register branch logic                                  *
  * Format:  OP rs, rt, offset                             *
  *********************************************************/
@@ -188,15 +188,16 @@ index f7898e9..1f125ed 100644
  
  void psxBEQ() {	RepBranchi32(==) }  // Branch if Rs == Rt
  void psxBNE() {	RepBranchi32(!=) }  // Branch if Rs != Rt
-@@ -886,6 +891,7 @@ void MTC0(int reg, u32 val) {
- 		case 12: // Status
- 			psxRegs.CP0.r[12] = val;
- 			psxTestSWInts();
-+			//psxBranchTest();
- 			break;
+@@ -901,7 +907,7 @@ void MTC0(int reg, u32 val) {
+ 	}
+ }
  
- 		case 13: // Cause
-@@ -1027,6 +1033,23 @@ void intExecuteBlock() {
+-void psxMTC0() { MTC0(_Rd_, _u32(_rRt_)); }
++void psxMTC0() { MTC0(_Rd_, _u32(_rRt_)); psxBranchTest(); }
+ void psxCTC0() { MTC0(_Rd_, _u32(_rRt_)); }
+ 
+ /*********************************************************
+@@ -1028,6 +1034,23 @@ void intExecuteBlock() {
  	while (!branch2) execI();
  }
  
@@ -220,7 +221,7 @@ index f7898e9..1f125ed 100644
  static void intClear(u32 Addr, u32 Size) {
  }
  
-@@ -1049,7 +1072,7 @@ void intApplyConfig() {
+@@ -1050,7 +1073,7 @@ void intApplyConfig() {
  	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
  	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);
  
@@ -229,7 +230,7 @@ index f7898e9..1f125ed 100644
  		psxBSC[18] = psxCOP2;
  		psxBSC[50] = gteLWC2;
  		psxBSC[58] = gteSWC2;
-@@ -1091,9 +1114,10 @@ void execI() {
+@@ -1092,9 +1115,10 @@ void execI() {
  	if (Config.Debug) ProcessDebug();
  
  	psxRegs.pc += 4;
@@ -242,10 +243,10 @@ index f7898e9..1f125ed 100644
  
  R3000Acpu psxInt = {
 diff --git a/libpcsxcore/psxmem.c b/libpcsxcore/psxmem.c
-index 04aeec2..710a379 100644
+index 46cee0c..c814587 100644
 --- a/libpcsxcore/psxmem.c
 +++ b/libpcsxcore/psxmem.c
-@@ -217,11 +217,13 @@ void psxMemShutdown() {
+@@ -218,11 +218,13 @@ void psxMemShutdown() {
  }
  
  static int writeok = 1;
@@ -259,7 +260,7 @@ index 04aeec2..710a379 100644
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
  		if ((mem & 0xffff) < 0x400)
-@@ -247,6 +249,7 @@ u16 psxMemRead16(u32 mem) {
+@@ -248,6 +250,7 @@ u16 psxMemRead16(u32 mem) {
  	char *p;
  	u32 t;
  
@@ -267,7 +268,7 @@ index 04aeec2..710a379 100644
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
  		if ((mem & 0xffff) < 0x400)
-@@ -272,6 +275,7 @@ u32 psxMemRead32(u32 mem) {
+@@ -273,6 +276,7 @@ u32 psxMemRead32(u32 mem) {
  	char *p;
  	u32 t;
  
@@ -275,7 +276,7 @@ index 04aeec2..710a379 100644
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
  		if ((mem & 0xffff) < 0x400)
-@@ -297,6 +301,7 @@ void psxMemWrite8(u32 mem, u8 value) {
+@@ -298,6 +302,7 @@ void psxMemWrite8(u32 mem, u8 value) {
  	char *p;
  	u32 t;
  
@@ -283,7 +284,7 @@ index 04aeec2..710a379 100644
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
  		if ((mem & 0xffff) < 0x400)
-@@ -324,6 +329,7 @@ void psxMemWrite16(u32 mem, u16 value) {
+@@ -325,6 +330,7 @@ void psxMemWrite16(u32 mem, u16 value) {
  	char *p;
  	u32 t;
  
@@ -291,7 +292,7 @@ index 04aeec2..710a379 100644
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
  		if ((mem & 0xffff) < 0x400)
-@@ -351,6 +357,7 @@ void psxMemWrite32(u32 mem, u32 value) {
+@@ -352,6 +358,7 @@ void psxMemWrite32(u32 mem, u32 value) {
  	char *p;
  	u32 t;
  
@@ -299,7 +300,7 @@ index 04aeec2..710a379 100644
  //	if ((mem&0x1fffff) == 0x71E18 || value == 0x48088800) SysPrintf("t2fix!!\n");
  	t = mem >> 16;
  	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
-@@ -380,6 +387,8 @@ void psxMemWrite32(u32 mem, u32 value) {
+@@ -381,6 +388,8 @@ void psxMemWrite32(u32 mem, u32 value) {
  			} else {
  				int i;
  

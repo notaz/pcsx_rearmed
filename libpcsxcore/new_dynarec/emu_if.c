@@ -88,7 +88,8 @@ static void irq_test(void)
 
 void gen_interupt()
 {
-	evprintf("  +ge %08x, %u->%u\n", psxRegs.pc, psxRegs.cycle, next_interupt);
+	evprintf("  +ge %08x, %u->%u (%d)\n", psxRegs.pc, psxRegs.cycle,
+		next_interupt, next_interupt - psxRegs.cycle);
 
 	irq_test();
 	//psxBranchTest();
@@ -648,7 +649,8 @@ void do_insn_cmp(void)
 	//if (psxRegs.cycle == 166172) breakme();
 
 	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
-		printf("bad ev_cycles #%d: %08x %08x\n", which_event, event_cycles[which_event], ev_cycles);
+		printf("bad ev_cycles #%d: %u %u / %u\n", which_event,
+			event_cycles[which_event], ev_cycles, psxRegs.cycle);
 		fatal = 1;
 	}
 
