@@ -299,19 +299,19 @@ void psxRcntUpdate()
     cycle = psxRegs.cycle;
 
     // rcnt 0.
-    if( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
+    while( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
     {
         psxRcntReset( 0 );
     }
 
     // rcnt 1.
-    if( cycle - rcnts[1].cycleStart >= rcnts[1].cycle )
+    while( cycle - rcnts[1].cycleStart >= rcnts[1].cycle )
     {
         psxRcntReset( 1 );
     }
 
     // rcnt 2.
-    if( cycle - rcnts[2].cycleStart >= rcnts[2].cycle )
+    while( cycle - rcnts[2].cycleStart >= rcnts[2].cycle )
     {
         psxRcntReset( 2 );
     }
