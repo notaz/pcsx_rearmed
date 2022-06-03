@@ -17,6 +17,6 @@ jobs:
         sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
         .github/extract-foreign-all.sh armhf
     - name: configure
-      run: DUMP_CONFIG_LOG=1 CROSS_COMPILE=arm-linux-gnueabihf- PATH=$PATH:usr/bin CFLAGS='-Iusr/include/ -Iusr/include/SDL' LDFLAGS='-Lusr/lib/arm-linux-gnueabihf/ -Llib/arm-linux-gnueabihf/ -Wl,-rpath-link=lib/arm-linux-gnueabihf/,-rpath-link=usr/lib/arm-linux-gnueabihf/,-rpath-link=usr/lib/arm-linux-gnueabihf/pulseaudio/' ./configure
+      run: DUMP_CONFIG_LOG=1 CROSS_COMPILE=arm-linux-gnueabihf- SDL_CONFIG=usr/bin/sdl-config PATH=$PATH:usr/bin CFLAGS='-Iusr/include/ -Iusr/include/SDL' LDFLAGS='-Lusr/lib/arm-linux-gnueabihf/ -Llib/arm-linux-gnueabihf/ -Wl,-rpath-link=lib/arm-linux-gnueabihf/,-rpath-link=usr/lib/arm-linux-gnueabihf/,-rpath-link=usr/lib/arm-linux-gnueabihf/pulseaudio/' ./configure
     - name: make
       run: make
