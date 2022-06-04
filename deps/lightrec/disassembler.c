@@ -213,6 +213,9 @@ static int print_op_special(union code c, char *buf, size_t len,
 				lightrec_reg_name(c.r.rt),
 				lightrec_reg_name(c.r.rs));
 	case OP_SPECIAL_JR:
+		*flags_ptr = opcode_branch_flags;
+		*nb_flags = ARRAY_SIZE(opcode_branch_flags);
+		fallthrough;
 	case OP_SPECIAL_MTHI:
 	case OP_SPECIAL_MTLO:
 		return snprintf(buf, len, "%s%s",
@@ -300,6 +303,8 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				pc + 4 + ((s16)c.i.imm << 2));
 	case OP_J:
 	case OP_JAL:
+		*flags_ptr = opcode_branch_flags;
+		*nb_flags = ARRAY_SIZE(opcode_branch_flags);
 		return snprintf(buf, len, "%s0x%x",
 				std_opcodes[c.i.op],
 				(pc & 0xf0000000) | (c.j.imm << 2));

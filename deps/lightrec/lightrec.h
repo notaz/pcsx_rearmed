@@ -47,6 +47,7 @@ struct lightrec_mem_map;
 #define LIGHTREC_EXIT_BREAK	(1 << 1)
 #define LIGHTREC_EXIT_SYSCALL	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
+#define LIGHTREC_EXIT_NOMEM	(1 << 4)
 
 enum psx_map {
 	PSX_MAP_KERNEL_USER_RAM,
