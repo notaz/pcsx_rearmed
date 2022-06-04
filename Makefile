@@ -96,7 +96,7 @@ CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude
 deps/lightning/lib/%.o: CFLAGS += -DHAVE_MMAP
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt
-OBJS += libpcsxcore/lightrec/mem.o
+OBJS += libpcsxcore/lightrec/mem.o deps/lightrec/tlsf/tlsf.o
 endif
 OBJS += libpcsxcore/lightrec/plugin.o
 OBJS += deps/lightning/lib/jit_disasm.o \
