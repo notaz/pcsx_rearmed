@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/pcercuei/gnu_lightning.git
 	branch = pcsx_rearmed
-	commit = 2a199e4d3cb250a76bd91f42eaf56f6233d34663
-	parent = db4140baf19c727fa1a705236130edfc6f363ce0
+	commit = 7fce9abb2a6bfc3967b4e5705794e617ed909402
+	parent = 94d482f4b7f5da2c5af7e3590b770261f907f185
 	method = merge
 	cmdver = 0.4.3
