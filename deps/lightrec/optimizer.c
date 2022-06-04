@@ -922,7 +922,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
-			lightrec_modify_lui(block, i);
+			if (!prev || !has_delay_slot(prev->c))
+				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, known, values);
 			break;
 
@@ -965,16 +966,19 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->i.op = OP_META_MOV;
 					op->r.rs = op->r.rt;
 				}
-			case OP_SPECIAL_SUB: /* fall-through */
+				fallthrough;
+			case OP_SPECIAL_SUB:
 			case OP_SPECIAL_SUBU:
 				if (op->r.rt == 0) {
 					pr_debug("Convert OR/ADD/SUB $zero to MOV\n");
 					op->i.op = OP_META_MOV;
 				}
-			default: /* fall-through */
+				fallthrough;
+			default:
 				break;
 			}
-		default: /* fall-through */
+			fallthrough;
+		default:
 			break;
 		}
 	}
@@ -1015,13 +1019,16 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 				if (opcode_reads_register(next_op, op.r.rd) ||
 				    opcode_writes_register(next_op, op.r.rd))
 					continue;
-			case OP_SPECIAL_JR: /* fall-through */
+				fallthrough;
+			case OP_SPECIAL_JR:
 				if (opcode_writes_register(next_op, op.r.rs))
 					continue;
-			default: /* fall-through */
+				fallthrough;
+			default:
 				break;
 			}
-		case OP_J: /* fall-through */
+			fallthrough;
+		case OP_J:
 			break;
 		case OP_JAL:
 			if (opcode_reads_register(next_op, 31) ||
@@ -1033,7 +1040,8 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		case OP_BNE:
 			if (op.i.rt && opcode_writes_register(next_op, op.i.rt))
 				continue;
-		case OP_BLEZ: /* fall-through */
+			fallthrough;
+		case OP_BLEZ:
 		case OP_BGTZ:
 			if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
 				continue;
@@ -1045,14 +1053,16 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 				if (opcode_reads_register(next_op, 31) ||
 				    opcode_writes_register(next_op, 31))
 					continue;
-			case OP_REGIMM_BLTZ: /* fall-through */
+				fallthrough;
+			case OP_REGIMM_BLTZ:
 			case OP_REGIMM_BGEZ:
 				if (op.i.rs &&
 				    opcode_writes_register(next_op, op.i.rs))
 					continue;
 				break;
 			}
-		default: /* fall-through */
+			fallthrough;
+		default:
 			break;
 		}
 
@@ -1163,7 +1173,8 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 			offset = i + 1 + (s16)list->i.imm;
 			if (offset >= 0 && offset < block->nb_ops)
 				break;
-		default: /* fall-through */
+			fallthrough;
+		default:
 			continue;
 		}
 
@@ -1313,7 +1324,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					list->flags |= LIGHTREC_SMC;
 				}
 			}
-		case OP_SWL: /* fall-through */
+			fallthrough;
+		case OP_SWL:
 		case OP_SWR:
 		case OP_SWC2:
 		case OP_LB:
@@ -1333,7 +1345,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				case PSX_MAP_KERNEL_USER_RAM:
 					if (val == kunseg_val)
 						list->flags |= LIGHTREC_NO_MASK;
-					/* fall-through */
+					fallthrough;
 				case PSX_MAP_MIRROR1:
 				case PSX_MAP_MIRROR2:
 				case PSX_MAP_MIRROR3:
@@ -1359,7 +1371,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					break;
 				}
 			}
-		default: /* fall-through */
+			fallthrough;
+		default:
 			break;
 		}
 	}
@@ -1479,7 +1492,7 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 				break;
 			}
 
-			/* fall-through */
+			fallthrough;
 		default:
 			continue;
 		}
@@ -1530,7 +1543,7 @@ static void lightrec_replace_lo_hi(struct block *block, u16 offset,
 				return;
 			}
 
-			/* fall-through */
+			fallthrough;
 		default:
 			break;
 		}
@@ -1572,7 +1585,8 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 			if (lightrec_always_skip_div_check() ||
 			    (known & BIT(list->c.r.rt) && values[list->c.r.rt]))
 				list->flags |= LIGHTREC_NO_DIV_CHECK;
-		case OP_SPECIAL_MULT: /* fall-through */
+			fallthrough;
+		case OP_SPECIAL_MULT:
 		case OP_SPECIAL_MULTU:
 			break;
 		default:

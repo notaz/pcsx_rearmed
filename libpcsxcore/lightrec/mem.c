@@ -31,6 +31,8 @@
 #define MFD_HUGETLB 0x0004
 #endif
 
+void *code_buffer;
+
 static const uintptr_t supported_io_bases[] = {
 	0x0,
 	0x10000000,
@@ -171,8 +173,22 @@ int lightrec_init_mmap(void)
 
 	psxH = (s8 *)map;
 
+	map = mmap_huge((void *)(base + 0x800000), CODE_BUFFER_SIZE,
+			PROT_EXEC | PROT_READ | PROT_WRITE,
+			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS,
+			0, 0);
+	if (map == MAP_FAILED) {
+		err = -EINVAL;
+		fprintf(stderr, "Unable to mmap code buffer\n");
+		goto err_unmap_scratch;
+	}
+
+	code_buffer = map;
+
 	return 0;
 
+err_unmap_scratch:
+	munmap(psxH, 0x10000);
 err_unmap_bios:
 	munmap(psxR, 0x80000);
 err_unmap_parallel:
@@ -187,6 +203,7 @@ void lightrec_free_mmap(void)
 {
 	unsigned int i;
 
+	munmap(code_buffer, CODE_BUFFER_SIZE);
 	munmap(psxH, 0x10000);
 	munmap(psxR, 0x80000);
 	munmap(psxP, 0x10000);

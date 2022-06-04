@@ -43,6 +43,8 @@
 #define SET_DEFAULT_ELM(table, value) [0] = NULL
 #endif
 
+#define fallthrough do {} while (0) /* fall-through */
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
@@ -67,7 +69,6 @@ struct blockcache;
 struct recompiler;
 struct regcache;
 struct opcode;
-struct tinymm;
 struct reaper;
 
 struct block {
@@ -78,6 +79,7 @@ struct block {
 	struct block *next;
 	u32 pc;
 	u32 hash;
+	u32 precompile_date;
 	unsigned int code_size;
 	u16 nb_ops;
 	u8 flags;
@@ -131,7 +133,6 @@ struct lightrec_state {
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrappers[C_WRAPPERS_COUNT];
 	void *wrappers_eps[C_WRAPPERS_COUNT];
-	struct tinymm *tinymm;
 	struct blockcache *block_cache;
 	struct recompiler *rec;
 	struct lightrec_cstate *cstate;
@@ -207,7 +208,7 @@ static inline void ** lut_address(struct lightrec_state *state, u32 offset)
 
 static inline void * lut_read(struct lightrec_state *state, u32 offset)
 {
-	void **lut_entry = lut_address(state, lut_offset(offset));
+	void **lut_entry = lut_address(state, offset);
 
 	if (lut_is_32bit(state))
 		return (void *)(uintptr_t) *(u32 *) lut_entry;

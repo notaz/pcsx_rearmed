@@ -15,6 +15,8 @@
 
 #include "../frontend/main.h"
 
+#include "mem.h"
+
 #if (defined(__arm__) || defined(__aarch64__)) && !defined(ALLOW_LIGHTREC_ON_ARM)
 #error "Lightrec should not be used on ARM (please specify DYNAREC=ari64 to make)"
 #endif
@@ -289,6 +291,9 @@ static struct lightrec_mem_map lightrec_map[] = {
 		.length = 0x200000,
 		.mirror_of = &lightrec_map[PSX_MAP_KERNEL_USER_RAM],
 	},
+	[PSX_MAP_CODE_BUFFER] = {
+		.length = CODE_BUFFER_SIZE,
+	},
 };
 
 static void lightrec_enable_ram(struct lightrec_state *state, bool enable)
@@ -315,6 +320,7 @@ static int lightrec_plugin_init(void)
 		lightrec_map[PSX_MAP_MIRROR1].address = psxM + 0x200000;
 		lightrec_map[PSX_MAP_MIRROR2].address = psxM + 0x400000;
 		lightrec_map[PSX_MAP_MIRROR3].address = psxM + 0x600000;
+		lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
 	}
 
 	lightrec_debug = !!getenv("LIGHTREC_DEBUG");

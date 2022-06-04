@@ -102,18 +102,55 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	pr_err("Block at PC 0x%x is not in cache\n", block->pc);
 }
 
-void lightrec_free_block_cache(struct blockcache *cache)
+static bool lightrec_block_is_old(const struct lightrec_state *state,
+				  const struct block *block)
 {
+	u32 diff = state->current_cycle - block->precompile_date;
+
+	return diff > (1 << 27); /* About 4 seconds */
+}
+
+static void lightrec_free_blocks(struct blockcache *cache,
+				 const struct block *except, bool all)
+{
+	struct lightrec_state *state = cache->state;
 	struct block *block, *next;
+	bool outdated = all;
 	unsigned int i;
 
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
 			next = block->next;
-			lightrec_free_block(cache->state, block);
+
+			if (except && block == except)
+				continue;
+
+			if (!all) {
+				outdated = lightrec_block_is_old(state, block) ||
+					lightrec_block_is_outdated(state, block);
+			}
+
+			if (outdated) {
+				pr_debug("Freeing outdated block at PC 0x%08x\n", block->pc);
+				remove_from_code_lut(cache, block);
+				lightrec_unregister_block(cache, block);
+				lightrec_free_block(state, block);
+			}
 		}
 	}
+}
 
+void lightrec_remove_outdated_blocks(struct blockcache *cache,
+				     const struct block *except)
+{
+	pr_info("Running out of code space. Cleaning block cache...\n");
+
+	lightrec_free_blocks(cache, except, false);
+}
+
+void lightrec_free_block_cache(struct blockcache *cache)
+{
+	lightrec_free_blocks(cache, NULL, true);
 	lightrec_free(cache->state, MEM_FOR_LIGHTREC, sizeof(*cache), cache);
 }
 

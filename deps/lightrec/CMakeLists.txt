@@ -91,15 +91,6 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
 	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)
 endif()
 
-option(ENABLE_TINYMM "Enable optional libtinymm dependency" OFF)
-if (ENABLE_TINYMM)
-	find_library(TINYMM_LIBRARIES tinymm REQUIRED)
-	find_path(TINYMM_INCLUDE_DIR tinymm.h REQUIRED)
-
-	include_directories(${TINYMM_INCLUDE_DIR})
-	target_link_libraries(${PROJECT_NAME} PRIVATE ${TINYMM_LIBRARIES})
-endif (ENABLE_TINYMM)
-
 if (ENABLE_THREADED_COMPILER)
 	find_library(PTHREAD_LIBRARIES pthread REQUIRED)
 	find_path(PTHREAD_INCLUDE_DIR pthread.h REQUIRED)
@@ -113,10 +104,6 @@ if (ENABLE_CODE_BUFFER)
 	target_sources(${PROJECT_NAME} PRIVATE tlsf/tlsf.c)
 	target_include_directories(${PROJECT_NAME} PRIVATE tlsf)
 endif (ENABLE_CODE_BUFFER)
-
-if (ENABLE_CODE_BUFFER AND ENABLE_THREADED_COMPILER)
-	message(SEND_ERROR "External code buffer cannot be used along with the threaded compiler")
-endif (ENABLE_CODE_BUFFER AND ENABLE_THREADED_COMPILER)
 
 find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
