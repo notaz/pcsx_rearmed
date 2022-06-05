@@ -793,8 +793,7 @@ unsigned char _PADpoll(int port, unsigned char value) {
 				//mem the vibration value for Large motor;
 				pad[port].Vib[1] = value;
 
-				if (in_type[port] == PSE_PAD_TYPE_STANDARD &&
-					in_type[port] == PSE_PAD_TYPE_NEGCON)
+				if (in_type[port] != PSE_PAD_TYPE_ANALOGPAD)
 					break;
 
 				//vibration
