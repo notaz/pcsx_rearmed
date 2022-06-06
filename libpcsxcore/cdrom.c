@@ -686,6 +686,7 @@ void cdrInterrupt() {
 			ReadTrack(cdr.SetSectorPlay);
 			cdr.TrackChanged = FALSE;
 
+			StopReading();
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
 
