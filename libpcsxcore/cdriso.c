@@ -931,7 +931,7 @@ fail_io:
 
 #ifdef HAVE_CHD
 static int handlechd(const char *isofile) {
-	int frame_offset = 0;
+	int frame_offset = 150;
 	int file_offset = 0;
 
 	chd_img = calloc(1, sizeof(*chd_img));
@@ -983,25 +983,23 @@ static int handlechd(const char *isofile) {
 		SysPrintf("chd: %s\n", meta);
 
 		if (md.track == 1) {
-			md.pregap = 150;
 			if (!strncmp(md.subtype, "RW", 2)) {
 				subChanMixed = TRUE;
 				if (!strcmp(md.subtype, "RW_RAW"))
 					subChanRaw = TRUE;
 			}
 		}
-		else
-			sec2msf(msf2sec(ti[md.track-1].length) + md.pregap, ti[md.track-1].length);
 
 		ti[md.track].type = !strncmp(md.type, "AUDIO", 5) ? CDDA : DATA;
 
 		sec2msf(frame_offset + md.pregap, ti[md.track].start);
 		sec2msf(md.frames, ti[md.track].length);
 
-		ti[md.track].start_offset = file_offset;
+		ti[md.track].start_offset = file_offset + md.pregap;
 
-		frame_offset += md.pregap + md.frames + md.postgap;
-		file_offset += md.frames + md.postgap;
+		// XXX: what about postgap?
+		frame_offset += md.frames;
+		file_offset += md.frames;
 		numtracks++;
 	}
 
