@@ -47,9 +47,6 @@ ifdef PCNT
 CFLAGS += -DPCNT
 endif
 
-LIGHTREC_CUSTOM_MAP ?= 0
-CFLAGS += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
-
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/database.o \
 	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
@@ -93,6 +90,8 @@ libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
 		  -DLIGHTREC -DLIGHTREC_STATIC
+LIGHTREC_CUSTOM_MAP ?= 0
+CFLAGS += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
 deps/lightning/lib/%.o: CFLAGS += -DHAVE_MMAP
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt

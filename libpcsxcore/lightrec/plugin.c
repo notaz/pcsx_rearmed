@@ -16,6 +16,7 @@
 #include "../frontend/main.h"
 
 #include "mem.h"
+#include "plugin.h"
 
 #if (defined(__arm__) || defined(__aarch64__)) && !defined(ALLOW_LIGHTREC_ON_ARM)
 #error "Lightrec should not be used on ARM (please specify DYNAREC=ari64 to make)"
