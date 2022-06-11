@@ -54,7 +54,7 @@ void vout_update(void)
   int i;
 
   SDL_LockSurface(screen);
-  if (gpu.status.rgb24)
+  if (gpu.status & PSX_GPU_STATUS_RGB24)
   {
     uint8_t *s;
     int y;
