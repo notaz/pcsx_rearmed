@@ -370,6 +370,16 @@ static u32 clamp_s32(s32 val, s32 min, s32 max)
 	return val < min ? min : val > max ? max : val;
 }
 
+static u16 load_u16(u32 *ptr)
+{
+	return ((struct u16x2 *) ptr)->l;
+}
+
+static void store_u16(u32 *ptr, u16 value)
+{
+	((struct u16x2 *) ptr)->l = value;
+}
+
 static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 {
 	s16 gteir1, gteir2, gteir3;
@@ -382,18 +392,18 @@ static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 	case 9:
 	case 10:
 	case 11:
-		return (s32)(s16) state->regs.cp2d[reg];
+		return (s32)(s16) load_u16(&state->regs.cp2d[reg]);
 	case 7:
 	case 16:
 	case 17:
 	case 18:
 	case 19:
-		return (u16) state->regs.cp2d[reg];
+		return load_u16(&state->regs.cp2d[reg]);
 	case 28:
 	case 29:
-		gteir1 = (s16) state->regs.cp2d[9];
-		gteir2 = (s16) state->regs.cp2d[10];
-		gteir3 = (s16) state->regs.cp2d[11];
+		gteir1 = (s16) load_u16(&state->regs.cp2d[9]);
+		gteir2 = (s16) load_u16(&state->regs.cp2d[10]);
+		gteir3 = (s16) load_u16(&state->regs.cp2d[11]);
 
 		return clamp_s32(gteir1 >> 7, 0, 0x1f) << 0 |
 			clamp_s32(gteir2 >> 7, 0, 0x1f) << 5 |
@@ -519,16 +529,15 @@ static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
 	case 27:
 	case 29:
 	case 30:
-		data = (s32)(s16) data;
+		store_u16(&state->regs.cp2c[reg], data);
 		break;
 	case 31:
 		data = (data & 0x7ffff000) | !!(data & 0x7f87e000) << 31;
 		fallthrough;
 	default:
+		state->regs.cp2c[reg] = data;
 		break;
 	}
-
-	state->regs.cp2c[reg] = data;
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)

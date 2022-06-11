@@ -75,7 +75,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	if (offset + !!(op->flags & LIGHTREC_NO_DS) < block->nb_ops - 1)
+	if (offset - !!(op->flags & LIGHTREC_NO_DS) < block->nb_ops - 1)
 		state->branches[state->nb_branches++] = jit_b();
 }
 

@@ -312,7 +312,7 @@ void renderer_notify_res_change(void)
 
   /*
   printf("res change hres: %d   vres: %d   depth: %d   ilace_mask: %d\n",
-      gpu.screen.hres, gpu.screen.vres, gpu.status.rgb24 ? 24 : 15,
+      gpu.screen.hres, gpu.screen.vres, (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 15,
       gpu_unai.ilace_mask);
   */
 }
@@ -399,10 +399,10 @@ int do_cmd_list(u32 *list, int list_len, int *last_cmd)
   gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
 #ifdef HAVE_PRE_ARMV7 /* XXX */
-  gpu_unai.ilace_mask |= gpu.status.interlace;
+  gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
 #endif
   if (gpu_unai.config.scale_hires) {
-    gpu_unai.ilace_mask |= gpu.status.interlace;
+    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   for (; list < list_end; list += 1 + len)

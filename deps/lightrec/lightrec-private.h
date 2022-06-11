@@ -71,6 +71,14 @@ struct regcache;
 struct opcode;
 struct reaper;
 
+struct u16x2 {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u16 h, l;
+#else
+	u16 l, h;
+#endif
+};
+
 struct block {
 	jit_state_t *_jit;
 	struct opcode *opcode_list;
