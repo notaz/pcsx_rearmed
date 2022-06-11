@@ -69,10 +69,10 @@
 
 // byteswappings
 
-#define SWAP16(x) ({ uint16_t y=(x); (((y)>>8 & 0xff) | ((y)<<8 & 0xff00)); })
-#define SWAP32(x) ({ uint32_t y=(x); (((y)>>24 & 0xfful) | ((y)>>8 & 0xff00ul) | ((y)<<8 & 0xff0000ul) | ((y)<<24 & 0xff000000ul)); })
+#define SWAP16(x) __builtin_bswap16(x)
+#define SWAP32(x) __builtin_bswap32(x)
 
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
 // big endian config
 #define HOST2LE32(x) SWAP32(x)
@@ -107,7 +107,7 @@
 #define GETLE32_(X) LE2HOST32(*(uint32_t *)X)
 #define GETLE16D(X) ({uint32_t val = GETLE32(X); (val<<16 | val >> 16);})
 #define PUTLE16(X, Y) do{*((uint16_t *)X)=HOST2LE16((uint16_t)Y);}while(0)
-#define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE16((uint32_t)Y);}while(0)
+#define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE32((uint32_t)Y);}while(0)
 #ifdef __arm__
 #define GETLE32(X) (*(uint16_t *)(X)|(((uint16_t *)(X))[1]<<16))
 #define PUTLE32(X, Y) do{uint16_t *p_=(uint16_t *)(X);uint32_t y_=Y;p_[0]=y_;p_[1]=y_>>16;}while(0)
@@ -251,18 +251,12 @@ extern int32_t           drawH;
 #define KEY_BADTEXTURES   128
 #define KEY_CHECKTHISOUT  256
 
-#if !defined(__BIG_ENDIAN__) || defined(__x86_64__) || defined(__i386__)
-#ifndef __LITTLE_ENDIAN__
-#define __LITTLE_ENDIAN__
-#endif
-#endif
-
-#ifdef __LITTLE_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define RED(x) (x & 0xff)
 #define BLUE(x) ((x>>16) & 0xff)
 #define GREEN(x) ((x>>8) & 0xff)
 #define COLOR(x) (x & 0xffffff)
-#elif defined __BIG_ENDIAN__
+#else
 #define RED(x) ((x>>24) & 0xff)
 #define BLUE(x) ((x>>8) & 0xff)
 #define GREEN(x) ((x>>16) & 0xff)

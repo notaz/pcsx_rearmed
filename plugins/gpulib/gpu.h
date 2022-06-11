@@ -19,37 +19,33 @@ extern "C" {
 
 #define CMD_BUFFER_LEN          1024
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define HTOLE32(x) __builtin_bswap32(x)
+#define HTOLE16(x) __builtin_bswap16(x)
+#define LE32TOH(x) __builtin_bswap32(x)
+#define LE16TOH(x) __builtin_bswap16(x)
+#else
+#define HTOLE32(x) (x)
+#define HTOLE16(x) (x)
+#define LE32TOH(x) (x)
+#define LE16TOH(x) (x)
+#endif
+
+#define BIT(x) (1 << (x))
+
+#define PSX_GPU_STATUS_DHEIGHT		BIT(19)
+#define PSX_GPU_STATUS_RGB24		BIT(21)
+#define PSX_GPU_STATUS_INTERLACE	BIT(22)
+#define PSX_GPU_STATUS_BLANKING		BIT(23)
+#define PSX_GPU_STATUS_IMG			BIT(27)
+#define PSX_GPU_STATUS_DMA(x)		((x) << 29)
+#define PSX_GPU_STATUS_DMA_MASK		(BIT(29) | BIT(30))
+
 struct psx_gpu {
   uint32_t cmd_buffer[CMD_BUFFER_LEN];
   uint32_t regs[16];
   uint16_t *vram;
-  union {
-    uint32_t reg;
-    struct {
-      uint32_t tx:4;        //  0 texture page
-      uint32_t ty:1;
-      uint32_t abr:2;
-      uint32_t tp:2;        //  7 t.p. mode (4,8,15bpp)
-      uint32_t dtd:1;       //  9 dither
-      uint32_t dfe:1;
-      uint32_t md:1;        // 11 set mask bit when drawing
-      uint32_t me:1;        // 12 no draw on mask
-      uint32_t unkn:3;
-      uint32_t width1:1;    // 16
-      uint32_t width0:2;
-      uint32_t dheight:1;   // 19 double height
-      uint32_t video:1;     // 20 NTSC,PAL
-      uint32_t rgb24:1;
-      uint32_t interlace:1; // 22 interlace on
-      uint32_t blanking:1;  // 23 display not enabled
-      uint32_t unkn2:2;
-      uint32_t busy:1;      // 26 !busy drawing
-      uint32_t img:1;       // 27 ready to DMA image data
-      uint32_t com:1;       // 28 ready for commands
-      uint32_t dma:2;       // 29 off, ?, to vram, from vram
-      uint32_t lcf:1;       // 31
-    };
-  } status;
+  uint32_t status;
   uint32_t gp0;
   uint32_t ex_regs[8];
   struct {

@@ -1053,7 +1053,7 @@ void CreateDisplay(void)
 			//backup YUV mode
 			//hmm, should I bother check guid == 55595659-0000-0010-8000-00aa00389b71?
 			//and check byte order?   fo[j].byte_order == LSBFirst
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			if ( fo[j].type == XvYUV && fo[j].bits_per_pixel == 16 && fo[j].format == XvPacked && strncmp("YUYV", fo[j].component_order, 5) == 0 )
 #else
 			if ( fo[j].type == XvYUV && fo[j].bits_per_pixel == 16 && fo[j].format == XvPacked && strncmp("UYVY", fo[j].component_order, 5) == 0 )
@@ -1473,7 +1473,7 @@ void BlitToYUV(unsigned char * surf,int32_t x,int32_t y)
        U = min(abs(R * -1214 + G * -2384 + B * 3598 + 4096 + 1048576) >> 13, 240);
        V = min(abs(R * 3598 + G * -3013 + B * -585 + 4096 + 1048576) >> 13, 240);
 
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
        destpix[row] = Y << 24 | U << 16 | Y << 8 | V;
 #else
        destpix[row] = Y << 24 | V << 16 | Y << 8 | U;
@@ -1500,7 +1500,7 @@ void BlitToYUV(unsigned char * surf,int32_t x,int32_t y)
        U = min(abs(R * -1214 + G * -2384 + B * 3598 + 4096 + 1048576) >> 13, 240);
        V = min(abs(R * 3598 + G * -3013 + B * -585 + 4096 + 1048576) >> 13, 240);
 
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
        destpix[row] = Y << 24 | U << 16 | Y << 8 | V;
 #else
        destpix[row] = Y << 24 | V << 16 | Y << 8 | U;
@@ -1534,7 +1534,7 @@ void RGB2YUV(uint32_t *s, int width, int height, uint32_t *d)
 
 			Y2 = min(abs(R * 2104 + G * 4130 + B * 802 + 4096 + 131072) >> 13, 235);
 
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 			*d = V | Y2 << 8 | U << 16 | Y1 << 24;
 #else
 			*d = U | Y1 << 8 | V << 16 | Y2 << 24;
