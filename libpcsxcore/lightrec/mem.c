@@ -190,7 +190,7 @@ int lightrec_init_mmap(void)
 err_unmap_scratch:
 	munmap(psxH, 0x10000);
 err_unmap_bios:
-	munmap(psxR, 0x80000);
+	munmap(psxR, 0x200000);
 err_unmap_parallel:
 	munmap(psxP, 0x10000);
 err_unmap:
@@ -205,7 +205,7 @@ void lightrec_free_mmap(void)
 
 	munmap(code_buffer, CODE_BUFFER_SIZE);
 	munmap(psxH, 0x10000);
-	munmap(psxR, 0x80000);
+	munmap(psxR, 0x200000);
 	munmap(psxP, 0x10000);
 	for (i = 0; i < 4; i++)
 		munmap((void *)((uintptr_t)psxM + i * 0x200000), 0x200000);

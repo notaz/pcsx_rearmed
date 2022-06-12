@@ -175,7 +175,7 @@ int psxMemInit(void)
 	unsigned int i;
 	int ret;
 
-	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+	if (LIGHTREC_CUSTOM_MAP)
 		ret = lightrec_init_mmap();
 	else
 		ret = psxMemInitMap();
@@ -255,7 +255,7 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	if (LIGHTREC_CUSTOM_MAP && Config.Cpu == CPU_DYNAREC)
+	if (LIGHTREC_CUSTOM_MAP)
 		lightrec_free_mmap();
 	else
 		psxMemFreeMap();
