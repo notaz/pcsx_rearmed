@@ -16,6 +16,7 @@ INPUT_DIR    := $(ROOT_DIR)/plugins/dfinput
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 NEON_DIR     := $(ROOT_DIR)/plugins/gpu_neon
 UNAI_DIR     := $(ROOT_DIR)/plugins/gpu_unai
+PEOPS_DIR    := $(ROOT_DIR)/plugins/dfxvideo
 DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
 DEPS_DIR     := $(ROOT_DIR)/deps
 LIBRETRO_COMMON := $(ROOT_DIR)/libretro-common
@@ -183,8 +184,8 @@ else ifeq ($(TARGET_ARCH_ABI),armeabi)
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
 else
-  COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
-  SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
+  COREFLAGS += -fno-strict-aliasing -DGPU_PEOPS
+  SOURCES_C += $(PEOPS_DIR)/gpulib_if.c
 endif
 
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
