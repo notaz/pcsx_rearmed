@@ -15,3 +15,6 @@
 #if defined(HAVE_LIBNX)
 #define NDRC_WRITE_OFFSET 1
 #endif
+#if defined(HAVE_LIBNX) || defined(_3DS)
+#define NDRC_CACHE_FLUSH_ALL 1
+#endif
