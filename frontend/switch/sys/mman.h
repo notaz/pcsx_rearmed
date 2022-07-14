@@ -23,8 +23,8 @@ extern "C" {
 
 #define MAP_FAILED      ((void *)-1)
 
-static void* dynarec_cache = NULL;
-static void* dynarec_cache_mapping = NULL;
+//static void* dynarec_cache = NULL;
+//static void* dynarec_cache_mapping = NULL;
 
 static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
