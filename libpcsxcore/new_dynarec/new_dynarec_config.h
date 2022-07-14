@@ -6,9 +6,12 @@
 #define USE_MINI_HT 1
 //#define REG_PREFETCH 1
 
-#if defined(__MACH__)
+#if defined(__MACH__) || defined(HAVE_LIBNX)
 #define NO_WRITE_EXEC 1
 #endif
-#ifdef VITA
+#if defined(VITA) || defined(HAVE_LIBNX)
 #define BASE_ADDR_DYNAMIC 1
+#endif
+#if defined(HAVE_LIBNX)
+#define NDRC_WRITE_OFFSET 1
 #endif

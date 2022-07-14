@@ -29,6 +29,10 @@
 #ifdef _3DS
 #include <3ds_utils.h>
 #endif
+#ifdef HAVE_LIBNX
+#include <switch.h>
+static Jit g_jit;
+#endif
 
 #include "new_dynarec_config.h"
 #include "../psxhle.h"
@@ -106,6 +110,17 @@ static struct ndrc_mem *ndrc;
 #else
 static struct ndrc_mem ndrc_ __attribute__((aligned(4096)));
 static struct ndrc_mem *ndrc = &ndrc_;
+#endif
+#ifdef NDRC_WRITE_OFFSET
+# ifdef __GLIBC__
+# include <sys/types.h>
+# include <sys/stat.h>
+# include <fcntl.h>
+# include <unistd.h>
+# endif
+static long ndrc_write_ofs;
+#else
+#define ndrc_write_ofs 0
 #endif
 
 // stubs
@@ -424,6 +439,16 @@ static void mprotect_w_x(void *start, void *end, int is_x)
     sceKernelCloseVMDomain();
   else
     sceKernelOpenVMDomain();
+  #elif defined(HAVE_LIBNX)
+  Result rc;
+  if (is_x)
+    rc = jitTransitionToExecutable(&g_jit);
+  else
+    rc = jitTransitionToWritable(&g_jit);
+  if (R_FAILED(rc))
+    SysPrintf("jitTransition %d %08x\n", is_x, rc);
+  #elif defined(NDRC_WRITE_OFFSET)
+  // separated rx and rw areas are always available
   #else
   u_long mstart = (u_long)start & ~4095ul;
   u_long mend = (u_long)end;
@@ -434,9 +459,10 @@ static void mprotect_w_x(void *start, void *end, int is_x)
 #endif
 }
 
-static void start_tcache_write(void *start, void *end)
+static void *start_tcache_write(void *start, void *end)
 {
   mprotect_w_x(start, end, 0);
+  return (char *)start + ndrc_write_ofs;
 }
 
 static void end_tcache_write(void *start, void *end)
@@ -451,6 +477,8 @@ static void end_tcache_write(void *start, void *end)
   sceKernelSyncVMDomain(sceBlock, start, len);
   #elif defined(_3DS)
   ctr_flush_invalidate_cache();
+  #elif defined(HAVE_LIBNX)
+  // handled in mprotect_w_x()
   #elif defined(__aarch64__)
   // as of 2021, __clear_cache() is still broken on arm64
   // so here is a custom one :(
@@ -1154,8 +1182,8 @@ static void *get_trampoline(const void *f)
     abort();
   }
   if (ndrc->tramp.f[i] == NULL) {
-    start_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
-    ndrc->tramp.f[i] = f;
+    const void **d = start_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
+    *d = f;
     end_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
   }
   return &ndrc->tramp.ops[i];
@@ -6057,7 +6085,7 @@ static void new_dynarec_test(void)
   }
 
   SysPrintf("testing if we can run recompiled code @%p...\n", out);
-  ((volatile u_int *)out)[0]++; // make cache dirty
+  ((volatile u_int *)(out + ndrc_write_ofs))[0]++; // make the cache dirty
 
   for (i = 0; i < ARRAY_SIZE(ret); i++) {
     out = ndrc->translation_cache;
@@ -6128,19 +6156,39 @@ void new_dynarec_init(void)
   #elif defined(_MSC_VER)
   ndrc = VirtualAlloc(NULL, sizeof(*ndrc), MEM_COMMIT | MEM_RESERVE,
     PAGE_EXECUTE_READWRITE);
+  #elif defined(HAVE_LIBNX)
+  Result rc = jitCreate(&g_jit, sizeof(*ndrc));
+  if (R_FAILED(rc))
+    SysPrintf("jitCreate failed: %08x\n", rc);
+  SysPrintf("jitCreate: RX: %p RW: %p type: %d\n", g_jit.rx_addr, g_jit.rw_addr, g_jit.type);
+  ndrc = g_jit.rx_addr;
+  ndrc_write_ofs = (char *)g_jit.rw_addr - (char *)ndrc;
   #else
   uintptr_t desired_addr = 0;
+  int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  int fd = -1;
   #ifdef __ELF__
   extern char _end;
   desired_addr = ((uintptr_t)&_end + 0xffffff) & ~0xffffffl;
   #endif
-  ndrc = mmap((void *)desired_addr, sizeof(*ndrc),
-            PROT_READ | PROT_WRITE | PROT_EXEC,
-            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  #ifdef NDRC_WRITE_OFFSET
+  // mostly for testing
+  fd = open("/dev/shm/pcsxr", O_CREAT | O_RDWR, 0600);
+  ftruncate(fd, sizeof(*ndrc));
+  void *mw = mmap(NULL, sizeof(*ndrc), PROT_READ | PROT_WRITE,
+                  (flags = MAP_SHARED), fd, 0);
+  assert(mw != MAP_FAILED);
+  prot = PROT_READ | PROT_EXEC;
+  #endif
+  ndrc = mmap((void *)desired_addr, sizeof(*ndrc), prot, flags, fd, 0);
   if (ndrc == MAP_FAILED) {
     SysPrintf("mmap() failed: %s\n", strerror(errno));
     abort();
   }
+  #ifdef NDRC_WRITE_OFFSET
+  ndrc_write_ofs = (char *)mw - (char *)ndrc;
+  #endif
   #endif
 #else
   #ifndef NO_WRITE_EXEC
@@ -6175,9 +6223,13 @@ void new_dynarec_cleanup(void)
   // sceBlock is managed by retroarch's bootstrap code
   //sceKernelFreeMemBlock(sceBlock);
   //sceBlock = -1;
+  #elif defined(HAVE_LIBNX)
+  jitClose(&g_jit);
+  ndrc = NULL;
   #else
   if (munmap(ndrc, sizeof(*ndrc)) < 0)
     SysPrintf("munmap() failed\n");
+  ndrc = NULL;
   #endif
 #endif
   for (n = 0; n < ARRAY_SIZE(blocks); n++)
