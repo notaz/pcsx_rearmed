@@ -34,6 +34,8 @@ static void set_jump_target(void *addr, void *target)
   u_int *ptr = addr;
   intptr_t offset = (u_char *)target - (u_char *)addr;
 
+  ptr += ndrc_write_ofs / sizeof(ptr[0]);
+
   if ((*ptr&0xFC000000) == 0x14000000) { // b
     assert(offset>=-134217728LL&&offset<134217728LL);
     *ptr=(*ptr&0xFC000000)|((offset>>2)&0x3ffffff);
@@ -142,7 +144,7 @@ static unused const char *condname[16] = {
 
 static void output_w32(u_int word)
 {
-  *((u_int *)out) = word;
+  *((u_int *)(out + ndrc_write_ofs)) = word;
   out += 4;
 }
 
@@ -1943,13 +1945,13 @@ static void clear_cache_arm64(char *start, char *end)
 static void arch_init(void)
 {
   uintptr_t diff = (u_char *)&ndrc->tramp.f - (u_char *)&ndrc->tramp.ops;
-  struct tramp_insns *ops = ndrc->tramp.ops;
+  struct tramp_insns *ops = ndrc->tramp.ops, *opsw;
   size_t i;
   assert(!(diff & 3));
-  start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
+  opsw = start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
   for (i = 0; i < ARRAY_SIZE(ndrc->tramp.ops); i++) {
-    ops[i].ldr = 0x58000000 | imm19_rt(diff >> 2, 17); // ldr x17, [=val]
-    ops[i].br  = 0xd61f0000 | rm_rn_rd(0, 17, 0);      // br x17
+    opsw[i].ldr = 0x58000000 | imm19_rt(diff >> 2, 17); // ldr x17, [=val]
+    opsw[i].br  = 0xd61f0000 | rm_rn_rd(0, 17, 0);      // br x17
   }
   end_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
 }
