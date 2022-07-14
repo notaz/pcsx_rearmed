@@ -506,6 +506,28 @@ static void end_block(void *start)
   end_tcache_write(start, out);
 }
 
+#ifdef NDRC_CACHE_FLUSH_ALL
+
+static int needs_clear_cache;
+
+static void mark_clear_cache(void *target)
+{
+  if (!needs_clear_cache) {
+    start_tcache_write(ndrc, ndrc + 1);
+    needs_clear_cache = 1;
+  }
+}
+
+static void do_clear_cache(void)
+{
+  if (needs_clear_cache) {
+    end_tcache_write(ndrc, ndrc + 1);
+    needs_clear_cache = 0;
+  }
+}
+
+#else
+
 // also takes care of w^x mappings when patching code
 static u_int needs_clear_cache[1<<(TARGET_SIZE_2-17)];
 
@@ -549,7 +571,7 @@ static void do_clear_cache(void)
   }
 }
 
-//#define DEBUG_CYCLE_COUNT 1
+#endif // NDRC_CACHE_FLUSH_ALL
 
 #define NO_CYCLE_PENALTY_THR 12
 
