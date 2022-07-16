@@ -241,7 +241,7 @@ lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 }
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u16 *flags, struct block *block)
+		u32 addr, u32 data, u32 *flags, struct block *block)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -309,7 +309,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 }
 
 static void lightrec_rw_helper(struct lightrec_state *state,
-			       union code op, u16 *flags,
+			       union code op, u32 *flags,
 			       struct block *block)
 {
 	u32 ret = lightrec_rw(state, op, state->regs.gpr[op.i.rs],
@@ -331,17 +331,16 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	}
 }
 
-static void lightrec_rw_cb(struct lightrec_state *state)
+static void lightrec_rw_cb(struct lightrec_state *state, u32 arg)
 {
-	lightrec_rw_helper(state, (union code)state->c_wrapper_arg, NULL, NULL);
+	lightrec_rw_helper(state, (union code) arg, NULL, NULL);
 }
 
-static void lightrec_rw_generic_cb(struct lightrec_state *state)
+static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 {
 	struct block *block;
 	struct opcode *op;
 	bool was_tagged;
-	u32 arg = state->c_wrapper_arg;
 	u16 offset = (u16)arg;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
@@ -362,6 +361,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state)
 			 "for recompilation\n", block->pc);
 
 		block->flags |= BLOCK_SHOULD_RECOMPILE;
+		lut_write(state, lut_offset(block->pc), NULL);
 	}
 }
 
@@ -550,9 +550,9 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 		lightrec_mtc2(state, op.r.rd, data);
 }
 
-static void lightrec_mtc_cb(struct lightrec_state *state)
+static void lightrec_mtc_cb(struct lightrec_state *state, u32 arg)
 {
-	union code op = (union code) state->c_wrapper_arg;
+	union code op = (union code) arg;
 
 	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
 }
@@ -581,9 +581,9 @@ void lightrec_cp(struct lightrec_state *state, union code op)
 	(*state->ops.cop2_op)(state, op.opcode);
 }
 
-static void lightrec_cp_cb(struct lightrec_state *state)
+static void lightrec_cp_cb(struct lightrec_state *state, u32 arg)
 {
-	lightrec_cp(state, (union code) state->c_wrapper_arg);
+	lightrec_cp(state, (union code) arg);
 }
 
 static void lightrec_syscall_cb(struct lightrec_state *state)
@@ -596,7 +596,7 @@ static void lightrec_break_cb(struct lightrec_state *state)
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
 }
 
-struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
+static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
 
@@ -707,11 +707,11 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 }
 
 static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *))
+			      void (*f)(struct lightrec_state *, u32), u32 arg)
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
-	(*f)(state);
+	(*f)(state, arg);
 
 	return state->target_cycle - state->current_cycle;
 }
@@ -857,6 +857,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
 
+	jit_getarg(JIT_R1, jit_arg());
+
 	/* Jump to the trampoline */
 	to_tramp = jit_jmpi();
 
@@ -889,6 +891,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargr(JIT_R0);
+	jit_pushargr(JIT_R1);
 	jit_finishi(c_function_wrapper);
 	jit_retval_i(LIGHTREC_REG_CYCLE);
 
@@ -1353,18 +1356,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			continue;
 		}
 
-		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
-
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
 			lightrec_emit_eob(cstate, block, i, false);
-			skip_next = !(elm->flags & LIGHTREC_NO_DS);
+			skip_next = !op_flag_no_ds(elm->flags);
 		} else {
 			lightrec_rec_opcode(cstate, block, i);
-			skip_next = has_delay_slot(elm->c) &&
-				!(elm->flags & LIGHTREC_NO_DS);
+			skip_next = !op_flag_no_ds(elm->flags) && has_delay_slot(elm->c);
 #if _WIN32
 			/* FIXME: GNU Lightning on Windows seems to use our
 			 * mapped registers as temporaries. Until the actual bug
@@ -1373,6 +1373,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			lightrec_regcache_mark_live(cstate->reg_cache, _jit);
 #endif
 		}
+
+		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
 	}
 
 	for (i = 0; i < cstate->nb_branches; i++)
@@ -1401,11 +1403,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			pr_err("Unable to find branch target\n");
 	}
 
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, eob_wrapper_func));
-
-	jit_jmpr(JIT_R0);
-
+	jit_patch_abs(jit_jmpi(), state->eob_wrapper_func);
 	jit_ret();
 	jit_epilog();
 
@@ -1767,6 +1765,10 @@ void lightrec_destroy(struct lightrec_state *state)
 	state->current_cycle = ~state->current_cycle;
 	lightrec_print_info(state);
 
+	lightrec_free_block_cache(state->block_cache);
+	lightrec_free_block(state, state->dispatcher);
+	lightrec_free_block(state, state->c_wrapper_block);
+
 	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
 		lightrec_reaper_destroy(state->reaper);
@@ -1774,9 +1776,6 @@ void lightrec_destroy(struct lightrec_state *state)
 		lightrec_free_cstate(state->cstate);
 	}
 
-	lightrec_free_block_cache(state->block_cache);
-	lightrec_free_block(state, state->dispatcher);
-	lightrec_free_block(state, state->c_wrapper_block);
 	finish_jit();
 	if (ENABLE_CODE_BUFFER && state->tlsf)
 		tlsf_destroy(state->tlsf);

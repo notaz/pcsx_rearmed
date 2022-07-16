@@ -137,7 +137,6 @@ struct lightrec_state {
 	u32 target_cycle;
 	u32 exit_flags;
 	u32 old_cycle_counter;
-	u32 c_wrapper_arg;
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrappers[C_WRAPPERS_COUNT];
 	void *wrappers_eps[C_WRAPPERS_COUNT];
@@ -161,7 +160,7 @@ struct lightrec_state {
 };
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u16 *flags,
+		u32 addr, u32 data, u32 *flags,
 		struct block *block);
 
 void lightrec_free_block(struct lightrec_state *state, struct block *block);
@@ -238,7 +237,7 @@ static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	offset += !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+	offset += op_flag_no_ds(flags);
 
 	return block->pc + (offset + imm << 2);
 }
@@ -247,7 +246,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	offset -= !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+	offset -= op_flag_no_ds(flags);
 
 	return block->pc + (offset + imm << 2);
 }
@@ -262,7 +261,6 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate);
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
-struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block);
 
@@ -276,6 +274,11 @@ static inline u8 get_mult_div_lo(union code c)
 static inline u8 get_mult_div_hi(union code c)
 {
 	return (OPT_FLAG_MULT_DIV && c.r.imm) ? c.r.imm : REG_HI;
+}
+
+static inline s16 s16_max(s16 a, s16 b)
+{
+	return a > b ? a : b;
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

@@ -97,9 +97,6 @@ static const char *cp2_opcodes[] = {
 
 static const char *opcode_flags[] = {
 	"switched branch/DS",
-	"unload Rs",
-	"unload Rt",
-	"unload Rd",
 	"sync point",
 };
 
@@ -128,7 +125,26 @@ static const char *opcode_multdiv_flags[] = {
 	"No div check",
 };
 
-static int print_flags(char *buf, size_t len, u16 flags,
+static size_t do_snprintf(char *buf, size_t len, bool *first,
+			  const char *arg1, const char *arg2)
+{
+	size_t bytes;
+
+	if (*first)
+		bytes = snprintf(buf, len, "(%s%s", arg1, arg2);
+	else
+		bytes = snprintf(buf, len, ", %s%s", arg1, arg2);
+
+	*first = false;
+
+	return bytes;
+}
+
+static const char * const reg_op_token[3] = {
+	"-", "*", "~",
+};
+
+static int print_flags(char *buf, size_t len, const struct opcode *op,
 		       const char **array, size_t array_size,
 		       bool is_io)
 {
@@ -136,6 +152,8 @@ static int print_flags(char *buf, size_t len, u16 flags,
 	unsigned int i, io_mode;
 	size_t count = 0, bytes;
 	bool first = true;
+	u32 flags = op->flags;
+	unsigned int reg_op;
 
 	for (i = 0; i < array_size + ARRAY_SIZE(opcode_flags); i++) {
 		if (!(flags & BIT(i)))
@@ -146,12 +164,7 @@ static int print_flags(char *buf, size_t len, u16 flags,
 		else
 			flag_name = array[i - ARRAY_SIZE(opcode_flags)];
 
-		if (first)
-			bytes = snprintf(buf, len, "(%s", flag_name);
-		else
-			bytes = snprintf(buf, len, ", %s", flag_name);
-
-		first = false;
+		bytes = do_snprintf(buf, len, &first, "", flag_name);
 		buf += bytes;
 		len -= bytes;
 		count += bytes;
@@ -162,12 +175,39 @@ static int print_flags(char *buf, size_t len, u16 flags,
 		if (io_mode > 0) {
 			io_mode_name = opcode_io_modes[io_mode - 1];
 
-			if (first)
-				bytes = snprintf(buf, len, "(%s", io_mode_name);
-			else
-				bytes = snprintf(buf, len, ", %s", io_mode_name);
+			bytes = do_snprintf(buf, len, &first, "", io_mode_name);
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+	}
 
-			first = false;
+	if (OPT_EARLY_UNLOAD) {
+		reg_op = LIGHTREC_FLAGS_GET_RS(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->i.rs));
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+
+		reg_op = LIGHTREC_FLAGS_GET_RT(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->i.rt));
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+
+		reg_op = LIGHTREC_FLAGS_GET_RD(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->r.rd));
 			buf += bytes;
 			len -= bytes;
 			count += bytes;
@@ -309,6 +349,13 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				std_opcodes[c.i.op],
 				(pc & 0xf0000000) | (c.j.imm << 2));
 	case OP_BEQ:
+		if (c.i.rs == c.i.rt) {
+			*flags_ptr = opcode_branch_flags;
+			*nb_flags = ARRAY_SIZE(opcode_branch_flags);
+			return snprintf(buf, len, "b       0x%x",
+					pc + 4 + ((s16)c.i.imm << 2));
+		}
+		fallthrough;
 	case OP_BNE:
 	case OP_BLEZ:
 	case OP_BGTZ:
@@ -417,8 +464,7 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 			count2 = 0;
 		}
 
-		print_flags(buf3, sizeof(buf3), op->flags, flags_ptr, nb_flags,
-			    is_io);
+		print_flags(buf3, sizeof(buf3), op, flags_ptr, nb_flags, is_io);
 
 		printf("0x%08x (0x%x)\t%s%*c%s%*c%s\n", pc, i << 2,
 		       buf, 30 - (int)count, ' ', buf2, 30 - (int)count2, ' ', buf3);

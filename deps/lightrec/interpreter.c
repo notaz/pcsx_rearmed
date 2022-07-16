@@ -63,7 +63,7 @@ static inline u32 jump_skip(struct interpreter *inter)
 	inter->op = next_op(inter);
 	inter->offset++;
 
-	if (inter->op->flags & LIGHTREC_SYNC) {
+	if (op_flag_sync(inter->op->flags)) {
 		inter->state->current_cycle += inter->cycles;
 		inter->cycles = 0;
 	}
@@ -101,8 +101,8 @@ static void update_cycles_before_branch(struct interpreter *inter)
 	if (!inter->delay_slot) {
 		cycles = lightrec_cycles_of_opcode(inter->op->c);
 
-		if (has_delay_slot(inter->op->c) &&
-		    !(inter->op->flags & LIGHTREC_NO_DS))
+		if (!op_flag_no_ds(inter->op->flags) &&
+		    has_delay_slot(inter->op->c))
 			cycles += lightrec_cycles_of_opcode(next_op(inter)->c);
 
 		inter->cycles += cycles;
@@ -329,7 +329,7 @@ static u32 int_jump(struct interpreter *inter, bool link)
 	if (link)
 		state->regs.gpr[31] = old_pc + 8;
 
-	if (inter->op->flags & LIGHTREC_NO_DS)
+	if (op_flag_no_ds(inter->op->flags))
 		return pc;
 
 	return int_delay_slot(inter, pc, true);
@@ -348,14 +348,18 @@ static u32 int_JAL(struct interpreter *inter)
 static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 {
 	struct lightrec_state *state = inter->state;
-	u32 old_pc, next_pc = state->regs.gpr[inter->op->r.rs];
+	u32 old_pc = int_get_branch_pc(inter);
+	u32 next_pc = state->regs.gpr[inter->op->r.rs];
 
-	if (link_reg) {
-		old_pc = int_get_branch_pc(inter);
-		state->regs.gpr[link_reg] = old_pc + 8;
+	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
+		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
+		return old_pc;
 	}
 
-	if (inter->op->flags & LIGHTREC_NO_DS)
+	if (link_reg)
+		state->regs.gpr[link_reg] = old_pc + 8;
+
+	if (op_flag_no_ds(inter->op->flags))
 		return next_pc;
 
 	return int_delay_slot(inter, next_pc, true);
@@ -373,8 +377,7 @@ static u32 int_special_JALR(struct interpreter *inter)
 
 static u32 int_do_branch(struct interpreter *inter, u32 old_pc, u32 next_pc)
 {
-	if (!inter->delay_slot &&
-	    (inter->op->flags & LIGHTREC_LOCAL_BRANCH) &&
+	if (!inter->delay_slot && op_flag_local_branch(inter->op->flags) &&
 	    (s16)inter->op->c.i.imm >= 0) {
 		next_pc = old_pc + ((1 + (s16)inter->op->c.i.imm) << 2);
 		next_pc = lightrec_emulate_block(inter->state, inter->block, next_pc);
@@ -388,9 +391,14 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 {
 	u32 next_pc = pc + 4 + ((s16)code.i.imm << 2);
 
+	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
+		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
+		return pc;
+	}
+
 	update_cycles_before_branch(inter);
 
-	if (inter->op->flags & LIGHTREC_NO_DS) {
+	if (op_flag_no_ds(inter->op->flags)) {
 		if (branch)
 			return int_do_branch(inter, pc, next_pc);
 		else
@@ -403,7 +411,7 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 	if (branch)
 		return int_do_branch(inter, pc, next_pc);
 
-	if (inter->op->flags & LIGHTREC_EMULATE_BRANCH)
+	if (op_flag_emulate_branch(inter->op->flags))
 		return pc + 8;
 	else
 		return jump_after_branch(inter);
@@ -497,7 +505,7 @@ static u32 int_ctc(struct interpreter *inter)
 	/* If we have a MTC0 or CTC0 to CP0 register 12 (Status) or 13 (Cause),
 	 * return early so that the emulator will be able to check software
 	 * interrupt status. */
-	if (!(inter->op->flags & LIGHTREC_NO_DS) &&
+	if (!op_flag_no_ds(inter->op->flags) &&
 	    op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
 		return int_get_ds_pc(inter, 1);
 	else
@@ -618,7 +626,7 @@ static u32 int_store(struct interpreter *inter)
 {
 	u32 next_pc;
 
-	if (likely(!(inter->op->flags & LIGHTREC_SMC)))
+	if (likely(!op_flag_smc(inter->op->flags)))
 		return int_io(inter, false);
 
 	lightrec_rw(inter->state, inter->op->c,
@@ -765,9 +773,9 @@ static u32 int_special_MULT(struct interpreter *inter)
 	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u64 res = (s64)rs * (s64)rt;
 
-	if (!(inter->op->flags & LIGHTREC_NO_HI))
+	if (!op_flag_no_hi(inter->op->flags))
 		reg_cache[reg_hi] = res >> 32;
-	if (!(inter->op->flags & LIGHTREC_NO_LO))
+	if (!op_flag_no_lo(inter->op->flags))
 		reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
@@ -782,9 +790,9 @@ static u32 int_special_MULTU(struct interpreter *inter)
 	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u64 res = (u64)rs * (u64)rt;
 
-	if (!(inter->op->flags & LIGHTREC_NO_HI))
+	if (!op_flag_no_hi(inter->op->flags))
 		reg_cache[reg_hi] = res >> 32;
-	if (!(inter->op->flags & LIGHTREC_NO_LO))
+	if (!op_flag_no_lo(inter->op->flags))
 		reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
@@ -807,9 +815,9 @@ static u32 int_special_DIV(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	if (!(inter->op->flags & LIGHTREC_NO_HI))
+	if (!op_flag_no_hi(inter->op->flags))
 		reg_cache[reg_hi] = hi;
-	if (!(inter->op->flags & LIGHTREC_NO_LO))
+	if (!op_flag_no_lo(inter->op->flags))
 		reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);
@@ -832,9 +840,9 @@ static u32 int_special_DIVU(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	if (!(inter->op->flags & LIGHTREC_NO_HI))
+	if (!op_flag_no_hi(inter->op->flags))
 		reg_cache[reg_hi] = hi;
-	if (!(inter->op->flags & LIGHTREC_NO_LO))
+	if (!op_flag_no_lo(inter->op->flags))
 		reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);

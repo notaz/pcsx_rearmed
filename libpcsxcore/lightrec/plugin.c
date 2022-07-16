@@ -556,10 +556,13 @@ static void lightrec_plugin_reset(void)
 {
 	struct lightrec_registers *regs;
 
-	lightrec_plugin_shutdown();
-	lightrec_plugin_init();
-
 	regs = lightrec_get_registers(lightrec_state);
+
+	/* Invalidate all blocks */
+	lightrec_invalidate_all(lightrec_state);
+
+	/* Reset registers */
+	memset(regs, 0, sizeof(*regs));
 
 	regs->cp0[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A

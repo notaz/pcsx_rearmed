@@ -8,6 +8,7 @@
 
 #include "debug.h"
 #include "lightrec.h"
+#include "lightrec-config.h"
 
 #ifndef __packed
 #define __packed __attribute__((packed))
@@ -17,18 +18,15 @@
 
 /* Flags for all opcodes */
 #define LIGHTREC_NO_DS		BIT(0)
-#define LIGHTREC_UNLOAD_RS	BIT(1)
-#define LIGHTREC_UNLOAD_RT	BIT(2)
-#define LIGHTREC_UNLOAD_RD	BIT(3)
-#define LIGHTREC_SYNC		BIT(4)
+#define LIGHTREC_SYNC		BIT(1)
 
 /* Flags for load/store opcodes */
-#define LIGHTREC_SMC		BIT(5)
-#define LIGHTREC_NO_INVALIDATE	BIT(6)
-#define LIGHTREC_NO_MASK	BIT(7)
+#define LIGHTREC_SMC		BIT(2)
+#define LIGHTREC_NO_INVALIDATE	BIT(3)
+#define LIGHTREC_NO_MASK	BIT(4)
 
 /* I/O mode for load/store opcodes */
-#define LIGHTREC_IO_MODE_LSB	8
+#define LIGHTREC_IO_MODE_LSB	5
 #define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
 #define LIGHTREC_IO_UNKNOWN	0x0
 #define LIGHTREC_IO_DIRECT	0x1
@@ -41,13 +39,36 @@
 	(((x) & LIGHTREC_IO_MASK) >> LIGHTREC_IO_MODE_LSB)
 
 /* Flags for branches */
-#define LIGHTREC_EMULATE_BRANCH	BIT(5)
-#define LIGHTREC_LOCAL_BRANCH	BIT(6)
+#define LIGHTREC_EMULATE_BRANCH	BIT(2)
+#define LIGHTREC_LOCAL_BRANCH	BIT(3)
 
 /* Flags for div/mult opcodes */
-#define LIGHTREC_NO_LO		BIT(5)
-#define LIGHTREC_NO_HI		BIT(6)
-#define LIGHTREC_NO_DIV_CHECK	BIT(7)
+#define LIGHTREC_NO_LO		BIT(2)
+#define LIGHTREC_NO_HI		BIT(3)
+#define LIGHTREC_NO_DIV_CHECK	BIT(4)
+
+#define LIGHTREC_REG_RS_LSB	26
+#define LIGHTREC_REG_RS(x)	((x) << LIGHTREC_REG_RS_LSB)
+#define LIGHTREC_REG_RS_MASK	LIGHTREC_REG_RS(0x3)
+#define LIGHTREC_FLAGS_GET_RS(x) \
+	(((x) & LIGHTREC_REG_RS_MASK) >> LIGHTREC_REG_RS_LSB)
+
+#define LIGHTREC_REG_RT_LSB	28
+#define LIGHTREC_REG_RT(x)	((x) << LIGHTREC_REG_RT_LSB)
+#define LIGHTREC_REG_RT_MASK	LIGHTREC_REG_RT(0x3)
+#define LIGHTREC_FLAGS_GET_RT(x) \
+	(((x) & LIGHTREC_REG_RT_MASK) >> LIGHTREC_REG_RT_LSB)
+
+#define LIGHTREC_REG_RD_LSB	30
+#define LIGHTREC_REG_RD(x)	((x) << LIGHTREC_REG_RD_LSB)
+#define LIGHTREC_REG_RD_MASK	LIGHTREC_REG_RD(0x3)
+#define LIGHTREC_FLAGS_GET_RD(x) \
+	(((x) & LIGHTREC_REG_RD_MASK) >> LIGHTREC_REG_RD_LSB)
+
+#define LIGHTREC_REG_NOOP	0x0
+#define LIGHTREC_REG_UNLOAD	0x1
+#define LIGHTREC_REG_DISCARD	0x2
+#define LIGHTREC_REG_CLEAN	0x3
 
 struct block;
 
@@ -209,9 +230,61 @@ struct opcode {
 		struct opcode_i i;
 		struct opcode_j j;
 	};
-	u16 flags;
+	u32 flags;
 };
 
 void lightrec_print_disassembly(const struct block *block, const u32 *code);
+
+static inline _Bool op_flag_no_ds(u32 flags)
+{
+	return OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS);
+}
+
+static inline _Bool op_flag_sync(u32 flags)
+{
+	return OPT_LOCAL_BRANCHES && (flags & LIGHTREC_SYNC);
+}
+
+static inline _Bool op_flag_smc(u32 flags)
+{
+	return OPT_FLAG_STORES && (flags & LIGHTREC_SMC);
+}
+
+static inline _Bool op_flag_no_invalidate(u32 flags)
+{
+	return (OPT_FLAG_IO || OPT_FLAG_STORES) &&
+		(flags & LIGHTREC_NO_INVALIDATE);
+}
+
+static inline _Bool op_flag_no_mask(u32 flags)
+{
+	return OPT_FLAG_IO && (flags & LIGHTREC_NO_MASK);
+}
+
+static inline _Bool op_flag_emulate_branch(u32 flags)
+{
+	return OPT_DETECT_IMPOSSIBLE_BRANCHES &&
+		(flags & LIGHTREC_EMULATE_BRANCH);
+}
+
+static inline _Bool op_flag_local_branch(u32 flags)
+{
+	return OPT_LOCAL_BRANCHES && (flags & LIGHTREC_LOCAL_BRANCH);
+}
+
+static inline _Bool op_flag_no_lo(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_LO);
+}
+
+static inline _Bool op_flag_no_hi(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_HI);
+}
+
+static inline _Bool op_flag_no_div_check(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_DIV_CHECK);
+}
 
 #endif /* __DISASSEMBLER_H__ */

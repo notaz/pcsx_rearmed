@@ -493,6 +493,15 @@ void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 	}
 }
 
+void lightrec_discard_reg_if_loaded(struct regcache *cache, u8 reg)
+{
+	struct native_register *nreg;
+
+	nreg = find_mapped_reg(cache, reg, false);
+	if (nreg)
+		lightrec_discard_nreg(nreg);
+}
+
 struct native_register * lightrec_regcache_enter_branch(struct regcache *cache)
 {
 	struct native_register *backup;
