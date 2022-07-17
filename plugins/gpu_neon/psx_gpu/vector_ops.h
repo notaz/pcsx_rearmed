@@ -15,33 +15,7 @@
 #ifndef VECTOR_OPS
 #define VECTOR_OPS
 
-#define build_vector_type_pair(sign, size, count, count_x2)                    \
-typedef struct                                                                 \
-{                                                                              \
-  sign##size e[count];                                                         \
-} vec_##count##x##size##sign;                                                  \
-                                                                               \
-typedef struct                                                                 \
-{                                                                              \
-  union                                                                        \
-  {                                                                            \
-    sign##size e[count_x2];                                                    \
-    struct                                                                     \
-    {                                                                          \
-      vec_##count##x##size##sign low;                                          \
-      vec_##count##x##size##sign high;                                         \
-    };                                                                         \
-  };                                                                           \
-} vec_##count_x2##x##size##sign                                                \
-
-#define build_vector_types(sign)                                               \
-  build_vector_type_pair(sign, 8, 8, 16);                                      \
-  build_vector_type_pair(sign, 16, 4, 8);                                      \
-  build_vector_type_pair(sign, 32, 2, 4);                                      \
-  build_vector_type_pair(sign, 64, 1, 2)                                       \
-
-build_vector_types(u);
-build_vector_types(s);
+#include "vector_types.h"
 
 
 #define foreach_element(iterations, operation)                                 \

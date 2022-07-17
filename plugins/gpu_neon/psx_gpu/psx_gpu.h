@@ -15,6 +15,8 @@
 #ifndef PSX_GPU_H
 #define PSX_GPU_H
 
+#include "vector_types.h"
+
 typedef enum
 {
   PRIMITIVE_TYPE_TRIANGLE = 0,
@@ -222,6 +224,8 @@ typedef struct __attribute__((aligned(16)))
 
   s16 x;
   s16 y;
+
+  u32 padding;
 } vertex_struct;
 
 void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
@@ -246,6 +250,10 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command);
 
 void triangle_benchmark(psx_gpu_struct *psx_gpu);
+
+void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
+ const vertex_struct * __restrict__ a, const vertex_struct * __restrict__ b,
+ const vertex_struct * __restrict__ c);
 
 #endif
 

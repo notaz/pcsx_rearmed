@@ -17,6 +17,9 @@
 #include <string.h>
 
 #include "common.h"
+#ifndef NEON_BUILD
+#include "vector_ops.h"
+#endif
 
 u32 span_pixels = 0;
 u32 span_pixel_blocks = 0;
@@ -514,9 +517,6 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
   }
 }
 
-
-void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
- vertex_struct *b, vertex_struct *c);
 
 #ifndef NEON_BUILD
 
