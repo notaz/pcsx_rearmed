@@ -2,7 +2,21 @@
   ((psx_gpu)->enhancement_buf_ptr + \
    ((psx_gpu)->enhancement_buf_by_x16[(x) / 16] << 20))
 
-#ifndef NEON_BUILD
+#if !defined(NEON_BUILD) || defined(SIMD_BUILD)
+
+#ifndef zip_4x32b
+
+#define vector_cast(vec_to, source) source
+
+#define zip_4x32b(dest, source_a, source_b) {                                  \
+  u32 _i; for(_i = 0; _i < 4; _i++) {                                          \
+    (dest).e[_i * 2 + 0] = (source_a).e[_i];                                   \
+    (dest).e[_i * 2 + 1] = (source_b).e[_i];                                   \
+  }                                                                            \
+}
+
+#endif
+
 void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
 {
@@ -56,7 +70,8 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       texture_block_ptr =
        texture_page_ptr + (texture_offset_base & texture_mask);
 
-      load_128b(texels, texture_block_ptr);
+      //load_128b(texels, texture_block_ptr);
+      texels = *(vec_8x16u *)texture_block_ptr;
       
       zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
@@ -117,7 +132,8 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
       texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
       
-      load_128b(texels, texture_block_ptr);
+      //load_128b(texels, texture_block_ptr);
+      texels = *(vec_8x16u *)texture_block_ptr;
 
       zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
@@ -147,7 +163,8 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       while(blocks_remaining)
       {
         texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
-        load_128b(texels, texture_block_ptr);
+        //load_128b(texels, texture_block_ptr);
+        texels = *(vec_8x16u *)texture_block_ptr;
 
         zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
         block->texels = texels_wide;
@@ -178,7 +195,8 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       }
 
       texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
-      load_128b(texels, texture_block_ptr);
+      //load_128b(texels, texture_block_ptr);
+      texels = *(vec_8x16u *)texture_block_ptr;
       
       zip_4x32b(vector_cast(vec_4x32u, texels_wide), texels.low, texels.low);
       block->texels = texels_wide;
