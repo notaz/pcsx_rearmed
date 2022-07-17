@@ -245,6 +245,7 @@ void render_line(psx_gpu_struct *gpu, vertex_struct *vertexes, u32 flags,
 
 u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 
+void update_texture_8bpp_cache(psx_gpu_struct *psx_gpu);
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu);
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);

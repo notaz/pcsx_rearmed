@@ -51,6 +51,8 @@ u32 zero_block_spans = 0;
 u32 texture_cache_loads = 0;
 u32 false_modulated_blocks = 0;
 
+#define stats_add(stat, count) // stat += count
+
 /* double size for enhancement */
 u32 reciprocal_table[512 * 2];
 
@@ -1842,7 +1844,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   }                                                                            \
 
 #define setup_blocks_add_blocks_direct()                                       \
-  texel_blocks_untextured += span_num_blocks;                                  \
+  stats_add(texel_blocks_untextured, span_num_blocks);                         \
   span_pixel_blocks += span_num_blocks                                         \
 
 
@@ -1938,14 +1940,14 @@ setup_blocks_builder(unshaded, untextured, undithered, unswizzled, direct);
 void texture_blocks_untextured(psx_gpu_struct *psx_gpu)
 {
   if(psx_gpu->primitive_type != PRIMITIVE_TYPE_SPRITE)
-    texel_blocks_untextured += psx_gpu->num_blocks;
+    stats_add(texel_blocks_untextured, psx_gpu->num_blocks);
 }
 
 void texture_blocks_4bpp(psx_gpu_struct *psx_gpu)
 {
   block_struct *block = psx_gpu->blocks;
   u32 num_blocks = psx_gpu->num_blocks;
-  texel_blocks_4bpp += num_blocks;
+  stats_add(texel_blocks_4bpp, num_blocks);
 
   vec_8x8u texels_low;
   vec_8x8u texels_high;
@@ -1997,7 +1999,7 @@ void texture_blocks_8bpp(psx_gpu_struct *psx_gpu)
   block_struct *block = psx_gpu->blocks;
   u32 num_blocks = psx_gpu->num_blocks;
 
-  texel_blocks_8bpp += num_blocks;
+  stats_add(texel_blocks_8bpp, num_blocks);
 
   if(psx_gpu->current_texture_mask & psx_gpu->dirty_textures_8bpp_mask)
     update_texture_8bpp_cache(psx_gpu);
@@ -2031,7 +2033,7 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
   block_struct *block = psx_gpu->blocks;
   u32 num_blocks = psx_gpu->num_blocks;
 
-  texel_blocks_16bpp += num_blocks;
+  stats_add(texel_blocks_16bpp, num_blocks);
 
   vec_8x16u texels;
 
@@ -3067,7 +3069,7 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
     render_triangle_p(psx_gpu, vertex_ptrs, flags);
 }
 
-#ifndef NEON_BUILD
+#if !defined(NEON_BUILD) || defined(SIMD_BUILD)
 
 void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 {
@@ -3775,6 +3777,9 @@ setup_sprite_tiled_builder(8bpp,);
 
 setup_sprite_tiled_builder(4bpp,_4x);
 setup_sprite_tiled_builder(8bpp,_4x);
+#endif
+
+#if !defined(NEON_BUILD) || defined(SIMD_BUILD)
 
 void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
@@ -3803,7 +3808,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
   texture_offset_base &= ~0x7;
 
-  sprites_16bpp++;
+  stats_add(sprites_16bpp, 1);
 
   if(block_width == 1)
   {
@@ -3824,7 +3829,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       texture_block_ptr =
        texture_page_ptr + (texture_offset_base & texture_mask);
 
-      load_128b(block->texels, texture_block_ptr);
+      block->texels = *(vec_8x16u *)texture_block_ptr;
       block->draw_mask_bits = mask_bits;
       block->fb_ptr = fb_ptr;
 
@@ -3858,7 +3863,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       texture_offset_base += 1024;
 
       texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
-      load_128b(block->texels, texture_block_ptr);
+      block->texels = *(vec_8x16u *)texture_block_ptr;
 
       block->draw_mask_bits = left_mask_bits;
       block->fb_ptr = fb_ptr;
@@ -3870,7 +3875,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       while(blocks_remaining)
       {
         texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
-        load_128b(block->texels, texture_block_ptr);
+        block->texels = *(vec_8x16u *)texture_block_ptr;
 
         block->draw_mask_bits = 0;
         block->fb_ptr = fb_ptr;
@@ -3883,7 +3888,7 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
       }
 
       texture_block_ptr = texture_page_ptr + (texture_offset & texture_mask);
-      load_128b(block->texels, texture_block_ptr);
+      block->texels = *(vec_8x16u *)texture_block_ptr;
 
       block->draw_mask_bits = right_mask_bits;
       block->fb_ptr = fb_ptr;
@@ -3896,6 +3901,10 @@ void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
     }
   }
 }
+
+#endif
+
+#ifndef NEON_BUILD
 
 void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
