@@ -13,8 +13,8 @@
 #define BASE_ADDR_DYNAMIC 1
 #endif
 #if defined(HAVE_LIBNX)
-#define NDRC_WRITE_OFFSET 1
+#define TC_WRITE_OFFSET 1
 #endif
-#if defined(HAVE_LIBNX) || defined(_3DS)
+#if defined(_3DS)
 #define NDRC_CACHE_FLUSH_ALL 1
 #endif

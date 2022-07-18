@@ -31,10 +31,8 @@ void do_memhandler_post();
 /* Linker */
 static void set_jump_target(void *addr, void *target)
 {
-  u_int *ptr = addr;
+  u_int *ptr = NDRC_WRITE_OFFSET(addr);
   intptr_t offset = (u_char *)target - (u_char *)addr;
-
-  ptr += ndrc_write_ofs / sizeof(ptr[0]);
 
   if ((*ptr&0xFC000000) == 0x14000000) { // b
     assert(offset>=-134217728LL&&offset<134217728LL);
@@ -144,7 +142,7 @@ static unused const char *condname[16] = {
 
 static void output_w32(u_int word)
 {
-  *((u_int *)(out + ndrc_write_ofs)) = word;
+  *((u_int *)NDRC_WRITE_OFFSET(out)) = word;
   out += 4;
 }
 
@@ -1900,7 +1898,7 @@ static void do_miniht_insert(u_int return_address,u_int rt,int temp) {
   emit_writeword(rt,&mini_ht[(return_address&0xFF)>>3][0]);
 }
 
-static void clear_cache_arm64(char *start, char *end)
+static unused void clear_cache_arm64(char *start, char *end)
 {
   // Don't rely on GCC's __clear_cache implementation, as it caches
   // icache/dcache cache line sizes, that can vary between cores on
@@ -1945,13 +1943,13 @@ static void clear_cache_arm64(char *start, char *end)
 static void arch_init(void)
 {
   uintptr_t diff = (u_char *)&ndrc->tramp.f - (u_char *)&ndrc->tramp.ops;
-  struct tramp_insns *ops = ndrc->tramp.ops, *opsw;
+  struct tramp_insns *ops = NDRC_WRITE_OFFSET(ndrc->tramp.ops);
   size_t i;
   assert(!(diff & 3));
-  opsw = start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
+  start_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
   for (i = 0; i < ARRAY_SIZE(ndrc->tramp.ops); i++) {
-    opsw[i].ldr = 0x58000000 | imm19_rt(diff >> 2, 17); // ldr x17, [=val]
-    opsw[i].br  = 0xd61f0000 | rm_rn_rd(0, 17, 0);      // br x17
+    ops[i].ldr = 0x58000000 | imm19_rt(diff >> 2, 17); // ldr x17, [=val]
+    ops[i].br  = 0xd61f0000 | rm_rn_rd(0, 17, 0);      // br x17
   }
   end_tcache_write(ops, (u_char *)ops + sizeof(ndrc->tramp.ops));
 }

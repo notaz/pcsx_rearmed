@@ -41,7 +41,11 @@ static Jit g_jit;
 #include "emu_if.h" // emulator interface
 #include "arm_features.h"
 
+#ifdef __clang__
+#define noinline __attribute__((noinline))
+#else
 #define noinline __attribute__((noinline,noclone))
+#endif
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
@@ -95,14 +99,16 @@ static Jit g_jit;
 #define TC_REDUCE_BYTES 0
 #endif
 
+struct ndrc_tramp
+{
+  struct tramp_insns ops[2048 / sizeof(struct tramp_insns)];
+  const void *f[2048 / sizeof(void *)];
+};
+
 struct ndrc_mem
 {
   u_char translation_cache[(1 << TARGET_SIZE_2) - TC_REDUCE_BYTES];
-  struct
-  {
-    struct tramp_insns ops[2048 / sizeof(struct tramp_insns)];
-    const void *f[2048 / sizeof(void *)];
-  } tramp;
+  struct ndrc_tramp tramp;
 };
 
 #ifdef BASE_ADDR_DYNAMIC
@@ -111,7 +117,7 @@ static struct ndrc_mem *ndrc;
 static struct ndrc_mem ndrc_ __attribute__((aligned(4096)));
 static struct ndrc_mem *ndrc = &ndrc_;
 #endif
-#ifdef NDRC_WRITE_OFFSET
+#ifdef TC_WRITE_OFFSET
 # ifdef __GLIBC__
 # include <sys/types.h>
 # include <sys/stat.h>
@@ -119,8 +125,9 @@ static struct ndrc_mem *ndrc = &ndrc_;
 # include <unistd.h>
 # endif
 static long ndrc_write_ofs;
+#define NDRC_WRITE_OFFSET(x) (void *)((char *)(x) + ndrc_write_ofs)
 #else
-#define ndrc_write_ofs 0
+#define NDRC_WRITE_OFFSET(x) (x)
 #endif
 
 // stubs
@@ -441,13 +448,16 @@ static void mprotect_w_x(void *start, void *end, int is_x)
     sceKernelOpenVMDomain();
   #elif defined(HAVE_LIBNX)
   Result rc;
-  if (is_x)
-    rc = jitTransitionToExecutable(&g_jit);
-  else
-    rc = jitTransitionToWritable(&g_jit);
-  if (R_FAILED(rc))
-    SysPrintf("jitTransition %d %08x\n", is_x, rc);
-  #elif defined(NDRC_WRITE_OFFSET)
+  // check to avoid the full flush in jitTransitionToExecutable()
+  if (g_jit.type != JitType_CodeMemory) {
+    if (is_x)
+      rc = jitTransitionToExecutable(&g_jit);
+    else
+      rc = jitTransitionToWritable(&g_jit);
+    if (R_FAILED(rc))
+      ;//SysPrintf("jitTransition %d %08x\n", is_x, rc);
+  }
+  #elif defined(TC_WRITE_OFFSET)
   // separated rx and rw areas are always available
   #else
   u_long mstart = (u_long)start & ~4095ul;
@@ -459,10 +469,9 @@ static void mprotect_w_x(void *start, void *end, int is_x)
 #endif
 }
 
-static void *start_tcache_write(void *start, void *end)
+static void start_tcache_write(void *start, void *end)
 {
   mprotect_w_x(start, end, 0);
-  return (char *)start + ndrc_write_ofs;
 }
 
 static void end_tcache_write(void *start, void *end)
@@ -478,7 +487,10 @@ static void end_tcache_write(void *start, void *end)
   #elif defined(_3DS)
   ctr_flush_invalidate_cache();
   #elif defined(HAVE_LIBNX)
-  // handled in mprotect_w_x()
+  if (g_jit.type == JitType_CodeMemory) {
+    armDCacheClean(start, len);
+    armICacheInvalidate((char *)start - ndrc_write_ofs, len);
+  }
   #elif defined(__aarch64__)
   // as of 2021, __clear_cache() is still broken on arm64
   // so here is a custom one :(
@@ -497,13 +509,13 @@ static void *start_block(void)
   u_char *end = out + MAX_OUTPUT_BLOCK_SIZE;
   if (end > ndrc->translation_cache + sizeof(ndrc->translation_cache))
     end = ndrc->translation_cache + sizeof(ndrc->translation_cache);
-  start_tcache_write(out, end);
+  start_tcache_write(NDRC_WRITE_OFFSET(out), NDRC_WRITE_OFFSET(end));
   return out;
 }
 
 static void end_block(void *start)
 {
-  end_tcache_write(start, out);
+  end_tcache_write(NDRC_WRITE_OFFSET(start), NDRC_WRITE_OFFSET(out));
 }
 
 #ifdef NDRC_CACHE_FLUSH_ALL
@@ -513,7 +525,7 @@ static int needs_clear_cache;
 static void mark_clear_cache(void *target)
 {
   if (!needs_clear_cache) {
-    start_tcache_write(ndrc, ndrc + 1);
+    start_tcache_write(NDRC_WRITE_OFFSET(ndrc), NDRC_WRITE_OFFSET(ndrc + 1));
     needs_clear_cache = 1;
   }
 }
@@ -521,7 +533,7 @@ static void mark_clear_cache(void *target)
 static void do_clear_cache(void)
 {
   if (needs_clear_cache) {
-    end_tcache_write(ndrc, ndrc + 1);
+    end_tcache_write(NDRC_WRITE_OFFSET(ndrc), NDRC_WRITE_OFFSET(ndrc + 1));
     needs_clear_cache = 0;
   }
 }
@@ -536,7 +548,7 @@ static void mark_clear_cache(void *target)
   uintptr_t offset = (u_char *)target - ndrc->translation_cache;
   u_int mask = 1u << ((offset >> 12) & 31);
   if (!(needs_clear_cache[offset >> 17] & mask)) {
-    char *start = (char *)((uintptr_t)target & ~4095l);
+    char *start = (char *)NDRC_WRITE_OFFSET((uintptr_t)target & ~4095l);
     start_tcache_write(start, start + 4095);
     needs_clear_cache[offset >> 17] |= mask;
   }
@@ -565,7 +577,7 @@ static void do_clear_cache(void)
           break;
         end += 4096;
       }
-      end_tcache_write(start, end);
+      end_tcache_write(NDRC_WRITE_OFFSET(start), NDRC_WRITE_OFFSET(end));
     }
     needs_clear_cache[i] = 0;
   }
@@ -1193,20 +1205,25 @@ static const char *func_name(const void *a)
 
 static void *get_trampoline(const void *f)
 {
+  struct ndrc_tramp *tramp = NDRC_WRITE_OFFSET(&ndrc->tramp);
   size_t i;
 
-  for (i = 0; i < ARRAY_SIZE(ndrc->tramp.f); i++) {
-    if (ndrc->tramp.f[i] == f || ndrc->tramp.f[i] == NULL)
+  for (i = 0; i < ARRAY_SIZE(tramp->f); i++) {
+    if (tramp->f[i] == f || tramp->f[i] == NULL)
       break;
   }
-  if (i == ARRAY_SIZE(ndrc->tramp.f)) {
+  if (i == ARRAY_SIZE(tramp->f)) {
     SysPrintf("trampoline table is full, last func %p\n", f);
     abort();
   }
-  if (ndrc->tramp.f[i] == NULL) {
-    const void **d = start_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
-    *d = f;
-    end_tcache_write(&ndrc->tramp.f[i], &ndrc->tramp.f[i + 1]);
+  if (tramp->f[i] == NULL) {
+    start_tcache_write(&tramp->f[i], &tramp->f[i + 1]);
+    tramp->f[i] = f;
+    end_tcache_write(&tramp->f[i], &tramp->f[i + 1]);
+#ifdef HAVE_LIBNX
+    // invalidate the RX mirror (unsure if necessary, but just in case...)
+    armDCacheFlush(&ndrc->tramp.f[i], sizeof(ndrc->tramp.f[i]));
+#endif
   }
   return &ndrc->tramp.ops[i];
 }
@@ -6093,7 +6110,7 @@ static void disassemble_inst(int i) {}
 
 #define DRC_TEST_VAL 0x74657374
 
-static void new_dynarec_test(void)
+static noinline void new_dynarec_test(void)
 {
   int (*testfunc)(void);
   void *beginning;
@@ -6106,8 +6123,9 @@ static void new_dynarec_test(void)
     SysPrintf("linkage_arm* miscompilation/breakage detected.\n");
   }
 
-  SysPrintf("testing if we can run recompiled code @%p...\n", out);
-  ((volatile u_int *)(out + ndrc_write_ofs))[0]++; // make the cache dirty
+  SysPrintf("(%p) testing if we can run recompiled code @%p...\n",
+    new_dynarec_test, out);
+  ((volatile u_int *)NDRC_WRITE_OFFSET(out))[0]++; // make the cache dirty
 
   for (i = 0; i < ARRAY_SIZE(ret); i++) {
     out = ndrc->translation_cache;
@@ -6183,8 +6201,10 @@ void new_dynarec_init(void)
   if (R_FAILED(rc))
     SysPrintf("jitCreate failed: %08x\n", rc);
   SysPrintf("jitCreate: RX: %p RW: %p type: %d\n", g_jit.rx_addr, g_jit.rw_addr, g_jit.type);
+  jitTransitionToWritable(&g_jit);
   ndrc = g_jit.rx_addr;
   ndrc_write_ofs = (char *)g_jit.rw_addr - (char *)ndrc;
+  memset(NDRC_WRITE_OFFSET(&ndrc->tramp), 0, sizeof(ndrc->tramp));
   #else
   uintptr_t desired_addr = 0;
   int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
@@ -6194,7 +6214,7 @@ void new_dynarec_init(void)
   extern char _end;
   desired_addr = ((uintptr_t)&_end + 0xffffff) & ~0xffffffl;
   #endif
-  #ifdef NDRC_WRITE_OFFSET
+  #ifdef TC_WRITE_OFFSET
   // mostly for testing
   fd = open("/dev/shm/pcsxr", O_CREAT | O_RDWR, 0600);
   ftruncate(fd, sizeof(*ndrc));
@@ -6208,7 +6228,7 @@ void new_dynarec_init(void)
     SysPrintf("mmap() failed: %s\n", strerror(errno));
     abort();
   }
-  #ifdef NDRC_WRITE_OFFSET
+  #ifdef TC_WRITE_OFFSET
   ndrc_write_ofs = (char *)mw - (char *)ndrc;
   #endif
   #endif
@@ -6262,9 +6282,6 @@ void new_dynarec_cleanup(void)
   }
   stat_clear(stat_blocks);
   stat_clear(stat_links);
-  #ifdef ROM_COPY
-  if (munmap (ROM_COPY, 67108864) < 0) {SysPrintf("munmap() failed\n");}
-  #endif
   new_dynarec_print_stats();
 }
 
