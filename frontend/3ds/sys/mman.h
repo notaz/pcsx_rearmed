@@ -7,6 +7,7 @@ extern "C" {
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <malloc.h>
 
@@ -39,14 +40,18 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
          /* this hack works only for pcsx_rearmed */
          uint32_t currentHandle;
 
-         if(!dynarec_cache)
+         if (!dynarec_cache) {
             dynarec_cache = memalign(0x1000, len);
+            if (!dynarec_cache)
+               return MAP_FAILED;
+         }
 
          svcDuplicateHandle(&currentHandle, 0xFFFF8001);
          svcControlProcessMemory(currentHandle, addr, dynarec_cache,
                                  len, MEMOP_MAP, prot);
          svcCloseHandle(currentHandle);
          dynarec_cache_mapping = addr;
+         memset(addr, 0, len);
          return addr;
       }
       else
@@ -57,10 +62,11 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
 
    }
 
-   addr_out = malloc(len);
-   if(!addr_out)
+   addr_out = memalign(0x1000, len);
+   if (!addr_out)
       return MAP_FAILED;
 
+   memset(addr_out, 0, len);
    return addr_out;
 }
 

@@ -34,9 +34,9 @@ static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, of
         //printf("mmap failed\n");
         addr = aligned_alloc(ALIGNMENT, len);
     }
-
-    if (addr)
-        memset(addr, 0, len);
+    if (!addr)
+        return MAP_FAILED;
+    memset(addr, 0, len);
     return addr;
 }
 
