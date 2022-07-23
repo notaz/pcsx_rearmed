@@ -20,6 +20,7 @@
 #ifndef NEON_BUILD
 #include "vector_ops.h"
 #endif
+#include "psx_gpu_simd.h"
 
 u32 span_pixels = 0;
 u32 span_pixel_blocks = 0;
@@ -301,9 +302,6 @@ void update_texture_cache_region(psx_gpu_struct *psx_gpu, u32 x1, u32 y1,
   }
 }
 
-void update_texture_8bpp_cache_slice(psx_gpu_struct *psx_gpu,
- u32 texture_page);
-
 #ifndef NEON_BUILD
 
 void update_texture_4bpp_cache(psx_gpu_struct *psx_gpu)
@@ -451,9 +449,6 @@ void update_texture_8bpp_cache(psx_gpu_struct *psx_gpu)
     update_texture_8bpp_cache_slice(psx_gpu, adjacent_texture_page);
   }
 }
-
-void setup_blocks_shaded_untextured_undithered_unswizzled_indirect(
- psx_gpu_struct *psx_gpu);
 
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 {
@@ -1205,26 +1200,6 @@ void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
   setup_spans_up(index_##major, index_##minor, minor, yes)                     \
 
 
-void setup_spans_up_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_up_right(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_down_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_down_right(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_up_a(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_up_b(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_down_a(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_down_b(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
- vertex_struct *v_b, vertex_struct *v_c);
-
-
 #ifndef NEON_BUILD
 
 void setup_spans_up_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
@@ -1941,30 +1916,6 @@ void setup_blocks_##shading##_##texturing##_##dithering##_##sw##_##target(     \
   psx_gpu->num_blocks = num_blocks;                                            \
 }                                                                              \
 
-void setup_blocks_shaded_textured_dithered_unswizzled_indirect(psx_gpu_struct
- *psx_gpu);
-
-void setup_blocks_shaded_untextured_dithered_unswizzled_indirect(psx_gpu_struct
- *psx_gpu);
-void setup_blocks_shaded_untextured_undithered_unswizzled_indirect(
- psx_gpu_struct *psx_gpu);
-void setup_blocks_shaded_untextured_dithered_unswizzled_direct(psx_gpu_struct
- *psx_gpu);
-void setup_blocks_shaded_untextured_undithered_unswizzled_direct(
- psx_gpu_struct *psx_gpu);
-
-void setup_blocks_unshaded_textured_dithered_unswizzled_indirect(psx_gpu_struct
- *psx_gpu);
-void setup_blocks_unshaded_untextured_undithered_unswizzled_indirect(
- psx_gpu_struct *psx_gpu);
-void setup_blocks_unshaded_untextured_undithered_unswizzled_direct(
- psx_gpu_struct *psx_gpu);
-
-void setup_blocks_shaded_textured_dithered_swizzled_indirect(psx_gpu_struct
- *psx_gpu);
-void setup_blocks_unshaded_textured_dithered_swizzled_indirect(psx_gpu_struct
- *psx_gpu);
-
 
 //setup_blocks_builder(unshaded, untextured, undithered, unswizzled, direct);
 
@@ -1983,15 +1934,6 @@ setup_blocks_builder(shaded, untextured, dithered, unswizzled, direct);
 
 setup_blocks_builder(unshaded, untextured, undithered, unswizzled, indirect);
 setup_blocks_builder(unshaded, untextured, undithered, unswizzled, direct);
-
-#endif
-
-void texture_blocks_untextured(psx_gpu_struct *psx_gpu);
-void texture_blocks_4bpp(psx_gpu_struct *psx_gpu);
-void texture_blocks_8bpp(psx_gpu_struct *psx_gpu);
-void texture_blocks_16bpp(psx_gpu_struct *psx_gpu);
-
-#ifndef NEON_BUILD
 
 void texture_blocks_untextured(psx_gpu_struct *psx_gpu)
 {
@@ -2277,27 +2219,6 @@ void shade_blocks_##shading##_textured_modulated_##dithering##_##target(       \
   }                                                                            \
 }                                                                              \
 
-void shade_blocks_shaded_textured_modulated_dithered_direct(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_shaded_textured_modulated_undithered_direct(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_unshaded_textured_modulated_dithered_direct(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_unshaded_textured_modulated_undithered_direct(psx_gpu_struct
- *psx_gpu);
-
-void shade_blocks_shaded_textured_modulated_dithered_indirect(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_shaded_textured_modulated_undithered_indirect(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_unshaded_textured_modulated_dithered_indirect(psx_gpu_struct
- *psx_gpu);
-void shade_blocks_unshaded_textured_modulated_undithered_indirect(psx_gpu_struct
- *psx_gpu);
-
-void shade_blocks_textured_unmodulated_indirect(psx_gpu_struct *psx_gpu);
-void shade_blocks_textured_unmodulated_direct(psx_gpu_struct *psx_gpu);
-
 #ifndef NEON_BUILD
 
 shade_blocks_textured_modulated_builder(shaded, dithered, direct);
@@ -2383,14 +2304,6 @@ void shade_blocks_textured_unmodulated_dithered_##target(psx_gpu_struct        \
 shade_blocks_textured_unmodulated_builder(indirect)
 shade_blocks_textured_unmodulated_builder(direct)
 
-#endif
-
-
-void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu);
-void shade_blocks_unshaded_untextured_direct(psx_gpu_struct *psx_gpu);
-
-#ifndef NEON_BUILD
-                                                                               
 void shade_blocks_unshaded_untextured_indirect(psx_gpu_struct *psx_gpu)
 {
 }
@@ -2601,27 +2514,6 @@ void                                                                           \
     block++;                                                                   \
   }                                                                            \
 }                                                                              \
-
-void blend_blocks_textured_average_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_average_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_add_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_add_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_subtract_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_subtract_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_add_fourth_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_add_fourth_on(psx_gpu_struct *psx_gpu);
-
-void blend_blocks_untextured_average_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_average_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_add_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_add_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_subtract_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_subtract_on(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_add_fourth_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_untextured_add_fourth_on(psx_gpu_struct *psx_gpu);
-
-void blend_blocks_textured_unblended_off(psx_gpu_struct *psx_gpu);
-void blend_blocks_textured_unblended_on(psx_gpu_struct *psx_gpu);
 
 #ifndef NEON_BUILD
 
@@ -3174,9 +3066,6 @@ void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
   if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
     render_triangle_p(psx_gpu, vertex_ptrs, flags);
 }
-
-
-void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu);
 
 #ifndef NEON_BUILD
 
@@ -3879,25 +3768,6 @@ void setup_sprite_##texture_mode##x4mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,\
       break;                                                                   \
   }                                                                            \
 }                                                                              \
-
-void setup_sprite_4bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-void setup_sprite_8bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-void setup_sprite_16bpp(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-
-void setup_sprite_4bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-void setup_sprite_8bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
- s32 width, s32 height, u32 color);
-
-void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
- s32 v, s32 width, s32 height, u32 color);
-void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
- s32 u, s32 v, s32 width, s32 height, u32 color);
 
 #ifndef NEON_BUILD
 setup_sprite_tiled_builder(4bpp,);
@@ -5087,7 +4957,7 @@ u64 get_us(void)
   return (tv.tv_sec * 1000000ULL) + tv.tv_usec;
 }
 
-#ifdef NEON_BUILD
+#if 0 //def NEON_BUILD
 
 u32 get_counter()
 {
