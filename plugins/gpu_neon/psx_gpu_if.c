@@ -36,10 +36,19 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 {
   int ret;
 
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  // the asm doesn't bother to save callee-save vector regs, so do it here
+  __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
+
   if (gpu.state.enhancement_active)
     ret = gpu_parse_enhanced(&egpu, list, count * 4, (u32 *)last_cmd);
   else
     ret = gpu_parse(&egpu, list, count * 4, (u32 *)last_cmd);
+
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
 
   ex_regs[1] &= ~0x1ff;
   ex_regs[1] |= egpu.texture_settings & 0x1ff;
