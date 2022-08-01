@@ -3174,9 +3174,9 @@ function(texture_blocks_16bpp)
 .align 3;                                                                      \
                                                                                \
 function(shade_blocks_##shading##_textured_modulated_##dithering##_##target)   \
+  save_abi_regs();                                                             \
   shade_blocks_textured_modulated_prologue_##shading(dithering, target);       \
   stmdb sp!, { r4 - r5, lr };                                                  \
-  save_abi_regs();                                                             \
   ldrh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset];                      \
                                                                                \
   vld1.u32 { test_mask }, [psx_gpu, :128];                                     \
@@ -3292,8 +3292,9 @@ function(shade_blocks_##shading##_textured_modulated_##dithering##_##target)   \
   shade_blocks_textured_modulated_store_draw_mask_##target(28);                \
   shade_blocks_textured_modulated_store_pixels_##target();                     \
                                                                                \
+  ldmia sp!, { r4 - r5, lr };                                                  \
   restore_abi_regs();                                                          \
-  ldmia sp!, { r4 - r5, pc }                                                   \
+  bx lr                                                                        \
 
 
 shade_blocks_textured_modulated_builder(shaded, dithered, direct);
@@ -5950,7 +5951,7 @@ setup_sprite_untextured_height_loop:
 #define texel_block_expanded_b                            q2
 #define texel_block_expanded_ab                           q2
 #define texel_block_expanded_c                            q3
-#define texel_block_expanded_d                            q4
+#define texel_block_expanded_d                            q0
 #define texel_block_expanded_cd                           q3
 
 function(update_texture_4bpp_cache)
