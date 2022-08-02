@@ -399,6 +399,27 @@ static void emit_movimm(u_int imm, u_int rt)
   }
 }
 
+static void emit_movimm64(uint64_t imm, u_int rt)
+{
+  u_int shift, op, imm16, insns = 0;
+  for (shift = 0; shift < 4; shift++) {
+    imm16 = (imm >> shift * 16) & 0xffff;
+    if (!imm16)
+      continue;
+    op = insns ? 0xf2800000 : 0xd2800000;
+    assem_debug("mov%c %s,#%#x", insns ? 'k' : 'z', regname64[rt], imm16);
+    if (shift)
+      assem_debug(",lsl #%u", shift * 16);
+    assem_debug("\n");
+    output_w32(op | (shift << 21) | imm16_rd(imm16, rt));
+    insns++;
+  }
+  if (!insns) {
+    assem_debug("movz %s,#0\n", regname64[rt]);
+    output_w32(0xd2800000 | imm16_rd(0, rt));
+  }
+}
+
 static void emit_readword(void *addr, u_int rt)
 {
   uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
@@ -1329,16 +1350,7 @@ static void emit_movimm_from64(u_int rs_val, u_int rs, uintptr_t rt_val, u_int r
   }
   // just move the whole thing. At least on Linux all addresses
   // seem to be 48bit, so 3 insns - not great not terrible
-  assem_debug("movz %s,#%#lx\n", regname64[rt], rt_val & 0xffff);
-  output_w32(0xd2800000 | imm16_rd(rt_val & 0xffff, rt));
-  assem_debug("movk %s,#%#lx,lsl #16\n", regname64[rt], (rt_val >> 16) & 0xffff);
-  output_w32(0xf2a00000 | imm16_rd((rt_val >> 16) & 0xffff, rt));
-  assem_debug("movk %s,#%#lx,lsl #32\n", regname64[rt], (rt_val >> 32) & 0xffff);
-  output_w32(0xf2c00000 | imm16_rd((rt_val >> 32) & 0xffff, rt));
-  if (rt_val >> 48) {
-    assem_debug("movk %s,#%#lx,lsl #48\n", regname64[rt], (rt_val >> 48) & 0xffff);
-    output_w32(0xf2e00000 | imm16_rd((rt_val >> 48) & 0xffff, rt));
-  }
+  emit_movimm64(rt_val, rt);
 }
 
 // trashes x2
@@ -1513,8 +1525,13 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   emit_addimm(cc<0?2:cc,adj,2);
   if(is_dynamic) {
     uintptr_t l1 = ((uintptr_t *)mem_rtab)[addr>>12] << 1;
-    emit_adrp((void *)l1, 1);
-    emit_addimm64(1, l1 & 0xfff, 1);
+    intptr_t offset = (l1 & ~0xfffl) - ((intptr_t)out & ~0xfffl);
+    if (-4294967296l <= offset && offset < 4294967296l) {
+      emit_adrp((void *)l1, 1);
+      emit_addimm64(1, l1 & 0xfff, 1);
+    }
+    else
+      emit_movimm64(l1, 1);
   }
   else
     emit_far_call(do_memhandler_pre);

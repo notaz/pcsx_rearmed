@@ -490,6 +490,8 @@ static void end_tcache_write(void *start, void *end)
   if (g_jit.type == JitType_CodeMemory) {
     armDCacheClean(start, len);
     armICacheInvalidate((char *)start - ndrc_write_ofs, len);
+    // as of v4.2.1 libnx lacks isb
+    __asm__ volatile("isb" ::: "memory");
   }
   #elif defined(__aarch64__)
   // as of 2021, __clear_cache() is still broken on arm64
