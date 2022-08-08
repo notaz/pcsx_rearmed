@@ -23,6 +23,16 @@ FUNCTION(bgr555_to_rgb565): @ dst, src, bytes
     pld         [r1]
     mov         r3, #0x07c0
     vdup.16     q15, r3
+    tst         r0, #8
+    beq         0f
+    @ align the dst
+    vld1.16     {d0}, [r1]!
+    vshl.u16    d0, d0, #1
+    vshl.u16    d1, d0, #10
+    vsri.u16    d1, d0, #11
+    vbit        d1, d0, d30
+    vst1.16     {d1}, [r0]!
+0:
     subs        r2, r2, #64
     blt         btr16_end64
 0:
