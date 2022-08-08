@@ -72,6 +72,8 @@ else ifneq (,$(findstring CortexA73_G12B,$(platform)))
 	fpic := -fPIC
 	SHARED := -shared -Wl,-version-script=link.T
 	ARCH = arm64
+	BUILTIN_GPU = neon
+	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
 	CPUFLAGS += -march=armv8-a+crc -mfpu=neon-fp-armv8 -mcpu=cortex-a73 -mtune=cortex-a73.cortex-a53
@@ -82,6 +84,8 @@ else ifneq (,$(findstring h5,$(platform)))
 	fpic := -fPIC
 	SHARED := -shared -Wl,-version-script=link.T
 	ARCH = arm64
+	BUILTIN_GPU = neon
+	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
 	CPUFLAGS += -march=armv8-a+crc -mfpu=neon-fp-armv8 -mcpu=cortex-a53 -mtune=cortex-a53
@@ -190,7 +194,6 @@ else ifeq ($(platform), libnx)
    include $(DEVKITPRO)/libnx/switch_rules
    TARGET := $(TARGET_NAME)_libretro_$(platform).a
    ARCH := arm64
-   BUILTIN_GPU = unai
    HAVE_VFS_FD = 0
    CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition # -include $(LIBNX)/include/switch.h
    CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_OS -DNO_DYLIB -DNO_SOCKET -D__arm64__ -D__ARM_NEON__
@@ -200,14 +203,17 @@ else ifeq ($(platform), libnx)
    CFLAGS += -Ifrontend/switch -ftree-vectorize
    LIBPTHREAD :=
    STATIC_LINKING=1
+   BUILTIN_GPU = neon
+   HAVE_NEON = 1
    DYNAREC = ari64
 
 # Lakka Switch (arm64)
 else ifeq ($(platform), arm64)
    TARGET := $(TARGET_NAME)_libretro.so
    ARCH := arm64
+   BUILTIN_GPU = neon
+   HAVE_NEON = 1
    DYNAREC = ari64
-   BUILTIN_GPU = unai
    fpic := -fPIC
    CFLAGS := $(filter-out -O2, $(CFLAGS))
    CFLAGS += -O3 -ftree-vectorize
@@ -351,7 +357,8 @@ else ifeq ($(platform), rpi3)
 else ifeq ($(platform), rpi3_64)
 	TARGET := $(TARGET_NAME)_libretro.so
 	ARCH := arm64
-	BUILTIN_GPU = unai
+	BUILTIN_GPU = neon
+	HAVE_NEON = 1
 	DYNAREC = ari64
 	fpic := -fPIC
 	CFLAGS += -march=armv8-a+crc+simd -mtune=cortex-a53 -ftree-vectorize
@@ -372,8 +379,9 @@ else ifeq ($(platform), rpi4)
 else ifeq ($(platform), rpi4_64)
         TARGET := $(TARGET_NAME)_libretro.so
         ARCH := arm64
-        BUILTIN_GPU = unai
-	DYNAREC = ari64
+        BUILTIN_GPU = neon
+        HAVE_NEON = 1
+        DYNAREC = ari64
         fpic := -fPIC
         CFLAGS += -march=armv8-a+crc+simd -mtune=cortex-a72 -ftree-vectorize
 
