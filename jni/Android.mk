@@ -185,6 +185,11 @@ else ifeq ($(TARGET_ARCH_ABI),armeabi)
   SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
+else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
+  COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
+  COREFLAGS   += -DGPU_NEON -DSIMD_BUILD
+  SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c \
+                 $(NEON_DIR)/psx_gpu/psx_gpu_simd.c
 else
   COREFLAGS += -fno-strict-aliasing -DGPU_PEOPS
   SOURCES_C += $(PEOPS_DIR)/gpulib_if.c
