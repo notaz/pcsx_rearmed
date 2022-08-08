@@ -1864,7 +1864,7 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_peops.iUseDither = 0;
          pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
          pl_rearmed_cbs.gpu_unai.dithering = 0;
-#ifdef __ARM_NEON__
+#ifdef GPU_NEON
          pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
 #endif
       }
@@ -1873,7 +1873,7 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_peops.iUseDither    = 1;
          pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
          pl_rearmed_cbs.gpu_unai.dithering = 1;
-#ifdef __ARM_NEON__
+#ifdef GPU_NEON
          pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
 #endif
       }

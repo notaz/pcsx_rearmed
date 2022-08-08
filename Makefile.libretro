@@ -149,6 +149,7 @@ else
 	CXX = c++ -arch armv7 -isysroot $(IOSSDK)
 	ARCH := arm
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	BUILTIN_GPU = neon
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
@@ -241,6 +242,7 @@ else ifeq ($(platform), vita)
 
 #	CFLAGS += -U__ARM_NEON__
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	BUILTIN_GPU = neon
 
 	DYNAREC = ari64
@@ -299,6 +301,7 @@ else ifeq ($(platform), qnx)
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	DYNAREC = ari64
 	BUILTIN_GPU = neon
 	ARCH = arm
@@ -327,6 +330,7 @@ else ifeq ($(platform), rpi2)
 	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
@@ -338,6 +342,7 @@ else ifeq ($(platform), rpi3)
 	CFLAGS += -marm -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
@@ -358,6 +363,7 @@ else ifeq ($(platform), rpi4)
 	CFLAGS += -marm -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
@@ -392,6 +398,7 @@ else ifeq ($(platform), classic_armv7_a7)
 	CPPFLAGS += $(CFLAGS)
 	ASFLAGS += $(CFLAGS)
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
@@ -414,6 +421,7 @@ else ifeq ($(platform), classic_armv8_a35)
 	-fmerge-all-constants -fno-math-errno -march=armv8-a \
 	-marm -mcpu=cortex-a35 -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	HAVE_NEON = 1
+	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
@@ -443,6 +451,7 @@ else ifneq (,$(findstring armv,$(platform)))
 		CFLAGS += -mfpu=neon
 		ASFLAGS += -mfpu=neon
 		HAVE_NEON = 1
+		HAVE_NEON_ASM = 1
 		BUILTIN_GPU = neon
 	endif
 	ifneq (,$(findstring softfloat,$(platform)))

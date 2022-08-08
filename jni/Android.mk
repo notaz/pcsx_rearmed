@@ -174,12 +174,14 @@ endif
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP -DGPU_NEON
+  COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
   SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
                  $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
                  $(FRONTEND_DIR)/cspace_neon.S
   SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
-  COREFLAGS += -DUSE_GPULIB=1 -DGPU_UNAI
+  COREFLAGS   += -DUSE_GPULIB=1 -DGPU_UNAI
+  COREFLAGS   += -DHAVE_bgr555_to_rgb565
   SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp

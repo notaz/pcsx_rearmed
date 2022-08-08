@@ -235,7 +235,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
    },
 #endif /* NEW_DYNAREC */
 
-#ifdef __ARM_NEON__
+#ifdef GPU_NEON
    {
       "pcsx_rearmed_neon_interlace_enable",
       "Interlacing Mode'u etkinleştir",
@@ -272,7 +272,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
       },
       NULL
    },
-#endif /* __ARM_NEON__ */
+#endif /* GPU_NEON */
 
    {
       "pcsx_rearmed_duping_enable",
