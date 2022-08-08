@@ -145,8 +145,8 @@ ifeq ($(platform),ios-arm64)
         CC = cc -arch arm64 -isysroot $(IOSSDK)
 	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
 	ARCH := arm64
-	HAVE_NEON = 0
-	BUILTIN_GPU = peops
+	BUILTIN_GPU = neon
+	HAVE_NEON = 1
 	DYNAREC = 0
 else
 	CC = cc -arch armv7 -isysroot $(IOSSDK)
@@ -183,8 +183,8 @@ endif
         CC = cc -arch arm64 -isysroot $(IOSSDK)
 	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
 	ARCH := arm64
-	HAVE_NEON = 0
-	BUILTIN_GPU = peops
+	BUILTIN_GPU = neon
+	HAVE_NEON = 1
 	DYNAREC = 0
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 
