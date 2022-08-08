@@ -50,6 +50,7 @@ have_armv5=""
 have_armv6=""
 have_armv7=""
 have_arm_neon=""
+have_arm_neon_asm=""
 have_tslib=""
 have_gles=""
 have_c64x_dsp=""
@@ -213,7 +214,7 @@ arm*)
   fi
 
   if [ "x$have_arm_neon" = "x" ]; then
-    # detect NEON from user-supplied cflags to enable asm code
+    # detect NEON from user-supplied cflags to enable neon code
     have_arm_neon=`check_define __ARM_NEON__ && echo yes` || true
   fi
   if [ "x$have_armv7" = "x" ]; then
@@ -278,8 +279,14 @@ arm*)
     echo "You probably want to specify -mcpu= or -march= like this:"
     echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
+  have_arm_neon_asm=$have_arm_neon
   ;;
 aarch64)
+  have_arm_neon="yes"
+  have_arm_neon_asm="no"
+  if [ "x$builtin_gpu" = "x" ]; then
+    builtin_gpu="neon"
+  fi
   ;;
 *)
   # dynarec only available on ARM
@@ -508,6 +515,7 @@ done
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
+test "x$have_arm_neon_asm" != "x" || have_arm_neon_asm="no"
 test "x$have_gles" != "x" || have_gles="no"
 test "x$have_c64x_dsp" != "x" || have_c64x_dsp="no"
 
@@ -521,9 +529,11 @@ echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
+if [ "$ARCH" = "arm" -o "$ARCH" = "aarch64" ]; then
+  echo "enable ARM NEON     $have_arm_neon"
+fi
 if [ "$ARCH" = "arm" ]; then
   echo "ARMv7 optimizations $have_armv7"
-  echo "enable ARM NEON     $have_arm_neon"
   echo "TI C64x DSP support $have_c64x_dsp"
 fi
 echo "tslib support       $have_tslib"
@@ -557,6 +567,9 @@ echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
 echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
+fi
+if [ "$have_arm_neon_asm" = "yes" ]; then
+  echo "HAVE_NEON_ASM = 1" >> $config_mak
 fi
 if [ "$have_tslib" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak

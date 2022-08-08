@@ -50,7 +50,7 @@ OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
@@ -62,7 +62,7 @@ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
  ifeq "$(ARCH)" "arm"
  OBJS += libpcsxcore/new_dynarec/linkage_arm.o
  libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
- else ifeq "$(ARCH)" "aarch64"
+ else ifneq (,$(findstring $(ARCH),aarch64 arm64))
  OBJS += libpcsxcore/new_dynarec/linkage_arm64.o
  libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm64.c
  else
@@ -119,9 +119,17 @@ endif
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(BUILTIN_GPU)" "neon"
-OBJS += plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
+OBJS += plugins/gpu_neon/psx_gpu_if.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_NEON
+ ifeq "$(HAVE_NEON_ASM)" "1"
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
+ else
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_simd.o
+ plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DSIMD_BUILD
+ plugins/gpu_neon/psx_gpu/psx_gpu_simd.o: CFLAGS += -DSIMD_BUILD
+ endif
 endif
 ifeq "$(BUILTIN_GPU)" "peops"
 # note: code is not safe for strict-aliasing? (Castlevania problems)
@@ -168,11 +176,13 @@ OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
 
 # frontend/gui
 OBJS += frontend/cspace.o
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/cspace_neon.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
 else
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/cspace_arm.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565
 endif
 endif
 
@@ -235,7 +245,7 @@ OBJS += frontend/plugin_lib.o
 OBJS += frontend/libpicofe/linux/plat.o
 OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
 frontend/libpicofe/linux/plat.o: CFLAGS += -DNO_HOME_DIR
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o
 frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB

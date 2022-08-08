@@ -22,7 +22,7 @@
 #define LE16TOHx2(x) (x)
 #endif
 
-#ifndef __arm__
+#ifndef HAVE_bgr555_to_rgb565
 
 void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 {
@@ -43,7 +43,7 @@ void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 
 #endif
 
-#ifndef __ARM_NEON__
+#ifndef HAVE_bgr888_to_x
 
 void bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
 {
