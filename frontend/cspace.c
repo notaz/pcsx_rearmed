@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2011,2012
+ * (C) Gražvydas "notaz" Ignotas, 2011,2012,2022
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -22,7 +22,74 @@
 #define LE16TOHx2(x) (x)
 #endif
 
-#ifndef HAVE_bgr555_to_rgb565
+#if defined(HAVE_bgr555_to_rgb565)
+
+/* have bgr555_to_rgb565 somewhere else */
+
+#elif ((defined(__clang_major__) && __clang_major__ >= 4) \
+        || (defined(__GNUC__) && __GNUC__ >= 5)) \
+       && __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__
+
+#include <stdint.h>
+#include <assert.h>
+
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#include <arm_neon.h>
+#define gsli(d_, s_, n_) d_ = vsliq_n_u16(d_, s_, n_)
+#define gsri(d_, s_, n_) d_ = vsriq_n_u16(d_, s_, n_)
+#else
+#define gsli(d_, s_, n_) d_ |= s_ << n_
+#define gsri(d_, s_, n_) d_ |= s_ >> n_
+#endif
+
+typedef uint16_t gvu16  __attribute__((vector_size(16),aligned(16)));
+typedef uint16_t gvu16u __attribute__((vector_size(16),aligned(2)));
+#define gdup(v_) {v_, v_, v_, v_, v_, v_, v_, v_}
+#define do_one(s) ({ \
+  uint16_t d_ = (s) << 1; d_ = (d_ & 0x07c0) | (d_ << 10) | (d_ >> 11); d_; \
+})
+#define do_one_simd(d_, s_, c0x07c0_) { \
+  gvu16 s1 = s_ << 1; \
+  d_ = s1 & c0x07c0_; \
+  gsli(d_, s_, 11); \
+  gsri(d_, s1, 11); \
+}
+
+void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_, int bytes)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint16_t * __restrict__ dst = dst_;
+	gvu16 c0x07c0 = gdup(0x07c0);
+
+	assert(!(((uintptr_t)dst | (uintptr_t)src | bytes) & 1));
+
+	// align the destination
+	if ((uintptr_t)dst & 0x0e)
+	{
+		uintptr_t left = 0x10 - ((uintptr_t)dst & 0x0e);
+		gvu16 d, s = *(const gvu16u *)src;
+		do_one_simd(d, s, c0x07c0);
+		*(gvu16u *)dst = d;
+		dst += left / 2;
+		src += left / 2;
+		bytes -= left;
+	}
+	// go
+	for (; bytes >= 16; dst += 8, src += 8, bytes -= 16)
+	{
+		gvu16 d, s = *(const gvu16u *)src;
+		do_one_simd(d, s, c0x07c0);
+		*(gvu16 *)dst = d;
+		__builtin_prefetch(src + 128/2);
+	}
+	// finish it
+	for (; bytes > 0; dst++, src++, bytes -= 2)
+		*dst = do_one(*src);
+}
+#undef do_one
+#undef do_one_simd
+
+#else
 
 void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 {
