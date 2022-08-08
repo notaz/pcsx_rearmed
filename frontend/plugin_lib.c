@@ -473,7 +473,7 @@ static int dispmode_default(void)
 	return 1;
 }
 
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 static int dispmode_doubleres(void)
 {
 	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
@@ -485,7 +485,9 @@ static int dispmode_doubleres(void)
 	snprintf(hud_msg, sizeof(hud_msg), "double resolution");
 	return 1;
 }
+#endif
 
+#ifdef __ARM_NEON__
 static int dispmode_scale2x(void)
 {
 	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
@@ -511,8 +513,10 @@ static int dispmode_eagle2x(void)
 
 static int (*dispmode_switchers[])(void) = {
 	dispmode_default,
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 	dispmode_doubleres,
+#endif
+#ifdef __ARM_NEON__
 	dispmode_scale2x,
 	dispmode_eagle2x,
 #endif

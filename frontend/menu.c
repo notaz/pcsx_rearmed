@@ -1344,7 +1344,7 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 
 static const char h_gpu_neon[] =
 	"Configure built-in NEON GPU plugin";
@@ -1490,7 +1490,7 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 				   "savestates and can't be changed there. Must save\n"
 				   "config and reload the game for change to take effect";
 static const char h_plugin_gpu[] = 
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 				   "builtin_gpu is the NEON GPU, very fast and accurate\n"
 #endif
 				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
@@ -1509,7 +1509,7 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
 #endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
@@ -1964,7 +1964,7 @@ static const char credits_text[] =
 	"(C) 2005-2009 PCSX-df Team\n"
 	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
 	"ARM recompiler (C) 2009-2011 Ari64\n"
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 	"ARM NEON GPU (c) 2011-2012 Exophase\n"
 #endif
 	"PEOpS GPU and SPU by Pete Bernert\n"

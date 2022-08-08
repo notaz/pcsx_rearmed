@@ -81,7 +81,7 @@ endif
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
@@ -186,13 +186,16 @@ OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(BUILTIN_GPU)" "neon"
 CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o
-ifeq "$(HAVE_NEON)" "1"
-OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-else
-plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-endif
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_NEON
+ ifeq "$(HAVE_NEON_ASM)" "1"
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
+ else
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_simd.o
+ plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DSIMD_BUILD
+ plugins/gpu_neon/psx_gpu/psx_gpu_simd.o: CFLAGS += -DSIMD_BUILD
+ endif
 endif
 ifeq "$(BUILTIN_GPU)" "peops"
 CFLAGS += -DGPU_PEOPS
@@ -256,11 +259,13 @@ endif
 
 # frontend/gui
 OBJS += frontend/cspace.o
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/cspace_neon.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
 else
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/cspace_arm.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565
 endif
 endif
 
@@ -340,7 +345,7 @@ OBJS += frontend/plugin_lib.o
 OBJS += frontend/libpicofe/linux/plat.o
 OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
 frontend/libpicofe/linux/plat.o: CFLAGS += -DNO_HOME_DIR
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o
 frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB
