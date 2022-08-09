@@ -27,6 +27,7 @@ FUNCTION(bgr555_to_rgb565): @ dst, src, bytes
     beq         0f
     @ align the dst
     vld1.16     {d0}, [r1]!
+    sub         r2, r2, #8
     vshl.u16    d0, d0, #1
     vshl.u16    d1, d0, #10
     vsri.u16    d1, d0, #11
