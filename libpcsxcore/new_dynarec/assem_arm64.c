@@ -23,8 +23,6 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#define unused __attribute__((unused))
-
 void do_memhandler_pre();
 void do_memhandler_post();
 
@@ -619,6 +617,10 @@ static void emit_addimm_s(u_int s, u_int is64, u_int rs, uintptr_t imm, u_int rt
 
 static void emit_addimm(u_int rs, uintptr_t imm, u_int rt)
 {
+  if (imm == 0) {
+    emit_mov(rs, rt);
+    return;
+  }
   emit_addimm_s(0, 0, rs, imm, rt);
 }
 
@@ -988,9 +990,11 @@ static void emit_cb(u_int isnz, u_int is64, const void *a, u_int r)
   output_w32(0x34000000 | is64 | isnz | imm19_rt(offset, r));
 }
 
-static unused void emit_cbz(const void *a, u_int r)
+static void *emit_cbz(u_int r, const void *a)
 {
+  void *ret = out;
   emit_cb(0, 0, a, r);
+  return ret;
 }
 
 static void emit_jmpreg(u_int r)
@@ -1198,14 +1202,11 @@ static void emit_clz(u_int rs, u_int rt)
 }
 
 // special case for checking invalid_code
-static void emit_cmpmem_indexedsr12_reg(u_int rbase, u_int r, u_int imm)
+static void emit_ldrb_indexedsr12_reg(u_int rbase, u_int r, u_int rt)
 {
-  host_tempreg_acquire();
-  emit_shrimm(r, 12, HOST_TEMPREG);
-  assem_debug("ldrb %s,[%s,%s,uxtw]\n",regname[HOST_TEMPREG],regname64[rbase],regname[HOST_TEMPREG]);
-  output_w32(0x38604800 | rm_rn_rd(HOST_TEMPREG, rbase, HOST_TEMPREG));
-  emit_cmpimm(HOST_TEMPREG, imm);
-  host_tempreg_release();
+  emit_shrimm(r, 12, rt);
+  assem_debug("ldrb %s,[%s,%s,uxtw]\n",regname[rt],regname64[rbase],regname[rt]);
+  output_w32(0x38604800 | rm_rn_rd(rt, rbase, rt));
 }
 
 // special for loadlr_assemble, rs2 is destroyed
