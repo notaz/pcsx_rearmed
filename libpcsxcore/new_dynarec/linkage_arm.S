@@ -30,7 +30,7 @@
 #define ndrc_try_restore_block	ESYM(ndrc_try_restore_block)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
 #define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
-#define ndrc_invalidate_addr	ESYM(ndrc_invalidate_addr)
+#define ndrc_write_invalidate_one ESYM(ndrc_write_invalidate_one)
 #define gen_interupt		ESYM(gen_interupt)
 #define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
@@ -401,7 +401,7 @@ invalidate_addr_call:
 	ldr	lr, [fp, #LO_inv_code_end]
 	cmp	r0, r12
 	cmpcs   lr, r0
-	blcc	ndrc_invalidate_addr
+	blcc	ndrc_write_invalidate_one
 	ldmia	fp, {r0, r1, r2, r3, EXTRA_UNSAVED_REGS r12, pc}
 	.size	invalidate_addr_call, .-invalidate_addr_call
 

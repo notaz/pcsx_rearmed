@@ -27,8 +27,6 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
-#define unused __attribute__((unused))
-
 #ifdef DRC_DBG
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -1033,6 +1031,15 @@ static void emit_jcc(const void *a_)
   output_w32(0x3a000000|offset);
 }
 
+static void *emit_cbz(int rs, const void *a)
+{
+  void *ret;
+  emit_test(rs, rs);
+  ret = out;
+  emit_jeq(a);
+  return ret;
+}
+
 static unused void emit_callreg(u_int r)
 {
   assert(r<15);
@@ -1392,13 +1399,10 @@ static void emit_cmov2imm_e_ne_compact(int imm1,int imm2,u_int rt)
 }
 
 // special case for checking invalid_code
-static void emit_cmpmem_indexedsr12_reg(int base,int r,int imm)
+static void emit_ldrb_indexedsr12_reg(int base, int r, int rt)
 {
-  assert(imm<128&&imm>=0);
-  assert(r>=0&&r<16);
-  assem_debug("ldrb lr,%s,%s lsr #12\n",regname[base],regname[r]);
-  output_w32(0xe7d00000|rd_rn_rm(HOST_TEMPREG,base,r)|0x620);
-  emit_cmpimm(HOST_TEMPREG,imm);
+  assem_debug("ldrb %s,%s,%s lsr #12\n",regname[rt],regname[base],regname[r]);
+  output_w32(0xe7d00000|rd_rn_rm(rt,base,r)|0x620);
 }
 
 static void emit_callne(int a)
