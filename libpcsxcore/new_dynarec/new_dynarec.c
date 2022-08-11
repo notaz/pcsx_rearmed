@@ -3179,10 +3179,10 @@ static void do_invstub(int n)
 
   set_jump_target(stubs[n].addr, out);
   save_regs(reglist);
-  emit_readword(&inv_code_start, 2);
-  emit_readword(&inv_code_end, 3);
   if (addrr != 0 || ofs_start != 0)
     emit_addimm(addrr, ofs_start, 0);
+  emit_readword(&inv_code_start, 2);
+  emit_readword(&inv_code_end, 3);
   if (len != 0)
     emit_addimm(0, len + 4, (rightr = 1));
   emit_cmp(0, 2);
