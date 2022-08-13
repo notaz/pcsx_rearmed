@@ -3122,7 +3122,7 @@ void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 
 
 #define setup_sprite_tile_fetch_texel_block_8bpp(offset)                       \
-  texture_block_ptr = psx_gpu->texture_page_ptr +                              \
+  texture_block_ptr = (u8 *)psx_gpu->texture_page_ptr +                        \
    ((texture_offset + offset) & texture_mask);                                 \
                                                                                \
   load_64b(texels, texture_block_ptr)                                          \
@@ -3230,7 +3230,7 @@ void texture_sprite_blocks_8bpp(psx_gpu_struct *psx_gpu)
 
 #define setup_sprite_tile_half_8bpp(edge)                                      \
 {                                                                              \
-  setup_sprite_tile_add_blocks(sub_tile_height * 2);                           \
+  setup_sprite_tile_add_blocks(sub_tile_height);                               \
                                                                                \
   while(sub_tile_height)                                                       \
   {                                                                            \
@@ -3684,7 +3684,7 @@ void setup_sprite_##texture_mode##x4mode(psx_gpu_struct *psx_gpu, s32 x, s32 y,\
   u32 num_blocks = psx_gpu->num_blocks;                                        \
   block_struct *block = psx_gpu->blocks + num_blocks;                          \
                                                                                \
-  u16 *texture_block_ptr;                                                      \
+  u8 *texture_block_ptr;                                                       \
   vec_8x8u texels;                                                             \
                                                                                \
   setup_sprite_tiled_initialize_##texture_mode##x4mode();                      \
