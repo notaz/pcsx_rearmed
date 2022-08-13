@@ -2912,7 +2912,7 @@ void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
 #define setup_sprite_tile_half_8bpp(edge)                                      \
 {                                                                              \
-  setup_sprite_tile_add_blocks(sub_tile_height * 2);                           \
+  setup_sprite_tile_add_blocks(sub_tile_height);                               \
                                                                                \
   while(sub_tile_height)                                                       \
   {                                                                            \
@@ -3497,7 +3497,7 @@ void setup_sprite_8bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
 void scale2x_tiles8(void * __restrict__ dst_, const void * __restrict__ src_, int w8, int h)
 {
 #if 0
-  scale2x_tiles8_(dst, src_, w8, h);
+  scale2x_tiles8_(dst_, src_, w8, h);
   return;
 #endif
   const u16 * __restrict__ src = src_;
