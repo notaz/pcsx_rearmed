@@ -1600,9 +1600,9 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */         \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 };                              \
                                                                                \
   vpop { uvrg_dx4 };                                                           \
   vpop { texture_mask };                                                       \
@@ -1799,9 +1799,9 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */         \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 };                              \
                                                                                \
   vpop { uvrg_dx4 };                                                           \
   vpop { texture_mask };                                                       \
