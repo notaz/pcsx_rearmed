@@ -103,7 +103,7 @@
   foreach_element(2, (dest).e[_i] = (u32)(source).e[_i] >> (shift))            \
 
 #define shr_4x16b(dest, source, shift)                                         \
-  foreach_element(4, (dest).e[_i] = (source).e[_i] >> (shift))                 \
+  foreach_element(4, (dest).e[_i] = (u16)(source).e[_i] >> (shift))            \
 
 #define shl_4x16b(dest, source, shift)                                         \
   foreach_element(4, (dest).e[_i] = (u32)(source).e[_i] << (shift))            \

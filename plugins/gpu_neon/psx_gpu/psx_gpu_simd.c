@@ -313,7 +313,7 @@ typedef union
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-static int ccount;
+static int ccount, dump_enabled;
 void cmpp(const char *name, const void *a_, const void *b_, size_t len)
 {
   const uint32_t *a = a_, *b = b_, masks[] = { 0, 0xff, 0xffff, 0xffffff };
@@ -336,8 +336,9 @@ void cmpp(const char *name, const void *a_, const void *b_, size_t len)
 void dump_r_(const char *name, void *dump, int is_q)
 {
   unsigned long long *u = dump;
+  if (!dump_enabled) return;
   //if (ccount > 1) return;
-  printf("%10s %016llx ", name, u[0]);
+  printf("%20s %016llx ", name, u[0]);
   if (is_q)
     printf("%016llx", u[1]);
   puts("");
@@ -497,7 +498,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 
   gvreg uvrg_base;
   gvshll_n_u16(uvrg_base, gvlo(uvrg_xxxx0), 16); // uvrg_base = uvrg0 << 16
-  gvdupq_n_u32(r_shift, shift);         // r_shift = { shift, shift, shift, shift }
+  gvdupq_n_s64(r_shift, shift);         // r_shift = { shift, shift }
 
   gvaddq_u32(uvrg_base, uvrg_base, uvrgb_phase);
   gvabsq_s32(ga_uvrg_x, ga_uvrg_x);     // ga_uvrg_x = abs(ga_uvrg_x)
@@ -600,7 +601,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   vec_2x64s alternate_x;                                                       \
   vec_2x64s alternate_dx_dy;                                                   \
   vec_4x32s alternate_x_32;                                                    \
-  vec_2x32s alternate_x_16;                                                    \
+  vec_4x16u alternate_x_16;                                                    \
                                                                                \
   vec_4x16u alternate_select;                                                  \
   vec_4x16s y_mid_point;                                                       \

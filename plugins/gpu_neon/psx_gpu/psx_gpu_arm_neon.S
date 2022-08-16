@@ -369,8 +369,8 @@ function(compute_all_gradients)
   sub r14, r14, #(62 - 12)           @ r14 = shift - (62 - FIXED_BITS)
 
   vshll.u16 uvrg_base, uvrg0, #16    @ uvrg_base = uvrg0 << 16
-  vdup.u32 r_shift, r14              @ r_shift = { shift, shift, shift, shift }
-
+  vdup.u32 r_shift, r14              @ r_shift = { shift, shift*, shift, shift* }
+                                     @ * - vshl.u64: ignored by hw
   vadd.u32 uvrg_base, uvrgb_phase
   vabs.s32 ga_uvrg_x, ga_uvrg_x      @ ga_uvrg_x = abs(ga_uvrg_x)
 
