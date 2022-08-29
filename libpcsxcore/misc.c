@@ -56,11 +56,10 @@ struct iso_directory_record {
 	char name			[1];
 };
 
-static void mmssdd( char *b, char *p )
+void mmssdd( char *b, char *p )
 {
 	int m, s, d;
-	unsigned char *ub = (void *)b;
-	int block = (ub[3] << 24) | (ub[2] << 16) | (ub[1] << 8) | ub[0];
+	int block = SWAP32(*((uint32_t*) b));
 
 	block += 150;
 	m = block / 4500;			// minutes
