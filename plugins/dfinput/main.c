@@ -8,13 +8,6 @@
  * See the COPYING file in the top-level directory.
  */
 
-#ifndef _WIN32
-#define CALLBACK
-#else
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
 #include "main.h"
 
 unsigned char CurPad, CurByte, CurCmd, CmdLen;
