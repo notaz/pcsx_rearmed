@@ -15,14 +15,11 @@
 #include "../libpcsxcore/system.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
-#ifndef _WIN32
+// this can't be __stdcall like it was in PSEmu API as too many functions are mixed up
+#undef CALLBACK
 #define CALLBACK
-#else
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
 
-static int dummy_func() {
+static long CALLBACK dummy_func() {
 	return 0;
 }
 
@@ -49,7 +46,7 @@ extern void CALLBACK SPUasync(unsigned int, unsigned int);
 extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 
 /* PAD */
-static long PADreadPort1(PadDataS *pad) {
+static long CALLBACK PADreadPort1(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];
@@ -80,7 +77,7 @@ static long PADreadPort1(PadDataS *pad) {
 	return 0;
 }
 
-static long PADreadPort2(PadDataS *pad) {
+static long CALLBACK PADreadPort2(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];

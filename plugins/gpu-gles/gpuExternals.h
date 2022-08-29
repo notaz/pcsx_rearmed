@@ -288,7 +288,7 @@ extern unsigned char  gl_vy[8];
 extern OGLVertex      vertex[4];
 extern short          sprtY,sprtX,sprtH,sprtW;
 #ifdef _WINDOWS
-extern HWND           hWWindow;
+//extern HWND           hWWindow;
 #endif
 extern BOOL           bIsFirstFrame;
 extern int            iWinSize;

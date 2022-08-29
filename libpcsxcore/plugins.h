@@ -25,20 +25,9 @@ extern "C" {
 #endif
 
 #include "psxcommon.h"
+#include "psemu_plugin_defs.h"
 
 //#define ENABLE_SIO1API 1
-
-#ifndef _WIN32
-
-typedef void* HWND;
-#define CALLBACK
-
-#else
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-#endif
 
 typedef long (CALLBACK *GPUopen)(unsigned long *, char *, char *);
 typedef long (CALLBACK *SPUopen)(void);
@@ -47,8 +36,6 @@ typedef long (CALLBACK *NETopen)(unsigned long *);
 typedef long (CALLBACK *SIO1open)(unsigned long *);
 
 #include "spu.h"
-
-#include "psemu_plugin_defs.h"
 #include "decode_xa.h"
 
 int LoadPlugins();

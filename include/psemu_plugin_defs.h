@@ -5,6 +5,10 @@
 extern "C" {
 #endif
 
+// this can't be __stdcall like it was in PSEmu API as too many functions are mixed up
+#undef CALLBACK
+#define CALLBACK
+
 // header version
 #define _PPDK_HEADER_VERSION		3
 
