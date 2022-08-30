@@ -94,6 +94,7 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
 // small linux time helper... only used for watchdog
 ////////////////////////////////////////////////////////////////////////
 
+#if 0
 static unsigned long timeGetTime_spu()
 {
 #if defined(NO_OS)
@@ -106,6 +107,7 @@ static unsigned long timeGetTime_spu()
  return tv.tv_sec * 1000 + tv.tv_usec/1000;            // to do that, but at least it works
 #endif
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 // FEED XA 
@@ -133,6 +135,7 @@ INLINE void FeedXA(xa_decode_t *xap)
  if(iPlace==0) return;                                 // no place at all
 
  //----------------------------------------------------//
+#if 0
  if(spu_config.iXAPitch)                               // pitch change option?
   {
    static DWORD dwLT=0;
@@ -169,6 +172,7 @@ INLINE void FeedXA(xa_decode_t *xap)
      if(iLastSize) iSize=iLastSize;
     }
   }
+#endif
  //----------------------------------------------------//
 
  spos=0x10000L;
@@ -179,6 +183,7 @@ INLINE void FeedXA(xa_decode_t *xap)
    uint32_t * pS=(uint32_t *)xap->pcm;
    uint32_t l=0;
 
+#if 0
    if(spu_config.iXAPitch)
     {
      int32_t l1,l2;short s;
@@ -238,6 +243,7 @@ INLINE void FeedXA(xa_decode_t *xap)
       }
     }
    else
+#endif
     {
      for(i=0;i<iSize;i++)
       {
@@ -290,6 +296,7 @@ INLINE void FeedXA(xa_decode_t *xap)
    unsigned short * pS=(unsigned short *)xap->pcm;
    uint32_t l;short s=0;
 
+#if 0
    if(spu_config.iXAPitch)
     {
      int32_t l1;
@@ -337,6 +344,7 @@ INLINE void FeedXA(xa_decode_t *xap)
       }
     }
    else
+#endif
     {
      for(i=0;i<iSize;i++)
       {
