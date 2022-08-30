@@ -1486,7 +1486,7 @@ static menu_entry e_menu_plugin_spu[] =
 	mee_range_h   ("Volume boost",              0, volume_boost, -5, 30, h_spu_volboost),
 	mee_onoff     ("Reverb",                    0, spu_config.iUseReverb, 1),
 	mee_enum      ("Interpolation",             0, spu_config.iUseInterpolation, men_spu_interp),
-	mee_onoff     ("Adjust XA pitch",           0, spu_config.iXAPitch, 1),
+	//mee_onoff     ("Adjust XA pitch",           0, spu_config.iXAPitch, 1),
 	mee_onoff_h   ("Adjust tempo",              0, spu_config.iTempo, 1, h_spu_tempo),
 	mee_end,
 };
