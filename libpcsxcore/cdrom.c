@@ -985,6 +985,7 @@ void cdrInterrupt() {
 			*/
 			CDRMISC_INT(cdr.Seeked == SEEK_DONE ? 0x800 : cdReadTime * 4);
 			cdr.Seeked = SEEK_PENDING;
+			memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 			start_rotating = 1;
 			break;
 
