@@ -44,7 +44,75 @@
 #endif
 //#define CDR_LOG_CMD_IRQ
 
-cdrStruct cdr;
+static struct {
+	unsigned char OCUP;
+	unsigned char Reg1Mode;
+	unsigned char Reg2;
+	unsigned char CmdProcess;
+	unsigned char Ctrl;
+	unsigned char Stat;
+
+	unsigned char StatP;
+
+	unsigned char Transfer[DATA_SIZE];
+	struct {
+		unsigned char Track;
+		unsigned char Index;
+		unsigned char Relative[3];
+		unsigned char Absolute[3];
+	} subq;
+	unsigned char TrackChanged;
+	boolean m_locationChanged;
+	unsigned char pad1[2];
+	unsigned int  freeze_ver;
+
+	unsigned char Prev[4];
+	unsigned char Param[8];
+	unsigned char Result[16];
+
+	unsigned char ParamC;
+	unsigned char ParamP;
+	unsigned char ResultC;
+	unsigned char ResultP;
+	unsigned char ResultReady;
+	unsigned char Cmd;
+	unsigned char Readed;
+	unsigned char SetlocPending;
+	u32 Reading;
+
+	unsigned char ResultTN[6];
+	unsigned char ResultTD[4];
+	unsigned char SetSectorPlay[4];
+	unsigned char SetSectorEnd[4];
+	unsigned char SetSector[4];
+	unsigned char Track;
+	boolean Play, Muted;
+	int CurTrack;
+	int Mode, File, Channel;
+	int Reset;
+	int NoErr;
+	int FirstSector;
+
+	xa_decode_t Xa;
+
+	int Init;
+
+	u16 Irq;
+	u8 IrqRepeated;
+	u32 eCycle;
+
+	u8 Seeked;
+
+	u8 DriveState;
+	u8 FastForward;
+	u8 FastBackward;
+	u8 pad;
+
+	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
+	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
+	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
+	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
+} cdr;
 static unsigned char *pTransfer;
 static s16 read_buf[CD_FRAMESIZE_RAW/2];
 
@@ -81,7 +149,8 @@ static s16 read_buf[CD_FRAMESIZE_RAW/2];
 #define CdlGetQ        29
 #define CdlReadToc     30
 
-char *CmdName[0x100]= {
+#ifdef CDR_LOG_CMD_IRQ
+static const char * const CmdName[0x100] = {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
     "CdlStop",     "CdlPause",     "CdlReset",    "CdlMute",
@@ -91,6 +160,7 @@ char *CmdName[0x100]= {
     "CdlGetclock", "CdlTest",      "CdlID",      "CdlReadS",
     "CdlInit",     NULL,           "CDlReadToc", NULL
 };
+#endif
 
 unsigned char Test04[] = { 0 };
 unsigned char Test05[] = { 0 };
@@ -227,10 +297,21 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	cdr.ResultReady = 1; \
 }
 
-static void setIrq(void)
+static void setIrq(int log_cmd)
 {
 	if (cdr.Stat & cdr.Reg2)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+
+#ifdef CDR_LOG_CMD_IRQ
+	{
+		int i;
+		SysPrintf("CDR IRQ=%d cmd %02x stat %02x: ",
+			!!(cdr.Stat & cdr.Reg2), log_cmd, cdr.Stat);
+		for (i = 0; i < cdr.ResultC; i++)
+			SysPrintf("%02x ", cdr.Result[i]);
+		SysPrintf("\n");
+	}
+#endif
 }
 
 // timing used in this function was taken from tests on real hardware
@@ -446,7 +527,7 @@ static void cdrPlayInterrupt_Autopause()
 		//cdr.ResultReady = 1;
 		//cdr.Stat = DataReady;
 		cdr.Stat = DataEnd;
-		setIrq();
+		setIrq(0x200);
 
 		StopCdda();
 	}
@@ -484,7 +565,7 @@ static void cdrPlayInterrupt_Autopause()
 		cdr.Stat = DataReady;
 
 		SetResultSize(8);
-		setIrq();
+		setIrq(0x201);
 	}
 }
 
@@ -504,7 +585,7 @@ void cdrPlayInterrupt()
 		cdr.Seeked = SEEK_DONE;
 		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
-			setIrq();
+			setIrq(0x202);
 		}
 
 		if (cdr.SetlocPending) {
@@ -1088,19 +1169,8 @@ void cdrInterrupt() {
 	}
 
 finish:
-	setIrq();
+	setIrq(Irq);
 	cdr.ParamC = 0;
-
-#ifdef CDR_LOG_CMD_IRQ
-	{
-		int i;
-		SysPrintf("CDR IRQ %d cmd %02x stat %02x: ",
-			!!(cdr.Stat & cdr.Reg2), Irq, cdr.Stat);
-		for (i = 0; i < cdr.ResultC; i++)
-			SysPrintf("%02x ", cdr.Result[i]);
-		SysPrintf("\n");
-	}
-#endif
 }
 
 #ifdef HAVE_ARMV7
@@ -1257,7 +1327,7 @@ void cdrReadInterrupt() {
 
 	if (!(cdr.Mode & MODE_STRSND) || !(cdr.Transfer[4+2] & 0x4)) {
 		cdr.Stat = DataReady;
-		setIrq();
+		setIrq(0x203);
 	}
 
 	// update for CdlGetlocP
@@ -1289,13 +1359,13 @@ unsigned char cdrRead0(void) {
 	// What means the 0x10 and the 0x08 bits? I only saw it used by the bios
 	cdr.Ctrl |= 0x18;
 
-	CDR_LOG_IO("cdr r0: %02x\n", cdr.Ctrl);
+	CDR_LOG_IO("cdr r0.sta: %02x\n", cdr.Ctrl);
 
 	return psxHu8(0x1800) = cdr.Ctrl;
 }
 
 void cdrWrite0(unsigned char rt) {
-	CDR_LOG_IO("cdr w0: %02x\n", rt);
+	CDR_LOG_IO("cdr w0.idx: %02x\n", rt);
 
 	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
 }
@@ -1309,13 +1379,14 @@ unsigned char cdrRead1(void) {
 	if (cdr.ResultP == cdr.ResultC)
 		cdr.ResultReady = 0;
 
-	CDR_LOG_IO("cdr r1: %02x\n", psxHu8(0x1801));
+	CDR_LOG_IO("cdr r1.rsp: %02x #%u\n", psxHu8(0x1801), cdr.ResultP - 1);
 
 	return psxHu8(0x1801);
 }
 
 void cdrWrite1(unsigned char rt) {
-	CDR_LOG_IO("cdr w1: %02x\n", rt);
+	const char *rnames[] = { "cmd", "smd", "smc", "arr" }; (void)rnames;
+	CDR_LOG_IO("cdr w1.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
@@ -1333,6 +1404,7 @@ void cdrWrite1(unsigned char rt) {
 #ifdef CDR_LOG_CMD_IRQ
 	SysPrintf("CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
+		int i;
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
 		for (i = 0; i < cdr.ParamC; i++)
 			SysPrintf(" %x,", cdr.Param[i]);
@@ -1385,12 +1457,13 @@ unsigned char cdrRead2(void) {
 		ret = *pTransfer++;
 	}
 
-	CDR_LOG_IO("cdr r2: %02x\n", ret);
+	CDR_LOG_IO("cdr r2.dat: %02x\n", ret);
 	return ret;
 }
 
 void cdrWrite2(unsigned char rt) {
-	CDR_LOG_IO("cdr w2: %02x\n", rt);
+	const char *rnames[] = { "prm", "ien", "all", "arl" }; (void)rnames;
+	CDR_LOG_IO("cdr w2.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
@@ -1399,7 +1472,7 @@ void cdrWrite2(unsigned char rt) {
 		return;
 	case 1:
 		cdr.Reg2 = rt;
-		setIrq();
+		setIrq(0x204);
 		return;
 	case 2:
 		cdr.AttenuatorLeftToLeftT = rt;
@@ -1416,12 +1489,13 @@ unsigned char cdrRead3(void) {
 	else
 		psxHu8(0x1803) = cdr.Reg2 | 0xE0;
 
-	CDR_LOG_IO("cdr r3: %02x\n", psxHu8(0x1803));
+	CDR_LOG_IO("cdr r3.%s: %02x\n", (cdr.Ctrl & 1) ? "ifl" : "ien", psxHu8(0x1803));
 	return psxHu8(0x1803);
 }
 
 void cdrWrite3(unsigned char rt) {
-	CDR_LOG_IO("cdr w3: %02x\n", rt);
+	const char *rnames[] = { "req", "ifl", "alr", "ava" }; (void)rnames;
+	CDR_LOG_IO("cdr w3.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
 	case 0:
