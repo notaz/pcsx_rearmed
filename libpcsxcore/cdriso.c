@@ -1823,7 +1823,7 @@ static boolean CALLBACK ISOreadTrack(unsigned char *time) {
 // plays cdda audio
 // sector: byte 0 - minute; byte 1 - second; byte 2 - frame
 // does NOT uses bcd format
-static long CALLBACK ISOplay(void) {
+static long CALLBACK ISOplay(unsigned char *time) {
 	playing = TRUE;
 	return 0;
 }

@@ -49,7 +49,7 @@ static unsigned char *pTransfer;
 static s16 read_buf[CD_FRAMESIZE_RAW/2];
 
 /* CD-ROM magic numbers */
-#define CdlSync        0 /* nocash documentation : "Uh, actually, returns error code 40h = Invalid Command...?" */
+#define CdlSync        0  /* nocash documentation : "Uh, actually, returns error code 40h = Invalid Command...?" */
 #define CdlNop         1
 #define CdlSetloc      2
 #define CdlPlay        3
@@ -84,12 +84,12 @@ static s16 read_buf[CD_FRAMESIZE_RAW/2];
 char *CmdName[0x100]= {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
-    "CdlStop",     "CdlPause",     "CdlReset",   "CdlMute",
+    "CdlStop",     "CdlPause",     "CdlReset",    "CdlMute",
     "CdlDemute",   "CdlSetfilter", "CdlSetmode", "CdlGetparam",
     "CdlGetlocL",  "CdlGetlocP",   "CdlReadT",   "CdlGetTN",
     "CdlGetTD",    "CdlSeekL",     "CdlSeekP",   "CdlSetclock",
     "CdlGetclock", "CdlTest",      "CdlID",      "CdlReadS",
-    "CdlInit",    NULL,           "CDlReadToc", NULL
+    "CdlInit",     NULL,           "CDlReadToc", NULL
 };
 
 unsigned char Test04[] = { 0 };
@@ -639,7 +639,7 @@ void cdrInterrupt() {
 				// XXX: wrong, should seek instead..
 				cdr.Seeked = SEEK_DONE;
 			}
-
+			
 			cdr.FastBackward = 0;
 			cdr.FastForward = 0;
 
@@ -688,7 +688,7 @@ void cdrInterrupt() {
 
 			StopReading();
 			if (!Config.Cdda)
-				CDR_play();
+				CDR_play(cdr.SetSectorPlay);
 
 			// Vib Ribbon: gameplay checks flag
 			cdr.StatP &= ~STATUS_SEEK;
@@ -706,6 +706,7 @@ void cdrInterrupt() {
 		case CdlForward:
 			// TODO: error 80 if stopped
 			cdr.Stat = Complete;
+
 			// GameShark CD Player: Calls 2x + Play 2x
 			cdr.FastForward = 1;
 			cdr.FastBackward = 0;
@@ -715,7 +716,7 @@ void cdrInterrupt() {
 			cdr.Stat = Complete;
 
 			// GameShark CD Player: Calls 2x + Play 2x
-			cdr.FastBackward =1;
+			cdr.FastBackward = 1;
 			cdr.FastForward = 0;
 			break;
 
@@ -763,8 +764,10 @@ void cdrInterrupt() {
 			/*
 			Gundam Battle Assault 2: much slower (*)
 			- Fixes boot, gameplay
+
 			Hokuto no Ken 2: slower
 			- Fixes intro + subtitles
+
 			InuYasha - Feudal Fairy Tale: slower
 			- Fixes battles
 			*/
@@ -772,8 +775,6 @@ void cdrInterrupt() {
 			 * The timings from Duckstation are based upon hardware tests.
 			 * Mednafen's timing don't work for Gundam Battle Assault 2 in PAL/50hz mode,
 			 * seems to be timing sensitive as it can depend on the CPU's clock speed.
-			 * 
-			 * We will need to get around this for Bedlam/Rise 2 later...
 			 * */
 			if (cdr.DriveState == DRIVESTATE_STANDBY)
 			{
@@ -796,7 +797,7 @@ void cdrInterrupt() {
 
 		case CdlReset:
 			cdr.Muted = FALSE;
-			cdr.Mode = 0x20; /* Needed for This is Football 2, Pooh's Party and possibly others. */
+			cdr.Mode = 0x20; /* This fixes This is Football 2, Pooh's Party lockups */
 			AddIrqQueue(CdlReset + 0x100, 4100000);
 			no_busy_error = 1;
 			start_rotating = 1;
@@ -824,6 +825,7 @@ void cdrInterrupt() {
 			break;
 
 		case CdlGetparam:
+			/* Gameblabla : According to mednafen, Result size should be 5 and done this way. */
 			SetResultSize(5);
 			cdr.Result[1] = cdr.Mode;
 			cdr.Result[2] = 0;
@@ -1026,7 +1028,7 @@ void cdrInterrupt() {
 			- fixes cutscenes
 			C-12 - Final Resistance - doesn't like seek
 			*/
-
+			
 			/*	
 				By nicolasnoble from PCSX Redux :
 				"It LOOKS like this logic is wrong, therefore disabling it with `&& false` for now.
@@ -1036,6 +1038,7 @@ void cdrInterrupt() {
 				tries to protect itself against errors by preventing from issuing a GetLocP while it knows the
 				last status was "seek". But this makes the logic just softlock as it'll never get a notification
 				about the fact the drive is done seeking and the read actually started.
+
 				In other words, this state machine here is probably wrong in assuming the response to ReadS/ReadN is
 				done right away. It's rather when it's done seeking, and the read has actually started. This probably
 				requires a bit more work to make sure seek delays are processed properly.
@@ -1046,12 +1049,12 @@ void cdrInterrupt() {
 			*/
 			cdr.StatP |= STATUS_READ;
 			cdr.StatP &= ~STATUS_SEEK;
+
 			CDREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
 
 			cdr.Result[0] = cdr.StatP;
 			start_rotating = 1;
 			break;
-
 		case CdlSync:
 		default:
 			CDR_LOG_I("Invalid command: %02x\n", Irq);
@@ -1173,7 +1176,7 @@ void cdrReadInterrupt() {
 	if (buf == NULL)
 		cdr.NoErr = 0;
 
-	if (cdr.NoErr == 0) {
+	if (!cdr.NoErr) {
 		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
 		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdr.Stat = DiskError;
@@ -1345,6 +1348,7 @@ void cdrWrite1(unsigned char rt) {
 	AddIrqQueue(cdr.Cmd, 0x800);
 
 	switch (cdr.Cmd) {
+
 	case CdlReadN:
 	case CdlReadS:
 	case CdlPause:
@@ -1565,9 +1569,7 @@ void cdrReset() {
 	cdr.DriveState = DRIVESTATE_STANDBY;
 	cdr.StatP = STATUS_ROTATING;
 	pTransfer = cdr.Transfer;
-	cdr.SetlocPending = 0;
-	cdr.m_locationChanged = FALSE;
-
+	
 	// BIOS player - default values
 	cdr.AttenuatorLeftToLeft = 0x80;
 	cdr.AttenuatorLeftToRight = 0x00;
@@ -1612,7 +1614,7 @@ int cdrFreeze(void *f, int Mode) {
 
 			Find_CurTrack(cdr.SetSectorPlay);
 			if (!Config.Cdda)
-				CDR_play();
+				CDR_play(cdr.SetSectorPlay);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
