@@ -139,7 +139,7 @@ void psxBranchTest() {
 		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDREAD);
-				cdrReadInterrupt();
+				cdrPlaySeekReadInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
@@ -176,12 +176,6 @@ void psxBranchTest() {
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle) >= psxRegs.intCycle[PSXINT_CDRDMA].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDRDMA);
 				cdrDmaInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY)) { // cdr play timing
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRPLAY].sCycle) >= psxRegs.intCycle[PSXINT_CDRPLAY].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_CDRPLAY);
-				cdrPlayInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDRLID)) { // cdr lid states

@@ -241,8 +241,8 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDR, eCycle); \
 }
 
-// cdrReadInterrupt
-#define CDREAD_INT(eCycle) { \
+// cdrPlaySeekReadInterrupt
+#define CDRPLAYSEEKREAD_INT(eCycle) { \
 	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
 	psxRegs.intCycle[PSXINT_CDREAD].cycle = eCycle; \
 	psxRegs.intCycle[PSXINT_CDREAD].sCycle = psxRegs.cycle; \
@@ -255,14 +255,6 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	psxRegs.intCycle[PSXINT_CDRLID].cycle = eCycle; \
 	psxRegs.intCycle[PSXINT_CDRLID].sCycle = psxRegs.cycle; \
 	new_dyna_set_event(PSXINT_CDRLID, eCycle); \
-}
-
-// cdrPlayInterrupt
-#define CDRSEEKPLAY_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_CDRPLAY); \
-	psxRegs.intCycle[PSXINT_CDRPLAY].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRPLAY].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_CDRPLAY, eCycle); \
 }
 
 #define StopReading() { \
@@ -307,7 +299,7 @@ static void setIrq(int log_cmd)
 
 // timing used in this function was taken from tests on real hardware
 // (yes it's slow, but you probably don't want to modify it)
-void cdrLidSeekInterrupt()
+void cdrLidSeekInterrupt(void)
 {
 	switch (cdr.DriveState) {
 	default:
@@ -584,18 +576,24 @@ static int cdrSeekTime(unsigned char *target)
 	return seekTime;
 }
 
-// also handles seek
-void cdrPlayInterrupt()
+static void cdrReadInterrupt(void);
+
+void cdrPlaySeekReadInterrupt(void)
 {
-	if (cdr.StatP & STATUS_SEEK) {
+	if (cdr.Reading) {
+		cdrReadInterrupt();
+		return;
+	}
+
+	if (!cdr.Play && (cdr.StatP & STATUS_SEEK)) {
 		if (cdr.Stat) {
 			CDR_LOG_I("cdrom: seek stat hack\n");
-			CDRSEEKPLAY_INT(0x1000);
+			CDRPLAYSEEKREAD_INT(0x1000);
 			return;
 		}
 		SetResultSize(1);
 		cdr.StatP |= STATUS_ROTATING;
-		SetPlaySeekRead(cdr.StatP, cdr.Play ? STATUS_PLAY : 0);
+		SetPlaySeekRead(cdr.StatP, 0);
 		cdr.Result[0] = cdr.StatP;
 		if (cdr.Irq == 0) {
 			cdr.Stat = Complete;
@@ -605,6 +603,7 @@ void cdrPlayInterrupt()
 		Find_CurTrack(cdr.SetSectorPlay);
 		ReadTrack(cdr.SetSectorPlay);
 		cdr.TrackChanged = FALSE;
+		return;
 	}
 
 	if (!cdr.Play) return;
@@ -612,6 +611,7 @@ void cdrPlayInterrupt()
 	CDR_LOG( "CDDA - %d:%d:%d\n",
 		cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2] );
 
+	SetPlaySeekRead(cdr.StatP, STATUS_PLAY);
 	if (memcmp(cdr.SetSectorPlay, cdr.SetSectorEnd, 3) == 0) {
 		StopCdda();
 		SetPlaySeekRead(cdr.StatP, 0);
@@ -640,13 +640,13 @@ void cdrPlayInterrupt()
 		}
 	}
 
-	CDRSEEKPLAY_INT(cdReadTime);
+	CDRPLAYSEEKREAD_INT(cdReadTime);
 
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
 }
 
-void cdrInterrupt() {
+void cdrInterrupt(void) {
 	u16 Irq = cdr.Irq;
 	int no_busy_error = 0;
 	int start_rotating = 0;
@@ -765,7 +765,7 @@ void cdrInterrupt() {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 
-			CDRSEEKPLAY_INT(cdReadTime + seekTime);
+			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime);
 			start_rotating = 1;
 			break;
 
@@ -973,7 +973,7 @@ void cdrInterrupt() {
 			Rockman X5 = 0.5-4x
 			- fix capcom logo
 			*/
-			CDRSEEKPLAY_INT(cdReadTime + seekTime);
+			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime);
 			start_rotating = 1;
 			break;
 
@@ -1103,7 +1103,7 @@ void cdrInterrupt() {
 				Gameblabla additional notes :
 				This still needs the "+ seekTime" that PCSX Redux doesn't have for the Driver "retry" mission error.
 			*/
-			CDREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
+			CDRPLAYSEEKREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
 			start_rotating = 1;
@@ -1193,15 +1193,13 @@ void cdrAttenuate(s16 *buf, int samples, int stereo)
 	}
 }
 
-void cdrReadInterrupt() {
+static void cdrReadInterrupt(void)
+{
 	u8 *buf;
-
-	if (!cdr.Reading)
-		return;
 
 	if (cdr.Irq || cdr.Stat) {
 		CDR_LOG_I("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
-		CDREAD_INT(2048);
+		CDRPLAYSEEKREAD_INT(2048);
 		return;
 	}
 
@@ -1221,7 +1219,7 @@ void cdrReadInterrupt() {
 		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdr.Stat = DiskError;
 		cdr.Result[0] |= STATUS_ERROR;
-		CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+		setIrq(0x205);
 		return;
 	}
 
@@ -1268,7 +1266,7 @@ void cdrReadInterrupt() {
 
 	cdr.Readed = 0;
 
-	CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
+	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1544,7 +1542,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 	DMA_INTERRUPT(3);
 }
 
-void cdrDmaInterrupt()
+void cdrDmaInterrupt(void)
 {
 	if (HW_DMA3_CHCR & SWAP32(0x01000000))
 	{
@@ -1620,6 +1618,8 @@ int cdrFreeze(void *f, int Mode) {
 			Find_CurTrack(cdr.SetSectorPlay);
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
+			if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY_OLD))
+				CDRPLAYSEEKREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
@@ -1640,7 +1640,7 @@ int cdrFreeze(void *f, int Mode) {
 	return 0;
 }
 
-void LidInterrupt() {
+void LidInterrupt(void) {
 	getCdInfo();
 	cdrLidSeekInterrupt();
 }
