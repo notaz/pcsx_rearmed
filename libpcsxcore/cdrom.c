@@ -1071,30 +1071,6 @@ void cdrInterrupt(void) {
 			// - fixes new game
 			ReadTrack(cdr.SetSectorPlay);
 
-			/*
-			Duke Nukem: Land of the Babes - seek then delay read for one frame
-			- fixes cutscenes
-			C-12 - Final Resistance - doesn't like seek
-			*/
-			
-			/*	
-				By nicolasnoble from PCSX Redux :
-				"It LOOKS like this logic is wrong, therefore disabling it with `&& false` for now.
-				For "PoPoLoCrois Monogatari II", the game logic will soft lock and will never issue GetLocP to detect
-				the end of its XA streams, as it seems to assume ReadS will not return a status byte with the SEEK
-				flag set. I think the reasonning is that since it's invalid to call GetLocP while seeking, the game
-				tries to protect itself against errors by preventing from issuing a GetLocP while it knows the
-				last status was "seek". But this makes the logic just softlock as it'll never get a notification
-				about the fact the drive is done seeking and the read actually started.
-
-				In other words, this state machine here is probably wrong in assuming the response to ReadS/ReadN is
-				done right away. It's rather when it's done seeking, and the read has actually started. This probably
-				requires a bit more work to make sure seek delays are processed properly.
-				Checked with a few games, this seems to work fine."
-				
-				Gameblabla additional notes :
-				This still needs the "+ seekTime" that PCSX Redux doesn't have for the Driver "retry" mission error.
-			*/
 			CDRPLAYSEEKREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
