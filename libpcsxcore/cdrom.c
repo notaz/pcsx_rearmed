@@ -1071,15 +1071,6 @@ void cdrInterrupt(void) {
 			// - fixes new game
 			ReadTrack(cdr.SetSectorPlay);
 
-
-			// Crusaders of Might and Magic - update getlocl now
-			// - fixes cutscene speech
-			{
-				u8 *buf = CDR_getBuffer();
-				if (buf != NULL)
-					memcpy(cdr.Transfer, buf, 8);
-			}
-
 			/*
 			Duke Nukem: Land of the Babes - seek then delay read for one frame
 			- fixes cutscenes
