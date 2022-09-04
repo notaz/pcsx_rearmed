@@ -247,7 +247,7 @@ static void StartSoundMain(int ch)
  s_chan->iSBPos=27;
  s_chan->spos=0;
 
- s_chan->pCurr = spu.spuMemC+((regAreaGet(ch,6)&~1)<<3);
+ s_chan->pCurr = spu.spuMemC + ((regAreaGetCh(ch, 6) & ~1) << 3);
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
  spu.dwChannelDead&=~(1<<ch);
@@ -1175,7 +1175,8 @@ void do_samples(unsigned int cycles_to, int do_direct)
 static void do_samples_finish(int *SSumLR, int ns_to,
  int silentch, int decode_pos)
 {
-  int volmult = spu_config.iVolume;
+  int vol_l = ((int)regAreaGet(H_SPUmvolL) << 17) >> 17;
+  int vol_r = ((int)regAreaGet(H_SPUmvolR) << 17) >> 17;
   int ns;
   int d;
 
@@ -1192,23 +1193,28 @@ static void do_samples_finish(int *SSumLR, int ns_to,
    }
 
   MixXA(SSumLR, ns_to, decode_pos);
-  
-  if((spu.spuCtrl&0x4000)==0) // muted? (rare, don't optimize for this)
+
+  vol_l = vol_l * spu_config.iVolume >> 10;
+  vol_r = vol_r * spu_config.iVolume >> 10;
+
+  if (!(spu.spuCtrl & 0x4000) || !(vol_l | vol_r))
    {
+    // muted? (rare)
     memset(spu.pS, 0, ns_to * 2 * sizeof(spu.pS[0]));
+    memset(SSumLR, 0, ns_to * 2 * sizeof(SSumLR[0]));
     spu.pS += ns_to * 2;
    }
   else
   for (ns = 0; ns < ns_to * 2; )
    {
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * volmult >> 10;
+    d = d * vol_l >> 15;
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;
 
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * volmult >> 10;
+    d = d * vol_r >> 15;
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;

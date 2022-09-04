@@ -145,7 +145,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  memcpy(d->SB, spu.SB + ch * SB_SIZE, sizeof(d->SB[0]) * SB_SIZE);
- d->iStart = (regAreaGet(ch,6)&~1)<<3;
+ d->iStart = (regAreaGetCh(ch, 6) & ~1) << 3;
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
  d->bOn = !!(spu.dwChannelsAudible & (1<<ch));

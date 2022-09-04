@@ -232,7 +232,9 @@ typedef struct
  unsigned short  regArea[0x400];
 } SPUInfo;
 
-#define regAreaGet(ch,offset) \
+#define regAreaGet(offset) \
+  spu.regArea[((offset) - 0xc00)>>1]
+#define regAreaGetCh(ch, offset) \
   spu.regArea[((ch<<4)|(offset))>>1]
 
 ///////////////////////////////////////////////////////////

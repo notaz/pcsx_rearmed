@@ -350,7 +350,7 @@ static void SoundOn(int start,int end,unsigned short val)
 
  for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
   {
-   if((val&1) && regAreaGet(ch,6))                     // mmm... start has to be set before key on !?!
+   if((val&1) && regAreaGetCh(ch, 6))                  // mmm... start has to be set before key on !?!
     {
      spu.s_chan[ch].bIgnoreLoop = 0;
      spu.dwNewChannel|=(1<<ch);
