@@ -296,7 +296,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
       {
        const int ch=(r>>4)-0xc0;
        if(spu.dwNewChannel&(1<<ch)) return 1;          // we are started, but not processed? return 1
-       if((spu.dwChannelOn&(1<<ch)) &&                 // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
+       if((spu.dwChannelsAudible&(1<<ch)) &&           // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
           !spu.s_chan[ch].ADSRX.EnvelopeVol)
         return 1;
        return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol>>16);
@@ -488,6 +488,10 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  spu.s_chan[ch].sinc = NP << 4;
  spu.s_chan[ch].sinc_inv = 0;
  spu.SB[ch * SB_SIZE + 32] = 1; // -> freq change in simple interpolation mode: set flag
+ if (val)
+  spu.dwChannelsAudible |= 1u << ch;
+ else
+  spu.dwChannelsAudible &= ~(1u << ch);
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -197,7 +197,7 @@ typedef struct
  unsigned int    dwNoiseVal;           // global noise generator
  unsigned int    dwNoiseCount;
  unsigned int    dwNewChannel;         // flags for faster testing, if new channel starts
- unsigned int    dwChannelOn;          // not silent channels
+ unsigned int    dwChannelsAudible;    // not silent channels
  unsigned int    dwChannelDead;        // silent+not useful channels
 
  unsigned char * pSpuBuffer;
