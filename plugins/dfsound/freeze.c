@@ -148,7 +148,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->iStart = (regAreaGet(ch,6)&~1)<<3;
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
- d->bOn = !!(spu.dwChannelOn & (1<<ch));
+ d->bOn = !!(spu.dwChannelsAudible & (1<<ch));
  d->bStop = s->ADSRX.State == ADSR_RELEASE;
  d->bReverb = s->bReverb;
  d->iActFreq = 1;
@@ -209,7 +209,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
  d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
  d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
- if (s->bOn) spu.dwChannelOn |= 1<<ch;
+ if (s->bOn) spu.dwChannelsAudible |= 1<<ch;
  else d->ADSRX.EnvelopeVol = 0;
 }
 
@@ -334,7 +334,7 @@ void LoadStateV5(SPUFreeze_t * pF)
  spu.decode_pos = pFO->decode_pos & 0x1ff;
 
  spu.dwNewChannel=0;
- spu.dwChannelOn=0;
+ spu.dwChannelsAudible=0;
  spu.dwChannelDead=0;
  for(i=0;i<MAXCHAN;i++)
   {
@@ -357,7 +357,7 @@ void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles)
   }
 
  spu.dwNewChannel=0;
- spu.dwChannelOn=0;
+ spu.dwChannelsAudible=0;
  spu.dwChannelDead=0;
  spu.pSpuIrq=spu.spuMemC;
 

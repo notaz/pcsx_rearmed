@@ -250,8 +250,9 @@ static void StartSoundMain(int ch)
  s_chan->pCurr = spu.spuMemC+((regAreaGet(ch,6)&~1)<<3);
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
- spu.dwChannelOn|=1<<ch;
  spu.dwChannelDead&=~(1<<ch);
+ if (s_chan->iRawPitch)
+  spu.dwChannelsAudible|=1<<ch;
 }
 
 static void StartSound(int ch)
@@ -776,7 +777,7 @@ static void do_channels(int ns_to)
    StartSound(ch);
  }
 
- mask = spu.dwChannelOn & 0xffffff;
+ mask = spu.dwChannelsAudible & 0xffffff;
  for (ch = 0; mask != 0; ch++, mask >>= 1)         // loop em all...
   {
    if (!(mask & 1)) continue;                      // channel not playing? next
@@ -800,7 +801,8 @@ static void do_channels(int ns_to)
 
    d = MixADSR(&s_chan->ADSRX, d);
    if (d < ns_to) {
-    spu.dwChannelOn &= ~(1 << ch);
+    spu.dwChannelsAudible &= ~(1 << ch);
+    s_chan->ADSRX.State = ADSR_RELEASE;
     s_chan->ADSRX.EnvelopeVol = 0;
     memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));
    }
@@ -937,7 +939,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    StartSoundMain(ch);
  }
 
- mask = work->channels_on = spu.dwChannelOn & 0xffffff;
+ mask = work->channels_on = spu.dwChannelsAudible & 0xffffff;
  spu.decode_dirty_ch |= mask & 0x0a;
 
  for (ch = 0; mask != 0; ch++, mask >>= 1)
@@ -962,7 +964,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    // note: d is not accurate on skip
    d = SkipADSR(&s_chan->ADSRX, d);
    if (d < ns_to) {
-    spu.dwChannelOn &= ~(1 << ch);
+    spu.dwChannelsAudible &= ~(1 << ch);
     s_chan->ADSRX.EnvelopeVol = 0;
    }
   }
@@ -1105,7 +1107,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
    return;
   }
 
- silentch = ~(spu.dwChannelOn | spu.dwNewChannel) & 0xffffff;
+ silentch = ~(spu.dwChannelsAudible | spu.dwNewChannel) & 0xffffff;
 
  do_direct |= (silentch == 0xffffff);
  if (worker != NULL)
@@ -1623,7 +1625,7 @@ void spu_get_debug_info(int *chans_out, int *run_chans, int *fmod_chans_out, int
 
  for(;ch<MAXCHAN;ch++)
  {
-  if (!(spu.dwChannelOn & (1<<ch)))
+  if (!(spu.dwChannelsAudible & (1<<ch)))
    continue;
   if (spu.s_chan[ch].bFMod == 2)
    fmod_chans |= 1 << ch;
@@ -1633,8 +1635,8 @@ void spu_get_debug_info(int *chans_out, int *run_chans, int *fmod_chans_out, int
    irq_chans |= 1 << ch;
  }
 
- *chans_out = spu.dwChannelOn;
- *run_chans = ~spu.dwChannelOn & ~spu.dwChannelDead & irq_chans;
+ *chans_out = spu.dwChannelsAudible;
+ *run_chans = ~spu.dwChannelsAudible & ~spu.dwChannelDead & irq_chans;
  *fmod_chans_out = fmod_chans;
  *noise_chans_out = noise_chans;
 }
