@@ -484,11 +484,10 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  if(val>0x3fff) NP=0x3fff;                             // get pitch val
  else           NP=val;
 
- spu.s_chan[ch].iRawPitch=NP;
- spu.s_chan[ch].sinc=(NP<<4)|8;
- spu.s_chan[ch].sinc_inv=0;
- if (spu_config.iUseInterpolation == 1)
-  spu.SB[ch * SB_SIZE + 32] = 1; // -> freq change in simple interpolation mode: set flag
+ spu.s_chan[ch].iRawPitch = NP;
+ spu.s_chan[ch].sinc = NP << 4;
+ spu.s_chan[ch].sinc_inv = 0;
+ spu.SB[ch * SB_SIZE + 32] = 1; // -> freq change in simple interpolation mode: set flag
 }
 
 ////////////////////////////////////////////////////////////////////////
