@@ -1230,6 +1230,8 @@ void schedule_next_irq(void)
   if ((unsigned long)(spu.pSpuIrq - spu.s_chan[ch].pCurr) > IRQ_NEAR_BLOCKS * 16
     && (unsigned long)(spu.pSpuIrq - spu.s_chan[ch].pLoop) > IRQ_NEAR_BLOCKS * 16)
    continue;
+  if (spu.s_chan[ch].sinc == 0)
+   continue;
 
   scan_for_irq(ch, &upd_samples);
  }
