@@ -45,10 +45,11 @@
 //#define CDR_LOG_CMD_IRQ
 
 static struct {
-	unsigned char OCUP;
-	unsigned char Reg1Mode;
+	// unused members maintain savesate compatibility
+	unsigned char unused0;
+	unsigned char unused1;
 	unsigned char Reg2;
-	unsigned char CmdProcess;
+	unsigned char unused2;
 	unsigned char Ctrl;
 	unsigned char Stat;
 
@@ -62,7 +63,7 @@ static struct {
 		unsigned char Absolute[3];
 	} subq;
 	unsigned char TrackChanged;
-	unsigned char pad1[3];
+	unsigned char unused3[3];
 	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
@@ -94,18 +95,18 @@ static struct {
 
 	xa_decode_t Xa;
 
-	int Init;
+	u32 unused4;
 
-	u16 Irq;
-	u8 IrqRepeated;
-	u32 eCycle;
+	u16 CmdInProgress;
+	u16 unused5;
+	u32 unused6;
 
-	u8 pad2;
+	u8 unused7;
 
 	u8 DriveState;
 	u8 FastForward;
 	u8 FastBackward;
-	u8 pad;
+	u8 unused8;
 
 	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
 	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
@@ -290,6 +291,7 @@ static void setIrq(int log_cmd)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 
 #ifdef CDR_LOG_CMD_IRQ
+	if (cdr.Stat)
 	{
 		int i;
 		SysPrintf("CDR IRQ=%d cmd %02x stat %02x: ",
@@ -481,23 +483,6 @@ static void ReadTrack(const u8 *time) {
 		cdr.subq.Absolute[0], cdr.subq.Absolute[1], cdr.subq.Absolute[2]);
 }
 
-static void AddIrqQueue(unsigned short irq, unsigned long ecycle) {
-	if (cdr.Irq != 0) {
-		if (irq == cdr.Irq || irq + 0x100 == cdr.Irq) {
-			cdr.IrqRepeated = 1;
-			CDR_INT(ecycle);
-			return;
-		}
-
-		CDR_LOG_I("cdr: override cmd %02x -> %02x\n", cdr.Irq, irq);
-	}
-
-	cdr.Irq = irq;
-	cdr.eCycle = ecycle;
-
-	CDR_INT(ecycle);
-}
-
 static void cdrPlayInterrupt_Autopause()
 {
 	u32 abs_lev_max = 0;
@@ -599,7 +584,7 @@ void cdrPlaySeekReadInterrupt(void)
 		cdr.StatP |= STATUS_ROTATING;
 		SetPlaySeekRead(cdr.StatP, 0);
 		cdr.Result[0] = cdr.StatP;
-		if (cdr.Irq == 0) {
+		if (cdr.Stat == 0) {
 			cdr.Stat = Complete;
 			setIrq(0x202);
 		}
@@ -625,7 +610,7 @@ void cdrPlaySeekReadInterrupt(void)
 		CDR_readCDDA(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2], (u8 *)read_buf);
 	}
 
-	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
+	if (!cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
 	if (!cdr.Muted && !Config.Cdda) {
@@ -651,19 +636,20 @@ void cdrPlaySeekReadInterrupt(void)
 }
 
 void cdrInterrupt(void) {
-	u16 Irq = cdr.Irq;
 	int no_busy_error = 0;
 	int start_rotating = 0;
 	int error = 0;
-	int delay;
 	unsigned int seekTime = 0;
+	u32 second_resp_time = 0;
+	u8 ParamC;
 	u8 set_loc[3];
+	u16 Cmd;
 	int i;
 
 	// Reschedule IRQ
 	if (cdr.Stat) {
-		CDR_LOG_I("cdrom: stat hack: %02x %x\n", cdr.Irq, cdr.Stat);
-		CDR_INT(0x1000);
+		CDR_LOG_I("cdrom: cmd %02x with irqstat %x\n", cdr.CmdInProgress, cdr.Stat);
+		CDR_INT(1000);
 		return;
 	}
 
@@ -674,17 +660,16 @@ void cdrInterrupt(void) {
 	cdr.Result[0] = cdr.StatP;
 	cdr.Stat = Acknowledge;
 
-	if (cdr.IrqRepeated) {
-		cdr.IrqRepeated = 0;
-		if (cdr.eCycle > psxRegs.cycle) {
-			CDR_INT(cdr.eCycle);
-			goto finish;
-		}
+	Cmd = cdr.CmdInProgress;
+	cdr.CmdInProgress = 0;
+	ParamC = cdr.ParamC;
+
+	if (Cmd < 0x100) {
+		cdr.Cmd = 0;
+		cdr.ParamC = 0;
 	}
 
-	cdr.Irq = 0;
-
-	switch (Irq) {
+	switch (Cmd) {
 		case CdlNop:
 			if (cdr.DriveState != DRIVESTATE_LID_OPEN)
 				cdr.StatP &= ~STATUS_SHELLOPEN;
@@ -722,7 +707,7 @@ void cdrInterrupt(void) {
 			// BIOS CD Player
 			// - Pause player, hit Track 01/02/../xx (Setloc issued!!)
 
-			if (cdr.ParamC != 0 && cdr.Param[0] != 0) {
+			if (ParamC != 0 && cdr.Param[0] != 0) {
 				int track = btoi( cdr.Param[0] );
 
 				if (track <= cdr.ResultTN[1])
@@ -796,7 +781,7 @@ void cdrInterrupt(void) {
 				error = ERROR_INVALIDARG;
 				goto set_error;
 			}
-			AddIrqQueue(CdlStandby + 0x100, cdReadTime * 125 / 2);
+			second_resp_time = cdReadTime * 125 / 2;
 			start_rotating = 1;
 			break;
 
@@ -819,12 +804,11 @@ void cdrInterrupt(void) {
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.StatP &= ~STATUS_ROTATING;
 
-			delay = 0x800;
+			second_resp_time = 0x800;
 			if (cdr.DriveState == DRIVESTATE_STANDBY)
-				delay = cdReadTime * 30 / 2;
+				second_resp_time = cdReadTime * 30 / 2;
 
 			cdr.DriveState = DRIVESTATE_STOPPED;
-			AddIrqQueue(CdlStop + 0x100, delay);
 			break;
 
 		case CdlStop + 0x100:
@@ -851,13 +835,12 @@ void cdrInterrupt(void) {
 			 * */
 			if (!(cdr.StatP & (STATUS_PLAY | STATUS_READ)))
 			{
-				delay = 7000;
+				second_resp_time = 7000;
 			}
 			else
 			{
-				delay = (((cdr.Mode & MODE_SPEED) ? 2 : 1) * (1000000));
+				second_resp_time = (((cdr.Mode & MODE_SPEED) ? 2 : 1) * 1000000);
 			}
-			AddIrqQueue(CdlPause + 0x100, delay);
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.Ctrl |= 0x80;
 			break;
@@ -872,7 +855,7 @@ void cdrInterrupt(void) {
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.Muted = FALSE;
 			cdr.Mode = 0x20; /* This fixes This is Football 2, Pooh's Party lockups */
-			AddIrqQueue(CdlReset + 0x100, 4100000);
+			second_resp_time = 4100000;
 			no_busy_error = 1;
 			start_rotating = 1;
 			break;
@@ -895,6 +878,8 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetmode:
+			CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
+			cdr.Mode = cdr.Param[0];
 			no_busy_error = 1;
 			break;
 
@@ -920,7 +905,7 @@ void cdrInterrupt(void) {
 
 		case CdlReadT: // SetSession?
 			// really long
-			AddIrqQueue(CdlReadT + 0x100, cdReadTime * 290 / 4);
+			second_resp_time = cdReadTime * 290 / 4;
 			start_rotating = 1;
 			break;
 
@@ -1001,7 +986,7 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlID:
-			AddIrqQueue(CdlID + 0x100, 20480);
+			second_resp_time = 20480;
 			break;
 
 		case CdlID + 0x100:
@@ -1045,7 +1030,7 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlReadToc:
-			AddIrqQueue(CdlReadToc + 0x100, cdReadTime * 180 / 4);
+			second_resp_time = cdReadTime * 180 / 4;
 			no_busy_error = 1;
 			start_rotating = 1;
 			break;
@@ -1083,7 +1068,7 @@ void cdrInterrupt(void) {
 			break;
 		case CdlSync:
 		default:
-			CDR_LOG_I("Invalid command: %02x\n", Irq);
+			CDR_LOG_I("Invalid command: %02x\n", Cmd);
 			error = ERROR_INVALIDCMD;
 			// FALLTHROUGH
 
@@ -1113,9 +1098,17 @@ void cdrInterrupt(void) {
 		}
 	}
 
-finish:
-	setIrq(Irq);
-	cdr.ParamC = 0;
+	if (second_resp_time) {
+		cdr.CmdInProgress = Cmd | 0x100;
+		CDR_INT(second_resp_time);
+	}
+	else if (cdr.Cmd && cdr.Cmd != (Cmd & 0xff)) {
+		cdr.CmdInProgress = cdr.Cmd;
+		CDR_LOG_I("cdrom: cmd %02x came before %02x finished\n", cdr.Cmd, Cmd);
+		CDR_INT(256);
+	}
+
+	setIrq(Cmd);
 }
 
 #ifdef HAVE_ARMV7
@@ -1170,13 +1163,12 @@ static void cdrReadInterrupt(void)
 {
 	u8 *buf;
 
-	if (cdr.Irq || cdr.Stat) {
-		CDR_LOG_I("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
+	if (cdr.Stat) {
+		CDR_LOG_I("cdrom: read stat hack %02x %02x\n", cdr.Cmd, cdr.Stat);
 		CDRPLAYSEEKREAD_INT(2048, 1);
 		return;
 	}
 
-	cdr.OCUP = 1;
 	SetResultSize(1);
 	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
 	cdr.Result[0] = cdr.StatP;
@@ -1273,10 +1265,7 @@ unsigned char cdrRead0(void) {
 	else
 		cdr.Ctrl &= ~0x20;
 
-	if (cdr.OCUP)
-		cdr.Ctrl |= 0x40;
-//  else
-//		cdr.Ctrl &= ~0x40;
+	cdr.Ctrl |= 0x40; // data fifo not empty
 
 	// What means the 0x10 and the 0x08 bits? I only saw it used by the bios
 	cdr.Ctrl |= 0x18;
@@ -1320,9 +1309,6 @@ void cdrWrite1(unsigned char rt) {
 		return;
 	}
 
-	cdr.Cmd = rt;
-	cdr.OCUP = 0;
-
 #ifdef CDR_LOG_CMD_IRQ
 	SysPrintf("CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
@@ -1338,16 +1324,20 @@ void cdrWrite1(unsigned char rt) {
 
 	cdr.ResultReady = 0;
 	cdr.Ctrl |= 0x80;
-	// cdr.Stat = NoIntr; 
-	AddIrqQueue(cdr.Cmd, 0x800);
 
-	switch (cdr.Cmd) {
-    	case CdlSetmode:
-		CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
-
-        	cdr.Mode = cdr.Param[0];
-        	break;
+	if (!cdr.CmdInProgress) {
+		cdr.CmdInProgress = rt;
+		// should be something like 12k + controller delays
+		CDR_INT(5000);
 	}
+	else {
+		CDR_LOG_I("cdr: cmd while busy: %02x, prev %02x, busy %02x\n",
+			rt, cdr.Cmd, cdr.CmdInProgress);
+		if (cdr.CmdInProgress < 0x100) // no pending 2nd response
+			cdr.CmdInProgress = rt;
+	}
+
+	cdr.Cmd = rt;
 }
 
 unsigned char cdrRead2(void) {
@@ -1403,6 +1393,10 @@ void cdrWrite3(unsigned char rt) {
 	case 0:
 		break; // transfer
 	case 1:
+#ifdef CDR_LOG_CMD_IRQ
+		if (cdr.Stat & rt)
+			SysPrintf("ack %02x\n", cdr.Stat & rt);
+#endif
 		cdr.Stat &= ~rt;
 
 		if (rt & 0x40)
@@ -1414,7 +1408,7 @@ void cdrWrite3(unsigned char rt) {
 	case 3:
 		if (rt & 0x20) {
 			memcpy(&cdr.AttenuatorLeftToLeft, &cdr.AttenuatorLeftToLeftT, 4);
-			CDR_LOG_I("CD-XA Volume: %02x %02x | %02x %02x\n",
+			CDR_LOG("CD-XA Volume: %02x %02x | %02x %02x\n",
 				cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
 				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight);
 		}
