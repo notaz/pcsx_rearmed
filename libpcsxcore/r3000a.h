@@ -208,16 +208,18 @@ void new_dyna_before_save(void);
 void new_dyna_after_save(void);
 void new_dyna_freeze(void *f, int mode);
 
-#define new_dyna_set_event(e, c) { \
-	s32 c_ = c; \
-	u32 abs_ = psxRegs.cycle + c_; \
-	s32 odi_ = next_interupt - psxRegs.cycle; \
+#define new_dyna_set_event_abs(e, abs) { \
+	u32 abs_ = abs; \
+	s32 di_ = next_interupt - abs_; \
 	event_cycles[e] = abs_; \
-	if (c_ < odi_) { \
-		/*printf("%u: next_interupt %d -> %d (%u)\n", psxRegs.cycle, odi_, c_, abs_);*/ \
+	if (di_ > 0) { \
+		/*printf("%u: next_interupt %u -> %u\n", psxRegs.cycle, next_interupt, abs_);*/ \
 		next_interupt = abs_; \
 	} \
 }
+
+#define new_dyna_set_event(e, c) \
+	new_dyna_set_event_abs(e, psxRegs.cycle + (c))
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
