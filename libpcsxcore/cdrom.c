@@ -242,11 +242,15 @@ static void sec2msf(unsigned int s, u8 *msf) {
 }
 
 // cdrPlaySeekReadInterrupt
-#define CDRPLAYSEEKREAD_INT(eCycle) { \
+#define CDRPLAYSEEKREAD_INT(eCycle, isFirst) { \
+	u32 e_ = eCycle; \
 	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
-	psxRegs.intCycle[PSXINT_CDREAD].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDREAD].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_CDREAD, eCycle); \
+	if (isFirst) \
+		psxRegs.intCycle[PSXINT_CDREAD].sCycle = psxRegs.cycle; \
+	else \
+		psxRegs.intCycle[PSXINT_CDREAD].sCycle += psxRegs.intCycle[PSXINT_CDREAD].cycle; \
+	psxRegs.intCycle[PSXINT_CDREAD].cycle = e_; \
+	new_dyna_set_event_abs(PSXINT_CDREAD, psxRegs.intCycle[PSXINT_CDREAD].sCycle + e_); \
 }
 
 // cdrLidSeekInterrupt
@@ -588,7 +592,7 @@ void cdrPlaySeekReadInterrupt(void)
 	if (!cdr.Play && (cdr.StatP & STATUS_SEEK)) {
 		if (cdr.Stat) {
 			CDR_LOG_I("cdrom: seek stat hack\n");
-			CDRPLAYSEEKREAD_INT(0x1000);
+			CDRPLAYSEEKREAD_INT(0x1000, 1);
 			return;
 		}
 		SetResultSize(1);
@@ -640,7 +644,7 @@ void cdrPlaySeekReadInterrupt(void)
 		}
 	}
 
-	CDRPLAYSEEKREAD_INT(cdReadTime);
+	CDRPLAYSEEKREAD_INT(cdReadTime, 0);
 
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
@@ -766,7 +770,7 @@ void cdrInterrupt(void) {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 
-			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime);
+			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime, 1);
 			start_rotating = 1;
 			break;
 
@@ -974,7 +978,7 @@ void cdrInterrupt(void) {
 			Rockman X5 = 0.5-4x
 			- fix capcom logo
 			*/
-			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime);
+			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime, 1);
 			start_rotating = 1;
 			break;
 
@@ -1072,7 +1076,7 @@ void cdrInterrupt(void) {
 			// - fixes new game
 			ReadTrack(cdr.SetSectorPlay);
 
-			CDRPLAYSEEKREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime);
+			CDRPLAYSEEKREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime, 1);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
 			start_rotating = 1;
@@ -1168,7 +1172,7 @@ static void cdrReadInterrupt(void)
 
 	if (cdr.Irq || cdr.Stat) {
 		CDR_LOG_I("cdrom: read stat hack %02x %x\n", cdr.Irq, cdr.Stat);
-		CDRPLAYSEEKREAD_INT(2048);
+		CDRPLAYSEEKREAD_INT(2048, 1);
 		return;
 	}
 
@@ -1235,7 +1239,7 @@ static void cdrReadInterrupt(void)
 
 	cdr.Readed = 0;
 
-	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
+	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1588,7 +1592,7 @@ int cdrFreeze(void *f, int Mode) {
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
 			if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY_OLD))
-				CDRPLAYSEEKREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+				CDRPLAYSEEKREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime, 1);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
