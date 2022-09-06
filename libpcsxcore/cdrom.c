@@ -98,7 +98,8 @@ static struct {
 	u32 unused4;
 
 	u16 CmdInProgress;
-	u16 unused5;
+	u8 Irq1Pending;
+	u8 unused5;
 	u32 unused6;
 
 	u8 unused7;
@@ -584,10 +585,8 @@ void cdrPlaySeekReadInterrupt(void)
 		cdr.StatP |= STATUS_ROTATING;
 		SetPlaySeekRead(cdr.StatP, 0);
 		cdr.Result[0] = cdr.StatP;
-		if (cdr.Stat == 0) {
-			cdr.Stat = Complete;
-			setIrq(0x202);
-		}
+		cdr.Stat = Complete;
+		setIrq(0x202);
 
 		Find_CurTrack(cdr.SetSectorPlay);
 		ReadTrack(cdr.SetSectorPlay);
@@ -629,10 +628,10 @@ void cdrPlaySeekReadInterrupt(void)
 		}
 	}
 
-	CDRPLAYSEEKREAD_INT(cdReadTime, 0);
-
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
+
+	CDRPLAYSEEKREAD_INT(cdReadTime, 0);
 }
 
 void cdrInterrupt(void) {
@@ -646,10 +645,8 @@ void cdrInterrupt(void) {
 	u16 Cmd;
 	int i;
 
-	// Reschedule IRQ
 	if (cdr.Stat) {
 		CDR_LOG_I("cdrom: cmd %02x with irqstat %x\n", cdr.CmdInProgress, cdr.Stat);
-		CDR_INT(1000);
 		return;
 	}
 
@@ -1105,7 +1102,6 @@ void cdrInterrupt(void) {
 	else if (cdr.Cmd && cdr.Cmd != (Cmd & 0xff)) {
 		cdr.CmdInProgress = cdr.Cmd;
 		CDR_LOG_I("cdrom: cmd %02x came before %02x finished\n", cdr.Cmd, Cmd);
-		CDR_INT(256);
 	}
 
 	setIrq(Cmd);
@@ -1159,46 +1155,59 @@ void cdrAttenuate(s16 *buf, int samples, int stereo)
 	}
 }
 
-static void cdrReadInterrupt(void)
+static void cdrReadInterruptSetResult(unsigned char result)
 {
-	u8 *buf;
-
 	if (cdr.Stat) {
-		CDR_LOG_I("cdrom: read stat hack %02x %02x\n", cdr.Cmd, cdr.Stat);
-		CDRPLAYSEEKREAD_INT(2048, 1);
+		CDR_LOG_I("cdrom: %d:%02d:%02d irq miss, cmd=%02x irqstat=%02x\n",
+			cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
+			cdr.CmdInProgress, cdr.Stat);
+		cdr.Irq1Pending = result;
 		return;
 	}
-
 	SetResultSize(1);
+	cdr.Result[0] = result;
+	cdr.Stat = (result & STATUS_ERROR) ? DiskError : DataReady;
+	setIrq(0x203);
+}
+
+static void cdrUpdateTransferBuf(const u8 *buf)
+{
+	if (!buf)
+		return;
+	memcpy(cdr.Transfer, buf, DATA_SIZE);
+	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
+	CDR_LOG("cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+	cdr.Readed = 0;
+}
+
+static void cdrReadInterrupt(void)
+{
+	u8 *buf = NULL, *hdr;
+
 	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
-	cdr.Result[0] = cdr.StatP;
 
 	ReadTrack(cdr.SetSectorPlay);
-
-	buf = CDR_getBuffer();
+	if (cdr.NoErr)
+		buf = CDR_getBuffer();
 	if (buf == NULL)
 		cdr.NoErr = 0;
 
 	if (!cdr.NoErr) {
 		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
 		memset(cdr.Transfer, 0, DATA_SIZE);
-		cdr.Stat = DiskError;
-		cdr.Result[0] |= STATUS_ERROR;
-		setIrq(0x205);
+		cdrReadInterruptSetResult(cdr.StatP | STATUS_ERROR);
 		return;
 	}
 
-	memcpy(cdr.Transfer, buf, DATA_SIZE);
-	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
-
-
-	CDR_LOG("cdrReadInterrupt() Log: cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+	if (!cdr.Irq1Pending)
+		cdrUpdateTransferBuf(buf);
 
 	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
+		hdr = buf + 4;
 		// Firemen 2: Multi-XA files - briefings, cutscenes
 		if( cdr.FirstSector == 1 && (cdr.Mode & MODE_SF)==0 ) {
-			cdr.File = cdr.Transfer[4 + 0];
-			cdr.Channel = cdr.Transfer[4 + 1];
+			cdr.File = hdr[0];
+			cdr.Channel = hdr[1];
 		}
 
 		/* Gameblabla 
@@ -1206,10 +1215,8 @@ static void cdrReadInterrupt(void)
 		 * Fixes missing audio in Blue's Clues : Blue's Big Musical. (Should also fix Taxi 2)
 		 * TODO : Check if this is the proper behaviour.
 		 * */
-		if((cdr.Transfer[4 + 2] & 0x4) &&
-			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
-			 (cdr.Transfer[4 + 0] == cdr.File) && cdr.Channel != 255) {
-			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
+		if ((hdr[2] & 0x4) && hdr[0] == cdr.File && hdr[1] == cdr.Channel && cdr.Channel != 255) {
+			int ret = xa_decode_sector(&cdr.Xa, buf + 4, cdr.FirstSector);
 			if (!ret) {
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
 				SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, cdr.FirstSector);
@@ -1218,6 +1225,15 @@ static void cdrReadInterrupt(void)
 			else cdr.FirstSector = -1;
 		}
 	}
+
+	/*
+	Croc 2: $40 - only FORM1 (*)
+	Judge Dredd: $C8 - only FORM1 (*)
+	Sim Theme Park - no adpcm at all (zero)
+	*/
+
+	if (!(cdr.Mode & MODE_STRSND) || !(buf[4+2] & 0x4))
+		cdrReadInterruptSetResult(cdr.StatP);
 
 	cdr.SetSectorPlay[2]++;
 	if (cdr.SetSectorPlay[2] == 75) {
@@ -1229,23 +1245,31 @@ static void cdrReadInterrupt(void)
 		}
 	}
 
-	cdr.Readed = 0;
-
-	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
-
-	/*
-	Croc 2: $40 - only FORM1 (*)
-	Judge Dredd: $C8 - only FORM1 (*)
-	Sim Theme Park - no adpcm at all (zero)
-	*/
-
-	if (!(cdr.Mode & MODE_STRSND) || !(cdr.Transfer[4+2] & 0x4)) {
-		cdr.Stat = DataReady;
-		setIrq(0x203);
+	if (!cdr.Irq1Pending) {
+		// update for CdlGetlocP
+		ReadTrack(cdr.SetSectorPlay);
 	}
 
-	// update for CdlGetlocP
-	ReadTrack(cdr.SetSectorPlay);
+	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
+}
+
+static void doMissedIrqs(void)
+{
+	if (cdr.Irq1Pending)
+	{
+		// hand out the "newest" sector, according to nocash
+		cdrUpdateTransferBuf(CDR_getBuffer());
+		CDR_LOG_I("cdrom: %x:%02x:%02x loaded on ack\n",
+			cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+		SetResultSize(1);
+		cdr.Result[0] = cdr.Irq1Pending;
+		cdr.Stat = (cdr.Irq1Pending & STATUS_ERROR) ? DiskError : DataReady;
+		cdr.Irq1Pending = 0;
+		setIrq(0x205);
+		return;
+	}
+	if (!(psxRegs.interrupt & (1 << PSXINT_CDR)) && cdr.CmdInProgress)
+		CDR_INT(256);
 }
 
 /*
@@ -1401,6 +1425,7 @@ void cdrWrite3(unsigned char rt) {
 
 		if (rt & 0x40)
 			cdr.ParamC = 0;
+		doMissedIrqs();
 		return;
 	case 2:
 		cdr.AttenuatorLeftToRightT = rt;
@@ -1446,7 +1471,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 		case 0x11000000:
 		case 0x11400100:
 			if (cdr.Readed == 0) {
-				CDR_LOG("psxDma3() Log: *** DMA 3 *** NOT READY\n");
+				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NOT READY\n");
 				break;
 			}
 
