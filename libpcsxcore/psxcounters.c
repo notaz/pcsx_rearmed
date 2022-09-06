@@ -73,7 +73,6 @@ Rcnt rcnts[ CounterQuantity ];
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
-static u32 base_cycle = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
@@ -293,6 +292,27 @@ void psxRcntReset( u32 index )
     }
 }
 
+static void scheduleRcntBase(void)
+{
+    // Schedule next call, in hsyncs
+    if (hSyncCount < VBlankStart)
+        hsync_steps = VBlankStart - hSyncCount;
+    else
+        hsync_steps = HSyncTotal[Config.PsxType] - hSyncCount;
+
+    if (hSyncCount + hsync_steps == HSyncTotal[Config.PsxType])
+    {
+        rcnts[3].cycle = Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
+    }
+    else
+    {
+        // clk / 50 / 314 ~= 2157.25
+        // clk / 60 / 263 ~= 2146.31
+        u32 mult = Config.PsxType ? 8836089 : 8791293;
+        rcnts[3].cycle = hsync_steps * mult >> 12;
+    }
+}
+
 void psxRcntUpdate()
 {
     u32 cycle;
@@ -320,9 +340,6 @@ void psxRcntUpdate()
     // rcnt base.
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
-        u32 leftover_cycles = cycle - rcnts[3].cycleStart - rcnts[3].cycle;
-        u32 next_vsync;
-
         hSyncCount += hsync_steps;
 
         // VSync irq.
@@ -344,6 +361,7 @@ void psxRcntUpdate()
         // Update lace. (with InuYasha fix)
         if( hSyncCount >= (Config.VSyncWA ? HSyncTotal[Config.PsxType] / BIAS : HSyncTotal[Config.PsxType]) )
         {
+            rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
             hSyncCount = 0;
             frame_counter++;
 
@@ -353,21 +371,7 @@ void psxRcntUpdate()
             GPU_vBlank(0, SWAP32(HW_GPU_STATUS) >> 31);
         }
 
-        // Schedule next call, in hsyncs
-        hsync_steps = HSyncTotal[Config.PsxType] - hSyncCount;
-        next_vsync = VBlankStart - hSyncCount; // ok to overflow
-        if( next_vsync && next_vsync < hsync_steps )
-            hsync_steps = next_vsync;
-
-        rcnts[3].cycleStart = cycle - leftover_cycles;
-        if (Config.PsxType)
-                // 20.12 precision, clk / 50 / 313 ~= 2164.14
-                base_cycle += hsync_steps * 8864320;
-        else
-                // clk / 60 / 263 ~= 2146.31
-                base_cycle += hsync_steps * 8791293;
-        rcnts[3].cycle = base_cycle >> 12;
-        base_cycle &= 0xfff;
+        scheduleRcntBase();
     }
 
     psxRcntSet();
@@ -510,15 +514,12 @@ s32 psxRcntFreeze( void *f, s32 Mode )
             count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
             _psxRcntWcount( i, count );
         }
-        hsync_steps = 0;
-        if (rcnts[3].target)
-           hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        scheduleRcntBase();
         psxRcntSet();
-
-        base_cycle = 0;
     }
 
     return 0;
 }
 
 /******************************************************************************/
+// vim:ts=4:shiftwidth=4:expandtab
