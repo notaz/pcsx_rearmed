@@ -120,7 +120,7 @@ INLINE void FeedXA(xa_decode_t *xap)
  if(!spu.bSPUIsOpen) return;
 
  spu.xapGlobal = xap;                                  // store info for save states
- spu.XARepeat  = 100;                                  // set up repeat
+ spu.XARepeat  = 3;                                    // set up repeat
 
 #if 0//def XA_HACK
  iSize=((45500*xap->nsamples)/xap->freq);              // get size

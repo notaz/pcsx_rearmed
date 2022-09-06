@@ -284,7 +284,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  spu.bMemDirty = 1;
 
  if(pF->xaS.nsamples<=4032)                            // start xa again
-  SPUplayADPCMchannel(&pF->xaS);
+  SPUplayADPCMchannel(&pF->xaS, spu.cycles_played, 0);
 
  spu.xapGlobal=0;
 

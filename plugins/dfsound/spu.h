@@ -19,7 +19,7 @@
 #define __P_SPU_H__
 
 void ClearWorkingState(void);
-void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap);
-int  CALLBACK SPUplayCDDAchannel(short *pcm, int bytes);
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_start);
+int  CALLBACK SPUplayCDDAchannel(short *pcm, int bytes, unsigned int cycle, int is_start);
 
 #endif /* __P_SPU_H__ */

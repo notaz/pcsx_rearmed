@@ -35,7 +35,7 @@ extern void CALLBACK SPUwriteDMA(unsigned short);
 extern unsigned short CALLBACK SPUreadDMA(void);
 extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
 extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
-extern void CALLBACK SPUplayADPCMchannel(void *);
+extern void CALLBACK SPUplayADPCMchannel(void *, unsigned int, int);
 extern void CALLBACK SPUregisterCallback(void (*cb)(void));
 extern void CALLBACK SPUregisterScheduleCb(void (*cb)(unsigned int));
 extern long CALLBACK SPUconfigure(void);
@@ -43,7 +43,7 @@ extern long CALLBACK SPUtest(void);
 extern void CALLBACK SPUabout(void);
 extern long CALLBACK SPUfreeze(unsigned int, void *, unsigned int);
 extern void CALLBACK SPUasync(unsigned int, unsigned int);
-extern int  CALLBACK SPUplayCDDAchannel(short *, int);
+extern int  CALLBACK SPUplayCDDAchannel(short *, int, unsigned int, int);
 
 /* PAD */
 static long CALLBACK PADreadPort1(PadDataS *pad) {
@@ -308,9 +308,9 @@ pc_hook_func              (SPU_writeDMA, (unsigned short a0), (a0), PCNT_SPU)
 pc_hook_func_ret(unsigned short,SPU_readDMA, (void), (), PCNT_SPU)
 pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
-pc_hook_func              (SPU_playADPCMchannel, (void *a0), (a0), PCNT_SPU)
+pc_hook_func              (SPU_playADPCMchannel, (void *a0, unsigned int a1, int a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func              (SPU_async, (uint32_t a0, uint32_t a1), (a0, a1), PCNT_SPU)
-pc_hook_func_ret(int,      SPU_playCDDAchannel, (short *a0, int a1), (a0, a1), PCNT_SPU)
+pc_hook_func_ret(int,      SPU_playCDDAchannel, (short *a0, int a1, unsigned int a2, int a3), (a0, a1, a2, a3), PCNT_SPU)
 
 #define hook_it(name) { \
 	o_##name = name; \
