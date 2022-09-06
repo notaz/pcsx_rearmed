@@ -1298,19 +1298,25 @@ void CALLBACK SPUupdate(void)
 
 // XA AUDIO
 
-void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_start)
 {
  if(!xap)       return;
- if(!xap->freq) return;                                // no xa freq ? bye
+ if(!xap->freq) return;                // no xa freq ? bye
 
- FeedXA(xap);                                          // call main XA feeder
+ if (is_start)
+  do_samples(cycle, 1);                // catch up to prevent source underflows later
+
+ FeedXA(xap);                          // call main XA feeder
 }
 
 // CDDA AUDIO
-int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes)
+int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes, unsigned int cycle, int is_start)
 {
  if (!pcm)      return -1;
  if (nbytes<=0) return -1;
+
+ if (is_start)
+  do_samples(cycle, 1);                // catch up to prevent source underflows later
 
  return FeedCDDA((unsigned char *)pcm, nbytes);
 }

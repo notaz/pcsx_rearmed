@@ -624,10 +624,10 @@ void cdrPlaySeekReadInterrupt(void)
 	if (!cdr.Irq && !cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
-	if (CDR_readCDDA && !cdr.Muted && !Config.Cdda) {
+	if (!cdr.Muted && !Config.Cdda) {
 		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
-		if (SPU_playCDDAchannel)
-			SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW);
+		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, cdr.FirstSector);
+		cdr.FirstSector = 0;
 	}
 
 	cdr.SetSectorPlay[2]++;
@@ -756,6 +756,7 @@ void cdrInterrupt(void) {
 			Find_CurTrack(cdr.SetSectorPlay);
 			ReadTrack(cdr.SetSectorPlay);
 			cdr.TrackChanged = FALSE;
+			cdr.FirstSector = 1;
 
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
@@ -1215,7 +1216,7 @@ static void cdrReadInterrupt(void)
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
 			if (!ret) {
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
-				SPU_playADPCMchannel(&cdr.Xa);
+				SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, cdr.FirstSector);
 				cdr.FirstSector = 0;
 			}
 			else cdr.FirstSector = -1;
