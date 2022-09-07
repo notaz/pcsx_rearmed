@@ -426,8 +426,8 @@ static int decode_block(void *unused, int ch, int *SB)
 
   start = s_chan->pLoop;
  }
- else
-  check_irq(ch, start);                    // hack, see check_irq below..
+
+ check_irq(ch, start);
 
  predict_nr = start[0];
  shift_factor = predict_nr & 0xf;
@@ -436,18 +436,10 @@ static int decode_block(void *unused, int ch, int *SB)
  decode_block_data(SB, start + 2, predict_nr, shift_factor);
 
  flags = start[1];
- if (flags & 4 && (!s_chan->bIgnoreLoop))
+ if (flags & 4 && !s_chan->bIgnoreLoop)
   s_chan->pLoop = start;                   // loop adress
 
  start += 16;
-
- if (flags & 1) {                          // 1: stop/loop
-  start = s_chan->pLoop;
-  check_irq(ch, start);                    // hack.. :(
- }
-
- if (start - spu.spuMemC >= 0x80000)
-  start = spu.spuMemC;
 
  s_chan->pCurr = start;                    // store values for next cycle
  s_chan->prevflags = flags;
@@ -469,19 +461,14 @@ static int skip_block(int ch)
 
   start = s_chan->pLoop;
  }
- else
-  check_irq(ch, start);
+
+ check_irq(ch, start);
 
  flags = start[1];
- if (flags & 4)
+ if (flags & 4 && !s_chan->bIgnoreLoop)
   s_chan->pLoop = start;
 
  start += 16;
-
- if (flags & 1) {
-  start = s_chan->pLoop;
-  check_irq(ch, start);
- }
 
  s_chan->pCurr = start;
  s_chan->prevflags = flags;
@@ -511,8 +498,6 @@ static void scan_for_irq(int ch, unsigned int *upd_samples)
   block += 16;
   if (flags & 1) {                          // 1: stop/loop
    block = s_chan->pLoop;
-   if (block == spu.pSpuIrq)                // hack.. (see decode_block)
-    break;
   }
   pos += 28 << 16;
  }
