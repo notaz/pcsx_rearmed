@@ -76,7 +76,7 @@ static struct {
 	unsigned char ResultP;
 	unsigned char ResultReady;
 	unsigned char Cmd;
-	unsigned char Readed;
+	unsigned char unused4;
 	unsigned char SetlocPending;
 	u32 Reading;
 
@@ -95,7 +95,8 @@ static struct {
 
 	xa_decode_t Xa;
 
-	u32 FifoOffset;
+	u16 FifoOffset;
+	u16 FifoSize;
 
 	u16 CmdInProgress;
 	u8 Irq1Pending;
@@ -1176,7 +1177,8 @@ static void cdrUpdateTransferBuf(const u8 *buf)
 	memcpy(cdr.Transfer, buf, DATA_SIZE);
 	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
 	CDR_LOG("cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
-	cdr.Readed = 0;
+	if (cdr.FifoOffset < 2048 + 12)
+		CDR_LOG("cdrom: FifoOffset(1) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
 }
 
 static void cdrReadInterrupt(void)
@@ -1366,10 +1368,10 @@ void cdrWrite1(unsigned char rt) {
 unsigned char cdrRead2(void) {
 	unsigned char ret = 0;
 
-	if (cdr.Readed && cdr.FifoOffset < DATA_SIZE)
+	if (cdr.FifoOffset < cdr.FifoSize)
 		ret = cdr.Transfer[cdr.FifoOffset++];
 	else
-		CDR_LOG_I("cdrom: read empty fifo\n");
+		CDR_LOG_I("cdrom: read empty fifo (%d)\n", cdr.FifoSize);
 
 	CDR_LOG_IO("cdr r2.dat: %02x\n", ret);
 	return ret;
@@ -1438,21 +1440,27 @@ void cdrWrite3(unsigned char rt) {
 		return;
 	}
 
-	if ((rt & 0x80) && cdr.Readed == 0) {
-		cdr.Readed = 1;
-
+	// test: Viewpoint
+	if ((rt & 0x80) && cdr.FifoOffset < cdr.FifoSize) {
+		CDR_LOG("cdrom: FifoOffset(2) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
+	}
+	else if (rt & 0x80) {
 		switch (cdr.Mode & 0x30) {
 			case MODE_SIZE_2328:
 			case 0x00:
 				cdr.FifoOffset = 12;
+				cdr.FifoSize = 2048 + 12;
 				break;
 
 			case MODE_SIZE_2340:
 			default:
 				cdr.FifoOffset = 0;
+				cdr.FifoSize = 2340;
 				break;
 		}
 	}
+	else if (!(rt & 0xc0))
+		cdr.FifoOffset = DATA_SIZE; // fifo empty
 }
 
 void psxDma3(u32 madr, u32 bcr, u32 chcr) {
@@ -1464,10 +1472,6 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 
 	switch (chcr & 0x71000000) {
 		case 0x11000000:
-			if (cdr.Readed == 0) {
-				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NOT READY\n");
-				break;
-			}
 			ptr = (u8 *)PSXM(madr);
 			if (ptr == NULL) {
 				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NULL Pointer!\n");
@@ -1575,6 +1579,7 @@ int cdrFreeze(void *f, int Mode) {
 		getCdInfo();
 
 		cdr.FifoOffset = tmp;
+		cdr.FifoSize = (cdr.Mode & 0x20) ? 2340 : 2048 + 12;
 
 		// read right sub data
 		tmpp[0] = btoi(cdr.Prev[0]);
