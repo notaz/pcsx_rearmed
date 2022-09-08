@@ -95,7 +95,7 @@ static struct {
 
 	xa_decode_t Xa;
 
-	u32 unused4;
+	u32 FifoOffset;
 
 	u16 CmdInProgress;
 	u8 Irq1Pending;
@@ -114,7 +114,6 @@ static struct {
 	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
 	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
 } cdr;
-static unsigned char *pTransfer;
 static s16 read_buf[CD_FRAMESIZE_RAW/2];
 
 /* CD-ROM magic numbers */
@@ -1365,13 +1364,12 @@ void cdrWrite1(unsigned char rt) {
 }
 
 unsigned char cdrRead2(void) {
-	unsigned char ret;
+	unsigned char ret = 0;
 
-	if (cdr.Readed == 0) {
-		ret = 0;
-	} else {
-		ret = *pTransfer++;
-	}
+	if (cdr.Readed && cdr.FifoOffset < DATA_SIZE)
+		ret = cdr.Transfer[cdr.FifoOffset++];
+	else
+		CDR_LOG_I("cdrom: read empty fifo\n");
 
 	CDR_LOG_IO("cdr r2.dat: %02x\n", ret);
 	return ret;
@@ -1442,19 +1440,16 @@ void cdrWrite3(unsigned char rt) {
 
 	if ((rt & 0x80) && cdr.Readed == 0) {
 		cdr.Readed = 1;
-		pTransfer = cdr.Transfer;
 
 		switch (cdr.Mode & 0x30) {
 			case MODE_SIZE_2328:
 			case 0x00:
-				pTransfer += 12;
+				cdr.FifoOffset = 12;
 				break;
 
 			case MODE_SIZE_2340:
-				pTransfer += 0;
-				break;
-
 			default:
+				cdr.FifoOffset = 0;
 				break;
 		}
 	}
@@ -1474,27 +1469,13 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NOT READY\n");
 				break;
 			}
-
-			cdsize = (bcr & 0xffff) * 4;
-
-			// Ape Escape: bcr = 0001 / 0000
-			// - fix boot
-			if( cdsize == 0 )
-			{
-				switch (cdr.Mode & (MODE_SIZE_2340|MODE_SIZE_2328)) {
-					case MODE_SIZE_2340: cdsize = 2340; break;
-					case MODE_SIZE_2328: cdsize = 2328; break;
-					default:
-					case MODE_SIZE_2048: cdsize = 2048; break;
-				}
-			}
-
-
 			ptr = (u8 *)PSXM(madr);
 			if (ptr == INVALID_PTR) {
-				CDR_LOG("psxDma3() Log: *** DMA 3 *** NULL Pointer!\n");
+				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NULL Pointer!\n");
 				break;
 			}
+
+			cdsize = (((bcr - 1) & 0xffff) + 1) * 4;
 
 			/*
 			GS CDX: Enhancement CD crash
@@ -1502,16 +1483,15 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			- CdlPlay
 			- Spams DMA3 and gets buffer overrun
 			*/
-			size = CD_FRAMESIZE_RAW - (pTransfer - cdr.Transfer);
+			size = DATA_SIZE - cdr.FifoOffset;
 			if (size > cdsize)
 				size = cdsize;
 			if (size > 0)
 			{
-				memcpy(ptr, pTransfer, size);
+				memcpy(ptr, cdr.Transfer + cdr.FifoOffset, size);
+				cdr.FifoOffset += size;
+				psxCpu->Clear(madr, size / 4);
 			}
-
-			psxCpu->Clear(madr, cdsize / 4);
-			pTransfer += cdsize;
 
 			if( chcr == 0x11400100 ) {
 				HW_DMA3_MADR = SWAPu32(madr + cdsize);
@@ -1563,7 +1543,7 @@ void cdrReset() {
 	cdr.Stat = NoIntr;
 	cdr.DriveState = DRIVESTATE_STANDBY;
 	cdr.StatP = STATUS_ROTATING;
-	pTransfer = cdr.Transfer;
+	cdr.FifoOffset = DATA_SIZE; // fifo empty
 	
 	// BIOS player - default values
 	cdr.AttenuatorLeftToLeft = 0x80;
@@ -1586,7 +1566,7 @@ int cdrFreeze(void *f, int Mode) {
 	
 	if (Mode == 1) {
 		cdr.ParamP = cdr.ParamC;
-		tmp = pTransfer - cdr.Transfer;
+		tmp = cdr.FifoOffset;
 	}
 
 	gzfreeze(&tmp, sizeof(tmp));
@@ -1594,7 +1574,7 @@ int cdrFreeze(void *f, int Mode) {
 	if (Mode == 0) {
 		getCdInfo();
 
-		pTransfer = cdr.Transfer + tmp;
+		cdr.FifoOffset = tmp;
 
 		// read right sub data
 		tmpp[0] = btoi(cdr.Prev[0]);
