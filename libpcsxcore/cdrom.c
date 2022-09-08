@@ -1462,9 +1462,8 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 
 	CDR_LOG("psxDma3() Log: *** DMA 3 *** %x addr = %x size = %x\n", chcr, madr, bcr);
 
-	switch (chcr) {
+	switch (chcr & 0x71000000) {
 		case 0x11000000:
-		case 0x11400100:
 			if (cdr.Readed == 0) {
 				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NOT READY\n");
 				break;
@@ -1493,15 +1492,16 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				psxCpu->Clear(madr, size / 4);
 			}
 
-			if( chcr == 0x11400100 ) {
+			CDRDMA_INT((cdsize/4) * 24);
+
+			HW_DMA3_CHCR &= SWAPu32(~0x10000000);
+			if (chcr & 0x100) {
 				HW_DMA3_MADR = SWAPu32(madr + cdsize);
-				CDRDMA_INT( (cdsize/4) / 4 );
+				HW_DMA3_BCR &= SWAPu32(0xffff0000);
 			}
-			else if( chcr == 0x11000000 ) {
-				// CDRDMA_INT( (cdsize/4) * 1 );
+			else {
 				// halted
-				psxRegs.cycle += (cdsize/4) * 24/2;
-				CDRDMA_INT(16);
+				psxRegs.cycle += (cdsize/4) * 24 - 20;
 			}
 			return;
 

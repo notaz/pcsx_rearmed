@@ -33,12 +33,10 @@
  * so 2.0 to 4.0 should be fine.
  */
  
-/* Was set to 2 before but it would cause issues in R-types and Vandal Hearts videos. 
- * Setting it to 6 as dmitrysmagin did fix those... except for Galerians.
- * Galerians needs this to be set to 10 (!!) before it looks properly.
- * I've tried this with a few other games (including R-Types) and so far, this
- * has not backfired.
- * */
+/*
+ * >= 10 for Galerians
+ * <= 18 for "Disney's Treasure Planet"
+ */
 #define MDEC_BIAS 10
 
 #define DSIZE			8
@@ -487,7 +485,7 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 	size = (bcr >> 16) * (bcr & 0xffff);
 
 	switch (cmd >> 28) {
-		case 0x3: // decode
+		case 0x3: // decode 15/24bpp
 			mdec.rl = (u16 *) PSXM(adr);
 			/* now the mdec is busy till all data are decoded */
 			mdec.reg1 |= MDEC1_BUSY;
@@ -495,10 +493,8 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 			mdec.rl_end = mdec.rl + (size * 2);
 
 			/* sanity check */
-			if(mdec.rl_end <= mdec.rl) {
-				MDECINDMA_INT( size / 4 );
-				return;
-			}
+			if(mdec.rl_end <= mdec.rl)
+				break;
 
 			/* process the pending dma1 */
 			if(mdec.pending_dma1.adr){
@@ -517,23 +513,18 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 				iqtab_init(iq_y, p);
 				iqtab_init(iq_uv, p + 64);
 			}
-
-			MDECINDMA_INT( size / 4 );
-      return;
+			break;
 
 		case 0x6: // cosine table
 			// printf("mdec cosine table\n");
-
-			MDECINDMA_INT( size / 4 );
-      return;
+			break;
 
 		default:
 			// printf("mdec unknown command\n");
 			break;
 	}
 
-	HW_DMA0_CHCR &= SWAP32(~0x01000000);
-	DMA_INTERRUPT(0);
+	MDECINDMA_INT(size);
 }
 
 void mdec0Interrupt()
@@ -629,8 +620,10 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 		}
 	}
 	
-	/* define the power of mdec */
-	MDECOUTDMA_INT(words * MDEC_BIAS);
+		/* define the power of mdec */
+		MDECOUTDMA_INT(words * MDEC_BIAS);
+		/* some CPU stalling */
+		psxRegs.cycle += words;
 	}
 }
 
