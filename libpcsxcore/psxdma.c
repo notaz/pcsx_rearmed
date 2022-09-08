@@ -54,7 +54,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			words = (bcr >> 16) * (bcr & 0xffff);
 			SPU_writeDMAMem(ptr, words * 2, psxRegs.cycle);
 			HW_DMA4_MADR = SWAPu32(madr + words * 4);
-			SPUDMA_INT(words / 2);
+			SPUDMA_INT(words * 4);
 			return;
 
 		case 0x01000200: //spu to cpu transfer
@@ -73,7 +73,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			psxCpu->Clear(madr, words);
 
 			HW_DMA4_MADR = SWAPu32(madr + words * 4);
-			SPUDMA_INT(words / 2);
+			SPUDMA_INT(words * 4);
 			return;
 
 #ifdef PSXDMA_LOG
