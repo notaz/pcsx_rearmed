@@ -35,7 +35,7 @@
 #if 0
 #define CDR_LOG_I SysPrintf
 #else
-#define CDR_LOG_I(...)
+#define CDR_LOG_I log_unhandled
 #endif
 #if 0
 #define CDR_LOG_IO SysPrintf
@@ -1495,6 +1495,8 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				cdr.FifoOffset += size;
 				psxCpu->Clear(madr, size / 4);
 			}
+			if (size < cdsize)
+				CDR_LOG_I("cdrom: dma3 %d/%d\n", size, cdsize);
 
 			CDRDMA_INT((cdsize/4) * 24);
 
@@ -1510,7 +1512,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			return;
 
 		default:
-			CDR_LOG("psxDma3() Log: Unknown cddma %x\n", chcr);
+			CDR_LOG_I("psxDma3() Log: Unknown cddma %x\n", chcr);
 			break;
 	}
 

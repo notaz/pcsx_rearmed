@@ -161,6 +161,17 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
 
+    case H_SPUmvolL:
+    case H_SPUmvolR:
+      if (val & 0x8000)
+        log_unhandled("w master sweep: %08lx %04x\n", reg, val);
+      break;
+
+    case 0x0dac:
+     if (val != 4)
+       log_unhandled("1f801dac %04x\n", val);
+     break;
+
 /*
     case H_ExtLeft:
      //auxprintf("EL %d\n",val);
@@ -335,6 +346,10 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
     //case H_SPUIsOn2:
     // return IsSoundOn(16,24);
  
+    case H_SPUMute1:
+    case H_SPUMute2:
+     log_unhandled("r isOn: %08lx\n", reg);
+     break;
   }
 
  return spu.regArea[(r-0xc00)>>1];
@@ -431,6 +446,7 @@ static void SetVolumeL(unsigned char ch,short vol)     // LEFT VOLUME
  if(vol&0x8000)                                        // sweep?
   {
    short sInc=1;                                       // -> sweep up?
+   log_unhandled("ch%d sweepl %04x\n", ch, vol);
    if(vol&0x2000) sInc=-1;                             // -> or down?
    if(vol&0x1000) vol^=0xffff;                         // -> mmm... phase inverted? have to investigate this
    vol=((vol&0x7f)+1)/2;                               // -> sweep: 0..127 -> 0..64
@@ -457,6 +473,7 @@ static void SetVolumeR(unsigned char ch,short vol)     // RIGHT VOLUME
  if(vol&0x8000)                                        // comments... see above :)
   {
    short sInc=1;
+   log_unhandled("ch%d sweepr %04x\n", ch, vol);
    if(vol&0x2000) sInc=-1;
    if(vol&0x1000) vol^=0xffff;
    vol=((vol&0x7f)+1)/2;        

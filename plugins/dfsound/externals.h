@@ -24,6 +24,9 @@
 // generic defines
 /////////////////////////////////////////////////////////
 
+//#define log_unhandled printf
+#define log_unhandled(...)
+
 #ifdef __GNUC__
 #define noinline __attribute__((noinline))
 #define unlikely(x) __builtin_expect((x), 0)
