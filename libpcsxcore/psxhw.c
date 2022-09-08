@@ -190,6 +190,10 @@ u16 psxHwRead16(u32 add) {
 		//case 0x1f802030: hard =   //int_2000????
 		//case 0x1f802040: hard =//dip switches...??
 
+		case 0x1f801800:
+		case 0x1f801802:
+			log_unhandled("cdrom r16 %x\n", add);
+			// falthrough
 		default:
 			if (add >= 0x1f801c00 && add < 0x1f801e00) {
             	hard = SPU_readRegister(add);
@@ -348,6 +352,9 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 
+		case 0x1f801800:
+			log_unhandled("cdrom r32 %x\n", add);
+			// falthrough
 		default:
 			hard = psxHu32(add); 
 #ifdef PSXHW_LOG

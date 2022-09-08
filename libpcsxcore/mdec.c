@@ -520,7 +520,7 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 			break;
 
 		default:
-			// printf("mdec unknown command\n");
+			log_unhandled("mdec: unknown command %08x\n", cmd);
 			break;
 	}
 
