@@ -154,8 +154,8 @@
 //  sign-extended by bug in original hardware, according to Nocash docs
 //  GTE section 'Screen Offset and Distance'. The emulator does this
 //  sign extension when it is loaded to GTE by CTC2.
-//#define gteH   (psxRegs.CP2C.p[26].sw.l)
-#define gteH   (psxRegs.CP2C.p[26].w.l)
+//#define gteH   (regs->CP2C.p[26].sw.l)
+#define gteH   (regs->CP2C.p[26].w.l)
 #define gteDQA (regs->CP2C.p[27].sw.l)
 #define gteDQB (((s32 *)regs->CP2C.r)[28])
 #define gteZSF3 (regs->CP2C.p[29].sw.l)
