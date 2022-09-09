@@ -25,9 +25,10 @@
 #include "r3000a.h"
 #include "gte.h"
 #include "psxhle.h"
-#include "debug.h"
 #include "psxinterpreter.h"
 #include <assert.h>
+//#include "debug.h"
+#define ProcessDebug()
 
 static int branch = 0;
 static int branch2 = 0;
@@ -41,14 +42,6 @@ static u32 branchPC;
 #define debugI()
 #endif
 
-#ifndef NDEBUG
-#include "debug.h"
-#else
-void StartDebugger() {}
-void ProcessDebug() {}
-void StopDebugger() {}
-#endif
-
 // Subsets
 void (*psxBSC[64])();
 void (*psxSPC[64])();
@@ -60,7 +53,7 @@ void (*psxCP2BSC[32])();
 static u32 fetchNoCache(u32 pc)
 {
 	u32 *code = (u32 *)PSXM(pc);
-	return ((code == INVALID_PTR) ? 0 : SWAP32(*code));
+	return ((code == NULL) ? 0 : SWAP32(*code));
 }
 
 /*
@@ -83,7 +76,7 @@ static u32 fetchICache(u32 pc)
 		if (((entry->tag ^ pc) & 0xfffffff0) != 0 || pc < entry->tag)
 		{
 			u32 *code = (u32 *)PSXM(pc & ~0x0f);
-			if (code == INVALID_PTR)
+			if (!code)
 				return 0;
 
 			entry->tag = pc;
