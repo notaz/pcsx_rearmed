@@ -219,85 +219,12 @@ void new_dyna_freeze(void *f, int mode);
 #define new_dyna_set_event(e, c) \
 	new_dyna_set_event_abs(e, psxRegs.cycle + (c))
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-
-#define _i32(x) *(s32 *)&x
-#define _u32(x) x
-
-#define _i16(x) (((short *)&x)[1])
-#define _u16(x) (((unsigned short *)&x)[1])
-
-#define _i8(x) (((char *)&x)[3])
-#define _u8(x) (((unsigned char *)&x)[3])
-
-#else
-
-#define _i32(x) *(s32 *)&x
-#define _u32(x) x
-
-#define _i16(x) *(short *)&x
-#define _u16(x) *(unsigned short *)&x
-
-#define _i8(x) *(char *)&x
-#define _u8(x) *(unsigned char *)&x
-
-#endif
-
-/**** R3000A Instruction Macros ****/
-#define _PC_       psxRegs.pc       // The next PC to be executed
-
-#define _fOp_(code)		((code >> 26)       )  // The opcode part of the instruction register 
-#define _fFunct_(code)	((code      ) & 0x3F)  // The funct part of the instruction register 
-#define _fRd_(code)		((code >> 11) & 0x1F)  // The rd part of the instruction register 
-#define _fRt_(code)		((code >> 16) & 0x1F)  // The rt part of the instruction register 
-#define _fRs_(code)		((code >> 21) & 0x1F)  // The rs part of the instruction register 
-#define _fSa_(code)		((code >>  6) & 0x1F)  // The sa part of the instruction register
-#define _fIm_(code)		((u16)code)            // The immediate part of the instruction register
-#define _fTarget_(code)	(code & 0x03ffffff)    // The target part of the instruction register
-
-#define _fImm_(code)	((s16)code)            // sign-extended immediate
-#define _fImmU_(code)	(code&0xffff)          // zero-extended immediate
-
-#define _Op_     _fOp_(psxRegs.code)
-#define _Funct_  _fFunct_(psxRegs.code)
-#define _Rd_     _fRd_(psxRegs.code)
-#define _Rt_     _fRt_(psxRegs.code)
-#define _Rs_     _fRs_(psxRegs.code)
-#define _Sa_     _fSa_(psxRegs.code)
-#define _Im_     _fIm_(psxRegs.code)
-#define _Target_ _fTarget_(psxRegs.code)
-
-#define _Imm_	 _fImm_(psxRegs.code)
-#define _ImmU_	 _fImmU_(psxRegs.code)
-
-#define _rRs_   psxRegs.GPR.r[_Rs_]   // Rs register
-#define _rRt_   psxRegs.GPR.r[_Rt_]   // Rt register
-#define _rRd_   psxRegs.GPR.r[_Rd_]   // Rd register
-#define _rSa_   psxRegs.GPR.r[_Sa_]   // Sa register
-#define _rFs_   psxRegs.CP0.r[_Rd_]   // Fs register
-
-#define _c2dRs_ psxRegs.CP2D.r[_Rs_]  // Rs cop2 data register
-#define _c2dRt_ psxRegs.CP2D.r[_Rt_]  // Rt cop2 data register
-#define _c2dRd_ psxRegs.CP2D.r[_Rd_]  // Rd cop2 data register
-#define _c2dSa_ psxRegs.CP2D.r[_Sa_]  // Sa cop2 data register
-
-#define _rHi_   psxRegs.GPR.n.hi   // The HI register
-#define _rLo_   psxRegs.GPR.n.lo   // The LO register
-
-#define _JumpTarget_    ((_Target_ * 4) + (_PC_ & 0xf0000000))   // Calculates the target during a jump instruction
-#define _BranchTarget_  ((s16)_Im_ * 4 + _PC_)                 // Calculates the target during a branch instruction
-
-#define _SetLink(x)     psxRegs.GPR.r[x] = _PC_ + 4;       // Sets the return address in the link register
-
 int  psxInit();
 void psxReset();
 void psxShutdown();
 void psxException(u32 code, u32 bd);
 void psxBranchTest();
 void psxExecuteBios();
-int  psxTestLoadDelay(int reg, u32 tmp);
-void psxDelayTest(int reg, u32 bpc);
-void psxTestSWInts();
 void psxJumpTest();
 
 #ifdef __cplusplus

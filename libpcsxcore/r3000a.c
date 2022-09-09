@@ -83,15 +83,14 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
-	psxRegs.code = fetch(psxRegs.pc);
+	psxRegs.code = PSXMu32(psxRegs.pc);
 	
 	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
 		// so we execute it here
-		extern void (*psxCP2[64])(void *cp2regs);
-		psxCP2[psxRegs.code & 0x3f](&psxRegs.CP2D);
+		psxCP2[psxRegs.code & 0x3f](&psxRegs.CP2);
 	}
 
 	// Set the Cause

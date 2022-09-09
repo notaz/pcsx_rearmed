@@ -301,8 +301,7 @@ void gteCheckStall(u32 op) {
 	gteCheckStallRaw(gte_cycletab[op], &psxRegs);
 }
 
-static inline u32 MFC2(int reg) {
-	psxCP2Regs *regs = &psxRegs.CP2;
+u32 MFC2(struct psxCP2Regs *regs, int reg) {
 	switch (reg) {
 		case 1:
 		case 3:
@@ -311,7 +310,7 @@ static inline u32 MFC2(int reg) {
 		case 9:
 		case 10:
 		case 11:
-			psxRegs.CP2D.r[reg] = (s32)psxRegs.CP2D.p[reg].sw.l;
+			regs->CP2D.r[reg] = (s32)regs->CP2D.p[reg].sw.l;
 			break;
 
 		case 7:
@@ -319,25 +318,24 @@ static inline u32 MFC2(int reg) {
 		case 17:
 		case 18:
 		case 19:
-			psxRegs.CP2D.r[reg] = (u32)psxRegs.CP2D.p[reg].w.l;
+			regs->CP2D.r[reg] = (u32)regs->CP2D.p[reg].w.l;
 			break;
 
 		case 15:
-			psxRegs.CP2D.r[reg] = gteSXY2;
+			regs->CP2D.r[reg] = gteSXY2;
 			break;
 
 		case 28:
 		case 29:
-			psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
+			regs->CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
 									(LIM(gteIR2 >> 7, 0x1f, 0, 0) << 5) |
 									(LIM(gteIR3 >> 7, 0x1f, 0, 0) << 10);
 			break;
 	}
-	return psxRegs.CP2D.r[reg];
+	return regs->CP2D.r[reg];
 }
 
-static inline void MTC2(u32 value, int reg) {
-	psxCP2Regs *regs = &psxRegs.CP2;
+void MTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 	switch (reg) {
 		case 15:
 			gteSXY0 = gteSXY1;
@@ -379,11 +377,11 @@ static inline void MTC2(u32 value, int reg) {
 			return;
 
 		default:
-			psxRegs.CP2D.r[reg] = value;
+			regs->CP2D.r[reg] = value;
 	}
 }
 
-static inline void CTC2(u32 value, int reg) {
+void CTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 	switch (reg) {
 		case 4:
 		case 12:
@@ -401,45 +399,7 @@ static inline void CTC2(u32 value, int reg) {
 			break;
 	}
 
-	psxRegs.CP2C.r[reg] = value;
-}
-
-void gteMFC2() {
-	if (!_Rt_) return;
-	psxRegs.GPR.r[_Rt_] = MFC2(_Rd_);
-}
-
-void gteCFC2() {
-	if (!_Rt_) return;
-	psxRegs.GPR.r[_Rt_] = psxRegs.CP2C.r[_Rd_];
-}
-
-void gteMTC2() {
-	MTC2(psxRegs.GPR.r[_Rt_], _Rd_);
-}
-
-void gteCTC2() {
-	CTC2(psxRegs.GPR.r[_Rt_], _Rd_);
-}
-
-#define _oB_ (psxRegs.GPR.r[_Rs_] + _Imm_)
-
-void gteLWC2() {
-	MTC2(psxMemRead32(_oB_), _Rt_);
-}
-
-void gteSWC2() {
-	psxMemWrite32(_oB_, MFC2(_Rt_));
-}
-
-void gteLWC2_stall() {
-	gteCheckStall(0);
-	gteLWC2();
-}
-
-void gteSWC2_stall() {
-	gteCheckStall(0);
-	gteSWC2();
+	regs->CP2C.r[reg] = value;
 }
 
 #endif // FLAGLESS
