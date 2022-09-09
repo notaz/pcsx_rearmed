@@ -4152,7 +4152,7 @@ static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 
 static void hlecall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
-  void *hlefunc = psxNULL;
+  void *hlefunc = gteNULL;
   uint32_t hleCode = source[i] & 0x03ffffff;
   if (hleCode < ARRAY_SIZE(psxHLEt))
     hlefunc = psxHLEt[hleCode];

@@ -105,13 +105,10 @@ void gen_interupt()
 		next_interupt, next_interupt - psxRegs.cycle);
 }
 
-// from interpreter
-extern void MTC0(int reg, u32 val);
-
 void pcsx_mtc0(u32 reg, u32 val)
 {
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
-	MTC0(reg, val);
+	MTC0(&psxRegs, reg, val);
 	gen_interupt();
 	if (Cause & Status & 0x0300) // possible sw irq
 		pending_exception = 1;
@@ -120,7 +117,7 @@ void pcsx_mtc0(u32 reg, u32 val)
 void pcsx_mtc0_ds(u32 reg, u32 val)
 {
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
-	MTC0(reg, val);
+	MTC0(&psxRegs, reg, val);
 }
 
 void new_dyna_before_save(void)
@@ -299,15 +296,13 @@ const uint64_t gte_reg_writes[64] = {
 static int ari64_init()
 {
 	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
-	extern void (*psxCP2[64])();
-	extern void psxNULL();
 	size_t i;
 
 	new_dynarec_init();
 	new_dyna_pcsx_mem_init();
 
 	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
-		if (psxCP2[i] != psxNULL)
+		if (psxCP2[i] != gteNULL)
 			gte_handlers[i] = psxCP2[i];
 
 #if defined(__arm__) && !defined(DRC_DBG)

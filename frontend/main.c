@@ -43,8 +43,8 @@ static void check_memcards(void);
 #endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
-void StartDebugger();
-void StopDebugger();
+static void StartDebugger() {}
+static void StopDebugger() {}
 
 int ready_to_go, g_emu_want_quit, g_emu_resetting;
 unsigned long gpuDisp;
