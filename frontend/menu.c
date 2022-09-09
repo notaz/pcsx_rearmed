@@ -1602,7 +1602,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
 #endif
 	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
-#ifndef DRC_DISABLE
+#if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
 #endif
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
@@ -2618,7 +2618,7 @@ void menu_prepare_emu(void)
 
 	plat_video_menu_leave();
 
-	#ifndef DRC_DISABLE
+	#if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	psxCpu = (Config.Cpu == CPU_INTERPRETER) ? &psxInt : &psxRec;
 	#else
 	psxCpu = &psxInt;
