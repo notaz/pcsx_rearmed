@@ -1193,13 +1193,13 @@ static void do_samples_finish(int *SSumLR, int ns_to,
   for (ns = 0; ns < ns_to * 2; )
    {
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * vol_l >> 15;
+    d = d * vol_l >> 14;
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;
 
     d = SSumLR[ns]; SSumLR[ns] = 0;
-    d = d * vol_r >> 15;
+    d = d * vol_r >> 14;
     ssat32_to_16(d);
     *spu.pS++ = d;
     ns++;
