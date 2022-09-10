@@ -249,12 +249,8 @@ extern int32_t           drawH;
 
 PSXDisplay_t      PSXDisplay;
 unsigned char  *psxVub;
-signed   char  *psxVsb;
 unsigned short *psxVuw;
 unsigned short *psxVuw_eom;
-signed   short *psxVsw;
-uint32_t *psxVul;
-int32_t  *psxVsl;
 
 long              lGPUstatusRet;
 uint32_t          lGPUInfoVals[16];
@@ -278,13 +274,7 @@ long           lLowerpart;
 static void set_vram(void *vram)
 {
  psxVub=vram;
-
- psxVsb=(signed char *)psxVub;                         // different ways of accessing PSX VRAM
- psxVsw=(signed short *)psxVub;
- psxVsl=(int32_t *)psxVub;
  psxVuw=(unsigned short *)psxVub;
- psxVul=(uint32_t *)psxVub;
-
  psxVuw_eom=psxVuw+1024*512;                           // pre-calc of end of vram
 }
 
@@ -414,8 +404,16 @@ breakloop:
   return list - list_start;
 }
 
-void renderer_sync_ecmds(uint32_t *ecmds)
+void renderer_sync_ecmds(uint32_t *ecmds_)
 {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  // the funcs below expect LE
+  uint32_t i, ecmds[8];
+  for (i = 1; i <= 6; i++)
+    ecmds[i] = HTOLE32(ecmds_[i]);
+#else
+  uint32_t *ecmds = ecmds_;
+#endif
   cmdTexturePage((unsigned char *)&ecmds[1]);
   cmdTextureWindow((unsigned char *)&ecmds[2]);
   cmdDrawAreaStart((unsigned char *)&ecmds[3]);

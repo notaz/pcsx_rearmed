@@ -96,6 +96,7 @@ static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel = -1, memcard2_sel = -1;
 extern int g_autostateld_opt;
+static int menu_iopts[8];
 int g_opts, g_scaler, g_gamma = 100;
 int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
@@ -1556,14 +1557,16 @@ static menu_entry e_menu_speed_hacks[] =
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
 	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
 #endif
-	mee_onoff_h   ("Disable CPU/GTE stalls",   0, Config.DisableStalls, 1, h_cfg_stalls),
+	mee_onoff_h   ("Disable CPU/GTE stalls",   0, menu_iopts[0], 1, h_cfg_stalls),
 	mee_end,
 };
 
 static int menu_loop_speed_hacks(int id, int keys)
 {
 	static int sel = 0;
+	menu_iopts[0] = Config.DisableStalls;
 	me_loop(e_menu_speed_hacks, &sel);
+	Config.DisableStalls = menu_iopts[0];
 	return 0;
 }
 
@@ -1588,22 +1591,24 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 static const char h_cfg_shacks[] = "Breaks games but may give better performance";
 static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
 
+enum { AMO_XA, AMO_CDDA, AMO_SIO, AMO_SPUI, AMO_IC, AMO_RCNT, AMO_WA, AMO_CPU };
+
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff_h   ("Show CPU load",          0, g_opts, OPT_SHOWCPU, h_cfg_cpul),
 	mee_onoff_h   ("Show SPU channels",      0, g_opts, OPT_SHOWSPU, h_cfg_spu),
 	mee_onoff_h   ("Disable Frame Limiter",  0, g_opts, OPT_NO_FRAMELIM, h_cfg_fl),
-	mee_onoff_h   ("Disable XA Decoding",    0, Config.Xa, 1, h_cfg_xa),
-	mee_onoff_h   ("Disable CD Audio",       0, Config.Cdda, 1, h_cfg_cdda),
-	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, Config.Sio, 1, h_cfg_sio),
-	mee_onoff_h   ("SPU IRQ Always Enabled", 0, Config.SpuIrq, 1, h_cfg_spuirq),
-	mee_onoff_h   ("ICache emulation",       0, Config.icache_emulation, 1, h_cfg_icache),
+	mee_onoff_h   ("Disable XA Decoding",    0, menu_iopts[AMO_XA],   1, h_cfg_xa),
+	mee_onoff_h   ("Disable CD Audio",       0, menu_iopts[AMO_CDDA], 1, h_cfg_cdda),
+	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, menu_iopts[AMO_SIO],  1, h_cfg_sio),
+	mee_onoff_h   ("SPU IRQ Always Enabled", 0, menu_iopts[AMO_SPUI], 1, h_cfg_spuirq),
+	mee_onoff_h   ("ICache emulation",       0, menu_iopts[AMO_IC],   1, h_cfg_icache),
 #ifdef DRC_DISABLE
-	mee_onoff_h   ("Rootcounter hack",       0, Config.RCntFix, 1, h_cfg_rcnt1),
+	mee_onoff_h   ("Rootcounter hack",       0, menu_iopts[AMO_RCNT], 1, h_cfg_rcnt1),
 #endif
-	mee_onoff_h   ("Rootcounter hack 2",     0, Config.VSyncWA, 1, h_cfg_rcnt2),
+	mee_onoff_h   ("Rootcounter hack 2",     0, menu_iopts[AMO_WA],   1, h_cfg_rcnt2),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
-	mee_onoff_h   ("Disable dynarec (slow!)",0, Config.Cpu, 1, h_cfg_nodrc),
+	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
@@ -1612,7 +1617,25 @@ static menu_entry e_menu_adv_options[] =
 static int menu_loop_adv_options(int id, int keys)
 {
 	static int sel = 0;
+	static struct {
+		boolean *opt;
+		int *mopt;
+	} opts[] = {
+		{ &Config.Xa,      &menu_iopts[AMO_XA] },
+		{ &Config.Cdda,    &menu_iopts[AMO_CDDA] },
+		{ &Config.Sio,     &menu_iopts[AMO_SIO] },
+		{ &Config.SpuIrq,  &menu_iopts[AMO_SPUI] },
+		{ &Config.icache_emulation, &menu_iopts[AMO_IC] },
+		{ &Config.RCntFix, &menu_iopts[AMO_RCNT] },
+		{ &Config.VSyncWA, &menu_iopts[AMO_WA] },
+		{ &Config.Cpu,     &menu_iopts[AMO_CPU] },
+	};
+	int i;
+	for (i = 0; i < ARRAY_SIZE(opts); i++)
+		*opts[i].mopt = *opts[i].opt;
 	me_loop(e_menu_adv_options, &sel);
+	for (i = 0; i < ARRAY_SIZE(opts); i++)
+		*opts[i].opt = *opts[i].mopt;
 	return 0;
 }
 

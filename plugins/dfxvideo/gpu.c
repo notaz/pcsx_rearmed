@@ -24,12 +24,8 @@
 ////////////////////////////////////////////////////////////////////////
 
 unsigned char  *psxVub;
-signed   char  *psxVsb;
 unsigned short *psxVuw;
 unsigned short *psxVuw_eom;
-signed   short *psxVsw;
-uint32_t *psxVul;
-int32_t  *psxVsl;
 
 ////////////////////////////////////////////////////////////////////////
 // GPU globals
@@ -96,12 +92,7 @@ long CALLBACK GPUinit(void)                                // GPU INIT
  //!!! ATTENTION !!!
  psxVub=vram + 512 * 1024;                           // security offset into double sized psx vram!
 
- psxVsb=(signed char *)psxVub;                         // different ways of accessing PSX VRAM
- psxVsw=(signed short *)psxVub;
- psxVsl=(int32_t *)psxVub;
  psxVuw=(unsigned short *)psxVub;
- psxVul=(uint32_t *)psxVub;
-
  psxVuw_eom=psxVuw+1024*512;                    // pre-calc of end of vram
 
  memset(vram,0x00,(512*2)*1024 + (1024*1024));

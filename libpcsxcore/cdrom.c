@@ -567,6 +567,8 @@ static int cdrSeekTime(unsigned char *target)
 }
 
 static void cdrReadInterrupt(void);
+static void cdrPrepCdda(s16 *buf, int samples);
+static void cdrAttenuate(s16 *buf, int samples, int stereo);
 
 void cdrPlaySeekReadInterrupt(void)
 {
@@ -613,6 +615,7 @@ void cdrPlaySeekReadInterrupt(void)
 		cdrPlayInterrupt_Autopause();
 
 	if (!cdr.Muted && !Config.Cdda) {
+		cdrPrepCdda(read_buf, CD_FRAMESIZE_RAW / 4);
 		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
 		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, cdr.FirstSector);
 		cdr.FirstSector = 0;
@@ -1117,7 +1120,18 @@ void cdrInterrupt(void) {
  } while (0)
 #endif
 
-void cdrAttenuate(s16 *buf, int samples, int stereo)
+static void cdrPrepCdda(s16 *buf, int samples)
+{
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	int i;
+	for (i = 0; i < samples; i++) {
+		buf[i * 2 + 0] = SWAP16(buf[i * 2 + 0]);
+		buf[i * 2 + 1] = SWAP16(buf[i * 2 + 1]);
+	}
+#endif
+}
+
+static void cdrAttenuate(s16 *buf, int samples, int stereo)
 {
 	int i, l, r;
 	int ll = cdr.AttenuatorLeftToLeft;
