@@ -46,7 +46,6 @@ extern "C" {
 #define SUB_FRAMESIZE			96
 
 void cdrReset();
-void cdrAttenuate(s16 *buf, int samples, int stereo);
 
 void cdrInterrupt(void);
 void cdrPlaySeekReadInterrupt(void);
