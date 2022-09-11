@@ -318,6 +318,8 @@ typedef union {
 #  define A64_LDRSB			0x38e06800
 #  define A64_STR			0xf8206800
 #  define A64_LDR			0xf8606800
+#  define A64_LDAXR			0xc85ffc00
+#  define A64_STLXR			0xc800fc00
 #  define A64_STRH			0x78206800
 #  define A64_LDRH			0x78606800
 #  define A64_LDRSH			0x78a06800
@@ -445,6 +447,8 @@ typedef union {
 #  define LDR(Rt,Rn,Rm)			oxxx(A64_LDR,Rt,Rn,Rm)
 #  define LDRI(Rt,Rn,Imm12)		oxxi(A64_LDRI,Rt,Rn,Imm12)
 #  define LDUR(Rt,Rn,Imm9)		oxx9(A64_LDUR,Rt,Rn,Imm9)
+#  define LDAXR(Rt,Rn)			o_xx(A64_LDAXR,Rt,Rn)
+#  define STLXR(Rs,Rt,Rn)		oxxx(A64_STLXR,Rs,Rn,Rt)
 #  define STRB(Rt,Rn,Rm)		oxxx(A64_STRB,Rt,Rn,Rm)
 #  define STRBI(Rt,Rn,Imm12)		oxxi(A64_STRBI,Rt,Rn,Imm12)
 #  define STURB(Rt,Rn,Imm9)		oxx9(A64_STURB,Rt,Rn,Imm9)
@@ -674,6 +678,11 @@ static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define extr_us(r0,r1)		UXTH(r0,r1)
 #  define extr_i(r0,r1)			SXTW(r0,r1)
 #  define extr_ui(r0,r1)		UXTW(r0,r1)
+#  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
+static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
+		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define movr(r0,r1)			_movr(_jit,r0,r1)
 static void _movr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi(r0,i0)			_movi(_jit,r0,i0)
@@ -1824,6 +1833,32 @@ _stxi_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 	str_l(rn(reg), r1);
 	jit_unget_reg(reg);
     }
+}
+
+static void
+_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
+{
+    jit_int32_t		r1_reg, iscasi;
+    jit_word_t		retry, done, jump0, jump1;
+    if ((iscasi = (r1 == _NOREG))) {
+	r1_reg = jit_get_reg(jit_class_gpr);
+	r1 = rn(r1_reg);
+	movi(r1, i0);
+    }
+    /* retry: */
+    retry = _jit->pc.w;
+    LDAXR(r0, r1);
+    jump0 = bner(_jit->pc.w, r0, r2);	/* bne done r0 r2 */
+    STLXR(r0, r3, r1);
+    jump1 = bnei(_jit->pc.w, r0, 0);	/* bnei retry r0 0 */
+    /* done: */
+    CSET(r0, CC_EQ);
+    done = _jit->pc.w;
+    patch_at(jump0, done);
+    patch_at(jump1, retry);
+    if (iscasi)
+	jit_unget_reg(r1_reg);
 }
 
 static void

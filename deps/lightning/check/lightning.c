@@ -316,6 +316,7 @@ static void ger_u(void);	static void gei_u(void);
 static void gtr(void);		static void gti(void);
 static void gtr_u(void);	static void gti_u(void);
 static void ner(void);		static void nei(void);
+static void casr(void);		static void casi(void);
 static void movr(void);		static void movi(void);
 static void extr_c(void);	static void extr_uc(void);
 static void extr_s(void);	static void extr_us(void);
@@ -636,6 +637,7 @@ static instr_t		  instr_vector[] = {
     entry(gtr),		entry(gti),
     entry(gtr_u),	entry(gti_u),
     entry(ner),		entry(nei),
+    entry(casr),	entry(casi),
     entry(movr),	entry(movi),
     entry(extr_c),	entry(extr_uc),
     entry(extr_s),	entry(extr_us),
@@ -1028,6 +1030,16 @@ name(void)								\
     jit_word_t	im = get_imm();						\
     jit_##name(r0, r1, r2, im);						\
 }
+#define entry_ir_im_ir_ir(name)						\
+static void								\
+name(void)								\
+{									\
+    jit_gpr_t	r0 = get_ireg();					\
+    jit_word_t	im = get_imm();						\
+    jit_gpr_t r1 = get_ireg(), r2 = get_ireg();				\
+    jit_##name(r0, im, r1, r2);						\
+}
+
 #define entry_ir_ir(name)						\
 static void								\
 name(void)								\
@@ -1443,6 +1455,7 @@ entry_ir_ir_ir(ger_u)		entry_ir_ir_im(gei_u)
 entry_ir_ir_ir(gtr)		entry_ir_ir_im(gti)
 entry_ir_ir_ir(gtr_u)		entry_ir_ir_im(gti_u)
 entry_ir_ir_ir(ner)		entry_ir_ir_im(nei)
+entry_ir_ir_ir_ir(casr)		entry_ir_im_ir_ir(casi)
 entry_ir_ir(movr)
 static void
 movi(void)

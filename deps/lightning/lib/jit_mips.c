@@ -67,6 +67,7 @@ static void _patch(jit_state_t*,jit_word_t,jit_node_t*);
 #  include "jit_rewind.c"
 #  include "jit_mips-cpu.c"
 #  include "jit_mips-fpu.c"
+#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -1073,8 +1074,7 @@ _jit_finishr(jit_state_t *_jit, jit_int32_t r0)
     jit_inc_synth_w(finishr, r0);
     if (_jitc->function->self.alen < _jitc->function->call.size)
 	_jitc->function->self.alen = _jitc->function->call.size;
-    jit_movr(_T9, r0);
-    call = jit_callr(_T9);
+    call = jit_callr(r0);
     call->v.w = _jitc->function->self.argi;
 #if NEW_ABI
     call->w.w = call->v.w;
@@ -1433,6 +1433,14 @@ _emit_code(jit_state_t *_jit)
 		case_rr(ext, _i);
 		case_rr(ext, _ui);
 #endif
+	    case jit_code_casr:
+		casr(rn(node->u.w), rn(node->v.w),
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
+	    case jit_code_casi:
+		casi(rn(node->u.w), node->v.w,
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
 		case_rrr(movn,);
 		case_rrr(movz,);
 		case_rr(mov,);
@@ -1875,6 +1883,7 @@ _emit_code(jit_state_t *_jit)
 #  include "jit_rewind.c"
 #  include "jit_mips-cpu.c"
 #  include "jit_mips-fpu.c"
+#  include "jit_fallback.c"
 #undef CODE
 
 void

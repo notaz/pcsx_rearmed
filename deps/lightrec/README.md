@@ -51,3 +51,5 @@ Lightrec has been ported to the following emulators:
 * [__pcsx4all__ (my own fork)](https://github.com/pcercuei/pcsx4all)
 
 * [__Beetle__ (libretro)](https://github.com/libretro/beetle-psx-libretro/)
+
+[![Star History Chart](https://api.star-history.com/svg?repos=pcercuei/lightrec&type=Date)](https://star-history.com/#pcercuei/lightrec&Date)

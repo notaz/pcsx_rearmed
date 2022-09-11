@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
 
 #if defined(__hpux) && defined(__hppa__)
 #  include <machine/param.h>
@@ -913,6 +914,10 @@ typedef enum {
 #define jit_bswapr(u,v)		jit_new_node_ww(jit_code_bswapr_ul,u,v)
 #endif
 
+    jit_code_casr,		jit_code_casi,
+#define jit_casr(u, v, w, x)	jit_new_node_wwq(jit_code_casr, u, v, w, x)
+#define jit_casi(u, v, w, x)	jit_new_node_wwq(jit_code_casi, u, v, w, x)
+
     jit_code_last_code
 } jit_code_t;
 
@@ -1081,6 +1086,10 @@ extern jit_node_t *_jit_new_node_www(jit_state_t*, jit_code_t,
 extern jit_node_t *_jit_new_node_qww(jit_state_t*, jit_code_t,
 				     jit_int32_t, jit_int32_t,
 				     jit_word_t, jit_word_t);
+#define jit_new_node_wwq(c,u,v,l,h) _jit_new_node_wwq(_jit,c,u,v,l,h)
+extern jit_node_t *_jit_new_node_wwq(jit_state_t*, jit_code_t,
+				     jit_word_t, jit_word_t,
+				     jit_int32_t, jit_int32_t);
 #define jit_new_node_wwf(c,u,v,w) _jit_new_node_wwf(_jit,c,u,v,w)
 extern jit_node_t *_jit_new_node_wwf(jit_state_t*, jit_code_t,
 				     jit_word_t, jit_word_t, jit_float32_t);

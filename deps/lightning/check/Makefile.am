@@ -16,7 +16,8 @@
 
 AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include -D_GNU_SOURCE
 
-check_PROGRAMS = lightning ccall self setcode nodata ctramp carg cva_list
+check_PROGRAMS = lightning ccall self setcode nodata ctramp carg cva_list \
+	catomic
 
 lightning_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
 lightning_SOURCES = lightning.c
@@ -41,6 +42,9 @@ carg_SOURCES = carg.c
 
 cva_list_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
 cva_list_SOURCES = cva_list.c
+
+catomic_LDADD = $(top_builddir)/lib/liblightning.la -lm -lpthread $(SHLIB)
+catomic_SOURCES = catomic.c
 
 $(top_builddir)/lib/liblightning.la:
 	cd $(top_builddir)/lib; $(MAKE) $(AM_MAKEFLAGS) liblightning.la
@@ -319,7 +323,7 @@ $(nodata_TESTS):	check.nodata.sh
 TESTS += $(nodata_TESTS)
 endif
 
-TESTS += ccall self setcode nodata ctramp carg cva_list
+TESTS += ccall self setcode nodata ctramp carg cva_list catomic
 CLEANFILES = $(TESTS)
 
 #TESTS_ENVIRONMENT=$(srcdir)/run-test;

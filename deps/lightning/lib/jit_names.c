@@ -230,4 +230,5 @@ static char *code_name[] = {
     "movr_d_w",		"movi_d_w",
     "bswapr_us",
     "bswapr_ui",		"bswapr_ul",
+    "casr",		"casi",
 };

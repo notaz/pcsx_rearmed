@@ -260,7 +260,7 @@ static void _FXS(jit_state_t*,int,int,int,int,int,int,int);
 #  define LHAU(d,a,s)			FDs(43,d,a,s)
 #  define LHAUX(d,a,b)			FX(31,d,a,b,375)
 #  define LHAX(d,a,b)			FX(31,d,a,b,343)
-#  define LHRBX(d,a,b)			FX(31,d,a,b,790)
+#  define LHBRX(d,a,b)			FX(31,d,a,b,790)
 #  define LHZ(d,a,s)			FDs(40,d,a,s)
 #  define LHZU(d,a,s)			FDs(41,d,a,s)
 #  define LHZUX(d,a,b)			FX(31,d,a,b,311)
@@ -271,6 +271,7 @@ static void _FXS(jit_state_t*,int,int,int,int,int,int,int);
 #  define LSWI(d,a,n)			FX(31,d,a,n,597)
 #  define LSWX(d,a,b)			FX(31,d,a,b,533)
 #  define LWARX(d,a,b)			FX(31,d,a,b,20)
+#  define LDARX(d,a,b)			FX(31,d,a,b,84)
 #  define LWBRX(d,a,b)			FX(31,d,a,b,534)
 #  define LWA(d,a,s)			FDs(58,d,a,s|2)
 #  define LWAUX(d,a,b)			FX(31,d,a,b,373)
@@ -446,6 +447,7 @@ static void _MCRXR(jit_state_t*, jit_int32_t);
 #  define STW(s,a,d)			FDs(36,s,a,d)
 #  define STWBRX(s,a,b)			FX(31,s,a,b,662)
 #  define STWCX_(s,a,b)			FX_(31,s,a,b,150)
+#  define STDCX_(s,a,b)			FX_(31,s,a,b,214)
 #  define STWU(s,a,d)			FDs(37,s,a,d)
 #  define STWUX(s,a,b)			FX(31,s,a,b,183)
 #  define STWX(s,a,b)			FX(31,s,a,b,151)
@@ -511,6 +513,11 @@ static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define movi_p(r0,i0)			_movi_p(_jit,r0,i0)
 static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
+#  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
+static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
+		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define negr(r0,r1)			NEG(r0,r1)
 #  define comr(r0,r1)			NOT(r0,r1)
 #  define extr_c(r0,r1)			EXTSB(r0,r1)
@@ -521,10 +528,12 @@ static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
 #    define extr_i(r0,r1)		EXTSW(r0,r1)
 #    define extr_ui(r0,r1)		CLRLDI(r0,r1,32)
 #  endif
-#  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1)
-static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
-#  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1)
-static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define bswapr_us_lh(r0,r1,no_flag)	_bswapr_us(_jit,r0,r1,no_flag)
+#  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1,0)
+static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t,jit_bool_t);
+#  define bswapr_ui_lw(r0,r1,no_flag)	_bswapr_ui(_jit,r0,r1,no_flag)
+#  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1,0)
+static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t,jit_bool_t);
 #  if __WORDSIZE == 64
 #    define bswapr_ul(r0,r1)		generic_bswapr_ul(_jit,r0,r1)
 #  endif
@@ -1148,8 +1157,70 @@ _movi_p(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 }
 
 static void
-_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
+    jit_int32_t		r1_reg, iscasi;
+    jit_word_t		retry, done, jump0, jump1;
+    if ((iscasi = (r1 == _NOREG))) {
+	r1_reg = jit_get_reg(jit_class_gpr);
+	r1 = rn(r1_reg);
+	movi(r1, i0);
+    }
+    SYNC();
+    /* retry: */
+    retry = _jit->pc.w;
+#  if __WORDSIZE == 32
+    LWARX(r0, _R0_REGNO, r1);
+#  else
+    LDARX(r0, _R0_REGNO, r1);
+#  endif
+    jump0 = bner(_jit->pc.w, r0, r2);	/* bne done r0 r2 */
+#  if __WORDSIZE == 32
+    STWCX_(r3, _R0_REGNO, r1);
+#  else
+    STDCX_(r3, _R0_REGNO, r1);
+#  endif
+    jump1 = bnei(_jit->pc.w, r0, 0);	/* bne retry r0 0 */
+    /* done: */
+    done = _jit->pc.w;
+    ISYNC();
+    MFCR(r0);
+    patch_at(jump0, done);
+    patch_at(jump1, retry);
+    if (iscasi)
+	jit_unget_reg(r1_reg);
+}
+
+static void
+_bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_bool_t no_flag)
+{
+    jit_int32_t		reg, addr_reg;
+
+    /* Convert load followed by bswap to a single instruction */
+    /* FIXME r0 and r1 do not need to be the same, only must check if
+     * r1 was loaded in previous instruction */
+    if (no_flag && r0 == r1) {
+        if ((*(_jit->pc.ui - 1) & 0xffe007ff) == (0x7c00022e | r0 << 21)) {
+            /* Convert LHZX to LHBRX */
+            _jit->pc.ui--;
+            LHBRX(r0, (*_jit->pc.ui >> 16) & 0x1f, (*_jit->pc.ui >> 11) & 0x1f);
+            return;
+        }
+
+        if ((*(_jit->pc.ui - 1) & 0xffe00000) == (0xa0000000 | r0 << 21)) {
+            /* Convert LHZ to LHBRX */
+            _jit->pc.ui--;
+            addr_reg = (*_jit->pc.ui >> 16) & 0x1f;
+
+            reg = jit_get_reg(jit_class_gpr);
+            LI(rn(reg), (short)*_jit->pc.ui);
+            LHBRX(r0, rn(reg), addr_reg);
+            jit_unget_reg(reg);
+            return;
+        }
+    }
+
     if (r0 == r1) {
         RLWIMI(r0, r0, 16, 8, 15);
         RLWINM(r0, r0, 24, 16, 31);
@@ -1160,9 +1231,34 @@ _bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 }
 
 static void
-_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_bswapr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_bool_t no_flag)
 {
-    jit_int32_t		reg;
+    jit_int32_t		reg, addr_reg;
+
+    /* Convert load followed by bswap to a single instruction */
+    /* FIXME r0 and r1 do not need to be the same, only must check if
+     * r1 was loaded in previous instruction */
+    if (no_flag && r0 == r1) {
+        if ((*(_jit->pc.ui - 1) & 0xffe007ff) == (0x7c00002e | r0 << 21)) {
+            /* Convert LWZX to LWBRX */
+            _jit->pc.ui--;
+            LWBRX(r0, (*_jit->pc.ui >> 16) & 0x1f, (*_jit->pc.ui >> 11) & 0x1f);
+            return;
+        }
+
+        if ((*(_jit->pc.ui - 1) & 0xffe00000) == (0x80000000 | r0 << 21)) {
+            /* Convert LWZ to LWBRX */
+            _jit->pc.ui--;
+            addr_reg = (*_jit->pc.ui >> 16) & 0x1f;
+
+            reg = jit_get_reg(jit_class_gpr);
+            LI(rn(reg), (short)*_jit->pc.ui);
+            LWBRX(r0, rn(reg), addr_reg);
+            jit_unget_reg(reg);
+            return;
+        }
+    }
+
     reg = jit_get_reg(jit_class_gpr);
     ROTLWI(rn(reg), r1, 8);
     RLWIMI(rn(reg), r1, 24, 0, 7);
@@ -1428,15 +1524,23 @@ _remi_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
     jit_unget_reg(reg);
 }
 
+#  define is_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) <= 1) : 0)
+
 static void
 _andi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
-    jit_int32_t		reg;
+    jit_int32_t		reg, offt;
     if (can_zero_extend_short_p(i0))
 	ANDI_(r0, r1, i0);
     else if (can_zero_extend_int_p(i0) && !(i0 & 0x0000ffff))
 	ANDIS_(r0, r1, (jit_uword_t)i0 >> 16);
-    else {
+    else if (__WORDSIZE == 32 && is_mask(i0)) {
+	offt = __builtin_ctzl(i0);
+	RLWINM(r0, r1, 0, 32 - offt - __builtin_popcountl(i0), 31 - offt);
+    } else if (__WORDSIZE == 32 && is_mask(~i0)) {
+	offt = __builtin_ctzl(~i0);
+	RLWINM(r0, r1, 0, 32 - offt, 31 - offt - __builtin_popcountl(~i0));
+    } else {
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), i0);
 	AND(r0, r1, rn(reg));
@@ -3204,10 +3308,13 @@ _calli(jit_state_t *_jit, jit_word_t i0
 {
 #  if _CALL_SYSV
     jit_word_t		d;
-    d = (i0 - _jit->pc.w) & ~3;
-    if (can_sign_extend_jump_p(d))
-	BL(d);
-    else
+    d = (i0 - _jit->pc.w - !!varargs * 4) & ~3;
+    if (can_sign_extend_jump_p(d)) {
+        /* Tell double arguments were passed in registers. */
+        if (varargs)
+            CREQV(6, 6, 6);
+        BL(d);
+    } else
 #  endif
     {
 	movi(_R12_REGNO, i0);

@@ -90,6 +90,7 @@ extern void __clear_cache(void *, void *);
 #  include "jit_arm-cpu.c"
 #  include "jit_arm-swf.c"
 #  include "jit_arm-vfp.c"
+#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -1504,6 +1505,14 @@ _emit_code(jit_state_t *_jit)
 		case_rr(ext, _uc);
 		case_rr(ext, _s);
 		case_rr(ext, _us);
+	    case jit_code_casr:
+		casr(rn(node->u.w), rn(node->v.w),
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
+	    case jit_code_casi:
+		casi(rn(node->u.w), node->v.w,
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
 		case_rr(mov,);
 		case_rrr(movn,);
 		case_rrr(movz,);
@@ -2003,6 +2012,7 @@ _emit_code(jit_state_t *_jit)
 #  include "jit_arm-cpu.c"
 #  include "jit_arm-swf.c"
 #  include "jit_arm-vfp.c"
+#  include "jit_fallback.c"
 #undef CODE
 
 void

@@ -403,6 +403,8 @@
     20,	/* bswapr_us */
     52,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __WORDSIZE */
 
 #if __WORDSIZE == 64
@@ -810,4 +812,6 @@
     20,	/* bswapr_us */
     52,	/* bswapr_ui */
     116,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __WORDSIZE */

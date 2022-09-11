@@ -1311,6 +1311,11 @@ static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
 static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define movzr(r0,r1,r2)		_movzr(_jit,r0,r1,r2)
 static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
+static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
+		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define bswapr_us(r0,r1)		_bswapr_us(_jit,r0,r1)
 static void _bswapr_us(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define bswapr_ui(r0,r1)		_bswapr_ui(_jit,r0,r1)
@@ -3497,6 +3502,13 @@ _movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
     w = bnei(_jit->pc.w, r2, 0);
     movr(r0, r1);
     patch_at(w, _jit->pc.w);
+}
+
+static void
+_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
+{
+    fallback_casx(r0, r1, r2, r3, i0);
 }
 
 static void

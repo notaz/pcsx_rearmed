@@ -40,6 +40,7 @@ static void _patch(jit_state_t*,jit_word_t,jit_node_t*);
 #define PROTO				1
 #  include "jit_sparc-cpu.c"
 #  include "jit_sparc-fpu.c"
+#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -1477,6 +1478,14 @@ _emit_code(jit_state_t *_jit)
 		case_rr(ext, _i);
 		case_rr(ext, _ui);
 #endif
+	    case jit_code_casr:
+		casr(rn(node->u.w), rn(node->v.w),
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
+	    case jit_code_casi:
+		casi(rn(node->u.w), node->v.w,
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
 		case_rrr(movn,);
 		case_rrr(movz,);
 		case_rr(mov,);
@@ -1875,6 +1884,7 @@ _emit_code(jit_state_t *_jit)
 #define CODE				1
 #  include "jit_sparc-cpu.c"
 #  include "jit_sparc-fpu.c"
+#  include "jit_fallback.c"
 #undef CODE
 
 void

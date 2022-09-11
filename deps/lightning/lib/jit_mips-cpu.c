@@ -522,6 +522,11 @@ static void _movi(jit_state_t*,jit_int32_t,jit_word_t);
 static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
 #  define movnr(r0,r1,r2)		MOVN(r0, r1, r2)
 #  define movzr(r0,r1,r2)		MOVZ(r0, r1, r2)
+#  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
+static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
+		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define ldr_c(r0,r1)			LB(r0,0,r1)
 #  define ldi_c(r0,i0)			_ldi_c(_jit,r0,i0)
 static void _ldi_c(jit_state_t*,jit_int32_t,jit_word_t);
@@ -1326,6 +1331,13 @@ _movi_p(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 #  endif
 
     return (w);
+}
+
+static void
+_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
+{
+    fallback_casx(r0, r1, r2, r3, i0);
 }
 
 static void
@@ -2931,6 +2943,32 @@ _callr(jit_state_t *_jit, jit_int32_t r0)
 static void
 _calli(jit_state_t *_jit, jit_word_t i0)
 {
+    if (((_jit->pc.w + sizeof(jit_int32_t)) & 0xf0000000) == (i0 & 0xf0000000)) {
+        if (can_sign_extend_short_p(i0)) {
+            JAL((i0 & ~0xf0000000) >> 2);
+            addiu(_T9_REGNO, _ZERO_REGNO, i0);
+            return;
+        }
+
+        if (can_zero_extend_short_p(i0)) {
+            JAL((i0 & ~0xf0000000) >> 2);
+            ORI(_T9_REGNO, _ZERO_REGNO, i0);
+            return;
+        }
+
+        if (can_sign_extend_int_p(i0)) {
+            if (i0 & 0xffff) {
+                LUI(_T9_REGNO, i0 >> 16);
+                JAL((i0 & ~0xf0000000) >> 2);
+                ORI(_T9_REGNO, _T9_REGNO, i0);
+            } else {
+                JAL((i0 & ~0xf0000000) >> 2);
+                LUI(_T9_REGNO, i0 >> 16);
+            }
+            return;
+        }
+    }
+
     movi(_T9_REGNO, i0);
     JALR(_T9_REGNO);
     NOP(1);

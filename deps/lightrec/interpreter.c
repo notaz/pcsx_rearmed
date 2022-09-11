@@ -985,6 +985,33 @@ static u32 int_META_EXTS(struct interpreter *inter)
 	return jump_next(inter);
 }
 
+static u32 int_META_MULT2(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->regs.gpr;
+	union code c = inter->op->c;
+	u32 rs = reg_cache[c.r.rs];
+	u8 reg_lo = get_mult_div_lo(c);
+	u8 reg_hi = get_mult_div_hi(c);
+
+	if (!op_flag_no_lo(inter->op->flags)) {
+		if (c.r.op < 32)
+			reg_cache[reg_lo] = rs << c.r.op;
+		else
+			reg_cache[reg_lo] = 0;
+	}
+
+	if (!op_flag_no_hi(inter->op->flags)) {
+		if (c.r.op >= 32)
+			reg_cache[reg_hi] = rs << (c.r.op - 32);
+		else if (c.i.op == OP_META_MULT2)
+			reg_cache[reg_hi] = (s32) rs >> (32 - c.r.op);
+		else
+			reg_cache[reg_hi] = rs >> (32 - c.r.op);
+	}
+
+	return jump_next(inter);
+}
+
 static const lightrec_int_func_t int_standard[64] = {
 	SET_DEFAULT_ELM(int_standard, int_unimplemented),
 	[OP_SPECIAL]		= int_SPECIAL,
@@ -1023,6 +1050,8 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META_MOV]		= int_META_MOV,
 	[OP_META_EXTC]		= int_META_EXTC,
 	[OP_META_EXTS]		= int_META_EXTS,
+	[OP_META_MULT2]		= int_META_MULT2,
+	[OP_META_MULTU2]	= int_META_MULT2,
 };
 
 static const lightrec_int_func_t int_special[64] = {
@@ -1154,6 +1183,8 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 		return lightrec_emulate_block_list(state, block, offset);
 
 	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
+
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 
 	return 0;
 }

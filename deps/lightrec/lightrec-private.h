@@ -10,6 +10,7 @@
 #include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
+#include "regcache.h"
 
 #if ENABLE_THREADED_COMPILER
 #include <stdatomic.h>
@@ -45,12 +46,24 @@
 
 #define fallthrough do {} while (0) /* fall-through */
 
+#define container_of(ptr, type, member) \
+	((type *)((void *)(ptr) - offsetof(type, member)))
+
+#ifdef _MSC_BUILD
+#	define popcount32(x)	__popcnt(x)
+#	define ffs32(x)		(31 - __lzcnt(x))
+#else
+#	define popcount32(x)	__builtin_popcount(x)
+#	define ffs32(x)		(__builtin_ffs(x) - 1)
+#endif
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
 #define BLOCK_FULLY_TAGGED	BIT(2)
 #define BLOCK_IS_DEAD		BIT(3)
 #define BLOCK_IS_MEMSET		BIT(4)
+#define BLOCK_NO_OPCODE_LIST	BIT(5)
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
@@ -90,9 +103,10 @@ struct block {
 	u32 precompile_date;
 	unsigned int code_size;
 	u16 nb_ops;
-	u8 flags;
 #if ENABLE_THREADED_COMPILER
-	atomic_flag op_list_freed;
+	_Atomic u8 flags;
+#else
+	u8 flags;
 #endif
 };
 
@@ -111,18 +125,14 @@ enum c_wrappers {
 	C_WRAPPER_RW_GENERIC,
 	C_WRAPPER_MTC,
 	C_WRAPPER_CP,
-	C_WRAPPER_SYSCALL,
-	C_WRAPPER_BREAK,
 	C_WRAPPERS_COUNT,
 };
 
 struct lightrec_cstate {
 	struct lightrec_state *state;
 
-	struct jit_node *branches[512];
 	struct lightrec_branch local_branches[512];
 	struct lightrec_branch_target targets[512];
-	unsigned int nb_branches;
 	unsigned int nb_local_branches;
 	unsigned int nb_targets;
 	unsigned int cycles;
@@ -132,6 +142,7 @@ struct lightrec_cstate {
 
 struct lightrec_state {
 	struct lightrec_registers regs;
+	uintptr_t wrapper_regs[NUM_TEMPS];
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;
@@ -152,7 +163,7 @@ struct lightrec_state {
 	unsigned int nb_precompile;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
-	uintptr_t offset_ram, offset_bios, offset_scratch;
+	uintptr_t offset_ram, offset_bios, offset_scratch, offset_io;
 	_Bool with_32bit_lut;
 	_Bool mirrors_mapped;
 	_Bool invalidate_from_dma_only;
@@ -262,7 +273,8 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate);
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
 int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
-void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block);
+void lightrec_free_opcode_list(struct lightrec_state *state,
+			       struct opcode *list);
 
 unsigned int lightrec_cycles_of_opcode(union code code);
 
@@ -279,6 +291,43 @@ static inline u8 get_mult_div_hi(union code c)
 static inline s16 s16_max(s16 a, s16 b)
 {
 	return a > b ? a : b;
+}
+
+static inline _Bool block_has_flag(struct block *block, u8 flag)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_load_explicit(&block->flags, memory_order_relaxed) & flag;
+#else
+	return block->flags & flag;
+#endif
+}
+
+static inline u8 block_set_flags(struct block *block, u8 mask)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_fetch_or_explicit(&block->flags, mask,
+					memory_order_relaxed);
+#else
+	u8 flags = block->flags;
+
+	block->flags |= mask;
+
+	return flags;
+#endif
+}
+
+static inline u8 block_clear_flags(struct block *block, u8 mask)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_fetch_and_explicit(&block->flags, ~mask,
+					 memory_order_relaxed);
+#else
+	u8 flags = block->flags;
+
+	block->flags &= ~mask;
+
+	return flags;
+#endif
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

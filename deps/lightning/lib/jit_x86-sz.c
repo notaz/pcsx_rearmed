@@ -404,6 +404,8 @@
     7,	/* bswapr_us */
     4,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    9,	/* casr */
+    0,	/* casi */
 #endif
 
 #if __X64
@@ -812,6 +814,8 @@
     9,	/* bswapr_us */
     6,	/* bswapr_ui */
     6,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #else
 
 #  if __X64_32
@@ -1219,6 +1223,8 @@
     9,	/* bswapr_us */
     6,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 
 #  else
 #define JIT_INSTR_MAX 115
@@ -1625,6 +1631,8 @@
     9,	/* bswapr_us */
     6,	/* bswapr_ui */
     6,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __CYGWIN__ || _WIN32 */
 #  endif /* __X64_32 */
 #endif /* __X64 */

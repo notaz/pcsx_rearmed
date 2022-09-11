@@ -87,6 +87,7 @@ struct lightrec_mem_map {
 struct lightrec_ops {
 	void (*cop2_op)(struct lightrec_state *state, u32 op);
 	void (*enable_ram)(struct lightrec_state *state, _Bool enable);
+	_Bool (*hw_direct)(u32 kaddr, _Bool is_write, u8 size);
 };
 
 struct lightrec_registers {
@@ -105,8 +106,8 @@ __api void lightrec_destroy(struct lightrec_state *state);
 
 __api u32 lightrec_execute(struct lightrec_state *state,
 			   u32 pc, u32 target_cycle);
-__api u32 lightrec_execute_one(struct lightrec_state *state, u32 pc);
-__api u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc);
+__api u32 lightrec_run_interpreter(struct lightrec_state *state,
+				   u32 pc, u32 target_cycle);
 
 __api void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
 __api void lightrec_invalidate_all(struct lightrec_state *state);

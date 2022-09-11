@@ -404,4 +404,6 @@
     36,	/* bswapr_us */
     80,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __WORDSIZE */

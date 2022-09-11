@@ -7,6 +7,8 @@
 #include "debug.h"
 #include "lightrec-private.h"
 #include "memmanager.h"
+#include "reaper.h"
+#include "recompiler.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -117,6 +119,7 @@ static void lightrec_free_blocks(struct blockcache *cache,
 	struct block *block, *next;
 	bool outdated = all;
 	unsigned int i;
+	u8 old_flags;
 
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
@@ -130,7 +133,15 @@ static void lightrec_free_blocks(struct blockcache *cache,
 					lightrec_block_is_outdated(state, block);
 			}
 
-			if (outdated) {
+			if (!outdated)
+				continue;
+
+			old_flags = block_set_flags(block, BLOCK_IS_DEAD);
+
+			if (!(old_flags & BLOCK_IS_DEAD)) {
+				if (ENABLE_THREADED_COMPILER)
+					lightrec_recompiler_remove(state->rec, block);
+
 				pr_debug("Freeing outdated block at PC 0x%08x\n", block->pc);
 				remove_from_code_lut(cache, block);
 				lightrec_unregister_block(cache, block);
@@ -187,11 +198,27 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 	return hash;
 }
 
+static void lightrec_reset_lut_offset(struct lightrec_state *state, void *d)
+{
+	u32 pc = (u32)(uintptr_t) d;
+	struct block *block;
+	void *addr;
+
+	block = lightrec_find_block(state->block_cache, pc);
+	if (!block)
+		return;
+
+	if (block_has_flag(block, BLOCK_IS_DEAD))
+		return;
+
+	addr = block->function ?: state->get_next_block;
+	lut_write(state, lut_offset(pc), addr);
+}
+
 bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block)
 {
 	u32 offset = lut_offset(block->pc);
 	bool outdated;
-	void *addr;
 
 	if (lut_read(state, offset))
 		return false;
@@ -200,12 +227,24 @@ bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *bloc
 	if (likely(!outdated)) {
 		/* The block was marked as outdated, but the content is still
 		 * the same */
-		if (block->function)
-			addr = block->function;
-		else
-			addr = state->get_next_block;
 
-		lut_write(state, offset, addr);
+		if (ENABLE_THREADED_COMPILER) {
+			/*
+			 * When compiling a block that covers ours, the threaded
+			 * compiler will set the LUT entries of the various
+			 * entry points. Therefore we cannot write the LUT here,
+			 * as we would risk overwriting the new entry points.
+			 * Leave it to the reaper to re-install the LUT entries.
+			 */
+
+			lightrec_reaper_add(state->reaper,
+					    lightrec_reset_lut_offset,
+					    (void *)(uintptr_t) block->pc);
+		} else if (block->function) {
+			lut_write(state, offset, block->function);
+		} else {
+			lut_write(state, offset, state->get_next_block);
+		}
 	}
 
 	return outdated;

@@ -1,3 +1,43 @@
+2022-09-08 Paulo Andrade <pcpa@gnu.org>
+
+	* lib/jit_fallback.c: Implement fallback compare and swap with
+	pthreads.
+	* check/Makefile.am: Update for new cas{r,i} simple test.
+	* check/catomic.c, check/catomic.ok: New test case for
+	simple compare and swap atomic operation.
+	* check/lightning.c: Add entries to be able to use
+	the new compare and swap atomic operation. Still missing
+	a general test, only the basic C version.
+	* include/lightning.h.in: Include pthread.h, even if not
+	needing a fallback compare and swap.
+	* include/lightning/jit_private.h: Add support for a register pair
+	in second argument. Required by the new casr and casi operations.
+	* lib/jit_aarch64-cpu.c, lib/jit_aarch64-sz.c, lib/jit_aarch64.c,
+	lib/jit_ppc-cpu.c, lib/jit_ppc-sz.c, lib/jit_ppc.c, lib/jit_x86-cpu.c,
+	lib/jit_x86-sz.c, lib/jit_x86.c: Implement inline code for compare
+	and swap.
+	* lib/jit_arm-cpu.c, lib/jit_arm-sz.c, lib/jit_arm.c: Implement
+	inline code for compare and swap if cpu is armv7, otherwise, use
+	a fallback with pthreads.
+	* lib/jit_alpha-cpu.c, lib/jit_alpha-sz.c, lib/jit_alpha.c,
+	lib/jit_hppa-cpu.c, lib/jit_hppa-sz.c, lib/jit_hppa.c,
+	lib/jit_ia64-cpu.c, lib/jit_ia64-sz.c, lib/jit_ia64.c,
+	lib/jit_mips-cpu.c, lib/jit_mips-sz.c, lib/jit_mips.c,
+	lib/jit_riscv-cpu.c, lib/jit_riscv-sz.c, lib/jit_riscv.c,
+	lib/jit_s390-cpu.c, lib/jit_s390-sz.c, lib/jit_s390.c,
+	lib/jit_sparc-cpu.c, lib/jit_sparc-sz.c, lib/jit_sparc.c: Implement
+	fallback compare and swap with pthreads. At least some of these
+	should be updated for inline code generation.
+	* lib/jit_names.c, lib/jit_print.c: lib/lightning.c: Update for the
+	new compare and	swap operation.
+	* doc/body.texi: Add simple documentation of the compare and swap
+	new operation.
+
+2022-08-12  Marc Nieper-Wißkirchen  <marc@nieper-wisskirchen.de>
+
+	Document jit_align.
+	* doc/body.texi: Add documentation for jit_align.
+
 2022-05-14 Paulo Andrade <pcpa@gnu.org>
 
 	* include/lightning.h.in: Reorder jit_mov{n,z}r in instruction list.

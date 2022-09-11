@@ -58,7 +58,7 @@ void
 jit_init_print(void)
 {
     if (!print_stream)
-	print_stream = stderr;
+	print_stream = stdout;
 }
 
 void
@@ -107,7 +107,7 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	(jit_cc_a0_int|jit_cc_a0_flt|jit_cc_a0_dbl|jit_cc_a0_jmp|
 	 jit_cc_a0_reg|jit_cc_a0_rlh|jit_cc_a0_arg|
 	 jit_cc_a1_reg|jit_cc_a1_int|jit_cc_a1_flt|jit_cc_a1_dbl|jit_cc_a1_arg|
-	 jit_cc_a2_reg|jit_cc_a2_int|jit_cc_a2_flt|jit_cc_a2_dbl);
+	 jit_cc_a2_reg|jit_cc_a2_int|jit_cc_a2_flt|jit_cc_a2_dbl|jit_cc_a2_rlh);
     if (!(node->flag & jit_flag_synth) && ((value & jit_cc_a0_jmp) ||
 					   node->code == jit_code_finishr ||
 					   node->code == jit_code_finishi))
@@ -217,6 +217,18 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	    print_chr(' ');	print_reg(node->u.q.h);
 	    print_str(") ");	print_reg(node->v.w);
 	    print_chr(' ');	print_hex(node->w.w);   return;
+	r_r_q:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_chr(' ');	print_reg(node->v.w);
+	    print_str(" (");	print_reg(node->w.q.l);
+	    print_chr(' ');	print_reg(node->w.q.h);
+	    print_str(") ");	return;
+	r_w_q:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_chr(' ');	print_hex(node->v.w);
+	    print_str(" (");	print_reg(node->w.q.l);
+	    print_chr(' ');	print_reg(node->w.q.h);
+	    print_str(") ");	return;
 	r_r_f:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
@@ -357,6 +369,12 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 		case jit_cc_a0_reg|jit_cc_a0_rlh|
 		     jit_cc_a1_reg|jit_cc_a2_int:
 		    goto q_r_w;
+		case jit_cc_a0_reg|jit_cc_a1_reg|
+		    jit_cc_a2_reg|jit_cc_a2_rlh:
+		    goto r_r_q;
+		case jit_cc_a0_reg|jit_cc_a1_int|
+		    jit_cc_a2_reg|jit_cc_a2_rlh:
+		    goto r_w_q;
 		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_flt:
 		    goto r_r_f;
 		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_dbl:

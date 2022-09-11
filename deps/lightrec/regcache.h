@@ -6,12 +6,25 @@
 #ifndef __REGCACHE_H__
 #define __REGCACHE_H__
 
+#include "lightning-wrapper.h"
+
+#define NUM_REGS (JIT_V_NUM - 1)
+#define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
+
+#if defined(__powerpc__)
+#  define NUM_TEMPS JIT_R_NUM
+/* JIT_R0 is callee-saved on PowerPC, we have to use something else */
+#  define LIGHTREC_REG_CYCLE _R10
+#  define FIRST_TEMP 0
+#else
+#  define NUM_TEMPS (JIT_R_NUM - 1)
+#  define LIGHTREC_REG_CYCLE JIT_R0
+#  define FIRST_TEMP 1
+#endif
+
 #include "lightrec-private.h"
 
-#define NUM_REGS (JIT_V_NUM - 2)
-#define NUM_TEMPS (JIT_R_NUM)
-#define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
-#define LIGHTREC_REG_CYCLE (JIT_V(JIT_V_NUM - 2))
+#define FIRST_REG 0
 
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
@@ -35,6 +48,9 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 			   u8 reg, u8 jit_reg);
 
+s8 lightrec_get_reg_with_value(struct regcache *cache, intptr_t value);
+void lightrec_temp_set_value(struct regcache *cache, u8 jit_reg, intptr_t value);
+
 u8 lightrec_get_reg_in_flags(struct regcache *cache, u8 jit_reg);
 void lightrec_set_reg_out_flags(struct regcache *cache, u8 jit_reg, u8 flags);
 
@@ -47,6 +63,7 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit);
 void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
+_Bool lightrec_has_dirty_regs(struct regcache *cache);
 
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 				  u8 reg, _Bool unload);

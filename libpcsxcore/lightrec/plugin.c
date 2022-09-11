@@ -53,8 +53,6 @@ static char *name = "retroarch.exe";
 
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
-static bool lightrec_debug;
-static bool lightrec_very_debug;
 static bool booting;
 static u32 lightrec_begin_cycles;
 
@@ -305,9 +303,86 @@ static void lightrec_enable_ram(struct lightrec_state *state, bool enable)
 		memcpy(cache_buf, psxM, sizeof(cache_buf));
 }
 
+static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
+{
+	switch (size) {
+	case 8:
+		switch (kaddr) {
+		case 0x1f801040:
+		case 0x1f801050:
+		case 0x1f801800:
+		case 0x1f801801:
+		case 0x1f801802:
+		case 0x1f801803:
+			return false;
+		default:
+			return true;
+		}
+	case 16:
+		switch (kaddr) {
+		case 0x1f801040:
+		case 0x1f801044:
+		case 0x1f801048:
+		case 0x1f80104a:
+		case 0x1f80104e:
+		case 0x1f801050:
+		case 0x1f801054:
+		case 0x1f80105a:
+		case 0x1f80105e:
+		case 0x1f801100:
+		case 0x1f801104:
+		case 0x1f801108:
+		case 0x1f801110:
+		case 0x1f801114:
+		case 0x1f801118:
+		case 0x1f801120:
+		case 0x1f801124:
+		case 0x1f801128:
+			return false;
+		case 0x1f801070:
+		case 0x1f801074:
+			return !is_write;
+		default:
+			return is_write || kaddr < 0x1f801c00 || kaddr >= 0x1f801e00;
+		}
+	default:
+		switch (kaddr) {
+		case 0x1f801040:
+		case 0x1f801050:
+		case 0x1f801100:
+		case 0x1f801104:
+		case 0x1f801108:
+		case 0x1f801110:
+		case 0x1f801114:
+		case 0x1f801118:
+		case 0x1f801120:
+		case 0x1f801124:
+		case 0x1f801128:
+		case 0x1f801810:
+		case 0x1f801814:
+		case 0x1f801820:
+		case 0x1f801824:
+			return false;
+		case 0x1f801070:
+		case 0x1f801074:
+		case 0x1f801088:
+		case 0x1f801098:
+		case 0x1f8010a8:
+		case 0x1f8010b8:
+		case 0x1f8010c8:
+		case 0x1f8010e8:
+		case 0x1f8010f4:
+			return !is_write;
+		default:
+			return !is_write || kaddr < 0x1f801c00 || kaddr >= 0x1f801e00;
+		}
+	}
+}
+
 static const struct lightrec_ops lightrec_ops = {
 	.cop2_op = cop2_op,
 	.enable_ram = lightrec_enable_ram,
+	.hw_direct = lightrec_can_hw_direct,
 };
 
 static int lightrec_plugin_init(void)
@@ -321,11 +396,10 @@ static int lightrec_plugin_init(void)
 		lightrec_map[PSX_MAP_MIRROR1].address = psxM + 0x200000;
 		lightrec_map[PSX_MAP_MIRROR2].address = psxM + 0x400000;
 		lightrec_map[PSX_MAP_MIRROR3].address = psxM + 0x600000;
+		lightrec_map[PSX_MAP_HW_REGISTERS].address = psxH + 0x1000;
 		lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
 	}
 
-	lightrec_debug = !!getenv("LIGHTREC_DEBUG");
-	lightrec_very_debug = !!getenv("LIGHTREC_VERY_DEBUG");
 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
 	if (getenv("LIGHTREC_BEGIN_CYCLES"))
 	  lightrec_begin_cycles = (unsigned int) strtol(
@@ -345,90 +419,6 @@ static int lightrec_plugin_init(void)
 	signal(SIGPIPE, exit);
 #endif
 	return 0;
-}
-
-static u32 hash_calculate_le(const void *buffer, u32 count)
-{
-	unsigned int i;
-	u32 *data = (u32 *) buffer;
-	u32 hash = 0xffffffff;
-
-	count /= 4;
-	for(i = 0; i < count; ++i) {
-		hash += LE32TOH(data[i]);
-		hash += (hash << 10);
-		hash ^= (hash >> 6);
-	}
-
-	hash += (hash << 3);
-	hash ^= (hash >> 11);
-	hash += (hash << 15);
-	return hash;
-}
-
-static u32 hash_calculate(const void *buffer, u32 count)
-{
-	unsigned int i;
-	u32 *data = (u32 *) buffer;
-	u32 hash = 0xffffffff;
-
-	count /= 4;
-	for(i = 0; i < count; ++i) {
-		hash += data[i];
-		hash += (hash << 10);
-		hash ^= (hash >> 6);
-	}
-
-	hash += (hash << 3);
-	hash ^= (hash >> 11);
-	hash += (hash << 15);
-	return hash;
-}
-
-static const char * const mips_regs[] = {
-	"zero",
-	"at",
-	"v0", "v1",
-	"a0", "a1", "a2", "a3",
-	"t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
-	"s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-	"t8", "t9",
-	"k0", "k1",
-	"gp", "sp", "fp", "ra",
-	"lo", "hi",
-};
-
-static void print_for_big_ass_debugger(void)
-{
-	unsigned int i;
-
-	printf("CYCLE 0x%08x PC 0x%08x", psxRegs.cycle, psxRegs.pc);
-
-	if (lightrec_very_debug)
-		printf(" RAM 0x%08x SCRATCH 0x%08x HW 0x%08x",
-				hash_calculate_le(psxM, 0x200000),
-				hash_calculate_le(psxH, 0x400),
-				hash_calculate_le(psxH + 0x1000, 0x2000));
-
-	printf(" CP0 0x%08x CP2D 0x%08x CP2C 0x%08x INT 0x%04x INTCYCLE 0x%08x GPU 0x%08x",
-			hash_calculate(&psxRegs.CP0.r,
-				sizeof(psxRegs.CP0.r)),
-			hash_calculate(&psxRegs.CP2D.r,
-				sizeof(psxRegs.CP2D.r)),
-			hash_calculate(&psxRegs.CP2C.r,
-				sizeof(psxRegs.CP2C.r)),
-			psxRegs.interrupt,
-			hash_calculate(psxRegs.intCycle,
-				sizeof(psxRegs.intCycle)),
-			LE32TOH(HW_GPU_STATUS));
-
-	if (lightrec_very_debug)
-		for (i = 0; i < 34; i++)
-			printf(" %s 0x%08x", mips_regs[i], psxRegs.GPR.r[i]);
-	else
-		printf(" GPR 0x%08x", hash_calculate(&psxRegs.GPR.r,
-					sizeof(psxRegs.GPR.r)));
-	printf("\n");
 }
 
 static void lightrec_dump_regs(struct lightrec_state *state)
@@ -462,22 +452,24 @@ static void lightrec_plugin_execute_block(void)
 
 	gen_interupt();
 
+	// step during early boot so that 0x80030000 fastboot hack works
+	if (booting)
+		next_interupt = psxRegs.cycle;
+
 	if (use_pcsx_interpreter) {
 		intExecuteBlock();
 	} else {
 		lightrec_reset_cycle_count(lightrec_state, psxRegs.cycle);
 		lightrec_restore_regs(lightrec_state);
 
-		if (unlikely(use_lightrec_interpreter))
+		if (unlikely(use_lightrec_interpreter)) {
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
-							      psxRegs.pc);
-		// step during early boot so that 0x80030000 fastboot hack works
-		else if (unlikely(booting || lightrec_debug))
-			psxRegs.pc = lightrec_execute_one(lightrec_state,
-							  psxRegs.pc);
-		else
+							      psxRegs.pc,
+							      next_interupt);
+		} else {
 			psxRegs.pc = lightrec_execute(lightrec_state,
 						      psxRegs.pc, next_interupt);
+		}
 
 		psxRegs.cycle = lightrec_current_cycle_count(lightrec_state);
 
@@ -496,10 +488,6 @@ static void lightrec_plugin_execute_block(void)
 		if (booting && (psxRegs.pc & 0xff800000) == 0x80000000)
 			booting = false;
 	}
-
-	if (lightrec_debug && psxRegs.cycle >= lightrec_begin_cycles
-			&& psxRegs.pc != old_pc)
-		print_for_big_ass_debugger();
 
 	if ((psxRegs.CP0.n.Cause & psxRegs.CP0.n.Status & 0x300) &&
 			(psxRegs.CP0.n.Status & 0x1)) {

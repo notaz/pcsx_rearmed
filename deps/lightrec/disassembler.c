@@ -11,7 +11,7 @@
 #include "lightrec-private.h"
 #include "regcache.h"
 
-static const char *std_opcodes[] = {
+static const char * const std_opcodes[] = {
 	[OP_J]			= "j       ",
 	[OP_JAL]		= "jal     ",
 	[OP_BEQ]		= "beq     ",
@@ -42,7 +42,7 @@ static const char *std_opcodes[] = {
 	[OP_SWC2]		= "swc2    ",
 };
 
-static const char *special_opcodes[] = {
+static const char * const special_opcodes[] = {
 	[OP_SPECIAL_SLL]	= "sll     ",
 	[OP_SPECIAL_SRL]	= "srl     ",
 	[OP_SPECIAL_SRA]	= "sra     ",
@@ -73,14 +73,14 @@ static const char *special_opcodes[] = {
 	[OP_SPECIAL_SLTU]	= "sltu    ",
 };
 
-static const char *regimm_opcodes[] = {
+static const char * const regimm_opcodes[] = {
 	[OP_REGIMM_BLTZ]	= "bltz    ",
 	[OP_REGIMM_BGEZ]	= "bgez    ",
 	[OP_REGIMM_BLTZAL]	= "bltzal  ",
 	[OP_REGIMM_BGEZAL]	= "bgezal  ",
 };
 
-static const char *cp0_opcodes[] = {
+static const char * const cp0_opcodes[] = {
 	[OP_CP0_MFC0]		= "mfc0    ",
 	[OP_CP0_CFC0]		= "cfc0    ",
 	[OP_CP0_MTC0]		= "mtc0    ",
@@ -88,38 +88,68 @@ static const char *cp0_opcodes[] = {
 	[OP_CP0_RFE]		= "rfe",
 };
 
-static const char *cp2_opcodes[] = {
+static const char * const cp2_basic_opcodes[] = {
 	[OP_CP2_BASIC_MFC2]	= "mfc2    ",
 	[OP_CP2_BASIC_CFC2]	= "cfc2    ",
 	[OP_CP2_BASIC_MTC2]	= "mtc2    ",
 	[OP_CP2_BASIC_CTC2]	= "ctc2    ",
 };
 
-static const char *opcode_flags[] = {
+static const char * const cp2_opcodes[] = {
+	[OP_CP2_RTPS]		= "rtps    ",
+	[OP_CP2_NCLIP]		= "nclip   ",
+	[OP_CP2_OP]		= "op      ",
+	[OP_CP2_DPCS]		= "dpcs    ",
+	[OP_CP2_INTPL]		= "intpl   ",
+	[OP_CP2_MVMVA]		= "mvmva   ",
+	[OP_CP2_NCDS]		= "ncds    ",
+	[OP_CP2_CDP]		= "cdp     ",
+	[OP_CP2_NCDT]		= "ncdt    ",
+	[OP_CP2_NCCS]		= "nccs    ",
+	[OP_CP2_CC]		= "cc      ",
+	[OP_CP2_NCS]		= "ncs     ",
+	[OP_CP2_NCT]		= "nct     ",
+	[OP_CP2_SQR]		= "sqr     ",
+	[OP_CP2_DCPL]		= "dcpl    ",
+	[OP_CP2_DPCT]		= "dpct    ",
+	[OP_CP2_AVSZ3]		= "avsz3   ",
+	[OP_CP2_AVSZ4]		= "avsz4   ",
+	[OP_CP2_RTPT]		= "rtpt    ",
+	[OP_CP2_GPF]		= "gpf     ",
+	[OP_CP2_GPL]		= "gpl     ",
+	[OP_CP2_NCCT]		= "ncct    ",
+};
+
+static const char * const mult2_opcodes[] = {
+	"mult2   ", "multu2  ",
+};
+
+static const char * const opcode_flags[] = {
 	"switched branch/DS",
 	"sync point",
 };
 
-static const char *opcode_io_flags[] = {
+static const char * const opcode_io_flags[] = {
 	"self-modifying code",
 	"no invalidation",
 	"no mask",
 };
 
-static const char *opcode_io_modes[] = {
+static const char * const opcode_io_modes[] = {
 	"Memory access",
 	"I/O access",
 	"RAM access",
 	"BIOS access",
 	"Scratchpad access",
+	"Mapped I/O access"
 };
 
-static const char *opcode_branch_flags[] = {
+static const char * const opcode_branch_flags[] = {
 	"emulate branch",
 	"local branch",
 };
 
-static const char *opcode_multdiv_flags[] = {
+static const char * const opcode_multdiv_flags[] = {
 	"No LO",
 	"No HI",
 	"No div check",
@@ -145,7 +175,7 @@ static const char * const reg_op_token[3] = {
 };
 
 static int print_flags(char *buf, size_t len, const struct opcode *op,
-		       const char **array, size_t array_size,
+		       const char * const *array, size_t array_size,
 		       bool is_io)
 {
 	const char *flag_name, *io_mode_name;
@@ -223,7 +253,7 @@ static int print_flags(char *buf, size_t len, const struct opcode *op,
 }
 
 static int print_op_special(union code c, char *buf, size_t len,
-			    const char ***flags_ptr, size_t *nb_flags)
+			    const char * const **flags_ptr, size_t *nb_flags)
 {
 	switch (c.r.op) {
 	case OP_SPECIAL_SLL:
@@ -294,17 +324,14 @@ static int print_op_special(union code c, char *buf, size_t len,
 static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 {
 	if (cp == 2) {
-		switch (c.i.rs) {
-		case OP_CP0_MFC0:
-		case OP_CP0_CFC0:
-		case OP_CP0_MTC0:
-		case OP_CP0_CTC0:
+		switch (c.r.op) {
+		case OP_CP2_BASIC:
 			return snprintf(buf, len, "%s%s,%u",
-					cp2_opcodes[c.i.rs],
+					cp2_basic_opcodes[c.i.rs],
 					lightrec_reg_name(c.i.rt),
 					c.r.rd);
 		default:
-			return snprintf(buf, len, "cp2     (0x%08x)", c.opcode);
+			return snprintf(buf, len, "%s", cp2_opcodes[c.r.op]);
 		}
 	} else {
 		switch (c.i.rs) {
@@ -325,7 +352,7 @@ static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 }
 
 static int print_op(union code c, u32 pc, char *buf, size_t len,
-		    const char ***flags_ptr, size_t *nb_flags,
+		    const char * const **flags_ptr, size_t *nb_flags,
 		    bool *is_io)
 {
 	if (c.opcode == 0)
@@ -429,6 +456,15 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 		return snprintf(buf, len, "exts    %s,%s",
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs));
+	case OP_META_MULT2:
+	case OP_META_MULTU2:
+		*flags_ptr = opcode_multdiv_flags;
+		*nb_flags = ARRAY_SIZE(opcode_multdiv_flags);
+		return snprintf(buf, len, "%s%s,%s,%s,%u",
+				mult2_opcodes[c.i.op == OP_META_MULTU2],
+				lightrec_reg_name(get_mult_div_hi(c)),
+				lightrec_reg_name(get_mult_div_lo(c)),
+				lightrec_reg_name(c.r.rs), c.r.op);
 	default:
 		return snprintf(buf, len, "unknown (0x%08x)", c.opcode);
 	}
@@ -437,7 +473,7 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 {
 	const struct opcode *op;
-	const char **flags_ptr;
+	const char * const *flags_ptr;
 	size_t nb_flags, count, count2;
 	char buf[256], buf2[256], buf3[256];
 	unsigned int i;

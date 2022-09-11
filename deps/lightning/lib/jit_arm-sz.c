@@ -405,6 +405,8 @@
     8,	/* bswapr_us */
     4,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __ARM_PCS_VFP */
 #endif /* __WORDSIZE */
 
@@ -814,5 +816,7 @@
     20,	/* bswapr_us */
     16,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __ARM_PCS_VFP */
 #endif /* __WORDSIZE */

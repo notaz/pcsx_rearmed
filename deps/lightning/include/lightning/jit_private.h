@@ -276,6 +276,7 @@ extern jit_node_t *_jit_data(jit_state_t*, const void*,
 #define jit_cc_a2_int		0x00100000	/* arg2 is immediate word */
 #define jit_cc_a2_flt		0x00200000	/* arg2 is immediate float */
 #define jit_cc_a2_dbl		0x00400000	/* arg2 is immediate double */
+#define jit_cc_a2_rlh		0x00800000	/* arg2 is a register pair */
 
 #if __ia64__ || (__sparc__ && __WORDSIZE == 64)
 extern void

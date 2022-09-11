@@ -25,6 +25,7 @@
 #define PROTO				1
 #  include "jit_hppa-cpu.c"
 #  include "jit_hppa-fpu.c"
+#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -1028,6 +1029,14 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(rsh, _u);
 		case_rrr(movn,);
 		case_rrr(movz,);
+	    case jit_code_casr:
+		casr(rn(node->u.w), rn(node->v.w),
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
+	    case jit_code_casi:
+		casi(rn(node->u.w), node->v.w,
+		     rn(node->w.q.l), rn(node->w.q.h));
+		break;
 		case_rr(mov,);
 	    case jit_code_movi:
 		if (node->flag & jit_flag_node) {
@@ -1459,6 +1468,7 @@ _emit_code(jit_state_t *_jit)
 #define CODE				1
 #  include "jit_hppa-cpu.c"
 #  include "jit_hppa-fpu.c"
+#  include "jit_fallback.c"
 #undef CODE
 
 void

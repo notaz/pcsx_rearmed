@@ -53,6 +53,20 @@ static jit_state_t		 *disasm_jit;
 static FILE			 *disasm_stream;
 #endif
 
+#if BINUTILS_2_38
+static int fprintf_styled(void *, enum disassembler_style, const char* fmt, ...)
+{
+  va_list args;
+  int r;
+
+  va_start(args, fmt);
+  r = vprintf(fmt, args);
+  va_end(args);
+
+  return r;
+}
+#endif
+
 /*
  * Implementation
  */
@@ -77,7 +91,11 @@ jit_init_debug(const char *progname)
     if (!disasm_stream)
 	disasm_stream = stdout;
 
+#if BINUTILS_2_38
+    INIT_DISASSEMBLE_INFO(disasm_info, disasm_stream, fprintf, fprintf_styled);
+#else
     INIT_DISASSEMBLE_INFO(disasm_info, disasm_stream, fprintf);
+#endif
     disasm_info.arch = bfd_get_arch(disasm_bfd);
     disasm_info.mach = bfd_get_mach(disasm_bfd);
 

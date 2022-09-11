@@ -369,6 +369,11 @@ static void _movcr_u(jit_state_t*,jit_int32_t,jit_int32_t);
 static void _movsr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movsr_u(r0, r1)		_movsr_u(_jit, r0, r1)
 static void _movsr_u(jit_state_t*,jit_int32_t,jit_int32_t);
+#  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
+static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
+		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #define movnr(r0, r1, r2)		_movnr(_jit, r0, r1, r2)
 static void _movnr(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 #define movzr(r0, r1, r2)		_movzr(_jit, r0, r1, r2)
@@ -2216,6 +2221,66 @@ _movsr_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     ic(0x0f);
     ic(0xb7);
     mrm(0x03, r7(r0), r7(r1));
+}
+
+static void
+_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
+      jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
+{
+    jit_int32_t		save_rax, restore_rax;
+    jit_int32_t		ascasr_reg, ascasr_use;
+    if (r0 != _RAX_REGNO) {		/* result not in %rax */
+	if (r2 != _RAX_REGNO) {		/* old value not in %rax */
+	    save_rax = jit_get_reg(jit_class_gpr);
+	    movr(rn(save_rax), _RAX_REGNO);
+	    restore_rax = 1;
+	}
+	else
+	    restore_rax = 0;
+    }
+    else
+	restore_rax = 0;
+    if (r2 != _RAX_REGNO)
+	movr(_RAX_REGNO, r2);
+    if (r1 == _NOREG) {			/* using immediate address */
+	if (!can_sign_extend_int_p(i0)) {
+	    ascasr_reg = jit_get_reg(jit_class_gpr);
+	    if (ascasr_reg == _RAX) {
+		ascasr_reg = jit_get_reg(jit_class_gpr);
+		jit_unget_reg(_RAX);
+	    }
+	    ascasr_use = 1;
+	    movi(rn(ascasr_reg), i0);
+	}
+	else
+	    ascasr_use = 0;
+    }
+    else
+	ascasr_use = 0;
+    ic(0xf0);		/* lock */
+    if (ascasr_use)
+	rex(0, WIDE, r3, _NOREG, rn(ascasr_reg));
+    else
+	rex(0, WIDE, r3, _NOREG, r1);
+    ic(0x0f);
+    ic(0xb1);
+    if (r1 != _NOREG)			/* casr */
+	rx(r3, 0, r1, _NOREG, _SCL1);
+    else {				/* casi */
+	if (ascasr_use)
+	    rx(r3, 0, rn(ascasr_reg), _NOREG, _SCL1);	/* address in reg */
+	else
+	    rx(r3, i0, _NOREG, _NOREG, _SCL1);		/* address in offset */
+    }
+    cc(X86_CC_E, r0);
+    if (r0 != _RAX_REGNO)
+	movr(r0, _RAX_REGNO);
+    if (restore_rax) {
+	movr(_RAX_REGNO, rn(save_rax));
+	jit_unget_reg(save_rax);
+    }
+    if (ascasr_use)
+	jit_unget_reg(ascasr_reg);
 }
 
 static void

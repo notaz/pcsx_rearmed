@@ -406,6 +406,8 @@
     20,	/* bswapr_us */
     16,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* _CALL_SYV */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
@@ -819,6 +821,8 @@
     20,	/* bswapr_us */
     16,	/* bswapr_ui */
     0,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* _CALL_AIX */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
@@ -1231,6 +1235,8 @@
     20,	/* bswapr_us */
     16,	/* bswapr_ui */
     44,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __BYTEORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */
@@ -1642,6 +1648,8 @@
     20,	/* bswapr_us */
     16,	/* bswapr_ui */
     44,	/* bswapr_ul */
+    0,	/* casr */
+    0,	/* casi */
 #endif /* __BYTE_ORDER */
 #endif /* __powerpc__ */
 #endif /* __WORDSIZE */

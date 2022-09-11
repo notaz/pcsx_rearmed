@@ -136,9 +136,21 @@ if test "x$DISASSEMBLER" != "xno"; then
 		return 0;
 	}
     )], [ac_cv_test_new_disassembler=no],,)
+    AC_COMPILE_IFELSE([AC_LANG_SOURCE(
+	#include <dis-asm.h>
+	int main(int argc, char *argv[])
+	{
+		struct disassemble_info dinfo;
+		INIT_DISASSEMBLE_INFO(dinfo, NULL, NULL, NULL);
+		return 0;
+	}
+    )], [ac_cv_test_new_disassemble_info=yes],[ac_cv_test_new_disassemble_info=no],)
     CFLAGS="$save_CFLAGS"
     if test "x$ac_cv_test_new_disassembler" != "xno"; then
 	LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DBINUTILS_2_29=1"
+    fi
+    if test "x$ac_cv_test_new_disassemble_info" != "xno"; then
+	LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DBINUTILS_2_38=1"
     fi
 fi
 

@@ -106,29 +106,20 @@ static bool lightrec_cancel_block_rec(struct recompiler *rec,
 static void lightrec_cancel_list(struct recompiler *rec)
 {
 	struct block_rec *block_rec;
-	struct slist_elm *next;
+	struct slist_elm *elm, *head = &rec->slist;
 
-	while (!!(next = lightrec_get_first_elm(&rec->slist))) {
-		block_rec = container_of(next, struct block_rec, slist);
-
+	for (elm = slist_first(head); elm; elm = slist_first(head)) {
+		block_rec = container_of(elm, struct block_rec, slist);
 		lightrec_cancel_block_rec(rec, block_rec);
 	}
-
-	pthread_cond_broadcast(&rec->cond2);
 }
 
 static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
 {
 	struct recompiler *rec = d;
 
-	pthread_mutex_lock(&rec->mutex);
-
-	if (rec->must_flush) {
-		lightrec_remove_outdated_blocks(state->block_cache, NULL);
-		rec->must_flush = false;
-	}
-
-	pthread_mutex_unlock(&rec->mutex);
+	lightrec_remove_outdated_blocks(state->block_cache, NULL);
+	rec->must_flush = false;
 }
 
 static void lightrec_compile_list(struct recompiler *rec,
@@ -146,19 +137,23 @@ static void lightrec_compile_list(struct recompiler *rec,
 
 		pthread_mutex_unlock(&rec->mutex);
 
-		if (likely(!(block->flags & BLOCK_IS_DEAD))) {
+		if (likely(!block_has_flag(block, BLOCK_IS_DEAD))) {
 			ret = lightrec_compile_block(thd->cstate, block);
 			if (ret == -ENOMEM) {
 				/* Code buffer is full. Request the reaper to
 				 * flush it. */
 
 				pthread_mutex_lock(&rec->mutex);
+				block_rec->compiling = false;
+				pthread_cond_broadcast(&rec->cond2);
+
 				if (!rec->must_flush) {
+					rec->must_flush = true;
+					lightrec_cancel_list(rec);
+
 					lightrec_reaper_add(rec->state->reaper,
 							    lightrec_flush_code_buffer,
 							    rec);
-					lightrec_cancel_list(rec);
-					rec->must_flush = true;
 				}
 				return;
 			}
@@ -174,7 +169,7 @@ static void lightrec_compile_list(struct recompiler *rec,
 		slist_remove(&rec->slist, next);
 		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 			      sizeof(*block_rec), block_rec);
-		pthread_cond_signal(&rec->cond2);
+		pthread_cond_broadcast(&rec->cond2);
 	}
 }
 
@@ -333,7 +328,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* If the block is marked as dead, don't compile it, it will be removed
 	 * as soon as it's safe. */
-	if (block->flags & BLOCK_IS_DEAD)
+	if (block_has_flag(block, BLOCK_IS_DEAD))
 		goto out_unlock;
 
 	for (elm = slist_first(&rec->slist), prev = NULL; elm;
@@ -345,7 +340,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 			 * it to the top of the list, unless the block is being
 			 * recompiled. */
 			if (prev && !block_rec->compiling &&
-			    !(block->flags & BLOCK_SHOULD_RECOMPILE)) {
+			    !block_has_flag(block, BLOCK_SHOULD_RECOMPILE)) {
 				slist_remove_next(prev);
 				slist_append(&rec->slist, elm);
 			}
@@ -356,7 +351,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* By the time this function was called, the block has been recompiled
 	 * and ins't in the wait list anymore. Just return here. */
-	if (block->function && !(block->flags & BLOCK_SHOULD_RECOMPILE))
+	if (block->function && !block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
 		goto out_unlock;
 
 	block_rec = lightrec_malloc(rec->state, MEM_FOR_LIGHTREC,
@@ -375,7 +370,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* If the block is being recompiled, push it to the end of the queue;
 	 * otherwise push it to the front of the queue. */
-	if (block->flags & BLOCK_SHOULD_RECOMPILE)
+	if (block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
 		for (; elm->next; elm = elm->next);
 
 	slist_append(elm, &block_rec->slist);
@@ -419,31 +414,36 @@ out_unlock:
 void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 					  struct block *block, u32 *pc)
 {
-	bool freed;
+	u8 old_flags;
 
 	/* There's no point in running the first pass if the block will never
 	 * be compiled. Let the main loop run the interpreter instead. */
-	if (block->flags & BLOCK_NEVER_COMPILE)
+	if (block_has_flag(block, BLOCK_NEVER_COMPILE))
 		return NULL;
+
+	/* The block is marked as dead, and will be removed the next time the
+	 * reaper is run. In the meantime, the old function can still be
+	 * executed. */
+	if (block_has_flag(block, BLOCK_IS_DEAD))
+		return block->function;
 
 	/* If the block is already fully tagged, there is no point in running
 	 * the first pass. Request a recompilation of the block, and maybe the
 	 * interpreter will run the block in the meantime. */
-	if (block->flags & BLOCK_FULLY_TAGGED)
+	if (block_has_flag(block, BLOCK_FULLY_TAGGED))
 		lightrec_recompiler_add(state->rec, block);
 
 	if (likely(block->function)) {
-		if (block->flags & BLOCK_FULLY_TAGGED) {
-			freed = atomic_flag_test_and_set(&block->op_list_freed);
+		if (block_has_flag(block, BLOCK_FULLY_TAGGED)) {
+			old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
-			if (!freed) {
+			if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
 				pr_debug("Block PC 0x%08x is fully tagged"
 					 " - free opcode list\n", block->pc);
 
 				/* The block was already compiled but the opcode list
 				 * didn't get freed yet - do it now */
-				lightrec_free_opcode_list(state, block);
-				block->opcode_list = NULL;
+				lightrec_free_opcode_list(state, block->opcode_list);
 			}
 		}
 
@@ -452,23 +452,25 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 	/* Mark the opcode list as freed, so that the threaded compiler won't
 	 * free it while we're using it in the interpreter. */
-	freed = atomic_flag_test_and_set(&block->op_list_freed);
+	old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	/* Block wasn't compiled yet - run the interpreter */
 	*pc = lightrec_emulate_block(state, block, *pc);
 
-	if (!freed)
-		atomic_flag_clear(&block->op_list_freed);
+	if (!(old_flags & BLOCK_NO_OPCODE_LIST))
+		block_clear_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	/* The block got compiled while the interpreter was running.
 	 * We can free the opcode list now. */
-	if (block->function && (block->flags & BLOCK_FULLY_TAGGED) &&
-	    !atomic_flag_test_and_set(&block->op_list_freed)) {
-		pr_debug("Block PC 0x%08x is fully tagged"
-			 " - free opcode list\n", block->pc);
+	if (block->function && block_has_flag(block, BLOCK_FULLY_TAGGED)) {
+		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
-		lightrec_free_opcode_list(state, block);
-		block->opcode_list = NULL;
+		if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
+			pr_debug("Block PC 0x%08x is fully tagged"
+				 " - free opcode list\n", block->pc);
+
+			lightrec_free_opcode_list(state, block->opcode_list);
+		}
 	}
 
 	return NULL;

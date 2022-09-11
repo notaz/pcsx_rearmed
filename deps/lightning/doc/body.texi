@@ -597,6 +597,12 @@ forward   (not specified)                @r{forward label}
 indirect  (not specified)                @r{special simple label}
 @end example
 
+The following instruction is used to specify a minimal alignment for
+the next instruction, usually with a label:
+@example
+align     (not specified)                @r{align code}
+@end example
+
 @code{label} is normally used as @code{patch_at} argument for backward
 jumps.
 
@@ -648,6 +654,38 @@ addr  = jit_movi(JIT_R0, 0);             @rem{/* immediate is ignored */}
 that automatically binds the implicit label added by @code{patch} with
 the @code{movi}, but on some special conditions it is required to create
 an "unbound" label.
+
+@code{align} is useful for creating multiple entry points to a
+(trampoline) function that are all accessible through a single
+function pointer.  @code{align} receives an integer argument that
+defines the minimal alignment of the address of a label directly
+following the @code{align} instruction.  The integer argument must be
+a power of two and the effective alignment will be a power of two no
+less than the argument to @code{align}.  If the argument to
+@code{align} is 16 or more, the effective alignment will match the
+specified minimal alignment exactly.
+
+@example
+          jit_node_t *forward, *label1, *label2, *jump;
+          unsigned char *addr1, *addr2;
+forward = jit_forward();
+          jit_align(16);
+label1  = jit_indirect();                @rem{/* first entry point */}
+jump    = jit_jmpi();                    @rem{/* jump to first handler */}
+          jit_patch_at(jump, forward);
+          jit_align(16);
+label2  = jit_indirect();                @rem{/* second entry point */}
+          ...                            @rem{/* second handler */}
+          jit_jmpr(...);
+          jit_link(forward);
+          ...                            @rem{/* first handler /*}
+          jit_jmpr(...);
+          ...
+          jit_emit();
+          addr1 = jit_address(label1);
+          addr2 = jit_address(label2);
+          assert(addr2 - addr1 == 16);   @rem{/* only one of the addresses needs to be remembered */}
+@end example
 
 @item Function prolog
 
@@ -890,6 +928,34 @@ to save and load the values when making function calls.
 @code{pointer_p} expects a pointer argument, and will return non
 zero if the pointer is inside the generated jit code. Must be
 called after @code{jit_emit} and before @code{jit_destroy_state}.
+
+@item Atomic operations
+Only compare-and-swap is implemented. It accepts four operands;
+the second can be an immediate.
+
+The first argument is set with a boolean value telling if the operation
+did succeed.
+
+Arguments must be different, cannot use the result register to also pass
+an argument.
+
+The second argument is the address of a machine word.
+
+The third argument is the old value.
+
+The fourth argument is the new value.
+
+@example
+casr                                  01 = (*O2 == O3) ? (*O2 = O4, 1) : 0
+casi                                  01 = (*O2 == O3) ? (*O2 = O4, 1) : 0
+@end example
+
+If value at the address in the second argument is equal to the third
+argument, the address value is atomically modified to the value of the
+fourth argument and the first argument is set to a non zero value.
+
+If the value at the address in the second argument is not equal to the
+third argument nothing is done and the first argument is set to zero.
 @end table
 
 @node GNU lightning examples
