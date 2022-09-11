@@ -126,9 +126,11 @@ static void cop2_op(struct lightrec_state *state, u32 func)
 
 static bool has_interrupt(void)
 {
+	struct lightrec_registers *regs = lightrec_get_registers(lightrec_state);
+
 	return ((psxHu32(0x1070) & psxHu32(0x1074)) &&
-	     (psxRegs.CP0.n.Status & 0x401) == 0x401) ||
-	    (psxRegs.CP0.n.Status & psxRegs.CP0.n.Cause & 0x0300);
+		(regs->cp0[12] & 0x401) == 0x401) ||
+		(regs->cp0[12] & regs->cp0[13] & 0x0300);
 }
 
 static void lightrec_restore_state(struct lightrec_state *state)
@@ -390,13 +392,13 @@ static int lightrec_plugin_init(void)
 	lightrec_map[PSX_MAP_KERNEL_USER_RAM].address = psxM;
 	lightrec_map[PSX_MAP_BIOS].address = psxR;
 	lightrec_map[PSX_MAP_SCRATCH_PAD].address = psxH;
+	lightrec_map[PSX_MAP_HW_REGISTERS].address = psxH + 0x1000;
 	lightrec_map[PSX_MAP_PARALLEL_PORT].address = psxP;
 
 	if (LIGHTREC_CUSTOM_MAP) {
 		lightrec_map[PSX_MAP_MIRROR1].address = psxM + 0x200000;
 		lightrec_map[PSX_MAP_MIRROR2].address = psxM + 0x400000;
 		lightrec_map[PSX_MAP_MIRROR3].address = psxM + 0x600000;
-		lightrec_map[PSX_MAP_HW_REGISTERS].address = psxH + 0x1000;
 		lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
 	}
 
