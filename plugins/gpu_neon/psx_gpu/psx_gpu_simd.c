@@ -18,6 +18,9 @@
 #include "psx_gpu_simd.h"
 //#define ASM_PROTOTYPES
 //#include "psx_gpu_simd.h"
+#ifdef __SSE2__
+#include <x86intrin.h>
+#endif
 #ifndef SIMD_BUILD
 #error "please define SIMD_BUILD if you want this gpu_neon C simd implementation"
 #endif
@@ -42,6 +45,31 @@ typedef s64 gvhs64 __attribute__((vector_size(8)));
 
 typedef union
 {
+  gvu8  u8;
+  gvu16 u16;
+  gvu32 u32;
+  gvu64 u64;
+  gvs8  s8;
+  gvs16 s16;
+  gvs32 s32;
+  gvs64 s64;
+#ifdef __SSE2__
+  __m128i m;
+#endif
+  // this may be tempting, but it causes gcc to do lots of stack spills
+  //gvhreg h[2];
+} gvreg;
+
+typedef gvreg    gvreg_ua    __attribute__((aligned(1)));
+typedef uint64_t uint64_t_ua __attribute__((aligned(1)));
+typedef gvu8     gvu8_ua     __attribute__((aligned(1)));
+typedef gvu16    gvu16_ua    __attribute__((aligned(1)));
+
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#include <arm_neon.h>
+
+typedef union
+{
   gvhu8  u8;
   gvhu16 u16;
   gvhu32 u32;
@@ -55,23 +83,6 @@ typedef union
   //s64    s64;
   //int64x1_t s64;
 } gvhreg;
-
-typedef union
-{
-  gvu8  u8;
-  gvu16 u16;
-  gvu32 u32;
-  gvu64 u64;
-  gvs8  s8;
-  gvs16 s16;
-  gvs32 s32;
-  gvs64 s64;
-  // this may be tempting, but it causes gcc to do lots of stack spills
-  //gvhreg h[2];
-} gvreg;
-
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
-#include <arm_neon.h>
 
 #define gvaddhn_u32(d, a, b)     d.u16 = vaddhn_u32(a.u32, b.u32)
 #define gvaddw_s32(d, a, b)      d.s64 = vaddw_s32(a.s64, b.s32)
@@ -131,8 +142,6 @@ typedef union
 #define gvqadd_u8(d, a, b)       d.u8  = vqadd_u8(a.u8, b.u8)
 #define gvqsub_u8(d, a, b)       d.u8  = vqsub_u8(a.u8, b.u8)
 #define gvshl_u16(d, a, b)       d.u16 = vshl_u16(a.u16, b.s16)
-#define gvshlq_s64(d, a, b)      d.s64 = vshlq_s64(a.s64, b.s64)
-#define gvshlq_u32(d, a, b)      d.u32 = vshlq_u32(a.u32, b.s32)
 #define gvshlq_u64(d, a, b)      d.u64 = vshlq_u64(a.u64, b.s64)
 #define gvshrq_n_s16(d, s, n)    d.s16 = vshrq_n_s16(s.s16, n)
 #define gvshrq_n_u16(d, s, n)    d.u16 = vshrq_n_u16(s.u16, n)
@@ -146,7 +155,6 @@ typedef union
 #define gvshr_n_u16(d, s, n)     d.u16 = vshr_n_u16(s.u16, n)
 #define gvshr_n_u32(d, s, n)     d.u32 = vshr_n_u32(s.u32, n)
 #define gvshr_n_u64(d, s, n)     d.u64 = (gvhu64)vshr_n_u64((uint64x1_t)s.u64, n)
-#define gvshrn_n_s64(d, s, n)    d.s32 = vshrn_n_s64(s.s64, n)
 #define gvshrn_n_u16(d, s, n)    d.u8  = vshrn_n_u16(s.u16, n)
 #define gvshrn_n_u32(d, s, n)    d.u16 = vshrn_n_u32(s.u32, n)
 #define gvsli_n_u8(d, s, n)      d.u8  = vsli_n_u8(d.u8, s.u8, n)
@@ -155,6 +163,8 @@ typedef union
 #define gvqshrun_n_s16(d, s, n)  d.u8  = vqshrun_n_s16(s.s16, n)
 #define gvqsubq_u8(d, a, b)      d.u8  = vqsubq_u8(a.u8, b.u8)
 #define gvqsubq_u16(d, a, b)     d.u16 = vqsubq_u16(a.u16, b.u16)
+
+#define gvmovn_top_u64(d, s)     d.u32 = vshrn_n_u64(s.u64, 32)
 
 #define gvget_lo(d, s)           d.u16 = vget_low_u16(s.u16)
 #define gvget_hi(d, s)           d.u16 = vget_high_u16(s.u16)
@@ -184,7 +194,7 @@ typedef union
 #define gvld1q_u8(d, s)          d.u8  = vld1q_u8(s)
 #define gvld1q_u16(d, s)         d.u16 = vld1q_u16(s)
 #define gvld1q_u32(d, s)         d.u32 = vld1q_u32((const u32 *)(s))
-#define gvld2_dup(v0, v1, p) { \
+#define gvld2_u8_dup(v0, v1, p) { \
   uint8x8x2_t v_ = vld2_dup_u8(p); \
   v0.u8 = v_.val[0]; v1.u8 = v_.val[1]; \
 }
@@ -240,10 +250,161 @@ typedef union
  - gcc <11: (arm32) handles '<vec> == 0' poorly
 */
 
-/*
 #elif defined(__SSE2__)
-#include <x86intrin.h>
-*/
+
+// use a full reg and discard the upper half
+#define gvhreg gvreg
+
+#define gv0()                    _mm_setzero_si128()
+
+#ifdef __x86_64__
+#define gvcreate_s32(d, a, b)    d.m = _mm_cvtsi64_si128((u32)(a) | ((u64)(b) << 32))
+#define gvcreate_s64(d, s)       d.m = _mm_cvtsi64_si128(s)
+#else
+#define gvcreate_s32(d, a, b)    d.m = _mm_set_epi32(0, 0, b, a)
+#define gvcreate_s64(d, s)       d.m = _mm_loadu_si64(&(s))
+#endif
+
+#define gvbic_n_u16(d, n)        d.m = _mm_andnot_si128(_mm_set1_epi16(n), d.m)
+#define gvceqq_u16(d, a, b)      d.u16 = vceqq_u16(a.u16, b.u16)
+#define gvcgt_s16(d, a, b)       d.m = _mm_cmpgt_epi16(a.m, b.m)
+#define gvclt_s16(d, a, b)       d.m = _mm_cmpgt_epi16(b.m, a.m)
+#define gvcreate_u32             gvcreate_s32
+#define gvcreate_u64             gvcreate_s64
+#define gvcombine_u16(d, l, h)   d.m = _mm_unpacklo_epi64(l.m, h.m)
+#define gvcombine_u32            gvcombine_u16
+#define gvcombine_s64            gvcombine_u16
+#define gvdup_l_u8(d, s, l)      d.u8  = vdup_lane_u8(s.u8, l)
+#define gvdup_l_u16(d, s, l)     d.m = _mm_shufflelo_epi16(s.m, (l)|((l)<<2)|((l)<<4)|((l)<<6))
+#define gvdup_l_u32(d, s, l)     d.m =  vdup_lane_u32(s.u32, l)
+#define gvdupq_l_s64(d, s, l)    d.m = _mm_unpacklo_epi64(s.m, s.m)
+#define gvdupq_l_u32(d, s, l)    d.m = _mm_shuffle_epi32(s.m, (l)|((l)<<2)|((l)<<4)|((l)<<6))
+#define gvdup_n_s64(d, n)        d.m = _mm_set1_epi64x(n)
+#define gvdup_n_u8(d, n)         d.m = _mm_set1_epi8(n)
+#define gvdup_n_u16(d, n)        d.m = _mm_set1_epi16(n)
+#define gvdup_n_u32(d, n)        d.m = _mm_set1_epi32(n)
+#define gvdupq_n_u16(d, n)       d.m = _mm_set1_epi16(n)
+#define gvdupq_n_u32(d, n)       d.m = _mm_set1_epi32(n)
+#define gvdupq_n_s64(d, n)       d.m = _mm_set1_epi64x(n)
+#define gvmax_s16(d, a, b)       d.m = _mm_max_epi16(a.m, b.m)
+#define gvmin_s16(d, a, b)       d.m = _mm_min_epi16(a.m, b.m)
+#define gvminq_u8(d, a, b)       d.m = _mm_min_epu8(a.m, b.m)
+#define gvmovn_u64(d, s)         d.m = _mm_shuffle_epi32(s.m, 0 | (2 << 2))
+#define gvmovn_top_u64(d, s)     d.m = _mm_shuffle_epi32(s.m, 1 | (3 << 2))
+#define gvmull_s16(d, a, b) { \
+  __m128i lo_ = _mm_mullo_epi16(a.m, b.m); \
+  __m128i hi_ = _mm_mulhi_epi16(a.m, b.m); \
+  d.m = _mm_unpacklo_epi16(lo_, hi_); \
+}
+#define gvmull_l_u32(d, a, b, l) { \
+  __m128i a_ = _mm_unpacklo_epi32(a.m, a.m); /* lanes 0,1 -> 0,2 */ \
+  __m128i b_ = _mm_shuffle_epi32(b.m, (l) | ((l) << 4)); \
+  d.m = _mm_mul_epu32(a_, b_); \
+}
+#define gvmlsl_s16(d, a, b) { \
+  gvreg tmp_; \
+  gvmull_s16(tmp_, a, b); \
+  d.m = _mm_sub_epi32(d.m, tmp_.m); \
+}
+#define gvqadd_u8(d, a, b)       d.m = _mm_adds_epu8(a.m, b.m)
+#define gvqsub_u8(d, a, b)       d.m = _mm_subs_epu8(a.m, b.m)
+#define gvshrq_n_s16(d, s, n)    d.m = _mm_srai_epi16(s.m, n)
+#define gvshrq_n_u16(d, s, n)    d.m = _mm_srli_epi16(s.m, n)
+#define gvshrq_n_u32(d, s, n)    d.m = _mm_srli_epi32(s.m, n)
+#define gvshl_n_u32(d, s, n)     d.m = _mm_slli_epi32(s.m, n)
+#define gvshlq_n_u16(d, s, n)    d.m = _mm_slli_epi16(s.m, n)
+#define gvshlq_n_u32(d, s, n)    d.m = _mm_slli_epi32(s.m, n)
+#define gvshll_n_u16(d, s, n)    d.m = _mm_slli_epi32(_mm_unpacklo_epi16(s.m, gv0()), n)
+#define gvshr_n_u16(d, s, n)     d.m = _mm_srli_epi16(s.m, n)
+#define gvshr_n_u32(d, s, n)     d.m = _mm_srli_epi32(s.m, n)
+#define gvshr_n_u64(d, s, n)     d.m = _mm_srli_epi64(s.m, n)
+#define gvshrn_n_s64(d, s, n) { \
+  gvreg tmp_; \
+  gvshrq_n_s64(tmp_, s, n); \
+  d.m = _mm_shuffle_epi32(tmp_.m, 0 | (2 << 2)); \
+}
+#define gvqshrun_n_s16(d, s, n) { \
+  __m128i t_ = _mm_srai_epi16(s.m, n); \
+  d.m = _mm_packus_epi16(t_, t_); \
+}
+#define gvqsubq_u8(d, a, b)      d.m = _mm_subs_epu8(a.m, b.m)
+#define gvqsubq_u16(d, a, b)     d.m = _mm_subs_epu16(a.m, b.m)
+
+#ifdef __SSSE3__
+#define gvabsq_s32(d, s)         d.m = _mm_abs_epi32(s.m)
+#define gvtbl2_u8(d, a, b)       d.m = _mm_shuffle_epi8(a.m, b.m)
+#else
+// must supply these here or else gcc will produce something terrible with __builtin_shuffle
+#define gvmovn_u16(d, s) { \
+  __m128i t2_ = _mm_and_si128(s.m, _mm_set1_epi16(0xff)); \
+  d.m = _mm_packus_epi16(t2_, t2_); \
+}
+#define gvmovn_u32(d, s) { \
+  __m128i t2_; \
+  t2_ = _mm_shufflelo_epi16(s.m, (0 << 0) | (2 << 2)); \
+  t2_ = _mm_shufflehi_epi16(t2_, (0 << 0) | (2 << 2)); \
+  d.m = _mm_shuffle_epi32(t2_, (0 << 0) | (2 << 2)); \
+}
+#define gvmovn_top_u32(d, s) { \
+  __m128i t2_; \
+  t2_ = _mm_shufflelo_epi16(s.m, (1 << 0) | (3 << 2)); \
+  t2_ = _mm_shufflehi_epi16(t2_, (1 << 0) | (3 << 2)); \
+  d.m = _mm_shuffle_epi32(t2_, (0 << 0) | (2 << 2)); \
+}
+#endif // !__SSSE3__
+#ifdef __SSE4_1__
+#define gvminq_u16(d, a, b)      d.m = _mm_min_epu16(a.m, b.m)
+#define gvmovl_u8(d, s)          d.m = _mm_cvtepu8_epi16(s.m)
+#define gvmovl_s8(d, s)          d.m = _mm_cvtepi8_epi16(s.m)
+#define gvmovl_s32(d, s)         d.m = _mm_cvtepi32_epi64(s.m)
+#define gvmull_s32(d, a, b) { \
+  __m128i a_ = _mm_unpacklo_epi32(a.m, a.m); /* lanes 0,1 -> 0,2 */ \
+  __m128i b_ = _mm_unpacklo_epi32(b.m, b.m); \
+  d.m = _mm_mul_epi32(a_, b_); \
+}
+#else
+#define gvmovl_u8(d, s)          d.m = _mm_unpacklo_epi8(s.m, gv0())
+#define gvmovl_s8(d, s)          d.m = _mm_unpacklo_epi8(s.m, _mm_cmpgt_epi8(gv0(), s.m))
+#define gvmovl_s32(d, s)         d.m = _mm_unpacklo_epi32(s.m, _mm_srai_epi32(s.m, 31))
+#endif // !__SSE4_1__
+#ifndef __AVX2__
+#define gvshlq_u64(d, a, b) { \
+  gvreg t1_, t2_; \
+  t1_.m = _mm_sll_epi64(a.m, b.m); \
+  t2_.m = _mm_sll_epi64(a.m, _mm_shuffle_epi32(b.m, (2 << 0) | (3 << 2))); \
+  d.u64 = (gvu64){ t1_.u64[0], t2_.u64[1] }; \
+}
+#endif // __AVX2__
+
+#define gvlo(s)                  s
+#define gvhi(s)                  ((gvreg)_mm_shuffle_epi32(s.m, (2 << 0) | (3 << 2)))
+#define gvget_lo(d, s)           d = gvlo(s)
+#define gvget_hi(d, s)           d = gvhi(s)
+
+#define gvset_lo(d, s)           d.m = _mm_unpacklo_epi64(s.m, gvhi(d).m)
+#define gvset_hi(d, s)           d.m = _mm_unpacklo_epi64(d.m, s.m)
+
+#define gvld1_u8(d, s)           d.m = _mm_loadu_si64(s)
+#define gvld1_u32                gvld1_u8
+#define gvld1q_u8(d, s)          d.m = _mm_loadu_si128((__m128i *)(s))
+#define gvld1q_u16               gvld1q_u8
+#define gvld1q_u32               gvld1q_u8
+
+#define gvst4_4_inc_u32(v0, v1, v2, v3, p, i) { \
+  __m128i t0 = _mm_unpacklo_epi32(v0.m, v1.m); \
+  __m128i t1 = _mm_unpacklo_epi32(v2.m, v3.m); \
+  _mm_storeu_si128(((__m128i *)(p)) + 0, _mm_unpacklo_epi64(t0, t1)); \
+  _mm_storeu_si128(((__m128i *)(p)) + 1, _mm_unpackhi_epi64(t0, t1)); \
+  p += (i) / sizeof(*p); \
+}
+#define gvst4_pi_u16(v0, v1, v2, v3, p) { \
+  __m128i t0 = _mm_unpacklo_epi16(v0.m, v1.m); \
+  __m128i t1 = _mm_unpacklo_epi16(v2.m, v3.m); \
+  _mm_storeu_si128(((__m128i *)(p)) + 0, _mm_unpacklo_epi32(t0, t1)); \
+  _mm_storeu_si128(((__m128i *)(p)) + 1, _mm_unpackhi_epi32(t0, t1)); \
+  p += sizeof(t0) * 2 / sizeof(*p); \
+}
+
 #else
 #error "arch not supported or SIMD support was not enabled by your compiler"
 #endif
@@ -257,6 +418,7 @@ typedef union
 #define gvaddq_u16               gvadd_u16
 #define gvaddq_u32               gvadd_u32
 #define gvand(d, a, b)           d.u32 = a.u32 & b.u32
+#define gvand_n_u32(d, n)        d.u32 &= n
 #define gvbic(d, a, b)           d.u32 = a.u32 & ~b.u32
 #define gvbicq                   gvbic
 #define gveor(d, a, b)           d.u32 = a.u32 ^ b.u32
@@ -271,6 +433,256 @@ typedef union
 #define gvsubq_u32               gvsub_u32
 #define gvorr(d, a, b)           d.u32 = a.u32 | b.u32
 #define gvorrq                   gvorr
+#define gvorr_n_u16(d, n)        d.u16 |= n
+
+// fallbacks
+#if 1
+
+#ifndef gvaddhn_u32
+#define gvaddhn_u32(d, a, b) { \
+  gvreg tmp1_ = { .u32 = a.u32 + b.u32 }; \
+  gvmovn_top_u32(d, tmp1_); \
+}
+#endif
+#ifndef gvabsq_s32
+#define gvabsq_s32(d, s) { \
+  gvreg tmp1_ = { .s32 = (gvs32){} - s.s32 }; \
+  gvreg mask_ = { .s32 = s.s32 >> 31 }; \
+  gvbslq_(d, mask_, tmp1_, s); \
+}
+#endif
+#ifndef gvbit
+#define gvbslq_(d, s, a, b)      d.u32 = (a.u32 & s.u32) | (b.u32 & ~s.u32)
+#define gvbifq(d, a, b)          gvbslq_(d, b, d, a)
+#define gvbit(d, a, b)           gvbslq_(d, b, a, d)
+#endif
+#ifndef gvaddw_s32
+#define gvaddw_s32(d, a, b)     {gvreg t_; gvmovl_s32(t_, b); d.s64 += t_.s64;}
+#endif
+#ifndef gvhaddq_u16
+// can do this because the caller needs the msb clear
+#define gvhaddq_u16(d, a, b)     d.u16 = (a.u16 + b.u16) >> 1
+#endif
+#ifndef gvminq_u16
+#define gvminq_u16(d, a, b) { \
+  gvu16 t_ = a.u16 < b.u16; \
+  d.u16 = (a.u16 & t_) | (b.u16 & ~t_); \
+}
+#endif
+#ifndef gvmlsq_s32
+#define gvmlsq_s32(d, a, b)      d.s32 -= a.s32 * b.s32
+#endif
+#ifndef gvmlsq_l_s32
+#define gvmlsq_l_s32(d, a, b, l){gvreg t_; gvdupq_l_u32(t_, b, l); d.s32 -= a.s32 * t_.s32;}
+#endif
+#ifndef gvmla_s32
+#define gvmla_s32(d, a, b)       d.s32 += a.s32 * b.s32
+#endif
+#ifndef gvmla_u32
+#define gvmla_u32                gvmla_s32
+#endif
+#ifndef gvmlaq_s32
+#define gvmlaq_s32(d, a, b)      d.s32 += a.s32 * b.s32
+#endif
+#ifndef gvmlaq_u32
+#define gvmlaq_u32               gvmlaq_s32
+#endif
+#ifndef gvmlal_u8
+#define gvmlal_u8(d, a, b)      {gvreg t_; gvmull_u8(t_, a, b); d.u16 += t_.u16;}
+#endif
+#ifndef gvmlal_s32
+#define gvmlal_s32(d, a, b)     {gvreg t_; gvmull_s32(t_, a, b); d.s64 += t_.s64;}
+#endif
+#ifndef gvmov_l_s32
+#define gvmov_l_s32(d, s, l)     d.s32[l] = s
+#endif
+#ifndef gvmov_l_u32
+#define gvmov_l_u32(d, s, l)     d.u32[l] = s
+#endif
+#ifndef gvmul_s32
+#define gvmul_s32(d, a, b)       d.s32 = a.s32 * b.s32
+#endif
+#ifndef gvmull_u8
+#define gvmull_u8(d, a, b) { \
+  gvreg t1_, t2_; \
+  gvmovl_u8(t1_, a); \
+  gvmovl_u8(t2_, b); \
+  d.u16 = t1_.u16 * t2_.u16; \
+}
+#endif
+#ifndef gvmull_s32
+// note: compilers tend to use int regs here
+#define gvmull_s32(d, a, b) { \
+  d.s64[0] = (s64)a.s32[0] * b.s32[0]; \
+  d.s64[1] = (s64)a.s32[1] * b.s32[1]; \
+}
+#endif
+#ifndef gvneg_s32
+#define gvneg_s32(d, s)          d.s32 = -s.s32
+#endif
+// x86 note: needs _mm_sllv_epi16 (avx512), else this sucks terribly
+#ifndef gvshl_u16
+#define gvshl_u16(d, a, b)       d.u16 = a.u16 << b.u16
+#endif
+// x86 note: needs _mm_sllv_* (avx2)
+#ifndef gvshlq_u64
+#define gvshlq_u64(d, a, b)      d.u64 = a.u64 << b.u64
+#endif
+#ifndef gvshll_n_s8
+#define gvshll_n_s8(d, s, n)    {gvreg t_; gvmovl_s8(t_, s); gvshlq_n_u16(d, t_, n);}
+#endif
+#ifndef gvshll_n_u8
+#define gvshll_n_u8(d, s, n)    {gvreg t_; gvmovl_u8(t_, s); gvshlq_n_u16(d, t_, n);}
+#endif
+#ifndef gvshr_n_u8
+#define gvshr_n_u8(d, s, n)      d.u8  = s.u8 >> (n)
+#endif
+#ifndef gvshrq_n_s64
+#define gvshrq_n_s64(d, s, n)    d.s64 = s.s64 >> (n)
+#endif
+#ifndef gvshrn_n_u16
+#define gvshrn_n_u16(d, s, n)   {gvreg t_; gvshrq_n_u16(t_, s, n); gvmovn_u16(d, t_);}
+#endif
+#ifndef gvshrn_n_u32
+#define gvshrn_n_u32(d, s, n)   {gvreg t_; gvshrq_n_u32(t_, s, n); gvmovn_u32(d, t_);}
+#endif
+#ifndef gvsli_n_u8
+#define gvsli_n_u8(d, s, n)      d.u8 = (s.u8 << (n)) | (d.u8 & ((1u << (n)) - 1u))
+#endif
+#ifndef gvsri_n_u8
+#define gvsri_n_u8(d, s, n)      d.u8 = (s.u8 >> (n)) | (d.u8 & ((0xff00u >> (n)) & 0xffu))
+#endif
+#ifndef gvtstq_u16
+#define gvtstq_u16(d, a, b)      d.u16 = (a.u16 & b.u16) != 0
+#endif
+
+#ifndef gvld2_u8_dup
+#define gvld2_u8_dup(v0, v1, p) { \
+  gvdup_n_u8(v0, ((const u8 *)(p))[0]); \
+  gvdup_n_u8(v1, ((const u8 *)(p))[1]); \
+}
+#endif
+#ifndef gvst1_u8
+#define gvst1_u8(v, p)           *(uint64_t_ua *)(p) = v.u64[0]
+#endif
+#ifndef gvst1q_u16
+#define gvst1q_u16(v, p)         *(gvreg_ua *)(p) = v
+#endif
+#ifndef gvst1q_inc_u32
+#define gvst1q_inc_u32(v, p, i) {*(gvreg_ua *)(p) = v; p += (i) / sizeof(*p);}
+#endif
+#ifndef gvst1q_pi_u32
+#define gvst1q_pi_u32(v, p)      gvst1q_inc_u32(v, p, sizeof(v))
+#endif
+#ifndef gvst1q_2_pi_u32
+#define gvst1q_2_pi_u32(v0, v1, p) { \
+  gvst1q_inc_u32(v0, p, sizeof(v0)); \
+  gvst1q_inc_u32(v1, p, sizeof(v1)); \
+}
+#endif
+#ifndef gvst2_u8
+#define gvst2_u8(v0, v1, p)     {gvreg t_; gvzip_u8(t_, v0, v1); *(gvu8_ua *)(p) = t_.u8;}
+#endif
+#ifndef gvst2_u16
+#define gvst2_u16(v0, v1, p)    {gvreg t_; gvzip_u16(t_, v0, v1); *(gvu16_ua *)(p) = t_.u16;}
+#endif
+
+// note: these shuffles assume sizeof(gvhreg) == 16 && sizeof(gvreg) == 16
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
+// prefer __builtin_shuffle on gcc as it handles -1 poorly
+#if __has_builtin(__builtin_shufflevector) && !__has_builtin(__builtin_shuffle)
+
+#ifndef gvld2q_u8
+#define gvld2q_u8(v0, v1, p) { \
+  gvu8 v0_ = ((gvu8_ua *)(p))[0]; \
+  gvu8 v1_ = ((gvu8_ua *)(p))[1]; \
+  v0.u8 = __builtin_shufflevector(v0_, v1_, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30); \
+  v1.u8 = __builtin_shufflevector(v0_, v1_, 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31); \
+}
+#endif
+#ifndef gvmovn_u16
+#define gvmovn_u16(d, s) \
+  d.u8 = __builtin_shufflevector(s.u8, s.u8, 0,2,4,6,8,10,12,14,-1,-1,-1,-1,-1,-1,-1,-1)
+#endif
+#ifndef gvmovn_u32
+#define gvmovn_u32(d, s) \
+  d.u16 = __builtin_shufflevector(s.u16, s.u16, 0,2,4,6,-1,-1,-1,-1)
+#endif
+#ifndef gvmovn_top_u32
+#define gvmovn_top_u32(d, s) \
+  d.u16 = __builtin_shufflevector(s.u16, s.u16, 1,3,5,7,-1,-1,-1,-1)
+#endif
+#ifndef gvzip_u8
+#define gvzip_u8(d, a, b) \
+  d.u8 = __builtin_shufflevector(a.u8, b.u8, 0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23)
+#endif
+#ifndef gvzip_u16
+#define gvzip_u16(d, a, b) \
+  d.u16 = __builtin_shufflevector(a.u16, b.u16, 0,8,1,9,2,10,3,11)
+#endif
+#ifndef gvzipq_u16
+#define gvzipq_u16(d0, d1, s0, s1) { \
+  gvu16 t_ = __builtin_shufflevector(s0.u16, s1.u16, 0, 8, 1, 9, 2, 10, 3, 11); \
+  d1.u16   = __builtin_shufflevector(s0.u16, s1.u16, 4,12, 5,13, 6, 14, 7, 15); \
+  d0.u16 = t_; \
+}
+#endif
+
+#else // !__has_builtin(__builtin_shufflevector)
+
+#ifndef gvld2q_u8
+#define gvld2q_u8(v0, v1, p) { \
+  gvu8 v0_ = ((gvu8_ua *)(p))[0]; \
+  gvu8 v1_ = ((gvu8_ua *)(p))[1]; \
+  v0.u8 = __builtin_shuffle(v0_, v1_, (gvu8){0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30}); \
+  v1.u8 = __builtin_shuffle(v0_, v1_, (gvu8){1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31}); \
+}
+#endif
+#ifndef gvmovn_u16
+#define gvmovn_u16(d, s) \
+  d.u8 = __builtin_shuffle(s.u8, (gvu8){0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14})
+#endif
+#ifndef gvmovn_u32
+#define gvmovn_u32(d, s) \
+  d.u16 = __builtin_shuffle(s.u16, (gvu16){0,2,4,6,0,2,4,6})
+#endif
+#ifndef gvmovn_top_u32
+#define gvmovn_top_u32(d, s) \
+  d.u16 = __builtin_shuffle(s.u16, (gvu16){1,3,5,7,1,3,5,7})
+#endif
+#ifndef gvtbl2_u8
+#define gvtbl2_u8(d, a, b)  d.u8 = __builtin_shuffle(a.u8, b.u8)
+#endif
+#ifndef gvzip_u8
+#define gvzip_u8(d, a, b) \
+  d.u8 = __builtin_shuffle(a.u8, b.u8, (gvu8){0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23})
+#endif
+#ifndef gvzip_u16
+#define gvzip_u16(d, a, b) \
+  d.u16 = __builtin_shuffle(a.u16, b.u16, (gvu16){0,8,1,9,2,10,3,11})
+#endif
+#ifndef gvzipq_u16
+#define gvzipq_u16(d0, d1, s0, s1) { \
+  gvu16 t_ = __builtin_shuffle(s0.u16, s1.u16, (gvu16){0, 8, 1, 9, 2, 10, 3, 11}); \
+  d1.u16   = __builtin_shuffle(s0.u16, s1.u16, (gvu16){4,12, 5,13, 6, 14, 7, 15}); \
+  d0.u16 = t_; \
+}
+#endif
+
+#endif // __builtin_shufflevector || __builtin_shuffle
+
+#ifndef gvtbl2_u8
+#define gvtbl2_u8(d, a, b) { \
+  int i_; \
+  for (i_ = 0; i_ < 16; i_++) \
+    d.u8[i_] = a.u8[b.u8[i_]]; \
+}
+#endif
+
+#endif // fallbacks
 
 #if defined(__arm__)
 
@@ -498,7 +910,6 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 
   gvreg uvrg_base;
   gvshll_n_u16(uvrg_base, gvlo(uvrg_xxxx0), 16); // uvrg_base = uvrg0 << 16
-  gvdupq_n_s64(r_shift, shift);         // r_shift = { shift, shift }
 
   gvaddq_u32(uvrg_base, uvrg_base, uvrgb_phase);
   gvabsq_s32(ga_uvrg_x, ga_uvrg_x);     // ga_uvrg_x = abs(ga_uvrg_x)
@@ -511,10 +922,25 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvmull_l_u32(gw_rg_y, gvhi(ga_uvrg_y), d0, 0);
   gvmull_l_u32(ga_uvrg_y, gvlo(ga_uvrg_y), d0, 0);
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+  gvdupq_n_s64(r_shift, shift);         // r_shift = { shift, shift }
   gvshlq_u64(gw_rg_x, gw_rg_x, r_shift);
   gvshlq_u64(ga_uvrg_x, ga_uvrg_x, r_shift);
   gvshlq_u64(gw_rg_y, gw_rg_y, r_shift);
   gvshlq_u64(ga_uvrg_y, ga_uvrg_y, r_shift);
+#elif defined(__SSE2__)
+  r_shift.m   = _mm_cvtsi32_si128(-shift);
+  gw_rg_x.m   = _mm_srl_epi64(gw_rg_x.m, r_shift.m);
+  ga_uvrg_x.m = _mm_srl_epi64(ga_uvrg_x.m, r_shift.m);
+  gw_rg_y.m   = _mm_srl_epi64(gw_rg_y.m, r_shift.m);
+  ga_uvrg_y.m = _mm_srl_epi64(ga_uvrg_y.m, r_shift.m);
+#else
+  gvdupq_n_s64(r_shift, -shift);        // r_shift = { shift, shift }
+  gvshrq_u64(gw_rg_x, gw_rg_x, r_shift);
+  gvshrq_u64(ga_uvrg_x, ga_uvrg_x, r_shift);
+  gvshrq_u64(gw_rg_y, gw_rg_y, r_shift);
+  gvshrq_u64(ga_uvrg_y, ga_uvrg_y, r_shift);
+#endif
 
   gveorq(gs_uvrg_x, gs_uvrg_x, w_mask);
   gvmovn_u64(tmp_lo, ga_uvrg_x);
@@ -621,7 +1047,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   s32 clip;                                                                    \
   vec_4x32u v_clip;                                                            \
                                                                                \
-  union { vec_2x64s full; vec_1x64s h[2]; } edges_xy;                          \
+  vec_2x64s edges_xy;                                                          \
   vec_2x32s edges_dx_dy;                                                       \
   vec_2x32u edge_shifts;                                                       \
                                                                                \
@@ -676,6 +1102,14 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvdup_n_u16(c_0x07, 0x07);                                                   \
   gvdup_n_u16(c_0xFFFE, 0xFFFE);                                               \
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+// better encoding, remaining bits are unused anyway
+#define mask_edge_shifts(edge_shifts)                                          \
+  gvbic_n_u16(edge_shifts, 0xE0)
+#else
+#define mask_edge_shifts(edge_shifts)                                          \
+  gvand_n_u32(edge_shifts, 0x1F)
+#endif
 
 #define compute_edge_delta_x2()                                                \
 {                                                                              \
@@ -694,9 +1128,9 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvshr_n_u32(height_reciprocals, edge_shifts, 10);                            \
                                                                                \
   gvmla_s32(heights_b, x_starts, heights);                                     \
-  gvbic_n_u16(edge_shifts, 0xE0);                                              \
+  mask_edge_shifts(edge_shifts);                                               \
   gvmul_s32(edges_dx_dy, widths, height_reciprocals);                          \
-  gvmull_s32(edges_xy.full, heights_b, height_reciprocals);                    \
+  gvmull_s32(edges_xy, heights_b, height_reciprocals);                         \
 }                                                                              \
 
 #define compute_edge_delta_x3(start_c, height_a, height_b)                     \
@@ -721,7 +1155,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvshr_n_u32(height_reciprocals, edge_shifts, 10);                            \
   height_reciprocal_alt = edge_shift_alt >> 10;                                \
                                                                                \
-  gvbic_n_u16(edge_shifts, 0xE0);                                              \
+  mask_edge_shifts(edge_shifts);                                               \
   edge_shift_alt &= 0x1F;                                                      \
                                                                                \
   gvsub_u32(heights_b, heights, c_0x01);                                       \
@@ -730,7 +1164,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvmla_s32(heights_b, x_starts, heights);                                     \
   height_b_alt += height_minor_b * start_c;                                    \
                                                                                \
-  gvmull_s32(edges_xy.full, heights_b, height_reciprocals);                    \
+  gvmull_s32(edges_xy, heights_b, height_reciprocals);                         \
   edge_alt = (s64)height_b_alt * height_reciprocal_alt;                        \
                                                                                \
   gvmul_s32(edges_dx_dy, widths, height_reciprocals);                          \
@@ -769,29 +1203,29 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 #define setup_spans_clip(direction, alternate_active)                          \
 {                                                                              \
   gvdupq_n_u32(v_clip, clip);                                                  \
-  gvmlal_s32(edges_xy.full, edges_dx_dy, gvlo(v_clip));                        \
+  gvmlal_s32(edges_xy, edges_dx_dy, gvlo(v_clip));                             \
   setup_spans_clip_alternate_##alternate_active();                             \
   setup_spans_clip_interpolants_##direction();                                 \
 }                                                                              \
 
 
-#define setup_spans_adjust_edges_alternate_no(left_index, right_index)         \
+#define setup_spans_adjust_edges_alternate_no(left_half, right_half)           \
 {                                                                              \
   vec_2x64s edge_shifts_64;                                                    \
-  union { vec_2x64s full; vec_1x64s h[2]; } edges_dx_dy_64;                    \
+  vec_2x64s edges_dx_dy_64;                                                    \
   vec_1x64s left_x_hi, right_x_hi;                                             \
                                                                                \
   gvmovl_s32(edge_shifts_64, edge_shifts);                                     \
-  gvshlq_s64(edges_xy.full, edges_xy.full, edge_shifts_64);                    \
+  gvshlq_u64(edges_xy, edges_xy, edge_shifts_64);                              \
                                                                                \
-  gvmovl_s32(edges_dx_dy_64.full, edges_dx_dy);                                \
-  gvshlq_s64(edges_dx_dy_64.full, edges_dx_dy_64.full, edge_shifts_64);        \
+  gvmovl_s32(edges_dx_dy_64, edges_dx_dy);                                     \
+  gvshlq_u64(edges_dx_dy_64, edges_dx_dy_64, edge_shifts_64);                  \
                                                                                \
-  gvdupq_l_s64(left_x, edges_xy.h[left_index], 0);                             \
-  gvdupq_l_s64(right_x, edges_xy.h[right_index], 0);                           \
+  gvdupq_l_s64(left_x, gv##left_half(edges_xy), 0);                            \
+  gvdupq_l_s64(right_x, gv##right_half(edges_xy), 0);                          \
                                                                                \
-  gvdupq_l_s64(left_dx_dy, edges_dx_dy_64.h[left_index], 0);                   \
-  gvdupq_l_s64(right_dx_dy, edges_dx_dy_64.h[right_index], 0);                 \
+  gvdupq_l_s64(left_dx_dy, gv##left_half(edges_dx_dy_64), 0);                  \
+  gvdupq_l_s64(right_dx_dy, gv##right_half(edges_dx_dy_64), 0);                \
                                                                                \
   gvadd_s64(left_x_hi, gvlo(left_x), gvlo(left_dx_dy));                        \
   gvadd_s64(right_x_hi, gvlo(right_x), gvlo(right_dx_dy));                     \
@@ -803,9 +1237,9 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvaddq_s64(right_dx_dy, right_dx_dy, right_dx_dy);                           \
 }                                                                              \
 
-#define setup_spans_adjust_edges_alternate_yes(left_index, right_index)        \
+#define setup_spans_adjust_edges_alternate_yes(left_half, right_half)          \
 {                                                                              \
-  setup_spans_adjust_edges_alternate_no(left_index, right_index);              \
+  setup_spans_adjust_edges_alternate_no(left_half, right_half);                \
   s64 edge_dx_dy_alt_64;                                                       \
   vec_1x64s alternate_x_hi;                                                    \
                                                                                \
@@ -845,15 +1279,27 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 #define setup_spans_increment_alternate_yes()                                  \
 {                                                                              \
   vec_2x32s alternate_x_32_lo, alternate_x_32_hi;                              \
-  gvshrn_n_s64(alternate_x_32_lo, alternate_x, 32);                            \
+  gvmovn_top_u64(alternate_x_32_lo, alternate_x);                              \
   gvaddq_s64(alternate_x, alternate_x, alternate_dx_dy);                       \
-  gvshrn_n_s64(alternate_x_32_hi, alternate_x, 32);                            \
+  gvmovn_top_u64(alternate_x_32_hi, alternate_x);                              \
   gvaddq_s64(alternate_x, alternate_x, alternate_dx_dy);                       \
   gvcombine_u32(alternate_x_32, alternate_x_32_lo, alternate_x_32_hi);         \
   gvmovn_u32(alternate_x_16, alternate_x_32);                                  \
 }                                                                              \
 
 #define setup_spans_increment_alternate_no()                                   \
+
+#if defined(__SSE2__) && !(defined(__AVX512BW__) && defined(__AVX512VL__))
+#define setup_spans_make_span_shift(span_shift) {                              \
+  gvreg tab1_ = { .u8 = { 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80, 0x00 } };  \
+  gvtbl2_u8(span_shift, tab1_, span_shift);                                    \
+  gvorr_n_u16(span_shift, 0xff00);                                             \
+  (void)c_0xFFFE;                                                              \
+}
+#else
+#define setup_spans_make_span_shift(span_shift)                                \
+  gvshl_u16(span_shift, c_0xFFFE, span_shift)
+#endif
 
 #define setup_spans_set_x4(alternate, direction, alternate_active)             \
 {                                                                              \
@@ -873,14 +1319,14 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   *span_b_offset++ = b;                                                        \
   setup_spans_adjust_interpolants_##direction();                               \
                                                                                \
-  gvshrn_n_s64(left_x_32_lo, left_x, 32);                                      \
-  gvshrn_n_s64(right_x_32_lo, right_x, 32);                                    \
+  gvmovn_top_u64(left_x_32_lo, left_x);                                        \
+  gvmovn_top_u64(right_x_32_lo, right_x);                                      \
                                                                                \
   gvaddq_s64(left_x, left_x, left_dx_dy);                                      \
   gvaddq_s64(right_x, right_x, right_dx_dy);                                   \
                                                                                \
-  gvshrn_n_s64(left_x_32_hi, left_x, 32);                                      \
-  gvshrn_n_s64(right_x_32_hi, right_x, 32);                                    \
+  gvmovn_top_u64(left_x_32_hi, left_x);                                        \
+  gvmovn_top_u64(right_x_32_hi, right_x);                                      \
                                                                                \
   gvaddq_s64(left_x, left_x, left_dx_dy);                                      \
   gvaddq_s64(right_x, right_x, right_dx_dy);                                   \
@@ -903,7 +1349,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvsub_u16(left_right_x_16_hi, left_right_x_16_hi, left_right_x_16_lo);       \
   gvadd_u16(left_right_x_16_hi, left_right_x_16_hi, c_0x07);                   \
   gvand(span_shift, left_right_x_16_hi, c_0x07);                               \
-  gvshl_u16(span_shift, c_0xFFFE, span_shift);                                 \
+  setup_spans_make_span_shift(span_shift);                                     \
   gvshr_n_u16(left_right_x_16_hi, left_right_x_16_hi, 3);                      \
                                                                                \
   gvst4_pi_u16(left_right_x_16_lo, left_right_x_16_hi, span_shift, y_x4,       \
@@ -919,7 +1365,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 #define setup_spans_alternate_adjust_no()                                      \
 
 
-#define setup_spans_down(left_index, right_index, alternate, alternate_active) \
+#define setup_spans_down(left_half, right_half, alternate, alternate_active)   \
   setup_spans_alternate_adjust_##alternate_active();                           \
   if(y_c > psx_gpu->viewport_end_y)                                            \
     height -= y_c - psx_gpu->viewport_end_y - 1;                               \
@@ -939,8 +1385,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
     u64 y_x4_ = ((u64)(y_a + 3) << 48) | ((u64)(u16)(y_a + 2) << 32)           \
               | (u32)((y_a + 1) << 16) | (u16)y_a;                             \
     gvcreate_u64(y_x4, y_x4_);                                                 \
-    setup_spans_adjust_edges_alternate_##alternate_active(left_index,          \
-     right_index);                                                             \
+    setup_spans_adjust_edges_alternate_##alternate_active(left_half, right_half); \
                                                                                \
     psx_gpu->num_spans = height;                                               \
     do                                                                         \
@@ -962,7 +1407,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
 #define setup_spans_up_decrement_height_no()                                   \
   {}                                                                           \
 
-#define setup_spans_up(left_index, right_index, alternate, alternate_active)   \
+#define setup_spans_up(left_half, right_half, alternate, alternate_active)     \
   setup_spans_alternate_adjust_##alternate_active();                           \
   y_a--;                                                                       \
                                                                                \
@@ -986,10 +1431,9 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
     u64 y_x4_ = ((u64)(y_a - 3) << 48) | ((u64)(u16)(y_a - 2) << 32)           \
               | (u32)((y_a - 1) << 16) | (u16)y_a;                             \
     gvcreate_u64(y_x4, y_x4_);                                                 \
-    gvaddw_s32(edges_xy.full, edges_xy.full, edges_dx_dy);                     \
+    gvaddw_s32(edges_xy, edges_xy, edges_dx_dy);                               \
     setup_spans_alternate_pre_increment_##alternate_active();                  \
-    setup_spans_adjust_edges_alternate_##alternate_active(left_index,          \
-     right_index);                                                             \
+    setup_spans_adjust_edges_alternate_##alternate_active(left_half, right_half); \
     setup_spans_adjust_interpolants_up();                                      \
                                                                                \
     psx_gpu->num_spans = height;                                               \
@@ -1000,8 +1444,8 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
     }                                                                          \
   }                                                                            \
 
-#define index_left  0
-#define index_right 1
+#define half_left  lo
+#define half_right hi
 
 #define setup_spans_up_up(minor, major)                                        \
   setup_spans_prologue(yes);                                                   \
@@ -1013,7 +1457,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvcreate_u32(x_ends, x_c, x_b);                                              \
                                                                                \
   compute_edge_delta_x3(x_b, height, height_minor_a);                          \
-  setup_spans_up(index_##major, index_##minor, minor, yes)                     \
+  setup_spans_up(half_##major, half_##minor, minor, yes)                       \
 
 void setup_spans_up_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c)
@@ -1045,7 +1489,7 @@ void setup_spans_up_right(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   gvcreate_u32(x_ends, x_c, x_b);                                              \
                                                                                \
   compute_edge_delta_x3(x_b, height, height_minor_a);                          \
-  setup_spans_down(index_##major, index_##minor, minor, yes)                   \
+  setup_spans_down(half_##major, half_##minor, minor, yes)                     \
 
 void setup_spans_down_left(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c)
@@ -1071,7 +1515,7 @@ void setup_spans_down_right(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   s32 height = y_a - y_c;                                                      \
                                                                                \
   compute_edge_delta_x2();                                                     \
-  setup_spans_up(index_left, index_right, none, no)                            \
+  setup_spans_up(half_left, half_right, none, no)                              \
 
 void setup_spans_up_a(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c)
@@ -1107,7 +1551,7 @@ void setup_spans_up_b(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   s32 height = y_c - y_a;                                                      \
                                                                                \
   compute_edge_delta_x2();                                                     \
-  setup_spans_down(index_left, index_right, none, no)                          \
+  setup_spans_down(half_left, half_right, none, no)                            \
 
 void setup_spans_down_a(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
  vertex_struct *v_b, vertex_struct *v_c)
@@ -1172,10 +1616,10 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 
   gvcreate_s32(height_increment, 0, height_minor_b);
 
-  gvmlal_s32(edges_xy.full, edges_dx_dy, height_increment);
+  gvmlal_s32(edges_xy, edges_dx_dy, height_increment);
 
   gvcreate_s64(edges_xy_b_left, edge_alt);
-  gvcombine_s64(edges_xy_b, edges_xy_b_left, gvhi(edges_xy.full));
+  gvcombine_s64(edges_xy_b, edges_xy_b_left, gvhi(edges_xy));
 
   edge_shifts_b = edge_shifts;
   gvmov_l_u32(edge_shifts_b, edge_shift_alt, 0);
@@ -1203,8 +1647,8 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     u64 y_x4_ = ((u64)(y_a - 3) << 48) | ((u64)(u16)(y_a - 2) << 32)
               | (u32)((y_a - 1) << 16) | (u16)y_a;
     gvcreate_u64(y_x4, y_x4_);
-    gvaddw_s32(edges_xy.full, edges_xy.full, edges_dx_dy);
-    setup_spans_adjust_edges_alternate_no(index_left, index_right);
+    gvaddw_s32(edges_xy, edges_xy, edges_dx_dy);
+    setup_spans_adjust_edges_alternate_no(lo, hi);
     setup_spans_adjust_interpolants_up();
 
     psx_gpu->num_spans = height_minor_a;
@@ -1219,7 +1663,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     span_b_offset += height_minor_a;
   }
 
-  edges_xy.full = edges_xy_b;
+  edges_xy = edges_xy_b;
   edges_dx_dy = edges_dx_dy_b;
   edge_shifts = edge_shifts_b;
 
@@ -1244,7 +1688,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     u64 y_x4_ = ((u64)(y_a + 3) << 48) | ((u64)(u16)(y_a + 2) << 32)
               | (u32)((y_a + 1) << 16) | (u16)y_a;
     gvcreate_u64(y_x4, y_x4_);
-    setup_spans_adjust_edges_alternate_no(index_left, index_right);
+    setup_spans_adjust_edges_alternate_no(lo, hi);
 
     // FIXME: overflow corner case
     if(psx_gpu->num_spans + height_minor_b == MAX_SPANS)
@@ -1289,7 +1733,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   gvld1q_u32(uvrg_dx, psx_gpu->uvrg_dx.e);                                     \
   gvshlq_n_u32(uvrg_dx4, uvrg_dx, 2);                                          \
   gvshlq_n_u32(uvrg_dx8, uvrg_dx, 3);                                          \
-  gvld2_dup(texture_mask_lo, texture_mask_hi, &psx_gpu->texture_mask_width);   \
+  gvld2_u8_dup(texture_mask_lo, texture_mask_hi, &psx_gpu->texture_mask_width); \
   gvcombine_u16(texture_mask, texture_mask_lo, texture_mask_hi)                \
 
 #define setup_blocks_variables_shaded_untextured(target)                       \
@@ -1311,7 +1755,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   gvdup_n_u8(d64_0x07, 0x07);                                                  \
   gvdup_n_u8(d64_1, 1);                                                        \
   gvdup_n_u8(d64_4, 4);                                                        \
-  gvdup_n_u8(d64_128, 128);                                                    \
+  gvdup_n_u8(d64_128, 128u);                                                   \
                                                                                \
   gvld1_u32(rgb_dx_lo, &psx_gpu->uvrg_dx.e[2]);                                \
   gvcreate_u32(rgb_dx_hi, psx_gpu->b_block_span.e[1], 0);                      \
@@ -1333,7 +1777,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   gvld1_u32(uv, psx_gpu->uvrg.e);                                              \
   gvshl_n_u32(uv_dx4, uv_dx, 2);                                               \
   gvshl_n_u32(uv_dx8, uv_dx, 3);                                               \
-  gvld2_dup(texture_mask_lo, texture_mask_hi, &psx_gpu->texture_mask_width);   \
+  gvld2_u8_dup(texture_mask_lo, texture_mask_hi, &psx_gpu->texture_mask_width); \
   gvcombine_u16(texture_mask, texture_mask_lo, texture_mask_hi)                \
 
 #define setup_blocks_variables_unshaded_untextured_direct()                    \
@@ -1719,7 +2163,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
                                                                                \
   u32 num_spans = psx_gpu->num_spans;                                          \
                                                                                \
-  u16 *fb_ptr;                                                                 \
+  u16 * __restrict__ fb_ptr;                                                   \
   u32 y;                                                                       \
                                                                                \
   u32 num_blocks = psx_gpu->num_blocks;                                        \
@@ -2096,11 +2540,12 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
 
 #define shade_blocks_store_direct(_draw_mask, _pixels)                         \
 {                                                                              \
+  u16 * __restrict__ fb_ptr = block->fb_ptr;                                   \
   vec_8x16u fb_pixels;                                                         \
+  gvld1q_u16(fb_pixels, fb_ptr);                                               \
   gvorrq(_pixels, _pixels, msb_mask);                                          \
-  gvld1q_u16(fb_pixels, block->fb_ptr);                                        \
   gvbifq(fb_pixels, _pixels, _draw_mask);                                      \
-  gvst1q_u16(fb_pixels, block->fb_ptr);                                        \
+  gvst1q_u16(fb_pixels, fb_ptr);                                               \
 }                                                                              \
 
 #define shade_blocks_textured_false_modulated_check_dithered(target)           \
@@ -2140,7 +2585,7 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
   gvmull_u8(pixels_##component, texels_##component, colors_##component)        \
 
 #define shade_blocks_textured_modulated_do(shading, dithering, target)         \
-  block_struct *block = psx_gpu->blocks;                                       \
+  const block_struct * __restrict__ block = psx_gpu->blocks;                   \
   u32 num_blocks = psx_gpu->num_blocks;                                        \
   vec_8x16u texels;                                                            \
                                                                                \
@@ -2182,7 +2627,7 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
   gvdup_n_u8(d64_0x1F, 0x1F);                                                  \
   gvdup_n_u8(d64_1, 1);                                                        \
   gvdup_n_u8(d64_4, 4);                                                        \
-  gvdup_n_u8(d64_128, 128);                                                    \
+  gvdup_n_u8(d64_128, 128u);                                                   \
                                                                                \
   gvdupq_n_u16(d128_0x8000, 0x8000);                                           \
                                                                                \
