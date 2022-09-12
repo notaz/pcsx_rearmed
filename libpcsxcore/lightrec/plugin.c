@@ -54,7 +54,6 @@ static char *name = "retroarch.exe";
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
 static bool booting;
-static u32 lightrec_begin_cycles;
 
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
@@ -345,7 +344,7 @@ static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
 		case 0x1f801074:
 			return !is_write;
 		default:
-			return is_write || kaddr < 0x1f801c00 || kaddr >= 0x1f801e00;
+			return kaddr < 0x1f801c00 || kaddr >= 0x1f801e00;
 		}
 	default:
 		switch (kaddr) {
@@ -403,9 +402,6 @@ static int lightrec_plugin_init(void)
 	}
 
 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
-	if (getenv("LIGHTREC_BEGIN_CYCLES"))
-	  lightrec_begin_cycles = (unsigned int) strtol(
-				  getenv("LIGHTREC_BEGIN_CYCLES"), NULL, 0);
 
 	lightrec_state = lightrec_init(name,
 			lightrec_map, ARRAY_SIZE(lightrec_map),

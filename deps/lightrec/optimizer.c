@@ -635,6 +635,10 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 			if (OPT_FLAG_MULT_DIV && c.r.imm)
 				known &= ~BIT(c.r.imm);
 			break;
+		case OP_SPECIAL_MFLO:
+		case OP_SPECIAL_MFHI:
+			known &= ~BIT(c.r.rd);
+			break;
 		default:
 			break;
 		}
@@ -1645,6 +1649,9 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 						pr_debug("Flagging opcode %u as direct I/O access\n",
 							 i);
 						list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT_HW);
+
+						if (no_mask)
+							list->flags |= LIGHTREC_NO_MASK;
 						break;
 					}
 					fallthrough;
