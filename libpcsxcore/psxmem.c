@@ -59,13 +59,13 @@ retry:
 		/* if (is_fixed)
 			flags |= MAP_FIXED; */
 
-		req = (void *)addr;
+		req = (void *)(uintptr_t)addr;
 		ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
 		if (ret == MAP_FAILED)
 			return NULL;
 	}
 
-	if (addr != 0 && ret != (void *)addr) {
+	if (addr != 0 && ret != (void *)(uintptr_t)addr) {
 		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
 			addr, ret);
 
@@ -74,14 +74,14 @@ retry:
 			return NULL;
 		}
 
-		if (((addr ^ (unsigned long)ret) & ~0xff000000l) && try_ < 2)
+		if (((addr ^ (unsigned long)(uintptr_t)ret) & ~0xff000000l) && try_ < 2)
 		{
 			psxUnmap(ret, size, tag);
 
 			// try to use similarly aligned memory instead
 			// (recompiler needs this)
 			mask = try_ ? 0xffff : 0xffffff;
-			addr = ((unsigned long)ret + mask) & ~mask;
+			addr = ((uintptr_t)ret + mask) & ~mask;
 			try_++;
 			goto retry;
 		}

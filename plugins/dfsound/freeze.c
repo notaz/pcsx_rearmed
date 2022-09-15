@@ -187,8 +187,8 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->sinc = s->sinc;
  d->sinc_inv = 0;
  memcpy(spu.SB + ch * SB_SIZE, s->SB, sizeof(spu.SB[0]) * SB_SIZE);
- d->pCurr = (void *)((long)s->iCurr & 0x7fff0);
- d->pLoop = (void *)((long)s->iLoop & 0x7fff0);
+ d->pCurr = (void *)((uintptr_t)s->iCurr & 0x7fff0);
+ d->pLoop = (void *)((uintptr_t)s->iLoop & 0x7fff0);
  d->bReverb = s->bReverb;
  d->iLeftVolume = s->iLeftVolume;
  d->iRightVolume = s->iRightVolume;
@@ -258,7 +258,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
    pFO=(SPUOSSFreeze_t *)(pF+1);                       // store special stuff
 
    pFO->spuIrq = spu.regArea[(H_SPUirqAddr - 0x0c00) / 2];
-   if(spu.pSpuIrq) pFO->pSpuIrq  = (unsigned long)spu.pSpuIrq-(unsigned long)spu.spuMemC;
+   if(spu.pSpuIrq) pFO->pSpuIrq = spu.pSpuIrq - spu.spuMemC;
 
    pFO->spuAddr=spu.spuAddr;
    if(pFO->spuAddr==0) pFO->spuAddr=0xbaadf00d;
@@ -340,8 +340,8 @@ void LoadStateV5(SPUFreeze_t * pF)
   {
    load_channel(&spu.s_chan[i],&pFO->s_chan[i],i);
 
-   spu.s_chan[i].pCurr+=(unsigned long)spu.spuMemC;
-   spu.s_chan[i].pLoop+=(unsigned long)spu.spuMemC;
+   spu.s_chan[i].pCurr+=(uintptr_t)spu.spuMemC;
+   spu.s_chan[i].pLoop+=(uintptr_t)spu.spuMemC;
   }
 }
 

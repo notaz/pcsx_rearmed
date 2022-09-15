@@ -989,7 +989,7 @@ void *SysLoadLibrary(const char *lib) {
 		tmp++;
 		for (i = 0; i < ARRAY_SIZE(builtin_plugins); i++)
 			if (strcmp(tmp, builtin_plugins[i]) == 0)
-				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
+				return (void *)(uintptr_t)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
 #ifndef _WIN32
@@ -1004,7 +1004,7 @@ void *SysLoadLibrary(const char *lib) {
 }
 
 void *SysLoadSym(void *lib, const char *sym) {
-	unsigned int plugid = (unsigned int)(long)lib;
+	unsigned int plugid = (unsigned int)(uintptr_t)lib;
 
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
@@ -1025,7 +1025,7 @@ const char *SysLibError() {
 }
 
 void SysCloseLibrary(void *lib) {
-	unsigned int plugid = (unsigned int)(long)lib;
+	unsigned int plugid = (unsigned int)(uintptr_t)lib;
 
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;

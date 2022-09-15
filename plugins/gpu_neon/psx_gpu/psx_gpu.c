@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "common.h"
@@ -4016,7 +4017,7 @@ void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
     num_width = width;
 
     vram_ptr = (void *)vram_ptr16;
-    if((long)vram_ptr16 & 2)
+    if((uintptr_t)vram_ptr16 & 2)
     {
       *vram_ptr16 = color_32bpp;
       vram_ptr = (void *)(vram_ptr16 + 1);
