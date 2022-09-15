@@ -566,6 +566,7 @@ static int cdrSeekTime(unsigned char *target)
 	return seekTime;
 }
 
+static void cdrUpdateTransferBuf(const u8 *buf);
 static void cdrReadInterrupt(void);
 static void cdrPrepCdda(s16 *buf, int samples);
 static void cdrAttenuate(s16 *buf, int samples, int stereo);
@@ -650,6 +651,18 @@ void cdrInterrupt(void) {
 
 	if (cdr.Stat) {
 		CDR_LOG_I("cdrom: cmd %02x with irqstat %x\n", cdr.CmdInProgress, cdr.Stat);
+		return;
+	}
+	if (cdr.Irq1Pending) {
+		// hand out the "newest" sector, according to nocash
+		cdrUpdateTransferBuf(CDR_getBuffer());
+		CDR_LOG_I("cdrom: %x:%02x:%02x loaded on ack\n",
+			cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+		SetResultSize(1);
+		cdr.Result[0] = cdr.Irq1Pending;
+		cdr.Stat = (cdr.Irq1Pending & STATUS_ERROR) ? DiskError : DataReady;
+		cdr.Irq1Pending = 0;
+		setIrq(0x205);
 		return;
 	}
 
@@ -1268,25 +1281,6 @@ static void cdrReadInterrupt(void)
 	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 }
 
-static void doMissedIrqs(void)
-{
-	if (cdr.Irq1Pending)
-	{
-		// hand out the "newest" sector, according to nocash
-		cdrUpdateTransferBuf(CDR_getBuffer());
-		CDR_LOG_I("cdrom: %x:%02x:%02x loaded on ack\n",
-			cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
-		SetResultSize(1);
-		cdr.Result[0] = cdr.Irq1Pending;
-		cdr.Stat = (cdr.Irq1Pending & STATUS_ERROR) ? DiskError : DataReady;
-		cdr.Irq1Pending = 0;
-		setIrq(0x205);
-		return;
-	}
-	if (!(psxRegs.interrupt & (1 << PSXINT_CDR)) && cdr.CmdInProgress)
-		CDR_INT(256);
-}
-
 /*
 cdrRead0:
 	bit 0,1 - mode
@@ -1431,15 +1425,18 @@ void cdrWrite3(unsigned char rt) {
 	case 0:
 		break; // transfer
 	case 1:
+		if (cdr.Stat & rt) {
 #ifdef CDR_LOG_CMD_IRQ
-		if (cdr.Stat & rt)
-			SysPrintf("ack %02x\n", cdr.Stat & rt);
+			SysPrintf("ack %02x (w %02x)\n", cdr.Stat & rt, rt);
 #endif
+			if (!(psxRegs.interrupt & (1 << PSXINT_CDR)) &&
+			    (cdr.CmdInProgress || cdr.Irq1Pending))
+				CDR_INT(2000); // 710+
+		}
 		cdr.Stat &= ~rt;
 
 		if (rt & 0x40)
 			cdr.ParamC = 0;
-		doMissedIrqs();
 		return;
 	case 2:
 		cdr.AttenuatorLeftToRightT = rt;
