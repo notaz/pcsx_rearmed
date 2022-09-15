@@ -113,16 +113,21 @@ endif
 HAVE_ARI64=0
 HAVE_LIGHTREC=0
 LIGHTREC_CUSTOM_MAP=0
+HAVE_GPU_NEON=0
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   HAVE_ARI64=1
+  HAVE_GPU_NEON=1
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   HAVE_ARI64=1
 else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
   HAVE_ARI64=1
+  HAVE_GPU_NEON=1
 else ifeq ($(TARGET_ARCH_ABI),x86_64)
   HAVE_LIGHTREC=1
+  HAVE_GPU_NEON=1
 else ifeq ($(TARGET_ARCH_ABI),x86)
   HAVE_LIGHTREC=1
+  HAVE_GPU_NEON=1
 else
   COREFLAGS   += -DDRC_DISABLE
 endif
@@ -172,12 +177,17 @@ endif
 endif
 
 
-ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+ifeq ($(HAVE_GPU_NEON),1)
   COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP -DGPU_NEON
-  COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
-  SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
-                 $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
-                 $(FRONTEND_DIR)/cspace_neon.S
+  ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+    COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
+    SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
+                   $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
+                   $(FRONTEND_DIR)/cspace_neon.S
+  else
+    COREFLAGS   += -DSIMD_BUILD
+    SOURCES_C   += $(NEON_DIR)/psx_gpu/psx_gpu_simd.c
+  endif
   SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c
 else ifeq ($(TARGET_ARCH_ABI),armeabi)
   COREFLAGS   += -DUSE_GPULIB=1 -DGPU_UNAI
@@ -185,11 +195,6 @@ else ifeq ($(TARGET_ARCH_ABI),armeabi)
   SOURCES_ASM += $(UNAI_DIR)/gpu_arm.S \
                  $(FRONTEND_DIR)/cspace_arm.S
   SOURCES_C += $(UNAI_DIR)/gpulib_if.cpp
-else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
-  COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-  COREFLAGS   += -DGPU_NEON -DSIMD_BUILD
-  SOURCES_C   += $(NEON_DIR)/psx_gpu_if.c \
-                 $(NEON_DIR)/psx_gpu/psx_gpu_simd.c
 else
   COREFLAGS += -fno-strict-aliasing -DGPU_PEOPS
   SOURCES_C += $(PEOPS_DIR)/gpulib_if.c

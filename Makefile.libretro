@@ -65,6 +65,9 @@ ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_feature
 	CFLAGS += -marm
 endif
 endif
+ifneq (,$(findstring $(ARCH_DETECTED),x86_64 aarch64))
+	BUILTIN_GPU = neon
+endif
 
 # ODROIDN2
 else ifneq (,$(findstring CortexA73_G12B,$(platform)))
@@ -179,7 +182,7 @@ endif
 		IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
 	endif
 
-	CFLAGS += -DIOS -DTVOS -marm
+	CFLAGS += -DIOS -DTVOS
         CC = cc -arch arm64 -isysroot $(IOSSDK)
 	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
 	ARCH := arm64
