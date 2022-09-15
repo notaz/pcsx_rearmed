@@ -46,6 +46,20 @@ LIBM := -lm
 MMAP_WIN32 = 0
 EXTRA_LDFLAGS =
 
+# select some defaults
+ifneq (,$(findstring $(ARCH_DETECTED),arm aarch64))
+	DYNAREC = ari64
+ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
+	# must disable thumb as ari64 can't handle it
+	CFLAGS += -marm
+endif
+endif
+ifneq (,$(findstring $(ARCH_DETECTED),x86_64 aarch64))
+	BUILTIN_GPU = neon
+endif
+
+# platform specific options
+
 # Unix
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
@@ -56,17 +70,6 @@ ifeq ($(shell uname),Linux)
 endif
 ifneq ($(findstring SunOS,$(shell uname -s)),)
 	CC = gcc
-endif
-ifneq (,$(findstring $(ARCH_DETECTED),arm aarch64))
-	DYNAREC = ari64
-
-ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
-	# must disable thumb as ari64 can't handle it
-	CFLAGS += -marm
-endif
-endif
-ifneq (,$(findstring $(ARCH_DETECTED),x86_64 aarch64))
-	BUILTIN_GPU = neon
 endif
 
 # ODROIDN2
@@ -498,7 +501,6 @@ else ifeq ($(platform), emscripten)
 # Windows
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
-	BUILTIN_GPU = peops
 	PLATFORM = libretro
 	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
 	CFLAGS += -D__WIN32__ -DNO_DYLIB
