@@ -91,7 +91,7 @@ static void mmssdd( char *b, char *p )
 	time[0] = itob(time[0]); time[1] = itob(time[1]); time[2] = itob(time[2]);
 
 #define READTRACK() \
-	if (CDR_readTrack(time) == -1) return -1; \
+	if (!CDR_readTrack(time)) return -1; \
 	buf = (void *)CDR_getBuffer(); \
 	if (buf == NULL) return -1; \
 	else CheckPPFCache((u8 *)buf, time[0], time[1], time[2]);

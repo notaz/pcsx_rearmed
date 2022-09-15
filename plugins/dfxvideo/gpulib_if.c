@@ -18,6 +18,10 @@
 #include "../gpulib/gpu.h"
 #include "../../include/arm_features.h"
 
+#if defined(__GNUC__) && (__GNUC__ >= 6 || (defined(__clang_major__) && __clang_major__ >= 10))
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#endif
+
 #ifdef THREAD_RENDERING
 #include "../gpulib/gpulib_thread_if.h"
 #define do_cmd_list real_do_cmd_list

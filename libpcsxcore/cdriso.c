@@ -1812,7 +1812,7 @@ static boolean CALLBACK ISOreadTrack(unsigned char *time) {
 		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
 		if (fread(subbuffer, 1, SUB_FRAMESIZE, subHandle) != SUB_FRAMESIZE)
 			/* Faulty subchannel data shouldn't cause a read failure */
-			return 0;
+			return 1;
 
 		if (subChanRaw) DecodeRawSubData();
 	}
