@@ -2585,7 +2585,7 @@ void texture_blocks_16bpp(psx_gpu_struct *psx_gpu)
   gvmull_u8(pixels_##component, texels_##component, colors_##component)        \
 
 #define shade_blocks_textured_modulated_do(shading, dithering, target)         \
-  const block_struct * __restrict__ block = psx_gpu->blocks;                   \
+  block_struct * __restrict__ block = psx_gpu->blocks;                         \
   u32 num_blocks = psx_gpu->num_blocks;                                        \
   vec_8x16u texels;                                                            \
                                                                                \
