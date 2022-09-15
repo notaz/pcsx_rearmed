@@ -288,6 +288,12 @@ aarch64)
     builtin_gpu="neon"
   fi
   ;;
+x86_64)
+  enable_dynarec="no"
+  if [ "x$builtin_gpu" = "x" ]; then
+    builtin_gpu="neon"
+  fi
+  ;;
 *)
   # dynarec only available on ARM
   enable_dynarec="no"

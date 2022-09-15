@@ -147,8 +147,9 @@ void plat_init(void)
   SDL_WM_SetCaption("PCSX-ReARMed " REV, NULL);
 
   shadow_size = g_menuscreen_w * g_menuscreen_h * 2;
-  if (shadow_size < 640 * 512 * 2)
-    shadow_size = 640 * 512 * 2;
+  // alloc enough for double res. rendering
+  if (shadow_size < 1024 * 512 * 2)
+    shadow_size = 1024 * 512 * 2;
 
   shadow_fb = malloc(shadow_size);
   menubg_img = malloc(shadow_size);

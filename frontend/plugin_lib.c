@@ -308,6 +308,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	unsigned char *dest = pl_vout_buf;
 	const unsigned short *src = vram;
 	int dstride = pl_vout_w, h1 = h;
+	int h_full = pl_vout_h - pl_vout_yoffset;
 	int doffs;
 
 	pcnt_start(PCNT_BLIT);
@@ -318,7 +319,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 			pl_plat_clear();
 		else
 			memset(pl_vout_buf, 0,
-				dstride * pl_vout_h * pl_vout_bpp / 8);
+				dstride * h_full * pl_vout_bpp / 8);
 		goto out_hud;
 	}
 
@@ -334,7 +335,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 			pl_plat_clear();
 		else
 			memset(pl_vout_buf, 0,
-				dstride * pl_vout_h * pl_vout_bpp / 8);
+				dstride * h_full * pl_vout_bpp / 8);
 		clear_counter--;
 	}
 
