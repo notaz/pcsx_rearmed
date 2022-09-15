@@ -545,7 +545,8 @@ static void cdrPlayInterrupt_Autopause()
 
 static int cdrSeekTime(unsigned char *target)
 {
-	int seekTime = abs(msf2sec(cdr.SetSectorPlay) - msf2sec(target)) * (cdReadTime / 200);
+	int diff = msf2sec(cdr.SetSectorPlay) - msf2sec(target);
+	int seekTime = abs(diff) * (cdReadTime / 200);
 	/*
 	* Gameblabla :
 	* It was originally set to 1000000 for Driver, however it is not high enough for Worms Pinball
