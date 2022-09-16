@@ -29,6 +29,14 @@
 #include "arm_features.h"
 #include "revision.h"
 
+#if defined(__has_builtin)
+#define DO_CPU_CHECKS __has_builtin(__builtin_cpu_init)
+#elif defined(__x86_64__) || defined(__i386__)
+#define DO_CPU_CHECKS 1
+#else
+#define DO_CPU_CHECKS 0
+#endif
+
 #ifndef NO_FRONTEND
 #include "libpicofe/input.h"
 #include "libpicofe/plat.h"
@@ -411,6 +419,24 @@ void emu_on_new_cd(int show_hud_msg)
 	}
 }
 
+static void log_wrong_cpu(void)
+{
+#if DO_CPU_CHECKS
+	__builtin_cpu_init();
+	#define CHECK_CPU(name) if (!__builtin_cpu_supports(name)) \
+		SysPrintf("ERROR: compiled for " name ", which is unsupported by the CPU\n")
+#ifdef __SSE2__
+	CHECK_CPU("sse2");
+#endif
+#ifdef __SSSE3__
+	CHECK_CPU("ssse3");
+#endif
+#ifdef __SSE4_1__
+	CHECK_CPU("sse4");
+#endif
+#endif // DO_CPU_CHECKS
+}
+
 int emu_core_preinit(void)
 {
 	// what is the name of the config file?
@@ -424,6 +450,8 @@ int emu_core_preinit(void)
 	if (emuLog == NULL)
 #endif
 	emuLog = stdout;
+
+	log_wrong_cpu();
 
 	SetIsoFile(NULL);
 
