@@ -54,7 +54,7 @@ ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_feature
 	CFLAGS += -marm
 endif
 endif
-ifneq (,$(findstring $(ARCH_DETECTED),x86_64 aarch64))
+ifneq (,$(findstring $(ARCH_DETECTED),i686 x86_64 aarch64))
 	BUILTIN_GPU = neon
 endif
 
@@ -533,6 +533,15 @@ MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 ifdef ALLOW_LIGHTREC_ON_ARM
 CFLAGS += -DALLOW_LIGHTREC_ON_ARM
+endif
+ifeq ($(BUILTIN_GPU),neon)
+ifeq ($(ARCH_DETECTED),i686)
+	CFLAGS_GPU_NEON ?= -msse2 # required
+endif
+ifeq ($(ARCH_DETECTED),x86_64)
+	CFLAGS_GPU_NEON ?= -mssse3 # optional, for more perf
+endif
+CFLAGS += $(CFLAGS_GPU_NEON)
 endif
 
 TARGET ?= libretro.so
