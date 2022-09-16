@@ -432,7 +432,7 @@ static void log_wrong_cpu(void)
 	CHECK_CPU("ssse3");
 #endif
 #ifdef __SSE4_1__
-	CHECK_CPU("sse4");
+	CHECK_CPU("sse4.1");
 #endif
 #endif // DO_CPU_CHECKS
 }
