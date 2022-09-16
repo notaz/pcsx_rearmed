@@ -560,6 +560,16 @@ NO_CONFIG_MAK = yes
 #endif
 #endif
 
+$(info TARGET:      $(TARGET))
+$(info platform:    $(platform))
+$(info ARCH:        $(ARCH))
+$(info DYNAREC:     $(DYNAREC))
+$(info BUILTIN_GPU: $(BUILTIN_GPU))
+$(info CC:          $(CC))
+$(info CFLAGS:      $(CFLAGS))
+$(info MAIN_LDLIBS: $(MAIN_LDLIBS))
+$(info )
+
 include Makefile
 
 # no special AS needed for gpu_neon
