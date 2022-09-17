@@ -55,7 +55,7 @@ typedef void (irq_func)();
 static irq_func * const irq_funcs[] = {
 	[PSXINT_SIO]	= sioInterrupt,
 	[PSXINT_CDR]	= cdrInterrupt,
-	[PSXINT_CDREAD]	= cdrPlaySeekReadInterrupt,
+	[PSXINT_CDREAD]	= cdrPlayReadInterrupt,
 	[PSXINT_GPUDMA]	= gpuInterrupt,
 	[PSXINT_MDECOUTDMA] = mdec1Interrupt,
 	[PSXINT_SPUDMA]	= spuInterrupt,
