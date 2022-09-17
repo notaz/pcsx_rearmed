@@ -138,7 +138,7 @@ void psxBranchTest() {
 		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDREAD);
-				cdrPlaySeekReadInterrupt();
+				cdrPlayReadInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma

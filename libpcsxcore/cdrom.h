@@ -48,7 +48,7 @@ extern "C" {
 void cdrReset();
 
 void cdrInterrupt(void);
-void cdrPlaySeekReadInterrupt(void);
+void cdrPlayReadInterrupt(void);
 void cdrLidSeekInterrupt(void);
 void cdrDmaInterrupt(void);
 void LidInterrupt(void);

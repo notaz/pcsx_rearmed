@@ -243,8 +243,8 @@ static void sec2msf(unsigned int s, u8 *msf) {
 	new_dyna_set_event(PSXINT_CDR, eCycle); \
 }
 
-// cdrPlaySeekReadInterrupt
-#define CDRPLAYSEEKREAD_INT(eCycle, isFirst) { \
+// cdrPlayReadInterrupt
+#define CDRPLAYREAD_INT(eCycle, isFirst) { \
 	u32 e_ = eCycle; \
 	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
 	if (isFirst) \
@@ -578,29 +578,10 @@ static void cdrReadInterrupt(void);
 static void cdrPrepCdda(s16 *buf, int samples);
 static void cdrAttenuate(s16 *buf, int samples, int stereo);
 
-void cdrPlaySeekReadInterrupt(void)
+void cdrPlayReadInterrupt(void)
 {
 	if (cdr.Reading) {
 		cdrReadInterrupt();
-		return;
-	}
-
-	if (!cdr.Play && (cdr.StatP & STATUS_SEEK)) {
-		if (cdr.Stat) {
-			CDR_LOG_I("cdrom: seek stat hack\n");
-			CDRPLAYSEEKREAD_INT(0x1000, 1);
-			return;
-		}
-		SetResultSize(1);
-		cdr.StatP |= STATUS_ROTATING;
-		SetPlaySeekRead(cdr.StatP, 0);
-		cdr.Result[0] = cdr.StatP;
-		cdr.Stat = Complete;
-		setIrq(0x1002);
-
-		Find_CurTrack(cdr.SetSectorPlay);
-		ReadTrack(cdr.SetSectorPlay);
-		cdr.TrackChanged = FALSE;
 		return;
 	}
 
@@ -642,7 +623,7 @@ void cdrPlaySeekReadInterrupt(void)
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
 
-	CDRPLAYSEEKREAD_INT(cdReadTime, 0);
+	CDRPLAYREAD_INT(cdReadTime, 0);
 }
 
 #define CMD_PART2           0x100
@@ -797,7 +778,7 @@ void cdrInterrupt(void) {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 
-			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime, 1);
+			CDRPLAYREAD_INT(cdReadTime + seekTime, 1);
 			start_rotating = 1;
 			break;
 
@@ -988,7 +969,7 @@ void cdrInterrupt(void) {
 		case CdlSeekP:
 			StopCdda();
 			StopReading();
-			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
+			SetPlaySeekRead(cdr.StatP, STATUS_SEEK | STATUS_ROTATING);
 
 			seekTime = cdrSeekTime(cdr.SetSector);
 			memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
@@ -1005,8 +986,18 @@ void cdrInterrupt(void) {
 			Rockman X5 = 0.5-4x
 			- fix capcom logo
 			*/
-			CDRPLAYSEEKREAD_INT(cdReadTime + seekTime, 1);
+			second_resp_time = cdReadTime + seekTime;
 			start_rotating = 1;
+			break;
+
+		case CdlSeekL + CMD_PART2:
+		case CdlSeekP + CMD_PART2:
+			SetPlaySeekRead(cdr.StatP, 0);
+			cdr.Stat = Complete;
+
+			Find_CurTrack(cdr.SetSectorPlay);
+			ReadTrack(cdr.SetSectorPlay);
+			cdr.TrackChanged = FALSE;
 			break;
 
 		case CdlTest:
@@ -1103,7 +1094,7 @@ void cdrInterrupt(void) {
 			// - fixes new game
 			ReadTrack(cdr.SetSectorPlay);
 
-			CDRPLAYSEEKREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime, 1);
+			CDRPLAYREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime, 1);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
 			start_rotating = 1;
@@ -1297,7 +1288,7 @@ static void cdrReadInterrupt(void)
 		ReadTrack(cdr.SetSectorPlay);
 	}
 
-	CDRPLAYSEEKREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
+	CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 }
 
 /*
@@ -1636,7 +1627,7 @@ int cdrFreeze(void *f, int Mode) {
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
 			if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY_OLD))
-				CDRPLAYSEEKREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime, 1);
+				CDRPLAYREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime, 1);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
