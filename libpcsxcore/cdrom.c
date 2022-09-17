@@ -308,6 +308,8 @@ static void setIrq(int log_cmd)
 // (yes it's slow, but you probably don't want to modify it)
 void cdrLidSeekInterrupt(void)
 {
+	CDR_LOG_I("%u %s cdr.DriveState=%d\n", psxRegs.cycle, __func__, cdr.DriveState);
+
 	switch (cdr.DriveState) {
 	default:
 	case DRIVESTATE_STANDBY:
@@ -369,10 +371,14 @@ void cdrLidSeekInterrupt(void)
 		break;
 
 	case DRIVESTATE_PREPARE_CD:
-		cdr.StatP |= STATUS_SEEK;
-
-		cdr.DriveState = DRIVESTATE_STANDBY;
-		CDRLID_INT(cdReadTime * 26);
+		if (cdr.StatP & STATUS_SEEK) {
+			SetPlaySeekRead(cdr.StatP, 0);
+			cdr.DriveState = DRIVESTATE_STANDBY;
+		}
+		else {
+			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
+			CDRLID_INT(cdReadTime * 26);
+		}
 		break;
 	}
 }
@@ -687,9 +693,18 @@ void cdrInterrupt(void) {
 	}
 
 	switch (cdr.DriveState) {
+	case DRIVESTATE_PREPARE_CD:
+		if (Cmd > 2) {
+			// Syphon filter 2 expects commands to work shortly after it sees
+			// STATUS_ROTATING, so give up trying to emulate the startup seq
+			cdr.DriveState = DRIVESTATE_STANDBY;
+			cdr.StatP &= ~STATUS_SEEK;
+			psxRegs.interrupt &= ~(1 << PSXINT_CDRLID);
+			break;
+		}
+		// fallthrough
 	case DRIVESTATE_LID_OPEN:
 	case DRIVESTATE_RESCAN_CD:
-	case DRIVESTATE_PREPARE_CD:
 		// no disk or busy with the initial scan, allowed cmds are limited
 		not_ready = CMD_WHILE_NOT_READY;
 		break;
@@ -1564,9 +1579,15 @@ void cdrReset() {
 	cdr.Channel = 1;
 	cdr.Reg2 = 0x1f;
 	cdr.Stat = NoIntr;
-	cdr.DriveState = DRIVESTATE_STANDBY;
-	cdr.StatP = STATUS_ROTATING;
 	cdr.FifoOffset = DATA_SIZE; // fifo empty
+	if (CdromId[0] == '\0') {
+		cdr.DriveState = DRIVESTATE_STOPPED;
+		cdr.StatP = 0;
+	}
+	else {
+		cdr.DriveState = DRIVESTATE_STANDBY;
+		cdr.StatP = STATUS_ROTATING;
+	}
 	
 	// BIOS player - default values
 	cdr.AttenuatorLeftToLeft = 0x80;
