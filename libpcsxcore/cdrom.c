@@ -1006,6 +1006,7 @@ void cdrInterrupt(void) {
 		case CdlSeekL + CMD_PART2:
 		case CdlSeekP + CMD_PART2:
 			SetPlaySeekRead(cdr.StatP, 0);
+			cdr.Result[0] = cdr.StatP;
 			cdr.Stat = Complete;
 
 			Find_CurTrack(cdr.SetSectorPlay);
