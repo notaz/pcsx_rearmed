@@ -711,7 +711,7 @@ void cdrInterrupt(void) {
 			// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
 			if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
 			{
-				CDR_LOG("Invalid/out of range seek to %02X:%02X:%02X\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
+				CDR_LOG_I("Invalid/out of range seek to %02X:%02X:%02X\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
 				error = ERROR_INVALIDARG;
 				goto set_error;
 			}
@@ -1091,6 +1091,9 @@ void cdrInterrupt(void) {
 
 		case CdlReadN:
 		case CdlReadS:
+			if (cdr.Reading && !cdr.SetlocPending)
+				break;
+
 			Find_CurTrack(cdr.SetlocPending ? cdr.SetSector : cdr.SetSectorPlay);
 
 			if ((cdr.Mode & MODE_CDDA) && cdr.CurTrack > 1)
