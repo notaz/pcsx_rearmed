@@ -758,10 +758,13 @@ int SendPcsxInfo() {
 	if (NET_recvData == NULL || NET_sendData == NULL)
 		return 0;
 
+	boolean Sio_old = 0;
+	boolean SpuIrq_old = 0;
+	boolean RCntFix_old = 0;
 	NET_sendData(&Config.Xa, sizeof(Config.Xa), PSE_NET_BLOCKING);
-	NET_sendData(&Config.Sio, sizeof(Config.Sio), PSE_NET_BLOCKING);
-	NET_sendData(&Config.SpuIrq, sizeof(Config.SpuIrq), PSE_NET_BLOCKING);
-	NET_sendData(&Config.RCntFix, sizeof(Config.RCntFix), PSE_NET_BLOCKING);
+	NET_sendData(&Sio_old, sizeof(Sio_old), PSE_NET_BLOCKING);
+	NET_sendData(&SpuIrq_old, sizeof(SpuIrq_old), PSE_NET_BLOCKING);
+	NET_sendData(&RCntFix_old, sizeof(RCntFix_old), PSE_NET_BLOCKING);
 	NET_sendData(&Config.PsxType, sizeof(Config.PsxType), PSE_NET_BLOCKING);
 	NET_sendData(&Config.Cpu, sizeof(Config.Cpu), PSE_NET_BLOCKING);
 
@@ -774,10 +777,13 @@ int RecvPcsxInfo() {
 	if (NET_recvData == NULL || NET_sendData == NULL)
 		return 0;
 
+	boolean Sio_old = 0;
+	boolean SpuIrq_old = 0;
+	boolean RCntFix_old = 0;
 	NET_recvData(&Config.Xa, sizeof(Config.Xa), PSE_NET_BLOCKING);
-	NET_recvData(&Config.Sio, sizeof(Config.Sio), PSE_NET_BLOCKING);
-	NET_recvData(&Config.SpuIrq, sizeof(Config.SpuIrq), PSE_NET_BLOCKING);
-	NET_recvData(&Config.RCntFix, sizeof(Config.RCntFix), PSE_NET_BLOCKING);
+	NET_recvData(&Sio_old, sizeof(Sio_old), PSE_NET_BLOCKING);
+	NET_recvData(&SpuIrq_old, sizeof(SpuIrq_old), PSE_NET_BLOCKING);
+	NET_recvData(&RCntFix_old, sizeof(RCntFix_old), PSE_NET_BLOCKING);
 	NET_recvData(&Config.PsxType, sizeof(Config.PsxType), PSE_NET_BLOCKING);
 
 	SysUpdate();

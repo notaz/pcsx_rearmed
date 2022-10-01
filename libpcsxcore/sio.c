@@ -72,12 +72,10 @@ char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
 char McdDisable[2];
 
 #define SIO_INT(eCycle) { \
-	if (!Config.Sio) { \
-		psxRegs.interrupt |= (1 << PSXINT_SIO); \
-		psxRegs.intCycle[PSXINT_SIO].cycle = eCycle; \
-		psxRegs.intCycle[PSXINT_SIO].sCycle = psxRegs.cycle; \
-		new_dyna_set_event(PSXINT_SIO, eCycle); \
-	} \
+	psxRegs.interrupt |= (1 << PSXINT_SIO); \
+	psxRegs.intCycle[PSXINT_SIO].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_SIO].sCycle = psxRegs.cycle; \
+	new_dyna_set_event(PSXINT_SIO, eCycle); \
 }
 
 // clk cycle byte

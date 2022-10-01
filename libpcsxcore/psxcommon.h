@@ -127,7 +127,6 @@ typedef struct {
 	char PluginsDir[MAXPATHLEN];
 	char PatchesDir[MAXPATHLEN];
 	boolean Xa;
-	boolean Sio;
 	boolean Mdec;
 	boolean PsxAuto;
 	boolean Cdda;
@@ -137,10 +136,7 @@ typedef struct {
 	boolean SlowBoot;
 	boolean Debug;
 	boolean PsxOut;
-	boolean SpuIrq;
-	boolean RCntFix;
 	boolean UseNet;
-	boolean VSyncWA;
 	boolean icache_emulation;
 	boolean DisableStalls;
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER

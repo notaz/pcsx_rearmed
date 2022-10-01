@@ -390,14 +390,10 @@ static const struct {
 	CE_CONFIG_STR(Spu),
 //	CE_CONFIG_STR(Cdr),
 	CE_CONFIG_VAL(Xa),
-//	CE_CONFIG_VAL(Sio),
 	CE_CONFIG_VAL(Mdec),
 	CE_CONFIG_VAL(Cdda),
 	CE_CONFIG_VAL(Debug),
 	CE_CONFIG_VAL(PsxOut),
-	CE_CONFIG_VAL(SpuIrq),
-	CE_CONFIG_VAL(RCntFix),
-	CE_CONFIG_VAL(VSyncWA),
 	CE_CONFIG_VAL(icache_emulation),
 	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
@@ -1577,21 +1573,14 @@ static const char h_cfg_fl[]     = "Frame Limiter keeps the game from running to
 static const char h_cfg_xa[]     = "Disables XA sound, which can sometimes improve performance";
 static const char h_cfg_cdda[]   = "Disable CD Audio for a performance boost\n"
 				   "(proper .cue/.bin dump is needed otherwise)";
-//static const char h_cfg_sio[]    = "You should not need this, breaks games";
-static const char h_cfg_spuirq[] = "Compatibility tweak; should be left off";
-static const char h_cfg_rcnt2[]  = "InuYasha Sengoku Battle Fix\n"
-				   "(timing hack, breaks other games)";
-#ifdef DRC_DISABLE
-static const char h_cfg_rcnt1[]  = "Parasite Eve 2, Vandal Hearts 1/2 Fix\n"
-				   "(timing hack, breaks other games)";
-#else
+#ifndef DRC_DISABLE
 static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpreter\n"
 				   "Might be useful to overcome some dynarec bugs";
 #endif
 static const char h_cfg_shacks[] = "Breaks games but may give better performance";
 static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
 
-enum { AMO_XA, AMO_CDDA, AMO_SIO, AMO_SPUI, AMO_IC, AMO_RCNT, AMO_WA, AMO_CPU };
+enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_CPU };
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1600,13 +1589,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable Frame Limiter",  0, g_opts, OPT_NO_FRAMELIM, h_cfg_fl),
 	mee_onoff_h   ("Disable XA Decoding",    0, menu_iopts[AMO_XA],   1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, menu_iopts[AMO_CDDA], 1, h_cfg_cdda),
-	//mee_onoff_h   ("SIO IRQ Always Enabled", 0, menu_iopts[AMO_SIO],  1, h_cfg_sio),
-	mee_onoff_h   ("SPU IRQ Always Enabled", 0, menu_iopts[AMO_SPUI], 1, h_cfg_spuirq),
 	mee_onoff_h   ("ICache emulation",       0, menu_iopts[AMO_IC],   1, h_cfg_icache),
-#ifdef DRC_DISABLE
-	mee_onoff_h   ("Rootcounter hack",       0, menu_iopts[AMO_RCNT], 1, h_cfg_rcnt1),
-#endif
-	mee_onoff_h   ("Rootcounter hack 2",     0, menu_iopts[AMO_WA],   1, h_cfg_rcnt2),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
@@ -1623,11 +1606,7 @@ static int menu_loop_adv_options(int id, int keys)
 	} opts[] = {
 		{ &Config.Xa,      &menu_iopts[AMO_XA] },
 		{ &Config.Cdda,    &menu_iopts[AMO_CDDA] },
-		{ &Config.Sio,     &menu_iopts[AMO_SIO] },
-		{ &Config.SpuIrq,  &menu_iopts[AMO_SPUI] },
 		{ &Config.icache_emulation, &menu_iopts[AMO_IC] },
-		{ &Config.RCntFix, &menu_iopts[AMO_RCNT] },
-		{ &Config.VSyncWA, &menu_iopts[AMO_WA] },
 		{ &Config.Cpu,     &menu_iopts[AMO_CPU] },
 	};
 	int i;

@@ -129,8 +129,8 @@ static void set_default_paths(void)
 void emu_set_default_config(void)
 {
 	// try to set sane config on which most games work
-	Config.Xa = Config.Cdda = Config.Sio =
-	Config.icache_emulation = Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
+	Config.Xa = Config.Cdda = 0;
+	Config.icache_emulation = 0;
 	Config.PsxAuto = 1;
 
 	pl_rearmed_cbs.thread_rendering = 0;

@@ -124,7 +124,7 @@ void psxBranchTest() {
 		psxRcntUpdate();
 
 	if (psxRegs.interrupt) {
-		if ((psxRegs.interrupt & (1 << PSXINT_SIO)) && !Config.Sio) { // sio
+		if ((psxRegs.interrupt & (1 << PSXINT_SIO))) { // sio
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle) >= psxRegs.intCycle[PSXINT_SIO].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SIO);
 				sioInterrupt();
