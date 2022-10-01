@@ -358,8 +358,8 @@ void psxRcntUpdate()
             }
         }
         
-        // Update lace. (with InuYasha fix)
-        if( hSyncCount >= (Config.VSyncWA ? HSyncTotal[Config.PsxType] / BIAS : HSyncTotal[Config.PsxType]) )
+        // Update lace.
+        if( hSyncCount >= HSyncTotal[Config.PsxType] )
         {
             rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
             hSyncCount = 0;
@@ -419,18 +419,6 @@ u32 psxRcntRcount( u32 index )
     u32 count;
 
     count = _psxRcntRcount( index );
-
-    // Parasite Eve 2 fix.
-    if( Config.RCntFix )
-    {
-        if( index == 2 )
-        {
-            if( rcnts[index].counterState == CountToTarget )
-            {
-                count /= BIAS;
-            }
-        }
-    }
 
     verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
 

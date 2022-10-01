@@ -152,8 +152,6 @@ make_rcnt_funcs(2)
 
 static void io_write_ireg16(u32 value)
 {
-	//if (Config.Sio) psxHu16ref(0x1070) |= 0x80;
-	if (Config.SpuIrq) psxHu16ref(0x1070) |= 0x200;
 	psxHu16ref(0x1070) &= value;
 }
 
@@ -166,8 +164,6 @@ static void io_write_imask16(u32 value)
 
 static void io_write_ireg32(u32 value)
 {
-	//if (Config.Sio) psxHu32ref(0x1070) |= 0x80;
-	if (Config.SpuIrq) psxHu32ref(0x1070) |= 0x200;
 	psxHu32ref(0x1070) &= value;
 }
 
