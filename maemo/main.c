@@ -22,7 +22,6 @@
 #include "maemo_common.h"
 
 extern int in_enable_vibration;
-extern int cycle_multiplier;
 extern int in_type1, in_type2;
 
 accel_option accelOptions;
@@ -258,7 +257,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-mcd1")) 	            sprintf(Config.Mcd1, "%s", argv[++i]);
 		else if (!strcmp(argv[i], "-mcd2")) 	            sprintf(Config.Mcd2, "%s", argv[++i]);
 
-		else if (!strcmp(argv[i], "-cpuclock")) 	        cycle_multiplier = 10000 / atol(argv[++i]);
+		else if (!strcmp(argv[i], "-cpuclock")) 	        Config.cycle_multiplier = 10000 / atol(argv[++i]);
 		else if (!strcmp(argv[i], "-guncon")) 	            in_type1 = PSE_PAD_TYPE_GUNCON;
 		else if (!strcmp(argv[i], "-gunnotrigger")) 		g_opts |= OPT_TSGUN_NOTRIGGER;
 		else if (!strcmp(argv[i], "-analog")) 	            in_type1 = PSE_PAD_TYPE_ANALOGPAD;

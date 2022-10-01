@@ -22,7 +22,7 @@ static const struct
 	const char * const id;
 	int mult;
 }
-new_dynarec_clock_overrides[] =
+cycle_multiplier_overrides[] =
 {
 	/* Internal Section - fussy about timings */
 	{ "SLPS01868", 202 },
@@ -30,6 +30,13 @@ new_dynarec_clock_overrides[] =
 	 * changing memcard settings is enough to break/unbreak it */
 	{ "SLPS02528", 190 },
 	{ "SLPS02636", 190 },
+#ifdef DRC_DISABLE /* new_dynarec has a hack for this game */
+	/* Parasite Eve II - internal timer checks */
+	{ "SLUS01042", 125 },
+	{ "SLUS01055", 125 },
+	{ "SLES02558", 125 },
+	{ "SLES12558", 125 },
+#endif
 };
 
 /* Function for automatic patching according to GameID. */
@@ -51,16 +58,16 @@ void Apply_Hacks_Cdrom()
 
 	/* Dynarec game-specific hacks */
 	new_dynarec_hacks_pergame = 0;
-	cycle_multiplier_override = 0;
+	Config.cycle_multiplier_override = 0;
 
-	for (i = 0; i < ARRAY_SIZE(new_dynarec_clock_overrides); i++)
+	for (i = 0; i < ARRAY_SIZE(cycle_multiplier_overrides); i++)
 	{
-		if (strcmp(CdromId, new_dynarec_clock_overrides[i].id) == 0)
+		if (strcmp(CdromId, cycle_multiplier_overrides[i].id) == 0)
 		{
-			cycle_multiplier_override = new_dynarec_clock_overrides[i].mult;
+			Config.cycle_multiplier_override = cycle_multiplier_overrides[i].mult;
 			new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
-			SysPrintf("using new_dynarec clock override: %d\n",
-				cycle_multiplier_override);
+			SysPrintf("using cycle_multiplier_override: %d\n",
+				Config.cycle_multiplier_override);
 			break;
 		}
 	}

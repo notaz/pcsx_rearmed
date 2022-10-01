@@ -132,6 +132,7 @@ void emu_set_default_config(void)
 	Config.Xa = Config.Cdda = 0;
 	Config.icache_emulation = 0;
 	Config.PsxAuto = 1;
+	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
@@ -163,7 +164,6 @@ void emu_set_default_config(void)
 	spu_config.iTempo = 1;
 #endif
 	new_dynarec_hacks = 0;
-	cycle_multiplier = 200;
 
 	in_type1 = PSE_PAD_TYPE_STANDARD;
 	in_type2 = PSE_PAD_TYPE_STANDARD;

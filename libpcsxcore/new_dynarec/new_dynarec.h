@@ -5,9 +5,6 @@ extern int pending_exception;
 extern int stop;
 extern int new_dynarec_did_compile;
 
-#define CYCLE_MULT_DEFAULT 175
-extern int cycle_multiplier; // 100 for 1.0
-extern int cycle_multiplier_override;
 extern int cycle_multiplier_old;
 
 #define NDHACK_NO_SMC_CHECK	(1<<0)

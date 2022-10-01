@@ -306,7 +306,7 @@ static void menu_sync_config(void)
 		Config.PsxAuto = 0;
 		Config.PsxType = region - 1;
 	}
-	cycle_multiplier = 10000 / psx_clock;
+	Config.cycle_multiplier = 10000 / psx_clock;
 
 	switch (in_type_sel1) {
 	case 1:  in_type1 = PSE_PAD_TYPE_ANALOGPAD; break;
@@ -1550,8 +1550,6 @@ static int menu_loop_plugin_options(int id, int keys)
 // ------------ adv options menu ------------
 
 #ifndef DRC_DISABLE
-static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
-				    "(lower value - less work for the emu, may be faster)";
 static const char h_cfg_noch[]    = "Disables game-specific compatibility hacks";
 static const char h_cfg_nosmc[]   = "Will cause crashes when loading, break memcards";
 static const char h_cfg_gteunn[]  = "May cause graphical glitches";
@@ -1562,7 +1560,6 @@ static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 static menu_entry e_menu_speed_hacks[] =
 {
 #ifndef DRC_DISABLE
-	mee_range_h   ("PSX CPU clock, %%",        0, psx_clock, 1, 500, h_cfg_psxclk),
 	mee_onoff_h   ("Disable compat hacks",     0, new_dynarec_hacks, NDHACK_NO_COMPAT_HACKS, h_cfg_noch),
 	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
 	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
@@ -1594,6 +1591,8 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 #endif
 static const char h_cfg_shacks[] = "Breaks games but may give better performance";
 static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
+static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
+				    "(adjust this if the game is too slow/too fast/hangs)";
 
 enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_CPU };
 
@@ -1608,6 +1607,7 @@ static menu_entry e_menu_adv_options[] =
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
+	mee_range_h   ("PSX CPU clock, %",       0, psx_clock, 1, 500, h_cfg_psxclk),
 	mee_handler_h ("[Speed hacks]",             menu_loop_speed_hacks, h_cfg_shacks),
 	mee_end,
 };
@@ -2647,6 +2647,7 @@ void menu_prepare_emu(void)
 		psxCpu->Reset();
 	}
 
+	menu_sync_config();
 	psxCpu->ApplyConfig();
 
 	// core doesn't care about Config.Cdda changes,
@@ -2654,7 +2655,6 @@ void menu_prepare_emu(void)
 	if (Config.Cdda)
 		CDR_stop();
 
-	menu_sync_config();
 	if (cpu_clock > 0)
 		plat_target_cpu_clock_set(cpu_clock);
 
