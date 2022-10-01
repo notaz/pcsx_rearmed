@@ -132,6 +132,7 @@ void emu_set_default_config(void)
 	Config.Xa = Config.Cdda = 0;
 	Config.icache_emulation = 0;
 	Config.PsxAuto = 1;
+	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 
 	pl_rearmed_cbs.thread_rendering = 0;
 
@@ -169,7 +170,6 @@ void emu_set_default_config(void)
 #endif
 #endif
 	new_dynarec_hacks = 0;
-	cycle_multiplier = 200;
 
 	in_type[0] = PSE_PAD_TYPE_STANDARD;
 	in_type[1] = PSE_PAD_TYPE_STANDARD;

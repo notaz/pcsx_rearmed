@@ -592,8 +592,6 @@ static void do_clear_cache(void)
 
 #define NO_CYCLE_PENALTY_THR 12
 
-int cycle_multiplier = CYCLE_MULT_DEFAULT; // 100 for 1.0
-int cycle_multiplier_override;
 int cycle_multiplier_old;
 static int cycle_multiplier_active;
 
@@ -6233,7 +6231,7 @@ void new_dynarec_clear_full(void)
   stat_clear(stat_blocks);
   stat_clear(stat_links);
 
-  cycle_multiplier_old = cycle_multiplier;
+  cycle_multiplier_old = Config.cycle_multiplier;
   new_dynarec_hacks_old = new_dynarec_hacks;
 }
 
@@ -6303,7 +6301,6 @@ void new_dynarec_init(void)
   #endif
 #endif
   out = ndrc->translation_cache;
-  cycle_multiplier=200;
   new_dynarec_clear_full();
 #ifdef HOST_IMM8
   // Copy this into local area so we don't have to put it in every literal pool
@@ -6360,7 +6357,7 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     (0xbfc00000 <= addr && addr < 0xbfc80000)))
   {
     // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
-    // but timings in PCSX are too tied to the interpreter's BIAS
+    // but timings in PCSX are too tied to the interpreter's 2-per-insn assumption
     if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
       cycle_multiplier_active = 200;
 
@@ -9031,8 +9028,8 @@ static int new_recompile_block(u_int addr)
     return 0;
   }
 
-  cycle_multiplier_active = cycle_multiplier_override && cycle_multiplier == CYCLE_MULT_DEFAULT
-    ? cycle_multiplier_override : cycle_multiplier;
+  cycle_multiplier_active = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+    ? Config.cycle_multiplier_override : Config.cycle_multiplier;
 
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {

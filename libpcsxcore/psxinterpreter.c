@@ -108,6 +108,17 @@ static u32 INT_ATTR fetchICache(u8 **memRLUT, u32 pc)
 
 static u32 (INT_ATTR *fetch)(u8 **memRLUT, u32 pc) = fetchNoCache;
 
+// Make the timing events trigger faster as we are currently assuming everything
+// takes one cycle, which is not the case on real hardware.
+// FIXME: count cache misses, memory latencies, stalls to get rid of this
+static inline void addCycle(void)
+{
+	assert(psxRegs.subCycleStep >= 0x10000);
+	psxRegs.subCycle += psxRegs.subCycleStep;
+	psxRegs.cycle += psxRegs.subCycle >> 16;
+	psxRegs.subCycle &= 0xffff;
+}
+
 static void delayRead(int reg, u32 bpc) {
 	u32 rold, rnew;
 
@@ -458,7 +469,7 @@ static int psxDelayBranchExec(u32 tar) {
 
 	branch = 0;
 	psxRegs.pc = tar;
-	psxRegs.cycle += BIAS;
+	addCycle();
 	psxBranchTest();
 	return 1;
 }
@@ -484,7 +495,7 @@ static int psxDelayBranchTest(u32 tar1) {
 		return psxDelayBranchExec(tar2);
 	}
 	debugI();
-	psxRegs.cycle += BIAS;
+	addCycle();
 
 	/*
 	 * Got a branch at tar1:
@@ -497,7 +508,7 @@ static int psxDelayBranchTest(u32 tar1) {
 		return psxDelayBranchExec(tmp1);
 	}
 	debugI();
-	psxRegs.cycle += BIAS;
+	addCycle();
 
 	/*
 	 * Got a branch at tar2:
@@ -523,7 +534,7 @@ static void doBranch(u32 tar) {
 	debugI();
 
 	psxRegs.pc += 4;
-	psxRegs.cycle += BIAS;
+	addCycle();
 
 	// check for load delay
 	tmp = psxRegs.code >> 26;
@@ -1076,7 +1087,7 @@ static inline void execI_(u8 **memRLUT, psxRegisters *regs_) {
 	if (Config.Debug) ProcessDebug();
 
 	regs_->pc += 4;
-	regs_->cycle += BIAS;
+	addCycle();
 
 	psxBSC[regs_->code >> 26](regs_, regs_->code);
 }
@@ -1111,6 +1122,8 @@ void intNotify (int note, void *data) {
 }
 
 void intApplyConfig() {
+	int cycle_mult;
+
 	assert(psxBSC[18] == psxCOP2  || psxBSC[18] == psxCOP2_stall);
 	assert(psxBSC[50] == gteLWC2  || psxBSC[50] == gteLWC2_stall);
 	assert(psxBSC[58] == gteSWC2  || psxBSC[58] == gteSWC2_stall);
@@ -1149,6 +1162,10 @@ void intApplyConfig() {
 		fetch = fetchNoCache;
 	else
 		fetch = fetchICache;
+
+	cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+	psxRegs.subCycleStep = 0x10000 * cycle_mult / 100;
 }
 
 static void intShutdown() {
