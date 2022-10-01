@@ -30,7 +30,7 @@ cycle_multiplier_overrides[] =
 	 * changing memcard settings is enough to break/unbreak it */
 	{ "SLPS02528", 190 },
 	{ "SLPS02636", 190 },
-#ifdef DRC_DISABLE /* new_dynarec has a hack for this game */
+#if defined(DRC_DISABLE) || defined(LIGHTREC) /* new_dynarec has a hack for this game */
 	/* Parasite Eve II - internal timer checks */
 	{ "SLUS01042", 125 },
 	{ "SLUS01055", 125 },

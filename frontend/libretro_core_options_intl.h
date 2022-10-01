@@ -221,7 +221,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
       "pcsx_rearmed_psxclock",
       "PSX CPU Saat Hızı",
       NULL,
-#ifdef HAVE_PRE_ARMV7
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
       "Overclock or underclock the PSX clock. Default is 50",
 #else
       "Overclock or underclock the PSX clock. Default is 57",
@@ -460,32 +460,8 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
       NULL
    },
    {
-      "pcsx_rearmed_pe2_fix",
-      "Parasite Eve 2/Vandal Hearts 1/2 Düzeltmleri",
-      NULL,
-      NULL,
-      NULL,
-      NULL,
-      {
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
       "pcsx_rearmed_icache_emulation",
       "ICache Düzeltmleri",
-      NULL,
-      NULL,
-      NULL,
-      NULL,
-      {
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
-      "pcsx_rearmed_inuyasha_fix",
-      "InuYasha Sengoku Battle Düzeltmesi",
       NULL,
       NULL,
       NULL,

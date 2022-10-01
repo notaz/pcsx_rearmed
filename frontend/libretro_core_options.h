@@ -198,16 +198,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled",
    },
 #endif
-#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
    {
       "pcsx_rearmed_psxclock",
       "PSX CPU Clock Speed",
       NULL,
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-      "Overclock or under-clock the PSX CPU. Lower values may reduce performance requirements while higher values may improve frame rates in demanding games at the expense of increased overheads; setting the value too low or high may reduce compatibility. Default is 50.",
-#else
-      "Overclock or under-clock the PSX CPU. Lower values may reduce performance requirements while higher values may improve frame rates in demanding games at the expense of increased overheads; setting the value too low or high may reduce compatibility. Default is 57.",
+      "Overclock or under-clock the PSX CPU. Try adjusting this if the game is too slow, too fast or hangs."
+#if defined(LIGHTREC)
+      " Currently doesn't work with Lightrec dynarec."
 #endif
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
+      " Default is 50."
+#else
+      " Default is 57."
+#endif
+      ,
       NULL,
       "system",
       {
@@ -290,7 +294,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "57",
 #endif
    },
-#endif /* !DRC_DISABLE && !LIGHTREC */
    {
       "pcsx_rearmed_dithering",
       "Dithering Pattern",
@@ -1136,52 +1139,10 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "1.00",
    },
    {
-      "pcsx_rearmed_pe2_fix",
-      "Parasite Eve 2/Vandal Hearts 1/2 Fix",
-      NULL,
-      "Hack fix required for correct operation of Parasite Eve 2 and Vandal Hearts 1/2. Should be disabled for all other games.",
-      NULL,
-      "compat_hack",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_inuyasha_fix",
-      "InuYasha Sengoku Battle Fix",
-      NULL,
-      "Hack fix required for correct operation of Inuyasha Sengoku Otogi Kassen. Should be disabled for all other games.",
-      NULL,
-      "compat_hack",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
-      "pcsx_rearmed_spuirq",
-      "SPU IRQ Always Enabled",
-      NULL,
-      "Hack for certain games where events tied to audio cues do not trigger correctly. Fixes unopenable doors in Alien Resurrection. Fixes desynchronised FMV audio in Legend of Mana. Should be disabled unless required.",
-      NULL,
-      "compat_hack",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled",
-   },
-   {
       "pcsx_rearmed_icache_emulation",
       "Instruction Cache Emulation",
       NULL,
-      "Enable emulation of the PSX CPU instruction cache. Improves accuracy at the expense of increased performance overheads. Required for Formula One 2001, Formula One Arcade and Formula One 99. May cause certain games to fail (e.g. Spyro 2: Gateway to Glimmer, PAL version) so should be disabled unless needed. [Interpreter only and partial on lightrec, unsupported when using ARMv7 backend]",
+      "Enable emulation of the PSX CPU instruction cache. Improves accuracy at the expense of increased performance overheads. Required for Formula One 2001, Formula One Arcade and Formula One 99. [Interpreter only and partial on lightrec, unsupported when using ARMv7 backend]",
       NULL,
       "compat_hack",
       {

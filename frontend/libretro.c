@@ -1936,6 +1936,8 @@ static void update_variables(bool in_flight)
          display_internal_fps = true;
    }
 
+   //
+   // CPU emulation related config
 #ifndef DRC_DISABLE
    var.value = NULL;
    var.key = "pcsx_rearmed_drc";
@@ -1970,7 +1972,81 @@ static void update_variables(bool in_flight)
       }
    }
 #endif /* !DRC_DISABLE */
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_psxclock";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      int psxclock = atoi(var.value);
+      Config.cycle_multiplier = 10000 / psxclock;
+   }
+
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nosmccheck";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
+      else
+         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gteregsunneeded";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nogteflags";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
+      else
+         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nocompathacks";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         new_dynarec_hacks |= NDHACK_NO_COMPAT_HACKS;
+      else
+         new_dynarec_hacks &= ~NDHACK_NO_COMPAT_HACKS;
+   }
+#endif /* !DRC_DISABLE && !LIGHTREC */
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_nostalls";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         Config.DisableStalls = 1;
+      else
+         Config.DisableStalls = 0;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_icache_emulation";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.icache_emulation = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.icache_emulation = 1;
+   }
+
    psxCpu->ApplyConfig();
+
+   // end of CPU emu config
+   //
 
    var.value = NULL;
    var.key = "pcsx_rearmed_spu_reverb";
@@ -1996,39 +2072,6 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 3;
       else if (strcmp(var.value, "off") == 0)
          spu_config.iUseInterpolation = 0;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_pe2_fix";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         Config.RCntFix = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         Config.RCntFix = 1;
-   }
-   
-   var.value = NULL;
-   var.key = "pcsx_rearmed_icache_emulation";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         Config.icache_emulation = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         Config.icache_emulation = 1;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_inuyasha_fix";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         Config.VSyncWA = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         Config.VSyncWA = 1;
    }
 
 #ifndef _WIN32
@@ -2072,16 +2115,6 @@ static void update_variables(bool in_flight)
          Config.Cdda = 1;
       else
          Config.Cdda = 0;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_spuirq";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         Config.SpuIrq = 0;
-      else
-         Config.SpuIrq = 1;
    }
 
 #ifdef THREAD_RENDERING
@@ -2265,67 +2298,6 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       GunconAdjustRatioY = atof(var.value);
-   }
-
-#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nosmccheck";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
-      else
-         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_gteregsunneeded";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
-      else
-         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nogteflags";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
-      else
-         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
-   }
-
-   /* this probably is safe to change in real-time */
-   var.value = NULL;
-   var.key = "pcsx_rearmed_psxclock";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      int psxclock = atoi(var.value);
-      cycle_multiplier = 10000 / psxclock;
-   }
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nocompathacks";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_NO_COMPAT_HACKS;
-      else
-         new_dynarec_hacks &= ~NDHACK_NO_COMPAT_HACKS;
-   }
-#endif /* !DRC_DISABLE && !LIGHTREC */
-
-   var.value = NULL;
-   var.key = "pcsx_rearmed_nostalls";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "enabled") == 0)
-         Config.DisableStalls = 1;
-      else
-         Config.DisableStalls = 0;
    }
 
    var.value = NULL;
@@ -3049,9 +3021,9 @@ void retro_init(void)
    /* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
     * we have to do this because cache misses and some IO penalties
     * are not emulated. Warning: changing this may break compatibility. */
-   cycle_multiplier = 175;
+   Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-   cycle_multiplier = 200;
+   Config.cycle_multiplier = 200;
 #endif
    pl_rearmed_cbs.gpu_peops.iUseDither = 1;
    pl_rearmed_cbs.gpu_peops.dwActFixes = GPU_PEOPS_OLD_FRAME_SKIP;
