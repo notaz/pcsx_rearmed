@@ -611,7 +611,7 @@ int SaveState(const char *file) {
 	new_dyna_before_save();
 
 	if (drc_is_lightrec() && Config.Cpu != CPU_INTERPRETER)
-		lightrec_plugin_prepare_save_state();
+		lightrec_plugin_sync_regs_to_pcsx();
 
 	SaveFuncs.write(f, (void *)PcsxHeader, 32);
 	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
@@ -699,7 +699,7 @@ int LoadState(const char *file) {
 	psxRegs.gteBusyCycle = psxRegs.cycle;
 
 	if (drc_is_lightrec() && Config.Cpu != CPU_INTERPRETER)
-		lightrec_plugin_prepare_load_state();
+		lightrec_plugin_sync_regs_from_pcsx();
 
 	if (Config.HLE)
 		psxBiosFreeze(0);

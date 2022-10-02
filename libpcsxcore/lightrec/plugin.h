@@ -9,14 +9,14 @@
 #ifdef LIGHTREC
 
 #define drc_is_lightrec() 1
-void lightrec_plugin_prepare_save_state(void);
-void lightrec_plugin_prepare_load_state(void);
+void lightrec_plugin_sync_regs_to_pcsx(void);
+void lightrec_plugin_sync_regs_from_pcsx(void);
 
 #else /* if !LIGHTREC */
 
 #define drc_is_lightrec() 0
-#define lightrec_plugin_prepare_save_state()
-#define lightrec_plugin_prepare_load_state()
+#define lightrec_plugin_sync_regs_to_pcsx()
+#define lightrec_plugin_sync_regs_from_pcsx()
 
 #endif
 
