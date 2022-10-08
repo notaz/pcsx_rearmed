@@ -42,7 +42,7 @@
 
 boolean writeok = TRUE;
 
-#ifndef NDEBUG
+#if 0 //ndef NDEBUG
 #include "debug.h"
 #else
 void DebugCheckBP(u32 address, enum breakpoint_types type) {}

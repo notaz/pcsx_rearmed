@@ -57,7 +57,7 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 
 ifeq ($(DEBUG), 1)
-OBJS += libpcsxcore/debug.o	libpcsxcore/socket.o libpcsxcore/disr3000a.o
+#OBJS += libpcsxcore/debug.o	libpcsxcore/socket.o libpcsxcore/disr3000a.o
 endif
 
 ifeq ($(WANT_ZLIB),1)
