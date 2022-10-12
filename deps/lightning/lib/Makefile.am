@@ -1,5 +1,5 @@
 #
-# Copyright 2000, 2001, 2002, 2012-2019 Free Software Foundation, Inc.
+# Copyright 2000, 2001, 2002, 2012-2022 Free Software Foundation, Inc.
 #
 # This file is part of GNU lightning.
 #
@@ -35,6 +35,7 @@ liblightning_la_SOURCES =	\
 	lightning.c
 
 EXTRA_DIST =			\
+	jit_fallback.c		\
 	jit_rewind.c		\
 	jit_aarch64.c		\
 	jit_aarch64-cpu.c	\

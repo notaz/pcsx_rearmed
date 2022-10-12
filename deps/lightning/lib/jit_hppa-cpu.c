@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -1660,7 +1660,48 @@ static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
+#if defined(__linux__) && defined(SYS_atomic_cmpxchg_32) &&  __WORDSIZE == 32
+    /* Not defined, and unlikely to ever be defined, but could be a way to do it */
+    movi(_R26_REGNO, SYS_atomic_cmpxchg_32);
+    if (r1 == _NOREG)
+	movi(_R25_REGNO, i0);
+    else
+	movr(_R25_REGNO, r1);
+    movr(_R24_REGNO, r2);
+    movr(_R23_REGNO, r3);
+    /* Should only fail for an invalid or unaligned address.
+     * Do not handle this condition. */
+    calli(syscall);
+    movr(r0, _R28_REGNO);
+#else
+    /*
+     * The only atomic operations are LDCW and LDCD, that load a value,
+     * and store zero at the address atomically. The (semaphore) address
+     * must be 16 byte aligned.
+     */
     fallback_casx(r0, r1, r2, r3, i0);
+    /*
+     * It is important to be aware of the delayed nature of cache flush and
+     *  purge operations, and to use SYNC instructions to force completion
+     * where necessary. The following example illustrates this.
+     * Consider two processes sharing a memory location x which is protected
+     * by a semaphore s.
+     *
+     * process A on Processor 1 |  process B on Processor 2 |  note
+     * -------------------------+---------------------------+------------
+     * LDCW s                   |                           | A acquires semaphore
+     * PDC x                    |                           | A executes purge
+     * SYNC                     |                           | Force completion of purge
+     * STW s                    |                           | A releases semaphore
+     *                          | LDCW s                    | B acquires semaphore
+     *                          | STW x
+     *
+     * In the absence of the SYNC instruction, it would be possible for
+     *  process B's store to x to complete before the purge of x is completed
+     * (since the purge may have been delayed). The purge of x could then
+     * destroy the new value.
+     */
+#endif
 }
 
 static void

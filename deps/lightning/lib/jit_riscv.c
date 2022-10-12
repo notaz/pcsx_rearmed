@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019  Free Software Foundation, Inc.
+ * Copyright (C) 2019-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -28,13 +28,21 @@ typedef jit_pointer_t jit_va_list_t;
 /*
  * Prototypes
  */
+#if __WORDSIZE == 64
+#  define load_const(r0, i0)		_load_const(_jit, r0, i0)
+static void _load_const(jit_state_t*, jit_int32_t, jit_word_t);
+static jit_word_t hash_const(jit_word_t);
+#  define put_const(i0)			_put_const(_jit, i0)
+static void _put_const(jit_state_t*, jit_word_t);
+#  define get_const(i0)			_get_const(_jit, i0)
+static jit_word_t _get_const(jit_state_t*, jit_word_t);
+#endif
 #define patch(instr, node)		_patch(_jit, instr, node)
 static void _patch(jit_state_t*,jit_word_t,jit_node_t*);
 
 #define PROTO				1
 #  include "jit_riscv-cpu.c"
 #  include "jit_riscv-fpu.c"
-#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -894,6 +902,43 @@ _emit_code(jit_state_t *_jit)
     jit_word_t		 prevw;
 #endif
 
+#if __WORDSIZE == 64
+    if (!_jitc->consts.hash.table) {
+	jit_alloc((jit_pointer_t *)&_jitc->consts.hash.table,
+		  16 * sizeof(jit_const_t *));
+	_jitc->consts.hash.size = 16;
+	jit_alloc((jit_pointer_t *)&_jitc->consts.pool.ptr,
+		  sizeof(jit_const_t *));
+	jit_alloc((jit_pointer_t *)_jitc->consts.pool.ptr,
+		  1024 * sizeof(jit_const_t));
+	_jitc->consts.pool.length = 1;
+    }
+    /* Reset table if starting over jit generation */
+    else
+	memset(_jitc->consts.hash.table, 0,
+	       _jitc->consts.hash.size * sizeof(jit_word_t));
+    for (offset = 0; offset < _jitc->consts.pool.length; offset++) {
+	jit_int32_t	 i;
+	jit_const_t	*list = _jitc->consts.pool.ptr[offset];
+	for (i = 0; i < 1023; ++i, ++list)
+	    list->next = list + 1;
+	if (offset + 1 < _jitc->consts.pool.length)
+	    list->next = _jitc->consts.pool.ptr[offset + 1];
+	else
+	    list->next = NULL;
+    }
+    _jitc->consts.pool.list = _jitc->consts.pool.ptr[0];
+    _jitc->consts.hash.count = 0;
+    if (!_jitc->consts.vector.instrs) {
+	jit_alloc((jit_pointer_t *)&_jitc->consts.vector.instrs,
+		  16 * sizeof(jit_word_t));
+	jit_alloc((jit_pointer_t *)&_jitc->consts.vector.values,
+		  16 * sizeof(jit_word_t));
+	_jitc->consts.vector.length = 16;
+    }
+    _jitc->consts.vector.offset = 0;
+#endif
+
     _jitc->function = NULL;
 
     jit_reglive_setup();
@@ -1016,11 +1061,10 @@ _emit_code(jit_state_t *_jit)
 	jit_regarg_set(node, value);
 	switch (node->code) {
 	    case jit_code_align:
-		assert(!(node->u.w & (node->u.w - 1)) &&
-		       node->u.w <= sizeof(jit_word_t));
-		if (node->u.w == sizeof(jit_word_t) &&
-		    (word = _jit->pc.w & (sizeof(jit_word_t) - 1)))
-		    nop(sizeof(jit_word_t) - word);
+		/* Must align to a power of two */
+		assert(!(node->u.w & (node->u.w - 1)));
+		if ((word = _jit->pc.w & (node->u.w - 1)))
+		    nop(node->u.w - word);
 		break;
 	    case jit_code_note:		case jit_code_name:
 		node->u.w = _jit->pc.w;
@@ -1552,12 +1596,60 @@ _emit_code(jit_state_t *_jit)
 #undef case_rw
 #undef case_rr
 
+#if __WORDSIZE == 64
+    /* Record all constants to be patched */
+    for (offset = 0; offset < _jitc->patches.offset; offset++) {
+	node = _jitc->patches.ptr[offset].node;
+	value = node->code == jit_code_movi ? node->v.n->u.w : node->u.n->u.w;
+	put_const(value);
+    }
+    /* Record all direct constants */
+    for (offset = 0; offset < _jitc->consts.vector.offset; offset++)
+	put_const(_jitc->consts.vector.values[offset]);
+    /* Now actually inject constants at the end of code buffer */
+    if (_jitc->consts.hash.count) {
+	jit_const_t	*entry;
+	/* Insert nop if aligned at 4 bytes */
+	if (_jit->pc.w % sizeof(jit_word_t))
+	    nop(_jit->pc.w % sizeof(jit_word_t));
+	for (offset = 0; offset < _jitc->consts.hash.size; offset++) {
+	    entry = _jitc->consts.hash.table[offset];
+	    for (; entry; entry = entry->next) {
+		/* Make sure to not write out of bounds */
+		if (_jit->pc.uc >= _jitc->code.end)
+		    return (NULL);
+		entry->address = _jit->pc.w;
+		*_jit->pc.ul++ = entry->value;
+	    }
+	}
+    }
+#endif
+
     for (offset = 0; offset < _jitc->patches.offset; offset++) {
 	node = _jitc->patches.ptr[offset].node;
 	word = _jitc->patches.ptr[offset].inst;
 	value = node->code == jit_code_movi ? node->v.n->u.w : node->u.n->u.w;
 	patch_at(word, value);
     }
+
+#if __WORDSIZE == 64
+    /* Patch direct complex constants */
+    if (_jitc->consts.vector.instrs) {
+	for (offset = 0; offset < _jitc->consts.vector.offset; offset++)
+	    patch_at(_jitc->consts.vector.instrs[offset],
+		     _jitc->consts.vector.values[offset]);
+	jit_free((jit_pointer_t *)&_jitc->consts.vector.instrs);
+	jit_free((jit_pointer_t *)&_jitc->consts.vector.values);
+    }
+
+    /* Hash table no longer need */
+    if (_jitc->consts.hash.table) {
+	jit_free((jit_pointer_t *)&_jitc->consts.hash.table);
+	for (offset = 0; offset < _jitc->consts.pool.length; offset++)
+	    jit_free((jit_pointer_t *)_jitc->consts.pool.ptr + offset);
+	jit_free((jit_pointer_t *)&_jitc->consts.pool.ptr);
+    }
+#endif
 
     jit_flush(_jit->code.ptr, _jit->pc.uc);
 
@@ -1567,8 +1659,115 @@ _emit_code(jit_state_t *_jit)
 #define CODE				1
 #  include "jit_riscv-cpu.c"
 #  include "jit_riscv-fpu.c"
-#  include "jit_fallback.c"
 #undef CODE
+
+static void
+_load_const(jit_state_t *_jit, jit_int32_t reg, jit_word_t value)
+{
+    if (_jitc->consts.vector.offset >= _jitc->consts.vector.length) {
+	jit_word_t	new_size = _jitc->consts.vector.length *
+				   2 * sizeof(jit_word_t);
+	jit_realloc((jit_pointer_t *)&_jitc->consts.vector.instrs,
+		    _jitc->consts.vector.length * sizeof(jit_word_t), new_size);
+	jit_realloc((jit_pointer_t *)&_jitc->consts.vector.values,
+		    _jitc->consts.vector.length * sizeof(jit_word_t), new_size);
+	_jitc->consts.vector.length *= 2;
+    }
+    _jitc->consts.vector.instrs[_jitc->consts.vector.offset] = _jit->pc.w;
+    _jitc->consts.vector.values[_jitc->consts.vector.offset] = value;
+    ++_jitc->consts.vector.offset;
+    /* Resolve later the pc relative address */
+    put_const(value);
+    AUIPC(reg, 0);
+    ADDI(reg, reg, 0);
+    LD(reg, reg, 0);
+}
+
+static jit_word_t
+hash_const(jit_word_t value)
+{
+    const jit_uint8_t	*ptr;
+    jit_word_t		 i, key;
+    for (i = key = 0, ptr = (jit_uint8_t *)&value; i < 4; ++i)
+	key = (key << (key & 1)) ^ ptr[i];
+    return (key);
+
+}
+
+static void
+_put_const(jit_state_t *_jit, jit_word_t value)
+{
+    jit_word_t		 key;
+    jit_const_t		*entry;
+
+    /* Check if already inserted in table */
+    key = hash_const(value) % _jitc->consts.hash.size;
+    for (entry = _jitc->consts.hash.table[key]; entry; entry = entry->next) {
+	if (entry->value == value)
+	    return;
+    }
+
+    /* Check if need to increase pool size */
+    if (_jitc->consts.pool.list->next == NULL) {
+	jit_const_t	*list;
+	jit_word_t	 offset;
+	jit_word_t	 new_size = (_jitc->consts.pool.length + 1) *
+				    sizeof(jit_const_t*);
+	jit_realloc((jit_pointer_t *)&_jitc->consts.pool.ptr,
+		    _jitc->consts.pool.length * sizeof(jit_const_t*), new_size);
+	jit_alloc((jit_pointer_t *)
+		  _jitc->consts.pool.ptr + _jitc->consts.pool.length,
+		  1024 * sizeof(jit_const_t));
+	list = _jitc->consts.pool.ptr[_jitc->consts.pool.length];
+	_jitc->consts.pool.list->next = list;
+	for (offset = 0; offset < 1023; ++offset, ++list)
+	    list->next = list + 1;
+	list->next = NULL;
+	++_jitc->consts.pool.length;
+    }
+
+    /* Rehash if more than 75% used table */
+    if (_jitc->consts.hash.count > (_jitc->consts.hash.size / 4) * 3) {
+	jit_word_t	  i, k;
+	jit_const_t	 *next;
+	jit_const_t	**table;
+	jit_alloc((jit_pointer_t *)&table,
+		  _jitc->consts.hash.size * 2 * sizeof(jit_const_t *));
+	for (i = 0; i < _jitc->consts.hash.size; ++i) {
+	    for (entry = _jitc->consts.hash.table[i]; entry; entry = next) {
+		next = entry->next;
+		k = hash_const(entry->value) % (_jitc->consts.hash.size * 2);
+		entry->next = table[k];
+		table[k] = entry;
+	    }
+	}
+	jit_free((jit_pointer_t *)&_jitc->consts.hash.table);
+	_jitc->consts.hash.size *= 2;
+	_jitc->consts.hash.table = table;
+    }
+
+    /* Insert in hash */
+    entry = _jitc->consts.pool.list;
+    _jitc->consts.pool.list =  entry->next;
+    ++_jitc->consts.hash.count;
+    entry->value = value;
+    entry->next = _jitc->consts.hash.table[key];
+    _jitc->consts.hash.table[key] = entry;
+}
+
+static jit_word_t
+_get_const(jit_state_t *_jit, jit_word_t value)
+{
+    jit_word_t		 key;
+    jit_const_t		*entry;
+    key = hash_const(value) % _jitc->consts.hash.size;
+    for (entry = _jitc->consts.hash.table[key]; entry; entry = entry->next) {
+	if (entry->value == value)
+	    return (entry->address);
+    }
+    /* Only the final patch should call get_const() */
+    abort();
+}
 
 void
 jit_flush(void *fptr, void *tptr)

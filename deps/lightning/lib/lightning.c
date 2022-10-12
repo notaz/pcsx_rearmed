@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -64,13 +64,25 @@ static void _del_label(jit_state_t*, jit_node_t*, jit_node_t*);
 static void
 _jit_dataset(jit_state_t *_jit);
 
+#define block_update_set(block, target)	_block_update_set(_jit, block, target)
+static jit_bool_t _block_update_set(jit_state_t*, jit_block_t*, jit_block_t*);
+
+#define check_block_again()		_check_block_again(_jit)
+static jit_bool_t _check_block_again(jit_state_t*);
+
+#define do_setup()			_do_setup(_jit)
+static void _do_setup(jit_state_t*);
+
 #define jit_setup(block)		_jit_setup(_jit, block)
 static void
 _jit_setup(jit_state_t *_jit, jit_block_t *block);
 
-#define jit_follow(block, todo)		_jit_follow(_jit, block, todo)
+#define do_follow(always)		_do_follow(_jit, always)
+static void _do_follow(jit_state_t*, jit_bool_t);
+
+#define jit_follow(block)		_jit_follow(_jit, block)
 static void
-_jit_follow(jit_state_t *_jit, jit_block_t *block, jit_bool_t *todo);
+_jit_follow(jit_state_t *_jit, jit_block_t *block);
 
 #define jit_update(node, live, mask)	_jit_update(_jit, node, live, mask)
 static void
@@ -1623,10 +1635,127 @@ _jit_patch_at(jit_state_t *_jit, jit_node_t *instr, jit_node_t *label)
     label->link = instr;
 }
 
+static void
+_do_setup(jit_state_t *_jit)
+{
+    jit_block_t		*block;
+    jit_word_t		 offset;
+
+    /* create initial mapping of live register values
+     * at the start of a basic block */
+    for (offset = 0; offset < _jitc->blocks.offset; offset++) {
+	block = _jitc->blocks.ptr + offset;
+	if (!block->label || block->label->code == jit_code_epilog)
+	    continue;
+	jit_setup(block);
+    }
+}
+
+static jit_bool_t
+_block_update_set(jit_state_t *_jit,
+		  jit_block_t *block, jit_block_t *target)
+{
+    jit_regset_t	regmask;
+
+    jit_regset_ior(&regmask, &block->reglive, &target->reglive);
+    jit_regset_and(&regmask,  &regmask, &block->regmask);
+    if (jit_regset_set_p(&regmask)) {
+	jit_regset_ior(&block->reglive, &block->reglive, &regmask);
+	jit_regset_and(&regmask, &block->reglive, &block->regmask);
+	jit_regset_com(&regmask, &regmask);
+	jit_regset_and(&block->regmask, &block->regmask, &regmask);
+	block->again = 1;
+	return (1);
+    }
+    return (0);
+}
+
+static jit_bool_t
+_check_block_again(jit_state_t *_jit)
+{
+    jit_int32_t		 todo;
+    jit_word_t		 offset;
+    jit_node_t		*node, *label;
+    jit_block_t		*block, *target;
+
+    todo = 0;
+    for (offset = 0; offset < _jitc->blocks.offset; offset++) {
+	block = _jitc->blocks.ptr + offset;
+	if (block->again) {
+	    todo = 1;
+	    break;
+	}
+    }
+    /* If no block changed state */
+    if (!todo)
+	return (0);
+
+    do {
+	todo = 0;
+	block = NULL;
+	for (node = _jitc->head; node; node = node->next) {
+	    /* Special jumps that match jit_cc_a0_jmp */
+	    if (node->code == jit_code_calli || node->code == jit_code_callr)
+		continue;
+
+	    /* Remember current label */
+	    if (node->code == jit_code_label ||
+		node->code == jit_code_prolog ||
+		node->code == jit_code_epilog) {
+
+		/* If previous block does not pass through */
+		if (!(node->flag & jit_flag_head))
+		    block = NULL;
+
+		target = _jitc->blocks.ptr + node->v.w;
+		/* Update if previous block pass through */
+		if (block && block->again && block_update_set(target, block))
+		    todo = 1;
+		block = target;
+		if (!block->again)
+		    continue;
+	    }
+	    /* If not the first jmpi */
+	    else if (block) {
+		/* If a jump to dynamic address or if a jump to raw address */
+		if (!(jit_classify(node->code) & jit_cc_a0_jmp) ||
+		    !(node->flag & jit_flag_node))
+		    continue;
+		label = node->u.n;
+		/* Mark predecessor needs updating due to target change */
+		target = _jitc->blocks.ptr + label->v.w;
+		if (target->again && block_update_set(block, target))
+		    todo = 1;
+	    }
+	}
+    }
+    while (todo);
+
+    return (1);
+}
+
+static void
+_do_follow(jit_state_t *_jit, jit_bool_t always)
+{
+    jit_block_t		*block;
+    jit_word_t		 offset;
+
+    /* set live state of registers not referenced in a block, but
+     * referenced in a jump target or normal flow */
+    for (offset = 0; offset < _jitc->blocks.offset; offset++) {
+	block = _jitc->blocks.ptr + offset;
+	if (!block->label || block->label->code == jit_code_epilog)
+	    continue;
+	if (always || block->again) {
+	    block->again = 0;
+	    jit_follow(block);
+	}
+    }
+}
+
 void
 _jit_optimize(jit_state_t *_jit)
 {
-    jit_int32_t		 pass;
     jit_bool_t		 jump;
     jit_bool_t		 todo;
     jit_int32_t		 mask;
@@ -1634,91 +1763,78 @@ _jit_optimize(jit_state_t *_jit)
     jit_block_t		*block;
     jit_word_t		 offset;
 
+    todo = 0;
     _jitc->function = NULL;
 
     thread_jumps();
     sequential_labels();
     split_branches();
+    do_setup();
+    do_follow(1);
 
-    pass = 0;
+    patch_registers();
+    if (simplify())
+	todo = 1;
 
-second_pass:
-    /* create initial mapping of live register values
-     * at the start of a basic block */
-    for (offset = 0; offset < _jitc->blocks.offset; offset++) {
-	block = _jitc->blocks.ptr + offset;
-	if (!block->label)
-	    continue;
-	if (block->label->code != jit_code_epilog)
-	    jit_setup(block);
+    /* Figure out labels that are only reached with a jump
+     * and is required to do a simple redundant_store removal
+     * on jit_beqi below */
+    jump = 1;
+    for (node = _jitc->head; node; node = node->next) {
+	switch (node->code) {
+	    case jit_code_label:
+		if (!jump)
+		    node->flag |= jit_flag_head;
+		break;
+	    case jit_code_jmpi:		case jit_code_jmpr:
+	    case jit_code_epilog:
+		jump = 1;
+		break;
+	    case jit_code_data:		case jit_code_note:
+		break;
+	    default:
+		jump = 0;
+		break;
+	}
     }
 
-    /* set live state of registers not referenced in a block, but
-     * referenced in a jump target or normal flow */
-    do {
+    for (node = _jitc->head; node; node = node->next) {
+	mask = jit_classify(node->code);
+	if (mask & jit_cc_a0_reg)
+	    node->u.w &= ~jit_regno_patch;
+	if (mask & jit_cc_a1_reg)
+	    node->v.w &= ~jit_regno_patch;
+	if (mask & jit_cc_a2_reg)
+	    node->w.w &= ~jit_regno_patch;
+	if (node->code == jit_code_beqi) {
+	    if (redundant_store(node, 1)) {
+		block = _jitc->blocks.ptr + ((jit_node_t *)node->u.n)->v.w;
+		block->again = 1;
+		todo = 1;
+	    }
+	}
+	else if (node->code == jit_code_bnei) {
+	    if (redundant_store(node, 0)) {
+		block = _jitc->blocks.ptr + ((jit_node_t *)node->u.n)->v.w;
+		block->again = 1;
+		todo = 1;
+	    }
+	}
+    }
+
+    if (!todo)
+	todo = check_block_again();
+
+    /* If instructions were removed or first pass did modify the entry
+     * state of any block */
+    if (todo) {
+	do_setup();
 	todo = 0;
-	for (offset = 0; offset < _jitc->blocks.offset; offset++) {
-	    block = _jitc->blocks.ptr + offset;
-	    if (!block->label)
-		continue;
-	    if (block->label->code != jit_code_epilog)
-		jit_follow(block, &todo);
-	}
-    } while (todo);
-
-    if (pass == 0) {
-	todo = 0;
-
-	patch_registers();
-	if (simplify())
-	    todo = 1;
-
-	/* figure out labels that are only reached with a jump
-	 * and is required to do a simple redundant_store removal
-	 * on jit_beqi below */
-	jump = 1;
-	for (node = _jitc->head; node; node = node->next) {
-	    switch (node->code) {
-		case jit_code_label:
-		    if (!jump)
-			node->flag |= jit_flag_head;
-			break;
-		case jit_code_jmpi:		case jit_code_jmpr:
-		case jit_code_epilog:
-		    jump = 1;
-		    break;
-		case jit_code_data:		case jit_code_note:
-		    break;
-		default:
-		    jump = 0;
-		    break;
-	    }
-	}
-
-	for (node = _jitc->head; node; node = node->next) {
-	    mask = jit_classify(node->code);
-	    if (mask & jit_cc_a0_reg)
-		node->u.w &= ~jit_regno_patch;
-	    if (mask & jit_cc_a1_reg)
-		node->v.w &= ~jit_regno_patch;
-	    if (mask & jit_cc_a2_reg)
-		node->w.w &= ~jit_regno_patch;
-	    if (node->code == jit_code_beqi) {
-		if (redundant_store(node, 1))
-		    todo = 1;
-	    }
-	    else if (node->code == jit_code_bnei) {
-		if (redundant_store(node, 0))
-		    todo = 1;
-	    }
-	}
-
-	/* If instructions were removed, must recompute state at
-	 * start of blocks. */
-	if (todo) {
-	    pass = 1;
-	    goto second_pass;
-	}
+	do {
+	    do_follow(0);
+	    /* If any block again has the entry state modified. */
+	    todo = check_block_again();
+	} while (todo);
     }
 
     for (node = _jitc->head; node; node = node->next) {
@@ -2094,6 +2210,7 @@ _jit_emit(jit_state_t *_jit)
 #if defined(__sgi)
     int			 mmap_fd;
 #endif
+    int			 mmap_prot, mmap_flags;
 
     if (!_jitc->realize)
 	jit_realize();
@@ -2107,12 +2224,22 @@ _jit_emit(jit_state_t *_jit)
     assert(_jit->user_code);
 #else
     if (!_jit->user_code) {
+	mmap_prot = PROT_READ | PROT_WRITE;
+#if !__OpenBSD__
+	mmap_prot |= PROT_EXEC;
+#endif
+#if __NetBSD__
+	mmap_prot = PROT_MPROTECT(mmap_prot);
+	mmap_flags = 0;
+#else
+	mmap_flags = MAP_PRIVATE;
+#endif
+	mmap_flags |= MAP_ANON;
 #if defined(__sgi)
 	mmap_fd = open("/dev/zero", O_RDWR);
 #endif
 	_jit->code.ptr = mmap(NULL, _jit->code.length,
-			      PROT_EXEC | PROT_READ | PROT_WRITE,
-			      MAP_PRIVATE | MAP_ANON, mmap_fd, 0);
+			      mmap_prot, mmap_flags, mmap_fd, 0);
 	assert(_jit->code.ptr != MAP_FAILED);
     }
 #endif /* !HAVE_MMAP */
@@ -2121,6 +2248,11 @@ _jit_emit(jit_state_t *_jit)
     _jit->pc.uc = _jit->code.ptr;
 
     for (;;) {
+#if __NetBSD__
+	result = mprotect(_jit->code.ptr, _jit->code.length,
+			  PROT_READ | PROT_WRITE);
+	assert(result == 0);
+#endif
 	if ((code = emit_code()) == NULL) {
 	    _jitc->patches.offset = 0;
 	    for (node = _jitc->head; node; node = node->next) {
@@ -2184,12 +2316,17 @@ _jit_emit(jit_state_t *_jit)
 	jit_free((jit_pointer_t *)&_jitc->data.ptr);
 #if HAVE_MMAP
     else {
-	result = mprotect(_jit->data.ptr, _jit->data.length, PROT_READ);
+	result = mprotect(_jit->data.ptr,
+			  _jit->data.length, PROT_READ);
 	assert(result == 0);
     }
     if (!_jit->user_code) {
-	result = mprotect(_jit->code.ptr, _jit->code.length,
-			  PROT_READ | PROT_EXEC);
+	length = _jit->pc.uc - _jit->code.ptr;
+#  if __riscv && __WORDSIZE == 64
+	/* FIXME should start adding consts at a page boundary */
+	length -= _jitc->consts.hash.count * sizeof(jit_word_t);
+#  endif
+	result = mprotect(_jit->code.ptr, length, PROT_READ | PROT_EXEC);
 	assert(result == 0);
     }
 #endif /* HAVE_MMAP */
@@ -2314,7 +2451,7 @@ _jit_setup(jit_state_t *_jit, jit_block_t *block)
  * or normal flow that have a live register not used in this block.
  */
 static void
-_jit_follow(jit_state_t *_jit, jit_block_t *block, jit_bool_t *todo)
+_jit_follow(jit_state_t *_jit, jit_block_t *block)
 {
     jit_node_t		*node;
     jit_block_t		*next;
@@ -2343,7 +2480,7 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block, jit_bool_t *todo)
 		    /*  Remove from unknown state bitmask. */
 		    jit_regset_com(&regtemp, &regtemp);
 		    jit_regset_and(&block->regmask, &block->regmask, &regtemp);
-		    *todo = 1;
+		    block->again = 1;
 		}
 	    case jit_code_prolog:
 	    case jit_code_epilog:
@@ -2445,7 +2582,7 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block, jit_bool_t *todo)
 			    jit_regset_com(&regtemp, &regtemp);
 			    jit_regset_and(&block->regmask,
 					   &block->regmask, &regtemp);
-			    *todo = 1;
+			    block->again = 1;
 			}
 		    }
 		    else {
@@ -3095,6 +3232,8 @@ _redundant_store(jit_state_t *_jit, jit_node_t *node, jit_bool_t jump)
 		break;
 	}
     }
+
+    return (result);
 }
 
 static jit_bool_t

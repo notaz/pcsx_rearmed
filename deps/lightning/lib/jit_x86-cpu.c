@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -802,44 +802,49 @@ _rx(jit_state_t *_jit, jit_int32_t rd, jit_int32_t md,
 static void
 _nop(jit_state_t *_jit, jit_int32_t count)
 {
-    switch (count) {
-	case 0:
-	    break;
-	case 1:		/* NOP */
-	    ic(0x90);	break;
-	case 2:		/* 66 NOP */
-	    ic(0x66);	ic(0x90);
-	    break;
-	case 3:		/* NOP DWORD ptr [EAX] */
-	    ic(0x0f);	ic(0x1f);	ic(0x00);
-	    break;
-	case 4:		/* NOP DWORD ptr [EAX + 00H] */
-	    ic(0x0f);	ic(0x1f);	ic(0x40);	ic(0x00);
-	    break;
-	case 5:		/* NOP DWORD ptr [EAX + EAX*1 + 00H] */
-	    ic(0x0f);	ic(0x1f);	ic(0x44);	ic(0x00);
-	    ic(0x00);
-	    break;
-	case 6:		/* 66 NOP DWORD ptr [EAX + EAX*1 + 00H] */
-	    ic(0x66);	ic(0x0f);	ic(0x1f);	ic(0x44);
-	    ic(0x00);	ic(0x00);
-	    break;
-	case 7:		/* NOP DWORD ptr [EAX + 00000000H] */
-	    ic(0x0f);	ic(0x1f);	ic(0x80);	ii(0x0000);
-	    break;
-	case 8:		/* NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
-	    ic(0x0f);	ic(0x1f);	ic(0x84);	ic(0x00);
-	    ii(0x0000);
-	    break;
-	case 9:		/* 66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
-	    ic(0x66);	ic(0x0f);	ic(0x1f);	ic(0x84);
-	    ic(0x00);	ii(0x0000);
-	    break;
-	default:
-	    abort();
+    jit_int32_t		i;
+    while (count) {
+	if (count > 9)
+	    i = 9;
+	else
+	    i = count;
+	switch (i) {
+	    case 0:
+		break;
+	    case 1:	    /* NOP */
+		ic(0x90);   break;
+	    case 2:	    /* 66 NOP */
+		ic(0x66);   ic(0x90);
+		break;
+	    case 3:	    /* NOP DWORD ptr [EAX] */
+		ic(0x0f);   ic(0x1f);	    ic(0x00);
+		break;
+	    case 4:	    /* NOP DWORD ptr [EAX + 00H] */
+		ic(0x0f);   ic(0x1f);	    ic(0x40);	    ic(0x00);
+		break;
+	    case 5:	    /* NOP DWORD ptr [EAX + EAX*1 + 00H] */
+		ic(0x0f);   ic(0x1f);	    ic(0x44);	    ic(0x00);
+		ic(0x00);
+		break;
+	    case 6:	    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00H] */
+		ic(0x66);   ic(0x0f);	    ic(0x1f);	    ic(0x44);
+		ic(0x00);   ic(0x00);
+		break;
+	    case 7:	    /* NOP DWORD ptr [EAX + 00000000H] */
+		ic(0x0f);   ic(0x1f);	    ic(0x80);	    ii(0x0000);
+		break;
+	    case 8:	    /* NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+		ic(0x0f);   ic(0x1f);	    ic(0x84);	    ic(0x00);
+		ii(0x0000);
+		break;
+	    case 9:	    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+		ic(0x66);   ic(0x0f);	    ic(0x1f);	    ic(0x84);
+		ic(0x00);   ii(0x0000);
+		break;
+	}
+	count -= i;
     }
 }
-
 static void
 _lea(jit_state_t *_jit, jit_int32_t md, jit_int32_t rb,
      jit_int32_t ri, jit_int32_t ms, jit_int32_t rd)

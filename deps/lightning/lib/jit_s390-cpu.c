@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -2477,7 +2477,33 @@ static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
-    fallback_casx(r0, r1, r2, r3, i0);
+    jit_int32_t         iscasi, r1_reg;
+    if ((iscasi = (r1 == _NOREG))) {
+        r1_reg = jit_get_reg_but_zero(0);
+        r1 = rn(r1_reg);
+        movi(r1, i0);
+    }
+    /* Do not clobber r2 */
+    movr(r0, r2);
+    /*  The CS and CSG instructions below effectively do atomically:
+     * if (*r1 == r0)
+     *     *r1 = r3;
+     * else
+     *     r0 = *r1
+     * So, we do not need to check cpu flags to know if it did work,
+     * just compare if values are different.
+     * Obviously it is somewhat of undefined behavior if old_value (r2)
+     * and new_value (r3) have the same value, but should still work
+     * as expected as a noop.
+     */
+#  if __WORDSIZE == 32
+    CS(r0, r3, 0, r1);
+#  else
+    CSG(r0, r3, 0, r1);
+#  endif
+    eqr(r0, r0, r2);
+    if (iscasi)
+        jit_unget_reg(r1_reg);
 }
 
 static void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -3829,6 +3829,11 @@ execute(int argc, char *argv[])
 	jit_disassemble();
 	fprintf(stderr, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
     }
+    if (flag_verbose && argc) {
+	for (result = 0; result < argc; result++)
+	    printf("argv[%d] = %s\n", result, argv[result]);
+	fprintf(stderr, "  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
+    }
 
     jit_clear_state();
     if (flag_disasm)
@@ -4028,12 +4033,11 @@ usage(void)
 {
 #if HAVE_GETOPT_LONG_ONLY
     fprintf(stderr, "\
-Usage: %s [jit assembler options] file [jit program options]\n\
+Usage: %s [jit assembler options] file [--] [jit program options]\n\
 Jit assembler options:\n\
   -help                    Display this information\n\
   -v[0-3]                  Verbose output level\n\
-  -d                       Do not use a data buffer\n\
-  -D<macro>[=<val>]        Preprocessor options\n"
+  -d                       Do not use a data buffer\n"
 #  if defined(__i386__) && __WORDSIZE == 32
 "  -mx87=1                  Force using x87 when sse2 available\n"
 #  endif
@@ -4049,11 +4053,10 @@ Jit assembler options:\n\
 	    , progname);
 #else
     fprintf(stderr, "\
-Usage: %s [jit assembler options] file [jit program options]\n\
+Usage: %s [jit assembler options] file [--] [jit program options]\n\
 Jit assembler options:\n\
   -h                       Display this information\n\
-  -v                       Verbose output level\n\
-  -D<macro>[=<val>]        Preprocessor options\n", progname);
+  -v                       Verbose output level\n", progname);
 #endif
     finish_jit();
     exit(1);
@@ -4228,16 +4231,6 @@ main(int argc, char *argv[])
 #  define cc "gcc"
 #endif
     opt_short = snprintf(cmdline, sizeof(cmdline), cc " -E -x c %s", argv[opt_index]);
-    for (++opt_index; opt_index < argc; opt_index++) {
-	if (argv[opt_index][0] == '-')
-	    opt_short += snprintf(cmdline + opt_short,
-				  sizeof(cmdline) - opt_short,
-				  " %s", argv[opt_index]);
-	else {
-	    --opt_index;
-	    break;
-	}
-    }
     opt_short += snprintf(cmdline + opt_short,
 			  sizeof(cmdline) - opt_short,
 			  " -D__WORDSIZE=%d", __WORDSIZE);

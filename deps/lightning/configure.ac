@@ -123,10 +123,8 @@ AM_CONDITIONAL(with_disassembler, [test "x$DISASSEMBLER" != "xno"])
 if test "x$DISASSEMBLER" != "xno"; then
     LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DDISASSEMBLER=1"
     save_CFLAGS=$CFLAGS
-    CFLAGS="$CFLAGS -I$PWD/include -D_GNU_SOURCE"
+    CFLAGS="$CFLAGS -D_GNU_SOURCE"
     AC_COMPILE_IFELSE([AC_LANG_SOURCE(
-	#include <lightning.h>
-	#include <lightning/jit_private.h>
 	#include <dis-asm.h>
 	int main(int argc, char *argv[])
 	{
@@ -225,12 +223,11 @@ ac_cv_test_arm_arm=
 ac_cv_test_arm_swf=
 
 save_CFLAGS=$CFLAGS
-CFLAGS="$CFLAGS -I$PWD/include -D_GNU_SOURCE"
+CFLAGS="$CFLAGS -D_GNU_SOURCE"
 if test x$cpu = x; then
     AC_MSG_ERROR([cpu $target_cpu not supported])
 elif test $cpu = x86; then
     AC_RUN_IFELSE([AC_LANG_SOURCE([[
-    #include <lightning.h>
     int main(void) {
 	int		    ac, flags;
 	unsigned int	    eax, ebx, ecx, edx;

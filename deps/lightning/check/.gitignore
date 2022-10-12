@@ -29,6 +29,7 @@ branch
 call
 carg
 carry
+catomic
 ccall
 clobber
 ctramp
@@ -50,6 +51,7 @@ ldstxr
 ldstxr-c
 lightning
 live
+movzr
 put
 qalu_div
 qalu_mul

@@ -1,4 +1,3 @@
-
 #if __WORDSIZE == 64
 #define JIT_INSTR_MAX 224
     0,	/* data */
@@ -68,9 +67,9 @@
     16,	/* lshr */
     16,	/* lshi */
     16,	/* rshr */
-    32,	/* rshi */
+    16,	/* rshi */
     16,	/* rshr_u */
-    32,	/* rshi_u */
+    16,	/* rshi_u */
     16,	/* negr */
     16,	/* comr */
     32,	/* ltr */
@@ -95,16 +94,16 @@
     32,	/* nei */
     16,	/* movr */
     16,	/* movi */
-    48, /* movnr */
-    48, /* movzr */
+    16,	/* movnr */
+    16,	/* movzr */
     16,	/* extr_c */
     16,	/* extr_uc */
     16,	/* extr_s */
     16,	/* extr_us */
     16,	/* extr_i */
     16,	/* extr_ui */
-    48,	/* htonr_us */
-    48,	/* htonr_ui */
+    32,	/* htonr_us */
+    32,	/* htonr_ui */
     16,	/* htonr_ul */
     16,	/* ldr_c */
     32,	/* ldi_c */
@@ -401,9 +400,9 @@
     0,	/* movi_d_ww */
     16,	/* movr_d_w */
     32,	/* movi_d_w */
-    48,	/* bswapr_us */
-    48,	/* bswapr_ui */
+    32,	/* bswapr_us */
+    32,	/* bswapr_ui */
     16,	/* bswapr_ul */
-    0,	/* casr */
-    0,	/* casi */
+    48,	/* casr */
+    64,	/* casi */
 #endif /* __WORDSIZE */

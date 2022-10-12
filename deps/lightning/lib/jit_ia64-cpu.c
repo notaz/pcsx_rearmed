@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -1175,6 +1175,8 @@ static void _X5(jit_state_t*,jit_word_t,
 #define ZXT2(r1,r3)			I29(0x11,r3,r1)
 #define ZXT4(r1,r3)			I29(0x12,r3,r1)
 
+#  define nop(i0)			_nop(_jit,i0)
+static void _nop(jit_state_t*, jit_int32_t);
 #define addr(r0,r1,r2)			ADD(r0,r1,r2)
 #define addi(r0,r1,i0)			_addi(_jit,r0,r1,i0)
 static void _addi(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
@@ -1515,7 +1517,7 @@ static void _epilog(jit_state_t*,jit_node_t*);
 static void _vastart(jit_state_t*, jit_int32_t);
 #  define vaarg(r0, r1)			_vaarg(_jit, r0, r1)
 static void _vaarg(jit_state_t*, jit_int32_t, jit_int32_t);
-#define patch_at(node,instr,label)	_patch_at(_jit,node,instr,label)
+#define patch_at(code,instr,label)	_patch_at(_jit,code,instr,label)
 static void _patch_at(jit_state_t*,jit_code_t,jit_word_t,jit_word_t);
 #endif
 
@@ -3029,7 +3031,7 @@ _M29(jit_state_t *_jit, jit_word_t _p,
      jit_word_t ar, jit_word_t r2)
 {
     assert(!(_p & ~0x3fL));
-    assert(!(ar  & ~0x7L));
+    assert(!(ar & ~0x7fL));
     assert(!(r2 & ~0x7fL));
     TSTREG1(r2);
     TSTPRED(_p);
@@ -3454,6 +3456,16 @@ _X5(jit_state_t *_jit, jit_word_t _p,
 }
 
 static void
+_nop(jit_state_t *_jit, jit_int32_t i0)
+{
+    for (; i0 > 0; i0 -= 8) {
+	NOP_M(0);
+	sync();
+    }
+    assert(i0 == 0);
+}
+
+static void
 _movr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     /* patch pushargr */
@@ -3489,27 +3501,35 @@ _movi_p(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 static void
 _movnr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
-    jit_word_t	w;
-    w = beqi(_jit->pc.w, r2, 0);
-    movr(r0, r1);
-    patch_at(w, _jit->pc.w);
+    CMP_EQ(PR_6, PR_7, r2, GR_0);
+    MOV_p(r0, r1, PR_7);
 }
 
 static void
 _movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
-    jit_word_t	w;
-    w = bnei(_jit->pc.w, r2, 0);
-    movr(r0, r1);
-    patch_at(w, _jit->pc.w);
+    CMP_EQ(PR_6, PR_7, r2, GR_0);
+    MOV_p(r0, r1, PR_6);
 }
 
 static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
-    fallback_casx(r0, r1, r2, r3, i0);
+    jit_int32_t		r1_reg, iscasi;
+    if ((iscasi = (r1 == _NOREG))) {
+	r1_reg = jit_get_reg(jit_class_gpr);
+	r1 = rn(r1_reg);
+	movi(r1, i0);
+    }
+    sync();
+    MOV_M_ar_rn(AR_CCV, r2);
+    CMPXCHG8_ACQ(r0, r1, r3);
+    eqr(r0, r0, r2);
+    if (iscasi)
+	jit_unget_reg(r1_reg);
 }
+
 
 static void
 _bswapr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)

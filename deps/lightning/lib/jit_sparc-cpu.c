@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -100,6 +100,9 @@ _f2bp(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,
 static void _f3r(jit_state_t*,
 		 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  if __WORDSIZE == 64
+#  define f3ri(op, rd, op3, rs1, rs2)	_f3ri(_jit, op, rd, op3, rs1, rs2)
+static void _f3ri(jit_state_t*,
+		  jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define f3rx(op, rd, op3, rs1, rs2)	_f3rx(_jit, op, rd, op3, rs1, rs2)
 static void _f3rx(jit_state_t*,
 		  jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
@@ -113,7 +116,7 @@ static void _f3s(jit_state_t*,
 #  define f3t(cond, rs1, i, ri)		_f3t(_jit, cond, rs1, i, ri)
 static void _f3t(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t)
     maybe_unused;
-#  define f3a(op, rd, op3, rs1, rs2)	_f3a(_jit, op, rd, op3, rs1, asi, rs2)
+#  define f3a(op,rd,op3,rs1,asi,rs2)	_f3a(_jit, op, rd, op3, rs1, asi, rs2)
 static void _f3a(jit_state_t*,jit_int32_t,
 		 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t)
     maybe_unused;
@@ -194,6 +197,11 @@ static void _f3a(jit_state_t*,jit_int32_t,
 #  define SWAP(rs1, rs2, rd)		f3r(3, rd, 15, rs1, rs2)
 #  define SWAPI(rs1, imm, rd)		f3r(3, rd, 15, rs1, imm)
 #  define SWAPA(rs1, rs2, asi, rd)	f3a(3, rd, 23, rs1, asi, rs2)
+/* Sparc v9 deprecates SWAP* in favor of CAS*A */
+#  define CASA(rs1, rs2, rd)		f3a(3, rd, 60, rs1, 128, rs2)
+#  if __WORDSIZE == 64
+#    define CASXA(rs1, rs2, rd)		f3a(3, rd, 62, rs1, 128, rs2)
+#  endif
 #  define NOP()				SETHI(0, 0)
 #  define HI(im)			((im) >> 10)
 #  define LO(im)			((im) & 0x3ff)
@@ -1036,6 +1044,26 @@ _f3r(jit_state_t *_jit, jit_int32_t op, jit_int32_t rd,
 
 #  if __WORDSIZE == 64
 static void
+_f3ri(jit_state_t *_jit, jit_int32_t op, jit_int32_t rd,
+      jit_int32_t op3, jit_int32_t rs1, jit_int32_t rs2)
+{
+    jit_instr_t		v;
+    assert(!(op  & 0xfffffffc));
+    assert(!(rd  & 0xffffffe0));
+    assert(!(op3 & 0xffffffc0));
+    assert(!(rs1 & 0xffffffe0));
+    assert(!(rs2 & 0xffffffe0));
+    v.op.b  = op;
+    v.rd.b  = rd;
+    v.op3.b = op3;
+    v.rs1.b = rs1;
+    v.i.b   = 1;
+    v.asi.b = 0;
+    v.rs2.b = rs2;
+    ii(v.v);
+}
+
+static void
 _f3rx(jit_state_t *_jit, jit_int32_t op, jit_int32_t rd,
       jit_int32_t op3, jit_int32_t rs1, jit_int32_t rs2)
 {
@@ -1242,7 +1270,30 @@ static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
-    fallback_casx(r0, r1, r2, r3, i0);
+    jit_int32_t         iscasi, r1_reg;
+    if ((iscasi = (r1 == _NOREG))) {
+        r1_reg = jit_get_reg(jit_class_gpr);
+        r1 = rn(r1_reg);
+        movi(r1, i0);
+    }
+    /* Do not clobber r2 */
+    movr(r0, r3);
+    /* The CASXA instruction compares the value in register r[rs2] with
+     * the doubleword in memory pointed to by the doubleword address in
+     *  r[rs1]. If the values are equal, the value in r[rd] is swapped
+     * with the doubleword pointed to by the doubleword address in r[rs1].
+     *  If the values are not equal, the contents of the doubleword pointed
+     *  to by r[rs1] replaces the value in r[rd], but the memory location
+     * remains unchanged.
+     */
+#  if __WORDSIZE == 32
+    CASA(r1, r2, r0);
+#  else
+    CASXA(r1, r2, r0);
+#  endif
+    eqr(r0, r0, r2);
+    if (iscasi)
+        jit_unget_reg(r1_reg);
 }
 
 static void
@@ -2421,8 +2472,12 @@ _calli(jit_state_t *_jit, jit_word_t i0)
 {
     jit_word_t		w;
     w = (i0 - _jit->pc.w) >> 2;
-    CALLI(w);
-    NOP();
+    if (s30_p(w)) {
+	CALLI(w);
+	NOP();
+    }
+    else
+	(void)calli_p(i0);
 }
 
 static jit_word_t

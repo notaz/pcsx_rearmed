@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -20,8 +20,21 @@
 #include <lightning.h>
 #include <lightning/jit_private.h>
 
+#if __WORDSIZE == 32
+#  define MININT                0x80000000
+#else
+#  define MININT                0x8000000000000000
+#endif
+
+
 #define print_chr(value)		fputc(value, print_stream)
-#define print_hex(value)		fprintf(print_stream, "0x%lx", value)
+#define print_hex(value)						\
+    do {								\
+	if (value < 0 && value != MININT)				\
+	    fprintf(print_stream, "-0x%lx", -value);			\
+	else								\
+	    fprintf(print_stream, "0x%lx", value);			\
+    } while (0)
 #define print_dec(value)		fprintf(print_stream, "%ld", value)
 #define print_flt(value)		fprintf(print_stream, "%g", value)
 #define print_str(value)		fprintf(print_stream, "%s", value)
@@ -304,12 +317,12 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	case jit_code_name:
 	    print_chr(' ');
 	    if (node->v.p && _jitc->emit)
-		print_str(node->v.n->u.p);
+		print_str((char *)node->v.n->u.p);
 	    break;
 	case jit_code_note:
 	    print_chr(' ');
 	    if (node->v.p && _jitc->emit)
-		print_str(node->v.n->u.p);
+		print_str((char *)node->v.n->u.p);
 	    if (node->v.p && _jitc->emit && node->w.w)
 		print_chr(':');
 	    if (node->w.w)

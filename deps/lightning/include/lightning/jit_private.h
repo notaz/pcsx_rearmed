@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -365,6 +365,8 @@ typedef struct jit_register	jit_register_t;
 #  if DISASSEMBLER
 typedef struct jit_data_info	jit_data_info_t;
 #  endif
+#elif __riscv
+typedef struct jit_const	jit_const_t;
 #endif
 
 union jit_data {
@@ -414,6 +416,9 @@ struct jit_block {
     jit_node_t		*label;
     jit_regset_t	 reglive;
     jit_regset_t	 regmask;
+    jit_bool_t		 again;		/* Flag need to rebuild regset masks
+					 * due to changes in live and unknown
+					 * state. */
 };
 
 struct jit_value {
@@ -435,6 +440,12 @@ typedef struct {
 struct jit_data_info {
     jit_uword_t		  code;		/* pointer in code buffer */
     jit_word_t		  length;	/* length of constant vector */
+};
+#elif __riscv && __WORDSIZE == 64
+struct jit_const {
+    jit_word_t		  value;
+    jit_word_t		  address;
+    jit_const_t		 *next;
 };
 #endif
 
@@ -595,6 +606,27 @@ struct jit_compiler {
 	jit_word_t	  length;
     } prolog;
     jit_bool_t		  jump;
+#elif __riscv && __WORDSIZE == 64
+    struct {
+	/* Hash table for constants to be resolved and patched */
+	struct {
+	    jit_const_t	**table;	/* very simple hash table */
+	    jit_word_t	  size;		/* number of vectors in table */
+	    jit_word_t	  count;	/* number of distinct entries */
+	} hash;
+	struct {
+	    jit_const_t	**ptr;		/* keep a single pointer */
+	    jit_const_t	 *list;		/* free list */
+	    jit_word_t	  length;	/* length of pool */
+	} pool;
+	/* Linear list for constants that cannot be encoded easily */
+	struct {
+	    jit_word_t	 *instrs;	/* list of direct movi instructions */
+	    jit_word_t	 *values;	/* list of direct movi constants */
+	    jit_word_t	  offset;	/* offset in instrs/values vector */
+	    jit_word_t	  length;	/* length of instrs/values vector */
+	} vector;
+    } consts;
 #endif
 #if GET_JIT_SIZE
     /* Temporary storage to calculate instructions length */

@@ -405,8 +405,8 @@
     20,	/* bswapr_us */
     52,	/* bswapr_ui */
     0,	/* bswapr_ul */
-    0,	/* casr */
-    0,	/* casi */
+    36,	/* casr */
+    44,	/* casi */
 #endif	/* NEW_ABI */
 #endif /* __WORDSIZE */
 
@@ -816,8 +816,8 @@
     20,	/* bswapr_us */
     52,	/* bswapr_ui */
     0,	/* bswapr_ul */
-    0,	/* casr */
-    0,	/* casi */
+    36,	/* casr */
+    44,	/* casi */
 #endif /* NEW_ABI */
 #endif /* __WORDSIZE */
 
@@ -1226,6 +1226,6 @@
     20,	/* bswapr_us */
     52,	/* bswapr_ui */
     116,	/* bswapr_ul */
-    0,	/* casr */
-    0,	/* casi */
+    36,	/* casr */
+    44,	/* casi */
 #endif /* __WORDSIZE */
