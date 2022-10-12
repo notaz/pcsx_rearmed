@@ -1817,6 +1817,18 @@ static void rec_special_BREAK(struct lightrec_cstate *state,
 	rec_break_syscall(state, block, offset, LIGHTREC_EXIT_BREAK);
 }
 
+static void rec_mfc(struct lightrec_cstate *state, const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+
+	jit_note(__FILE__, __LINE__);
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
+
+	call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_MFC);
+}
+
 static void rec_mtc(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	struct regcache *reg_cache = state->reg_cache;
@@ -2019,6 +2031,12 @@ static void rec_cp2_basic_MFC2(struct lightrec_cstate *state,
 
 	_jit_name(block->_jit, __func__);
 
+	if (state->state->ops.cop2_notify) {
+		/* We must call cop2_notify, handle that in C. */
+		rec_mfc(state, block, offset);
+		return;
+	}
+
 	flags = (zext_regs & BIT(reg)) ? REG_ZEXT : REG_EXT;
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rt, flags);
 
@@ -2087,6 +2105,12 @@ static void rec_cp2_basic_CFC2(struct lightrec_cstate *state,
 
 	_jit_name(block->_jit, __func__);
 
+	if (state->state->ops.cop2_notify) {
+		/* We must call cop2_notify, handle that in C. */
+		rec_mfc(state, block, offset);
+		return;
+	}
+
 	switch (c.r.rd) {
 	case 4:
 	case 12:
@@ -2117,6 +2141,12 @@ static void rec_cp2_basic_MTC2(struct lightrec_cstate *state,
 	u8 rt, tmp, tmp2, flags = 0;
 
 	_jit_name(block->_jit, __func__);
+
+	if (state->state->ops.cop2_notify) {
+		/* We must call cop2_notify, handle that in C. */
+		rec_mtc(state, block, offset);
+		return;
+	}
 
 	if (c.r.rd == 31)
 		return;
@@ -2201,6 +2231,12 @@ static void rec_cp2_basic_CTC2(struct lightrec_cstate *state,
 	u8 rt, tmp, tmp2;
 
 	_jit_name(block->_jit, __func__);
+
+	if (state->state->ops.cop2_notify) {
+		/* We must call cop2_notify, handle that in C. */
+		rec_mtc(state, block, offset);
+		return;
+	}
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rt, 0);
 

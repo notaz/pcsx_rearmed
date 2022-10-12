@@ -432,22 +432,37 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 	if (op.i.op == OP_CP0)
 		return state->regs.cp0[op.r.rd];
 	else if (op.r.rs == OP_CP2_BASIC_MFC2)
-		return lightrec_mfc2(state, op.r.rd);
+		val = lightrec_mfc2(state, op.r.rd);
+	else {
+		val = state->regs.cp2c[op.r.rd];
 
-	val = state->regs.cp2c[op.r.rd];
-
-	switch (op.r.rd) {
-	case 4:
-	case 12:
-	case 20:
-	case 26:
-	case 27:
-	case 29:
-	case 30:
-		return (u32)(s16)val;
-	default:
-		return val;
+		switch (op.r.rd) {
+		case 4:
+		case 12:
+		case 20:
+		case 26:
+		case 27:
+		case 29:
+		case 30:
+			val = (u32)(s16)val;
+			fallthrough;
+		default:
+			break;
+		}
 	}
+
+	if (state->ops.cop2_notify)
+		(*state->ops.cop2_notify)(state, op.opcode, val);
+
+	return val;
+}
+
+static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
+{
+	u32 rt = lightrec_mfc(state, op);
+
+	if (op.r.rt)
+		state->regs.gpr[op.r.rt] = rt;
 }
 
 static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
@@ -566,12 +581,17 @@ static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 {
-	if (op.i.op == OP_CP0)
+	if (op.i.op == OP_CP0) {
 		lightrec_mtc0(state, op.r.rd, data);
-	else if (op.r.rs == OP_CP2_BASIC_CTC2)
-		lightrec_ctc2(state, op.r.rd, data);
-	else
-		lightrec_mtc2(state, op.r.rd, data);
+	} else {
+		if (op.r.rs == OP_CP2_BASIC_CTC2)
+			lightrec_ctc2(state, op.r.rd, data);
+		else
+			lightrec_mtc2(state, op.r.rd, data);
+
+		if (state->ops.cop2_notify)
+			(*state->ops.cop2_notify)(state, op.opcode, data);
+	}
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state, u32 arg)
@@ -1703,6 +1723,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 		return NULL;
 	}
 
+	if (ops->cop2_notify)
+		pr_debug("Optional cop2_notify callback in lightrec_ops\n");
+	else
+		pr_debug("No optional cop2_notify callback in lightrec_ops\n");
+
 	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER
 	    && codebuf_map->address) {
 		tlsf = tlsf_create_with_pool(codebuf_map->address,
@@ -1767,6 +1792,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
+	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
 
