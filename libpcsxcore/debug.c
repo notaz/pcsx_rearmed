@@ -450,7 +450,7 @@ static void ProcessCommands() {
             sprintf(reply, "200 %s\r\n", arguments == NULL ? "OK" : arguments);
             break;
         case 0x101:
-            sprintf(reply, "201 %s\r\n", PACKAGE_VERSION);
+            sprintf(reply, "201 %s\r\n", PCSX_VERSION);
             break;
         case 0x102:
             sprintf(reply, "202 1.0\r\n");

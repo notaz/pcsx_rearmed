@@ -33,7 +33,7 @@ psxRegisters psxRegs;
 #endif
 
 int psxInit() {
-	SysPrintf(_("Running PCSX Version %s (%s).\n"), PACKAGE_VERSION, __DATE__);
+	SysPrintf(_("Running PCSX Version %s (%s).\n"), PCSX_VERSION, __DATE__);
 
 #ifndef DRC_DISABLE
 	if (Config.Cpu == CPU_INTERPRETER) {
@@ -77,10 +77,11 @@ void psxReset() {
 }
 
 void psxShutdown() {
-	psxMemShutdown();
 	psxBiosShutdown();
 
 	psxCpu->Shutdown();
+
+	psxMemShutdown();
 }
 
 void psxException(u32 code, u32 bd) {

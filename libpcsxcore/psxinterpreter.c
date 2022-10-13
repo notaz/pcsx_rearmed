@@ -1101,7 +1101,7 @@ static void intExecute() {
 		execI_(memRLUT, regs_);
 }
 
-static void intExecuteBlock() {
+void intExecuteBlock() {
 	psxRegisters *regs_ = &psxRegs;
 	u8 **memRLUT = psxMemRLUT;
 

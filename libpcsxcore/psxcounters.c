@@ -376,7 +376,7 @@ void psxRcntUpdate()
 
     psxRcntSet();
 
-#ifndef NDEBUG
+#if 0 //ndef NDEBUG
     DebugVSync();
 #endif
 }

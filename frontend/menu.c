@@ -309,14 +309,14 @@ static void menu_sync_config(void)
 	Config.cycle_multiplier = 10000 / psx_clock;
 
 	switch (in_type_sel1) {
-	case 1:  in_type1 = PSE_PAD_TYPE_ANALOGPAD; break;
-	case 2:  in_type1 = PSE_PAD_TYPE_GUNCON;    break;
-	default: in_type1 = PSE_PAD_TYPE_STANDARD;
+	case 1:  in_type[0] = PSE_PAD_TYPE_ANALOGPAD; break;
+	case 2:  in_type[0] = PSE_PAD_TYPE_NEGCON;    break;
+	default: in_type[0] = PSE_PAD_TYPE_STANDARD;
 	}
 	switch (in_type_sel2) {
-	case 1:  in_type2 = PSE_PAD_TYPE_ANALOGPAD; break;
-	case 2:  in_type2 = PSE_PAD_TYPE_GUNCON;    break;
-	default: in_type2 = PSE_PAD_TYPE_STANDARD;
+	case 1:  in_type[1] = PSE_PAD_TYPE_ANALOGPAD; break;
+	case 2:  in_type[1] = PSE_PAD_TYPE_NEGCON;    break;
+	default: in_type[1] = PSE_PAD_TYPE_STANDARD;
 	}
 	if (in_evdev_allow_abs_only != allow_abs_only_old) {
 		in_probe();

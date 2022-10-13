@@ -69,7 +69,7 @@ static void mmssdd( char *b, char *p )
 
 	m = ((m / 10) << 4) | m % 10;
 	s = ((s / 10) << 4) | s % 10;
-	d = ((d / 10) << 4) | d % 10;	
+	d = ((d / 10) << 4) | d % 10;
 
 	p[0] = m;
 	p[1] = s;
@@ -176,7 +176,7 @@ int LoadCdrom() {
 	// is just below, do it here
 	fake_bios_gpu_setup();
 
-	if (!Config.HLE) {
+	if (!Config.HLE && !Config.SlowBoot) {
 		// skip BIOS logos
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;
@@ -187,7 +187,7 @@ int LoadCdrom() {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record*) &buf[12+156]; 
+	dir = (struct iso_directory_record*) &buf[12+156];
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -232,7 +232,7 @@ int LoadCdrom() {
 
 	psxRegs.pc = SWAP32(tmpHead.pc0);
 	psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
+	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
 	if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
@@ -248,7 +248,7 @@ int LoadCdrom() {
 		incTime();
 		READTRACK();
 
-		if (ptr != NULL) memcpy(ptr, buf+12, 2048);
+		if (ptr != INVALID_PTR) memcpy(ptr, buf+12, 2048);
 
 		tmpHead.t_size -= 2048;
 		tmpHead.t_addr += 2048;
@@ -272,7 +272,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156]; 
+	dir = (struct iso_directory_record *)&buf[12 + 156];
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -294,7 +294,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 		READTRACK();
 
 		mem = PSXM(addr);
-		if (mem)
+		if (mem != INVALID_PTR)
 			memcpy(mem, buf + 12, 2048);
 
 		size -= 2048;
@@ -327,7 +327,7 @@ int CheckCdrom() {
 	strncpy(CdromLabel, buf + 52, 32);
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156]; 
+	dir = (struct iso_directory_record *)&buf[12 + 156];
 
 	mmssdd(dir->extent, (char *)time);
 
@@ -354,6 +354,14 @@ int CheckCdrom() {
 				} else
 					return -1;
 			}
+		}
+		/* Workaround for Wild Arms EU/US which has non-standard string causing incorrect region detection */
+		if (exename[0] == 'E' && exename[1] == 'X' && exename[2] == 'E' && exename[3] == '\\') {
+			size_t offset = 4;
+			size_t i, len = strlen(exename) - offset;
+			for (i = 0; i < len; i++)
+				exename[i] = exename[i + offset];
+			exename[i] = '\0';
 		}
 	} else if (GetCdromFile(mdir, time, "PSX.EXE;1") != -1) {
 		strcpy(exename, "PSX.EXE;1");
@@ -409,7 +417,9 @@ static int PSXGetFileType(FILE *f) {
 
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
-	fread(mybuf, 2048, 1, f);
+	if (fread(&mybuf, 1, sizeof(mybuf), f) != sizeof(mybuf))
+		goto io_fail;
+	
 	fseek(f, current, SEEK_SET);
 
 	exe_hdr = (EXE_HEADER *)mybuf;
@@ -424,6 +434,12 @@ static int PSXGetFileType(FILE *f) {
 		return COFF_EXE;
 
 	return INVALID_EXE;
+
+io_fail:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	return INVALID_EXE;
 }
 
 // temporary pandora workaround..
@@ -432,7 +448,7 @@ size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	void *tmp;
 	size_t ret = 0;
-	
+
 	tmp = malloc(size * nmemb);
 	if (tmp) {
 		ret = fread(tmp, size, nmemb, stream);
@@ -451,8 +467,8 @@ int Load(const char *ExePath) {
 	u32 section_address, section_size;
 	void *mem;
 
-	strncpy(CdromId, "SLUS99999", 9);
-	strncpy(CdromLabel, "SLUS_999.99", 11);
+	strcpy(CdromId, "SLUS99999");
+	strcpy(CdromLabel, "SLUS_999.99");
 
 	tmpFile = fopen(ExePath, "rb");
 	if (tmpFile == NULL) {
@@ -462,19 +478,19 @@ int Load(const char *ExePath) {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
-				fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile);
+				if (fread(&tmpHead, 1, sizeof(EXE_HEADER), tmpFile) != sizeof(EXE_HEADER))
+					goto fail_io;
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
-				if (mem != NULL) {
-					fseek(tmpFile, 0x800, SEEK_SET);		
+				if (mem != INVALID_PTR) {
+					fseek(tmpFile, 0x800, SEEK_SET);
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
+				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
 				if (psxRegs.GPR.n.sp == 0)
 					psxRegs.GPR.n.sp = 0x801fff00;
 				retval = 0;
@@ -482,25 +498,29 @@ int Load(const char *ExePath) {
 			case CPE_EXE:
 				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
 				do {
-					fread(&opcode, 1, 1, tmpFile);
+					if (fread(&opcode, 1, sizeof(opcode), tmpFile) != sizeof(opcode))
+						goto fail_io;
 					switch (opcode) {
 						case 1: /* Section loading */
-							fread(&section_address, 4, 1, tmpFile);
-							fread(&section_size, 4, 1, tmpFile);
+							if (fread(&section_address, 1, sizeof(section_address), tmpFile) != sizeof(section_address))
+								goto fail_io;
+							if (fread(&section_size, 1, sizeof(section_size), tmpFile) != sizeof(section_size))
+								goto fail_io;
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 #ifdef EMU_LOG
 							EMU_LOG("Loading %08X bytes from %08X to %08X\n", section_size, ftell(tmpFile), section_address);
 #endif
 							mem = PSXM(section_address);
-							if (mem != NULL) {
+							if (mem != INVALID_PTR) {
 								fread_to_ram(mem, section_size, 1, tmpFile);
 								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-							fread(&psxRegs.pc, 4, 1, tmpFile);
+							if (fread(&psxRegs.pc, 1, sizeof(psxRegs.pc), tmpFile) != sizeof(psxRegs.pc))
+								goto fail_io;
 							psxRegs.pc = SWAPu32(psxRegs.pc);
 							break;
 						case 0: /* End of file */
@@ -529,7 +549,16 @@ int Load(const char *ExePath) {
 		CdromLabel[0] = '\0';
 	}
 
+	if (tmpFile)
+		fclose(tmpFile);
 	return retval;
+
+fail_io:
+#ifndef NDEBUG
+	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+	fclose(tmpFile);
+	return -1;
 }
 
 // STATES
@@ -563,7 +592,7 @@ struct PcsxSaveFuncs SaveFuncs = {
 	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
 };
 
-static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
+static const char PcsxHeader[32] = "STv4 PCSX v" PCSX_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.

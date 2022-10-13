@@ -301,11 +301,11 @@ void renderer_notify_res_change(void)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
+int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 {
   unsigned int cmd = 0, len;
-  unsigned int *list_start = list;
-  unsigned int *list_end = list + list_len;
+  uint32_t *list_start = list;
+  uint32_t *list_end = list + list_len;
 
   for (; list < list_end; list += 1 + len)
   {

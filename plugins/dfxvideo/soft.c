@@ -6317,6 +6317,7 @@ static void DrawSoftwareSpriteMirror(unsigned char * baseAddr,int32_t w,int32_t 
     sprtYa=(sprtY<<10);
     clutP=(clutY0<<10)+clutX0;
     for (sprCY=0;sprCY<sprtH;sprCY++)
+    {
      for (sprCX=0;sprCX<sprtW;sprCX++)
       {
        tC= psxVub[((textY0+(sprCY*lYDir))<<11) + textX0 +(sprCX*lXDir)];
@@ -6324,28 +6325,33 @@ static void DrawSoftwareSpriteMirror(unsigned char * baseAddr,int32_t w,int32_t 
        GetTextureTransColG_SPR(&psxVuw[sprA],GETLE16(&psxVuw[clutP+((tC>>4)&0xf)]));
        GetTextureTransColG_SPR(&psxVuw[sprA+1],GETLE16(&psxVuw[clutP+(tC&0xf)]));
       }
+    }
     return;
 
    case 1: 
 
     clutP>>=1;
     for(sprCY=0;sprCY<sprtH;sprCY++)
+    {
      for(sprCX=0;sprCX<sprtW;sprCX++)
       { 
        tC = psxVub[((textY0+(sprCY*lYDir))<<11)+(GlobalTextAddrX<<1) + textX0 + (sprCX*lXDir)] & 0xff;
        GetTextureTransColG_SPR(&psxVuw[((sprtY+sprCY)<<10)+sprtX + sprCX],psxVuw[clutP+tC]);
       }
-     return;
+    }
+    return;
 
    case 2:
 
     for (sprCY=0;sprCY<sprtH;sprCY++)
+    {
      for (sprCX=0;sprCX<sprtW;sprCX++)
       { 
        GetTextureTransColG_SPR(&psxVuw[((sprtY+sprCY)<<10)+sprtX+sprCX],
            GETLE16(&psxVuw[((textY0+(sprCY*lYDir))<<10)+GlobalTextAddrX + textX0 +(sprCX*lXDir)]));
       }
-     return;
+    }
+    return;
   }
 }
 

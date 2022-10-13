@@ -190,7 +190,7 @@ void new_dyna_freeze(void *f, int mode)
 	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");
 }
 
-#ifndef DRC_DISABLE
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
 
 /* GTE stuff */
 void *gte_handlers[64];

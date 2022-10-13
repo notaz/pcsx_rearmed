@@ -24,6 +24,10 @@
 #include "sio.h"
 #include <sys/stat.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#endif
+
 // Status Flags
 #define TX_RDY		0x0001
 #define RX_RDY		0x0002
@@ -407,6 +411,12 @@ void LoadMcd(int mcd, char *str) {
 	}
 
 	McdDisable[mcd - 1] = 0;
+#ifdef HAVE_LIBRETRO
+	// memcard1 is handled by libretro
+	if (mcd == 1)
+		return;
+#endif
+
 	if (str == NULL || strcmp(str, "none") == 0) {
 		McdDisable[mcd - 1] = 1;
 		return;
@@ -428,7 +438,12 @@ void LoadMcd(int mcd, char *str) {
 				else if(buf.st_size == MCD_SIZE + 3904)
 					fseek(f, 3904, SEEK_SET);
 			}
-			fread(data, 1, MCD_SIZE, f);
+			if (fread(data, 1, MCD_SIZE, f) != MCD_SIZE) {
+#ifndef NDEBUG
+				SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+				memset(data, 0x00, MCD_SIZE);
+			}
 			fclose(f);
 		}
 		else
@@ -443,7 +458,12 @@ void LoadMcd(int mcd, char *str) {
 			else if(buf.st_size == MCD_SIZE + 3904)
 				fseek(f, 3904, SEEK_SET);
 		}
-		fread(data, 1, MCD_SIZE, f);
+		if (fread(data, 1, MCD_SIZE, f) != MCD_SIZE) {
+#ifndef NDEBUG
+			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
+#endif
+			memset(data, 0x00, MCD_SIZE);
+		}
 		fclose(f);
 	}
 }

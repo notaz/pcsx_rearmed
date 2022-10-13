@@ -42,6 +42,7 @@ enum {
 	CMD_VIBRATION_TOGGLE = 0x4D,
 };
 
+#ifndef HAVE_LIBRETRO
 static struct {
 	uint8_t PadMode;
 	uint8_t PadID;
@@ -242,6 +243,7 @@ static void do_vibration(unsigned char value)
             break;
     }
 }
+#endif
 
 #if 0
 #include <stdio.h>
@@ -254,6 +256,7 @@ unsigned char PADpoll(unsigned char value) {
 #define PADpoll PADpoll_
 #endif
 
+#ifndef HAVE_LIBRETRO
 unsigned char PADpoll_pad(unsigned char value) {
 	if (CurByte == 0) {
 		CurCmd = value;
@@ -302,3 +305,4 @@ void pad_init(void)
 		padstate[i].PadMode = padstate[i].pad.controllerType == PSE_PAD_TYPE_ANALOGPAD;
 	}
 }
+#endif

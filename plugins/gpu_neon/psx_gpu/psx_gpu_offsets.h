@@ -1,3 +1,6 @@
+#ifndef __P_PSX_GPU_OFFSETS_H__
+#define __P_PSX_GPU_OFFSETS_H__
+
 #define psx_gpu_test_mask_offset                          0x0
 #define psx_gpu_uvrg_offset                               0x10
 #define psx_gpu_uvrg_dx_offset                            0x20
@@ -56,3 +59,5 @@
 #define psx_gpu_texture_4bpp_cache_offset                 0x5a00
 #define psx_gpu_texture_8bpp_even_cache_offset            0x205a00
 #define psx_gpu_texture_8bpp_odd_cache_offset             0x305a00
+
+#endif /* __P_PSX_GPU_OFFSETS_H__ */

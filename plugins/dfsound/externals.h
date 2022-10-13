@@ -15,6 +15,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef __P_SOUND_EXTERNALS_H__
+#define __P_SOUND_EXTERNALS_H__
+
 #include <stdint.h>
 
 /////////////////////////////////////////////////////////
@@ -259,3 +262,4 @@ void schedule_next_irq(void);
 
 #endif
 
+#endif /* __P_SOUND_EXTERNALS_H__ */

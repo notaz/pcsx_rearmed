@@ -46,6 +46,12 @@ extern "C" {
 
 #endif
 
+#ifdef LIGHTREC
+#define INVALID_PTR ((void *)-1)
+#else
+#define INVALID_PTR NULL
+#endif
+
 extern s8 *psxM;
 #define psxMs8(mem)		psxM[(mem) & 0x1fffff]
 #define psxMs16(mem)	(SWAP16(*(s16 *)&psxM[(mem) & 0x1fffff]))
@@ -109,7 +115,7 @@ extern s8 *psxH;
 extern u8 **psxMemWLUT;
 extern u8 **psxMemRLUT;
 
-#define PSXM(mem)		(psxMemRLUT[(mem) >> 16] == 0 ? NULL : (u8*)(psxMemRLUT[(mem) >> 16] + ((mem) & 0xffff)))
+#define PSXM(mem)		(psxMemRLUT[(mem) >> 16] == INVALID_PTR ? INVALID_PTR : (u8*)(psxMemRLUT[(mem) >> 16] + ((mem) & 0xffff)))
 #define PSXMs8(mem)		(*(s8 *)PSXM(mem))
 #define PSXMs16(mem)	(SWAP16(*(s16 *)PSXM(mem)))
 #define PSXMs32(mem)	(SWAP32(*(s32 *)PSXM(mem)))

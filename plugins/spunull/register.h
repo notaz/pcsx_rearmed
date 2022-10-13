@@ -1,3 +1,6 @@
+#ifndef __SPUNULL_REGISTER_H__
+#define __SPUNULL_REGISTER_H__
+
 #define H_SPUirqAddr     0x0da4
 #define H_SPUaddr        0x0da6
 #define H_SPUdata        0x0da8
@@ -119,3 +122,4 @@
 #define H_SPU_ADSRLevel22  0x0d68
 #define H_SPU_ADSRLevel23  0x0d78
 
+#endif /* __SPUNULL_REGISTER_H__ */
