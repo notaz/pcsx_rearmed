@@ -99,12 +99,14 @@ main(int argc, char *argv[])
     fprintf(fp, "#endif /* NEW_ABI */\n");
 #  endif
 #elif defined(__powerpc__)
+#  if __WORDSIZE == 32
     fprintf(fp, "#endif /* "
-#  if !_CALL_SYSV
+#    if !_CALL_SYSV
 	    "!"
-#  endif
+#    endif
 	    "_CALL_SYSV"
 	    " */\n");
+#  endif
     fprintf(fp, "#endif /* __BYTE_ORDER */\n");
     fprintf(fp, "#endif /* __powerpc__ */\n");
 #endif

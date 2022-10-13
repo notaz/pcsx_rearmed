@@ -123,6 +123,7 @@ struct lightrec_branch_target {
 enum c_wrappers {
 	C_WRAPPER_RW,
 	C_WRAPPER_RW_GENERIC,
+	C_WRAPPER_MFC,
 	C_WRAPPER_MTC,
 	C_WRAPPER_CP,
 	C_WRAPPERS_COUNT,

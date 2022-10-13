@@ -181,6 +181,8 @@ static u64 opcode_write_mask(union code op)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
+	case OP_META_EXTC:
+	case OP_META_EXTS:
 		return BIT(op.i.rt);
 	case OP_JAL:
 		return BIT(31);
@@ -761,6 +763,22 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 			v[c.r.rd] = v[c.r.rs];
 		} else {
 			known &= ~BIT(c.r.rd);
+		}
+		break;
+	case OP_META_EXTC:
+		if (known & BIT(c.i.rs)) {
+			known |= BIT(c.i.rt);
+			v[c.i.rt] = (s32)(s8)v[c.i.rs];
+		} else {
+			known &= ~BIT(c.i.rt);
+		}
+		break;
+	case OP_META_EXTS:
+		if (known & BIT(c.i.rs)) {
+			known |= BIT(c.i.rt);
+			v[c.i.rt] = (s32)(s16)v[c.i.rs];
+		} else {
+			known &= ~BIT(c.i.rt);
 		}
 		break;
 	default:

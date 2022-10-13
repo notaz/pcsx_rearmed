@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -1679,13 +1679,14 @@ _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 	    /* retry: */
 	    retry = _jit->pc.w;
 	    T2_LDREX(r0, r1, 0);
-	    jump0 = bner(_jit->pc.w, r0, r2);	/* bne done r0 r2 */
+	    eqr(r0, r0, r2);
+	    jump0 = beqi(_jit->pc.w, r0, 0);	/* beqi done r0 0 */
 	    T2_STREX(r0, r3, r1, 0);
 	    jump1 = bnei(_jit->pc.w, r0, 0);	/* bnei retry r0 0 */
-	    /* done: */
-	    done = _jit->pc.w;
 	    /* r0 = 0 if memory updated, 1 otherwise */
 	    xori(r0, r0, 1);
+	    /* done: */
+	    done = _jit->pc.w;
 	    T2_DMB(DMB_ISH);
 	}
 	else {
@@ -1693,13 +1694,14 @@ _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 	    /* retry: */
 	    retry = _jit->pc.w;
 	    LDREX(r0, r1);
-	    jump0 = bner(_jit->pc.w, r0, r2);	/* bne done r0 r2 */
+	    eqr(r0, r0, r2);
+	    jump0 = beqi(_jit->pc.w, r0, 0);	/* beqi done r0 0 */
 	    STREX(r0, r3, r1);
 	    jump1 = bnei(_jit->pc.w, r0, 0);	/* bnei retry r0 0 */
-	    /* done: */
-	    done = _jit->pc.w;
 	    /* r0 = 0 if memory updated, 1 otherwise */
 	    xori(r0, r0, 1);
+	    /* done: */
+	    done = _jit->pc.w;
 	    DMB(DMB_ISH);
 	}
 	patch_at(arm_patch_jump, jump0, done);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2014-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -311,13 +311,13 @@ static void _movr(jit_state_t*,jit_int32_t,jit_int32_t);
 static void _movi(jit_state_t*,jit_int32_t,jit_word_t);
 #  define movi_p(r0,i0)			_movi_p(_jit,r0,i0)
 static jit_word_t _movi_p(jit_state_t*,jit_int32_t,jit_word_t);
-#  define movnr(r0,r1,r2)		_movnr(_jit,r0,r1,r2)
-static void _movnr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
-#  define movzr(r0,r1,r2)		_movzr(_jit,r0,r1,r2)
-static void _movzr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define movnr(r0,r1,r2)		CMOVNE(r2, r1, r0)
+#  define movzr(r0,r1,r2)		CMOVEQ(r2, r1, r0)
 #  define casx(r0, r1, r2, r3, i0)	_casx(_jit, r0, r1, r2, r3, i0)
 static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
 		  jit_int32_t,jit_int32_t,jit_word_t);
+#define casr(r0, r1, r2, r3)		casx(r0, r1, r2, r3, 0)
+#define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define negr(r0,r1)			NEGQ(r1,r0)
 #  define comr(r0,r1)			NOT(r1,r0)
 #  define addr(r0,r1,r2)		ADDQ(r1,r2,r0)
@@ -813,28 +813,31 @@ _movi_p(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 }
 
 static void
-_movnr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
-{
-    jit_word_t	w;
-    w = beqi(_jit->pc.w, r2, 0);
-    MOV(r1, r0);
-    patch_at(w, _jit->pc.w);
-}
-
-static void
-_movzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
-{
-    jit_word_t	w;
-    w = bnei(_jit->pc.w, r2, 0);
-    MOV(r1, r0);
-    patch_at(w, _jit->pc.w);
-}
-
-static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
-    fallback_casx(r0, r1, r2, r3, i0);
+    jit_word_t		jump0, jump1, again, done;
+    jit_int32_t         iscasi, r1_reg;
+    if ((iscasi = (r1 == _NOREG))) {
+        r1_reg = jit_get_reg(jit_class_gpr);
+        r1 = rn(r1_reg);
+        movi(r1, i0);
+    }
+    again = _jit->pc.w;			/* AGAIN */
+    LDQ_L(r0, r1, 0);			/* Load r0 locked */
+    jump0 = bner(0, r0, r2);		/* bne FAIL r0 r2 */
+    movr(r0, r3);			/* Move to r0 to attempt to store */
+    STQ_C(r0, r1, 0);			/* r0 is an in/out argument */
+    jump1 = _jit->pc.w;
+    BEQ(r0, 0);				/* beqi AGAIN r0 0 */
+    patch_at(jump1, again);
+    jump1 = _jit->pc.w;
+    BR(_R31_REGNO, 0);			/* r0 set to 1 if store succeeded */
+    patch_at(jump0, _jit->pc.w);	/* FAIL: */
+    movi(r0, 0);			/* Already locked */
+    patch_at(jump1, _jit->pc.w);
+    if (iscasi)
+        jit_unget_reg(r1_reg);
 }
 
 static void

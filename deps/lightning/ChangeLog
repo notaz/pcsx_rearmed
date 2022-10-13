@@ -1,3 +1,37 @@
+2022-10-05 Paulo Andrade <pcpa@gnu.org>
+
+	* check/lightning.c: Remove -Dmacro=value from usage and attempt
+	to parse it. It was buggy and not properly implemented. Now
+	it pass any extra options to the generated jit. To pass any
+	option starting with '-' need to also use '--'.
+	* check/collatz.e: New sample file showing an example of jit
+	generation.
+
+2022-10-04 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning/jit_private.h: Add new flag to jit_block_t.
+	* lib/lightning.c: Rewrite register liveness and state at block
+	entry code to avoid a very expensive and non scaling code path.
+	Now it attempts to do as few as possible recomputations when
+	merging state of adjacent blocks, still doing one extra nop pass
+	(in the sense that it will not find any changes) to make sure the
+	logic is correct.
+
+2022-09-30 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning/jit_private.h: Implement new data structures
+	specific to riscv.
+	* lib/jit_disasm.c: Extra disassemble code for riscv constant pool.
+	* lib/jit_riscv-cpu.c: Modify movi to use constant pool if 3 or
+	more instructions are required to construct constant and modify
+	movi_p to use a pc relative load from a constant pool.
+	lib/jit_riscv-sz.c: Update for new constant pool code. Most
+	instructions that need 64 bit constants are significantly reduced.
+	* lib/jit_riscv.c: Implement most of the constant pool code.
+	* lib/jit_size.c: Update for estimate of code generation size.
+	* lib/lightning.c: Update for riscv specific code, and also make
+	sure to mprotect the constant pool as executable.
+
 2022-09-08 Paulo Andrade <pcpa@gnu.org>
 
 	* lib/jit_fallback.c: Implement fallback compare and swap with

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -67,7 +67,6 @@ static void _patch(jit_state_t*,jit_word_t,jit_node_t*);
 #  include "jit_rewind.c"
 #  include "jit_mips-cpu.c"
 #  include "jit_mips-fpu.c"
-#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -1300,11 +1299,10 @@ _emit_code(jit_state_t *_jit)
 	jit_regarg_set(node, value);
 	switch (node->code) {
 	    case jit_code_align:
-		assert(!(node->u.w & (node->u.w - 1)) &&
-		       node->u.w <= sizeof(jit_word_t));
-		if (node->u.w == sizeof(jit_word_t) &&
-		    (word = _jit->pc.w & (sizeof(jit_word_t) - 1)))
-		    nop(sizeof(jit_word_t) - word);
+		/* Must align to a power of two */
+		assert(!(node->u.w & (node->u.w - 1)));
+		if ((word = _jit->pc.w & (node->u.w - 1)))
+		    nop(node->u.w - word);
 		break;
 	    case jit_code_note:		case jit_code_name:
 		node->u.w = _jit->pc.w;
@@ -1883,7 +1881,6 @@ _emit_code(jit_state_t *_jit)
 #  include "jit_rewind.c"
 #  include "jit_mips-cpu.c"
 #  include "jit_mips-fpu.c"
-#  include "jit_fallback.c"
 #undef CODE
 
 void

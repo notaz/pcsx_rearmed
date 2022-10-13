@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -60,7 +60,7 @@ static int fprintf_styled(void *, enum disassembler_style, const char* fmt, ...)
   int r;
 
   va_start(args, fmt);
-  r = vprintf(fmt, args);
+  r = vfprintf(disasm_stream, fmt, args);
   va_end(args);
 
   return r;
@@ -319,7 +319,10 @@ _disassemble(jit_state_t *_jit, jit_pointer_t code, jit_int32_t length)
     char		*name, *old_name;
     char		*file, *old_file;
     int			 line,  old_line;
-#if __arm__
+#if __riscv && __WORDSIZE == 64
+    jit_word_t		*vector;
+    jit_int32_t		 offset;
+#elif __arm__
     jit_int32_t		 offset;
     jit_bool_t		 data_info;
     jit_int32_t		 data_offset;
@@ -330,6 +333,10 @@ _disassemble(jit_state_t *_jit, jit_pointer_t code, jit_int32_t length)
 #if DEVEL_DISASSEMBLER
     jit_node_t		*node;
     jit_uword_t		 prevw;
+#endif
+
+#if __riscv && __WORDSIZE == 64
+    end -= _jitc->consts.hash.count * 8;
 #endif
 
 #if __arm__
@@ -354,7 +361,7 @@ _disassemble(jit_state_t *_jit, jit_pointer_t code, jit_int32_t length)
 	}
 	while (node && (jit_uword_t)(prevw + node->offset) == (jit_uword_t)pc) {
 	    jit_print_node(node);
-	    fputc('\n', stdout); 
+	    fputc('\n', disasm_stream);
 	    prevw += node->offset;
 	    node = node->next;
 	}
@@ -405,5 +412,16 @@ _disassemble(jit_state_t *_jit, jit_pointer_t code, jit_int32_t length)
 	pc += (*disasm_print)(pc, &disasm_info);
 	putc('\n', disasm_stream);
     }
+#if __riscv && __WORDSIZE == 64
+    for (vector = (jit_word_t *)end, offset = 0;
+	 offset < _jitc->consts.hash.count; offset++) {
+	bytes = sprintf(buffer, address_buffer_format,
+			(long long)end + offset * sizeof(jit_word_t));
+	(*disasm_info.fprintf_func)(disasm_stream,
+				    "%*c0x%s\t.quad\t0x%016lx\t# (%ld)\n",
+				    16 - bytes, ' ', buffer,
+				    vector[offset], vector[offset]);
+    }
+#endif
 }
 #endif

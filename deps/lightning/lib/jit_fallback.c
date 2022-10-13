@@ -24,7 +24,7 @@ _fallback_save(jit_state_t *_jit, jit_int32_t r0)
 	regno = jit_regno(spec);
 	if (regno == r0) {
 	    if (!(spec & jit_class_sav))
-		stxi(_jitc->function->regoff[offset], rn(JIT_FP), regno);
+		stxi(_jitc->function->regoff[JIT_R(offset)], rn(JIT_FP), regno);
 	    break;
 	}
     }
@@ -39,7 +39,7 @@ _fallback_load(jit_state_t *_jit, jit_int32_t r0)
 	regno = jit_regno(spec);
 	if (regno == r0) {
 	    if (!(spec & jit_class_sav))
-		ldxi(regno, rn(JIT_FP), _jitc->function->regoff[offset]);
+		ldxi(regno, rn(JIT_FP), _jitc->function->regoff[JIT_R(offset)]);
 	    break;
 	}
     }
@@ -48,35 +48,25 @@ _fallback_load(jit_state_t *_jit, jit_int32_t r0)
 static void
 _fallback_save_regs(jit_state_t *_jit, jit_int32_t r0)
 {
-    jit_int32_t		offset, regno, spec;
-    for (offset = 0; offset < JIT_R_NUM; offset++) {
-	regno = JIT_R(offset);
+    jit_int32_t		regno, spec;
+    for (regno = 0; regno < _jitc->reglen; regno++) {
 	spec =  _rvs[regno].spec;
-	if ((spec & jit_class_gpr) && regno == r0)
-	    continue;
-	if (!(spec & jit_class_sav)) {
+	if ((jit_regset_tstbit(&_jitc->regarg, regno) ||
+	     jit_regset_tstbit(&_jitc->reglive, regno)) &&
+	    !(spec & jit_class_sav)) {
 	    if (!_jitc->function->regoff[regno]) {
 		_jitc->function->regoff[regno] =
-		    jit_allocai(sizeof(jit_word_t));
+		    jit_allocai(spec & jit_class_gpr ?
+				sizeof(jit_word_t) : sizeof(jit_float64_t));
 		_jitc->again = 1;
 	    }
+	    if ((spec & jit_class_gpr) && rn(regno) == r0)
+		continue;
 	    jit_regset_setbit(&_jitc->regsav, regno);
-	    emit_stxi(_jitc->function->regoff[regno], JIT_FP, regno);
-	}
-    }
-    /* If knew for certain float registers are not used by
-     * pthread_mutex_lock and pthread_mutex_unlock, could skip this */
-    for (offset = 0; offset < JIT_F_NUM; offset++) {
-	regno = JIT_F(offset);
-	spec =  _rvs[regno].spec;
-	if (!(spec & jit_class_sav)) {
-	    if (!_jitc->function->regoff[regno]) {
-		_jitc->function->regoff[regno] =
-		    jit_allocai(sizeof(jit_word_t));
-		_jitc->again = 1;
-	    }
-	    jit_regset_setbit(&_jitc->regsav, regno);
-	    emit_stxi_d(_jitc->function->regoff[regno], JIT_FP, regno);
+	    if (spec & jit_class_gpr)
+		emit_stxi(_jitc->function->regoff[regno], JIT_FP, regno);
+	    else
+		emit_stxi_d(_jitc->function->regoff[regno], JIT_FP, regno);
 	}
     }
 }
@@ -84,25 +74,19 @@ _fallback_save_regs(jit_state_t *_jit, jit_int32_t r0)
 static void
 _fallback_load_regs(jit_state_t *_jit, jit_int32_t r0)
 {
-    jit_int32_t		offset, regno, spec;
-    for (offset = 0; offset < JIT_R_NUM; offset++) {
-	regno = JIT_R(offset);
+    jit_int32_t		regno, spec;
+    for (regno = 0; regno < _jitc->reglen; regno++) {
 	spec =  _rvs[regno].spec;
-	if ((spec & jit_class_gpr) && regno == r0)
-	    continue;
-	if (!(spec & jit_class_sav)) {
-	    jit_regset_clrbit(&_jitc->regsav, regno);
-	    emit_ldxi(regno, JIT_FP, _jitc->function->regoff[regno]);
-	}
-    }
-    /* If knew for certain float registers are not used by
-     * pthread_mutex_lock and pthread_mutex_unlock, could skip this */
-    for (offset = 0; offset < JIT_F_NUM; offset++) {
-	regno = JIT_F(offset);
-	spec =  _rvs[regno].spec;
-	if (!(spec & jit_class_sav)) {
-	    jit_regset_clrbit(&_jitc->regsav, regno);
-	    emit_ldxi_d(regno, JIT_FP, _jitc->function->regoff[regno]);
+	if ((jit_regset_tstbit(&_jitc->regarg, regno) ||
+	     jit_regset_tstbit(&_jitc->reglive, regno)) &&
+	    !(spec & jit_class_sav)) {
+	    if ((spec & jit_class_gpr) && rn(regno) == r0)
+		continue;
+	    jit_regset_setbit(&_jitc->regsav, regno);
+	    if (spec & jit_class_gpr)
+		emit_ldxi(regno, JIT_FP, _jitc->function->regoff[regno]);
+	    else
+		emit_ldxi_d(regno, JIT_FP, _jitc->function->regoff[regno]);
 	}
     }
 }
@@ -110,12 +94,8 @@ _fallback_load_regs(jit_state_t *_jit, jit_int32_t r0)
 static void
 _fallback_calli(jit_state_t *_jit, jit_word_t i0, jit_word_t i1)
 {
-#  if defined(__mips__)
-    movi(rn(_A0), i1);
-#  elif defined(__arm__)
+#  if defined(__arm__)
     movi(rn(_R0), i1);
-#  elif defined(__sparc__)
-    movi(rn(_O0), i1);
 #  elif defined(__ia64__)
     /* avoid confusion with pushargi patching */
     if (i1 >= -2097152 && i1 <= 2097151)
@@ -124,13 +104,7 @@ _fallback_calli(jit_state_t *_jit, jit_word_t i0, jit_word_t i1)
 	MOVL(_jitc->rout, i1);
 #  elif defined(__hppa__)
     movi(_R26_REGNO, i1);
-#  elif defined(__s390__) || defined(__s390x__)
-    movi(rn(_R2), i1);
-#  elif defined(__alpha__)
-    movi(rn(_A0), i1);
-#  elif defined(__riscv__)
-    movi(rn(JIT_RA0), i1);
-#  endif
+#endif
     calli(i0);
 }
 
@@ -143,7 +117,7 @@ _fallback_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     /* XXX only attempts to fallback cas for lightning jit code */
     static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     if ((iscasi = r1 == _NOREG)) {
-	r1_reg = jit_get_reg(jit_class_gpr);
+	r1_reg = jit_get_reg(jit_class_gpr|jit_class_sav);
 	r1 = rn(r1_reg);
 	movi(r1, i0);
     }
@@ -162,11 +136,16 @@ _fallback_casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     str_l(r1, r3);
 #  endif
     /* done: */
+#  if defined(__ia64__)
+    sync();
+# endif
     done = _jit->pc.w;
     fallback_calli((jit_word_t)pthread_mutex_unlock, (jit_word_t)&mutex);
     fallback_load(r0);
 #  if defined(__arm__)
     patch_at(arm_patch_jump, jump, done);
+#  elif defined(__ia64__)
+    patch_at(jit_code_bnei, jump, done);
 #  else
     patch_at(jump, done);
 #  endif

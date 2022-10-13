@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -359,6 +359,7 @@ static void _nop(jit_state_t*,jit_int32_t);
 #  define DEXTM(rt,rs,pos,size)		hrrrit(MIPS_SPECIAL3,rs,rt,size-32-1,pos,MIPS_DEXTM)
 #  define ROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_SRL)
 #  define DROTR(rd,rt,sa)		hrrrit(MIPS_SPECIAL,1,rt,rd,sa,MIPS_DSRL)
+#  define SYNC()			rrr_t(_ZERO_REGNO,_ZERO_REGNO,_ZERO_REGNO,MIPS_SYNC)
 #  define MFHI(rd)			rrr_t(_ZERO_REGNO,_ZERO_REGNO,rd,MIPS_MFHI)
 #  define MFLO(rd)			rrr_t(_ZERO_REGNO,_ZERO_REGNO,rd,MIPS_MFLO)
 #  define MTHI(rs)			rrr_t(rs,_ZERO_REGNO,_ZERO_REGNO,MIPS_MTHI)
@@ -376,10 +377,14 @@ static void _nop(jit_state_t*,jit_int32_t);
 #  define LW(rt,of,rb)			hrri(MIPS_LW,rb,rt,of)
 #  define LWU(rt,of,rb)			hrri(MIPS_LWU,rb,rt,of)
 #  define LD(rt,of,rb)			hrri(MIPS_LD,rb,rt,of)
+#  define LL(rt,of,rb)			hrri(MIPS_LL,rb,rt,of)
+#  define LLD(rt,of,rb)			hrri(MIPS_LLD,rb,rt,of)
 #  define SB(rt,of,rb)			hrri(MIPS_SB,rb,rt,of)
 #  define SH(rt,of,rb)			hrri(MIPS_SH,rb,rt,of)
 #  define SW(rt,of,rb)			hrri(MIPS_SW,rb,rt,of)
 #  define SD(rt,of,rb)			hrri(MIPS_SD,rb,rt,of)
+#  define SC(rt,of,rb)			hrri(MIPS_SC,rb,rt,of)
+#  define SCD(rt,of,rb)			hrri(MIPS_SCD,rb,rt,of)
 #  define WSBH(rd,rt)			hrrrit(MIPS_SPECIAL3,0,rt,rd,MIPS_WSBH,MIPS_BSHFL)
 #  define SEB(rd,rt)			hrrrit(MIPS_SPECIAL3,0,rt,rd,MIPS_SEB,MIPS_BSHFL)
 #  define SEH(rd,rt)			hrrrit(MIPS_SPECIAL3,0,rt,rd,MIPS_SEH,MIPS_BSHFL)
@@ -400,6 +405,7 @@ static void _nop(jit_state_t*,jit_int32_t);
 #   define JR(r0)			hrrrit(MIPS_SPECIAL,r0,0,0,0,MIPS_JR)
 #  endif
 #  define J(i0)				hi(MIPS_J,i0)
+#  define JAL(i0)			hi(MIPS_JAL,i0)
 #  define MOVN(rd,rs,rt)		hrrrit(0,rs,rt,rd,0,MIPS_MOVN)
 #  define MOVZ(rd,rs,rt)		hrrrit(0,rs,rt,rd,0,MIPS_MOVZ)
 #  define comr(r0,r1)			xori(r0,r1,-1)
@@ -1042,8 +1048,8 @@ _rsbi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 static void
 _mulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
-    if (__WORDSIZE == 32)
-        MUL(r0, r1, r2);
+    if (jit_mips2_p() && __WORDSIZE == 32)
+	MUL(r0, r1, r2);
     else {
         multu(r1, r2);
         MFLO(r0);
@@ -1337,7 +1343,41 @@ static void
 _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
       jit_int32_t r2, jit_int32_t r3, jit_word_t i0)
 {
-    fallback_casx(r0, r1, r2, r3, i0);
+    jit_int32_t		r1_reg, iscasi;
+    jit_word_t		retry, done, jump0, jump1;
+    if ((iscasi = (r1 == _NOREG))) {
+	r1_reg = jit_get_reg(jit_class_gpr);
+	r1 = rn(r1_reg);
+	movi(r1, i0);
+    }
+    SYNC();
+    /* retry: */
+    retry = _jit->pc.w;
+#  if __WORDSIZE == 32
+    LL(r0, 0, r1);
+#  else
+    LLD(r0, 0, r1);
+#  endif
+    jump0 = _jit->pc.w;
+    BNE(r0, r2, 1);				/* bne done r0 r2 */
+    movi(r0, 0);				/* set to 0 in delay slot */
+    movr(r0, r3);				/* after jump and delay slot */
+    /* store new value */
+#  if __WORDSIZE == 32
+    SC(r0, 0, r1);
+#  else
+    SCD(r0, 0, r1);
+#  endif
+    jump1 = _jit->pc.w;
+    BEQ(r0, _ZERO_REGNO, 0);			/* beqi retry r0 0 */
+    movi(r0, 1);				/* set to 1 in delay slot */
+    SYNC();
+    /* done: */
+    done = _jit->pc.w;
+    patch_at(jump0, done);
+    patch_at(jump1, retry);
+    if (iscasi)
+	jit_unget_reg(r1_reg);
 }
 
 static void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2022  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -28,7 +28,7 @@
  */
 static jit_int16_t	_szs[jit_code_last_code] = {
 #if GET_JIT_SIZE
-#  define JIT_INSTR_MAX		256
+#  define JIT_INSTR_MAX		512
 #else
 #  if defined(__i386__) || defined(__x86_64__)
 #    include "jit_x86-sz.c"
@@ -101,9 +101,30 @@ _jit_get_size(jit_state_t *_jit)
 {
     jit_word_t		 size;
     jit_node_t		*node;
+#  if __riscv && __WORDSIZE == 64
+    jit_word_t		 extra = 0;
+#  endif
 
-    for (size = JIT_INSTR_MAX, node = _jitc->head; node; node = node->next)
+    for (size = JIT_INSTR_MAX, node = _jitc->head; node; node = node->next) {
+#  if __riscv && __WORDSIZE == 64
+	/* Get estimative of extra memory for constants at end of code. */
+	switch (node->code) {
+	    case jit_code_movi:
+	    case jit_code_movi_f:
+	    case jit_code_movi_d:
+	    case jit_code_jmpi:
+	    case jit_code_calli:
+		extra += sizeof(jit_word_t);
+	    default:
+		break;
+	}
+#  endif
 	size += _szs[node->code];
+    }
+#  if __riscv && __WORDSIZE == 64
+    /* Heuristically only 20% of constants are unique. */
+    size += extra / 5;
+#  endif
 
     return size;
 }
