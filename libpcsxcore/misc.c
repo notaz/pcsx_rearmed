@@ -418,7 +418,7 @@ static int PSXGetFileType(FILE *f) {
 
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
-	if (fread(&mybuf, sizeof(mybuf), 1, f) != sizeof(mybuf))
+	if (fread(&mybuf, 1, sizeof(mybuf), f) != sizeof(mybuf))
 		goto io_fail;
 	
 	fseek(f, current, SEEK_SET);
@@ -479,7 +479,7 @@ int Load(const char *ExePath) {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
-				if (fread(&tmpHead, sizeof(EXE_HEADER), 1, tmpFile) != sizeof(EXE_HEADER))
+				if (fread(&tmpHead, 1, sizeof(EXE_HEADER), tmpFile) != sizeof(EXE_HEADER))
 					goto fail_io;
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
@@ -499,13 +499,13 @@ int Load(const char *ExePath) {
 			case CPE_EXE:
 				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
 				do {
-					if (fread(&opcode, sizeof(opcode), 1, tmpFile) != sizeof(opcode))
+					if (fread(&opcode, 1, sizeof(opcode), tmpFile) != sizeof(opcode))
 						goto fail_io;
 					switch (opcode) {
 						case 1: /* Section loading */
-							if (fread(&section_address, sizeof(section_address), 1, tmpFile) != sizeof(section_address))
+							if (fread(&section_address, 1, sizeof(section_address), tmpFile) != sizeof(section_address))
 								goto fail_io;
-							if (fread(&section_size, sizeof(section_size), 1, tmpFile) != sizeof(section_size))
+							if (fread(&section_size, 1, sizeof(section_size), tmpFile) != sizeof(section_size))
 								goto fail_io;
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
@@ -520,7 +520,7 @@ int Load(const char *ExePath) {
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-							if (fread(&psxRegs.pc, sizeof(psxRegs.pc), 1, tmpFile) != sizeof(psxRegs.pc))
+							if (fread(&psxRegs.pc, 1, sizeof(psxRegs.pc), tmpFile) != sizeof(psxRegs.pc))
 								goto fail_io;
 							psxRegs.pc = SWAPu32(psxRegs.pc);
 							break;
@@ -550,7 +550,8 @@ int Load(const char *ExePath) {
 		CdromLabel[0] = '\0';
 	}
 
-	fclose(tmpFile);
+	if (tmpFile)
+		fclose(tmpFile);
 	return retval;
 
 fail_io:

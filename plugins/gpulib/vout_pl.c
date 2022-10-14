@@ -95,7 +95,7 @@ void vout_update(void)
 
   vram += y * 1024 + x;
 
-  cbs->pl_vout_flip(vram, 1024, gpu.status & PSX_GPU_STATUS_RGB24, w, h);
+  cbs->pl_vout_flip(vram, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), w, h);
 }
 
 void vout_blank(void)
@@ -108,7 +108,7 @@ void vout_blank(void)
     w *= 2;
     h *= 2;
   }
-  cbs->pl_vout_flip(NULL, 1024, gpu.status & PSX_GPU_STATUS_RGB24, w, h);
+  cbs->pl_vout_flip(NULL, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), w, h);
 }
 
 long GPUopen(void **unused)

@@ -27,7 +27,8 @@
 #include "psxmem_map.h"
 #include "r3000a.h"
 #include "psxhw.h"
-#include "debug.h"
+//#include "debug.h"
+#define DebugCheckBP(...)
 
 #include "lightrec/mem.h"
 #include "memmap.h"
@@ -38,14 +39,6 @@
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
-#endif
-
-boolean writeok = TRUE;
-
-#if 0 //ndef NDEBUG
-#include "debug.h"
-#else
-void DebugCheckBP(u32 address, enum breakpoint_types type) {}
 #endif
 
 void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
@@ -147,14 +140,20 @@ static int psxMemInitMap(void)
 		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
 	if (psxM == MAP_FAILED) {
 		SysMessage(_("mapping main RAM failed"));
+		psxM = NULL;
+		return -1;
+	}
+	psxP = &psxM[0x200000];
+
+	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
+	if (psxH == MAP_FAILED) {
+		SysMessage(_("Error allocating memory!"));
+		psxMemShutdown();
 		return -1;
 	}
 
-	psxP = &psxM[0x200000];
-	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
-
-	if (psxR == MAP_FAILED || psxH == MAP_FAILED) {
+	if (psxR == MAP_FAILED) {
 		SysMessage(_("Error allocating memory!"));
 		psxMemShutdown();
 		return -1;
@@ -165,9 +164,11 @@ static int psxMemInitMap(void)
 
 static void psxMemFreeMap(void)
 {
-	psxUnmap(psxM, 0x00210000, MAP_TAG_RAM); psxM = NULL;
-	psxUnmap(psxH, 0x10000, MAP_TAG_OTHER); psxH = NULL;
-	psxUnmap(psxR, 0x80000, MAP_TAG_OTHER); psxR = NULL;
+	if (psxM) psxUnmap(psxM, 0x00210000, MAP_TAG_RAM);
+	if (psxH) psxUnmap(psxH, 0x10000, MAP_TAG_OTHER);
+	if (psxR) psxUnmap(psxR, 0x80000, MAP_TAG_OTHER);
+	psxM = psxH = psxR = NULL;
+	psxP = NULL;
 }
 
 int psxMemInit(void)
@@ -194,8 +195,8 @@ int psxMemInit(void)
 		return -1;
 	}
 
-	memset(psxMemRLUT, 0xff, 0x10000 * sizeof(void *));
-	memset(psxMemWLUT, 0xff, 0x10000 * sizeof(void *));
+	memset(psxMemRLUT, (uintptr_t)INVALID_PTR, 0x10000 * sizeof(void *));
+	memset(psxMemWLUT, (uintptr_t)INVALID_PTR, 0x10000 * sizeof(void *));
 
 // MemR
 	for (i = 0; i < 0x80; i++) psxMemRLUT[i + 0x0000] = (u8 *)&psxM[(i & 0x1f) << 16];
@@ -263,6 +264,8 @@ void psxMemShutdown() {
 	free(psxMemRLUT); psxMemRLUT = NULL;
 	free(psxMemWLUT); psxMemWLUT = NULL;
 }
+
+static int writeok = 1;
 
 u8 psxMemRead8(u32 mem) {
 	char *p;
@@ -430,9 +433,9 @@ void psxMemWrite32(u32 mem, u32 value) {
 					case 0x800: case 0x804:
 						if (writeok == 0) break;
 						writeok = 0;
-						memset(psxMemWLUT + 0x0000, 0xff, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0x8000, 0xff, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0xa000, 0xff, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0x0000, (uintptr_t)INVALID_PTR, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0x8000, (uintptr_t)INVALID_PTR, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0xa000, (uintptr_t)INVALID_PTR, 0x80 * sizeof(void *));
 						/* Required for icache interpreter otherwise Armored Core won't boot on icache interpreter */
 						psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
 						break;

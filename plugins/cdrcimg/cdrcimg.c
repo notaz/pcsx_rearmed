@@ -414,8 +414,6 @@ static long CDRopen(void)
 	char *ext;
 	FILE *f = NULL;
 
-	printf("%s cd_file=%d\n", __func__, cd_file == NULL ? 0 : 1);
-
 	if (cd_file != NULL)
 		return 0; // it's already open
 

@@ -54,6 +54,7 @@ static noinline void do_cmd_reset(void)
 static noinline void do_reset(void)
 {
   unsigned int i;
+
   do_cmd_reset();
 
   memset(gpu.regs, 0, sizeof(gpu.regs));
@@ -133,11 +134,11 @@ static noinline void get_gpu_info(uint32_t data)
     case 0x02:
     case 0x03:
     case 0x04:
+    case 0x05:
       gpu.gp0 = gpu.ex_regs[data & 7] & 0xfffff;
       break;
-    case 0x05:
     case 0x06:
-      gpu.gp0 = gpu.ex_regs[5] & 0x3fffff;
+      gpu.gp0 = gpu.ex_regs[5] & 0xfffff;
       break;
     case 0x07:
       gpu.gp0 = 2;

@@ -46,7 +46,11 @@ extern "C" {
 
 #endif
 
+#ifdef LIGHTREC
 #define INVALID_PTR ((void *)-1)
+#else
+#define INVALID_PTR NULL
+#endif
 
 extern s8 *psxM;
 #define psxMs8(mem)		psxM[(mem) & 0x1fffff]

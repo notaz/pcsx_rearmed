@@ -70,16 +70,13 @@ static unsigned char subbuffer[SUB_FRAMESIZE];
 
 static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
-// cdda sectors in toc, byte offset in file
-static unsigned int cdda_cur_sector;
-static unsigned int cdda_file_offset;
 /* Frame offset into CD image where pregap data would be found if it was there.
  * If a game seeks there we must *not* return subchannel data since it's
  * not in the CD image, so that cdrom code can fake subchannel data instead.
  * XXX: there could be multiple pregaps but PSX dumps only have one? */
 static unsigned int pregapOffset;
 
-#define cddaCurPos cdda_cur_sector
+static unsigned int cddaCurPos;
 
 // compressed image stuff
 static struct {
@@ -1423,6 +1420,7 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 	return CD_FRAMESIZE_RAW;
 }
 #endif
+
 static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
@@ -1652,8 +1650,6 @@ static long CALLBACK ISOopen(void) {
 	if (numtracks > 1 && ti[1].handle == NULL) {
 		ti[1].handle = fopen(bin_filename, "rb");
 	}
-	cdda_cur_sector = 0;
-	cdda_file_offset = 0;
 
   if (Config.AsyncCD) {
     readThreadStart();

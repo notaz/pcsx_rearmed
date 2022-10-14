@@ -75,7 +75,7 @@ extern "C" {
 #endif
 #include <math.h> 
 
-#define __inline static inline
+#define __inline inline
 
 #endif
 

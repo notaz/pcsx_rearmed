@@ -147,8 +147,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
 void renderer_update_caches(int x, int y, int w, int h)
 {
   update_texture_cache_region(&egpu, x, y, x + w - 1, y + h - 1);
-  if (gpu.state.enhancement_active &&
-      !(gpu.status & PSX_GPU_STATUS_RGB24))
+  if (gpu.state.enhancement_active && !(gpu.status & PSX_GPU_STATUS_RGB24))
     sync_enhancement_buffers(x, y, w, h);
 }
 

@@ -270,6 +270,10 @@ unsigned short sSetMask = 0;
 unsigned long  lSetMask = 0;
 long           lLowerpart;
 
+#if defined(__GNUC__) && __GNUC__ >= 6
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#endif
+
 #include "soft.c"
 #include "prim.c"
 

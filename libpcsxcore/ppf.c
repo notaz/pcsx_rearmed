@@ -212,7 +212,7 @@ void BuildPPFCache() {
 	if (ppffile == NULL) return;
 
 	memset(buffer, 0, 5);
-	if (fread(buffer, 3, 1, ppffile) != 3)
+	if (fread(buffer, 1, 3, ppffile) != 3)
 		goto fail_io;
 
 	if (strcmp(buffer, "PPF") != 0) {
@@ -236,13 +236,13 @@ void BuildPPFCache() {
 			fseek(ppffile, -8, SEEK_END);
 
 			memset(buffer, 0, 5);
-			if (fread(buffer, 4, 1, ppffile) != 4)
+			if (fread(buffer, 1, 4, ppffile) != 4)
 				goto fail_io;
 
 			if (strcmp(".DIZ", buffer) != 0) {
 				dizyn = 0;
 			} else {
-				if (fread(&dizlen, 4, 1, ppffile) != 4)
+				if (fread(&dizlen, 1, 4, ppffile) != 4)
 					goto fail_io;
 				dizlen = SWAP32(dizlen);
 				dizyn = 1;
@@ -269,14 +269,14 @@ void BuildPPFCache() {
 
 			fseek(ppffile, -6, SEEK_END);
 			memset(buffer, 0, 5);
-			if (fread(buffer, 4, 1, ppffile) != 4)
+			if (fread(buffer, 1, 4, ppffile) != 4)
 				goto fail_io;
 			dizlen = 0;
 
 			if (strcmp(".DIZ", buffer) == 0) {
 				fseek(ppffile, -2, SEEK_END);
 				// TODO: Endian/size unsafe?
-				if (fread(&dizlen, 2, 1, ppffile) != 2)
+				if (fread(&dizlen, 1, 2, ppffile) != 2)
 					goto fail_io;
 				dizlen = SWAP32(dizlen);
 				dizlen += 36;
@@ -304,18 +304,18 @@ void BuildPPFCache() {
 	// now do the data reading
 	do {                                                
 		fseek(ppffile, seekpos, SEEK_SET);
-		if (fread(&pos, sizeof(pos), 1, ppffile) != sizeof(pos))
+		if (fread(&pos, 1, sizeof(pos), ppffile) != sizeof(pos))
 			goto fail_io;
 		pos = SWAP32(pos);
 
 		if (method == 2) {
 			// skip 4 bytes on ppf3 (no int64 support here)
-			if (fread(buffer, 4, 1, ppffile) != 4)
+			if (fread(buffer, 1, 4, ppffile) != 4)
 				goto fail_io;
 		}
 
 		anz = fgetc(ppffile);
-		if (fread(ppfmem, anz, 1, ppffile) != anz)
+		if (fread(ppfmem, 1, anz, ppffile) != anz)
 			goto fail_io;
 
 		ladr = pos / CD_FRAMESIZE_RAW;
@@ -378,7 +378,7 @@ int LoadSBI(const char *fname, int sector_count) {
 		s = fread(sbitime, 1, 3, sbihandle);
 		if (s != 3)
 			goto fail_io;
-		if (fread(&t, sizeof(t), 1, sbihandle) != sizeof(t))
+		if (fread(&t, 1, sizeof(t), sbihandle) != sizeof(t))
 			goto fail_io;
 		switch (t) {
 		default:

@@ -1,5 +1,5 @@
 /*
- * (C) Graûvydas "notaz" Ignotas, 2011
+ * (C) Gra≈ævydas "notaz" Ignotas, 2011
  *
  * This work is licensed under the terms of GNU GPL version 2 or later.
  * See the COPYING file in the top-level directory.

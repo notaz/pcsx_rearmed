@@ -35,7 +35,6 @@ void SysCloseLibrary(void *lib);		// Closes Library
 void SysUpdate();						// Called on VBlank (to update i.e. pads)
 void SysRunGui();						// Returns to the Gui
 void SysClose();						// Close mem and plugins
-void SysDLog(const char *fmt, ...);		// Prints debug-level logs
 
 // log if the game does something we don't handle (well)
 //#define log_unhandled printf

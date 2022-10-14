@@ -134,24 +134,25 @@ void emu_set_default_config(void)
 	Config.PsxAuto = 1;
 	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 
-	pl_rearmed_cbs.thread_rendering = 0;
-
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
 	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
-	pl_rearmed_cbs.gpu_unai.ilace_force = 0;
-	pl_rearmed_cbs.gpu_unai.pixel_skip = 1;
+#if 0
+	pl_rearmed_cbs.gpu_senquack.ilace_force = 0;
+	pl_rearmed_cbs.gpu_senquack.pixel_skip = 0;
+	pl_rearmed_cbs.gpu_senquack.lighting = 1;
+	pl_rearmed_cbs.gpu_senquack.fast_lighting = 0;
+	pl_rearmed_cbs.gpu_senquack.blending = 1;
+	pl_rearmed_cbs.gpu_senquack.dithering = 0;
+#else
 	pl_rearmed_cbs.gpu_unai.lighting = 1;
-	pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
 	pl_rearmed_cbs.gpu_unai.blending = 1;
-	pl_rearmed_cbs.gpu_unai.dithering = 0;
-	// old gpu_unai config
+#endif
 	pl_rearmed_cbs.gpu_unai.abe_hack =
 	pl_rearmed_cbs.gpu_unai.no_light =
 	pl_rearmed_cbs.gpu_unai.no_blend = 0;
-	pl_rearmed_cbs.gpu_unai.scale_hires = 0;
 	memset(&pl_rearmed_cbs.gpu_peopsgl, 0, sizeof(pl_rearmed_cbs.gpu_peopsgl));
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;

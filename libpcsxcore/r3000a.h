@@ -197,8 +197,6 @@ typedef struct {
 	// asm in libpcsxcore/new_dynarec/
 } psxRegisters;
 
-extern boolean writeok;
-
 extern psxRegisters psxRegs;
 
 /* new_dynarec stuff */
