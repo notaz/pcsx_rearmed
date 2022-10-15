@@ -20,7 +20,7 @@ extern unsigned char CALLBACK PAD2__startPoll(int pad);
 extern unsigned char CALLBACK PAD1__poll(unsigned char value);
 extern unsigned char CALLBACK PAD2__poll(unsigned char value);
 
-#ifndef HAVE_LIBRETRO
+#if 0 //ndef HAVE_LIBRETRO
 
 static int old_controller_type1 = -1, old_controller_type2 = -1;
 
