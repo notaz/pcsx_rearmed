@@ -14,8 +14,8 @@ dnl or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 dnl License for more details.
 dnl
 
-AC_PREREQ(2.64)
-AC_INIT([GNU lightning], 2.1.3, pcpa@gnu.org, lightning)
+AC_PREREQ([2.71])
+AC_INIT([GNU lightning],[2.1.3],[pcpa@gnu.org],[lightning])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([Makefile.am])
@@ -201,19 +201,21 @@ case "$target_cpu" in
     s390*)		cpu=s390	;;
     alpha*)		cpu=alpha	;;
     riscv*)		cpu=riscv	;;
+    loongarch*)		cpu=loongarch	;;
     *)					;;
 esac
-AM_CONDITIONAL(cpu_arm,     [test cpu-$cpu = cpu-arm])
-AM_CONDITIONAL(cpu_mips,    [test cpu-$cpu = cpu-mips])
-AM_CONDITIONAL(cpu_ppc,     [test cpu-$cpu = cpu-ppc])
-AM_CONDITIONAL(cpu_sparc,   [test cpu-$cpu = cpu-sparc])
-AM_CONDITIONAL(cpu_x86,     [test cpu-$cpu = cpu-x86])
-AM_CONDITIONAL(cpu_ia64,    [test cpu-$cpu = cpu-ia64])
-AM_CONDITIONAL(cpu_hppa,    [test cpu-$cpu = cpu-hppa])
-AM_CONDITIONAL(cpu_aarch64, [test cpu-$cpu = cpu-aarch64])
-AM_CONDITIONAL(cpu_s390,    [test cpu-$cpu = cpu-s390])
-AM_CONDITIONAL(cpu_alpha,   [test cpu-$cpu = cpu-alpha])
-AM_CONDITIONAL(cpu_riscv,   [test cpu-$cpu = cpu-riscv])
+AM_CONDITIONAL(cpu_arm,       [test cpu-$cpu = cpu-arm])
+AM_CONDITIONAL(cpu_mips,      [test cpu-$cpu = cpu-mips])
+AM_CONDITIONAL(cpu_ppc,       [test cpu-$cpu = cpu-ppc])
+AM_CONDITIONAL(cpu_sparc,     [test cpu-$cpu = cpu-sparc])
+AM_CONDITIONAL(cpu_x86,       [test cpu-$cpu = cpu-x86])
+AM_CONDITIONAL(cpu_ia64,      [test cpu-$cpu = cpu-ia64])
+AM_CONDITIONAL(cpu_hppa,      [test cpu-$cpu = cpu-hppa])
+AM_CONDITIONAL(cpu_aarch64,   [test cpu-$cpu = cpu-aarch64])
+AM_CONDITIONAL(cpu_s390,      [test cpu-$cpu = cpu-s390])
+AM_CONDITIONAL(cpu_alpha,     [test cpu-$cpu = cpu-alpha])
+AM_CONDITIONAL(cpu_riscv,     [test cpu-$cpu = cpu-riscv])
+AM_CONDITIONAL(cpu_loongarch, [test cpu-$cpu = cpu-loongarch])
 
 # Test x87 if both, x87 and sse2 available
 ac_cv_test_x86_x87=
@@ -327,7 +329,7 @@ if test $ac_cv_header_stdint_h = yes; then
     AC_SUBST(MAYBE_INCLUDE_STDINT_H, ["#include <stdint.h>"])
 fi
 
-AC_OUTPUT([Makefile
+AC_CONFIG_FILES([Makefile
 	   lightning.pc
            gnulib-lib/Makefile
 	   doc/Makefile
@@ -336,3 +338,4 @@ AC_OUTPUT([Makefile
 	   include/lightning.h
 	   lib/Makefile
 	   check/Makefile])
+AC_OUTPUT

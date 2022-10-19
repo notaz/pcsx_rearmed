@@ -58,6 +58,10 @@ EXTRA_DIST =			\
 	jit_ia64-cpu.c		\
 	jit_ia64-fpu.c		\
 	jit_ia64-sz.c		\
+	jit_loongarch.c		\
+	jit_loongarch-cpu.c	\
+	jit_loongarch-fpu.c	\
+	jit_loongarch-sz.c	\
 	jit_mips.c		\
 	jit_mips-cpu.c		\
 	jit_mips-fpu.c		\

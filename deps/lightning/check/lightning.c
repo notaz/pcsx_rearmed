@@ -4308,6 +4308,11 @@ main(int argc, char *argv[])
 			  sizeof(cmdline) - opt_short,
 			  " -D__alpha__=1");
 #endif
+#if defined(__loongarch__)
+    opt_short += snprintf(cmdline + opt_short,
+			  sizeof(cmdline) - opt_short,
+			  " -D__loongarch__=1");
+#endif
     if ((parser.fp = popen(cmdline, "r")) == NULL)
 	error("cannot execute %s", cmdline);
 
