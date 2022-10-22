@@ -463,7 +463,8 @@ static int ReadTrack(const u8 *time) {
 	CDR_LOG("ReadTrack *** %02x:%02x:%02x\n", tmp[0], tmp[1], tmp[2]);
 
 	read_ok = CDR_readTrack(tmp);
-	memcpy(cdr.Prev, tmp, 3);
+	if (read_ok)
+		memcpy(cdr.Prev, tmp, 3);
 
 	if (CheckSBI(time))
 		return read_ok;
@@ -1253,7 +1254,6 @@ static void cdrReadInterrupt(void)
 
 	if (!read_ok) {
 		CDR_LOG_I("cdrReadInterrupt() Log: err\n");
-		memset(cdr.Transfer, 0, DATA_SIZE);
 		cdrReadInterruptSetResult(cdr.StatP | STATUS_ERROR);
 		return;
 	}
