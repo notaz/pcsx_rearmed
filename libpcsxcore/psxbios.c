@@ -1252,7 +1252,7 @@ void psxBios_getchar() { //0x3b
 	v0 = getchar(); pc0 = ra;
 }
 
-void psxBios_printf() { // 0x3f
+static void psxBios_printf_psxout() { // 0x3f
 	char tmp[1024];
 	char tmp2[1024];
 	u32 save[4];
@@ -1317,11 +1317,14 @@ _start:
 	}
 	*ptmp = 0;
 
-	if (psp)
+	if (psp != INVALID_PTR)
 		memcpy(psp, save, 4 * 4);
 
 	SysPrintf("%s", tmp);
+}
 
+void psxBios_printf() { // 0x3f
+	psxBios_printf_psxout();
 	pc0 = ra;
 }
 
@@ -2212,6 +2215,25 @@ void psxBios_write() { // 0x35/0x03
 	pc0 = ra;
 }
 
+static void psxBios_write_psxout() {
+	if (a0 == 1) { // stdout
+		const char *ptr = Ra1;
+		int len = a2;
+
+		if (ptr != INVALID_PTR)
+			while (len-- > 0)
+				SysPrintf("%c", *ptr++);
+	}
+}
+
+static void psxBios_putchar_psxout() { // 3d
+	SysPrintf("%c", (char)a0);
+}
+
+static void psxBios_puts_psxout() { // 3e/3f
+	SysPrintf("%s", Ra0);
+}
+
 /*
  *	int close(int fd);
  */
@@ -2704,11 +2726,10 @@ void psxBiosInit() {
 		biosB0[i] = NULL;
 		biosC0[i] = NULL;
 	}
-	biosA0[0x3e] = psxBios_puts;
-	biosA0[0x3f] = psxBios_printf;
-
-	biosB0[0x3d] = psxBios_putchar;
-	biosB0[0x3f] = psxBios_puts;
+	biosA0[0x03] = biosB0[0x35] = psxBios_write_psxout;
+	biosA0[0x3c] = biosB0[0x3d] = psxBios_putchar_psxout;
+	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
+	biosA0[0x3f] = psxBios_printf_psxout;
 
 	if (!Config.HLE) return;
 
