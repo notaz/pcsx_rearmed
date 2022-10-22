@@ -52,6 +52,8 @@ static jit_int16_t	_szs[jit_code_last_code] = {
 #    include "jit_alpha-sz.c"
 #  elif defined(__riscv)
 #    include "jit_riscv-sz.c"
+#  elif defined(__loongarch__)
+#    include "jit_loongarch-sz.c"
 #  endif
 #endif
 };

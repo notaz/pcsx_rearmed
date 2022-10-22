@@ -67,6 +67,9 @@ _jit_dataset(jit_state_t *_jit);
 #define block_update_set(block, target)	_block_update_set(_jit, block, target)
 static jit_bool_t _block_update_set(jit_state_t*, jit_block_t*, jit_block_t*);
 
+#define propagate_backward(block)	_propagate_backward(_jit, block)
+static void _propagate_backward(jit_state_t*, jit_block_t*);
+
 #define check_block_again()		_check_block_again(_jit)
 static jit_bool_t _check_block_again(jit_state_t*);
 
@@ -1670,6 +1673,21 @@ _block_update_set(jit_state_t *_jit,
     return (0);
 }
 
+static void
+_propagate_backward(jit_state_t *_jit, jit_block_t *block)
+{
+    jit_block_t		*prev;
+    jit_word_t		 offset;
+
+    for (offset = block->label->v.w - 1;
+	 offset >= 0; --offset)  {
+	prev = _jitc->blocks.ptr + offset;
+	if (!block_update_set(prev, block) ||
+	    !(prev->label->flag & jit_flag_head))
+	    break;
+    }
+}
+
 static jit_bool_t
 _check_block_again(jit_state_t *_jit)
 {
@@ -1708,12 +1726,11 @@ _check_block_again(jit_state_t *_jit)
 		    block = NULL;
 
 		target = _jitc->blocks.ptr + node->v.w;
-		/* Update if previous block pass through */
-		if (block && block->again && block_update_set(target, block))
+		if (block && target->again && block_update_set(block, target)) {
+		    propagate_backward(block);
 		    todo = 1;
+		}
 		block = target;
-		if (!block->again)
-		    continue;
 	    }
 	    /* If not the first jmpi */
 	    else if (block) {
@@ -1724,8 +1741,10 @@ _check_block_again(jit_state_t *_jit)
 		label = node->u.n;
 		/* Mark predecessor needs updating due to target change */
 		target = _jitc->blocks.ptr + label->v.w;
-		if (target->again && block_update_set(block, target))
+		if (target->again && block_update_set(block, target)) {
+		    propagate_backward(block);
 		    todo = 1;
+		}
 	    }
 	}
     }
@@ -2870,36 +2889,59 @@ _split_branches(jit_state_t *_jit)
     jit_node_t		*next;
     jit_node_t		*label;
     jit_block_t		*block;
+    jit_block_t		*blocks;
+    jit_word_t		 offset;
+    jit_word_t		 length;
 
+    length = _jitc->blocks.length;
+    jit_alloc((jit_pointer_t *)&blocks, length * sizeof(jit_block_t));
+    if ((node = _jitc->head) &&
+	(node->code == jit_code_label || node->code == jit_code_prolog)) {
+	block = _jitc->blocks.ptr + node->v.w;
+	memcpy(blocks, block, sizeof(jit_block_t));
+	node->v.w = 0;
+	offset = 1;
+    }
+    else
+	offset = 0;
     for (node = _jitc->head; node; node = next) {
 	if ((next = node->next)) {
 	    if (next->code == jit_code_label ||
 		next->code == jit_code_prolog ||
-		next->code == jit_code_epilog)
-		continue;
+		next->code == jit_code_epilog) {
+		if (offset >= length) {
+		    jit_realloc((jit_pointer_t *)&blocks,
+				length * sizeof(jit_block_t),
+				(length + 16) * sizeof(jit_block_t));
+		    length += 16;
+		}
+		block = _jitc->blocks.ptr + next->v.w;
+		memcpy(blocks + offset, block, sizeof(jit_block_t));
+		next->v.w = offset++;
+	    }
 	    /* split block on branches */
-	    if (jit_classify(node->code) & jit_cc_a0_jmp) {
+	    else if (jit_classify(node->code) & jit_cc_a0_jmp) {
 		label = new_node(jit_code_label);
 		label->next = next;
 		node->next = label;
-		if (_jitc->blocks.offset >= _jitc->blocks.length) {
-		    jit_word_t	  length;
-
-		    length = _jitc->blocks.length + 16;
-		    jit_realloc((jit_pointer_t *)&_jitc->blocks.ptr,
-				_jitc->blocks.length * sizeof(jit_block_t),
-				length * sizeof(jit_block_t));
-		    _jitc->blocks.length = length;
+		if (offset >= length) {
+		    jit_realloc((jit_pointer_t *)&blocks,
+				length * sizeof(jit_block_t),
+				(length + 16) * sizeof(jit_block_t));
+		    length += 16;
 		}
-		block = _jitc->blocks.ptr + _jitc->blocks.offset;
+		block = blocks + offset;
 		block->label = label;
-		label->v.w = _jitc->blocks.offset;
+		label->v.w = offset++;
 		jit_regset_new(&block->reglive);
 		jit_regset_new(&block->regmask);
-		++_jitc->blocks.offset;
 	    }
 	}
     }
+    jit_free((jit_pointer_t *)&_jitc->blocks.ptr);
+    _jitc->blocks.ptr = blocks;
+    _jitc->blocks.offset = offset;
+    _jitc->blocks.length = length;
 }
 
 static jit_bool_t
@@ -3380,7 +3422,6 @@ _simplify_stxi(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node)
     /* no multiple information, so, if set to a constant,
      * prefer to keep that information */
     if (value->kind == 0) {
-	value->kind = jit_kind_code;
 	switch (node->code) {
 	    /* no information about signed/unsigned either */
 	    case jit_code_stxi_c:	value->code = jit_code_ldxi_c;	break;
@@ -3841,6 +3882,8 @@ generic_bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1);
 #  include "jit_alpha.c"
 #elif defined(__riscv)
 #  include "jit_riscv.c"
+#elif defined(__loongarch__)
+#  include "jit_loongarch.c"
 #endif
 
 static maybe_unused void

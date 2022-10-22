@@ -28,9 +28,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#define GENMASK(h, l) \
-	(((uintptr_t)-1 << (l)) & ((uintptr_t)-1 >> (__WORDSIZE - 1 - (h))))
-
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 static bool lightrec_block_is_fully_tagged(const struct block *block);
@@ -107,7 +104,7 @@ static void lightrec_swl(struct lightrec_state *state,
 			 u32 opcode, void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
-	unsigned int mask = GENMASK(31, (shift + 1) * 8);
+	unsigned int mask = shift < 3 ? GENMASK(31, (shift + 1) * 8) : 0;
 	u32 old_data;
 
 	/* Align to 32 bits */
@@ -171,7 +168,7 @@ static u32 lightrec_lwr(struct lightrec_state *state,
 			u32 opcode, void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
-	unsigned int mask = GENMASK(31, 32 - shift * 8);
+	unsigned int mask = shift ? GENMASK(31, 32 - shift * 8) : 0;
 	u32 old_data;
 
 	/* Align to 32 bits */
@@ -1423,7 +1420,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(cstate, block, i, false);
+			lightrec_emit_eob(cstate, block, i);
 			skip_next = !op_flag_no_ds(elm->flags);
 		} else {
 			lightrec_rec_opcode(cstate, block, i);

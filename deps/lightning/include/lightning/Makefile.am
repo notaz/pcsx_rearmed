@@ -63,3 +63,7 @@ if cpu_riscv
 lightning_include_HEADERS = 	\
 	jit_riscv.h
 endif
+if cpu_loongarch
+lightning_include_HEADERS = 	\
+	jit_loongarch.h
+endif

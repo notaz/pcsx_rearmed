@@ -16,7 +16,14 @@
 #include <stdatomic.h>
 #endif
 
+#ifdef _MSC_BUILD
+#include <immintrin.h>
+#endif
+
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
+
+#define GENMASK(h, l) \
+	(((uintptr_t)-1 << (l)) & ((uintptr_t)-1 >> (__WORDSIZE - 1 - (h))))
 
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
@@ -51,10 +58,12 @@
 
 #ifdef _MSC_BUILD
 #	define popcount32(x)	__popcnt(x)
-#	define ffs32(x)		(31 - __lzcnt(x))
+#	define clz32(x)		_lzcnt_u32(x)
+#	define ctz32(x)		_tzcnt_u32(x)
 #else
 #	define popcount32(x)	__builtin_popcount(x)
-#	define ffs32(x)		(__builtin_ffs(x) - 1)
+#	define clz32(x)		__builtin_clz(x)
+#	define ctz32(x)		__builtin_ctz(x)
 #endif
 
 /* Flags for (struct block *)->flags */

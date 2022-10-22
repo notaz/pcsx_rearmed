@@ -1,3 +1,16 @@
+2022-10-12 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning/jit_loongarch.h, lib/jit_loongarch-cpu.c,
+	lib/jit_loongarch-fpu.c, lib/jit_loongarch-sz.c, lib/jit_loongarch.c:
+	New files implementing the first version of the new loongarch port.
+	* check/float.tst: Add preprocessor checks for NaN and +-Inf
+	values converted to integers for loongarch.
+	* configure.ac: Add check and conditionals for new architecture.
+	* include/lightning.h.in, check/lightning.c,
+	include/lightning/Makefile.am, include/lightning/jit_private.h,
+	lib/Makefile.am, lib/jit_size.c, lib/lightning.c: Update for new
+	port.
+
 2022-10-05 Paulo Andrade <pcpa@gnu.org>
 
 	* check/lightning.c: Remove -Dmacro=value from usage and attempt

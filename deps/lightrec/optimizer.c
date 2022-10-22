@@ -1112,7 +1112,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				else
 					op->i.op = OP_META_MULTU2;
 
-				op->r.op = ffs32(values[op->r.rt]);
+				op->r.op = ctz32(values[op->r.rt]);
 				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
