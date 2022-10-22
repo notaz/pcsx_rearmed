@@ -1433,7 +1433,7 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 	sec2msf(sector + 2 * 75, (char *)&cdbuffer[12]);
 	cdbuffer[12 + 3] = 1;
 
-	return ret;
+	return 12*2 + ret;
 }
 
 #ifndef _WIN32
@@ -1801,7 +1801,7 @@ static boolean CALLBACK ISOreadTrack(unsigned char *time) {
 	}
 
 	ret = cdimg_read_func(cdHandle, 0, cdbuffer, sector);
-	if (ret < 0)
+	if (ret < 12*2 + 2048)
 		return 0;
 
 	if (subHandle != NULL) {
