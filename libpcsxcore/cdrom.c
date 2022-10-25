@@ -578,6 +578,27 @@ static int cdrSeekTime(unsigned char *target)
 	return seekTime;
 }
 
+static u32 cdrAlignTimingHack(u32 cycles)
+{
+	/*
+	 * timing hack for T'ai Fu - Wrath of the Tiger:
+	 * The game has a bug where it issues some cdc commands from a low priority
+	 * vint handler, however there is a higher priority default bios handler
+	 * that acks the vint irq and returns, so game's handler is not reached
+	 * (see bios irq handler chains at e004 and the game's irq handling func
+	 * at 80036810). For the game to work, vint has to arrive after the bios
+	 * vint handler rejects some other irq (of which only cd and rcnt2 are
+	 * active), but before the game's handler loop reads I_STAT. The time
+	 * window for this is quite small (~1k cycles of so). Apparently this
+	 * somehow happens naturally on the real hardware.
+	 */
+	u32 vint_rel = rcnts[3].cycleStart + 63000 - psxRegs.cycle;
+	vint_rel += PSXCLK / 60;
+	while ((s32)(vint_rel - cycles) < 0)
+		vint_rel += PSXCLK / 60;
+	return vint_rel;
+}
+
 static void cdrUpdateTransferBuf(const u8 *buf);
 static void cdrReadInterrupt(void);
 static void cdrPrepCdda(s16 *buf, int samples);
@@ -637,7 +658,7 @@ void cdrPlayReadInterrupt(void)
 void cdrInterrupt(void) {
 	int start_rotating = 0;
 	int error = 0;
-	unsigned int seekTime = 0;
+	u32 cycles, seekTime = 0;
 	u32 second_resp_time = 0;
 	const void *buf;
 	u8 ParamC;
@@ -1116,7 +1137,10 @@ void cdrInterrupt(void) {
 			ReadTrack(cdr.SetSectorPlay);
 			cdr.LocL[0] = LOCL_INVALID;
 
-			CDRPLAYREAD_INT(((cdr.Mode & 0x80) ? (cdReadTime) : cdReadTime * 2) + seekTime, 1);
+			cycles = (cdr.Mode & 0x80) ? cdReadTime : cdReadTime * 2;
+			cycles += seekTime;
+			cycles = cdrAlignTimingHack(cycles);
+			CDRPLAYREAD_INT(cycles, 1);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
 			start_rotating = 1;
