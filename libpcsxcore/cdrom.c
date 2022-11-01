@@ -1430,7 +1430,7 @@ void cdrWrite1(unsigned char rt) {
 }
 
 unsigned char cdrRead2(void) {
-	unsigned char ret = 0;
+	unsigned char ret = cdr.Transfer[0x920];
 
 	if (cdr.FifoOffset < cdr.FifoSize)
 		ret = cdr.Transfer[cdr.FifoOffset++];
@@ -1562,10 +1562,12 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			{
 				memcpy(ptr, cdr.Transfer + cdr.FifoOffset, size);
 				cdr.FifoOffset += size;
-				psxCpu->Clear(madr, size / 4);
 			}
-			if (size < cdsize)
+			if (size < cdsize) {
 				CDR_LOG_I("cdrom: dma3 %d/%d\n", size, cdsize);
+				memset(ptr + size, cdr.Transfer[0x920], cdsize - size);
+			}
+			psxCpu->Clear(madr, cdsize / 4);
 
 			CDRDMA_INT((cdsize/4) * 24);
 
@@ -1655,7 +1657,7 @@ int cdrFreeze(void *f, int Mode) {
 	if (Mode == 0) {
 		getCdInfo();
 
-		cdr.FifoOffset = tmp;
+		cdr.FifoOffset = tmp < DATA_SIZE ? tmp : DATA_SIZE;
 		cdr.FifoSize = (cdr.Mode & 0x20) ? 2340 : 2048 + 12;
 
 		// read right sub data
