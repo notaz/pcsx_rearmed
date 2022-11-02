@@ -165,7 +165,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#ifndef _WIN32
+#if 0 // ndef _WIN32 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
    {
       "pcsx_rearmed_async_cd",
       "CD Access Method (Restart)",

@@ -42,6 +42,13 @@
 #include <unistd.h>
 #endif
 
+#ifndef _WIN32
+// to enable the USE_READ_THREAD code, fix:
+// - https://github.com/notaz/pcsx_rearmed/issues/257
+// - ISOgetBufferSub to not race with async code
+//#define USE_READ_THREAD
+#endif
+
 #ifdef USE_LIBRETRO_VFS
 #include <streams/file_stream_transforms.h>
 #undef fseeko
@@ -1070,7 +1077,7 @@ static int opensbifile(const char *isoname) {
 	return LoadSBI(sbiname, s);
 }
 
-#ifdef _WIN32
+#ifndef USE_READ_THREAD
 static void readThreadStop() {}
 static void readThreadStart() {}
 #else
@@ -1468,7 +1475,7 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 	return 12*2 + ret;
 }
 
-#ifndef _WIN32
+#ifdef USE_READ_THREAD
 
 static int cdread_async(FILE *f, unsigned int base, void *dest, int sector) {
   boolean found = FALSE;
@@ -1526,7 +1533,7 @@ static unsigned char * CALLBACK ISOgetBuffer_chd(void) {
 }
 #endif
 
-#ifndef _WIN32
+#ifdef USE_READ_THREAD
 static unsigned char * CALLBACK ISOgetBuffer_async(void) {
   unsigned char *buffer;
   pthread_mutex_lock(&sectorbuffer_lock);
