@@ -112,7 +112,7 @@ typedef long (CALLBACK* CDRgetTN)(unsigned char *);
 typedef long (CALLBACK* CDRgetTD)(unsigned char, unsigned char *);
 typedef boolean (CALLBACK* CDRreadTrack)(unsigned char *);
 typedef unsigned char* (CALLBACK* CDRgetBuffer)(void);
-typedef unsigned char* (CALLBACK* CDRgetBufferSub)(void);
+typedef unsigned char* (CALLBACK* CDRgetBufferSub)(int sector);
 typedef long (CALLBACK* CDRconfigure)(void);
 typedef long (CALLBACK* CDRtest)(void);
 typedef void (CALLBACK* CDRabout)(void);

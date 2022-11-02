@@ -21,6 +21,7 @@
 * Handles all CD-ROM registers and functions.
 */
 
+#include <assert.h>
 #include "cdrom.h"
 #include "ppf.h"
 #include "psxdma.h"
@@ -76,7 +77,7 @@ static struct {
 	unsigned char ResultP;
 	unsigned char ResultReady;
 	unsigned char Cmd;
-	unsigned char unused4;
+	unsigned char SubqForwardSectors;
 	unsigned char SetlocPending;
 	u32 Reading;
 
@@ -208,6 +209,7 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define cdReadTime (PSXCLK / 75)
 
 #define LOCL_INVALID 0xff
+#define SUBQ_FORWARD_SECTORS 2u
 
 enum drive_state {
 	DRIVESTATE_STANDBY = 0, // pause, play, read
@@ -447,11 +449,10 @@ static void generate_subq(const u8 *time)
 	cdr.subq.Absolute[2] = itob(time[2]);
 }
 
-static int ReadTrack(const u8 *time) {
+static int ReadTrack(const u8 *time)
+{
 	unsigned char tmp[3];
-	struct SubQ *subq;
 	int read_ok;
-	u16 crc;
 
 	tmp[0] = itob(time[0]);
 	tmp[1] = itob(time[1]);
@@ -465,11 +466,18 @@ static int ReadTrack(const u8 *time) {
 	read_ok = CDR_readTrack(tmp);
 	if (read_ok)
 		memcpy(cdr.Prev, tmp, 3);
+	return read_ok;
+}
+
+static void UpdateSubq(const u8 *time)
+{
+	const struct SubQ *subq;
+	u16 crc;
 
 	if (CheckSBI(time))
-		return read_ok;
+		return;
 
-	subq = (struct SubQ *)CDR_getBufferSub();
+	subq = (struct SubQ *)CDR_getBufferSub(MSF2SECT(time[0], time[1], time[2]));
 	if (subq != NULL && cdr.CurTrack == 1) {
 		crc = calcCrc((u8 *)subq + 12, 10);
 		if (crc == (((u16)subq->CRC[0] << 8) | subq->CRC[1])) {
@@ -479,8 +487,8 @@ static int ReadTrack(const u8 *time) {
 			memcpy(cdr.subq.Absolute, subq->AbsoluteAddress, 3);
 		}
 		else {
-			CDR_LOG_I("subq bad crc @%02x:%02x:%02x\n",
-				tmp[0], tmp[1], tmp[2]);
+			CDR_LOG_I("subq bad crc @%02d:%02d:%02d\n",
+				time[0], time[1], time[2]);
 		}
 	}
 	else {
@@ -491,8 +499,6 @@ static int ReadTrack(const u8 *time) {
 		cdr.subq.Track, cdr.subq.Index,
 		cdr.subq.Relative[0], cdr.subq.Relative[1], cdr.subq.Relative[2],
 		cdr.subq.Absolute[0], cdr.subq.Absolute[1], cdr.subq.Absolute[2]);
-
-	return read_ok;
 }
 
 static void cdrPlayInterrupt_Autopause()
@@ -604,6 +610,20 @@ static void cdrReadInterrupt(void);
 static void cdrPrepCdda(s16 *buf, int samples);
 static void cdrAttenuate(s16 *buf, int samples, int stereo);
 
+static void msfiAdd(u8 *msfi, u32 count)
+{
+	assert(count < 75);
+	msfi[2] += count;
+	if (msfi[2] >= 75) {
+		msfi[2] -= 75;
+		msfi[1]++;
+		if (msfi[1] == 60) {
+			msfi[1] = 0;
+			msfi[0]++;
+		}
+	}
+}
+
 void cdrPlayReadInterrupt(void)
 {
 	if (cdr.Reading) {
@@ -636,15 +656,7 @@ void cdrPlayReadInterrupt(void)
 		cdr.FirstSector = 0;
 	}
 
-	cdr.SetSectorPlay[2]++;
-	if (cdr.SetSectorPlay[2] == 75) {
-		cdr.SetSectorPlay[2] = 0;
-		cdr.SetSectorPlay[1]++;
-		if (cdr.SetSectorPlay[1] == 60) {
-			cdr.SetSectorPlay[1] = 0;
-			cdr.SetSectorPlay[0]++;
-		}
-	}
+	msfiAdd(cdr.SetSectorPlay, 1);
 
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
@@ -794,8 +806,9 @@ void cdrInterrupt(void) {
 			- plays tracks without retry play
 			*/
 			Find_CurTrack(cdr.SetSectorPlay);
-			ReadTrack(cdr.SetSectorPlay);
+			generate_subq(cdr.SetSectorPlay);
 			cdr.LocL[0] = LOCL_INVALID;
+			cdr.SubqForwardSectors = 1;
 			cdr.TrackChanged = FALSE;
 			cdr.FirstSector = 1;
 
@@ -1035,6 +1048,7 @@ void cdrInterrupt(void) {
 			read_ok = ReadTrack(cdr.SetSectorPlay);
 			if (read_ok && (buf = CDR_getBuffer()))
 				memcpy(cdr.LocL, buf, 8);
+			UpdateSubq(cdr.SetSectorPlay);
 			cdr.TrackChanged = FALSE;
 			break;
 
@@ -1134,8 +1148,9 @@ void cdrInterrupt(void) {
 
 			// Fighting Force 2 - update subq time immediately
 			// - fixes new game
-			ReadTrack(cdr.SetSectorPlay);
+			UpdateSubq(cdr.SetSectorPlay);
 			cdr.LocL[0] = LOCL_INVALID;
+			cdr.SubqForwardSectors = 1;
 
 			cycles = (cdr.Mode & 0x80) ? cdReadTime : cdReadTime * 2;
 			cycles += seekTime;
@@ -1266,9 +1281,19 @@ static void cdrUpdateTransferBuf(const u8 *buf)
 static void cdrReadInterrupt(void)
 {
 	u8 *buf = NULL, *hdr;
+	u8 subqPos[3];
 	int read_ok;
 
 	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
+
+	memcpy(subqPos, cdr.SetSectorPlay, sizeof(subqPos));
+	msfiAdd(subqPos, cdr.SubqForwardSectors);
+	UpdateSubq(subqPos);
+	if (cdr.SubqForwardSectors < SUBQ_FORWARD_SECTORS) {
+		cdr.SubqForwardSectors++;
+		CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
+		return;
+	}
 
 	read_ok = ReadTrack(cdr.SetSectorPlay);
 	if (read_ok)
@@ -1319,20 +1344,7 @@ static void cdrReadInterrupt(void)
 	if (!(cdr.Mode & MODE_STRSND) || !(buf[4+2] & 0x4))
 		cdrReadInterruptSetResult(cdr.StatP);
 
-	cdr.SetSectorPlay[2]++;
-	if (cdr.SetSectorPlay[2] == 75) {
-		cdr.SetSectorPlay[2] = 0;
-		cdr.SetSectorPlay[1]++;
-		if (cdr.SetSectorPlay[1] == 60) {
-			cdr.SetSectorPlay[1] = 0;
-			cdr.SetSectorPlay[0]++;
-		}
-	}
-
-	if (!cdr.Irq1Pending) {
-		// update for CdlGetlocP
-		ReadTrack(cdr.SetSectorPlay);
-	}
+	msfiAdd(cdr.SetSectorPlay, 1);
 
 	CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 }
@@ -1659,6 +1671,8 @@ int cdrFreeze(void *f, int Mode) {
 
 		cdr.FifoOffset = tmp < DATA_SIZE ? tmp : DATA_SIZE;
 		cdr.FifoSize = (cdr.Mode & 0x20) ? 2340 : 2048 + 12;
+		if (cdr.SubqForwardSectors > SUBQ_FORWARD_SECTORS)
+			cdr.SubqForwardSectors = SUBQ_FORWARD_SECTORS;
 
 		// read right sub data
 		tmpp[0] = btoi(cdr.Prev[0]);
