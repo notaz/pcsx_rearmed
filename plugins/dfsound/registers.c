@@ -505,10 +505,8 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  spu.s_chan[ch].sinc = NP << 4;
  spu.s_chan[ch].sinc_inv = 0;
  spu.SB[ch * SB_SIZE + 32] = 1; // -> freq change in simple interpolation mode: set flag
- if (val)
-  spu.dwChannelsAudible |= 1u << ch;
- else
-  spu.dwChannelsAudible &= ~(1u << ch);
+
+ // don't mess spu.dwChannelsAudible as adsr runs independently
 }
 
 ////////////////////////////////////////////////////////////////////////

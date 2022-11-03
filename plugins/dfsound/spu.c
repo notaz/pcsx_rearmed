@@ -251,8 +251,7 @@ static void StartSoundMain(int ch)
 
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
  spu.dwChannelDead&=~(1<<ch);
- if (s_chan->iRawPitch)
-  spu.dwChannelsAudible|=1<<ch;
+ spu.dwChannelsAudible|=1<<ch;
 }
 
 static void StartSound(int ch)
@@ -950,6 +949,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    d = SkipADSR(&s_chan->ADSRX, d);
    if (d < ns_to) {
     spu.dwChannelsAudible &= ~(1 << ch);
+    s_chan->ADSRX.State = ADSR_RELEASE;
     s_chan->ADSRX.EnvelopeVol = 0;
    }
   }
