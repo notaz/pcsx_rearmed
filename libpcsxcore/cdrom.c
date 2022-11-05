@@ -1284,8 +1284,6 @@ static void cdrReadInterrupt(void)
 	u8 subqPos[3];
 	int read_ok;
 
-	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
-
 	memcpy(subqPos, cdr.SetSectorPlay, sizeof(subqPos));
 	msfiAdd(subqPos, cdr.SubqForwardSectors);
 	UpdateSubq(subqPos);
@@ -1294,6 +1292,9 @@ static void cdrReadInterrupt(void)
 		CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 		return;
 	}
+
+	// note: CdlGetlocL should work as soon as STATUS_READ is indicated
+	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
 
 	read_ok = ReadTrack(cdr.SetSectorPlay);
 	if (read_ok)
