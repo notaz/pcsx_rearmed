@@ -124,7 +124,7 @@ struct trackinfo {
 	char start[3];		// MSF-format
 	char length[3];		// MSF-format
 	FILE *handle;		// for multi-track images CDDA
-	unsigned int start_offset; // byte offset from start of above file
+	unsigned int start_offset; // byte offset from start of above file (chd: sector offset)
 };
 
 #define MAXTRACKS 100 /* How many tracks can a CD hold? */
@@ -1431,7 +1431,7 @@ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int hunk;
 
-	assert(base == 0);
+	sector += base;
 
 	hunk = sector / chd_img->sectors_per_hunk;
 	chd_img->sector_in_hunk = sector % chd_img->sectors_per_hunk;
