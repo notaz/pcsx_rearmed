@@ -597,8 +597,14 @@ static u32 cdrAlignTimingHack(u32 cycles)
 	 * active), but before the game's handler loop reads I_STAT. The time
 	 * window for this is quite small (~1k cycles of so). Apparently this
 	 * somehow happens naturally on the real hardware.
+	 *
+	 * Note: always enforcing this breaks other games like Crash PAL version
+	 * (inputs get dropped because bios handler doesn't see interrupts).
 	 */
-	u32 vint_rel = rcnts[3].cycleStart + 63000 - psxRegs.cycle;
+	u32 vint_rel;
+	if (psxRegs.cycle - rcnts[3].cycleStart > 250000)
+		return cycles;
+	vint_rel = rcnts[3].cycleStart + 63000 - psxRegs.cycle;
 	vint_rel += PSXCLK / 60;
 	while ((s32)(vint_rel - cycles) < 0)
 		vint_rel += PSXCLK / 60;
@@ -1154,7 +1160,8 @@ void cdrInterrupt(void) {
 
 			cycles = (cdr.Mode & 0x80) ? cdReadTime : cdReadTime * 2;
 			cycles += seekTime;
-			cycles = cdrAlignTimingHack(cycles);
+			if (Config.hacks.cdr_read_timing)
+				cycles = cdrAlignTimingHack(cycles);
 			CDRPLAYREAD_INT(cycles, 1);
 
 			SetPlaySeekRead(cdr.StatP, STATUS_SEEK);
