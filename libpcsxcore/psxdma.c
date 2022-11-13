@@ -127,7 +127,8 @@ static u32 gpuDmaChainSize(u32 addr) {
 }
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
-	u32 *ptr;
+	u32 *ptr, madr_next, *madr_next_p;
+	int do_walking;
 	u32 words;
 	u32 size;
 
@@ -179,22 +180,25 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #ifdef PSXDMA_LOG
 			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 #endif
+			// when not emulating walking progress, end immediately
+			madr_next = 0xffffff;
 
-			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
+			do_walking = Config.GpuListWalking;
+			if (do_walking < 0)
+				do_walking = Config.hacks.gpu_slow_list_walking;
+			madr_next_p = do_walking ? &madr_next : NULL;
+
+			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff, madr_next_p);
 			if ((int)size <= 0)
 				size = gpuDmaChainSize(madr);
-			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 
-			// we don't emulate progress, just busy flag and end irq,
-			// so pretend we're already at the last block
-			HW_DMA2_MADR = SWAPu32(0xffffff);
+			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
+			HW_DMA2_MADR = SWAPu32(madr_next);
 
 			// Tekken 3 = use 1.0 only (not 1.5x)
 
 			// Einhander = parse linked list in pieces (todo)
-			// Final Fantasy 4 = internal vram time (todo)
 			// Rebel Assault 2 = parse linked list in pieces (todo)
-			// Vampire Hunter D = allow edits to linked list (todo)
 			GPUDMA_INT(size);
 			return;
 
@@ -208,6 +212,14 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 }
 
 void gpuInterrupt() {
+	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
+	{
+		u32 size, madr_next = 0xffffff;
+		size = GPU_dmaChain((u32 *)psxM, HW_DMA2_MADR & 0x1fffff, &madr_next);
+		HW_DMA2_MADR = SWAPu32(madr_next);
+		GPUDMA_INT(size);
+		return;
+	}
 	if (HW_DMA2_CHCR & SWAP32(0x01000000))
 	{
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);

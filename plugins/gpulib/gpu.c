@@ -606,7 +606,7 @@ void GPUwriteData(uint32_t data)
     flush_cmd_buffer();
 }
 
-long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
+long GPUdmaChain(uint32_t *rambase, uint32_t start_addr, uint32_t *progress_addr)
 {
   uint32_t addr, *list, ld_addr = 0;
   int len, left, count;
@@ -638,6 +638,10 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
         log_anomaly("GPUdmaChain: discarded %d/%d words\n", left, len);
     }
 
+    if (progress_addr) {
+      *progress_addr = addr;
+      break;
+    }
     #define LD_THRESHOLD (8*1024)
     if (count >= LD_THRESHOLD) {
       if (count == LD_THRESHOLD) {

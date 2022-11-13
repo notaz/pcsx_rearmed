@@ -18,6 +18,18 @@ static const char * const cdr_read_hack_db[] =
 	"SLUS00787",
 };
 
+static const char * const gpu_slow_llist_db[] =
+{
+	/* Crash Bash */
+	"SCES02834", "SCUS94570", "SCUS94616", "SCUS94654",
+	/* Final Fantasy IV */
+	"SCES03840", "SLPM86028", "SLUS01360",
+	/* Spot Goes to Hollywood */
+	"SLES00330", "SLPS00394", "SLUS00014",
+	/* Vampire Hunter D */
+	"SLES02731", "SLPS02477", "SLPS03198", "SLUS01138",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -31,6 +43,7 @@ static const struct
 hack_db[] =
 {
 	HACK_ENTRY(cdr_read_timing, cdr_read_hack_db),
+	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
 };
 
 static const struct

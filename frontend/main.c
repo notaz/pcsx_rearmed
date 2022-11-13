@@ -133,6 +133,7 @@ void emu_set_default_config(void)
 	Config.icache_emulation = 0;
 	Config.PsxAuto = 1;
 	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
+	Config.GpuListWalking = -1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
