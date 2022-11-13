@@ -325,6 +325,7 @@ void cdrLidSeekInterrupt(void)
 
 		if (stat.Status & STATUS_SHELLOPEN)
 		{
+			memset(cdr.Prev, 0xff, sizeof(cdr.Prev));
 			cdr.DriveState = DRIVESTATE_LID_OPEN;
 			CDRLID_INT(0x800);
 		}
