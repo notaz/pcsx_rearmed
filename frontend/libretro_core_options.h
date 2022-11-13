@@ -423,6 +423,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
+   {
+      "pcsx_rearmed_gpu_slow_llists",
+      "(GPU) Slow linked list processing",
+      NULL,
+      "Slower but more accurate GPU linked list processing. Needed by only a few games like Vampire Hunter D. Should be autodetected in most cases.",
+      NULL,
+      "video",
+      {
+         { "auto", NULL },
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "auto",
+   },
 #ifdef GPU_NEON
    {
       "pcsx_rearmed_neon_interlace_enable",

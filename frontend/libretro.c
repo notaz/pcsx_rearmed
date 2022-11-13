@@ -2117,6 +2117,18 @@ static void update_variables(bool in_flight)
          Config.Cdda = 0;
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_gpu_slow_llists";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+	 Config.GpuListWalking = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+	 Config.GpuListWalking = 1;
+      else // auto
+	 Config.GpuListWalking = -1;
+   }
+
 #ifdef THREAD_RENDERING
    var.key = "pcsx_rearmed_gpu_thread_rendering";
    var.value = NULL;

@@ -476,6 +476,7 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 	int size;
 
 	if (chcr != 0x01000201) {
+		log_unhandled("mdec0: invalid dma %08x\n", chcr);
 		return;
 	}
 
@@ -545,7 +546,10 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 	int size;
 	u32 words;
 
-	if (chcr != 0x01000200) return;
+	if (chcr != 0x01000200) {
+		log_unhandled("mdec1: invalid dma %08x\n", chcr);
+		return;
+	}
 
 	words = (bcr >> 16) * (bcr & 0xffff);
 	/* size in byte */

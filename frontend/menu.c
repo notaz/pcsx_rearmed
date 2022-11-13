@@ -397,6 +397,7 @@ static const struct {
 	CE_CONFIG_VAL(icache_emulation),
 	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
+	CE_CONFIG_VAL(GpuListWalking),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
@@ -1578,6 +1579,8 @@ static int menu_loop_speed_hacks(int id, int keys)
 	return 0;
 }
 
+static const char *men_gpul[]    = { "Auto", "Off", "On", NULL };
+
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"
 				   "(green: normal, red: fmod, blue: noise)";
@@ -1591,10 +1594,12 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 #endif
 static const char h_cfg_shacks[] = "Breaks games but may give better performance";
 static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
+static const char h_cfg_gpul[]   = "Try enabling this if the game is missing some graphics\n"
+				   "causes a performance hit";
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(adjust this if the game is too slow/too fast/hangs)";
 
-enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_CPU };
+enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_CPU, AMO_GPUL };
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1604,6 +1609,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable XA Decoding",    0, menu_iopts[AMO_XA],   1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, menu_iopts[AMO_CDDA], 1, h_cfg_cdda),
 	mee_onoff_h   ("ICache emulation",       0, menu_iopts[AMO_IC],   1, h_cfg_icache),
+	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_gpul, h_cfg_gpul),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
@@ -1627,9 +1633,14 @@ static int menu_loop_adv_options(int id, int keys)
 	int i;
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		*opts[i].mopt = *opts[i].opt;
+	menu_iopts[AMO_GPUL] = Config.GpuListWalking + 1;
+
 	me_loop(e_menu_adv_options, &sel);
+
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		*opts[i].opt = *opts[i].mopt;
+	Config.GpuListWalking = menu_iopts[AMO_GPUL] - 1;
+
 	return 0;
 }
 

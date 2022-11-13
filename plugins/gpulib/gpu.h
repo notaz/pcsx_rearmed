@@ -122,7 +122,7 @@ struct GPUFreeze;
 long GPUinit(void);
 long GPUshutdown(void);
 void GPUwriteDataMem(uint32_t *mem, int count);
-long GPUdmaChain(uint32_t *rambase, uint32_t addr);
+long GPUdmaChain(uint32_t *rambase, uint32_t addr, uint32_t *progress_addr);
 void GPUwriteData(uint32_t data);
 void GPUreadDataMem(uint32_t *mem, int count);
 uint32_t GPUreadData(void);

@@ -141,12 +141,14 @@ typedef struct {
 	boolean UseNet;
 	boolean icache_emulation;
 	boolean DisableStalls;
+	int GpuListWalking;
 	int cycle_multiplier; // 100 for 1.0
 	int cycle_multiplier_override;
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
 	struct {
 		boolean cdr_read_timing;
+		boolean gpu_slow_list_walking;
 	} hacks;
 #ifdef _WIN32
 	char Lang[256];
