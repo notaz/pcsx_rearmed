@@ -1503,14 +1503,22 @@ void cdrWrite3(unsigned char rt) {
 		break; // transfer
 	case 1:
 		if (cdr.Stat & rt) {
+			u32 nextCycle = psxRegs.intCycle[PSXINT_CDR].sCycle
+				+ psxRegs.intCycle[PSXINT_CDR].cycle;
 #ifdef CDR_LOG_CMD_IRQ
-			SysPrintf("%u cdrom: ack %02x (w %02x)\n",
-				psxRegs.cycle, cdr.Stat & rt, rt);
+			SysPrintf("%u cdrom: ack %02x (w=%02x p=%d,%d)\n",
+				psxRegs.cycle, cdr.Stat & rt, rt,
+				!!(psxRegs.interrupt & (1 << PSXINT_CDR)),
+				nextCycle - psxRegs.cycle);
 #endif
-			// note: Croc vs Discworld Noir
+			// note: Croc, Shadow Tower (more) vs Discworld Noir (<993)
 			if (!(psxRegs.interrupt & (1 << PSXINT_CDR)) &&
 			    (cdr.CmdInProgress || cdr.Irq1Pending))
-				CDR_INT(850); // 711-993
+			{
+				s32 c = 2048 - (psxRegs.cycle - nextCycle);
+				c = MAX_VALUE(c, 512);
+				CDR_INT(c);
+			}
 		}
 		cdr.Stat &= ~rt;
 
