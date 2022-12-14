@@ -173,7 +173,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
   linesInterlace = force_interlace;
 #ifdef HAVE_PRE_ARMV7 /* XXX */
-  linesInterlace |= gpu.status.interlace;
+  linesInterlace |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
 #endif
 
   for (; list < list_end; list += 1 + len)
