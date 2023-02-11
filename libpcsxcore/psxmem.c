@@ -44,15 +44,26 @@
 static void * psxMapDefault(unsigned long addr, size_t size,
 			    int is_fixed, enum psxMapTag tag)
 {
+#if !HAVE_MMAP
+	void *ptr;
+
+	ptr = malloc(size);
+	return ptr ? ptr : MAP_FAILED;
+#else
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
 	return mmap((void *)(uintptr_t)addr, size,
 		    PROT_READ | PROT_WRITE, flags, -1, 0);
+#endif
 }
 
 static void psxUnmapDefault(void *ptr, size_t size, enum psxMapTag tag)
 {
+#if !HAVE_MMAP
+	free(ptr);
+#else
 	munmap(ptr, size);
+#endif
 }
 
 void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
