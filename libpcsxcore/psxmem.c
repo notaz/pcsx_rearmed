@@ -41,34 +41,36 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+static void * psxMapDefault(unsigned long addr, size_t size,
+			    int is_fixed, enum psxMapTag tag)
+{
+	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+
+	return mmap((void *)(uintptr_t)addr, size,
+		    PROT_READ | PROT_WRITE, flags, -1, 0);
+}
+
+static void psxUnmapDefault(void *ptr, size_t size, enum psxMapTag tag)
+{
+	munmap(ptr, size);
+}
+
 void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
-		enum psxMapTag tag);
-void (*psxUnmapHook)(void *ptr, size_t size, enum psxMapTag tag);
+		enum psxMapTag tag) = psxMapDefault;
+void (*psxUnmapHook)(void *ptr, size_t size,
+		     enum psxMapTag tag) = psxUnmapDefault;
 
 void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag)
 {
-	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 	int try_ = 0;
 	unsigned long mask;
-	void *req, *ret;
+	void *ret;
 
 retry:
-	if (psxMapHook != NULL) {
-		ret = psxMapHook(addr, size, 0, tag);
-		if (ret == NULL)
-			return MAP_FAILED;
-	}
-	else {
-		/* avoid MAP_FIXED, it overrides existing mappings.. */
-		/* if (is_fixed)
-			flags |= MAP_FIXED; */
-
-		req = (void *)(uintptr_t)addr;
-		ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-		if (ret == MAP_FAILED)
-			return ret;
-	}
+	ret = psxMapHook(addr, size, 0, tag);
+	if (ret == NULL)
+		return MAP_FAILED;
 
 	if (addr != 0 && ret != (void *)(uintptr_t)addr) {
 		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
@@ -97,13 +99,7 @@ retry:
 
 void psxUnmap(void *ptr, size_t size, enum psxMapTag tag)
 {
-	if (psxUnmapHook != NULL) {
-		psxUnmapHook(ptr, size, tag);
-		return;
-	}
-
-	if (ptr)
-		munmap(ptr, size);
+	psxUnmapHook(ptr, size, tag);
 }
 
 s8 *psxM = NULL; // Kernel & User Memory (2 Meg)
