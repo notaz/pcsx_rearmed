@@ -321,20 +321,20 @@ LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
 ifeq "$(USE_LIBRETRO_VFS)" "1"
-OBJS += libretro-common/compat/compat_posix_string.o
-OBJS += libretro-common/compat/fopen_utf8.o
-OBJS += libretro-common/encodings/compat_strl.o
-OBJS += libretro-common/encodings/encoding_utf.o
-OBJS += libretro-common/file/file_path.o
-OBJS += libretro-common/streams/file_stream.o
-OBJS += libretro-common/streams/file_stream_transforms.o
-OBJS += libretro-common/string/stdstring.o
-OBJS += libretro-common/time/rtime.o
-OBJS += libretro-common/vfs/vfs_implementation.o
+OBJS += deps/libretro-common/compat/compat_posix_string.o
+OBJS += deps/libretro-common/compat/fopen_utf8.o
+OBJS += deps/libretro-common/encodings/compat_strl.o
+OBJS += deps/libretro-common/encodings/encoding_utf.o
+OBJS += deps/libretro-common/file/file_path.o
+OBJS += deps/libretro-common/streams/file_stream.o
+OBJS += deps/libretro-common/streams/file_stream_transforms.o
+OBJS += deps/libretro-common/string/stdstring.o
+OBJS += deps/libretro-common/time/rtime.o
+OBJS += deps/libretro-common/vfs/vfs_implementation.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
 OBJS += frontend/libretro.o
-CFLAGS += -Ilibretro-common/include
+CFLAGS += -Ideps/libretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 CFLAGS += -DHAVE_LIBRETRO
 
