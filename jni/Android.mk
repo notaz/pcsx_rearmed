@@ -156,6 +156,7 @@ ifeq ($(HAVE_LIGHTREC),1)
 		    $(ROOT_DIR)/include/lightning \
 		    $(ROOT_DIR)/include/lightrec
   SOURCES_C   += $(DEPS_DIR)/lightrec/blockcache.c \
+					  $(DEPS_DIR)/lightrec/constprop.c \
 					  $(DEPS_DIR)/lightrec/disassembler.c \
 					  $(DEPS_DIR)/lightrec/emitter.c \
 					  $(DEPS_DIR)/lightrec/interpreter.c \
