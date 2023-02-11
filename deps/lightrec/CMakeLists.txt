@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(lightrec LANGUAGES C VERSION 0.5)
+project(lightrec LANGUAGES C VERSION 0.7)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 if (NOT BUILD_SHARED_LIBS)
@@ -29,6 +29,7 @@ set(HAS_DEFAULT_ELM ${CMAKE_COMPILER_IS_GNUCC})
 
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
+	constprop.c
 	emitter.c
 	interpreter.c
 	lightrec.c
@@ -38,6 +39,7 @@ list(APPEND LIGHTREC_SOURCES
 )
 list(APPEND LIGHTREC_HEADERS
 	blockcache.h
+	constprop.h
 	debug.h
 	disassembler.h
 	emitter.h
@@ -52,7 +54,7 @@ list(APPEND LIGHTREC_HEADERS
 
 option(ENABLE_FIRST_PASS "Run the interpreter as first-pass optimization" ON)
 
-option(ENABLE_THREADED_COMPILER "Enable threaded compiler" ON)
+option(ENABLE_THREADED_COMPILER "Enable threaded compiler" OFF)
 if (ENABLE_THREADED_COMPILER)
 	list(APPEND LIGHTREC_SOURCES recompiler.c reaper.c)
 
@@ -99,7 +101,7 @@ if (ENABLE_THREADED_COMPILER)
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${PTHREAD_LIBRARIES})
 endif (ENABLE_THREADED_COMPILER)
 
-option(ENABLE_CODE_BUFFER "Enable external code buffer" OFF)
+option(ENABLE_CODE_BUFFER "Enable external code buffer" ON)
 if (ENABLE_CODE_BUFFER)
 	target_sources(${PROJECT_NAME} PRIVATE tlsf/tlsf.c)
 	target_include_directories(${PROJECT_NAME} PRIVATE tlsf)

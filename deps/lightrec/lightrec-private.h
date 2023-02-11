@@ -81,6 +81,7 @@
 
 #define REG_LO 32
 #define REG_HI 33
+#define REG_CP2_TEMP (offsetof(struct lightrec_state, cp2_temp_reg) / sizeof(u32))
 
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
@@ -152,8 +153,9 @@ struct lightrec_cstate {
 
 struct lightrec_state {
 	struct lightrec_registers regs;
-	uintptr_t wrapper_regs[NUM_TEMPS];
+	u32 cp2_temp_reg;
 	u32 next_pc;
+	uintptr_t wrapper_regs[NUM_TEMPS];
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
@@ -187,9 +189,6 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 void lightrec_free_block(struct lightrec_state *state, struct block *block);
 
 void remove_from_code_lut(struct blockcache *cache, struct block *block);
-
-enum psx_map
-lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr);
 
 const struct lightrec_mem_map *
 lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr);
@@ -272,7 +271,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 	return block->pc + (offset + imm << 2);
 }
 
-void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
+void lightrec_mtc(struct lightrec_state *state, union code op, u8 reg, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
 void lightrec_rfe(struct lightrec_state *state);
 void lightrec_cp(struct lightrec_state *state, union code op);
@@ -338,6 +337,16 @@ static inline u8 block_clear_flags(struct block *block, u8 mask)
 
 	return flags;
 #endif
+}
+
+static inline _Bool can_sign_extend(s32 value, u8 order)
+{
+      return (u32)(value >> order - 1) + 1 < 2;
+}
+
+static inline _Bool can_zero_extend(u32 value, u8 order)
+{
+      return (value >> order) == 0;
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

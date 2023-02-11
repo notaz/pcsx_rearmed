@@ -500,7 +500,7 @@ static u32 int_ctc(struct interpreter *inter)
 	struct lightrec_state *state = inter->state;
 	const struct opcode *op = inter->op;
 
-	lightrec_mtc(state, op->c, state->regs.gpr[op->r.rt]);
+	lightrec_mtc(state, op->c, op->r.rd, state->regs.gpr[op->r.rt]);
 
 	/* If we have a MTC0 or CTC0 to CP0 register 12 (Status) or 13 (Cause),
 	 * return early so that the emulator will be able to check software

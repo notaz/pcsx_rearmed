@@ -295,7 +295,7 @@ static int print_op_special(union code c, char *buf, size_t len,
 		return snprintf(buf, len, "%s%s,%s",
 				special_opcodes[c.r.op],
 				lightrec_reg_name(c.r.rd),
-				lightrec_reg_name(c.r.rt));
+				lightrec_reg_name(c.r.rs));
 	case OP_SPECIAL_SYSCALL:
 	case OP_SPECIAL_BREAK:
 		return snprintf(buf, len, "%s", special_opcodes[c.r.op]);

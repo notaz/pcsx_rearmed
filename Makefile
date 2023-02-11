@@ -113,6 +113,7 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightning/lib/jit_size.o \
 		deps/lightning/lib/lightning.o \
 		deps/lightrec/blockcache.o \
+		deps/lightrec/constprop.o \
 		deps/lightrec/disassembler.o \
 		deps/lightrec/emitter.o \
 		deps/lightrec/interpreter.o \

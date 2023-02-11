@@ -198,7 +198,7 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 	}
 }
 
-enum psx_map
+static enum psx_map
 lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr)
 {
 	const struct lightrec_mem_map *map;
@@ -428,7 +428,10 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 
 	if (op.i.op == OP_CP0)
 		return state->regs.cp0[op.r.rd];
-	else if (op.r.rs == OP_CP2_BASIC_MFC2)
+
+	if (op.i.op == OP_SWC2) {
+		val = lightrec_mfc2(state, op.i.rt);
+	} else if (op.r.rs == OP_CP2_BASIC_MFC2)
 		val = lightrec_mfc2(state, op.r.rd);
 	else {
 		val = state->regs.cp2c[op.r.rd];
@@ -458,7 +461,9 @@ static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
 {
 	u32 rt = lightrec_mfc(state, op);
 
-	if (op.r.rt)
+	if (op.i.op == OP_SWC2)
+		state->cp2_temp_reg = rt;
+	else if (op.r.rt)
 		state->regs.gpr[op.r.rt] = rt;
 }
 
@@ -576,15 +581,15 @@ static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
 	}
 }
 
-void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
+void lightrec_mtc(struct lightrec_state *state, union code op, u8 reg, u32 data)
 {
 	if (op.i.op == OP_CP0) {
-		lightrec_mtc0(state, op.r.rd, data);
+		lightrec_mtc0(state, reg, data);
 	} else {
-		if (op.r.rs == OP_CP2_BASIC_CTC2)
-			lightrec_ctc2(state, op.r.rd, data);
+		if (op.i.op == OP_LWC2 || op.r.rs != OP_CP2_BASIC_CTC2)
+			lightrec_mtc2(state, reg, data);
 		else
-			lightrec_mtc2(state, op.r.rd, data);
+			lightrec_ctc2(state, reg, data);
 
 		if (state->ops.cop2_notify)
 			(*state->ops.cop2_notify)(state, op.opcode, data);
@@ -594,8 +599,18 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 static void lightrec_mtc_cb(struct lightrec_state *state, u32 arg)
 {
 	union code op = (union code) arg;
+	u32 data;
+	u8 reg;
 
-	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
+	if (op.i.op == OP_LWC2) {
+		data = state->cp2_temp_reg;
+		reg = op.i.rt;
+	} else {
+		data = state->regs.gpr[op.r.rt];
+		reg = op.r.rd;
+	}
+
+	lightrec_mtc(state, op, reg, data);
 }
 
 void lightrec_rfe(struct lightrec_state *state)
@@ -671,7 +686,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	void *func;
 	int err;
 
-	for (;;) {
+	do {
 		func = lut_read(state, lut_offset(pc));
 		if (func && func != state->get_next_block)
 			break;
@@ -740,11 +755,8 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		} else {
 			lightrec_recompiler_add(state->rec, block);
 		}
-
-		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-		    state->current_cycle >= state->target_cycle)
-			break;
-	}
+	} while (state->exit_flags == LIGHTREC_EXIT_NORMAL
+		 && state->current_cycle < state->target_cycle);
 
 	state->next_pc = pc;
 	return func;
@@ -846,6 +858,9 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	}
 
 	*size = (unsigned int) new_code_size;
+
+	if (state->ops.code_inv)
+		state->ops.code_inv(code, new_code_size);
 
 	return code;
 }
@@ -1009,16 +1024,14 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_prolog();
 	jit_frame(256);
 
+	jit_getarg(LIGHTREC_REG_STATE, jit_arg());
+	jit_getarg(JIT_V0, jit_arg());
 	jit_getarg(JIT_V1, jit_arg());
 	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
 		jit_movr(JIT_V(i + FIRST_REG), JIT_V(i + FIRST_REG));
-
-	/* Pass lightrec_state structure to blocks, using the last callee-saved
-	 * register that Lightning provides */
-	jit_movi(LIGHTREC_REG_STATE, (intptr_t) state);
 
 	loop = jit_label();
 
@@ -1114,6 +1127,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	} else {
 		jit_movr(LIGHTREC_REG_CYCLE, JIT_V0);
 	}
+
+	/* Reset JIT_V0 to the next PC */
+	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, next_pc));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1399,6 +1416,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
+	lightrec_preload_pc(cstate->reg_cache);
+
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;
 	cstate->nb_targets = 0;
@@ -1603,7 +1622,7 @@ static void lightrec_print_info(struct lightrec_state *state)
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
-	s32 (*func)(void *, s32) = (void *)state->dispatcher->function;
+	s32 (*func)(struct lightrec_state *, u32, void *, s32) = (void *)state->dispatcher->function;
 	void *block_trace;
 	s32 cycles_delta;
 
@@ -1620,7 +1639,8 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (block_trace) {
 		cycles_delta = state->target_cycle - state->current_cycle;
 
-		cycles_delta = (*func)(block_trace, cycles_delta);
+		cycles_delta = (*func)(state, state->next_pc,
+				       block_trace, cycles_delta);
 
 		state->current_cycle = state->target_cycle - cycles_delta;
 	}
