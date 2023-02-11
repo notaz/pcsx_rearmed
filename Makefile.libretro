@@ -210,6 +210,7 @@ else ifeq ($(platform), libnx)
    CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
    CFLAGS += -ftree-vectorize
    CFLAGS += -Ifrontend/switch -ftree-vectorize
+   NO_POSIX_MEMALIGN := 1
    NO_PTHREAD=1
    LIBPTHREAD :=
    STATIC_LINKING=1
@@ -265,6 +266,7 @@ else ifeq ($(platform), vita)
 	ARCH = arm
 	STATIC_LINKING = 1
 	NO_PTHREAD=1
+	NO_POSIX_MEMALIGN := 1
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
@@ -289,6 +291,7 @@ else ifeq ($(platform), ctr)
 	ARCH = arm
 	HAVE_NEON = 0
 	STATIC_LINKING = 1
+	NO_POSIX_MEMALIGN := 1
 
 # Xbox 360
 else ifeq ($(platform), xenon)
