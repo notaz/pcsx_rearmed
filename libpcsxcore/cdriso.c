@@ -30,8 +30,7 @@
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
-#define usleep(x) Sleep((x) / 1000)
-#else
+#elif HAVE_PTHREAD
 #include <pthread.h>
 #include <sys/time.h>
 #include <unistd.h>

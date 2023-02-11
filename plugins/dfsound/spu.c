@@ -18,9 +18,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#if !defined(THREAD_ENABLED) && !defined(_WIN32) && !defined(NO_OS)
-#define THREAD_ENABLED 1
-#endif
 #include "stdafx.h"
 
 #define _IN_SPU
@@ -832,7 +829,7 @@ static void do_samples_finish(int *SSumLR, int ns_to,
 
 // optional worker thread handling
 
-#if defined(THREAD_ENABLED) || defined(WANT_THREAD_CODE)
+#if HAVE_PTHREAD || defined(WANT_THREAD_CODE)
 
 // worker thread state
 static struct spu_worker {
@@ -1087,7 +1084,7 @@ static void sync_worker_thread(int force) {}
 
 static const void * const worker = NULL;
 
-#endif // THREAD_ENABLED
+#endif // HAVE_PTHREAD || defined(WANT_THREAD_CODE)
 
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
@@ -1368,7 +1365,7 @@ static void RemoveStreams(void)
 /* special code for TI C64x DSP */
 #include "spu_c64x.c"
 
-#elif defined(THREAD_ENABLED)
+#elif HAVE_PTHREAD
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -1467,7 +1464,7 @@ static void exit_spu_thread(void)
  worker = NULL;
 }
 
-#else // if !THREAD_ENABLED
+#else // if !HAVE_PTHREAD
 
 static void init_spu_thread(void)
 {
