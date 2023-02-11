@@ -210,6 +210,7 @@ else ifeq ($(platform), libnx)
    CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
    CFLAGS += -ftree-vectorize
    CFLAGS += -Ifrontend/switch -ftree-vectorize
+   NO_PTHREAD=1
    LIBPTHREAD :=
    STATIC_LINKING=1
    BUILTIN_GPU = neon
@@ -263,6 +264,7 @@ else ifeq ($(platform), vita)
 	DYNAREC = ari64
 	ARCH = arm
 	STATIC_LINKING = 1
+	NO_PTHREAD=1
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
@@ -270,7 +272,7 @@ else ifeq ($(platform), ctr)
 	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
 	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
-	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET -DTHREAD_ENABLED -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
+	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer -ffast-math -funroll-loops
@@ -511,6 +513,7 @@ ifneq ($(DEBUG),1)
 endif
 	CFLAGS += -D__WIN32__ -DNO_DYLIB
 	MMAP_WIN32=1
+	NO_PTHREAD=1
 	MAIN_LDLIBS += -lws2_32
 	LIBPTHREAD :=
 	LIBDL :=

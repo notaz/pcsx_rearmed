@@ -2098,28 +2098,28 @@ static void update_variables(bool in_flight)
          spu_config.iUseThread = 0;
    }
 
-#ifndef _WIN32
-   var.value = NULL;
-   var.key = "pcsx_rearmed_async_cd";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "async") == 0)
-      {
-         Config.AsyncCD = 1;
-         Config.CHD_Precache = 0;
-      }
-      else if (strcmp(var.value, "sync") == 0)
-      {
-         Config.AsyncCD = 0;
-         Config.CHD_Precache = 0;
-      }
-      else if (strcmp(var.value, "precache") == 0)
-      {
-         Config.AsyncCD = 0;
-         Config.CHD_Precache = 1;
-      }
+   if (HAVE_PTHREAD) {
+	   var.value = NULL;
+	   var.key = "pcsx_rearmed_async_cd";
+	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+	   {
+		  if (strcmp(var.value, "async") == 0)
+		  {
+			 Config.AsyncCD = 1;
+			 Config.CHD_Precache = 0;
+		  }
+		  else if (strcmp(var.value, "sync") == 0)
+		  {
+			 Config.AsyncCD = 0;
+			 Config.CHD_Precache = 0;
+		  }
+		  else if (strcmp(var.value, "precache") == 0)
+		  {
+			 Config.AsyncCD = 0;
+			 Config.CHD_Precache = 1;
+		  }
+       }
    }
-#endif
 
    var.value = NULL;
    var.key = "pcsx_rearmed_noxadecoding";
