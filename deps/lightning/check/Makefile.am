@@ -1,5 +1,5 @@
 #
-# Copyright 2012-2022 Free Software Foundation, Inc.
+# Copyright 2012-2023 Free Software Foundation, Inc.
 #
 # This file is part of GNU lightning.
 #
@@ -14,10 +14,11 @@
 # License for more details.
 #
 
-AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include -D_GNU_SOURCE
+AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include \
+	-D_GNU_SOURCE $(LIGHTNING_CFLAGS)
 
 check_PROGRAMS = lightning ccall self setcode nodata ctramp carg cva_list \
-	catomic
+	catomic protect riprel
 
 lightning_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
 lightning_SOURCES = lightning.c
@@ -45,6 +46,12 @@ cva_list_SOURCES = cva_list.c
 
 catomic_LDADD = $(top_builddir)/lib/liblightning.la -lm -lpthread $(SHLIB)
 catomic_SOURCES = catomic.c
+
+protect_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
+protect_SOURCES = protect.c
+
+riprel_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
+riprel_SOURCES = riprel.c
 
 $(top_builddir)/lib/liblightning.la:
 	cd $(top_builddir)/lib; $(MAKE) $(AM_MAKEFLAGS) liblightning.la
@@ -105,8 +112,10 @@ EXTRA_DIST =				\
 	range.tst	range.ok	\
 	ranger.tst	ranger.ok	\
 	ret.tst		ret.ok		\
+	skip.tst	skip.ok		\
 	tramp.tst	tramp.ok	\
 	va_list.tst	va_list.ok	\
+	bit.tst		bit.ok		\
 	check.sh			\
 	check.x87.sh			\
 	check.arm.sh	check.swf.sh	\
@@ -114,7 +123,8 @@ EXTRA_DIST =				\
 	check.arm4.swf.sh		\
 	check.nodata.sh			\
 	check.x87.nodata.sh		\
-	run-test	all.tst
+	run-test	all.tst		\
+	collatz.tst	factorial.tst
 
 base_TESTS =				\
 	3to2 add align allocai		\
@@ -135,8 +145,8 @@ base_TESTS =				\
 	clobber carry call		\
 	float jmpr live put		\
 	qalu_mul qalu_div		\
-	range ranger ret tramp		\
-	va_list
+	range ranger ret skip tramp	\
+	va_list bit
 
 $(base_TESTS):	check.sh
 	$(LN_S) $(srcdir)/check.sh $@
@@ -317,13 +327,14 @@ nodata_TESTS =						\
 	clobber.nodata carry.nodata call.nodata		\
 	float.nodata jmpr.nodata tramp.nodata		\
 	range.nodata ranger.nodata put.nodata		\
-	va_list.nodata
+	va_list.nodata bit.nodata
 $(nodata_TESTS):	check.nodata.sh
 	$(LN_S) $(srcdir)/check.nodata.sh $@
 TESTS += $(nodata_TESTS)
 endif
 
-TESTS += ccall self setcode nodata ctramp carg cva_list catomic
+TESTS += ccall self setcode nodata ctramp carg cva_list catomic \
+         protect riprel
 CLEANFILES = $(TESTS)
 
 #TESTS_ENVIRONMENT=$(srcdir)/run-test;

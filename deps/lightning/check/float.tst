@@ -14,9 +14,9 @@ ok:
 #  define x80			0x8000000000000000
 #endif
 
-#if __mips__ || __sparc__ || __hppa__ || __riscv
+#if (__mips__ && __mips_isa_rev < 6)  || __sparc__ || __hppa__ || __riscv
 #  define wnan			x7f
-#elif __arm__ || __aarch64__ || __alpha__ || __loongarch__
+#elif (__mips__ && __mips_isa_rev >= 6) || __arm__ || __aarch64__ || __alpha__ || __loongarch__
 #  define wnan			0
 #else
 #  define wnan			x80

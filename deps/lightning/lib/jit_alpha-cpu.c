@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022  Free Software Foundation, Inc.
+ * Copyright (C) 2014-2023  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -320,6 +320,12 @@ static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
 #define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define negr(r0,r1)			NEGQ(r1,r0)
 #  define comr(r0,r1)			NOT(r1,r0)
+#  define clor(r0, r1)			_clor(_jit, r0, r1)
+static void _clor(jit_state_t*, jit_int32_t, jit_int32_t);
+#  define clzr(r0, r1)			CTLZ(r1, r0)
+#  define ctor(r0, r1)			_ctor(_jit, r0, r1)
+static void _ctor(jit_state_t*, jit_int32_t, jit_int32_t);
+#  define ctzr(r0, r1)			CTTZ(r1, r0)
 #  define addr(r0,r1,r2)		ADDQ(r1,r2,r0)
 #  define addi(r0,r1,i0)		_addi(_jit,r0,r1,i0)
 static void _addi(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
@@ -637,7 +643,7 @@ static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 static void _bswapr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define jmpr(r0)			JMP(_R31_REGNO,r0,0)
 #  define jmpi(i0)			_jmpi(_jit,i0)
-static void _jmpi(jit_state_t*, jit_word_t);
+static jit_word_t _jmpi(jit_state_t*, jit_word_t);
 #  define jmpi_p(i0)			_jmpi_p(_jit,i0)
 static jit_word_t _jmpi_p(jit_state_t*, jit_word_t);
 #define callr(r0)			_callr(_jit,r0)
@@ -825,7 +831,7 @@ _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     }
     again = _jit->pc.w;			/* AGAIN */
     LDQ_L(r0, r1, 0);			/* Load r0 locked */
-    jump0 = bner(0, r0, r2);		/* bne FAIL r0 r2 */
+    jump0 = bner(_jit->pc.w, r0, r2);	/* bne FAIL r0 r2 */
     movr(r0, r3);			/* Move to r0 to attempt to store */
     STQ_C(r0, r1, 0);			/* r0 is an in/out argument */
     jump1 = _jit->pc.w;
@@ -838,6 +844,20 @@ _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     patch_at(jump1, _jit->pc.w);
     if (iscasi)
         jit_unget_reg(r1_reg);
+}
+
+static void
+_clor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    comr(r0, r1);
+    clzr(r0, r0);
+}
+
+static void
+_ctor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    comr(r0, r1);
+    ctzr(r0, r0);
 }
 
 static void
@@ -2543,7 +2563,7 @@ _bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     jit_unget_reg(t0);
 }
 
-static void
+static jit_word_t
 _jmpi(jit_state_t *_jit, jit_word_t i0)
 {
     jit_word_t		w;
@@ -2553,7 +2573,8 @@ _jmpi(jit_state_t *_jit, jit_word_t i0)
     if (_s21_p(d))
 	BR(_R31_REGNO, d);
     else
-	(void)jmpi_p(i0);
+	w = jmpi_p(i0);
+    return (w);
 }
 
 static jit_word_t

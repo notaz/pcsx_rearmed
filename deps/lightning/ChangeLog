@@ -1,3 +1,190 @@
+2023-02-23 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning/jit_private.h: Add new 'inst' field to
+	jit_compiler_t, if __mips__ is defined. This field is a simple
+	helper for a pending instruction to be emitted, and that can
+	be emitted out of order.
+	* lib/jit_fallback.c: Update for changes in internal mips patching
+	and jumping macros and function calls.
+	* lib/jit_mips-cpu.c: Core of changes to attempt to fill delay
+	slots with instructions that can be emitted out of order.
+	* lib/jit_mips-fpu.c: Update to use delay slot in branches.
+	* lib/jit_mips.c: Update for new delay slot use logic.
+
+2023-02-20 Paulo Andrade <pcpa@gnu.org>
+
+	* check/float.tst: Add conditionals for mips release for expected
+	NaN truncated to an integer.
+	* check/lightning.c: Add extra preprocessor for mips release.
+	* include/lightning/jit_mips.h: Make the NEW_ABI preprocessor
+	defined to zero if using the n32 or n64 abis. This makes it
+	easier to create runtime checks with an always true or false
+	condition.
+	* lib/jit_mips-cpu.c, lib/jit_mips-fpu.c: Implement mips release
+	6 support.
+	* lib/jit_mips.c: Add more reliable mips release detection code.
+
+2023-02-09 Paulo Andrade <pcpa@gnu.org>
+
+	* check/Makefile.am: Update for new bit.tst test, to check the
+	new clor, clzr, ctor and ctzr instructions.
+	* check/all.tst: Update to verify encoding of new instructions.
+	* check/lightning.c: Update to have the lightning "assembler"
+	understanding the new instructions.
+	* include/lightning.h.in: Define new codes for new instructions.
+	* lib/jit_aarch64.c, lib/jit_alpha.c, lib/jit_arm.c, lib/jit_hppa.c,
+	lib/jit_ia64.c, lib/jit_loongarch.c, lib/jit_mips.c, lib/jit_ppc.c,
+	lib/jit_riscv.c, lib/jit_s390.c, lib/jit_sparc.c, lib/jit_x86.c:
+	Implement fallback version of new instructions.
+	* lib/jit_fallback.c: Actual implementation of the fallbacks of
+	the new instructions.
+	* lib/jit_names.c: Update to print debug information of new
+	instructions.
+
+2023-01-26 Paulo Andrade <pcpa@gnu.org>
+
+	* check/riprel.c, check/riprel.ok: New check files.
+	* check/Makefile.am: Support for new riprel test.
+	* lib/jit_x86-cpu.c, lib/jit_x86-sse.c, lib/jit_x86.c: Implement
+	%rip relative addressing when reliable. Currently disabled for
+	x32 and _WIN32; could be added for positive relative addresses
+	only where it should work.
+	* lib/lightning.c: Correct problem added in previous patch due
+	to not testing on a 32 bit environment.
+
+2023-01-23 Paulo Andrade <pcpa@gnu.org>
+
+	* lib/jit_mips-cpu.c, lib/jit_mips-cpu.c: Use pseudo instructions
+	"b" (BEQ(0,0,disp)) and "bal" (BGEZAL(0,disp)) for mips2, when an
+	unconditional branch or function call is known to be in range of a
+	relative jump. This should significantly reduce jit size generation.
+
+2023-01-20 Paulo Andrade <pcpa@gnu.org>
+
+	* lib/jit_mips-cpu.c, lib/jit_mips.c, lib/jit_rewind.c: Adapt
+	code to implement a variable framesize and optimize frame pointer
+	for simple leaf functions.
+
+2023-01-19 Paulo Andrade <pcpa@gnu.org>
+
+	* lib/jit_riscv.c, lib/jit_riscv-cpu.c: Adapt code to use a
+	variable framesize. Previously it was aligning the stack at
+	8 bytes, not 16. Now functions are called with a 16 byte aligned
+	stack.
+
+2023-01-18 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning/jit_private.h: Include new framesize field
+	of jit_compiler_t; add new alist field for jit_function_t; add
+	new cvt_offset and need_stack fields specific to x86.
+	* lib/jit_x86.c, lib/jit_x86-cpu: Rewrite code to create stack
+	frames, so that less stack space can be used if no, or very few
+	callee save registers are modified in a function.
+	* jit_x86-sse.c, jit_x86-x87.c: Make CVT_OFFSET variable, and
+	dynamically allocated; this is required to avoid needing to
+	modify twice %rsp at function prologs, even if no stack space
+	is used.
+
+2022-11-09 Paulo Andrade <pcpa@gnu.org>
+
+	* configure.ac: Add new --enable-devel-strong-type-checking
+	option.
+	* include/lightning.h.in: Rework to not need to know if
+	PACKED_STACK is defined, and add a new argument to _jit_arg,
+	_jit_putarg{r,i}, _jit_pusharg{r,i} and _jit_ret{r,i} to have
+	the same code path if PACKED_STACK is defined or not, and also
+	to implement STRONG_TYPE_CHECK enabled with the new
+	--enable-devel-strong-type-checking.
+	* include/lightning/jit_private.h: Add new macros to add assertions
+	for STRONG_TYPE_CHECK and avoid pasting tokens in jit_inc_synth*
+	when the token is not a static known value.
+	* lib/jit_aarch64.c: The first implementation of the new code,
+	working correctly in Apple M1 and with and without STRONG_TYPE_CHECK
+	in Linux.
+
+2022-11-08 Paulo Andrade <pcpa@gnu.org>
+
+	Add support for packed stack arguments as used by Apple M1
+	aarch64 cpus. This requires a major redesign in how Lightning
+	works, because contrary to all other supported ports, in this
+	case arguments must be truncated and sign/zero extended if
+	passed in registers, but when receiving the argument, there
+	is no need to truncate and sign/zero extend.
+	Return values are also treated this way. The callee must
+	truncate sign/zero extend, not the caller.
+	check/Makefile.am: Add LIGHTNING_CFLAGS to AM_CFLAGS.
+	check/all.tst: Implement paired arg/getarg/pusharg/putarg/ret
+	codes to validate they do not generate assertions.
+	* check/allocar.tst, check/call.tst, check/fib.tst, check/put.tst,
+	check/stack.tst: Update to pass in all build types.
+	check/lightning.c: Add new codes for extra codes to handle
+	packed stack.
+	* configure.ac: Add a preprocessor define to know if packed stack
+	need is required. This is not really used, as it was moved to
+	jit_aarch64.h.
+	* doc/Makefile.am: Add LIGHTNING_CFLAGS to AM_CFLAGS.
+	* doc/rpn.c: Update to pass in all build types.
+	include/lightning.h.in: Add new codes and reorder enum.
+	* include/lightning/jit_aarch64.h: Detect condition of needing
+	a packed stack.
+	* lib/jit_aarch64-sz.c: Regenerate.
+	* lib/jit_aarch64.c: Major updates for packed stack.
+	* lib/jit_names.c: Updates for debug output.
+	* lib/lightning.c: Update for new codes.
+
+2022-10-31  Marc Nieper-Wißkirchen  <marc@nieper-wisskirchen.de>
+
+	Add new skip instruction.
+	* .gitignore: Update from Gnulib.
+	* check/Makefile.am: Add tests.
+	* check/lightning.c: Handle skip instructions.
+	* check/protect.c: Rewrite with skip.
+	* check/skip.ok: New test.
+	* check/skip.tst: New test.
+	* doc/body.texi: Document the skip instruction.
+	* include/lightning.h.in: Add the skip instruction.
+	* lib/jit_aarch64-sz.c: Update for skip instruction.
+	* lib/jit_aarch64.c: Implement skip instruction.
+	* lib/jit_alpha-sz.c: Update for skip instruction.
+	* lib/jit_alpha.c: Implement skip instruction.
+	* lib/jit_arm-sz.c: Update for skip instruction.
+	* lib/jit_arm.c: Implement skip instruction.
+	* lib/jit_hppa-sz.c: Update for skip instruction.
+	* lib/jit_hppa.c: Implement skip instruction.
+	* lib/jit_ia64-sz.c: Update for skip instruction.
+	* lib/jit_ia64.c: Implement skip instruction.
+	* lib/jit_loongarch-sz.c: Update for skip instruction.
+	* lib/jit_loongarch.c: Implement skip instruction.
+	* lib/jit_mips-sz.c: Update for skip instruction.
+	* lib/jit_mips.c: Implement skip instruction.
+	* lib/jit_names.c: Update for skip instruction.
+	* lib/jit_ppc-sz.c: Update for skip instruction.
+	* lib/jit_ppc.c: Implement skip instruction.
+	* lib/jit_riscv-sz.c: Update for skip instruction.
+	* lib/jit_riscv.c: Implement skip instruction.
+	* lib/jit_s390-sz.c: Update for skip instruction.
+	* lib/jit_s390.c: Implement skip instruction.
+	* lib/jit_size.c: Treat align and skip in a special way.
+	* lib/jit_sparc-sz.c: Update for skip instruction.
+	* lib/jit_sparc.c: Implement skip instruction.
+	* lib/jit_x86-sz.c: Update for skip instruction.
+	* lib/jit_x86.c: Implement skip instruction.
+	* lib/lightning.c: Classify skip instruction.
+
+2022-10-30  Marc Nieper-Wißkirchen  <marc@nieper-wisskirchen.de>
+
+	Add user-visible functions jit_protect and jit_unprotect.
+	* check/Makefile.am: Add test for jit_protect and jit_unprotect.
+	* check/protect.c: New test.
+	* doc/body.texi: Add documentation for jit_protect and
+	jit_unprotect.
+	* include/lightning.h.in: Add prototypes for jit_protect and
+	jit_unprotect.
+	* include/lightning/jit_private.h: Add a field to store the size
+	of the protected memory.
+	* lib/lightning.c: Remember the size of the protected memory and
+	implement the two new functions.
+
 2022-10-12 Paulo Andrade <pcpa@gnu.org>
 
 	* include/lightning/jit_loongarch.h, lib/jit_loongarch-cpu.c,
