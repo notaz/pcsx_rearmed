@@ -20,6 +20,7 @@
  ***************************************************************************/
 
 #include "stdafx.h"
+#include "spu.h"
 
 #define _IN_REVERB
 
@@ -50,16 +51,16 @@ INLINE int rvb2ram_offs(int curr, int space, int iOff)
 
 // get_buffer content helper: takes care about wraps
 #define g_buffer(var) \
- ((int)(signed short)spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)])
+ ((int)(signed short)LE16TOH(spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)]))
 
 // saturate iVal and store it as var
 #define s_buffer(var, iVal) \
  ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)] = HTOLE16(iVal)
 
 #define s_buffer1(var, iVal) \
  ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var + 1)] = iVal
+ spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var + 1)] = HTOLE16(iVal)
 
 ////////////////////////////////////////////////////////////////////////
 
