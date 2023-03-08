@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "stdafx.h"
+#include "spu.h"
 #define _IN_XA
 #include <stdint.h>
 
@@ -60,8 +61,8 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
     SSumLR[ns++] += l;
     SSumLR[ns++] += r;
 
-    spu.spuMem[cursor] = v;
-    spu.spuMem[cursor + 0x400/2] = v >> 16;
+    spu.spuMem[cursor] = HTOLE16(v);
+    spu.spuMem[cursor + 0x400/2] = HTOLE16(v >> 16);
     cursor = (cursor + 1) & 0x1ff;
    }
   spu.XALastVal = v;
@@ -80,8 +81,8 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
     SSumLR[ns++] += l;
     SSumLR[ns++] += r;
 
-    spu.spuMem[cursor] = v;
-    spu.spuMem[cursor + 0x400/2] = v >> 16;
+    spu.spuMem[cursor] = HTOLE16(v);
+    spu.spuMem[cursor + 0x400/2] = HTOLE16(v >> 16);
     cursor = (cursor + 1) & 0x1ff;
    }
   spu.XALastVal = v;

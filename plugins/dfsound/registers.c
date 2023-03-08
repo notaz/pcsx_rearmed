@@ -22,6 +22,7 @@
 #include "externals.h"
 #include "registers.h"
 #include "spu_config.h"
+#include "spu.h"
 
 static void SoundOn(int start,int end,unsigned short val);
 static void SoundOff(int start,int end,unsigned short val);
@@ -127,7 +128,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_SPUdata:
-      *(unsigned short *)(spu.spuMemC + spu.spuAddr) = val;
+      *(unsigned short *)(spu.spuMemC + spu.spuAddr) = HTOLE16(val);
       spu.spuAddr += 2;
       spu.spuAddr &= 0x7fffe;
       break;
@@ -334,7 +335,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
 
     case H_SPUdata:
      {
-      unsigned short s = *(unsigned short *)(spu.spuMemC + spu.spuAddr);
+      unsigned short s = LE16TOH(*(unsigned short *)(spu.spuMemC + spu.spuAddr));
       spu.spuAddr += 2;
       spu.spuAddr &= 0x7fffe;
       return s;
