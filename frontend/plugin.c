@@ -76,7 +76,7 @@ static long CALLBACK PADreadPort1(PadDataS *pad) {
 
 	pad->portMultitap = multitap1;
 
-	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
+	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON || in_type[pad_index] == PSE_PAD_TYPE_GUN)
 	{
 		pad->leftJoyX = in_analog_left[pad_index][0];
 		pad->leftJoyY = in_analog_left[pad_index][1];
@@ -104,7 +104,7 @@ static long CALLBACK PADreadPort2(PadDataS *pad) {
 
 	pad->portMultitap = multitap2;
 
-	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
+	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON || in_type[pad_index] == PSE_PAD_TYPE_GUN)
 	{
 		pad->leftJoyX = in_analog_left[pad_index][0];
 		pad->leftJoyY = in_analog_left[pad_index][1];
