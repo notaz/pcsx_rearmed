@@ -212,13 +212,24 @@ static void do_irq(void)
 
 static int check_irq(int ch, unsigned char *pos)
 {
- if((spu.spuCtrl & CTRL_IRQ) && pos == spu.pSpuIrq)
+ if((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ) && pos == spu.pSpuIrq)
  {
   //printf("ch%d irq %04x\n", ch, pos - spu.spuMemC);
   do_irq();
   return 1;
  }
  return 0;
+}
+
+void check_irq_io(unsigned int addr)
+{
+ unsigned int irq_addr = regAreaGet(H_SPUirqAddr) << 3;
+ //addr &= ~7; // ?
+ if((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ) && addr == irq_addr)
+ {
+  //printf("io   irq %04x\n", irq_addr);
+  do_irq();
+ }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1136,6 +1147,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
       do_irq();
      }
    }
+  check_irq_io(spu.spuAddr);
 
   if (unlikely(spu.rvb->dirty))
    REVERBPrep();
