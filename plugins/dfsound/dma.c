@@ -56,7 +56,7 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
   addr &= 0x7fffe;
  }
  if (irq && (spu.spuCtrl & CTRL_IRQ))
-  log_unhandled("wdma spu irq: %x/%x+%x\n", irq_addr, spu.spuAddr, iSize * 2);
+  log_unhandled("rdma spu irq: %x/%x+%x\n", irq_addr, spu.spuAddr, iSize * 2);
  spu.spuAddr = addr;
 }
 
