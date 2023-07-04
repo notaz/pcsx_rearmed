@@ -253,6 +253,7 @@ extern SPUInfo spu;
 
 void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);
+void check_irq_io(unsigned int addr);
 
 #define do_samples_if_needed(c, sync) \
  do { \

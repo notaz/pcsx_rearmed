@@ -149,6 +149,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       goto rvbd;
     //-------------------------------------------------//
     case H_SPUirqAddr:
+      //if (val & 1)
+      //  log_unhandled("w irq with lsb: %08lx %04x\n", reg, val);
       spu.pSpuIrq=spu.spuMemC+(((unsigned long) val<<3)&~0xf);
       goto upd_irq;
     //-------------------------------------------------//
