@@ -117,6 +117,7 @@ typedef struct
  unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
  unsigned int      prevflags:3;                        // flags from previous block
  unsigned int      bIgnoreLoop:1;                      // Ignore loop
+ unsigned int      bNewPitch:1;                        // pitch changed
  int               iLeftVolume;                        // left volume
  int               iRightVolume;                       // right volume
  ADSRInfoEx        ADSRX;
