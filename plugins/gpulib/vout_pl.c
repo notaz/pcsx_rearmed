@@ -44,10 +44,10 @@ static void check_mode_change(int force)
   }
 
   // width|rgb24 change?
-  if (force || (gpu.status ^ old_status) & ((7<<16)|(1<<21)) || h != old_h)
+  if (force || (gpu.status ^ old_status) & ((7<<16)|(1<<21)) || h_out != old_h)
   {
     old_status = gpu.status;
-    old_h = h;
+    old_h = h_out;
 
     cbs->pl_vout_set_mode(w_out, h_out, w, h,
           (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16);
