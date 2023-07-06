@@ -286,9 +286,8 @@ INLINE int FModChangeFrequency(int *SB, int pitch, int ns)
  if(NP<0x1)    NP=0x1;
 
  sinc=NP<<4;                                           // calc frequency
- if(spu_config.iUseInterpolation==1)                   // freq change in simple interpolation mode
-  SB[32]=1;
  iFMod[ns]=0;
+ SB[32]=1;                                             // reset interpolation
 
  return sinc;
 }                    
@@ -780,6 +779,9 @@ static void do_channels(int ns_to)
    s_chan = &spu.s_chan[ch];
    SB = spu.SB + ch * SB_SIZE;
    sinc = s_chan->sinc;
+   if (spu.s_chan[ch].bNewPitch)
+    SB[32] = 1;                                    // reset interpolation
+   spu.s_chan[ch].bNewPitch = 0;
 
    if (s_chan->bNoise)
     d = do_samples_noise(ch, ns_to);
@@ -868,11 +870,14 @@ static struct spu_worker {
    int sinc;
    int start;
    int loop;
-   int ns_to;
    short vol_l;
    short vol_r;
+   unsigned short ns_to;
+   unsigned short bNoise:1;
+   unsigned short bFMod:2;
+   unsigned short bRVBActive:1;
+   unsigned short bNewPitch:1;
    ADSRInfoEx adsr;
-   // might also want to add fmod flags..
   } ch[24];
   int SSumLR[NSSIZE * 2];
  } i[4];
@@ -950,6 +955,10 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    work->ch[ch].vol_r = s_chan->iRightVolume;
    work->ch[ch].start = s_chan->pCurr - spu.spuMemC;
    work->ch[ch].loop = s_chan->pLoop - spu.spuMemC;
+   work->ch[ch].bNoise = s_chan->bNoise;
+   work->ch[ch].bFMod = s_chan->bFMod;
+   work->ch[ch].bRVBActive = s_chan->bRVBActive;
+   work->ch[ch].bNewPitch = s_chan->bNewPitch;
    if (s_chan->prevflags & 1)
     work->ch[ch].start = work->ch[ch].loop;
 
@@ -963,6 +972,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
     s_chan->ADSRX.State = ADSR_RELEASE;
     s_chan->ADSRX.EnvelopeVol = 0;
    }
+   s_chan->bNewPitch = 0;
   }
 
  work->rvb_addr = 0;
@@ -982,8 +992,6 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
 static void do_channel_work(struct work_item *work)
 {
  unsigned int mask;
- unsigned int decode_dirty_ch = 0;
- const SPUCHAN *s_chan;
  int *SB, sinc, spos, sbpos;
  int d, ch, ns_to;
 
@@ -1008,15 +1016,16 @@ static void do_channel_work(struct work_item *work)
    sbpos = work->ch[ch].sbpos;
    sinc = work->ch[ch].sinc;
 
-   s_chan = &spu.s_chan[ch];
    SB = spu.SB + ch * SB_SIZE;
+   if (work->ch[ch].bNewPitch)
+    SB[32] = 1; // reset interpolation
 
-   if (s_chan->bNoise)
+   if (work->ch[ch].bNoise)
     do_lsfr_samples(d, work->ctrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
-   else if (s_chan->bFMod == 2
-         || (s_chan->bFMod == 0 && spu_config.iUseInterpolation == 0))
+   else if (work->ch[ch].bFMod == 2
+         || (work->ch[ch].bFMod == 0 && spu_config.iUseInterpolation == 0))
     do_samples_noint(decode_block_work, work, ch, d, SB, sinc, &spos, &sbpos);
-   else if (s_chan->bFMod == 0 && spu_config.iUseInterpolation == 1)
+   else if (work->ch[ch].bFMod == 0 && spu_config.iUseInterpolation == 1)
     do_samples_simple(decode_block_work, work, ch, d, SB, sinc, &spos, &sbpos);
    else
     do_samples_default(decode_block_work, work, ch, d, SB, sinc, &spos, &sbpos);
@@ -1028,14 +1037,11 @@ static void do_channel_work(struct work_item *work)
    }
 
    if (ch == 1 || ch == 3)
-    {
-     do_decode_bufs(spu.spuMem, ch/2, ns_to, work->decode_pos);
-     decode_dirty_ch |= 1 << ch;
-    }
+    do_decode_bufs(spu.spuMem, ch/2, ns_to, work->decode_pos);
 
-   if (s_chan->bFMod == 2)                         // fmod freq channel
+   if (work->ch[ch].bFMod == 2)                         // fmod freq channel
     memcpy(iFMod, &ChanBuf, ns_to * sizeof(iFMod[0]));
-   if (s_chan->bRVBActive && work->rvb_addr)
+   if (work->ch[ch].bRVBActive && work->rvb_addr)
     mix_chan_rvb(work->SSumLR, ns_to,
       work->ch[ch].vol_l, work->ch[ch].vol_r, RVB);
    else
@@ -1158,6 +1164,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
   }
   else {
    queue_channel_work(ns_to, silentch);
+   //sync_worker_thread(1); // uncomment for debug
   }
 
   // advance "stopped" channels that can cause irqs
