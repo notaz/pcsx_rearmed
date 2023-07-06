@@ -752,6 +752,22 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "enabled",
    },
+#if !defined(THREAD_ENABLED) && !defined(_WIN32) && !defined(NO_OS)
+   {
+      "pcsx_rearmed_spu_thread",
+      "Threaded SPU",
+      NULL,
+      "Emulates the PSX SPU on another CPU thread. May cause audio glitches in some games.",
+      NULL,
+      "audio",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+#endif // THREAD_ENABLED
    {
       "pcsx_rearmed_show_input_settings",
       "Show Input Settings",
