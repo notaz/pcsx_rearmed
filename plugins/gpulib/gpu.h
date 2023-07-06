@@ -78,6 +78,7 @@ struct psx_gpu {
       uint32_t hcnt;
     } last_list;
     uint32_t last_vram_read_frame;
+    uint32_t w_out_old, h_out_old, status_vo_old;
   } state;
   struct {
     int32_t set:3; /* -1 auto, 0 off, 1-3 fixed */
