@@ -2074,6 +2074,16 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_spu_thread";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         spu_config.iUseThread = 1;
+      else
+         spu_config.iUseThread = 0;
+   }
+
 #ifndef _WIN32
    var.value = NULL;
    var.key = "pcsx_rearmed_async_cd";

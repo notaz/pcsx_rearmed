@@ -163,7 +163,8 @@ void emu_set_default_config(void)
 	spu_config.iXAPitch = 0;
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
-	spu_config.iUseThread = 1; // no effect if only 1 core is detected
+	// may cause issues, no effect if only 1 core is detected
+	spu_config.iUseThread = 0;
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS) /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
