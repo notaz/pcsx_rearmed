@@ -27,8 +27,6 @@ int vout_finish(void)
 
 static void check_mode_change(int force)
 {
-  static uint32_t old_status;
-  static int old_h;
   int w = gpu.screen.hres;
   int h = gpu.screen.h;
   int w_out = w;
@@ -44,10 +42,12 @@ static void check_mode_change(int force)
   }
 
   // width|rgb24 change?
-  if (force || (gpu.status ^ old_status) & ((7<<16)|(1<<21)) || h_out != old_h)
+  if (force || (gpu.status ^ gpu.state.status_vo_old) & ((7<<16)|(1<<21))
+      || w_out != gpu.state.w_out_old || h_out != gpu.state.h_out_old)
   {
-    old_status = gpu.status;
-    old_h = h_out;
+    gpu.state.status_vo_old = gpu.status;
+    gpu.state.w_out_old = w_out;
+    gpu.state.h_out_old = h_out;
 
     cbs->pl_vout_set_mode(w_out, h_out, w, h,
           (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16);
