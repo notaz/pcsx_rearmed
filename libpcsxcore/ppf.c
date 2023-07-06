@@ -355,6 +355,8 @@ fail_io:
 unsigned char *sbi_sectors;
 
 int LoadSBI(const char *fname, int sector_count) {
+	int good_sectors = 0;
+	int clean_eof = 0;
 	char buffer[16];
 	FILE *sbihandle;
 	u8 sbitime[3], t;
@@ -365,21 +367,33 @@ int LoadSBI(const char *fname, int sector_count) {
 		return -1;
 
 	sbi_sectors = calloc(1, sector_count / 8);
-	if (sbi_sectors == NULL) {
-		fclose(sbihandle);
-		return -1;
-	}
+	if (sbi_sectors == NULL)
+		goto end;
 
 	// 4-byte SBI header
 	if (fread(buffer, 1, 4, sbihandle) != 4)
-		goto fail_io;
+		goto end;
 
 	while (1) {
 		s = fread(sbitime, 1, 3, sbihandle);
 		if (s != 3)
-			goto fail_io;
+		{
+			if (s == 0)
+				clean_eof = 1;
+			break;
+		}
+		s = MSF2SECT(btoi(sbitime[0]), btoi(sbitime[1]), btoi(sbitime[2]));
+		if (s < sector_count) {
+			sbi_sectors[s >> 3] |= 1 << (s&7);
+			good_sectors++;
+		}
+		else
+			SysPrintf(_("SBI sector %d >= %d?\n"), s, sector_count);
+
+		// skip to the next record
 		if (fread(&t, 1, sizeof(t), sbihandle) != sizeof(t))
-			goto fail_io;
+			break;
+		s = -1;
 		switch (t) {
 		default:
 		case 1:
@@ -390,24 +404,24 @@ int LoadSBI(const char *fname, int sector_count) {
 			s = 3;
 			break;
 		}
-		fseek(sbihandle, s, SEEK_CUR);
-
-		s = MSF2SECT(btoi(sbitime[0]), btoi(sbitime[1]), btoi(sbitime[2]));
-		if (s < sector_count)
-			sbi_sectors[s >> 3] |= 1 << (s&7);
-		else
-			SysPrintf(_("SBI sector %d >= %d?\n"), s, sector_count);
+		if (s < 0)
+			break;
+		if (fseek(sbihandle, s, SEEK_CUR))
+			break;
 	}
 
 	fclose(sbihandle);
 	return 0;
 
-fail_io:
-#ifndef NDEBUG
-	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
+end:
+	if (!clean_eof)
+		SysPrintf(_("SBI: parse failure at 0x%lx\n"), ftell(sbihandle));
+	if (!good_sectors) {
+		free(sbi_sectors);
+		sbi_sectors = NULL;
+	}
 	fclose(sbihandle);
-	return -1;
+	return sbi_sectors ? 0 : -1;
 }
 
 void UnloadSBI(void) {
