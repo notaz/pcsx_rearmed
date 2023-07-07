@@ -49,12 +49,12 @@ EXTRA_LDFLAGS =
 # select some defaults
 ifneq (,$(findstring $(ARCH_DETECTED),arm aarch64))
 	DYNAREC = ari64
-ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
+ifneq (,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep 'define __thumb__'))
 	# must disable thumb as ari64 can't handle it
 	CFLAGS += -marm
 endif
-ifneq ($(findstring __ARM_NEON,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
-       BUILTIN_GPU = neon
+ifneq (,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep 'HAVE_NEON32'))
+	BUILTIN_GPU = neon
 endif
 endif
 ifneq (,$(findstring $(ARCH_DETECTED),i686 x86_64 aarch64))
