@@ -34,6 +34,12 @@ FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
     orr      lr, lr, lsl #16
     blt      1f
 
+    @ src can be unaligned, but that's very rare, so just force it.
+    @ The manual says unaligned ldm should fault, and it does on
+    @ cortex-a78's 32bit mode, but curiously on cortex-a8 it just
+    @ works and loads the data correctly.
+    bic      r1, r1, #3
+
 0:
     ldmia    r1!, {r3-r10}
     subs     r2, #4*8

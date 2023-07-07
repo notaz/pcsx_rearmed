@@ -25,6 +25,7 @@
 blit320_640:
     stmfd   sp!, {r4-r8,lr}
     mov     r12, #40
+    bic     r1, r1, #3
 0:
     ldmia   r1!, {r2-r8,lr}
     lhw_str r2, r3
@@ -40,6 +41,7 @@ blit320_640:
 blit320_512:
     stmfd   sp!, {r4-r8,lr}
     mov     r12, #32
+    bic     r1, r1, #3
 0:
     ldmia   r1!, {r2-r8,lr}
     lsl     r2, #16
@@ -73,6 +75,7 @@ blit320_512:
 blit320_368:
     stmfd   sp!, {r4-r8,lr}
     mov     r12, #23
+    bic     r1, r1, #3
 0:
     ldmia   r1!, {r2-r8,lr}
     unaligned_str r2, r3         @ 1,2
