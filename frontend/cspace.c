@@ -8,6 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include <stdint.h>
 #include "cspace.h"
 
 /*
@@ -30,7 +31,6 @@
         || (defined(__GNUC__) && __GNUC__ >= 5)) \
        && __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__
 
-#include <stdint.h>
 #include <assert.h>
 
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
@@ -93,7 +93,8 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 
 void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 {
-    const unsigned int *src = src_;
+    // source can be misaligned, but it's very rare, so just force
+    const unsigned int *src = (const void *)((intptr_t)src_ & ~3);
     unsigned int *dst = dst_;
     unsigned int x, p, r, g, b;
 

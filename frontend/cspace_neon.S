@@ -40,7 +40,8 @@ FUNCTION(bgr555_to_rgb565): @ dst, src, bytes
     pld         [r1, #64*2]
     @ Pulls 15-bit BGR color values (which are actually 16 bits) into q0-q3.
     @ example:  q0 = 0111 1110 0101 0011
-    vldmia      r1!, {q0-q3}
+    vld1.16     {d0-d3}, [r1]!
+    vld1.16     {d4-d7}, [r1]!
     @ Shift BGR color 1 bit to the left, discarding MSB and preparing for vbit.
     @ MSB is used for transparency (not needed here, and can mess with green).
     @ example:  q0 = 1111 1100 1010 0110
@@ -113,7 +114,8 @@ FUNCTION(bgr555_to_rgb565_b): @ dst, src, bytes, int brightness2k // 0-0x0800
     vdup.16     q14, r3
 0:
     pld         [r1, #64*2]
-    vldmia      r1!, {q0-q3}
+    vld1.16     {d0-d3}, [r1]!
+    vld1.16     {d4-d7}, [r1]!
     vand.u16    q8,  q0, q14
     vand.u16    q9,  q1, q14
     vand.u16    q10, q2, q14
@@ -270,4 +272,4 @@ FUNCTION(rgb888_to_rgb565): @ dst, src, bytes
     bx          lr
 
 
-@ vim:filetype=armasm
+@ vim:filetype=armasm:expandtab
