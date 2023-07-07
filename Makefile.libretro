@@ -530,7 +530,7 @@ ARCH = $(ARCH_DETECTED)
 endif
 ifndef HAVE_NEON_ASM
 # asm for 32bit only
-HAVE_NEON_ASM = $(shell $(CC) -E -dD $(CFLAGS) - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+HAVE_NEON_ASM = $(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep -q HAVE_NEON32 && echo 1 || echo 0)
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined

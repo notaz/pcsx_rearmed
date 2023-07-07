@@ -47,7 +47,10 @@
 
 #endif
 
-/* no need for HAVE_NEON - GCC defines __ARM_NEON__ consistently */
+/* gcc defines __ARM_NEON__ consistently for 32bit, but apple clang defines it for 64bit also... */
+#if defined(HAVE_ARMV7) && defined(__ARM_NEON__)
+#define HAVE_NEON32
+#endif
 
 /* global function/external symbol */
 #ifndef __MACH__
