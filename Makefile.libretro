@@ -53,6 +53,9 @@ ifneq ($(findstring __thumb__,$(shell $(CC) -E -dD $(CFLAGS) include/arm_feature
 	# must disable thumb as ari64 can't handle it
 	CFLAGS += -marm
 endif
+ifneq ($(findstring __ARM_NEON,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h)),)
+       BUILTIN_GPU = neon
+endif
 endif
 ifneq (,$(findstring $(ARCH_DETECTED),i686 x86_64 aarch64))
 	BUILTIN_GPU = neon
@@ -525,8 +528,9 @@ endif
 ifndef ARCH
 ARCH = $(ARCH_DETECTED)
 endif
-ifndef HAVE_NEON
-HAVE_NEON = $(shell $(CC) -E -dD - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
+ifndef HAVE_NEON_ASM
+# asm for 32bit only
+HAVE_NEON_ASM = $(shell $(CC) -E -dD $(CFLAGS) - < /dev/null 2> /dev/null | grep -q __ARM_NEON__ && echo 1 || echo 0)
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
