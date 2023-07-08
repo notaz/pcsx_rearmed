@@ -192,6 +192,8 @@ typedef struct {
 	u32 muldivBusyCycle;
 	u32 subCycle;		/* interpreter cycle counting */
 	u32 subCycleStep;
+	u32 biuReg;
+	u32 reserved[3];
 	// warning: changing anything in psxRegisters requires update of all
 	// asm in libpcsxcore/new_dynarec/
 } psxRegisters;
