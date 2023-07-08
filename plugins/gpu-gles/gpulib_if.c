@@ -16,6 +16,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "gpuStdafx.h"
 #include "gpuDraw.c"
 #include "gpuTexture.c"
 #include "gpuPrim.c"
@@ -26,10 +27,10 @@ short g_m1,g_m2,g_m3;
 short DrawSemiTrans;
 
 short          ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;        // global psx vertex coords
-long           GlobalTextAddrX,GlobalTextAddrY,GlobalTextTP;
-long           GlobalTextREST,GlobalTextABR,GlobalTextPAGE;
+int            GlobalTextAddrX,GlobalTextAddrY,GlobalTextTP;
+int            GlobalTextREST,GlobalTextABR,GlobalTextPAGE;
 
-unsigned long dwGPUVersion;
+unsigned int  dwGPUVersion;
 int           iGPUHeight=512;
 int           iGPUHeightMask=511;
 int           GlobalTextIL;
@@ -41,15 +42,15 @@ GLfloat         gl_z=0.0f;
 BOOL            bNeedInterlaceUpdate;
 BOOL            bNeedRGB24Update;
 BOOL            bChangeWinMode;
-long            lGPUstatusRet;
-unsigned long   ulGPUInfoVals[16];
+int             lGPUstatusRet;
+unsigned int    ulGPUInfoVals[16];
 VRAMLoad_t      VRAMWrite;
 VRAMLoad_t      VRAMRead;
 int             iDataWriteMode;
 int             iDataReadMode;
 
-long            lClearOnSwap;
-long            lClearOnSwapColor;
+int             lClearOnSwap;
+int             lClearOnSwapColor;
 BOOL            bSkipNextFrame;
 
 PSXDisplay_t    PSXDisplay;
@@ -195,13 +196,13 @@ void updateFrontDisplay(void)
 
 static void ChangeDispOffsetsX(void)                  // CENTER X
 {
-long lx,l;short sO;
+int lx,l;short sO;
 
 if(!PSXDisplay.Range.x1) return;                      // some range given?
 
 l=PSXDisplay.DisplayMode.x;
 
-l*=(long)PSXDisplay.Range.x1;                         // some funky calculation
+l*=(int)PSXDisplay.Range.x1;                         // some funky calculation
 l/=2560;lx=l;l&=0xfffffff8;
 
 if(l==PreviousPSXDisplay.Range.x1) return;            // some change?
@@ -312,7 +313,7 @@ if(bUp) updateDisplay();                              // yeah, real update (swap
 }
 
 #define GPUwriteStatus_ext GPUwriteStatus_ext // for gpulib to see this
-void GPUwriteStatus_ext(unsigned long gdata)
+void GPUwriteStatus_ext(unsigned int gdata)
 {
 switch((gdata>>24)&0xff)
  {
