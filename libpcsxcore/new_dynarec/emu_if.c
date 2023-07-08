@@ -84,7 +84,7 @@ static void irq_test(void)
 		}
 	}
 
-	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (Status & 0x401) == 0x401) {
+	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (psxRegs.CP0.n.Status & 0x401) == 0x401) {
 		psxException(0x400, 0);
 		pending_exception = 1;
 	}
@@ -110,7 +110,7 @@ void pcsx_mtc0(u32 reg, u32 val)
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
 	MTC0(&psxRegs, reg, val);
 	gen_interupt();
-	if (Cause & Status & 0x0300) // possible sw irq
+	if (psxRegs.CP0.n.Cause & psxRegs.CP0.n.Status & 0x0300) // possible sw irq
 		pending_exception = 1;
 }
 

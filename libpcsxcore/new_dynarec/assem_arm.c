@@ -430,7 +430,7 @@ static void emit_loadreg(int r, int hr)
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
-    case CSREG: addr = &Status; break;
+    case CSREG: addr = &psxRegs.CP0.n.Status; break;
     case INVCP: addr = &invc_ptr; break;
     case ROREG: addr = &ram_offset; break;
     default:
@@ -1752,7 +1752,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
     emit_readword(&last_count,3);
     emit_addimm(cc<0?2:cc,adj,2);
     emit_add(2,3,2);
-    emit_writeword(2,&Count);
+    emit_writeword(2,&psxRegs.cycle);
   }
 
   emit_far_call(handler);
