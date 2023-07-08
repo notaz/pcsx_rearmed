@@ -783,10 +783,10 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
     return ndrc_get_addr_ht(vaddr);
 
   // generate an address error
-  Status|=2;
-  Cause=(vaddr<<31)|(4<<2);
-  EPC=(vaddr&1)?vaddr-5:vaddr;
-  BadVAddr=(vaddr&~1);
+  psxRegs.CP0.n.Status |= 2;
+  psxRegs.CP0.n.Cause = (vaddr<<31) | (4<<2);
+  psxRegs.CP0.n.EPC = (vaddr&1) ? vaddr-5 : vaddr;
+  psxRegs.CP0.n.BadVAddr = vaddr & ~1;
   return ndrc_get_addr_ht(0x80000080);
 }
 
@@ -3500,7 +3500,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
       emit_add(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
       emit_addimm(HOST_CCREG,ccadj_,HOST_CCREG);
-      emit_writeword(HOST_CCREG,&Count);
+      emit_writeword(HOST_CCREG,&psxRegs.cycle);
     }
     // What a mess.  The status register (12) can enable interrupts,
     // so needs a special case to handle a pending interrupt.
@@ -3532,7 +3532,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
     emit_movimm(copr,0);
     emit_far_call(pcsx_mtc0);
     if(copr==9||copr==11||copr==12||copr==13) {
-      emit_readword(&Count,HOST_CCREG);
+      emit_readword(&psxRegs.cycle,HOST_CCREG);
       emit_readword(&next_interupt,HOST_TEMPREG);
       emit_addimm(HOST_CCREG,-ccadj_,HOST_CCREG);
       emit_sub(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
@@ -3558,11 +3558,11 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
     assert(dops[i].opcode2==0x10);
     //if((source[i]&0x3f)==0x10) // RFE
     {
-      emit_readword(&Status,0);
+      emit_readword(&psxRegs.CP0.n.Status,0);
       emit_andimm(0,0x3c,1);
       emit_andimm(0,~0xf,0);
       emit_orrshr_imm(1,2,0);
-      emit_writeword(0,&Status);
+      emit_writeword(0,&psxRegs.CP0.n.Status);
     }
   }
 }

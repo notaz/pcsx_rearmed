@@ -14,11 +14,6 @@ extern int hi, lo;
 
 /* same as psxRegs.CP0.n.* */
 extern int reg_cop0[];
-#define Status   psxRegs.CP0.n.Status
-#define Cause    psxRegs.CP0.n.Cause
-#define EPC      psxRegs.CP0.n.EPC
-#define BadVAddr psxRegs.CP0.n.BadVAddr
-#define Count    psxRegs.cycle // psxRegs.CP0.n.Count
 
 /* COP2/GTE */
 enum gte_opcodes {
