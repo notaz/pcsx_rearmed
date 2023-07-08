@@ -143,10 +143,10 @@ extern  void ( APIENTRY * glPixelStorei )(GLenum pname, GLint param);
 #define bool unsigned short
 #endif
 #define LOWORD(l)           ((unsigned short)(l))
-#define HIWORD(l)           ((unsigned short)(((unsigned long)(l) >> 16) & 0xFFFF))
+#define HIWORD(l)           ((unsigned short)(((unsigned int)(l) >> 16) & 0xFFFF))
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
-#define DWORD unsigned long
+#define DWORD unsigned int
 
 typedef struct RECTTAG
 {
@@ -173,8 +173,8 @@ typedef struct VRAMLOADTAG
 
 typedef struct PSXPOINTTAG
 {
- long x;
- long y;
+ int x;
+ int y;
 } PSXPoint_t;
 
 typedef struct PSXSPOINTTAG
@@ -211,19 +211,19 @@ typedef struct PSXDISPLAYTAG
  PSXPoint_t  DisplayPosition;
  PSXPoint_t  DisplayEnd;
  
- long        Double;
- long        Height;
- long        PAL;
- long        InterlacedNew;
- long        Interlaced;
- long        InterlacedTest;
- long        RGB24New;
- long        RGB24;
+ int         Double;
+ int         Height;
+ int         PAL;
+ int         InterlacedNew;
+ int         Interlaced;
+ int         InterlacedTest;
+ int         RGB24New;
+ int         RGB24;
  PSXSPoint_t DrawOffset;
  PSXRect_t   DrawArea;
  PSXPoint_t  GDrawOffset;
  PSXPoint_t  CumulOffset;
- long        Disabled;
+ int         Disabled;
  PSXRect_t   Range;
 } PSXDisplay_t;
 
@@ -242,7 +242,7 @@ typedef struct OGLVertexTag
 COLTAG
   {
    unsigned char col[4];
-   unsigned long lcol;
+   unsigned int  lcol;
   } c;
 
 } OGLVertex;
@@ -256,7 +256,7 @@ typedef union EXShortTag
 typedef union EXLongTag
 {
  unsigned char c[4];
- unsigned long l;
+ unsigned int  l;
  EXShort       s[2];
 } EXLong;
 
@@ -299,7 +299,7 @@ extern int            iSetMask;
 extern int            iDepthFunc;
 extern BOOL           bCheckMask;
 extern unsigned short sSetMask;
-extern unsigned long  lSetMask;
+extern unsigned int   lSetMask;
 extern BOOL           bSetClip;
 extern GLuint         gTexScanName;
 
@@ -309,8 +309,8 @@ extern GLuint         gTexScanName;
 
 #ifndef _IN_SOFT
 
-extern long           GlobalTextAddrX,GlobalTextAddrY,GlobalTextTP;
-extern long           GlobalTextREST,GlobalTextABR,GlobalTextPAGE;
+extern int            GlobalTextAddrX,GlobalTextAddrY,GlobalTextTP;
+extern int            GlobalTextREST,GlobalTextABR,GlobalTextPAGE;
 extern short          ly0,lx0,ly1,lx1,ly2,lx2,ly3,lx3;
 extern short          g_m1;
 extern short          g_m2;
@@ -347,22 +347,22 @@ extern GLubyte       ubGloAlpha;
 extern short         sSprite_ux2;
 extern short         sSprite_vy2;
 extern BOOL          bRenderFrontBuffer;
-extern unsigned long ulOLDCOL;
-extern unsigned long ulClutID;
+extern unsigned int  ulOLDCOL;
+extern unsigned int  ulClutID;
 extern void (*primTableJ[256])(unsigned char *);
 extern void (*primTableSkip[256])(unsigned char *);
 extern unsigned short  usMirror;
-extern unsigned long dwCfgFixes;
-extern unsigned long dwActFixes;
-extern unsigned long dwEmuFixes;
+extern unsigned int  dwCfgFixes;
+extern unsigned int  dwActFixes;
+extern unsigned int  dwEmuFixes;
 extern BOOL          bUseFixes;
 extern int           iSpriteTex;
 extern int           iDrawnSomething;
 
-extern long drawX;
-extern long drawY;
-extern long drawW;
-extern long drawH;
+extern int  drawX;
+extern int  drawY;
+extern int  drawW;
+extern int  drawH;
 extern short sxmin;
 extern short sxmax;
 extern short symin;
@@ -383,10 +383,10 @@ extern GLint          giWantedRGBA;
 extern GLint          giWantedFMT;
 extern GLint          giWantedTYPE;
 extern void           (*LoadSubTexFn) (int,int,short,short);
-extern long           GlobalTexturePage;
-extern unsigned long  (*TCF[]) (unsigned long);
+extern int            GlobalTexturePage;
+extern unsigned int   (*TCF[]) (unsigned int );
 extern unsigned short (*PTCF[]) (unsigned short);
-extern unsigned long  (*PalTexturedColourFn) (unsigned long);
+extern unsigned int   (*PalTexturedColourFn) (unsigned int);
 extern BOOL           bUseFastMdec;
 extern BOOL           bUse15bitMdec;
 extern int            iFrameTexType;
@@ -420,32 +420,32 @@ extern char           szDispBuf[];
 extern char           szGPUKeys[];
 extern PSXDisplay_t   PSXDisplay;
 extern PSXDisplay_t   PreviousPSXDisplay;
-//extern unsigned long  ulKeybits;
+//extern unsigned int   ulKeybits;
 extern TWin_t         TWin;
 extern BOOL           bDisplayNotSet;
-extern long           lGPUstatusRet;
+extern int            lGPUstatusRet;
 extern short          imageX0,imageX1;
 extern short          imageY0,imageY1;
-extern long           lClearOnSwap,lClearOnSwapColor;
+extern int            lClearOnSwap,lClearOnSwapColor;
 extern unsigned char  * psxVub;
 extern char    * psxVsb;
 extern unsigned short * psxVuw;
 extern signed short   * psxVsw;
-extern unsigned long  * psxVul;
-extern signed long    * psxVsl;
+extern unsigned int   * psxVul;
+extern signed int     * psxVsl;
 extern GLfloat        gl_z;
 extern BOOL           bNeedRGB24Update;
 extern BOOL           bChangeWinMode;
 extern GLuint         uiScanLine;
 extern int            iUseScanLines;
-extern long           lSelectedSlot;
+extern int            lSelectedSlot;
 extern int            iScanBlend;
 extern BOOL           bInitCap;
 extern int            iBlurBuffer;
 extern int            iLastRGB24;
 extern int            iRenderFVR;
 extern int            iNoScreenSaver;
-extern unsigned long  ulGPUInfoVals[];
+extern unsigned int   ulGPUInfoVals[];
 extern BOOL           bNeedInterlaceUpdate;
 extern BOOL           bNeedWriteUpload;
 extern BOOL           bSkipNextFrame;
@@ -461,7 +461,7 @@ extern int bFullScreen;
 
 #ifndef _IN_MENU
 
-//extern unsigned long  dwCoreFlags;
+//extern unsigned int   dwCoreFlags;
 extern GLuint         gTexPicName;
 //extern PSXPoint_t     ptCursorPoint[];
 //extern unsigned short usCursorActive;
@@ -539,7 +539,7 @@ typedef struct {
 
 #ifndef _IN_KEY
 
-//extern unsigned long  ulKeybits;
+//extern unsigned int   ulKeybits;
 
 #endif
 
@@ -547,7 +547,7 @@ typedef struct {
 
 #ifndef _IN_ZN
 
-extern unsigned long dwGPUVersion;
+extern unsigned int  dwGPUVersion;
 extern int           iGPUHeight;
 extern int           iGPUHeightMask;
 extern int           GlobalTextIL;
