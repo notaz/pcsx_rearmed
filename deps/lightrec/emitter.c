@@ -1933,10 +1933,11 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 		break;
 	}
 
-	if (block_in_bios(state, block) && c.r.rd == 12) {
+	if (/*block_in_bios(state, block) &&*/ c.r.rd == 12) {
 		/* If we are running code from the BIOS, handle writes to the
 		 * Status register in C. BIOS code may toggle bit 16 which will
 		 * map/unmap the RAM, while game code cannot do that. */
+		/*  ^ wrong, it can execute from 0xa0000000 with isolated cache */
 		rec_mtc(state, block, offset);
 		return;
 	}
