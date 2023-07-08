@@ -370,19 +370,15 @@ static void ari64_clear(u32 addr, u32 size)
 }
 
 static void ari64_notify(int note, void *data) {
-	/*
-	Should be fixed when ARM dynarec has proper icache emulation.
 	switch (note)
 	{
-		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
-			break;
-		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
-		Sent from psxDma3().
-		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
-		default:
-			break;
+	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+	case R3000ACPU_NOTIFY_CACHE_ISOLATED:
+		new_dyna_pcsx_mem_isolate(note == R3000ACPU_NOTIFY_CACHE_ISOLATED);
+		break;
+	default:
+		break;
 	}
-	*/
 }
 
 static void ari64_apply_config()
@@ -430,7 +426,7 @@ int new_dynarec_hacks_old;
 int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
-u8 zero_mem[0x1000];
+u32 zero_mem[0x1000/4];
 void *mem_rtab;
 void *scratch_buf_ptr;
 void new_dynarec_init() {}
@@ -442,6 +438,7 @@ void new_dynarec_invalidate_range(unsigned int start, unsigned int end) {}
 void new_dyna_pcsx_mem_init(void) {}
 void new_dyna_pcsx_mem_reset(void) {}
 void new_dyna_pcsx_mem_load_state(void) {}
+void new_dyna_pcsx_mem_isolate(int enable) {}
 void new_dyna_pcsx_mem_shutdown(void) {}
 int  new_dynarec_save_blocks(void *save, int size) { return 0; }
 void new_dynarec_load_blocks(const void *save, int size) {}

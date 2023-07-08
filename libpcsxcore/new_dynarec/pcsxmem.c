@@ -26,6 +26,7 @@ static uintptr_t *mem_readtab;
 static uintptr_t *mem_writetab;
 static uintptr_t mem_iortab[(1+2+4) * 0x1000 / 4];
 static uintptr_t mem_iowtab[(1+2+4) * 0x1000 / 4];
+static uintptr_t mem_ffrtab[(1+2+4) * 0x1000 / 4];
 static uintptr_t mem_ffwtab[(1+2+4) * 0x1000 / 4];
 //static uintptr_t mem_unmrtab[(1+2+4) * 0x1000 / 4];
 static uintptr_t mem_unmwtab[(1+2+4) * 0x1000 / 4];
@@ -47,23 +48,28 @@ void map_item(uintptr_t *out, const void *h, uintptr_t flag)
 
 // size must be power of 2, at least 4k
 #define map_l1_mem(tab, i, addr, size, base) \
-	map_item(&tab[((addr)>>12) + i], \
+	map_item(&tab[((u32)(addr) >> 12) + i], \
 		 (u8 *)(base) - (u32)((addr) + ((i << 12) & ~(size - 1))), 0)
 
 #define IOMEM32(a) (((a) & 0xfff) / 4)
 #define IOMEM16(a) (0x1000/4 + (((a) & 0xfff) / 2))
 #define IOMEM8(a)  (0x1000/4 + 0x1000/2 + ((a) & 0xfff))
 
-u8 zero_mem[0x1000];
+u32 zero_mem[0x1000/4];
+static u32 ffff_mem[0x1000/4];
 
-u32 read_mem_dummy()
+static u32 read_mem_dummy(u32 addr)
 {
-	return 0;
+	// use 'addr' and not 'address', yes the api is weird...
+	memprintf("unmapped r %08x @%08x %u\n", addr, psxRegs.pc, psxRegs.cycle);
+	return 0xffffffff;
 }
 
 static void write_mem_dummy(u32 data)
 {
-	memprintf("unmapped w %08x, %08x @%08x %u\n", address, data, psxRegs.pc, psxRegs.cycle);
+	if (!(psxRegs.CP0.n.Status & (1 << 16)))
+		memprintf("unmapped w %08x, %08x @%08x %u\n",
+			  address, data, psxRegs.pc, psxRegs.cycle);
 }
 
 /* IO handlers */
@@ -240,46 +246,51 @@ static void io_gpu_write_status(u32 value)
 	gpuSyncPluginSR();
 }
 
-static void map_ram_write(void)
+void new_dyna_pcsx_mem_isolate(int enable)
 {
 	int i;
 
-	for (i = 0; i < (0x800000 >> 12); i++) {
-		map_l1_mem(mem_writetab, i, 0x80000000, 0x200000, psxM);
-		map_l1_mem(mem_writetab, i, 0x00000000, 0x200000, psxM);
-		map_l1_mem(mem_writetab, i, 0xa0000000, 0x200000, psxM);
+	// note: apparently 0xa0000000 uncached access still works,
+	// at least read does for sure, so assume write does too
+	memprintf("mem isolate %d\n", enable);
+	if (enable) {
+		for (i = 0; i < (0x800000 >> 12); i++) {
+			map_item(&mem_writetab[0x80000|i], mem_unmwtab, 1);
+			map_item(&mem_writetab[0x00000|i], mem_unmwtab, 1);
+			//map_item(&mem_writetab[0xa0000|i], mem_unmwtab, 1);
+		}
+	}
+	else {
+		for (i = 0; i < (0x800000 >> 12); i++) {
+			map_l1_mem(mem_writetab, i, 0x80000000, 0x200000, psxM);
+			map_l1_mem(mem_writetab, i, 0x00000000, 0x200000, psxM);
+			map_l1_mem(mem_writetab, i, 0xa0000000, 0x200000, psxM);
+		}
 	}
 }
 
-static void unmap_ram_write(void)
+static u32 read_biu(u32 addr)
 {
-	int i;
+	if (addr != 0xfffe0130)
+		return read_mem_dummy(addr);
 
-	for (i = 0; i < (0x800000 >> 12); i++) {
-		map_item(&mem_writetab[0x80000|i], mem_unmwtab, 1);
-		map_item(&mem_writetab[0x00000|i], mem_unmwtab, 1);
-		map_item(&mem_writetab[0xa0000|i], mem_unmwtab, 1);
-	}
+ FILE *f = fopen("/tmp/psxbiu.bin", "wb");
+ fwrite(psxM, 1, 0x200000, f);
+ fclose(f);
+	memprintf("read_biu  %08x @%08x %u\n",
+		psxRegs.biuReg, psxRegs.pc, psxRegs.cycle);
+	return psxRegs.biuReg;
 }
 
 static void write_biu(u32 value)
 {
-	memprintf("write_biu %08x, %08x @%08x %u\n", address, value, psxRegs.pc, psxRegs.cycle);
-
-	if (address != 0xfffe0130)
+	if (address != 0xfffe0130) {
+		write_mem_dummy(value);
 		return;
-
-	switch (value) {
-	case 0x800: case 0x804:
-		unmap_ram_write();
-		break;
-	case 0: case 0x1e988:
-		map_ram_write();
-		break;
-	default:
-		printf("write_biu: unexpected val: %08x\n", value);
-		break;
 	}
+
+	memprintf("write_biu %08x @%08x %u\n", value, psxRegs.pc, psxRegs.cycle);
+	psxRegs.biuReg = value;
 }
 
 void new_dyna_pcsx_mem_load_state(void)
@@ -302,6 +313,8 @@ void new_dyna_pcsx_mem_init(void)
 {
 	int i;
 
+	memset(ffff_mem, 0xff, sizeof(ffff_mem));
+
 	// have to map these further to keep tcache close to .text
 	mem_readtab = psxMap(0x08000000, 0x200000 * sizeof(mem_readtab[0]), 0, MAP_TAG_LUTS);
 	if (mem_readtab == NULL) {
@@ -320,7 +333,7 @@ void new_dyna_pcsx_mem_init(void)
 	// default/unmapped memhandlers
 	for (i = 0; i < 0x100000; i++) {
 		//map_item(&mem_readtab[i], mem_unmrtab, 1);
-		map_l1_mem(mem_readtab, i, 0, 0x1000, zero_mem);
+		map_l1_mem(mem_readtab, i, 0, 0x1000, ffff_mem);
 		map_item(&mem_writetab[i], mem_unmwtab, 1);
 	}
 
@@ -330,7 +343,7 @@ void new_dyna_pcsx_mem_init(void)
 		map_l1_mem(mem_readtab,  i, 0x00000000, 0x200000, psxM);
 		map_l1_mem(mem_readtab,  i, 0xa0000000, 0x200000, psxM);
 	}
-	map_ram_write();
+	new_dyna_pcsx_mem_isolate(0);
 
 	// BIOS and it's mirrors
 	for (i = 0; i < (0x80000 >> 12); i++) {
@@ -345,12 +358,12 @@ void new_dyna_pcsx_mem_init(void)
 	map_l1_mem(mem_writetab, 0, 0x9f800000, 0x1000, psxH);
 
 	// I/O
-	map_item(&mem_readtab[0x1f801000 >> 12], mem_iortab, 1);
-	map_item(&mem_readtab[0x9f801000 >> 12], mem_iortab, 1);
-	map_item(&mem_readtab[0xbf801000 >> 12], mem_iortab, 1);
-	map_item(&mem_writetab[0x1f801000 >> 12], mem_iowtab, 1);
-	map_item(&mem_writetab[0x9f801000 >> 12], mem_iowtab, 1);
-	map_item(&mem_writetab[0xbf801000 >> 12], mem_iowtab, 1);
+	map_item(&mem_readtab[0x1f801000u >> 12], mem_iortab, 1);
+	map_item(&mem_readtab[0x9f801000u >> 12], mem_iortab, 1);
+	map_item(&mem_readtab[0xbf801000u >> 12], mem_iortab, 1);
+	map_item(&mem_writetab[0x1f801000u >> 12], mem_iowtab, 1);
+	map_item(&mem_writetab[0x9f801000u >> 12], mem_iowtab, 1);
+	map_item(&mem_writetab[0xbf801000u >> 12], mem_iowtab, 1);
 
 	// L2
 	// unmapped tables
@@ -461,9 +474,12 @@ void new_dyna_pcsx_mem_init(void)
 	}
 
 	// misc
-	map_item(&mem_writetab[0xfffe0130 >> 12], mem_ffwtab, 1);
-	for (i = 0; i < 0x1000/4 + 0x1000/2 + 0x1000; i++)
+	map_item(&mem_readtab[0xfffe0130u >> 12], mem_ffrtab, 1);
+	map_item(&mem_writetab[0xfffe0130u >> 12], mem_ffwtab, 1);
+	for (i = 0; i < 0x1000/4 + 0x1000/2 + 0x1000; i++) {
+		map_item(&mem_ffrtab[i], read_biu, 1);
 		map_item(&mem_ffwtab[i], write_biu, 1);
+	}
 
 	mem_rtab = mem_readtab;
 	mem_wtab = mem_writetab;

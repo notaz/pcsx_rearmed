@@ -127,6 +127,7 @@ extern u8 **psxMemRLUT;
 
 int psxMemInit();
 void psxMemReset();
+void psxMemOnIsolate(int enable);
 void psxMemShutdown();
 
 u8 psxMemRead8 (u32 mem);

@@ -911,7 +911,9 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
 //	SysPrintf("MTC0 %d: %x\n", reg, val);
 	switch (reg) {
 		case 12: // Status
-			regs_->CP0.r[12] = val;
+			if ((regs_->CP0.n.Status ^ val) & (1 << 16))
+				psxMemOnIsolate((val >> 16) & 1);
+			regs_->CP0.n.Status = val;
 			psxTestSWInts(regs_);
 			break;
 
@@ -1114,7 +1116,7 @@ static void intClear(u32 Addr, u32 Size) {
 }
 
 void intNotify (int note, void *data) {
-	/* Gameblabla - Only clear the icache if it's isolated */
+	/* Armored Core won't boot without this */
 	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
 	{
 		memset(&ICache, 0xff, sizeof(ICache));
