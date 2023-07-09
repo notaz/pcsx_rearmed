@@ -17,8 +17,7 @@ a form of Intermediate Representation (IR).
 Basically, just a single-linked list of structures representing the
 instructions. On that list, several optimization steps are performed:
 instructions are modified, reordered, tagged; new meta-instructions
-can be added, for instance to tell the code generator that a certain
-register won't be used anymore.
+can also be added.
 
 * __Lazy compilation__.
 If Lightrec detects a block of code that would be very hard to
@@ -46,10 +45,12 @@ typically happens when a lot of new code is run.
 
 Lightrec has been ported to the following emulators:
 
-* [__PCSX-ReArmed__ (my own fork)](https://github.com/pcercuei/pcsx_rearmed)
+* [__PCSX-ReArmed__ (libretro)](https://github.com/libretro/pcsx_rearmed)
 
 * [__pcsx4all__ (my own fork)](https://github.com/pcercuei/pcsx4all)
 
 * [__Beetle__ (libretro)](https://github.com/libretro/beetle-psx-libretro/)
+
+* [__CubeSX/WiiSX__](https://github.com/emukidid/pcsxgc/)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=pcercuei/lightrec&type=Date)](https://star-history.com/#pcercuei/lightrec&Date)

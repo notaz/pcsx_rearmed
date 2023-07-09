@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2022  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2023  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -1301,6 +1301,16 @@ static void _gti_u(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 static void _ner(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #define nei(r0,r1,i0)			_nei(_jit,r0,r1,i0)
 static void _nei(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#define bitswap(r0, r1)			_bitswap(_jit, r0, r1)
+static void _bitswap(jit_state_t*, jit_int32_t, jit_int32_t);
+#define clor(r0, r1)			_clor(_jit, r0, r1)
+static void _clor(jit_state_t*, jit_int32_t, jit_int32_t);
+#define clzr(r0, r1)			_clzr(_jit, r0, r1)
+static void _clzr(jit_state_t*, jit_int32_t, jit_int32_t);
+#define ctor(r0, r1)			_ctor(_jit, r0, r1)
+static void _ctor(jit_state_t*, jit_int32_t, jit_int32_t);
+#define ctzr(r0, r1)			_ctzr(_jit, r0, r1)
+static void _ctzr(jit_state_t*, jit_int32_t, jit_int32_t);
 #define negr(r0,r1)			subr(r0,0,r1)
 #define comr(r0,r1)			ANDCMI(r0,-1,r1)
 #define movr(r0,r1)			_movr(_jit,r0,r1)
@@ -1500,7 +1510,7 @@ static void _stxi_l(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 #define jmpr(r0)			_jmpr(_jit,r0)
 static void _jmpr(jit_state_t*,jit_int32_t);
 #define jmpi(i0)			_jmpi(_jit,i0)
-static void _jmpi(jit_state_t*,jit_word_t);
+static jit_word_t _jmpi(jit_state_t*,jit_word_t);
 #define jmpi_p(i0)			_jmpi_p(_jit,i0)
 static jit_word_t _jmpi_p(jit_state_t*,jit_word_t);
 #define callr(r0)			_callr(_jit,r0)
@@ -2456,7 +2466,7 @@ _I9(jit_state_t *_jit, jit_word_t _p,
     TSTREG1(r3);
     TSTPRED(_p);
     TSTREG1(r1);
-    inst((7L<<37)|(1L<<34)|(1L<<34)|(1L<<33)|
+    inst((7L<<37)|(1L<<34)|(1L<<33)|
 	 (x2<<30)|(1L<<28)|(r3<<20)|(r1<<6)|_p, INST_I);
     SETREG(r1);
 }
@@ -3463,6 +3473,94 @@ _nop(jit_state_t *_jit, jit_int32_t i0)
 	sync();
     }
     assert(i0 == 0);
+}
+
+static void
+_bitswap(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		t0, t1, t2, t3, t4;
+    movr(r0, r1);
+    t0 = jit_get_reg(jit_class_gpr);
+    t1 = jit_get_reg(jit_class_gpr);
+    t2 = jit_get_reg(jit_class_gpr);
+    movi(rn(t0), __WORDSIZE == 32 ? 0x55555555L : 0x5555555555555555L);
+    rshi_u(rn(t1), r0, 1);		/* t1 = v >> 1 */
+    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
+    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
+    lshi(rn(t2), rn(t2), 1);		/* t2 <<= 1 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    movi(rn(t0), __WORDSIZE == 32 ? 0x33333333L : 0x3333333333333333L);
+    rshi_u(rn(t1), r0, 2);		/* t1 = v >> 2 */
+    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
+    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
+    lshi(rn(t2), rn(t2), 2);		/* t2 <<= 2 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    movi(rn(t0), __WORDSIZE == 32 ? 0x0f0f0f0fL : 0x0f0f0f0f0f0f0f0fL);
+    rshi_u(rn(t1), r0, 4);		/* t1 = v >> 4 */
+    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
+    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
+    lshi(rn(t2), rn(t2), 4);		/* t2 <<= 4 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    movi(rn(t0), __WORDSIZE == 32 ?  0x00ff00ffL : 0x00ff00ff00ff00ffL);
+    rshi_u(rn(t1), r0, 8);		/* t1 = v >> 8 */
+    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
+    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
+    lshi(rn(t2), rn(t2), 8);		/* t2 <<= 8 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    movi(rn(t0), 0x0000ffff0000ffffL);
+    rshi_u(rn(t1), r0, 16);		/* t1 = v >> 16 */
+    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
+    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
+    lshi(rn(t2), rn(t2), 16);		/* t2 <<= 16 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    rshi_u(rn(t1), r0, 32);		/* t1 = v >> 32 */
+    lshi(rn(t2), r0, 32);		/* t2 = v << 32 */
+    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
+    jit_unget_reg(t2);
+    jit_unget_reg(t1);
+    jit_unget_reg(t0);
+}
+
+static void
+_clzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (jit_cpu.clz)
+	CLZ(r0, r1);
+    else
+	fallback_clz(r0, r1);
+}
+
+static void
+_clor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (jit_cpu.clz) {
+	comr(r0, r1);
+	clzr(r0, r0);
+    }
+    else
+	fallback_clo(r0, r1);
+}
+
+static void
+_ctor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (jit_cpu.clz) {
+	bitswap(r0, r1);
+	clor(r0, r0);
+    }
+    else
+	fallback_cto(r0, r1);
+}
+
+static void
+_ctzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (jit_cpu.clz) {
+	bitswap(r0, r1);
+	clzr(r0, r0);
+    }
+    else
+	fallback_ctz(r0, r1);
 }
 
 static void
@@ -5145,16 +5243,18 @@ _jmpr(jit_state_t *_jit, jit_int32_t r0)
     BR(BR_6);
 }
 
-static void
+static jit_word_t
 _jmpi(jit_state_t *_jit, jit_word_t i0)
 {
-    jit_word_t		d;
+    jit_word_t		d, w;
     sync();
-    d = ((jit_word_t)i0 - _jit->pc.w) >> 4;
+    w = _jit->pc.w;
+    d = ((jit_word_t)i0 - w) >> 4;
     if (d >= -16777216 && d <= 16777215)
 	BRI(d);
     else
 	BRL(d);
+    return (w);
 }
 
 static jit_word_t
@@ -5400,14 +5500,16 @@ _patch_at(jit_state_t *_jit, jit_code_t code,
 	    i1  = (ic >> 61) &           0x1L;
 	    i41 = (ic >> 22) & 0x1ffffffffffL;
 	    i20 =  ic        &       0xfffffL;
-	    assert((tm & ~1) == TM_M_L_X_ &&
+	    if (!((tm & ~1) == TM_M_L_X_ &&
 		   (s2 & 0xfL<<37) == (0xcL<<37) &&
-		   s0 == nop_m);
+		  s0 == nop_m))
+		goto short_jump;
 	    s1 = i41;
 	    s2 &= (0xcL<<37)|(0x7L<<33)|(1L<<12);
 	    s2 |= (i1<<36)|(i20<<13);
 	    break;
 	default:
+	short_jump:
 	    /* Only B1 in slot 0 expected due to need to either
 	     * a stop to update predicates, or a sync before
 	     * unconditional short branch */

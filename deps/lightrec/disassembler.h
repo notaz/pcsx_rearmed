@@ -24,9 +24,10 @@
 #define LIGHTREC_SMC		BIT(2)
 #define LIGHTREC_NO_INVALIDATE	BIT(3)
 #define LIGHTREC_NO_MASK	BIT(4)
+#define LIGHTREC_LOAD_DELAY	BIT(5)
 
 /* I/O mode for load/store opcodes */
-#define LIGHTREC_IO_MODE_LSB	5
+#define LIGHTREC_IO_MODE_LSB	6
 #define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
 #define LIGHTREC_IO_UNKNOWN	0x0
 #define LIGHTREC_IO_DIRECT	0x1
@@ -107,10 +108,7 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 
-	OP_META_MOV		= 0x16,
-
-	OP_META_EXTC		= 0x17,
-	OP_META_EXTS		= 0x18,
+	OP_META			= 0x3b,
 
 	OP_META_MULT2		= 0x19,
 	OP_META_MULTU2		= 0x1a,
@@ -195,6 +193,15 @@ enum cp2_basic_opcodes {
 	OP_CP2_BASIC_CTC2	= 0x06,
 };
 
+enum meta_opcodes {
+	OP_META_MOV		= 0x00,
+
+	OP_META_EXTC		= 0x01,
+	OP_META_EXTS		= 0x02,
+
+	OP_META_COM		= 0x03,
+};
+
 struct opcode_r {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	u32 zero :6;
@@ -237,12 +244,31 @@ struct opcode_j {
 #endif
 } __packed;
 
+struct opcode_m {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u32 meta :6;
+	u32 rs   :5;
+	u32 rt   :5;
+	u32 rd   :5;
+	u32 imm  :6;
+	u32 op   :5;
+#else
+	u32 op   :5;
+	u32 imm  :6;
+	u32 rd   :5;
+	u32 rt   :5;
+	u32 rs   :5;
+	u32 meta :6;
+#endif
+};
+
 union code {
 	/* Keep in sync with struct opcode */
 	u32 opcode;
 	struct opcode_r r;
 	struct opcode_i i;
 	struct opcode_j j;
+	struct opcode_m m;
 };
 
 struct opcode {
@@ -255,6 +281,7 @@ struct opcode {
 		struct opcode_r r;
 		struct opcode_i i;
 		struct opcode_j j;
+		struct opcode_m m;
 	};
 	u32 flags;
 };
@@ -278,18 +305,22 @@ static inline _Bool op_flag_sync(u32 flags)
 
 static inline _Bool op_flag_smc(u32 flags)
 {
-	return OPT_FLAG_STORES && (flags & LIGHTREC_SMC);
+	return OPT_FLAG_IO && (flags & LIGHTREC_SMC);
 }
 
 static inline _Bool op_flag_no_invalidate(u32 flags)
 {
-	return (OPT_FLAG_IO || OPT_FLAG_STORES) &&
-		(flags & LIGHTREC_NO_INVALIDATE);
+	return OPT_FLAG_IO && (flags & LIGHTREC_NO_INVALIDATE);
 }
 
 static inline _Bool op_flag_no_mask(u32 flags)
 {
 	return OPT_FLAG_IO && (flags & LIGHTREC_NO_MASK);
+}
+
+static inline _Bool op_flag_load_delay(u32 flags)
+{
+	return OPT_HANDLE_LOAD_DELAYS && (flags & LIGHTREC_LOAD_DELAY);
 }
 
 static inline _Bool op_flag_emulate_branch(u32 flags)

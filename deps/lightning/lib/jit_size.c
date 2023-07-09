@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2022  Free Software Foundation, Inc.
+ * Copyright (C) 2013-2023  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -28,7 +28,7 @@
  */
 static jit_int16_t	_szs[jit_code_last_code] = {
 #if GET_JIT_SIZE
-#  define JIT_INSTR_MAX		512
+#  define JIT_INSTR_MAX		1024
 #else
 #  if defined(__i386__) || defined(__x86_64__)
 #    include "jit_x86-sz.c"
@@ -121,7 +121,15 @@ _jit_get_size(jit_state_t *_jit)
 		break;
 	}
 #  endif
-	size += _szs[node->code];
+	switch (node->code) {
+	    /* The instructions are special because they can be arbitrarily long.  */
+	    case jit_code_align:
+	    case jit_code_skip:
+	        size += node->u.w;
+	        break;
+	    default:
+	        size += _szs[node->code];
+	}
     }
 #  if __riscv && __WORDSIZE == 64
     /* Heuristically only 20% of constants are unique. */
@@ -143,7 +151,7 @@ jit_finish_size(void)
 {
 #if GET_JIT_SIZE
     FILE		*fp;
-    jit_word_t		 offset;
+    int			 offset;
 
     /* Define a single path */
     fp = fopen(JIT_SIZE_PATH, "a");

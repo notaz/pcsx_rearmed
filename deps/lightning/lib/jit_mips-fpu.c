@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2022  Free Software Foundation, Inc.
+ * Copyright (C) 2012-2023  Free Software Foundation, Inc.
  *
  * This file is part of GNU lightning.
  *
@@ -27,6 +27,8 @@
 #  define MIPS_fmt_PS			0x16		/* 2 x float32 */
 #  define MIPS_fmt_S_PU			0x20
 #  define MIPS_fmt_S_PL			0x26
+#  define MIPS_condn_S			0x14		/* release 6 */
+#  define MIPS_condn_D			0x15		/* release 6 */
 #  define MIPS_ADD_fmt			0x00
 #  define MIPS_LWXC1			0x00
 #  define MIPS_SUB_fmt			0x01
@@ -88,6 +90,23 @@
 #  define MIPS_cond_NGE			0x3d
 #  define MIPS_cond_LE			0x3e
 #  define MIPS_cond_UGT			0x3f
+/* Mips release 6 */
+#  define MIPS_cmp_AF			0x00
+#  define MIPS_cmp_UN			0x01
+#  define MIPS_cmp_EQ			0x02
+#  define MIPS_cmp_UEQ			0x03
+#  define MIPS_cmp_LT			0x04
+#  define MIPS_cmp_ULT			0x05
+#  define MIPS_cmp_LE			0x06
+#  define MIPS_cmp_ULE			0x07
+#  define MIPS_cmp_SAF			0x08
+#  define MIPS_cmp_SUN			0x09
+#  define MIPS_cmp_SEQ			0x0a
+#  define MIPS_cmp_SUEQ			0x0b
+#  define MIPS_cmp_SLT			0x0c
+#  define MIPS_cmp_SULT			0x0d
+#  define MIPS_cmp_SLE			0x0e
+#  define MIPS_cmp_SULE			0x0f
 #  define ADD_S(fd,fs,ft)		hrrrit(MIPS_COP1,MIPS_fmt_S,ft,fs,fd,MIPS_ADD_fmt)
 #  define ADD_D(fd,fs,ft)		hrrrit(MIPS_COP1,MIPS_fmt_D,ft,fs,fd,MIPS_ADD_fmt)
 #  define SUB_S(fd,fs,ft)		hrrrit(MIPS_COP1,MIPS_fmt_S,ft,fs,fd,MIPS_SUB_fmt)
@@ -103,7 +122,9 @@
 #  define SQRT_S(fd,fs)			hrrrit(MIPS_COP1,MIPS_fmt_S,0,fs,fd,MIPS_SQRT_fmt)
 #  define SQRT_D(fd,fs)			hrrrit(MIPS_COP1,MIPS_fmt_D,0,fs,fd,MIPS_SQRT_fmt)
 #  define MFC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_MF,rt,fs,0,0)
+#  define MFHC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_MFH,rt,fs,0,0)
 #  define MTC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_MT,rt,fs,0,0)
+#  define MTHC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_MTH,rt,fs,0,0)
 #  define DMFC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_DMF,rt,fs,0,0)
 #  define DMTC1(rt, fs)			hrrrit(MIPS_COP1,MIPS_DMT,rt,fs,0,0)
 #  define CVT_D_S(fd,fs)		hrrrit(MIPS_COP1,MIPS_fmt_S,0,fs,fd,MIPS_CVT_fmt_D)
@@ -130,7 +151,9 @@
 #  define MOV_S(fd, fs)			hrrrit(MIPS_COP1,MIPS_fmt_S,0,fs,fd,MIPS_MOV_fmt)
 #  define MOV_D(fd, fs)			hrrrit(MIPS_COP1,MIPS_fmt_D,0,fs,fd,MIPS_MOV_fmt)
 #  define BC1F(im)			hrri(MIPS_COP1,MIPS_BC,MIPS_BCF,im)
+#  define BC1EQZ(ft,im)			hrri(MIPS_COP1,MIPS_BC1EQZ,ft,im)
 #  define BC1T(im)			hrri(MIPS_COP1,MIPS_BC,MIPS_BCT,im)
+#  define BC1NEZ(ft,im)			hrri(MIPS_COP1,MIPS_BC1NEZ,ft,im)
 #  define C_F_S(fs,ft)			c_cond_fmt(MIPS_fmt_S,ft,fs,MIPS_cond_F)
 #  define C_F_D(fs,ft)			c_cond_fmt(MIPS_fmt_D,ft,fs,MIPS_cond_F)
 #  define C_F_PS(fs,ft)			c_cond_fmt(MIPS_fmt_PS,ft,fs,MIPS_cond_F)
@@ -183,6 +206,42 @@
 static void
 _c_cond_fmt(jit_state_t *_jit, jit_int32_t fm,
 	    jit_int32_t ft, jit_int32_t fs, jit_int32_t cc);
+#  define CMP_AF_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_AF)
+#  define CMP_AF_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_AF)
+#  define CMP_UN_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_UN)
+#  define CMP_UN_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_UN)
+#  define CMP_EQ_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_EQ)
+#  define CMP_EQ_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_EQ)
+#  define CMP_UEQ_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_UEQ)
+#  define CMP_UEQ_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_UEQ)
+#  define CMP_LT_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_LT)
+#  define CMP_LT_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_LT)
+#  define CMP_ULT_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_ULT)
+#  define CMP_ULT_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_ULT)
+#  define CMP_LE_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_LE)
+#  define CMP_LE_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_LE)
+#  define CMP_ULE_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_ULE)
+#  define CMP_ULE_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_ULE)
+#  define CMP_SAF_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SAF)
+#  define CMP_SAF_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SAF)
+#  define CMP_SUN_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SUN)
+#  define CMP_SUN_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SUN)
+#  define CMP_SEQ_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SEQ)
+#  define CMP_SEQ_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SEQ)
+#  define CMP_SUEQ_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SUEQ)
+#  define CMP_SUEQ_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SUEQ)
+#  define CMP_SLT_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SLT)
+#  define CMP_SLT_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SLT)
+#  define CMP_SULT_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SULT)
+#  define CMP_SULT_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SULT)
+#  define CMP_SLE_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SLE)
+#  define CMP_SLE_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SLE)
+#  define CMP_SULE_S(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_S,fd,ft,fs,MIPS_cmp_SULE)
+#  define CMP_SULE_D(fd,fs,ft)		cmp_cond_fmt(MIPS_condn_D,fd,ft,fs,MIPS_cmp_SULE)
+#  define cmp_cond_fmt(fm,fd,ft,fs,cn)	_cmp_cond_fmt(_jit,fm,fd,ft,fs,cn)
+static void
+_cmp_cond_fmt(jit_state_t *_jit, jit_int32_t fm, jit_int32_t fd,
+	      jit_int32_t ft, jit_int32_t fs, jit_int32_t cn);
 #  define addr_f(r0,r1,r2)		ADD_S(r0,r1,r2)
 #  define addi_f(r0,r1,i0)		_addi_f(_jit,r0,r1,i0)
 static void _addi_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_float32_t*);
@@ -220,7 +279,7 @@ static void _divi_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_float64_t*);
 #  define sqrtr_f(r0,r1)		SQRT_S(r0,r1)
 #  define sqrtr_d(r0,r1)		SQRT_D(r0,r1)
 #  define movr_w_f(r0, r1)		MTC1(r1, r0)
-#  define movr_f_w(r0, r1)		MFC1(r1, r0)
+#  define movr_f_w(r0, r1)		MFC1(r0, r1)
 #  define movi_f_w(r0, i0)		_movi_f_w(_jit, r0, i0)
 static void _movi_f_w(jit_state_t*,jit_int32_t,jit_float32_t*);
 #  define extr_f(r0, r1)		_extr_f(_jit, r0, r1)
@@ -565,7 +624,22 @@ _c_cond_fmt(jit_state_t *_jit, jit_int32_t fm,
     i.ft.b = ft;
     i.fm.b = fm;
     i.hc.b = MIPS_COP1;
-    ii(i.op);
+    instr(i.op);
+}
+
+static void
+_cmp_cond_fmt(jit_state_t *_jit, jit_int32_t fm, jit_int32_t fd,
+	      jit_int32_t ft, jit_int32_t fs, jit_int32_t cn)
+{
+    jit_instr_t		i;
+    i.op = 0;		/* must have bit 6 zero ed */
+    i.cn.b = cn;
+    i.ft.b = ft;
+    i.fs.b = fs;
+    i.fd.b = fd;
+    i.fm.b = fm;
+    i.hc.b = MIPS_COP1;
+    instr(i.op);
 }
 
 #  define fpr_opi(name, type, size)					\
@@ -829,16 +903,28 @@ static void
 _movr_ww_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     assert(r1 == r2 - 1);
-    MTC1(r1, r0 + BE_P);
-    MTC1(r2, r0 + LE_P);
+    if (jit_mips6_p()) {
+	MTC1(r1, r0);
+	MTHC1(r2, r0);
+    }
+    else {
+	MTC1(r1, r0 + BE_P);
+	MTC1(r2, r0 + LE_P);
+    }
 }
 
 static void
 _movr_d_ww(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     assert(r0 == r1 - 1);
-    MFC1(r0, r2 + BE_P);
-    MFC1(r1, r2 + LE_P);
+    if (jit_mips6_p()) {
+	MFC1(r0, r2);
+	MFHC1(r1, r2);
+    }
+    else {
+	MFC1(r0, r2 + BE_P);
+	MFC1(r1, r2 + LE_P);
+    }
 }
 
 static void
@@ -896,40 +982,40 @@ _truncr_d_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 static void
 _ldr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-#  if __WORDSIZE == 64 || NEW_ABI
-    LDC1(r0, 0, r1);
-#  else
-    LWC1(r0 + BE_P, 0, r1);
-    LWC1(r0 + LE_P, 4, r1);
-#  endif
+    if (jit_mips6_p() || __WORDSIZE == 64 || NEW_ABI)
+	LDC1(r0, 0, r1);
+    else {
+	LWC1(r0 + BE_P, 0, r1);
+	LWC1(r0 + LE_P, 4, r1);
+    }
 }
 
 static void
 _ldi_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
 {
     jit_int32_t		reg;
-#  if __WORDSIZE == 64 || NEW_ABI
-    if (can_sign_extend_short_p(i0))
-	LDC1(r0, i0, _ZERO_REGNO);
-    else {
-	reg = jit_get_reg(jit_class_gpr);
-	movi(rn(reg), i0);
-	LDC1(r0, 0, rn(reg));
-	jit_unget_reg(reg);
-    }
-#  else
-    if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
-	LWC1(r0 + BE_P, i0, _ZERO_REGNO);
-	LWC1(r0 + LE_P, i0 + 4, _ZERO_REGNO);
+    if (jit_mips6_p() || __WORDSIZE == 64 || NEW_ABI) {
+	if (can_sign_extend_short_p(i0))
+	    LDC1(r0, i0, _ZERO_REGNO);
+	else {
+	    reg = jit_get_reg(jit_class_gpr);
+	    movi(rn(reg), i0);
+	    LDC1(r0, 0, rn(reg));
+	    jit_unget_reg(reg);
+	}
     }
     else {
-	reg = jit_get_reg(jit_class_gpr);
-	movi(rn(reg), i0);
-	LWC1(r0 + BE_P, 0, rn(reg));
-	LWC1(r0 + LE_P, 4, rn(reg));
-	jit_unget_reg(reg);
+	if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
+	    LWC1(r0 + BE_P, i0, _ZERO_REGNO);
+	    LWC1(r0 + LE_P, i0 + 4, _ZERO_REGNO);
+	}
+	else {
+	    reg = jit_get_reg(jit_class_gpr);
+	    movi(rn(reg), i0);
+	    ldr_d(r0, rn(reg));
+	    jit_unget_reg(reg);
+	}
     }
-#  endif
 }
 
 static void
@@ -946,52 +1032,60 @@ static void
 _ldxi_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     jit_int32_t		reg;
-#  if __WORDSIZE == 64 || NEW_ABI
-    if (can_sign_extend_short_p(i0))
-	LDC1(r0, i0, r1);
-#  else
-    if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
-	LWC1(r0 + BE_P, i0, r1);
-	LWC1(r0 + LE_P, i0 + 4, r1);
+    if (jit_mips6_p() || __WORDSIZE == 64 || NEW_ABI) {
+	if (can_sign_extend_short_p(i0))
+	    LDC1(r0, i0, r1);
+	else
+	    goto fallback;
     }
-#  endif
     else {
-	reg = jit_get_reg(jit_class_gpr);
-	addi(rn(reg), r1, i0);
-	ldr_d(r0, rn(reg));
-	jit_unget_reg(reg);
+	if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
+	    LWC1(r0 + BE_P, i0, r1);
+	    LWC1(r0 + LE_P, i0 + 4, r1);
+	}
+	else {
+	fallback:
+	    reg = jit_get_reg(jit_class_gpr);
+	    addi(rn(reg), r1, i0);
+	    ldr_d(r0, rn(reg));
+	    jit_unget_reg(reg);
+	}
     }
 }
 
 static void
 _str_d(jit_state_t *_jit,jit_int32_t r0, jit_int32_t r1)
 {
-#  if __WORDSIZE == 64 || NEW_ABI
-    SDC1(r1, 0, r0);
-#  else
-    SWC1(r1 + BE_P, 0, r0);
-    SWC1(r1 + LE_P, 4, r0);
-#  endif
+    if (jit_mips6_p() || __WORDSIZE == 64 || NEW_ABI)
+	SDC1(r1, 0, r0);
+    else {
+	SWC1(r1 + BE_P, 0, r0);
+	SWC1(r1 + LE_P, 4, r0);
+    }
 }
 
 static void
 _sti_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0)
 {
     jit_int32_t		reg;
-#  if __WORDSIZE == 64 || NEW_ABI
-    if (can_sign_extend_short_p(i0))
-	SDC1(r0, i0, _ZERO_REGNO);
-#  else
-    if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
-	SWC1(r0 + BE_P, i0, _ZERO_REGNO);
-	SWC1(r0 + LE_P, i0 + 4, _ZERO_REGNO);
+    if (jit_mips6_p() ||  __WORDSIZE == 64 || NEW_ABI) {
+	if (can_sign_extend_short_p(i0))
+	    SDC1(r0, i0, _ZERO_REGNO);
+	else
+	    goto fallback;
     }
-#  endif
     else {
-	reg = jit_get_reg(jit_class_gpr);
-	movi(rn(reg), i0);
-	str_d(rn(reg), r0);
-	jit_unget_reg(reg);
+	if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
+	    SWC1(r0 + BE_P, i0, _ZERO_REGNO);
+	    SWC1(r0 + LE_P, i0 + 4, _ZERO_REGNO);
+	}
+	else {
+	fallback:
+	    reg = jit_get_reg(jit_class_gpr);
+	    movi(rn(reg), i0);
+	    str_d(rn(reg), r0);
+	    jit_unget_reg(reg);
+	}
     }
 }
 
@@ -1009,20 +1103,24 @@ static void
 _stxi_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 {
     jit_int32_t		reg;
-#  if __WORDSIZE == 64 || NEW_ABI
-    if (can_sign_extend_short_p(i0))
-	SDC1(r1, i0, r0);
-#  else
-    if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
-	SWC1(r1 + BE_P, i0, r0);
-	SWC1(r1 + LE_P, i0 + 4, r0);
+    if (jit_mips6_p() || __WORDSIZE == 64 || NEW_ABI) {
+	if (can_sign_extend_short_p(i0))
+	    SDC1(r1, i0, r0);
+	else
+	    goto fallback;
     }
-#  endif
     else {
-	reg = jit_get_reg(jit_class_gpr);
-	addi(rn(reg), r0, i0);
-	str_d(rn(reg), r1);
-	jit_unget_reg(reg);
+	if (can_sign_extend_short_p(i0) && can_sign_extend_short_p(i0 + 4)) {
+	    SWC1(r1 + BE_P, i0, r0);
+	    SWC1(r1 + LE_P, i0 + 4, r0);
+	}
+	else {
+	fallback:
+	    reg = jit_get_reg(jit_class_gpr);
+	    addi(rn(reg), r0, i0);
+	    str_d(rn(reg), r1);
+	    jit_unget_reg(reg);
+	}
     }
 }
 
@@ -1058,30 +1156,49 @@ _movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t *i0)
     else
 	DMTC1(_ZERO_REGNO, r0);
 #  else
-    if (_jitc->no_data)
-	reg = jit_get_reg(jit_class_gpr);
-    if (data.i[0]) {
+    if (jit_mips6_p()) {
 	if (_jitc->no_data) {
-	    movi(rn(reg), data.i[0]);
-	    MTC1(rn(reg), r0 + BE_P);
+	    reg = jit_get_reg(jit_class_gpr);
+#  if __WORDSIZE == 64
+	    movi(rn(reg), data.l);
+	    DMTC1(rn(reg), r0);
+#  else
+	    movi(rn(reg), data.i[0 + BE_P]);
+	    MTC1(rn(reg), r0);
+	    movi(rn(reg), data.i[0 + LE_P]);
+	    MTHC1(rn(reg), r0);
+#  endif
+	    jit_unget_reg(reg);
 	}
 	else
-	    ldi_f(r0 + BE_P, (jit_word_t)i0);
+	    ldi_d(r0, (jit_word_t)i0);
     }
-    else
-	MTC1(_ZERO_REGNO, r0 + BE_P);
-    if (data.i[1]) {
-	if (_jitc->no_data) {
-	    movi(rn(reg), data.i[1]);
-	    MTC1(rn(reg), r0 + LE_P);
+    else {
+	if (_jitc->no_data)
+	    reg = jit_get_reg(jit_class_gpr);
+	if (data.i[0]) {
+	    if (_jitc->no_data) {
+		movi(rn(reg), data.i[0]);
+		MTC1(rn(reg), r0 + BE_P);
+	    }
+	    else
+		ldi_f(r0 + BE_P, (jit_word_t)i0);
 	}
 	else
-	    ldi_f(r0 + LE_P, ((jit_word_t)i0) + 4);
+	    MTC1(_ZERO_REGNO, r0 + BE_P);
+	if (data.i[1]) {
+	    if (_jitc->no_data) {
+		movi(rn(reg), data.i[1]);
+		MTC1(rn(reg), r0 + LE_P);
+	    }
+	    else
+		ldi_f(r0 + LE_P, ((jit_word_t)i0) + 4);
+	}
+	else
+	    MTC1(_ZERO_REGNO, r0 + LE_P);
+	if (_jitc->no_data)
+	    jit_unget_reg(reg);
     }
-    else
-	MTC1(_ZERO_REGNO, r0 + LE_P);
-    if (_jitc->no_data)
-	jit_unget_reg(reg);
 #  endif
 }
 
@@ -1089,13 +1206,26 @@ static void
 _ltr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LT_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_OLT_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(lt)
 
@@ -1103,13 +1233,26 @@ static void
 _ler_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LE_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_OLE_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(le)
 
@@ -1117,13 +1260,26 @@ static void
 _eqr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_EQ_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_EQ_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(eq)
 
@@ -1131,13 +1287,26 @@ static void
 _ger_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULT_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_ULT_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(ge)
 
@@ -1145,13 +1314,26 @@ static void
 _gtr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULE_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_ULE_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(gt)
 
@@ -1159,13 +1341,26 @@ static void
 _ner_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_EQ_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_EQ_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(ne)
 
@@ -1173,13 +1368,26 @@ static void
 _unltr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULT_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_ULT_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(unlt)
 
@@ -1187,13 +1395,26 @@ static void
 _unler_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULE_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_ULE_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(unle)
 
@@ -1201,13 +1422,26 @@ static void
 _uneqr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UEQ_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_UEQ_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(uneq)
 
@@ -1215,13 +1449,26 @@ static void
 _unger_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LT_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_OLT_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(unge)
 
@@ -1229,13 +1476,26 @@ static void
 _ungtr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LE_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_OLE_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(ungt)
 
@@ -1243,13 +1503,26 @@ static void
 _ltgtr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UEQ_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_UEQ_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(ltgt)
 
@@ -1257,13 +1530,26 @@ static void
 _ordr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UN_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_UN_S(r1, r2);
+	flush();
+	/* cannot optimize delay slot */
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(ord)
 
@@ -1271,13 +1557,26 @@ static void
 _unordr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UN_S(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_UN_S(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 fopi(unord)
 
@@ -1285,10 +1584,25 @@ static jit_word_t
 _bltr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LT_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLT_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(lt)
@@ -1297,10 +1611,25 @@ static jit_word_t
 _bler_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LE_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLE_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(le)
@@ -1309,10 +1638,25 @@ static jit_word_t
 _beqr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_EQ_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_EQ_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(eq)
@@ -1321,10 +1665,25 @@ static jit_word_t
 _bger_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULT_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULT_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(ge)
@@ -1333,10 +1692,25 @@ static jit_word_t
 _bgtr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULE_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULE_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(gt)
@@ -1345,10 +1719,25 @@ static jit_word_t
 _bner_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_EQ_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_EQ_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(ne)
@@ -1357,10 +1746,25 @@ static jit_word_t
 _bunltr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULT_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULT_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(unlt)
@@ -1369,10 +1773,25 @@ static jit_word_t
 _bunler_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULE_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULE_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(unle)
@@ -1381,10 +1800,25 @@ static jit_word_t
 _buneqr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UEQ_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UEQ_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(uneq)
@@ -1393,10 +1827,25 @@ static jit_word_t
 _bunger_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LT_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLT_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(unge)
@@ -1405,10 +1854,25 @@ static jit_word_t
 _bungtr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LE_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLE_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(ungt)
@@ -1417,10 +1881,25 @@ static jit_word_t
 _bltgtr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UEQ_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UEQ_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(ltgt)
@@ -1429,10 +1908,25 @@ static jit_word_t
 _bordr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_S(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UN_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UN_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(ord)
@@ -1441,10 +1935,25 @@ static jit_word_t
 _bunordr_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_S(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UN_S(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UN_S(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 fbopi(unord)
@@ -1453,13 +1962,26 @@ static void
 _ltr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LT_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_OLT_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(lt)
 
@@ -1467,13 +1989,26 @@ static void
 _ler_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LE_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_OLE_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(le)
 
@@ -1481,13 +2016,26 @@ static void
 _eqr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_EQ_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_EQ_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(eq)
 
@@ -1495,13 +2043,26 @@ static void
 _ger_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULT_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_ULT_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(ge)
 
@@ -1509,13 +2070,26 @@ static void
 _gtr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULE_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_ULE_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(gt)
 
@@ -1523,13 +2097,26 @@ static void
 _ner_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_EQ_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_EQ_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(ne)
 
@@ -1537,13 +2124,26 @@ static void
 _unltr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULT_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_ULT_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(unlt)
 
@@ -1551,13 +2151,26 @@ static void
 _unler_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_ULE_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_ULE_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(unle)
 
@@ -1565,13 +2178,26 @@ static void
 _uneqr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UEQ_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_UEQ_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(uneq)
 
@@ -1579,13 +2205,26 @@ static void
 _unger_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LT_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_OLT_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(unge)
 
@@ -1593,13 +2232,26 @@ static void
 _ungtr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_LE_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_OLE_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(ungt)
 
@@ -1607,13 +2259,26 @@ static void
 _ltgtr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UEQ_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_UEQ_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(ltgt)
 
@@ -1621,13 +2286,26 @@ static void
 _ordr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UN_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	addi(r0, r0, 1);
+    }
+    else {
+	C_UN_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1F(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(ord)
 
@@ -1635,13 +2313,26 @@ static void
 _unordr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(0);
-    /* delay slot */
-    movi(r0, 1);
-    movi(r0, 0);
-    patch_at(w, _jit->pc.w);
+    jit_int32_t		reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg(jit_class_fpr);
+	CMP_UN_D(rn(reg), r1, r2);
+	MFC1(r0, rn(reg));
+	jit_unget_reg(reg);
+	andi(r0, r0, 1);
+    }
+    else {
+	C_UN_D(r1, r2);
+	/* cannot optimize delay slot */
+	flush();
+	w = _jit->pc.w;
+	BC1T(0);
+	/* delay slot */
+	movi(r0, 1);
+	movi(r0, 0);
+	flush();
+	patch_at(w, _jit->pc.w);
+    }
 }
 dopi(unord)
 
@@ -1649,10 +2340,25 @@ static jit_word_t
 _bltr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LT_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLT_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(lt)
@@ -1661,10 +2367,25 @@ static jit_word_t
 _bler_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LE_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLE_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(le)
@@ -1673,10 +2394,25 @@ static jit_word_t
 _beqr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_EQ_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_EQ_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(eq)
@@ -1685,10 +2421,25 @@ static jit_word_t
 _bger_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULT_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULT_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(ge)
@@ -1697,10 +2448,25 @@ static jit_word_t
 _bgtr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULE_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULE_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(gt)
@@ -1709,10 +2475,25 @@ static jit_word_t
 _bner_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_EQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_EQ_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_EQ_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(ne)
@@ -1721,10 +2502,25 @@ static jit_word_t
 _bunltr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULT_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULT_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(unlt)
@@ -1733,10 +2529,25 @@ static jit_word_t
 _bunler_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_ULE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_ULE_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_ULE_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(unle)
@@ -1745,10 +2556,25 @@ static jit_word_t
 _buneqr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UEQ_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UEQ_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(uneq)
@@ -1757,10 +2583,25 @@ static jit_word_t
 _bunger_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLT_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LT_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLT_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(unge)
@@ -1769,10 +2610,25 @@ static jit_word_t
 _bungtr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_OLE_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_LE_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_OLE_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(ungt)
@@ -1781,10 +2637,25 @@ static jit_word_t
 _bltgtr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UEQ_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UEQ_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UEQ_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(ltgt)
@@ -1793,10 +2664,25 @@ static jit_word_t
 _bordr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_D(r1, r2);
-    w = _jit->pc.w;
-    BC1F(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UN_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1EQZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UN_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1F(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(ord)
@@ -1805,10 +2691,25 @@ static jit_word_t
 _bunordr_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r1, jit_int32_t r2)
 {
     jit_word_t		w;
-    C_UN_D(r1, r2);
-    w = _jit->pc.w;
-    BC1T(((i0 - w) >> 2) - 1);
-    NOP(1);
+    jit_int32_t		op, reg;
+    if (jit_mips6_p()) {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr, r1, r2);
+	op = pending();
+	CMP_UN_D(rn(reg), r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1NEZ(rn(reg), ((i0 - w) >> 2) - 1);
+    }
+    else {
+	reg = jit_get_reg_for_delay_slot(jit_class_fpr|jit_class_chk, r1, r2);
+	op = pending();
+	C_UN_D(r1, r2);
+	flush();
+	w = _jit->pc.w;
+	BC1T(((i0 - w) >> 2) - 1);
+    }
+    delay(op);
+    jit_unget_reg(reg);
     return (w);
 }
 dbopi(unord)

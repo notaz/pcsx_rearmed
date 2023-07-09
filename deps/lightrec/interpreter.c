@@ -16,6 +16,7 @@ struct interpreter;
 static u32 int_CP0(struct interpreter *inter);
 static u32 int_CP2(struct interpreter *inter);
 static u32 int_SPECIAL(struct interpreter *inter);
+static u32 int_META(struct interpreter *inter);
 static u32 int_REGIMM(struct interpreter *inter);
 static u32 int_branch(struct interpreter *inter, u32 pc,
 		      union code code, bool branch);
@@ -45,7 +46,7 @@ static inline u32 int_get_ds_pc(const struct interpreter *inter, s16 imm)
 
 static inline struct opcode *next_op(const struct interpreter *inter)
 {
-	return &inter->block->opcode_list[inter->offset + 1];
+	return &inter->op[1];
 }
 
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
@@ -186,7 +187,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	 * interpreter in that case.
 	 * Same goes for when we have a branch in a delay slot of another
 	 * branch. */
-	load_in_ds = load_in_delay_slot(op->c);
+	load_in_ds = opcode_is_load(op->c) || opcode_is_mfc(op->c);
 	branch_in_ds = has_delay_slot(op->c);
 
 	if (branch) {
@@ -241,6 +242,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			new_op.c = op_next;
 			new_op.flags = 0;
 			inter2.op = &new_op;
+			inter2.offset = 0;
 
 			/* Execute the first opcode of the next block */
 			lightrec_int_op(&inter2);
@@ -259,6 +261,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	inter2.block = inter->block;
 	inter2.op = op;
 	inter2.cycles = inter->cycles;
+	inter2.offset = inter->offset + 1;
 
 	if (dummy_ld)
 		new_rt = reg_cache[op->r.rt];
@@ -351,11 +354,6 @@ static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 	u32 old_pc = int_get_branch_pc(inter);
 	u32 next_pc = state->regs.gpr[inter->op->r.rs];
 
-	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
-		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
-		return old_pc;
-	}
-
 	if (link_reg)
 		state->regs.gpr[link_reg] = old_pc + 8;
 
@@ -390,11 +388,6 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 		      union code code, bool branch)
 {
 	u32 next_pc = pc + 4 + ((s16)code.i.imm << 2);
-
-	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
-		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
-		return pc;
-	}
 
 	update_cycles_before_branch(inter);
 
@@ -605,11 +598,14 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 {
 	struct opcode_i *op = &inter->op->i;
 	u32 *reg_cache = inter->state->regs.gpr;
-	u32 val;
+	u32 val, *flags = NULL;
+
+	if (inter->block)
+		flags = &inter->op->flags;
 
 	val = lightrec_rw(inter->state, inter->op->c,
 			  reg_cache[op->rs], reg_cache[op->rt],
-			  &inter->op->flags, inter->block);
+			  flags, inter->block, inter->offset);
 
 	if (is_load && op->rt)
 		reg_cache[op->rt] = val;
@@ -632,7 +628,7 @@ static u32 int_store(struct interpreter *inter)
 	lightrec_rw(inter->state, inter->op->c,
 		    inter->state->regs.gpr[inter->op->i.rs],
 		    inter->state->regs.gpr[inter->op->i.rt],
-		    &inter->op->flags, inter->block);
+		    &inter->op->flags, inter->block, inter->offset);
 
 	next_pc = int_get_ds_pc(inter, 1);
 
@@ -717,9 +713,9 @@ static u32 int_syscall_break(struct interpreter *inter)
 {
 
 	if (inter->op->r.op == OP_SPECIAL_BREAK)
-		inter->state->exit_flags |= LIGHTREC_EXIT_BREAK;
+		lightrec_set_exit_flags(inter->state, LIGHTREC_EXIT_BREAK);
 	else
-		inter->state->exit_flags |= LIGHTREC_EXIT_SYSCALL;
+		lightrec_set_exit_flags(inter->state, LIGHTREC_EXIT_SYSCALL);
 
 	return int_get_ds_pc(inter, 0);
 }
@@ -955,7 +951,7 @@ static u32 int_special_SLTU(struct interpreter *inter)
 static u32 int_META_MOV(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_r *op = &inter->op->r;
+	struct opcode_m *op = &inter->op->m;
 
 	if (likely(op->rd))
 		reg_cache[op->rd] = reg_cache[op->rs];
@@ -966,10 +962,10 @@ static u32 int_META_MOV(struct interpreter *inter)
 static u32 int_META_EXTC(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_i *op = &inter->op->i;
+	struct opcode_m *op = &inter->op->m;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s8)reg_cache[op->rs];
+	if (likely(op->rd))
+		reg_cache[op->rd] = (u32)(s32)(s8)reg_cache[op->rs];
 
 	return jump_next(inter);
 }
@@ -977,10 +973,10 @@ static u32 int_META_EXTC(struct interpreter *inter)
 static u32 int_META_EXTS(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_i *op = &inter->op->i;
+	struct opcode_m *op = &inter->op->m;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s16)reg_cache[op->rs];
+	if (likely(op->rd))
+		reg_cache[op->rd] = (u32)(s32)(s16)reg_cache[op->rs];
 
 	return jump_next(inter);
 }
@@ -1008,6 +1004,17 @@ static u32 int_META_MULT2(struct interpreter *inter)
 		else
 			reg_cache[reg_hi] = rs >> (32 - c.r.op);
 	}
+
+	return jump_next(inter);
+}
+
+static u32 int_META_COM(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->regs.gpr;
+	union code c = inter->op->c;
+
+	if (likely(c.m.rd))
+		reg_cache[c.m.rd] = ~reg_cache[c.m.rs];
 
 	return jump_next(inter);
 }
@@ -1047,9 +1054,7 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
-	[OP_META_MOV]		= int_META_MOV,
-	[OP_META_EXTC]		= int_META_EXTC,
-	[OP_META_EXTS]		= int_META_EXTS,
+	[OP_META]		= int_META,
 	[OP_META_MULT2]		= int_META_MULT2,
 	[OP_META_MULTU2]	= int_META_MULT2,
 };
@@ -1111,6 +1116,14 @@ static const lightrec_int_func_t int_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= int_ctc,
 };
 
+static const lightrec_int_func_t int_meta[64] = {
+	SET_DEFAULT_ELM(int_meta, int_unimplemented),
+	[OP_META_MOV]		= int_META_MOV,
+	[OP_META_EXTC]		= int_META_EXTC,
+	[OP_META_EXTS]		= int_META_EXTS,
+	[OP_META_COM]		= int_META_COM,
+};
+
 static u32 int_SPECIAL(struct interpreter *inter)
 {
 	lightrec_int_func_t f = int_special[inter->op->r.op];
@@ -1152,6 +1165,16 @@ static u32 int_CP2(struct interpreter *inter)
 	return int_CP(inter);
 }
 
+static u32 int_META(struct interpreter *inter)
+{
+	lightrec_int_func_t f = int_meta[inter->op->m.op];
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
+		return int_unimplemented(inter);
+
+	return execute(f, inter);
+}
+
 static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 				       struct block *block, u32 offset)
 {
@@ -1187,4 +1210,76 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 
 	return 0;
+}
+
+static u32 branch_get_next_pc(struct lightrec_state *state, union code c, u32 pc)
+{
+	switch (c.i.op) {
+	case OP_SPECIAL:
+		/* JR / JALR */
+		return state->regs.gpr[c.r.rs];
+	case OP_J:
+	case OP_JAL:
+		return (pc & 0xf0000000) | (c.j.imm << 2);
+	default:
+		/* Branch opcodes */
+		return pc + 4 + ((s16)c.i.imm << 2);
+	}
+}
+
+u32 lightrec_handle_load_delay(struct lightrec_state *state,
+			       struct block *block, u32 pc, u32 reg)
+{
+	union code c = lightrec_read_opcode(state, pc);
+	struct opcode op[2] = {
+		{
+			.c = c,
+			.flags = 0,
+		},
+		{
+			.flags = 0,
+		},
+	};
+	struct interpreter inter = {
+		.block = block,
+		.state = state,
+		.offset = 0,
+		.op = op,
+		.cycles = 0,
+	};
+	bool branch_taken;
+	u32 reg_mask, next_pc;
+
+	if (has_delay_slot(c)) {
+		op[1].c = lightrec_read_opcode(state, pc + 4);
+
+		branch_taken = is_branch_taken(state->regs.gpr, c);
+		next_pc = branch_get_next_pc(state, c, pc);
+
+		/* Branch was evaluated, we can write the load opcode's target
+		 * register now. */
+		state->regs.gpr[reg] = state->temp_reg;
+
+		/* Handle JALR / regimm opcodes setting $ra (or any other
+		 * register in the case of JALR) */
+		reg_mask = (u32)opcode_write_mask(c);
+		if (reg_mask)
+			state->regs.gpr[ctz32(reg_mask)] = pc + 8;
+
+		/* Handle delay slot of the branch opcode */
+		pc = int_delay_slot(&inter, next_pc, branch_taken);
+	} else {
+		/* Make sure we only run one instruction */
+		inter.delay_slot = true;
+
+		lightrec_int_op(&inter);
+		pc += 4;
+
+		if (!opcode_writes_register(c, reg))
+			state->regs.gpr[reg] = state->temp_reg;
+	}
+
+	state->current_cycle += inter.cycles;
+
+	return pc;
 }

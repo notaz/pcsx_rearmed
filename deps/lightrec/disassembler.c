@@ -120,6 +120,13 @@ static const char * const cp2_opcodes[] = {
 	[OP_CP2_NCCT]		= "ncct    ",
 };
 
+static const char * const meta_opcodes[] = {
+	[OP_META_MOV]		= "move    ",
+	[OP_META_EXTC]		= "extc    ",
+	[OP_META_EXTS]		= "exts    ",
+	[OP_META_COM]		= "com     ",
+};
+
 static const char * const mult2_opcodes[] = {
 	"mult2   ", "multu2  ",
 };
@@ -133,6 +140,7 @@ static const char * const opcode_io_flags[] = {
 	"self-modifying code",
 	"no invalidation",
 	"no mask",
+	"load delay",
 };
 
 static const char * const opcode_io_modes[] = {
@@ -444,18 +452,11 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				lightrec_reg_name(c.i.rt),
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
-	case OP_META_MOV:
-		return snprintf(buf, len, "move    %s,%s",
-				lightrec_reg_name(c.r.rd),
-				lightrec_reg_name(c.r.rs));
-	case OP_META_EXTC:
-		return snprintf(buf, len, "extc    %s,%s",
-				lightrec_reg_name(c.i.rt),
-				lightrec_reg_name(c.i.rs));
-	case OP_META_EXTS:
-		return snprintf(buf, len, "exts    %s,%s",
-				lightrec_reg_name(c.i.rt),
-				lightrec_reg_name(c.i.rs));
+	case OP_META:
+		return snprintf(buf, len, "%s%s,%s",
+				meta_opcodes[c.m.op],
+				lightrec_reg_name(c.m.rd),
+				lightrec_reg_name(c.m.rs));
 	case OP_META_MULT2:
 	case OP_META_MULTU2:
 		*flags_ptr = opcode_multdiv_flags;

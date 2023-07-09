@@ -9,7 +9,7 @@
 
 #include <stdlib.h>
 
-#ifdef ENABLE_THREADED_COMPILER
+#if ENABLE_THREADED_COMPILER
 #include <stdatomic.h>
 
 static atomic_uint lightrec_bytes[MEM_TYPE_END];

@@ -1,5 +1,5 @@
 dnl
-dnl Copyright 2000, 2001, 2002, 2012-2019 Free Software Foundation, Inc.
+dnl Copyright 2000, 2001, 2002, 2012-2023 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GNU lightning.
 dnl
@@ -15,7 +15,7 @@ dnl License for more details.
 dnl
 
 AC_PREREQ([2.71])
-AC_INIT([GNU lightning],[2.1.3],[pcpa@gnu.org],[lightning])
+AC_INIT([GNU lightning],[2.2.1],[pcpa@gnu.org],[lightning])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([Makefile.am])
@@ -58,6 +58,12 @@ case "$target_cpu" in
 		else
 		    CFLAGS="$CFLAGS -ieee_with_no_inexact"
 		fi				;;
+	    *)					;;
+	esac					;;
+    aarch64)
+	case "$host_os" in
+	    darwin*)
+		LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DPACKED_STACK=1"			;;
 	    *)					;;
 	esac					;;
     *)						;;
@@ -163,17 +169,6 @@ if test "x$DEVEL_DISASSEMBLER" != "xno"; then
     LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DDEVEL_DISASSEMBLER=1"
 fi
 
-AC_ARG_ENABLE(assertions,
-	      AS_HELP_STRING([--enable-assertions],
-			     [Enable runtime code generation assertions]),
-	      [DEBUG=$enableval], [DEBUG=auto])
-if test "x$DEBUG" = xyes; then
-    LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DDEBUG=1"
-else
-    LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DNDEBUG"
-    DEBUG=no
-fi
-
 # This option is only useful during development.
 AC_ARG_ENABLE(devel-get-jit-size,
 	      AS_HELP_STRING([--enable-devel-get-jit-size],
@@ -181,11 +176,36 @@ AC_ARG_ENABLE(devel-get-jit-size,
 	      [GET_JIT_SIZE=$enableval], [GET_JIT_SIZE=no])
 AM_CONDITIONAL(get_jit_size, [test $GET_JIT_SIZE = yes])
 
-case "$host_os" in
-    *bsd*|osf*)		SHLIB=""	;;
-    *hpux*)		SHLIB="-ldld"	;;
-    *)			SHLIB="-ldl"	;;
-esac
+AC_ARG_ENABLE(assertions,
+	      AS_HELP_STRING([--enable-assertions],
+			     [Enable runtime code generation assertions]),
+	      [DEBUG=$enableval], [DEBUG=auto])
+
+# This option might be made default in the future
+# Currently it is only useful to ensure existing code will work
+# if PACKED_STACK is also defined.
+AC_ARG_ENABLE(devel-strong-type-checking,
+	      AS_HELP_STRING([--enable-devel-strong-type-checking],
+			     [Devel mode for strong type checking]),
+	      [STRONG_TYPE_CHECKING=$enableval], [STRONG_TYPE_CHECKING=no])
+if test "x$DEBUG" = xyes -o x"$STRONG_TYPE_CHECKING" = xyes; then
+    LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DDEBUG=1"
+else
+    LIGHTNING_CFLAGS="$LIGHTNING_CFLAGS -DNDEBUG"
+    DEBUG=no
+fi
+AM_CONDITIONAL(strong_type_checking, [test $STRONG_TYPE_CHECKING = yes])
+
+AC_CHECK_LIB(dl, dlopen, [HAVE_LIBDL="yes"])
+AC_CHECK_LIB(dld, dlopen, [HAVE_LIBDLD="yes"])
+
+if test "x$HAVE_LIBDL" = xyes; then
+    SHLIB="-ldl";
+elif test "x$HAVE_LIBDLD" = xyes; then
+    SHLIB="-ldld";
+else
+    SHLIB="";
+fi
 AC_SUBST(SHLIB)
 
 cpu=
@@ -233,7 +253,7 @@ elif test $cpu = x86; then
     int main(void) {
 	int		    ac, flags;
 	unsigned int	    eax, ebx, ecx, edx;
-	if (__WORDSIZE == 64)
+	if (sizeof(long) == 8)
 	    return 1;
 	__asm__ volatile ("pushfl;\n\t"
 			  "popl %0;\n\t"

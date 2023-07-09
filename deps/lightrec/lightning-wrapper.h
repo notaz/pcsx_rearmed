@@ -21,4 +21,14 @@
 
 #define jit_b()			jit_beqr(0, 0)
 
+#if defined(__sh__)
+#define jit_add_state(u,v)						\
+	do {								\
+		jit_new_node_ww(jit_code_movr,_R0,LIGHTREC_REG_STATE);	\
+		jit_new_node_www(jit_code_addr,u,v,_R0);		\
+	} while (0)
+#else
+#define jit_add_state(u,v)	jit_addr(u,v,LIGHTREC_REG_STATE)
+#endif
+
 #endif /* __LIGHTNING_WRAPPER_H__ */

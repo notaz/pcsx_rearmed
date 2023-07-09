@@ -28,6 +28,21 @@ extern "C" {
 #   define __api
 #endif
 
+#ifndef __cnst
+#   ifdef __GNUC__
+#	define __cnst __attribute__((const))
+#   else
+#	define __cnst
+#   endif
+#endif
+#ifndef __pure
+#   ifdef __GNUC__
+#	define __pure __attribute__((pure))
+#   else
+#	define __pure
+#   endif
+#endif
+
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -119,7 +134,8 @@ __api void lightrec_set_invalidate_mode(struct lightrec_state *state,
 __api void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
 __api u32 lightrec_exit_flags(struct lightrec_state *state);
 
-__api struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state);
+__api __cnst struct lightrec_registers *
+lightrec_get_registers(struct lightrec_state *state);
 
 __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);

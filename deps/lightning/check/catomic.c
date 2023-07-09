@@ -150,7 +150,10 @@ main(int argc, char *argv[])
 #define join(tid)						\
     /* load pthread_t value in JIT_R0 */			\
     jit_movi(JIT_R0, (jit_word_t)tids);				\
-    jit_ldxi(JIT_R0, JIT_R0, tid * sizeof(pthread_t));		\
+    if (__WORDSIZE == 64 && sizeof(pthread_t) == 4)		\
+	jit_ldxi_i(JIT_R0, JIT_R0, tid * sizeof(pthread_t));	\
+    else							\
+	jit_ldxi(JIT_R0, JIT_R0, tid * sizeof(pthread_t));	\
     jit_prepare();						\
     jit_pushargr(JIT_R0);					\
     jit_pushargi((jit_word_t)NULL);				\
