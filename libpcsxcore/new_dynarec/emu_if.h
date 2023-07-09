@@ -1,12 +1,6 @@
 #include "new_dynarec.h"
 #include "../r3000a.h"
 
-extern char invalid_code[0x100000];
-
-/* weird stuff */
-#define EAX 0
-#define ECX 1
-
 extern int dynarec_local[];
 
 /* same as psxRegs.GPR.n.* */

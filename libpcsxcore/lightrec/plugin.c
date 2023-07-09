@@ -12,6 +12,7 @@
 #include "../psxhw.h"
 #include "../psxmem.h"
 #include "../r3000a.h"
+#include "../new_dynarec/events.h"
 
 #include "../frontend/main.h"
 
@@ -53,7 +54,7 @@ static char *name = "retroarch.exe";
 
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
-static bool booting;
+static bool block_stepping;
 
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
@@ -136,7 +137,7 @@ static void lightrec_restore_state(struct lightrec_state *state)
 {
 	lightrec_reset_cycle_count(state, psxRegs.cycle);
 
-	if (booting || has_interrupt())
+	if (block_stepping || has_interrupt())
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	else
 		lightrec_set_target_cycle_count(state, next_interupt);
@@ -419,38 +420,18 @@ static int lightrec_plugin_init(void)
 	return 0;
 }
 
-static void lightrec_dump_regs(struct lightrec_state *state)
-{
-	struct lightrec_registers *regs = lightrec_get_registers(state);
-
-	if (unlikely(booting))
-		memcpy(&psxRegs.GPR, regs->gpr, sizeof(regs->gpr));
-	psxRegs.CP0.n.Status = regs->cp0[12];
-	psxRegs.CP0.n.Cause = regs->cp0[13];
-}
-
-static void lightrec_restore_regs(struct lightrec_state *state)
-{
-	struct lightrec_registers *regs = lightrec_get_registers(state);
-
-	if (unlikely(booting))
-		memcpy(regs->gpr, &psxRegs.GPR, sizeof(regs->gpr));
-	regs->cp0[12] = psxRegs.CP0.n.Status;
-	regs->cp0[13] = psxRegs.CP0.n.Cause;
-	regs->cp0[14] = psxRegs.CP0.n.EPC;
-}
-
 extern void intExecuteBlock();
-extern void gen_interupt();
 
 static void lightrec_plugin_execute_internal(bool block_only)
 {
+	struct lightrec_registers *regs;
 	u32 flags;
 
-	gen_interupt();
+	regs = lightrec_get_registers(lightrec_state);
+	gen_interupt((psxCP0Regs *)regs->cp0);
 
 	// step during early boot so that 0x80030000 fastboot hack works
-	booting = block_only;
+	block_stepping = block_only;
 	if (block_only)
 		next_interupt = psxRegs.cycle;
 
@@ -458,7 +439,6 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		intExecuteBlock();
 	} else {
 		lightrec_reset_cycle_count(lightrec_state, psxRegs.cycle);
-		lightrec_restore_regs(lightrec_state);
 
 		if (unlikely(use_lightrec_interpreter)) {
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
@@ -471,7 +451,6 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 		psxRegs.cycle = lightrec_current_cycle_count(lightrec_state);
 
-		lightrec_dump_regs(lightrec_state);
 		flags = lightrec_exit_flags(lightrec_state);
 
 		if (flags & LIGHTREC_EXIT_SEGFAULT) {
@@ -481,14 +460,13 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		}
 
 		if (flags & LIGHTREC_EXIT_SYSCALL)
-			psxException(0x20, 0);
+			psxException(0x20, 0, (psxCP0Regs *)regs->cp0);
 	}
 
-	if ((psxRegs.CP0.n.Cause & psxRegs.CP0.n.Status & 0x300) &&
-			(psxRegs.CP0.n.Status & 0x1)) {
+	if ((regs->cp0[13] & regs->cp0[12] & 0x300) && (regs->cp0[12] & 0x1)) {
 		/* Handle software interrupts */
-		psxRegs.CP0.n.Cause &= ~0x7c;
-		psxException(psxRegs.CP0.n.Cause, 0);
+		regs->cp0[13] &= ~0x7c;
+		psxException(regs->cp0[13], 0, (psxCP0Regs *)regs->cp0);
 	}
 }
 

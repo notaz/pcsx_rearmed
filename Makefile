@@ -141,7 +141,7 @@ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 else
 CFLAGS += -DDRC_DISABLE
 endif
-OBJS += libpcsxcore/new_dynarec/emu_if.o
+OBJS += libpcsxcore/new_dynarec/emu_if.o libpcsxcore/new_dynarec/events.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64

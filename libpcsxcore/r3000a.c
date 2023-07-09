@@ -84,7 +84,8 @@ void psxShutdown() {
 	psxMemShutdown();
 }
 
-void psxException(u32 code, u32 bd) {
+// cp0 is passed separately for lightrec to be less messy
+void psxException(u32 code, u32 bd, psxCP0Regs *cp0) {
 	psxRegs.code = PSXMu32(psxRegs.pc);
 	
 	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
@@ -92,30 +93,30 @@ void psxException(u32 code, u32 bd) {
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
 		// so we execute it here
-		psxCP2[psxRegs.code & 0x3f](&psxRegs.CP2);
+		psxCP2Regs *cp2 = (void *)(cp0 + 1);
+		psxCP2[psxRegs.code & 0x3f](cp2);
 	}
 
 	// Set the Cause
-	psxRegs.CP0.n.Cause = (psxRegs.CP0.n.Cause & 0x300) | code;
+	cp0->n.Cause = (cp0->n.Cause & 0x300) | code;
 
 	// Set the EPC & PC
 	if (bd) {
 #ifdef PSXCPU_LOG
 		PSXCPU_LOG("bd set!!!\n");
 #endif
-		psxRegs.CP0.n.Cause |= 0x80000000;
-		psxRegs.CP0.n.EPC = (psxRegs.pc - 4);
+		cp0->n.Cause |= 0x80000000;
+		cp0->n.EPC = (psxRegs.pc - 4);
 	} else
-		psxRegs.CP0.n.EPC = (psxRegs.pc);
+		cp0->n.EPC = (psxRegs.pc);
 
-	if (psxRegs.CP0.n.Status & 0x400000)
+	if (cp0->n.Status & 0x400000)
 		psxRegs.pc = 0xbfc00180;
 	else
 		psxRegs.pc = 0x80000080;
 
 	// Set the Status
-	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status &~0x3f) |
-						  ((psxRegs.CP0.n.Status & 0xf) << 2);
+	cp0->n.Status = (cp0->n.Status & ~0x3f) | ((cp0->n.Status & 0x0f) << 2);
 
 	if (Config.HLE) psxBiosException();
 }
@@ -199,7 +200,7 @@ void psxBranchTest() {
 			PSXCPU_LOG("Interrupt: %x %x\n", psxHu32(0x1070), psxHu32(0x1074));
 #endif
 //			SysPrintf("Interrupt (%x): %x %x\n", psxRegs.cycle, psxHu32(0x1070), psxHu32(0x1074));
-			psxException(0x400, 0);
+			psxException(0x400, 0, &psxRegs.CP0);
 		}
 	}
 }

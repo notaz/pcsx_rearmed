@@ -165,6 +165,18 @@ static void fake_bios_gpu_setup(void)
 		GPU_writeData(gpu_data_def[i]);
 }
 
+static void SetBootRegs(u32 pc, u32 gp, u32 sp)
+{
+	//printf("%s %08x %08x %08x\n", __func__, pc, gp, sp);
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+
+	psxRegs.pc = pc;
+	psxRegs.GPR.n.gp = gp;
+	psxRegs.GPR.n.sp = sp ? sp : 0x801fff00;
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+}
+
 int LoadCdrom() {
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
@@ -178,6 +190,7 @@ int LoadCdrom() {
 
 	if (!Config.HLE && !Config.SlowBoot) {
 		// skip BIOS logos
+		psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;
 	}
@@ -230,10 +243,7 @@ int LoadCdrom() {
 
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 
-	psxRegs.pc = SWAP32(tmpHead.pc0);
-	psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
-	if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
+	SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0), SWAP32(tmpHead.s_addr));
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
@@ -488,11 +498,8 @@ int Load(const char *ExePath) {
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				psxRegs.pc = SWAP32(tmpHead.pc0);
-				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
-				if (psxRegs.GPR.n.sp == 0)
-					psxRegs.GPR.n.sp = 0x801fff00;
+				SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0),
+					SWAP32(tmpHead.s_addr));
 				retval = 0;
 				break;
 			case CPE_EXE:
@@ -601,6 +608,7 @@ static const u32 SaveVersion = 0x8b410006;
 int SaveState(const char *file) {
 	void *f;
 	GPUFreeze_t *gpufP;
+	SPUFreezeHdr_t *spufH;
 	SPUFreeze_t *spufP;
 	int Size;
 	unsigned char *pMem;
@@ -637,10 +645,10 @@ int SaveState(const char *file) {
 	free(gpufP);
 
 	// spu
-	spufP = (SPUFreeze_t *) malloc(16);
-	SPU_freeze(2, spufP, psxRegs.cycle);
-	Size = spufP->Size; SaveFuncs.write(f, &Size, 4);
-	free(spufP);
+	spufH = malloc(sizeof(*spufH));
+	SPU_freeze(2, (SPUFreeze_t *)spufH, psxRegs.cycle);
+	Size = spufH->Size; SaveFuncs.write(f, &Size, 4);
+	free(spufH);
 	spufP = (SPUFreeze_t *) malloc(Size);
 	SPU_freeze(1, spufP, psxRegs.cycle);
 	SaveFuncs.write(f, spufP, Size);

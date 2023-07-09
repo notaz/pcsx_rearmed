@@ -242,6 +242,7 @@ FUNCTION(cc_interrupt):
 @@	str	r10, [fp, #LO_reg_cop0+36]	/* Count - not on PSX */
 	mov	r10, lr
 
+	add	r0, fp, #(LO_psxRegs + 34*4)    /* CP0 */
 	bl	gen_interupt
 	mov	lr, r10
 	ldr	r10, [fp, #LO_cycle]
@@ -301,7 +302,8 @@ call_psxException:
 	ldr	r3, [fp, #LO_last_count]
 	str	r2, [fp, #LO_pcaddr]
 	add	r10, r3, r10
-	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
+	str	r10, [fp, #LO_cycle]            /* PCSX cycles */
+	add	r2, fp, #(LO_psxRegs + 34*4)    /* CP0 */
 	bl	psxException
 
 	/* note: psxException might do recursive recompiler call from it's HLE code,
