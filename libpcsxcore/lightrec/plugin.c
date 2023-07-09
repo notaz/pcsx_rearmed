@@ -496,13 +496,8 @@ static void lightrec_plugin_execute(void)
 {
 	extern int stop;
 
-	if (!booting)
-		lightrec_plugin_sync_regs_from_pcsx();
-
 	while (!stop)
 		lightrec_plugin_execute_internal(false);
-
-	lightrec_plugin_sync_regs_to_pcsx();
 }
 
 static void lightrec_plugin_execute_block(void)
@@ -519,21 +514,24 @@ static void lightrec_plugin_clear(u32 addr, u32 size)
 		lightrec_invalidate(lightrec_state, addr, size * 4);
 }
 
-static void lightrec_plugin_notify(int note, void *data)
+static void lightrec_plugin_sync_regs_to_pcsx(void);
+static void lightrec_plugin_sync_regs_from_pcsx(void);
+
+static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 {
-	/*
-	To change once proper icache emulation is emulated
 	switch (note)
 	{
-		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
-			lightrec_plugin_clear(0, 0x200000/4);
-			break;
-		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
-		// Sent from psxDma3().
-		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
-		default:
-			break;
-	}*/
+	case R3000ACPU_NOTIFY_CACHE_ISOLATED:
+	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+		/* not used, lightrec calls lightrec_enable_ram() instead */
+		break;
+	case R3000ACPU_NOTIFY_BEFORE_SAVE:
+		lightrec_plugin_sync_regs_to_pcsx();
+		break;
+	case R3000ACPU_NOTIFY_AFTER_LOAD:
+		lightrec_plugin_sync_regs_from_pcsx();
+		break;
+	}
 }
 
 static void lightrec_plugin_apply_config()
@@ -561,7 +559,7 @@ static void lightrec_plugin_reset(void)
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
 }
 
-void lightrec_plugin_sync_regs_from_pcsx(void)
+static void lightrec_plugin_sync_regs_from_pcsx(void)
 {
 	struct lightrec_registers *regs;
 
@@ -573,7 +571,7 @@ void lightrec_plugin_sync_regs_from_pcsx(void)
 	lightrec_invalidate_all(lightrec_state);
 }
 
-void lightrec_plugin_sync_regs_to_pcsx(void)
+static void lightrec_plugin_sync_regs_to_pcsx(void)
 {
 	struct lightrec_registers *regs;
 

@@ -894,8 +894,6 @@ static int _OpenPlugins(void) {
 	signal(SIGPIPE, SignalExit);
 #endif
 
-	GPU_clearDynarec(clearDynarec);
-
 	ret = CDR_open();
 	if (ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
 	ret = SPU_open();

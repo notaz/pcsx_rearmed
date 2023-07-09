@@ -229,7 +229,6 @@ static const struct {
 	DIRECT_GPU(GPUgetScreenPic),
 	DIRECT_GPU(GPUshowScreenPic),
 */
-//	DIRECT_GPU(GPUclearDynarec),
 };
 
 void *plugin_link(enum builtint_plugins_e id, const char *sym)

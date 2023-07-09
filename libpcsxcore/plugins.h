@@ -75,7 +75,6 @@ typedef struct {
 typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *);
 typedef long (CALLBACK* GPUgetScreenPic)(unsigned char *);
 typedef long (CALLBACK* GPUshowScreenPic)(unsigned char *);
-typedef void (CALLBACK* GPUclearDynarec)(void (CALLBACK *callback)(void));
 typedef void (CALLBACK* GPUvBlank)(int, int);
 
 // GPU function pointers
@@ -100,7 +99,6 @@ extern GPUmakeSnapshot  GPU_makeSnapshot;
 extern GPUfreeze        GPU_freeze;
 extern GPUgetScreenPic  GPU_getScreenPic;
 extern GPUshowScreenPic GPU_showScreenPic;
-extern GPUclearDynarec  GPU_clearDynarec;
 extern GPUvBlank        GPU_vBlank;
 
 // CD-ROM Functions
@@ -382,8 +380,6 @@ extern SIO1readBaud32         SIO1_readBaud32;
 extern SIO1registerCallback   SIO1_registerCallback;
 
 #endif
-
-void CALLBACK clearDynarec(void);
 
 void SetIsoFile(const char *filename);
 const char *GetIsoFile(void);

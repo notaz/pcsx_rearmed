@@ -29,9 +29,11 @@ extern "C" {
 #include "psxcounters.h"
 #include "psxbios.h"
 
-enum {
+enum R3000Anote {
 	R3000ACPU_NOTIFY_CACHE_ISOLATED = 0,
 	R3000ACPU_NOTIFY_CACHE_UNISOLATED = 1,
+	R3000ACPU_NOTIFY_BEFORE_SAVE,
+	R3000ACPU_NOTIFY_AFTER_LOAD,
 };
 
 typedef struct {
@@ -40,7 +42,7 @@ typedef struct {
 	void (*Execute)();		/* executes up to a break */
 	void (*ExecuteBlock)();	/* executes up to a jump */
 	void (*Clear)(u32 Addr, u32 Size);
-	void (*Notify)(int note, void *data);
+	void (*Notify)(enum R3000Anote note, void *data);
 	void (*ApplyConfig)();
 	void (*Shutdown)();
 } R3000Acpu;
@@ -204,8 +206,6 @@ extern psxRegisters psxRegs;
 extern u32 event_cycles[PSXINT_COUNT];
 extern u32 next_interupt;
 
-void new_dyna_before_save(void);
-void new_dyna_after_save(void);
 void new_dyna_freeze(void *f, int mode);
 
 #define new_dyna_set_event_abs(e, abs) { \

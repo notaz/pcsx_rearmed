@@ -49,7 +49,6 @@ GPUmakeSnapshot       GPU_makeSnapshot;
 GPUfreeze             GPU_freeze;
 GPUgetScreenPic       GPU_getScreenPic;
 GPUshowScreenPic      GPU_showScreenPic;
-GPUclearDynarec       GPU_clearDynarec;
 GPUvBlank             GPU_vBlank;
 
 CDRinit               CDR_init;
@@ -201,7 +200,6 @@ void CALLBACK GPU__makeSnapshot(void) {}
 void CALLBACK GPU__keypressed(int key) {}
 long CALLBACK GPU__getScreenPic(unsigned char *pMem) { return -1; }
 long CALLBACK GPU__showScreenPic(unsigned char *pMem) { return -1; }
-void CALLBACK GPU__clearDynarec(void (CALLBACK *callback)(void)) {}
 void CALLBACK GPU__vBlank(int val) {}
 
 #define LoadGpuSym1(dest, name) \
@@ -241,7 +239,6 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym1(freeze, "GPUfreeze");
 	LoadGpuSym0(getScreenPic, "GPUgetScreenPic");
 	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
-	LoadGpuSym0(clearDynarec, "GPUclearDynarec");
 	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(configure, "GPUconfigure");
 	LoadGpuSym0(test, "GPUtest");
@@ -1119,10 +1116,6 @@ static int LoadSIO1plugin(const char *SIO1dll) {
 }
 
 #endif
-
-void CALLBACK clearDynarec(void) {
-	psxCpu->Reset();
-}
 
 int LoadPlugins() {
 	int ret;
