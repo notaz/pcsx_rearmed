@@ -76,7 +76,7 @@ typedef union {
 	PAIR p[34];
 } psxGPRRegs;
 
-typedef union {
+typedef union psxCP0Regs_ {
 	struct {
 		u32	Index,     Random,    EntryLo0,  EntryLo1,
 						Context,   PageMask,  Wired,     Reserved0,
@@ -176,6 +176,8 @@ typedef struct psxCP2Regs {
 } psxCP2Regs;
 
 typedef struct {
+	// note: some cores like lightrec don't keep their data here,
+	// so use R3000ACPU_NOTIFY_BEFORE_SAVE to sync
 	psxGPRRegs GPR;		/* General Purpose Registers */
 	psxCP0Regs CP0;		/* Coprocessor0 Registers */
 	union {
@@ -185,8 +187,8 @@ typedef struct {
 		};
 		psxCP2Regs CP2;
 	};
-    u32 pc;				/* Program counter */
-    u32 code;			/* The instruction */
+	u32 pc;				/* Program counter */
+	u32 code;			/* The instruction */
 	u32 cycle;
 	u32 interrupt;
 	struct { u32 sCycle, cycle; } intCycle[32];
@@ -224,7 +226,7 @@ void new_dyna_freeze(void *f, int mode);
 int  psxInit();
 void psxReset();
 void psxShutdown();
-void psxException(u32 code, u32 bd);
+void psxException(u32 code, u32 bd, psxCP0Regs *cp0);
 void psxBranchTest();
 void psxExecuteBios();
 void psxJumpTest();

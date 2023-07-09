@@ -750,19 +750,19 @@ OP(psxMTLO) { _rLo_ = _rRs_; } // Lo = Rs
 *********************************************************/
 OP(psxBREAK) {
 	regs_->pc -= 4;
-	psxException(0x24, branch);
+	psxException(0x24, branch, &regs_->CP0);
 }
 
 OP(psxSYSCALL) {
 	regs_->pc -= 4;
-	psxException(0x20, branch);
+	psxException(0x20, branch, &regs_->CP0);
 }
 
 static inline void psxTestSWInts(psxRegisters *regs_) {
 	if (regs_->CP0.n.Cause & regs_->CP0.n.Status & 0x0300 &&
 	   regs_->CP0.n.Status & 0x1) {
 		regs_->CP0.n.Cause &= ~0x7c;
-		psxException(regs_->CP0.n.Cause, branch);
+		psxException(regs_->CP0.n.Cause, branch, &regs_->CP0);
 	}
 }
 

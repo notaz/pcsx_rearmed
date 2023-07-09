@@ -242,6 +242,7 @@ static struct decoded_insn
 } dops[MAXBLOCK];
 
   static u_char *out;
+  static char invalid_code[0x100000];
   static struct ht_entry hash_table[65536];
   static struct block_info *blocks[PAGE_COUNT];
   static struct jump_info *jumps[PAGE_COUNT];
@@ -3605,7 +3606,7 @@ static void do_cop1stub(int n)
   //else {printf("fp exception in delay slot\n");}
   wb_dirtys(i_regs->regmap_entry,i_regs->wasdirty);
   if(regs[i].regmap_entry[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
-  emit_movimm(start+(i-ds)*4,EAX); // Get PC
+  emit_movimm(start+(i-ds)*4,0); // Get PC
   emit_addimm(HOST_CCREG,ccadj[i],HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
   emit_far_jump(ds?fp_exception_ds:fp_exception);
 }
@@ -5071,8 +5072,8 @@ static void do_ccstub(int n)
   if(stubs[n].c!=-1)
   {
     // Save PC as return address
-    emit_movimm(stubs[n].c,EAX);
-    emit_writeword(EAX,&pcaddr);
+    emit_movimm(stubs[n].c,0);
+    emit_writeword(0,&pcaddr);
   }
   else
   {

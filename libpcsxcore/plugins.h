@@ -180,6 +180,11 @@ typedef struct {
 	unsigned char PluginName[8];
 	uint32_t PluginVersion;
 	uint32_t Size;
+} SPUFreezeHdr_t;
+typedef struct {
+	unsigned char PluginName[8];
+	uint32_t PluginVersion;
+	uint32_t Size;
 	unsigned char SPUPorts[0x200];
 	unsigned char SPURam[0x80000];
 	xa_decode_t xa;
