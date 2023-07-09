@@ -120,18 +120,6 @@ void pcsx_mtc0_ds(u32 reg, u32 val)
 	MTC0(&psxRegs, reg, val);
 }
 
-void new_dyna_before_save(void)
-{
-	psxRegs.interrupt &= ~(1 << PSXINT_RCNT); // old savestate compat
-
-	// psxRegs.intCycle is always maintained, no need to convert
-}
-
-void new_dyna_after_save(void)
-{
-	psxRegs.interrupt |= 1 << PSXINT_RCNT;
-}
-
 static void new_dyna_restore(void)
 {
 	int i;
@@ -330,7 +318,6 @@ static int ari64_init()
 
 static void ari64_reset()
 {
-	printf("ari64_reset\n");
 	new_dyna_pcsx_mem_reset();
 	new_dynarec_invalidate_all_pages();
 	new_dyna_restore();
@@ -369,14 +356,17 @@ static void ari64_clear(u32 addr, u32 size)
 	new_dynarec_invalidate_range(addr, addr + size);
 }
 
-static void ari64_notify(int note, void *data) {
+static void ari64_notify(enum R3000Anote note, void *data) {
 	switch (note)
 	{
 	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
 	case R3000ACPU_NOTIFY_CACHE_ISOLATED:
 		new_dyna_pcsx_mem_isolate(note == R3000ACPU_NOTIFY_CACHE_ISOLATED);
 		break;
-	default:
+	case R3000ACPU_NOTIFY_BEFORE_SAVE:
+		break;
+	case R3000ACPU_NOTIFY_AFTER_LOAD:
+		ari64_reset();
 		break;
 	}
 }

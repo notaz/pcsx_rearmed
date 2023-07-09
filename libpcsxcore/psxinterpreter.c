@@ -1078,7 +1078,6 @@ static int intInit() {
 }
 
 static void intReset() {
-	memset(&ICache, 0xff, sizeof(ICache));
 }
 
 static inline void execI_(u8 **memRLUT, psxRegisters *regs_) {
@@ -1115,11 +1114,15 @@ void intExecuteBlock() {
 static void intClear(u32 Addr, u32 Size) {
 }
 
-void intNotify (int note, void *data) {
-	/* Armored Core won't boot without this */
-	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
-	{
+static void intNotify(enum R3000Anote note, void *data) {
+	switch (note) {
+	case R3000ACPU_NOTIFY_CACHE_ISOLATED: // Armored Core?
+	case R3000ACPU_NOTIFY_AFTER_LOAD:
 		memset(&ICache, 0xff, sizeof(ICache));
+		break;
+	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+	case R3000ACPU_NOTIFY_BEFORE_SAVE:
+		break;
 	}
 }
 

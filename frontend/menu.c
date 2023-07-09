@@ -2652,10 +2652,11 @@ void menu_prepare_emu(void)
 	psxCpu = &psxInt;
 	#endif
 	if (psxCpu != prev_cpu) {
+		prev_cpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 		prev_cpu->Shutdown();
 		psxCpu->Init();
-		// note that this does not really reset, just clears drc caches
 		psxCpu->Reset();
+		psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 	}
 
 	menu_sync_config();

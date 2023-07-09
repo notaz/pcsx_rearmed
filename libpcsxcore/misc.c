@@ -608,7 +608,7 @@ int SaveState(const char *file) {
 	f = SaveFuncs.open(file, "wb");
 	if (f == NULL) return -1;
 
-	new_dyna_before_save();
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
 	SaveFuncs.write(f, (void *)PcsxHeader, 32);
 	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
@@ -655,8 +655,6 @@ int SaveState(const char *file) {
 
 	SaveFuncs.close(f);
 
-	new_dyna_after_save();
-
 	return 0;
 }
 
@@ -685,14 +683,14 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosInit();
 
-	psxCpu->Reset();
 	SaveFuncs.seek(f, 128 * 96 * 3, SEEK_CUR);
-
 	SaveFuncs.read(f, psxM, 0x00200000);
 	SaveFuncs.read(f, psxR, 0x00080000);
 	SaveFuncs.read(f, psxH, 0x00010000);
 	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
@@ -795,6 +793,7 @@ int RecvPcsxInfo() {
 			SysClose(); return -1;
 		}
 		psxCpu->Reset();
+		psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 	}
 
 	return 0;
