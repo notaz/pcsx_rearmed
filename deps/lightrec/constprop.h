@@ -10,7 +10,7 @@
 
 #define LIGHTREC_CONSTPROP_INITIALIZER { { 0, 0xffffffff, 0 }, }
 
-struct opcode;
+struct block;
 
 struct constprop_data {
 	u32 value;
@@ -34,7 +34,7 @@ static inline _Bool is_known_zero(const struct constprop_data *v, u8 reg)
 	return bits_are_known_zero(v, reg, 0xffffffff);
 }
 
-void lightrec_consts_propagate(const struct opcode *list,
+void lightrec_consts_propagate(const struct block *block,
 			       unsigned int idx,
 			       struct constprop_data *v);
 

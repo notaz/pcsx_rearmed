@@ -81,7 +81,7 @@
 
 #define REG_LO 32
 #define REG_HI 33
-#define REG_CP2_TEMP (offsetof(struct lightrec_state, cp2_temp_reg) / sizeof(u32))
+#define REG_TEMP (offsetof(struct lightrec_state, temp_reg) / sizeof(u32))
 
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
@@ -149,13 +149,16 @@ struct lightrec_cstate {
 	unsigned int cycles;
 
 	struct regcache *reg_cache;
+
+	_Bool no_load_delay;
 };
 
 struct lightrec_state {
 	struct lightrec_registers regs;
-	u32 cp2_temp_reg;
+	u32 temp_reg;
 	u32 next_pc;
 	uintptr_t wrapper_regs[NUM_TEMPS];
+	u8 in_delay_slot_n;
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
@@ -169,10 +172,13 @@ struct lightrec_state {
 	struct reaper *reaper;
 	void *tlsf;
 	void (*eob_wrapper_func)(void);
+	void (*interpreter_func)(void);
+	void (*ds_check_func)(void);
 	void (*memset_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_precompile;
+	unsigned int nb_compile;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch, offset_io;
@@ -182,9 +188,8 @@ struct lightrec_state {
 	void *code_lut[];
 };
 
-u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u32 *flags,
-		struct block *block);
+u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
+		u32 data, u32 *flags, struct block *block, u16 offset);
 
 void lightrec_free_block(struct lightrec_state *state, struct block *block);
 
@@ -285,7 +290,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state,
 			       struct opcode *list);
 
-unsigned int lightrec_cycles_of_opcode(union code code);
+__cnst unsigned int lightrec_cycles_of_opcode(union code code);
 
 static inline u8 get_mult_div_lo(union code c)
 {
@@ -347,6 +352,12 @@ static inline _Bool can_sign_extend(s32 value, u8 order)
 static inline _Bool can_zero_extend(u32 value, u8 order)
 {
       return (value >> order) == 0;
+}
+
+static inline const struct opcode *
+get_delay_slot(const struct opcode *list, u16 i)
+{
+	return op_flag_no_ds(list[i].flags) ? &list[i - 1] : &list[i + 1];
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

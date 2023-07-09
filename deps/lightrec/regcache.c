@@ -49,6 +49,10 @@ static const char * mips_regs[] = {
 	"lo", "hi",
 };
 
+/* Forward declaration(s) */
+static void clean_reg(jit_state_t *_jit,
+		      struct native_register *nreg, u8 jit_reg, bool clean);
+
 const char * lightrec_reg_name(u8 reg)
 {
 	return mips_regs[reg];
@@ -219,14 +223,7 @@ static void lightrec_discard_nreg(struct native_register *nreg)
 static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 		struct native_register *nreg, u8 jit_reg)
 {
-	/* If we get a dirty register, store back the old value */
-	if (nreg->prio == REG_IS_DIRTY) {
-		s16 offset = offsetof(struct lightrec_state, regs.gpr)
-			+ (nreg->emulated_register << 2);
-
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-	}
-
+	clean_reg(_jit, nreg, jit_reg, false);
 	lightrec_discard_nreg(nreg);
 }
 
@@ -519,6 +516,7 @@ void lightrec_free_regs(struct regcache *cache)
 static void clean_reg(jit_state_t *_jit,
 		struct native_register *nreg, u8 jit_reg, bool clean)
 {
+	/* If we get a dirty register, store back the old value */
 	if (nreg->prio == REG_IS_DIRTY) {
 		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (nreg->emulated_register << 2);
@@ -577,6 +575,11 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 		reg = lightning_reg_to_lightrec(cache, jit_reg);
 		clean_reg(_jit, reg, jit_reg, true);
 	}
+}
+
+bool lightrec_reg_is_loaded(struct regcache *cache, u16 reg)
+{
+	return !!find_mapped_reg(cache, reg, false);
 }
 
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,

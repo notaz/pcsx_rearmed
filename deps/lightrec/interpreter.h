@@ -11,5 +11,7 @@
 struct block;
 
 u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u32 pc);
+u32 lightrec_handle_load_delay(struct lightrec_state *state,
+			       struct block *block, u32 pc, u32 reg);
 
 #endif /* __LIGHTREC_INTERPRETER_H__ */

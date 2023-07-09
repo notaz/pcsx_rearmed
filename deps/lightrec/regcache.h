@@ -8,8 +8,13 @@
 
 #include "lightning-wrapper.h"
 
-#define NUM_REGS (JIT_V_NUM - 1)
-#define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
+#if defined(__sh__)
+#  define NUM_REGS JIT_V_NUM
+#  define LIGHTREC_REG_STATE _GBR
+#else
+#  define NUM_REGS (JIT_V_NUM - 1)
+#  define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
+#endif
 
 #if defined(__powerpc__)
 #  define NUM_TEMPS JIT_R_NUM
@@ -68,6 +73,7 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 _Bool lightrec_has_dirty_regs(struct regcache *cache);
 
+_Bool lightrec_reg_is_loaded(struct regcache *cache, u16 reg);
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 				  u16 reg, _Bool unload);
 void lightrec_discard_reg_if_loaded(struct regcache *cache, u16 reg);
@@ -82,7 +88,7 @@ void lightrec_regcache_leave_branch(struct regcache *cache,
 struct regcache * lightrec_regcache_init(struct lightrec_state *state);
 void lightrec_free_regcache(struct regcache *cache);
 
-const char * lightrec_reg_name(u8 reg);
+__cnst const char * lightrec_reg_name(u8 reg);
 
 void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit);
 
