@@ -664,28 +664,17 @@ void _PADstartPoll(PadDataS *pad) {
 			int absX = (pad->absoluteX / 64) + 512;
 			int absY = (pad->absoluteY / 64) + 512;
 
-			//Keep within limits
-			if (absX > 1023) absX = 1023;
-			if (absX < 0) absX = 0;
-			if (absY > 1023) absY = 1023;
-			if (absY < 0) absY = 0;
-
-			stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
-			stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
-			stdpar[6] = 0x20 + (yres * absY >> 10);
-			stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
-
-			//Offscreen - Point at the side of the screen so PSX thinks you are pointing offscreen
-			//Required as a mouse can't be offscreen
-			//Coordinates X=0001h, Y=000Ah indicates "no light"
-			//This will mean you cannot shoot the very each of the screen
-			//ToDo read offscreen range from settings if useful to change
-			int OffscreenRange = 2;
-			if (absX < (OffscreenRange) || absX > (1023 - OffscreenRange) || absY < (OffscreenRange) || absY > (1023 - OffscreenRange)) {
-				stdpar[4] = 0x01;
-				stdpar[5] = 0x00;
-				stdpar[6] = 0x0A;
-				stdpar[7] = 0x00;
+			if (absX == 65536 || absY == 65536) {
+			   stdpar[4] = 0x01;
+			   stdpar[5] = 0x00;
+			   stdpar[6] = 0x0A;
+			   stdpar[7] = 0x00;
+			}
+			else {
+			   stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
+			   stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
+			   stdpar[6] = 0x20 + (yres * absY >> 10);
+			   stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
 			}
 
 			memcpy(buf, stdpar, 8);
