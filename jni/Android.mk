@@ -147,6 +147,7 @@ ifeq ($(HAVE_ARI64),1)
   endif
 endif
   SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
+  SOURCES_C   += $(DYNAREC_DIR)/events.c
 
 ifeq ($(HAVE_LIGHTREC),1)
   COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
