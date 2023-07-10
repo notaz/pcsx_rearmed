@@ -2708,12 +2708,6 @@ void retro_run(void)
    {
       rebootemu = 0;
       SysReset();
-      if (!Config.HLE && !Config.SlowBoot)
-      {
-         // skip BIOS logos
-         psxRegs.pc = psxRegs.GPR.n.ra;
-      }
-      return;
    }
 
    print_internal_fps();

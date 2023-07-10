@@ -2011,9 +2011,6 @@ static int reset_game(void)
 	ClosePlugins();
 	OpenPlugins();
 	SysReset();
-	if (CheckCdrom() != -1) {
-		LoadCdrom();
-	}
 	return 0;
 }
 
@@ -2042,13 +2039,17 @@ static int reload_plugins(const char *cdimg)
 
 static int run_bios(void)
 {
+	boolean origSlowBoot = Config.SlowBoot;
+
 	if (bios_sel == 0)
 		return -1;
 
 	ready_to_go = 0;
 	if (reload_plugins(NULL) != 0)
 		return -1;
+	Config.SlowBoot = 1;
 	SysReset();
+	Config.SlowBoot = origSlowBoot;
 
 	ready_to_go = 1;
 	return 0;
