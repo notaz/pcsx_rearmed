@@ -26,6 +26,7 @@
 
 PcsxConfig Config;
 boolean NetOpened = FALSE;
+boolean BiosBooted = FALSE;
 
 int Log = 0;
 FILE *emuLog = NULL;

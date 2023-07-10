@@ -22,6 +22,7 @@
 */
 
 #include <stddef.h>
+#include <assert.h>
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
@@ -154,7 +155,7 @@ static const unsigned int gpu_data_def[] = {
 	0x02000000, 0x00000000, 0x01ff03ff,
 };
 
-static void fake_bios_gpu_setup(void)
+void BiosLikeGPUSetup()
 {
 	int i;
 
@@ -177,6 +178,14 @@ static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 }
 
+void BiosBootBypass() {
+	assert(psxRegs.pc == 0x80030000);
+
+	// skip BIOS logos and region check
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+	psxRegs.pc = psxRegs.GPR.n.ra;
+}
+
 int LoadCdrom() {
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
@@ -184,15 +193,10 @@ int LoadCdrom() {
 	u8 mdir[4096];
 	char exename[256];
 
-	// not the best place to do it, but since BIOS boot logo killer
-	// is just below, do it here
-	fake_bios_gpu_setup();
-
-	if (!Config.HLE && !Config.SlowBoot) {
-		// skip BIOS logos
-		psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
-		psxRegs.pc = psxRegs.GPR.n.ra;
-		return 0;
+	if (!Config.HLE) {
+		if (!BiosBooted) return 0;              // custom BIOS
+		if (psxRegs.pc != 0x80030000) return 0; // BiosBootBypass'ed
+		if (Config.SlowBoot) return 0;
 	}
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
@@ -210,6 +214,7 @@ int LoadCdrom() {
 	if (GetCdromFile(mdir, time, "SYSTEM.CNF;1") == -1) {
 		// if SYSTEM.CNF is missing, start an existing PSX.EXE
 		if (GetCdromFile(mdir, time, "PSX.EXE;1") == -1) return -1;
+		strcpy(exename, "PSX.EXE;1");
 
 		READTRACK();
 	}
@@ -243,6 +248,7 @@ int LoadCdrom() {
 
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 
+	SysPrintf("manual booting '%s'\n", exename);
 	SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0), SWAP32(tmpHead.s_addr));
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);

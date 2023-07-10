@@ -67,8 +67,14 @@ void psxReset() {
 	psxHwReset();
 	psxBiosInit();
 
-	if (!Config.HLE)
+	BiosLikeGPUSetup(); // a bit of a hack but whatever
+
+	BiosBooted = FALSE;
+	if (!Config.HLE) {
 		psxExecuteBios();
+		if (psxRegs.pc == 0x80030000 && !Config.SlowBoot)
+			BiosBootBypass();
+	}
 
 #ifdef EMU_LOG
 	EMU_LOG("*BIOS END*\n");
@@ -237,7 +243,12 @@ void psxJumpTest() {
 }
 
 void psxExecuteBios() {
-	while (psxRegs.pc != 0x80030000)
+	int i;
+	for (i = 0; psxRegs.pc != 0x80030000 && i < 5000000; i++)
 		psxCpu->ExecuteBlock();
+	if (psxRegs.pc == 0x80030000)
+		BiosBooted = TRUE;
+	else
+		SysPrintf("BIOS boot timeout - custom BIOS?\n");
 }
 

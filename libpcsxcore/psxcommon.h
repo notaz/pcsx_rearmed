@@ -150,13 +150,11 @@ typedef struct {
 		boolean cdr_read_timing;
 		boolean gpu_slow_list_walking;
 	} hacks;
-#ifdef _WIN32
-	char Lang[256];
-#endif
 } PcsxConfig;
 
 extern PcsxConfig Config;
 extern boolean NetOpened;
+extern boolean BiosBooted;
 
 struct PcsxSaveFuncs {
 	void *(*open)(const char *name, const char *mode);
