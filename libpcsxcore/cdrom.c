@@ -36,7 +36,8 @@
 #if 0
 #define CDR_LOG_I SysPrintf
 #else
-#define CDR_LOG_I log_unhandled
+#define CDR_LOG_I(fmt, ...) \
+	log_unhandled("%u cdrom: " fmt, psxRegs.cycle, ##__VA_ARGS__)
 #endif
 #if 0
 #define CDR_LOG_IO SysPrintf
@@ -298,8 +299,8 @@ static void setIrq(int log_cmd)
 	if (cdr.Stat)
 	{
 		int i;
-		SysPrintf("%u cdrom: CDR IRQ=%d cmd %02x stat %02x: ",
-			psxRegs.cycle, !!(cdr.Stat & cdr.Reg2), log_cmd, cdr.Stat);
+		CDR_LOG_I("CDR IRQ=%d cmd %02x stat %02x: ",
+			!!(cdr.Stat & cdr.Reg2), log_cmd, cdr.Stat);
 		for (i = 0; i < cdr.ResultC; i++)
 			SysPrintf("%02x ", cdr.Result[i]);
 		SysPrintf("\n");
@@ -311,7 +312,7 @@ static void setIrq(int log_cmd)
 // (yes it's slow, but you probably don't want to modify it)
 void cdrLidSeekInterrupt(void)
 {
-	CDR_LOG_I("%u %s cdr.DriveState=%d\n", psxRegs.cycle, __func__, cdr.DriveState);
+	CDR_LOG_I("%s cdr.DriveState=%d\n", __func__, cdr.DriveState);
 
 	switch (cdr.DriveState) {
 	default:
@@ -688,15 +689,16 @@ void cdrInterrupt(void) {
 	int i;
 
 	if (cdr.Stat) {
-		CDR_LOG_I("%u cdrom: cmd %02x with irqstat %x\n",
-			psxRegs.cycle, cdr.CmdInProgress, cdr.Stat);
+		CDR_LOG_I("cmd %02x with irqstat %x\n",
+			cdr.CmdInProgress, cdr.Stat);
 		return;
 	}
 	if (cdr.Irq1Pending) {
 		// hand out the "newest" sector, according to nocash
 		cdrUpdateTransferBuf(CDR_getBuffer());
-		CDR_LOG_I("cdrom: %x:%02x:%02x loaded on ack\n",
-			cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+		CDR_LOG_I("%x:%02x:%02x loaded on ack, cmd=%02x res=%02x\n",
+			cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2],
+			cdr.CmdInProgress, cdr.Irq1Pending);
 		SetResultSize(1);
 		cdr.Result[0] = cdr.Irq1Pending;
 		cdr.Stat = (cdr.Irq1Pending & STATUS_ERROR) ? DiskError : DataReady;
@@ -1175,7 +1177,7 @@ void cdrInterrupt(void) {
 			// FALLTHROUGH
 
 		set_error:
-			CDR_LOG_I("cdrom: cmd %02x error %02x\n", Cmd, error);
+			CDR_LOG_I("cmd %02x error %02x\n", Cmd, error);
 			SetResultSize(2);
 			cdr.Result[0] = cdr.StatP | STATUS_ERROR;
 			cdr.Result[1] = not_ready ? ERROR_NOTREADY : error;
@@ -1194,8 +1196,7 @@ void cdrInterrupt(void) {
 	}
 	else if (cdr.Cmd && cdr.Cmd != (Cmd & 0xff)) {
 		cdr.CmdInProgress = cdr.Cmd;
-		CDR_LOG_I("%u cdrom: cmd %02x came before %02x finished\n",
-			psxRegs.cycle, cdr.Cmd, Cmd);
+		CDR_LOG_I("cmd %02x came before %02x finished\n", cdr.Cmd, Cmd);
 	}
 
 	setIrq(Cmd);
@@ -1263,7 +1264,7 @@ static void cdrAttenuate(s16 *buf, int samples, int stereo)
 static void cdrReadInterruptSetResult(unsigned char result)
 {
 	if (cdr.Stat) {
-		CDR_LOG_I("cdrom: %d:%02d:%02d irq miss, cmd=%02x irqstat=%02x\n",
+		CDR_LOG_I("%d:%02d:%02d irq miss, cmd=%02x irqstat=%02x\n",
 			cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 			cdr.CmdInProgress, cdr.Stat);
 		cdr.Irq1Pending = result;
@@ -1283,7 +1284,7 @@ static void cdrUpdateTransferBuf(const u8 *buf)
 	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
 	CDR_LOG("cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
 	if (cdr.FifoOffset < 2048 + 12)
-		CDR_LOG("cdrom: FifoOffset(1) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
+		CDR_LOG("FifoOffset(1) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
 }
 
 static void cdrReadInterrupt(void)
@@ -1420,7 +1421,7 @@ void cdrWrite1(unsigned char rt) {
 	}
 
 #ifdef CDR_LOG_CMD_IRQ
-	SysPrintf("%u cdrom: CD1 write: %x (%s)", psxRegs.cycle, rt, CmdName[rt]);
+	CDR_LOG_I("CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
 		int i;
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
@@ -1441,8 +1442,8 @@ void cdrWrite1(unsigned char rt) {
 		CDR_INT(5000);
 	}
 	else {
-		CDR_LOG_I("%u cdrom: cmd while busy: %02x, prev %02x, busy %02x\n",
-			psxRegs.cycle, rt, cdr.Cmd, cdr.CmdInProgress);
+		CDR_LOG_I("cmd while busy: %02x, prev %02x, busy %02x\n",
+			rt, cdr.Cmd, cdr.CmdInProgress);
 		if (cdr.CmdInProgress < 0x100) // no pending 2nd response
 			cdr.CmdInProgress = rt;
 	}
@@ -1456,7 +1457,7 @@ unsigned char cdrRead2(void) {
 	if (cdr.FifoOffset < cdr.FifoSize)
 		ret = cdr.Transfer[cdr.FifoOffset++];
 	else
-		CDR_LOG_I("cdrom: read empty fifo (%d)\n", cdr.FifoSize);
+		CDR_LOG_I("read empty fifo (%d)\n", cdr.FifoSize);
 
 	CDR_LOG_IO("cdr r2.dat: %02x\n", ret);
 	return ret;
@@ -1505,15 +1506,14 @@ void cdrWrite3(unsigned char rt) {
 		if (cdr.Stat & rt) {
 			u32 nextCycle = psxRegs.intCycle[PSXINT_CDR].sCycle
 				+ psxRegs.intCycle[PSXINT_CDR].cycle;
+			int pending = psxRegs.interrupt & (1 << PSXINT_CDR);
 #ifdef CDR_LOG_CMD_IRQ
-			SysPrintf("%u cdrom: ack %02x (w=%02x p=%d,%d)\n",
-				psxRegs.cycle, cdr.Stat & rt, rt,
-				!!(psxRegs.interrupt & (1 << PSXINT_CDR)),
-				nextCycle - psxRegs.cycle);
+			CDR_LOG_I("ack %02x (w=%02x p=%d,%x,%x,%d)\n", cdr.Stat & rt, rt,
+				!!pending, cdr.CmdInProgress,
+				cdr.Irq1Pending, nextCycle - psxRegs.cycle);
 #endif
 			// note: Croc, Shadow Tower (more) vs Discworld Noir (<993)
-			if (!(psxRegs.interrupt & (1 << PSXINT_CDR)) &&
-			    (cdr.CmdInProgress || cdr.Irq1Pending))
+			if (!pending && (cdr.CmdInProgress || cdr.Irq1Pending))
 			{
 				s32 c = 2048 - (psxRegs.cycle - nextCycle);
 				c = MAX_VALUE(c, 512);
@@ -1566,7 +1566,14 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 	int size;
 	u8 *ptr;
 
-	CDR_LOG("psxDma3() Log: *** DMA 3 *** %x addr = %x size = %x\n", chcr, madr, bcr);
+#if 0
+	CDR_LOG_I("psxDma3() Log: *** DMA 3 *** %x addr = %x size = %x", chcr, madr, bcr);
+	if (cdr.FifoOffset == 0) {
+		ptr = cdr.Transfer;
+		SysPrintf(" %02x:%02x:%02x", ptr[0], ptr[1], ptr[2]);
+	}
+	SysPrintf("\n");
+#endif
 
 	switch (chcr & 0x71000000) {
 		case 0x11000000:
