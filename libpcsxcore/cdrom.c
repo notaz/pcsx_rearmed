@@ -1318,7 +1318,7 @@ static void cdrReadInterrupt(void)
 	}
 	memcpy(cdr.LocL, buf, 8);
 
-	if (!cdr.Irq1Pending)
+	if (!cdr.Stat && !cdr.Irq1Pending)
 		cdrUpdateTransferBuf(buf);
 
 	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
@@ -1515,8 +1515,11 @@ void cdrWrite3(unsigned char rt) {
 			// note: Croc, Shadow Tower (more) vs Discworld Noir (<993)
 			if (!pending && (cdr.CmdInProgress || cdr.Irq1Pending))
 			{
-				s32 c = 2048 - (psxRegs.cycle - nextCycle);
-				c = MAX_VALUE(c, 512);
+				s32 c = 2048;
+				if (cdr.CmdInProgress) {
+					c = 2048 - (psxRegs.cycle - nextCycle);
+					c = MAX_VALUE(c, 512);
+				}
 				CDR_INT(c);
 			}
 		}
