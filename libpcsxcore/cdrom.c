@@ -928,7 +928,7 @@ void cdrInterrupt(void) {
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.LocL[0] = LOCL_INVALID;
 			cdr.Muted = FALSE;
-			cdr.Mode = 0x20; /* This fixes This is Football 2, Pooh's Party lockups */
+			cdr.Mode = MODE_SIZE_2340; /* This fixes This is Football 2, Pooh's Party lockups */
 			second_resp_time = not_ready ? 70000 : 4100000;
 			start_rotating = 1;
 			break;
@@ -1159,7 +1159,7 @@ void cdrInterrupt(void) {
 			cdr.LocL[0] = LOCL_INVALID;
 			cdr.SubqForwardSectors = 1;
 
-			cycles = (cdr.Mode & 0x80) ? cdReadTime : cdReadTime * 2;
+			cycles = (cdr.Mode & MODE_SPEED) ? cdReadTime : cdReadTime * 2;
 			cycles += seekTime;
 			if (Config.hacks.cdr_read_timing)
 				cycles = cdrAlignTimingHack(cycles);
@@ -1543,7 +1543,7 @@ void cdrWrite3(unsigned char rt) {
 		CDR_LOG("cdrom: FifoOffset(2) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
 	}
 	else if (rt & 0x80) {
-		switch (cdr.Mode & 0x30) {
+		switch (cdr.Mode & (MODE_SIZE_2328|MODE_SIZE_2340)) {
 			case MODE_SIZE_2328:
 			case 0x00:
 				cdr.FifoOffset = 12;
@@ -1687,7 +1687,7 @@ int cdrFreeze(void *f, int Mode) {
 		getCdInfo();
 
 		cdr.FifoOffset = tmp < DATA_SIZE ? tmp : DATA_SIZE;
-		cdr.FifoSize = (cdr.Mode & 0x20) ? 2340 : 2048 + 12;
+		cdr.FifoSize = (cdr.Mode & MODE_SIZE_2340) ? 2340 : 2048 + 12;
 		if (cdr.SubqForwardSectors > SUBQ_FORWARD_SECTORS)
 			cdr.SubqForwardSectors = SUBQ_FORWARD_SECTORS;
 
@@ -1706,7 +1706,7 @@ int cdrFreeze(void *f, int Mode) {
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
 			if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY_OLD))
-				CDRPLAYREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime, 1);
+				CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 1);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {
