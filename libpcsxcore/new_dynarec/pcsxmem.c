@@ -502,6 +502,6 @@ void new_dyna_pcsx_mem_reset(void)
 
 void new_dyna_pcsx_mem_shutdown(void)
 {
-	psxUnmap(mem_readtab, 0x200000 * 4, MAP_TAG_LUTS);
+	psxUnmap(mem_readtab, 0x200000 * sizeof(mem_readtab[0]), MAP_TAG_LUTS);
 	mem_writetab = mem_readtab = NULL;
 }
