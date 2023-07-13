@@ -361,14 +361,20 @@ void psxRcntUpdate()
         // Update lace.
         if( hSyncCount >= HSyncTotal[Config.PsxType] )
         {
+            u32 status, field = 0;
             rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
             hSyncCount = 0;
             frame_counter++;
 
             gpuSyncPluginSR();
-            if ((HW_GPU_STATUS & SWAP32(PSXGPU_ILACE_BITS)) == SWAP32(PSXGPU_ILACE_BITS))
-                HW_GPU_STATUS |= SWAP32(frame_counter << 31);
-            GPU_vBlank(0, SWAP32(HW_GPU_STATUS) >> 31);
+            status = SWAP32(HW_GPU_STATUS) | PSXGPU_FIELD;
+            if ((status & PSXGPU_ILACE_BITS) == PSXGPU_ILACE_BITS) {
+                field = frame_counter & 1;
+                status |= field << 31;
+                status ^= field << 13;
+            }
+            HW_GPU_STATUS = SWAP32(status);
+            GPU_vBlank(0, field);
         }
 
         scheduleRcntBase();
