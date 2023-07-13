@@ -1357,7 +1357,7 @@ static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
 static menu_entry e_menu_plugin_gpu_neon[] =
 {
 	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
-	mee_onoff_h   ("Enhanced resolution (slow)", 0, pl_rearmed_cbs.gpu_neon.enhancement_enable, 1, h_gpu_neon_enhanced),
+	mee_onoff_h   ("Enhanced resolution",        0, pl_rearmed_cbs.gpu_neon.enhancement_enable, 1, h_gpu_neon_enhanced),
 	mee_onoff_h   ("Enhanced res. speed hack",   0, pl_rearmed_cbs.gpu_neon.enhancement_no_main, 1, h_gpu_neon_enhanced_hack),
 	mee_end,
 };

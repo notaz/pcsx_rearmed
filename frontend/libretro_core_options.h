@@ -455,8 +455,8 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_enable",
-      "(GPU) Enhanced Resolution (Slow)",
-      "Enhanced Resolution (Slow)",
+      "(GPU) Enhanced Resolution",
+      "Enhanced Resolution",
       "Render games that do not already run in high resolution video modes (480i, 512i) at twice the native internal resolution. Improves the fidelity of 3D models at the expense of increased performance requirements. 2D elements are generally unaffected by this setting.",
       NULL,
       "gpu_neon",
@@ -471,7 +471,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_neon_enhancement_no_main",
       "(GPU) Enhanced Resolution Speed Hack",
       "Enhanced Resolution Speed Hack",
-      "Improves performance when 'Enhanced Resolution (Slow)' is enabled, but reduces compatibility and may cause rendering errors.",
+      "Improves performance when 'Enhanced Resolution' is enabled, but reduces compatibility and may cause rendering errors.",
       NULL,
       "gpu_neon",
       {
