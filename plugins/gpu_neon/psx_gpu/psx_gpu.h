@@ -69,7 +69,7 @@ typedef struct
   u16 y;
 } edge_data_struct;
 
-// 64 bytes total
+// 64 (72) bytes total
 typedef struct
 {
   // 16 bytes
@@ -93,7 +93,7 @@ typedef struct
     vec_8x16u pixels;
   };
 
-  // 8 bytes
+  // 8 (16) bytes
   u32 draw_mask_bits;
   u16 *fb_ptr;
 

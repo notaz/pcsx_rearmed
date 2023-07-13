@@ -2822,7 +2822,7 @@ void shade_blocks_unshaded_untextured_direct(psx_gpu_struct *psx_gpu)
   u32 num_blocks = psx_gpu->num_blocks;
 
   vec_8x16u pixels;
-  gvld1q_u16(pixels, block->texels.e);
+  gvld1q_u16(pixels, block->pixels.e);
   shade_blocks_load_msb_mask_direct();
 
   while(num_blocks)

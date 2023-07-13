@@ -1643,4 +1643,4 @@ breakloop:
 
 #endif /* PCSX */
 
-// vim:shiftwidth=2:expandtab
+// vim:ts=2:shiftwidth=2:expandtab
