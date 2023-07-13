@@ -69,7 +69,6 @@ void psxReset() {
 
 	BiosLikeGPUSetup(); // a bit of a hack but whatever
 
-	BiosBooted = FALSE;
 	if (!Config.HLE) {
 		psxExecuteBios();
 		if (psxRegs.pc == 0x80030000 && !Config.SlowBoot)
@@ -244,11 +243,12 @@ void psxJumpTest() {
 
 void psxExecuteBios() {
 	int i;
-	for (i = 0; psxRegs.pc != 0x80030000 && i < 5000000; i++)
-		psxCpu->ExecuteBlock();
-	if (psxRegs.pc == 0x80030000)
-		BiosBooted = TRUE;
-	else
-		SysPrintf("BIOS boot timeout - custom BIOS?\n");
+	for (i = 0; i < 5000000; i++) {
+		psxCpu->ExecuteBlock(EXEC_CALLER_BOOT);
+		if ((psxRegs.pc & 0xff800000) == 0x80000000)
+			break;
+	}
+	if (psxRegs.pc != 0x80030000)
+		SysPrintf("non-standard BIOS detected (%d, %08x)\n", i, psxRegs.pc);
 }
 

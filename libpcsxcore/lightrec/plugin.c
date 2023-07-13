@@ -478,7 +478,7 @@ static void lightrec_plugin_execute(void)
 		lightrec_plugin_execute_internal(false);
 }
 
-static void lightrec_plugin_execute_block(void)
+static void lightrec_plugin_execute_block(enum blockExecCaller caller)
 {
 	lightrec_plugin_execute_internal(true);
 }

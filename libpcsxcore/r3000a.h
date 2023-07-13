@@ -36,11 +36,16 @@ enum R3000Anote {
 	R3000ACPU_NOTIFY_AFTER_LOAD,
 };
 
+enum blockExecCaller {
+	EXEC_CALLER_BOOT,
+	EXEC_CALLER_HLE,
+};
+
 typedef struct {
 	int  (*Init)();
 	void (*Reset)();
-	void (*Execute)();		/* executes up to a break */
-	void (*ExecuteBlock)();	/* executes up to a jump */
+	void (*Execute)();
+	void (*ExecuteBlock)(enum blockExecCaller caller); /* executes up to a jump */
 	void (*Clear)(u32 Addr, u32 Size);
 	void (*Notify)(enum R3000Anote note, void *data);
 	void (*ApplyConfig)();

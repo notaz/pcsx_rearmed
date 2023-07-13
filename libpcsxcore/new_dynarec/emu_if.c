@@ -265,6 +265,17 @@ static void ari64_execute()
 	}
 }
 
+static void ari64_execute_block(enum blockExecCaller caller)
+{
+	if (caller == EXEC_CALLER_BOOT)
+		stop++;
+
+	ari64_execute_until();
+
+	if (caller == EXEC_CALLER_BOOT)
+		stop--;
+}
+
 static void ari64_clear(u32 addr, u32 size)
 {
 	size *= 4; /* PCSX uses DMA units (words) */
@@ -315,7 +326,7 @@ R3000Acpu psxRec = {
 	ari64_init,
 	ari64_reset,
 	ari64_execute,
-	ari64_execute_until,
+	ari64_execute_block,
 	ari64_clear,
 	ari64_notify,
 	ari64_apply_config,

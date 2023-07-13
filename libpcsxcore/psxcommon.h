@@ -154,7 +154,6 @@ typedef struct {
 
 extern PcsxConfig Config;
 extern boolean NetOpened;
-extern boolean BiosBooted;
 
 struct PcsxSaveFuncs {
 	void *(*open)(const char *name, const char *mode);
