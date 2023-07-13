@@ -24,18 +24,19 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
-#define PSXGPU_LCF     (1<<31)
-#define PSXGPU_nBUSY   (1<<26)
-#define PSXGPU_ILACE   (1<<22)
-#define PSXGPU_DHEIGHT (1<<19)
+#define PSXGPU_LCF     (1u<<31)
+#define PSXGPU_nBUSY   (1u<<26)
+#define PSXGPU_ILACE   (1u<<22)
+#define PSXGPU_DHEIGHT (1u<<19)
+#define PSXGPU_FIELD   (1u<<13)
 
 // both must be set for interlace to work
-#define PSXGPU_ILACE_BITS (PSXGPU_ILACE | PSXGPU_DHEIGHT)
+#define PSXGPU_ILACE_BITS (PSXGPU_ILACE | PSXGPU_DHEIGHT | PSXGPU_FIELD)
 
 #define HW_GPU_STATUS psxHu32ref(0x1814)
 
 // TODO: handle com too
-#define PSXGPU_TIMING_BITS (PSXGPU_LCF | PSXGPU_nBUSY)
+#define PSXGPU_TIMING_BITS (PSXGPU_LCF | PSXGPU_nBUSY | PSXGPU_FIELD)
 
 #define gpuSyncPluginSR() { \
 	HW_GPU_STATUS &= SWAP32(PSXGPU_TIMING_BITS); \

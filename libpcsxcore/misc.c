@@ -164,6 +164,8 @@ void BiosLikeGPUSetup()
 
 	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
 		GPU_writeData(gpu_data_def[i]);
+
+	HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY);
 }
 
 static void SetBootRegs(u32 pc, u32 gp, u32 sp)
