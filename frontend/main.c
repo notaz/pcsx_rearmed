@@ -487,7 +487,7 @@ int emu_core_init(void)
 
 void emu_core_ask_exit(void)
 {
-	stop = 1;
+	stop++;
 	g_emu_want_quit = 1;
 }
 

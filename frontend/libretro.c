@@ -501,7 +501,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
 void pl_frame_limit(void)
 {
    /* called once per frame, make psxCpu->Execute() above return */
-   stop = 1;
+   stop++;
 }
 
 void pl_timing_prepare(int is_pal)

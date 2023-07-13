@@ -285,7 +285,7 @@ static inline void softCall(u32 pc) {
 
 	hleSoftCall = TRUE;
 
-	while (pc0 != 0x80001000) psxCpu->ExecuteBlock();
+	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 
 	hleSoftCall = FALSE;
 }
@@ -297,7 +297,7 @@ static inline void softCall2(u32 pc) {
 
 	hleSoftCall = TRUE;
 
-	while (pc0 != 0x80001000) psxCpu->ExecuteBlock();
+	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 	ra = sra;
 
 	hleSoftCall = FALSE;

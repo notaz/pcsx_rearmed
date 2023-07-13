@@ -91,7 +91,7 @@ static inline void emu_set_action(enum sched_action action_)
 	if (action_ == SACTION_NONE)
 		emu_action_old = 0;
 	else if (action_ != emu_action_old)
-		stop = 1;
+		stop++;
 	emu_action = action_;
 }
 

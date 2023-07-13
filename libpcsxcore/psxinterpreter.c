@@ -1102,7 +1102,7 @@ static void intExecute() {
 		execI_(memRLUT, regs_);
 }
 
-void intExecuteBlock() {
+void intExecuteBlock(enum blockExecCaller caller) {
 	psxRegisters *regs_ = &psxRegs;
 	u8 **memRLUT = psxMemRLUT;
 

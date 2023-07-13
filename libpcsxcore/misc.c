@@ -196,9 +196,10 @@ int LoadCdrom() {
 	char exename[256];
 
 	if (!Config.HLE) {
-		if (!BiosBooted) return 0;              // custom BIOS
-		if (psxRegs.pc != 0x80030000) return 0; // BiosBootBypass'ed
-		if (Config.SlowBoot) return 0;
+		if (psxRegs.pc != 0x80030000) // BiosBootBypass'ed or custom BIOS?
+			return 0;
+		if (Config.SlowBoot)
+			return 0;
 	}
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
