@@ -239,7 +239,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
 
 #ifdef GPU_NEON
    {
-      "pcsx_rearmed_neon_interlace_enable",
+      "pcsx_rearmed_neon_interlace_enable_v2",
       "Interlacing Mode'u etkinleştir",
       NULL,
       "Sahte tarama çizgileri efektini etkinleştirir.",
