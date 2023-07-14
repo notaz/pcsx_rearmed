@@ -12,6 +12,7 @@
 #include "../psxhw.h"
 #include "../psxmem.h"
 #include "../r3000a.h"
+#include "../psxinterpreter.h"
 #include "../new_dynarec/events.h"
 
 #include "../frontend/main.h"
@@ -420,8 +421,6 @@ static int lightrec_plugin_init(void)
 	return 0;
 }
 
-extern void intExecuteBlock();
-
 static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
@@ -436,7 +435,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		next_interupt = psxRegs.cycle;
 
 	if (use_pcsx_interpreter) {
-		intExecuteBlock();
+		intExecuteBlock(0);
 	} else {
 		lightrec_reset_cycle_count(lightrec_state, psxRegs.cycle);
 

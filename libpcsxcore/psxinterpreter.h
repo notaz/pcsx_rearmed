@@ -9,6 +9,6 @@ void gteNULL(struct psxCP2Regs *regs);
 extern void (*psxCP2[64])(struct psxCP2Regs *regs);
 
 // called by lightrec
-void intExecuteBlock();
+void intExecuteBlock(enum blockExecCaller caller);
 
 #endif // __PSXINTERPRETER_H__
