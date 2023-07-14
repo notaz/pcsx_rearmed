@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <assert.h>
 
 #include "../cdrom.h"
 #include "../gpu.h"
@@ -56,6 +57,8 @@ static char *name = "retroarch.exe";
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
 static bool block_stepping;
+static u32 cycle_mult_to_pcsx; // 22.10 fractional
+static u32 cycle_mult_from_pcsx;
 
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
@@ -134,55 +137,69 @@ static bool has_interrupt(void)
 		(regs->cp0[12] & regs->cp0[13] & 0x0300);
 }
 
-static void lightrec_restore_state(struct lightrec_state *state)
+static u32 cycles_pcsx_to_lightrec(u32 c)
 {
-	lightrec_reset_cycle_count(state, psxRegs.cycle);
+	assert((u64)c * cycle_mult_from_pcsx <= (u32)-1);
+	return c * cycle_mult_from_pcsx >> 10;
+}
 
-	if (block_stepping || has_interrupt())
+static void lightrec_tansition_to_pcsx(struct lightrec_state *state)
+{
+	psxRegs.cycle += lightrec_current_cycle_count(state) * cycle_mult_to_pcsx >> 10;
+	lightrec_reset_cycle_count(state, 0);
+}
+
+static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
+{
+	s32 cycles_left = next_interupt - psxRegs.cycle;
+
+	if (block_stepping || cycles_left <= 0 || has_interrupt())
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
-	else
-		lightrec_set_target_cycle_count(state, next_interupt);
+	else {
+		lightrec_set_target_cycle_count(state,
+			cycles_pcsx_to_lightrec(cycles_left));
+	}
 }
 
 static void hw_write_byte(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u8 val)
 {
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	psxHwWrite8(mem, val);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 }
 
 static void hw_write_half(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u16 val)
 {
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	psxHwWrite16(mem, val);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 }
 
 static void hw_write_word(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)
 {
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	psxHwWrite32(mem, val);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 }
 
 static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem)
 {
 	u8 val;
 
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	val = psxHwRead8(mem);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 
 	return val;
 }
@@ -192,11 +209,11 @@ static u16 hw_read_half(struct lightrec_state *state,
 {
 	u16 val;
 
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	val = psxHwRead16(mem);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 
 	return val;
 }
@@ -206,11 +223,11 @@ static u32 hw_read_word(struct lightrec_state *state,
 {
 	u32 val;
 
-	psxRegs.cycle = lightrec_current_cycle_count(state);
+	lightrec_tansition_to_pcsx(state);
 
 	val = psxHwRead32(mem);
 
-	lightrec_restore_state(state);
+	lightrec_tansition_from_pcsx(state);
 
 	return val;
 }
@@ -424,31 +441,32 @@ static int lightrec_plugin_init(void)
 static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
-	u32 flags;
+	u32 flags, cycles_pcsx;
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
+	cycles_pcsx = next_interupt - psxRegs.cycle;
+	assert((s32)cycles_pcsx > 0);
 
 	// step during early boot so that 0x80030000 fastboot hack works
 	block_stepping = block_only;
 	if (block_only)
-		next_interupt = psxRegs.cycle;
+		cycles_pcsx = 0;
 
 	if (use_pcsx_interpreter) {
 		intExecuteBlock(0);
 	} else {
-		lightrec_reset_cycle_count(lightrec_state, psxRegs.cycle);
-
+		u32 cycles_lightrec = cycles_pcsx_to_lightrec(cycles_pcsx);
 		if (unlikely(use_lightrec_interpreter)) {
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
 							      psxRegs.pc,
-							      next_interupt);
+							      cycles_lightrec);
 		} else {
 			psxRegs.pc = lightrec_execute(lightrec_state,
-						      psxRegs.pc, next_interupt);
+						      psxRegs.pc, cycles_lightrec);
 		}
 
-		psxRegs.cycle = lightrec_current_cycle_count(lightrec_state);
+		lightrec_tansition_to_pcsx(lightrec_state);
 
 		flags = lightrec_exit_flags(lightrec_state);
 
@@ -513,6 +531,11 @@ static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 
 static void lightrec_plugin_apply_config()
 {
+	u32 cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+		? Config.cycle_multiplier_override : Config.cycle_multiplier;
+	assert(cycle_mult);
+	cycle_mult_to_pcsx = (cycle_mult * 1024 + 199) / 200;
+	cycle_mult_from_pcsx = (200 * 1024 + cycle_mult/2) / cycle_mult;
 }
 
 static void lightrec_plugin_shutdown(void)

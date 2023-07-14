@@ -203,9 +203,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "PSX CPU Clock Speed",
       NULL,
       "Overclock or under-clock the PSX CPU. Try adjusting this if the game is too slow, too fast or hangs."
-#if defined(LIGHTREC)
-      " Currently doesn't work with Lightrec dynarec."
-#endif
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
       " Default is 50."
 #else
