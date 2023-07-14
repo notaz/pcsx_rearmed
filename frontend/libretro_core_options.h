@@ -203,9 +203,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "PSX CPU Clock Speed",
       NULL,
       "Overclock or under-clock the PSX CPU. Try adjusting this if the game is too slow, too fast or hangs."
-#if defined(LIGHTREC)
-      " Currently doesn't work with Lightrec dynarec."
-#endif
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
       " Default is 50."
 #else
@@ -440,18 +437,19 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
 #ifdef GPU_NEON
    {
-      "pcsx_rearmed_neon_interlace_enable",
+      "pcsx_rearmed_neon_interlace_enable_v2",
       "(GPU) Show Interlaced Video",
       "Show Interlaced Video",
-      "When enabled, games that run in high resolution video modes (480i, 512i) will produced interlaced video output. While this displays correctly on CRT televisions, it will produce artifacts on modern displays. When disabled, all video is output in progressive format.",
+      "When enabled, games that run in high resolution video modes (480i, 512i) will produced interlaced video output. While this displays correctly on CRT televisions, it will produce artifacts on modern displays. When disabled, all video is output in progressive format. Note: there are games that will glitch is this is off.",
       NULL,
       "gpu_neon",
       {
+         { "auto", NULL },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL },
       },
-      "disabled",
+      "auto",
    },
    {
       "pcsx_rearmed_neon_enhancement_enable",

@@ -1881,7 +1881,7 @@ static void update_variables(bool in_flight)
 
 #ifdef GPU_NEON
    var.value = NULL;
-   var.key = "pcsx_rearmed_neon_interlace_enable";
+   var.key = "pcsx_rearmed_neon_interlace_enable_v2";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
@@ -1889,6 +1889,8 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_neon.allow_interlace = 0;
       else if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_neon.allow_interlace = 1;
+      else // auto
+         pl_rearmed_cbs.gpu_neon.allow_interlace = 2;
    }
 
    var.value = NULL;

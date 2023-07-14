@@ -221,11 +221,13 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
       "pcsx_rearmed_psxclock",
       "PSX CPU Saat Hızı",
       NULL,
+      "Overclock or under-clock the PSX CPU. Try adjusting this if the game is too slow, too fast or hangs."
 #if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-      "Overclock or underclock the PSX clock. Default is 50",
+      " Default is 50."
 #else
-      "Overclock or underclock the PSX clock. Default is 57",
+      " Default is 57."
 #endif
+      ,
       NULL,
       NULL,
       {
@@ -237,7 +239,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
 
 #ifdef GPU_NEON
    {
-      "pcsx_rearmed_neon_interlace_enable",
+      "pcsx_rearmed_neon_interlace_enable_v2",
       "Interlacing Mode'u etkinleştir",
       NULL,
       "Sahte tarama çizgileri efektini etkinleştirir.",
@@ -250,7 +252,7 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
    },
    {
       "pcsx_rearmed_neon_enhancement_enable",
-      "Geliştirilmiş Çözünürlük (Yavaş)",
+      "Geliştirilmiş Çözünürlük",
       NULL,
       "Düşük performans pahasına çift çözünürlükte işler.",
       NULL,
