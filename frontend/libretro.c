@@ -2807,23 +2807,36 @@ static bool try_use_bios(const char *path)
 
 static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 {
+   static const char *substrings[] = { "scph", "psx", "openbios" };
    DIR *dir;
    struct dirent *ent;
    bool ret = false;
+   size_t i;
 
    dir = opendir(dirpath);
    if (dir == NULL)
       return false;
 
-   while ((ent = readdir(dir)))
+   for (i = 0; sizeof(substrings) / sizeof(substrings[0]); i++)
    {
-      if ((strncasecmp(ent->d_name, "scph", 4) != 0) && (strncasecmp(ent->d_name, "psx", 3) != 0))
-         continue;
+      const char *substr = substrings[i];
+      size_t len = strlen(substr);
+      rewinddir(dir);
+      while ((ent = readdir(dir)))
+      {
+         if ((strncasecmp(ent->d_name, substr, len) != 0))
+            continue;
+         if (strstr(ent->d_name, "unirom"))
+            continue;
 
-      snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-      ret = try_use_bios(path);
-      if (ret)
-         break;
+         snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
+         ret = try_use_bios(path);
+         if (ret)
+         {
+            closedir(dir);
+            return ret;
+         }
+      }
    }
    closedir(dir);
    return ret;
@@ -3138,3 +3151,5 @@ void SysDLog(const char *fmt, ...)
    if (log_cb)
       log_cb(RETRO_LOG_DEBUG, "%s", msg);
 }
+
+// vim:sw=3:ts=3:expandtab
