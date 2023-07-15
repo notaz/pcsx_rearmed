@@ -391,6 +391,7 @@ static void psxDelayTest(int reg, u32 bpc) {
 		case 3:
 			delayWrite(reg, bpc); return;
 	}
+	// DS
 	psxBSC[psxRegs.code >> 26](&psxRegs, psxRegs.code);
 
 	branch = 0;
@@ -537,7 +538,7 @@ static void doBranch(u32 tar) {
 	addCycle();
 
 	// check for load delay
-	tmp = psxRegs.code >> 26;
+	tmp = code >> 26;
 	switch (tmp) {
 		case 0x10: // COP0
 			switch (_Rs_) {
@@ -570,7 +571,7 @@ static void doBranch(u32 tar) {
 			break;
 	}
 
-	psxBSC[psxRegs.code >> 26](&psxRegs, psxRegs.code);
+	psxBSC[code >> 26](&psxRegs, code);
 
 	branch = 0;
 	psxRegs.pc = branchPC;
@@ -686,8 +687,15 @@ OP(psxMULTU_stall) {
 * Register branch logic                                  *
 * Format:  OP rs, offset                                 *
 *********************************************************/
-#define RepZBranchi32(op)      if(_i32(_rRs_) op 0) doBranch(_BranchTarget_);
-#define RepZBranchLinki32(op)  { _SetLink(31); if(_i32(_rRs_) op 0) { doBranch(_BranchTarget_); } }
+#define RepZBranchi32(op) \
+	if(_i32(_rRs_) op 0) \
+		doBranch(_BranchTarget_);
+#define RepZBranchLinki32(op)  { \
+	s32 temp = _i32(_rRs_); \
+	_SetLink(31); \
+	if(temp op 0) \
+		doBranch(_BranchTarget_); \
+}
 
 OP(psxBGEZ)   { RepZBranchi32(>=) }      // Branch if Rs >= 0
 OP(psxBGEZAL) { RepZBranchLinki32(>=) }  // Branch if Rs >= 0 and link
@@ -1020,12 +1028,15 @@ static void psxBASIC(struct psxCP2Regs *cp2regs) {
 }
 
 OP(psxREGIMM) {
-	switch (_Rt_) {
-		case 0x00: psxBLTZ(regs_, code);   break;
-		case 0x01: psxBGEZ(regs_, code);   break;
+	u32 rt = _Rt_;
+	switch (rt) {
 		case 0x10: psxBLTZAL(regs_, code); break;
 		case 0x11: psxBGEZAL(regs_, code); break;
-		default:   psxNULL_();             break;
+		default:
+			if (rt & 1)
+				psxBGEZ(regs_, code);
+			else
+				psxBLTZ(regs_, code);
 	}
 }
 
