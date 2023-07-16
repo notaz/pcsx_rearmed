@@ -26,6 +26,7 @@
 #include "mdec.h"
 #include "gte.h"
 #include "psxinterpreter.h"
+#include "../include/compiler_features.h"
 
 R3000Acpu *psxCpu = NULL;
 #ifdef DRC_DISABLE
@@ -58,8 +59,10 @@ void psxReset() {
 
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 
-	psxRegs.CP0.r[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
+	psxRegs.CP0.r[12] = 0x10600000; // COP0 enabled | BEV = 1 | TS = 1
 	psxRegs.CP0.r[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
+	if (Config.HLE)
+		psxRegs.CP0.n.Status |= 1u << 30; // COP2 enabled
 
 	psxCpu->ApplyConfig();
 	psxCpu->Reset();
@@ -90,20 +93,21 @@ void psxShutdown() {
 }
 
 // cp0 is passed separately for lightrec to be less messy
-void psxException(u32 code, u32 bd, psxCP0Regs *cp0) {
-	psxRegs.code = PSXMu32(psxRegs.pc);
+void psxException(u32 cause, u32 bd, psxCP0Regs *cp0) {
+	u32 opcode = intFakeFetch(psxRegs.pc);
 	
-	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
+	if (unlikely(!Config.HLE && ((((opcode) >> 24) & 0xfe) == 0x4a))) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
 		// so we execute it here
 		psxCP2Regs *cp2 = (void *)(cp0 + 1);
-		psxCP2[psxRegs.code & 0x3f](cp2);
+		psxRegs.code = opcode;
+		psxCP2[opcode & 0x3f](cp2);
 	}
 
 	// Set the Cause
-	cp0->n.Cause = (cp0->n.Cause & 0x300) | code;
+	cp0->n.Cause = (cp0->n.Cause & 0x300) | cause;
 
 	// Set the EPC & PC
 	if (bd) {
