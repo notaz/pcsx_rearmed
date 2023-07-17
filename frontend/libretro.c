@@ -2819,7 +2819,7 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
    if (dir == NULL)
       return false;
 
-   for (i = 0; sizeof(substrings) / sizeof(substrings[0]); i++)
+   for (i = 0; i < (sizeof(substrings) / sizeof(substrings[0])); i++)
    {
       const char *substr = substrings[i];
       size_t len = strlen(substr);
