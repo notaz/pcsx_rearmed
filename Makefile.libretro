@@ -505,7 +505,10 @@ else ifeq ($(platform), emscripten)
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
 	PLATFORM = libretro
-	MAIN_LDFLAGS += -static-libgcc -static-libstdc++ -s
+	MAIN_LDFLAGS += -static-libgcc -static-libstdc++
+ifneq ($(DEBUG),1)
+	MAIN_LDFLAGS += -s
+endif
 	CFLAGS += -D__WIN32__ -DNO_DYLIB
 	MMAP_WIN32=1
 	MAIN_LDLIBS += -lws2_32
