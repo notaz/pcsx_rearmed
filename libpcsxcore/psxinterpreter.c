@@ -1,5 +1,6 @@
 /***************************************************************************
  *   Copyright (C) 2007 Ryan Schultz, PCSX-df Team, PCSX team              *
+ *   Copyright (C) 2023 notaz                                              *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -33,7 +34,9 @@
 // these may cause issues: because of poor timing we may step
 // on instructions that real hardware would never reach
 #define DO_EXCEPTION_RESERVEDI
-#define DO_EXCEPTION_ADDR_ERR
+#define DO_EXCEPTION_ALIGNMENT_BRANCH
+//#define DO_EXCEPTION_ALIGNMENT_DATA
+#define HANDLE_LOAD_DELAY
 
 static int branch = 0;
 static int branch2 = 0;
@@ -50,6 +53,69 @@ static int branch2 = 0;
 // Subsets
 static void (INT_ATTR *psxBSC[64])(psxRegisters *regs_, u32 code);
 static void (INT_ATTR *psxSPC[64])(psxRegisters *regs_, u32 code);
+
+// load delay
+static void doLoad(psxRegisters *regs, u32 r, u32 val)
+{
+#ifdef HANDLE_LOAD_DELAY
+	int sel = regs->dloadSel ^ 1;
+	assert(regs->dloadReg[sel] == 0);
+	regs->dloadReg[sel] = r;
+	regs->dloadVal[sel] = r ? val : 0;
+	if (regs->dloadReg[sel ^ 1] == r)
+		regs->dloadVal[sel ^ 1] = regs->dloadReg[sel ^ 1] = 0;
+#else
+	regs->GPR.r[r] = r ? val : 0;
+#endif
+}
+
+static void dloadRt(psxRegisters *regs, u32 r, u32 val)
+{
+#ifdef HANDLE_LOAD_DELAY
+	int sel = regs->dloadSel;
+	if (unlikely(regs->dloadReg[sel] == r))
+		regs->dloadVal[sel] = regs->dloadReg[sel] = 0;
+#endif
+	regs->GPR.r[r] = r ? val : 0;
+}
+
+static void dloadStep(psxRegisters *regs)
+{
+#ifdef HANDLE_LOAD_DELAY
+	int sel = regs->dloadSel;
+	regs->GPR.r[regs->dloadReg[sel]] = regs->dloadVal[sel];
+	regs->dloadVal[sel] = regs->dloadReg[sel] = 0;
+	regs->dloadSel ^= 1;
+	assert(regs->GPR.r[0] == 0);
+#endif
+}
+
+static void dloadFlush(psxRegisters *regs)
+{
+#ifdef HANDLE_LOAD_DELAY
+	regs->GPR.r[regs->dloadReg[0]] = regs->dloadVal[0];
+	regs->GPR.r[regs->dloadReg[1]] = regs->dloadVal[1];
+	regs->dloadVal[0] = regs->dloadVal[1] = 0;
+	regs->dloadReg[0] = regs->dloadReg[1] = 0;
+	assert(regs->GPR.r[0] == 0);
+#endif
+}
+
+static void dloadClear(psxRegisters *regs)
+{
+#ifdef HANDLE_LOAD_DELAY
+	regs->dloadVal[0] = regs->dloadVal[1] = 0;
+	regs->dloadReg[0] = regs->dloadReg[1] = 0;
+	regs->dloadSel = 0;
+#endif
+}
+
+static void intException(psxRegisters *regs, u32 pc, u32 cause)
+{
+	dloadFlush(regs);
+	regs->pc = pc;
+	psxException(cause, branch, &regs->CP0);
+}
 
 // get an opcode without triggering exceptions or affecting cache
 u32 intFakeFetch(u32 pc)
@@ -69,8 +135,7 @@ static u32 INT_ATTR fetchNoCache(psxRegisters *regs, u8 **memRLUT, u32 pc)
 	u32 *code;
 	if (unlikely(base == INVALID_PTR)) {
 		SysPrintf("game crash @%08x, ra=%08x\n", pc, regs->GPR.n.ra);
-		regs->pc = pc;
-		psxException(R3000E_IBE << 2, branch, &regs->CP0);
+		intException(regs, pc, R3000E_IBE << 2);
 		return 0; // execute as nop
 	}
 	code = (u32 *)(base + (pc & 0xfffc));
@@ -100,8 +165,7 @@ static u32 INT_ATTR fetchICache(psxRegisters *regs, u8 **memRLUT, u32 pc)
 			const u32 *code;
 			if (unlikely(base == INVALID_PTR)) {
 				SysPrintf("game crash @%08x, ra=%08x\n", pc, regs->GPR.n.ra);
-				regs->pc = pc;
-				psxException(R3000E_IBE << 2, branch, &regs->CP0);
+				intException(regs, pc, R3000E_IBE << 2);
 				return 0; // execute as nop
 			}
 			code = (u32 *)(base + (pc & 0xfff0));
@@ -135,55 +199,6 @@ static inline void addCycle(void)
 	psxRegs.subCycle &= 0xffff;
 }
 
-static void delayRead(int reg, u32 bpc) {
-	u32 rold, rnew;
-
-//	SysPrintf("delayRead at %x!\n", psxRegs.pc);
-
-	rold = psxRegs.GPR.r[reg];
-	psxBSC[psxRegs.code >> 26](&psxRegs, psxRegs.code); // branch delay load
-	rnew = psxRegs.GPR.r[reg];
-
-	psxRegs.pc = bpc;
-
-	branch = 0;
-
-	psxRegs.GPR.r[reg] = rold;
-	execI(); // first branch opcode
-	psxRegs.GPR.r[reg] = rnew;
-
-	psxBranchTest();
-}
-
-static void delayWrite(int reg, u32 bpc) {
-
-/*	SysPrintf("delayWrite at %x!\n", psxRegs.pc);
-
-	SysPrintf("%s\n", disR3000AF(psxRegs.code, psxRegs.pc-4));
-	SysPrintf("%s\n", disR3000AF(PSXMu32(bpc), bpc));*/
-
-	// no changes from normal behavior
-
-	psxBSC[psxRegs.code >> 26](&psxRegs, psxRegs.code);
-
-	branch = 0;
-	psxRegs.pc = bpc;
-
-	psxBranchTest();
-}
-
-static void delayReadWrite(int reg, u32 bpc) {
-
-//	SysPrintf("delayReadWrite at %x!\n", psxRegs.pc);
-
-	// the branch delay load is skipped
-
-	branch = 0;
-	psxRegs.pc = bpc;
-
-	psxBranchTest();
-}
-
 /**** R3000A Instruction Macros ****/
 #define _PC_            regs_->pc       // The next PC to be executed
 
@@ -213,9 +228,7 @@ static void delayReadWrite(int reg, u32 bpc) {
 
 #define _rRs_   regs_->GPR.r[_Rs_]   // Rs register
 #define _rRt_   regs_->GPR.r[_Rt_]   // Rt register
-#define _rRd_   regs_->GPR.r[_Rd_]   // Rd register
 #define _rSa_   regs_->GPR.r[_Sa_]   // Sa register
-#define _rFs_   regs_->CP0.r[_Rd_]   // Fs register
 
 #define _rHi_   regs_->GPR.n.hi   // The HI register
 #define _rLo_   regs_->GPR.n.lo   // The LO register
@@ -223,7 +236,7 @@ static void delayReadWrite(int reg, u32 bpc) {
 #define _JumpTarget_    ((_Target_ * 4) + (_PC_ & 0xf0000000))   // Calculates the target during a jump instruction
 #define _BranchTarget_  ((s16)_Im_ * 4 + _PC_)                 // Calculates the target during a branch instruction
 
-#define _SetLink(x)     regs_->GPR.r[x] = _PC_ + 4;       // Sets the return address in the link register
+#define _SetLink(x)     dloadRt(regs_, x, _PC_ + 4);       // Sets the return address in the link register
 
 #define OP(name) \
 	static inline INT_ATTR void name(psxRegisters *regs_, u32 code)
@@ -238,165 +251,6 @@ static void delayReadWrite(int reg, u32 bpc) {
 
 #define _i32(x) (s32)(x)
 #define _u32(x) (u32)(x)
-
-static int psxTestLoadDelay(int reg, u32 tmp) {
-	if (tmp == 0) return 0; // NOP
-	switch (tmp >> 26) {
-		case 0x00: // SPECIAL
-			switch (_tFunct_) {
-				case 0x00: // SLL
-				case 0x02: case 0x03: // SRL/SRA
-					if (_tRd_ == reg && _tRt_ == reg) return 1; else
-					if (_tRt_ == reg) return 2; else
-					if (_tRd_ == reg) return 3;
-					break;
-
-				case 0x08: // JR
-					if (_tRs_ == reg) return 2;
-					break;
-				case 0x09: // JALR
-					if (_tRd_ == reg && _tRs_ == reg) return 1; else
-					if (_tRs_ == reg) return 2; else
-					if (_tRd_ == reg) return 3;
-					break;
-
-				// SYSCALL/BREAK just a break;
-
-				case 0x20: case 0x21: case 0x22: case 0x23:
-				case 0x24: case 0x25: case 0x26: case 0x27: 
-				case 0x2a: case 0x2b: // ADD/ADDU...
-				case 0x04: case 0x06: case 0x07: // SLLV...
-					if (_tRd_ == reg && (_tRt_ == reg || _tRs_ == reg)) return 1; else
-					if (_tRt_ == reg || _tRs_ == reg) return 2; else
-					if (_tRd_ == reg) return 3;
-					break;
-
-				case 0x10: case 0x12: // MFHI/MFLO
-					if (_tRd_ == reg) return 3;
-					break;
-				case 0x11: case 0x13: // MTHI/MTLO
-					if (_tRs_ == reg) return 2;
-					break;
-
-				case 0x18: case 0x19:
-				case 0x1a: case 0x1b: // MULT/DIV...
-					if (_tRt_ == reg || _tRs_ == reg) return 2;
-					break;
-			}
-			break;
-
-		case 0x01: // REGIMM - BLTZ/BGEZ...
-			// Xenogears - lbu v0 / beq v0
-			// - no load delay (fixes battle loading)
-			break;
-
-		// J would be just a break;
-		case 0x03: // JAL
-			if (31 == reg) return 3;
-			break;
-
-		case 0x06: case 0x07: // BLEZ/BGTZ
-		case 0x04: case 0x05: // BEQ/BNE
-			// Xenogears - lbu v0 / beq v0
-			// - no load delay (fixes battle loading)
-			break;
-
-		case 0x08: case 0x09: case 0x0a: case 0x0b:
-		case 0x0c: case 0x0d: case 0x0e: // ADDI/ADDIU...
-			if (_tRt_ == reg && _tRs_ == reg) return 1; else
-			if (_tRs_ == reg) return 2; else
-			if (_tRt_ == reg) return 3;
-			break;
-
-		case 0x0f: // LUI
-			if (_tRt_ == reg) return 3;
-			break;
-
-		case 0x10: // COP0
-			switch (_tFunct_) {
-				case 0x00: // MFC0
-					if (_tRt_ == reg) return 3;
-					break;
-				case 0x02: // CFC0
-					if (_tRt_ == reg) return 3;
-					break;
-				case 0x04: // MTC0
-					if (_tRt_ == reg) return 2;
-					break;
-				case 0x06: // CTC0
-					if (_tRt_ == reg) return 2;
-					break;
-				// RFE just a break;
-			}
-			break;
-
-		case 0x12: // COP2
-			switch (_tFunct_) {
-				case 0x00: 
-					switch (_tRs_) {
-						case 0x00: // MFC2
-							if (_tRt_ == reg) return 3;
-							break;
-						case 0x02: // CFC2
-							if (_tRt_ == reg) return 3;
-							break;
-						case 0x04: // MTC2
-							if (_tRt_ == reg) return 2;
-							break;
-						case 0x06: // CTC2
-							if (_tRt_ == reg) return 2;
-							break;
-					}
-					break;
-				// RTPS... break;
-			}
-			break;
-
-		case 0x22: case 0x26: // LWL/LWR
-			if (_tRt_ == reg) return 3; else
-			if (_tRs_ == reg) return 2;
-			break;
-
-		case 0x20: case 0x21: case 0x23:
-		case 0x24: case 0x25: // LB/LH/LW/LBU/LHU
-			if (_tRt_ == reg && _tRs_ == reg) return 1; else
-			if (_tRs_ == reg) return 2; else
-			if (_tRt_ == reg) return 3;
-			break;
-
-		case 0x28: case 0x29: case 0x2a:
-		case 0x2b: case 0x2e: // SB/SH/SWL/SW/SWR
-			if (_tRt_ == reg || _tRs_ == reg) return 2;
-			break;
-
-		case 0x32: case 0x3a: // LWC2/SWC2
-			if (_tRs_ == reg) return 2;
-			break;
-	}
-
-	return 0;
-}
-
-static void psxDelayTest(int reg, u32 bpc) {
-	u32 tmp = intFakeFetch(bpc);
-	branch = 1;
-
-	switch (psxTestLoadDelay(reg, tmp)) {
-		case 1:
-			delayReadWrite(reg, bpc); return;
-		case 2:
-			delayRead(reg, bpc); return;
-		case 3:
-			delayWrite(reg, bpc); return;
-	}
-	// DS
-	psxBSC[psxRegs.code >> 26](&psxRegs, psxRegs.code);
-
-	branch = 0;
-	psxRegs.pc = bpc;
-
-	psxBranchTest();
-}
 
 #define isBranch(c_) \
 	((1 <= ((c_) >> 26) && ((c_) >> 26) <= 7) || ((c_) & 0xfc00003e) == 8)
@@ -491,6 +345,7 @@ static void psxDoDelayBranch(psxRegisters *regs, u32 tar1, u32 code1) {
 		regs->code = code = fetch(regs, psxMemRLUT, tar1);
 		addCycle();
 		if (likely(!isBranch(code))) {
+			dloadStep(regs);
 			psxBSC[code >> 26](regs, code);
 			regs->pc = tar2;
 			return;
@@ -505,7 +360,7 @@ static void psxDoDelayBranch(psxRegisters *regs, u32 tar1, u32 code1) {
 }
 
 static void doBranch(psxRegisters *regs, u32 tar) {
-	u32 tmp, code, pc;
+	u32 code, pc;
 
 	branch2 = branch = 1;
 
@@ -525,40 +380,7 @@ static void doBranch(psxRegisters *regs, u32 tar) {
 		return;
 	}
 
-	// check for load delay
-	tmp = code >> 26;
-	switch (tmp) {
-		case 0x10: // COP0
-			switch (_Rs_) {
-				case 0x00: // MFC0
-				case 0x02: // CFC0
-					psxDelayTest(_Rt_, tar);
-					return;
-			}
-			break;
-		case 0x12: // COP2
-			switch (_Funct_) {
-				case 0x00:
-					switch (_Rs_) {
-						case 0x00: // MFC2
-						case 0x02: // CFC2
-							psxDelayTest(_Rt_, tar);
-							return;
-					}
-					break;
-			}
-			break;
-		case 0x32: // LWC2
-			psxDelayTest(_Rt_, tar);
-			return;
-		default:
-			if (tmp >= 0x20 && tmp <= 0x26) { // LB/LH/LWL/LW/LBU/LHU/LWR
-				psxDelayTest(_Rt_, tar);
-				return;
-			}
-			break;
-	}
-
+	dloadStep(regs);
 	psxBSC[code >> 26](regs, code);
 
 	branch = 0;
@@ -568,10 +390,11 @@ static void doBranch(psxRegisters *regs, u32 tar) {
 }
 
 static void doBranchReg(psxRegisters *regs, u32 tar) {
-#ifdef DO_EXCEPTION_ADDR_ERR
+#ifdef DO_EXCEPTION_ALIGNMENT_BRANCH
 	if (unlikely(tar & 3)) {
-		psxRegs.pc = psxRegs.CP0.n.BadVAddr = tar;
-		psxException(R3000E_AdEL << 2, branch, &psxRegs.CP0);
+		SysPrintf("game crash @%08x, ra=%08x\n", tar, regs->GPR.n.ra);
+		psxRegs.CP0.n.BadVAddr = tar;
+		intException(regs, tar, R3000E_AdEL << 2);
 		return;
 	}
 #else
@@ -589,54 +412,50 @@ static void doBranchReg(psxRegisters *regs, u32 tar) {
 #endif
 
 static void addExc(psxRegisters *regs, u32 rt, s32 a1, s32 a2) {
-	s32 r;
-	if (add_overflow(a1, a2, r)) {
-		//printf("ov %08x + %08x = %08x\n", a1, a2, r);
-		regs->pc -= 4;
-		psxException(R3000E_Ov << 2, branch, &regs->CP0);
+	s32 val;
+	if (add_overflow(a1, a2, val)) {
+		//printf("ov %08x + %08x = %08x\n", a1, a2, val);
+		intException(regs, regs->pc - 4, R3000E_Ov << 2);
 		return;
 	}
-	if (rt)
-		regs->GPR.r[rt] = r;
+	dloadRt(regs, rt, val);
 }
 
 static void subExc(psxRegisters *regs, u32 rt, s32 a1, s32 a2) {
-	s32 r;
-	if (sub_overflow(a1, a2, r)) {
-		regs->pc -= 4;
-		psxException(R3000E_Ov << 2, branch, &regs->CP0);
+	s32 val;
+	if (sub_overflow(a1, a2, val)) {
+		intException(regs, regs->pc - 4, R3000E_Ov << 2);
 		return;
 	}
-	if (rt)
-		regs->GPR.r[rt] = r;
+	dloadRt(regs, rt, val);
 }
 
 /*********************************************************
 * Arithmetic with immediate operand                      *
 * Format:  OP rt, rs, immediate                          *
 *********************************************************/
-OP(psxADDI)  { addExc(regs_, _Rt_, _i32(_rRs_), _Imm_); } // Rt = Rs + Im (Exception on Integer Overflow)
-OP(psxADDIU) { if (!_Rt_) return; _rRt_ = _u32(_rRs_) + _Imm_ ; }  // Rt = Rs + Im
-OP(psxANDI)  { if (!_Rt_) return; _rRt_ = _u32(_rRs_) & _ImmU_; }  // Rt = Rs And Im
-OP(psxORI)   { if (!_Rt_) return; _rRt_ = _u32(_rRs_) | _ImmU_; }  // Rt = Rs Or  Im
-OP(psxXORI)  { if (!_Rt_) return; _rRt_ = _u32(_rRs_) ^ _ImmU_; }  // Rt = Rs Xor Im
-OP(psxSLTI)  { if (!_Rt_) return; _rRt_ = _i32(_rRs_) < _Imm_ ; }  // Rt = Rs < Im		(Signed)
-OP(psxSLTIU) { if (!_Rt_) return; _rRt_ = _u32(_rRs_) < ((u32)_Imm_); } // Rt = Rs < Im		(Unsigned)
+OP(psxADDI)  { addExc (regs_, _Rt_, _i32(_rRs_), _Imm_); } // Rt = Rs + Im (Exception on Integer Overflow)
+OP(psxADDIU) { dloadRt(regs_, _Rt_, _u32(_rRs_) + _Imm_ ); }  // Rt = Rs + Im
+OP(psxANDI)  { dloadRt(regs_, _Rt_, _u32(_rRs_) & _ImmU_); }  // Rt = Rs And Im
+OP(psxORI)   { dloadRt(regs_, _Rt_, _u32(_rRs_) | _ImmU_); }  // Rt = Rs Or  Im
+OP(psxXORI)  { dloadRt(regs_, _Rt_, _u32(_rRs_) ^ _ImmU_); }  // Rt = Rs Xor Im
+OP(psxSLTI)  { dloadRt(regs_, _Rt_, _i32(_rRs_) < _Imm_ ); }  // Rt = Rs < Im (Signed)
+OP(psxSLTIU) { dloadRt(regs_, _Rt_, _u32(_rRs_) < ((u32)_Imm_)); } // Rt = Rs < Im (Unsigned)
 
 /*********************************************************
 * Register arithmetic                                    *
 * Format:  OP rd, rs, rt                                 *
 *********************************************************/
-OP(psxADD)   { addExc(regs_, _Rd_, _i32(_rRs_), _i32(_rRt_)); } // Rd = Rs + Rt (Exception on Integer Overflow)
-OP(psxSUB)   { subExc(regs_, _Rd_, _i32(_rRs_), _i32(_rRt_)); } // Rd = Rs - Rt (Exception on Integer Overflow)
-OP(psxADDU)  { if (!_Rd_) return; _rRd_ = _u32(_rRs_) + _u32(_rRt_); }	// Rd = Rs + Rt
-OP(psxSUBU)  { if (!_Rd_) return; _rRd_ = _u32(_rRs_) - _u32(_rRt_); }	// Rd = Rs - Rt
-OP(psxAND)   { if (!_Rd_) return; _rRd_ = _u32(_rRs_) & _u32(_rRt_); }	// Rd = Rs And Rt
-OP(psxOR)    { if (!_Rd_) return; _rRd_ = _u32(_rRs_) | _u32(_rRt_); }	// Rd = Rs Or  Rt
-OP(psxXOR)   { if (!_Rd_) return; _rRd_ = _u32(_rRs_) ^ _u32(_rRt_); }	// Rd = Rs Xor Rt
-OP(psxNOR)   { if (!_Rd_) return; _rRd_ =~(_u32(_rRs_) | _u32(_rRt_)); }// Rd = Rs Nor Rt
-OP(psxSLT)   { if (!_Rd_) return; _rRd_ = _i32(_rRs_) < _i32(_rRt_); }	// Rd = Rs < Rt		(Signed)
-OP(psxSLTU)  { if (!_Rd_) return; _rRd_ = _u32(_rRs_) < _u32(_rRt_); }	// Rd = Rs < Rt		(Unsigned)
+OP(psxADD)   { addExc (regs_, _Rd_, _i32(_rRs_), _i32(_rRt_)); } // Rd = Rs + Rt (Exception on Integer Overflow)
+OP(psxSUB)   { subExc (regs_, _Rd_, _i32(_rRs_), _i32(_rRt_)); } // Rd = Rs - Rt (Exception on Integer Overflow)
+OP(psxADDU)  { dloadRt(regs_, _Rd_, _u32(_rRs_) + _u32(_rRt_)); }  // Rd = Rs + Rt
+OP(psxSUBU)  { dloadRt(regs_, _Rd_, _u32(_rRs_) - _u32(_rRt_)); }  // Rd = Rs - Rt
+OP(psxAND)   { dloadRt(regs_, _Rd_, _u32(_rRs_) & _u32(_rRt_)); }  // Rd = Rs And Rt
+OP(psxOR)    { dloadRt(regs_, _Rd_, _u32(_rRs_) | _u32(_rRt_)); }  // Rd = Rs Or  Rt
+OP(psxXOR)   { dloadRt(regs_, _Rd_, _u32(_rRs_) ^ _u32(_rRt_)); }  // Rd = Rs Xor Rt
+OP(psxNOR)   { dloadRt(regs_, _Rd_, ~_u32(_rRs_ | _u32(_rRt_))); } // Rd = Rs Nor Rt
+OP(psxSLT)   { dloadRt(regs_, _Rd_, _i32(_rRs_) < _i32(_rRt_)); }  // Rd = Rs < Rt (Signed)
+OP(psxSLTU)  { dloadRt(regs_, _Rd_, _u32(_rRs_) < _u32(_rRt_)); }  // Rd = Rs < Rt (Unsigned)
 
 /*********************************************************
 * Register mult/div & Register trap logic                *
@@ -740,30 +559,30 @@ OP(psxBLTZAL) { RepZBranchLinki32(<) }   // Branch if Rs <  0 and link
 * Shift arithmetic with constant shift                   *
 * Format:  OP rd, rt, sa                                 *
 *********************************************************/
-OP(psxSLL) { if (!_Rd_) return; _rRd_ = _u32(_rRt_) << _Sa_; } // Rd = Rt << sa
-OP(psxSRA) { if (!_Rd_) return; _rRd_ = _i32(_rRt_) >> _Sa_; } // Rd = Rt >> sa (arithmetic)
-OP(psxSRL) { if (!_Rd_) return; _rRd_ = _u32(_rRt_) >> _Sa_; } // Rd = Rt >> sa (logical)
+OP(psxSLL) { dloadRt(regs_, _Rd_, _u32(_rRt_) << _Sa_); } // Rd = Rt << sa
+OP(psxSRA) { dloadRt(regs_, _Rd_, _i32(_rRt_) >> _Sa_); } // Rd = Rt >> sa (arithmetic)
+OP(psxSRL) { dloadRt(regs_, _Rd_, _u32(_rRt_) >> _Sa_); } // Rd = Rt >> sa (logical)
 
 /*********************************************************
 * Shift arithmetic with variant register shift           *
 * Format:  OP rd, rt, rs                                 *
 *********************************************************/
-OP(psxSLLV) { if (!_Rd_) return; _rRd_ = _u32(_rRt_) << (_u32(_rRs_) & 0x1F); } // Rd = Rt << rs
-OP(psxSRAV) { if (!_Rd_) return; _rRd_ = _i32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (arithmetic)
-OP(psxSRLV) { if (!_Rd_) return; _rRd_ = _u32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (logical)
+OP(psxSLLV) { dloadRt(regs_, _Rd_, _u32(_rRt_) << (_u32(_rRs_) & 0x1F)); } // Rd = Rt << rs
+OP(psxSRAV) { dloadRt(regs_, _Rd_, _i32(_rRt_) >> (_u32(_rRs_) & 0x1F)); } // Rd = Rt >> rs (arithmetic)
+OP(psxSRLV) { dloadRt(regs_, _Rd_, _u32(_rRt_) >> (_u32(_rRs_) & 0x1F)); } // Rd = Rt >> rs (logical)
 
 /*********************************************************
 * Load higher 16 bits of the first word in GPR with imm  *
 * Format:  OP rt, immediate                              *
 *********************************************************/
-OP(psxLUI) { if (!_Rt_) return; _rRt_ = code << 16; } // Upper halfword of Rt = Im
+OP(psxLUI) { dloadRt(regs_, _Rt_, code << 16); } // Upper halfword of Rt = Im
 
 /*********************************************************
 * Move from HI/LO to GPR                                 *
 * Format:  OP rd                                         *
 *********************************************************/
-OP(psxMFHI) { if (!_Rd_) return; _rRd_ = _rHi_; } // Rd = Hi
-OP(psxMFLO) { if (!_Rd_) return; _rRd_ = _rLo_; } // Rd = Lo
+OP(psxMFHI) { dloadRt(regs_, _Rd_, _rHi_); } // Rd = Hi
+OP(psxMFLO) { dloadRt(regs_, _Rd_, _rLo_); } // Rd = Lo
 
 static void mflohiCheckStall(psxRegisters *regs_)
 {
@@ -789,13 +608,11 @@ OP(psxMTLO) { _rLo_ = _rRs_; } // Lo = Rs
 * Format:  OP                                            *
 *********************************************************/
 OP(psxBREAK) {
-	regs_->pc -= 4;
-	psxException(R3000E_Bp << 2, branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, R3000E_Bp << 2);
 }
 
 OP(psxSYSCALL) {
-	regs_->pc -= 4;
-	psxException(R3000E_Syscall << 2, branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, R3000E_Syscall << 2);
 }
 
 static inline void execI_(u8 **memRLUT, psxRegisters *regs_);
@@ -806,7 +623,7 @@ static inline void psxTestSWInts(psxRegisters *regs_, int step) {
 		if (step)
 			execI_(psxMemRLUT, regs_);
 		regs_->CP0.n.Cause &= ~0x7c;
-		psxException(regs_->CP0.n.Cause, branch, &regs_->CP0);
+		intException(regs_, regs_->pc, regs_->CP0.n.Cause);
 	}
 }
 
@@ -856,23 +673,59 @@ OP(psxJALR) {
 * Format:  OP rt, offset(base)                           *
 *********************************************************/
 
+static int algnChkL(psxRegisters *regs, u32 addr, u32 m) {
+	if (unlikely(addr & m)) {
+		log_unhandled("unaligned load %08x @%08x\n", addr, regs->pc - 4);
+#ifdef DO_EXCEPTION_ALIGNMENT_DATA
+		psxRegs.CP0.n.BadVAddr = addr;
+		intException(regs, regs->pc - 4, R3000E_AdEL << 2);
+		return 0;
+#endif
+	}
+	return 1;
+}
+
+static int algnChkS(psxRegisters *regs, u32 addr, u32 m) {
+	if (unlikely(addr & m)) {
+		log_unhandled("unaligned store %08x @%08x\n", addr, regs->pc - 4);
+#ifdef DO_EXCEPTION_ALIGNMENT_DATA
+		psxRegs.CP0.n.BadVAddr = addr;
+		intException(regs, regs->pc - 4, R3000E_AdES << 2);
+		return 0;
+#endif
+	}
+	return 1;
+}
+
+/*********************************************************
+* Load and store for GPR                                 *
+* Format:  OP rt, offset(base)                           *
+*********************************************************/
+
 #define _oB_ (regs_->GPR.r[_Rs_] + _Imm_)
 
-OP(psxLB)  { u32 v =  (s8)psxMemRead8(_oB_);  if (_Rt_) _rRt_ = v; }
-OP(psxLBU) { u32 v =      psxMemRead8(_oB_);  if (_Rt_) _rRt_ = v; }
-OP(psxLH)  { u32 v = (s16)psxMemRead16(_oB_); if (_Rt_) _rRt_ = v; }
-OP(psxLHU) { u32 v =      psxMemRead16(_oB_); if (_Rt_) _rRt_ = v; }
-OP(psxLW)  { u32 v =      psxMemRead32(_oB_); if (_Rt_) _rRt_ = v; }
+OP(psxLB)  {                               doLoad(regs_, _Rt_,  (s8)psxMemRead8(_oB_));  }
+OP(psxLBU) {                               doLoad(regs_, _Rt_,      psxMemRead8(_oB_));  }
+OP(psxLH)  { if (algnChkL(regs_, _oB_, 1)) doLoad(regs_, _Rt_, (s16)psxMemRead16(_oB_)); }
+OP(psxLHU) { if (algnChkL(regs_, _oB_, 1)) doLoad(regs_, _Rt_,      psxMemRead16(_oB_)); }
+OP(psxLW)  { if (algnChkL(regs_, _oB_, 3)) doLoad(regs_, _Rt_,      psxMemRead32(_oB_)); }
 
 OP(psxLWL) {
 	static const u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
 	static const u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
-	u32 addr = _oB_;
+	u32 addr = _oB_, val;
 	u32 shift = addr & 3;
 	u32 mem = psxMemRead32(addr & ~3);
+	u32 rt = _Rt_;
+	u32 oldval = regs_->GPR.r[rt];
 
-	if (!_Rt_) return;
-	_rRt_ = (_u32(_rRt_) & LWL_MASK[shift]) | (mem << LWL_SHIFT[shift]);
+#ifdef HANDLE_LOAD_DELAY
+	int sel = regs_->dloadSel;
+	if (regs_->dloadReg[sel] == rt)
+		oldval = regs_->dloadVal[sel];
+#endif
+	val = (oldval & LWL_MASK[shift]) | (mem << LWL_SHIFT[shift]);
+	doLoad(regs_, rt, val);
 
 	/*
 	Mem = 1234.  Reg = abcd
@@ -887,12 +740,19 @@ OP(psxLWL) {
 OP(psxLWR) {
 	static const u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
 	static const u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
-	u32 addr = _oB_;
+	u32 addr = _oB_, val;
 	u32 shift = addr & 3;
 	u32 mem = psxMemRead32(addr & ~3);
+	u32 rt = _Rt_;
+	u32 oldval = regs_->GPR.r[rt];
 
-	if (!_Rt_) return;
-	_rRt_ = (_u32(_rRt_) & LWR_MASK[shift]) | (mem >> LWR_SHIFT[shift]);
+#ifdef HANDLE_LOAD_DELAY
+	int sel = regs_->dloadSel;
+	if (regs_->dloadReg[sel] == rt)
+		oldval = regs_->dloadVal[sel];
+#endif
+	val = (oldval & LWR_MASK[shift]) | (mem >> LWR_SHIFT[shift]);
+	doLoad(regs_, rt, val);
 
 	/*
 	Mem = 1234.  Reg = abcd
@@ -904,10 +764,11 @@ OP(psxLWR) {
 	*/
 }
 
-OP(psxSB) { psxMemWrite8 (_oB_, _rRt_ &   0xff); }
-OP(psxSH) { psxMemWrite16(_oB_, _rRt_ & 0xffff); }
-OP(psxSW) { psxMemWrite32(_oB_, _rRt_); }
+OP(psxSB) {                               psxMemWrite8 (_oB_, _rRt_ &   0xff); }
+OP(psxSH) { if (algnChkS(regs_, _oB_, 1)) psxMemWrite16(_oB_, _rRt_ & 0xffff); }
+OP(psxSW) { if (algnChkS(regs_, _oB_, 3)) psxMemWrite32(_oB_, _rRt_); }
 
+// FIXME: this rmw implementation is wrong and would break on io like fifos
 OP(psxSWL) {
 	static const u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
 	static const u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
@@ -954,16 +815,13 @@ OP(psxSWR) {
 OP(psxMFC0) {
 	u32 r = _Rd_;
 #ifdef DO_EXCEPTION_RESERVEDI
-	if (unlikely(r == 0)) {
-		regs_->pc -= 4;
-		psxException(R3000E_RI << 2, branch, &regs_->CP0);
-	}
+	if (unlikely(r == 0))
+		intException(regs_, regs_->pc - 4, R3000E_RI << 2);
 #endif
-	if (_Rt_)
-		_rRt_ = regs_->CP0.r[r];
+	doLoad(regs_, _Rt_, regs_->CP0.r[r]);
 }
 
-OP(psxCFC0) { if (!_Rt_) return; _rRt_ = _rFs_; }
+OP(psxCFC0) { doLoad(regs_, _Rt_, regs_->CP0.r[_Rd_]); }
 
 static void setupCop(u32 sr);
 
@@ -1005,8 +863,7 @@ static inline void psxNULL_(void) {
 OP(psxNULL) {
 	psxNULL_();
 #ifdef DO_EXCEPTION_RESERVEDI
-	regs_->pc -= 4;
-	psxException(R3000E_RI << 2, branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, R3000E_RI << 2);
 #endif
 }
 
@@ -1040,8 +897,7 @@ OP(psxCOP1) {
 
 OP(psxCOP1d) {
 #ifdef DO_EXCEPTION_RESERVEDI
-	regs_->pc -= 4;
-	psxException((1<<28) | (R3000E_RI << 2), branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, (1<<28) | (R3000E_RI << 2));
 #endif
 }
 
@@ -1057,19 +913,16 @@ OP(psxCOP2_stall) {
 
 OP(psxCOP2d) {
 #ifdef DO_EXCEPTION_RESERVEDI
-	regs_->pc -= 4;
-	psxException((2<<28) | (R3000E_RI << 2), branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, (2<<28) | (R3000E_RI << 2));
 #endif
 }
 
 OP(gteMFC2) {
-	if (!_Rt_) return;
-	regs_->GPR.r[_Rt_] = MFC2(&regs_->CP2, _Rd_);
+	doLoad(regs_, _Rt_, MFC2(&regs_->CP2, _Rd_));
 }
 
 OP(gteCFC2) {
-	if (!_Rt_) return;
-	regs_->GPR.r[_Rt_] = regs_->CP2C.r[_Rd_];
+	doLoad(regs_, _Rt_, regs_->CP2C.r[_Rd_]);
 }
 
 OP(gteMTC2) {
@@ -1104,8 +957,7 @@ OP(psxCOP3) {
 
 OP(psxCOP3d) {
 #ifdef DO_EXCEPTION_RESERVEDI
-	regs_->pc -= 4;
-	psxException((3<<28) | (R3000E_RI << 2), branch, &regs_->CP0);
+	intException(regs_, regs_->pc - 4, (3<<28) | (R3000E_RI << 2));
 #endif
 }
 
@@ -1199,6 +1051,7 @@ static int intInit() {
 }
 
 static void intReset() {
+	dloadClear(&psxRegs);
 }
 
 static inline void execI_(u8 **memRLUT, psxRegisters *regs_) {
@@ -1208,6 +1061,7 @@ static inline void execI_(u8 **memRLUT, psxRegisters *regs_) {
 
 	addCycle();
 
+	dloadStep(regs_);
 	psxBSC[regs_->code >> 26](regs_, regs_->code);
 }
 
@@ -1234,14 +1088,17 @@ static void intClear(u32 Addr, u32 Size) {
 
 static void intNotify(enum R3000Anote note, void *data) {
 	switch (note) {
+	case R3000ACPU_NOTIFY_BEFORE_SAVE:
+		dloadFlush(&psxRegs);
+		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
+		dloadClear(&psxRegs);
 		setupCop(psxRegs.CP0.n.Status);
 		// fallthrough
 	case R3000ACPU_NOTIFY_CACHE_ISOLATED: // Armored Core?
 		memset(&ICache, 0xff, sizeof(ICache));
 		break;
 	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
-	case R3000ACPU_NOTIFY_BEFORE_SAVE:
 		break;
 	}
 }
