@@ -37,7 +37,6 @@
 
 static int branch = 0;
 static int branch2 = 0;
-static u32 branchPC;
 
 #ifdef __i386__
 #define INT_ATTR __attribute__((regparm(2)))
@@ -399,137 +398,132 @@ static void psxDelayTest(int reg, u32 bpc) {
 	psxBranchTest();
 }
 
-static u32 psxBranchNoDelay(psxRegisters *regs_) {
-	u32 temp, code;
+#define isBranch(c_) \
+	((1 <= ((c_) >> 26) && ((c_) >> 26) <= 7) || ((c_) & 0xfc00003e) == 8)
+#define swap_(a_, b_) { u32 t_ = a_; a_ = b_; b_ = t_; }
 
-	regs_->code = code = intFakeFetch(regs_->pc);
-	switch (_Op_) {
+// tar1 is main branch target, 'code' is opcode in DS
+static u32 psxBranchNoDelay(psxRegisters *regs_, u32 tar1, u32 code, int *taken) {
+	u32 temp, rt;
+
+	assert(isBranch(code));
+	*taken = 1;
+	switch (code >> 26) {
 		case 0x00: // SPECIAL
 			switch (_Funct_) {
 				case 0x08: // JR
 					return _u32(_rRs_);
 				case 0x09: // JALR
 					temp = _u32(_rRs_);
-					if (_Rd_) { _SetLink(_Rd_); }
+					if (_Rd_)
+						regs_->GPR.r[_Rd_] = tar1 + 4;
 					return temp;
 			}
 			break;
 		case 0x01: // REGIMM
-			switch (_Rt_) {
-				case 0x00: // BLTZ
+			rt = _Rt_;
+			switch (rt) {
+				case 0x10: // BLTZAL
+					regs_->GPR.n.ra = tar1 + 4;
 					if (_i32(_rRs_) < 0)
-						return _BranchTarget_;
+						return tar1 + (s16)_Im_ * 4;
 					break;
-				case 0x01: // BGEZ
+				case 0x11: // BGEZAL
+					regs_->GPR.n.ra = tar1 + 4;
 					if (_i32(_rRs_) >= 0)
-						return _BranchTarget_;
+						return tar1 + (s16)_Im_ * 4;
 					break;
-				case 0x08: // BLTZAL
-					if (_i32(_rRs_) < 0) {
-						_SetLink(31);
-						return _BranchTarget_;
+				default:
+					if (rt & 1) { // BGEZ
+						if (_i32(_rRs_) >= 0)
+							return tar1 + (s16)_Im_ * 4;
 					}
-					break;
-				case 0x09: // BGEZAL
-					if (_i32(_rRs_) >= 0) {
-						_SetLink(31);
-						return _BranchTarget_;
+					else {        // BLTZ
+						if (_i32(_rRs_) < 0)
+							return tar1 + (s16)_Im_ * 4;
 					}
 					break;
 			}
 			break;
 		case 0x02: // J
-			return _JumpTarget_;
+			return (tar1 & 0xf0000000u) + _Target_ * 4;
 		case 0x03: // JAL
-			_SetLink(31);
-			return _JumpTarget_;
+			regs_->GPR.n.ra = tar1 + 4;
+			return (tar1 & 0xf0000000u) + _Target_ * 4;
 		case 0x04: // BEQ
 			if (_i32(_rRs_) == _i32(_rRt_))
-				return _BranchTarget_;
+				return tar1 + (s16)_Im_ * 4;
 			break;
 		case 0x05: // BNE
 			if (_i32(_rRs_) != _i32(_rRt_))
-				return _BranchTarget_;
+				return tar1 + (s16)_Im_ * 4;
 			break;
 		case 0x06: // BLEZ
 			if (_i32(_rRs_) <= 0)
-				return _BranchTarget_;
+				return tar1 + (s16)_Im_ * 4;
 			break;
 		case 0x07: // BGTZ
 			if (_i32(_rRs_) > 0)
-				return _BranchTarget_;
+				return tar1 + (s16)_Im_ * 4;
 			break;
 	}
 
-	return (u32)-1;
+	*taken = 0;
+	return tar1;
 }
 
-static int psxDelayBranchExec(u32 tar) {
-	execI();
+static void psxDoDelayBranch(psxRegisters *regs, u32 tar1, u32 code1) {
+	u32 tar2, code;
+	int taken, lim;
 
-	branch = 0;
-	psxRegs.pc = tar;
-	addCycle();
-	psxBranchTest();
-	return 1;
-}
-
-static int psxDelayBranchTest(u32 tar1) {
-	u32 tar2, tmp1, tmp2;
-
-	tar2 = psxBranchNoDelay(&psxRegs);
-	if (tar2 == (u32)-1)
-		return 0;
+	tar2 = psxBranchNoDelay(regs, tar1, code1, &taken);
+	regs->pc = tar1;
+	if (!taken)
+		return;
 
 	/*
-	 * Branch in delay slot:
+	 * taken branch in delay slot:
 	 * - execute 1 instruction at tar1
 	 * - jump to tar2 (target of branch in delay slot; this branch
 	 *   has no normal delay slot, instruction at tar1 was fetched instead)
 	 */
-	psxRegs.pc = tar1;
-	tmp1 = psxBranchNoDelay(&psxRegs);
-	if (tmp1 == (u32)-1) {
-		return psxDelayBranchExec(tar2);
+	for (lim = 0; lim < 8; lim++) {
+		regs->code = code = fetch(regs, psxMemRLUT, tar1);
+		addCycle();
+		if (likely(!isBranch(code))) {
+			psxBSC[code >> 26](regs, code);
+			regs->pc = tar2;
+			return;
+		}
+		tar1 = psxBranchNoDelay(regs, tar2, code, &taken);
+		regs->pc = tar2;
+		if (!taken)
+			return;
+		swap_(tar1, tar2);
 	}
-	addCycle();
-
-	/*
-	 * Got a branch at tar1:
-	 * - execute 1 instruction at tar2
-	 * - jump to target of that branch (tmp1)
-	 */
-	psxRegs.pc = tar2;
-	tmp2 = psxBranchNoDelay(&psxRegs);
-	if (tmp2 == (u32)-1) {
-		return psxDelayBranchExec(tmp1);
-	}
-	addCycle();
-
-	/*
-	 * Got a branch at tar2:
-	 * - execute 1 instruction at tmp1
-	 * - jump to target of that branch (tmp2)
-	 */
-	psxRegs.pc = tmp1;
-	return psxDelayBranchExec(tmp2);
+	SysPrintf("Evil chained DS branches @ %08x %08x %08x\n", regs->pc, tar1, tar2);
 }
 
-static void doBranch(u32 tar) {
+static void doBranch(psxRegisters *regs, u32 tar) {
 	u32 tmp, code, pc;
 
 	branch2 = branch = 1;
-	branchPC = tar;
 
-	// check for branch in delay slot
-	if (psxDelayBranchTest(tar))
-		return;
-
-	pc = psxRegs.pc;
-	psxRegs.pc += 4;
-	psxRegs.code = code = fetch(&psxRegs, psxMemRLUT, pc);
+	// fetch the delay slot
+	pc = regs->pc;
+	regs->pc = pc + 4;
+	regs->code = code = fetch(regs, psxMemRLUT, pc);
 
 	addCycle();
+
+	// check for branch in delay slot
+	if (unlikely(isBranch(code))) {
+		psxDoDelayBranch(regs, tar, code);
+		log_unhandled("branch in DS: %08x->%08x\n", pc, regs->pc);
+		branch = 0;
+		psxBranchTest();
+		return;
+	}
 
 	// check for load delay
 	tmp = code >> 26;
@@ -538,7 +532,7 @@ static void doBranch(u32 tar) {
 			switch (_Rs_) {
 				case 0x00: // MFC0
 				case 0x02: // CFC0
-					psxDelayTest(_Rt_, branchPC);
+					psxDelayTest(_Rt_, tar);
 					return;
 			}
 			break;
@@ -548,32 +542,32 @@ static void doBranch(u32 tar) {
 					switch (_Rs_) {
 						case 0x00: // MFC2
 						case 0x02: // CFC2
-							psxDelayTest(_Rt_, branchPC);
+							psxDelayTest(_Rt_, tar);
 							return;
 					}
 					break;
 			}
 			break;
 		case 0x32: // LWC2
-			psxDelayTest(_Rt_, branchPC);
+			psxDelayTest(_Rt_, tar);
 			return;
 		default:
 			if (tmp >= 0x20 && tmp <= 0x26) { // LB/LH/LWL/LW/LBU/LHU/LWR
-				psxDelayTest(_Rt_, branchPC);
+				psxDelayTest(_Rt_, tar);
 				return;
 			}
 			break;
 	}
 
-	psxBSC[code >> 26](&psxRegs, code);
+	psxBSC[code >> 26](regs, code);
 
 	branch = 0;
-	psxRegs.pc = branchPC;
+	regs->pc = tar;
 
 	psxBranchTest();
 }
 
-static void doBranchReg(u32 tar) {
+static void doBranchReg(psxRegisters *regs, u32 tar) {
 #ifdef DO_EXCEPTION_ADDR_ERR
 	if (unlikely(tar & 3)) {
 		psxRegs.pc = psxRegs.CP0.n.BadVAddr = tar;
@@ -583,7 +577,7 @@ static void doBranchReg(u32 tar) {
 #else
 	tar &= ~3;
 #endif
-	doBranch(tar);
+	doBranch(regs, tar);
 }
 
 #if __has_builtin(__builtin_add_overflow) || (defined(__GNUC__) && __GNUC__ >= 5)
@@ -727,12 +721,12 @@ OP(psxMULTU_stall) {
 *********************************************************/
 #define RepZBranchi32(op) \
 	if(_i32(_rRs_) op 0) \
-		doBranch(_BranchTarget_);
+		doBranch(regs_, _BranchTarget_);
 #define RepZBranchLinki32(op)  { \
 	s32 temp = _i32(_rRs_); \
 	_SetLink(31); \
 	if(temp op 0) \
-		doBranch(_BranchTarget_); \
+		doBranch(regs_, _BranchTarget_); \
 }
 
 OP(psxBGEZ)   { RepZBranchi32(>=) }      // Branch if Rs >= 0
@@ -827,7 +821,10 @@ OP(psxRFE) {
 * Register branch logic                                  *
 * Format:  OP rs, rt, offset                             *
 *********************************************************/
-#define RepBranchi32(op)      if(_i32(_rRs_) op _i32(_rRt_)) doBranch(_BranchTarget_);
+#define RepBranchi32(op) { \
+	if (_i32(_rRs_) op _i32(_rRt_)) \
+		doBranch(regs_, _BranchTarget_); \
+}
 
 OP(psxBEQ) { RepBranchi32(==) }  // Branch if Rs == Rt
 OP(psxBNE) { RepBranchi32(!=) }  // Branch if Rs != Rt
@@ -836,22 +833,22 @@ OP(psxBNE) { RepBranchi32(!=) }  // Branch if Rs != Rt
 * Jump to target                                         *
 * Format:  OP target                                     *
 *********************************************************/
-OP(psxJ)   {               doBranch(_JumpTarget_); }
-OP(psxJAL) { _SetLink(31); doBranch(_JumpTarget_); }
+OP(psxJ)   {               doBranch(regs_, _JumpTarget_); }
+OP(psxJAL) { _SetLink(31); doBranch(regs_, _JumpTarget_); }
 
 /*********************************************************
 * Register jump                                          *
 * Format:  OP rs, rd                                     *
 *********************************************************/
 OP(psxJR) {
-	doBranchReg(_rRs_);
+	doBranchReg(regs_, _rRs_);
 	psxJumpTest();
 }
 
 OP(psxJALR) {
 	u32 temp = _u32(_rRs_);
 	if (_Rd_) { _SetLink(_Rd_); }
-	doBranchReg(temp);
+	doBranchReg(regs_, temp);
 }
 
 /*********************************************************
