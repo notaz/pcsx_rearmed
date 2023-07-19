@@ -34,7 +34,7 @@ enum R3000Aexception {
 	R3000E_AdEL = 4,     // Address error (on load/I-fetch)
 	R3000E_AdES = 5,     // Address error (on store)
 	R3000E_IBE = 6,      // Bus error (instruction fetch)
-	R3000E_DBE = 7,      // Bus error (data load)
+	R3000E_DBE = 7,      // Bus error (data load/store)
 	R3000E_Syscall = 8,  // syscall instruction
 	R3000E_Bp = 9,       // Breakpoint - a break instruction
 	R3000E_RI = 10,      // reserved instruction
@@ -96,14 +96,11 @@ typedef union {
 
 typedef union psxCP0Regs_ {
 	struct {
-		u32	Index,     Random,    EntryLo0,  EntryLo1,
-						Context,   PageMask,  Wired,     Reserved0,
-						BadVAddr,  Count,     EntryHi,   Compare,
-						Status,    Cause,     EPC,       PRid,
-						Config,    LLAddr,    WatchLO,   WatchHI,
-						XContext,  Reserved1, Reserved2, Reserved3,
-						Reserved4, Reserved5, ECC,       CacheErr,
-						TagLo,     TagHi,     ErrorEPC,  Reserved6;
+		u32 Reserved0, Reserved1, Reserved2,  BPC,
+		    Reserved4, BDA,       Target,     DCIC,
+		    BadVAddr,  BDAM,      Reserved10, BPCM,
+		    SR,        Cause,     EPC,        PRid,
+		    Reserved16[16];
 	} n;
 	u32 r[32];
 	PAIR p[32];
@@ -188,6 +185,14 @@ enum {
 	PSXINT_COUNT
 };
 
+enum R3000Abdt {
+	// corresponds to bits 31,30 of Cause reg
+	R3000A_BRANCH_TAKEN = 3,
+	R3000A_BRANCH_NOT_TAKEN = 2,
+	// none or tells that there was an exception in DS back to doBranch
+	R3000A_BRANCH_NONE_OR_EXCEPTION = 0,
+};
+
 typedef struct psxCP2Regs {
 	psxCP2Data CP2D; 	/* Cop2 data registers */
 	psxCP2Ctrl CP2C; 	/* Cop2 control registers */
@@ -212,11 +217,11 @@ typedef struct {
 	struct { u32 sCycle, cycle; } intCycle[32];
 	u32 gteBusyCycle;
 	u32 muldivBusyCycle;
-	u32 subCycle;		/* interpreter cycle counting */
+	u32 subCycle;       /* interpreter cycle counting */
 	u32 subCycleStep;
 	u32 biuReg;
-	u8  reserved;
-	u8  dloadSel;
+	u8  branching;      /* interp. R3000A_BRANCH_TAKEN / not, 0 if not branch */
+	u8  dloadSel;       /* interp. delay load state */
 	u8  dloadReg[2];
 	u32 dloadVal[2];
 	// warning: changing anything in psxRegisters requires update of all
@@ -247,7 +252,7 @@ void new_dyna_freeze(void *f, int mode);
 int  psxInit();
 void psxReset();
 void psxShutdown();
-void psxException(u32 code, u32 bd, psxCP0Regs *cp0);
+void psxException(u32 code, enum R3000Abdt bdt, psxCP0Regs *cp0);
 void psxBranchTest();
 void psxExecuteBios();
 void psxJumpTest();

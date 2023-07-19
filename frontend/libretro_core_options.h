@@ -1171,7 +1171,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_icache_emulation",
       "Instruction Cache Emulation",
       NULL,
-      "Enable emulation of the PSX CPU instruction cache. Improves accuracy at the expense of increased performance overheads. Required for Formula One 2001, Formula One Arcade and Formula One 99. [Interpreter only and partial on lightrec, unsupported when using ARMv7 backend]",
+      "Enable emulation of the PSX CPU instruction cache. Improves accuracy at the expense of increased performance overheads. Required for Formula One 2001, Formula One Arcade and Formula One 99. [Interpreter only; partial on lightrec and ARM dynarecs]",
+      NULL,
+      "compat_hack",
+      {
+         { "enabled",  NULL },
+         { "disabled", NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
+      "pcsx_rearmed_exception_emulation",
+      "Exception and Breakpoint Emulation",
+      NULL,
+      "Enable emulation of some almost never used PSX's debug features. This causes a performance hit, is not useful for games and is intended for PSX homebrew and romhack developers only. Only enable if you know what you are doing. [Interpreter only]",
       NULL,
       "compat_hack",
       {

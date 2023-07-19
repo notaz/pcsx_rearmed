@@ -141,6 +141,7 @@ typedef struct {
 	boolean UseNet;
 	boolean icache_emulation;
 	boolean DisableStalls;
+	boolean PreciseExceptions;
 	int GpuListWalking;
 	int cycle_multiplier; // 100 for 1.0
 	int cycle_multiplier_override;

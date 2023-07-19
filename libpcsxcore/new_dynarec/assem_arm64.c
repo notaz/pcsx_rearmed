@@ -463,7 +463,7 @@ static void emit_loadreg(u_int r, u_int hr)
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
-    case CSREG: addr = &psxRegs.CP0.n.Status; break;
+    case CSREG: addr = &psxRegs.CP0.n.SR; break;
     case INVCP: addr = &invc_ptr; is64 = 1; break;
     case ROREG: addr = &ram_offset; is64 = 1; break;
     default:
@@ -627,6 +627,11 @@ static void emit_addimm(u_int rs, uintptr_t imm, u_int rt)
 static void emit_addimm64(u_int rs, uintptr_t imm, u_int rt)
 {
   emit_addimm_s(0, 1, rs, imm, rt);
+}
+
+static void emit_addimm_ptr(u_int rs, uintptr_t imm, u_int rt)
+{
+  emit_addimm64(rs, imm, rt);
 }
 
 static void emit_addimm_and_set_flags(int imm, u_int rt)

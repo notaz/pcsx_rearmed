@@ -67,7 +67,7 @@ static u32 read_mem_dummy(u32 addr)
 
 static void write_mem_dummy(u32 data)
 {
-	if (!(psxRegs.CP0.n.Status & (1 << 16)))
+	if (!(psxRegs.CP0.n.SR & (1 << 16)))
 		memprintf("unmapped w %08x, %08x @%08x %u\n",
 			  address, data, psxRegs.pc, psxRegs.cycle);
 }

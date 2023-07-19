@@ -2047,6 +2047,16 @@ static void update_variables(bool in_flight)
          Config.icache_emulation = 1;
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_exception_emulation";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         Config.PreciseExceptions = 1;
+      else
+         Config.PreciseExceptions = 0;
+   }
+
    psxCpu->ApplyConfig();
 
    // end of CPU emu config
