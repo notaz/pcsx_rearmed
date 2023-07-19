@@ -1949,7 +1949,7 @@ void psxBios_StartPAD() { // 13
 #endif
 	pad_stopped = 0;
 	psxHwWrite16(0x1f801074, (unsigned short)(psxHwRead16(0x1f801074) | 0x1));
-	psxRegs.CP0.n.Status |= 0x401;
+	psxRegs.CP0.n.SR |= 0x401;
 	pc0 = ra;
 }
 
@@ -1976,7 +1976,7 @@ void psxBios_PAD_init() { // 15
 	psxHwWrite16(0x1f801074, (u16)(psxHwRead16(0x1f801074) | 0x1));
 	pad_buf = (int *)Ra1;
 	*pad_buf = -1;
-	psxRegs.CP0.n.Status |= 0x401;
+	psxRegs.CP0.n.SR |= 0x401;
 	v0 = 2;
 	pc0 = ra;
 }
@@ -1996,8 +1996,7 @@ void psxBios_ReturnFromException() { // 17
 	k0 = interrupt_r26;
 	if (psxRegs.CP0.n.Cause & 0x80000000) pc0 += 4;
 
-	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
-						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
+	psxRegs.CP0.n.SR = (psxRegs.CP0.n.SR & ~0x0f) | ((psxRegs.CP0.n.SR & 0x3c) >> 2);
 }
 
 void psxBios_ResetEntryInt() { // 18
@@ -2698,7 +2697,7 @@ void psxBios_ChangeClearRCnt() { // 0a
 	v0 = *ptr;
 	*ptr = a1;
 
-//	psxRegs.CP0.n.Status|= 0x404;
+//	psxRegs.CP0.n.SR|= 0x404;
 	pc0 = ra;
 }
 
@@ -3301,12 +3300,12 @@ void psxBiosException() {
 			switch (a0) {
 				case 1: // EnterCritical - disable irq's
 					/* Fixes Medievil 2 not loading up new game, Digimon World not booting up and possibly others */
-					v0 = (psxRegs.CP0.n.Status & 0x404) == 0x404;
-					psxRegs.CP0.n.Status &= ~0x404;
+					v0 = (psxRegs.CP0.n.SR & 0x404) == 0x404;
+					psxRegs.CP0.n.SR &= ~0x404;
 					break;
 
 				case 2: // ExitCritical - enable irq's
-					psxRegs.CP0.n.Status |= 0x404;
+					psxRegs.CP0.n.SR |= 0x404;
 					break;
 				/* Normally this should cover SYS(00h, SYS(04h but they don't do anything relevant so... */
 				default:
@@ -3314,8 +3313,7 @@ void psxBiosException() {
 			}
 			pc0 = psxRegs.CP0.n.EPC + 4;
 
-			psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
-								  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
+			psxRegs.CP0.n.SR = (psxRegs.CP0.n.SR & ~0x0f) | ((psxRegs.CP0.n.SR & 0x3c) >> 2);
 			return;
 
 		default:
@@ -3328,8 +3326,7 @@ void psxBiosException() {
 	pc0 = psxRegs.CP0.n.EPC;
 	if (psxRegs.CP0.n.Cause & 0x80000000) pc0+=4;
 
-	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
-						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
+	psxRegs.CP0.n.SR = (psxRegs.CP0.n.SR & ~0x0f) | ((psxRegs.CP0.n.SR & 0x3c) >> 2);
 }
 
 #define bfreeze(ptr, size) { \

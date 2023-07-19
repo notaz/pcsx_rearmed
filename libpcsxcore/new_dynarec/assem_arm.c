@@ -430,7 +430,7 @@ static void emit_loadreg(int r, int hr)
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
-    case CSREG: addr = &psxRegs.CP0.n.Status; break;
+    case CSREG: addr = &psxRegs.CP0.n.SR; break;
     case INVCP: addr = &invc_ptr; break;
     case ROREG: addr = &ram_offset; break;
     default:
@@ -570,6 +570,11 @@ static void emit_addimm(u_int rs,int imm,u_int rt)
     }
   }
   else if(rs!=rt) emit_mov(rs,rt);
+}
+
+static void emit_addimm_ptr(u_int rs, uintptr_t imm, u_int rt)
+{
+  emit_addimm(rs, imm, rt);
 }
 
 static void emit_addimm_and_set_flags(int imm,int rt)

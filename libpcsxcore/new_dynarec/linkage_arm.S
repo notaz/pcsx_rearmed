@@ -292,7 +292,7 @@ FUNCTION(jump_break):
 	b	call_psxException
 FUNCTION(jump_syscall_ds):
 	mov	r0, #0x20
-	mov	r1, #1
+	mov	r1, #2
 	b	call_psxException
 FUNCTION(jump_syscall):
 	mov	r0, #0x20

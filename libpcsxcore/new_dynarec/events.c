@@ -68,7 +68,7 @@ static void irq_test(psxCP0Regs *cp0)
 		}
 	}
 
-	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (cp0->n.Status & 0x401) == 0x401) {
+	if ((psxHu32(0x1070) & psxHu32(0x1074)) && (cp0->n.SR & 0x401) == 0x401) {
 		psxException(0x400, 0, cp0);
 		pending_exception = 1;
 	}

@@ -398,6 +398,7 @@ static const struct {
 	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(GpuListWalking),
+	CE_CONFIG_VAL(PreciseExceptions),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
@@ -1594,12 +1595,14 @@ static const char h_cfg_nodrc[]  = "Disable dynamic recompiler and use interpret
 #endif
 static const char h_cfg_shacks[] = "Breaks games but may give better performance";
 static const char h_cfg_icache[] = "Support F1 games (only when dynarec is off)";
-static const char h_cfg_gpul[]   = "Try enabling this if the game is missing some graphics\n"
+static const char h_cfg_exc[]    = "Emulate some PSX's debug hw like breakpoints\n"
+				   "and exceptions (slow, interpreter only, keep off)";
+static const char h_cfg_gpul[]   = "Try enabling this if the game misses some graphics\n"
 				   "causes a performance hit";
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(adjust this if the game is too slow/too fast/hangs)";
 
-enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_CPU, AMO_GPUL };
+enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL };
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1609,6 +1612,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable XA Decoding",    0, menu_iopts[AMO_XA],   1, h_cfg_xa),
 	mee_onoff_h   ("Disable CD Audio",       0, menu_iopts[AMO_CDDA], 1, h_cfg_cdda),
 	mee_onoff_h   ("ICache emulation",       0, menu_iopts[AMO_IC],   1, h_cfg_icache),
+	mee_onoff_h   ("BP exception emulation", 0, menu_iopts[AMO_BP],   1, h_cfg_exc),
 	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_gpul, h_cfg_gpul),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
@@ -1628,6 +1632,7 @@ static int menu_loop_adv_options(int id, int keys)
 		{ &Config.Xa,      &menu_iopts[AMO_XA] },
 		{ &Config.Cdda,    &menu_iopts[AMO_CDDA] },
 		{ &Config.icache_emulation, &menu_iopts[AMO_IC] },
+		{ &Config.PreciseExceptions, &menu_iopts[AMO_BP] },
 		{ &Config.Cpu,     &menu_iopts[AMO_CPU] },
 	};
 	int i;

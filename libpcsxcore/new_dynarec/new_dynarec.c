@@ -784,7 +784,7 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
     return ndrc_get_addr_ht(vaddr);
 
   // generate an address error
-  psxRegs.CP0.n.Status |= 2;
+  psxRegs.CP0.n.SR |= 2;
   psxRegs.CP0.n.Cause = (vaddr<<31) | (4<<2);
   psxRegs.CP0.n.EPC = (vaddr&1) ? vaddr-5 : vaddr;
   psxRegs.CP0.n.BadVAddr = vaddr & ~1;
@@ -3559,11 +3559,11 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
     assert(dops[i].opcode2==0x10);
     //if((source[i]&0x3f)==0x10) // RFE
     {
-      emit_readword(&psxRegs.CP0.n.Status,0);
+      emit_readword(&psxRegs.CP0.n.SR,0);
       emit_andimm(0,0x3c,1);
       emit_andimm(0,~0xf,0);
       emit_orrshr_imm(1,2,0);
-      emit_writeword(0,&psxRegs.CP0.n.Status);
+      emit_writeword(0,&psxRegs.CP0.n.SR);
     }
   }
 }
@@ -4132,6 +4132,7 @@ static void call_c_cpu_handler(int i, const struct regstat *i_regs, int ccadj_, 
   emit_addimm(HOST_CCREG,ccadj_,HOST_CCREG);
   emit_add(2,HOST_CCREG,2);
   emit_writeword(2,&psxRegs.cycle);
+  emit_addimm_ptr(FP,(u_char *)&psxRegs - (u_char *)&dynarec_local,0);
   emit_far_call(func);
   emit_far_jump(jump_to_new_pc);
 }
@@ -4149,9 +4150,14 @@ static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
   emit_far_jump(func);
 }
 
+static void hlecall_bad()
+{
+  SysPrintf("bad hlecall\n");
+}
+
 static void hlecall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
-  void *hlefunc = gteNULL;
+  void *hlefunc = hlecall_bad;
   uint32_t hleCode = source[i] & 0x03ffffff;
   if (hleCode < ARRAY_SIZE(psxHLEt))
     hlefunc = psxHLEt[hleCode];

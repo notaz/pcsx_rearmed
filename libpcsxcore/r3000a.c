@@ -59,10 +59,10 @@ void psxReset() {
 
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 
-	psxRegs.CP0.r[12] = 0x10600000; // COP0 enabled | BEV = 1 | TS = 1
-	psxRegs.CP0.r[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
+	psxRegs.CP0.n.SR   = 0x10600000; // COP0 enabled | BEV = 1 | TS = 1
+	psxRegs.CP0.n.PRid = 0x00000002; // PRevID = Revision ID, same as R3000A
 	if (Config.HLE)
-		psxRegs.CP0.n.Status |= 1u << 30; // COP2 enabled
+		psxRegs.CP0.n.SR |= 1u << 30; // COP2 enabled
 
 	psxCpu->ApplyConfig();
 	psxCpu->Reset();
@@ -93,7 +93,7 @@ void psxShutdown() {
 }
 
 // cp0 is passed separately for lightrec to be less messy
-void psxException(u32 cause, u32 bd, psxCP0Regs *cp0) {
+void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 	u32 opcode = intFakeFetch(psxRegs.pc);
 	
 	if (unlikely(!Config.HLE && ((((opcode) >> 24) & 0xfe) == 0x4a))) {
@@ -101,31 +101,24 @@ void psxException(u32 cause, u32 bd, psxCP0Regs *cp0) {
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
 		// so we execute it here
-		psxCP2Regs *cp2 = (void *)(cp0 + 1);
+		psxCP2Regs *cp2 = (psxCP2Regs *)(cp0 + 1);
 		psxRegs.code = opcode;
 		psxCP2[opcode & 0x3f](cp2);
 	}
 
 	// Set the Cause
-	cp0->n.Cause = (cp0->n.Cause & 0x300) | cause;
+	cp0->n.Cause = (bdt << 30) | (cp0->n.Cause & 0x300) | cause;
 
 	// Set the EPC & PC
-	if (bd) {
-#ifdef PSXCPU_LOG
-		PSXCPU_LOG("bd set!!!\n");
-#endif
-		cp0->n.Cause |= 0x80000000;
-		cp0->n.EPC = (psxRegs.pc - 4);
-	} else
-		cp0->n.EPC = (psxRegs.pc);
+	cp0->n.EPC = bdt ? psxRegs.pc - 4 : psxRegs.pc;
 
-	if (cp0->n.Status & 0x400000)
+	if (cp0->n.SR & 0x400000)
 		psxRegs.pc = 0xbfc00180;
 	else
 		psxRegs.pc = 0x80000080;
 
-	// Set the Status
-	cp0->n.Status = (cp0->n.Status & ~0x3f) | ((cp0->n.Status & 0x0f) << 2);
+	// Set the SR
+	cp0->n.SR = (cp0->n.SR & ~0x3f) | ((cp0->n.SR & 0x0f) << 2);
 
 	if (Config.HLE) psxBiosException();
 }
@@ -204,7 +197,7 @@ void psxBranchTest() {
 	}
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {
-		if ((psxRegs.CP0.n.Status & 0x401) == 0x401) {
+		if ((psxRegs.CP0.n.SR & 0x401) == 0x401) {
 #ifdef PSXCPU_LOG
 			PSXCPU_LOG("Interrupt: %x %x\n", psxHu32(0x1070), psxHu32(0x1074));
 #endif
