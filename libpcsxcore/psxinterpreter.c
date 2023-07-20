@@ -939,8 +939,6 @@ OP(psxMFC0) {
 
 static void setupCop(u32 sr);
 
-OP(psxCFC0) { doLoad(regs_, _Rt_, regs_->CP0.r[_Rd_]); }
-
 void MTC0(psxRegisters *regs_, int reg, u32 val) {
 //	SysPrintf("MTC0 %d: %x\n", reg, val);
 	switch (reg) {
@@ -970,7 +968,6 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
 }
 
 OP(psxMTC0) { MTC0(regs_, _Rd_, _u32(_rRt_)); }
-OP(psxCTC0) { MTC0(regs_, _Rd_, _u32(_rRt_)); }
 
 // no exception
 static inline void psxNULLne(psxRegisters *regs) {
@@ -999,12 +996,26 @@ OP(psxSPECIAL) {
 }
 
 OP(psxCOP0) {
-	switch (_Rs_) {
+	u32 rs = _Rs_;
+	if (rs & 0x10) {
+		u32 op2 = code & 0x1f;
+		switch (op2) {
+			case 0x01:
+			case 0x02:
+			case 0x06:
+			case 0x08: psxNULL(regs_, code); break;
+			case 0x10: psxRFE(regs_, code);  break;
+			default:   psxNULLne(regs_);     break;
+		}
+		return;
+	}
+	switch (rs) {
 		case 0x00: psxMFC0(regs_, code); break;
-		case 0x02: psxCFC0(regs_, code); break;
 		case 0x04: psxMTC0(regs_, code); break;
-		case 0x06: psxCTC0(regs_, code); break;
-		case 0x10: psxRFE(regs_, code);  break;
+		case 0x02:                              // CFC
+		case 0x06: psxNULL(regs_, code); break; // CTC -> exception
+		case 0x08:
+		case 0x0c: log_unhandled("BC0 %08x @%08x\n", code, regs_->pc - 4);
 		default:   psxNULLne(regs_);     break;
 	}
 }
@@ -1014,31 +1025,27 @@ OP(psxCOP1) {
 	log_unhandled("COP1 %08x @%08x\n", code, regs_->pc - 4);
 }
 
-// TODO: wrong COP2 decoding
 OP(psxCOP2) {
-	psxCP2[_Funct_](&regs_->CP2);
+	u32 rt = _Rt_, rd = _Rd_, rs = _Rs_;
+	if (rs & 0x10) {
+		psxCP2[_Funct_](&regs_->CP2);
+		return;
+	}
+	switch (rs) {
+		case 0x00: doLoad(regs_, rt, MFC2(&regs_->CP2, rd)); break; // MFC2
+		case 0x02: doLoad(regs_, rt, regs_->CP2C.r[rd]);     break; // CFC2
+		case 0x04: MTC2(&regs_->CP2, regs_->GPR.r[rt], rd);  break; // MTC2
+		case 0x06: CTC2(&regs_->CP2, regs_->GPR.r[rt], rd);  break; // CTC2
+		case 0x08:
+		case 0x0c: log_unhandled("BC2 %08x @%08x\n", code, regs_->pc - 4);
+		default:   psxNULLne(regs_); break;
+	}
 }
 
 OP(psxCOP2_stall) {
 	u32 f = _Funct_;
 	gteCheckStall(f);
-	psxCP2[f](&regs_->CP2);
-}
-
-OP(gteMFC2) {
-	doLoad(regs_, _Rt_, MFC2(&regs_->CP2, _Rd_));
-}
-
-OP(gteCFC2) {
-	doLoad(regs_, _Rt_, regs_->CP2C.r[_Rd_]);
-}
-
-OP(gteMTC2) {
-	MTC2(&regs_->CP2, regs_->GPR.r[_Rt_], _Rd_);
-}
-
-OP(gteCTC2) {
-	CTC2(&regs_->CP2, regs_->GPR.r[_Rt_], _Rd_);
+	psxCOP2(regs_, code);
 }
 
 OP(gteLWC2) {
@@ -1094,21 +1101,6 @@ OP(psxSWCx) {
 	checkST(regs_, _oB_, 3);
 }
 
-static void psxBASIC(struct psxCP2Regs *cp2regs) {
-	psxRegisters *regs = (void *)((u8 *)cp2regs - offsetof(psxRegisters, CP2));
-	u32 code = regs->code;
-	assert(regs == &psxRegs);
-	switch (_Rs_) {
-		case 0x00: gteMFC2(regs, code); break;
-		case 0x02: gteCFC2(regs, code); break;
-		case 0x04: gteMTC2(regs, code); break;
-		case 0x06: gteCTC2(regs, code); break;
-		case 0x08:
-		case 0x0c: log_unhandled("BC2 %08x @%08x\n", code, regs->pc - 4);
-		default:   psxNULLne(regs);     break;
-	}
-}
-
 OP(psxREGIMM) {
 	u32 rt = _Rt_;
 	switch (rt) {
@@ -1159,7 +1151,7 @@ static void (INT_ATTR *psxSPC[64])(psxRegisters *regs_, u32 code) = {
 };
 
 void (*psxCP2[64])(struct psxCP2Regs *regs) = {
-	psxBASIC, gteRTPS , gteNULL , gteNULL, gteNULL, gteNULL , gteNCLIP, gteNULL, // 00
+	gteNULL , gteRTPS , gteNULL , gteNULL, gteNULL, gteNULL , gteNCLIP, gteNULL, // 00
 	gteNULL , gteNULL , gteNULL , gteNULL, gteOP  , gteNULL , gteNULL , gteNULL, // 08
 	gteDPCS , gteINTPL, gteMVMVA, gteNCDS, gteCDP , gteNULL , gteNCDT , gteNULL, // 10
 	gteNULL , gteNULL , gteNULL , gteNCCS, gteCC  , gteNULL , gteNCS  , gteNULL, // 18
@@ -1177,6 +1169,7 @@ static int intInit() {
 
 static void intReset() {
 	dloadClear(&psxRegs);
+	psxRegs.subCycle = 0;
 }
 
 static inline void execI_(u8 **memRLUT, psxRegisters *regs) {
@@ -1241,6 +1234,7 @@ static void intNotify(enum R3000Anote note, void *data) {
 		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
 		dloadClear(&psxRegs);
+		psxRegs.subCycle = 0;
 		setupCop(psxRegs.CP0.n.SR);
 		// fallthrough
 	case R3000ACPU_NOTIFY_CACHE_ISOLATED: // Armored Core?

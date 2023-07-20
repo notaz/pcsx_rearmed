@@ -96,7 +96,7 @@ void psxShutdown() {
 void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 	u32 opcode = intFakeFetch(psxRegs.pc);
 	
-	if (unlikely(!Config.HLE && ((((opcode) >> 24) & 0xfe) == 0x4a))) {
+	if (unlikely(!Config.HLE && (opcode >> 25) == 0x25)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
