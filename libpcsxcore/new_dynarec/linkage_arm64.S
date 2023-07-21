@@ -119,41 +119,28 @@ FUNCTION(cc_interrupt):
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2
-FUNCTION(fp_exception):
-	mov	w2, #0x10000000
-0:
-	ldr	w1, [rFP, #LO_reg_cop0+48] /* Status */
-	mov	w3, #0x80000000
-	str	w0, [rFP, #LO_reg_cop0+56] /* EPC */
-	orr	w1, w1, #2
-	add	w2, w2, #0x2c
-	str	w1, [rFP, #LO_reg_cop0+48] /* Status */
-	str	w2, [rFP, #LO_reg_cop0+52] /* Cause */
-	add	w0, w3, #0x80
-	bl	ndrc_get_addr_ht
-	br	x0
-	.size	fp_exception, .-fp_exception
-	.align	2
-FUNCTION(fp_exception_ds):
-	mov	w2, #0x90000000 /* Set high bit if delay slot */
-	b	0b
-	.size	fp_exception_ds, .-fp_exception_ds
-
-	.align	2
+FUNCTION(jump_overflow_ds):
+	mov	w0, #(12<<2)  /* R3000E_Ov */
+	mov	w1, #1
+	b	call_psxException
+FUNCTION(jump_overflow):
+	mov	w0, #(12<<2)
+	mov	w1, #0
+	b	call_psxException
 FUNCTION(jump_break_ds):
-	mov	w0, #0x24
+	mov	w0, #(9<<2)  /* R3000E_Bp */
 	mov	w1, #1
 	b	call_psxException
 FUNCTION(jump_break):
-	mov	w0, #0x24
+	mov	w0, #(9<<2)
 	mov	w1, #0
 	b	call_psxException
 FUNCTION(jump_syscall_ds):
-	mov	w0, #0x20
+	mov	w0, #(8<<2)  /* R3000E_Syscall */
 	mov	w1, #2
 	b	call_psxException
 FUNCTION(jump_syscall):
-	mov	w0, #0x20
+	mov	w0, #(8<<2)
 	mov	w1, #0
 
 call_psxException:

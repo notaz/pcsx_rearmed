@@ -351,10 +351,22 @@ static void emit_neg(int rs, int rt)
   output_w32(0xe2600000|rd_rn_rm(rt,rs,0));
 }
 
+static void emit_negs(int rs, int rt)
+{
+  assem_debug("rsbs %s,%s,#0\n",regname[rt],regname[rs]);
+  output_w32(0xe2700000|rd_rn_rm(rt,rs,0));
+}
+
 static void emit_sub(int rs1,int rs2,int rt)
 {
   assem_debug("sub %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
   output_w32(0xe0400000|rd_rn_rm(rt,rs1,rs2));
+}
+
+static void emit_subs(int rs1,int rs2,int rt)
+{
+  assem_debug("subs %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe0500000|rd_rn_rm(rt,rs1,rs2));
 }
 
 static void emit_zeroreg(int rt)
@@ -489,6 +501,12 @@ static void emit_not(int rs,int rt)
   output_w32(0xe1e00000|rd_rn_rm(rt,0,rs));
 }
 
+static void emit_mvneq(int rs,int rt)
+{
+  assem_debug("mvneq %s,%s\n",regname[rt],regname[rs]);
+  output_w32(0x01e00000|rd_rn_rm(rt,0,rs));
+}
+
 static void emit_and(u_int rs1,u_int rs2,u_int rt)
 {
   assem_debug("and %s,%s,%s\n",regname[rt],regname[rs1],regname[rs2]);
@@ -577,27 +595,35 @@ static void emit_addimm_ptr(u_int rs, uintptr_t imm, u_int rt)
   emit_addimm(rs, imm, rt);
 }
 
-static void emit_addimm_and_set_flags(int imm,int rt)
+static void emit_addimm_and_set_flags3(u_int rs, int imm, u_int rt)
 {
   assert(imm>-65536&&imm<65536);
   u_int armval;
-  if(genimm(imm,&armval)) {
-    assem_debug("adds %s,%s,#%d\n",regname[rt],regname[rt],imm);
-    output_w32(0xe2900000|rd_rn_rm(rt,rt,0)|armval);
-  }else if(genimm(-imm,&armval)) {
-    assem_debug("subs %s,%s,#%d\n",regname[rt],regname[rt],imm);
-    output_w32(0xe2500000|rd_rn_rm(rt,rt,0)|armval);
-  }else if(imm<0) {
-    assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rt],(-imm)&0xFF00);
+  if (genimm(imm, &armval)) {
+    assem_debug("adds %s,%s,#%d\n",regname[rt],regname[rs],imm);
+    output_w32(0xe2900000|rd_rn_rm(rt,rs,0)|armval);
+  } else if (genimm(-imm, &armval)) {
+    assem_debug("subs %s,%s,#%d\n",regname[rt],regname[rs],imm);
+    output_w32(0xe2500000|rd_rn_rm(rt,rs,0)|armval);
+  } else if (rs != rt) {
+    emit_movimm(imm, rt);
+    emit_adds(rs, rt, rt);
+  } else if (imm < 0) {
+    assem_debug("sub %s,%s,#%d\n",regname[rt],regname[rs],(-imm)&0xFF00);
     assem_debug("subs %s,%s,#%d\n",regname[rt],regname[rt],(-imm)&0xFF);
-    output_w32(0xe2400000|rd_rn_imm_shift(rt,rt,(-imm)>>8,8));
+    output_w32(0xe2400000|rd_rn_imm_shift(rt,rs,(-imm)>>8,8));
     output_w32(0xe2500000|rd_rn_imm_shift(rt,rt,(-imm)&0xff,0));
-  }else{
-    assem_debug("add %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF00);
+  } else {
+    assem_debug("add %s,%s,#%d\n",regname[rt],regname[rs],imm&0xFF00);
     assem_debug("adds %s,%s,#%d\n",regname[rt],regname[rt],imm&0xFF);
-    output_w32(0xe2800000|rd_rn_imm_shift(rt,rt,imm>>8,8));
+    output_w32(0xe2800000|rd_rn_imm_shift(rt,rs,imm>>8,8));
     output_w32(0xe2900000|rd_rn_imm_shift(rt,rt,imm&0xff,0));
   }
+}
+
+static void emit_addimm_and_set_flags(int imm, u_int rt)
+{
+  emit_addimm_and_set_flags3(rt, imm, rt);
 }
 
 static void emit_addnop(u_int r)
@@ -1012,6 +1038,14 @@ static void emit_jge(const void *a_)
   output_w32(0xaa000000|offset);
 }
 
+static void emit_jo(const void *a_)
+{
+  int a = (int)a_;
+  assem_debug("bvs %x\n",a);
+  u_int offset=genjmp(a);
+  output_w32(0x6a000000|offset);
+}
+
 static void emit_jno(const void *a_)
 {
   int a = (int)a_;
@@ -1218,7 +1252,7 @@ static void emit_readword(void *addr, int rt)
 {
   uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
   assert(offset<4096);
-  assem_debug("ldr %s,fp+%d\n",regname[rt],offset);
+  assem_debug("ldr %s,fp+%#x%s\n", regname[rt], offset, fpofs_name(offset));
   output_w32(0xe5900000|rd_rn_rm(rt,FP,0)|offset);
 }
 #define emit_readptr emit_readword
@@ -1278,7 +1312,7 @@ static void emit_writeword(int rt, void *addr)
 {
   uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
   assert(offset<4096);
-  assem_debug("str %s,fp+%d\n",regname[rt],offset);
+  assem_debug("str %s,fp+%#x%s\n", regname[rt], offset, fpofs_name(offset));
   output_w32(0xe5800000|rd_rn_rm(rt,FP,0)|offset);
 }
 
@@ -1631,7 +1665,7 @@ static void do_readstub(int n)
   u_int reglist=stubs[n].e;
   const signed char *i_regmap=i_regs->regmap;
   int rt;
-  if(dops[i].itype==C1LS||dops[i].itype==C2LS||dops[i].itype==LOADLR) {
+  if(dops[i].itype==C2LS||dops[i].itype==LOADLR) {
     rt=get_reg(i_regmap,FTEMP);
   }else{
     rt=get_reg(i_regmap,dops[i].rt1);
@@ -1658,7 +1692,7 @@ static void do_readstub(int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
+  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     switch(type) {
       case LOADB_STUB:  emit_ldrccsb_dualindexed(temp2,rs,rt); break;
       case LOADBU_STUB: emit_ldrccb_dualindexed(temp2,rs,rt); break;
@@ -1691,7 +1725,7 @@ static void do_readstub(int n)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
   emit_far_call(handler);
-  if(dops[i].itype==C1LS||dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
+  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     mov_loadtype_adj(type,0,rt);
   }
   if(restore_jump)
@@ -1787,7 +1821,7 @@ static void do_writestub(int n)
   u_int reglist=stubs[n].e;
   const signed char *i_regmap=i_regs->regmap;
   int rt,r;
-  if(dops[i].itype==C1LS||dops[i].itype==C2LS) {
+  if(dops[i].itype==C2LS) {
     rt=get_reg(i_regmap,r=FTEMP);
   }else{
     rt=get_reg(i_regmap,r=dops[i].rs2);
@@ -2095,15 +2129,11 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
   //  case 0x19: MULTU
   //  case 0x1A: DIV
   //  case 0x1B: DIVU
-  //  case 0x1C: DMULT
-  //  case 0x1D: DMULTU
-  //  case 0x1E: DDIV
-  //  case 0x1F: DDIVU
   if(dops[i].rs1&&dops[i].rs2)
   {
-    if((dops[i].opcode2&4)==0) // 32-bit
+    switch (dops[i].opcode2)
     {
-      if(dops[i].opcode2==0x18) // MULT
+    case 0x18: // MULT
       {
         signed char m1=get_reg(i_regs->regmap,dops[i].rs1);
         signed char m2=get_reg(i_regs->regmap,dops[i].rs2);
@@ -2115,7 +2145,8 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
         assert(lo>=0);
         emit_smull(m1,m2,hi,lo);
       }
-      if(dops[i].opcode2==0x19) // MULTU
+      break;
+    case 0x19: // MULTU
       {
         signed char m1=get_reg(i_regs->regmap,dops[i].rs1);
         signed char m2=get_reg(i_regs->regmap,dops[i].rs2);
@@ -2127,14 +2158,16 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
         assert(lo>=0);
         emit_umull(m1,m2,hi,lo);
       }
-      if(dops[i].opcode2==0x1A) // DIV
+      break;
+    case 0x1A: // DIV
       {
         signed char d1=get_reg(i_regs->regmap,dops[i].rs1);
         signed char d2=get_reg(i_regs->regmap,dops[i].rs2);
-        assert(d1>=0);
-        assert(d2>=0);
         signed char quotient=get_reg(i_regs->regmap,LOREG);
         signed char remainder=get_reg(i_regs->regmap,HIREG);
+        void *jaddr_div0;
+        assert(d1>=0);
+        assert(d2>=0);
         assert(quotient>=0);
         assert(remainder>=0);
         emit_movs(d1,remainder);
@@ -2142,11 +2175,12 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
         emit_negmi(quotient,quotient); // .. quotient and ..
         emit_negmi(remainder,remainder); // .. remainder for div0 case (will be negated back after jump)
         emit_movs(d2,HOST_TEMPREG);
-        emit_jeq(out+52); // Division by zero
+        jaddr_div0 = out;
+        emit_jeq(0); // Division by zero
         emit_negsmi(HOST_TEMPREG,HOST_TEMPREG);
 #ifdef HAVE_ARMV5
         emit_clz(HOST_TEMPREG,quotient);
-        emit_shl(HOST_TEMPREG,quotient,HOST_TEMPREG);
+        emit_shl(HOST_TEMPREG,quotient,HOST_TEMPREG);  // shifted divisor
 #else
         emit_movimm(0,quotient);
         emit_addpl_imm(quotient,1,quotient);
@@ -2162,23 +2196,27 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
         emit_jcc(out-16); // -4
         emit_teq(d1,d2);
         emit_negmi(quotient,quotient);
+        set_jump_target(jaddr_div0, out);
         emit_test(d1,d1);
         emit_negmi(remainder,remainder);
       }
-      if(dops[i].opcode2==0x1B) // DIVU
+      break;
+    case 0x1B: // DIVU
       {
         signed char d1=get_reg(i_regs->regmap,dops[i].rs1); // dividend
         signed char d2=get_reg(i_regs->regmap,dops[i].rs2); // divisor
-        assert(d1>=0);
-        assert(d2>=0);
         signed char quotient=get_reg(i_regs->regmap,LOREG);
         signed char remainder=get_reg(i_regs->regmap,HIREG);
+        void *jaddr_div0;
+        assert(d1>=0);
+        assert(d2>=0);
         assert(quotient>=0);
         assert(remainder>=0);
         emit_mov(d1,remainder);
         emit_movimm(0xffffffff,quotient); // div0 case
         emit_test(d2,d2);
-        emit_jeq(out+40); // Division by zero
+        jaddr_div0 = out;
+        emit_jeq(0); // Division by zero
 #ifdef HAVE_ARMV5
         emit_clz(d2,HOST_TEMPREG);
         emit_movimm(1<<31,quotient);
@@ -2196,20 +2234,54 @@ static void multdiv_assemble_arm(int i, const struct regstat *i_regs)
         emit_adcs(quotient,quotient,quotient);
         emit_shrcc_imm(d2,1,d2);
         emit_jcc(out-16); // -4
+        set_jump_target(jaddr_div0, out);
       }
+      break;
     }
-    else // 64-bit
-      assert(0);
   }
   else
   {
-    // Multiply by zero is zero.
-    // MIPS does not have a divide by zero exception.
-    // The result is undefined, we return zero.
     signed char hr=get_reg(i_regs->regmap,HIREG);
     signed char lr=get_reg(i_regs->regmap,LOREG);
-    if(hr>=0) emit_zeroreg(hr);
-    if(lr>=0) emit_zeroreg(lr);
+    if ((dops[i].opcode2==0x1A || dops[i].opcode2==0x1B) && dops[i].rs2==0) // div 0
+    {
+      if (dops[i].rs1) {
+        signed char numerator = get_reg(i_regs->regmap, dops[i].rs1);
+        assert(numerator >= 0);
+        if (hr < 0)
+          hr = HOST_TEMPREG;
+        emit_movs(numerator, hr);
+        if (lr >= 0) {
+          if (dops[i].opcode2 == 0x1A) { // DIV
+            emit_movimm(0xffffffff, lr);
+            emit_negmi(lr, lr);
+          }
+          else
+            emit_movimm(~0, lr);
+        }
+      }
+      else {
+        if (hr >= 0) emit_zeroreg(hr);
+        if (lr >= 0) emit_movimm(~0,lr);
+      }
+    }
+    else if ((dops[i].opcode2==0x1A || dops[i].opcode2==0x1B) && dops[i].rs1==0)
+    {
+      signed char denominator = get_reg(i_regs->regmap, dops[i].rs2);
+      assert(denominator >= 0);
+      if (hr >= 0) emit_zeroreg(hr);
+      if (lr >= 0) {
+        emit_zeroreg(lr);
+        emit_test(denominator, denominator);
+        emit_mvneq(lr, lr);
+      }
+    }
+    else
+    {
+      // Multiply by zero is zero.
+      if (hr >= 0) emit_zeroreg(hr);
+      if (lr >= 0) emit_zeroreg(lr);
+    }
   }
 }
 #define multdiv_assemble multdiv_assemble_arm
