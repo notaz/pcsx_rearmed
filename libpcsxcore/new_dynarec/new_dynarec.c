@@ -39,14 +39,10 @@ static Jit g_jit;
 #include "../psxinterpreter.h"
 #include "../gte.h"
 #include "emu_if.h" // emulator interface
+#include "linkage_offsets.h"
+#include "compiler_features.h"
 #include "arm_features.h"
 
-#define unused __attribute__((unused))
-#ifdef __clang__
-#define noinline __attribute__((noinline))
-#else
-#define noinline __attribute__((noinline,noclone))
-#endif
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
@@ -59,6 +55,7 @@ static Jit g_jit;
 
 //#define DISASM
 //#define ASSEM_PRINT
+//#define REGMAP_PRINT // with DISASM only
 //#define INV_DEBUG_W
 //#define STAT_PRINT
 
@@ -135,19 +132,20 @@ static long ndrc_write_ofs;
 // stubs
 enum stub_type {
   CC_STUB = 1,
-  FP_STUB = 2,
+  //FP_STUB = 2,
   LOADB_STUB = 3,
   LOADH_STUB = 4,
   LOADW_STUB = 5,
-  LOADD_STUB = 6,
+  //LOADD_STUB = 6,
   LOADBU_STUB = 7,
   LOADHU_STUB = 8,
   STOREB_STUB = 9,
   STOREH_STUB = 10,
   STOREW_STUB = 11,
-  STORED_STUB = 12,
+  //STORED_STUB = 12,
   STORELR_STUB = 13,
   INVCODE_STUB = 14,
+  OVERFLOW_STUB = 15,
 };
 
 // regmap_pre[i]    - regs before [i] insn starts; dirty things here that
@@ -163,7 +161,7 @@ struct regstat
   uint64_t dirty;
   uint64_t u;
   u_int wasconst;                // before; for example 'lw r2, (r2)' wasconst is true
-  u_int isconst;                 //  ... but isconst is false when r2 is known
+  u_int isconst;                 //  ... but isconst is false when r2 is known (hr)
   u_int loadedconst;             // host regs that have constants loaded
   //u_int waswritten;              // MIPS regs that were used as store base before
 };
@@ -225,8 +223,8 @@ struct jump_info
 static struct decoded_insn
 {
   u_char itype;
-  u_char opcode;
-  u_char opcode2;
+  u_char opcode;   // bits 31-26
+  u_char opcode2;  // (depends on opcode)
   u_char rs1;
   u_char rs2;
   u_char rt1;
@@ -239,6 +237,9 @@ static struct decoded_insn
   u_char is_ujump:1;
   u_char is_load:1;
   u_char is_store:1;
+  u_char is_delay_load:1; // is_load + MFC/CFC
+  u_char is_exception:1;  // unconditional, also interp. fallback
+  u_char may_except:1;    // might generate an exception
 } dops[MAXBLOCK];
 
   static u_char *out;
@@ -350,7 +351,7 @@ static struct decoded_insn
 #define STORE 2   // Store
 #define LOADLR 3  // Unaligned load
 #define STORELR 4 // Unaligned store
-#define MOV 5     // Move
+#define MOV 5     // Move (hi/lo only)
 #define ALU 6     // Arithmetic/logic
 #define MULTDIV 7 // Multiply/divide
 #define SHIFT 8   // Shift by register
@@ -361,16 +362,9 @@ static struct decoded_insn
 #define CJUMP 13  // Conditional branch (BEQ/BNE/BGTZ/BLEZ)
 #define SJUMP 14  // Conditional branch (regimm format)
 #define COP0 15   // Coprocessor 0
-#define COP1 16   // Coprocessor 1
-#define C1LS 17   // Coprocessor 1 load/store
-//#define FJUMP 18  // Conditional branch (floating point)
-//#define FLOAT 19  // Floating point unit
-//#define FCONV 20  // Convert integer to float
-//#define FCOMP 21  // Floating point compare (sets FSREG)
+#define RFE 16
 #define SYSCALL 22// SYSCALL,BREAK
-#define OTHER 23  // Other
-//#define SPAN 24   // Branch/delay slot spans 2 pages
-#define NI 25     // Not implemented
+#define OTHER 23  // Other/unknown - do nothing
 #define HLECALL 26// PCSX fake opcodes for HLE
 #define COP2 27   // Coprocessor 2 move
 #define C2LS 28   // Coprocessor 2 load/store
@@ -388,12 +382,12 @@ static struct decoded_insn
 // asm linkage
 void dyna_linker();
 void cc_interrupt();
-void fp_exception();
-void fp_exception_ds();
 void jump_syscall   (u_int u0, u_int u1, u_int pc);
 void jump_syscall_ds(u_int u0, u_int u1, u_int pc);
 void jump_break   (u_int u0, u_int u1, u_int pc);
 void jump_break_ds(u_int u0, u_int u1, u_int pc);
+void jump_overflow   (u_int u0, u_int u1, u_int pc);
+void jump_overflow_ds(u_int u0, u_int u1, u_int pc);
 void jump_to_new_pc();
 void call_gteStall();
 void new_dyna_leave();
@@ -406,6 +400,7 @@ static void ndrc_write_invalidate_many(u_int addr, u_int end);
 
 static int new_recompile_block(u_int addr);
 static void invalidate_block(struct block_info *block);
+static void exception_assemble(int i, const struct regstat *i_regs, int ccadj_);
 
 // Needed by assembler
 static void wb_register(signed char r, const signed char regmap[], uint64_t dirty);
@@ -784,10 +779,10 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
     return ndrc_get_addr_ht(vaddr);
 
   // generate an address error
-  psxRegs.CP0.n.SR |= 2;
-  psxRegs.CP0.n.Cause = (vaddr<<31) | (4<<2);
-  psxRegs.CP0.n.EPC = (vaddr&1) ? vaddr-5 : vaddr;
-  psxRegs.CP0.n.BadVAddr = vaddr & ~1;
+  psxRegs.CP0.n.Cause &= 0x300;
+  psxRegs.CP0.n.Cause |= R3000E_AdEL << 2;
+  psxRegs.CP0.n.EPC = vaddr;
+  psxRegs.pc = 0x80000080;
   return ndrc_get_addr_ht(0x80000080);
 }
 
@@ -833,6 +828,12 @@ static signed char get_reg(const signed char regmap[], signed char r)
 }
 
 #endif
+
+// get reg suitable for writing
+static signed char get_reg_w(const signed char regmap[], signed char r)
+{
+  return r == 0 ? -1 : get_reg(regmap, r);
+}
 
 // get reg as mask bit (1 << hr)
 static u_int get_regm(const signed char regmap[], signed char r)
@@ -1069,7 +1070,7 @@ static int needed_again(int r, int i)
       j++;
       break;
     }
-    if(dops[i+j].itype==SYSCALL||dops[i+j].itype==HLECALL||dops[i+j].itype==INTCALL||((source[i+j]&0xfc00003f)==0x0d))
+    if (dops[i+j].is_exception)
     {
       break;
     }
@@ -1197,6 +1198,8 @@ static const struct {
   FUNCNAME(jump_break_ds),
   FUNCNAME(jump_syscall),
   FUNCNAME(jump_syscall_ds),
+  FUNCNAME(jump_overflow),
+  FUNCNAME(jump_overflow_ds),
   FUNCNAME(call_gteStall),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
@@ -1214,8 +1217,43 @@ static const char *func_name(const void *a)
       return function_names[i].name;
   return "";
 }
+
+static const char *fpofs_name(u_int ofs)
+{
+  u_int *p = (u_int *)&dynarec_local + ofs/sizeof(u_int);
+  static char buf[64];
+  switch (ofs) {
+  #define ofscase(x) case LO_##x: return " ; " #x
+  ofscase(next_interupt);
+  ofscase(last_count);
+  ofscase(pending_exception);
+  ofscase(stop);
+  ofscase(address);
+  ofscase(lo);
+  ofscase(hi);
+  ofscase(PC);
+  ofscase(cycle);
+  ofscase(mem_rtab);
+  ofscase(mem_wtab);
+  ofscase(psxH_ptr);
+  ofscase(invc_ptr);
+  ofscase(ram_offset);
+  #undef ofscase
+  }
+  buf[0] = 0;
+  if      (psxRegs.GPR.r <= p && p < &psxRegs.GPR.r[32])
+    snprintf(buf, sizeof(buf), " ; r%d", (int)(p - psxRegs.GPR.r));
+  else if (psxRegs.CP0.r <= p && p < &psxRegs.CP0.r[32])
+    snprintf(buf, sizeof(buf), " ; cp0 $%d", (int)(p - psxRegs.CP0.r));
+  else if (psxRegs.CP2D.r <= p && p < &psxRegs.CP2D.r[32])
+    snprintf(buf, sizeof(buf), " ; cp2d $%d", (int)(p - psxRegs.CP2D.r));
+  else if (psxRegs.CP2C.r <= p && p < &psxRegs.CP2C.r[32])
+    snprintf(buf, sizeof(buf), " ; cp2c $%d", (int)(p - psxRegs.CP2C.r));
+  return buf;
+}
 #else
 #define func_name(x) ""
+#define fpofs_name(x) ""
 #endif
 
 #ifdef __i386__
@@ -1933,6 +1971,10 @@ static void alu_alloc(struct regstat *current,int i)
       }
       alloc_reg(current,i,dops[i].rt1);
     }
+    if (!(dops[i].opcode2 & 1)) {
+      alloc_cc(current,i); // for exceptions
+      dirty_reg(current,CCREG);
+    }
   }
   if(dops[i].opcode2==0x2a||dops[i].opcode2==0x2b) { // SLT/SLTU
     if(dops[i].rt1) {
@@ -1955,9 +1997,6 @@ static void alu_alloc(struct regstat *current,int i)
       alloc_reg(current,i,dops[i].rt1);
     }
   }
-  if(dops[i].opcode2>=0x2c&&dops[i].opcode2<=0x2f) { // DADD/DADDU/DSUB/DSUBU
-    assert(0);
-  }
   clear_const(current,dops[i].rs1);
   clear_const(current,dops[i].rs2);
   clear_const(current,dops[i].rt1);
@@ -1969,10 +2008,7 @@ static void imm16_alloc(struct regstat *current,int i)
   if(dops[i].rs1&&needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
   else dops[i].use_lt1=!!dops[i].rs1;
   if(dops[i].rt1) alloc_reg(current,i,dops[i].rt1);
-  if(dops[i].opcode==0x18||dops[i].opcode==0x19) { // DADDI/DADDIU
-    assert(0);
-  }
-  else if(dops[i].opcode==0x0a||dops[i].opcode==0x0b) { // SLTI/SLTIU
+  if(dops[i].opcode==0x0a||dops[i].opcode==0x0b) { // SLTI/SLTIU
     clear_const(current,dops[i].rs1);
     clear_const(current,dops[i].rt1);
   }
@@ -1991,6 +2027,14 @@ static void imm16_alloc(struct regstat *current,int i)
       set_const(current,dops[i].rt1,v+imm[i]);
     }
     else clear_const(current,dops[i].rt1);
+    if (dops[i].opcode == 0x08) {
+      alloc_cc(current,i); // for exceptions
+      dirty_reg(current,CCREG);
+      if (dops[i].rt1 == 0) {
+        alloc_reg_temp(current,i,-1);
+        minimum_free_regs[i]=1;
+      }
+    }
   }
   else {
     set_const(current,dops[i].rt1,imm[i]<<16); // LUI
@@ -2009,15 +2053,7 @@ static void load_alloc(struct regstat *current,int i)
     alloc_reg(current, i, ROREG);
   if(dops[i].rt1&&!((current->u>>dops[i].rt1)&1)) {
     alloc_reg(current,i,dops[i].rt1);
-    assert(get_reg(current->regmap,dops[i].rt1)>=0);
-    if(dops[i].opcode==0x27||dops[i].opcode==0x37) // LWU/LD
-    {
-      assert(0);
-    }
-    else if(dops[i].opcode==0x1A||dops[i].opcode==0x1B) // LDL/LDR
-    {
-      assert(0);
-    }
+    assert(get_reg_w(current->regmap, dops[i].rt1)>=0);
     dirty_reg(current,dops[i].rt1);
     // LWL/LWR need a temporary register for the old value
     if(dops[i].opcode==0x22||dops[i].opcode==0x26)
@@ -2037,10 +2073,6 @@ static void load_alloc(struct regstat *current,int i)
     }
     alloc_reg_temp(current,i,-1);
     minimum_free_regs[i]=1;
-    if(dops[i].opcode==0x1A||dops[i].opcode==0x1B) // LDL/LDR
-    {
-      assert(0);
-    }
   }
 }
 
@@ -2065,12 +2097,6 @@ static void store_alloc(struct regstat *current,int i)
   // We need a temporary register for address generation
   alloc_reg_temp(current,i,-1);
   minimum_free_regs[i]=1;
-}
-
-static void c1ls_alloc(struct regstat *current,int i)
-{
-  clear_const(current,dops[i].rt1);
-  alloc_reg(current,i,CSREG); // Status
 }
 
 static void c2ls_alloc(struct regstat *current,int i)
@@ -2141,7 +2167,6 @@ static void cop0_alloc(struct regstat *current,int i)
   {
     if(dops[i].rt1) {
       clear_const(current,dops[i].rt1);
-      alloc_all(current,i);
       alloc_reg(current,i,dops[i].rt1);
       dirty_reg(current,dops[i].rt1);
     }
@@ -2158,14 +2183,14 @@ static void cop0_alloc(struct regstat *current,int i)
       current->u&=~1LL;
       alloc_reg(current,i,0);
     }
+    minimum_free_regs[i] = HOST_REGS;
   }
-  else
-  {
-    // RFE
-    assert(dops[i].opcode2==0x10);
-    alloc_all(current,i);
-  }
-  minimum_free_regs[i]=HOST_REGS;
+}
+
+static void rfe_alloc(struct regstat *current, int i)
+{
+  alloc_all(current, i);
+  minimum_free_regs[i] = HOST_REGS;
 }
 
 static void cop2_alloc(struct regstat *current,int i)
@@ -2249,13 +2274,11 @@ static void delayslot_alloc(struct regstat *current,int i)
     case COP0:
       cop0_alloc(current,i);
       break;
-    case COP1:
+    case RFE:
+      rfe_alloc(current,i);
       break;
     case COP2:
       cop2_alloc(current,i);
-      break;
-    case C1LS:
-      c1ls_alloc(current,i);
       break;
     case C2LS:
       c2ls_alloc(current,i);
@@ -2333,47 +2356,77 @@ static void pass_args(int a0, int a1)
   }
 }
 
-static void alu_assemble(int i, const struct regstat *i_regs)
+static void alu_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
   if(dops[i].opcode2>=0x20&&dops[i].opcode2<=0x23) { // ADD/ADDU/SUB/SUBU
-    if(dops[i].rt1) {
-      signed char s1,s2,t;
-      t=get_reg(i_regs->regmap,dops[i].rt1);
-      if(t>=0) {
-        s1=get_reg(i_regs->regmap,dops[i].rs1);
-        s2=get_reg(i_regs->regmap,dops[i].rs2);
-        if(dops[i].rs1&&dops[i].rs2) {
+    int do_oflow = dops[i].may_except; // ADD/SUB with exceptions enabled
+    if (dops[i].rt1 || do_oflow) {
+      int do_exception_check = 0;
+      signed char s1, s2, t, tmp;
+      t = get_reg_w(i_regs->regmap, dops[i].rt1);
+      tmp = get_reg_temp(i_regs->regmap);
+      if (t < 0 && do_oflow)
+        t = tmp;
+      if (t >= 0) {
+        s1 = get_reg(i_regs->regmap, dops[i].rs1);
+        s2 = get_reg(i_regs->regmap, dops[i].rs2);
+        if (dops[i].rs1 && dops[i].rs2) {
           assert(s1>=0);
           assert(s2>=0);
-          if(dops[i].opcode2&2) emit_sub(s1,s2,t);
-          else emit_add(s1,s2,t);
+          if (dops[i].opcode2 & 2) {
+            if (do_oflow) {
+              emit_subs(s1, s2, tmp);
+              do_exception_check = 1;
+            }
+            else
+              emit_sub(s1,s2,t);
+          }
+          else {
+            if (do_oflow) {
+              emit_adds(s1, s2, tmp);
+              do_exception_check = 1;
+            }
+            else
+              emit_add(s1,s2,t);
+          }
         }
         else if(dops[i].rs1) {
           if(s1>=0) emit_mov(s1,t);
           else emit_loadreg(dops[i].rs1,t);
         }
         else if(dops[i].rs2) {
-          if(s2>=0) {
-            if(dops[i].opcode2&2) emit_neg(s2,t);
-            else emit_mov(s2,t);
+          if (s2 < 0) {
+            emit_loadreg(dops[i].rs2, t);
+            s2 = t;
           }
-          else {
-            emit_loadreg(dops[i].rs2,t);
-            if(dops[i].opcode2&2) emit_neg(t,t);
+          if (dops[i].opcode2 & 2) {
+            if (do_oflow) {
+              emit_negs(s2, tmp);
+              do_exception_check = 1;
+            }
+            else
+              emit_neg(s2, t);
           }
+          else if (s2 != t)
+            emit_mov(s2, t);
         }
-        else emit_zeroreg(t);
+        else
+          emit_zeroreg(t);
+      }
+      if (do_exception_check) {
+        void *jaddr = out;
+        emit_jo(0);
+        if (t >= 0 && tmp != t)
+          emit_mov(tmp, t);
+        add_stub_r(OVERFLOW_STUB, jaddr, out, i, 0, i_regs, ccadj_, 0);
       }
     }
   }
-  if(dops[i].opcode2>=0x2c&&dops[i].opcode2<=0x2f) { // DADD/DADDU/DSUB/DSUBU
-    assert(0);
-  }
-  if(dops[i].opcode2==0x2a||dops[i].opcode2==0x2b) { // SLT/SLTU
+  else if(dops[i].opcode2==0x2a||dops[i].opcode2==0x2b) { // SLT/SLTU
     if(dops[i].rt1) {
       signed char s1l,s2l,t;
       {
-        t=get_reg(i_regs->regmap,dops[i].rt1);
+        t=get_reg_w(i_regs->regmap, dops[i].rt1);
         //assert(t>=0);
         if(t>=0) {
           s1l=get_reg(i_regs->regmap,dops[i].rs1);
@@ -2406,10 +2459,10 @@ static void alu_assemble(int i, const struct regstat *i_regs)
       }
     }
   }
-  if(dops[i].opcode2>=0x24&&dops[i].opcode2<=0x27) { // AND/OR/XOR/NOR
+  else if(dops[i].opcode2>=0x24&&dops[i].opcode2<=0x27) { // AND/OR/XOR/NOR
     if(dops[i].rt1) {
       signed char s1l,s2l,tl;
-      tl=get_reg(i_regs->regmap,dops[i].rt1);
+      tl=get_reg_w(i_regs->regmap, dops[i].rt1);
       {
         if(tl>=0) {
           s1l=get_reg(i_regs->regmap,dops[i].rs1);
@@ -2473,12 +2526,12 @@ static void alu_assemble(int i, const struct regstat *i_regs)
   }
 }
 
-static void imm16_assemble(int i, const struct regstat *i_regs)
+static void imm16_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
   if (dops[i].opcode==0x0f) { // LUI
     if(dops[i].rt1) {
       signed char t;
-      t=get_reg(i_regs->regmap,dops[i].rt1);
+      t=get_reg_w(i_regs->regmap, dops[i].rt1);
       //assert(t>=0);
       if(t>=0) {
         if(!((i_regs->isconst>>t)&1))
@@ -2487,23 +2540,55 @@ static void imm16_assemble(int i, const struct regstat *i_regs)
     }
   }
   if(dops[i].opcode==0x08||dops[i].opcode==0x09) { // ADDI/ADDIU
-    if(dops[i].rt1) {
-      signed char s,t;
-      t=get_reg(i_regs->regmap,dops[i].rt1);
+    int is_addi = (dops[i].opcode == 0x08);
+    if (dops[i].rt1 || is_addi) {
+      signed char s, t, tmp;
+      t=get_reg_w(i_regs->regmap, dops[i].rt1);
       s=get_reg(i_regs->regmap,dops[i].rs1);
       if(dops[i].rs1) {
-        //assert(t>=0);
-        //assert(s>=0);
+        tmp = get_reg_temp(i_regs->regmap);
+        if (is_addi) {
+          assert(tmp >= 0);
+          if (t < 0) t = tmp;
+        }
         if(t>=0) {
           if(!((i_regs->isconst>>t)&1)) {
-            if(s<0) {
+            int sum, do_exception_check = 0;
+            if (s < 0) {
               if(i_regs->regmap_entry[t]!=dops[i].rs1) emit_loadreg(dops[i].rs1,t);
-              emit_addimm(t,imm[i],t);
-            }else{
-              if(!((i_regs->wasconst>>s)&1))
-                emit_addimm(s,imm[i],t);
+              if (is_addi) {
+                emit_addimm_and_set_flags3(t, imm[i], tmp);
+                do_exception_check = 1;
+              }
               else
-                emit_movimm(constmap[i][s]+imm[i],t);
+                emit_addimm(t, imm[i], t);
+            } else {
+              if (!((i_regs->wasconst >> s) & 1)) {
+                if (is_addi) {
+                  emit_addimm_and_set_flags3(s, imm[i], tmp);
+                  do_exception_check = 1;
+                }
+                else
+                  emit_addimm(s, imm[i], t);
+              }
+              else {
+                int oflow = add_overflow(constmap[i][s], imm[i], sum);
+                if (is_addi && oflow)
+                  do_exception_check = 2;
+                else
+                  emit_movimm(sum, t);
+              }
+            }
+            if (do_exception_check) {
+              void *jaddr = out;
+              if (do_exception_check == 2)
+                emit_jmp(0);
+              else {
+                emit_jo(0);
+                if (tmp != t)
+                  emit_mov(tmp, t);
+              }
+              add_stub_r(OVERFLOW_STUB, jaddr, out, i, 0, i_regs, ccadj_, 0);
             }
           }
         }
@@ -2515,26 +2600,11 @@ static void imm16_assemble(int i, const struct regstat *i_regs)
       }
     }
   }
-  if(dops[i].opcode==0x18||dops[i].opcode==0x19) { // DADDI/DADDIU
-    if(dops[i].rt1) {
-      signed char sl,tl;
-      tl=get_reg(i_regs->regmap,dops[i].rt1);
-      sl=get_reg(i_regs->regmap,dops[i].rs1);
-      if(tl>=0) {
-        if(dops[i].rs1) {
-          assert(sl>=0);
-          emit_addimm(sl,imm[i],tl);
-        } else {
-          emit_movimm(imm[i],tl);
-        }
-      }
-    }
-  }
   else if(dops[i].opcode==0x0a||dops[i].opcode==0x0b) { // SLTI/SLTIU
     if(dops[i].rt1) {
       //assert(dops[i].rs1!=0); // r0 might be valid, but it's probably a bug
       signed char sl,t;
-      t=get_reg(i_regs->regmap,dops[i].rt1);
+      t=get_reg_w(i_regs->regmap, dops[i].rt1);
       sl=get_reg(i_regs->regmap,dops[i].rs1);
       //assert(t>=0);
       if(t>=0) {
@@ -2573,7 +2643,7 @@ static void imm16_assemble(int i, const struct regstat *i_regs)
   else if(dops[i].opcode>=0x0c&&dops[i].opcode<=0x0e) { // ANDI/ORI/XORI
     if(dops[i].rt1) {
       signed char sl,tl;
-      tl=get_reg(i_regs->regmap,dops[i].rt1);
+      tl=get_reg_w(i_regs->regmap, dops[i].rt1);
       sl=get_reg(i_regs->regmap,dops[i].rs1);
       if(tl>=0 && !((i_regs->isconst>>tl)&1)) {
         if(dops[i].opcode==0x0c) //ANDI
@@ -2634,7 +2704,7 @@ static void shiftimm_assemble(int i, const struct regstat *i_regs)
   {
     if(dops[i].rt1) {
       signed char s,t;
-      t=get_reg(i_regs->regmap,dops[i].rt1);
+      t=get_reg_w(i_regs->regmap, dops[i].rt1);
       s=get_reg(i_regs->regmap,dops[i].rs1);
       //assert(t>=0);
       if(t>=0&&!((i_regs->isconst>>t)&1)){
@@ -2940,7 +3010,7 @@ static void load_assemble(int i, const struct regstat *i_regs, int ccadj_)
   int offset_reg = -1;
   int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg(i_regs->regmap,dops[i].rt1);
+  tl=get_reg_w(i_regs->regmap, dops[i].rt1);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   offset=imm[i];
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
@@ -2952,9 +3022,7 @@ static void load_assemble(int i, const struct regstat *i_regs, int ccadj_)
   }
   //printf("load_assemble: c=%d\n",c);
   //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
-  // FIXME: Even if the load is a NOP, we should check for pagefaults...
-  if((tl<0&&(!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80))
-    ||dops[i].rt1==0) {
+  if(tl<0 && ((!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80) || dops[i].rt1==0)) {
       // could be FIFO, must perform the read
       // ||dummy read
       assem_debug("(forced read)\n");
@@ -2982,7 +3050,7 @@ static void load_assemble(int i, const struct regstat *i_regs, int ccadj_)
   else if (ram_offset && memtarget) {
     offset_reg = get_ro_reg(i_regs, 0);
   }
-  int dummy=(dops[i].rt1==0)||(tl!=get_reg(i_regs->regmap,dops[i].rt1)); // ignore loads to r0 and unneeded reg
+  int dummy=(dops[i].rt1==0)||(tl!=get_reg_w(i_regs->regmap, dops[i].rt1)); // ignore loads to r0 and unneeded reg
   switch (dops[i].opcode) {
   case 0x20: // LB
     if(!c||memtarget) {
@@ -3077,7 +3145,7 @@ static void load_assemble(int i, const struct regstat *i_regs, int ccadj_)
   default:
     assert(0);
   }
- }
+ } // tl >= 0
  if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
    host_tempreg_release();
 }
@@ -3092,7 +3160,7 @@ static void loadlr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   int offset_reg = -1;
   int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg(i_regs->regmap,dops[i].rt1);
+  tl=get_reg_w(i_regs->regmap, dops[i].rt1);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   temp=get_reg_temp(i_regs->regmap);
   temp2=get_reg(i_regs->regmap,FTEMP);
@@ -3483,9 +3551,8 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
   if(dops[i].opcode2==0) // MFC0
   {
-    signed char t=get_reg(i_regs->regmap,dops[i].rt1);
+    signed char t=get_reg_w(i_regs->regmap, dops[i].rt1);
     u_int copr=(source[i]>>11)&0x1f;
-    //assert(t>=0); // Why does this happen?  OOT is weird
     if(t>=0&&dops[i].rt1!=0) {
       emit_readword(&reg_cop0[copr],t);
     }
@@ -3554,61 +3621,15 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
     }
     emit_loadreg(dops[i].rs1,s);
   }
-  else
-  {
-    assert(dops[i].opcode2==0x10);
-    //if((source[i]&0x3f)==0x10) // RFE
-    {
-      emit_readword(&psxRegs.CP0.n.SR,0);
-      emit_andimm(0,0x3c,1);
-      emit_andimm(0,~0xf,0);
-      emit_orrshr_imm(1,2,0);
-      emit_writeword(0,&psxRegs.CP0.n.SR);
-    }
-  }
 }
 
-static void cop1_unusable(int i, const struct regstat *i_regs)
+static void rfe_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
-  // XXX: should just just do the exception instead
-  //if(!cop1_usable)
-  {
-    void *jaddr=out;
-    emit_jmp(0);
-    add_stub_r(FP_STUB,jaddr,out,i,0,i_regs,is_delayslot,0);
-  }
-}
-
-static void cop1_assemble(int i, const struct regstat *i_regs)
-{
-  cop1_unusable(i, i_regs);
-}
-
-static void c1ls_assemble(int i, const struct regstat *i_regs)
-{
-  cop1_unusable(i, i_regs);
-}
-
-// FP_STUB
-static void do_cop1stub(int n)
-{
-  literal_pool(256);
-  assem_debug("do_cop1stub %x\n",start+stubs[n].a*4);
-  set_jump_target(stubs[n].addr, out);
-  int i=stubs[n].a;
-//  int rs=stubs[n].b;
-  struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  int ds=stubs[n].d;
-  if(!ds) {
-    load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
-    //if(i_regs!=&regs[i]) printf("oops: regs[i]=%x i_regs=%x",(int)&regs[i],(int)i_regs);
-  }
-  //else {printf("fp exception in delay slot\n");}
-  wb_dirtys(i_regs->regmap_entry,i_regs->wasdirty);
-  if(regs[i].regmap_entry[HOST_CCREG]!=CCREG) emit_loadreg(CCREG,HOST_CCREG);
-  emit_movimm(start+(i-ds)*4,0); // Get PC
-  emit_addimm(HOST_CCREG,ccadj[i],HOST_CCREG); // CHECK: is this right?  There should probably be an extra cycle...
-  emit_far_jump(ds?fp_exception_ds:fp_exception);
+  emit_readword(&psxRegs.CP0.n.SR, 0);
+  emit_andimm(0, 0x3c, 1);
+  emit_andimm(0, ~0xf, 0);
+  emit_orrshr_imm(1, 2, 0);
+  emit_writeword(0, &psxRegs.CP0.n.SR);
 }
 
 static int cop2_is_stalling_op(int i, int *cycles)
@@ -4018,7 +4039,7 @@ static void cop2_assemble(int i, const struct regstat *i_regs)
     cop2_do_stall_check(0, i, i_regs, reglist);
   }
   if (dops[i].opcode2==0) { // MFC2
-    signed char tl=get_reg(i_regs->regmap,dops[i].rt1);
+    signed char tl=get_reg_w(i_regs->regmap, dops[i].rt1);
     if(tl>=0&&dops[i].rt1!=0)
       cop2_get_dreg(copr,tl,temp);
   }
@@ -4028,7 +4049,7 @@ static void cop2_assemble(int i, const struct regstat *i_regs)
   }
   else if (dops[i].opcode2==2) // CFC2
   {
-    signed char tl=get_reg(i_regs->regmap,dops[i].rt1);
+    signed char tl=get_reg_w(i_regs->regmap, dops[i].rt1);
     if(tl>=0&&dops[i].rt1!=0)
       emit_readword(&reg_cop2c[copr],tl);
   }
@@ -4092,6 +4113,18 @@ static void do_unalignedwritestub(int n)
   emit_jmp(stubs[n].retaddr); // return address
 }
 
+static void do_overflowstub(int n)
+{
+  assem_debug("do_overflowstub %x\n", start + (u_int)stubs[n].a * 4);
+  literal_pool(24);
+  int i = stubs[n].a;
+  struct regstat *i_regs = (struct regstat *)stubs[n].c;
+  int ccadj = stubs[n].d;
+  set_jump_target(stubs[n].addr, out);
+  wb_dirtys(regs[i].regmap, regs[i].dirty);
+  exception_assemble(i, i_regs, ccadj);
+}
+
 #ifndef multdiv_assemble
 void multdiv_assemble(int i,struct regstat *i_regs)
 {
@@ -4106,7 +4139,7 @@ static void mov_assemble(int i, const struct regstat *i_regs)
   //if(dops[i].opcode2==0x11||dops[i].opcode2==0x13) { // MTHI/MTLO
   if(dops[i].rt1) {
     signed char sl,tl;
-    tl=get_reg(i_regs->regmap,dops[i].rt1);
+    tl=get_reg_w(i_regs->regmap, dops[i].rt1);
     //assert(tl>=0);
     if(tl>=0) {
       sl=get_reg(i_regs->regmap,dops[i].rs1);
@@ -4137,13 +4170,17 @@ static void call_c_cpu_handler(int i, const struct regstat *i_regs, int ccadj_, 
   emit_far_jump(jump_to_new_pc);
 }
 
-static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
+static void exception_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
   // 'break' tends to be littered around to catch things like
   // division by 0 and is almost never executed, so don't emit much code here
-  void *func = (dops[i].opcode2 == 0x0C)
-    ? (is_delayslot ? jump_syscall_ds : jump_syscall)
-    : (is_delayslot ? jump_break_ds : jump_break);
+  void *func;
+  if (dops[i].itype == ALU || dops[i].itype == IMM16)
+    func = is_delayslot ? jump_overflow_ds : jump_overflow;
+  else if (dops[i].opcode2 == 0x0C)
+    func = is_delayslot ? jump_syscall_ds : jump_syscall;
+  else
+    func = is_delayslot ? jump_break_ds : jump_break;
   assert(get_reg(i_regs->regmap, CCREG) == HOST_CCREG);
   emit_movimm(start + i*4, 2); // pc
   emit_addimm(HOST_CCREG, ccadj_ + CLOCK_ADJUST(1), HOST_CCREG);
@@ -4152,7 +4189,7 @@ static void syscall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 
 static void hlecall_bad()
 {
-  SysPrintf("bad hlecall\n");
+  assert(0);
 }
 
 static void hlecall_assemble(int i, const struct regstat *i_regs, int ccadj_)
@@ -4214,7 +4251,7 @@ static void speculate_register_values(int i)
       // fallthrough
     case IMM16:
       if(dops[i].rt1&&is_const(&regs[i],dops[i].rt1)) {
-        int value,hr=get_reg(regs[i].regmap,dops[i].rt1);
+        int value,hr=get_reg_w(regs[i].regmap, dops[i].rt1);
         if(hr>=0) {
           if(get_final_value(hr,i,&value))
                smrv[dops[i].rt1]=value;
@@ -4272,10 +4309,10 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
   int ds = 0;
   switch (dops[i].itype) {
     case ALU:
-      alu_assemble(i, i_regs);
+      alu_assemble(i, i_regs, ccadj_);
       break;
     case IMM16:
-      imm16_assemble(i, i_regs);
+      imm16_assemble(i, i_regs, ccadj_);
       break;
     case SHIFT:
       shift_assemble(i, i_regs);
@@ -4298,11 +4335,8 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
     case COP0:
       cop0_assemble(i, i_regs, ccadj_);
       break;
-    case COP1:
-      cop1_assemble(i, i_regs);
-      break;
-    case C1LS:
-      c1ls_assemble(i, i_regs);
+    case RFE:
+      rfe_assemble(i, i_regs, ccadj_);
       break;
     case COP2:
       cop2_assemble(i, i_regs);
@@ -4321,7 +4355,7 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
       mov_assemble(i, i_regs);
       break;
     case SYSCALL:
-      syscall_assemble(i, i_regs, ccadj_);
+      exception_assemble(i, i_regs, ccadj_);
       break;
     case HLECALL:
       hlecall_assemble(i, i_regs, ccadj_);
@@ -4347,7 +4381,6 @@ static int assemble(int i, const struct regstat *i_regs, int ccadj_)
       break;
     case NOP:
     case OTHER:
-    case NI:
       // not handled, just skip
       break;
     default:
@@ -4460,7 +4493,7 @@ static void address_generation(int i, const struct regstat *i_regs, signed char 
     int ra=-1;
     int agr=AGEN1+(i&1);
     if(dops[i].itype==LOAD) {
-      ra=get_reg(i_regs->regmap,dops[i].rt1);
+      ra=get_reg_w(i_regs->regmap, dops[i].rt1);
       if(ra<0) ra=get_reg_temp(i_regs->regmap);
       assert(ra>=0);
     }
@@ -5364,7 +5397,7 @@ static void rjump_assemble_write_ra(int i)
   int rt,return_address;
   assert(dops[i+1].rt1!=dops[i].rt1);
   assert(dops[i+1].rt2!=dops[i].rt1);
-  rt=get_reg(branch_regs[i].regmap,dops[i].rt1);
+  rt=get_reg_w(branch_regs[i].regmap, dops[i].rt1);
   assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
   assert(rt>=0);
   return_address=start+i*4+8;
@@ -5457,7 +5490,7 @@ static void rjump_assemble(int i, const struct regstat *i_regs)
   //assert(adj==0);
   emit_addimm_and_set_flags(ccadj[i] + CLOCK_ADJUST(2), HOST_CCREG);
   add_stub(CC_STUB,out,NULL,0,i,-1,TAKEN,rs);
-  if(dops[i+1].itype==COP0 && dops[i+1].opcode2==0x10)
+  if (dops[i+1].itype == RFE)
     // special case for RFE
     emit_jmp(0);
   else
@@ -6131,22 +6164,12 @@ void disassemble_inst(int i)
           printf (" %x: %s r%d,cpr0[%d]\n",start+i*4,insn[i],dops[i].rs1,(source[i]>>11)&0x1f); // MTC0
         else printf (" %x: %s\n",start+i*4,insn[i]);
         break;
-      case COP1:
-        if(dops[i].opcode2<3)
-          printf (" %x: %s r%d,cpr1[%d]\n",start+i*4,insn[i],dops[i].rt1,(source[i]>>11)&0x1f); // MFC1
-        else if(dops[i].opcode2>3)
-          printf (" %x: %s r%d,cpr1[%d]\n",start+i*4,insn[i],dops[i].rs1,(source[i]>>11)&0x1f); // MTC1
-        else printf (" %x: %s\n",start+i*4,insn[i]);
-        break;
       case COP2:
         if(dops[i].opcode2<3)
           printf (" %x: %s r%d,cpr2[%d]\n",start+i*4,insn[i],dops[i].rt1,(source[i]>>11)&0x1f); // MFC2
         else if(dops[i].opcode2>3)
           printf (" %x: %s r%d,cpr2[%d]\n",start+i*4,insn[i],dops[i].rs1,(source[i]>>11)&0x1f); // MTC2
         else printf (" %x: %s\n",start+i*4,insn[i]);
-        break;
-      case C1LS:
-        printf (" %x: %s cpr1[%d],r%d+%x\n",start+i*4,insn[i],(source[i]>>16)&0x1f,dops[i].rs1,imm[i]);
         break;
       case C2LS:
         printf (" %x: %s cpr2[%d],r%d+%x\n",start+i*4,insn[i],(source[i]>>16)&0x1f,dops[i].rs1,imm[i]);
@@ -6158,9 +6181,12 @@ void disassemble_inst(int i)
         //printf (" %s %8x\n",insn[i],source[i]);
         printf (" %x: %s\n",start+i*4,insn[i]);
     }
+    #ifndef REGMAP_PRINT
     return;
-    printf("D: %"PRIu64"  WD: %"PRIu64"  U: %"PRIu64"\n",
-      regs[i].dirty, regs[i].wasdirty, unneeded_reg[i]);
+    #endif
+    printf("D: %"PRIx64"  WD: %"PRIx64"  U: %"PRIx64"  hC: %x  hWC: %x  hLC: %x\n",
+      regs[i].dirty, regs[i].wasdirty, unneeded_reg[i],
+      regs[i].isconst, regs[i].wasconst, regs[i].loadedconst);
     print_regmap("pre:   ", regmap_pre[i]);
     print_regmap("entry: ", regs[i].regmap_entry);
     print_regmap("map:   ", regs[i].regmap);
@@ -6551,17 +6577,20 @@ static int apply_hacks(void)
 static noinline void pass1_disassemble(u_int pagelimit)
 {
   int i, j, done = 0, ni_count = 0;
-  unsigned int type,op,op2;
+  unsigned int type,op,op2,op3;
 
   for (i = 0; !done; i++)
   {
+    int force_prev_to_interpreter = 0;
     memset(&dops[i], 0, sizeof(dops[i]));
-    op2=0;
-    minimum_free_regs[i]=0;
-    dops[i].opcode=op=source[i]>>26;
+    op2 = 0;
+    minimum_free_regs[i] = 0;
+    dops[i].opcode = op = source[i] >> 26;
+    type = INTCALL;
+    set_mnemonic(i, "???");
     switch(op)
     {
-      case 0x00: set_mnemonic(i, "special"); type=NI;
+      case 0x00: set_mnemonic(i, "special");
         op2=source[i]&0x3f;
         switch(op2)
         {
@@ -6594,51 +6623,20 @@ static noinline void pass1_disassemble(u_int pagelimit)
           case 0x27: set_mnemonic(i, "NOR"); type=ALU; break;
           case 0x2A: set_mnemonic(i, "SLT"); type=ALU; break;
           case 0x2B: set_mnemonic(i, "SLTU"); type=ALU; break;
-          case 0x30: set_mnemonic(i, "TGE"); type=NI; break;
-          case 0x31: set_mnemonic(i, "TGEU"); type=NI; break;
-          case 0x32: set_mnemonic(i, "TLT"); type=NI; break;
-          case 0x33: set_mnemonic(i, "TLTU"); type=NI; break;
-          case 0x34: set_mnemonic(i, "TEQ"); type=NI; break;
-          case 0x36: set_mnemonic(i, "TNE"); type=NI; break;
-#if 0
-          case 0x14: set_mnemonic(i, "DSLLV"); type=SHIFT; break;
-          case 0x16: set_mnemonic(i, "DSRLV"); type=SHIFT; break;
-          case 0x17: set_mnemonic(i, "DSRAV"); type=SHIFT; break;
-          case 0x1C: set_mnemonic(i, "DMULT"); type=MULTDIV; break;
-          case 0x1D: set_mnemonic(i, "DMULTU"); type=MULTDIV; break;
-          case 0x1E: set_mnemonic(i, "DDIV"); type=MULTDIV; break;
-          case 0x1F: set_mnemonic(i, "DDIVU"); type=MULTDIV; break;
-          case 0x2C: set_mnemonic(i, "DADD"); type=ALU; break;
-          case 0x2D: set_mnemonic(i, "DADDU"); type=ALU; break;
-          case 0x2E: set_mnemonic(i, "DSUB"); type=ALU; break;
-          case 0x2F: set_mnemonic(i, "DSUBU"); type=ALU; break;
-          case 0x38: set_mnemonic(i, "DSLL"); type=SHIFTIMM; break;
-          case 0x3A: set_mnemonic(i, "DSRL"); type=SHIFTIMM; break;
-          case 0x3B: set_mnemonic(i, "DSRA"); type=SHIFTIMM; break;
-          case 0x3C: set_mnemonic(i, "DSLL32"); type=SHIFTIMM; break;
-          case 0x3E: set_mnemonic(i, "DSRL32"); type=SHIFTIMM; break;
-          case 0x3F: set_mnemonic(i, "DSRA32"); type=SHIFTIMM; break;
-#endif
         }
         break;
-      case 0x01: set_mnemonic(i, "regimm"); type=NI;
-        op2=(source[i]>>16)&0x1f;
+      case 0x01: set_mnemonic(i, "regimm");
+        type = SJUMP;
+        op2 = (source[i] >> 16) & 0x1f;
         switch(op2)
         {
-          case 0x00: set_mnemonic(i, "BLTZ"); type=SJUMP; break;
-          case 0x01: set_mnemonic(i, "BGEZ"); type=SJUMP; break;
-          //case 0x02: set_mnemonic(i, "BLTZL"); type=SJUMP; break;
-          //case 0x03: set_mnemonic(i, "BGEZL"); type=SJUMP; break;
-          //case 0x08: set_mnemonic(i, "TGEI"); type=NI; break;
-          //case 0x09: set_mnemonic(i, "TGEIU"); type=NI; break;
-          //case 0x0A: set_mnemonic(i, "TLTI"); type=NI; break;
-          //case 0x0B: set_mnemonic(i, "TLTIU"); type=NI; break;
-          //case 0x0C: set_mnemonic(i, "TEQI"); type=NI; break;
-          //case 0x0E: set_mnemonic(i, "TNEI"); type=NI; break;
-          case 0x10: set_mnemonic(i, "BLTZAL"); type=SJUMP; break;
-          case 0x11: set_mnemonic(i, "BGEZAL"); type=SJUMP; break;
-          //case 0x12: set_mnemonic(i, "BLTZALL"); type=SJUMP; break;
-          //case 0x13: set_mnemonic(i, "BGEZALL"); type=SJUMP; break;
+          case 0x10: set_mnemonic(i, "BLTZAL"); break;
+          case 0x11: set_mnemonic(i, "BGEZAL"); break;
+          default:
+            if (op2 & 1)
+              set_mnemonic(i, "BGEZ");
+            else
+              set_mnemonic(i, "BLTZ");
         }
         break;
       case 0x02: set_mnemonic(i, "J"); type=UJUMP; break;
@@ -6655,68 +6653,40 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case 0x0D: set_mnemonic(i, "ORI"); type=IMM16; break;
       case 0x0E: set_mnemonic(i, "XORI"); type=IMM16; break;
       case 0x0F: set_mnemonic(i, "LUI"); type=IMM16; break;
-      case 0x10: set_mnemonic(i, "cop0"); type=NI;
-        op2=(source[i]>>21)&0x1f;
+      case 0x10: set_mnemonic(i, "COP0");
+        op2 = (source[i]>>21) & 0x1f;
+	if (op2 & 0x10) {
+          op3 = source[i] & 0x1f;
+          switch (op3)
+          {
+            case 0x01: case 0x02: case 0x06: case 0x08: type = INTCALL; break;
+            case 0x10: set_mnemonic(i, "RFE"); type=RFE; break;
+            default:   type = OTHER; break;
+          }
+          break;
+        }
         switch(op2)
         {
-          case 0x00: set_mnemonic(i, "MFC0"); type=COP0; break;
-          case 0x02: set_mnemonic(i, "CFC0"); type=COP0; break;
+          u32 rd;
+          case 0x00:
+            set_mnemonic(i, "MFC0");
+            rd = (source[i] >> 11) & 0x1F;
+            if (!(0x00000417u & (1u << rd)))
+              type = COP0;
+            break;
           case 0x04: set_mnemonic(i, "MTC0"); type=COP0; break;
-          case 0x06: set_mnemonic(i, "CTC0"); type=COP0; break;
-          case 0x10: set_mnemonic(i, "RFE"); type=COP0; break;
+          case 0x02:
+          case 0x06: type = INTCALL; break;
+          default:   type = OTHER; break;
         }
         break;
-      case 0x11: set_mnemonic(i, "cop1"); type=COP1;
+      case 0x11: set_mnemonic(i, "COP1");
         op2=(source[i]>>21)&0x1f;
         break;
-#if 0
-      case 0x14: set_mnemonic(i, "BEQL"); type=CJUMP; break;
-      case 0x15: set_mnemonic(i, "BNEL"); type=CJUMP; break;
-      case 0x16: set_mnemonic(i, "BLEZL"); type=CJUMP; break;
-      case 0x17: set_mnemonic(i, "BGTZL"); type=CJUMP; break;
-      case 0x18: set_mnemonic(i, "DADDI"); type=IMM16; break;
-      case 0x19: set_mnemonic(i, "DADDIU"); type=IMM16; break;
-      case 0x1A: set_mnemonic(i, "LDL"); type=LOADLR; break;
-      case 0x1B: set_mnemonic(i, "LDR"); type=LOADLR; break;
-#endif
-      case 0x20: set_mnemonic(i, "LB"); type=LOAD; break;
-      case 0x21: set_mnemonic(i, "LH"); type=LOAD; break;
-      case 0x22: set_mnemonic(i, "LWL"); type=LOADLR; break;
-      case 0x23: set_mnemonic(i, "LW"); type=LOAD; break;
-      case 0x24: set_mnemonic(i, "LBU"); type=LOAD; break;
-      case 0x25: set_mnemonic(i, "LHU"); type=LOAD; break;
-      case 0x26: set_mnemonic(i, "LWR"); type=LOADLR; break;
-#if 0
-      case 0x27: set_mnemonic(i, "LWU"); type=LOAD; break;
-#endif
-      case 0x28: set_mnemonic(i, "SB"); type=STORE; break;
-      case 0x29: set_mnemonic(i, "SH"); type=STORE; break;
-      case 0x2A: set_mnemonic(i, "SWL"); type=STORELR; break;
-      case 0x2B: set_mnemonic(i, "SW"); type=STORE; break;
-#if 0
-      case 0x2C: set_mnemonic(i, "SDL"); type=STORELR; break;
-      case 0x2D: set_mnemonic(i, "SDR"); type=STORELR; break;
-#endif
-      case 0x2E: set_mnemonic(i, "SWR"); type=STORELR; break;
-      case 0x2F: set_mnemonic(i, "CACHE"); type=NOP; break;
-      case 0x30: set_mnemonic(i, "LL"); type=NI; break;
-      case 0x31: set_mnemonic(i, "LWC1"); type=C1LS; break;
-#if 0
-      case 0x34: set_mnemonic(i, "LLD"); type=NI; break;
-      case 0x35: set_mnemonic(i, "LDC1"); type=C1LS; break;
-      case 0x37: set_mnemonic(i, "LD"); type=LOAD; break;
-#endif
-      case 0x38: set_mnemonic(i, "SC"); type=NI; break;
-      case 0x39: set_mnemonic(i, "SWC1"); type=C1LS; break;
-#if 0
-      case 0x3C: set_mnemonic(i, "SCD"); type=NI; break;
-      case 0x3D: set_mnemonic(i, "SDC1"); type=C1LS; break;
-      case 0x3F: set_mnemonic(i, "SD"); type=STORE; break;
-#endif
-      case 0x12: set_mnemonic(i, "COP2"); type=NI;
+      case 0x12: set_mnemonic(i, "COP2");
         op2=(source[i]>>21)&0x1f;
-        //if (op2 & 0x10)
-        if (source[i]&0x3f) { // use this hack to support old savestates with patched gte insns
+        if (op2 & 0x10) {
+          type = OTHER;
           if (gte_handlers[source[i]&0x3f]!=NULL) {
 #ifdef DISASM
             if (gte_regnames[source[i]&0x3f]!=NULL)
@@ -6724,7 +6694,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
             else
               snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
 #endif
-            type=C2OP;
+            type = C2OP;
           }
         }
         else switch(op2)
@@ -6735,32 +6705,53 @@ static noinline void pass1_disassemble(u_int pagelimit)
           case 0x06: set_mnemonic(i, "CTC2"); type=COP2; break;
         }
         break;
+      case 0x13: set_mnemonic(i, "COP3");
+        op2=(source[i]>>21)&0x1f;
+        break;
+      case 0x20: set_mnemonic(i, "LB"); type=LOAD; break;
+      case 0x21: set_mnemonic(i, "LH"); type=LOAD; break;
+      case 0x22: set_mnemonic(i, "LWL"); type=LOADLR; break;
+      case 0x23: set_mnemonic(i, "LW"); type=LOAD; break;
+      case 0x24: set_mnemonic(i, "LBU"); type=LOAD; break;
+      case 0x25: set_mnemonic(i, "LHU"); type=LOAD; break;
+      case 0x26: set_mnemonic(i, "LWR"); type=LOADLR; break;
+      case 0x28: set_mnemonic(i, "SB"); type=STORE; break;
+      case 0x29: set_mnemonic(i, "SH"); type=STORE; break;
+      case 0x2A: set_mnemonic(i, "SWL"); type=STORELR; break;
+      case 0x2B: set_mnemonic(i, "SW"); type=STORE; break;
+      case 0x2E: set_mnemonic(i, "SWR"); type=STORELR; break;
       case 0x32: set_mnemonic(i, "LWC2"); type=C2LS; break;
       case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; break;
-      case 0x3B: set_mnemonic(i, "HLECALL"); type=HLECALL; break;
-      default: set_mnemonic(i, "???"); type=NI;
-        SysPrintf("NI %08x @%08x (%08x)\n", source[i], start + i*4, start);
+      case 0x3B:
+        if (Config.HLE && (source[i] & 0x03ffffff) < ARRAY_SIZE(psxHLEt)) {
+          set_mnemonic(i, "HLECALL");
+          type = HLECALL;
+        }
+        break;
+      default:
         break;
     }
+    if (type == INTCALL)
+      SysPrintf("NI %08x @%08x (%08x)\n", source[i], start + i*4, start);
     dops[i].itype=type;
     dops[i].opcode2=op2;
     /* Get registers/immediates */
     dops[i].use_lt1=0;
     gte_rs[i]=gte_rt[i]=0;
+    dops[i].rs1 = 0;
+    dops[i].rs2 = 0;
+    dops[i].rt1 = 0;
+    dops[i].rt2 = 0;
     switch(type) {
       case LOAD:
         dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=0;
         dops[i].rt1=(source[i]>>16)&0x1f;
-        dops[i].rt2=0;
         imm[i]=(short)source[i];
         break;
       case STORE:
       case STORELR:
         dops[i].rs1=(source[i]>>21)&0x1f;
         dops[i].rs2=(source[i]>>16)&0x1f;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         imm[i]=(short)source[i];
         break;
       case LOADLR:
@@ -6769,7 +6760,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         dops[i].rs1=(source[i]>>21)&0x1f;
         dops[i].rs2=(source[i]>>16)&0x1f;
         dops[i].rt1=(source[i]>>16)&0x1f;
-        dops[i].rt2=0;
         imm[i]=(short)source[i];
         break;
       case IMM16:
@@ -6777,7 +6767,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         else dops[i].rs1=(source[i]>>21)&0x1f;
         dops[i].rs2=0;
         dops[i].rt1=(source[i]>>16)&0x1f;
-        dops[i].rt2=0;
         if(op>=0x0c&&op<=0x0e) { // ANDI/ORI/XORI
           imm[i]=(unsigned short)source[i];
         }else{
@@ -6785,10 +6774,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         }
         break;
       case UJUMP:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         // The JAL instruction writes to r31.
         if (op&1) {
           dops[i].rt1=31;
@@ -6797,9 +6782,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         break;
       case RJUMP:
         dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         // The JALR instruction writes to rd.
         if (op2&1) {
           dops[i].rt1=(source[i]>>11)&0x1f;
@@ -6809,8 +6791,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case CJUMP:
         dops[i].rs1=(source[i]>>21)&0x1f;
         dops[i].rs2=(source[i]>>16)&0x1f;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         if(op&2) { // BGTZ/BLEZ
           dops[i].rs2=0;
         }
@@ -6818,10 +6798,8 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case SJUMP:
         dops[i].rs1=(source[i]>>21)&0x1f;
         dops[i].rs2=CCREG;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
-        if(op2&0x10) { // BxxAL
-          dops[i].rt1=31;
+        if (op2 == 0x10 || op2 == 0x11) { // BxxAL
+          dops[i].rt1 = 31;
           // NOTE: If the branch is not taken, r31 is still overwritten
         }
         break;
@@ -6829,7 +6807,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         dops[i].rs1=(source[i]>>21)&0x1f; // source
         dops[i].rs2=(source[i]>>16)&0x1f; // subtract amount
         dops[i].rt1=(source[i]>>11)&0x1f; // destination
-        dops[i].rt2=0;
         break;
       case MULTDIV:
         dops[i].rs1=(source[i]>>21)&0x1f; // source
@@ -6838,10 +6815,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
         dops[i].rt2=LOREG;
         break;
       case MOV:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         if(op2==0x10) dops[i].rs1=HIREG; // MFHI
         if(op2==0x11) dops[i].rt1=HIREG; // MTHI
         if(op2==0x12) dops[i].rs1=LOREG; // MFLO
@@ -6853,41 +6826,19 @@ static noinline void pass1_disassemble(u_int pagelimit)
         dops[i].rs1=(source[i]>>16)&0x1f; // target of shift
         dops[i].rs2=(source[i]>>21)&0x1f; // shift amount
         dops[i].rt1=(source[i]>>11)&0x1f; // destination
-        dops[i].rt2=0;
         break;
       case SHIFTIMM:
         dops[i].rs1=(source[i]>>16)&0x1f;
         dops[i].rs2=0;
         dops[i].rt1=(source[i]>>11)&0x1f;
-        dops[i].rt2=0;
         imm[i]=(source[i]>>6)&0x1f;
-        // DSxx32 instructions
-        if(op2>=0x3c) imm[i]|=0x20;
         break;
       case COP0:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
-        if(op2==0||op2==2) dops[i].rt1=(source[i]>>16)&0x1F; // MFC0/CFC0
-        if(op2==4||op2==6) dops[i].rs1=(source[i]>>16)&0x1F; // MTC0/CTC0
+        if(op2==0) dops[i].rt1=(source[i]>>16)&0x1F; // MFC0
+        if(op2==4) dops[i].rs1=(source[i]>>16)&0x1F; // MTC0
         if(op2==4&&((source[i]>>11)&0x1f)==12) dops[i].rt2=CSREG; // Status
-        if(op2==16) if((source[i]&0x3f)==0x18) dops[i].rs2=CCREG; // ERET
-        break;
-      case COP1:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
-        if(op2<3) dops[i].rt1=(source[i]>>16)&0x1F; // MFC1/DMFC1/CFC1
-        if(op2>3) dops[i].rs1=(source[i]>>16)&0x1F; // MTC1/DMTC1/CTC1
-        dops[i].rs2=CSREG;
         break;
       case COP2:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         if(op2<3) dops[i].rt1=(source[i]>>16)&0x1F; // MFC2/CFC2
         if(op2>3) dops[i].rs1=(source[i]>>16)&0x1F; // MTC2/CTC2
         dops[i].rs2=CSREG;
@@ -6900,27 +6851,13 @@ static noinline void pass1_disassemble(u_int pagelimit)
           case 0x06: gte_rt[i]=1ll<<(gr+32); break; // CTC2
         }
         break;
-      case C1LS:
-        dops[i].rs1=(source[i]>>21)&0x1F;
-        dops[i].rs2=CSREG;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
-        imm[i]=(short)source[i];
-        break;
       case C2LS:
         dops[i].rs1=(source[i]>>21)&0x1F;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         imm[i]=(short)source[i];
         if(op==0x32) gte_rt[i]=1ll<<((source[i]>>16)&0x1F); // LWC2
         else gte_rs[i]=1ll<<((source[i]>>16)&0x1F); // SWC2
         break;
       case C2OP:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         gte_rs[i]=gte_reg_reads[source[i]&0x3f];
         gte_rt[i]=gte_reg_writes[source[i]&0x3f];
         gte_rt[i]|=1ll<<63; // every op changes flags
@@ -6935,15 +6872,9 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case HLECALL:
       case INTCALL:
         dops[i].rs1=CCREG;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
         break;
       default:
-        dops[i].rs1=0;
-        dops[i].rs2=0;
-        dops[i].rt1=0;
-        dops[i].rt2=0;
+        break;
     }
     /* Calculate branch target addresses */
     if(type==UJUMP)
@@ -6970,41 +6901,48 @@ static noinline void pass1_disassemble(u_int pagelimit)
     dops[i].is_jump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP || dops[i].itype == CJUMP || dops[i].itype == SJUMP);
     dops[i].is_ujump = (dops[i].itype == RJUMP || dops[i].itype == UJUMP); // || (source[i] >> 16) == 0x1000 // beq r0,r0
     dops[i].is_load = (dops[i].itype == LOAD || dops[i].itype == LOADLR || op == 0x32); // LWC2
+    dops[i].is_delay_load = (dops[i].is_load || (source[i] & 0xf3d00000) == 0x40000000); // MFC/CFC
     dops[i].is_store = (dops[i].itype == STORE || dops[i].itype == STORELR || op == 0x3a); // SWC2
+    dops[i].is_exception = (dops[i].itype == SYSCALL || dops[i].itype == HLECALL || dops[i].itype == INTCALL);
+    dops[i].may_except = dops[i].is_exception || (dops[i].itype == ALU && (op2 == 0x20 || op2 == 0x22)) || op == 8;
 
-    /* messy cases to just pass over to the interpreter */
+    /* rare messy cases to just pass over to the interpreter */
     if (i > 0 && dops[i-1].is_jump) {
-      int do_in_intrp=0;
       // branch in delay slot?
       if (dops[i].is_jump) {
         // don't handle first branch and call interpreter if it's hit
-        SysPrintf("branch in delay slot @%08x (%08x)\n", start + i*4, start);
-        do_in_intrp=1;
+        SysPrintf("branch in DS @%08x (%08x)\n", start + i*4, start);
+        force_prev_to_interpreter = 1;
       }
-      // basic load delay detection
-      else if((type==LOAD||type==LOADLR||type==COP0||type==COP2||type==C2LS)&&dops[i].rt1!=0) {
+      // basic load delay detection through a branch
+      else if (dops[i].is_delay_load && dops[i].rt1 != 0) {
         int t=(ba[i-1]-start)/4;
         if(0 <= t && t < i &&(dops[i].rt1==dops[t].rs1||dops[i].rt1==dops[t].rs2)&&dops[t].itype!=CJUMP&&dops[t].itype!=SJUMP) {
           // jump target wants DS result - potential load delay effect
-          SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
-          do_in_intrp=1;
+          SysPrintf("load delay in DS @%08x (%08x)\n", start + i*4, start);
+          force_prev_to_interpreter = 1;
           dops[t+1].bt=1; // expected return from interpreter
         }
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
               !(i>=3&&dops[i-3].is_jump)) {
           // v0 overwrite like this is a sign of trouble, bail out
           SysPrintf("v0 overwrite @%08x (%08x)\n", start + i*4, start);
-          do_in_intrp=1;
+          force_prev_to_interpreter = 1;
         }
       }
-      if (do_in_intrp) {
-        memset(&dops[i-1], 0, sizeof(dops[i-1]));
-        dops[i-1].itype = INTCALL;
-        dops[i-1].rs1 = CCREG;
-        ba[i-1] = -1;
-        done = 2;
-        i--; // don't compile the DS
-      }
+    }
+    else if (i > 0 && dops[i-1].is_delay_load && dops[i-1].rt1 != 0
+             && (dops[i].rs1 == dops[i-1].rt1 || dops[i].rs2 == dops[i-1].rt1)) {
+      SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
+      force_prev_to_interpreter = 1;
+    }
+    if (force_prev_to_interpreter) {
+      memset(&dops[i-1], 0, sizeof(dops[i-1]));
+      dops[i-1].itype = INTCALL;
+      dops[i-1].rs1 = CCREG;
+      ba[i-1] = -1;
+      done = 2;
+      i--; // don't compile the DS/problematic load/etc
     }
 
     /* Is this the end of the block? */
@@ -7038,7 +6976,11 @@ static noinline void pass1_disassemble(u_int pagelimit)
       // Don't get too close to the limit
       if(i>MAXBLOCK/2) done=1;
     }
-    if (dops[i].itype == SYSCALL || dops[i].itype == HLECALL || dops[i].itype == INTCALL)
+    if (dops[i].itype == HLECALL)
+      stop = 1;
+    else if (dops[i].itype == INTCALL)
+      stop = 2;
+    else if (dops[i].is_exception)
       done = stop_after_jal ? 1 : 2;
     if (done == 2) {
       // Does the block continue due to a branch?
@@ -7054,7 +6996,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
     assert(start+i*4<pagelimit);
     if (i==MAXBLOCK-1) done=1;
     // Stop if we're compiling junk
-    if(dops[i].itype == NI && (++ni_count > 8 || dops[i].opcode == 0x11)) {
+    if (dops[i].itype == INTCALL && (++ni_count > 8 || dops[i].opcode == 0x11)) {
       done=stop_after_jal=1;
       SysPrintf("Disabled speculative precompilation\n");
     }
@@ -7177,14 +7119,13 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
         }
       }
     }
-    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
+    else if(dops[i].may_except)
     {
-      // SYSCALL instruction (software interrupt)
+      // SYSCALL instruction, etc or conditional exception
       u=1;
     }
-    else if(dops[i].itype==COP0 && dops[i].opcode2==0x10)
+    else if (dops[i].itype == RFE)
     {
-      // RFE
       u=1;
     }
     //u=1; // DEBUG
@@ -7356,7 +7297,6 @@ static noinline void pass3_register_alloc(u_int addr)
           delayslot_alloc(&current,i+1);
           //current.isconst=0; // DEBUG
           ds=1;
-          //printf("i=%d, isconst=%x\n",i,current.isconst);
           break;
         case RJUMP:
           //current.isconst=0;
@@ -7472,13 +7412,8 @@ static noinline void pass3_register_alloc(u_int addr)
           //current.isconst=0;
           break;
         case SJUMP:
-          //current.isconst=0;
-          //current.wasconst=0;
-          //regs[i].wasconst=0;
           clear_const(&current,dops[i].rs1);
           clear_const(&current,dops[i].rt1);
-          //if((dops[i].opcode2&0x1E)==0x0) // BLTZ/BGEZ
-          if((dops[i].opcode2&0x0E)==0x0) // BLTZ/BGEZ
           {
             alloc_cc(&current,i);
             dirty_reg(&current,CCREG);
@@ -7486,9 +7421,6 @@ static noinline void pass3_register_alloc(u_int addr)
             if (dops[i].rt1==31) { // BLTZAL/BGEZAL
               alloc_reg(&current,i,31);
               dirty_reg(&current,31);
-              //#ifdef REG_PREFETCH
-              //alloc_reg(&current,i,PTEMP);
-              //#endif
             }
             if((dops[i].rs1&&(dops[i].rs1==dops[i+1].rt1||dops[i].rs1==dops[i+1].rt2)) // The delay slot overwrites the branch condition.
                ||(dops[i].rt1==31&&(dops[i+1].rs1==31||dops[i+1].rs2==31||dops[i+1].rt1==31||dops[i+1].rt2==31))) { // DS touches $ra
@@ -7503,17 +7435,6 @@ static noinline void pass3_register_alloc(u_int addr)
               dops[i].ooo=1;
               delayslot_alloc(&current,i+1);
             }
-          }
-          else
-          // Don't alloc the delay slot yet because we might not execute it
-          if((dops[i].opcode2&0x1E)==0x2) // BLTZL/BGEZL
-          {
-            current.isconst=0;
-            current.wasconst=0;
-            regs[i].wasconst=0;
-            alloc_cc(&current,i);
-            dirty_reg(&current,CCREG);
-            alloc_reg(&current,i,dops[i].rs1);
           }
           ds=1;
           //current.isconst=0;
@@ -7547,13 +7468,11 @@ static noinline void pass3_register_alloc(u_int addr)
         case COP0:
           cop0_alloc(&current,i);
           break;
-        case COP1:
+        case RFE:
+          rfe_alloc(&current,i);
           break;
         case COP2:
           cop2_alloc(&current,i);
-          break;
-        case C1LS:
-          c1ls_alloc(&current,i);
           break;
         case C2LS:
           c2ls_alloc(&current,i);
@@ -7746,8 +7665,6 @@ static noinline void pass3_register_alloc(u_int addr)
           }
           break;
         case SJUMP:
-          //if((dops[i-1].opcode2&0x1E)==0) // BLTZ/BGEZ
-          if((dops[i-1].opcode2&0x0E)==0) // BLTZ/BGEZ
           {
             alloc_cc(&current,i-1);
             dirty_reg(&current,CCREG);
@@ -7771,22 +7688,8 @@ static noinline void pass3_register_alloc(u_int addr)
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
             memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           }
-          else
-          // Alloc the delay slot in case the branch is taken
-          if((dops[i-1].opcode2&0x1E)==2) // BLTZL/BGEZL
-          {
-            memcpy(&branch_regs[i-1],&current,sizeof(current));
-            branch_regs[i-1].u=(branch_unneeded_reg[i-1]&~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2)|(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2)))|1;
-            alloc_cc(&branch_regs[i-1],i);
-            dirty_reg(&branch_regs[i-1],CCREG);
-            delayslot_alloc(&branch_regs[i-1],i);
-            branch_regs[i-1].isconst=0;
-            alloc_reg(&current,i,CCREG); // Not taken path
-            dirty_reg(&current,CCREG);
-            memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          }
           // FIXME: BLTZAL/BGEZAL
-          if(dops[i-1].opcode2&0x10) { // BxxZAL
+          if ((dops[i-1].opcode2 & 0x1e) == 0x10) { // BxxZAL
             alloc_reg(&branch_regs[i-1],i-1,31);
             dirty_reg(&branch_regs[i-1],31);
           }
@@ -7835,7 +7738,7 @@ static noinline void pass3_register_alloc(u_int addr)
 
     // Count cycles in between branches
     ccadj[i] = CLOCK_ADJUST(cc);
-    if (i > 0 && (dops[i-1].is_jump || dops[i].itype == SYSCALL || dops[i].itype == HLECALL))
+    if (i > 0 && (dops[i-1].is_jump || dops[i].is_exception))
     {
       cc=0;
     }
@@ -7940,14 +7843,9 @@ static noinline void pass4_cull_unused_regs(void)
         nr |= get_regm(regs[i].regmap_entry, INVCP);
       }
     }
-    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
+    else if (dops[i].may_except)
     {
-      // SYSCALL instruction (software interrupt)
-      nr=0;
-    }
-    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
-    {
-      // ERET instruction (return from interrupt)
+      // SYSCALL instruction, etc or conditional exception
       nr=0;
     }
     else // Non-branch
@@ -8110,8 +8008,8 @@ static noinline void pass5a_preallocate1(void)
       if(ba[i]>=start && ba[i]<(start+i*4))
       if(dops[i+1].itype==NOP||dops[i+1].itype==MOV||dops[i+1].itype==ALU
       ||dops[i+1].itype==SHIFTIMM||dops[i+1].itype==IMM16||dops[i+1].itype==LOAD
-      ||dops[i+1].itype==STORE||dops[i+1].itype==STORELR||dops[i+1].itype==C1LS
-      ||dops[i+1].itype==SHIFT||dops[i+1].itype==COP1
+      ||dops[i+1].itype==STORE||dops[i+1].itype==STORELR
+      ||dops[i+1].itype==SHIFT
       ||dops[i+1].itype==COP2||dops[i+1].itype==C2LS||dops[i+1].itype==C2OP)
       {
         int t=(ba[i]-start)>>2;
@@ -8379,9 +8277,9 @@ static noinline void pass5a_preallocate1(void)
           }
         }
       }
-      if(dops[i].itype!=STORE&&dops[i].itype!=STORELR&&dops[i].itype!=C1LS&&dops[i].itype!=SHIFT&&
+      if(dops[i].itype!=STORE&&dops[i].itype!=STORELR&&dops[i].itype!=SHIFT&&
          dops[i].itype!=NOP&&dops[i].itype!=MOV&&dops[i].itype!=ALU&&dops[i].itype!=SHIFTIMM&&
-         dops[i].itype!=IMM16&&dops[i].itype!=LOAD&&dops[i].itype!=COP1)
+         dops[i].itype!=IMM16&&dops[i].itype!=LOAD)
       {
         memcpy(f_regmap,regs[i].regmap,sizeof(f_regmap));
       }
@@ -8401,7 +8299,7 @@ static noinline void pass5b_preallocate2(void)
       if(!dops[i+1].bt)
       {
         if(dops[i].itype==ALU||dops[i].itype==MOV||dops[i].itype==LOAD||dops[i].itype==SHIFTIMM||dops[i].itype==IMM16
-           ||((dops[i].itype==COP1||dops[i].itype==COP2)&&dops[i].opcode2<3))
+           ||(dops[i].itype==COP2&&dops[i].opcode2<3))
         {
           if(dops[i+1].rs1) {
             if((hr=get_reg(regs[i+1].regmap,dops[i+1].rs1))>=0)
@@ -8437,7 +8335,7 @@ static noinline void pass5b_preallocate2(void)
           }
           // Preload target address for load instruction (non-constant)
           if(dops[i+1].itype==LOAD&&dops[i+1].rs1&&get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
-            if((hr=get_reg(regs[i+1].regmap,dops[i+1].rt1))>=0)
+            if((hr=get_reg_w(regs[i+1].regmap, dops[i+1].rt1))>=0)
             {
               if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
               {
@@ -8454,7 +8352,7 @@ static noinline void pass5b_preallocate2(void)
           }
           // Load source into target register
           if(dops[i+1].use_lt1&&get_reg(regs[i+1].regmap,dops[i+1].rs1)<0) {
-            if((hr=get_reg(regs[i+1].regmap,dops[i+1].rt1))>=0)
+            if((hr=get_reg_w(regs[i+1].regmap, dops[i+1].rt1))>=0)
             {
               if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
               {
@@ -8528,10 +8426,10 @@ static noinline void pass5b_preallocate2(void)
               }
             }
           }
-          if(dops[i+1].itype==LOAD||dops[i+1].itype==LOADLR||dops[i+1].itype==STORE||dops[i+1].itype==STORELR/*||dops[i+1].itype==C1LS||||dops[i+1].itype==C2LS*/) {
+          if(dops[i+1].itype==LOAD||dops[i+1].itype==LOADLR||dops[i+1].itype==STORE||dops[i+1].itype==STORELR/*||dops[i+1].itype==C2LS*/) {
             hr = -1;
             if(dops[i+1].itype==LOAD)
-              hr=get_reg(regs[i+1].regmap,dops[i+1].rt1);
+              hr=get_reg_w(regs[i+1].regmap, dops[i+1].rt1);
             if(dops[i+1].itype==LOADLR||(dops[i+1].opcode&0x3b)==0x31||(dops[i+1].opcode&0x3b)==0x32) // LWC1/LDC1, LWC2/LDC2
               hr=get_reg(regs[i+1].regmap,FTEMP);
             if(dops[i+1].itype==STORE||dops[i+1].itype==STORELR||(dops[i+1].opcode&0x3b)==0x39||(dops[i+1].opcode&0x3b)==0x3a) { // SWC1/SDC1/SWC2/SDC2
@@ -8808,15 +8706,9 @@ static noinline void pass6_clean_registers(int istart, int iend, int wr)
         }
       }
     }
-    else if(dops[i].itype==SYSCALL||dops[i].itype==HLECALL||dops[i].itype==INTCALL)
+    else if (dops[i].may_except)
     {
-      // SYSCALL instruction (software interrupt)
-      will_dirty_i=0;
-      wont_dirty_i=0;
-    }
-    else if(dops[i].itype==COP0 && (source[i]&0x3f)==0x18)
-    {
-      // ERET instruction (return from interrupt)
+      // SYSCALL instruction, etc or conditional exception
       will_dirty_i=0;
       wont_dirty_i=0;
     }
@@ -8987,14 +8879,21 @@ static int new_recompile_block(u_int addr)
 
   assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, out);
 
+  if (addr & 3) {
+    if (addr != hack_addr) {
+      SysPrintf("game crash @%08x, ra=%08x\n", addr, psxRegs.GPR.n.ra);
+      hack_addr = addr;
+    }
+    return -1;
+  }
+
   // this is just for speculation
   for (i = 1; i < 32; i++) {
     if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
       state_rflags |= 1 << i;
   }
 
-  assert(!(addr & 3));
-  start = addr & ~3;
+  start = addr;
   new_dynarec_did_compile=1;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
@@ -9248,32 +9147,31 @@ static int new_recompile_block(u_int addr)
     emit_jmp(0);
   }
 
-  // TODO: delay slot stubs?
   // Stubs
-  for(i=0;i<stubcount;i++)
+  for(i = 0; i < stubcount; i++)
   {
     switch(stubs[i].type)
     {
       case LOADB_STUB:
       case LOADH_STUB:
       case LOADW_STUB:
-      case LOADD_STUB:
       case LOADBU_STUB:
       case LOADHU_STUB:
         do_readstub(i);break;
       case STOREB_STUB:
       case STOREH_STUB:
       case STOREW_STUB:
-      case STORED_STUB:
         do_writestub(i);break;
       case CC_STUB:
         do_ccstub(i);break;
       case INVCODE_STUB:
         do_invstub(i);break;
-      case FP_STUB:
-        do_cop1stub(i);break;
       case STORELR_STUB:
         do_unalignedwritestub(i);break;
+      case OVERFLOW_STUB:
+        do_overflowstub(i); break;
+      default:
+        assert(0);
     }
   }
 
