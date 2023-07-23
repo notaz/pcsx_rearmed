@@ -46,4 +46,7 @@ struct tramp_insns
 
 static void clear_cache_arm64(char *start, char *end);
 
+void do_memhandler_pre();
+void do_memhandler_post();
+
 #endif // !__ASSEMBLY__

@@ -119,6 +119,14 @@ FUNCTION(cc_interrupt):
 	.size	cc_interrupt, .-cc_interrupt
 
 	.align	2
+FUNCTION(jump_addrerror_ds): /* R3000E_AdEL / R3000E_AdES in w0 */
+	str	w1, [rFP, #(LO_psxRegs + (34+8)*4)]  /* BadVaddr */
+	mov	w1, #1
+	b	call_psxException
+FUNCTION(jump_addrerror):
+	str	w1, [rFP, #(LO_psxRegs + (34+8)*4)]  /* BadVaddr */
+	mov	w1, #0
+	b	call_psxException
 FUNCTION(jump_overflow_ds):
 	mov	w0, #(12<<2)  /* R3000E_Ov */
 	mov	w1, #1
