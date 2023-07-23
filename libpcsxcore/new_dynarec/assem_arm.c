@@ -1737,28 +1737,27 @@ static void do_readstub(int n)
 static void inline_readstub(enum stub_type type, int i, u_int addr,
   const signed char regmap[], int target, int adj, u_int reglist)
 {
-  int rs=get_reg(regmap,target);
-  int rt=get_reg(regmap,target);
-  if(rs<0) rs=get_reg_temp(regmap);
-  assert(rs>=0);
+  int ra = cinfo[i].addr;
+  int rt = get_reg(regmap,target);
+  assert(ra >= 0);
   u_int is_dynamic;
   uintptr_t host_addr = 0;
   void *handler;
   int cc=get_reg(regmap,CCREG);
-  if(pcsx_direct_read(type,addr,adj,cc,target?rs:-1,rt))
+  if(pcsx_direct_read(type,addr,adj,cc,target?ra:-1,rt))
     return;
   handler = get_direct_memhandler(mem_rtab, addr, type, &host_addr);
   if (handler == NULL) {
     if(rt<0||dops[i].rt1==0)
       return;
     if(addr!=host_addr)
-      emit_movimm_from(addr,rs,host_addr,rs);
+      emit_movimm_from(addr,ra,host_addr,ra);
     switch(type) {
-      case LOADB_STUB:  emit_movsbl_indexed(0,rs,rt); break;
-      case LOADBU_STUB: emit_movzbl_indexed(0,rs,rt); break;
-      case LOADH_STUB:  emit_movswl_indexed(0,rs,rt); break;
-      case LOADHU_STUB: emit_movzwl_indexed(0,rs,rt); break;
-      case LOADW_STUB:  emit_readword_indexed(0,rs,rt); break;
+      case LOADB_STUB:  emit_movsbl_indexed(0,ra,rt); break;
+      case LOADBU_STUB: emit_movzbl_indexed(0,ra,rt); break;
+      case LOADH_STUB:  emit_movswl_indexed(0,ra,rt); break;
+      case LOADHU_STUB: emit_movzwl_indexed(0,ra,rt); break;
+      case LOADW_STUB:  emit_readword_indexed(0,ra,rt); break;
       default:          assert(0);
     }
     return;
@@ -1779,8 +1778,8 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   save_regs(reglist);
   if(target==0)
     emit_movimm(addr,0);
-  else if(rs!=0)
-    emit_mov(rs,0);
+  else if(ra!=0)
+    emit_mov(ra,0);
   if(cc<0)
     emit_loadreg(CCREG,2);
   if(is_dynamic) {
@@ -1893,19 +1892,19 @@ static void do_writestub(int n)
 static void inline_writestub(enum stub_type type, int i, u_int addr,
   const signed char regmap[], int target, int adj, u_int reglist)
 {
-  int rs=get_reg_temp(regmap);
-  int rt=get_reg(regmap,target);
-  assert(rs>=0);
+  int ra = cinfo[i].addr;
+  int rt = get_reg(regmap, target);
+  assert(ra>=0);
   assert(rt>=0);
   uintptr_t host_addr = 0;
   void *handler = get_direct_memhandler(mem_wtab, addr, type, &host_addr);
   if (handler == NULL) {
     if(addr!=host_addr)
-      emit_movimm_from(addr,rs,host_addr,rs);
+      emit_movimm_from(addr,ra,host_addr,ra);
     switch(type) {
-      case STOREB_STUB: emit_writebyte_indexed(rt,0,rs); break;
-      case STOREH_STUB: emit_writehword_indexed(rt,0,rs); break;
-      case STOREW_STUB: emit_writeword_indexed(rt,0,rs); break;
+      case STOREB_STUB: emit_writebyte_indexed(rt,0,ra); break;
+      case STOREH_STUB: emit_writehword_indexed(rt,0,ra); break;
+      case STOREW_STUB: emit_writeword_indexed(rt,0,ra); break;
       default:          assert(0);
     }
     return;
@@ -1913,7 +1912,7 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
 
   // call a memhandler
   save_regs(reglist);
-  pass_args(rs,rt);
+  pass_args(ra,rt);
   int cc=get_reg(regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
