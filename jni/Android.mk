@@ -19,7 +19,7 @@ UNAI_DIR     := $(ROOT_DIR)/plugins/gpu_unai
 PEOPS_DIR    := $(ROOT_DIR)/plugins/dfxvideo
 DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
 DEPS_DIR     := $(ROOT_DIR)/deps
-LIBRETRO_COMMON := $(ROOT_DIR)/libretro-common
+LIBRETRO_COMMON := $(DEPS_DIR)/libretro-common
 EXTRA_INCLUDES :=
 
 # core
@@ -93,7 +93,7 @@ SOURCES_C += \
 SOURCES_ASM :=
 
 COREFLAGS := -ffast-math -funroll-loops -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
-COREFLAGS += -DHAVE_CHD -D_7ZIP_ST
+COREFLAGS += -DHAVE_MMAP=1 -DHAVE_PTHREAD=1 -DHAVE_POSIX_MEMALIGN=1 -DHAVE_CHD -D_7ZIP_ST
 
 ifeq ($(USE_LIBRETRO_VFS),1)
 SOURCES_C += \
