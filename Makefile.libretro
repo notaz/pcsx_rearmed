@@ -233,7 +233,7 @@ else ifeq ($(platform), libnx)
    ARCH := arm64
    HAVE_VFS_FD = 0
    CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition # -include $(LIBNX)/include/switch.h
-   CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_OS -DNO_DYLIB -DNO_SOCKET -D__arm64__ -D__ARM_NEON__
+   CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_DYLIB -D__arm64__ -D__ARM_NEON__
    CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
    CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
    CFLAGS += -ftree-vectorize
@@ -276,7 +276,7 @@ else ifeq ($(platform), vita)
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
 	CFLAGS += -fno-optimize-sibling-calls
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
-	CFLAGS += -DNO_SOCKET -DNO_OS -DNO_DYLIB
+	CFLAGS += -DNO_DYLIB
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 
 #	CFLAGS += -U__ARM_NEON__
@@ -293,7 +293,7 @@ else ifeq ($(platform), vita)
 # CTR(3DS)
 else ifeq ($(platform), ctr)
 	TARGET := $(TARGET_NAME)_libretro_ctr.a
-	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
+	CFLAGS += -DARM11 -D_3DS -DNO_DYLIB -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer -ffast-math -funroll-loops
@@ -335,7 +335,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	BUILTIN_GPU = peops
 	CFLAGS += -D__ppc__ -D__powerpc__
 	CFLAGS += -DGEKKO -mcpu=750 -meabi -mhard-float
-	CFLAGS += -DNO_SOCKET -DNO_DYLIB
+	CFLAGS += -DNO_DYLIB
 	STATIC_LINKING := 1
 	THREAD_RENDERING := 0
 	NO_PTHREAD := 1
@@ -530,7 +530,7 @@ else ifeq ($(platform), emscripten)
    TARGET  := $(TARGET_NAME)_libretro_$(platform).bc
    fpic    := -fPIC
    SHARED  := -shared -Wl,--no-undefined -Wl,--version-script=link.T
-   CFLAGS += -DNO_DYLIB -DNO_SOCKET
+   CFLAGS += -DNO_DYLIB
    STATIC_LINKING = 1
 
 # Windows
