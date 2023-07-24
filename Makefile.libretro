@@ -24,8 +24,48 @@ endif
 CC ?= gcc
 CXX ?= g++
 AS ?= as
-CC_AS ?= $(CC)
 CFLAGS ?=
+
+# early compiler overrides
+ifeq ($(platform),ios-arm64)
+	CC = cc -arch arm64 -isysroot $(IOSSDK)
+	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+else ifneq (,$(findstring ios,$(platform)))
+	CC = cc -arch armv7 -isysroot $(IOSSDK)
+	CXX = c++ -arch armv7 -isysroot $(IOSSDK)
+else ifeq ($(platform), tvos-arm64)
+	ifeq ($(IOSSDK),)
+		IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
+	endif
+	CC = cc -arch arm64 -isysroot $(IOSSDK)
+	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+else ifeq ($(platform), psl1ght)
+	CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
+	AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
+else ifeq ($(platform), psp1)
+	CC = psp-gcc$(EXE_EXT)
+	AR = psp-ar$(EXE_EXT)
+else ifeq ($(platform), vita)
+	CC = arm-vita-eabi-gcc$(EXE_EXT)
+	AR = arm-vita-eabi-ar$(EXE_EXT)
+else ifeq ($(platform), ctr)
+	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+else ifeq ($(platform), xenon)
+	CC = xenon-gcc$(EXE_EXT)
+	AR = xenon-ar$(EXE_EXT)
+else ifneq (,$(filter $(platform),ngc wii wiiu))
+	CC  = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+	CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
+	AR  = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+else ifeq ($(platform), qnx)
+	CC = qcc -Vgcc_ntoarmv7le
+else ifeq ($(platform), miyoo)
+	CC = /opt/miyoo/usr/bin/arm-linux-gcc
+	CXX = /opt/miyoo/usr/bin/arm-linux-g++
+endif
+CC_AS ?= $(CC)
 
 TARGET_NAME := pcsx_rearmed
 ARCH_DETECTED := $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
@@ -70,9 +110,6 @@ ifeq ($(platform), unix)
 	THREAD_RENDERING = 1
 ifeq ($(shell uname),Linux)
 	LIGHTREC_CUSTOM_MAP := 1
-endif
-ifneq ($(findstring SunOS,$(shell uname -s)),)
-	CC = gcc
 endif
 
 # ODROIDN2
@@ -151,15 +188,11 @@ endif
 
 	CFLAGS += -DIOS -marm
 ifeq ($(platform),ios-arm64)
-        CC = cc -arch arm64 -isysroot $(IOSSDK)
-	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
 	ARCH := arm64
 	BUILTIN_GPU = neon
 	HAVE_NEON = 1
 	DYNAREC = 0
 else
-	CC = cc -arch armv7 -isysroot $(IOSSDK)
-	CXX = c++ -arch armv7 -isysroot $(IOSSDK)
 	ARCH := arm
 	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
@@ -189,8 +222,6 @@ endif
 	endif
 
 	CFLAGS += -DIOS -DTVOS
-        CC = cc -arch arm64 -isysroot $(IOSSDK)
-	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
 	ARCH := arm64
 	BUILTIN_GPU = neon
 	HAVE_NEON = 1
@@ -232,22 +263,16 @@ else ifeq ($(platform), arm64)
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
 	TARGET := $(TARGET_NAME)_libretro_psl1ght.a
-	CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
-	AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
 	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__
 
 # PSP
 else ifeq ($(platform), psp1)
 	TARGET := $(TARGET_NAME)_libretro_psp1.a
-	CC = psp-gcc$(EXE_EXT)
-	AR = psp-ar$(EXE_EXT)
 	CFLAGS += -DPSP -G0
 
 # Vita
 else ifeq ($(platform), vita)
 	TARGET := $(TARGET_NAME)_libretro_vita.a
-	CC = arm-vita-eabi-gcc$(EXE_EXT)
-	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
@@ -271,9 +296,6 @@ else ifeq ($(platform), vita)
 # CTR(3DS)
 else ifeq ($(platform), ctr)
 	TARGET := $(TARGET_NAME)_libretro_ctr.a
-	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
-	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
-	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
 	CFLAGS += -DARM11 -D_3DS -DNO_OS -DNO_DYLIB -DNO_SOCKET -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
@@ -296,16 +318,11 @@ else ifeq ($(platform), ctr)
 # Xbox 360
 else ifeq ($(platform), xenon)
 	TARGET := $(TARGET_NAME)_libretro_xenon360.a
-	CC = xenon-gcc$(EXE_EXT)
-	AR = xenon-ar$(EXE_EXT)
 	CFLAGS += -D__LIBXENON__ -m32 -D__ppc__
 
 # Nintendo GC/Wii/WiiU
 else ifneq (,$(filter $(platform),ngc wii wiiu))
 	TARGET := $(TARGET_NAME)_libretro_$(platform).a
-	CC  = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
-	CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
-	AR  = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
 	ifeq ($(platform), ngc)
 		CFLAGS += -DHW_DOL -mogc
 	else ifeq ($(platform), wii)
@@ -335,8 +352,6 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
 	fpic := -fPIC
-	CC = qcc -Vgcc_ntoarmv7le
-	CC_AS = $(CC)
 	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	DYNAREC = ari64
@@ -505,8 +520,6 @@ else ifneq (,$(findstring armv,$(platform)))
 
 else ifeq ($(platform), miyoo)
 	TARGET := $(TARGET_NAME)_libretro.so
-	CC = /opt/miyoo/usr/bin/arm-linux-gcc
-	CXX = /opt/miyoo/usr/bin/arm-linux-g++
 	fpic := -fPIC
 	CFLAGS += -mcpu=arm926ej-s -fsingle-precision-constant
 	CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -D_MIYOO

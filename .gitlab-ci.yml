@@ -31,8 +31,9 @@ include:
     file: '/linux-i686.yml'
 
   # MacOS PowerPC 32-bit
-  - project: 'libretro-infrastructure/ci-templates'
-    file: '/osx-ppc.yml'
+  # FIXME: libchdr vs Byte redefinition
+  #- project: 'libretro-infrastructure/ci-templates'
+  #  file: '/osx-ppc.yml'
 
   # MacOS 64-bit
   - project: 'libretro-infrastructure/ci-templates'
