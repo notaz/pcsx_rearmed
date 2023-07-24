@@ -147,10 +147,10 @@ libretro-build-osx-arm64:
     - .core-defs
 
 # MacOS PowerPC 32-bit
-libretro-build-osx-ppc:
-  extends:
-    - .libretro-osx-ppc-make-default
-    - .core-defs
+#libretro-build-osx-ppc:
+#  extends:
+#    - .libretro-osx-ppc-make-default
+#    - .core-defs
 
 ################################### CELLULAR #################################
 # Android ARMv7a
