@@ -39,6 +39,13 @@ else ifeq ($(platform), tvos-arm64)
 	endif
 	CC = cc -arch arm64 -isysroot $(IOSSDK)
 	CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+else ifeq ($(platform), osx)
+   ifeq ($(CROSS_COMPILE),1)
+	TARGET_RULE = -target $(LIBRETRO_APPLE_PLATFORM) -isysroot $(LIBRETRO_APPLE_ISYSROOT)
+	CFLAGS   += $(TARGET_RULE)
+	CXXFLAGS += $(TARGET_RULE)
+	LDFLAGS  += $(TARGET_RULE)
+   endif
 else ifeq ($(platform), psl1ght)
 	CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
 	AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
@@ -68,7 +75,7 @@ endif
 CC_AS ?= $(CC)
 
 TARGET_NAME := pcsx_rearmed
-ARCH_DETECTED := $(shell $(CC) -dumpmachine | awk -F- '{print $$1}')
+ARCH_DETECTED := $(shell $(CC) $(CFLAGS) -dumpmachine | awk -F- '{print $$1}')
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
 ifneq ($(GIT_VERSION)," unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
@@ -152,22 +159,12 @@ else ifeq ($(platform), osx)
 	DYNAREC := 0
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	fpic := -fPIC
-	HAVE_NEON = 0
    MACSOSVER = `sw_vers -productVersion | cut -d. -f 1`
    OSXVER = `sw_vers -productVersion | cut -d. -f 2`
    OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
    ifeq ($(OSX_LT_MAVERICKS),YES)
    	   fpic += -mmacosx-version-min=10.1
    endif
-
-   ifeq ($(CROSS_COMPILE),1)
-		TARGET_RULE   = -target $(LIBRETRO_APPLE_PLATFORM) -isysroot $(LIBRETRO_APPLE_ISYSROOT)
-		CFLAGS   += $(TARGET_RULE)
-		CPPFLAGS += $(TARGET_RULE)
-		CXXFLAGS += $(TARGET_RULE)
-		LDFLAGS  += $(TARGET_RULE)
-   endif
-
 	CFLAGS  += $(ARCHFLAGS)
 	CXXFLAGS  += $(ARCHFLAGS)
 	LDFLAGS += $(ARCHFLAGS)
