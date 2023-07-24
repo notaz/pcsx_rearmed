@@ -30,7 +30,7 @@
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
-#elif HAVE_PTHREAD
+#elif P_HAVE_PTHREAD
 #include <pthread.h>
 #include <sys/time.h>
 #include <unistd.h>

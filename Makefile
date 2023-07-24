@@ -6,9 +6,9 @@ CFLAGS += -Wall -ggdb -Iinclude -ffast-math
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
-CFLAGS += -DHAVE_MMAP=$(if $(NO_MMAP),0,1) \
-	  -DHAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
-	  -DHAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1)
+CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
+	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
+	  -DP_HAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1)
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
