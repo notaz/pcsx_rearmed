@@ -36,7 +36,7 @@
 
 #endif //_WIN32
 
-#if defined(_WIN32) || !HAVE_MMAP
+#if defined(_WIN32) || !P_HAVE_MMAP
 #include <sys/types.h>
 
 #ifdef __cplusplus

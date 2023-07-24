@@ -36,7 +36,7 @@
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
-#elif HAVE_PTHREAD
+#elif P_HAVE_PTHREAD
 #include <pthread.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -45,7 +45,7 @@
 // to enable the USE_READ_THREAD code, fix:
 // - https://github.com/notaz/pcsx_rearmed/issues/257
 // - ISOgetBufferSub to not race with async code
-#define USE_READ_THREAD 0 //HAVE_PTHREAD
+#define USE_READ_THREAD 0 //P_HAVE_PTHREAD
 
 #ifdef USE_LIBRETRO_VFS
 #include <streams/file_stream_transforms.h>

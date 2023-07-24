@@ -44,7 +44,7 @@
 static void * psxMapDefault(unsigned long addr, size_t size,
 			    int is_fixed, enum psxMapTag tag)
 {
-#if !HAVE_MMAP
+#if !P_HAVE_MMAP
 	void *ptr;
 
 	ptr = malloc(size);
@@ -59,7 +59,7 @@ static void * psxMapDefault(unsigned long addr, size_t size,
 
 static void psxUnmapDefault(void *ptr, size_t size, enum psxMapTag tag)
 {
-#if !HAVE_MMAP
+#if !P_HAVE_MMAP
 	free(ptr);
 #else
 	munmap(ptr, size);

@@ -2098,7 +2098,7 @@ static void update_variables(bool in_flight)
          spu_config.iUseThread = 0;
    }
 
-   if (HAVE_PTHREAD) {
+   if (P_HAVE_PTHREAD) {
 	   var.value = NULL;
 	   var.key = "pcsx_rearmed_async_cd";
 	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -3039,7 +3039,7 @@ void retro_init(void)
 
 #ifdef _3DS
    vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
-#elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && HAVE_POSIX_MEMALIGN
+#elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && P_HAVE_POSIX_MEMALIGN
    if (posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2) != 0)
       vout_buf = (void *) 0;
 #else
