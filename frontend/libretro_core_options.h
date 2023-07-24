@@ -750,7 +750,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "enabled",
    },
-#if !defined(THREAD_ENABLED) && !defined(_WIN32) && !defined(NO_OS)
+#if HAVE_PTHREAD
    {
       "pcsx_rearmed_spu_thread",
       "Threaded SPU",
@@ -765,7 +765,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif // THREAD_ENABLED
+#endif // HAVE_PTHREAD
    {
       "pcsx_rearmed_show_input_settings",
       "Show Input Settings",

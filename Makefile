@@ -12,6 +12,9 @@ else
 CFLAGS += -O2 -DNDEBUG
 endif
 endif
+CFLAGS += -DHAVE_MMAP=$(if $(NO_MMAP),0,1) \
+	  -DHAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
+	  -DHAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1)
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
@@ -91,13 +94,13 @@ ifeq "$(DYNAREC)" "lightrec"
 CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
 		  -DLIGHTREC -DLIGHTREC_STATIC
 LIGHTREC_CUSTOM_MAP ?= 0
+LIGHTREC_CUSTOM_MAP_OBJ ?= libpcsxcore/lightrec/mem.o
 LIGHTREC_THREADED_COMPILER ?= 0
 CFLAGS += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP) \
 	  -DLIGHTREC_ENABLE_THREADED_COMPILER=$(LIGHTREC_THREADED_COMPILER)
-deps/lightning/lib/%.o: CFLAGS += -DHAVE_MMAP
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt
-OBJS += libpcsxcore/lightrec/mem.o
+OBJS += $(LIGHTREC_CUSTOM_MAP_OBJ)
 endif
 ifeq ($(LIGHTREC_THREADED_COMPILER),1)
 OBJS += deps/lightrec/recompiler.o \
@@ -321,20 +324,20 @@ LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
 ifeq "$(USE_LIBRETRO_VFS)" "1"
-OBJS += libretro-common/compat/compat_posix_string.o
-OBJS += libretro-common/compat/fopen_utf8.o
-OBJS += libretro-common/encodings/compat_strl.o
-OBJS += libretro-common/encodings/encoding_utf.o
-OBJS += libretro-common/file/file_path.o
-OBJS += libretro-common/streams/file_stream.o
-OBJS += libretro-common/streams/file_stream_transforms.o
-OBJS += libretro-common/string/stdstring.o
-OBJS += libretro-common/time/rtime.o
-OBJS += libretro-common/vfs/vfs_implementation.o
+OBJS += deps/libretro-common/compat/compat_posix_string.o
+OBJS += deps/libretro-common/compat/fopen_utf8.o
+OBJS += deps/libretro-common/encodings/compat_strl.o
+OBJS += deps/libretro-common/encodings/encoding_utf.o
+OBJS += deps/libretro-common/file/file_path.o
+OBJS += deps/libretro-common/streams/file_stream.o
+OBJS += deps/libretro-common/streams/file_stream_transforms.o
+OBJS += deps/libretro-common/string/stdstring.o
+OBJS += deps/libretro-common/time/rtime.o
+OBJS += deps/libretro-common/vfs/vfs_implementation.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
 OBJS += frontend/libretro.o
-CFLAGS += -Ilibretro-common/include
+CFLAGS += -Ideps/libretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 CFLAGS += -DHAVE_LIBRETRO
 
