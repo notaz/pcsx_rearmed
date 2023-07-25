@@ -511,7 +511,9 @@ void do_insn_cmp(void)
 	static u32 handler_cycle_intr;
 	u32 *allregs_p = (void *)&psxRegs;
 	u32 *allregs_e = (void *)&rregs;
+	u32 badregs_mask = 0;
 	static u32 ppc, failcount;
+	static u32 badregs_mask_prev;
 	int i, ret, bad = 0, fatal = 0, which_event = -1;
 	u32 ev_cycles = 0;
 	u8 code;
@@ -591,18 +593,24 @@ void do_insn_cmp(void)
 		if (allregs_p[i] != allregs_e[i]) {
 			miss_log_add(i, allregs_p[i], allregs_e[i], psxRegs.pc, psxRegs.cycle);
 			bad++;
-			if (i > 32+2)
+			if (i >= 32)
 				fatal = 1;
+			else
+				badregs_mask |= 1u << i;
 		}
 	}
 
-	if (!fatal && psxRegs.pc == rregs.pc && bad < 6 && failcount < 32) {
+	if (badregs_mask_prev & badregs_mask)
+		failcount++;
+	else
+		failcount = 0;
+
+	if (!fatal && psxRegs.pc == rregs.pc && bad < 6 && failcount < 24) {
 		static int last_mcycle;
 		if (last_mcycle != psxRegs.cycle >> 20) {
 			printf("%u\n", psxRegs.cycle);
 			last_mcycle = psxRegs.cycle >> 20;
 		}
-		failcount++;
 		goto ok;
 	}
 
@@ -621,6 +629,7 @@ void do_insn_cmp(void)
 ok:
 	//psxRegs.cycle = rregs.cycle + 2; // sync timing
 	ppc = psxRegs.pc;
+	badregs_mask_prev = badregs_mask;
 }
 
 #endif

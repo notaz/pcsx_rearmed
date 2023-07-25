@@ -1,5 +1,5 @@
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index b71f8a8f..0a26f6f6 100644
+index 2d3348e8..a85d2cd4 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
 @@ -318,7 +318,7 @@ static struct compile_info
@@ -19,7 +19,7 @@ index b71f8a8f..0a26f6f6 100644
    int m = cycle_multiplier_active;
    int s = (x >> 31) | 1;
    return (x * m + s * 50) / 100;
-@@ -750,6 +751,9 @@ static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
+@@ -752,6 +753,9 @@ static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
  // This is called from the recompiled JR/JALR instructions
  static void noinline *get_addr(u_int vaddr, int can_compile)
  {
@@ -29,7 +29,7 @@ index b71f8a8f..0a26f6f6 100644
    u_int start_page = get_page_prev(vaddr);
    u_int i, page, end_page = get_page(vaddr);
    void *found_clean = NULL;
-@@ -7180,7 +7184,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
+@@ -7164,7 +7168,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -38,7 +38,7 @@ index b71f8a8f..0a26f6f6 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8329,6 +8333,7 @@ static noinline void pass5a_preallocate1(void)
+@@ -8315,6 +8319,7 @@ static noinline void pass5a_preallocate1(void)
  static noinline void pass5b_preallocate2(void)
  {
    int i, hr;
@@ -46,22 +46,22 @@ index b71f8a8f..0a26f6f6 100644
    for(i=0;i<slen-1;i++)
    {
      if (!i || !dops[i-1].is_jump)
-@@ -9138,6 +9143,14 @@ static int new_recompile_block(u_int addr)
+@@ -9124,6 +9129,14 @@ static int new_recompile_block(u_int addr)
          load_reg(regs[i].regmap_entry,regs[i].regmap,INVCP);
  
        ds = assemble(i, &regs[i], cinfo[i].ccadj);
 +#ifdef DRC_DBG
 +       // write-out non-consts, consts are likely different because of get_final_value()
-+       if (!dops[i].is_jump && (regs[i].dirty&~regs[i].loadedconst)) {
++       if (regs[i].dirty & ~regs[i].loadedconst) {
 +         assem_debug("/ drc_dbg_wb\n");
-+         wb_dirtys(regs[i].regmap,regs[i].dirty&~regs[i].loadedconst);
++         wb_dirtys(regs[i].regmap, regs[i].dirty & ~regs[i].loadedconst);
 +         assem_debug("\\ drc_dbg_wb\n");
 +       }
 +#endif
  
        if (dops[i].is_ujump)
          literal_pool(1024);
-@@ -9330,6 +9343,10 @@ static int new_recompile_block(u_int addr)
+@@ -9316,6 +9329,10 @@ static int new_recompile_block(u_int addr)
  
  #ifdef ASSEM_PRINT
    fflush(stdout);
