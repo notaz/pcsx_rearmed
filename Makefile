@@ -102,6 +102,9 @@ ifeq ($(LIGHTREC_CUSTOM_MAP),1)
 LDLIBS += -lrt
 OBJS += $(LIGHTREC_CUSTOM_MAP_OBJ)
 endif
+ifeq ($(NEED_SYSCONF),1)
+OBJS += libpcsxcore/lightrec/sysconf.o
+endif
 ifeq ($(LIGHTREC_THREADED_COMPILER),1)
 OBJS += deps/lightrec/recompiler.o \
 	deps/lightrec/reaper.o
