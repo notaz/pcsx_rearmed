@@ -330,10 +330,10 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	TARGET := $(TARGET_NAME)_libretro_$(platform).a
 	ifeq ($(platform), ngc)
 		CFLAGS += -DHW_DOL -mogc
-		DYNAREC := 0 # missing sysconf()
+		NEED_SYSCONF := 1
 	else ifeq ($(platform), wii)
 		CFLAGS += -DHW_RVL -mrvl
-		DYNAREC := 0 # missing sysconf()
+		NEED_SYSCONF := 1
 	else ifeq ($(platform), wiiu)
 		# -mwup was removed in newer devkitPPC versions
 		CFLAGS += -DHW_WUP
