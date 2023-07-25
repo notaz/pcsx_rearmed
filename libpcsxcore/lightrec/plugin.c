@@ -1,4 +1,5 @@
 #include <lightrec.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -49,6 +50,8 @@
 
 psxRegisters psxRegs;
 Rcnt rcnts[4];
+
+void* code_buffer;
 
 static struct lightrec_state *lightrec_state;
 
@@ -432,12 +435,19 @@ static int lightrec_plugin_init(void)
 	lightrec_map[PSX_MAP_HW_REGISTERS].address = psxH + 0x1000;
 	lightrec_map[PSX_MAP_PARALLEL_PORT].address = psxP;
 
+	if (!LIGHTREC_CUSTOM_MAP) {
+		code_buffer = malloc(CODE_BUFFER_SIZE);
+		if (!code_buffer)
+			return -ENOMEM;
+	}
+
 	if (LIGHTREC_CUSTOM_MAP) {
 		lightrec_map[PSX_MAP_MIRROR1].address = psxM + 0x200000;
 		lightrec_map[PSX_MAP_MIRROR2].address = psxM + 0x400000;
 		lightrec_map[PSX_MAP_MIRROR3].address = psxM + 0x600000;
-		lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
 	}
+
+	lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
 
 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
 
@@ -560,6 +570,9 @@ static void lightrec_plugin_apply_config()
 static void lightrec_plugin_shutdown(void)
 {
 	lightrec_destroy(lightrec_state);
+
+	if (!LIGHTREC_CUSTOM_MAP)
+		free(code_buffer);
 }
 
 static void lightrec_plugin_reset(void)
