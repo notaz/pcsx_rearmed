@@ -605,7 +605,9 @@ static int CLOCK_ADJUST(int x)
 
 static int ds_writes_rjump_rs(int i)
 {
-  return dops[i].rs1 != 0 && (dops[i].rs1 == dops[i+1].rt1 || dops[i].rs1 == dops[i+1].rt2);
+  return dops[i].rs1 != 0
+   && (dops[i].rs1 == dops[i+1].rt1 || dops[i].rs1 == dops[i+1].rt2
+    || dops[i].rs1 == dops[i].rt1); // overwrites itself - same effect
 }
 
 // psx addr mirror masking (for invalidation)
@@ -784,9 +786,16 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
     return ndrc_get_addr_ht(vaddr);
 
   // generate an address error
+#ifdef DRC_DBG
+  last_count -= 2;
+#endif
   psxRegs.CP0.n.Cause &= 0x300;
-  psxRegs.CP0.n.Cause |= R3000E_AdEL << 2;
   psxRegs.CP0.n.EPC = vaddr;
+  if (vaddr & 3) {
+    psxRegs.CP0.n.Cause |= R3000E_AdEL << 2;
+    psxRegs.CP0.n.BadVAddr = vaddr;
+  } else
+    psxRegs.CP0.n.Cause |= R3000E_IBE << 2;
   psxRegs.pc = 0x80000080;
   return ndrc_get_addr_ht(0x80000080);
 }
@@ -5213,7 +5222,7 @@ static void do_ccstub(int n)
         }
         hr++;
       }
-      if((dops[i].opcode&0x2E)==6) // BLEZ/BGTZ needs another register
+      if ((dops[i].opcode & 0x3e) == 6) // BLEZ/BGTZ needs another register
       {
         while(hr<HOST_REGS)
         {
@@ -5227,7 +5236,7 @@ static void do_ccstub(int n)
         }
         assert(hr<HOST_REGS);
       }
-      if((dops[i].opcode&0x2f)==4) // BEQ
+      if (dops[i].opcode == 4) // BEQ
       {
         #ifdef HAVE_CMOV_IMM
         if(s2l>=0) emit_cmp(s1l,s2l);
@@ -5240,7 +5249,7 @@ static void do_ccstub(int n)
         emit_cmovne_reg(alt,addr);
         #endif
       }
-      if((dops[i].opcode&0x2f)==5) // BNE
+      else if (dops[i].opcode == 5) // BNE
       {
         #ifdef HAVE_CMOV_IMM
         if(s2l>=0) emit_cmp(s1l,s2l);
@@ -5253,7 +5262,7 @@ static void do_ccstub(int n)
         emit_cmovne_reg(alt,addr);
         #endif
       }
-      if((dops[i].opcode&0x2f)==6) // BLEZ
+      else if (dops[i].opcode == 6) // BLEZ
       {
         //emit_movimm(cinfo[i].ba,alt);
         //emit_movimm(start+i*4+8,addr);
@@ -5261,7 +5270,7 @@ static void do_ccstub(int n)
         emit_cmpimm(s1l,1);
         emit_cmovl_reg(alt,addr);
       }
-      if((dops[i].opcode&0x2f)==7) // BGTZ
+      else if (dops[i].opcode == 7) // BGTZ
       {
         //emit_movimm(cinfo[i].ba,addr);
         //emit_movimm(start+i*4+8,ntaddr);
@@ -5269,41 +5278,17 @@ static void do_ccstub(int n)
         emit_cmpimm(s1l,1);
         emit_cmovl_reg(ntaddr,addr);
       }
-      if((dops[i].opcode==1)&&(dops[i].opcode2&0x2D)==0) // BLTZ
+      else if (dops[i].itype == SJUMP) // BLTZ/BGEZ
       {
         //emit_movimm(cinfo[i].ba,alt);
         //emit_movimm(start+i*4+8,addr);
-        emit_mov2imm_compact(cinfo[i].ba,alt,start+i*4+8,addr);
+        emit_mov2imm_compact(cinfo[i].ba,
+          (dops[i].opcode2 & 1) ? addr : alt, start + i*4 + 8,
+          (dops[i].opcode2 & 1) ? alt : addr);
         emit_test(s1l,s1l);
         emit_cmovs_reg(alt,addr);
       }
-      if((dops[i].opcode==1)&&(dops[i].opcode2&0x2D)==1) // BGEZ
-      {
-        //emit_movimm(cinfo[i].ba,addr);
-        //emit_movimm(start+i*4+8,alt);
-        emit_mov2imm_compact(cinfo[i].ba,addr,start+i*4+8,alt);
-        emit_test(s1l,s1l);
-        emit_cmovs_reg(alt,addr);
-      }
-      if(dops[i].opcode==0x11 && dops[i].opcode2==0x08 ) {
-        if(source[i]&0x10000) // BC1T
-        {
-          //emit_movimm(cinfo[i].ba,alt);
-          //emit_movimm(start+i*4+8,addr);
-          emit_mov2imm_compact(cinfo[i].ba,alt,start+i*4+8,addr);
-          emit_testimm(s1l,0x800000);
-          emit_cmovne_reg(alt,addr);
-        }
-        else // BC1F
-        {
-          //emit_movimm(cinfo[i].ba,addr);
-          //emit_movimm(start+i*4+8,alt);
-          emit_mov2imm_compact(cinfo[i].ba,addr,start+i*4+8,alt);
-          emit_testimm(s1l,0x800000);
-          emit_cmovne_reg(alt,addr);
-        }
-      }
-      emit_writeword(addr,&pcaddr);
+      emit_writeword(addr, &pcaddr);
     }
     else
     if(dops[i].itype==RJUMP)
@@ -5953,7 +5938,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
       if(adj&&!invert) emit_addimm(cc, cinfo[i].ccadj + CLOCK_ADJUST(2) - adj, cc);
       {
         assert(s1l>=0);
-        if((dops[i].opcode2&0xf)==0) // BLTZ/BLTZAL
+        if ((dops[i].opcode2 & 1) == 0) // BLTZ/BLTZAL
         {
           emit_test(s1l,s1l);
           if(invert){
@@ -5964,7 +5949,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
             emit_js(0);
           }
         }
-        if((dops[i].opcode2&0xf)==1) // BGEZ/BLTZAL
+        else // BGEZ/BGEZAL
         {
           emit_test(s1l,s1l);
           if(invert){
@@ -6019,34 +6004,29 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
     // In-order execution (branch first)
     //printf("IOE\n");
     void *nottaken = NULL;
-    if(dops[i].rt1==31) {
-      int rt,return_address;
-      rt=get_reg(branch_regs[i].regmap,31);
-      if(rt>=0) {
+    if (!unconditional) {
+      assert(s1l >= 0);
+      emit_test(s1l, s1l);
+    }
+    if (dops[i].rt1 == 31) {
+      int rt, return_address;
+      rt = get_reg(branch_regs[i].regmap,31);
+      if(rt >= 0) {
         // Save the PC even if the branch is not taken
-        return_address=start+i*4+8;
-        emit_movimm(return_address,rt); // PC into link register
+        return_address = start + i*4+8;
+        emit_movimm(return_address, rt); // PC into link register
         #ifdef IMM_PREFETCH
         emit_prefetch(hash_table_get(return_address));
         #endif
       }
     }
-    if(!unconditional) {
-      //printf("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
-        assert(s1l>=0);
-        if((dops[i].opcode2&0x0d)==0) // BLTZ/BLTZL/BLTZAL/BLTZALL
-        {
-          emit_test(s1l,s1l);
-          nottaken=out;
-          emit_jns(DJT_1);
-        }
-        if((dops[i].opcode2&0x0d)==1) // BGEZ/BGEZL/BGEZAL/BGEZALL
-        {
-          emit_test(s1l,s1l);
-          nottaken=out;
-          emit_js(DJT_1);
-        }
-    } // if(!unconditional)
+    if (!unconditional) {
+      nottaken = out;
+      if (!(dops[i].opcode2 & 1)) // BLTZ/BLTZAL
+        emit_jns(DJT_1);
+      else                        // BGEZ/BGEZAL
+        emit_js(DJT_1);
+    }
     int adj;
     uint64_t ds_unneeded=branch_regs[i].u;
     ds_unneeded&=~((1LL<<dops[i+1].rs1)|(1LL<<dops[i+1].rs2));
@@ -6167,7 +6147,7 @@ void disassemble_inst(int i)
       case SJUMP:
         printf (" %x: %s r%d,%8x\n",start+i*4,insn[i],dops[i].rs1,start+i*4+4+((signed int)((unsigned int)source[i]<<16)>>14));break;
       case RJUMP:
-        if (dops[i].opcode==0x9&&dops[i].rt1!=31)
+        if (dops[i].opcode2 == 9 && dops[i].rt1 != 31)
           printf (" %x: %s r%d,r%d\n",start+i*4,insn[i],dops[i].rt1,dops[i].rs1);
         else
           printf (" %x: %s r%d\n",start+i*4,insn[i],dops[i].rs1);
@@ -6628,7 +6608,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
 
   for (i = 0; !done; i++)
   {
-    int force_prev_to_interpreter = 0;
+    int force_j_to_interpreter = 0;
     memset(&dops[i], 0, sizeof(dops[i]));
     memset(&cinfo[i], 0, sizeof(cinfo[i]));
     cinfo[i].ba = -1;
@@ -6963,11 +6943,12 @@ static noinline void pass1_disassemble(u_int pagelimit)
 
     /* rare messy cases to just pass over to the interpreter */
     if (i > 0 && dops[i-1].is_jump) {
+      j = i - 1;
       // branch in delay slot?
       if (dops[i].is_jump) {
         // don't handle first branch and call interpreter if it's hit
         SysPrintf("branch in DS @%08x (%08x)\n", start + i*4, start);
-        force_prev_to_interpreter = 1;
+        force_j_to_interpreter = 1;
       }
       // basic load delay detection through a branch
       else if (dops[i].is_delay_load && dops[i].rt1 != 0) {
@@ -6975,29 +6956,32 @@ static noinline void pass1_disassemble(u_int pagelimit)
         if(0 <= t && t < i &&(dops[i].rt1==dops[t].rs1||dops[i].rt1==dops[t].rs2)&&dops[t].itype!=CJUMP&&dops[t].itype!=SJUMP) {
           // jump target wants DS result - potential load delay effect
           SysPrintf("load delay in DS @%08x (%08x)\n", start + i*4, start);
-          force_prev_to_interpreter = 1;
+          force_j_to_interpreter = 1;
           dops[t+1].bt=1; // expected return from interpreter
         }
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
               !(i>=3&&dops[i-3].is_jump)) {
           // v0 overwrite like this is a sign of trouble, bail out
           SysPrintf("v0 overwrite @%08x (%08x)\n", start + i*4, start);
-          force_prev_to_interpreter = 1;
+          force_j_to_interpreter = 1;
         }
       }
     }
     else if (i > 0 && dops[i-1].is_delay_load && dops[i-1].rt1 != 0
              && (dops[i].rs1 == dops[i-1].rt1 || dops[i].rs2 == dops[i-1].rt1)) {
       SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
-      force_prev_to_interpreter = 1;
+      for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
+        if (dops[j-1].rt1 != dops[i-1].rt1)
+          break;
+      force_j_to_interpreter = 1;
     }
-    if (force_prev_to_interpreter) {
-      memset(&dops[i-1], 0, sizeof(dops[i-1]));
-      dops[i-1].itype = INTCALL;
-      dops[i-1].rs1 = CCREG;
-      cinfo[i-1].ba = -1;
+    if (force_j_to_interpreter) {
+      memset(&dops[j], 0, sizeof(dops[j]));
+      dops[j].itype = INTCALL;
+      dops[j].rs1 = CCREG;
+      cinfo[j].ba = -1;
       done = 2;
-      i--; // don't compile the DS/problematic load/etc
+      i = j; // don't compile the problematic branch/load/etc
     }
 
     /* Is this the end of the block? */
@@ -7473,11 +7457,13 @@ static noinline void pass3_register_alloc(u_int addr)
             alloc_cc(&current,i);
             dirty_reg(&current,CCREG);
             alloc_reg(&current,i,dops[i].rs1);
-            if (dops[i].rt1==31) { // BLTZAL/BGEZAL
+            if (dops[i].rt1 == 31) { // BLTZAL/BGEZAL
               alloc_reg(&current,i,31);
               dirty_reg(&current,31);
             }
-            if((dops[i].rs1&&(dops[i].rs1==dops[i+1].rt1||dops[i].rs1==dops[i+1].rt2)) // The delay slot overwrites the branch condition.
+            if ((dops[i].rs1 &&
+                 (dops[i].rs1==dops[i+1].rt1||dops[i].rs1==dops[i+1].rt2)) // The delay slot overwrites the branch condition.
+               ||(dops[i].rt1 == 31 && dops[i].rs1 == 31) // overwrites it's own condition
                ||(dops[i].rt1==31&&(dops[i+1].rs1==31||dops[i+1].rs2==31||dops[i+1].rt1==31||dops[i+1].rt2==31))) { // DS touches $ra
               // Allocate the branch condition registers instead.
               current.isconst=0;
