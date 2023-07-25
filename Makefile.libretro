@@ -268,7 +268,7 @@ else ifeq ($(platform), psl1ght)
 	NO_PTHREAD := 1
 	LIBPTHREAD :=
 	LIBDL :=
-	DYNAREC := 0 # missing sysconf()
+	NEED_SYSCONF := 1
 
 # PSP
 else ifeq ($(platform), psp1)
