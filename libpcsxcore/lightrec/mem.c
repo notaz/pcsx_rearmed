@@ -31,8 +31,6 @@
 #define MFD_HUGETLB 0x0004
 #endif
 
-void *code_buffer;
-
 static const uintptr_t supported_io_bases[] = {
 	0x0,
 	0x10000000,

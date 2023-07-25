@@ -14,8 +14,6 @@
 
 #include "mem.h"
 
-void* code_buffer;
-
 static void* wiiu_mmap(uint32_t requested_va, size_t length, void* backing_mem) {
 	if (length < OS_PAGE_SIZE) length = OS_PAGE_SIZE;
 
