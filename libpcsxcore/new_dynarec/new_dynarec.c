@@ -320,7 +320,7 @@ static struct compile_info
 
   #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
 
-  extern int cycle_count; // ... until end of the timeslice, counts -N -> 0
+  extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
   extern int last_count;  // last absolute target, often = next_interupt
   extern int pcaddr;
   extern int pending_exception;
@@ -333,7 +333,7 @@ static struct compile_info
 #define LOREG 32 // lo
 #define HIREG 33 // hi
 //#define FSREG 34 // FPU status (FCSR)
-#define CSREG 35 // Coprocessor status
+//#define CSREG 35 // Coprocessor status
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
 //#define MMREG 38 // Pointer to memory_map
@@ -419,7 +419,7 @@ static void load_regs_entry(int t);
 static void load_all_consts(const signed char regmap[], u_int dirty, int i);
 static u_int get_host_reglist(const signed char *regmap);
 
-static int get_final_value(int hr, int i, int *value);
+static int get_final_value(int hr, int i, u_int *value);
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
@@ -748,6 +748,26 @@ static void *try_restore_block(u_int vaddr, u_int start_page, u_int end_page)
   return NULL;
 }
 
+// this doesn't normally happen
+static noinline u_int generate_exception(u_int pc)
+{
+  //if (execBreakCheck(&psxRegs, pc))
+  //  return psxRegs.pc;
+
+  // generate an address or bus error
+  psxRegs.CP0.n.Cause &= 0x300;
+  psxRegs.CP0.n.EPC = pc;
+  if (pc & 3) {
+    psxRegs.CP0.n.Cause |= R3000E_AdEL << 2;
+    psxRegs.CP0.n.BadVAddr = pc;
+#ifdef DRC_DBG
+    last_count -= 2;
+#endif
+  } else
+    psxRegs.CP0.n.Cause |= R3000E_IBE << 2;
+  return (psxRegs.pc = 0x80000080);
+}
+
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
 static void noinline *get_addr(u_int vaddr, int can_compile)
@@ -782,22 +802,10 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
     return NULL;
 
   int r = new_recompile_block(vaddr);
-  if (r == 0)
+  if (likely(r == 0))
     return ndrc_get_addr_ht(vaddr);
 
-  // generate an address error
-#ifdef DRC_DBG
-  last_count -= 2;
-#endif
-  psxRegs.CP0.n.Cause &= 0x300;
-  psxRegs.CP0.n.EPC = vaddr;
-  if (vaddr & 3) {
-    psxRegs.CP0.n.Cause |= R3000E_AdEL << 2;
-    psxRegs.CP0.n.BadVAddr = vaddr;
-  } else
-    psxRegs.CP0.n.Cause |= R3000E_IBE << 2;
-  psxRegs.pc = 0x80000080;
-  return ndrc_get_addr_ht(0x80000080);
+  return ndrc_get_addr_ht(generate_exception(vaddr));
 }
 
 // Look up address in hash table first
@@ -1247,6 +1255,7 @@ static const char *fpofs_name(u_int ofs)
   switch (ofs) {
   #define ofscase(x) case LO_##x: return " ; " #x
   ofscase(next_interupt);
+  ofscase(cycle_count);
   ofscase(last_count);
   ofscase(pending_exception);
   ofscase(stop);
@@ -1960,8 +1969,6 @@ static void shiftimm_alloc(struct regstat *current,int i)
 static void shift_alloc(struct regstat *current,int i)
 {
   if(dops[i].rt1) {
-    if(dops[i].opcode2<=0x07) // SLLV/SRLV/SRAV
-    {
       if(dops[i].rs1) alloc_reg(current,i,dops[i].rs1);
       if(dops[i].rs2) alloc_reg(current,i,dops[i].rs2);
       alloc_reg(current,i,dops[i].rt1);
@@ -1969,9 +1976,6 @@ static void shift_alloc(struct regstat *current,int i)
         alloc_reg_temp(current,i,-1);
         cinfo[i].min_free_regs=1;
       }
-    } else { // DSLLV/DSRLV/DSRAV
-      assert(0);
-    }
     clear_const(current,dops[i].rs1);
     clear_const(current,dops[i].rs2);
     clear_const(current,dops[i].rt1);
@@ -2154,17 +2158,11 @@ static void multdiv_alloc(struct regstat *current,int i)
   //  case 0x19: MULTU
   //  case 0x1A: DIV
   //  case 0x1B: DIVU
-  //  case 0x1C: DMULT
-  //  case 0x1D: DMULTU
-  //  case 0x1E: DDIV
-  //  case 0x1F: DDIVU
   clear_const(current,dops[i].rs1);
   clear_const(current,dops[i].rs2);
   alloc_cc(current,i); // for stalls
   if(dops[i].rs1&&dops[i].rs2)
   {
-    if((dops[i].opcode2&4)==0) // 32-bit
-    {
       current->u&=~(1LL<<HIREG);
       current->u&=~(1LL<<LOREG);
       alloc_reg(current,i,HIREG);
@@ -2173,21 +2171,17 @@ static void multdiv_alloc(struct regstat *current,int i)
       alloc_reg(current,i,dops[i].rs2);
       dirty_reg(current,HIREG);
       dirty_reg(current,LOREG);
-    }
-    else // 64-bit
-    {
-      assert(0);
-    }
   }
   else
   {
     // Multiply by zero is zero.
     // MIPS does not have a divide by zero exception.
-    // The result is undefined, we return zero.
     alloc_reg(current,i,HIREG);
     alloc_reg(current,i,LOREG);
     dirty_reg(current,HIREG);
     dirty_reg(current,LOREG);
+    if (dops[i].rs1 && ((dops[i].opcode2 & 0x3e) == 0x1a)) // div(u) 0
+      alloc_reg(current, i, dops[i].rs1);
   }
 }
 #endif
@@ -2204,6 +2198,10 @@ static void cop0_alloc(struct regstat *current,int i)
   }
   else if(dops[i].opcode2==4) // MTC0
   {
+    if (((source[i]>>11)&0x1e) == 12) {
+      alloc_cc(current, i);
+      dirty_reg(current, CCREG);
+    }
     if(dops[i].rs1){
       clear_const(current,dops[i].rs1);
       alloc_reg(current,i,dops[i].rs1);
@@ -3474,7 +3472,6 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   assert(addr >= 0);
   if(!c) {
     emit_cmpimm(addr, RAM_SIZE);
-    if (!offset && s != addr) emit_mov(s, addr);
     jaddr=out;
     emit_jno(0);
   }
@@ -3487,10 +3484,6 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   }
   if (ram_offset)
     offset_reg = get_ro_reg(i_regs, 0);
-
-  if (dops[i].opcode==0x2C||dops[i].opcode==0x2D) { // SDL/SDR
-    assert(0);
-  }
 
   emit_testimm(addr,2);
   case23=out;
@@ -3578,22 +3571,18 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
   }
   else if(dops[i].opcode2==4) // MTC0
   {
-    signed char s=get_reg(i_regs->regmap,dops[i].rs1);
+    int s = get_reg(i_regs->regmap, dops[i].rs1);
+    int cc = get_reg(i_regs->regmap, CCREG);
     char copr=(source[i]>>11)&0x1f;
     assert(s>=0);
     wb_register(dops[i].rs1,i_regs->regmap,i_regs->dirty);
-    if(copr==9||copr==11||copr==12||copr==13) {
+    if (copr == 12 || copr == 13) {
       emit_readword(&last_count,HOST_TEMPREG);
-      emit_loadreg(CCREG,HOST_CCREG); // TODO: do proper reg alloc
-      emit_add(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
-      emit_addimm(HOST_CCREG,ccadj_,HOST_CCREG);
-      emit_writeword(HOST_CCREG,&psxRegs.cycle);
-    }
-    // What a mess.  The status register (12) can enable interrupts,
-    // so needs a special case to handle a pending interrupt.
-    // The interrupt must be taken immediately, because a subsequent
-    // instruction might disable interrupts again.
-    if(copr==12||copr==13) {
+      if (cc != HOST_CCREG)
+        emit_loadreg(CCREG, HOST_CCREG);
+      emit_add(HOST_CCREG, HOST_TEMPREG, HOST_CCREG);
+      emit_addimm(HOST_CCREG, ccadj_ + 2, HOST_CCREG);
+      emit_writeword(HOST_CCREG, &psxRegs.cycle);
       if (is_delayslot) {
         // burn cycles to cause cc_interrupt, which will
         // reschedule next_interupt. Relies on CCREG from above.
@@ -3612,31 +3601,27 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_movimm(0,HOST_TEMPREG);
       emit_writeword(HOST_TEMPREG,&pending_exception);
     }
-    if(s==HOST_CCREG)
-      emit_loadreg(dops[i].rs1,1);
-    else if(s!=1)
-      emit_mov(s,1);
-    emit_movimm(copr,0);
+    if( s != 1)
+      emit_mov(s, 1);
+    emit_movimm(copr, 0);
     emit_far_call(pcsx_mtc0);
-    if(copr==9||copr==11||copr==12||copr==13) {
+    if (copr == 12 || copr == 13) {
       emit_readword(&psxRegs.cycle,HOST_CCREG);
-      emit_readword(&next_interupt,HOST_TEMPREG);
-      emit_addimm(HOST_CCREG,-ccadj_,HOST_CCREG);
+      emit_readword(&last_count,HOST_TEMPREG);
       emit_sub(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
-      emit_writeword(HOST_TEMPREG,&last_count);
-      emit_storereg(CCREG,HOST_CCREG);
-    }
-    if(copr==12||copr==13) {
+      //emit_writeword(HOST_TEMPREG,&last_count);
       assert(!is_delayslot);
       emit_readword(&pending_exception,HOST_TEMPREG);
       emit_test(HOST_TEMPREG,HOST_TEMPREG);
       void *jaddr = out;
       emit_jeq(0);
       emit_readword(&pcaddr, 0);
-      emit_addimm(HOST_CCREG,2,HOST_CCREG);
       emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
       set_jump_target(jaddr, out);
+      emit_addimm(HOST_CCREG, -ccadj_ - 2, HOST_CCREG);
+      if (cc != HOST_CCREG)
+        emit_storereg(CCREG, HOST_CCREG);
     }
     emit_loadreg(dops[i].rs1,s);
   }
@@ -3968,7 +3953,6 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
   s=get_reg(i_regs->regmap,dops[i].rs1);
   tl=get_reg(i_regs->regmap,FTEMP);
   offset=cinfo[i].imm;
-  assert(dops[i].rs1>0);
   assert(tl>=0);
 
   if(i_regs->regmap[HOST_CCREG]==CCREG)
@@ -4119,6 +4103,8 @@ static void do_unalignedwritestub(int n)
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,(int)stubs[n].d+1,2);
+  emit_movimm(start + i*4,3);
+  emit_writeword(3,&psxRegs.pc);
   emit_far_call((dops[i].opcode==0x2a?jump_handle_swl:jump_handle_swr));
   emit_addimm(0,-((int)stubs[n].d+1),cc<0?2:cc);
   if(cc<0)
@@ -4286,7 +4272,8 @@ static void speculate_register_values(int i)
       // fallthrough
     case IMM16:
       if(dops[i].rt1&&is_const(&regs[i],dops[i].rt1)) {
-        int value,hr=get_reg_w(regs[i].regmap, dops[i].rt1);
+        int hr = get_reg_w(regs[i].regmap, dops[i].rt1);
+        u_int value;
         if(hr>=0) {
           if(get_final_value(hr,i,&value))
                smrv[dops[i].rt1]=value;
@@ -4647,7 +4634,7 @@ static void address_generation(int i, const struct regstat *i_regs, signed char 
   }
 }
 
-static int get_final_value(int hr, int i, int *value)
+static int get_final_value(int hr, int i, u_int *value)
 {
   int reg=regs[i].regmap[hr];
   while(i<slen-1) {
@@ -4710,7 +4697,7 @@ static void load_consts(signed char pre[],signed char regmap[],int i)
       if(!((regs[i].loadedconst>>hr)&1)) {
         assert(regmap[hr]<64);
         if(((regs[i].isconst>>hr)&1)&&regmap[hr]>0) {
-          int value,similar=0;
+          u_int value, similar=0;
           if(get_final_value(hr,i,&value)) {
             // see if some other register has similar value
             for(hr2=0;hr2<HOST_REGS;hr2++) {
@@ -4722,7 +4709,7 @@ static void load_consts(signed char pre[],signed char regmap[],int i)
               }
             }
             if(similar) {
-              int value2;
+              u_int value2;
               if(get_final_value(hr2,i,&value2)) // is this needed?
                 emit_movimm_from(value2,hr2,value,hr);
               else
@@ -5282,11 +5269,15 @@ static void do_ccstub(int n)
       {
         //emit_movimm(cinfo[i].ba,alt);
         //emit_movimm(start+i*4+8,addr);
-        emit_mov2imm_compact(cinfo[i].ba,
-          (dops[i].opcode2 & 1) ? addr : alt, start + i*4 + 8,
-          (dops[i].opcode2 & 1) ? alt : addr);
-        emit_test(s1l,s1l);
-        emit_cmovs_reg(alt,addr);
+        if (dops[i].rs1) {
+          emit_mov2imm_compact(cinfo[i].ba,
+            (dops[i].opcode2 & 1) ? addr : alt, start + i*4 + 8,
+            (dops[i].opcode2 & 1) ? alt : addr);
+          emit_test(s1l,s1l);
+          emit_cmovs_reg(alt,addr);
+        }
+        else
+          emit_movimm((dops[i].opcode2 & 1) ? cinfo[i].ba : start + i*4 + 8, addr);
       }
       emit_writeword(addr, &pcaddr);
     }
@@ -5345,7 +5336,7 @@ static void ujump_assemble_write_ra(int i)
   int rt;
   unsigned int return_address;
   rt=get_reg(branch_regs[i].regmap,31);
-  assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
+  //assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
   //assert(rt>=0);
   return_address=start+i*4+8;
   if(rt>=0) {
@@ -5367,7 +5358,8 @@ static void ujump_assemble_write_ra(int i)
         if(i_regmap[temp]!=PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
       }
       #endif
-      emit_movimm(return_address,rt); // PC into link register
+      if (!((regs[i].loadedconst >> rt) & 1))
+        emit_movimm(return_address, rt); // PC into link register
       #ifdef IMM_PREFETCH
       emit_prefetch(hash_table_get(return_address));
       #endif
@@ -5377,7 +5369,6 @@ static void ujump_assemble_write_ra(int i)
 
 static void ujump_assemble(int i, const struct regstat *i_regs)
 {
-  int ra_done=0;
   if(i==(cinfo[i].ba-start)>>2) assem_debug("idle loop\n");
   address_generation(i+1,i_regs,regs[i].regmap_entry);
   #ifdef REG_PREFETCH
@@ -5390,17 +5381,13 @@ static void ujump_assemble(int i, const struct regstat *i_regs)
     if(i_regmap[temp]==PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
   }
   #endif
-  if(dops[i].rt1==31&&(dops[i].rt1==dops[i+1].rs1||dops[i].rt1==dops[i+1].rs2)) {
+  if (dops[i].rt1 == 31)
     ujump_assemble_write_ra(i); // writeback ra for DS
-    ra_done=1;
-  }
   ds_assemble(i+1,i_regs);
   uint64_t bc_unneeded=branch_regs[i].u;
   bc_unneeded|=1|(1LL<<dops[i].rt1);
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,bc_unneeded);
   load_reg(regs[i].regmap,branch_regs[i].regmap,CCREG);
-  if(!ra_done&&dops[i].rt1==31)
-    ujump_assemble_write_ra(i);
   int cc,adj;
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
@@ -5427,10 +5414,8 @@ static void ujump_assemble(int i, const struct regstat *i_regs)
 static void rjump_assemble_write_ra(int i)
 {
   int rt,return_address;
-  assert(dops[i+1].rt1!=dops[i].rt1);
-  assert(dops[i+1].rt2!=dops[i].rt1);
   rt=get_reg_w(branch_regs[i].regmap, dops[i].rt1);
-  assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
+  //assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
   assert(rt>=0);
   return_address=start+i*4+8;
   #ifdef REG_PREFETCH
@@ -5439,7 +5424,8 @@ static void rjump_assemble_write_ra(int i)
     if(i_regmap[temp]!=PTEMP) emit_movimm((uintptr_t)hash_table_get(return_address),temp);
   }
   #endif
-  emit_movimm(return_address,rt); // PC into link register
+  if (!((regs[i].loadedconst >> rt) & 1))
+    emit_movimm(return_address, rt); // PC into link register
   #ifdef IMM_PREFETCH
   emit_prefetch(hash_table_get(return_address));
   #endif
@@ -5449,7 +5435,6 @@ static void rjump_assemble(int i, const struct regstat *i_regs)
 {
   int temp;
   int rs,cc;
-  int ra_done=0;
   rs=get_reg(branch_regs[i].regmap,dops[i].rs1);
   assert(rs>=0);
   if (ds_writes_rjump_rs(i)) {
@@ -5477,18 +5462,14 @@ static void rjump_assemble(int i, const struct regstat *i_regs)
     if(rh>=0) do_preload_rhash(rh);
   }
   #endif
-  if(dops[i].rt1!=0&&(dops[i].rt1==dops[i+1].rs1||dops[i].rt1==dops[i+1].rs2)) {
+  if (dops[i].rt1 != 0)
     rjump_assemble_write_ra(i);
-    ra_done=1;
-  }
   ds_assemble(i+1,i_regs);
   uint64_t bc_unneeded=branch_regs[i].u;
   bc_unneeded|=1|(1LL<<dops[i].rt1);
   bc_unneeded&=~(1LL<<dops[i].rs1);
   wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,bc_unneeded);
   load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i].rs1,CCREG);
-  if(!ra_done&&dops[i].rt1!=0)
-    rjump_assemble_write_ra(i);
   cc=get_reg(branch_regs[i].regmap,CCREG);
   assert(cc==HOST_CCREG);
   (void)cc;
@@ -5889,7 +5870,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
     if(dops[i].rt1==31) {
       int rt,return_address;
       rt=get_reg(branch_regs[i].regmap,31);
-      assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
+      //assem_debug("branch(%d): eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",i,branch_regs[i].regmap[0],branch_regs[i].regmap[1],branch_regs[i].regmap[2],branch_regs[i].regmap[3],branch_regs[i].regmap[5],branch_regs[i].regmap[6],branch_regs[i].regmap[7]);
       if(rt>=0) {
         // Save the PC even if the branch is not taken
         return_address=start+i*4+8;
@@ -6004,7 +5985,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
     // In-order execution (branch first)
     //printf("IOE\n");
     void *nottaken = NULL;
-    if (!unconditional) {
+    if (!unconditional && !nevertaken) {
       assert(s1l >= 0);
       emit_test(s1l, s1l);
     }
@@ -6020,7 +6001,7 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
         #endif
       }
     }
-    if (!unconditional) {
+    if (!unconditional && !nevertaken) {
       nottaken = out;
       if (!(dops[i].opcode2 & 1)) // BLTZ/BLTZAL
         emit_jns(DJT_1);
@@ -6067,7 +6048,10 @@ static void sjump_assemble(int i, const struct regstat *i_regs)
     }
     // branch not taken
     if(!unconditional) {
-      set_jump_target(nottaken, out);
+      if (!nevertaken) {
+        assert(nottaken);
+        set_jump_target(nottaken, out);
+      }
       assem_debug("1:\n");
       wb_invalidate(regs[i].regmap,branch_regs[i].regmap,regs[i].dirty,ds_unneeded);
       load_regs(regs[i].regmap,branch_regs[i].regmap,dops[i+1].rs1,dops[i+1].rs2);
@@ -6601,26 +6585,36 @@ static int apply_hacks(void)
   return 0;
 }
 
-static noinline void pass1_disassemble(u_int pagelimit)
+static int is_ld_use_hazard(int ld_rt, const struct decoded_insn *op)
 {
-  int i, j, done = 0, ni_count = 0;
-  unsigned int type,op,op2,op3;
+  return ld_rt != 0 && (ld_rt == op->rs1 || ld_rt == op->rs2)
+    && op->itype != LOADLR && op->itype != CJUMP && op->itype != SJUMP;
+}
 
-  for (i = 0; !done; i++)
-  {
-    int force_j_to_interpreter = 0;
+static void force_intcall(int i)
+{
+  memset(&dops[i], 0, sizeof(dops[i]));
+  dops[i].itype = INTCALL;
+  dops[i].rs1 = CCREG;
+  dops[i].is_exception = 1;
+  cinfo[i].ba = -1;
+}
+
+static void disassemble_one(int i, u_int src)
+{
+    unsigned int type, op, op2, op3;
     memset(&dops[i], 0, sizeof(dops[i]));
     memset(&cinfo[i], 0, sizeof(cinfo[i]));
     cinfo[i].ba = -1;
     cinfo[i].addr = -1;
-    dops[i].opcode = op = source[i] >> 26;
+    dops[i].opcode = op = src >> 26;
     op2 = 0;
     type = INTCALL;
     set_mnemonic(i, "???");
     switch(op)
     {
       case 0x00: set_mnemonic(i, "special");
-        op2=source[i]&0x3f;
+        op2 = src & 0x3f;
         switch(op2)
         {
           case 0x00: set_mnemonic(i, "SLL"); type=SHIFTIMM; break;
@@ -6633,7 +6627,6 @@ static noinline void pass1_disassemble(u_int pagelimit)
           case 0x09: set_mnemonic(i, "JALR"); type=RJUMP; break;
           case 0x0C: set_mnemonic(i, "SYSCALL"); type=SYSCALL; break;
           case 0x0D: set_mnemonic(i, "BREAK"); type=SYSCALL; break;
-          case 0x0F: set_mnemonic(i, "SYNC"); type=OTHER; break;
           case 0x10: set_mnemonic(i, "MFHI"); type=MOV; break;
           case 0x11: set_mnemonic(i, "MTHI"); type=MOV; break;
           case 0x12: set_mnemonic(i, "MFLO"); type=MOV; break;
@@ -6656,7 +6649,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
         break;
       case 0x01: set_mnemonic(i, "regimm");
         type = SJUMP;
-        op2 = (source[i] >> 16) & 0x1f;
+        op2 = (src >> 16) & 0x1f;
         switch(op2)
         {
           case 0x10: set_mnemonic(i, "BLTZAL"); break;
@@ -6683,9 +6676,9 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case 0x0E: set_mnemonic(i, "XORI"); type=IMM16; break;
       case 0x0F: set_mnemonic(i, "LUI"); type=IMM16; break;
       case 0x10: set_mnemonic(i, "COP0");
-        op2 = (source[i]>>21) & 0x1f;
+        op2 = (src >> 21) & 0x1f;
 	if (op2 & 0x10) {
-          op3 = source[i] & 0x1f;
+          op3 = src & 0x1f;
           switch (op3)
           {
             case 0x01: case 0x02: case 0x06: case 0x08: type = INTCALL; break;
@@ -6699,7 +6692,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
           u32 rd;
           case 0x00:
             set_mnemonic(i, "MFC0");
-            rd = (source[i] >> 11) & 0x1F;
+            rd = (src >> 11) & 0x1F;
             if (!(0x00000417u & (1u << rd)))
               type = COP0;
             break;
@@ -6710,18 +6703,18 @@ static noinline void pass1_disassemble(u_int pagelimit)
         }
         break;
       case 0x11: set_mnemonic(i, "COP1");
-        op2=(source[i]>>21)&0x1f;
+        op2 = (src >> 21) & 0x1f;
         break;
       case 0x12: set_mnemonic(i, "COP2");
-        op2=(source[i]>>21)&0x1f;
+        op2 = (src >> 21) & 0x1f;
         if (op2 & 0x10) {
           type = OTHER;
-          if (gte_handlers[source[i]&0x3f]!=NULL) {
+          if (gte_handlers[src & 0x3f] != NULL) {
 #ifdef DISASM
-            if (gte_regnames[source[i]&0x3f]!=NULL)
-              strcpy(insn[i],gte_regnames[source[i]&0x3f]);
+            if (gte_regnames[src & 0x3f] != NULL)
+              strcpy(insn[i], gte_regnames[src & 0x3f]);
             else
-              snprintf(insn[i], sizeof(insn[i]), "COP2 %x", source[i]&0x3f);
+              snprintf(insn[i], sizeof(insn[i]), "COP2 %x", src & 0x3f);
 #endif
             type = C2OP;
           }
@@ -6735,7 +6728,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
         }
         break;
       case 0x13: set_mnemonic(i, "COP3");
-        op2=(source[i]>>21)&0x1f;
+        op2 = (src >> 21) & 0x1f;
         break;
       case 0x20: set_mnemonic(i, "LB"); type=LOAD; break;
       case 0x21: set_mnemonic(i, "LH"); type=LOAD; break;
@@ -6752,7 +6745,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
       case 0x32: set_mnemonic(i, "LWC2"); type=C2LS; break;
       case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; break;
       case 0x3B:
-        if (Config.HLE && (source[i] & 0x03ffffff) < ARRAY_SIZE(psxHLEt)) {
+        if (Config.HLE && (src & 0x03ffffff) < ARRAY_SIZE(psxHLEt)) {
           set_mnemonic(i, "HLECALL");
           type = HLECALL;
         }
@@ -6761,7 +6754,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
         break;
     }
     if (type == INTCALL)
-      SysPrintf("NI %08x @%08x (%08x)\n", source[i], start + i*4, start);
+      SysPrintf("NI %08x @%08x (%08x)\n", src, start + i*4, start);
     dops[i].itype=type;
     dops[i].opcode2=op2;
     /* Get registers/immediates */
@@ -6773,33 +6766,33 @@ static noinline void pass1_disassemble(u_int pagelimit)
     dops[i].rt2 = 0;
     switch(type) {
       case LOAD:
-        dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rt1=(source[i]>>16)&0x1f;
-        cinfo[i].imm=(short)source[i];
+        dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rt1 = (src >> 16) & 0x1f;
+        cinfo[i].imm = (short)src;
         break;
       case STORE:
       case STORELR:
-        dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=(source[i]>>16)&0x1f;
-        cinfo[i].imm=(short)source[i];
+        dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rs2 = (src >> 16) & 0x1f;
+        cinfo[i].imm = (short)src;
         break;
       case LOADLR:
         // LWL/LWR only load part of the register,
         // therefore the target register must be treated as a source too
-        dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=(source[i]>>16)&0x1f;
-        dops[i].rt1=(source[i]>>16)&0x1f;
-        cinfo[i].imm=(short)source[i];
+        dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rs2 = (src >> 16) & 0x1f;
+        dops[i].rt1 = (src >> 16) & 0x1f;
+        cinfo[i].imm = (short)src;
         break;
       case IMM16:
         if (op==0x0f) dops[i].rs1=0; // LUI instruction has no source register
-        else dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=0;
-        dops[i].rt1=(source[i]>>16)&0x1f;
+        else dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rs2 = 0;
+        dops[i].rt1 = (src >> 16) & 0x1f;
         if(op>=0x0c&&op<=0x0e) { // ANDI/ORI/XORI
-          cinfo[i].imm=(unsigned short)source[i];
+          cinfo[i].imm = (unsigned short)src;
         }else{
-          cinfo[i].imm=(short)source[i];
+          cinfo[i].imm = (short)src;
         }
         break;
       case UJUMP:
@@ -6810,36 +6803,36 @@ static noinline void pass1_disassemble(u_int pagelimit)
         dops[i].rs2=CCREG;
         break;
       case RJUMP:
-        dops[i].rs1=(source[i]>>21)&0x1f;
+        dops[i].rs1 = (src >> 21) & 0x1f;
         // The JALR instruction writes to rd.
         if (op2&1) {
-          dops[i].rt1=(source[i]>>11)&0x1f;
+          dops[i].rt1 = (src >> 11) & 0x1f;
         }
         dops[i].rs2=CCREG;
         break;
       case CJUMP:
-        dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=(source[i]>>16)&0x1f;
+        dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rs2 = (src >> 16) & 0x1f;
         if(op&2) { // BGTZ/BLEZ
           dops[i].rs2=0;
         }
         break;
       case SJUMP:
-        dops[i].rs1=(source[i]>>21)&0x1f;
-        dops[i].rs2=CCREG;
+        dops[i].rs1 = (src >> 21) & 0x1f;
+        dops[i].rs2 = CCREG;
         if (op2 == 0x10 || op2 == 0x11) { // BxxAL
           dops[i].rt1 = 31;
           // NOTE: If the branch is not taken, r31 is still overwritten
         }
         break;
       case ALU:
-        dops[i].rs1=(source[i]>>21)&0x1f; // source
-        dops[i].rs2=(source[i]>>16)&0x1f; // subtract amount
-        dops[i].rt1=(source[i]>>11)&0x1f; // destination
+        dops[i].rs1=(src>>21)&0x1f; // source
+        dops[i].rs2=(src>>16)&0x1f; // subtract amount
+        dops[i].rt1=(src>>11)&0x1f; // destination
         break;
       case MULTDIV:
-        dops[i].rs1=(source[i]>>21)&0x1f; // source
-        dops[i].rs2=(source[i]>>16)&0x1f; // divisor
+        dops[i].rs1=(src>>21)&0x1f; // source
+        dops[i].rs2=(src>>16)&0x1f; // divisor
         dops[i].rt1=HIREG;
         dops[i].rt2=LOREG;
         break;
@@ -6848,30 +6841,29 @@ static noinline void pass1_disassemble(u_int pagelimit)
         if(op2==0x11) dops[i].rt1=HIREG; // MTHI
         if(op2==0x12) dops[i].rs1=LOREG; // MFLO
         if(op2==0x13) dops[i].rt1=LOREG; // MTLO
-        if((op2&0x1d)==0x10) dops[i].rt1=(source[i]>>11)&0x1f; // MFxx
-        if((op2&0x1d)==0x11) dops[i].rs1=(source[i]>>21)&0x1f; // MTxx
+        if((op2&0x1d)==0x10) dops[i].rt1=(src>>11)&0x1f; // MFxx
+        if((op2&0x1d)==0x11) dops[i].rs1=(src>>21)&0x1f; // MTxx
         break;
       case SHIFT:
-        dops[i].rs1=(source[i]>>16)&0x1f; // target of shift
-        dops[i].rs2=(source[i]>>21)&0x1f; // shift amount
-        dops[i].rt1=(source[i]>>11)&0x1f; // destination
+        dops[i].rs1=(src>>16)&0x1f; // target of shift
+        dops[i].rs2=(src>>21)&0x1f; // shift amount
+        dops[i].rt1=(src>>11)&0x1f; // destination
         break;
       case SHIFTIMM:
-        dops[i].rs1=(source[i]>>16)&0x1f;
+        dops[i].rs1=(src>>16)&0x1f;
         dops[i].rs2=0;
-        dops[i].rt1=(source[i]>>11)&0x1f;
-        cinfo[i].imm=(source[i]>>6)&0x1f;
+        dops[i].rt1=(src>>11)&0x1f;
+        cinfo[i].imm=(src>>6)&0x1f;
         break;
       case COP0:
-        if(op2==0) dops[i].rt1=(source[i]>>16)&0x1F; // MFC0
-        if(op2==4) dops[i].rs1=(source[i]>>16)&0x1F; // MTC0
-        if(op2==4&&((source[i]>>11)&0x1f)==12) dops[i].rt2=CSREG; // Status
+        if(op2==0) dops[i].rt1=(src>>16)&0x1F; // MFC0
+        if(op2==4) dops[i].rs1=(src>>16)&0x1F; // MTC0
+        if(op2==4&&((src>>11)&0x1e)==12) dops[i].rs2=CCREG;
         break;
       case COP2:
-        if(op2<3) dops[i].rt1=(source[i]>>16)&0x1F; // MFC2/CFC2
-        if(op2>3) dops[i].rs1=(source[i]>>16)&0x1F; // MTC2/CTC2
-        dops[i].rs2=CSREG;
-        int gr=(source[i]>>11)&0x1F;
+        if(op2<3) dops[i].rt1=(src>>16)&0x1F; // MFC2/CFC2
+        if(op2>3) dops[i].rs1=(src>>16)&0x1F; // MTC2/CTC2
+        int gr=(src>>11)&0x1F;
         switch(op2)
         {
           case 0x00: gte_rs[i]=1ll<<gr; break; // MFC2
@@ -6881,17 +6873,17 @@ static noinline void pass1_disassemble(u_int pagelimit)
         }
         break;
       case C2LS:
-        dops[i].rs1=(source[i]>>21)&0x1F;
-        cinfo[i].imm=(short)source[i];
-        if(op==0x32) gte_rt[i]=1ll<<((source[i]>>16)&0x1F); // LWC2
-        else gte_rs[i]=1ll<<((source[i]>>16)&0x1F); // SWC2
+        dops[i].rs1=(src>>21)&0x1F;
+        cinfo[i].imm=(short)src;
+        if(op==0x32) gte_rt[i]=1ll<<((src>>16)&0x1F); // LWC2
+        else gte_rs[i]=1ll<<((src>>16)&0x1F); // SWC2
         break;
       case C2OP:
-        gte_rs[i]=gte_reg_reads[source[i]&0x3f];
-        gte_rt[i]=gte_reg_writes[source[i]&0x3f];
+        gte_rs[i]=gte_reg_reads[src&0x3f];
+        gte_rt[i]=gte_reg_writes[src&0x3f];
         gte_rt[i]|=1ll<<63; // every op changes flags
-        if((source[i]&0x3f)==GTE_MVMVA) {
-          int v = (source[i] >> 15) & 3;
+        if((src&0x3f)==GTE_MVMVA) {
+          int v = (src >> 15) & 3;
           gte_rs[i]&=~0xe3fll;
           if(v==3) gte_rs[i]|=0xe00ll;
           else gte_rs[i]|=3ll<<(v*2);
@@ -6905,6 +6897,22 @@ static noinline void pass1_disassemble(u_int pagelimit)
       default:
         break;
     }
+}
+
+static noinline void pass1_disassemble(u_int pagelimit)
+{
+  int i, j, done = 0, ni_count = 0;
+
+  for (i = 0; !done; i++)
+  {
+    int force_j_to_interpreter = 0;
+    unsigned int type, op, op2;
+
+    disassemble_one(i, source[i]);
+    type = dops[i].itype;
+    op = dops[i].opcode;
+    op2 = dops[i].opcode2;
+
     /* Calculate branch target addresses */
     if(type==UJUMP)
       cinfo[i].ba=((start+i*4+4)&0xF0000000)|(((unsigned int)source[i]<<6)>>4);
@@ -6950,14 +6958,30 @@ static noinline void pass1_disassemble(u_int pagelimit)
         SysPrintf("branch in DS @%08x (%08x)\n", start + i*4, start);
         force_j_to_interpreter = 1;
       }
-      // basic load delay detection through a branch
+      // load delay detection through a branch
       else if (dops[i].is_delay_load && dops[i].rt1 != 0) {
-        int t=(cinfo[i-1].ba-start)/4;
-        if(0 <= t && t < i &&(dops[i].rt1==dops[t].rs1||dops[i].rt1==dops[t].rs2)&&dops[t].itype!=CJUMP&&dops[t].itype!=SJUMP) {
+        const struct decoded_insn *dop = NULL;
+        int t = -1;
+        if (cinfo[i-1].ba != -1) {
+          t = (cinfo[i-1].ba - start) / 4;
+          if (t < 0 || t > i) {
+            u_int limit = 0;
+            u_int *mem = get_source_start(cinfo[i-1].ba, &limit);
+            if (mem != NULL) {
+              disassemble_one(MAXBLOCK - 1, mem[0]);
+              dop = &dops[MAXBLOCK - 1];
+            }
+          }
+          else
+            dop = &dops[t];
+        }
+        if ((dop && is_ld_use_hazard(dops[i].rt1, dop))
+            || (!dop && Config.PreciseExceptions)) {
           // jump target wants DS result - potential load delay effect
           SysPrintf("load delay in DS @%08x (%08x)\n", start + i*4, start);
           force_j_to_interpreter = 1;
-          dops[t+1].bt=1; // expected return from interpreter
+          if (0 <= t && t < i)
+            dops[t + 1].bt = 1; // expected return from interpreter
         }
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
               !(i>=3&&dops[i-3].is_jump)) {
@@ -6967,8 +6991,9 @@ static noinline void pass1_disassemble(u_int pagelimit)
         }
       }
     }
-    else if (i > 0 && dops[i-1].is_delay_load && dops[i-1].rt1 != 0
-             && (dops[i].rs1 == dops[i-1].rt1 || dops[i].rs2 == dops[i-1].rt1)) {
+    else if (i > 0 && dops[i-1].is_delay_load
+             && is_ld_use_hazard(dops[i-1].rt1, &dops[i])
+             && (i < 2 || !dops[i-2].is_ujump)) {
       SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
       for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
         if (dops[j-1].rt1 != dops[i-1].rt1)
@@ -6976,13 +7001,20 @@ static noinline void pass1_disassemble(u_int pagelimit)
       force_j_to_interpreter = 1;
     }
     if (force_j_to_interpreter) {
-      memset(&dops[j], 0, sizeof(dops[j]));
-      dops[j].itype = INTCALL;
-      dops[j].rs1 = CCREG;
-      cinfo[j].ba = -1;
+      force_intcall(j);
       done = 2;
       i = j; // don't compile the problematic branch/load/etc
     }
+    if (dops[i].is_exception && i > 0 && dops[i-1].is_jump) {
+      SysPrintf("exception in DS @%08x (%08x)\n", start + i*4, start);
+      i--;
+      force_intcall(i);
+      done = 2;
+    }
+    if (i >= 2 && (source[i-2] & 0xffe0f800) == 0x40806000) // MTC0 $12
+      dops[i].bt = 1;
+    if (i >= 1 && (source[i-1] & 0xffe0f800) == 0x40806800) // MTC0 $13
+      dops[i].bt = 1;
 
     /* Is this the end of the block? */
     if (i > 0 && dops[i-1].is_ujump) {
@@ -7350,8 +7382,6 @@ static noinline void pass3_register_alloc(u_int addr)
             if (dops[i].rt1!=0) {
               alloc_reg(&current,i,dops[i].rt1);
               dirty_reg(&current,dops[i].rt1);
-              assert(dops[i+1].rs1!=dops[i].rt1&&dops[i+1].rs2!=dops[i].rt1);
-              assert(dops[i+1].rt1!=dops[i].rt1);
               #ifdef REG_PREFETCH
               alloc_reg(&current,i,PTEMP);
               #endif
@@ -7937,7 +7967,7 @@ static noinline void pass4_cull_unused_regs(void)
       }
     }
     // Cycle count is needed at branches.  Assume it is needed at the target too.
-    if(i==0||dops[i].bt||dops[i].itype==CJUMP) {
+    if (i == 0 || dops[i].bt || dops[i].may_except || dops[i].itype == CJUMP) {
       if(regmap_pre[i][HOST_CCREG]==CCREG) nr|=1<<HOST_CCREG;
       if(regs[i].regmap_entry[HOST_CCREG]==CCREG) nr|=1<<HOST_CCREG;
     }

@@ -484,7 +484,6 @@ static void emit_loadreg(u_int r, u_int hr)
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
-    case CSREG: addr = &psxRegs.CP0.n.SR; break;
     case INVCP: addr = &invc_ptr; is64 = 1; break;
     case ROREG: addr = &ram_offset; is64 = 1; break;
     default:

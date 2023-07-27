@@ -442,7 +442,6 @@ static void emit_loadreg(int r, int hr)
     //case HIREG: addr = &hi; break;
     //case LOREG: addr = &lo; break;
     case CCREG: addr = &cycle_count; break;
-    case CSREG: addr = &psxRegs.CP0.n.SR; break;
     case INVCP: addr = &invc_ptr; break;
     case ROREG: addr = &ram_offset; break;
     default:
@@ -882,7 +881,7 @@ static void emit_cmovs_imm(int imm,int rt)
   output_w32(0x43a00000|rd_rn_rm(rt,0,0)|armval);
 }
 
-static void emit_cmovne_reg(int rs,int rt)
+static unused void emit_cmovne_reg(int rs,int rt)
 {
   assem_debug("movne %s,%s\n",regname[rt],regname[rs]);
   output_w32(0x11a00000|rd_rn_rm(rt,0,rs));
