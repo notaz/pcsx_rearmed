@@ -1,8 +1,8 @@
 diff --git a/libpcsxcore/new_dynarec/emu_if.c b/libpcsxcore/new_dynarec/emu_if.c
-index 89716fa0..02a8d7c5 100644
+index 2862c546..8af9a27e 100644
 --- a/libpcsxcore/new_dynarec/emu_if.c
 +++ b/libpcsxcore/new_dynarec/emu_if.c
-@@ -320,13 +320,18 @@ static void ari64_shutdown()
+@@ -322,13 +322,18 @@ static void ari64_shutdown()
  {
  	new_dynarec_cleanup();
  	new_dyna_pcsx_mem_shutdown();
@@ -23,7 +23,7 @@ index 89716fa0..02a8d7c5 100644
  	ari64_clear,
  	ari64_notify,
  	ari64_apply_config,
-@@ -395,7 +400,7 @@ static u32 memcheck_read(u32 a)
+@@ -397,7 +402,7 @@ static u32 memcheck_read(u32 a)
  	return *(u32 *)(psxM + (a & 0x1ffffc));
  }
  
@@ -135,7 +135,7 @@ index 27ddfeab..d7c6ff05 100644
  #ifdef PSXHW_LOG
  			PSXHW_LOG("*Unknown 32bit write at address %x value %x\n", add, value);
 diff --git a/libpcsxcore/psxinterpreter.c b/libpcsxcore/psxinterpreter.c
-index be15f782..6f07478f 100644
+index e212d8a9..42498e96 100644
 --- a/libpcsxcore/psxinterpreter.c
 +++ b/libpcsxcore/psxinterpreter.c
 @@ -237,7 +237,7 @@ static inline void addCycle(psxRegisters *regs)
@@ -157,7 +157,7 @@ index be15f782..6f07478f 100644
  }
  
  static void doBranchReg(psxRegisters *regs, u32 tar) {
-@@ -967,7 +969,7 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
+@@ -959,7 +961,7 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
  	}
  }
  
@@ -166,7 +166,7 @@ index be15f782..6f07478f 100644
  
  // no exception
  static inline void psxNULLne(psxRegisters *regs) {
-@@ -1175,18 +1177,19 @@ static void intReset() {
+@@ -1167,18 +1169,20 @@ static void intReset() {
  static inline void execI_(u8 **memRLUT, psxRegisters *regs) {
  	u32 pc = regs->pc;
  
@@ -178,6 +178,7 @@ index be15f782..6f07478f 100644
  	regs->code = fetch(regs, memRLUT, pc);
  	psxBSC[regs->code >> 26](regs, regs->code);
 +	psxRegs.cycle += 2;
++	fetchNoCache(regs, memRLUT, regs->pc); // bus err check
  }
  
  static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
@@ -188,15 +189,16 @@ index be15f782..6f07478f 100644
  	dloadStep(regs);
  
  	if (execBreakCheck(regs, pc))
-@@ -1195,6 +1198,7 @@ static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
+@@ -1187,6 +1191,8 @@ static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
  	regs->pc += 4;
  	regs->code = fetch(regs, memRLUT, pc);
  	psxBSC[regs->code >> 26](regs, regs->code);
 +	psxRegs.cycle += 2;
++	fetchNoCache(regs, memRLUT, regs->pc); // bus err check
  }
  
  static void intExecute() {
-@@ -1224,6 +1228,30 @@ void intExecuteBlock(enum blockExecCaller caller) {
+@@ -1216,6 +1222,30 @@ void intExecuteBlock(enum blockExecCaller caller) {
  		execI_(memRLUT, regs_);
  }
  
@@ -227,7 +229,7 @@ index be15f782..6f07478f 100644
  static void intClear(u32 Addr, u32 Size) {
  }
  
-@@ -1271,7 +1299,7 @@ void intApplyConfig() {
+@@ -1263,7 +1293,7 @@ void intApplyConfig() {
  	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
  	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);
  

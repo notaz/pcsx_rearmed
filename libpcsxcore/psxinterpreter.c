@@ -1340,6 +1340,7 @@ static void intShutdown() {
 }
 
 // single step (may do several ops in case of a branch or load delay)
+// called by asm/dynarec
 void execI(psxRegisters *regs) {
 	do {
 		execIbp(psxMemRLUT, regs);

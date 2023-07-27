@@ -97,10 +97,9 @@ FUNCTION(cc_interrupt):
 	add	rCC, w0, rCC
 	str	wzr, [rFP, #LO_pending_exception]
 	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
-#	str	rCC, [rFP, #LO_reg_cop0+36]	/* Count */
 	mov	x21, lr
 1:
-	add	x0, rFP, #(LO_psxRegs + 34*4)   /* CP0 */
+	add	x0, rFP, #LO_reg_cop0           /* CP0 */
 	bl	gen_interupt
 	mov	lr, x21
 	ldr	rCC, [rFP, #LO_cycle]
@@ -156,7 +155,7 @@ call_psxException:
 	str	w2, [rFP, #LO_pcaddr]
 	add	rCC, w3, rCC
 	str	rCC, [rFP, #LO_cycle]           /* PCSX cycles */
-	add	x2, rFP, #(LO_psxRegs + 34*4)   /* CP0 */
+	add	x2, rFP, #LO_reg_cop0           /* CP0 */
 	bl	psxException
 
 	/* note: psxException might do recursive recompiler call from it's HLE code,
@@ -302,7 +301,7 @@ FUNCTION(jump_handle_swl):
 	orr	w4, wzr, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
-	bcs	4f
+	bcs	jump_handle_swx_interp
 	add	x3, x0, x3
 	mov	w0, w2
 	tbz	x3, #1, 10f	// & 2
@@ -326,10 +325,6 @@ FUNCTION(jump_handle_swl):
 	lsr	w2, w1, #24
 	strb	w2, [x3]
 	ret
-4:
-	mov	w0, w2		// todo
-	bl	abort
-	ret
 
 FUNCTION(jump_handle_swr):
 	/* w0 = address, w1 = data, w2 = cycles */
@@ -337,7 +332,7 @@ FUNCTION(jump_handle_swr):
 	orr	w4, wzr, w0, lsr #12
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
-	bcs	4f
+	bcs	jump_handle_swx_interp
 	add	x3, x0, x3
 	mov	w0, w2
 	tbz	x3, #1, 10f	// & 2
@@ -358,10 +353,14 @@ FUNCTION(jump_handle_swr):
 0:
 	str	w1, [x3]
 	ret
-4:
-	mov	w0, w2		// todo
-	bl	abort
-	ret
+
+jump_handle_swx_interp: /* almost never happens */
+	ldr	w3, [rFP, #LO_last_count]
+	add	x0, rFP, #LO_psxRegs
+	add	w2, w3, w2
+	str	w2, [rFP, #LO_cycle]           /* PCSX cycles */
+	bl	execI
+	b	jump_to_new_pc
 
 FUNCTION(call_gteStall):
 	/* w0 = op_cycles, w1 = cycles */

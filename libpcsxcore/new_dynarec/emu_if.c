@@ -28,7 +28,9 @@ void pcsx_mtc0(u32 reg, u32 val)
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
 	MTC0(&psxRegs, reg, val);
 	gen_interupt(&psxRegs.CP0);
-	if (psxRegs.CP0.n.Cause & psxRegs.CP0.n.SR & 0x0300) // possible sw irq
+
+	//if (psxRegs.CP0.n.Cause & psxRegs.CP0.n.SR & 0x0300) // possible sw irq
+	if ((psxRegs.pc & 0x803ffeff) == 0x80000080)
 		pending_exception = 1;
 }
 
