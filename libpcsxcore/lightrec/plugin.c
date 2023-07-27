@@ -6,6 +6,10 @@
 #include <signal.h>
 #include <assert.h>
 
+#if P_HAVE_MMAP
+#include <sys/mman.h>
+#endif
+
 #include "../cdrom.h"
 #include "../gpu.h"
 #include "../gte.h"
@@ -436,9 +440,17 @@ static int lightrec_plugin_init(void)
 	lightrec_map[PSX_MAP_PARALLEL_PORT].address = psxP;
 
 	if (!LIGHTREC_CUSTOM_MAP) {
+#if P_HAVE_MMAP
+		code_buffer = mmap(0, CODE_BUFFER_SIZE,
+				   PROT_EXEC | PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (code_buffer == MAP_FAILED)
+			return -ENOMEM;
+#else
 		code_buffer = malloc(CODE_BUFFER_SIZE);
 		if (!code_buffer)
 			return -ENOMEM;
+#endif
 	}
 
 	if (LIGHTREC_CUSTOM_MAP) {
@@ -571,8 +583,13 @@ static void lightrec_plugin_shutdown(void)
 {
 	lightrec_destroy(lightrec_state);
 
-	if (!LIGHTREC_CUSTOM_MAP)
+	if (!LIGHTREC_CUSTOM_MAP) {
+#if P_HAVE_MMAP
+		munmap(code_buffer, CODE_BUFFER_SIZE);
+#else
 		free(code_buffer);
+#endif
+	}
 }
 
 static void lightrec_plugin_reset(void)
