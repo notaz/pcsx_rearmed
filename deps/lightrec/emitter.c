@@ -1178,7 +1178,7 @@ static u32 rec_io_mask(const struct lightrec_state *state)
 {
 	u32 length = state->maps[PSX_MAP_HW_REGISTERS].length;
 
-	return GENMASK(31 - clz32(length - 1), 0);
+	return 0x1f800000 | GENMASK(31 - clz32(length - 1), 0);
 }
 
 static void rec_store_memory(struct lightrec_cstate *cstate,
