@@ -79,6 +79,17 @@ void gpuInterrupt();
 void spuInterrupt();
 void gpuotcInterrupt();
 
+static inline void *getDmaRam(u32 madr, u32 *max_words)
+{
+	// this should wrap instead of limit
+	if (!(madr & 0x800000)) {
+		madr &= 0x1ffffc;
+		*max_words = (0x200000 - madr) / 4;
+		return psxM + madr;
+	}
+	return INVALID_PTR;
+}
+
 #ifdef __cplusplus
 }
 #endif

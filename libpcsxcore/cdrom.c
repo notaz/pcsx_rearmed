@@ -1565,7 +1565,7 @@ void cdrWrite3(unsigned char rt) {
 }
 
 void psxDma3(u32 madr, u32 bcr, u32 chcr) {
-	u32 cdsize;
+	u32 cdsize, max_words;
 	int size;
 	u8 *ptr;
 
@@ -1580,7 +1580,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 
 	switch (chcr & 0x71000000) {
 		case 0x11000000:
-			ptr = (u8 *)PSXM(madr);
+			ptr = getDmaRam(madr, &max_words);
 			if (ptr == INVALID_PTR) {
 				CDR_LOG_I("psxDma3() Log: *** DMA 3 *** NULL Pointer!\n");
 				break;
@@ -1597,6 +1597,8 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			size = DATA_SIZE - cdr.FifoOffset;
 			if (size > cdsize)
 				size = cdsize;
+			if (size > max_words * 4)
+				size = max_words * 4;
 			if (size > 0)
 			{
 				memcpy(ptr, cdr.Transfer + cdr.FifoOffset, size);
