@@ -1,8 +1,8 @@
 diff --git a/libpcsxcore/new_dynarec/emu_if.c b/libpcsxcore/new_dynarec/emu_if.c
-index 2862c546..8af9a27e 100644
+index 06612dbf..9a9d7b05 100644
 --- a/libpcsxcore/new_dynarec/emu_if.c
 +++ b/libpcsxcore/new_dynarec/emu_if.c
-@@ -322,13 +322,18 @@ static void ari64_shutdown()
+@@ -323,13 +323,18 @@ static void ari64_shutdown()
  {
  	new_dynarec_cleanup();
  	new_dyna_pcsx_mem_shutdown();
@@ -23,7 +23,7 @@ index 2862c546..8af9a27e 100644
  	ari64_clear,
  	ari64_notify,
  	ari64_apply_config,
-@@ -397,7 +402,7 @@ static u32 memcheck_read(u32 a)
+@@ -398,7 +403,7 @@ static u32 memcheck_read(u32 a)
  	return *(u32 *)(psxM + (a & 0x1ffffc));
  }
  
@@ -135,7 +135,7 @@ index 27ddfeab..d7c6ff05 100644
  #ifdef PSXHW_LOG
  			PSXHW_LOG("*Unknown 32bit write at address %x value %x\n", add, value);
 diff --git a/libpcsxcore/psxinterpreter.c b/libpcsxcore/psxinterpreter.c
-index e212d8a9..42498e96 100644
+index f473ddf6..49c4143b 100644
 --- a/libpcsxcore/psxinterpreter.c
 +++ b/libpcsxcore/psxinterpreter.c
 @@ -237,7 +237,7 @@ static inline void addCycle(psxRegisters *regs)
@@ -229,6 +229,15 @@ index e212d8a9..42498e96 100644
  static void intClear(u32 Addr, u32 Size) {
  }
  
+@@ -1244,7 +1274,7 @@ static void setupCop(u32 sr)
+ 	else
+ 		psxBSC[17] = psxCOPd;
+ 	if (sr & (1u << 30))
+-		psxBSC[18] = Config.DisableStalls ? psxCOP2 : psxCOP2_stall;
++		psxBSC[18] = psxCOP2;
+ 	else
+ 		psxBSC[18] = psxCOPd;
+ 	if (sr & (1u << 31))
 @@ -1263,7 +1293,7 @@ void intApplyConfig() {
  	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
  	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);

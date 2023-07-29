@@ -164,6 +164,7 @@ struct regstat
   u_int wasconst;                // before; for example 'lw r2, (r2)' wasconst is true
   u_int isconst;                 //  ... but isconst is false when r2 is known (hr)
   u_int loadedconst;             // host regs that have constants loaded
+  u_int noevict;                 // can't evict this hr (alloced by current op)
   //u_int waswritten;              // MIPS regs that were used as store base before
 };
 
@@ -982,7 +983,7 @@ static uint32_t get_const(const struct regstat *cur, signed char reg)
 // Least soon needed registers
 // Look at the next ten instructions and see which registers
 // will be used.  Try not to reallocate these.
-static void lsn(u_char hsn[], int i, int *preferred_reg)
+static void lsn(u_char hsn[], int i)
 {
   int j;
   int b=-1;
@@ -1656,6 +1657,72 @@ void ndrc_add_jump_out(u_int vaddr, void *src)
 
 /* Register allocation */
 
+static void alloc_set(struct regstat *cur, int reg, int hr)
+{
+  cur->regmap[hr] = reg;
+  cur->dirty &= ~(1u << hr);
+  cur->isconst &= ~(1u << hr);
+  cur->noevict |= 1u << hr;
+}
+
+static void evict_alloc_reg(struct regstat *cur, int i, int reg, int preferred_hr)
+{
+  u_char hsn[MAXREG+1];
+  int j, r, hr;
+  memset(hsn, 10, sizeof(hsn));
+  lsn(hsn, i);
+  //printf("hsn(%x): %d %d %d %d %d %d %d\n",start+i*4,hsn[cur->regmap[0]&63],hsn[cur->regmap[1]&63],hsn[cur->regmap[2]&63],hsn[cur->regmap[3]&63],hsn[cur->regmap[5]&63],hsn[cur->regmap[6]&63],hsn[cur->regmap[7]&63]);
+  if(i>0) {
+    // Don't evict the cycle count at entry points, otherwise the entry
+    // stub will have to write it.
+    if(dops[i].bt&&hsn[CCREG]>2) hsn[CCREG]=2;
+    if (i>1 && hsn[CCREG] > 2 && dops[i-2].is_jump) hsn[CCREG]=2;
+    for(j=10;j>=3;j--)
+    {
+      // Alloc preferred register if available
+      if (!((cur->noevict >> preferred_hr) & 1)
+          && hsn[cur->regmap[preferred_hr]] == j)
+      {
+        alloc_set(cur, reg, preferred_hr);
+        return;
+      }
+      for(r=1;r<=MAXREG;r++)
+      {
+        if(hsn[r]==j&&r!=dops[i-1].rs1&&r!=dops[i-1].rs2&&r!=dops[i-1].rt1&&r!=dops[i-1].rt2) {
+          for(hr=0;hr<HOST_REGS;hr++) {
+            if (hr == EXCLUDE_REG || ((cur->noevict >> hr) & 1))
+              continue;
+            if(hr!=HOST_CCREG||j<hsn[CCREG]) {
+              if(cur->regmap[hr]==r) {
+                alloc_set(cur, reg, hr);
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  for(j=10;j>=0;j--)
+  {
+    for(r=1;r<=MAXREG;r++)
+    {
+      if(hsn[r]==j) {
+        for(hr=0;hr<HOST_REGS;hr++) {
+          if (hr == EXCLUDE_REG || ((cur->noevict >> hr) & 1))
+            continue;
+          if(cur->regmap[hr]==r) {
+            alloc_set(cur, reg, hr);
+            return;
+          }
+        }
+      }
+    }
+  }
+  SysPrintf("This shouldn't happen (evict_alloc_reg)\n");
+  abort();
+}
+
 // Note: registers are allocated clean (unmodified state)
 // if you intend to modify the register, you must call dirty_reg().
 static void alloc_reg(struct regstat *cur,int i,signed char reg)
@@ -1672,25 +1739,23 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
   if((cur->u>>reg)&1) return;
 
   // see if it's already allocated
-  if (get_reg(cur->regmap, reg) >= 0)
+  if ((hr = get_reg(cur->regmap, reg)) >= 0) {
+    cur->noevict |= 1u << hr;
     return;
+  }
 
   // Keep the same mapping if the register was already allocated in a loop
   preferred_reg = loop_reg(i,reg,preferred_reg);
 
   // Try to allocate the preferred register
-  if(cur->regmap[preferred_reg]==-1) {
-    cur->regmap[preferred_reg]=reg;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
+  if (cur->regmap[preferred_reg] == -1) {
+    alloc_set(cur, reg, preferred_reg);
     return;
   }
   r=cur->regmap[preferred_reg];
   assert(r < 64);
   if((cur->u>>r)&1) {
-    cur->regmap[preferred_reg]=reg;
-    cur->dirty&=~(1<<preferred_reg);
-    cur->isconst&=~(1<<preferred_reg);
+    alloc_set(cur, reg, preferred_reg);
     return;
   }
 
@@ -1718,9 +1783,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
         if (oldreg < 0 || (oldreg != dops[i-1].rs1 && oldreg != dops[i-1].rs2
              && oldreg != dops[i-1].rt1 && oldreg != dops[i-1].rt2))
         {
-          cur->regmap[hr]=reg;
-          cur->dirty&=~(1<<hr);
-          cur->isconst&=~(1<<hr);
+          alloc_set(cur, reg, hr);
           return;
         }
       }
@@ -1737,9 +1800,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
   // Try to allocate any available register
   for (hr = PREFERRED_REG_FIRST; ; ) {
     if (cur->regmap[hr] < 0) {
-      cur->regmap[hr]=reg;
-      cur->dirty&=~(1<<hr);
-      cur->isconst&=~(1<<hr);
+      alloc_set(cur, reg, hr);
       return;
     }
     hr++;
@@ -1753,66 +1814,7 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
 
   // Ok, now we have to evict someone
   // Pick a register we hopefully won't need soon
-  u_char hsn[MAXREG+1];
-  memset(hsn,10,sizeof(hsn));
-  int j;
-  lsn(hsn,i,&preferred_reg);
-  //printf("eax=%d ecx=%d edx=%d ebx=%d ebp=%d esi=%d edi=%d\n",cur->regmap[0],cur->regmap[1],cur->regmap[2],cur->regmap[3],cur->regmap[5],cur->regmap[6],cur->regmap[7]);
-  //printf("hsn(%x): %d %d %d %d %d %d %d\n",start+i*4,hsn[cur->regmap[0]&63],hsn[cur->regmap[1]&63],hsn[cur->regmap[2]&63],hsn[cur->regmap[3]&63],hsn[cur->regmap[5]&63],hsn[cur->regmap[6]&63],hsn[cur->regmap[7]&63]);
-  if(i>0) {
-    // Don't evict the cycle count at entry points, otherwise the entry
-    // stub will have to write it.
-    if(dops[i].bt&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if (i>1 && hsn[CCREG] > 2 && dops[i-2].is_jump) hsn[CCREG]=2;
-    for(j=10;j>=3;j--)
-    {
-      // Alloc preferred register if available
-      if(hsn[r=cur->regmap[preferred_reg]&63]==j) {
-        for(hr=0;hr<HOST_REGS;hr++) {
-          // Evict both parts of a 64-bit register
-          if(cur->regmap[hr]==r) {
-            cur->regmap[hr]=-1;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-          }
-        }
-        cur->regmap[preferred_reg]=reg;
-        return;
-      }
-      for(r=1;r<=MAXREG;r++)
-      {
-        if(hsn[r]==j&&r!=dops[i-1].rs1&&r!=dops[i-1].rs2&&r!=dops[i-1].rt1&&r!=dops[i-1].rt2) {
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||j<hsn[CCREG]) {
-              if(cur->regmap[hr]==r) {
-                cur->regmap[hr]=reg;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  for(j=10;j>=0;j--)
-  {
-    for(r=1;r<=MAXREG;r++)
-    {
-      if(hsn[r]==j) {
-        for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-      }
-    }
-  }
-  SysPrintf("This shouldn't happen (alloc_reg)");abort();
+  evict_alloc_reg(cur, i, reg, preferred_reg);
 }
 
 // Allocate a temporary register.  This is done without regard to
@@ -1821,20 +1823,20 @@ static void alloc_reg(struct regstat *cur,int i,signed char reg)
 static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 {
   int r,hr;
-  int preferred_reg = -1;
 
   // see if it's already allocated
-  for(hr=0;hr<HOST_REGS;hr++)
+  for (hr = 0; hr < HOST_REGS; hr++)
   {
-    if(hr!=EXCLUDE_REG&&cur->regmap[hr]==reg) return;
+    if (hr != EXCLUDE_REG && cur->regmap[hr] == reg) {
+      cur->noevict |= 1u << hr;
+      return;
+    }
   }
 
   // Try to allocate any available register
   for(hr=HOST_REGS-1;hr>=0;hr--) {
     if(hr!=EXCLUDE_REG&&cur->regmap[hr]==-1) {
-      cur->regmap[hr]=reg;
-      cur->dirty&=~(1<<hr);
-      cur->isconst&=~(1<<hr);
+      alloc_set(cur, reg, hr);
       return;
     }
   }
@@ -1847,9 +1849,7 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
       assert(r < 64);
       if((cur->u>>r)&1) {
         if(i==0||((unneeded_reg[i-1]>>r)&1)) {
-          cur->regmap[hr]=reg;
-          cur->dirty&=~(1<<hr);
-          cur->isconst&=~(1<<hr);
+          alloc_set(cur, reg, hr);
           return;
         }
       }
@@ -1858,54 +1858,7 @@ static void alloc_reg_temp(struct regstat *cur,int i,signed char reg)
 
   // Ok, now we have to evict someone
   // Pick a register we hopefully won't need soon
-  // TODO: we might want to follow unconditional jumps here
-  // TODO: get rid of dupe code and make this into a function
-  u_char hsn[MAXREG+1];
-  memset(hsn,10,sizeof(hsn));
-  int j;
-  lsn(hsn,i,&preferred_reg);
-  //printf("hsn: %d %d %d %d %d %d %d\n",hsn[cur->regmap[0]&63],hsn[cur->regmap[1]&63],hsn[cur->regmap[2]&63],hsn[cur->regmap[3]&63],hsn[cur->regmap[5]&63],hsn[cur->regmap[6]&63],hsn[cur->regmap[7]&63]);
-  if(i>0) {
-    // Don't evict the cycle count at entry points, otherwise the entry
-    // stub will have to write it.
-    if(dops[i].bt&&hsn[CCREG]>2) hsn[CCREG]=2;
-    if (i>1 && hsn[CCREG] > 2 && dops[i-2].is_jump) hsn[CCREG]=2;
-    for(j=10;j>=3;j--)
-    {
-      for(r=1;r<=MAXREG;r++)
-      {
-        if(hsn[r]==j&&r!=dops[i-1].rs1&&r!=dops[i-1].rs2&&r!=dops[i-1].rt1&&r!=dops[i-1].rt2) {
-          for(hr=0;hr<HOST_REGS;hr++) {
-            if(hr!=HOST_CCREG||hsn[CCREG]>2) {
-              if(cur->regmap[hr]==r) {
-                cur->regmap[hr]=reg;
-                cur->dirty&=~(1<<hr);
-                cur->isconst&=~(1<<hr);
-                return;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  for(j=10;j>=0;j--)
-  {
-    for(r=1;r<=MAXREG;r++)
-    {
-      if(hsn[r]==j) {
-        for(hr=0;hr<HOST_REGS;hr++) {
-          if(cur->regmap[hr]==r) {
-            cur->regmap[hr]=reg;
-            cur->dirty&=~(1<<hr);
-            cur->isconst&=~(1<<hr);
-            return;
-          }
-        }
-      }
-    }
-  }
-  SysPrintf("This shouldn't happen");abort();
+  evict_alloc_reg(cur, i, reg, 0);
 }
 
 static void mov_alloc(struct regstat *current,int i)
@@ -1998,7 +1951,7 @@ static void alu_alloc(struct regstat *current,int i)
       alloc_reg(current,i,dops[i].rt1);
     }
     if (dops[i].may_except) {
-      alloc_cc(current, i); // for exceptions
+      alloc_cc_optional(current, i); // for exceptions
       alloc_reg_temp(current, i, -1);
       cinfo[i].min_free_regs = 1;
     }
@@ -2055,7 +2008,7 @@ static void imm16_alloc(struct regstat *current,int i)
     }
     else clear_const(current,dops[i].rt1);
     if (dops[i].may_except) {
-      alloc_cc(current, i); // for exceptions
+      alloc_cc_optional(current, i); // for exceptions
       alloc_reg_temp(current, i, -1);
       cinfo[i].min_free_regs = 1;
     }
@@ -2077,8 +2030,7 @@ static void load_alloc(struct regstat *current,int i)
   if (ram_offset)
     alloc_reg(current, i, ROREG);
   if (dops[i].may_except) {
-    alloc_cc(current, i); // for exceptions
-    dirty_reg(current, CCREG);
+    alloc_cc_optional(current, i); // for exceptions
     need_temp = 1;
   }
   if(dops[i].rt1&&!((current->u>>dops[i].rt1)&1)) {
@@ -2106,7 +2058,8 @@ static void load_alloc(struct regstat *current,int i)
   }
 }
 
-static void store_alloc(struct regstat *current,int i)
+// this may eat up to 7 registers
+static void store_alloc(struct regstat *current, int i)
 {
   clear_const(current,dops[i].rs2);
   if(!(dops[i].rs2)) current->u&=~1LL; // Allow allocating r0 if necessary
@@ -2121,16 +2074,14 @@ static void store_alloc(struct regstat *current,int i)
   if (dops[i].opcode == 0x2a || dops[i].opcode == 0x2e) { // SWL/SWL
     alloc_reg(current,i,FTEMP);
   }
-  if (dops[i].may_except) {
-    alloc_cc(current, i); // for exceptions
-    dirty_reg(current, CCREG);
-  }
+  if (dops[i].may_except)
+    alloc_cc_optional(current, i); // for exceptions
   // We need a temporary register for address generation
   alloc_reg_temp(current,i,-1);
   cinfo[i].min_free_regs=1;
 }
 
-static void c2ls_alloc(struct regstat *current,int i)
+static void c2ls_alloc(struct regstat *current, int i)
 {
   clear_const(current,dops[i].rt1);
   if(needed_again(dops[i].rs1,i)) alloc_reg(current,i,dops[i].rs1);
@@ -2142,10 +2093,8 @@ static void c2ls_alloc(struct regstat *current,int i)
   if (dops[i].opcode == 0x3a) // SWC2
     alloc_reg(current,i,INVCP);
   #endif
-  if (dops[i].may_except) {
-    alloc_cc(current, i); // for exceptions
-    dirty_reg(current, CCREG);
-  }
+  if (dops[i].may_except)
+    alloc_cc_optional(current, i); // for exceptions
   // We need a temporary register for address generation
   alloc_reg_temp(current,i,-1);
   cinfo[i].min_free_regs=1;
@@ -2161,6 +2110,7 @@ static void multdiv_alloc(struct regstat *current,int i)
   clear_const(current,dops[i].rs1);
   clear_const(current,dops[i].rs2);
   alloc_cc(current,i); // for stalls
+  dirty_reg(current,CCREG);
   if(dops[i].rs1&&dops[i].rs2)
   {
       current->u&=~(1LL<<HIREG);
@@ -2396,8 +2346,8 @@ static void alu_assemble(int i, const struct regstat *i_regs, int ccadj_)
       tmp = get_reg_temp(i_regs->regmap);
       if (do_oflow)
         assert(tmp >= 0);
-      //if (t < 0 && do_oflow) // broken s2
-      //  t = tmp;
+      if (t < 0 && do_oflow)
+        t = tmp;
       if (t >= 0) {
         s1 = get_reg(i_regs->regmap, dops[i].rs1);
         s2 = get_reg(i_regs->regmap, dops[i].rs2);
@@ -7190,15 +7140,6 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
         }
       }
     }
-    else if(dops[i].may_except)
-    {
-      // SYSCALL instruction, etc or conditional exception
-      u=1;
-    }
-    else if (dops[i].itype == RFE)
-    {
-      u=1;
-    }
     //u=1; // DEBUG
     // Written registers are unneeded
     u|=1LL<<dops[i].rt1;
@@ -7210,6 +7151,11 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
     gte_u&=~gte_rs[i];
     if(gte_rs[i]&&dops[i].rt1&&(unneeded_reg[i+1]&(1ll<<dops[i].rt1)))
       gte_u|=gte_rs[i]&gte_unneeded[i+1]; // MFC2/CFC2 to dead register, unneeded
+    if (dops[i].may_except || dops[i].itype == RFE)
+    {
+      // SYSCALL instruction, etc or conditional exception
+      u=1;
+    }
     // Source-target dependencies
     // R0 is always unneeded
     u|=1;
@@ -7244,6 +7190,7 @@ static noinline void pass3_register_alloc(u_int addr)
   current.wasconst = 0;
   current.isconst = 0;
   current.loadedconst = 0;
+  current.noevict = 0;
   //current.waswritten = 0;
   int ds=0;
   int cc=0;
@@ -7347,6 +7294,7 @@ static noinline void pass3_register_alloc(u_int addr)
       }
     }
     else { // Not delay slot
+      current.noevict = 0;
       switch(dops[i].itype) {
         case UJUMP:
           //current.isconst=0; // DEBUG
@@ -7707,33 +7655,6 @@ static noinline void pass3_register_alloc(u_int addr)
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
             memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
           }
-          else
-          // Alloc the delay slot in case the branch is taken
-          if((dops[i-1].opcode&0x3E)==0x14) // BEQL/BNEL
-          {
-            memcpy(&branch_regs[i-1],&current,sizeof(current));
-            branch_regs[i-1].u=(branch_unneeded_reg[i-1]&~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2)|(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2)))|1;
-            alloc_cc(&branch_regs[i-1],i);
-            dirty_reg(&branch_regs[i-1],CCREG);
-            delayslot_alloc(&branch_regs[i-1],i);
-            branch_regs[i-1].isconst=0;
-            alloc_reg(&current,i,CCREG); // Not taken path
-            dirty_reg(&current,CCREG);
-            memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          }
-          else
-          if((dops[i-1].opcode&0x3E)==0x16) // BLEZL/BGTZL
-          {
-            memcpy(&branch_regs[i-1],&current,sizeof(current));
-            branch_regs[i-1].u=(branch_unneeded_reg[i-1]&~((1LL<<dops[i].rs1)|(1LL<<dops[i].rs2)|(1LL<<dops[i].rt1)|(1LL<<dops[i].rt2)))|1;
-            alloc_cc(&branch_regs[i-1],i);
-            dirty_reg(&branch_regs[i-1],CCREG);
-            delayslot_alloc(&branch_regs[i-1],i);
-            branch_regs[i-1].isconst=0;
-            alloc_reg(&current,i,CCREG); // Not taken path
-            dirty_reg(&current,CCREG);
-            memcpy(&branch_regs[i-1].regmap_entry,&branch_regs[i-1].regmap,sizeof(current.regmap));
-          }
           break;
         case SJUMP:
           {
@@ -7758,11 +7679,6 @@ static noinline void pass3_register_alloc(u_int addr)
             branch_regs[i-1].wasconst=0;
             memcpy(&branch_regs[i-1].regmap_entry,&current.regmap,sizeof(current.regmap));
             memcpy(constmap[i],constmap[i-1],sizeof(constmap[i]));
-          }
-          // FIXME: BLTZAL/BGEZAL
-          if ((dops[i-1].opcode2 & 0x1e) == 0x10) { // BxxZAL
-            alloc_reg(&branch_regs[i-1],i-1,31);
-            dirty_reg(&branch_regs[i-1],31);
           }
           break;
       }
