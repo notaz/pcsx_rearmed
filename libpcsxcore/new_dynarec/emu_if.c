@@ -298,6 +298,7 @@ static void ari64_notify(enum R3000Anote note, void *data) {
 		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
 		ari64_reset();
+		psxInt.Notify(note, data);
 		break;
 	}
 }

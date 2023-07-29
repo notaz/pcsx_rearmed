@@ -217,16 +217,26 @@ static void alloc_arm_reg(struct regstat *cur,int i,signed char reg,int hr)
     }
   }
 
-  cur->regmap[hr]=reg;
-  cur->dirty&=~(1<<hr);
-  cur->dirty|=dirty<<hr;
-  cur->isconst&=~(1<<hr);
+  assert(n == hr || cur->regmap[hr] < 0 || !((cur->noevict >> hr) & 1));
+  cur->regmap[hr] = reg;
+  cur->dirty &= ~(1 << hr);
+  cur->dirty |= dirty << hr;
+  cur->isconst &= ~(1u << hr);
+  cur->noevict |= 1u << hr;
 }
 
 // Alloc cycle count into dedicated register
-static void alloc_cc(struct regstat *cur,int i)
+static void alloc_cc(struct regstat *cur, int i)
 {
-  alloc_arm_reg(cur,i,CCREG,HOST_CCREG);
+  alloc_arm_reg(cur, i, CCREG, HOST_CCREG);
+}
+
+static void alloc_cc_optional(struct regstat *cur, int i)
+{
+  if (cur->regmap[HOST_CCREG] < 0) {
+    alloc_arm_reg(cur, i, CCREG, HOST_CCREG);
+    cur->noevict &= ~(1u << HOST_CCREG);
+  }
 }
 
 /* Assembler */
