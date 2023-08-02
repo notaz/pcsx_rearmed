@@ -338,9 +338,9 @@ static struct compile_info
 #define CCREG 36 // Cycle count
 #define INVCP 37 // Pointer to invalid_code
 //#define MMREG 38 // Pointer to memory_map
-#define ROREG 39 // ram offset (if rdram!=0x80000000)
+#define ROREG 39 // ram offset (if psxM != 0x80000000)
 #define TEMPREG 40
-#define FTEMP 40 // FPU temporary register
+#define FTEMP 40 // Load/store temporary register (was fpu)
 #define PTEMP 41 // Prefetch temporary register
 //#define TLREG 42 // TLB mapping offset
 #define RHASH 43 // Return address hash
@@ -349,7 +349,6 @@ static struct compile_info
 #define MAXREG 45
 #define AGEN1 46 // Address generation temporary register (pass5b_preallocate2)
 //#define AGEN2 47 // Address generation temporary register
-#define BTREG 50 // Branch target temporary register
 
   /* instruction types */
 #define NOP 0     // No operation
@@ -380,7 +379,6 @@ static struct compile_info
   /* branch codes */
 #define TAKEN 1
 #define NOTTAKEN 2
-#define NULLDS 3
 
 #define DJT_1 (void *)1l // no function, just a label in assem_debug log
 #define DJT_2 (void *)2l
@@ -1054,12 +1052,8 @@ static void lsn(u_char hsn[], int i)
   if(dops[i].itype==C2LS) {
     hsn[FTEMP]=0;
   }
-  // Load L/R also uses FTEMP as a temporary register
-  if(dops[i].itype==LOADLR) {
-    hsn[FTEMP]=0;
-  }
-  // Also SWL/SWR/SDL/SDR
-  if(dops[i].opcode==0x2a||dops[i].opcode==0x2e||dops[i].opcode==0x2c||dops[i].opcode==0x2d) {
+  // Load/store L/R also uses FTEMP as a temporary register
+  if (dops[i].itype == LOADLR || dops[i].itype == STORELR) {
     hsn[FTEMP]=0;
   }
   // Don't remove the miniht registers
@@ -1236,7 +1230,11 @@ static const struct {
   FUNCNAME(do_memhandler_post),
 #endif
 #ifdef DRC_DBG
+# ifdef __aarch64__
+  FUNCNAME(do_insn_cmp_arm64),
+# else
   FUNCNAME(do_insn_cmp),
+# endif
 #endif
 };
 
@@ -2837,11 +2835,11 @@ static void *emit_fastpath_cmp_jump(int i, const struct regstat *i_regs,
     // alignment check
     u_int op = dops[i].opcode;
     int mask = ((op & 0x37) == 0x21 || op == 0x25) ? 1 : 3; // LH/SH/LHU
-    void *jaddr;
+    void *jaddr2;
     emit_testimm(addr, mask);
-    jaddr = out;
+    jaddr2 = out;
     emit_jne(0);
-    add_stub_r(ALIGNMENT_STUB, jaddr, out, i, addr, i_regs, ccadj_, 0);
+    add_stub_r(ALIGNMENT_STUB, jaddr2, out, i, addr, i_regs, ccadj_, 0);
   }
 
   if(type==MTYPE_8020) { // RAM 80200000+ mirror
@@ -4491,7 +4489,7 @@ static void address_generation(int i, const struct regstat *i_regs, signed char 
     {
       int offset = cinfo[i].imm;
       int add_offset = offset != 0;
-      int c=(i_regs->wasconst>>rs)&1;
+      int c = rs >= 0 && ((i_regs->wasconst >> rs) & 1);
       if(dops[i].rs1==0) {
         // Using r0 as a base address
         assert(ra >= 0);
@@ -4942,6 +4940,8 @@ static void drc_dbg_emit_do_cmp(int i, int ccadj_)
   extern void do_insn_cmp();
   //extern int cycle;
   u_int hr, reglist = get_host_reglist(regs[i].regmap);
+  reglist |= get_host_reglist(regs[i].regmap_entry);
+  reglist &= DRC_DBG_REGMASK;
 
   assem_debug("//do_insn_cmp %08x\n", start+i*4);
   save_regs(reglist);
@@ -5090,11 +5090,7 @@ static void do_ccstub(int n)
   assem_debug("do_ccstub %x\n",start+(u_int)stubs[n].b*4);
   set_jump_target(stubs[n].addr, out);
   int i=stubs[n].b;
-  if(stubs[n].d==NULLDS) {
-    // Delay slot instruction is nullified ("likely" branch)
-    wb_dirtys(regs[i].regmap,regs[i].dirty);
-  }
-  else if(stubs[n].d!=TAKEN) {
+  if (stubs[n].d != TAKEN) {
     wb_dirtys(branch_regs[i].regmap,branch_regs[i].dirty);
   }
   else {
@@ -5259,10 +5255,6 @@ static void do_ccstub(int n)
   }else if(stubs[n].d==NOTTAKEN) {
     if(i<slen-2) load_needed_regs(branch_regs[i].regmap,regmap_pre[i+2]);
     else load_all_regs(branch_regs[i].regmap);
-  }else if(stubs[n].d==NULLDS) {
-    // Delay slot instruction is nullified ("likely" branch)
-    if(i<slen-2) load_needed_regs(regs[i].regmap,regmap_pre[i+2]);
-    else load_all_regs(regs[i].regmap);
   }else{
     load_all_regs(branch_regs[i].regmap);
   }
@@ -6145,7 +6137,7 @@ void disassemble_inst(int i)
     #ifndef REGMAP_PRINT
     return;
     #endif
-    printf("D: %"PRIx64"  WD: %"PRIx64"  U: %"PRIx64"  hC: %x  hWC: %x  hLC: %x\n",
+    printf("D: %x  WD: %x  U: %"PRIx64"  hC: %x  hWC: %x  hLC: %x\n",
       regs[i].dirty, regs[i].wasdirty, unneeded_reg[i],
       regs[i].isconst, regs[i].wasconst, regs[i].loadedconst);
     print_regmap("pre:   ", regmap_pre[i]);
@@ -6302,7 +6294,7 @@ void new_dynarec_init(void)
 #endif
   arch_init();
   new_dynarec_test();
-  ram_offset=(uintptr_t)rdram-0x80000000;
+  ram_offset = (uintptr_t)psxM - 0x80000000;
   if (ram_offset!=0)
     SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
   SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
@@ -6339,12 +6331,13 @@ void new_dynarec_cleanup(void)
 
 static u_int *get_source_start(u_int addr, u_int *limit)
 {
-  if (addr < 0x00200000 ||
-    (0xa0000000 <= addr && addr < 0xa0200000))
+  if (addr < 0x00800000
+      || (0x80000000 <= addr && addr < 0x80800000)
+      || (0xa0000000 <= addr && addr < 0xa0800000))
   {
     // used for BIOS calls mostly?
-    *limit = (addr&0xa0000000)|0x00200000;
-    return (u_int *)(rdram + (addr&0x1fffff));
+    *limit = (addr & 0xa0600000) + 0x00200000;
+    return (u_int *)(psxM + (addr & 0x1fffff));
   }
   else if (!Config.HLE && (
     /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
@@ -6357,10 +6350,6 @@ static u_int *get_source_start(u_int addr, u_int *limit)
 
     *limit = (addr & 0xfff00000) | 0x80000;
     return (u_int *)((u_char *)psxR + (addr&0x7ffff));
-  }
-  else if (addr >= 0x80000000 && addr < 0x80000000+RAM_SIZE) {
-    *limit = (addr & 0x80600000) + 0x00200000;
-    return (u_int *)(rdram + (addr&0x1fffff));
   }
   return NULL;
 }
@@ -7203,7 +7192,6 @@ static noinline void pass3_register_alloc(u_int addr)
     dops[1].bt=1;
     ds=1;
     unneeded_reg[0]=1;
-    current.regmap[HOST_BTREG]=BTREG;
   }
 
   for(i=0;i<slen;i++)
@@ -7764,7 +7752,6 @@ static noinline void pass3_register_alloc(u_int addr)
         }
       }
     }
-    if(current.regmap[HOST_BTREG]==BTREG) current.regmap[HOST_BTREG]=-1;
     //regs[i].waswritten=current.waswritten;
   }
 }
@@ -8987,7 +8974,7 @@ static int new_recompile_block(u_int addr)
   /* Pass 6 - Optimize clean/dirty state */
   pass6_clean_registers(0, slen-1, 1);
 
-  /* Pass 7 - Identify 32-bit registers */
+  /* Pass 7 */
   for (i=slen-1;i>=0;i--)
   {
     if(dops[i].itype==CJUMP||dops[i].itype==SJUMP)
