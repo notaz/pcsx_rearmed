@@ -81,7 +81,7 @@ static Jit g_jit;
 #endif
 
 #define RAM_SIZE 0x200000
-#define MAXBLOCK 4096
+#define MAXBLOCK 2048
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 #define EXPIRITY_OFFSET (MAX_OUTPUT_BLOCK_SIZE * 2)
 #define PAGE_COUNT 1024
@@ -6972,7 +6972,8 @@ static noinline void pass1_disassemble(u_int pagelimit)
       // Don't recompile stuff that's already compiled
       if(check_addr(start+i*4+4)) done=1;
       // Don't get too close to the limit
-      if(i>MAXBLOCK/2) done=1;
+      if (i > MAXBLOCK - 64)
+        done = 1;
     }
     if (dops[i].itype == HLECALL)
       stop = 1;
@@ -6992,7 +6993,8 @@ static noinline void pass1_disassemble(u_int pagelimit)
     //assert(i<MAXBLOCK-1);
     if(start+i*4==pagelimit-4) done=1;
     assert(start+i*4<pagelimit);
-    if (i==MAXBLOCK-1) done=1;
+    if (i == MAXBLOCK - 2)
+      done = 1;
     // Stop if we're compiling junk
     if (dops[i].itype == INTCALL && (++ni_count > 8 || dops[i].opcode == 0x11)) {
       done=stop_after_jal=1;
