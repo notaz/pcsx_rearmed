@@ -5,7 +5,6 @@
    r19-r29: callee-save */
 
 #define HOST_REGS 29
-#define HOST_BTREG 27
 #define EXCLUDE_REG -1
 
 #define SP 31
@@ -27,8 +26,11 @@
 #define PREFERRED_REG_FIRST 19
 #define PREFERRED_REG_LAST  27
 
+#define DRC_DBG_REGMASK 3 // others done by do_insn_cmp_arm64
+#define do_insn_cmp do_insn_cmp_arm64
+
 // stack space
-#define SSP_CALLEE_REGS (8*12)
+#define SSP_CALLEE_REGS (8*12) // new_dyna_start caller's
 #define SSP_CALLER_REGS (8*20)
 #define SSP_ALL (SSP_CALLEE_REGS+SSP_CALLER_REGS)
 

@@ -374,3 +374,27 @@ FUNCTION(call_gteStall):
 	add	rCC, rCC, w0
 	ret
 
+#ifdef DRC_DBG
+#undef do_insn_cmp
+FUNCTION(do_insn_cmp_arm64):
+	stp	x2,  x3,  [sp, #(SSP_CALLEE_REGS + 2*8)]
+	stp	x4,  x5,  [sp, #(SSP_CALLEE_REGS + 4*8)]
+	stp	x6,  x7,  [sp, #(SSP_CALLEE_REGS + 6*8)]
+	stp	x8,  x9,  [sp, #(SSP_CALLEE_REGS + 8*8)]
+	stp	x10, x11, [sp, #(SSP_CALLEE_REGS + 10*8)]
+	stp	x12, x13, [sp, #(SSP_CALLEE_REGS + 12*8)]
+	stp	x14, x15, [sp, #(SSP_CALLEE_REGS + 14*8)]
+	stp	x16, x17, [sp, #(SSP_CALLEE_REGS + 16*8)]
+	stp	x18, x30, [sp, #(SSP_CALLEE_REGS + 18*8)]
+	bl	do_insn_cmp
+	ldp	x2,  x3,  [sp, #(SSP_CALLEE_REGS + 2*8)]
+	ldp	x4,  x5,  [sp, #(SSP_CALLEE_REGS + 4*8)]
+	ldp	x6,  x7,  [sp, #(SSP_CALLEE_REGS + 6*8)]
+	ldp	x8,  x9,  [sp, #(SSP_CALLEE_REGS + 8*8)]
+	ldp	x10, x11, [sp, #(SSP_CALLEE_REGS + 10*8)]
+	ldp	x12, x13, [sp, #(SSP_CALLEE_REGS + 12*8)]
+	ldp	x14, x15, [sp, #(SSP_CALLEE_REGS + 14*8)]
+	ldp	x16, x17, [sp, #(SSP_CALLEE_REGS + 16*8)]
+	ldp	x18, x30, [sp, #(SSP_CALLEE_REGS + 18*8)]
+	ret
+#endif

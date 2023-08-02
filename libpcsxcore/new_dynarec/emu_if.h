@@ -83,4 +83,3 @@ void pcsx_mtc0_ds(u32 reg, u32 val);
 /* misc */
 extern void SysPrintf(const char *fmt, ...);
 
-#define rdram ((u_char *)psxM)
