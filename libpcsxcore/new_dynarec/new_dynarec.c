@@ -158,14 +158,14 @@ struct regstat
 {
   signed char regmap_entry[HOST_REGS];
   signed char regmap[HOST_REGS];
-  uint64_t wasdirty;
-  uint64_t dirty;
-  uint64_t u;
+  u_int wasdirty;
+  u_int dirty;
   u_int wasconst;                // before; for example 'lw r2, (r2)' wasconst is true
   u_int isconst;                 //  ... but isconst is false when r2 is known (hr)
   u_int loadedconst;             // host regs that have constants loaded
   u_int noevict;                 // can't evict this hr (alloced by current op)
   //u_int waswritten;              // MIPS regs that were used as store base before
+  uint64_t u;
 };
 
 struct ht_entry
@@ -409,9 +409,9 @@ static void invalidate_block(struct block_info *block);
 static void exception_assemble(int i, const struct regstat *i_regs, int ccadj_);
 
 // Needed by assembler
-static void wb_register(signed char r, const signed char regmap[], uint64_t dirty);
-static void wb_dirtys(const signed char i_regmap[], uint64_t i_dirty);
-static void wb_needed_dirtys(const signed char i_regmap[], uint64_t i_dirty, int addr);
+static void wb_register(signed char r, const signed char regmap[], u_int dirty);
+static void wb_dirtys(const signed char i_regmap[], u_int i_dirty);
+static void wb_needed_dirtys(const signed char i_regmap[], u_int i_dirty, int addr);
 static void load_all_regs(const signed char i_regmap[]);
 static void load_needed_regs(const signed char i_regmap[], const signed char next_regmap[]);
 static void load_regs_entry(int t);
@@ -2288,7 +2288,7 @@ static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
 }
 
 // Write out a single register
-static void wb_register(signed char r, const signed char regmap[], uint64_t dirty)
+static void wb_register(signed char r, const signed char regmap[], u_int dirty)
 {
   int hr;
   for(hr=0;hr<HOST_REGS;hr++) {
@@ -2298,6 +2298,7 @@ static void wb_register(signed char r, const signed char regmap[], uint64_t dirt
           assert(regmap[hr]<64);
           emit_storereg(r,hr);
         }
+        break;
       }
     }
   }
@@ -4698,7 +4699,8 @@ static void load_all_consts(const signed char regmap[], u_int dirty, int i)
 }
 
 // Write out all dirty registers (except cycle count)
-static void wb_dirtys(const signed char i_regmap[], uint64_t i_dirty)
+#ifndef wb_dirtys
+static void wb_dirtys(const signed char i_regmap[], u_int i_dirty)
 {
   int hr;
   for(hr=0;hr<HOST_REGS;hr++) {
@@ -4714,10 +4716,11 @@ static void wb_dirtys(const signed char i_regmap[], uint64_t i_dirty)
     }
   }
 }
+#endif
 
 // Write out dirty registers that we need to reload (pair with load_needed_regs)
 // This writes the registers not written by store_regs_bt
-static void wb_needed_dirtys(const signed char i_regmap[], uint64_t i_dirty, int addr)
+static void wb_needed_dirtys(const signed char i_regmap[], u_int i_dirty, int addr)
 {
   int hr;
   int t=(addr-start)>>2;
@@ -4738,6 +4741,7 @@ static void wb_needed_dirtys(const signed char i_regmap[], uint64_t i_dirty, int
 }
 
 // Load all registers (except cycle count)
+#ifndef load_all_regs
 static void load_all_regs(const signed char i_regmap[])
 {
   int hr;
@@ -4754,48 +4758,31 @@ static void load_all_regs(const signed char i_regmap[])
     }
   }
 }
+#endif
 
 // Load all current registers also needed by next instruction
 static void load_needed_regs(const signed char i_regmap[], const signed char next_regmap[])
 {
+  signed char regmap_sel[HOST_REGS];
   int hr;
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(hr!=EXCLUDE_REG) {
-      if(get_reg(next_regmap,i_regmap[hr])>=0) {
-        if(i_regmap[hr]==0) {
-          emit_zeroreg(hr);
-        }
-        else
-        if(i_regmap[hr]>0 && i_regmap[hr]<TEMPREG && i_regmap[hr]!=CCREG)
-        {
-          emit_loadreg(i_regmap[hr],hr);
-        }
-      }
-    }
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    regmap_sel[hr] = -1;
+    if (hr != EXCLUDE_REG)
+      if (next_regmap[hr] == i_regmap[hr] || get_reg(next_regmap, i_regmap[hr]) >= 0)
+        regmap_sel[hr] = i_regmap[hr];
   }
+  load_all_regs(regmap_sel);
 }
 
 // Load all regs, storing cycle count if necessary
 static void load_regs_entry(int t)
 {
-  int hr;
   if(dops[t].is_ds) emit_addimm(HOST_CCREG,CLOCK_ADJUST(1),HOST_CCREG);
   else if(cinfo[t].ccadj) emit_addimm(HOST_CCREG,-cinfo[t].ccadj,HOST_CCREG);
   if(regs[t].regmap_entry[HOST_CCREG]!=CCREG) {
     emit_storereg(CCREG,HOST_CCREG);
   }
-  // Load 32-bit regs
-  for(hr=0;hr<HOST_REGS;hr++) {
-    if(regs[t].regmap_entry[hr]>=0&&regs[t].regmap_entry[hr]<TEMPREG) {
-      if(regs[t].regmap_entry[hr]==0) {
-        emit_zeroreg(hr);
-      }
-      else if(regs[t].regmap_entry[hr]!=CCREG)
-      {
-        emit_loadreg(regs[t].regmap_entry[hr],hr);
-      }
-    }
-  }
+  load_all_regs(regs[t].regmap_entry);
 }
 
 // Store dirty registers prior to branch
@@ -6542,6 +6529,7 @@ static void force_intcall(int i)
 static void disassemble_one(int i, u_int src)
 {
     unsigned int type, op, op2, op3;
+    enum ls_width_type ls_type = LS_32;
     memset(&dops[i], 0, sizeof(dops[i]));
     memset(&cinfo[i], 0, sizeof(cinfo[i]));
     cinfo[i].ba = -1;

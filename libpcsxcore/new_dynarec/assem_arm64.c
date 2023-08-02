@@ -1950,6 +1950,65 @@ static void multdiv_assemble_arm64(int i, const struct regstat *i_regs)
 }
 #define multdiv_assemble multdiv_assemble_arm64
 
+// wb_dirtys making use of stp when possible
+static void wb_dirtys(const signed char i_regmap[], u_int i_dirty)
+{
+  signed char mregs[34+1];
+  int r, hr;
+  memset(mregs, -1, sizeof(mregs));
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    r = i_regmap[hr];
+    if (hr == EXCLUDE_REG || r <= 0 || r == CCREG)
+      continue;
+    if (!((i_dirty >> hr) & 1))
+      continue;
+    assert(r < 34u);
+    mregs[r] = hr;
+  }
+  for (r = 1; r < 34; r++) {
+    if (mregs[r] < 0)
+      continue;
+    if (mregs[r+1] >= 0) {
+      uintptr_t offset = (u_char *)&psxRegs.GPR.r[r] - (u_char *)&dynarec_local;
+      emit_ldstp(1, 0, mregs[r], mregs[r+1], FP, offset);
+      r++;
+    }
+    else
+      emit_storereg(r, mregs[r]);
+  }
+}
+#define wb_dirtys wb_dirtys
+
+static void load_all_regs(const signed char i_regmap[])
+{
+  signed char mregs[34+1];
+  int r, hr;
+  memset(mregs, -1, sizeof(mregs));
+  for (hr = 0; hr < HOST_REGS; hr++) {
+    r = i_regmap[hr];
+    if (hr == EXCLUDE_REG || r < 0 || r == CCREG)
+      continue;
+    if ((u_int)r < 34u)
+      mregs[r] = hr;
+    else if (r < TEMPREG)
+      emit_loadreg(r, hr);
+  }
+  if (mregs[0] >= 0)
+    emit_zeroreg(mregs[0]); // we could use arm64's ZR instead of reg alloc
+  for (r = 1; r < 34; r++) {
+    if (mregs[r] < 0)
+      continue;
+    if (mregs[r+1] >= 0) {
+      uintptr_t offset = (u_char *)&psxRegs.GPR.r[r] - (u_char *)&dynarec_local;
+      emit_ldstp(0, 0, mregs[r], mregs[r+1], FP, offset);
+      r++;
+    }
+    else
+      emit_loadreg(r, mregs[r]);
+  }
+}
+#define load_all_regs load_all_regs
+
 static void do_jump_vaddr(u_int rs)
 {
   if (rs != 0)
