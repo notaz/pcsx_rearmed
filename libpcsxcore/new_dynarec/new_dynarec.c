@@ -3223,7 +3223,7 @@ static void loadlr_assemble(int i, const struct regstat *i_regs, int ccadj_)
 static void do_invstub(int n)
 {
   literal_pool(20);
-  assem_debug("do_invstub\n");
+  assem_debug("do_invstub %x\n", start + stubs[n].e*4);
   u_int reglist = stubs[n].a;
   u_int addrr = stubs[n].b;
   int ofs_start = stubs[n].c;
@@ -3300,8 +3300,12 @@ static void do_store_smc_check(int i, const struct regstat *i_regs, u_int reglis
   imm_min -= cinfo[i].imm;
   imm_max -= cinfo[i].imm;
   add_stub(INVCODE_STUB, jaddr, out, reglist|(1<<HOST_CCREG),
-    addr, imm_min, imm_max, 0);
+    addr, imm_min, imm_max, i);
 }
+
+// determines if code overwrite checking is needed only
+// (also true non-existent 0x20000000 mirror that shouldn't matter)
+#define is_ram_addr(a) !((a) & 0x5f800000)
 
 static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
 {
@@ -3313,19 +3317,22 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
   int memtarget=0,c=0;
   int offset_reg = -1;
   int fastio_reg_override = -1;
+  u_int addr_const = ~0;
   u_int reglist=get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   offset=cinfo[i].imm;
   if(s>=0) {
     c=(i_regs->wasconst>>s)&1;
-    if(c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+    if (c) {
+      addr_const = constmap[i][s] + offset;
+      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
   assert(tl>=0);
   assert(addr >= 0);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
+  reglist |= 1u << addr;
   if (!c) {
     jaddr = emit_fastpath_cmp_jump(i, i_regs, addr,
               &offset_reg, &fastio_reg_override, ccadj_);
@@ -3367,28 +3374,19 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
   }
   if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if(jaddr) {
+  if (jaddr) {
     // PCSX store handlers don't check invcode again
-    reglist|=1<<addr;
     add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    jaddr=0;
   }
-  {
-    if(!c||memtarget) {
-      do_store_smc_check(i, i_regs, reglist, addr);
-    }
-  }
-  u_int addr_val=constmap[i][s]+offset;
-  if(jaddr) {
-    add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-  } else if(c&&!memtarget) {
-    inline_writestub(type,i,addr_val,i_regs->regmap,dops[i].rs2,ccadj_,reglist);
-  }
+  if (!c || is_ram_addr(addr_const))
+    do_store_smc_check(i, i_regs, reglist, addr);
+  if (c && !memtarget)
+    inline_writestub(type, i, addr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
   // basic current block modification detection..
   // not looking back as that should be in mips cache already
   // (see Spyro2 title->attract mode)
-  if(c&&start+i*4<addr_val&&addr_val<start+slen*4) {
-    SysPrintf("write to %08x hits block %08x, pc=%08x\n",addr_val,start,start+i*4);
+  if (start + i*4 < addr_const && addr_const < start + slen*4) {
+    SysPrintf("write to %08x hits block %08x, pc=%08x\n", addr_const, start, start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
@@ -3412,18 +3410,21 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   void *done0, *done1, *done2;
   int memtarget=0,c=0;
   int offset_reg = -1;
-  u_int reglist=get_host_reglist(i_regs->regmap);
+  u_int addr_const = ~0;
+  u_int reglist = get_host_reglist(i_regs->regmap);
   tl=get_reg(i_regs->regmap,dops[i].rs2);
   s=get_reg(i_regs->regmap,dops[i].rs1);
   offset=cinfo[i].imm;
   if(s>=0) {
-    c=(i_regs->isconst>>s)&1;
-    if(c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
+    c = (i_regs->isconst >> s) & 1;
+    if (c) {
+      addr_const = constmap[i][s] + offset;
+      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
   assert(tl>=0);
   assert(addr >= 0);
+  reglist |= 1u << addr;
   if(!c) {
     emit_cmpimm(addr, RAM_SIZE);
     jaddr=out;
@@ -3463,14 +3464,14 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   if (dops[i].opcode == 0x2A) { // SWL
     // Write two msb into two least significant bytes
     if (dops[i].rs2) emit_rorimm(tl, 16, tl);
-    do_store_hword(addr, -1, tl, offset_reg, 0);
+    do_store_hword(addr, -1, tl, offset_reg, 1);
     if (dops[i].rs2) emit_rorimm(tl, 16, tl);
   }
   else if (dops[i].opcode == 0x2E) { // SWR
     // Write 3 lsb into three most significant bytes
     do_store_byte(addr, tl, offset_reg);
     if (dops[i].rs2) emit_rorimm(tl, 8, tl);
-    do_store_hword(addr, 1, tl, offset_reg, 0);
+    do_store_hword(addr, 1, tl, offset_reg, 1);
     if (dops[i].rs2) emit_rorimm(tl, 24, tl);
   }
   done1=out;
@@ -3498,7 +3499,7 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   // 3
   set_jump_target(case3, out);
   if (dops[i].opcode == 0x2A) { // SWL
-    do_store_word(addr, -3, tl, offset_reg, 0);
+    do_store_word(addr, -3, tl, offset_reg, 1);
   }
   else if (dops[i].opcode == 0x2E) { // SWR
     do_store_byte(addr, tl, offset_reg);
@@ -3508,9 +3509,10 @@ static void storelr_assemble(int i, const struct regstat *i_regs, int ccadj_)
   set_jump_target(done2, out);
   if (offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if(!c||!memtarget)
+  if (!c || !memtarget)
     add_stub_r(STORELR_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-  do_store_smc_check(i, i_regs, reglist, addr);
+  if (!c || is_ram_addr(addr_const))
+    do_store_smc_check(i, i_regs, reglist, addr);
 }
 
 static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
@@ -3902,6 +3904,7 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
   enum stub_type type;
   int offset_reg = -1;
   int fastio_reg_override = -1;
+  u_int addr_const = ~0;
   u_int reglist=get_host_reglist(i_regs->regmap);
   u_int copr=(source[i]>>16)&0x1f;
   s=get_reg(i_regs->regmap,dops[i].rs1);
@@ -3918,8 +3921,13 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
   if (dops[i].opcode==0x3a) { // SWC2
     reglist |= 1<<ar;
   }
-  if(s>=0) c=(i_regs->wasconst>>s)&1;
-  memtarget=c&&(((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE);
+  if (s >= 0) {
+    c = (i_regs->isconst >> s) & 1;
+    if (c) {
+      addr_const = constmap[i][s] + offset;
+      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
+    }
+  }
 
   cop2_do_stall_check(0, i, i_regs, reglist);
 
@@ -3968,9 +3976,9 @@ static void c2ls_assemble(int i, const struct regstat *i_regs, int ccadj_)
     host_tempreg_release();
   if(jaddr2)
     add_stub_r(type,jaddr2,out,i,ar,i_regs,ccadj_,reglist);
-  if(dops[i].opcode==0x3a) // SWC2
+  if (dops[i].opcode == 0x3a && (!c || is_ram_addr(addr_const))) // SWC2
     do_store_smc_check(i, i_regs, reglist, ar);
-  if (dops[i].opcode==0x32) { // LWC2
+  if (dops[i].opcode == 0x32) { // LWC2
     host_tempreg_acquire();
     cop2_put_dreg(copr,tl,HOST_TEMPREG);
     host_tempreg_release();
@@ -4534,12 +4542,6 @@ static void address_generation(int i, const struct regstat *i_regs, signed char 
           cinfo[i].addr = rs;
         add_offset = 0;
       }
-      else if (dops[i].itype == STORELR) { // overwrites addr
-        assert(ra >= 0);
-        assert(rs != ra);
-        emit_mov(rs, ra);
-        cinfo[i].addr = ra;
-      }
       else
         cinfo[i].addr = rs;
       if (add_offset) {
@@ -4636,11 +4638,13 @@ static void load_consts(signed char pre[],signed char regmap[],int i)
   if(i==0||dops[i].bt)
     regs[i].loadedconst=0;
   else {
-    for(hr=0;hr<HOST_REGS;hr++) {
-      if(hr!=EXCLUDE_REG&&regmap[hr]>=0&&((regs[i-1].isconst>>hr)&1)&&pre[hr]==regmap[hr]
-         &&regmap[hr]==regs[i-1].regmap[hr]&&((regs[i-1].loadedconst>>hr)&1))
+    for (hr = 0; hr < HOST_REGS; hr++) {
+      if (hr == EXCLUDE_REG || regmap[hr] < 0 || pre[hr] != regmap[hr])
+        continue;
+      if ((((regs[i-1].isconst & regs[i-1].loadedconst) >> hr) & 1)
+          && regmap[hr] == regs[i-1].regmap[hr])
       {
-        regs[i].loadedconst|=1<<hr;
+        regs[i].loadedconst |= 1u << hr;
       }
     }
   }
