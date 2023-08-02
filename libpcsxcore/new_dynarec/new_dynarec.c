@@ -242,7 +242,12 @@ static struct decoded_insn
   u_char is_delay_load:1; // is_load + MFC/CFC
   u_char is_exception:1;  // unconditional, also interp. fallback
   u_char may_except:1;    // might generate an exception
+  u_char ls_type:2;       // load/store type (ls_width_type)
 } dops[MAXBLOCK];
+
+enum ls_width_type {
+  LS_8 = 0, LS_16, LS_32, LS_LR
+};
 
 static struct compile_info
 {
@@ -6657,20 +6662,20 @@ static void disassemble_one(int i, u_int src)
       case 0x13: set_mnemonic(i, "COP3");
         op2 = (src >> 21) & 0x1f;
         break;
-      case 0x20: set_mnemonic(i, "LB"); type=LOAD; break;
-      case 0x21: set_mnemonic(i, "LH"); type=LOAD; break;
-      case 0x22: set_mnemonic(i, "LWL"); type=LOADLR; break;
-      case 0x23: set_mnemonic(i, "LW"); type=LOAD; break;
-      case 0x24: set_mnemonic(i, "LBU"); type=LOAD; break;
-      case 0x25: set_mnemonic(i, "LHU"); type=LOAD; break;
-      case 0x26: set_mnemonic(i, "LWR"); type=LOADLR; break;
-      case 0x28: set_mnemonic(i, "SB"); type=STORE; break;
-      case 0x29: set_mnemonic(i, "SH"); type=STORE; break;
-      case 0x2A: set_mnemonic(i, "SWL"); type=STORELR; break;
-      case 0x2B: set_mnemonic(i, "SW"); type=STORE; break;
-      case 0x2E: set_mnemonic(i, "SWR"); type=STORELR; break;
-      case 0x32: set_mnemonic(i, "LWC2"); type=C2LS; break;
-      case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; break;
+      case 0x20: set_mnemonic(i, "LB"); type=LOAD; ls_type = LS_8; break;
+      case 0x21: set_mnemonic(i, "LH"); type=LOAD; ls_type = LS_16; break;
+      case 0x22: set_mnemonic(i, "LWL"); type=LOADLR; ls_type = LS_LR; break;
+      case 0x23: set_mnemonic(i, "LW"); type=LOAD; ls_type = LS_32; break;
+      case 0x24: set_mnemonic(i, "LBU"); type=LOAD; ls_type = LS_8; break;
+      case 0x25: set_mnemonic(i, "LHU"); type=LOAD; ls_type = LS_16; break;
+      case 0x26: set_mnemonic(i, "LWR"); type=LOADLR; ls_type = LS_LR; break;
+      case 0x28: set_mnemonic(i, "SB"); type=STORE; ls_type = LS_8; break;
+      case 0x29: set_mnemonic(i, "SH"); type=STORE; ls_type = LS_16; break;
+      case 0x2A: set_mnemonic(i, "SWL"); type=STORELR; ls_type = LS_LR; break;
+      case 0x2B: set_mnemonic(i, "SW"); type=STORE; ls_type = LS_32; break;
+      case 0x2E: set_mnemonic(i, "SWR"); type=STORELR; ls_type = LS_LR; break;
+      case 0x32: set_mnemonic(i, "LWC2"); type=C2LS; ls_type = LS_32; break;
+      case 0x3A: set_mnemonic(i, "SWC2"); type=C2LS; ls_type = LS_32; break;
       case 0x3B:
         if (Config.HLE && (src & 0x03ffffff) < ARRAY_SIZE(psxHLEt)) {
           set_mnemonic(i, "HLECALL");
@@ -6682,8 +6687,9 @@ static void disassemble_one(int i, u_int src)
     }
     if (type == INTCALL)
       SysPrintf("NI %08x @%08x (%08x)\n", src, start + i*4, start);
-    dops[i].itype=type;
-    dops[i].opcode2=op2;
+    dops[i].itype = type;
+    dops[i].opcode2 = op2;
+    dops[i].ls_type = ls_type;
     /* Get registers/immediates */
     dops[i].use_lt1=0;
     gte_rs[i]=gte_rt[i]=0;
@@ -6829,6 +6835,7 @@ static void disassemble_one(int i, u_int src)
 static noinline void pass1_disassemble(u_int pagelimit)
 {
   int i, j, done = 0, ni_count = 0;
+  int ds_next = 0;
 
   for (i = 0; !done; i++)
   {
@@ -6836,6 +6843,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
     unsigned int type, op, op2;
 
     disassemble_one(i, source[i]);
+    dops[i].is_ds = ds_next; ds_next = 0;
     type = dops[i].itype;
     op = dops[i].opcode;
     op2 = dops[i].opcode2;
@@ -6868,6 +6876,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
     dops[i].is_store = type == STORE || type == STORELR || op == 0x3a; // SWC2
     dops[i].is_exception = type == SYSCALL || type == HLECALL || type == INTCALL;
     dops[i].may_except = dops[i].is_exception || (type == ALU && (op2 == 0x20 || op2 == 0x22)) || op == 8;
+    ds_next = dops[i].is_jump;
 
     if (((op & 0x37) == 0x21 || op == 0x25) // LH/SH/LHU
         && ((cinfo[i].imm & 1) || Config.PreciseExceptions))
@@ -7157,6 +7166,31 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
   }
 }
 
+static noinline void pass2a_unneeded_other(void)
+{
+  int i, j;
+  for (i = 0; i < slen; i++)
+  {
+    // remove redundant alignment checks
+    if (dops[i].may_except && (dops[i].is_load || dops[i].is_store)
+        && dops[i].rt1 != dops[i].rs1 && !dops[i].is_ds)
+    {
+      int base = dops[i].rs1, lsb = cinfo[i].imm, ls_type = dops[i].ls_type;
+      int mask = ls_type == LS_32 ? 3 : 1;
+      lsb &= mask;
+      for (j = i + 1; j < slen; j++) {
+        if (dops[j].bt || dops[j].is_jump)
+          break;
+        if ((dops[j].is_load || dops[j].is_store) && dops[j].rs1 == base
+            && dops[j].ls_type == ls_type && (cinfo[j].imm & mask) == lsb)
+          dops[j].may_except = 0;
+        if (dops[j].rt1 == base)
+          break;
+      }
+    }
+  }
+}
+
 static noinline void pass3_register_alloc(u_int addr)
 {
   struct regstat current; // Current register allocations/status
@@ -7221,7 +7255,7 @@ static noinline void pass3_register_alloc(u_int addr)
         abort();
       }
     }
-    dops[i].is_ds=ds;
+    assert(dops[i].is_ds == ds);
     if(ds) {
       ds=0; // Skip delay slot, already allocated as part of branch
       // ...but we need to alloc it in case something jumps here
@@ -8947,6 +8981,8 @@ static int new_recompile_block(u_int addr)
   /* Pass 2 - Register dependencies and branch targets */
 
   pass2_unneeded_regs(0,slen-1,0);
+
+  pass2a_unneeded_other();
 
   /* Pass 3 - Register allocation */
 
