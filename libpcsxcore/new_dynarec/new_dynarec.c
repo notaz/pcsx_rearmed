@@ -8396,6 +8396,7 @@ static noinline void pass5b_preallocate2(void)
                 regs[i+2].wasdirty&=~(1<<hr);
               }
               assert(hr>=0);
+              #if 0 // what is this for? double allocs $0 in ps1_rom.bin
               if(regs[i].regmap[hr]<0&&regs[i+1].regmap_entry[hr]<0)
               {
                 regs[i].regmap[hr]=dops[i+1].rs1;
@@ -8407,6 +8408,7 @@ static noinline void pass5b_preallocate2(void)
                 regs[i+1].wasdirty&=~(1<<hr);
                 regs[i].dirty&=~(1<<hr);
               }
+              #endif
             }
           }
           if (dops[i+1].itype == LOADLR || dops[i+1].opcode == 0x32) { // LWC2
