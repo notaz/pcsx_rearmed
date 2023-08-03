@@ -2819,7 +2819,7 @@ static bool try_use_bios(const char *path)
 
 static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 {
-   static const char *substrings[] = { "scph", "psx", "openbios" };
+   static const char *substrings[] = { "scph", "ps", "openbios" };
    DIR *dir;
    struct dirent *ent;
    bool ret = false;
