@@ -156,6 +156,7 @@ struct lightrec_cstate {
 struct lightrec_state {
 	struct lightrec_registers regs;
 	u32 temp_reg;
+	u32 curr_pc;
 	u32 next_pc;
 	uintptr_t wrapper_regs[NUM_TEMPS];
 	u8 in_delay_slot_n;
@@ -358,6 +359,11 @@ static inline const struct opcode *
 get_delay_slot(const struct opcode *list, u16 i)
 {
 	return op_flag_no_ds(list[i].flags) ? &list[i - 1] : &list[i + 1];
+}
+
+static inline _Bool lightrec_store_next_pc(void)
+{
+	return NUM_REGS + NUM_TEMPS <= 4;
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

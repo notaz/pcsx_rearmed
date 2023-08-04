@@ -124,6 +124,8 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	} else {
 		lightrec_jump_to_eob(state, _jit);
 	}
+
+	lightrec_regcache_reset(reg_cache);
 }
 
 void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
@@ -138,6 +140,11 @@ void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
 	 * PC (which might have an offset) in JIT_V0. */
 	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
 			  block->pc + (offset << 2));
+	if (lightrec_store_next_pc()) {
+	      jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+			 LIGHTREC_REG_STATE, JIT_V0);
+	}
+
 	jit_movi(JIT_V1, (uintptr_t)block);
 
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
@@ -154,6 +161,11 @@ static void lightrec_emit_eob(struct lightrec_cstate *state,
 
 	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
 			  block->pc + (offset << 2));
+	if (lightrec_store_next_pc()) {
+	      jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+			 LIGHTREC_REG_STATE, JIT_V0);
+	}
+
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 
 	lightrec_jump_to_eob(state, _jit);
@@ -1214,6 +1226,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 
 	if (add_imm) {
 		jit_addi(tmp, addr_reg, (s16)c.i.imm);
+		lightrec_free_reg(reg_cache, rs);
 		addr_reg = tmp;
 		imm = 0;
 	} else if (simm) {
