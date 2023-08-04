@@ -376,10 +376,10 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	u16 offset = (u16)arg;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
-					     arg >> 16, state->next_pc);
+					     arg >> 16, state->curr_pc);
 	if (unlikely(!block)) {
 		pr_err("rw_generic: No block found in LUT for PC 0x%x offset 0x%x\n",
-			 state->next_pc, offset);
+			 state->curr_pc, offset);
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 		return;
 	}
@@ -776,7 +776,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	} while (state->exit_flags == LIGHTREC_EXIT_NORMAL
 		 && state->current_cycle < state->target_cycle);
 
-	state->next_pc = pc;
+	state->curr_pc = pc;
 	return func;
 }
 
@@ -1077,6 +1077,14 @@ static void update_cycle_counter_after_c(jit_state_t *_jit)
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
 }
 
+static void sync_next_pc(jit_state_t *_jit)
+{
+	if (lightrec_store_next_pc()) {
+		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, next_pc));
+	}
+}
+
 static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
@@ -1140,6 +1148,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * in JIT_V0 and the address of the block in JIT_V1. */
 		addr4 = jit_indirect();
 
+		sync_next_pc(_jit);
 		update_cycle_counter_before_c(_jit);
 
 		jit_prepare();
@@ -1167,6 +1176,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * in question; and if it does, handle it accordingly. */
 		addr5 = jit_indirect();
 
+		sync_next_pc(_jit);
 		update_cycle_counter_before_c(_jit);
 
 		jit_prepare();
@@ -1178,22 +1188,24 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_retval(JIT_V0);
 
 		update_cycle_counter_after_c(_jit);
-
-		if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
-			jit_patch(jmp2);
-	}
-
-	if (OPT_REPLACE_MEMSET
-	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
-		jit_patch(jmp);
 	}
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
-	/* Store back the next_pc to the lightrec_state structure */
-	offset = offsetof(struct lightrec_state, next_pc);
+	sync_next_pc(_jit);
+
+	if (OPT_HANDLE_LOAD_DELAYS && OPT_DETECT_IMPOSSIBLE_BRANCHES)
+	      jit_patch(jmp2);
+
+	if (OPT_REPLACE_MEMSET
+	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
+		jit_patch(jmp);
+	}
+
+	/* Store back the next PC to the lightrec_state structure */
+	offset = offsetof(struct lightrec_state, curr_pc);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
 
 	/* Jump to end if state->target_cycle < state->current_cycle */
@@ -1254,7 +1266,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	/* Reset JIT_V0 to the next PC */
 	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, next_pc));
+		    offsetof(struct lightrec_state, curr_pc));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1543,7 +1555,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
-	lightrec_preload_pc(cstate->reg_cache);
+	lightrec_preload_pc(cstate->reg_cache, _jit);
 
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;
@@ -1763,13 +1775,13 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 		target_cycle = UINT_MAX;
 
 	state->target_cycle = target_cycle;
-	state->next_pc = pc;
+	state->curr_pc = pc;
 
 	block_trace = get_next_block_func(state, pc);
 	if (block_trace) {
 		cycles_delta = state->target_cycle - state->current_cycle;
 
-		cycles_delta = (*func)(state, state->next_pc,
+		cycles_delta = (*func)(state, state->curr_pc,
 				       block_trace, cycles_delta);
 
 		state->current_cycle = state->target_cycle - cycles_delta;
@@ -1781,7 +1793,7 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (LOG_LEVEL >= INFO_L)
 		lightrec_print_info(state);
 
-	return state->next_pc;
+	return state->curr_pc;
 }
 
 u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc,

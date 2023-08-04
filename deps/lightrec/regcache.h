@@ -63,7 +63,7 @@ u8 lightrec_get_reg_in_flags(struct regcache *cache, u8 jit_reg);
 void lightrec_set_reg_out_flags(struct regcache *cache, u8 jit_reg, u8 flags);
 
 void lightrec_regcache_reset(struct regcache *cache);
-void lightrec_preload_pc(struct regcache *cache);
+void lightrec_preload_pc(struct regcache *cache, jit_state_t *_jit);
 
 void lightrec_free_reg(struct regcache *cache, u8 jit_reg);
 void lightrec_free_regs(struct regcache *cache);
