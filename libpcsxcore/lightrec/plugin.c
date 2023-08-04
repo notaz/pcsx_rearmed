@@ -291,7 +291,7 @@ static struct lightrec_mem_map lightrec_map[] = {
 	[PSX_MAP_HW_REGISTERS] = {
 		/* Hardware registers */
 		.pc = 0x1f801000,
-		.length = 0x2000,
+		.length = 0x8000,
 		.ops = &hw_regs_ops,
 	},
 	[PSX_MAP_CACHE_CONTROL] = {
