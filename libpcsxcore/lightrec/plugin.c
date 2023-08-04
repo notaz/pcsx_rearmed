@@ -317,6 +317,15 @@ static struct lightrec_mem_map lightrec_map[] = {
 		.length = 0x200000,
 		.mirror_of = &lightrec_map[PSX_MAP_KERNEL_USER_RAM],
 	},
+
+	/* Mirror of the parallel port. Only used by the PS2/PS3 BIOS */
+	[PSX_MAP_PPORT_MIRROR] = {
+		.pc = 0x1fa00000,
+		.length = 0x10000,
+		.mirror_of = &lightrec_map[PSX_MAP_PARALLEL_PORT],
+	},
+
+	/* Code buffer */
 	[PSX_MAP_CODE_BUFFER] = {
 		.length = CODE_BUFFER_SIZE,
 	},
