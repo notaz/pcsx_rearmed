@@ -64,22 +64,22 @@ ifeq ($(DEBUG), 1)
 endif
 
 ifeq ($(WANT_ZLIB),1)
-CFLAGS += -Ideps/libchdr/deps/zlib-1.2.11
-OBJS += deps/libchdr/deps/zlib-1.2.11/adler32.o \
-        deps/libchdr/deps/zlib-1.2.11/compress.o \
-        deps/libchdr/deps/zlib-1.2.11/crc32.o \
-        deps/libchdr/deps/zlib-1.2.11/deflate.o \
-        deps/libchdr/deps/zlib-1.2.11/gzclose.o \
-        deps/libchdr/deps/zlib-1.2.11/gzlib.o \
-        deps/libchdr/deps/zlib-1.2.11/gzread.o \
-        deps/libchdr/deps/zlib-1.2.11/gzwrite.o \
-        deps/libchdr/deps/zlib-1.2.11/infback.o \
-        deps/libchdr/deps/zlib-1.2.11/inffast.o \
-        deps/libchdr/deps/zlib-1.2.11/inflate.o \
-        deps/libchdr/deps/zlib-1.2.11/inftrees.o \
-        deps/libchdr/deps/zlib-1.2.11/trees.o \
-        deps/libchdr/deps/zlib-1.2.11/uncompr.o \
-        deps/libchdr/deps/zlib-1.2.11/zutil.o
+CFLAGS += -Ideps/libchdr/deps/zlib-1.2.13
+OBJS += deps/libchdr/deps/zlib-1.2.13/adler32.o \
+        deps/libchdr/deps/zlib-1.2.13/compress.o \
+        deps/libchdr/deps/zlib-1.2.13/crc32.o \
+        deps/libchdr/deps/zlib-1.2.13/deflate.o \
+        deps/libchdr/deps/zlib-1.2.13/gzclose.o \
+        deps/libchdr/deps/zlib-1.2.13/gzlib.o \
+        deps/libchdr/deps/zlib-1.2.13/gzread.o \
+        deps/libchdr/deps/zlib-1.2.13/gzwrite.o \
+        deps/libchdr/deps/zlib-1.2.13/infback.o \
+        deps/libchdr/deps/zlib-1.2.13/inffast.o \
+        deps/libchdr/deps/zlib-1.2.13/inflate.o \
+        deps/libchdr/deps/zlib-1.2.13/inftrees.o \
+        deps/libchdr/deps/zlib-1.2.13/trees.o \
+        deps/libchdr/deps/zlib-1.2.13/uncompr.o \
+        deps/libchdr/deps/zlib-1.2.13/zutil.o
 endif
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o

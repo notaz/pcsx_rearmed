@@ -8,11 +8,11 @@
 
 ***************************************************************************/
 
-#include <assert.h>
 #include <string.h>
 
 #include <libchdr/flac.h>
 #define DR_FLAC_IMPLEMENTATION
+#define DR_FLAC_NO_STDIO
 #include <dr_libs/dr_flac.h>
 
 /***************************************************************************
@@ -23,7 +23,7 @@
 static size_t flac_decoder_read_callback(void *userdata, void *buffer, size_t bytes);
 static drflac_bool32 flac_decoder_seek_callback(void *userdata, int offset, drflac_seek_origin origin);
 static void flac_decoder_metadata_callback(void *userdata, drflac_metadata *metadata);
-static void flac_decoder_write_callback(void *userdata, void *buffer, size_t len);
+static void flac_decoder_write_callback(void *userdata, void *buffer, size_t bytes);
 
 
 /* getters (valid after reset) */
@@ -60,9 +60,10 @@ int flac_decoder_init(flac_decoder *decoder)
 
 void flac_decoder_free(flac_decoder* decoder)
 {
-	if ((decoder != NULL) && (decoder->decoder != NULL))
+	if ((decoder != NULL) && (decoder->decoder != NULL)) {
 		drflac_close(decoder->decoder);
-	decoder->decoder = NULL;
+		decoder->decoder = NULL;
+	}
 }
 
 /*-------------------------------------------------
