@@ -1471,6 +1471,8 @@ bool retro_load_game(const struct retro_game_info *info)
    size_t i;
    unsigned int cd_index = 0;
    bool is_m3u = (strcasestr(info->path, ".m3u") != NULL);
+   bool is_exe = (strcasestr(info->path, ".exe") != NULL);
+   int ret;
 
    struct retro_input_descriptor desc[] = {
 #define JOYP(port)                                                                                                \
@@ -1664,7 +1666,7 @@ bool retro_load_game(const struct retro_game_info *info)
    plugin_call_rearmed_cbs();
    /* dfinput_activate(); */
 
-   if (CheckCdrom() == -1)
+   if (!is_exe && CheckCdrom() == -1)
    {
       log_cb(RETRO_LOG_INFO, "unsupported/invalid CD image: %s\n", info->path);
       return false;
@@ -1672,9 +1674,13 @@ bool retro_load_game(const struct retro_game_info *info)
 
    SysReset();
 
-   if (LoadCdrom() == -1)
+   if (is_exe)
+      ret = Load(info->path);
+   else
+      ret = LoadCdrom();
+   if (ret != 0)
    {
-      log_cb(RETRO_LOG_INFO, "could not load CD\n");
+      log_cb(RETRO_LOG_INFO, "could not load %s (%d)\n", is_exe ? "exe" : "CD", ret);
       return false;
    }
    emu_on_new_cd(0);
