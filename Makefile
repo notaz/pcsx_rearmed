@@ -80,6 +80,7 @@ OBJS += deps/libchdr/deps/zlib-1.2.13/adler32.o \
         deps/libchdr/deps/zlib-1.2.13/trees.o \
         deps/libchdr/deps/zlib-1.2.13/uncompr.o \
         deps/libchdr/deps/zlib-1.2.13/zutil.o
+deps/libchdr/deps/zlib-1.2.13/%.o: CFLAGS += -DHAVE_UNISTD_H
 endif
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
