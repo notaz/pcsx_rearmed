@@ -1585,7 +1585,6 @@ static long CALLBACK ISOopen(void) {
 	char alt_bin_filename[MAXPATHLEN];
 	const char *bin_filename;
 	char image_str[1024];
-	int is_chd = 0;
 
 	if (cdHandle != NULL) {
 		return 0; // it's already open
@@ -1640,7 +1639,6 @@ static long CALLBACK ISOopen(void) {
 		CDR_getBuffer = ISOgetBuffer_chd;
 		cdimg_read_func = cdread_chd;
 		cdimg_read_sub_func = cdread_sub_chd;
-		is_chd = 1;
 	}
 #endif
 
@@ -1681,14 +1679,11 @@ static long CALLBACK ISOopen(void) {
 	}
 
 	// guess whether it is mode1/2048
-	if (ftello(cdHandle) % 2048 == 0) {
+	if (cdimg_read_func == cdread_normal && ftello(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
 		if (!fread(&modeTest, sizeof(modeTest), 1, cdHandle)) {
-#ifndef NDEBUG
 			SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
-			return -1;
 		}
 		if (SWAP32(modeTest) != 0xffffff00) {
 			strcat(image_str, "[2048]");
@@ -1701,7 +1696,7 @@ static long CALLBACK ISOopen(void) {
 
 	PrintTracks();
 
-	if (subChanMixed && !is_chd) {
+	if (subChanMixed && cdimg_read_func == cdread_normal) {
 		cdimg_read_func = cdread_sub_mixed;
 		cdimg_read_sub_func = cdread_sub_sub_mixed;
 	}
