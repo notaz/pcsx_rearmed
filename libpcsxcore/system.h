@@ -32,7 +32,6 @@ void *SysLoadLibrary(const char *lib);	// Loads Library
 void *SysLoadSym(void *lib, const char *sym);	// Loads Symbol from Library
 const char *SysLibError();				// Gets previous error loading sysbols
 void SysCloseLibrary(void *lib);		// Closes Library
-void SysUpdate();						// Called on VBlank (to update i.e. pads)
 void SysRunGui();						// Returns to the Gui
 void SysClose();						// Close mem and plugins
 

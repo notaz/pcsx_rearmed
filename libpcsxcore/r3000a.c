@@ -119,8 +119,6 @@ void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 
 	// Set the SR
 	cp0->n.SR = (cp0->n.SR & ~0x3f) | ((cp0->n.SR & 0x0f) << 2);
-
-	if (Config.HLE) psxBiosException();
 }
 
 void psxBranchTest() {

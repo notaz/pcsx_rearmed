@@ -303,11 +303,14 @@ call_psxException:
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
 FUNCTION(jump_to_new_pc):
+	ldr	r2, [fp, #LO_stop]
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	ldr	r0, [fp, #LO_pcaddr]
-	sub	r10, r10, r1
+	tst	r2, r2
 	str	r1, [fp, #LO_last_count]
+	sub	r10, r10, r1
+	bne	new_dyna_leave
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	jump_to_new_pc, .-jump_to_new_pc

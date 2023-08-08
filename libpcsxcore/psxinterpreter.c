@@ -112,7 +112,8 @@ static void intException(psxRegisters *regs, u32 pc, u32 cause)
 	if (cause != 0x20) {
 		//FILE *f = fopen("/tmp/psx_ram.bin", "wb");
 		//fwrite(psxM, 1, 0x200000, f); fclose(f);
-		log_unhandled("exception %08x @%08x\n", cause, pc);
+		log_unhandled("exception %08x @%08x ra=%08x\n",
+			cause, pc, regs->GPR.n.ra);
 	}
 	dloadFlush(regs);
 	regs->pc = pc;
@@ -1118,6 +1119,7 @@ OP(psxHLE) {
 		return;
 	}
 	psxHLEt[hleCode]();
+	branchSeen = 1;
 }
 
 static void (INT_ATTR *psxBSC[64])(psxRegisters *regs_, u32 code) = {

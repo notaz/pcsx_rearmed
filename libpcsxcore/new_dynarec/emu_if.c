@@ -248,8 +248,6 @@ static void ari64_reset()
 // (HLE softcall exit and BIOS fastboot end)
 static void ari64_execute_until()
 {
-	schedule_timeslice();
-
 	evprintf("ari64_execute %08x, %u->%u (%d)\n", psxRegs.pc,
 		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
 
@@ -262,6 +260,7 @@ static void ari64_execute_until()
 static void ari64_execute()
 {
 	while (!stop) {
+		schedule_timeslice();
 		ari64_execute_until();
 		evprintf("drc left @%08x\n", psxRegs.pc);
 	}
@@ -272,6 +271,7 @@ static void ari64_execute_block(enum blockExecCaller caller)
 	if (caller == EXEC_CALLER_BOOT)
 		stop++;
 
+	next_interupt = psxRegs.cycle + 1;
 	ari64_execute_until();
 
 	if (caller == EXEC_CALLER_BOOT)

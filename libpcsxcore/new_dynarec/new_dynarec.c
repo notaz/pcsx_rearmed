@@ -6989,9 +6989,9 @@ static noinline void pass1_disassemble(u_int pagelimit)
         done = 1;
     }
     if (dops[i].itype == HLECALL)
-      stop = 1;
+      done = 1;
     else if (dops[i].itype == INTCALL)
-      stop = 2;
+      done = 2;
     else if (dops[i].is_exception)
       done = stop_after_jal ? 1 : 2;
     if (done == 2) {
@@ -8917,7 +8917,6 @@ static int new_recompile_block(u_int addr)
   new_dynarec_did_compile=1;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
-    // XXX: is this enough? Maybe check hleSoftCall?
     void *beginning = start_block();
 
     emit_movimm(start,0);

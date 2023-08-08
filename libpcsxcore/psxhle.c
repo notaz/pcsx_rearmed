@@ -30,7 +30,10 @@
 #endif
 
 static void hleDummy() {
+	log_unhandled("hleDummy called @%08x ra=%08x\n",
+		psxRegs.pc - 4, psxRegs.GPR.n.ra);
 	psxRegs.pc = psxRegs.GPR.n.ra;
+	psxRegs.cycle += 1000;
 
 	psxBranchTest();
 }
@@ -95,8 +98,14 @@ static void hleExecRet() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 }
 
-void (* const psxHLEt[8])() = {
+void (* const psxHLEt[22])() = {
 	hleDummy, hleA0, hleB0, hleC0,
-	hleBootstrap, hleExecRet,
-	hleDummy, hleDummy
+	hleBootstrap, hleExecRet, psxBiosException, hleDummy,
+	hleExc0_0_1, hleExc0_0_2,
+	hleExc0_1_1, hleExc0_1_2, hleExc0_2_2_syscall,
+	hleExc1_0_1, hleExc1_0_2,
+	hleExc1_1_1, hleExc1_1_2,
+	hleExc1_2_1, hleExc1_2_2,
+	hleExc1_3_1, hleExc1_3_2,
+	hleExc3_0_2_defint,
 };
