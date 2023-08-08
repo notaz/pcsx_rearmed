@@ -785,9 +785,6 @@ void SysClose() {
 	}
 }
 
-void SysUpdate() {
-}
-
 int get_state_filename(char *buf, int size, int i) {
 	return get_gameid_filename(buf, size,
 		"." STATES_DIR "%.32s-%.9s.%3.3d", i);

@@ -52,10 +52,6 @@ void EmuShutdown() {
 }
 
 void EmuUpdate() {
-	// Do not allow hotkeys inside a softcall from HLE BIOS
-	if (!Config.HLE || !hleSoftCall)
-		SysUpdate();
-
 	ApplyCheats();
 
 	// reamed hack

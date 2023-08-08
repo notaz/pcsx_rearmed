@@ -188,12 +188,26 @@ void BiosBootBypass() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 }
 
+static void getFromCnf(char *buf, const char *key, u32 *val)
+{
+	buf = strstr(buf, key);
+	if (buf)
+		buf = strchr(buf, '=');
+	if (buf)
+		*val = strtol(buf + 1, NULL, 16);
+}
+
 int LoadCdrom() {
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
 	u8 time[4], *buf;
 	u8 mdir[4096];
 	char exename[256];
+	u32 cnf_tcb = 4;
+	u32 cnf_event = 16;
+	u32 cnf_stack = 0;
+	u32 sp = 0;
+	int ret;
 
 	if (!Config.HLE) {
 		if (psxRegs.pc != 0x80030000) // BiosBootBypass'ed or custom BIOS?
@@ -224,11 +238,12 @@ int LoadCdrom() {
 	else {
 		// read the SYSTEM.CNF
 		READTRACK();
+		buf[1023] = 0;
 
-		sscanf((char *)buf + 12, "BOOT = cdrom:\\%255s", exename);
-		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf((char *)buf + 12, "BOOT = cdrom:%255s", exename);
-			if (GetCdromFile(mdir, time, exename) == -1) {
+		ret = sscanf((char *)buf + 12, "BOOT = cdrom:\\%255s", exename);
+		if (ret < 1 || GetCdromFile(mdir, time, exename) == -1) {
+			ret = sscanf((char *)buf + 12, "BOOT = cdrom:%255s", exename);
+			if (ret < 1 || GetCdromFile(mdir, time, exename) == -1) {
 				char *ptr = strstr((char *)buf + 12, "cdrom:");
 				if (ptr != NULL) {
 					ptr += 6;
@@ -244,6 +259,11 @@ int LoadCdrom() {
 					return -1;
 			}
 		}
+		getFromCnf((char *)buf + 12, "TCB", &cnf_tcb);
+		getFromCnf((char *)buf + 12, "EVENT", &cnf_event);
+		getFromCnf((char *)buf + 12, "STACK", &cnf_stack);
+		if (Config.HLE)
+			psxBiosCnfLoaded(cnf_tcb, cnf_event);
 
 		// Read the EXE-Header
 		READTRACK();
@@ -252,7 +272,10 @@ int LoadCdrom() {
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 
 	SysPrintf("manual booting '%s'\n", exename);
-	SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0), SWAP32(tmpHead.s_addr));
+	sp = SWAP32(tmpHead.s_addr);
+	if (cnf_stack)
+		sp = cnf_stack;
+	SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0), sp);
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
@@ -793,8 +816,6 @@ int RecvPcsxInfo() {
 	NET_recvData(&SpuIrq_old, sizeof(SpuIrq_old), PSE_NET_BLOCKING);
 	NET_recvData(&RCntFix_old, sizeof(RCntFix_old), PSE_NET_BLOCKING);
 	NET_recvData(&Config.PsxType, sizeof(Config.PsxType), PSE_NET_BLOCKING);
-
-	SysUpdate();
 
 	tmp = Config.Cpu;
 	NET_recvData(&Config.Cpu, sizeof(Config.Cpu), PSE_NET_BLOCKING);

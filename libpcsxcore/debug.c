@@ -409,7 +409,6 @@ void ProcessDebug() {
         GetClient();
         ProcessCommands();
         GPU_updateLace();
-        SysUpdate();
     }
 }
 
