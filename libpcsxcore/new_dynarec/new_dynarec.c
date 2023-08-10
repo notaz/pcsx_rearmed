@@ -2114,28 +2114,18 @@ static void multdiv_alloc(struct regstat *current,int i)
   clear_const(current,dops[i].rs2);
   alloc_cc(current,i); // for stalls
   dirty_reg(current,CCREG);
-  if(dops[i].rs1&&dops[i].rs2)
+  current->u &= ~(1ull << HIREG);
+  current->u &= ~(1ull << LOREG);
+  alloc_reg(current, i, HIREG);
+  alloc_reg(current, i, LOREG);
+  dirty_reg(current, HIREG);
+  dirty_reg(current, LOREG);
+  if ((dops[i].opcode2 & 0x3e) == 0x1a || (dops[i].rs1 && dops[i].rs2)) // div(u)
   {
-      current->u&=~(1LL<<HIREG);
-      current->u&=~(1LL<<LOREG);
-      alloc_reg(current,i,HIREG);
-      alloc_reg(current,i,LOREG);
-      alloc_reg(current,i,dops[i].rs1);
-      alloc_reg(current,i,dops[i].rs2);
-      dirty_reg(current,HIREG);
-      dirty_reg(current,LOREG);
+    alloc_reg(current, i, dops[i].rs1);
+    alloc_reg(current, i, dops[i].rs2);
   }
-  else
-  {
-    // Multiply by zero is zero.
-    // MIPS does not have a divide by zero exception.
-    alloc_reg(current,i,HIREG);
-    alloc_reg(current,i,LOREG);
-    dirty_reg(current,HIREG);
-    dirty_reg(current,LOREG);
-    if (dops[i].rs1 && ((dops[i].opcode2 & 0x3e) == 0x1a)) // div(u) 0
-      alloc_reg(current, i, dops[i].rs1);
-  }
+  // else multiply by zero is zero
 }
 #endif
 
