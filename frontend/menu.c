@@ -2020,6 +2020,10 @@ static int reset_game(void)
 	ClosePlugins();
 	OpenPlugins();
 	SysReset();
+	if (Config.HLE) {
+		if (LoadCdrom() == -1)
+			return -1;
+	}
 	return 0;
 }
 
