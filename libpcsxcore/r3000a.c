@@ -61,8 +61,10 @@ void psxReset() {
 
 	psxRegs.CP0.n.SR   = 0x10600000; // COP0 enabled | BEV = 1 | TS = 1
 	psxRegs.CP0.n.PRid = 0x00000002; // PRevID = Revision ID, same as R3000A
-	if (Config.HLE)
-		psxRegs.CP0.n.SR |= 1u << 30; // COP2 enabled
+	if (Config.HLE) {
+		psxRegs.CP0.n.SR |= 1u << 30;    // COP2 enabled
+		psxRegs.CP0.n.SR &= ~(1u << 22); // RAM exception vector
+	}
 
 	psxCpu->ApplyConfig();
 	psxCpu->Reset();
