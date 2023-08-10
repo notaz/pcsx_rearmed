@@ -2726,6 +2726,8 @@ void retro_run(void)
    {
       rebootemu = 0;
       SysReset();
+      if (Config.HLE)
+         LoadCdrom();
    }
 
    print_internal_fps();
