@@ -304,10 +304,16 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	u8 time[4],*buf;
 	u8 mdir[4096];
 	char exename[256];
+	const char *p1, *p2;
 	u32 size, addr;
 	void *mem;
 
-	sscanf(filename, "cdrom:\\%255s", exename);
+	p1 = filename;
+	if ((p2 = strchr(p1, ':')))
+		p1 = p2 + 1;
+	while (*p1 == '\\')
+		p1++;
+	snprintf(exename, sizeof(exename), "%s", p1);
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
 
