@@ -28,6 +28,9 @@
 
 //#undef PSXHW_LOG
 //#define PSXHW_LOG printf
+#ifndef PAD_LOG
+#define PAD_LOG(...)
+#endif
 
 void psxHwReset() {
 	memset(psxH, 0, 0x10000);
@@ -42,15 +45,46 @@ u8 psxHwRead8(u32 add) {
 	unsigned char hard;
 
 	switch (add & 0x1fffffff) {
-		case 0x1f801040: hard = sioRead8();break; 
-#ifdef ENABLE_SIO1API
-		case 0x1f801050: hard = SIO1_readData8(); break;
-#endif
+		case 0x1f801040: hard = sioRead8(); break;
 		case 0x1f801800: hard = cdrRead0(); break;
 		case 0x1f801801: hard = cdrRead1(); break;
 		case 0x1f801802: hard = cdrRead2(); break;
 		case 0x1f801803: hard = cdrRead3(); break;
+
+		case 0x1f801041: case 0x1f801042: case 0x1f801043:
+		case 0x1f801044: case 0x1f801045:
+		case 0x1f801046: case 0x1f801047:
+		case 0x1f801048: case 0x1f801049:
+		case 0x1f80104a: case 0x1f80104b:
+		case 0x1f80104c: case 0x1f80104d:
+		case 0x1f80104e: case 0x1f80104f:
+		case 0x1f801050: case 0x1f801051:
+		case 0x1f801054: case 0x1f801055:
+		case 0x1f801058: case 0x1f801059:
+		case 0x1f80105a: case 0x1f80105b:
+		case 0x1f80105c: case 0x1f80105d:
+		case 0x1f801100: case 0x1f801101:
+		case 0x1f801104: case 0x1f801105:
+		case 0x1f801108: case 0x1f801109:
+		case 0x1f801110: case 0x1f801111:
+		case 0x1f801114: case 0x1f801115:
+		case 0x1f801118: case 0x1f801119:
+		case 0x1f801120: case 0x1f801121:
+		case 0x1f801124: case 0x1f801125:
+		case 0x1f801128: case 0x1f801129:
+		case 0x1f801810: case 0x1f801811:
+		case 0x1f801812: case 0x1f801813:
+		case 0x1f801814: case 0x1f801815:
+		case 0x1f801816: case 0x1f801817:
+		case 0x1f801820: case 0x1f801821:
+		case 0x1f801822: case 0x1f801823:
+		case 0x1f801824: case 0x1f801825:
+		case 0x1f801826: case 0x1f801827:
+			log_unhandled("unhandled r8  %08x @%08x\n", add, psxRegs.pc);
+			// falthrough
 		default:
+			if (0x1f801c00 <= add && add < 0x1f802000)
+				log_unhandled("spu r8 %02x @%08x\n", add, psxRegs.pc);
 			hard = psxHu8(add); 
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unkwnown 8bit read at address %x\n", add);
@@ -71,64 +105,38 @@ u16 psxHwRead16(u32 add) {
 #ifdef PSXHW_LOG
 		case 0x1f801070: PSXHW_LOG("IREG 16bit read %x\n", psxHu16(0x1070));
 			return psxHu16(0x1070);
-#endif
-#ifdef PSXHW_LOG
 		case 0x1f801074: PSXHW_LOG("IMASK 16bit read %x\n", psxHu16(0x1074));
 			return psxHu16(0x1074);
 #endif
-
 		case 0x1f801040:
 			hard = sioRead8();
 			hard|= sioRead8() << 8;
-#ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
-#endif
 			return hard;
 		case 0x1f801044:
 			hard = sioReadStat16();
-#ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
-#endif
 			return hard;
 		case 0x1f801048:
 			hard = sioReadMode16();
-#ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
-#endif
 			return hard;
 		case 0x1f80104a:
 			hard = sioReadCtrl16();
-#ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
-#endif
 			return hard;
 		case 0x1f80104e:
 			hard = sioReadBaud16();
-#ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
-#endif
 			return hard;
-#ifdef ENABLE_SIO1API
-		case 0x1f801050:
-			hard = SIO1_readData16();
-			return hard;
-		case 0x1f801054:
-			hard = SIO1_readStat16();
-			return hard;
-		case 0x1f80105a:
-			hard = SIO1_readCtrl16();
-			return hard;
-		case 0x1f80105e:
-			hard = SIO1_readBaud16();
-			return hard;
-#else
+
 		/* Fixes Armored Core misdetecting the Link cable being detected.
 		 * We want to turn that thing off and force it to do local multiplayer instead.
 		 * Thanks Sony for the fix, they fixed it in their PS Classic fork.
 		 */
 		case 0x1f801054:
 			return 0x80;
-#endif
+
 		case 0x1f801100:
 			hard = psxRcntRcount(0);
 #ifdef PSXHW_LOG
@@ -187,20 +195,33 @@ u16 psxHwRead16(u32 add) {
 		//case 0x1f802030: hard =   //int_2000????
 		//case 0x1f802040: hard =//dip switches...??
 
+		case 0x1f801042:
+		case 0x1f801046:
+		case 0x1f80104c:
+		case 0x1f801050:
+		case 0x1f801058:
+		case 0x1f80105a:
+		case 0x1f80105c:
 		case 0x1f801800:
 		case 0x1f801802:
-			log_unhandled("cdrom r16 %x\n", add);
+		case 0x1f801810:
+		case 0x1f801812:
+		case 0x1f801814:
+		case 0x1f801816:
+		case 0x1f801820:
+		case 0x1f801822:
+		case 0x1f801824:
+		case 0x1f801826:
+			log_unhandled("unhandled r16 %08x @%08x\n", add, psxRegs.pc);
 			// falthrough
 		default:
-			if (add >= 0x1f801c00 && add < 0x1f801e00) {
-            	hard = SPU_readRegister(add);
-			} else {
-				hard = psxHu16(add); 
+			if (0x1f801c00 <= add && add < 0x1f802000)
+				return SPU_readRegister(add);
+			hard = psxHu16(add);
 #ifdef PSXHW_LOG
-				PSXHW_LOG("*Unkwnown 16bit read at address %x\n", add);
+			PSXHW_LOG("*Unkwnown 16bit read at address %x\n", add);
 #endif
-			}
-            return hard;
+			return hard;
 	}
 	
 #ifdef PSXHW_LOG
@@ -218,25 +239,18 @@ u32 psxHwRead32(u32 add) {
 			hard |= sioRead8() << 8;
 			hard |= sioRead8() << 16;
 			hard |= sioRead8() << 24;
-#ifdef PAD_LOG
 			PAD_LOG("sio read32 ;ret = %x\n", hard);
-#endif
 			return hard;
-#ifdef ENABLE_SIO1API
-		case 0x1f801050:
-			hard = SIO1_readData32();
+		case 0x1f801044:
+			hard = sioReadStat16();
+			PAD_LOG("sio read32 %x; ret = %x\n", add&0xf, hard);
 			return hard;
-#endif
 #ifdef PSXHW_LOG
 		case 0x1f801060:
 			PSXHW_LOG("RAM size read %x\n", psxHu32(0x1060));
 			return psxHu32(0x1060);
-#endif
-#ifdef PSXHW_LOG
 		case 0x1f801070: PSXHW_LOG("IREG 32bit read %x\n", psxHu32(0x1070));
 			return psxHu32(0x1070);
-#endif
-#ifdef PSXHW_LOG
 		case 0x1f801074: PSXHW_LOG("IMASK 32bit read %x\n", psxHu32(0x1074));
 			return psxHu32(0x1074);
 #endif
@@ -349,11 +363,22 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 
+		case 0x1f801048:
+		case 0x1f80104c:
+		case 0x1f801050:
+		case 0x1f801054:
+		case 0x1f801058:
+		case 0x1f80105c:
 		case 0x1f801800:
-			log_unhandled("cdrom r32 %x\n", add);
+			log_unhandled("unhandled r32 %08x @%08x\n", add, psxRegs.pc);
 			// falthrough
 		default:
-			hard = psxHu32(add); 
+			if (0x1f801c00 <= add && add < 0x1f802000) {
+				hard = SPU_readRegister(add);
+				hard |= SPU_readRegister(add + 2) << 16;
+				return hard;
+			}
+			hard = psxHu32(add);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unkwnown 32bit read at address %x\n", add);
 #endif
@@ -368,15 +393,50 @@ u32 psxHwRead32(u32 add) {
 void psxHwWrite8(u32 add, u8 value) {
 	switch (add & 0x1fffffff) {
 		case 0x1f801040: sioWrite8(value); break;
-#ifdef ENABLE_SIO1API
-		case 0x1f801050: SIO1_writeData8(value); break;
-#endif
 		case 0x1f801800: cdrWrite0(value); break;
 		case 0x1f801801: cdrWrite1(value); break;
 		case 0x1f801802: cdrWrite2(value); break;
 		case 0x1f801803: cdrWrite3(value); break;
 
+		case 0x1f801041: case 0x1f801042: case 0x1f801043:
+		case 0x1f801044: case 0x1f801045:
+		case 0x1f801046: case 0x1f801047:
+		case 0x1f801048: case 0x1f801049:
+		case 0x1f80104a: case 0x1f80104b:
+		case 0x1f80104c: case 0x1f80104d:
+		case 0x1f80104e: case 0x1f80104f:
+		case 0x1f801050: case 0x1f801051:
+		case 0x1f801054: case 0x1f801055:
+		case 0x1f801058: case 0x1f801059:
+		case 0x1f80105a: case 0x1f80105b:
+		case 0x1f80105c: case 0x1f80105d:
+		case 0x1f801100: case 0x1f801101:
+		case 0x1f801104: case 0x1f801105:
+		case 0x1f801108: case 0x1f801109:
+		case 0x1f801110: case 0x1f801111:
+		case 0x1f801114: case 0x1f801115:
+		case 0x1f801118: case 0x1f801119:
+		case 0x1f801120: case 0x1f801121:
+		case 0x1f801124: case 0x1f801125:
+		case 0x1f801128: case 0x1f801129:
+		case 0x1f801810: case 0x1f801811:
+		case 0x1f801812: case 0x1f801813:
+		case 0x1f801814: case 0x1f801815:
+		case 0x1f801816: case 0x1f801817:
+		case 0x1f801820: case 0x1f801821:
+		case 0x1f801822: case 0x1f801823:
+		case 0x1f801824: case 0x1f801825:
+		case 0x1f801826: case 0x1f801827:
+			log_unhandled("unhandled w8  %08x @%08x\n", add, psxRegs.pc);
+			// falthrough
 		default:
+			if (0x1f801c00 <= add && add < 0x1f802000) {
+				log_unhandled("spu w8 %02x @%08x\n", value, psxRegs.pc);
+				if (!(add & 1))
+					SPU_writeRegister(add, value, psxRegs.cycle);
+				return;
+			}
+
 			psxHu8(add) = value;
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unknown 8bit write at address %x value %x\n", add, value);
@@ -394,48 +454,24 @@ void psxHwWrite16(u32 add, u16 value) {
 		case 0x1f801040:
 			sioWrite8((unsigned char)value);
 			sioWrite8((unsigned char)(value>>8));
-#ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
-#endif
 			return;
 		case 0x1f801044:
 			sioWriteStat16(value);
-#ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
-#endif
 			return;
 		case 0x1f801048:
-            sioWriteMode16(value);
-#ifdef PAD_LOG
+			sioWriteMode16(value);
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
-#endif
 			return;
 		case 0x1f80104a: // control register
 			sioWriteCtrl16(value);
-#ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
-#endif
 			return;
 		case 0x1f80104e: // baudrate register
-            sioWriteBaud16(value);
-#ifdef PAD_LOG
+			sioWriteBaud16(value);
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
-#endif
 			return;
-#ifdef ENABLE_SIO1API
-		case 0x1f801050:
-			SIO1_writeData16(value);
-			return;
-		case 0x1f801054:
-			SIO1_writeStat16(value);
-			return;
-		case 0x1f80105a:
-			SIO1_writeCtrl16(value);
-			return;
-		case 0x1f80105e:
-			SIO1_writeBaud16(value);
-			return;
-#endif
 		case 0x1f801070: 
 #ifdef PSXHW_LOG
 			PSXHW_LOG("IREG 16bit write %x\n", value);
@@ -448,8 +484,11 @@ void psxHwWrite16(u32 add, u16 value) {
 			PSXHW_LOG("IMASK 16bit write %x\n", value);
 #endif
 			psxHu16ref(0x1074) = SWAPu16(value);
-			if (psxHu16ref(0x1070) & SWAPu16(value))
+			if (psxHu16ref(0x1070) & SWAPu16(value)) {
+				//if ((psxRegs.CP0.n.SR & 0x401) == 0x401)
+				//	log_unhandled("irq on unmask @%08x\n", psxRegs.pc);
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
+			}
 			return;
 
 		case 0x1f801100:
@@ -500,8 +539,28 @@ void psxHwWrite16(u32 add, u16 value) {
 #endif
 			psxRcntWtarget(2, value); return;
 
+		case 0x1f801042:
+		case 0x1f801046:
+		case 0x1f80104c:
+		case 0x1f801050:
+		case 0x1f801054:
+		case 0x1f801058:
+		case 0x1f80105a:
+		case 0x1f80105c:
+		case 0x1f801800:
+		case 0x1f801802:
+		case 0x1f801810:
+		case 0x1f801812:
+		case 0x1f801814:
+		case 0x1f801816:
+		case 0x1f801820:
+		case 0x1f801822:
+		case 0x1f801824:
+		case 0x1f801826:
+			log_unhandled("unhandled w16 %08x @%08x\n", add, psxRegs.pc);
+			// falthrough
 		default:
-			if (add>=0x1f801c00 && add<0x1f801e00) {
+			if (0x1f801c00 <= add && add < 0x1f802000) {
 				SPU_writeRegister(add, value, psxRegs.cycle);
 				return;
 			}
@@ -535,15 +594,8 @@ void psxHwWrite32(u32 add, u32 value) {
 			sioWrite8((unsigned char)((value&0xff) >>  8));
 			sioWrite8((unsigned char)((value&0xff) >> 16));
 			sioWrite8((unsigned char)((value&0xff) >> 24));
-#ifdef PAD_LOG
 			PAD_LOG("sio write32 %x\n", value);
-#endif
 			return;
-#ifdef ENABLE_SIO1API
-		case 0x1f801050:
-			SIO1_writeData32(value);
-			return;
-#endif
 #ifdef PSXHW_LOG
 		case 0x1f801060:
 			PSXHW_LOG("RAM size write %x\n", value);
@@ -562,8 +614,11 @@ void psxHwWrite32(u32 add, u32 value) {
 			PSXHW_LOG("IMASK 32bit write %x\n", value);
 #endif
 			psxHu32ref(0x1074) = SWAPu32(value);
-			if (psxHu32ref(0x1070) & SWAPu32(value))
+			if (psxHu32ref(0x1070) & SWAPu32(value)) {
+				if ((psxRegs.CP0.n.SR & 0x401) == 0x401)
+					log_unhandled("irq on unmask @%08x\n", psxRegs.pc);
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
+			}
 			return;
 
 #ifdef PSXHW_LOG
@@ -753,9 +808,19 @@ void psxHwWrite32(u32 add, u32 value) {
 #endif
 			psxRcntWtarget(2, value & 0xffff); return;
 
+		case 0x1f801044:
+		case 0x1f801048:
+		case 0x1f80104c:
+		case 0x1f801050:
+		case 0x1f801054:
+		case 0x1f801058:
+		case 0x1f80105c:
+		case 0x1f801800:
+			log_unhandled("unhandled w32 %08x @%08x\n", add, psxRegs.pc);
+			// falthrough
 		default:
 			// Dukes of Hazard 2 - car engine noise
-			if (add>=0x1f801c00 && add<0x1f801e00) {
+			if (0x1f801c00 <= add && add < 0x1f802000) {
 				SPU_writeRegister(add, value&0xffff, psxRegs.cycle);
 				SPU_writeRegister(add + 2, value>>16, psxRegs.cycle);
 				return;

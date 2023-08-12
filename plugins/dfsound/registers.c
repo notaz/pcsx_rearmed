@@ -353,6 +353,19 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
     case H_SPUMute2:
      log_unhandled("r isOn: %08lx\n", reg);
      break;
+
+    case 0x0dac:
+    case H_SPUirqAddr:
+    case H_CDLeft:
+    case H_CDRight:
+    case H_ExtLeft:
+    case H_ExtRight:
+     break;
+
+    default:
+     if (r >= 0xda0)
+       log_unhandled("spu r %08lx\n", reg);
+     break;
   }
 
  return spu.regArea[(r-0xc00)>>1];

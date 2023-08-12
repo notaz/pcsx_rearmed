@@ -385,6 +385,7 @@ void new_dyna_pcsx_mem_init(void)
 	}
 
 	map_item(&mem_iortab[IOMEM32(0x1040)], io_read_sio32, 1);
+	map_item(&mem_iortab[IOMEM16(0x1044)], sioReadStat16, 1);
 	map_item(&mem_iortab[IOMEM32(0x1100)], io_rcnt_read_count0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1104)], io_rcnt_read_mode0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1108)], io_rcnt_read_target0, 1);
@@ -468,7 +469,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM8(0x1802)], cdrWrite2, 1);
 	map_item(&mem_iowtab[IOMEM8(0x1803)], cdrWrite3, 1);
 
-	for (i = 0x1c00; i < 0x1e00; i += 2) {
+	for (i = 0x1c00; i < 0x2000; i += 2) {
 		map_item(&mem_iowtab[IOMEM16(i)], io_spu_write16, 1);
 		map_item(&mem_iowtab[IOMEM32(i)], io_spu_write32, 1);
 	}
@@ -494,7 +495,7 @@ void new_dyna_pcsx_mem_reset(void)
 	// plugins might change so update the pointers
 	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
 
-	for (i = 0x1c00; i < 0x1e00; i += 2)
+	for (i = 0x1c00; i < 0x2000; i += 2)
 		map_item(&mem_iortab[IOMEM16(i)], SPU_readRegister, 1);
 
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
