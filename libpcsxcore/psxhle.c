@@ -98,7 +98,7 @@ static void hleExecRet() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 }
 
-void (* const psxHLEt[22])() = {
+void (* const psxHLEt[24])() = {
 	hleDummy, hleA0, hleB0, hleC0,
 	hleBootstrap, hleExecRet, psxBiosException, hleDummy,
 	hleExc0_0_1, hleExc0_0_2,
@@ -108,4 +108,5 @@ void (* const psxHLEt[22])() = {
 	hleExc1_2_1, hleExc1_2_2,
 	hleExc1_3_1, hleExc1_3_2,
 	hleExc3_0_2_defint,
+	hleExcPadCard1, hleExcPadCard2,
 };

@@ -36,6 +36,7 @@ void hleExc1_1_1(); void hleExc1_1_2();
 void hleExc1_2_1(); void hleExc1_2_2();
 void hleExc1_3_1(); void hleExc1_3_2();
 void hleExc3_0_2_defint();
+void hleExcPadCard1(); void hleExcPadCard2();
 
 enum hle_op {
 	hleop_dummy = 0, hleop_a0, hleop_b0, hleop_c0,
@@ -47,9 +48,10 @@ enum hle_op {
 	hleop_exc1_2_1, hleop_exc1_2_2,
 	hleop_exc1_3_1, hleop_exc1_3_2,
 	hleop_exc3_0_2,
+	hleop_exc_padcard1, hleop_exc_padcard2,
 };
 
-extern void (* const psxHLEt[22])();
+extern void (* const psxHLEt[24])();
 
 #ifdef __cplusplus
 }

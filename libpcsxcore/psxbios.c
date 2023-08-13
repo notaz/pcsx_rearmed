@@ -251,9 +251,6 @@ typedef struct {
 } FileDesc;
 
 static int *pad_buf = NULL;
-static char *pad_buf1 = NULL, *pad_buf2 = NULL;
-static int pad_buf1len, pad_buf2len;
-static int pad_stopped = 0;
 static u32 heap_size = 0;
 static u32 *heap_addr = NULL;
 static u32 *heap_end = NULL;
@@ -275,9 +272,17 @@ static u32 card_active_chan = 0;
 #define A_KMALLOC_PTR   0x7460
 #define A_KMALLOC_SIZE  0x7464
 #define A_KMALLOC_END   0x7468
+#define A_PADCRD_CHN_E  0x74a8  // pad/card irq chain entry
+#define A_PAD_IRQR_ENA  0x74b8  // pad read on vint irq (nocash 'pad_enable_flag')
+#define A_CARD_IRQR_ENA 0x74bc  // same for card
+#define A_PAD_INBUF     0x74c8  // 2x buffers for rx pad data
+#define A_PAD_OUTBUF    0x74d0  // 2x buffers for tx pad data
+#define A_PAD_IN_LEN    0x74d8
+#define A_PAD_OUT_LEN   0x74e0
 #define A_EEXIT_PTR     0x75d0
 #define A_EXC_STACK     0x85d8  // exception stack top
 #define A_RCNT_VBL_ACK  0x8600
+#define A_PAD_ACK_VBL   0x8914  // enable vint ack by pad reading code
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
@@ -289,15 +294,32 @@ static u32 loadRam32(u32 addr)
 	return SWAP32(*((u32 *)psxM + ((addr & 0x1fffff) >> 2)));
 }
 
+static void *castRam8ptr(u32 addr)
+{
+	assert(!(addr & 0x5f800000));
+	return psxM + (addr & 0x1fffff);
+}
+
 static void *castRam32ptr(u32 addr)
 {
 	assert(!(addr & 0x5f800003));
 	return psxM + (addr & 0x1ffffc);
 }
 
+static void *loadRam8ptr(u32 addr)
+{
+	return castRam8ptr(loadRam32(addr));
+}
+
 static void *loadRam32ptr(u32 addr)
 {
 	return castRam32ptr(loadRam32(addr));
+}
+
+static void storeRam8(u32 addr, u8 d)
+{
+	assert(!(addr & 0x5f800000));
+	*((u8 *)psxM + (addr & 0x1fffff)) = d;
 }
 
 static void storeRam32(u32 addr, u32 d)
@@ -1596,13 +1618,13 @@ void psxBios__96_init() { // 71
 	pc0 = ra;
 }
 
-static void psxBios_SysDeqIntRP_();
+static void write_chain(u32 *d, u32 next, u32 handler1, u32 handler2);
+static void psxBios_SysEnqIntRP_(u32 priority, u32 chain_eptr);
+static void psxBios_SysDeqIntRP_(u32 priority, u32 chain_rm_eptr);
 
 static void psxBios_DequeueCdIntr_() {
-	a0 = 0; a1 = 0x91d0;
-	psxBios_SysDeqIntRP_();
-	a0 = 0; a1 = 0x91e0;
-	psxBios_SysDeqIntRP_();
+	psxBios_SysDeqIntRP_(0, 0x91d0);
+	psxBios_SysDeqIntRP_(0, 0x91e0);
 	use_cycles(16);
 }
 
@@ -2034,36 +2056,55 @@ void psxBios_ChangeTh() { // 10
 }
 
 void psxBios_InitPAD() { // 0x12
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x12]);
-#endif
+	u32 i, *ram32 = (u32 *)psxM;
+	PSXBIOS_LOG("psxBios_%s %x %x %x %x\n", biosB0n[0x12], a0, a1, a2, a3);
 
-	pad_buf1 = (char*)Ra0;
-	pad_buf1len = a1;
-	pad_buf2 = (char*)Ra2;
-	pad_buf2len = a3;
+	// printf("%s", "PS-X Control PAD Driver  Ver 3.0");
+	// PAD_dr_enable = 0;
+	ram32[A_PAD_OUTBUF/4 + 0] = 0;
+	ram32[A_PAD_OUTBUF/4 + 1] = 0;
+	ram32[A_PAD_OUT_LEN/4 + 0] = 0;
+	ram32[A_PAD_OUT_LEN/4 + 1] = 0;
+	ram32[A_PAD_INBUF/4 + 0] = SWAP32(a0);
+	ram32[A_PAD_INBUF/4 + 1] = SWAP32(a2);
+	ram32[A_PAD_IN_LEN/4 + 0] = SWAP32(a1);
+	ram32[A_PAD_IN_LEN/4 + 1] = SWAP32(a3);
 
-	v0 = 1; pc0 = ra;
+	for (i = 0; i < a1; i++) {
+		use_cycles(4);
+		storeRam8(a0 + i, 0);
+	}
+	for (i = 0; i < a3; i++) {
+		use_cycles(4);
+		storeRam8(a2 + i, 0);
+	}
+	write_chain(ram32 + A_PADCRD_CHN_E/4, 0, 0x49bc, 0x4a4c);
+
+	ram32[A_PAD_IRQR_ENA/4] = SWAP32(1);
+
+	mips_return_c(1, 200);
 }
 
 void psxBios_StartPAD() { // 13
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x13]);
-#endif
-	pad_stopped = 0;
-	psxHwWrite16(0x1f801074, (unsigned short)(psxHwRead16(0x1f801074) | 0x1));
+
+	psxBios_SysDeqIntRP_(2, A_PADCRD_CHN_E);
+	psxBios_SysEnqIntRP_(2, A_PADCRD_CHN_E);
+	psxHwWrite16(0x1f801070, ~1);
+	psxHwWrite16(0x1f801074, psxHu32(0x1074) | 1);
+	storeRam32(A_PAD_ACK_VBL, 1);
+	storeRam32(A_RCNT_VBL_ACK + (3 << 2), 0);
 	psxRegs.CP0.n.SR |= 0x401;
-	pc0 = ra;
+
+	mips_return_c(1, 300);
 }
 
 void psxBios_StopPAD() { // 14
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x14]);
-#endif
-	pad_stopped = 1;
-	pad_buf1 = NULL;
-	pad_buf2 = NULL;
-	pc0 = ra;
+	storeRam32(A_RCNT_VBL_ACK + (3 << 2), 1);
+	psxBios_SysDeqIntRP_(2, A_PADCRD_CHN_E);
+	psxRegs.CP0.n.SR |= 0x401;
+	mips_return_void_c(200);
 }
 
 void psxBios_PAD_init() { // 15
@@ -2546,27 +2587,37 @@ void psxBios_delete() { // 45
 }
 
 void psxBios_InitCARD() { // 4a
-#ifdef PSXBIOS_LOG
+	u32 *ram32 = (u32 *)psxM;
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x4a], a0);
-#endif
+	write_chain(ram32 + A_PADCRD_CHN_E/4, 0, 0x49bc, 0x4a4c);
+	// (maybe) todo: early_card_irq, FlushCache etc
 
-	pc0 = ra;
+	ram32[A_PAD_IRQR_ENA/4] = SWAP32(a0);
+
+	mips_return_c(0, 300);
 }
 
 void psxBios_StartCARD() { // 4b
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x4b]);
-#endif
+	psxBios_SysDeqIntRP_(2, A_PADCRD_CHN_E);
+	psxBios_SysEnqIntRP_(2, A_PADCRD_CHN_E);
 
-	pc0 = ra;
+	psxHwWrite16(0x1f801074, psxHu32(0x1074) | 1);
+	storeRam32(A_PAD_ACK_VBL, 1);
+	storeRam32(A_RCNT_VBL_ACK + (3 << 2), 0);
+	storeRam32(A_CARD_IRQR_ENA, 1);
+	psxRegs.CP0.n.SR |= 0x401;
+
+	mips_return_c(1, 200);
 }
 
 void psxBios_StopCARD() { // 4c
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x4c]);
-#endif
-
-	pc0 = ra;
+	storeRam32(A_RCNT_VBL_ACK + (3 << 2), 1);
+	psxBios_SysDeqIntRP_(2, A_PADCRD_CHN_E);
+	storeRam32(A_CARD_IRQR_ENA, 0);
+	psxRegs.CP0.n.SR |= 0x401;
+	mips_return_void_c(200);
 }
 
 void psxBios__card_write() { // 0x4e
@@ -2722,12 +2773,13 @@ void psxBios__card_chan() { // 0x58
 	pc0 = ra;
 }
 
-void psxBios_ChangeClearPad() { // 5b
-#ifdef PSXBIOS_LOG
+static void psxBios_ChangeClearPad() { // 5b
+	u32 ret;
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x5b], a0);
-#endif
+	ret = loadRam32(A_PAD_ACK_VBL);
+	storeRam32(A_PAD_ACK_VBL, a0);
 
-	pc0 = ra;
+	mips_return_c(ret, 6);
 }
 
 void psxBios__card_status() { // 5c
@@ -2750,8 +2802,6 @@ void psxBios__card_wait() { // 5d
 
 /* System calls C0 */
 
-static void psxBios_SysEnqIntRP();
-
 static void psxBios_InitRCnt() { // 00
 	int i;
 	PSXBIOS_LOG("psxBios_%s %x\n", biosC0n[0x00], a0);
@@ -2761,15 +2811,13 @@ static void psxBios_InitRCnt() { // 00
 		psxHwWrite16(0x1f801100 + i*0x10 + 8, 0);
 		psxHwWrite16(0x1f801100 + i*0x10 + 0, 0);
 	}
-	a1 = 0x6d88;
-	psxBios_SysEnqIntRP();
+	psxBios_SysEnqIntRP_(a0, 0x6d88);
 	mips_return_c(0, 9);
 }
 
 static void psxBios_InitException() { // 01
 	PSXBIOS_LOG("psxBios_%s %x\n", biosC0n[0x01], a0);
-	a1 = 0x6da8;
-	psxBios_SysEnqIntRP();
+	psxBios_SysEnqIntRP_(a0, 0x6da8);
 	mips_return_c(0, 9);
 }
 
@@ -2777,40 +2825,44 @@ static void psxBios_InitException() { // 01
  * int SysEnqIntRP(int index , long *queue);
  */
 
-static void psxBios_SysEnqIntRP() { // 02
+static void psxBios_SysEnqIntRP_(u32 priority, u32 chain_eptr) {
 	u32 old, base = loadRam32(A_TT_ExCB);
-	PSXBIOS_LOG("psxBios_%s %x %x\n", biosC0n[0x02], a0, a1);
 
-	old = loadRam32(base + (a0 << 3));
-	storeRam32(base + (a0 << 3), a1);
-	storeRam32(a1, old);
+	old = loadRam32(base + (priority << 3));
+	storeRam32(base + (priority << 3), chain_eptr);
+	storeRam32(chain_eptr, old);
 	mips_return_c(0, 9);
+}
+
+static void psxBios_SysEnqIntRP() { // 02
+	PSXBIOS_LOG("psxBios_%s %x %x\n", biosC0n[0x02], a0, a1);
+	psxBios_SysEnqIntRP_(a0, a1);
 }
 
 /*
  * int SysDeqIntRP(int index , long *queue);
  */
 
-static void psxBios_SysDeqIntRP_() { // 03
+static void psxBios_SysDeqIntRP_(u32 priority, u32 chain_rm_eptr) {
 	u32 ptr, next, base = loadRam32(A_TT_ExCB);
 	u32 lim = 0, ret = 0;
 
 	// as in original: no arg checks of any kind, bug if a1 == 0
-	ptr = loadRam32(base + (a0 << 3));
+	ptr = loadRam32(base + (priority << 3));
 	while (ptr) {
 		next = loadRam32(ptr);
-		if (ptr == a1) {
-			storeRam32(base + (a0 << 3), next);
+		if (ptr == chain_rm_eptr) {
+			storeRam32(base + (priority << 3), next);
 			ret = ptr;
 			use_cycles(6);
 			break;
 		}
-		while (next && next != a1 && lim++ < 100) {
+		while (next && next != chain_rm_eptr && lim++ < 100) {
 			ptr = next;
 			next = loadRam32(ptr);
 			use_cycles(8);
 		}
-		if (next == a1) {
+		if (next == chain_rm_eptr) {
 			next = loadRam32(next);
 			storeRam32(ptr, next);
 			ret = ptr;
@@ -2819,14 +2871,14 @@ static void psxBios_SysDeqIntRP_() { // 03
 		break;
 	}
 	if (lim == 100)
-		PSXBIOS_LOG("bad chain %u %x\n", a0, base);
+		PSXBIOS_LOG("bad chain %u %x\n", priority, base);
 
 	mips_return_c(ret, 12);
 }
 
 static void psxBios_SysDeqIntRP() { // 03
 	PSXBIOS_LOG("psxBios_%s %x %x\n", biosC0n[0x03], a0, a1);
-	psxBios_SysDeqIntRP_();
+	psxBios_SysDeqIntRP_(a0, a1);
 }
 
 static void psxBios_get_free_EvCB_slot() { // 04
@@ -2872,8 +2924,7 @@ static void psxBios_ChangeClearRCnt() { // 0a
 static void psxBios_InitDefInt() { // 0c
 	PSXBIOS_LOG("psxBios_%s %x\n", biosC0n[0x0c], a0);
 	// should also clear the autoack table
-	a1 = 0x6d98;
-	psxBios_SysEnqIntRP();
+	psxBios_SysEnqIntRP_(a0, 0x6d98);
 	mips_return_c(0, 20 + 6*2);
 }
 
@@ -2940,6 +2991,8 @@ static const struct {
 	{     0x1920, hleop_exc1_3_1 },
 	{     0x1794, hleop_exc1_3_2 },
 	{     0x2458, hleop_exc3_0_2 },
+	{     0x49bc, hleop_exc_padcard1 },
+	{     0x4a4c, hleop_exc_padcard2 },
 };
 
 static int chain_hle_op(u32 handler)
@@ -2958,7 +3011,7 @@ static void write_chain(u32 *d, u32 next, u32 handler1, u32 handler2)
 	d[1] = SWAPu32(handler1);
 	d[2] = SWAPu32(handler2);
 
-	// install hle traps
+	// install the hle traps
 	PSXMu32ref(handler1) = HLEOP(chain_hle_op(handler1));
 	PSXMu32ref(handler2) = HLEOP(chain_hle_op(handler2));
 }
@@ -3338,11 +3391,7 @@ void psxBiosInit() {
 //************** THE END ***************************************
 /**/
 
-	pad_stopped = 1;
 	pad_buf = NULL;
-	pad_buf1 = NULL;
-	pad_buf2 = NULL;
-	pad_buf1len = pad_buf2len = 0;
 	heap_addr = NULL;
 	heap_end = NULL;
 	heap_size = 0;
@@ -3423,9 +3472,14 @@ void psxBiosInit() {
 	//  patch: +3d8, +4dc, +594, +62c, +9c8, +1988
 	//  call:  +7a0=4b70, +884=4c54, +894=4c64
 	ptr[0x5b] = SWAP32(0x43d0);
-	ram32[0x4b70/4] = SWAP32(0x03e00008); // jr $ra
-	ram32[0x4c54/4] = SWAP32(0x03e00008); // jr $ra
+	ram32[0x4b70/4] = SWAP32(0x03e00008); // jr $ra // setPadOutputBuf
+
+	ram32[0x4c54/4] = SWAP32(0x240e0001); // mov $t6, 1
+	ram32[0x4c58/4] = SWAP32(0x03e00008); // jr $ra
+	ram32[0x4c5c/4] = SWAP32(0xac0e0000 + A_PAD_IRQR_ENA); // sw $t6, ...
+
 	ram32[0x4c64/4] = SWAP32(0x03e00008); // jr $ra
+	ram32[0x4c68/4] = SWAP32(0xac000000 + A_PAD_IRQR_ENA); // sw $0, ...
 
 	ptr = (u32 *)&psxM[A_C0_TABLE];
 	for (i = 0; i < 256/2; i++)
@@ -3472,8 +3526,6 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt) {
 }
 
 static void biosPadHLE() {
-	int i, bufcount;
-
 	if (pad_buf != NULL) {
 		u32 *buf = (u32*)pad_buf;
 
@@ -3503,15 +3555,6 @@ static void biosPadHLE() {
 			PAD2_poll(0);
 			*buf |= PAD2_poll(0) << 24;
 			*buf |= PAD2_poll(0) << 16;
-		}
-	}
-	if (!pad_stopped)  {
-		if (pad_buf1) {
-			psxBios_PADpoll(1);
-		}
-
-		if (pad_buf2) {
-			psxBios_PADpoll(2);
 		}
 	}
 }
@@ -3692,6 +3735,33 @@ void hleExc3_0_2_defint(void)
 	mips_return_c(0, 11 + 7*11 + 7*11 + 12);
 }
 
+void hleExcPadCard1(void)
+{
+	if (loadRam32(A_PAD_IRQR_ENA)) {
+		u8 *pad_buf1 = loadRam8ptr(A_PAD_INBUF + 0);
+		u8 *pad_buf2 = loadRam8ptr(A_PAD_INBUF + 4);
+		int i, bufcount;
+
+		psxBios_PADpoll(1);
+		psxBios_PADpoll(2);
+		biosPadHLE();
+		use_cycles(100);
+	}
+	if (loadRam32(A_PAD_ACK_VBL))
+		psxHwWrite16(0x1f801070, ~1);
+	if (loadRam32(A_CARD_IRQR_ENA)) {
+		// todo, maybe
+	}
+
+	mips_return_c(0, 18);
+}
+
+void hleExcPadCard2(void)
+{
+	u32 ret = psxHu32(0x1074) & psxHu32(0x1070) & 1;
+	mips_return_c(ret, 15);
+}
+
 void psxBiosException() {
 	u32 tcbPtr = loadRam32(A_TT_PCB);
 	u32 *chains = loadRam32ptr(A_TT_ExCB);
@@ -3740,10 +3810,6 @@ void psxBiosException() {
 	}
 	assert(lim < 100);
 
-	// TODO make this a chain entry
-	if (psxHu32(0x1070) & 1)
-		biosPadHLE();
-
 	// return from exception (custom or default)
 	use_cycles(23);
 	ptr = loadRam32(A_EEXIT_PTR);
@@ -3781,11 +3847,8 @@ void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
 	bfreezepsxMptr(pad_buf, int);
-	bfreezepsxMptr(pad_buf1, char);
-	bfreezepsxMptr(pad_buf2, char);
 	bfreezepsxMptr(heap_addr, u32);
 	bfreezes(FDesc);
 	bfreezel(&card_active_chan);
-	bfreezel(&pad_stopped);
 	bfreezel(&heap_size);
 }
