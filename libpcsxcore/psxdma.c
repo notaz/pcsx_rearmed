@@ -238,7 +238,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 		mem = getDmaRam(madr, &words_max);
 		if (mem == INVALID_PTR) {
 			log_unhandled("bad6 dma madr %x\n", madr);
-			HW_DMA6_CHCR &= SWAP32(~0x01000000);
+			HW_DMA6_CHCR &= SWAP32(~0x11000000);
 			DMA_INTERRUPT(6);
 			return;
 		}
@@ -263,7 +263,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 		log_unhandled("*** DMA6 OT - unknown *** %x addr = %x size = %x\n", chcr, madr, bcr);
 	}
 
-	HW_DMA6_CHCR &= SWAP32(~0x01000000);
+	HW_DMA6_CHCR &= SWAP32(~0x11000000);
 	DMA_INTERRUPT(6);
 }
 
@@ -271,7 +271,7 @@ void gpuotcInterrupt()
 {
 	if (HW_DMA6_CHCR & SWAP32(0x01000000))
 	{
-		HW_DMA6_CHCR &= SWAP32(~0x01000000);
+		HW_DMA6_CHCR &= SWAP32(~0x11000000);
 		DMA_INTERRUPT(6);
 	}
 }
