@@ -35,14 +35,17 @@
 #include "gpu.h"
 #include "sio.h"
 #include "psxhle.h"
+#include "psxinterpreter.h"
 #include <zlib.h>
 
 #if (defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 #endif
 
-#undef SysPrintf
-#define SysPrintf if (Config.PsxOut) printf
+#ifndef PSXBIOS_LOG
+//#define PSXBIOS_LOG printf
+#define PSXBIOS_LOG(...)
+#endif
 
 char *biosA0n[256] = {
 // 0x00
@@ -66,9 +69,9 @@ char *biosA0n[256] = {
 	"realloc",	"InitHeap",	"_exit",	"getchar",
 	"putchar",	"gets",		"puts",		"printf",
 // 0x40
-	"sys_a0_40",		"LoadTest",					"Load",		"Exec",
+	"SystemErrorUnresolvedException", "LoadTest",		"Load",		"Exec",
 	"FlushCache",		"InstallInterruptHandler",	"GPU_dw",	"mem2vram",
-	"SendGPUStatus",	"GPU_cw",					"GPU_cwb",	"SendPackets",
+	"SendGPUStatus",	"GPU_cw",			"GPU_cwb",	"SendPackets",
 	"sys_a0_4c",		"GetGPUStatus",				"GPU_sync",	"sys_a0_4f",
 // 0x50
 	"sys_a0_50",		"LoadExec",				"GetSysSp",		"sys_a0_53",
@@ -102,7 +105,7 @@ char *biosA0n[256] = {
 	"_card_load",		"_card_auto",	"bufs_cd_4",		"sys_a0_af",
 // 0xb0
 	"sys_a0_b0",		"sys_a0_b1",	"do_a_long_jmp",	"sys_a0_b3",
-	"?? sub_function",
+	"GetSystemInfo",
 };
 
 char *biosB0n[256] = {
@@ -224,10 +227,10 @@ typedef struct {
 	u32 gp0;
 	u32 t_addr;
 	u32 t_size;
-	u32 d_addr;
+	u32 d_addr; // 10
 	u32 d_size;
 	u32 b_addr;
-	u32 b_size;
+	u32 b_size; // 1c
 	u32 S_addr;
 	u32 s_size;
 	u32 _sp, _fp, _gp, ret, base;
@@ -360,25 +363,31 @@ static int returned_from_exception(void)
 static inline void softCall(u32 pc) {
 	u32 sra = ra;
 	u32 ssr = psxRegs.CP0.n.SR;
+	u32 lim = 0;
 	pc0 = pc;
 	ra = 0x80001000;
 	psxRegs.CP0.n.SR &= ~0x404; // disable interrupts
 
-	while (pc0 != 0x80001000)
+	while (pc0 != 0x80001000 && ++lim < 1000000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 
+	if (lim == 1000000)
+		PSXBIOS_LOG("softCall @%x hit lim\n", pc);
 	ra = sra;
-	psxRegs.CP0.n.SR = ssr;
+	psxRegs.CP0.n.SR |= ssr & 0x404;
 }
 
 static inline void softCallInException(u32 pc) {
 	u32 sra = ra;
+	u32 lim = 0;
 	pc0 = pc;
 	ra = 0x80001000;
 
-	while (!returned_from_exception() && pc0 != 0x80001000)
+	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 1000000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 
+	if (lim == 1000000)
+		PSXBIOS_LOG("softCallInException @%x hit lim\n", pc);
 	if (pc0 == 0x80001000)
 		ra = sra;
 }
@@ -395,7 +404,7 @@ static void CloseEvent(u32 ev);
 
 
 #define buread(Ra1, mcd, length) { \
-	SysPrintf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
+	PSXBIOS_LOG("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
 	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
 	memcpy(Ra1, ptr, length); \
 	if (FDesc[1 + mcd].mode & 0x8000) { \
@@ -408,7 +417,7 @@ static void CloseEvent(u32 ev);
 
 #define buwrite(Ra1, mcd, length) { \
 	u32 offset =  + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	SysPrintf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
+	PSXBIOS_LOG("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
 	ptr = Mcd##mcd##Data + offset; \
 	memcpy(ptr, Ra1, length); \
 	FDesc[1 + mcd].offset += length; \
@@ -419,11 +428,6 @@ static void CloseEvent(u32 ev);
 	v0 = 0; } \
 	else v0 = length; \
 }
-
-#ifndef PSXBIOS_LOG
-//#define PSXBIOS_LOG printf
-#define PSXBIOS_LOG(...)
-#endif
 
 /* Internally redirects to "FileRead(fd,tempbuf,1)".*/
 /* For some strange reason, the returned character is sign-expanded; */
@@ -1242,11 +1246,8 @@ void psxBios_malloc() { // 0x33
 
 void psxBios_free() { // 0x34
 
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x34]);
-#endif
-
-	SysPrintf("free %x: %x bytes\n", a0, *(u32*)(Ra0-4));
+	PSXBIOS_LOG("free %x: %x bytes\n", a0, *(u32*)(Ra0-4));
 
 	if (a0)
 		*(u32*)(Ra0-4) |= 1;	// set chunk to free
@@ -1314,7 +1315,7 @@ void psxBios_InitHeap() { // 0x39
 	/* HACKFIX: Commenting out this line fixes GTA2 crash */
 	//*heap_addr = SWAP32(size | 1);
 
-	SysPrintf("InitHeap %x,%x : %x %x\n",a0,a1, (int)((uptr)heap_addr-(uptr)psxM), size);
+	PSXBIOS_LOG("InitHeap %x,%x : %x %x\n",a0,a1, (int)((uptr)heap_addr-(uptr)psxM), size);
 
 	pc0 = ra;
 }
@@ -1391,7 +1392,8 @@ _start:
 	if (psp != INVALID_PTR)
 		memcpy(psp, save, 4 * 4);
 
-	SysPrintf("%s", tmp);
+	if (Config.PsxOut)
+		SysPrintf("%s", tmp);
 }
 
 void psxBios_printf() { // 0x3f
@@ -1421,7 +1423,7 @@ void psxBios_format() { // 0x41
 
 static void psxBios_SystemErrorUnresolvedException() {
 	if (loadRam32(0xfffc) != 0x12345678) { // prevent log flood
-		SysPrintf("psxBios_%s\n", biosA0n[0x40]);
+		SysPrintf("psxBios_%s called from %08x\n", biosA0n[0x40], ra);
 		storeRam32(0xfffc, 0x12345678);
 	}
 	mips_return_void_c(1000);
@@ -1450,27 +1452,30 @@ void psxBios_Load() { // 0x42
  */
 
 void psxBios_Exec() { // 43
-	EXEC *header = (EXEC*)Ra0;
-	u32 tmp;
+	EXEC *header = (EXEC *)castRam32ptr(a0);
+	u32 ptr;
+	s32 len;
 
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x, %x, %x\n", biosA0n[0x43], a0, a1, a2);
-#endif
 
-	header->_sp = sp;
-	header->_fp = fp;
-	header->_sp = sp;
-	header->_gp = gp;
-	header->ret = ra;
-	header->base = s0;
+	header->_sp = SWAP32(sp);
+	header->_fp = SWAP32(fp);
+	header->_sp = SWAP32(sp);
+	header->_gp = SWAP32(gp);
+	header->ret = SWAP32(ra);
+	header->base = SWAP32(s0);
 
-	if (header->S_addr != 0) {
-		tmp = header->S_addr + header->s_size;
-		sp = tmp;
-		fp = sp;
-	}
+	ptr = SWAP32(header->b_addr);
+	len = SWAP32(header->b_size);
+	if (len != 0) do {
+		storeRam32(ptr, 0);
+		len -= 4; ptr += 4;
+	} while (len > 0);
 
-	gp = header->gp0;
+	if (header->S_addr != 0)
+		sp = fp = SWAP32(header->S_addr) + SWAP32(header->s_size);
+
+	gp = SWAP32(header->gp0);
 
 	s0 = a0;
 
@@ -1478,7 +1483,7 @@ void psxBios_Exec() { // 43
 	a1 = a2;
 
 	ra = 0x8000;
-	pc0 = header->_pc0;
+	pc0 = SWAP32(header->_pc0);
 }
 
 void psxBios_FlushCache() { // 44
@@ -1661,16 +1666,16 @@ void psxBios_SetMem() { // 9f
 		case 2:
 			psxHu32ref(0x1060) = SWAP32(new);
 			psxMu32ref(0x060) = a0;
-			SysPrintf("Change effective memory : %d MBytes\n",a0);
+			PSXBIOS_LOG("Change effective memory : %d MBytes\n",a0);
 			break;
 
 		case 8:
 			psxHu32ref(0x1060) = SWAP32(new | 0x300);
 			psxMu32ref(0x060) = a0;
-			SysPrintf("Change effective memory : %d MBytes\n",a0);
+			PSXBIOS_LOG("Change effective memory : %d MBytes\n",a0);
 
 		default:
-			SysPrintf("Effective memory must be 2/8 MBytes\n");
+			PSXBIOS_LOG("Effective memory must be 2/8 MBytes\n");
 		break;
 	}
 
@@ -1727,6 +1732,19 @@ void psxBios__card_load() { // ac
 	DeliverEvent(0xf4000001, 0x0004);
 
 	v0 = 1; pc0 = ra;
+}
+
+static void psxBios_GetSystemInfo() { // b4
+	u32 ret = 0;
+	//PSXBIOS_LOG("psxBios_%s %x\n", biosA0n[0xb4], a0);
+	SysPrintf("psxBios_%s %x\n", biosA0n[0xb4], a0);
+	switch (a0) {
+	case 0:
+	case 1: ret = SWAP32(((u32 *)psxR)[0x100/4 + a0]); break;
+	case 2: ret = 0xbfc0012c; break;
+	case 5: ret = loadRam32(0x60) << 10; break;
+	}
+	mips_return_c(ret, 20);
 }
 
 /* System calls B0 */
@@ -2044,9 +2062,9 @@ void psxBios_ChangeTh() { // 10
 	u32 tcbBase = loadRam32(A_TT_TCB);
 	u32 th = a0 & 0xffff;
 
-#ifdef PSXBIOS_LOG
-//	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x10], th);
-#endif
+	// this is quite spammy
+	//PSXBIOS_LOG("psxBios_%s %x\n", biosB0n[0x10], th);
+
 	// without doing any argument checks, just issue a syscall
 	// (like the real bios does)
 	a0 = 3;
@@ -2136,18 +2154,22 @@ void psxBios_PAD_dr() { // 16
 static void psxBios_ReturnFromException() { // 17
 	u32 tcbPtr = loadRam32(A_TT_PCB);
 	const TCB *tcb = loadRam32ptr(tcbPtr);
+	u32 sr;
 	int i;
 
 	for (i = 1; i < 32; i++)
 		psxRegs.GPR.r[i] = SWAP32(tcb->reg[i]);
 	psxRegs.GPR.n.lo = SWAP32(tcb->lo);
 	psxRegs.GPR.n.hi = SWAP32(tcb->hi);
-	psxRegs.CP0.n.SR = SWAP32(tcb->sr);
+	sr = SWAP32(tcb->sr);
 
 	//printf("%s %08x->%08x %u\n", __func__, pc0, tcb->epc, psxRegs.cycle);
 	pc0 = k0 = SWAP32(tcb->epc);
 
-	psxRegs.CP0.n.SR = (psxRegs.CP0.n.SR & ~0x0f) | ((psxRegs.CP0.n.SR & 0x3c) >> 2);
+	// the interpreter wants to know about sr changes, so do a MTC0
+	sr = (sr & ~0x0f) | ((sr & 0x3c) >> 2);
+	MTC0(&psxRegs, 12, sr);
+
 	use_cycles(53);
 	psxBranchTest();
 }
@@ -2191,7 +2213,7 @@ static void buopen(int mcd, char *ptr, char *cfg)
 		if ((*fptr & 0xF0) != 0x50) continue;
 		if (strcmp(FDesc[1 + mcd].name, fptr+0xa)) continue;
 		FDesc[1 + mcd].mcfile = i;
-		SysPrintf("open %s\n", fptr+0xa);
+		PSXBIOS_LOG("open %s\n", fptr+0xa);
 		v0 = 1 + mcd;
 		break;
 	}
@@ -2230,7 +2252,7 @@ static void buopen(int mcd, char *ptr, char *cfg)
 			pptr[8] = pptr[9] = 0xff;
 			for (j=0, xor=0; j<127; j++) xor^= pptr[j];
 			pptr[127] = xor;
-			SysPrintf("openC %s %d\n", ptr, nblk);
+			PSXBIOS_LOG("openC %s %d\n", ptr, nblk);
 			v0 = 1 + mcd;
 			/* just go ahead and resave them all */
 			SaveMcd(cfg, ptr, 128, 128 * 15);
@@ -2325,9 +2347,8 @@ void psxBios_write() { // 0x35/0x03
 	char *ptr;
 	void *pa1 = Ra1;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %x,%x,%x\n", biosB0n[0x35], a0, a1, a2);
-#endif
+	if (a0 != 1) // stdout
+		PSXBIOS_LOG("psxBios_%s: %x,%x,%x\n", biosB0n[0x35], a0, a1, a2);
 
 	v0 = -1;
 	if (pa1 == INVALID_PTR) {
@@ -2339,7 +2360,7 @@ void psxBios_write() { // 0x35/0x03
 		char *ptr = pa1;
 
 		v0 = a2;
-		while (a2 > 0) {
+		if (Config.PsxOut) while (a2 > 0) {
 			SysPrintf("%c", *ptr++); a2--;
 		}
 		pc0 = ra; return;
@@ -2386,12 +2407,12 @@ void psxBios_close() { // 0x36
 }
 
 void psxBios_putchar() { // 3d
-	SysPrintf("%c", (char)a0);
+	if (Config.PsxOut) SysPrintf("%c", (char)a0);
 	pc0 = ra;
 }
 
 void psxBios_puts() { // 3e/3f
-	SysPrintf("%s", Ra0);
+	if (Config.PsxOut) SysPrintf("%s", Ra0);
 	pc0 = ra;
 }
 
@@ -2428,7 +2449,7 @@ static size_t strlen_internal(char* p)
 				strcpy(dir->name+i, ptr+i); break; } \
 			match = 0; break; \
 		} \
-		SysPrintf("%d : %s = %s + %s (match=%d)\n", nfile, dir->name, pfile, ptr, match); \
+		PSXBIOS_LOG("%d : %s = %s + %s (match=%d)\n", nfile, dir->name, pfile, ptr, match); \
 		if (match == 0) { continue; } \
 		dir->size = 8192; \
 		v0 = _dir; \
@@ -2552,7 +2573,7 @@ void psxBios_rename() { // 44
 		if (strcmp(Ra0+5, ptr+0xa)) continue; \
 		*ptr = (*ptr & 0xf) | 0xA0; \
 		SaveMcd(Config.Mcd##mcd, Mcd##mcd##Data, 128 * i, 1); \
-		SysPrintf("delete %s\n", ptr+0xa); \
+		PSXBIOS_LOG("delete %s\n", ptr+0xa); \
 		v0 = 1; \
 		break; \
 	} \
@@ -3230,6 +3251,8 @@ void psxBiosInit() {
 	biosA0[0x3b] = psxBios_getchar;
 	biosA0[0x3c] = psxBios_putchar;
 	//biosA0[0x3d] = psxBios_gets;
+	biosA0[0x3e] = psxBios_puts;
+	biosA0[0x3f] = psxBios_printf;
 	biosA0[0x40] = psxBios_SystemErrorUnresolvedException;
 	//biosA0[0x41] = psxBios_LoadTest;
 	biosA0[0x42] = psxBios_Load;
@@ -3346,7 +3369,7 @@ void psxBiosInit() {
 	//biosA0[0xb1] = psxBios_sys_a0_b1;
 	//biosA0[0xb2] = psxBios_do_a_long_jmp
 	//biosA0[0xb3] = psxBios_sys_a0_b3;
-	//biosA0[0xb4] = psxBios_sub_function;
+	biosA0[0xb4] = psxBios_GetSystemInfo;
 //*******************B0 CALLS****************************
 	biosB0[0x00] = psxBios_SysMalloc;
 	//biosB0[0x01] = psxBios_sys_b0_01;
@@ -3409,7 +3432,9 @@ void psxBiosInit() {
 	//biosB0[0x3a] = psxBios_getc;
 	//biosB0[0x3b] = psxBios_putc;
 	biosB0[0x3c] = psxBios_getchar;
+	biosB0[0x3d] = psxBios_putchar;
 	//biosB0[0x3e] = psxBios_gets;
+	biosB0[0x3f] = psxBios_puts;
 	//biosB0[0x40] = psxBios_cd;
 	biosB0[0x41] = psxBios_format;
 	biosB0[0x42] = psxBios_firstfile;
@@ -3483,11 +3508,15 @@ void psxBiosInit() {
 	// initial RNG seed
 	psxMu32ref(0x9010) = SWAPu32(0xac20cc00);
 
+	// somewhat pretend to be a SCPH1001 BIOS
+	// some games look for these and take an exception if they're missing
 	rom32 = (u32 *)psxR;
 	rom32[0x100/4] = SWAP32(0x19951204);
 	rom32[0x104/4] = SWAP32(3);
 	strcpy(psxR + 0x108, "PCSX authors");
-	strcpy(psxR + 0x12c, "PCSX HLE");
+	strcpy(psxR + 0x12c, "CEX-3000 PCSX HLE"); // see psxBios_GetSystemInfo
+	strcpy(psxR + 0x7ff32, "System ROM Version 2.2 12/04/95 A");
+	strcpy(psxR + 0x7ff54, "GPL-2.0-or-later");
 
 	// fonts
 	len = 0x80000 - 0x66000;
@@ -3697,7 +3726,7 @@ void hleExc0_2_2_syscall() // not in any A/B/C table
 	if (code != R3000E_Syscall) {
 		if (code != 0) {
 			DeliverEvent(0xf0000010, 0x1000);
-			psxBios_SystemErrorUnresolvedException();
+			//psxBios_SystemErrorUnresolvedException();
 		}
 		mips_return_c(0, 17);
 		return;
