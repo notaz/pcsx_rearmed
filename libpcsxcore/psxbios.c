@@ -181,7 +181,7 @@ char *biosC0n[256] = {
 #define k1 (psxRegs.GPR.n.k1)
 #define gp (psxRegs.GPR.n.gp)
 #define sp (psxRegs.GPR.n.sp)
-#define fp (psxRegs.GPR.n.s8)
+#define fp (psxRegs.GPR.n.fp)
 #define ra (psxRegs.GPR.n.ra)
 #define pc0 (psxRegs.pc)
 
@@ -2943,9 +2943,7 @@ void (*biosA0[256])();
 void (*biosC0[256+128])();
 void (**biosB0)() = biosC0 + 128;
 
-#include "sjisfont.h"
-
-void setup_mips_code()
+static void setup_mips_code()
 {
 	u32 *ptr;
 	ptr = (u32 *)&psxM[A_SYSCALL];
@@ -2967,7 +2965,6 @@ void setup_mips_code()
 
 	ptr[0x60/4] = SWAPu32(0x40037000); // mfc0  $v1, EPC
 	ptr[0x64/4] = SWAPu32(0x40026800); // mfc0  $v0, Cause
-	ptr[0x68/4] = SWAPu32(0x24630004); // addiu $v1, $v1, 4
 	ptr[0x6c/4] = SWAPu32(0xaf430080); // sw    $v1, 0x80($k0)
 
 	ptr[0xb0/4] = HLEOP(hleop_exception);
@@ -3061,6 +3058,91 @@ static void setup_tt(u32 tcb_cnt, u32 evcb_cnt)
 	storeRam32(A_CD_EVENTS + 0x10, OpenEvent(0xf0000003, 0x8000, EvMdMARK, 0));
 	DeliverEvent(0xf0000003, 0x0010);
 }
+
+static const u32 gpu_ctl_def[] = {
+	0x00000000, 0x01000000, 0x03000000, 0x04000000,
+	0x05000800, 0x06c60260, 0x0703fc10, 0x08000027
+};
+
+static const u32 gpu_data_def[] = {
+	0xe100360b, 0xe2000000, 0xe3000800, 0xe4077e7f,
+	0xe5001000, 0xe6000000,
+	0x02000000, 0x00000000, 0x01ff03ff
+};
+
+// from 1f801d80
+static const u16 spu_config[] = {
+	0x3fff, 0x37ef, 0x5ebc, 0x5ebc, 0x0000, 0x0000, 0x0000, 0x00a0,
+	0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0x00ff, 0x0000, 0x0000,
+	0x0000, 0xe128, 0x0000, 0x0200, 0xf0f0, 0xc085, 0x0004, 0x0000,
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0x033d, 0x0231, 0x7e00, 0x5000, 0xb400, 0xb000, 0x4c00, 0xb000,
+	0x6000, 0x5400, 0x1ed6, 0x1a31, 0x1d14, 0x183b, 0x1bc2, 0x16b2,
+	0x1a32, 0x15ef, 0x15ee, 0x1055, 0x1334, 0x0f2d, 0x11f6, 0x0c5d,
+	0x1056, 0x0ae1, 0x0ae0, 0x07a2, 0x0464, 0x0232, 0x8000, 0x8000
+};
+
+void psxBiosSetupBootState(void)
+{
+	boolean hle = Config.HLE;
+	u32 *hw = (u32 *)psxH;
+	int i;
+
+	// see also SetBootRegs()
+	if (hle) {
+		v0 = 1; v1 = 4;
+		a0 = 1; a2 = a3 = 0; a3 = 0x2a;
+		t2 = 0x2d; t4 = 0x23; t5 = 0x2b; t6 = 0xa0010000;
+		s0 = 0xa000b870;
+		k0 = 0xbfc0d968; k1 = 0xf1c;
+		ra = 0xf0001234; // just to easily detect attempts to return
+		psxRegs.CP0.n.Cause = 0x20;
+		psxRegs.CP0.n.EPC = 0xbfc0d964; // EnterCriticalSection syscall
+
+		hw[0x1000/4] = SWAP32(0x1f000000);
+		hw[0x1004/4] = SWAP32(0x1f802000);
+		hw[0x1008/4] = SWAP32(0x0013243f);
+		hw[0x100c/4] = SWAP32(0x00003022);
+		hw[0x1010/4] = SWAP32(0x0013243f);
+		hw[0x1014/4] = SWAP32(0x200931e1);
+		hw[0x1018/4] = SWAP32(0x00020943);
+		hw[0x101c/4] = SWAP32(0x00070777);
+		hw[0x1020/4] = SWAP32(0x0000132c);
+		hw[0x1060/4] = SWAP32(0x00000b88);
+		hw[0x1070/4] = SWAP32(0x00000001);
+		hw[0x1074/4] = SWAP32(0x0000000c);
+		hw[0x2040/4] = SWAP32(0x00000900);
+	}
+
+	hw[0x10a0/4] = SWAP32(0x00ffffff);
+	hw[0x10a8/4] = SWAP32(0x00000401);
+	hw[0x10b0/4] = SWAP32(0x0008b000);
+	hw[0x10b4/4] = SWAP32(0x00010200);
+	hw[0x10e0/4] = SWAP32(0x000eccf4);
+	hw[0x10e4/4] = SWAP32(0x00000400);
+	hw[0x10e8/4] = SWAP32(0x00000002);
+	hw[0x10f0/4] = SWAP32(0x00009099);
+	hw[0x10f4/4] = SWAP32(0x8c8c0000);
+
+	if (hle) {
+		psxRcntWmode(0, 0);
+		psxRcntWmode(1, 0);
+		psxRcntWmode(2, 0);
+	}
+
+	// gpu
+	for (i = 0; i < sizeof(gpu_ctl_def) / sizeof(gpu_ctl_def[0]); i++)
+		GPU_writeStatus(gpu_ctl_def[i]);
+	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
+		GPU_writeData(gpu_data_def[i]);
+	HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY);
+
+	// spu
+	for (i = 0x1f801d80; i < sizeof(spu_config) / sizeof(spu_config[0]); i++)
+		SPU_writeRegister(0x1f801d80 + i*2, spu_config[i], psxRegs.cycle);
+}
+
+#include "sjisfont.h"
 
 void psxBiosInit() {
 	u32 *ptr, *ram32, *rom32;
@@ -3412,9 +3494,6 @@ void psxBiosInit() {
 	uncompress((Bytef *)(psxR + 0x66000), &len, font_8140, sizeof(font_8140));
 	len = 0x80000 - 0x69d68;
 	uncompress((Bytef *)(psxR + 0x69d68), &len, font_889f, sizeof(font_889f));
-
-	// memory size 2 MB
-	psxHu32ref(0x1060) = SWAPu32(0x00000b88);
 
 	/*	Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
 		See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
@@ -3779,7 +3858,7 @@ void psxBiosException() {
 	}
 	tcb->lo = SWAP32(psxRegs.GPR.n.lo);
 	tcb->hi = SWAP32(psxRegs.GPR.n.hi);
-	tcb->epc = SWAP32(psxRegs.CP0.n.EPC);
+	//tcb->epc = SWAP32(psxRegs.CP0.n.EPC); // done by asm
 	tcb->sr = SWAP32(psxRegs.CP0.n.SR);
 	tcb->cause = SWAP32(psxRegs.CP0.n.Cause);
 	sp = fp = loadRam32(A_EXC_SP);

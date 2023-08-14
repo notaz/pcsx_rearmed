@@ -144,30 +144,6 @@ int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 	return retval;
 }
 
-static const unsigned int gpu_ctl_def[] = {
-	0x00000000, 0x01000000, 0x03000000, 0x04000000,
-	0x05000800, 0x06c60260, 0x0703fc10, 0x08000027,
-};
-
-static const unsigned int gpu_data_def[] = {
-	0xe100360b, 0xe2000000, 0xe3000800, 0xe4077e7f,
-	0xe5001000, 0xe6000000,
-	0x02000000, 0x00000000, 0x01ff03ff,
-};
-
-void BiosLikeGPUSetup()
-{
-	int i;
-
-	for (i = 0; i < sizeof(gpu_ctl_def) / sizeof(gpu_ctl_def[0]); i++)
-		GPU_writeStatus(gpu_ctl_def[i]);
-
-	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
-		GPU_writeData(gpu_data_def[i]);
-
-	HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY);
-}
-
 static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 {
 	//printf("%s %08x %08x %08x\n", __func__, pc, gp, sp);
@@ -176,6 +152,10 @@ static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 	psxRegs.pc = pc;
 	psxRegs.GPR.n.gp = gp;
 	psxRegs.GPR.n.sp = sp ? sp : 0x801fff00;
+	psxRegs.GPR.n.fp = psxRegs.GPR.n.sp;
+
+	psxRegs.GPR.n.t0 = psxRegs.GPR.n.sp; // mimic A(43)
+	psxRegs.GPR.n.t3 = pc;
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 }
@@ -271,7 +251,7 @@ int LoadCdrom() {
 
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 
-	SysPrintf("manual booting '%s'\n", exename);
+	SysPrintf("manual booting '%s' pc=%x\n", exename, SWAP32(tmpHead.pc0));
 	sp = SWAP32(tmpHead.s_addr);
 	if (cnf_stack)
 		sp = cnf_stack;

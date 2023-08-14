@@ -56,7 +56,6 @@ typedef struct {
 extern char CdromId[10];
 extern char CdromLabel[33];
 
-void BiosLikeGPUSetup();
 void BiosBootBypass();
 
 int LoadCdrom();
