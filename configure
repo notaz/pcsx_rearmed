@@ -153,7 +153,6 @@ if [ "$show_help" = "yes" ]; then
   echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
   echo "  --disable-dynarec        disable dynamic recompiler"
   echo "                           (dynarec is only available and enabled on ARM)"
-  echo "  --disable-icache-emu     Disables the instruction cache emulation"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
