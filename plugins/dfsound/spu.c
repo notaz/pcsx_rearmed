@@ -1482,6 +1482,7 @@ long CALLBACK SPUinit(void)
 {
  int i;
 
+ memset(&spu, 0, sizeof(spu));
  spu.spuMemC = calloc(1, 512 * 1024);
  InitADSR();
 
