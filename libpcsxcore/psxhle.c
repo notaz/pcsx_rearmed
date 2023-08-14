@@ -88,11 +88,11 @@ static void hleExecRet() {
 
 	PSXHLE_LOG("ExecRet %x: %x\n", psxRegs.GPR.n.s0, header->ret);
 
-	psxRegs.GPR.n.ra = header->ret;
-	psxRegs.GPR.n.sp = header->_sp;
-	psxRegs.GPR.n.fp = header->_fp;
-	psxRegs.GPR.n.gp = header->_gp;
-	psxRegs.GPR.n.s0 = header->base;
+	psxRegs.GPR.n.ra = SWAP32(header->ret);
+	psxRegs.GPR.n.sp = SWAP32(header->_sp);
+	psxRegs.GPR.n.fp = SWAP32(header->_fp);
+	psxRegs.GPR.n.gp = SWAP32(header->_gp);
+	psxRegs.GPR.n.s0 = SWAP32(header->base);
 
 	psxRegs.GPR.n.v0 = 1;
 	psxRegs.pc = psxRegs.GPR.n.ra;
