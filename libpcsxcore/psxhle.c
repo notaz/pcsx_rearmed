@@ -90,7 +90,7 @@ static void hleExecRet() {
 
 	psxRegs.GPR.n.ra = header->ret;
 	psxRegs.GPR.n.sp = header->_sp;
-	psxRegs.GPR.n.s8 = header->_fp;
+	psxRegs.GPR.n.fp = header->_fp;
 	psxRegs.GPR.n.gp = header->_gp;
 	psxRegs.GPR.n.s0 = header->base;
 

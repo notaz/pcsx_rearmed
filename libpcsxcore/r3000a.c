@@ -53,6 +53,7 @@ int psxInit() {
 }
 
 void psxReset() {
+	boolean introBypassed = FALSE;
 	psxMemReset();
 
 	memset(&psxRegs, 0, sizeof(psxRegs));
@@ -72,13 +73,15 @@ void psxReset() {
 	psxHwReset();
 	psxBiosInit();
 
-	BiosLikeGPUSetup(); // a bit of a hack but whatever
-
 	if (!Config.HLE) {
 		psxExecuteBios();
-		if (psxRegs.pc == 0x80030000 && !Config.SlowBoot)
+		if (psxRegs.pc == 0x80030000 && !Config.SlowBoot) {
 			BiosBootBypass();
+			introBypassed = TRUE;
+		}
 	}
+	if (Config.HLE || introBypassed)
+		psxBiosSetupBootState();
 
 #ifdef EMU_LOG
 	EMU_LOG("*BIOS END*\n");
