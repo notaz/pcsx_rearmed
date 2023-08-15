@@ -118,8 +118,13 @@ typedef struct
  unsigned int      prevflags:3;                        // flags from previous block
  unsigned int      bIgnoreLoop:1;                      // Ignore loop
  unsigned int      bNewPitch:1;                        // pitch changed
- int               iLeftVolume;                        // left volume
- int               iRightVolume;                       // right volume
+ union {
+  struct {
+   int             iLeftVolume;                        // left volume
+   int             iRightVolume;                       // right volume
+  };
+  int              iVolume[2];
+ };
  ADSRInfoEx        ADSRX;
  int               iRawPitch;                          // raw pitch (0...3fff)
 } SPUCHAN;
