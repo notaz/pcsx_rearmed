@@ -253,7 +253,6 @@ typedef struct {
 	u32  mcfile;
 } FileDesc;
 
-static int *pad_buf = NULL;
 static u32 heap_size = 0;
 static u32 *heap_addr = NULL;
 static u32 *heap_end = NULL;
@@ -275,13 +274,16 @@ static u32 card_active_chan = 0;
 #define A_KMALLOC_PTR   0x7460
 #define A_KMALLOC_SIZE  0x7464
 #define A_KMALLOC_END   0x7468
-#define A_PADCRD_CHN_E  0x74a8  // pad/card irq chain entry
+#define A_PADCRD_CHN_E  0x74a8  // pad/card irq chain entry, see hleExcPadCard1()
 #define A_PAD_IRQR_ENA  0x74b8  // pad read on vint irq (nocash 'pad_enable_flag')
 #define A_CARD_IRQR_ENA 0x74bc  // same for card
 #define A_PAD_INBUF     0x74c8  // 2x buffers for rx pad data
 #define A_PAD_OUTBUF    0x74d0  // 2x buffers for tx pad data
 #define A_PAD_IN_LEN    0x74d8
 #define A_PAD_OUT_LEN   0x74e0
+#define A_PAD_DR_DST    0x74c4
+#define A_PAD_DR_BUF1   0x7570
+#define A_PAD_DR_BUF2   0x7598
 #define A_EEXIT_PTR     0x75d0
 #define A_EXC_STACK     0x85d8  // exception stack top
 #define A_RCNT_VBL_ACK  0x8600
@@ -2078,7 +2080,7 @@ void psxBios_InitPAD() { // 0x12
 	PSXBIOS_LOG("psxBios_%s %x %x %x %x\n", biosB0n[0x12], a0, a1, a2, a3);
 
 	// printf("%s", "PS-X Control PAD Driver  Ver 3.0");
-	// PAD_dr_enable = 0;
+	ram32[A_PAD_DR_DST/4] = 0;
 	ram32[A_PAD_OUTBUF/4 + 0] = 0;
 	ram32[A_PAD_OUTBUF/4 + 1] = 0;
 	ram32[A_PAD_OUT_LEN/4 + 0] = 0;
@@ -2125,30 +2127,53 @@ void psxBios_StopPAD() { // 14
 	mips_return_void_c(200);
 }
 
-void psxBios_PAD_init() { // 15
-#ifdef PSXBIOS_LOG
+static void psxBios_PAD_init() { // 15
+	u32 ret = 0;
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x15]);
-#endif
-	if (!(a0 == 0x20000000 || a0 == 0x20000001))
+	if (a0 == 0x20000000 || a0 == 0x20000001)
 	{
-		v0 = 0;
-		pc0 = ra;
-		return;
+		u32 dst = a1;
+		a0 = A_PAD_DR_BUF1; a1 = 0x22;
+		a2 = A_PAD_DR_BUF2; a3 = 0x22;
+		psxBios_InitPAD();
+		psxBios_StartPAD();
+		storeRam32(A_PAD_DR_DST, dst);
+		ret = 2;
 	}
-	psxHwWrite16(0x1f801074, (u16)(psxHwRead16(0x1f801074) | 0x1));
-	pad_buf = (int *)Ra1;
-	*pad_buf = -1;
-	psxRegs.CP0.n.SR |= 0x401;
-	v0 = 2;
-	pc0 = ra;
+	mips_return_c(ret, 100);
 }
 
-void psxBios_PAD_dr() { // 16
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x16]);
-#endif
+static u32 psxBios_PAD_dr_() {
+	u8 *dst = loadRam32ptr(A_PAD_DR_DST);
+	u8 *buf1 = castRam8ptr(A_PAD_DR_BUF1);
+	u8 *buf2 = castRam8ptr(A_PAD_DR_BUF2);
+	dst[0] = dst[1] = dst[2] = dst[3] = ~0;
+	if (buf1[0] == 0 && (buf1[1] == 0x23 || buf1[1] == 0x41))
+	{
+		dst[0] = buf1[3], dst[1] = buf1[2];
+		if (buf1[1] == 0x23) {
+			dst[0] |= 0xc7, dst[1] |= 7;
+			if (buf1[5] >= 0x10) dst[0] &= ~(1u << 6);
+			if (buf1[6] >= 0x10) dst[0] &= ~(1u << 7);
+		}
+	}
+	if (buf2[0] == 0 && (buf2[1] == 0x23 || buf2[1] == 0x41))
+	{
+		dst[2] = buf2[3], dst[3] = buf2[2];
+		if (buf2[1] == 0x23) {
+			dst[2] |= 0xc7, dst[3] |= 7;
+			if (buf2[5] >= 0x10) dst[2] &= ~(1u << 6);
+			if (buf2[6] >= 0x10) dst[2] &= ~(1u << 7);
+		}
+	}
+	use_cycles(55);
+	return SWAP32(*(u32 *)dst);
+}
 
-	v0 = -1; pc0 = ra;
+static void psxBios_PAD_dr() { // 16
+	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x16]);
+	u32 ret = psxBios_PAD_dr_();
+	mips_return(ret);
 }
 
 static void psxBios_ReturnFromException() { // 17
@@ -3498,7 +3523,6 @@ void psxBiosInit() {
 //************** THE END ***************************************
 /**/
 
-	pad_buf = NULL;
 	heap_addr = NULL;
 	heap_end = NULL;
 	heap_size = 0;
@@ -3631,40 +3655,6 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt) {
 	while (bufcount--) { \
 		pad_buf##pad[i++] = PAD##pad##_poll(0); \
 	} \
-}
-
-static void biosPadHLE() {
-	if (pad_buf != NULL) {
-		u32 *buf = (u32*)pad_buf;
-
-		PAD1_startPoll(1);
-		if (PAD1_poll(0x42) == 0x23) {
-			PAD1_poll(0);
-			*buf = PAD1_poll(0) << 8;
-			*buf |= PAD1_poll(0);
-			PAD1_poll(0);
-			*buf &= ~((PAD1_poll(0) > 0x20) ? 1 << 6 : 0);
-			*buf &= ~((PAD1_poll(0) > 0x20) ? 1 << 7 : 0);
-		} else {
-			PAD1_poll(0);
-			*buf = PAD1_poll(0) << 8;
-			*buf|= PAD1_poll(0);
-		}
-
-		PAD2_startPoll(2);
-		if (PAD2_poll(0x42) == 0x23) {
-			PAD2_poll(0);
-			*buf |= PAD2_poll(0) << 24;
-			*buf |= PAD2_poll(0) << 16;
-			PAD2_poll(0);
-			*buf &= ~((PAD2_poll(0) > 0x20) ? 1 << 22 : 0);
-			*buf &= ~((PAD2_poll(0) > 0x20) ? 1 << 23 : 0);
-		} else {
-			PAD2_poll(0);
-			*buf |= PAD2_poll(0) << 24;
-			*buf |= PAD2_poll(0) << 16;
-		}
-	}
 }
 
 static void handle_chain_x_x_1(u32 enable, u32 irqbit)
@@ -3852,8 +3842,9 @@ void hleExcPadCard1(void)
 
 		psxBios_PADpoll(1);
 		psxBios_PADpoll(2);
-		biosPadHLE();
 		use_cycles(100);
+		if (loadRam32(A_PAD_DR_DST))
+			psxBios_PAD_dr_();
 	}
 	if (loadRam32(A_PAD_ACK_VBL))
 		psxHwWrite16(0x1f801070, ~1);
@@ -3954,7 +3945,6 @@ void psxBiosException() {
 void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
-	bfreezepsxMptr(pad_buf, int);
 	bfreezepsxMptr(heap_addr, u32);
 	bfreezes(FDesc);
 	bfreezel(&card_active_chan);
