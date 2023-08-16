@@ -435,6 +435,50 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "auto",
    },
+   {
+      "pcsx_rearmed_screen_centering",
+      "(GPU) Screen centering",
+      NULL,
+      "The PSX has a feature allowing it to shift the image position on screen. Some (mostly PAL) games used this feature in a strange way making the image miscentered and causing borders to appear. With 'Auto' the emulator tries to correct this miscentering automatically. 'Game-controlled' uses the settings supplied by the game. 'Manual' allows to override those values with the settings below.",
+      NULL,
+      "video",
+      {
+         { "auto", "Auto" },
+         { "game", "Game-controlled" },
+         { "manual", "Manual" },
+         { NULL, NULL },
+      },
+      "auto",
+   },
+#define V(x) { #x, NULL }
+   {
+      "pcsx_rearmed_screen_centering_x",
+      "(GPU) Manual screen centering X",
+      NULL,
+      "X offset of the frame buffer. Only effective when 'Screen centering' is set to 'Manual'.",
+      NULL,
+      "video",
+      {
+         V(-16), V(-14), V(-12), V(-10), V(-8), V(-6), V(-4), V(-2), V(0), V(2), V(4), V(6), V(8), V(10), V(12), V(14), V(16),
+         { NULL, NULL },
+      },
+      "0",
+   },
+   {
+      "pcsx_rearmed_screen_centering_y",
+      "(GPU) Manual screen centering Y",
+      NULL,
+      "Y offset of the frame buffer. Only effective when 'Screen centering' is set to 'Manual'.",
+      NULL,
+      "video",
+      {
+         V(-16), V(-15), V(-14), V(-13), V(-12), V(-11), V(-10), V(-9), V(-8), V(-7), V(-6), V(-5), V(-4), V(-3), V(-2), V(-1),
+	 V(0), V(1), V(2), V(3), V(4), V(5), V(6), V(7), V(8), V(9), V(10), V(11), V(12), V(13), V(14), V(15), V(16),
+         { NULL, NULL },
+      },
+      "0",
+   },
+#undef V
 #ifdef GPU_NEON
    {
       "pcsx_rearmed_neon_interlace_enable_v2",

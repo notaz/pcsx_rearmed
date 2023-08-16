@@ -87,6 +87,7 @@ typedef enum
 	MA_OPT_VOUT_MODE,
 	MA_OPT_SCANLINES,
 	MA_OPT_SCANLINE_LEVEL,
+	MA_OPT_CENTERING,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -450,6 +451,9 @@ static const struct {
 	CE_INTVAL_P(gpu_peopsgl.iVRamSize),
 	CE_INTVAL_P(gpu_peopsgl.iTexGarbageCollection),
 	CE_INTVAL_P(gpu_peopsgl.dwActFixes),
+	CE_INTVAL_P(screen_centering_type),
+	CE_INTVAL_P(screen_centering_x),
+	CE_INTVAL_P(screen_centering_y),
 	CE_INTVAL(spu_config.iUseReverb),
 	CE_INTVAL(spu_config.iXAPitch),
 	CE_INTVAL(spu_config.iUseInterpolation),
@@ -1252,6 +1256,7 @@ static const char *men_soft_filter[] = { "None",
 #endif
 	NULL };
 static const char *men_dummy[] = { NULL };
+static const char *men_centering[] = { "Auto", "Ingame", "Force", NULL };
 static const char h_scaler[]    = "int. 2x  - scales w. or h. 2x if it fits on screen\n"
 				  "int. 4:3 - uses integer if possible, else fractional";
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
@@ -1316,6 +1321,7 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
+	mee_enum      ("Screen centering",         MA_OPT_CENTERING, pl_rearmed_cbs.screen_centering_type, men_centering),
 	mee_enum_h    ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler, h_scaler),
 	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
@@ -2581,7 +2587,7 @@ void menu_init(void)
 
 	i = plat_target.cpu_clock_set != NULL
 		&& plat_target.cpu_clock_get != NULL && cpu_clock_st > 0;
-	me_enable(e_menu_gfx_options, MA_OPT_CPU_CLOCKS, i);
+	me_enable(e_menu_options, MA_OPT_CPU_CLOCKS, i);
 
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_MODE);
 	e_menu_gfx_options[i].data = plat_target.vout_methods;

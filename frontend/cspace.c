@@ -215,7 +215,7 @@ void bgr555_to_uyvy(void *d, const void *s, int pixels)
   int r0, g0, b0, r1, g1, b1;
   int y0, y1, u, v;
 
-  for (; pixels > 0; src += 2, dst++, pixels -= 2)
+  for (; pixels > 1; src += 2, dst++, pixels -= 2)
   {
     b0 = (src[0] >> 10) & 0x1f;
     g0 = (src[0] >> 5) & 0x1f;
