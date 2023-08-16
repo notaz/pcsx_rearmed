@@ -54,7 +54,7 @@ struct rearmed_cbs {
 	int   (*pl_vout_open)(void);
 	void  (*pl_vout_set_mode)(int w, int h, int raw_w, int raw_h, int bpp);
 	void  (*pl_vout_flip)(const void *vram, int stride, int bgr24,
-			      int w, int h);
+			      int x, int y, int w, int h, int dims_changed);
 	void  (*pl_vout_close)(void);
 	void *(*mmap)(unsigned int size);
 	void  (*munmap)(void *ptr, unsigned int size);
@@ -110,6 +110,9 @@ struct rearmed_cbs {
 	} gpu_peopsgl;
 	// misc
 	int gpu_caps;
+	int screen_centering_type; // 0 - auto, 1 - game conrolled, 2 - manual
+	int screen_centering_x;
+	int screen_centering_y;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;

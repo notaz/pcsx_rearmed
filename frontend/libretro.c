@@ -80,7 +80,7 @@ static unsigned msg_interface_version = 0;
 static void *vout_buf;
 static void *vout_buf_ptr;
 static int vout_width, vout_height;
-static int vout_doffs_old, vout_fb_dirty;
+static int vout_fb_dirty;
 static bool vout_can_dupe;
 static bool duping_enable;
 static bool found_bios;
@@ -267,29 +267,22 @@ static void convert(void *buf, size_t bytes)
 }
 #endif
 
-static void vout_flip(const void *vram, int stride, int bgr24, int w, int h)
+static void vout_flip(const void *vram, int stride, int bgr24,
+      int x, int y, int w, int h, int dims_changed)
 {
    unsigned short *dest = vout_buf_ptr;
    const unsigned short *src = vram;
    int dstride = vout_width, h1 = h;
-   int doffs;
 
-   if (vram == NULL)
+   if (vram == NULL || dims_changed)
    {
+      memset(vout_buf_ptr, 0, dstride * vout_height * 2);
       // blanking
-      memset(vout_buf_ptr, 0, dstride * h * 2);
-      goto out;
+      if (vram == NULL)
+         goto out;
    }
 
-   doffs = (vout_height - h) * dstride;
-   doffs += (dstride - w) / 2 & ~1;
-   if (doffs != vout_doffs_old)
-   {
-      // clear borders
-      memset(vout_buf_ptr, 0, dstride * h * 2);
-      vout_doffs_old = doffs;
-   }
-   dest += doffs;
+   dest += x + y * dstride;
 
    if (bgr24)
    {
@@ -2152,11 +2145,37 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "disabled") == 0)
-	 Config.GpuListWalking = 0;
+         Config.GpuListWalking = 0;
       else if (strcmp(var.value, "enabled") == 0)
-	 Config.GpuListWalking = 1;
+         Config.GpuListWalking = 1;
       else // auto
-	 Config.GpuListWalking = -1;
+         Config.GpuListWalking = -1;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_screen_centering";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "game") == 0)
+         pl_rearmed_cbs.screen_centering_type = 1;
+      else if (strcmp(var.value, "manual") == 0)
+         pl_rearmed_cbs.screen_centering_type = 2;
+      else // auto
+         pl_rearmed_cbs.screen_centering_type = 0;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_screen_centering_x";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      pl_rearmed_cbs.screen_centering_x = atoi(var.value);
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_screen_centering_y";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      pl_rearmed_cbs.screen_centering_y = atoi(var.value);
    }
 
 #ifdef THREAD_RENDERING

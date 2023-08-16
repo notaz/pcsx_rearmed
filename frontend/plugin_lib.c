@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "libpicofe/fonts.h"
 #include "libpicofe/input.h"
@@ -118,9 +119,9 @@ static void print_fps(int h, int border)
 		pl_rearmed_cbs.vsps_cur);
 }
 
-static void print_cpu_usage(int w, int h, int border)
+static void print_cpu_usage(int x, int h)
 {
-	hud_printf(pl_vout_buf, pl_vout_w, pl_vout_w - border - 28,
+	hud_printf(pl_vout_buf, pl_vout_w, x - 28,
 		h - HUD_HEIGHT, "%3d", pl_rearmed_cbs.cpu_usage);
 }
 
@@ -154,13 +155,11 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	}
 }
 
-static void print_hud(int w, int h, int xborder)
+static void print_hud(int x, int w, int h)
 {
-	if (h < 16)
+	if (h < 192)
 		return;
 
-	if (w < pl_vout_w)
-		xborder += (pl_vout_w - w) / 2;
 	if (h > pl_vout_h)
 		h = pl_vout_h;
 
@@ -168,12 +167,12 @@ static void print_hud(int w, int h, int xborder)
 		draw_active_chans(w, h);
 
 	if (hud_msg[0] != 0)
-		print_msg(h, xborder);
+		print_msg(h, x);
 	else if (g_opts & OPT_SHOWFPS)
-		print_fps(h, xborder);
+		print_fps(h, x);
 
 	if (g_opts & OPT_SHOWCPU)
-		print_cpu_usage(w, h, xborder);
+		print_cpu_usage(x + w, h);
 }
 
 /* update scaler target size according to user settings */
@@ -262,11 +261,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	if (pl_rearmed_cbs.only_16bpp)
 		vout_bpp = 16;
 
-	// don't use very low heights
-	if (vout_h < 192) {
-		buf_yoffset = (192 - vout_h) / 2;
-		vout_h = 192;
-	}
+	assert(vout_h >= 192);
 
 	pl_vout_scale_w = pl_vout_scale_h = 1;
 #ifdef __ARM_NEON__
@@ -307,14 +302,15 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
 }
 
-static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
+static void pl_vout_flip(const void *vram, int stride, int bgr24,
+	int x, int y, int w, int h, int dims_changed)
 {
-	static int doffs_old, clear_counter;
+	static int clear_counter;
 	unsigned char *dest = pl_vout_buf;
 	const unsigned short *src = vram;
 	int dstride = pl_vout_w, h1 = h;
 	int h_full = pl_vout_h - pl_vout_yoffset;
-	int doffs;
+	int xoffs = 0, doffs;
 
 	pcnt_start(PCNT_BLIT);
 
@@ -328,12 +324,15 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 		goto out_hud;
 	}
 
-	// borders
-	doffs = (dstride - w * pl_vout_scale_w) / 2 & ~1;
+	assert(x + w <= pl_vout_w);
+	assert(y + h <= pl_vout_h);
 
-	if (doffs > doffs_old)
+	// offset
+	xoffs = x * pl_vout_scale_w;
+	doffs = xoffs + y * dstride;
+
+	if (dims_changed)
 		clear_counter = 2;
-	doffs_old = doffs;
 
 	if (clear_counter > 0) {
 		if (pl_plat_clear)
@@ -409,7 +408,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 	}
 
 out_hud:
-	print_hud(w * pl_vout_scale_w, h * pl_vout_scale_h, 0);
+	print_hud(xoffs, w * pl_vout_scale_w, (y + h) * pl_vout_scale_h);
 
 out:
 	pcnt_end(PCNT_BLIT);

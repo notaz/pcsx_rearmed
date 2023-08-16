@@ -57,7 +57,7 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 
 #define ENHANCEMENT_BUF_SIZE (1024 * 1024 * 2 * 4 + 4096 * 2)
 
-static uint16_t *get_enhancement_bufer(int *x, int *y, int *w, int *h,
+static void *get_enhancement_bufer(int *x, int *y, int *w, int *h,
  int *vram_h)
 {
   uint16_t *ret = select_enhancement_buf_ptr(&egpu, *x);
