@@ -102,7 +102,7 @@ static struct {
 	u16 CmdInProgress;
 	u8 Irq1Pending;
 	u8 unused5;
-	u32 unused6;
+	u32 LastReadCycles;
 
 	u8 unused7;
 
@@ -562,26 +562,18 @@ static void cdrPlayInterrupt_Autopause()
 	}
 }
 
+// LastReadCycles
 static int cdrSeekTime(unsigned char *target)
 {
 	int diff = msf2sec(cdr.SetSectorPlay) - msf2sec(target);
-	int seekTime = abs(diff) * (cdReadTime / 200);
-	/*
-	* Gameblabla :
-	* It was originally set to 1000000 for Driver, however it is not high enough for Worms Pinball
-	* and was unreliable for that game.
-	* I also tested it against Mednafen and Driver's titlescreen music starts 25 frames later, not immediatly.
-	*
-	* Obviously, this isn't perfect but right now, it should be a bit better.
-	* Games to test this against if you change that setting :
-	* - Driver (titlescreen music delay and retry mission)
-	* - Worms Pinball (Will either not boot or crash in the memory card screen)
-	* - Viewpoint (short pauses if the delay in the ingame music is too long)
-	*
-	* It seems that 3386880 * 5 is too much for Driver's titlescreen and it starts skipping.
-	* However, 1000000 is not enough for Worms Pinball to reliably boot.
-	*/
-	if(seekTime > 3386880 * 2) seekTime = 3386880 * 2;
+	int pausePenalty, seekTime = abs(diff) * (cdReadTime / 2000);
+	seekTime = MAX_VALUE(seekTime, 20000);
+
+	// need this stupidly long penalty or else Spyro2 intro desyncs
+	pausePenalty = (s32)(psxRegs.cycle - cdr.LastReadCycles) > cdReadTime * 4 ? cdReadTime * 25 : 0;
+	seekTime += pausePenalty;
+
+	seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
 	CDR_LOG("seek: %.2f %.2f\n", (float)seekTime / PSXCLK, (float)seekTime / cdReadTime);
 	return seekTime;
 }
@@ -634,6 +626,8 @@ static void msfiAdd(u8 *msfi, u32 count)
 
 void cdrPlayReadInterrupt(void)
 {
+	cdr.LastReadCycles = psxRegs.cycle;
+
 	if (cdr.Reading) {
 		cdrReadInterrupt();
 		return;
@@ -914,7 +908,7 @@ void cdrInterrupt(void) {
 			}
 			else
 			{
-				second_resp_time = (((cdr.Mode & MODE_SPEED) ? 2 : 1) * 1000000);
+				second_resp_time = (((cdr.Mode & MODE_SPEED) ? 1 : 2) * 1097107);
 			}
 			SetPlaySeekRead(cdr.StatP, 0);
 			break;
