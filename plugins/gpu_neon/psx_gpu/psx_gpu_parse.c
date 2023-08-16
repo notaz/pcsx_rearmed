@@ -798,7 +798,7 @@ static void update_enhancement_buf_table_from_hres(psx_gpu_struct *psx_gpu)
   s = psx_gpu->enhancement_x_threshold;
   for (x = 0; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++)
   {
-    if (b < 3 && x * ENH_BUF_TABLE_STEP >= s - ENH_BUF_TABLE_STEP - 1)
+    if (b < 3 && x * ENH_BUF_TABLE_STEP >= s)
     {
       s += psx_gpu->enhancement_x_threshold;
       b++;
