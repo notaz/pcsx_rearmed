@@ -253,11 +253,11 @@ typedef struct {
 	u32  mcfile;
 } FileDesc;
 
-static u32 heap_size = 0;
-static u32 *heap_addr = NULL;
-static u32 *heap_end = NULL;
+// todo: FileDesc layout is wrong
+// todo: get rid of these globals
 static FileDesc FDesc[32];
-static u32 card_active_chan = 0;
+static char ffile[64], *pfile;
+static int nfile;
 
 // fixed RAM offsets, SCPH1001 compatible
 #define A_TT_ExCB       0x0100
@@ -282,12 +282,17 @@ static u32 card_active_chan = 0;
 #define A_PAD_IN_LEN    0x74d8
 #define A_PAD_OUT_LEN   0x74e0
 #define A_PAD_DR_DST    0x74c4
+#define A_CARD_CHAN1    0x7500
 #define A_PAD_DR_BUF1   0x7570
 #define A_PAD_DR_BUF2   0x7598
 #define A_EEXIT_PTR     0x75d0
 #define A_EXC_STACK     0x85d8  // exception stack top
 #define A_RCNT_VBL_ACK  0x8600
 #define A_PAD_ACK_VBL   0x8914  // enable vint ack by pad reading code
+#define A_HEAP_BASE     0x9000
+#define A_HEAP_SIZE     0x9004
+#define A_HEAP_END      0x9008
+#define A_HEAP_FLAG     0x900c
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
@@ -912,24 +917,20 @@ void psxBios_bcopy() { // 0x27
 	pc0 = ra;
 }
 
-void psxBios_bzero() { // 0x28
-	char *p = (char *)Ra0;
-	v0 = a0;
+static void psxBios_bzero() { // 0x28
 	/* Same as memset here (See memset below) */
-	if (a1 > 0x7FFFFFFF || a1 == 0)
+	u32 ret = a0;
+	if (a0 == 0 || (s32)a1 <= 0)
 	{
-		v0 = 0;
-		pc0 = ra;
+		mips_return_c(0, 6);
 		return;
 	}
-	else if (a0 == 0)
-	{
-		pc0 = ra;
-		return;
+	while ((s32)a1-- > 0) {
+		storeRam8(a0++, 0);
+		use_cycles(4);
 	}
-	while ((s32)a1-- > 0) *p++ = '\0';
-	a1 = 0;
-	pc0 = ra;
+	// todo: many more cycles due to uncached bios mem
+	mips_return_c(ret, 5);
 }
 
 void psxBios_bcmp() { // 0x29
@@ -963,23 +964,19 @@ void psxBios_memcpy() { // 0x2a
 	pc0 = ra;
 }
 
-void psxBios_memset() { // 0x2b
-	char *p = (char *)Ra0;
-	v0 = a0;
-	if (a2 > 0x7FFFFFFF || a2 == 0)
+static void psxBios_memset() { // 0x2b
+	u32 ret = a0;
+	if (a0 == 0 || (s32)a2 <= 0)
 	{
-		v0 = 0;
-		pc0 = ra;
+		mips_return_c(0, 6);
 		return;
 	}
-	if (a0 == 0)
-	{
-		pc0 = ra;
-		return;
+	while ((s32)a2-- > 0) {
+		storeRam8(a0++, a1);
+		use_cycles(4);
 	}
-	while ((s32)a2-- > 0) *p++ = (char)a1;
-	a2 = 0;
-	v0 = a0; pc0 = ra;
+	// todo: many more cycles due to uncached bios mem
+	mips_return_c(ret, 5);
 }
 
 void psxBios_memmove() { // 0x2c
@@ -1142,14 +1139,16 @@ void psxBios_qsort() { // 0x31
 	pc0 = ra;
 }
 
-void psxBios_malloc() { // 0x33
+// this isn't how the real bios works, but maybe good enough
+static void psxBios_malloc() { // 0x33
+	u32 *heap_addr, *heap_end;
 	u32 *chunk, *newchunk = NULL;
 	unsigned int dsize = 0, csize, cstat;
 	int colflag;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x33]);
-#endif
-	if (!a0 || (!heap_size || !heap_addr)) {
+	PSXBIOS_LOG("psxBios_%s %x\n", biosA0n[0x33], a0);
+	heap_addr = loadRam32ptr(A_HEAP_BASE);
+	heap_end = loadRam32ptr(A_HEAP_END);
+	if (heap_addr >= heap_end) {
 		v0 = 0;
 		pc0 = ra;
 		return;
@@ -1246,27 +1245,24 @@ void psxBios_malloc() { // 0x33
 	pc0 = ra;
 }
 
-void psxBios_free() { // 0x34
-
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x34]);
-	PSXBIOS_LOG("free %x: %x bytes\n", a0, *(u32*)(Ra0-4));
-
-	if (a0)
-		*(u32*)(Ra0-4) |= 1;	// set chunk to free
-	pc0 = ra;
+static void psxBios_free() { // 0x34
+	PSXBIOS_LOG("psxBios_%s %x (%x bytes)\n", biosA0n[0x34], a0, loadRam32(a0 - 4));
+	storeRam32(a0 - 4, loadRam32(a0 - 4) | 1); // set chunk to free
+	mips_return_void_c(5);
 }
 
-void psxBios_calloc() { // 0x37
-	void *pv0;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x37]);
-#endif
+static void psxBios_calloc() { // 0x37
+	u32 ret, size;
+	PSXBIOS_LOG("psxBios_%s %x %x\n", biosA0n[0x37], a0, a1);
 
-	a0 = a0 * a1;
+	a0 = size = a0 * a1;
 	psxBios_malloc();
-	pv0 = Rv0;
-	if (pv0)
-		memset(pv0, 0, a0);
+	ret = v0;
+	if (ret) {
+		a0 = ret; a1 = size;
+		psxBios_bzero();
+	}
+	mips_return_c(ret, 21);
 }
 
 void psxBios_realloc() { // 0x38
@@ -1299,27 +1295,16 @@ void psxBios_realloc() { // 0x38
 
 
 /* InitHeap(void *block , int n) */
-void psxBios_InitHeap() { // 0x39
-	unsigned int size;
+static void psxBios_InitHeap() { // 0x39
+	PSXBIOS_LOG("psxBios_%s %x %x\n", biosA0n[0x39], a0, a1);
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x39]);
-#endif
+	storeRam32(A_HEAP_BASE, a0);
+	storeRam32(A_HEAP_SIZE, a1);
+	storeRam32(A_HEAP_END, a0 + (a1 & ~3) + 4);
+	storeRam32(A_HEAP_FLAG, 0);
+	storeRam32(a0, 0);
 
-	if (((a0 & 0x1fffff) + a1)>= 0x200000) size = 0x1ffffc - (a0 & 0x1fffff);
-	else size = a1;
-
-	size &= 0xfffffffc;
-
-	heap_addr = (u32 *)Ra0;
-	heap_size = size;
-	heap_end = (u32 *)((u8 *)heap_addr + heap_size);
-	/* HACKFIX: Commenting out this line fixes GTA2 crash */
-	//*heap_addr = SWAP32(size | 1);
-
-	PSXBIOS_LOG("InitHeap %x,%x : %x %x\n",a0,a1, (int)((uptr)heap_addr-(uptr)psxM), size);
-
-	pc0 = ra;
+	mips_return_void_c(14);
 }
 
 void psxBios_getchar() { //0x3b
@@ -1685,19 +1670,18 @@ void psxBios_SetMem() { // 9f
 }
 
 /* TODO FIXME : Not compliant. -1 indicates failure but using 1 for now. */
-void psxBios_get_cd_status(void) //a6
+static void psxBios_get_cd_status() // a6
 {
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0xa6]);
 	v0 = 1;
 	pc0 = ra;
 }
 
-void psxBios__card_info() { // ab
-#ifdef PSXBIOS_LOG
+static void psxBios__card_info() { // ab
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosA0n[0xab], a0);
-#endif
 	u32 ret, port;
-	card_active_chan = a0;
-	port = card_active_chan >> 4;
+	storeRam32(A_CARD_CHAN1, a0);
+	port = a0 >> 4;
 
 	switch (port) {
 	case 0x0:
@@ -1707,9 +1691,7 @@ void psxBios__card_info() { // ab
 			ret = 0x0100;
 		break;
 	default:
-#ifdef PSXBIOS_LOG
-		PSXBIOS_LOG("psxBios_%s: UNKNOWN PORT 0x%x\n", biosA0n[0xab], card_active_chan);
-#endif
+		PSXBIOS_LOG("psxBios_%s: UNKNOWN PORT 0x%x\n", biosA0n[0xab], a0);
 		ret = 0x0302;
 		break;
 	}
@@ -1728,7 +1710,7 @@ void psxBios__card_load() { // ac
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosA0n[0xac], a0);
 #endif
 
-	card_active_chan = a0;
+	storeRam32(A_CARD_CHAN1, a0);
 
 //	DeliverEvent(0xf0000011, 0x0004);
 	DeliverEvent(0xf4000001, 0x0004);
@@ -2221,9 +2203,6 @@ static void psxBios_UnDeliverEvent() { // 0x20
 	mips_return(ret);
 }
 
-char ffile[64], *pfile;
-int nfile;
-
 static void buopen(int mcd, char *ptr, char *cfg)
 {
 	int i;
@@ -2683,7 +2662,7 @@ void psxBios__card_write() { // 0x4e
 		v0 = 0; pc0 = ra;
 		return;
 	}
-	card_active_chan = a0;
+	storeRam32(A_CARD_CHAN1, a0);
 	port = a0 >> 4;
 
 	if (pa2 != INVALID_PTR) {
@@ -2719,7 +2698,7 @@ void psxBios__card_read() { // 0x4f
 		v0 = 0; pc0 = ra;
 		return;
 	}
-	card_active_chan = a0;
+	storeRam32(A_CARD_CHAN1, a0);
 	port = a0 >> 4;
 
 	if (pa2 != INVALID_PTR) {
@@ -2810,13 +2789,14 @@ void psxBios_GetB0Table() { // 57
 	mips_return_c(A_B0_TABLE, 3);
 }
 
-void psxBios__card_chan() { // 0x58
-#ifdef PSXBIOS_LOG
+static void psxBios__card_chan() { // 0x58
+	u32 ret;
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x58]);
-#endif
 
-	v0 = card_active_chan;
-	pc0 = ra;
+	// todo: should return active slot chan
+	// (active - which was last processed by irq code)
+	ret = loadRam32(A_CARD_CHAN1);
+	mips_return_c(ret, 8);
 }
 
 static void psxBios_ChangeClearPad() { // 5b
@@ -2828,21 +2808,17 @@ static void psxBios_ChangeClearPad() { // 5b
 	mips_return_c(ret, 6);
 }
 
-void psxBios__card_status() { // 5c
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x5c], a0);
-#endif
+static void psxBios__card_status() { // 5c
+	PSXBIOS_LOG("psxBios_%s %x\n", biosB0n[0x5c], a0);
 
-	v0 = card_active_chan;
+	v0 = 1; // ready
 	pc0 = ra;
 }
 
-void psxBios__card_wait() { // 5d
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x5d], a0);
-#endif
+static void psxBios__card_wait() { // 5d
+	PSXBIOS_LOG("psxBios_%s %x\n", biosB0n[0x5d], a0);
 
-	v0 = 1;
+	v0 = 1; // ready
 	pc0 = ra;
 }
 
@@ -3523,11 +3499,7 @@ void psxBiosInit() {
 //************** THE END ***************************************
 /**/
 
-	heap_addr = NULL;
-	heap_end = NULL;
-	heap_size = 0;
 	memset(FDesc, 0, sizeof(FDesc));
-	card_active_chan = 0;
 
 	// initial RNG seed
 	psxMu32ref(0x9010) = SWAPu32(0xac20cc00);
@@ -3945,8 +3917,5 @@ void psxBiosException() {
 void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
-	bfreezepsxMptr(heap_addr, u32);
 	bfreezes(FDesc);
-	bfreezel(&card_active_chan);
-	bfreezel(&heap_size);
 }
