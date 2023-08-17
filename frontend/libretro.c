@@ -2818,7 +2818,7 @@ void retro_run(void)
    set_vout_fb();
 }
 
-static bool try_use_bios(const char *path)
+static bool try_use_bios(const char *path, bool preferred_only)
 {
    long size;
    const char *name;
@@ -2830,12 +2830,20 @@ static bool try_use_bios(const char *path)
    size = ftell(fp);
    fclose(fp);
 
-   if (size != 512 * 1024)
-      return false;
-
    name = strrchr(path, SLASH);
    if (name++ == NULL)
       name = path;
+
+   if (preferred_only && size != 512 * 1024)
+      return false;
+   if (size != 512 * 1024 && size != 4 * 1024 * 1024)
+      return false;
+   if (strstr(name, "unirom"))
+      return false;
+   // jp bios have an addidional region check
+   if (preferred_only && (strcasestr(name, "00.") || strcasestr(name, "j.bin")))
+      return false;
+
    snprintf(Config.Bios, sizeof(Config.Bios), "%s", name);
    return true;
 }
@@ -2846,7 +2854,8 @@ static bool try_use_bios(const char *path)
 
 static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
 {
-   static const char *substrings[] = { "scph", "ps", "openbios" };
+   static const char *substr_pref[] = { "scph", "ps" };
+   static const char *substr_alt[] = { "scph", "ps", "openbios" };
    DIR *dir;
    struct dirent *ent;
    bool ret = false;
@@ -2856,27 +2865,39 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
    if (dir == NULL)
       return false;
 
-   for (i = 0; i < (sizeof(substrings) / sizeof(substrings[0])); i++)
+   // try to find a "better" bios
+   while ((ent = readdir(dir)))
    {
-      const char *substr = substrings[i];
-      size_t len = strlen(substr);
-      rewinddir(dir);
-      while ((ent = readdir(dir)))
+      for (i = 0; i < sizeof(substr_pref) / sizeof(substr_pref[0]); i++)
       {
-         if ((strncasecmp(ent->d_name, substr, len) != 0))
+         const char *substr = substr_pref[i];
+         if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
             continue;
-         if (strstr(ent->d_name, "unirom"))
-            continue;
-
          snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-         ret = try_use_bios(path);
+         ret = try_use_bios(path, true);
          if (ret)
-         {
-            closedir(dir);
-            return ret;
-         }
+            goto finish;
       }
    }
+
+   // another pass to look for anything fitting, even ps2 bios
+   rewinddir(dir);
+   while ((ent = readdir(dir)))
+   {
+      for (i = 0; i < sizeof(substr_alt) / sizeof(substr_alt[0]); i++)
+      {
+         const char *substr = substr_alt[i];
+         if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
+            continue;
+         snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
+         ret = try_use_bios(path, false);
+         if (ret)
+            goto finish;
+      }
+   }
+
+
+finish:
    closedir(dir);
    return ret;
 }
@@ -2973,7 +2994,7 @@ static void loadPSXBios(void)
          for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++)
          {
             snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
-            found_bios = try_use_bios(path);
+            found_bios = try_use_bios(path, true);
             if (found_bios)
                break;
          }

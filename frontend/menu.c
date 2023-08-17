@@ -111,7 +111,7 @@ int soft_filter;
 #define DEFAULT_PSX_CLOCK_S "50"
 #endif
 
-static const char *bioses[24];
+static const char *bioses[32];
 static const char *gpu_plugins[16];
 static const char *spu_plugins[16];
 static const char *memcards[32];
@@ -2454,7 +2454,8 @@ static void scan_bios_plugins(void)
 			continue;
 
 		snprintf(fname, sizeof(fname), "%s/%s", Config.BiosDir, ent->d_name);
-		if (stat(fname, &st) != 0 || st.st_size != 512*1024) {
+		if (stat(fname, &st) != 0
+		    || (st.st_size != 512*1024 && st.st_size != 4*1024*1024)) {
 			printf("bad BIOS file: %s\n", ent->d_name);
 			continue;
 		}
