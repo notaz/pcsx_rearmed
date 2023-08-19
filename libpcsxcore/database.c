@@ -69,6 +69,10 @@ cycle_multiplier_overrides[] =
 	{ "SLES02558", 125 },
 	{ "SLES12558", 125 },
 #endif
+	/* Discworld Noir - audio skips if CPU runs too fast */
+	{ "SLES01549", 222 },
+	{ "SLES02063", 222 },
+	{ "SLES02064", 222 },
 };
 
 /* Function for automatic patching according to GameID. */
