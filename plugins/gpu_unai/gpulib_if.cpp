@@ -163,6 +163,10 @@ void renderer_notify_res_change(void)
 {
 }
 
+void renderer_notify_scanout_x_change(int x, int w)
+{
+}
+
 extern const unsigned char cmd_lengths[256];
 
 int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
@@ -520,7 +524,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
   do_cmd_list(&ecmds[1], 6, &dummy);
 }
 
-void renderer_update_caches(int x, int y, int w, int h)
+void renderer_update_caches(int x, int y, int w, int h, int state_changed)
 {
 }
 

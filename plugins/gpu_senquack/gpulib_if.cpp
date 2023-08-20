@@ -144,6 +144,10 @@ void renderer_notify_res_change(void)
   */
 }
 
+void renderer_notify_scanout_x_change(int x, int w)
+{
+}
+
 #ifdef USE_GPULIB
 // Handles GP0 draw settings commands 0xE1...0xE6
 static void gpuGP0Cmd_0xEx(gpu_senquack_t &gpu_senquack, u32 cmd_word)
@@ -613,7 +617,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
   do_cmd_list(&ecmds[1], 6, &dummy);
 }
 
-void renderer_update_caches(int x, int y, int w, int h)
+void renderer_update_caches(int x, int y, int w, int h, int state_changed)
 {
 }
 

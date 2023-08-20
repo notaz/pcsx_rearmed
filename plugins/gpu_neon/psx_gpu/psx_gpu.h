@@ -185,18 +185,22 @@ typedef struct
   u32 *reciprocal_table_ptr;
 
   // enhancement stuff
-  u16 *enhancement_buf_ptr;
-  u16 *enhancement_current_buf_ptr;
-  u32 enhancement_x_threshold;
+  u16 *enhancement_buf_ptr;          // main alloc
+  u16 *enhancement_current_buf_ptr;  // offset into above, 4 bufs
+  u32 saved_hres;
   s16 saved_viewport_start_x;
   s16 saved_viewport_start_y;
   s16 saved_viewport_end_x;
   s16 saved_viewport_end_y;
-  u8 enhancement_buf_by_x16[64];
+  u8  enhancement_buf_by_x16[64];    // 0-3 specifying which buf
+  u16 enhancement_buf_start[4];      // x pos where buf[n] begins
+
+  u16 enhancement_scanout_x[4];
+  u16 enhancement_scanout_select;
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[160];
+  u8 reserved_a[142];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

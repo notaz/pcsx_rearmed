@@ -1,6 +1,10 @@
+#define select_enhancement_buf_index(psx_gpu, x) \
+  ((psx_gpu)->enhancement_buf_by_x16[(u32)(x) / \
+    (1024u / sizeof((psx_gpu)->enhancement_buf_by_x16))])
+
 #define select_enhancement_buf_ptr(psx_gpu, x) \
   ((psx_gpu)->enhancement_buf_ptr + \
-   ((psx_gpu)->enhancement_buf_by_x16[(x) / 16] << 20))
+    (select_enhancement_buf_index(psx_gpu, x) << 20))
 
 #if !defined(NEON_BUILD) || defined(SIMD_BUILD)
 

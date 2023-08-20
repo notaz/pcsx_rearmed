@@ -24,13 +24,8 @@
 #define noinline
 #endif
 
-#define gpu_log(fmt, ...) \
-  printf("%d:%03d: " fmt, *gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
-
 //#define log_io gpu_log
 #define log_io(...)
-//#define log_anomaly gpu_log
-#define log_anomaly(...)
 
 struct psx_gpu gpu;
 
@@ -63,6 +58,7 @@ static noinline void do_reset(void)
   gpu.screen.hres = gpu.screen.w = 256;
   gpu.screen.vres = gpu.screen.h = 240;
   gpu.screen.x = gpu.screen.y = 0;
+  renderer_notify_res_change();
 }
 
 static noinline void update_width(void)
@@ -225,9 +221,11 @@ long GPUinit(void)
   ret  = vout_init();
   ret |= renderer_init();
 
+  memset(&gpu.state, 0, sizeof(gpu.state));
+  memset(&gpu.frameskip, 0, sizeof(gpu.frameskip));
+  gpu.zero = 0;
   gpu.state.frame_count = &gpu.zero;
   gpu.state.hcnt = &gpu.zero;
-  gpu.frameskip.active = 0;
   gpu.cmd_len = 0;
   do_reset();
 
@@ -287,6 +285,7 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       gpu.screen.src_x = data & 0x3ff;
       gpu.screen.src_y = (data >> 10) & 0x1ff;
+      renderer_notify_scanout_x_change(gpu.screen.src_x, gpu.screen.hres);
       if (gpu.frameskip.set) {
         decide_frameskip_allow(gpu.ex_regs[3]);
         if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
@@ -434,7 +433,7 @@ static void finish_vram_transfer(int is_read)
     gpu.status &= ~PSX_GPU_STATUS_IMG;
   else
     renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
-                           gpu.dma_start.w, gpu.dma_start.h);
+                           gpu.dma_start.w, gpu.dma_start.h, 0);
 }
 
 static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
@@ -740,7 +739,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
         GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
       }
       renderer_sync_ecmds(gpu.ex_regs);
-      renderer_update_caches(0, 0, 1024, 512);
+      renderer_update_caches(0, 0, 1024, 512, 1);
       break;
   }
 
@@ -775,6 +774,9 @@ void GPUupdateLace(void)
   }
 
   vout_update();
+  if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active)
+    renderer_update_caches(0, 0, 1024, 512, 1);
+  gpu.state.enhancement_was_active = gpu.state.enhancement_active;
   gpu.state.fb_dirty = 0;
   gpu.state.blanked = 0;
 }
