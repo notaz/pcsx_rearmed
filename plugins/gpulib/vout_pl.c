@@ -84,8 +84,11 @@ void vout_update(void)
 
   check_mode_change(0);
   if (gpu.state.enhancement_active) {
+    if (!gpu.state.enhancement_was_active)
+      return; // buffer not ready yet
     vram = gpu.get_enhancement_bufer(&src_x, &src_y, &w, &h, &vram_h);
     x *= 2; y *= 2;
+    src_x2 *= 2;
   }
 
   if (gpu.state.downscale_active)

@@ -4963,7 +4963,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
 
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
 
-  psx_gpu->enhancement_x_threshold = 256;
+  psx_gpu->saved_hres = 256;
 }
 
 u64 get_us(void)

@@ -250,10 +250,9 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
 #define SET_Ex(r, v)
 #endif
 
-vertex_struct vertexes[4] __attribute__((aligned(32)));
-
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 {
+  vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
 
   u32 *list_start = list;
@@ -790,26 +789,61 @@ breakloop:
 
 #define ENH_BUF_TABLE_STEP (1024 / sizeof(psx_gpu->enhancement_buf_by_x16))
 
+static int is_new_scanout(psx_gpu_struct *psx_gpu, int x)
+{
+  int i, scanout_x;
+  for (i = 0; i < ARRAY_SIZE(psx_gpu->enhancement_scanout_x); i++)
+  {
+    scanout_x = psx_gpu->enhancement_scanout_x[i];
+    if (x <= scanout_x && scanout_x < x + ENH_BUF_TABLE_STEP)
+    {
+      if (x != scanout_x)
+        log_anomaly("unaligned scanout x: %d,%d\n", scanout_x, x);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void update_enhancement_buf_table_from_hres(psx_gpu_struct *psx_gpu)
 {
-  u32 b, x, s;
+  u32 b, x;
 
   b = 0;
-  s = psx_gpu->enhancement_x_threshold;
-  for (x = 0; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++)
+  psx_gpu->enhancement_buf_by_x16[0] = b;
+  psx_gpu->enhancement_buf_start[0] = 0;
+  for (x = 1; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++)
   {
-    if (b < 3 && x * ENH_BUF_TABLE_STEP >= s)
-    {
-      s += psx_gpu->enhancement_x_threshold;
+    if (b < 3 && is_new_scanout(psx_gpu, x * ENH_BUF_TABLE_STEP)) {
       b++;
+      psx_gpu->enhancement_buf_start[b] = x * ENH_BUF_TABLE_STEP;
     }
+
     psx_gpu->enhancement_buf_by_x16[x] = b;
   }
+#if 0
+  printf("buf_by_x16:\n");
+  for (b = 0; b < 3; b++) {
+    int first = -1, count = 0;
+    for (x = 0; x < sizeof(psx_gpu->enhancement_buf_by_x16); x++) {
+      if (psx_gpu->enhancement_buf_by_x16[x] == b) {
+        if (first < 0) first = x;
+        count++;
+      }
+    }
+    if (count) {
+      assert(first * ENH_BUF_TABLE_STEP == psx_gpu->enhancement_buf_start[b]);
+      printf("%d: %3zd-%zd\n", b, first * ENH_BUF_TABLE_STEP,
+          (first + count) * ENH_BUF_TABLE_STEP);
+    }
+  }
+#endif
 }
 
 static void update_enhancement_buf_table_from_x(psx_gpu_struct *psx_gpu,
  u32 x0, u32 len)
 {
+#if 0
   u32 x, b;
 
   for (x = x0, b = 0; x >= len; b++)
@@ -819,6 +853,7 @@ static void update_enhancement_buf_table_from_x(psx_gpu_struct *psx_gpu,
 
   memset(psx_gpu->enhancement_buf_by_x16 + x0 / ENH_BUF_TABLE_STEP,
    b, (len + ENH_BUF_TABLE_STEP - 1) / ENH_BUF_TABLE_STEP);
+#endif
 }
 
 #define select_enhancement_buf(psx_gpu) \
@@ -844,30 +879,27 @@ static void update_enhancement_buf_table_from_x(psx_gpu_struct *psx_gpu,
 }
 
 #define shift_vertices3(v) { \
-  v[0]->x *= 2; \
-  v[0]->y *= 2; \
-  v[1]->x *= 2; \
-  v[1]->y *= 2; \
-  v[2]->x *= 2; \
-  v[2]->y *= 2; \
+  v[0]->x <<= 1; \
+  v[0]->y <<= 1; \
+  v[1]->x <<= 1; \
+  v[1]->y <<= 1; \
+  v[2]->x <<= 1; \
+  v[2]->y <<= 1; \
 }
 
 #define unshift_vertices3(v) { \
-  v[0]->x /= 2; \
-  v[0]->y /= 2; \
-  v[1]->x /= 2; \
-  v[1]->y /= 2; \
-  v[2]->x /= 2; \
-  v[2]->y /= 2; \
+  v[0]->x >>= 1; \
+  v[0]->y >>= 1; \
+  v[1]->x >>= 1; \
+  v[1]->y >>= 1; \
+  v[2]->x >>= 1; \
+  v[2]->y >>= 1; \
 }
 
 #define shift_triangle_area() \
   psx_gpu->triangle_area *= 4
 
-extern void scale2x_tiles8(void *dst, const void *src, int w8, int h);
-
 #ifndef NEON_BUILD
-// TODO?
 void scale2x_tiles8(void *dst, const void *src, int w8, int h)
 {
   uint16_t* d = (uint16_t*)dst;
@@ -938,6 +970,16 @@ void scale2x_tiles8(void *dst, const void *src, int w8, int h)
 
 static int disable_main_render;
 
+static int check_enhanced_range(psx_gpu_struct *psx_gpu, int x, int x_end)
+{
+  // simple reject to avoid oveflowing the 1024 width
+  // (assume some offscreen render-to-texture thing)
+  if (x >= (int)(psx_gpu->saved_viewport_start_x + 512))
+    return 0;
+
+  return 1;
+}
+
 static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
  vertex_struct *vertexes, u32 current_command)
 {
@@ -949,37 +991,22 @@ static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
   if (!disable_main_render)
     render_triangle_p(psx_gpu, vertex_ptrs, current_command);
 
+  if (!check_enhanced_range(psx_gpu, vertex_ptrs[0]->x, vertex_ptrs[2]->x))
+    return;
+
   enhancement_enable();
   shift_vertices3(vertex_ptrs);
   shift_triangle_area();
   render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+  unshift_vertices3(vertex_ptrs);
 }
 
 static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
  u32 current_command)
 {
-  vertex_struct *vertex_ptrs[3];
-
-  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs)) {
-    if (!disable_main_render)
-      render_triangle_p(psx_gpu, vertex_ptrs, current_command);
-
-    enhancement_enable();
-    shift_vertices3(vertex_ptrs);
-    shift_triangle_area();
-    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
-    unshift_vertices3(vertex_ptrs);
-  }
+  do_triangle_enhanced(psx_gpu, vertexes, current_command);
   enhancement_disable();
-  if (prepare_triangle(psx_gpu, &vertexes[1], vertex_ptrs)) {
-    if (!disable_main_render)
-      render_triangle_p(psx_gpu, vertex_ptrs, current_command);
-
-    enhancement_enable();
-    shift_vertices3(vertex_ptrs);
-    shift_triangle_area();
-    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
-  }
+  do_triangle_enhanced(psx_gpu, &vertexes[1], current_command);
 }
 
 #if 0
@@ -1062,6 +1089,7 @@ static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
 u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
  u32 *last_command)
 {
+  vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
 
   u32 *list_start = list;
@@ -1097,11 +1125,23 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 width = list_s16[4] & 0x3FF;
         u32 height = list_s16[5] & 0x1FF;
         u32 color = list[0] & 0xFFFFFF;
+        u32 i1, i2;
 
         x &= ~0xF;
         width = ((width + 0xF) & ~0xF);
+        if (width == 0 || height == 0)
+          break;
 
         do_fill(psx_gpu, x, y, width, height, color);
+
+        i1 = select_enhancement_buf_index(psx_gpu, x);
+        i2 = select_enhancement_buf_index(psx_gpu, x + width - 1);
+        if (i1 != i2) {
+          sync_enhancement_buffers(x, y, width, height);
+          break;
+        }
+        if (x >= psx_gpu->enhancement_buf_start[i1] + psx_gpu->saved_hres)
+          break;
 
         psx_gpu->vram_out_ptr = select_enhancement_buf_ptr(psx_gpu, x);
         x *= 2;
@@ -1353,7 +1393,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 height = list_s16[5] & 0x1FF;
 
         render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + width))
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
         break;
       }
   
@@ -1370,7 +1412,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, u, v, width, height,
          current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + width))
+          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
         break;
       }
   
@@ -1383,7 +1427,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + 1))
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
         break;
       }
   
@@ -1396,7 +1442,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + 8))
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
         break;
       }
   
@@ -1414,7 +1462,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, u, v, 8, 8,
          current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + 8))
+          do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
         break;
       }
   
@@ -1427,7 +1477,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + 16))
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
         break;
       }
   
@@ -1444,7 +1496,9 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         set_clut(psx_gpu, list_s16[5]);
 
         render_sprite(psx_gpu, x, y, u, v, 16, 16, current_command, list[0]);
-        do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
+
+        if (check_enhanced_range(psx_gpu, x, x + 16))
+          do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
         break;
       }
   
@@ -1456,21 +1510,12 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 dy = list_s16[5] & 0x1FF;
         u32 w = ((list_s16[6] - 1) & 0x3FF) + 1;
         u32 h = ((list_s16[7] - 1) & 0x1FF) + 1;
-        u16 *buf;
 
         if (sx == dx && sy == dy && psx_gpu->mask_msb == 0)
           break;
 
         render_block_move(psx_gpu, sx, sy, dx, dy, w, h);
-        if (dy + h > 512)
-          h = 512 - dy;
-        sx = sx & ~7; // FIXME?
-        dx = dx * 2 & ~7;
-        dy *= 2;
-        w = (w + 7) / 8;
-        buf = select_enhancement_buf_ptr(psx_gpu, dx / 2);
-        scale2x_tiles8(buf + dy * 1024 + dx,
-          psx_gpu->vram_ptr + sy * 1024 + sx, w, h);
+        sync_enhancement_buffers(dx, dy, w, h);
         break;
       }
  
@@ -1542,7 +1587,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_start_y = viewport_start_y;
 
         w = (u32)psx_gpu->viewport_end_x - (u32)viewport_start_x + 1;
-        d = psx_gpu->enhancement_x_threshold - w;
+        d = psx_gpu->saved_hres - w;
         if(-16 <= d && d <= 16)
         {
           update_enhancement_buf_table_from_x(psx_gpu,
@@ -1579,7 +1624,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_end_y = viewport_end_y;
 
         w = (u32)viewport_end_x - (u32)psx_gpu->viewport_start_x + 1;
-        d = psx_gpu->enhancement_x_threshold - w;
+        d = psx_gpu->saved_hres - w;
         if(-16 <= d && d <= 16)
         {
           update_enhancement_buf_table_from_x(psx_gpu,
