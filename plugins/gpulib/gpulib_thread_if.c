@@ -385,9 +385,9 @@ void renderer_sync_ecmds(uint32_t * ecmds) {
 	}
 }
 
-void renderer_update_caches(int x, int y, int w, int h) {
+void renderer_update_caches(int x, int y, int w, int h, int state_changed) {
 	renderer_sync();
-	real_renderer_update_caches(x, y, w, h);
+	real_renderer_update_caches(x, y, w, h, state_changed);
 }
 
 void renderer_flush_queues(void) {
