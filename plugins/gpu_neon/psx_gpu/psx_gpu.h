@@ -15,6 +15,14 @@
 #ifndef PSX_GPU_H
 #define PSX_GPU_H
 
+#define MAX_SPANS             512
+#define MAX_BLOCKS            64
+#define MAX_BLOCKS_PER_ROW    128
+
+#define SPAN_DATA_BLOCKS_SIZE 32
+
+#ifndef __ASSEMBLER__
+
 #include "vector_types.h"
 
 typedef enum
@@ -100,12 +108,6 @@ typedef struct
   // 16 bytes
   vec_8x16u dither_offsets;  
 } block_struct;
-
-#define MAX_SPANS             512
-#define MAX_BLOCKS            64
-#define MAX_BLOCKS_PER_ROW    128
-
-#define SPAN_DATA_BLOCKS_SIZE 32
 
 typedef struct render_block_handler_struct render_block_handler_struct;
 
@@ -260,5 +262,5 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
  const vertex_struct * __restrict__ a, const vertex_struct * __restrict__ b,
  const vertex_struct * __restrict__ c);
 
-#endif
-
+#endif // __ASSEMBLER__
+#endif // PSX_GPU_H

@@ -115,6 +115,7 @@ typedef union
 #define gvhaddq_u16(d, a, b)     d.u16 = vhaddq_u16(a.u16, b.u16)
 #define gvmax_s16(d, a, b)       d.s16 = vmax_s16(a.s16, b.s16)
 #define gvmin_s16(d, a, b)       d.s16 = vmin_s16(a.s16, b.s16)
+#define gvmin_u16(d, a, b)       d.u16 = vmin_u16(a.u16, b.u16)
 #define gvminq_u8(d, a, b)       d.u8  = vminq_u8(a.u8, b.u8)
 #define gvminq_u16(d, a, b)      d.u16 = vminq_u16(a.u16, b.u16)
 #define gvmla_s32(d, a, b)       d.s32 = vmla_s32(d.s32, a.s32, b.s32)
@@ -353,7 +354,8 @@ typedef union
 }
 #endif // !__SSSE3__
 #ifdef __SSE4_1__
-#define gvminq_u16(d, a, b)      d.m = _mm_min_epu16(a.m, b.m)
+#define gvmin_u16(d, a, b)       d.m = _mm_min_epu16(a.m, b.m)
+#define gvminq_u16               gvmin_u16
 #define gvmovl_u8(d, s)          d.m = _mm_cvtepu8_epi16(s.m)
 #define gvmovl_s8(d, s)          d.m = _mm_cvtepi8_epi16(s.m)
 #define gvmovl_s32(d, s)         d.m = _mm_cvtepi32_epi64(s.m)
@@ -463,11 +465,12 @@ typedef union
 // can do this because the caller needs the msb clear
 #define gvhaddq_u16(d, a, b)     d.u16 = (a.u16 + b.u16) >> 1
 #endif
-#ifndef gvminq_u16
-#define gvminq_u16(d, a, b) { \
+#ifndef gvmin_u16
+#define gvmin_u16(d, a, b) { \
   gvu16 t_ = a.u16 < b.u16; \
   d.u16 = (a.u16 & t_) | (b.u16 & ~t_); \
 }
+#define gvminq_u16               gvmin_u16
 #endif
 #ifndef gvmlsq_s32
 #define gvmlsq_s32(d, a, b)      d.s32 -= a.s32 * b.s32
@@ -1093,6 +1096,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   span_b_offset = psx_gpu->span_b_offset;                                      \
                                                                                \
   vec_8x16u c_0x0001;                                                          \
+  vec_4x16u c_max_blocks_per_row;                                              \
                                                                                \
   gvdupq_n_u16(c_0x0001, 0x0001);                                              \
   gvdupq_n_u16(left_edge, psx_gpu->viewport_start_x);                          \
@@ -1101,6 +1105,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvdup_n_u16(c_0x04, 0x04);                                                   \
   gvdup_n_u16(c_0x07, 0x07);                                                   \
   gvdup_n_u16(c_0xFFFE, 0xFFFE);                                               \
+  gvdup_n_u16(c_max_blocks_per_row, MAX_BLOCKS_PER_ROW);                       \
 
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
 // better encoding, remaining bits are unused anyway
@@ -1351,6 +1356,7 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
   gvand(span_shift, left_right_x_16_hi, c_0x07);                               \
   setup_spans_make_span_shift(span_shift);                                     \
   gvshr_n_u16(left_right_x_16_hi, left_right_x_16_hi, 3);                      \
+  gvmin_u16(left_right_x_16_hi, left_right_x_16_hi, c_max_blocks_per_row);     \
                                                                                \
   gvst4_pi_u16(left_right_x_16_lo, left_right_x_16_hi, span_shift, y_x4,       \
     span_edge_data);                                                           \
@@ -1380,7 +1386,9 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
                                                                                \
   setup_spans_prologue_b();                                                    \
                                                                                \
-  if(height > 0)                                                               \
+  if (height > 512)                                                            \
+    height = 512;                                                              \
+  if (height > 0)                                                              \
   {                                                                            \
     u64 y_x4_ = ((u64)(y_a + 3) << 48) | ((u64)(u16)(y_a + 2) << 32)           \
               | (u32)((y_a + 1) << 16) | (u16)y_a;                             \
@@ -1426,7 +1434,9 @@ void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
                                                                                \
   setup_spans_prologue_b();                                                    \
                                                                                \
-  if(height > 0)                                                               \
+  if (height > 512)                                                            \
+    height = 512;                                                              \
+  if (height > 0)                                                              \
   {                                                                            \
     u64 y_x4_ = ((u64)(y_a - 3) << 48) | ((u64)(u16)(y_a - 2) << 32)           \
               | (u32)((y_a - 1) << 16) | (u16)y_a;                             \
@@ -1642,7 +1652,9 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 
   setup_spans_prologue_b();
 
-  if(height_minor_a > 0)
+  if (height_minor_a > 512)
+    height_minor_a = 512;
+  if (height_minor_a > 0)
   {
     u64 y_x4_ = ((u64)(y_a - 3) << 48) | ((u64)(u16)(y_a - 2) << 32)
               | (u32)((y_a - 1) << 16) | (u16)y_a;
@@ -1683,7 +1695,9 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
     setup_spans_clip(increment, no);
   }
 
-  if(height_minor_b > 0)
+  if (height_minor_b > 512)
+    height_minor_b = 512;
+  if (height_minor_b > 0)
   {
     u64 y_x4_ = ((u64)(y_a + 3) << 48) | ((u64)(u16)(y_a + 2) << 32)
               | (u32)((y_a + 1) << 16) | (u16)y_a;
@@ -3167,19 +3181,11 @@ void blend_blocks_textured_unblended_off(psx_gpu_struct *psx_gpu)
 {
 }
 
-void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
+void setup_sprite_untextured_512(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color)
 {
-  if((psx_gpu->render_state & (RENDER_STATE_MASK_EVALUATE |
-   RENDER_FLAGS_MODULATE_TEXELS | RENDER_FLAGS_BLEND)) == 0 &&
-   (psx_gpu->render_mode & RENDER_INTERLACE_ENABLED) == 0)
-  {
-    setup_sprite_untextured_simple(psx_gpu, x, y, u, v, width, height, color);
-    return;
-  }
-
 #if 0
-  setup_sprite_untextured_(psx_gpu, x, y, u, v, width, height, color);
+  setup_sprite_untextured_512_(psx_gpu, x, y, u, v, width, height, color);
   return;
 #endif
   u32 right_width = ((width - 1) & 0x7) + 1;

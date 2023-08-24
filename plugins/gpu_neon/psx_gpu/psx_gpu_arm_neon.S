@@ -13,15 +13,9 @@
  * General Public License for more details.
  */
 
-#define MAX_SPANS                                         512
-#define MAX_BLOCKS                                        64
-#define MAX_BLOCKS_PER_ROW                                128
-
-#define RENDER_STATE_MASK_EVALUATE                        0x20
-#define RENDER_FLAGS_MODULATE_TEXELS                      0x1
-#define RENDER_FLAGS_BLEND                                0x2
 #define RENDER_INTERLACE_ENABLED                          0x1
 
+#include "psx_gpu.h"
 #include "psx_gpu_offsets.h"
 
 #define psx_gpu_b_dx_offset (psx_gpu_b_block_span_offset + 4)
@@ -228,7 +222,6 @@
 
 #ifdef __MACH__
 #define flush_render_block_buffer _flush_render_block_buffer
-#define setup_sprite_untextured_simple _setup_sprite_untextured_simple
 #define update_texture_8bpp_cache _update_texture_8bpp_cache
 #endif
 
@@ -565,6 +558,8 @@ function(compute_all_gradients)
 #define left_x_32_low                            d22
 #define left_x_32_high                           d23
 
+#define tmp_max_blocks                           d20
+
 #define edges_xy                                 q0
 #define edges_dx_dy                              d2
 #define edge_shifts                              d3
@@ -819,8 +814,10 @@ function(compute_all_gradients)
   str b, [span_b_offset], #4;                                                  \
   setup_spans_adjust_interpolants_##direction();                               \
                                                                                \
+  vmov.u16 tmp_max_blocks, #MAX_BLOCKS_PER_ROW;                                \
   vshr.u16 left_right_x_16_high, left_right_x_16_high, #3;                     \
   vshl.u16 span_shifts, c_0xFFFE, span_shifts;                                 \
+  vmin.u16 left_right_x_16_high, left_right_x_16_high, tmp_max_blocks;         \
                                                                                \
   vst4.u16 { left_right_x_16, span_shifts_y }, [span_edge_data]!;              \
                                                                                \
@@ -867,8 +864,10 @@ function(compute_all_gradients)
   str b, [span_b_offset], #4;                                                  \
   setup_spans_adjust_interpolants_##direction();                               \
                                                                                \
-  vshl.u16 span_shifts, c_0xFFFE, span_shifts;                                 \
+  vmov.u16 tmp_max_blocks, #MAX_BLOCKS_PER_ROW;                                \
   vshr.u16 left_right_x_16_high, left_right_x_16_high, #3;                     \
+  vshl.u16 span_shifts, c_0xFFFE, span_shifts;                                 \
+  vmin.u16 left_right_x_16_high, left_right_x_16_high, tmp_max_blocks;         \
                                                                                \
   vst4.u16 { left_right_x_16, span_shifts_y }, [span_edge_data]!;              \
                                                                                \
@@ -908,7 +907,9 @@ function(compute_all_gradients)
   ble 1f;                                                                      \
                                                                                \
   orr temp, y_a, y_a, lsl #16;                                                 \
+  cmp height, #512;                                                            \
   add temp, temp, #(1 << 16);                                                  \
+  movgt height, #512;                                                          \
   add y_a, temp, #2;                                                           \
   add y_a, y_a, #(2 << 16);                                                    \
   vmov y_x4, temp, y_a;                                                        \
@@ -963,7 +964,9 @@ function(compute_all_gradients)
   ble 1f;                                                                      \
                                                                                \
   orr temp, y_a, y_a, lsl #16;                                                 \
+  cmp height, #512;                                                            \
   sub temp, temp, #(1 << 16);                                                  \
+  movgt height, #512;                                                          \
   sub y_a, temp, #2;                                                           \
   sub y_a, y_a, #(2 << 16);                                                    \
   vmov y_x4, temp, y_a;                                                        \
@@ -5826,14 +5829,7 @@ function(setup_sprite_16bpp_4x)
 
 .align 3
 
-function(setup_sprite_untextured)
-  ldrh r12, [psx_gpu, #psx_gpu_render_state_offset]
-  tst r12, #(RENDER_STATE_MASK_EVALUATE | RENDER_FLAGS_MODULATE_TEXELS         \
-    | RENDER_FLAGS_BLEND)
-  ldrbeq r12, [psx_gpu, #psx_gpu_render_mode_offset]
-  tsteq r12, #RENDER_INTERLACE_ENABLED
-  beq setup_sprite_untextured_simple
-
+function(setup_sprite_untextured_512)
   stmdb sp!, { r4 - r11, r14 }
 
   ldr width, [sp, #40]
