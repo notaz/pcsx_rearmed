@@ -237,7 +237,11 @@ void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 static void setup_sprite_untextured_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y,
  s32 u, s32 v, s32 width, s32 height, u32 color)
 {
-  setup_sprite_untextured(psx_gpu, x, y, u, v, width * 2, height * 2, color);
+  width *= 2;
+  height *= 2;
+  if (width > 1024)
+    width = 1024;
+  setup_sprite_untextured(psx_gpu, x, y, u, v, width, height, color);
 }
 
 #define setup_sprite_blocks_switch_textured_4x(texture_mode)                   \

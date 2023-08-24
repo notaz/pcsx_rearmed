@@ -525,6 +525,15 @@
     (dest).e[_i] = result;                                                     \
   })                                                                           \
 
+#define min_4x16b(dest, source_a, source_b)                                    \
+  foreach_element(4,                                                           \
+  {                                                                            \
+    s32 result = (source_a).e[_i];                                             \
+    if((source_b).e[_i] < result)                                              \
+      result = (source_b).e[_i];                                               \
+    (dest).e[_i] = result;                                                     \
+  })                                                                           \
+
 #define min_8x16b(dest, source_a, source_b)                                    \
   foreach_element(8,                                                           \
   {                                                                            \

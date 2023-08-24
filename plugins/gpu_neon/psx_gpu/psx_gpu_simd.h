@@ -84,8 +84,7 @@
 #define setup_sprite_4bpp_4x setup_sprite_4bpp_4x_
 #define setup_sprite_8bpp_4x setup_sprite_8bpp_4x_
 #define setup_sprite_16bpp_4x setup_sprite_16bpp_4x_
-#define setup_sprite_untextured setup_sprite_untextured_
-#define setup_sprite_untextured_simple setup_sprite_untextured_simple_
+#define setup_sprite_untextured_512 setup_sprite_untextured_512_
 #define scale2x_tiles8 scale2x_tiles8_
 #endif
 
@@ -205,10 +204,8 @@ void setup_sprite_8bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
 void setup_sprite_16bpp_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u, s32 v,
  s32 width, s32 height, u32 color);
 
-void setup_sprite_untextured(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
+void setup_sprite_untextured_512(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
  s32 v, s32 width, s32 height, u32 color);
-void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y,
- s32 u, s32 v, s32 width, s32 height, u32 color);
 
 void scale2x_tiles8(void *dst, const void *src, int w8, int h);
 
@@ -275,7 +272,6 @@ void scale2x_tiles8(void *dst, const void *src, int w8, int h);
 #undef setup_sprite_4bpp_4x
 #undef setup_sprite_8bpp_4x
 #undef setup_sprite_16bpp_4x
-#undef setup_sprite_untextured
-#undef setup_sprite_untextured_simple
+#undef setup_sprite_untextured_512
 #undef scale2x_tiles8
 #endif
