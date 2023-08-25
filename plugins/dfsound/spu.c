@@ -1563,33 +1563,6 @@ long CALLBACK SPUshutdown(void)
  return 0;
 }
 
-// SPUTEST: we don't test, we are always fine ;)
-long CALLBACK SPUtest(void)
-{
- return 0;
-}
-
-// SPUCONFIGURE: call config dialog
-long CALLBACK SPUconfigure(void)
-{
-#ifdef _MACOSX
- DoConfiguration();
-#else
-// StartCfgTool("CFG");
-#endif
- return 0;
-}
-
-// SPUABOUT: show about window
-void CALLBACK SPUabout(void)
-{
-#ifdef _MACOSX
- DoAbout();
-#else
-// StartCfgTool("ABOUT");
-#endif
-}
-
 // SETUP CALLBACKS
 // this functions will be called once, 
 // passes a callback that should be called on SPU-IRQ/cdda volume change
