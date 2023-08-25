@@ -163,19 +163,13 @@ extern CDRgetTE              CDR_getTE;
 typedef long (CALLBACK* SPUinit)(void);				
 typedef long (CALLBACK* SPUshutdown)(void);	
 typedef long (CALLBACK* SPUclose)(void);			
-typedef void (CALLBACK* SPUplaySample)(unsigned char);		
 typedef void (CALLBACK* SPUwriteRegister)(unsigned long, unsigned short, unsigned int);
 typedef unsigned short (CALLBACK* SPUreadRegister)(unsigned long);
-typedef void (CALLBACK* SPUwriteDMA)(unsigned short);
-typedef unsigned short (CALLBACK* SPUreadDMA)(void);
 typedef void (CALLBACK* SPUwriteDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUreadDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUplayADPCMchannel)(xa_decode_t *, unsigned int, int);
 typedef void (CALLBACK* SPUregisterCallback)(void (CALLBACK *callback)(void));
 typedef void (CALLBACK* SPUregisterScheduleCb)(void (CALLBACK *callback)(unsigned int cycles_after));
-typedef long (CALLBACK* SPUconfigure)(void);
-typedef long (CALLBACK* SPUtest)(void);
-typedef void (CALLBACK* SPUabout)(void);
 typedef struct {
 	unsigned char PluginName[8];
 	uint32_t PluginVersion;
@@ -195,18 +189,12 @@ typedef void (CALLBACK* SPUasync)(uint32_t, uint32_t);
 typedef int  (CALLBACK* SPUplayCDDAchannel)(short *, int, unsigned int, int);
 
 // SPU function pointers
-extern SPUconfigure        SPU_configure;
-extern SPUabout            SPU_about;
 extern SPUinit             SPU_init;
 extern SPUshutdown         SPU_shutdown;
-extern SPUtest             SPU_test;
 extern SPUopen             SPU_open;
 extern SPUclose            SPU_close;
-extern SPUplaySample       SPU_playSample;
 extern SPUwriteRegister    SPU_writeRegister;
 extern SPUreadRegister     SPU_readRegister;
-extern SPUwriteDMA         SPU_writeDMA;
-extern SPUreadDMA          SPU_readDMA;
 extern SPUwriteDMAMem      SPU_writeDMAMem;
 extern SPUreadDMAMem       SPU_readDMAMem;
 extern SPUplayADPCMchannel SPU_playADPCMchannel;
