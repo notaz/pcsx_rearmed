@@ -1154,7 +1154,10 @@ void do_samples(unsigned int cycles_to, int do_direct)
       do_irq();
      }
    }
-  check_irq_io(spu.spuAddr);
+  if (!spu.cycles_dma_end || (int)(spu.cycles_dma_end - cycles_to) < 0) {
+   spu.cycles_dma_end = 0;
+   check_irq_io(spu.spuAddr);
+  }
 
   if (unlikely(spu.rvb->dirty))
    REVERBPrep();

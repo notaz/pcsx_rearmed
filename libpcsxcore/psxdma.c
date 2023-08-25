@@ -64,6 +64,9 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 				break;
 			SPU_writeDMAMem(ptr, words_copy * 2, psxRegs.cycle);
 			HW_DMA4_MADR = SWAPu32(madr + words_copy * 2);
+			// This should be much slower, like 12+ cycles/byte, it's like
+			// that because the CPU runs too fast and fifo is not emulated.
+			// See also set_dma_end().
 			SPUDMA_INT(words * 4);
 			return;
 

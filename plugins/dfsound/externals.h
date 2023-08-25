@@ -197,6 +197,7 @@ typedef struct
  unsigned char * pSpuIrq;
 
  unsigned int    cycles_played;
+ unsigned int    cycles_dma_end;
  int             decode_pos;
  int             decode_dirty_ch;
  unsigned int    bSpuInit:1;
@@ -240,7 +241,6 @@ typedef struct
  int           * SB;
  int           * SSumLR;
 
- int             pad[29];
  unsigned short  regArea[0x400];
 } SPUInfo;
 
