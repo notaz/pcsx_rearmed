@@ -133,12 +133,14 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
     //-------------------------------------------------//
     case H_SPUaddr:
       spu.spuAddr = (unsigned long) val<<3;
+      //check_irq_io(spu.spuAddr);
       break;
     //-------------------------------------------------//
     case H_SPUdata:
       *(unsigned short *)(spu.spuMemC + spu.spuAddr) = HTOLE16(val);
       spu.spuAddr += 2;
       spu.spuAddr &= 0x7fffe;
+      check_irq_io(spu.spuAddr);
       break;
     //-------------------------------------------------//
     case H_SPUctrl:
@@ -160,7 +162,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
     case H_SPUirqAddr:
       //if (val & 1)
       //  log_unhandled("w irq with lsb: %08lx %04x\n", reg, val);
-      spu.pSpuIrq=spu.spuMemC+(((unsigned long) val<<3)&~0xf);
+      spu.pSpuIrq = spu.spuMemC + (((int)val << 3) & ~0xf);
+      //check_irq_io(spu.spuAddr);
       goto upd_irq;
     //-------------------------------------------------//
     case H_SPUrvolL:
@@ -350,11 +353,13 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
     case H_SPUaddr:
      return (unsigned short)(spu.spuAddr>>3);
 
+    // this reportedly doesn't work on real hw
     case H_SPUdata:
      {
       unsigned short s = LE16TOH(*(unsigned short *)(spu.spuMemC + spu.spuAddr));
       spu.spuAddr += 2;
       spu.spuAddr &= 0x7fffe;
+      //check_irq_io(spu.spuAddr);
       return s;
      }
 
