@@ -157,43 +157,6 @@ make_rcnt_funcs(0)
 make_rcnt_funcs(1)
 make_rcnt_funcs(2)
 
-static void io_write_ireg16(u32 value)
-{
-	psxHu16ref(0x1070) &= value;
-}
-
-static void io_write_imask16(u32 value)
-{
-	psxHu16ref(0x1074) = value;
-	if (psxHu16ref(0x1070) & value)
-		new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
-}
-
-static void io_write_ireg32(u32 value)
-{
-	psxHu32ref(0x1070) &= value;
-}
-
-static void io_write_imask32(u32 value)
-{
-	psxHu32ref(0x1074) = value;
-	if (psxHu32ref(0x1070) & value)
-		new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
-}
-
-static void io_write_dma_icr32(u32 value)
-{
-	u32 tmp = value & 0x00ff803f;
-	tmp |= (SWAPu32(HW_DMA_ICR) & ~value) & 0x7f000000;
-	if ((tmp & HW_DMA_ICR_GLOBAL_ENABLE && tmp & 0x7f000000)
-	    || tmp & HW_DMA_ICR_BUS_ERROR) {
-		if (!(SWAPu32(HW_DMA_ICR) & HW_DMA_ICR_IRQ_SENT))
-			psxHu32ref(0x1070) |= SWAP32(8);
-		tmp |= HW_DMA_ICR_IRQ_SENT;
-	}
-	HW_DMA_ICR = SWAPu32(tmp);
-}
-
 #define make_dma_func(n) \
 static void io_write_chcr##n(u32 value) \
 { \
@@ -423,15 +386,15 @@ void new_dyna_pcsx_mem_init(void)
 
 	// write(u32 data)
 	map_item(&mem_iowtab[IOMEM32(0x1040)], io_write_sio32, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1070)], io_write_ireg32, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1074)], io_write_imask32, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1070)], psxHwWriteIstat, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1074)], psxHwWriteImask, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1088)], io_write_chcr0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1098)], io_write_chcr1, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10a8)], io_write_chcr2, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10b8)], io_write_chcr3, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10c8)], io_write_chcr4, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10e8)], io_write_chcr6, 1);
-	map_item(&mem_iowtab[IOMEM32(0x10f4)], io_write_dma_icr32, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10f4)], psxHwWriteDmaIcr32, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1104)], io_rcnt_write_mode0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1108)], io_rcnt_write_target0, 1);
@@ -451,8 +414,8 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM16(0x1048)], sioWriteMode16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x104a)], sioWriteCtrl16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x104e)], sioWriteBaud16, 1);
-	map_item(&mem_iowtab[IOMEM16(0x1070)], io_write_ireg16, 1);
-	map_item(&mem_iowtab[IOMEM16(0x1074)], io_write_imask16, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1070)], psxHwWriteIstat, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1074)], psxHwWriteImask, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1104)], io_rcnt_write_mode0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1108)], io_rcnt_write_target0, 1);
