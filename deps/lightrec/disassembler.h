@@ -20,6 +20,9 @@
 #define LIGHTREC_NO_DS		BIT(0)
 #define LIGHTREC_SYNC		BIT(1)
 
+/* Flags for LUI, ORI, ADDIU */
+#define LIGHTREC_MOVI		BIT(2)
+
 /* Flags for load/store opcodes */
 #define LIGHTREC_SMC		BIT(2)
 #define LIGHTREC_NO_INVALIDATE	BIT(3)

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.0)
-project(lightrec LANGUAGES C VERSION 0.7)
+cmake_minimum_required(VERSION 3.5)
+project(lightrec LANGUAGES C VERSION 0.8)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 if (NOT BUILD_SHARED_LIBS)
@@ -73,6 +73,7 @@ option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
 option(OPT_FLAG_IO "(optimization) Flag I/O opcodes when the target can be detected" ON)
 option(OPT_FLAG_MULT_DIV "(optimization) Flag MULT/DIV that only use one of HI/LO" ON)
 option(OPT_EARLY_UNLOAD "(optimization) Unload registers early" ON)
+option(OPT_PRELOAD_PC "(optimization) Preload PC value into register" ON)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -87,7 +88,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-	target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wno-parentheses)
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
 endif()
 if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
 	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)

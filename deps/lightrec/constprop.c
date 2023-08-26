@@ -329,7 +329,7 @@ void lightrec_consts_propagate(const struct block *block,
 		case OP_SPECIAL_SRL:
 			v[c.r.rd].value = v[c.r.rt].value >> c.r.imm;
 			v[c.r.rd].known = (v[c.r.rt].known >> c.r.imm)
-				| (BIT(c.r.imm) - 1 << 32 - c.r.imm);
+				| ((BIT(c.r.imm) - 1) << (32 - c.r.imm));
 			v[c.r.rd].sign = c.r.imm ? 0 : v[c.r.rt].sign;
 			break;
 
@@ -357,7 +357,7 @@ void lightrec_consts_propagate(const struct block *block,
 				imm = v[c.r.rs].value & 0x1f;
 				v[c.r.rd].value = v[c.r.rt].value >> imm;
 				v[c.r.rd].known = (v[c.r.rt].known >> imm)
-					| (BIT(imm) - 1 << 32 - imm);
+					| ((BIT(imm) - 1) << (32 - imm));
 				if (imm)
 					v[c.r.rd].sign = 0;
 			} else {
@@ -459,7 +459,7 @@ void lightrec_consts_propagate(const struct block *block,
 		case OP_SPECIAL_JALR:
 			v[c.r.rd].known = 0xffffffff;
 			v[c.r.rd].sign = 0;
-			v[c.r.rd].value = block->pc + (idx + 2 << 2);
+			v[c.r.rd].value = block->pc + ((idx + 2) << 2);
 			break;
 
 		default:
@@ -484,18 +484,18 @@ void lightrec_consts_propagate(const struct block *block,
 
 		if (OPT_FLAG_MULT_DIV && c.r.imm) {
 			if (c.r.op >= 32) {
-				v[c.r.imm].value = v[c.r.rs].value << c.r.op - 32;
-				v[c.r.imm].known = (v[c.r.rs].known << c.r.op - 32)
+				v[c.r.imm].value = v[c.r.rs].value << (c.r.op - 32);
+				v[c.r.imm].known = (v[c.r.rs].known << (c.r.op - 32))
 					| (BIT(c.r.op - 32) - 1);
-				v[c.r.imm].sign = v[c.r.rs].sign << c.r.op - 32;
+				v[c.r.imm].sign = v[c.r.rs].sign << (c.r.op - 32);
 			} else if (c.i.op == OP_META_MULT2) {
-				v[c.r.imm].value = (s32)v[c.r.rs].value >> 32 - c.r.op;
-				v[c.r.imm].known = (s32)v[c.r.rs].known >> 32 - c.r.op;
-				v[c.r.imm].sign = (s32)v[c.r.rs].sign >> 32 - c.r.op;
+				v[c.r.imm].value = (s32)v[c.r.rs].value >> (32 - c.r.op);
+				v[c.r.imm].known = (s32)v[c.r.rs].known >> (32 - c.r.op);
+				v[c.r.imm].sign = (s32)v[c.r.rs].sign >> (32 - c.r.op);
 			} else {
-				v[c.r.imm].value = v[c.r.rs].value >> 32 - c.r.op;
-				v[c.r.imm].known = v[c.r.rs].known >> 32 - c.r.op;
-				v[c.r.imm].sign = v[c.r.rs].sign >> 32 - c.r.op;
+				v[c.r.imm].value = v[c.r.rs].value >> (32 - c.r.op);
+				v[c.r.imm].known = v[c.r.rs].known >> (32 - c.r.op);
+				v[c.r.imm].sign = v[c.r.rs].sign >> (32 - c.r.op);
 			}
 		}
 		break;
@@ -705,7 +705,7 @@ void lightrec_consts_propagate(const struct block *block,
 	case OP_JAL:
 		v[31].known = 0xffffffff;
 		v[31].sign = 0;
-		v[31].value = block->pc + (idx + 2 << 2);
+		v[31].value = block->pc + ((idx + 2) << 2);
 		break;
 
 	default:

@@ -64,6 +64,10 @@ struct lightrec_mem_map;
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 #define LIGHTREC_EXIT_NOMEM	(1 << 4)
 
+/* Unsafe optimizations flags */
+#define LIGHTREC_OPT_INV_DMA_ONLY	(1 << 0)
+#define LIGHTREC_OPT_SP_GP_HIT_RAM	(1 << 1)
+
 enum psx_map {
 	PSX_MAP_KERNEL_USER_RAM,
 	PSX_MAP_BIOS,
@@ -129,11 +133,11 @@ __api u32 lightrec_run_interpreter(struct lightrec_state *state,
 
 __api void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
 __api void lightrec_invalidate_all(struct lightrec_state *state);
-__api void lightrec_set_invalidate_mode(struct lightrec_state *state,
-					_Bool dma_only);
 
 __api void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
 __api u32 lightrec_exit_flags(struct lightrec_state *state);
+
+__api void lightrec_set_unsafe_opt_flags(struct lightrec_state *state, u32 flags);
 
 __api __cnst struct lightrec_registers *
 lightrec_get_registers(struct lightrec_state *state);
@@ -142,6 +146,7 @@ __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 __api void lightrec_set_target_cycle_count(struct lightrec_state *state,
 					   u32 cycles);
+__api void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles);
 
 #ifdef __cplusplus
 };

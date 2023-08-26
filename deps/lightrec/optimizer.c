@@ -596,7 +596,7 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
 				pr_debug("Convert LHU+SLL+SRA to LH\n");
 
 			v[ldop->i.rt].known = 0;
-			v[ldop->i.rt].sign = 0xffffff80 << 24 - curr->r.imm;
+			v[ldop->i.rt].sign = 0xffffff80 << (24 - curr->r.imm);
 		}
 	}
 
@@ -647,6 +647,31 @@ lightrec_remove_useless_lui(struct block *block, unsigned int offset,
 	}
 }
 
+static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
+{
+	struct opcode *ori, *lui = &block->opcode_list[offset];
+	int next;
+
+	if (lui->i.op != OP_LUI)
+		return;
+
+	next = find_next_reader(block->opcode_list, offset + 1, lui->i.rt);
+	if (next > 0) {
+		ori = &block->opcode_list[next];
+
+		switch (ori->i.op) {
+		case OP_ORI:
+		case OP_ADDI:
+		case OP_ADDIU:
+			if (ori->i.rs == ori->i.rt && ori->i.imm) {
+				ori->flags |= LIGHTREC_MOVI;
+				lui->flags |= LIGHTREC_MOVI;
+			}
+			break;
+		}
+	}
+}
+
 static void lightrec_modify_lui(struct block *block, unsigned int offset)
 {
 	union code c, *lui = &block->opcode_list[offset].c;
@@ -669,7 +694,7 @@ static void lightrec_modify_lui(struct block *block, unsigned int offset)
 			}
 
 			pr_debug("Convert LUI at offset 0x%x to kuseg\n",
-				 i - 1 << 2);
+				 (i - 1) << 2);
 			lui->i.imm = kunseg(lui->i.imm << 16) >> 16;
 			break;
 		}
@@ -947,6 +972,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			if (i == 0 || !has_delay_slot(list[i - 1].c))
 				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, v);
+			if (i == 0 || !has_delay_slot(list[i - 1].c))
+				lightrec_lui_to_movi(block, i);
 			break;
 
 		/* Transform ORI/ADDI/ADDIU with imm #0 or ORR/ADD/ADDU/SUB/SUBU
@@ -1743,7 +1770,10 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				/* Assume that all I/O operations that target
 				 * $sp or $gp will always only target a mapped
 				 * memory (RAM, BIOS, scratchpad). */
-				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+				if (state->opt_flags & LIGHTREC_OPT_SP_GP_HIT_RAM)
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+				else
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 			}
 
 			fallthrough;
@@ -2157,6 +2187,66 @@ static int lightrec_replace_memset(struct lightrec_state *state, struct block *b
 	return 0;
 }
 
+static int lightrec_test_preload_pc(struct lightrec_state *state, struct block *block)
+{
+	unsigned int i;
+	union code c;
+	u32 flags;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		c = block->opcode_list[i].c;
+		flags = block->opcode_list[i].flags;
+
+		if (op_flag_sync(flags))
+			break;
+
+		switch (c.i.op) {
+		case OP_J:
+		case OP_JAL:
+			block->flags |= BLOCK_PRELOAD_PC;
+			return 0;
+
+		case OP_REGIMM:
+			switch (c.r.rt) {
+			case OP_REGIMM_BLTZAL:
+			case OP_REGIMM_BGEZAL:
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			default:
+				break;
+			}
+			fallthrough;
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+			if (!op_flag_local_branch(flags)) {
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			}
+
+		case OP_SPECIAL:
+			switch (c.r.op) {
+			case OP_SPECIAL_JALR:
+				if (c.r.rd) {
+					block->flags |= BLOCK_PRELOAD_PC;
+					return 0;
+				}
+				break;
+			case OP_SPECIAL_SYSCALL:
+			case OP_SPECIAL_BREAK:
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			default:
+				break;
+			}
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *) = {
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
@@ -2170,6 +2260,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_FLAG_IO, &lightrec_flag_io),
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
 	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
+	IF_OPT(OPT_PRELOAD_PC, &lightrec_test_preload_pc),
 };
 
 int lightrec_optimize(struct lightrec_state *state, struct block *block)

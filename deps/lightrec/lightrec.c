@@ -40,7 +40,7 @@ static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 {
 	*(u8 *)host = data;
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 1);
 }
 
@@ -49,7 +49,7 @@ static void lightrec_default_sh(struct lightrec_state *state, u32 opcode,
 {
 	*(u16 *)host = HTOLE16(data);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 2);
 }
 
@@ -58,7 +58,7 @@ static void lightrec_default_sw(struct lightrec_state *state, u32 opcode,
 {
 	*(u32 *)host = HTOLE32(data);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 4);
 }
 
@@ -524,7 +524,7 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 		status = state->regs.cp0[12];
 
 		/* Handle software interrupts */
-		if (!!(status & cause & 0x300) & status)
+		if ((!!(status & cause & 0x300)) & status)
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 
 		/* Handle hardware interrupts */
@@ -1027,7 +1027,7 @@ static u32 lightrec_memset(struct lightrec_state *state)
 		 kunseg_pc, (uintptr_t)host, length);
 	memset(host, 0, length);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate_map(state, map, kunseg_pc, length);
 
 	/* Rough estimation of the number of cycles consumed */
@@ -1080,8 +1080,8 @@ static void update_cycle_counter_after_c(jit_state_t *_jit)
 static void sync_next_pc(jit_state_t *_jit)
 {
 	if (lightrec_store_next_pc()) {
-		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, next_pc));
+		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+			    offsetof(struct lightrec_state, next_pc));
 	}
 }
 
@@ -1323,9 +1323,10 @@ union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 	return (union code) LE32TOH(*code);
 }
 
-__cnst unsigned int lightrec_cycles_of_opcode(union code code)
+unsigned int lightrec_cycles_of_opcode(const struct lightrec_state *state,
+				       union code code)
 {
-	return 2;
+	return state->cycles_per_op;
 }
 
 void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *ops)
@@ -1555,7 +1556,9 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
-	lightrec_preload_pc(cstate->reg_cache, _jit);
+
+	if (OPT_PRELOAD_PC && (block->flags & BLOCK_PRELOAD_PC))
+		lightrec_preload_pc(cstate->reg_cache, _jit);
 
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;
@@ -1593,7 +1596,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 #endif
 		}
 
-		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
+		cstate->cycles += lightrec_cycles_of_opcode(state, elm->c);
 	}
 
 	for (i = 0; i < cstate->nb_local_branches; i++) {
@@ -1918,6 +1921,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->tlsf = tlsf;
 	state->with_32bit_lut = with_32bit_lut;
 	state->in_delay_slot_n = 0xff;
+	state->cycles_per_op = 2;
 
 	state->block_cache = lightrec_blockcache_init(state);
 	if (!state->block_cache)
@@ -2064,12 +2068,12 @@ void lightrec_invalidate_all(struct lightrec_state *state)
 	memset(state->code_lut, 0, lut_elm_size(state) * CODE_LUT_SIZE);
 }
 
-void lightrec_set_invalidate_mode(struct lightrec_state *state, bool dma_only)
+void lightrec_set_unsafe_opt_flags(struct lightrec_state *state, u32 flags)
 {
-	if (state->invalidate_from_dma_only != dma_only)
+	if ((flags ^ state->opt_flags) & LIGHTREC_OPT_INV_DMA_ONLY)
 		lightrec_invalidate_all(state);
 
-	state->invalidate_from_dma_only = dma_only;
+	state->opt_flags = flags;
 }
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags)
@@ -2111,4 +2115,9 @@ void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
 struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state)
 {
 	return &state->regs;
+}
+
+void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles)
+{
+	state->cycles_per_op = cycles;
 }
