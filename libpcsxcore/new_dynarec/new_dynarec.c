@@ -4945,6 +4945,10 @@ static void drc_dbg_emit_do_cmp(int i, int ccadj_)
       emit_storereg(reg, 0);
     }
   }
+  if (dops[i].opcode == 0x0f) { // LUI
+    emit_movimm(cinfo[i].imm << 16, 0);
+    emit_storereg(dops[i].rt1, 0);
+  }
   emit_movimm(start+i*4,0);
   emit_writeword(0,&pcaddr);
   int cc = get_reg(regs[i].regmap_entry, CCREG);
@@ -4960,8 +4964,18 @@ static void drc_dbg_emit_do_cmp(int i, int ccadj_)
   restore_regs(reglist);
   assem_debug("\\\\do_insn_cmp\n");
 }
+static void drc_dbg_emit_wb_dirtys(int i, const struct regstat *i_regs)
+{
+  // write-out non-consts, consts are likely different because of get_final_value()
+  if (i_regs->dirty & ~i_regs->loadedconst) {
+    assem_debug("/ drc_dbg_wb\n");
+    wb_dirtys(i_regs->regmap, i_regs->dirty & ~i_regs->loadedconst);
+    assem_debug("\\ drc_dbg_wb\n");
+  }
+}
 #else
 #define drc_dbg_emit_do_cmp(x,y)
+#define drc_dbg_emit_wb_dirtys(x,y)
 #endif
 
 // Used when a branch jumps into the delay slot of another branch
@@ -5685,6 +5699,7 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
         load_reg(regs[i].regmap,branch_regs[i].regmap,ROREG);
       load_regs(regs[i].regmap,branch_regs[i].regmap,CCREG,INVCP);
       ds_assemble(i+1,&branch_regs[i]);
+      drc_dbg_emit_wb_dirtys(i+1, &branch_regs[i]);
       cc=get_reg(branch_regs[i].regmap,CCREG);
       if(cc==-1) {
         emit_loadreg(CCREG,cc=HOST_CCREG);
@@ -9114,6 +9129,7 @@ static int new_recompile_block(u_int addr)
 
       ds = assemble(i, &regs[i], cinfo[i].ccadj);
 
+      drc_dbg_emit_wb_dirtys(i, &regs[i]);
       if (dops[i].is_ujump)
         literal_pool(1024);
       else
