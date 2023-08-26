@@ -414,6 +414,7 @@ static void CloseEvent(u32 ev);
 	PSXBIOS_LOG("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
 	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
 	memcpy(Ra1, ptr, length); \
+	psxCpu->Clear(a1, (length + 3) / 4); \
 	if (FDesc[1 + mcd].mode & 0x8000) { \
 	DeliverEvent(0xf0000011, 0x0004); \
 	DeliverEvent(0xf4000001, 0x0004); \
@@ -904,33 +905,54 @@ void psxBios_tolower() { // 0x26
 	pc0 = ra;
 }
 
-void psxBios_bcopy() { // 0x27
-	char *p1 = (char *)Ra1, *p2 = (char *)Ra0;
-	v0 = a0;
-	if (a0 == 0 || a2 > 0x7FFFFFFF)
-	{
-		pc0 = ra;
-		return;
+static void do_memset(u32 dst, u32 v, s32 len)
+{
+	u32 d = dst;
+	s32 l = len;
+	while (l-- > 0) {
+		u8 *db = PSXM(d);
+		if (db != INVALID_PTR)
+			*db = v;
+		d++;
 	}
-	while ((s32)a2-- > 0) *p1++ = *p2++;
-	a2 = 0;
-	pc0 = ra;
+	psxCpu->Clear(dst, (len + 3) / 4);
+}
+
+static void do_memcpy(u32 dst, u32 src, s32 len)
+{
+	u32 d = dst, s = src;
+	s32 l = len;
+	while (l-- > 0) {
+		const u8 *sb = PSXM(s);
+		u8 *db = PSXM(d);
+		if (db != INVALID_PTR && sb != INVALID_PTR)
+			*db = *sb;
+		d++;
+		s++;
+	}
+	psxCpu->Clear(dst, (len + 3) / 4);
+}
+
+static void psxBios_memcpy();
+
+static void psxBios_bcopy() { // 0x27
+	psxBios_memcpy(); // identical
 }
 
 static void psxBios_bzero() { // 0x28
 	/* Same as memset here (See memset below) */
-	u32 ret = a0;
+	u32 ret = a0, cycles;
 	if (a0 == 0 || (s32)a1 <= 0)
 	{
 		mips_return_c(0, 6);
 		return;
 	}
-	while ((s32)a1-- > 0) {
-		storeRam8(a0++, 0);
-		use_cycles(4);
-	}
+	do_memset(a0, 0, a1);
+	cycles = a1 * 4;
+	a0 += a1;
+	a1 = 0;
 	// todo: many more cycles due to uncached bios mem
-	mips_return_c(ret, 5);
+	mips_return_c(ret, cycles + 5);
 }
 
 void psxBios_bcmp() { // 0x29
@@ -949,53 +971,70 @@ void psxBios_bcmp() { // 0x29
 	v0 = 0; pc0 = ra;
 }
 
-void psxBios_memcpy() { // 0x2a
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-	v0 = a0;
-	if (a0 == 0 || a2 > 0x7FFFFFFF)
+static void psxBios_memcpy() { // 0x2a
+	u32 ret = a0, cycles = 0;
+	if (a0 == 0)
 	{
-		pc0 = ra;
+		mips_return_c(0, 4);
 		return;
 	}
-	while ((s32)a2-- > 0) {
-		*p1++ = *p2++;
+	if ((s32)a2 > 0) {
+		do_memcpy(a0, a1, a2);
+		cycles = a2 * 6;
+		v1 = a0;
+		a0 += a2;
+		a1 += a2;
+		a2 = 0;
 	}
-	a2 = 0;
-	pc0 = ra;
+	mips_return_c(ret, cycles + 5);
 }
 
 static void psxBios_memset() { // 0x2b
-	u32 ret = a0;
+	u32 ret = a0, cycles;
 	if (a0 == 0 || (s32)a2 <= 0)
 	{
 		mips_return_c(0, 6);
 		return;
 	}
-	while ((s32)a2-- > 0) {
-		storeRam8(a0++, a1);
-		use_cycles(4);
-	}
+	do_memset(a0, a1, a2);
+	cycles = a2 * 4;
+	a0 += a2;
+	a2 = 0;
 	// todo: many more cycles due to uncached bios mem
-	mips_return_c(ret, 5);
+	mips_return_c(ret, cycles + 5);
 }
 
 void psxBios_memmove() { // 0x2c
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-	v0 = a0;
-	if (a0 == 0 || a2 > 0x7FFFFFFF)
+	u32 ret = a0, cycles = 0;
+	if (a0 == 0)
 	{
-		pc0 = ra;
+		mips_return_c(0, 4);
 		return;
 	}
-	if (p2 <= p1 && p2 + a2 > p1) {
-		a2++; // BUG: copy one more byte here
-		p1 += a2;
-		p2 += a2;
-		while ((s32)a2-- > 0) *--p1 = *--p2;
-	} else {
-		while ((s32)a2-- > 0) *p1++ = *p2++;
+	v1 = a0;
+	if ((s32)a2 > 0 && a0 > a1 && a0 < a1 + a2) {
+		u32 dst = a0, len = a2 + 1;
+		a0 += a2;
+		a1 += a2;
+		while ((s32)a2 >= 0) { // BUG: copies one more byte here
+			const u8 *sb = PSXM(a1);
+			u8 *db = PSXM(a0);
+			if (db != INVALID_PTR && sb != INVALID_PTR)
+				*db = *sb;
+			a0--;
+			a1--;
+			a2--;
+		}
+		psxCpu->Clear(dst, (len + 3) / 4);
+		cycles = 10 + len * 8;
+	} else if ((s32)a2 > 0) {
+		do_memcpy(a0, a1, a2);
+		cycles = a2 * 6;
+		a0 += a2;
+		a1 += a2;
+		a2 = 0;
 	}
-	pc0 = ra;
+	mips_return_c(ret, cycles + 5);
 }
 
 void psxBios_memcmp() { // 0x2d
@@ -1425,8 +1464,9 @@ void psxBios_Load() { // 0x42
 	void *pa1;
 
 	pa1 = Ra1;
-	if (pa1 && LoadCdromFile(Ra0, &eheader) == 0) {
+	if (pa1 != INVALID_PTR && LoadCdromFile(Ra0, &eheader) == 0) {
 		memcpy(pa1, ((char*)&eheader)+16, sizeof(EXEC));
+		psxCpu->Clear(a1, sizeof(EXEC) / 4);
 		v0 = 1;
 	} else v0 = 0;
 	PSXBIOS_LOG("psxBios_%s: %s, %d -> %d\n", biosA0n[0x42], Ra0, a1, v0);

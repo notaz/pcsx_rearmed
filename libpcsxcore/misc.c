@@ -261,7 +261,7 @@ int LoadCdrom() {
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
 	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
-	psxCpu->Reset();
+	//psxCpu->Reset();
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -288,6 +288,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	u32 size, addr;
 	void *mem;
 
+	if (filename == INVALID_PTR)
+		return -1;
+
 	p1 = filename;
 	if ((p2 = strchr(p1, ':')))
 		p1 = p2 + 1;
@@ -311,11 +314,11 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	READTRACK();
 
 	memcpy(head, buf + 12, sizeof(EXE_HEADER));
-	size = head->t_size;
-	addr = head->t_addr;
+	size = SWAP32(head->t_size);
+	addr = SWAP32(head->t_addr);
 
 	psxCpu->Clear(addr, size / 4);
-	psxCpu->Reset();
+	//psxCpu->Reset();
 
 	while (size & ~2047) {
 		incTime();
