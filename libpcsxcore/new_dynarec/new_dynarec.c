@@ -6340,9 +6340,9 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     *limit = (addr & 0xa0600000) + 0x00200000;
     return (u_int *)(psxM + (addr & 0x1fffff));
   }
-  else if (!Config.HLE && (
+  else if (
     /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
-    (0xbfc00000 <= addr && addr < 0xbfc80000)))
+    (0xbfc00000 <= addr && addr < 0xbfc80000))
   {
     // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
     // but timings in PCSX are too tied to the interpreter's 2-per-insn assumption
