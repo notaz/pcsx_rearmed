@@ -64,6 +64,7 @@ static void _patch(jit_state_t*,jit_word_t,jit_node_t*);
 #define PROTO				1
 #  include "jit_alpha-cpu.c"
 #  include "jit_alpha-fpu.c"
+#  include "jit_fallback.c"
 #undef PROTO
 
 /*
@@ -172,7 +173,7 @@ _jit_prolog(jit_state_t *_jit)
     _jitc->function->self.size = stack_framesize;
     _jitc->function->self.argi = _jitc->function->self.alen = 0;
     /* float conversion */
-    _jitc->function->self.aoff = -8;
+    _jitc->function->self.aoff = _jitc->function->cvt_offset = -8;
     _jitc->function->self.call = jit_call_default;
     jit_alloc((jit_pointer_t *)&_jitc->function->regoff,
 	      _jitc->reglen * sizeof(jit_int32_t));
@@ -910,6 +911,12 @@ _emit_code(jit_state_t *_jit)
 		name##i##type(rn(node->u.w), rn(node->v.w),		\
 			      (jit_float##size##_t *)node->w.n->u.w);	\
 		break
+#define case_rqr(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w), rn(node->v.q.l),		\
+			      rn(node->v.q.h), rn(node->w.w));		\
+	    case jit_code_##name##i##type:				\
+		break;
 #define case_rrrr(name, type)						\
 	    case jit_code_##name##r##type:				\
 		name##r##type(rn(node->u.q.l), rn(node->u.q.h),		\
@@ -1012,6 +1019,10 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(rsb,);
 		case_rrr(mul,);
 		case_rrw(mul,);
+		case_rrr(hmul,);
+		case_rrw(hmul,);
+		case_rrr(hmul, _u);
+		case_rrw(hmul, _u);
 		case_rrrr(qmul,);
 		case_rrrw(qmul,);
 		case_rrrr(qmul, _u);
@@ -1030,10 +1041,26 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(rem, _u);
 		case_rrr(lsh,);
 		case_rrw(lsh,);
+		case_rrrr(qlsh,);
+		case_rrrw(qlsh,);
+		case_rrrr(qlsh, _u);
+		case_rrrw(qlsh, _u);
 		case_rrr(rsh,);
 		case_rrw(rsh,);
 		case_rrr(rsh, _u);
 		case_rrw(rsh, _u);
+		case_rrrr(qrsh,);
+		case_rrrw(qrsh,);
+		case_rrrr(qrsh, _u);
+		case_rrrw(qrsh, _u);
+#define lrotr(r0,r1,r2)		fallback_lrotr(r0,r1,r2)
+#define lroti(r0,r1,i0)		fallback_lroti(r0,r1,i0)
+#define rrotr(r0,r1,r2)		fallback_rrotr(r0,r1,r2)
+#define rroti(r0,r1,i0)		fallback_rroti(r0,r1,i0)
+		case_rrr(lrot,);
+		case_rrw(lrot,);
+		case_rrr(rrot,);
+		case_rrw(rrot,);
 		case_rrr(and,);
 		case_rrw(and,);
 		case_rrr(or,);
@@ -1072,6 +1099,18 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(ldx, _ui);
 		case_rrr(ldx, _l);
 		case_rrw(ldx, _l);
+	    case jit_code_unldr:
+		unldr(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unldi:
+		unldi(rn(node->u.w), node->v.w, node->w.w);
+		break;
+	    case jit_code_unldr_u:
+		unldr_u(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unldi_u:
+		unldi_u(rn(node->u.w), node->v.w, node->w.w);
+		break;
 		case_rr(st, _c);
 		case_wr(st, _c);
 		case_rr(st, _s);
@@ -1088,12 +1127,30 @@ _emit_code(jit_state_t *_jit)
 		case_wrr(stx, _i);
 		case_rrr(stx, _l);
 		case_wrr(stx, _l);
+	    case jit_code_unstr:
+		unstr(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unsti:
+		unsti(node->u.w, rn(node->v.w), node->w.w);
+		break;
 		case_rr(hton, _us);
 		case_rr(hton, _ui);
 		case_rr(hton, _ul);
 		case_rr(bswap, _us);
 		case_rr(bswap, _ui);
 		case_rr(bswap, _ul);
+	    case jit_code_extr:
+		extr(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_extr_u:
+		extr_u(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_depr:
+		depr(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_depi:
+		depi(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
+		break;
 		case_rr(ext, _c);
 		case_rr(ext, _uc);
 		case_rr(ext, _s);
@@ -1134,6 +1191,9 @@ _emit_code(jit_state_t *_jit)
 		case_rr(clz,);
 		case_rr(cto,);
 		case_rr(ctz,);
+#define rbitr(r0, r1)	fallback_rbit(r0, r1)
+		case_rr(rbit,);
+		case_rr(popcnt,);
 		case_rrr(lt,);
 		case_rrw(lt,);
 		case_rrr(lt, _u);
@@ -1206,15 +1266,39 @@ _emit_code(jit_state_t *_jit)
 		case_rr(abs, _f);
 		case_rr(neg, _f);
 		case_rr(sqrt, _f);
+		case_rqr(fma, _f);
+		case_rqr(fms, _f);
+		case_rqr(fnma, _f);
+		case_rqr(fnms, _f);
 		case_rr(ext, _f);
 		case_rr(ld, _f);
 		case_rw(ld, _f);
 		case_rrr(ldx, _f);
 		case_rrw(ldx, _f);
+#define unldr_x(r0, r1, i0)	fallback_unldr_x(r0, r1, i0)
+	    case jit_code_unldr_x:
+		unldr_x(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+#define unldi_x(r0, i0, i1)	fallback_unldi_x(r0, i0, i1)
+	    case jit_code_unldi_x:
+		unldi_x(rn(node->u.w), node->v.w, node->w.w);
+		break;
 		case_rr(st, _f);
 		case_wr(st, _f);
 		case_rrr(stx, _f);
 		case_wrr(stx, _f);
+		/* Cost of loading, masking, oring, etc to use STQ_U is
+		 * too high. Could be branchless for doubles, but would
+		 * generate larger code, and speed for unaligned double
+		 * store is not so important; just support it. */
+#define unstr_x(r0, r1, i0)	fallback_unstr_x(r0, r1, i0)
+	    case jit_code_unstr_x:
+		unstr_x(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+#define unsti_x(i0, r0, i1)	fallback_unsti_x(i0, r0, i1)
+	    case jit_code_unsti_x:
+		unsti_x(node->u.w, rn(node->v.w), node->w.w);
+		break;
 		case_rr(mov, _f);
 	    case jit_code_movi_f:
 		assert(node->flag & jit_flag_data);
@@ -1289,6 +1373,10 @@ _emit_code(jit_state_t *_jit)
 		case_rr(abs, _d);
 		case_rr(neg, _d);
 		case_rr(sqrt, _d);
+		case_rqr(fma, _d);
+		case_rqr(fms, _d);
+		case_rqr(fnma, _d);
+		case_rqr(fnms, _d);
 		case_rr(ext, _d);
 		case_rr(ld, _d);
 		case_rw(ld, _d);
@@ -1448,6 +1536,32 @@ _emit_code(jit_state_t *_jit)
 		epilog(node);
 		_jitc->function = NULL;
 		break;
+	    case jit_code_movr_w_f:
+		movr_w_f(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_movr_f_w:
+		movr_f_w(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_movi_f_w:
+		assert(node->flag & jit_flag_data);
+		movi_f_w(rn(node->u.w), *(jit_float32_t *)node->v.n->u.w);
+		break;
+	    case jit_code_movi_w_f:
+		movi_w_f(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_movr_d_w:
+		movr_d_w(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_movi_d_w:
+		assert(node->flag & jit_flag_data);
+		movi_d_w(rn(node->u.w), *(jit_float64_t *)node->v.n->u.w);
+		break;
+	    case jit_code_movr_w_d:
+		movr_w_d(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_movi_w_d:
+		movi_w_d(rn(node->u.w), node->v.w);
+		break;
 	    case jit_code_va_start:
 		vastart(rn(node->u.w));
 		break;
@@ -1504,6 +1618,75 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_retval_f:		case jit_code_retval_d:
 	    case jit_code_prepare:
 	    case jit_code_finishr:		case jit_code_finishi:
+	    case jit_code_negi_f:		case jit_code_absi_f:
+	    case jit_code_sqrti_f:		case jit_code_negi_d:
+	    case jit_code_absi_d:		case jit_code_sqrti_d:
+		break;
+	    case jit_code_negi:
+		negi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_comi:
+		comi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_c:
+		exti_c(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_uc:
+		exti_uc(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_s:
+		exti_s(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_us:
+		exti_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_us:
+		bswapi_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_ui:
+		bswapi_ui(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_us:
+		htoni_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_ui:
+		htoni_ui(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_i:
+		exti_i(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_ui:
+		exti_ui(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_ul:
+		bswapi_ul(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_ul:
+		htoni_ul(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_cloi:
+		cloi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_clzi:
+		clzi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_ctoi:
+		ctoi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_ctzi:
+		ctzi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_rbiti:
+		rbiti(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_popcnti:
+		popcnti(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti:
+		exti(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_exti_u:
+		exti_u(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
 		break;
 	    default:
 		abort();
@@ -1555,6 +1738,7 @@ _emit_code(jit_state_t *_jit)
 #define CODE				1
 #  include "jit_alpha-cpu.c"
 #  include "jit_alpha-fpu.c"
+#  include "jit_fallback.c"
 #undef CODE
 
 void

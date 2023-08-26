@@ -4,6 +4,43 @@
 #include <unistd.h>
 #include <signal.h>
 
+/* FIXME Remove the "0 &&"  below to make the test pass.
+ * This should not be a Lightning issue. It is crashing
+ * like this at exit:
+ *	Thread 2 "catomic" received signal SIGSEGV, Segmentation fault.
+ *	[Switching to Thread 0xf6acc480 (LWP 2561)]
+ *	_IO_acquire_lock_fct (p=<synthetic pointer>) at libioP.h:797
+ *	797	libioP.h: No such file or directory.
+ *	(gdb) bt
+ *	#0  _IO_acquire_lock_fct (p=<synthetic pointer>) at libioP.h:797
+ *	#1  _IO_puts (str=0x1 <error: Cannot access memory at address 0x1>)
+ *	    at ioputs.c:36
+ *	#2  0xf8eca180 in ?? ()
+ * unless using these hacks, to not use stdio.
+ * Note that the problem will still happen on purpose, to not risk hiding
+ * a problem.
+ */
+#if 0 && defined(__hppa__)
+#  if DEBUG
+#    define DEBUG 0
+#  define PRINT_OK()						\
+    do {							\
+	jit_prepare();						\
+	jit_pushargi(STDOUT_FILENO);				\
+	jit_pushargi((jit_word_t)"ok\n");			\
+	jit_pushargri(3);					\
+	jit_finishi(write);					\
+    } while (0)
+#  endif
+#else
+#  define PRINT_OK()						\
+    do {							\
+	jit_prepare();						\
+	jit_pushargi((jit_word_t)"ok");				\
+	jit_finishi(puts);					\
+    } while (0)
+#endif
+
 #if DEBUG
 volatile
 #endif
@@ -106,11 +143,7 @@ main(int argc, char *argv[])
      * while holding the lock */				\
     jit_pushargi(10000);					\
     jit_finishi(usleep);					\
-    jit_prepare();						\
-    /* for make check, just print "ok" */			\
-    jit_pushargi((jit_word_t)"ok");				\
-    /*jit_pushargi((jit_word_t)#name);*/			\
-    jit_finishi(puts);						\
+    PRINT_OK();							\
     /* release lock */						\
     DEBUG_UNLOCK();						\
     jit_movi(JIT_V1, 0);					\
@@ -164,9 +197,7 @@ main(int argc, char *argv[])
     join(2);
     join(3);
 
-    jit_prepare();
-    jit_pushargi((jit_word_t)"ok");
-    jit_finishi(puts);
+    PRINT_OK();
 
     jit_ret();
     jit_epilog();

@@ -22,10 +22,12 @@
 
 #if __WORDSIZE == 32
 #  define MININT                0x80000000
+#  define INT_FMT		"%d"
 #  define DEC_FMT		"%d"
 #  define HEX_FMT		"0x%x"
 #else
 #  define MININT                0x8000000000000000
+#  define INT_FMT		"%d"
 #  define DEC_FMT		"%ld"
 #  define HEX_FMT		"0x%lx"
 #endif
@@ -40,6 +42,7 @@
 	    fprintf(print_stream, HEX_FMT, (jit_uword_t)value);		\
     } while (0)
 #define print_dec(value)		fprintf(print_stream, DEC_FMT, value)
+#define print_int(value)		fprintf(print_stream, INT_FMT, value)
 #define print_flt(value)		fprintf(print_stream, "%g", value)
 #define print_str(value)		fprintf(print_stream, "%s", value)
 #define print_ptr(value)		fprintf(print_stream, "%p", value)
@@ -123,7 +126,8 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
     value = jit_classify(node->code) &
 	(jit_cc_a0_int|jit_cc_a0_flt|jit_cc_a0_dbl|jit_cc_a0_jmp|
 	 jit_cc_a0_reg|jit_cc_a0_rlh|jit_cc_a0_arg|
-	 jit_cc_a1_reg|jit_cc_a1_int|jit_cc_a1_flt|jit_cc_a1_dbl|jit_cc_a1_arg|
+	 jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a1_int|
+	 jit_cc_a1_flt|jit_cc_a1_dbl|jit_cc_a1_arg|
 	 jit_cc_a2_reg|jit_cc_a2_int|jit_cc_a2_flt|jit_cc_a2_dbl|jit_cc_a2_rlh);
     if (!(node->flag & jit_flag_synth) && ((value & jit_cc_a0_jmp) ||
 					   node->code == jit_code_finishr ||
@@ -219,21 +223,33 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	r_r_r:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
-	    print_chr(' ');	print_reg(node->w.w);   return;
+	    print_chr(' ');	print_reg(node->w.w);	return;
 	r_r_w:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
-	    print_chr(' ');	print_hex(node->w.w);   return;
+	    print_chr(' ');	print_hex(node->w.w);	return;
+	r_w_w:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_chr(' ');	print_hex(node->v.w);
+	    print_chr(' ');
+	    if (node->code == jit_code_movi_ww_d)
+		print_hex(node->w.w);
+	    else
+		print_dec(node->w.w);			return;
+	w_r_w:
+	    print_chr(' ');	print_hex(node->u.w);
+	    print_chr(' ');	print_reg(node->v.w);
+	    print_chr(' ');	print_dec(node->w.w);	return;
 	q_r_r:
 	    print_str(" (");	print_reg(node->u.q.l);
 	    print_chr(' ');	print_reg(node->u.q.h);
 	    print_str(") ");	print_reg(node->v.w);
-	    print_chr(' ');	print_reg(node->w.w);   return;
+	    print_chr(' ');	print_reg(node->w.w);	return;
 	q_r_w:
 	    print_str(" (");	print_reg(node->u.q.l);
 	    print_chr(' ');	print_reg(node->u.q.h);
 	    print_str(") ");	print_reg(node->v.w);
-	    print_chr(' ');	print_hex(node->w.w);   return;
+	    print_chr(' ');	print_hex(node->w.w);	return;
 	r_r_q:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
@@ -246,6 +262,24 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	    print_str(" (");	print_reg(node->w.q.l);
 	    print_chr(' ');	print_reg(node->w.q.h);
 	    print_str(") ");	return;
+	r_r_iq:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_chr(' ');	print_reg(node->v.w);
+	    print_str(" (");	print_int(node->w.q.l);
+	    print_chr(' ');	print_int(node->w.q.h);
+	    print_str(") ");	return;
+	r_w_iq:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_chr(' ');	print_hex(node->v.w);
+	    print_str(" (");	print_int(node->w.q.l);
+	    print_chr(' ');	print_int(node->w.q.h);
+	    print_str(") ");	return;
+	r_q_r:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_str(" (");	print_reg(node->v.q.l);
+	    print_chr(' ');	print_reg(node->v.q.h);
+	    print_str(") ");	print_reg(node->w.w);
+	    return;
 	r_r_f:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
@@ -255,10 +289,30 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	    else
 		print_flt(node->w.f);
 	    return;
+	r_q_f:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_str(" (");	print_reg(node->v.q.l);
+	    print_chr(' ');	print_reg(node->v.q.h);
+	    print_str(") ");
+	    if (node->flag & jit_flag_data)
+		print_flt(*(jit_float32_t *)node->w.n->u.w);
+	    else
+		print_flt(node->w.f);
+	    return;
 	r_r_d:
 	    print_chr(' ');	print_reg(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);
 	    print_chr(' ');
+	    if (node->flag & jit_flag_data)
+		print_flt(*(jit_float64_t *)node->w.n->u.w);
+	    else
+		print_flt(node->w.d);
+	    return;
+	r_q_d:
+	    print_chr(' ');	print_reg(node->u.w);
+	    print_str(" (");	print_reg(node->v.q.l);
+	    print_chr(' ');	print_reg(node->v.q.h);
+	    print_str(") ");
 	    if (node->flag & jit_flag_data)
 		print_flt(*(jit_float64_t *)node->w.n->u.w);
 	    else
@@ -380,6 +434,10 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 		    goto r_r_r;
 		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_int:
 		    goto r_r_w;
+		case jit_cc_a0_reg|jit_cc_a1_int|jit_cc_a2_int:
+		    goto r_w_w;
+		case jit_cc_a0_int|jit_cc_a1_reg|jit_cc_a2_int:
+		    goto w_r_w;
 		case jit_cc_a0_reg|jit_cc_a0_rlh|
 		     jit_cc_a1_reg|jit_cc_a2_reg:
 		    goto q_r_r;
@@ -392,6 +450,10 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 		case jit_cc_a0_reg|jit_cc_a1_int|
 		    jit_cc_a2_reg|jit_cc_a2_rlh:
 		    goto r_w_q;
+		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_rlh:
+		    goto r_r_iq;
+		case jit_cc_a0_reg|jit_cc_a1_int|jit_cc_a2_rlh:
+		    goto r_w_iq;
 		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_flt:
 		    goto r_r_f;
 		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_dbl:
@@ -406,6 +468,12 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 		    goto n_r_f;
 		case jit_cc_a0_jmp|jit_cc_a1_reg|jit_cc_a2_dbl:
 		    goto n_r_d;
+		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_reg:
+		    goto r_q_r;
+		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_flt:
+		    goto r_q_f;
+		case jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_dbl:
+		    goto r_q_d;
 		default:
 		    abort();
 	    }

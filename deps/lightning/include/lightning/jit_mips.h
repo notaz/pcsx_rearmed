@@ -118,6 +118,16 @@ typedef enum {
 
 typedef struct {
     jit_uint32_t release	: 4;
+    /* set if lwc1, ldc1, swc1, sdc1, mtc1, mfc1, dmtc1, and dmfc1
+     * can be put in delay slot */
+    jit_uint32_t cop1_delay	: 1;
+    /* set if sll can be put in delay slot */
+    jit_uint32_t sll_delay	: 1;
+    /* set if lwl and lwr can be put in delay slot */
+    jit_uint32_t lwl_lwr_delay	: 1;
+    /* generate special instructions for un{ld,st}*; ignored for mips 6
+     * that does not have unaligned load/store instructions. */
+    jit_uint32_t unaligned	: 1;
 } jit_cpu_t;
 
 /*

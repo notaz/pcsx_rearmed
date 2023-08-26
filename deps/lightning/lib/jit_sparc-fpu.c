@@ -93,6 +93,11 @@
 #  define f3f(rd, op3, rs1, opf, rs2)	_f3f(_jit, rd, op3, rs1, opf, rs2)
 static void
 _f3f(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t, jit_int32_t,jit_int32_t);
+#  define FPop3(rd, rs1, rs3, op5, rs2)	f4f(rd, 55, rs1, rs3, op5, rs2)
+#  define f4f(rd,op3,rs1,rs3,op5,rs2)	_f4f(_jit, rd,op3,rs1,rs3,op5,rs2)
+static void
+_f4f(jit_state_t*,jit_int32_t,jit_int32_t,
+     jit_int32_t, jit_int32_t,jit_int32_t,jit_int32_t);
 #  define FITOS(rs2, rd)		FPop1(rd, 0, 196, rs2)
 #  define FITOD(rs2, rd)		FPop1(rd, 0, 200, rs2)
 #  define FITOQ(rs2, rd)		FPop1(rd, 0, 204, rs2)
@@ -139,6 +144,22 @@ _f3f(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t, jit_int32_t,jit_int32_t);
 #  define SPARC_FDIVS			77
 #  define SPARC_FDIVD			78
 #  define SPARC_FDIVQ			79
+#  define SPARC_FMADDS			1
+#  define SPARC_FMADDD			2
+#  define SPARC_FMSUBS			5
+#  define SPARC_FMSUBD			6
+#  define SPARC_FNMSUBS			9
+#  define SPARC_FNMSUBD			10
+#  define SPARC_FNMADDS			13
+#  define SPARC_FNMADDD			14
+#  define FMADDS(rs1, rs2, rs3, rd)	f4f(rd, 55, rs1, rs3, SPARC_FMADDS, rs2)
+#  define FMADDD(rs1, rs2, rs3, rd)	f4f(rd, 55, rs1, rs3, SPARC_FMADDD, rs2)
+#  define FMSUBS(rs1, rs2, rs3, rd)	f4f(rd, 55, rs1, rs3, SPARC_FMSUBS, rs2)
+#  define FMSUBD(rs1, rs2, rs3, rd)	f4f(rd, 55, rs1, rs3, SPARC_FMSUBD, rs2)
+#  define FNMSUBS(rs1, rs2, rs3,rd)	f4f(rd, 55, rs1, rs3, SPARC_FNMSUBS,rs2)
+#  define FNMSUBD(rs1, rs2, rs3,rd)	f4f(rd, 55, rs1, rs3, SPARC_FNMSUBD,rs2)
+#  define FNMADDS(rs1, rs2, rs3,rd)	f4f(rd, 55, rs1, rs3, SPARC_FNMADDS,rs2)
+#  define FNMADDD(rs1, rs2, rs3,rd)	f4f(rd, 55, rs1, rs3, SPARC_FNMADDD,rs2)
 #  define FADDS(rs1, rs2, rd)		FPop1(rd, rs1,  SPARC_FADDS, rs2)
 #  define FADDD(rs1, rs2, rd)		FPop1(rd, rs1,  SPARC_FADDD, rs2)
 #  define FADDQ(rs1, rs2, rd)		FPop1(rd, rs1,  SPARC_FADDQ, rs2)
@@ -171,10 +192,10 @@ _f3f(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t, jit_int32_t,jit_int32_t);
 static void _extr_f(jit_state_t*, jit_int32_t, jit_int32_t);
 #  if __WORDSIZSE == 32
 #    define truncr_f(r0, r1)		truncr_f_i(r0, r1)
-#  define truncr_d(r0, r1)		truncr_d_i(r0, r1)
+#    define truncr_d(r0, r1)		truncr_d_i(r0, r1)
 #  else
 #    define truncr_f(r0, r1)		truncr_f_l(r0, r1)
-#  define truncr_d(r0, r1)		truncr_d_l(r0, r1)
+#    define truncr_d(r0, r1)		truncr_d_l(r0, r1)
 #  endif
 #  define truncr_f_i(r0, r1)		_truncr_f_i(_jit, r0, r1)
 static void _truncr_f_i(jit_state_t*, jit_int32_t, jit_int32_t);
@@ -196,6 +217,8 @@ static void _extr_d_f(jit_state_t*, jit_int32_t, jit_int32_t);
 static void _movr_f(jit_state_t*, jit_int32_t, jit_int32_t);
 #  endif
 static void _movi_f(jit_state_t*, jit_int32_t, jit_float32_t*);
+#  define movi_w_f(r0, i0)		_movi_w_f(_jit, r0, i0)
+static void _movi_w_f(jit_state_t*, jit_int32_t, jit_word_t);
 #  if __WORDSIZE == 32
 #    define negr_f(r0, r1)		FNEGS(r1, r0)
 #    define absr_f(r0, r1)		FABSS(r1, r0)
@@ -207,6 +230,28 @@ static void _negr_f(jit_state_t*, jit_int32_t, jit_int32_t);
 static void _absr_f(jit_state_t*, jit_int32_t, jit_int32_t);
 #    define sqrtr_f(r0, r1)		_sqrtr_f(_jit, r0, r1)
 static void _sqrtr_f(jit_state_t*, jit_int32_t, jit_int32_t);
+#  endif
+#  if __WORDSIZE == 32
+#    define fmar_f(r0, r1, r2, r3)	FMADDS(r1, r2, r3, r0)
+#    define fmsr_f(r0, r1, r2, r3)	FMSUBS(r1, r2, r3, r0)
+#    define fmar_d(r0, r1, r2, r3)	FMADDD(r1, r2, r3, r0)
+#    define fmsr_d(r0, r1, r2, r3)	FMSUBD(r1, r2, r3, r0)
+#    define fnmar_f(r0, r1, r2, r3)	FNMADDS(r1, r2, r3, r0)
+#    define fnmsr_f(r0, r1, r2, r3)	FNMSUBS(r1, r2, r3, r0)
+#    define fnmar_d(r0, r1, r2, r3)	FNMADDD(r1, r2, r3, r0)
+#    define fnmsr_d(r0, r1, r2, r3)	FNMSUBD(r1, r2, r3, r0)
+#  else
+#    define fop3f(op, r0, r1, r2, r3)	_fop3f(_jit, op, r0, r1, r2, r3)
+static void _fop3f(jit_state_t*, jit_int32_t, jit_int32_t,
+		   jit_int32_t, jit_int32_t, jit_int32_t);
+#    define fmar_f(r0, r1, r2, r3)	fop3f(SPARC_FMADDS, r0, r1, r2, r3)
+#    define fmsr_f(r0, r1, r2, r3)	fop3f(SPARC_FMSUBS, r0, r1, r2, r3)
+#    define fmar_d(r0, r1, r2, r3)	fop3f(SPARC_FMADDD, r0, r1, r2, r3)
+#    define fmsr_d(r0, r1, r2, r3)	fop3f(SPARC_FMSUBD, r0, r1, r2, r3)
+#    define fnmar_f(r0, r1, r2, r3)	fop3f(SPARC_FNMADDS, r0, r1, r2, r3)
+#    define fnmsr_f(r0, r1, r2, r3)	fop3f(SPARC_FNMSUBS, r0, r1, r2, r3)
+#    define fnmar_d(r0, r1, r2, r3)	fop3f(SPARC_FNMADDD, r0, r1, r2, r3)
+#    define fnmsr_d(r0, r1, r2, r3)	fop3f(SPARC_FNMSUBD, r0, r1, r2, r3)
 #  endif
 #  define extr_d(r0, r1)		_extr_d(_jit, r0, r1)
 static void _extr_d(jit_state_t*, jit_int32_t, jit_int32_t);
@@ -225,14 +270,18 @@ static void _extr_f_d(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define movi_d(r0, i0)		_movi_d(_jit, r0, i0)
 static void _movi_d(jit_state_t*, jit_int32_t, jit_float64_t*);
 #  if __WORDSIZE == 32
-#  define movr_d(r0, r1)		_movr_d(_jit, r0, r1)
+#    define movi_ww_d(r0, i0, i1)	_movi_ww_d(_jit, r0, i0, i1)
+static void _movi_ww_d(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#    define movr_d(r0, r1)		_movr_d(_jit, r0, r1)
 static void _movr_d(jit_state_t*, jit_int32_t, jit_int32_t);
-#  define negr_d(r0, r1)		_negr_d(_jit, r0, r1)
+#    define negr_d(r0, r1)		_negr_d(_jit, r0, r1)
 static void _negr_d(jit_state_t*, jit_int32_t, jit_int32_t);
-#  define absr_d(r0, r1)		_absr_d(_jit, r0, r1)
+#    define absr_d(r0, r1)		_absr_d(_jit, r0, r1)
 static void _absr_d(jit_state_t*, jit_int32_t, jit_int32_t);
 #  else
 #    define movr_d(r0, r1)		FMOVD(r1, r0)
+#    define movi_w_d(r0, i0)		_movi_w_d(_jit, r0, i0)
+static void _movi_w_d(jit_state_t*, jit_int32_t, jit_word_t);
 #    define negr_d(r0, r1)		FNEGD(r1, r0)
 #    define absr_d(r0, r1)		FABSD(r1, r0)
 #  endif
@@ -497,6 +546,45 @@ _f3f(jit_state_t *_jit, jit_int32_t rd,
     ii(v.v);
 }
 
+static void
+_f4f(jit_state_t *_jit, jit_int32_t rd, jit_int32_t op3,
+     jit_int32_t rs1, jit_int32_t rs3, jit_int32_t op5, jit_int32_t rs2)
+{
+    jit_instr_t		v;
+#  if __WORDSIZE == 64
+    if (rd > 31) {
+	assert(rd <= 63 && (rd & 1) == 0);
+	rd -= 31;
+    }
+    if (rs1 > 31) {
+	assert(rs1 <= 63 && (rs1 & 1) == 0);
+	rs1 -= 31;
+    }
+    if (rs2 > 31) {
+	assert(rs2 <= 63 && (rs2 & 1) == 0);
+	rs2 -= 31;
+    }
+    if (rs3 > 31) {
+	assert(rs3 <= 63 && (rs3 & 1) == 0);
+	rs3 -= 31;
+    }
+#  endif
+    assert(!(rd  & 0xffffffe0));
+    assert(!(op3 & 0xffffffc0));
+    assert(!(rs1 & 0xffffffe0));
+    assert(!(rs3 & 0xffffffe0));
+    assert(!(op5 & 0xfffffff0));
+    assert(!(rs2 & 0xffffffe0));
+    v.op.b    = 2;
+    v.rd.b    = rd;
+    v.op3.b   = op3;
+    v.rs1.b   = rs1;
+    v.rs3.b   = rs3;
+    v.op5.b   = op5;
+    v.rs2.b   = rs2;
+    ii(v.v);
+}
+
 #  if __WORDSIZE == 64
 /* Handle the special case of using all float registers, as exercised
  * in check/carg.c.
@@ -701,6 +789,16 @@ _movi_f(jit_state_t *_jit, jit_int32_t r0, jit_float32_t *i0)
 	ldi_f(r0, (jit_word_t)i0);
 }
 
+static void
+_movi_w_f(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_f(r0, rn(reg));
+    jit_unget_reg(reg);
+}
+
 #  if __WORDSIZE == 64
 static void
 _extr_f_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
@@ -752,6 +850,19 @@ _movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t *i0)
 
 #  if __WORDSIZE == 32
 static void
+_movi_ww_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0, t1;
+    t0 = jit_get_reg(jit_class_gpr);
+    t1 = jit_get_reg(jit_class_gpr);
+    movi(rn(t0), i0);
+    movi(rn(t1), i1);
+    movr_ww_d(r0, rn(t0), rn(t1));
+    jit_unget_reg(t1);
+    jit_unget_reg(t0);
+}
+
+static void
 _movr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     assert(!(r0 & 1));
@@ -780,6 +891,16 @@ _absr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     FABSS(r1, r0);
     if (r0 != r1)
 	FMOVS(r1 + 1, r0 + 1);
+}
+#  else
+static void
+_movi_w_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_d(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 #  endif
 
@@ -892,6 +1013,83 @@ _fop2f(jit_state_t *_jit, jit_int32_t op,
 	jit_unget_reg(t1);
     if (mask & 4)
 	jit_unget_reg(t2);
+}
+
+static void
+_fop3f(jit_state_t *_jit, jit_int32_t op,
+       jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		x0, t0, x1, t1, x2, t2, x3, t3, mask = 0;
+    if (!single_precision_p(r0)) {
+	mask |= 1;
+	t0 = jit_get_reg(CLASS_SNG);
+	x0 = rn(t0);
+	if (r0 == r1) {
+	    x1 = x0;
+	    movr_d(x1, r1);
+	    if (r0 == r2)
+		x2 = x0;
+	    if (r0 == r3)
+		x3 = x0;
+	}
+	else if (r0 == r2) {
+	    x2 = x0;
+	    movr_d(x2, r2);
+	}
+	else if (r0 == r3) {
+	    x3 = x0;
+	    movr_d(x3, r3);
+	}
+    }
+    else
+	x0 = r0;
+    if (!single_precision_p(r1)) {
+	if (r0 != r1) {
+	    mask |= 2;
+	    t1 = jit_get_reg(CLASS_SNG);
+	    x1 = rn(t1);
+	    movr_d(x1, r1);
+	    if (r1 == r2)
+		x2 = x1;
+	    if (r1 == r3)
+		x3 = x1;
+	}
+    }
+    else
+	x1 = r1;
+    if (!single_precision_p(r2)) {
+	if (r0 != r2 && r1 != r2) {
+	    mask |= 4;
+	    t2 = jit_get_reg(CLASS_SNG);
+	    x2 = rn(t2);
+	    movr_d(x2, r2);
+	    if (r2 == r3)
+		x3 = x2;
+	}
+    }
+    else
+	x2 = r2;
+    if (!single_precision_p(r3)) {
+	if (r0 != r3 && r1 != r3 && r2 != r3) {
+	    mask |= 8;
+	    t3 = jit_get_reg(CLASS_SNG);
+	    x3 = rn(t3);
+	    movr_d(x3, r3);
+	}
+    }
+    else
+	x3 = r3;
+    FPop3(x0, x1,  x3, op, x2);
+    if (mask & 1) {
+	movr_d(r0, x0);
+	jit_unget_reg(t0);
+    }
+    if (mask & 2)
+	jit_unget_reg(t1);
+    if (mask & 4)
+	jit_unget_reg(t2);
+    if (mask & 8)
+	jit_unget_reg(t3);
 }
 #  endif
 

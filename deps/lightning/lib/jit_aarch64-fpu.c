@@ -18,6 +18,8 @@
  */
 
 #if PROTO
+#  define A64_CNT			0x0e205800
+#  define A64_ADDV			0x0e31b800
 #  define A64_SCVTF			0x1e220000
 #  define A64_FMOVWV			0x1e260000
 #  define A64_FMOVVW			0x1e270000
@@ -29,12 +31,18 @@
 #  define A64_FABS			0x1e20c000
 #  define A64_FNEG			0x1e214000
 #  define A64_FSQRT			0x1e21c000
+#  define A64_FMADD			0x1f000000
+#  define A64_FMSUB			0x1f008000
+#  define A64_FNMADD			0x1f200000
+#  define A64_FNMSUB			0x1f208000
 #  define A64_FCVTS			0x1e224000
 #  define A64_FCVTD			0x1e22c000
 #  define A64_FMUL			0x1e200800
 #  define A64_FDIV			0x1e201800
 #  define A64_FADD			0x1e202800
 #  define A64_FSUB			0x1e203800
+#  define CNT(Rd,Rn)			vqo_vv(0,A64_CNT,Rn,Rd)
+#  define ADDV(Rd,Rn)			vqo_vv(0,A64_ADDV,Rn,Rd)
 #  define FCMPES(Rn,Rm)			os_vv(A64_FCMPE,0,Rn,Rm)
 #  define FCMPED(Rn,Rm)			os_vv(A64_FCMPE,1,Rn,Rm)
 #  define FMOVS(Rd,Rn)			osvv_(A64_FMOV,0,Rd,Rn)
@@ -57,8 +65,21 @@
 #  define FNEGD(Rd,Rn)			osvv_(A64_FNEG,1,Rd,Rn)
 #  define FSQRTS(Rd,Rn)			osvv_(A64_FSQRT,0,Rd,Rn)
 #  define FSQRTD(Rd,Rn)			osvv_(A64_FSQRT,1,Rd,Rn)
+/* Vd = Va + Vn*Vm */
+#  define FMADDS(Rd,Rn,Rm,Ra)		osvvvv(A64_FMADD,0,Rd,Rn,Rm,Ra)
+#  define FMADDD(Rd,Rn,Rm,Ra)		osvvvv(A64_FMADD,1,Rd,Rn,Rm,Ra)
+/* Vd = Va + (-Vn)*Vm */
+#  define FMSUBS(Rd,Rn,Rm,Ra)		osvvvv(A64_FMSUB,0,Rd,Rn,Rm,Ra)
+#  define FMSUBD(Rd,Rn,Rm,Ra)		osvvvv(A64_FMSUB,1,Rd,Rn,Rm,Ra)
+/* Vd = (-Va) + (-Vn)*Vm */
+#  define FNMADDS(Rd,Rn,Rm,Ra)		osvvvv(A64_FNMADD,0,Rd,Rn,Rm,Ra)
+#  define FNMADDD(Rd,Rn,Rm,Ra)		osvvvv(A64_FNMADD,1,Rd,Rn,Rm,Ra)
+/* Vd = (-Va) + Vn*Vm */
+#  define FNMSUBS(Rd,Rn,Rm,Ra)		osvvvv(A64_FNMSUB,0,Rd,Rn,Rm,Ra)
+#  define FNMSUBD(Rd,Rn,Rm,Ra)		osvvvv(A64_FNMSUB,1,Rd,Rn,Rm,Ra)
 #  define FADDS(Rd,Rn,Rm)		osvvv(A64_FADD,0,Rd,Rn,Rm)
 #  define FADDD(Rd,Rn,Rm)		osvvv(A64_FADD,1,Rd,Rn,Rm)
+#  define FADDV(Rd,Rn,Rm)		osvvv(A64_FADD,0,Rd,Rn,Rm)
 #  define FSUBS(Rd,Rn,Rm)		osvvv(A64_FSUB,0,Rd,Rn,Rm)
 #  define FSUBD(Rd,Rn,Rm)		osvvv(A64_FSUB,1,Rd,Rn,Rm)
 #  define FMULS(Rd,Rn,Rm)		osvvv(A64_FMUL,0,Rd,Rn,Rm)
@@ -68,12 +89,20 @@
 #  define osvvv(Op,Sz,Rd,Rn,Rm)		_osvvv(_jit,Op,Sz,Rd,Rn,Rm)
 static void _osvvv(jit_state_t*,jit_int32_t,jit_int32_t,
 		   jit_int32_t,jit_int32_t,jit_int32_t);
+#  define osvvvv(Op,Sz,Rd,Rn,Rm,Ra)	_osvvvv(_jit,Op,Sz,Rd,Rn,Rm,Ra)
+static void _osvvvv(jit_state_t*,jit_int32_t,jit_int32_t,
+		    jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define osvv_(Op,Sz,Rd,Rn)		_osvv_(_jit,Op,Sz,Rd,Rn)
 static void _osvv_(jit_state_t*,jit_int32_t,
 		   jit_int32_t,jit_int32_t,jit_int32_t);
 #  define os_vv(Op,Sz,Rn,Rm)		_os_vv(_jit,Op,Sz,Rn,Rm)
 static void _os_vv(jit_state_t*,jit_int32_t,
 		   jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vqo_vv(Q,Op,Rn,Rd)		_vqo_vv(_jit,Q,Op,Rn,Rd)
+static void _vqo_vv(jit_state_t*,jit_int32_t,
+		    jit_int32_t,jit_int32_t,jit_int32_t);
+#  define popcntr(r0,r1)		_popcntr(_jit,r0,r1);
+static void _popcntr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define truncr_f_i(r0,r1)		_truncr_f_i(_jit,r0,r1)
 static void _truncr_f_i(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define truncr_f_l(r0,r1)		FCVTSZ_XS(r0,r1)
@@ -98,6 +127,10 @@ static void _divi_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_float32_t);
 #  define absr_f(r0,r1)			FABSS(r0,r1)
 #  define negr_f(r0,r1)			FNEGS(r0,r1)
 #  define sqrtr_f(r0,r1)		FSQRTS(r0,r1)
+#  define fmar_f(r0,r1,r2,r3)		FMADDS(r0,r1,r2,r3)
+#  define fmsr_f(r0,r1,r2,r3)		FNMSUBS(r0,r1,r2,r3)
+#  define fnmar_f(r0,r1,r2,r3)		FNMADDS(r0,r1,r2,r3)
+#  define fnmsr_f(r0,r1,r2,r3)		FMSUBS(r0,r1,r2,r3)
 #  define extr_f(r0,r1)			SCVTFS(r0,r1)
 #  define ldr_f(r0,r1)			_ldr_f(_jit,r0,r1)
 static void _ldr_f(jit_state_t*,jit_int32_t,jit_int32_t);
@@ -107,6 +140,8 @@ static void _ldi_f(jit_state_t*,jit_int32_t,jit_word_t);
 static void _ldxr_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define ldxi_f(r0,r1,i0)		_ldxi_f(_jit,r0,r1,i0)
 static void _ldxi_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define unldr_x(r0, r1, i0)		generic_unldr_x(r0, r1, i0)
+#  define unldi_x(r0, i0, i1)		generic_unldi_x(r0, i0, i1)
 #  define str_f(r0,r1)			_str_f(_jit,r0,r1)
 static void _str_f(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define sti_f(i0,r0)			_sti_f(_jit,i0,r0)
@@ -115,10 +150,16 @@ static void _sti_f(jit_state_t*,jit_word_t,jit_int32_t);
 static void _stxr_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define stxi_f(i0,r0,r1)		_stxi_f(_jit,i0,r0,r1)
 static void _stxi_f(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  define unstr_x(r0, r1, i0)		generic_unstr_x(r0, r1, i0)
+#  define unsti_x(i0, r0, i1)		generic_unsti_x(i0, r0, i1)
 #  define movr_f(r0,r1)			_movr_f(_jit,r0,r1)
 static void _movr_f(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi_f(r0,i0)			_movi_f(_jit,r0,i0)
 static void _movi_f(jit_state_t*,jit_int32_t,jit_float32_t);
+#  define movr_w_f(r0,r1)		FMOVSW(r0, r1)
+#  define movr_f_w(r0,r1)		FMOVWS(r0, r1)
+#  define movi_w_f(r0, i0)		_movi_w_f(_jit, r0, i0)
+static void _movi_w_f(jit_state_t*, jit_int32_t, jit_word_t);
 #  define extr_d_f(r0,r1)		FCVT_SD(r0,r1)
 #  define fccr(cc,r0,r1,r2)		_fccr(_jit,cc,r0,r1,r2)
 static void _fccr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
@@ -157,10 +198,10 @@ static void _ltgti_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_float32_t);
 #  define ordi_f(r0,r1,i0)		fcci(CC_VC,r0,r1,i0)
 #  define unordr_f(r0,r1,r2)		fccr(CC_VS,r0,r1,r2)
 #  define unordi_f(r0,r1,i0)		fcci(CC_VS,r0,r1,i0)
-#define fbccr(cc,i0,r0,r1)		_fbccr(_jit,cc,i0,r0,r1)
+#  define fbccr(cc,i0,r0,r1)		_fbccr(_jit,cc,i0,r0,r1)
 static jit_word_t
 _fbccr(jit_state_t*,jit_int32_t,jit_word_t,jit_int32_t,jit_int32_t);
-#define fbcci(cc,i0,r0,i1)		_fbcci(_jit,cc,i0,r0,i1)
+#  define fbcci(cc,i0,r0,i1)		_fbcci(_jit,cc,i0,r0,i1)
 static jit_word_t
 _fbcci(jit_state_t*,jit_int32_t,jit_word_t,jit_int32_t,jit_float32_t);
 #  define bltr_f(i0,r0,r1)		fbccr(BCC_MI,i0,r0,r1)
@@ -213,6 +254,10 @@ static void _divi_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_float64_t);
 #  define absr_d(r0,r1)			FABSD(r0,r1)
 #  define negr_d(r0,r1)			FNEGD(r0,r1)
 #  define sqrtr_d(r0,r1)		FSQRTD(r0,r1)
+#  define fmar_d(r0,r1,r2,r3)		FMADDD(r0,r1,r2,r3)
+#  define fmsr_d(r0,r1,r2,r3)		FNMSUBD(r0,r1,r2,r3)
+#  define fnmar_d(r0,r1,r2,r3)		FNMADDD(r0,r1,r2,r3)
+#  define fnmsr_d(r0,r1,r2,r3)		FMSUBD(r0,r1,r2,r3)
 #  define extr_d(r0,r1)			SCVTFD(r0,r1)
 #  define ldr_d(r0,r1)			_ldr_d(_jit,r0,r1)
 static void _ldr_d(jit_state_t*,jit_int32_t,jit_int32_t);
@@ -234,6 +279,10 @@ static void _stxi_d(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 static void _movr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi_d(r0,i0)			_movi_d(_jit,r0,i0)
 static void _movi_d(jit_state_t*,jit_int32_t,jit_float64_t);
+#  define movr_w_d(r0, r1)		FMOVDX(r0, r1)
+#  define movr_d_w(r0, r1)		FMOVXD(r0, r1)
+#define movi_w_d(r0, i0)		_movi_w_d(_jit, r0, i0)
+static void _movi_w_d(jit_state_t*, jit_int32_t, jit_word_t);
 #  define extr_f_d(r0,r1)		FCVT_DS(r0,r1)
 #  define dccr(cc,r0,r1,r2)		_dccr(_jit,cc,r0,r1,r2)
 static void _dccr(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
@@ -272,10 +321,10 @@ static void _ltgti_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_float64_t);
 #  define ordi_d(r0,r1,i0)		dcci(CC_VC,r0,r1,i0)
 #  define unordr_d(r0,r1,r2)		dccr(CC_VS,r0,r1,r2)
 #  define unordi_d(r0,r1,i0)		dcci(CC_VS,r0,r1,i0)
-#define dbccr(cc,i0,r0,r1)		_dbccr(_jit,cc,i0,r0,r1)
+#  define dbccr(cc,i0,r0,r1)		_dbccr(_jit,cc,i0,r0,r1)
 static jit_word_t
 _dbccr(jit_state_t*,jit_int32_t,jit_word_t,jit_int32_t,jit_int32_t);
-#define dbcci(cc,i0,r0,i1)		_dbcci(_jit,cc,i0,r0,i1)
+#  define dbcci(cc,i0,r0,i1)		_dbcci(_jit,cc,i0,r0,i1)
 static jit_word_t
 _dbcci(jit_state_t*,jit_int32_t,jit_word_t,jit_int32_t,jit_float64_t);
 #  define bltr_d(i0,r0,r1)		dbccr(BCC_MI,i0,r0,r1)
@@ -334,6 +383,26 @@ _osvvv(jit_state_t *_jit, jit_int32_t Op, jit_int32_t Sz,
 }
 
 static void
+_osvvvv(jit_state_t *_jit, jit_int32_t Op, jit_int32_t Sz,
+       jit_int32_t Rd, jit_int32_t Rn, jit_int32_t Rm, jit_int32_t Ra)
+{
+    instr_t	i;
+    assert(!(Rd &       ~0x1f));
+    assert(!(Rn &       ~0x1f));
+    assert(!(Rm &       ~0x1f));
+    assert(!(Ra &       ~0x1f));
+    assert(!(Sz &        ~0x3));
+    assert(!(Op & ~0xff208000));
+    i.w = Op;
+    i.size.b = Sz;
+    i.Rd.b = Rd;
+    i.Rn.b = Rn;
+    i.Rm.b = Rm;
+    i.Ra.b = Ra;
+    ii(i.w);
+}
+
+static void
 _osvv_(jit_state_t *_jit, jit_int32_t Op,
        jit_int32_t Sz, jit_int32_t Rd, jit_int32_t Rn)
 {
@@ -362,6 +431,22 @@ _os_vv(jit_state_t *_jit, jit_int32_t Op,
     i.size.b = Sz;
     i.Rn.b = Rn;
     i.Rm.b = Rm;
+    ii(i.w);
+}
+
+static void
+_vqo_vv(jit_state_t *_jit, jit_int32_t Q,
+	jit_int32_t Op, jit_int32_t Rn, jit_int32_t Rd)
+{
+    instr_t	i;
+    assert(!(Rn &       ~0x1f));
+    assert(!(Rd &       ~0x1f));
+    assert(!(Q &         ~0x1));
+    assert(!(Op & ~0xbffffc00));
+    i.w = Op;
+    i.Q.b  = Q;
+    i.Rn.b = Rn;
+    i.Rd.b = Rd;
     ii(i.w);
 }
 
@@ -410,6 +495,18 @@ _b##name##i_d(jit_state_t *_jit,					\
     word = b##name##r_d(i0, r0, rn(reg));				\
     jit_unget_reg(reg);							\
     return (word);							\
+}
+
+static void
+_popcntr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_fpr);
+    FMOVDX(rn(reg), r1);
+    CNT(rn(reg), rn(reg));
+    ADDV(rn(reg), rn(reg));
+    FMOVXD(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 
 static void
@@ -537,6 +634,16 @@ _movi_f(jit_state_t *_jit, jit_int32_t r0, jit_float32_t i0)
 	FMOVSW(r0, rn(reg));
 	jit_unget_reg(reg);
     }
+}
+
+static void
+_movi_w_f(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t                reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_f(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 
 static void
@@ -753,6 +860,16 @@ _movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
 	FMOVDX(r0, rn(reg));
 	jit_unget_reg(reg);
     }
+}
+
+static void
+_movi_w_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t                reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_d(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 
 static void

@@ -144,4 +144,24 @@ typedef enum {
 #define JIT_NOREG		_NOREG
 } jit_reg_t;
 
+typedef struct {
+    /* generate special instructions for unaligned load/store? */
+    /*
+     * For best performance, the effective address for all loads and stores
+     * should be naturally aligned for each data type (i.e., on a four-byte
+     * boundary for 32-bit accesses, and a two-byte boundary for 16-bit
+     * accesses). The base ISA supports misaligned accesses, but these might
+     * run extremely slowly depending on the implementation. Furthermore,
+     * naturally aligned loads and stores are guaranteed to execute atomically,
+     * whereas misaligned loads and stores might not, and hence require
+     * additional synchronization to ensure atomicity
+     */
+    jit_uint32_t unaligned	: 1;
+} jit_cpu_t;
+
+/*
+ * Initialization
+ */
+extern jit_cpu_t		jit_cpu;
+
 #endif /* _jit_riscv_h */

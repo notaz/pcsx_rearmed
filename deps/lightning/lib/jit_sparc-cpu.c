@@ -65,14 +65,16 @@ typedef union {
     struct {	jit_uint32_t _: 13;	jit_uint32_t b: 5;	} rs1;
     struct {	jit_uint32_t _: 18;	jit_uint32_t b: 1;	} i;
     struct {	jit_uint32_t _: 18;	jit_uint32_t b: 9;	} opf;
+    struct {	jit_uint32_t _: 18;	jit_uint32_t b: 5;	} rs3;
     struct {	jit_uint32_t _: 19;	jit_uint32_t b: 1;	} x;
     struct {	jit_uint32_t _: 19;	jit_uint32_t b: 8;	} asi;
     struct {	jit_uint32_t _: 19;	jit_uint32_t b: 6;	} res;
     struct {	jit_uint32_t _: 19;	jit_uint32_t b: 13;	} simm13;
     struct {	jit_uint32_t _: 20;	jit_uint32_t b: 7;	} asix;
     struct {	jit_uint32_t _: 20;	jit_uint32_t b: 6;	} asis;
-    struct {	jit_uint32_t _: 26;	jit_uint32_t b: 6;	} shim;
+    struct {	jit_uint32_t _: 23;	jit_uint32_t b: 4;	} op5;
     struct {	jit_uint32_t _: 25;	jit_uint32_t b: 7;	} imm7;
+    struct {	jit_uint32_t _: 26;	jit_uint32_t b: 6;	} shim;
     struct {	jit_uint32_t _: 27;	jit_uint32_t b: 5;	} rs2;
     jit_int32_t							  v;
 } jit_instr_t;
@@ -99,7 +101,7 @@ _f2bp(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,
 #  define f3r(op, rd, op3, rs1, rs2)	_f3r(_jit, op, rd, op3, rs1, rs2)
 static void _f3r(jit_state_t*,
 		 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
-#  if __WORDSIZE == 64
+#  if __WORDSIZE == 64 || CHECK_LZCNT
 #  define f3ri(op, rd, op3, rs1, rs2)	_f3ri(_jit, op, rd, op3, rs1, rs2)
 static void _f3ri(jit_state_t*,
 		  jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
@@ -243,7 +245,7 @@ _f2c1(jit_state_t*,jit_int32_t, jit_int32_t,
 #  define SRLI(rs1, imm, rd)		f3i(2, rd, 38, rs1, imm)
 #  define SRA(rs1, rs2, rd)		f3r(2, rd, 39, rs1, rs2)
 #  define SRAI(rs1, imm, rd)		f3i(2, rd, 39, rs1, imm)
-#  if __WORDSIZE == 64
+#  if __WORDSIZE == 64 || CHECK_LZCNT
 #    define SLLX(rs1, rs2, rd)		f3rx(2, rd, 37, rs1, rs2)
 #    define SLLXI(rs1, imm, rd)		f3s(2, rd, 37, rs1, imm)
 #    define SRLX(rs1, rs2, rd)		f3rx(2, rd, 38, rs1, rs2)
@@ -573,8 +575,6 @@ static void _casx(jit_state_t *_jit,jit_int32_t,jit_int32_t,
 #define casi(r0, i0, r1, r2)		casx(r0, _NOREG, r1, r2, i0)
 #  define comr(r0, r1)			XNOR(r1, 0, r0)
 #  define negr(r0, r1)			NEG(r1, r0)
-#  define bitswap(r0, r1)		_bitswap(_jit, r0, r1)
-static void _bitswap(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define clor(r0, r1)			_clor(_jit, r0, r1)
 static void _clor(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define clzr(r0, r1)			_clzr(_jit, r0, r1)
@@ -630,6 +630,10 @@ static void _rsbi(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #  endif
 #  define muli(r0, r1, i0)		_muli(_jit, r0, r1, i0)
 static void _muli(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define hmulr(r0, r1, r2)		qmulr(JIT_NOREG, r0, r1, r2)
+#  define hmuli(r0, r1, i0)		qmuli(JIT_NOREG, r0, r1, i0)
+#  define hmulr_u(r0, r1, r2)		qmulr_u(JIT_NOREG, r0, r1, r2)
+#  define hmuli_u(r0, r1, i0)		qmuli_u(JIT_NOREG, r0, r1, i0)
 #  if __WORDSIZE == 32
 #    define qmulr(r0,r1,r2,r3)		iqmulr(r0,r1,r2,r3,1)
 #    define qmulr_u(r0,r1,r2,r3)	iqmulr(r0,r1,r2,r3,0)
@@ -1205,7 +1209,7 @@ _f2c1(jit_state_t *_jit, jit_int32_t op, jit_int32_t rd,
     jit_instr_t		v;
     assert(!(op  & 0xfffffffc));
     assert(!(rd  & 0xffffffe0));
-    assert(!(res & 0xffffffc0));
+    assert(!(op3 & 0xffffffc0));
     assert(!(rs1 & 0xffffffe0));
     assert(!(opf & 0xfffffe00));
     assert(!(rs2 & 0xfffffe00));
@@ -1333,58 +1337,6 @@ _casx(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 }
 
 static void
-_bitswap(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
-{
-    jit_int32_t		t0, t1, t2, t3, t4;
-    movr(r0, r1);
-    t0 = jit_get_reg(jit_class_gpr);
-    t1 = jit_get_reg(jit_class_gpr);
-    t2 = jit_get_reg(jit_class_gpr);
-    movi(rn(t0), __WORDSIZE == 32 ? 0x55555555L : 0x5555555555555555L);
-    rshi_u(rn(t1), r0, 1);		/* t1 = v >> 1 */
-    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
-    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
-    lshi(rn(t2), rn(t2), 1);		/* t2 <<= 1 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-    movi(rn(t0), __WORDSIZE == 32 ? 0x33333333L : 0x3333333333333333L);
-    rshi_u(rn(t1), r0, 2);		/* t1 = v >> 2 */
-    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
-    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
-    lshi(rn(t2), rn(t2), 2);		/* t2 <<= 2 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-    movi(rn(t0), __WORDSIZE == 32 ? 0x0f0f0f0fL : 0x0f0f0f0f0f0f0f0fL);
-    rshi_u(rn(t1), r0, 4);		/* t1 = v >> 4 */
-    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
-    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
-    lshi(rn(t2), rn(t2), 4);		/* t2 <<= 4 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-    movi(rn(t0), __WORDSIZE == 32 ?  0x00ff00ffL : 0x00ff00ff00ff00ffL);
-    rshi_u(rn(t1), r0, 8);		/* t1 = v >> 8 */
-    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
-    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
-    lshi(rn(t2), rn(t2), 8);		/* t2 <<= 8 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-#  if __WORDSIZE == 32
-    rshi_u(rn(t1), r0, 16);		/* t1 = v >> 16 */
-    lshi(rn(t2), r0, 16);		/* t2 = v << 16 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-#  else
-    movi(rn(t0), 0x0000ffff0000ffffL);
-    rshi_u(rn(t1), r0, 16);		/* t1 = v >> 16 */
-    andr(rn(t1), rn(t1), rn(t0));	/* t1 &= t0 */
-    andr(rn(t2), r0, rn(t0));		/* t2 = v & t0*/
-    lshi(rn(t2), rn(t2), 16);		/* t2 <<= 16 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-    rshi_u(rn(t1), r0, 32);		/* t1 = v >> 32 */
-    lshi(rn(t2), r0, 32);		/* t2 = v << 32 */
-    orr(r0, rn(t1), rn(t2));		/* v = t1 | t2 */
-#  endif
-    jit_unget_reg(t2);
-    jit_unget_reg(t1);
-    jit_unget_reg(t0);
-}
-
-static void
 _clor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     if (jit_cpu.lzcnt) {
@@ -1398,20 +1350,21 @@ _clor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 static void
 _clzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
+#  if CHECK_LZCNT
     if (jit_cpu.lzcnt) {
-#if __WORDSIZE == 32
+#    if __WORDSIZE == 32
 	jit_word_t		w;
 	SLLXI(r1, 32, r0);
 	LZCNT(r0, r0);
-#if __WORDSIZE == 32
 	w = blei(_jit->pc.w, r0, 31);
 	rshi(r0, r0, 1);	/* r0 is 64 */
 	patch_at(w, _jit->pc.w);
-#endif
-#else
+#    else
 	LZCNT(r1, r0);
+#    endif
     }
     else
+#  endif
 	fallback_clz(r0, r1);
 }
 
@@ -1419,8 +1372,8 @@ static void
 _ctor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     if (jit_cpu.lzcnt) {
-	bitswap(r0, r1);
-	clor(r0, r0);
+	comr(r0, r1);
+	ctzr(r0, r0);
     }
     else
 	fallback_cto(r0, r1);
@@ -1429,9 +1382,17 @@ _ctor(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 static void
 _ctzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
+    jit_int32_t		t0, t1;
     if (jit_cpu.lzcnt) {
-	bitswap(r0, r1);
-	clzr(r0, r0);
+	t0 = jit_get_reg(jit_class_gpr);
+	t1 = jit_get_reg(jit_class_gpr);
+	negr(rn(t0), r1);
+	andr(rn(t0), rn(t0), r1);
+	clzr(r0, rn(t0));
+	xori(rn(t1), r0, __WORDSIZE - 1);
+	movnr(r0, rn(t1), rn(t0));
+	jit_unget_reg(t0);
+	jit_unget_reg(t1);
     }
     else
 	fallback_ctz(r0, r1);
@@ -1676,6 +1637,8 @@ static void
 _iqmulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 	jit_int32_t r2, jit_int32_t r3, jit_bool_t sign)
 {
+    if (r0 == JIT_NOREG)
+	r0 = r1;
     if (sign)
 	SMUL(r2, r3, r0);
     else
@@ -1689,6 +1652,8 @@ _iqmuli(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 {
     jit_int32_t		reg;
     if (s13_p(i0)) {
+	if (r0 == JIT_NOREG)
+	    r0 = r1;
 	if (sign)
 	    SMULI(r2, i0, r0);
 	else
@@ -1741,7 +1706,8 @@ _qmulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     movr(_O0_REGNO, r3);
     movr(_O1_REGNO, r2);
     calli((jit_word_t)__llmul);
-    movr(r0, _O1_REGNO);
+    if (r0 != JIT_NOREG)
+	movr(r0, _O1_REGNO);
     movr(r1, _O0_REGNO);
     QMUL_EPILOG();
 }
@@ -1754,7 +1720,8 @@ _qmuli(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     movi(_O0_REGNO, i0);
     movr(_O1_REGNO, r2);
     calli((jit_word_t)__llmul);
-    movr(r0, _O1_REGNO);
+    if (r0 != JIT_NOREG)
+	movr(r0, _O1_REGNO);
     movr(r1, _O0_REGNO);
     QMUL_EPILOG();
 }
@@ -1772,7 +1739,8 @@ _qmulr_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     movr(_O0_REGNO, r3);
     movr(_O1_REGNO, r2);
     calli((jit_word_t)__ullmul);
-    movr(r0, _O1_REGNO);
+    if (r0 != JIT_NOREG)
+	movr(r0, _O1_REGNO);
     movr(r1, _O0_REGNO);
     QMUL_EPILOG();
 }
@@ -1785,7 +1753,8 @@ _qmuli_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     movi(_O0_REGNO, i0);
     movr(_O1_REGNO, r2);
     calli((jit_word_t)__ullmul);
-    movr(r0, _O1_REGNO);
+    if (r0 != JIT_NOREG)
+	movr(r0, _O1_REGNO);
     movr(r1, _O0_REGNO);
     QMUL_EPILOG();
 }

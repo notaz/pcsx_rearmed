@@ -126,6 +126,63 @@ typedef struct {
      * of that function if generating jit for a relative jump.
      */
     jit_uint32_t exchange	: 1;
+    /* By default assume cannot load unaligned data.
+     * A3.2.1
+     * Unaligned data access
+     * An ARMv7 implementation must support unaligned data accesses by
+     * some load and store instructions, as Table A3-1 shows. Software
+     * can set the SCTLR.A bit to control whether a misaligned access by
+     * one of these instructions causes an Alignment fault Data Abort
+     *  exception.
+     * Table A3-1 Alignment requirements of load/store instructions
+     *                                   Result if check fails when
+     * Instructions   Alignment check    SCTLR.A is 0      SCTLR.A is 1
+     * LDRB, LDREXB,
+     * LDRBT, LDRSB,
+     * LDRSBT, STRB,
+     * STREXB, STRBT,
+     * SWPB, TBB       None              -             -
+     * LDRH, LDRHT,
+     * LDRSH, LDRSHT,
+     * STRH, STRHT,
+     * TBH             Halfword          Unaligned access  Alignment fault
+     * LDREXH, STREXH  Halfword          Alignment fault   Alignment fault
+     * LDR, LDRT,
+     * STR, STRT       Word              Unaligned access  Alignment fault
+     * LDREX, STREX    Word              Alignment fault   Alignment fault
+     * LDREXD, STREXD  Doubleword        Alignment fault   Alignment fault
+     * All forms of
+     * LDM and STM,
+     * LDRD, RFE, SRS,
+     * STRD, SWP        Word              Alignment fault   Alignment fault
+     * LDC, LDC2,
+     * STC, STC2        Word              Alignment fault   Alignment fault
+     * VLDM, VLDR,
+     * VPOP, VPUSH,
+     * VSTM, VSTR       Word              Alignment fault   Alignment fault
+     * VLD1, VLD2,
+     * VLD3, VLD4,
+     * VST1, VST2,
+     * VST3, VST4,
+     * all with
+     * standard
+     * alignment (a)    Element size      Unaligned access  Alignment fault
+     * VLD1, VLD2,
+     * VLD3, VLD4,
+     * VST1, VST2,
+     * VST3, VST4,
+     * all with
+     * @<align>
+     * specified (a)   As specified by    Alignment fault  Alignment fault
+     *                 @<align>
+     *
+     * (a) These element and structure load/store instructions are only in
+     * the Advanced SIMD Extension to the ARMv7 ARM and Thumb instruction
+     * sets. ARMv7 does not support the pre-ARMv6 alignment model, so
+     * software cannot use that model with these instructions.
+     */
+    jit_uint32_t unaligned	: 1;
+    jit_uint32_t vfp_unaligned	: 1;
 } jit_cpu_t;
 
 /*

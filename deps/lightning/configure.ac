@@ -15,7 +15,7 @@ dnl License for more details.
 dnl
 
 AC_PREREQ([2.71])
-AC_INIT([GNU lightning],[2.2.1],[pcpa@gnu.org],[lightning])
+AC_INIT([GNU lightning],[2.2.2],[pcpa@gnu.org],[lightning])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([Makefile.am])

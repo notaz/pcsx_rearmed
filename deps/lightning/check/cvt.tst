@@ -277,6 +277,139 @@ dfc##_##R0:
 	EXTDFC1(R4)						\
 	EXTDFC1(R5)
 
+#define MVFW(R0, F0, F1)					\
+	movi_f %F0 0.5						\
+	movr_f_w %R0 %F0					\
+	movr_w_f %F1 %R0					\
+	beqr_f fw##R0##F0##F1 %F0 %F1				\
+	calli @abort						\
+fw##R0##F0##F1:
+#define FW(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVFW(R0, F0, F1)					\
+	MVFW(R1, F1, F2)					\
+	MVFW(R2, F2, F3)					\
+	MVFW(R3, F3, F4)					\
+	MVFW(R4, F4, F5)					\
+	MVFW(R5, F5, F0)
+#define MVFWI(R0, F0, F1)					\
+	movi_f %F1 0.25						\
+	movi_f_w %R0 0.25					\
+	movr_w_f %F0 %R0					\
+	beqr_f ifw##R0##F0##F1 %F0 %F1				\
+	calli @abort						\
+ifw##R0##F0##F1:
+#define FWI(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVFWI(R0, F0, F1)					\
+	MVFWI(R1, F1, F2)					\
+	MVFWI(R2, F2, F3)					\
+	MVFWI(R3, F3, F4)					\
+	MVFWI(R4, F4, F5)					\
+	MVFWI(R5, F5, F0)
+
+#if __WORDSIZE == 32
+#  define MVDW(R0, R1, F0, F1)					\
+	movi_d %F0 0.5						\
+	movr_d_ww %R0 %R1 %F0					\
+	movr_ww_d %F1 %R0 %R1					\
+	beqr_d dw##R0##R1##F0##F1 %F0 %F1			\
+	calli @abort						\
+dw##R0##R1##F0##F1:
+#  define DW(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVDW(R0, R1, F0, F1)					\
+	MVDW(R1, R2, F1, F2)					\
+	MVDW(R2, R3, F2, F3)					\
+	MVDW(R3, R4, F3, F4)					\
+	MVDW(R4, R5, F4, F5)					\
+	MVDW(R5, R0, F5, F0)
+#  define MVDWI(R0, R1, F0, F1)					\
+	movi_d %F1 0.25						\
+	movi_d_ww %R0 %R1 0.25					\
+	movr_ww_d %F0 %R0 %R1					\
+	beqr_d idw##R0##R1##F0##F1 %F0 %F1			\
+	calli @abort						\
+idw##R0##R1##F0##F1:
+#  define DWI(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVDWI(R0, R1, F0, F1)					\
+	MVDWI(R1, R2, F1, F2)					\
+	MVDWI(R2, R3, F2, F3)					\
+	MVDWI(R3, R4, F3, F4)					\
+	MVDWI(R4, R5, F4, F5)					\
+	MVDWI(R5, R0, F5, F0)
+#else
+#  define MVDW(R0, F0, F1)					\
+	movi_d %F0 0.5						\
+	movr_d_w %R0 %F0					\
+	movr_w_d %F1 %R0					\
+	beqr_d dw##R0##F0##F1 %F0 %F1				\
+	calli @abort						\
+dw##R0##F0##F1:
+#  define DW(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVDW(R0, F0, F1)					\
+	MVDW(R1, F1, F2)					\
+	MVDW(R2, F2, F3)					\
+	MVDW(R3, F3, F4)					\
+	MVDW(R4, F4, F5)					\
+	MVDW(R5, F5, F0)
+#  define MVDWI(R0, F0, F1)					\
+	movi_d %F1 0.25						\
+	movi_d_w %R0 0.25					\
+	movr_w_d %F0 %R0					\
+	beqr_d idw##R0##F0##F1 %F0 %F1				\
+	calli @abort						\
+idw##R0##F0##F1:
+#  define DWI(R0, R1, R2, R3, R4, R5, F0, F1, F2, F3, F4, F5)	\
+	MVDWI(R0, F0, F1)					\
+	MVDWI(R1, F1, F2)					\
+	MVDWI(R2, F2, F3)					\
+	MVDWI(R3, F3, F4)					\
+	MVDWI(R4, F4, F5)					\
+	MVDWI(R5, F5, F0)
+#endif
+
+#define MVWFI(F0, F1)						\
+	movi_f %F1 0.25						\
+	movi_w_f %F0 0x3e800000					\
+	beqr_f iwf##F0##F1 %F0 %F1				\
+	calli @abort						\
+iwf##F0##F1:
+#define WFI(F0, F1, F2, F3, F4, F5)				\
+	MVWFI(F0, F1)						\
+	MVWFI(F1, F2)						\
+	MVWFI(F2, F3)						\
+	MVWFI(F3, F4)						\
+	MVWFI(F4, F5)						\
+	MVWFI(F5, F0)
+
+#if __WORDSIZE == 32
+#    define MVWDI(F0, F1)					\
+	movi_d %F1 0.5						\
+	movi_ww_d %F0 0 0x3fe00000				\
+	beqr_d iwwd##F0##F1 %F0 %F1				\
+	calli @abort						\
+iwwd##F0##F1:
+#    define WDI(F0, F1, F2, F3, F4, F5)				\
+	MVWDI(F0, F1)						\
+	MVWDI(F1, F2)						\
+	MVWDI(F2, F3)						\
+	MVWDI(F3, F4)						\
+	MVWDI(F4, F5)						\
+	MVWDI(F5, F0)
+#else
+#  define MVWDI(F0, F1)						\
+	movi_d %F1 0.5						\
+	movi_w_d %F0 0x3fe0000000000000				\
+	beqr_d iwd##F0##F1 %F0 %F1				\
+	calli @abort						\
+iwd##F0##F1:
+#define WDI(F0, F1, F2, F3, F4, F5)				\
+	MVWDI(F0, F1)						\
+	MVWDI(F1, F2)						\
+	MVWDI(F2, F3)						\
+	MVWDI(F3, F4)						\
+	MVWDI(F4, F5)						\
+	MVWDI(F5, F0)
+#endif
+
 .code
 	prolog
 
@@ -357,6 +490,64 @@ xfd:
 	beqi_f xdf %f1 0.5
 	calli @abort
 xdf:
+	movi_f %f0 0.5
+	movr_f_w %r0 %f0
+	movr_w_f %f1 %r0
+	beqr_f fw %f0 %f1
+	calli @abort
+fw:
+	movi_f %f1 0.25
+	movi_f_w %r0 0.25
+	movr_w_f %f0 %r0
+	beqr_f ifw %f0 %f1
+	calli @abort
+ifw:
+#if __WORDSIZE == 32
+	movi_d %f0 0.5
+	movr_d_ww %r0 %r1 %f0
+	movr_ww_d %f1 %r0 %r1
+	beqr_d dww %f0 %f1
+	calli @abort
+dww:
+	movi_d %f1 0.25
+	movi_d_ww %r0 %r1 0.25
+	movr_ww_d %f0 %r0 %r1
+	beqr_d idww %f0 %f1
+	calli @abort
+idww:
+#else
+	movi_d %f0 0.5
+	movr_d_w %r0 %f0
+	movr_w_d %f1 %r0
+	beqr_d dw %f0 %f1
+	calli @abort
+dw:
+	movi_d %f1 0.25
+	movi_d_w %r0 0.25
+	movr_w_d %f0 %r0
+	beqr_d idw %f0 %f1
+	calli @abort
+idw:
+#endif
+
+	movi_f %f1 0.25
+	movi_w_f %f0 0x3e800000
+	beqr_f iwf %f0 %f1
+	calli @abort
+iwf:
+#if __WORDSIZE == 32
+	movi_d %f1 0.5
+	movi_ww_d %f0 0 0x3fe00000
+	beqr_d iwwd %f0 %f1
+	calli @abort
+iwwd:
+#else
+	movi_d %f1 0.5
+	movi_w_d %f0 0x3fe0000000000000
+	beqr_d iwd %f0 %f1
+	calli @abort
+iwd:
+#endif
 
 	EXTII(v0, v1, v2, r0, r1, r2)
 	EXIF(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
@@ -369,6 +560,12 @@ xdf:
 	EXDI(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
 	EXTFD(f0, f1, f2, f3, f4, f5)
 	EXTDF(f0, f1, f2, f3, f4, f5)
+	FW(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
+	FWI(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
+	DW(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
+	DWI(v0, v1, v2, r0, r1, r2, f0, f1, f2, f3, f4, f5)
+	WFI(f0, f1, f2, f3, f4, f5)
+	WDI(f0, f1, f2, f3, f4, f5)
 
 	// just to know did not abort
 	prepare

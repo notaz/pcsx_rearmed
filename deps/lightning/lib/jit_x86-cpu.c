@@ -21,13 +21,20 @@
 #define USE_INC_DEC			0
 
 #if PROTO
+#  if __WORDSIZE == 64 && _WIN32
+#    define ONE				1LL
+#  else
+#    define ONE				1L
+#  endif
 #  if __X32 || __X64_32
 #    define WIDE			0
 #    define ldi(u, v)			ldi_i(u, v)
 #    define ldr(u, v)			ldr_i(u, v)
 #    define ldxr(u, v, w)		ldxr_i(u, v, w)
 #    define ldxi(u, v, w)		ldxi_i(u, v, w)
+#    define str(u, v)			str_i(u, v)
 #    define sti(u, v)			sti_i(u, v)
+#    define stxr(u, v, w)		stxr_i(u, v, w)
 #    define stxi(u, v, w)		stxi_i(u, v, w)
 #    define can_sign_extend_int_p(im)	1
 #    define can_zero_extend_int_p(im)	1
@@ -38,11 +45,13 @@
 #    define ldr(u, v)			ldr_l(u, v)
 #    define ldxr(u, v, w)		ldxr_l(u, v, w)
 #    define ldxi(u, v, w)		ldxi_l(u, v, w)
+#    define str(u, v)			str_l(u, v)
 #    define sti(u, v)			sti_l(u, v)
+#    define stxr(u, v, w)		stxr_l(u, v, w)
 #    define stxi(u, v, w)		stxi_l(u, v, w)
 #    define can_sign_extend_int_p(im)					\
-	(((im) >= 0 && (long long)(im) <=  0x7fffffffLL) ||		\
-	 ((im) <  0 && (long long)(im) >  -0x80000000LL))
+	(((long long)(im) >= 0 && (long long)(im) <=  0x7fffffffLL) ||	\
+	 ((long long)(im) <  0 && (long long)(im) >  -0x80000000LL))
 #    define can_zero_extend_int_p(im)					\
 	((im) >= 0 && (im) < 0x80000000LL)
 #    define fits_uint32_p(im)		(((im) & 0xffffffff00000000LL) == 0)
@@ -142,6 +151,40 @@ _rex(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define rx(rd, md, rb, ri, ms)	_rx(_jit, rd, md, rb, ri, ms)
 static void
 _rx(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+/*
+ *	prefix	8 bits	0xc4	Three byte VEX
+ *			0xc5	Two byte VEX
+ *			0x8f	Three byte XOP
+ *	~R	1 bit	Inverted REX.R
+ *	~X	1 bit	Inverted REX.X
+ *	~B	1 bit	Inverted REX.B
+ *	map	5 bits	Opcode map to use
+ *	W	1 bit	REX.W for integer, otherwise opcode extension
+ *	~vvvv	4 bits	Inverted XMM or YMM registers
+ *	L	1 bit	128 bit vector if 0, 256 otherwise
+ *	pp	2 bits	Mandatory prefix
+ *			00	none
+ *			01	0x66
+ *			10	0xf3
+ *			11	0xf2
+ *
+ *	Three byte VEX:
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ *	| 1   1   0   0   0   1   0   0 | |~R |~X |~B |        map        | | W |     ~vvvv     | L |   pp  |
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ *	Three byte XOP:
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ *	| 1   0   0   0   1   1   1   1 | |~R |~X |~B |        map        | | W |     ~vvvv     | L |   pp  |
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ *	Two byte VEX:
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ *	| 1   1   0   0   0   1   0   1 | |~R |     ~vvvv     | L |   pp  |
+ *	+---+---+---+---+---+---+---+---+ +---+---+---+---+---+---+---+---+
+ */
+#  define vex(r,x,b,map,w,vvvv,l,pp)	_vex(_jit,r,x,b,map,w,vvvv,l,pp)
+static void
+_vex(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,
+     jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define nop(n)			_nop(_jit, n)
 static void _nop(jit_state_t*, jit_int32_t);
 #  define emms()			is(0x770f)
@@ -213,6 +256,10 @@ static void _imuli(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 static void _mulr(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 #  define muli(r0, r1, i0)		_muli(_jit, r0, r1, i0)
 static void _muli(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define hmulr(r0, r1, r2)		_iqmulr(_jit, JIT_NOREG, r0, r1, r2, 1)
+#  define hmulr_u(r0, r1, r2)		_iqmulr(_jit, JIT_NOREG, r0, r1, r2, 0)
+#  define hmuli(r0, r1, i0)		_iqmuli(_jit, JIT_NOREG, r0, r1, i0, 1)
+#  define hmuli_u(r0, r1, i0)		_iqmuli(_jit, JIT_NOREG, r0, r1, i0, 0)
 #  define umulr(r0)			unr(X86_IMUL, r0)
 #  define umulr_u(r0)			unr(X86_MUL, r0)
 #  define qmulr(r0, r1, r2, r3)		_iqmulr(_jit, r0, r1, r2, r3, 1)
@@ -283,12 +330,36 @@ static void _irotshi(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 static void
 _rotshi(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t,jit_word_t);
 #  define lshr(r0, r1, r2)		rotshr(X86_SHL, r0, r1, r2)
+#  define qlshr(r0, r1, r2, r3)		xlshr(1, r0, r1, r2, r3)
+#  define xlshr(s, r0, r1, r2, r3)	_xlshr(_jit, s, r0, r1, r2, r3)
+static void
+_xlshr(jit_state_t*,jit_bool_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define lshi(r0, r1, i0)		_lshi(_jit, r0, r1, i0)
 static void _lshi(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define qlshi(r0, r1, r2, i0)		xlshi(1, r0, r1, r2, i0)
+#  define xlshi(s, r0, r1, r2, i0)	_xlshi(_jit, s, r0, r1, r2, i0)
+static void
+_xlshi(jit_state_t*,jit_bool_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_word_t);
+#  define qlshr_u(r0, r1, r2, r3)	xlshr(0, r0, r1, r2, r3)
+#  define qlshi_u(r0, r1, r2, i0)	xlshi(0, r0, r1, r2, i0)
 #  define rshr(r0, r1, r2)		rotshr(X86_SAR, r0, r1, r2)
 #  define rshi(r0, r1, i0)		rotshi(X86_SAR, r0, r1, i0)
 #  define rshr_u(r0, r1, r2)		rotshr(X86_SHR, r0, r1, r2)
 #  define rshi_u(r0, r1, i0)		rotshi(X86_SHR, r0, r1, i0)
+#  define qrshr(r0, r1, r2, r3)		xrshr(1, r0, r1, r2, r3)
+#  define qrshr_u(r0, r1, r2, r3)	xrshr(0, r0, r1, r2, r3)
+#  define xrshr(s, r0, r1, r2, r3)	_xrshr(_jit, s, r0, r1, r2, r3)
+static void
+_xrshr(jit_state_t*,jit_bool_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define qrshi(r0, r1, r2, i0)		xrshi(1, r0, r1, r2, i0)
+#  define qrshi_u(r0, r1, r2, i0)	xrshi(0, r0, r1, r2, i0)
+#  define xrshi(s, r0, r1, r2, i0)	_xrshi(_jit, s, r0, r1, r2, i0)
+static void
+_xrshi(jit_state_t*,jit_bool_t,jit_int32_t,jit_int32_t,jit_int32_t,jit_word_t);
+#  define lrotr(r0, r1, r2)		rotshr(X86_ROL, r0, r1, r2)
+#  define lroti(r0, r1, i0)		rotshi(X86_ROL, r0, r1, i0)
+#  define rrotr(r0, r1, r2)		rotshr(X86_ROR, r0, r1, r2)
+#  define rroti(r0, r1, i0)		rotshi(X86_ROR, r0, r1, i0)
 #  define unr(code, r0)			_unr(_jit, code, r0)
 static void _unr(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define inegr(r0)			unr(X86_NEG, r0)
@@ -311,6 +382,10 @@ static void _clzr(jit_state_t*, jit_int32_t, jit_int32_t);
 static void _ctor(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define ctzr(r0, r1)			_ctzr(_jit, r0, r1)
 static void _ctzr(jit_state_t*, jit_int32_t, jit_int32_t);
+#  define rbitr(r0, r1)			_rbitr(_jit, r0, r1)
+static void _rbitr(jit_state_t*, jit_int32_t, jit_int32_t);
+#  define popcntr(r0, r1)		_popcntr(_jit, r0, r1)
+static void _popcntr(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define cr(code, r0, r1, r2)		_cr(_jit, code, r0, r1, r2)
 static void
 _cr(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t, jit_int32_t);
@@ -401,6 +476,12 @@ static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 #define bswapr_ul(r0, r1)		_bswapr_ul(_jit, r0, r1)
 static void _bswapr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
 #endif
+#  define extr(r0, r1, i0, i1)		_extr(_jit, r0, r1, i0, i1)
+static void _extr(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t,jit_word_t);
+#  define extr_u(r0, r1, i0, i1)	_extr_u(_jit, r0, r1, i0, i1)
+static void _extr_u(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t,jit_word_t);
+#  define depr(r0, r1, i0, i1)		_depr(_jit, r0, r1, i0, i1)
+static void _depr(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t,jit_word_t);
 #  define extr_c(r0, r1)		_extr_c(_jit, r0, r1)
 static void _extr_c(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define extr_uc(r0, r1)		_extr_uc(_jit, r0, r1)
@@ -489,6 +570,10 @@ static void _ldxr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 static void _ldxi_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 #    endif
 #  endif
+#  define unldr(r0, r1, i0)		generic_unldr(r0, r1, i0)
+#  define unldi(r0, i0, i1)		generic_unldi(r0, i0, i1)
+#  define unldr_u(r0, r1, i0)		generic_unldr_u(r0, r1, i0)
+#  define unldi_u(r0, i0, i1)		generic_unldi_u(r0, i0, i1)
 #  define str_c(r0, r1)			_str_c(_jit, r0, r1)
 static void _str_c(jit_state_t*, jit_int32_t, jit_int32_t);
 #  define sti_c(i0, r0)			_sti_c(_jit, i0, r0)
@@ -525,6 +610,8 @@ static void _stxr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 #    define stxi_l(i0, r0, r1)		_stxi_l(_jit, i0, r0, r1)
 static void _stxi_l(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
 #  endif
+#define unstr(r0, r1, i0)		generic_unstr(r0, r1, i0)
+#define unsti(i0, r0, i1)		generic_unsti(i0, r0, i1)
 #  define jcc(code, i0)			_jcc(_jit, code, i0)
 #  define jo(i0)			jcc(X86_CC_O, i0)
 #  define jno(i0)			jcc(X86_CC_NO, i0)
@@ -813,6 +900,48 @@ _rx(jit_state_t *_jit, jit_int32_t rd, jit_int32_t md,
 	fprintf(stderr, "illegal index register");
 	abort();
     }
+}
+
+static void
+_vex(jit_state_t *_jit, jit_int32_t r, jit_int32_t x, jit_int32_t b,
+     jit_int32_t map, jit_int32_t w, jit_int32_t vvvv, jit_int32_t l,
+     jit_int32_t pp)
+{
+    jit_int32_t		v;
+    if (r == _NOREG)	r = 0;
+    if (x == _NOREG)	x = 0;
+    if (b == _NOREG)	b = 0;
+    if (map == 1 && w == 0 && ((x|b) & 8) == 0) {
+	/* Two byte prefix */
+	ic(0xc5);
+	/* ~R */
+	v = (r & 8) ?	0 : 0x80;
+    }
+    else {
+	/* Three byte prefix */
+	if (map >= 8)
+	    ic(0x8f);
+	else
+	    ic(0xc4);
+	/* map_select */
+	v = map;
+	/* ~R */
+	if (!(r & 8))	v |= 0x80;
+	/* ~X */
+	if (!(x & 8))	v |= 0x40;
+	/* ~B */
+	if (!(b & 8))	v |= 0x20;
+	ic(v);
+	/* W */
+	v = w ? 0x80 : 0;
+    }
+    /* ~vvvv */
+    v |= (~vvvv & 0x0f) << 3;
+    /* L */
+    if (l)		v |= 0x04;
+    /* pp */
+    v |= pp;
+    ic(v);
 }
 
 static void
@@ -1332,38 +1461,49 @@ _muli(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 }
 
 #define savset(rn)							\
-    if (r0 != rn) {							\
-	sav |= 1 << rn;							\
-	if (r1 != rn && r2 != rn)					\
-	    set |= 1 << rn;						\
-    }
+    do {								\
+	if (r0 != rn) { 						\
+	    sav |= 1 << rn;						\
+	    if (r1 != rn && r2 != rn)					\
+		set |= 1 << rn; 					\
+	}								\
+    } while (0)
 #define isavset(rn)							\
-    if (r0 != rn) {							\
-	sav |= 1 << rn;							\
-	if (r1 != rn)							\
-	    set |= 1 << rn;						\
-    }
+    do {								\
+	if (r0 != rn) {							\
+	    sav |= 1 << rn;						\
+	    if (r1 != rn)						\
+		set |= 1 << rn;						\
+	}								\
+    } while (0)
 #define qsavset(rn)							\
-    if (r0 != rn && r1 != rn) {						\
-	sav |= 1 << rn;							\
-	if (r2 != rn && r3 != rn)					\
-	    set |= 1 << rn;						\
-    }
+    do {								\
+	if (r0 != rn && r1 != rn) {					\
+	    sav |= 1 << rn;						\
+	    if (r2 != rn && r3 != rn)					\
+		set |= 1 << rn;						\
+	}								\
+    } while (0)
 #define allocr(rn, rv)							\
-    if (set & (1 << rn))						\
-	(void)jit_get_reg(rv|jit_class_gpr|jit_class_named);		\
-    if (sav & (1 << rn)) {						\
-	if ( jit_regset_tstbit(&_jitc->regsav, rv) ||			\
-	    !jit_regset_tstbit(&_jitc->reglive, rv))			\
-	    sav &= ~(1 << rn);						\
-	else								\
-	    save(rv);							\
-    }
+    do {								\
+	if (set & (1 << rn))						\
+	    (void)jit_get_reg(rv|jit_class_gpr|jit_class_named);	\
+	if (sav & (1 << rn)) {						\
+	    if ( jit_regset_tstbit(&_jitc->regsav, rv) ||		\
+		!jit_regset_tstbit(&_jitc->reglive, rv))		\
+		sav &= ~(1 << rn);					\
+	    else							\
+		save(rv);						\
+	}								\
+    } while (0)
 #define clear(rn, rv)							\
-    if (set & (1 << rn))						\
-	jit_unget_reg(rv);						\
-    if (sav & (1 << rn))						\
-	load(rv);
+    do {								\
+	if (set & (1 << rn))						\
+	    jit_unget_reg(rv);						\
+	if (sav & (1 << rn))						\
+	    load(rv);							\
+    } while (0)
+
 static void
 _iqmulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 	jit_int32_t r2, jit_int32_t r3, jit_bool_t sign)
@@ -1389,14 +1529,20 @@ _iqmulr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
     else
 	umulr_u(mul);
 
-    if (r0 == _RDX_REGNO && r1 == _RAX_REGNO)
-	xchgr(_RAX_REGNO, _RDX_REGNO);
+    if (r0 != JIT_NOREG) {
+	if (r0 == _RDX_REGNO && r1 == _RAX_REGNO)
+	    xchgr(_RAX_REGNO, _RDX_REGNO);
+	else {
+	    if (r0 != _RDX_REGNO)
+		movr(r0, _RAX_REGNO);
+	    movr(r1, _RDX_REGNO);
+	    if (r0 == _RDX_REGNO)
+		movr(r0, _RAX_REGNO);
+	}
+    }
     else {
-	if (r0 != _RDX_REGNO)
-	    movr(r0, _RAX_REGNO);
+	assert(r1 != JIT_NOREG);
 	movr(r1, _RDX_REGNO);
-	if (r0 == _RDX_REGNO)
-	    movr(r0, _RAX_REGNO);
     }
 
     clear(_RDX_REGNO, _RDX);
@@ -1710,9 +1856,6 @@ _iqdivi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1,
 	qdivr_u(r0, r1, r2, rn(reg));
     jit_unget_reg(reg);
 }
-#undef clear
-#undef allocr
-#undef savset
 
 static void
 _andr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
@@ -1913,6 +2056,115 @@ _rotshi(jit_state_t *_jit, jit_int32_t code,
 }
 
 static void
+_xlshr(jit_state_t *_jit, jit_bool_t sign,
+       jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		sav, set;
+    jit_int32_t		t0, s0, t1, s1, t2, s2, t3, s3;
+    jit_word_t		over, zero, over_done, done;
+    sav = set = 0;
+    /* %RCX must be used for shift. */
+    qsavset(_RCX_REGNO);
+    allocr(_RCX_REGNO, _RCX);
+    /* Almost certainly not %RCX */
+    t1 = r1;
+    if (r0 == _RCX_REGNO) {
+	s0 = jit_get_reg(jit_class_gpr);
+	t0 = rn(s0);
+    }
+    else {
+	t0 = r0;
+	/* r0 == r1 is undefined behavior */
+	if (r1 == _RCX_REGNO) {
+	    s1 = jit_get_reg(jit_class_gpr);
+	    t1 = rn(s1);
+	}
+    }
+    /* Allocate a temporary if a register is used more than once, or if
+     * the value to shift is %RCX */
+    if (r0 == r2 || r1 == r2 || r2 == _RCX_REGNO) {
+	s2 = jit_get_reg(jit_class_gpr);
+	t2 = rn(s2);
+	movr(t2, r2);
+    }
+    else
+	t2 = r2;
+    /* Allocate temporary if shift is also one of the outputs */
+    if (r0 == r3 || r1 == r3) {
+	s3 = jit_get_reg(jit_class_gpr);
+	t3 = rn(s3);
+	movr(t3, r3);
+    }
+    else
+	t3 = r3;
+    /* Bits to shift right */
+    movi(t1, 0);
+    /* Shift in %RCX */
+    /* Shift < 0 or > __WORDSIZE is undefined behavior and not tested */
+    movr(_RCX_REGNO, t3);
+    /* Copy value to low register */
+    movr(t0, t2);
+    /* SHLD shifts t0 left pulling extra bits in the right from t1.
+     * It is very handly to shift bignums, but lightning does not support
+     * these, nor 128 bit integers. The use of q{l,}sh{r,i} is to verify
+     * if there precision loss in a shift and/or have it as a quick way
+     * to multiply or divide by powers of two. */
+    /* SHLD */
+    rex(0, WIDE, t1, _NOREG, t0);
+    ic(0xf);
+    ic(0xa5);
+    mrm(0x03, r7(t1), r7(t0));
+    /* Must swap results if shift value is __WORDSIZE */
+    alui(X86_CMP, t3, __WORDSIZE);
+    over = jes(_jit->pc.w);
+    /* Calculate bits to shift right and fill high register */
+    rsbi(_RCX_REGNO, _RCX_REGNO, __WORDSIZE);
+    if (sign)
+	rshr(t1, t2, _RCX_REGNO);
+    else
+	rshr_u(t1, t2, _RCX_REGNO);
+    /* FIXME t3 == %rcx only happens in 32 bit as %a3 (JIT_A3) is not
+     * available -- it might be made available at some point, to
+     * allow optimizing usage or arguments in registers. For now
+     * keep the code, as one might cheat and use _RCX directly,
+     * what is not officially supported, but *must* work. */
+    /* Need to sign extend high register if shift value is zero */
+    if (t3 == _RCX_REGNO)
+	alui(X86_CMP, t3, __WORDSIZE);
+    else
+	alui(X86_CMP, t3, 0);
+    /* Finished. */
+    zero = jes(_jit->pc.w);
+    done = jmpsi(_jit->pc.w);
+    /* Swap registers if shift is __WORDSIZE */
+    patch_at(over, _jit->pc.w);
+    xchgr(t0, t1);
+    over_done = jmpsi(_jit->pc.w);
+    /* If shift value is zero */
+    patch_at(zero, _jit->pc.w);
+    if (sign)
+	rshi(t1, t2, __WORDSIZE - 1);
+    else
+	movi(t1, 0);
+    patch_at(over_done, _jit->pc.w);
+    patch_at(done, _jit->pc.w);
+    /* Release %RCX (if spilled) after branches */
+    clear(_RCX_REGNO, _RCX);
+    if (t3 != r3)
+	jit_unget_reg(s3);
+    if (t2 != r2)
+	jit_unget_reg(s2);
+    if (t1 != r1) {
+	movr(r1, t1);
+	jit_unget_reg(s1);
+    }
+    if (t0 != r0) {
+	movr(r0, t0);
+	jit_unget_reg(s0);
+    }
+}
+
+static void
 _lshi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 {
     if (i0 == 0)
@@ -1921,6 +2173,149 @@ _lshi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 	lea(0, _NOREG, r1, i0 == 1 ? _SCL2 : i0 == 2 ? _SCL4 : _SCL8, r0);
     else
 	rotshi(X86_SHL, r0, r1, i0);
+}
+
+static void
+_xlshi(jit_state_t *_jit, jit_bool_t sign,
+       jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_word_t i0)
+{
+    if (i0 == 0) {
+	movr(r0, r2);
+	if (sign)
+	    rshi(r1, r2, __WORDSIZE - 1);
+	else
+	    movi(r1, 0);
+    }
+    else if (i0 == __WORDSIZE) {
+	movr(r1, r2);
+	movi(r0, 0);
+    }
+    else {
+	assert((jit_uword_t)i0 <= __WORDSIZE);
+	if (sign)
+	    rshi(r1, r2, __WORDSIZE - i0);
+	else
+	    rshi_u(r1, r2, __WORDSIZE - i0);
+	lshi(r0, r2, i0);
+    }
+}
+
+static void
+_xrshr(jit_state_t *_jit, jit_bool_t sign,
+       jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		sav, set;
+    jit_int32_t		t0, s0, t1, s1, t2, s2, t3, s3;
+    jit_word_t		over, zero, done;
+    sav = set = 0;
+    /* %RCX must be used for shift. */
+    qsavset(_RCX_REGNO);
+    allocr(_RCX_REGNO, _RCX);
+    /* Almost certainly not %RCX */
+    t1 = r1;
+    if (r0 == _RCX_REGNO) {
+	s0 = jit_get_reg(jit_class_gpr);
+	t0 = rn(s0);
+    }
+    else {
+	t0 = r0;
+	/* r0 == r1 is undefined behavior */
+	if (r1 == _RCX_REGNO) {
+	    s1 = jit_get_reg(jit_class_gpr);
+	    t1 = rn(s1);
+	}
+    }
+    /* Allocate a temporary if a register is used more than once, or if
+     * the value to shift is %RCX */
+    if (r0 == r2 || r1 == r2 || r2 == _RCX_REGNO) {
+	s2 = jit_get_reg(jit_class_gpr);
+	t2 = rn(s2);
+	movr(t2, r2);
+    }
+    else
+	t2 = r2;
+    /* Allocate temporary if shift is also one of the outputs */
+    if (r0 == r3 || r1 == r3) {
+	s3 = jit_get_reg(jit_class_gpr);
+	t3 = rn(s3);
+	movr(t3, r3);
+    }
+    else
+	t3 = r3;
+    /* Bits to shift left */
+    if (sign)
+	rshi(t1, t2, __WORDSIZE - 1);
+    else
+	movi(t1, 0);
+    /* Shift in %RCX */
+    /* Shift < 0 or > __WORDSIZE is undefined behavior and not tested */
+    movr(_RCX_REGNO, t3);
+    /* Copy value to low register */
+    movr(t0, t2);
+    /* SHRD shifts t0 right pulling extra bits in the left from t1 */
+    /* SHRD */
+    rex(0, WIDE, t1, _NOREG, t0);
+    ic(0xf);
+    ic(0xad);
+    mrm(0x03, r7(t1), r7(t0));
+    /* Must swap results if shift value is __WORDSIZE */
+    alui(X86_CMP, t3, __WORDSIZE);
+    over = jes(_jit->pc.w);
+    /* Already zero or sign extended if shift value is zero */
+    alui(X86_CMP, t3, 0);
+    zero = jes(_jit->pc.w);
+    /* Calculate bits to shift left and fill high register */
+    rsbi(_RCX_REGNO, _RCX_REGNO, __WORDSIZE);
+    lshr(t1, t2, _RCX_REGNO);
+    done = jmpsi(_jit->pc.w);
+    /* Swap registers if shift is __WORDSIZE */
+    patch_at(over, _jit->pc.w);
+    xchgr(t0, t1);
+    /* If shift value is zero */
+    patch_at(zero, _jit->pc.w);
+    patch_at(done, _jit->pc.w);
+    /* Release %RCX (if spilled) after branches */
+    clear(_RCX_REGNO, _RCX);
+    if (t3 != r3)
+	jit_unget_reg(s3);
+    if (t2 != r2)
+	jit_unget_reg(s2);
+    if (t1 != r1) {
+	movr(r1, t1);
+	jit_unget_reg(s1);
+    }
+    if (t0 != r0) {
+	movr(r0, t0);
+	jit_unget_reg(s0);
+    }
+}
+
+static void
+_xrshi(jit_state_t *_jit, jit_bool_t sign,
+       jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_word_t i0)
+{
+    if (i0 == 0) {
+	movr(r0, r2);
+	if (sign)
+	    rshi(r1, r2, __WORDSIZE - 1);
+	else
+	    movi(r1, 0);
+    }
+    else if (i0 == __WORDSIZE) {
+	movr(r1, r2);
+	if (sign)
+	    rshi(r0, r2, __WORDSIZE - 1);
+	else
+	    movi(r0, 0);
+    }
+    else {
+	assert((jit_uword_t)i0 <= __WORDSIZE);
+	lshi(r1, r2, __WORDSIZE - i0);
+	if (sign)
+	    rshi(r0, r2, i0);
+	else
+	    rshi_u(r0, r2, i0);
+    }
 }
 
 static void
@@ -2057,6 +2452,178 @@ _ctzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 	}
     }
     /* TZCNT has defined behavior for value zero */
+}
+
+static void
+_rbitr(jit_state_t * _jit, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_word_t		loop;
+    jit_int32_t		sav, set;
+    jit_int32_t		r0_reg, t0, r1_reg, t1, t2, t3;
+    static const unsigned char swap_tab[256] = {
+	 0, 128, 64, 192, 32, 160,  96, 224,
+	16, 144, 80, 208, 48, 176, 112, 240,
+	 8, 136, 72, 200, 40, 168, 104, 232,
+	24, 152, 88, 216 ,56, 184, 120, 248,
+	 4, 132, 68, 196, 36, 164, 100, 228,
+	20, 148, 84, 212, 52, 180, 116, 244,
+	12, 140, 76, 204, 44, 172, 108, 236,
+	28, 156, 92, 220, 60, 188, 124, 252,
+	 2, 130, 66, 194, 34, 162,  98, 226,
+	18, 146, 82, 210, 50, 178, 114, 242,
+	10, 138, 74, 202, 42, 170, 106, 234,
+	26, 154, 90, 218, 58, 186, 122, 250,
+	 6, 134, 70, 198, 38, 166, 102, 230,
+	22, 150, 86, 214, 54, 182, 118, 246,
+	14, 142, 78, 206, 46, 174, 110, 238,
+	30, 158, 94, 222, 62, 190, 126, 254,
+	 1, 129, 65, 193, 33, 161,  97, 225,
+	17, 145, 81, 209, 49, 177, 113, 241,
+	 9, 137, 73, 201, 41, 169, 105, 233,
+	25, 153, 89, 217, 57, 185, 121, 249,
+	 5, 133, 69, 197, 37, 165, 101, 229,
+	21, 149, 85, 213, 53, 181, 117, 245,
+	13, 141, 77, 205, 45, 173, 109, 237,
+	29, 157, 93, 221, 61, 189, 125, 253,
+	 3, 131, 67, 195, 35, 163,  99, 227,
+	19, 147, 83, 211, 51, 179, 115, 243,
+	11, 139, 75, 203, 43, 171, 107, 235,
+	27, 155, 91, 219, 59, 187, 123, 251,
+	 7, 135, 71, 199, 39, 167, 103, 231,
+	23, 151, 87, 215, 55, 183, 119, 247,
+	15, 143, 79, 207, 47, 175, 111, 239,
+	31, 159, 95, 223, 63, 191, 127, 255
+    };
+    sav = set = 0;
+    isavset(_RCX_REGNO);
+    allocr(_RCX_REGNO, _RCX);
+    if (r0 == _RCX_REGNO) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r0_reg = rn(t0);
+    }
+    else {
+	t0 = JIT_NOREG;
+	r0_reg = r0;
+    }
+    if (r1 == _RCX_REGNO || r0 == r1) {
+	t1 = jit_get_reg(jit_class_gpr);
+	r1_reg = rn(t1);
+	movr(r1_reg, r1);
+    }
+    else {
+	t1 = JIT_NOREG;
+	r1_reg = r1;
+    }
+    t2 = jit_get_reg(jit_class_gpr);
+    t3 = jit_get_reg(jit_class_gpr);
+#if __WORDSIZE == 32
+    /* Avoid condition that causes running out of registers */
+    if (!reg8_p(r1_reg)) {
+	movi(rn(t2), 0xff);
+	andr(rn(t2), r1_reg, rn(t2));
+    }
+    else
+#endif
+	extr_uc(rn(t2), r1_reg);
+    movi(rn(t3), (jit_word_t)swap_tab);
+    ldxr_uc(r0_reg, rn(t3), rn(t2));
+    movi(_RCX_REGNO, 8);
+    loop = _jit->pc.w;
+    rshr(rn(t2), r1_reg, _RCX_REGNO);
+    extr_uc(rn(t2), rn(t2));
+    lshi(r0_reg, r0_reg, 8);
+    ldxr_uc(rn(t2), rn(t3), rn(t2));
+    orr(r0_reg, r0_reg, rn(t2));
+    addi(_RCX_REGNO, _RCX_REGNO, 8);
+    alui(X86_CMP, _RCX_REGNO, __WORDSIZE);
+    jls(loop);
+    clear(_RCX_REGNO, _RCX);
+    jit_unget_reg(t3);
+    jit_unget_reg(t2);
+    if (t1 != JIT_NOREG)
+	jit_unget_reg(t1);
+    if (t0 != JIT_NOREG) {
+	movr(r0, r0_reg);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_popcntr(jit_state_t * _jit, jit_int32_t r0, jit_int32_t r1)
+{
+    if (jit_cpu.abm) {
+	ic(0xf3);
+	rex(0, WIDE, r0, _NOREG, r1);
+	ic(0x0f);
+	ic(0xb8);
+	mrm(0x3, r7(r0), r7(r1));
+    }
+    else {
+	jit_word_t	    loop;
+	jit_int32_t	    sav, set;
+	jit_int32_t	    r0_reg, t0, r1_reg, t1, t2, t3;
+	static const unsigned char pop_tab[256] = {
+	    0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,
+	    1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,
+	    1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,
+	    2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,
+	    1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,
+	    2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,
+	    2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,
+	    3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,4,5,5,6,5,6,6,7,5,6,6,7,6,7,7,8
+	};
+	sav = set = 0;
+	isavset(_RCX_REGNO);
+	allocr(_RCX_REGNO, _RCX);
+	if (r0 == _RCX_REGNO) {
+	    t0 = jit_get_reg(jit_class_gpr);
+	    r0_reg = rn(t0);
+	}
+	else {
+	    t0 = JIT_NOREG;
+	    r0_reg = r0;
+	}
+	if (r1 == _RCX_REGNO || r0 == r1) {
+	    t1 = jit_get_reg(jit_class_gpr);
+	    r1_reg = rn(t1);
+	    movr(r1_reg, r1);
+	}
+	else {
+	    t1 = JIT_NOREG;
+	    r1_reg = r1;
+	}
+	t2 = jit_get_reg(jit_class_gpr);
+	t3 = jit_get_reg(jit_class_gpr);
+#if __WORDSIZE == 32
+	/* Avoid condition that causes running out of registers */
+	if (!reg8_p(r1_reg)) {
+	    movi(rn(t2), 0xff);
+	    andr(rn(t2), r1_reg, rn(t2));
+	}
+	else
+#endif
+	    extr_uc(rn(t2), r1_reg);
+	movi(rn(t3), (jit_word_t)pop_tab);
+	ldxr_uc(r0_reg, rn(t3), rn(t2));
+	movi(_RCX_REGNO, 8);
+	loop = _jit->pc.w;
+	rshr(rn(t2), r1_reg, _RCX_REGNO);
+	extr_uc(rn(t2), rn(t2));
+	ldxr_uc(rn(t2), rn(t3), rn(t2));
+	addr(r0_reg, r0_reg, rn(t2));
+	addi(_RCX_REGNO, _RCX_REGNO, 8);
+	alui(X86_CMP, _RCX_REGNO, __WORDSIZE);
+	jls(loop);
+	clear(_RCX_REGNO, _RCX);
+	jit_unget_reg(t3);
+	jit_unget_reg(t2);
+	if (t1 != JIT_NOREG)
+	    jit_unget_reg(t1);
+	if (t0 != JIT_NOREG) {
+	    movr(r0, r0_reg);
+	    jit_unget_reg(t0);
+	}
+    }
 }
 
 static void
@@ -2537,6 +3104,92 @@ _bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     ic(0xc8 | r7(r0));
 }
 #endif
+
+static void
+_extr(jit_state_t *_jit,
+      jit_int32_t r0, jit_int32_t r1, jit_word_t i0, jit_word_t i1)
+{
+    jit_word_t		mask;
+    assert(i0 >= 0 && i1 >= 1 && i0 + i1 <= __WORDSIZE);
+    if (i1 == __WORDSIZE)
+	movr(r0, r1);
+    else {
+	if (__WORDSIZE - (i0 + i1)) {
+	    lshi(r0, r1, __WORDSIZE - (i0 + i1));
+	    rshi(r0, r0, __WORDSIZE - i1);
+	}
+	else
+	    rshi(r0, r1, __WORDSIZE - i1);
+    }
+}
+
+static void
+_extr_u(jit_state_t *_jit,
+	jit_int32_t r0, jit_int32_t r1, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0;
+    jit_word_t		mask;
+    assert(i0 >= 0 && i1 >= 1 && i0 + i1 <= __WORDSIZE);
+    if (i1 == __WORDSIZE)
+	movr(r0, r1);
+    /* Only cheaper in code size or number of instructions if i0 is not zero */
+    /* Number of cpu cicles not tested */
+    else if (i0 && jit_cpu.bmi2) {
+	mask = ((ONE << i1) - 1) << i0;
+	t0 = jit_get_reg(jit_class_gpr);
+	movi(rn(t0), mask);
+	/* PEXT */
+	vex(r0, _NOREG, rn(t0), 2, WIDE, r1, 0, 2);
+	ic(0xf5);
+	mrm(0x03, r7(r0), r7(rn(t0)));
+	jit_unget_reg(t0);
+    }
+    else {
+	if (i0)
+	    rshi_u(r0, r1, i0);
+	andi(r0, r0, (ONE << i1) - 1);
+    }
+}
+
+static void
+_depr(jit_state_t *_jit,
+      jit_int32_t r0, jit_int32_t r1, jit_word_t i0, jit_word_t i1)
+{
+    jit_word_t		mask;
+    jit_int32_t		t0, t1;
+    assert(i0 >= 0 && i1 >= 1 && i0 + i1 <= __WORDSIZE);
+    if (i1 == __WORDSIZE)
+	movr(r0, r1);
+    /* Only cheaper in code size or number of instructions if i0 is not zero */
+    /* Number of cpu cicles not tested */
+    else if (i0 && jit_cpu.bmi2) {
+	mask = ((ONE << i1) - 1) << i0;
+	t0 = jit_get_reg(jit_class_gpr);
+	t1 = jit_get_reg(jit_class_gpr);
+	movi(rn(t0), mask);
+	movr(rn(t1), r0);
+	/* PDEP */
+	vex(r0, _NOREG, rn(t0), 2, WIDE, r1, 0, 3);
+	ic(0xf5);
+	mrm(0x03, r7(r0), r7(rn(t0)));
+	andi(rn(t1), rn(t1), ~mask);
+	orr(r0, r0, rn(t1));
+	jit_unget_reg(t1);
+	jit_unget_reg(t0);
+    }
+    else {
+	mask = (ONE << i1) - 1;
+	t0 = jit_get_reg(jit_class_gpr);
+	andi(rn(t0), r1, mask);
+	if (i0) {
+	    lshi(rn(t0), rn(t0), i0);
+	    mask <<= i0;
+	}
+	andi(r0, r0, ~mask);
+	orr(r0, r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
 
 static void
 _extr_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
@@ -3395,7 +4048,7 @@ _jccs(jit_state_t *_jit, jit_int32_t code, jit_word_t i0)
     jit_word_t		d;
     jit_word_t		w;
     w = _jit->pc.w;
-    d = i0 - (w + 1);
+    d = i0 - (w + 2);
     ic(0x70 | code);
     ic(d);
     return (w);
@@ -3913,6 +4566,9 @@ _jmpsi(jit_state_t *_jit, jit_uint8_t i0)
     ic(i0);
     return (w);
 }
+#undef clear
+#undef allocr
+#undef savset
 
 static void
 _prolog(jit_state_t *_jit, jit_node_t *node)

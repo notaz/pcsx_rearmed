@@ -135,7 +135,7 @@ _jit_annotate(jit_state_t *_jit)
 	note = _jit->note.ptr + note_offset;
 	if ((length = sizeof(jit_line_t) * note->length) == 0)
 	    continue;
-	assert(_jitc->note.base + length < _jit->data.ptr + _jit->data.length);
+	assert(_jitc->note.base + length <= _jit->data.ptr + _jit->data.length);
 	jit_memcpy(_jitc->note.base, note->lines, length);
 	jit_free((jit_pointer_t *)&note->lines);
 	note->lines = (jit_line_t *)_jitc->note.base;
@@ -148,13 +148,13 @@ _jit_annotate(jit_state_t *_jit)
 	for (line_offset = 0; line_offset < note->length; line_offset++) {
 	    line = note->lines + line_offset;
 	    length = sizeof(jit_int32_t) * line->length;
-	    assert(_jitc->note.base + length <
+	    assert(_jitc->note.base + length <=
 		   _jit->data.ptr + _jit->data.length);
 	    jit_memcpy(_jitc->note.base, line->linenos, length);
 	    jit_free((jit_pointer_t *)&line->linenos);
 	    line->linenos = (jit_int32_t *)_jitc->note.base;
 	    _jitc->note.base += length;
-	    assert(_jitc->note.base + length <
+	    assert(_jitc->note.base + length <=
 		   _jit->data.ptr + _jit->data.length);
 	    jit_memcpy(_jitc->note.base, line->offsets, length);
 	    jit_free((jit_pointer_t *)&line->offsets);

@@ -247,6 +247,8 @@ rsbr         _f  _d  O1 = O3 - O1
 rsbi         _f  _d  O1 = O3 - O1
 mulr         _f  _d  O1 = O2 * O3
 muli         _f  _d  O1 = O2 * O3
+hmulr    _u          O1 = ((O2 * O3) >> WORDSIZE)
+hmuli    _u          O1 = ((O2 * O3) >> WORDSIZE)
 divr     _u  _f  _d  O1 = O2 / O3
 divi     _u  _f  _d  O1 = O2 / O3
 remr     _u          O1 = O2 % O3
@@ -261,9 +263,17 @@ lshr                 O1 = O2 << O3
 lshi                 O1 = O2 << O3
 rshr     _u          O1 = O2 >> O3@footnote{The sign bit is propagated unless using the @code{_u} modifier.}
 rshi     _u          O1 = O2 >> O3@footnote{The sign bit is propagated unless using the @code{_u} modifier.}
+lrotr                O1 = (O2 << O3) | (O3 >> (WORDSIZE - O3))
+lroti                O1 = (O2 << O3) | (O3 >> (WORDSIZE - O3))
+rrotr                O1 = (O2 >> O3) | (O3 << (WORDSIZE - O3))
+rroti                O1 = (O2 >> O3) | (O3 << (WORDSIZE - O3))
 movzr                O1 = O3 ? O1 : O2
 movnr                O1 = O3 ? O2 : O1
 @end example
+
+Note that @code{lrotr}, @code{lroti}, @code{rrotr} and @code{rroti}
+are described as the fallback operation. These are bit shift/rotation
+operation.
 
 @item Four operand binary ALU operations
 These accept two result registers, and two operands; the last one can
@@ -279,22 +289,84 @@ minus one.
 @code{O2}. It can be used as quick way to check if a division is
 exact, in which case the remainder is zero.
 
+@code{qlsh} shifts from 0 to @emph{wordsize}, doing a normal left
+shift for the first result register and setting the second result
+resister to the overflow bits. @code{qlsh} can be used as a quick
+way to multiply by powers of two.
+
+@code{qrsh} shifts from 0 to @emph{wordsize}, doing a normal right
+shift for the first result register and setting the second result
+register to the overflow bits. @code{qrsh} can be used as a quick
+way to divide by powers of two.
+
+Note that @code{qlsh} and @code{qrsh} are basically implemented as
+two shifts. It is undefined behavior to pass a value not in the range
+0 to @emph{wordsize}. Most cpus will usually @code{and} the shift
+amount with @emph{wordsize} - 1, or possible use the @emph{remainder}.
+@lightning{} only generates code to specially handle 0 and @emph{wordsize}
+shifts. Since in a code generator for a @emph{safe language} should
+usually check the shift amount, these instructions usually should be
+used as a fast path to check for division without remainder or
+multiplication that does not overflow.
+
 @example
 qmulr    _u       O1 O2 = O3 * O4
 qmuli    _u       O1 O2 = O3 * O4
 qdivr    _u       O1 O2 = O3 / O4
 qdivi    _u       O1 O2 = O3 / O4
+qlshr    _u       O1 = O3 << O4, O2 = O3 >> (WORDSIZE - O4)
+qlshi    _u       O1 = O3 << O4, O2 = O3 >> (WORDSIZE - O4)
+qrshr    _u       O1 = O3 >> O4, O2 = O3 << (WORDSIZE - O4)
+qrshi    _u       O1 = O3 >> O4, O2 = O3 << (WORDSIZE - O4)
 @end example
 
+These four operand ALU operations are only defined for float operands.
+
+@example
+fmar         _f  _d  O1 =  O2 * O3 + O4
+fmai         _f  _d  O1 =  O2 * O3 + O4
+fmsr         _f  _d  O1 =  O2 * O3 - O4
+fmsi         _f  _d  O1 =  O2 * O3 - O4
+fnmar        _f  _d  O1 = -O2 * O3 - O4
+fnmai        _f  _d  O1 = -O2 * O3 - O4
+fnmsr        _f  _d  O1 = -O2 * O3 + O4
+fnmsi        _f  _d  O1 = -O2 * O3 + O4
+@end example
+
+These are a family of fused multiply-add instructions.
+Note that @lightning{} does not handle rounding modes nor math exceptions.
+Also note that not all backends provide a instruction for the equivalent
+@lightning{} instruction presented above. Some are completely implemented
+as fallbacks and some are composed of one or more instructions. For common
+input this should not cause major issues, but note that when implemented by
+the cpu, these are implemented as the multiplication calculated with infinite
+precision, and after the addition step rounding is done. Due to this, For
+specially crafted input different ports might show different output. When
+implemented by the CPU, it is also possible to have exceptions that do
+not happen if implemented as a fallback.
+
 @item Unary ALU operations
-These accept two operands, both of which must be registers.
+These accept two operands, the first must be a register and the
+second is a register if the @code{r} modifier is used, otherwise,
+the @code{i} modifier is used and the second argument is a constant.
+
 @example
 negr         _f  _d  O1 = -O2
+negi         _f  _d  O1 = -O2
 comr                 O1 = ~O2
-clor		     O1 = number of leading one bits
-clzr		     O1 = number of leading zero bits
-ctor		     O1 = number of trailing one bits
-ctzr		     O1 = number of trailing zero bits
+comi                 O1 = ~O2
+clor		     O1 = number of leading one bits in O2
+cloi		     O1 = number of leading one bits in O2
+clzr		     O1 = number of leading zero bits in O2
+clzi		     O1 = number of leading zero bits in O2
+ctor		     O1 = number of trailing one bits in O2
+ctoi		     O1 = number of trailing one bits in O2
+ctzr		     O1 = number of trailing zero bits in O2
+ctzi		     O1 = number of trailing zero bits in O2
+rbitr		     O1 = bits of O2 reversed
+rbiti		     O1 = bits of O2 reversed
+popcntr		     O1 = number of bits set in O2
+popcnti		     O1 = number of bits set in O2
 @end example
 
 Note that @code{ctzr} is basically equivalent of a @code{C} call
@@ -309,13 +381,16 @@ The @code{clor} and @code{ctor} are just counterparts of the versions
 that search for zero bits.
 
 These unary ALU operations are only defined for float operands.
+
 @example
 absr         _f  _d  O1 = fabs(O2)
+absi         _f  _d  O1 = fabs(O2)
 sqrtr        _f  _d  O1 = sqrt(O2)
+sqrti        _f  _d  O1 = sqrt(O2)
 @end example
 
-Besides requiring the @code{r} modifier, there are no unary operations
-with an immediate operand.
+Note that for @code{float} and @code{double} unary operations, @lightning{}
+will generate code to actually execute the operation at runtime.
 
 @item Compare instructions
 These accept three operands; again, the last can be an immediate.
@@ -365,6 +440,35 @@ movr                                 _f  _d  O1 = O2
 movi                                 _f  _d  O1 = O2
 extr      _c  _uc  _s  _us  _i  _ui  _f  _d  O1 = O2
 truncr                               _f  _d  O1 = trunc(O2)
+extr                                         O1 = sign_extend(O2[O3:O3+04])
+extr_u                                       O1 = O2[O3:O3+04]
+depr                                         O1[O3:O3+O4] = O2
+@end example
+
+@code{extr}, @code{extr_u} and @code{depr} are useful to access @code{C}
+compatible bit fields, provided that these are contained in a machine
+word. @code{extr} is used to @emph{extract} and signed extend a value
+from a bit field. @code{extr_u} is used to @emph{extract} and zero
+extend a value from a bit field. @code{depr} is used to @emph{deposit}
+a value into a bit field.
+
+@example
+extr(result, source, offset, length)
+extr_u(result, source, offset, length)
+depr(result, source, offset, length)
+@end example
+
+A common way to declare @code{C} and @lightning{} compatible bit fields is:
+@example
+union @{
+    struct @{
+        jit_word_t  signed_bits: @code{length};
+        jit_uword_t unsigned_bits: @code{length};
+        ...
+    @} s;
+    jit_word_t  signed_value;
+    jit_uword_t unsigned_value;
+@} u;
 @end example
 
 In 64-bit architectures it may be required to use @code{truncr_f_i},
@@ -373,10 +477,10 @@ the equivalent C code.  Only the @code{_i} modifier is available in
 32-bit architectures.
 
 @example
-truncr_f_i    = <int> O1 = <float> O2
-truncr_f_l    = <long>O1 = <float> O2
-truncr_d_i    = <int> O1 = <double>O2
-truncr_d_l    = <long>O1 = <double>O2
+truncr_f_i    <int> O1 = <float> O2
+truncr_f_l    <long>O1 = <float> O2
+truncr_d_i    <int> O1 = <double>O2
+truncr_d_l    <long>O1 = <double>O2
 @end example
 
 The float conversion operations are @emph{destination first,
@@ -384,9 +488,37 @@ source second}, but the order of the types is reversed.  This happens
 for historical reasons.
 
 @example
-extr_f_d    = <double>O1 = <float> O2
-extr_d_f    = <float> O1 = <double>O2
+extr_f_d      <double>O1 = <float> O2
+extr_d_f      <float> O1 = <double>O2
 @end example
+
+The float to/from integer transfer operations are also @emph{destination
+first, source second}. These were added later, but follow the pattern
+of historic patterns.
+
+@example
+movr_w_f     <float>O1 = <int>O2
+movi_w_f     <float>O1 = <int>O2
+movr_f_w     <int>O1 = <float>O2
+movi_f_w     <int>O1 = <float>O2
+movr_w_d     <double>O1 = <long>O2
+movi_w_d     <double>O1 = <long>O2
+movr_d_w     <long>O1 = <double>O2
+movi_d_w     <long>O1 = <double>O2
+movr_ww_d    <double>O1 = [<int>O2:<int>O3]
+movi_ww_d    <double>O1 = [<int>O2:<int>O3]
+movr_d_ww    [<int>O1:<int>O2] = <double>O3
+movi_d_ww    [<int>O1:<int>O2] = <double>O3
+@end example
+
+These are used to transfer bits to/from floats to/from integers, and are
+useful to access bits of floating point values.
+
+@code{movr_w_d}, @code{movi_w_d}, @code{movr_d_w} and @code{movi_d_w} are
+only available in 64-bit. Conversely, @code{movr_ww_d}, @code{movi_ww_d},
+@code{movr_d_ww} and @code{movi_d_ww} are only available in 32-bit.
+For the int pair to/from double transfers, integer arguments must respect
+endianess, to match how the cpu handles the verbatim byte values.
 
 @item Network extensions
 These accept two operands, both of which must be registers; these
@@ -439,6 +571,29 @@ only writes to the 1, 2, 4 or 8 sized memory address.
 The @code{_l} type is only available in 64-bit architectures, and for
 convenience, there is a version without a type modifier for integer or
 pointer operands that uses the appropriate wordsize call.
+
+@item Unaligned memory access
+These allow access to integers of size 3, in 32-bit, and extra sizes
+5, 6 and 7 in 64-bit.
+For floating point values only support for size 4 and 8 is provided.
+@example
+unldr       O1 = *(signed O3 byte integer)* = O2
+unldi       O1 = *(signed O3 byte integer)* = O2
+unldr_u     O1 = *(unsigned O3 byte integer)* = O2
+unldi_u     O1 = *(unsigned O3 byte integer)* = O2
+unldr_x     O1 = *(O3 byte float)* = O2
+unldi_x     O1 = *(O3 byte float)* = O2
+unstr       *(O3 byte integer)O1 = O2
+unsti       *(O3 byte integer)O1 = O2
+unstr_x     *(O3 byte float)O1 = O2
+unsti_x     *(O3 byte float)O1 = O2
+@end example
+With the exception of non standard sized integers, these might be
+implemented as normal loads and stores, if the processor supports
+unaligned memory access, or, mode can be chosen at jit initialization
+time, to generate or not generate, code that does trap on unaligned
+memory access. Letting the kernel trap means smaller code generation
+as it is required to check alignment at runtime@footnote{This requires changing jit_cpu.unaligned to 0 to disable or 1 to enable unaligned code generation. Not all ports have the C jit_cpu.unaligned value.}.
 
 @item Argument management
 These are:
