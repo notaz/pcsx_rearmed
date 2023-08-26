@@ -82,6 +82,10 @@ void psxHwWrite16(u32 add, u16 value);
 void psxHwWrite32(u32 add, u32 value);
 int psxHwFreeze(void *f, int Mode);
 
+void psxHwWriteIstat(u32 value);
+void psxHwWriteImask(u32 value);
+void psxHwWriteDmaIcr32(u32 value);
+
 #ifdef __cplusplus
 }
 #endif
