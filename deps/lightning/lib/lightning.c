@@ -1172,6 +1172,21 @@ _jit_new_node_qww(jit_state_t *_jit, jit_code_t code,
 }
 
 jit_node_t *
+_jit_new_node_wqw(jit_state_t *_jit, jit_code_t code,
+		  jit_word_t u, jit_int32_t l,
+		  jit_int32_t h, jit_word_t w)
+{
+    jit_node_t		*node = new_node(code);
+    assert(!_jitc->realize);
+    assert(l != h);
+    node->u.w = u;
+    node->v.q.l = l;
+    node->v.q.h = h;
+    node->w.w = w;
+    return (link_node(node));
+}
+
+jit_node_t *
 _jit_new_node_wwq(jit_state_t *_jit, jit_code_t code,
 		  jit_word_t u, jit_word_t v,
 		  jit_int32_t l, jit_int32_t h)
@@ -1198,6 +1213,21 @@ _jit_new_node_wwf(jit_state_t *_jit, jit_code_t code,
 }
 
 jit_node_t *
+_jit_new_node_wqf(jit_state_t *_jit, jit_code_t code,
+		  jit_word_t u, jit_int32_t l,
+		  jit_int32_t h, jit_float32_t w)
+{
+    jit_node_t		*node = new_node(code);
+    assert(!_jitc->realize);
+    assert(l != h);
+    node->u.w = u;
+    node->v.q.l = l;
+    node->v.q.h = h;
+    node->w.f = w;
+    return (link_node(node));
+}
+
+jit_node_t *
 _jit_new_node_wwd(jit_state_t *_jit, jit_code_t code,
 		  jit_word_t u, jit_word_t v, jit_float64_t w)
 {
@@ -1205,6 +1235,21 @@ _jit_new_node_wwd(jit_state_t *_jit, jit_code_t code,
     assert(!_jitc->realize);
     node->u.w = u;
     node->v.w = v;
+    node->w.d = w;
+    return (link_node(node));
+}
+
+jit_node_t *
+_jit_new_node_wqd(jit_state_t *_jit, jit_code_t code,
+		  jit_word_t u, jit_int32_t l,
+		  jit_int32_t h, jit_float64_t w)
+{
+    jit_node_t		*node = new_node(code);
+    assert(!_jitc->realize);
+    assert(l != h);
+    node->u.w = u;
+    node->v.q.l = l;
+    node->v.q.h = h;
     node->w.d = w;
     return (link_node(node));
 }
@@ -1443,12 +1488,34 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	case jit_code_ldi_s:	case jit_code_ldi_us:	case jit_code_ldi_i:
 	case jit_code_ldi_ui:	case jit_code_ldi_l:	case jit_code_ldi_f:
 	case jit_code_ldi_d:
+	case jit_code_negi:	case jit_code_comi:
+	case jit_code_exti_c:	case jit_code_exti_uc:
+	case jit_code_exti_s:	case jit_code_exti_us:
+	case jit_code_exti_i:	case jit_code_exti_ui:
+	case jit_code_bswapi_us:case jit_code_bswapi_ui:
+	case jit_code_bswapi_ul:
+	case jit_code_htoni_us:	case jit_code_htoni_ui:
+	case jit_code_htoni_ul:
+	case jit_code_cloi:	case jit_code_clzi:
+	case jit_code_ctoi:	case jit_code_ctzi:
+	case jit_code_rbiti:	case jit_code_popcnti:
+	case jit_code_movi_w_f:	case jit_code_movi_w_d:
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_int;
 	    break;
+	case jit_code_unldi:	case jit_code_unldi_u:	case jit_code_unldi_x:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_int|jit_cc_a2_int;
+	    break;
+	case jit_code_movi_ww_d:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_int|jit_cc_a2_int;
+	    break;
 	case jit_code_movi_f:	case jit_code_movi_f_w:
+	case jit_code_negi_f:	case jit_code_absi_f:
+	case jit_code_sqrti_f:
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_flt;
 	    break;
 	case jit_code_movi_d:	case jit_code_movi_d_w:
+	case jit_code_negi_d:	case jit_code_absi_d:
+	case jit_code_sqrti_d:
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_dbl;
 	    break;
 	case jit_code_movi_d_ww:
@@ -1469,7 +1536,7 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	case jit_code_extr_f:	case jit_code_extr_d_f:	case jit_code_ldr_f:
 	case jit_code_negr_d:	case jit_code_absr_d:	case jit_code_sqrtr_d:
 	case jit_code_movr_d:	case jit_code_extr_d:	case jit_code_extr_f_d:
-	case jit_code_ldr_d:
+	case jit_code_ldr_d:	case jit_code_rbitr:	case jit_code_popcntr:
 	case jit_code_clor:	case jit_code_clzr:
 	case jit_code_ctor:	case jit_code_ctzr:
 	case jit_code_movr_w_f:	case jit_code_movr_f_w:
@@ -1484,20 +1551,25 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	case jit_code_addi:	case jit_code_addxi:	case jit_code_addci:
 	case jit_code_subi:	case jit_code_subxi:	case jit_code_subci:
 	case jit_code_rsbi:
-	case jit_code_muli:	case jit_code_divi:	case jit_code_divi_u:
+	case jit_code_muli:	case jit_code_hmuli:	case jit_code_hmuli_u:
+	case jit_code_divi:	case jit_code_divi_u:
 	case jit_code_remi:	case jit_code_remi_u:	case jit_code_andi:
 	case jit_code_ori:	case jit_code_xori:	case jit_code_lshi:
-	case jit_code_rshi:	case jit_code_rshi_u:	case jit_code_lti:
+	case jit_code_rshi:	case jit_code_rshi_u:	case jit_code_lroti:
+	case jit_code_rroti:	case jit_code_lti:
 	case jit_code_lti_u:	case jit_code_lei:	case jit_code_lei_u:
 	case jit_code_eqi:	case jit_code_gei:	case jit_code_gei_u:
 	case jit_code_gti:	case jit_code_gti_u:	case jit_code_nei:
 	case jit_code_ldxi_c:	case jit_code_ldxi_uc:	case jit_code_ldxi_s:
 	case jit_code_ldxi_us:	case jit_code_ldxi_i:	case jit_code_ldxi_ui:
 	case jit_code_ldxi_l:	case jit_code_ldxi_f:	case jit_code_ldxi_d:
+	case jit_code_unldr:	case jit_code_unldr_u:	case jit_code_unldr_x:
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_reg|jit_cc_a2_int;
 	    break;
 	case jit_code_qmuli:	case jit_code_qmuli_u:
 	case jit_code_qdivi:	case jit_code_qdivi_u:
+	case jit_code_qlshi:	case jit_code_qlshi_u:
+	case jit_code_qrshi:	case jit_code_qrshi_u:
 	    mask = jit_cc_a0_reg|jit_cc_a0_rlh|jit_cc_a0_chg|
 		   jit_cc_a1_reg|jit_cc_a2_int;
 	    break;
@@ -1521,10 +1593,12 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	    break;
 	case jit_code_addr:	case jit_code_addxr:	case jit_code_addcr:
 	case jit_code_subr:	case jit_code_subxr:	case jit_code_subcr:
-	case jit_code_mulr:	case jit_code_divr:	case jit_code_divr_u:
+	case jit_code_mulr:	case jit_code_hmulr:	case jit_code_hmulr_u:
+	case jit_code_divr:	case jit_code_divr_u:
 	case jit_code_remr:	case jit_code_remr_u:	case jit_code_andr:
 	case jit_code_orr:	case jit_code_xorr:	case jit_code_lshr:
-	case jit_code_rshr:	case jit_code_rshr_u:	case jit_code_ltr:
+	case jit_code_rshr:	case jit_code_rshr_u:	case jit_code_lrotr:
+	case jit_code_rrotr:	case jit_code_ltr:
 	case jit_code_ltr_u:	case jit_code_ler:	case jit_code_ler_u:
 	case jit_code_eqr:	case jit_code_ger:	case jit_code_ger_u:
 	case jit_code_gtr:	case jit_code_gtr_u:	case jit_code_ner:
@@ -1548,12 +1622,17 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	    break;
 	case jit_code_qmulr:	case jit_code_qmulr_u:
 	case jit_code_qdivr:	case jit_code_qdivr_u:
+	case jit_code_qlshr:	case jit_code_qlshr_u:
+	case jit_code_qrshr:	case jit_code_qrshr_u:
 	    mask = jit_cc_a0_reg|jit_cc_a0_rlh|jit_cc_a0_chg|
 		   jit_cc_a1_reg|jit_cc_a2_reg;
 	    break;
 	case jit_code_sti_c:	case jit_code_sti_s:	case jit_code_sti_i:
 	case jit_code_sti_l:	case jit_code_sti_f:	case jit_code_sti_d:
 	    mask = jit_cc_a0_int|jit_cc_a1_reg;
+	    break;
+	case jit_code_unsti:	case jit_code_unsti_x:
+	    mask = jit_cc_a0_int|jit_cc_a1_reg|jit_cc_a2_int;
 	    break;
 	case jit_code_blti:	case jit_code_blti_u:	case jit_code_blei:
 	case jit_code_blei_u:	case jit_code_beqi:	case jit_code_bgei:
@@ -1580,6 +1659,9 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	case jit_code_str_c:	case jit_code_str_s:	case jit_code_str_i:
 	case jit_code_str_l:	case jit_code_str_f:	case jit_code_str_d:
 	    mask = jit_cc_a0_reg|jit_cc_a1_reg;
+	    break;
+	case jit_code_unstr:	case jit_code_unstr_x:
+	    mask = jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a2_int;
 	    break;
 	case jit_code_stxi_c:	case jit_code_stxi_s:	case jit_code_stxi_i:
 	case jit_code_stxi_l:	case jit_code_stxi_f:	case jit_code_stxi_d:
@@ -1625,6 +1707,29 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	case jit_code_casi:
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_int|
 		   jit_cc_a2_reg|jit_cc_a2_rlh;
+	    break;
+	case jit_code_extr:	case jit_code_extr_u:	case jit_code_depr:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_reg|jit_cc_a2_rlh;
+	    break;
+	case jit_code_exti:	case jit_code_exti_u:	case jit_code_depi:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|jit_cc_a1_int|jit_cc_a2_rlh;
+	    break;
+	case jit_code_fmar_f:	case jit_code_fmar_d:
+	case jit_code_fmsr_f:	case jit_code_fmsr_d:
+	case jit_code_fnmar_f:	case jit_code_fnmar_d:
+	case jit_code_fnmsr_f:	case jit_code_fnmsr_d:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
+		   jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_reg;
+	    break;
+	case jit_code_fmai_f:	case jit_code_fmsi_f:
+	case jit_code_fnmai_f:	case jit_code_fnmsi_f:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
+		   jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_flt;
+	    break;
+	case jit_code_fmai_d:	case jit_code_fmsi_d:
+	case jit_code_fnmai_d:	case jit_code_fnmsi_d:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
+		   jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_dbl;
 	    break;
 	default:
 	    abort();
@@ -1848,10 +1953,6 @@ _jit_optimize(jit_state_t *_jit)
     do_setup();
     do_follow(1);
 
-    patch_registers();
-    if (simplify())
-	todo = 1;
-
     jit_regset_set_ui(&regmask, 0);
     for (offset = 0; offset < _jitc->reglen; offset++) {
 	if ((jit_class(_rvs[offset].spec) & (jit_class_gpr|jit_class_fpr)) &&
@@ -1889,6 +1990,10 @@ _jit_optimize(jit_state_t *_jit)
 		break;
 	}
     }
+
+    patch_registers();
+    if (simplify())
+	todo = 1;
 
     for (node = _jitc->head; node; node = node->next) {
 	mask = jit_classify(node->code);
@@ -2056,13 +2161,22 @@ _jit_reglive(jit_state_t *_jit, jit_node_t *node)
 		    }
 		}
 	    }
-	    if ((value & jit_cc_a1_reg) && !(node->v.w & jit_regno_patch)) {
-		if (value & jit_cc_a1_chg) {
-		    jit_regset_clrbit(&_jitc->reglive, node->v.w);
-		    jit_regset_setbit(&_jitc->regmask, node->v.w);
+	    if (value & jit_cc_a1_reg) {
+		if (value & jit_cc_a1_rlh) {
+		    /* Assume registers are not changed */
+		    if (!(node->v.q.l & jit_regno_patch))
+			jit_regset_setbit(&_jitc->reglive, node->v.q.l);
+		    if (!(node->v.q.h & jit_regno_patch))
+			jit_regset_setbit(&_jitc->reglive, node->v.q.h);
 		}
-		else
-		    jit_regset_setbit(&_jitc->reglive, node->v.w);
+		else if (!(node->v.w & jit_regno_patch)) {
+		    if (value & jit_cc_a1_chg) {
+			jit_regset_clrbit(&_jitc->reglive, node->v.w);
+			jit_regset_setbit(&_jitc->regmask, node->v.w);
+		    }
+		    else
+			jit_regset_setbit(&_jitc->reglive, node->v.w);
+		}
 	    }
 	    if (value & jit_cc_a2_reg) {
 		if (value & jit_cc_a2_rlh) {
@@ -2110,8 +2224,14 @@ _jit_regarg_set(jit_state_t *_jit, jit_node_t *node, jit_int32_t value)
 	else
 	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->u.w));
     }
-    if (value & jit_cc_a1_reg)
-	jit_regset_setbit(&_jitc->regarg, jit_regno(node->v.w));
+    if (value & jit_cc_a1_reg) {
+	if (value & jit_cc_a1_rlh) {
+	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->v.q.l));
+	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->v.q.h));
+	}
+	else
+	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->v.w));
+    }
     if (value & jit_cc_a2_reg) {
 	if (value & jit_cc_a2_rlh) {
 	    jit_regset_setbit(&_jitc->regarg, jit_regno(node->w.q.l));
@@ -2149,8 +2269,14 @@ _jit_regarg_clr(jit_state_t *_jit, jit_node_t *node, jit_int32_t value)
 	else
 	    jit_regset_clrbit(&_jitc->regarg, jit_regno(node->u.w));
     }
-    if (value & jit_cc_a1_reg)
-	jit_regset_clrbit(&_jitc->regarg, jit_regno(node->v.w));
+    if (value & jit_cc_a1_reg) {
+	if (value & jit_cc_a1_rlh) {
+	    jit_regset_clrbit(&_jitc->regarg, jit_regno(node->v.q.l));
+	    jit_regset_clrbit(&_jitc->regarg, jit_regno(node->v.q.h));
+	}
+	else
+	    jit_regset_clrbit(&_jitc->regarg, jit_regno(node->v.w));
+    }
     if (value & jit_cc_a2_reg) {
 	if (value & jit_cc_a2_rlh) {
 	    jit_regset_clrbit(&_jitc->regarg, jit_regno(node->w.q.l));
@@ -2429,12 +2555,12 @@ _jit_emit(jit_state_t *_jit)
 	assert(result == 0);
     }
     if (!_jit->user_code) {
-	_jit->code.protected = _jit->pc.uc - _jit->code.ptr;
+	_jit->code.protect = _jit->pc.uc - _jit->code.ptr;
 #  if __riscv && __WORDSIZE == 64
 	/* FIXME should start adding consts at a page boundary */
-	_jit->code.protected -= _jitc->consts.hash.count * sizeof(jit_word_t);
+	_jit->code.protect -= _jitc->consts.hash.count * sizeof(jit_word_t);
 #  endif
-	result = mprotect(_jit->code.ptr, _jit->code.protected, PROT_READ | PROT_EXEC);
+	result = mprotect(_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
 	assert(result == 0);
     }
 #endif /* HAVE_MMAP */
@@ -2452,7 +2578,7 @@ _jit_protect(jit_state_t *_jit)
 #else
   int result;
   if (_jit->user_code) return;
-  result = mprotect (_jit->code.ptr, _jit->code.protected, PROT_READ | PROT_EXEC);
+  result = mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
   assert (result == 0);
 #endif
 }
@@ -2465,7 +2591,7 @@ _jit_unprotect(jit_state_t *_jit)
 #else
   int result;
   if (_jit->user_code) return;
-  result = mprotect (_jit->code.ptr, _jit->code.protected, PROT_READ | PROT_WRITE);
+  result = mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_WRITE);
   assert (result == 0);
 #endif
 }
@@ -2535,21 +2661,51 @@ _jit_setup(jit_state_t *_jit, jit_block_t *block)
 		/* Check argument registers in reverse order to properly
 		 * handle registers that are both, argument and result */
 		value = jit_classify(node->code);
-		if ((value & jit_cc_a2_reg) &&
-		    !(node->w.w & jit_regno_patch) &&
-		    jit_regset_tstbit(&block->regmask, node->w.w)) {
+		if (value & jit_cc_a2_reg) {
 		    live = !(value & jit_cc_a2_chg);
-		    jit_regset_clrbit(&block->regmask, node->w.w);
-		    if (live)
-			jit_regset_setbit(&block->reglive, node->w.w);
+		    if (value & jit_cc_a2_rlh) {
+			/* Assume will not modify a pair in second argument */
+			assert(live);
+			if (!(node->w.q.l & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->w.q.l)) {
+			    jit_regset_clrbit(&block->regmask, node->w.q.l);
+			}
+			if (!(node->w.q.h & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->w.q.h)) {
+			    jit_regset_clrbit(&block->regmask, node->w.q.h);
+			}
+		    }
+		    else {
+			if (!(node->w.w & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->w.w)) {
+			    jit_regset_clrbit(&block->regmask, node->w.w);
+			    if (live)
+				jit_regset_setbit(&block->reglive, node->w.w);
+			}
+		    }
 		}
-		if ((value & jit_cc_a1_reg) &&
-		    !(node->v.w & jit_regno_patch) &&
-		    jit_regset_tstbit(&block->regmask, node->v.w)) {
+		if (value & jit_cc_a1_reg) {
 		    live = !(value & jit_cc_a1_chg);
-		    jit_regset_clrbit(&block->regmask, node->v.w);
-		    if (live)
-			jit_regset_setbit(&block->reglive, node->v.w);
+		    if (value & jit_cc_a1_rlh) {
+			/* Assume will not modify a pair in second argument */
+			assert(live);
+			if (!(node->v.q.l & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->v.q.l)) {
+			    jit_regset_clrbit(&block->regmask, node->v.q.l);
+			}
+			if (!(node->v.q.h & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->v.q.h)) {
+			    jit_regset_clrbit(&block->regmask, node->v.q.h);
+			}
+		    }
+		    else {
+			if (!(node->v.w & jit_regno_patch) &&
+			    jit_regset_tstbit(&block->regmask, node->v.w)) {
+			    jit_regset_clrbit(&block->regmask, node->v.w);
+			    if (live)
+				jit_regset_setbit(&block->reglive, node->v.w);
+			}
+		    }
 		}
 		if (value & jit_cc_a0_reg) {
 		    live = !(value & jit_cc_a0_chg);
@@ -2654,23 +2810,34 @@ _jit_follow(jit_state_t *_jit, jit_block_t *block)
 			}
 		    }
 		    else {
-			if (value & jit_cc_a2_reg) {
-			    if (!(node->w.w & jit_regno_patch)) {
-				if (jit_regset_tstbit(&regmask, node->w.w)) {
-				    jit_regset_clrbit(&regmask, node->w.w);
-				    if (!(value & jit_cc_a2_chg))
-					jit_regset_setbit(&reglive, node->w.w);
-				}
+			if (!(node->w.w & jit_regno_patch)) {
+			    if (jit_regset_tstbit(&regmask, node->w.w)) {
+				jit_regset_clrbit(&regmask, node->w.w);
+				if (!(value & jit_cc_a2_chg))
+				    jit_regset_setbit(&reglive, node->w.w);
 			    }
 			}
 		    }
 		}
 		if (value & jit_cc_a1_reg) {
-		    if (!(node->v.w & jit_regno_patch)) {
-			if (jit_regset_tstbit(&regmask, node->v.w)) {
-			    jit_regset_clrbit(&regmask, node->v.w);
-			    if (!(value & jit_cc_a1_chg))
-				jit_regset_setbit(&reglive, node->v.w);
+		    if (value & jit_cc_a1_rlh) {
+			if (!(node->v.q.l & jit_regno_patch)) {
+			    /* Assume register is not changed */
+			    if (jit_regset_tstbit(&regmask, node->v.q.l))
+				jit_regset_clrbit(&regmask, node->v.q.l);
+			}
+			if (!(node->v.q.h & jit_regno_patch)) {
+			    if (jit_regset_tstbit(&regmask, node->v.q.h))
+				jit_regset_clrbit(&regmask, node->v.q.h);
+			}
+		    }
+		    else {
+			if (!(node->v.w & jit_regno_patch)) {
+			    if (jit_regset_tstbit(&regmask, node->v.w)) {
+				jit_regset_clrbit(&regmask, node->v.w);
+				if (!(value & jit_cc_a1_chg))
+				    jit_regset_setbit(&reglive, node->v.w);
+			    }
 			}
 		    }
 		}
@@ -2830,11 +2997,24 @@ _jit_update(jit_state_t *_jit, jit_node_t *node,
 		    }
 		}
 		if (value & jit_cc_a1_reg) {
-		    if (!(node->v.w & jit_regno_patch)) {
-			if (jit_regset_tstbit(mask, node->v.w)) {
-			    jit_regset_clrbit(mask, node->v.w);
-			    if (!(value & jit_cc_a1_chg))
-				jit_regset_setbit(live, node->v.w);
+		    if (value & jit_cc_a1_rlh) {
+			if (!(node->v.q.l & jit_regno_patch)) {
+			    /* Assume register is not changed */
+			    if (jit_regset_tstbit(mask, node->v.q.l))
+				jit_regset_clrbit(mask, node->v.q.l);
+			}
+			if (!(node->v.q.h & jit_regno_patch)) {
+			    if (jit_regset_tstbit(mask, node->v.q.h))
+				jit_regset_clrbit(mask, node->v.q.h);
+			}
+		    }
+		    else {
+			if (!(node->v.w & jit_regno_patch)) {
+			    if (jit_regset_tstbit(mask, node->v.w)) {
+				jit_regset_clrbit(mask, node->v.w);
+				if (!(value & jit_cc_a1_chg))
+				    jit_regset_setbit(live, node->v.w);
+			    }
 			}
 		    }
 		}
@@ -3407,11 +3587,21 @@ _simplify_movr(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node,
 {
     jit_int32_t		 regno;
     jit_int32_t		 right;
+    jit_int32_t		 spec;
     jit_value_t		*value;
 
     regno = jit_regno(node->u.w);
     right = jit_regno(node->v.w);
     value = _jitc->values + regno;
+
+    spec = jit_class(_rvs[regno].spec);
+    if (!(spec & (jit_class_gpr | jit_class_fpr))) {
+	/* reserved register */
+	value->kind = 0;
+	++_jitc->gen[regno];
+	return (0);
+    }
+
     if ((value->kind == jit_kind_register &&
 	 jit_regno(value->base.q.l) == right &&
 	 value->base.q.h == _jitc->gen[right]) ||
@@ -3449,12 +3639,18 @@ _simplify_movi(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node,
 	++_jitc->gen[regno];
 	return (0);
     }
+    spec = jit_class(_rvs[regno].spec);
+    if (!(spec & (jit_class_gpr | jit_class_fpr))) {
+	/* reserved register */
+	value->kind = 0;
+	++_jitc->gen[regno];
+	return (0);
+    }
     if (value->kind == kind) {
 	if (memcmp(&node->v.w, &value->base.w, size) == 0) {
 	    del_node(prev, node);
 	    return (1);
 	}
-	spec = jit_class(_rvs[regno].spec);
 	if (kind == jit_kind_word)
 	    spec &= jit_class_gpr;
 	else
@@ -3715,9 +3911,24 @@ _simplify(jit_state_t *_jit)
 		    }
 		}
 		if (info & jit_cc_a1_chg) {
-		    regno = jit_regno(node->v.w);
-		    _jitc->values[regno].kind = 0;
-		    ++_jitc->gen[regno];
+#if 0
+		    /* Assume registers are not changed */
+		    if (info & jit_cc_a1_rlh) {
+			regno = jit_regno(node->v.q.l);
+			_jitc->values[regno].kind = 0;
+			++_jitc->gen[regno];
+			regno = jit_regno(node->v.q.h);
+			_jitc->values[regno].kind = 0;
+			++_jitc->gen[regno];
+		    }
+		    else {
+#endif
+			regno = jit_regno(node->v.w);
+			_jitc->values[regno].kind = 0;
+			++_jitc->gen[regno];
+#if 0
+		    }
+#endif
 		}
 		if (info & jit_cc_a2_chg) {
 #if 0
@@ -3750,33 +3961,51 @@ _register_change_p(jit_state_t *_jit, jit_node_t *node, jit_node_t *link,
 		   jit_int32_t regno)
 {
     jit_int32_t		value;
+    jit_bool_t		use, change;
 
     for (; node != link; node = node->next) {
 	switch (node->code) {
 	    case jit_code_label:	case jit_code_prolog:
-		/* lack of extra information so cannot say it is undefined */
-		return (jit_reg_change);
+		/* lack of extra information so assume it is live */
+		return (jit_reg_static);
 	    case jit_code_callr:	case jit_code_calli:
 		if (!(jit_class(_rvs[regno].spec) & jit_class_sav))
 		    return (jit_reg_undef);
 		break;
 	    default:
 		value = jit_classify(node->code);
+		use = change = 0;
+		if (value & jit_cc_a0_rlh) {
+		    if (node->u.q.l == regno || node->u.q.h == regno) {
+			if (value & jit_cc_a0_chg)
+			    change = 1;
+			use = !change;
+		    }
+		}
+		else if ((value & jit_cc_a0_reg) && node->u.w == regno) {
+		    if (value & jit_cc_a0_chg)
+			change = 1;
+		    use = !change;
+		}
+		if (!use &&
+		    (value & jit_cc_a1_reg) && node->v.w == regno) {
+		    if (value & jit_cc_a1_chg)
+			change = 1;
+		    use = !change;
+		}
+		if (!use &&
+		    (value & jit_cc_a2_reg) && node->w.w == regno) {
+		    if (value & jit_cc_a2_chg)
+			change = 1;
+		    use = !change;
+		}
 		/* lack of extra information */
-		if (value & (jit_cc_a0_jmp|jit_cc_a0_cnd))
-		    return (jit_reg_change);
-		else if ((value & (jit_cc_a0_reg|jit_cc_a0_chg)) ==
-			 (jit_cc_a0_reg|jit_cc_a0_chg) &&
-			 (((value & jit_cc_a0_rlh) &&
-			   (node->u.q.l == regno || node->u.q.h == regno)) ||
-			  (!(value & jit_cc_a0_rlh) &&
-			   node->u.w == regno)))
-		    return (jit_reg_change);
-		else if ((value & jit_cc_a1_reg) && node->v.w == regno &&
-			 (value & jit_cc_a1_chg))
-		    return (jit_reg_change);
-		else if ((value & jit_cc_a2_reg) && node->w.w == regno &&
-			 (value & jit_cc_a2_chg))
+		if (!use && (value & (jit_cc_a0_jmp|jit_cc_a0_cnd)) &&
+		    /* In case of indirect branches, always consider
+		     * callee save registers as live. */
+		    !(jit_class(_rvs[regno].spec) & jit_class_sav))
+		    change = 1;
+		if (!use && change)
 		    return (jit_reg_change);
 	}
     }
@@ -3941,8 +4170,18 @@ _patch_register(jit_state_t *_jit, jit_node_t *node, jit_node_t *link,
 		    node->u.w = patch;
 	    }
 	}
-	if ((value & jit_cc_a1_reg) && node->v.w == regno)
-	    node->v.w = patch;
+	if (value & jit_cc_a1_reg) {
+	    if (value & jit_cc_a1_rlh) {
+		if (node->v.q.l == regno)
+		    node->v.q.l = patch;
+		if (node->v.q.h == regno)
+		    node->v.q.h = patch;
+	    }
+	    else {
+		if (node->v.w == regno)
+		    node->v.w = patch;
+	    }
+	}
 	if (value & jit_cc_a2_reg) {
 	    if (value & jit_cc_a2_rlh) {
 		if (node->w.q.l == regno)
@@ -3983,6 +4222,93 @@ static maybe_unused void
 generic_bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1);
 #endif
 
+#define depi(r0, i0, i1, i2)		_depi(_jit, r0, i0, i1, i2)
+static void _depi(jit_state_t*,jit_int32_t, jit_word_t, jit_word_t, jit_word_t);
+#define negi(r0, i0)			_negi(_jit, r0, i0)
+static void _negi(jit_state_t*, jit_int32_t, jit_word_t);
+#define comi(r0, i0)			_comi(_jit, r0, i0)
+static void _comi(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti_c(r0, i0)			_exti_c(_jit, r0, i0)
+static void _exti_c(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti_uc(r0, i0)			_exti_uc(_jit, r0, i0)
+static void _exti_uc(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti_s(r0, i0)			_exti_s(_jit, r0, i0)
+static void _exti_s(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti_us(r0, i0)			_exti_us(_jit, r0, i0)
+static void _exti_us(jit_state_t*, jit_int32_t, jit_word_t);
+#if __WORDSIZE == 64
+#define exti_i(r0, i0)			_exti_i(_jit, r0, i0)
+static void _exti_i(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti_ui(r0, i0)			_exti_ui(_jit, r0, i0)
+static void _exti_ui(jit_state_t*, jit_int32_t, jit_word_t);
+#endif
+#define bswapi_us(r0, i0)		_bswapi_us(_jit, r0, i0)
+static void _bswapi_us(jit_state_t*, jit_int32_t, jit_word_t);
+#define bswapi_ui(r0, i0)		_bswapi_ui(_jit, r0, i0)
+static void _bswapi_ui(jit_state_t*, jit_int32_t, jit_word_t);
+#if __WORDSIZE == 64
+#  define bswapi_ul(r0, i0)		_bswapi_ul(_jit, r0, i0)
+static void _bswapi_ul(jit_state_t*, jit_int32_t, jit_word_t);
+#endif
+#define htoni_us(r0, i0)		_htoni_us(_jit, r0, i0)
+static void _htoni_us(jit_state_t*, jit_int32_t, jit_word_t);
+#define htoni_ui(r0, i0)		_htoni_ui(_jit, r0, i0)
+static void _htoni_ui(jit_state_t*, jit_int32_t, jit_word_t);
+#if __WORDSIZE == 64
+#  define htoni_ul(r0, i0)		_htoni_ul(_jit, r0, i0)
+static void _htoni_ul(jit_state_t*, jit_int32_t, jit_word_t);
+#endif
+#  define movi_f_w(r0, i0)		_movi_f_w(_jit, r0, i0)
+static void _movi_f_w(jit_state_t*, jit_int32_t, jit_float32_t);
+#if __WORDSIZE == 32
+#  define movi_d_ww(r0, r1, i0)		_movi_d_ww(_jit, r0, r1, i0)
+static void _movi_d_ww(jit_state_t*, jit_int32_t, jit_int32_t, jit_float64_t);
+#else
+#  define movi_d_w(r0, i0)		_movi_d_w(_jit, r0, i0)
+static void _movi_d_w(jit_state_t*, jit_int32_t, jit_float64_t);
+#endif
+#define cloi(r0, i0)			_cloi(_jit, r0, i0)
+static void _cloi(jit_state_t*, jit_int32_t, jit_word_t);
+#define clzi(r0, i0)			_clzi(_jit, r0, i0)
+static void _clzi(jit_state_t*, jit_int32_t, jit_word_t);
+#define ctoi(r0, i0)			_ctoi(_jit, r0, i0)
+static void _ctoi(jit_state_t*, jit_int32_t, jit_word_t);
+#define ctzi(r0, i0)			_ctzi(_jit, r0, i0)
+static void _ctzi(jit_state_t*, jit_int32_t, jit_word_t);
+#define rbiti(r0, i0)			_rbiti(_jit, r0, i0)
+static void _rbiti(jit_state_t*, jit_int32_t, jit_word_t);
+#define popcnti(r0, i0)			_popcnti(_jit, r0, i0)
+static void _popcnti(jit_state_t*, jit_int32_t, jit_word_t);
+#define exti(r0, i0, i1, i2)		_exti(_jit, r0, i0, i1, i2)
+static void _exti(jit_state_t*,jit_int32_t, jit_word_t, jit_word_t, jit_word_t);
+#define exti_u(r0, i0, i1, i2)		_exti_u(_jit, r0, i0, i1, i2)
+static void _exti_u(jit_state_t*,
+		    jit_int32_t, jit_word_t, jit_word_t, jit_word_t);
+#define generic_unldr(r0, r1, i0)	_generic_unldr(_jit, r0, r1, i0)
+static void _generic_unldr(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_unldi(r0, i0, i1)	_generic_unldi(_jit, r0, i0, i1)
+static void _generic_unldi(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#define generic_unldr_u(r0, r1, i0)	_generic_unldr_u(_jit, r0, r1, i0)
+static void _generic_unldr_u(jit_state_t*,
+			     jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_unldi_u(r0, i0, i1)	_generic_unldi_u(_jit, r0, i0, i1)
+static void _generic_unldi_u(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#define generic_unstr(r0, r1, i0)	_generic_unstr(_jit, r0, r1, i0)
+static void _generic_unstr(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_unsti(i0, r0, i1)	_generic_unsti(_jit, i0, r0, i1)
+static void _generic_unsti(jit_state_t*, jit_word_t, jit_int32_t, jit_word_t);
+#if !defined(__i386__) && !defined(__x86_64__)
+#  define generic_unldr_x(r0, r1, i0)	_generic_unldr_x(_jit, r0, r1, i0)
+static void _generic_unldr_x(jit_state_t*,
+			     jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_unldi_x(r0, i0, i1)	_generic_unldi_x(_jit, r0, i0, i1)
+static void _generic_unldi_x(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#  define generic_unstr_x(r0, r1, i0)	_generic_unstr_x(_jit, r0, r1, i0)
+static void _generic_unstr_x(jit_state_t*,
+			     jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_unsti_x(i0, r0, i1)	_generic_unsti_x(_jit, i0, r0, i1)
+static void _generic_unsti_x(jit_state_t*, jit_word_t, jit_int32_t, jit_word_t);
+#endif
 #define patch_alist(revert)		_patch_alist(_jit, revert)
 static maybe_unused void _patch_alist(jit_state_t *_jit, jit_bool_t revert);
 
@@ -4053,6 +4379,1067 @@ generic_bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     orr(r0, r0, rn(reg));
 
     jit_unget_reg(reg);
+}
+#endif
+
+static void
+_depi(jit_state_t *_jit,
+      jit_int32_t r0, jit_word_t i0, jit_word_t i1, jit_word_t i2)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    depr(r0, rn(reg), i1, i2);
+    jit_unget_reg(reg);
+}
+
+static void
+_negi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, -i0);
+}
+
+static void
+_comi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, ~i0);
+}
+
+static void
+_exti_c(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_int8_t)i0);
+}
+
+static void
+_exti_uc(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_uint8_t)i0);
+}
+
+static void
+_exti_s(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_int16_t)i0);
+}
+
+static void
+_exti_us(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_uint16_t)i0);
+}
+
+#if __WORDSIZE == 64
+static void
+_exti_i(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_int32_t)i0);
+}
+
+static void
+_exti_ui(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    movi(r0, (jit_uint32_t)i0);
+}
+#endif
+
+static void
+_bswapi_us(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    union {
+	jit_uint16_t	us;
+	jit_uint8_t	v[2];
+    } l, h;
+    l.us = i0;
+    h.v[0] = l.v[1];
+    h.v[1] = l.v[0];
+    movi(r0,  h.us);
+}
+
+static void
+_bswapi_ui(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    union {
+	jit_uint32_t	ui;
+	jit_uint8_t	v[4];
+    } l, h;
+    l.ui = i0;
+    h.v[0] = l.v[3];
+    h.v[1] = l.v[2];
+    h.v[2] = l.v[1];
+    h.v[3] = l.v[0];
+    movi(r0,  h.ui);
+}
+
+#if __WORDSIZE == 64
+static void
+_bswapi_ul(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    union {
+	jit_uint64_t	ul;
+	jit_uint8_t	v[8];
+    } l, h;
+    l.ul = i0;
+    h.v[0] = l.v[7];
+    h.v[1] = l.v[6];
+    h.v[2] = l.v[5];
+    h.v[3] = l.v[4];
+    h.v[4] = l.v[3];
+    h.v[5] = l.v[2];
+    h.v[6] = l.v[1];
+    h.v[7] = l.v[0];
+    movi(r0,  h.ul);
+}
+#endif
+
+static void
+_htoni_us(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    bswapi_us(r0, i0);
+#else
+    exti_us(r0, i0);
+#endif
+}
+
+static void
+_htoni_ui(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    bswapi_ui(r0, i0);
+#else
+#  if __WORDSIZE == 32
+    movi(r0, i0);
+#  else
+    exti_ui(r0, i0);
+#  endif
+#endif
+}
+
+#if __WORDSIZE == 64
+static void
+_htoni_ul(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+    bswapi_ul(r0, i0);
+#  else
+    movi(r0, i0);
+#  endif
+}
+#endif
+
+static void
+_movi_f_w(jit_state_t *_jit, jit_int32_t r0, jit_float32_t i0)
+{
+    union {
+	jit_int32_t	i;
+	jit_float32_t	f;
+    } data;
+    data.f = i0;
+#if defined(__ia64__)
+    /* Should be used only in this case (with out0 == 120) */
+    if (r0 >= 120)
+	r0 = _jitc->rout + (r0 - 120);
+#endif
+    movi(r0, data.i);
+}
+
+#if __WORDSIZE == 32
+static void
+_movi_d_ww(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_float64_t i0)
+{
+    union {
+	jit_int32_t	i[2];
+	jit_float64_t	d;
+    } data;
+    data.d = i0;
+    /* Mips does not change byte order of double values */
+#  if __BYTE_ORDER == __LITTLE_ENDIAN || defined(__mips__)
+    movi(r0, data.i[0]);
+    movi(r1, data.i[1]);
+#  else
+    movi(r1, data.i[0]);
+    movi(r0, data.i[1]);
+#  endif
+}
+
+#else
+static void
+_movi_d_w(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
+{
+    union {
+	jit_int64_t	l;
+	jit_float64_t	d;
+    } data;
+    data.d = i0;
+#  if defined(__ia64__)
+    /* Should be used only in this case (with out0 == 120) */
+    if (r0 >= 120)
+	r0 = _jitc->rout + (r0 - 120);
+#  endif
+    movi(r0, data.l);
+}
+#endif
+
+ void
+_jit_negi_f(jit_state_t *_jit, jit_fpr_t u, jit_float32_t v)
+{
+    jit_inc_synth_wf(negi_f, u, v);
+    jit_movi_f(u, v);
+    jit_negr_f(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_absi_f(jit_state_t *_jit, jit_fpr_t u, jit_float32_t v)
+{
+    jit_inc_synth_wf(absi_f, u, v);
+    jit_movi_f(u, v);
+    jit_absr_f(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_sqrti_f(jit_state_t *_jit, jit_fpr_t u, jit_float32_t v)
+{
+    jit_inc_synth_wf(sqrti_f, u, v);
+    jit_movi_f(u, v);
+    jit_sqrtr_f(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_fmai_f(jit_state_t *_jit,
+	    jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float32_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqf(fmai_f, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_f(u, x);
+	jit_fmar_f(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_f(y, x);
+	jit_fmar_f(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fmsi_f(jit_state_t *_jit,
+	    jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float32_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqf(fmai_f, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_f(u, x);
+	jit_fmsr_f(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_f(y, x);
+	jit_fmsr_f(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fnmai_f(jit_state_t *_jit,
+	     jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float32_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqf(fmai_f, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_f(u, x);
+	jit_fnmar_f(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_f(y, x);
+	jit_fnmar_f(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fnmsi_f(jit_state_t *_jit,
+	     jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float32_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqf(fmai_f, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_f(u, x);
+	jit_fnmsr_f(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_f(y, x);
+	jit_fnmsr_f(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_negi_d(jit_state_t *_jit, jit_fpr_t u, jit_float64_t v)
+{
+    jit_inc_synth_wd(negi_d, u, v);
+    jit_movi_d(u, v);
+    jit_negr_d(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_absi_d(jit_state_t *_jit, jit_fpr_t u, jit_float64_t v)
+{
+    jit_inc_synth_wd(absi_d, u, v);
+    jit_movi_d(u, v);
+    jit_absr_d(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_sqrti_d(jit_state_t *_jit, jit_fpr_t u, jit_float64_t v)
+{
+    jit_inc_synth_wd(sqrti_d, u, v);
+    jit_movi_d(u, v);
+    jit_sqrtr_d(u, u);
+    jit_dec_synth();
+}
+
+void
+_jit_fmai_d(jit_state_t *_jit,
+	    jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float64_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqd(fmai_d, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_d(u, x);
+	jit_fmar_d(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_d(y, x);
+	jit_fmar_d(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fmsi_d(jit_state_t *_jit,
+	    jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float64_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqd(fmai_d, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_d(u, x);
+	jit_fmsr_d(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_d(y, x);
+	jit_fmsr_d(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fnmai_d(jit_state_t *_jit,
+	     jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float64_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqd(fmai_d, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_d(u, x);
+	jit_fnmar_d(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_d(y, x);
+	jit_fnmar_d(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+void
+_jit_fnmsi_d(jit_state_t *_jit,
+	     jit_fpr_t u, jit_fpr_t v, jit_fpr_t w, jit_float64_t x)
+{
+    jit_int32_t		y;
+    jit_inc_synth_wqd(fmai_d, u, v, w, x);
+    if (u != v && u != w) {
+	jit_movi_d(u, x);
+	jit_fnmsr_d(u, v, w, u);
+    }
+    else {
+	y = jit_get_reg(jit_class_fpr);
+	jit_movi_d(y, x);
+	jit_fnmsr_d(u, v, w, y);
+	jit_unget_reg(y);
+    }
+    jit_dec_synth();
+}
+
+static void
+_cloi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    clzi(r0, ~i0);
+}
+
+static void
+_clzi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#if __WORDSIZE == 64 && _WIN32
+    movi(r0, (i0) ? __builtin_clzll(i0) : __WORDSIZE);
+#else
+    movi(r0, (i0) ? __builtin_clzl(i0) : __WORDSIZE);
+#endif
+}
+
+static void
+_ctoi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    ctzi(r0, ~i0);
+}
+
+static void
+_ctzi(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#if __WORDSIZE == 64 && _WIN32
+    movi(r0, (i0) ? __builtin_ctzll(i0) : __WORDSIZE);
+#else
+    movi(r0, (i0) ? __builtin_ctzl(i0) : __WORDSIZE);
+#endif
+}
+
+static void
+_rbiti(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		i;
+    union {
+	jit_uword_t	w;
+	jit_uint8_t	v[__WORDSIZE >> 3];
+    } u, v;
+    static const unsigned char swap_tab[256] = {
+	 0, 128, 64, 192, 32, 160,  96, 224,
+	16, 144, 80, 208, 48, 176, 112, 240,
+	 8, 136, 72, 200, 40, 168, 104, 232,
+	24, 152, 88, 216 ,56, 184, 120, 248,
+	 4, 132, 68, 196, 36, 164, 100, 228,
+	20, 148, 84, 212, 52, 180, 116, 244,
+	12, 140, 76, 204, 44, 172, 108, 236,
+	28, 156, 92, 220, 60, 188, 124, 252,
+	 2, 130, 66, 194, 34, 162,  98, 226,
+	18, 146, 82, 210, 50, 178, 114, 242,
+	10, 138, 74, 202, 42, 170, 106, 234,
+	26, 154, 90, 218, 58, 186, 122, 250,
+	 6, 134, 70, 198, 38, 166, 102, 230,
+	22, 150, 86, 214, 54, 182, 118, 246,
+	14, 142, 78, 206, 46, 174, 110, 238,
+	30, 158, 94, 222, 62, 190, 126, 254,
+	 1, 129, 65, 193, 33, 161,  97, 225,
+	17, 145, 81, 209, 49, 177, 113, 241,
+	 9, 137, 73, 201, 41, 169, 105, 233,
+	25, 153, 89, 217, 57, 185, 121, 249,
+	 5, 133, 69, 197, 37, 165, 101, 229,
+	21, 149, 85, 213, 53, 181, 117, 245,
+	13, 141, 77, 205, 45, 173, 109, 237,
+	29, 157, 93, 221, 61, 189, 125, 253,
+	 3, 131, 67, 195, 35, 163,  99, 227,
+	19, 147, 83, 211, 51, 179, 115, 243,
+	11, 139, 75, 203, 43, 171, 107, 235,
+	27, 155, 91, 219, 59, 187, 123, 251,
+	 7, 135, 71, 199, 39, 167, 103, 231,
+	23, 151, 87, 215, 55, 183, 119, 247,
+	15, 143, 79, 207, 47, 175, 111, 239,
+	31, 159, 95, 223, 63, 191, 127, 255
+    };
+    u.w = i0;
+    for (i = 0; i < sizeof(jit_word_t); ++i)
+	v.v[i] = swap_tab[u.v[sizeof(jit_word_t) - i - 1]];
+    movi(r0, v.w);
+}
+
+static void
+_popcnti(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+#if __WORDSIZE == 64 && _WIN32
+    movi(r0, (i0) ? __builtin_popcountll(i0) : __WORDSIZE);
+#else
+    movi(r0, (i0) ? __builtin_popcountl(i0) : __WORDSIZE);
+#endif
+}
+
+static void _exti(jit_state_t *_jit,
+		  jit_int32_t r0, jit_word_t i0, jit_word_t i1, jit_word_t i2)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    i1 = __WORDSIZE - (i1 + i2);
+#endif
+    i0 <<= __WORDSIZE - (i1 + i2);
+    i0 >>= __WORDSIZE - i2;
+    movi(r0, i0);
+}
+
+static void _exti_u(jit_state_t *_jit,
+		    jit_int32_t r0, jit_word_t i0, jit_word_t i1, jit_word_t i2)
+{
+    jit_word_t		t;
+#if __BYTE_ORDER == __BIG_ENDIAN
+    i1 = __WORDSIZE - (i1 + i2);
+#endif
+    if (i1)
+	i0 >>= __WORDSIZE - i2;
+#if __WORDSIZE == 64 && !_WIN32
+    i0 &= (1L << i2) - 1;
+#else
+    i0 &= (1LL << i2) - 1;
+#endif
+    movi(r0, i0);
+}
+
+static void
+_generic_unldr(jit_state_t *_jit,
+	       jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		t0, r2;
+    assert(i0 >= 1 && i0 <= sizeof(jit_word_t));
+    if (i0 & (i0 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	movr(r2, r1);
+    }
+    switch (i0) {
+	case 1:
+	    ldr_c(r0, r1);
+	    break;
+	case 2:
+	    ldr_s(r0, r1);
+	    break;
+	case 3:
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_us(r0, r2);
+	    ldxi_c(r2, r2, 2);
+	    lshi(r2, r2, 16);
+#else
+	    ldr_c(r0, r2);
+	    lshi(r0, r0, 16);
+	    ldxi_us(r2, r2, 1);
+#endif
+	    break;
+#if __WORDSIZE == 32
+	default:
+	    ldr_i(r0, r1);
+	    break;
+#else
+	case 4:
+	    ldr_i(r0, r1);
+	    break;
+	case 5:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_c(r2, r2, 4);
+	    lshi(r2, r2, 32);
+#  else
+	    ldr_i(r0, r2);
+	    lshi(r0, r0, 8);
+	    ldxi_uc(r2, r2, 4);
+#  endif
+	    break;
+	case 6:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_s(r2, r2, 4);
+	    lshi(r2, r2, 32);
+#  else
+	    ldr_i(r0, r2);
+	    lshi(r0, r0, 16);
+	    ldxi_us(r2, r2, 4);
+#  endif
+	    break;
+	case 7:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_i(r2, r2, 4);
+	    lshi(r2, r2, 40);
+	    rshi(r2, r2, 8);
+#  else
+	    ldr_i(r0, r2);
+	    lshi(r0, r0, 24);
+	    ldxi_ui(r2, r2, 4);
+	    rshi(r2, r2, 8);
+#  endif
+	    break;
+	default:
+	    ldr_l(r0, r1);
+	    break;
+#endif
+    }
+    if (i0 & (i0 - 1)) {
+	orr(r0, r0, r2);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_generic_unldi(jit_state_t *_jit,
+	       jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0, r2;
+    assert(i1 >= 1 && i1 <= sizeof(jit_word_t));
+    if (i1 & (i1 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+    }
+    switch (i1) {
+	case 1:
+	    ldi_c(r0, i0);
+	    break;
+	case 2:
+	    ldi_s(r0, i0);
+	    break;
+	case 3:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_us(r0, i0);
+	    ldi_c(r2, i0 + 2);
+	    lshi(r2, r2, 16);
+#  else
+	    ldi_c(r0, i0);
+	    lshi(r0, r0, 16);
+	    ldi_us(r2, i0 + 1);
+#  endif
+	    break;
+#  if __WORDSIZE == 32
+	default:
+	    ldi_i(r0, i0);
+	    break;
+#  else
+	case 4:
+	    ldi_i(r0, i0);
+	    break;
+	case 5:
+#   if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_c(r2, i0 + 4);
+	    lshi(r2, r2, 32);
+#   else
+	    ldi_i(r0, i0);
+	    lshi(r0, r0, 8);
+	    ldi_uc(r2, i0 + 4);
+#   endif
+	    break;
+	case 6:
+#   if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_s(r2, i0 + 4);
+	    lshi(r2, r2, 32);
+#   else
+	    ldi_i(r0, i0);
+	    lshi(r0, r0, 16);
+	    ldi_us(r2, i0 + 4);
+#   endif
+	    break;
+	case 7:
+#   if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_i(r2, i0 + 4);
+	    lshi(r2, r2, 40);
+	    rshi(r2, r2, 8);
+#   else
+	    ldi_i(r0, i0);
+	    lshi(r0, r0, 24);
+	    ldi_ui(r2, i0 + 4);
+	    rshi(r2, r2, 8);
+#   endif
+	    break;
+	default:
+	    ldi_l(r0, i0);
+	    break;
+#  endif
+    }
+    if (i1 & (i1 - 1)) {
+	orr(r0, r0, r2);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_generic_unldr_u(jit_state_t *_jit,
+		 jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		t0, r2;
+    assert(i0 >= 1 && i0 <= sizeof(jit_word_t));
+    if (i0 & (i0 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	movr(r2, r1);
+    }
+    switch (i0) {
+	case 1:
+	    ldr_uc(r0, r1);
+	    break;
+	case 2:
+	    ldr_us(r0, r1);
+	    break;
+	case 3:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_us(r0, r2);
+	    ldxi_uc(r2, r2, 2);
+	    lshi(r2, r2, 16);
+#  else
+	    ldr_uc(r0, r2);
+	    lshi(r0, r0, 16);
+	    ldxi_us(r2, r2, 1);
+#  endif
+	    break;
+#  if __WORDSIZE == 32
+	default:
+	    ldr_i(r0, r1);
+	    break;
+#  else
+	case 4:
+	    ldr_ui(r0, r1);
+	    break;
+	case 5:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_uc(r2, r2, 4);
+	    lshi(r2, r2, 32);
+#    else
+	    ldr_ui(r0, r2);
+	    lshi(r0, r0, 8);
+	    ldxi_uc(r2, r2, 4);
+#    endif
+	    break;
+	case 6:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_us(r2, r2, 4);
+	    lshi(r2, r2, 32);
+#    else
+	    ldr_ui(r0, r2);
+	    lshi(r0, r0, 16);
+	    ldxi_us(r2, r2, 4);
+#    endif
+	    break;
+	case 7:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldr_ui(r0, r2);
+	    ldxi_ui(r2, r2, 4);
+	    lshi(r2, r2, 40);
+	    rshi_u(r2, r2, 8);
+#    else
+	    ldr_ui(r0, r2);
+	    lshi(r0, r0, 24);
+	    ldxi_ui(r2, r2, 4);
+	    rshi(r2, r2, 8);
+#    endif
+	    break;
+	default:
+	    ldr_l(r0, r1);
+	    break;
+#  endif
+    }
+    if (i0 & (i0 - 1)) {
+	orr(r0, r0, r2);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_generic_unldi_u(jit_state_t *_jit,
+		 jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0, r2;
+    assert(i1 >= 1 && i1 <= sizeof(jit_word_t));
+    if (i1 & (i1 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+    }
+    switch (i1) {
+	case 1:
+	    ldi_uc(r0, i0);
+	    break;
+	case 2:
+	    ldi_us(r0, i0);
+	    break;
+	case 3:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_us(r0, i0);
+	    ldi_uc(r2, i0 + 2);
+	    lshi(r2, r2, 16);
+#  else
+	    ldi_uc(r0, i0);
+	    lshi(r0, r0, 16);
+	    ldi_us(r2, i0 + 1);
+#  endif
+	    break;
+#  if __WORDSIZE == 32
+	default:
+	    ldi_i(r0, i0);
+	    break;
+#  else
+	case 4:
+	    ldi_ui(r0, i0);
+	    break;
+	case 5:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_uc(r2, i0 + 4);
+	    lshi(r2, r2, 32);
+#    else
+	    ldi_ui(r0, i0);
+	    lshi(r0, r0, 8);
+	    ldi_uc(r2, i0 + 4);
+#    endif
+	    break;
+	case 6:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_us(r2, i0 + 4);
+	    lshi(r2, r2, 32);
+#    else
+	    ldi_ui(r0, i0);
+	    lshi(r0, r0, 16);
+	    ldi_us(r2, i0 + 4);
+#    endif
+	    break;
+	case 7:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    ldi_ui(r0, i0);
+	    ldi_ui(r2, i0 + 4);
+	    lshi(r2, r2, 40);
+	    rshi_u(r2, r2, 8);
+#    else
+	    ldi_ui(r0, i0);
+	    lshi(r0, r0, 24);
+	    ldi_ui(r2, i0 + 4);
+	    rshi(r2, r2, 8);
+#    endif
+	    break;
+	default:
+	    ldi_l(r0, i0);
+	    break;
+#  endif
+    }
+    if (i1 & (i1 - 1)) {
+	orr(r0, r0, r2);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_generic_unstr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_word_t		t0, r2;
+    assert(i0 > 0 && i0 <= sizeof(jit_word_t));
+    if (i0 & (i0 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+    }
+    switch (i0) {
+	case 1:
+	    str_c(r0, r1);
+	    break;
+	case 2:
+	    str_s(r0, r1);
+	    break;
+	case 3:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    str_s(r0, r1);
+	    rshi(r2, r1, 16);
+	    stxi_c(2, r0, r2);
+#  else
+	    stxi_c(2, r0, r1);
+	    rshi(r2, r1, 8);
+	    str_s(r0, r2);
+#  endif
+	    break;
+#  if __WORDSIZE == 32
+	default:
+	    str_i(r0, r1);
+	    break;
+#  else
+	case 4:
+	    str_i(r0, r1);
+	    break;
+	case 5:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    str_i(r0, r1);
+	    rshi(r2, r1, 32);
+	    stxi_c(4, r0, r2);
+#    else
+	    stxi_c(4, r0, r1);
+	    rshi(r2, r1, 8);
+	    str_i(r0, r2);
+#    endif
+	    break;
+	case 6:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    str_i(r0, r1);
+	    rshi(r2, r1, 32);
+	    stxi_s(4, r0, r2);
+#    else
+	    stxi_s(4, r0, r1);
+	    rshi(r2, r1, 16);
+	    str_i(r0, r2);
+#    endif
+	    break;
+	case 7:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    str_i(r0, r1);
+	    rshi(r2, r1, 32);
+	    stxi_s(4, r0, r2);
+	    rshi(r2, r2, 16);
+	    stxi_c(6, r0, r2);
+#    else
+	    stxi_c(6, r0, r1);
+	    rshi(r2, r1, 8);
+	    stxi_s(4, r0, r2);
+	    rshi(r2, r2, 16);
+	    str_i(r0, r2);
+#    endif
+	    break;
+	default:
+	    str_l(r0, r1);
+	    break;
+#  endif
+    }
+    if (i0 & (i0 - 1))
+	jit_unget_reg(t0);
+}
+
+static void
+_generic_unsti(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
+{
+    jit_word_t		t0, r2;
+    assert(i1 > 0 && i1 <= sizeof(jit_word_t));
+    if (i1 & (i1 - 1)) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+    }
+    switch (i1) {
+	case 1:
+	    sti_c(i0, r0);
+	    break;
+	case 2:
+	    sti_s(i0, r0);
+	    break;
+	case 3:
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+	    sti_s(i0, r0);
+	    rshi(r2, r0, 16);
+	    sti_c(2 + i0, r2);
+#  else
+	    sti_c(2 + i0, r0);
+	    rshi(r2, r0, 8);
+	    sti_s(i0, r2);
+#  endif
+	    break;
+#  if __WORDSIZE == 32
+	default:
+	    sti_i(i0, r0);
+	    break;
+#  else
+	case 4:
+	    sti_i(i0, r0);
+	    break;
+	case 5:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    sti_i(i0, r0);
+	    rshi(r2, r0, 32);
+	    sti_c(4 + i0, r2);
+#    else
+	    stxi_c(4, i0, r0);
+	    rshi(r2, r0, 8);
+	    sti_i(i0, r2);
+#    endif
+	    break;
+	case 6:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    sti_i(i0, r0);
+	    rshi(r2, r0, 32);
+	    sti_s(4 + i0, r2);
+#    else
+	    sti_s(4 + i0, r0);
+	    rshi(r2, r0, 16);
+	    sti_i(i0, r2);
+#    endif
+	    break;
+	case 7:
+#    if __BYTE_ORDER == __LITTLE_ENDIAN
+	    sti_i(i0, r0);
+	    rshi(r2, r0, 32);
+	    sti_s(4 + i0, r2);
+	    rshi(r2, r2, 16);
+	    sti_c(6 + i0, r2);
+#    else
+	    sti_c(6 + i0, r0);
+	    rshi(r2, r0, 8);
+	    sti_s(4 + i0, r2);
+	    rshi(r2, r2, 16);
+	    sti_i(i0, r2);
+#    endif
+	    break;
+	default:
+	    sti_l(i0, r0);
+	    break;
+#  endif
+    }
+    if (i1 & (i1 - 1))
+	jit_unget_reg(t0);
+}
+
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__arm__)
+static void
+_generic_unldr_x(jit_state_t *_jit,
+		 jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    assert(i0 == 4 || i0 == 8);
+    if (i0 == 4)
+	ldr_f(r0, r1);
+    else
+	ldr_d(r0, r1);
+}
+
+static void
+_generic_unldi_x(jit_state_t *_jit,
+		 jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    assert(i1 == 4 || i1 == 8);
+    if (i1 == 4)
+	ldi_f(r0, i0);
+    else
+	ldi_d(r0, i0);
+}
+
+static void
+_generic_unstr_x(jit_state_t *_jit,
+		 jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    assert(i0 == 4 || i0 == 8);
+    if (i0 == 4)
+	str_f(r0, r1);
+    else
+	str_d(r0, r1);
+}
+
+static void
+_generic_unsti_x(jit_state_t *_jit,
+		 jit_word_t i0, jit_int32_t r0, jit_word_t i1)
+{
+    assert(i1 == 4 || i1 == 8);
+    if (i1 == 4)
+	sti_f(i0, r0);
+    else
+	sti_d(i0, r0);
 }
 #endif
 

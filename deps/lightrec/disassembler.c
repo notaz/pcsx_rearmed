@@ -157,6 +157,10 @@ static const char * const opcode_branch_flags[] = {
 	"local branch",
 };
 
+static const char * const opcode_movi_flags[] = {
+	"movi",
+};
+
 static const char * const opcode_multdiv_flags[] = {
 	"No LO",
 	"No HI",
@@ -403,10 +407,13 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				pc + 4 + ((s16)c.i.imm << 2));
 	case OP_ADDI:
 	case OP_ADDIU:
+	case OP_ORI:
+		*flags_ptr = opcode_movi_flags;
+		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
+		fallthrough;
 	case OP_SLTI:
 	case OP_SLTIU:
 	case OP_ANDI:
-	case OP_ORI:
 	case OP_XORI:
 		return snprintf(buf, len, "%s%s,%s,0x%04hx",
 				std_opcodes[c.i.op],
@@ -415,6 +422,8 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(u16)c.i.imm);
 
 	case OP_LUI:
+		*flags_ptr = opcode_movi_flags;
+		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
 		return snprintf(buf, len, "%s%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),

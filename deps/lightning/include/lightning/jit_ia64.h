@@ -119,6 +119,8 @@ typedef enum {
 
 typedef struct {
     jit_uint32_t clz		: 1;
+    /* generate special instructions for unaligned load/store? */
+    jit_uint32_t unaligned	: 1;
 } jit_cpu_t;
 
 /*

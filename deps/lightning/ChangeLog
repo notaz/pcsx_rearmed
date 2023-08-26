@@ -1,3 +1,173 @@
+2023-08-21 Paulo Andrade <pcpa@gnu.org>
+
+	* check/Makefile.am, check/lightning.c: Add new hmul tests.
+	* doc/body.texi: Document hmul.
+	* include/lightning.h.in: Create the new hmul codes.
+	* lib/jit_aarch64-cpu.c, lib/jit_aarch64-sz.c, lib/jit_aarch64.c,
+	lib/jit_alpha-cpu.c, lib/jit_alpha-sz.c, lib/jit_alpha.c,
+	lib/jit_arm-cpu.c, lib/jit_arm-sz.c, lib/jit_arm.c,
+	lib/jit_hppa-cpu.c, lib/jit_hppa-sz.c, lib/jit_hppa.c,
+	lib/jit_ia64-cpu.c, lib/jit_ia64-sz.c, lib/jit_ia64.c,
+	lib/jit_loongarch-cpu.c, lib/jit_loongarch-sz.c, lib/jit_loongarch.c,
+	lib/jit_mips-cpu.c, lib/jit_mips-sz.c, lib/jit_mips.c,
+	lib/jit_ppc-cpu.c, lib/jit_ppc-sz.c, lib/jit_ppc.c,
+	lib/jit_riscv-cpu.c, lib/jit_riscv-sz.c, lib/jit_riscv.c,
+	lib/jit_s390-cpu.c, lib/jit_s390-sz.c, lib/jit_s390.c,
+	lib/jit_sparc-cpu.c, lib/jit_sparc-sz.c, lib/jit_sparc.c,
+	lib/jit_x86-cpu.c, lib/jit_x86-sz.c, lib/jit_x86.c: Implement
+	hmul and update the *-sz.c files.
+	* lib/jit_names.c, lib/lightning.c: Add knowledge of hmul.
+
+2023-04-18 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning.h.in: Define new fmar_f, fmai_f, fmsr_f,
+	fmsi_f, fmar_d, fmai_d, fmsr_d and fmsi_d instructions, that
+	add support for fused multiply add/sub, in the format
+	r0 = r1 * r2 +/- r3.
+	* include/lightning/jit_private.h: Add helper macros for debug
+	output.
+	* lib/jit_names.c: Add strings for debug output.
+	* lib/jit_print.c: Print debug output for the new instructions.
+	* lib/lightning.c: Add logic for the new register pair in the
+	'v' (second) field of jit_node_t. The new pattern is required
+	to allow having a 'double' immediate in the last argument, for
+	the versions with immediates. The versions with immediates are
+	added for consistency, as they should be very rarely used in
+	common usage of fused multiply add/sub.
+
+2023-04-06 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning.h.in: Define new movi_w_f, movi_w_d and
+	movi_ww_d instructions, to have an inverse counterpart to
+	movi_f_w, movi_d_w and movi_d_ww.
+	* lib/lightning.c: Update for the new instructions.
+	* lib/jit_names.c, lib/jit_print.c: Update debug information.
+
+2023-04-05 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning.h.in: Define new unldr, unldi, unldr_x,
+	unldi_x, unstr, unsti, unldr_x and unstr_x instructions.
+	Remove comment about internal backend specific codes, as they
+	are required by unldr_x and unstr_x in some code paths.
+	* lib/lightning.c: Implement generic movi_f_w, movi_d_w and
+	movi_d_ww that are actually the same for all ports.
+	Define generic load/store implementations when unaligned memory
+	access does not trap.
+
+2023-03-23 Paulo Andrade <pcpa@gnu.org>
+
+	* include/lightning.h.in: Define new qlshr, qlshi, qlshr_u,
+	qlshi_u, qrshr, qrshi, qrshr_u and qrshi_u instructions.
+	* lib/jit_fallback.c: Implement new fallbacks.
+	* lib/jit_names.c: Update debug information.
+	* lib/lightning.c: Add code to update regsets, matching other
+	instructions with two outputs.
+
+2023-03-20 Paulo Andrade <pcpa@gnu.org>
+
+	* check/all.tst: Add missing instructions to debug encoding.
+	* check/lightning.c: Implement calls to the new rich set of
+	instructions, with an immediate argument, mostly which are resolved
+	at code generation time. With the exception of jit_negi_{f,d},
+	jit_absi{f,d} and jit_sqrti_{f,d} that generate code to execute at
+	runtime. This is required because the code generator should create
+	the proper float environment with rounding modes, exceptions, etc.
+	The new jit_depi is just a wrapper to have the second operand as an
+	immediate and call jit_depr.
+	* include/lightning.h.in: Declare new instructions code and function
+	prototypes as appropriate.
+	* include/lightning/jit_private.h: Add 4 new macros to generate
+	synthetic debug for float operations with an immediate argument.
+	* lib/jit_aarch64.c, lib/jit_alpha.c, lib/jit_arm.c, lib/jit_hppa.c,
+	lib/jit_ia64.c, lib/jit_loongarch.c, lib/jit_mips.c, lib/jit_ppc.c,
+	lib/jit_riscv.c, lib/jit_s390.c, lib/jit_sparc.c, lib/jit_x86.c:
+	Add code to call the generic code to implement new instructions
+	with immediate operands.
+	* lib/jit_names.c, lib/jit_print.c: Add debug for the new instructions
+	with immediate operands.
+	* lib/lightning.c: Add code to handle regsets and actually implement
+	the generic new instructions.
+
+2023-03-17 Paulo Andrade <pcpa@gnu.org>
+
+	* lib/jit_fallback.c: Implement fallbacks for new instructions
+	ext, ext_u and dep.
+	* lib/lightning.c: Add code to understand the new instructions
+	and update regsets as appropriate.
+	* lib/jit_names.c, lib/jit_print.c: Update for debug information
+	of ext, ext_u and dep.
+	* include/lightning.h.in: Define jit_code_t for ext, ext_u and dep.
+	* check/lightning.c: Handle the new instructions.
+	* check/all.tst: Add new instructions for the full disassembly.
+
+2023-03-07 Paulo Andrade <pcpa@gnu.org>
+
+	* check/alu_rot.tst, check/alu_rot.ok: New test files for the new
+	lrotr, lroti, rrotr and rroti instructions.
+	* check/Makefile.am, check/lightning.c, include/lightning.h.in,
+	lib/jit_names.c: lib/lightning.c, doc/body.texi: Update for the
+	new instructions.
+	* lib/jit_aarch64-cpu.c, lib/jit_aarch64.c, lib/jit_arm-cpu.c,
+	lib/jit_arm.c: Implement optimized rrotr and rroti. lrotr and
+	lroti just adjust parameters for a left shift rotate.
+	* lib/jit_alpha-cpu.c, lib/jit_alpha.c, lib/jit_ia64-cpu,
+	lib/jit_ia64.c, lib/jit_riscv-cpu.c, lib/jit_riscv.c,
+	jit_sparc-cpu.c, jit_sparc.c: Implement calls to fallback lrotr,
+	lroti, rrotr and rroti.
+	* lib/jit_hppa-cpu.c, lib/jit_hppa.c: Implement optimized rroti.
+	Other instructions use fallbacks.
+	* lib/jit_loongarch-cpu.c, lib/jit_loongarch.c: Implement optimized
+	rrotr and rroti. lrotr and lroti just adapt arguments and use a
+	right shift.
+	* lib/jit_mips-cpu.c, lib/jit_mips.c: If mips2, Implement optimized
+	rrotr and rroti. lrotr and lroti just adapt arguments and use a
+	right shift. If mips1 use fallbacks.
+	* lib/jit_ppc-cpu.c, lib/jit_ppc.c, jit_s390-cpu.c, jit_s390.c,
+	lib/jit_x86-cpu.c, lib/jit_x86.c: Implement optimized lrotr,
+	lroti, rrotr, rroti.
+	* lib/jit_fallback.c: Implement fallbacks for lrotr, lroti,
+	rrotr and rroti. Also add extra macro to avoid segfaults in s390,
+	that cannot use register zero for some addressing instructions.
+
+2023-03-02 Paulo Andrade <pcpa@gnu.org>
+
+	* check/popcnt.tst, check/popcnt.ok: New test files for the new
+	popcntr instruction.
+	* check/Makefile.am, check/lightning.c, include/lightning.h.in,
+	lib/jit_names.c: lib/lightning.c, doc/body.texi: Update for popcntr.
+	* lib/jit_aarch64-fpu.c, lib/jit_aarch64.c: Implement optimized
+	popcntr using the fpu.
+	* lib/jit_alpha-cpu.c, lib/jit_alpha.c: Implement optimized
+	popcntr using the ctpop instruction.
+	* lib/jit_arm-vfp.c, lib/jit_arm-cpu.c, lib/jit_arm.c: Implement
+	untested optimized popcntr using vfp >= 4, otherwise use a
+	software fallback.
+	* lib/jit_ia64-cpu.c, lib/jit_jia64.c: Implement optimized
+	popcntr using the popcnt instruction.
+	* lib/jit_ppc-cpu.c, lib/jit_ppc.c: Implement optimized
+	popcntr using the popcntb, plus mullr and rshi_u instruction.
+	* lib/jit_x86-cpu.c, lib/jit_x86.c: Implement optimized
+	popcntr instruction using the popcnt instruction if available,
+	otherwise use an optimized fallback.
+	* lib/jit_fallback.c: Implement simple fallback popcnt.
+	* lib/jit_hppa.c, lib/jit_loongarch.c, lib/jit_mips.c,
+	lib/jit_riscv.c, lib/jit_s390.c, lib/jit_sparc.c: Use fallback
+	popcnt.
+
+2023-02-26 Paulo Andrade <pcpa@gnu.org>
+
+	* check/bit.tst: Correct 32 bit sample ctz implementation.
+	* include/lightning/jit_mips.h: Add jit_cpu flags for instructions
+	that cannot be used in delay slot.
+	* lib/jit_fallback.c: Mips fallbacks now might need a flush of
+	instructions to get correct label addresses, due to pending
+	instruction candidate to delay slot.
+	* lib/jit_mips-cpu.c: Flush any pending instruction if it cannot
+	be used in the delay slot. Add calls to fallback clo, clz, cto and
+	ctz for mips 1.
+	* lib/jit_mips.c: Add code to set defaults or detect if can use
+	certain instructions to delay slots.
+
 2023-02-23 Paulo Andrade <pcpa@gnu.org>
 
 	* include/lightning/jit_private.h: Add new 'inst' field to

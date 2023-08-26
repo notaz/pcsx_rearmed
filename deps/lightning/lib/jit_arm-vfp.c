@@ -88,6 +88,10 @@
 #  define ARM_VCVTR_U32_F32		ARM_VCVT|ARM_VCVT_2I
 #  define ARM_VCVTR_S32_F64		ARM_VCVT|ARM_VCVT_2I|ARM_VCVT_2S|ARM_V_F64
 #  define ARM_VCVTR_U32_F64		ARM_VCVT|ARM_VCVT_2I|ARM_V_F64
+#  define ARM_VFMA			0x0ea00a00
+#  define ARM_VFMS			0x0ea00a40
+#  define ARM_VFNMA			0x0e900a00
+#  define ARM_VFNMS			0x0e900a40
 #  define ARM_V_D			0x00400000
 #  define ARM_V_N			0x00000080
 #  define ARM_V_Q			0x00000040
@@ -131,7 +135,7 @@
 #  define ARM_VMOV_ADV_16		0x00000020
 #  define ARM_VMOV_A_D			0x0e100b10
 #  define ARM_VMOV_D_A			0x0e000b10
-
+#  define ARM_VCNT			0x03b00500
 #  define vodi(oi,r0)			_vodi(_jit,oi,r0)
 static void _vodi(jit_state_t*,int,int) maybe_unused;
 #  define voqi(oi,r0)			_voqi(_jit,oi,r0)
@@ -157,6 +161,8 @@ static void _cc_vors_(jit_state_t*,int,int,int,int);
 #  define vorv_(o,r0,r1)		_cc_vorv_(_jit,ARM_CC_NV,o,r0,r1)
 #  define cc_vorv_(cc,o,r0,r1)		_cc_vorv_(_jit,cc,o,r0,r1)
 static void _cc_vorv_(jit_state_t*,int,int,int,int) maybe_unused;
+#  define vo_vv(o,r0,r1)		_cc_vo_vv(_jit,ARM_CC_NV,o,r0,r1)
+static void _cc_vo_vv(jit_state_t*,int,int,int,int) maybe_unused;
 #  define vori_(o,r0,r1)		_cc_vori_(_jit,ARM_CC_NV,o,r0,r1)
 #  define cc_vori_(cc,o,r0,r1)		_cc_vori_(_jit,cc,o,r0,r1)
 static void _cc_vori_(jit_state_t*,int,int,int,int);
@@ -210,6 +216,22 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 #  define VSQRT_F32(r0,r1)		CC_VSQRT_F32(ARM_CC_AL,r0,r1)
 #  define CC_VSQRT_F64(cc,r0,r1)	cc_vo_dd(cc,ARM_VSQRT_F|ARM_V_F64,r0,r1)
 #  define VSQRT_F64(r0,r1)		CC_VSQRT_F64(ARM_CC_AL,r0,r1)
+#  define CC_VFMA_F32(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFMA,r0,r1,r2)
+#  define VFMA_F32(r0,r1,r2)		CC_VFMA_F32(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFMA_F64(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFMA|ARM_V_F64,r0,r1,r2)
+#  define VFMA_F64(r0,r1,r2)		CC_VFMA_F64(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFMS_F32(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFMS,r0,r1,r2)
+#  define VFMS_F32(r0,r1,r2)		CC_VFMS_F32(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFMS_F64(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFMS|ARM_V_F64,r0,r1,r2)
+#  define VFMS_F64(r0,r1,r2)		CC_VFMS_F64(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFNMA_F32(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFNMA,r0,r1,r2)
+#  define VFNMA_F32(r0,r1,r2)		CC_VFNMA_F32(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFNMA_F64(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFNMA|ARM_V_F64,r0,r1,r2)
+#  define VFNMA_F64(r0,r1,r2)		CC_VFNMA_F64(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFNMS_F32(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFNMS,r0,r1,r2)
+#  define VFNMS_F32(r0,r1,r2)		CC_VFNMS_F32(ARM_CC_AL,r0,r1,r2)
+#  define CC_VFNMS_F64(cc,r0,r1,r2)	cc_voddd(cc,ARM_VFNMS|ARM_V_F64,r0,r1,r2)
+#  define VFNMS_F64(r0,r1,r2)		CC_VFNMS_F64(ARM_CC_AL,r0,r1,r2)
 #  define CC_VMOV_F32(cc,r0,r1)		cc_vo_ss(cc,ARM_VMOV_F,r0,r1)
 #  define VMOV_F32(r0,r1)		CC_VMOV_F32(ARM_CC_AL,r0,r1)
 #  define CC_VMOV_F64(cc,r0,r1)		cc_vo_dd(cc,ARM_VMOV_F|ARM_V_F64,r0,r1)
@@ -320,6 +342,7 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 #  define VMOV_V_I16(r0,r1)		CC_VMOV_V_I16(ARM_CC_AL,r0,r1)
 #  define CC_VMOV_V_I32(cc,r0,r1)	cc_vori_(cc,ARM_VMOV_D_A,r1,r0)
 #  define VMOV_V_I32(r0,r1)		CC_VMOV_V_I32(ARM_CC_AL,r0,r1)
+#  define VCNT(r0,r1)			vo_vv(ARM_VCNT,r0,r1)
 #  define VADD_I8(r0,r1,r2)		voddd(ARM_VADD_I,r0,r1,r2)
 #  define VADDQ_I8(r0,r1,r2)		voqqq(ARM_VADD_I|ARM_V_Q,r0,r1,r2)
 #  define VADD_I16(r0,r1,r2)		voddd(ARM_VADD_I|ARM_V_I16,r0,r1,r2)
@@ -466,14 +489,25 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 #  define VSTRN_F64(r0,r1,i0)		CC_VSTRN_F64(ARM_CC_AL,r0,r1,i0)
 #  define CC_VSTR_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_V_F64|ARM_P,r0,r1,i0)
 #  define VSTR_F64(r0,r1,i0)		CC_VSTR_F64(ARM_CC_AL,r0,r1,i0)
+#  define vfp_popcntr(r0,r1)		_vfp_popcntr(_jit,r0,r1)
+static void _vfp_popcntr(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define vfp_movr_f(r0,r1)		_vfp_movr_f(_jit,r0,r1)
 static void _vfp_movr_f(jit_state_t*,jit_int32_t,jit_int32_t);
-#  define vfp_movr_d(r0,r1)		_vfp_movr_d(_jit,r0,r1)
-static void _vfp_movr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define vfp_movi_f(r0,i0)		_vfp_movi_f(_jit,r0,i0)
 static void _vfp_movi_f(jit_state_t*,jit_int32_t,jit_float32_t);
+#  define vfp_movr_w_f(r0, r1)		VMOV_S_A(r0, r1)
+#  define vfp_movr_f_w(r0, r1)		VMOV_A_S(r0, r1)
+#  define vfp_movi_w_f(r0, i0)		_vfp_movi_w_f(_jit, r0, i0)
+static void _vfp_movi_w_f(jit_state_t*, jit_int32_t, jit_word_t);
+#  define vfp_movr_d(r0,r1)		_vfp_movr_d(_jit,r0,r1)
+static void _vfp_movr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define vfp_movi_d(r0,i0)		_vfp_movi_d(_jit,r0,i0)
 static void _vfp_movi_d(jit_state_t*,jit_int32_t,jit_float64_t);
+#  define vfp_movr_ww_d(r0, r1, r2)	VMOV_D_AA(r0, r1, r2)
+#  define vfp_movr_d_ww(r0, r1, r2)	VMOV_AA_D(r0, r1, r2)
+static void _vfp_movr_d_ww(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_movi_ww_d(r0, i0, i1)    _vfp_movi_ww_d(_jit, r0, i0, i1)
+static void _vfp_movi_ww_d(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
 #  define vfp_extr_f(r0,r1)		_vfp_extr_f(_jit,r0,r1)
 static void _vfp_extr_f(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define vfp_extr_d(r0,r1)		_vfp_extr_d(_jit,r0,r1)
@@ -491,7 +525,31 @@ static void _vfp_truncr_d_i(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define vfp_negr_f(r0,r1)		VNEG_F32(r0,r1)
 #  define vfp_negr_d(r0,r1)		VNEG_F64(r0,r1)
 #  define vfp_sqrtr_f(r0,r1)		VSQRT_F32(r0,r1)
+#  define vfp_fmar_f(r0,r1,r2,r3)	_vfp_fmar_f(_jit,r0,r1,r2,r3)
+static void _vfp_fmar_f(jit_state_t*,
+			jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fmsr_f(r0,r1,r2,r3)	_vfp_fmsr_f(_jit,r0,r1,r2,r3)
+static void _vfp_fmsr_f(jit_state_t*,
+			jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fnmar_f(r0,r1,r2,r3)	_vfp_fnmar_f(_jit,r0,r1,r2,r3)
+static void _vfp_fnmar_f(jit_state_t*,
+			 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fnmsr_f(r0,r1,r2,r3)	_vfp_fnmsr_f(_jit,r0,r1,r2,r3)
+static void _vfp_fnmsr_f(jit_state_t*,
+			 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define vfp_sqrtr_d(r0,r1)		VSQRT_F64(r0,r1)
+#  define vfp_fmar_d(r0,r1,r2,r3)	_vfp_fmar_d(_jit,r0,r1,r2,r3)
+static void _vfp_fmar_d(jit_state_t*,
+			jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fmsr_d(r0,r1,r2,r3)	_vfp_fmsr_d(_jit,r0,r1,r2,r3)
+static void _vfp_fmsr_d(jit_state_t*,
+			jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fnmar_d(r0,r1,r2,r3)	_vfp_fnmar_d(_jit,r0,r1,r2,r3)
+static void _vfp_fnmar_d(jit_state_t*,
+			 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define vfp_fnmsr_d(r0,r1,r2,r3)	_vfp_fnmsr_d(_jit,r0,r1,r2,r3)
+static void _vfp_fnmsr_d(jit_state_t*,
+			 jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define vfp_addr_f(r0,r1,r2)		VADD_F32(r0,r1,r2)
 #  define vfp_addi_f(r0,r1,i0)		_vfp_addi_f(_jit,r0,r1,i0)
 static void _vfp_addi_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_float32_t);
@@ -790,6 +848,10 @@ static void _vfp_ldxr_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 static void _vfp_ldxi_f(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #  define vfp_ldxi_d(r0,r1,i0)		_vfp_ldxi_d(_jit,r0,r1,i0)
 static void _vfp_ldxi_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define vfp_unldr_x(r0, r1, i0)	_vfp_unldr_x(_jit, r0, r1, i0)
+static void _vfp_unldr_x(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define vfp_unldi_x(r0, i0, i1)	_vfp_unldi_x(_jit, r0, i0, i1)
+static void _vfp_unldi_x(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
 #  define vfp_str_f(r0,r1)		VSTR_F32(r1,r0,0)
 #  define vfp_str_d(r0,r1)		VSTR_F64(r1,r0,0)
 #  define vfp_sti_f(i0,r0)		_vfp_sti_f(_jit,i0,r0)
@@ -804,6 +866,10 @@ static void _vfp_stxr_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 static void _vfp_stxi_f(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 #  define vfp_stxi_d(i0,r0,r1)		_vfp_stxi_d(_jit,i0,r0,r1)
 static void _vfp_stxi_d(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#define vfp_unstr_x(r0, r1, i0)		_vfp_unstr_x(_jit, r0, r1, i0)
+static void _vfp_unstr_x(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define vfp_unsti_x(i0, r0, i1)		_vfp_unsti_x(_jit, i0, r0, i1)
+static void _vfp_unsti_x(jit_state_t*, jit_word_t, jit_int32_t, jit_word_t);
 #  define vfp_vaarg_d(r0, r1)		_vfp_vaarg_d(_jit, r0, r1)
 static void _vfp_vaarg_d(jit_state_t*, jit_int32_t, jit_int32_t);
 #endif
@@ -1062,6 +1128,21 @@ _cc_vorv_(jit_state_t *_jit, int cc, int o, int r0, int r1)
 }
 
 static void
+_cc_vo_vv(jit_state_t *_jit, int cc, int o, int r0, int r1)
+{
+    jit_thumb_t	thumb;
+    assert(!(cc & 0x0fffffff));
+    assert(!(o  & 0xf000f00f));
+    r0 = vfp_regno(r0);
+    r1 = vfp_regno(r1);
+    thumb.i = cc|o|(_u4(r1)<<12)|_u4(r0);
+    if (jit_thumb_p())
+	iss(thumb.s[0], thumb.s[1]);
+    else
+	ii(thumb.i);
+}
+
+static void
 _cc_vori_(jit_state_t *_jit, int cc, int o, int r0, int r1)
 {
     jit_thumb_t	thumb;
@@ -1205,41 +1286,23 @@ _cc_vorsl(jit_state_t *_jit, int cc, int o, int r0, int r1, int i0)
 }
 
 static void
-_vfp_movr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_vfp_popcntr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    if (r0 != r1) {
-	if (jit_fpr_p(r1)) {
-	    if (jit_fpr_p(r0))
-		VMOV_F32(r0, r1);
-	    else
-		VMOV_A_S(r0, r1);
-	}
-	else if (jit_fpr_p(r0))
-	    VMOV_S_A(r0, r1);
-	else
-	    movr(r0, r1);
-    }
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_fpr);
+    VMOV_S_A(rn(reg), r1);
+    VCNT(rn(reg), rn(reg));
+    VADD_I8(rn(reg), rn(reg), rn(reg));
+    VMOV_A_S(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 
 static void
-_vfp_movr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+_vfp_movr_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    if (r0 != r1) {
-	if (jit_fpr_p(r1)) {
-	    if (jit_fpr_p(r0))
-		VMOV_F64(r0, r1);
-	    else
-		VMOV_AA_D(r0, r0 + 1, r1);
-	}
-	else if (jit_fpr_p(r0))
-	    VMOV_D_AA(r0, r1, r1 + 1);
-	else {
-	    /* minor consistency check */
-	    assert(r0 + 1 != r1 && r0 -1 != r1);
-	    movr(r0, r1);
-	    movr(r0 + 1, r1 + 1);
-	}
-    }
+    assert(jit_fpr_p(r0) && jit_fpr_p(r1));
+    if (r0 != r1)
+	VMOV_F32(r0, r1);
 }
 
 static void
@@ -1252,22 +1315,50 @@ _vfp_movi_f(jit_state_t *_jit, jit_int32_t r0, jit_float32_t i0)
     jit_int32_t		reg;
     jit_int32_t		code;
     u.f = i0;
-    if (jit_fpr_p(r0)) {
-	/* float arguments are packed, for others,
-	 * lightning only address even registers */
-	if (!(r0 & 1) && (r0 - 32) >= 0 &&
-	    ((code = encode_vfp_double(1, 0, u.i, u.i)) != -1 ||
-	     (code = encode_vfp_double(1, 1, ~u.i, ~u.i)) != -1))
-	    VIMM(code, r0);
-	else {
-	    reg = jit_get_reg(jit_class_gpr);
-	    movi(rn(reg), u.i);
-	    VMOV_S_A(r0, rn(reg));
-	    jit_unget_reg(reg);
-	}
+    assert(jit_fpr_p(r0));
+    /* float arguments are packed, for others,
+     * lightning only address even registers */
+    if (!(r0 & 1) && (r0 - 32) >= 0 &&
+	((code = encode_vfp_double(1, 0, u.i, u.i)) != -1 ||
+	 (code = encode_vfp_double(1, 1, ~u.i, ~u.i)) != -1))
+	VIMM(code, r0);
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), u.i);
+	VMOV_S_A(r0, rn(reg));
+	jit_unget_reg(reg);
     }
-    else
-	movi(r0, u.i);
+}
+
+static void
+_vfp_movr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
+{
+    assert(jit_fpr_p(r0) && jit_fpr_p(r1));
+    if (r0 != r1)
+	VMOV_F64(r0, r1);
+}
+
+static void
+_vfp_movi_w_f(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t                reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    vfp_movr_w_f(r0, rn(reg));
+    jit_unget_reg(reg);
+}
+
+static void
+_vfp_movi_ww_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t                t0, t1;
+    t0 = jit_get_reg(jit_class_gpr);
+    t1 = jit_get_reg(jit_class_gpr);
+    movi(rn(t0), i0);
+    movi(rn(t1), i1);
+    vfp_movr_ww_d(r0, rn(t0), rn(t1));
+    jit_unget_reg(t1);
+    jit_unget_reg(t0);
 }
 
 static void
@@ -1280,23 +1371,23 @@ _vfp_movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
     jit_int32_t		code;
     jit_int32_t		rg0, rg1;
     u.d = i0;
-    if (jit_fpr_p(r0)) {
-	if ((code = encode_vfp_double(1, 0, u.i[0], u.i[1])) != -1 ||
-	    (code = encode_vfp_double(1, 1, ~u.i[0], ~u.i[1])) != -1)
-	    VIMM(code, r0);
-	else {
-	    rg0 = jit_get_reg(jit_class_gpr);
-	    rg1 = jit_get_reg(jit_class_gpr);
-	    movi(rn(rg0), u.i[0]);
-	    movi(rn(rg1), u.i[1]);
-	    VMOV_D_AA(r0, rn(rg0), rn(rg1));
-	    jit_unget_reg(rg1);
-	    jit_unget_reg(rg0);
-	}
-    }
+#  if __BYTE_ORDER == __BIG_ENDIAN
+    code = u.i[0];
+    u.i[0] = u.i[1];
+    u.i[1] = code;
+#  endif
+    assert(jit_fpr_p(r0));
+    if ((code = encode_vfp_double(1, 0, u.i[0], u.i[1])) != -1 ||
+	(code = encode_vfp_double(1, 1, ~u.i[0], ~u.i[1])) != -1)
+	VIMM(code, r0);
     else {
-	movi(r0, u.i[0]);
-	movi(r0 + 1, u.i[1]);
+	rg0 = jit_get_reg(jit_class_gpr);
+	rg1 = jit_get_reg(jit_class_gpr);
+	movi(rn(rg0), u.i[0]);
+	movi(rn(rg1), u.i[1]);
+	VMOV_D_AA(r0, rn(rg0), rn(rg1));
+	jit_unget_reg(rg1);
+	jit_unget_reg(rg0);
     }
 }
 
@@ -1414,6 +1505,254 @@ _vfp_truncr_d_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     }
     VMOV_A_S32(r0, rn(reg));
     jit_unget_reg(reg);
+}
+
+static void
+_vfp_fmar_f(jit_state_t *_jit,
+	    jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_f(r0, r1);
+	    VFMA_F32(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_f(rn(t0), r1);
+	    VFMA_F32(rn(t0), r2, r3);
+	    vfp_movr_f(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+    }
+    else {
+	if (r0 != r3) {
+	    vfp_mulr_f(r0, r1, r2);
+	    vfp_addr_f(r0, r0, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_mulr_f(rn(t0), r1, r2);
+	    vfp_addr_f(r0, rn(t0), r3);
+	    jit_unget_reg(t0);
+	}
+    }
+}
+
+static void
+_vfp_fmsr_f(jit_state_t *_jit,
+	    jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_f(r0, r1);
+	    VFMS_F32(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_f(rn(t0), r1);
+	    VFMS_F32(rn(t0), r2, r3);
+	    vfp_movr_f(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+	vfp_negr_f(r0, r0);
+    }
+    else {
+	if (r0 != r3) {
+	    vfp_mulr_f(r0, r1, r2);
+	    vfp_subr_f(r0, r0, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_mulr_f(rn(t0), r1, r2);
+	    vfp_subr_f(r0, rn(t0), r3);
+	    jit_unget_reg(t0);
+	}
+    }
+}
+
+static void
+_vfp_fnmar_f(jit_state_t *_jit,
+	     jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_f(r0, r1);
+	    VFNMA_F32(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_f(rn(t0), r1);
+	    VFNMA_F32(rn(t0), r2, r3);
+	    vfp_movr_f(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	vfp_negr_f(rn(t0), r1);
+	vfp_mulr_f(rn(t0), rn(t0), r2);
+	vfp_subr_f(r0, rn(t0), r3);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_vfp_fnmsr_f(jit_state_t *_jit,
+	     jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_f(r0, r1);
+	    VFNMS_F32(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_f(rn(t0), r1);
+	    VFNMS_F32(rn(t0), r2, r3);
+	    vfp_movr_f(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+	vfp_negr_f(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	vfp_negr_f(rn(t0), r1);
+	vfp_mulr_f(rn(t0), rn(t0), r2);
+	vfp_addr_f(r0, rn(t0), r3);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_vfp_fmar_d(jit_state_t *_jit,
+	    jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_d(r0, r1);
+	    VFMA_F64(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_d(rn(t0), r1);
+	    VFMA_F64(rn(t0), r2, r3);
+	    vfp_movr_d(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+    }
+    else {
+	if (r0 != r3) {
+	    vfp_mulr_d(r0, r1, r2);
+	    vfp_addr_d(r0, r0, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_mulr_d(rn(t0), r1, r2);
+	    vfp_addr_d(r0, rn(t0), r3);
+	    jit_unget_reg(t0);
+	}
+    }
+}
+
+static void
+_vfp_fmsr_d(jit_state_t *_jit,
+	    jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_d(r0, r1);
+	    VFMS_F64(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_d(rn(t0), r1);
+	    VFMS_F64(rn(t0), r2, r3);
+	    vfp_movr_d(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+	vfp_negr_d(r0, r0);
+    }
+    else {
+	if (r0 != r3) {
+	    vfp_mulr_d(r0, r1, r2);
+	    vfp_subr_d(r0, r0, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_mulr_d(rn(t0), r1, r2);
+	    vfp_subr_d(r0, rn(t0), r3);
+	    jit_unget_reg(t0);
+	}
+    }
+}
+
+static void
+_vfp_fnmar_d(jit_state_t *_jit,
+	     jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_d(r0, r1);
+	    VFNMA_F64(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_d(rn(t0), r1);
+	    VFNMA_F64(rn(t0), r2, r3);
+	    vfp_movr_d(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	vfp_negr_d(rn(t0), r1);
+	vfp_mulr_d(rn(t0), rn(t0), r2);
+	vfp_subr_d(r0, rn(t0), r3);
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_vfp_fnmsr_d(jit_state_t *_jit,
+	     jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    /* untested */
+    if (0 && jit_cpu.vfp >= 4) {
+	if (r0 != r2 && r0 != r3) {
+	    vfp_movr_d(r0, r1);
+	    VFNMS_F64(r0, r2, r3);
+	}
+	else {
+	    t0 = jit_get_reg(jit_class_fpr);
+	    vfp_movr_d(rn(t0), r1);
+	    VFNMS_F64(rn(t0), r2, r3);
+	    vfp_movr_d(r0, rn(t0));
+	    jit_unget_reg(t0);
+	}
+	vfp_negr_d(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	vfp_negr_d(rn(t0), r1);
+	vfp_mulr_d(rn(t0), rn(t0), r2);
+	vfp_addr_d(r0, rn(t0), r3);
+	jit_unget_reg(t0);
+    }
 }
 
 #  define fopi(name)							\
@@ -2176,6 +2515,107 @@ _vfp_ldxi_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 }
 
 static void
+_vfp_unldr_x(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		t0, r2;
+    jit_int32_t		t1, r3;
+    assert(i0 == 4 || i0 == 8);
+    if (jit_vfp_unaligned_p()) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	if (i0 == 4) {
+	    if (jit_unaligned_p())
+		unldr(r2, r1, 4);
+	    else
+		ldr(r2, r1);
+	    vfp_movr_w_f(r0, r2);
+	}
+	else {
+	    t1 = jit_get_reg(jit_class_gpr);
+	    r3 = rn(t1);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	    if (jit_unaligned_p()) {
+		unldr(r2, r1, 4);
+		addi(r3, r1, 4);
+		unldr(r3, r3, 4);
+	    }
+	    else {
+		ldr(r2, r1);
+		ldxi(r3, r1, 4);
+	    }
+#else
+	    if (jit_unaligned_p()) {
+		unldr(r3, r1, 4);
+		addi(r2, r1, 4);
+		unldr(r2, r2, 4);
+	    }
+	    else {
+		ldr(r3, r1);
+		ldxi(r2, r1, 4);
+	    }
+#endif
+	    vfp_movr_ww_d(r0, r2, r3);
+	    jit_unget_reg(t1);
+	}
+	jit_unget_reg(t0);
+    }
+    else {
+	if (i0 == 4)
+	    vfp_ldr_f(r0, r1);
+	else
+	    vfp_ldr_d(r0, r1);
+    }
+}
+
+static void
+_vfp_unldi_x(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+   jit_int32_t		t0, r2;
+    jit_int32_t		t1, r3;
+    assert(i1 == 4 || i1 == 8);
+    if (jit_vfp_unaligned_p()) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	if (i1 == 4) {
+	    unldi(r2, i0, 4);
+	    vfp_movr_w_f(r0, r2);
+	}
+	else {
+	    t1 = jit_get_reg(jit_class_gpr);
+	    r3 = rn(t1);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	    if (jit_unaligned_p()) {
+		unldi(r2, i0, 4);
+		unldi(r3, i0 + 4, 4);
+	    }
+	    else {
+		ldi(r2, i0);
+		ldi(r3, i0 + 4);
+	    }
+#else
+	    if (jit_unaligned_p()) {
+		unldi(r3, i0, 4);
+		unldi(r2, i0 + 4, 4);
+	    }
+	    else {
+		ldi(r3, i0);
+		ldi(r2, i0 + 4);
+	    }
+#endif
+	    vfp_movr_ww_d(r0, r3, r2);
+	    jit_unget_reg(t1);
+	}
+	jit_unget_reg(t0);
+    }
+    else {
+	if (i0 == 4)
+	    vfp_ldi_f(r0, i0);
+	else
+	    vfp_ldi_d(r0, i0);
+    }
+}
+
+static void
 _vfp_sti_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0)
 {
     jit_int32_t		reg;
@@ -2301,6 +2741,110 @@ _vfp_stxi_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 	str_i(rn(reg), r1);
 	stxi_i(4, rn(reg), r1 + 1);
 	jit_unget_reg(reg);
+    }
+}
+
+static void
+_vfp_unstr_x(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		t0, r2;
+    jit_int32_t		t1, r3;
+    assert(i0 == 4 || i0 == 8);
+    if (jit_vfp_unaligned_p()) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	if (i0 == 4) {
+	    vfp_movr_f_w(r2, r1);
+	    if (jit_unaligned_p())
+		unstr(r0, r2, 4);
+	    else
+		str(r0, r2);
+	}
+	else {
+	    t1 = jit_get_reg(jit_class_gpr);
+	    r3 = rn(t1);
+	    vfp_movr_d_ww(r2, r3, r1);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	    if (jit_unaligned_p()) {
+		unstr(r0, r2, 4);
+		addi(r2, r0, 4);
+		unstr(r2, r3, 4);
+	    }
+	    else {
+		str(r0, r2);
+		stxi(4, r0, r3);
+	    }
+#else
+	    if (jit_unaligned_p()) {
+		unstr(r0, r3, 4);
+		addi(r3, r0, 4);
+		unstr(r3, r2, 4);
+	    }
+	    else {
+		str(r0, r3);
+		stxi(4, r0, r2);
+	    }
+#endif
+	    jit_unget_reg(t1);
+	}
+	jit_unget_reg(t0);
+    }
+    else {
+	if (i0 == 4)
+	    vfp_str_f(r0, r1);
+	else
+	    vfp_str_d(r0, r1);
+    }
+}
+
+static void
+_vfp_unsti_x(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
+{
+    jit_int32_t		t0, r2;
+    jit_int32_t		t1, r3;
+    assert(i1 == 4 || i1 == 8);
+    if (jit_vfp_unaligned_p()) {
+	t0 = jit_get_reg(jit_class_gpr);
+	r2 = rn(t0);
+	if (i1 == 4) {
+	    vfp_movr_f_w(r2, r0);
+	    if (jit_unaligned_p())
+		unsti(i0, r2, 4);
+	    else
+		sti(i0, r2);
+	}
+	else {
+	    t1 = jit_get_reg(jit_class_gpr);
+	    r3 = rn(t1);
+	    vfp_movr_d_ww(r2, r3, r0);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	    if (jit_unaligned_p()) {
+		unsti(i0, r3, 4);
+		unsti(i0 + 4, r2, 4);
+	    }
+	    else {
+		sti(i0, r3);
+		sti(i0 + 4, r2);
+	    }
+#else
+	    if (jit_unaligned_p()) {
+		unsti(i0, r2, 4);
+		unsti(i0 + 4, r3, 4);
+	    }
+	    else {
+		sti(i0, r2);
+		sti(i0 + 4, r3);
+	    }
+#endif
+	    jit_unget_reg(t1);
+	}
+	jit_unget_reg(t0);
+    }
+    else {
+	if (i1 == 4)
+	    vfp_sti_f(i0, r0);
+	else
+	    vfp_sti_d(i0, r0);
     }
 }
 

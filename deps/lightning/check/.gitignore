@@ -2,6 +2,7 @@
 nodata
 *.log
 *.trs
+*.x87
 
 3to2
 bswap
@@ -18,18 +19,21 @@ alu_mul
 alu_neg
 alu_or
 alu_rem
+alu_rot
 alu_rsb
 alu_rsh
 alu_sub
 alu_xor
 alux_add
 alux_sub
+bit
 bp
 branch
 call
 carg
 carry
 catomic
+cbit
 ccall
 clobber
 ctramp
@@ -40,6 +44,7 @@ fib
 float
 fop_abs
 fop_sqrt
+gen_cbit
 hton
 jmpr
 ldsti
@@ -52,11 +57,15 @@ ldstxr-c
 lightning
 live
 movzr
+popcnt
+protect
 put
 qalu_div
 qalu_mul
 range
 ranger
+rbit
+riprel
 ret
 rpn
 self
@@ -65,3 +74,4 @@ stack
 tramp
 va_list
 varargs
+cbit.c

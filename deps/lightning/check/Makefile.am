@@ -18,7 +18,7 @@ AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include \
 	-D_GNU_SOURCE $(LIGHTNING_CFLAGS)
 
 check_PROGRAMS = lightning ccall self setcode nodata ctramp carg cva_list \
-	catomic protect riprel
+	catomic protect riprel cbit callee
 
 lightning_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
 lightning_SOURCES = lightning.c
@@ -53,6 +53,26 @@ protect_SOURCES = protect.c
 riprel_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
 riprel_SOURCES = riprel.c
 
+# Actually, gcc 4.1.2 does not like unknown -Wno-option and errors out;
+# better to just have warnings.
+if cpu_ia64
+cbit_CFLAGS = $(AM_CFLAGS) -fwrapv
+else
+cbit_CFLAGS = $(AM_CFLAGS) -fwrapv -Wno-overflow -Wno-integer-overflow \
+	-Wno-shift-count-overflow
+endif
+cbit_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
+cbit_SOURCES = cbit.c
+
+callee_LDADD = $(top_builddir)/lib/liblightning.la -lm $(SHLIB)
+callee_SOURCES = callee.c
+
+noinst_PROGRAMS = gen_cbit
+gen_cbit_SOURCES = gen_cbit.c
+
+cbit.c:		gen_cbit
+	$(top_builddir)/check/gen_cbit > cbit.c
+
 $(top_builddir)/lib/liblightning.la:
 	cd $(top_builddir)/lib; $(MAKE) $(AM_MAKEFLAGS) liblightning.la
 
@@ -74,6 +94,7 @@ EXTRA_DIST =				\
 	ldstr-c.tst	ldstr-c.ok	\
 	ldstxr-c.tst	ldstxr-c.ok	\
 	ldstxi-c.tst	ldstxi-c.ok	\
+	ext.tst		ext.ok		\
 	cvt.tst		cvt.ok		\
 	hton.tst	hton.ok		\
 	bswap.tst	bswap.ok	\
@@ -85,6 +106,7 @@ EXTRA_DIST =				\
 	alux_sub.tst	alux_sub.ok	\
 	alu_rsb.tst	alu_rsb.ok	\
 	alu_mul.tst	alu_mul.ok	\
+	alu_hmul.tst	alu_hmul.ok	\
 	alu_div.tst	alu_div.ok	\
 	alu_rem.tst	alu_rem.ok	\
 	alu_and.tst	alu_and.ok	\
@@ -94,6 +116,7 @@ EXTRA_DIST =				\
 	alu_rsh.tst	alu_rsh.ok	\
 	alu_com.tst	alu_com.ok	\
 	alu_neg.tst	alu_neg.ok	\
+	alu_rot.tst	alu_rot.ok	\
 	movzr.tst	movzr.ok	\
 	fop_abs.tst	fop_abs.ok	\
 	fop_sqrt.tst	fop_sqrt.ok	\
@@ -103,12 +126,14 @@ EXTRA_DIST =				\
 	carry.tst	carry.ok	\
 	call.tst	call.ok		\
 	float.tst	float.ok	\
+	fma.tst		fma.ok		\
 	jmpr.tst	jmpr.ok		\
 	live.tst	live.ok		\
 	put.tst		put.ok		\
 	qalu.inc			\
 	qalu_mul.tst	qalu_mul.ok	\
 	qalu_div.tst	qalu_div.ok	\
+	qalu_shift.tst	qalu_shift.ok	\
 	range.tst	range.ok	\
 	ranger.tst	ranger.ok	\
 	ret.tst		ret.ok		\
@@ -116,6 +141,10 @@ EXTRA_DIST =				\
 	tramp.tst	tramp.ok	\
 	va_list.tst	va_list.ok	\
 	bit.tst		bit.ok		\
+	rbit.tst	rbit.ok		\
+	popcnt.tst	popcnt.ok	\
+	imm.tst		imm.ok		\
+	unldst.tst	unldst.ok	\
 	check.sh			\
 	check.x87.sh			\
 	check.arm.sh	check.swf.sh	\
@@ -124,7 +153,8 @@ EXTRA_DIST =				\
 	check.nodata.sh			\
 	check.x87.nodata.sh		\
 	run-test	all.tst		\
-	collatz.tst	factorial.tst
+	collatz.tst	factorial.tst	\
+	gen_cbit.c
 
 base_TESTS =				\
 	3to2 add align allocai		\
@@ -132,21 +162,23 @@ base_TESTS =				\
 	ldstr ldsti			\
 	ldstxr ldstxi			\
 	ldstr-c ldstxr-c ldstxi-c	\
-	cvt hton bswap branch		\
+	ext cvt hton bswap branch	\
 	alu_add alux_add		\
 	alu_sub alux_sub alu_rsb	\
-	alu_mul alu_div alu_rem		\
+	alu_mul alu_hmul		\
+	alu_div alu_rem			\
 	alu_and alu_or alu_xor		\
 	alu_lsh alu_rsh			\
-	alu_com alu_neg			\
-	movzr				\
+	alu_com alu_neg	alu_rot		\
+	movzr fma			\
 	fop_abs fop_sqrt		\
 	varargs stack			\
 	clobber carry call		\
 	float jmpr live put		\
-	qalu_mul qalu_div		\
+	qalu_mul qalu_div qalu_shift	\
 	range ranger ret skip tramp	\
-	va_list bit
+	va_list bit rbit popcnt imm	\
+	unldst
 
 $(base_TESTS):	check.sh
 	$(LN_S) $(srcdir)/check.sh $@
@@ -161,19 +193,20 @@ x87_TESTS =					\
 	rpn.x87 ldstr.x87 ldsti.x87		\
 	ldstxr.x87 ldstxi.x87			\
 	ldstr-c.x87 ldstxr-c.x87 ldstxi-c.x87	\
-	cvt.x87 branch.x87			\
+	ext.x87 cvt.x87 branch.x87		\
 	alu_add.x87 alux_add.x87		\
 	alu_sub.x87 alux_sub.x87 alu_rsb.x87	\
-	alu_mul.x87 alu_div.x87 alu_rem.x87	\
+	alu_mul.x87 alu_hmul.x87		\
+	alu_div.x87 alu_rem.x87			\
 	alu_and.x87 alu_or.x87 alu_xor.x87	\
-	alu_lsh.x87 alu_rsh.x87			\
+	alu_lsh.x87 alu_rsh.x87 alu_rot.x87	\
 	alu_com.x87 alu_neg.x87			\
-	movzr.x87				\
+	movzr.x87 fma.x87			\
 	fop_abs.x87 fop_sqrt.x87		\
 	varargs.x87 stack.x87			\
 	clobber.x87 carry.x87 call.x87		\
 	float.x87 jmpr.x87 put.x87		\
-	va_list.x87
+	va_list.x87 imm.x87 unldst.x87
 $(x87_TESTS):	check.x87.sh
 	$(LN_S) $(srcdir)/check.x87.sh $@
 TESTS += $(x87_TESTS)
@@ -185,19 +218,20 @@ x87_nodata_TESTS =							\
 	rpn.x87.nodata ldstr.x87.nodata ldsti.x87.nodata		\
 	ldstxr.x87.nodata ldstxi.x87.nodata				\
 	ldstr-c.x87.nodata ldstxr-c.x87.nodata ldstxi-c.x87.nodata	\
-	cvt.x87.nodata branch.x87.nodata				\
+	ext.x87.nodata cvt.x87.nodata branch.x87.nodata			\
 	alu_add.x87.nodata alux_add.x87.nodata				\
 	alu_sub.x87.nodata alux_sub.x87.nodata alu_rsb.x87.nodata	\
-	alu_mul.x87.nodata alu_div.x87.nodata alu_rem.x87.nodata	\
+	alu_mul.x87.nodata alu_hmul.x87.nodata				\
+	alu_div.x87.nodata alu_rem.x87.nodata				\
 	alu_and.x87.nodata alu_or.x87.nodata alu_xor.x87.nodata		\
-	alu_lsh.x87.nodata alu_rsh.x87.nodata				\
+	alu_lsh.x87.nodata alu_rsh.x87.nodata alu_rot.x87.nodata	\
 	alu_com.x87.nodata alu_neg.x87.nodata				\
-	movzr.x87.nodata						\
+	movzr.x87.nodata fma.x87.nodata					\
 	fop_abs.x87.nodata fop_sqrt.x87.nodata				\
 	varargs.x87.nodata stack.x87.nodata				\
 	clobber.x87.nodata carry.x87.nodata call.x87.nodata		\
 	float.x87.nodata jmpr.x87.nodata put.x87.nodata			\
-	va_list.x87.nodata
+	va_list.x87.nodata imm.x87.nodata unldst.x87.nodata
 $(x87_nodata_TESTS):	check.x87.nodata.sh
 	$(LN_S) $(srcdir)/check.x87.nodata.sh $@
 TESTS += $(x87_nodata_TESTS)
@@ -211,19 +245,21 @@ arm_TESTS =					\
 	rpn.arm ldstr.arm ldsti.arm		\
 	ldstxr.arm ldstxi.arm			\
 	ldstr-c.arm ldstxr-c.arm ldstxi-c.arm	\
-	cvt.arm hton.arm bswap.arm branch.arm	\
-	alu_add.arm alux_add.arm		\
+	ext.arm cvt.arm hton.arm bswap.arm	\
+	branch.arm alu_add.arm alux_add.arm	\
 	alu_sub.arm alux_sub.arm alu_rsb.arm	\
-	alu_mul.arm alu_div.arm alu_rem.arm	\
+	alu_mul.arm alu_hmul.arm		\
+	 alu_div.arm alu_rem.arm		\
 	alu_and.arm alu_or.arm alu_xor.arm	\
-	alu_lsh.arm alu_rsh.arm			\
+	alu_lsh.arm alu_rsh.arm alu_rot.arm	\
 	alu_com.arm alu_neg.arm			\
-	movzr.arm				\
+	movzr.arm fma.arm			\
 	fop_abs.arm fop_sqrt.arm		\
 	varargs.arm stack.arm			\
 	clobber.arm carry.arm call.arm		\
 	float.arm jmpr.arm tramp.arm range.arm	\
-	ranger.arm put.arm va_list.arm
+	ranger.arm put.arm va_list.arm imm.arm	\
+	unldst.arm
 $(arm_TESTS):	check.arm.sh
 	$(LN_S) $(srcdir)/check.arm.sh $@
 TESTS += $(arm_TESTS)
@@ -237,19 +273,21 @@ swf_TESTS =					\
 	rpn.swf ldstr.swf ldsti.swf		\
 	ldstxr.swf ldstxi.swf			\
 	ldstr-c.swf ldstxr-c.swf ldstxi-c.swf	\
-	cvt.swf hton.swf bswap.swf branch.swf	\
-	alu_add.swf alux_add.swf		\
+	ext.swf cvt.swf hton.swf bswap.swf	\
+	branch.swf alu_add.swf alux_add.swf	\
 	alu_sub.swf alux_sub.swf alu_rsb.swf	\
-	alu_mul.swf alu_div.swf alu_rem.swf	\
+	alu_mul.swf alu_hmul.swf		\
+	 alu_div.swf alu_rem.swf		\
 	alu_and.swf alu_or.swf alu_xor.swf	\
-	alu_lsh.swf alu_rsh.swf			\
+	alu_lsh.swf alu_rsh.swf alu_rot.swf	\
 	alu_com.swf alu_neg.swf			\
-	movzr.swf				\
+	movzr.swf fma.swf			\
 	fop_abs.swf fop_sqrt.swf		\
 	varargs.swf stack.swf			\
 	clobber.swf carry.swf call.swf		\
 	float.swf jmpr.swf tramp.swf range.swf	\
-	ranger.swf put.swf va_list.swf
+	ranger.swf put.swf va_list.swf imm.swf	\
+	unldst.swf
 $(swf_TESTS):	check.swf.sh
 	$(LN_S) $(srcdir)/check.swf.sh $@
 TESTS += $(swf_TESTS)
@@ -261,19 +299,20 @@ arm_swf_TESTS =							\
 	rpn.arm.swf ldstr.arm.swf ldsti.arm.swf			\
 	ldstxr.arm.swf ldstxi.arm.swf				\
 	ldstr-c.arm.swf ldstxr-c.arm.swf ldstxi-c.arm.swf	\
-	cvt.arm.swf hton.arm.swf bswap.arm.swf branch.arm.swf	\
-	alu_add.arm.swf alux_add.arm.swf			\
+	ext.arm.swf cvt.arm.swf hton.arm.swf bswap.arm.swf	\
+	branch.arm.swf alu_add.arm.swf alux_add.arm.swf		\
 	alu_sub.arm.swf alux_sub.arm.swf alu_rsb.arm.swf	\
 	alu_mul.arm.swf alu_div.arm.swf alu_rem.arm.swf		\
 	alu_and.arm.swf alu_or.arm.swf alu_xor.arm.swf		\
-	alu_lsh.arm.swf alu_rsh.arm.swf				\
+	alu_lsh.arm.swf alu_rsh.arm.swf alu_rot.arm.swf		\
 	alu_com.arm.swf alu_neg.arm.swf				\
-	movzr.arm.swf						\
+	movzr.arm.swf fma.arm.swf				\
 	fop_abs.arm.swf fop_sqrt.arm.swf			\
 	varargs.arm.swf stack.arm.swf				\
 	clobber.arm.swf carry.arm.swf call.arm.swf		\
 	float.arm.swf jmpr.arm.swf tramp.arm.swf range.arm.swf	\
-	ranger.arm.swf put.arm.swf va_list.arm.swf
+	ranger.arm.swf put.arm.swf va_list.arm.swf imm.arm.swf	\
+	unldst.arm.swf
 $(arm_swf_TESTS):	check.arm.swf.sh
 	$(LN_S) $(srcdir)/check.arm.swf.sh $@
 TESTS += $(arm_swf_TESTS)
@@ -286,20 +325,21 @@ arm4_swf_TESTS =						\
 	rpn.arm4.swf ldstr.arm4.swf ldsti.arm4.swf		\
 	ldstxr.arm4.swf ldstxi.arm4.swf				\
 	ldstr-c.arm4.swf ldstxr-c.arm4.swf ldstxi-c.arm4.swf	\
-	cvt.arm4.swf hton.arm4.swf bswap.arm4.swf		\
+	ext.arm4.swf cvt.arm4.swf hton.arm4.swf bswap.arm4.swf	\
 	branch.arm4.swf	alu_add.arm4.swf alux_add.arm4.swf	\
 	alu_sub.arm4.swf alux_sub.arm4.swf alu_rsb.arm4.swf	\
 	alu_mul.arm4.swf alu_div.arm4.swf alu_rem.arm4.swf	\
 	alu_and.arm4.swf alu_or.arm4.swf alu_xor.arm4.swf	\
-	alu_lsh.arm4.swf alu_rsh.arm4.swf			\
+	alu_lsh.arm4.swf alu_rsh.arm4.swf alu_rot.arm4.swf	\
 	alu_com.arm4.swf alu_neg.arm4.swf			\
-	movzr.arm4.swf						\
+	movzr.arm4.swf fma.arm4.swf				\
 	fop_abs.arm4.swf fop_sqrt.arm4.swf			\
 	varargs.arm4.swf stack.arm4.swf				\
 	clobber.arm4.swf carry.arm4.swf call.arm4.swf		\
 	float.arm4.swf jmpr.arm4.swf tramp.arm4.swf		\
 	range.arm4.swf ranger.arm4.swf put.arm4.swf		\
-	va_list.arm4.swf
+	va_list.arm4.swf imm.arm4.swf				\
+	unldst.arm4.swf
 $(arm4_swf_TESTS):	check.arm4.swf.sh
 	$(LN_S) $(srcdir)/check.arm4.swf.sh $@
 TESTS += $(arm4_swf_TESTS)
@@ -314,28 +354,30 @@ nodata_TESTS =						\
 	rpn.nodata ldstr.nodata ldsti.nodata		\
 	ldstxr.nodata ldstxi.nodata			\
 	ldstr-c.nodata ldstxr-c.nodata ldstxi-c.nodata	\
-	cvt.nodata branch.nodata			\
+	ext.nodata cvt.nodata branch.nodata		\
 	alu_add.nodata alux_add.nodata			\
 	alu_sub.nodata alux_sub.nodata alu_rsb.nodata	\
-	alu_mul.nodata alu_div.nodata alu_rem.nodata	\
+	alu_mul.nodata alu_hmul.nodata			\
+	alu_div.nodata alu_rem.nodata			\
 	alu_and.nodata alu_or.nodata alu_xor.nodata	\
-	alu_lsh.nodata alu_rsh.nodata			\
+	alu_lsh.nodata alu_rsh.nodata alu_rot.nodata	\
 	alu_com.nodata alu_neg.nodata			\
-	movzr.nodata					\
+	movzr.nodata fma.nodata				\
 	fop_abs.nodata fop_sqrt.nodata			\
 	varargs.nodata stack.nodata			\
 	clobber.nodata carry.nodata call.nodata		\
 	float.nodata jmpr.nodata tramp.nodata		\
 	range.nodata ranger.nodata put.nodata		\
-	va_list.nodata bit.nodata
+	va_list.nodata bit.nodata imm.nodata		\
+	unldst.nodata
 $(nodata_TESTS):	check.nodata.sh
 	$(LN_S) $(srcdir)/check.nodata.sh $@
 TESTS += $(nodata_TESTS)
 endif
 
 TESTS += ccall self setcode nodata ctramp carg cva_list catomic \
-         protect riprel
-CLEANFILES = $(TESTS)
+         protect riprel cbit callee
+CLEANFILES = $(TESTS) gen_cbit cbit.c
 
 #TESTS_ENVIRONMENT=$(srcdir)/run-test;
 

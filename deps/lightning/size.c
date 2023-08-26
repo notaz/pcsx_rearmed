@@ -40,9 +40,14 @@ main(int argc, char *argv[])
     fclose(fp);
 
     max = 0;
-    for (offset = 0; offset < jit_code_last_code; offset++)
+    for (offset = 0; offset < jit_code_last_code; offset++) {
+#if defined(__ia64__)
+	if (_szs[offset] > 16)
+	    _szs[offset] = _szs[offset] / 3 + 16 & -16;
+#endif
 	if (max < _szs[offset])
 	    max = _szs[offset];
+    }
 
     if ((fp = fopen(JIT_SIZE_PATH, "w")) == NULL)
 	exit(-1);

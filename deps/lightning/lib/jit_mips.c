@@ -21,6 +21,18 @@
 #  include <sys/cachectl.h>
 #endif
 
+#if __mips_hard_float
+#  define __mips_soft_float		0
+#elif __mips_soft_float
+#  define __mips_hard_float		0
+#else
+/* Must have a floating point unit and cannot figure
+ * if can attempt to work with software floats
+ */
+#  define __mips_soft_float		0
+#  define __mips_hard_float		1
+#endif
+
 #if NEW_ABI
 /*   callee save				    + variadic arguments
  *   align16(ra+fp+s[0-7]++f20+f22+f24+f26+f28+f30) + align16(a[0-7]) */
@@ -176,6 +188,10 @@ static jit_int32_t fregs[] = {
 void
 jit_get_cpu(void)
 {
+    /* By default assume it works or have/need unaligned instructions. */
+    jit_cpu.sll_delay = jit_cpu.cop1_delay = jit_cpu.lwl_lwr_delay =
+	jit_cpu.unaligned = 1;
+
 #if defined(__linux__)
     FILE	*fp;
     char	*ptr;
@@ -183,9 +199,23 @@ jit_get_cpu(void)
 
     if ((fp = fopen("/proc/cpuinfo", "r")) != NULL) {
 	while (fgets(buf, sizeof(buf), fp)) {
-	    if (strncmp(buf, "isa			: ", 8) == 0) {
+	    if (strncmp(buf, "isa\t\t\t: ", 8) == 0) {
 		if ((ptr = strstr(buf + 9, "mips64r")))
 		    jit_cpu.release = strtoul(ptr + 7, NULL, 10);
+		break;
+	    }
+	    /* Just for some actual hardware tested. Below check
+	     * for mips 1 would disable these delays anyway. */
+	    if (strncmp(buf, "cpu model\t\t: ", 13) == 0) {
+		/* ICT Loongson-2 V0.3  FPU V0.1 */
+		if (strstr(buf + 13, "FPU V0.1"))
+		  jit_cpu.sll_delay = jit_cpu.cop1_delay = 0;
+		/* Cavium Octeon III V0.2  FPU V0.0 */
+		else if (strstr(buf + 13, "FPU V0.0"))
+		  jit_cpu.sll_delay = jit_cpu.cop1_delay = 0;
+		/* Cavium Octeon II V0.1 */
+		else if (strstr(buf + 13, " II "))
+		  jit_cpu.sll_delay = jit_cpu.cop1_delay = 0;
 		break;
 	    }
 	}
@@ -202,6 +232,19 @@ jit_get_cpu(void)
     if (!jit_cpu.release)
 	jit_cpu.release = __mips;
 #endif
+    /* Assume all mips 1 and 2, or detected as release 1 or 2 have this
+     *  problem */
+    /* Note that jit_cpu is global, and can be overriden, that is, add
+     * the C code "jit_cpu.cop1_delay = 1;" after the call to init_jit()
+     * if it is functional. */
+    if (jit_cpu.cop1_delay && jit_cpu.release < 3)
+	jit_cpu.cop1_delay = 0;
+    if (jit_cpu.sll_delay && jit_cpu.release < 3)
+	jit_cpu.sll_delay = 0;
+    if (jit_cpu.lwl_lwr_delay && jit_cpu.release < 2)
+	jit_cpu.lwl_lwr_delay = 0;
+    if (jit_cpu.release >= 6)
+	jit_cpu.unaligned = 0;
 }
 
 void
@@ -332,10 +375,16 @@ void
 _jit_retr_f(jit_state_t *_jit, jit_int32_t u)
 {
     jit_inc_synth_w(retr_f, u);
+#if __mips_soft_float
+#  warning *** GNU Lightning will use hard float registers! ***
+#  warning *** Are you sure about -msoft-float usage?       ***
+    jit_movr_f_w(JIT_RET, u);
+#else
     if (JIT_FRET != u)
 	jit_movr_f(JIT_FRET, u);
     else
 	jit_live(JIT_FRET);
+#endif
     jit_ret();
     jit_dec_synth();
 }
@@ -344,7 +393,11 @@ void
 _jit_reti_f(jit_state_t *_jit, jit_float32_t u)
 {
     jit_inc_synth_f(reti_f, u);
+#if __mips_soft_float
+    jit_movi_f_w(JIT_RET, u);
+#else
     jit_movi_f(JIT_FRET, u);
+#endif
     jit_ret();
     jit_dec_synth();
 }
@@ -353,10 +406,14 @@ void
 _jit_retr_d(jit_state_t *_jit, jit_int32_t u)
 {
     jit_inc_synth_w(retr_d, u);
+#if __mips_soft_float
+    jit_movr_d_w(JIT_RET, u);
+#else
     if (JIT_FRET != u)
 	jit_movr_d(JIT_FRET, u);
     else
 	jit_live(JIT_FRET);
+#endif
     jit_ret();
     jit_dec_synth();
 }
@@ -365,7 +422,11 @@ void
 _jit_reti_d(jit_state_t *_jit, jit_float64_t u)
 {
     jit_inc_synth_d(reti_d, u);
+#if __mips_soft_float
+    jit_movi_d_w(JIT_RET, u);
+#else
     jit_movi_d(JIT_FRET, u);
+#endif
     jit_ret();
     jit_dec_synth();
 }
@@ -427,7 +488,8 @@ _jit_make_arg_f(jit_state_t *_jit, jit_node_t *node)
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->self.argi)) {
 	offset = _jitc->function->self.argi++;
-	if (_jitc->function->self.call & jit_call_varargs)
+	if (__mips_soft_float ||
+	    (_jitc->function->self.call & jit_call_varargs))
 	    offset += 8;
     }
     else {
@@ -470,7 +532,8 @@ _jit_make_arg_d(jit_state_t *_jit, jit_node_t *node)
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->self.argi)) {
 	offset = _jitc->function->self.argi++;
-	if (_jitc->function->self.call & jit_call_varargs)
+	if (__mips_soft_float ||
+	    (_jitc->function->self.call & jit_call_varargs))
 	    offset += 8;
     }
     else {
@@ -809,7 +872,7 @@ _jit_getarg_d(jit_state_t *_jit, jit_int32_t u, jit_node_t *v)
     if (jit_arg_reg_p(v->u.w))
 	jit_movr_d(u, _F12 - v->u.w);
     else if (jit_arg_reg_p(v->u.w - 8))
-	jit_movr_d_w(_A0 - (v->u.w - 8), u);
+	jit_movr_w_d(u, _A0 - (v->u.w - 8));
 #else
     if (v->u.w < 4)
 	jit_movr_ww_d(u, _A0 - v->u.w, _A0 - (v->u.w + 1));
@@ -964,7 +1027,8 @@ _jit_pushargr_f(jit_state_t *_jit, jit_int32_t u)
     jit_link_prepare();
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->call.argi)) {
-	if (!(_jitc->function->call.call & jit_call_varargs))
+	if (__mips_hard_float &&
+	    !(_jitc->function->call.call & jit_call_varargs))
 	    jit_movr_f(_F12 - _jitc->function->call.argi, u);
 	else
 	    jit_movr_f_w(_A0 - _jitc->function->call.argi, u);
@@ -1007,7 +1071,8 @@ _jit_pushargi_f(jit_state_t *_jit, jit_float32_t u)
     jit_link_prepare();
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->call.argi)) {
-	if (!(_jitc->function->call.call & jit_call_varargs))
+	if (__mips_hard_float &&
+	    !(_jitc->function->call.call & jit_call_varargs))
 	    jit_movi_f(_F12 - _jitc->function->call.argi, u);
 	else
 	    jit_movi_f_w(_A0 - _jitc->function->call.argi, u);
@@ -1056,7 +1121,8 @@ _jit_pushargr_d(jit_state_t *_jit, jit_int32_t u)
     jit_link_prepare();
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->call.argi)) {
-	if (!(_jitc->function->call.call & jit_call_varargs))
+	if (__mips_hard_float &&
+	    !(_jitc->function->call.call & jit_call_varargs))
 	    jit_movr_d(_F12 - _jitc->function->call.argi, u);
 	else
 	    jit_movr_d_w(_A0 - _jitc->function->call.argi, u);
@@ -1106,7 +1172,8 @@ _jit_pushargi_d(jit_state_t *_jit, jit_float64_t u)
     jit_link_prepare();
 #if NEW_ABI
     if (jit_arg_reg_p(_jitc->function->call.argi)) {
-	if (!(_jitc->function->call.call & jit_call_varargs))
+	if (__mips_hard_float &&
+	    !(_jitc->function->call.call & jit_call_varargs))
 	    jit_movi_d(_F12 - _jitc->function->call.argi, u);
 	else
 	    jit_movi_d_w(_A0 - _jitc->function->call.argi, u);
@@ -1219,65 +1286,91 @@ _jit_finishi(jit_state_t *_jit, jit_pointer_t i0)
 void
 _jit_retval_c(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_c, r0);
     jit_extr_c(r0, JIT_RET);
+    jit_dec_synth();
 }
 
 void
 _jit_retval_uc(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_uc, r0);
     jit_extr_uc(r0, JIT_RET);
+    jit_dec_synth();
 }
 
 void
 _jit_retval_s(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_s, r0);
     jit_extr_s(r0, JIT_RET);
+    jit_dec_synth();
 }
 
 void
 _jit_retval_us(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_us, r0);
     jit_extr_us(r0, JIT_RET);
+    jit_dec_synth();
 }
 
 void
 _jit_retval_i(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_i, r0);
 #if __WORDSIZE == 32
     if (r0 != JIT_RET)
 	jit_movr(r0, JIT_RET);
 #else
     jit_extr_i(r0, JIT_RET);
 #endif
+    jit_dec_synth();
 }
 
 #if __WORDSIZE == 64
 void
 _jit_retval_ui(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_ui, r0);
     jit_extr_ui(r0, JIT_RET);
+    jit_dec_synth();
 }
 
 void
 _jit_retval_l(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_l, r0);
     if (r0 != JIT_RET)
 	jit_movr(r0, JIT_RET);
+    jit_dec_synth();
 }
 #endif
 
 void
 _jit_retval_f(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_f, r0);
+#if __mips_soft_float
+    jit_movr_w_f(r0, JIT_RET);
+#else
     if (r0 != JIT_FRET)
 	jit_movr_f(r0, JIT_FRET);
+#endif
+    jit_dec_synth();
 }
 
 void
 _jit_retval_d(jit_state_t *_jit, jit_int32_t r0)
 {
+    jit_inc_synth_w(retval_d, r0);
+#if __mips_soft_float
+    jit_movr_w_d(r0, JIT_RET);
+#else
     if (r0 != JIT_FRET)
 	jit_movr_d(r0, JIT_FRET);
+#endif
+    jit_dec_synth();
 }
 
 jit_pointer_t
@@ -1303,6 +1396,7 @@ _emit_code(jit_state_t *_jit)
 #endif
 
     _jitc->function = NULL;
+    _jitc->inst.pend = 0;
 
     jit_reglive_setup();
 
@@ -1340,6 +1434,12 @@ _emit_code(jit_state_t *_jit)
 		name##i##type(rn(node->u.q.l), rn(node->u.q.h),		\
 			      rn(node->v.w), node->w.w);		\
 		break
+#define case_rqr(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w), rn(node->v.q.l),		\
+			      rn(node->v.q.h), rn(node->w.w));		\
+	    case jit_code_##name##i##type:				\
+		break;
 #define case_rrf(name, type, size)					\
 	    case jit_code_##name##i##type:				\
 		assert(node->flag & jit_flag_data);			\
@@ -1402,6 +1502,10 @@ _emit_code(jit_state_t *_jit)
 #if DEVEL_DISASSEMBLER
 	node->offset = (jit_uword_t)_jit->pc.w - (jit_uword_t)prevw;
 	prevw = _jit->pc.w;
+	if (_jitc->inst.pend) {
+	    node->offset += 4;
+	    prevw += 4;
+	}
 #endif
 	value = jit_classify(node->code);
 #if GET_JIT_SIZE
@@ -1447,6 +1551,10 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(rsb,);
 		case_rrr(mul,);
 		case_rrw(mul,);
+		case_rrr(hmul,);
+		case_rrw(hmul,);
+		case_rrr(hmul, _u);
+		case_rrw(hmul, _u);
 		case_rrrr(qmul,);
 		case_rrrw(qmul,);
 		case_rrrr(qmul, _u);
@@ -1465,10 +1573,22 @@ _emit_code(jit_state_t *_jit)
 		case_rrw(rem, _u);
 		case_rrr(lsh,);
 		case_rrw(lsh,);
+		case_rrrr(qlsh,);
+		case_rrrw(qlsh,);
+		case_rrrr(qlsh, _u);
+		case_rrrw(qlsh, _u);
 		case_rrr(rsh,);
 		case_rrw(rsh,);
 		case_rrr(rsh, _u);
 		case_rrw(rsh, _u);
+		case_rrrr(qrsh,);
+		case_rrrw(qrsh,);
+		case_rrrr(qrsh, _u);
+		case_rrrw(qrsh, _u);
+		case_rrr(lrot,);
+		case_rrw(lrot,);
+		case_rrr(rrot,);
+		case_rrw(rrot,);
 		case_rrr(and,);
 		case_rrw(and,);
 		case_rrr(or,);
@@ -1513,6 +1633,18 @@ _emit_code(jit_state_t *_jit)
 		case_rrr(ldx, _l);
 		case_rrw(ldx, _l);
 #endif
+	    case jit_code_unldr:
+		unldr(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unldi:
+		unldi(rn(node->u.w), node->v.w, node->w.w);
+		break;
+	    case jit_code_unldr_u:
+		unldr_u(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unldi_u:
+		unldi_u(rn(node->u.w), node->v.w, node->w.w);
+		break;
 		case_rr(st, _c);
 		case_wr(st, _c);
 		case_rr(st, _s);
@@ -1533,6 +1665,12 @@ _emit_code(jit_state_t *_jit)
 		case_rrr(stx, _l);
 		case_wrr(stx, _l);
 #endif
+	    case jit_code_unstr:
+		unstr(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unsti:
+		unsti(node->u.w, rn(node->v.w), node->w.w);
+		break;
 		case_rr(hton, _us);
 		case_rr(hton, _ui);
 #if __WORDSIZE == 64
@@ -1543,6 +1681,18 @@ _emit_code(jit_state_t *_jit)
 #if __WORDSIZE == 64
 		case_rr(bswap, _ul);
 #endif
+	    case jit_code_extr:
+		extr(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_extr_u:
+		extr_u(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_depr:
+		depr(rn(node->u.w), rn(node->v.w), node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_depi:
+		depi(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
+		break;
 		case_rr(ext, _c);
 		case_rr(ext, _uc);
 		case_rr(ext, _s);
@@ -1585,6 +1735,9 @@ _emit_code(jit_state_t *_jit)
 		case_rr(clz,);
 		case_rr(cto,);
 		case_rr(ctz,);
+		case_rr(rbit,);
+#define popcntr(r0, r1)	fallback_popcnt(r0, r1)
+		case_rr(popcnt,);
 		case_rrr(lt,);
 		case_rrw(lt,);
 		case_rrr(lt, _u);
@@ -1657,15 +1810,31 @@ _emit_code(jit_state_t *_jit)
 		case_rr(abs, _f);
 		case_rr(neg, _f);
 		case_rr(sqrt, _f);
+		case_rqr(fma, _f);
+		case_rqr(fms, _f);
+		case_rqr(fnma, _f);
+		case_rqr(fnms, _f);
 		case_rr(ext, _f);
 		case_rr(ld, _f);
 		case_rw(ld, _f);
 		case_rrr(ldx, _f);
 		case_rrw(ldx, _f);
+	    case jit_code_unldr_x:
+		unldr_x(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unldi_x:
+		unldi_x(rn(node->u.w), node->v.w, node->w.w);
+		break;
 		case_rr(st, _f);
 		case_wr(st, _f);
 		case_rrr(stx, _f);
 		case_wrr(stx, _f);
+	    case jit_code_unstr_x:
+		unstr_x(rn(node->u.w), rn(node->v.w), node->w.w);
+		break;
+	    case jit_code_unsti_x:
+		unsti_x(node->u.w, rn(node->v.w), node->w.w);
+		break;
 		case_rr(mov, _f);
 	    case jit_code_movi_f:
 		assert(node->flag & jit_flag_data);
@@ -1740,6 +1909,10 @@ _emit_code(jit_state_t *_jit)
 		case_rr(abs, _d);
 		case_rr(neg, _d);
 		case_rr(sqrt, _d);
+		case_rqr(fma, _d);
+		case_rqr(fms, _d);
+		case_rqr(fnma, _d);
+		case_rqr(fnms, _d);
 		case_rr(ext, _d);
 		case_rr(ld, _d);
 		case_rw(ld, _d);
@@ -1825,7 +1998,12 @@ _emit_code(jit_state_t *_jit)
 		    else {
 			word = _jit->code.length -
 			    (_jit->pc.uc - _jit->code.ptr);
-			if (jit_mips2_p() && can_relative_jump_p(word))
+			if ((jit_mips2_p() && can_relative_jump_p(word))
+#if !BALC_BROKEN
+			    ||
+			    (jit_mips6_p() && can_compact_jump_p(word))
+#endif
+			    )
 			    word = jmpi(_jit->pc.w, 1);
 			else
 			    word = jmpi_p(_jit->pc.w);
@@ -1851,7 +2029,12 @@ _emit_code(jit_state_t *_jit)
 		    else {
 			word = _jit->code.length -
 			    (_jit->pc.uc - _jit->code.ptr);
-			if (jit_mips2_p() && can_relative_jump_p(word))
+			if ((jit_mips2_p() && can_relative_jump_p(word))
+#if !BALC_BROKEN
+			    ||
+			    (jit_mips6_p() && can_compact_jump_p(word))
+#endif
+			    )
 			    word = calli(_jit->pc.w, 1);
 			else
 			    word = calli_p(_jit->pc.w);
@@ -1919,27 +2102,35 @@ _emit_code(jit_state_t *_jit)
 		epilog(node);
 		_jitc->function = NULL;
 		break;
-#if !NEW_ABI
 	    case jit_code_movr_w_f:
 		movr_w_f(rn(node->u.w), rn(node->v.w));
 		break;
-#endif
 	    case jit_code_movr_f_w:
 		movr_f_w(rn(node->u.w), rn(node->v.w));
 		break;
 	    case jit_code_movi_f_w:
 		assert(node->flag & jit_flag_data);
-		movi_f_w(rn(node->u.w), (jit_float32_t *)node->v.n->u.w);
+		movi_f_w(rn(node->u.w), *(jit_float32_t *)node->v.n->u.w);
 		break;
-#if NEW_ABI
+	    case jit_code_movi_w_f:
+		movi_w_f(rn(node->u.w), node->v.w);
+		break;
+#if __WORDSIZE == 64 || NEW_ABI
 	    case jit_code_movr_d_w:
 		movr_d_w(rn(node->u.w), rn(node->v.w));
 		break;
 	    case jit_code_movi_d_w:
 		assert(node->flag & jit_flag_data);
-		movi_d_w(rn(node->u.w), (jit_float64_t *)node->v.n->u.w);
+		movi_d_w(rn(node->u.w), *(jit_float64_t *)node->v.n->u.w);
 		break;
-#else
+	    case jit_code_movr_w_d:
+		movr_w_d(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_movi_w_d:
+		movi_w_d(rn(node->u.w), node->v.w);
+		break;
+#endif
+#if __WORDSIZE == 32
 	    case jit_code_movr_ww_d:
 		movr_ww_d(rn(node->u.w), rn(node->v.w), rn(node->w.w));
 		break;
@@ -1949,7 +2140,10 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_movi_d_ww:
 		assert(node->flag & jit_flag_data);
 		movi_d_ww(rn(node->u.w), rn(node->v.w),
-			  (jit_float64_t *)node->w.n->u.w);
+			  *(jit_float64_t *)node->w.n->u.w);
+		break;
+	    case jit_code_movi_ww_d:
+		movi_ww_d(rn(node->u.w), node->v.w, node->w.w);
 		break;
 #endif
 	    case jit_code_va_start:
@@ -2021,6 +2215,77 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_retval_f:		case jit_code_retval_d:
 	    case jit_code_prepare:
 	    case jit_code_finishr:		case jit_code_finishi:
+	    case jit_code_negi_f:		case jit_code_absi_f:
+	    case jit_code_sqrti_f:		case jit_code_negi_d:
+	    case jit_code_absi_d:		case jit_code_sqrti_d:
+		break;
+	    case jit_code_negi:
+		negi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_comi:
+		comi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_c:
+		exti_c(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_uc:
+		exti_uc(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_s:
+		exti_s(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_us:
+		exti_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_us:
+		bswapi_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_ui:
+		bswapi_ui(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_us:
+		htoni_us(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_ui:
+		htoni_ui(rn(node->u.w), node->v.w);
+		break;
+#if __WORDSIZE == 64
+	    case jit_code_exti_i:
+		exti_i(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti_ui:
+		exti_ui(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_bswapi_ul:
+		bswapi_ul(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_htoni_ul:
+		htoni_ul(rn(node->u.w), node->v.w);
+		break;
+#endif
+	    case jit_code_cloi:
+		cloi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_clzi:
+		clzi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_ctoi:
+		ctoi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_ctzi:
+		ctzi(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_rbiti:
+		rbiti(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_popcnti:
+		popcnti(rn(node->u.w), node->v.w);
+		break;
+	    case jit_code_exti:
+		exti(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
+		break;
+	    case jit_code_exti_u:
+		exti_u(rn(node->u.w), node->v.w, node->w.q.l, node->w.q.h);
 		break;
 	    default:
 		abort();

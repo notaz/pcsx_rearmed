@@ -17,7 +17,7 @@
 AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include	\
 	-D_GNU_SOURCE $(LIGHTNING_CFLAGS)
 liblightning_LTLIBRARIES = liblightning.la
-liblightning_la_LDFLAGS = -version-info 2:0:0
+liblightning_la_LDFLAGS = -version-info 2:1:0
 
 AM_CPPFLAGS =
 if get_jit_size

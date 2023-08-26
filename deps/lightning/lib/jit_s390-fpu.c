@@ -342,6 +342,8 @@ static jit_word_t _bltgti(jit_state_t*,jit_int32_t,
 static void _movr_f(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi_f(r0,i0)			_movi_f(_jit,r0,i0)
 static void _movi_f(jit_state_t*,jit_int32_t,jit_float32_t*);
+#define movi_w_f(r0, i0) 		_movi_w_f(_jit, r0, i0)
+static void _movi_w_f(jit_state_t*, jit_int32_t, jit_word_t);
 #  define movr_d(r0,r1)			_movr_d(_jit,r0,r1)
 static void _movr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi_d(r0,i0)			_movi_d(_jit,r0,i0)
@@ -351,7 +353,31 @@ static void _movi_d(jit_state_t*,jit_int32_t,jit_float64_t*);
 #  define negr_f(r0,r1)			LCEBR(r0,r1)
 #  define negr_d(r0,r1)			LCDBR(r0,r1)
 #  define sqrtr_f(r0,r1)		SQEBR(r0,r1)
+#  define fmar_f(r0,r1,r2,r3)		_fmar_f(_jit,r0,r1,r2,r3)
+static void _fmar_f(jit_state_t*,
+		    jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fmsr_f(r0,r1,r2,r3)		_fmsr_f(_jit,r0,r1,r2,r3)
+static void _fmsr_f(jit_state_t*,
+		    jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fnmar_f(r0,r1,r2,r3)		_fnmar_f(_jit,r0,r1,r2,r3)
+static void _fnmar_f(jit_state_t*,
+		     jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fnmsr_f(r0,r1,r2,r3)		_fnmsr_f(_jit,r0,r1,r2,r3)
+static void _fnmsr_f(jit_state_t*,
+		     jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define sqrtr_d(r0,r1)		SQDBR(r0,r1)
+#  define fmar_d(r0,r1,r2,r3)		_fmar_d(_jit,r0,r1,r2,r3)
+static void _fmar_d(jit_state_t*,
+		    jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fmsr_d(r0,r1,r2,r3)		_fmsr_d(_jit,r0,r1,r2,r3)
+static void _fmsr_d(jit_state_t*,
+		    jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fnmar_d(r0,r1,r2,r3)		_fnmar_d(_jit,r0,r1,r2,r3)
+static void _fnmar_d(jit_state_t*,
+		     jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define fnmsr_d(r0,r1,r2,r3)		_fnmsr_d(_jit,r0,r1,r2,r3)
+static void _fnmsr_d(jit_state_t*,
+		     jit_int32_t,jit_int32_t,jit_int32_t,jit_int32_t);
 #  define truncr_f_i(r0,r1)		CFEBR(r0,RND_ZERO,r1)
 #  define truncr_d_i(r0,r1)		CFDBR(r0,RND_ZERO,r1)
 #  if __WORDSIZE == 64
@@ -361,9 +387,13 @@ static void _movi_d(jit_state_t*,jit_int32_t,jit_float64_t*);
 #  if __WORDSIZE == 32
 #    define extr_f(r0,r1)		CEFBR(r0,r1)
 #    define extr_d(r0,r1)		CDFBR(r0,r1)
+#    define movi_ww_d(r0, i0, i1)	_movi_ww_d(_jit, r0, i0, i1)
+static void _movi_ww_d(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
 #  else
 #    define extr_f(r0,r1)		CEGBR(r0,r1)
 #    define extr_d(r0,r1)		CDGBR(r0,r1)
+#    define movi_w_d(r0, i0)		_movi_w_d(_jit, r0, i0)
+static void _movi_w_d(jit_state_t*, jit_int32_t, jit_word_t);
 #  endif
 #  define extr_d_f(r0,r1)		LEDBR(r0,r1)
 #  define extr_f_d(r0,r1)		LDEBR(r0,r1)
@@ -888,6 +918,16 @@ _movi_f(jit_state_t *_jit, jit_int32_t r0, jit_float32_t *i0)
 }
 
 static void
+_movi_w_f(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_f(r0, rn(reg));
+    jit_unget_reg(reg);
+}
+
+static void
 _movr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     if (r0 != r1)
@@ -926,6 +966,167 @@ _movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t *i0)
     }
     else
 	ldi_d(r0, (jit_word_t)i0);
+}
+
+#if __WORDSIZE == 32
+static void
+_movi_ww_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0, t1;
+    t0 = jit_get_reg(jit_class_gpr);
+    t1 = jit_get_reg(jit_class_gpr);
+    movi(rn(t0), i0);
+    movi(rn(t1), i1);
+    movr_ww_d(r0, rn(t0), rn(t1));
+    jit_unget_reg(t1);
+    jit_unget_reg(t0);
+}
+#else
+static void
+_movi_w_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_d(r0, rn(reg));
+    jit_unget_reg(reg);
+}
+#endif
+
+static void
+_fmar_f(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3)
+	MAEBR(r0, r2, r1);
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_f(rn(t0), r3);
+	MAEBR(rn(t0), r2, r1);
+	movr_f(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fmsr_f(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3)
+	MSEBR(r0, r2, r1);
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_f(rn(t0), r3);
+	MSEBR(rn(t0), r2, r1);
+	movr_f(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fnmar_f(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3) {
+	MAEBR(r0, r2, r1);
+	negr_f(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_f(rn(t0), r3);
+	MAEBR(rn(t0), r2, r1);
+	negr_f(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fnmsr_f(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3) {
+	MSEBR(r0, r2, r1);
+	negr_f(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_f(rn(t0), r3);
+	MSEBR(rn(t0), r2, r1);
+	negr_f(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fmar_d(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3)
+	MADBR(r0, r2, r1);
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_d(rn(t0), r3);
+	MADBR(rn(t0), r2, r1);
+	movr_d(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fmsr_d(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3)
+	MSDBR(r0, r2, r1);
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_d(rn(t0), r3);
+	MSDBR(rn(t0), r2, r1);
+	movr_d(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fnmar_d(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3) {
+	MADBR(r0, r2, r1);
+	negr_d(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_f(rn(t0), r3);
+	MADBR(rn(t0), r2, r1);
+	negr_d(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
+}
+
+static void
+_fnmsr_d(jit_state_t* _jit,
+	jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
+{
+    jit_int32_t		t0;
+    if (r0 == r3) {
+	MSDBR(r0, r2, r1);
+	negr_d(r0, r0);
+    }
+    else {
+	t0 = jit_get_reg(jit_class_fpr);
+	movr_d(rn(t0), r3);
+	MSDBR(rn(t0), r2, r1);
+	negr_d(r0, rn(t0));
+	jit_unget_reg(t0);
+    }
 }
 
 static void

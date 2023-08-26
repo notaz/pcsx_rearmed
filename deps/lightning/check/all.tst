@@ -83,11 +83,25 @@
 	rshr_u %r0 %r1 %r2
 	rshi_u %r0 %r1 2
 	negr %r0 %r1
+	negi %r0 1
 	comr %r0 %r1
+	comi %r0 1
 	clor %r0 %r1
+	cloi %r0 0xfffffffe
 	clzr %r0 %r1
+	clzi %r0 1
 	ctor %r0 %r1
+	ctoi %r0 -1
+	ctzi %r0 0x80000000
 	ctzr %r0 %r1
+	rbitr %r0 %r1
+	rbiti %r0 0x02468ace
+	popcntr %r0 %r1
+	popcnti %r0 0x8a13c851
+	lrotr %r0 %r1 %r2
+	lroti %r0 %r1 0x1f
+	rrotr %r0 %r1 %r2
+	rroti %r0 %r1 0x1f
 	ltr %r0 %r1 %r2
 	lti %r0 %r1 2
 	ltr_u %r0 %r1 %r2
@@ -110,16 +124,48 @@
 	nei %r0 %r1 2
 	movr %r0 %r1
 	movi %r0 1
+	extr %r0 %r1 4 3
+	exti %r0 0xa5a5a584 4 3
+	extr_u %r0 %r1 4 3
+	exti_u %r0 0xa5a5a584 4 3
+	depr %r0 %r1 4 3
+	depi %r0 0xa5a5a584 4 3
 	extr_c %r0 %r1
+	exti_c %r0 0xfff
 	extr_uc %r0 %r1
+	exti_uc %r0 0xfff
 	extr_s %r0 %r1
+	exti_s %r0 0xfffff
 	extr_us %r0 %r1
+	exti_us %r0 0xfffff
 #if __WORDSIZE == 64
 	extr_i %r0 %r1
+	exti_i %r0 0x80000000
 	extr_ui %r0 %r1
+	exti_ui %r0 0x80000000
+#endif
+	htonr_us %r0 %r1
+	htoni_us %r0 0xff1234
+	htonr_ui %r0 %r1
+	htoni_ui %r0 0x12345678
+#if __WORDSIZE == 64
+	htonr_ul %r0 %r1
+	htoni_ul %r0 0x123456789abcdef0
 #endif
 	htonr %r0 %r1
 	ntohr %r0 %r1
+	htoni %r0 0x12345678
+	ntohi %r0 0x12345678
+	bswapr_us %r0 %r1
+	bswapi_us %r0 0xff1234
+	bswapr_ui %r0 %r1
+	bswapi_ui %r0 0x12345678
+#if __WORDSIZE == 64
+	bswapr_ul %r0 %r1
+	bswapi_ul %r0 0x123456789abcdef0
+#endif
+	bswapr %r0 %r1
+	bswapi %r0 0x12345678
 	ldr_c %r0 %r1
 	ldi_c %r0 0x80000000
 	ldr_uc %r0 %r1
@@ -278,8 +324,11 @@ label:
 	divr_f %f0 %f1 %f2
 	divi_f %f0 %f1 0.5
 	negr_f %f0 %f1
+	negi_f %f0 -1
 	absr_f %f0 %f1
+	absi_f %f0 -1
 	sqrtr_f %f0 %f1
+	sqrti_f %f0 -1
 	ltr_f %r0 %f0 %f1
 	lti_f %r0 %f0 0.5
 	ler_f %r0 %f0 %f1
@@ -378,8 +427,11 @@ unordi:
 	divr_d %f0 %f1 %f2
 	divi_d %f0 %f1 0.5
 	negr_d %f0 %f1
+	negi_d %f0 -1
 	absr_d %f0 %f1
+	absi_d %f0 -1
 	sqrtr_d %f0 %f1
+	sqrti_d %f0 -1
 	ltr_d %r0 %f0 %f1
 	lti_d %r0 %f0 0.5
 	ler_d %r0 %f0 %f1

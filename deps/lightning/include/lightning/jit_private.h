@@ -250,6 +250,30 @@ extern jit_node_t *_jit_data(jit_state_t*, const void*,
     } while (0)
 #define jit_inc_synth_dp(name, u, v)					\
     jit_code_inc_synth_dp(jit_code_##name, u, v)
+#define jit_inc_synth_wf(name, u, v)					\
+    jit_code_inc_synth_wf(jit_code_##name, u, v)
+#define jit_code_inc_synth_wf(code, u, v)				\
+    do {								\
+	(void)jit_new_node_wf(code, u, v);				\
+	jit_synth_inc();						\
+    } while (0)
+#define jit_inc_synth_wqf(name, u, v, w, x)				\
+    do {								\
+	(void)jit_new_node_wqf(jit_code_##name, u, v, w, x);		\
+	jit_synth_inc();						\
+    } while (0)
+#define jit_inc_synth_wd(name, u, v)					\
+    jit_code_inc_synth_wd(jit_code_##name, u, v)
+#define jit_inc_synth_wqd(name, u, v, w, x)				\
+    do {								\
+	(void)jit_new_node_wqd(jit_code_##name, u, v, w, x);		\
+	jit_synth_inc();						\
+    } while (0)
+#define jit_code_inc_synth_wd(code, u, v)				\
+    do {								\
+	(void)jit_new_node_wd(code, u, v);				\
+	jit_synth_inc();						\
+    } while (0)
 #define jit_dec_synth()		jit_synth_dec()
 
 #define jit_link_alist(node)						\
@@ -326,10 +350,11 @@ extern jit_node_t *_jit_data(jit_state_t*, const void*,
 #define jit_cc_a0_cnd		0x00000100	/* arg1 is a conditinally set register */
 #define jit_cc_a1_reg		0x00000200	/* arg1 is a register */
 #define jit_cc_a1_chg		0x00000400	/* arg1 is modified */
-#define jit_cc_a1_int		0x00001000	/* arg1 is immediate word */
-#define jit_cc_a1_flt		0x00002000	/* arg1 is immediate float */
-#define jit_cc_a1_dbl		0x00004000	/* arg1 is immediate double */
-#define jit_cc_a1_arg		0x00008000	/* arg1 is an argument node */
+#define jit_cc_a1_int		0x00000800	/* arg1 is immediate word */
+#define jit_cc_a1_flt		0x00001000	/* arg1 is immediate float */
+#define jit_cc_a1_dbl		0x00002000	/* arg1 is immediate double */
+#define jit_cc_a1_arg		0x00004000	/* arg1 is an argument node */
+#define jit_cc_a1_rlh		0x00008000	/* arg1 is a register pair */
 #define jit_cc_a2_reg		0x00010000	/* arg2 is a register */
 #define jit_cc_a2_chg		0x00020000	/* arg2 is modified */
 #define jit_cc_a2_int		0x00100000	/* arg2 is immediate word */
@@ -530,7 +555,10 @@ struct jit_function {
     jit_int32_t		*regoff;
     jit_regset_t	 regset;
     jit_int32_t		 stack;
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__x86_64__) || \
+    defined(__powerpc__) || defined(__sparc__) || \
+    defined(__s390__) || defined(__s390x__) || \
+    defined(__hppa__) || defined(__alpha__)
     jit_int32_t		 cvt_offset;	/* allocai'd offset for x87<->xmm or
 					 * fpr<->gpr transfer using the stack */
 #endif
@@ -606,6 +634,12 @@ struct jit_compiler {
 #endif
     jit_uint32_t	  no_data : 1;
     jit_uint32_t	  no_note : 1;
+    /* FIXME undocumented, might be moved to a jit_cpu field or a better
+     * configuration api.
+     * These are switches to a different unld* or unst*.
+     * Defaults are the algorithms that generate shorter code*/
+    jit_uint32_t	  unld_algorithm : 1;
+    jit_uint32_t	  unst_algorithm : 1;
     jit_int32_t		  framesize;	/* space for callee save registers,
 					 * frame pointer and return address */
     jit_int32_t		  reglen;	/* number of registers */
@@ -739,7 +773,7 @@ struct jit_state {
 	jit_uint8_t	*ptr;
 	jit_word_t	 length;
         /* PROTECTED bytes starting at PTR are mprotect'd. */
-        jit_word_t       protected;
+        jit_word_t       protect;
     } code;
     struct {
 	jit_uint8_t	*ptr;

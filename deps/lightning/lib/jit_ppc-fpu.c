@@ -120,6 +120,8 @@ static void _FXFL(jit_state_t*,int,int,int,int,int) maybe_unused;
 static void _movr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define movi_f(r0,i0)			_movi_f(_jit,r0,i0)
 static void _movi_f(jit_state_t*,jit_int32_t,jit_float32_t*);
+#define movi_w_f(r0, i0)		_movi_w_f(_jit, r0, i0)
+static void _movi_w_f(jit_state_t*, jit_int32_t, jit_word_t);
 #  define movi_d(r0,i0)			_movi_d(_jit,r0,i0)
 static void _movi_d(jit_state_t*,jit_int32_t,jit_float64_t*);
 #  define extr_f(r0,r1)			extr_d(r0,r1)
@@ -131,11 +133,15 @@ static void _extr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 static void _truncr_d_i(jit_state_t*,jit_int32_t,jit_int32_t);
 #  if __WORDSIZE == 32
 #    define truncr_d(r0,r1)		truncr_d_i(r0,r1)
+#    define movi_ww_d(r0, i0, i1)	_movi_ww_d(_jit, r0, i0, i1)
+static void _movi_ww_d(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
 #  else
 #    define truncr_d(r0,r1)		truncr_d_l(r0,r1)
 #    define truncr_f_l(r0,r1)		truncr_d_l(r0,r1)
 #    define truncr_d_l(r0,r1)		_truncr_d_l(_jit,r0,r1)
 static void _truncr_d_l(jit_state_t*,jit_int32_t,jit_int32_t);
+#    define movi_w_d(r0, i0)		_movi_w_d(_jit, r0, i0)
+static void _movi_w_d(jit_state_t*, jit_int32_t, jit_word_t);
 #  endif
 #  define extr_d_f(r0,r1)		FRSP(r0,r1)
 #  define extr_f_d(r0,r1)		movr_d(r0,r1)
@@ -154,6 +160,14 @@ extern double sqrt(double);
 #    define sqrtr_d(r0,r1)		_sqrtr_d(_jit,r0,r1)
 static void _sqrtr_d(jit_state_t*,jit_int32_t,jit_int32_t);
 #  endif
+#  define fmar_f(r0,r1,r2,r3)		FMADDS(r0,r1,r3,r2)
+#  define fmar_d(r0,r1,r2,r3)		FMADD(r0,r1,r3,r2)
+#  define fmsr_f(r0,r1,r2,r3)		FMSUBS(r0,r1,r3,r2)
+#  define fmsr_d(r0,r1,r2,r3)		FMSUB(r0,r1,r3,r2)
+#  define fnmar_f(r0,r1,r2,r3)		FNMADDS(r0,r1,r3,r2)
+#  define fnmar_d(r0,r1,r2,r3)		FNMADD(r0,r1,r3,r2)
+#  define fnmsr_f(r0,r1,r2,r3)		FNMSUBS(r0,r1,r3,r2)
+#  define fnmsr_d(r0,r1,r2,r3)		FNMSUB(r0,r1,r3,r2)
 #  define addr_f(r0,r1,r2)		FADDS(r0,r1,r2)
 #  define addr_d(r0,r1,r2)		FADD(r0,r1,r2)
 #  define addi_f(r0,r1,i0)		_addi_f(_jit,r0,r1,i0)
@@ -453,15 +467,27 @@ _movi_f(jit_state_t *_jit, jit_int32_t r0, jit_float32_t *i0)
     jit_int32_t		 reg;
 
     if (_jitc->no_data) {
+	CHECK_CVT_OFFSET();
+	jit_check_frame();
 	data.f = *i0;
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), data.i & 0xffffffff);
-	stxi_i(alloca_offset - 4, _FP_REGNO, rn(reg));
+	stxi_i(CVT_OFFSET + 4, _FP_REGNO, rn(reg));
 	jit_unget_reg(reg);
-	ldxi_f(r0, _FP_REGNO, alloca_offset - 4);
+	ldxi_f(r0, _FP_REGNO, CVT_OFFSET + 4);
     }
     else
 	ldi_f(r0, (jit_word_t)i0);
+}
+
+static void
+_movi_w_f(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_f(r0, rn(reg));
+    jit_unget_reg(reg);
 }
 
 static void
@@ -475,36 +501,64 @@ _movi_d(jit_state_t *_jit, jit_int32_t r0, jit_float64_t *i0)
     jit_int32_t		 reg;
 
     if (_jitc->no_data) {
+	CHECK_CVT_OFFSET();
+	jit_check_frame();
 	data.d = *i0;
 	reg = jit_get_reg(jit_class_gpr);
 #  if __WORDSIZE == 32
 	movi(rn(reg), data.i[0]);
-	stxi(alloca_offset - 8, _FP_REGNO, rn(reg));
+	stxi(CVT_OFFSET, _FP_REGNO, rn(reg));
 	movi(rn(reg), data.i[1]);
-	stxi(alloca_offset - 4, _FP_REGNO, rn(reg));
+	stxi(CVT_OFFSET + 4, _FP_REGNO, rn(reg));
 #  else
 	movi(rn(reg), data.w);
-	stxi(alloca_offset - 8, _FP_REGNO, rn(reg));
+	stxi(CVT_OFFSET, _FP_REGNO, rn(reg));
 #  endif
 	jit_unget_reg(reg);
-	ldxi_d(r0, _FP_REGNO, alloca_offset - 8);
+	ldxi_d(r0, _FP_REGNO, CVT_OFFSET);
     }
     else
 	ldi_d(r0, (jit_word_t)i0);
 }
+
+#  if __WORDSIZE == 32
+static void
+_movi_ww_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
+{
+    jit_int32_t		t0, t1;
+    t0 = jit_get_reg(jit_class_gpr);
+    t1 = jit_get_reg(jit_class_gpr);
+    movi(rn(t0), i0);
+    movi(rn(t1), i1);
+    movr_ww_d(r0, rn(t0), rn(t1));
+    jit_unget_reg(t1);
+    jit_unget_reg(t0);
+}
+#  else
+static void
+_movi_w_d(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    reg = jit_get_reg(jit_class_gpr);
+    movi(rn(reg), i0);
+    movr_w_d(r0, rn(reg));
+    jit_unget_reg(reg);
+}
+#  endif
 
 static void
 _extr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
 #  if __WORDSIZE == 32
     jit_int32_t		reg, freg, off1, off2;
-
+    CHECK_CVT_OFFSET();
+    jit_check_frame();
 #  if __BYTE_ORDER == __BIG_ENDIAN
-    off1 = alloca_offset - 8;
-    off2 = alloca_offset - 4;
+    off1 = CVT_OFFSET;
+    off2 = CVT_OFFSET + 4;
 #  else
-    off1 = alloca_offset - 4;
-    off2 = alloca_offset - 8;
+    off1 = CVT_OFFSET + 4;
+    off2 = CVT_OFFSET;
 #  endif
 
     reg = jit_get_reg(jit_class_gpr);
@@ -514,17 +568,17 @@ _extr_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     stxi_i(off1, _FP_REGNO, rn(reg));
     movi(rn(reg), 0x80000000);
     stxi_i(off2, _FP_REGNO, rn(reg));
-    ldxi_d(rn(freg), _FP_REGNO, alloca_offset - 8);
+    ldxi_d(rn(freg), _FP_REGNO, CVT_OFFSET);
     xorr(rn(reg), r1, rn(reg));
     stxi_i(off2, _FP_REGNO, rn(reg));
-    ldxi_d(r0, _FP_REGNO, alloca_offset - 8);
+    ldxi_d(r0, _FP_REGNO, CVT_OFFSET);
     subr_d(r0, r0, rn(freg));
 
     jit_unget_reg(reg);
     jit_unget_reg(freg);
 #  else
-    stxi(alloca_offset - 8, _FP_REGNO, r1);
-    ldxi_d(r0, _FP_REGNO, alloca_offset - 8);
+    stxi(CVT_OFFSET, _FP_REGNO, r1);
+    ldxi_d(r0, _FP_REGNO, CVT_OFFSET);
     FCFID(r0, r0);
 #  endif
 }
@@ -535,12 +589,13 @@ _truncr_d_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     jit_int32_t		reg;
     reg = jit_get_reg(jit_class_fpr);
     FCTIWZ(rn(reg), r1);
-    /* use reserved 8 bytes area */
-    stxi_d(alloca_offset - 8, _FP_REGNO, rn(reg));
+    CHECK_CVT_OFFSET();
+    jit_check_frame();
+    stxi_d(CVT_OFFSET, _FP_REGNO, rn(reg));
 #  if __BYTE_ORDER == __BIG_ENDIAN
-    ldxi_i(r0, _FP_REGNO, alloca_offset - 4);
+    ldxi_i(r0, _FP_REGNO, CVT_OFFSET + 4);
 #  else
-    ldxi_i(r0, _FP_REGNO, alloca_offset - 8);
+    ldxi_i(r0, _FP_REGNO, CVT_OFFSET);
 #  endif
     jit_unget_reg(reg);
 }
@@ -552,9 +607,10 @@ _truncr_d_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
     jit_int32_t		reg;
     reg = jit_get_reg(jit_class_fpr);
     FCTIDZ(rn(reg), r1);
-    /* use reserved 8 bytes area */
-    stxi_d(alloca_offset - 8, _FP_REGNO, rn(reg));
-    ldxi(r0, _FP_REGNO, alloca_offset - 8);
+    CHECK_CVT_OFFSET();
+    jit_check_frame();
+    stxi_d(CVT_OFFSET, _FP_REGNO, rn(reg));
+    ldxi(r0, _FP_REGNO, CVT_OFFSET);
     jit_unget_reg(reg);
 }
 #  endif

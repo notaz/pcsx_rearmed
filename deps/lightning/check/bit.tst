@@ -250,8 +250,8 @@ ctz:
 	bnei tun %r1 0
 	reti __WORDSIZE
 tun:
-#if __WORDSIZE == 64
 	movi %r0 0
+#if __WORDSIZE == 64
 	movi %r2 0xffffffff
 	bmsr t32 %r1 %r2
 	rshi_u %r1 %r1 32

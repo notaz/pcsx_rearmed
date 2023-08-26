@@ -64,8 +64,6 @@ static char *name = "retroarch.exe";
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
 static bool block_stepping;
-static u32 cycle_mult_to_pcsx; // 22.10 fractional
-static u32 cycle_mult_from_pcsx;
 
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
@@ -144,15 +142,9 @@ static bool has_interrupt(void)
 		(regs->cp0[12] & regs->cp0[13] & 0x0300);
 }
 
-static u32 cycles_pcsx_to_lightrec(u32 c)
-{
-	assert((u64)c * cycle_mult_from_pcsx <= (u32)-1);
-	return c * cycle_mult_from_pcsx >> 10;
-}
-
 static void lightrec_tansition_to_pcsx(struct lightrec_state *state)
 {
-	psxRegs.cycle += lightrec_current_cycle_count(state) * cycle_mult_to_pcsx >> 10;
+	psxRegs.cycle += lightrec_current_cycle_count(state) / 1024;
 	lightrec_reset_cycle_count(state, 0);
 }
 
@@ -163,8 +155,7 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 	if (block_stepping || cycles_left <= 0 || has_interrupt())
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	else {
-		lightrec_set_target_cycle_count(state,
-			cycles_pcsx_to_lightrec(cycles_left));
+		lightrec_set_target_cycle_count(state, cycles_left * 1024);
 	}
 }
 
@@ -506,7 +497,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	if (use_pcsx_interpreter) {
 		intExecuteBlock(0);
 	} else {
-		u32 cycles_lightrec = cycles_pcsx_to_lightrec(cycles_pcsx);
+		u32 cycles_lightrec = cycles_pcsx * 1024;
 		if (unlikely(use_lightrec_interpreter)) {
 			psxRegs.pc = lightrec_run_interpreter(lightrec_state,
 							      psxRegs.pc,
@@ -584,8 +575,8 @@ static void lightrec_plugin_apply_config()
 	u32 cycle_mult = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
 		? Config.cycle_multiplier_override : Config.cycle_multiplier;
 	assert(cycle_mult);
-	cycle_mult_to_pcsx = (cycle_mult * 1024 + 199) / 200;
-	cycle_mult_from_pcsx = (200 * 1024 + cycle_mult/2) / cycle_mult;
+
+	lightrec_set_cycles_per_opcode(lightrec_state, cycle_mult * 1024 / 100);
 }
 
 static void lightrec_plugin_shutdown(void)
