@@ -344,6 +344,11 @@ static void mips_return(u32 val)
 	pc0 = ra;
 }
 
+static void mips_return_void(void)
+{
+	pc0 = ra;
+}
+
 static void use_cycles(u32 cycle)
 {
 	psxRegs.cycle += cycle * 2;
@@ -993,10 +998,10 @@ static void psxBios_memcpy() { // 0x2a
 		mips_return_c(0, 4);
 		return;
 	}
+	v1 = a0;
 	if ((s32)a2 > 0) {
 		do_memcpy(a0, a1, a2);
 		cycles = a2 * 6;
-		v1 = a0;
 		a0 += a2;
 		a1 += a2;
 		a2 = 0;
@@ -1470,6 +1475,14 @@ static void psxBios_SystemErrorUnresolvedException() {
 	mips_return_void_c(1000);
 }
 
+static void FlushCache() {
+	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
+	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
+	k0 = 0xbfc0193c;
+	// runs from uncached mem so tons of cycles
+	use_cycles(500);
+}
+
 /*
  *	long Load(char *name, struct EXEC *header);
  */
@@ -1482,6 +1495,7 @@ void psxBios_Load() { // 0x42
 	if (pa1 != INVALID_PTR && LoadCdromFile(Ra0, &eheader) == 0) {
 		memcpy(pa1, ((char*)&eheader)+16, sizeof(EXEC));
 		psxCpu->Clear(a1, sizeof(EXEC) / 4);
+		FlushCache();
 		v0 = 1;
 	} else v0 = 0;
 	PSXBIOS_LOG("psxBios_%s: %s, %d -> %d\n", biosA0n[0x42], Ra0, a1, v0);
@@ -1528,13 +1542,10 @@ void psxBios_Exec() { // 43
 	pc0 = SWAP32(header->_pc0);
 }
 
-void psxBios_FlushCache() { // 44
-#ifdef PSXBIOS_LOG
+static void psxBios_FlushCache() { // 44
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x44]);
-#endif
-	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
-	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
-	pc0 = ra;
+	FlushCache();
+	mips_return_void();
 }
 
 void psxBios_GPU_dw() { // 0x46
@@ -2670,11 +2681,12 @@ void psxBios_InitCARD() { // 4a
 	u32 *ram32 = (u32 *)psxM;
 	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x4a], a0);
 	write_chain(ram32 + A_PADCRD_CHN_E/4, 0, 0x49bc, 0x4a4c);
-	// (maybe) todo: early_card_irq, FlushCache etc
+	// (maybe) todo: early_card_irq, etc
 
 	ram32[A_PAD_IRQR_ENA/4] = SWAP32(a0);
 
-	mips_return_c(0, 300);
+	psxBios_FlushCache();
+	mips_return_c(0, 34+13+15+6);
 }
 
 void psxBios_StartCARD() { // 4b
@@ -3086,8 +3098,8 @@ static void write_chain(u32 *d, u32 next, u32 handler1, u32 handler2)
 	d[2] = SWAPu32(handler2);
 
 	// install the hle traps
-	PSXMu32ref(handler1) = HLEOP(chain_hle_op(handler1));
-	PSXMu32ref(handler2) = HLEOP(chain_hle_op(handler2));
+	if (handler1) PSXMu32ref(handler1) = HLEOP(chain_hle_op(handler1));
+	if (handler2) PSXMu32ref(handler2) = HLEOP(chain_hle_op(handler2));
 }
 
 static void setup_tt(u32 tcb_cnt, u32 evcb_cnt)
@@ -3574,6 +3586,13 @@ void psxBiosInit() {
 	uncompress((Bytef *)(psxR + 0x66000), &len, font_8140, sizeof(font_8140));
 	len = 0x80000 - 0x69d68;
 	uncompress((Bytef *)(psxR + 0x69d68), &len, font_889f, sizeof(font_889f));
+
+	// trap attempts to call bios directly
+	rom32[0x00000/4] = HLEOP(hleop_dummy);
+	rom32[0x00180/4] = HLEOP(hleop_dummy);
+	rom32[0x3fffc/4] = HLEOP(hleop_dummy);
+	rom32[0x65ffc/4] = HLEOP(hleop_dummy);
+	rom32[0x7ff2c/4] = HLEOP(hleop_dummy);
 
 	/*	Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
 		See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
