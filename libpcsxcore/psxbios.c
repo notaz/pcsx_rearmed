@@ -935,8 +935,23 @@ static void do_memcpy(u32 dst, u32 src, s32 len)
 
 static void psxBios_memcpy();
 
-static void psxBios_bcopy() { // 0x27
-	psxBios_memcpy(); // identical
+static void psxBios_bcopy() { // 0x27 - memcpy with args swapped
+	//PSXBIOS_LOG("psxBios_%s %x %x %x\n", biosA0n[0x27], a0, a1, a2);
+	u32 ret = a0, cycles = 0;
+	if (a0 == 0) // ...but it checks src this time
+	{
+		mips_return_c(0, 4);
+		return;
+	}
+	v1 = a0;
+	if ((s32)a2 > 0) {
+		do_memcpy(a1, a0, a2);
+		cycles = a2 * 6;
+		a0 += a2;
+		a1 += a2;
+		a2 = 0;
+	}
+	mips_return_c(ret, cycles + 5);
 }
 
 static void psxBios_bzero() { // 0x28
