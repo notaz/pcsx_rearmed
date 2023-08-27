@@ -3755,9 +3755,9 @@ void hleExc0_1_2() // A(90h) - CdromIoIrqFunc1
 
 void hleExc0_2_2_syscall() // not in any A/B/C table
 {
-	u32 code = (psxRegs.CP0.n.Cause & 0x3c) >> 2;
 	u32 tcbPtr = loadRam32(A_TT_PCB);
 	TCB *tcb = loadRam32ptr(tcbPtr);
+	u32 code = SWAP32(tcb->cause) >> 2;
 
 	if (code != R3000E_Syscall) {
 		if (code != 0) {
@@ -3768,9 +3768,9 @@ void hleExc0_2_2_syscall() // not in any A/B/C table
 		return;
 	}
 
-	//printf("%s c=%d a0=%d\n", __func__, code, a0);
+	//printf("%s c=%d a0=%d\n", __func__, code, SWAP32(tcb->reg[4]));
 	tcb->epc += SWAP32(4);
-	switch (a0) {
+	switch (SWAP32(tcb->reg[4])) { // a0
 		case 0: // noop
 			break;
 
@@ -3786,7 +3786,7 @@ void hleExc0_2_2_syscall() // not in any A/B/C table
 
 		case 3: { // ChangeThreadSubFunction
 			u32 tcbPtr = loadRam32(A_TT_PCB);
-			storeRam32(tcbPtr, a1);
+			storeRam32(tcbPtr, SWAP32(tcb->reg[5])); // a1
 			break;
 		}
 		default:
