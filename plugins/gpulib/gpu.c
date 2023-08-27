@@ -690,6 +690,10 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr, uint32_t *progress_addr
     log_io(".chain %08lx #%d+%d\n",
       (long)(list - rambase) * 4, len, gpu.cmd_len);
     if (unlikely(gpu.cmd_len > 0)) {
+      if (gpu.cmd_len + len > ARRAY_SIZE(gpu.cmd_buffer)) {
+        log_anomaly("cmd_buffer overflow, likely garbage commands\n");
+        gpu.cmd_len = 0;
+      }
       memcpy(gpu.cmd_buffer + gpu.cmd_len, list + 1, len * 4);
       gpu.cmd_len += len;
       flush_cmd_buffer();
