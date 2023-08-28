@@ -21,6 +21,7 @@
 #define CALLBACK
 
 /* CDR */
+struct CdrStat;
 static long CALLBACK CDRinit(void) { return 0; }
 static long CALLBACK CDRshutdown(void) { return 0; }
 static long CALLBACK CDRopen(void) { return 0; }
