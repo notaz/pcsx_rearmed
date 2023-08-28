@@ -736,7 +736,7 @@ static void toggle_fast_forward(int force_off)
 static void SignalExit(int sig) {
 	// only to restore framebuffer/resolution on some devices
 	plat_finish();
-	exit(1);
+	_exit(1);
 }
 #endif
 

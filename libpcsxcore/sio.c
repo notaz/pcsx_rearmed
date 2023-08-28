@@ -678,6 +678,7 @@ void ConvertMcd(char *mcd, char *data) {
 			fclose(f);
 		}
 		f = fopen(mcd, "r+");
+		if (f == NULL) return;
 		s = s + 3904;
 		fputc('1', f); s--;
 		fputc('2', f); s--;
@@ -712,6 +713,7 @@ void ConvertMcd(char *mcd, char *data) {
 			fclose(f);
 		}
 		f = fopen(mcd, "r+");
+		if (f == NULL) return;
 		s = s + 64;
 		fputc('V', f); s--;
 		fputc('g', f); s--;

@@ -58,6 +58,7 @@ static void FillPPFCache() {
 	if (iPPFNum <= 0) return;
 
 	pc = ppfCache = (PPF_CACHE *)malloc(iPPFNum * sizeof(PPF_CACHE));
+	if (pc == NULL) return;
 
 	iPPFNum--;
 	p = ppfHead;
@@ -133,6 +134,7 @@ void CheckPPFCache(unsigned char *pB, unsigned char m, unsigned char s, unsigned
 static void AddToPPF(s32 ladr, s32 pos, s32 anz, unsigned char *ppfmem) {
 	if (ppfHead == NULL) {
 		ppfHead = (PPF_DATA *)malloc(sizeof(PPF_DATA) + anz);
+		if (ppfHead == NULL) return;
 		ppfHead->addr = ladr;
 		ppfHead->pNext = NULL;
 		ppfHead->pos = pos;
@@ -164,6 +166,7 @@ static void AddToPPF(s32 ladr, s32 pos, s32 anz, unsigned char *ppfmem) {
 		}
 
 		padd = (PPF_DATA *)malloc(sizeof(PPF_DATA) + anz);
+		if (padd == NULL) return;
 		padd->addr = ladr;
 		padd->pNext = p;
 		padd->pos = pos;

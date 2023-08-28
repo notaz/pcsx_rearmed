@@ -340,7 +340,6 @@ int AddCheat(const char *descr, char *code) {
 		}
 	}
 
-	Cheats[NumCheats].Descr = strdup(descr[0] ? descr : _("(Untitled)"));
 	Cheats[NumCheats].Enabled = 0;
 	Cheats[NumCheats].WasEnabled = 0;
 	Cheats[NumCheats].First = NumCodes;
@@ -392,6 +391,7 @@ int AddCheat(const char *descr, char *code) {
 		return -1;
 	}
 
+	Cheats[NumCheats].Descr = strdup(descr[0] ? descr : _("(Untitled)"));
 	NumCheats++;
 	return 0;
 }
@@ -400,6 +400,7 @@ void RemoveCheat(int index) {
 	assert(index >= 0 && index < NumCheats);
 
 	free(Cheats[index].Descr);
+	Cheats[index].Descr = NULL;
 
 	while (index < NumCheats - 1) {
 		Cheats[index] = Cheats[index + 1];
