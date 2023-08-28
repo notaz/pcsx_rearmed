@@ -13,15 +13,37 @@
 #include "plugin.h"
 #include "psemu_plugin_defs.h"
 #include "../libpcsxcore/system.h"
+#include "../libpcsxcore/psxcommon.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 
 // this can't be __stdcall like it was in PSEmu API as too many functions are mixed up
 #undef CALLBACK
 #define CALLBACK
 
-static long CALLBACK dummy_func() {
-	return 0;
-}
+/* CDR */
+struct CdrStat;
+static long CALLBACK CDRinit(void) { return 0; }
+static long CALLBACK CDRshutdown(void) { return 0; }
+static long CALLBACK CDRopen(void) { return 0; }
+static long CALLBACK CDRclose(void) { return 0; }
+static long CALLBACK CDRgetTN(unsigned char *_) { return 0; }
+static long CALLBACK CDRgetTD(unsigned char _, unsigned char *__) { return 0; }
+static boolean CALLBACK CDRreadTrack(unsigned char *_) { return FALSE; }
+static unsigned char * CALLBACK CDRgetBuffer(void) { return NULL; }
+static unsigned char * CALLBACK CDRgetBufferSub(int sector) { return NULL; }
+static long CALLBACK CDRconfigure(void) { return 0; }
+static long CALLBACK CDRtest(void) { return 0; }
+static void CALLBACK CDRabout(void) { return; }
+static long CALLBACK CDRplay(unsigned char *_) { return 0; }
+static long CALLBACK CDRstop(void) { return 0; }
+static long CALLBACK CDRsetfilename(char *_) { return 0; }
+static long CALLBACK CDRgetStatus(struct CdrStat *_) { return 0; }
+static char * CALLBACK CDRgetDriveLetter(void) { return NULL; }
+static long CALLBACK CDRreadCDDA(unsigned char _, unsigned char __, unsigned char ___, unsigned char *____) { return 0; }
+static long CALLBACK CDRgetTE(unsigned char _, unsigned char *__, unsigned char *___, unsigned char *____) { return 0; }
+
+/* GPU */
+static void CALLBACK GPUdisplayText(char *_) { return; }
 
 /* SPU */
 extern long CALLBACK SPUopen(void);
@@ -40,6 +62,12 @@ extern void CALLBACK SPUasync(unsigned int, unsigned int);
 extern int  CALLBACK SPUplayCDDAchannel(short *, int, unsigned int, int);
 
 /* PAD */
+static long CALLBACK PADinit(long _) { return 0; }
+static long CALLBACK PADopen(unsigned long *_) { return 0; }
+static long CALLBACK PADshutdown(void) { return 0; }
+static long CALLBACK PADclose(void) { return 0; }
+static void CALLBACK PADsetSensitive(int _) { return; }
+
 static long CALLBACK PADreadPort1(PadDataS *pad)
 {
 	pad->controllerType = in_type[0];
@@ -78,15 +106,10 @@ extern void GPUvBlank(int, int);
 extern void GPUrearmedCallbacks(const struct rearmed_cbs *cbs);
 
 
-#define DUMMY(id, name) \
-	{ id, #name, dummy_func }
-
 #define DIRECT(id, name) \
 	{ id, #name, name }
 
-#define DUMMY_GPU(name)  DUMMY(PLUGIN_GPU, name)
-#define DUMMY_CDR(name)  DUMMY(PLUGIN_CDR, name)
-#define DUMMY_PAD(name)  DUMMY(PLUGIN_PAD, name)
+#define DIRECT_CDR(name) DIRECT(PLUGIN_CDR, name)
 #define DIRECT_SPU(name) DIRECT(PLUGIN_SPU, name)
 #define DIRECT_GPU(name) DIRECT(PLUGIN_GPU, name)
 #define DIRECT_PAD(name) DIRECT(PLUGIN_PAD, name)
@@ -97,25 +120,25 @@ static const struct {
 	void *func;
 } plugin_funcs[] = {
 	/* CDR */
-	DUMMY_CDR(CDRinit),
-	DUMMY_CDR(CDRshutdown),
-	DUMMY_CDR(CDRopen),
-	DUMMY_CDR(CDRclose),
-	DUMMY_CDR(CDRtest),
-	DUMMY_CDR(CDRgetTN),
-	DUMMY_CDR(CDRgetTD),
-	DUMMY_CDR(CDRreadTrack),
-	DUMMY_CDR(CDRgetBuffer),
-	DUMMY_CDR(CDRgetBufferSub),
-	DUMMY_CDR(CDRplay),
-	DUMMY_CDR(CDRstop),
-	DUMMY_CDR(CDRgetStatus),
-	DUMMY_CDR(CDRgetDriveLetter),
-	DUMMY_CDR(CDRconfigure),
-	DUMMY_CDR(CDRabout),
-	DUMMY_CDR(CDRsetfilename),
-	DUMMY_CDR(CDRreadCDDA),
-	DUMMY_CDR(CDRgetTE),
+	DIRECT_CDR(CDRinit),
+	DIRECT_CDR(CDRshutdown),
+	DIRECT_CDR(CDRopen),
+	DIRECT_CDR(CDRclose),
+	DIRECT_CDR(CDRtest),
+	DIRECT_CDR(CDRgetTN),
+	DIRECT_CDR(CDRgetTD),
+	DIRECT_CDR(CDRreadTrack),
+	DIRECT_CDR(CDRgetBuffer),
+	DIRECT_CDR(CDRgetBufferSub),
+	DIRECT_CDR(CDRplay),
+	DIRECT_CDR(CDRstop),
+	DIRECT_CDR(CDRgetStatus),
+	DIRECT_CDR(CDRgetDriveLetter),
+	DIRECT_CDR(CDRconfigure),
+	DIRECT_CDR(CDRabout),
+	DIRECT_CDR(CDRsetfilename),
+	DIRECT_CDR(CDRreadCDDA),
+	DIRECT_CDR(CDRgetTE),
 	/* SPU */
 	DIRECT_SPU(SPUinit),
 	DIRECT_SPU(SPUshutdown),
@@ -132,21 +155,21 @@ static const struct {
 	DIRECT_SPU(SPUasync),
 	DIRECT_SPU(SPUplayCDDAchannel),
 	/* PAD */
-	DUMMY_PAD(PADinit),
-	DUMMY_PAD(PADshutdown),
-	DUMMY_PAD(PADopen),
-	DUMMY_PAD(PADclose),
-	DUMMY_PAD(PADsetSensitive),
+	DIRECT_PAD(PADinit),
+	DIRECT_PAD(PADshutdown),
+	DIRECT_PAD(PADopen),
+	DIRECT_PAD(PADclose),
+	DIRECT_PAD(PADsetSensitive),
 	DIRECT_PAD(PADreadPort1),
 	DIRECT_PAD(PADreadPort2),
 /*
-	DUMMY_PAD(PADquery),
-	DUMMY_PAD(PADconfigure),
-	DUMMY_PAD(PADtest),
-	DUMMY_PAD(PADabout),
-	DUMMY_PAD(PADkeypressed),
-	DUMMY_PAD(PADstartPoll),
-	DUMMY_PAD(PADpoll),
+	DIRECT_PAD(PADquery),
+	DIRECT_PAD(PADconfigure),
+	DIRECT_PAD(PADtest),
+	DIRECT_PAD(PADabout),
+	DIRECT_PAD(PADkeypressed),
+	DIRECT_PAD(PADstartPoll),
+	DIRECT_PAD(PADpoll),
 */
 	/* GPU */
 	DIRECT_GPU(GPUupdateLace),
@@ -165,7 +188,7 @@ static const struct {
 	DIRECT_GPU(GPUvBlank),
 	DIRECT_GPU(GPUrearmedCallbacks),
 
-	DUMMY_GPU(GPUdisplayText),
+	DIRECT_GPU(GPUdisplayText),
 /*
 	DIRECT_GPU(GPUkeypressed),
 	DIRECT_GPU(GPUmakeSnapshot),
