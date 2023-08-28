@@ -1118,6 +1118,7 @@ OP(psxHLE) {
 		psxSWCx(regs_, code);
 		return;
 	}
+	dloadFlush(regs_);
 	psxHLEt[hleCode]();
 	branchSeen = 1;
 }

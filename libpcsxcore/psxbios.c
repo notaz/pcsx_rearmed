@@ -256,7 +256,7 @@ typedef struct {
 // todo: FileDesc layout is wrong
 // todo: get rid of these globals
 static FileDesc FDesc[32];
-static char ffile[64], *pfile;
+static char ffile[64];
 static int nfile;
 
 // fixed RAM offsets, SCPH1001 compatible
@@ -293,6 +293,7 @@ static int nfile;
 #define A_HEAP_SIZE     0x9004
 #define A_HEAP_END      0x9008
 #define A_HEAP_FLAG     0x900c
+#define A_RND_SEED      0x9010
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
@@ -393,6 +394,10 @@ static inline void softCallInException(u32 pc) {
 	u32 sra = ra;
 	u32 lim = 0;
 	pc0 = pc;
+
+	assert(ra != 0x80001000);
+	if (ra == 0x80001000)
+		return;
 	ra = 0x80001000;
 
 	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 1000000)
@@ -1080,16 +1085,16 @@ void psxBios_memchr() { // 0x2e
 	v0 = 0; pc0 = ra;
 }
 
-void psxBios_rand() { // 0x2f
-	u32 s = psxMu32(0x9010) * 1103515245 + 12345;
-	v0 = (s >> 16) & 0x7fff;
-	psxMu32ref(0x9010) = SWAPu32(s);
-	pc0 = ra;
+static void psxBios_rand() { // 0x2f
+	u32 s = loadRam32(A_RND_SEED) * 1103515245 + 12345;
+	storeRam32(A_RND_SEED, s);
+	v1 = s;
+	mips_return_c((s >> 16) & 0x7fff, 12+37);
 }
 
-void psxBios_srand() { // 0x30
-	psxMu32ref(0x9010) = SWAPu32(a0);
-	pc0 = ra;
+static void psxBios_srand() { // 0x30
+	storeRam32(A_RND_SEED, a0);
+	mips_return_void_c(3);
 }
 
 static u32 qscmpfunc, qswidth;
@@ -1571,7 +1576,7 @@ void psxBios_GPU_dw() { // 0x46
 
 void psxBios_mem2vram() { // 0x47
 	int size;
-	gpuSyncPluginSR();
+	gpuSyncPluginSR(); // flush
 	GPU_writeData(0xa0000000);
 	GPU_writeData((a1<<0x10)|(a0&0xffff));
 	GPU_writeData((a3<<0x10)|(a2&0xffff));
@@ -1593,8 +1598,8 @@ void psxBios_SendGPU() { // 0x48
 }
 
 void psxBios_GPU_cw() { // 0x49
-	gpuSyncPluginSR();
 	GPU_writeData(a0);
+	gpuSyncPluginSR();
 	v0 = HW_GPU_STATUS;
 	pc0 = ra;
 }
@@ -1882,6 +1887,7 @@ static u32 DeliverEvent(u32 class, u32 spec) {
 	u32 ret = loadRam32(A_TT_EvCB) + evcb_len;
 	u32 i, lim = evcb_len / 0x1c;
 
+	//printf("%s %08x %x\n", __func__, class, spec);
 	for (i = 0; i < lim; i++, ev++) {
 		use_cycles(8);
 		if (SWAP32(ev->status) != EvStACTIVE)
@@ -2339,9 +2345,7 @@ static void buopen(int mcd, char *ptr, char *cfg)
 void psxBios_open() { // 0x32
 	void *pa0 = Ra0;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %s,%x\n", biosB0n[0x32], Ra0, a1);
-#endif
+	PSXBIOS_LOG("psxBios_%s %s %x\n", biosB0n[0x32], Ra0, a1);
 
 	v0 = -1;
 
@@ -2498,7 +2502,9 @@ static size_t strlen_internal(char* p)
 
 #define bufile(mcd) { \
 	size_t size_of_name = strlen_internal(dir->name); \
+	v0 = 0; \
 	while (nfile < 16) { \
+		char *pfile = ffile+5; \
 		int match=1; \
  \
 		ptr = Mcd##mcd##Data + 128 * (nfile + 1); \
@@ -2531,22 +2537,17 @@ static size_t strlen_internal(char* p)
  *	struct DIRENTRY* firstfile(char *name,struct DIRENTRY *dir);
  */
 
-void psxBios_firstfile() { // 42
-	struct DIRENTRY *dir = (struct DIRENTRY *)Ra1;
-	void *pa0 = Ra0;
+static void psxBios_firstfile() { // 42
+	struct DIRENTRY *dir = (struct DIRENTRY *)castRam8ptr(a1);
+	char *pa0 = castRam8ptr(a0);
 	u32 _dir = a1;
 	char *ptr;
 	int i;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %s\n", biosB0n[0x42], Ra0);
-#endif
-
 	v0 = 0;
 
-	if (pa0 != INVALID_PTR) {
-		strcpy(ffile, pa0);
-		pfile = ffile+5;
+	{
+		snprintf(ffile, sizeof(ffile), "%s", pa0);
 		nfile = 0;
 		if (!strncmp(pa0, "bu00", 4)) {
 			// firstfile() calls _card_read() internally, so deliver it's event
@@ -2558,6 +2559,7 @@ void psxBios_firstfile() { // 42
 			bufile(2);
 		}
 	}
+	PSXBIOS_LOG("psxBios_%s %s %x -> %x\n", biosB0n[0x42], pa0, a1, v0);
 
 	pc0 = ra;
 }
@@ -2572,19 +2574,15 @@ void psxBios_nextfile() { // 43
 	char *ptr;
 	int i;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %s\n", biosB0n[0x43], dir->name);
-#endif
-
 	v0 = 0;
 
 	if (!strncmp(ffile, "bu00", 4)) {
 		bufile(1);
 	}
-
-	if (!strncmp(ffile, "bu10", 4)) {
+	else if (!strncmp(ffile, "bu10", 4)) {
 		bufile(2);
 	}
+	PSXBIOS_LOG("psxBios_%s %s -> %x\n", biosB0n[0x43], dir->name, v0);
 
 	pc0 = ra;
 }
@@ -3568,9 +3566,6 @@ void psxBiosInit() {
 
 	memset(FDesc, 0, sizeof(FDesc));
 
-	// initial RNG seed
-	psxMu32ref(0x9010) = SWAPu32(0xac20cc00);
-
 	// somewhat pretend to be a SCPH1001 BIOS
 	// some games look for these and take an exception if they're missing
 	rom32 = (u32 *)psxR;
@@ -3668,7 +3663,6 @@ void psxBiosInit() {
 	ram32[0x1000/4] = HLEOP(hleop_dummy);
 	ram32[0x2000/4] = HLEOP(hleop_dummy);
 	ram32[0x3000/4] = HLEOP(hleop_dummy);
-	ram32[0x4c54/4] = HLEOP(hleop_dummy);   // for B12_InitPad?
 	ram32[0x8000/4] = HLEOP(hleop_execret);
 
 	ram32[A_EEXIT_PTR/4] = SWAP32(A_EEXIT_DEF);
@@ -3677,6 +3671,7 @@ void psxBiosInit() {
 	ram32[A_RCNT_VBL_ACK/4 + 1] = SWAP32(1);
 	ram32[A_RCNT_VBL_ACK/4 + 2] = SWAP32(1);
 	ram32[A_RCNT_VBL_ACK/4 + 3] = SWAP32(1);
+	ram32[A_RND_SEED/4] = SWAPu32(0x24040001); // was 0xac20cc00
 }
 
 void psxBiosShutdown() {
@@ -3757,7 +3752,7 @@ void hleExc0_2_2_syscall() // not in any A/B/C table
 {
 	u32 tcbPtr = loadRam32(A_TT_PCB);
 	TCB *tcb = loadRam32ptr(tcbPtr);
-	u32 code = SWAP32(tcb->cause) >> 2;
+	u32 code = (SWAP32(tcb->cause) & 0x3c) >> 2;
 
 	if (code != R3000E_Syscall) {
 		if (code != 0) {
@@ -3975,21 +3970,12 @@ void psxBiosException() {
 }
 
 #define bfreezes(ptr) bfreeze(ptr, sizeof(ptr))
-#define bfreezel(ptr) bfreeze(ptr, sizeof(*ptr))
-
-#define bfreezepsxMptr(ptr, type) { \
-	if (Mode == 1) { \
-		if (ptr) psxRu32ref(base) = SWAPu32((s8 *)(ptr) - psxM); \
-		else psxRu32ref(base) = 0; \
-	} else { \
-		if (psxRu32(base) != 0) ptr = (type *)(psxM + psxRu32(base)); \
-		else (ptr) = NULL; \
-	} \
-	base += sizeof(u32); \
-}
+#define bfreezel(ptr) bfreeze(ptr, sizeof(*(ptr)))
 
 void psxBiosFreeze(int Mode) {
 	u32 base = 0x40000;
 
 	bfreezes(FDesc);
+	bfreezes(ffile);
+	bfreezel(&nfile);
 }
