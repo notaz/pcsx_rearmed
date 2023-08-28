@@ -541,6 +541,7 @@ else ifeq ($(platform), emscripten)
    fpic    := -fPIC
    SHARED  := -shared -Wl,--no-undefined -Wl,--version-script=link.T
    CFLAGS += -DNO_DYLIB
+   DYNAREC =
    STATIC_LINKING = 1
 
 # Windows
