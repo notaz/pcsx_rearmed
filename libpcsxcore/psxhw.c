@@ -43,7 +43,7 @@ void psxHwReset() {
 
 void psxHwWriteIstat(u32 value)
 {
-	u32 stat = psxHu16(0x1070) & SWAPu16(value);
+	u32 stat = psxHu16(0x1070) & value;
 	psxHu16ref(0x1070) = SWAPu16(stat);
 
 	psxRegs.CP0.n.Cause &= ~0x400;
@@ -55,7 +55,7 @@ void psxHwWriteImask(u32 value)
 {
 	u32 stat = psxHu16(0x1070);
 	psxHu16ref(0x1074) = SWAPu16(value);
-	if (stat & SWAPu16(value)) {
+	if (stat & value) {
 		//if ((psxRegs.CP0.n.SR & 0x401) == 0x401)
 		//	log_unhandled("irq on unmask @%08x\n", psxRegs.pc);
 		new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
