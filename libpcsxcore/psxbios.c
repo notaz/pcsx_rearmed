@@ -294,6 +294,9 @@ static int nfile;
 #define A_HEAP_END      0x9008
 #define A_HEAP_FLAG     0x900c
 #define A_RND_SEED      0x9010
+#define A_CONF_TCB      0xb940
+#define A_CONF_EvCB     0xb944
+#define A_CONF_SP       0xb948
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
@@ -1713,6 +1716,23 @@ static void psxBios_CdRemove() { // 56, 72
 	use_cycles(30);
 }
 
+static void setup_tt(u32 tcb_cnt, u32 evcb_cnt, u32 stack);
+
+static void psxBios_SetConf() { // 9c
+	PSXBIOS_LOG("psxBios_%s %x %x %x\n", biosA0n[0x9c], a0, a1, a2);
+	setup_tt(a1, a0, a2);
+	psxRegs.CP0.n.SR |= 0x401;
+	mips_return_void_c(500);
+}
+
+static void psxBios_GetConf() { // 9d
+	PSXBIOS_LOG("psxBios_%s %x %x %x\n", biosA0n[0x9d], a0, a1, a2);
+	storeRam32(a0, loadRam32(A_CONF_EvCB));
+	storeRam32(a1, loadRam32(A_CONF_TCB));
+	storeRam32(a2, loadRam32(A_CONF_SP));
+	mips_return_void_c(10);
+}
+
 void psxBios_SetMem() { // 9f
 	u32 new = psxHu32(0x1060);
 
@@ -2077,7 +2097,7 @@ void psxBios_OpenTh() { // 0e
 		mips_return_c(0xffffffff, 20);
 		return;
 	}
-	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x0e], th);
+	PSXBIOS_LOG("psxBios_%s -> %x\n", biosB0n[0x0e], 0xff000000 + th);
 
 	tcb[th].status  = SWAP32(0x4000);
 	tcb[th].mode    = SWAP32(0x1000);
@@ -2093,21 +2113,15 @@ void psxBios_OpenTh() { // 0e
  *	int CloseTh(long thread);
  */
 
-void psxBios_CloseTh() { // 0f
-	TCB *tcb = loadRam32ptr(A_TT_TCB);
-	u32 limit = loadRam32(A_TT_TCB + 4) / 0xc0u;
-	u32 th = a0 & 0xff;
+static void psxBios_CloseTh() { // 0f
+	u32 tcb = loadRam32(A_TT_TCB);
+	u32 th = a0 & 0xffff;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %x\n", biosB0n[0x0f], th);
-#endif
-	/* The return value is always 1 (even if the handle was already closed). */
-	v0 = 1;
-	if (th < limit && tcb[th].status == SWAP32(0x4000)) {
-		tcb[th].status = SWAP32(0x1000);
-	}
+	PSXBIOS_LOG("psxBios_%s %x\n", biosB0n[0x0f], a0);
+	// in the usual bios fashion no checks, just write and return 1
+	storeRam32(tcb + th * sizeof(TCB), 0x1000);
 
-	pc0 = ra;
+	mips_return_c(1, 11);
 }
 
 /*
@@ -3100,12 +3114,21 @@ static void write_chain(u32 *d, u32 next, u32 handler1, u32 handler2)
 	if (handler2) PSXMu32ref(handler2) = HLEOP(chain_hle_op(handler2));
 }
 
-static void setup_tt(u32 tcb_cnt, u32 evcb_cnt)
+static void setup_tt(u32 tcb_cnt, u32 evcb_cnt, u32 stack)
 {
 	u32 *ram32 = (u32 *)psxM;
-	u32 s_excb = 0x20, s_evcb = 0x1c * evcb_cnt;
-	u32 s_pcb = 4, s_tcb = 0xc0 * tcb_cnt;
+	u32 s_excb = 0x20, s_evcb, s_pcb = 4, s_tcb;
 	u32 p_excb, p_evcb, p_pcb, p_tcb;
+	u32 i;
+
+	PSXBIOS_LOG("setup: tcb %u, evcb %u\n", tcb_cnt, evcb_cnt);
+
+	// the real bios doesn't care, but we just don't
+	// want to crash in case of garbage parameters
+	if (tcb_cnt > 1024) tcb_cnt = 1024;
+	if (evcb_cnt > 1024) evcb_cnt = 1024;
+	s_evcb = 0x1c * evcb_cnt;
+	s_tcb = 0xc0 * tcb_cnt;
 
 	memset(ram32 + 0xe000/4, 0, s_excb + s_evcb + s_pcb + s_tcb + 5*4);
 	psxBios_SysInitMemory_(0xa000e000, 0x2000);
@@ -3136,6 +3159,8 @@ static void setup_tt(u32 tcb_cnt, u32 evcb_cnt)
 
 	storeRam32(p_pcb, p_tcb);
 	storeRam32(p_tcb, 0x4000);          // first TCB
+	for (i = 1; i < tcb_cnt; i++)
+		storeRam32(p_tcb + sizeof(TCB) * i, 0x1000);
 
 	// default events
 	storeRam32(A_CD_EVENTS + 0x00, OpenEvent(0xf0000003, 0x0010, EvMdMARK, 0));
@@ -3143,7 +3168,10 @@ static void setup_tt(u32 tcb_cnt, u32 evcb_cnt)
 	storeRam32(A_CD_EVENTS + 0x08, OpenEvent(0xf0000003, 0x0040, EvMdMARK, 0));
 	storeRam32(A_CD_EVENTS + 0x0c, OpenEvent(0xf0000003, 0x0080, EvMdMARK, 0));
 	storeRam32(A_CD_EVENTS + 0x10, OpenEvent(0xf0000003, 0x8000, EvMdMARK, 0));
-	DeliverEvent(0xf0000003, 0x0010);
+
+	storeRam32(A_CONF_EvCB, evcb_cnt);
+	storeRam32(A_CONF_TCB, tcb_cnt);
+	storeRam32(A_CONF_SP, stack);
 }
 
 static const u32 gpu_ctl_def[] = {
@@ -3411,8 +3439,8 @@ void psxBiosInit() {
 	//biosA0[0x99] = psxBios_EnableKernelIORedirection;
 	//biosA0[0x9a] = psxBios_sys_a0_9a;
 	//biosA0[0x9b] = psxBios_sys_a0_9b;
-	//biosA0[0x9c] = psxBios_SetConf;
-	//biosA0[0x9d] = psxBios_GetConf;
+	biosA0[0x9c] = psxBios_SetConf;
+	biosA0[0x9d] = psxBios_GetConf;
 	//biosA0[0x9e] = psxBios_sys_a0_9e;
 	biosA0[0x9f] = psxBios_SetMem;
 	//biosA0[0xa0] = psxBios__boot;
@@ -3614,7 +3642,8 @@ void psxBiosInit() {
 	ram32[0x00b0/4] = HLEOP(hleop_b0);
 	ram32[0x00c0/4] = HLEOP(hleop_c0);
 
-	setup_tt(4, 16);
+	setup_tt(4, 16, 0x801fff00);
+	DeliverEvent(0xf0000003, 0x0010);
 
 	ram32[0x6ee0/4] = SWAPu32(0x0000eff0); // DCB
 	strcpy((char *)&ram32[0xeff0/4], "bu");
@@ -3677,9 +3706,14 @@ void psxBiosInit() {
 void psxBiosShutdown() {
 }
 
-void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt) {
-	if (tcb_cnt != 4 || evcb_cnt != 16)
-		setup_tt(tcb_cnt, evcb_cnt);
+void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 stack) {
+	if (stack == 0)
+		stack = 0x801FFF00;
+	if (tcb_cnt != 4 || evcb_cnt != 16) {
+		setup_tt(tcb_cnt, evcb_cnt, stack);
+		DeliverEvent(0xf0000003, 0x0010);
+	}
+	storeRam32(A_CONF_SP, stack);
 }
 
 #define psxBios_PADpoll(pad) { \

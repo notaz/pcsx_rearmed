@@ -243,7 +243,7 @@ int LoadCdrom() {
 		getFromCnf((char *)buf + 12, "EVENT", &cnf_event);
 		getFromCnf((char *)buf + 12, "STACK", &cnf_stack);
 		if (Config.HLE)
-			psxBiosCnfLoaded(cnf_tcb, cnf_event);
+			psxBiosCnfLoaded(cnf_tcb, cnf_event, cnf_stack);
 
 		// Read the EXE-Header
 		READTRACK();

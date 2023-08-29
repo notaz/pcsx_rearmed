@@ -38,7 +38,7 @@ void psxBiosInit();
 void psxBiosShutdown();
 void psxBiosException();
 void psxBiosFreeze(int Mode);
-void psxBiosCnfLoaded(u32 tcbs, u32 events);
+void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 sp);
 void psxBiosSetupBootState(void);
 
 extern void (*biosA0[256])();
