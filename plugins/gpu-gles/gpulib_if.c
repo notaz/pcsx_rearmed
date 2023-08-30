@@ -679,7 +679,7 @@ void vout_set_config(const struct rearmed_cbs *cbs)
 
 static struct rearmed_cbs *cbs;
 
-long GPUopen(void **dpy)
+long GPUopen(unsigned long *disp, char *cap, char *cfg)
 {
  int ret;
 
@@ -738,7 +738,7 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
  if (is_opened && cbs->gles_display != NULL && cbs->gles_surface != NULL) {
   // HACK..
   GPUclose();
-  GPUopen(NULL);
+  GPUopen(NULL, NULL, NULL);
  }
 
  set_vram(gpu.vram);
