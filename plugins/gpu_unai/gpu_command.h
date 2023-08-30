@@ -45,13 +45,13 @@ void gpuSetTexture(u16 tpage)
 	
 	gpu_unai.BLEND_MODE  = ((tpage>>5) & 3) << 3;
 	gpu_unai.TEXT_MODE   = (tmode + 1) << 5; // gpu_unai.TEXT_MODE should be values 1..3, so add one
-	gpu_unai.TBA = &((u16*)gpu_unai.vram)[FRAME_OFFSET(tx, ty)];
+	gpu_unai.TBA = &gpu_unai.vram[FRAME_OFFSET(tx, ty)];
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSetCLUT(u16 clut)
 {
-	gpu_unai.CBA = &((u16*)gpu_unai.vram)[(clut & 0x7FFF) << 4];
+	gpu_unai.CBA = &gpu_unai.vram[(clut & 0x7FFF) << 4];
 }
 
 #ifdef  ENABLE_GPU_NULL_SUPPORT
@@ -193,8 +193,8 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (gpu_unai.PacketBuffer.U4[4] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+				gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
 
 				u32 driver_idx =
 					(gpu_unai.blit_mask?1024:0) |
@@ -241,8 +241,8 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (gpu_unai.PacketBuffer.U4[4] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+				gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
 
 				u32 driver_idx =
 					(gpu_unai.blit_mask?1024:0) |
@@ -294,8 +294,8 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+				gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
 				PP driver = gpuPolySpanDrivers[
 					(gpu_unai.blit_mask?1024:0) |
 					Dithering |
@@ -335,8 +335,8 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+				gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
 				PP driver = gpuPolySpanDrivers[
 					(gpu_unai.blit_mask?1024:0) |
 					Dithering |
@@ -383,7 +383,7 @@ void gpuSendPacketFunction(const int PRIM)
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawLineF(0x%x)\n",PRIM));
 			}
-			if ((gpu_unai.PacketBuffer.U4[3] & 0xF000F000) != 0x50005000)
+			if ((le32_raw(gpu_unai.PacketBuffer.U4[3]) & HTOLE32(0xF000F000)) != HTOLE32(0x50005000))
 			{
 				gpu_unai.PacketBuffer.U4[1] = gpu_unai.PacketBuffer.U4[2];
 				gpu_unai.PacketBuffer.U4[2] = gpu_unai.PacketBuffer.U4[3];
@@ -430,7 +430,7 @@ void gpuSendPacketFunction(const int PRIM)
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawLineG(0x%x)\n",PRIM));
 			}
-			if ((gpu_unai.PacketBuffer.U4[4] & 0xF000F000) != 0x50005000)
+			if ((le32_raw(gpu_unai.PacketBuffer.U4[4]) & HTOLE32(0xF000F000)) != HTOLE32(0x50005000))
 			{
 				gpu_unai.PacketBuffer.U1[3 + (2 * 4)] = gpu_unai.PacketBuffer.U1[3 + (0 * 4)];
 				gpu_unai.PacketBuffer.U4[0] = gpu_unai.PacketBuffer.U4[2];
@@ -462,7 +462,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 				u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
 
 				// This fixes Silent Hill running animation on loading screens:
@@ -478,7 +478,7 @@ void gpuSendPacketFunction(const int PRIM)
 				//  alone, I don't want to slow rendering down too much. (TODO)
 				//if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
 				// Strip lower 3 bits of each color and determine if lighting should be used:
-				if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+				if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
 				gpuDrawS(packet, driver);
@@ -494,7 +494,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpu_unai.PacketBuffer.U4[2] = 0x00010001;
+				gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00010001);
 				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
@@ -509,7 +509,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpu_unai.PacketBuffer.U4[2] = 0x00080008;
+				gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00080008);
 				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
@@ -524,14 +524,14 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpu_unai.PacketBuffer.U4[3] = 0x00080008;
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+				gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00080008);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 				u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
 
 				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
 				//if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
 				// Strip lower 3 bits of each color and determine if lighting should be used:
-				if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+				if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
 				gpuDrawS(packet, driver);
@@ -547,7 +547,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpu_unai.PacketBuffer.U4[2] = 0x00100010;
+				gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00100010);
 				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
@@ -561,7 +561,7 @@ void gpuSendPacketFunction(const int PRIM)
 			/* Notaz 4bit sprites optimization */
 			if ((!gpu_unai.frameskip.skipGPU) && (!(gpu_unai.GPU_GP1&0x180)) && (!(gpu_unai.Masking|gpu_unai.PixelMSB)))
 			{
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 				gpuDrawS16(packet);
 				gpu_unai.fb_dirty = true;
 				break;
@@ -572,14 +572,14 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				gpu_unai.PacketBuffer.U4[3] = 0x00100010;
-				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+				gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00100010);
+				gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 				u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
 
 				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
 				//if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
 				// Strip lower 3 bits of each color and determine if lighting should be used:
-				if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+				if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
 				gpuDrawS(packet, driver);
@@ -609,7 +609,7 @@ void gpuSendPacketFunction(const int PRIM)
 			DO_LOG(("gpuStoreImage(0x%x)\n",PRIM));
 			break;
 		case 0xE1 ... 0xE6: { // Draw settings
-			gpuGP0Cmd_0xEx(gpu_unai, gpu_unai.PacketBuffer.U4[0]);
+			gpuGP0Cmd_0xEx(gpu_unai, le32_to_u32(gpu_unai.PacketBuffer.U4[0]));
 		} break;
 	}
 }

@@ -85,11 +85,11 @@ static void SetupDitheringConstants()
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int DITHER>
-GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const u16 *pDst)
+GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const le16_t *pDst)
 {
 	if (DITHER)
 	{
-		u16 fbpos  = (u32)(pDst - gpu_unai.vram);
+		u16 fbpos  = (uintptr_t)pDst - (uintptr_t)gpu_unai.vram;
 		u16 offset = ((fbpos & (0x7 << 10)) >> 7) | (fbpos & 0x7);
 
 		//clean overflow flags and add
