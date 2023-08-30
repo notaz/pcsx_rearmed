@@ -81,9 +81,9 @@ void vout_blank(void)
 {
 }
 
-long GPUopen(void **dpy)
+long GPUopen(unsigned long *disp, char *cap, char *cfg)
 {
-  *dpy = x11_display;
+  *disp = (long)x11_display;
   return 0;
 }
 

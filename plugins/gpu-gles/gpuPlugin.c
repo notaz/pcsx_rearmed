@@ -453,7 +453,7 @@ return 0;
 // some PAD or SPU plugins would not work anymore)
 ////////////////////////////////////////////////////////////////////////
 
-long CALLBACK GPUopen(int hwndGPU)
+long CALLBACK GPUopen(unsigned long *disp, char *cap, char *cfg)
 {
 	 iResX=800;iResY=480;
 	 iColDepth=8;

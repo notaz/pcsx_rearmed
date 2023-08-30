@@ -114,7 +114,7 @@ void vout_blank(void)
   cbs->pl_vout_flip(NULL, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), 0, 0, w, h, 0);
 }
 
-long GPUopen(void **unused)
+long GPUopen(unsigned long *disp, char *cap, char *cfg)
 {
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;

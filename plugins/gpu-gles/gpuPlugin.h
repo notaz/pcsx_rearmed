@@ -65,7 +65,7 @@ typedef struct {
 #if 0
 long CALLBACK GPUinit();
 long CALLBACK GPUshutdown();
-long CALLBACK GPUopen(int hwndGPU);
+long CALLBACK GPUopen(unsigned long *disp, char *cap, char *cfg);
 long CALLBACK GPUclose();
 unsigned long CALLBACK GPUreadData(void);
 void CALLBACK GPUreadDataMem(unsigned long * pMem, int iSize);
