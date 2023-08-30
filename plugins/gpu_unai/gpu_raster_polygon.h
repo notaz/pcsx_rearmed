@@ -31,11 +31,19 @@
 struct PolyVertex {
 	s32 x, y; // Sign-extended 11-bit X,Y coords
 	union {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		struct { u8 pad[2], v, u; } tex; // Texture coords (if used)
+#else
 		struct { u8 u, v, pad[2]; } tex; // Texture coords (if used)
+#endif
 		u32 tex_word;
 	};
 	union {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		struct { u8 pad, b, g, r; } col; // 24-bit RGB color (if used)
+#else
 		struct { u8 r, g, b, pad; } col; // 24-bit RGB color (if used)
+#endif
 		u32 col_word;
 	};
 };
@@ -68,30 +76,30 @@ static void polyInitVertexBuffer(PolyVertex *vbuf, const PtrUnion packet, PolyTy
 		vert_stride++;
 
 	int num_verts = (is_quad) ? 4 : 3;
-	u32 *ptr;
+	le32_t *ptr;
 
 	// X,Y coords, adjusted by draw offsets
 	s32 x_off = gpu_unai.DrawingOffset[0];
 	s32 y_off = gpu_unai.DrawingOffset[1];
 	ptr = &packet.U4[1];
 	for (int i=0;  i < num_verts; ++i, ptr += vert_stride) {
-		s16* coord_ptr = (s16*)ptr;
-		vbuf[i].x = GPU_EXPANDSIGN(coord_ptr[0]) + x_off;
-		vbuf[i].y = GPU_EXPANDSIGN(coord_ptr[1]) + y_off;
+		u32 coords = le32_to_u32(*ptr);
+		vbuf[i].x = GPU_EXPANDSIGN((s16)coords) + x_off;
+		vbuf[i].y = GPU_EXPANDSIGN((s16)(coords >> 16)) + y_off;
 	}
 
 	// U,V texture coords (if applicable)
 	if (texturing) {
 		ptr = &packet.U4[2];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			vbuf[i].tex_word = *ptr;
+			vbuf[i].tex_word = le32_to_u32(*ptr);
 	}
 
 	// Colors (if applicable)
 	if (gouraud) {
 		ptr = &packet.U4[0];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			vbuf[i].col_word = *ptr;
+			vbuf[i].col_word = le32_to_u32(*ptr);
 	}
 }
 
@@ -218,7 +226,7 @@ gpuDrawPolyF - Flat-shaded, untextured poly
 void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
 	// Set up bgr555 color to be used across calls in inner driver
-	gpu_unai.PixelData = GPU_RGB16(packet.U4[0]);
+	gpu_unai.PixelData = GPU_RGB16(le32_to_u32(packet.U4[0]));
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, POLYTYPE_F, is_quad);
@@ -342,7 +350,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
 			int li=gpu_unai.ilace_mask;
 			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
@@ -652,7 +660,7 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
 			int li=gpu_unai.ilace_mask;
 			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
@@ -997,7 +1005,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
 			int li=gpu_unai.ilace_mask;
 			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
@@ -1392,7 +1400,7 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
 			int li=gpu_unai.ilace_mask;
 			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
