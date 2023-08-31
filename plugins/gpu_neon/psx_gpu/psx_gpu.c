@@ -260,8 +260,8 @@ u32 invalidate_texture_cache_region_viewport(psx_gpu_struct *psx_gpu, u32 x1,
   return mask;
 }
 
-void update_texture_cache_region(psx_gpu_struct *psx_gpu, u32 x1, u32 y1,
- u32 x2, u32 y2)
+static void update_texture_cache_region_(psx_gpu_struct *psx_gpu,
+ u32 x1, u32 y1, u32 x2, u32 y2)
 {
   u32 mask = texture_region_mask(x1, y1, x2, y2);
   u32 texture_page;
@@ -311,6 +311,22 @@ void update_texture_cache_region(psx_gpu_struct *psx_gpu, u32 x1, u32 y1,
   {
     psx_gpu->dirty_textures_4bpp_mask |= mask;
   }
+}
+
+void update_texture_cache_region(psx_gpu_struct *psx_gpu, u32 x1, u32 y1,
+ u32 x2, u32 y2)
+{
+  s32 w = x2 - x1;
+  do
+  {
+    x2 = x1 + w;
+    if (x2 > 1023)
+      x2 = 1023;
+    update_texture_cache_region_(psx_gpu, x1, y1, x2, y2);
+    w -= x2 - x1;
+    x1 = 0;
+  }
+  while (unlikely(w > 0));
 }
 
 #ifndef NEON_BUILD
@@ -5057,3 +5073,5 @@ void triangle_benchmark(psx_gpu_struct *psx_gpu)
 #endif
 
 #include "psx_gpu_4x.c"
+
+// vim:ts=2:sw=2:expandtab

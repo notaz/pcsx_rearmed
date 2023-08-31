@@ -150,6 +150,7 @@ sync_enhancement_buffers(int x, int y, int w, int h)
     }
 
     x += (w1 + s) * step_x;
+    x &= 0x3ff;
     x_buf = 0;
   }
 }
