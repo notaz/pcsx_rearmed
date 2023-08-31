@@ -2504,47 +2504,61 @@ void psxBios_puts() { // 3e/3f
 	pc0 = ra;
 }
 
+static void bufile(const u8 *mcd_data, u32 dir_) {
+	struct DIRENTRY *dir = (struct DIRENTRY *)castRam8ptr(dir_);
+	const char *pfile = ffile + 5;
+	const u8 *data = mcd_data;
+	int i = 0, match = 0;
+	int blocks = 1;
+	u32 head = 0;
 
-/* To avoid any issues with different behaviour when using the libc's own strlen instead.
- * We want to mimic the PSX's behaviour in this case for bufile. */
-static size_t strlen_internal(char* p)
-{
-	size_t size_of_array = 0;
-	while (*p++) size_of_array++;
-	return size_of_array;
-}
+	v0 = 0;
+	for (; nfile <= 15 && !match; nfile++) {
+		const char *name;
 
-#define bufile(mcd) { \
-	size_t size_of_name = strlen_internal(dir->name); \
-	v0 = 0; \
-	while (nfile < 16) { \
-		char *pfile = ffile+5; \
-		int match=1; \
- \
-		ptr = Mcd##mcd##Data + 128 * (nfile + 1); \
-		nfile++; \
-		if ((*ptr & 0xF0) != 0x50) continue; \
-		/* Bug link files show up as free block. */ \
-		if (!ptr[0xa]) continue; \
-		ptr+= 0xa; \
-		if (pfile[0] == 0) { \
-			strncpy(dir->name, ptr, sizeof(dir->name) - 1); \
-			if (size_of_name < sizeof(dir->name)) dir->name[size_of_name] = '\0'; \
-		} else for (i=0; i<20; i++) { \
-			if (pfile[i] == ptr[i]) { \
-								dir->name[i] = ptr[i]; continue; } \
-			if (pfile[i] == '?') { \
-				dir->name[i] = ptr[i]; continue; } \
-			if (pfile[i] == '*') { \
-				strcpy(dir->name+i, ptr+i); break; } \
-			match = 0; break; \
-		} \
-		PSXBIOS_LOG("%d : %s = %s + %s (match=%d)\n", nfile, dir->name, pfile, ptr, match); \
-		if (match == 0) { continue; } \
-		dir->size = 8192; \
-		v0 = _dir; \
-		break; \
-	} \
+		head = nfile * 0x40;
+		data = mcd_data + 128 * nfile;
+		name = (const char *)data + 0x0a;
+		if ((data[0] & 0xF0) != 0x50) continue;
+		/* Bug link files show up as free block. */
+		if (!name[0]) continue;
+		match = 1;
+		for (i = 0; i < 20; i++) {
+			if (pfile[i] == name[i] || pfile[i] == '?')
+				dir->name[i] = name[i];
+			else if (pfile[i] == '*') {
+				int len = strlen(name + i);
+				if (i + len > 20)
+					len = 20 - i;
+				memcpy(dir->name + i, name + i, len + 1);
+				i += len;
+				break;
+			}
+			else {
+				match = 0;
+				break;
+			}
+			if (!name[i])
+				break;
+		}
+		PSXBIOS_LOG("%d : %s = %s + %s (match=%d)\n",
+			nfile, dir->name, pfile, name, match);
+	}
+	for (; nfile <= 15; nfile++, blocks++) {
+		const u8 *data2 = mcd_data + 128 * nfile;
+		const char *name = data2 + 0x0a;
+		if ((data2[0] & 0xF0) != 0x50 || name[0])
+			break;
+	}
+	if (match) {
+		// nul char of full lenth name seems to overwrite .attr
+		dir->attr = SWAP32(i < 20 ? data[0] & 0xf0 : 0); // ?
+		dir->size = 8192 * blocks;
+		dir->head = head;
+		v0 = dir_;
+	}
+	PSXBIOS_LOG("  -> %x '%s' %x %x %x %x\n", v0, v0 ? dir->name : "",
+		    dir->attr, dir->size, dir->next, dir->head);
 }
 
 /*
@@ -2552,28 +2566,26 @@ static size_t strlen_internal(char* p)
  */
 
 static void psxBios_firstfile() { // 42
-	struct DIRENTRY *dir = (struct DIRENTRY *)castRam8ptr(a1);
 	char *pa0 = castRam8ptr(a0);
-	u32 _dir = a1;
-	char *ptr;
-	int i;
 
+	PSXBIOS_LOG("psxBios_%s %s %x\n", biosB0n[0x42], pa0, a1);
 	v0 = 0;
 
 	{
 		snprintf(ffile, sizeof(ffile), "%s", pa0);
-		nfile = 0;
+		if (ffile[5] == 0)
+			strcpy(ffile + 5, "*"); // maybe?
+		nfile = 1;
 		if (!strncmp(pa0, "bu00", 4)) {
 			// firstfile() calls _card_read() internally, so deliver it's event
 			DeliverEvent(0xf0000011, 0x0004);
-			bufile(1);
+			bufile(Mcd1Data, a1);
 		} else if (!strncmp(pa0, "bu10", 4)) {
 			// firstfile() calls _card_read() internally, so deliver it's event
 			DeliverEvent(0xf0000011, 0x0004);
-			bufile(2);
+			bufile(Mcd2Data, a1);
 		}
 	}
-	PSXBIOS_LOG("psxBios_%s %s %x -> %x\n", biosB0n[0x42], pa0, a1, v0);
 
 	pc0 = ra;
 }
@@ -2583,20 +2595,13 @@ static void psxBios_firstfile() { // 42
  */
 
 void psxBios_nextfile() { // 43
-	struct DIRENTRY *dir = (struct DIRENTRY *)Ra0;
-	u32 _dir = a0;
-	char *ptr;
-	int i;
+	PSXBIOS_LOG("psxBios_%s %x\n", biosB0n[0x43], a0);
 
 	v0 = 0;
-
-	if (!strncmp(ffile, "bu00", 4)) {
-		bufile(1);
-	}
-	else if (!strncmp(ffile, "bu10", 4)) {
-		bufile(2);
-	}
-	PSXBIOS_LOG("psxBios_%s %s -> %x\n", biosB0n[0x43], dir->name, v0);
+	if (!strncmp(ffile, "bu00", 4))
+		bufile(Mcd1Data, a0);
+	else if (!strncmp(ffile, "bu10", 4))
+		bufile(Mcd2Data, a0);
 
 	pc0 = ra;
 }
