@@ -972,9 +972,13 @@ static int disable_main_render;
 
 static int check_enhanced_range(psx_gpu_struct *psx_gpu, int x, int x_end)
 {
-  // simple reject to avoid oveflowing the 1024 width
+  // reject to avoid oveflowing the 1024 width
   // (assume some offscreen render-to-texture thing)
-  if (x >= (int)(psx_gpu->saved_viewport_start_x + 512))
+  int fb_index;
+  if (x < 0)
+    return 1;
+  fb_index = select_enhancement_buf_index(psx_gpu, x);
+  if (x >= psx_gpu->enhancement_buf_start[fb_index] + 512)
     return 0;
 
   return 1;
