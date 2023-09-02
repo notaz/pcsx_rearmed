@@ -19,6 +19,7 @@
 #include "../psxmem.h"
 #include "../r3000a.h"
 #include "../psxinterpreter.h"
+#include "../psxhle.h"
 #include "../new_dynarec/events.h"
 
 #include "../frontend/main.h"
@@ -479,6 +480,9 @@ static int lightrec_plugin_init(void)
 	return 0;
 }
 
+static void lightrec_plugin_sync_regs_to_pcsx(bool need_cp2);
+static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2);
+
 static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
@@ -518,7 +522,18 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		}
 
 		if (flags & LIGHTREC_EXIT_SYSCALL)
-			psxException(0x20, 0, (psxCP0Regs *)regs->cp0);
+			psxException(R3000E_Syscall << 2, 0, (psxCP0Regs *)regs->cp0);
+		else if (flags & LIGHTREC_EXIT_UNKNOWN_OP) {
+			u32 op = intFakeFetch(psxRegs.pc);
+			u32 hlec = op & 0x03ffffff;
+			if ((op >> 26) == 0x3b && hlec < ARRAY_SIZE(psxHLEt) && Config.HLE) {
+				lightrec_plugin_sync_regs_to_pcsx(0);
+				psxHLEt[hlec]();
+				lightrec_plugin_sync_regs_from_pcsx(0);
+			}
+			else
+				psxException(R3000E_RI << 2, 0, (psxCP0Regs *)regs->cp0);
+		}
 	}
 
 	if ((regs->cp0[13] & regs->cp0[12] & 0x300) && (regs->cp0[12] & 0x1)) {
@@ -550,9 +565,6 @@ static void lightrec_plugin_clear(u32 addr, u32 size)
 		lightrec_invalidate(lightrec_state, addr, size * 4);
 }
 
-static void lightrec_plugin_sync_regs_to_pcsx(void);
-static void lightrec_plugin_sync_regs_from_pcsx(void);
-
 static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 {
 	switch (note)
@@ -562,10 +574,13 @@ static void lightrec_plugin_notify(enum R3000Anote note, void *data)
 		/* not used, lightrec calls lightrec_enable_ram() instead */
 		break;
 	case R3000ACPU_NOTIFY_BEFORE_SAVE:
-		lightrec_plugin_sync_regs_to_pcsx();
+		/* non-null 'data' means this is HLE related sync */
+		lightrec_plugin_sync_regs_to_pcsx(data == NULL);
 		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
-		lightrec_plugin_sync_regs_from_pcsx();
+		lightrec_plugin_sync_regs_from_pcsx(data == NULL);
+		if (data == NULL)
+			lightrec_invalidate_all(lightrec_state);
 		break;
 	}
 }
@@ -608,26 +623,26 @@ static void lightrec_plugin_reset(void)
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
 }
 
-static void lightrec_plugin_sync_regs_from_pcsx(void)
+static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2)
 {
 	struct lightrec_registers *regs;
 
 	regs = lightrec_get_registers(lightrec_state);
-	memcpy(regs->cp2d, &psxRegs.CP2, sizeof(regs->cp2d) + sizeof(regs->cp2c));
-	memcpy(regs->cp0, &psxRegs.CP0, sizeof(regs->cp0));
 	memcpy(regs->gpr, &psxRegs.GPR, sizeof(regs->gpr));
-
-	lightrec_invalidate_all(lightrec_state);
+	memcpy(regs->cp0, &psxRegs.CP0, sizeof(regs->cp0));
+	if (need_cp2)
+		memcpy(regs->cp2d, &psxRegs.CP2, sizeof(regs->cp2d) + sizeof(regs->cp2c));
 }
 
-static void lightrec_plugin_sync_regs_to_pcsx(void)
+static void lightrec_plugin_sync_regs_to_pcsx(bool need_cp2)
 {
 	struct lightrec_registers *regs;
 
 	regs = lightrec_get_registers(lightrec_state);
-	memcpy(&psxRegs.CP2, regs->cp2d, sizeof(regs->cp2d) + sizeof(regs->cp2c));
-	memcpy(&psxRegs.CP0, regs->cp0, sizeof(regs->cp0));
 	memcpy(&psxRegs.GPR, regs->gpr, sizeof(regs->gpr));
+	memcpy(&psxRegs.CP0, regs->cp0, sizeof(regs->cp0));
+	if (need_cp2)
+		memcpy(&psxRegs.CP2, regs->cp2d, sizeof(regs->cp2d) + sizeof(regs->cp2c));
 }
 
 R3000Acpu psxRec =

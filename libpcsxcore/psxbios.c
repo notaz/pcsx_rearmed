@@ -47,6 +47,8 @@
 #define PSXBIOS_LOG(...)
 #endif
 
+#define PTR_1 (void *)(size_t)1
+
 char *biosA0n[256] = {
 // 0x00
 	"open",		"lseek",	"read",		"write",
@@ -384,8 +386,12 @@ static inline void softCall(u32 pc) {
 	ra = 0x80001000;
 	psxRegs.CP0.n.SR &= ~0x404; // disable interrupts
 
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
+
 	while (pc0 != 0x80001000 && ++lim < 1000000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 
 	if (lim == 1000000)
 		PSXBIOS_LOG("softCall @%x hit lim\n", pc);
@@ -403,8 +409,12 @@ static inline void softCallInException(u32 pc) {
 		return;
 	ra = 0x80001000;
 
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
+
 	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 1000000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 
 	if (lim == 1000000)
 		PSXBIOS_LOG("softCallInException @%x hit lim\n", pc);
