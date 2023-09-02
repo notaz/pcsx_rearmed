@@ -28,13 +28,6 @@ static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
 			    const struct block *block, u16 offset,
 			    u8 reg, u8 out_reg);
 
-static void unknown_opcode(struct lightrec_cstate *state, const struct block *block, u16 offset)
-{
-	pr_warn("Unknown opcode: 0x%08x at PC 0x%08x\n",
-		block->opcode_list[offset].c.opcode,
-		block->pc + (offset << 2));
-}
-
 static void
 lightrec_jump_to_fn(jit_state_t *_jit, void (*fn)(void))
 {
@@ -2009,9 +2002,9 @@ static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16
 	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
 }
 
-static void rec_break_syscall(struct lightrec_cstate *state,
-			      const struct block *block, u16 offset,
-			      u32 exit_code)
+static void rec_exit_early(struct lightrec_cstate *state,
+			   const struct block *block, u16 offset,
+			   u32 exit_code, u32 pc)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -2036,24 +2029,25 @@ static void rec_break_syscall(struct lightrec_cstate *state,
 
 	lightrec_free_reg(reg_cache, tmp);
 
-	/* TODO: the return address should be "pc - 4" if we're a delay slot */
-	lightrec_emit_end_of_block(state, block, offset, -1,
-				   get_ds_pc(block, offset, 0),
-				   31, 0, true);
+	lightrec_emit_end_of_block(state, block, offset, -1, pc, 31, 0, true);
 }
 
 static void rec_special_SYSCALL(struct lightrec_cstate *state,
 				const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(state, block, offset, LIGHTREC_EXIT_SYSCALL);
+
+	/* TODO: the return address should be "pc - 4" if we're a delay slot */
+	rec_exit_early(state, block, offset, LIGHTREC_EXIT_SYSCALL,
+		       get_ds_pc(block, offset, 0));
 }
 
 static void rec_special_BREAK(struct lightrec_cstate *state,
 			      const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(state, block, offset, LIGHTREC_EXIT_BREAK);
+	rec_exit_early(state, block, offset, LIGHTREC_EXIT_BREAK,
+		       get_ds_pc(block, offset, 0));
 }
 
 static void rec_mfc(struct lightrec_cstate *state, const struct block *block, u16 offset)
@@ -2775,6 +2769,13 @@ static void rec_meta_COM(struct lightrec_cstate *state,
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rd);
+}
+
+static void unknown_opcode(struct lightrec_cstate *state,
+			   const struct block *block, u16 offset)
+{
+	rec_exit_early(state, block, offset, LIGHTREC_EXIT_UNKNOWN_OP,
+		       block->pc + (offset << 2));
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {

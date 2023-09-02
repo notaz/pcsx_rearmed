@@ -111,7 +111,7 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 
-	OP_META			= 0x3b,
+	OP_META			= 0x3c,
 
 	OP_META_MULT2		= 0x19,
 	OP_META_MULTU2		= 0x1a,
