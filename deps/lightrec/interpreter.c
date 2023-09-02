@@ -318,9 +318,9 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 static u32 int_unimplemented(struct interpreter *inter)
 {
-	pr_warn("Unimplemented opcode 0x%08x\n", inter->op->opcode);
+	lightrec_set_exit_flags(inter->state, LIGHTREC_EXIT_UNKNOWN_OP);
 
-	return jump_next(inter);
+	return inter->block->pc + (inter->offset << 2);
 }
 
 static u32 int_jump(struct interpreter *inter, bool link)
