@@ -4975,6 +4975,8 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->texture_page_ptr = psx_gpu->vram_ptr;
   psx_gpu->clut_ptr = psx_gpu->vram_ptr;
 
+  psx_gpu->viewport_start_x = psx_gpu->viewport_start_y = 0;
+  psx_gpu->viewport_end_x = psx_gpu->viewport_end_y = 0;
   psx_gpu->mask_msb = 0;
 
   psx_gpu->texture_window_x = 0;
