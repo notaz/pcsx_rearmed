@@ -756,6 +756,7 @@ void GPUupdateLace(void)
     flush_cmd_buffer();
   renderer_flush_queues();
 
+#ifndef RAW_FB_DISPLAY
   if (gpu.status & PSX_GPU_STATUS_BLANKING) {
     if (!gpu.state.blanked) {
       vout_blank();
@@ -767,6 +768,7 @@ void GPUupdateLace(void)
 
   if (!gpu.state.fb_dirty)
     return;
+#endif
 
   if (gpu.frameskip.set) {
     if (!gpu.frameskip.frame_ready) {

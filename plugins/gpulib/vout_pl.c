@@ -32,6 +32,9 @@ static void check_mode_change(int force)
   int w_out = w;
   int h_out = h;
 
+#ifdef RAW_FB_DISPLAY
+  w = w_out = 1024, h = h_out = 512;
+#endif
   gpu.state.enhancement_active =
     gpu.get_enhancement_bufer != NULL && gpu.state.enhancement_enable
     && w <= 512 && h <= 256 && !(gpu.status & PSX_GPU_STATUS_RGB24);
@@ -67,6 +70,9 @@ void vout_update(void)
   int vram_h = 512;
   int src_x2 = 0;
 
+#ifdef RAW_FB_DISPLAY
+  w = 1024, h = 512, x = src_x = y = src_y = 0;
+#endif
   if (x < 0) { w += x; src_x2 = -x; x = 0; }
   if (y < 0) { h += y; src_y -=  y; y = 0; }
 
