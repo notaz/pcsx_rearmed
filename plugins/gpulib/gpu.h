@@ -13,6 +13,8 @@
 
 #include <stdint.h>
 
+//#define RAW_FB_DISPLAY
+
 #define gpu_log(fmt, ...) \
   printf("%d:%03d: " fmt, *gpu.state.frame_count, *gpu.state.hcnt, ##__VA_ARGS__)
 
