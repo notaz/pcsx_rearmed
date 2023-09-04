@@ -1711,8 +1711,6 @@ int cdrFreeze(void *f, int Mode) {
 			Find_CurTrack(cdr.SetSectorPlay);
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
-			if (psxRegs.interrupt & (1 << PSXINT_CDRPLAY_OLD))
-				CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 1);
 		}
 
 		if ((cdr.freeze_ver & 0xffffff00) != 0x63647200) {

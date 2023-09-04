@@ -30,11 +30,12 @@
 
 enum
 {
-    Rc0Gate           = 0x0001, // 0    not implemented
-    Rc1Gate           = 0x0001, // 0    not implemented
-    Rc2Disable        = 0x0001, // 0    partially implemented
-    RcUnknown1        = 0x0002, // 1    ?
-    RcUnknown2        = 0x0004, // 2    ?
+    RcSyncModeEnable  = 0x0001, // 0
+    Rc01BlankPause    = 0 << 1, // 1,2
+    Rc01UnblankReset  = 1 << 1, // 1,2
+    Rc01UnblankReset2 = 2 << 1, // 1,2
+    Rc2Stop           = 0 << 1, // 1,2
+    Rc2Stop2          = 3 << 1, // 1,2
     RcCountToTarget   = 0x0008, // 3
     RcIrqOnTarget     = 0x0010, // 4
     RcIrqOnOverflow   = 0x0020, // 5
@@ -187,7 +188,8 @@ void _psxRcntWmode( u32 index, u32 value )
             }
 
             // TODO: wcount must work.
-            if( value & Rc2Disable )
+            if( (value & 7) == (RcSyncModeEnable | Rc2Stop) ||
+                (value & 7) == (RcSyncModeEnable | Rc2Stop2) )
             {
                 rcnts[index].rate = 0xffffffff;
             }
@@ -315,14 +317,26 @@ static void scheduleRcntBase(void)
 
 void psxRcntUpdate()
 {
-    u32 cycle;
+    u32 cycle, cycles_passed;
 
     cycle = psxRegs.cycle;
 
     // rcnt 0.
-    while( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
+    cycles_passed = cycle - rcnts[0].cycleStart;
+    while( cycles_passed >= rcnts[0].cycle )
     {
-        psxRcntReset( 0 );
+        if (((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
+             (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
+            && cycles_passed > PSXCLK / 60 / 263)
+        {
+            u32 q = cycles_passed / (PSXCLK / 60 / 263 + 1u);
+            rcnts[0].cycleStart += q * (PSXCLK / 60) / 263u;
+            break;
+        }
+        else
+            psxRcntReset( 0 );
+
+        cycles_passed = cycle - rcnts[0].cycleStart;
     }
 
     // rcnt 1.
@@ -361,7 +375,7 @@ void psxRcntUpdate()
         // Update lace.
         if( hSyncCount >= HSyncTotal[Config.PsxType] )
         {
-            u32 status, field = 0;
+            u32 status, field = 0, i;
             rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
             hSyncCount = 0;
             frame_counter++;
@@ -375,6 +389,15 @@ void psxRcntUpdate()
             }
             HW_GPU_STATUS = SWAP32(status);
             GPU_vBlank(0, field);
+
+            for (i = 0; i < 2; i++)
+            {
+                if ((rcnts[i].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
+                    (rcnts[i].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
+                {
+                    rcnts[i].cycleStart = rcnts[3].cycleStart;
+                }
+            }
         }
 
         scheduleRcntBase();
@@ -420,13 +443,46 @@ void psxRcntWtarget( u32 index, u32 value )
 
 /******************************************************************************/
 
-u32 psxRcntRcount( u32 index )
+u32 psxRcntRcount0()
 {
+    u32 index = 0;
+    u32 count;
+
+    if ((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
+        (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
+    {
+        count = psxRegs.cycle - rcnts[index].cycleStart;
+        count = ((16u * count) % (16u * PSXCLK / 60 / 263)) / 16u;
+        rcnts[index].cycleStart = psxRegs.cycle - count;
+    }
+    else
+        count = _psxRcntRcount( index );
+
+    verboseLog( 2, "[RCNT 0] rcount: %04x m: %04x\n", count, rcnts[index].mode);
+
+    return count;
+}
+
+u32 psxRcntRcount1()
+{
+    u32 index = 1;
     u32 count;
 
     count = _psxRcntRcount( index );
 
-    verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
+    verboseLog( 2, "[RCNT 1] rcount: %04x m: %04x\n", count, rcnts[index].mode);
+
+    return count;
+}
+
+u32 psxRcntRcount2()
+{
+    u32 index = 2;
+    u32 count;
+
+    count = _psxRcntRcount( index );
+
+    verboseLog( 2, "[RCNT 2] rcount: %04x m: %04x\n", count, rcnts[index].mode);
 
     return count;
 }
