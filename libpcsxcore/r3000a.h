@@ -180,7 +180,7 @@ enum {
 	PSXINT_NEWDRC_CHECK,
 	PSXINT_RCNT,
 	PSXINT_CDRLID,
-	PSXINT_CDRPLAY_OLD,	/* unused */
+	PSXINT_IRQ10,
 	PSXINT_SPU_UPDATE,
 	PSXINT_COUNT
 };
@@ -256,6 +256,9 @@ void psxException(u32 code, enum R3000Abdt bdt, psxCP0Regs *cp0);
 void psxBranchTest();
 void psxExecuteBios();
 void psxJumpTest();
+
+void irq10Interrupt();
+void psxScheduleIrq10(int irq_count, int x_cycles, int y);
 
 #ifdef __cplusplus
 }

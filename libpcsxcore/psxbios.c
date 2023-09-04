@@ -1869,9 +1869,13 @@ void psxBios_GetRCnt() { // 03
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x03]);
 #endif
 
-	a0&= 0x3;
-	if (a0 != 3) v0 = psxRcntRcount(a0);
-	else v0 = 0;
+	switch (a0 & 0x3)
+	{
+	case 0: v0 = psxRcntRcount0(); break;
+	case 1: v0 = psxRcntRcount1(); break;
+	case 2: v0 = psxRcntRcount2(); break;
+	case 3: v0 = 0; break;
+	}
 	pc0 = ra;
 }
 

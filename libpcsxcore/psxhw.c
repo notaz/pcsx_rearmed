@@ -175,7 +175,7 @@ u16 psxHwRead16(u32 add) {
 			return 0x80;
 
 		case 0x1f801100:
-			hard = psxRcntRcount(0);
+			hard = psxRcntRcount0();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T0 count read16: %x\n", hard);
 #endif
@@ -193,7 +193,7 @@ u16 psxHwRead16(u32 add) {
 #endif
 			return hard;
 		case 0x1f801110:
-			hard = psxRcntRcount(1);
+			hard = psxRcntRcount1();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T1 count read16: %x\n", hard);
 #endif
@@ -211,7 +211,7 @@ u16 psxHwRead16(u32 add) {
 #endif
 			return hard;
 		case 0x1f801120:
-			hard = psxRcntRcount(2);
+			hard = psxRcntRcount2();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T2 count read16: %x\n", hard);
 #endif
@@ -346,7 +346,7 @@ u32 psxHwRead32(u32 add) {
 
 		// time for rootcounters :)
 		case 0x1f801100:
-			hard = psxRcntRcount(0);
+			hard = psxRcntRcount0();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T0 count read32: %x\n", hard);
 #endif
@@ -364,7 +364,7 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 		case 0x1f801110:
-			hard = psxRcntRcount(1);
+			hard = psxRcntRcount1();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T1 count read32: %x\n", hard);
 #endif
@@ -382,7 +382,7 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 		case 0x1f801120:
-			hard = psxRcntRcount(2);
+			hard = psxRcntRcount2();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("T2 count read32: %x\n", hard);
 #endif

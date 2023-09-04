@@ -191,6 +191,12 @@ void psxBranchTest() {
 				cdrLidSeekInterrupt();
 			}
 		}
+		if (psxRegs.interrupt & (1 << PSXINT_IRQ10)) { // irq10 - controller port pin8
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_IRQ10].sCycle) >= psxRegs.intCycle[PSXINT_IRQ10].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_IRQ10);
+				irq10Interrupt();
+			}
+		}
 		if (psxRegs.interrupt & (1 << PSXINT_SPU_UPDATE)) { // scheduled spu update
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SPU_UPDATE);
@@ -248,3 +254,42 @@ void psxExecuteBios() {
 		SysPrintf("non-standard BIOS detected (%d, %08x)\n", i, psxRegs.pc);
 }
 
+// irq10 stuff, very preliminary
+static int irq10count;
+
+static void psxScheduleIrq10One(u32 cycles_abs) {
+	// schedule relative to frame start
+	u32 c = cycles_abs - rcnts[3].cycleStart;
+	assert((s32)c >= 0);
+	psxRegs.interrupt |= 1 << PSXINT_IRQ10;
+	psxRegs.intCycle[PSXINT_IRQ10].cycle = c;
+	psxRegs.intCycle[PSXINT_IRQ10].sCycle = rcnts[3].cycleStart;
+	new_dyna_set_event(PSXINT_IRQ10, c);
+}
+
+void irq10Interrupt() {
+	u32 prevc = psxRegs.intCycle[PSXINT_IRQ10].sCycle
+		+ psxRegs.intCycle[PSXINT_IRQ10].cycle;
+
+	psxHu32ref(0x1070) |= SWAPu32(0x400);
+
+#if 0
+	s32 framec = psxRegs.cycle - rcnts[3].cycleStart;
+	printf("%d:%03d irq10 #%d %3d m=%d,%d\n", frame_counter,
+		(s32)((float)framec / (PSXCLK / 60 / 263.0f)),
+		irq10count, psxRegs.cycle - prevc,
+		(psxRegs.CP0.n.SR & 0x401) != 0x401, !(psxHu32(0x1074) & 0x400));
+#endif
+	if (--irq10count > 0)
+		psxScheduleIrq10One(prevc + PSXCLK / 60 / 263);
+}
+
+void psxScheduleIrq10(int irq_count, int x_cycles, int y) {
+	//printf("%s %d, %d, %d\n", __func__, irq_count, x_cycles, y);
+	u32 cycles_per_frame = Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
+	u32 cycles = rcnts[3].cycleStart + cycles_per_frame;
+	cycles += y * cycles_per_frame / (Config.PsxType ? 314 : 263);
+	cycles += x_cycles;
+	psxScheduleIrq10One(cycles);
+	irq10count = irq_count;
+}
