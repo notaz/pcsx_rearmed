@@ -62,6 +62,7 @@ static noinline void do_reset(void)
   gpu.screen.hres = gpu.screen.w = 256;
   gpu.screen.vres = gpu.screen.h = 240;
   gpu.screen.x = gpu.screen.y = 0;
+  renderer_sync_ecmds(gpu.ex_regs);
   renderer_notify_res_change();
 }
 
@@ -187,8 +188,12 @@ static noinline int decide_frameskip_allow(uint32_t cmd_e3)
   return gpu.frameskip.allow;
 }
 
+static void flush_cmd_buffer(void);
+
 static noinline void get_gpu_info(uint32_t data)
 {
+  if (unlikely(gpu.cmd_len > 0))
+    flush_cmd_buffer();
   switch (data & 0x0f) {
     case 0x02:
     case 0x03:
