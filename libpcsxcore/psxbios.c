@@ -3964,8 +3964,8 @@ void psxBiosException() {
 	int i;
 
 	// save the regs
-	// $at, $v0, $v1 already saved by the mips code at A_EXCEPTION
-	for (i = 4; i < 32; i++) {
+	// $at, $v0, $v1, $ra already saved by the mips code at A_EXCEPTION
+	for (i = 4; i < 31; i++) {
 		if (i == 26) // $k0
 			continue;
 		tcb->reg[i] = SWAP32(psxRegs.GPR.r[i]);
