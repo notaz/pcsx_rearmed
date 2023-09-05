@@ -260,6 +260,8 @@ typedef struct {
 static FileDesc FDesc[32];
 static char ffile[64];
 static int nfile;
+static char cdir[8*8+8];
+static u32 floodchk;
 
 // fixed RAM offsets, SCPH1001 compatible
 #define A_TT_ExCB       0x0100
@@ -1465,7 +1467,19 @@ void psxBios_printf() { // 0x3f
 	pc0 = ra;
 }
 
-void psxBios_format() { // 0x41
+static void psxBios_cd() { // 0x40
+	const char *p, *dir = castRam8ptr(a0);
+	PSXBIOS_LOG("psxBios_%s %x(%s)\n", biosB0n[0x40], a0, dir);
+	if ((p = strchr(dir, ':')))
+		dir = ++p;
+	if (*dir == '\\')
+		dir++;
+	snprintf(cdir, sizeof(cdir), "%s", dir);
+	mips_return_c(1, 100);
+}
+
+static void psxBios_format() { // 0x41
+	PSXBIOS_LOG("psxBios_%s %x(%s)\n", biosB0n[0x41], a0, Ra0);
 	if (strcmp(Ra0, "bu00:") == 0 && Config.Mcd1[0] != '\0')
 	{
 		CreateMcd(Config.Mcd1);
@@ -1486,9 +1500,9 @@ void psxBios_format() { // 0x41
 }
 
 static void psxBios_SystemErrorUnresolvedException() {
-	if (loadRam32(0xfffc) != 0x12345678) { // prevent log flood
+	if (floodchk != 0x12340a40) { // prevent log flood
 		SysPrintf("psxBios_%s called from %08x\n", biosA0n[0x40], ra);
-		storeRam32(0xfffc, 0x12345678);
+		floodchk = 0x12340a40;
 	}
 	mips_return_void_c(1000);
 }
@@ -1507,16 +1521,33 @@ static void FlushCache() {
 
 void psxBios_Load() { // 0x42
 	EXE_HEADER eheader;
+	char path[256];
+	char *pa0, *p;
 	void *pa1;
 
+	pa0 = Ra0;
 	pa1 = Ra1;
-	if (pa1 != INVALID_PTR && LoadCdromFile(Ra0, &eheader) == 0) {
+	PSXBIOS_LOG("psxBios_%s %x(%s), %x\n", biosA0n[0x42], a0, pa0, a1);
+	if (pa0 == INVALID_PTR || pa1 == INVALID_PTR) {
+		mips_return(0);
+		return;
+	}
+	if ((p = strchr(pa0, ':')))
+		pa0 = ++p;
+	if (*pa0 == '\\')
+		pa0++;
+	if (cdir[0])
+		snprintf(path, sizeof(path), "%s\\%s", cdir, (char *)pa0);
+	else
+		snprintf(path, sizeof(path), "%s", (char *)pa0);
+
+	if (LoadCdromFile(path, &eheader) == 0) {
 		memcpy(pa1, ((char*)&eheader)+16, sizeof(EXEC));
 		psxCpu->Clear(a1, sizeof(EXEC) / 4);
 		FlushCache();
 		v0 = 1;
 	} else v0 = 0;
-	PSXBIOS_LOG("psxBios_%s: %s, %d -> %d\n", biosA0n[0x42], Ra0, a1, v0);
+	PSXBIOS_LOG(" -> %d\n", v0);
 
 	pc0 = ra;
 }
@@ -1948,6 +1979,7 @@ static u32 DeliverEvent(u32 class, u32 spec) {
 			}
 		}
 	}
+	floodchk = 0;
 	use_cycles(29);
 	return ret;
 }
@@ -2059,7 +2091,11 @@ static void psxBios_TestEvent() { // 0b
 	u32 base = loadRam32(A_TT_EvCB);
 	u32 status = loadRam32(base + (a0 & 0xffff) * sizeof(EvCB) + 4);
 	u32 ret = 0;
-	PSXBIOS_LOG("psxBios_%s    %x %x\n", biosB0n[0x0b], a0, status);
+
+	if (psxRegs.cycle - floodchk > 16*1024u) { // prevent log flood
+		PSXBIOS_LOG("psxBios_%s    %x %x\n", biosB0n[0x0b], a0, status);
+		floodchk = psxRegs.cycle;
+	}
 	if (status == EvStALREADY) {
 		storeRam32(base + (a0 & 0xffff) * sizeof(EvCB) + 4, EvStACTIVE);
 		ret = 1;
@@ -3548,7 +3584,7 @@ void psxBiosInit() {
 	biosB0[0x3d] = psxBios_putchar;
 	//biosB0[0x3e] = psxBios_gets;
 	biosB0[0x3f] = psxBios_puts;
-	//biosB0[0x40] = psxBios_cd;
+	biosB0[0x40] = psxBios_cd;
 	biosB0[0x41] = psxBios_format;
 	biosB0[0x42] = psxBios_firstfile;
 	biosB0[0x43] = psxBios_nextfile;
@@ -3612,6 +3648,8 @@ void psxBiosInit() {
 /**/
 
 	memset(FDesc, 0, sizeof(FDesc));
+	memset(cdir, 0, sizeof(cdir));
+	floodchk = 0;
 
 	// somewhat pretend to be a SCPH1001 BIOS
 	// some games look for these and take an exception if they're missing
@@ -4031,4 +4069,5 @@ void psxBiosFreeze(int Mode) {
 	bfreezes(FDesc);
 	bfreezes(ffile);
 	bfreezel(&nfile);
+	bfreezes(cdir);
 }

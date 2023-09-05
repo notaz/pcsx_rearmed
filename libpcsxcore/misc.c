@@ -112,7 +112,7 @@ int GetCdromFile(u8 *mdir, u8 *time, char *filename) {
 	int i;
 
 	// only try to scan if a filename is given
-	if (!strlen(filename)) return -1;
+	if (filename == INVALID_PTR || !strlen(filename)) return -1;
 
 	i = 0;
 	while (i < 4096) {
