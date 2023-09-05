@@ -264,7 +264,7 @@ static void psxScheduleIrq10One(u32 cycles_abs) {
 	psxRegs.interrupt |= 1 << PSXINT_IRQ10;
 	psxRegs.intCycle[PSXINT_IRQ10].cycle = c;
 	psxRegs.intCycle[PSXINT_IRQ10].sCycle = rcnts[3].cycleStart;
-	new_dyna_set_event(PSXINT_IRQ10, c);
+	new_dyna_set_event_abs(PSXINT_IRQ10, cycles_abs);
 }
 
 void irq10Interrupt() {
