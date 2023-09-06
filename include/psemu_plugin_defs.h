@@ -222,7 +222,9 @@ typedef struct
 	
 	//configuration mode Request 0x43
 	int configMode;
-	unsigned char reserved[87];
+
+	unsigned char txData[32];
+	unsigned char reserved[56];
 	
 	//Lightgun values 
 	int absoluteX,absoluteY;

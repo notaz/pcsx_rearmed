@@ -518,6 +518,10 @@ void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 {
 }
 
+void pl_gun_byte2(int port, unsigned char byte)
+{
+}
+
 /* sound calls */
 static void snd_feed(void *buf, int bytes)
 {

@@ -10,6 +10,7 @@ void dfinput_activate(void);
 #define GUNIN_BTNB	(1<<2)
 #define GUNIN_TRIGGER2	(1<<3)	/* offscreen trigger */
 extern void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in);
+extern void pl_gun_byte2(int port, unsigned char byte);
 
 /* vibration trigger to frontend */
 extern int in_enable_vibration;

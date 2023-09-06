@@ -634,6 +634,10 @@ void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
 	*yres = psx_h;
 }
 
+void pl_gun_byte2(int port, unsigned char byte)
+{
+}
+
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \

@@ -745,10 +745,18 @@ unsigned char _PADpoll(int port, unsigned char value) {
 		}
 	}
 
+	if (reqPos < sizeof(pad[port].txData))
+		pad[port].txData[reqPos] = value;
+
 	//if no new request the pad return 0xff, for signaling connected
 	if (reqPos >= respSize)
 		return 0xff;
 
+	if (in_type[port] == PSE_PAD_TYPE_GUN) {
+		if (reqPos == 2)
+			pl_gun_byte2(port, value);
+	}
+	else
 	switch(reqPos){
 		case 2:
 			reqIndex2Treatment(port, value);
