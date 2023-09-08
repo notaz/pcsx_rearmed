@@ -606,7 +606,13 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   			break;
       }
   
-      case 0x80:          //  vid -> vid
+#ifdef PCSX
+      case 0x80 ... 0x9F:          //  vid -> vid
+      case 0xA0 ... 0xBF:          //  sys -> vid
+      case 0xC0 ... 0xDF:          //  vid -> sys
+        goto breakloop;
+#else
+      case 0x80 ... 0x9F:          //  vid -> vid
       {
         u32 sx = list_s16[2] & 0x3FF;
         u32 sy = list_s16[3] & 0x1FF;
@@ -622,12 +628,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         break;
       } 
 
-#ifdef PCSX
-  		case 0xA0:          //  sys -> vid
-  		case 0xC0:          //  vid -> sys
-  			goto breakloop;
-#else
-  		case 0xA0:          //  sys -> vid
+      case 0xA0 ... 0xBF:          //  sys -> vid
       {
         u32 load_x = list_s16[2] & 0x3FF;
         u32 load_y = list_s16[3] & 0x1FF;
@@ -645,8 +646,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   			break;
       }
 
-  		case 0xC0:          //  vid -> sys
-  			break;
+      case 0xC0 ... 0xDF:          //  vid -> sys
+        break;
 #endif
 
   		case 0xE1:
@@ -1575,26 +1576,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
         break;
       }
-  
-      case 0x80:          //  vid -> vid
-      {
-        u32 sx = list_s16[2] & 0x3FF;
-        u32 sy = list_s16[3] & 0x1FF;
-        u32 dx = list_s16[4] & 0x3FF;
-        u32 dy = list_s16[5] & 0x1FF;
-        u32 w = ((list_s16[6] - 1) & 0x3FF) + 1;
-        u32 h = ((list_s16[7] - 1) & 0x1FF) + 1;
 
-        if (sx == dx && sy == dy && psx_gpu->mask_msb == 0)
-          break;
-
-        render_block_move(psx_gpu, sx, sy, dx, dy, w, h);
-        sync_enhancement_buffers(dx, dy, w, h);
-        break;
-      }
- 
-      case 0xA0:          //  sys -> vid
-      case 0xC0:          //  vid -> sys
+      case 0x80 ... 0x9F:          //  vid -> vid
+      case 0xA0 ... 0xBF:          //  sys -> vid
+      case 0xC0 ... 0xDF:          //  vid -> sys
         goto breakloop;
 
       case 0xE1:

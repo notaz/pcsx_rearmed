@@ -321,7 +321,7 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
     }
 
 #ifndef TEST
-    if (cmd == 0xa0 || cmd == 0xc0)
+    if (0x80 <= cmd && cmd < 0xe0)
       break; // image i/o, forward to upper layer
     else if ((cmd & 0xf8) == 0xe0)
       gpu.ex_regs[cmd & 7] = GETLE32(list);

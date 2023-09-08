@@ -4888,6 +4888,7 @@ void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   }
 }
 
+#ifndef PCSX
 void render_block_copy(psx_gpu_struct *psx_gpu, u16 *source, u32 x, u32 y,
  u32 width, u32 height, u32 pitch)
 {
@@ -4919,7 +4920,7 @@ void render_block_move(psx_gpu_struct *psx_gpu, u32 source_x, u32 source_y,
   render_block_copy(psx_gpu, psx_gpu->vram_ptr + source_x + (source_y * 1024),
    dest_x, dest_y, width, height, 1024);
 }
-
+#endif
 
 void initialize_reciprocal_table(void)
 {
