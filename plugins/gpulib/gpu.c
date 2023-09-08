@@ -410,23 +410,33 @@ const unsigned char cmd_lengths[256] =
 	3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
 	2, 2, 2, 2, 3, 3, 3, 3, 1, 1, 1, 1, 0, 0, 0, 0, // 60
 	1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2,
-	3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 80
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // a0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // c0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // 80
+	3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // a0
+	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // c0
+	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // e0
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 #define VRAM_MEM_XY(x, y) &gpu.vram[(y) * 1024 + (x)]
 
-static inline void do_vram_line(int x, int y, uint16_t *mem, int l, int is_read)
+static void cpy_msb(uint16_t *dst, const uint16_t *src, int l, uint16_t msb)
+{
+  int i;
+  for (i = 0; i < l; i++)
+    dst[i] = src[i] | msb;
+}
+
+static inline void do_vram_line(int x, int y, uint16_t *mem, int l,
+    int is_read, uint16_t msb)
 {
   uint16_t *vram = VRAM_MEM_XY(x, y);
-  if (is_read)
+  if (unlikely(is_read))
     memcpy(mem, vram, l * 2);
+  else if (unlikely(msb))
+    cpy_msb(vram, mem, l, msb);
   else
     memcpy(vram, mem, l * 2);
 }
@@ -434,6 +444,7 @@ static inline void do_vram_line(int x, int y, uint16_t *mem, int l, int is_read)
 static int do_vram_io(uint32_t *data, int count, int is_read)
 {
   int count_initial = count;
+  uint16_t msb = gpu.ex_regs[6] << 15;
   uint16_t *sdata = (uint16_t *)data;
   int x = gpu.dma.x, y = gpu.dma.y;
   int w = gpu.dma.w, h = gpu.dma.h;
@@ -448,7 +459,7 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
     if (count < l)
       l = count;
 
-    do_vram_line(x + o, y, sdata, l, is_read);
+    do_vram_line(x + o, y, sdata, l, is_read, msb);
 
     if (o + l < w)
       o += l;
@@ -463,13 +474,13 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
 
   for (; h > 0 && count >= w; sdata += w, count -= w, y++, h--) {
     y &= 511;
-    do_vram_line(x, y, sdata, w, is_read);
+    do_vram_line(x, y, sdata, w, is_read, msb);
   }
 
   if (h > 0) {
     if (count > 0) {
       y &= 511;
-      do_vram_line(x, y, sdata, count, is_read);
+      do_vram_line(x, y, sdata, count, is_read, msb);
       o = count;
       count = 0;
     }
@@ -515,6 +526,51 @@ static void finish_vram_transfer(int is_read)
   else
     renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
                            gpu.dma_start.w, gpu.dma_start.h, 0);
+}
+
+static void do_vram_copy(const uint32_t *params)
+{
+  const uint32_t sx =  LE32TOH(params[0]) & 0x3FF;
+  const uint32_t sy = (LE32TOH(params[0]) >> 16) & 0x1FF;
+  const uint32_t dx =  LE32TOH(params[1]) & 0x3FF;
+  const uint32_t dy = (LE32TOH(params[1]) >> 16) & 0x1FF;
+  uint32_t w =  ((LE32TOH(params[2]) - 1) & 0x3FF) + 1;
+  uint32_t h = (((LE32TOH(params[2]) >> 16) - 1) & 0x1FF) + 1;
+  uint16_t msb = gpu.ex_regs[6] << 15;
+  uint16_t lbuf[128];
+  uint32_t x, y;
+
+  if (sx == dx && sy == dy && msb == 0)
+    return;
+
+  renderer_flush_queues();
+
+  if (unlikely((sx < dx && dx < sx + w) || sx + w > 1024 || dx + w > 1024 || msb))
+  {
+    for (y = 0; y < h; y++)
+    {
+      const uint16_t *src = VRAM_MEM_XY(0, (sy + y) & 0x1ff);
+      uint16_t *dst = VRAM_MEM_XY(0, (dy + y) & 0x1ff);
+      for (x = 0; x < w; x += ARRAY_SIZE(lbuf))
+      {
+        uint32_t x1, w1 = w - x;
+        if (w1 > ARRAY_SIZE(lbuf))
+          w1 = ARRAY_SIZE(lbuf);
+        for (x1 = 0; x1 < w1; x1++)
+          lbuf[x1] = src[(sx + x + x1) & 0x3ff];
+        for (x1 = 0; x1 < w1; x1++)
+          dst[(dx + x + x1) & 0x3ff] = lbuf[x1] | msb;
+      }
+    }
+  }
+  else
+  {
+    uint32_t sy1 = sy, dy1 = dy;
+    for (y = 0; y < h; y++, sy1++, dy1++)
+      memcpy(VRAM_MEM_XY(dx, dy1 & 0x1ff), VRAM_MEM_XY(sx, sy1 & 0x1ff), w * 2);
+  }
+
+  renderer_update_caches(dx, dy, w, h, 0);
 }
 
 static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
@@ -572,7 +628,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
       cmd = -1;
       break; // incomplete cmd
     }
-    if (0xa0 <= cmd && cmd <= 0xdf)
+    if (0x80 <= cmd && cmd <= 0xdf)
       break; // image i/o
 
     pos += len;
@@ -610,6 +666,15 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
       // consume vram write/read cmd
       start_vram_transfer(LE32TOH(data[pos + 1]), LE32TOH(data[pos + 2]), (cmd & 0xe0) == 0xc0);
       pos += 3;
+      continue;
+    }
+    else if ((cmd & 0xe0) == 0x80) {
+      if (unlikely((pos+3) >= count)) {
+        cmd = -1; // incomplete cmd, can't consume yet
+        break;
+      }
+      do_vram_copy(data + pos + 1);
+      pos += 4;
       continue;
     }
 

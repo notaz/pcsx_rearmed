@@ -754,11 +754,11 @@ int do_cmd_list(u32 *_list, int list_len, int *last_cmd)
         gpuDrawS(packet, driver);
       } break;
 
+#ifdef TEST
       case 0x80:          //  vid -> vid
         gpuMoveImage(packet);
         break;
 
-#ifdef TEST
       case 0xA0:          //  sys -> vid
       {
         u32 load_width = list[2] & 0xffff;
@@ -771,8 +771,9 @@ int do_cmd_list(u32 *_list, int list_len, int *last_cmd)
       case 0xC0:
         break;
 #else
-      case 0xA0:          //  sys ->vid
-      case 0xC0:          //  vid -> sys
+      case 0x80 ... 0x9F:          //  vid -> vid
+      case 0xA0 ... 0xBF:          //  sys -> vid
+      case 0xC0 ... 0xDF:          //  vid -> sys
         // Handled by gpulib
         goto breakloop;
 #endif
