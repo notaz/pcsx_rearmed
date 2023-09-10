@@ -109,7 +109,7 @@ static struct {
 	u8 DriveState;
 	u8 FastForward;
 	u8 FastBackward;
-	u8 unused8;
+	u8 errorRetryhack;
 
 	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
 	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
@@ -749,6 +749,8 @@ void cdrInterrupt(void) {
 			if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
 			{
 				CDR_LOG_I("Invalid/out of range seek to %02X:%02X:%02X\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
+				if (++cdr.errorRetryhack > 100)
+					break;
 				error = ERROR_INVALIDARG;
 				goto set_error;
 			}
@@ -759,6 +761,7 @@ void cdrInterrupt(void) {
 				memcpy(cdr.SetSector, set_loc, 3);
 				cdr.SetSector[3] = 0;
 				cdr.SetlocPending = 1;
+				cdr.errorRetryhack = 0;
 			}
 			break;
 
