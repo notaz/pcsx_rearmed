@@ -61,9 +61,8 @@ enum
 static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
-static const u32 FrameRate[]      = { 60, 50 };
-static const u32 HSyncTotal[]     = { 263, 314 }; // actually one more on odd lines for PAL
-#define VBlankStart 240
+static const u32 HSyncTotal[]     = { 263, 314 };
+#define VBlankStart 240 // todo: depend on the actual GPU setting
 
 #define VERBOSE_LEVEL 0
 
@@ -78,6 +77,15 @@ static u32 hsync_steps = 0;
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
 /******************************************************************************/
+
+static inline
+u32 lineCycles(void)
+{
+    if (Config.PsxType)
+        return PSXCLK / 50 / HSyncTotal[1];
+    else
+        return PSXCLK / 60 / HSyncTotal[0];
+}
 
 static inline
 void setIrq( u32 irq )
@@ -170,7 +178,7 @@ void _psxRcntWmode( u32 index, u32 value )
         case 1:
             if( value & Rc1HSyncClock )
             {
-                rcnts[index].rate = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
+                rcnts[index].rate = lineCycles();
             }
             else
             {
@@ -327,10 +335,10 @@ void psxRcntUpdate()
     {
         if (((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
              (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
-            && cycles_passed > PSXCLK / 60 / 263)
+            && cycles_passed > lineCycles())
         {
-            u32 q = cycles_passed / (PSXCLK / 60 / 263 + 1u);
-            rcnts[0].cycleStart += q * (PSXCLK / 60) / 263u;
+            u32 q = cycles_passed / (lineCycles() + 1u);
+            rcnts[0].cycleStart += q * lineCycles();
             break;
         }
         else
@@ -375,7 +383,7 @@ void psxRcntUpdate()
         // Update lace.
         if( hSyncCount >= HSyncTotal[Config.PsxType] )
         {
-            u32 status, field = 0, i;
+            u32 status, field = 0;
             rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
             hSyncCount = 0;
             frame_counter++;
@@ -390,13 +398,21 @@ void psxRcntUpdate()
             HW_GPU_STATUS = SWAP32(status);
             GPU_vBlank(0, field);
 
-            for (i = 0; i < 2; i++)
+            if ((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
+                (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
             {
-                if ((rcnts[i].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
-                    (rcnts[i].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
-                {
-                    rcnts[i].cycleStart = rcnts[3].cycleStart;
-                }
+                rcnts[0].cycleStart = rcnts[3].cycleStart;
+            }
+
+            if ((rcnts[1].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
+                (rcnts[1].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
+            {
+                rcnts[1].cycleStart = rcnts[3].cycleStart;
+            }
+            else if (rcnts[1].mode & Rc1HSyncClock)
+            {
+                // adjust to remove the rounding error
+                _psxRcntWcount(1, (psxRegs.cycle - rcnts[1].cycleStart) / rcnts[1].rate);
             }
         }
 
@@ -452,7 +468,8 @@ u32 psxRcntRcount0()
         (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
     {
         count = psxRegs.cycle - rcnts[index].cycleStart;
-        count = ((16u * count) % (16u * PSXCLK / 60 / 263)) / 16u;
+        //count = ((16u * count) % (16u * PSXCLK / 60 / 263)) / 16u;
+        count = count % lineCycles();
         rcnts[index].cycleStart = psxRegs.cycle - count;
     }
     else
@@ -526,8 +543,6 @@ void psxRcntInit()
 
     // rcnt base.
     rcnts[3].rate   = 1;
-    rcnts[3].mode   = RcCountToTarget;
-    rcnts[3].target = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
 
     for( i = 0; i < CounterQuantity; ++i )
     {
@@ -537,6 +552,7 @@ void psxRcntInit()
     hSyncCount = 0;
     hsync_steps = 1;
 
+    scheduleRcntBase();
     psxRcntSet();
 }
 
