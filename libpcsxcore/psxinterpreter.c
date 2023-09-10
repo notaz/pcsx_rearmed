@@ -128,6 +128,19 @@ static void intExceptionInsn(psxRegisters *regs, u32 cause)
 	intException(regs, regs->pc - 4, cause);
 }
 
+static noinline void intExceptionReservedInsn(psxRegisters *regs)
+{
+#ifdef DO_EXCEPTION_RESERVEDI
+	static u32 ppc_ = ~0u;
+	if (regs->pc != ppc_) {
+		SysPrintf("reserved instruction %08x @%08x ra=%08x\n",
+			regs->code, regs->pc - 4, regs->GPR.n.ra);
+		ppc_ = regs->pc;
+	}
+	intExceptionInsn(regs, R3000E_RI << 2);
+#endif
+}
+
 // 29  Enable for 80000000-ffffffff
 // 30  Enable for 00000000-7fffffff
 // 31  Enable exception
@@ -923,10 +936,8 @@ OP(psxSWRe) { if (checkST(regs_, _oB_     , 0)) doSWR(regs_, _Rt_, _oB_); }
 *********************************************************/
 OP(psxMFC0) {
 	u32 r = _Rd_;
-#ifdef DO_EXCEPTION_RESERVEDI
 	if (unlikely(0x00000417u & (1u << r)))
-		intExceptionInsn(regs_, R3000E_RI << 2);
-#endif
+		intExceptionReservedInsn(regs_);
 	doLoad(regs_, _Rt_, regs_->CP0.r[r]);
 }
 
@@ -974,9 +985,7 @@ static inline void psxNULLne(psxRegisters *regs) {
 
 OP(psxNULL) {
 	psxNULLne(regs_);
-#ifdef DO_EXCEPTION_RESERVEDI
-	intExceptionInsn(regs_, R3000E_RI << 2);
-#endif
+	intExceptionReservedInsn(regs_);
 }
 
 void gteNULL(struct psxCP2Regs *regs) {
