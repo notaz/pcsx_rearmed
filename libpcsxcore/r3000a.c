@@ -280,8 +280,11 @@ void irq10Interrupt() {
 		irq10count, psxRegs.cycle - prevc,
 		(psxRegs.CP0.n.SR & 0x401) != 0x401, !(psxHu32(0x1074) & 0x400));
 #endif
-	if (--irq10count > 0)
-		psxScheduleIrq10One(prevc + PSXCLK / 60 / 263);
+	if (--irq10count > 0) {
+		u32 cycles_per_line = Config.PsxType
+			? PSXCLK / 50 / 314 : PSXCLK / 60 / 263;
+		psxScheduleIrq10One(prevc + cycles_per_line);
+	}
 }
 
 void psxScheduleIrq10(int irq_count, int x_cycles, int y) {
