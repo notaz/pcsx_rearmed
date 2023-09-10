@@ -991,12 +991,13 @@ void retro_cheat_reset(void)
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
-   char buf[256];
-   int ret;
+   int ret = -1;
+   char *buf;
 
-   // cheat funcs are destructive, need a copy..
-   strncpy(buf, code, sizeof(buf));
-   buf[sizeof(buf) - 1] = 0;
+   // cheat funcs are destructive, need a copy...
+   buf = strdup(code);
+   if (buf == NULL)
+      goto finish;
 
    //Prepare buffered cheat for PCSX's AddCheat fucntion.
    int cursor = 0;
@@ -1022,10 +1023,12 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
    else
       ret = AddCheat("", buf);
 
+finish:
    if (ret != 0)
       SysPrintf("Failed to set cheat %#u\n", index);
    else if (index < NumCheats)
       Cheats[index].Enabled = enabled;
+   free(buf);
 }
 
 // just in case, maybe a win-rt port in the future?
