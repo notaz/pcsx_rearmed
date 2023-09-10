@@ -1,9 +1,15 @@
 #include "misc.h"
 #include "sio.h"
 #include "new_dynarec/new_dynarec.h"
+#include "lightrec/plugin.h"
 
 /* It's duplicated from emu_if.c */
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
+/* Corresponds to LIGHTREC_OPT_INV_DMA_ONLY of lightrec.h */
+#define LIGHTREC_HACK_INV_DMA_ONLY (1 << 0)
+
+u32 lightrec_hacks;
 
 static const char * const MemorycardHack_db[] =
 {
@@ -75,6 +81,35 @@ cycle_multiplier_overrides[] =
 	{ "SLES02064", 222 },
 };
 
+static const struct
+{
+	const char * const id;
+	u32 hacks;
+}
+lightrec_hacks_db[] =
+{
+	/* Formula One Arcade */
+	{ "SCES03886", LIGHTREC_HACK_INV_DMA_ONLY },
+
+	/* Formula One '99 */
+	{ "SLUS00870", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCPS10101", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES01979", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SLES01979", LIGHTREC_HACK_INV_DMA_ONLY },
+
+	/* Formula One 2000 */
+	{ "SLUS01134", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES02777", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES02778", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES02779", LIGHTREC_HACK_INV_DMA_ONLY },
+
+	/* Formula One 2001 */
+	{ "SCES03404", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES03423", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES03424", LIGHTREC_HACK_INV_DMA_ONLY },
+	{ "SCES03524", LIGHTREC_HACK_INV_DMA_ONLY },
+};
+
 /* Function for automatic patching according to GameID. */
 void Apply_Hacks_Cdrom()
 {
@@ -119,6 +154,17 @@ void Apply_Hacks_Cdrom()
 			new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
 			SysPrintf("using cycle_multiplier_override: %d\n",
 				Config.cycle_multiplier_override);
+			break;
+		}
+	}
+
+	lightrec_hacks = 0;
+
+	for (i = 0; drc_is_lightrec() && i < ARRAY_SIZE(lightrec_hacks_db); i++) {
+		if (strcmp(CdromId, lightrec_hacks_db[i].id) == 0)
+		{
+			lightrec_hacks = lightrec_hacks_db[i].hacks;
+			SysPrintf("using lightrec_hacks: 0x%x\n", lightrec_hacks);
 			break;
 		}
 	}

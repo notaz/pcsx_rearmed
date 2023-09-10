@@ -66,6 +66,8 @@ static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
 static bool block_stepping;
 
+extern u32 lightrec_hacks;
+
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
 	OP_CP2_NCLIP		= 0x06,
@@ -467,6 +469,8 @@ static int lightrec_plugin_init(void)
 	lightrec_state = lightrec_init(name,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
+
+	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 
 	// fprintf(stderr, "M=0x%lx, P=0x%lx, R=0x%lx, H=0x%lx\n",
 	// 		(uintptr_t) psxM,
