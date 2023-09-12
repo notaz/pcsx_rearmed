@@ -129,6 +129,8 @@ OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightrec/optimizer.o \
 		deps/lightrec/regcache.o
 deps/lightning/%.o: CFLAGS += -DHAVE_MMAP=P_HAVE_MMAP
+deps/lightning/%: CFLAGS += -w
+deps/lightrec/%: CFLAGS += -w
 libpcsxcore/lightrec/mem.o: CFLAGS += -D_GNU_SOURCE
 ifeq ($(MMAP_WIN32),1)
 CFLAGS += -Iinclude/mman -I deps/mman

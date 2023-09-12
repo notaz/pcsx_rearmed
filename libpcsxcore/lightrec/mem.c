@@ -3,7 +3,9 @@
  * Copyright (C) 2022 Paul Cercueil <paul@crapouillou.net>
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
