@@ -470,8 +470,6 @@ static int lightrec_plugin_init(void)
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
 
-	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
-
 	// fprintf(stderr, "M=0x%lx, P=0x%lx, R=0x%lx, H=0x%lx\n",
 	// 		(uintptr_t) psxM,
 	// 		(uintptr_t) psxP,
@@ -625,6 +623,8 @@ static void lightrec_plugin_reset(void)
 
 	regs->cp0[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
+
+	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 }
 
 static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2)
