@@ -29,7 +29,6 @@
 #include "../libpcsxcore/r3000a.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
-#include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
 #include "menu.h"
@@ -512,10 +511,6 @@ void plat_trigger_vibrate(int pad, int low, int high)
       rumble_cb(pad, RETRO_RUMBLE_STRONG, high << 8);
       rumble_cb(pad, RETRO_RUMBLE_WEAK, low ? 0xffff : 0x0);
    }
-}
-
-void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
-{
 }
 
 void pl_gun_byte2(int port, unsigned char byte)

@@ -267,11 +267,6 @@ CFLAGS += -DHAVE_CHD -D_7ZIP_ST
 LDFLAGS += -lm
 endif
 
-# dfinput
-ifneq "$(PLATFORM)" "libretro"
-OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
-endif
-
 # frontend/gui
 OBJS += frontend/cspace.o
 ifeq "$(HAVE_NEON_ASM)" "1"

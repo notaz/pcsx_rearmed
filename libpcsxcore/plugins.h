@@ -216,7 +216,7 @@ typedef long (CALLBACK* PADreadPort1)(PadDataS*);
 typedef long (CALLBACK* PADreadPort2)(PadDataS*);
 typedef long (CALLBACK* PADkeypressed)(void);
 typedef unsigned char (CALLBACK* PADstartPoll)(int);
-typedef unsigned char (CALLBACK* PADpoll)(unsigned char);
+typedef unsigned char (CALLBACK* PADpoll)(unsigned char, int *);
 typedef void (CALLBACK* PADsetSensitive)(int);
 
 // PAD function pointers
@@ -378,6 +378,9 @@ void SetIsoFile(const char *filename);
 const char *GetIsoFile(void);
 boolean UsingIso(void);
 void SetCdOpenCaseTime(s64 time);
+
+extern void pl_gun_byte2(int port, unsigned char byte);
+extern void plat_trigger_vibrate(int pad, int low, int high);
 
 #ifdef __cplusplus
 }

@@ -141,7 +141,7 @@ typedef struct
   long	PADquery(void);
 
   unsigned char PADstartPoll(int);
-  unsigned char PADpoll(unsigned char);
+  unsigned char PADpoll(unsigned char, int *);
 
 */
 

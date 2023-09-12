@@ -23,7 +23,6 @@
 
 #include "plugins.h"
 #include "cdriso.h"
-#include "../plugins/dfinput/externals.h"
 
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
@@ -357,7 +356,7 @@ static int multitap2;
 //Pad information, keystate, mode, config mode, vibration
 static PadDataS pad[8];
 
-static int reqPos, respSize, req;
+static int reqPos, respSize;
 static int ledStateReq44[8];
 static int PadMode[8]; /* 0 : digital 1: analog */
 
@@ -554,8 +553,8 @@ void initBufForRequest(int padIndex, char value){
 
 
 
-void reqIndex2Treatment(int padIndex, char value){
-	switch (req){
+static void reqIndex2Treatment(int padIndex, char value) {
+	switch (pad[padIndex].txData[0]) {
 		case CMD_CONFIG_MODE :
 			//0x43
 			if (value == 0) {
@@ -661,6 +660,14 @@ void _PADstartPoll(PadDataS *pad) {
 			memcpy(buf, stdpar, 8);
 			respSize = 8;
 			break;
+		case PSE_PAD_TYPE_GUN: // GUN CONTROLLER - gun controller SLPH-00014 from Konami
+			stdpar[0] = 0x31;
+			stdpar[1] = 0x5a;
+			stdpar[2] = pad->buttonStatus & 0xff;
+			stdpar[3] = pad->buttonStatus >> 8;
+			memcpy(buf, stdpar, 4);
+			respSize = 4;
+			break;
 		case PSE_PAD_TYPE_ANALOGPAD: // scph1150
 			stdpar[0] = 0x73;
 			stdpar[1] = 0x5a;
@@ -690,25 +697,11 @@ void _PADstartPoll(PadDataS *pad) {
 			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
-			//avoid analog value in multitap mode if change pad type in game.
-			stdpar[4] = 0xff;
-			stdpar[5] = 0xff;
-			stdpar[6] = 0xff;
-			stdpar[7] = 0xff;
-			memcpy(buf, stdpar, 8);
-			respSize = 8;
+			memcpy(buf, stdpar, 4);
+			respSize = 4;
 			break;
 		default:
-			stdpar[0] = 0xff;
-			stdpar[1] = 0xff;
-			stdpar[2] = 0xff;
-			stdpar[3] = 0xff;
-			stdpar[4] = 0xff;
-			stdpar[5] = 0xff;
-			stdpar[6] = 0xff;
-			stdpar[7] = 0xff;
-			memcpy(buf, stdpar, 8);
-			respSize = 8;
+			respSize = 0;
 			break;
 	}
 }
@@ -727,63 +720,52 @@ void _PADstartPollMultitap(PadDataS* padd) {
 	respSize = 34;
 }
 
-
-unsigned char _PADpoll(int port, unsigned char value) {
-	if (reqPos == 0) {
-		//mem the request number
-		req = value;
-
-		// Don't enable Analog/Vibration for a standard pad
-		if (in_type[port] == PSE_PAD_TYPE_STANDARD ||
-			in_type[port] == PSE_PAD_TYPE_NEGCON) {
-			; // Pad keystate already in buffer
-		}
-		else
-		{
-			//copy the default value of request response in buffer instead of the keystate
+static void PADpoll_dualshock(int port, unsigned char value)
+{
+	switch (reqPos) {
+		case 0:
 			initBufForRequest(port, value);
-		}
-	}
+			break;
+		case 2:
+			reqIndex2Treatment(port, value);
+			break;
+		case 3:
+			if (pad[port].txData[0] == CMD_READ_DATA_AND_VIBRATE) {
+				// vibration value for the Large motor
+				pad[port].Vib[1] = value;
 
+				vibrate(port);
+			}
+			break;
+	}
+}
+
+static unsigned char PADpoll_(int port, unsigned char value, int *more_data) {
 	if (reqPos < sizeof(pad[port].txData))
 		pad[port].txData[reqPos] = value;
 
-	//if no new request the pad return 0xff, for signaling connected
+	if (reqPos == 0 && value != 0x42 && in_type[port] != PSE_PAD_TYPE_ANALOGPAD)
+		respSize = 1;
+
+	switch (in_type[port]) {
+		case PSE_PAD_TYPE_ANALOGPAD:
+			PADpoll_dualshock(port, value);
+			break;
+		case PSE_PAD_TYPE_GUN:
+			if (reqPos == 2)
+				pl_gun_byte2(port, value);
+			break;
+	}
+
+	*more_data = reqPos < respSize - 1;
 	if (reqPos >= respSize)
-		return 0xff;
+		return 0xff; // no response/HiZ
 
-	if (in_type[port] == PSE_PAD_TYPE_GUN) {
-		if (reqPos == 2)
-			pl_gun_byte2(port, value);
-	}
-	else
-	switch(reqPos){
-		case 2:
-			reqIndex2Treatment(port, value);
-		break;
-		case 3:
-			switch(req) {
-				case CMD_SET_MODE_AND_LOCK :
-					//change mode on pad
-				break;
-				case CMD_READ_DATA_AND_VIBRATE:
-				//mem the vibration value for Large motor;
-				pad[port].Vib[1] = value;
-
-				if (in_type[port] != PSE_PAD_TYPE_ANALOGPAD)
-					break;
-
-				//vibration
-				vibrate(port);
-				break;
-			}
-		break;
-	}
 	return buf[reqPos++];
 }
 
-
-unsigned char _PADpollMultitap(int port, unsigned char value) {
+static unsigned char PADpollMultitap(int port, unsigned char value, int *more_data) {
+	*more_data = reqPos < respSize - 1;
 	if (reqPos >= respSize) return 0xff;
 	return bufMulti[reqPos++];
 }
@@ -811,15 +793,15 @@ unsigned char CALLBACK PAD1__startPoll(int pad) {
 		_PADstartPollMultitap(padd);
 	}
 	//printf("\npad 1 : ");
-	return 0x00;
+	return 0xff;
 }
 
-unsigned char CALLBACK PAD1__poll(unsigned char value) {
+unsigned char CALLBACK PAD1__poll(unsigned char value, int *more_data) {
 	char tmp;
 	if (multitap1 == 1) {
-		tmp = _PADpollMultitap(0, value);
+		tmp = PADpollMultitap(0, value, more_data);
 	} else {
-		tmp = _PADpoll(0, value);
+		tmp = PADpoll_(0, value, more_data);
 	}
 	//printf("%2x:%2x, ",value,tmp);
 	return tmp;
@@ -903,15 +885,15 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 		_PADstartPollMultitap(padd);
 	}
 	//printf("\npad 2 : ");
-	return 0x00;
+	return 0xff;
 }
 
-unsigned char CALLBACK PAD2__poll(unsigned char value) {
+unsigned char CALLBACK PAD2__poll(unsigned char value, int *more_data) {
 	char tmp;
 	if (multitap2 == 2) {
-		tmp = _PADpollMultitap(1, value);
+		tmp = PADpollMultitap(1, value, more_data);
 	} else {
-		tmp = _PADpoll(1, value);
+		tmp = PADpoll_(1, value, more_data);
 	}
 	//printf("%2x:%2x, ",value,tmp);
 	return tmp;
