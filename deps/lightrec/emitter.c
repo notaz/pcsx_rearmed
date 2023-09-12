@@ -1240,7 +1240,7 @@ static void rec_io(struct lightrec_cstate *state,
 	}
 }
 
-static u32 rec_ram_mask(struct lightrec_state *state)
+static u32 rec_ram_mask(const struct lightrec_state *state)
 {
 	return (RAM_SIZE << (state->mirrors_mapped * 2)) - 1;
 }
@@ -1264,7 +1264,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
 	union code c = op->c;
-	u8 rs, rt, tmp, tmp2, tmp3, addr_reg, addr_reg2;
+	u8 rs, rt, tmp = 0, tmp2 = 0, tmp3, addr_reg, addr_reg2;
 	s16 imm = (s16)c.i.imm;
 	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
@@ -1369,7 +1369,7 @@ static void rec_store_ram(struct lightrec_cstate *cstate,
 			  u16 offset, jit_code_t code,
 			  jit_code_t swap_code, bool invalidate)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
@@ -1405,7 +1405,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 					   u16 offset, jit_code_t code,
 					   jit_code_t swap_code)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
@@ -1482,7 +1482,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 static void rec_store_direct(struct lightrec_cstate *cstate, const struct block *block,
 			     u16 offset, jit_code_t code, jit_code_t swap_code)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	u32 ram_size = state->mirrors_mapped ? RAM_SIZE * 4 : RAM_SIZE;
 	struct regcache *reg_cache = cstate->reg_cache;
 	union code c = block->opcode_list[offset].c;
@@ -1492,6 +1492,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	u8 tmp, tmp2, tmp3, masked_reg, rs, rt;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 	u32 addr_mask = 0x1f800000 | (ram_size - 1);
+	bool different_offsets = state->offset_ram != state->offset_scratch;
 	s32 reg_imm;
 
 	jit_note(__FILE__, __LINE__);
@@ -1514,7 +1515,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, reg_imm);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (state->offset_ram != state->offset_scratch) {
+	if (different_offsets) {
 		to_not_ram = jit_bgti(tmp2, ram_size);
 		masked_reg = tmp2;
 	} else {
@@ -1539,7 +1540,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	else
 		jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
-	if (state->offset_ram != state->offset_scratch) {
+	if (different_offsets) {
 		jit_movi(tmp, state->offset_ram);
 
 		to_end = jit_b();
@@ -1549,7 +1550,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	if (state->offset_ram || state->offset_scratch)
 		jit_movi(tmp, state->offset_scratch);
 
-	if (state->offset_ram != state->offset_scratch)
+	if (different_offsets)
 		jit_patch(to_end);
 
 	if (state->offset_ram || state->offset_scratch)
@@ -1784,13 +1785,14 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 			    jit_code_t code, jit_code_t swap_code,
 			    bool is_unsigned)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
 	struct opcode *op = &block->opcode_list[offset];
 	bool load_delay = op_flag_load_delay(op->flags) && !cstate->no_load_delay;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
 	u8 tmp, rs, rt, out_reg, addr_reg, flags = REG_EXT;
+	bool different_offsets = state->offset_bios != state->offset_scratch;
 	union code c = op->c;
 	s32 addr_mask;
 	u32 reg_imm;
@@ -1872,7 +1874,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 		jit_patch(to_not_ram);
 
-		if (state->offset_bios != state->offset_scratch)
+		if (different_offsets)
 			to_not_bios = jit_bmci(addr_reg, BIT(22));
 
 		/* Convert to KUNSEG */
@@ -1880,7 +1882,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 		jit_movi(tmp, state->offset_bios);
 
-		if (state->offset_bios != state->offset_scratch) {
+		if (different_offsets) {
 			to_end2 = jit_b();
 
 			jit_patch(to_not_bios);
@@ -2730,12 +2732,19 @@ static void rec_meta_MULT2(struct lightrec_cstate *state,
 			hi = lightrec_alloc_reg_out(reg_cache, _jit,
 						    reg_hi, hiflags);
 
-			if (c.r.op >= 32)
+			if (c.r.op >= 32) {
 				jit_lshi(hi, rs, c.r.op - 32);
-			else if (is_signed)
-				jit_rshi(hi, rs, 32 - c.r.op);
-			else
-				jit_rshi_u(hi, rs, 32 - c.r.op);
+			} else if (is_signed) {
+				if (c.r.op)
+					jit_rshi(hi, rs, 32 - c.r.op);
+				else
+					jit_rshi(hi, rs, 31);
+			} else {
+				if (c.r.op)
+					jit_rshi_u(hi, rs, 32 - c.r.op);
+				else
+					jit_movi(hi, 0);
+			}
 
 			lightrec_free_reg(reg_cache, hi);
 		}

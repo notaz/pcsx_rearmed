@@ -155,7 +155,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
 	     branch_taken;
-	u32 old_rs, new_rt, new_rs = 0;
+	u32 new_rt, old_rs = 0, new_rs = 0;
 	u32 next_pc, ds_next_pc;
 	u32 cause, epc;
 
@@ -997,12 +997,20 @@ static u32 int_META_MULT2(struct interpreter *inter)
 	}
 
 	if (!op_flag_no_hi(inter->op->flags)) {
-		if (c.r.op >= 32)
+		if (c.r.op >= 32) {
 			reg_cache[reg_hi] = rs << (c.r.op - 32);
-		else if (c.i.op == OP_META_MULT2)
-			reg_cache[reg_hi] = (s32) rs >> (32 - c.r.op);
-		else
-			reg_cache[reg_hi] = rs >> (32 - c.r.op);
+		}
+		else if (c.i.op == OP_META_MULT2) {
+			if (c.r.op)
+				reg_cache[reg_hi] = (s32) rs >> (32 - c.r.op);
+			else
+				reg_cache[reg_hi] = (s32) rs >> 31;
+		} else {
+			if (c.r.op)
+				reg_cache[reg_hi] = rs >> (32 - c.r.op);
+			else
+				reg_cache[reg_hi] = 0;
+		}
 	}
 
 	return jump_next(inter);
@@ -1205,7 +1213,7 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 	if (offset < block->nb_ops)
 		return lightrec_emulate_block_list(state, block, offset);
 
-	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
+	pr_err(PC_FMT" is outside block at "PC_FMT"\n", pc, block->pc);
 
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 

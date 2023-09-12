@@ -101,7 +101,7 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 		}
 	}
 
-	pr_err("Block at PC 0x%x is not in cache\n", block->pc);
+	pr_err("Block at "PC_FMT" is not in cache\n", block->pc);
 }
 
 static bool lightrec_block_is_old(const struct lightrec_state *state,
@@ -142,7 +142,7 @@ static void lightrec_free_blocks(struct blockcache *cache,
 				if (ENABLE_THREADED_COMPILER)
 					lightrec_recompiler_remove(state->rec, block);
 
-				pr_debug("Freeing outdated block at PC 0x%08x\n", block->pc);
+				pr_debug("Freeing outdated block at "PC_FMT"\n", block->pc);
 				remove_from_code_lut(cache, block);
 				lightrec_unregister_block(cache, block);
 				lightrec_free_block(state, block);

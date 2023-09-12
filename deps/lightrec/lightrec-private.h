@@ -20,6 +20,11 @@
 #include <immintrin.h>
 #endif
 
+#include <inttypes.h>
+#include <stdint.h>
+
+#define PC_FMT "PC 0x%08"PRIx32
+
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
 #define GENMASK(h, l) \

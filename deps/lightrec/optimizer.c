@@ -867,6 +867,12 @@ static void lightrec_reset_syncs(struct block *block)
 	}
 }
 
+static void maybe_remove_load_delay(struct opcode *op)
+{
+	if (op_flag_load_delay(op->flags) && opcode_is_load(op->c))
+		op->flags &= ~LIGHTREC_LOAD_DELAY;
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *op, *list = block->opcode_list;
@@ -907,6 +913,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				   (v[op->i.rs].value ^ v[op->i.rt].value)) {
 				pr_debug("Found never-taken BEQ\n");
 
+				if (!op_flag_no_ds(op->flags))
+					maybe_remove_load_delay(&list[i + 1]);
+
 				local = op_flag_local_branch(op->flags);
 				op->opcode = 0;
 				op->flags = 0;
@@ -930,6 +939,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			} else if (is_known(v, op->i.rs) && is_known(v, op->i.rt) &&
 				   v[op->i.rs].value == v[op->i.rt].value) {
 				pr_debug("Found never-taken BNE\n");
+
+				if (!op_flag_no_ds(op->flags))
+					maybe_remove_load_delay(&list[i + 1]);
 
 				local = op_flag_local_branch(op->flags);
 				op->opcode = 0;
@@ -958,6 +970,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			if (v[op->i.rs].known & BIT(31) &&
 			    v[op->i.rs].value & BIT(31)) {
 				pr_debug("Found never-taken BGTZ\n");
+
+				if (!op_flag_no_ds(op->flags))
+					maybe_remove_load_delay(&list[i + 1]);
 
 				local = op_flag_local_branch(op->flags);
 				op->opcode = 0;
@@ -1016,6 +1031,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->i.rt = 0;
 				} else {
 					pr_debug("Found never-taken BLTZ/BGEZ\n");
+
+					if (!op_flag_no_ds(op->flags))
+						maybe_remove_load_delay(&list[i + 1]);
 
 					local = op_flag_local_branch(op->flags);
 					op->opcode = 0;

@@ -159,7 +159,7 @@ static void lightrec_compile_list(struct recompiler *rec,
 			}
 
 			if (ret) {
-				pr_err("Unable to compile block at PC 0x%x: %d\n",
+				pr_err("Unable to compile block at "PC_FMT": %d\n",
 				       block->pc, ret);
 			}
 		}
@@ -361,7 +361,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		goto out_unlock;
 	}
 
-	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
+	pr_debug("Adding block "PC_FMT" to recompiler\n", block->pc);
 
 	block_rec->block = block;
 	block_rec->compiling = false;
@@ -438,7 +438,7 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 			old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 			if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
-				pr_debug("Block PC 0x%08x is fully tagged"
+				pr_debug("Block "PC_FMT" is fully tagged"
 					 " - free opcode list\n", block->pc);
 
 				/* The block was already compiled but the opcode list
@@ -466,7 +466,7 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 		if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
-			pr_debug("Block PC 0x%08x is fully tagged"
+			pr_debug("Block "PC_FMT" is fully tagged"
 				 " - free opcode list\n", block->pc);
 
 			lightrec_free_opcode_list(state, block->opcode_list);

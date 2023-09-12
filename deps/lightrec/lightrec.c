@@ -94,9 +94,9 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr,
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 	pr_err("Segmentation fault in recompiled code: invalid "
-	       "load/store at address 0x%08x\n", addr);
+	       "load/store at address "PC_FMT"\n", addr);
 	if (block)
-		pr_err("Was executing block PC 0x%08x\n", block->pc);
+		pr_err("Was executing block "PC_FMT"\n", block->pc);
 }
 
 static void lightrec_swl(struct lightrec_state *state,
@@ -290,7 +290,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 		old_flags = block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
 
 		if (!(old_flags & BLOCK_SHOULD_RECOMPILE)) {
-			pr_debug("Opcode of block at PC 0x%08x has been tagged"
+			pr_debug("Opcode of block at "PC_FMT" has been tagged"
 				 " - flag for recompilation\n", block->pc);
 
 			lut_write(state, lut_offset(block->pc), NULL);
@@ -378,7 +378,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	block = lightrec_find_block_from_lut(state->block_cache,
 					     arg >> 16, state->curr_pc);
 	if (unlikely(!block)) {
-		pr_err("rw_generic: No block found in LUT for PC 0x%x offset 0x%x\n",
+		pr_err("rw_generic: No block found in LUT for "PC_FMT" offset 0x%"PRIx16"\n",
 			 state->curr_pc, offset);
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 		return;
@@ -665,7 +665,7 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	u8 old_flags;
 
 	if (block && lightrec_block_is_outdated(state, block)) {
-		pr_debug("Block at PC 0x%08x is outdated!\n", block->pc);
+		pr_debug("Block at "PC_FMT" is outdated!\n", block->pc);
 
 		old_flags = block_set_flags(block, BLOCK_IS_DEAD);
 		if (!(old_flags & BLOCK_IS_DEAD)) {
@@ -685,7 +685,7 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	if (!block) {
 		block = lightrec_precompile_block(state, pc);
 		if (!block) {
-			pr_err("Unable to recompile block at PC 0x%x\n", pc);
+			pr_err("Unable to recompile block at "PC_FMT"\n", pc);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 			return NULL;
 		}
@@ -724,7 +724,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			!block_has_flag(block, BLOCK_IS_DEAD);
 
 		if (unlikely(should_recompile)) {
-			pr_debug("Block at PC 0x%08x should recompile\n", pc);
+			pr_debug("Block at "PC_FMT" should recompile\n", pc);
 
 			if (ENABLE_THREADED_COMPILER) {
 				lightrec_recompiler_add(state->rec, block);
@@ -1018,12 +1018,12 @@ static u32 lightrec_memset(struct lightrec_state *state)
 	u32 length = state->regs.gpr[5] * 4;
 
 	if (!map) {
-		pr_err("Unable to find memory map for memset target address "
-		       "0x%x\n", kunseg_pc);
+		pr_err("Unable to find memory map for memset target address "PC_FMT"\n",
+		       kunseg_pc);
 		return 0;
 	}
 
-	pr_debug("Calling host memset, PC 0x%x (host address 0x%" PRIxPTR ") for %u bytes\n",
+	pr_debug("Calling host memset, "PC_FMT" (host address 0x%"PRIxPTR") for %u bytes\n",
 		 kunseg_pc, (uintptr_t)host, length);
 	memset(host, 0, length);
 
@@ -1046,7 +1046,7 @@ static u32 lightrec_check_load_delay(struct lightrec_state *state, u32 pc, u8 re
 	} else {
 		block = lightrec_get_block(state, pc);
 		if (unlikely(!block)) {
-			pr_err("Unable to get block at PC 0x%08x\n", pc);
+			pr_err("Unable to get block at "PC_FMT"\n", pc);
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 			pc = 0;
 		} else {
@@ -1497,7 +1497,7 @@ static void lightrec_reap_block(struct lightrec_state *state, void *data)
 {
 	struct block *block = data;
 
-	pr_debug("Reap dead block at PC 0x%08x\n", block->pc);
+	pr_debug("Reap dead block at "PC_FMT"\n", block->pc);
 	lightrec_unregister_block(state->block_cache, block);
 	lightrec_free_block(state, block);
 }
@@ -1717,7 +1717,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	if (fully_tagged && !(old_flags & BLOCK_NO_OPCODE_LIST)) {
-		pr_debug("Block PC 0x%08x is fully tagged"
+		pr_debug("Block "PC_FMT" is fully tagged"
 			 " - free opcode list\n", block->pc);
 
 		if (ENABLE_THREADED_COMPILER) {
