@@ -84,60 +84,43 @@ char McdDisable[2];
 #define SIO_CYCLES		535
 
 void sioWrite8(unsigned char value) {
-#ifdef PAD_LOG
-	PAD_LOG("sio write8 %x\n", value);
+	int more_data = 0;
+#if 0
+	s32 framec = psxRegs.cycle - rcnts[3].cycleStart;
+	printf("%d:%03d sio write8 %04x %02x\n", frame_counter,
+		(s32)(framec / (PSXCLK / 60 / 263.0f)), CtrlReg, value);
 #endif
 	switch (padst) {
-		case 1: SIO_INT(SIO_CYCLES);
+		case 1:
 			if ((value & 0x40) == 0x40) {
 				padst = 2; parp = 1;
-				if (!Config.UseNet) {
-					switch (CtrlReg & 0x2002) {
-						case 0x0002:
-							buf[parp] = PAD1_poll(value);
-							break;
-						case 0x2002:
-							buf[parp] = PAD2_poll(value);
-							break;
-					}
-				}/* else {
-//					SysPrintf("%x: %x, %x, %x, %x\n", CtrlReg&0x2002, buf[2], buf[3], buf[4], buf[5]);
-				}*/
-
-				if (!(buf[parp] & 0x0f)) {
-					bufcount = 2 + 32;
-				} else {
-					bufcount = 2 + (buf[parp] & 0x0f) * 2;
+				switch (CtrlReg & 0x2002) {
+					case 0x0002:
+						buf[parp] = PAD1_poll(value, &more_data);
+						break;
+					case 0x2002:
+						buf[parp] = PAD2_poll(value, &more_data);
+						break;
 				}
-				if (buf[parp] == 0x41) {
-					switch (value) {
-						case 0x43:
-							buf[1] = 0x43;
-							break;
-						case 0x45:
-							buf[1] = 0xf3;
-							break;
-					}
+
+				if (more_data) {
+					bufcount = parp + 1;
+					SIO_INT(SIO_CYCLES);
 				}
 			}
 			else padst = 0;
 			return;
 		case 2:
 			parp++;
-/*			if (buf[1] == 0x45) {
-				buf[parp] = 0;
-				SIO_INT(SIO_CYCLES);
-				return;
-			}*/
-			if (!Config.UseNet) {
-				switch (CtrlReg & 0x2002) {
-					case 0x0002: buf[parp] = PAD1_poll(value); break;
-					case 0x2002: buf[parp] = PAD2_poll(value); break;
-				}
+			switch (CtrlReg & 0x2002) {
+				case 0x0002: buf[parp] = PAD1_poll(value, &more_data); break;
+				case 0x2002: buf[parp] = PAD2_poll(value, &more_data); break;
 			}
 
-			if (parp == bufcount) { padst = 0; return; }
-			SIO_INT(SIO_CYCLES);
+			if (more_data) {
+				bufcount = parp + 1;
+				SIO_INT(SIO_CYCLES);
+			}
 			return;
 	}
 
@@ -227,44 +210,11 @@ void sioWrite8(unsigned char value) {
 		case 0x01: // start pad
 			StatReg |= RX_RDY;		// Transfer is Ready
 
-			if (!Config.UseNet) {
-				switch (CtrlReg & 0x2002) {
-					case 0x0002: buf[0] = PAD1_startPoll(1); break;
-					case 0x2002: buf[0] = PAD2_startPoll(2); break;
-				}
-			} else {
-				if ((CtrlReg & 0x2002) == 0x0002) {
-					int i, j;
-
-					PAD1_startPoll(1);
-					buf[0] = 0;
-					buf[1] = PAD1_poll(0x42);
-					if (!(buf[1] & 0x0f)) {
-						bufcount = 32;
-					} else {
-						bufcount = (buf[1] & 0x0f) * 2;
-					}
-					buf[2] = PAD1_poll(0);
-					i = 3;
-					j = bufcount;
-					while (j--) {
-						buf[i++] = PAD1_poll(0);
-					}
-					bufcount+= 3;
-
-					if (NET_sendPadData(buf, bufcount) == -1)
-						netError();
-
-					if (NET_recvPadData(buf, 1) == -1)
-						netError();
-					if (NET_recvPadData(buf + 128, 2) == -1)
-						netError();
-				} else {
-					memcpy(buf, buf + 128, 32);
-				}
+			switch (CtrlReg & 0x2002) {
+				case 0x0002: buf[0] = PAD1_startPoll(1); break;
+				case 0x2002: buf[0] = PAD2_startPoll(2); break;
 			}
-
-			bufcount = 2;
+			bufcount = 1;
 			parp = 0;
 			padst = 1;
 			SIO_INT(SIO_CYCLES);
@@ -351,8 +301,10 @@ unsigned char sioRead8() {
 		}
 	}
 
-#ifdef PAD_LOG
-	PAD_LOG("sio read8 ;ret = %x\n", ret);
+#if 0
+	s32 framec = psxRegs.cycle - rcnts[3].cycleStart;
+	printf("%d:%03d sio read8  %04x %02x\n", frame_counter,
+		(s32)((float)framec / (PSXCLK / 60 / 263.0f)), CtrlReg, ret);
 #endif
 	return ret;
 }

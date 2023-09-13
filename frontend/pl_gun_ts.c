@@ -15,8 +15,6 @@
 #include "plugin_lib.h"
 #include "pl_gun_ts.h"
 #include "menu.h"
-#include "../plugins/dfinput/externals.h"
-#include "../plugins/dfinput/main.h"
 
 #ifdef MAEMO
 #define N900_TSMAX_X 4096
@@ -57,9 +55,9 @@ int pl_gun_ts_update_raw(struct tsdev *ts, int *x, int *y, int *p)
 			limit(gun_x, 0, 1023);
 			limit(gun_y, 0, 1023);
 			if (sp && !(g_opts & OPT_TSGUN_NOTRIGGER))
-				gun_in |= GUNIN_TRIGGER;
+				gun_in |= 1;
 			else
-				gun_in &= ~GUNIN_TRIGGER;
+				gun_in &= ~1;
 		}
 	}
 

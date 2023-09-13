@@ -1,6 +1,6 @@
 /***************************************************************************
  *   Copyright (C) 2019 Ryan Schultz, PCSX-df Team, PCSX team, gameblabla, *
- * 	 dmitrysmagin, senquack												   *
+ *   dmitrysmagin, senquack                                                *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -3774,18 +3774,12 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 stack) {
 }
 
 #define psxBios_PADpoll(pad) { \
-	PAD##pad##_startPoll(pad); \
-	pad_buf##pad[0] = 0; \
-	pad_buf##pad[1] = PAD##pad##_poll(0x42); \
-	if (!(pad_buf##pad[1] & 0x0f)) { \
-		bufcount = 32; \
-	} else { \
-		bufcount = (pad_buf##pad[1] & 0x0f) * 2; \
-	} \
-	PAD##pad##_poll(0); \
+	int i, more_data = 0; \
+	pad_buf##pad[0] = PAD##pad##_startPoll(pad); \
+	pad_buf##pad[1] = PAD##pad##_poll(0x42, &more_data); \
 	i = 2; \
-	while (bufcount--) { \
-		pad_buf##pad[i++] = PAD##pad##_poll(0); \
+	while (more_data) { \
+		pad_buf##pad[i++] = PAD##pad##_poll(0, &more_data); \
 	} \
 }
 
@@ -3970,7 +3964,6 @@ void hleExcPadCard1(void)
 	if (loadRam32(A_PAD_IRQR_ENA)) {
 		u8 *pad_buf1 = loadRam8ptr(A_PAD_INBUF + 0);
 		u8 *pad_buf2 = loadRam8ptr(A_PAD_INBUF + 4);
-		int i, bufcount;
 
 		psxBios_PADpoll(1);
 		psxBios_PADpoll(2);

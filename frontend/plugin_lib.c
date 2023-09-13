@@ -33,7 +33,6 @@
 #include "psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psxmem_map.h"
-#include "../plugins/dfinput/externals.h"
 
 #define HUD_HEIGHT 10
 
@@ -620,18 +619,18 @@ static void update_input(void)
 	emu_set_action(emu_act);
 
 	in_keystate[0] = actions[IN_BINDTYPE_PLAYER12];
+
+	// fixme
+	//if (in_type[0] == PSE_PAD_TYPE_GUNCON && tsdev)
+	//	pl_gun_ts_update(tsdev, xn, yn, in);
+	//	in_analog_left[0][0] = xn
 }
 #else /* MAEMO */
 extern void update_input(void);
 #endif
 
-void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
+void pl_gun_byte2(int port, unsigned char byte)
 {
-	if (tsdev)
-		pl_gun_ts_update(tsdev, xn, yn, in);
-
-	*xres = psx_w;
-	*yres = psx_h;
 }
 
 #define MAX_LAG_FRAMES 3

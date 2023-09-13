@@ -29,7 +29,6 @@
 #include "../libpcsxcore/r3000a.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
-#include "../plugins/dfinput/externals.h"
 #include "cspace.h"
 #include "main.h"
 #include "menu.h"
@@ -514,7 +513,7 @@ void plat_trigger_vibrate(int pad, int low, int high)
    }
 }
 
-void pl_update_gun(int *xn, int *yn, int *xres, int *yres, int *in)
+void pl_gun_byte2(int port, unsigned char byte)
 {
 }
 
@@ -2468,17 +2467,19 @@ static void update_input_guncon(int port, int ret)
    //Mouse range is -32767 -> 32767
    //1% is about 655
    //Use the left analog stick field to store the absolute coordinates
-   //Fix cursor to top-left when gun is detected as "offscreen"
+
+   int gunx = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X);
+   int guny = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y);
+
+   //Have the Libretro API let /libpcsxcore/plugins.c know when the lightgun is pointed offscreen
+   //Offscreen value is chosen to be well out of range of any possible scaling done via core options
    if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN) || input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_RELOAD))
    {
-      in_analog_left[port][0] = -32767;
-      in_analog_left[port][1] = -32767;
+      in_analog_left[port][0] = (65536 - 512) * 64;
+      in_analog_left[port][1] = (65536 - 512) * 64;
    }
    else
    {
-      int gunx = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X);
-      int guny = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y);
-	   
       in_analog_left[port][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
       in_analog_left[port][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
    }

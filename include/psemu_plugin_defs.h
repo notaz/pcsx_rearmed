@@ -141,7 +141,7 @@ typedef struct
   long	PADquery(void);
 
   unsigned char PADstartPoll(int);
-  unsigned char PADpoll(unsigned char);
+  unsigned char PADpoll(unsigned char, int *);
 
 */
 
@@ -222,7 +222,9 @@ typedef struct
 	
 	//configuration mode Request 0x43
 	int configMode;
-	unsigned char reserved[87];
+
+	unsigned char txData[32];
+	unsigned char reserved[56];
 	
 	//Lightgun values 
 	int absoluteX,absoluteY;

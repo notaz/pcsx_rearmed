@@ -36,7 +36,6 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/externals.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "psemu_plugin_defs.h"
 #include "arm_features.h"
@@ -2696,8 +2695,6 @@ void menu_prepare_emu(void)
 		if (ret)
 			fprintf(stderr, "Warning: GPU_open returned %d\n", ret);
 	}
-
-	dfinput_activate();
 }
 
 void menu_update_msg(const char *msg)

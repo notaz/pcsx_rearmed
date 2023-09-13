@@ -174,9 +174,6 @@ libchdr/src/%.o: CFLAGS += -Wno-unused -Ilibchdr/deps/lzma-19.00/include
 libchdr/deps/lzma-19.00/src/%.o: CFLAGS += -Wno-unused -D_7ZIP_ST -Ilibchdr/deps/lzma-19.00/include
 #endif
 
-# dfinput
-OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
-
 # frontend/gui
 OBJS += frontend/cspace.o
 ifeq "$(HAVE_NEON_ASM)" "1"

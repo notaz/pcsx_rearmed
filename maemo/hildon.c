@@ -13,7 +13,6 @@
 #include "../include/psemu_plugin_defs.h"
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
-#include "../plugins/dfinput/main.h"
 #include "../frontend/libpicofe/readpng.h"
 #include "maemo_common.h"
 #include <libosso.h>

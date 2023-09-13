@@ -17,7 +17,6 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
-#include "../plugins/dfinput/main.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "maemo_common.h"
 
@@ -393,7 +392,6 @@ int main(int argc, char **argv)
 	if (Config.HLE)
 		printf("Note: running without BIOS, expect compatibility problems\n");
 
-	dfinput_activate();
 	pl_timing_prepare(Config.PsxType);
 
 	while (1)
