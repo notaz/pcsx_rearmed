@@ -38,10 +38,6 @@
 #include "psxinterpreter.h"
 #include <zlib.h>
 
-#if (defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__)
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#endif
-
 #ifndef PSXBIOS_LOG
 //#define PSXBIOS_LOG printf
 #define PSXBIOS_LOG(...)
@@ -2596,7 +2592,7 @@ static void bufile(const u8 *mcd_data, u32 dir_) {
 	}
 	for (; nfile <= 15; nfile++, blocks++) {
 		const u8 *data2 = mcd_data + 128 * nfile;
-		const char *name = data2 + 0x0a;
+		const char *name = (const char *)data2 + 0x0a;
 		if ((data2[0] & 0xF0) != 0x50 || name[0])
 			break;
 	}
@@ -2629,11 +2625,11 @@ static void psxBios_firstfile() { // 42
 		if (!strncmp(pa0, "bu00", 4)) {
 			// firstfile() calls _card_read() internally, so deliver it's event
 			DeliverEvent(0xf0000011, 0x0004);
-			bufile(Mcd1Data, a1);
+			bufile((u8 *)Mcd1Data, a1);
 		} else if (!strncmp(pa0, "bu10", 4)) {
 			// firstfile() calls _card_read() internally, so deliver it's event
 			DeliverEvent(0xf0000011, 0x0004);
-			bufile(Mcd2Data, a1);
+			bufile((u8 *)Mcd2Data, a1);
 		}
 	}
 
@@ -2649,9 +2645,9 @@ void psxBios_nextfile() { // 43
 
 	v0 = 0;
 	if (!strncmp(ffile, "bu00", 4))
-		bufile(Mcd1Data, a0);
+		bufile((u8 *)Mcd1Data, a0);
 	else if (!strncmp(ffile, "bu10", 4))
-		bufile(Mcd2Data, a0);
+		bufile((u8 *)Mcd2Data, a0);
 
 	pc0 = ra;
 }
@@ -3316,6 +3312,7 @@ void psxBiosSetupBootState(void)
 
 void psxBiosInit() {
 	u32 *ptr, *ram32, *rom32;
+	char *romc;
 	int i;
 	uLongf len;
 
@@ -3656,10 +3653,11 @@ void psxBiosInit() {
 	rom32 = (u32 *)psxR;
 	rom32[0x100/4] = SWAP32(0x19951204);
 	rom32[0x104/4] = SWAP32(3);
-	strcpy(psxR + 0x108, "PCSX authors");
-	strcpy(psxR + 0x12c, "CEX-3000 PCSX HLE"); // see psxBios_GetSystemInfo
-	strcpy(psxR + 0x7ff32, "System ROM Version 2.2 12/04/95 A");
-	strcpy(psxR + 0x7ff54, "GPL-2.0-or-later");
+	romc = (char *)psxR;
+	strcpy(romc + 0x108, "PCSX authors");
+	strcpy(romc + 0x12c, "CEX-3000 PCSX HLE"); // see psxBios_GetSystemInfo
+	strcpy(romc + 0x7ff32, "System ROM Version 2.2 12/04/95 A");
+	strcpy(romc + 0x7ff54, "GPL-2.0-or-later");
 
 	// fonts
 	len = 0x80000 - 0x66000;
