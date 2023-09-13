@@ -53,6 +53,7 @@ static const struct
 }
 cycle_multiplier_overrides[] =
 {
+	/* note: values are = (10000 / gui_option) */
 	/* Internal Section - fussy about timings */
 	{ "SLPS01868", 202 },
 	/* Super Robot Taisen Alpha - on the edge with 175,
@@ -73,6 +74,12 @@ cycle_multiplier_overrides[] =
 	{ "SLES01549", 222 },
 	{ "SLES02063", 222 },
 	{ "SLES02064", 222 },
+	/* Judge Dredd - could also be poor MDEC timing */
+	{ "SLUS00630", 128 },
+	{ "SLES00755", 128 },
+	/* Digimon World */
+	{ "SLUS01032", 153 },
+	{ "SLES02914", 153 },
 };
 
 /* Function for automatic patching according to GameID. */
