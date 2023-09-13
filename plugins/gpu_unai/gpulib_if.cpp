@@ -70,7 +70,7 @@
 
 #define DOWNSCALE_VRAM_SIZE (1024 * 512 * 2 * 2 + 4096)
 
-INLINE void scale_640_to_320(uint16_t *dest, const le16_t *src, bool isRGB24) {
+INLINE void scale_640_to_320(le16_t *dest, const le16_t *src, bool isRGB24) {
   size_t uCount = 320;
 
   if(isRGB24) {
@@ -84,17 +84,17 @@ INLINE void scale_640_to_320(uint16_t *dest, const le16_t *src, bool isRGB24) {
       src8 += 4;
     } while(--uCount);
   } else {
-    const le16_t *src16 = src;
-    uint16_t* dst16 = dest;
+    const le16_t* src16 = src;
+    le16_t* dst16 = dest;
 
     do {
-      *dst16++ = le16_to_u16(*src16);
+      *dst16++ = *src16;
       src16 += 2;
     } while(--uCount);
   }
 }
 
-INLINE void scale_512_to_320(uint16_t *dest, const le16_t *src, bool isRGB24) {
+INLINE void scale_512_to_320(le16_t *dest, const le16_t *src, bool isRGB24) {
   size_t uCount = 64;
 
   if(isRGB24) {
@@ -123,16 +123,16 @@ INLINE void scale_512_to_320(uint16_t *dest, const le16_t *src, bool isRGB24) {
     } while(--uCount);
   } else {
     const le16_t* src16 = src;
-    uint16_t* dst16 = dest;
+    le16_t* dst16 = dest;
 
     do {
-      *dst16++ = le16_to_u16(*src16++);
-      *dst16++ = le16_to_u16(*src16);
+      *dst16++ = *src16++;
+      *dst16++ = *src16;
       src16 += 2;
-      *dst16++ = le16_to_u16(*src16++);
-      *dst16++ = le16_to_u16(*src16);
+      *dst16++ = *src16++;
+      *dst16++ = *src16;
       src16 += 2;
-      *dst16++ = le16_to_u16(*src16);
+      *dst16++ = *src16;
       src16 += 2;
     } while(--uCount);
   }
@@ -140,7 +140,7 @@ INLINE void scale_512_to_320(uint16_t *dest, const le16_t *src, bool isRGB24) {
 
 static uint16_t *get_downscale_buffer(int *x, int *y, int *w, int *h, int *vram_h)
 {
-  uint16_t *dest = gpu_unai.downscale_vram;
+  le16_t *dest = gpu_unai.downscale_vram;
   const le16_t *src = gpu_unai.vram;
   bool isRGB24 = (gpu_unai.GPU_GP1 & 0x00200000 ? true : false);
   int stride = 1024, dstride = 1024, lines = *h, orig_w = *w;
@@ -184,19 +184,14 @@ static uint16_t *get_downscale_buffer(int *x, int *y, int *w, int *h, int *vram_
     size_t size = isRGB24 ? *w * 3 : *w * 2;
 
     do {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-      for (unsigned int i; i < size; i += 2)
-        dest[fb_offset_dest + i] = le16_to_u16(src[fb_offset_src + i]);
-#else
-      memcpy(dest + fb_offset_dest, (u16 *)src + fb_offset_src, size);
-#endif
+      memcpy(dest + fb_offset_dest, src + fb_offset_src, size);
       fb_offset_src = (fb_offset_src + stride) & fb_mask;
       fb_offset_dest = (fb_offset_dest + dstride) & fb_mask;
     } while(--lines);
     break;
   }
 
-  return gpu_unai.downscale_vram;
+  return (uint16_t *)gpu_unai.downscale_vram;
 }
 
 static void map_downscale_buffer(void)
@@ -204,7 +199,7 @@ static void map_downscale_buffer(void)
   if (gpu_unai.downscale_vram)
     return;
 
-  gpu_unai.downscale_vram = (uint16_t*)gpu.mmap(DOWNSCALE_VRAM_SIZE);
+  gpu_unai.downscale_vram = (le16_t*)gpu.mmap(DOWNSCALE_VRAM_SIZE);
 
   if (gpu_unai.downscale_vram == NULL) {
     fprintf(stderr, "failed to map downscale buffer\n");

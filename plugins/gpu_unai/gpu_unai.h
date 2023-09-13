@@ -181,7 +181,7 @@ struct gpu_unai_t {
 	le16_t *vram;
 
 #ifdef USE_GPULIB
-	u16 *downscale_vram;
+	le16_t *downscale_vram;
 #endif
 	////////////////////////////////////////////////////////////////////////////
 	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
