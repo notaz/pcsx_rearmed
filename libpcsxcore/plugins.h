@@ -381,6 +381,7 @@ void SetCdOpenCaseTime(s64 time);
 
 extern void pl_gun_byte2(int port, unsigned char byte);
 extern void plat_trigger_vibrate(int pad, int low, int high);
+extern void plat_get_psx_resolution(int *xres, int *yres);
 
 #ifdef __cplusplus
 }

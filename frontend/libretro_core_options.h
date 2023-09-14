@@ -854,9 +854,9 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_multitap",
-      "Multitap Mode (Restart)",
+      "Multitap Mode",
       NULL,
-      "Connect a virtual PSX Multitap peripheral to either controller 'Port 1' or controller 'Port 2' for 5 player simultaneous input, or to both 'Ports 1 and 2' for 8 player input. Mutlitap usage requires compatible games. To avoid input defects, option should be disabled when running games that have no support for Multitap features.",
+      "Connect a virtual PSX Multitap peripheral to either controller 'Port 1' or controller 'Port 2' for 5 player simultaneous input, or to both 'Ports 1 and 2' for 8 player input. Mutlitap usage requires compatible games.",
       NULL,
       "input",
       {

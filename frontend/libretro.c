@@ -80,6 +80,7 @@ static void *vout_buf;
 static void *vout_buf_ptr;
 static int vout_width, vout_height;
 static int vout_fb_dirty;
+static int psx_w, psx_h;
 static bool vout_can_dupe;
 static bool duping_enable;
 static bool found_bios;
@@ -239,6 +240,8 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
    vout_width = w;
    vout_height = h;
+   psx_w = raw_w;
+   psx_h = raw_h;
 
    if (previous_width != vout_width || previous_height != vout_height)
    {
@@ -499,6 +502,12 @@ void pl_frame_limit(void)
 void pl_timing_prepare(int is_pal)
 {
    is_pal_mode = is_pal;
+}
+
+void plat_get_psx_resolution(int *xres, int *yres)
+{
+   *xres = psx_w;
+   *yres = psx_h;
 }
 
 void plat_trigger_vibrate(int pad, int low, int high)
@@ -2475,13 +2484,13 @@ static void update_input_guncon(int port, int ret)
    //Offscreen value is chosen to be well out of range of any possible scaling done via core options
    if (input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN) || input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_RELOAD))
    {
-      in_analog_left[port][0] = (65536 - 512) * 64;
-      in_analog_left[port][1] = (65536 - 512) * 64;
+      in_analog_left[port][0] = 65536;
+      in_analog_left[port][1] = 65536;
    }
    else
    {
-      in_analog_left[port][0] = (gunx * GunconAdjustRatioX) + (GunconAdjustX * 655);
-      in_analog_left[port][1] = (guny * GunconAdjustRatioY) + (GunconAdjustY * 655);
+      in_analog_left[port][0] = ((gunx * GunconAdjustRatioX) + (GunconAdjustX * 655)) / 64 + 512;
+      in_analog_left[port][1] = ((guny * GunconAdjustRatioY) + (GunconAdjustY * 655)) / 64 + 512;
    }
 	
    //GUNCON has 3 controls, Trigger,A,B which equal Circle,Start,Cross

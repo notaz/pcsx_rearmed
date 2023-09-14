@@ -74,10 +74,7 @@ static long CALLBACK PADreadPort1(PadDataS *pad) {
 	pad->controllerType = in_type[pad_index];
 	pad->buttonStatus = ~in_keystate[pad_index];
 
-	if (multitap1 == 1)
-		pad->portMultitap = 1;
-	else
-		pad->portMultitap = 0;
+	pad->portMultitap = multitap1;
 
 	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
 	{
@@ -105,10 +102,7 @@ static long CALLBACK PADreadPort2(PadDataS *pad) {
 	pad->controllerType = in_type[pad_index];
 	pad->buttonStatus = ~in_keystate[pad_index];
 
-	if (multitap2 == 1)
-		pad->portMultitap = 2;
-	else
-		pad->portMultitap = 0;
+	pad->portMultitap = multitap2;
 
 	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON)
 	{
