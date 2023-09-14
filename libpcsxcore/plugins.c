@@ -351,28 +351,14 @@ extern int in_type[8];
 void *hPAD1Driver = NULL;
 void *hPAD2Driver = NULL;
 
-static int multitap1;
-static int multitap2;
-//Pad information, keystate, mode, config mode, vibration
-static PadDataS pad[8];
+// Pad information, keystate, mode, config mode, vibration
+static PadDataS pads[8];
 
 static int reqPos, respSize;
-static int ledStateReq44[8];
-static int PadMode[8]; /* 0 : digital 1: analog */
 
 static unsigned char buf[256];
-static unsigned char bufMulti[34] = { 0x80, 0x5a,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-unsigned char stdpar[8] = { 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-unsigned char multitappar[34] = { 0x80, 0x5a,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-									0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+static unsigned char stdpar[8] = { 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 //response for request 44, 45, 46, 47, 4C, 4D
 static unsigned char resp45[8]    = {0xF3, 0x5A, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00};
@@ -491,17 +477,13 @@ enum {
 };
 
 
-
-
-//NO MULTITAP
-
-void initBufForRequest(int padIndex, char value){
+static void initBufForRequest(int padIndex, char value) {
 	switch (value){
 		//Pad keystate already in buffer
 		//case CMD_READ_DATA_AND_VIBRATE :
 		//	break;
 		case CMD_CONFIG_MODE :
-			if (pad[padIndex].configMode == 1) {
+			if (pads[padIndex].configMode) {
 				memcpy(buf, resp43, 8);
 				break;
 			}
@@ -512,7 +494,7 @@ void initBufForRequest(int padIndex, char value){
 			break;
 		case CMD_QUERY_MODEL_AND_MODE :
 			memcpy(buf, resp45, 8);
-			buf[4] = PadMode[padIndex];
+			buf[4] = pads[padIndex].PadMode;
 			break;
 		case CMD_QUERY_ACT :
 			memcpy(buf, resp46_00, 8);
@@ -550,25 +532,22 @@ void initBufForRequest(int padIndex, char value){
 	}
 }
 
-
-
-
 static void reqIndex2Treatment(int padIndex, char value) {
-	switch (pad[padIndex].txData[0]) {
+	switch (pads[padIndex].txData[0]) {
 		case CMD_CONFIG_MODE :
 			//0x43
 			if (value == 0) {
-				pad[padIndex].configMode = 0;
+				pads[padIndex].configMode = 0;
 			} else {
-				pad[padIndex].configMode = 1;
+				pads[padIndex].configMode = 1;
 			}
 			break;
 		case CMD_SET_MODE_AND_LOCK :
 			//0x44 store the led state for change mode if the next value = 0x02
 			//0x01 analog ON
 			//0x00 analog OFF
-			ledStateReq44[padIndex] = value;
-			PadMode[padIndex] = value;
+			//ledStateReq44[padIndex] = value;
+			pads[padIndex].PadMode = value;
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
@@ -587,26 +566,24 @@ static void reqIndex2Treatment(int padIndex, char value) {
 			break;
 		case CMD_READ_DATA_AND_VIBRATE:
 			//mem the vibration value for small motor;
-			pad[padIndex].Vib[0] = value;
+			pads[padIndex].Vib[0] = value;
 			break;
 	}
 }
 
-void vibrate(int padIndex){
-	if (pad[padIndex].Vib[0] != pad[padIndex].VibF[0] || pad[padIndex].Vib[1] != pad[padIndex].VibF[1]) {
+static void vibrate(int padIndex) {
+	PadDataS *pad = &pads[padIndex];
+	if (pad->Vib[0] != pad->VibF[0] || pad->Vib[1] != pad->VibF[1]) {
 		//value is different update Value and call libretro for vibration
-		pad[padIndex].VibF[0] = pad[padIndex].Vib[0];
-		pad[padIndex].VibF[1] = pad[padIndex].Vib[1];
-		plat_trigger_vibrate(padIndex, pad[padIndex].VibF[0], pad[padIndex].VibF[1]);
+		pad->VibF[0] = pad->Vib[0];
+		pad->VibF[1] = pad->Vib[1];
+		plat_trigger_vibrate(padIndex, pad->VibF[0], pad->VibF[1]);
 		//printf("vibration pad %i", padIndex);
 	}
 }
 
-
-
-
-//Build response for 0x42 request Pad in port
-void _PADstartPoll(PadDataS *pad) {
+// Build response for 0x42 request Pad in port
+static void PADstartPoll_(PadDataS *pad) {
 	switch (pad->controllerType) {
 		case PSE_PAD_TYPE_MOUSE:
 			stdpar[0] = 0x12;
@@ -636,25 +613,25 @@ void _PADstartPoll(PadDataS *pad) {
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 
-			//This code assumes an X resolution of 256 and a Y resolution of 240
-			int xres = 256;
-			int yres = 240;
-
-			//The code wants an input range for x and y of 0-1023 we passed in -32767 -> 32767
-			int absX = (pad->absoluteX / 64) + 512;
-			int absY = (pad->absoluteY / 64) + 512;
+			int absX = pad->absoluteX;
+			int absY = pad->absoluteY;
+			int xres = 256, yres = 240;
 
 			if (absX == 65536 || absY == 65536) {
-			   stdpar[4] = 0x01;
-			   stdpar[5] = 0x00;
-			   stdpar[6] = 0x0A;
-			   stdpar[7] = 0x00;
+				stdpar[4] = 0x01;
+				stdpar[5] = 0x00;
+				stdpar[6] = 0x0A;
+				stdpar[7] = 0x00;
 			}
 			else {
-			   stdpar[4] = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
-			   stdpar[5] = (0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10)) >> 8;
-			   stdpar[6] = 0x20 + (yres * absY >> 10);
-			   stdpar[7] = (0x20 + (yres * absY >> 10)) >> 8;
+				plat_get_psx_resolution(&xres, &yres);
+				int x = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
+				int y = 0x20 + (yres * absY >> 10);
+
+				stdpar[4] = x;
+				stdpar[5] = x >> 8;
+				stdpar[6] = y;
+				stdpar[7] = y >> 8;
 			}
 
 			memcpy(buf, stdpar, 8);
@@ -706,23 +683,9 @@ void _PADstartPoll(PadDataS *pad) {
 	}
 }
 
-
-//Build response for 0x42 request Multitap in port
-//Response header for multitap : 0x80, 0x5A, (Pad information port 1-2A), (Pad information port 1-2B), (Pad information port 1-2C), (Pad information port 1-2D)
-void _PADstartPollMultitap(PadDataS* padd) {
-	int i, offset;
-	for(i = 0; i < 4; i++) {
-		offset = 2 + (i * 8);
-	_PADstartPoll(&padd[i]);
-	memcpy(multitappar+offset, stdpar, 8);
-	}
-	memcpy(bufMulti, multitappar, 34);
-	respSize = 34;
-}
-
-static void PADpoll_dualshock(int port, unsigned char value)
+static void PADpoll_dualshock(int port, unsigned char value, int pos)
 {
-	switch (reqPos) {
+	switch (pos) {
 		case 0:
 			initBufForRequest(port, value);
 			break;
@@ -730,9 +693,9 @@ static void PADpoll_dualshock(int port, unsigned char value)
 			reqIndex2Treatment(port, value);
 			break;
 		case 3:
-			if (pad[port].txData[0] == CMD_READ_DATA_AND_VIBRATE) {
+			if (pads[port].txData[0] == CMD_READ_DATA_AND_VIBRATE) {
 				// vibration value for the Large motor
-				pad[port].Vib[1] = value;
+				pads[port].Vib[1] = value;
 
 				vibrate(port);
 			}
@@ -740,72 +703,90 @@ static void PADpoll_dualshock(int port, unsigned char value)
 	}
 }
 
-static unsigned char PADpoll_(int port, unsigned char value, int *more_data) {
-	if (reqPos < sizeof(pad[port].txData))
-		pad[port].txData[reqPos] = value;
-
-	if (reqPos == 0 && value != 0x42 && in_type[port] != PSE_PAD_TYPE_ANALOGPAD)
+static unsigned char PADpoll_(int port, unsigned char value, int pos, int *more_data) {
+	if (pos == 0 && value != 0x42 && in_type[port] != PSE_PAD_TYPE_ANALOGPAD)
 		respSize = 1;
 
 	switch (in_type[port]) {
 		case PSE_PAD_TYPE_ANALOGPAD:
-			PADpoll_dualshock(port, value);
+			PADpoll_dualshock(port, value, pos);
 			break;
 		case PSE_PAD_TYPE_GUN:
-			if (reqPos == 2)
+			if (pos == 2)
 				pl_gun_byte2(port, value);
 			break;
 	}
 
-	*more_data = reqPos < respSize - 1;
-	if (reqPos >= respSize)
+	*more_data = pos < respSize - 1;
+	if (pos >= respSize)
 		return 0xff; // no response/HiZ
 
-	return buf[reqPos++];
+	return buf[pos];
 }
 
-static unsigned char PADpollMultitap(int port, unsigned char value, int *more_data) {
-	*more_data = reqPos < respSize - 1;
-	if (reqPos >= respSize) return 0xff;
-	return bufMulti[reqPos++];
+// response: 0x80, 0x5A, 8 bytes each for ports A, B, C, D
+static unsigned char PADpollMultitap(int port, unsigned char value, int pos, int *more_data) {
+	unsigned int devByte, dev;
+	int unused = 0;
+
+	if (pos == 0) {
+		*more_data = (value == 0x42);
+		return 0x80;
+	}
+	*more_data = pos < 34 - 1;
+	if (pos == 1)
+		return 0x5a;
+	if (pos >= 34)
+		return 0xff;
+
+	devByte = pos - 2;
+	dev = devByte / 8;
+	if (devByte % 8 == 0)
+		PADstartPoll_(&pads[port + dev]);
+	return PADpoll_(port + dev, value, devByte % 8, &unused);
 }
 
+static unsigned char PADpollMain(int port, unsigned char value, int *more_data) {
+	unsigned char ret;
+	int pos = reqPos++;
+
+	if (pos < sizeof(pads[port].txData))
+		pads[port].txData[pos] = value;
+	if (!pads[port].portMultitap || !pads[port].multitapLongModeEnabled)
+		ret = PADpoll_(port, value, pos, more_data);
+	else
+		ret = PADpollMultitap(port, value, pos, more_data);
+	return ret;
+
+}
 
 // refresh the button state on port 1.
 // int pad is not needed.
-unsigned char CALLBACK PAD1__startPoll(int pad) {
+unsigned char CALLBACK PAD1__startPoll(int unused) {
+	int i;
+
 	reqPos = 0;
-	// first call the pad provide if a multitap is connected between the psx and himself
-	// just one pad is on port 1 : NO MULTITAP
-	if (multitap1 == 0) {
-		PadDataS padd;
-		padd.requestPadIndex = 0;
-		PAD1_readPort1(&padd);
-		_PADstartPoll(&padd);
+	pads[0].requestPadIndex = 0;
+	PAD1_readPort1(&pads[0]);
+
+	pads[0].multitapLongModeEnabled = 0;
+	if (pads[0].portMultitap)
+		pads[0].multitapLongModeEnabled = pads[0].txData[1] & 1;
+
+	if (!pads[0].portMultitap || !pads[0].multitapLongModeEnabled) {
+		PADstartPoll_(&pads[0]);
 	} else {
-		// a multitap is plugged : refresh all pad.
-		int i;
-		PadDataS padd[4];
-		for(i = 0; i < 4; i++) {
-			padd[i].requestPadIndex = i;
-			PAD1_readPort1(&padd[i]);
+		// a multitap is plugged and enabled: refresh pads 1-3
+		for (i = 1; i < 4; i++) {
+			pads[i].requestPadIndex = i;
+			PAD1_readPort1(&pads[i]);
 		}
-		_PADstartPollMultitap(padd);
 	}
-	//printf("\npad 1 : ");
 	return 0xff;
 }
 
 unsigned char CALLBACK PAD1__poll(unsigned char value, int *more_data) {
-	char tmp;
-	if (multitap1 == 1) {
-		tmp = PADpollMultitap(0, value, more_data);
-	} else {
-		tmp = PADpoll_(0, value, more_data);
-	}
-	//printf("%2x:%2x, ",value,tmp);
-	return tmp;
-
+	return PADpollMain(0, value, more_data);
 }
 
 
@@ -826,7 +807,6 @@ long CALLBACK PAD1__keypressed() { return 0; }
 	if (PAD1_##dest == NULL) PAD1_##dest = (PAD##dest) PAD1__##dest;
 
 static int LoadPAD1plugin(const char *PAD1dll) {
-	PadDataS padd;
 	void *drv;
 
 	hPAD1Driver = SysLoadLibrary(PAD1dll);
@@ -849,54 +829,34 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 	LoadPad1Sym0(poll, "PADpoll");
 	LoadPad1SymN(setSensitive, "PADsetSensitive");
 
-	padd.requestPadIndex = 0;
-	PAD1_readPort1(&padd);
-	multitap1 = padd.portMultitap;
-
 	return 0;
 }
 
 unsigned char CALLBACK PAD2__startPoll(int pad) {
-	int pad_index;
+	int pad_index = pads[0].portMultitap ? 4 : 1;
+	int i;
 
 	reqPos = 0;
-	if (multitap1 == 0 && (multitap2 == 0 || multitap2 == 2)) {
-		pad_index = 1;
-	} else if(multitap1 == 1 && (multitap2 == 0 || multitap2 == 2)) {
-		pad_index = 4;
-	} else {
-		pad_index = 0;
-	}
+	pads[pad_index].requestPadIndex = pad_index;
+	PAD2_readPort2(&pads[pad_index]);
 
-	// just one pad is on port 1 : NO MULTITAP
-	if (multitap2 == 0) {
-		PadDataS padd;
-		padd.requestPadIndex = pad_index;
-		PAD2_readPort2(&padd);
-		_PADstartPoll(&padd);
+	pads[pad_index].multitapLongModeEnabled = 0;
+	if (pads[pad_index].portMultitap)
+		pads[pad_index].multitapLongModeEnabled = pads[pad_index].txData[1] & 1;
+
+	if (!pads[pad_index].portMultitap || !pads[pad_index].multitapLongModeEnabled) {
+		PADstartPoll_(&pads[pad_index]);
 	} else {
-		// a multitap is plugged : refresh all pad.
-		int i;
-		PadDataS padd[4];
-		for(i = 0; i < 4; i++) {
-			padd[i].requestPadIndex = i+pad_index;
-			PAD2_readPort2(&padd[i]);
+		for (i = 1; i < 4; i++) {
+			pads[pad_index + i].requestPadIndex = pad_index + i;
+			PAD2_readPort2(&pads[pad_index + i]);
 		}
-		_PADstartPollMultitap(padd);
 	}
-	//printf("\npad 2 : ");
 	return 0xff;
 }
 
 unsigned char CALLBACK PAD2__poll(unsigned char value, int *more_data) {
-	char tmp;
-	if (multitap2 == 2) {
-		tmp = PADpollMultitap(1, value, more_data);
-	} else {
-		tmp = PADpoll_(1, value, more_data);
-	}
-	//printf("%2x:%2x, ",value,tmp);
-	return tmp;
+	return PADpollMain(pads[0].portMultitap ? 4 : 1, value, more_data);
 }
 
 long CALLBACK PAD2__configure(void) { return 0; }
@@ -916,7 +876,6 @@ long CALLBACK PAD2__keypressed() { return 0; }
 	LoadSym(PAD2_##dest, PAD##dest, name, FALSE);
 
 static int LoadPAD2plugin(const char *PAD2dll) {
-	PadDataS padd;
 	void *drv;
 
 	hPAD2Driver = SysLoadLibrary(PAD2dll);
@@ -938,10 +897,6 @@ static int LoadPAD2plugin(const char *PAD2dll) {
 	LoadPad2Sym0(startPoll, "PADstartPoll");
 	LoadPad2Sym0(poll, "PADpoll");
 	LoadPad2SymN(setSensitive, "PADsetSensitive");
-
-	padd.requestPadIndex = 0;
-	PAD2_readPort2(&padd);
-	multitap2 = padd.portMultitap;
 
 	return 0;
 }
