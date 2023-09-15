@@ -504,12 +504,6 @@ void pl_timing_prepare(int is_pal)
    is_pal_mode = is_pal;
 }
 
-void plat_get_psx_resolution(int *xres, int *yres)
-{
-   *xres = psx_w;
-   *yres = psx_h;
-}
-
 void plat_trigger_vibrate(int pad, int low, int high)
 {
    if (!rumble_cb)
