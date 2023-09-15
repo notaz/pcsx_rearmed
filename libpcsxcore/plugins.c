@@ -49,6 +49,7 @@ GPUfreeze             GPU_freeze;
 GPUgetScreenPic       GPU_getScreenPic;
 GPUshowScreenPic      GPU_showScreenPic;
 GPUvBlank             GPU_vBlank;
+GPUgetScreenInfo      GPU_getScreenInfo;
 
 CDRinit               CDR_init;
 CDRshutdown           CDR_shutdown;
@@ -194,6 +195,7 @@ void CALLBACK GPU__keypressed(int key) {}
 long CALLBACK GPU__getScreenPic(unsigned char *pMem) { return -1; }
 long CALLBACK GPU__showScreenPic(unsigned char *pMem) { return -1; }
 void CALLBACK GPU__vBlank(int val) {}
+void CALLBACK GPU__getScreenInfo(int *y, int *base_hres) {}
 
 #define LoadGpuSym1(dest, name) \
 	LoadSym(GPU_##dest, GPU##dest, name, TRUE);
@@ -233,6 +235,7 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym0(getScreenPic, "GPUgetScreenPic");
 	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
 	LoadGpuSym0(vBlank, "GPUvBlank");
+	LoadGpuSym0(getScreenInfo, "GPUgetScreenInfo");
 	LoadGpuSym0(configure, "GPUconfigure");
 	LoadGpuSym0(test, "GPUtest");
 	LoadGpuSym0(about, "GPUabout");
@@ -613,9 +616,8 @@ static void PADstartPoll_(PadDataS *pad) {
 			stdpar[2] = pad->buttonStatus & 0xff;
 			stdpar[3] = pad->buttonStatus >> 8;
 
-			int absX = pad->absoluteX;
+			int absX = pad->absoluteX; // 0-1023
 			int absY = pad->absoluteY;
-			int xres = 256, yres = 240;
 
 			if (absX == 65536 || absY == 65536) {
 				stdpar[4] = 0x01;
@@ -624,9 +626,13 @@ static void PADstartPoll_(PadDataS *pad) {
 				stdpar[7] = 0x00;
 			}
 			else {
-				plat_get_psx_resolution(&xres, &yres);
-				int x = 0x5a - (xres - 256) / 3 + (((xres - 256) / 3 + 356) * absX >> 10);
-				int y = 0x20 + (yres * absY >> 10);
+				int y_ofs = 0, yres = 240;
+				GPU_getScreenInfo(&y_ofs, &yres);
+				int y_top = (Config.PsxType ? 0x30 : 0x19) + y_ofs;
+				int w = Config.PsxType ? 385 : 378;
+				int x = 0x40 + (w * absX >> 10);
+				int y = y_top + (yres * absY >> 10);
+				//printf("%3d %3d %4x %4x\n", absX, absY, x, y);
 
 				stdpar[4] = x;
 				stdpar[5] = x >> 8;

@@ -139,6 +139,7 @@ extern long GPUdmaChain(uint32_t *,uint32_t);
 extern void GPUupdateLace(void);
 extern long GPUfreeze(uint32_t, void *);
 extern void GPUvBlank(int, int);
+extern void GPUgetScreenInfo(int *y, int *base_hres);
 extern void GPUrearmedCallbacks(const struct rearmed_cbs *cbs);
 
 
@@ -222,6 +223,7 @@ static const struct {
 	DIRECT_GPU(GPUdmaChain),
 	DIRECT_GPU(GPUfreeze),
 	DIRECT_GPU(GPUvBlank),
+	DIRECT_GPU(GPUgetScreenInfo),
 	DIRECT_GPU(GPUrearmedCallbacks),
 
 	DIRECT_GPU(GPUdisplayText),

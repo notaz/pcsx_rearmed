@@ -633,12 +633,6 @@ void pl_gun_byte2(int port, unsigned char byte)
 {
 }
 
-void plat_get_psx_resolution(int *xres, int *yres)
-{
-	*xres = psx_w;
-	*yres = psx_h;
-}
-
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \

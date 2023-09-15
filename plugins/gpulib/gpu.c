@@ -961,6 +961,14 @@ void GPUvBlank(int is_vblank, int lcf)
   }
 }
 
+void GPUgetScreenInfo(int *y, int *base_hres)
+{
+  *y = gpu.screen.y;
+  *base_hres = gpu.screen.vres;
+  if (gpu.status & PSX_GPU_STATUS_DHEIGHT)
+    *base_hres >>= 1;
+}
+
 #include "../../frontend/plugin_lib.h"
 
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)

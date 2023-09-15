@@ -159,6 +159,7 @@ void GPUupdateLace(void);
 long GPUopen(unsigned long *disp, char *cap, char *cfg);
 long GPUclose(void);
 void GPUvBlank(int is_vblank, int lcf);
+void GPUgetScreenInfo(int *y, int *base_hres);
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
 
 #ifdef __cplusplus
