@@ -525,6 +525,8 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 		if (flags & LIGHTREC_EXIT_SYSCALL)
 			psxException(R3000E_Syscall << 2, 0, (psxCP0Regs *)regs->cp0);
+		if (flags & LIGHTREC_EXIT_BREAK)
+			psxException(R3000E_Bp << 2, 0, (psxCP0Regs *)regs->cp0);
 		else if (flags & LIGHTREC_EXIT_UNKNOWN_OP) {
 			u32 op = intFakeFetch(psxRegs.pc);
 			u32 hlec = op & 0x03ffffff;
