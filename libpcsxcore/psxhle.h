@@ -28,16 +28,6 @@ extern "C" {
 #include "r3000a.h"
 #include "plugins.h"
 
-void hleExc0_0_1(); void hleExc0_0_2();
-void hleExc0_1_1(); void hleExc0_1_2();
-void hleExc0_2_2_syscall();
-void hleExc1_0_1(); void hleExc1_0_2();
-void hleExc1_1_1(); void hleExc1_1_2();
-void hleExc1_2_1(); void hleExc1_2_2();
-void hleExc1_3_1(); void hleExc1_3_2();
-void hleExc3_0_2_defint();
-void hleExcPadCard1(); void hleExcPadCard2();
-
 enum hle_op {
 	hleop_dummy = 0, hleop_a0, hleop_b0, hleop_c0,
 	hleop_bootstrap, hleop_execret, hleop_exception, hleop_unused,

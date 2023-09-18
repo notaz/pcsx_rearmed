@@ -302,6 +302,11 @@ static u32 floodchk;
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
+#define A_A0_DUMMY      0x1010
+#define A_B0_DUMMY      0x2010
+#define A_C0_DUMMY      0x3010
+#define A_B0_5B_DUMMY   0x43d0
+
 #define HLEOP(n) SWAPu32((0x3b << 26) | (n));
 
 static u32 loadRam32(u32 addr)
@@ -1375,7 +1380,7 @@ void psxBios_getchar() { //0x3b
 static void psxBios_printf_psxout() { // 0x3f
 	char tmp[1024];
 	char tmp2[1024];
-	u32 save[4];
+	u32 save[4] = { 0, };
 	char *ptmp = tmp;
 	int n=1, i=0, j;
 	void *psp;
@@ -3294,6 +3299,11 @@ void psxBiosSetupBootState(void)
 		SPU_writeRegister(0x1f801d80 + i*2, spu_config[i], psxRegs.cycle);
 }
 
+static void hleExc0_0_1();
+static void hleExc0_0_2();
+static void hleExc0_1_1();
+static void hleExc0_1_2();
+
 #include "sjisfont.h"
 
 void psxBiosInit() {
@@ -3705,16 +3715,16 @@ void psxBiosInit() {
 	// (or rather the funcs listed there)
 	ptr = (u32 *)&psxM[A_A0_TABLE];
 	for (i = 0; i < 256; i++)
-		ptr[i] = SWAP32(0x1000);
+		ptr[i] = SWAP32(A_A0_DUMMY);
 
 	ptr = (u32 *)&psxM[A_B0_TABLE];
 	for (i = 0; i < 256; i++)
-		ptr[i] = SWAP32(0x2000);
+		ptr[i] = SWAP32(A_B0_DUMMY);
 	// B(5b) is special because games patch (sometimes even jump to)
 	// code at fixed offsets from it, nocash lists offsets:
 	//  patch: +3d8, +4dc, +594, +62c, +9c8, +1988
 	//  call:  +7a0=4b70, +884=4c54, +894=4c64
-	ptr[0x5b] = SWAP32(0x43d0);
+	ptr[0x5b] = SWAP32(A_B0_5B_DUMMY);    // 0x43d0
 	ram32[0x4b70/4] = SWAP32(0x03e00008); // jr $ra // setPadOutputBuf
 
 	ram32[0x4c54/4] = SWAP32(0x240e0001); // mov $t6, 1
@@ -3726,13 +3736,14 @@ void psxBiosInit() {
 
 	ptr = (u32 *)&psxM[A_C0_TABLE];
 	for (i = 0; i < 256/2; i++)
-		ptr[i] = SWAP32(0x3000);
+		ptr[i] = SWAP32(A_C0_DUMMY);
 	ptr[6] = SWAP32(A_EXCEPTION);
 
 	// more HLE traps
-	ram32[0x1000/4] = HLEOP(hleop_dummy);
-	ram32[0x2000/4] = HLEOP(hleop_dummy);
-	ram32[0x3000/4] = HLEOP(hleop_dummy);
+	ram32[A_A0_DUMMY/4] = HLEOP(hleop_dummy);
+	ram32[A_B0_DUMMY/4] = HLEOP(hleop_dummy);
+	ram32[A_C0_DUMMY/4] = HLEOP(hleop_dummy);
+	ram32[A_B0_5B_DUMMY/4] = HLEOP(hleop_dummy);
 	ram32[0x8000/4] = HLEOP(hleop_execret);
 
 	ram32[A_EEXIT_PTR/4] = SWAP32(A_EEXIT_DEF);
@@ -3782,13 +3793,13 @@ static void handle_chain_x_x_1(u32 enable, u32 irqbit)
 
 // hleExc0_{0,1}* are usually removed by A(56)/A(72) on the game's startup,
 // so this is only partially implemented
-void hleExc0_0_1() // A(93h) - CdromDmaIrqFunc2
+static void hleExc0_0_1() // A(93h) - CdromDmaIrqFunc2
 {
 	u32 cdrom_dma_ack_enable = 1; // a000b93c
 	handle_chain_x_x_1(cdrom_dma_ack_enable, 3); // IRQ3 DMA
 }
 
-void hleExc0_0_2() // A(91h) - CdromDmaIrqFunc1
+static void hleExc0_0_2() // A(91h) - CdromDmaIrqFunc1
 {
 	u32 ret = 0;
 	//PSXBIOS_LOG("%s\n", __func__);
@@ -3803,13 +3814,13 @@ void hleExc0_0_2() // A(91h) - CdromDmaIrqFunc1
 	mips_return_c(ret, 20);
 }
 
-void hleExc0_1_1() // A(92h) - CdromIoIrqFunc2
+static void hleExc0_1_1() // A(92h) - CdromIoIrqFunc2
 {
 	u32 cdrom_irq_ack_enable = 1; // a000b938
 	handle_chain_x_x_1(cdrom_irq_ack_enable, 2); // IRQ2 cdrom
 }
 
-void hleExc0_1_2() // A(90h) - CdromIoIrqFunc1
+static void hleExc0_1_2() // A(90h) - CdromIoIrqFunc1
 {
 	u32 ret = 0;
 	if (psxHu32(0x1074) & psxHu32(0x1070) & 4) { // IRQ2 cdrom
@@ -3819,7 +3830,7 @@ void hleExc0_1_2() // A(90h) - CdromIoIrqFunc1
 	mips_return_c(ret, 20);
 }
 
-void hleExc0_2_2_syscall() // not in any A/B/C table
+static void hleExc0_2_2_syscall() // not in any A/B/C table
 {
 	u32 tcbPtr = loadRam32(A_TT_PCB);
 	TCB *tcb = loadRam32ptr(tcbPtr);
@@ -3863,7 +3874,7 @@ void hleExc0_2_2_syscall() // not in any A/B/C table
 	psxBios_ReturnFromException();
 }
 
-void hleExc1_0_1(void)
+static void hleExc1_0_1(void)
 {
 	u32 vbl_irq_ack_enable = loadRam32(A_RCNT_VBL_ACK + 0x0c); // 860c
 	handle_chain_x_x_1(vbl_irq_ack_enable, 0); // IRQ0 vblank
@@ -3879,45 +3890,45 @@ static void handle_chain_1_x_2(u32 ev_index, u32 irqbit)
 	mips_return_c(ret, 22);
 }
 
-void hleExc1_0_2(void)
+static void hleExc1_0_2(void)
 {
 	handle_chain_1_x_2(3, 0); // IRQ0 vblank
 }
 
-void hleExc1_1_1(void)
+static void hleExc1_1_1(void)
 {
 	u32 rcnt_irq_ack_enable = loadRam32(A_RCNT_VBL_ACK + 0x08); // 8608
 	handle_chain_x_x_1(rcnt_irq_ack_enable, 6); // IRQ6 rcnt2
 }
 
-void hleExc1_1_2(void)
+static void hleExc1_1_2(void)
 {
 	handle_chain_1_x_2(2, 6); // IRQ6 rcnt2
 }
 
-void hleExc1_2_1(void)
+static void hleExc1_2_1(void)
 {
 	u32 rcnt_irq_ack_enable = loadRam32(A_RCNT_VBL_ACK + 0x04); // 8604
 	handle_chain_x_x_1(rcnt_irq_ack_enable, 5); // IRQ5 rcnt1
 }
 
-void hleExc1_2_2(void)
+static void hleExc1_2_2(void)
 {
 	handle_chain_1_x_2(1, 5); // IRQ5 rcnt1
 }
 
-void hleExc1_3_1(void)
+static void hleExc1_3_1(void)
 {
 	u32 rcnt_irq_ack_enable = loadRam32(A_RCNT_VBL_ACK + 0x00); // 8600
 	handle_chain_x_x_1(rcnt_irq_ack_enable, 4); // IRQ4 rcnt0
 }
 
-void hleExc1_3_2(void)
+static void hleExc1_3_2(void)
 {
 	handle_chain_1_x_2(0, 4); // IRQ4 rcnt0
 }
 
-void hleExc3_0_2_defint(void)
+static void hleExc3_0_2_defint(void)
 {
 	static const struct {
 		u8 ev, irqbit;
@@ -3945,7 +3956,7 @@ void hleExc3_0_2_defint(void)
 	mips_return_c(0, 11 + 7*11 + 7*11 + 12);
 }
 
-void hleExcPadCard1(void)
+static void hleExcPadCard1(void)
 {
 	if (loadRam32(A_PAD_IRQR_ENA)) {
 		u8 *pad_buf1 = loadRam8ptr(A_PAD_INBUF + 0);
@@ -3966,7 +3977,7 @@ void hleExcPadCard1(void)
 	mips_return_c(0, 18);
 }
 
-void hleExcPadCard2(void)
+static void hleExcPadCard2(void)
 {
 	u32 ret = psxHu32(0x1074) & psxHu32(0x1070) & 1;
 	mips_return_c(ret, 15);
@@ -4032,6 +4043,106 @@ void psxBiosException() {
 	}
 	psxBios_ReturnFromException();
 }
+
+/* HLE */
+static void hleDummy() {
+	log_unhandled("hleDummy called @%08x ra=%08x\n", psxRegs.pc - 4, ra);
+	psxRegs.pc = ra;
+	psxRegs.cycle += 1000;
+
+	psxBranchTest();
+}
+
+static void hleA0() {
+	u32 call = t1 & 0xff;
+	u32 entry = loadRam32(A_A0_TABLE + call * 4);
+
+	if (call < 192 && entry != A_A0_DUMMY) {
+		PSXBIOS_LOG("custom A%02x %s(0x%x, )  addr=%08x ra=%08x\n",
+			call, biosA0n[call], a0, entry, ra);
+		softCall(entry);
+		pc0 = ra;
+		PSXBIOS_LOG(" -> %08x\n", v0);
+	}
+	else if (biosA0[call])
+		biosA0[call]();
+
+	psxBranchTest();
+}
+
+static void hleB0() {
+	u32 call = t1 & 0xff;
+	u32 entry = loadRam32(A_B0_TABLE + call * 4);
+	int is_custom = 0;
+
+	if (call == 0x5b)
+		is_custom = entry != A_B0_5B_DUMMY;
+	else
+		is_custom = entry != A_B0_DUMMY;
+	if (is_custom) {
+		PSXBIOS_LOG("custom B%02x %s(0x%x, )  addr=%08x ra=%08x\n",
+			call, biosB0n[call], a0, entry, ra);
+		softCall(entry);
+		pc0 = ra;
+		PSXBIOS_LOG(" -> %08x\n", v0);
+	}
+	else if (biosB0[call])
+		biosB0[call]();
+
+	psxBranchTest();
+}
+
+static void hleC0() {
+	u32 call = t1 & 0xff;
+	u32 entry = loadRam32(A_C0_TABLE + call * 4);
+
+	if (call < 128 && entry != A_C0_DUMMY) {
+		PSXBIOS_LOG("custom C%02x %s(0x%x, )  addr=%08x ra=%08x\n",
+			call, biosC0n[call], a0, entry, ra);
+		softCall(entry);
+		pc0 = ra;
+		PSXBIOS_LOG(" -> %08x\n", v0);
+	}
+	else if (biosC0[call])
+		biosC0[call]();
+
+	psxBranchTest();
+}
+
+// currently not used
+static void hleBootstrap() {
+	CheckCdrom();
+	LoadCdrom();
+}
+
+static void hleExecRet() {
+	const EXEC *header = (EXEC *)PSXM(s0);
+
+	PSXBIOS_LOG("ExecRet %x: %x\n", s0, header->ret);
+
+	ra = SWAP32(header->ret);
+	sp = SWAP32(header->_sp);
+	fp = SWAP32(header->_fp);
+	gp = SWAP32(header->_gp);
+	s0 = SWAP32(header->base);
+
+	v0 = 1;
+	psxRegs.pc = ra;
+}
+
+void (* const psxHLEt[24])() = {
+	hleDummy, hleA0, hleB0, hleC0,
+	hleBootstrap, hleExecRet, psxBiosException, hleDummy,
+	hleExc0_0_1, hleExc0_0_2,
+	hleExc0_1_1, hleExc0_1_2, hleExc0_2_2_syscall,
+	hleExc1_0_1, hleExc1_0_2,
+	hleExc1_1_1, hleExc1_1_2,
+	hleExc1_2_1, hleExc1_2_2,
+	hleExc1_3_1, hleExc1_3_2,
+	hleExc3_0_2_defint,
+	hleExcPadCard1, hleExcPadCard2,
+};
+
 
 #define bfreeze(ptr, size) { \
 	if (Mode == 1) memcpy(&psxR[base], ptr, size); \
