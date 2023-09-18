@@ -35,7 +35,6 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/psxcommon.c \
              $(CORE_DIR)/psxcounters.c \
              $(CORE_DIR)/psxdma.c \
-             $(CORE_DIR)/psxhle.c \
              $(CORE_DIR)/psxhw.c \
              $(CORE_DIR)/psxinterpreter.c \
              $(CORE_DIR)/psxmem.c \
