@@ -292,8 +292,10 @@ static u32 floodchk;
 #define A_HEAP_BASE     0x9000
 #define A_HEAP_SIZE     0x9004
 #define A_HEAP_END      0x9008
-#define A_HEAP_FLAG     0x900c
+#define A_HEAP_INIT_FLG 0x900c
 #define A_RND_SEED      0x9010
+#define A_HEAP_FRSTCHNK 0xb060
+#define A_HEAP_CURCHNK  0xb064
 #define A_CONF_TCB      0xb940
 #define A_CONF_EvCB     0xb944
 #define A_CONF_SP       0xb948
@@ -1214,114 +1216,98 @@ void psxBios_qsort() { // 0x31
 	pc0 = ra;
 }
 
-// this isn't how the real bios works, but maybe good enough
+static int malloc_heap_grow(u32 size) {
+	u32 heap_addr, heap_end, heap_addr_new;
+
+	heap_addr = loadRam32(A_HEAP_BASE);
+	heap_end = loadRam32(A_HEAP_END);
+	heap_addr_new = heap_addr + 4 + size;
+	if (heap_addr_new >= heap_end)
+		return -1;
+	storeRam32(A_HEAP_BASE, heap_addr_new);
+	storeRam32(heap_addr - 4, size | 1);
+	storeRam32(heap_addr + size, ~1); // terminator
+	return 0;
+}
+
 static void psxBios_malloc() { // 0x33
-	u32 *heap_addr, *heap_end;
-	u32 *chunk, *newchunk = NULL;
-	unsigned int dsize = 0, csize, cstat;
-	int colflag;
-	PSXBIOS_LOG("psxBios_%s %x\n", biosA0n[0x33], a0);
-	heap_addr = loadRam32ptr(A_HEAP_BASE);
-	heap_end = loadRam32ptr(A_HEAP_END);
-	if (heap_addr >= heap_end) {
-		v0 = 0;
-		pc0 = ra;
-		return;
+	u32 size = (a0 + 3) & ~3;
+	u32 limit = 32*1024;
+	u32 tries = 2, i;
+	u32 ret;
+
+	PSXBIOS_LOG("psxBios_%s %d\n", biosA0n[0x33], a0);
+
+	if (!loadRam32(A_HEAP_INIT_FLG)) {
+		u32 heap_addr = loadRam32(A_HEAP_BASE);
+		storeRam32(heap_addr, ~1);
+		storeRam32(A_HEAP_FRSTCHNK, heap_addr);
+		storeRam32(A_HEAP_CURCHNK, heap_addr);
+		storeRam32(A_HEAP_BASE, heap_addr + 4);
+		if (malloc_heap_grow(size)) {
+			PSXBIOS_LOG("malloc: init OOM\n");
+			mips_return_c(0, 20);
+			return;
+		}
+		storeRam32(A_HEAP_INIT_FLG, 1);
 	}
 
-	// scan through heap and combine free chunks of space
-	chunk = heap_addr;
-	colflag = 0;
-	while(chunk < heap_end) {
-		// get size and status of actual chunk
-		csize = ((u32)*chunk) & 0xfffffffc;
-		cstat = ((u32)*chunk) & 1;
-
-		// most probably broken heap descriptor
-		// this fixes Burning Road
-		if (*chunk == 0) {
-			newchunk = chunk;
-			dsize = ((uptr)heap_end - (uptr)chunk) - 4;
-			colflag = 1;
-			break;
-		}
-
-		// it's a free chunk
-		if(cstat == 1) {
-			if(colflag == 0) {
-				newchunk = chunk;
-				dsize = csize;
-				colflag = 1;			// let's begin a new collection of free memory
+	for (i = 0; tries > 0 && i < limit; i++)
+	{
+		u32 chunk = loadRam32(A_HEAP_CURCHNK);
+		u32 chunk_hdr = loadRam32(chunk);
+		u32 next_chunk = chunk + 4 + (chunk_hdr & ~3);
+		u32 next_chunk_hdr = loadRam32(next_chunk);
+		use_cycles(20);
+		//printf(" c %08x %08x\n", chunk, chunk_hdr);
+		if (chunk_hdr & 1) {
+			// free chunk
+			if (chunk_hdr > (size | 1)) {
+				// split
+				u32 p2size = (chunk_hdr & ~3) - size - 4;
+				storeRam32(chunk + 4 + size, p2size | 1);
+				chunk_hdr = size | 1;
 			}
-			else dsize += (csize+4);	// add the new size including header
+			if (chunk_hdr == (size | 1)) {
+				storeRam32(chunk, size);
+				break;
+			}
+			// chunk too small
+			if (next_chunk_hdr & 1) {
+				// merge
+				u32 msize = (chunk_hdr & ~3) + 4 + (next_chunk_hdr & ~3);
+				storeRam32(chunk, msize | 1);
+				continue;
+			}
 		}
-		// not a free chunk: did we start a collection ?
+		if (chunk_hdr == ~1) {
+			// last chunk
+			if (tries == 2)
+				storeRam32(A_HEAP_CURCHNK, loadRam32(A_HEAP_FRSTCHNK));
+			tries--;
+		}
 		else {
-			if(colflag == 1) {			// collection is over
-				colflag = 0;
-				*newchunk = SWAP32(dsize | 1);
-			}
+			// go to the next chunk
+			storeRam32(A_HEAP_CURCHNK, next_chunk);
 		}
-
-		// next chunk
-		chunk = (u32*)((uptr)chunk + csize + 4);
-	}
-	// if neccessary free memory on end of heap
-	if (colflag == 1)
-		*newchunk = SWAP32(dsize | 1);
-
-	chunk = heap_addr;
-	csize = ((u32)*chunk) & 0xfffffffc;
-	cstat = ((u32)*chunk) & 1;
-	dsize = (a0 + 3) & 0xfffffffc;
-
-	// exit on uninitialized heap
-	if (chunk == NULL) {
-		printf("malloc %x,%x: Uninitialized Heap!\n", v0, a0);
-		v0 = 0;
-		pc0 = ra;
-		return;
 	}
 
-	// search an unused chunk that is big enough until the end of the heap
-	while ((dsize > csize || cstat==0) && chunk < heap_end ) {
-		chunk = (u32*)((uptr)chunk + csize + 4);
-
-			// catch out of memory
-			if(chunk >= heap_end) {
-				printf("malloc %x,%x: Out of memory error!\n",
-					v0, a0);
-				v0 = 0; pc0 = ra;
-				return;
-			}
-
-		csize = ((u32)*chunk) & 0xfffffffc;
-		cstat = ((u32)*chunk) & 1;
+	if (i == limit)
+		ret = 0;
+	else if (tries == 0 && malloc_heap_grow(size))
+		ret = 0;
+	else {
+		u32 chunk = loadRam32(A_HEAP_CURCHNK);
+		storeRam32(chunk, loadRam32(chunk) & ~3);
+		ret = chunk + 4;
 	}
 
-	// allocate memory
-	if(dsize == csize) {
-		// chunk has same size
-		*chunk &= 0xfffffffc;
-	} else if (dsize > csize) {
-		v0 = 0; pc0 = ra;
-		return;
-	} else {
-		// split free chunk
-		*chunk = SWAP32(dsize);
-		newchunk = (u32*)((uptr)chunk + dsize + 4);
-		*newchunk = SWAP32(((csize - dsize - 4) & 0xfffffffc) | 1);
-	}
-
-	// return pointer to allocated memory
-	v0 = ((uptr)chunk - (uptr)psxM) + 4;
-	v0|= 0x80000000;
-	//printf ("malloc %x,%x\n", v0, a0);
-	pc0 = ra;
+	PSXBIOS_LOG(" -> %08x\n", ret);
+	mips_return_c(ret, 40);
 }
 
 static void psxBios_free() { // 0x34
-	PSXBIOS_LOG("psxBios_%s %x (%x bytes)\n", biosA0n[0x34], a0, loadRam32(a0 - 4));
+	PSXBIOS_LOG("psxBios_%s %x (%d bytes)\n", biosA0n[0x34], a0, loadRam32(a0 - 4));
 	storeRam32(a0 - 4, loadRam32(a0 - 4) | 1); // set chunk to free
 	mips_return_void_c(5);
 }
@@ -1376,7 +1362,7 @@ static void psxBios_InitHeap() { // 0x39
 	storeRam32(A_HEAP_BASE, a0);
 	storeRam32(A_HEAP_SIZE, a1);
 	storeRam32(A_HEAP_END, a0 + (a1 & ~3) + 4);
-	storeRam32(A_HEAP_FLAG, 0);
+	storeRam32(A_HEAP_INIT_FLG, 0);
 	storeRam32(a0, 0);
 
 	mips_return_void_c(14);
