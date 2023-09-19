@@ -224,7 +224,8 @@ typedef struct
 
 	unsigned char multitapLongModeEnabled;
 	unsigned char PadMode; // 0 : digital 1: analog
-	unsigned char reserved[52];
+	unsigned char cmd4dConfig[6];
+	unsigned char reserved[46];
 	
 	//Lightgun values 
 	int absoluteX,absoluteY;
