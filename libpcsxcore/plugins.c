@@ -364,24 +364,23 @@ static unsigned char buf[256];
 static unsigned char stdpar[8] = { 0x41, 0x5a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 //response for request 44, 45, 46, 47, 4C, 4D
-static unsigned char resp45[8]    = {0xF3, 0x5A, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00};
-static unsigned char resp46_00[8] = {0xF3, 0x5A, 0x00, 0x00, 0x01, 0x02, 0x00, 0x0A};
-static unsigned char resp46_01[8] = {0xF3, 0x5A, 0x00, 0x00, 0x01, 0x01, 0x01, 0x14};
-static unsigned char resp47[8]    = {0xF3, 0x5A, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00};
-static unsigned char resp4C_00[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00};
-static unsigned char resp4C_01[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00};
-static unsigned char resp4D[8]    = {0xF3, 0x5A, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF};
+static const u8 resp45[8]    = {0xF3, 0x5A, 0x01, 0x02, 0x00, 0x02, 0x01, 0x00};
+static const u8 resp46_00[8] = {0xF3, 0x5A, 0x00, 0x00, 0x01, 0x02, 0x00, 0x0A};
+static const u8 resp46_01[8] = {0xF3, 0x5A, 0x00, 0x00, 0x01, 0x01, 0x01, 0x14};
+static const u8 resp47[8]    = {0xF3, 0x5A, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00};
+static const u8 resp4C_00[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00};
+static const u8 resp4C_01[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00};
 
 //fixed reponse of request number 41, 48, 49, 4A, 4B, 4E, 4F
-static unsigned char resp40[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp41[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp43[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp44[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp49[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp4A[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp4B[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp4E[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static unsigned char resp4F[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp40[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp41[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp43[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp44[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp49[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp4A[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp4B[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp4E[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 resp4F[8] = {0xF3, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 // Resquest of psx core
 enum {
@@ -481,8 +480,17 @@ enum {
 
 
 static void initBufForRequest(int padIndex, char value) {
-	switch (value){
-		//Pad keystate already in buffer
+	if (pads[padIndex].configMode) {
+		buf[0] = 0xf3; buf[1] = 0x5a;
+		respSize = 8;
+	}
+	else if (value != 0x42 && value != 0x43) {
+		respSize = 1;
+		return;
+	}
+
+	switch (value) {
+		// keystate already in buffer, set by PADstartPoll_()
 		//case CMD_READ_DATA_AND_VIBRATE :
 		//	break;
 		case CMD_CONFIG_MODE :
@@ -490,7 +498,7 @@ static void initBufForRequest(int padIndex, char value) {
 				memcpy(buf, resp43, 8);
 				break;
 			}
-			//else, not in config mode, pad keystate return (already in the buffer)
+			// else not in config mode, pad keystate return
 			break;
 		case CMD_SET_MODE_AND_LOCK :
 			memcpy(buf, resp44, 8);
@@ -508,8 +516,8 @@ static void initBufForRequest(int padIndex, char value) {
 		case CMD_QUERY_MODE :
 			memcpy(buf, resp4C_00, 8);
 			break;
-		case CMD_VIBRATION_TOGGLE :
-			memcpy(buf, resp4D, 8);
+		case CMD_VIBRATION_TOGGLE: // 4d
+			memcpy(buf + 2, pads[padIndex].cmd4dConfig, 6);
 			break;
 		case REQ40 :
 			memcpy(buf, resp40, 8);
@@ -535,7 +543,7 @@ static void initBufForRequest(int padIndex, char value) {
 	}
 }
 
-static void reqIndex2Treatment(int padIndex, char value) {
+static void reqIndex2Treatment(int padIndex, u8 value) {
 	switch (pads[padIndex].txData[0]) {
 		case CMD_CONFIG_MODE :
 			//0x43
@@ -549,8 +557,8 @@ static void reqIndex2Treatment(int padIndex, char value) {
 			//0x44 store the led state for change mode if the next value = 0x02
 			//0x01 analog ON
 			//0x00 analog OFF
-			//ledStateReq44[padIndex] = value;
-			pads[padIndex].PadMode = value;
+			if ((value & ~1) == 0)
+				pads[padIndex].PadMode = value;
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
@@ -562,10 +570,6 @@ static void reqIndex2Treatment(int padIndex, char value) {
 			if (value == 1) {
 				memcpy(buf, resp4C_01, 8);
 			}
-			break;
-		case CMD_VIBRATION_TOGGLE :
-			//0x4D
-			memcpy(buf, resp4D, 8);
 			break;
 		case CMD_READ_DATA_AND_VIBRATE:
 			//mem the vibration value for small motor;
@@ -581,8 +585,23 @@ static void vibrate(int padIndex) {
 		pad->VibF[0] = pad->Vib[0];
 		pad->VibF[1] = pad->Vib[1];
 		plat_trigger_vibrate(padIndex, pad->VibF[0], pad->VibF[1]);
-		//printf("vibration pad %i", padIndex);
+		//printf("vibration pad %i\n", padIndex);
 	}
+}
+
+static void log_pad(int port, int pos)
+{
+#if 0
+	if (port == 0 && pos == respSize - 1) {
+		int i;
+		for (i = 0; i < respSize; i++)
+			printf("%02x ", pads[port].txData[i]);
+		printf("|");
+		for (i = 0; i < respSize; i++)
+			printf(" %02x", buf[i]);
+		printf("\n");
+	}
+#endif
 }
 
 // Build response for 0x42 request Pad in port
@@ -652,6 +671,8 @@ static void PADstartPoll_(PadDataS *pad) {
 			respSize = 4;
 			break;
 		case PSE_PAD_TYPE_ANALOGPAD: // scph1150
+			if (pad->PadMode == 0)
+				goto standard;
 			stdpar[0] = 0x73;
 			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
@@ -676,6 +697,7 @@ static void PADstartPoll_(PadDataS *pad) {
 			respSize = 8;
 			break;
 		case PSE_PAD_TYPE_STANDARD:
+		standard:
 			stdpar[0] = 0x41;
 			stdpar[1] = 0x5a;
 			stdpar[2] = pad->buttonStatus & 0xff;
@@ -706,6 +728,10 @@ static void PADpoll_dualshock(int port, unsigned char value, int pos)
 				vibrate(port);
 			}
 			break;
+		case 7:
+			if (pads[port].txData[0] == CMD_VIBRATION_TOGGLE)
+				memcpy(pads[port].cmd4dConfig, pads[port].txData + 2, 6);
+			break;
 	}
 }
 
@@ -727,6 +753,7 @@ static unsigned char PADpoll_(int port, unsigned char value, int pos, int *more_
 	if (pos >= respSize)
 		return 0xff; // no response/HiZ
 
+	log_pad(port, pos);
 	return buf[pos];
 }
 
@@ -814,6 +841,7 @@ long CALLBACK PAD1__keypressed() { return 0; }
 
 static int LoadPAD1plugin(const char *PAD1dll) {
 	void *drv;
+	size_t p;
 
 	hPAD1Driver = SysLoadLibrary(PAD1dll);
 	if (hPAD1Driver == NULL) {
@@ -834,6 +862,11 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 	LoadPad1Sym0(startPoll, "PADstartPoll");
 	LoadPad1Sym0(poll, "PADpoll");
 	LoadPad1SymN(setSensitive, "PADsetSensitive");
+
+	memset(pads, 0, sizeof(pads));
+	for (p = 0; p < sizeof(pads) / sizeof(pads[0]); p++) {
+		memset(pads[p].cmd4dConfig, 0xff, sizeof(pads[p].cmd4dConfig));
+	}
 
 	return 0;
 }
