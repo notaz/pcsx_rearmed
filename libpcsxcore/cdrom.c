@@ -65,7 +65,8 @@ static struct {
 		unsigned char Absolute[3];
 	} subq;
 	unsigned char TrackChanged;
-	unsigned char unused3[3];
+	unsigned char ReportDelay;
+	unsigned char unused3[2];
 	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
@@ -524,7 +525,9 @@ static void cdrPlayInterrupt_Autopause()
 		StopCdda();
 		SetPlaySeekRead(cdr.StatP, 0);
 	}
-	else if (((cdr.Mode & MODE_REPORT) || cdr.FastForward || cdr.FastBackward)) {
+	else if ((cdr.Mode & MODE_REPORT) && !cdr.ReportDelay &&
+		 ((cdr.subq.Absolute[2] & 0x0f) == 0 || cdr.FastForward || cdr.FastBackward))
+	{
 		cdr.Result[0] = cdr.StatP;
 		cdr.Result[1] = cdr.subq.Track;
 		cdr.Result[2] = cdr.subq.Index;
@@ -560,6 +563,9 @@ static void cdrPlayInterrupt_Autopause()
 		SetResultSize(8);
 		setIrq(0x1001);
 	}
+
+	if (cdr.ReportDelay)
+		cdr.ReportDelay--;
 }
 
 // LastReadCycles
@@ -817,6 +823,7 @@ void cdrInterrupt(void) {
 			cdr.SubqForwardSectors = 1;
 			cdr.TrackChanged = FALSE;
 			cdr.FirstSector = 1;
+			cdr.ReportDelay = 60;
 
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
