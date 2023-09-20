@@ -309,6 +309,12 @@ static u32 floodchk;
 
 #define HLEOP(n) SWAPu32((0x3b << 26) | (n));
 
+static u8 loadRam8(u32 addr)
+{
+	assert(!(addr & 0x5f800000));
+	return psxM[addr & 0x1fffff];
+}
+
 static u32 loadRam32(u32 addr)
 {
 	assert(!(addr & 0x5f800000));
@@ -561,6 +567,11 @@ void psxBios_atoi() { // 0x10
 	s32 n = 0, f = 0;
 	char *p = (char *)Ra0;
 
+	if (p == INVALID_PTR) {
+		mips_return(0);
+		return;
+	}
+
 	for (;;p++) {
 		switch (*p) {
 			case ' ': case '\t': continue;
@@ -576,6 +587,7 @@ void psxBios_atoi() { // 0x10
 
 	v0 = (f ? -n : n);
 	pc0 = ra;
+	PSXBIOS_LOG("psxBios_%s %s (%x) -> 0x%x\n", biosA0n[0x10], Ra0, a0, v0);
 }
 
 void psxBios_atol() { // 0x11
@@ -625,22 +637,24 @@ void psxBios_longjmp() { // 0x14
 }
 
 void psxBios_strcat() { // 0x15
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
+	u8 *p2 = (u8 *)Ra1;
+	u32 p1 = a0;
 
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s: %s, %s\n", biosA0n[0x15], Ra0, Ra1);
-#endif
-	if (a0 == 0 || a1 == 0)
+	PSXBIOS_LOG("psxBios_%s %s (%x), %s (%x)\n", biosA0n[0x15], Ra0, a0, Ra1, a1);
+	if (a0 == 0 || a1 == 0 || p2 == INVALID_PTR)
 	{
-		v0 = 0;
-		pc0 = ra;
+		mips_return_c(0, 6);
 		return;
 	}
-	while (*p1++);
-	--p1;
-	while ((*p1++ = *p2++) != '\0');
+	while (loadRam8(p1)) {
+		use_cycles(4);
+		p1++;
+	}
+	for (; *p2; p1++, p2++)
+		storeRam8(p1, *p2);
+	storeRam8(p1, 0);
 
-	v0 = a0; pc0 = ra;
+	mips_return_c(a0, 22);
 }
 
 void psxBios_strncat() { // 0x16
@@ -759,6 +773,7 @@ void psxBios_strncmp() { // 0x18
 
 void psxBios_strcpy() { // 0x19
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
+	PSXBIOS_LOG("psxBios_%s %x, %s (%x)\n", biosA0n[0x19], a0, p2, a1);
 	if (a0 == 0 || a1 == 0)
 	{
 		v0 = 0;
@@ -900,6 +915,7 @@ void psxBios_strtok() { // 0x23
 
 void psxBios_strstr() { // 0x24
 	char *p = (char *)Ra0, *p1, *p2;
+	PSXBIOS_LOG("psxBios_%s %s (%x), %s (%x)\n", biosA0n[0x24], p, a0, Ra1, a1);
 
 	while (*p != '\0') {
 		p1 = p;
@@ -912,10 +928,12 @@ void psxBios_strstr() { // 0x24
 		if (*p2 == '\0') {
 			v0 = a0 + (p - (char *)Ra0);
 			pc0 = ra;
+			PSXBIOS_LOG(" -> %x\n", v0);
 			return;
 		}
 
-		p++;
+		// bug: skips the whole matched substring + 1
+		p = p1 + 1;
 	}
 
 	v0 = 0; pc0 = ra;
@@ -4067,6 +4085,7 @@ static void hleA0() {
 	else if (biosA0[call])
 		biosA0[call]();
 
+	//printf("A(%02x) -> %x\n", call, v0);
 	psxBranchTest();
 }
 
@@ -4089,6 +4108,7 @@ static void hleB0() {
 	else if (biosB0[call])
 		biosB0[call]();
 
+	//printf("B(%02x) -> %x\n", call, v0);
 	psxBranchTest();
 }
 
@@ -4106,6 +4126,7 @@ static void hleC0() {
 	else if (biosC0[call])
 		biosC0[call]();
 
+	//printf("C(%02x) -> %x\n", call, v0);
 	psxBranchTest();
 }
 
