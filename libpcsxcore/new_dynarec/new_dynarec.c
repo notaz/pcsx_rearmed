@@ -6191,6 +6191,12 @@ static noinline void new_dynarec_test(void)
   out = ndrc->translation_cache;
 }
 
+static int get_cycle_multiplier(void)
+{
+  return Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
+     ? Config.cycle_multiplier_override : Config.cycle_multiplier;
+}
+
 // clear the state completely, instead of just marking
 // things invalid like invalidate_all_pages() does
 void new_dynarec_clear_full(void)
@@ -6218,6 +6224,12 @@ void new_dynarec_clear_full(void)
   stat_clear(stat_blocks);
   stat_clear(stat_links);
 
+  if (cycle_multiplier_old != Config.cycle_multiplier
+      || new_dynarec_hacks_old != new_dynarec_hacks)
+  {
+    SysPrintf("ndrc config: mul=%d, ha=%x, pex=%d\n",
+      get_cycle_multiplier(), new_dynarec_hacks, Config.PreciseExceptions);
+  }
   cycle_multiplier_old = Config.cycle_multiplier;
   new_dynarec_hacks_old = new_dynarec_hacks;
 }
@@ -8958,13 +8970,13 @@ static int new_recompile_block(u_int addr)
     return 0;
   }
 
-  cycle_multiplier_active = Config.cycle_multiplier_override && Config.cycle_multiplier == CYCLE_MULT_DEFAULT
-    ? Config.cycle_multiplier_override : Config.cycle_multiplier;
+  cycle_multiplier_active = get_cycle_multiplier();
 
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {
     if (addr != hack_addr) {
-      SysPrintf("Compile at bogus memory address: %08x\n", addr);
+      SysPrintf("Compile at bogus memory address: %08x, ra=%x\n",
+        addr, psxRegs.GPR.n.ra);
       hack_addr = addr;
     }
     //abort();

@@ -3341,7 +3341,15 @@ void psxBiosInit() {
 	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
 	biosA0[0x3f] = psxBios_printf_psxout;
 
-	if (!Config.HLE) return;
+	if (!Config.HLE) {
+		char verstr[0x24+1];
+		rom32 = (u32 *)psxR;
+		memcpy(verstr, psxR + 0x12c, 0x24);
+		verstr[0x24] = 0;
+		SysPrintf("BIOS: %08x, '%s', '%c'\n", SWAP32(rom32[0x100/4]),
+			verstr, psxR[0x7ff52]);
+		return;
+	}
 
 	for(i = 0; i < 256; i++) {
 		if (biosA0[i] == NULL) biosA0[i] = psxBios_dummy;
