@@ -27,7 +27,7 @@
 #define LO_psxRegs_subCycle	(LO_muldivBusyCycle + 4)
 #define LO_psxRegs_biuReg	(LO_psxRegs_subCycle + 4*2)
 #define LO_psxRegs_reserved	(LO_psxRegs_biuReg + 4)
-#define LO_psxRegs_end		(LO_psxRegs_reserved + 4*3)
+#define LO_psxRegs_end		(LO_psxRegs_reserved + 4*7)
 #define LO_rcnts		(LO_psxRegs_end)
 #define LO_rcnts_end		(LO_rcnts + 7*4*4)
 #define LO_inv_code_start	(LO_rcnts_end)

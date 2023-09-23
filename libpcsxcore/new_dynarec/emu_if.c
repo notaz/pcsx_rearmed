@@ -12,6 +12,7 @@
 #include "events.h"
 #include "../psxhle.h"
 #include "../psxinterpreter.h"
+#include "../psxcounters.h"
 #include "../r3000a.h"
 #include "../gte_arm.h"
 #include "../gte_neon.h"

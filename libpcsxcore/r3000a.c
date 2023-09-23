@@ -26,6 +26,7 @@
 #include "mdec.h"
 #include "gte.h"
 #include "psxinterpreter.h"
+#include "psxbios.h"
 #include "../include/compiler_features.h"
 
 R3000Acpu *psxCpu = NULL;
@@ -210,6 +211,8 @@ void psxBranchTest() {
 		psxRegs.CP0.n.Cause |= 0x400;
 	if (((psxRegs.CP0.n.Cause | 1) & psxRegs.CP0.n.SR & 0x401) == 0x401)
 		psxException(0, 0, &psxRegs.CP0);
+	else if (unlikely(psxRegs.pc == psxRegs.biosBranchCheck))
+		psxBiosCheckBranch();
 }
 
 void psxJumpTest() {
