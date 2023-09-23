@@ -6537,10 +6537,14 @@ static int apply_hacks(void)
   return 0;
 }
 
-static int is_ld_use_hazard(int ld_rt, const struct decoded_insn *op)
+static int is_ld_use_hazard(const struct decoded_insn *op_ld,
+  const struct decoded_insn *op)
 {
-  return ld_rt != 0 && (ld_rt == op->rs1 || ld_rt == op->rs2)
-    && op->itype != LOADLR && op->itype != CJUMP && op->itype != SJUMP;
+  if (op_ld->rt1 == 0 || (op_ld->rt1 != op->rs1 && op_ld->rt1 != op->rs2))
+    return 0;
+  if (op_ld->itype == LOADLR && op->itype == LOADLR)
+    return op_ld->rt1 == op_ld->rs1;
+  return op->itype != CJUMP && op->itype != SJUMP;
 }
 
 static void force_intcall(int i)
@@ -6932,7 +6936,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
           else
             dop = &dops[t];
         }
-        if ((dop && is_ld_use_hazard(dops[i].rt1, dop))
+        if ((dop && is_ld_use_hazard(&dops[i], dop))
             || (!dop && Config.PreciseExceptions)) {
           // jump target wants DS result - potential load delay effect
           SysPrintf("load delay in DS @%08x (%08x)\n", start + i*4, start);
@@ -6949,7 +6953,7 @@ static noinline void pass1_disassemble(u_int pagelimit)
       }
     }
     else if (i > 0 && dops[i-1].is_delay_load
-             && is_ld_use_hazard(dops[i-1].rt1, &dops[i])
+             && is_ld_use_hazard(&dops[i-1], &dops[i])
              && (i < 2 || !dops[i-2].is_ujump)) {
       SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
       for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
