@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include "cdrom.h"
+#include "misc.h"
 #include "ppf.h"
 #include "psxdma.h"
 #include "arm_features.h"

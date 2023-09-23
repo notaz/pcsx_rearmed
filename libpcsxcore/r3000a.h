@@ -25,9 +25,6 @@ extern "C" {
 #endif
 
 #include "psxcommon.h"
-#include "psxmem.h"
-#include "psxcounters.h"
-#include "psxbios.h"
 
 enum R3000Aexception {
 	R3000E_Int = 0,      // Interrupt
@@ -224,6 +221,8 @@ typedef struct {
 	u8  dloadSel;       /* interp. delay load state */
 	u8  dloadReg[2];
 	u32 dloadVal[2];
+	u32 biosBranchCheck;
+	u32 reserved[3];
 	// warning: changing anything in psxRegisters requires update of all
 	// asm in libpcsxcore/new_dynarec/
 } psxRegisters;

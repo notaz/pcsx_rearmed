@@ -21,6 +21,7 @@
 
 #include "psxcommon.h"
 #include "ppf.h"
+#include "misc.h"
 #include "cdrom.h"
 
 typedef struct tagPPF_DATA {

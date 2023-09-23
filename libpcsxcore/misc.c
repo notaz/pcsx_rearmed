@@ -28,6 +28,7 @@
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
+#include "psxbios.h"
 #include "database.h"
 #include <zlib.h>
 
@@ -178,7 +179,10 @@ static void getFromCnf(char *buf, const char *key, u32 *val)
 }
 
 int LoadCdrom() {
-	EXE_HEADER tmpHead;
+	union {
+		EXE_HEADER h;
+		u32 d[sizeof(EXE_HEADER) / sizeof(u32)];
+	} tmpHead;
 	struct iso_directory_record *dir;
 	u8 time[4], *buf;
 	u8 mdir[4096];
@@ -186,8 +190,10 @@ int LoadCdrom() {
 	u32 cnf_tcb = 4;
 	u32 cnf_event = 16;
 	u32 cnf_stack = 0;
+	u32 t_addr;
+	u32 t_size;
 	u32 sp = 0;
-	int ret;
+	int i, ret;
 
 	if (!Config.HLE) {
 		if (psxRegs.pc != 0x80030000) // BiosBootBypass'ed or custom BIOS?
@@ -250,31 +256,33 @@ int LoadCdrom() {
 	}
 
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
+	for (i = 2; i < sizeof(tmpHead.d) / sizeof(tmpHead.d[0]); i++)
+		tmpHead.d[i] = SWAP32(tmpHead.d[i]);
 
-	SysPrintf("manual booting '%s' pc=%x\n", exename, SWAP32(tmpHead.pc0));
-	sp = SWAP32(tmpHead.s_addr);
+	SysPrintf("manual booting '%s' pc=%x\n", exename, tmpHead.h.pc0);
+	sp = tmpHead.h.s_addr;
 	if (cnf_stack)
 		sp = cnf_stack;
-	SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0), sp);
-
-	tmpHead.t_size = SWAP32(tmpHead.t_size);
-	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
-
-	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
-	//psxCpu->Reset();
+	SetBootRegs(tmpHead.h.pc0, tmpHead.h.gp0, sp);
 
 	// Read the rest of the main executable
-	while (tmpHead.t_size & ~2047) {
-		void *ptr = (void *)PSXM(tmpHead.t_addr);
+	for (t_addr = tmpHead.h.t_addr, t_size = tmpHead.h.t_size; t_size & ~2047; ) {
+		void *ptr = (void *)PSXM(t_addr);
 
 		incTime();
 		READTRACK();
 
 		if (ptr != INVALID_PTR) memcpy(ptr, buf+12, 2048);
 
-		tmpHead.t_size -= 2048;
-		tmpHead.t_addr += 2048;
+		t_addr += 2048;
+		t_size -= 2048;
 	}
+
+	psxCpu->Clear(tmpHead.h.t_addr, tmpHead.h.t_size / 4);
+	//psxCpu->Reset();
+
+	if (Config.HLE)
+		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size);
 
 	return 0;
 }
@@ -690,6 +698,7 @@ cleanup:
 }
 
 int LoadState(const char *file) {
+	u32 biosBranchCheckOld = psxRegs.biosBranchCheck;
 	void *f;
 	GPUFreeze_t *gpufP = NULL;
 	SPUFreeze_t *spufP = NULL;
@@ -721,6 +730,7 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, psxH, 0x00010000);
 	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
+	psxRegs.biosBranchCheck = ~0;
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
@@ -750,6 +760,9 @@ int LoadState(const char *file) {
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
 	new_dyna_freeze(f, 0);
+
+	if (Config.HLE)
+		psxBiosCheckExe(biosBranchCheckOld, 0x60);
 
 	result = 0;
 cleanup:

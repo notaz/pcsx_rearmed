@@ -36,6 +36,7 @@
 #include "sio.h"
 #include "psxhle.h"
 #include "psxinterpreter.h"
+#include "new_dynarec/events.h"
 #include <zlib.h>
 
 #ifndef PSXBIOS_LOG
@@ -3330,6 +3331,8 @@ void psxBiosInit() {
 	int i;
 	uLongf len;
 
+	psxRegs.biosBranchCheck = ~0;
+
 	memset(psxM, 0, 0x10000);
 	for(i = 0; i < 256; i++) {
 		biosA0[i] = NULL;
@@ -4172,6 +4175,74 @@ void (* const psxHLEt[24])() = {
 	hleExcPadCard1, hleExcPadCard2,
 };
 
+void psxBiosCheckExe(u32 t_addr, u32 t_size)
+{
+	// lw      $v0, 0x10($sp)
+	// nop
+	// addiu   $v0, -1
+	// sw      $v0, 0x10($sp)
+	// lw      $v0, 0x10($sp)
+	// nop
+	// bne     $v0, $v1, not_timeout
+	// nop
+	// lui     $a0, ...
+	static const u8 pattern[] = {
+		0x10, 0x00, 0xA2, 0x8F, 0x00, 0x00, 0x00, 0x00,
+		0xFF, 0xFF, 0x42, 0x24, 0x10, 0x00, 0xA2, 0xAF,
+		0x10, 0x00, 0xA2, 0x8F, 0x00, 0x00, 0x00, 0x00,
+		0x0C, 0x00, 0x43, 0x14, 0x00, 0x00, 0x00, 0x00,
+	};
+	u32 start = t_addr & 0x1ffffc;
+	u32 end = (start + t_size) & 0x1ffffc;
+	u32 buf[sizeof(pattern) / sizeof(u32)];
+	const u32 *r32 = (u32 *)(psxM + start);
+	u32 i, j;
+
+	if (end <= start)
+		return;
+	if (!Config.HLE)
+		return;
+
+	memcpy(buf, pattern, sizeof(buf));
+	for (i = 0; i < t_size / 4; i += j + 1) {
+		for (j = 0; j < sizeof(buf) / sizeof(buf[0]); j++)
+			if (r32[i + j] != buf[j])
+				break;
+		if (j != sizeof(buf) / sizeof(buf[0]))
+			continue;
+
+		if ((SWAP32(r32[i + j]) >> 16) != 0x3c04) // lui
+			continue;
+		SysPrintf("HLE vsync @%08x\n", start + i * 4);
+		psxRegs.biosBranchCheck = (t_addr & 0xa01ffffc) + i * 4;
+	}
+}
+
+void psxBiosCheckBranch(void)
+{
+#if 1
+	// vsync HLE hack
+	static u32 cycles_prev, v0_prev;
+	u32 cycles_passed, waste_cycles;
+	u32 loops, v0_expect = v0_prev - 1;
+	if (v0 != 1)
+		return;
+	execI(&psxRegs);
+	cycles_passed = psxRegs.cycle - cycles_prev;
+	cycles_prev = psxRegs.cycle;
+	v0_prev = v0;
+	if (cycles_passed < 10 || cycles_passed > 50 || v0 != v0_expect)
+		return;
+
+	waste_cycles = schedule_timeslice() - psxRegs.cycle;
+	loops = waste_cycles / cycles_passed;
+	if (loops > v0)
+		loops = v0;
+	v0 -= loops;
+	psxRegs.cycle += loops * cycles_passed;
+	//printf("c %4u %d\n", loops, cycles_passed);
+#endif
+}
 
 #define bfreeze(ptr, size) { \
 	if (Mode == 1) memcpy(&psxR[base], ptr, size); \

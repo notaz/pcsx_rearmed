@@ -48,8 +48,6 @@ unsigned short sioReadMode16();
 unsigned short sioReadCtrl16();
 unsigned short sioReadBaud16();
 
-void netError();
-
 void sioInterrupt();
 int sioFreeze(void *f, int Mode);
 

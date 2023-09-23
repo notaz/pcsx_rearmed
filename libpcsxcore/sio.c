@@ -21,6 +21,8 @@
 * SIO functions.
 */
 
+#include "misc.h"
+#include "psxcounters.h"
 #include "sio.h"
 #include <sys/stat.h>
 
@@ -323,16 +325,6 @@ unsigned short sioReadCtrl16() {
 
 unsigned short sioReadBaud16() {
 	return BaudReg;
-}
-
-void netError() {
-	ClosePlugins();
-	SysMessage(_("Connection closed!\n"));
-
-	CdromId[0] = '\0';
-	CdromLabel[0] = '\0';
-
-	SysRunGui();
 }
 
 void sioInterrupt() {

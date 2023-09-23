@@ -12,7 +12,7 @@ extern int pending_exception;
 
 u32 event_cycles[PSXINT_COUNT];
 
-void schedule_timeslice(void)
+u32 schedule_timeslice(void)
 {
 	u32 i, c = psxRegs.cycle;
 	u32 irqs = psxRegs.interrupt;
@@ -28,6 +28,7 @@ void schedule_timeslice(void)
 			min = dif;
 	}
 	next_interupt = c + min;
+	return next_interupt;
 }
 
 typedef void (irq_func)();

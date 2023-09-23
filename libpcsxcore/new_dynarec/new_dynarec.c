@@ -37,6 +37,7 @@ static Jit g_jit;
 #include "new_dynarec_config.h"
 #include "../psxhle.h"
 #include "../psxinterpreter.h"
+#include "../psxcounters.h"
 #include "../gte.h"
 #include "emu_if.h" // emulator interface
 #include "linkage_offsets.h"
@@ -6500,6 +6501,15 @@ void new_dynarec_print_stats(void)
 #endif
 }
 
+static void force_intcall(int i)
+{
+  memset(&dops[i], 0, sizeof(dops[i]));
+  dops[i].itype = INTCALL;
+  dops[i].rs1 = CCREG;
+  dops[i].is_exception = 1;
+  cinfo[i].ba = -1;
+}
+
 static int apply_hacks(void)
 {
   int i;
@@ -6534,6 +6544,18 @@ static int apply_hacks(void)
       return 1;
     }
   }
+  if (Config.HLE)
+  {
+    if (start <= psxRegs.biosBranchCheck && psxRegs.biosBranchCheck < start + i*4)
+    {
+      i = (psxRegs.biosBranchCheck - start) / 4u + 23;
+      if (dops[i].is_jump && !dops[i+1].bt)
+      {
+        force_intcall(i);
+        dops[i+1].is_ds = 0;
+      }
+    }
+  }
   return 0;
 }
 
@@ -6545,15 +6567,6 @@ static int is_ld_use_hazard(const struct decoded_insn *op_ld,
   if (op_ld->itype == LOADLR && op->itype == LOADLR)
     return op_ld->rt1 == op_ld->rs1;
   return op->itype != CJUMP && op->itype != SJUMP;
-}
-
-static void force_intcall(int i)
-{
-  memset(&dops[i], 0, sizeof(dops[i]));
-  dops[i].itype = INTCALL;
-  dops[i].rs1 = CCREG;
-  dops[i].is_exception = 1;
-  cinfo[i].ba = -1;
 }
 
 static void disassemble_one(int i, u_int src)
