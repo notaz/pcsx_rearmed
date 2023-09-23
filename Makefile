@@ -266,7 +266,7 @@ endif
 
 # misc
 OBJS += frontend/main.o frontend/plugin.o
-
+frontend/main.o: CFLAGS += -DBUILTIN_GPU=$(BUILTIN_GPU)
 
 frontend/menu.o frontend/main.o: frontend/revision.h
 frontend/plat_sdl.o frontend/libretro.o: frontend/revision.h
