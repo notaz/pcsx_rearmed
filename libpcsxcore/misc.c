@@ -690,6 +690,7 @@ int SaveState(const char *file) {
 	psxRcntFreeze(f, 1);
 	mdecFreeze(f, 1);
 	new_dyna_freeze(f, 1);
+	padFreeze(f, 1);
 
 	result = 0;
 cleanup:
@@ -760,6 +761,7 @@ int LoadState(const char *file) {
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
 	new_dyna_freeze(f, 0);
+	padFreeze(f, 0);
 
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60);

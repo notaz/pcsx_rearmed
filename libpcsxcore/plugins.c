@@ -23,6 +23,7 @@
 
 #include "plugins.h"
 #include "cdriso.h"
+#include "psxcounters.h"
 
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
@@ -480,7 +481,7 @@ enum {
 
 
 static void initBufForRequest(int padIndex, char value) {
-	if (pads[padIndex].configMode) {
+	if (pads[padIndex].ds.configMode) {
 		buf[0] = 0xf3; buf[1] = 0x5a;
 		respSize = 8;
 	}
@@ -489,12 +490,24 @@ static void initBufForRequest(int padIndex, char value) {
 		return;
 	}
 
+	// switch to analog mode automatically after the game finishes init
+	if (value == 0x42 && pads[padIndex].ds.padMode == 0)
+		pads[padIndex].ds.digitalModeFrames++;
+	if (pads[padIndex].ds.digitalModeFrames == 60*4) {
+		pads[padIndex].ds.padMode = 1;
+		pads[padIndex].ds.digitalModeFrames = 0;
+	}
+
+	if ((u32)(frame_counter - pads[padIndex].ds.lastUseFrame) > 60u)
+		pads[padIndex].ds.padMode = 0; // according to nocash
+	pads[padIndex].ds.lastUseFrame = frame_counter;
+
 	switch (value) {
 		// keystate already in buffer, set by PADstartPoll_()
 		//case CMD_READ_DATA_AND_VIBRATE :
 		//	break;
 		case CMD_CONFIG_MODE :
-			if (pads[padIndex].configMode) {
+			if (pads[padIndex].ds.configMode) {
 				memcpy(buf, resp43, 8);
 				break;
 			}
@@ -505,7 +518,7 @@ static void initBufForRequest(int padIndex, char value) {
 			break;
 		case CMD_QUERY_MODEL_AND_MODE :
 			memcpy(buf, resp45, 8);
-			buf[4] = pads[padIndex].PadMode;
+			buf[4] = pads[padIndex].ds.padMode;
 			break;
 		case CMD_QUERY_ACT :
 			memcpy(buf, resp46_00, 8);
@@ -517,7 +530,7 @@ static void initBufForRequest(int padIndex, char value) {
 			memcpy(buf, resp4C_00, 8);
 			break;
 		case CMD_VIBRATION_TOGGLE: // 4d
-			memcpy(buf + 2, pads[padIndex].cmd4dConfig, 6);
+			memcpy(buf + 2, pads[padIndex].ds.cmd4dConfig, 6);
 			break;
 		case REQ40 :
 			memcpy(buf, resp40, 8);
@@ -548,9 +561,9 @@ static void reqIndex2Treatment(int padIndex, u8 value) {
 		case CMD_CONFIG_MODE :
 			//0x43
 			if (value == 0) {
-				pads[padIndex].configMode = 0;
+				pads[padIndex].ds.configMode = 0;
 			} else {
-				pads[padIndex].configMode = 1;
+				pads[padIndex].ds.configMode = 1;
 			}
 			break;
 		case CMD_SET_MODE_AND_LOCK :
@@ -558,7 +571,7 @@ static void reqIndex2Treatment(int padIndex, u8 value) {
 			//0x01 analog ON
 			//0x00 analog OFF
 			if ((value & ~1) == 0)
-				pads[padIndex].PadMode = value;
+				pads[padIndex].ds.padMode = value;
 			break;
 		case CMD_QUERY_ACT :
 			//0x46
@@ -585,7 +598,7 @@ static void vibrate(int padIndex) {
 		pad->VibF[0] = pad->Vib[0];
 		pad->VibF[1] = pad->Vib[1];
 		plat_trigger_vibrate(padIndex, pad->VibF[0], pad->VibF[1]);
-		//printf("vibration pad %i\n", padIndex);
+		//printf("vib%i %02x %02x\n", padIndex, pad->VibF[0], pad->VibF[1]);
 	}
 }
 
@@ -671,7 +684,7 @@ static void PADstartPoll_(PadDataS *pad) {
 			respSize = 4;
 			break;
 		case PSE_PAD_TYPE_ANALOGPAD: // scph1150
-			if (pad->PadMode == 0)
+			if (pad->ds.padMode == 0)
 				goto standard;
 			stdpar[0] = 0x73;
 			stdpar[1] = 0x5a;
@@ -730,7 +743,7 @@ static void PADpoll_dualshock(int port, unsigned char value, int pos)
 			break;
 		case 7:
 			if (pads[port].txData[0] == CMD_VIBRATION_TOGGLE)
-				memcpy(pads[port].cmd4dConfig, pads[port].txData + 2, 6);
+				memcpy(pads[port].ds.cmd4dConfig, pads[port].txData + 2, 6);
 			break;
 	}
 }
@@ -865,7 +878,7 @@ static int LoadPAD1plugin(const char *PAD1dll) {
 
 	memset(pads, 0, sizeof(pads));
 	for (p = 0; p < sizeof(pads) / sizeof(pads[0]); p++) {
-		memset(pads[p].cmd4dConfig, 0xff, sizeof(pads[p].cmd4dConfig));
+		memset(pads[p].ds.cmd4dConfig, 0xff, sizeof(pads[p].ds.cmd4dConfig));
 	}
 
 	return 0;
@@ -939,6 +952,20 @@ static int LoadPAD2plugin(const char *PAD2dll) {
 
 	return 0;
 }
+
+int padFreeze(void *f, int Mode) {
+	size_t i;
+
+	for (i = 0; i < sizeof(pads) / sizeof(pads[0]); i++) {
+		pads[i].saveSize = sizeof(pads[i]);
+		gzfreeze(&pads[i], sizeof(pads[i]));
+		if (Mode == 0 && pads[i].saveSize != sizeof(pads[i]))
+			SaveFuncs.seek(f, pads[i].saveSize - sizeof(pads[i]), SEEK_CUR);
+	}
+
+	return 0;
+}
+
 
 void *hNETDriver = NULL;
 
