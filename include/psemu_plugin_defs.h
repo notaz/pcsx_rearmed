@@ -200,6 +200,9 @@ typedef struct
 	// controller type - fill it withe predefined values above
 	unsigned char controllerType;
 
+	unsigned char padding;
+	unsigned short saveSize;
+
 	int portMultitap;
 	int requestPadIndex;
 
@@ -214,22 +217,24 @@ typedef struct
 	// values are in range -128 - 127
 	unsigned char moveX, moveY;
 
+	// Lightgun values
+	int absoluteX, absoluteY;
+
 	unsigned char Vib[2];
 	unsigned char VibF[2];
 	
-	//configuration mode Request 0x43
-	int configMode;
-
+	struct {
+		unsigned char configMode;
+		unsigned char padMode; // 0 : digital 1: analog
+		unsigned char cmd4dConfig[6];
+		unsigned int  lastUseFrame;
+		unsigned int  digitalModeFrames;
+	} ds;
+	unsigned char multitapLongModeEnabled;
+	unsigned char padding2;
 	unsigned char txData[34];
 
-	unsigned char multitapLongModeEnabled;
-	unsigned char PadMode; // 0 : digital 1: analog
-	unsigned char cmd4dConfig[6];
-	unsigned char reserved[46];
-	
-	//Lightgun values 
-	int absoluteX,absoluteY;
-
+	unsigned char reserved[26];
 } PadDataS;
 
 /*         NET PlugIn v2       */
