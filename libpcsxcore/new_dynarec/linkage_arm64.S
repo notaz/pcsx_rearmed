@@ -210,7 +210,7 @@ FUNCTION(new_dyna_leave):
 .align	2
 
 .macro memhandler_pre
-	/* w0 = adddr/data, x1 = rhandler, w2 = cycles, x3 = whandler */
+	/* w0 = addr/data, x1 = rhandler, w2 = cycles, x3 = whandler */
 	ldr	w4, [rFP, #LO_last_count]
 	add	w4, w4, w2
 	str	w4, [rFP, #LO_cycle]

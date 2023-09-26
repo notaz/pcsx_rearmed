@@ -244,9 +244,6 @@ static u32 read_biu(u32 addr)
 	if (addr != 0xfffe0130)
 		return read_mem_dummy(addr);
 
- FILE *f = fopen("/tmp/psxbiu.bin", "wb");
- fwrite(psxM, 1, 0x200000, f);
- fclose(f);
 	memprintf("read_biu  %08x @%08x %u\n",
 		psxRegs.biuReg, psxRegs.pc, psxRegs.cycle);
 	return psxRegs.biuReg;
