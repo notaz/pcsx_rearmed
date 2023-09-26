@@ -65,7 +65,7 @@ INLINE void StartADSR(int ch)                          // MIX ADSR
 
 static int MixADSR(ADSRInfoEx *adsr, int ns_to)
 {
- int EnvelopeVol = adsr->EnvelopeVol;
+ unsigned int EnvelopeVol = adsr->EnvelopeVol;
  int ns = 0, val, rto, level;
 
  if (adsr->State == ADSR_RELEASE)
@@ -77,10 +77,10 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-       if (EnvelopeVol <= 0)
+       if ((signed int)EnvelopeVol <= 0)
          break;
 
-       ChanBuf[ns] *= EnvelopeVol >> 21;
+       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
        ChanBuf[ns] >>= 10;
      }
    }
@@ -89,10 +89,10 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += val;
-       if (EnvelopeVol <= 0)
+       if ((signed int)EnvelopeVol <= 0)
          break;
 
-       ChanBuf[ns] *= EnvelopeVol >> 21;
+       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
        ChanBuf[ns] >>= 10;
      }
    }
@@ -111,14 +111,14 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += val;
-       if (EnvelopeVol < 0)
+       if ((signed int)EnvelopeVol < 0) // overflow
         break;
 
-       ChanBuf[ns] *= EnvelopeVol >> 21;
+       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
        ChanBuf[ns] >>= 10;
      }
 
-     if (EnvelopeVol < 0) // overflow
+     if ((signed int)EnvelopeVol < 0) // overflow
      {
        EnvelopeVol = 0x7fffffff;
        adsr->State = ADSR_DECAY;
@@ -136,7 +136,7 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; )
      {
        EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-       if (EnvelopeVol < 0)
+       if ((signed int)EnvelopeVol < 0)
          EnvelopeVol = 0;
 
        ChanBuf[ns] *= EnvelopeVol >> 21;
@@ -170,14 +170,14 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
        for (; ns < ns_to; ns++)
        {
          EnvelopeVol += val;
-         if ((unsigned int)EnvelopeVol >= 0x7fe00000)
+         if (EnvelopeVol >= 0x7fe00000)
          {
            EnvelopeVol = 0x7fffffff;
            ns = ns_to;
            break;
          }
 
-         ChanBuf[ns] *= EnvelopeVol >> 21;
+         ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
          ChanBuf[ns] >>= 10;
        }
      }
@@ -189,10 +189,10 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
          for (; ns < ns_to; ns++)
          {
            EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-           if (EnvelopeVol < 0) 
+           if ((signed int)EnvelopeVol < 0)
              break;
 
-           ChanBuf[ns] *= EnvelopeVol >> 21;
+           ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
            ChanBuf[ns] >>= 10;
          }
        }
@@ -201,10 +201,10 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
          for (; ns < ns_to; ns++)
          {
            EnvelopeVol += val;
-           if (EnvelopeVol < 0) 
+           if ((signed int)EnvelopeVol < 0)
              break;
 
-           ChanBuf[ns] *= EnvelopeVol >> 21;
+           ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
            ChanBuf[ns] >>= 10;
          }
        }
@@ -219,7 +219,7 @@ done:
 
 static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
 {
- int EnvelopeVol = adsr->EnvelopeVol;
+ unsigned int EnvelopeVol = adsr->EnvelopeVol;
  int ns = 0, val, rto, level;
  int64_t v64;
 
@@ -231,7 +231,7 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-       if (EnvelopeVol <= 0)
+       if ((signed int)EnvelopeVol <= 0)
          break;
      }
    }
@@ -257,10 +257,10 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; ns++)
      {
        EnvelopeVol += val;
-       if (EnvelopeVol < 0)
+       if ((signed int)EnvelopeVol < 0)
         break;
      }
-     if (EnvelopeVol < 0) // overflow
+     if ((signed int)EnvelopeVol < 0) // overflow
      {
        EnvelopeVol = 0x7fffffff;
        adsr->State = ADSR_DECAY;
@@ -278,7 +278,7 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
      for (; ns < ns_to; )
      {
        EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-       if (EnvelopeVol < 0)
+       if ((signed int)EnvelopeVol < 0)
          EnvelopeVol = 0;
 
        ns++;
@@ -320,7 +320,7 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
          for (; ns < ns_to; ns++)
          {
            EnvelopeVol += ((long long)val * EnvelopeVol) >> (15+16);
-           if (EnvelopeVol < 0)
+           if ((signed int)EnvelopeVol < 0)
              break;
          }
        }
@@ -330,10 +330,7 @@ static int SkipADSR(ADSRInfoEx *adsr, int ns_to)
          v64 += (int64_t)val * (ns_to - ns);
          EnvelopeVol = (int)v64;
          if (v64 > 0)
-         {
            ns = ns_to;
-           break;
-         }
        }
      }
      break;
