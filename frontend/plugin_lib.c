@@ -137,7 +137,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 	unsigned short *d, p;
 	int c, x, y;
 
-	if (dest == NULL || pl_vout_bpp != 16)
+	if (pl_vout_buf == NULL || pl_vout_bpp != 16)
 		return;
 
 	spu_get_debug_info(&live_chans, &run_chans, &fmod_chans, &noise_chans);
