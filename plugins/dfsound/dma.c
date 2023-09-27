@@ -41,7 +41,7 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
  unsigned int addr = spu.spuAddr, irq_addr = regAreaGet(H_SPUirqAddr) << 3;
  int i, irq;
 
- do_samples_if_needed(cycles, 1);
+ do_samples_if_needed(cycles, 1, 2);
  irq = addr <= irq_addr && irq_addr < addr + iSize*2;
 
  for(i = 0; i < iSize; i++)
@@ -66,7 +66,7 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
  unsigned int addr = spu.spuAddr, irq_addr = regAreaGet(H_SPUirqAddr) << 3;
  int i, irq;
  
- do_samples_if_needed(cycles, 1);
+ do_samples_if_needed(cycles, 1, 2);
  spu.bMemDirty = 1;
  irq = addr <= irq_addr && irq_addr < addr + iSize*2;
 

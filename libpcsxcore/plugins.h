@@ -166,7 +166,7 @@ typedef long (CALLBACK* SPUinit)(void);
 typedef long (CALLBACK* SPUshutdown)(void);	
 typedef long (CALLBACK* SPUclose)(void);			
 typedef void (CALLBACK* SPUwriteRegister)(unsigned long, unsigned short, unsigned int);
-typedef unsigned short (CALLBACK* SPUreadRegister)(unsigned long);
+typedef unsigned short (CALLBACK* SPUreadRegister)(unsigned long, unsigned int);
 typedef void (CALLBACK* SPUwriteDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUreadDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUplayADPCMchannel)(xa_decode_t *, unsigned int, int);

@@ -60,7 +60,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
  if (val == 0 && (r & 0xff8) == 0xd88)
   return;
 
- do_samples_if_needed(cycles, 0);
+ do_samples_if_needed(cycles, 0, 16);
 
  if(r>=0x0c00 && r<0x0d80)                             // some channel info?
   {
@@ -213,10 +213,12 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
 */
     //-------------------------------------------------//
     case H_SPUon1:
+      do_samples_if_needed(cycles, 0, 2);
       SoundOn(0,16,val);
       break;
     //-------------------------------------------------//
-     case H_SPUon2:
+    case H_SPUon2:
+      do_samples_if_needed(cycles, 0, 2);
       SoundOn(16,24,val);
       break;
     //-------------------------------------------------//
@@ -309,7 +311,7 @@ rvbd:
 // READ REGISTER: called by main emu
 ////////////////////////////////////////////////////////////////////////
 
-unsigned short CALLBACK SPUreadRegister(unsigned long reg)
+unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
 {
  const unsigned long r = reg & 0xffe;
         
@@ -319,12 +321,13 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
     {
      case 12:                                          // get adsr vol
       {
-       const int ch=(r>>4)-0xc0;
-       if(spu.dwNewChannel&(1<<ch)) return 1;          // we are started, but not processed? return 1
-       if((spu.dwChannelsAudible&(1<<ch)) &&           // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
-          !spu.s_chan[ch].ADSRX.EnvelopeVol)
-        return 1;
-       return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol>>16);
+       // this used to return 1 immediately after keyon to deal with
+       // some poor timing, but that causes Rayman 2 to lose track of
+       // it's channels on busy scenes and start looping some of them forever
+       const int ch = (r>>4) - 0xc0;
+       if (spu.s_chan[ch].bStarting)
+        do_samples_if_needed(cycles, 0, 2);
+       return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol >> 16);
       }
 
      case 14:                                          // get loop address
@@ -404,6 +407,7 @@ static void SoundOn(int start,int end,unsigned short val)
    if((val&1) && regAreaGetCh(ch, 6))                  // mmm... start has to be set before key on !?!
     {
      spu.s_chan[ch].bIgnoreLoop = 0;
+     spu.s_chan[ch].bStarting = 1;
      spu.dwNewChannel|=(1<<ch);
     }
   }
