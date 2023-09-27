@@ -51,7 +51,7 @@ extern long CALLBACK SPUinit(void);
 extern long CALLBACK SPUshutdown(void);
 extern long CALLBACK SPUclose(void);
 extern void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
-extern unsigned short CALLBACK SPUreadRegister(unsigned long);
+extern unsigned short CALLBACK SPUreadRegister(unsigned long, unsigned int);
 extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
 extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
 extern void CALLBACK SPUplayADPCMchannel(void *, unsigned int, int);
@@ -309,7 +309,7 @@ pc_hook_func_ret(long,     GPU_dmaChain, (uint32_t *a0, int32_t a1), (a0, a1), P
 pc_hook_func              (GPU_updateLace, (void), (), PCNT_GPU)
 
 pc_hook_func              (SPU_writeRegister, (unsigned long a0, unsigned short a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
-pc_hook_func_ret(unsigned short,SPU_readRegister, (unsigned long a0), (a0), PCNT_SPU)
+pc_hook_func_ret(unsigned short,SPU_readRegister, (unsigned long a0, , unsigned int a1), (a0, a1), PCNT_SPU)
 pc_hook_func              (SPU_writeDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func              (SPU_readDMAMem, (unsigned short *a0, int a1, uint32_t a2), (a0, a1, a2), PCNT_SPU)
 pc_hook_func              (SPU_playADPCMchannel, (void *a0, unsigned int a1, int a2), (a0, a1, a2), PCNT_SPU)

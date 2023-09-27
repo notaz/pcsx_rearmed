@@ -118,6 +118,7 @@ typedef struct
  unsigned int      prevflags:3;                        // flags from previous block
  unsigned int      bIgnoreLoop:1;                      // Ignore loop
  unsigned int      bNewPitch:1;                        // pitch changed
+ unsigned int      bStarting:1;                        // starting after keyon
  union {
   struct {
    int             iLeftVolume;                        // left volume
@@ -261,9 +262,9 @@ void do_samples(unsigned int cycles_to, int do_sync);
 void schedule_next_irq(void);
 void check_irq_io(unsigned int addr);
 
-#define do_samples_if_needed(c, sync) \
+#define do_samples_if_needed(c, sync, samples) \
  do { \
-  if (sync || (int)((c) - spu.cycles_played) >= 16 * 768) \
+  if (sync || (int)((c) - spu.cycles_played) >= (samples) * 768) \
    do_samples(c, sync); \
  } while (0)
 

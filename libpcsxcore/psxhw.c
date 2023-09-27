@@ -253,7 +253,7 @@ u16 psxHwRead16(u32 add) {
 			// falthrough
 		default:
 			if (0x1f801c00 <= add && add < 0x1f802000)
-				return SPU_readRegister(add);
+				return SPU_readRegister(add, psxRegs.cycle);
 			hard = psxHu16(add);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unkwnown 16bit read at address %x\n", add);
@@ -411,8 +411,8 @@ u32 psxHwRead32(u32 add) {
 			// falthrough
 		default:
 			if (0x1f801c00 <= add && add < 0x1f802000) {
-				hard = SPU_readRegister(add);
-				hard |= SPU_readRegister(add + 2) << 16;
+				hard = SPU_readRegister(add, psxRegs.cycle);
+				hard |= SPU_readRegister(add + 2, psxRegs.cycle) << 16;
 				return hard;
 			}
 			hard = psxHu32(add);
