@@ -648,6 +648,24 @@ static struct ht_entry *hash_table_get(u_int vaddr)
   return &hash_table[((vaddr>>16)^vaddr)&0xFFFF];
 }
 
+#define HASH_TABLE_BAD 0xbac
+
+static void hash_table_clear(void)
+{
+  struct ht_entry *ht_bin;
+  int i, j;
+  for (i = 0; i < ARRAY_SIZE(hash_table); i++) {
+    for (j = 0; j < ARRAY_SIZE(hash_table[i].vaddr); j++) {
+      hash_table[i].vaddr[j] = ~0;
+      hash_table[i].tcaddr[j] = (void *)(uintptr_t)HASH_TABLE_BAD;
+    }
+  }
+  // don't allow ~0 to hit
+  ht_bin = hash_table_get(~0);
+  for (j = 0; j < ARRAY_SIZE(ht_bin->vaddr); j++)
+    ht_bin->vaddr[j] = 1;
+}
+
 static void hash_table_add(u_int vaddr, void *tcaddr)
 {
   struct ht_entry *ht_bin = hash_table_get(vaddr);
@@ -663,15 +681,28 @@ static void hash_table_remove(int vaddr)
   //printf("remove hash: %x\n",vaddr);
   struct ht_entry *ht_bin = hash_table_get(vaddr);
   if (ht_bin->vaddr[1] == vaddr) {
-    ht_bin->vaddr[1] = -1;
-    ht_bin->tcaddr[1] = NULL;
+    ht_bin->vaddr[1] = ~0;
+    ht_bin->tcaddr[1] = (void *)(uintptr_t)HASH_TABLE_BAD;
   }
   if (ht_bin->vaddr[0] == vaddr) {
     ht_bin->vaddr[0] = ht_bin->vaddr[1];
     ht_bin->tcaddr[0] = ht_bin->tcaddr[1];
-    ht_bin->vaddr[1] = -1;
-    ht_bin->tcaddr[1] = NULL;
+    ht_bin->vaddr[1] = ~0;
+    ht_bin->tcaddr[1] = (void *)(uintptr_t)HASH_TABLE_BAD;
   }
+}
+
+static void mini_ht_clear(void)
+{
+#ifdef USE_MINI_HT
+  int i;
+  for (i = 0; i < ARRAY_SIZE(mini_ht) - 1; i++) {
+    mini_ht[i][0] = ~0;
+    mini_ht[i][1] = HASH_TABLE_BAD;
+  }
+  mini_ht[i][0] = 1;
+  mini_ht[i][1] = HASH_TABLE_BAD;
+#endif
 }
 
 static void mark_invalid_code(u_int vaddr, u_int len, char invalid)
@@ -1568,9 +1599,7 @@ static int invalidate_range(u_int start, u_int end,
   }
   if (hit) {
     do_clear_cache();
-#ifdef USE_MINI_HT
-    memset(mini_ht, -1, sizeof(mini_ht));
-#endif
+    mini_ht_clear();
   }
 
   if (inv_start <= (start_m & ~0xfff) && inv_end >= (start_m | 0xfff))
@@ -1627,10 +1656,8 @@ void new_dynarec_invalidate_all_pages(void)
     }
   }
 
-  #ifdef USE_MINI_HT
-  memset(mini_ht, -1, sizeof(mini_ht));
-  #endif
   do_clear_cache();
+  mini_ht_clear();
 }
 
 // Add an entry to jump_out after making a link
@@ -6205,9 +6232,9 @@ void new_dynarec_clear_full(void)
   int n;
   out = ndrc->translation_cache;
   memset(invalid_code,1,sizeof(invalid_code));
-  memset(hash_table,0xff,sizeof(hash_table));
-  memset(mini_ht,-1,sizeof(mini_ht));
   memset(shadow,0,sizeof(shadow));
+  hash_table_clear();
+  mini_ht_clear();
   copy=shadow;
   expirep = EXPIRITY_OFFSET;
   pending_exception=0;
@@ -8882,9 +8909,7 @@ static noinline void pass10_expire_blocks(void)
       hit = blocks_remove_matching_addrs(&blocks[block_i], base_offs, base_shift);
       if (hit) {
         do_clear_cache();
-        #ifdef USE_MINI_HT
-        memset(mini_ht, -1, sizeof(mini_ht));
-        #endif
+        mini_ht_clear();
       }
     }
     else
