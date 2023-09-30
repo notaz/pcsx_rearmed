@@ -93,7 +93,7 @@ static int lightrec_mmap_ram(bool hugetlb)
 		for (j = 0; j < 4; j++) {
 			map = mmap_huge((void *)(base + j * 0x200000),
 					0x200000, PROT_READ | PROT_WRITE,
-					MAP_SHARED | MAP_FIXED, memfd, 0);
+					MAP_SHARED | MAP_FIXED_NOREPLACE, memfd, 0);
 			if (map == MAP_FAILED)
 				break;
 		}
@@ -142,7 +142,7 @@ int lightrec_init_mmap(void)
 
 	map = mmap((void *)(base + 0x1f000000), 0x10000,
 		   PROT_READ | PROT_WRITE,
-		   MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, 0, 0);
+		   MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, -1, 0);
 	if (map == MAP_FAILED) {
 		err = -EINVAL;
 		fprintf(stderr, "Unable to mmap parallel port\n");
@@ -153,7 +153,7 @@ int lightrec_init_mmap(void)
 
 	map = mmap_huge((void *)(base + 0x1fc00000), 0x200000,
 			PROT_READ | PROT_WRITE,
-			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, 0, 0);
+			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, -1, 0);
 	if (map == MAP_FAILED) {
 		err = -EINVAL;
 		fprintf(stderr, "Unable to mmap BIOS\n");
@@ -176,7 +176,7 @@ int lightrec_init_mmap(void)
 	map = mmap_huge((void *)(base + 0x800000), CODE_BUFFER_SIZE,
 			PROT_EXEC | PROT_READ | PROT_WRITE,
 			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS,
-			0, 0);
+			-1, 0);
 	if (map == MAP_FAILED) {
 		err = -EINVAL;
 		fprintf(stderr, "Unable to mmap code buffer\n");
