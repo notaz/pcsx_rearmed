@@ -22,6 +22,7 @@
 */
 
 #include <stddef.h>
+#include <errno.h>
 #include <assert.h>
 #include "misc.h"
 #include "cdrom.h"
@@ -174,8 +175,13 @@ static void getFromCnf(char *buf, const char *key, u32 *val)
 	buf = strstr(buf, key);
 	if (buf)
 		buf = strchr(buf, '=');
-	if (buf)
-		*val = strtol(buf + 1, NULL, 16);
+	if (buf) {
+		unsigned long v;
+		errno = 0;
+		v = strtoul(buf + 1, NULL, 16);
+		if (errno == 0)
+			*val = v;
+	}
 }
 
 int LoadCdrom() {
