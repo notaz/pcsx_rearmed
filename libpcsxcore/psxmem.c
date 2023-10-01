@@ -44,16 +44,29 @@
 static void * psxMapDefault(unsigned long addr, size_t size,
 			    int is_fixed, enum psxMapTag tag)
 {
-#if !P_HAVE_MMAP
 	void *ptr;
-
-	ptr = malloc(size);
+#if !P_HAVE_MMAP
+	ptr = calloc(1, size);
 	return ptr ? ptr : MAP_FAILED;
 #else
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
-	return mmap((void *)(uintptr_t)addr, size,
+	ptr = mmap((void *)(uintptr_t)addr, size,
 		    PROT_READ | PROT_WRITE, flags, -1, 0);
+#ifdef MADV_HUGEPAGE
+	if (size >= 2*1024*1024) {
+		if (ptr != MAP_FAILED && ((uintptr_t)ptr & (2*1024*1024 - 1))) {
+			// try to manually realign assuming bottom-to-top alloc
+			munmap(ptr, size);
+			addr = (uintptr_t)ptr & ~(2*1024*1024 - 1);
+			ptr = mmap((void *)(uintptr_t)addr, size,
+				PROT_READ | PROT_WRITE, flags, -1, 0);
+		}
+		if (ptr != MAP_FAILED)
+			madvise(ptr, size, MADV_HUGEPAGE);
+	}
+#endif
+	return ptr;
 #endif
 }
 

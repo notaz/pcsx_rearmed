@@ -55,8 +55,12 @@ static void * mmap_huge(void *addr, size_t length, int prot, int flags,
 
 	if (map == MAP_FAILED) {
 		map = mmap(addr, length, prot, flags, fd, offset);
-		if (map != MAP_FAILED)
+		if (map != MAP_FAILED) {
 			printf("Regular mmap to address 0x%lx succeeded\n", (uintptr_t) addr);
+#ifdef MADV_HUGEPAGE
+			madvise(map, length, MADV_HUGEPAGE);
+#endif
+		}
 	}
 
 	return map;
