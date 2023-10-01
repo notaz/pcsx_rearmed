@@ -228,15 +228,25 @@ static noinline void get_gpu_info(uint32_t data)
 // vram ptr received from mmap/malloc/alloc (will deallocate using this)
 static uint16_t *vram_ptr_orig = NULL;
 
-#ifdef GPULIB_USE_MMAP
+#ifndef GPULIB_USE_MMAP
+# ifdef __linux__
+#  define GPULIB_USE_MMAP 1
+# else
+#  define GPULIB_USE_MMAP 0
+# endif
+#endif
 static int map_vram(void)
 {
+#if GPULIB_USE_MMAP
   gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE + (VRAM_ALIGN-1));
-  if (gpu.vram != NULL) {
-	// 4kb guard in front
+#else
+  gpu.vram = vram_ptr_orig = calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
+#endif
+  if (gpu.vram != NULL && gpu.vram != (void *)(intptr_t)-1) {
+    // 4kb guard in front
     gpu.vram += (4096 / 2);
-	// Align
-	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
+    // Align
+    gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
     return 0;
   }
   else {
@@ -244,54 +254,9 @@ static int map_vram(void)
     return -1;
   }
 }
-#else
-static int map_vram(void)
-{
-  gpu.vram = vram_ptr_orig = (uint16_t*)calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
-  if (gpu.vram != NULL) {
-	// 4kb guard in front
-    gpu.vram += (4096 / 2);
-	// Align
-	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
-    return 0;
-  } else {
-    fprintf(stderr, "could not allocate vram, expect crashes\n");
-    return -1;
-  }
-}
-
-static int allocate_vram(void)
-{
-  gpu.vram = vram_ptr_orig = (uint16_t*)calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
-  if (gpu.vram != NULL) {
-	// 4kb guard in front
-    gpu.vram += (4096 / 2);
-	// Align
-	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
-    return 0;
-  } else {
-    fprintf(stderr, "could not allocate vram, expect crashes\n");
-    return -1;
-  }
-}
-#endif
 
 long GPUinit(void)
 {
-#ifndef GPULIB_USE_MMAP
-  if (gpu.vram == NULL) {
-    if (allocate_vram() != 0) {
-      printf("ERROR: could not allocate VRAM, exiting..\n");
-	  exit(1);
-	}
-  }
-#endif
-
-  //extern uint32_t hSyncCount;         // in psxcounters.cpp
-  //extern uint32_t frame_counter;      // in psxcounters.cpp
-  //gpu.state.hcnt = &hSyncCount;
-  //gpu.state.frame_count = &frame_counter;
-
   int ret;
   ret  = vout_init();
   ret |= renderer_init();
@@ -319,7 +284,7 @@ long GPUshutdown(void)
   ret = vout_finish();
 
   if (vram_ptr_orig != NULL) {
-#ifdef GPULIB_USE_MMAP
+#if GPULIB_USE_MMAP
     gpu.munmap(vram_ptr_orig, VRAM_SIZE);
 #else
     free(vram_ptr_orig);

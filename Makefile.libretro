@@ -529,7 +529,7 @@ else ifeq ($(platform), miyoo)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
 	CFLAGS += -mcpu=arm926ej-s -fsingle-precision-constant
-	CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -D_MIYOO
+	CFLAGS += -DGPU_UNAI_USE_INT_DIV_MULTINV -D_MIYOO
 	ARCH = arm
 	BUILTIN_GPU = unai
 	DYNAREC = ari64
