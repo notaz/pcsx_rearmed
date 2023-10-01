@@ -288,7 +288,7 @@ int LoadCdrom() {
 	//psxCpu->Reset();
 
 	if (Config.HLE)
-		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size);
+		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size, 0);
 
 	return 0;
 }
@@ -770,7 +770,7 @@ int LoadState(const char *file) {
 	padFreeze(f, 0);
 
 	if (Config.HLE)
-		psxBiosCheckExe(biosBranchCheckOld, 0x60);
+		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 
 	result = 0;
 cleanup:
