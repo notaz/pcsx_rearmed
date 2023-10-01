@@ -4175,7 +4175,7 @@ void (* const psxHLEt[24])() = {
 	hleExcPadCard1, hleExcPadCard2,
 };
 
-void psxBiosCheckExe(u32 t_addr, u32 t_size)
+void psxBiosCheckExe(u32 t_addr, u32 t_size, int loading_state)
 {
 	// lw      $v0, 0x10($sp)
 	// nop
@@ -4213,7 +4213,8 @@ void psxBiosCheckExe(u32 t_addr, u32 t_size)
 
 		if ((SWAP32(r32[i + j]) >> 16) != 0x3c04) // lui
 			continue;
-		SysPrintf("HLE vsync @%08x\n", start + i * 4);
+		if (!loading_state)
+			SysPrintf("HLE vsync @%08x\n", start + i * 4);
 		psxRegs.biosBranchCheck = (t_addr & 0xa01ffffc) + i * 4;
 	}
 }

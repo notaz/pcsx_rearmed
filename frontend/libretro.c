@@ -3120,7 +3120,6 @@ void retro_init(void)
 #endif
    pl_rearmed_cbs.gpu_peops.iUseDither = 1;
    pl_rearmed_cbs.gpu_peops.dwActFixes = GPU_PEOPS_OLD_FRAME_SKIP;
-   spu_config.iUseFixedUpdates = 1;
 
    SaveFuncs.open = save_open;
    SaveFuncs.read = save_read;

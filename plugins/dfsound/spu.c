@@ -1286,7 +1286,7 @@ void schedule_next_irq(void)
 
 void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 {
- do_samples(cycle, spu_config.iUseFixedUpdates);
+ do_samples(cycle, 0);
 
  if (spu.spuCtrl & CTRL_IRQ)
   schedule_next_irq();
@@ -1328,6 +1328,7 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_s
   do_samples(cycle, 1);                // catch up to prevent source underflows later
 
  FeedXA(xap);                          // call main XA feeder
+ spu.xapGlobal = xap;                  // store info for save states
 }
 
 // CDDA AUDIO
@@ -1339,7 +1340,8 @@ int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes, unsigned int cycle, int 
  if (is_start)
   do_samples(cycle, 1);                // catch up to prevent source underflows later
 
- return FeedCDDA((unsigned char *)pcm, nbytes);
+ FeedCDDA((unsigned char *)pcm, nbytes);
+ return 0;
 }
 
 // to be called after state load
@@ -1361,7 +1363,7 @@ static void SetupStreams(void)
  spu.XAFeed  = spu.XAStart;
 
  spu.CDDAStart = malloc(CDDA_BUFFER_SIZE);             // alloc cdda buffer
- spu.CDDAEnd   = spu.CDDAStart + 16384;
+ spu.CDDAEnd   = spu.CDDAStart + CDDA_BUFFER_SIZE / sizeof(uint32_t);
  spu.CDDAPlay  = spu.CDDAStart;
  spu.CDDAFeed  = spu.CDDAStart;
 

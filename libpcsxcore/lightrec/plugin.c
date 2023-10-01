@@ -492,6 +492,9 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
+	if (!block_only && stop)
+		return;
+
 	cycles_pcsx = next_interupt - psxRegs.cycle;
 	assert((s32)cycles_pcsx > 0);
 
@@ -549,8 +552,6 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 static void lightrec_plugin_execute(void)
 {
-	extern int stop;
-
 	while (!stop)
 		lightrec_plugin_execute_internal(false);
 }

@@ -561,7 +561,6 @@ void psxRcntInit()
 s32 psxRcntFreeze( void *f, s32 Mode )
 {
     u32 spuSyncCount = 0;
-    u32 count;
     s32 i;
 
     gzfreeze( &rcnts, sizeof(Rcnt) * CounterQuantity );
@@ -572,14 +571,9 @@ s32 psxRcntFreeze( void *f, s32 Mode )
 
     if (Mode == 0)
     {
-        // don't trust things from a savestate
         rcnts[3].rate = 1;
-        for( i = 0; i < CounterQuantity; ++i )
-        {
+        for( i = 0; i < CounterQuantity - 1; ++i )
             _psxRcntWmode( i, rcnts[i].mode );
-            count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
-            _psxRcntWcount( i, count );
-        }
         scheduleRcntBase();
         psxRcntSet();
     }
