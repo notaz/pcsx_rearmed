@@ -589,7 +589,7 @@ static void parse_str_val(char *cval, const char *src)
 
 static void keys_load_all(const char *cfg);
 
-static int menu_load_config(int is_game)
+int menu_load_config(int is_game)
 {
 	char cfgfile[MAXPATHLEN];
 	int i, ret = -1;
