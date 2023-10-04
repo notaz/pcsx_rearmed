@@ -398,14 +398,17 @@ static inline void softCall(u32 pc) {
 	ra = 0x80001000;
 	psxRegs.CP0.n.SR &= ~0x404; // disable interrupts
 
+	assert(psxRegs.cpuInRecursion <= 1);
+	psxRegs.cpuInRecursion++;
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
-	while (pc0 != 0x80001000 && ++lim < 1000000)
+	while (pc0 != 0x80001000 && ++lim < 0x100000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
+	psxRegs.cpuInRecursion--;
 
-	if (lim == 1000000)
+	if (lim == 0x100000)
 		PSXBIOS_LOG("softCall @%x hit lim\n", pc);
 	ra = sra;
 	psxRegs.CP0.n.SR |= ssr & 0x404;
@@ -421,14 +424,16 @@ static inline void softCallInException(u32 pc) {
 		return;
 	ra = 0x80001000;
 
+	psxRegs.cpuInRecursion++;
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
-	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 1000000)
+	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 0x100000)
 		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
+	psxRegs.cpuInRecursion--;
 
-	if (lim == 1000000)
+	if (lim == 0x100000)
 		PSXBIOS_LOG("softCallInException @%x hit lim\n", pc);
 	if (pc0 == 0x80001000)
 		ra = sra;
@@ -4035,6 +4040,7 @@ void psxBiosException() {
 	sp = fp = loadRam32(A_EXC_SP);
 	gp = A_EXC_GP;
 	use_cycles(46);
+	assert(!psxRegs.cpuInRecursion);
 
 	// do the chains (always 4)
 	for (c = lim = 0; c < 4; c++) {

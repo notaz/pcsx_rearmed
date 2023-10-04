@@ -9086,17 +9086,22 @@ static int new_recompile_block(u_int addr)
   void *instr_addr0_override = NULL;
   int ds = 0;
 
-  if (start == 0x80030000) {
-    // nasty hack for the fastbios thing
-    // override block entry to this code
+  if ((Config.HLE && start == 0x80000080) || start == 0x80030000) {
     instr_addr0_override = out;
-    emit_movimm(start,0);
-    // abuse io address var as a flag that we
-    // have already returned here once
-    emit_readword(&address,1);
-    emit_writeword(0,&pcaddr);
-    emit_writeword(0,&address);
-    emit_cmp(0,1);
+    emit_movimm(start, 0);
+    if (start == 0x80030000) {
+      // for BiosBootBypass() to work
+      // io address var abused as a "already been here" flag
+      emit_readword(&address, 1);
+      emit_writeword(0, &pcaddr);
+      emit_writeword(0, &address);
+      emit_cmp(0, 1);
+    }
+    else {
+      emit_readword(&psxRegs.cpuInRecursion, 1);
+      emit_writeword(0, &pcaddr);
+      emit_test(1, 1);
+    }
     #ifdef __aarch64__
     emit_jeq(out + 4*2);
     emit_far_jump(new_dyna_leave);
