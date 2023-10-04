@@ -7,6 +7,7 @@ void menu_loop(void);
 void menu_finish(void);
 
 void menu_notify_mode_change(int w, int h, int bpp);
+int  menu_load_config(int is_game);
 
 enum g_opts_opts {
 	OPT_SHOWFPS = 1 << 0,

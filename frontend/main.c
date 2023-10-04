@@ -715,6 +715,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (ready_to_go) {
+		if (menu_load_config(1) != 0)
+			menu_load_config(0);
 		menu_prepare_emu();
 
 		// If a state has been specified, then load that
