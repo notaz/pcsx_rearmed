@@ -318,7 +318,6 @@ FUNCTION(jump_to_new_pc):
 	.align	2
 FUNCTION(new_dyna_leave):
 	ldr	r0, [fp, #LO_last_count]
-	add	r12, fp, #28
 	add	r10, r0, r10
 	str	r10, [fp, #LO_cycle]
 	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
