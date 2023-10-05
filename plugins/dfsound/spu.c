@@ -274,19 +274,16 @@ static void StartSound(int ch)
 
 INLINE int FModChangeFrequency(int *SB, int pitch, int ns)
 {
- unsigned int NP=pitch;
- int sinc;
+ pitch = (signed short)pitch;
+ pitch = ((32768 + iFMod[ns]) * pitch) >> 15;
+ pitch &= 0xffff;
+ if (pitch > 0x3fff)
+  pitch = 0x3fff;
 
- NP=((32768L+iFMod[ns])*NP)>>15;
+ iFMod[ns] = 0;
+ SB[32] = 1;                                           // reset interpolation
 
- if(NP>0x3fff) NP=0x3fff;
- if(NP<0x1)    NP=0x1;
-
- sinc=NP<<4;                                           // calc frequency
- iFMod[ns]=0;
- SB[32]=1;                                             // reset interpolation
-
- return sinc;
+ return pitch << 4;
 }                    
 
 ////////////////////////////////////////////////////////////////////////
@@ -399,16 +396,18 @@ static void decode_block_data(int *dest, const unsigned char *src, int predict_n
   d = (int)*src;
   s = (int)(signed short)((d & 0x0f) << 12);
 
-  fa = s >> shift_factor;
+  fa  = s >> shift_factor;
   fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-  s_2=s_1;s_1=fa;
+  ssat32_to_16(fa);
+  s_2 = s_1; s_1 = fa;
 
   dest[nSample++] = fa;
 
   s = (int)(signed short)((d & 0xf0) << 8);
-  fa = s >> shift_factor;
+  fa  = s >> shift_factor;
   fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-  s_2=s_1;s_1=fa;
+  ssat32_to_16(fa);
+  s_2 = s_1; s_1 = fa;
 
   dest[nSample++] = fa;
  }
