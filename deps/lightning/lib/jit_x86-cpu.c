@@ -2243,8 +2243,14 @@ _xrshr(jit_state_t *_jit, jit_bool_t sign,
     else
 	t3 = r3;
     /* Bits to shift left */
-    if (sign)
+    if (sign) {
 	rshi(t1, t2, __WORDSIZE - 1);
+	/* Special case for negative value and zero shift */
+	alui(X86_CMP, t3, 0);
+	zero = jnes(_jit->pc.w);
+	movi(t1, 0);
+	patch_at(zero, _jit->pc.w);
+    }
     else
 	movi(t1, 0);
     /* Shift in %RCX */
@@ -2261,7 +2267,7 @@ _xrshr(jit_state_t *_jit, jit_bool_t sign,
     /* Must swap results if shift value is __WORDSIZE */
     alui(X86_CMP, t3, __WORDSIZE);
     over = jes(_jit->pc.w);
-    /* Already zero or sign extended if shift value is zero */
+    /* Already zero  if shift value is zero */
     alui(X86_CMP, t3, 0);
     zero = jes(_jit->pc.w);
     /* Calculate bits to shift left and fill high register */
@@ -2296,10 +2302,7 @@ _xrshi(jit_state_t *_jit, jit_bool_t sign,
 {
     if (i0 == 0) {
 	movr(r0, r2);
-	if (sign)
-	    rshi(r1, r2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
+	movi(r1, 0);
     }
     else if (i0 == __WORDSIZE) {
 	movr(r1, r2);

@@ -1940,10 +1940,7 @@ _xrshr(jit_state_t *_jit, jit_bool_t sign,
     done_over = jmpi(_jit->pc.w);
     /* zero */
     patch_at(zero, _jit->pc.w);
-    if (sign)
-	rshi(r1, t2, __WORDSIZE - 1);
-    else
-	movi(r1, 0);
+    movi(r1, 0);
     patch_at(done, _jit->pc.w);
     patch_at(done_over, _jit->pc.w);
     jit_unget_reg(s0);
@@ -1959,10 +1956,7 @@ _xrshi(jit_state_t *_jit, jit_bool_t sign,
 {
     if (i0 == 0) {
 	movr(r0, r2);
-	if (sign)
-	    rshi(r1, r2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
+	movi(r1, 0);
     }
     else if (i0 == __WORDSIZE) {
 	movr(r1, r2);

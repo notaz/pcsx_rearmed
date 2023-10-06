@@ -235,7 +235,8 @@ _jit_print_node(jit_state_t *_jit, jit_node_t *node)
 	    if (node->code == jit_code_movi_ww_d)
 		print_hex(node->w.w);
 	    else
-		print_dec(node->w.w);			return;
+		print_dec(node->w.w);
+	    return;
 	w_r_w:
 	    print_chr(' ');	print_hex(node->u.w);
 	    print_chr(' ');	print_reg(node->v.w);

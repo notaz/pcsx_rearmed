@@ -509,7 +509,6 @@ static void unldr_x(void);	static void unldi_x(void);
 static void str_f(void);	static void sti_f(void);
 static void stxr_f(void);	static void stxi_f(void);
 static void unstr_x(void);	static void unsti_x(void);
-static void unldr_f(void);	static void unldi_f(void);
 static void bltr_f(void);	static void blti_f(void);
 static void bler_f(void);	static void blei_f(void);
 static void beqr_f(void);	static void beqi_f(void);

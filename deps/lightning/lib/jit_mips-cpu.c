@@ -806,8 +806,7 @@ static void _bswapr_ui(jit_state_t*,jit_int32_t,jit_int32_t);
 #  define bswapr_ul(r0,r1)		_bswapr_ul(_jit,r0,r1)
 static void _bswapr_ul(jit_state_t*,jit_int32_t,jit_int32_t);
 #  endif
-#define extr(r0,r1,i0,i1)		_extr(_jit,r0,r1,i0,i1)
-static void _extr(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t,jit_word_t);
+#define extr(r0,r1,i0,i1)		fallback_ext(r0,r1,i0,i1)
 #define extr_u(r0,r1,i0,i1)		_extr_u(_jit,r0,r1,i0,i1)
 static void _extr_u(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t,jit_word_t);
 #define depr(r0,r1,i0,i1)		_depr(_jit,r0,r1,i0,i1)
@@ -2353,72 +2352,42 @@ static void
 _xlshr(jit_state_t *_jit, jit_bool_t sign,
        jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
 {
-    jit_bool_t		branch;
-    jit_word_t		over, zero, done, done_over;
-    jit_int32_t		t0, s0, t1, s1, t2, s2, t3, s3;
+    jit_int32_t		t0, s0, t2, s2, t3, s3;
     s0 = jit_get_reg(jit_class_gpr);
     t0 = rn(s0);
     if (r0 == r2 || r1 == r2) {
-	s2 = jit_get_reg(jit_class_gpr);
-	t2 = rn(s2);
-	movr(t2, r2);
+        s2 = jit_get_reg(jit_class_gpr);
+        t2 = rn(s2);
+        movr(t2, r2);
     }
     else
-	t2 = r2;
+        t2 = r2;
     if (r0 == r3 || r1 == r3) {
-	s3 = jit_get_reg(jit_class_gpr);
-	t3 = rn(s3);
-	movr(t3, r3);
+        s3 = jit_get_reg(jit_class_gpr);
+        t3 = rn(s3);
+        movr(t3, r3);
     }
     else
-	t3 = r3;
-    if ((s1 = jit_get_reg(jit_class_gpr|jit_class_nospill|jit_class_chk))) {
-	t1 = rn(s1);
-	branch = 0;
-    }
-    else
-	branch = 1;
+        t3 = r3;
     rsbi(t0, t3, __WORDSIZE);
     lshr(r0, t2, t3);
     if (sign)
-	rshr(r1, t2, t0);
+        rshr(r1, t2, t0);
     else
-	rshr_u(r1, t2, t0);
-    if (branch) {
-	zero = beqi(_jit->pc.w, t3, 0);
-	over = beqi(_jit->pc.w, t3, __WORDSIZE);
-	done = jmpi(_jit->pc.w, 1);
-	flush();
-	patch_at(over, _jit->pc.w);
-	/* overflow */
-	movi(r0, 0);
-	done_over = jmpi(_jit->pc.w, 1);
-	/* zero */
-	flush();
-	patch_at(zero, _jit->pc.w);
-	if (sign)
-	    rshi(r1, t2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
-	flush();
-	patch_at(done, _jit->pc.w);
-	patch_at(done_over, _jit->pc.w);
+        rshr_u(r1, t2, t0);
+    if (sign) {
+        rshi(t0, t2, __WORDSIZE - 1);
+        /* zero? */
+        movzr(r1, t0, t3);
     }
     else {
-	if (sign)
-	    rshi(t0, t2, __WORDSIZE - 1);
-	else
-	    movi(t0, 0);
-	/* zero? */
-	movzr(r1, t0, t3);
-	/* Branchless but 4 bytes longer than branching fallback */
-	if (sign)
-	    movi(t0, 0);
-	/* overflow? */
-	eqi(t1, t3, __WORDSIZE);
-	movnr(r0, t0, t1);
-	jit_unget_reg(s1);
+        /* zero? */
+        movzr(r1, t3, t3);
     }
+    /* overflow? */
+    nei(t0, t3, __WORDSIZE);
+    movzr(r0, t0, t0);
+
     jit_unget_reg(s0);
     if (t2 != r2)
 	jit_unget_reg(s2);
@@ -2455,78 +2424,47 @@ static void
 _xrshr(jit_state_t *_jit, jit_bool_t sign,
        jit_int32_t r0, jit_int32_t r1, jit_int32_t r2, jit_int32_t r3)
 {
-    jit_bool_t		branch;
-    jit_word_t		over, zero, done, done_over;
-    jit_int32_t		t0, s0, t1, s1, t2, s2, t3, s3;
+    jit_int32_t		t0, s0, t2, s2, t3, s3;
     s0 = jit_get_reg(jit_class_gpr);
     t0 = rn(s0);
     if (r0 == r2 || r1 == r2) {
-	s2 = jit_get_reg(jit_class_gpr);
-	t2 = rn(s2);
-	movr(t2, r2);
+        s2 = jit_get_reg(jit_class_gpr);
+        t2 = rn(s2);
+        movr(t2, r2);
     }
     else
-	t2 = r2;
+        t2 = r2;
     if (r0 == r3 || r1 == r3) {
-	s3 = jit_get_reg(jit_class_gpr);
-	t3 = rn(s3);
-	movr(t3, r3);
+        s3 = jit_get_reg(jit_class_gpr);
+        t3 = rn(s3);
+        movr(t3, r3);
     }
     else
-	t3 = r3;
-    if ((s1 = jit_get_reg(jit_class_gpr|jit_class_nospill|jit_class_chk))) {
-	t1 = rn(s1);
-	branch = 0;
+        t3 = r3;
+
+    if (sign) {
+        /* underflow? */
+        eqi(t0, t3, __WORDSIZE);
+        subr(t0, t3, t0);
+        rshr(r0, t2, t0);
+    } else {
+        /* underflow? */
+        nei(t0, t3, __WORDSIZE);
+        rshr_u(r0, t2, t3);
+        movzr(r0, t0, t0);
     }
-    else
-	branch = 1;
+
     rsbi(t0, t3, __WORDSIZE);
-    if (sign)
-	rshr(r0, t2, t3);
-    else
-	rshr_u(r0, t2, t3);
     lshr(r1, t2, t0);
-    if (branch) {
-	zero = beqi(_jit->pc.w, t3, 0);
-	over = beqi(_jit->pc.w, t3, __WORDSIZE);
-	done = jmpi(_jit->pc.w, 1);
-	flush();
-	patch_at(over, _jit->pc.w);
-	/* underflow */
-	if (sign)
-	    rshi(r0, t2, __WORDSIZE - 1);
-	else
-	    movi(r0, 0);
-	done_over = jmpi(_jit->pc.w, 1);
-	/* zero */
-	flush();
-	patch_at(zero, _jit->pc.w);
-	if (sign)
-	    rshi(r1, t2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
-	flush();
-	patch_at(done, _jit->pc.w);
-	patch_at(done_over, _jit->pc.w);
-	jit_unget_reg(s1);
-    }
-    else {
-	/* zero? */
-	if (sign)
-	    rshi(t0, t2, __WORDSIZE - 1);
-	else
-	    movi(t0, 0);
-	movzr(r1, t0, t3);
-	/* underflow? */
-	eqi(t1, t3, __WORDSIZE);
-	movnr(r0, t0, t1);
-	jit_unget_reg(s1);
-    }
+
+    /* zero? */
+    movzr(r1, t3, t3);
+
     jit_unget_reg(s0);
     if (t2 != r2)
-	jit_unget_reg(s2);
+        jit_unget_reg(s2);
     if (t3 != r3)
-	jit_unget_reg(s3);
+        jit_unget_reg(s3);
 }
 
 static void
@@ -2535,10 +2473,7 @@ _xrshi(jit_state_t *_jit, jit_bool_t sign,
 {
     if (i0 == 0) {
 	movr(r0, r2);
-	if (sign)
-	    rshi(r1, r2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
+	movi(r1, 0);
     }
     else if (i0 == __WORDSIZE) {
 	movr(r1, r2);
@@ -3554,26 +3489,6 @@ _bswapr_ul(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 	generic_bswapr_ul(_jit, r0, r1);
 }
 #endif
-
-static void
-_extr(jit_state_t *_jit,
-      jit_int32_t r0, jit_int32_t r1, jit_word_t i0, jit_word_t i1)
-{
-    assert(i0 >= 0 && i1 >= 1 && i0 + i1 <= __WORDSIZE);
-    if ( i1 == __WORDSIZE)
-	movr(r0, r1);
-    else {
-#  if __BYTE_ORDER == __BIG_ENDIAN
-	i0 = __WORDSIZE - (i0 + i1);
-#  endif
-	if (__WORDSIZE - (i0 + i1)) {
-	    lshi(r0, r1, __WORDSIZE - (i0 + i1));
-	    rshi(r0, r0, __WORDSIZE - i1);
-	}
-	else
-	    rshi(r0, r1, __WORDSIZE - i1);
-    }
-}
 
 static void
 _extr_u(jit_state_t *_jit,

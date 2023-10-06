@@ -555,10 +555,7 @@ struct jit_function {
     jit_int32_t		*regoff;
     jit_regset_t	 regset;
     jit_int32_t		 stack;
-#if defined(__i386__) || defined(__x86_64__) || \
-    defined(__powerpc__) || defined(__sparc__) || \
-    defined(__s390__) || defined(__s390x__) || \
-    defined(__hppa__) || defined(__alpha__)
+#if !defined(__arm__)
     jit_int32_t		 cvt_offset;	/* allocai'd offset for x87<->xmm or
 					 * fpr<->gpr transfer using the stack */
 #endif
