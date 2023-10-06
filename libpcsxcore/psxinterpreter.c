@@ -176,25 +176,21 @@ static int execBreakCheck(psxRegisters *regs, u32 pc)
 // get an opcode without triggering exceptions or affecting cache
 u32 intFakeFetch(u32 pc)
 {
-	u8 *base = psxMemRLUT[pc >> 16];
-	u32 *code;
-	if (unlikely(base == INVALID_PTR))
+	u32 *code = (u32 *)psxm(pc & ~0x3, 0);
+	if (unlikely(code == INVALID_PTR))
 		return 0; // nop
-	code = (u32 *)(base + (pc & 0xfffc));
 	return SWAP32(*code);
 
 }
 
 static u32 INT_ATTR fetchNoCache(psxRegisters *regs, u8 **memRLUT, u32 pc)
 {
-	u8 *base = memRLUT[pc >> 16];
-	u32 *code;
-	if (unlikely(base == INVALID_PTR)) {
+	u32 *code = (u32 *)psxm_lut(pc & ~0x3, 0, memRLUT);
+	if (unlikely(code == INVALID_PTR)) {
 		SysPrintf("game crash @%08x, ra=%08x\n", pc, regs->GPR.n.ra);
 		intException(regs, pc, R3000E_IBE << 2);
 		return 0; // execute as nop
 	}
-	code = (u32 *)(base + (pc & 0xfffc));
 	return SWAP32(*code);
 }
 
@@ -217,14 +213,12 @@ static u32 INT_ATTR fetchICache(psxRegisters *regs, u8 **memRLUT, u32 pc)
 
 		if (((entry->tag ^ pc) & 0xfffffff0) != 0 || pc < entry->tag)
 		{
-			const u8 *base = memRLUT[pc >> 16];
-			const u32 *code;
-			if (unlikely(base == INVALID_PTR)) {
+			const u32 *code = (u32 *)psxm_lut(pc & ~0xf, 0, memRLUT);
+			if (unlikely(code == INVALID_PTR)) {
 				SysPrintf("game crash @%08x, ra=%08x\n", pc, regs->GPR.n.ra);
 				intException(regs, pc, R3000E_IBE << 2);
 				return 0; // execute as nop
 			}
-			code = (u32 *)(base + (pc & 0xfff0));
 
 			entry->tag = pc;
 			// treat as 4 words, although other configurations are said to be possible
