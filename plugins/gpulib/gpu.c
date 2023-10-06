@@ -447,9 +447,11 @@ static void finish_vram_transfer(int is_read)
 {
   if (is_read)
     gpu.status &= ~PSX_GPU_STATUS_IMG;
-  else
+  else {
+    gpu.state.fb_dirty = 1;
     renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
                            gpu.dma_start.w, gpu.dma_start.h, 0);
+  }
 }
 
 static void do_vram_copy(const uint32_t *params)
@@ -598,6 +600,7 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
         break;
       }
       do_vram_copy(data + pos + 1);
+      vram_dirty = 1;
       pos += 4;
       continue;
     }
