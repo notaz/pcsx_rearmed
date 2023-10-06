@@ -1065,6 +1065,8 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META]		= int_META,
 	[OP_META_MULT2]		= int_META_MULT2,
 	[OP_META_MULTU2]	= int_META_MULT2,
+	[OP_META_LWU]		= int_load,
+	[OP_META_SWU]		= int_store,
 };
 
 static const lightrec_int_func_t int_special[64] = {

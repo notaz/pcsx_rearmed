@@ -95,6 +95,9 @@ struct lightrec_mem_map_ops {
 	u8 (*lb)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
 	u16 (*lh)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
 	u32 (*lw)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
+	u32 (*lwu)(struct lightrec_state *, u32 opcode, void *host, u32 addr);
+	void (*swu)(struct lightrec_state *, u32 opcode,
+		    void *host, u32 addr, u32 data);
 };
 
 struct lightrec_mem_map {
