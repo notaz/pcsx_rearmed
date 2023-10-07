@@ -180,6 +180,16 @@ make_dma_func(3)
 make_dma_func(4)
 make_dma_func(6)
 
+static u32 io_spu_read8_even(u32 addr)
+{
+	return SPU_readRegister(addr, psxRegs.cycle) & 0xff;
+}
+
+static u32 io_spu_read8_odd(u32 addr)
+{
+	return SPU_readRegister(addr, psxRegs.cycle) >> 8;
+}
+
 static u32 io_spu_read16(u32 addr)
 {
 	return SPU_readRegister(addr, psxRegs.cycle);
@@ -401,6 +411,8 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iortab[IOMEM8(0x1803)], cdrRead3, 1);
 
 	for (i = 0x1c00; i < 0x2000; i += 2) {
+		map_item(&mem_iortab[IOMEM8(i)], io_spu_read8_even, 1);
+		map_item(&mem_iortab[IOMEM8(i+1)], io_spu_read8_odd, 1);
 		map_item(&mem_iortab[IOMEM16(i)], io_spu_read16, 1);
 		map_item(&mem_iortab[IOMEM32(i)], io_spu_read32, 1);
 	}
