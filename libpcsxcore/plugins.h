@@ -184,7 +184,7 @@ typedef struct {
 	unsigned char SPUPorts[0x200];
 	unsigned char SPURam[0x80000];
 	xa_decode_t xa;
-	unsigned char *SPUInfo;
+	unsigned char *unused;
 } SPUFreeze_t;
 typedef long (CALLBACK* SPUfreeze)(uint32_t, SPUFreeze_t *, uint32_t);
 typedef void (CALLBACK* SPUasync)(uint32_t, uint32_t);
