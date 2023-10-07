@@ -259,6 +259,7 @@ typedef struct
 
  sample_buf      sb[MAXCHAN];
  int             interpolation;
+ sample_buf      sb_thread[MAXCHAN];
 } SPUInfo;
 
 #define regAreaGet(offset) \
