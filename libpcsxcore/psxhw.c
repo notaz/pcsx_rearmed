@@ -120,8 +120,11 @@ u8 psxHwRead8(u32 add) {
 			log_unhandled("unhandled r8  %08x @%08x\n", add, psxRegs.pc);
 			// falthrough
 		default:
-			if (0x1f801c00 <= add && add < 0x1f802000)
-				log_unhandled("spu r8 %02x @%08x\n", add, psxRegs.pc);
+			if (0x1f801c00 <= add && add < 0x1f802000) {
+				u16 val = SPU_readRegister(add & ~1, psxRegs.cycle);
+				hard = (add & 1) ? val >> 8 : val;
+				break;
+			}
 			hard = psxHu8(add); 
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unkwnown 8bit read at address %x\n", add);
