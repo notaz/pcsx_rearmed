@@ -18,6 +18,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <assert.h>
 #include "stdafx.h"
 
 #define _IN_SPU
@@ -274,15 +275,15 @@ static void StartSound(int ch)
 // ALL KIND OF HELPERS
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int FModChangeFrequency(int pitch, int ns)
+INLINE int FModChangeFrequency(int pitch, int ns, int *fmod_buf)
 {
  pitch = (signed short)pitch;
- pitch = ((32768 + iFMod[ns]) * pitch) >> 15;
+ pitch = ((32768 + fmod_buf[ns]) * pitch) >> 15;
  pitch &= 0xffff;
  if (pitch > 0x3fff)
   pitch = 0x3fff;
 
- iFMod[ns] = 0;
+ fmod_buf[ns] = 0;
 
  return pitch << 4;
 }                    
@@ -479,7 +480,7 @@ static void scan_for_irq(int ch, unsigned int *upd_samples)
 }
 
 #define make_do_samples(name, fmod_code, interp_start, interp_store, interp_get, interp_end) \
-static noinline int name( \
+static noinline int name(int *dst, \
  int (*decode_f)(void *context, int ch, int *SB), void *ctx, \
  int ch, int ns_to, sample_buf *sb, int sinc, int *spos, int *sbpos) \
 {                                            \
@@ -528,41 +529,41 @@ static noinline int name( \
   if(sinc<0x10000)                /* -> upsampling? */ \
        InterpolateUp(sb, sinc);   /* --> interpolate up */ \
   else InterpolateDown(sb, sinc); /* --> else down */ \
-  ChanBuf[ns] = sb->SB[29]
+  dst[ns] = sb->SB[29]
 
 make_do_samples(do_samples_nointerp, , fa = sb->SB[29],
-   , ChanBuf[ns] = fa, sb->SB[29] = fa)
+   , dst[ns] = fa, sb->SB[29] = fa)
 make_do_samples(do_samples_simple, , ,
   simple_interp_store, simple_interp_get, )
 make_do_samples(do_samples_gauss, , ,
   StoreInterpolationGaussCubic(sb, fa),
-  ChanBuf[ns] = GetInterpolationGauss(sb, *spos), )
+  dst[ns] = GetInterpolationGauss(sb, *spos), )
 make_do_samples(do_samples_cubic, , ,
   StoreInterpolationGaussCubic(sb, fa),
-  ChanBuf[ns] = GetInterpolationCubic(sb, *spos), )
+  dst[ns] = GetInterpolationCubic(sb, *spos), )
 make_do_samples(do_samples_fmod,
-  sinc = FModChangeFrequency(spu.s_chan[ch].iRawPitch, ns), ,
+  sinc = FModChangeFrequency(spu.s_chan[ch].iRawPitch, ns, iFMod), ,
   StoreInterpolationGaussCubic(sb, fa),
-  ChanBuf[ns] = GetInterpolationGauss(sb, *spos), )
+  dst[ns] = GetInterpolationGauss(sb, *spos), )
 
-INLINE int do_samples_adpcm(
+INLINE int do_samples_adpcm(int *dst,
  int (*decode_f)(void *context, int ch, int *SB), void *ctx,
  int ch, int ns_to, int fmod, sample_buf *sb, int sinc, int *spos, int *sbpos)
 {
  int interp = spu.interpolation;
  if (fmod == 1)
-  return do_samples_fmod(decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
+  return do_samples_fmod(dst, decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
  if (fmod)
   interp = 2;
  switch (interp) {
   case 0:
-   return do_samples_nointerp(decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
+   return do_samples_nointerp(dst, decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
   case 1:
-   return do_samples_simple  (decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
+   return do_samples_simple  (dst, decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
   default:
-   return do_samples_gauss   (decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
+   return do_samples_gauss   (dst, decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
   case 3:
-   return do_samples_cubic   (decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
+   return do_samples_cubic   (dst, decode_f, ctx, ch, ns_to, sb, sinc, spos, sbpos);
  }
 }
 
@@ -593,7 +594,33 @@ static int do_samples_skip(int ch, int ns_to)
  return ret;
 }
 
-static void do_lsfr_samples(int ns_to, int ctrl,
+static int do_samples_skip_fmod(int ch, int ns_to, int *fmod_buf)
+{
+ SPUCHAN *s_chan = &spu.s_chan[ch];
+ int spos = s_chan->spos;
+ int ret = ns_to, ns, d;
+
+ spos += s_chan->iSBPos << 16;
+
+ for (ns = 0; ns < ns_to; ns++)
+ {
+  spos += FModChangeFrequency(s_chan->iRawPitch, ns, fmod_buf);
+  while (spos >= 28*0x10000)
+  {
+   d = skip_block(ch);
+   if (d && ns < ret)
+    ret = ns;
+   spos -= 28*0x10000;
+  }
+ }
+
+ s_chan->iSBPos = spos >> 16;
+ s_chan->spos = spos & 0xffff;
+
+ return ret;
+}
+
+static void do_lsfr_samples(int *dst, int ns_to, int ctrl,
  unsigned int *dwNoiseCount, unsigned int *dwNoiseVal)
 {
  unsigned int counter = *dwNoiseCount;
@@ -617,20 +644,20 @@ static void do_lsfr_samples(int ns_to, int ctrl,
    val = (val << 1) | bit;
   }
 
-  ChanBuf[ns] = (signed short)val;
+  dst[ns] = (signed short)val;
  }
 
  *dwNoiseCount = counter;
  *dwNoiseVal = val;
 }
 
-static int do_samples_noise(int ch, int ns_to)
+static int do_samples_noise(int *dst, int ch, int ns_to)
 {
  int ret;
 
  ret = do_samples_skip(ch, ns_to);
 
- do_lsfr_samples(ns_to, spu.spuCtrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
+ do_lsfr_samples(dst, ns_to, spu.spuCtrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
 
  return ret;
 }
@@ -766,13 +793,13 @@ static void do_channels(int ns_to)
 
    s_chan = &spu.s_chan[ch];
    if (s_chan->bNoise)
-    d = do_samples_noise(ch, ns_to);
+    d = do_samples_noise(ChanBuf, ch, ns_to);
    else
-    d = do_samples_adpcm(decode_block, NULL, ch, ns_to, s_chan->bFMod,
+    d = do_samples_adpcm(ChanBuf, decode_block, NULL, ch, ns_to, s_chan->bFMod,
           &spu.sb[ch], s_chan->sinc, &s_chan->spos, &s_chan->iSBPos);
 
    if (!s_chan->bStarting) {
-    d = MixADSR(&s_chan->ADSRX, d);
+    d = MixADSR(ChanBuf, &s_chan->ADSRX, d);
     if (d < ns_to) {
      spu.dwChannelsAudible &= ~(1 << ch);
      s_chan->ADSRX.State = ADSR_RELEASE;
@@ -855,6 +882,7 @@ static struct spu_worker {
    unsigned short bNoise:1;
    unsigned short bFMod:2;
    unsigned short bRVBActive:1;
+   unsigned short bStarting:1;
    ADSRInfoEx adsr;
   } ch[24];
   int SSumLR[NSSIZE * 2];
@@ -900,6 +928,7 @@ static int decode_block_work(void *context, int ch, int *SB)
 
 static void queue_channel_work(int ns_to, unsigned int silentch)
 {
+ int tmpFMod[NSSIZE];
  struct work_item *work;
  SPUCHAN *s_chan;
  unsigned int mask;
@@ -914,7 +943,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
  mask = work->channels_new = spu.dwNewChannel & 0xffffff;
  for (ch = 0; mask != 0; ch++, mask >>= 1) {
   if (mask & 1)
-   StartSoundMain(ch);
+   StartSound(ch);
  }
 
  mask = work->channels_on = spu.dwChannelsAudible & 0xffffff;
@@ -936,10 +965,32 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    work->ch[ch].bNoise = s_chan->bNoise;
    work->ch[ch].bFMod = s_chan->bFMod;
    work->ch[ch].bRVBActive = s_chan->bRVBActive;
+   work->ch[ch].bStarting = s_chan->bStarting;
    if (s_chan->prevflags & 1)
     work->ch[ch].start = work->ch[ch].loop;
 
-   d = do_samples_skip(ch, ns_to);
+   if (unlikely(s_chan->bFMod == 2))
+   {
+    // sucks, have to do double work
+    assert(!s_chan->bNoise);
+    d = do_samples_gauss(tmpFMod, decode_block, NULL, ch, ns_to,
+          &spu.sb[ch], s_chan->sinc, &s_chan->spos, &s_chan->iSBPos);
+    if (!s_chan->bStarting) {
+     d = MixADSR(tmpFMod, &s_chan->ADSRX, d);
+     if (d < ns_to) {
+      spu.dwChannelsAudible &= ~(1 << ch);
+      s_chan->ADSRX.State = ADSR_RELEASE;
+      s_chan->ADSRX.EnvelopeVol = 0;
+     }
+    }
+    memset(&tmpFMod[d], 0, (ns_to - d) * sizeof(tmpFMod[d]));
+    work->ch[ch].ns_to = d;
+    continue;
+   }
+   if (unlikely(s_chan->bFMod))
+    d = do_samples_skip_fmod(ch, ns_to, tmpFMod);
+   else
+    d = do_samples_skip(ch, ns_to);
    work->ch[ch].ns_to = d;
 
    if (!s_chan->bStarting) {
@@ -951,7 +1002,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
      s_chan->ADSRX.EnvelopeVol = 0;
     }
    }
-  }
+  } // for (ch;;)
 
  work->rvb_addr = 0;
  if (spu.rvb->StartAddr) {
@@ -978,10 +1029,10 @@ static void do_channel_work(struct work_item *work)
  if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
  {
   spu.interpolation = spu_config.iUseInterpolation;
-  mask = spu.dwChannelsAudible & 0xffffff;
+  mask = work->channels_on;
   for (ch = 0; mask != 0; ch++, mask >>= 1)
    if (mask & 1)
-    ResetInterpolation(&spu.sb[ch]);
+    ResetInterpolation(&spu.sb_thread[ch]);
  }
 
  if (work->rvb_addr)
@@ -990,7 +1041,7 @@ static void do_channel_work(struct work_item *work)
  mask = work->channels_new;
  for (ch = 0; mask != 0; ch++, mask >>= 1) {
   if (mask & 1)
-   StartSoundSB(&spu.sb[ch]);
+   StartSoundSB(&spu.sb_thread[ch]);
  }
 
  mask = work->channels_on;
@@ -1003,12 +1054,12 @@ static void do_channel_work(struct work_item *work)
    sbpos = work->ch[ch].sbpos;
 
    if (work->ch[ch].bNoise)
-    do_lsfr_samples(d, work->ctrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
+    do_lsfr_samples(ChanBuf, d, work->ctrl, &spu.dwNoiseCount, &spu.dwNoiseVal);
    else
-    do_samples_adpcm(decode_block_work, work, ch, d, work->ch[ch].bFMod,
-          &spu.sb[ch], work->ch[ch].sinc, &spos, &sbpos);
+    do_samples_adpcm(ChanBuf, decode_block_work, work, ch, d, work->ch[ch].bFMod,
+          &spu.sb_thread[ch], work->ch[ch].sinc, &spos, &sbpos);
 
-   d = MixADSR(&work->ch[ch].adsr, d);
+   d = MixADSR(ChanBuf, &work->ch[ch].adsr, d);
    if (d < ns_to) {
     work->ch[ch].adsr.EnvelopeVol = 0;
     memset(&ChanBuf[d], 0, (ns_to - d) * sizeof(ChanBuf[0]));

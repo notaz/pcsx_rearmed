@@ -63,7 +63,7 @@ INLINE void StartADSR(int ch)                          // MIX ADSR
 
 ////////////////////////////////////////////////////////////////////////
 
-static int MixADSR(ADSRInfoEx *adsr, int ns_to)
+static int MixADSR(int *samples, ADSRInfoEx *adsr, int ns_to)
 {
  unsigned int EnvelopeVol = adsr->EnvelopeVol;
  int ns = 0, val, rto, level;
@@ -80,8 +80,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
        if ((signed int)EnvelopeVol <= 0)
          break;
 
-       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-       ChanBuf[ns] >>= 10;
+       samples[ns] *= (signed int)EnvelopeVol >> 21;
+       samples[ns] >>= 10;
      }
    }
    else
@@ -92,8 +92,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
        if ((signed int)EnvelopeVol <= 0)
          break;
 
-       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-       ChanBuf[ns] >>= 10;
+       samples[ns] *= (signed int)EnvelopeVol >> 21;
+       samples[ns] >>= 10;
      }
    }
 
@@ -114,8 +114,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
        if ((signed int)EnvelopeVol < 0) // overflow
         break;
 
-       ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-       ChanBuf[ns] >>= 10;
+       samples[ns] *= (signed int)EnvelopeVol >> 21;
+       samples[ns] >>= 10;
      }
 
      if ((signed int)EnvelopeVol < 0) // overflow
@@ -139,8 +139,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
        if ((signed int)EnvelopeVol < 0)
          EnvelopeVol = 0;
 
-       ChanBuf[ns] *= EnvelopeVol >> 21;
-       ChanBuf[ns] >>= 10;
+       samples[ns] *= EnvelopeVol >> 21;
+       samples[ns] >>= 10;
        ns++;
 
        if (((EnvelopeVol >> 27) & 0xf) <= level)
@@ -177,8 +177,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
            break;
          }
 
-         ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-         ChanBuf[ns] >>= 10;
+         samples[ns] *= (signed int)EnvelopeVol >> 21;
+         samples[ns] >>= 10;
        }
      }
      else
@@ -192,8 +192,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
            if ((signed int)EnvelopeVol < 0)
              break;
 
-           ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-           ChanBuf[ns] >>= 10;
+           samples[ns] *= (signed int)EnvelopeVol >> 21;
+           samples[ns] >>= 10;
          }
        }
        else
@@ -204,8 +204,8 @@ static int MixADSR(ADSRInfoEx *adsr, int ns_to)
            if ((signed int)EnvelopeVol < 0)
              break;
 
-           ChanBuf[ns] *= (signed int)EnvelopeVol >> 21;
-           ChanBuf[ns] >>= 10;
+           samples[ns] *= (signed int)EnvelopeVol >> 21;
+           samples[ns] >>= 10;
          }
        }
      }
