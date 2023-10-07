@@ -546,7 +546,6 @@ static void SetPitch(int ch,unsigned short val)               // SET PITCH
  spu.s_chan[ch].iRawPitch = NP;
  spu.s_chan[ch].sinc = NP << 4;
  spu.s_chan[ch].sinc_inv = 0;
- spu.s_chan[ch].bNewPitch = 1;
 
  // don't mess spu.dwChannelsAudible as adsr runs independently
 }

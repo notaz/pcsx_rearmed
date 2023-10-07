@@ -117,7 +117,6 @@ typedef struct
  unsigned int      bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
  unsigned int      prevflags:3;                        // flags from previous block
  unsigned int      bIgnoreLoop:1;                      // Ignore loop
- unsigned int      bNewPitch:1;                        // pitch changed
  unsigned int      bStarting:1;                        // starting after keyon
  union {
   struct {
@@ -183,7 +182,21 @@ typedef struct
 
 // psx buffers / addresses
 
-#define SB_SIZE (32 + 4)
+typedef union
+{
+ int SB[28 + 4 + 4];
+ struct {
+  int sample[28];
+  union {
+   struct {
+    int pos;
+    signed short val[4];
+   } gauss;
+   int simple[5]; // 28-32
+  } interp;
+  int sinc_old;
+ };
+} sample_buf;
 
 typedef struct
 {
@@ -239,10 +252,13 @@ typedef struct
  REVERBInfo    * rvb;
 
  // buffers
- int           * SB;
+ void          * unused;
  int           * SSumLR;
 
  unsigned short  regArea[0x400];
+
+ sample_buf      sb[MAXCHAN];
+ int             interpolation;
 } SPUInfo;
 
 #define regAreaGet(offset) \

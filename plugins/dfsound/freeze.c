@@ -15,6 +15,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <assert.h>
 #include "stdafx.h"
 
 #define _IN_FREEZE
@@ -145,7 +146,8 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->iSBPos = s->iSBPos;
  d->spos = s->spos;
  d->sinc = s->sinc;
- memcpy(d->SB, spu.SB + ch * SB_SIZE, sizeof(d->SB[0]) * SB_SIZE);
+ assert(sizeof(d->SB) >= sizeof(spu.sb[ch]));
+ memcpy(d->SB, &spu.sb[ch], sizeof(spu.sb[ch]));
  d->iStart = (regAreaGetCh(ch, 6) & ~1) << 3;
  d->iCurr = 0; // set by the caller
  d->iLoop = 0; // set by the caller
@@ -159,8 +161,8 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->bIgnoreLoop = (s->prevflags ^ 2) << 1;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
- d->s_1 = spu.SB[ch * SB_SIZE + 27]; // yes it's reversed
- d->s_2 = spu.SB[ch * SB_SIZE + 26];
+ d->s_1 = spu.sb[ch].SB[27]; // yes it's reversed
+ d->s_2 = spu.sb[ch].SB[26];
  d->bRVBActive = s->bRVBActive;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
@@ -187,7 +189,7 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  d->sinc_inv = 0;
- memcpy(spu.SB + ch * SB_SIZE, s->SB, sizeof(spu.SB[0]) * SB_SIZE);
+ memcpy(&spu.sb[ch], s->SB, sizeof(spu.sb[ch]));
  d->pCurr = (void *)((uintptr_t)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((uintptr_t)s->iLoop & 0x7fff0);
  d->bReverb = s->bReverb;
@@ -340,7 +342,7 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  load_register(H_CDRight, cycles);
 
  // fix to prevent new interpolations from crashing
- for(i=0;i<MAXCHAN;i++) spu.SB[i * SB_SIZE + 28]=0;
+ spu.interpolation = -1;
 
  ClearWorkingState();
 
