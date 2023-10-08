@@ -1414,7 +1414,7 @@ _fallback_qrshr(jit_state_t *_jit, jit_int32_t r0,
     /* zero */
     fallback_flush();
     fallback_patch_beqi(zero, _jit->pc.w);
-    rshi(r1, t2, __WORDSIZE - 1);
+    movi(r1, 0);
     fallback_flush();
     fallback_patch_jmpi(done, _jit->pc.w);
     fallback_patch_jmpi(done_over, _jit->pc.w);
@@ -1431,12 +1431,8 @@ _fallback_qrshi(jit_state_t *_jit, jit_int32_t r0,
 {
     assert((jit_uword_t)i0 <= __WORDSIZE);
     if (i0 == 0) {
-	if (r0 != r2) {
-	    movr(r0, r2);
-	    rshi(r1, r2, __WORDSIZE - 1);
-	}
-	else
-	    rshi(r1, r2, __WORDSIZE - 1);
+	movr(r0, r2);
+	movi(r1, 0);
     }
     else if (i0 != __WORDSIZE) {
 	lshi(r1, r2, __WORDSIZE - i0);

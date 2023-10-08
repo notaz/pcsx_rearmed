@@ -1741,8 +1741,9 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 void
 _jit_patch_abs(jit_state_t *_jit, jit_node_t *instr, jit_pointer_t address)
 {
+#ifndef NDEBUG
     jit_int32_t		mask;
-
+#endif
     switch (instr->code) {
 	case jit_code_movi:	case jit_code_ldi_c:	case jit_code_ldi_uc:
 	case jit_code_ldi_s:	case jit_code_ldi_us:	case jit_code_ldi_i:
@@ -1755,7 +1756,9 @@ _jit_patch_abs(jit_state_t *_jit, jit_node_t *instr, jit_pointer_t address)
 	    instr->u.p = address;
 	    break;
 	default:
+#ifndef NDEBUG
 	    mask = jit_classify(instr->code);
+#endif
 	    assert((mask & (jit_cc_a0_reg|jit_cc_a0_jmp)) == jit_cc_a0_jmp);
 	    instr->u.p = address;
     }
@@ -1764,8 +1767,9 @@ _jit_patch_abs(jit_state_t *_jit, jit_node_t *instr, jit_pointer_t address)
 void
 _jit_patch_at(jit_state_t *_jit, jit_node_t *instr, jit_node_t *label)
 {
+#ifndef NDEBUG
     jit_int32_t		mask;
-
+#endif
     assert(!(instr->flag & jit_flag_node));
     instr->flag |= jit_flag_node;
     switch (instr->code) {
@@ -1782,7 +1786,9 @@ _jit_patch_at(jit_state_t *_jit, jit_node_t *instr, jit_node_t *label)
 	    instr->u.n = label;
 	    break;
 	default:
+#ifndef NDEBUG
 	    mask = jit_classify(instr->code);
+#endif
 	    assert((mask & (jit_cc_a0_reg|jit_cc_a0_jmp)) == jit_cc_a0_jmp);
 	    assert(label->code == jit_code_label);
 	    instr->u.n = label;
@@ -2441,7 +2447,9 @@ _jit_emit(jit_state_t *_jit)
     jit_pointer_t	 code;
     jit_node_t		*node;
     size_t		 length;
+#ifndef NDEBUG
     int			 result;
+#endif
 #if defined(__sgi)
     int			 mmap_fd;
 #endif
@@ -2484,8 +2492,10 @@ _jit_emit(jit_state_t *_jit)
 
     for (;;) {
 #if __NetBSD__
-	result = mprotect(_jit->code.ptr, _jit->code.length,
-			  PROT_READ | PROT_WRITE);
+#ifndef NDEBUG
+	result =
+#endif
+	mprotect(_jit->code.ptr, _jit->code.length, PROT_READ | PROT_WRITE);
 	assert(result == 0);
 #endif
 	if ((code = emit_code()) == NULL) {
@@ -2550,8 +2560,10 @@ _jit_emit(jit_state_t *_jit)
 	jit_free((jit_pointer_t *)&_jitc->data.ptr);
 #if HAVE_MMAP
     else {
-	result = mprotect(_jit->data.ptr,
-			  _jit->data.length, PROT_READ);
+#  ifndef NDEBUG
+	result =
+#  endif
+	mprotect(_jit->data.ptr, _jit->data.length, PROT_READ);
 	assert(result == 0);
     }
     if (!_jit->user_code) {
@@ -2560,7 +2572,10 @@ _jit_emit(jit_state_t *_jit)
 	/* FIXME should start adding consts at a page boundary */
 	_jit->code.protect -= _jitc->consts.hash.count * sizeof(jit_word_t);
 #  endif
-	result = mprotect(_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
+#  ifndef NDEBUG
+	result =
+	mprotect(_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
+#  endif
 	assert(result == 0);
     }
 #endif /* HAVE_MMAP */
@@ -2576,9 +2591,14 @@ _jit_protect(jit_state_t *_jit)
 #if !HAVE_MMAP
   assert (_jit->user_code);
 #else
+#  ifndef NDEBUG
   int result;
+#  endif
   if (_jit->user_code) return;
-  result = mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
+#  ifndef NDEBUG
+  result =
+#endif
+  mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
   assert (result == 0);
 #endif
 }
@@ -2589,9 +2609,14 @@ _jit_unprotect(jit_state_t *_jit)
 #if !HAVE_MMAP
   assert (_jit->user_code);
 #else
+#  ifndef NDEBUG
   int result;
+#  endif
   if (_jit->user_code) return;
-  result = mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_WRITE);
+#  ifndef NDEBUG
+  result =
+#  endif
+  mprotect (_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_WRITE);
   assert (result == 0);
 #endif
 }
@@ -4260,7 +4285,7 @@ static void _htoni_ul(jit_state_t*, jit_int32_t, jit_word_t);
 #endif
 #  define movi_f_w(r0, i0)		_movi_f_w(_jit, r0, i0)
 static void _movi_f_w(jit_state_t*, jit_int32_t, jit_float32_t);
-#if __WORDSIZE == 32
+#if __WORDSIZE == 32 && !(defined(__mips__) && NEW_ABI)
 #  define movi_d_ww(r0, r1, i0)		_movi_d_ww(_jit, r0, r1, i0)
 static void _movi_d_ww(jit_state_t*, jit_int32_t, jit_int32_t, jit_float64_t);
 #else
@@ -4544,7 +4569,7 @@ _movi_f_w(jit_state_t *_jit, jit_int32_t r0, jit_float32_t i0)
     movi(r0, data.i);
 }
 
-#if __WORDSIZE == 32
+#if __WORDSIZE == 32 && !(defined(__mips__) && NEW_ABI)
 static void
 _movi_d_ww(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_float64_t i0)
 {

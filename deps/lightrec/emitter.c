@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define LIGHTNING_UNALIGNED_32BIT 4
+
 typedef void (*lightrec_rec_func_t)(struct lightrec_cstate *, const struct block *, u16);
 
 /* Forward declarations */
@@ -942,6 +944,8 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
 	u8 lo, hi, rs, rt, rflags = 0;
+	bool no_lo = op_flag_no_lo(flags);
+	bool no_hi = op_flag_no_hi(flags);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -953,44 +957,46 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, rflags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rt, rflags);
 
-	if (!op_flag_no_lo(flags))
+	if (!no_lo)
 		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
-	else if (__WORDSIZE == 32)
-		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (!op_flag_no_hi(flags))
+	if (!no_hi)
 		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, REG_EXT);
 
 	if (__WORDSIZE == 32) {
 		/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
 		 * operation if the MULT was detected a 32-bit only. */
-		if (!op_flag_no_hi(flags)) {
+		if (no_lo) {
 			if (is_signed)
-				jit_qmulr(lo, hi, rs, rt);
+				jit_hmulr(hi, rs, rt);
 			else
-				jit_qmulr_u(lo, hi, rs, rt);
-		} else {
+				jit_hmulr_u(hi, rs, rt);
+		} else if (no_hi) {
 			jit_mulr(lo, rs, rt);
+		} else if (is_signed) {
+			jit_qmulr(lo, hi, rs, rt);
+		} else {
+			jit_qmulr_u(lo, hi, rs, rt);
 		}
 	} else {
 		/* On 64-bit systems, do a 64*64->64 bit operation. */
-		if (op_flag_no_lo(flags)) {
+		if (no_lo) {
 			jit_mulr(hi, rs, rt);
 			jit_rshi(hi, hi, 32);
 		} else {
 			jit_mulr(lo, rs, rt);
 
 			/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
-			if (!op_flag_no_hi(flags))
+			if (!no_hi)
 				jit_rshi(hi, lo, 32);
 		}
 	}
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
-	if (!op_flag_no_lo(flags) || __WORDSIZE == 32)
+	if (!no_lo)
 		lightrec_free_reg(reg_cache, lo);
-	if (!op_flag_no_hi(flags))
+	if (!no_hi)
 		lightrec_free_reg(reg_cache, hi);
 }
 
@@ -1270,7 +1276,8 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
 	bool no_mask = op_flag_no_mask(op->flags);
 	bool add_imm = c.i.imm &&
-		((!state->mirrors_mapped && !no_mask) || (invalidate &&
+		(c.i.op == OP_META_SWU
+		 || (!state->mirrors_mapped && !no_mask) || (invalidate &&
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
 	bool need_tmp = !no_mask || add_imm || invalidate;
 	bool swc2 = c.i.op == OP_SWC2;
@@ -1320,9 +1327,15 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp3, rt);
-		jit_new_node_www(code, imm, addr_reg2, tmp3);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(addr_reg2, tmp3, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, imm, addr_reg2, tmp3);
 
 		lightrec_free_reg(reg_cache, tmp3);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(addr_reg2, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, imm, addr_reg2, rt);
 	}
@@ -1428,7 +1441,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, addr_mask);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
-	if (!state->mirrors_mapped && c.i.imm) {
+	if ((c.i.op == OP_META_SWU || !state->mirrors_mapped) && c.i.imm) {
 		imm = 0;
 		jit_addi(tmp, rs, (s16)c.i.imm);
 		jit_andr(tmp, tmp, reg_imm);
@@ -1468,9 +1481,15 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp2, rt);
-		jit_new_node_www(code, imm, tmp, tmp2);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(tmp, tmp2, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, imm, tmp, tmp2);
 
 		lightrec_free_reg(reg_cache, tmp2);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(tmp, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, imm, tmp, rt);
 	}
@@ -1540,6 +1559,18 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	else
 		jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
+	if (c.i.op == OP_META_SWU) {
+		/* With a SWU opcode, we might have touched the following 32-bit
+		 * word, so invalidate it as well */
+		if (lut_is_32bit(state)) {
+			jit_stxi_i(offsetof(struct lightrec_state, code_lut) + 4,
+				   tmp, tmp3);
+		} else {
+			jit_stxi(offsetof(struct lightrec_state, code_lut)
+				 + sizeof(uintptr_t), tmp, tmp3);
+		}
+	}
+
 	if (different_offsets) {
 		jit_movi(tmp, state->offset_ram);
 
@@ -1565,9 +1596,15 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp, rt);
-		jit_new_node_www(code, 0, tmp2, tmp);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(tmp2, tmp, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, 0, tmp2, tmp);
 
 		lightrec_free_reg(reg_cache, tmp);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(tmp2, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, 0, tmp2, rt);
 	}
@@ -1696,7 +1733,8 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
 
-	if (!cstate->state->mirrors_mapped && c.i.imm && !no_mask) {
+	if ((op->i.op == OP_META_LWU && c.i.imm)
+	    || (!cstate->state->mirrors_mapped && c.i.imm && !no_mask)) {
 		jit_addi(rt, rs, (s16)c.i.imm);
 		addr_reg = rt;
 		imm = 0;
@@ -1704,6 +1742,9 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 		addr_reg = rs;
 		imm = (s16)c.i.imm;
 	}
+
+	if (op->i.op == OP_META_LWU)
+		imm = LIGHTNING_UNALIGNED_32BIT;
 
 	if (!no_mask) {
 		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
@@ -1815,7 +1856,8 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 	if ((state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch &&
-	    state->mirrors_mapped) || !c.i.imm) {
+	    state->mirrors_mapped && c.i.op != OP_META_LWU)
+	    || !c.i.imm) {
 		addr_reg = rs;
 		imm = (s16)c.i.imm;
 	} else {
@@ -1826,6 +1868,9 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		if (c.i.rs != c.i.rt)
 			lightrec_free_reg(reg_cache, rs);
 	}
+
+	if (op->i.op == OP_META_LWU)
+		imm = LIGHTNING_UNALIGNED_32BIT;
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
@@ -2780,6 +2825,29 @@ static void rec_meta_COM(struct lightrec_cstate *state,
 	lightrec_free_reg(reg_cache, rd);
 }
 
+static void rec_meta_LWU(struct lightrec_cstate *state,
+			 const struct block *block,
+			 u16 offset)
+{
+	jit_code_t code;
+
+	if (is_big_endian() && __WORDSIZE == 64)
+		code = jit_code_unldr_u;
+	else
+		code = jit_code_unldr;
+
+	_jit_name(block->_jit, __func__);
+	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
+}
+
+static void rec_meta_SWU(struct lightrec_cstate *state,
+			 const struct block *block,
+			 u16 offset)
+{
+	_jit_name(block->_jit, __func__);
+	rec_store(state, block, offset, jit_code_unstr, jit_code_bswapr_ui);
+}
+
 static void unknown_opcode(struct lightrec_cstate *state,
 			   const struct block *block, u16 offset)
 {
@@ -2825,6 +2893,8 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META]		= rec_META,
 	[OP_META_MULT2]		= rec_meta_MULT2,
 	[OP_META_MULTU2]	= rec_meta_MULT2,
+	[OP_META_LWU]		= rec_meta_LWU,
+	[OP_META_SWU]		= rec_meta_SWU,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

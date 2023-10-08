@@ -662,6 +662,7 @@ void lightrec_consts_propagate(const struct block *block,
 		}
 		fallthrough;
 	case OP_LW:
+	case OP_META_LWU:
 		v[c.i.rt].known = 0;
 		v[c.i.rt].sign = 0;
 		break;

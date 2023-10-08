@@ -80,6 +80,27 @@ static u32 lightrec_default_lw(struct lightrec_state *state,
 	return LE32TOH(*(u32 *)host);
 }
 
+static u32 lightrec_default_lwu(struct lightrec_state *state,
+				u32 opcode, void *host, u32 addr)
+{
+	u32 val;
+
+	memcpy(&val, host, 4);
+
+	return LE32TOH(val);
+}
+
+static void lightrec_default_swu(struct lightrec_state *state, u32 opcode,
+				 void *host, u32 addr, u32 data)
+{
+	data = HTOLE32(data);
+
+	memcpy(host, &data, 4);
+
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
+		lightrec_invalidate(state, addr & ~0x3, 8);
+}
+
 static const struct lightrec_mem_map_ops lightrec_default_ops = {
 	.sb = lightrec_default_sb,
 	.sh = lightrec_default_sh,
@@ -87,6 +108,8 @@ static const struct lightrec_mem_map_ops lightrec_default_ops = {
 	.lb = lightrec_default_lb,
 	.lh = lightrec_default_lh,
 	.lw = lightrec_default_lw,
+	.lwu = lightrec_default_lwu,
+	.swu = lightrec_default_swu,
 };
 
 static void __segfault_cb(struct lightrec_state *state, u32 addr,
@@ -331,6 +354,11 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 		return lightrec_lwl(state, ops, opcode, host, addr, data);
 	case OP_LWR:
 		return lightrec_lwr(state, ops, opcode, host, addr, data);
+	case OP_META_LWU:
+		return ops->lwu(state, opcode, host, addr);
+	case OP_META_SWU:
+		ops->swu(state, opcode, host, addr, data);
+		return 0;
 	case OP_LW:
 	default:
 		return ops->lw(state, opcode, host, addr);
@@ -352,6 +380,7 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	case OP_LWL:
 	case OP_LWR:
 	case OP_LW:
+	case OP_META_LWU:
 		if (OPT_HANDLE_LOAD_DELAYS && unlikely(!state->in_delay_slot_n)) {
 			state->temp_reg = ret;
 			state->in_delay_slot_n = 0xff;
@@ -1482,6 +1511,8 @@ static bool lightrec_block_is_fully_tagged(const struct block *block)
 		case OP_SWR:
 		case OP_LWC2:
 		case OP_SWC2:
+		case OP_META_LWU:
+		case OP_META_SWU:
 			if (!LIGHTREC_FLAGS_GET_IO_MODE(op->flags))
 				return false;
 			fallthrough;

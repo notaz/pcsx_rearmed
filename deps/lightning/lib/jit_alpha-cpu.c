@@ -1506,23 +1506,19 @@ _xrshr(jit_state_t *_jit, jit_bool_t sign,
 	done_over = jmpi(_jit->pc.w);
 	/* zero */
 	patch_at(zero, _jit->pc.w);
-	if (sign)
-	    rshi(r1, t2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
+	movi(r1, 0);
 	patch_at(done, _jit->pc.w);
 	patch_at(done_over, _jit->pc.w);
 	jit_unget_reg(s1);
     }
     else {
 	/* zero? */
-	if (sign)
-	    rshi(t0, t2, __WORDSIZE - 1);
-	else
-	    movi(t0, 0);
+	movi(t0, 0);
 	movzr(r1, t0, t3);
 	/* underflow? */
 	eqi(t1, t3, __WORDSIZE);
+	if (sign)
+	    rshi(t0, t2, __WORDSIZE - 1);
 	movnr(r0, t0, t1);
 	jit_unget_reg(s1);
     }
@@ -1539,10 +1535,7 @@ _xrshi(jit_state_t *_jit, jit_bool_t sign,
 {
     if (i0 == 0) {
 	movr(r0, r2);
-	if (sign)
-	    rshi(r1, r2, __WORDSIZE - 1);
-	else
-	    movi(r1, 0);
+	movi(r1, 0);
     }
     else if (i0 == __WORDSIZE) {
 	movr(r1, r2);

@@ -40,6 +40,10 @@ static const char * const std_opcodes[] = {
 	[OP_SWR]		= "swr     ",
 	[OP_LWC2]		= "lwc2    ",
 	[OP_SWC2]		= "swc2    ",
+	[OP_META_MULT2]		= "mult2   ",
+	[OP_META_MULTU2]	= "multu2  ",
+	[OP_META_LWU]		= "lwu     ",
+	[OP_META_SWU]		= "swu     ",
 };
 
 static const char * const special_opcodes[] = {
@@ -444,6 +448,8 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
+	case OP_META_LWU:
+	case OP_META_SWU:
 		*flags_ptr = opcode_io_flags;
 		*nb_flags = ARRAY_SIZE(opcode_io_flags);
 		*is_io = true;
