@@ -41,6 +41,7 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/r3000a.c \
              $(CORE_DIR)/sio.c \
              $(CORE_DIR)/spu.c \
+             $(CORE_DIR)/gpu.c \
              $(CORE_DIR)/gte.c \
              $(CORE_DIR)/gte_nf.c \
              $(CORE_DIR)/gte_divider.c

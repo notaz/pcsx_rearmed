@@ -33,6 +33,7 @@
 #include "psemu_plugin_defs.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psxmem_map.h"
+#include "../libpcsxcore/gpu.h"
 
 #define HUD_HEIGHT 10
 
@@ -770,6 +771,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
 	.mmap = pl_mmap,
 	.munmap = pl_munmap,
 	.pl_set_gpu_caps = pl_set_gpu_caps,
+	.gpu_state_change = gpu_state_change,
 };
 
 /* watchdog */

@@ -114,6 +114,7 @@ struct psx_gpu {
     (int *x, int *y, int *w, int *h, int *vram_h);
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);
+  void  (*gpu_state_change)(int what); // psx_gpu_state
 };
 
 extern struct psx_gpu gpu;

@@ -156,6 +156,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 			HW_DMA2_MADR = SWAPu32(madr + words_copy * 4);
 
+			// careful: gpu_state_change() also messes with this
+			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 			// already 32-bit word size ((size * 4) / 4)
 			GPUDMA_INT(words / 4);
 			return;
@@ -177,6 +179,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 			HW_DMA2_MADR = SWAPu32(madr);
 
+			// careful: gpu_state_change() also messes with this
+			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 			// already 32-bit word size ((size * 4) / 4)
 			GPUDMA_INT(words / 4);
 			return;
@@ -214,6 +218,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	DMA_INTERRUPT(2);
 }
 
+// note: this is also (ab)used for non-dma prim command
+// to delay gpu returning to idle state, see gpu_state_change()
 void gpuInterrupt() {
 	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
 	{

@@ -27,6 +27,7 @@
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/r3000a.h"
+#include "../libpcsxcore/gpu.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "cspace.h"
@@ -488,6 +489,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
    .pl_vout_close    = vout_close,
    .mmap             = pl_mmap,
    .munmap           = pl_munmap,
+   .gpu_state_change = gpu_state_change,
    /* from psxcounters */
    .gpu_hcnt         = &hSyncCount,
    .gpu_frame_count  = &frame_counter,
