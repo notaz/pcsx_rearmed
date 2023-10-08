@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gpu.h"
+#include "../../libpcsxcore/gpu.h" // meh
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #ifdef __GNUC__
@@ -441,6 +442,8 @@ static void start_vram_transfer(uint32_t pos_word, uint32_t size_word, int is_re
 
   log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu.dma.x, gpu.dma.y, gpu.dma.w, gpu.dma.h);
+  if (gpu.gpu_state_change)
+    gpu.gpu_state_change(PGS_VRAM_TRANSFER_START);
 }
 
 static void finish_vram_transfer(int is_read)
@@ -452,6 +455,8 @@ static void finish_vram_transfer(int is_read)
     renderer_update_caches(gpu.dma_start.x, gpu.dma_start.y,
                            gpu.dma_start.w, gpu.dma_start.h, 0);
   }
+  if (gpu.gpu_state_change)
+    gpu.gpu_state_change(PGS_VRAM_TRANSFER_END);
 }
 
 static void do_vram_copy(const uint32_t *params)
@@ -630,12 +635,16 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
   return count - pos;
 }
 
-static void flush_cmd_buffer(void)
+static noinline void flush_cmd_buffer(void)
 {
   int left = do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
   if (left > 0)
     memmove(gpu.cmd_buffer, gpu.cmd_buffer + gpu.cmd_len - left, left * 4);
-  gpu.cmd_len = left;
+  if (left != gpu.cmd_len) {
+    if (!gpu.dma.h && gpu.gpu_state_change)
+      gpu.gpu_state_change(PGS_PRIMITIVE_START);
+    gpu.cmd_len = left;
+  }
 }
 
 void GPUwriteDataMem(uint32_t *mem, int count)
@@ -914,6 +923,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 
   gpu.mmap = cbs->mmap;
   gpu.munmap = cbs->munmap;
+  gpu.gpu_state_change = cbs->gpu_state_change;
 
   // delayed vram mmap
   if (gpu.vram == NULL)

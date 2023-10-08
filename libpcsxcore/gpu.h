@@ -43,4 +43,12 @@
 	HW_GPU_STATUS |= SWAP32(GPU_readStatus() & ~PSXGPU_TIMING_BITS); \
 }
 
+enum psx_gpu_state {
+  PGS_VRAM_TRANSFER_START,
+  PGS_VRAM_TRANSFER_END,
+  PGS_PRIMITIVE_START, // for non-dma only
+};
+
+void gpu_state_change(int what);
+
 #endif /* __GPU_H__ */

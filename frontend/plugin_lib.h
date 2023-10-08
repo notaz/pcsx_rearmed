@@ -49,6 +49,7 @@ void  pl_switch_dispmode(void);
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
 
+// for communication with gpulib
 struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_vout_open)(void);
@@ -61,6 +62,8 @@ struct rearmed_cbs {
 	// only used by some frontends
 	void  (*pl_vout_set_raw_vram)(void *vram);
 	void  (*pl_set_gpu_caps)(int caps);
+	// emulation related
+	void  (*gpu_state_change)(int what);
 	// some stats, for display by some plugins
 	int flips_per_sec, cpu_usage;
 	float vsps_cur; // currect vsync/s
