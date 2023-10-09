@@ -1479,13 +1479,15 @@ void psxBios_printf() { // 0x3f
 }
 
 static void psxBios_cd() { // 0x40
-	const char *p, *dir = castRam8ptr(a0);
+	const char *p, *dir = Ra0;
 	PSXBIOS_LOG("psxBios_%s %x(%s)\n", biosB0n[0x40], a0, dir);
-	if ((p = strchr(dir, ':')))
-		dir = ++p;
-	if (*dir == '\\')
-		dir++;
-	snprintf(cdir, sizeof(cdir), "%s", dir);
+	if (dir != INVALID_PTR) {
+		if ((p = strchr(dir, ':')))
+			dir = ++p;
+		if (*dir == '\\')
+			dir++;
+		snprintf(cdir, sizeof(cdir), "%s", dir);
+	}
 	mips_return_c(1, 100);
 }
 
@@ -2566,7 +2568,7 @@ void psxBios_puts() { // 3e/3f
 }
 
 static void bufile(const u8 *mcd_data, u32 dir_) {
-	struct DIRENTRY *dir = (struct DIRENTRY *)castRam8ptr(dir_);
+	struct DIRENTRY *dir = (struct DIRENTRY *)PSXM(dir_);
 	const char *pfile = ffile + 5;
 	const u8 *data = mcd_data;
 	int i = 0, match = 0;
@@ -2574,6 +2576,9 @@ static void bufile(const u8 *mcd_data, u32 dir_) {
 	u32 head = 0;
 
 	v0 = 0;
+	if (dir == INVALID_PTR)
+		return;
+
 	for (; nfile <= 15 && !match; nfile++) {
 		const char *name;
 
@@ -2627,11 +2632,12 @@ static void bufile(const u8 *mcd_data, u32 dir_) {
  */
 
 static void psxBios_firstfile() { // 42
-	char *pa0 = castRam8ptr(a0);
+	char *pa0 = Ra0;
 
 	PSXBIOS_LOG("psxBios_%s %s %x\n", biosB0n[0x42], pa0, a1);
 	v0 = 0;
 
+	if (pa0 != INVALID_PTR)
 	{
 		snprintf(ffile, sizeof(ffile), "%s", pa0);
 		if (ffile[5] == 0)
