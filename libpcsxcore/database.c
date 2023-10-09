@@ -30,6 +30,12 @@ static const char * const gpu_slow_llist_db[] =
 	"SLES02731", "SLPS02477", "SLPS03198", "SLUS01138",
 };
 
+static const char * const gpu_busy_hack_db[] =
+{
+	/* ToHeart (Japan) */
+	"SLPS01919", "SLPS01920",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -44,6 +50,7 @@ hack_db[] =
 {
 	HACK_ENTRY(cdr_read_timing, cdr_read_hack_db),
 	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
+	HACK_ENTRY(gpu_busy_hack, gpu_busy_hack_db),
 };
 
 static const struct

@@ -32,6 +32,8 @@
 #define PAD_LOG(...)
 #endif
 
+static u32 (*psxHwReadGpuSRptr)(void) = psxHwReadGpuSR;
+
 void psxHwReset() {
 	memset(psxH, 0, 0x10000);
 
@@ -39,6 +41,8 @@ void psxHwReset() {
 	cdrReset();
 	psxRcntInit();
 	HW_GPU_STATUS = SWAP32(0x14802000);
+	psxHwReadGpuSRptr = Config.hacks.gpu_busy_hack
+		? psxHwReadGpuSRbusyHack : psxHwReadGpuSR;
 }
 
 void psxHwWriteIstat(u32 value)
@@ -76,6 +80,39 @@ void psxHwWriteDmaIcr32(u32 value)
 		tmp |= HW_DMA_ICR_IRQ_SENT;
 	}
 	HW_DMA_ICR = SWAPu32(tmp);
+}
+
+void psxHwWriteGpuSR(u32 value)
+{
+	GPU_writeStatus(value);
+	gpuSyncPluginSR();
+}
+
+u32 psxHwReadGpuSR(void)
+{
+	u32 v;
+
+	// meh2, syncing for img bit, might want to avoid it..
+	gpuSyncPluginSR();
+	v = HW_GPU_STATUS;
+
+	// XXX: because of large timeslices can't use hSyncCount, using rough
+	// approximization instead. Perhaps better use hcounter code here or something.
+	if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+		v |= PSXGPU_LCF & (psxRegs.cycle << 20);
+	return v;
+}
+
+// a hack due to poor timing of gpu idle bit
+// to get rid of this, GPU draw times, DMAs, cpu timing has to fall within
+// certain timing window or else games like "ToHeart" softlock
+u32 psxHwReadGpuSRbusyHack(void)
+{
+	u32 v = psxHwReadGpuSR();
+	static u32 hack;
+	if (!(hack++ & 3))
+		v &= ~PSXGPU_nBUSY;
+	return v;
 }
 
 u8 psxHwRead8(u32 add) {
@@ -302,10 +339,7 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 		case 0x1f801814:
-			gpuSyncPluginSR();
-			hard = SWAP32(HW_GPU_STATUS);
-			if (hSyncCount < 240 && (hard & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
-				hard |= PSXGPU_LCF & (psxRegs.cycle << 20);
+			hard = psxHwReadGpuSRptr();
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
 #endif
@@ -771,8 +805,7 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit write %x\n", value);
 #endif
-			GPU_writeStatus(value);
-			gpuSyncPluginSR();
+			psxHwWriteGpuSR(value);
 			return;
 
 		case 0x1f801820:

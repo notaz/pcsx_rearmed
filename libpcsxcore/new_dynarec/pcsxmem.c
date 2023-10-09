@@ -218,27 +218,6 @@ static void io_spu_write32(u32 value)
 	wfunc(a + 2, value >> 16, psxRegs.cycle);
 }
 
-static u32 io_gpu_read_status(void)
-{
-	u32 v;
-
-	// meh2, syncing for img bit, might want to avoid it..
-	gpuSyncPluginSR();
-	v = HW_GPU_STATUS;
-
-	// XXX: because of large timeslices can't use hSyncCount, using rough
-	// approximization instead. Perhaps better use hcounter code here or something.
-	if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
-		v |= PSXGPU_LCF & (psxRegs.cycle << 20);
-	return v;
-}
-
-static void io_gpu_write_status(u32 value)
-{
-	GPU_writeStatus(value);
-	gpuSyncPluginSR();
-}
-
 void new_dyna_pcsx_mem_isolate(int enable)
 {
 	int i;
@@ -385,7 +364,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iortab[IOMEM32(0x1124)], io_rcnt_read_mode2, 1);
 	map_item(&mem_iortab[IOMEM32(0x1128)], io_rcnt_read_target2, 1);
 //	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
-	map_item(&mem_iortab[IOMEM32(0x1814)], io_gpu_read_status, 1);
+	map_item(&mem_iortab[IOMEM32(0x1814)], psxHwReadGpuSR, 1);
 	map_item(&mem_iortab[IOMEM32(0x1820)], mdecRead0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1824)], mdecRead1, 1);
 
@@ -438,7 +417,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM32(0x1124)], io_rcnt_write_mode2, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1128)], io_rcnt_write_target2, 1);
 //	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1814)], io_gpu_write_status, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1814)], psxHwWriteGpuSR, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1820)], mdecWrite0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1824)], mdecWrite1, 1);
 
@@ -489,6 +468,10 @@ void new_dyna_pcsx_mem_reset(void)
 	// plugins might change so update the pointers
 	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
+	if (Config.hacks.gpu_busy_hack)
+		map_item(&mem_iortab[IOMEM32(0x1814)], psxHwReadGpuSRbusyHack, 1);
+	else
+		map_item(&mem_iortab[IOMEM32(0x1814)], psxHwReadGpuSR, 1);
 }
 
 void new_dyna_pcsx_mem_shutdown(void)
