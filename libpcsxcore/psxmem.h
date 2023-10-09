@@ -116,6 +116,10 @@ extern u8 **psxMemWLUT;
 extern u8 **psxMemRLUT;
 extern int cache_isolated;
 
+#ifndef DISABLE_MEM_LUTS
+#define DISABLE_MEM_LUTS 0
+#endif
+
 static inline void * psxm_lut(u32 mem, int write, u8 **lut)
 {
 	if (!DISABLE_MEM_LUTS) {
