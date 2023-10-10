@@ -190,7 +190,7 @@ typedef union
   union {
    struct {
     int pos;
-    signed short val[4];
+    int val[4];
    } gauss;
    int simple[5]; // 28-32
   } interp;

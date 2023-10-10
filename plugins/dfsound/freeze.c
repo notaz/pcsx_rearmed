@@ -341,6 +341,8 @@ long CALLBACK SPUfreeze(uint32_t ulFreezeMode, SPUFreeze_t * pF,
  load_register(H_CDLeft, cycles);
  load_register(H_CDRight, cycles);
 
+ if (spu.rvb->CurrAddr < spu.rvb->StartAddr)
+  spu.rvb->CurrAddr = spu.rvb->StartAddr;
  // fix to prevent new interpolations from crashing
  spu.interpolation = -1;
 
