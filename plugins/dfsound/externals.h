@@ -225,6 +225,8 @@ typedef struct
  int             iLeftXAVol;
  int             iRightXAVol;
 
+ unsigned int    last_keyon_cycles;
+
  union {
   unsigned char  *spuMemC;
   unsigned short *spuMem;
