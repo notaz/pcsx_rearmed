@@ -1609,7 +1609,7 @@ void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
 
 void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(short, short))
 {
- spu.cddavCallback = CDDAVcallback;
+ //spu.cddavCallback = CDDAVcallback;
 }
 
 void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int))
