@@ -67,7 +67,8 @@ static struct {
 	} subq;
 	unsigned char TrackChanged;
 	unsigned char ReportDelay;
-	unsigned char unused3[2];
+	unsigned char unused3;
+	unsigned short sectorsRead;
 	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
@@ -631,6 +632,20 @@ static void msfiAdd(u8 *msfi, u32 count)
 	}
 }
 
+static void msfiSub(u8 *msfi, u32 count)
+{
+	assert(count < 75);
+	msfi[2] -= count;
+	if ((s8)msfi[2] < 0) {
+		msfi[2] += 75;
+		msfi[1]--;
+		if ((s8)msfi[1] < 0) {
+			msfi[1] = 60;
+			msfi[0]--;
+		}
+	}
+}
+
 void cdrPlayReadInterrupt(void)
 {
 	cdr.LastReadCycles = psxRegs.cycle;
@@ -825,6 +840,7 @@ void cdrInterrupt(void) {
 			cdr.TrackChanged = FALSE;
 			cdr.FirstSector = 1;
 			cdr.ReportDelay = 60;
+			cdr.sectorsRead = 0;
 
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
@@ -898,6 +914,12 @@ void cdrInterrupt(void) {
 		case CdlPause:
 			StopCdda();
 			StopReading();
+
+			// how the drive maintains the position while paused is quite
+			// complicated, this is the minimum to make "Bedlam" happy
+			msfiSub(cdr.SetSectorPlay, MIN_VALUE(cdr.sectorsRead, 4));
+			cdr.sectorsRead = 0;
+
 			/*
 			Gundam Battle Assault 2: much slower (*)
 			- Fixes boot, gameplay
@@ -1165,6 +1187,7 @@ void cdrInterrupt(void) {
 			UpdateSubq(cdr.SetSectorPlay);
 			cdr.LocL[0] = LOCL_INVALID;
 			cdr.SubqForwardSectors = 1;
+			cdr.sectorsRead = 0;
 
 			cycles = (cdr.Mode & MODE_SPEED) ? cdReadTime : cdReadTime * 2;
 			cycles += seekTime;
@@ -1287,7 +1310,8 @@ static void cdrUpdateTransferBuf(const u8 *buf)
 		return;
 	memcpy(cdr.Transfer, buf, DATA_SIZE);
 	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
-	CDR_LOG("cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
+	CDR_LOG("cdr.Transfer  %02x:%02x:%02x\n",
+		cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
 	if (cdr.FifoOffset < 2048 + 12)
 		CDR_LOG("FifoOffset(1) %d/%d\n", cdr.FifoOffset, cdr.FifoSize);
 }
@@ -1309,6 +1333,7 @@ static void cdrReadInterrupt(void)
 
 	// note: CdlGetlocL should work as soon as STATUS_READ is indicated
 	SetPlaySeekRead(cdr.StatP, STATUS_READ | STATUS_ROTATING);
+	cdr.sectorsRead++;
 
 	read_ok = ReadTrack(cdr.SetSectorPlay);
 	if (read_ok)
