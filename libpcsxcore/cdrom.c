@@ -577,7 +577,7 @@ static int cdrSeekTime(unsigned char *target)
 	seekTime = MAX_VALUE(seekTime, 20000);
 
 	// need this stupidly long penalty or else Spyro2 intro desyncs
-	pausePenalty = (s32)(psxRegs.cycle - cdr.LastReadCycles) > cdReadTime * 4 ? cdReadTime * 25 : 0;
+	pausePenalty = (s32)(psxRegs.cycle - cdr.LastReadCycles) > cdReadTime * 8 ? cdReadTime * 25 : 0;
 	seekTime += pausePenalty;
 
 	seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
