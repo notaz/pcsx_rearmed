@@ -95,11 +95,16 @@ static int lightrec_mmap_ram(bool hugetlb)
 		base = supported_io_bases[i];
 
 		for (j = 0; j < 4; j++) {
-			map = mmap_huge((void *)(base + j * 0x200000),
-					0x200000, PROT_READ | PROT_WRITE,
+			void *base_ptr = (void *)(base + j * 0x200000);
+			map = mmap_huge(base_ptr, 0x200000, PROT_READ | PROT_WRITE,
 					MAP_SHARED | MAP_FIXED_NOREPLACE, memfd, 0);
 			if (map == MAP_FAILED)
 				break;
+			// some systems ignore MAP_FIXED_NOREPLACE
+			if (map != base_ptr) {
+				munmap(map, 0x200000);
+				break;
+			}
 		}
 
 		/* Impossible to map using this base */
