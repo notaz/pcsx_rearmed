@@ -110,10 +110,10 @@ static __inline void ADPCM_DecodeBlock16( ADPCM_Decode_t *decp, u8 filter_range,
 		x2 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x2;
 		x3 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x3;
 
-		XACLAMP( x0, -32768<<SH, 32767<<SH ); *destp = x0 >> SH; destp += inc;
-		XACLAMP( x1, -32768<<SH, 32767<<SH ); *destp = x1 >> SH; destp += inc;
-		XACLAMP( x2, -32768<<SH, 32767<<SH ); *destp = x2 >> SH; destp += inc;
-		XACLAMP( x3, -32768<<SH, 32767<<SH ); *destp = x3 >> SH; destp += inc;
+		XACLAMP( x0, (int)(-32768u<<SH), 32767<<SH ); *destp = x0 >> SH; destp += inc;
+		XACLAMP( x1, (int)(-32768u<<SH), 32767<<SH ); *destp = x1 >> SH; destp += inc;
+		XACLAMP( x2, (int)(-32768u<<SH), 32767<<SH ); *destp = x2 >> SH; destp += inc;
+		XACLAMP( x3, (int)(-32768u<<SH), 32767<<SH ); *destp = x3 >> SH; destp += inc;
 	}
 	decp->y0 = fy0;
 	decp->y1 = fy1;

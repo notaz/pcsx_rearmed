@@ -4582,6 +4582,7 @@ void render_line(psx_gpu_struct *psx_gpu, vertex_struct *vertexes, u32 flags,
   if(vertex_a->x >= vertex_b->x)
   {
     vertex_swap(vertex_a, vertex_b);
+    (void)triangle_winding;
   }
 
   x_a = vertex_a->x;

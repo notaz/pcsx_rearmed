@@ -2196,9 +2196,6 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
                                                                                \
       setup_blocks_add_blocks_##target();                                      \
                                                                                \
-      s32 pixel_span = span_num_blocks * 8;                                    \
-      pixel_span -= __builtin_popcount(span_edge_data->right_mask & 0xFF);     \
-                                                                               \
       span_num_blocks--;                                                       \
       while(span_num_blocks)                                                   \
       {                                                                        \

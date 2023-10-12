@@ -24,6 +24,16 @@
 #include "assem_arm64.h"
 #include "linkage_offsets.h"
 
+#ifdef __MACH__
+#define dynarec_local		ESYM(dynarec_local)
+#define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
+#define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
+#define gen_interupt		ESYM(gen_interupt)
+#define gteCheckStallRaw	ESYM(gteCheckStallRaw)
+#define psxException		ESYM(psxException)
+#define execI			ESYM(execI)
+#endif
+
 #if (LO_mem_wtab & 7)
 #error misligned pointers
 #endif
@@ -31,16 +41,16 @@
 .bss
 	.align	4
 	.global dynarec_local
-	.type	dynarec_local, %object
-	.size	dynarec_local, LO_dynarec_local_size
+	EOBJECT(dynarec_local)
+	ESIZE(dynarec_local, LO_dynarec_local_size)
 dynarec_local:
 	.space	LO_dynarec_local_size
 
 #define DRC_VAR_(name, vname, size_) \
-	vname = dynarec_local + LO_##name; \
-	.global vname; \
-	.type	vname, %object; \
-	.size	vname, size_
+	vname = dynarec_local + LO_##name ASM_SEPARATOR \
+	.globl vname; \
+	EOBJECT(vname); \
+	ESIZE(vname, LO_dynarec_local_size)
 
 #define DRC_VAR(name, size_) \
 	DRC_VAR_(name, ESYM(name), size_)
@@ -89,7 +99,7 @@ FUNCTION(dyna_linker):
 	/* r1 = instruction to patch */
 	bl	ndrc_get_addr_ht
 	br	x0
-	.size	dyna_linker, .-dyna_linker
+	ESIZE(dyna_linker, .-dyna_linker)
 
 	.align	2
 FUNCTION(cc_interrupt):
@@ -115,7 +125,7 @@ FUNCTION(cc_interrupt):
 	ldr	w0, [rFP, #LO_pcaddr]
 	bl	ndrc_get_addr_ht
 	br	x0
-	.size	cc_interrupt, .-cc_interrupt
+	ESIZE(cc_interrupt, .-cc_interrupt)
 
 	.align	2
 FUNCTION(jump_addrerror_ds): /* R3000E_AdEL / R3000E_AdES in w0 */
@@ -170,7 +180,7 @@ FUNCTION(jump_to_new_pc):
 	cbnz	w2, new_dyna_leave
 	bl	ndrc_get_addr_ht
 	br	x0
-	.size	jump_to_new_pc, .-jump_to_new_pc
+	ESIZE(jump_to_new_pc, .-jump_to_new_pc)
 
 	/* stack must be aligned by 16, and include space for save_regs() use */
 	.align	2
@@ -189,7 +199,7 @@ FUNCTION(new_dyna_start):
 	sub	rCC, w2, w1
 	bl	ndrc_get_addr_ht
 	br	x0
-	.size	new_dyna_start, .-new_dyna_start
+	ESIZE(new_dyna_start, .-new_dyna_start)
 
 	.align	2
 FUNCTION(new_dyna_leave):
@@ -203,7 +213,7 @@ FUNCTION(new_dyna_leave):
 	ldp	x27, x28, [sp, #16*5]
 	ldp	x29, x30, [sp], #SSP_ALL
 	ret
-	.size	new_dyna_leave, .-new_dyna_leave
+	ESIZE(new_dyna_leave, .-new_dyna_leave)
 
 /* --------------------------------------- */
 
@@ -281,16 +291,16 @@ handler_read_end:
 
 FUNCTION(jump_handler_write8):
 	add     x3, x3, #0x1000/4*8 + 0x1000/2*8  /* shift to r8 part */
-	pcsx_write_mem strb uxtb 0
+	pcsx_write_mem strb, uxtb, 0
 	b	handler_write_end
 
 FUNCTION(jump_handler_write16):
 	add     x3, x3, #0x1000/4*8               /* shift to r16 part */
-	pcsx_write_mem strh uxth 1
+	pcsx_write_mem strh, uxth, 1
 	b	handler_write_end
 
 FUNCTION(jump_handler_write32):
-	pcsx_write_mem str mov 2
+	pcsx_write_mem str, mov, 2
 
 handler_write_end:
 	memhandler_post
