@@ -27,13 +27,13 @@
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
 #define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
-#define ndrc_try_restore_block	ESYM(ndrc_try_restore_block)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
 #define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
 #define ndrc_write_invalidate_one ESYM(ndrc_write_invalidate_one)
 #define gen_interupt		ESYM(gen_interupt)
 #define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
+#define execI			ESYM(execI)
 #endif
 
 	.bss
