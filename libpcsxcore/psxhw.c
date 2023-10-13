@@ -94,11 +94,11 @@ u32 psxHwReadGpuSR(void)
 
 	// meh2, syncing for img bit, might want to avoid it..
 	gpuSyncPluginSR();
-	v = HW_GPU_STATUS;
+	v = SWAP32(HW_GPU_STATUS);
 
 	// XXX: because of large timeslices can't use hSyncCount, using rough
 	// approximization instead. Perhaps better use hcounter code here or something.
-	if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+	if (hSyncCount < 240 && (v & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
 		v |= PSXGPU_LCF & (psxRegs.cycle << 20);
 	return v;
 }
