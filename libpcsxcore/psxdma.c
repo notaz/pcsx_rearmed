@@ -67,7 +67,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			// This should be much slower, like 12+ cycles/byte, it's like
 			// that because the CPU runs too fast and fifo is not emulated.
 			// See also set_dma_end().
-			SPUDMA_INT(words * 4);
+			set_event(PSXINT_SPUDMA, words * 4);
 			return;
 
 		case 0x01000200: //spu to cpu transfer
@@ -78,7 +78,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			psxCpu->Clear(madr, words_copy);
 
 			HW_DMA4_MADR = SWAPu32(madr + words_copy * 4);
-			SPUDMA_INT(words * 4);
+			set_event(PSXINT_SPUDMA, words * 4);
 			return;
 
 		default:
@@ -159,7 +159,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			// careful: gpu_state_change() also messes with this
 			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(words / 4);
+			set_event(PSXINT_GPUDMA, words / 4);
 			return;
 
 		case 0x01000201: // mem2vram
@@ -182,7 +182,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			// careful: gpu_state_change() also messes with this
 			HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 			// already 32-bit word size ((size * 4) / 4)
-			GPUDMA_INT(words / 4);
+			set_event(PSXINT_GPUDMA, words / 4);
 			return;
 
 		case 0x01000401: // dma chain
@@ -206,7 +206,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 			// Einhander = parse linked list in pieces (todo)
 			// Rebel Assault 2 = parse linked list in pieces (todo)
-			GPUDMA_INT(size);
+			set_event(PSXINT_GPUDMA, size);
 			return;
 
 		default:
@@ -226,7 +226,7 @@ void gpuInterrupt() {
 		u32 size, madr_next = 0xffffff;
 		size = GPU_dmaChain((u32 *)psxM, HW_DMA2_MADR & 0x1fffff, &madr_next);
 		HW_DMA2_MADR = SWAPu32(madr_next);
-		GPUDMA_INT(size);
+		set_event(PSXINT_GPUDMA, size);
 		return;
 	}
 	if (HW_DMA2_CHCR & SWAP32(0x01000000))
@@ -261,10 +261,9 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 		}
 		*++mem = SWAP32(0xffffff);
 
-		//GPUOTCDMA_INT(size);
 		// halted
 		psxRegs.cycle += words;
-		GPUOTCDMA_INT(16);
+		set_event(PSXINT_GPUOTCDMA, 16);
 		return;
 	}
 	else {

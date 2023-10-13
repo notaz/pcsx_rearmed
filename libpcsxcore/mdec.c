@@ -525,7 +525,7 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 			break;
 	}
 
-	MDECINDMA_INT(size);
+	set_event(PSXINT_MDECINDMA, size);
 }
 
 void mdec0Interrupt()
@@ -625,7 +625,7 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 	}
 	
 		/* define the power of mdec */
-		MDECOUTDMA_INT(words * MDEC_BIAS);
+		set_event(PSXINT_MDECOUTDMA, words * MDEC_BIAS);
 		/* some CPU stalling */
 		psxRegs.cycle += words;
 	}

@@ -20,7 +20,7 @@
 #include "../r3000a.h"
 #include "../psxinterpreter.h"
 #include "../psxhle.h"
-#include "../new_dynarec/events.h"
+#include "../psxevents.h"
 
 #include "../frontend/main.h"
 

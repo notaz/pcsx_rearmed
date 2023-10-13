@@ -163,25 +163,6 @@ typedef union {
 	PAIR p[32];
 } psxCP2Ctrl;
 
-enum {
-	PSXINT_SIO = 0,
-	PSXINT_CDR,
-	PSXINT_CDREAD,
-	PSXINT_GPUDMA,
-	PSXINT_MDECOUTDMA,
-	PSXINT_SPUDMA,
-	PSXINT_GPUBUSY,
-	PSXINT_MDECINDMA,
-	PSXINT_GPUOTCDMA,
-	PSXINT_CDRDMA,
-	PSXINT_NEWDRC_CHECK,
-	PSXINT_RCNT,
-	PSXINT_CDRLID,
-	PSXINT_IRQ10,
-	PSXINT_SPU_UPDATE,
-	PSXINT_COUNT
-};
-
 enum R3000Abdt {
 	// corresponds to bits 31,30 of Cause reg
 	R3000A_BRANCH_TAKEN = 3,
@@ -231,23 +212,7 @@ typedef struct {
 extern psxRegisters psxRegs;
 
 /* new_dynarec stuff */
-extern u32 event_cycles[PSXINT_COUNT];
-extern u32 next_interupt;
-
 void new_dyna_freeze(void *f, int mode);
-
-#define new_dyna_set_event_abs(e, abs) { \
-	u32 abs_ = abs; \
-	s32 di_ = next_interupt - abs_; \
-	event_cycles[e] = abs_; \
-	if (di_ > 0) { \
-		/*printf("%u: next_interupt %u -> %u\n", psxRegs.cycle, next_interupt, abs_);*/ \
-		next_interupt = abs_; \
-	} \
-}
-
-#define new_dyna_set_event(e, c) \
-	new_dyna_set_event_abs(e, psxRegs.cycle + (c))
 
 int  psxInit();
 void psxReset();

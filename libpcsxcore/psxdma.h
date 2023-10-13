@@ -28,48 +28,7 @@ extern "C" {
 #include "r3000a.h"
 #include "psxhw.h"
 #include "psxmem.h"
-
-#define GPUDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_GPUDMA); \
-	psxRegs.intCycle[PSXINT_GPUDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_GPUDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_GPUDMA, eCycle); \
-}
-
-#define SPUDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_SPUDMA); \
-	psxRegs.intCycle[PSXINT_SPUDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_SPUDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_SPUDMA, eCycle); \
-}
-
-#define MDECOUTDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_MDECOUTDMA); \
-	psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_MDECOUTDMA, eCycle); \
-}
-
-#define MDECINDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_MDECINDMA); \
-	psxRegs.intCycle[PSXINT_MDECINDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_MDECINDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_MDECINDMA, eCycle); \
-}
-
-#define GPUOTCDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_GPUOTCDMA); \
-	psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_GPUOTCDMA, eCycle); \
-}
-
-#define CDRDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_CDRDMA); \
-	psxRegs.intCycle[PSXINT_CDRDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRDMA].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_CDRDMA, eCycle); \
-}
+#include "psxevents.h"
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr);
 void psxDma3(u32 madr, u32 bcr, u32 chcr);

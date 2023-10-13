@@ -35,6 +35,7 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/psxcommon.c \
              $(CORE_DIR)/psxcounters.c \
              $(CORE_DIR)/psxdma.c \
+             $(CORE_DIR)/psxevents.c \
              $(CORE_DIR)/psxhw.c \
              $(CORE_DIR)/psxinterpreter.c \
              $(CORE_DIR)/psxmem.c \
@@ -141,7 +142,6 @@ ifeq ($(HAVE_ARI64),1)
   endif
 endif
   SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
-  SOURCES_C   += $(DYNAREC_DIR)/events.c
 
 ifeq ($(HAVE_LIGHTREC),1)
   COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
