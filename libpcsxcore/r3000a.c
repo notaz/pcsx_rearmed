@@ -27,6 +27,7 @@
 #include "gte.h"
 #include "psxinterpreter.h"
 #include "psxbios.h"
+#include "psxevents.h"
 #include "../include/compiler_features.h"
 
 R3000Acpu *psxCpu = NULL;
@@ -131,87 +132,9 @@ void psxBranchTest() {
 	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
 		psxRcntUpdate();
 
-	if (psxRegs.interrupt) {
-		if ((psxRegs.interrupt & (1 << PSXINT_SIO))) { // sio
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle) >= psxRegs.intCycle[PSXINT_SIO].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_SIO);
-				sioInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_CDR)) { // cdr
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDR].sCycle) >= psxRegs.intCycle[PSXINT_CDR].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
-				cdrInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_CDREAD);
-				cdrPlayReadInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_GPUDMA);
-				gpuInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_MDECOUTDMA)) { // mdec out dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_MDECOUTDMA);
-				mdec1Interrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_SPUDMA)) { // spu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_SPUDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_SPUDMA);
-				spuInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_MDECINDMA)) { // mdec in
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECINDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_MDECINDMA);
-				mdec0Interrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_GPUOTCDMA)) { // gpu otc
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_GPUOTCDMA);
-				gpuotcInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_CDRDMA)) { // cdrom
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle) >= psxRegs.intCycle[PSXINT_CDRDMA].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_CDRDMA);
-				cdrDmaInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_CDRLID)) { // cdr lid states
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRLID].sCycle) >= psxRegs.intCycle[PSXINT_CDRLID].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_CDRLID);
-				cdrLidSeekInterrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_IRQ10)) { // irq10 - controller port pin8
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_IRQ10].sCycle) >= psxRegs.intCycle[PSXINT_IRQ10].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_IRQ10);
-				irq10Interrupt();
-			}
-		}
-		if (psxRegs.interrupt & (1 << PSXINT_SPU_UPDATE)) { // scheduled spu update
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_SPU_UPDATE);
-				spuUpdate();
-			}
-		}
-	}
+	irq_test(&psxRegs.CP0);
 
-	psxRegs.CP0.n.Cause &= ~0x400;
-	if (psxHu32(0x1070) & psxHu32(0x1074))
-		psxRegs.CP0.n.Cause |= 0x400;
-	if (((psxRegs.CP0.n.Cause | 1) & psxRegs.CP0.n.SR & 0x401) == 0x401)
-		psxException(0, 0, &psxRegs.CP0);
-	else if (unlikely(psxRegs.pc == psxRegs.biosBranchCheck))
+	if (unlikely(psxRegs.pc == psxRegs.biosBranchCheck))
 		psxBiosCheckBranch();
 }
 
@@ -267,7 +190,7 @@ static void psxScheduleIrq10One(u32 cycles_abs) {
 	psxRegs.interrupt |= 1 << PSXINT_IRQ10;
 	psxRegs.intCycle[PSXINT_IRQ10].cycle = c;
 	psxRegs.intCycle[PSXINT_IRQ10].sCycle = rcnts[3].cycleStart;
-	new_dyna_set_event_abs(PSXINT_IRQ10, cycles_abs);
+	set_event_raw_abs(PSXINT_IRQ10, cycles_abs);
 }
 
 void irq10Interrupt() {

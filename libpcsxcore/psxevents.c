@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include "../r3000a.h"
-#include "../cdrom.h"
-#include "../psxdma.h"
-#include "../mdec.h"
-#include "events.h"
+#include "r3000a.h"
+#include "cdrom.h"
+#include "psxdma.h"
+#include "mdec.h"
+#include "psxevents.h"
 
 extern int pending_exception;
 
@@ -31,6 +31,9 @@ u32 schedule_timeslice(void)
 	return next_interupt;
 }
 
+static void irqNoOp() {
+}
+
 typedef void (irq_func)();
 
 static irq_func * const irq_funcs[] = {
@@ -43,6 +46,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_MDECINDMA] = mdec0Interrupt,
 	[PSXINT_GPUOTCDMA] = gpuotcInterrupt,
 	[PSXINT_CDRDMA] = cdrDmaInterrupt,
+	[PSXINT_NEWDRC_CHECK] = irqNoOp,
 	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
 	[PSXINT_IRQ10] = irq10Interrupt,
 	[PSXINT_SPU_UPDATE] = spuUpdate,
@@ -50,7 +54,7 @@ static irq_func * const irq_funcs[] = {
 };
 
 /* local dupe of psxBranchTest, using event_cycles */
-static void irq_test(psxCP0Regs *cp0)
+void irq_test(psxCP0Regs *cp0)
 {
 	u32 cycle = psxRegs.cycle;
 	u32 irq, irq_bits;
@@ -88,4 +92,13 @@ void gen_interupt(psxCP0Regs *cp0)
 		next_interupt, next_interupt - psxRegs.cycle);
 }
 
+void events_restore(void)
+{
+	int i;
+	for (i = 0; i < PSXINT_COUNT; i++)
+		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
 
+	event_cycles[PSXINT_RCNT] = psxNextsCounter + psxNextCounter;
+	psxRegs.interrupt |=  1 << PSXINT_RCNT;
+	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
+}

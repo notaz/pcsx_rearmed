@@ -47,7 +47,8 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore
 	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
 	libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o \
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o \
-	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
+	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o \
+	libpcsxcore/psxevents.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/spu.o libpcsxcore/gpu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 #OBJS += libpcsxcore/debug.o libpcsxcore/socket.o libpcsxcore/disr3000a.o
@@ -75,7 +76,7 @@ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
 else
 CFLAGS += -DDRC_DISABLE
 endif
-OBJS += libpcsxcore/new_dynarec/emu_if.o libpcsxcore/new_dynarec/events.o
+OBJS += libpcsxcore/new_dynarec/emu_if.o
 libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
 libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64

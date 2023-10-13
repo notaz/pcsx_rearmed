@@ -36,7 +36,7 @@
 #include "sio.h"
 #include "psxhle.h"
 #include "psxinterpreter.h"
-#include "new_dynarec/events.h"
+#include "psxevents.h"
 #include <zlib.h>
 
 #ifndef PSXBIOS_LOG

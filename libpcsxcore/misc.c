@@ -769,6 +769,7 @@ int LoadState(const char *file) {
 	new_dyna_freeze(f, 0);
 	padFreeze(f, 0);
 
+	events_restore();
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 

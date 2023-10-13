@@ -9,10 +9,10 @@
 
 #include "emu_if.h"
 #include "pcsxmem.h"
-#include "events.h"
 #include "../psxhle.h"
 #include "../psxinterpreter.h"
 #include "../psxcounters.h"
+#include "../psxevents.h"
 #include "../r3000a.h"
 #include "../gte_arm.h"
 #include "../gte_neon.h"
@@ -41,19 +41,6 @@ void pcsx_mtc0_ds(u32 reg, u32 val)
 	MTC0(&psxRegs, reg, val);
 }
 
-static void new_dyna_restore(void)
-{
-	int i;
-	for (i = 0; i < PSXINT_COUNT; i++)
-		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
-
-	event_cycles[PSXINT_RCNT] = psxNextsCounter + psxNextCounter;
-	psxRegs.interrupt |=  1 << PSXINT_RCNT;
-	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
-
-	new_dyna_pcsx_mem_load_state();
-}
-
 void new_dyna_freeze(void *f, int mode)
 {
 	const char header_save[8] = "ariblks";
@@ -72,7 +59,7 @@ void new_dyna_freeze(void *f, int mode)
 		SaveFuncs.write(f, addrs, size);
 	}
 	else {
-		new_dyna_restore();
+		new_dyna_pcsx_mem_load_state();
 
 		bytes = SaveFuncs.read(f, header, sizeof(header));
 		if (bytes != sizeof(header) || strcmp(header, header_save)) {
@@ -241,7 +228,7 @@ static void ari64_reset()
 {
 	new_dyna_pcsx_mem_reset();
 	new_dynarec_invalidate_all_pages();
-	new_dyna_restore();
+	new_dyna_pcsx_mem_load_state();
 	pending_exception = 1;
 }
 

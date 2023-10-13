@@ -22,6 +22,7 @@
 */
 
 #include "psxhw.h"
+#include "psxevents.h"
 #include "mdec.h"
 #include "cdrom.h"
 #include "gpu.h"
@@ -62,7 +63,7 @@ void psxHwWriteImask(u32 value)
 	if (stat & value) {
 		//if ((psxRegs.CP0.n.SR & 0x401) == 0x401)
 		//	log_unhandled("irq on unmask @%08x\n", psxRegs.pc);
-		new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
+		set_event(PSXINT_NEWDRC_CHECK, 1);
 	}
 	psxRegs.CP0.n.Cause &= ~0x400;
 	if (stat & value)

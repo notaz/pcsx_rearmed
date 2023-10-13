@@ -26,7 +26,7 @@ void gpu_state_change(int what)
 		break;
 	case PGS_PRIMITIVE_START:
 		HW_GPU_STATUS &= ~SWAP32(PSXGPU_nBUSY);
-		GPUDMA_INT(200); // see gpuInterrupt
+		set_event(PSXINT_GPUDMA, 200); // see gpuInterrupt
 		break;
 	}
 }

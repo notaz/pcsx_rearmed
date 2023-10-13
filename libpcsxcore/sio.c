@@ -23,6 +23,7 @@
 
 #include "misc.h"
 #include "psxcounters.h"
+#include "psxevents.h"
 #include "sio.h"
 #include <sys/stat.h>
 
@@ -73,13 +74,6 @@ static unsigned int padst;
 char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
 char McdDisable[2];
 
-#define SIO_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_SIO); \
-	psxRegs.intCycle[PSXINT_SIO].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_SIO].sCycle = psxRegs.cycle; \
-	new_dyna_set_event(PSXINT_SIO, eCycle); \
-}
-
 // clk cycle byte
 // 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
 // TODO: add SioModePrescaler and BaudReg
@@ -107,7 +101,7 @@ void sioWrite8(unsigned char value) {
 
 				if (more_data) {
 					bufcount = parp + 1;
-					SIO_INT(SIO_CYCLES);
+					set_event(PSXINT_SIO, SIO_CYCLES);
 				}
 			}
 			else padst = 0;
@@ -121,14 +115,14 @@ void sioWrite8(unsigned char value) {
 
 			if (more_data) {
 				bufcount = parp + 1;
-				SIO_INT(SIO_CYCLES);
+				set_event(PSXINT_SIO, SIO_CYCLES);
 			}
 			return;
 	}
 
 	switch (mcdst) {
 		case 1:
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			if (rdwr) { parp++; return; }
 			parp = 1;
 			switch (value) {
@@ -138,7 +132,7 @@ void sioWrite8(unsigned char value) {
 			}
 			return;
 		case 2: // address H
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			adrH = value;
 			*buf = 0;
 			parp = 0;
@@ -146,7 +140,7 @@ void sioWrite8(unsigned char value) {
 			mcdst = 3;
 			return;
 		case 3: // address L
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			adrL = value;
 			*buf = adrH;
 			parp = 0;
@@ -154,7 +148,7 @@ void sioWrite8(unsigned char value) {
 			mcdst = 4;
 			return;
 		case 4:
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			parp = 0;
 			switch (rdwr) {
 				case 1: // read
@@ -204,7 +198,7 @@ void sioWrite8(unsigned char value) {
 			if (rdwr == 2) {
 				if (parp < 128) buf[parp + 1] = value;
 			}
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			return;
 	}
 
@@ -219,7 +213,7 @@ void sioWrite8(unsigned char value) {
 			bufcount = 1;
 			parp = 0;
 			padst = 1;
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			return;
 		case 0x81: // start memcard
 			if (CtrlReg & 0x2000)
@@ -239,7 +233,7 @@ void sioWrite8(unsigned char value) {
 			bufcount = 3;
 			mcdst = 1;
 			rdwr = 0;
-			SIO_INT(SIO_CYCLES);
+			set_event(PSXINT_SIO, SIO_CYCLES);
 			return;
 		default:
 		no_device:
