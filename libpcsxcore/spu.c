@@ -24,7 +24,16 @@
 #include "spu.h"
 #include "psxevents.h"
 
-void CALLBACK SPUirq(void) {
+void CALLBACK SPUirq(int cycles_after) {
+	if (cycles_after > 0) {
+		set_event(PSXINT_SPU_IRQ, cycles_after);
+		return;
+	}
+
+	psxHu32ref(0x1070) |= SWAPu32(0x200);
+}
+
+void spuDelayedIrq() {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
 }
 

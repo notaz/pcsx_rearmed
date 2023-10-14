@@ -203,7 +203,7 @@ static void do_irq(void)
  //if(!(spu.spuStat & STAT_IRQ))
  {
   spu.spuStat |= STAT_IRQ;                             // asserted status?
-  if(spu.irqCallback) spu.irqCallback();
+  if(spu.irqCallback) spu.irqCallback(0);
  }
 }
 
@@ -1602,7 +1602,7 @@ long CALLBACK SPUshutdown(void)
 // SETUP CALLBACKS
 // this functions will be called once, 
 // passes a callback that should be called on SPU-IRQ/cdda volume change
-void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
+void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(int))
 {
  spu.irqCallback = callback;
 }
