@@ -229,12 +229,14 @@ typedef struct
 		unsigned char cmd4dConfig[6];
 		unsigned int  lastUseFrame;
 		unsigned int  digitalModeFrames;
+		unsigned char configModeUsed;
+		unsigned char padding[3];
 	} ds;
 	unsigned char multitapLongModeEnabled;
 	unsigned char padding2;
 	unsigned char txData[34];
 
-	unsigned char reserved[26];
+	unsigned char reserved[22];
 } PadDataS;
 
 /*         NET PlugIn v2       */
