@@ -89,7 +89,7 @@ GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const le16_t *pDst)
 {
 	if (DITHER)
 	{
-		u16 fbpos  = (uintptr_t)pDst - (uintptr_t)gpu_unai.vram;
+		uintptr_t fbpos = pDst - gpu_unai.vram;
 		u16 offset = ((fbpos & (0x7 << 10)) >> 7) | (fbpos & 0x7);
 
 		//clean overflow flags and add
