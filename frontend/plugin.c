@@ -55,7 +55,7 @@ extern unsigned short CALLBACK SPUreadRegister(unsigned long, unsigned int);
 extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
 extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
 extern void CALLBACK SPUplayADPCMchannel(void *, unsigned int, int);
-extern void CALLBACK SPUregisterCallback(void (*cb)(void));
+extern void CALLBACK SPUregisterCallback(void (*cb)(int));
 extern void CALLBACK SPUregisterScheduleCb(void (*cb)(unsigned int));
 extern long CALLBACK SPUfreeze(unsigned int, void *, unsigned int);
 extern void CALLBACK SPUasync(unsigned int, unsigned int);

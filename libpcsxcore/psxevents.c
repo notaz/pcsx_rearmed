@@ -50,6 +50,7 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_CDRLID] = cdrLidSeekInterrupt,
 	[PSXINT_IRQ10] = irq10Interrupt,
 	[PSXINT_SPU_UPDATE] = spuUpdate,
+	[PSXINT_SPU_IRQ] = spuDelayedIrq,
 	[PSXINT_RCNT] = psxRcntUpdate,
 };
 

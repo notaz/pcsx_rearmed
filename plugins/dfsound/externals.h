@@ -241,7 +241,7 @@ typedef struct
 
  int           * SSumLR;
 
- void (CALLBACK *irqCallback)(void);   // func of main emu, called on spu irq
+ void (CALLBACK *irqCallback)(int);
  //void (CALLBACK *cddavCallback)(short, short);
  void (CALLBACK *scheduleCallback)(unsigned int);
 

@@ -39,10 +39,10 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
  unsigned int cycles)
 {
  unsigned int addr = spu.spuAddr, irq_addr = regAreaGet(H_SPUirqAddr) << 3;
- int i, irq;
+ int i, irq_after;
 
  do_samples_if_needed(cycles, 1, 2);
- irq = addr <= irq_addr && irq_addr < addr + iSize*2;
+ irq_after = (irq_addr - addr) & 0x7ffff;
 
  for(i = 0; i < iSize; i++)
  {
@@ -50,8 +50,10 @@ void CALLBACK SPUreadDMAMem(unsigned short *pusPSXMem, int iSize,
   addr += 2;
   addr &= 0x7fffe;
  }
- if (irq && (spu.spuCtrl & CTRL_IRQ))
+ if ((spu.spuCtrl & CTRL_IRQ) && irq_after < iSize * 2) {
   log_unhandled("rdma spu irq: %x/%x+%x\n", irq_addr, spu.spuAddr, iSize * 2);
+  spu.irqCallback(irq_after);
+ }
  spu.spuAddr = addr;
  set_dma_end(iSize, cycles);
 }
@@ -64,11 +66,11 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
  unsigned int cycles)
 {
  unsigned int addr = spu.spuAddr, irq_addr = regAreaGet(H_SPUirqAddr) << 3;
- int i, irq;
+ int i, irq_after;
  
  do_samples_if_needed(cycles, 1, 2);
+ irq_after = (irq_addr - addr) & 0x7ffff;
  spu.bMemDirty = 1;
- irq = addr <= irq_addr && irq_addr < addr + iSize*2;
 
  if (addr + iSize*2 < 0x80000)
  {
@@ -77,7 +79,6 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
  }
  else
  {
-  irq |= irq_addr < ((addr + iSize*2) & 0x7ffff);
   for (i = 0; i < iSize; i++)
   {
    *(unsigned short *)(spu.spuMemC + addr) = *pusPSXMem++;
@@ -85,10 +86,16 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
    addr &= 0x7fffe;
   }
  }
- if (irq && (spu.spuCtrl & CTRL_IRQ)) // unhandled because need to implement delay
-  log_unhandled("wdma spu irq: %x/%x+%x\n", irq_addr, spu.spuAddr, iSize * 2);
+ if ((spu.spuCtrl & CTRL_IRQ) && irq_after < iSize * 2) {
+  log_unhandled("wdma spu irq: %x/%x+%x (%u)\n",
+    irq_addr, spu.spuAddr, iSize * 2, irq_after);
+  // this should be consistent with psxdma.c timing
+  // might also need more delay like in set_dma_end()
+  spu.irqCallback(irq_after);
+ }
  spu.spuAddr = addr;
  set_dma_end(iSize, cycles);
 }
 
 ////////////////////////////////////////////////////////////////////////
+// vim:shiftwidth=1:expandtab

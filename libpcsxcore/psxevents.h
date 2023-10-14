@@ -10,7 +10,7 @@ enum {
 	PSXINT_GPUDMA,       // gpuInterrupt
 	PSXINT_MDECOUTDMA,   // mdec1Interrupt
 	PSXINT_SPUDMA,       // spuInterrupt
-	PSXINT_UNUSED,       //
+	PSXINT_SPU_IRQ,      // spuDelayedIrq
 	PSXINT_MDECINDMA,    // mdec0Interrupt
 	PSXINT_GPUOTCDMA,    // gpuotcInterrupt
 	PSXINT_CDRDMA,       // cdrDmaInterrupt
