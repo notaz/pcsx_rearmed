@@ -562,8 +562,9 @@ static void reqIndex2Treatment(int padIndex, u8 value) {
 			//0x43
 			if (value == 0) {
 				pads[padIndex].ds.configMode = 0;
-			} else {
+			} else if (value == 1) {
 				pads[padIndex].ds.configMode = 1;
+				pads[padIndex].ds.configModeUsed = 1;
 			}
 			break;
 		case CMD_SET_MODE_AND_LOCK :
@@ -584,15 +585,19 @@ static void reqIndex2Treatment(int padIndex, u8 value) {
 				memcpy(buf, resp4C_01, 8);
 			}
 			break;
-		case CMD_READ_DATA_AND_VIBRATE:
-			//mem the vibration value for small motor;
-			pads[padIndex].Vib[0] = value;
-			break;
 	}
 }
 
-static void vibrate(int padIndex) {
+static void ds_update_vibrate(int padIndex) {
 	PadDataS *pad = &pads[padIndex];
+	if (pad->ds.configModeUsed) {
+		pad->Vib[0] = (pad->Vib[0] == 1) ? 1 : 0;
+	}
+	else {
+		// compat mode
+		pad->Vib[0] = (pad->Vib[0] & 0xc0) == 0x40 && (pad->Vib[1] & 1);
+		pad->Vib[1] = 0;
+	}
 	if (pad->Vib[0] != pad->VibF[0] || pad->Vib[1] != pad->VibF[1]) {
 		//value is different update Value and call libretro for vibration
 		pad->VibF[0] = pad->Vib[0];
@@ -733,19 +738,28 @@ static void PADpoll_dualshock(int port, unsigned char value, int pos)
 		case 2:
 			reqIndex2Treatment(port, value);
 			break;
-		case 3:
-			if (pads[port].txData[0] == CMD_READ_DATA_AND_VIBRATE) {
-				// vibration value for the Large motor
-				pads[port].Vib[1] = value;
-
-				vibrate(port);
-			}
-			break;
 		case 7:
 			if (pads[port].txData[0] == CMD_VIBRATION_TOGGLE)
 				memcpy(pads[port].ds.cmd4dConfig, pads[port].txData + 2, 6);
 			break;
 	}
+
+	if (pads[port].txData[0] == CMD_READ_DATA_AND_VIBRATE
+	    && !pads[port].ds.configModeUsed && 2 <= pos && pos < 4)
+	{
+		// "compat" single motor mode
+		pads[port].Vib[pos - 2] = value;
+	}
+	else if (pads[port].txData[0] == CMD_READ_DATA_AND_VIBRATE
+		 && 2 <= pos && pos < 8)
+	{
+		// 0 - weak motor, 1 - strong motor
+		int dev = pads[port].ds.cmd4dConfig[pos - 2];
+		if (dev < 2)
+			pads[port].Vib[dev] = value;
+	}
+	if (pos == respSize - 1)
+		ds_update_vibrate(port);
 }
 
 static unsigned char PADpoll_(int port, unsigned char value, int pos, int *more_data) {
