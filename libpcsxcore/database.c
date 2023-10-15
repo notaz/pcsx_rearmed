@@ -26,6 +26,8 @@ static const char * const cdr_read_hack_db[] =
 
 static const char * const gpu_slow_llist_db[] =
 {
+	/* Bomberman Fantasy Race */
+	"SLES01712", "SLPS01525", "SLPS91138", "SLPM87102", "SLUS00823",
 	/* Crash Bash */
 	"SCES02834", "SCUS94570", "SCUS94616", "SCUS94654",
 	/* Final Fantasy IV */
