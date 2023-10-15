@@ -167,11 +167,11 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       goto upd_irq;
     //-------------------------------------------------//
     case H_SPUrvolL:
-      spu.rvb->VolLeft=val;
+      spu.rvb->VolLeft = (int16_t)val;
       break;
     //-------------------------------------------------//
     case H_SPUrvolR:
-      spu.rvb->VolRight=val;
+      spu.rvb->VolRight = (int16_t)val;
       break;
     //-------------------------------------------------//
 
