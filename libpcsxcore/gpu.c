@@ -19,14 +19,13 @@ void gpu_state_change(int what)
 	switch (state)
 	{
 	case PGS_VRAM_TRANSFER_START:
-		HW_GPU_STATUS &= ~SWAP32(PSXGPU_nBUSY);
+		psxRegs.gpuIdleAfter = psxRegs.cycle + PSXCLK / 50;
 		break;
 	case PGS_VRAM_TRANSFER_END:
-		HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY);
+		psxRegs.gpuIdleAfter = psxRegs.cycle;
 		break;
 	case PGS_PRIMITIVE_START:
-		HW_GPU_STATUS &= ~SWAP32(PSXGPU_nBUSY);
-		set_event(PSXINT_GPUDMA, 200); // see gpuInterrupt
+		psxRegs.gpuIdleAfter = psxRegs.cycle + 200;
 		break;
 	}
 }

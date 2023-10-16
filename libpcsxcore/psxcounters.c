@@ -397,6 +397,8 @@ void psxRcntUpdate()
             }
             HW_GPU_STATUS = SWAP32(status);
             GPU_vBlank(0, field);
+            if ((s32)(psxRegs.gpuIdleAfter - psxRegs.cycle) < 0)
+                psxRegs.gpuIdleAfter = psxRegs.cycle - 1; // prevent overflow
 
             if ((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
                 (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))

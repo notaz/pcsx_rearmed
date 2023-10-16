@@ -3322,7 +3322,6 @@ void psxBiosSetupBootState(void)
 		GPU_writeStatus(gpu_ctl_def[i]);
 	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
 		GPU_writeData(gpu_data_def[i]);
-	HW_GPU_STATUS |= SWAP32(PSXGPU_nBUSY);
 
 	// spu
 	for (i = 0x1f801d80; i < sizeof(spu_config) / sizeof(spu_config[0]); i++)

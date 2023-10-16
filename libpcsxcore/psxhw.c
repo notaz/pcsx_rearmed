@@ -41,7 +41,7 @@ void psxHwReset() {
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
 	psxRcntInit();
-	HW_GPU_STATUS = SWAP32(0x14802000);
+	HW_GPU_STATUS = SWAP32(0x10802000);
 	psxHwReadGpuSRptr = Config.hacks.gpu_busy_hack
 		? psxHwReadGpuSRbusyHack : psxHwReadGpuSR;
 }
@@ -91,16 +91,17 @@ void psxHwWriteGpuSR(u32 value)
 
 u32 psxHwReadGpuSR(void)
 {
-	u32 v;
+	u32 v, c = psxRegs.cycle;
 
 	// meh2, syncing for img bit, might want to avoid it..
 	gpuSyncPluginSR();
 	v = SWAP32(HW_GPU_STATUS);
+	v |= ((s32)(psxRegs.gpuIdleAfter - c) >> 31) & PSXGPU_nBUSY;
 
 	// XXX: because of large timeslices can't use hSyncCount, using rough
 	// approximization instead. Perhaps better use hcounter code here or something.
 	if (hSyncCount < 240 && (v & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
-		v |= PSXGPU_LCF & (psxRegs.cycle << 20);
+		v |= PSXGPU_LCF & (c << 20);
 	return v;
 }
 
