@@ -227,10 +227,11 @@ FUNCTION(new_dyna_leave):
 .endm
 
 .macro memhandler_post
-	ldr	w0, [rFP, #LO_next_interupt]
+	/* w2 = cycles_out, x3 = tmp */
+	ldr	w3, [rFP, #LO_next_interupt]
 	ldr	w2, [rFP, #LO_cycle]        // memhandlers can modify cc, like dma
-	str	w0, [rFP, #LO_last_count]
-	sub	w0, w2, w0
+	str	w3, [rFP, #LO_last_count]
+	sub	w2, w2, w3
 .endm
 
 FUNCTION(do_memhandler_pre):
@@ -258,17 +259,18 @@ FUNCTION(do_memhandler_post):
 FUNCTION(jump_handler_read8):
 	add     x1, x1, #0x1000/4*8 + 0x1000/2*8  /* shift to r8 part */
 	pcsx_read_mem ldrb, 0
-	b	handler_read_end
+	ldp	xzr, x30, [sp], #16
+	ret
 
 FUNCTION(jump_handler_read16):
 	add     x1, x1, #0x1000/4*8               /* shift to r16 part */
 	pcsx_read_mem ldrh, 1
-	b	handler_read_end
+	ldp	xzr, x30, [sp], #16
+	ret
 
 FUNCTION(jump_handler_read32):
 	pcsx_read_mem ldr, 2
-
-handler_read_end:
+	/* memhandler_post */
 	ldp	xzr, x30, [sp], #16
 	ret
 
@@ -278,7 +280,6 @@ handler_read_end:
 	ldr	x3, [x3, w4, uxtw #3]
 	adds	x3, x3, x3
 	bcs	0f
-	mov	w0, w2                    /* cycle return */
 	\wrtop	w1, [x3, w4, uxtw #\tab_shift]
 	ret
 0:

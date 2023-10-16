@@ -419,15 +419,23 @@ FUNCTION(new_dyna_start):
 
 /* --------------------------------------- */
 
-.align	2
+.macro memhandler_post
+	/* r2 = cycles_out, r3 = tmp */
+	ldr	r3, [fp, #LO_next_interupt]
+	ldr	r2, [fp, #LO_cycle]        @ memhandlers can modify cc, like dma
+	str	r3, [fp, #LO_last_count]
+	sub	r2, r2, r3
+.endm
 
-.macro pcsx_read_mem readop tab_shift
+.align 2
+
+.macro pcsx_read_mem_part readop tab_shift
 	/* r0 = address, r1 = handler_tab, r2 = cycles */
 	lsl	r3, r0, #20
 	lsr	r3, #(20+\tab_shift)
 	ldr	r12, [fp, #LO_last_count]
 	ldr	r1, [r1, r3, lsl #2]
-	add	r2, r2, r12
+	add	r12, r2, r12
 	lsls	r1, #1
 .if \tab_shift == 1
 	lsl	r3, #1
@@ -436,28 +444,30 @@ FUNCTION(new_dyna_start):
 	\readop	r0, [r1, r3, lsl #\tab_shift]
 .endif
 	movcc	pc, lr
-	str	r2, [fp, #LO_cycle]
-	bx	r1
+	mov	r2, r12
+	str	r12, [fp, #LO_cycle]
 .endm
 
 FUNCTION(jump_handler_read8):
 	add     r1, #0x1000/4*4 + 0x1000/2*4 @ shift to r8 part
-	pcsx_read_mem ldrbcc, 0
+	pcsx_read_mem_part ldrbcc, 0
+	bx	r1                           @ addr, unused, cycles
 
 FUNCTION(jump_handler_read16):
 	add     r1, #0x1000/4*4              @ shift to r16 part
-	pcsx_read_mem ldrhcc, 1
+	pcsx_read_mem_part ldrhcc, 1
+	bx	r1                           @ addr, unused, cycles
 
 FUNCTION(jump_handler_read32):
-	pcsx_read_mem ldrcc, 2
-
-
-.macro memhandler_post
-	ldr	r0, [fp, #LO_next_interupt]
-	ldr	r2, [fp, #LO_cycle]        @ memhandlers can modify cc, like dma
-	str	r0, [fp, #LO_last_count]
-	sub	r0, r2, r0
-.endm
+	pcsx_read_mem_part ldrcc, 2
+	bx	r1                           @ addr, unused, cycles
+#if 0
+	str	lr, [fp, #LO_saved_lr]
+	blx	r1
+	ldr	lr, [fp, #LO_saved_lr]
+	memhandler_post
+	bx	lr
+#endif
 
 .macro pcsx_write_mem wrtop tab_shift
 	/* r0 = address, r1 = data, r2 = cycles, r3 = handler_tab */
@@ -466,7 +476,6 @@ FUNCTION(jump_handler_read32):
 	ldr	r3, [r3, r12, lsl #2]
 	str	r0, [fp, #LO_address]      @ some handlers still need it..
 	lsls	r3, #1
-	mov     r0, r2                     @ cycle return in case of direct store
 .if \tab_shift == 1
 	lsl	r12, #1
 	\wrtop	r1, [r3, r12]
