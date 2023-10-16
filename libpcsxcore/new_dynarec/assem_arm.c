@@ -1734,6 +1734,14 @@ static void do_readstub(int n)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
   emit_far_call(handler);
+#if 0
+  if (type == LOADW_STUB) {
+    // new cycle_count returned in r2
+    emit_addimm(2, -(int)stubs[n].d, cc<0?2:cc);
+    if (cc < 0)
+      emit_storereg(CCREG, 2);
+  }
+#endif
   if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     mov_loadtype_adj(type,0,rt);
   }
@@ -1804,6 +1812,14 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
 
   emit_far_call(handler);
 
+#if 0
+  if (type == LOADW_STUB) {
+    // new cycle_count returned in r2
+    emit_addimm(2, -adj, cc<0?2:cc);
+    if (cc < 0)
+      emit_storereg(CCREG, 2);
+  }
+#endif
   if(rt>=0&&dops[i].rt1!=0) {
     switch(type) {
       case LOADB_STUB:  emit_signextend8(0,rt); break;
@@ -1887,9 +1903,9 @@ static void do_writestub(int n)
   if(cc<0)
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
-  // returns new cycle_count
   emit_far_call(handler);
-  emit_addimm(0,-(int)stubs[n].d,cc<0?2:cc);
+  // new cycle_count returned in r2
+  emit_addimm(2,-(int)stubs[n].d,cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   if(restore_jump)
@@ -1927,9 +1943,9 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
     emit_loadreg(CCREG,2);
   emit_addimm(cc<0?2:cc,adj,2);
   emit_movimm((u_int)handler,3);
-  // returns new cycle_count
   emit_far_call(jump_handler_write_h);
-  emit_addimm(0,-adj,cc<0?2:cc);
+  // new cycle_count returned in r2
+  emit_addimm(2,-adj,cc<0?2:cc);
   if(cc<0)
     emit_storereg(CCREG,2);
   restore_regs(reglist);

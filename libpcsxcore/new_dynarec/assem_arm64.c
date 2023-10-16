@@ -1465,6 +1465,7 @@ static void do_readstub(int n)
   int i = stubs[n].a;
   int rs = stubs[n].b;
   const struct regstat *i_regs = (void *)stubs[n].c;
+  int adj = (int)stubs[n].d;
   u_int reglist = stubs[n].e;
   const signed char *i_regmap = i_regs->regmap;
   int rt;
@@ -1527,12 +1528,22 @@ static void do_readstub(int n)
     handler=jump_handler_read32;
   assert(handler);
   pass_args64(rs,temp2);
-  int cc=get_reg(i_regmap,CCREG);
-  if(cc<0)
-    emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
+  int cc, cc_use;
+  cc = cc_use = get_reg(i_regmap, CCREG);
+  if (cc < 0)
+    emit_loadreg(CCREG, (cc_use = 2));
+  emit_addimm(cc_use, adj, 2);
+
   emit_far_call(handler);
-  // (no cycle reload after read)
+
+#if 0
+  // cycle reload for read32 only (value in w2 both in and out)
+  if (type == LOADW_STUB) {
+    emit_addimm(2, -adj, cc_use);
+    if (cc < 0)
+      emit_storereg(CCREG, cc_use);
+  }
+#endif
   if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
     loadstore_extend(type,0,rt);
   }
@@ -1551,7 +1562,8 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   u_int is_dynamic=0;
   uintptr_t host_addr = 0;
   void *handler;
-  int cc=get_reg(regmap,CCREG);
+  int cc, cc_use;
+  cc = cc_use = get_reg(regmap, CCREG);
   //if(pcsx_direct_read(type,addr,adj,cc,target?ra:-1,rt))
   //  return;
   handler = get_direct_memhandler(mem_rtab, addr, type, &host_addr);
@@ -1588,9 +1600,9 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
     emit_movimm(addr,0);
   else if(ra!=0)
     emit_mov(ra,0);
-  if(cc<0)
-    emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,adj,2);
+  if (cc < 0)
+    emit_loadreg(CCREG, (cc_use = 2));
+  emit_addimm(cc_use, adj, 2);
   if(is_dynamic) {
     uintptr_t l1 = ((uintptr_t *)mem_rtab)[addr>>12] << 1;
     intptr_t offset = (l1 & ~0xfffl) - ((intptr_t)out & ~0xfffl);
@@ -1606,7 +1618,16 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
 
   emit_far_call(handler);
 
-  // (no cycle reload after read)
+#if 0
+  // cycle reload for read32 only (value in w2 both in and out)
+  if (type == LOADW_STUB) {
+    if (!is_dynamic)
+      emit_far_call(do_memhandler_post);
+    emit_addimm(2, -adj, cc_use);
+    if (cc < 0)
+      emit_storereg(CCREG, cc_use);
+  }
+#endif
   if(rt>=0&&dops[i].rt1!=0)
     loadstore_extend(type, 0, rt);
   restore_regs(reglist);
@@ -1620,6 +1641,7 @@ static void do_writestub(int n)
   int i=stubs[n].a;
   int rs=stubs[n].b;
   struct regstat *i_regs=(struct regstat *)stubs[n].c;
+  int adj = (int)stubs[n].d;
   u_int reglist=stubs[n].e;
   signed char *i_regmap=i_regs->regmap;
   int rt,r;
@@ -1687,16 +1709,19 @@ static void do_writestub(int n)
     emit_mov64(temp2,3);
     host_tempreg_release();
   }
-  int cc=get_reg(i_regmap,CCREG);
-  if(cc<0)
-    emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
-  // returns new cycle_count
+  int cc, cc_use;
+  cc = cc_use = get_reg(i_regmap, CCREG);
+  if (cc < 0)
+    emit_loadreg(CCREG, (cc_use = 2));
+  emit_addimm(cc_use, adj, 2);
+
   emit_far_call(handler);
-  emit_addimm(0,-(int)stubs[n].d,cc<0?2:cc);
-  if(cc<0)
-    emit_storereg(CCREG,2);
-  if(restore_jump)
+
+  // new cycle_count returned in x2
+  emit_addimm(2, -adj, cc_use);
+  if (cc < 0)
+    emit_storereg(CCREG, cc_use);
+  if (restore_jump)
     set_jump_target(restore_jump, out);
   restore_regs(reglist);
   emit_jmp(stubs[n].retaddr);
@@ -1736,7 +1761,7 @@ static void inline_writestub(enum stub_type type, int i, u_int addr,
   emit_far_call(do_memhandler_pre);
   emit_far_call(handler);
   emit_far_call(do_memhandler_post);
-  emit_addimm(0, -adj, cc_use);
+  emit_addimm(2, -adj, cc_use);
   if (cc < 0)
     emit_storereg(CCREG, cc_use);
   restore_regs(reglist);
