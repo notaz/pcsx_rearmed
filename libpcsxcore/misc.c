@@ -738,6 +738,8 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
 	psxRegs.biosBranchCheck = ~0;
+	psxRegs.gpuIdleAfter = psxRegs.cycle - 1;
+	HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
@@ -750,8 +752,7 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t));
 	GPU_freeze(0, gpufP);
 	free(gpufP);
-	if (HW_GPU_STATUS == 0)
-		HW_GPU_STATUS = SWAP32(GPU_readStatus());
+	gpuSyncPluginSR();
 
 	// spu
 	SaveFuncs.read(f, &Size, 4);
