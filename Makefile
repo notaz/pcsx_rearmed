@@ -293,7 +293,7 @@ frontend/revision.h: FORCE
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
+	$(CC_LINK) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
