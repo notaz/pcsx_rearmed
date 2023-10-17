@@ -411,7 +411,7 @@ $(TARGET): $(OBJS)
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $(OBJS)
 else
-	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
+	$(CC_LINK) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
 endif
 
 clean: $(PLAT_CLEAN) clean_plugins
