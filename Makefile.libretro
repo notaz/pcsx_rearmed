@@ -24,6 +24,7 @@ endif
 CC ?= gcc
 CXX ?= g++
 AS ?= as
+LD ?= ld
 CFLAGS ?=
 
 # early compiler overrides
@@ -129,7 +130,7 @@ else ifneq (,$(findstring CortexA73_G12B,$(platform)))
 	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
-	CPUFLAGS += -march=armv8-a+crc -mfpu=neon-fp-armv8 -mcpu=cortex-a73 -mtune=cortex-a73.cortex-a53
+	CFLAGS += -march=armv8-a+crc -mcpu=cortex-a73 -mtune=cortex-a73.cortex-a53
 
 # ALLWINNER H5
 else ifneq (,$(findstring h5,$(platform)))
@@ -141,7 +142,7 @@ else ifneq (,$(findstring h5,$(platform)))
 	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
-	CPUFLAGS += -march=armv8-a+crc -mfpu=neon-fp-armv8 -mcpu=cortex-a53 -mtune=cortex-a53
+	CFLAGS += -march=armv8-a+crc -mcpu=cortex-a53 -mtune=cortex-a53
 
 else ifeq ($(platform), linux-portable)
 	TARGET := $(TARGET_NAME)_libretro.so
@@ -579,7 +580,7 @@ ifndef HAVE_NEON_ASM
 # asm for 32bit only
 HAVE_NEON_ASM = $(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep -q HAVE_NEON32 && echo 1 || echo 0)
 endif
-ifeq ($(NO_UNDEF_CHECK)$(shell ld -v 2> /dev/null | awk '{print $$1}'),GNU)
+ifeq ($(NO_UNDEF_CHECK)$(shell $(LD) -v 2> /dev/null | awk '{print $$1}'),GNU)
 MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 ifdef ALLOW_LIGHTREC_ON_ARM
