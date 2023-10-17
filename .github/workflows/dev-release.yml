@@ -1,0 +1,55 @@
+name: "pre-release"
+
+# this is intended to trigger on notaz/pcsx_rearmed libretro push
+# and do nothing on libretro/pcsx_rearmed master push
+on:
+  push:
+    branches:
+      - "libretro"
+
+jobs:
+  pre-release:
+    name: "Pre Release"
+    runs-on: "ubuntu-20.04"
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y make git sed zip
+          sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Build
+        env:
+          MAKEFLAGS: -j$(nproc)
+        run: |
+          GITVER=`git rev-parse --short libretro`
+          .github/build-libretro-zip.sh arm64 CortexA73_G12B GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 rpi1    GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 rpi2    GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 rpi3    GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm64 rpi3_64 GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 rpi4    GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm64 rpi4_64 GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 classic_armv7_a7  GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm32 classic_armv8_a35 GIT_VERSION=${GITVER}
+          #.github/build-libretro-zip.sh arm32 miyoo   GIT_VERSION=${GITVER}
+      - uses: "marvinpinto/action-automatic-releases@v1.2.1"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "libretro-devbuild"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            pcsx_rearmed_libretro_arm64_CortexA73_G12B.zip
+            pcsx_rearmed_libretro_arm32_rpi1.zip
+            pcsx_rearmed_libretro_arm32_rpi2.zip
+            pcsx_rearmed_libretro_arm32_rpi3.zip
+            pcsx_rearmed_libretro_arm64_rpi3_64.zip
+            pcsx_rearmed_libretro_arm32_rpi4.zip
+            pcsx_rearmed_libretro_arm64_rpi4_64.zip
+            pcsx_rearmed_libretro_arm32_classic_armv7_a7.zip
+            pcsx_rearmed_libretro_arm32_classic_armv8_a35.zip
