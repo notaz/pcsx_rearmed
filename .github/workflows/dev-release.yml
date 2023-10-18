@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y make git sed zip
+          sudo apt-get install -y make git bc sed zip
           sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - uses: actions/checkout@v4
@@ -26,17 +26,16 @@ jobs:
         env:
           MAKEFLAGS: -j$(nproc)
         run: |
-          GITVER=`git rev-parse --short libretro`
-          .github/build-libretro-zip.sh arm64 CortexA73_G12B GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 rpi1    GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 rpi2    GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 rpi3    GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm64 rpi3_64 GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 rpi4    GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm64 rpi4_64 GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 classic_armv7_a7  GIT_VERSION=${GITVER}
-          .github/build-libretro-zip.sh arm32 classic_armv8_a35 GIT_VERSION=${GITVER}
-          #.github/build-libretro-zip.sh arm32 miyoo   GIT_VERSION=${GITVER}
+          .github/build-libretro-zip.sh arm64 CortexA73_G12B
+          .github/build-libretro-zip.sh arm32 rpi1
+          .github/build-libretro-zip.sh arm32 rpi2
+          .github/build-libretro-zip.sh arm32 rpi3
+          .github/build-libretro-zip.sh arm64 rpi3_64
+          .github/build-libretro-zip.sh arm32 rpi4
+          .github/build-libretro-zip.sh arm64 rpi4_64
+          .github/build-libretro-zip.sh arm32 classic_armv7_a7
+          .github/build-libretro-zip.sh arm32 classic_armv8_a35
+          .github/build-libretro-zip.sh arm32 miyoo CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++
       - uses: "marvinpinto/action-automatic-releases@v1.2.1"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
@@ -53,3 +52,4 @@ jobs:
             pcsx_rearmed_libretro_arm64_rpi4_64.zip
             pcsx_rearmed_libretro_arm32_classic_armv7_a7.zip
             pcsx_rearmed_libretro_arm32_classic_armv8_a35.zip
+            pcsx_rearmed_libretro_arm32_miyoo.zip
