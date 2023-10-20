@@ -622,6 +622,14 @@ static void log_pad(int port, int pos)
 #endif
 }
 
+static void adjust_analog(unsigned char *b)
+{
+	// ff8 hates 0x80 for whatever reason (broken in 2d area menus),
+	// or is this caused by something else we do wrong??
+	if (b[6] == 0x80)
+		b[6] = 0x7f;
+}
+
 // Build response for 0x42 request Pad in port
 static void PADstartPoll_(PadDataS *pad) {
 	switch (pad->controllerType) {
@@ -699,6 +707,7 @@ static void PADstartPoll_(PadDataS *pad) {
 			stdpar[5] = pad->rightJoyY;
 			stdpar[6] = pad->leftJoyX;
 			stdpar[7] = pad->leftJoyY;
+			adjust_analog(stdpar);
 			memcpy(buf, stdpar, 8);
 			respSize = 8;
 			break;
@@ -711,6 +720,7 @@ static void PADstartPoll_(PadDataS *pad) {
 			stdpar[5] = pad->rightJoyY;
 			stdpar[6] = pad->leftJoyX;
 			stdpar[7] = pad->leftJoyY;
+			adjust_analog(stdpar);
 			memcpy(buf, stdpar, 8);
 			respSize = 8;
 			break;
