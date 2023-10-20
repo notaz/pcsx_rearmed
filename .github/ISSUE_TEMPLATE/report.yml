@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a PCSX-ReARMed issue
+body:
+  - type: input
+    id: pcsx_version
+    attributes:
+      label: PCSX-ReARMed Version
+      description: Version number of the emulator as shown in the menus and printed in logs.
+      placeholder: r23l a4e249a1
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Your device
+      description: "Examples: Raspberry Pi4, PC, PS Vita, PS Classic, etc."
+      placeholder: PC
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System of your device
+      description: What OS are you using?
+      options:
+        - Android
+        - Apple (iOS, tvOS, macOS etc.)
+        - Linux (or Linux-based like RetroPie etc.)
+        - Windows
+        - Other (consoles, etc.)
+  - type: dropdown
+    id: arch
+    attributes:
+      label: CPU architecture
+      description: Select the type of the CPU in your device. In case you're using 32bit software on a 64bit device, please select 32bit.
+      options:
+        - ARM 64bit (AArch64)
+        - ARM 32bit
+        - x86-64 (64bit Intel, AMD, etc.)
+        - x86 (32bit Intel, AMD, etc.)
+        - Other
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Issue description
+      description: What issue are you having?
+      placeholder: Crash Bandicoot crashes after pressing start.
+    validations:
+      required: true
+  - type: textarea
+    id: step_by_step
+    attributes:
+      label: Step-by-step reproduction and logs
+      description: Type here how your issue can be reproduced and attach any logs.
+      placeholder: Wait for the game's title screen to appear and then press start.
+    validations:
+      required: false
