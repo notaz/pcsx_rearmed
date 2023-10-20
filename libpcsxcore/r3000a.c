@@ -36,8 +36,6 @@ psxRegisters psxRegs;
 #endif
 
 int psxInit() {
-	SysPrintf(_("Running PCSX Version %s (%s).\n"), PCSX_VERSION, __DATE__);
-
 #ifndef DRC_DISABLE
 	if (Config.Cpu == CPU_INTERPRETER) {
 		psxCpu = &psxInt;
