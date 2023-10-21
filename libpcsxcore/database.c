@@ -1,5 +1,6 @@
 #include "misc.h"
 #include "sio.h"
+#include "ppf.h"
 #include "new_dynarec/new_dynarec.h"
 
 /* It's duplicated from emu_if.c */
@@ -92,7 +93,7 @@ cycle_multiplier_overrides[] =
 };
 
 /* Function for automatic patching according to GameID. */
-void Apply_Hacks_Cdrom()
+void Apply_Hacks_Cdrom(void)
 {
 	size_t i, j;
 
@@ -138,4 +139,75 @@ void Apply_Hacks_Cdrom()
 			break;
 		}
 	}
+}
+
+// from duckstation's gamedb.json
+static const u16 libcrypt_ids[] = {
+	   17,   311,   995,  1041,  1226,  1241,  1301,  1362,  1431,  1444,
+	 1492,  1493,  1494,  1495,  1516,  1517,  1518,  1519,  1545,  1564,
+	 1695,  1700,  1701,  1702,  1703,  1704,  1715,  1733,  1763,  1882,
+	 1906,  1907,  1909,  1943,  1979,  2004,  2005,  2006,  2007,  2024,
+	 2025,  2026,  2027,  2028,  2029,  2030,  2031,  2061,  2071,  2080,
+	 2081,  2082,  2083,  2084,  2086,  2104,  2105,  2112,  2113,  2118,
+	 2181,  2182,  2184,  2185,  2207,  2208,  2209,  2210,  2211,  2222,
+	 2264,  2290,  2292,  2293,  2328,  2329,  2330,  2354,  2355,  2365,
+	 2366,  2367,  2368,  2369,  2395,  2396,  2402,  2430,  2431,  2432,
+	 2433,  2487,  2488,  2489,  2490,  2491,  2529,  2530,  2531,  2532,
+	 2533,  2538,  2544,  2545,  2546,  2558,  2559,  2560,  2561,  2562,
+	 2563,  2572,  2573,  2681,  2688,  2689,  2698,  2700,  2704,  2705,
+	 2706,  2707,  2708,  2722,  2723,  2724,  2733,  2754,  2755,  2756,
+	 2763,  2766,  2767,  2768,  2769,  2824,  2830,  2831,  2834,  2835,
+	 2839,  2857,  2858,  2859,  2860,  2861,  2862,  2965,  2966,  2967,
+	 2968,  2969,  2975,  2976,  2977,  2978,  2979,  3061,  3062,  3189,
+	 3190,  3191,  3241,  3242,  3243,  3244,  3245,  3324,  3489,  3519,
+	 3520,  3521,  3522,  3523,  3530,  3603,  3604,  3605,  3606,  3607,
+	 3626,  3648, 12080, 12081, 12082, 12083, 12084, 12328, 12329, 12330,
+	12558, 12559, 12560, 12561, 12562, 12965, 12966, 12967, 12968, 12969,
+	22080, 22081, 22082, 22083, 22084, 22328, 22329, 22330, 22965, 22966,
+	22967, 22968, 22969, 32080, 32081, 32082, 32083, 32084, 32965, 32966,
+	32967, 32968, 32969
+};
+
+// as documented by nocash
+static const u16 libcrypt_sectors[16] = {
+	14105, 14231, 14485, 14579, 14649, 14899, 15056, 15130,
+	15242, 15312, 15378, 15628, 15919, 16031, 16101, 16167
+};
+
+int check_unsatisfied_libcrypt(void)
+{
+	const char *p = CdromId + 4;
+	u16 id, key = 0;
+	size_t i;
+
+	if (strncmp(CdromId, "SCE", 3) && strncmp(CdromId, "SLE", 3))
+		return 0;
+	while (*p == '0')
+		p++;
+	id = (u16)atoi(p);
+	for (i = 0; i < ARRAY_SIZE(libcrypt_ids); i++)
+		if (id == libcrypt_ids[i])
+			break;
+	if (i == ARRAY_SIZE(libcrypt_ids))
+		return 0;
+
+	// detected a protected game
+	if (!CDR_getBufferSub(libcrypt_sectors[0]) && !sbi_sectors) {
+		SysPrintf("==================================================\n");
+		SysPrintf("LibCrypt game detected with missing SBI/subchannel\n");
+		SysPrintf("==================================================\n");
+		return 1;
+	}
+
+	if (sbi_sectors) {
+		// calculate key just for fun (we don't really need it)
+		for (i = 0; i < 16; i++)
+			if (CheckSBI(libcrypt_sectors[i] - 2*75))
+				key |= 1u << (15 - i);
+	}
+	if (key)
+		SysPrintf("%s, possible key=%04X\n", "LibCrypt detected", key);
+	else
+		SysPrintf("%s\n", "LibCrypt detected");
+	return 0;
 }

@@ -31,16 +31,17 @@ int LoadSBI(const char *fname, int sector_count);
 void UnloadSBI(void);
 
 extern unsigned char *sbi_sectors;
+extern int sbi_len;
 
 #include "cdrom.h"
 
-static inline int CheckSBI(const u8 *t)
+static inline int CheckSBI(int s)
 {
-	int s;
 	if (sbi_sectors == NULL)
 		return 0;
+	if ((unsigned int)(s >> 3) >= (unsigned int)sbi_len)
+		return 0;
 
-	s = MSF2SECT(t[0], t[1], t[2]);
 	return (sbi_sectors[s >> 3] >> (s & 7)) & 1;
 }
 

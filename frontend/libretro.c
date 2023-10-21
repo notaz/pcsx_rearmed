@@ -28,6 +28,7 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/r3000a.h"
 #include "../libpcsxcore/gpu.h"
+#include "../libpcsxcore/database.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "cspace.h"
@@ -1502,6 +1503,32 @@ static void set_retro_memmap(void)
 #endif
 }
 
+static void show_notification(const char *msg_str,
+      unsigned duration_ms, unsigned priority)
+{
+   if (msg_interface_version >= 1)
+   {
+      struct retro_message_ext msg = {
+         msg_str,
+         duration_ms,
+         3,
+         RETRO_LOG_WARN,
+         RETRO_MESSAGE_TARGET_ALL,
+         RETRO_MESSAGE_TYPE_NOTIFICATION,
+         -1
+      };
+      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
+   }
+   else
+   {
+      struct retro_message msg = {
+         msg_str,
+         180
+      };
+      environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
+   }
+}
+
 static void retro_audio_buff_status_cb(
    bool active, unsigned occupancy, bool underrun_likely)
 {
@@ -1780,6 +1807,9 @@ bool retro_load_game(const struct retro_game_info *info)
 
    set_retro_memmap();
    retro_set_audio_buff_status_cb();
+
+   if (check_unsatisfied_libcrypt())
+      show_notification("LibCrypt protected game with missing SBI detected", 3000, 3);
 
    return true;
 }
@@ -3181,38 +3211,21 @@ static void loadPSXBios(void)
    if (!found_bios)
    {
       const char *msg_str;
+      unsigned duration;
       if (useHLE)
       {
-         msg_str = "BIOS set to \'hle\' in core options - real BIOS will be ignored";
+         msg_str = "BIOS set to \'hle\'";
          SysPrintf("Using HLE BIOS.\n");
+         // shorter as the user probably intentionally wants to use HLE
+         duration = 700;
       }
       else
       {
          msg_str = "No PlayStation BIOS file found - add for better compatibility";
          SysPrintf("No BIOS files found.\n");
+         duration = 3000;
       }
-
-      if (msg_interface_version >= 1)
-      {
-         struct retro_message_ext msg = {
-            msg_str,
-            3000,
-            3,
-            RETRO_LOG_WARN,
-            RETRO_MESSAGE_TARGET_ALL,
-            RETRO_MESSAGE_TYPE_NOTIFICATION,
-            -1
-         };
-         environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
-      }
-      else
-      {
-         struct retro_message msg = {
-            msg_str,
-            180
-         };
-         environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
-      }
+      show_notification(msg_str, duration, 2);
    }
 }
 

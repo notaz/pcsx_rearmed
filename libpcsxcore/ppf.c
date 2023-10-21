@@ -357,6 +357,7 @@ fail_io:
 
 // redump.org SBI files, slightly different handling from PCSX-Reloaded
 unsigned char *sbi_sectors;
+int sbi_len;
 
 int LoadSBI(const char *fname, int sector_count) {
 	int good_sectors = 0;
@@ -370,7 +371,8 @@ int LoadSBI(const char *fname, int sector_count) {
 	if (sbihandle == NULL)
 		return -1;
 
-	sbi_sectors = calloc(1, sector_count / 8);
+	sbi_len = (sector_count + 7) / 8;
+	sbi_sectors = calloc(1, sbi_len);
 	if (sbi_sectors == NULL)
 		goto end;
 
@@ -414,15 +416,13 @@ int LoadSBI(const char *fname, int sector_count) {
 			break;
 	}
 
-	fclose(sbihandle);
-	return 0;
-
 end:
 	if (!clean_eof)
 		SysPrintf(_("SBI: parse failure at 0x%lx\n"), ftell(sbihandle));
 	if (!good_sectors) {
 		free(sbi_sectors);
 		sbi_sectors = NULL;
+		sbi_len = 0;
 	}
 	fclose(sbihandle);
 	return sbi_sectors ? 0 : -1;
@@ -432,5 +432,6 @@ void UnloadSBI(void) {
 	if (sbi_sectors) {
 		free(sbi_sectors);
 		sbi_sectors = NULL;
+		sbi_len = 0;
 	}
 }
