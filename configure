@@ -66,7 +66,7 @@ optimize_cortexa8="no"
 optimize_arm926ej="no"
 
 # hardcoded stuff
-if [ ${OSTYPE} = "FreeBSD" ]; then
+if [ "${OSTYPE}" = "FreeBSD" ]; then
 	CC="clang"
 	CXX="clang++"
 	CFLAGS="-I/usr/local/include -L/usr/local/lib"
@@ -80,7 +80,7 @@ AR="${AS-${CROSS_COMPILE}ar}"
 MAIN_LDLIBS="$LDLIBS -ldl -lm -lpthread"
 config_mak="config.mak"
 
-if [ ${OSTYPE} = "FreeBSD" ]; then
+if [ "${OSTYPE}" = "FreeBSD" ]; then
 	SYSROOT="$sysroot"
 	[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/local/bin/sdl-config"
 else
