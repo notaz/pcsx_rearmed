@@ -66,15 +66,27 @@ optimize_cortexa8="no"
 optimize_arm926ej="no"
 
 # hardcoded stuff
-CC="${CC-${CROSS_COMPILE}gcc}"
-CXX="${CXX-${CROSS_COMPILE}g++}"
+if [ ${OSTYPE} = "FreeBSD" ]; then
+	CC="clang"
+	CXX="clang++"
+	CFLAGS="-I/usr/local/include -L/usr/local/lib"
+	MAKE=gmake
+else
+	CC="${CC-${CROSS_COMPILE}gcc}"
+	CXX="${CXX-${CROSS_COMPILE}g++}"
+fi
 AS="${AS-${CROSS_COMPILE}as}"
 AR="${AS-${CROSS_COMPILE}ar}"
 MAIN_LDLIBS="$LDLIBS -ldl -lm -lpthread"
 config_mak="config.mak"
 
-SYSROOT="$(${CC} --print-sysroot)"
-[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
+if [ ${OSTYPE} = "FreeBSD" ]; then
+	SYSROOT="$sysroot"
+	[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/local/bin/sdl-config"
+else
+	SYSROOT="$(${CC} --print-sysroot)"
+	[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
+fi
 
 fail()
 {
