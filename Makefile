@@ -421,10 +421,10 @@ ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)
 
 $(PLUGINS):
-	make -C $(dir $@)
+	$(MAKE) -C $(dir $@)
 
 clean_plugins:
-	make -C plugins/gpulib/ clean
+	$(MAKE) -C plugins/gpulib/ clean
 	for dir in $(PLUGINS) ; do \
 		$(MAKE) -C $$(dirname $$dir) clean; done
 else

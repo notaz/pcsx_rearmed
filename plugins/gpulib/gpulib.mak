@@ -49,7 +49,7 @@ $(BIN_GPULIB): $(SRC) $(SRC_GPULIB) $(GPULIB_A)
 endif
 
 $(GPULIB_A):
-	make -C ../gpulib/ all
+	$(MAKE) -C ../gpulib/ all
 
 clean:
 	$(RM) $(TARGETS)
