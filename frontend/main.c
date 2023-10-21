@@ -24,6 +24,7 @@
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/sio.h"
+#include "../libpcsxcore/database.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "../plugins/dfsound/spu_config.h"
@@ -418,7 +419,11 @@ void emu_on_new_cd(int show_hud_msg)
 	}
 
 	if (show_hud_msg) {
-		snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
+		if (check_unsatisfied_libcrypt())
+			snprintf(hud_msg, sizeof(hud_msg),
+				"LibCrypt protected game with missing SBI detected");
+		else
+			snprintf(hud_msg, sizeof(hud_msg), BOOT_MSG);
 		hud_new_msg = 3;
 	}
 }

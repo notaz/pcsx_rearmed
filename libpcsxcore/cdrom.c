@@ -462,12 +462,13 @@ static int ReadTrack(const u8 *time)
 static void UpdateSubq(const u8 *time)
 {
 	const struct SubQ *subq;
+	int s = MSF2SECT(time[0], time[1], time[2]);
 	u16 crc;
 
-	if (CheckSBI(time))
+	if (CheckSBI(s))
 		return;
 
-	subq = (struct SubQ *)CDR_getBufferSub(MSF2SECT(time[0], time[1], time[2]));
+	subq = (struct SubQ *)CDR_getBufferSub(s);
 	if (subq != NULL && cdr.CurTrack == 1) {
 		crc = calcCrc((u8 *)subq + 12, 10);
 		if (crc == (((u16)subq->CRC[0] << 8) | subq->CRC[1])) {

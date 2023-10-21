@@ -958,8 +958,14 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
 		case 7:
 			if ((regs_->CP0.n.DCIC ^ val) & 0xff800000)
 				log_unhandled("DCIC: %08x->%08x\n", regs_->CP0.n.DCIC, val);
-			// fallthrough
+			goto default_;
+		case 3:
+			if (regs_->CP0.n.BPC != val)
+				log_unhandled("BPC: %08x->%08x\n", regs_->CP0.n.BPC, val);
+			goto default_;
+
 		default:
+		default_:
 			regs_->CP0.r[reg] = val;
 			break;
 	}
