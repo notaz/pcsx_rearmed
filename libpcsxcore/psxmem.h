@@ -125,7 +125,8 @@ static inline void * psxm_lut(u32 mem, int write, u8 **lut)
 	if (!DISABLE_MEM_LUTS) {
 		void *ptr = lut[mem >> 16];
 
-		return ptr == INVALID_PTR ? INVALID_PTR : ptr + (u16)mem;
+		return ptr == INVALID_PTR ? INVALID_PTR
+			: (void *)((uintptr_t)ptr + (u16)mem);
 	}
 
 	if (mem >= 0xa0000000)
