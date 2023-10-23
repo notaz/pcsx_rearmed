@@ -71,6 +71,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
 	u32 cycles = state->cycles + lightrec_cycles_of_opcode(state->state, op->c);
+	bool has_ds = has_delay_slot(op->c);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -89,8 +90,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		update_ra_register(reg_cache, _jit, ra_reg, block->pc, link);
 	}
 
-	if (has_delay_slot(op->c) &&
-	    !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
+	if (has_ds && !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
 		cycles += lightrec_cycles_of_opcode(state->state, ds->c);
 
 		/* Recompile the delay slot */
@@ -106,7 +106,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	if (op_flag_load_delay(ds->flags)
+	if (has_ds && op_flag_load_delay(ds->flags)
 	    && opcode_is_load(ds->c) && !state->no_load_delay) {
 		/* If the delay slot is a load opcode, its target register
 		 * will be written after the first opcode of the target is
