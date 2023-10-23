@@ -31,7 +31,7 @@
 #define PSXGPU_FIELD   (1u<<13)
 
 // both must be set for interlace to work
-#define PSXGPU_ILACE_BITS (PSXGPU_ILACE | PSXGPU_DHEIGHT | PSXGPU_FIELD)
+#define PSXGPU_ILACE_BITS (PSXGPU_ILACE | PSXGPU_DHEIGHT)
 
 #define HW_GPU_STATUS psxHu32ref(0x1814)
 
