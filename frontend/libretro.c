@@ -98,6 +98,7 @@ static bool show_advanced_gpu_peops_settings = true;
 static bool show_advanced_gpu_unai_settings = true;
 #endif
 static float mouse_sensitivity = 1.0f;
+static unsigned int disk_current_index;
 
 typedef enum
 {
@@ -1070,14 +1071,24 @@ static void save_close(void *file)
 
 bool retro_serialize(void *data, size_t size)
 {
-   int ret = SaveState(data);
+   int ret;
+   CdromFrontendId = disk_current_index;
+   ret = SaveState(data);
    return ret == 0 ? true : false;
 }
 
+static bool disk_set_image_index(unsigned int index);
+
 bool retro_unserialize(const void *data, size_t size)
 {
-   int ret = LoadState(data);
-   return ret == 0 ? true : false;
+   int ret;
+   CdromFrontendId = -1;
+   ret = LoadState(data);
+   if (ret)
+      return false;
+   if (CdromFrontendId != -1 && CdromFrontendId != disk_current_index)
+      disk_set_image_index(CdromFrontendId);
+   return true;
 }
 
 /* cheats */
@@ -1143,7 +1154,6 @@ finish:
 static unsigned int disk_initial_index;
 static char disk_initial_path[PATH_MAX];
 static bool disk_ejected;
-static unsigned int disk_current_index;
 static unsigned int disk_count;
 static struct disks_state
 {
