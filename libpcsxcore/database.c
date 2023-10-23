@@ -90,6 +90,8 @@ cycle_multiplier_overrides[] =
 	/* Digimon World */
 	{ "SLUS01032", 153 },
 	{ "SLES02914", 153 },
+	/* Syphon Filter - reportedly hangs under unknown conditions */
+	{ "SCUS94240", 169 },
 };
 
 /* Function for automatic patching according to GameID. */
