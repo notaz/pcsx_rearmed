@@ -1,11 +1,3 @@
-#define select_enhancement_buf_index(psx_gpu, x) \
-  ((psx_gpu)->enhancement_buf_by_x16[(u32)(x) / \
-    (1024u / sizeof((psx_gpu)->enhancement_buf_by_x16))])
-
-#define select_enhancement_buf_ptr(psx_gpu, x) \
-  ((psx_gpu)->enhancement_buf_ptr + \
-    (select_enhancement_buf_index(psx_gpu, x) << 20))
-
 #if !defined(NEON_BUILD) || defined(SIMD_BUILD)
 
 #ifndef zip_4x32b
@@ -325,12 +317,12 @@ render_block_handler_struct render_sprite_block_handlers_4x[] =
   render_sprite_blocks_switch_block_4x()
 };
 
-
 void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
  s32 width, s32 height, u32 flags, u32 color)
 {
   s32 x_right = x + width - 1;
   s32 y_bottom = y + height - 1;
+  s16 end_x;
 
 #ifdef PROFILE
   sprites++;
@@ -352,8 +344,12 @@ void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
     height -= clip;
   }
 
-  if(x_right > psx_gpu->viewport_end_x)
-    width -= x_right - psx_gpu->viewport_end_x;
+  end_x = psx_gpu->viewport_end_x;
+  if (end_x - psx_gpu->viewport_start_x + 1 > 512)
+    end_x = psx_gpu->viewport_start_x + 511;
+
+  if(x_right > end_x)
+    width -= x_right - end_x;
 
   if(y_bottom > psx_gpu->viewport_end_y)
     height -= y_bottom - psx_gpu->viewport_end_y;
@@ -361,7 +357,9 @@ void render_sprite_4x(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
   if((width <= 0) || (height <= 0))
     return;
 
-  psx_gpu->vram_out_ptr = select_enhancement_buf_ptr(psx_gpu, x);
+  if (!psx_gpu->enhancement_current_buf_ptr)
+    return;
+  psx_gpu->vram_out_ptr = psx_gpu->enhancement_current_buf_ptr;
 
   x *= 2;
   y *= 2;

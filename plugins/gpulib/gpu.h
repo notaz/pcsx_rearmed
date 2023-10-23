@@ -135,7 +135,7 @@ void renderer_set_config(const struct rearmed_cbs *config);
 void renderer_notify_res_change(void);
 void renderer_notify_update_lace(int updated);
 void renderer_sync(void);
-void renderer_notify_scanout_x_change(int x, int w);
+void renderer_notify_scanout_change(int x, int y);
 
 int  vout_init(void);
 int  vout_finish(void);

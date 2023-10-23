@@ -328,6 +328,13 @@ void plat_video_menu_end(void)
 
 void plat_video_menu_leave(void)
 {
+  void *fb = NULL;
+  if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
+    fb = shadow_fb;
+  else if (plat_sdl_screen)
+    fb = plat_sdl_screen->pixels;
+  if (fb)
+    memset(fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
   in_menu = 0;
 }
 

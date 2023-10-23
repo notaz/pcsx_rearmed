@@ -315,7 +315,7 @@ void renderer_notify_res_change(void)
 {
 }
 
-void renderer_notify_scanout_x_change(int x, int w)
+void renderer_notify_scanout_change(int x, int y)
 {
 }
 
