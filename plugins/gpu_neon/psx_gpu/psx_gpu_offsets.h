@@ -1,7 +1,6 @@
 #ifndef __P_PSX_GPU_OFFSETS_H__
 #define __P_PSX_GPU_OFFSETS_H__
 
-#define psx_gpu_test_mask_offset                          0x0
 #define psx_gpu_uvrg_offset                               0x10
 #define psx_gpu_uvrg_dx_offset                            0x20
 #define psx_gpu_uvrg_dy_offset                            0x30
@@ -13,23 +12,18 @@
 #define psx_gpu_b_offset                                  0x90
 #define psx_gpu_b_dy_offset                               0x94
 #define psx_gpu_triangle_area_offset                      0x98
-#define psx_gpu_texture_window_settings_offset            0x9c
 #define psx_gpu_current_texture_mask_offset               0xa0
-#define psx_gpu_viewport_mask_offset                      0xa4
 #define psx_gpu_dirty_textures_4bpp_mask_offset           0xa8
 #define psx_gpu_dirty_textures_8bpp_mask_offset           0xac
 #define psx_gpu_dirty_textures_8bpp_alternate_mask_offset 0xb0
 #define psx_gpu_triangle_color_offset                     0xb4
 #define psx_gpu_dither_table_offset                       0xb8
-#define psx_gpu_uvrgb_phase_offset                        0xc8
-#define psx_gpu_render_block_handler_offset               0xcc
-#define psx_gpu_texture_page_ptr_offset                   0xd0
-#define psx_gpu_texture_page_base_offset                  0xd4
-#define psx_gpu_clut_ptr_offset                           0xd8
-#define psx_gpu_vram_ptr_offset                           0xdc
-#define psx_gpu_vram_out_ptr_offset                       0xe0
-#define psx_gpu_render_state_base_offset                  0xe4
-#define psx_gpu_render_state_offset                       0xe6
+#define psx_gpu_texture_page_ptr_offset                   0xcc
+#define psx_gpu_texture_page_base_offset                  0xd0
+#define psx_gpu_clut_ptr_offset                           0xd4
+#define psx_gpu_vram_ptr_offset                           0xd8
+#define psx_gpu_vram_out_ptr_offset                       0xdc
+#define psx_gpu_uvrgb_phase_offset                        0xe0
 #define psx_gpu_num_spans_offset                          0xe8
 #define psx_gpu_num_blocks_offset                         0xea
 #define psx_gpu_viewport_start_x_offset                   0xec
@@ -38,26 +32,13 @@
 #define psx_gpu_viewport_end_y_offset                     0xf2
 #define psx_gpu_mask_msb_offset                           0xf4
 #define psx_gpu_triangle_winding_offset                   0xf6
-#define psx_gpu_display_area_draw_enable_offset           0xf7
 #define psx_gpu_current_texture_page_offset               0xf8
-#define psx_gpu_last_8bpp_texture_page_offset             0xf9
 #define psx_gpu_texture_mask_width_offset                 0xfa
 #define psx_gpu_texture_mask_height_offset                0xfb
-#define psx_gpu_texture_window_x_offset                   0xfc
-#define psx_gpu_texture_window_y_offset                   0xfd
-#define psx_gpu_primitive_type_offset                     0xfe
-#define psx_gpu_render_mode_offset                        0xff
-#define psx_gpu_offset_x_offset                           0x100
-#define psx_gpu_offset_y_offset                           0x102
-#define psx_gpu_clut_settings_offset                      0x104
-#define psx_gpu_texture_settings_offset                   0x106
 #define psx_gpu_reciprocal_table_ptr_offset               0x108
 #define psx_gpu_blocks_offset                             0x200
 #define psx_gpu_span_uvrg_offset_offset                   0x2200
 #define psx_gpu_span_edge_data_offset                     0x4200
 #define psx_gpu_span_b_offset_offset                      0x5200
-#define psx_gpu_texture_4bpp_cache_offset                 0x5a00
-#define psx_gpu_texture_8bpp_even_cache_offset            0x205a00
-#define psx_gpu_texture_8bpp_odd_cache_offset             0x305a00
 
 #endif /* __P_PSX_GPU_OFFSETS_H__ */

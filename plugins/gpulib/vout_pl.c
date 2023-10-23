@@ -84,6 +84,8 @@ void vout_update(void)
     if (!gpu.state.enhancement_was_active)
       return; // buffer not ready yet
     vram = gpu.get_enhancement_bufer(&src_x, &src_y, &w, &h, &vram_h);
+    if (vram == NULL)
+      return;
     x *= 2; y *= 2;
     src_x2 *= 2;
   }

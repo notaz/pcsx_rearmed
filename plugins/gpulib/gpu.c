@@ -260,6 +260,7 @@ long GPUshutdown(void)
 void GPUwriteStatus(uint32_t data)
 {
   uint32_t cmd = data >> 24;
+  int src_x, src_y;
 
   if (cmd < ARRAY_SIZE(gpu.regs)) {
     if (cmd > 1 && cmd != 5 && gpu.regs[cmd] == data)
@@ -289,14 +290,17 @@ void GPUwriteStatus(uint32_t data)
       gpu.status |= PSX_GPU_STATUS_DMA(data & 3);
       break;
     case 0x05:
-      gpu.screen.src_x = data & 0x3ff;
-      gpu.screen.src_y = (data >> 10) & 0x1ff;
-      renderer_notify_scanout_x_change(gpu.screen.src_x, gpu.screen.hres);
-      if (gpu.frameskip.set) {
-        decide_frameskip_allow(gpu.ex_regs[3]);
-        if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
-          decide_frameskip();
-          gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
+      src_x = data & 0x3ff; src_y = (data >> 10) & 0x1ff;
+      if (src_x != gpu.screen.src_x || src_y != gpu.screen.src_y) {
+        gpu.screen.src_x = src_x;
+        gpu.screen.src_y = src_y;
+        renderer_notify_scanout_change(src_x, src_y);
+        if (gpu.frameskip.set) {
+          decide_frameskip_allow(gpu.ex_regs[3]);
+          if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count) {
+            decide_frameskip();
+            gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
+          }
         }
       }
       break;
@@ -825,7 +829,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
         GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
       }
       renderer_sync_ecmds(gpu.ex_regs);
-      renderer_update_caches(0, 0, 1024, 512, 1);
+      renderer_update_caches(0, 0, 1024, 512, 0);
       break;
   }
 

@@ -134,7 +134,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 
 	static const unsigned short colors[2] = { 0x1fe3, 0x0700 };
 	unsigned short *dest = (unsigned short *)pl_vout_buf +
-		vout_w * (vout_h - HUD_HEIGHT) + vout_w / 2 - 192/2;
+		pl_vout_w * (vout_h - HUD_HEIGHT) + pl_vout_w / 2 - 192/2;
 	unsigned short *d, p;
 	int c, x, y;
 
@@ -149,7 +149,7 @@ static __attribute__((noinline)) void draw_active_chans(int vout_w, int vout_h)
 		     (fmod_chans & (1<<c)) ? 0xf000 :
 		     (noise_chans & (1<<c)) ? 0x001f :
 		     colors[c & 1];
-		for (y = 0; y < 8; y++, d += vout_w)
+		for (y = 0; y < 8; y++, d += pl_vout_w)
 			for (x = 0; x < 8; x++)
 				d[x] = p;
 	}
@@ -302,10 +302,16 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
 }
 
+static int flip_clear_counter;
+
+void pl_force_clear(void)
+{
+	flip_clear_counter = 2;
+}
+
 static void pl_vout_flip(const void *vram, int stride, int bgr24,
 	int x, int y, int w, int h, int dims_changed)
 {
-	static int clear_counter;
 	unsigned char *dest = pl_vout_buf;
 	const unsigned short *src = vram;
 	int dstride = pl_vout_w, h1 = h;
@@ -332,15 +338,15 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 	doffs = xoffs + y * dstride;
 
 	if (dims_changed)
-		clear_counter = 2;
+		flip_clear_counter = 2;
 
-	if (clear_counter > 0) {
+	if (flip_clear_counter > 0) {
 		if (pl_plat_clear)
 			pl_plat_clear();
 		else
 			memset(pl_vout_buf, 0,
 				dstride * h_full * pl_vout_bpp / 8);
-		clear_counter--;
+		flip_clear_counter--;
 	}
 
 	if (pl_plat_blit)

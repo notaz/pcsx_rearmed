@@ -45,6 +45,7 @@ void  pl_start_watchdog(void);
 void *pl_prepare_screenshot(int *w, int *h, int *bpp);
 void  pl_init(void);
 void  pl_switch_dispmode(void);
+void  pl_force_clear(void);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);

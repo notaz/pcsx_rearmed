@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <assert.h>
 
@@ -23,6 +24,7 @@
 #include "vector_ops.h"
 #endif
 #include "psx_gpu_simd.h"
+#include "psx_gpu_offsets.h"
 
 #if 0
 void dump_r_d(const char *name, void *dump);
@@ -5012,6 +5014,9 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
 
   psx_gpu->saved_hres = 256;
+
+  // check some offset
+  psx_gpu->reserved_a[(offsetof(psx_gpu_struct, blocks) == psx_gpu_blocks_offset) - 1] = 0;
 }
 
 u64 get_us(void)
