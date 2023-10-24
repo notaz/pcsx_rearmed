@@ -114,12 +114,14 @@ struct rearmed_cbs {
 	} gpu_peopsgl;
 	// misc
 	int gpu_caps;
-	int screen_centering_type; // 0 - auto, 1 - game conrolled, 2 - manual
+	int screen_centering_type;
 	int screen_centering_x;
 	int screen_centering_y;
 };
 
 extern struct rearmed_cbs pl_rearmed_cbs;
+
+enum centering_type { C_AUTO = 0, C_INGAME, C_BORDERLESS, C_MANUAL };
 
 enum gpu_plugin_caps {
 	GPU_CAP_OWNS_DISPLAY = (1 << 0),

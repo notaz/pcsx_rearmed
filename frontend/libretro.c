@@ -2293,8 +2293,10 @@ static void update_variables(bool in_flight)
    {
       if (strcmp(var.value, "game") == 0)
          pl_rearmed_cbs.screen_centering_type = 1;
-      else if (strcmp(var.value, "manual") == 0)
+      else if (strcmp(var.value, "borderless") == 0)
          pl_rearmed_cbs.screen_centering_type = 2;
+      else if (strcmp(var.value, "manual") == 0)
+         pl_rearmed_cbs.screen_centering_type = 3;
       else // auto
          pl_rearmed_cbs.screen_centering_type = 0;
    }

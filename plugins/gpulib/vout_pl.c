@@ -29,9 +29,11 @@ static void check_mode_change(int force)
 {
   int w = gpu.screen.hres;
   int h = gpu.screen.vres;
-  int w_out = w;
-  int h_out = h;
+  int w_out, h_out;
 
+  if (gpu.state.screen_centering_type == C_BORDERLESS)
+    h = gpu.screen.h;
+  w_out = w, h_out = h;
 #ifdef RAW_FB_DISPLAY
   w = w_out = 1024, h = h_out = 512;
 #endif
