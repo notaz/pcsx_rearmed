@@ -221,8 +221,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 void gpuInterrupt() {
 	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
 	{
-		u32 size, madr_next = 0xffffff;
-		size = GPU_dmaChain((u32 *)psxM, HW_DMA2_MADR & 0x1fffff, &madr_next);
+		u32 size, madr_next = 0xffffff, madr = SWAPu32(HW_DMA2_MADR);
+		size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff, &madr_next);
 		HW_DMA2_MADR = SWAPu32(madr_next);
 		psxRegs.gpuIdleAfter = psxRegs.cycle + size + 64;
 		set_event(PSXINT_GPUDMA, size);
