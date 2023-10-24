@@ -115,6 +115,7 @@ struct rearmed_cbs {
 	// misc
 	int gpu_caps;
 	int screen_centering_type;
+	int screen_centering_type_default;
 	int screen_centering_x;
 	int screen_centering_y;
 };

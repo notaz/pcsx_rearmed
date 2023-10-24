@@ -150,7 +150,8 @@ typedef struct {
 	struct {
 		boolean cdr_read_timing;
 		boolean gpu_slow_list_walking;
-		boolean gpu_busy_hack;
+		boolean gpu_busy;
+		boolean gpu_centering;
 	} hacks;
 } PcsxConfig;
 

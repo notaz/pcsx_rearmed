@@ -264,6 +264,9 @@ void plugin_call_rearmed_cbs(void)
 	extern void *hGPUDriver;
 	void (*rearmed_set_cbs)(const struct rearmed_cbs *cbs);
 
+	pl_rearmed_cbs.screen_centering_type_default =
+		Config.hacks.gpu_centering ? C_INGAME : C_AUTO;
+
 	rearmed_set_cbs = SysLoadSym(hGPUDriver, "GPUrearmedCallbacks");
 	if (rearmed_set_cbs != NULL)
 		rearmed_set_cbs(&pl_rearmed_cbs);

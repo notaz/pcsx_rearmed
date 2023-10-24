@@ -78,7 +78,10 @@ static noinline void update_width(void)
   int hres = hres_all[(gpu.status >> 16) & 7];
   int pal = gpu.status & PSX_GPU_STATUS_PAL;
   int sw = gpu.screen.x2 - gpu.screen.x1;
+  int type = gpu.state.screen_centering_type;
   int x = 0, x_auto;
+  if (type == C_AUTO)
+    type = gpu.state.screen_centering_type_default;
   if (sw <= 0)
     /* nothing displayed? */;
   else {
@@ -87,7 +90,7 @@ static noinline void update_width(void)
     x = (x + 1) & ~1;   // blitter limitation
     sw /= hdiv;
     sw = (sw + 2) & ~3; // according to nocash
-    switch (gpu.state.screen_centering_type) {
+    switch (type) {
     case C_INGAME:
       break;
     case C_MANUAL:
@@ -968,6 +971,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.frame_count = cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
+  gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x
       || gpu.state.screen_centering_y != cbs->screen_centering_y) {

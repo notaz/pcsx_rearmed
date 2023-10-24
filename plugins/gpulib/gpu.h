@@ -91,7 +91,8 @@ struct psx_gpu {
     } last_list;
     uint32_t last_vram_read_frame;
     uint32_t w_out_old, h_out_old, status_vo_old;
-    int screen_centering_type; // 0 - auto, 1 - game conrolled, 2 - manual
+    short screen_centering_type;
+    short screen_centering_type_default;
     int screen_centering_x;
     int screen_centering_y;
   } state;

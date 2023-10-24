@@ -42,7 +42,7 @@ void psxHwReset() {
 	cdrReset();
 	psxRcntInit();
 	HW_GPU_STATUS = SWAP32(0x10802000);
-	psxHwReadGpuSRptr = Config.hacks.gpu_busy_hack
+	psxHwReadGpuSRptr = Config.hacks.gpu_busy
 		? psxHwReadGpuSRbusyHack : psxHwReadGpuSR;
 }
 
