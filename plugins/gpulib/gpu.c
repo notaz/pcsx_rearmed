@@ -13,8 +13,11 @@
 #include <string.h>
 #include "gpu.h"
 #include "../../libpcsxcore/gpu.h" // meh
+#include "../../frontend/plugin_lib.h"
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
 #ifdef __GNUC__
 #define unlikely(x) __builtin_expect((x), 0)
 #define preload __builtin_prefetch
@@ -81,9 +84,9 @@ static noinline void update_width(void)
     sw /= hdiv;
     sw = (sw + 2) & ~3; // according to nocash
     switch (gpu.state.screen_centering_type) {
-    case 1:
+    case C_INGAME:
       break;
-    case 2:
+    case C_MANUAL:
       x = gpu.state.screen_centering_x;
       break;
     default:
@@ -125,9 +128,12 @@ static noinline void update_height(void)
     /* nothing displayed? */;
   else {
     switch (gpu.state.screen_centering_type) {
-    case 1:
+    case C_INGAME:
       break;
-    case 2:
+    case C_BORDERLESS:
+      y = 0;
+      break;
+    case C_MANUAL:
       y = gpu.state.screen_centering_y;
       break;
     default:
@@ -902,8 +908,6 @@ void GPUgetScreenInfo(int *y, int *base_hres)
   if (gpu.status & PSX_GPU_STATUS_DHEIGHT)
     *base_hres >>= 1;
 }
-
-#include "../../frontend/plugin_lib.h"
 
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 {

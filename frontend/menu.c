@@ -1264,7 +1264,7 @@ static const char *men_soft_filter[] = { "None",
 #endif
 	NULL };
 static const char *men_dummy[] = { NULL };
-static const char *men_centering[] = { "Auto", "Ingame", "Force", NULL };
+static const char *men_centering[] = { "Auto", "Ingame", "Borderless", "Force", NULL };
 static const char h_scaler[]    = "int. 2x  - scales w. or h. 2x if it fits on screen\n"
 				  "int. 4:3 - uses integer if possible, else fractional";
 static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\n"
