@@ -199,7 +199,7 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define STATUS_READ      (1<<5) // 0x20
 #define STATUS_SHELLOPEN (1<<4) // 0x10
 #define STATUS_UNKNOWN3  (1<<3) // 0x08
-#define STATUS_UNKNOWN2  (1<<2) // 0x04
+#define STATUS_SEEKERROR (1<<2) // 0x04
 #define STATUS_ROTATING  (1<<1) // 0x02
 #define STATUS_ERROR     (1<<0) // 0x01
 
@@ -207,6 +207,7 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define ERROR_NOTREADY   (1<<7) // 0x80
 #define ERROR_INVALIDCMD (1<<6) // 0x40
 #define ERROR_INVALIDARG (1<<5) // 0x20
+#define ERROR_SHELLOPEN  (1<<3) // 0x08
 
 // 1x = 75 sectors per second
 // PSXCLK = 1 sec in the ps
@@ -306,7 +307,7 @@ void cdrLidSeekInterrupt(void)
 	default:
 	case DRIVESTATE_STANDBY:
 		StopCdda();
-		StopReading();
+		//StopReading();
 		SetPlaySeekRead(cdr.StatP, 0);
 
 		if (CDR_getStatus(&stat) == -1)
@@ -326,11 +327,28 @@ void cdrLidSeekInterrupt(void)
 
 		// 02, 12, 10
 		if (!(cdr.StatP & STATUS_SHELLOPEN)) {
+			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.StatP |= STATUS_SHELLOPEN;
 
-			// could generate error irq here, but real hardware
-			// only sometimes does that
-			// (not done when lots of commands are sent?)
+			// IIRC this sometimes doesn't happen on real hw
+			// (when lots of commands are sent?)
+			if (cdr.Reading) {
+				StopReading();
+				SetResultSize(2);
+				cdr.Result[0] = cdr.StatP | STATUS_SEEKERROR;
+				cdr.Result[1] = ERROR_SHELLOPEN;
+				cdr.Stat = DiskError;
+				setIrq(0x1006);
+			}
+			if (cdr.CmdInProgress) {
+				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
+				cdr.CmdInProgress = 0;
+				SetResultSize(2);
+				cdr.Result[0] = cdr.StatP | STATUS_ERROR;
+				cdr.Result[1] = ERROR_NOTREADY;
+				cdr.Stat = DiskError;
+				setIrq(0x1007);
+			}
 
 			set_event(PSXINT_CDRLID, cdReadTime * 30);
 			break;
@@ -665,7 +683,7 @@ void cdrPlayReadInterrupt(void)
 	if (!cdr.Stat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
-	if (!cdr.Muted && !Config.Cdda) {
+	if (!cdr.Muted && cdr.Play && !Config.Cdda) {
 		cdrPrepCdda(read_buf, CD_FRAMESIZE_RAW / 4);
 		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
 		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, cdr.FirstSector);
@@ -756,7 +774,7 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetloc:
-		case CdlSetloc + CMD_WHILE_NOT_READY:
+		// case CdlSetloc + CMD_WHILE_NOT_READY: // or is it?
 			CDR_LOG("CDROM setloc command (%02X, %02X, %02X)\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
 
 			// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
