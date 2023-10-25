@@ -474,32 +474,14 @@ u32 psxHwRead32(u32 add) {
 void psxHwWrite8(u32 add, u8 value) {
 	switch (add & 0x1fffffff) {
 		case 0x1f801040: sioWrite8(value); break;
+		case 0x1f8010f6:
+			// nocash documents it as forced w32, but still games use this?
+			break;
 		case 0x1f801800: cdrWrite0(value); break;
 		case 0x1f801801: cdrWrite1(value); break;
 		case 0x1f801802: cdrWrite2(value); break;
 		case 0x1f801803: cdrWrite3(value); break;
 
-		case 0x1f801041: case 0x1f801042: case 0x1f801043:
-		case 0x1f801044: case 0x1f801045:
-		case 0x1f801046: case 0x1f801047:
-		case 0x1f801048: case 0x1f801049:
-		case 0x1f80104a: case 0x1f80104b:
-		case 0x1f80104c: case 0x1f80104d:
-		case 0x1f80104e: case 0x1f80104f:
-		case 0x1f801050: case 0x1f801051:
-		case 0x1f801054: case 0x1f801055:
-		case 0x1f801058: case 0x1f801059:
-		case 0x1f80105a: case 0x1f80105b:
-		case 0x1f80105c: case 0x1f80105d:
-		case 0x1f801100: case 0x1f801101:
-		case 0x1f801104: case 0x1f801105:
-		case 0x1f801108: case 0x1f801109:
-		case 0x1f801110: case 0x1f801111:
-		case 0x1f801114: case 0x1f801115:
-		case 0x1f801118: case 0x1f801119:
-		case 0x1f801120: case 0x1f801121:
-		case 0x1f801124: case 0x1f801125:
-		case 0x1f801128: case 0x1f801129:
 		case 0x1f801810: case 0x1f801811:
 		case 0x1f801812: case 0x1f801813:
 		case 0x1f801814: case 0x1f801815:
@@ -517,6 +499,8 @@ void psxHwWrite8(u32 add, u8 value) {
 					SPU_writeRegister(add, value, psxRegs.cycle);
 				return;
 			}
+			else if (0x1f801000 <= add && add < 0x1f801800)
+				log_unhandled("unhandled w8  %08x @%08x\n", add, psxRegs.pc);
 
 			psxHu8(add) = value;
 #ifdef PSXHW_LOG
