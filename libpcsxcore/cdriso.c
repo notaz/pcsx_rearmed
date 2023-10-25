@@ -1976,7 +1976,7 @@ long CALLBACK ISOreadCDDA(unsigned char m, unsigned char s, unsigned char f, uns
 			}
 		}
 	}
-	if (!handle) {
+	if (!handle && !chd_img) {
 		memset(buffer, 0, CD_FRAMESIZE_RAW);
 		return -1;
 	}
