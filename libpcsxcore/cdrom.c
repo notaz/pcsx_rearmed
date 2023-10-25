@@ -448,10 +448,10 @@ static int ReadTrack(const u8 *time)
 	tmp[1] = itob(time[1]);
 	tmp[2] = itob(time[2]);
 
+	CDR_LOG("ReadTrack *** %02x:%02x:%02x\n", tmp[0], tmp[1], tmp[2]);
+
 	if (memcmp(cdr.Prev, tmp, 3) == 0)
 		return 1;
-
-	CDR_LOG("ReadTrack *** %02x:%02x:%02x\n", tmp[0], tmp[1], tmp[2]);
 
 	read_ok = CDR_readTrack(tmp);
 	if (read_ok)
@@ -560,14 +560,21 @@ static int cdrSeekTime(unsigned char *target)
 {
 	int diff = msf2sec(cdr.SetSectorPlay) - msf2sec(target);
 	int seekTime = abs(diff) * (cdReadTime / 2000);
+	int cyclesSinceRS = psxRegs.cycle - cdr.LastReadSeekCycles;
 	seekTime = MAX_VALUE(seekTime, 20000);
 
 	// need this stupidly long penalty or else Spyro2 intro desyncs
-	if ((s32)(psxRegs.cycle - cdr.LastReadSeekCycles) > cdReadTime * 8)
+	// note: if misapplied this breaks MGS cutscenes among other things
+	if (cyclesSinceRS > cdReadTime * 50)
 		seekTime += cdReadTime * 25;
+	// Transformers Beast Wars Transmetals does Setloc(x),SeekL,Setloc(x),ReadN
+	// and then wants some slack time
+	else if (cyclesSinceRS < cdReadTime *3/2)
+		seekTime += cdReadTime;
 
 	seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
-	CDR_LOG("seek: %.2f %.2f\n", (float)seekTime / PSXCLK, (float)seekTime / cdReadTime);
+	CDR_LOG("seek: %.2f %.2f (%.2f)\n", (float)seekTime / PSXCLK,
+		(float)seekTime / cdReadTime, (float)cyclesSinceRS / cdReadTime);
 	return seekTime;
 }
 
@@ -1191,11 +1198,11 @@ void cdrInterrupt(void) {
 			// FALLTHROUGH
 
 		set_error:
-			CDR_LOG_I("cmd %02x error %02x\n", Cmd, error);
 			SetResultSize(2);
 			cdr.Result[0] = cdr.StatP | STATUS_ERROR;
 			cdr.Result[1] = not_ready ? ERROR_NOTREADY : error;
 			cdr.Stat = DiskError;
+			CDR_LOG_I("cmd %02x error %02x\n", Cmd, cdr.Result[1]);
 			break;
 	}
 
