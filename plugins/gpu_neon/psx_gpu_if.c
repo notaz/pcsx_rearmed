@@ -160,6 +160,8 @@ void renderer_update_caches(int x, int y, int w, int h, int state_changed)
     if (state_changed) {
       memset(egpu.enhancement_scanouts, 0, sizeof(egpu.enhancement_scanouts));
       egpu.enhancement_scanout_eselect = 0;
+      update_enhancement_buf_scanouts(&egpu,
+        gpu.screen.src_x, gpu.screen.src_y, gpu.screen.hres, gpu.screen.vres);
       return;
     }
     sync_enhancement_buffers(x, y, w, h);
