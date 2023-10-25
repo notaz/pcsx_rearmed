@@ -889,8 +889,8 @@ static void *select_enhancement_buf_ptr(psx_gpu_struct *psx_gpu, s32 x, s32 y)
 
 static void select_enhancement_buf(psx_gpu_struct *psx_gpu)
 {
-  s32 x = psx_gpu->saved_viewport_start_x;
-  s32 y = psx_gpu->saved_viewport_start_y;
+  s32 x = psx_gpu->saved_viewport_start_x + 16;
+  s32 y = psx_gpu->saved_viewport_start_y + 16;
   psx_gpu->enhancement_current_buf_ptr = select_enhancement_buf_ptr(psx_gpu, x, y);
 }
 
@@ -1704,7 +1704,12 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_end_y = viewport_end_y;
 
         select_enhancement_buf(psx_gpu);
-
+#if 0
+        if (!psx_gpu->enhancement_current_buf_ptr)
+          log_anomaly("vp %3d,%3d %3d,%d - no buf\n",
+              psx_gpu->viewport_start_x, psx_gpu->viewport_start_y,
+              viewport_end_x, viewport_end_y);
+#endif
 #ifdef TEXTURE_CACHE_4BPP
         psx_gpu->viewport_mask =
          texture_region_mask(psx_gpu->viewport_start_x,
