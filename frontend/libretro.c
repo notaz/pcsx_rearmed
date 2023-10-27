@@ -377,7 +377,7 @@ psx_map_t custom_psx_maps[] = {
    { NULL, 0x12800000, 0x010000, MAP_TAG_OTHER }, // 0x1f800000
    { NULL, 0x12c00000, 0x080000, MAP_TAG_OTHER }, // 0x1fc00000
    { NULL, 0x11000000, 0x800000, MAP_TAG_LUTS }, // 0x08000000
-   { NULL, 0x12000000, 0x200000, MAP_TAG_VRAM }, // 0x00000000
+   { NULL, 0x12000000, 0x201000, MAP_TAG_VRAM }, // 0x00000000
 };
 
 void *pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
@@ -446,19 +446,20 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 typedef struct
 {
    void *buffer;
-   uint32_t target_map;
    size_t size;
    enum psxMapTag tag;
+   int used;
 } psx_map_t;
 
-void *addr = NULL;
+static void *addr = NULL;
 
 psx_map_t custom_psx_maps[] = {
-   { NULL, NULL, 0x210000, MAP_TAG_RAM }, // 0x80000000
-   { NULL, NULL, 0x010000, MAP_TAG_OTHER }, // 0x1f800000
-   { NULL, NULL, 0x080000, MAP_TAG_OTHER }, // 0x1fc00000
-   { NULL, NULL, 0x800000, MAP_TAG_LUTS }, // 0x08000000
-   { NULL, NULL, 0x200000, MAP_TAG_VRAM }, // 0x00000000
+   { NULL, 0x800000, MAP_TAG_LUTS },
+   { NULL, 0x080000, MAP_TAG_OTHER },
+   { NULL, 0x010000, MAP_TAG_OTHER },
+   { NULL, 0x201000, MAP_TAG_VRAM },
+   { NULL, 0x802000, MAP_TAG_VRAM }, // enhanced renderer
+   { NULL, 0x210000, MAP_TAG_RAM },
 };
 
 int init_vita_mmap()
@@ -468,12 +469,13 @@ int init_vita_mmap()
    addr = malloc(64 * 1024 * 1024);
    if (addr == NULL)
       return -1;
-   tmpaddr = ((u32)(addr + 0xFFFFFF)) & ~0xFFFFFF;
-   custom_psx_maps[0].buffer = tmpaddr + 0x2000000;
-   custom_psx_maps[1].buffer = tmpaddr + 0x1800000;
-   custom_psx_maps[2].buffer = tmpaddr + 0x1c00000;
-   custom_psx_maps[3].buffer = tmpaddr + 0x0000000;
+   tmpaddr = (void *)(((size_t)addr + 0xFFFFFF) & ~0xFFFFFF);
+   custom_psx_maps[0].buffer = tmpaddr + 0x0000000;
+   custom_psx_maps[1].buffer = tmpaddr + 0x0800000;
+   custom_psx_maps[2].buffer = tmpaddr + 0x0880000;
+   custom_psx_maps[3].buffer = tmpaddr + 0x0900000;
    custom_psx_maps[4].buffer = tmpaddr + 0x1000000;
+   custom_psx_maps[5].buffer = tmpaddr + 0x2000000;
 #if 0
    for(n = 0; n < 5; n++){
    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
@@ -484,6 +486,11 @@ int init_vita_mmap()
 
 void deinit_vita_mmap()
 {
+   size_t i;
+   for (i = 0; i < sizeof(custom_psx_maps) / sizeof(custom_psx_maps[0]); i++) {
+      custom_psx_maps[i].buffer = NULL;
+      custom_psx_maps[i].used = 0;
+   }
    free(addr);
 }
 
@@ -497,8 +504,9 @@ void *pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
 
    for (; custom_map->size; custom_map++)
    {
-      if ((custom_map->size == size) && (custom_map->tag == tag))
+      if (custom_map->size == size && custom_map->tag == tag && !custom_map->used)
       {
+         custom_map->used = 1;
          return custom_map->buffer;
       }
    }
@@ -516,6 +524,7 @@ void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
    {
       if ((custom_map->buffer == ptr))
       {
+         custom_map->used = 0;
          return;
       }
    }
