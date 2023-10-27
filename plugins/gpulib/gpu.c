@@ -222,8 +222,9 @@ static noinline void get_gpu_info(uint32_t data)
   }
 }
 
-// double, for overdraw guard
-#define VRAM_SIZE ((1024 * 512 * 2 * 2) + 4096)
+#ifndef max
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#endif
 
 //  Minimum 16-byte VRAM alignment needed by gpu_unai's pixel-skipping
 //  renderer/downscaler it uses in high res modes:
@@ -234,6 +235,9 @@ static noinline void get_gpu_info(uint32_t data)
 #else
 	#define VRAM_ALIGN 16
 #endif
+
+// double, for overdraw guard + at least 1 page before
+#define VRAM_SIZE ((1024 * 512 * 2 * 2) + max(VRAM_ALIGN, 4096))
 
 // vram ptr received from mmap/malloc/alloc (will deallocate using this)
 static uint16_t *vram_ptr_orig = NULL;
@@ -248,9 +252,9 @@ static uint16_t *vram_ptr_orig = NULL;
 static int map_vram(void)
 {
 #if GPULIB_USE_MMAP
-  gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE + (VRAM_ALIGN-1));
+  gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE);
 #else
-  gpu.vram = vram_ptr_orig = calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
+  gpu.vram = vram_ptr_orig = calloc(VRAM_SIZE, 1);
 #endif
   if (gpu.vram != NULL && gpu.vram != (void *)(intptr_t)-1) {
     // 4kb guard in front
