@@ -75,6 +75,12 @@ else ifeq ($(platform), miyoo)
 endif
 CC_AS ?= $(CC)
 
+# workaround wrong owner in libretro infra
+GIT_VERSION1 := $(shell test -d /builds/libretro/pcsx_rearmed && git rev-parse --short HEAD 2>&1)
+ifneq ($(findstring dubious ownership,$(GIT_VERSION1)),)
+DUMMY := $(shell git config --global --add safe.directory /builds/libretro/pcsx_rearmed)
+endif
+
 TARGET_NAME := pcsx_rearmed
 ARCH_DETECTED := $(shell $(CC) $(CFLAGS) -dumpmachine | awk -F- '{print $$1}')
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
