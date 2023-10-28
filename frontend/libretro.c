@@ -400,6 +400,7 @@ void *pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
          if ((custom_map->size == size) && (custom_map->tag == tag))
          {
             uint32_t ptr_aligned, tmp;
+            void *ret;
 
             custom_map->buffer = malloc(size + 0x1000);
             ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
@@ -410,12 +411,14 @@ void *pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
                exit(1);
             }
 
-            return (void *)custom_map->target_map;
+            ret = (void *)custom_map->target_map;
+            memset(ret, 0, size);
+            return ret;
          }
       }
    }
 
-   return malloc(size);
+   return calloc(size, 1);
 }
 
 void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
@@ -481,6 +484,7 @@ int init_vita_mmap()
    custom_psx_maps[3].buffer = tmpaddr + 0x0900000;
    custom_psx_maps[4].buffer = tmpaddr + 0x1000000;
    custom_psx_maps[5].buffer = tmpaddr + 0x2000000;
+   memset(tmpaddr, 0, 0x2210000);
 #if 0
    for(n = 0; n < 5; n++){
    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
@@ -516,7 +520,7 @@ void *pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
       }
    }
 
-   return malloc(size);
+   return calloc(size, 1);
 }
 
 void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
@@ -3298,8 +3302,10 @@ void retro_init(void)
 #elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && P_HAVE_POSIX_MEMALIGN
    if (posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2) != 0)
       vout_buf = (void *) 0;
+   else
+      memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #else
-   vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
+   vout_buf = calloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT, 2);
 #endif
 
    vout_buf_ptr = vout_buf;
