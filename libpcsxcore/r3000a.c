@@ -76,8 +76,7 @@ void psxReset() {
 	if (!Config.HLE) {
 		psxExecuteBios();
 		if (psxRegs.pc == 0x80030000 && !Config.SlowBoot) {
-			BiosBootBypass();
-			introBypassed = TRUE;
+			introBypassed = BiosBootBypass();
 		}
 	}
 	if (Config.HLE || introBypassed)

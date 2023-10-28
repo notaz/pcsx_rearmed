@@ -57,7 +57,7 @@ extern char CdromId[10];
 extern char CdromLabel[33];
 extern int  CdromFrontendId; // for frontend use
 
-void BiosBootBypass();
+int BiosBootBypass();
 
 int LoadCdrom();
 int LoadCdromFile(const char *filename, EXE_HEADER *head);
