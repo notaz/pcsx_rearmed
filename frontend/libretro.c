@@ -2250,6 +2250,7 @@ static void update_variables(bool in_flight)
          spu_config.iUseThread = 0;
    }
 
+#if 0 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
    if (P_HAVE_PTHREAD) {
 	   var.value = NULL;
 	   var.key = "pcsx_rearmed_async_cd";
@@ -2272,6 +2273,7 @@ static void update_variables(bool in_flight)
 		  }
        }
    }
+#endif
 
    var.value = NULL;
    var.key = "pcsx_rearmed_noxadecoding";
@@ -2573,6 +2575,18 @@ static void update_variables(bool in_flight)
       mouse_sensitivity = atof(var.value);
    }
 
+   if (found_bios)
+   {
+      var.value = NULL;
+      var.key = "pcsx_rearmed_show_bios_bootlogo";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         Config.SlowBoot = 0;
+         if (strcmp(var.value, "enabled") == 0)
+            Config.SlowBoot = 1;
+      }
+   }
+
    if (in_flight)
    {
       // inform core things about possible config changes
@@ -2589,27 +2603,6 @@ static void update_variables(bool in_flight)
          retro_set_audio_buff_status_cb();
 
       /* dfinput_activate(); */
-   }
-   else
-   {
-      //not yet running
-
-      //bootlogo display hack
-      if (found_bios)
-      {
-         var.value = NULL;
-         var.key = "pcsx_rearmed_show_bios_bootlogo";
-         if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-         {
-            Config.SlowBoot = 0;
-            rebootemu = 0;
-            if (strcmp(var.value, "enabled") == 0)
-            {
-               Config.SlowBoot = 1;
-               rebootemu = 1;
-            }
-         }
-      }
    }
 
    update_option_visibility();
