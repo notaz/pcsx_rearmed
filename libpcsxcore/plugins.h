@@ -161,6 +161,8 @@ extern CDRsetfilename        CDR_setfilename;
 extern CDRreadCDDA           CDR_readCDDA;
 extern CDRgetTE              CDR_getTE;
 
+long CALLBACK CDR__getStatus(struct CdrStat *stat);
+
 // SPU Functions
 typedef long (CALLBACK* SPUinit)(void);				
 typedef long (CALLBACK* SPUshutdown)(void);	

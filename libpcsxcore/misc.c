@@ -163,12 +163,19 @@ static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 }
 
-void BiosBootBypass() {
+int BiosBootBypass() {
+	struct CdrStat stat = { 0, 0, };
 	assert(psxRegs.pc == 0x80030000);
+
+	// no bypass if the lid is open
+	CDR__getStatus(&stat);
+	if (stat.Status & 0x10)
+		return 0;
 
 	// skip BIOS logos and region check
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	psxRegs.pc = psxRegs.GPR.n.ra;
+	return 1;
 }
 
 static void getFromCnf(char *buf, const char *key, u32 *val)

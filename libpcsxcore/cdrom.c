@@ -1694,7 +1694,13 @@ void cdrReset() {
 	cdr.Reg2 = 0x1f;
 	cdr.Stat = NoIntr;
 	cdr.FifoOffset = DATA_SIZE; // fifo empty
-	if (CdromId[0] == '\0') {
+
+	CDR_getStatus(&stat);
+	if (stat.Status & STATUS_SHELLOPEN) {
+		cdr.DriveState = DRIVESTATE_LID_OPEN;
+		cdr.StatP = STATUS_SHELLOPEN;
+	}
+	else if (CdromId[0] == '\0') {
 		cdr.DriveState = DRIVESTATE_STOPPED;
 		cdr.StatP = 0;
 	}
