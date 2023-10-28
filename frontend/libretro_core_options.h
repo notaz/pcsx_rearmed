@@ -1577,13 +1577,18 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
+#endif /* !DRC_DISABLE && !LIGHTREC */
    {
       "pcsx_rearmed_nostalls",
-      "(Speed Hack) Disable CPU/GTE Stalls",
       "Disable CPU/GTE Stalls",
-      "Will cause some games to run too quickly.",
       NULL,
-      "speed_hack",
+      "Will cause some games to run too quickly."
+#if defined(LIGHTREC)
+      " Interpreter only."
+#endif
+      ,
+      NULL,
+      "compat_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -1591,7 +1596,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif /* !DRC_DISABLE && !LIGHTREC */
    { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
 };
 
