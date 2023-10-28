@@ -80,7 +80,7 @@ static unsigned msg_interface_version = 0;
 
 static void *vout_buf;
 static void *vout_buf_ptr;
-static int vout_width, vout_height;
+static int vout_width = 256, vout_height = 240, vout_pitch = 256;
 static int vout_fb_dirty;
 static int psx_w, psx_h;
 static bool vout_can_dupe;
@@ -234,8 +234,13 @@ static void set_vout_fb()
    fb.height         = vout_height;
    fb.access_flags   = RETRO_MEMORY_ACCESS_WRITE;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565)
-      vout_buf_ptr = (uint16_t *)fb.data;
+   vout_pitch = vout_width;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565) {
+      vout_buf_ptr = fb.data;
+      if (fb.pitch / 2 != vout_pitch && fb.pitch != vout_width * 2)
+         SysPrintf("got unusual pitch %zd for resolution %dx%d\n", fb.pitch, vout_width, vout_height);
+      vout_pitch = fb.pitch / 2;
+   }
    else
       vout_buf_ptr = vout_buf;
 }
@@ -317,7 +322,7 @@ static void vout_flip(const void *vram, int stride, int bgr24,
 {
    unsigned short *dest = vout_buf_ptr;
    const unsigned short *src = vram;
-   int dstride = vout_width, h1 = h;
+   int dstride = vout_pitch, h1 = h;
    int port = 0;
 
    if (vram == NULL || dims_changed || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
@@ -357,7 +362,7 @@ static void vout_flip(const void *vram, int stride, int bgr24,
 
 out:
 #ifndef FRONTEND_SUPPORTS_RGB565
-   convert(vout_buf_ptr, vout_width * vout_height * 2);
+   convert(vout_buf_ptr, vout_pitch * vout_height * 2);
 #endif
    vout_fb_dirty = 1;
    pl_rearmed_cbs.flip_cnt++;
@@ -976,8 +981,8 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
-   unsigned geom_height          = vout_height > 0 ? vout_height : 240;
-   unsigned geom_width           = vout_width > 0 ? vout_width : 320;
+   unsigned geom_height          = vout_height;
+   unsigned geom_width           = vout_width;
 
    memset(info, 0, sizeof(*info));
    info->timing.fps              = is_pal_mode ? 50.0 : 60.0;
@@ -2972,6 +2977,7 @@ void retro_run(void)
          LoadCdrom();
    }
 
+   set_vout_fb();
    print_internal_fps();
 
    /* Check whether current frame should
@@ -3033,10 +3039,8 @@ void retro_run(void)
    }
 
    video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
-       vout_width, vout_height, vout_width * 2);
+       vout_width, vout_height, vout_pitch * 2);
    vout_fb_dirty = 0;
-
-   set_vout_fb();
 }
 
 static bool try_use_bios(const char *path, bool preferred_only)
