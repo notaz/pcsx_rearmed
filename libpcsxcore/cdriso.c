@@ -75,15 +75,12 @@ static boolean multifile = FALSE;
 static unsigned char cdbuffer[CD_FRAMESIZE_RAW];
 static unsigned char subbuffer[SUB_FRAMESIZE];
 
-static boolean playing = FALSE;
 static boolean cddaBigEndian = FALSE;
 /* Frame offset into CD image where pregap data would be found if it was there.
  * If a game seeks there we must *not* return subchannel data since it's
  * not in the CD image, so that cdrom code can fake subchannel data instead.
  * XXX: there could be multiple pregaps but PSX dumps only have one? */
 static unsigned int pregapOffset;
-
-static unsigned int cddaCurPos;
 
 // compressed image stuff
 static struct {
@@ -233,11 +230,12 @@ static int parsetoc(const char *isofile) {
 		}
 		// check if it's really a TOC named as a .cue
 		if (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
-			token = strtok(linebuf, " ");
-			if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
-				fclose(fi);
-				return -1;
-			}
+		token = strtok(linebuf, " ");
+		if (token && strncmp(token, "CD", 2) != 0) {
+		       // && strcmp(token, "CATALOG") != 0) - valid for a real .cue
+			fclose(fi);
+			return -1;
+		}
 		}
 		fseek(fi, 0, SEEK_SET);
 	}
@@ -1598,7 +1596,8 @@ static void PrintTracks(void) {
 
 	for (i = 1; i <= numtracks; i++) {
 		SysPrintf(_("Track %.2d (%s) - Start %.2d:%.2d:%.2d, Length %.2d:%.2d:%.2d\n"),
-			i, (ti[i].type == DATA ? "DATA" : "AUDIO"),
+			i, (ti[i].type == DATA ? "DATA" :
+			    (ti[i].type == CDDA ? "AUDIO" : "UNKNOWN")),
 			ti[i].start[0], ti[i].start[1], ti[i].start[2],
 			ti[i].length[0], ti[i].length[1], ti[i].length[2]);
 	}
@@ -1748,7 +1747,6 @@ static long CALLBACK ISOclose(void) {
 		fclose(subHandle);
 		subHandle = NULL;
 	}
-	playing = FALSE;
 	cddaHandle = NULL;
 
 	if (compr_img != NULL) {
@@ -1884,13 +1882,11 @@ static boolean CALLBACK ISOreadTrack(unsigned char *time) {
 // sector: byte 0 - minute; byte 1 - second; byte 2 - frame
 // does NOT uses bcd format
 static long CALLBACK ISOplay(unsigned char *time) {
-	playing = TRUE;
 	return 0;
 }
 
 // stops cdda audio
 static long CALLBACK ISOstop(void) {
-	playing = FALSE;
 	return 0;
 }
 
@@ -1921,22 +1917,10 @@ static unsigned char* CALLBACK ISOgetBufferSub(int sector) {
 }
 
 static long CALLBACK ISOgetStatus(struct CdrStat *stat) {
-	u32 sect;
-	
 	CDR__getStatus(stat);
 	
-	if (playing) {
-		stat->Type = 0x02;
-		stat->Status |= 0x80;
-	}
-	else {
-		// BIOS - boot ID (CD type)
-		stat->Type = ti[1].type;
-	}
-	
-	// relative -> absolute time
-	sect = cddaCurPos;
-	sec2msf(sect, (char *)stat->Time);
+	// BIOS - boot ID (CD type)
+	stat->Type = ti[1].type;
 	
 	return 0;
 }
@@ -1946,6 +1930,7 @@ long CALLBACK ISOreadCDDA(unsigned char m, unsigned char s, unsigned char f, uns
 	unsigned char msf[3] = {m, s, f};
 	unsigned int track, track_start = 0;
 	FILE *handle = cdHandle;
+	unsigned int cddaCurPos;
 	int ret;
 
 	cddaCurPos = msf2sec((char *)msf);
