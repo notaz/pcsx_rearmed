@@ -869,12 +869,12 @@ OP(psxLWR) { doLWR(regs_, _Rt_, _oB_); }
 OP(psxLWLe) { if (checkLD(regs_, _oB_ & ~3, 0)) doLWL(regs_, _Rt_, _oB_); }
 OP(psxLWRe) { if (checkLD(regs_, _oB_     , 0)) doLWR(regs_, _Rt_, _oB_); }
 
-OP(psxSB) { psxMemWrite8 (_oB_, _rRt_ &   0xff); }
-OP(psxSH) { psxMemWrite16(_oB_, _rRt_ & 0xffff); }
+OP(psxSB) { psxMemWrite8 (_oB_, _rRt_); }
+OP(psxSH) { psxMemWrite16(_oB_, _rRt_); }
 OP(psxSW) { psxMemWrite32(_oB_, _rRt_); }
 
-OP(psxSBe) { if (checkST(regs_, _oB_, 0)) psxMemWrite8 (_oB_, _rRt_ &   0xff); }
-OP(psxSHe) { if (checkST(regs_, _oB_, 1)) psxMemWrite16(_oB_, _rRt_ & 0xffff); }
+OP(psxSBe) { if (checkST(regs_, _oB_, 0)) psxMemWrite8 (_oB_, _rRt_); }
+OP(psxSHe) { if (checkST(regs_, _oB_, 1)) psxMemWrite16(_oB_, _rRt_); }
 OP(psxSWe) { if (checkST(regs_, _oB_, 3)) psxMemWrite32(_oB_, _rRt_); }
 
 static void doSWL(psxRegisters *regs, u32 rt, u32 addr) {

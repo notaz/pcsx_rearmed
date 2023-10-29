@@ -75,12 +75,12 @@ static void write_mem_dummy(u32 data)
 /* IO handlers */
 static u32 io_read_sio16()
 {
-	return sioRead8() | (sioRead8() << 8);
+	return sioRead8();
 }
 
 static u32 io_read_sio32()
 {
-	return sioRead8() | (sioRead8() << 8) | (sioRead8() << 16) | (sioRead8() << 24);
+	return sioRead8();
 }
 
 static void io_write_sio16(u32 value)
@@ -95,6 +95,11 @@ static void io_write_sio32(u32 value)
 	sioWrite8((unsigned char)(value >>  8));
 	sioWrite8((unsigned char)(value >> 16));
 	sioWrite8((unsigned char)(value >> 24));
+}
+
+static u32 io_read_sio2_status()
+{
+	return 0x80;
 }
 
 #if !defined(DRC_DBG) && defined(__arm__)
@@ -163,22 +168,6 @@ static void io_rcnt_write_target##i(u32 val) { psxRcntWtarget(i, val & 0xffff); 
 make_rcnt_funcs(0)
 make_rcnt_funcs(1)
 make_rcnt_funcs(2)
-
-#define make_dma_func(n) \
-static void io_write_chcr##n(u32 value) \
-{ \
-	HW_DMA##n##_CHCR = value; \
-	if (value & 0x01000000 && HW_DMA_PCR & (8 << (n * 4))) { \
-		psxDma##n(HW_DMA##n##_MADR, HW_DMA##n##_BCR, value); \
-	} \
-}
-
-make_dma_func(0)
-make_dma_func(1)
-make_dma_func(2)
-make_dma_func(3)
-make_dma_func(4)
-make_dma_func(6)
 
 static u32 io_spu_read8_even(u32 addr)
 {
@@ -261,6 +250,29 @@ static void write_biu(u32 value)
 	memprintf("write_biu %08x @%08x %u\n", value, psxRegs.pc, psxRegs.cycle);
 	psxRegs.biuReg = value;
 }
+
+/*  scph7001 (pc = 8003de60, v1 = 1f8010f0):
+  lhu     $t9, 0($v1)
+  li      $at, 0xFFF0FFFF
+  and     $t0, $t9, $at
+  lui     $at, 8
+  or      $t1, $t0, $at
+  sh      $t1, 0($v1)
+*/
+#define make_forcew32_func(addr) \
+static void io_write_force32_##addr(u32 value) \
+{ \
+	psxHu32ref(0x##addr) = SWAPu32(value); \
+}
+make_forcew32_func(1014)
+make_forcew32_func(1060)
+make_forcew32_func(1080)
+make_forcew32_func(1090)
+make_forcew32_func(10a0)
+make_forcew32_func(10b0)
+make_forcew32_func(10c0)
+make_forcew32_func(10e0)
+make_forcew32_func(10f0)
 
 void new_dyna_pcsx_mem_load_state(void)
 {
@@ -354,6 +366,7 @@ void new_dyna_pcsx_mem_init(void)
 	}
 
 	map_item(&mem_iortab[IOMEM32(0x1040)], io_read_sio32, 1);
+	map_item(&mem_iortab[IOMEM32(0x1044)], sioReadStat16, 1);
 	map_item(&mem_iortab[IOMEM32(0x1100)], psxRcntRcount0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1104)], io_rcnt_read_mode0, 1);
 	map_item(&mem_iortab[IOMEM32(0x1108)], io_rcnt_read_target0, 1);
@@ -373,6 +386,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iortab[IOMEM16(0x1048)], sioReadMode16, 1);
 	map_item(&mem_iortab[IOMEM16(0x104a)], sioReadCtrl16, 1);
 	map_item(&mem_iortab[IOMEM16(0x104e)], sioReadBaud16, 1);
+	map_item(&mem_iortab[IOMEM16(0x1054)], io_read_sio2_status, 1);
 	map_item(&mem_iortab[IOMEM16(0x1100)], psxRcntRcount0, 1);
 	map_item(&mem_iortab[IOMEM16(0x1104)], io_rcnt_read_mode0, 1);
 	map_item(&mem_iortab[IOMEM16(0x1108)], io_rcnt_read_target0, 1);
@@ -400,12 +414,18 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM32(0x1040)], io_write_sio32, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1070)], psxHwWriteIstat, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1074)], psxHwWriteImask, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1088)], io_write_chcr0, 1);
-	map_item(&mem_iowtab[IOMEM32(0x1098)], io_write_chcr1, 1);
-	map_item(&mem_iowtab[IOMEM32(0x10a8)], io_write_chcr2, 1);
-	map_item(&mem_iowtab[IOMEM32(0x10b8)], io_write_chcr3, 1);
-	map_item(&mem_iowtab[IOMEM32(0x10c8)], io_write_chcr4, 1);
-	map_item(&mem_iowtab[IOMEM32(0x10e8)], io_write_chcr6, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1088)], psxHwWriteChcr0, 1);
+	map_item(&mem_iowtab[IOMEM32(0x108c)], psxHwWriteChcr0, 1);
+	map_item(&mem_iowtab[IOMEM32(0x1098)], psxHwWriteChcr1, 1);
+	map_item(&mem_iowtab[IOMEM32(0x109c)], psxHwWriteChcr1, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10a8)], psxHwWriteChcr2, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10ac)], psxHwWriteChcr2, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10b8)], psxHwWriteChcr3, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10bc)], psxHwWriteChcr3, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10c8)], psxHwWriteChcr4, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10cc)], psxHwWriteChcr4, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10e8)], psxHwWriteChcr6, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10ec)], psxHwWriteChcr6, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10f4)], psxHwWriteDmaIcr32, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1104)], io_rcnt_write_mode0, 1);
@@ -421,13 +441,35 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM32(0x1820)], mdecWrite0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1824)], mdecWrite1, 1);
 
+	map_item(&mem_iowtab[IOMEM16(0x1014)], io_write_force32_1014, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1040)], io_write_sio16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1044)], sioWriteStat16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1048)], sioWriteMode16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x104a)], sioWriteCtrl16, 1);
 	map_item(&mem_iowtab[IOMEM16(0x104e)], sioWriteBaud16, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1060)], io_write_force32_1060, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1070)], psxHwWriteIstat, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1074)], psxHwWriteImask, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1080)], io_write_force32_1080, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1088)], psxHwWriteChcr0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x108c)], psxHwWriteChcr0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1090)], io_write_force32_1090, 1);
+	map_item(&mem_iowtab[IOMEM16(0x1098)], psxHwWriteChcr1, 1);
+	map_item(&mem_iowtab[IOMEM16(0x109c)], psxHwWriteChcr1, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10a0)], io_write_force32_10a0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10a8)], psxHwWriteChcr2, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10ac)], psxHwWriteChcr2, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10b0)], io_write_force32_10b0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10b8)], psxHwWriteChcr3, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10bc)], psxHwWriteChcr3, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10c0)], io_write_force32_10c0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10c8)], psxHwWriteChcr4, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10cc)], psxHwWriteChcr4, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10e0)], io_write_force32_10e0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10e8)], psxHwWriteChcr6, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10ec)], psxHwWriteChcr6, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10f0)], io_write_force32_10f0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10f4)], psxHwWriteDmaIcr32, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1104)], io_rcnt_write_mode0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1108)], io_rcnt_write_target0, 1);

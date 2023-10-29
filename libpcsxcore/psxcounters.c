@@ -118,11 +118,7 @@ void verboseLog( u32 level, const char *str, ... )
 static inline
 void _psxRcntWcount( u32 index, u32 value )
 {
-    if( value > 0xffff )
-    {
-        verboseLog( 1, "[RCNT %i] wcount > 0xffff: %x\n", index, value );
-        value &= 0xffff;
-    }
+    value &= 0xffff;
 
     rcnts[index].cycleStart  = psxRegs.cycle;
     rcnts[index].cycleStart -= value * rcnts[index].rate;
