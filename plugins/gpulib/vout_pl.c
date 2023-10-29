@@ -63,7 +63,8 @@ static void check_mode_change(int force)
     gpu.state.w_out_old = w_out;
     gpu.state.h_out_old = h_out;
 
-    cbs->pl_vout_set_mode(w_out, h_out, w, h,
+    if (w_out != 0 && h_out != 0)
+      cbs->pl_vout_set_mode(w_out, h_out, w, h,
           (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16);
   }
 }
