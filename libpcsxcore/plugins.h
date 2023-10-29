@@ -120,9 +120,9 @@ typedef long (CALLBACK* CDRplay)(unsigned char *);
 typedef long (CALLBACK* CDRstop)(void);
 typedef long (CALLBACK* CDRsetfilename)(char *);
 struct CdrStat {
-	uint32_t Type;
-	uint32_t Status;
-	unsigned char Time[3];
+	uint32_t Type; // DATA, CDDA
+	uint32_t Status; // same as cdr.StatP
+	unsigned char Time_[3]; // unused
 };
 typedef long (CALLBACK* CDRgetStatus)(struct CdrStat *);
 typedef char* (CALLBACK* CDRgetDriveLetter)(void);
