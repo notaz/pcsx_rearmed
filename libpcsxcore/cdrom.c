@@ -94,9 +94,12 @@ static struct {
 	unsigned char Track;
 	boolean Play, Muted;
 	int CurTrack;
-	int Mode, File, Channel;
+	unsigned char Mode;
+	unsigned char FileChannelSelected;
+	unsigned char CurFile, CurChannel;
+	int FilterFile, FilterChannel;
 	unsigned char LocL[8];
-	int FirstSector;
+	int unused4;
 
 	xa_decode_t Xa;
 
@@ -105,7 +108,7 @@ static struct {
 
 	u16 CmdInProgress;
 	u8 Irq1Pending;
-	u8 unused5;
+	u8 AdpcmActive;
 	u32 LastReadSeekCycles;
 
 	u8 unused7;
@@ -679,8 +682,7 @@ void cdrPlayReadInterrupt(void)
 	if (!cdr.Muted && cdr.Play && !Config.Cdda) {
 		cdrPrepCdda(read_buf, CD_FRAMESIZE_RAW / 4);
 		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
-		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, cdr.FirstSector);
-		cdr.FirstSector = 0;
+		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, 0);
 	}
 
 	msfiAdd(cdr.SetSectorPlay, 1);
@@ -841,7 +843,8 @@ void cdrInterrupt(void) {
 			cdr.LocL[0] = LOCL_INVALID;
 			cdr.SubqForwardSectors = 1;
 			cdr.TrackChanged = FALSE;
-			cdr.FirstSector = 1;
+			cdr.FileChannelSelected = 0;
+			cdr.AdpcmActive = 0;
 			cdr.ReportDelay = 60;
 			cdr.sectorsRead = 0;
 
@@ -979,8 +982,8 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetfilter:
-			cdr.File = cdr.Param[0];
-			cdr.Channel = cdr.Param[1];
+			cdr.FilterFile = cdr.Param[0];
+			cdr.FilterChannel = cdr.Param[1];
 			break;
 
 		case CdlSetmode:
@@ -995,8 +998,8 @@ void cdrInterrupt(void) {
 			SetResultSize(5);
 			cdr.Result[1] = cdr.Mode;
 			cdr.Result[2] = 0;
-			cdr.Result[3] = cdr.File;
-			cdr.Result[4] = cdr.Channel;
+			cdr.Result[3] = cdr.FilterFile;
+			cdr.Result[4] = cdr.FilterChannel;
 			break;
 
 		case CdlGetlocL:
@@ -1186,7 +1189,8 @@ void cdrInterrupt(void) {
 				cdr.SetlocPending = 0;
 			}
 			cdr.Reading = 1;
-			cdr.FirstSector = 1;
+			cdr.FileChannelSelected = 0;
+			cdr.AdpcmActive = 0;
 
 			// Fighting Force 2 - update subq time immediately
 			// - fixes new game
@@ -1324,7 +1328,9 @@ static void cdrUpdateTransferBuf(const u8 *buf)
 
 static void cdrReadInterrupt(void)
 {
-	u8 *buf = NULL, *hdr;
+	const struct { u8 file, chan, mode, coding; } *subhdr;
+	const u8 *buf = NULL;
+	int deliver_data = 1;
 	u8 subqPos[3];
 	int read_ok;
 
@@ -1357,29 +1363,45 @@ static void cdrReadInterrupt(void)
 	if (!cdr.Stat && !cdr.Irq1Pending)
 		cdrUpdateTransferBuf(buf);
 
-	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
-		hdr = buf + 4;
-		// Firemen 2: Multi-XA files - briefings, cutscenes
-		if( cdr.FirstSector == 1 && (cdr.Mode & MODE_SF)==0 ) {
-			cdr.File = hdr[0];
-			cdr.Channel = hdr[1];
+	subhdr = (void *)(buf + 4);
+	do {
+		// try to process as adpcm
+		if (!(cdr.Mode & MODE_STRSND))
+			break;
+		if (buf[3] != 2 || (subhdr->mode & 0x44) != 0x44) // or 0x64?
+			break;
+		CDR_LOG("f=%d m=%d %d,%3d | %d,%2d | %d,%2d\n", !!(cdr.Mode & MODE_SF), cdr.Muted,
+			subhdr->file, subhdr->chan, cdr.CurFile, cdr.CurChannel, cdr.FilterFile, cdr.FilterChannel);
+		if ((cdr.Mode & MODE_SF) && (subhdr->file != cdr.FilterFile || subhdr->chan != cdr.FilterChannel))
+			break;
+		if (subhdr->chan & 0xe0) { // ?
+			if (subhdr->chan != 0xff)
+				log_unhandled("adpcm %d:%d\n", subhdr->file, subhdr->chan);
+			break;
 		}
+		if (!cdr.FileChannelSelected) {
+			cdr.CurFile = subhdr->file;
+			cdr.CurChannel = subhdr->chan;
+			cdr.FileChannelSelected = 1;
+		}
+		else if (subhdr->file != cdr.CurFile || subhdr->chan != cdr.CurChannel)
+			break;
 
-		/* Gameblabla 
-		 * Skips playing on channel 255.
-		 * Fixes missing audio in Blue's Clues : Blue's Big Musical. (Should also fix Taxi 2)
-		 * TODO : Check if this is the proper behaviour.
-		 * */
-		if ((hdr[2] & 0x4) && hdr[0] == cdr.File && hdr[1] == cdr.Channel && cdr.Channel != 255) {
-			int ret = xa_decode_sector(&cdr.Xa, buf + 4, cdr.FirstSector);
-			if (!ret) {
-				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
-				SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, cdr.FirstSector);
-				cdr.FirstSector = 0;
-			}
-			else cdr.FirstSector = -1;
+		// accepted as adpcm
+		deliver_data = 0;
+
+		if (Config.Xa)
+			break;
+		if (!cdr.Muted && cdr.AdpcmActive) {
+			cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
+			SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, 0);
 		}
-	}
+		// decode next
+		cdr.AdpcmActive = !xa_decode_sector(&cdr.Xa, buf + 4, !cdr.AdpcmActive);
+	} while (0);
+
+	if ((cdr.Mode & MODE_SF) && (subhdr->mode & 0x44) == 0x44) // according to nocash
+		deliver_data = 0;
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1387,7 +1409,7 @@ static void cdrReadInterrupt(void)
 	Sim Theme Park - no adpcm at all (zero)
 	*/
 
-	if (!(cdr.Mode & MODE_STRSND) || !(buf[4+2] & 0x4))
+	if (deliver_data)
 		cdrReadInterruptSetResult(cdr.StatP);
 
 	msfiAdd(cdr.SetSectorPlay, 1);
@@ -1397,20 +1419,17 @@ static void cdrReadInterrupt(void)
 
 /*
 cdrRead0:
-	bit 0,1 - mode
-	bit 2 - unknown
-	bit 3 - unknown
-	bit 4 - unknown
+	bit 0,1 - reg index
+	bit 2 - adpcm active
 	bit 5 - 1 result ready
 	bit 6 - 1 dma ready
 	bit 7 - 1 command being processed
 */
 
 unsigned char cdrRead0(void) {
-	if (cdr.ResultReady)
-		cdr.Ctrl |= 0x20;
-	else
-		cdr.Ctrl &= ~0x20;
+	cdr.Ctrl &= ~0x24;
+	cdr.Ctrl |= cdr.AdpcmActive << 2;
+	cdr.Ctrl |= cdr.ResultReady << 5;
 
 	cdr.Ctrl |= 0x40; // data fifo not empty
 
@@ -1691,8 +1710,8 @@ static void getCdInfo(void)
 void cdrReset() {
 	memset(&cdr, 0, sizeof(cdr));
 	cdr.CurTrack = 1;
-	cdr.File = 1;
-	cdr.Channel = 1;
+	cdr.FilterFile = 0;
+	cdr.FilterChannel = 0;
 	cdr.Reg2 = 0x1f;
 	cdr.Stat = NoIntr;
 	cdr.FifoOffset = DATA_SIZE; // fifo empty
