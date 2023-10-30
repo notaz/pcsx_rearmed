@@ -211,7 +211,7 @@ static int check_irq(int ch, unsigned char *pos)
 {
  if((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ) && pos == spu.pSpuIrq)
  {
-  //printf("ch%d irq %04x\n", ch, pos - spu.spuMemC);
+  //printf("ch%d irq %04zx\n", ch, pos - spu.spuMemC);
   do_irq();
   return 1;
  }

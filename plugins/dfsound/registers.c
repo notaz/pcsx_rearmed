@@ -230,6 +230,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
         log_unhandled("koff1 %04x %d\n", val, cycles - spu.last_keyon_cycles);
        val &= ~regAreaGet(H_SPUon1);
       }
+      do_samples_if_needed(cycles, 0, 2);
       SoundOff(0,16,val);
       break;
     //-------------------------------------------------//
@@ -239,6 +240,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
         log_unhandled("koff2 %04x %d\n", val, cycles - spu.last_keyon_cycles);
        val &= ~regAreaGet(H_SPUon2);
       }
+      do_samples_if_needed(cycles, 0, 2);
       SoundOff(16,24,val);
       break;
     //-------------------------------------------------//
