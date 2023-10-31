@@ -2027,10 +2027,6 @@ static const char credits_text[] =
 
 static int reset_game(void)
 {
-	// sanity check
-	if (bios_sel == 0 && !Config.HLE)
-		return -1;
-
 	ClosePlugins();
 	OpenPlugins();
 	SysReset();
