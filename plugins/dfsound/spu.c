@@ -816,7 +816,9 @@ static void do_channels(int ns_to)
 
    if (s_chan->bFMod == 2)                         // fmod freq channel
     memcpy(iFMod, &ChanBuf, ns_to * sizeof(iFMod[0]));
-   if (s_chan->bRVBActive && do_rvb)
+   if (!(spu.spuCtrl & CTRL_MUTE))
+    ;
+   else if (s_chan->bRVBActive && do_rvb)
     mix_chan_rvb(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume, RVB);
    else
     mix_chan(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
@@ -1237,7 +1239,7 @@ static void do_samples_finish(int *SSumLR, int ns_to,
   vol_l = vol_l * spu_config.iVolume >> 10;
   vol_r = vol_r * spu_config.iVolume >> 10;
 
-  if (!(spu.spuCtrl & CTRL_MUTE) || !(vol_l | vol_r))
+  if (!(vol_l | vol_r))
    {
     // muted? (rare)
     memset(spu.pS, 0, ns_to * 2 * sizeof(spu.pS[0]));
