@@ -53,6 +53,14 @@
 #define u32 uint32_t
 #define s32 int32_t
 #define s64 int64_t
+#define u64 uint64_t
+
+typedef union {
+	struct {
+		u16 r, g, b;
+	} c;
+	u64 raw;
+} gcol_t;
 
 typedef struct {
         u32 v;
@@ -253,11 +261,12 @@ struct gpu_unai_t {
 	s32 u_inc, v_inc;
 
 	// Color for Gouraud-shaded prims
+	// Fixed-pt 8.8 rgb triplet
 	// Packed fixed-pt 8.3:8.3:8.2 rgb triplet
-	//  layout:  rrrrrrrrXXXggggggggXXXbbbbbbbbXX
-	//           ^ bit 31                       ^ bit 0
-	u32 gCol;
-	u32 gInc;          // Increment along scanline for gCol
+	//  layout:  ccccccccXXXXXXXX for c in [r, g, b]
+	//           ^ bit 16
+	gcol_t gCol;
+	gcol_t gInc;       // Increment along scanline for gCol
 
 	// Color for flat-shaded, texture-blended prims
 	u8  r5, g5, b5;    // 5-bit light for undithered prims
