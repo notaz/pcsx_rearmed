@@ -39,7 +39,7 @@ check_define_val()
 
 platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
-builtin_gpu_list="peops unai neon"
+builtin_gpu_list="neon peops unai"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""

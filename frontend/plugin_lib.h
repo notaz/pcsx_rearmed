@@ -94,17 +94,18 @@ struct rearmed_cbs {
 		int   dwFrameRateTicks;
 	} gpu_peops;
 	struct {
+		int   abe_hack;
+		int   no_light, no_blend;
+		int   lineskip;
+	} gpu_unai_old;
+	struct {
 		int ilace_force;
 		int pixel_skip;
 		int lighting;
 		int fast_lighting;
 		int blending;
 		int dithering;
-		// old gpu_unai config for compatibility
-		int   abe_hack;
-		int   no_light, no_blend;
-		int   lineskip;
-		int   scale_hires;
+		int scale_hires;
 	} gpu_unai;
 	struct {
 		int   dwActFixes;
