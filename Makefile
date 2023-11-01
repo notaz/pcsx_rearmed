@@ -142,12 +142,12 @@ plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
-ifeq "$(BUILTIN_GPU)" "unai"
-OBJS += plugins/gpu_unai/gpulib_if.o
+ifeq "$(BUILTIN_GPU)" "unai_old"
+OBJS += plugins/gpu_unai_old/gpulib_if.o
 ifeq "$(ARCH)" "arm"
-OBJS += plugins/gpu_unai/gpu_arm.o
+OBJS += plugins/gpu_unai_old/gpu_arm.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
+plugins/gpu_unai_old/gpulib_if.o: CFLAGS += -DREARMED -O3
 CC_LINK = $(CXX)
 endif
 

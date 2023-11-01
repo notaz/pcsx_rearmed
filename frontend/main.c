@@ -148,9 +148,9 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_senquack.fast_lighting = 0;
 	pl_rearmed_cbs.gpu_senquack.blending = 1;
 	pl_rearmed_cbs.gpu_senquack.dithering = 0;
-	pl_rearmed_cbs.gpu_unai.abe_hack =
-	pl_rearmed_cbs.gpu_unai.no_light =
-	pl_rearmed_cbs.gpu_unai.no_blend = 0;
+	pl_rearmed_cbs.gpu_unai_old.abe_hack =
+	pl_rearmed_cbs.gpu_unai_old.no_light =
+	pl_rearmed_cbs.gpu_unai_old.no_blend = 0;
 	memset(&pl_rearmed_cbs.gpu_peopsgl, 0, sizeof(pl_rearmed_cbs.gpu_peopsgl));
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;

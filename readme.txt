@@ -89,8 +89,8 @@ builtin_gpu    - this is either Exophase's ARM NEON GPU (accurate and fast,
                  gpu_peops or gpu_unai (depends on compile options).
 gpu_peops.so   - P.E.Op.S. soft GPU, reasonably accurate but slow
                  (also found with older emulators on PC)
-gpu_unai.so    - Unai's plugin from PCSX4ALL project. Faster than P.E.Op.S.
-                 but has some glitches.
+gpu_unai_old.so- Unai's plugin from PCSX4ALL project. Faster than P.E.Op.S.
+                 but has some glitches (old version).
 gpu_gles.so    - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
                  Occasionally faster but has lots of glitches and seems to
                  be rather unstable (may crash the driver/system).

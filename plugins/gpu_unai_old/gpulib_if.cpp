@@ -104,10 +104,10 @@ static u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "../gpu_unai/gpu_fixedpoint.h"
+#include "gpu_fixedpoint.h"
 
 //  Inner loop driver instanciation file
-#include "../gpu_unai/gpu_inner.h"
+#include "gpu_inner.h"
 
 //  GPU Raster Macros
 #define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
@@ -120,19 +120,19 @@ static u32   GPU_GP1;
 #define	GPU_SWAP(a,b,t)	{(t)=(a);(a)=(b);(b)=(t);}
 
 // GPU internal image drawing functions
-#include "../gpu_unai/gpu_raster_image.h"
+#include "gpu_raster_image.h"
 
 // GPU internal line drawing functions
-#include "../gpu_unai/gpu_raster_line.h"
+#include "gpu_raster_line.h"
 
 // GPU internal polygon drawing functions
-#include "../gpu_unai/gpu_raster_polygon.h"
+#include "gpu_raster_polygon.h"
 
 // GPU internal sprite drawing functions
-#include "../gpu_unai/gpu_raster_sprite.h"
+#include "gpu_raster_sprite.h"
 
 // GPU command buffer execution/store
-#include "../gpu_unai/gpu_command.h"
+#include "gpu_command.h"
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -544,10 +544,10 @@ void renderer_set_interlace(int enable, int is_odd)
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
-  force_interlace = cbs->gpu_unai.lineskip;
-  enableAbbeyHack = cbs->gpu_unai.abe_hack;
-  light = !cbs->gpu_unai.no_light;
-  blend = !cbs->gpu_unai.no_blend;
+  force_interlace = cbs->gpu_unai_old.lineskip;
+  enableAbbeyHack = cbs->gpu_unai_old.abe_hack;
+  light = !cbs->gpu_unai_old.no_light;
+  blend = !cbs->gpu_unai_old.no_blend;
 
   GPU_FrameBuffer = (u16 *)gpu.vram;
 }
