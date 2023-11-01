@@ -2240,6 +2240,7 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
+#if P_HAVE_PTHREAD
    var.value = NULL;
    var.key = "pcsx_rearmed_spu_thread";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -2249,6 +2250,7 @@ static void update_variables(bool in_flight)
       else
          spu_config.iUseThread = 0;
    }
+#endif
 
 #if 0 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
    if (P_HAVE_PTHREAD) {
