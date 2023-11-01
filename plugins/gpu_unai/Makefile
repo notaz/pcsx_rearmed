@@ -3,7 +3,7 @@ CFLAGS += -DREARMED
 CFLAGS += -I../../include
 #CFLAGS += -DINLINE="static __inline__"
 #CFLAGS += -Dasm="__asm__ __volatile__"
-#CFLAGS += -DUSE_GPULIB=1
+CFLAGS += -DUSE_GPULIB=1
 
 include ../../config.mak
 

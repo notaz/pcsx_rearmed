@@ -22,7 +22,7 @@
 #ifndef GPU_UNAI_GPU_H
 #define GPU_UNAI_GPU_H
 
-struct gpu_senquack_config_t {
+struct gpu_unai_config_t {
 	uint8_t pixel_skip:1;     // If 1, allows skipping rendering pixels that
 	                          //  would not be visible when a high horizontal
 	                          //  resolution PS1 video mode is set.
@@ -34,7 +34,7 @@ struct gpu_senquack_config_t {
 
 	uint8_t ilace_force:3;    // Option to force skipping rendering of lines,
 	                          //  for very slow platforms. Value will be
-	                          //  assigned to 'ilace_mask' in gpu_senquack struct.
+	                          //  assigned to 'ilace_mask' in gpu_unai struct.
 	                          //  Normally 0. Value '1' will skip rendering
 	                          //  odd lines.
 
@@ -47,13 +47,13 @@ struct gpu_senquack_config_t {
 	uint8_t blending:1;
 	uint8_t dithering:1;
 
-	//senquack Only PCSX Rearmed's version of gpu_senquack had this, and I
+	//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
 	// don't think it's necessary. It would require adding 'AH' flag to
 	// gpuSpriteSpanFn() increasing size of sprite span function array.
 	//uint8_t enableAbbeyHack:1;  // Abe's Odyssey hack
 
 	////////////////////////////////////////////////////////////////////////////
-	// Variables used only by older standalone version of gpu_senquack (gpu.cpp)
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
 #ifndef USE_GPULIB
 	uint8_t prog_ilace:1;         // Progressive interlace option (old option)
 	                              //  This option was somewhat oddly named:
@@ -66,7 +66,7 @@ struct gpu_senquack_config_t {
 #endif
 };
 
-extern gpu_senquack_config_t gpu_senquack_config_ext;
+extern gpu_unai_config_t gpu_unai_config_ext;
 
 // TODO: clean up show_fps frontend option
 extern  bool show_fps;

@@ -31,11 +31,19 @@
 struct PolyVertex {
 	s32 x, y; // Sign-extended 11-bit X,Y coords
 	union {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		struct { u8 pad[2], v, u; } tex; // Texture coords (if used)
+#else
 		struct { u8 u, v, pad[2]; } tex; // Texture coords (if used)
+#endif
 		u32 tex_word;
 	};
 	union {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		struct { u8 pad, b, g, r; } col; // 24-bit RGB color (if used)
+#else
 		struct { u8 r, g, b, pad; } col; // 24-bit RGB color (if used)
+#endif
 		u32 col_word;
 	};
 };
@@ -68,30 +76,30 @@ static void polyInitVertexBuffer(PolyVertex *vbuf, const PtrUnion packet, PolyTy
 		vert_stride++;
 
 	int num_verts = (is_quad) ? 4 : 3;
-	u32 *ptr;
+	le32_t *ptr;
 
 	// X,Y coords, adjusted by draw offsets
-	s32 x_off = gpu_senquack.DrawingOffset[0];
-	s32 y_off = gpu_senquack.DrawingOffset[1];
+	s32 x_off = gpu_unai.DrawingOffset[0];
+	s32 y_off = gpu_unai.DrawingOffset[1];
 	ptr = &packet.U4[1];
 	for (int i=0;  i < num_verts; ++i, ptr += vert_stride) {
-		s16* coord_ptr = (s16*)ptr;
-		vbuf[i].x = GPU_EXPANDSIGN(coord_ptr[0]) + x_off;
-		vbuf[i].y = GPU_EXPANDSIGN(coord_ptr[1]) + y_off;
+		u32 coords = le32_to_u32(*ptr);
+		vbuf[i].x = GPU_EXPANDSIGN((s16)coords) + x_off;
+		vbuf[i].y = GPU_EXPANDSIGN((s16)(coords >> 16)) + y_off;
 	}
 
 	// U,V texture coords (if applicable)
 	if (texturing) {
 		ptr = &packet.U4[2];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			vbuf[i].tex_word = *ptr;
+			vbuf[i].tex_word = le32_to_u32(*ptr);
 	}
 
 	// Colors (if applicable)
 	if (gouraud) {
 		ptr = &packet.U4[0];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			vbuf[i].col_word = *ptr;
+			vbuf[i].col_word = le32_to_u32(*ptr);
 	}
 }
 
@@ -189,8 +197,8 @@ static bool polyUseTriangle(const PolyVertex *vbuf, int tri_num, const PolyVerte
 
 	// Determine if triangle is completely outside clipping range
 	int xmin, xmax, ymin, ymax;
-	xmin = gpu_senquack.DrawingArea[0];  xmax = gpu_senquack.DrawingArea[2];
-	ymin = gpu_senquack.DrawingArea[1];  ymax = gpu_senquack.DrawingArea[3];
+	xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+	ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 	int clipped_lowest_x  = Max2(xmin,lowest_x);
 	int clipped_lowest_y  = Max2(ymin,lowest_y);
 	int clipped_highest_x = Min2(xmax,highest_x);
@@ -218,7 +226,7 @@ gpuDrawPolyF - Flat-shaded, untextured poly
 void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
 	// Set up bgr555 color to be used across calls in inner driver
-	gpu_senquack.PixelData = GPU_RGB16(packet.U4[0]);
+	gpu_unai.PixelData = GPU_RGB16(le32_to_u32(packet.U4[0]));
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, POLYTYPE_F, is_quad);
@@ -327,8 +335,8 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = gpu_senquack.DrawingArea[0];  xmax = gpu_senquack.DrawingArea[2];
-			ymin = gpu_senquack.DrawingArea[1];  ymax = gpu_senquack.DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -342,10 +350,10 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_senquack.vram)[FRAME_OFFSET(0, ya)];
-			int li=gpu_senquack.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_senquack.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_senquack.prog_ilace_flag?(gpu_senquack.ilace_mask+1):0):1);
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ya++, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4 )
@@ -357,7 +365,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				if ((xmin - xa) > 0) xa = xmin;
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_senquack, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -369,13 +377,13 @@ gpuDrawPolyFT - Flat-shaded, textured poly
 void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
 	// r8/g8/b8 used if texture-blending & dithering is applied (24-bit light)
-	gpu_senquack.r8 = packet.U1[0];
-	gpu_senquack.g8 = packet.U1[1];
-	gpu_senquack.b8 = packet.U1[2];
+	gpu_unai.r8 = packet.U1[0];
+	gpu_unai.g8 = packet.U1[1];
+	gpu_unai.b8 = packet.U1[2];
 	// r5/g5/b5 used if just texture-blending is applied (15-bit light)
-	gpu_senquack.r5 = packet.U1[0] >> 3;
-	gpu_senquack.g5 = packet.U1[1] >> 3;
-	gpu_senquack.b5 = packet.U1[2] >> 3;
+	gpu_unai.r5 = packet.U1[0] >> 3;
+	gpu_unai.g5 = packet.U1[1] >> 3;
+	gpu_unai.b5 = packet.U1[2] >> 3;
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, POLYTYPE_FT, is_quad);
@@ -452,8 +460,8 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 #endif
 #endif
 		// Set u,v increments for inner driver
-		gpu_senquack.u_inc = du4;
-		gpu_senquack.v_inc = dv4;
+		gpu_unai.u_inc = du4;
+		gpu_unai.v_inc = dv4;
 
 		//senquack - TODO: why is it always going through 2 iterations when sometimes one would suffice here?
 		//			 (SAME ISSUE ELSEWHERE)
@@ -635,8 +643,8 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = gpu_senquack.DrawingArea[0];  xmax = gpu_senquack.DrawingArea[2];
-			ymin = gpu_senquack.DrawingArea[1];  ymax = gpu_senquack.DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += dx3 * (ymin - ya);
@@ -652,10 +660,10 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_senquack.vram)[FRAME_OFFSET(0, ya)];
-			int li=gpu_senquack.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_senquack.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_senquack.prog_ilace_flag?(gpu_senquack.ilace_mask+1):0):1);
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -685,12 +693,12 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				}
 
 				// Set u,v coords for inner driver
-				gpu_senquack.u = u4;
-				gpu_senquack.v = v4;
+				gpu_unai.u = u4;
+				gpu_unai.v = v4;
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_senquack, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -782,7 +790,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 #endif
 #endif
 		// Setup packed Gouraud increment for inner driver
-		gpu_senquack.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
+		gpu_unai.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -979,8 +987,8 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = gpu_senquack.DrawingArea[0];  xmax = gpu_senquack.DrawingArea[2];
-			ymin = gpu_senquack.DrawingArea[1];  ymax = gpu_senquack.DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -997,10 +1005,10 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_senquack.vram)[FRAME_OFFSET(0, ya)];
-			int li=gpu_senquack.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_senquack.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_senquack.prog_ilace_flag?(gpu_senquack.ilace_mask+1):0):1);
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -1034,11 +1042,11 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				}
 
 				// Setup packed Gouraud color for inner driver
-				gpu_senquack.gCol = gpuPackGouraudCol(r4, g4, b4);
+				gpu_unai.gCol = gpuPackGouraudCol(r4, g4, b4);
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_senquack, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -1148,9 +1156,9 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 #endif
 #endif
 		// Set u,v increments and packed Gouraud increment for inner driver
-		gpu_senquack.u_inc = du4;
-		gpu_senquack.v_inc = dv4;
-		gpu_senquack.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
+		gpu_unai.u_inc = du4;
+		gpu_unai.v_inc = dv4;
+		gpu_unai.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -1372,8 +1380,8 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = gpu_senquack.DrawingArea[0];  xmax = gpu_senquack.DrawingArea[2];
-			ymin = gpu_senquack.DrawingArea[1];  ymax = gpu_senquack.DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -1392,10 +1400,10 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)gpu_senquack.vram)[FRAME_OFFSET(0, ya)];
-			int li=gpu_senquack.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_senquack.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_senquack.prog_ilace_flag?(gpu_senquack.ilace_mask+1):0):1);
+			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -1438,13 +1446,13 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				}
 
 				// Set packed Gouraud color and u,v coords for inner driver
-				gpu_senquack.u = u4;
-				gpu_senquack.v = v4;
-				gpu_senquack.gCol = gpuPackGouraudCol(r4, g4, b4);
+				gpu_unai.u = u4;
+				gpu_unai.v = v4;
+				gpu_unai.gCol = gpuPackGouraudCol(r4, g4, b4);
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_senquack, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
 			}
 		}
 	} while (++cur_pass < total_passes);

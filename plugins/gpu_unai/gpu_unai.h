@@ -24,9 +24,9 @@
 
 #include "gpu.h"
 
-// Header shared between both standalone gpu_senquack (gpu.cpp) and new
-// gpulib-compatible gpu_senquack (gpulib_if.cpp)
-// -> Anything here should be for gpu_senquack's private use. <-
+// Header shared between both standalone gpu_unai (gpu.cpp) and new
+// gpulib-compatible gpu_unai (gpulib_if.cpp)
+// -> Anything here should be for gpu_unai's private use. <-
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Compile Options
@@ -54,25 +54,67 @@
 #define s32 int32_t
 #define s64 int64_t
 
+typedef struct {
+        u32 v;
+} le32_t;
+
+typedef struct {
+        u16 v;
+} le16_t;
+
+static inline u32 le32_to_u32(le32_t le)
+{
+        return LE32TOH(le.v);
+}
+
+static inline s32 le32_to_s32(le32_t le)
+{
+        return (int32_t) LE32TOH(le.v);
+}
+
+static inline u32 le32_raw(le32_t le)
+{
+	return le.v;
+}
+
+static inline le32_t u32_to_le32(u32 u)
+{
+	return (le32_t){ .v = HTOLE32(u) };
+}
+
+static inline u16 le16_to_u16(le16_t le)
+{
+        return LE16TOH(le.v);
+}
+
+static inline s16 le16_to_s16(le16_t le)
+{
+        return (int16_t) LE16TOH(le.v);
+}
+
+static inline u16 le16_raw(le16_t le)
+{
+	return le.v;
+}
+
+static inline le16_t u16_to_le16(u16 u)
+{
+	return (le16_t){ .v = HTOLE16(u) };
+}
+
 union PtrUnion
 {
-	u32  *U4;
-	s32  *S4;
-	u16  *U2;
-	s16  *S2;
+	le32_t  *U4;
+	le16_t  *U2;
 	u8   *U1;
-	s8   *S1;
 	void *ptr;
 };
 
 union GPUPacket
 {
-	u32 U4[16];
-	s32 S4[16];
-	u16 U2[32];
-	s16 S2[32];
+	le32_t U4[16];
+	le16_t U2[32];
 	u8  U1[64];
-	s8  S1[64];
 };
 
 template<class T> static inline void SwapValues(T &x, T &y)
@@ -133,11 +175,16 @@ static inline s32 GPU_DIV(s32 rs, s32 rt)
 // 'Unsafe' version of above that doesn't check for div-by-zero
 #define GPU_FAST_DIV(rs, rt) ((signed)(rs) / (signed)(rt))
 
-struct gpu_senquack_t {
+struct gpu_unai_t {
 	u32 GPU_GP1;
 	GPUPacket PacketBuffer;
-	u16 *vram;
+	le16_t *vram;
 
+#ifdef USE_GPULIB
+	le16_t *downscale_vram;
+#endif
+	////////////////////////////////////////////////////////////////////////////
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
 #ifndef USE_GPULIB
 	u32  GPU_GP0;
 	u32  tex_window;       // Current texture window vals (set by GP0(E2h) cmd)
@@ -146,7 +193,7 @@ struct gpu_senquack_t {
 	bool fb_dirty;         // Framebuffer is dirty (according to GPU)
 
 	//  Display status
-	//  NOTE: Standalone older gpu_senquack didn't care about horiz display range
+	//  NOTE: Standalone older gpu_unai didn't care about horiz display range
 	u16  DisplayArea[6];   // [0] : Start of display area (in VRAM) X
 	                       // [1] : Start of display area (in VRAM) Y
 	                       // [2] : Display mode resolution HORIZONTAL
@@ -159,7 +206,7 @@ struct gpu_senquack_t {
 	struct {
 		s32  px,py;
 		s32  x_end,y_end;
-		u16* pvram;
+		le16_t* pvram;
 		u32 *last_dma;     // Last dma pointer
 		bool FrameToRead;  // Load image in progress
 		bool FrameToWrite; // Store image in progress
@@ -175,7 +222,7 @@ struct gpu_senquack_t {
 		bool skipGPU;      // Skip GPU primitives
 	} frameskip;
 #endif
-	// END of standalone gpu_senquack variables
+	// END of standalone gpu_unai variables
 	////////////////////////////////////////////////////////////////////////////
 
 	u32 TextureWindowCur;  // Current setting from last GP0(0xE2) cmd (raw form)
@@ -192,8 +239,8 @@ struct gpu_senquack_t {
 	s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
 	                       // [1] : Drawing offset Y (signed)
 
-	u16* TBA;              // Ptr to current texture in VRAM
-	u16* CBA;              // Ptr to current CLUT in VRAM
+	le16_t* TBA;              // Ptr to current texture in VRAM
+	le16_t* CBA;              // Ptr to current CLUT in VRAM
 
 	////////////////////////////////////////////////////////////////////////////
 	//  Inner Loop parameters
@@ -244,39 +291,39 @@ struct gpu_senquack_t {
 
 	u16 PixelMSB;
 
-	gpu_senquack_config_t config;
+	gpu_unai_config_t config;
 
 	u8  LightLUT[32*32];    // 5-bit lighting LUT (gpu_inner_light.h)
 	u32 DitherMatrix[64];   // Matrix of dither coefficients
 };
 
-static gpu_senquack_t gpu_senquack;
+static gpu_unai_t gpu_unai;
 
 // Global config that frontend can alter.. Values are read in GPU_init().
 // TODO: if frontend menu modifies a setting, add a function that can notify
 // GPU plugin to use new setting.
-gpu_senquack_config_t gpu_senquack_config_ext;
+gpu_unai_config_t gpu_unai_config_ext;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Internal inline funcs to get option status: (Allows flexibility)
 static inline bool LightingEnabled()
 {
-	return gpu_senquack.config.lighting;
+	return gpu_unai.config.lighting;
 }
 
 static inline bool FastLightingEnabled()
 {
-	return gpu_senquack.config.fast_lighting;
+	return gpu_unai.config.fast_lighting;
 }
 
 static inline bool BlendingEnabled()
 {
-	return gpu_senquack.config.blending;
+	return gpu_unai.config.blending;
 }
 
 static inline bool DitheringEnabled()
 {
-	return gpu_senquack.config.dithering;
+	return gpu_unai.config.dithering;
 }
 
 // For now, this is just for development/experimentation purposes..
@@ -295,7 +342,7 @@ static inline bool ProgressiveInterlaceEnabled()
 	//  for now when using new gpulib, since it also adds more work in loops.
 	return false;
 #else
-	return gpu_senquack.config.prog_ilace;
+	return gpu_unai.config.prog_ilace;
 #endif
 }
 
@@ -305,7 +352,7 @@ static inline bool ProgressiveInterlaceEnabled()
 //       running on higher-res device or a resampling downscaler is enabled.
 static inline bool PixelSkipEnabled()
 {
-	return gpu_senquack.config.pixel_skip || gpu_senquack.config.scale_hires;
+	return gpu_unai.config.pixel_skip || gpu_unai.config.scale_hires;
 }
 
 static inline bool LineSkipEnabled()

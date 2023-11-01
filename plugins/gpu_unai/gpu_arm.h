@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-void draw_spr16_full(u16 *d, void *s, u16 *pal, int lines);
+void draw_spr16_full(void *d, void *s, void *pal, int lines);
 
 #ifdef __cplusplus
 }

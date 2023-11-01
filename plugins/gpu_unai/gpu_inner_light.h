@@ -65,7 +65,7 @@ static void SetupLightLUT()
 		for (int i=0; i < 32; ++i) {
 			int val = i * j / 16;
 			if (val > 31) val = 31;
-			gpu_senquack.LightLUT[(j*32) + i] = val;
+			gpu_unai.LightLUT[(j*32) + i] = val;
 		}
 	}
 }
@@ -170,9 +170,9 @@ GPU_INLINE u32 gpuLightingRGB24(u32 gCol)
 ////////////////////////////////////////////////////////////////////////////////
 GPU_INLINE uint_fast16_t gpuLightingTXTGeneric(uint_fast16_t uSrc, u8 r5, u8 g5, u8 b5)
 {
-	return (gpu_senquack.LightLUT[((uSrc&0x7C00)>>5) | b5] << 10) |
-	       (gpu_senquack.LightLUT[ (uSrc&0x03E0)     | g5] <<  5) |
-	       (gpu_senquack.LightLUT[((uSrc&0x001F)<<5) | r5]      );
+	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | b5] << 10) |
+	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | g5] <<  5) |
+	       (gpu_unai.LightLUT[((uSrc&0x001F)<<5) | r5]      );
 }
 
 
@@ -192,9 +192,9 @@ GPU_INLINE uint_fast16_t gpuLightingTXTGeneric(uint_fast16_t uSrc, u8 r5, u8 g5,
 ////////////////////////////////////////////////////////////////////////////////
 GPU_INLINE uint_fast16_t gpuLightingTXTGouraudGeneric(uint_fast16_t uSrc, u32 gCol)
 {
-	return (gpu_senquack.LightLUT[((uSrc&0x7C00)>>5) | ((gCol>> 5)&0x1F)]<<10) |
-	       (gpu_senquack.LightLUT[ (uSrc&0x03E0)     | ((gCol>>16)&0x1F)]<< 5) |
-	       (gpu_senquack.LightLUT[((uSrc&0x001F)<<5) |  (gCol>>27)      ]    );
+	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | ((gCol>> 5)&0x1F)]<<10) |
+	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | ((gCol>>16)&0x1F)]<< 5) |
+	       (gpu_unai.LightLUT[((uSrc&0x001F)<<5) |  (gCol>>27)      ]    );
 }
 
 

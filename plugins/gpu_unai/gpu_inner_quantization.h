@@ -63,7 +63,7 @@ static void SetupDitheringConstants()
 			//   Is 8x8 matrix overkill as a result, can we use 4x4?
 			component &= ~1;
 
-			gpu_senquack.DitherMatrix[offset] = (component)
+			gpu_unai.DitherMatrix[offset] = (component)
 			                              | (component << 10)
 			                              | (component << 20);
 		}
@@ -85,15 +85,15 @@ static void SetupDitheringConstants()
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
 template <int DITHER>
-GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const u16 *pDst)
+GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const le16_t *pDst)
 {
 	if (DITHER)
 	{
-		u16 fbpos  = (u32)(pDst - gpu_senquack.vram);
+		uintptr_t fbpos = pDst - gpu_unai.vram;
 		u16 offset = ((fbpos & (0x7 << 10)) >> 7) | (fbpos & 0x7);
 
 		//clean overflow flags and add
-		uSrc24 = (uSrc24 & 0x1FF7FDFF) + gpu_senquack.DitherMatrix[offset];
+		uSrc24 = (uSrc24 & 0x1FF7FDFF) + gpu_unai.DitherMatrix[offset];
 
 		if (uSrc24 & (1<< 9)) uSrc24 |= (0x1FF    );
 		if (uSrc24 & (1<<19)) uSrc24 |= (0x1FF<<10);

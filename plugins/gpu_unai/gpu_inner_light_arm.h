@@ -61,7 +61,7 @@ GPU_INLINE uint_fast16_t gpuLightingTXTARM(uint_fast16_t uSrc, u8 r5, u8 g5, u8 
 	     "orr    %[out], %[out],    %[db],  lsl #0x0A   \n\t" // out holds 0xmbbbbbgggggrrrrr
 	     : [out] "=&r" (out), [db] "=&r" (db), [dg] "=&r" (dg)
 	     : [r5] "r" (r5), [g5] "r" (g5),  [b5] "r" (b5),
-	       [lut] "r" (gpu_senquack.LightLUT), [src] "r" (uSrc), "0" (out)
+	       [lut] "r" (gpu_unai.LightLUT), [src] "r" (uSrc), "0" (out)
 	     : "cc");
 	return out;
 }
@@ -103,7 +103,7 @@ GPU_INLINE uint_fast16_t gpuLightingTXTGouraudARM(uint_fast16_t uSrc, u32 gCol)
 	     "orr    %[out], %[out],  %[db],   lsl #0x0A \n\t" // out holds 0xmbbbbbgggggrrrrr
 	     : [out] "=&r" (out), [db] "=&r" (db), [dg] "=&r" (dg),
 	       [gtmp] "=&r" (gtmp) \
-	     : [gCol] "r" (gCol), [lut] "r" (gpu_senquack.LightLUT), "0" (out), [src] "r" (uSrc)
+	     : [gCol] "r" (gCol), [lut] "r" (gpu_unai.LightLUT), "0" (out), [src] "r" (uSrc)
 	     : "cc");
 
 	return out;
