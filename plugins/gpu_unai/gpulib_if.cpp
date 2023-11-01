@@ -635,13 +635,13 @@ void renderer_set_interlace(int enable, int is_odd)
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
   gpu_senquack.vram = (u16*)gpu.vram;
-  gpu_senquack.config.ilace_force   = cbs->gpu_senquack.ilace_force;
-  gpu_senquack.config.pixel_skip    = cbs->gpu_senquack.pixel_skip;
-  gpu_senquack.config.lighting      = cbs->gpu_senquack.lighting;
-  gpu_senquack.config.fast_lighting = cbs->gpu_senquack.fast_lighting;
-  gpu_senquack.config.blending      = cbs->gpu_senquack.blending;
-  gpu_senquack.config.dithering     = cbs->gpu_senquack.dithering;
-  gpu_senquack.config.scale_hires   = cbs->gpu_senquack.scale_hires;
+  gpu_senquack.config.ilace_force   = cbs->gpu_unai.ilace_force;
+  gpu_senquack.config.pixel_skip    = cbs->gpu_unai.pixel_skip;
+  gpu_senquack.config.lighting      = cbs->gpu_unai.lighting;
+  gpu_senquack.config.fast_lighting = cbs->gpu_unai.fast_lighting;
+  gpu_senquack.config.blending      = cbs->gpu_unai.blending;
+  gpu_senquack.config.dithering     = cbs->gpu_unai.dithering;
+  gpu_senquack.config.scale_hires   = cbs->gpu_unai.scale_hires;
 }
 
 // vim:shiftwidth=2:expandtab

@@ -438,13 +438,13 @@ static const struct {
 	CE_INTVAL_P(gpu_unai_old.abe_hack),
 	CE_INTVAL_P(gpu_unai_old.no_light),
 	CE_INTVAL_P(gpu_unai_old.no_blend),
-	CE_INTVAL_P(gpu_senquack.ilace_force),
-	CE_INTVAL_P(gpu_senquack.pixel_skip),
-	CE_INTVAL_P(gpu_senquack.lighting),
-	CE_INTVAL_P(gpu_senquack.fast_lighting),
-	CE_INTVAL_P(gpu_senquack.blending),
-	CE_INTVAL_P(gpu_senquack.dithering),
-	CE_INTVAL_P(gpu_senquack.scale_hires),
+	CE_INTVAL_P(gpu_unai.ilace_force),
+	CE_INTVAL_P(gpu_unai.pixel_skip),
+	CE_INTVAL_P(gpu_unai.lighting),
+	CE_INTVAL_P(gpu_unai.fast_lighting),
+	CE_INTVAL_P(gpu_unai.blending),
+	CE_INTVAL_P(gpu_unai.dithering),
+	CE_INTVAL_P(gpu_unai.scale_hires),
 	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_P(gpu_neon.enhancement_enable),
 	CE_INTVAL_P(gpu_neon.enhancement_no_main),
@@ -1400,21 +1400,21 @@ static int menu_loop_plugin_gpu_unai_old(int id, int keys)
 	return 0;
 }
 
-static menu_entry e_menu_plugin_gpu_senquack[] =
+static menu_entry e_menu_plugin_gpu_unai[] =
 {
-	mee_onoff     ("Interlace",                  0, pl_rearmed_cbs.gpu_senquack.ilace_force, 1),
-	mee_onoff     ("Dithering",                  0, pl_rearmed_cbs.gpu_senquack.dithering, 1),
-	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_senquack.lighting, 1),
-	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_senquack.fast_lighting, 1),
-	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_senquack.blending, 1),
-	mee_onoff     ("Pixel skip",                 0, pl_rearmed_cbs.gpu_senquack.pixel_skip, 1),
+	mee_onoff     ("Interlace",                  0, pl_rearmed_cbs.gpu_unai.ilace_force, 1),
+	mee_onoff     ("Dithering",                  0, pl_rearmed_cbs.gpu_unai.dithering, 1),
+	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
+	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
+	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
+	mee_onoff     ("Pixel skip",                 0, pl_rearmed_cbs.gpu_unai.pixel_skip, 1),
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu_senquack(int id, int keys)
+static int menu_loop_plugin_gpu_unai(int id, int keys)
 {
 	int sel = 0;
-	me_loop(e_menu_plugin_gpu_senquack, &sel);
+	me_loop(e_menu_plugin_gpu_unai, &sel);
 	return 0;
 }
 
@@ -1520,7 +1520,7 @@ static const char h_plugin_gpu[] =
 #endif
 				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
 				   "gpu_unai_old is from old PCSX4ALL, fast but glitchy\n"
-				   "gpu_senquack is more accurate but slower\n"
+				   "gpu_unai is newer, more accurate but slower\n"
 				   "gpu_gles Pete's hw GPU, uses 3D chip but is glitchy\n"
 				   "must save config and reload the game if changed";
 static const char h_plugin_spu[] = "spunull effectively disables sound\n"
@@ -1528,7 +1528,7 @@ static const char h_plugin_spu[] = "spunull effectively disables sound\n"
 static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
 static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
 static const char h_gpu_unai_old[] = "Configure Unai/PCSX4ALL Team GPU plugin (old)";
-static const char h_gpu_senquack[] = "Configure Unai/PCSX4ALL Senquack plugin";
+static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static menu_entry e_menu_plugin_options[] =
@@ -1541,7 +1541,7 @@ static menu_entry e_menu_plugin_options[] =
 #endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
 	mee_handler_h ("Configure gpu_unai_old GPU plugin", menu_loop_plugin_gpu_unai_old, h_gpu_unai_old),
-	mee_handler_h ("Configure gpu_senquack GPU plugin", menu_loop_plugin_gpu_senquack, h_gpu_senquack),
+	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
 	mee_handler_h ("Configure gpu_gles GPU plugin", menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,

@@ -15,5 +15,5 @@ SRC += gpu_arm.S
 endif
 
 #BIN_STANDALONE = gpuPCSX4ALL.so
-BIN_GPULIB = gpu_senquack.so
+BIN_GPULIB = gpu_unai.so
 include ../gpulib/gpulib.mak

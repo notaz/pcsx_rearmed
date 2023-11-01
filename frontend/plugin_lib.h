@@ -102,7 +102,7 @@ struct rearmed_cbs {
 		int blending;
 		int dithering;
 		int scale_hires;
-	} gpu_senquack;
+	} gpu_unai;
 	struct {
 		int   dwActFixes;
 		int   bDrawDither, iFilterType, iFrameTexType;
