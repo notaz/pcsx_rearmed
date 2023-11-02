@@ -59,20 +59,15 @@
 #include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
 #define gpuBlending gpuBlendingARM
-#define gpuLightingRGB gpuLightingRGBARM
 #define gpuLightingTXT gpuLightingTXTARM
-#define gpuLightingTXTGouraud gpuLightingTXTGouraudARM
+#else
+#define gpuBlending gpuBlendingGeneric
+#define gpuLightingTXT gpuLightingTXTGeneric
+#endif
+
 // Non-dithering lighting and blending functions preserve uSrc
 // MSB. This saves a few operations and useless load/stores.
 #define MSB_PRESERVED (!CF_DITHER)
-#else
-#define gpuBlending gpuBlendingGeneric
-#define gpuLightingRGB gpuLightingRGBGeneric
-#define gpuLightingTXT gpuLightingTXTGeneric
-#define gpuLightingTXTGouraud gpuLightingTXTGouraudGeneric
-#define MSB_PRESERVED 0
-#endif
-
 
 // If defined, Gouraud colors are fixed-point 5.11, otherwise they are 8.16
 // This is only for debugging/verification of low-precision colors in C.
@@ -538,8 +533,8 @@ endpolynotextnogou:
 		else
 		{
 			// UNTEXTURED, GOURAUD
-			u32 l_gCol = gpu_unai.gCol;
-			u32 l_gInc = gpu_unai.gInc;
+			gcol_t l_gCol = gpu_unai.gCol;
+			gcol_t l_gInc = gpu_unai.gInc;
 
 			do {
 				uint_fast16_t uDst, uSrc;
@@ -571,7 +566,7 @@ endpolynotextnogou:
 
 endpolynotextgou:
 				pDst++;
-				l_gCol += l_gInc;
+				l_gCol.raw += l_gInc.raw;
 			}
 			while (--count);
 		}
@@ -595,7 +590,7 @@ endpolynotextgou:
 		u8 r5, g5, b5;
 		u8 r8, g8, b8;
 
-		u32 l_gInc, l_gCol;
+		gcol_t l_gInc, l_gCol;
 
 		if (CF_LIGHT) {
 			if (CF_GOURAUD) {
@@ -679,7 +674,8 @@ endpolytext:
 			pDst++;
 			l_u = (l_u + l_u_inc) & l_u_msk;
 			l_v = (l_v + l_v_inc) & l_v_msk;
-			if (CF_LIGHT && CF_GOURAUD) l_gCol += l_gInc;
+			if (CF_LIGHT && CF_GOURAUD)
+				l_gCol.raw += l_gInc.raw;
 		}
 		while (--count);
 	}
