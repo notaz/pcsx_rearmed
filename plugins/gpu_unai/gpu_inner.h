@@ -62,17 +62,16 @@
 #define gpuLightingRGB gpuLightingRGBARM
 #define gpuLightingTXT gpuLightingTXTARM
 #define gpuLightingTXTGouraud gpuLightingTXTGouraudARM
-// Non-dithering lighting and blending functions preserve uSrc
-// MSB. This saves a few operations and useless load/stores.
-#define MSB_PRESERVED (!CF_DITHER)
 #else
 #define gpuBlending gpuBlendingGeneric
 #define gpuLightingRGB gpuLightingRGBGeneric
 #define gpuLightingTXT gpuLightingTXTGeneric
 #define gpuLightingTXTGouraud gpuLightingTXTGouraudGeneric
-#define MSB_PRESERVED 0
 #endif
 
+// Non-dithering lighting and blending functions preserve uSrc
+// MSB. This saves a few operations and useless load/stores.
+#define MSB_PRESERVED (!CF_DITHER)
 
 // If defined, Gouraud colors are fixed-point 5.11, otherwise they are 8.16
 // This is only for debugging/verification of low-precision colors in C.
