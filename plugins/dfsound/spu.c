@@ -198,12 +198,15 @@ static void InterpolateDown(sample_buf *sb, int sinc)
 #include "gauss_i.h"
 #include "xa.c"
 
-static void do_irq(void)
+static void do_irq(int cycles_after)
 {
- //if(!(spu.spuStat & STAT_IRQ))
+ if (spu.spuStat & STAT_IRQ)
+  log_unhandled("spu: missed irq?\n");
+ else
  {
   spu.spuStat |= STAT_IRQ;                             // asserted status?
-  if(spu.irqCallback) spu.irqCallback(0);
+  if (spu.irqCallback)
+   spu.irqCallback(cycles_after);
  }
 }
 
@@ -212,7 +215,7 @@ static int check_irq(int ch, unsigned char *pos)
  if((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ) && pos == spu.pSpuIrq)
  {
   //printf("ch%d irq %04zx\n", ch, pos - spu.spuMemC);
-  do_irq();
+  do_irq(0);
   return 1;
  }
  return 0;
@@ -225,7 +228,15 @@ void check_irq_io(unsigned int addr)
  if((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ) && addr == irq_addr)
  {
   //printf("io   irq %04x\n", irq_addr);
-  do_irq();
+  do_irq(0);
+ }
+}
+
+void do_irq_io(int cycles_after)
+{
+ if ((spu.spuCtrl & (CTRL_ON|CTRL_IRQ)) == (CTRL_ON|CTRL_IRQ))
+ {
+  do_irq(cycles_after);
  }
 }
 
@@ -1182,7 +1193,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
     if (0 < left && left <= ns_to)
      {
       //xprintf("decoder irq %x\n", spu.decode_pos);
-      do_irq();
+      do_irq(0);
      }
    }
   if (!spu.cycles_dma_end || (int)(spu.cycles_dma_end - cycles_to) < 0) {
