@@ -163,7 +163,7 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 }
 
 static void hw_write_byte(struct lightrec_state *state,
-			  u32 op, void *host, u32 mem, u8 val)
+			  u32 op, void *host, u32 mem, u32 val)
 {
 	lightrec_tansition_to_pcsx(state);
 
@@ -173,7 +173,7 @@ static void hw_write_byte(struct lightrec_state *state,
 }
 
 static void hw_write_half(struct lightrec_state *state,
-			  u32 op, void *host, u32 mem, u16 val)
+			  u32 op, void *host, u32 mem, u32 val)
 {
 	lightrec_tansition_to_pcsx(state);
 
