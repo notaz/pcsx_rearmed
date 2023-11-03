@@ -36,18 +36,18 @@ static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data);
 static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg);
 
 static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
-				void *host, u32 addr, u8 data)
+				void *host, u32 addr, u32 data)
 {
-	*(u8 *)host = data;
+	*(u8 *)host = (u8)data;
 
 	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 1);
 }
 
 static void lightrec_default_sh(struct lightrec_state *state, u32 opcode,
-				void *host, u32 addr, u16 data)
+				void *host, u32 addr, u32 data)
 {
-	*(u16 *)host = HTOLE16(data);
+	*(u16 *)host = HTOLE16((u16)data);
 
 	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 2);
@@ -322,10 +322,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 
 	switch (op.i.op) {
 	case OP_SB:
-		ops->sb(state, opcode, host, addr, (u8) data);
+		ops->sb(state, opcode, host, addr, data);
 		return 0;
 	case OP_SH:
-		ops->sh(state, opcode, host, addr, (u16) data);
+		ops->sh(state, opcode, host, addr, data);
 		return 0;
 	case OP_SWL:
 		lightrec_swl(state, ops, opcode, host, addr, data);
