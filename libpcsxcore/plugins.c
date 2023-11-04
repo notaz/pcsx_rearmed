@@ -626,8 +626,9 @@ static void adjust_analog(unsigned char *b)
 {
 	// ff8 hates 0x80 for whatever reason (broken in 2d area menus),
 	// or is this caused by something else we do wrong??
-	if (b[6] == 0x80)
-		b[6] = 0x7f;
+	// Also S.C.A.R.S. treats 0x7f as turning left.
+	if (b[6] == 0x7f || b[6] == 0x80)
+		b[6] = 0x81;
 }
 
 // Build response for 0x42 request Pad in port
