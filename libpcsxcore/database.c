@@ -67,40 +67,31 @@ hack_db[] =
 
 static const struct
 {
-	const char * const id;
 	int mult;
+	const char * const id[4];
 }
 cycle_multiplier_overrides[] =
 {
 	/* note: values are = (10000 / gui_option) */
 	/* Internal Section - fussy about timings */
-	{ "SLPS01868", 202 },
+	{ 202, { "SLPS01868" } },
 	/* Super Robot Taisen Alpha - on the edge with 175,
 	 * changing memcard settings is enough to break/unbreak it */
-	{ "SLPS02528", 190 },
-	{ "SLPS02636", 190 },
+	{ 190, { "SLPS02528", "SLPS02636" } },
 	/* Brave Fencer Musashi - cd sectors arrive too fast */
-	{ "SLUS00726", 170 },
-	{ "SLPS01490", 170 },
+	{ 170, { "SLUS00726", "SLPS01490" } },
 #if defined(DRC_DISABLE) || defined(LIGHTREC) /* new_dynarec has a hack for this game */
 	/* Parasite Eve II - internal timer checks */
-	{ "SLUS01042", 125 },
-	{ "SLUS01055", 125 },
-	{ "SLES02558", 125 },
-	{ "SLES12558", 125 },
+	{ 125, { "SLUS01042", "SLUS01055", "SLES02558", "SLES12558" } },
 #endif
 	/* Discworld Noir - audio skips if CPU runs too fast */
-	{ "SLES01549", 222 },
-	{ "SLES02063", 222 },
-	{ "SLES02064", 222 },
+	{ 222, { "SLES01549", "SLES02063", "SLES02064" } },
 	/* Judge Dredd - could also be poor MDEC timing */
-	{ "SLUS00630", 128 },
-	{ "SLES00755", 128 },
+	{ 128, { "SLUS00630", "SLES00755" } },
 	/* Digimon World */
-	{ "SLUS01032", 153 },
-	{ "SLES02914", 153 },
+	{ 153, { "SLUS01032", "SLES02914" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
-	{ "SCUS94240", 169 },
+	{ 169, { "SCUS94240" } },
 };
 
 /* Function for automatic patching according to GameID. */
@@ -141,7 +132,11 @@ void Apply_Hacks_Cdrom(void)
 
 	for (i = 0; i < ARRAY_SIZE(cycle_multiplier_overrides); i++)
 	{
-		if (strcmp(CdromId, cycle_multiplier_overrides[i].id) == 0)
+		const char * const * const ids = cycle_multiplier_overrides[i].id;
+		for (j = 0; j < ARRAY_SIZE(cycle_multiplier_overrides[i].id); j++)
+			if (ids[j] && strcmp(ids[j], CdromId) == 0)
+				break;
+		if (j < ARRAY_SIZE(cycle_multiplier_overrides[i].id))
 		{
 			Config.cycle_multiplier_override = cycle_multiplier_overrides[i].mult;
 			new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
