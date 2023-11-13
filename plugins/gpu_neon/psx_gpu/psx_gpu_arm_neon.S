@@ -6129,6 +6129,7 @@ function(scale2x_tiles8)
   mov r14, r2
 
 0:
+  pld [r1, #1024*2]
   vld1.u16 { q0 }, [r1, :128]!
   vld1.u16 { q2 }, [r1, :128]!
   vmov q1, q0
