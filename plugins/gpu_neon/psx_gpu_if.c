@@ -142,6 +142,9 @@ sync_enhancement_buffers(int x, int y, int w, int h)
     x2 = min(right, s->x + s_w);
     y1 = max(y, s->y);
     y2 = min(bottom, s->y + s_h);
+    // 16-byte align for the asm version
+    x2 += x1 & 7;
+    x1 &= ~7;
     scale2x_tiles8(dst + y1 * 1024*2 + x1 * 2,
         src + y1 * 1024 + x1, (x2 - x1 + 7) / 8u, y2 - y1);
   }
