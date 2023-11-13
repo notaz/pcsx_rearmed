@@ -92,6 +92,9 @@ cycle_multiplier_overrides[] =
 	{ 153, { "SLUS01032", "SLES02914" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
 	{ 169, { "SCUS94240" } },
+	/* Psychic Detective - some weird race condition in the game's cdrom code */
+	{ 222, { "SLUS00165", "SLUS00166", "SLUS00167" } },
+	{ 222, { "SLES00070", "SLES10070", "SLES20070" } },
 };
 
 /* Function for automatic patching according to GameID. */
