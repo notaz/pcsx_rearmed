@@ -39,9 +39,11 @@ enum hle_op {
 	hleop_exc1_3_1, hleop_exc1_3_2,
 	hleop_exc3_0_2,
 	hleop_exc_padcard1, hleop_exc_padcard2,
+	hleop_a0t, hleop_b0t, hleop_c0t,
+	hleop_count_ // must be last
 };
 
-extern void (* const psxHLEt[24])();
+extern void (* const psxHLEt[hleop_count_])();
 
 #ifdef __cplusplus
 }

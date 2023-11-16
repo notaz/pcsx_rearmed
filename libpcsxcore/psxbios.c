@@ -303,10 +303,10 @@ static u32 floodchk;
 #define A_CD_EVENTS     0xb9b8
 #define A_EXC_GP        0xf450
 
-#define A_A0_DUMMY      0x1010
-#define A_B0_DUMMY      0x2010
-#define A_C0_DUMMY      0x3010
-#define A_B0_5B_DUMMY   0x43d0
+#define A_A0_TRAPS      0x1010
+#define A_B0_TRAPS      0x2010
+#define A_C0_TRAPS      0x3010
+#define A_B0_5B_TRAP    0x43d0
 
 #define HLEOP(n) SWAPu32((0x3b << 26) | (n));
 
@@ -3752,18 +3752,25 @@ void psxBiosInit() {
 
 	// fill the api jumptables with fake entries as some games patch them
 	// (or rather the funcs listed there)
+	// also trap the destination as some "Cheats Edition" thing overrides the
+	// dispatcher with a wrapper and then jumps to the table entries directly
 	ptr = (u32 *)&psxM[A_A0_TABLE];
-	for (i = 0; i < 256; i++)
-		ptr[i] = SWAP32(A_A0_DUMMY);
-
+	for (i = 0; i < 256; i++) {
+		ptr[i] = SWAP32(A_A0_TRAPS + i*4);
+		ram32[A_A0_TRAPS/4 + i] = HLEOP(hleop_a0t);
+	}
 	ptr = (u32 *)&psxM[A_B0_TABLE];
-	for (i = 0; i < 256; i++)
-		ptr[i] = SWAP32(A_B0_DUMMY);
+	for (i = 0; i < 256; i++) {
+		ptr[i] = SWAP32(A_B0_TRAPS + i*4);
+		ram32[A_B0_TRAPS/4 + i] = HLEOP(hleop_b0t);
+	}
 	// B(5b) is special because games patch (sometimes even jump to)
 	// code at fixed offsets from it, nocash lists offsets:
 	//  patch: +3d8, +4dc, +594, +62c, +9c8, +1988
 	//  call:  +7a0=4b70, +884=4c54, +894=4c64
-	ptr[0x5b] = SWAP32(A_B0_5B_DUMMY);    // 0x43d0
+	ptr[0x5b] = SWAP32(A_B0_5B_TRAP);     // 0x43d0
+	ram32[A_B0_5B_TRAP/4] = HLEOP(hleop_b0t);
+
 	ram32[0x4b70/4] = SWAP32(0x03e00008); // jr $ra // setPadOutputBuf
 
 	ram32[0x4c54/4] = SWAP32(0x240e0001); // mov $t6, 1
@@ -3774,15 +3781,17 @@ void psxBiosInit() {
 	ram32[0x4c68/4] = SWAP32(0xac000000 + A_PAD_IRQR_ENA); // sw $0, ...
 
 	ptr = (u32 *)&psxM[A_C0_TABLE];
-	for (i = 0; i < 256/2; i++)
-		ptr[i] = SWAP32(A_C0_DUMMY);
+	for (i = 0; i < 256/2; i++) {
+		ptr[i] = SWAP32(A_C0_TRAPS + i*4);
+		ram32[A_C0_TRAPS/4 + i] = HLEOP(hleop_c0t);
+	}
 	ptr[6] = SWAP32(A_EXCEPTION);
 
 	// more HLE traps
-	ram32[A_A0_DUMMY/4] = HLEOP(hleop_dummy);
-	ram32[A_B0_DUMMY/4] = HLEOP(hleop_dummy);
-	ram32[A_C0_DUMMY/4] = HLEOP(hleop_dummy);
-	ram32[A_B0_5B_DUMMY/4] = HLEOP(hleop_dummy);
+	ram32[A_A0_TRAPS/4 - 1] = HLEOP(hleop_dummy);
+	ram32[A_B0_TRAPS/4 - 1] = HLEOP(hleop_dummy);
+	ram32[A_C0_TRAPS/4 - 1] = HLEOP(hleop_dummy);
+	ram32[0x7ffc/4] = HLEOP(hleop_dummy);
 	ram32[0x8000/4] = HLEOP(hleop_execret);
 
 	ram32[A_EEXIT_PTR/4] = SWAP32(A_EEXIT_DEF);
@@ -4097,7 +4106,8 @@ static void hleA0() {
 	u32 call = t1 & 0xff;
 	u32 entry = loadRam32(A_A0_TABLE + call * 4);
 
-	if (call < 192 && entry != A_A0_DUMMY) {
+	use_cycles(4+7);
+	if (call < 192 && entry != A_A0_TRAPS + call * 4) {
 		PSXBIOS_LOG("custom A%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosA0n[call], a0, entry, ra);
 		softCall(entry);
@@ -4116,10 +4126,11 @@ static void hleB0() {
 	u32 entry = loadRam32(A_B0_TABLE + call * 4);
 	int is_custom = 0;
 
+	use_cycles(4+7);
 	if (call == 0x5b)
-		is_custom = entry != A_B0_5B_DUMMY;
+		is_custom = entry != A_B0_5B_TRAP;
 	else
-		is_custom = entry != A_B0_DUMMY;
+		is_custom = entry != A_B0_TRAPS + call * 4;
 	if (is_custom) {
 		PSXBIOS_LOG("custom B%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosB0n[call], a0, entry, ra);
@@ -4138,7 +4149,8 @@ static void hleC0() {
 	u32 call = t1 & 0xff;
 	u32 entry = loadRam32(A_C0_TABLE + call * 4);
 
-	if (call < 128 && entry != A_C0_DUMMY) {
+	use_cycles(4+7);
+	if (call < 128 && entry != A_C0_TRAPS + call * 4) {
 		PSXBIOS_LOG("custom C%02x %s(0x%x, )  addr=%08x ra=%08x\n",
 			call, biosC0n[call], a0, entry, ra);
 		softCall(entry);
@@ -4146,6 +4158,47 @@ static void hleC0() {
 		PSXBIOS_LOG(" -> %08x\n", v0);
 	}
 	else if (biosC0[call])
+		biosC0[call]();
+
+	//printf("C(%02x) -> %x\n", call, v0);
+	psxBranchTest();
+}
+
+static void hleA0t() {
+	u32 call = (pc0 - A_A0_TRAPS) / 4 - 1;
+	if (call >= 256u || !biosA0[call]) {
+		log_unhandled("unexpected A trap @%08x ra=%08x\n", pc0 - 4, ra);
+		mips_return_void_c(1000);
+	}
+	else
+		biosA0[call]();
+
+	//printf("A(%02x) -> %x\n", call, v0);
+	psxBranchTest();
+}
+
+static void hleB0t() {
+	u32 call = (pc0 - A_B0_TRAPS) / 4 - 1;
+	if (pc0 - 4 == A_B0_5B_TRAP)
+		call = 0x5b;
+	if (call >= 256u || !biosB0[call]) {
+		log_unhandled("unexpected B trap @%08x ra=%08x\n", pc0 - 4, ra);
+		mips_return_void_c(1000);
+	}
+	else
+		biosB0[call]();
+
+	//printf("B(%02x) -> %x\n", call, v0);
+	psxBranchTest();
+}
+
+static void hleC0t() {
+	u32 call = (pc0 - A_C0_TRAPS) / 4 - 1;
+	if (call >= 128u || !biosC0[call]) {
+		log_unhandled("unexpected C trap @%08x ra=%08x\n", pc0 - 4, ra);
+		mips_return_void_c(1000);
+	}
+	else
 		biosC0[call]();
 
 	//printf("C(%02x) -> %x\n", call, v0);
@@ -4173,7 +4226,7 @@ static void hleExecRet() {
 	psxRegs.pc = ra;
 }
 
-void (* const psxHLEt[24])() = {
+void (* const psxHLEt[hleop_count_])() = {
 	hleDummy, hleA0, hleB0, hleC0,
 	hleBootstrap, hleExecRet, psxBiosException, hleDummy,
 	hleExc0_0_1, hleExc0_0_2,
@@ -4184,6 +4237,7 @@ void (* const psxHLEt[24])() = {
 	hleExc1_3_1, hleExc1_3_2,
 	hleExc3_0_2_defint,
 	hleExcPadCard1, hleExcPadCard2,
+	hleA0t, hleB0t, hleC0t,
 };
 
 void psxBiosCheckExe(u32 t_addr, u32 t_size, int loading_state)
