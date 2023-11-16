@@ -144,6 +144,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
       break;
     //-------------------------------------------------//
     case H_SPUctrl:
+      spu.spuStat = (spu.spuStat & ~0x3f) | (val & 0x3f);
       spu.spuStat &= ~STAT_IRQ | val;
       if (!(spu.spuCtrl & CTRL_IRQ)) {
         if (val & CTRL_IRQ)
@@ -365,7 +366,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
      return spu.spuCtrl;
 
     case H_SPUstat:
-     return (spu.spuStat & ~0x3F) | (spu.spuCtrl & 0x3F);
+     return spu.spuStat;
         
     case H_SPUaddr:
      return (unsigned short)(spu.spuAddr>>3);
