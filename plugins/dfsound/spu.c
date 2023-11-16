@@ -1147,7 +1147,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
  cycle_diff = cycles_to - spu.cycles_played;
  if (cycle_diff < -2*1048576 || cycle_diff > 2*1048576)
   {
-   //xprintf("desync %u %d\n", cycles_to, cycle_diff);
+   log_unhandled("desync %u %d\n", cycles_to, cycle_diff);
    spu.cycles_played = cycles_to;
    return;
   }
@@ -1164,7 +1164,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
  ns_to = (cycle_diff / 768 + 1) & ~1;
  if (ns_to > NSSIZE) {
   // should never happen
-  //xprintf("ns_to oflow %d %d\n", ns_to, NSSIZE);
+  log_unhandled("ns_to oflow %d %d\n", ns_to, NSSIZE);
   ns_to = NSSIZE;
  }
 

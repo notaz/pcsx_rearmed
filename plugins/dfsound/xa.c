@@ -413,8 +413,10 @@ void FeedCDDA(unsigned char *pcm, int nBytes)
 {
  int space;
  space=(spu.CDDAPlay-spu.CDDAFeed-1)*4 & (CDDA_BUFFER_SIZE - 1);
- if(space<nBytes)
+ if (space < nBytes) {
+  log_unhandled("FeedCDDA: %d/%d\n", nBytes, space);
   return;
+ }
 
  while(nBytes>0)
   {

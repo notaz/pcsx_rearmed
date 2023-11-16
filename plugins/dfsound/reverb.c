@@ -177,7 +177,7 @@ static void REVERBPrep(void)
  REVERBInfo *rvb = spu.rvb;
  int space, t;
 
- t = spu.regArea[(H_SPUReverbAddr - 0xc00) >> 1];
+ t = regAreaGet(H_SPUReverbAddr);
  if (t == 0xFFFF || t <= 0x200)
   spu.rvb->StartAddr = spu.rvb->CurrAddr = 0;
  else if (spu.rvb->StartAddr != (t << 2))
