@@ -335,6 +335,14 @@ static void lightrec_enable_ram(struct lightrec_state *state, bool enable)
 
 static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
 {
+	if (is_write && size != 32) {
+		// force32 so must go through handlers
+		if (0x1f801000 <= kaddr && kaddr < 0x1f801024)
+			return false;
+		if ((kaddr & 0x1fffff80) == 0x1f801080) // dma
+			return false;
+	}
+
 	switch (size) {
 	case 8:
 		switch (kaddr) {
