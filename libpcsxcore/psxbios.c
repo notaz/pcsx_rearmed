@@ -532,12 +532,8 @@ void psxBios_putc(void) // 0x09, 0x3B
 	pc0 = ra;
 }
 
-void psxBios_todigit(void) // 0x0a
+static u32 do_todigit(u32 c)
 {
-	int c = a0;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x0a]);
-#endif
 	c &= 0xFF;
 	if (c >= 0x30 && c < 0x3A) {
 		c -= 0x30;
@@ -549,14 +545,73 @@ void psxBios_todigit(void) // 0x0a
 		c = c - 0x41 + 10;
 	}
 	else if (c >= 0x80) {
+		log_unhandled("todigit %02x\n", c);
 		c = -1;
 	}
 	else
 	{
 		c = 0x0098967F;
 	}
-	v0 = c;
-	pc0 = ra;
+	use_cycles(40);
+	return c;
+}
+
+static void psxBios_todigit(void) // 0x0a
+{
+	mips_return(do_todigit(a0));
+	PSXBIOS_LOG("psxBios_%s '%c' -> %u\n", biosA0n[0x0a], a0, v0);
+}
+
+static void do_strtol(char *p, void *end_, u32 base, int can_neg) {
+	s32 n = 0, f = 0, t;
+	u32 *end = end_;
+
+	use_cycles(12);
+	if (p == INVALID_PTR) {
+		mips_return(0);
+		return;
+	}
+
+	for (; (0x09 <= *p && *p <= '\r') || *p == ' '; p++)
+		use_cycles(9);
+	if (can_neg) {
+		for (; *p == '-'; f = 1, p++)
+			use_cycles(4);
+	}
+	if (base == 0 || base > 36)
+		base = 10;
+	if (*p == '0') {
+		switch (*p++) {
+		case 'b': case 'B': base = 2; break;
+		case 'x': case 'X': base = 16; break;
+		}
+	}
+	else if (*p == 'o' || *p == 'O') {
+		base = 8;
+		p++;
+	}
+
+	for (; (t = do_todigit(*p)) < base; p++) {
+		n = n * base + t;
+		use_cycles(12);
+	}
+
+	n = (f ? -n : n);
+	if (end != INVALID_PTR)
+		*end = SWAP32(a0 + (p - Ra0));
+	mips_return_c(n, 100);
+}
+
+static void psxBios_strtoul() { // 0x0c
+	do_strtol(a0 ? Ra0 : INVALID_PTR, a1 ? Ra1 : INVALID_PTR, a2, 0);
+	PSXBIOS_LOG("psxBios_%s %s (%x), %x, %x -> 0x%x\n",
+		biosA0n[0x0c], a0 ? Ra0 : NULL, a0, a1, a2, v0);
+}
+
+static void psxBios_strtol() { // 0x0d
+	do_strtol(a0 ? Ra0 : INVALID_PTR, a1 ? Ra1 : INVALID_PTR, a2, 1);
+	PSXBIOS_LOG("psxBios_%s %s (%x), %x, %x -> 0x%x\n",
+		biosA0n[0x0d], a0 ? Ra0 : NULL, a0, a1, a2, v0);
 }
 
 void psxBios_abs() { // 0x0e
@@ -3382,8 +3437,8 @@ void psxBiosInit() {
 	biosA0[0x09] = psxBios_putc;
 	biosA0[0x0a] = psxBios_todigit;
 	//biosA0[0x0b] = psxBios_atof;
-	//biosA0[0x0c] = psxBios_strtoul;
-	//biosA0[0x0d] = psxBios_strtol;
+	biosA0[0x0c] = psxBios_strtoul;
+	biosA0[0x0d] = psxBios_strtol;
 	biosA0[0x0e] = psxBios_abs;
 	biosA0[0x0f] = psxBios_labs;
 	biosA0[0x10] = psxBios_atoi;
