@@ -217,7 +217,7 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 	const char *basedir)
 {
 	const char *ext, *p;
-	char buf[256], buf2[256];
+	char buf[256], buf2[257];
 	int i, d, ret, good_cue;
 	struct STAT statf;
 	FILE *f;
