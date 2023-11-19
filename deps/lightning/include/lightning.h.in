@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 @MAYBE_INCLUDE_STDINT_H@
+#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 
@@ -1220,6 +1221,7 @@ typedef void  (*jit_free_func_ptr)	(void*);
 /*
  * Prototypes
  */
+extern void init_jit_with_debug(const char*,FILE*);
 extern void init_jit(const char*);
 extern void finish_jit(void);
 

@@ -75,10 +75,10 @@ static FILE	*print_stream;
  * Implementation
  */
 void
-jit_init_print(void)
+jit_init_print(FILE *stream)
 {
     if (!print_stream)
-	print_stream = stdout;
+	print_stream = stream;
 }
 
 void

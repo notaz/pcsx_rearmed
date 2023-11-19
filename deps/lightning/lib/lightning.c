@@ -181,11 +181,17 @@ _patch_register(jit_state_t *jit, jit_node_t *node, jit_node_t *link,
  * Implementation
  */
 void
-init_jit(const char *progname)
+init_jit_with_debug(const char *progname, FILE *dbg_out)
 {
     jit_get_cpu();
-    jit_init_debug(progname);
+    jit_init_debug(progname, dbg_out);
     jit_init_size();
+}
+
+void
+init_jit(const char *progname)
+{
+	init_jit_with_debug(progname, stderr);
 }
 
 void
