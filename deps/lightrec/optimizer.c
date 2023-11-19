@@ -299,6 +299,9 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 		if (opcode_writes_register(list[i].c, reg))
 			return true;
 
+		if (is_syscall(list[i].c))
+			return false;
+
 		if (has_delay_slot(list[i].c)) {
 			if (op_flag_no_ds(list[i].flags) ||
 			    opcode_reads_register(list[i + 1].c, reg))

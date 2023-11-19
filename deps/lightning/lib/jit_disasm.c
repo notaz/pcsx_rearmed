@@ -71,9 +71,9 @@ static int fprintf_styled(void * stream, enum disassembler_style style, const ch
  * Implementation
  */
 void
-jit_init_debug(const char *progname)
+jit_init_debug(const char *progname, FILE *stream)
 {
-    jit_init_print();
+    jit_init_print(stream);
 #if DISASSEMBLER
     bfd_init();
 
@@ -89,7 +89,7 @@ jit_init_debug(const char *progname)
     bfd_check_format(disasm_bfd, bfd_object);
     bfd_check_format(disasm_bfd, bfd_archive);
     if (!disasm_stream)
-	disasm_stream = stdout;
+	disasm_stream = stream;
 
 #if BINUTILS_2_38
     INIT_DISASSEMBLE_INFO(disasm_info, disasm_stream, fprintf, fprintf_styled);
