@@ -111,7 +111,7 @@ ifneq (,$(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep 'HAVE_NEON3
 	BUILTIN_GPU = neon
 endif
 endif
-ifneq (,$(findstring $(ARCH_DETECTED),i686 x86_64 arm64 aarch64))
+ifneq (,$(filter $(ARCH_DETECTED),i686 x86_64 arm64 aarch64))
 	BUILTIN_GPU = neon
 endif
 
