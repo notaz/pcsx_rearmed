@@ -47,6 +47,12 @@ static const char * const gpu_centering_hack_db[] =
 	"SLPM86009",
 };
 
+static const char * const dualshock_init_analog_hack_db[] =
+{
+	/* Formula 1 Championship Edition */
+	"SLUS00546",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -63,6 +69,7 @@ hack_db[] =
 	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
 	HACK_ENTRY(gpu_busy, gpu_busy_hack_db),
 	HACK_ENTRY(gpu_centering, gpu_centering_hack_db),
+	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),
 };
 
 static const struct
@@ -114,6 +121,12 @@ void Apply_Hacks_Cdrom(void)
 			SysPrintf("using hack: %s\n", hack_db[i].name);
 			break;
 		}
+	}
+
+	if (Config.hacks.dualshock_init_analog) {
+		// assume the default is off, see LoadPAD1plugin()
+		for (i = 0; i < 8; i++)
+			padToggleAnalog(i);
 	}
 
 	/* Apply Memory card hack for Codename Tenka. (The game needs one of the memory card slots to be empty) */

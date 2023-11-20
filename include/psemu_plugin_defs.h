@@ -228,7 +228,7 @@ typedef struct
 		unsigned char padMode; // 0 : digital 1: analog
 		unsigned char cmd4dConfig[6];
 		unsigned int  lastUseFrame;
-		unsigned int  digitalModeFrames;
+		unsigned int  unused;
 		unsigned char configModeUsed;
 		unsigned char padding[3];
 	} ds;

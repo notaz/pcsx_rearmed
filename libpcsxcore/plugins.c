@@ -490,15 +490,8 @@ static void initBufForRequest(int padIndex, char value) {
 		return;
 	}
 
-	// switch to analog mode automatically after the game finishes init
-	if (value == 0x42 && pads[padIndex].ds.padMode == 0)
-		pads[padIndex].ds.digitalModeFrames++;
-	if (pads[padIndex].ds.digitalModeFrames == 60*4) {
-		pads[padIndex].ds.padMode = 1;
-		pads[padIndex].ds.digitalModeFrames = 0;
-	}
-
-	if ((u32)(frame_counter - pads[padIndex].ds.lastUseFrame) > 60u)
+	if ((u32)(frame_counter - pads[padIndex].ds.lastUseFrame) > 60u
+	    && !Config.hacks.dualshock_init_analog)
 		pads[padIndex].ds.padMode = 0; // according to nocash
 	pads[padIndex].ds.lastUseFrame = frame_counter;
 
@@ -989,6 +982,15 @@ int padFreeze(void *f, int Mode) {
 	}
 
 	return 0;
+}
+
+int padToggleAnalog(unsigned int index)
+{
+	int r = -1;
+
+	if (index < sizeof(pads) / sizeof(pads[0]))
+		r = (pads[index].ds.padMode ^= 1);
+	return r;
 }
 
 
