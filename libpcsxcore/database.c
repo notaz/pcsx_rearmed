@@ -52,7 +52,7 @@ static const char * const dualshock_init_analog_hack_db[] =
 	/* Formula 1 Championship Edition */
 	"SLUS00546",
 	/* Gran Turismo 2 */
-	"SCUS94455", "SCUS94488", "SCPS10116", "SCPS10117", "SCES02380", "SCES-12380",
+	"SCUS94455", "SCUS94488", "SCPS10116", "SCPS10117", "SCES02380", "SCES12380",
 };
 
 #define HACK_ENTRY(var, list) \

@@ -146,8 +146,8 @@ int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
 static int in_enable_crosshair[2] = { 0, 0 };
-static bool in_dualshock_toggle_enable = 0;
-static bool in_dualshock_toggling = 0;
+static int in_dualshock_analog_combo = 0;
+static bool in_dualshock_toggling = false;
 
 // NegCon adjustment parameters
 // > The NegCon 'twist' action is somewhat awkward when mapped
@@ -2014,11 +2014,27 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_analog_toggle";
+   var.key = "pcsx_rearmed_analog_combo";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      in_dualshock_toggle_enable = (strcmp(var.value, "enabled") == 0);
+      if (strcmp(var.value, "l1+r1+select") == 0)
+         in_dualshock_analog_combo = (1 << RETRO_DEVICE_ID_JOYPAD_L) |
+           (1 << RETRO_DEVICE_ID_JOYPAD_R) | (1 << RETRO_DEVICE_ID_JOYPAD_SELECT);
+      else if (strcmp(var.value, "l1+r1+start") == 0)
+         in_dualshock_analog_combo = (1 << RETRO_DEVICE_ID_JOYPAD_L) |
+           (1 << RETRO_DEVICE_ID_JOYPAD_R) | (1 << RETRO_DEVICE_ID_JOYPAD_START);
+      else if (strcmp(var.value, "l1+r1+l3") == 0)
+         in_dualshock_analog_combo = (1 << RETRO_DEVICE_ID_JOYPAD_L) |
+           (1 << RETRO_DEVICE_ID_JOYPAD_R) | (1 << RETRO_DEVICE_ID_JOYPAD_L3);
+      else if (strcmp(var.value, "l1+r1+r3") == 0)
+         in_dualshock_analog_combo = (1 << RETRO_DEVICE_ID_JOYPAD_L) |
+           (1 << RETRO_DEVICE_ID_JOYPAD_R) | (1 << RETRO_DEVICE_ID_JOYPAD_R3);
+      else if (strcmp(var.value, "l3+r3") == 0)
+         in_dualshock_analog_combo = (1 << RETRO_DEVICE_ID_JOYPAD_L3) |
+           (1 << RETRO_DEVICE_ID_JOYPAD_R3);
+      else
+         in_dualshock_analog_combo = 0;
    }
 
    var.value = NULL;
@@ -2873,17 +2889,13 @@ static void update_input_mouse(int port, int ret)
 
 static void update_input(void)
 {
-   int16_t analog_combo =
-      (1 << RETRO_DEVICE_ID_JOYPAD_L) |
-      (1 << RETRO_DEVICE_ID_JOYPAD_R) |
-      (1 << RETRO_DEVICE_ID_JOYPAD_SELECT);
    int i;
    int j;
 
    // reset all keystate, query libretro for keystate
    for (i = 0; i < PORTS_NUMBER; i++)
    {
-      int16_t ret = 0;
+      int32_t ret = 0;
       int type = in_type[i];
 
       in_keystate[i] = 0;
@@ -2892,7 +2904,11 @@ static void update_input(void)
          continue;
 
       if (libretro_supports_bitmasks)
+      {
          ret = input_state_cb(i, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
+         // undo int16 sign extension (why input_state_cb returns int16 in the first place?)
+         ret &= (1 << (RETRO_DEVICE_ID_JOYPAD_R3 + 1)) - 1;
+      }
       else
       {
          for (j = 0; j < (RETRO_DEVICE_ID_JOYPAD_R3 + 1); j++)
@@ -2918,8 +2934,8 @@ static void update_input(void)
          break;      
       default:
          // dualshock ANALOG toggle?
-         if (type == PSE_PAD_TYPE_ANALOGPAD && in_dualshock_toggle_enable
-             && (ret & analog_combo) == analog_combo)
+         if (type == PSE_PAD_TYPE_ANALOGPAD && in_dualshock_analog_combo != 0
+             && ret == in_dualshock_analog_combo)
          {
             if (!in_dualshock_toggling)
             {
