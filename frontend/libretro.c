@@ -145,7 +145,9 @@ int in_mouse[8][2];
 int multitap1 = 0;
 int multitap2 = 0;
 int in_enable_vibration = 1;
-int in_enable_crosshair[2] = { 0, 0 };
+static int in_enable_crosshair[2] = { 0, 0 };
+static bool in_dualshock_toggle_enable = 0;
+static bool in_dualshock_toggling = 0;
 
 // NegCon adjustment parameters
 // > The NegCon 'twist' action is somewhat awkward when mapped
@@ -2012,6 +2014,14 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_analog_toggle";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      in_dualshock_toggle_enable = (strcmp(var.value, "enabled") == 0);
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_dithering";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -2863,10 +2873,14 @@ static void update_input_mouse(int port, int ret)
 
 static void update_input(void)
 {
-   // reset all keystate, query libretro for keystate
+   int16_t analog_combo =
+      (1 << RETRO_DEVICE_ID_JOYPAD_L) |
+      (1 << RETRO_DEVICE_ID_JOYPAD_R) |
+      (1 << RETRO_DEVICE_ID_JOYPAD_SELECT);
    int i;
    int j;
 
+   // reset all keystate, query libretro for keystate
    for (i = 0; i < PORTS_NUMBER; i++)
    {
       int16_t ret = 0;
@@ -2903,7 +2917,23 @@ static void update_input(void)
          update_input_mouse(i, ret);
          break;      
       default:
-         // Query digital inputs
+         // dualshock ANALOG toggle?
+         if (type == PSE_PAD_TYPE_ANALOGPAD && in_dualshock_toggle_enable
+             && (ret & analog_combo) == analog_combo)
+         {
+            if (!in_dualshock_toggling)
+            {
+               int state = padToggleAnalog(i);
+               char msg[32];
+               snprintf(msg, sizeof(msg), "ANALOG %s", state ? "ON" : "OFF");
+               show_notification(msg, 800, 1);
+               in_dualshock_toggling = true;
+            }
+            return;
+         }
+         in_dualshock_toggling = false;
+
+         // Set digital inputs
          for (j = 0; j < RETRO_PSX_MAP_LEN; j++)
             if (ret & (1 << j))
                in_keystate[i] |= retro_psx_map[j];

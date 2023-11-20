@@ -854,6 +854,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled",
    },
    {
+      "pcsx_rearmed_analog_toggle",
+      "DualShock Analog Mode Toggle",
+      NULL,
+      "When the input device type is DualShock, this option allows the emulated DualShock to be toggled between DIGITAL and ANALOG mode like original hardware. The button combination is L1 + R1 + Select.",
+      NULL,
+      "input",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
       "pcsx_rearmed_multitap",
       "Multitap Mode",
       NULL,

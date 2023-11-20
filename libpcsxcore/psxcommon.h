@@ -152,6 +152,7 @@ typedef struct {
 		boolean gpu_slow_list_walking;
 		boolean gpu_busy;
 		boolean gpu_centering;
+		boolean dualshock_init_analog;
 	} hacks;
 } PcsxConfig;
 
