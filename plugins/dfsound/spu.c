@@ -1551,7 +1551,10 @@ long CALLBACK SPUinit(void)
  int i;
 
  memset(&spu, 0, sizeof(spu));
- spu.spuMemC = calloc(1, 512 * 1024);
+ spu.spuMemC = calloc(1, 512 * 1024 + 16);
+ // a guard for runaway channels - End+Mute
+ spu.spuMemC[512 * 1024 + 1] = 1;
+
  InitADSR();
 
  spu.s_chan = calloc(MAXCHAN+1, sizeof(spu.s_chan[0])); // channel + 1 infos (1 is security for fmod handling)
