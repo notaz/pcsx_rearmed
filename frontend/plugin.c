@@ -46,20 +46,7 @@ static long CALLBACK CDRgetTE(unsigned char _, unsigned char *__, unsigned char 
 static void CALLBACK GPUdisplayText(char *_) { return; }
 
 /* SPU */
-extern long CALLBACK SPUopen(void);
-extern long CALLBACK SPUinit(void);
-extern long CALLBACK SPUshutdown(void);
-extern long CALLBACK SPUclose(void);
-extern void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
-extern unsigned short CALLBACK SPUreadRegister(unsigned long, unsigned int);
-extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
-extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
-extern void CALLBACK SPUplayADPCMchannel(void *, unsigned int, int);
-extern void CALLBACK SPUregisterCallback(void (*cb)(int));
-extern void CALLBACK SPUregisterScheduleCb(void (*cb)(unsigned int));
-extern long CALLBACK SPUfreeze(unsigned int, void *, unsigned int);
-extern void CALLBACK SPUasync(unsigned int, unsigned int);
-extern int  CALLBACK SPUplayCDDAchannel(short *, int, unsigned int, int);
+#include "../plugins/dfsound/spu.h"
 
 /* PAD */
 static long CALLBACK PADinit(long _) { return 0; }
@@ -191,6 +178,7 @@ static const struct {
 	DIRECT_SPU(SPUregisterScheduleCb),
 	DIRECT_SPU(SPUasync),
 	DIRECT_SPU(SPUplayCDDAchannel),
+	DIRECT_SPU(SPUsetCDvol),
 	/* PAD */
 	DIRECT_PAD(PADinit),
 	DIRECT_PAD(PADshutdown),

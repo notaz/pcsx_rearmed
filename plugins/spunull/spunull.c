@@ -284,6 +284,11 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
 {
 }
 
+void CALLBACK SPUsetCDvol(unsigned char ll, unsigned char lr,
+  unsigned char rl, unsigned char rr, unsigned int cycle)
+{
+}
+
 ////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,7 @@
 #include "registers.h"
 #include "out.h"
 #include "spu_config.h"
+#include "spu.h"
 
 #ifdef __arm__
 #include "arm_features.h"
@@ -835,7 +836,7 @@ static void do_channels(int ns_to)
     mix_chan(spu.SSumLR, ns_to, s_chan->iLeftVolume, s_chan->iRightVolume);
   }
 
-  MixXA(spu.SSumLR, RVB, ns_to, spu.decode_pos);
+  MixCD(spu.SSumLR, RVB, ns_to, spu.decode_pos);
 
   if (spu.rvb->StartAddr) {
    if (do_rvb)
@@ -1112,7 +1113,7 @@ static void sync_worker_thread(int force)
   work = &worker->i[worker->i_reaped & WORK_I_MASK];
   thread_work_wait_sync(work, force);
 
-  MixXA(work->SSumLR, RVB, work->ns_to, work->decode_pos);
+  MixCD(work->SSumLR, RVB, work->ns_to, work->decode_pos);
   do_samples_finish(work->SSumLR, work->ns_to,
    work->channels_silent, work->decode_pos);
 
@@ -1351,11 +1352,13 @@ void CALLBACK SPUupdate(void)
 
 // XA AUDIO
 
-void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int unused)
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_start)
 {
  if(!xap)       return;
  if(!xap->freq) return;                // no xa freq ? bye
 
+ if (is_start)
+  spu.XAPlay = spu.XAFeed = spu.XAStart;
  if (spu.XAPlay == spu.XAFeed)
   do_samples(cycle, 1);                // catch up to prevent source underflows later
 
@@ -1374,6 +1377,17 @@ int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes, unsigned int cycle, int 
 
  FeedCDDA((unsigned char *)pcm, nbytes);
  return 0;
+}
+
+void CALLBACK SPUsetCDvol(unsigned char ll, unsigned char lr,
+  unsigned char rl, unsigned char rr, unsigned int cycle)
+{
+ if (spu.XAPlay != spu.XAFeed || spu.CDDAPlay != spu.CDDAFeed)
+  do_samples(cycle, 1);
+ spu.cdv.ll = ll;
+ spu.cdv.lr = lr;
+ spu.cdv.rl = rl;
+ spu.cdv.rr = rr;
 }
 
 // to be called after state load

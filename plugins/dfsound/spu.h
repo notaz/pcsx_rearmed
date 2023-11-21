@@ -18,18 +18,29 @@
 #ifndef __P_SPU_H__
 #define __P_SPU_H__
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define HTOLE16(x) __builtin_bswap16(x)
-#define LE16TOH(x) __builtin_bswap16(x)
-#else
-#define HTOLE16(x) (x)
-#define LE16TOH(x) (x)
-#endif
+struct SPUFreeze;
+struct xa_decode;
 
-void ClearWorkingState(void);
-void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_start);
+long CALLBACK SPUopen(void);
+long CALLBACK SPUinit(void);
+long CALLBACK SPUshutdown(void);
+long CALLBACK SPUclose(void);
+void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
+unsigned short CALLBACK SPUreadRegister(unsigned long, unsigned int);
+void CALLBACK SPUregisterCallback(void (*cb)(int));
+void CALLBACK SPUregisterScheduleCb(void (*cb)(unsigned int));
+long CALLBACK SPUfreeze(unsigned int, struct SPUFreeze *, unsigned int);
+void CALLBACK SPUasync(unsigned int, unsigned int);
+
+void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize,unsigned int cycles);
+void CALLBACK SPUwriteDMAMem(unsigned short * pusPSXMem,int iSize,unsigned int cycles);
+
+void CALLBACK SPUplayADPCMchannel(struct xa_decode *xap, unsigned int cycle, int is_start);
 int  CALLBACK SPUplayCDDAchannel(short *pcm, int bytes, unsigned int cycle, int is_start);
-void FeedXA(const xa_decode_t *xap);
-void FeedCDDA(unsigned char *pcm, int nBytes);
+void CALLBACK SPUsetCDvol(unsigned char ll, unsigned char lr,
+		unsigned char rl, unsigned char rr, unsigned int cycle);
+
+// internal
+void ClearWorkingState(void);
 
 #endif /* __P_SPU_H__ */
