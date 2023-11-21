@@ -590,6 +590,7 @@ int main(int argc, char *argv[])
 {
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
+	char isofilename[MAXPATHLEN];
 	const char *cdfile = NULL;
 	const char *loadst_f = NULL;
 	int psxout = 0;
@@ -608,8 +609,6 @@ int main(int argc, char *argv[])
 			SysPrintf("Using config file %s.\n", cfgfile_basename);
 		}
 		else if (!strcmp(argv[i], "-cdfile")) {
-			char isofilename[MAXPATHLEN];
-
 			if (i+1 >= argc) break;
 			strncpy(isofilename, argv[++i], MAXPATHLEN);
 			if (isofilename[0] != '/') {
