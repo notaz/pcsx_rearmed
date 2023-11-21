@@ -89,17 +89,6 @@ typedef struct
               
 ///////////////////////////////////////////////////////////
 
-// Tmp Flags
-
-// used for debug channel muting
-#define FLAG_MUTE  1
-
-// used for simple interpolation
-#define FLAG_IPOL0 2
-#define FLAG_IPOL1 4
-
-///////////////////////////////////////////////////////////
-
 // MAIN CHANNEL STRUCT
 typedef struct
 {
@@ -225,6 +214,10 @@ typedef struct
  int             iLeftXAVol;
  int             iRightXAVol;
 
+ struct {                              // channel volume in the cd controller
+  unsigned char  ll, lr, rl, rr;       // see cdr.Attenuator* in cdrom.c
+ } cdv;                                // applied on spu side for easier emulation
+
  unsigned int    last_keyon_cycles;
 
  union {
@@ -288,5 +281,8 @@ void do_irq_io(int cycles_after);
  } while (0)
 
 #endif
+
+void FeedXA(const xa_decode_t *xap);
+void FeedCDDA(unsigned char *pcm, int nBytes);
 
 #endif /* __P_SOUND_EXTERNALS_H__ */

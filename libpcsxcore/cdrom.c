@@ -633,7 +633,6 @@ static u32 cdrAlignTimingHack(u32 cycles)
 static void cdrUpdateTransferBuf(const u8 *buf);
 static void cdrReadInterrupt(void);
 static void cdrPrepCdda(s16 *buf, int samples);
-static void cdrAttenuate(s16 *buf, int samples, int stereo);
 
 static void msfiAdd(u8 *msfi, u32 count)
 {
@@ -693,9 +692,8 @@ void cdrPlayReadInterrupt(void)
 	if (!cdr.IrqStat && (cdr.Mode & (MODE_AUTOPAUSE|MODE_REPORT)))
 		cdrPlayInterrupt_Autopause();
 
-	if (!cdr.Muted && cdr.Play && !Config.Cdda) {
+	if (cdr.Play && !Config.Cdda) {
 		cdrPrepCdda(read_buf, CD_FRAMESIZE_RAW / 4);
-		cdrAttenuate(read_buf, CD_FRAMESIZE_RAW / 4, 1);
 		SPU_playCDDAchannel(read_buf, CD_FRAMESIZE_RAW, psxRegs.cycle, 0);
 	}
 
@@ -933,6 +931,11 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlPause:
+			if (cdr.AdpcmActive) {
+				cdr.AdpcmActive = 0;
+				cdr.Xa.nsamples = 0;
+				SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, 1); // flush adpcm
+			}
 			StopCdda();
 			StopReading();
 
@@ -978,9 +981,11 @@ void cdrInterrupt(void) {
 			StopReading();
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.LocL[0] = LOCL_INVALID;
-			cdr.Muted = FALSE;
 			cdr.Mode = MODE_SIZE_2340; /* This fixes This is Football 2, Pooh's Party lockups */
 			cdr.DriveState = DRIVESTATE_PAUSED;
+			cdr.Muted = FALSE;
+			SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
+				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
 			second_resp_time = not_ready ? 70000 : 4100000;
 			start_rotating = 1;
 			break;
@@ -992,10 +997,13 @@ void cdrInterrupt(void) {
 
 		case CdlMute:
 			cdr.Muted = TRUE;
+			SPU_setCDvol(0, 0, 0, 0, psxRegs.cycle);
 			break;
 
 		case CdlDemute:
 			cdr.Muted = FALSE;
+			SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
+				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
 			break;
 
 		case CdlSetfilter:
@@ -1275,44 +1283,6 @@ static void cdrPrepCdda(s16 *buf, int samples)
 #endif
 }
 
-static void cdrAttenuate(s16 *buf, int samples, int stereo)
-{
-	int i, l, r;
-	int ll = cdr.AttenuatorLeftToLeft;
-	int lr = cdr.AttenuatorLeftToRight;
-	int rl = cdr.AttenuatorRightToLeft;
-	int rr = cdr.AttenuatorRightToRight;
-
-	if (lr == 0 && rl == 0 && 0x78 <= ll && ll <= 0x88 && 0x78 <= rr && rr <= 0x88)
-		return;
-
-	if (!stereo && ll == 0x40 && lr == 0x40 && rl == 0x40 && rr == 0x40)
-		return;
-
-	if (stereo) {
-		for (i = 0; i < samples; i++) {
-			l = buf[i * 2];
-			r = buf[i * 2 + 1];
-			l = (l * ll + r * rl) >> 7;
-			r = (r * rr + l * lr) >> 7;
-			ssat32_to_16(l);
-			ssat32_to_16(r);
-			buf[i * 2] = l;
-			buf[i * 2 + 1] = r;
-		}
-	}
-	else {
-		for (i = 0; i < samples; i++) {
-			l = buf[i];
-			l = l * (ll + rl) >> 7;
-			//r = r * (rr + lr) >> 7;
-			ssat32_to_16(l);
-			//ssat32_to_16(r);
-			buf[i] = l;
-		}
-	}
-}
-
 static void cdrReadInterruptSetResult(unsigned char result)
 {
 	if (cdr.IrqStat) {
@@ -1346,6 +1316,7 @@ static void cdrReadInterrupt(void)
 	int deliver_data = 1;
 	u8 subqPos[3];
 	int read_ok;
+	int is_start;
 
 	memcpy(subqPos, cdr.SetSectorPlay, sizeof(subqPos));
 	msfiAdd(subqPos, cdr.SubqForwardSectors);
@@ -1407,12 +1378,10 @@ static void cdrReadInterrupt(void)
 
 		if (Config.Xa)
 			break;
-		if (!cdr.Muted && cdr.AdpcmActive) {
-			cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
-			SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, 0);
-		}
-		// decode next
-		cdr.AdpcmActive = !xa_decode_sector(&cdr.Xa, buf + 4, !cdr.AdpcmActive);
+		is_start = !cdr.AdpcmActive;
+		cdr.AdpcmActive = !xa_decode_sector(&cdr.Xa, buf + 4, is_start);
+		if (cdr.AdpcmActive)
+			SPU_playADPCMchannel(&cdr.Xa, psxRegs.cycle, is_start);
 	} while (0);
 
 	if ((cdr.Mode & MODE_SF) && (subhdr->mode & 0x44) == 0x44) // according to nocash
@@ -1567,6 +1536,7 @@ unsigned char cdrRead3(void) {
 
 void cdrWrite3(unsigned char rt) {
 	const char *rnames[] = { "req", "ifl", "alr", "ava" }; (void)rnames;
+	u8 ll, lr, rl, rr;
 	CDR_LOG_IO("cdr w3.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
@@ -1602,11 +1572,20 @@ void cdrWrite3(unsigned char rt) {
 		cdr.AttenuatorLeftToRightT = rt;
 		return;
 	case 3:
+		if (rt & 0x01)
+			log_unhandled("Mute ADPCM?\n");
 		if (rt & 0x20) {
-			memcpy(&cdr.AttenuatorLeftToLeft, &cdr.AttenuatorLeftToLeftT, 4);
-			CDR_LOG("CD-XA Volume: %02x %02x | %02x %02x\n",
-				cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
-				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight);
+			ll = cdr.AttenuatorLeftToLeftT; lr = cdr.AttenuatorLeftToRightT;
+			rl = cdr.AttenuatorRightToLeftT; rr = cdr.AttenuatorRightToRightT;
+			if (ll == cdr.AttenuatorLeftToLeft &&
+			    lr == cdr.AttenuatorLeftToRight &&
+			    rl == cdr.AttenuatorRightToLeft &&
+			    rr == cdr.AttenuatorRightToRight)
+				return;
+			cdr.AttenuatorLeftToLeftT = ll; cdr.AttenuatorLeftToRightT = lr;
+			cdr.AttenuatorRightToLeftT = rl; cdr.AttenuatorRightToRightT = rr;
+			CDR_LOG_I("CD-XA Volume: %02x %02x | %02x %02x\n", ll, lr, rl, rr);
+			SPU_setCDvol(ll, lr, rl, rr, psxRegs.cycle);
 		}
 		return;
 	}
@@ -1750,6 +1729,8 @@ void cdrReset() {
 	cdr.AttenuatorLeftToRight = 0x00;
 	cdr.AttenuatorRightToLeft = 0x00;
 	cdr.AttenuatorRightToRight = 0x80;
+	SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
+		cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
 
 	getCdInfo();
 }
@@ -1772,6 +1753,7 @@ int cdrFreeze(void *f, int Mode) {
 	gzfreeze(&tmp, sizeof(tmp));
 
 	if (Mode == 0) {
+		u8 ll = 0, lr = 0, rl = 0, rr = 0;
 		getCdInfo();
 
 		cdr.FifoOffset = tmp < DATA_SIZE ? tmp : DATA_SIZE;
@@ -1794,6 +1776,10 @@ int cdrFreeze(void *f, int Mode) {
 			if (!Config.Cdda)
 				CDR_play(cdr.SetSectorPlay);
 		}
+		if (!cdr.Muted)
+			ll = cdr.AttenuatorLeftToLeft, lr = cdr.AttenuatorLeftToLeft,
+			rl = cdr.AttenuatorRightToLeft, rr = cdr.AttenuatorRightToRight;
+		SPU_setCDvol(ll, lr, rl, rr, psxRegs.cycle);
 	}
 
 	return 0;

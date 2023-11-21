@@ -30,7 +30,7 @@ typedef struct {
 	s32	y0, y1;
 } ADPCM_Decode_t;
 
-typedef struct {
+typedef struct xa_decode {
 	int				freq;
 	int				nbits;
 	int				stereo;

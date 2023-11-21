@@ -39,12 +39,54 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 // MIX XA & CDDA
 ////////////////////////////////////////////////////////////////////////
 
-INLINE void MixXA(int *SSumLR, int *RVB, int ns_to, int decode_pos)
+INLINE void SkipCD(int ns_to, int decode_pos)
 {
  int cursor = decode_pos;
  int ns;
- short l, r;
+
+ if(spu.XAPlay != spu.XAFeed)
+ {
+  for(ns = 0; ns < ns_to*2; ns += 2)
+   {
+    if(spu.XAPlay != spu.XAFeed) spu.XAPlay++;
+    if(spu.XAPlay == spu.XAEnd) spu.XAPlay=spu.XAStart;
+
+    spu.spuMem[cursor] = 0;
+    spu.spuMem[cursor + 0x400/2] = 0;
+    cursor = (cursor + 1) & 0x1ff;
+   }
+ }
+ else if(spu.CDDAPlay != spu.CDDAFeed)
+ {
+  for(ns = 0; ns < ns_to*2; ns += 2)
+   {
+    if(spu.CDDAPlay != spu.CDDAFeed) spu.CDDAPlay++;
+    if(spu.CDDAPlay == spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
+
+    spu.spuMem[cursor] = 0;
+    spu.spuMem[cursor + 0x400/2] = 0;
+    cursor = (cursor + 1) & 0x1ff;
+   }
+ }
+ spu.XALastVal = 0;
+}
+
+INLINE void MixCD(int *SSumLR, int *RVB, int ns_to, int decode_pos)
+{
+ int vll = spu.iLeftXAVol * spu.cdv.ll >> 7;
+ int vrl = spu.iLeftXAVol * spu.cdv.rl >> 7;
+ int vlr = spu.iRightXAVol * spu.cdv.lr >> 7;
+ int vrr = spu.iRightXAVol * spu.cdv.rr >> 7;
+ int cursor = decode_pos;
+ int l1, r1, l, r;
+ int ns;
  uint32_t v = spu.XALastVal;
+
+ if ((vll | vlr | vrl | vrr) == 0)
+ {
+  SkipCD(ns_to, decode_pos);
+  return;
+ }
 
  if(spu.XAPlay != spu.XAFeed || spu.XARepeat > 0)
  {
@@ -56,8 +98,11 @@ INLINE void MixXA(int *SSumLR, int *RVB, int ns_to, int decode_pos)
     if(spu.XAPlay != spu.XAFeed) v=*spu.XAPlay++;
     if(spu.XAPlay == spu.XAEnd) spu.XAPlay=spu.XAStart;
 
-    l = ((int)(short)v * spu.iLeftXAVol) >> 15;
-    r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
+    l1 = (short)v, r1 = (short)(v >> 16);
+    l = (l1 * vll + r1 * vrl) >> 15;
+    r = (r1 * vrr + l1 * vlr) >> 15;
+    ssat32_to_16(l);
+    ssat32_to_16(r);
     if (spu.spuCtrl & CTRL_CD)
     {
      SSumLR[ns+0] += l;
@@ -84,8 +129,11 @@ INLINE void MixXA(int *SSumLR, int *RVB, int ns_to, int decode_pos)
     if(spu.CDDAPlay != spu.CDDAFeed) v=*spu.CDDAPlay++;
     if(spu.CDDAPlay == spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
 
-    l = ((int)(short)v * spu.iLeftXAVol) >> 15;
-    r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
+    l1 = (short)v, r1 = (short)(v >> 16);
+    l = (l1 * vll + r1 * vrl) >> 15;
+    r = (r1 * vrr + l1 * vlr) >> 15;
+    ssat32_to_16(l);
+    ssat32_to_16(r);
     if (spu.spuCtrl & CTRL_CD)
     {
      SSumLR[ns+0] += l;

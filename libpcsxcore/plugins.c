@@ -86,6 +86,7 @@ SPUregisterCallback   SPU_registerCallback;
 SPUregisterScheduleCb SPU_registerScheduleCb;
 SPUasync              SPU_async;
 SPUplayCDDAchannel    SPU_playCDDAchannel;
+SPUsetCDvol           SPU_setCDvol;
 
 PADconfigure          PAD1_configure;
 PADabout              PAD1_about;
@@ -179,7 +180,7 @@ static const char *err;
 
 #define LoadSym(dest, src, name, checkerr) { \
 	dest = (src)SysLoadSym(drv, name); \
-	if (checkerr) { CheckErr(name); } else SysLibError(); \
+	if (checkerr) { CheckErr(name); } \
 }
 
 void *hGPUDriver = NULL;
@@ -313,13 +314,15 @@ static int LoadCDRplugin(const char *CDRdll) {
 
 static void *hSPUDriver = NULL;
 static void CALLBACK SPU__registerScheduleCb(void (CALLBACK *cb)(unsigned int)) {}
+static void CALLBACK SPU__setCDvol(unsigned char ll, unsigned char lr,
+		unsigned char rl, unsigned char rr, unsigned int cycle) {}
 
 #define LoadSpuSym1(dest, name) \
 	LoadSym(SPU_##dest, SPU##dest, name, TRUE);
 
 #define LoadSpuSym0(dest, name) \
 	LoadSym(SPU_##dest, SPU##dest, name, FALSE); \
-	if (SPU_##dest == NULL) SPU_##dest = (SPU##dest) SPU__##dest;
+	if (SPU_##dest == NULL) SPU_##dest = SPU__##dest;
 
 #define LoadSpuSymN(dest, name) \
 	LoadSym(SPU_##dest, SPU##dest, name, FALSE);
@@ -346,6 +349,7 @@ static int LoadSPUplugin(const char *SPUdll) {
 	LoadSpuSym0(registerScheduleCb, "SPUregisterScheduleCb");
 	LoadSpuSymN(async, "SPUasync");
 	LoadSpuSymN(playCDDAchannel, "SPUplayCDDAchannel");
+	LoadSpuSym0(setCDvol, "SPUsetCDvol");
 
 	return 0;
 }
