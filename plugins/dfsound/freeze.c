@@ -303,6 +303,13 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
    pFO->xa_left = xa_left;
    pFO->cdda_left = cdda_left;
    pFO->cycles_played = spu.cycles_played;
+   pFO->cycles_dma_end = spu.cycles_dma_end;
+   pFO->decode_dirty_ch = spu.decode_dirty_ch;
+   pFO->dwNoiseVal = spu.dwNoiseVal;
+   pFO->dwNoiseCount = spu.dwNoiseCount;
+   pFO->XARepeat = spu.XARepeat;
+   pFO->XALastVal = spu.XALastVal;
+   pFO->last_keyon_cycles = spu.last_keyon_cycles;
 
    for(i=0;i<MAXCHAN;i++)
     {
