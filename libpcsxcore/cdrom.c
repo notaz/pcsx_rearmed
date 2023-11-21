@@ -344,26 +344,22 @@ void cdrLidSeekInterrupt(void)
 
 		// 02, 12, 10
 		if (!(cdr.StatP & STATUS_SHELLOPEN)) {
+			StopReading();
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.StatP |= STATUS_SHELLOPEN;
 
 			// IIRC this sometimes doesn't happen on real hw
 			// (when lots of commands are sent?)
-			if (cdr.Reading) {
-				StopReading();
-				SetResultSize(2);
-				cdr.Result[0] = cdr.StatP | STATUS_SEEKERROR;
-				cdr.Result[1] = ERROR_SHELLOPEN;
-				setIrq(DiskError, 0x1006);
-			}
+			SetResultSize(2);
+			cdr.Result[0] = cdr.StatP | STATUS_SEEKERROR;
+			cdr.Result[1] = ERROR_SHELLOPEN;
 			if (cdr.CmdInProgress) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
 				cdr.CmdInProgress = 0;
-				SetResultSize(2);
 				cdr.Result[0] = cdr.StatP | STATUS_ERROR;
 				cdr.Result[1] = ERROR_NOTREADY;
-				setIrq(DiskError, 0x1007);
 			}
+			setIrq(DiskError, 0x1006);
 
 			set_event(PSXINT_CDRLID, cdReadTime * 30);
 			break;
