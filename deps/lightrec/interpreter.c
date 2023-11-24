@@ -31,6 +31,7 @@ struct interpreter {
 	struct opcode *op;
 	u32 cycles;
 	bool delay_slot;
+	bool load_delay;
 	u16 offset;
 };
 
@@ -150,14 +151,13 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		.state = state,
 		.cycles = inter->cycles,
 		.delay_slot = true,
-		.block = NULL,
+		.load_delay = true,
 	};
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
 	     branch_taken;
 	u32 new_rt, old_rs = 0, new_rs = 0;
-	u32 next_pc, ds_next_pc;
-	u32 cause, epc;
+	u32 next_pc, ds_next_pc, epc;
 
 	if (op->i.op == OP_CP0 && op->r.rs == OP_CP0_RFE) {
 		/* When an IRQ happens, the PSX exception handlers (when done)
@@ -168,11 +168,13 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		 * but on branch boundaries, we need to adjust the return
 		 * address so that the GTE opcode is effectively executed.
 		 */
-		cause = state->regs.cp0[13];
 		epc = state->regs.cp0[14];
 
-		if (!(cause & 0x7c) && epc == pc - 4)
-			pc -= 4;
+		if (epc == pc - 4) {
+			op_next = lightrec_read_opcode(state, epc);
+			if (op_next.i.op == OP_CP2)
+				pc -= 4;
+		}
 	}
 
 	if (inter->delay_slot) {
@@ -600,7 +602,7 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 	u32 *reg_cache = inter->state->regs.gpr;
 	u32 val, *flags = NULL;
 
-	if (inter->block)
+	if (!inter->load_delay && inter->block)
 		flags = &inter->op->flags;
 
 	val = lightrec_rw(inter->state, inter->op->c,
@@ -1188,15 +1190,13 @@ static u32 int_META(struct interpreter *inter)
 static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 				       struct block *block, u32 offset)
 {
-	struct interpreter inter;
+	struct interpreter inter = {
+		.block = block,
+		.state = state,
+		.offset = offset,
+		.op = &block->opcode_list[offset],
+	};
 	u32 pc;
-
-	inter.block = block;
-	inter.state = state;
-	inter.offset = offset;
-	inter.op = &block->opcode_list[offset];
-	inter.cycles = 0;
-	inter.delay_slot = false;
 
 	pc = lightrec_int_op(&inter);
 
@@ -1253,9 +1253,8 @@ u32 lightrec_handle_load_delay(struct lightrec_state *state,
 	struct interpreter inter = {
 		.block = block,
 		.state = state,
-		.offset = 0,
 		.op = op,
-		.cycles = 0,
+		.load_delay = true,
 	};
 	bool branch_taken;
 	u32 reg_mask, next_pc;
