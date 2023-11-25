@@ -76,6 +76,13 @@ static retro_set_rumble_state_t rumble_cb;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
+#define LogWarn(fmt, ...) do { \
+   if (log_cb) log_cb(RETRO_LOG_WARN, fmt, ##__VA_ARGS__); \
+} while (0)
+#define LogErr(fmt, ...) do { \
+   if (log_cb) log_cb(RETRO_LOG_ERROR, fmt, ##__VA_ARGS__); \
+} while (0)
+
 static unsigned msg_interface_version = 0;
 
 static void *vout_buf;
@@ -243,7 +250,7 @@ static void set_vout_fb()
    {
       vout_buf_ptr = fb.data;
       if (fb.pitch / 2 != vout_pitch && fb.pitch != vout_width * 2)
-         SysPrintf("got unusual pitch %zd for resolution %dx%d\n", fb.pitch, vout_width, vout_height);
+         LogWarn("got unusual pitch %zd for resolution %dx%d\n", fb.pitch, vout_width, vout_height);
       vout_pitch = fb.pitch / 2;
    }
    else
@@ -412,7 +419,7 @@ void *pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
 
             if (svcControlMemory(&tmp, (void *)custom_map->target_map, (void *)ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
             {
-               SysPrintf("could not map memory @0x%08X\n", custom_map->target_map);
+               LogErr("could not map memory @0x%08X\n", custom_map->target_map);
                exit(1);
             }
 
@@ -1085,7 +1092,7 @@ static void save_close(void *file)
       return;
 
    if (fp->pos > r_size)
-      SysPrintf("ERROR: save buffer overflow detected\n");
+      LogErr("ERROR: save buffer overflow detected\n");
    else if (fp->is_write && fp->pos < r_size)
       // make sure we don't save trash in leftover space
       memset(fp->buf + fp->pos, 0, r_size - fp->pos);
@@ -1156,7 +1163,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 finish:
    if (ret != 0)
-      SysPrintf("Failed to set cheat %#u\n", index);
+      LogErr("Failed to set cheat %#u\n", index);
    else if (index < NumCheats)
       Cheats[index].Enabled = enabled;
    free(buf);
@@ -1262,7 +1269,7 @@ static bool disk_set_image_index(unsigned int index)
 
    if (disks[index].fname == NULL)
    {
-      SysPrintf("missing disk #%u\n", index);
+      LogErr("missing disk #%u\n", index);
       CDR_shutdown();
 
       // RetroArch specifies "no disk" with index == count,
@@ -1271,19 +1278,19 @@ static bool disk_set_image_index(unsigned int index)
       return true;
    }
 
-   SysPrintf("switching to disk %u: \"%s\" #%d\n", index,
+   LogErr("switching to disk %u: \"%s\" #%d\n", index,
        disks[index].fname, disks[index].internal_index);
 
    cdrIsoMultidiskSelect = disks[index].internal_index;
    set_cd_image(disks[index].fname);
    if (ReloadCdromPlugin() < 0)
    {
-      SysPrintf("failed to load cdr plugin\n");
+      LogErr("failed to load cdr plugin\n");
       return false;
    }
    if (CDR_open() < 0)
    {
-      SysPrintf("failed to open cdr plugin\n");
+      LogErr("failed to open cdr plugin\n");
       return false;
    }
 
@@ -1680,7 +1687,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
    if (info == NULL || info->path == NULL)
    {
-      SysPrintf("info->path required\n");
+      LogErr("info->path required\n");
       return false;
    }
 
@@ -1700,7 +1707,7 @@ bool retro_load_game(const struct retro_game_info *info)
    {
       if (!read_m3u(info->path))
       {
-         log_cb(RETRO_LOG_INFO, "failed to read m3u file\n");
+         LogErr("failed to read m3u file\n");
          return false;
       }
    }
@@ -1733,7 +1740,7 @@ bool retro_load_game(const struct retro_game_info *info)
    /* have to reload after set_cd_image for correct cdr plugin */
    if (LoadPlugins() == -1)
    {
-      log_cb(RETRO_LOG_INFO, "failed to load plugins\n");
+      LogErr("failed to load plugins\n");
       return false;
    }
 
@@ -1742,7 +1749,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
    if (OpenPlugins() == -1)
    {
-      log_cb(RETRO_LOG_INFO, "failed to open plugins\n");
+      LogErr("failed to open plugins\n");
       return false;
    }
 
@@ -1801,12 +1808,12 @@ bool retro_load_game(const struct retro_game_info *info)
 
          if (ReloadCdromPlugin() < 0)
          {
-            log_cb(RETRO_LOG_INFO, "failed to reload cdr plugins\n");
+            LogErr("failed to reload cdr plugins\n");
             return false;
          }
          if (CDR_open() < 0)
          {
-            log_cb(RETRO_LOG_INFO, "failed to open cdr plugin\n");
+            LogErr("failed to open cdr plugin\n");
             return false;
          }
       }
@@ -1821,7 +1828,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
    if (!is_exe && CheckCdrom() == -1)
    {
-      log_cb(RETRO_LOG_INFO, "unsupported/invalid CD image: %s\n", info->path);
+      LogErr("unsupported/invalid CD image: %s\n", info->path);
       return false;
    }
 
@@ -1833,7 +1840,7 @@ bool retro_load_game(const struct retro_game_info *info)
       ret = LoadCdrom();
    if (ret != 0)
    {
-      log_cb(RETRO_LOG_INFO, "could not load %s (%d)\n", is_exe ? "exe" : "CD", ret);
+      LogErr("could not load %s (%d)\n", is_exe ? "exe" : "CD", ret);
       return false;
    }
    emu_on_new_cd(0);
@@ -3210,7 +3217,7 @@ static int init_memcards(void)
          {
             if (strlen(dir) + strlen(CARD2_FILE) + 2 > sizeof(Config.Mcd2))
             {
-               SysPrintf("Path '%s' is too long. Cannot use memcard 2. Use a shorter path.\n", dir);
+               LogErr("Path '%s' is too long. Cannot use memcard 2. Use a shorter path.\n", dir);
                ret = -1;
             }
             else
@@ -3222,7 +3229,7 @@ static int init_memcards(void)
          }
          else
          {
-            SysPrintf("Could not get save directory! Could not create memcard 2.");
+            LogErr("Could not get save directory! Could not create memcard 2.");
             ret = -1;
          }
       }
@@ -3337,7 +3344,7 @@ void retro_init(void)
    ret |= emu_core_init();
    if (ret != 0)
    {
-      SysPrintf("PCSX init failed.\n");
+      LogErr("PCSX init failed.\n");
       exit(1);
    }
 
@@ -3357,6 +3364,8 @@ void retro_init(void)
    loadPSXBios();
 
    environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &vout_can_dupe);
+   if (!vout_can_dupe)
+      LogWarn("CAN_DUPE reports false\n");
 
    disk_initial_index = 0;
    disk_initial_path[0] = '\0';
