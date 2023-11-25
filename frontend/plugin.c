@@ -219,8 +219,6 @@ static const struct {
 	DIRECT_GPU(GPUkeypressed),
 	DIRECT_GPU(GPUmakeSnapshot),
 	DIRECT_GPU(GPUconfigure),
-	DIRECT_GPU(GPUtest),
-	DIRECT_GPU(GPUabout),
 	DIRECT_GPU(GPUgetScreenPic),
 	DIRECT_GPU(GPUshowScreenPic),
 */
