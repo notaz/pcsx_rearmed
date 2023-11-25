@@ -494,9 +494,28 @@ static void initBufForRequest(int padIndex, char value) {
 		return;
 	}
 
-	if ((u32)(frame_counter - pads[padIndex].ds.lastUseFrame) > 60u
+	if ((u32)(frame_counter - pads[padIndex].ds.lastUseFrame) > 2*60u
+	    && pads[padIndex].ds.configModeUsed
 	    && !Config.hacks.dualshock_init_analog)
+	{
+		//SysPrintf("Pad reset\n");
 		pads[padIndex].ds.padMode = 0; // according to nocash
+		pads[padIndex].ds.autoAnalogTried = 0;
+	}
+	else if (pads[padIndex].ds.padMode == 0 && value == CMD_READ_DATA_AND_VIBRATE
+		 && pads[padIndex].ds.configModeUsed
+		 && !pads[padIndex].ds.configMode
+		 && !pads[padIndex].ds.userToggled)
+	{
+		if (pads[padIndex].ds.autoAnalogTried == 16) {
+			// auto-enable for convenience
+			SysPrintf("Auto-enabling dualshock analog mode.\n");
+			pads[padIndex].ds.padMode = 1;
+			pads[padIndex].ds.autoAnalogTried = 255;
+		}
+		else if (pads[padIndex].ds.autoAnalogTried < 16)
+			pads[padIndex].ds.autoAnalogTried++;
+	}
 	pads[padIndex].ds.lastUseFrame = frame_counter;
 
 	switch (value) {
@@ -992,8 +1011,10 @@ int padToggleAnalog(unsigned int index)
 {
 	int r = -1;
 
-	if (index < sizeof(pads) / sizeof(pads[0]))
+	if (index < sizeof(pads) / sizeof(pads[0])) {
 		r = (pads[index].ds.padMode ^= 1);
+		pads[index].ds.userToggled = 1;
+	}
 	return r;
 }
 
