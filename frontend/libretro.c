@@ -237,7 +237,10 @@ static void set_vout_fb()
    fb.access_flags   = RETRO_MEMORY_ACCESS_WRITE;
 
    vout_pitch = vout_width;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb) && fb.format == RETRO_PIXEL_FORMAT_RGB565) {
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
+         && fb.format == RETRO_PIXEL_FORMAT_RGB565
+         && vout_can_dupe && duping_enable)
+   {
       vout_buf_ptr = fb.data;
       if (fb.pitch / 2 != vout_pitch && fb.pitch != vout_width * 2)
          SysPrintf("got unusual pitch %zd for resolution %dx%d\n", fb.pitch, vout_width, vout_height);
