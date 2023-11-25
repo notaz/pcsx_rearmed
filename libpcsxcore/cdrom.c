@@ -715,6 +715,7 @@ void cdrInterrupt(void) {
 	int read_ok;
 	u16 not_ready = 0;
 	u8 IrqStat = Acknowledge;
+	u8 DriveStateOld;
 	u16 Cmd;
 	int i;
 
@@ -964,7 +965,16 @@ void cdrInterrupt(void) {
 				second_resp_time = (((cdr.Mode & MODE_SPEED) ? 1 : 2) * 1097107);
 			}
 			SetPlaySeekRead(cdr.StatP, 0);
+			DriveStateOld = cdr.DriveState;
 			cdr.DriveState = DRIVESTATE_PAUSED;
+			if (DriveStateOld == DRIVESTATE_SEEK) {
+				// According to Duckstation this fails, but the
+				// exact conditions and effects are not clear.
+				// Moto Racer World Tour seems to rely on this.
+				// For now assume pause works anyway, just errors out.
+				error = ERROR_NOTREADY;
+				goto set_error;
+			}
 			break;
 
 		case CdlPause + CMD_PART2:
