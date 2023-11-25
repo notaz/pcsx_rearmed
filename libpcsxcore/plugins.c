@@ -31,9 +31,6 @@ static s64 cdOpenCaseTime = 0;
 GPUupdateLace         GPU_updateLace;
 GPUinit               GPU_init;
 GPUshutdown           GPU_shutdown;
-GPUconfigure          GPU_configure;
-GPUtest               GPU_test;
-GPUabout              GPU_about;
 GPUopen               GPU_open;
 GPUclose              GPU_close;
 GPUreadStatus         GPU_readStatus;
@@ -214,7 +211,6 @@ static int LoadGPUplugin(const char *GPUdll) {
 
 	hGPUDriver = SysLoadLibrary(GPUdll);
 	if (hGPUDriver == NULL) {
-		GPU_configure = NULL;
 		SysMessage (_("Could not load GPU plugin %s!"), GPUdll); return -1;
 	}
 	drv = hGPUDriver;
@@ -238,9 +234,6 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
 	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(getScreenInfo, "GPUgetScreenInfo");
-	LoadGpuSym0(configure, "GPUconfigure");
-	LoadGpuSym0(test, "GPUtest");
-	LoadGpuSym0(about, "GPUabout");
 
 	return 0;
 }
