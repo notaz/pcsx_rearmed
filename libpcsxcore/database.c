@@ -27,8 +27,12 @@ static const char * const gpu_slow_llist_db[] =
 	"SCES02834", "SCUS94570", "SCUS94616", "SCUS94654",
 	/* Final Fantasy IV */
 	"SCES03840", "SLPM86028", "SLUS01360",
+	/* Simple 1500 Series Vol. 57: The Meiro */
+	"SLPM86715",
 	/* Spot Goes to Hollywood */
 	"SLES00330", "SLPS00394", "SLUS00014",
+	/* Tiny Tank */
+	"SCES01338", "SCES02072", "SCES02072", "SCES02072", "SCES02072", "SCUS94427",
 	/* Vampire Hunter D */
 	"SLES02731", "SLPS02477", "SLPS03198", "SLUS01138",
 };
@@ -51,8 +55,6 @@ static const char * const dualshock_init_analog_hack_db[] =
 {
 	/* Formula 1 Championship Edition */
 	"SLUS00546",
-	/* Gran Turismo 2 */
-	"SCUS94455", "SCUS94488", "SCPS10116", "SCPS10117", "SCES02380", "SCES12380",
 };
 
 #define HACK_ENTRY(var, list) \
