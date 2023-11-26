@@ -571,7 +571,8 @@ static void lightrec_plugin_execute_block(enum blockExecCaller caller)
 
 static void lightrec_plugin_clear(u32 addr, u32 size)
 {
-	if (addr == 0 && size == UINT32_MAX)
+	if ((addr == 0 && size == UINT32_MAX)
+	    || (lightrec_hacks & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate_all(lightrec_state);
 	else
 		/* size * 4: PCSX uses DMA units */
