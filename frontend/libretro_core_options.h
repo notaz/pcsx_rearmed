@@ -309,20 +309,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled",
 #endif
    },
-   {
-      "pcsx_rearmed_duping_enable",
-      "Frame Duping (Speedup)",
-      NULL,
-      "When enabled and supported by the libretro frontend, provides a small performance increase by directing the frontend to repeat the previous frame if the core has nothing new to display.",
-      NULL,
-      "video",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "enabled",
-   },
 #ifdef THREAD_RENDERING
    {
       "pcsx_rearmed_gpu_thread_rendering",

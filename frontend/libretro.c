@@ -91,7 +91,6 @@ static int vout_width = 256, vout_height = 240, vout_pitch = 256;
 static int vout_fb_dirty;
 static int psx_w, psx_h;
 static bool vout_can_dupe;
-static bool duping_enable;
 static bool found_bios;
 static bool display_internal_fps = false;
 static unsigned frame_count = 0;
@@ -246,7 +245,7 @@ static void set_vout_fb()
    vout_pitch = vout_width;
    if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
          && fb.format == RETRO_PIXEL_FORMAT_RGB565
-         && vout_can_dupe && duping_enable)
+         && vout_can_dupe)
    {
       vout_buf_ptr = fb.data;
       if (fb.pitch / 2 != vout_pitch && fb.pitch != vout_width * 2)
@@ -2110,17 +2109,6 @@ static void update_variables(bool in_flight)
 #endif
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_duping_enable";
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         duping_enable = false;
-      else if (strcmp(var.value, "enabled") == 0)
-         duping_enable = true;
-   }
-
-   var.value = NULL;
    var.key = "pcsx_rearmed_display_internal_fps";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -3093,7 +3081,7 @@ void retro_run(void)
          frameskip_counter = 0;
    }
 
-   video_cb((vout_fb_dirty || !vout_can_dupe || !duping_enable) ? vout_buf_ptr : NULL,
+   video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
        vout_width, vout_height, vout_pitch * 2);
    vout_fb_dirty = 0;
 }

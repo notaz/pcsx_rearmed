@@ -277,18 +277,6 @@ struct retro_core_option_v2_definition option_defs_tr[] = {
 #endif /* GPU_NEON */
 
    {
-      "pcsx_rearmed_duping_enable",
-      "Frame Duping",
-      NULL,
-      "Yeni bir veri yoksa, bir hızlandırma, son kareyi yeniden çizer/yeniden kullanır.",
-      NULL,
-      NULL,
-      {
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
       "pcsx_rearmed_display_internal_fps",
       "Dahili FPS'yi görüntüle",
       NULL,
