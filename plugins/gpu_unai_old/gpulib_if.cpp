@@ -169,7 +169,7 @@ void renderer_notify_scanout_change(int x, int y)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
+int do_cmd_list(unsigned int *list, int list_len, int *cycles, int *last_cmd)
 {
   unsigned int cmd = 0, len, i;
   unsigned int *list_start = list;
@@ -523,7 +523,7 @@ breakloop:
 void renderer_sync_ecmds(uint32_t *ecmds)
 {
   int dummy;
-  do_cmd_list(&ecmds[1], 6, &dummy);
+  do_cmd_list(&ecmds[1], 6, &dummy, &dummy);
 }
 
 void renderer_update_caches(int x, int y, int w, int h, int state_changed)

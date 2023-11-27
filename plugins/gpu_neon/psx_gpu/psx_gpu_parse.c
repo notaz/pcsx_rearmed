@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "../../gpulib/gpu_timing.h"
 
 #ifndef command_lengths
 const u8 command_lengths[256] =
@@ -250,30 +251,31 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
 #define SET_Ex(r, v)
 #endif
 
-u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
+u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
+ s32 *cpu_cycles_out, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
-  u32 current_command = 0, command_length;
+  u32 current_command = 0, command_length, cpu_cycles = 0;
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
 
   for(; list < list_end; list += 1 + command_length)
   {
-  	s16 *list_s16 = (void *)list;
-  	current_command = *list >> 24;
-  	command_length = command_lengths[current_command];
-  	if (list + 1 + command_length > list_end) {
-  	  current_command = (u32)-1;
-  	  break;
-  	}
+    s16 *list_s16 = (void *)list;
+    current_command = *list >> 24;
+    command_length = command_lengths[current_command];
+    if (list + 1 + command_length > list_end) {
+      current_command = (u32)-1;
+      break;
+    }
 
-  	switch(current_command)
-  	{
-  		case 0x00:
-  			break;
-  
-  		case 0x02:
+    switch(current_command)
+    {
+      case 0x00:
+        break;
+
+      case 0x02:
       {
         u32 x = list_s16[2] & 0x3FF;
         u32 y = list_s16[3] & 0x1FF;
@@ -282,10 +284,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         u32 color = list[0] & 0xFFFFFF;
 
         do_fill(psx_gpu, x, y, width, height, color);
-  			break;
+        cpu_cycles += gput_fill(width, height);
+        break;
       }
-  
-  		case 0x20 ... 0x23:
+
+      case 0x20 ... 0x23:
       {
         set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
   
@@ -294,10 +297,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         get_vertex_data_xy(2, 6);
           
         render_triangle(psx_gpu, vertexes, current_command);
-  			break;
+        cpu_cycles += gput_poly_base();
+        break;
       }
   
-  		case 0x24 ... 0x27:
+      case 0x24 ... 0x27:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[9]);
@@ -308,10 +312,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         get_vertex_data_xy_uv(2, 10);
   
         render_triangle(psx_gpu, vertexes, current_command);
-  			break;
+        cpu_cycles += gput_poly_base_t();
+        break;
       }
   
-  		case 0x28 ... 0x2B:
+      case 0x28 ... 0x2B:
       {
         set_triangle_color(psx_gpu, list[0] & 0xFFFFFF);
   
@@ -322,10 +327,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-  			break;
+        cpu_cycles += gput_quad_base();
+        break;
       }
   
-  		case 0x2C ... 0x2F:
+      case 0x2C ... 0x2F:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[9]);
@@ -338,23 +344,22 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-  			break;
+        cpu_cycles += gput_quad_base_t();
+        break;
       }
   
-  		case 0x30 ... 0x33:
+      case 0x30 ... 0x33:
       {
         get_vertex_data_xy_rgb(0, 0);
         get_vertex_data_xy_rgb(1, 4);
         get_vertex_data_xy_rgb(2, 8);
   
         render_triangle(psx_gpu, vertexes, current_command);
-  			break;
+        cpu_cycles += gput_poly_base_g();
+        break;
       }
   
-  		case 0x34:
-  		case 0x35:
-  		case 0x36:
-  		case 0x37:
+      case 0x34 ... 0x37:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[11]);
@@ -364,13 +369,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         get_vertex_data_xy_uv_rgb(2, 12);
 
         render_triangle(psx_gpu, vertexes, current_command);
-  			break;
+        cpu_cycles += gput_poly_base_gt();
+        break;
       }
   
-  		case 0x38:
-  		case 0x39:
-  		case 0x3A:
-  		case 0x3B:
+      case 0x38 ... 0x3B:
       {
         get_vertex_data_xy_rgb(0, 0);
         get_vertex_data_xy_rgb(1, 4);
@@ -379,13 +382,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-  			break;
+        cpu_cycles += gput_quad_base_g();
+        break;
       }
   
-  		case 0x3C:
-  		case 0x3D:
-  		case 0x3E:
-  		case 0x3F:
+      case 0x3C ... 0x3F:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[11]);
@@ -397,10 +398,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-  			break;
+        cpu_cycles += gput_quad_base_gt();
+        break;
       }
   
-  		case 0x40 ... 0x47:
+      case 0x40 ... 0x47:
       {
         vertexes[0].x = list_s16[2] + psx_gpu->offset_x;
         vertexes[0].y = list_s16[3] + psx_gpu->offset_y;
@@ -408,10 +410,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].y = list_s16[5] + psx_gpu->offset_y;
 
         render_line(psx_gpu, vertexes, current_command, list[0], 0);
-  			break;
+        cpu_cycles += gput_line(0);
+        break;
       }
   
-  		case 0x48 ... 0x4F:
+      case 0x48 ... 0x4F:
       {
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
@@ -429,6 +432,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
           render_line(psx_gpu, vertexes, current_command, list[0], 0);
+          cpu_cycles += gput_line(0);
 
           list_position++;
           num_vertexes++;
@@ -448,7 +452,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         break;
       }
   
-  		case 0x50 ... 0x57:
+      case 0x50 ... 0x57:
       {
         vertexes[0].r = list[0] & 0xFF;
         vertexes[0].g = (list[0] >> 8) & 0xFF;
@@ -463,7 +467,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         vertexes[1].y = list_s16[7] + psx_gpu->offset_y;
 
         render_line(psx_gpu, vertexes, current_command, 0, 0);
-  			break;
+        cpu_cycles += gput_line(0);
+        break;
       }
  
       case 0x58 ... 0x5F:
@@ -493,6 +498,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
           render_line(psx_gpu, vertexes, current_command, 0, 0);
+          cpu_cycles += gput_line(0);
 
           list_position += 2;
           num_vertexes++;
@@ -512,7 +518,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         break;
       }
   
-  		case 0x60 ... 0x63:
+      case 0x60 ... 0x63:
       {        
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -520,10 +526,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         u32 height = list_s16[5] & 0x1FF;
 
         render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(width, height);
+        break;
       }
   
-  		case 0x64 ... 0x67:
+      case 0x64 ... 0x67:
       {        
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -535,37 +542,31 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, width, height,
          current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(width, height);
+        break;
       }
   
-  		case 0x68:
-  		case 0x69:
-  		case 0x6A:
-  		case 0x6B:
+      case 0x68 ... 0x6B:
       {
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(1, 1);
+        break;
       }
   
-  		case 0x70:
-  		case 0x71:
-  		case 0x72:
-  		case 0x73:
+      case 0x70 ... 0x73:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(8, 8);
+        break;
       }
   
-  		case 0x74:
-  		case 0x75:
-  		case 0x76:
-  		case 0x77:
+      case 0x74 ... 0x77:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -575,25 +576,21 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 8, 8,
          current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(8, 8);
+        break;
       }
   
-  		case 0x78:
-  		case 0x79:
-  		case 0x7A:
-  		case 0x7B:
+      case 0x78 ... 0x7B:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
 
         render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(16, 16);
+        break;
       }
   
-  		case 0x7C:
-  		case 0x7D:
-  		case 0x7E:
-  		case 0x7F:
+      case 0x7C ... 0x7F:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -603,7 +600,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 16, 16,
          current_command, list[0]);
-  			break;
+        cpu_cycles += gput_sprite(16, 16);
+        break;
       }
   
 #ifdef PCSX
@@ -643,14 +641,14 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
 
         render_block_copy(psx_gpu, (u16 *)&(list_s16[6]), load_x, load_y,
          load_width, load_height, load_width);
-  			break;
+        break;
       }
 
       case 0xC0 ... 0xDF:          //  vid -> sys
         break;
 #endif
 
-  		case 0xE1:
+      case 0xE1:
         set_texture(psx_gpu, list[0]);
 
         if(list[0] & (1 << 9))
@@ -659,10 +657,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
         psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
-  			SET_Ex(1, list[0]);
-  			break;
+        SET_Ex(1, list[0]);
+        break;
   
-  		case 0xE2:
+      case 0xE2:
       {
         // TODO: Clean
         u32 texture_window_settings = list[0];
@@ -751,11 +749,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
         psx_gpu->offset_x = offset_x >> 21;
         psx_gpu->offset_y = offset_y >> 21; 
   
-  			SET_Ex(5, list[0]);
-  			break;
-  		}
+        SET_Ex(5, list[0]);
+        break;
+      }
 
-  		case 0xE6:
+      case 0xE6:
       {
         u32 mask_settings = list[0];
         u16 mask_msb = mask_settings << 15;
@@ -771,18 +769,18 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *last_command)
           psx_gpu->mask_msb = mask_msb;
         }
 
-  			SET_Ex(6, list[0]);
-  			break;
+        SET_Ex(6, list[0]);
+        break;
       }
   
-  		default:
-  			break;
-  	}
+      default:
+        break;
+    }
   }
 
 breakloop:
-  if (last_command != NULL)
-    *last_command = current_command;
+  *cpu_cycles_out += cpu_cycles;
+  *last_command = current_command;
   return list - list_start;
 }
 
@@ -1194,10 +1192,10 @@ static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
 #endif
 
 u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
- u32 *last_command)
+ s32 *cpu_cycles_out, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
-  u32 current_command = 0, command_length;
+  u32 current_command = 0, command_length, cpu_cycles = 0;
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -1236,6 +1234,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         x &= ~0xF;
         width = ((width + 0xF) & ~0xF);
+        cpu_cycles += gput_fill(width, height);
         if (width == 0 || height == 0)
           break;
 
@@ -1266,6 +1265,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(2, 6);
 
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_poly_base();
         break;
       }
   
@@ -1280,6 +1280,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(2, 10);
   
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_poly_base_t();
         break;
       }
   
@@ -1293,6 +1294,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(3, 8);
 
         do_quad_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_quad_base();
         break;
       }
   
@@ -1309,6 +1311,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_quad_base_t();
         break;
       }
   
@@ -1319,13 +1322,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(2, 8);
   
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_poly_base_g();
         break;
       }
   
-      case 0x34:
-      case 0x35:
-      case 0x36:
-      case 0x37:
+      case 0x34 ... 0x37:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[11]);
@@ -1335,13 +1336,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(2, 12);
 
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_poly_base_gt();
         break;
       }
   
-      case 0x38:
-      case 0x39:
-      case 0x3A:
-      case 0x3B:
+      case 0x38 ... 0x3B:
       {
         get_vertex_data_xy_rgb(0, 0);
         get_vertex_data_xy_rgb(1, 4);
@@ -1349,13 +1348,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(3, 12);
   
         do_quad_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_quad_base_g();
         break;
       }
   
-      case 0x3C:
-      case 0x3D:
-      case 0x3E:
-      case 0x3F:
+      case 0x3C ... 0x3F:
       {
         set_clut(psx_gpu, list_s16[5]);
         set_texture(psx_gpu, list_s16[11]);
@@ -1367,6 +1364,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
+        cpu_cycles += gput_quad_base_gt();
         break;
       }
   
@@ -1380,6 +1378,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         render_line(psx_gpu, vertexes, current_command, list[0], 0);
         if (enhancement_enable(psx_gpu))
           render_line(psx_gpu, vertexes, current_command, list[0], 1);
+        cpu_cycles += gput_line(0);
         break;
       }
   
@@ -1404,6 +1403,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           render_line(psx_gpu, vertexes, current_command, list[0], 0);
           if (enhancement_enable(psx_gpu))
             render_line(psx_gpu, vertexes, current_command, list[0], 1);
+          cpu_cycles += gput_line(0);
 
           list_position++;
           num_vertexes++;
@@ -1440,6 +1440,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         render_line(psx_gpu, vertexes, current_command, 0, 0);
         if (enhancement_enable(psx_gpu))
           render_line(psx_gpu, vertexes, current_command, 0, 1);
+        cpu_cycles += gput_line(0);
         break;
       }
  
@@ -1473,6 +1474,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           render_line(psx_gpu, vertexes, current_command, 0, 0);
           if (enhancement_enable(psx_gpu))
             render_line(psx_gpu, vertexes, current_command, 0, 1);
+          cpu_cycles += gput_line(0);
 
           list_position += 2;
           num_vertexes++;
@@ -1503,6 +1505,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -1522,13 +1525,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
-      case 0x68:
-      case 0x69:
-      case 0x6A:
-      case 0x6B:
+      case 0x68 ... 0x6B:
       {
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -1537,13 +1538,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 1))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
+        cpu_cycles += gput_sprite(1, 1);
         break;
       }
   
-      case 0x70:
-      case 0x71:
-      case 0x72:
-      case 0x73:
+      case 0x70 ... 0x73:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -1552,13 +1551,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
+        cpu_cycles += gput_sprite(8, 8);
         break;
       }
   
-      case 0x74:
-      case 0x75:
-      case 0x76:
-      case 0x77:
+      case 0x74 ... 0x77:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -1572,13 +1569,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
           do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
+        cpu_cycles += gput_sprite(8, 8);
         break;
       }
   
-      case 0x78:
-      case 0x79:
-      case 0x7A:
-      case 0x7B:
+      case 0x78 ... 0x7B:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -1587,13 +1582,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
+        cpu_cycles += gput_sprite(16, 16);
         break;
       }
   
-      case 0x7C:
-      case 0x7D:
-      case 0x7E:
-      case 0x7F:
+      case 0x7C ... 0x7F:
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
@@ -1606,6 +1599,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
           do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
+        cpu_cycles += gput_sprite(16, 16);
         break;
       }
 
@@ -1759,8 +1753,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   enhancement_disable();
 
 breakloop:
-  if (last_command != NULL)
-    *last_command = current_command;
+  *cpu_cycles_out += cpu_cycles;
+  *last_command = current_command;
   return list - list_start;
 }
 

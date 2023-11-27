@@ -135,6 +135,8 @@ int main(int argc, char *argv[])
   FILE *state_file;
   FILE *list_file;
   u32 no_display = 0;
+  s32 dummy0 = 0;
+  u32 dummy1 = 0;
 
   if((argc != 3) && (argc != 4))
   {
@@ -213,7 +215,7 @@ int main(int argc, char *argv[])
   init_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, NULL);
+  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1);
   flush_render_block_buffer(psx_gpu);
 
   clear_stats();
@@ -222,7 +224,7 @@ int main(int argc, char *argv[])
   u32 cycles = get_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, NULL);
+  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1);
   flush_render_block_buffer(psx_gpu);
 
 #ifdef NEON_BUILD

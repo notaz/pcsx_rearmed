@@ -521,7 +521,7 @@ void renderer_notify_scanout_change(int x, int y)
 extern const unsigned char cmd_lengths[256];
 
 // XXX: mostly dupe code from soft peops
-int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
+int do_cmd_list(unsigned int *list, int list_len, int *cycles, int *last_cmd)
 {
   unsigned int cmd, len;
   unsigned int *list_start = list;

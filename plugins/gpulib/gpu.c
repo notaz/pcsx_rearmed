@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "gpu.h"
+#include "gpu_timing.h"
 #include "../../libpcsxcore/gpu.h" // meh
 #include "../../frontend/plugin_lib.h"
 
@@ -33,13 +34,14 @@
 
 struct psx_gpu gpu;
 
-static noinline int do_cmd_buffer(uint32_t *data, int count);
+static noinline int do_cmd_buffer(uint32_t *data, int count, int *cpu_cycles);
 static void finish_vram_transfer(int is_read);
 
 static noinline void do_cmd_reset(void)
 {
+  int dummy = 0;
   if (unlikely(gpu.cmd_len > 0))
-    do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
+    do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len, &dummy);
   gpu.cmd_len = 0;
 
   if (unlikely(gpu.dma.h > 0))
@@ -172,8 +174,8 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.active = 0;
 
   if (!gpu.frameskip.active && gpu.frameskip.pending_fill[0] != 0) {
-    int dummy;
-    do_cmd_list(gpu.frameskip.pending_fill, 3, &dummy);
+    int dummy = 0;
+    do_cmd_list(gpu.frameskip.pending_fill, 3, &dummy, &dummy);
     gpu.frameskip.pending_fill[0] = 0;
   }
 }
@@ -472,7 +474,7 @@ static void finish_vram_transfer(int is_read)
     gpu.gpu_state_change(PGS_VRAM_TRANSFER_END);
 }
 
-static void do_vram_copy(const uint32_t *params)
+static void do_vram_copy(const uint32_t *params, int *cpu_cycles)
 {
   const uint32_t sx =  LE32TOH(params[0]) & 0x3FF;
   const uint32_t sy = (LE32TOH(params[0]) >> 16) & 0x1FF;
@@ -484,6 +486,7 @@ static void do_vram_copy(const uint32_t *params)
   uint16_t lbuf[128];
   uint32_t x, y;
 
+  *cpu_cycles += gput_copy(w, h);
   if (sx == dx && sy == dy && msb == 0)
     return;
 
@@ -519,7 +522,7 @@ static void do_vram_copy(const uint32_t *params)
 
 static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
 {
-  int cmd = 0, pos = 0, len, dummy, v;
+  int cmd = 0, pos = 0, len, dummy = 0, v;
   int skip = 1;
 
   gpu.frameskip.pending_fill[0] = 0;
@@ -533,7 +536,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
       case 0x02:
         if ((LE32TOH(list[2]) & 0x3ff) > gpu.screen.w || ((LE32TOH(list[2]) >> 16) & 0x1ff) > gpu.screen.h)
           // clearing something large, don't skip
-          do_cmd_list(list, 3, &dummy);
+          do_cmd_list(list, 3, &dummy, &dummy);
         else
           memcpy(gpu.frameskip.pending_fill, list, 3 * 4);
         break;
@@ -583,7 +586,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
   return pos;
 }
 
-static noinline int do_cmd_buffer(uint32_t *data, int count)
+static noinline int do_cmd_buffer(uint32_t *data, int count, int *cpu_cycles)
 {
   int cmd, pos;
   uint32_t old_e3 = gpu.ex_regs[3];
@@ -617,7 +620,7 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
         cmd = -1; // incomplete cmd, can't consume yet
         break;
       }
-      do_vram_copy(data + pos + 1);
+      do_vram_copy(data + pos + 1, cpu_cycles);
       vram_dirty = 1;
       pos += 4;
       continue;
@@ -627,7 +630,7 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
     if (gpu.frameskip.active && (gpu.frameskip.allow || ((LE32TOH(data[pos]) >> 24) & 0xf0) == 0xe0))
       pos += do_cmd_list_skip(data + pos, count - pos, &cmd);
     else {
-      pos += do_cmd_list(data + pos, count - pos, &cmd);
+      pos += do_cmd_list(data + pos, count - pos, cpu_cycles, &cmd);
       vram_dirty = 1;
     }
 
@@ -650,7 +653,8 @@ static noinline int do_cmd_buffer(uint32_t *data, int count)
 
 static noinline void flush_cmd_buffer(void)
 {
-  int left = do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len);
+  int dummy = 0, left;
+  left = do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len, &dummy);
   if (left > 0)
     memmove(gpu.cmd_buffer, gpu.cmd_buffer + gpu.cmd_len - left, left * 4);
   if (left != gpu.cmd_len) {
@@ -662,14 +666,14 @@ static noinline void flush_cmd_buffer(void)
 
 void GPUwriteDataMem(uint32_t *mem, int count)
 {
-  int left;
+  int dummy = 0, left;
 
   log_io("gpu_dma_write %p %d\n", mem, count);
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer();
 
-  left = do_cmd_buffer(mem, count);
+  left = do_cmd_buffer(mem, count, &dummy);
   if (left)
     log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, count);
 }
@@ -686,7 +690,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr, uint32_t *progress_addr
 {
   uint32_t addr, *list, ld_addr = 0;
   int len, left, count;
-  long cpu_cycles = 0;
+  int cpu_cycles = 0;
 
   preload(rambase + (start_addr & 0x1fffff) / 4);
 
@@ -720,7 +724,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr, uint32_t *progress_addr
     }
 
     if (len) {
-      left = do_cmd_buffer(list + 1, len);
+      left = do_cmd_buffer(list + 1, len, &cpu_cycles);
       if (left) {
         memcpy(gpu.cmd_buffer, list + 1 + len - left, left * 4);
         gpu.cmd_len = left;
