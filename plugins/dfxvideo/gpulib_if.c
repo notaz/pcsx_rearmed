@@ -319,16 +319,19 @@ void renderer_notify_scanout_change(int x, int y)
 {
 }
 
+#include "../gpulib/gpu_timing.h"
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
+int do_cmd_list(uint32_t *list, int list_len, int *cpu_cycles_out, int *last_cmd)
 {
   unsigned int cmd = 0, len;
   uint32_t *list_start = list;
   uint32_t *list_end = list + list_len;
+  u32 cpu_cycles = 0;
 
   for (; list < list_end; list += 1 + len)
   {
+    short *slist = (void *)list;
     cmd = GETLE32(list) >> 24;
     len = cmd_lengths[cmd];
     if (list + 1 + len > list_end) {
@@ -354,6 +357,8 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 
         while(1)
         {
+          cpu_cycles += gput_line(0);
+
           if(list_position >= list_end) {
             cmd = -1;
             goto breakloop;
@@ -377,6 +382,8 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 
         while(1)
         {
+          cpu_cycles += gput_line(0);
+
           if(list_position >= list_end) {
             cmd = -1;
             goto breakloop;
@@ -396,7 +403,6 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 #ifdef TEST
       case 0xA0:          //  sys -> vid
       {
-        short *slist = (void *)list;
         u32 load_width = LE2HOST32(slist[4]);
         u32 load_height = LE2HOST32(slist[5]);
         u32 load_size = load_width * load_height;
@@ -405,6 +411,35 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
         break;
       }
 #endif
+
+      // timing
+      case 0x02:
+        cpu_cycles += gput_fill(LE2HOST32(slist[4]) & 0x3ff,
+            LE2HOST32(slist[5]) & 0x1ff);
+        break;
+      case 0x20 ... 0x23: cpu_cycles += gput_poly_base();    break;
+      case 0x24 ... 0x27: cpu_cycles += gput_poly_base_t();  break;
+      case 0x28 ... 0x2B: cpu_cycles += gput_quad_base();    break;
+      case 0x2C ... 0x2F: cpu_cycles += gput_quad_base_t();  break;
+      case 0x30 ... 0x33: cpu_cycles += gput_poly_base_g();  break;
+      case 0x34 ... 0x37: cpu_cycles += gput_poly_base_gt(); break;
+      case 0x38 ... 0x3B: cpu_cycles += gput_quad_base_g();  break;
+      case 0x3C ... 0x3F: cpu_cycles += gput_quad_base_gt(); break;
+      case 0x40 ... 0x47: cpu_cycles += gput_line(0);        break;
+      case 0x50 ... 0x57: cpu_cycles += gput_line(0);        break;
+      case 0x60 ... 0x63:
+        cpu_cycles += gput_sprite(LE2HOST32(slist[4]) & 0x3ff,
+            LE2HOST32(slist[5]) & 0x1ff);
+        break;
+      case 0x64 ... 0x67:
+        cpu_cycles += gput_sprite(LE2HOST32(slist[6]) & 0x3ff,
+            LE2HOST32(slist[7]) & 0x1ff);
+        break;
+      case 0x68 ... 0x6B: cpu_cycles += gput_sprite(1, 1);   break;
+      case 0x70 ... 0x73:
+      case 0x74 ... 0x77: cpu_cycles += gput_sprite(8, 8);   break;
+      case 0x78 ... 0x7B:
+      case 0x7C ... 0x7F: cpu_cycles += gput_sprite(16, 16); break;
     }
   }
 
@@ -412,6 +447,7 @@ breakloop:
   gpu.ex_regs[1] &= ~0x1ff;
   gpu.ex_regs[1] |= lGPUstatusRet & 0x1ff;
 
+  *cpu_cycles_out += cpu_cycles;
   *last_cmd = cmd;
   return list - list_start;
 }
@@ -464,3 +500,5 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   cbs->pl_set_gpu_caps(0);
  set_vram(gpu.vram);
 }
+
+// vim:ts=2:shiftwidth=2:expandtab

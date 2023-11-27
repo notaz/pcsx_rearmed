@@ -88,13 +88,13 @@ int main(int argc, char *argv[])
  
   pcnt_init();
   renderer_init();
-  memcpy(gpu.vram, state.vram, sizeof(gpu.vram));
+  memcpy(gpu.vram, state.vram, 1024*512*2);
   if ((state.gpu_register[8] & 0x24) == 0x24)
     renderer_set_interlace(1, !(state.status >> 31));
 
   start_cycles = pcnt_get();
 
-  do_cmd_list(list, size / 4, &dummy);
+  do_cmd_list(list, size / 4, &dummy, &dummy);
   renderer_flush_queues();
 
   printf("%u\n", pcnt_get() - start_cycles);
