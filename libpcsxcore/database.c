@@ -112,6 +112,8 @@ cycle_multiplier_overrides[] =
 	/* Psychic Detective - some weird race condition in the game's cdrom code */
 	{ 222, { "SLUS00165", "SLUS00166", "SLUS00167" } },
 	{ 222, { "SLES00070", "SLES10070", "SLES20070" } },
+	/* Zero Divide - sometimes too fast */
+	{ 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
 };
 
 static const struct
