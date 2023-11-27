@@ -160,7 +160,7 @@ void gpuClearImage(PtrUnion packet)
 	x0 = le16_to_s16(packet.U2[2]);
 	y0 = le16_to_s16(packet.U2[3]);
 	w0 = le16_to_s16(packet.U2[4]) & 0x3ff;
-	h0 = le16_to_s16(packet.U2[5]) & 0x3ff;
+	h0 = le16_to_s16(packet.U2[5]) & 0x1ff;
 
 	w0 += x0;
 	if (x0 < 0) x0 = 0;
