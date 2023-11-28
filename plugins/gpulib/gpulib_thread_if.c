@@ -74,7 +74,7 @@ static void *video_thread_main(void *arg) {
 #endif /* _3DS */
 
 	while(1) {
-		int result, last_cmd, start, end;
+		int result, cpu_cycles = 0, last_cmd, start, end;
 		video_thread_queue *queue;
 		pthread_mutex_lock(&thread->queue_lock);
 
@@ -95,8 +95,8 @@ static void *video_thread_main(void *arg) {
 
 		for (i = start; i < end; i++) {
 			cmd = &queue->queue[i];
-			result = real_do_cmd_list(cmd->cmd_list, cmd->count, &last_cmd);
-
+			result = real_do_cmd_list(cmd->cmd_list, cmd->count,
+					&cpu_cycles, &last_cmd);
 			if (result != cmd->count) {
 				fprintf(stderr, "Processed wrong cmd count: expected %d, got %d\n", cmd->count, result);
 			}
@@ -348,14 +348,14 @@ static int scan_cmd_list(uint32_t *data, int count, int *last_cmd)
 	return pos;
 }
 
-int do_cmd_list(uint32_t *list, int count, int *last_cmd) {
+int do_cmd_list(uint32_t *list, int count, int *cycles, int *last_cmd) {
 	int pos = 0;
 
 	if (thread.running) {
 		pos = scan_cmd_list(list, count, last_cmd);
 		video_thread_queue_cmd(list, pos, *last_cmd);
 	} else {
-		pos = real_do_cmd_list(list, count, last_cmd);
+		pos = real_do_cmd_list(list, count, cycles, last_cmd);
 		memcpy(gpu.ex_regs, gpu.scratch_ex_regs, sizeof(gpu.ex_regs));
 	}
 	return pos;
@@ -378,8 +378,8 @@ void renderer_finish(void) {
 
 void renderer_sync_ecmds(uint32_t * ecmds) {
 	if (thread.running) {
-		int dummy;
-		do_cmd_list(&ecmds[1], 6, &dummy);
+		int dummy = 0;
+		do_cmd_list(&ecmds[1], 6, &dummy, &dummy);
 	} else {
 		real_renderer_sync_ecmds(ecmds);
 	}
