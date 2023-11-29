@@ -522,10 +522,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
-        u32 width = list_s16[4] & 0x3FF;
-        u32 height = list_s16[5] & 0x1FF;
+        s32 width = list_s16[4] & 0x3FF;
+        s32 height = list_s16[5] & 0x1FF;
 
-        render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
         cpu_cycles += gput_sprite(width, height);
         break;
       }
@@ -535,13 +536,13 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u32 uv = list_s16[4];
-        u32 width = list_s16[6] & 0x3FF;
-        u32 height = list_s16[7] & 0x1FF;
+        s32 width = list_s16[6] & 0x3FF;
+        s32 height = list_s16[7] & 0x1FF;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, width, height,
-         current_command, list[0]);
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
+           &width, &height, current_command, list[0]);
         cpu_cycles += gput_sprite(width, height);
         break;
       }
@@ -550,8 +551,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 1, height = 1;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
         cpu_cycles += gput_sprite(1, 1);
         break;
       }
@@ -560,9 +563,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 8, height = 8;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
-        cpu_cycles += gput_sprite(8, 8);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -571,12 +576,13 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u32 uv = list_s16[4];
+        s32 width = 8, height = 8;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 8, 8,
-         current_command, list[0]);
-        cpu_cycles += gput_sprite(8, 8);
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
+           &width, &height, current_command, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -584,9 +590,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 16, height = 16;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
-        cpu_cycles += gput_sprite(16, 16);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -595,16 +603,18 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u32 uv = list_s16[4];
+        s32 width = 16, height = 16;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF, 16, 16,
-         current_command, list[0]);
-        cpu_cycles += gput_sprite(16, 16);
+        render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
+           &width, &height, current_command, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
 #ifdef PCSX
+      case 0x1F:                   //  irq?
       case 0x80 ... 0x9F:          //  vid -> vid
       case 0xA0 ... 0xBF:          //  sys -> vid
       case 0xC0 ... 0xDF:          //  vid -> sys
@@ -1498,10 +1508,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         u32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
-        u32 width = list_s16[4] & 0x3FF;
-        u32 height = list_s16[5] & 0x1FF;
+        s32 width = list_s16[4] & 0x3FF;
+        s32 height = list_s16[5] & 0x1FF;
 
-        render_sprite(psx_gpu, x, y, 0, 0, width, height, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
@@ -1515,13 +1526,13 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u8 u = list_s16[4];
         u8 v = list_s16[4] >> 8;
-        u32 width = list_s16[6] & 0x3FF;
-        u32 height = list_s16[7] & 0x1FF;
+        s32 width = list_s16[6] & 0x3FF;
+        s32 height = list_s16[7] & 0x1FF;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, u, v, width, height,
-         current_command, list[0]);
+        render_sprite(psx_gpu, x, y, u, v,
+           &width, &height, current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
@@ -1533,11 +1544,13 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 1, height = 1;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 1, 1, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + 1))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
         cpu_cycles += gput_sprite(1, 1);
         break;
       }
@@ -1546,12 +1559,14 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 8, height = 8;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 8, 8, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
-        cpu_cycles += gput_sprite(8, 8);
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -1561,15 +1576,16 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u8 u = list_s16[4];
         u8 v = list_s16[4] >> 8;
+        s32 width = 8, height = 8;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, u, v, 8, 8,
-         current_command, list[0]);
+        render_sprite(psx_gpu, x, y, u, v,
+           &width, &height, current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
-          do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
-        cpu_cycles += gput_sprite(8, 8);
+          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -1577,12 +1593,14 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {        
         s32 x = sign_extend_11bit(list_s16[2] + psx_gpu->offset_x);
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
+        s32 width = 16, height = 16;
 
-        render_sprite(psx_gpu, x, y, 0, 0, 16, 16, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
+           current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
-        cpu_cycles += gput_sprite(16, 16);
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
   
@@ -1592,14 +1610,16 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         s32 y = sign_extend_11bit(list_s16[3] + psx_gpu->offset_y);
         u8 u = list_s16[4];
         u8 v = list_s16[4] >> 8;
+        s32 width = 16, height = 16;
 
         set_clut(psx_gpu, list_s16[5]);
 
-        render_sprite(psx_gpu, x, y, u, v, 16, 16, current_command, list[0]);
+        render_sprite(psx_gpu, x, y, u, v,
+           &width, &height, current_command, list[0]);
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
-          do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
-        cpu_cycles += gput_sprite(16, 16);
+          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
+        cpu_cycles += gput_sprite(width, height);
         break;
       }
 

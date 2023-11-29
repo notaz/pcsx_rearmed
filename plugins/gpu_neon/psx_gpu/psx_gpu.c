@@ -4194,10 +4194,10 @@ render_block_handler_struct render_sprite_block_handlers[] =
 
 
 void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
- s32 width, s32 height, u32 flags, u32 color)
+ s32 *width, s32 *height, u32 flags, u32 color)
 {
-  s32 x_right = x + width - 1;
-  s32 y_bottom = y + height - 1;
+  s32 x_right = x + *width - 1;
+  s32 y_bottom = y + *height - 1;
 
 #ifdef PROFILE
   sprites++;
@@ -4206,6 +4206,7 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
   if(invalidate_texture_cache_region_viewport(psx_gpu, x, y, x_right,
    y_bottom) == 0)
   {
+    *width = *height = 0;
     return;
   }
 
@@ -4214,7 +4215,7 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
     u32 clip = psx_gpu->viewport_start_x - x;
     x += clip;
     u += clip;
-    width -= clip;
+    *width -= clip;
   }
 
   if(y < psx_gpu->viewport_start_y)
@@ -4222,21 +4223,24 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
     s32 clip = psx_gpu->viewport_start_y - y;
     y += clip;
     v += clip;
-    height -= clip;
+    *height -= clip;
   }
 
   if(x_right > psx_gpu->viewport_end_x)
-    width -= x_right - psx_gpu->viewport_end_x;
+    *width -= x_right - psx_gpu->viewport_end_x;
 
   if(y_bottom > psx_gpu->viewport_end_y)
-    height -= y_bottom - psx_gpu->viewport_end_y;
+    *height -= y_bottom - psx_gpu->viewport_end_y;
 
-  if((width <= 0) || (height <= 0))
+  if((*width <= 0) || (*height <= 0))
+  {
+    *width = *height = 0;
     return;
+  }
 
 #ifdef PROFILE
-  span_pixels += width * height;
-  spans += height;
+  span_pixels += *width * *height;
+  spans += *height;
 #endif
 
   u32 render_state = flags &
@@ -4273,7 +4277,7 @@ void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
   psx_gpu->render_block_handler = render_block_handler;
 
   ((setup_sprite_function_type *)render_block_handler->setup_blocks)
-   (psx_gpu, x, y, u, v, width, height, color);
+   (psx_gpu, x, y, u, v, *width, *height, color);
 }
 
 #define draw_pixel_line_mask_evaluate_yes()                                    \
