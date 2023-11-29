@@ -669,6 +669,11 @@ static noinline int do_cmd_buffer(uint32_t *data, int count, int *cpu_cycles)
       pos += 4;
       continue;
     }
+    else if (cmd == 0x1f) {
+      log_anomaly("irq1?\n");
+      pos++;
+      continue;
+    }
 
     // 0xex cmds might affect frameskip.allow, so pass to do_cmd_list_skip
     if (gpu.frameskip.active && (gpu.frameskip.allow || ((LE32TOH(data[pos]) >> 24) & 0xf0) == 0xe0))
@@ -754,8 +759,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr, uint32_t *progress_addr
     if (len > 0)
       cpu_cycles += 5 + len;
 
-    log_io(".chain %08lx #%d+%d\n",
-      (long)(list - rambase) * 4, len, gpu.cmd_len);
+    log_io(".chain %08lx #%d+%d %u\n",
+      (long)(list - rambase) * 4, len, gpu.cmd_len, cpu_cycles);
     if (unlikely(gpu.cmd_len > 0)) {
       if (gpu.cmd_len + len > ARRAY_SIZE(gpu.cmd_buffer)) {
         log_anomaly("cmd_buffer overflow, likely garbage commands\n");

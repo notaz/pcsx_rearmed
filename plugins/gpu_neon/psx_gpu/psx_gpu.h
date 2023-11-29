@@ -245,7 +245,7 @@ void render_block_move(psx_gpu_struct *psx_gpu, u32 source_x, u32 source_y,
 void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
  u32 flags);
 void render_sprite(psx_gpu_struct *psx_gpu, s32 x, s32 y, u32 u, u32 v,
- s32 width, s32 height, u32 flags, u32 color);
+ s32 *width, s32 *height, u32 flags, u32 color);
 void render_line(psx_gpu_struct *gpu, vertex_struct *vertexes, u32 flags,
  u32 color, int double_resolution);
 

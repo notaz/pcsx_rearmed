@@ -24,7 +24,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal sprite drawing functions
 
-void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
+void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver, s32 *w_out, s32 *h_out)
 {
 	s32 x0, x1, y0, y1;
 	u32 u0, v0;
@@ -58,6 +58,8 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 	if (x1 > xmax) x1 = xmax;
 	x1 -= x0;
 	if (x1 <= 0) return;
+	*w_out = x1;
+	*h_out = y1 - y0;
 
 	gpu_unai.r5 = packet.U1[0] >> 3;
 	gpu_unai.g5 = packet.U1[1] >> 3;
@@ -87,7 +89,7 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 #include "gpu_arm.h"
 
 /* Notaz 4bit sprites optimization */
-void gpuDrawS16(PtrUnion packet)
+void gpuDrawS16(PtrUnion packet, s32 *w_out, s32 *h_out)
 {
 	s32 x0, y0;
 	s32 u0, v0;
@@ -110,7 +112,7 @@ void gpuDrawS16(PtrUnion packet)
 	    ((u0 | v0) & 15) || !(gpu_unai.TextureWindow[2] & gpu_unai.TextureWindow[3] & 8)) {
 		// send corner cases to general handler
 		packet.U4[3] = u32_to_le32(0x00100010);
-		gpuDrawS(packet, gpuSpriteSpanFn<0x20>);
+		gpuDrawS(packet, gpuSpriteSpanFn<0x20>, w_out, h_out);
 		return;
 	}
 
@@ -123,12 +125,14 @@ void gpuDrawS16(PtrUnion packet)
 	}
 	else if (ymax - y0 < 16)
 		h = ymax - y0;
+	*w_out = 16;
+	*h_out = h;
 
 	draw_spr16_full(&gpu_unai.vram[FRAME_OFFSET(x0, y0)], &gpu_unai.TBA[FRAME_OFFSET(u0/4, v0)], gpu_unai.CBA, h);
 }
 #endif // __arm__
 
-void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
+void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_out)
 {
 	s32 x0, x1, y0, y1;
 
@@ -153,6 +157,8 @@ void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
 	if (x1 > xmax) x1 = xmax;
 	x1 -= x0;
 	if (x1 <= 0) return;
+	*w_out = x1;
+	*h_out = y1 - y0;
 
 	const u16 Data = GPU_RGB16(le32_to_u32(packet.U4[0]));
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
