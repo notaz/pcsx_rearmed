@@ -227,8 +227,8 @@ struct _pending_dma1 {
 static struct {
 	u32 reg0;
 	u32 reg1;
-	u16 * rl;
-	u16 * rl_end;
+	const u16 * rl;
+	const u16 * rl_end;
 	u8 * block_buffer_pos;
 	u8 block_buffer[16*16*3];
 	struct _pending_dma1 pending_dma1;
@@ -258,7 +258,7 @@ static int aanscales[DSIZE2] = {
 	289301,  401273,  377991,  340183,  289301,  227303, 156569,  79818
 };
 
-static void iqtab_init(int *iqtab, unsigned char *iq_y) {
+static void iqtab_init(int *iqtab, const unsigned char *iq_y) {
 	int i;
 
 	for (i = 0; i < DSIZE2; i++) {
@@ -268,7 +268,7 @@ static void iqtab_init(int *iqtab, unsigned char *iq_y) {
 
 #define	MDEC_END_OF_DATA	0xfe00
 
-static unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
+static const unsigned short *rl2blk(int *blk, const unsigned short *mdec_rl) {
 	int i, k, q_scale, rl, used_col;
  	int *iqtab;
 
@@ -472,7 +472,8 @@ u32 mdecRead1(void) {
 }
 
 void psxDma0(u32 adr, u32 bcr, u32 chcr) {
-	int cmd = mdec.reg0;
+	u32 cmd = mdec.reg0, words_max = 0;
+	const void *mem;
 	int size;
 
 	if (chcr != 0x01000201) {
@@ -485,9 +486,17 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 
 	size = (bcr >> 16) * (bcr & 0xffff);
 
+	adr &= ~3;
+	mem = getDmaRam(adr, &words_max);
+	if (mem == INVALID_PTR || size > words_max) {
+		log_unhandled("bad dma0 madr %x\n", adr);
+		HW_DMA0_CHCR &= SWAP32(~0x01000000);
+		return;
+	}
+
 	switch (cmd >> 28) {
 		case 0x3: // decode 15/24bpp
-			mdec.rl = (u16 *) PSXM(adr);
+			mdec.rl = mem;
 			/* now the mdec is busy till all data are decoded */
 			mdec.reg1 |= MDEC1_BUSY;
 			/* detect the end of decoding */
@@ -507,7 +516,7 @@ void psxDma0(u32 adr, u32 bcr, u32 chcr) {
 
 		case 0x4: // quantization table upload
 			{
-				u8 *p = (u8 *)PSXM(adr);
+				const u8 *p = mem;
 				// printf("uploading new quantization table\n");
 				// printmatrixu8(p);
 				// printmatrixu8(p + 64);
@@ -541,10 +550,10 @@ void mdec0Interrupt()
 #define SIZE_OF_16B_BLOCK (16*16*2)
 
 void psxDma1(u32 adr, u32 bcr, u32 chcr) {
+	u32 words, words_max = 0;
 	int blk[DSIZE2 * 6];
 	u8 * image;
 	int size;
-	u32 words;
 
 	if (chcr != 0x01000200) {
 		log_unhandled("mdec1: invalid dma %08x\n", chcr);
@@ -561,9 +570,16 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 		mdec.pending_dma1.bcr = bcr;
 		mdec.pending_dma1.chcr = chcr;
 		/* do not free the dma */
-	} else {
+		return;
+	}
 
-	image = (u8 *)PSXM(adr);
+	adr &= ~3;
+	image = getDmaRam(adr, &words_max);
+	if (image == INVALID_PTR || words > words_max) {
+		log_unhandled("bad dma1 madr %x\n", adr);
+		HW_DMA1_CHCR &= SWAP32(~0x01000000);
+		return;
+	}
 
 	if (mdec.reg0 & MDEC0_RGB24) {
 		/* 16 bits decoding
@@ -623,12 +639,13 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 			mdec.block_buffer_pos = mdec.block_buffer + size;
 		}
 	}
+	if (size < 0)
+		log_unhandled("mdec: bork\n");
 	
-		/* define the power of mdec */
-		set_event(PSXINT_MDECOUTDMA, words * MDEC_BIAS);
-		/* some CPU stalling */
-		psxRegs.cycle += words;
-	}
+	/* define the power of mdec */
+	set_event(PSXINT_MDECOUTDMA, words * MDEC_BIAS);
+	/* some CPU stalling */
+	psxRegs.cycle += words;
 }
 
 void mdec1Interrupt() {
@@ -657,6 +674,7 @@ void mdec1Interrupt() {
 	 */
 
 	/* MDEC_END_OF_DATA avoids read outside memory */
+	//printf("mdec left %zd, v=%04x\n", mdec.rl_end - mdec.rl, *(mdec.rl));
 	if (mdec.rl >= mdec.rl_end || SWAP16(*(mdec.rl)) == MDEC_END_OF_DATA) {
 		mdec.reg1 &= ~(MDEC1_STP|MDEC1_BUSY);
 		if (HW_DMA0_CHCR & SWAP32(0x01000000))

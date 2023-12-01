@@ -242,6 +242,7 @@ void psxDma6(u32 madr, u32 bcr, u32 chcr) {
 	PSXDMA_LOG("*** DMA6 OT *** %x addr = %x size = %x\n", chcr, madr, bcr);
 
 	if (chcr == 0x11000002) {
+		madr &= ~3;
 		mem = getDmaRam(madr, &words_max);
 		if (mem == INVALID_PTR) {
 			log_unhandled("bad6 dma madr %x\n", madr);
