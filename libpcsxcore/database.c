@@ -51,6 +51,12 @@ static const char * const gpu_centering_hack_db[] =
 	"SLPM86009",
 };
 
+static const char * const dualshock_timing1024_hack_db[] =
+{
+	/* Judge Dredd - could also be poor cdrom+mdec+dma timing */
+	"SLUS00630", "SLES00755",
+};
+
 static const char * const dualshock_init_analog_hack_db[] =
 {
 	/* Formula 1 Championship Edition */
@@ -73,6 +79,7 @@ hack_db[] =
 	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
 	HACK_ENTRY(gpu_busy, gpu_busy_hack_db),
 	HACK_ENTRY(gpu_centering, gpu_centering_hack_db),
+	HACK_ENTRY(gpu_timing1024, dualshock_timing1024_hack_db),
 	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),
 };
 
@@ -97,8 +104,6 @@ cycle_multiplier_overrides[] =
 #endif
 	/* Discworld Noir - audio skips if CPU runs too fast */
 	{ 222, { "SLES01549", "SLES02063", "SLES02064" } },
-	/* Judge Dredd - could also be poor MDEC timing */
-	{ 128, { "SLUS00630", "SLES00755" } },
 	/* Digimon World */
 	{ 153, { "SLUS01032", "SLES02914" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
