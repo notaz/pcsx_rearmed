@@ -29,7 +29,7 @@ static void check_mode_change(int force)
 {
   int w = gpu.screen.hres;
   int h = gpu.screen.vres;
-  int w_out, h_out;
+  int w_out, h_out, bpp = 16;
 
   if (gpu.state.screen_centering_type == C_BORDERLESS)
     h = gpu.screen.h;
@@ -44,6 +44,11 @@ static void check_mode_change(int force)
   if (gpu.state.enhancement_active) {
     w_out *= 2;
     h_out *= 2;
+  }
+  if (gpu.status & PSX_GPU_STATUS_RGB24) {
+    // some asm relies on this alignment
+    w_out = (w_out + 7) & ~7;
+    bpp = 24;
   }
 
   gpu.state.downscale_active =
@@ -64,8 +69,7 @@ static void check_mode_change(int force)
     gpu.state.h_out_old = h_out;
 
     if (w_out != 0 && h_out != 0)
-      cbs->pl_vout_set_mode(w_out, h_out, w, h,
-          (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16);
+      cbs->pl_vout_set_mode(w_out, h_out, w, h, bpp);
   }
 }
 
