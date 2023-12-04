@@ -37,6 +37,8 @@
 #include "psxhle.h"
 #include "psxinterpreter.h"
 #include "psxevents.h"
+#include "cdrom.h"
+#include <stdarg.h>
 #include <zlib.h>
 
 #ifndef PSXBIOS_LOG
@@ -83,7 +85,7 @@ char *biosA0n[256] = {
 	"dev_card_close",	"dev_card_firstfile",	"dev_card_nextfile","dev_card_erase",
 	"dev_card_undelete","dev_card_format",		"dev_card_rename",	"dev_card_6f",
 // 0x70
-	"_bu_init",			"_96_init",		"CdRemove",		"sys_a0_73",
+	"_bu_init",		"CdInit",	"CdRemove",		"sys_a0_73",
 	"sys_a0_74",		"sys_a0_75",	"sys_a0_76",		"sys_a0_77",
 	"_96_CdSeekL",		"sys_a0_79",	"sys_a0_7a",		"sys_a0_7b",
 	"_96_CdGetStatus",	"sys_a0_7d",	"_96_CdRead",		"sys_a0_7f",
@@ -94,7 +96,7 @@ char *biosA0n[256] = {
 	"sys_a0_8c",		"sys_a0_8d",	"sys_a0_8e",		"sys_a0_8f",
 // 0x90
 	"sys_a0_90",		"sys_a0_91",	"sys_a0_92",		"sys_a0_93",
-	"sys_a0_94",		"sys_a0_95",	"AddCDROMDevice",	"AddMemCardDevide",
+	"sys_a0_94",		"CdReset",	"AddCDROMDevice",	"AddMemCardDevide",
 	"DisableKernelIORedirection",		"EnableKernelIORedirection", "sys_a0_9a", "sys_a0_9b",
 	"SetConf",			"GetConf",		"sys_a0_9e",		"SetMem",
 // 0xa0
@@ -439,9 +441,10 @@ static inline void softCallInException(u32 pc) {
 		ra = sra;
 }
 
-static u32 OpenEvent(u32 class, u32 spec, u32 mode, u32 func);
-static u32 DeliverEvent(u32 class, u32 spec);
-static u32 UnDeliverEvent(u32 class, u32 spec);
+static u32  OpenEvent(u32 class, u32 spec, u32 mode, u32 func);
+static void EnableEvent(u32 ev, int do_log);
+static u32  DeliverEvent(u32 class, u32 spec);
+static u32  UnDeliverEvent(u32 class, u32 spec);
 static void CloseEvent(u32 ev);
 
 /*                                           *
@@ -1583,11 +1586,53 @@ static void FlushCache() {
 	use_cycles(500);
 }
 
+// you likely want to mask irqs before calling these
+static u8 cdrom_sync(int do_ack)
+{
+	u8 r = 0;
+	if (psxRegs.interrupt & (1u << PSXINT_CDR)) {
+		if ((s32)(psxRegs.cycle - event_cycles[PSXINT_CDR]) < 0)
+			psxRegs.cycle = event_cycles[PSXINT_CDR] + 1;
+		irq_test(&psxRegs.CP0);
+	}
+	if (do_ack) {
+		cdrWrite0(1);
+		r = cdrRead3() & 0x1f;
+		cdrWrite3(0x5f); // ack; clear params
+	}
+	return r;
+}
+
+static void cdrom_cmd_and_wait(u8 cmd, int arg_cnt, int resp_cnt, ...)
+{
+	va_list ap;
+
+	cdrom_sync(0);
+	cdrWrite0(0);
+	va_start(ap, resp_cnt);
+	while (arg_cnt-- > 0)
+		cdrWrite2(va_arg(ap, u32));
+	va_end(ap);
+	cdrWrite1(cmd);
+
+	if (resp_cnt > 0) {
+		u8 r = cdrom_sync(1);
+		assert(r == 3); (void)r;
+		cdrRead1();
+	}
+	if (resp_cnt > 1) {
+		u8 r = cdrom_sync(1);
+		assert(r == 2); (void)r;
+		cdrRead1();
+	}
+}
+
 /*
  *	long Load(char *name, struct EXEC *header);
  */
 
 void psxBios_Load() { // 0x42
+	u8 time[3] = { 2, 0, 0x16 };
 	EXE_HEADER eheader;
 	char path[256];
 	char *pa0, *p;
@@ -1609,7 +1654,7 @@ void psxBios_Load() { // 0x42
 	else
 		snprintf(path, sizeof(path), "%s", (char *)pa0);
 
-	if (LoadCdromFile(path, &eheader) == 0) {
+	if (LoadCdromFile(path, &eheader, time) == 0) {
 		memcpy(pa1, ((char*)&eheader)+16, sizeof(EXEC));
 		psxCpu->Clear(a1, sizeof(EXEC) / 4);
 		FlushCache();
@@ -1618,6 +1663,17 @@ void psxBios_Load() { // 0x42
 	PSXBIOS_LOG(" -> %d\n", v0);
 
 	pc0 = ra;
+
+	// set the cdrom to a state of just after exe read
+	psxRegs.CP0.n.SR &= ~0x404;
+	cdrom_sync(1);
+	cdrWrite0(1);
+	cdrWrite2(0x1f); // unmask
+	cdrom_cmd_and_wait(0x0e, 1, 1, 0x80u); // CdlSetmode
+	cdrom_cmd_and_wait(0x02, 3, 1, time[0], time[1], time[2]); // CdlSetloc
+	cdrom_cmd_and_wait(0x15, 0, 2); // CdlSeekL
+	psxHwWrite16(0x1f801070, ~4);
+	MTC0(&psxRegs, 12, psxRegs.CP0.n.SR | 0x404);
 }
 
 /*
@@ -1686,6 +1742,14 @@ void psxBios_GPU_dw() { // 0x46
 	pc0 = ra;
 }
 
+static void gpu_sync() {
+	// not implemented...
+	// might be problematic to do because of Config.GpuListWalking
+	if (psxRegs.interrupt & (1u << PSXINT_GPUDMA))
+		log_unhandled("gpu_sync with active dma\n");
+	mips_return_c(0, 21);
+}
+
 void psxBios_mem2vram() { // 0x47
 	int size;
 	gpuSyncPluginSR(); // flush
@@ -1712,8 +1776,8 @@ void psxBios_SendGPU() { // 0x48
 void psxBios_GPU_cw() { // 0x49
 	GPU_writeData(a0);
 	gpuSyncPluginSR();
-	v0 = HW_GPU_STATUS;
-	pc0 = ra;
+	use_cycles(13);
+	gpu_sync();
 }
 
 void psxBios_GPU_cwb() { // 0x4a
@@ -1785,22 +1849,84 @@ void psxBios__bu_init() { // 70
 	pc0 = ra;
 }
 
-void psxBios__96_init() { // 71
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x71]);
-#endif
-
-	pc0 = ra;
-}
-
 static void write_chain(u32 *d, u32 next, u32 handler1, u32 handler2);
 static void psxBios_SysEnqIntRP_(u32 priority, u32 chain_eptr);
 static void psxBios_SysDeqIntRP_(u32 priority, u32 chain_rm_eptr);
+
+static void psxBios_EnqueueCdIntr_(void)
+{
+	u32 *ram32 = (u32 *)psxM;
+
+	// traps should already be installed by write_chain()
+	ram32[0x91d0/4] = 0;
+	ram32[0x91d4/4] = SWAP32(0xbfc0506c);
+	ram32[0x91d8/4] = SWAP32(0xbfc04dec);
+	psxBios_SysEnqIntRP_(0, 0x91d0);
+	ram32[0x91e0/4] = 0;
+	ram32[0x91e4/4] = SWAP32(0xbfc050a4);
+	ram32[0x91e8/4] = SWAP32(0xbfc04fbc);
+	psxBios_SysEnqIntRP_(0, 0x91e0);
+	use_cycles(31);
+}
+
+static void setup_cd_irq_and_events(void)
+{
+	u16 specs[] = { 0x10, 0x20, 0x40, 0x80, 0x8000 };
+	size_t i;
+
+	psxBios_EnqueueCdIntr_();
+
+	for (i = 0; i < sizeof(specs) / sizeof(specs[0]); i++) {
+		u32 h = OpenEvent(0xf0000003, specs[i], EvMdMARK, 0);
+		// no error checks
+		storeRam32(A_CD_EVENTS + i * 4, h);
+		EnableEvent(h, 0);
+	}
+}
+
+static void psxBios_CdReset_() {
+	psxRegs.CP0.n.SR &= ~0x404; // disable interrupts
+
+	cdrom_sync(1);
+	cdrWrite0(1);
+	cdrWrite2(0x1f); // unmask
+	cdrom_cmd_and_wait(0x0a, 0, 2); // CdlReset
+	cdrom_cmd_and_wait(0x0e, 1, 1, 0x80u); // CdlSetmode
+
+	// todo(?): should read something (iso root directory?)
+	// from { 0, 2, 16 } to somewhere and pause
+
+	mips_return(1);
+	psxHwWrite16(0x1f801070, ~4);
+	MTC0(&psxRegs, 12, psxRegs.CP0.n.SR | 0x404);
+	DeliverEvent(0xf0000003, 0x0020);
+}
+
+static void psxBios_CdInit() { // 54, 71
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x71]);
+	setup_cd_irq_and_events();
+
+	psxBios_CdReset_();
+
+	// this function takes pretty much forever
+	mips_return_c(0, 50000*11);
+}
 
 static void psxBios_DequeueCdIntr_() {
 	psxBios_SysDeqIntRP_(0, 0x91d0);
 	psxBios_SysDeqIntRP_(0, 0x91e0);
 	use_cycles(16);
+}
+
+static void psxBios_CdReset() { // 95
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x95]);
+	psxBios_CdReset_();
+}
+
+static void psxBios_EnqueueCdIntr() { // a2
+	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0xa2]);
+	psxBios_EnqueueCdIntr_();
+	// return value comes from SysEnqIntRP() insternal call
 }
 
 static void psxBios_DequeueCdIntr() { // a3
@@ -2172,13 +2298,17 @@ static void psxBios_TestEvent() { // 0b
 	mips_return_c(ret, 15);
 }
 
-static void psxBios_EnableEvent() { // 0c
+static void EnableEvent(u32 ev, int do_log) {
 	u32 base = loadRam32(A_TT_EvCB);
-	u32 status = loadRam32(base + (a0 & 0xffff) * sizeof(EvCB) + 4);
-	PSXBIOS_LOG("psxBios_%s %x (%x)\n", biosB0n[0x0c], a0, status);
+	u32 status = loadRam32(base + (ev & 0xffff) * sizeof(EvCB) + 4);
+	if (do_log)
+		PSXBIOS_LOG("psxBios_%s %x (%x)\n", biosB0n[0x0c], ev, status);
 	if (status != EvStUNUSED)
-		storeRam32(base + (a0 & 0xffff) * sizeof(EvCB) + 4, EvStACTIVE);
+		storeRam32(base + (ev & 0xffff) * sizeof(EvCB) + 4, EvStACTIVE);
+}
 
+static void psxBios_EnableEvent() { // 0c
+	EnableEvent(a0, 1);
 	mips_return_c(1, 15);
 }
 
@@ -3039,7 +3169,8 @@ static void psxBios_InitRCnt() { // 00
 		psxHwWrite16(0x1f801100 + i*0x10 + 8, 0);
 		psxHwWrite16(0x1f801100 + i*0x10 + 0, 0);
 	}
-	psxBios_SysEnqIntRP_(a0, 0x6d88);
+	for (i = 0; i < 4; i++)
+		psxBios_SysEnqIntRP_(a0, 0x6d58 + i * 0x10);
 	mips_return_c(0, 9);
 }
 
@@ -3279,7 +3410,7 @@ static void setup_tt(u32 tcb_cnt, u32 evcb_cnt, u32 stack)
 	ram32[0x0150/4] = SWAPu32(0x6ee0);  // DCB - device control
 	ram32[0x0154/4] = SWAPu32(0x0320);  // DCB size
 
-	storeRam32(p_excb + 0*4, 0x91e0);   // chain0
+	storeRam32(p_excb + 0*4, 0x0000);   // chain0
 	storeRam32(p_excb + 2*4, 0x6d88);   // chain1
 	storeRam32(p_excb + 4*4, 0x0000);   // chain2
 	storeRam32(p_excb + 6*4, 0x6d98);   // chain3
@@ -3289,12 +3420,8 @@ static void setup_tt(u32 tcb_cnt, u32 evcb_cnt, u32 stack)
 	for (i = 1; i < tcb_cnt; i++)
 		storeRam32(p_tcb + sizeof(TCB) * i, 0x1000);
 
-	// default events
-	storeRam32(A_CD_EVENTS + 0x00, OpenEvent(0xf0000003, 0x0010, EvMdMARK, 0));
-	storeRam32(A_CD_EVENTS + 0x04, OpenEvent(0xf0000003, 0x0020, EvMdMARK, 0));
-	storeRam32(A_CD_EVENTS + 0x08, OpenEvent(0xf0000003, 0x0040, EvMdMARK, 0));
-	storeRam32(A_CD_EVENTS + 0x0c, OpenEvent(0xf0000003, 0x0080, EvMdMARK, 0));
-	storeRam32(A_CD_EVENTS + 0x10, OpenEvent(0xf0000003, 0x8000, EvMdMARK, 0));
+	psxBios_SysEnqIntRP_(0, 0x6da8);
+	setup_cd_irq_and_events();
 
 	storeRam32(A_CONF_EvCB, evcb_cnt);
 	storeRam32(A_CONF_TCB, tcb_cnt);
@@ -3509,7 +3636,7 @@ void psxBiosInit() {
 	biosA0[0x51] = psxBios_LoadExec;
 	//biosA0[0x52] = psxBios_GetSysSp;
 	//biosA0[0x53] = psxBios_sys_a0_53;
-	//biosA0[0x54] = psxBios__96_init_a54;
+	biosA0[0x54] = psxBios_CdInit;
 	//biosA0[0x55] = psxBios__bu_init_a55;
 	biosA0[0x56] = psxBios_CdRemove;
 	//biosA0[0x57] = psxBios_sys_a0_57;
@@ -3538,7 +3665,7 @@ void psxBiosInit() {
 	//biosA0[0x6e] = psxBios_dev_card_rename;
 	//biosA0[0x6f] = psxBios_dev_card_6f;
 	biosA0[0x70] = psxBios__bu_init;
-	biosA0[0x71] = psxBios__96_init;
+	biosA0[0x71] = psxBios_CdInit;
 	biosA0[0x72] = psxBios_CdRemove;
 	//biosA0[0x73] = psxBios_sys_a0_73;
 	//biosA0[0x74] = psxBios_sys_a0_74;
@@ -3574,7 +3701,7 @@ void psxBiosInit() {
 	biosA0[0x92] = hleExc0_1_1;
 	biosA0[0x93] = hleExc0_0_1;
 	//biosA0[0x94] = psxBios_sys_a0_94;
-	//biosA0[0x95] = psxBios_sys_a0_95;
+	biosA0[0x95] = psxBios_CdReset;
 	//biosA0[0x96] = psxBios_AddCDROMDevice;
 	//biosA0[0x97] = psxBios_AddMemCardDevide;
 	//biosA0[0x98] = psxBios_DisableKernelIORedirection;
@@ -3587,7 +3714,7 @@ void psxBiosInit() {
 	biosA0[0x9f] = psxBios_SetMem;
 	//biosA0[0xa0] = psxBios__boot;
 	//biosA0[0xa1] = psxBios_SystemError;
-	//biosA0[0xa2] = psxBios_EnqueueCdIntr;
+	biosA0[0xa2] = psxBios_EnqueueCdIntr;
 	biosA0[0xa3] = psxBios_DequeueCdIntr;
 	//biosA0[0xa4] = psxBios_sys_a0_a4;
 	//biosA0[0xa5] = psxBios_ReadSector;
@@ -3794,6 +3921,7 @@ void psxBiosInit() {
 	strcpy((char *)&ram32[0xeff0/4], "bu");
 
 	// default exception handler chains
+	// see also setup_cd_irq_and_events()
 	write_chain(&ram32[0x91e0/4], 0x91d0, 0xbfc050a4, 0xbfc04fbc); // chain0.e0
 	write_chain(&ram32[0x91d0/4], 0x6da8, 0xbfc0506c, 0xbfc04dec); // chain0.e1
 	write_chain(&ram32[0x6da8/4],      0,          0,     0x1a00); // chain0.e2

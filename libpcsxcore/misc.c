@@ -301,7 +301,7 @@ int LoadCdrom() {
 	return 0;
 }
 
-int LoadCdromFile(const char *filename, EXE_HEADER *head) {
+int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 	struct iso_directory_record *dir;
 	u8 time[4],*buf;
 	u8 mdir[4096];
@@ -334,6 +334,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	if (GetCdromFile(mdir, time, exename) == -1) return -1;
 
 	READTRACK();
+	incTime();
 
 	memcpy(head, buf + 12, sizeof(EXE_HEADER));
 	size = SWAP32(head->t_size);
@@ -343,8 +344,8 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	//psxCpu->Reset();
 
 	while (size & ~2047) {
-		incTime();
 		READTRACK();
+		incTime();
 
 		mem = PSXM(addr);
 		if (mem != INVALID_PTR)
@@ -353,6 +354,8 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 		size -= 2048;
 		addr += 2048;
 	}
+	if (time_bcd_out)
+		memcpy(time_bcd_out, time, 3);
 
 	return 0;
 }
