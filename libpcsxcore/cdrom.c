@@ -1432,7 +1432,7 @@ unsigned char cdrRead0(void) {
 }
 
 void cdrWrite0(unsigned char rt) {
-	CDR_LOG_IO("cdr w0.idx: %02x\n", rt);
+	CDR_LOG_IO("cdr w0.x.idx: %02x\n", rt);
 
 	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
 }
@@ -1446,13 +1446,13 @@ unsigned char cdrRead1(void) {
 	if (cdr.ResultP == cdr.ResultC)
 		cdr.ResultReady = 0;
 
-	CDR_LOG_IO("cdr r1.rsp: %02x #%u\n", psxHu8(0x1801), cdr.ResultP - 1);
+	CDR_LOG_IO("cdr r1.x.rsp: %02x #%u\n", psxHu8(0x1801), cdr.ResultP - 1);
 
 	return psxHu8(0x1801);
 }
 
 void cdrWrite1(unsigned char rt) {
-	const char *rnames[] = { "cmd", "smd", "smc", "arr" }; (void)rnames;
+	const char *rnames[] = { "0.cmd", "1.smd", "2.smc", "3.arr" }; (void)rnames;
 	CDR_LOG_IO("cdr w1.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
@@ -1472,10 +1472,9 @@ void cdrWrite1(unsigned char rt) {
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
 		for (i = 0; i < cdr.ParamC; i++)
 			SysPrintf(" %x,", cdr.Param[i]);
-		SysPrintf("}\n");
-	} else {
-		SysPrintf("\n");
+		SysPrintf("}");
 	}
+	SysPrintf(" @%08x\n", psxRegs.pc);
 #endif
 
 	cdr.ResultReady = 0;
@@ -1504,12 +1503,12 @@ unsigned char cdrRead2(void) {
 	else
 		CDR_LOG_I("read empty fifo (%d)\n", cdr.FifoSize);
 
-	CDR_LOG_IO("cdr r2.dat: %02x\n", ret);
+	CDR_LOG_IO("cdr r2.x.dat: %02x\n", ret);
 	return ret;
 }
 
 void cdrWrite2(unsigned char rt) {
-	const char *rnames[] = { "prm", "ien", "all", "arl" }; (void)rnames;
+	const char *rnames[] = { "0.prm", "1.ien", "2.all", "3.arl" }; (void)rnames;
 	CDR_LOG_IO("cdr w2.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
 	switch (cdr.Ctrl & 3) {
@@ -1536,12 +1535,13 @@ unsigned char cdrRead3(void) {
 	else
 		psxHu8(0x1803) = cdr.IrqMask | 0xE0;
 
-	CDR_LOG_IO("cdr r3.%s: %02x\n", (cdr.Ctrl & 1) ? "ifl" : "ien", psxHu8(0x1803));
+	CDR_LOG_IO("cdr r3.%d.%s: %02x\n", cdr.Ctrl & 3,
+		(cdr.Ctrl & 1) ? "ifl" : "ien", psxHu8(0x1803));
 	return psxHu8(0x1803);
 }
 
 void cdrWrite3(unsigned char rt) {
-	const char *rnames[] = { "req", "ifl", "alr", "ava" }; (void)rnames;
+	const char *rnames[] = { "0.req", "1.ifl", "2.alr", "3.ava" }; (void)rnames;
 	u8 ll, lr, rl, rr;
 	CDR_LOG_IO("cdr w3.%s: %02x\n", rnames[cdr.Ctrl & 3], rt);
 
