@@ -1588,8 +1588,8 @@ void cdrWrite3(unsigned char rt) {
 			    rl == cdr.AttenuatorRightToLeft &&
 			    rr == cdr.AttenuatorRightToRight)
 				return;
-			cdr.AttenuatorLeftToLeftT = ll; cdr.AttenuatorLeftToRightT = lr;
-			cdr.AttenuatorRightToLeftT = rl; cdr.AttenuatorRightToRightT = rr;
+			cdr.AttenuatorLeftToLeft = ll; cdr.AttenuatorLeftToRight = lr;
+			cdr.AttenuatorRightToLeft = rl; cdr.AttenuatorRightToRight = rr;
 			CDR_LOG_I("CD-XA Volume: %02x %02x | %02x %02x\n", ll, lr, rl, rr);
 			SPU_setCDvol(ll, lr, rl, rr, psxRegs.cycle);
 		}
