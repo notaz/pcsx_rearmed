@@ -128,6 +128,8 @@ sync_enhancement_buffers(int x, int y, int w, int h)
   // due to intersection stuff, see the update_enhancement_buf_scanouts() mess
   int s_w = max(gpu.screen.hres, gpu.screen.w);
   int s_h = gpu.screen.vres;
+  if (gpu.screen.y < 0)
+    s_h -= gpu.screen.y;
   s_w = min(s_w, 512);
   for (i = 0; i < ARRAY_SIZE(egpu.enhancement_scanouts); i++) {
     const struct psx_gpu_scanout *s = &egpu.enhancement_scanouts[i];
@@ -163,10 +165,13 @@ void renderer_update_caches(int x, int y, int w, int h, int state_changed)
 
   if (gpu.state.enhancement_active) {
     if (state_changed) {
+      int vres = gpu.screen.vres;
+      if (gpu.screen.y < 0)
+        vres -= gpu.screen.y;
       memset(egpu.enhancement_scanouts, 0, sizeof(egpu.enhancement_scanouts));
       egpu.enhancement_scanout_eselect = 0;
       update_enhancement_buf_scanouts(&egpu,
-        gpu.screen.src_x, gpu.screen.src_y, gpu.screen.hres, gpu.screen.vres);
+        gpu.screen.src_x, gpu.screen.src_y, gpu.screen.hres, vres);
       return;
     }
     sync_enhancement_buffers(x, y, w, h);
@@ -194,10 +199,13 @@ void renderer_notify_res_change(void)
 
 void renderer_notify_scanout_change(int x, int y)
 {
+  int vres = gpu.screen.vres;
   if (!gpu.state.enhancement_active || !egpu.enhancement_buf_ptr)
     return;
 
-  update_enhancement_buf_scanouts(&egpu, x, y, gpu.screen.hres, gpu.screen.vres);
+  if (gpu.screen.y < 0)
+    vres -= gpu.screen.y;
+  update_enhancement_buf_scanouts(&egpu, x, y, gpu.screen.hres, vres);
 }
 
 #include "../../frontend/plugin_lib.h"
