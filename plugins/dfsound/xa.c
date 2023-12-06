@@ -82,7 +82,8 @@ INLINE void MixCD(int *SSumLR, int *RVB, int ns_to, int decode_pos)
  int ns;
  uint32_t v = spu.XALastVal;
 
- if ((vll | vlr | vrl | vrr) == 0)
+ // note: spu volume doesn't affect cd capture
+ if ((spu.cdv.ll | spu.cdv.lr | spu.cdv.rl | spu.cdv.rr) == 0)
  {
   SkipCD(ns_to, decode_pos);
   return;
