@@ -227,12 +227,12 @@ static void update_layer_size(int w, int h)
 		break;
 	}
 
-	g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
-	g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
-	if (g_layer_x < 0) g_layer_x = 0;
-	if (g_layer_y < 0) g_layer_y = 0;
-	if (g_layer_w > g_menuscreen_w) g_layer_w = g_menuscreen_w;
-	if (g_layer_h > g_menuscreen_h) g_layer_h = g_menuscreen_h;
+	if (g_scaler != SCALE_CUSTOM) {
+		g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
+		g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
+	}
+	if (g_layer_w > g_menuscreen_w * 2) g_layer_w = g_menuscreen_w * 2;
+	if (g_layer_h > g_menuscreen_h * 2) g_layer_h = g_menuscreen_h * 2;
 }
 
 // XXX: this is platform specific really
