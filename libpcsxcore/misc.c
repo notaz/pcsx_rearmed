@@ -677,6 +677,10 @@ int SaveState(const char *file) {
 	assert(!psxRegs.branching);
 	assert(!psxRegs.cpuInRecursion);
 	assert(!misc->magic);
+
+	f = SaveFuncs.open(file, "wb");
+	if (f == NULL) return -1;
+
 	misc->magic = MISC_MAGIC;
 	misc->gteBusyCycle = psxRegs.gteBusyCycle;
 	misc->muldivBusyCycle = psxRegs.muldivBusyCycle;
@@ -686,9 +690,6 @@ int SaveState(const char *file) {
 	misc->gpuSr = HW_GPU_STATUS;
 	misc->frame_counter = frame_counter;
 	misc->CdromFrontendId = CdromFrontendId;
-
-	f = SaveFuncs.open(file, "wb");
-	if (f == NULL) return -1;
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
