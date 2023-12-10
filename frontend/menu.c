@@ -499,6 +499,13 @@ static void make_cfg_fname(char *buf, size_t size, int is_game)
 static void keys_write_all(FILE *f);
 static char *mystrip(char *str);
 
+static void write_u32_value(FILE *f, u32 v)
+{
+	if (v > 7)
+		fprintf(f, "0x");
+	fprintf(f, "%x\n", v);
+}
+
 static int menu_write_config(int is_game)
 {
 	char cfgfile[MAXPATHLEN];
@@ -521,13 +528,13 @@ static int menu_write_config(int is_game)
 			fprintf(f, "%s\n", (char *)config_data[i].val);
 			break;
 		case 1:
-			fprintf(f, "%x\n", *(u8 *)config_data[i].val);
+			write_u32_value(f, *(u8 *)config_data[i].val);
 			break;
 		case 2:
-			fprintf(f, "%x\n", *(u16 *)config_data[i].val);
+			write_u32_value(f, *(u16 *)config_data[i].val);
 			break;
 		case 4:
-			fprintf(f, "%x\n", *(u32 *)config_data[i].val);
+			write_u32_value(f, *(u32 *)config_data[i].val);
 			break;
 		default:
 			printf("menu_write_config: unhandled len %d for %s\n",
