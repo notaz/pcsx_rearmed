@@ -1279,6 +1279,7 @@ static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
 #ifdef __ARM_NEON__
+static const char *men_scanlines[] = { "OFF", "1", "2", "3", NULL };
 static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 #endif
 
@@ -1343,7 +1344,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
 #ifdef __ARM_NEON__
-	mee_onoff     ("Scanlines",                MA_OPT_SCANLINES, scanlines, 1),
+	mee_enum      ("Scanlines",                MA_OPT_SCANLINES, scanlines, men_scanlines),
 	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
 #endif
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),

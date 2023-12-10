@@ -391,17 +391,21 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 	}
 	else if (scanlines != 0 && scanline_level != 100)
 	{
-		int l = scanline_level * 2048 / 100;
+		int h2, l = scanline_level * 2048 / 100;
 		int stride_0 = pl_vout_scale_h >= 2 ? 0 : stride;
 
 		h1 *= pl_vout_scale_h;
-		for (; h1 >= 2; h1 -= 2)
+		while (h1 > 0)
 		{
-			bgr555_to_rgb565(dest, src, w * 2);
-			dest += dstride * 2, src += stride_0;
+			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
+				bgr555_to_rgb565(dest, src, w * 2);
+				dest += dstride * 2, src += stride_0;
+			}
 
-			bgr555_to_rgb565_b(dest, src, w * 2, l);
-			dest += dstride * 2, src += stride;
+			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
+				bgr555_to_rgb565_b(dest, src, w * 2, l);
+				dest += dstride * 2, src += stride;
+			}
 		}
 	}
 #endif
