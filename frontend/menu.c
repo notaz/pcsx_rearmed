@@ -1285,19 +1285,41 @@ static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 
 static int menu_loop_cscaler(int id, int keys)
 {
+	void *saved_layer = NULL;
+	size_t saved_layer_size = 0;
+	int was_layer_clipped = 0;
 	unsigned int inp;
 
+	if (!pl_vout_buf)
+		return -1;
+
 	g_scaler = SCALE_CUSTOM;
+	saved_layer_size = last_vout_w * last_vout_h * last_vout_bpp / 8;
+	saved_layer = malloc(saved_layer_size);
+	if (saved_layer)
+		memcpy(saved_layer, pl_vout_buf, saved_layer_size);
 
 	plat_gvideo_open(Config.PsxType);
 
+	menu_draw_begin(0, 1);
+	memset(g_menuscreen_ptr, 4, g_menuscreen_w * g_menuscreen_h * 2);
+	menu_draw_end();
+
 	for (;;)
 	{
-		menu_draw_begin(0, 1);
-		memset(g_menuscreen_ptr, 4, g_menuscreen_w * g_menuscreen_h * 2);
-		text_out16(2, 2, "%d,%d", g_layer_x, g_layer_y);
-		text_out16(2, 480 - 18, "%dx%d | d-pad: resize, R+d-pad: move",	g_layer_w, g_layer_h);
-		menu_draw_end();
+		if (saved_layer && last_vout_bpp == 16) {
+			int top_x = max(0, -g_layer_x * last_vout_h / 800) + 1;
+			int top_y = max(0, -g_layer_y * last_vout_h / 480) + 1;
+			char text[128];
+			memcpy(pl_vout_buf, saved_layer, saved_layer_size);
+			snprintf(text, sizeof(text), "%d,%d %dx%d",
+				g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+			basic_text_out16_nf(pl_vout_buf, last_vout_w,
+				top_x, top_y, text);
+			basic_text_out16_nf(pl_vout_buf, last_vout_w, 2,
+				last_vout_h - 20, "d-pad: resize, R+d-pad: move");
+			pl_vout_buf = plat_gvideo_flip();
+		}
 
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT
 				|PBTN_R|PBTN_MOK|PBTN_MBACK, NULL, 40);
@@ -1315,22 +1337,30 @@ static int menu_loop_cscaler(int id, int keys)
 			break;
 
 		if (inp & (PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT)) {
-			if (g_layer_x < 0)   g_layer_x = 0;
-			if (g_layer_x > 640) g_layer_x = 640;
-			if (g_layer_y < 0)   g_layer_y = 0;
-			if (g_layer_y > 420) g_layer_y = 420;
-			if (g_layer_w < 160) g_layer_w = 160;
-			if (g_layer_h < 60)  g_layer_h = 60;
-			if (g_layer_x + g_layer_w > 800)
-				g_layer_w = 800 - g_layer_x;
-			if (g_layer_y + g_layer_h > 480)
-				g_layer_h = 480 - g_layer_y;
+			int layer_clipped = 0;
+			g_layer_x = max(-320, min(g_layer_x, 640));
+			g_layer_y = max(-240, min(g_layer_y, 400));
+			g_layer_w = max(160, g_layer_w);
+			g_layer_h = max( 60, g_layer_h);
+			if (g_layer_x < 0 || g_layer_x + g_layer_w > 800)
+				layer_clipped = 1;
+			if (g_layer_w > 800+400)
+				g_layer_w = 800+400;
+			if (g_layer_y < 0 || g_layer_y + g_layer_h > 480)
+				layer_clipped = 1;
+			if (g_layer_h > 480+360)
+				g_layer_h = 480+360;
 			// resize the layer
 			plat_gvideo_open(Config.PsxType);
+			if (layer_clipped || was_layer_clipped)
+				pl_vout_buf = plat_gvideo_set_mode(&last_vout_w,
+					&last_vout_h, &last_vout_bpp);
+			was_layer_clipped = layer_clipped;
 		}
 	}
 
 	plat_gvideo_close();
+	free(saved_layer);
 
 	return 0;
 }

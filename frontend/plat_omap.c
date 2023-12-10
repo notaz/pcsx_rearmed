@@ -79,11 +79,21 @@ static int omap_setup_layer_(int fd, int enabled, int x, int y, int w, int h)
 
 static int omap_enable_layer(int enabled)
 {
-	if (enabled)
-		pl_set_gun_rect(g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+	int x = g_layer_x, y = g_layer_y;
+	int w = g_layer_w, h = g_layer_h;
 
-	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb), enabled,
-		g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+	// it's not allowed for the layer to be partially offscreen,
+	// instead it is faked by plat_gvideo_set_mode()
+	if (x < 0) { w += x; x = 0; }
+	if (y < 0) { h += y; y = 0; }
+	if (x + w > 800) w = 800 - x;
+	if (y + h > 480) h = 480 - y;
+
+	if (enabled)
+		pl_set_gun_rect(x, y, w, h);
+
+	return omap_setup_layer_(vout_fbdev_get_fd(layer_fb),
+		enabled, x, y, w, h);
 }
 
 void plat_omap_gvideo_open(void)
@@ -101,15 +111,25 @@ void *plat_gvideo_set_mode(int *w_in, int *h_in, int *bpp)
 	void *buf;
 
 	if (g_scaler == SCALE_1_1 || g_scaler == SCALE_2_2) {
-		if (w > g_menuscreen_w) {
+		if (w > g_menuscreen_w)
 			l = r = (w - g_menuscreen_w) / 2;
-			w -= l + r;
-		}
-		if (h > g_menuscreen_h) {
+		if (h > g_menuscreen_h)
 			t = b = (h - g_menuscreen_h) / 2;
-			h -= t + b;
-		}
 	}
+	else if (g_scaler == SCALE_CUSTOM) {
+		int right = g_layer_x + g_layer_w;
+		int bottom = g_layer_y + g_layer_h;
+		if (g_layer_x < 0)
+			l = -g_layer_x * w / g_menuscreen_w;
+		if (g_layer_y < 0)
+			t = -g_layer_y * h / g_menuscreen_h;
+		if (right > g_menuscreen_w)
+			r = (right - g_menuscreen_w) * w / g_menuscreen_w;
+		if (bottom > g_menuscreen_h)
+			b = (bottom - g_menuscreen_h) * h / g_menuscreen_h;
+	}
+	w -= l + r;
+	h -= t + b;
 
 	buf = vout_fbdev_resize(layer_fb, w, h, *bpp,
 		l, r, t, b, 3);
