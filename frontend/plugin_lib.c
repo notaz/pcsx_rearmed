@@ -338,7 +338,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 	doffs = xoffs + y * dstride;
 
 	if (dims_changed)
-		flip_clear_counter = 2;
+		flip_clear_counter = 3;
 
 	if (flip_clear_counter > 0) {
 		if (pl_plat_clear)

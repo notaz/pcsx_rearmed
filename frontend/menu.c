@@ -1720,6 +1720,7 @@ static const char h_confirm_save[]    = "Ask for confirmation when overwriting s
 static const char h_restore_def[]     = "Switches back to default / recommended\n"
 					"configuration";
 static const char h_frameskip[]       = "Warning: frameskip sometimes causes glitches\n";
+static const char h_sputhr[]          = "Warning: has some known bugs\n";
 
 static menu_entry e_menu_options[] =
 {
@@ -1730,9 +1731,9 @@ static menu_entry e_menu_options[] =
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
 #ifdef C64X_DSP
-	mee_onoff     ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
+	mee_onoff_h   ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
 #else
-	mee_onoff     ("Threaded SPU",             MA_OPT_SPU_THREAD, spu_config.iUseThread, 1),
+	mee_onoff_h   ("Threaded SPU",             MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
 #endif
 	mee_handler_id("[Display]",                MA_OPT_DISP_OPTS, menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),

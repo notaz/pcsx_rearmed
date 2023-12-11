@@ -162,7 +162,7 @@ static void thread_work_wait_sync(struct work_item *work, int force)
  preload(work->SSumLR);
  preload(work->SSumLR + 64/4);
 
- f.stale_caches = 1; // SB, spuMem
+ f.stale_caches = 1; // sb, spuMem
 
  if (limit == 0)
   printf("dsp: wait timeout\n");
@@ -188,7 +188,7 @@ static void thread_work_wait_sync(struct work_item *work, int force)
 static void thread_sync_caches(void)
 {
  if (f.stale_caches) {
-  f.dsp_cache_inv_virt(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24);
+  f.dsp_cache_inv_virt(spu.sb_thread, sizeof(spu.sb_thread[0]) * MAXCHAN);
   f.dsp_cache_inv_virt(spu.spuMemC + 0x800, 0x800);
   if (spu.rvb->StartAddr) {
    int left = 0x40000 - spu.rvb->StartAddr;
@@ -281,8 +281,7 @@ static void init_spu_thread(void)
  // override default allocations
  free(spu.spuMemC);
  spu.spuMemC = mem->spu_ram;
- free(spu.SB);
- spu.SB = mem->SB;
+ spu.sb_thread = mem->sb_thread;
  free(spu.s_chan);
  spu.s_chan = mem->in.s_chan;
  free(spu.rvb);
@@ -326,7 +325,7 @@ static void exit_spu_thread(void)
  f.dsp_close();
 
  spu.spuMemC = NULL;
- spu.SB = NULL;
+ spu.sb_thread = spu.sb_thread_;
  spu.s_chan = NULL;
  spu.rvb = NULL;
  worker = NULL;

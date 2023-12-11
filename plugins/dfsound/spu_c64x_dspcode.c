@@ -114,7 +114,7 @@ static void do_processing(void)
   // nothing to do? Write out non-critical caches
   if (dirty) {
    syscalls.cache_wb(spu.spuMemC + 0x800, 0x800, 1);
-   syscalls.cache_wb(spu.SB, sizeof(spu.SB[0]) * SB_SIZE * 24, 1);
+   syscalls.cache_wb(spu.sb_thread, sizeof(spu.sb_thread[0]) * MAXCHAN, 1);
    if (had_rvb) {
     left = 0x40000 - spu.rvb->StartAddr;
     syscalls.cache_wb(spu.spuMem + spu.rvb->StartAddr, left * 2, 1);
@@ -143,7 +143,7 @@ static unsigned int exec(dsp_component_cmd_t cmd,
    InitADSR();
 
    spu.spuMemC = mem->spu_ram;
-   spu.SB = mem->SB;
+   spu.sb_thread = mem->sb_thread;
    spu.s_chan = mem->in.s_chan;
    spu.rvb = &mem->in.rvb;
    worker = &mem->worker;
@@ -169,7 +169,7 @@ static unsigned int exec(dsp_component_cmd_t cmd,
 
    do_processing();
 
-   syscalls.cache_inv(&mem->SB, sizeof(mem->SB), 0);
+   syscalls.cache_inv(&mem->sb_thread, sizeof(mem->sb_thread), 0);
    syscalls.cache_inv(&mem->in, sizeof(mem->in), 0);
    break;
 
