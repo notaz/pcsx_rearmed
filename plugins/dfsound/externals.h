@@ -253,13 +253,17 @@ typedef struct
 
  sample_buf      sb[MAXCHAN];
  int             interpolation;
- sample_buf      sb_thread[MAXCHAN];
+
+#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+ sample_buf    * sb_thread;
+ sample_buf      sb_thread_[MAXCHAN];
+#endif
 } SPUInfo;
 
 #define regAreaGet(offset) \
-  spu.regArea[((offset) - 0xc00)>>1]
+  spu.regArea[((offset) - 0xc00) >> 1]
 #define regAreaGetCh(ch, offset) \
-  spu.regArea[((ch<<4)|(offset))>>1]
+  spu.regArea[(((ch) << 4) | (offset)) >> 1]
 
 ///////////////////////////////////////////////////////////
 // SPU.C globals

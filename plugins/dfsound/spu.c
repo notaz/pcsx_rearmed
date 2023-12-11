@@ -1490,6 +1490,8 @@ static void init_spu_thread(void)
 {
  int ret;
 
+ spu.sb_thread = spu.sb_thread_;
+
  if (sysconf(_SC_NPROCESSORS_ONLN) <= 1)
   return;
 

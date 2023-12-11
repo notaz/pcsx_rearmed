@@ -1,6 +1,9 @@
 ifndef C64_TOOLS_DSP_ROOT
 $(error need C64_TOOLS_DSP_ROOT)
 endif
+ifndef TI_CGTOOLS
+$(error need TI_CGTOOLS and stuff, source c64_tools/dsp/setenv.sh)
+endif
 
 include $(C64_TOOLS_DSP_ROOT)/install.mk
 

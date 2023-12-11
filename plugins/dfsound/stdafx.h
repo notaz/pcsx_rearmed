@@ -32,7 +32,7 @@
 #define INLINE static inline
 #endif
 
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define HTOLE16(x) __builtin_bswap16(x)
 #define LE16TOH(x) __builtin_bswap16(x)
 #else

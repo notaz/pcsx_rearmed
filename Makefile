@@ -179,7 +179,7 @@ ifeq "$(ARCH)" "arm"
 OBJS += plugins/dfsound/arm_utils.o
 endif
 ifeq "$(HAVE_C64_TOOLS)" "1"
-plugins/dfsound/spu.o: CFLAGS += -DC64X_DSP
+plugins/dfsound/%.o: CFLAGS += -DC64X_DSP -DWANT_THREAD_CODE
 plugins/dfsound/spu.o: plugins/dfsound/spu_c64x.c
 frontend/menu.o: CFLAGS += -DC64X_DSP
 endif
@@ -313,6 +313,8 @@ frontend/main.o frontend/menu.o: CFLAGS += -include frontend/pandora/ui_feat.h
 frontend/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
+CFLAGS += -gdwarf-3 -ffunction-sections -fdata-sections
+LDFLAGS += -Wl,--gc-sections
 endif
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/libpicofe/gp2x/in_gp2x.o frontend/warm/warm.o
