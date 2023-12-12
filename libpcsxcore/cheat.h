@@ -98,23 +98,27 @@ extern int NumCodesAllocated;
 #define PrevMu32(mem)	(SWAP32(*(u32 *)PREVM(mem)))
 
 // cheat types
-#define CHEAT_CONST8		0x30	/* 8-bit Constant Write */
-#define CHEAT_CONST16		0x80	/* 16-bit Constant Write */
-#define CHEAT_INC16			0x10	/* 16-bit Increment */
-#define CHEAT_DEC16			0x11	/* 16-bit Decrement */
-#define CHEAT_INC8			0x20	/* 8-bit Increment */
-#define CHEAT_DEC8			0x21	/* 8-bit Decrement */
-#define CHEAT_SLIDE			0x50	/* Slide Codes */
-#define CHEAT_MEMCPY		0xC2	/* Memory Copy */
+#define CHEAT_CONST8        0x30	/* 8-bit Constant Write */
+#define CHEAT_CONST16       0x80	/* 16-bit Constant Write */
 
-#define CHEAT_EQU8			0xE0	/* 8-bit Equal To */
-#define CHEAT_NOTEQU8		0xE1	/* 8-bit Not Equal To */
-#define CHEAT_LESSTHAN8		0xE2	/* 8-bit Less Than */
-#define CHEAT_GREATERTHAN8  0xE3	/* 8-bit Greater Than */
-#define CHEAT_EQU16			0xD0	/* 16-bit Equal To */
-#define CHEAT_NOTEQU16		0xD1	/* 16-bit Not Equal To */
-#define CHEAT_LESSTHAN16	0xD2	/* 16-bit Less Than */
+#define CHEAT_INC16         0x10	/* 16-bit Increment */
+#define CHEAT_DEC16         0x11	/* 16-bit Decrement */
+#define CHEAT_SCRATCHPAD16  0x1F	/* 16-bit Scratchpad Write */
+#define CHEAT_INC8          0x20	/* 8-bit Increment */
+#define CHEAT_DEC8          0x21	/* 8-bit Decrement */
+#define CHEAT_SLIDE         0x50	/* Slide Codes */
+#define CHEAT_MEMCPY        0xC2	/* Memory Copy */
+
+// conditionals
+#define CHEAT_EQU16         0xD0	/* 16-bit Equal To */
+#define CHEAT_NOTEQU16      0xD1	/* 16-bit Not Equal To */
+#define CHEAT_LESSTHAN16    0xD2	/* 16-bit Less Than */
 #define CHEAT_GREATERTHAN16 0xD3	/* 16-bit Greater Than */
+#define CHEAT_BUTTONS1_16   0xD4	/* button presses equate to YYYY */
+#define CHEAT_EQU8          0xE0	/* 8-bit Equal To */
+#define CHEAT_NOTEQU8       0xE1	/* 8-bit Not Equal To */
+#define CHEAT_LESSTHAN8     0xE2	/* 8-bit Less Than */
+#define CHEAT_GREATERTHAN8  0xE3	/* 8-bit Greater Than */
 
 #ifdef __cplusplus
 }
