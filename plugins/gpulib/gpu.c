@@ -666,6 +666,7 @@ static noinline int do_cmd_buffer(uint32_t *data, int count,
         cmd = -1; // incomplete cmd, can't consume yet
         break;
       }
+      renderer_sync();
       *cycles_sum += *cycles_last;
       *cycles_last = 0;
       do_vram_copy(data + pos + 1, cycles_last);

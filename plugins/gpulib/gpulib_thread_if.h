@@ -24,7 +24,8 @@
 extern "C" {
 #endif
 
-int  real_do_cmd_list(uint32_t *list, int count, int *cycles, int *last_cmd);
+int  real_do_cmd_list(uint32_t *list, int count,
+	       int *cycles_sum_out, int *cycles_last, int *last_cmd);
 int  real_renderer_init(void);
 void real_renderer_finish(void);
 void real_renderer_sync_ecmds(uint32_t * ecmds);

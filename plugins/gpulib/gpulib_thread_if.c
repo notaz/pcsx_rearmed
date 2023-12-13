@@ -23,6 +23,8 @@
 #include <pthread.h>
 #include "../gpulib/gpu.h"
 #include "../../frontend/plugin_lib.h"
+#include "gpu.h"
+#include "gpu_timing.h"
 #include "gpulib_thread_if.h"
 
 #define FALSE 0
@@ -74,7 +76,7 @@ static void *video_thread_main(void *arg) {
 #endif /* _3DS */
 
 	while(1) {
-		int result, cpu_cycles = 0, last_cmd, start, end;
+		int result, cycles_dummy = 0, last_cmd, start, end;
 		video_thread_queue *queue;
 		pthread_mutex_lock(&thread->queue_lock);
 
@@ -96,7 +98,7 @@ static void *video_thread_main(void *arg) {
 		for (i = start; i < end; i++) {
 			cmd = &queue->queue[i];
 			result = real_do_cmd_list(cmd->cmd_list, cmd->count,
-					&cpu_cycles, &last_cmd);
+					&cycles_dummy, &cycles_dummy, &last_cmd);
 			if (result != cmd->count) {
 				fprintf(stderr, "Processed wrong cmd count: expected %d, got %d\n", cmd->count, result);
 			}
@@ -293,40 +295,98 @@ static void video_thread_queue_cmd(uint32_t *list, int count, int last_cmd) {
 
 /* Slice off just the part of the list that can be handled async, and
  * update ex_regs. */
-static int scan_cmd_list(uint32_t *data, int count, int *last_cmd)
+static int scan_cmd_list(uint32_t *data, int count,
+	int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
+	int cpu_cycles_sum = 0, cpu_cycles = *cycles_last;
 	int cmd = 0, pos = 0, len, v;
 
 	while (pos < count) {
 		uint32_t *list = data + pos;
-		cmd = list[0] >> 24;
+		short *slist = (void *)list;
+		cmd = LE32TOH(list[0]) >> 24;
 		len = 1 + cmd_lengths[cmd];
 
 		switch (cmd) {
 			case 0x02:
+				gput_sum(cpu_cycles_sum, cpu_cycles,
+					gput_fill(LE16TOH(slist[4]) & 0x3ff,
+						LE16TOH(slist[5]) & 0x1ff));
+				break;
+			case 0x20 ... 0x23:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base());
 				break;
 			case 0x24 ... 0x27:
-			case 0x2c ... 0x2f:
-			case 0x34 ... 0x37:
-			case 0x3c ... 0x3f:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_t());
 				gpu.ex_regs[1] &= ~0x1ff;
-				gpu.ex_regs[1] |= list[4 + ((cmd >> 4) & 1)] & 0x1ff;
+				gpu.ex_regs[1] |= LE32TOH(list[4]) & 0x1ff;
+				break;
+			case 0x28 ... 0x2b:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base());
+				break;
+			case 0x2c ... 0x2f:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
+				gpu.ex_regs[1] &= ~0x1ff;
+				gpu.ex_regs[1] |= LE32TOH(list[4]) & 0x1ff;
+				break;
+			case 0x30 ... 0x33:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
+				break;
+			case 0x34 ... 0x37:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
+				gpu.ex_regs[1] &= ~0x1ff;
+				gpu.ex_regs[1] |= LE32TOH(list[5]) & 0x1ff;
+				break;
+			case 0x38 ... 0x3b:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
+				break;
+			case 0x3c ... 0x3f:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
+				gpu.ex_regs[1] &= ~0x1ff;
+				gpu.ex_regs[1] |= LE32TOH(list[5]) & 0x1ff;
+				break;
+			case 0x40 ... 0x47:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 				break;
 			case 0x48 ... 0x4F:
 				for (v = 3; pos + v < count; v++)
 				{
+					gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 					if ((list[v] & 0xf000f000) == 0x50005000)
 						break;
 				}
 				len += v - 3;
 				break;
+			case 0x50 ... 0x57:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
+				break;
 			case 0x58 ... 0x5F:
 				for (v = 4; pos + v < count; v += 2)
 				{
+					gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 					if ((list[v] & 0xf000f000) == 0x50005000)
 						break;
 				}
 				len += v - 4;
+				break;
+			case 0x60 ... 0x63:
+				gput_sum(cpu_cycles_sum, cpu_cycles,
+					gput_sprite(LE16TOH(slist[4]) & 0x3ff,
+						LE16TOH(slist[5]) & 0x1ff));
+				break;
+			case 0x64 ... 0x67:
+				gput_sum(cpu_cycles_sum, cpu_cycles,
+					gput_sprite(LE16TOH(slist[6]) & 0x3ff,
+						LE16TOH(slist[7]) & 0x1ff));
+				break;
+			case 0x68 ... 0x6b:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
+				break;
+			case 0x70 ... 0x77:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(8, 8));
+				break;
+			case 0x78 ... 0x7f:
+				gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(16, 16));
 				break;
 			default:
 				if ((cmd & 0xf8) == 0xe0)
@@ -338,24 +398,28 @@ static int scan_cmd_list(uint32_t *data, int count, int *last_cmd)
 			cmd = -1;
 			break; /* incomplete cmd */
 		}
-		if (0xa0 <= cmd && cmd <= 0xdf)
+		if (0x80 <= cmd && cmd <= 0xdf)
 			break; /* image i/o */
 
 		pos += len;
 	}
 
+	*cycles_sum_out += cpu_cycles_sum;
+	*cycles_last = cpu_cycles;
 	*last_cmd = cmd;
 	return pos;
 }
 
-int do_cmd_list(uint32_t *list, int count, int *cycles, int *last_cmd) {
+int do_cmd_list(uint32_t *list, int count,
+ int *cycles_sum, int *cycles_last, int *last_cmd)
+{
 	int pos = 0;
 
 	if (thread.running) {
-		pos = scan_cmd_list(list, count, last_cmd);
+		pos = scan_cmd_list(list, count, cycles_sum, cycles_last, last_cmd);
 		video_thread_queue_cmd(list, pos, *last_cmd);
 	} else {
-		pos = real_do_cmd_list(list, count, cycles, last_cmd);
+		pos = real_do_cmd_list(list, count, cycles_sum, cycles_last, last_cmd);
 		memcpy(gpu.ex_regs, gpu.scratch_ex_regs, sizeof(gpu.ex_regs));
 	}
 	return pos;
@@ -379,7 +443,7 @@ void renderer_finish(void) {
 void renderer_sync_ecmds(uint32_t * ecmds) {
 	if (thread.running) {
 		int dummy = 0;
-		do_cmd_list(&ecmds[1], 6, &dummy, &dummy);
+		do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
 	} else {
 		real_renderer_sync_ecmds(ecmds);
 	}
