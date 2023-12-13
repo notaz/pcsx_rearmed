@@ -38,7 +38,8 @@ sync_enhancement_buffers(int x, int y, int w, int h);
 
 static psx_gpu_struct egpu __attribute__((aligned(256)));
 
-int do_cmd_list(uint32_t *list, int count, int *cycles, int *last_cmd)
+int do_cmd_list(uint32_t *list, int count,
+ int *cycles_sum, int *cycles_last, int *last_cmd)
 {
   int ret;
 
@@ -48,9 +49,11 @@ int do_cmd_list(uint32_t *list, int count, int *cycles, int *last_cmd)
 #endif
 
   if (gpu.state.enhancement_active)
-    ret = gpu_parse_enhanced(&egpu, list, count * 4, cycles, (u32 *)last_cmd);
+    ret = gpu_parse_enhanced(&egpu, list, count * 4,
+            cycles_sum, cycles_last, (u32 *)last_cmd);
   else
-    ret = gpu_parse(&egpu, list, count * 4, cycles, (u32 *)last_cmd);
+    ret = gpu_parse(&egpu, list, count * 4,
+            cycles_sum, cycles_last, (u32 *)last_cmd);
 
 #if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
   __asm__ __volatile__("":::"q4","q5","q6","q7");
@@ -156,7 +159,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
 {
   s32 dummy0 = 0;
   u32 dummy1 = 0;
-  gpu_parse(&egpu, ecmds + 1, 6 * 4, &dummy0, &dummy1);
+  gpu_parse(&egpu, ecmds + 1, 6 * 4, &dummy0, &dummy0, &dummy1);
 }
 
 void renderer_update_caches(int x, int y, int w, int h, int state_changed)

@@ -122,7 +122,7 @@ extern void GPUwriteDataMem(uint32_t *, int);
 extern uint32_t GPUreadStatus(void);
 extern uint32_t GPUreadData(void);
 extern void GPUreadDataMem(uint32_t *, int);
-extern long GPUdmaChain(uint32_t *, uint32_t, uint32_t *);
+extern long GPUdmaChain(uint32_t *, uint32_t, uint32_t *, int32_t *);
 extern void GPUupdateLace(void);
 extern long GPUfreeze(uint32_t, void *);
 extern void GPUvBlank(int, int);
