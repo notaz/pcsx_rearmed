@@ -33,6 +33,8 @@ static const char * const gpu_slow_llist_db[] =
 	"SCES02834", "SCUS94570", "SCUS94616", "SCUS94654",
 	/* Final Fantasy IV */
 	"SCES03840", "SLPM86028", "SLUS01360",
+	/* Point Blank - calibration cursor */
+	"SCED00287", "SCES00886", "SLUS00481",
 	/* Simple 1500 Series Vol. 57: The Meiro */
 	"SLPM86715",
 	/* Spot Goes to Hollywood */
@@ -117,6 +119,8 @@ cycle_multiplier_overrides[] =
 	/* Psychic Detective - some weird race condition in the game's cdrom code */
 	{ 222, { "SLUS00165", "SLUS00166", "SLUS00167" } },
 	{ 222, { "SLES00070", "SLES10070", "SLES20070" } },
+	/* Vib-Ribbon - cd timing issues (PAL+ari64drc only?) */
+	{ 200, { "SCES02873" } },
 	/* Zero Divide - sometimes too fast */
 	{ 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
 };
