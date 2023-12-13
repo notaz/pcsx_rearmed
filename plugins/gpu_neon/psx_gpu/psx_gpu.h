@@ -255,7 +255,7 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu);
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
- s32 *cpu_cycles, u32 *last_command);
+ s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command);
 
 void triangle_benchmark(psx_gpu_struct *psx_gpu);
 

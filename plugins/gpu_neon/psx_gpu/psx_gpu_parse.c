@@ -252,10 +252,11 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
 #endif
 
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
- s32 *cpu_cycles_out, u32 *last_command)
+ s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
-  u32 current_command = 0, command_length, cpu_cycles = 0;
+  u32 current_command = 0, command_length;
+  u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -284,7 +285,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 color = list[0] & 0xFFFFFF;
 
         do_fill(psx_gpu, x, y, width, height, color);
-        cpu_cycles += gput_fill(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_fill(width, height));
         break;
       }
 
@@ -297,7 +298,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(2, 6);
           
         render_triangle(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base());
         break;
       }
   
@@ -312,7 +313,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(2, 10);
   
         render_triangle(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_t();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_t());
         break;
       }
   
@@ -327,7 +328,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-        cpu_cycles += gput_quad_base();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base());
         break;
       }
   
@@ -344,7 +345,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-        cpu_cycles += gput_quad_base_t();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
         break;
       }
   
@@ -355,7 +356,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(2, 8);
   
         render_triangle(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_g();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
         break;
       }
   
@@ -369,7 +370,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(2, 12);
 
         render_triangle(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_gt();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
         break;
       }
   
@@ -382,7 +383,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-        cpu_cycles += gput_quad_base_g();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
         break;
       }
   
@@ -398,7 +399,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         render_triangle(psx_gpu, vertexes, current_command);
         render_triangle(psx_gpu, &(vertexes[1]), current_command);
-        cpu_cycles += gput_quad_base_gt();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
         break;
       }
   
@@ -410,7 +411,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         vertexes[1].y = list_s16[5] + psx_gpu->offset_y;
 
         render_line(psx_gpu, vertexes, current_command, list[0], 0);
-        cpu_cycles += gput_line(0);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
         break;
       }
   
@@ -432,7 +433,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
           render_line(psx_gpu, vertexes, current_command, list[0], 0);
-          cpu_cycles += gput_line(0);
+          gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 
           list_position++;
           num_vertexes++;
@@ -467,7 +468,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         vertexes[1].y = list_s16[7] + psx_gpu->offset_y;
 
         render_line(psx_gpu, vertexes, current_command, 0, 0);
-        cpu_cycles += gput_line(0);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
         break;
       }
  
@@ -498,7 +499,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           vertexes[1].y = (xy >> 16) + psx_gpu->offset_y;
 
           render_line(psx_gpu, vertexes, current_command, 0, 0);
-          cpu_cycles += gput_line(0);
+          gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 
           list_position += 2;
           num_vertexes++;
@@ -527,7 +528,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -543,7 +544,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
            &width, &height, current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -555,7 +556,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
-        cpu_cycles += gput_sprite(1, 1);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
         break;
       }
   
@@ -567,7 +568,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -582,7 +583,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
            &width, &height, current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -594,7 +595,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -609,7 +610,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, uv & 0xFF, (uv >> 8) & 0xFF,
            &width, &height, current_command, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -789,7 +790,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   }
 
 breakloop:
-  *cpu_cycles_out += cpu_cycles;
+  *cpu_cycles_sum_out += cpu_cycles_sum;
+  *cpu_cycles_last = cpu_cycles;
   *last_command = current_command;
   return list - list_start;
 }
@@ -1202,10 +1204,11 @@ static void do_sprite_enhanced(psx_gpu_struct *psx_gpu, int x, int y,
 #endif
 
 u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
- s32 *cpu_cycles_out, u32 *last_command)
+ s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
-  u32 current_command = 0, command_length, cpu_cycles = 0;
+  u32 current_command = 0, command_length;
+  u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -1244,7 +1247,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         x &= ~0xF;
         width = ((width + 0xF) & ~0xF);
-        cpu_cycles += gput_fill(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_fill(width, height));
         if (width == 0 || height == 0)
           break;
 
@@ -1275,7 +1278,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(2, 6);
 
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base());
         break;
       }
   
@@ -1290,7 +1293,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(2, 10);
   
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_t();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_t());
         break;
       }
   
@@ -1304,7 +1307,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(3, 8);
 
         do_quad_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_quad_base();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base());
         break;
       }
   
@@ -1321,7 +1324,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
         uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_quad_base_t();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
         break;
       }
   
@@ -1332,7 +1335,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(2, 8);
   
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_g();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
         break;
       }
   
@@ -1346,7 +1349,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(2, 12);
 
         do_triangle_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_poly_base_gt();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
         break;
       }
   
@@ -1358,7 +1361,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(3, 12);
   
         do_quad_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_quad_base_g();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
         break;
       }
   
@@ -1374,7 +1377,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
-        cpu_cycles += gput_quad_base_gt();
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
         break;
       }
   
@@ -1388,7 +1391,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         render_line(psx_gpu, vertexes, current_command, list[0], 0);
         if (enhancement_enable(psx_gpu))
           render_line(psx_gpu, vertexes, current_command, list[0], 1);
-        cpu_cycles += gput_line(0);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
         break;
       }
   
@@ -1413,7 +1416,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           render_line(psx_gpu, vertexes, current_command, list[0], 0);
           if (enhancement_enable(psx_gpu))
             render_line(psx_gpu, vertexes, current_command, list[0], 1);
-          cpu_cycles += gput_line(0);
+          gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 
           list_position++;
           num_vertexes++;
@@ -1450,7 +1453,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         render_line(psx_gpu, vertexes, current_command, 0, 0);
         if (enhancement_enable(psx_gpu))
           render_line(psx_gpu, vertexes, current_command, 0, 1);
-        cpu_cycles += gput_line(0);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
         break;
       }
  
@@ -1484,7 +1487,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           render_line(psx_gpu, vertexes, current_command, 0, 0);
           if (enhancement_enable(psx_gpu))
             render_line(psx_gpu, vertexes, current_command, 0, 1);
-          cpu_cycles += gput_line(0);
+          gput_sum(cpu_cycles_sum, cpu_cycles, gput_line(0));
 
           list_position += 2;
           num_vertexes++;
@@ -1516,7 +1519,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -1536,7 +1539,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + width))
           do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -1551,7 +1554,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 1))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        cpu_cycles += gput_sprite(1, 1);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
         break;
       }
   
@@ -1566,7 +1569,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -1585,7 +1588,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
           do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -1600,7 +1603,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
           do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
   
@@ -1619,7 +1622,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
           do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
-        cpu_cycles += gput_sprite(width, height);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
         break;
       }
 
@@ -1773,7 +1776,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   enhancement_disable();
 
 breakloop:
-  *cpu_cycles_out += cpu_cycles;
+  *cpu_cycles_sum_out += cpu_cycles_sum;
+  *cpu_cycles_last = cpu_cycles;
   *last_command = current_command;
   return list - list_start;
 }
