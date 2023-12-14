@@ -23,7 +23,6 @@ enum {
 	DKEY_CROSS,
 	DKEY_SQUARE,
 };
-extern int in_state_gun;
 extern int in_type[8];
 extern int multitap1;
 extern int multitap2;

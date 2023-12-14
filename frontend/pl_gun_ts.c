@@ -54,7 +54,7 @@ int pl_gun_ts_update_raw(struct tsdev *ts, int *x, int *y, int *p)
 			gun_y = (sy - ts_offs_y) * ts_multiplier_y >> 10;
 			limit(gun_x, 0, 1023);
 			limit(gun_y, 0, 1023);
-			if (sp && !(g_opts & OPT_TSGUN_NOTRIGGER))
+			if (sp)
 				gun_in |= 1;
 			else
 				gun_in &= ~1;
@@ -78,7 +78,7 @@ void pl_gun_ts_update(struct tsdev *ts, int *x, int *y, int *in)
 
 	*x = gun_x;
 	*y = gun_y;
-	*in = gun_in | in_state_gun;
+	*in = gun_in;
 }
 
 void pl_set_gun_rect(int x, int y, int w, int h)

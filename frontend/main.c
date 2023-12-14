@@ -288,6 +288,10 @@ do_state_slot:
 				SysMessage("GPU_open returned %d", ret);
 		}
 		return;
+	case SACTION_ANALOG_TOGGLE:
+		ret = padToggleAnalog(0);
+		snprintf(hud_msg, sizeof(hud_msg), "ANALOG %s", ret ? "ON" : "OFF");
+		break;
 #endif
 	default:
 		return;
