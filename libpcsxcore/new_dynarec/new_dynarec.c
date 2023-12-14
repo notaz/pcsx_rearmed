@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #ifdef __MACH__
 #include <libkern/OSCacheControl.h>
 #endif
@@ -111,18 +112,16 @@ struct ndrc_mem
   struct ndrc_tramp tramp;
 };
 
-#ifdef BASE_ADDR_DYNAMIC
 static struct ndrc_mem *ndrc;
-#else
-static struct ndrc_mem ndrc_ __attribute__((aligned(4096)));
-static struct ndrc_mem *ndrc = &ndrc_;
+#ifndef BASE_ADDR_DYNAMIC
+// reserve .bss space with upto 64k page size in mind
+static char ndrc_bss[((sizeof(*ndrc) + 65535) & ~65535) + 65536];
 #endif
 #ifdef TC_WRITE_OFFSET
 # ifdef __GLIBC__
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <fcntl.h>
-# include <unistd.h>
 # endif
 static long ndrc_write_ofs;
 #define NDRC_WRITE_OFFSET(x) (void *)((char *)(x) + ndrc_write_ofs)
@@ -6262,9 +6261,20 @@ void new_dynarec_clear_full(void)
   new_dynarec_hacks_old = new_dynarec_hacks;
 }
 
+static int pgsize(void)
+{
+#ifdef _SC_PAGESIZE
+  return sysconf(_SC_PAGESIZE);
+#else
+  return 4096;
+#endif
+}
+
 void new_dynarec_init(void)
 {
-  SysPrintf("Init new dynarec, ndrc size %x\n", (int)sizeof(*ndrc));
+  int align = pgsize() - 1;
+  SysPrintf("Init new dynarec, ndrc size %x, pgsize %d\n",
+    (int)sizeof(*ndrc), align + 1);
 
 #ifdef _3DS
   check_rosalina();
@@ -6320,11 +6330,12 @@ void new_dynarec_init(void)
   #endif
 #else
   #ifndef NO_WRITE_EXEC
+  ndrc = (struct ndrc_mem *)((size_t)(ndrc_bss + align) & ~align);
   // not all systems allow execute in data segment by default
   // size must be 4K aligned for 3DS?
   if (mprotect(ndrc, sizeof(*ndrc),
                PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
-    SysPrintf("mprotect() failed: %s\n", strerror(errno));
+    SysPrintf("mprotect(%p) failed: %s\n", ndrc, strerror(errno));
   #endif
 #endif
   out = ndrc->translation_cache;
