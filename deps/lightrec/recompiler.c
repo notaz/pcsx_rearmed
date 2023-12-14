@@ -23,6 +23,7 @@
 struct block_rec {
 	struct block *block;
 	struct slist_elm slist;
+	unsigned int requests;
 	bool compiling;
 };
 
@@ -64,19 +65,20 @@ static unsigned int get_processors_count(void)
 	return nb < 1 ? 1 : nb;
 }
 
-static struct slist_elm * lightrec_get_first_elm(struct slist_elm *head)
+static struct block_rec * lightrec_get_best_elm(struct slist_elm *head)
 {
-	struct block_rec *block_rec;
+	struct block_rec *block_rec, *best = NULL;
 	struct slist_elm *elm;
 
 	for (elm = slist_first(head); elm; elm = elm->next) {
 		block_rec = container_of(elm, struct block_rec, slist);
 
-		if (!block_rec->compiling)
-			return elm;
+		if (!block_rec->compiling
+		    && (!best || block_rec->requests > best->requests))
+			best = block_rec;
 	}
 
-	return NULL;
+	return best;
 }
 
 static bool lightrec_cancel_block_rec(struct recompiler *rec,
@@ -126,12 +128,10 @@ static void lightrec_compile_list(struct recompiler *rec,
 				  struct recompiler_thd *thd)
 {
 	struct block_rec *block_rec;
-	struct slist_elm *next;
 	struct block *block;
 	int ret;
 
-	while (!!(next = lightrec_get_first_elm(&rec->slist))) {
-		block_rec = container_of(next, struct block_rec, slist);
+	while (!!(block_rec = lightrec_get_best_elm(&rec->slist))) {
 		block_rec->compiling = true;
 		block = block_rec->block;
 
@@ -166,7 +166,7 @@ static void lightrec_compile_list(struct recompiler *rec,
 
 		pthread_mutex_lock(&rec->mutex);
 
-		slist_remove(&rec->slist, next);
+		slist_remove(&rec->slist, &block_rec->slist);
 		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 			      sizeof(*block_rec), block_rec);
 		pthread_cond_broadcast(&rec->cond2);
@@ -314,8 +314,9 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
-	struct slist_elm *elm, *prev;
+	struct slist_elm *elm;
 	struct block_rec *block_rec;
+	u32 pc1, pc2;
 	int ret = 0;
 
 	pthread_mutex_lock(&rec->mutex);
@@ -331,20 +332,23 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	if (block_has_flag(block, BLOCK_IS_DEAD))
 		goto out_unlock;
 
-	for (elm = slist_first(&rec->slist), prev = NULL; elm;
-	     prev = elm, elm = elm->next) {
+	for (elm = slist_first(&rec->slist); elm; elm = elm->next) {
 		block_rec = container_of(elm, struct block_rec, slist);
 
 		if (block_rec->block == block) {
-			/* The block to compile is already in the queue - bump
-			 * it to the top of the list, unless the block is being
-			 * recompiled. */
-			if (prev && !block_rec->compiling &&
-			    !block_has_flag(block, BLOCK_SHOULD_RECOMPILE)) {
-				slist_remove_next(prev);
-				slist_append(&rec->slist, elm);
-			}
+			/* The block to compile is already in the queue -
+			 * increment its counter to increase its priority */
+			block_rec->requests++;
+			goto out_unlock;
+		}
 
+		pc1 = kunseg(block_rec->block->pc);
+		pc2 = kunseg(block->pc);
+		if (pc2 >= pc1 && pc2 < pc1 + block_rec->block->nb_ops * 4) {
+			/* The block we want to compile is already covered by
+			 * another one in the queue - increment its counter to
+			 * increase its priority */
+			block_rec->requests++;
 			goto out_unlock;
 		}
 	}
@@ -365,14 +369,11 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	block_rec->block = block;
 	block_rec->compiling = false;
+	block_rec->requests = 1;
 
 	elm = &rec->slist;
 
-	/* If the block is being recompiled, push it to the end of the queue;
-	 * otherwise push it to the front of the queue. */
-	if (block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
-		for (; elm->next; elm = elm->next);
-
+	/* Push the new entry to the front of the queue */
 	slist_append(elm, &block_rec->slist);
 
 	/* Signal the thread */

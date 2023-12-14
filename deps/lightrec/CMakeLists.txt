@@ -54,7 +54,7 @@ list(APPEND LIGHTREC_HEADERS
 
 option(ENABLE_FIRST_PASS "Run the interpreter as first-pass optimization" ON)
 
-option(ENABLE_THREADED_COMPILER "Enable threaded compiler" OFF)
+option(ENABLE_THREADED_COMPILER "Enable threaded compiler" ON)
 if (ENABLE_THREADED_COMPILER)
 	list(APPEND LIGHTREC_SOURCES recompiler.c reaper.c)
 

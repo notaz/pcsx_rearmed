@@ -107,7 +107,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	}
 
 	if (has_ds && op_flag_load_delay(ds->flags)
-	    && opcode_is_load(ds->c) && !state->no_load_delay) {
+	    && opcode_has_load_delay(ds->c) && !state->no_load_delay) {
 		/* If the delay slot is a load opcode, its target register
 		 * will be written after the first opcode of the target is
 		 * executed. Handle this by jumping to a special section of

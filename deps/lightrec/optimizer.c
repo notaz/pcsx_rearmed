@@ -345,7 +345,7 @@ static bool reg_is_read_or_written(const struct opcode *list,
 	return reg_is_read(list, a, b, reg) || reg_is_written(list, a, b, reg);
 }
 
-bool opcode_is_mfc(union code op)
+static bool opcode_is_mfc(union code op)
 {
 	switch (op.i.op) {
 	case OP_CP0:
@@ -377,7 +377,7 @@ bool opcode_is_mfc(union code op)
 	return false;
 }
 
-bool opcode_is_load(union code op)
+static bool opcode_is_load(union code op)
 {
 	switch (op.i.op) {
 	case OP_LB:
@@ -409,6 +409,12 @@ static bool opcode_is_store(union code op)
 	default:
 		return false;
 	}
+}
+
+bool opcode_has_load_delay(union code op)
+{
+	return (opcode_is_load(op) && op.i.rt && op.i.op != OP_LWC2)
+		|| opcode_is_mfc(op);
 }
 
 static u8 opcode_get_io_size(union code op)
@@ -1385,7 +1391,7 @@ static int lightrec_handle_load_delays(struct lightrec_state *state,
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
 
-		if (!opcode_is_load(op->c) || !op->c.i.rt || op->c.i.op == OP_LWC2)
+		if (!opcode_has_load_delay(op->c))
 			continue;
 
 		if (!is_delay_slot(list, i)) {

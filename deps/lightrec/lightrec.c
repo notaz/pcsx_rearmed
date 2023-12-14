@@ -35,6 +35,8 @@ static bool lightrec_block_is_fully_tagged(const struct block *block);
 static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data);
 static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg);
 
+static void lightrec_reap_block(struct lightrec_state *state, void *data);
+
 static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u32 data)
 {
@@ -703,9 +705,15 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 			if (ENABLE_THREADED_COMPILER)
 				lightrec_recompiler_remove(state->rec, block);
 
-			lightrec_unregister_block(state->block_cache, block);
 			remove_from_code_lut(state->block_cache, block);
-			lightrec_free_block(state, block);
+
+			if (ENABLE_THREADED_COMPILER) {
+				lightrec_reaper_add(state->reaper,
+						    lightrec_reap_block, block);
+			} else {
+				lightrec_unregister_block(state->block_cache, block);
+				lightrec_free_block(state, block);
+			}
 		}
 
 		block = NULL;
@@ -1559,6 +1567,7 @@ static void lightrec_reap_opcode_list(struct lightrec_state *state, void *data)
 int lightrec_compile_block(struct lightrec_cstate *cstate,
 			   struct block *block)
 {
+	struct block *dead_blocks[ARRAY_SIZE(cstate->targets)];
 	u32 was_dead[ARRAY_SIZE(cstate->targets) / 8];
 	struct lightrec_state *state = cstate->state;
 	struct lightrec_branch_target *target;
@@ -1702,6 +1711,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 				was_dead[i / 32] &= ~BIT(i % 32);
 		}
 
+		dead_blocks[i] = block2;
+
 		/* If block2 was pending for compilation, cancel it.
 		 * If it's being compiled right now, wait until it finishes. */
 		if (block2)
@@ -1720,8 +1731,12 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		offset = lut_offset(block->pc) + target->offset;
 		lut_write(state, offset, jit_address(target->label));
 
-		offset = block->pc + target->offset * sizeof(u32);
-		block2 = lightrec_find_block(state->block_cache, offset);
+		if (ENABLE_THREADED_COMPILER) {
+			block2 = dead_blocks[i];
+		} else {
+			offset = block->pc + target->offset * sizeof(u32);
+			block2 = lightrec_find_block(state->block_cache, offset);
+		}
 		if (block2) {
 			pr_debug("Reap block 0x%08x as it's covered by block "
 				 "0x%08x\n", block2->pc, block->pc);
