@@ -27,8 +27,6 @@
 #include "cdrom.h"
 #include "gpu.h"
 
-static u32 (*psxHwReadGpuSRptr)(void) = psxHwReadGpuSR;
-
 void psxHwReset() {
 	memset(psxH, 0, 0x10000);
 
@@ -36,8 +34,6 @@ void psxHwReset() {
 	cdrReset();
 	psxRcntInit();
 	HW_GPU_STATUS = SWAP32(0x10802000);
-	psxHwReadGpuSRptr = Config.hacks.gpu_busy
-		? psxHwReadGpuSRbusyHack : psxHwReadGpuSR;
 }
 
 void psxHwWriteIstat(u32 value)
@@ -118,18 +114,6 @@ u32 psxHwReadGpuSR(void)
 	// approximization instead. Perhaps better use hcounter code here or something.
 	if (hSyncCount < 240 && (v & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
 		v |= PSXGPU_LCF & (c << 20);
-	return v;
-}
-
-// a hack due to poor timing of gpu idle bit
-// to get rid of this, GPU draw times, DMAs, cpu timing has to fall within
-// certain timing window or else games like "ToHeart" softlock
-u32 psxHwReadGpuSRbusyHack(void)
-{
-	u32 v = psxHwReadGpuSR();
-	static u32 hack;
-	if (!(hack++ & 3))
-		v &= ~PSXGPU_nBUSY;
 	return v;
 }
 
@@ -254,7 +238,7 @@ u32 psxHwRead32(u32 add) {
 	case 0x1124: hard = psxRcntRmode(2); break;
 	case 0x1128: hard = psxRcntRtarget(2); break;
 	case 0x1810: hard = GPU_readData(); break;
-	case 0x1814: hard = psxHwReadGpuSRptr(); break;
+	case 0x1814: hard = psxHwReadGpuSR(); break;
 	case 0x1820: hard = mdecRead0(); break;
 	case 0x1824: hard = mdecRead1(); break;
 

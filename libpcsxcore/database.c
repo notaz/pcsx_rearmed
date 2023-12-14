@@ -39,12 +39,6 @@ static const char * const gpu_slow_llist_db[] =
 	"SLES02731", "SLPS02477", "SLPS03198", "SLUS01138",
 };
 
-static const char * const gpu_busy_hack_db[] =
-{
-	/* ToHeart (Japan) */
-	"SLPS01919", "SLPS01920",
-};
-
 static const char * const gpu_centering_hack_db[] =
 {
 	/* Gradius Gaiden */
@@ -79,7 +73,6 @@ hack_db[] =
 {
 	HACK_ENTRY(cdr_read_timing, cdr_read_hack_db),
 	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
-	HACK_ENTRY(gpu_busy, gpu_busy_hack_db),
 	HACK_ENTRY(gpu_centering, gpu_centering_hack_db),
 	HACK_ENTRY(gpu_timing1024, dualshock_timing1024_hack_db),
 	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),

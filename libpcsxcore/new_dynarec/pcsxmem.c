@@ -510,10 +510,6 @@ void new_dyna_pcsx_mem_reset(void)
 	// plugins might change so update the pointers
 	map_item(&mem_iortab[IOMEM32(0x1810)], GPU_readData, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1810)], GPU_writeData, 1);
-	if (Config.hacks.gpu_busy)
-		map_item(&mem_iortab[IOMEM32(0x1814)], psxHwReadGpuSRbusyHack, 1);
-	else
-		map_item(&mem_iortab[IOMEM32(0x1814)], psxHwReadGpuSR, 1);
 }
 
 void new_dyna_pcsx_mem_shutdown(void)
