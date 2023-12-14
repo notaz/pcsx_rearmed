@@ -93,7 +93,6 @@ void psxHwWriteChcr6(u32 value);
 void psxHwWriteDmaIcr32(u32 value);
 void psxHwWriteGpuSR(u32 value);
 u32  psxHwReadGpuSR(void);
-u32  psxHwReadGpuSRbusyHack(void);
 
 #ifdef __cplusplus
 }
