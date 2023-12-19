@@ -6263,11 +6263,13 @@ void new_dynarec_clear_full(void)
 
 static int pgsize(void)
 {
+  long ret = -1;
 #ifdef _SC_PAGESIZE
-  return sysconf(_SC_PAGESIZE);
-#else
-  return 4096;
+  ret = sysconf(_SC_PAGESIZE);
 #endif
+  if (ret < 1)
+    ret = 4096;
+  return ret;
 }
 
 void new_dynarec_init(void)
