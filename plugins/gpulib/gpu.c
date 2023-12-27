@@ -743,8 +743,8 @@ void GPUwriteData(uint32_t data)
 long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
   uint32_t *progress_addr, int32_t *cycles_last_cmd)
 {
-  uint32_t addr, *list, ld_addr = 0;
-  int len, left, count;
+  uint32_t addr, *list, ld_addr;
+  int len, left, count, ld_count = 32;
   int cpu_cycles_sum = 0;
   int cpu_cycles_last = 0;
 
@@ -754,7 +754,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
     flush_cmd_buffer();
 
   log_io("gpu_dma_chain\n");
-  addr = start_addr & 0xffffff;
+  addr = ld_addr = start_addr & 0xffffff;
   for (count = 0; (addr & 0x800000) == 0; count++)
   {
     list = rambase + (addr & 0x1fffff) / 4;
@@ -792,28 +792,13 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
       *progress_addr = addr;
       break;
     }
-    #define LD_THRESHOLD (8*1024)
-    if (count >= LD_THRESHOLD) {
-      if (count == LD_THRESHOLD) {
-        ld_addr = addr;
-        continue;
-      }
-
-      // loop detection marker
-      // (bit23 set causes DMA error on real machine, so
-      //  unlikely to be ever set by the game)
-      list[0] |= HTOLE32(0x800000);
+    if (addr == ld_addr) {
+      log_anomaly("GPUdmaChain: loop @ %08x, cnt=%u\n", addr, count);
+      break;
     }
-  }
-
-  if (ld_addr != 0) {
-    // remove loop detection markers
-    count -= LD_THRESHOLD + 2;
-    addr = ld_addr & 0x1fffff;
-    while (count-- > 0) {
-      list = rambase + addr / 4;
-      addr = LE32TOH(list[0]) & 0x1fffff;
-      list[0] &= HTOLE32(~0x800000);
+    if (count == ld_count) {
+      ld_addr = addr;
+      ld_count *= 2;
     }
   }
 
