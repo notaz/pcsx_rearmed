@@ -1516,10 +1516,13 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
-
-        if (check_enhanced_range(psx_gpu, x, x + width))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+
+        if (check_enhanced_range(psx_gpu, x, x + width)) {
+          width = list_s16[4] & 0x3FF;
+          height = list_s16[5] & 0x1FF;
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
+        }
         break;
       }
   
@@ -1536,10 +1539,13 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, u, v,
            &width, &height, current_command, list[0]);
-
-        if (check_enhanced_range(psx_gpu, x, x + width))
-          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+
+        if (check_enhanced_range(psx_gpu, x, x + width)) {
+          width = list_s16[6] & 0x3FF;
+          height = list_s16[7] & 0x1FF;
+          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
+        }
         break;
       }
   
@@ -1551,10 +1557,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
 
         if (check_enhanced_range(psx_gpu, x, x + 1))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 1, 1, list[0]);
         break;
       }
   
@@ -1566,10 +1572,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 8, 8, list[0]);
         break;
       }
   
@@ -1585,10 +1591,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, u, v,
            &width, &height, current_command, list[0]);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
 
         if (check_enhanced_range(psx_gpu, x, x + 8))
-          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+          do_sprite_enhanced(psx_gpu, x, y, u, v, 8, 8, list[0]);
         break;
       }
   
@@ -1600,10 +1606,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, 0, 0, &width, &height,
            current_command, list[0]);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
-          do_sprite_enhanced(psx_gpu, x, y, 0, 0, width, height, list[0]);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+          do_sprite_enhanced(psx_gpu, x, y, 0, 0, 16, 16, list[0]);
         break;
       }
   
@@ -1619,10 +1625,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
         render_sprite(psx_gpu, x, y, u, v,
            &width, &height, current_command, list[0]);
+        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
 
         if (check_enhanced_range(psx_gpu, x, x + 16))
-          do_sprite_enhanced(psx_gpu, x, y, u, v, width, height, list[0]);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(width, height));
+          do_sprite_enhanced(psx_gpu, x, y, u, v, 16, 16, list[0]);
         break;
       }
 
