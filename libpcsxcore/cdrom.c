@@ -701,6 +701,30 @@ void cdrPlayReadInterrupt(void)
 	CDRPLAYREAD_INT(cdReadTime, 0);
 }
 
+static void softReset(void)
+{
+	CDR_getStatus(&stat);
+	if (stat.Status & STATUS_SHELLOPEN) {
+		cdr.DriveState = DRIVESTATE_LID_OPEN;
+		cdr.StatP = STATUS_SHELLOPEN;
+	}
+	else if (CdromId[0] == '\0') {
+		cdr.DriveState = DRIVESTATE_STOPPED;
+		cdr.StatP = 0;
+	}
+	else {
+		cdr.DriveState = DRIVESTATE_STANDBY;
+		cdr.StatP = STATUS_ROTATING;
+	}
+
+	cdr.FifoOffset = DATA_SIZE; // fifo empty
+	cdr.LocL[0] = LOCL_INVALID;
+	cdr.Mode = MODE_SIZE_2340;
+	cdr.Muted = FALSE;
+	SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
+		cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
+}
+
 #define CMD_PART2           0x100
 #define CMD_WHILE_NOT_READY 0x200
 
@@ -983,15 +1007,11 @@ void cdrInterrupt(void) {
 
 		case CdlReset:
 		case CdlReset + CMD_WHILE_NOT_READY:
+			// note: nocash and Duckstation calls this 'Init', but
+			// the official SDK calls it 'Reset', and so do we
 			StopCdda();
 			StopReading();
-			SetPlaySeekRead(cdr.StatP, 0);
-			cdr.LocL[0] = LOCL_INVALID;
-			cdr.Mode = MODE_SIZE_2340; /* This fixes This is Football 2, Pooh's Party lockups */
-			cdr.DriveState = DRIVESTATE_PAUSED;
-			cdr.Muted = FALSE;
-			SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
-				cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
+			softReset();
 			second_resp_time = not_ready ? 70000 : 4100000;
 			start_rotating = 1;
 			break;
@@ -1715,30 +1735,14 @@ void cdrReset() {
 	cdr.FilterChannel = 0;
 	cdr.IrqMask = 0x1f;
 	cdr.IrqStat = NoIntr;
-	cdr.FifoOffset = DATA_SIZE; // fifo empty
 
-	CDR_getStatus(&stat);
-	if (stat.Status & STATUS_SHELLOPEN) {
-		cdr.DriveState = DRIVESTATE_LID_OPEN;
-		cdr.StatP = STATUS_SHELLOPEN;
-	}
-	else if (CdromId[0] == '\0') {
-		cdr.DriveState = DRIVESTATE_STOPPED;
-		cdr.StatP = 0;
-	}
-	else {
-		cdr.DriveState = DRIVESTATE_STANDBY;
-		cdr.StatP = STATUS_ROTATING;
-	}
-	
 	// BIOS player - default values
 	cdr.AttenuatorLeftToLeft = 0x80;
 	cdr.AttenuatorLeftToRight = 0x00;
 	cdr.AttenuatorRightToLeft = 0x00;
 	cdr.AttenuatorRightToRight = 0x80;
-	SPU_setCDvol(cdr.AttenuatorLeftToLeft, cdr.AttenuatorLeftToRight,
-		cdr.AttenuatorRightToLeft, cdr.AttenuatorRightToRight, psxRegs.cycle);
 
+	softReset();
 	getCdInfo();
 }
 
