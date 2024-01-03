@@ -81,6 +81,7 @@ struct rearmed_cbs {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 		int   enhancement_enable;
 		int   enhancement_no_main;
+		int   enhancement_tex_adj;
 	} gpu_neon;
 	struct {
 		int   iUseDither;

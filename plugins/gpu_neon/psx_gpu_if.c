@@ -223,7 +223,8 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   if (cbs->pl_set_gpu_caps)
     cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
 
-  disable_main_render = cbs->gpu_neon.enhancement_no_main;
+  egpu.hack_disable_main = cbs->gpu_neon.enhancement_no_main;
+  egpu.hack_texture_adj = cbs->gpu_neon.enhancement_tex_adj;
   if (gpu.state.enhancement_enable) {
     if (gpu.mmap != NULL && egpu.enhancement_buf_ptr == NULL)
       map_enhancement_buffer();

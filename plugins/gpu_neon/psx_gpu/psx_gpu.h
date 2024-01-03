@@ -200,9 +200,12 @@ typedef struct
   u16 enhancement_scanout_eselect;   // eviction selector
   u16 enhancement_current_buf;
 
+  u32 hack_disable_main:1;
+  u32 hack_texture_adj:1;
+
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[188 + 9*4 - 9*sizeof(void *)];
+  u8 reserved_a[184 + 9*4 - 9*sizeof(void *)];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];
