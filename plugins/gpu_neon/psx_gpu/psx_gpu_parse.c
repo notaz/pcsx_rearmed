@@ -1018,8 +1018,6 @@ void scale2x_tiles8(void *dst, const void *src, int w8, int h)
 }
 #endif
 
-static int disable_main_render;
-
 // simple check for a case where no clipping is used
 //  - now handled by adjusting the viewport
 static int check_enhanced_range(psx_gpu_struct *psx_gpu, int x, int y)
@@ -1065,6 +1063,7 @@ static void patch_v(vertex_struct *vertex_ptrs, int count, int old, int new)
       vertex_ptrs[i].v = new;
 }
 
+// this sometimes does more harm than good, like in PE2
 static void uv_hack(vertex_struct *vertex_ptrs, int vertex_count)
 {
   int i, u[4], v[4];
@@ -1103,7 +1102,7 @@ static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
   if (!prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
     return;
 
-  if (!disable_main_render)
+  if (!psx_gpu->hack_disable_main)
     render_triangle_p(psx_gpu, vertex_ptrs, current_command);
 
   if (!check_enhanced_range(psx_gpu, vertex_ptrs[0]->x, vertex_ptrs[2]->x))
@@ -1322,7 +1321,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(2, 10);  
         get_vertex_data_xy_uv(3, 14);
   
-        uv_hack(vertexes, 4);
+        if (psx_gpu->hack_texture_adj)
+          uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
         break;
@@ -1375,7 +1375,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(2, 12);
         get_vertex_data_xy_uv_rgb(3, 18);
 
-        uv_hack(vertexes, 4);
+        if (psx_gpu->hack_texture_adj)
+          uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
         break;

@@ -235,7 +235,8 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     egpu.dither_table[3] = dither_table_row(3, -1, 2, -2); 
   }
 
-  disable_main_render = cbs->gpu_neon.enhancement_no_main;
+  egpu.hack_disable_main = cbs->gpu_neon.enhancement_no_main;
+  egpu.hack_texture_adj = cbs->gpu_neon.enhancement_tex_adj;
   if (gpu.state.enhancement_enable) {
     if (gpu.mmap != NULL && egpu.enhancement_buf_ptr == NULL)
       map_enhancement_buffer();

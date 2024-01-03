@@ -2101,10 +2101,21 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      if (strcmp(var.value, "disabled") == 0)
-         pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
-      else if (strcmp(var.value, "enabled") == 0)
+      if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_neon.enhancement_no_main = 1;
+      else
+         pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_neon_enhancement_tex_adj";
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_neon.enhancement_tex_adj = 1;
+      else
+         pl_rearmed_cbs.gpu_neon.enhancement_tex_adj = 0;
    }
 #endif
 

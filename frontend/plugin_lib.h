@@ -85,6 +85,7 @@ struct rearmed_cbs {
 		int   enhancement_enable;
 		int   enhancement_no_main;
 		int   allow_dithering;
+		int   enhancement_tex_adj;
 	} gpu_neon;
 	struct {
 		int   iUseDither;
