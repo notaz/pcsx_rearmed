@@ -500,7 +500,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_neon_enhancement_no_main",
       "(GPU) Enhanced Resolution Speed Hack",
       "Enhanced Resolution Speed Hack",
-      "Improves performance when 'Enhanced Resolution' is enabled, but reduces compatibility and may cause rendering errors.",
+      "('Enhanced Resolution' Hack) Improves performance but reduces compatibility and may cause rendering errors.",
       NULL,
       "gpu_neon",
       {
@@ -514,7 +514,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_neon_enhancement_tex_adj",
       "(GPU) Enhanced Resolution Texture Adjustment",
       "Enhanced Resolution Texture Adjustment",
-      "(Hack) Attempts to solve some texturing issues is some games, but causes new ones in others.",
+      "('Enhanced Resolution' Hack) Attempts to solve some texturing issues in some games, but causes new ones in others.",
       NULL,
       "gpu_neon",
       {
