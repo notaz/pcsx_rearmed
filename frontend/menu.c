@@ -1313,7 +1313,7 @@ static int menu_loop_cscaler(int id, int keys)
 	for (;;)
 	{
 		if (saved_layer && last_vout_bpp == 16) {
-			int top_x = max(0, -g_layer_x * last_vout_h / 800) + 1;
+			int top_x = max(0, -g_layer_x * last_vout_w / 800) + 1;
 			int top_y = max(0, -g_layer_y * last_vout_h / 480) + 1;
 			char text[128];
 			memcpy(pl_vout_buf, saved_layer, saved_layer_size);
