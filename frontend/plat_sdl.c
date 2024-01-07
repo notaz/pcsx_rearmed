@@ -88,13 +88,16 @@ static const struct in_pdata in_sdl_platform_data = {
   .jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
 };
 
-static int psx_w, psx_h;
+static int psx_w = 256, psx_h = 240;
 static void *shadow_fb, *menubg_img;
 static int in_menu;
 
+static void centered_clear(void);
+static void *setup_blit_callbacks(int w);
+
 static int change_video_mode(int force)
 {
-  int w, h;
+  int w, h, ret;
 
   if (in_menu) {
     w = g_menuscreen_w;
@@ -105,7 +108,10 @@ static int change_video_mode(int force)
     h = psx_h;
   }
 
-  return plat_sdl_change_video_mode(w, h, force);
+  ret = plat_sdl_change_video_mode(w, h, force);
+  if (ret == 0 && plat_sdl_overlay == NULL && !plat_sdl_gl_active)
+    centered_clear();
+  return ret;
 }
 
 static void resize_cb(int w, int h)
@@ -116,6 +122,7 @@ static void resize_cb(int w, int h)
   pl_rearmed_cbs.gles_display = gl_es_display;
   pl_rearmed_cbs.gles_surface = gl_es_surface;
   plugin_call_rearmed_cbs();
+  setup_blit_callbacks(psx_w);
 }
 
 static void quit_cb(void)
@@ -227,26 +234,109 @@ static void overlay_hud_print(int x, int y, const char *str, int bpp)
   SDL_UnlockYUVOverlay(plat_sdl_overlay);
 }
 
+static void centered_clear(void)
+{
+  int dstride = plat_sdl_screen->pitch / 2;
+  int w = plat_sdl_screen->w;
+  int h = plat_sdl_screen->h;
+  unsigned short *dst;
+
+  SDL_LockSurface(plat_sdl_screen);
+  dst = plat_sdl_screen->pixels;
+
+  for (; h > 0; dst += dstride, h--)
+    memset(dst, 0, w * 2);
+
+  SDL_UnlockSurface(plat_sdl_screen);
+}
+
+static void centered_blit(int doffs, const void *src_, int w, int h,
+                          int sstride, int bgr24)
+{
+  const unsigned short *src = src_;
+  unsigned short *dst;
+  int dstride;
+
+  SDL_LockSurface(plat_sdl_screen);
+  dst = plat_sdl_screen->pixels;
+  dstride = plat_sdl_screen->pitch / 2;
+
+  dst += doffs + (plat_sdl_screen->w - w) / 2;
+  dst += dstride * (plat_sdl_screen->h - h) / 2;
+  if (bgr24) {
+    for (; h > 0; dst += dstride, src += sstride, h--)
+      bgr888_to_rgb565(dst, src, w * 3);
+  }
+  else {
+    for (; h > 0; dst += dstride, src += sstride, h--)
+      bgr555_to_rgb565(dst, src, w * 2);
+  }
+
+  SDL_UnlockSurface(plat_sdl_screen);
+}
+
+static void centered_blit_menu(void)
+{
+  const unsigned short *src = g_menuscreen_ptr;
+  int w = g_menuscreen_w;
+  int h = g_menuscreen_h;
+  unsigned short *dst;
+  int dstride;
+
+  SDL_LockSurface(plat_sdl_screen);
+  dst = plat_sdl_screen->pixels;
+  dstride = plat_sdl_screen->pitch / 2;
+
+  dst += (plat_sdl_screen->w - w) / 2;
+  dst += dstride * (plat_sdl_screen->h - h) / 2;
+  for (; h > 0; dst += dstride, src += g_menuscreen_pp, h--)
+    memcpy(dst, src, w * 2);
+
+  SDL_UnlockSurface(plat_sdl_screen);
+}
+
+static void centered_hud_print(int x, int y, const char *str, int bpp)
+{
+  x += (plat_sdl_screen->w - psx_w) / 2;
+  y += (plat_sdl_screen->h - psx_h) / 2;
+  SDL_LockSurface(plat_sdl_screen);
+  basic_text_out16_nf(plat_sdl_screen->pixels, plat_sdl_screen->pitch / 2, x, y, str);
+  SDL_UnlockSurface(plat_sdl_screen);
+}
+
+static void *setup_blit_callbacks(int w)
+{
+  pl_plat_clear = NULL;
+  pl_plat_blit = NULL;
+  pl_plat_hud_print = NULL;
+  if (plat_sdl_overlay != NULL) {
+    pl_plat_clear = plat_sdl_overlay_clear;
+    pl_plat_blit = overlay_blit;
+    pl_plat_hud_print = overlay_hud_print;
+  }
+  else if (plat_sdl_gl_active) {
+    return shadow_fb;
+  }
+  else {
+    if (w == plat_sdl_screen->w)
+      return plat_sdl_screen->pixels;
+    else {
+      pl_plat_clear = centered_clear;
+      pl_plat_blit = centered_blit;
+      pl_plat_hud_print = centered_hud_print;
+    }
+  }
+  return NULL;
+}
+
 void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
 {
   psx_w = *w;
   psx_h = *h;
   change_video_mode(0);
-  if (plat_sdl_overlay != NULL) {
-    pl_plat_clear = plat_sdl_overlay_clear;
-    pl_plat_blit = overlay_blit;
-    pl_plat_hud_print = overlay_hud_print;
-    return NULL;
-  }
-  else {
-    pl_plat_clear = NULL;
-    pl_plat_blit = NULL;
-    pl_plat_hud_print = NULL;
-    if (plat_sdl_gl_active)
-      return shadow_fb;
-    else
-      return plat_sdl_screen->pixels;
-  }
+  if (plat_sdl_gl_active)
+    memset(shadow_fb, 0, psx_w * psx_h * 2);
+  return setup_blit_callbacks(*w);
 }
 
 void *plat_gvideo_flip(void)
@@ -295,13 +385,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 
 void plat_video_menu_begin(void)
 {
-  if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
-    g_menuscreen_ptr = shadow_fb;
-  }
-  else {
-    SDL_LockSurface(plat_sdl_screen);
-    g_menuscreen_ptr = plat_sdl_screen->pixels;
-  }
+  g_menuscreen_ptr = shadow_fb;
 }
 
 void plat_video_menu_end(void)
@@ -320,7 +404,7 @@ void plat_video_menu_end(void)
     gl_flip(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h);
   }
   else {
-    SDL_UnlockSurface(plat_sdl_screen);
+    centered_blit_menu();
     SDL_Flip(plat_sdl_screen);
   }
   g_menuscreen_ptr = NULL;
