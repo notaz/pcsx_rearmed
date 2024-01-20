@@ -119,7 +119,8 @@ OBJS += deps/lightrec/recompiler.o \
 	deps/lightrec/reaper.o
 endif
 OBJS += deps/lightrec/tlsf/tlsf.o
-OBJS += libpcsxcore/lightrec/plugin.o
+OBJS += libpcsxcore/lightrec/plugin.o \
+	libpcsxcore/lightrec/internals.o
 OBJS += deps/lightning/lib/jit_disasm.o \
 		deps/lightning/lib/jit_memory.o \
 		deps/lightning/lib/jit_names.o \
