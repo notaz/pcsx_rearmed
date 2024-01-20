@@ -113,6 +113,14 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r24 (2024-01-22)
+* HLE compatibility has been greatly improved
+* various compatibility and accuracy improvements
++ support for more lightgun types
+- savestates from older versions might not work, especially if HLE was used.
+  Memory card files remain fully compatible.
+* many small changes I forgot about
+
 r23 (2022-03-14)
 * many fixes from various contributors on github and from the libretro fork
 * dynarec related slowdowns have been greatly reduced
