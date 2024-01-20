@@ -160,7 +160,8 @@ ifeq ($(HAVE_LIGHTREC),1)
 					  $(DEPS_DIR)/lightrec/optimizer.c \
 					  $(DEPS_DIR)/lightrec/regcache.c \
 					  $(DEPS_DIR)/lightrec/recompiler.c \
-					  $(DEPS_DIR)/lightrec/reaper.c
+					  $(DEPS_DIR)/lightrec/reaper.c \
+					  $(DEPS_DIR)/lightrec/tlsf/tlsf.c
   SOURCES_C   += $(DEPS_DIR)/lightning/lib/jit_disasm.c \
 					  $(DEPS_DIR)/lightning/lib/jit_memory.c \
 					  $(DEPS_DIR)/lightning/lib/jit_names.c \
@@ -169,8 +170,7 @@ ifeq ($(HAVE_LIGHTREC),1)
 					  $(DEPS_DIR)/lightning/lib/jit_size.c \
 					  $(DEPS_DIR)/lightning/lib/lightning.c
   SOURCES_C   += $(CORE_DIR)/lightrec/plugin.c \
-		 $(DEPS_DIR)/lightrec/internals.c \
-		 $(DEPS_DIR)/lightrec/tlsf/tlsf.c
+		 $(CORE_DIR)/lightrec/internals.c
 ifeq ($(LIGHTREC_CUSTOM_MAP),1)
   SOURCES_C   += $(CORE_DIR)/lightrec/mem.c
 endif
