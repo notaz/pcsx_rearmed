@@ -1320,7 +1320,7 @@ static int malloc_heap_grow(u32 size) {
 
 	heap_addr = loadRam32(A_HEAP_BASE);
 	heap_end = loadRam32(A_HEAP_END);
-	heap_addr_new = heap_addr + 4 + size;
+	heap_addr_new = heap_addr + size + 4;
 	if (heap_addr_new >= heap_end)
 		return -1;
 	storeRam32(A_HEAP_BASE, heap_addr_new);
@@ -1372,6 +1372,12 @@ static void psxBios_malloc() { // 0x33
 				break;
 			}
 			// chunk too small
+			if (next_chunk_hdr == ~1) {
+				// rm useless last free block
+				storeRam32(A_HEAP_BASE, chunk + 4);
+				storeRam32(chunk, ~1);
+				continue;
+			}
 			if (next_chunk_hdr & 1) {
 				// merge
 				u32 msize = (chunk_hdr & ~3) + 4 + (next_chunk_hdr & ~3);
@@ -1391,10 +1397,15 @@ static void psxBios_malloc() { // 0x33
 		}
 	}
 
-	if (i == limit)
+	if (i == limit) {
+		PSXBIOS_LOG("malloc: limit OOM\n");
 		ret = 0;
-	else if (tries == 0 && malloc_heap_grow(size))
+	}
+	else if (tries == 0 && malloc_heap_grow(size)) {
+		PSXBIOS_LOG("malloc: grow OOM s=%d end=%08x/%08x\n",
+			size, loadRam32(A_HEAP_BASE), loadRam32(A_HEAP_END));
 		ret = 0;
+	}
 	else {
 		u32 chunk = loadRam32(A_HEAP_CURCHNK);
 		storeRam32(chunk, loadRam32(chunk) & ~3);
@@ -1428,9 +1439,8 @@ static void psxBios_calloc() { // 0x37
 void psxBios_realloc() { // 0x38
 	u32 block = a0;
 	u32 size = a1;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x38]);
-#endif
+
+	PSXBIOS_LOG("psxBios_%s %08x %d\n", biosA0n[0x38], a0, a1);
 
 	a0 = block;
 	/* If "old_buf" is zero, executes malloc(new_size), and returns r2=new_buf (or 0=failed). */
