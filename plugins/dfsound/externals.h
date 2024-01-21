@@ -273,15 +273,15 @@ typedef struct
 
 extern SPUInfo spu;
 
-void do_samples(unsigned int cycles_to, int do_sync);
+void do_samples(unsigned int cycles_to, int force_no_thread);
 void schedule_next_irq(void);
 void check_irq_io(unsigned int addr);
 void do_irq_io(int cycles_after);
 
-#define do_samples_if_needed(c, sync, samples) \
+#define do_samples_if_needed(c, no_thread, samples) \
  do { \
-  if (sync || (int)((c) - spu.cycles_played) >= (samples) * 768) \
-   do_samples(c, sync); \
+  if ((no_thread) || (int)((c) - spu.cycles_played) >= (samples) * 768) \
+   do_samples(c, no_thread); \
  } while (0)
 
 #endif
