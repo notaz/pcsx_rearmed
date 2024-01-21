@@ -859,11 +859,14 @@ static void do_samples_finish(int *SSumLR, int ns_to,
 static struct spu_worker {
  union {
   struct {
-   unsigned int exit_thread;
+   unsigned char exit_thread;
+   unsigned char prev_work_in_thread;
+   unsigned char pad[2];
    unsigned int i_ready;
    unsigned int i_reaped;
    unsigned int last_boot_cnt; // dsp
    unsigned int ram_dirty;
+   unsigned int channels_last;
   };
   // aligning for C64X_DSP
   unsigned int _pad0[128/4];
@@ -954,6 +957,16 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
  work->decode_pos = spu.decode_pos;
  work->channels_silent = silentch;
 
+ if (!worker->prev_work_in_thread) {
+  // copy adpcm and interpolation state to sb_thread
+  worker->prev_work_in_thread = 1;
+  mask = spu.dwChannelsAudible & ~spu.dwNewChannel & 0xffffff;
+  for (ch = 0; mask != 0; ch++, mask >>= 1) {
+   if (mask & 1)
+    memcpy(spu.sb_thread[ch].SB, spu.sb[ch].SB, sizeof(spu.sb_thread[ch].SB));
+  }
+ }
+
  mask = work->channels_new = spu.dwNewChannel & 0xffffff;
  for (ch = 0; mask != 0; ch++, mask >>= 1) {
   if (mask & 1)
@@ -961,6 +974,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
  }
 
  mask = work->channels_on = spu.dwChannelsAudible & 0xffffff;
+ worker->channels_last = mask;
  spu.decode_dirty_ch |= mask & 0x0a;
 
  for (ch = 0; mask != 0; ch++, mask >>= 1)
@@ -1095,8 +1109,9 @@ static void do_channel_work(struct work_item *work)
    REVERBDo(work->SSumLR, RVB, ns_to, work->rvb_addr);
 }
 
-static void sync_worker_thread(int force)
+static void sync_worker_thread(int force_no_thread)
 {
+ int force = force_no_thread;
  struct work_item *work;
  int done, used_space;
 
@@ -1121,14 +1136,21 @@ static void sync_worker_thread(int force)
   done = thread_get_i_done() - worker->i_reaped;
   used_space = worker->i_ready - worker->i_reaped;
  }
- if (force)
+ if (force_no_thread && worker->prev_work_in_thread) {
+  unsigned int ch, mask = worker->channels_last;
+  worker->prev_work_in_thread = 0;
   thread_sync_caches();
+  for (ch = 0; mask != 0; ch++, mask >>= 1) {
+   if (mask & 1)
+    memcpy(spu.sb[ch].SB, spu.sb_thread[ch].SB, sizeof(spu.sb_thread[ch].SB));
+  }
+ }
 }
 
 #else
 
 static void queue_channel_work(int ns_to, int silentch) {}
-static void sync_worker_thread(int force) {}
+static void sync_worker_thread(int force_no_thread) {}
 
 static const void * const worker = NULL;
 
@@ -1139,7 +1161,7 @@ static const void * const worker = NULL;
 // here is the main job handler...
 ////////////////////////////////////////////////////////////////////////
 
-void do_samples(unsigned int cycles_to, int do_direct)
+void do_samples(unsigned int cycles_to, int force_no_thread)
 {
  unsigned int silentch;
  int cycle_diff;
@@ -1155,9 +1177,9 @@ void do_samples(unsigned int cycles_to, int do_direct)
 
  silentch = ~(spu.dwChannelsAudible | spu.dwNewChannel) & 0xffffff;
 
- do_direct |= (silentch == 0xffffff);
+ force_no_thread |= (silentch == 0xffffff);
  if (worker != NULL)
-  sync_worker_thread(do_direct);
+  sync_worker_thread(force_no_thread);
 
  if (cycle_diff < 2 * 768)
   return;
@@ -1205,7 +1227,7 @@ void do_samples(unsigned int cycles_to, int do_direct)
   if (unlikely(spu.rvb->dirty))
    REVERBPrep();
 
-  if (do_direct || worker == NULL || !spu_config.iUseThread) {
+  if (force_no_thread || worker == NULL || !spu_config.iUseThread) {
    do_channels(ns_to);
    do_samples_finish(spu.SSumLR, ns_to, silentch, spu.decode_pos);
   }
