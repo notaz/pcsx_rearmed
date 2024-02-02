@@ -544,7 +544,11 @@ else ifeq ($(platform), miyoo)
 else ifeq ($(platform), emscripten)
    TARGET  := $(TARGET_NAME)_libretro_$(platform).bc
    fpic    := -fPIC
-   CFLAGS += -DNO_DYLIB
+   NO_MMAP = 1
+   CFLAGS += -DNO_DYLIB -DNO_SOCKET
+   CFLAGS += -msimd128 -ftree-vectorize
+   LIBPTHREAD :=
+   NO_PTHREAD=1
    DYNAREC =
    STATIC_LINKING = 1
 

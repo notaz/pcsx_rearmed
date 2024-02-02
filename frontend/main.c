@@ -31,7 +31,9 @@
 #include "arm_features.h"
 #include "revision.h"
 
-#if defined(__has_builtin)
+#if defined(__EMSCRIPTEN__)
+#define DO_CPU_CHECKS 0
+#elif defined(__has_builtin)
 #define DO_CPU_CHECKS __has_builtin(__builtin_cpu_init)
 #elif defined(__x86_64__) || defined(__i386__)
 #define DO_CPU_CHECKS 1
