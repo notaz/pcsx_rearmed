@@ -265,6 +265,7 @@ static char ffile[64];
 static int nfile;
 static char cdir[8*8+8];
 static u32 floodchk;
+static int card_io_delay;
 
 // fixed RAM offsets, SCPH1001 compatible
 #define A_TT_ExCB       0x0100
@@ -319,7 +320,9 @@ static u32 floodchk;
 #define A_B0_5B_TRAP    0x43d0
 
 #define CARD_HARDLER_WRITE  0x51F4
+#define CARD_HARDLER_WRITEM 0x51F5 // fake, for psxBios_write()
 #define CARD_HARDLER_READ   0x5688
+#define CARD_HARDLER_READM  0x5689 // fake, for psxBios_read()
 #define CARD_HARDLER_INFO   0x5B64
 
 #define HLEOP(n) SWAPu32((0x3b << 26) | (n));
@@ -459,92 +462,99 @@ static u32  DeliverEvent(u32 class, u32 spec);
 static u32  UnDeliverEvent(u32 class, u32 spec);
 static void CloseEvent(u32 ev);
 
+static int card_buf_io(int is_write, int port, void *buf, u32 size)
+{
+	char *mcdptr = port ? Mcd2Data : Mcd1Data;
+	FileDesc *desc = &FDesc[2 + port];
+	u32 offset = 8192 * desc->mcfile + desc->offset;
+
+	PSXBIOS_LOG("card_%s_buf %d,%d: ofs=%x(%x) sz=%x (%s)\n",
+		is_write ? "write" : "read", port, desc->mcfile,
+		desc->offset, offset, size, mcdptr + 128 * desc->mcfile + 0xa);
+	if (!(loadRam8(A_CARD_STATUS1 + port) & 1)) {
+		PSXBIOS_LOG(" ...busy %x\n", loadRam8(A_CARD_STATUS1 + port));
+		return -1;
+	}
+	UnDeliverEvent(0xf4000001, 0x0004);
+	UnDeliverEvent(0xf4000001, 0x8000);
+	UnDeliverEvent(0xf4000001, 0x2000);
+	UnDeliverEvent(0xf4000001, 0x0100);
+
+	if (offset >= 128*1024u) {
+		log_unhandled("card offs %x(%x)\n", desc->offset, offset);
+		DeliverEvent(0xf4000001, 0x8000); // ?
+		return -1;
+	}
+	if (offset + size >= 128*1024u) {
+		log_unhandled("card offs+size %x+%x\n", offset, size);
+		size = 128*1024 - offset;
+	}
+	if (is_write) {
+		memcpy(mcdptr + offset, buf, size);
+		if (port == 0)
+			SaveMcd(Config.Mcd1, Mcd1Data, offset, size);
+		else
+			SaveMcd(Config.Mcd2, Mcd2Data, offset, size);
+	}
+	else {
+		size_t ram_offset = (s8 *)buf - psxM;
+		memcpy(buf, mcdptr + offset, size);
+		if (ram_offset < 0x200000)
+			psxCpu->Clear(ram_offset, (size + 3) / 4);
+	}
+	desc->offset += size;
+	if (desc->mode & 0x8000) { // async
+		storeRam8(A_CARD_STATUS1 + port, is_write ? 4 : 2); // busy
+		storeRam32(A_CARD_HANDLER,
+			is_write ? CARD_HARDLER_WRITEM : CARD_HARDLER_READM);
+		card_io_delay = 2 + size / 1024; // hack
+		return 0;
+	}
+	return size;
+}
+
 /*                                           *
 //                                           *
 //                                           *
 //               System calls A0             */
 
-
-#define buread(Ra1, mcd, length) { \
-	PSXBIOS_LOG("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa); \
-	ptr = Mcd##mcd##Data + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	memcpy(Ra1, ptr, length); \
-	psxCpu->Clear(a1, (length + 3) / 4); \
-	if (FDesc[1 + mcd].mode & 0x8000) { \
-	DeliverEvent(0xf0000011, 0x0004); \
-	DeliverEvent(0xf4000001, 0x0004); \
-	v0 = 0; } \
-	else v0 = length; \
-	FDesc[1 + mcd].offset += v0; \
-}
-
-#define buwrite(Ra1, mcd, length) { \
-	u32 offset =  + 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
-	PSXBIOS_LOG("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2); \
-	ptr = Mcd##mcd##Data + offset; \
-	memcpy(ptr, Ra1, length); \
-	FDesc[1 + mcd].offset += length; \
-	SaveMcd(Config.Mcd##mcd, Mcd##mcd##Data, offset, length); \
-	if (FDesc[1 + mcd].mode & 0x8000) { \
-	DeliverEvent(0xf0000011, 0x0004); \
-	DeliverEvent(0xf4000001, 0x0004); \
-	v0 = 0; } \
-	else v0 = length; \
-}
-
 /* Internally redirects to "FileRead(fd,tempbuf,1)".*/
 /* For some strange reason, the returned character is sign-expanded; */
 /* So if a return value of FFFFFFFFh could mean either character FFh, or error. */
-/* TODO FIX ME : Properly implement this behaviour */
-void psxBios_getc(void) // 0x03, 0x35
+static void psxBios_getc(void) // 0x03, 0x35
 {
-	char *ptr;
-	void *pa1 = Ra1;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x03]);
-#endif
-	v0 = -1;
+	s8 buf[1] = { -1 };
+	int ret = -1;
 
-	if (pa1 != INVALID_PTR) {
-		switch (a0) {
-			case 2: buread(pa1, 1, 1); break;
-			case 3: buread(pa1, 2, 1); break;
-		}
+	PSXBIOS_LOG("psxBios_%s %d\n", biosA0n[0x03], a0);
+
+	if (a0 == 1)
+		ret = -1;
+	else if (a0 == 2 || a0 == 3) {
+		card_buf_io(0, a0 - 2, buf, 1);
+		ret = buf[0];
 	}
 
-	pc0 = ra;
+	mips_return_c(ret, 100);
 }
 
 /* Copy of psxBios_write, except size is 1. */
-void psxBios_putc(void) // 0x09, 0x3B
+static void psxBios_putc(void) // 0x09, 0x3B
 {
-	char *ptr;
-	void *pa1 = Ra1;
-#ifdef PSXBIOS_LOG
-	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x09]);
-#endif
-	v0 = -1;
-	if (pa1 == INVALID_PTR) {
-		pc0 = ra;
-		return;
+	u8 buf[1] = { (u8)a0 };
+	int ret = -1;
+
+	if (a1 != 1) // not stdout
+		PSXBIOS_LOG("psxBios_%s '%c' %d\n", biosA0n[0x09], (char)a0, a1);
+
+	if (a1 == 1) { // stdout
+		if (Config.PsxOut) printf("%c", (char)a0);
+	}
+	else if (a1 == 2 || a1 == 3) {
+		ret = card_buf_io(1, a1 - 2, buf, 1);
 	}
 
-	if (a0 == 1) { // stdout
-		char *ptr = (char *)pa1;
-
-		v0 = a2;
-		while (a2 > 0) {
-			printf("%c", *ptr++); a2--;
-		}
-		pc0 = ra; return;
-	}
-
-	switch (a0) {
-		case 2: buwrite(pa1, 1, 1); break;
-		case 3: buwrite(pa1, 2, 1); break;
-	}
-
-	pc0 = ra;
+	mips_return_c(ret, 100);
 }
 
 static u32 do_todigit(u32 c)
@@ -2535,8 +2545,8 @@ static void buopen(int mcd, char *ptr, char *cfg)
 		if ((*fptr & 0xF0) != 0x50) continue;
 		if (strcmp(FDesc[1 + mcd].name, fptr+0xa)) continue;
 		FDesc[1 + mcd].mcfile = i;
-		PSXBIOS_LOG("open %s\n", fptr+0xa);
 		v0 = 1 + mcd;
+		PSXBIOS_LOG("open %s -> %d\n", fptr+0xa, v0);
 		break;
 	}
 	if (a1 & 0x200 && v0 == -1) { /* FCREAT */
@@ -2591,7 +2601,7 @@ static void buopen(int mcd, char *ptr, char *cfg)
 void psxBios_open() { // 0x32
 	void *pa0 = Ra0;
 
-	PSXBIOS_LOG("psxBios_%s %s %x\n", biosB0n[0x32], Ra0, a1);
+	PSXBIOS_LOG("psxBios_%s %s(%x) %x\n", biosB0n[0x32], Ra0, a0, a1);
 
 	v0 = -1;
 
@@ -2639,44 +2649,34 @@ void psxBios_lseek() { // 0x33
  *	int read(int fd , void *buf , int nbytes);
  */
 
-void psxBios_read() { // 0x34
-	char *ptr;
+static void psxBios_read() { // 0x34
 	void *pa1 = Ra1;
+	int ret = -1;
 
-#ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x, %x, %x\n", biosB0n[0x34], a0, a1, a2);
-#endif
 
-	v0 = -1;
+	if (pa1 == INVALID_PTR)
+		;
+	else if (a0 == 2 || a0 == 3)
+		ret = card_buf_io(0, a0 - 2, pa1, a2);
 
-	if (pa1 != INVALID_PTR) {
-		switch (a0) {
-			case 2: buread(pa1, 1, a2); break;
-			case 3: buread(pa1, 2, a2); break;
-		}
-	}
-
-	pc0 = ra;
+	mips_return_c(ret, 100);
 }
 
 /*
  *	int write(int fd , void *buf , int nbytes);
  */
 
-void psxBios_write() { // 0x35/0x03
-	char *ptr;
+static void psxBios_write() { // 0x35/0x03
 	void *pa1 = Ra1;
+	int ret = -1;
 
-	if (a0 != 1) // stdout
+	if (a0 != 1) // not stdout
 		PSXBIOS_LOG("psxBios_%s: %x,%x,%x\n", biosB0n[0x35], a0, a1, a2);
 
-	v0 = -1;
-	if (pa1 == INVALID_PTR) {
-		pc0 = ra;
-		return;
-	}
-
-	if (a0 == 1) { // stdout
+	if (pa1 == INVALID_PTR)
+		;
+	else if (a0 == 1) { // stdout
 		char *ptr = pa1;
 
 		v0 = a2;
@@ -2685,13 +2685,10 @@ void psxBios_write() { // 0x35/0x03
 		}
 		pc0 = ra; return;
 	}
+	else if (a0 == 2 || a0 == 3)
+		ret = card_buf_io(1, a0 - 2, pa1, a2);
 
-	switch (a0) {
-		case 2: buwrite(pa1, 1, a2); break;
-		case 3: buwrite(pa1, 2, a2); break;
-	}
-
-	pc0 = ra;
+	mips_return_c(ret, 100);
 }
 
 static void psxBios_write_psxout() {
@@ -2997,7 +2994,7 @@ void psxBios__card_write() { // 0x4e
 	}
 
 	storeRam8(A_CARD_STATUS1 + port, 4); // busy/write
-	storeRam32(A_CARD_HANDLER, CARD_HARDLER_READ);
+	storeRam32(A_CARD_HANDLER, CARD_HARDLER_WRITE);
 
 	v0 = 1; pc0 = ra;
 }
@@ -3187,6 +3184,11 @@ static void psxBios__card_load() { // A ac
 static void card_vint_handler(void) {
 	u8 select, status;
 	u32 handler;
+
+	if (card_io_delay) {
+		card_io_delay--;
+		return;
+	}
 	UnDeliverEvent(0xf0000011, 0x0004);
 	UnDeliverEvent(0xf0000011, 0x8000);
 	UnDeliverEvent(0xf0000011, 0x0100);
@@ -3217,6 +3219,10 @@ static void card_vint_handler(void) {
 		storeRam8(A_CARD_STATUS1 + select, 1);
 		storeRam32(A_CARD_HANDLER, 0);
 		break;
+	case CARD_HARDLER_WRITEM:
+	case CARD_HARDLER_READM:
+		DeliverEvent(0xf4000001, 4);
+		// fallthrough
 	case CARD_HARDLER_WRITE:
 	case CARD_HARDLER_READ:
 		DeliverEvent(0xf0000011, 4);
@@ -3227,6 +3233,9 @@ static void card_vint_handler(void) {
 		break;
 	default:
 		log_unhandled("%s: unhandled handler %x\n", __func__, handler);
+		DeliverEvent(0xf0000011, 0x8000);
+		storeRam8(A_CARD_STATUS1 + select, 1);
+		storeRam32(A_CARD_HANDLER, 0);
 	}
 }
 
@@ -3864,8 +3873,8 @@ void psxBiosInit() {
 	//biosB0[0x37] = psxBios_ioctl;
 	//biosB0[0x38] = psxBios_exit;
 	//biosB0[0x39] = psxBios_sys_b0_39;
-	//biosB0[0x3a] = psxBios_getc;
-	//biosB0[0x3b] = psxBios_putc;
+	biosB0[0x3a] = psxBios_getc;
+	biosB0[0x3b] = psxBios_putc;
 	biosB0[0x3c] = psxBios_getchar;
 	biosB0[0x3d] = psxBios_putchar;
 	//biosB0[0x3e] = psxBios_gets;
@@ -4580,4 +4589,5 @@ void psxBiosFreeze(int Mode) {
 	bfreezes(ffile);
 	bfreezel(&nfile);
 	bfreezes(cdir);
+	bfreezel(&card_io_delay);
 }
