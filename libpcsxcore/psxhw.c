@@ -117,6 +117,12 @@ u32 psxHwReadGpuSR(void)
 	return v;
 }
 
+u32 sio1ReadStat16(void)
+{
+	// Armored Core, F1 Link cable misdetection
+	return 0xa0;
+}
+
 u8 psxHwRead8(u32 add) {
 	u8 hard;
 
@@ -180,7 +186,7 @@ u16 psxHwRead16(u32 add) {
 	case 0x1048: hard = sioReadMode16(); break;
 	case 0x104a: hard = sioReadCtrl16(); break;
 	case 0x104e: hard = sioReadBaud16(); break;
-	case 0x1054: hard = 0x80; break; // Armored Core Link cable misdetection
+	case 0x1054: hard = sio1ReadStat16(); break;
 	case 0x1100: hard = psxRcntRcount0(); break;
 	case 0x1104: hard = psxRcntRmode(0); break;
 	case 0x1108: hard = psxRcntRtarget(0); break;

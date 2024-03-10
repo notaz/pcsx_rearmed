@@ -97,11 +97,6 @@ static void io_write_sio32(u32 value)
 	sioWrite8((unsigned char)(value >> 24));
 }
 
-static u32 io_read_sio2_status()
-{
-	return 0x80;
-}
-
 #if !defined(DRC_DBG) && defined(__arm__)
 
 static void map_rcnt_rcount0(u32 mode)
@@ -386,7 +381,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iortab[IOMEM16(0x1048)], sioReadMode16, 1);
 	map_item(&mem_iortab[IOMEM16(0x104a)], sioReadCtrl16, 1);
 	map_item(&mem_iortab[IOMEM16(0x104e)], sioReadBaud16, 1);
-	map_item(&mem_iortab[IOMEM16(0x1054)], io_read_sio2_status, 1);
+	map_item(&mem_iortab[IOMEM16(0x1054)], sio1ReadStat16, 1);
 	map_item(&mem_iortab[IOMEM16(0x1100)], psxRcntRcount0, 1);
 	map_item(&mem_iortab[IOMEM16(0x1104)], io_rcnt_read_mode0, 1);
 	map_item(&mem_iortab[IOMEM16(0x1108)], io_rcnt_read_target0, 1);
