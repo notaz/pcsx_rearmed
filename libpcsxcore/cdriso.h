@@ -27,6 +27,7 @@ extern "C" {
 
 void cdrIsoInit(void);
 int cdrIsoActive(void);
+unsigned char * CALLBACK ISOgetBuffer(void);
 
 extern unsigned int cdrIsoMultidiskCount;
 extern unsigned int cdrIsoMultidiskSelect;
