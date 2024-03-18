@@ -1326,7 +1326,7 @@ static unsigned char * CALLBACK ISOgetBuffer_chd(void) {
 }
 #endif
 
-static unsigned char * CALLBACK ISOgetBuffer(void) {
+unsigned char * CALLBACK ISOgetBuffer(void) {
 	return cdbuffer + 12;
 }
 

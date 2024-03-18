@@ -242,6 +242,27 @@ CFLAGS += `pkg-config --cflags glib-2.0 libosso dbus-1 hildon-fm-2`
 LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
+ifneq "$(HAVE_PHYSICAL_CDROM)$(USE_LIBRETRO_VFS)" "00"
+OBJS += deps/libretro-common/compat/compat_strl.o
+OBJS += deps/libretro-common/file/file_path.o
+OBJS += deps/libretro-common/string/stdstring.o
+OBJS += deps/libretro-common/vfs/vfs_implementation.o
+endif
+ifeq "$(HAVE_PHYSICAL_CDROM)" "1"
+OBJS += deps/libretro-common/cdrom/cdrom.o
+OBJS += deps/libretro-common/memmap/memalign.o
+OBJS += deps/libretro-common/vfs/vfs_implementation_cdrom.o
+CFLAGS += -DHAVE_CDROM
+endif
+ifeq "$(USE_LIBRETRO_VFS)" "1"
+OBJS += deps/libretro-common/compat/compat_posix_string.o
+OBJS += deps/libretro-common/compat/fopen_utf8.o
+OBJS += deps/libretro-common/encodings/encoding_utf.o
+OBJS += deps/libretro-common/streams/file_stream.o
+OBJS += deps/libretro-common/streams/file_stream_transforms.o
+OBJS += deps/libretro-common/time/rtime.o
+CFLAGS += -DUSE_LIBRETRO_VFS
+endif
 OBJS += frontend/libretro.o
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 

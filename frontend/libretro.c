@@ -1497,6 +1497,103 @@ static void extract_directory(char *buf, const char *path, size_t size)
    }
 }
 
+// raw cdrom support
+#ifdef HAVE_CDROM
+#include "vfs/vfs_implementation.h"
+#include "vfs/vfs_implementation_cdrom.h"
+#include "cdrom/cdrom.h"
+static libretro_vfs_implementation_file *rcdrom_h;
+
+static long CALLBACK rcdrom_open(void)
+{
+   //printf("%s %s\n", __func__, GetIsoFile());
+   rcdrom_h = retro_vfs_file_open_impl(GetIsoFile(), RETRO_VFS_FILE_ACCESS_READ,
+      RETRO_VFS_FILE_ACCESS_HINT_NONE);
+   return rcdrom_h ? 0 : -1;
+}
+
+static long CALLBACK rcdrom_close(void)
+{
+   //printf("%s\n", __func__);
+   if (rcdrom_h) {
+      retro_vfs_file_close_impl(rcdrom_h);
+      rcdrom_h = NULL;
+   }
+   return 0;
+}
+
+static long CALLBACK rcdrom_getTN(unsigned char *tn)
+{
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   tn[0] = 1;
+   tn[1] = toc->num_tracks;
+   //printf("%s -> %d %d\n", __func__, tn[0], tn[1]);
+   return 0;
+}
+
+static long CALLBACK rcdrom_getTD(unsigned char track, unsigned char *rt)
+{
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   rt[0] = 0, rt[1] = 2, rt[2] = 0;
+   if (track == 0) {
+      const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
+      unsigned lba = cdrom_msf_to_lba(last->min, last->sec, last->frame);
+      lba += last->track_size;
+      cdrom_lba_to_msf(lba, &rt[2], &rt[1], &rt[0]);
+   }
+   else if (track <= toc->num_tracks) {
+      int i = track - 1;
+      rt[2] = toc->track[i].min;
+      rt[1] = toc->track[i].sec;
+      rt[0] = toc->track[i].frame;
+   }
+   //printf("%s %d -> %d:%02d:%02d\n", __func__, track, rt[2], rt[1], rt[0]);
+   return 0;
+}
+
+static boolean CALLBACK rcdrom_readTrack(unsigned char *time)
+{
+   void *buf = ISOgetBuffer();
+   int ret = -1;
+   if (rcdrom_h)
+      ret = cdrom_read(rcdrom_h, NULL,
+           btoi(time[0]), btoi(time[1]), btoi(time[2]), buf, 2340, 12);
+   //printf("%s %x:%02x:%02x -> %d\n", __func__, time[0], time[1], time[2], ret);
+   return !ret;
+}
+
+static unsigned char * CALLBACK rcdrom_getBuffer(void)
+{
+   //printf("%s\n", __func__);
+   return ISOgetBuffer();
+}
+
+static unsigned char * CALLBACK rcdrom_getBufferSub(int sector)
+{
+   //printf("%s %d %d\n", __func__, sector, rcdrom_h->cdrom.last_frame_lba);
+   return NULL;
+}
+
+static long CALLBACK rcdrom_getStatus(struct CdrStat *stat)
+{
+   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+   //printf("%s %p\n", __func__, stat);
+   CDR__getStatus(stat);
+   stat->Type = toc->track[0].audio ? 2 : 1;
+   return 0;
+}
+
+static long CALLBACK rcdrom_readCDDA(unsigned char m, unsigned char s, unsigned char f,
+      unsigned char *buffer)
+{
+   int ret = -1;
+   if (rcdrom_h)
+      ret = cdrom_read(rcdrom_h, NULL, m, s, f, buffer, 2352, 0);
+   //printf("%s %d:%02d:%02d -> %d\n", __func__, m, s, f, ret);
+   return ret;
+}
+#endif // HAVE_CDROM
+
 #if defined(__QNX__) || defined(_WIN32)
 /* Blackberry QNX doesn't have strcasestr */
 
@@ -1741,6 +1838,25 @@ bool retro_load_game(const struct retro_game_info *info)
    {
       LogErr("failed to load plugins\n");
       return false;
+   }
+   if (!strncmp(info->path, "cdrom:", 6))
+   {
+#ifdef HAVE_CDROM
+      CDR_open = rcdrom_open;
+      CDR_close = rcdrom_close;
+      CDR_getTN = rcdrom_getTN;
+      CDR_getTD = rcdrom_getTD;
+      CDR_readTrack = rcdrom_readTrack;
+      CDR_getBuffer = rcdrom_getBuffer;
+      CDR_getBufferSub = rcdrom_getBufferSub;
+      CDR_getStatus = rcdrom_getStatus;
+      CDR_readCDDA = rcdrom_readCDDA;
+#else
+      ReleasePlugins();
+      LogErr("%s\n", "Physical CD-ROM support is not compiled in.");
+      show_notification("Physical CD-ROM support is not compiled in.", 6000, 3);
+      return false;
+#endif
    }
 
    plugins_opened = 1;
