@@ -15,6 +15,7 @@
 #include <sys/syscall.h>
 #endif
 
+#include "retro_miscellaneous.h"
 #ifdef SWITCH
 #include <switch.h>
 #endif
@@ -1237,12 +1238,25 @@ static void disk_init(void)
    }
 }
 
+#ifdef HAVE_CDROM
+static long CALLBACK rcdrom_open(void);
+static long CALLBACK rcdrom_close(void);
+#endif
+
 static bool disk_set_eject_state(bool ejected)
 {
    // weird PCSX API..
    SetCdOpenCaseTime(ejected ? -1 : (time(NULL) + 2));
    LidInterrupt();
 
+#ifdef HAVE_CDROM
+   if (CDR_open == rcdrom_open) {
+      // likely the real cd was also changed - rescan
+      rcdrom_close();
+      if (!ejected)
+         rcdrom_open();
+   }
+#endif
    disk_ejected = ejected;
    return true;
 }
@@ -1295,8 +1309,7 @@ static bool disk_set_image_index(unsigned int index)
 
    if (!disk_ejected)
    {
-      SetCdOpenCaseTime(time(NULL) + 2);
-      LidInterrupt();
+      disk_set_eject_state(disk_ejected);
    }
 
    disk_current_index = index;
@@ -1501,23 +1514,176 @@ static void extract_directory(char *buf, const char *path, size_t size)
 #ifdef HAVE_CDROM
 #include "vfs/vfs_implementation.h"
 #include "vfs/vfs_implementation_cdrom.h"
-#include "cdrom/cdrom.h"
-static libretro_vfs_implementation_file *rcdrom_h;
+#include "libretro-cdrom.h"
+#include "rthreads/rthreads.h"
+#include "retro_timers.h"
+struct cached_buf {
+   unsigned char buf[2352];
+   unsigned int lba;
+};
+static struct {
+   libretro_vfs_implementation_file *h;
+   sthread_t *thread;
+   slock_t *read_lock;
+   slock_t *buf_lock;
+   scond_t *cond;
+   struct cached_buf *buf;
+   unsigned int buf_cnt, thread_exit, do_prefetch;
+   unsigned int total_lba, prefetch_lba;
+} rcdrom;
+
+static void lbacache_do(unsigned int lba)
+{
+   unsigned char m, s, f, buf[2352];
+   unsigned int i = lba % rcdrom.buf_cnt;
+   int ret;
+
+   cdrom_lba_to_msf(lba + 150, &m, &s, &f);
+   slock_lock(rcdrom.read_lock);
+   ret = cdrom_read_sector(rcdrom.h, lba, buf);
+   slock_lock(rcdrom.buf_lock);
+   slock_unlock(rcdrom.read_lock);
+   //printf("%d:%02d:%02d m%d f%d\n", m, s, f, buf[12+3], ((buf[12+4+2] >> 5) & 1) + 1);
+   if (ret) {
+      rcdrom.do_prefetch = 0;
+      slock_unlock(rcdrom.buf_lock);
+      LogErr("cdrom_read_sector failed for lba %d\n", ret, lba);
+      return;
+   }
+
+   if (lba != rcdrom.buf[i].lba) {
+      memcpy(rcdrom.buf[i].buf, buf, sizeof(rcdrom.buf[i].buf));
+      rcdrom.buf[i].lba = lba;
+   }
+   slock_unlock(rcdrom.buf_lock);
+   retro_sleep(0); // why does the main thread stall without this?
+}
+
+static int lbacache_get(unsigned int lba, void *buf)
+{
+   unsigned int i;
+   int ret = 0;
+
+   i = lba % rcdrom.buf_cnt;
+   slock_lock(rcdrom.buf_lock);
+   if (lba == rcdrom.buf[i].lba) {
+      memcpy(buf, rcdrom.buf[i].buf, 2352);
+      ret = 1;
+   }
+   slock_unlock(rcdrom.buf_lock);
+   return ret;
+}
+
+static void rcdrom_prefetch_thread(void *unused)
+{
+   unsigned int buf_cnt, lba, lba_to;
+
+   slock_lock(rcdrom.buf_lock);
+   while (!rcdrom.thread_exit)
+   {
+#ifdef __GNUC__
+      __asm__ __volatile__("":::"memory"); // barrier
+#endif
+      if (!rcdrom.do_prefetch)
+         scond_wait(rcdrom.cond, rcdrom.buf_lock);
+      if (!rcdrom.do_prefetch || !rcdrom.h || rcdrom.thread_exit)
+         continue;
+
+      buf_cnt = rcdrom.buf_cnt;
+      lba = rcdrom.prefetch_lba;
+      lba_to = lba + buf_cnt;
+      if (lba_to > rcdrom.total_lba)
+         lba_to = rcdrom.total_lba;
+      for (; lba < lba_to; lba++) {
+         if (lba != rcdrom.buf[lba % buf_cnt].lba)
+            break;
+      }
+      if (lba == lba_to) {
+         // caching complete
+         rcdrom.do_prefetch = 0;
+         continue;
+      }
+
+      slock_unlock(rcdrom.buf_lock);
+      lbacache_do(lba);
+      slock_lock(rcdrom.buf_lock);
+   }
+   slock_unlock(rcdrom.buf_lock);
+}
+
+static void rcdrom_stop_thread(void)
+{
+   rcdrom.thread_exit = 1;
+   if (rcdrom.buf_lock) {
+      slock_lock(rcdrom.buf_lock);
+      rcdrom.do_prefetch = 0;
+      if (rcdrom.cond)
+         scond_signal(rcdrom.cond);
+      slock_unlock(rcdrom.buf_lock);
+   }
+   if (rcdrom.thread) {
+      sthread_join(rcdrom.thread);
+      rcdrom.thread = NULL;
+   }
+   if (rcdrom.cond) { scond_free(rcdrom.cond); rcdrom.cond = NULL; }
+   if (rcdrom.buf_lock) { slock_free(rcdrom.buf_lock); rcdrom.buf_lock = NULL; }
+   if (rcdrom.read_lock) { slock_free(rcdrom.read_lock); rcdrom.read_lock = NULL; }
+   free(rcdrom.buf);
+   rcdrom.buf = NULL;
+}
+
+// the thread is optional, if anything fails we can do direct reads
+static void rcdrom_start_thread(void)
+{
+   rcdrom_stop_thread();
+   rcdrom.thread_exit = rcdrom.prefetch_lba = rcdrom.do_prefetch = 0;
+   if (rcdrom.buf_cnt == 0)
+      return;
+   rcdrom.buf = calloc(rcdrom.buf_cnt, sizeof(rcdrom.buf[0]));
+   rcdrom.buf_lock = slock_new();
+   rcdrom.read_lock = slock_new();
+   rcdrom.cond = scond_new();
+   if (rcdrom.buf && rcdrom.buf_lock && rcdrom.read_lock && rcdrom.cond) {
+      rcdrom.thread = sthread_create(rcdrom_prefetch_thread, NULL);
+      rcdrom.buf[0].lba = ~0;
+   }
+   if (!rcdrom.thread) {
+      LogErr("cdrom precache thread init failed.\n");
+      rcdrom_stop_thread();
+   }
+}
 
 static long CALLBACK rcdrom_open(void)
 {
-   //printf("%s %s\n", __func__, GetIsoFile());
-   rcdrom_h = retro_vfs_file_open_impl(GetIsoFile(), RETRO_VFS_FILE_ACCESS_READ,
+   const char *name = GetIsoFile();
+   //printf("%s %s\n", __func__, name);
+   rcdrom.h = retro_vfs_file_open_impl(name, RETRO_VFS_FILE_ACCESS_READ,
       RETRO_VFS_FILE_ACCESS_HINT_NONE);
-   return rcdrom_h ? 0 : -1;
+   if (rcdrom.h) {
+      int ret = cdrom_set_read_speed_x(rcdrom.h, 4);
+      if (ret) LogErr("CD speed set failed\n");
+      const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
+      const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
+      unsigned int lba = cdrom_msf_to_lba(last->min, last->sec, last->frame) - 150;
+      rcdrom.total_lba = lba + last->track_size;
+      //cdrom_get_current_config_random_readable(rcdrom.h);
+      //cdrom_get_current_config_multiread(rcdrom.h);
+      //cdrom_get_current_config_cdread(rcdrom.h);
+      //cdrom_get_current_config_profiles(rcdrom.h);
+      rcdrom_start_thread();
+      return 0;
+   }
+   LogErr("retro_vfs_file_open failed for '%s'\n", name);
+   return -1;
 }
 
 static long CALLBACK rcdrom_close(void)
 {
    //printf("%s\n", __func__);
-   if (rcdrom_h) {
-      retro_vfs_file_close_impl(rcdrom_h);
-      rcdrom_h = NULL;
+   if (rcdrom.h) {
+      rcdrom_stop_thread();
+      retro_vfs_file_close_impl(rcdrom.h);
+      rcdrom.h = NULL;
    }
    return 0;
 }
@@ -1536,10 +1702,7 @@ static long CALLBACK rcdrom_getTD(unsigned char track, unsigned char *rt)
    const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
    rt[0] = 0, rt[1] = 2, rt[2] = 0;
    if (track == 0) {
-      const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
-      unsigned lba = cdrom_msf_to_lba(last->min, last->sec, last->frame);
-      lba += last->track_size;
-      cdrom_lba_to_msf(lba, &rt[2], &rt[1], &rt[0]);
+      cdrom_lba_to_msf(rcdrom.total_lba + 150, &rt[2], &rt[1], &rt[0]);
    }
    else if (track <= toc->num_tracks) {
       int i = track - 1;
@@ -1551,15 +1714,63 @@ static long CALLBACK rcdrom_getTD(unsigned char track, unsigned char *rt)
    return 0;
 }
 
+static long CALLBACK rcdrom_prefetch(unsigned char m, unsigned char s, unsigned char f)
+{
+   unsigned int lba = cdrom_msf_to_lba(m, s, f) - 150;
+   if (rcdrom.cond && rcdrom.h) {
+      rcdrom.prefetch_lba = lba;
+      rcdrom.do_prefetch = 1;
+      scond_signal(rcdrom.cond);
+   }
+   if (rcdrom.buf) {
+     unsigned int c = rcdrom.buf_cnt;
+     if (c)
+        return rcdrom.buf[lba % c].lba == lba;
+   }
+   return 1;
+}
+
+static int rcdrom_read_msf(unsigned char m, unsigned char s, unsigned char f,
+      void *buf, const char *func)
+{
+   unsigned int lba = cdrom_msf_to_lba(m, s, f) - 150;
+   int hit = 0, ret = -1;
+   if (rcdrom.buf_lock)
+      hit = lbacache_get(lba, buf);
+   if (!hit && rcdrom.read_lock) {
+      // maybe still prefetching
+      slock_lock(rcdrom.read_lock);
+      slock_unlock(rcdrom.read_lock);
+      hit = lbacache_get(lba, buf);
+      if (hit)
+         hit = 2;
+   }
+   if (!hit) {
+      slock_t *lock = rcdrom.read_lock;
+      rcdrom.do_prefetch = 0;
+      if (lock)
+         slock_lock(lock);
+      if (rcdrom.h)
+         ret = cdrom_read_sector(rcdrom.h, lba, buf);
+      if (lock)
+         slock_unlock(lock);
+   }
+   else
+      ret = 0;
+   //printf("%s %d:%02d:%02d -> %d hit %d\n", func, m, s, f, ret, hit);
+   return ret;
+}
+
 static boolean CALLBACK rcdrom_readTrack(unsigned char *time)
 {
-   void *buf = ISOgetBuffer();
-   int ret = -1;
-   if (rcdrom_h)
-      ret = cdrom_read(rcdrom_h, NULL,
-           btoi(time[0]), btoi(time[1]), btoi(time[2]), buf, 2340, 12);
-   //printf("%s %x:%02x:%02x -> %d\n", __func__, time[0], time[1], time[2], ret);
-   return !ret;
+   unsigned char m = btoi(time[0]), s = btoi(time[1]), f = btoi(time[2]);
+   return !rcdrom_read_msf(m, s, f, ISOgetBuffer() - 12, __func__);
+}
+
+static long CALLBACK rcdrom_readCDDA(unsigned char m, unsigned char s, unsigned char f,
+      unsigned char *buffer)
+{
+   return rcdrom_read_msf(m, s, f, buffer, __func__);
 }
 
 static unsigned char * CALLBACK rcdrom_getBuffer(void)
@@ -1581,16 +1792,6 @@ static long CALLBACK rcdrom_getStatus(struct CdrStat *stat)
    CDR__getStatus(stat);
    stat->Type = toc->track[0].audio ? 2 : 1;
    return 0;
-}
-
-static long CALLBACK rcdrom_readCDDA(unsigned char m, unsigned char s, unsigned char f,
-      unsigned char *buffer)
-{
-   int ret = -1;
-   if (rcdrom_h)
-      ret = cdrom_read(rcdrom_h, NULL, m, s, f, buffer, 2352, 0);
-   //printf("%s %d:%02d:%02d -> %d\n", __func__, m, s, f, ret);
-   return ret;
 }
 #endif // HAVE_CDROM
 
@@ -1851,7 +2052,8 @@ bool retro_load_game(const struct retro_game_info *info)
       CDR_getBufferSub = rcdrom_getBufferSub;
       CDR_getStatus = rcdrom_getStatus;
       CDR_readCDDA = rcdrom_readCDDA;
-#else
+      CDR_prefetch = rcdrom_prefetch;
+#elif !defined(USE_LIBRETRO_VFS)
       ReleasePlugins();
       LogErr("%s\n", "Physical CD-ROM support is not compiled in.");
       show_notification("Physical CD-ROM support is not compiled in.", 6000, 3);
@@ -2245,6 +2447,26 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "enabled") == 0)
          display_internal_fps = true;
    }
+
+#ifdef HAVE_CDROM
+   var.value = NULL;
+   var.key = "pcsx_rearmed_phys_cd_readahead";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      long newval = strtol(var.value, NULL, 10);
+      bool changed = rcdrom.buf_cnt != newval;
+      if (rcdrom.h && changed)
+         rcdrom_stop_thread();
+      rcdrom.buf_cnt = newval;
+      if (rcdrom.h && changed) {
+         rcdrom_start_thread();
+         if (rcdrom.cond && rcdrom.prefetch_lba) {
+            rcdrom.do_prefetch = 1;
+            scond_signal(rcdrom.cond);
+         }
+      }
+   }
+#endif
 
    //
    // CPU emulation related config

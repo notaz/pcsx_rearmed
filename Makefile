@@ -249,8 +249,10 @@ OBJS += deps/libretro-common/string/stdstring.o
 OBJS += deps/libretro-common/vfs/vfs_implementation.o
 endif
 ifeq "$(HAVE_PHYSICAL_CDROM)" "1"
-OBJS += deps/libretro-common/cdrom/cdrom.o
+OBJS += frontend/libretro-cdrom.o
+OBJS += deps/libretro-common/lists/string_list.o
 OBJS += deps/libretro-common/memmap/memalign.o
+OBJS += deps/libretro-common/rthreads/rthreads.o
 OBJS += deps/libretro-common/vfs/vfs_implementation_cdrom.o
 CFLAGS += -DHAVE_CDROM
 endif

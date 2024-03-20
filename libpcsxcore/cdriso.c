@@ -100,6 +100,7 @@ long CALLBACK CDR__configure(void);
 long CALLBACK CDR__test(void);
 void CALLBACK CDR__about(void);
 long CALLBACK CDR__setfilename(char *filename);
+long CALLBACK CDR__prefetch(u8 m, u8 s, u8 f);
 
 static void DecodeRawSubData(void);
 
@@ -1738,6 +1739,7 @@ void cdrIsoInit(void) {
 	CDR_test = CDR__test;
 	CDR_about = CDR__about;
 	CDR_setfilename = CDR__setfilename;
+	CDR_prefetch = CDR__prefetch;
 
 	numtracks = 0;
 }

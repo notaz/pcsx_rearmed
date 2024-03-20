@@ -41,6 +41,7 @@ static long CALLBACK CDRgetStatus(struct CdrStat *_) { return 0; }
 static char * CALLBACK CDRgetDriveLetter(void) { return NULL; }
 static long CALLBACK CDRreadCDDA(unsigned char _, unsigned char __, unsigned char ___, unsigned char *____) { return 0; }
 static long CALLBACK CDRgetTE(unsigned char _, unsigned char *__, unsigned char *___, unsigned char *____) { return 0; }
+static long CALLBACK CDRprefetch(unsigned char m, unsigned char s, unsigned char f) { return 1; }
 
 /* GPU */
 static void CALLBACK GPUdisplayText(char *_) { return; }
@@ -163,6 +164,7 @@ static const struct {
 	DIRECT_CDR(CDRsetfilename),
 	DIRECT_CDR(CDRreadCDDA),
 	DIRECT_CDR(CDRgetTE),
+	DIRECT_CDR(CDRprefetch),
 	/* SPU */
 	DIRECT_SPU(SPUinit),
 	DIRECT_SPU(SPUshutdown),

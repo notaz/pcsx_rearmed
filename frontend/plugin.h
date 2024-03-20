@@ -1,7 +1,9 @@
 #ifndef __PLUGIN_H__
 #define __PLUGIN_H__
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#endif
 
 #define PLUGIN_DL_BASE 0xfbad0000
 

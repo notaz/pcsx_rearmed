@@ -68,7 +68,7 @@ static struct {
 	} subq;
 	unsigned char TrackChanged;
 	unsigned char ReportDelay;
-	unsigned char unused3;
+	unsigned char PhysCdPropagations;
 	unsigned short sectorsRead;
 	unsigned int  freeze_ver;
 
@@ -660,6 +660,14 @@ static void msfiSub(u8 *msfi, u32 count)
 
 void cdrPlayReadInterrupt(void)
 {
+	int hit = CDR_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
+	if (!hit && cdr.PhysCdPropagations++ < 222) {
+		// this propagates real cdrom delays to the emulated game
+		CDRPLAYREAD_INT(cdReadTime / 2, 0);
+		return;
+	}
+	cdr.PhysCdPropagations = 0;
+
 	cdr.LastReadSeekCycles = psxRegs.cycle;
 
 	if (cdr.Reading) {
@@ -694,6 +702,7 @@ void cdrPlayReadInterrupt(void)
 	}
 
 	msfiAdd(cdr.SetSectorPlay, 1);
+	CDR_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
 
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
@@ -1109,6 +1118,8 @@ void cdrInterrupt(void) {
 			seekTime = cdrSeekTime(cdr.SetSector);
 			memcpy(cdr.SetSectorPlay, cdr.SetSector, 4);
 			cdr.DriveState = DRIVESTATE_SEEK;
+			CDR_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1],
+					cdr.SetSectorPlay[2]);
 			/*
 			Crusaders of Might and Magic = 0.5x-4x
 			- fix cutscene speech start
@@ -1246,6 +1257,8 @@ void cdrInterrupt(void) {
 			cdr.SubqForwardSectors = 1;
 			cdr.sectorsRead = 0;
 			cdr.DriveState = DRIVESTATE_SEEK;
+			CDR_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1],
+					cdr.SetSectorPlay[2]);
 
 			cycles = (cdr.Mode & MODE_SPEED) ? cdReadTime : cdReadTime * 2;
 			cycles += seekTime;
@@ -1423,6 +1436,7 @@ static void cdrReadInterrupt(void)
 		cdrReadInterruptSetResult(cdr.StatP);
 
 	msfiAdd(cdr.SetSectorPlay, 1);
+	CDR_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
 
 	CDRPLAYREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime, 0);
 }

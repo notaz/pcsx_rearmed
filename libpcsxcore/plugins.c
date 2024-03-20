@@ -68,6 +68,7 @@ CDRabout              CDR_about;
 CDRsetfilename        CDR_setfilename;
 CDRreadCDDA           CDR_readCDDA;
 CDRgetTE              CDR_getTE;
+CDRprefetch           CDR_prefetch;
 
 SPUinit               SPU_init;
 SPUshutdown           SPU_shutdown;
@@ -257,6 +258,7 @@ long CALLBACK CDR__configure(void) { return 0; }
 long CALLBACK CDR__test(void) { return 0; }
 void CALLBACK CDR__about(void) {}
 long CALLBACK CDR__setfilename(char*filename) { return 0; }
+long CALLBACK CDR__prefetch(u8 m, u8 s, u8 f) { return 1; }
 
 #define LoadCdrSym1(dest, name) \
 	LoadSym(CDR_##dest, CDR##dest, name, TRUE);
@@ -301,6 +303,7 @@ static int LoadCDRplugin(const char *CDRdll) {
 	LoadCdrSym0(setfilename, "CDRsetfilename");
 	LoadCdrSymN(readCDDA, "CDRreadCDDA");
 	LoadCdrSymN(getTE, "CDRgetTE");
+	LoadCdrSym0(prefetch, "CDRprefetch");
 
 	return 0;
 }
