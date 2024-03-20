@@ -133,6 +133,7 @@ struct SubQ {
 };
 typedef long (CALLBACK* CDRreadCDDA)(unsigned char, unsigned char, unsigned char, unsigned char *);
 typedef long (CALLBACK* CDRgetTE)(unsigned char, unsigned char *, unsigned char *, unsigned char *);
+typedef long (CALLBACK* CDRprefetch)(unsigned char, unsigned char, unsigned char);
 
 // CD-ROM function pointers
 extern CDRinit               CDR_init;
@@ -154,6 +155,7 @@ extern CDRabout              CDR_about;
 extern CDRsetfilename        CDR_setfilename;
 extern CDRreadCDDA           CDR_readCDDA;
 extern CDRgetTE              CDR_getTE;
+extern CDRprefetch           CDR_prefetch;
 
 long CALLBACK CDR__getStatus(struct CdrStat *stat);
 
