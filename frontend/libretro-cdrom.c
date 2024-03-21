@@ -41,7 +41,6 @@ int cdrom_set_read_speed_x(libretro_vfs_implementation_file *stream, unsigned sp
    int ret;
    ret = cdrom_send_command_once(stream, DIRECTION_NONE, NULL, 0, cmd1, sizeof(cmd1));
    if (ret) {
-      printf("DA failed\n");
 #if defined(__linux__) && !defined(ANDROID)
       // doesn't work, too late?
       //ret = ioctl(fileno(stream->fp), CDROM_SELECT_SPEED, &speed);
