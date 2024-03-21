@@ -204,6 +204,7 @@ else
 	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 endif
+	HAVE_PHYSICAL_CDROM = 0
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
 	MINVERSION = -miphoneos-version-min=8.0
