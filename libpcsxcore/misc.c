@@ -362,6 +362,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 
 int CheckCdrom() {
 	struct iso_directory_record *dir;
+	struct CdrStat stat = { 0, 0, };
 	unsigned char time[4];
 	char *buf;
 	unsigned char mdir[4096];
@@ -369,16 +370,21 @@ int CheckCdrom() {
 	int i, len, c;
 
 	FreePPFCache();
+	memset(CdromLabel, 0, sizeof(CdromLabel));
+	memset(CdromId, 0, sizeof(CdromId));
+	memset(exename, 0, sizeof(exename));
 
 	time[0] = itob(0);
 	time[1] = itob(2);
 	time[2] = itob(0x10);
 
+	if (!Config.HLE && Config.SlowBoot) {
+		// boot to BIOS in case of CDDA ir lid open
+		CDR_getStatus(&stat);
+		if ((stat.Status & 0x10) || stat.Type == 2 || !CDR_readTrack(time))
+			return 0;
+	}
 	READTRACK();
-
-	memset(CdromLabel, 0, sizeof(CdromLabel));
-	memset(CdromId, 0, sizeof(CdromId));
-	memset(exename, 0, sizeof(exename));
 
 	strncpy(CdromLabel, buf + 52, 32);
 
