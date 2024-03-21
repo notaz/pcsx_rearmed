@@ -1241,20 +1241,26 @@ static void disk_init(void)
 #ifdef HAVE_CDROM
 static long CALLBACK rcdrom_open(void);
 static long CALLBACK rcdrom_close(void);
+static void rcdrom_stop_thread(void);
 #endif
 
 static bool disk_set_eject_state(bool ejected)
 {
-   // weird PCSX API..
+   if (ejected != disk_ejected)
+      SysPrintf("new eject_state: %d\n", ejected);
+
+   // weird PCSX API...
    SetCdOpenCaseTime(ejected ? -1 : (time(NULL) + 2));
    LidInterrupt();
 
 #ifdef HAVE_CDROM
-   if (CDR_open == rcdrom_open) {
-      // likely the real cd was also changed - rescan
-      rcdrom_close();
-      if (!ejected)
+   if (CDR_open == rcdrom_open && ejected != disk_ejected) {
+      rcdrom_stop_thread();
+      if (!ejected) {
+         // likely the real cd was also changed - rescan
+         rcdrom_close();
          rcdrom_open();
+      }
    }
 #endif
    disk_ejected = ejected;
@@ -1530,6 +1536,7 @@ static struct {
    struct cached_buf *buf;
    unsigned int buf_cnt, thread_exit, do_prefetch;
    unsigned int total_lba, prefetch_lba;
+   int check_eject_delay;
 } rcdrom;
 
 static void lbacache_do(unsigned int lba)
@@ -1547,9 +1554,10 @@ static void lbacache_do(unsigned int lba)
    if (ret) {
       rcdrom.do_prefetch = 0;
       slock_unlock(rcdrom.buf_lock);
-      LogErr("cdrom_read_sector failed for lba %d\n", ret, lba);
+      LogErr("prefetch: cdrom_read_sector failed for lba %d\n", lba);
       return;
    }
+   rcdrom.check_eject_delay = 100;
 
    if (lba != rcdrom.buf[i].lba) {
       memcpy(rcdrom.buf[i].buf, buf, sizeof(rcdrom.buf[i].buf));
@@ -1750,13 +1758,17 @@ static int rcdrom_read_msf(unsigned char m, unsigned char s, unsigned char f,
       rcdrom.do_prefetch = 0;
       if (lock)
          slock_lock(lock);
-      if (rcdrom.h)
+      if (rcdrom.h) {
          ret = cdrom_read_sector(rcdrom.h, lba, buf);
+         if (ret)
+            LogErr("cdrom_read_sector failed for lba %d\n", lba);
+      }
       if (lock)
          slock_unlock(lock);
    }
    else
       ret = 0;
+   rcdrom.check_eject_delay = ret ? 0 : 100;
    //printf("%s %d:%02d:%02d -> %d hit %d\n", func, m, s, f, ret, hit);
    return ret;
 }
@@ -1792,6 +1804,17 @@ static long CALLBACK rcdrom_getStatus(struct CdrStat *stat)
    CDR__getStatus(stat);
    stat->Type = toc->track[0].audio ? 2 : 1;
    return 0;
+}
+
+static void rcdrom_check_eject(void)
+{
+   bool media_inserted;
+   if (!rcdrom.h || rcdrom.do_prefetch || rcdrom.check_eject_delay-- > 0)
+      return;
+   rcdrom.check_eject_delay = 100;
+   media_inserted = cdrom_is_media_inserted(rcdrom.h); // 1-2ms
+   if (!media_inserted != disk_ejected)
+      disk_set_eject_state(!media_inserted);
 }
 #endif // HAVE_CDROM
 
@@ -3433,6 +3456,11 @@ void retro_run(void)
    video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
        vout_width, vout_height, vout_pitch * 2);
    vout_fb_dirty = 0;
+
+#ifdef HAVE_CDROM
+   if (CDR_open == rcdrom_open)
+      rcdrom_check_eject();
+#endif
 }
 
 static bool try_use_bios(const char *path, bool preferred_only)
