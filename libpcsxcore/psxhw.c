@@ -60,22 +60,31 @@ void psxHwWriteImask(u32 value)
 		psxRegs.CP0.n.Cause |= 0x400;
 }
 
-#define make_dma_func(n) \
+#define make_dma_func(n, abort_func) \
 void psxHwWriteChcr##n(u32 value) \
 { \
-	if (value & SWAPu32(HW_DMA##n##_CHCR) & 0x01000000) \
-		log_unhandled("dma" #n " %08x -> %08x\n", HW_DMA##n##_CHCR, value); \
+	u32 old = SWAPu32(HW_DMA##n##_CHCR); \
+	if (n == 6) { value &= 0x51000002; value |= 2; } \
+	else        { value &= 0x71770703; } \
+	if (value == old) \
+		return; \
+	if (old & 0x01000000) \
+		log_unhandled("%u dma" #n " %08x -> %08x\n", psxRegs.cycle, old, value); \
 	HW_DMA##n##_CHCR = SWAPu32(value); \
-	if (value & 0x01000000 && SWAPu32(HW_DMA_PCR) & (8u << (n * 4))) \
-		psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), value); \
+	if ((value ^ old) & 0x01000000) { \
+		if (!(value & 0x01000000)) \
+			abort_func; \
+		else if (SWAPu32(HW_DMA_PCR) & (8u << (n * 4))) \
+			psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), value); \
+	} \
 }
 
-make_dma_func(0)
-make_dma_func(1)
-make_dma_func(2)
-make_dma_func(3)
-make_dma_func(4)
-make_dma_func(6)
+make_dma_func(0,)
+make_dma_func(1,)
+make_dma_func(2, psxAbortDma2())
+make_dma_func(3,)
+make_dma_func(4,)
+make_dma_func(6,)
 
 void psxHwWriteDmaIcr32(u32 value)
 {
