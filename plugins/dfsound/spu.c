@@ -1000,8 +1000,10 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
    if (unlikely(s_chan->bFMod == 2))
    {
     // sucks, have to do double work
-    assert(!s_chan->bNoise);
-    d = do_samples_gauss(tmpFMod, decode_block, NULL, ch, ns_to,
+    if (s_chan->bNoise)
+     d = do_samples_noise(tmpFMod, ch, ns_to);
+    else
+     d = do_samples_gauss(tmpFMod, decode_block, NULL, ch, ns_to,
           &spu.sb[ch], s_chan->sinc, &s_chan->spos, &s_chan->iSBPos);
     if (!s_chan->bStarting) {
      d = MixADSR(tmpFMod, &s_chan->ADSRX, d);
