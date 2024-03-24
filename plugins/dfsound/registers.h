@@ -153,7 +153,10 @@
 #define CTRL_MUTE               0x4000
 #define CTRL_ON                 0x8000
 
-#define STAT_IRQ                0x40
+#define STAT_IRQ                0x0040
+#define STAT_DMA_W              0x0100
+#define STAT_DMA_R              0x0200
+#define STAT_DMA_BUSY           0x0400
 
 ///////////////////////////////////////////////////////////
 

@@ -1245,6 +1245,7 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
 
   spu.cycles_played += ns_to * 768;
   spu.decode_pos = (spu.decode_pos + ns_to) & 0x1ff;
+  spu.spuStat = (spu.spuStat & ~0x800) | ((spu.decode_pos << 3) & 0x800);
 #if 0
   static int ccount; static time_t ctime; ccount++;
   if (time(NULL) != ctime)
