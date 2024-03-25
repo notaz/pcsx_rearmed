@@ -338,6 +338,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
 
  spu.XAPlay = spu.XAFeed = spu.XAStart;
  spu.CDDAPlay = spu.CDDAFeed = spu.CDDAStart;
+ spu.cdClearSamples = 512;
  if (pFO && pFO->xa_left && pF->xaS.nsamples) {        // start xa again
   FeedXA(&pF->xaS);
   spu.XAPlay = spu.XAFeed - pFO->xa_left;

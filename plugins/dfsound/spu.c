@@ -1389,6 +1389,7 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycle, int is_s
 
  FeedXA(xap);                          // call main XA feeder
  spu.xapGlobal = xap;                  // store info for save states
+ spu.cdClearSamples = 512;
 }
 
 // CDDA AUDIO
@@ -1401,6 +1402,7 @@ int CALLBACK SPUplayCDDAchannel(short *pcm, int nbytes, unsigned int cycle, int 
   do_samples(cycle, 1);                // catch up to prevent source underflows later
 
  FeedCDDA((unsigned char *)pcm, nbytes);
+ spu.cdClearSamples = 512;
  return 0;
 }
 

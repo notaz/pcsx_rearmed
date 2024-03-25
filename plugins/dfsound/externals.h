@@ -214,6 +214,7 @@ typedef struct
  int             iLeftXAVol;
  int             iRightXAVol;
 
+ int             cdClearSamples;       // extra samples to clear the capture buffers
  struct {                              // channel volume in the cd controller
   unsigned char  ll, lr, rl, rr;       // see cdr.Attenuator* in cdrom.c
  } cdv;                                // applied on spu side for easier emulation
