@@ -169,17 +169,44 @@ endif
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
 #ifeq "$(CHD_SUPPORT)" "1"
-OBJS += libchdr/src/libchdr_bitstream.o
-OBJS += libchdr/src/libchdr_cdrom.o
-OBJS += libchdr/src/libchdr_chd.o
-OBJS += libchdr/src/libchdr_flac.o
-OBJS += libchdr/src/libchdr_huffman.o
-OBJS += libchdr/deps/lzma-19.00/src/Alloc.o libchdr/deps/lzma-19.00/src/Bra86.o libchdr/deps/lzma-19.00/src/BraIA64.o libchdr/deps/lzma-19.00/src/CpuArch.o libchdr/deps/lzma-19.00/src/Delta.o
-OBJS += libchdr/deps/lzma-19.00/src/LzFind.o libchdr/deps/lzma-19.00/src/Lzma86Dec.o libchdr/deps/lzma-19.00/src/LzmaDec.o libchdr/deps/lzma-19.00/src/LzmaEnc.o libchdr/deps/lzma-19.00/src/Sort.o
-CFLAGS += -DHAVE_CHD -Ilibchdr/include
+LCHDR = deps/libchdr
+LCHDR_LZMA = $(LCHDR)/deps/lzma-22.01
+LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.5/lib
+OBJS += $(LCHDR)/src/libchdr_bitstream.o
+OBJS += $(LCHDR)/src/libchdr_cdrom.o
+OBJS += $(LCHDR)/src/libchdr_chd.o
+OBJS += $(LCHDR)/src/libchdr_flac.o
+OBJS += $(LCHDR)/src/libchdr_huffman.o
+$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -std=gnu11
+OBJS += $(LCHDR_LZMA)/src/Alloc.o
+OBJS += $(LCHDR_LZMA)/src/Bra86.o
+OBJS += $(LCHDR_LZMA)/src/BraIA64.o
+OBJS += $(LCHDR_LZMA)/src/CpuArch.o
+OBJS += $(LCHDR_LZMA)/src/Delta.o
+OBJS += $(LCHDR_LZMA)/src/LzFind.o
+OBJS += $(LCHDR_LZMA)/src/Lzma86Dec.o
+OBJS += $(LCHDR_LZMA)/src/LzmaDec.o
+OBJS += $(LCHDR_LZMA)/src/LzmaEnc.o
+OBJS += $(LCHDR_LZMA)/src/Sort.o
+$(LCHDR_LZMA)/src/%.o: CFLAGS += -Wno-unused -D_7ZIP_ST -I$(LCHDR_LZMA)/include
+$(LCHDR)/src/%.o: CFLAGS += -I$(LCHDR_LZMA)/include
+OBJS += $(LCHDR_ZSTD)/common/debug.o
+OBJS += $(LCHDR_ZSTD)/common/entropy_common.o
+OBJS += $(LCHDR_ZSTD)/common/error_private.o
+OBJS += $(LCHDR_ZSTD)/common/fse_decompress.o
+OBJS += $(LCHDR_ZSTD)/common/pool.o
+OBJS += $(LCHDR_ZSTD)/common/threading.o
+OBJS += $(LCHDR_ZSTD)/common/xxhash.o
+OBJS += $(LCHDR_ZSTD)/common/zstd_common.o
+OBJS += $(LCHDR_ZSTD)/decompress/huf_decompress.o
+OBJS += $(LCHDR_ZSTD)/decompress/zstd_ddict.o
+OBJS += $(LCHDR_ZSTD)/decompress/zstd_decompress_block.o
+OBJS += $(LCHDR_ZSTD)/decompress/zstd_decompress.o
+$(LCHDR_ZSTD)/common/%.o \
+$(LCHDR_ZSTD)/decompress/%.o: CFLAGS += -DZSTD_DISABLE_ASM -I$(LCHDR_ZSTD)
+$(LCHDR)/src/%.o: CFLAGS += -I$(LCHDR_ZSTD)
 libpcsxcore/cdriso.o: CFLAGS += -Wno-unused-function
-libchdr/src/%.o: CFLAGS += -Wno-unused -Ilibchdr/deps/lzma-19.00/include -std=gnu11
-libchdr/deps/lzma-19.00/src/%.o: CFLAGS += -Wno-unused -D_7ZIP_ST -Ilibchdr/deps/lzma-19.00/include
+CFLAGS += -DHAVE_CHD -I$(LCHDR)/include
 #endif
 
 # frontend/gui

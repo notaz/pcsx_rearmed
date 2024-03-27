@@ -5,5 +5,5 @@
 	path = frontend/warm
 	url = https://github.com/notaz/warm.git
 [submodule "libchdr"]
-	path = libchdr
+	path = deps/libchdr
 	url = https://github.com/rtissera/libchdr.git
