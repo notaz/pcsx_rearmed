@@ -34,12 +34,16 @@ if (WITH_SYSTEM_ZLIB)
   find_package(ZLIB REQUIRED)
   list(APPEND PLATFORM_LIBS ZLIB::ZLIB)
 else()
-  add_subdirectory(deps/zlib-1.2.13 EXCLUDE_FROM_ALL)
+  option(ZLIB_BUILD_EXAMPLES "Enable Zlib Examples" OFF)
+  add_subdirectory(deps/zlib-1.3.1 EXCLUDE_FROM_ALL)
   set_target_properties(zlibstatic PROPERTIES POSITION_INDEPENDENT_CODE ON)
   list(APPEND CHDR_LIBS zlibstatic)
-  list(APPEND CHDR_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/deps/zlib-1.2.13" "${CMAKE_CURRENT_BINARY_DIR}/deps/zlib-1.2.13")
 endif()
 
+# zstd 
+add_subdirectory(deps/zstd-1.5.5 EXCLUDE_FROM_ALL)
+list(APPEND CHDR_LIBS zstd)
+list(APPEND CHDR_INCLUDES zstd)
 #--------------------------------------------------
 # chdr
 #--------------------------------------------------
