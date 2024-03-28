@@ -168,7 +168,9 @@ endif
 
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
-#ifeq "$(CHD_SUPPORT)" "1"
+
+# libchdr
+#ifeq "$(HAVE_CHD)" "1"
 LCHDR = deps/libchdr
 LCHDR_LZMA = $(LCHDR)/deps/lzma-22.01
 LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.5/lib
