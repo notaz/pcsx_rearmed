@@ -28,7 +28,7 @@
 #include <errno.h>
 #include <zlib.h>
 #ifdef HAVE_CHD
-#include <chd.h>
+#include <libchdr/chd.h>
 #endif
 
 #ifdef _WIN32

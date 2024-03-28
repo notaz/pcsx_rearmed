@@ -294,16 +294,17 @@ static void convert(void *buf, size_t bytes)
 static void addCrosshair(int port, int crosshair_color, unsigned short *buffer, int bufferStride, int pos_x, int pos_y, int thickness, int size_x, int size_y) {
    for (port = 0; port < 2; port++) {
       // Draw the horizontal line of the crosshair
-      for (int i = pos_y - thickness / 2; i <= pos_y + thickness / 2; i++) {
-         for (int j = pos_x - size_x / 2; j <= pos_x + size_x / 2; j++) {
+      int i, j;
+      for (i = pos_y - thickness / 2; i <= pos_y + thickness / 2; i++) {
+         for (j = pos_x - size_x / 2; j <= pos_x + size_x / 2; j++) {
             if ((i + vout_height) >= 0 && (i + vout_height) < bufferStride && j >= 0 && j < bufferStride && in_enable_crosshair[port] > 0)
                buffer[i * bufferStride + j] = crosshair_color;
-      }
          }
+      }
 
       // Draw the vertical line of the crosshair
-      for (int i = pos_x - thickness / 2; i <= pos_x + thickness / 2; i++) {
-         for (int j = pos_y - size_y / 2; j <= pos_y + size_y / 2; j++) {
+      for (i = pos_x - thickness / 2; i <= pos_x + thickness / 2; i++) {
+         for (j = pos_y - size_y / 2; j <= pos_y + size_y / 2; j++) {
             if (i >= 0 && i < bufferStride && (j + vout_height) >= 0 && (j + vout_height) < bufferStride && in_enable_crosshair[port] > 0)
                buffer[j * bufferStride + i] = crosshair_color;
          }
@@ -366,8 +367,8 @@ static void vout_flip(const void *vram, int stride, int bgr24,
    for (port = 0; port < 2; port++) {
       if (in_enable_crosshair[port] > 0 && (in_type[port] == PSE_PAD_TYPE_GUNCON || in_type[port] == PSE_PAD_TYPE_GUN))
       {
-	 struct CrosshairInfo crosshairInfo;
-	 CrosshairDimensions(port, &crosshairInfo);
+         struct CrosshairInfo crosshairInfo;
+         CrosshairDimensions(port, &crosshairInfo);
          addCrosshair(port, in_enable_crosshair[port], dest, dstride, crosshairInfo.pos_x, crosshairInfo.pos_y, crosshairInfo.thickness, crosshairInfo.size_x, crosshairInfo.size_y);
       }
    }
@@ -727,8 +728,8 @@ static bool update_option_visibility(void)
             "pcsx_rearmed_negcon_deadzone",
             "pcsx_rearmed_negcon_response",
             "pcsx_rearmed_input_sensitivity",
-	    "pcsx_rearmed_crosshair1",
-	    "pcsx_rearmed_crosshair2",
+            "pcsx_rearmed_crosshair1",
+            "pcsx_rearmed_crosshair2",
             "pcsx_rearmed_konamigunadjustx",
             "pcsx_rearmed_konamigunadjusty",
             "pcsx_rearmed_gunconadjustx",
