@@ -425,7 +425,8 @@ BoolInt CPU_IsSupported_AES (void) { return 0; }
 
 #else
 
-#if (defined(__ANDROID_API__) && __ANDROID_API__ < 18) || defined(_MIYOO) || defined(NO_HWCAP)
+#if (defined(__ANDROID_API__) && __ANDROID_API__ < 18) || \
+    defined(_MIYOO) || defined(_3DS) || defined(NO_HWCAP)
 // no getauxval/AT_HWCAP
 #else
 #define USE_HWCAP
