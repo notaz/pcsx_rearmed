@@ -425,13 +425,16 @@ BoolInt CPU_IsSupported_AES (void) { return 0; }
 
 #else
 
-#include <sys/auxv.h>
-
+#if (defined(__ANDROID_API__) && __ANDROID_API__ < 18) || defined(_MIYOO) || defined(NO_HWCAP)
+// no getauxval/AT_HWCAP
+#else
 #define USE_HWCAP
+#endif
 
 #ifdef USE_HWCAP
 
 #include <asm/hwcap.h>
+#include <sys/auxv.h>
 
   #define MY_HWCAP_CHECK_FUNC_2(name1, name2) \
   BoolInt CPU_IsSupported_ ## name1() { return (getauxval(AT_HWCAP)  & (HWCAP_  ## name2)) ? 1 : 0; }
