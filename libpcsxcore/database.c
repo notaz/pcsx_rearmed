@@ -91,6 +91,8 @@ cycle_multiplier_overrides[] =
 	/* Super Robot Taisen Alpha - on the edge with 175,
 	 * changing memcard settings is enough to break/unbreak it */
 	{ 190, { "SLPS02528", "SLPS02636" } },
+	/* Colin McRae Rally - language selection menu does not work with 175 */
+	{ 174, { "SLES00477" } },
 	/* Brave Fencer Musashi - cd sectors arrive too fast */
 	{ 170, { "SLUS00726", "SLPS01490" } },
 #if defined(DRC_DISABLE) || defined(LIGHTREC) /* new_dynarec has a hack for this game */
