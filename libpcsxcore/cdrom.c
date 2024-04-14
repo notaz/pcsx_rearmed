@@ -1399,7 +1399,7 @@ static void cdrReadInterrupt(void)
 			subhdr->file, subhdr->chan, cdr.CurFile, cdr.CurChannel, cdr.FilterFile, cdr.FilterChannel);
 		if ((cdr.Mode & MODE_SF) && (subhdr->file != cdr.FilterFile || subhdr->chan != cdr.FilterChannel))
 			break;
-		if (subhdr->chan & 0xe0) { // ?
+		if (subhdr->chan & 0x80) { // ?
 			if (subhdr->chan != 0xff)
 				log_unhandled("adpcm %d:%d\n", subhdr->file, subhdr->chan);
 			break;
