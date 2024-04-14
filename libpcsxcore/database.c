@@ -59,6 +59,22 @@ static const char * const dualshock_init_analog_hack_db[] =
 	"SLUS00546",
 };
 
+static const char * const fractional_Framerate_hack_db[] =
+{
+	/* Dance Dance Revolution */
+	"SLPM86503", // 3rd Mix
+	"SLPM86752", // 4th Mix
+	"SLPM86266", // 4thMix: The Beat Goes On
+	"SLPM86831", // Extra Mix
+	"SLUS01446", // Konamix
+	/* Dancing Stage Fever */
+	"SLES04097",
+	/* Dancing Stage Fusion */
+	"SLES04163",
+	/* Spyro 2 */
+	"SCUS94425", "SCES02104",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -76,6 +92,7 @@ hack_db[] =
 	HACK_ENTRY(gpu_centering, gpu_centering_hack_db),
 	HACK_ENTRY(gpu_timing1024, dualshock_timing1024_hack_db),
 	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),
+	HACK_ENTRY(fractional_Framerate, fractional_Framerate_hack_db),
 };
 
 static const struct

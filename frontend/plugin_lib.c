@@ -35,6 +35,7 @@
 #include "../libpcsxcore/psxmem_map.h"
 #include "../libpcsxcore/gpu.h"
 #include "../libpcsxcore/r3000a.h"
+#include "../libpcsxcore/psxcounters.h"
 
 #define HUD_HEIGHT 10
 
@@ -778,18 +779,20 @@ void pl_frame_limit(void)
 
 void pl_timing_prepare(int is_pal_)
 {
+	double fps;
 	pl_rearmed_cbs.fskip_advice = 0;
 	pl_rearmed_cbs.flips_per_sec = 0;
 	pl_rearmed_cbs.cpu_usage = 0;
 
 	is_pal = is_pal_;
-	frame_interval = is_pal ? 20000 : 16667;
-	frame_interval1024 = is_pal ? 20000*1024 : 17066667;
+	fps = psxGetFps();
+	frame_interval = (int)(1000000.0 / fps);
+	frame_interval1024 = (int)(1000000.0 * 1024.0 / fps);
 
 	// used by P.E.Op.S. frameskip code
-	pl_rearmed_cbs.gpu_peops.fFrameRateHz = is_pal ? 50.0f : 59.94f;
+	pl_rearmed_cbs.gpu_peops.fFrameRateHz = (float)fps;
 	pl_rearmed_cbs.gpu_peops.dwFrameRateTicks =
-		(100000*100 / (unsigned long)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
+		(100000*100 / (int)(pl_rearmed_cbs.gpu_peops.fFrameRateHz*100));
 }
 
 static void pl_get_layer_pos(int *x, int *y, int *w, int *h)

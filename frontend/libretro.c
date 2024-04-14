@@ -131,7 +131,8 @@ static unsigned previous_width = 0;
 static unsigned previous_height = 0;
 
 static int plugins_opened;
-static int is_pal_mode;
+
+#define is_pal_mode Config.PsxType
 
 /* memory card data */
 extern char Mcd1Data[MCD_SIZE];
@@ -586,7 +587,6 @@ void pl_frame_limit(void)
 
 void pl_timing_prepare(int is_pal)
 {
-   is_pal_mode = is_pal;
 }
 
 void plat_trigger_vibrate(int pad, int low, int high)
@@ -1002,7 +1002,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    unsigned geom_width           = vout_width;
 
    memset(info, 0, sizeof(*info));
-   info->timing.fps              = is_pal_mode ? 50.0 : 60.0;
+   info->timing.fps              = psxGetFps();
    info->timing.sample_rate      = 44100.0;
    info->geometry.base_width     = geom_width;
    info->geometry.base_height    = geom_height;
@@ -2265,6 +2265,7 @@ static void update_variables(bool in_flight)
    int gpu_peops_fix = GPU_PEOPS_OLD_FRAME_SKIP;
 #endif
    frameskip_type_t prev_frameskip_type;
+   double old_fps = psxGetFps();
 
    var.value = NULL;
    var.key = "pcsx_rearmed_frameskip_type";
@@ -2707,6 +2708,18 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_fractional_framerate";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         Config.FractionalFramerate = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         Config.FractionalFramerate = 1;
+      else // auto
+         Config.FractionalFramerate = -1;
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_screen_centering";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
@@ -3005,6 +3018,13 @@ static void update_variables(bool in_flight)
    }
 
    update_option_visibility();
+
+   if (old_fps != psxGetFps())
+   {
+      struct retro_system_av_info info;
+      retro_get_system_av_info(&info);
+      environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &info);
+   }
 }
 
 // Taken from beetle-psx-libretro
