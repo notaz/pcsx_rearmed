@@ -142,9 +142,10 @@ typedef struct {
 	boolean icache_emulation;
 	boolean DisableStalls;
 	boolean PreciseExceptions;
-	int GpuListWalking;
 	int cycle_multiplier; // 100 for 1.0
 	int cycle_multiplier_override;
+	s8 GpuListWalking;
+	s8 FractionalFramerate; // ~49.75 and ~59.81 instead of 50 and 60
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
 	struct {
@@ -153,6 +154,7 @@ typedef struct {
 		boolean gpu_centering;
 		boolean dualshock_init_analog;
 		boolean gpu_timing1024;
+		boolean fractional_Framerate;
 	} hacks;
 } PcsxConfig;
 

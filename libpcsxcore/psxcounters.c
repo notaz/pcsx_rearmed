@@ -79,9 +79,40 @@ u32 psxNextCounter = 0, psxNextsCounter = 0;
 
 /******************************************************************************/
 
+#define FPS_FRACTIONAL_PAL  (53203425/314./3406) // ~49.75
+#define FPS_FRACTIONAL_NTSC (53693175/263./3413) // ~59.81
+
+static inline
+u32 frameCycles(void)
+{
+    int ff = Config.FractionalFramerate >= 0
+        ? Config.FractionalFramerate : Config.hacks.fractional_Framerate;
+    if (ff)
+    {
+        if (Config.PsxType)
+            return (u32)(PSXCLK / FPS_FRACTIONAL_PAL);
+        else
+            return (u32)(PSXCLK / FPS_FRACTIONAL_NTSC);
+    }
+    return Config.PsxType ? (PSXCLK / 50) : (PSXCLK / 60);
+}
+
+// used to inform the frontend about the exact framerate
+double psxGetFps()
+{
+    int ff = Config.FractionalFramerate >= 0
+        ? Config.FractionalFramerate : Config.hacks.fractional_Framerate;
+    if (ff)
+        return Config.PsxType ? FPS_FRACTIONAL_PAL : FPS_FRACTIONAL_NTSC;
+    else
+        return Config.PsxType ? 50.0 : 60.0;
+}
+
+// to inform the frontend about the exact famerate
 static inline
 u32 lineCycles(void)
 {
+    // should be more like above, but our timing is already poor anyway
     if (Config.PsxType)
         return PSXCLK / 50 / HSyncTotal[1];
     else
@@ -308,7 +339,7 @@ static void scheduleRcntBase(void)
 
     if (hSyncCount + hsync_steps == HSyncTotal[Config.PsxType])
     {
-        rcnts[3].cycle = Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
+        rcnts[3].cycle = frameCycles();
     }
     else
     {
@@ -380,7 +411,7 @@ void psxRcntUpdate()
         if( hSyncCount >= HSyncTotal[Config.PsxType] )
         {
             u32 status, field = 0;
-            rcnts[3].cycleStart += Config.PsxType ? PSXCLK / 50 : PSXCLK / 60;
+            rcnts[3].cycleStart += frameCycles();
             hSyncCount = 0;
             frame_counter++;
 

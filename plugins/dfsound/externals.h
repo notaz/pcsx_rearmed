@@ -58,7 +58,7 @@
 #define MAXCHAN     24
 
 // note: must be even due to the way reverb works now
-#define NSSIZE ((44100 / 50 + 16) & ~1)
+#define NSSIZE ((44100 / 50 + 32) & ~1)
 
 ///////////////////////////////////////////////////////////
 // struct defines

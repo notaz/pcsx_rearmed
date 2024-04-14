@@ -426,6 +426,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled",
    },
    {
+      "pcsx_rearmed_fractional_framerate",
+      "Use fractional frame rate",
+      NULL,
+      "Instead of the exact 50 or 60 (maximum) fps for PAL/NTSC the real console runs closer to something like 49.75 and 59.81fps (varies slightly between hw versions). PCSX-ReARMed uses the former \"round\" framerates to better match modern displays, however that may cause audio/video desync in games like DDR and Spyro 2 (intro). With this option you can try to use fractional framerates.",
+      NULL,
+      "video",
+      {
+         { "auto", "Auto" },
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "auto",
+   },
+   {
       "pcsx_rearmed_gpu_slow_llists",
       "(GPU) Slow linked list processing",
       NULL,
@@ -433,7 +448,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       NULL,
       "video",
       {
-         { "auto", NULL },
+         { "auto", "Auto" },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL },

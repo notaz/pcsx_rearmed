@@ -583,19 +583,15 @@ static int cdrSeekTime(unsigned char *target)
 	int cyclesSinceRS = psxRegs.cycle - cdr.LastReadSeekCycles;
 	seekTime = MAX_VALUE(seekTime, 20000);
 
-	// need this stupidly long penalty or else Spyro2 intro desyncs
-	// note: if misapplied this breaks MGS cutscenes among other things
-	if (cdr.DriveState == DRIVESTATE_PAUSED && cyclesSinceRS > cdReadTime * 50)
-		seekTime += cdReadTime * 25;
 	// Transformers Beast Wars Transmetals does Setloc(x),SeekL,Setloc(x),ReadN
 	// and then wants some slack time
-	else if (cdr.DriveState == DRIVESTATE_PAUSED || cyclesSinceRS < cdReadTime *3/2)
+	if (cdr.DriveState == DRIVESTATE_PAUSED || cyclesSinceRS < cdReadTime *3/2)
 		seekTime += cdReadTime;
 
 	seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
-	CDR_LOG("seek: %.2f %.2f (%.2f) st %d\n", (float)seekTime / PSXCLK,
+	CDR_LOG("seek: %.2f %.2f (%.2f) st %d di %d\n", (float)seekTime / PSXCLK,
 		(float)seekTime / cdReadTime, (float)cyclesSinceRS / cdReadTime,
-		cdr.DriveState);
+		cdr.DriveState, diff);
 	return seekTime;
 }
 

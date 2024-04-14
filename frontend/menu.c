@@ -408,6 +408,7 @@ static const struct {
 	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(GpuListWalking),
+	CE_CONFIG_VAL(FractionalFramerate),
 	CE_CONFIG_VAL(PreciseExceptions),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
@@ -1638,7 +1639,7 @@ static int menu_loop_speed_hacks(int id, int keys)
 	return 0;
 }
 
-static const char *men_gpul[]    = { "Auto", "Off", "On", NULL };
+static const char *men_autooo[]  = { "Auto", "Off", "On", NULL };
 
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"
@@ -1657,10 +1658,12 @@ static const char h_cfg_exc[]    = "Emulate some PSX's debug hw like breakpoints
 				   "and exceptions (slow, interpreter only, keep off)";
 static const char h_cfg_gpul[]   = "Try enabling this if the game misses some graphics\n"
 				   "causes a performance hit";
+static const char h_cfg_ffps[]   = "Instead of 50/60fps for PAL/NTSC use ~49.75/59.81\n"
+				   "Closer to real hw but doesn't match modern displays.";
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(adjust this if the game is too slow/too fast/hangs)";
 
-enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL };
+enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL, AMO_FFPS };
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1671,7 +1674,8 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Disable CD Audio",       0, menu_iopts[AMO_CDDA], 1, h_cfg_cdda),
 	mee_onoff_h   ("ICache emulation",       0, menu_iopts[AMO_IC],   1, h_cfg_icache),
 	mee_onoff_h   ("BP exception emulation", 0, menu_iopts[AMO_BP],   1, h_cfg_exc),
-	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_gpul, h_cfg_gpul),
+	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_autooo, h_cfg_gpul),
+	mee_enum_h    ("Fractional framerate",   0, menu_iopts[AMO_FFPS], men_autooo, h_cfg_ffps),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
@@ -1697,12 +1701,14 @@ static int menu_loop_adv_options(int id, int keys)
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		*opts[i].mopt = *opts[i].opt;
 	menu_iopts[AMO_GPUL] = Config.GpuListWalking + 1;
+	menu_iopts[AMO_FFPS] = Config.FractionalFramerate + 1;
 
 	me_loop(e_menu_adv_options, &sel);
 
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		*opts[i].opt = *opts[i].mopt;
 	Config.GpuListWalking = menu_iopts[AMO_GPUL] - 1;
+	Config.FractionalFramerate = menu_iopts[AMO_FFPS] - 1;
 
 	return 0;
 }
