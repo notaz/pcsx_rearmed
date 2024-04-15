@@ -971,27 +971,19 @@ void cdrInterrupt(void) {
 			cdr.sectorsRead = 0;
 
 			/*
-			Gundam Battle Assault 2: much slower (*)
-			- Fixes boot, gameplay
-
-			Hokuto no Ken 2: slower
-			- Fixes intro + subtitles
-
-			InuYasha - Feudal Fairy Tale: slower
-			- Fixes battles
+			Gundam Battle Assault 2
+			Hokuto no Ken 2
+			InuYasha - Feudal Fairy Tale
+			Dance Dance Revolution Konamix
+			...
 			*/
-			/* Gameblabla - Tightening the timings (as taken from Duckstation). 
-			 * The timings from Duckstation are based upon hardware tests.
-			 * Mednafen's timing don't work for Gundam Battle Assault 2 in PAL/50hz mode,
-			 * seems to be timing sensitive as it can depend on the CPU's clock speed.
-			 * */
 			if (!(cdr.StatP & (STATUS_PLAY | STATUS_READ)))
 			{
 				second_resp_time = 7000;
 			}
 			else
 			{
-				second_resp_time = (((cdr.Mode & MODE_SPEED) ? 1 : 2) * 1097107);
+				second_resp_time = 2 * 1097107;
 			}
 			SetPlaySeekRead(cdr.StatP, 0);
 			DriveStateOld = cdr.DriveState;
