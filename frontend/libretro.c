@@ -2191,6 +2191,8 @@ bool retro_load_game(const struct retro_game_info *info)
 
    if (check_unsatisfied_libcrypt())
       show_notification("LibCrypt protected game with missing SBI detected", 3000, 3);
+   if (Config.TurboCD)
+      show_notification("TurboCD is ON", 700, 2);
 
    return true;
 }
@@ -2471,6 +2473,16 @@ static void update_variables(bool in_flight)
          display_internal_fps = false;
       else if (strcmp(var.value, "enabled") == 0)
          display_internal_fps = true;
+   }
+
+   var.value = NULL;
+   var.key = "pcsx_rearmed_cd_turbo";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         Config.TurboCD = true;
+      else
+         Config.TurboCD = false;
    }
 
 #ifdef HAVE_CDROM

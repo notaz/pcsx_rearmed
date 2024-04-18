@@ -142,6 +142,7 @@ typedef struct {
 	boolean icache_emulation;
 	boolean DisableStalls;
 	boolean PreciseExceptions;
+	boolean TurboCD;
 	int cycle_multiplier; // 100 for 1.0
 	int cycle_multiplier_override;
 	s8 GpuListWalking;
