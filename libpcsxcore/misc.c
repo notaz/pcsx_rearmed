@@ -379,7 +379,7 @@ int CheckCdrom() {
 	time[2] = itob(0x10);
 
 	if (!Config.HLE && Config.SlowBoot) {
-		// boot to BIOS in case of CDDA ir lid open
+		// boot to BIOS in case of CDDA or lid is open
 		CDR_getStatus(&stat);
 		if ((stat.Status & 0x10) || stat.Type == 2 || !CDR_readTrack(time))
 			return 0;

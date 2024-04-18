@@ -410,6 +410,7 @@ static const struct {
 	CE_CONFIG_VAL(GpuListWalking),
 	CE_CONFIG_VAL(FractionalFramerate),
 	CE_CONFIG_VAL(PreciseExceptions),
+	CE_CONFIG_VAL(TurboCD),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
@@ -1660,10 +1661,11 @@ static const char h_cfg_gpul[]   = "Try enabling this if the game misses some gr
 				   "causes a performance hit";
 static const char h_cfg_ffps[]   = "Instead of 50/60fps for PAL/NTSC use ~49.75/59.81\n"
 				   "Closer to real hw but doesn't match modern displays.";
+static const char h_cfg_tcd[]    = "Greatly reduce CD load times. Breaks some games.";
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(adjust this if the game is too slow/too fast/hangs)";
 
-enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL, AMO_FFPS };
+enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL, AMO_FFPS, AMO_TCD };
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1676,6 +1678,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("BP exception emulation", 0, menu_iopts[AMO_BP],   1, h_cfg_exc),
 	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_autooo, h_cfg_gpul),
 	mee_enum_h    ("Fractional framerate",   0, menu_iopts[AMO_FFPS], men_autooo, h_cfg_ffps),
+	mee_onoff_h   ("Turbo CD-ROM ",          0, menu_iopts[AMO_TCD], 1, h_cfg_tcd),
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
@@ -1696,6 +1699,7 @@ static int menu_loop_adv_options(int id, int keys)
 		{ &Config.icache_emulation, &menu_iopts[AMO_IC] },
 		{ &Config.PreciseExceptions, &menu_iopts[AMO_BP] },
 		{ &Config.Cpu,     &menu_iopts[AMO_CPU] },
+		{ &Config.TurboCD, &menu_iopts[AMO_TCD] },
 	};
 	int i;
 	for (i = 0; i < ARRAY_SIZE(opts); i++)

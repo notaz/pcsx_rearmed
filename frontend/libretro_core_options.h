@@ -97,13 +97,11 @@ struct retro_core_option_v2_category option_cats_us[] = {
       "Compatibility Fixes",
       "Configure settings/workarounds required for correct operation of specific games."
    },
-#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
    {
       "speed_hack",
       "Speed Hacks (Advanced)",
       "Configure hacks that may improve performance at the expense of decreased accuracy/stability."
    },
-#endif
    { NULL, NULL, NULL },
 };
 
@@ -1572,6 +1570,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
+   {
+      "pcsx_rearmed_cd_turbo",
+      "Turbo CD",
+      NULL,
+      "This makes the emulated CD-ROM extremely fast and can reduce loading times in some cases. Warning: many games were not programmed to handle such a speed. The game (or even the emulator) MAY CRASH at ANY TIME if this is enabled.",
+      NULL,
+      "speed_hack",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
    {
       "pcsx_rearmed_nocompathacks",
@@ -1634,13 +1646,13 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_nostalls",
       "Disable CPU/GTE Stalls",
       NULL,
-      "Will cause some games to run too quickly."
+      "Will cause some games to run too quickly. Should be disabled in almost all cases."
 #if defined(LIGHTREC)
       " Interpreter only."
 #endif
       ,
       NULL,
-      "compat_hack",
+      "speed_hack",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
