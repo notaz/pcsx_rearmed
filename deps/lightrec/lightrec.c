@@ -877,6 +877,13 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	if (has_code_buffer) {
 		jit_get_code(&code_size);
+
+#ifdef __i386__
+		/* Lightning's code size estimation routine is buggy on x86 and
+		 * will return a value that's too small. */
+		code_size *= 2;
+#endif
+
 		code = lightrec_alloc_code(state, (size_t) code_size);
 
 		if (!code) {
@@ -904,6 +911,12 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	}
 
 	code = jit_emit();
+	if (!code) {
+		if (has_code_buffer)
+			lightrec_free_code(state, code);
+
+		return NULL;
+	}
 
 	jit_get_code(&new_code_size);
 	lightrec_register(MEM_FOR_CODE, new_code_size);
@@ -932,14 +945,6 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
 	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
 	u8 tmp = JIT_R1;
-
-#ifdef __sh__
-	/* On SH, GBR-relative loads target the r0 register.
-	 * Use it as the temporary register to factorize the move to
-	 * JIT_R1. */
-	if (LIGHTREC_REG_STATE == _GBR)
-		tmp = _R0;
-#endif
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -1025,7 +1030,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
-		goto err_free_block;
+		goto err_free_jit;
 
 	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
 
@@ -1040,6 +1045,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_clear_state();
 	return block;
 
+err_free_jit:
+	jit_destroy_state();
 err_free_block:
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
@@ -1249,9 +1256,9 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
-	jit_andi(JIT_V1, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
-	jit_rshi_u(JIT_R1, JIT_V1, 28);
+	jit_andi(JIT_V1, JIT_V0, RAM_SIZE - 1);
 	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
+	jit_andi(JIT_R1, JIT_V0, BIT(28));
 	jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
 	jit_movnr(JIT_V1, JIT_R2, JIT_R1);
 
@@ -1323,7 +1330,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
-		goto err_free_block;
+		goto err_free_jit;
 
 	state->eob_wrapper_func = jit_address(addr2);
 	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
@@ -1343,6 +1350,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_clear_state();
 	return block;
 
+err_free_jit:
+	jit_destroy_state();
 err_free_block:
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
@@ -1918,11 +1927,12 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate)
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
-				      const struct lightrec_mem_map *map,
+				      const struct lightrec_mem_map *maps,
 				      size_t nb,
 				      const struct lightrec_ops *ops)
 {
-	const struct lightrec_mem_map *codebuf_map = &map[PSX_MAP_CODE_BUFFER];
+	const struct lightrec_mem_map *codebuf_map = &maps[PSX_MAP_CODE_BUFFER];
+	const struct lightrec_mem_map *map;
 	struct lightrec_state *state;
 	uintptr_t addr;
 	void *tlsf = NULL;
@@ -1992,7 +2002,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	}
 
 	state->nb_maps = nb;
-	state->maps = map;
+	state->maps = maps;
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
@@ -2010,21 +2020,21 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
 
-	map = &state->maps[PSX_MAP_BIOS];
+	map = &maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
 
-	map = &state->maps[PSX_MAP_SCRATCH_PAD];
+	map = &maps[PSX_MAP_SCRATCH_PAD];
 	state->offset_scratch = (uintptr_t)map->address - map->pc;
 
-	map = &state->maps[PSX_MAP_HW_REGISTERS];
+	map = &maps[PSX_MAP_HW_REGISTERS];
 	state->offset_io = (uintptr_t)map->address - map->pc;
 
-	map = &state->maps[PSX_MAP_KERNEL_USER_RAM];
+	map = &maps[PSX_MAP_KERNEL_USER_RAM];
 	state->offset_ram = (uintptr_t)map->address - map->pc;
 
-	if (state->maps[PSX_MAP_MIRROR1].address == map->address + 0x200000 &&
-	    state->maps[PSX_MAP_MIRROR2].address == map->address + 0x400000 &&
-	    state->maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
+	if (maps[PSX_MAP_MIRROR1].address == map->address + 0x200000 &&
+	    maps[PSX_MAP_MIRROR2].address == map->address + 0x400000 &&
+	    maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
 		state->mirrors_mapped = true;
 
 	if (state->offset_bios == 0 &&
@@ -2169,5 +2179,19 @@ struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state)
 
 void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles)
 {
+	if (state->cycles_per_op == cycles)
+		return;
+
 	state->cycles_per_op = cycles;
+
+	if (ENABLE_THREADED_COMPILER) {
+		lightrec_recompiler_pause(state->rec);
+		lightrec_reaper_reap(state->reaper);
+	}
+
+	lightrec_invalidate_all(state);
+	lightrec_free_all_blocks(state->block_cache);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_recompiler_unpause(state->rec);
 }

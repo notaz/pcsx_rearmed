@@ -18,6 +18,9 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block);
 void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 					  struct block *block, u32 *pc);
 
+void lightrec_recompiler_pause(struct recompiler *rec);
+void lightrec_recompiler_unpause(struct recompiler *rec);
+
 void lightrec_code_alloc_lock(struct lightrec_state *state);
 void lightrec_code_alloc_unlock(struct lightrec_state *state);
 
