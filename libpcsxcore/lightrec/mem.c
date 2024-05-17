@@ -8,6 +8,7 @@
 #endif
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,13 +51,15 @@ static void * mmap_huge(void *addr, size_t length, int prot, int flags,
 			   flags | MAP_HUGETLB | (21 << MAP_HUGE_SHIFT),
 			   fd, offset);
 		if (map != MAP_FAILED)
-			printf("Hugetlb mmap to address 0x%lx succeeded\n", (uintptr_t) addr);
+			printf("Hugetlb mmap to address 0x%" PRIxPTR " succeeded\n",
+			       (uintptr_t) addr);
 	}
 
 	if (map == MAP_FAILED) {
 		map = mmap(addr, length, prot, flags, fd, offset);
 		if (map != MAP_FAILED) {
-			printf("Regular mmap to address 0x%lx succeeded\n", (uintptr_t) addr);
+			printf("Regular mmap to address 0x%" PRIxPTR " succeeded\n",
+			       (uintptr_t) addr);
 #ifdef MADV_HUGEPAGE
 			madvise(map, length, MADV_HUGEPAGE);
 #endif
