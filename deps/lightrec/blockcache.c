@@ -159,9 +159,14 @@ void lightrec_remove_outdated_blocks(struct blockcache *cache,
 	lightrec_free_blocks(cache, except, false);
 }
 
-void lightrec_free_block_cache(struct blockcache *cache)
+void lightrec_free_all_blocks(struct blockcache *cache)
 {
 	lightrec_free_blocks(cache, NULL, true);
+}
+
+void lightrec_free_block_cache(struct blockcache *cache)
+{
+	lightrec_free_all_blocks(cache);
 	lightrec_free(cache->state, MEM_FOR_LIGHTREC, sizeof(*cache), cache);
 }
 

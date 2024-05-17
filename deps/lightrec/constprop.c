@@ -335,8 +335,9 @@ void lightrec_consts_propagate(const struct block *block,
 
 		case OP_SPECIAL_SRA:
 			v[c.r.rd].value = (s32)v[c.r.rt].value >> c.r.imm;
+			v[c.r.rd].sign = (s32)(v[c.r.rt].sign
+					       | (~v[c.r.rt].known & 0x80000000)) >> c.r.imm;
 			v[c.r.rd].known = (s32)v[c.r.rt].known >> c.r.imm;
-			v[c.r.rd].sign = (s32)v[c.r.rt].sign >> c.r.imm;
 			break;
 
 		case OP_SPECIAL_SLLV:
@@ -370,8 +371,9 @@ void lightrec_consts_propagate(const struct block *block,
 			if ((v[c.r.rs].known & 0x1f) == 0x1f) {
 				imm = v[c.r.rs].value & 0x1f;
 				v[c.r.rd].value = (s32)v[c.r.rt].value >> imm;
+				v[c.r.rd].sign = (s32)(v[c.r.rt].sign
+						       | (~v[c.r.rt].known & 0x80000000)) >> imm;
 				v[c.r.rd].known = (s32)v[c.r.rt].known >> imm;
-				v[c.r.rd].sign = (s32)v[c.r.rt].sign >> imm;
 			} else {
 				v[c.r.rd].known = 0;
 				v[c.r.rd].sign = 0;

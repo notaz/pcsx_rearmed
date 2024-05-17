@@ -38,7 +38,7 @@ struct recompiler {
 	pthread_cond_t cond;
 	pthread_cond_t cond2;
 	pthread_mutex_t mutex;
-	bool stop, must_flush;
+	bool stop, pause, must_flush;
 	struct slist_elm slist;
 
 	pthread_mutex_t alloc_mutex;
@@ -49,7 +49,7 @@ struct recompiler {
 
 static unsigned int get_processors_count(void)
 {
-	unsigned int nb = 1;
+	int nb = 1;
 
 #if defined(PTW32_VERSION)
         nb = pthread_num_processors_np();
@@ -59,7 +59,7 @@ static unsigned int get_processors_count(void)
 
         nb = sysctlbyname("hw.ncpu", &count, &size, NULL, 0) ? 1 : count;
 #elif defined(_SC_NPROCESSORS_ONLN)
-	nb = sysconf(_SC_NPROCESSORS_ONLN);
+	nb = (int)sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 
 	return nb < 1 ? 1 : nb;
@@ -131,7 +131,8 @@ static void lightrec_compile_list(struct recompiler *rec,
 	struct block *block;
 	int ret;
 
-	while (!!(block_rec = lightrec_get_best_elm(&rec->slist))) {
+	while (!rec->pause &&
+	       !!(block_rec = lightrec_get_best_elm(&rec->slist))) {
 		block_rec->compiling = true;
 		block = block_rec->block;
 
@@ -187,7 +188,7 @@ static void * lightrec_recompiler_thd(void *d)
 			if (rec->stop)
 				goto out_unlock;
 
-		} while (slist_empty(&rec->slist));
+		} while (rec->pause || slist_empty(&rec->slist));
 
 		lightrec_compile_list(rec, thd);
 	}
@@ -228,6 +229,7 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 	rec->state = state;
 	rec->stop = false;
+	rec->pause = false;
 	rec->must_flush = false;
 	rec->nb_recs = nb_recs;
 	slist_init(&rec->slist);
@@ -485,4 +487,19 @@ void lightrec_code_alloc_lock(struct lightrec_state *state)
 void lightrec_code_alloc_unlock(struct lightrec_state *state)
 {
 	pthread_mutex_unlock(&state->rec->alloc_mutex);
+}
+
+void lightrec_recompiler_pause(struct recompiler *rec)
+{
+	rec->pause = true;
+
+	pthread_mutex_lock(&rec->mutex);
+	pthread_cond_broadcast(&rec->cond);
+	lightrec_cancel_list(rec);
+	pthread_mutex_unlock(&rec->mutex);
+}
+
+void lightrec_recompiler_unpause(struct recompiler *rec)
+{
+	rec->pause = false;
 }
