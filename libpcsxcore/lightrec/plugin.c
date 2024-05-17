@@ -10,7 +10,6 @@
 #endif
 
 #include "lightrec.h"
-#include "internals.h"
 #include "../cdrom.h"
 #include "../gpu.h"
 #include "../gte.h"
@@ -611,7 +610,6 @@ static void lightrec_plugin_apply_config()
 	if (cycles_per_op_old && cycles_per_op_old != cycles_per_op) {
 		SysPrintf("lightrec: reinit block cache for cycles_per_op %.2f\n",
 			cycles_per_op / 1024.f);
-		lightrec_plugin_clear_block_caches(lightrec_state);
 	}
 	cycles_per_op_old = cycles_per_op;
 	lightrec_set_cycles_per_opcode(lightrec_state, cycles_per_op);
