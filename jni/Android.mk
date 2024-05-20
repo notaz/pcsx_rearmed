@@ -69,8 +69,8 @@ SOURCES_C += $(FRONTEND_DIR)/main.c \
 
 # libchdr
 LCHDR = $(DEPS_DIR)/libchdr
-LCHDR_LZMA = $(LCHDR)/deps/lzma-22.01
-LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.5/lib
+LCHDR_LZMA = $(LCHDR)/deps/lzma-24.05
+LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.6/lib
 SOURCES_C += \
 	     $(LCHDR)/src/libchdr_bitstream.c \
 	     $(LCHDR)/src/libchdr_cdrom.c \
@@ -78,21 +78,15 @@ SOURCES_C += \
 	     $(LCHDR)/src/libchdr_flac.c \
 	     $(LCHDR)/src/libchdr_huffman.c \
 	     $(LCHDR_LZMA)/src/Alloc.c \
-	     $(LCHDR_LZMA)/src/Bra86.c \
-	     $(LCHDR_LZMA)/src/BraIA64.c \
 	     $(LCHDR_LZMA)/src/CpuArch.c \
 	     $(LCHDR_LZMA)/src/Delta.c \
 	     $(LCHDR_LZMA)/src/LzFind.c \
-	     $(LCHDR_LZMA)/src/Lzma86Dec.c \
 	     $(LCHDR_LZMA)/src/LzmaDec.c \
 	     $(LCHDR_LZMA)/src/LzmaEnc.c \
 	     $(LCHDR_LZMA)/src/Sort.c \
-	     $(LCHDR_ZSTD)/common/debug.c \
 	     $(LCHDR_ZSTD)/common/entropy_common.c \
 	     $(LCHDR_ZSTD)/common/error_private.c \
 	     $(LCHDR_ZSTD)/common/fse_decompress.c \
-	     $(LCHDR_ZSTD)/common/pool.c \
-	     $(LCHDR_ZSTD)/common/threading.c \
 	     $(LCHDR_ZSTD)/common/xxhash.c \
 	     $(LCHDR_ZSTD)/common/zstd_common.c \
 	     $(LCHDR_ZSTD)/decompress/huf_decompress.c \
@@ -101,7 +95,10 @@ SOURCES_C += \
 	     $(LCHDR_ZSTD)/decompress/zstd_decompress.c
 SOURCES_ASM :=
 EXTRA_INCLUDES += $(LCHDR)/include $(LCHDR_LZMA)/include $(LCHDR_ZSTD)
-COREFLAGS += -DHAVE_CHD -D_7ZIP_ST -DZSTD_DISABLE_ASM
+COREFLAGS += -DHAVE_CHD -DZ7_ST -DZSTD_DISABLE_ASM
+ifeq (,$(call gte,$(APP_PLATFORM_LEVEL),18))
+COREFLAGS += -Dgetauxval=0*
+endif
 
 COREFLAGS += -ffast-math -funroll-loops -DHAVE_LIBRETRO -DNO_FRONTEND -DFRONTEND_SUPPORTS_RGB565 -DANDROID -DREARMED
 COREFLAGS += -DP_HAVE_MMAP=1 -DP_HAVE_PTHREAD=1 -DP_HAVE_POSIX_MEMALIGN=1
