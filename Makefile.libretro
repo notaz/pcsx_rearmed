@@ -322,7 +322,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -Ifrontend/3ds -I$(CTRULIB)/include
 	CFLAGS += -Werror=implicit-function-declaration
 	CFLAGS += -DHAVE_UNISTD_H
-	CFLAGS += -D_LZMA_UINT32_IS_ULONG
+	CFLAGS += -DZ7_DECL_Int32_AS_long
 
 	OBJS += frontend/3ds/utils.o
 
@@ -355,7 +355,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 		# -mwup was removed in newer devkitPPC versions
 		CFLAGS += -DHW_WUP
 		CFLAGS += -I frontend/wiiu
-		CFLAGS += -D_LZMA_UINT32_IS_ULONG
+		CFLAGS += -DZ7_DECL_Int32_AS_long
 		LIGHTREC_CUSTOM_MAP := 1
 		LIGHTREC_CUSTOM_MAP_OBJ := libpcsxcore/lightrec/mem_wiiu.o
 	endif
