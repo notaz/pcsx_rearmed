@@ -232,7 +232,7 @@ enum drive_state {
 	DRIVESTATE_SEEK,
 };
 
-static struct CdrStat stat;
+static struct CdrStat cdr_stat;
 
 static unsigned int msf2sec(const u8 *msf) {
 	return ((msf[0] * 60 + msf[1]) * 75) + msf[2];
@@ -327,10 +327,10 @@ void cdrLidSeekInterrupt(void)
 		//StopReading();
 		SetPlaySeekRead(cdr.StatP, 0);
 
-		if (CDR_getStatus(&stat) == -1)
+		if (CDR_getStatus(&cdr_stat) == -1)
 			return;
 
-		if (stat.Status & STATUS_SHELLOPEN)
+		if (cdr_stat.Status & STATUS_SHELLOPEN)
 		{
 			memset(cdr.Prev, 0xff, sizeof(cdr.Prev));
 			cdr.DriveState = DRIVESTATE_LID_OPEN;
@@ -339,8 +339,8 @@ void cdrLidSeekInterrupt(void)
 		break;
 
 	case DRIVESTATE_LID_OPEN:
-		if (CDR_getStatus(&stat) == -1)
-			stat.Status &= ~STATUS_SHELLOPEN;
+		if (CDR_getStatus(&cdr_stat) == -1)
+			cdr_stat.Status &= ~STATUS_SHELLOPEN;
 
 		// 02, 12, 10
 		if (!(cdr.StatP & STATUS_SHELLOPEN)) {
@@ -367,7 +367,7 @@ void cdrLidSeekInterrupt(void)
 		else if (cdr.StatP & STATUS_ROTATING) {
 			cdr.StatP &= ~STATUS_ROTATING;
 		}
-		else if (!(stat.Status & STATUS_SHELLOPEN)) {
+		else if (!(cdr_stat.Status & STATUS_SHELLOPEN)) {
 			// closed now
 			CheckCdrom();
 
@@ -721,8 +721,8 @@ void cdrPlayReadInterrupt(void)
 
 static void softReset(void)
 {
-	CDR_getStatus(&stat);
-	if (stat.Status & STATUS_SHELLOPEN) {
+	CDR_getStatus(&cdr_stat);
+	if (cdr_stat.Status & STATUS_SHELLOPEN) {
 		cdr.DriveState = DRIVESTATE_LID_OPEN;
 		cdr.StatP = STATUS_SHELLOPEN;
 	}
@@ -1188,11 +1188,11 @@ void cdrInterrupt(void) {
 			cdr.Result[3] = 0;
 
 			// 0x10 - audio | 0x40 - disk missing | 0x80 - unlicensed
-			if (CDR_getStatus(&stat) == -1 || stat.Type == 0 || stat.Type == 0xff) {
+			if (CDR_getStatus(&cdr_stat) == -1 || cdr_stat.Type == 0 || cdr_stat.Type == 0xff) {
 				cdr.Result[1] = 0xc0;
 			}
 			else {
-				if (stat.Type == 2)
+				if (cdr_stat.Type == 2)
 					cdr.Result[1] |= 0x10;
 				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
