@@ -136,7 +136,9 @@ static u32 gpuDmaChainSize(u32 addr) {
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	u32 *ptr, madr_next, *madr_next_p;
 	u32 words, words_left, words_max, words_copy;
-	int cycles_sum, cycles_last_cmd = 0, do_walking;
+	s32 cycles_last_cmd = 0;
+	int do_walking;
+	long cycles_sum;
 
 	madr &= ~3;
 	switch (chcr) {
@@ -225,7 +227,9 @@ void gpuInterrupt() {
 	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
 	{
 		u32 madr_next = 0xffffff, madr = SWAPu32(HW_DMA2_MADR);
-		int cycles_sum, cycles_last_cmd = 0;
+		s32 cycles_last_cmd = 0;
+		long cycles_sum;
+
 		cycles_sum = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff,
 				&madr_next, &cycles_last_cmd);
 		HW_DMA2_MADR = SWAPu32(madr_next);
