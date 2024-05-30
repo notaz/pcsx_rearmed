@@ -358,6 +358,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 		CFLAGS += -DZ7_DECL_Int32_AS_long
 		LIGHTREC_CUSTOM_MAP := 1
 		LIGHTREC_CUSTOM_MAP_OBJ := libpcsxcore/lightrec/mem_wiiu.o
+		LIGHTREC_CODE_INV := 1
 	endif
 	ARCH = powerpc
 	BUILTIN_GPU = peops

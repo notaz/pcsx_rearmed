@@ -972,8 +972,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.frameskip.dirty = (void *)&cbs->fskip_dirty;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
-  gpu.state.hcnt = cbs->gpu_hcnt;
-  gpu.state.frame_count = cbs->gpu_frame_count;
+  gpu.state.hcnt = (uint32_t *)cbs->gpu_hcnt;
+  gpu.state.frame_count = (uint32_t *)cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
   gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;

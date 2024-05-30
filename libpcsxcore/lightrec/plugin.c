@@ -68,6 +68,8 @@ static bool block_stepping;
 
 extern u32 lightrec_hacks;
 
+extern void lightrec_code_inv(void *ptr, uint32_t len);
+
 enum my_cp2_opcodes {
 	OP_CP2_RTPS		= 0x01,
 	OP_CP2_NCLIP		= 0x06,
@@ -417,29 +419,11 @@ static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
 	}
 }
 
-#if defined(HW_DOL) || defined(HW_RVL)
-static void lightrec_code_inv(void *ptr, uint32_t len)
-{
-	extern void DCFlushRange(void *ptr, u32 len);
-	extern void ICInvalidateRange(void *ptr, u32 len);
-
-	DCFlushRange(ptr, len);
-	ICInvalidateRange(ptr, len);
-}
-#elif defined(HW_WUP)
-static void lightrec_code_inv(void *ptr, uint32_t len)
-{
-	wiiu_clear_cache(ptr, (void *)((uintptr_t)ptr + len));
-}
-#endif
-
 static const struct lightrec_ops lightrec_ops = {
 	.cop2_op = cop2_op,
 	.enable_ram = lightrec_enable_ram,
 	.hw_direct = lightrec_can_hw_direct,
-#if defined(HW_DOL) || defined(HW_RVL) || defined(HW_WUP)
-	.code_inv = lightrec_code_inv,
-#endif
+	.code_inv = LIGHTREC_CODE_INV ? lightrec_code_inv : NULL,
 };
 
 static int lightrec_plugin_init(void)

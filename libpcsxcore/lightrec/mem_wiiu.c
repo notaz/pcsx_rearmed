@@ -14,6 +14,8 @@
 
 #include "mem.h"
 
+void wiiu_clear_cache(void *start, void *end);
+
 static void* wiiu_mmap(uint32_t requested_va, size_t length, void* backing_mem) {
 	if (length < OS_PAGE_SIZE) length = OS_PAGE_SIZE;
 
@@ -103,4 +105,9 @@ void lightrec_free_mmap(void) {
 	free(psx_parallel);
 	free(psx_scratch);
 	free(psx_bios);
+}
+
+void lightrec_code_inv(void *ptr, uint32_t len)
+{
+	wiiu_clear_cache(ptr, (void *)((uintptr_t)ptr + len));
 }
