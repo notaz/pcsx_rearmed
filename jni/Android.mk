@@ -161,7 +161,7 @@ endif
   SOURCES_C   += $(DYNAREC_DIR)/emu_if.c
 
 ifeq ($(HAVE_LIGHTREC),1)
-  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC
+  COREFLAGS   += -DLIGHTREC -DLIGHTREC_STATIC -DLIGHTREC_CODE_INV=0
   EXTRA_INCLUDES += $(DEPS_DIR)/lightning/include \
 		    $(DEPS_DIR)/lightrec \
 		    $(DEPS_DIR)/lightrec/tlsf \
