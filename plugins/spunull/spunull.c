@@ -182,7 +182,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val, unsigned i
 
 ////////////////////////////////////////////////////////////////////////
 
-unsigned short CALLBACK SPUreadRegister(unsigned long reg)
+unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
 {
  unsigned long r=reg&0xfff;
 
@@ -280,7 +280,7 @@ void CALLBACK SPUreadDMAMem(unsigned short * pusPSXMem,int iSize,unsigned int cy
 // XA AUDIO
 ////////////////////////////////////////////////////////////////////////
 
-void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap, unsigned int cycles, int is_start)
 {
 }
 
@@ -352,7 +352,7 @@ void SPUasync(unsigned int cycle, unsigned int flags)
 {
 }
 
-int SPUplayCDDAchannel(short *pcm, int nbytes)
+int SPUplayCDDAchannel(short *pcm, int nbytes, unsigned int cycle, int is_start)
 {
  return -1;
 }
@@ -542,3 +542,7 @@ void CALLBACK SPUstopChannels2(unsigned short channels)
 { 
  //SoundOff(16,24,channels); 
 } 
+
+void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int))
+{
+}
