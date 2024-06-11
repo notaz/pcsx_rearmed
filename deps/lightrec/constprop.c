@@ -736,7 +736,7 @@ lightrec_get_constprop_map(const struct lightrec_state *state,
 	if ((min & 0xe0000000) != (max & 0xe0000000))
 		return PSX_MAP_UNKNOWN;
 
-	pr_debug("Min: 0x%08x max: 0x%08x Known: 0x%08x Sign: 0x%08x\n",
+	pr_debug("Min: "X32_FMT" max: "X32_FMT" Known: "X32_FMT" Sign: "X32_FMT"\n",
 		 min, max, v[reg].known, v[reg].sign);
 
 	min = kunseg(min);

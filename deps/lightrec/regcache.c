@@ -373,8 +373,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	if (nreg->prio < REG_IS_LOADED && reg != 0) {
-		s16 offset = offsetof(struct lightrec_state, regs.gpr)
-			+ (reg << 2);
+		s16 offset = lightrec_offset(regs.gpr) + (reg << 2);
 
 		nreg->zero_extended = flags & REG_ZEXT;
 		nreg->extended = !nreg->zero_extended;
@@ -470,8 +469,7 @@ void lightrec_load_next_pc_imm(struct regcache *cache,
 	}
 
 	if (lightrec_store_next_pc()) {
-		jit_stxi_i(offsetof(struct lightrec_state, next_pc),
-			   LIGHTREC_REG_STATE, reg);
+		jit_stxi_i(lightrec_offset(next_pc), LIGHTREC_REG_STATE, reg);
 		lightrec_free_reg(cache, reg);
 	} else {
 		nreg->prio = REG_IS_LOADED;
@@ -488,7 +486,7 @@ void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg)
 
 	if (lightrec_store_next_pc()) {
 		jit_reg = lightrec_alloc_reg_in(cache, _jit, reg, 0);
-		offset = offsetof(struct lightrec_state, next_pc);
+		offset = lightrec_offset(next_pc);
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 		lightrec_free_reg(cache, jit_reg);
 
@@ -504,7 +502,7 @@ void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (!nreg) {
 		/* Not mapped - load the value from the register cache */
 
-		offset = offsetof(struct lightrec_state, regs.gpr) + (reg << 2);
+		offset = lightrec_offset(regs.gpr) + (reg << 2);
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE, offset);
 
 		nreg_v0->prio = REG_IS_LOADED;
@@ -533,7 +531,7 @@ void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	}
 
 	if (lightrec_store_next_pc()) {
-		jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+		jit_stxi_i(lightrec_offset(next_pc),
 			   LIGHTREC_REG_STATE, JIT_V0);
 	} else {
 		lightrec_clean_reg(cache, _jit, JIT_V0);
@@ -574,7 +572,7 @@ static void clean_reg(jit_state_t *_jit,
 {
 	/* If we get a dirty register, store back the old value */
 	if (nreg->prio == REG_IS_DIRTY) {
-		s16 offset = offsetof(struct lightrec_state, regs.gpr)
+		s16 offset = lightrec_offset(regs.gpr)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
