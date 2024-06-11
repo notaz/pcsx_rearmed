@@ -942,9 +942,6 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	struct block *block;
 	jit_state_t *_jit;
 	unsigned int i;
-	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
-	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
-	u8 tmp = JIT_R1;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -961,20 +958,9 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_prolog();
 	jit_tramp(256);
 
-	/* Add entry points */
-	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
-		jit_ldxi(tmp, LIGHTREC_REG_STATE,
-			 offsetof(struct lightrec_state, c_wrappers[i]));
-		to_end[i - 1] = jit_b();
-		addr[i - 1] = jit_indirect();
-	}
-
-	jit_ldxi(tmp, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, c_wrappers[0]));
-
-	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
-		jit_patch(to_end[i]);
-	jit_movr(JIT_R1, tmp);
+	/* Load pointer to C wrapper */
+	jit_addr(JIT_R1, JIT_R1, LIGHTREC_REG_STATE);
+	jit_ldxi(JIT_R1, JIT_R1, lightrec_offset(c_wrappers));
 
 	jit_epilog();
 	jit_prolog();
@@ -982,7 +968,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	/* Save all temporaries on stack */
 	for (i = 0; i < NUM_TEMPS; i++) {
 		if (i + FIRST_TEMP != 1) {
-			jit_stxi(offsetof(struct lightrec_state, wrapper_regs[i]),
+			jit_stxi(lightrec_offset(wrapper_regs[i]),
 				 LIGHTREC_REG_STATE, JIT_R(i + FIRST_TEMP));
 		}
 	}
@@ -993,29 +979,25 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(JIT_R2);
 
-	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
 
 	/* state->current_cycle = state->target_cycle - delta; */
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
-	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
-		   LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
+	jit_stxi_i(lightrec_offset(current_cycle), LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
 
 	/* Call the wrapper function */
 	jit_finishr(JIT_R1);
 
 	/* delta = state->target_cycle - state->current_cycle */;
-	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, current_cycle));
-	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE, lightrec_offset(current_cycle));
+	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
 
 	/* Restore temporaries from stack */
 	for (i = 0; i < NUM_TEMPS; i++) {
 		if (i + FIRST_TEMP != 1) {
 			jit_ldxi(JIT_R(i + FIRST_TEMP), LIGHTREC_REG_STATE,
-				 offsetof(struct lightrec_state, wrapper_regs[i]));
+				 lightrec_offset(wrapper_regs[i]));
 		}
 	}
 
@@ -1032,10 +1014,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	if (!block->function)
 		goto err_free_jit;
 
-	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
-
-	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
-		state->wrappers_eps[i] = jit_address(addr[i]);
+	state->c_wrapper = block->function;
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Wrapper block:\n");
@@ -1104,20 +1083,16 @@ static u32 lightrec_check_load_delay(struct lightrec_state *state, u32 pc, u8 re
 static void update_cycle_counter_before_c(jit_state_t *_jit)
 {
 	/* update state->current_cycle */
-	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
 	jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
-	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
-		   LIGHTREC_REG_STATE, JIT_R1);
+	jit_stxi_i(lightrec_offset(current_cycle), LIGHTREC_REG_STATE, JIT_R1);
 }
 
 static void update_cycle_counter_after_c(jit_state_t *_jit)
 {
 	/* Recalc the delta */
-	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, current_cycle));
-	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE, lightrec_offset(current_cycle));
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
 }
 
@@ -1125,7 +1100,7 @@ static void sync_next_pc(jit_state_t *_jit)
 {
 	if (lightrec_store_next_pc()) {
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-			    offsetof(struct lightrec_state, next_pc));
+			    lightrec_offset(next_pc));
 	}
 }
 
@@ -1133,7 +1108,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *loop, *addr, *addr2, *addr3, *addr4, *addr5, *jmp, *jmp2;
+	jit_node_t *to_end, *loop, *loop2,
+		   *addr, *addr2, *addr3, *addr4, *addr5;
 	unsigned int i;
 	u32 offset;
 
@@ -1165,92 +1141,13 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* Call the block's code */
 	jit_jmpr(JIT_V1);
 
-	if (OPT_REPLACE_MEMSET) {
-		/* Blocks will jump here when they need to call
-		 * lightrec_memset() */
-		addr3 = jit_indirect();
-
-		jit_movr(JIT_V1, LIGHTREC_REG_CYCLE);
-
-		jit_prepare();
-		jit_pushargr(LIGHTREC_REG_STATE);
-
-		jit_finishi(lightrec_memset);
-		jit_retval(LIGHTREC_REG_CYCLE);
-
-		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-			    offsetof(struct lightrec_state, regs.gpr[31]));
-		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
-
-		if (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)
-			jmp = jit_b();
-	}
-
-	if (OPT_DETECT_IMPOSSIBLE_BRANCHES) {
-		/* Blocks will jump here when they reach a branch that should
-		 * be executed with the interpreter, passing the branch's PC
-		 * in JIT_V0 and the address of the block in JIT_V1. */
-		addr4 = jit_indirect();
-
-		sync_next_pc(_jit);
-		update_cycle_counter_before_c(_jit);
-
-		jit_prepare();
-		jit_pushargr(LIGHTREC_REG_STATE);
-		jit_pushargr(JIT_V1);
-		jit_pushargr(JIT_V0);
-		jit_finishi(lightrec_emulate_block);
-
-		jit_retval(JIT_V0);
-
-		update_cycle_counter_after_c(_jit);
-
-		if (OPT_HANDLE_LOAD_DELAYS)
-			jmp2 = jit_b();
-
-	}
-
-	if (OPT_HANDLE_LOAD_DELAYS) {
-		/* Blocks will jump here when they reach a branch with a load
-		 * opcode in its delay slot. The delay slot has already been
-		 * executed; the load value is in (state->temp_reg), and the
-		 * register number is in JIT_V1.
-		 * Jump to a C function which will evaluate the branch target's
-		 * first opcode, to make sure that it does not read the register
-		 * in question; and if it does, handle it accordingly. */
-		addr5 = jit_indirect();
-
-		sync_next_pc(_jit);
-		update_cycle_counter_before_c(_jit);
-
-		jit_prepare();
-		jit_pushargr(LIGHTREC_REG_STATE);
-		jit_pushargr(JIT_V0);
-		jit_pushargr(JIT_V1);
-		jit_finishi(lightrec_check_load_delay);
-
-		jit_retval(JIT_V0);
-
-		update_cycle_counter_after_c(_jit);
-	}
-
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
 	sync_next_pc(_jit);
 
-	if (OPT_HANDLE_LOAD_DELAYS && OPT_DETECT_IMPOSSIBLE_BRANCHES)
-	      jit_patch(jmp2);
-
-	if (OPT_REPLACE_MEMSET
-	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
-		jit_patch(jmp);
-	}
-
-	/* Store back the next PC to the lightrec_state structure */
-	offset = offsetof(struct lightrec_state, curr_pc);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
+	loop2 = jit_label();
 
 	/* Jump to end if state->target_cycle < state->current_cycle */
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
@@ -1267,11 +1164,14 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_lshi(JIT_V1, JIT_V1, 1);
 	jit_add_state(JIT_V1, JIT_V1);
 
-	offset = offsetof(struct lightrec_state, code_lut);
+	offset = lightrec_offset(code_lut);
 	if (lut_is_32bit(state))
 		jit_ldxi_ui(JIT_V1, JIT_V1, offset);
 	else
 		jit_ldxi(JIT_V1, JIT_V1, offset);
+
+	/* Store back the current PC to the lightrec_state structure */
+	jit_stxi_i(lightrec_offset(curr_pc), LIGHTREC_REG_STATE, JIT_V0);
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1309,8 +1209,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	}
 
 	/* Reset JIT_V0 to the next PC */
-	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, curr_pc));
+	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE, lightrec_offset(curr_pc));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1319,7 +1218,80 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_note(__FILE__, __LINE__);
 	jit_patch(to_end);
 
+	/* Store back the current PC to the lightrec_state structure */
+	jit_stxi_i(lightrec_offset(curr_pc), LIGHTREC_REG_STATE, JIT_V0);
+
 	jit_retr(LIGHTREC_REG_CYCLE);
+
+	if (OPT_REPLACE_MEMSET) {
+		/* Blocks will jump here when they need to call
+		 * lightrec_memset() */
+		addr3 = jit_indirect();
+
+		jit_movr(JIT_V1, LIGHTREC_REG_CYCLE);
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+
+		jit_finishi(lightrec_memset);
+		jit_retval(LIGHTREC_REG_CYCLE);
+
+		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE, lightrec_offset(regs.gpr[31]));
+
+		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
+
+		jit_patch_at(jit_b(), loop2);
+	}
+
+	if (OPT_DETECT_IMPOSSIBLE_BRANCHES) {
+		/* Blocks will jump here when they reach a branch that should
+		 * be executed with the interpreter, passing the branch's PC
+		 * in JIT_V0 and the address of the block in JIT_V1. */
+		addr4 = jit_indirect();
+
+		sync_next_pc(_jit);
+		update_cycle_counter_before_c(_jit);
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+		jit_pushargr(JIT_V1);
+		jit_pushargr(JIT_V0);
+		jit_finishi(lightrec_emulate_block);
+
+		jit_retval(JIT_V0);
+
+		update_cycle_counter_after_c(_jit);
+
+		jit_patch_at(jit_b(), loop2);
+
+	}
+
+	if (OPT_HANDLE_LOAD_DELAYS) {
+		/* Blocks will jump here when they reach a branch with a load
+		 * opcode in its delay slot. The delay slot has already been
+		 * executed; the load value is in (state->temp_reg), and the
+		 * register number is in JIT_V1.
+		 * Jump to a C function which will evaluate the branch target's
+		 * first opcode, to make sure that it does not read the register
+		 * in question; and if it does, handle it accordingly. */
+		addr5 = jit_indirect();
+
+		sync_next_pc(_jit);
+		update_cycle_counter_before_c(_jit);
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+		jit_pushargr(JIT_V0);
+		jit_pushargr(JIT_V1);
+		jit_finishi(lightrec_check_load_delay);
+
+		jit_retval(JIT_V0);
+
+		update_cycle_counter_after_c(_jit);
+
+		jit_patch_at(jit_b(), loop2);
+	}
+
 	jit_epilog();
 
 	block->_jit = _jit;
@@ -1472,7 +1444,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	lightrec_register(MEM_FOR_MIPS_CODE, length);
 
 	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Disassembled block at PC: 0x%08x\n", block->pc);
+		pr_debug("Disassembled block at "PC_FMT"\n", block->pc);
 		lightrec_print_disassembly(block, code);
 	}
 
@@ -1747,8 +1719,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			block2 = lightrec_find_block(state->block_cache, offset);
 		}
 		if (block2) {
-			pr_debug("Reap block 0x%08x as it's covered by block "
-				 "0x%08x\n", block2->pc, block->pc);
+			pr_debug("Reap block "X32_FMT" as it's covered by block "
+				 X32_FMT"\n", block2->pc, block->pc);
 
 			/* Finally, reap the block. */
 			if (!ENABLE_THREADED_COMPILER) {
@@ -1766,7 +1738,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		lightrec_reaper_continue(state->reaper);
 
 	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Compiling block at PC: 0x%08x\n", block->pc);
+		pr_debug("Compiling block at "PC_FMT"\n", block->pc);
 		jit_disassemble();
 	}
 
@@ -1789,7 +1761,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	}
 
 	if (oldjit) {
-		pr_debug("Block 0x%08x recompiled, reaping old jit context.\n",
+		pr_debug("Block "X32_FMT" recompiled, reaping old jit context.\n",
 			 block->pc);
 
 		if (ENABLE_THREADED_COMPILER) {

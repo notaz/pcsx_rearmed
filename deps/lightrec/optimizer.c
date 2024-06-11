@@ -909,8 +909,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
 		if (op->opcode != 0 && is_nop(op->c)) {
-			pr_debug("Converting useless opcode 0x%08x to NOP\n",
-					op->opcode);
+			pr_debug("Converting useless opcode "X32_FMT" to NOP\n",
+				 op->opcode);
 			op->opcode = 0x0;
 		}
 
@@ -1740,7 +1740,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 			 * registers as address will never hit a code page. */
 			if (list->i.rs >= 28 && list->i.rs <= 29 &&
 			    !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
-				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
+				pr_debug("Flaging opcode "X32_FMT" as not requiring invalidation\n",
 					 list->opcode);
 				list->flags |= LIGHTREC_NO_INVALIDATE;
 			}
@@ -2245,7 +2245,7 @@ static int lightrec_replace_memset(struct lightrec_state *state, struct block *b
 
 		if (i == ARRAY_SIZE(memset_code) - 1) {
 			/* success! */
-			pr_debug("Block at PC 0x%x is a memset\n", block->pc);
+			pr_debug("Block at "PC_FMT" is a memset\n", block->pc);
 			block_set_flags(block,
 					BLOCK_IS_MEMSET | BLOCK_NEVER_COMPILE);
 
