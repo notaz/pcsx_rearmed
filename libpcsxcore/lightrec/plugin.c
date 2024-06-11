@@ -53,14 +53,20 @@
 #	define unlikely(x)     (x)
 #endif
 
+#ifndef LIGHTREC_PROG_NAME
+#  ifdef __linux__
+#    define LIGHTREC_PROG_NAME "/proc/self/exe"
+#  else
+#    define LIGHTREC_PROG_NAME "retroarch.exe"
+#  endif
+#endif
+
 psxRegisters psxRegs;
 Rcnt rcnts[4];
 
 void* code_buffer;
 
 static struct lightrec_state *lightrec_state;
-
-static char *name = "retroarch.exe";
 
 static bool use_lightrec_interpreter;
 static bool use_pcsx_interpreter;
@@ -458,7 +464,7 @@ static int lightrec_plugin_init(void)
 
 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
 
-	lightrec_state = lightrec_init(name,
+	lightrec_state = lightrec_init(LIGHTREC_PROG_NAME,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
 
