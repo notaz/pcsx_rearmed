@@ -121,7 +121,7 @@ cycle_multiplier_overrides[] =
 	/* Digimon World */
 	{ 153, { "SLUS01032", "SLES02914" } },
 	/* Power Rangers: Lightspeed Rescue - jump does not work with 175 */
-	{ 222, { "SLUS01114", "SLES03286" } },
+	{ 310, { "SLUS01114", "SLES03286" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
 	{ 169, { "SCUS94240" } },
 	/* Psychic Detective - some weird race condition in the game's cdrom code */
