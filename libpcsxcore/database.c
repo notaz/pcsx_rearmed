@@ -120,7 +120,7 @@ cycle_multiplier_overrides[] =
 	{ 222, { "SLES01549", "SLES02063", "SLES02064" } },
 	/* Digimon World */
 	{ 153, { "SLUS01032", "SLES02914" } },
-	/* Power Rangers: Lightspeed Rescue - jump does not work with 175 */
+	/* Power Rangers: Lightspeed Rescue - jumping fails if FPS is over 30 */
 	{ 310, { "SLUS01114", "SLES03286" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
 	{ 169, { "SCUS94240" } },
