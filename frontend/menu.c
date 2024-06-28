@@ -40,6 +40,7 @@
 #include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
+#include "../libpcsxcore/ppf.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "psemu_plugin_defs.h"
@@ -740,7 +741,7 @@ static const char *filter_exts[] = {
 	#ifdef HAVE_CHD
 	"chd",
 	#endif
-	"bz",  "znx", "pbp", "cbn", NULL
+	"bz",  "znx", "pbp", "cbn", "ppf", NULL
 };
 
 // rrrr rggg gggb bbbb
@@ -2157,6 +2158,18 @@ static int run_exe(void)
 static int run_cd_image(const char *fname)
 {
 	int autoload_state = g_autostateld_opt;
+	size_t fname_len = strlen(fname);
+	const char *ppfname = NULL;
+	char fname2[256];
+
+	// simle ppf handling, like game.chd.ppf
+	if (4 < fname_len && fname_len < sizeof(fname2)
+	    && strcasecmp(fname + fname_len - 4, ".ppf") == 0) {
+		memcpy(fname2, fname, fname_len - 4);
+		fname2[fname_len - 4] = 0;
+		ppfname = fname;
+		fname = fname2;
+	}
 
 	ready_to_go = 0;
 	reload_plugins(fname);
@@ -2170,6 +2183,8 @@ static int run_cd_image(const char *fname)
 		menu_update_msg("unsupported/invalid CD image");
 		return -1;
 	}
+	if (ppfname)
+		BuildPPFCache(ppfname);
 
 	SysReset();
 
@@ -2185,7 +2200,7 @@ static int run_cd_image(const char *fname)
 
 	if (autoload_state) {
 		unsigned int newest = 0;
-		int time, slot, newest_slot = -1;
+		int time = 0, slot, newest_slot = -1;
 
 		for (slot = 0; slot < 10; slot++) {
 			if (emu_check_save_file(slot, &time)) {

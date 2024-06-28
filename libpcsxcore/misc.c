@@ -466,7 +466,7 @@ int CheckCdrom() {
 	
 	Apply_Hacks_Cdrom();
 
-	BuildPPFCache();
+	BuildPPFCache(NULL);
 
 	return 0;
 }
