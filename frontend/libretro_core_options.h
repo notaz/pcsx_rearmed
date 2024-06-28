@@ -454,6 +454,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "auto",
    },
    {
+      "pcsx_rearmed_show_overscan",
+      "(GPU) Show horizontal overscan",
+      NULL,
+      "The PSX can display graphics way into the horizontal borders, even if most screens would crop it. This option tries to display all such graphics. Note that this may result in unusual resolutions that your device might not handle well. The 'Hack' option is intended for the widescreen hacks.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "auto", "Auto" },
+         { "hack", "Hack" },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
       "pcsx_rearmed_screen_centering",
       "(GPU) Screen centering",
       NULL,
