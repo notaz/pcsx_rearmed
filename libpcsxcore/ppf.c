@@ -181,7 +181,7 @@ static void AddToPPF(s32 ladr, s32 pos, s32 anz, unsigned char *ppfmem) {
 	}
 }
 
-void BuildPPFCache() {
+void BuildPPFCache(const char *fname) {
 	FILE			*ppffile;
 	char			buffer[12];
 	char			method, undo = 0, blockcheck = 0;
@@ -196,23 +196,25 @@ void BuildPPFCache() {
 
 	if (CdromId[0] == '\0') return;
 
-	// Generate filename in the format of SLUS_123.45
-	buffer[0] = toupper(CdromId[0]);
-	buffer[1] = toupper(CdromId[1]);
-	buffer[2] = toupper(CdromId[2]);
-	buffer[3] = toupper(CdromId[3]);
-	buffer[4] = '_';
-	buffer[5] = CdromId[4];
-	buffer[6] = CdromId[5];
-	buffer[7] = CdromId[6];
-	buffer[8] = '.';
-	buffer[9] = CdromId[7];
-	buffer[10] = CdromId[8];
-	buffer[11] = '\0';
+	if (!fname) {
+		// Generate filename in the format of SLUS_123.45
+		buffer[0] = toupper(CdromId[0]);
+		buffer[1] = toupper(CdromId[1]);
+		buffer[2] = toupper(CdromId[2]);
+		buffer[3] = toupper(CdromId[3]);
+		buffer[4] = '_';
+		buffer[5] = CdromId[4];
+		buffer[6] = CdromId[5];
+		buffer[7] = CdromId[6];
+		buffer[8] = '.';
+		buffer[9] = CdromId[7];
+		buffer[10] = CdromId[8];
+		buffer[11] = '\0';
 
-	sprintf(szPPF, "%s%s", Config.PatchesDir, buffer);
-
-	ppffile = fopen(szPPF, "rb");
+		sprintf(szPPF, "%s%s", Config.PatchesDir, buffer);
+		fname = szPPF;
+	}
+	ppffile = fopen(fname, "rb");
 	if (ppffile == NULL) return;
 
 	memset(buffer, 0, 5);
@@ -220,7 +222,7 @@ void BuildPPFCache() {
 		goto fail_io;
 
 	if (strcmp(buffer, "PPF") != 0) {
-		SysPrintf(_("Invalid PPF patch: %s.\n"), szPPF);
+		SysPrintf(_("Invalid PPF patch: %s.\n"), fname);
 		fclose(ppffile);
 		return;
 	}
@@ -346,7 +348,8 @@ void BuildPPFCache() {
 
 	FillPPFCache(); // build address array
 
-	SysPrintf(_("Loaded PPF %d.0 patch: %s.\n"), method + 1, szPPF);
+	SysPrintf(_("Loaded PPF %d.0 patch: %s.\n"), method + 1, fname);
+	return;
 
 fail_io:
 #ifndef NDEBUG

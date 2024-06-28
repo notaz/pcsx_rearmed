@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-void BuildPPFCache();
+void BuildPPFCache(const char *fname);
 void FreePPFCache();
 void CheckPPFCache(unsigned char *pB, unsigned char m, unsigned char s, unsigned char f);
 
