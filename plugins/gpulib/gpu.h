@@ -81,6 +81,7 @@ struct psx_gpu {
     uint32_t downscale_enable:1;
     uint32_t downscale_active:1;
     uint32_t dims_changed:1;
+    uint32_t show_overscan:2;
     uint32_t *frame_count;
     uint32_t *hcnt; /* hsync count */
     struct {

@@ -2759,6 +2759,18 @@ static void update_variables(bool in_flight)
       pl_rearmed_cbs.screen_centering_y = atoi(var.value);
    }
 
+   var.value = NULL;
+   var.key = "pcsx_rearmed_show_overscan";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "auto") == 0)
+         pl_rearmed_cbs.show_overscan = 1;
+      else if (strcmp(var.value, "hack") == 0)
+         pl_rearmed_cbs.show_overscan = 2;
+      else
+         pl_rearmed_cbs.show_overscan = 0;
+   }
+
 #ifdef THREAD_RENDERING
    var.key = "pcsx_rearmed_gpu_thread_rendering";
    var.value = NULL;

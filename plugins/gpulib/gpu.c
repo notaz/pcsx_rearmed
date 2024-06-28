@@ -92,6 +92,11 @@ static noinline void update_width(void)
     x = (x + 1) & ~1;   // blitter limitation
     sw /= hdiv;
     sw = (sw + 2) & ~3; // according to nocash
+
+    if (gpu.state.show_overscan == 2) // widescreen hack
+      sw = (sw + 63) & ~63;
+    if (gpu.state.show_overscan && sw >= hres)
+      x = 0, hres = sw;
     switch (type) {
     case C_INGAME:
       break;
@@ -116,8 +121,8 @@ static noinline void update_width(void)
   gpu.screen.w = sw;
   gpu.screen.hres = hres;
   gpu.state.dims_changed = 1;
-  //printf("xx %d %d -> %2d, %d / %d\n",
-  //  gpu.screen.x1, gpu.screen.x2, x, sw, hres);
+  //printf("xx %d %d (%d) -> %2d, %d / %d\n", gpu.screen.x1,
+  //  gpu.screen.x2, gpu.screen.x2 - gpu.screen.x1, x, sw, hres);
 }
 
 static noinline void update_height(void)
@@ -979,10 +984,12 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x
-      || gpu.state.screen_centering_y != cbs->screen_centering_y) {
+      || gpu.state.screen_centering_y != cbs->screen_centering_y
+      || gpu.state.show_overscan != cbs->show_overscan) {
     gpu.state.screen_centering_type = cbs->screen_centering_type;
     gpu.state.screen_centering_x = cbs->screen_centering_x;
     gpu.state.screen_centering_y = cbs->screen_centering_y;
+    gpu.state.show_overscan = cbs->show_overscan;
     update_width();
     update_height();
   }
