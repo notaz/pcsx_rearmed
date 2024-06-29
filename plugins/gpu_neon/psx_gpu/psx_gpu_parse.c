@@ -200,21 +200,14 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
   }
 }
 
-#define sign_extend_12bit(value)                                               \
-  (((s32)((value) << 20)) >> 20)                                               \
-
 #define sign_extend_11bit(value)                                               \
   (((s32)((value) << 21)) >> 21)                                               \
 
-#define sign_extend_10bit(value)                                               \
-  (((s32)((value) << 22)) >> 22)                                               \
-
-
 #define get_vertex_data_xy(vertex_number, offset16)                            \
   vertexes[vertex_number].x =                                                  \
-   sign_extend_12bit(list_s16[offset16]) + psx_gpu->offset_x;                  \
+   sign_extend_11bit(list_s16[offset16]) + psx_gpu->offset_x;                  \
   vertexes[vertex_number].y =                                                  \
-   sign_extend_12bit(list_s16[(offset16) + 1]) + psx_gpu->offset_y;            \
+   sign_extend_11bit(list_s16[(offset16) + 1]) + psx_gpu->offset_y;            \
 
 #define get_vertex_data_uv(vertex_number, offset16)                            \
   vertexes[vertex_number].u = list_s16[offset16] & 0xFF;                       \
@@ -1746,10 +1739,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
       case 0xE5:
       {
-        s32 offset_x = list[0] << 21;
-        s32 offset_y = list[0] << 10;
-        psx_gpu->offset_x = offset_x >> 21;
-        psx_gpu->offset_y = offset_y >> 21; 
+        psx_gpu->offset_x = sign_extend_11bit(list[0]);
+        psx_gpu->offset_y = sign_extend_11bit(list[0] >> 11);
   
         SET_Ex(5, list[0]);
         break;
