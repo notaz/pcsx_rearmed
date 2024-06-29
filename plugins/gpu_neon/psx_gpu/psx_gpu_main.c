@@ -136,7 +136,8 @@ int main(int argc, char *argv[])
   FILE *list_file;
   u32 no_display = 0;
   s32 dummy0 = 0;
-  u32 dummy1 = 0;
+  s32 dummy1 = 0;
+  u32 dummy2 = 0;
 
   if((argc != 3) && (argc != 4))
   {
@@ -180,7 +181,7 @@ int main(int argc, char *argv[])
   u32 fbdev_handle = open("/dev/fb1", O_RDWR);
   vram_ptr = (mmap((void *)0x50000000, 1024 * 1024 * 2, PROT_READ | PROT_WRITE,
    MAP_SHARED | 0xA0000000, fbdev_handle, 0));
-#elif 1
+#elif 0
   #ifndef MAP_HUGETLB
   #define MAP_HUGETLB 0x40000 /* arch specific */
   #endif
@@ -211,23 +212,23 @@ int main(int argc, char *argv[])
 
   clear_stats();
 
-#ifdef NEON_BUILD
+#ifdef CYCLE_COUNTER
   init_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1);
+  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1, &dummy2);
   flush_render_block_buffer(psx_gpu);
 
   clear_stats();
 
-#ifdef NEON_BUILD
+#ifdef CYCLE_COUNTER
   u32 cycles = get_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1);
+  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1, &dummy2);
   flush_render_block_buffer(psx_gpu);
 
-#ifdef NEON_BUILD
+#ifdef CYCLE_COUNTER
   u32 cycles_elapsed = get_counter() - cycles;
 
   printf("%-64s: %d\n", argv[1], cycles_elapsed);
