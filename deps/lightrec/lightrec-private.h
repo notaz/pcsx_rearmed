@@ -372,6 +372,16 @@ static inline _Bool can_zero_extend(u32 value, u8 order)
       return (value >> order) == 0;
 }
 
+static inline _Bool is_low_mask(u32 imm)
+{
+	return imm & 1 ? popcount32(imm + 1) <= 1 : 0;
+}
+
+static inline _Bool is_high_mask(u32 imm)
+{
+	return imm ? popcount32(imm + BIT(ctz32(imm))) == 0 : 0;
+}
+
 static inline const struct opcode *
 get_delay_slot(const struct opcode *list, u16 i)
 {

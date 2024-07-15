@@ -959,7 +959,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_tramp(256);
 
 	/* Load pointer to C wrapper */
-	jit_addr(JIT_R1, JIT_R1, LIGHTREC_REG_STATE);
+	jit_add_state(JIT_R1, JIT_R1);
 	jit_ldxi(JIT_R1, JIT_R1, lightrec_offset(c_wrappers));
 
 	jit_epilog();
@@ -1046,7 +1046,7 @@ static u32 lightrec_memset(struct lightrec_state *state)
 		return 0;
 	}
 
-	pr_debug("Calling host memset, "PC_FMT" (host address 0x%"PRIxPTR") for %u bytes\n",
+	pr_debug("Calling host memset, "PC_FMT" (host address 0x%"PRIxPTR") for %"PRIu32" bytes\n",
 		 kunseg_pc, (uintptr_t)host, length);
 	memset(host, 0, length);
 
@@ -1624,7 +1624,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	for (i = 0; i < cstate->nb_local_branches; i++) {
 		struct lightrec_branch *branch = &cstate->local_branches[i];
 
-		pr_debug("Patch local branch to offset 0x%x\n",
+		pr_debug("Patch local branch to offset 0x%"PRIx32"\n",
 			 branch->target << 2);
 
 		if (branch->target == 0) {
