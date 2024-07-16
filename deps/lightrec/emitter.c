@@ -3,6 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+#include "arch.h"
 #include "blockcache.h"
 #include "debug.h"
 #include "disassembler.h"
@@ -103,7 +104,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	if (cycles && update_cycles) {
 		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
-		pr_debug("EOB: %u cycles\n", cycles);
+		pr_debug("EOB: %"PRIu32" cycles\n", cycles);
 	}
 
 	if (has_ds && op_flag_load_delay(ds->flags)
@@ -247,11 +248,11 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	struct lightrec_branch *branch;
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
-	jit_node_t *addr;
 	bool is_forward = (s16)op->i.imm >= 0;
 	int op_cycles = lightrec_cycles_of_opcode(state->state, op->c);
 	u32 target_offset, cycles = state->cycles + op_cycles;
 	bool no_indirection = false;
+	jit_node_t *addr = NULL;
 	u32 next_pc;
 	u8 rs, rt;
 
@@ -308,7 +309,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 		target_offset = offset + 1 + (s16)op->i.imm
 			- !!op_flag_no_ds(op->flags);
-		pr_debug("Adding local branch to offset 0x%x\n",
+		pr_debug("Adding local branch to offset 0x%"PRIx32"\n",
 			 target_offset << 2);
 		branch = &state->local_branches[
 			state->nb_local_branches++];
@@ -941,7 +942,7 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	u8 reg_lo = get_mult_div_lo(c);
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
-	u8 lo, hi, rs, rt, rflags = 0;
+	u8 lo, hi = 0, rs, rt, rflags = 0;
 	bool no_lo = op_flag_no_lo(flags);
 	bool no_hi = op_flag_no_hi(flags);
 
@@ -1276,10 +1277,16 @@ static void rec_and_mask(struct lightrec_cstate *cstate,
 	struct regcache *reg_cache = cstate->reg_cache;
 	u8 reg_imm;
 
-	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, mask);
-	jit_andr(reg_out, reg_in, reg_imm);
+	if (arch_has_fast_mask()
+	    && (is_low_mask(mask) || is_high_mask(mask))) {
+		jit_andi(reg_out, reg_in, mask);
+	} else {
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+							     mask);
+		jit_andr(reg_out, reg_in, reg_imm);
 
-	lightrec_free_reg(reg_cache, reg_imm);
+		lightrec_free_reg(reg_cache, reg_imm);
+	}
 }
 
 static void rec_store_memory(struct lightrec_cstate *cstate,

@@ -25,5 +25,7 @@
 #define OPT_EARLY_UNLOAD 1
 #define OPT_PRELOAD_PC 1
 
+#define OPT_SH4_USE_GBR 0
+
 #endif /* __LIGHTREC_CONFIG_H__ */
 

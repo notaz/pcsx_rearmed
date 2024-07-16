@@ -25,5 +25,7 @@
 #cmakedefine01 OPT_EARLY_UNLOAD
 #cmakedefine01 OPT_PRELOAD_PC
 
+#cmakedefine01 OPT_SH4_USE_GBR
+
 #endif /* __LIGHTREC_CONFIG_H__ */
 
