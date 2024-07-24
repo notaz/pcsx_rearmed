@@ -835,9 +835,11 @@ void cdrInterrupt(void) {
 			{
 				for (i = 0; i < 3; i++)
 					set_loc[i] = btoi(cdr.Param[i]);
-				cdr.RetryDetected = msfiEq(cdr.SetSector, set_loc)
-					&& !cdr.SetlocPending;
-				//cdr.RetryDetected |= msfiEq(cdr.Param, cdr.Transfer);
+				if ((msfiEq(cdr.SetSector, set_loc)) //|| msfiEq(cdr.Param, cdr.Transfer))
+						&& !cdr.SetlocPending)
+					cdr.RetryDetected++;
+				else
+					cdr.RetryDetected = 0;
 				memcpy(cdr.SetSector, set_loc, 3);
 				cdr.SetSector[3] = 0;
 				cdr.SetlocPending = 1;
@@ -991,6 +993,7 @@ void cdrInterrupt(void) {
 			Hokuto no Ken 2
 			InuYasha - Feudal Fairy Tale
 			Dance Dance Revolution Konamix
+			Digimon Rumble Arena
 			...
 			*/
 			if (!(cdr.StatP & (STATUS_PLAY | STATUS_READ)))
@@ -999,7 +1002,9 @@ void cdrInterrupt(void) {
 			}
 			else
 			{
-				second_resp_time = 2 * 1097107;
+				second_resp_time = 2100011;
+				// a hack to try to avoid weird cmd vs irq1 races causing games to retry
+				second_resp_time += (cdr.RetryDetected & 15) * 100001;
 			}
 			SetPlaySeekRead(cdr.StatP, 0);
 			DriveStateOld = cdr.DriveState;
