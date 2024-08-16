@@ -3615,7 +3615,8 @@ void psxBiosInit() {
 	biosA0[0x03] = biosB0[0x35] = psxBios_write_psxout;
 	biosA0[0x3c] = biosB0[0x3d] = psxBios_putchar_psxout;
 	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
-	biosA0[0x3f] = psxBios_printf_psxout;
+	// calls putchar() internally so no need to override
+	//biosA0[0x3f] = psxBios_printf_psxout;
 
 	if (!Config.HLE) {
 		char verstr[0x24+1];
