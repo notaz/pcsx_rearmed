@@ -4810,8 +4810,7 @@ void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
   u32 b = (color >> 16) & 0xFF;
-  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
-   psx_gpu->mask_msb;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10);
   u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
   u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));
@@ -4863,8 +4862,7 @@ void render_block_fill_enh(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
   u32 b = (color >> 16) & 0xFF;
-  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10) |
-   psx_gpu->mask_msb;
+  u32 color_16bpp = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10);
   u32 color_32bpp = color_16bpp | (color_16bpp << 16);
 
   u32 *vram_ptr = (u32 *)(psx_gpu->vram_out_ptr + x + (y * 1024));

@@ -4386,51 +4386,6 @@ function(warmup)
 
 #undef vram_ptr
 #undef color
-#undef width
-#undef height
-#undef pitch
-
-#define vram_ptr                                          r0
-#define color                                             r1
-#define width                                             r2
-#define height                                            r3
-
-#define pitch                                             r1
-
-#define num_width                                         r12
-
-#undef colors_a
-#undef colors_b
-
-#define colors_a                                          q0
-#define colors_b                                          q1
-
-.align 3
-
-function(render_block_fill_body)
-  vdup.u16 colors_a, color
-  mov pitch, #2048
-
-  vmov colors_b, colors_a
-  sub pitch, pitch, width, lsl #1
-
-  mov num_width, width
-
- 0:  
-  vst1.u32 { colors_a, colors_b }, [vram_ptr, :256]!
-
-  subs num_width, num_width, #16
-  bne 0b
-
-  add vram_ptr, vram_ptr, pitch
-  mov num_width, width
-
-  subs height, height, #1
-  bne 0b
-
-  bx lr
- 
-
 #undef x
 #undef y
 #undef width
@@ -4523,6 +4478,7 @@ function(render_block_fill_body)
 #define texels_wide_high                                  d15
 #define texels_wide                                       q7
 
+.align 3
 
 setup_sprite_flush_blocks:
   vpush { q1 - q5 }
