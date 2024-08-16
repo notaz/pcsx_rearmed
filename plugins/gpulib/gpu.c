@@ -412,21 +412,31 @@ const unsigned char cmd_lengths[256] =
 
 #define VRAM_MEM_XY(x, y) &gpu.vram[(y) * 1024 + (x)]
 
-static void cpy_msb(uint16_t *dst, const uint16_t *src, int l, uint16_t msb)
+// this isn't very useful so should be rare
+static void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6)
 {
   int i;
-  for (i = 0; i < l; i++)
-    dst[i] = src[i] | msb;
+  if (r6 == 1) {
+    for (i = 0; i < l; i++)
+      dst[i] = src[i] | 0x8000;
+  }
+  else {
+    uint16_t msb = r6 << 15;
+    for (i = 0; i < l; i++) {
+      uint16_t mask = (int16_t)dst[i] >> 15;
+      dst[i] = (dst[i] & mask) | ((src[i] | msb) & ~mask);
+    }
+  }
 }
 
 static inline void do_vram_line(int x, int y, uint16_t *mem, int l,
-    int is_read, uint16_t msb)
+    int is_read, uint32_t r6)
 {
   uint16_t *vram = VRAM_MEM_XY(x, y);
   if (unlikely(is_read))
     memcpy(mem, vram, l * 2);
-  else if (unlikely(msb))
-    cpy_msb(vram, mem, l, msb);
+  else if (unlikely(r6))
+    cpy_mask(vram, mem, l, r6);
   else
     memcpy(vram, mem, l * 2);
 }
@@ -434,7 +444,7 @@ static inline void do_vram_line(int x, int y, uint16_t *mem, int l,
 static int do_vram_io(uint32_t *data, int count, int is_read)
 {
   int count_initial = count;
-  uint16_t msb = gpu.ex_regs[6] << 15;
+  uint32_t r6 = gpu.ex_regs[6] & 3;
   uint16_t *sdata = (uint16_t *)data;
   int x = gpu.dma.x, y = gpu.dma.y;
   int w = gpu.dma.w, h = gpu.dma.h;
@@ -449,7 +459,7 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
     if (count < l)
       l = count;
 
-    do_vram_line(x + o, y, sdata, l, is_read, msb);
+    do_vram_line(x + o, y, sdata, l, is_read, r6);
 
     if (o + l < w)
       o += l;
@@ -464,13 +474,13 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
 
   for (; h > 0 && count >= w; sdata += w, count -= w, y++, h--) {
     y &= 511;
-    do_vram_line(x, y, sdata, w, is_read, msb);
+    do_vram_line(x, y, sdata, w, is_read, r6);
   }
 
   if (h > 0) {
     if (count > 0) {
       y &= 511;
-      do_vram_line(x, y, sdata, count, is_read, msb);
+      do_vram_line(x, y, sdata, count, is_read, r6);
       o = count;
       count = 0;
     }
