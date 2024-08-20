@@ -9,7 +9,5 @@
 #include "vector_types.h"
 #include "psx_gpu.h"
 
-#define unlikely(x) __builtin_expect((x), 0)
-
 #endif
 

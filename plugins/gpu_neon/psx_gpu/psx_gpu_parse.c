@@ -903,6 +903,7 @@ static void select_enhancement_buf(psx_gpu_struct *psx_gpu)
   psx_gpu->viewport_start_y = psx_gpu->saved_viewport_start_y; \
   psx_gpu->viewport_end_x = psx_gpu->saved_viewport_end_x; \
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y; \
+  psx_gpu->hacks_active = 0; \
   psx_gpu->uvrgb_phase = 0x8000; \
 }
 
@@ -917,7 +918,7 @@ static int enhancement_enable(psx_gpu_struct *psx_gpu)
   psx_gpu->viewport_end_y = psx_gpu->saved_viewport_end_y * 2 + 1;
   if (psx_gpu->viewport_end_x - psx_gpu->viewport_start_x + 1 > 1024)
     psx_gpu->viewport_end_x = psx_gpu->viewport_start_x + 1023;
-  psx_gpu->uvrgb_phase = 0x7fff;
+  //psx_gpu->uvrgb_phase = 0x7fff;
   return 1;
 }
 
@@ -1018,73 +1019,29 @@ static int check_enhanced_range(psx_gpu_struct *psx_gpu, int x, int y)
   return 1;
 }
 
-static int is_in_array(int val, int array[], int len)
+static u32 uv_hack(psx_gpu_struct *psx_gpu, const vertex_struct *vertex_ptrs)
 {
-  int i;
-  for (i = 0; i < len; i++)
-    if (array[i] == val)
-      return 1;
-  return 0;
-}
+  int i, have_right_edge = 0, have_bottom_edge = 0, bad_u = 0, bad_v = 0;
+  u32 hacks = 0;
 
-static int make_members_unique(int array[], int len)
-{
-  int i, j;
-  for (i = j = 1; i < len; i++)
-    if (!is_in_array(array[i], array, j))
-      array[j++] = array[i];
-
-  if (array[0] > array[1]) {
-    i = array[0]; array[0] = array[1]; array[1] = i;
+  for (i = 0; i < 3; i++) {
+    int j = (i + 1) % 3, k = (i + 2) % 3;
+    int du = abs((int)vertex_ptrs[i].u - (int)vertex_ptrs[j].u);
+    int dv = abs((int)vertex_ptrs[i].v - (int)vertex_ptrs[j].v);
+    if (du && (du & 7) != 7)
+      bad_u = 1;
+    if (dv && (dv & 7) != 7)
+      bad_v = 1;
+    if (vertex_ptrs[i].x == vertex_ptrs[j].x && vertex_ptrs[k].x < vertex_ptrs[j].x)
+      have_right_edge = 1;
+    if (vertex_ptrs[i].y == vertex_ptrs[j].y)// && vertex_ptrs[k].y < vertex_ptrs[j].y)
+      have_bottom_edge = 1;
   }
-  return j;
-}
-
-static void patch_u(vertex_struct *vertex_ptrs, int count, int old, int new)
-{
-  int i;
-  for (i = 0; i < count; i++)
-    if (vertex_ptrs[i].u == old)
-      vertex_ptrs[i].u = new;
-}
-
-static void patch_v(vertex_struct *vertex_ptrs, int count, int old, int new)
-{
-  int i;
-  for (i = 0; i < count; i++)
-    if (vertex_ptrs[i].v == old)
-      vertex_ptrs[i].v = new;
-}
-
-// this sometimes does more harm than good, like in PE2
-static void uv_hack(vertex_struct *vertex_ptrs, int vertex_count)
-{
-  int i, u[4], v[4];
-
-  for (i = 0; i < vertex_count; i++) {
-    u[i] = vertex_ptrs[i].u;
-    v[i] = vertex_ptrs[i].v;
-  }
-  if (make_members_unique(u, vertex_count) == 2 && u[1] - u[0] >= 8) {
-    if ((u[0] & 7) == 7) {
-      patch_u(vertex_ptrs, vertex_count, u[0], u[0] + 1);
-      //printf("u hack: %3u-%3u -> %3u-%3u\n", u[0], u[1], u[0]+1, u[1]);
-    }
-    else if ((u[1] & 7) == 0 || u[1] - u[0] > 128) {
-      patch_u(vertex_ptrs, vertex_count, u[1], u[1] - 1);
-      //printf("u hack: %3u-%3u -> %3u-%3u\n", u[0], u[1], u[0], u[1]-1);
-    }
-  }
-  if (make_members_unique(v, vertex_count) == 2 && ((v[0] - v[1]) & 7) == 0) {
-    if ((v[0] & 7) == 7) {
-      patch_v(vertex_ptrs, vertex_count, v[0], v[0] + 1);
-      //printf("v hack: %3u-%3u -> %3u-%3u\n", v[0], v[1], v[0]+1, v[1]);
-    }
-    else if ((v[1] & 7) == 0) {
-      patch_v(vertex_ptrs, vertex_count, v[1], v[1] - 1);
-      //printf("v hack: %3u-%3u -> %3u-%3u\n", v[0], v[1], v[0], v[1]-1);
-    }
-  }
+  if (have_right_edge && bad_u)
+    hacks |= AHACK_TEXTURE_ADJ_U;
+  if (have_bottom_edge && bad_v)
+    hacks |= AHACK_TEXTURE_ADJ_V;
+  return hacks;
 }
 
 static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
@@ -1104,6 +1061,8 @@ static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
   if (!enhancement_enable(psx_gpu))
     return;
 
+  if ((current_command & RENDER_FLAGS_TEXTURE_MAP) && psx_gpu->hack_texture_adj)
+    psx_gpu->hacks_active |= uv_hack(psx_gpu, vertexes);
   shift_vertices3(vertex_ptrs);
   shift_triangle_area();
   render_triangle_p(psx_gpu, vertex_ptrs, current_command);
@@ -1314,8 +1273,6 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(2, 10);  
         get_vertex_data_xy_uv(3, 14);
   
-        if (psx_gpu->hack_texture_adj)
-          uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
         break;
@@ -1368,8 +1325,6 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(2, 12);
         get_vertex_data_xy_uv_rgb(3, 18);
 
-        if (psx_gpu->hack_texture_adj)
-          uv_hack(vertexes, 4);
         do_quad_enhanced(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
         break;
