@@ -21,9 +21,16 @@
 
 #define SPAN_DATA_BLOCKS_SIZE 32
 
+#define AHACK_TEXTURE_ADJ_U   (1 << 0)
+#define AHACK_TEXTURE_ADJ_V   (1 << 1)
+
 #ifndef __ASSEMBLER__
 
 #include "vector_types.h"
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect((x), 0)
+#endif
 
 typedef enum
 {
@@ -189,6 +196,7 @@ typedef struct
   // enhancement stuff
   u16 *enhancement_buf_ptr;          // main alloc
   u16 *enhancement_current_buf_ptr;  // offset into above, 4 bufs
+  u32 hacks_active;                  // AHACK_TEXTURE_ADJ_U ...
   u32 saved_hres;
   s16 saved_viewport_start_x;
   s16 saved_viewport_start_y;
@@ -205,7 +213,7 @@ typedef struct
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[184 + 9*4 - 9*sizeof(void *)];
+  u8 reserved_a[184 + 8*4 - 9*sizeof(void *)];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];
@@ -256,6 +264,9 @@ u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2);
 
 void update_texture_8bpp_cache(psx_gpu_struct *psx_gpu);
 void flush_render_block_buffer(psx_gpu_struct *psx_gpu);
+
+void setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
+    edge_data_struct *span_edge_data, vec_4x32u *span_uvrg_offset);
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,

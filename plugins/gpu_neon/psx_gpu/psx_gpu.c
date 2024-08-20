@@ -560,8 +560,9 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
   y##set##_b.e[1] = vertex->b                                                  \
   
 
-void compute_all_gradients(psx_gpu_struct *psx_gpu, vertex_struct *a,
- vertex_struct *b, vertex_struct *c)
+void compute_all_gradients(psx_gpu_struct * __restrict__ psx_gpu,
+ const vertex_struct * __restrict__ a, const vertex_struct * __restrict__ b,
+ const vertex_struct * __restrict__ c)
 {
   u32 triangle_area = psx_gpu->triangle_area;
   u32 winding_mask_scalar;
@@ -1163,6 +1164,8 @@ static void setup_spans_debug_check(psx_gpu_struct *psx_gpu,
       setup_spans_set_x4(alternate, down, alternate_active);                   \
       height -= 4;                                                             \
     } while(height > 0);                                                       \
+    if (psx_gpu->hacks_active & (AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V))   \
+      span_uvrg_offset[height - 1].low = span_uvrg_offset[height - 2].low;     \
   }                                                                            \
 
 
@@ -1216,6 +1219,8 @@ static void setup_spans_debug_check(psx_gpu_struct *psx_gpu,
       setup_spans_set_x4(alternate, up, alternate_active);                     \
       height -= 4;                                                             \
     }                                                                          \
+    if (psx_gpu->hacks_active & AHACK_TEXTURE_ADJ_V)                           \
+      psx_gpu->span_uvrg_offset[0].low = psx_gpu->span_uvrg_offset[1].low;     \
   }                                                                            \
 
 #define index_left  0
@@ -1452,6 +1457,11 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
       setup_spans_set_x4(none, down, no);
       height_minor_b -= 4;
     }
+    if (psx_gpu->hacks_active & (AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V))
+    {
+      span_uvrg_offset[height_minor_b - 1].low =
+        span_uvrg_offset[height_minor_b - 2].low;
+    }
   }
 
   left_split_triangles++;
@@ -1459,6 +1469,41 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 
 #endif
 
+// this is some hacky mess, can this be improved somehow?
+// ideally change things to not have to do this hack at all
+void __attribute__((noinline))
+setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
+    edge_data_struct *span_edge_data, vec_4x32u *span_uvrg_offset)
+{
+  size_t span_i = span_uvrg_offset - psx_gpu->span_uvrg_offset;
+  if (span_i != 0 && span_i != psx_gpu->num_spans - 1
+      && !(psx_gpu->hacks_active & AHACK_TEXTURE_ADJ_U))
+    return;
+  u32 num_blocks = span_edge_data->num_blocks - 1;
+  s32 offset = __builtin_ctz(span_edge_data->right_mask | 0x100) - 1;
+  s32 toffset = 8 * num_blocks + offset - 1;
+  if (toffset < 0 && !(psx_gpu->hacks_active & AHACK_TEXTURE_ADJ_U))
+    return;
+
+  toffset += span_edge_data->left_x;
+  s32 u_dx = psx_gpu->uvrg_dx.low.e[0];
+  s32 v_dx = psx_gpu->uvrg_dx.low.e[1];
+  u32 u = span_uvrg_offset->low.e[0];
+  u32 v = span_uvrg_offset->low.e[1];
+  u += u_dx * toffset;
+  v += v_dx * toffset;
+  u = (u >> 16) & psx_gpu->texture_mask_width;
+  v = (v >> 16) & psx_gpu->texture_mask_height;
+  if (!(psx_gpu->render_state_base & (TEXTURE_MODE_16BPP << 8))) {
+    // 4bpp 8bpp are swizzled
+    u32 u_ = u;
+    u = (u & 0x0f) | ((v & 0x0f) << 4);
+    v = (v & 0xf0) | (u_ >> 4);
+  }
+  assert(offset >= 0);
+  //assert(block->uv.e[offset] == ((v << 8) | u));
+  block->uv.e[offset] = (v << 8) | u;
+}
 
 #define dither_table_entry_normal(value)                                       \
   (value)                                                                      \
@@ -1868,6 +1913,14 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 
 #define setup_blocks_store_draw_mask_untextured_direct(_block, bits)           \
 
+#define setup_blocks_uv_adj_hack_untextured(_block, edge_data, uvrg_offset)    \
+
+#define setup_blocks_uv_adj_hack_textured(_block, edge_data, uvrg_offset)      \
+{                                                                              \
+  u32 m_ = AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V;                          \
+  if (unlikely(psx_gpu->hacks_active & m_))                                    \
+    setup_blocks_uv_adj_hack(psx_gpu, _block, edge_data, uvrg_offset);         \
+}                                                                              \
 
 #define setup_blocks_add_blocks_indirect()                                     \
   num_blocks += span_num_blocks;                                               \
@@ -1938,6 +1991,8 @@ void setup_blocks_##shading##_##texturing##_##dithering##_##sw##_##target(     \
       setup_blocks_store_##shading##_##texturing(sw, dithering, target, edge); \
       setup_blocks_store_draw_mask_##texturing##_##target(block,               \
        span_edge_data->right_mask);                                            \
+      setup_blocks_uv_adj_hack_##texturing(block, span_edge_data,              \
+          span_uvrg_offset);                                                   \
                                                                                \
       block++;                                                                 \
     }                                                                          \
@@ -5016,8 +5071,10 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
 
   psx_gpu->saved_hres = 256;
+  psx_gpu->hacks_active = 0;
 
-  // check some offset
+  // check some offsets, asm relies on these
+  psx_gpu->reserved_a[(offsetof(psx_gpu_struct, test_mask) == 0) - 1] = 0;
   psx_gpu->reserved_a[(offsetof(psx_gpu_struct, blocks) == psx_gpu_blocks_offset) - 1] = 0;
 }
 

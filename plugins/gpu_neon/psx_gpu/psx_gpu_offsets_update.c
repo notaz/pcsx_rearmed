@@ -76,6 +76,7 @@ int main()
 	//WRITE_OFFSET(f, clut_settings);
 	//WRITE_OFFSET(f, texture_settings);
 	WRITE_OFFSET(f, reciprocal_table_ptr);
+	WRITE_OFFSET(f, hacks_active);
 	WRITE_OFFSET(f, blocks);
 	WRITE_OFFSET(f, span_uvrg_offset);
 	WRITE_OFFSET(f, span_edge_data);

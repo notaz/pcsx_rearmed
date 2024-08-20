@@ -223,6 +223,7 @@
 #ifdef __MACH__
 #define flush_render_block_buffer _flush_render_block_buffer
 #define update_texture_8bpp_cache _update_texture_8bpp_cache
+#define setup_blocks_uv_adj_hack _setup_blocks_uv_adj_hack
 #endif
 
 @ r0: psx_gpu
@@ -543,6 +544,7 @@ function(compute_all_gradients)
 
 #define uvrg                                     q14
 #define uvrg_dy                                  q15
+#define uv                                       d28
 
 #define alternate_x_16                           d4
 
@@ -925,6 +927,14 @@ function(compute_all_gradients)
   subs height, height, #4;                                                     \
   bhi 2b;                                                                      \
                                                                                \
+  nop;                                                                         \
+  ldr temp, [psx_gpu, #psx_gpu_hacks_active_offset];                           \
+  tst temp, #(AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V);                      \
+  beq 1f;                                                                      \
+  add temp, span_uvrg_offset, height, lsl #4;                                  \
+  vldr uv, [temp, #(-16*2)];                                                   \
+  vstr uv, [temp, #(-16)];                                                     \
+                                                                               \
  1:                                                                            \
 
 
@@ -985,6 +995,14 @@ function(compute_all_gradients)
   setup_spans_set_x4_alternate_##alternate_active(alternate, up);              \
   subs height, height, #4;                                                     \
   bhi 2b;                                                                      \
+                                                                               \
+  nop;                                                                         \
+  ldr temp, [psx_gpu, #psx_gpu_hacks_active_offset];                           \
+  tst temp, #AHACK_TEXTURE_ADJ_V;                                              \
+  beq 1f;                                                                      \
+  add temp, psx_gpu, #psx_gpu_span_uvrg_offset_offset;                         \
+  vldr uv, [temp, #16];                                                        \
+  vstr uv, [temp, #0];                                                         \
                                                                                \
  1:                                                                            \
 
@@ -1216,6 +1234,14 @@ function(setup_spans_up_down)
   subs height_minor_b, height_minor_b, #4
   bhi 2b
 
+  nop
+  ldr temp, [psx_gpu, #psx_gpu_hacks_active_offset]
+  tst temp, #(AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V)
+  beq 1f
+  add temp, span_uvrg_offset, height, lsl #4
+  vldr uv, [temp, #(-16*2)]
+  vstr uv, [temp, #(-16)]
+
  1:
   setup_spans_epilogue()
 
@@ -1256,6 +1282,7 @@ function(setup_spans_up_down)
 
 #define uvrg_dx_ptr                              r2
 #define texture_mask_ptr                         r3
+#define hacks_active                             r6
 #define dither_shift                             r8
 #define dither_row                               r10
 
@@ -1273,6 +1300,7 @@ function(setup_spans_up_down)
 #define color_b                                  r5
 
 #undef uvrg
+#undef uv
 
 #define u_block                                  q0
 #define v_block                                  q1
@@ -1349,6 +1377,26 @@ function(setup_spans_up_down)
   vsri.u8 v_whole_8, u_whole_8b, #4                                            \
 
 #define setup_blocks_texture_unswizzled()                                      \
+
+#define setup_blocks_uv_adj_hack_textured(hacks_active)                        \
+  tst hacks_active, #(AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V);              \
+  beq 91f;                                                                     \
+  /* see flush_render_block_buffer below for a reg saving note */              \
+  vpush { texture_mask };                                                      \
+  vpush { uvrg_dx4 };                                                          \
+                                                                               \
+  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                         \
+  mov r12, span_uvrg_offset;                                                   \
+  sub r1, block_ptr_a, #64;                                                    \
+  mov r2, span_edge_data;                                                      \
+  mov r3, r12;                                                                 \
+  bl setup_blocks_uv_adj_hack; /* psx_gpu=r0 */                                \
+  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                         \
+                                                                               \
+  vpop { uvrg_dx4 };                                                           \
+  vpop { texture_mask };                                                       \
+  vadd.u32 uvrg_dx8, uvrg_dx4, uvrg_dx4;                                       \
+91:                                                                            \
 
 
 #define setup_blocks_shaded_textured_builder(swizzling)                        \
@@ -1575,6 +1623,7 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   vld1.u32 { test_mask }, [psx_gpu, :128];                                     \
   vdup.u8 draw_mask, right_mask;                                               \
                                                                                \
+  ldr hacks_active, [psx_gpu, #psx_gpu_hacks_active_offset];                   \
   vmov.u32 fb_mask_ptrs[0], right_mask;                                        \
   vtst.u16 draw_mask, draw_mask, test_mask;                                    \
   vzip.u8 u_whole_8, v_whole_8;                                                \
@@ -1584,6 +1633,8 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   vst1.u32 { uv_whole_8 }, [block_ptr_a, :128], c_32;                          \
   vst1.u32 { dither_offsets }, [block_ptr_b, :128], c_32;                      \
   vst1.u32 { b_whole_8, fb_mask_ptrs }, [block_ptr_a, :128], c_32;             \
+                                                                               \
+  setup_blocks_uv_adj_hack_textured(hacks_active);                             \
                                                                                \
  1:                                                                            \
   add span_uvrg_offset, span_uvrg_offset, #16;                                 \
@@ -1599,7 +1650,8 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   ldmia sp!, { r4 - r11, pc };                                                 \
                                                                                \
  2:                                                                            \
-  /* TODO: Load from psx_gpu instead of saving/restoring these               */\
+  /* this callee-save reg saving may look unnecessary but it actually is */    \
+  /* because the callee violates the ABI */                                    \
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
@@ -1776,6 +1828,7 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   vld1.u32 { test_mask }, [psx_gpu, :128];                                     \
   vdup.u8 draw_mask, right_mask;                                               \
                                                                                \
+  ldr hacks_active, [psx_gpu, #psx_gpu_hacks_active_offset];                   \
   vmov.u32 fb_mask_ptrs[0], right_mask;                                        \
   vtst.u16 draw_mask, draw_mask, test_mask;                                    \
   vzip.u8 u_whole_8, v_whole_8;                                                \
@@ -1785,6 +1838,8 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   vst1.u32 { uv_whole_8 }, [block_ptr_a, :128], c_32;                          \
   vst1.u32 { dither_offsets }, [block_ptr_b, :128], c_32;                      \
   vst1.u32 { b_whole_8, fb_mask_ptrs }, [block_ptr_a, :128], c_32;             \
+                                                                               \
+  setup_blocks_uv_adj_hack_textured(hacks_active);                             \
                                                                                \
  1:                                                                            \
   add span_uvrg_offset, span_uvrg_offset, #16;                                 \
@@ -1798,7 +1853,6 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   ldmia sp!, { r4 - r11, pc };                                                 \
                                                                                \
  2:                                                                            \
-  /* TODO: Load from psx_gpu instead of saving/restoring these               */\
   vpush { texture_mask };                                                      \
   vpush { uvrg_dx4 };                                                          \
                                                                                \
@@ -2334,7 +2388,6 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_indirect)     \
   ldmia sp!, { r4 - r11, pc };                                                 \
                                                                                \
  2:                                                                            \
-  /* TODO: Load from psx_gpu instead of saving/restoring these               */\
   vpush { rg_dx4 };                                                            \
                                                                                \
   stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
