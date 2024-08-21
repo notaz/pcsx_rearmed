@@ -1718,7 +1718,7 @@ static long CALLBACK ISOopen(void) {
 		}
 	}
 
-	SysPrintf("%s.\n", image_str);
+	SysPrintf("%s (%lld bytes).\n", image_str, (long long)size_main);
 
 	PrintTracks();
 
