@@ -558,10 +558,10 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled",
    },
    {
-      "pcsx_rearmed_neon_enhancement_tex_adj",
+      "pcsx_rearmed_neon_enhancement_tex_adj_v2",
       "(GPU) Enhanced Resolution Texture Adjustment",
       "Enhanced Resolution Texture Adjustment",
-      "('Enhanced Resolution' Hack) Attempts to solve some texturing issues in some games, but causes new ones in others.",
+      "('Enhanced Resolution' Hack) Solves some texturing issues in some games in Enhanced Resolution mode. May cause a small performance hit.",
       NULL,
       "gpu_neon",
       {
@@ -569,7 +569,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
-      "disabled",
+      "enabled",
    },
 #endif /* GPU_NEON */
 #ifdef GPU_PEOPS
