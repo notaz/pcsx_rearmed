@@ -454,7 +454,7 @@ static const struct {
 	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_P(gpu_neon.enhancement_enable),
 	CE_INTVAL_P(gpu_neon.enhancement_no_main),
-	CE_INTVAL_P(gpu_neon.enhancement_tex_adj),
+	CE_INTVAL_PV(gpu_neon.enhancement_tex_adj, 2),
 	CE_INTVAL_P(gpu_peopsgl.bDrawDither),
 	CE_INTVAL_P(gpu_peopsgl.iFilterType),
 	CE_INTVAL_P(gpu_peopsgl.iFrameTexType),
@@ -1411,10 +1411,12 @@ static int menu_loop_gfx_options(int id, int keys)
 static const char h_gpu_neon[] =
 	"Configure built-in NEON GPU plugin";
 static const char h_gpu_neon_enhanced[] =
-	"Renders in double resolution at the cost of lower performance\n"
+	"Renders in double resolution at perf. cost\n"
 	"(not available for high resolution games)";
 static const char h_gpu_neon_enhanced_hack[] =
 	"Speed hack for above option (glitches some games)";
+static const char h_gpu_neon_enhanced_texadj[] =
+	"Solves some Enh. res. texture issues, some perf hit";
 static const char *men_gpu_interlace[] = { "Off", "On", "Auto", NULL };
 
 static menu_entry e_menu_plugin_gpu_neon[] =
@@ -1422,7 +1424,7 @@ static menu_entry e_menu_plugin_gpu_neon[] =
 	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
 	mee_onoff_h   ("Enhanced resolution",        0, pl_rearmed_cbs.gpu_neon.enhancement_enable, 1, h_gpu_neon_enhanced),
 	mee_onoff_h   ("Enhanced res. speed hack",   0, pl_rearmed_cbs.gpu_neon.enhancement_no_main, 1, h_gpu_neon_enhanced_hack),
-	mee_onoff     ("Enh. res. texture adjust",   0, pl_rearmed_cbs.gpu_neon.enhancement_tex_adj, 1),
+	mee_onoff_h   ("Enh. res. texture adjust",   0, pl_rearmed_cbs.gpu_neon.enhancement_tex_adj, 1, h_gpu_neon_enhanced_texadj),
 	mee_end,
 };
 

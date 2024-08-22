@@ -2453,7 +2453,7 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_neon_enhancement_tex_adj";
+   var.key = "pcsx_rearmed_neon_enhancement_tex_adj_v2";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
