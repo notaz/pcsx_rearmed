@@ -699,6 +699,18 @@ void lightrec_preload_pc(struct regcache *cache, jit_state_t *_jit)
 	jit_live(JIT_V0);
 }
 
+void lightrec_preload_imm(struct regcache *cache, jit_state_t *_jit,
+			  u8 jit_reg, u32 imm)
+{
+	struct native_register *nreg;
+
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+	nreg->prio = REG_IS_TEMP_VALUE;
+	nreg->value = imm;
+
+	jit_live(jit_reg);
+}
+
 struct regcache * lightrec_regcache_init(struct lightrec_state *state)
 {
 	struct regcache *cache;
