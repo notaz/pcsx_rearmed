@@ -59,7 +59,7 @@ static void lightrec_propagate_addi(u32 rs, u32 rd,
 				    const struct constprop_data *d,
 				    struct constprop_data *v)
 {
-	u32 end, bit, sum, min, mask, imm, value;
+	u32 end, bit, sum, min, max, mask, imm, value;
 	struct constprop_data result = {
 		.value = v[rd].value,
 		.known = v[rd].known,
@@ -110,6 +110,15 @@ static void lightrec_propagate_addi(u32 rs, u32 rd,
 					 * sign bits are known. */
 					min = get_min_value(&v[rs])
 						+ get_min_value(d);
+					max = get_max_value(&v[rs])
+						+ get_max_value(d);
+
+					/* The sum may have less sign bits */
+					if ((s32)min < 0)
+						mask &= min & max;
+					else
+						mask &= ~(min | mask);
+
 					result.value = (min & mask)
 						| (result.value & ~mask);
 					result.known |= mask << carry;
