@@ -1851,17 +1851,21 @@ strcasestr(const char *s, const char *find)
 
 static void set_retro_memmap(void)
 {
-#ifndef NDEBUG
+   uint64_t flags_ram = RETRO_MEMDESC_SYSTEM_RAM;
    struct retro_memory_map retromap = { 0 };
-   struct retro_memory_descriptor mmap = {
-      0, psxM, 0, 0, 0, 0, 0x200000
+   struct retro_memory_descriptor descs[] = {
+      { flags_ram, psxM, 0, 0x00000000, 0x5fe00000, 0, 0x200000 },
+      { flags_ram, psxH, 0, 0x1f800000, 0x7ffffc00, 0, 0x000400 },
+      // not ram but let the frontend patch it if it wants; should be last
+      { flags_ram, psxR, 0, 0x1fc00000, 0x5ff80000, 0, 0x080000 },
    };
 
-   retromap.descriptors = &mmap;
-   retromap.num_descriptors = 1;
+   retromap.descriptors = descs;
+   retromap.num_descriptors = sizeof(descs) / sizeof(descs[0]);
+   if (Config.HLE)
+      retromap.num_descriptors--;
 
    environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &retromap);
-#endif
 }
 
 static void show_notification(const char *msg_str,
