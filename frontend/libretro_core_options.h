@@ -151,7 +151,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_memcard2",
-      "Enable Second Memory Card (Shared)",
+      "Second Memory Card (Shared)",
       NULL,
       "Emulate a second memory card in slot 2. This will be shared by all games.",
       NULL,
@@ -455,7 +455,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_show_overscan",
-      "(GPU) Show horizontal overscan",
+      "(GPU) Horizontal overscan",
       NULL,
       "The PSX can display graphics way into the horizontal borders, even if most screens would crop it. This option tries to display all such graphics. Note that this may result in unusual resolutions that your device might not handle well. The 'Hack' option is intended for the widescreen hacks.",
       NULL,
@@ -487,7 +487,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
 #define V(x) { #x, NULL }
    {
       "pcsx_rearmed_screen_centering_x",
-      "(GPU) Manual screen centering X",
+      "(GPU) Manual position X",
       NULL,
       "X offset of the frame buffer. Only effective when 'Screen centering' is set to 'Manual'.",
       NULL,
@@ -500,7 +500,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_screen_centering_y",
-      "(GPU) Manual screen centering Y",
+      "(GPU) Manual position Y",
       NULL,
       "Y offset of the frame buffer. Only effective when 'Screen centering' is set to 'Manual'.",
       NULL,
@@ -546,7 +546,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    {
       "pcsx_rearmed_neon_enhancement_no_main",
       "(GPU) Enhanced Resolution Speed Hack",
-      "Enhanced Resolution Speed Hack",
+      "Enh. Res. Speed Hack",
       "('Enhanced Resolution' Hack) Improves performance but reduces compatibility and may cause rendering errors.",
       NULL,
       "gpu_neon",
@@ -560,7 +560,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    {
       "pcsx_rearmed_neon_enhancement_tex_adj_v2",
       "(GPU) Enhanced Resolution Texture Adjustment",
-      "Enhanced Resolution Texture Adjustment",
+      "Enh. Res. Texture Fixup",
       "('Enhanced Resolution' Hack) Solves some texturing issues in some games in Enhanced Resolution mode. May cause a small performance hit.",
       NULL,
       "gpu_neon",
