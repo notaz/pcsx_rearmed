@@ -82,15 +82,15 @@ static int lightrec_mmap_ram(bool hugetlb)
         memfd = syscall(SYS_memfd_create, "/lightrec_memfd",
 			flags);
 	if (memfd < 0) {
+		SysMessage("Failed to create memfd: %d", errno);
 		err = -errno;
-		fprintf(stderr, "Failed to create memfd: %d\n", err);
 		return err;
 	}
 
 	err = ftruncate(memfd, 0x200000);
 	if (err < 0) {
+		SysMessage("Could not trim memfd: %d", errno);
 		err = -errno;
-		fprintf(stderr, "Could not trim memfd: %d\n", err);
 		goto err_close_memfd;
 	}
 
@@ -139,61 +139,73 @@ err_close_memfd:
 int lightrec_init_mmap(void)
 {
 	unsigned int i;
-	uintptr_t base;
+	s8 *base, *target;
 	void *map;
 	int err = lightrec_mmap_ram(true);
 	if (err) {
 		err = lightrec_mmap_ram(false);
 		if (err) {
-			fprintf(stderr, "Unable to mmap RAM and mirrors\n");
+			SysMessage("Unable to mmap RAM and mirrors");
 			return err;
 		}
 	}
 
-	base = (uintptr_t) psxM;
+	base = psxM;
 
-	map = mmap((void *)(base + 0x1f000000), 0x10000,
+	target = base + 0x1f000000;
+	map = mmap(target, 0x10000,
 		   PROT_READ | PROT_WRITE,
-		   MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, -1, 0);
+		   MAP_PRIVATE | /*MAP_FIXED_NOREPLACE |*/ MAP_ANONYMOUS, -1, 0);
 	if (map == MAP_FAILED) {
+		SysMessage("Unable to mmap parallel port: %d", errno);
 		err = -EINVAL;
-		fprintf(stderr, "Unable to mmap parallel port\n");
 		goto err_unmap;
 	}
+	if (map != target)
+		SysMessage("lightrec: mapped parallel port at %p, wanted %p", map, target);
 
 	psxP = (s8 *)map;
 
-	map = mmap_huge((void *)(base + 0x1fc00000), 0x200000,
+	target = base + 0x1fc00000;
+	map = mmap_huge(target, 0x200000,
 			PROT_READ | PROT_WRITE,
-			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, -1, 0);
+			MAP_PRIVATE | /*MAP_FIXED_NOREPLACE |*/ MAP_ANONYMOUS, -1, 0);
 	if (map == MAP_FAILED) {
+		SysMessage("Unable to mmap BIOS: %d", errno);
 		err = -EINVAL;
-		fprintf(stderr, "Unable to mmap BIOS\n");
 		goto err_unmap_parallel;
 	}
+	if (map != target)
+		SysMessage("lightrec: mapped bios at %p, wanted %p", map, target);
 
 	psxR = (s8 *)map;
 
-	map = mmap((void *)(base + 0x1f800000), 0x10000,
+	target = base + 0x1f800000;
+	map = mmap(target, 0x10000,
 		   PROT_READ | PROT_WRITE,
-		   MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS, 0, 0);
+		   MAP_PRIVATE | /*MAP_FIXED_NOREPLACE |*/ MAP_ANONYMOUS, 0, 0);
 	if (map == MAP_FAILED) {
+		SysMessage("Unable to mmap scratchpad: %d", errno);
 		err = -EINVAL;
-		fprintf(stderr, "Unable to mmap scratchpad\n");
 		goto err_unmap_bios;
 	}
+	if (map != target)
+		SysMessage("lightrec: mapped scratchpad at %p, wanted %p", map, target);
 
 	psxH = (s8 *)map;
 
-	map = mmap_huge((void *)(base + 0x800000), CODE_BUFFER_SIZE,
+	target = base + 0x800000;
+	map = mmap_huge(target, CODE_BUFFER_SIZE,
 			PROT_EXEC | PROT_READ | PROT_WRITE,
-			MAP_PRIVATE | MAP_FIXED_NOREPLACE | MAP_ANONYMOUS,
+			MAP_PRIVATE | /*MAP_FIXED_NOREPLACE |*/ MAP_ANONYMOUS,
 			-1, 0);
 	if (map == MAP_FAILED) {
+		SysMessage("Unable to mmap code buffer: %d", errno);
 		err = -EINVAL;
-		fprintf(stderr, "Unable to mmap code buffer\n");
 		goto err_unmap_scratch;
 	}
+	if (map != target)
+		SysMessage("lightrec: mapped code at %p, wanted %p", map, target);
 
 	code_buffer = map;
 
