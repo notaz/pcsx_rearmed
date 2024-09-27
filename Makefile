@@ -8,6 +8,8 @@ CFLAGS += -O2 -DNDEBUG
 endif
 ifeq ($(DEBUG_ASAN), 1)
 CFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address
+#LDFLAGS += -static-libasan
 endif
 CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
 	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
@@ -39,9 +41,6 @@ endif
 CC_LINK ?= $(CC)
 CC_AS ?= $(CC)
 LDFLAGS += $(MAIN_LDFLAGS)
-ifeq ($(DEBUG_ASAN), 1)
-LDFLAGS += -static-libasan
-endif
 EXTRA_LDFLAGS ?= -Wl,-Map=$@.map
 LDLIBS += $(MAIN_LDLIBS)
 ifdef PCNT

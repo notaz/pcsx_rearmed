@@ -159,7 +159,7 @@ static int psxMemInitMap(void)
 	if (psxM == MAP_FAILED)
 		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
 	if (psxM == MAP_FAILED) {
-		SysMessage(_("mapping main RAM failed"));
+		SysMessage("mapping main RAM failed");
 		psxM = NULL;
 		return -1;
 	}
@@ -167,15 +167,15 @@ static int psxMemInitMap(void)
 
 	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
 	if (psxH == MAP_FAILED) {
-		SysMessage(_("Error allocating memory!"));
-		psxMemShutdown();
+		SysMessage("Error allocating psxH");
+		psxH = NULL;
 		return -1;
 	}
 
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
 	if (psxR == MAP_FAILED) {
-		SysMessage(_("Error allocating memory!"));
-		psxMemShutdown();
+		SysMessage("Error allocating psxR");
+		psxR = NULL;
 		return -1;
 	}
 
@@ -201,7 +201,8 @@ int psxMemInit(void)
 	else
 		ret = psxMemInitMap();
 	if (ret) {
-		SysMessage(_("Error allocating memory!"));
+		if (LIGHTREC_CUSTOM_MAP)
+			SysMessage("lightrec_init_mmap failed");
 		psxMemShutdown();
 		return -1;
 	}
@@ -213,7 +214,7 @@ int psxMemInit(void)
 	psxMemWLUT = (u8 **)malloc(0x10000 * sizeof(void *));
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL) {
-		SysMessage(_("Error allocating memory!"));
+		SysMessage("Error allocating psxMem LUTs");
 		psxMemShutdown();
 		return -1;
 	}
