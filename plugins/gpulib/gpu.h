@@ -39,7 +39,8 @@ extern "C" {
 #define LE16TOH(x) (x)
 #endif
 
-#define BIT(x) (1 << (x))
+#undef BIT
+#define BIT(x) (1u << (x))
 
 #define PSX_GPU_STATUS_DHEIGHT		BIT(19)
 #define PSX_GPU_STATUS_PAL		BIT(20)
