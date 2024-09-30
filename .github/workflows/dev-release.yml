@@ -36,6 +36,7 @@ jobs:
           .github/build-libretro-zip.sh arm32 classic_armv7_a7
           .github/build-libretro-zip.sh arm32 classic_armv8_a35
           .github/build-libretro-zip.sh arm32 miyoo CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++
+          mv pcsx_rearmed_libretro_arm32_miyoo.zip pcsx_rearmed_libretro_arm32_miyoo_arm926.zip
       - uses: "marvinpinto/action-automatic-releases@v1.2.1"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
@@ -52,4 +53,4 @@ jobs:
             pcsx_rearmed_libretro_arm64_rpi4_64.zip
             pcsx_rearmed_libretro_arm32_classic_armv7_a7.zip
             pcsx_rearmed_libretro_arm32_classic_armv8_a35.zip
-            pcsx_rearmed_libretro_arm32_miyoo.zip
+            pcsx_rearmed_libretro_arm32_miyoo_arm926.zip
