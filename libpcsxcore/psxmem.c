@@ -42,21 +42,23 @@
 #endif
 
 static void * psxMapDefault(unsigned long addr, size_t size,
-			    int is_fixed, enum psxMapTag tag)
+			    enum psxMapTag tag, int *can_retry_addr)
 {
 	void *ptr;
 #if !P_HAVE_MMAP
+	*can_retry_addr = 0;
 	ptr = calloc(1, size);
 	return ptr ? ptr : MAP_FAILED;
 #else
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
+	*can_retry_addr = 1;
 	ptr = mmap((void *)(uintptr_t)addr, size,
 		    PROT_READ | PROT_WRITE, flags, -1, 0);
 #ifdef MADV_HUGEPAGE
 	if (size >= 2*1024*1024) {
 		if (ptr != MAP_FAILED && ((uintptr_t)ptr & (2*1024*1024 - 1))) {
-			// try to manually realign assuming bottom-to-top alloc
+			// try to manually realign assuming decreasing addr alloc
 			munmap(ptr, size);
 			addr = (uintptr_t)ptr & ~(2*1024*1024 - 1);
 			ptr = mmap((void *)(uintptr_t)addr, size,
@@ -79,43 +81,44 @@ static void psxUnmapDefault(void *ptr, size_t size, enum psxMapTag tag)
 #endif
 }
 
-void *(*psxMapHook)(unsigned long addr, size_t size, int is_fixed,
-		enum psxMapTag tag) = psxMapDefault;
+void *(*psxMapHook)(unsigned long addr, size_t size,
+		enum psxMapTag tag, int *can_retry_addr) = psxMapDefault;
 void (*psxUnmapHook)(void *ptr, size_t size,
 		     enum psxMapTag tag) = psxUnmapDefault;
 
 void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag)
 {
-	int try_ = 0;
-	unsigned long mask;
+	int try_, can_retry_addr = 0;
 	void *ret;
 
-retry:
-	ret = psxMapHook(addr, size, 0, tag);
-	if (ret == NULL)
-		return MAP_FAILED;
-
-	if (addr != 0 && ret != (void *)(uintptr_t)addr) {
-		SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
-			addr, ret);
-
-		if (is_fixed) {
-			psxUnmap(ret, size, tag);
+	for (try_ = 0; try_ < 3; try_++)
+	{
+		ret = psxMapHook(addr, size, tag, &can_retry_addr);
+		if (ret == NULL)
 			return MAP_FAILED;
-		}
 
-		if (((addr ^ (unsigned long)(uintptr_t)ret) & ~0xff000000l) && try_ < 2)
-		{
-			psxUnmap(ret, size, tag);
+		if (addr != 0 && ret != (void *)(uintptr_t)addr) {
+			SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
+				addr, ret);
+			if (is_fixed) {
+				psxUnmap(ret, size, tag);
+				return MAP_FAILED;
+			}
 
-			// try to use similarly aligned memory instead
-			// (recompiler needs this)
-			mask = try_ ? 0xffff : 0xffffff;
-			addr = ((uintptr_t)ret + mask) & ~mask;
-			try_++;
-			goto retry;
+			if (can_retry_addr && ((addr ^ (uintptr_t)ret) & ~0xff000000l)) {
+				unsigned long mask;
+
+				psxUnmap(ret, size, tag);
+
+				// try to use similarly aligned memory instead
+				// (recompiler prefers this)
+				mask = try_ ? 0xffff : 0xffffff;
+				addr = ((uintptr_t)ret + mask) & ~mask;
+				continue;
+			}
 		}
+		break;
 	}
 
 	return ret;

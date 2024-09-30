@@ -873,9 +873,10 @@ void pl_start_watchdog(void)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
 }
 
-static void *pl_emu_mmap(unsigned long addr, size_t size, int is_fixed,
-	enum psxMapTag tag)
+static void *pl_emu_mmap(unsigned long addr, size_t size,
+	enum psxMapTag tag, int *can_retry_addr)
 {
+	*can_retry_addr = 1;
 	return plat_mmap(addr, size, 0, is_fixed);
 }
 
@@ -886,7 +887,8 @@ static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)
 
 static void *pl_mmap(unsigned int size)
 {
-	return psxMapHook(0, size, 0, MAP_TAG_VRAM);
+	int can_retry_addr;
+	return psxMapHook(0, size, MAP_TAG_VRAM, &can_retry_addr);
 }
 
 static void pl_munmap(void *ptr, unsigned int size)

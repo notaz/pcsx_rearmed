@@ -387,54 +387,78 @@ out:
 }
 
 #ifdef _3DS
-typedef struct
-{
-   void *buffer;
-   uint32_t target_map;
-   size_t size;
-   enum psxMapTag tag;
-} psx_map_t;
+static u32 mapped_addrs[8];
+static u32 mapped_ram, mapped_ram_src;
 
-psx_map_t custom_psx_maps[] = {
-   { NULL, 0x13000000, 0x210000, MAP_TAG_RAM }, // 0x80000000
-   { NULL, 0x12800000, 0x010000, MAP_TAG_OTHER }, // 0x1f800000
-   { NULL, 0x12c00000, 0x080000, MAP_TAG_OTHER }, // 0x1fc00000
-   { NULL, 0x11000000, 0x800000, MAP_TAG_LUTS }, // 0x08000000
-   { NULL, 0x12000000, 0x201000, MAP_TAG_VRAM }, // 0x00000000
-};
-
-void *pl_3ds_mmap(unsigned long addr, size_t size, int is_fixed,
-    enum psxMapTag tag)
+// http://3dbrew.org/wiki/Memory_layout#ARM11_User-land_memory_regions
+void *pl_3ds_mmap(unsigned long addr, size_t size,
+    enum psxMapTag tag, int *can_retry_addr)
 {
-   (void)is_fixed;
    (void)addr;
+   *can_retry_addr = 0;
 
-   if (__ctr_svchax)
+   if (__ctr_svchax) do
    {
-      psx_map_t *custom_map = custom_psx_maps;
+      // idea from fbalpha2012_neogeo
+      s32 addr = 0x10000000 - 0x1000;
+      u32 found_addr = 0;
+      MemInfo mem_info;
+      PageInfo page_info;
+      void *ret = NULL;
+      size_t i;
+      int r;
 
-      for (; custom_map->size; custom_map++)
+      for (i = 0; i < sizeof(mapped_addrs) / sizeof(mapped_addrs[0]); i++)
+         if (mapped_addrs[i] == 0)
+            break;
+      if (i == sizeof(mapped_addrs) / sizeof(mapped_addrs[0]))
+         break;
+
+      size = (size + 0xfff) & ~0xfff;
+
+      while (addr >= 0x08000000)
       {
-         if ((custom_map->size == size) && (custom_map->tag == tag))
-         {
-            uint32_t ptr_aligned, tmp;
-            void *ret;
+         if ((r = svcQueryMemory(&mem_info, &page_info, addr)) < 0) {
+            LogErr("svcQueryMemory failed: %d\n", r);
+            break;
+         }
 
-            custom_map->buffer = malloc(size + 0x1000);
-            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
+         if (mem_info.state == MEMSTATE_FREE && mem_info.size >= size) {
+            found_addr = mem_info.base_addr + mem_info.size - size;
+            break;
+         }
 
-            if (svcControlMemory(&tmp, (void *)custom_map->target_map, (void *)ptr_aligned, size, MEMOP_MAP, 0x3) < 0)
-            {
-               LogErr("could not map memory @0x%08X\n", custom_map->target_map);
-               exit(1);
-            }
+         addr = mem_info.base_addr - 0x1000;
+      }
+      if (found_addr == 0) {
+         LogErr("no addr space for %u bytes\n", size);
+         break;
+      }
 
-            ret = (void *)custom_map->target_map;
-            memset(ret, 0, size);
-            return ret;
+      // https://libctru.devkitpro.org/svc_8h.html#a8046e9b23b1b209a4e278cb1c19c7a5a
+      if ((r = svcControlMemory(&mapped_addrs[i], found_addr, 0, size, MEMOP_ALLOC, MEMPERM_READWRITE)) < 0) {
+         LogErr("svcControlMemory failed for %08x %u: %d\n", found_addr, size, r);
+         break;
+      }
+      if (mapped_addrs[i] == 0) // needed?
+         mapped_addrs[i] = found_addr;
+      ret = (void *)mapped_addrs[i];
+
+      // "round" address helps the dynarec slightly, map ram at 0x13000000
+      if (tag == MAP_TAG_RAM && !mapped_ram) {
+         u32 target = 0x13000000;
+         if ((r = svcControlMemory(&mapped_ram, target, mapped_addrs[i], size, MEMOP_MAP, MEMPERM_READWRITE)) < 0)
+            LogErr("could not map ram %08x -> %08x: %d\n", mapped_addrs[i], target, r);
+         else {
+            mapped_ram_src = mapped_addrs[i];
+            mapped_ram = target;
+            ret = (void *)mapped_ram;
          }
       }
+      memset(ret, 0, size);
+      return ret;
    }
+   while (0);
 
    return calloc(size, 1);
 }
@@ -443,22 +467,22 @@ void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 {
    (void)tag;
 
-   if (__ctr_svchax)
+   if (ptr && __ctr_svchax)
    {
-      psx_map_t *custom_map = custom_psx_maps;
+      size_t i;
+      u32 tmp;
 
-      for (; custom_map->size; custom_map++)
-      {
-         if ((custom_map->target_map == (uint32_t)ptr))
-         {
-            uint32_t ptr_aligned, tmp;
+      size = (size + 0xfff) & ~0xfff;
 
-            ptr_aligned = (((u32)custom_map->buffer) + 0xFFF) & ~0xFFF;
-
-            svcControlMemory(&tmp, (void *)custom_map->target_map, (void *)ptr_aligned, size, MEMOP_UNMAP, 0x3);
-
-            free(custom_map->buffer);
-            custom_map->buffer = NULL;
+      if (ptr == (void *)mapped_ram) {
+         svcControlMemory(&tmp, mapped_ram, mapped_ram_src, size, MEMOP_UNMAP, 0);
+         ptr = (void *)mapped_ram_src;
+         mapped_ram = mapped_ram_src = 0;
+      }
+      for (i = 0; i < sizeof(mapped_addrs) / sizeof(mapped_addrs[0]); i++) {
+         if (ptr == (void *)mapped_addrs[i]) {
+            svcControlMemory(&tmp, mapped_addrs[i], 0, size, MEMOP_FREE, 0);
+            mapped_addrs[i] = 0;
             return;
          }
       }
@@ -521,11 +545,11 @@ void deinit_vita_mmap()
    free(addr);
 }
 
-void *pl_vita_mmap(unsigned long addr, size_t size, int is_fixed,
-    enum psxMapTag tag)
+void *pl_vita_mmap(unsigned long addr, size_t size,
+    enum psxMapTag tag, int *can_retry_addr)
 {
-   (void)is_fixed;
    (void)addr;
+   *can_retry_addr = 0;
 
    psx_map_t *custom_map = custom_psx_maps;
 
