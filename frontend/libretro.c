@@ -179,7 +179,11 @@ static int negcon_linearity = 1;
 static bool axis_bounds_modifier;
 
 /* PSX max resolution is 640x512, but with enhancement it's 1024x512 */
+#ifdef GPU_NEON
 #define VOUT_MAX_WIDTH  1024
+#else
+#define VOUT_MAX_WIDTH  640
+#endif
 #define VOUT_MAX_HEIGHT 512
 
 //Dummy functions
@@ -555,6 +559,21 @@ void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
    free(ptr);
 }
 #endif
+
+static void log_mem_usage(void)
+{
+#ifdef _3DS
+   extern u32 __heap_size, __linear_heap_size, __stacksize__;
+   extern char __end__; // 3dsx.ld
+   u32 app_memory = *((volatile u32 *)0x1FF80040);
+   s64 mem_used = 0;
+   if (__ctr_svchax)
+      svcGetSystemInfo(&mem_used, 0, 1);
+
+   SysPrintf("mem: %d/%d heap: %d linear: %d stack: %d exe: %d\n", (int)mem_used, app_memory,
+         __heap_size, __linear_heap_size, __stacksize__, (int)&__end__ - 0x100000);
+#endif
+}
 
 static void *pl_mmap(unsigned int size)
 {
@@ -1954,8 +1973,7 @@ bool retro_load_game(const struct retro_game_info *info)
 {
    size_t i;
    unsigned int cd_index = 0;
-   bool is_m3u = (strcasestr(info->path, ".m3u") != NULL);
-   bool is_exe = (strcasestr(info->path, ".exe") != NULL);
+   bool is_m3u, is_exe;
    int ret;
 
    struct retro_input_descriptor desc[] = {
@@ -2015,6 +2033,8 @@ bool retro_load_game(const struct retro_game_info *info)
       LogErr("info->path required\n");
       return false;
    }
+   is_m3u = (strcasestr(info->path, ".m3u") != NULL);
+   is_exe = (strcasestr(info->path, ".exe") != NULL);
 
    update_variables(false);
 
@@ -2192,6 +2212,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
    set_retro_memmap();
    retro_set_audio_buff_status_cb();
+   log_mem_usage();
 
    if (check_unsatisfied_libcrypt())
       show_notification("LibCrypt protected game with missing SBI detected", 3000, 3);
@@ -3729,6 +3750,8 @@ void retro_init(void)
    struct retro_rumble_interface rumble;
    int ret;
 
+   log_mem_usage();
+
    msg_interface_version = 0;
    environ_cb(RETRO_ENVIRONMENT_GET_MESSAGE_INTERFACE_VERSION, &msg_interface_version);
 
@@ -3766,12 +3789,17 @@ void retro_init(void)
    vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
 #elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && P_HAVE_POSIX_MEMALIGN
    if (posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2) != 0)
-      vout_buf = (void *) 0;
+      vout_buf = NULL;
    else
       memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #else
    vout_buf = calloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT, 2);
 #endif
+   if (vout_buf == NULL)
+   {
+      LogErr("OOM for vout_buf.\n");
+      exit(1);
+   }
 
    vout_buf_ptr = vout_buf;
 

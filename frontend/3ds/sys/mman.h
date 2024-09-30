@@ -6,10 +6,7 @@ extern "C" {
 #endif
 
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <stdint.h>
-#include <malloc.h>
 
 #include "3ds_utils.h"
 
@@ -22,6 +19,9 @@ extern "C" {
 
 #define MAP_FAILED      ((void *)-1)
 
+void SysPrintf(const char *fmt, ...);
+
+#if 0 // not used
 static void* dynarec_cache = NULL;
 static void* dynarec_cache_mapping = NULL;
 
@@ -47,7 +47,7 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
          }
 
          svcDuplicateHandle(&currentHandle, 0xFFFF8001);
-         svcControlProcessMemory(currentHandle, addr, dynarec_cache,
+         svcControlProcessMemory(currentHandle, (uintptr_t)addr, (uintptr_t)dynarec_cache,
                                  len, MEMOP_MAP, prot);
          svcCloseHandle(currentHandle);
          dynarec_cache_mapping = addr;
@@ -70,22 +70,6 @@ static inline void* mmap(void *addr, size_t len, int prot, int flags, int fd, of
    return addr_out;
 }
 
-static inline int mprotect(void *addr, size_t len, int prot)
-{
-   if(__ctr_svchax)
-   {
-      uint32_t currentHandle;
-      svcDuplicateHandle(&currentHandle, 0xFFFF8001);
-      svcControlProcessMemory(currentHandle, addr, NULL,
-                              len, MEMOP_PROT, prot);
-      svcCloseHandle(currentHandle);
-      return 0;
-   }
-
-   printf("mprotect called without svcControlProcessMemory access !\n");
-   return -1;
-}
-
 static inline int munmap(void *addr, size_t len)
 {
    if((addr == dynarec_cache_mapping) && __ctr_svchax)
@@ -93,7 +77,7 @@ static inline int munmap(void *addr, size_t len)
       uint32_t currentHandle;
       svcDuplicateHandle(&currentHandle, 0xFFFF8001);
       svcControlProcessMemory(currentHandle,
-                              dynarec_cache, dynarec_cache_mapping,
+                              (uintptr_t)dynarec_cache, (uintptr_t)dynarec_cache_mapping,
                               len, MEMOP_UNMAP, 0b111);
       svcCloseHandle(currentHandle);
       dynarec_cache_mapping = NULL;
@@ -103,6 +87,29 @@ static inline int munmap(void *addr, size_t len)
       free(addr);
 
    return 0;
+}
+#endif
+
+static inline int mprotect(void *addr, size_t len, int prot)
+{
+   if (__ctr_svchax)
+   {
+      uint32_t currentHandle = 0;
+      int r;
+      svcDuplicateHandle(&currentHandle, 0xFFFF8001);
+      r = svcControlProcessMemory(currentHandle, (uintptr_t)addr, 0,
+                                  len, MEMOP_PROT, prot);
+      svcCloseHandle(currentHandle);
+      if (r < 0) {
+         SysPrintf("svcControlProcessMemory failed for %p %u %x: %d\n",
+                   addr, len, prot, r);
+         return -1;
+      }
+      return 0;
+   }
+
+   SysPrintf("mprotect called without svcControlProcessMemory access!\n");
+   return -1;
 }
 
 #ifdef __cplusplus
