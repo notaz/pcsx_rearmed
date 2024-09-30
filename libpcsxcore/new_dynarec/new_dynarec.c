@@ -6349,8 +6349,8 @@ void new_dynarec_init(void)
   arch_init();
   new_dynarec_test();
   ram_offset = (uintptr_t)psxM - 0x80000000;
-  if (ram_offset!=0)
-    SysPrintf("warning: RAM is not directly mapped, performance will suffer\n");
+  if (ram_offset != 0)
+    SysPrintf("RAM is not directly mapped\n");
   SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
   SysPrintf("%p/%p/%p/%p/%p\n", psxM, psxH, psxR, mem_rtab, out);
 }
@@ -8367,8 +8367,9 @@ static noinline void pass5a_preallocate1(void)
 // to use, which can avoid a load-use penalty on certain CPUs.
 static noinline void pass5b_preallocate2(void)
 {
-  int i, hr;
-  for(i=0;i<slen-1;i++)
+  int i, hr, limit = min(slen - 1, MAXBLOCK - 2);
+  assert(slen < MAXBLOCK - 1);
+  for (i = 0; i < limit; i++)
   {
     if (!i || !dops[i-1].is_jump)
     {
