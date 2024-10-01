@@ -97,11 +97,11 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		if (ret != MAP_FAILED)
 			psxUnmap(ret, size, tag);
 		ret = psxMapHook(addr, size, tag, &can_retry_addr);
-		if (ret == NULL)
+		if (ret == MAP_FAILED)
 			return MAP_FAILED;
 
 		if (addr != 0 && ret != (void *)(uintptr_t)addr) {
-			SysMessage("psxMap: warning: wanted to map @%08x, got %p\n",
+			SysMessage("psxMap: tried to map @%08x, got %p\n",
 				addr, ret);
 			if (is_fixed) {
 				psxUnmap(ret, size, tag);

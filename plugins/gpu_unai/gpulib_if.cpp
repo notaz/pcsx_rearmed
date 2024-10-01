@@ -201,8 +201,9 @@ static void map_downscale_buffer(void)
 
   gpu_unai.downscale_vram = (le16_t*)gpu.mmap(DOWNSCALE_VRAM_SIZE);
 
-  if (gpu_unai.downscale_vram == NULL) {
+  if (gpu_unai.downscale_vram == NULL || gpu_unai.downscale_vram == (le16_t *)(intptr_t)-1) {
     fprintf(stderr, "failed to map downscale buffer\n");
+    gpu_unai.downscale_vram = NULL;
     gpu.get_downscale_buffer = NULL;
   }
   else {

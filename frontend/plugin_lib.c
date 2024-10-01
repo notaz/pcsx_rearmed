@@ -877,7 +877,7 @@ static void *pl_emu_mmap(unsigned long addr, size_t size,
 	enum psxMapTag tag, int *can_retry_addr)
 {
 	*can_retry_addr = 1;
-	return plat_mmap(addr, size, 0, is_fixed);
+	return plat_mmap(addr, size, 0, 0);
 }
 
 static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)

@@ -475,12 +475,12 @@ static void *pl_emu_mmap(unsigned long addr, size_t size,
 	}
 
 basic_map:
-	retval = plat_mmap(addr, size, 0, is_fixed);
+	retval = plat_mmap(addr, size, 0, 0);
 
 out:
-	if (tag == MAP_TAG_VRAM)
+	if (tag == MAP_TAG_VRAM && retval)
 		psx_vram = retval;
-	return retval;
+	return retval ? retval : MAP_FAILED;
 }
 
 static void pl_emu_munmap(void *ptr, size_t size, enum psxMapTag tag)

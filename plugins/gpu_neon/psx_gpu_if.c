@@ -87,8 +87,9 @@ static void map_enhancement_buffer(void)
   // to be able to reuse 1024-width code better (triangle setup,
   // dithering phase, lines).
   egpu.enhancement_buf_ptr = gpu.mmap(ENHANCEMENT_BUF_SIZE);
-  if (egpu.enhancement_buf_ptr == NULL) {
+  if (egpu.enhancement_buf_ptr == NULL || egpu.enhancement_buf_ptr == (void *)(intptr_t)-1) {
     fprintf(stderr, "failed to map enhancement buffer\n");
+    egpu.enhancement_buf_ptr = NULL;
     gpu.get_enhancement_bufer = NULL;
   }
   else {
