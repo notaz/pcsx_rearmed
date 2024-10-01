@@ -498,6 +498,31 @@ static void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 }
 #endif
 
+#ifdef HAVE_LIBNX
+static void *pl_switch_mmap(unsigned long addr, size_t size,
+    enum psxMapTag tag, int *can_retry_addr)
+{
+   void *ret = MAP_FAILED;
+   *can_retry_addr = 0;
+   (void)addr;
+
+   // there's svcMapPhysicalMemory() but user logs show it doesn't hand out
+   // any desired addresses, so don't even bother
+   ret = aligned_alloc(0x1000, size);
+   if (!ret)
+      return MAP_FAILED;
+   memset(ret, 0, size);
+   return ret;
+}
+
+static void pl_switch_munmap(void *ptr, size_t size, enum psxMapTag tag)
+{
+   (void)size;
+   (void)tag;
+   free(ptr);
+}
+#endif
+
 #ifdef VITA
 typedef struct
 {
@@ -3792,11 +3817,13 @@ void retro_init(void)
    syscall(SYS_ptrace, 0 /*PTRACE_TRACEME*/, 0, 0, 0);
 #endif
 
-#ifdef _3DS
+#if defined(_3DS)
    psxMapHook = pl_3ds_mmap;
    psxUnmapHook = pl_3ds_munmap;
-#endif
-#ifdef VITA
+#elif defined(HAVE_LIBNX)
+   psxMapHook = pl_switch_mmap;
+   psxUnmapHook = pl_switch_munmap;
+#elif defined(VITA)
    if (init_vita_mmap() < 0)
       abort();
    psxMapHook = pl_vita_mmap;

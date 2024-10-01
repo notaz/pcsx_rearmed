@@ -20,6 +20,7 @@ extern "C" {
 
 #define ALIGNMENT       0x1000
 
+#if 0 // not used
 static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
     (void)fd;
@@ -51,6 +52,7 @@ static inline int munmap(void *addr, size_t len)
     }
     return 0;
 }
+#endif
 
 #ifdef __cplusplus
 };

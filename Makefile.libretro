@@ -249,6 +249,7 @@ else ifeq ($(platform), libnx)
    CFLAGS += -Ifrontend/switch -ftree-vectorize
    NO_POSIX_MEMALIGN := 1
    NO_PTHREAD=1
+   NO_MMAP := 1 # for psxmem
    LIBPTHREAD :=
    STATIC_LINKING=1
    BUILTIN_GPU = neon
