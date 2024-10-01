@@ -8,6 +8,7 @@
 #define _GNU_SOURCE 1 // strcasestr
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <strings.h>
 #ifdef __MACH__
@@ -49,6 +50,10 @@
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
+#endif
+
+#ifndef MAP_FAILED
+#define MAP_FAILED      ((void *)(intptr_t)-1)
 #endif
 
 #define PORTS_NUMBER 8
@@ -391,11 +396,12 @@ static u32 mapped_addrs[8];
 static u32 mapped_ram, mapped_ram_src;
 
 // http://3dbrew.org/wiki/Memory_layout#ARM11_User-land_memory_regions
-void *pl_3ds_mmap(unsigned long addr, size_t size,
+static void *pl_3ds_mmap(unsigned long addr, size_t size,
     enum psxMapTag tag, int *can_retry_addr)
 {
-   (void)addr;
+   void *ret = MAP_FAILED;
    *can_retry_addr = 0;
+   (void)addr;
 
    if (__ctr_svchax) do
    {
@@ -404,7 +410,6 @@ void *pl_3ds_mmap(unsigned long addr, size_t size,
       u32 found_addr = 0;
       MemInfo mem_info;
       PageInfo page_info;
-      void *ret = NULL;
       size_t i;
       int r;
 
@@ -460,10 +465,11 @@ void *pl_3ds_mmap(unsigned long addr, size_t size,
    }
    while (0);
 
-   return calloc(size, 1);
+   ret = calloc(size, 1);
+   return ret ? ret : MAP_FAILED;
 }
 
-void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
+static void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 {
    (void)tag;
 
@@ -503,7 +509,7 @@ typedef struct
 
 static void *addr = NULL;
 
-psx_map_t custom_psx_maps[] = {
+static psx_map_t custom_psx_maps[] = {
    { NULL, 0x800000, MAP_TAG_LUTS },
    { NULL, 0x080000, MAP_TAG_OTHER },
    { NULL, 0x010000, MAP_TAG_OTHER },
@@ -512,7 +518,7 @@ psx_map_t custom_psx_maps[] = {
    { NULL, 0x210000, MAP_TAG_RAM },
 };
 
-int init_vita_mmap()
+static int init_vita_mmap()
 {
    int n;
    void *tmpaddr;
@@ -535,7 +541,7 @@ int init_vita_mmap()
    return 0;
 }
 
-void deinit_vita_mmap()
+static void deinit_vita_mmap()
 {
    size_t i;
    for (i = 0; i < sizeof(custom_psx_maps) / sizeof(custom_psx_maps[0]); i++) {
@@ -545,9 +551,10 @@ void deinit_vita_mmap()
    free(addr);
 }
 
-void *pl_vita_mmap(unsigned long addr, size_t size,
+static void *pl_vita_mmap(unsigned long addr, size_t size,
     enum psxMapTag tag, int *can_retry_addr)
 {
+   void *ret;
    (void)addr;
    *can_retry_addr = 0;
 
@@ -562,10 +569,11 @@ void *pl_vita_mmap(unsigned long addr, size_t size,
       }
    }
 
-   return calloc(size, 1);
+   ret = calloc(size, 1);
+   return ret ? ret : MAP_FAILED;
 }
 
-void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
+static void pl_vita_munmap(void *ptr, size_t size, enum psxMapTag tag)
 {
    (void)tag;
 
@@ -3822,7 +3830,7 @@ void retro_init(void)
    if (vout_buf == NULL)
    {
       LogErr("OOM for vout_buf.\n");
-      exit(1);
+      // may be able to continue if we get retro_framebuffer access
    }
 
    vout_buf_ptr = vout_buf;

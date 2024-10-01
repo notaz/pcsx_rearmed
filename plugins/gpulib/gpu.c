@@ -272,6 +272,7 @@ static int map_vram(void)
   }
   else {
     fprintf(stderr, "could not map vram, expect crashes\n");
+    gpu.vram = NULL;
     return -1;
   }
 }
@@ -290,10 +291,6 @@ long GPUinit(void)
   gpu.cmd_len = 0;
   do_reset();
 
-  /*if (gpu.mmap != NULL) {
-    if (map_vram() != 0)
-      ret = -1;
-  }*/
   return ret;
 }
 
