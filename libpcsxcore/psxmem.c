@@ -90,10 +90,12 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag)
 {
 	int try_, can_retry_addr = 0;
-	void *ret;
+	void *ret = MAP_FAILED;
 
 	for (try_ = 0; try_ < 3; try_++)
 	{
+		if (ret != MAP_FAILED)
+			psxUnmap(ret, size, tag);
 		ret = psxMapHook(addr, size, tag, &can_retry_addr);
 		if (ret == NULL)
 			return MAP_FAILED;
@@ -108,8 +110,6 @@ void *psxMap(unsigned long addr, size_t size, int is_fixed,
 
 			if (can_retry_addr && ((addr ^ (uintptr_t)ret) & ~0xff000000l)) {
 				unsigned long mask;
-
-				psxUnmap(ret, size, tag);
 
 				// try to use similarly aligned memory instead
 				// (recompiler prefers this)
