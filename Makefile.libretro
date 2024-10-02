@@ -4,6 +4,7 @@ DEBUG ?= 0
 WANT_ZLIB ?= 1
 HAVE_CHD ?= 1
 HAVE_PHYSICAL_CDROM ?= 1
+USE_ASYNC_CDROM ?= 1
 USE_LIBRETRO_VFS ?= 0
 
 # Dynarec options: lightrec, ari64

@@ -1,6 +1,7 @@
 #include "misc.h"
 #include "sio.h"
 #include "ppf.h"
+#include "cdrom-async.h"
 #include "new_dynarec/new_dynarec.h"
 #include "lightrec/plugin.h"
 
@@ -274,7 +275,9 @@ static const u16 libcrypt_sectors[16] = {
 int check_unsatisfied_libcrypt(void)
 {
 	const char *p = CdromId + 4;
+	u8 buf_sub[SUB_FRAMESIZE];
 	u16 id, key = 0;
+	u8 msf[3];
 	size_t i;
 
 	if (strncmp(CdromId, "SCE", 3) && strncmp(CdromId, "SLE", 3))
@@ -289,7 +292,8 @@ int check_unsatisfied_libcrypt(void)
 		return 0;
 
 	// detected a protected game
-	if (!CDR_getBufferSub(libcrypt_sectors[0]) && !sbi_sectors) {
+	lba2msf(libcrypt_sectors[0] + 150, &msf[0], &msf[1], &msf[2]);
+	if (!sbi_sectors && cdra_readSub(msf, buf_sub) != 0) {
 		SysPrintf("==================================================\n");
 		SysPrintf("LibCrypt game detected with missing SBI/subchannel\n");
 		SysPrintf("==================================================\n");

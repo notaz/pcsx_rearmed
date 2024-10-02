@@ -38,6 +38,7 @@
 #include "libpicofe/plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cdrom.h"
+#include "../libpcsxcore/cdrom-async.h"
 #include "../libpcsxcore/cdriso.h"
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/ppf.h"
@@ -2285,7 +2286,7 @@ static int swap_cd_image(void)
 		menu_update_msg("failed to load cdr plugin");
 		return -1;
 	}
-	if (CDR_open() < 0) {
+	if (cdra_open() < 0) {
 		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
@@ -2303,8 +2304,8 @@ static int swap_cd_multidisk(void)
 	CdromId[0] = '\0';
 	CdromLabel[0] = '\0';
 
-	CDR_close();
-	if (CDR_open() < 0) {
+	cdra_close();
+	if (cdra_open() < 0) {
 		menu_update_msg("failed to open cdr plugin");
 		return -1;
 	}
@@ -2758,11 +2759,6 @@ void menu_prepare_emu(void)
 
 	menu_sync_config();
 	psxCpu->ApplyConfig();
-
-	// core doesn't care about Config.Cdda changes,
-	// so handle them manually here
-	if (Config.Cdda)
-		CDR_stop();
 
 	if (cpu_clock > 0)
 		plat_target_cpu_clock_set(cpu_clock);

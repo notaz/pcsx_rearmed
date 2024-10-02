@@ -20,29 +20,6 @@
 #undef CALLBACK
 #define CALLBACK
 
-/* CDR */
-struct CdrStat;
-static long CALLBACK CDRinit(void) { return 0; }
-static long CALLBACK CDRshutdown(void) { return 0; }
-static long CALLBACK CDRopen(void) { return 0; }
-static long CALLBACK CDRclose(void) { return 0; }
-static long CALLBACK CDRgetTN(unsigned char *_) { return 0; }
-static long CALLBACK CDRgetTD(unsigned char _, unsigned char *__) { return 0; }
-static boolean CALLBACK CDRreadTrack(unsigned char *_) { return FALSE; }
-static unsigned char * CALLBACK CDRgetBuffer(void) { return NULL; }
-static unsigned char * CALLBACK CDRgetBufferSub(int sector) { return NULL; }
-static long CALLBACK CDRconfigure(void) { return 0; }
-static long CALLBACK CDRtest(void) { return 0; }
-static void CALLBACK CDRabout(void) { return; }
-static long CALLBACK CDRplay(unsigned char *_) { return 0; }
-static long CALLBACK CDRstop(void) { return 0; }
-static long CALLBACK CDRsetfilename(char *_) { return 0; }
-static long CALLBACK CDRgetStatus(struct CdrStat *_) { return 0; }
-static char * CALLBACK CDRgetDriveLetter(void) { return NULL; }
-static long CALLBACK CDRreadCDDA(unsigned char _, unsigned char __, unsigned char ___, unsigned char *____) { return 0; }
-static long CALLBACK CDRgetTE(unsigned char _, unsigned char *__, unsigned char *___, unsigned char *____) { return 0; }
-static long CALLBACK CDRprefetch(unsigned char m, unsigned char s, unsigned char f) { return 1; }
-
 /* GPU */
 static void CALLBACK GPUdisplayText(char *_) { return; }
 
@@ -134,7 +111,6 @@ extern void GPUrearmedCallbacks(const struct rearmed_cbs *cbs);
 #define DIRECT(id, name) \
 	{ id, #name, name }
 
-#define DIRECT_CDR(name) DIRECT(PLUGIN_CDR, name)
 #define DIRECT_SPU(name) DIRECT(PLUGIN_SPU, name)
 #define DIRECT_GPU(name) DIRECT(PLUGIN_GPU, name)
 #define DIRECT_PAD(name) DIRECT(PLUGIN_PAD, name)
@@ -144,27 +120,6 @@ static const struct {
 	const char *name;
 	void *func;
 } plugin_funcs[] = {
-	/* CDR */
-	DIRECT_CDR(CDRinit),
-	DIRECT_CDR(CDRshutdown),
-	DIRECT_CDR(CDRopen),
-	DIRECT_CDR(CDRclose),
-	DIRECT_CDR(CDRtest),
-	DIRECT_CDR(CDRgetTN),
-	DIRECT_CDR(CDRgetTD),
-	DIRECT_CDR(CDRreadTrack),
-	DIRECT_CDR(CDRgetBuffer),
-	DIRECT_CDR(CDRgetBufferSub),
-	DIRECT_CDR(CDRplay),
-	DIRECT_CDR(CDRstop),
-	DIRECT_CDR(CDRgetStatus),
-	DIRECT_CDR(CDRgetDriveLetter),
-	DIRECT_CDR(CDRconfigure),
-	DIRECT_CDR(CDRabout),
-	DIRECT_CDR(CDRsetfilename),
-	DIRECT_CDR(CDRreadCDDA),
-	DIRECT_CDR(CDRgetTE),
-	DIRECT_CDR(CDRprefetch),
 	/* SPU */
 	DIRECT_SPU(SPUinit),
 	DIRECT_SPU(SPUshutdown),
@@ -229,9 +184,6 @@ static const struct {
 void *plugin_link(enum builtint_plugins_e id, const char *sym)
 {
 	int i;
-
-	if (id == PLUGIN_CDRCIMG)
-		return cdrcimg_get_sym(sym);
 
 	for (i = 0; i < ARRAY_SIZE(plugin_funcs); i++) {
 		if (id != plugin_funcs[i].id)

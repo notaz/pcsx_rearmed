@@ -5,6 +5,7 @@ $(shell cd "$(LOCAL_PATH)" && (diff -q ../frontend/revision.h_ ../frontend/revis
 $(shell cd "$(LOCAL_PATH)" && (rm ../frontend/revision.h_))
 
 USE_LIBRETRO_VFS ?= 0
+USE_ASYNC_CDROM ?= 1
 
 ROOT_DIR     := $(LOCAL_PATH)/..
 CORE_DIR     := $(ROOT_DIR)/libpcsxcore
@@ -23,6 +24,7 @@ EXTRA_INCLUDES :=
 # core
 SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/cdrom.c \
+             $(CORE_DIR)/cdrom-async.c \
              $(CORE_DIR)/cheat.c \
              $(CORE_DIR)/database.c \
              $(CORE_DIR)/decode_xa.c \
@@ -119,6 +121,11 @@ SOURCES_C += \
              $(LIBRETRO_COMMON)/time/rtime.c \
              $(LIBRETRO_COMMON)/vfs/vfs_implementation.c
 COREFLAGS += -DUSE_LIBRETRO_VFS
+endif
+ifeq ($(USE_ASYNC_CDROM),1)
+SOURCES_C += \
+             $(FRONTEND_DIR)/libretro-rthreads.c
+COREFLAGS += -DUSE_ASYNC_CDROM
 endif
 EXTRA_INCLUDES += $(LIBRETRO_COMMON)/include
 
