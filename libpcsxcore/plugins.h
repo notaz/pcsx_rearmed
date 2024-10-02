@@ -97,67 +97,14 @@ extern GPUshowScreenPic GPU_showScreenPic;
 extern GPUvBlank        GPU_vBlank;
 extern GPUgetScreenInfo GPU_getScreenInfo;
 
-// CD-ROM Functions
-typedef long (CALLBACK* CDRinit)(void);
-typedef long (CALLBACK* CDRshutdown)(void);
-typedef long (CALLBACK* CDRopen)(void);
-typedef long (CALLBACK* CDRclose)(void);
-typedef long (CALLBACK* CDRgetTN)(unsigned char *);
-typedef long (CALLBACK* CDRgetTD)(unsigned char, unsigned char *);
-typedef boolean (CALLBACK* CDRreadTrack)(unsigned char *);
-typedef unsigned char* (CALLBACK* CDRgetBuffer)(void);
-typedef unsigned char* (CALLBACK* CDRgetBufferSub)(int sector);
-typedef long (CALLBACK* CDRconfigure)(void);
-typedef long (CALLBACK* CDRtest)(void);
-typedef void (CALLBACK* CDRabout)(void);
-typedef long (CALLBACK* CDRplay)(unsigned char *);
-typedef long (CALLBACK* CDRstop)(void);
-typedef long (CALLBACK* CDRsetfilename)(char *);
+// CD-ROM
 struct CdrStat {
 	uint32_t Type; // DATA, CDDA
 	uint32_t Status; // same as cdr.StatP
 	unsigned char Time_[3]; // unused
 };
-typedef long (CALLBACK* CDRgetStatus)(struct CdrStat *);
-typedef char* (CALLBACK* CDRgetDriveLetter)(void);
-struct SubQ {
-	char res0[12];
-	unsigned char ControlAndADR;
-	unsigned char TrackNumber;
-	unsigned char IndexNumber;
-	unsigned char TrackRelativeAddress[3];
-	unsigned char Filler;
-	unsigned char AbsoluteAddress[3];
-	unsigned char CRC[2];
-	char res1[72];
-};
-typedef long (CALLBACK* CDRreadCDDA)(unsigned char, unsigned char, unsigned char, unsigned char *);
-typedef long (CALLBACK* CDRgetTE)(unsigned char, unsigned char *, unsigned char *, unsigned char *);
-typedef long (CALLBACK* CDRprefetch)(unsigned char, unsigned char, unsigned char);
 
-// CD-ROM function pointers
-extern CDRinit               CDR_init;
-extern CDRshutdown           CDR_shutdown;
-extern CDRopen               CDR_open;
-extern CDRclose              CDR_close; 
-extern CDRtest               CDR_test;
-extern CDRgetTN              CDR_getTN;
-extern CDRgetTD              CDR_getTD;
-extern CDRreadTrack          CDR_readTrack;
-extern CDRgetBuffer          CDR_getBuffer;
-extern CDRgetBufferSub       CDR_getBufferSub;
-extern CDRplay               CDR_play;
-extern CDRstop               CDR_stop;
-extern CDRgetStatus          CDR_getStatus;
-extern CDRgetDriveLetter     CDR_getDriveLetter;
-extern CDRconfigure          CDR_configure;
-extern CDRabout              CDR_about;
-extern CDRsetfilename        CDR_setfilename;
-extern CDRreadCDDA           CDR_readCDDA;
-extern CDRgetTE              CDR_getTE;
-extern CDRprefetch           CDR_prefetch;
-
-long CALLBACK CDR__getStatus(struct CdrStat *stat);
+int CDR__getStatus(struct CdrStat *stat);
 
 // SPU Functions
 typedef long (CALLBACK* SPUinit)(void);				

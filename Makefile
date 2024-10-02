@@ -48,7 +48,8 @@ CFLAGS += -DPCNT
 endif
 
 # core
-OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/database.o \
+OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cdrom-async.o \
+	libpcsxcore/cheat.o libpcsxcore/database.o \
 	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
 	libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o \
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o \
@@ -165,9 +166,6 @@ plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1 -O3
 CC_LINK = $(CXX)
 endif
 
-# cdrcimg
-OBJS += plugins/cdrcimg/cdrcimg.o
-
 # libchdr
 #ifeq "$(HAVE_CHD)" "1"
 LCHDR = deps/libchdr
@@ -275,9 +273,12 @@ ifeq "$(HAVE_PHYSICAL_CDROM)" "1"
 OBJS += frontend/libretro-cdrom.o
 OBJS += deps/libretro-common/lists/string_list.o
 OBJS += deps/libretro-common/memmap/memalign.o
-OBJS += deps/libretro-common/rthreads/rthreads.o
 OBJS += deps/libretro-common/vfs/vfs_implementation_cdrom.o
 CFLAGS += -DHAVE_CDROM
+endif
+ifeq "$(USE_ASYNC_CDROM)" "1"
+OBJS += frontend/libretro-rthreads.o
+CFLAGS += -DUSE_ASYNC_CDROM
 endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += deps/libretro-common/compat/compat_posix_string.o

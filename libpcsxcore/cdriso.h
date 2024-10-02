@@ -25,9 +25,20 @@
 extern "C" {
 #endif
 
-void cdrIsoInit(void);
-int cdrIsoActive(void);
-unsigned char * CALLBACK ISOgetBuffer(void);
+struct CdrStat;
+
+int ISOinit(void);
+int ISOshutdown(void);
+int ISOopen(const char *fname);
+int ISOclose(void);
+int ISOgetTN(unsigned char *buffer);
+int ISOgetTD(int track, unsigned char *buffer);
+int ISOreadTrack(const unsigned char *time, void *buf);
+int ISOreadCDDA(const unsigned char *time, void *buffer);
+int ISOreadSub(const unsigned char *time, void *buffer);
+int ISOgetStatus(struct CdrStat *stat);
+
+extern void * (*ISOgetBuffer)(void);
 
 extern unsigned int cdrIsoMultidiskCount;
 extern unsigned int cdrIsoMultidiskSelect;

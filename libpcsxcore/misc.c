@@ -26,6 +26,7 @@
 #include <assert.h>
 #include "misc.h"
 #include "cdrom.h"
+#include "cdrom-async.h"
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
@@ -71,17 +72,12 @@ static void mmssdd( char *b, char *p )
 	s = block / 75;				// seconds
 	d = block - s * 75;			// seconds rest
 
-	m = ((m / 10) << 4) | m % 10;
-	s = ((s / 10) << 4) | s % 10;
-	d = ((d / 10) << 4) | d % 10;
-
 	p[0] = m;
 	p[1] = s;
 	p[2] = d;
 }
 
 #define incTime() \
-	time[0] = btoi(time[0]); time[1] = btoi(time[1]); time[2] = btoi(time[2]); \
 	time[2]++; \
 	if(time[2] == 75) { \
 		time[2] = 0; \
@@ -91,11 +87,10 @@ static void mmssdd( char *b, char *p )
 			time[0]++; \
 		} \
 	} \
-	time[0] = itob(time[0]); time[1] = itob(time[1]); time[2] = itob(time[2]);
 
 #define READTRACK() \
-	if (!CDR_readTrack(time)) return -1; \
-	buf = (void *)CDR_getBuffer(); \
+	if (cdra_readTrack(time)) return -1; \
+	buf = cdra_getBuffer(); \
 	if (buf == NULL) return -1; \
 	else CheckPPFCache((u8 *)buf, time[0], time[1], time[2]);
 
@@ -216,7 +211,7 @@ int LoadCdrom() {
 			return 0;
 	}
 
-	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
+	time[0] = 0; time[1] = 2; time[2] = 0x10;
 
 	READTRACK();
 
@@ -320,7 +315,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 		p1++;
 	snprintf(exename, sizeof(exename), "%s", p1);
 
-	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
+	time[0] = 0; time[1] = 2; time[2] = 0x10;
 
 	READTRACK();
 
@@ -374,14 +369,14 @@ int CheckCdrom() {
 	memset(CdromId, 0, sizeof(CdromId));
 	memset(exename, 0, sizeof(exename));
 
-	time[0] = itob(0);
-	time[1] = itob(2);
-	time[2] = itob(0x10);
+	time[0] = 0;
+	time[1] = 2;
+	time[2] = 0x10;
 
 	if (!Config.HLE && Config.SlowBoot) {
 		// boot to BIOS in case of CDDA or lid is open
-		CDR_getStatus(&stat);
-		if ((stat.Status & 0x10) || stat.Type == 2 || !CDR_readTrack(time))
+		cdra_getStatus(&stat);
+		if ((stat.Status & 0x10) || stat.Type == 2 || cdra_readTrack(time))
 			return 0;
 	}
 	READTRACK();
@@ -967,7 +962,7 @@ static unsigned short crctab[256] = {
 	0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-u16 calcCrc(u8 *d, int len) {
+u16 calcCrc(const u8 *d, int len) {
 	u16 crc = 0;
 	int i;
 

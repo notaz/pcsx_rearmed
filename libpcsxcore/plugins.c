@@ -23,6 +23,7 @@
 
 #include "plugins.h"
 #include "cdriso.h"
+#include "cdrom-async.h"
 #include "psxcounters.h"
 
 static char IsoFile[MAXPATHLEN] = "";
@@ -48,27 +49,6 @@ GPUgetScreenPic       GPU_getScreenPic;
 GPUshowScreenPic      GPU_showScreenPic;
 GPUvBlank             GPU_vBlank;
 GPUgetScreenInfo      GPU_getScreenInfo;
-
-CDRinit               CDR_init;
-CDRshutdown           CDR_shutdown;
-CDRopen               CDR_open;
-CDRclose              CDR_close;
-CDRtest               CDR_test;
-CDRgetTN              CDR_getTN;
-CDRgetTD              CDR_getTD;
-CDRreadTrack          CDR_readTrack;
-CDRgetBuffer          CDR_getBuffer;
-CDRplay               CDR_play;
-CDRstop               CDR_stop;
-CDRgetStatus          CDR_getStatus;
-CDRgetDriveLetter     CDR_getDriveLetter;
-CDRgetBufferSub       CDR_getBufferSub;
-CDRconfigure          CDR_configure;
-CDRabout              CDR_about;
-CDRsetfilename        CDR_setfilename;
-CDRreadCDDA           CDR_readCDDA;
-CDRgetTE              CDR_getTE;
-CDRprefetch           CDR_prefetch;
 
 SPUinit               SPU_init;
 SPUshutdown           SPU_shutdown;
@@ -239,71 +219,11 @@ static int LoadGPUplugin(const char *GPUdll) {
 	return 0;
 }
 
-void *hCDRDriver = NULL;
-
-long CALLBACK CDR__play(unsigned char *sector) { return 0; }
-long CALLBACK CDR__stop(void) { return 0; }
-
-long CALLBACK CDR__getStatus(struct CdrStat *stat) {
+int CDR__getStatus(struct CdrStat *stat) {
 	if (cdOpenCaseTime < 0 || cdOpenCaseTime > (s64)time(NULL))
 		stat->Status = 0x10;
 	else
 		stat->Status = 0;
-
-	return 0;
-}
-
-char* CALLBACK CDR__getDriveLetter(void) { return NULL; }
-long CALLBACK CDR__configure(void) { return 0; }
-long CALLBACK CDR__test(void) { return 0; }
-void CALLBACK CDR__about(void) {}
-long CALLBACK CDR__setfilename(char*filename) { return 0; }
-long CALLBACK CDR__prefetch(u8 m, u8 s, u8 f) { return 1; }
-
-#define LoadCdrSym1(dest, name) \
-	LoadSym(CDR_##dest, CDR##dest, name, TRUE);
-
-#define LoadCdrSym0(dest, name) \
-	LoadSym(CDR_##dest, CDR##dest, name, FALSE); \
-	if (CDR_##dest == NULL) CDR_##dest = (CDR##dest) CDR__##dest;
-
-#define LoadCdrSymN(dest, name) \
-	LoadSym(CDR_##dest, CDR##dest, name, FALSE);
-
-static int LoadCDRplugin(const char *CDRdll) {
-	void *drv;
-
-	if (CDRdll == NULL) {
-		cdrIsoInit();
-		return 0;
-	}
-
-	hCDRDriver = SysLoadLibrary(CDRdll);
-	if (hCDRDriver == NULL) {
-		CDR_configure = NULL;
-		SysMessage (_("Could not load CD-ROM plugin %s!"), CDRdll);  return -1;
-	}
-	drv = hCDRDriver;
-	LoadCdrSym1(init, "CDRinit");
-	LoadCdrSym1(shutdown, "CDRshutdown");
-	LoadCdrSym1(open, "CDRopen");
-	LoadCdrSym1(close, "CDRclose");
-	LoadCdrSym1(getTN, "CDRgetTN");
-	LoadCdrSym1(getTD, "CDRgetTD");
-	LoadCdrSym1(readTrack, "CDRreadTrack");
-	LoadCdrSym1(getBuffer, "CDRgetBuffer");
-	LoadCdrSym1(getBufferSub, "CDRgetBufferSub");
-	LoadCdrSym0(play, "CDRplay");
-	LoadCdrSym0(stop, "CDRstop");
-	LoadCdrSym0(getStatus, "CDRgetStatus");
-	LoadCdrSym0(getDriveLetter, "CDRgetDriveLetter");
-	LoadCdrSym0(configure, "CDRconfigure");
-	LoadCdrSym0(test, "CDRtest");
-	LoadCdrSym0(about, "CDRabout");
-	LoadCdrSym0(setfilename, "CDRsetfilename");
-	LoadCdrSymN(readCDDA, "CDRreadCDDA");
-	LoadCdrSymN(getTE, "CDRgetTE");
-	LoadCdrSym0(prefetch, "CDRprefetch");
 
 	return 0;
 }
@@ -1161,18 +1081,11 @@ static int LoadSIO1plugin(const char *SIO1dll) {
 #endif
 
 int LoadPlugins() {
-	int ret;
 	char Plugin[MAXPATHLEN * 2];
+	int ret;
 
 	ReleasePlugins();
 	SysLibError();
-
-	if (UsingIso()) {
-		LoadCDRplugin(NULL);
-	} else {
-		sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Cdr);
-		if (LoadCDRplugin(Plugin) == -1) return -1;
-	}
 
 	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Gpu);
 	if (LoadGPUplugin(Plugin) == -1) return -1;
@@ -1199,7 +1112,7 @@ int LoadPlugins() {
 	if (LoadSIO1plugin(Plugin) == -1) return -1;
 #endif
 
-	ret = CDR_init();
+	ret = cdra_init();
 	if (ret < 0) { SysMessage (_("Error initializing CD-ROM plugin: %d"), ret); return -1; }
 	ret = GPU_init();
 	if (ret < 0) { SysMessage (_("Error initializing GPU plugin: %d"), ret); return -1; }
@@ -1231,7 +1144,7 @@ void ReleasePlugins() {
 	}
 	NetOpened = FALSE;
 
-	if (hCDRDriver != NULL || cdrIsoActive()) CDR_shutdown();
+	cdra_shutdown();
 	if (hGPUDriver != NULL) GPU_shutdown();
 	if (hSPUDriver != NULL) SPU_shutdown();
 	if (hPAD1Driver != NULL) PAD1_shutdown();
@@ -1239,7 +1152,6 @@ void ReleasePlugins() {
 
 	if (Config.UseNet && hNETDriver != NULL) NET_shutdown();
 
-	if (hCDRDriver != NULL) { SysCloseLibrary(hCDRDriver); hCDRDriver = NULL; }
 	if (hGPUDriver != NULL) { SysCloseLibrary(hGPUDriver); hGPUDriver = NULL; }
 	if (hSPUDriver != NULL) { SysCloseLibrary(hSPUDriver); hSPUDriver = NULL; }
 	if (hPAD1Driver != NULL) { SysCloseLibrary(hPAD1Driver); hPAD1Driver = NULL; }
@@ -1261,18 +1173,8 @@ void ReleasePlugins() {
 // for CD swap
 int ReloadCdromPlugin()
 {
-	if (hCDRDriver != NULL || cdrIsoActive()) CDR_shutdown();
-	if (hCDRDriver != NULL) { SysCloseLibrary(hCDRDriver); hCDRDriver = NULL; }
-
-	if (UsingIso()) {
-		LoadCDRplugin(NULL);
-	} else {
-		char Plugin[MAXPATHLEN * 2];
-		sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Cdr);
-		if (LoadCDRplugin(Plugin) == -1) return -1;
-	}
-
-	return CDR_init();
+	cdra_shutdown();
+	return cdra_init();
 }
 
 void SetIsoFile(const char *filename) {

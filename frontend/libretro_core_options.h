@@ -180,19 +180,29 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "sync",
    },
 #endif
-#ifdef HAVE_CDROM
+#if defined(HAVE_CDROM) || defined(USE_ASYNC_CDROM)
 #define V(x) { #x, NULL }
    {
-      "pcsx_rearmed_phys_cd_readahead",
-      "Physical CD read-ahead",
+      "pcsx_rearmed_cd_readahead",
+      "CD read-ahead",
       NULL,
-      "(Hardware CD-ROM only) Reads the specified amount of sectors ahead of time to try to avoid later stalls. 333000 will try to read the complete disk (requires an additional 750MB of RAM).",
+      "Reads the specified amount of sectors ahead of time to try to avoid later stalls. "
+#ifdef HAVE_CDROM
+      "Affects both physical CD-ROM and CD images. "
+#endif
+#if !defined(_3DS) && !defined(VITA)
+      "333000 will try to read the complete disk (requires an additional 750MB of RAM)."
+#endif
+      ,
       NULL,
       "system",
       {
          V(0),  V(1),  V(2),  V(3),  V(4),  V(5),  V(6),  V(7),
          V(8),  V(9),  V(10), V(11), V(12), V(13), V(14), V(15),
-         V(16), V(32), V(64), V(128), V(256), V(512), V(1024), V(333000),
+         V(16), V(32), V(64), V(128), V(256), V(512), V(1024),
+#if !defined(_3DS) && !defined(VITA)
+	 V(333000),
+#endif
          { NULL, NULL},
       },
       "12",
