@@ -585,7 +585,7 @@ int Load(const char *ExePath) {
 						case 0: /* End of file */
 							break;
 						default:
-							SysPrintf(_("Unknown CPE opcode %02x at position %08x.\n"), opcode, ftell(tmpFile) - 1);
+							SysPrintf(_("Unknown CPE opcode %02x at position %08zx.\n"), opcode, ftell(tmpFile) - 1);
 							retval = -1;
 							break;
 					}

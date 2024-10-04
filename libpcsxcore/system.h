@@ -26,8 +26,16 @@ extern "C" {
 
 int SysInit();							// Init mem and plugins
 void SysReset();						// Resets mem
-void SysPrintf(const char *fmt, ...);	// Printf used by bios syscalls
-void SysMessage(const char *fmt, ...);	// Message used to print msg to users
+void SysPrintf(const char *fmt, ...)
+#if defined(__GNUC__) && defined(__x86_64__) // some platforms have int32_t as long
+	 __attribute__((format(printf, 1, 2)))
+#endif
+	 ;
+void SysMessage(const char *fmt, ...)	// Message used to print msg to users
+#if defined(__GNUC__) && defined(__x86_64__)
+	 __attribute__((format(printf, 1, 2)))
+#endif
+	 ;
 void *SysLoadLibrary(const char *lib);	// Loads Library
 void *SysLoadSym(void *lib, const char *sym);	// Loads Symbol from Library
 const char *SysLibError();				// Gets previous error loading sysbols
