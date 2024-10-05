@@ -62,6 +62,10 @@ else ifeq ($(platform), ctr)
 	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
 	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+else ifeq ($(platform), libnx)
+	export DEPSDIR := $(CURDIR)/
+	include $(DEVKITPRO)/libnx/switch_rules
+	SHELL := PATH=$(PATH) $(SHELL)
 else ifeq ($(platform), xenon)
 	CC = xenon-gcc$(EXE_EXT)
 	AR = xenon-ar$(EXE_EXT)
@@ -237,8 +241,6 @@ endif
 
 # Nintendo Switch (libnx)
 else ifeq ($(platform), libnx)
-   export DEPSDIR := $(CURDIR)/
-   include $(DEVKITPRO)/libnx/switch_rules
    TARGET := $(TARGET_NAME)_libretro_$(platform).a
    ARCH := arm64
    HAVE_VFS_FD = 0
