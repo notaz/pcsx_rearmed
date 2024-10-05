@@ -1723,6 +1723,9 @@ void spu_get_debug_info(int *chans_out, int *run_chans, int *fmod_chans_out, int
  *run_chans = ~spu.dwChannelsAudible & ~spu.dwChannelDead & irq_chans;
  *fmod_chans_out = fmod_chans;
  *noise_chans_out = noise_chans;
+ // sometimes unused
+ (void)do_samples_skip_fmod;
+ (void)SkipADSR;
 }
 
 // vim:shiftwidth=1:expandtab
