@@ -285,6 +285,7 @@ else ifeq ($(platform), psl1ght)
 	LIBDL :=
 	NEED_SYSCONF := 1
 	HAVE_PHYSICAL_CDROM = 0
+	USE_ASYNC_CDROM = 0
 
 # PSP
 else ifeq ($(platform), psp1)
