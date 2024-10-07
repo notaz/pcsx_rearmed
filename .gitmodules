@@ -7,3 +7,9 @@
 [submodule "libchdr"]
 	path = deps/libchdr
 	url = https://github.com/rtissera/libchdr.git
+[submodule "deps/lightrec"]
+	path = deps/lightrec
+	url = https://github.com/pcercuei/lightrec.git
+[submodule "deps/lightning"]
+	path = deps/lightning
+	url = https://github.com/pcercuei/gnu_lightning.git

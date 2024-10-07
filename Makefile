@@ -19,6 +19,9 @@ CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
 
+# Suppress minor warnings for dependencies
+deps/%: CFLAGS += -Wno-unused -Wno-unused-function
+
 all: config.mak target_ plugins_
 
 ifndef NO_CONFIG_MAK
@@ -67,7 +70,54 @@ endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
-ifeq "$(USE_DYNAREC)" "1"
+ifeq "$(DYNAREC)" "lightrec"
+CFLAGS += -Ideps/lightning/include -Ideps/lightrec -Iinclude/lightning -Iinclude/lightrec \
+		  -DLIGHTREC -DLIGHTREC_STATIC
+LIGHTREC_CUSTOM_MAP ?= 0
+LIGHTREC_CUSTOM_MAP_OBJ ?= libpcsxcore/lightrec/mem.o
+LIGHTREC_THREADED_COMPILER ?= 0
+LIGHTREC_CODE_INV ?= 0
+CFLAGS += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP) \
+	  -DLIGHTREC_CODE_INV=$(LIGHTREC_CODE_INV) \
+	  -DLIGHTREC_ENABLE_THREADED_COMPILER=$(LIGHTREC_THREADED_COMPILER)
+ifeq ($(LIGHTREC_CUSTOM_MAP),1)
+LDLIBS += -lrt
+OBJS += $(LIGHTREC_CUSTOM_MAP_OBJ)
+endif
+ifeq ($(NEED_SYSCONF),1)
+OBJS += libpcsxcore/lightrec/sysconf.o
+endif
+ifeq ($(LIGHTREC_THREADED_COMPILER),1)
+OBJS += deps/lightrec/recompiler.o \
+	deps/lightrec/reaper.o
+endif
+OBJS += deps/lightrec/tlsf/tlsf.o
+OBJS += libpcsxcore/lightrec/plugin.o
+OBJS += deps/lightning/lib/jit_disasm.o \
+		deps/lightning/lib/jit_memory.o \
+		deps/lightning/lib/jit_names.o \
+		deps/lightning/lib/jit_note.o \
+		deps/lightning/lib/jit_print.o \
+		deps/lightning/lib/jit_size.o \
+		deps/lightning/lib/lightning.o \
+		deps/lightrec/blockcache.o \
+		deps/lightrec/constprop.o \
+		deps/lightrec/disassembler.o \
+		deps/lightrec/emitter.o \
+		deps/lightrec/interpreter.o \
+		deps/lightrec/lightrec.o \
+		deps/lightrec/memmanager.o \
+		deps/lightrec/optimizer.o \
+		deps/lightrec/regcache.o
+deps/lightning/%.o: CFLAGS += -DHAVE_MMAP=P_HAVE_MMAP
+deps/lightning/%: CFLAGS += -Wno-uninitialized
+deps/lightrec/%: CFLAGS += -Wno-uninitialized
+libpcsxcore/lightrec/mem.o: CFLAGS += -D_GNU_SOURCE
+ifeq ($(MMAP_WIN32),1)
+CFLAGS += -Iinclude/mman -I deps/mman
+OBJS += deps/mman/mman.o
+endif
+else ifeq "$(DYNAREC)" "ari64"
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o
 OBJS += libpcsxcore/new_dynarec/pcsxmem.o
  ifeq "$(ARCH)" "arm"
@@ -176,7 +226,7 @@ OBJS += $(LCHDR)/src/libchdr_cdrom.o
 OBJS += $(LCHDR)/src/libchdr_chd.o
 OBJS += $(LCHDR)/src/libchdr_flac.o
 OBJS += $(LCHDR)/src/libchdr_huffman.o
-$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -std=gnu11
+$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -Wno-maybe-uninitialized -std=gnu11
 OBJS += $(LCHDR_LZMA)/src/Alloc.o
 OBJS += $(LCHDR_LZMA)/src/CpuArch.o
 OBJS += $(LCHDR_LZMA)/src/Delta.o
@@ -292,8 +342,10 @@ endif
 OBJS += frontend/libretro.o
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 
+ifneq ($(DYNAREC),lightrec)
 ifeq ($(MMAP_WIN32),1)
 OBJS += libpcsxcore/memmap_win32.o
+endif
 endif
 endif
 
