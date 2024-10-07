@@ -8,7 +8,17 @@
 
 #ifdef LIGHTREC
 
-#define CODE_BUFFER_SIZE (8 * 1024 * 1024)
+#ifdef HW_WUP /* WiiU */
+#    define WUP_RWX_MEM_BASE		0x00802000
+#    define WUP_RWX_MEM_END		0x01000000
+#    define CODE_BUFFER_SIZE_DFT	(WUP_RWX_MEM_END - WUP_RWX_MEM_BASE)
+#else
+#    define CODE_BUFFER_SIZE_DFT	(8 * 1024 * 1024)
+#endif
+
+#ifndef CODE_BUFFER_SIZE
+#define CODE_BUFFER_SIZE CODE_BUFFER_SIZE_DFT
+#endif
 
 extern void *code_buffer;
 

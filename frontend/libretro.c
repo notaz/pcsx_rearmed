@@ -3047,7 +3047,7 @@ static void update_variables(bool in_flight)
 
    update_option_visibility();
 
-   if (old_fps != psxGetFps())
+   if (in_flight && old_fps != psxGetFps())
    {
       struct retro_system_av_info info;
       retro_get_system_av_info(&info);

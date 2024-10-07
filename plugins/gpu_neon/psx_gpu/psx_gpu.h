@@ -226,6 +226,7 @@ typedef struct
   u8 texture_4bpp_cache[32][256 * 256];
   u8 texture_8bpp_even_cache[16][256 * 256];
   u8 texture_8bpp_odd_cache[16][256 * 256];
+  int use_dithering;
 } psx_gpu_struct;
 
 typedef struct __attribute__((aligned(16)))

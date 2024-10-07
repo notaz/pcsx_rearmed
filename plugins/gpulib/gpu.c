@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdlib.h> /* for calloc */
+
 #include "gpu.h"
 #include "gpu_timing.h"
 #include "../../libpcsxcore/gpu.h" // meh
@@ -222,14 +224,45 @@ static noinline void get_gpu_info(uint32_t data)
   }
 }
 
-// double, for overdraw guard
-#define VRAM_SIZE (1024 * 512 * 2 * 2)
+#ifndef max
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#endif
 
+//  Minimum 16-byte VRAM alignment needed by gpu_unai's pixel-skipping
+//  renderer/downscaler it uses in high res modes:
+#ifdef GCW_ZERO
+	// On GCW platform (MIPS), align to 8192 bytes (1 TLB entry) to reduce # of
+	// fills. (Will change this value if it ever gets large page support)
+	#define VRAM_ALIGN 8192
+#else
+	#define VRAM_ALIGN 16
+#endif
+
+// double, for overdraw guard + at least 1 page before
+#define VRAM_SIZE ((1024 * 512 * 2 * 2) + max(VRAM_ALIGN, 4096))
+
+// vram ptr received from mmap/malloc/alloc (will deallocate using this)
+static uint16_t *vram_ptr_orig = NULL;
+
+#ifndef GPULIB_USE_MMAP
+# ifdef __linux__
+#  define GPULIB_USE_MMAP 1
+# else
+#  define GPULIB_USE_MMAP 0
+# endif
+#endif
 static int map_vram(void)
 {
-  gpu.vram = gpu.mmap(VRAM_SIZE);
-  if (gpu.vram != NULL) {
-    gpu.vram += 4096 / 2;
+#if GPULIB_USE_MMAP
+  gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE);
+#else
+  gpu.vram = vram_ptr_orig = calloc(VRAM_SIZE, 1);
+#endif
+  if (gpu.vram != NULL && gpu.vram != (void *)(intptr_t)-1) {
+    // 4kb guard in front
+    gpu.vram += (4096 / 2);
+    // Align
+    gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
     return 0;
   }
   else {
@@ -252,10 +285,10 @@ long GPUinit(void)
   gpu.cmd_len = 0;
   do_reset();
 
-  if (gpu.mmap != NULL) {
+  /*if (gpu.mmap != NULL) {
     if (map_vram() != 0)
       ret = -1;
-  }
+  }*/
   return ret;
 }
 
@@ -265,11 +298,15 @@ long GPUshutdown(void)
 
   renderer_finish();
   ret = vout_finish();
-  if (gpu.vram != NULL) {
-    gpu.vram -= 4096 / 2;
-    gpu.munmap(gpu.vram, VRAM_SIZE);
+
+  if (vram_ptr_orig != NULL) {
+#if GPULIB_USE_MMAP
+    gpu.munmap(vram_ptr_orig, VRAM_SIZE);
+#else
+    free(vram_ptr_orig);
+#endif
   }
-  gpu.vram = NULL;
+  vram_ptr_orig = gpu.vram = NULL;
 
   return ret;
 }

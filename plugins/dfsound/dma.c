@@ -93,7 +93,7 @@ void CALLBACK SPUwriteDMAMem(unsigned short *pusPSXMem, int iSize,
   // might also need more delay like in set_dma_end()
   do_irq_io(irq_after * 4);
  }
- for (i = 0; i < 24; i++) {
+ for (i = 0; i < MAXCHAN; i++) {
   size_t ediff, p = spu.s_chan[i].pCurr - spu.spuMemC;
   if (spu.s_chan[i].ADSRX.State == ADSR_RELEASE && !spu.s_chan[i].ADSRX.EnvelopeVol)
    continue;

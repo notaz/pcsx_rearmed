@@ -73,14 +73,18 @@ struct rearmed_cbs {
 	// gpu options
 	int   frameskip;
 	int   fskip_advice;
+	int   fskip_force;
+	int   fskip_dirty;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
 	unsigned int only_16bpp; // platform is 16bpp-only
+	unsigned int thread_rendering;
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 		int   enhancement_enable;
 		int   enhancement_no_main;
+		int   allow_dithering;
 		int   enhancement_tex_adj;
 	} gpu_neon;
 	struct {

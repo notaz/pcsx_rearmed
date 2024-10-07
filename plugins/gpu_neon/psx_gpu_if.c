@@ -10,7 +10,6 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <sys/mman.h>
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #ifndef min
@@ -222,6 +221,19 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   }
   if (cbs->pl_set_gpu_caps)
     cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
+  
+  egpu.use_dithering = cbs->gpu_neon.allow_dithering;
+  if(!egpu.use_dithering) {
+    egpu.dither_table[0] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[1] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[2] = dither_table_row(0, 0, 0, 0);
+    egpu.dither_table[3] = dither_table_row(0, 0, 0, 0);
+  } else {
+    egpu.dither_table[0] = dither_table_row(-4, 0, -3, 1);
+    egpu.dither_table[1] = dither_table_row(2, -2, 3, -1);
+    egpu.dither_table[2] = dither_table_row(-3, 1, -4, 0);
+    egpu.dither_table[3] = dither_table_row(3, -1, 2, -2); 
+  }
 
   egpu.hack_disable_main = cbs->gpu_neon.enhancement_no_main;
   egpu.hack_texture_adj = cbs->gpu_neon.enhancement_tex_adj;
