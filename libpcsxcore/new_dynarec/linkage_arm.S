@@ -65,8 +65,8 @@ DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
 @DRC_VAR(reg, 128)
-DRC_VAR(lo, 4)
-DRC_VAR(hi, 4)
+@DRC_VAR(lo, 4)
+@DRC_VAR(hi, 4)
 DRC_VAR(reg_cop0, 128)
 DRC_VAR(reg_cop2d, 128)
 DRC_VAR(reg_cop2c, 128)
@@ -155,7 +155,7 @@ FUNCTION(dyna_linker):
 	mov	r5, r1
 	lsl	r6, r6, #8
 	/* must not compile - that might expire the caller block */
-	mov	r1, #0
+	mov	r1, #0 /* ndrc_compile_mode */
 	bl	ndrc_get_addr_ht_param
 
 	movs	r8, r0
@@ -404,12 +404,19 @@ invalidate_addr_call:
 	.size	invalidate_addr_call, .-invalidate_addr_call
 
 	.align	2
-FUNCTION(new_dyna_start):
+FUNCTION(new_dyna_start_at):
 	/* ip is stored to conform EABI alignment */
+	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
+	mov	fp, r0 /* dynarec_local */
+	mov     r0, r1
+	b       new_dyna_start_at_e
+
+FUNCTION(new_dyna_start):
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
 	mov	fp, r0 /* dynarec_local */
 	ldr	r0, [fp, #LO_pcaddr]
 	bl	ndrc_get_addr_ht
+new_dyna_start_at_e:
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	str	r1, [fp, #LO_last_count]

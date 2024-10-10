@@ -3,12 +3,6 @@
 
 extern int dynarec_local[];
 
-/* same as psxRegs.GPR.n.* */
-extern int hi, lo;
-
-/* same as psxRegs.CP0.n.* */
-extern int reg_cop0[];
-
 /* COP2/GTE */
 enum gte_opcodes {
 	GTE_RTPS	= 0x01,
@@ -35,7 +29,6 @@ enum gte_opcodes {
 	GTE_NCCT	= 0x3f,
 };
 
-extern int reg_cop2d[], reg_cop2c[];
 extern void *gte_handlers[64];
 extern void *gte_handlers_nf[64];
 extern const char *gte_regnames[64];

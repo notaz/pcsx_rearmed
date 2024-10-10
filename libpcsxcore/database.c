@@ -208,7 +208,7 @@ void Apply_Hacks_Cdrom(void)
 	}
 
 	/* Dynarec game-specific hacks */
-	new_dynarec_hacks_pergame = 0;
+	ndrc_g.hacks_pergame = 0;
 	Config.cycle_multiplier_override = 0;
 
 	for (i = 0; i < ARRAY_SIZE(cycle_multiplier_overrides); i++)
@@ -220,7 +220,7 @@ void Apply_Hacks_Cdrom(void)
 		if (j < ARRAY_SIZE(cycle_multiplier_overrides[i].id))
 		{
 			Config.cycle_multiplier_override = cycle_multiplier_overrides[i].mult;
-			new_dynarec_hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
+			ndrc_g.hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
 			SysPrintf("using cycle_multiplier_override: %d\n",
 				Config.cycle_multiplier_override);
 			break;

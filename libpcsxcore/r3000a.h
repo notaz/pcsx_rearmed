@@ -49,6 +49,7 @@ enum R3000Anote {
 enum blockExecCaller {
 	EXEC_CALLER_BOOT,
 	EXEC_CALLER_HLE,
+	EXEC_CALLER_OTHER,
 };
 
 typedef struct {
@@ -213,7 +214,8 @@ typedef struct {
 extern psxRegisters psxRegs;
 
 /* new_dynarec stuff */
-void new_dyna_freeze(void *f, int mode);
+void ndrc_freeze(void *f, int mode);
+void ndrc_clear_full(void);
 
 int  psxInit();
 void psxReset();

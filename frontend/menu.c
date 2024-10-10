@@ -479,7 +479,7 @@ static const struct {
 	CE_INTVAL(in_evdev_allow_abs_only),
 	CE_INTVAL(volume_boost),
 	CE_INTVAL(psx_clock),
-	CE_INTVAL(new_dynarec_hacks),
+	CE_INTVAL(ndrc_g.hacks),
 	CE_INTVAL(in_enable_vibration),
 };
 
@@ -1630,10 +1630,10 @@ static const char h_cfg_stalls[]  = "Will cause some games to run too fast";
 static menu_entry e_menu_speed_hacks[] =
 {
 #ifndef DRC_DISABLE
-	mee_onoff_h   ("Disable compat hacks",     0, new_dynarec_hacks, NDHACK_NO_COMPAT_HACKS, h_cfg_noch),
-	mee_onoff_h   ("Disable SMC checks",       0, new_dynarec_hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
-	mee_onoff_h   ("Assume GTE regs unneeded", 0, new_dynarec_hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
-	mee_onoff_h   ("Disable GTE flags",        0, new_dynarec_hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
+	mee_onoff_h   ("Disable compat hacks",     0, ndrc_g.hacks, NDHACK_NO_COMPAT_HACKS, h_cfg_noch),
+	mee_onoff_h   ("Disable SMC checks",       0, ndrc_g.hacks, NDHACK_NO_SMC_CHECK, h_cfg_nosmc),
+	mee_onoff_h   ("Assume GTE regs unneeded", 0, ndrc_g.hacks, NDHACK_GTE_UNNEEDED, h_cfg_gteunn),
+	mee_onoff_h   ("Disable GTE flags",        0, ndrc_g.hacks, NDHACK_GTE_NO_FLAGS, h_cfg_gteflgs),
 #endif
 	mee_onoff_h   ("Disable CPU/GTE stalls",   0, menu_iopts[0], 1, h_cfg_stalls),
 	mee_end,
@@ -2243,7 +2243,7 @@ static int romsel_run(void)
 
 	printf("selected file: %s\n", fname);
 
-	new_dynarec_clear_full();
+	ndrc_clear_full();
 
 	if (run_cd_image(fname) != 0)
 		return -1;

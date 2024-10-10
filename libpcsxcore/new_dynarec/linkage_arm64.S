@@ -67,8 +67,8 @@ DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
 #DRC_VAR(reg, 128)
-DRC_VAR(lo, 4)
-DRC_VAR(hi, 4)
+#DRC_VAR(lo, 4)
+#DRC_VAR(hi, 4)
 DRC_VAR(reg_cop0, 128)
 DRC_VAR(reg_cop2d, 128)
 DRC_VAR(reg_cop2c, 128)
@@ -184,21 +184,28 @@ FUNCTION(jump_to_new_pc):
 
 	/* stack must be aligned by 16, and include space for save_regs() use */
 	.align	2
+FUNCTION(new_dyna_start_at):
+	stp	x29, x30, [sp, #-SSP_ALL]!
+	mov	rFP, x0
+	b	new_dyna_start_at_e
+
 FUNCTION(new_dyna_start):
 	stp	x29, x30, [sp, #-SSP_ALL]!
-	ldr	w1,  [x0, #LO_next_interupt]
-	ldr	w2,  [x0, #LO_cycle]
+	mov	rFP, x0
+	ldr	w0,  [rFP, #LO_pcaddr]
+	bl	ndrc_get_addr_ht
+	mov	x1, x0
+new_dyna_start_at_e:
+	ldr	w3,  [rFP, #LO_next_interupt]
+	ldr	w2,  [rFP, #LO_cycle]
 	stp	x19, x20, [sp, #16*1]
 	stp	x21, x22, [sp, #16*2]
 	stp	x23, x24, [sp, #16*3]
 	stp	x25, x26, [sp, #16*4]
 	stp	x27, x28, [sp, #16*5]
-	mov	rFP, x0
-	ldr	w0,  [rFP, #LO_pcaddr]
-	str	w1,  [rFP, #LO_last_count]
-	sub	rCC, w2, w1
-	bl	ndrc_get_addr_ht
-	br	x0
+	str	w3,  [rFP, #LO_last_count]
+	sub	rCC, w2, w3
+	br	x1
 	ESIZE(new_dyna_start, .-new_dyna_start)
 
 	.align	2

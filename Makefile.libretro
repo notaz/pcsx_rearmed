@@ -6,6 +6,7 @@ HAVE_CHD ?= 1
 HAVE_PHYSICAL_CDROM ?= 1
 USE_ASYNC_CDROM ?= 1
 USE_LIBRETRO_VFS ?= 0
+NDRC_THREAD ?= 1
 
 # Dynarec options: lightrec, ari64
 DYNAREC ?= lightrec

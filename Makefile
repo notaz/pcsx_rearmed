@@ -161,6 +161,12 @@ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
  else
  $(error no dynarec support for architecture $(ARCH))
  endif
+ ifeq "$(NDRC_THREAD)" "1"
+ libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -DNDRC_THREAD
+ libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -DNDRC_THREAD
+ frontend/libretro.o: CFLAGS += -DNDRC_THREAD
+ USE_RTHREADS := 1
+ endif
 else
 CFLAGS += -DDRC_DISABLE
 endif
@@ -371,8 +377,8 @@ OBJS += deps/libretro-common/vfs/vfs_implementation_cdrom.o
 CFLAGS += -DHAVE_CDROM
 endif
 ifeq "$(USE_ASYNC_CDROM)" "1"
-OBJS += frontend/libretro-rthreads.o
 CFLAGS += -DUSE_ASYNC_CDROM
+USE_RTHREADS := 1
 endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += deps/libretro-common/compat/compat_posix_string.o
@@ -385,12 +391,24 @@ CFLAGS += -DUSE_LIBRETRO_VFS
 endif
 OBJS += frontend/libretro.o
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
+CFLAGS += -DHAVE_LIBRETRO
+INC_LIBRETRO_COMMON := 1
 
 ifneq ($(DYNAREC),lightrec)
 ifeq ($(MMAP_WIN32),1)
 OBJS += libpcsxcore/memmap_win32.o
 endif
 endif
+endif # $(PLATFORM) == "libretro"
+
+ifeq "$(USE_RTHREADS)" "1"
+OBJS += frontend/libretro-rthreads.o
+OBJS += deps/libretro-common/features/features_cpu.o
+frontend/main.o: CFLAGS += -DHAVE_CPU_FEATURES
+INC_LIBRETRO_COMMON := 1
+endif
+ifeq "$(INC_LIBRETRO_COMMON)" "1"
+CFLAGS += -Ideps/libretro-common/include
 endif
 
 ifeq "$(USE_PLUGIN_LIB)" "1"
