@@ -159,7 +159,7 @@ void emu_set_default_config(void)
 	spu_config.iTempo = 1;
 #endif
 #endif
-	new_dynarec_hacks = 0;
+	ndrc_g.hacks = 0;
 
 	in_type[0] = PSE_PAD_TYPE_STANDARD;
 	in_type[1] = PSE_PAD_TYPE_STANDARD;

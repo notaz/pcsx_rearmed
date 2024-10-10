@@ -16,13 +16,36 @@
 #include "../r3000a.h"
 #include "../gte_arm.h"
 #include "../gte_neon.h"
+#include "compiler_features.h"
 #define FLAGLESS
 #include "../gte.h"
+#ifdef NDRC_THREAD
+#include "../../frontend/libretro-rthreads.h"
+#include "features/features_cpu.h"
+#include "retro_timers.h"
+#endif
+#ifdef _3DS
+#include <3ds_utils.h>
+#endif
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#endif
 
 //#define evprintf printf
 #define evprintf(...)
+
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+// reduce global loads/literal pools (maybe)
+#include "linkage_offsets.h"
+#define dynarec_local_var4(x) dynarec_local[(x) / sizeof(dynarec_local[0])]
+#define stop              dynarec_local_var4(LO_stop)
+#define psxRegs           (*(psxRegisters *)((char *)dynarec_local + LO_psxRegs))
+#define next_interupt     dynarec_local_var4(LO_next_interupt)
+#define pending_exception dynarec_local_var4(LO_pending_exception)
+#endif
+
+static void ari64_thread_sync(void);
 
 void pcsx_mtc0(u32 reg, u32 val)
 {
@@ -41,13 +64,15 @@ void pcsx_mtc0_ds(u32 reg, u32 val)
 	MTC0(&psxRegs, reg, val);
 }
 
-void new_dyna_freeze(void *f, int mode)
+void ndrc_freeze(void *f, int mode)
 {
 	const char header_save[8] = "ariblks";
 	uint32_t addrs[1024 * 4];
 	int32_t size = 0;
 	int bytes;
 	char header[8];
+
+	ari64_thread_sync();
 
 	if (mode != 0) { // save
 		size = new_dynarec_save_blocks(addrs, sizeof(addrs));
@@ -86,7 +111,16 @@ void new_dyna_freeze(void *f, int mode)
 	//printf("drc: %d block info entries %s\n", size/8, mode ? "saved" : "loaded");
 }
 
+void ndrc_clear_full(void)
+{
+	ari64_thread_sync();
+	new_dynarec_clear_full();
+}
+
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+
+static void ari64_thread_init(void);
+static int  ari64_thread_check_range(unsigned int start, unsigned int end);
 
 /* GTE stuff */
 void *gte_handlers[64];
@@ -189,43 +223,9 @@ const uint64_t gte_reg_writes[64] = {
 	[GTE_NCCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
 };
 
-static int ari64_init()
-{
-	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
-	size_t i;
-
-	new_dynarec_init();
-	new_dyna_pcsx_mem_init();
-
-	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
-		if (psxCP2[i] != gteNULL)
-			gte_handlers[i] = psxCP2[i];
-
-#if defined(__arm__) && !defined(DRC_DBG)
-	gte_handlers[0x06] = gteNCLIP_arm;
-#ifdef HAVE_ARMV5
-	gte_handlers_nf[0x01] = gteRTPS_nf_arm;
-	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
-#endif
-#ifdef __ARM_NEON__
-	// compiler's _nf version is still a lot slower than neon
-	// _nf_arm RTPS is roughly the same, RTPT slower
-	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
-	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
-#endif
-#endif
-#ifdef DRC_DBG
-	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
-#endif
-	psxH_ptr = psxH;
-	zeromem_ptr = zero_mem;
-	scratch_buf_ptr = scratch_buf;
-
-	return 0;
-}
-
 static void ari64_reset()
 {
+	ari64_thread_sync();
 	new_dyna_pcsx_mem_reset();
 	new_dynarec_invalidate_all_pages();
 	new_dyna_pcsx_mem_load_state();
@@ -268,11 +268,16 @@ static void ari64_execute_block(enum blockExecCaller caller)
 
 static void ari64_clear(u32 addr, u32 size)
 {
-	size *= 4; /* PCSX uses DMA units (words) */
+	u32 end = addr + size * 4; /* PCSX uses DMA units (words) */
 
-	evprintf("ari64_clear %08x %04x\n", addr, size);
+	evprintf("ari64_clear %08x %04x\n", addr, size * 4);
 
-	new_dynarec_invalidate_range(addr, addr + size);
+	if (!new_dynarec_quick_check_range(addr, end) &&
+	    !ari64_thread_check_range(addr, end))
+		return;
+
+	ari64_thread_sync();
+	new_dynarec_invalidate_range(addr, end);
 }
 
 static void ari64_notify(enum R3000Anote note, void *data) {
@@ -294,22 +299,263 @@ static void ari64_notify(enum R3000Anote note, void *data) {
 
 static void ari64_apply_config()
 {
+	int thread_changed;
+
+	ari64_thread_sync();
 	intApplyConfig();
 
 	if (Config.DisableStalls)
-		new_dynarec_hacks |= NDHACK_NO_STALLS;
+		ndrc_g.hacks |= NDHACK_NO_STALLS;
 	else
-		new_dynarec_hacks &= ~NDHACK_NO_STALLS;
+		ndrc_g.hacks &= ~NDHACK_NO_STALLS;
 
-	if (Config.cycle_multiplier != cycle_multiplier_old
-	    || new_dynarec_hacks != new_dynarec_hacks_old)
+	thread_changed = (ndrc_g.hacks ^ ndrc_g.hacks_old)
+		& (NDHACK_THREAD_FORCE | NDHACK_THREAD_FORCE_ON);
+	if (Config.cycle_multiplier != ndrc_g.cycle_multiplier_old
+	    || ndrc_g.hacks != ndrc_g.hacks_old)
 	{
 		new_dynarec_clear_full();
 	}
+	if (thread_changed)
+		ari64_thread_init();
+}
+
+#ifdef NDRC_THREAD
+static void clear_local_cache(void)
+{
+#ifdef _3DS
+	if (ndrc_g.thread.cache_dirty) {
+		ndrc_g.thread.cache_dirty = 0;
+		ctr_clear_cache();
+	}
+#else
+	// hopefully nothing is needed, as tested on r-pi4 and switch
+#endif
+}
+
+static noinline void ari64_execute_threaded_slow(enum blockExecCaller block_caller)
+{
+	if (!ndrc_g.thread.busy) {
+		memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
+		slock_lock(ndrc_g.thread.lock);
+		ndrc_g.thread.addr = psxRegs.pc;
+		ndrc_g.thread.busy = 1;
+		slock_unlock(ndrc_g.thread.lock);
+		scond_signal(ndrc_g.thread.cond);
+	}
+
+	//ari64_notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+	psxInt.Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+	do
+	{
+		psxInt.ExecuteBlock(block_caller);
+	}
+	while (!stop && ndrc_g.thread.busy && block_caller == EXEC_CALLER_OTHER);
+
+	psxInt.Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+	//ari64_notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+}
+
+static void ari64_execute_threaded_once(enum blockExecCaller block_caller)
+{
+	psxRegisters *regs = (void *)((char *)dynarec_local + LO_psxRegs);
+	void *target;
+
+	if (likely(!ndrc_g.thread.busy)) {
+		ndrc_g.thread.addr = 0;
+		target = ndrc_get_addr_ht_param(regs->pc, ndrc_cm_no_compile);
+		if (target) {
+			clear_local_cache();
+			new_dyna_start_at(dynarec_local, target);
+			return;
+		}
+	}
+	ari64_execute_threaded_slow(block_caller);
+}
+
+static void ari64_execute_threaded()
+{
+	schedule_timeslice();
+	while (!stop)
+	{
+		ari64_execute_threaded_once(EXEC_CALLER_OTHER);
+
+		if ((s32)(psxRegs.cycle - next_interupt) >= 0)
+			schedule_timeslice();
+	}
+}
+
+static void ari64_execute_threaded_block(enum blockExecCaller caller)
+{
+	if (caller == EXEC_CALLER_BOOT)
+		stop++;
+
+	next_interupt = psxRegs.cycle + 1;
+	ari64_execute_threaded_once(caller);
+
+	if (caller == EXEC_CALLER_BOOT)
+		stop--;
+}
+
+static void ari64_thread_sync(void)
+{
+	if (!ndrc_g.thread.lock || !ndrc_g.thread.busy)
+		return;
+	for (;;) {
+		slock_lock(ndrc_g.thread.lock);
+		slock_unlock(ndrc_g.thread.lock);
+		if (!ndrc_g.thread.busy)
+			break;
+		retro_sleep(0);
+	}
+}
+
+static int ari64_thread_check_range(unsigned int start, unsigned int end)
+{
+	u32 addr = ndrc_g.thread.addr;
+	if (!addr)
+		return 0;
+
+	addr &= 0x1fffffff;
+	start &= 0x1fffffff;
+	end &= 0x1fffffff;
+	if (addr >= end)
+		return 0;
+	if (addr + MAXBLOCK * 4 <= start)
+		return 0;
+
+	//SysPrintf("%x hits %x-%x\n", addr, start, end);
+	return 1;
+}
+
+static void ari64_compile_thread(void *unused)
+{
+	void *target;
+	u32 addr;
+
+	slock_lock(ndrc_g.thread.lock);
+	while (!ndrc_g.thread.exit)
+	{
+		if (!ndrc_g.thread.busy)
+			scond_wait(ndrc_g.thread.cond, ndrc_g.thread.lock);
+		addr = ndrc_g.thread.addr;
+		if (!ndrc_g.thread.busy || !addr || ndrc_g.thread.exit)
+			continue;
+
+		target = ndrc_get_addr_ht_param(addr, ndrc_cm_compile_in_thread);
+		//printf("c  %08x -> %p\n", addr, target);
+		ndrc_g.thread.busy = 0;
+	}
+	slock_unlock(ndrc_g.thread.lock);
+	(void)target;
+}
+
+static void ari64_thread_shutdown(void)
+{
+	psxRec.Execute = ari64_execute;
+	psxRec.ExecuteBlock = ari64_execute_block;
+
+	if (ndrc_g.thread.lock)
+		slock_lock(ndrc_g.thread.lock);
+	ndrc_g.thread.exit = 1;
+	if (ndrc_g.thread.lock)
+		slock_unlock(ndrc_g.thread.lock);
+	if (ndrc_g.thread.cond)
+		scond_signal(ndrc_g.thread.cond);
+	if (ndrc_g.thread.handle) {
+		sthread_join(ndrc_g.thread.handle);
+		ndrc_g.thread.handle = NULL;
+	}
+	if (ndrc_g.thread.cond) {
+		scond_free(ndrc_g.thread.cond);
+		ndrc_g.thread.cond = NULL;
+	}
+	if (ndrc_g.thread.lock) {
+		slock_free(ndrc_g.thread.lock);
+		ndrc_g.thread.lock = NULL;
+	}
+	ndrc_g.thread.busy = ndrc_g.thread.addr = 0;
+}
+
+static void ari64_thread_init(void)
+{
+	int enable;
+
+	if (ndrc_g.hacks & NDHACK_THREAD_FORCE)
+		enable = ndrc_g.hacks & NDHACK_THREAD_FORCE_ON;
+	else {
+		u32 cpu_count = cpu_features_get_core_amount();
+		enable = cpu_count > 1;
+	}
+
+	if (!ndrc_g.thread.handle == !enable)
+		return;
+
+	ari64_thread_shutdown();
+	ndrc_g.thread.busy = ndrc_g.thread.addr = ndrc_g.thread.exit = 0;
+
+	if (enable) {
+		ndrc_g.thread.lock = slock_new();
+		ndrc_g.thread.cond = scond_new();
+	}
+	if (ndrc_g.thread.lock && ndrc_g.thread.cond)
+		ndrc_g.thread.handle = sthread_create(ari64_compile_thread, NULL);
+	if (ndrc_g.thread.handle) {
+		psxRec.Execute = ari64_execute_threaded;
+		psxRec.ExecuteBlock = ari64_execute_threaded_block;
+	}
+	else {
+		// clean up potential incomplete init
+		ari64_thread_shutdown();
+	}
+	SysPrintf("compiler thread %sabled\n", ndrc_g.thread.handle ? "en" : "dis");
+}
+#else // if !NDRC_THREAD
+static void ari64_thread_init(void) {}
+static void ari64_thread_shutdown(void) {}
+static int ari64_thread_check_range(unsigned int start, unsigned int end) { return 0; }
+#endif
+
+static int ari64_init()
+{
+	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
+	size_t i;
+
+	new_dynarec_init();
+	new_dyna_pcsx_mem_init();
+
+	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
+		if (psxCP2[i] != gteNULL)
+			gte_handlers[i] = psxCP2[i];
+
+#if defined(__arm__) && !defined(DRC_DBG)
+	gte_handlers[0x06] = gteNCLIP_arm;
+#ifdef HAVE_ARMV5
+	gte_handlers_nf[0x01] = gteRTPS_nf_arm;
+	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
+#endif
+#ifdef __ARM_NEON__
+	// compiler's _nf version is still a lot slower than neon
+	// _nf_arm RTPS is roughly the same, RTPT slower
+	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
+	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
+#endif
+#endif
+#ifdef DRC_DBG
+	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
+#endif
+	psxH_ptr = psxH;
+	zeromem_ptr = zero_mem;
+	scratch_buf_ptr = scratch_buf;
+
+	ari64_thread_init();
+
+	return 0;
 }
 
 static void ari64_shutdown()
 {
+	ari64_thread_shutdown();
 	new_dynarec_cleanup();
 	new_dyna_pcsx_mem_shutdown();
 }
@@ -327,14 +573,10 @@ R3000Acpu psxRec = {
 
 #else // if DRC_DISABLE
 
+struct ndrc_globals ndrc_g; // dummy
 unsigned int address;
 int pending_exception, stop;
 u32 next_interupt;
-int new_dynarec_did_compile;
-int cycle_multiplier_old;
-int new_dynarec_hacks_pergame;
-int new_dynarec_hacks_old;
-int new_dynarec_hacks;
 void *psxH_ptr;
 void *zeromem_ptr;
 u32 zero_mem[0x1000/4];
@@ -353,6 +595,11 @@ void new_dyna_pcsx_mem_isolate(int enable) {}
 void new_dyna_pcsx_mem_shutdown(void) {}
 int  new_dynarec_save_blocks(void *save, int size) { return 0; }
 void new_dynarec_load_blocks(const void *save, int size) {}
+
+#endif // DRC_DISABLE
+
+#ifndef NDRC_THREAD
+static void ari64_thread_sync(void) {}
 #endif
 
 #ifdef DRC_DBG
@@ -624,4 +871,4 @@ ok:
 	badregs_mask_prev = badregs_mask;
 }
 
-#endif
+#endif // DRC_DBG

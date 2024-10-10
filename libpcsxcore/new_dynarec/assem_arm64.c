@@ -119,14 +119,14 @@ static void alloc_cc_optional(struct regstat *cur, int i)
 
 /* Assembler */
 
-static unused const char *regname[32] = {
+static attr_unused const char *regname[32] = {
   "w0",  "w1",  "w2",  "w3",  "w4",  "w5",  "w6",  "w7",
   "w8",  "w9", "w10", "w11", "w12", "w13", "w14", "w15",
  "ip0", "ip1", "w18", "w19", "w20", "w21", "w22", "w23",
  "w24", "w25", "w26", "w27", "w28", "wfp", "wlr", "wsp"
 };
 
-static unused const char *regname64[32] = {
+static attr_unused const char *regname64[32] = {
   "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
   "x8",  "x9", "x10", "x11", "x12", "x13", "x14", "x15",
  "ip0", "ip1", "x18", "x19", "x20", "x21", "x22", "x23",
@@ -138,7 +138,7 @@ enum {
   COND_HI, COND_LS, COND_GE, COND_LT, COND_GT, COND_LE, COND_AW, COND_NV
 };
 
-static unused const char *condname[16] = {
+static attr_unused const char *condname[16] = {
   "eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc",
   "hi", "ls", "ge", "lt", "gt", "le", "aw", "nv"
 };
@@ -356,7 +356,7 @@ static void emit_subs(u_int rs1, u_int rs2, u_int rt)
   output_w32(0x6b000000 | rm_imm6_rn_rd(rs2, 0, rs1, rt));
 }
 
-static unused void emit_sub_asrimm(u_int rs1, u_int rs2, u_int shift, u_int rt)
+static attr_unused void emit_sub_asrimm(u_int rs1, u_int rs2, u_int shift, u_int rt)
 {
   assem_debug("sub %s,%s,%s,asr #%u\n",regname[rt],regname[rs1],regname[rs2],shift);
   output_w32(0x4b800000 | rm_imm6_rn_rd(rs2, shift, rs1, rt));
@@ -618,7 +618,7 @@ static void emit_xorsar_imm(u_int rs1, u_int rs2, u_int imm, u_int rt)
 
 static void emit_addimm_s(u_int s, u_int is64, u_int rs, uintptr_t imm, u_int rt)
 {
-  unused const char *st = s ? "s" : "";
+  attr_unused const char *st = s ? "s" : "";
   s = s ? 0x20000000 : 0;
   is64 = is64 ? 0x80000000 : 0;
   if (imm < 4096) {
@@ -1293,8 +1293,8 @@ static void emit_bic_lsr(u_int rs1,u_int rs2,u_int shift,u_int rt)
 static void emit_ldst(int is_st, int is64, u_int rt, u_int rn, u_int ofs)
 {
   u_int op = 0xb9000000;
-  unused const char *ldst = is_st ? "st" : "ld";
-  unused char rp = is64 ? 'x' : 'w';
+  attr_unused const char *ldst = is_st ? "st" : "ld";
+  attr_unused char rp = is64 ? 'x' : 'w';
   assem_debug("%sr %c%d,[x%d,#%#x]\n", ldst, rp, rt, rn, ofs);
   is64 = is64 ? 1 : 0;
   assert((ofs & ((1 << (2+is64)) - 1)) == 0);
@@ -1307,8 +1307,8 @@ static void emit_ldst(int is_st, int is64, u_int rt, u_int rn, u_int ofs)
 static void emit_ldstp(int is_st, int is64, u_int rt1, u_int rt2, u_int rn, int ofs)
 {
   u_int op = 0x29000000;
-  unused const char *ldst = is_st ? "st" : "ld";
-  unused char rp = is64 ? 'x' : 'w';
+  attr_unused const char *ldst = is_st ? "st" : "ld";
+  attr_unused char rp = is64 ? 'x' : 'w';
   assem_debug("%sp %c%d,%c%d,[x%d,#%#x]\n", ldst, rp, rt1, rp, rt2, rn, ofs);
   is64 = is64 ? 1 : 0;
   assert((ofs & ((1 << (2+is64)) - 1)) == 0);
@@ -2082,7 +2082,7 @@ static void do_miniht_insert(u_int return_address,u_int rt,int temp) {
   emit_writeword(rt,&mini_ht[(return_address&0xFF)>>3][0]);
 }
 
-static unused void clear_cache_arm64(char *start, char *end)
+static attr_unused void clear_cache_arm64(char *start, char *end)
 {
   // Don't rely on GCC's __clear_cache implementation, as it caches
   // icache/dcache cache line sizes, that can vary between cores on

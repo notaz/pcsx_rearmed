@@ -224,7 +224,24 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "enabled",
    },
+#if !defined(LIGHTREC) && defined(NDRC_THREAD)
+   {
+      "pcsx_rearmed_drc_thread",
+      "DynaRec threading",
+      NULL,
+      "Run the dynarec on another thread.",
+      NULL,
+      "system",
+      {
+         { "auto", "Auto" },
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "auto",
+   },
 #endif
+#endif // DRC_DISABLE
    {
       "pcsx_rearmed_psxclock",
       "PSX CPU Clock Speed (%)",

@@ -242,7 +242,7 @@ static void alloc_cc_optional(struct regstat *cur, int i)
 
 /* Assembler */
 
-static unused char regname[16][4] = {
+static attr_unused char regname[16][4] = {
  "r0",
  "r1",
  "r2",
@@ -318,7 +318,7 @@ static u_int genjmp(u_int addr)
   return ((u_int)offset>>2)&0xffffff;
 }
 
-static unused void emit_breakpoint(void)
+static attr_unused void emit_breakpoint(void)
 {
   assem_debug("bkpt #0\n");
   //output_w32(0xe1200070);
@@ -730,7 +730,7 @@ static void emit_lsls_imm(int rs,int imm,int rt)
   output_w32(0xe1b00000|rd_rn_rm(rt,0,rs)|(imm<<7));
 }
 
-static unused void emit_lslpls_imm(int rs,int imm,int rt)
+static attr_unused void emit_lslpls_imm(int rs,int imm,int rt)
 {
   assert(imm>0);
   assert(imm<32);
@@ -812,7 +812,7 @@ static void emit_sar(u_int rs,u_int shift,u_int rt)
   output_w32(0xe1a00000|rd_rn_rm(rt,0,rs)|0x50|(shift<<8));
 }
 
-static unused void emit_orrshl(u_int rs,u_int shift,u_int rt)
+static attr_unused void emit_orrshl(u_int rs,u_int shift,u_int rt)
 {
   assert(rs<16);
   assert(rt<16);
@@ -821,7 +821,7 @@ static unused void emit_orrshl(u_int rs,u_int shift,u_int rt)
   output_w32(0xe1800000|rd_rn_rm(rt,rt,rs)|0x10|(shift<<8));
 }
 
-static unused void emit_orrshr(u_int rs,u_int shift,u_int rt)
+static attr_unused void emit_orrshr(u_int rs,u_int shift,u_int rt)
 {
   assert(rs<16);
   assert(rt<16);
@@ -892,7 +892,7 @@ static void emit_cmovs_imm(int imm,int rt)
   output_w32(0x43a00000|rd_rn_rm(rt,0,0)|armval);
 }
 
-static unused void emit_cmovne_reg(int rs,int rt)
+static attr_unused void emit_cmovne_reg(int rs,int rt)
 {
   assem_debug("movne %s,%s\n",regname[rt],regname[rs]);
   output_w32(0x11a00000|rd_rn_rm(rt,0,rs));
@@ -1089,7 +1089,7 @@ static void *emit_cbz(int rs, const void *a)
   return ret;
 }
 
-static unused void emit_callreg(u_int r)
+static attr_unused void emit_callreg(u_int r)
 {
   assert(r<15);
   assem_debug("blx %s\n",regname[r]);
@@ -1404,7 +1404,7 @@ static void emit_teq(int rs, int rt)
   output_w32(0xe1300000|rd_rn_rm(0,rs,rt));
 }
 
-static unused void emit_rsbimm(int rs, int imm, int rt)
+static attr_unused void emit_rsbimm(int rs, int imm, int rt)
 {
   u_int armval;
   genimm_checked(imm,&armval);
@@ -1462,7 +1462,7 @@ static void emit_callne(int a)
 }
 
 // Used to preload hash table entries
-static unused void emit_prefetchreg(int r)
+static attr_unused void emit_prefetchreg(int r)
 {
   assem_debug("pld %s\n",regname[r]);
   output_w32(0xf5d0f000|rd_rn_rm(0,r,0));
@@ -1484,7 +1484,7 @@ static void emit_orrne_imm(int rs,int imm,int rt)
   output_w32(0x13800000|rd_rn_rm(rt,rs,0)|armval);
 }
 
-static unused void emit_addpl_imm(int rs,int imm,int rt)
+static attr_unused void emit_addpl_imm(int rs,int imm,int rt)
 {
   u_int armval;
   genimm_checked(imm,&armval);

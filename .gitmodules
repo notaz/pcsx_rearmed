@@ -13,3 +13,6 @@
 [submodule "deps/lightning"]
 	path = deps/lightning
 	url = https://github.com/pcercuei/gnu_lightning.git
+[submodule "deps/libretro-common"]
+	path = deps/libretro-common
+	url = https://github.com/libretro/libretro-common.git

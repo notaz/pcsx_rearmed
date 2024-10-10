@@ -1228,6 +1228,15 @@ void intExecuteBlock(enum blockExecCaller caller) {
 		execI_(memRLUT, regs_);
 }
 
+static void intExecuteBlockBp(enum blockExecCaller caller) {
+	psxRegisters *regs_ = &psxRegs;
+	u8 **memRLUT = psxMemRLUT;
+
+	branchSeen = 0;
+	while (!branchSeen)
+		execIbp(memRLUT, regs_);
+}
+
 static void intClear(u32 Addr, u32 Size) {
 }
 
@@ -1316,6 +1325,7 @@ void intApplyConfig() {
 		psxSPC[0x08] = psxJRe;
 		psxSPC[0x09] = psxJALRe;
 		psxInt.Execute = intExecuteBp;
+		psxInt.ExecuteBlock = intExecuteBlockBp;
 	} else {
 		psxBSC[0x20] = psxLB;
 		psxBSC[0x21] = psxLH;
@@ -1333,6 +1343,7 @@ void intApplyConfig() {
 		psxSPC[0x08] = psxJR;
 		psxSPC[0x09] = psxJALR;
 		psxInt.Execute = intExecute;
+		psxInt.ExecuteBlock = intExecuteBlock;
 	}
 
 	// the dynarec may occasionally call the interpreter, in such a case the

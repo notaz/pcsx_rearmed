@@ -2290,7 +2290,7 @@ static void update_variables(bool in_flight)
          psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
       }
    }
-#endif /* !DRC_DISABLE */
+#endif // !DRC_DISABLE
 
    var.value = NULL;
    var.key = "pcsx_rearmed_psxclock";
@@ -2301,14 +2301,28 @@ static void update_variables(bool in_flight)
    }
 
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+#ifdef NDRC_THREAD
+   var.value = NULL;
+   var.key = "pcsx_rearmed_drc_thread";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      ndrc_g.hacks &= ~(NDHACK_THREAD_FORCE | NDHACK_THREAD_FORCE_ON);
+      if (strcmp(var.value, "disabled") == 0)
+         ndrc_g.hacks |= NDHACK_THREAD_FORCE;
+      else if (strcmp(var.value, "enabled") == 0)
+         ndrc_g.hacks |= NDHACK_THREAD_FORCE | NDHACK_THREAD_FORCE_ON;
+      // psxCpu->ApplyConfig(); will start/stop the thread
+   }
+#endif
+
    var.value = NULL;
    var.key = "pcsx_rearmed_nosmccheck";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_NO_SMC_CHECK;
+         ndrc_g.hacks |= NDHACK_NO_SMC_CHECK;
       else
-         new_dynarec_hacks &= ~NDHACK_NO_SMC_CHECK;
+         ndrc_g.hacks &= ~NDHACK_NO_SMC_CHECK;
    }
 
    var.value = NULL;
@@ -2316,9 +2330,9 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_UNNEEDED;
+         ndrc_g.hacks |= NDHACK_GTE_UNNEEDED;
       else
-         new_dynarec_hacks &= ~NDHACK_GTE_UNNEEDED;
+         ndrc_g.hacks &= ~NDHACK_GTE_UNNEEDED;
    }
 
    var.value = NULL;
@@ -2326,9 +2340,9 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_GTE_NO_FLAGS;
+         ndrc_g.hacks |= NDHACK_GTE_NO_FLAGS;
       else
-         new_dynarec_hacks &= ~NDHACK_GTE_NO_FLAGS;
+         ndrc_g.hacks &= ~NDHACK_GTE_NO_FLAGS;
    }
 
    var.value = NULL;
@@ -2336,9 +2350,9 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       if (strcmp(var.value, "enabled") == 0)
-         new_dynarec_hacks |= NDHACK_NO_COMPAT_HACKS;
+         ndrc_g.hacks |= NDHACK_NO_COMPAT_HACKS;
       else
-         new_dynarec_hacks &= ~NDHACK_NO_COMPAT_HACKS;
+         ndrc_g.hacks &= ~NDHACK_NO_COMPAT_HACKS;
    }
 #endif /* !DRC_DISABLE && !LIGHTREC */
 

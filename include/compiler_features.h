@@ -7,12 +7,12 @@
 # else
 #  define noinline       __attribute__((noinline,noclone))
 # endif
-# define unused          __attribute__((unused))
+# define attr_unused     __attribute__((unused))
 #else
 # define likely(x)       (x)
 # define unlikely(x)     (x)
 # define noinline
-# define unused
+# define attr_unused
 #endif
 
 #ifndef __has_builtin

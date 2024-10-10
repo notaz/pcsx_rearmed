@@ -69,6 +69,20 @@ static Jit g_jit;
 //#define inv_debug printf
 #define inv_debug(...)
 
+// from linkage_*
+extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
+extern int last_count;  // last absolute target, often = next_interupt
+extern int pcaddr;
+extern int pending_exception;
+extern int branch_target;
+
+/* same as psxRegs.CP0.n.* */
+extern int reg_cop0[];
+extern int reg_cop2d[], reg_cop2c[];
+
+extern uintptr_t ram_offset;
+extern uintptr_t mini_ht[32][2];
+
 #ifdef __i386__
 #include "assem_x86.h"
 #endif
@@ -83,7 +97,6 @@ static Jit g_jit;
 #endif
 
 #define RAM_SIZE 0x200000
-#define MAXBLOCK 2048
 #define MAX_OUTPUT_BLOCK_SIZE 262144
 #define EXPIRITY_OFFSET (MAX_OUTPUT_BLOCK_SIZE * 2)
 #define PAGE_COUNT 1024
@@ -99,6 +112,8 @@ static Jit g_jit;
 #else
 #define TC_REDUCE_BYTES 0
 #endif
+
+struct ndrc_globals ndrc_g;
 
 struct ndrc_tramp
 {
@@ -269,7 +284,7 @@ static struct compile_info
   static uint64_t gte_rs[MAXBLOCK]; // gte: 32 data and 32 ctl regs
   static uint64_t gte_rt[MAXBLOCK];
   static uint64_t gte_unneeded[MAXBLOCK];
-  static u_int smrv[32]; // speculated MIPS register values
+  unsigned int ndrc_smrv_regs[32]; // speculated MIPS register values
   static u_int smrv_strong; // mask or regs that are likely to have correct values
   static u_int smrv_weak; // same, but somewhat less likely
   static u_int smrv_strong_next; // same, but after current insn executes
@@ -319,20 +334,7 @@ static struct compile_info
   #define stat_clear(s)
 #endif
 
-  int new_dynarec_hacks;
-  int new_dynarec_hacks_pergame;
-  int new_dynarec_hacks_old;
-  int new_dynarec_did_compile;
-
-  #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
-
-  extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
-  extern int last_count;  // last absolute target, often = next_interupt
-  extern int pcaddr;
-  extern int pending_exception;
-  extern int branch_target;
-  extern uintptr_t ram_offset;
-  extern uintptr_t mini_ht[32][2];
+  #define HACK_ENABLED(x) ((ndrc_g.hacks | ndrc_g.hacks_pergame) & (x))
 
   /* registers that may be allocated */
   /* 1-31 gpr */
@@ -403,7 +405,6 @@ void jump_to_new_pc();
 void call_gteStall();
 void new_dyna_leave();
 
-void *ndrc_get_addr_ht_param(u_int vaddr, int can_compile);
 void *ndrc_get_addr_ht(u_int vaddr);
 void ndrc_add_jump_out(u_int vaddr, void *src);
 void ndrc_write_invalidate_one(u_int addr);
@@ -494,6 +495,7 @@ static void end_tcache_write(void *start, void *end)
   sceKernelSyncVMDomain(sceBlock, start, len);
   #elif defined(_3DS)
   ctr_flush_invalidate_cache();
+  ndrc_g.thread.cache_dirty = 1;
   #elif defined(HAVE_LIBNX)
   if (g_jit.type == JitType_CodeMemory) {
     armDCacheClean(start, len);
@@ -502,8 +504,8 @@ static void end_tcache_write(void *start, void *end)
     __asm__ volatile("isb" ::: "memory");
   }
   #elif defined(__aarch64__)
-  // as of 2021, __clear_cache() is still broken on arm64
-  // so here is a custom one :(
+  // __clear_cache() doesn't handle differing cacheline sizes on big.LITTLE and
+  // leaves it to the kernel to virtualize ctr_el0, which some old kernels don't do
   clear_cache_arm64(start, end);
   #else
   __clear_cache(start, end);
@@ -597,7 +599,6 @@ static void do_clear_cache(void)
 
 #define NO_CYCLE_PENALTY_THR 12
 
-int cycle_multiplier_old;
 static int cycle_multiplier_active;
 
 static int CLOCK_ADJUST(int x)
@@ -726,7 +727,7 @@ static int doesnt_expire_soon(u_char *tcaddr)
   return diff > EXPIRITY_OFFSET + MAX_OUTPUT_BLOCK_SIZE;
 }
 
-static unused void check_for_block_changes(u_int start, u_int end)
+static attr_unused void check_for_block_changes(u_int start, u_int end)
 {
   u_int start_page = get_page_prev(start);
   u_int end_page = get_page(end - 1);
@@ -805,7 +806,7 @@ static noinline u_int generate_exception(u_int pc)
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
-static void noinline *get_addr(u_int vaddr, int can_compile)
+static void noinline *get_addr(const u_int vaddr, enum ndrc_compile_mode compile_mode)
 {
   u_int start_page = get_page_prev(vaddr);
   u_int i, page, end_page = get_page(vaddr);
@@ -833,18 +834,29 @@ static void noinline *get_addr(u_int vaddr, int can_compile)
   if (found_clean)
     return found_clean;
 
-  if (!can_compile)
+  if (compile_mode == ndrc_cm_no_compile)
     return NULL;
+#ifdef NDRC_THREAD
+  if (ndrc_g.thread.handle && compile_mode == ndrc_cm_compile_live) {
+    psxRegs.pc = vaddr;
+    return new_dyna_leave;
+  }
+  if (!ndrc_g.thread.handle)
+#endif
+  memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
 
   int r = new_recompile_block(vaddr);
   if (likely(r == 0))
     return ndrc_get_addr_ht(vaddr);
 
-  return ndrc_get_addr_ht(generate_exception(vaddr));
+  if (compile_mode == ndrc_cm_compile_live)
+    return ndrc_get_addr_ht(generate_exception(vaddr));
+
+  return NULL;
 }
 
 // Look up address in hash table first
-void *ndrc_get_addr_ht_param(u_int vaddr, int can_compile)
+void *ndrc_get_addr_ht_param(unsigned int vaddr, enum ndrc_compile_mode compile_mode)
 {
   //check_for_block_changes(vaddr, vaddr + MAXBLOCK);
   const struct ht_entry *ht_bin = hash_table_get(vaddr);
@@ -852,12 +864,14 @@ void *ndrc_get_addr_ht_param(u_int vaddr, int can_compile)
   stat_inc(stat_ht_lookups);
   if (ht_bin->vaddr[0] == vaddr_a) return ht_bin->tcaddr[0];
   if (ht_bin->vaddr[1] == vaddr_a) return ht_bin->tcaddr[1];
-  return get_addr(vaddr, can_compile);
+  return get_addr(vaddr, compile_mode);
 }
 
+// "usual" addr lookup for indirect branches, etc
+// to be used by currently running code only
 void *ndrc_get_addr_ht(u_int vaddr)
 {
-  return ndrc_get_addr_ht_param(vaddr, 1);
+  return ndrc_get_addr_ht_param(vaddr, ndrc_cm_compile_live);
 }
 
 static void clear_all_regs(signed char regmap[])
@@ -1239,6 +1253,7 @@ static const struct {
   FUNCNAME(cc_interrupt),
   FUNCNAME(gen_interupt),
   FUNCNAME(ndrc_get_addr_ht),
+  FUNCNAME(ndrc_get_addr_ht_param),
   FUNCNAME(jump_handler_read8),
   FUNCNAME(jump_handler_read16),
   FUNCNAME(jump_handler_read32),
@@ -1613,6 +1628,24 @@ static int invalidate_range(u_int start, u_int end,
 void new_dynarec_invalidate_range(unsigned int start, unsigned int end)
 {
   invalidate_range(start, end, NULL, NULL);
+}
+
+// check if the range may need invalidation (must be thread-safe)
+int new_dynarec_quick_check_range(unsigned int start, unsigned int end)
+{
+  u_int start_page = get_page_prev(start);
+  u_int end_page = get_page(end - 1);
+  u_int page;
+
+  if (inv_code_start <= start && end <= inv_code_end)
+    return 0;
+  for (page = start_page; page <= end_page; page++) {
+    if (blocks[page]) {
+      //SysPrintf("quick hit %x-%x\n", start, end);
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static void ndrc_write_invalidate_many(u_int start, u_int end)
@@ -2845,8 +2878,8 @@ static void *emit_fastpath_cmp_jump(int i, const struct regstat *i_regs,
   assert(addr >= 0);
   *offset_reg = -1;
   if(((smrv_strong|smrv_weak)>>mr)&1) {
-    type=get_ptr_mem_type(smrv[mr]);
-    //printf("set %08x @%08x r%d %d\n", smrv[mr], start+i*4, mr, type);
+    type=get_ptr_mem_type(ndrc_smrv_regs[mr]);
+    //printf("set %08x @%08x r%d %d\n", ndrc_smrv_regs[mr], start+i*4, mr, type);
   }
   else {
     // use the mirror we are running on
@@ -4209,28 +4242,27 @@ static void intcall_assemble(int i, const struct regstat *i_regs, int ccadj_)
 
 static void speculate_mov(int rs,int rt)
 {
-  if(rt!=0) {
-    smrv_strong_next|=1<<rt;
-    smrv[rt]=smrv[rs];
+  if (rt != 0) {
+    smrv_strong_next |= 1 << rt;
+    ndrc_smrv_regs[rt] = ndrc_smrv_regs[rs];
   }
 }
 
 static void speculate_mov_weak(int rs,int rt)
 {
-  if(rt!=0) {
-    smrv_weak_next|=1<<rt;
-    smrv[rt]=smrv[rs];
+  if (rt != 0) {
+    smrv_weak_next |= 1 << rt;
+    ndrc_smrv_regs[rt] = ndrc_smrv_regs[rs];
   }
 }
 
 static void speculate_register_values(int i)
 {
   if(i==0) {
-    memcpy(smrv,psxRegs.GPR.r,sizeof(smrv));
     // gp,sp are likely to stay the same throughout the block
     smrv_strong_next=(1<<28)|(1<<29)|(1<<30);
     smrv_weak_next=~smrv_strong_next;
-    //printf(" llr %08x\n", smrv[4]);
+    //printf(" llr %08x\n", ndrc_smrv_regs[4]);
   }
   smrv_strong=smrv_strong_next;
   smrv_weak=smrv_weak_next;
@@ -4255,8 +4287,8 @@ static void speculate_register_values(int i)
         u_int value;
         if(hr>=0) {
           if(get_final_value(hr,i,&value))
-               smrv[dops[i].rt1]=value;
-          else smrv[dops[i].rt1]=constmap[i][hr];
+               ndrc_smrv_regs[dops[i].rt1]=value;
+          else ndrc_smrv_regs[dops[i].rt1]=constmap[i][hr];
           smrv_strong_next|=1<<dops[i].rt1;
         }
       }
@@ -4266,9 +4298,9 @@ static void speculate_register_values(int i)
       }
       break;
     case LOAD:
-      if(start<0x2000&&(dops[i].rt1==26||(smrv[dops[i].rt1]>>24)==0xa0)) {
+      if(start<0x2000&&(dops[i].rt1==26||(ndrc_smrv_regs[dops[i].rt1]>>24)==0xa0)) {
         // special case for BIOS
-        smrv[dops[i].rt1]=0xa0000000;
+        ndrc_smrv_regs[dops[i].rt1]=0xa0000000;
         smrv_strong_next|=1<<dops[i].rt1;
         break;
       }
@@ -4295,7 +4327,7 @@ static void speculate_register_values(int i)
   }
 #if 0
   int r=4;
-  printf("x %08x %08x %d %d c %08x %08x\n",smrv[r],start+i*4,
+  printf("x %08x %08x %d %d c %08x %08x\n",ndrc_smrv_regs[r],start+i*4,
     ((smrv_strong>>r)&1),(smrv_weak>>r)&1,regs[i].isconst,regs[i].wasconst);
 #endif
 }
@@ -6251,14 +6283,14 @@ void new_dynarec_clear_full(void)
   stat_clear(stat_blocks);
   stat_clear(stat_links);
 
-  if (cycle_multiplier_old != Config.cycle_multiplier
-      || new_dynarec_hacks_old != new_dynarec_hacks)
+  if (ndrc_g.cycle_multiplier_old != Config.cycle_multiplier
+      || ndrc_g.hacks_old != ndrc_g.hacks)
   {
     SysPrintf("ndrc config: mul=%d, ha=%x, pex=%d\n",
-      get_cycle_multiplier(), new_dynarec_hacks, Config.PreciseExceptions);
+      get_cycle_multiplier(), ndrc_g.hacks, Config.PreciseExceptions);
   }
-  cycle_multiplier_old = Config.cycle_multiplier;
-  new_dynarec_hacks_old = new_dynarec_hacks;
+  ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
+  ndrc_g.hacks_old = ndrc_g.hacks;
 }
 
 static int pgsize(void)
@@ -6516,7 +6548,7 @@ void new_dynarec_load_blocks(const void *save, int size)
         psxRegs.GPR.r[i] = 0x1f800000;
     }
 
-    ndrc_get_addr_ht(sblocks[b].addr);
+    ndrc_get_addr_ht_param(sblocks[b].addr, ndrc_cm_compile_offline);
 
     for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
@@ -8368,7 +8400,6 @@ static noinline void pass5a_preallocate1(void)
 static noinline void pass5b_preallocate2(void)
 {
   int i, hr, limit = min(slen - 1, MAXBLOCK - 2);
-  assert(slen < MAXBLOCK - 1);
   for (i = 0; i < limit; i++)
   {
     if (!i || !dops[i-1].is_jump)
@@ -8987,7 +9018,7 @@ static int new_recompile_block(u_int addr)
   }
 
   start = addr;
-  new_dynarec_did_compile=1;
+  ndrc_g.did_compile = 1;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     void *beginning = start_block();

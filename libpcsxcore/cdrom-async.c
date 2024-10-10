@@ -114,7 +114,7 @@ static int cdrom_is_media_inserted(void *stream) { return 0; }
 
 #ifdef USE_ASYNC_CDROM
 
-#include "rthreads/rthreads.h"
+#include "../frontend/libretro-rthreads.h"
 #include "retro_timers.h"
 
 struct cached_buf {
@@ -273,6 +273,7 @@ static void cdra_start_thread(void)
          acdrom.buf_cache[i].lba = ~0;
    }
    if (acdrom.thread) {
+      sthread_set_name(acdrom.thread, "pcsxr-cdrom");
       SysPrintf("cdrom precache: %d buffers%s\n",
             acdrom.buf_cnt, acdrom.have_subchannel ? " +sub" : "");
    }
