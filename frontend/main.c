@@ -14,6 +14,9 @@
 #if !defined(_WIN32) && !defined(NO_DYLIB)
 #include <dlfcn.h>
 #endif
+#ifdef HAVE_CPU_FEATURES
+#include "features/features_cpu.h"
+#endif
 
 #include "main.h"
 #include "plugin.h"
@@ -510,6 +513,9 @@ int emu_core_preinit(void)
 int emu_core_init(void)
 {
 	SysPrintf("Starting PCSX-ReARMed " REV "%s\n", get_build_info());
+#ifdef HAVE_CPU_FEATURES
+	SysPrintf("%d cpu core(s) detected\n", cpu_features_get_core_amount());
+#endif
 
 #ifndef NO_FRONTEND
 	check_profile();

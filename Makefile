@@ -21,6 +21,10 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 #LDFLAGS += -static-libasan
 endif
+ifneq ($(NO_FSECTIONS), 1)
+CFLAGS += -ffunction-sections -fdata-sections
+LDFLAGS += -Wl,--gc-sections
+endif
 CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
 	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
 	  -DP_HAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1) \
@@ -100,6 +104,13 @@ ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
+
+ifeq "$(USE_ASYNC_CDROM)" "1"
+libpcsxcore/cdrom-async.o: CFLAGS += -DUSE_ASYNC_CDROM
+frontend/libretro.o: CFLAGS += -DUSE_ASYNC_CDROM
+frontend/menu.o: CFLAGS += -DUSE_ASYNC_CDROM
+USE_RTHREADS := 1
+endif
 
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
@@ -341,8 +352,7 @@ frontend/main.o frontend/menu.o: CFLAGS += -include frontend/pandora/ui_feat.h
 frontend/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
-CFLAGS += -gdwarf-3 -ffunction-sections -fdata-sections
-LDFLAGS += -Wl,--gc-sections
+CFLAGS += -gdwarf-3
 endif
 ifeq "$(PLATFORM)" "caanoo"
 OBJS += frontend/libpicofe/gp2x/in_gp2x.o frontend/warm/warm.o
@@ -375,10 +385,6 @@ OBJS += deps/libretro-common/lists/string_list.o
 OBJS += deps/libretro-common/memmap/memalign.o
 OBJS += deps/libretro-common/vfs/vfs_implementation_cdrom.o
 CFLAGS += -DHAVE_CDROM
-endif
-ifeq "$(USE_ASYNC_CDROM)" "1"
-CFLAGS += -DUSE_ASYNC_CDROM
-USE_RTHREADS := 1
 endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += deps/libretro-common/compat/compat_posix_string.o
@@ -441,6 +447,8 @@ frontend/main.o: CFLAGS += -DBUILTIN_GPU=$(BUILTIN_GPU)
 
 frontend/menu.o frontend/main.o: frontend/revision.h
 frontend/plat_sdl.o frontend/libretro.o: frontend/revision.h
+
+CFLAGS += $(CFLAGS_LAST)
 
 frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
