@@ -487,6 +487,10 @@ void cdra_set_buf_count(int newcount)
    cdra_start_thread();
 }
 
+int cdra_get_buf_count(void)
+{
+   return acdrom.buf_cnt;
+}
 #else
 
 // phys. CD-ROM without a cache is unusable so not implemented
@@ -561,6 +565,7 @@ int cdra_is_physical(void) { return 0; }
 int cdra_check_eject(int *inserted) { return 0; }
 void cdra_stop_thread(void) {}
 void cdra_set_buf_count(int newcount) {}
+int  cdra_get_buf_count(void) { return 0; }
 
 #endif
 

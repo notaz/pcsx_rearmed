@@ -104,6 +104,7 @@ static char last_selected_fname[MAXPATHLEN];
 static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
 static int memcard1_sel = -1, memcard2_sel = -1;
+static int cd_buf_count;
 extern int g_autostateld_opt;
 static int menu_iopts[8];
 int g_opts, g_scaler, g_gamma = 100;
@@ -436,6 +437,7 @@ static const struct {
 	CE_INTVAL(memcard1_sel),
 	CE_INTVAL(memcard2_sel),
 	CE_INTVAL(g_autostateld_opt),
+	CE_INTVAL(cd_buf_count),
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 4),
@@ -529,6 +531,8 @@ static int menu_write_config(int is_game)
 		printf("menu_write_config: failed to open: %s\n", cfgfile);
 		return -1;
 	}
+
+	cd_buf_count = cdra_get_buf_count();
 
 	for (i = 0; i < ARRAY_SIZE(config_data); i++) {
 		fprintf(f, "%s = ", config_data[i].name);
@@ -691,6 +695,7 @@ int menu_load_config(int is_game)
 	}
 
 	keys_load_all(cfg);
+	cdra_set_buf_count(cd_buf_count);
 	ret = 0;
 fail_read:
 	free(cfg);
@@ -1687,6 +1692,9 @@ static menu_entry e_menu_adv_options[] =
 	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_autooo, h_cfg_gpul),
 	mee_enum_h    ("Fractional framerate",   0, menu_iopts[AMO_FFPS], men_autooo, h_cfg_ffps),
 	mee_onoff_h   ("Turbo CD-ROM ",          0, menu_iopts[AMO_TCD], 1, h_cfg_tcd),
+#ifdef USE_ASYNC_CDROM
+	mee_range     ("CD-ROM read-ahead",      0, cd_buf_count, 0, 1024),
+#endif
 #if !defined(DRC_DISABLE) || defined(LIGHTREC)
 	mee_onoff_h   ("Disable dynarec (slow!)",0, menu_iopts[AMO_CPU],  1, h_cfg_nodrc),
 #endif
@@ -1721,6 +1729,7 @@ static int menu_loop_adv_options(int id, int keys)
 		*opts[i].opt = *opts[i].mopt;
 	Config.GpuListWalking = menu_iopts[AMO_GPUL] - 1;
 	Config.FractionalFramerate = menu_iopts[AMO_FFPS] - 1;
+	cdra_set_buf_count(cd_buf_count);
 
 	return 0;
 }
