@@ -23,8 +23,11 @@
 #ifndef _CTR_PTHREAD_WRAP_CTR_
 #define _CTR_PTHREAD_WRAP_CTR_
 
+#include <3ds/thread.h>
+#include <3ds/services/apt.h>
 #include "3ds_utils.h"
 
+#include <sys/time.h>
 #include <time.h>
 #include <errno.h>
 

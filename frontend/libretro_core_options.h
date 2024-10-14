@@ -1612,6 +1612,30 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
+#ifdef _3DS
+#define V(x) { #x, NULL }
+   {
+      "pcsx_rearmed_3ds_appcputime",
+      "3DS AppCpuTimeLimit",
+      NULL,
+      "% of syscore (core #1) CPU time allocated to the emulator",
+      NULL,
+      "speed_hack",
+      {
+         V( 5),  V(10),
+         V(15),  V(20),
+         V(25),  V(30),
+         V(35),  V(40),
+         V(45),  V(50),
+         V(55),  V(60),
+         V(65),  V(70),
+         V(75),  V(80),
+         { NULL, NULL},
+      },
+      "35",
+   },
+#undef V
+#endif // _3DS
    {
       "pcsx_rearmed_cd_turbo",
       "Turbo CD",

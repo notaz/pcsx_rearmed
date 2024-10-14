@@ -3,7 +3,8 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-#include <3ds.h>
+#include <3ds/os.h>
+#include <3ds/svc.h>
 
 #ifdef OS_HEAP_AREA_BEGIN // defined in libctru 2.0+
 #define USE_CTRULIB_2 1
