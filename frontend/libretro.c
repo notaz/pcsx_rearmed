@@ -50,6 +50,9 @@
 #endif
 
 #ifdef _3DS
+#include <3ds/svc.h>
+#include <3ds/services/apt.h>
+#include <3ds/allocator/linear.h>
 #include "3ds/3ds_utils.h"
 #endif
 
@@ -2777,6 +2780,15 @@ static void update_variables(bool in_flight)
    {
       mouse_sensitivity = atof(var.value);
    }
+
+#ifdef _3DS
+   var.value = NULL;
+   var.key = "pcsx_rearmed_3ds_appcputime";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      APT_SetAppCpuTimeLimit(strtol(var.value, NULL, 10));
+   }
+#endif
 
    if (found_bios)
    {

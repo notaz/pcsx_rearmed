@@ -268,12 +268,11 @@ static void cdra_start_thread(void)
    if (acdrom.buf_cache && acdrom.buf_lock && acdrom.read_lock && acdrom.cond)
    {
       int i;
-      acdrom.thread = sthread_create(cdra_prefetch_thread, NULL);
+      acdrom.thread = pcsxr_sthread_create(cdra_prefetch_thread, PCSXRT_CDR);
       for (i = 0; i < acdrom.buf_cnt; i++)
          acdrom.buf_cache[i].lba = ~0;
    }
    if (acdrom.thread) {
-      sthread_set_name(acdrom.thread, "pcsxr-cdrom");
       SysPrintf("cdrom precache: %d buffers%s\n",
             acdrom.buf_cnt, acdrom.have_subchannel ? " +sub" : "");
    }

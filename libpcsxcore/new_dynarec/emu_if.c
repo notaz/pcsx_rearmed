@@ -499,7 +499,7 @@ static void ari64_thread_init(void)
 		ndrc_g.thread.cond = scond_new();
 	}
 	if (ndrc_g.thread.lock && ndrc_g.thread.cond)
-		ndrc_g.thread.handle = sthread_create(ari64_compile_thread, NULL);
+		ndrc_g.thread.handle = pcsxr_sthread_create(ari64_compile_thread, PCSXRT_DRC);
 	if (ndrc_g.thread.handle) {
 		psxRec.Execute = ari64_execute_threaded;
 		psxRec.ExecuteBlock = ari64_execute_threaded_block;

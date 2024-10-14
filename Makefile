@@ -410,7 +410,7 @@ endif # $(PLATFORM) == "libretro"
 ifeq "$(USE_RTHREADS)" "1"
 OBJS += frontend/libretro-rthreads.o
 OBJS += deps/libretro-common/features/features_cpu.o
-frontend/main.o: CFLAGS += -DHAVE_CPU_FEATURES
+frontend/main.o: CFLAGS += -DHAVE_RTHREADS
 INC_LIBRETRO_COMMON := 1
 endif
 ifeq "$(INC_LIBRETRO_COMMON)" "1"
