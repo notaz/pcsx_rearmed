@@ -39,12 +39,13 @@ check_define_val()
 
 platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
-builtin_gpu_list="neon peops unai"
+builtin_gpu_list="neon peops unai unai_old"
+dynarec_list="ari64 lightrec none"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
-plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
+plugins/dfxvideo/gpu_peops.so plugins/gpu_unai_old/gpu_unai_old.so plugins/gpu_unai/gpu_unai.so"
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
@@ -54,7 +55,7 @@ have_arm_neon_asm=""
 have_tslib=""
 have_gles=""
 have_c64x_dsp=""
-enable_dynarec="yes"
+dynarec=""
 need_sdl="no"
 need_xlib="no"
 need_libpicofe="yes"
@@ -145,7 +146,9 @@ for opt do
   ;;
   --disable-neon) have_arm_neon="no"
   ;;
-  --disable-dynarec) enable_dynarec="no"
+  --dynarec=*) dynarec="$optarg"
+  ;;
+  --disable-dynarec) dynarec="no"
   ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
@@ -163,8 +166,8 @@ if [ "$show_help" = "yes" ]; then
   echo "                           available: $sound_driver_list"
   echo "  --enable-neon"
   echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
-  echo "  --disable-dynarec        disable dynamic recompiler"
-  echo "                           (dynarec is only available and enabled on ARM)"
+  echo "  --dynarec=NAME           select dynamic recompiler [guessed]"
+  echo "                           available: $dynarec_list"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
@@ -245,12 +248,16 @@ arm*)
     have_armv5=`check_define HAVE_ARMV5 && echo yes` || true
   fi
 
+  if [ "x$dynarec" = "x" ]; then
+    dynarec="ari64"
+  fi
+
   if [ "x$builtin_gpu" = "x" ]; then
     if [ "$have_arm_neon" = "yes" ]; then
       builtin_gpu="neon"
     elif [ "$have_armv7" != "yes" ]; then
       # pre-ARMv7 hardware is usually not fast enough for peops
-      builtin_gpu="unai"
+      builtin_gpu="unai_old"
     else
       builtin_gpu="peops"
     fi
@@ -295,19 +302,25 @@ arm*)
 aarch64)
   have_arm_neon="yes"
   have_arm_neon_asm="no"
+  if [ "x$dynarec" = "x" ]; then
+    dynarec="ari64"
+  fi
   if [ "x$builtin_gpu" = "x" ]; then
     builtin_gpu="neon"
   fi
   ;;
 x86_64)
-  enable_dynarec="no"
+  if [ "x$dynarec" = "x" ]; then
+    dynarec="lightrec"
+  fi
   if [ "x$builtin_gpu" = "x" ]; then
     builtin_gpu="neon"
   fi
   ;;
 *)
-  # dynarec only available on ARM
-  enable_dynarec="no"
+  if [ "x$dynarec" = "x" ]; then
+    dynarec="lightrec"
+  fi
   ;;
 esac
 
@@ -545,7 +558,7 @@ echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
-echo "enable dynarec      $enable_dynarec"
+echo "dynarec             $dynarec"
 if [ "$ARCH" = "arm" -o "$ARCH" = "aarch64" ]; then
   echo "enable ARM NEON     $have_arm_neon"
 fi
@@ -596,9 +609,7 @@ if [ "$have_gles" = "yes" ]; then
   echo "CFLAGS_GLES = $CFLAGS_GLES" >> $config_mak
   echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
-if [ "$enable_dynarec" = "yes" ]; then
-  echo "DYNAREC = ari64" >> $config_mak
-fi
+echo "DYNAREC = $dynarec" >> $config_mak
 if [ "$drc_cache_base" = "yes" ]; then
   echo "BASE_ADDR_DYNAMIC = 1" >> $config_mak
 fi

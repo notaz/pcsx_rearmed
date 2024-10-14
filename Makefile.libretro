@@ -249,7 +249,7 @@ else ifeq ($(platform), libnx)
    CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition # -include $(LIBNX)/include/switch.h
    CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_DYLIB -D__arm64__ -D__ARM_NEON__
    CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
-   CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
+   CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd
    CFLAGS += -ftree-vectorize
    CFLAGS += -Ifrontend/switch -ftree-vectorize
    NO_POSIX_MEMALIGN := 1
@@ -299,15 +299,15 @@ else ifeq ($(platform), psp1)
 else ifeq ($(platform), vita)
 	TARGET := $(TARGET_NAME)_libretro_vita.a
 	CFLAGS += -DVITA
-	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+	CFLAGS += -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -marm
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
 	CFLAGS += -fno-optimize-sibling-calls
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_DYLIB
-	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	CFLAGS_LAST += -O3
+	ASFLAGS += -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon
 
-#	CFLAGS += -U__ARM_NEON__
 	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	BUILTIN_GPU = neon
@@ -326,6 +326,7 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer
+	CFLAGS_LAST += -O3
 	# CFLAGS += -funroll-loops # ~500K of bloat
 	CFLAGS += -Ifrontend/3ds -I$(CTRULIB)/include
 	CFLAGS += -Werror=implicit-function-declaration
@@ -619,10 +620,7 @@ ifeq ($(NO_UNDEF_CHECK)$(shell $(LD) -v 2> /dev/null | awk '{print $$1}'),GNU)
  ifeq (,$(findstring $(platform),win32))
  MAIN_LDFLAGS += -Wl,-version-script=frontend/link.T
  endif
- ifneq ($(STATIC_LINKING), 1)
- CFLAGS += -ffunction-sections -fdata-sections
- endif
-MAIN_LDFLAGS += -Wl,--gc-sections -Wl,--no-undefined
+MAIN_LDFLAGS += -Wl,--no-undefined
 endif
 ifdef ALLOW_LIGHTREC_ON_ARM
 CFLAGS += -DALLOW_LIGHTREC_ON_ARM

@@ -3,13 +3,17 @@
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
 CFLAGS += -Wall -Iinclude -ffast-math
-ifeq ($(DEBUG), 1)
-CFLAGS += -O0 -ggdb
-else
-ifeq ($(platform), $(filter $(platform), vita ctr))
-CFLAGS += -O3 -DNDEBUG
-else
-CFLAGS += -O2 -DNDEBUG
+
+DEBUG ?= 0
+DEBUG_SYMS ?= 0
+ASSERTS ?= 0
+ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
+CFLAGS += -ggdb
+endif
+ifneq ($(DEBUG), 1)
+CFLAGS += -O2
+ifneq ($(ASSERTS), 1)
+CFLAGS += -DNDEBUG
 endif
 endif
 ifeq ($(DEBUG_ASAN), 1)
@@ -66,10 +70,7 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cdrom-async.o \
 	libpcsxcore/psxevents.o libpcsxcore/r3000a.o \
 	libpcsxcore/sio.o libpcsxcore/spu.o libpcsxcore/gpu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
-
-ifeq ($(DEBUG), 1)
-#OBJS += libpcsxcore/debug.o	libpcsxcore/socket.o libpcsxcore/disr3000a.o
-endif
+#OBJS += libpcsxcore/debug.o libpcsxcore/socket.o libpcsxcore/disr3000a.o
 
 ifeq ($(WANT_ZLIB),1)
 ZLIB_DIR = deps/libchdr/deps/zlib-1.3.1
@@ -91,6 +92,7 @@ OBJS += $(ZLIB_DIR)/adler32.o \
         $(ZLIB_DIR)/zutil.o
 $(ZLIB_DIR)/%.o: CFLAGS += -DHAVE_UNISTD_H
 endif
+
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
@@ -234,11 +236,18 @@ CFLAGS += -DTHREAD_RENDERING
 OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
 endif
+ifeq "$(BUILTIN_GPU)" "unai_old"
+OBJS += plugins/gpu_unai_old/gpulib_if.o
+ifeq "$(ARCH)" "arm"
+OBJS += plugins/gpu_unai_old/gpu_arm.o
+endif
+plugins/gpu_unai_old/gpulib_if.o: CFLAGS += -DREARMED -O3
+CC_LINK = $(CXX)
+endif
+
 ifeq "$(BUILTIN_GPU)" "unai"
 CFLAGS += -DGPU_UNAI
 CFLAGS += -DUSE_GPULIB=1
-#CFLAGS += -DINLINE="static __inline__"
-#CFLAGS += -Dasm="__asm__ __volatile__"
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
@@ -247,7 +256,7 @@ ifeq "$(THREAD_RENDERING)" "1"
 CFLAGS += -DTHREAD_RENDERING
 OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1 -O3
 CC_LINK = $(CXX)
 endif
 
@@ -261,7 +270,7 @@ OBJS += $(LCHDR)/src/libchdr_cdrom.o
 OBJS += $(LCHDR)/src/libchdr_chd.o
 OBJS += $(LCHDR)/src/libchdr_flac.o
 OBJS += $(LCHDR)/src/libchdr_huffman.o
-$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -std=gnu11
+$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -Wno-maybe-uninitialized -std=gnu11
 OBJS += $(LCHDR_LZMA)/src/Alloc.o
 OBJS += $(LCHDR_LZMA)/src/CpuArch.o
 OBJS += $(LCHDR_LZMA)/src/Delta.o
@@ -286,7 +295,6 @@ $(LCHDR_ZSTD)/decompress/%.o: CFLAGS += -I$(LCHDR_ZSTD)
 $(LCHDR)/src/%.o: CFLAGS += -I$(LCHDR_ZSTD)
 libpcsxcore/cdriso.o: CFLAGS += -Wno-unused-function
 CFLAGS += -DHAVE_CHD -I$(LCHDR)/include
-LDFLAGS += -lm
 endif
 
 # frontend/gui
@@ -376,9 +384,7 @@ OBJS += deps/libretro-common/time/rtime.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
 OBJS += frontend/libretro.o
-CFLAGS += -Ideps/libretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
-CFLAGS += -DHAVE_LIBRETRO
 
 ifneq ($(DYNAREC),lightrec)
 ifeq ($(MMAP_WIN32),1)
@@ -434,11 +440,6 @@ frontend/revision.h: FORCE
 %.o: %.S
 	$(CC_AS) $(CFLAGS) -c $^ -o $@
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 target_: $(TARGET)
 
@@ -468,6 +469,12 @@ clean_plugins:
 endif
 
 .PHONY: all clean target_ plugins_ clean_plugins FORCE
+
+ifneq "$(PLATFORM)" "pandora"
+ifdef CPATH
+$(warning warning: CPATH is defined)
+endif
+endif
 
 # ----------- release -----------
 

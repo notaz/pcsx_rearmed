@@ -451,15 +451,20 @@ static int parsecue(const char *isofile) {
 			if (t != 1)
 				sscanf(linebuf, " FILE %255s", tmpb);
 
-			tmp = strrchr(tmpb, '\\');
-			if (tmp == NULL)
-				tmp = strrchr(tmpb, '/');
-			if (tmp != NULL)
-				tmp++;
-			else
-				tmp = tmpb;
-			strncpy(incue_fname, tmp, incue_max_len);
-			ti[numtracks + 1].handle = fopen(filepath, "rb");
+			// absolute path?
+			ti[numtracks + 1].handle = fopen(tmpb, "rb");
+			if (ti[numtracks + 1].handle == NULL) {
+				// relative to .cue?
+				tmp = strrchr(tmpb, '\\');
+				if (tmp == NULL)
+					tmp = strrchr(tmpb, '/');
+				if (tmp != NULL)
+					tmp++;
+				else
+					tmp = tmpb;
+				strncpy(incue_fname, tmp, incue_max_len);
+				ti[numtracks + 1].handle = fopen(filepath, "rb");
+			}
 
 			// update global offset if this is not first file in this .cue
 			if (numtracks + 1 > 1) {
@@ -973,27 +978,27 @@ static int handlechd(const char *isofile) {
 	numtracks = 0;
 	memset(ti, 0, sizeof(ti));
 
-   while (1)
-   {
-      struct {
-         char type[64];
-         char subtype[32];
-         char pgtype[32];
-         char pgsub[32];
-         uint32_t track;
-         uint32_t frames;
-         uint32_t pregap;
-         uint32_t postgap;
-      } md = {};
-      char meta[256];
-      uint32_t meta_size = 0;
+	while (1)
+	{
+		struct {
+			char type[64];
+			char subtype[32];
+			char pgtype[32];
+			char pgsub[32];
+			uint32_t track;
+			uint32_t frames;
+			uint32_t pregap;
+			uint32_t postgap;
+		} md = {};
+		char meta[256];
+		uint32_t meta_size = 0;
 
-      if (chd_get_metadata(chd_img->chd, CDROM_TRACK_METADATA2_TAG, numtracks, meta, sizeof(meta), &meta_size, NULL, NULL) == CHDERR_NONE)
-         sscanf(meta, CDROM_TRACK_METADATA2_FORMAT, &md.track, md.type, md.subtype, &md.frames, &md.pregap, md.pgtype, md.pgsub, &md.postgap);
-      else if (chd_get_metadata(chd_img->chd, CDROM_TRACK_METADATA_TAG, numtracks, meta, sizeof(meta), &meta_size, NULL, NULL) == CHDERR_NONE)
-         sscanf(meta, CDROM_TRACK_METADATA_FORMAT, &md.track, md.type, md.subtype, &md.frames);
-      else
-         break;
+		if (chd_get_metadata(chd_img->chd, CDROM_TRACK_METADATA2_TAG, numtracks, meta, sizeof(meta), &meta_size, NULL, NULL) == CHDERR_NONE)
+			sscanf(meta, CDROM_TRACK_METADATA2_FORMAT, &md.track, md.type, md.subtype, &md.frames, &md.pregap, md.pgtype, md.pgsub, &md.postgap);
+		else if (chd_get_metadata(chd_img->chd, CDROM_TRACK_METADATA_TAG, numtracks, meta, sizeof(meta), &meta_size, NULL, NULL) == CHDERR_NONE)
+			sscanf(meta, CDROM_TRACK_METADATA_FORMAT, &md.track, md.type, md.subtype, &md.frames);
+		else
+			break;
 
 		SysPrintf("chd: %s\n", meta);
 
