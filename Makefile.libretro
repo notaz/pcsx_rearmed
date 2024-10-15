@@ -338,7 +338,8 @@ else ifeq ($(platform), ctr)
  	$(error "CTRULIB env var is not set")
 	endif
 	TARGET := $(TARGET_NAME)_libretro_ctr.a
-	CFLAGS += -DARM11 -D_3DS -DNO_DYLIB -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
+	CFLAGS += -DARM11 -D_3DS -D__3DS__
+	CFLAGS += -DNO_DYLIB -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -Wall -mword-relocations
 	CFLAGS += -fomit-frame-pointer
