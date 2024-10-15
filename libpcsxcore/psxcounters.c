@@ -71,8 +71,8 @@ static const u32 HSyncTotal[]     = { 263, 314 };
 #ifdef DRC_DISABLE
 Rcnt rcnts[ CounterQuantity ];
 #endif
-u32 hSyncCount = 0;
-u32 frame_counter = 0;
+unsigned int hSyncCount = 0;
+unsigned int frame_counter = 0;
 static u32 hsync_steps = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
