@@ -59,9 +59,12 @@ else ifeq ($(platform), psl1ght)
 else ifeq ($(platform), psp1)
   CC = psp-gcc$(EXE_EXT)
   AR = psp-ar$(EXE_EXT)
+  LD = psp-ld$(EXE_EXT)
 else ifeq ($(platform), vita)
   CC = arm-vita-eabi-gcc$(EXE_EXT)
   AR = arm-vita-eabi-ar$(EXE_EXT)
+  LD = arm-vita-eabi-ld$(EXE_EXT)
+  OBJCOPY = arm-vita-eabi-objcopy$(EXE_EXT)
 else ifeq ($(platform), ctr)
   ifeq ($(strip $(DEVKITARM)),)
   $(error "DEVKITARM env var is not set")
@@ -69,6 +72,8 @@ else ifeq ($(platform), ctr)
   CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
   CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
   AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+  LD = $(DEVKITARM)/bin/arm-none-eabi-ld$(EXE_EXT)
+  OBJCOPY = $(DEVKITARM)/bin/arm-none-eabi-objcopy$(EXE_EXT)
 else ifeq ($(platform), libnx)
   export DEPSDIR := $(CURDIR)/
   ifeq ($(strip $(DEVKITPRO)),)
@@ -79,6 +84,7 @@ else ifeq ($(platform), libnx)
 else ifeq ($(platform), xenon)
   CC = xenon-gcc$(EXE_EXT)
   AR = xenon-ar$(EXE_EXT)
+  LD = xenon-ld$(EXE_EXT)
 else ifneq (,$(filter $(platform),ngc wii wiiu))
   ifeq ($(strip $(DEVKITPPC)),)
   $(error "DEVKITPPC env var is not set")
@@ -86,6 +92,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
   CC  = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
   CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
   AR  = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+  LD  = $(DEVKITPPC)/bin/powerpc-eabi-ld$(EXE_EXT)
 else ifeq ($(platform), qnx)
   CC = qcc -Vgcc_ntoarmv7le
 else ifeq ($(platform), miyoo)
@@ -269,7 +276,7 @@ else ifeq ($(platform), libnx)
    NO_PTHREAD=1
    NO_MMAP := 1 # for psxmem
    LIBPTHREAD :=
-   STATIC_LINKING=1
+   PARTIAL_LINKING = 1
    BUILTIN_GPU = neon
    HAVE_NEON = 1
    DYNAREC = ari64
@@ -327,7 +334,7 @@ else ifeq ($(platform), vita)
 
 	DYNAREC = ari64
 	ARCH = arm
-	STATIC_LINKING = 1
+	PARTIAL_LINKING = 1
 	NO_PTHREAD=1
 	NO_POSIX_MEMALIGN := 1
 	HAVE_PHYSICAL_CDROM = 0
@@ -359,7 +366,8 @@ else ifeq ($(platform), ctr)
 	DYNAREC = ari64
 	ARCH = arm
 	HAVE_NEON = 0
-	STATIC_LINKING = 1
+	PARTIAL_LINKING = 1
+	WANT_ZLIB = 0
 	NO_POSIX_MEMALIGN := 1
 	NO_MMAP := 1 # for psxmem
 	HAVE_PHYSICAL_CDROM = 0
@@ -635,7 +643,7 @@ HAVE_NEON_ASM = $(shell $(CC) -E -dD $(CFLAGS) include/arm_features.h | grep -q 
 endif
 ifeq ($(NO_UNDEF_CHECK)$(shell $(LD) -v 2> /dev/null | awk '{print $$1}'),GNU)
  ifeq (,$(findstring $(platform),win32))
- MAIN_LDFLAGS += -Wl,-version-script=frontend/link.T
+ MAIN_LDFLAGS += -Wl,-version-script=frontend/libretro-version-script
  endif
 MAIN_LDFLAGS += -Wl,--no-undefined
 endif

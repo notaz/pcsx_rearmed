@@ -235,7 +235,7 @@ LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
 LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto
 LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
-LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/link.T
+LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/libretro-version-script
 LOCAL_LDLIBS        := -lz -llog
 LOCAL_ARM_MODE      := arm
 

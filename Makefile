@@ -470,14 +470,20 @@ frontend/revision.h: FORCE
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-ifeq ($(STATIC_LINKING), 1)
-	$(AR) rcs $@ $(OBJS)
+ifeq ($(PARTIAL_LINKING), 1)
+	sed -e 's/.*/EXTERN(\0)/' frontend/libretro-extern > frontend/libretro-extern.T
+	$(LD) -o $(basename $(TARGET))1.o -r --gc-sections -T frontend/libretro-extern.T $^
+	$(OBJCOPY) --keep-global-symbols=frontend/libretro-extern $(basename $(TARGET))1.o $(basename $(TARGET)).o
+	$(AR) rcs $@ $(basename $(TARGET)).o
+else ifeq ($(STATIC_LINKING), 1)
+	$(AR) rcs $@ $^
 else
 	$(CC_LINK) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
 endif
 
 clean: $(PLAT_CLEAN) clean_plugins
-	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
+	$(RM) $(TARGET) *.o $(OBJS) $(TARGET).map frontend/revision.h
+	$(RM) frontend/libretro-extern.T
 
 ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)
