@@ -513,6 +513,7 @@ int emu_core_preinit(void)
 int emu_core_init(void)
 {
 	SysPrintf("Starting PCSX-ReARMed " REV "%s\n", get_build_info());
+	SysPrintf("build time: " __DATE__ " " __TIME__ "\n");
 
 	pcsxr_sthread_init();
 #ifndef NO_FRONTEND

@@ -22,6 +22,7 @@ int  cdra_check_eject(int *inserted);
 void cdra_stop_thread(void);
 void cdra_set_buf_count(int count);
 int  cdra_get_buf_count(void);
+int  cdra_get_buf_cached_approx(void);
 
 void *cdra_getBuffer(void);
 
