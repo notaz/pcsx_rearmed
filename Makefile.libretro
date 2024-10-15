@@ -51,34 +51,46 @@ else ifeq ($(platform), osx)
 	LDFLAGS  += $(TARGET_RULE)
    endif
 else ifeq ($(platform), psl1ght)
-	CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
-	AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
+  ifeq ($(strip $(PS3DEV)),)
+  $(error "PS3DEV env var is not set")
+  endif
+  CC = $(PS3DEV)/ppu/bin/ppu-gcc$(EXE_EXT)
+  AR = $(PS3DEV)/ppu/bin/ppu-ar$(EXE_EXT)
 else ifeq ($(platform), psp1)
-	CC = psp-gcc$(EXE_EXT)
-	AR = psp-ar$(EXE_EXT)
+  CC = psp-gcc$(EXE_EXT)
+  AR = psp-ar$(EXE_EXT)
 else ifeq ($(platform), vita)
-	CC = arm-vita-eabi-gcc$(EXE_EXT)
-	AR = arm-vita-eabi-ar$(EXE_EXT)
+  CC = arm-vita-eabi-gcc$(EXE_EXT)
+  AR = arm-vita-eabi-ar$(EXE_EXT)
 else ifeq ($(platform), ctr)
-	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
-	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
-	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+  ifeq ($(strip $(DEVKITARM)),)
+  $(error "DEVKITARM env var is not set")
+  endif
+  CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+  CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+  AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
 else ifeq ($(platform), libnx)
-	export DEPSDIR := $(CURDIR)/
-	include $(DEVKITPRO)/libnx/switch_rules
-	SHELL := PATH=$(PATH) $(SHELL)
+  export DEPSDIR := $(CURDIR)/
+  ifeq ($(strip $(DEVKITPRO)),)
+  $(error "DEVKITPRO env var is not set")
+  endif
+  include $(DEVKITPRO)/libnx/switch_rules
+  SHELL := PATH=$(PATH) $(SHELL)
 else ifeq ($(platform), xenon)
-	CC = xenon-gcc$(EXE_EXT)
-	AR = xenon-ar$(EXE_EXT)
+  CC = xenon-gcc$(EXE_EXT)
+  AR = xenon-ar$(EXE_EXT)
 else ifneq (,$(filter $(platform),ngc wii wiiu))
-	CC  = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
-	CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
-	AR  = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
+  ifeq ($(strip $(DEVKITPPC)),)
+  $(error "DEVKITPPC env var is not set")
+  endif
+  CC  = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
+  CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
+  AR  = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
 else ifeq ($(platform), qnx)
-	CC = qcc -Vgcc_ntoarmv7le
+  CC = qcc -Vgcc_ntoarmv7le
 else ifeq ($(platform), miyoo)
-	CC = /opt/miyoo/usr/bin/arm-linux-gcc
-	CXX = /opt/miyoo/usr/bin/arm-linux-g++
+  CC = /opt/miyoo/usr/bin/arm-linux-gcc
+  CXX = /opt/miyoo/usr/bin/arm-linux-g++
 endif
 CC_AS ?= $(CC)
 
@@ -322,6 +334,9 @@ else ifeq ($(platform), vita)
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
+	ifeq ($(strip $(CTRULIB)),)
+ 	$(error "CTRULIB env var is not set")
+	endif
 	TARGET := $(TARGET_NAME)_libretro_ctr.a
 	CFLAGS += -DARM11 -D_3DS -DNO_DYLIB -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
