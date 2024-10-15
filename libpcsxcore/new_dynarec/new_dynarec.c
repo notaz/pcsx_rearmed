@@ -9018,7 +9018,7 @@ static int new_recompile_block(u_int addr)
   }
 
   start = addr;
-  ndrc_g.did_compile = 1;
+  ndrc_g.did_compile++;
   if (Config.HLE && start == 0x80001000) // hlecall
   {
     void *beginning = start_block();

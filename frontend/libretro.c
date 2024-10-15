@@ -72,8 +72,6 @@
 
 #define ISHEXDEC ((buf[cursor] >= '0') && (buf[cursor] <= '9')) || ((buf[cursor] >= 'a') && (buf[cursor] <= 'f')) || ((buf[cursor] >= 'A') && (buf[cursor] <= 'F'))
 
-#define INTERNAL_FPS_SAMPLE_PERIOD 64
-
 //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
 static int rebootemu = 0;
 
@@ -102,8 +100,7 @@ static int vout_fb_dirty;
 static int psx_w, psx_h;
 static bool vout_can_dupe;
 static bool found_bios;
-static bool display_internal_fps = false;
-static unsigned frame_count = 0;
+static int display_internal_fps;
 static bool libretro_supports_bitmasks = false;
 static bool libretro_supports_option_categories = false;
 static bool show_input_settings = true;
@@ -1769,8 +1766,6 @@ bool retro_load_game(const struct retro_game_info *info)
       { 0 },
    };
 
-   frame_count = 0;
-
    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
 
 #ifdef FRONTEND_SUPPORTS_RGB565
@@ -2232,14 +2227,16 @@ static void update_variables(bool in_flight)
 #endif
 
    var.value = NULL;
-   var.key = "pcsx_rearmed_display_internal_fps";
+   var.key = "pcsx_rearmed_display_fps_v2";
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      if (strcmp(var.value, "disabled") == 0)
-         display_internal_fps = false;
+      if (strcmp(var.value, "extra") == 0)
+         display_internal_fps = 2;
       else if (strcmp(var.value, "enabled") == 0)
-         display_internal_fps = true;
+         display_internal_fps = 1;
+      else
+         display_internal_fps = 0;
    }
 
    var.value = NULL;
@@ -3164,24 +3161,50 @@ static void print_internal_fps(void)
 {
    if (display_internal_fps)
    {
-      frame_count++;
+      static u32 fps, frame_count_s;
+      static time_t last_time;
+      static u32 psx_vsync_count;
+      u32 psx_vsync_rate = is_pal_mode ? 50 : 60;
+      time_t now;
 
-      if (frame_count % INTERNAL_FPS_SAMPLE_PERIOD == 0)
+      psx_vsync_count++;
+      frame_count_s++;
+      now = time(NULL);
+      if (now != last_time)
       {
-         unsigned internal_fps = pl_rearmed_cbs.flip_cnt * (is_pal_mode ? 50 : 60) / INTERNAL_FPS_SAMPLE_PERIOD;
+         fps = frame_count_s;
+         frame_count_s = 0;
+         last_time = now;
+      }
+
+      if (psx_vsync_count >= psx_vsync_rate)
+      {
+         int pos = 0, cd_count;
          char str[64];
-         const char *strc = (const char *)str;
 
-         str[0] = '\0';
-
-         snprintf(str, sizeof(str), "Internal FPS: %2d", internal_fps);
+         if (display_internal_fps > 1) {
+#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+            if (ndrc_g.did_compile) {
+               pos = snprintf(str, sizeof(str), "DRC: %d ", ndrc_g.did_compile);
+               ndrc_g.did_compile = 0;
+            }
+#endif
+            cd_count = cdra_get_buf_count();
+            if (cd_count) {
+               pos += snprintf(str + pos, sizeof(str) - pos, "CD: %2d/%d ",
+                     cdra_get_buf_cached_approx(), cd_count);
+            }
+         }
+         snprintf(str + pos, sizeof(str) - pos, "FPS: %2d/%2d",
+               pl_rearmed_cbs.flip_cnt, fps);
 
          pl_rearmed_cbs.flip_cnt = 0;
+         psx_vsync_count = 0;
 
          if (msg_interface_version >= 1)
          {
             struct retro_message_ext msg = {
-               strc,
+               str,
                3000,
                1,
                RETRO_LOG_INFO,
@@ -3194,15 +3217,13 @@ static void print_internal_fps(void)
          else
          {
             struct retro_message msg = {
-               strc,
+               str,
                180
             };
             environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
          }
       }
    }
-   else
-      frame_count = 0;
 }
 
 void retro_run(void)

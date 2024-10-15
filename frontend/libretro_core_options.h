@@ -163,23 +163,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#if 0 // ndef _WIN32 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
-   {
-      "pcsx_rearmed_async_cd",
-      "CD Access Method (Restart)",
-      NULL,
-      "Select method used to read data from content disk images. 'Synchronous' mimics original hardware. 'Asynchronous' can reduce stuttering on devices with slow storage. 'Pre-Cache (CHD)' loads disk image into memory for faster access (CHD files only).",
-      NULL,
-      "system",
-      {
-         { "sync",     "Synchronous" },
-         { "async",    "Asynchronous" },
-         { "precache", "Pre-Cache (CHD)" },
-         { NULL, NULL},
-      },
-      "sync",
-   },
-#endif
 #if defined(HAVE_CDROM) || defined(USE_ASYNC_CDROM)
 #define V(x) { #x, NULL }
    {
@@ -437,7 +420,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "3"
    },
    {
-      "pcsx_rearmed_display_internal_fps",
+      "pcsx_rearmed_display_fps_v2",
       "Display Internal FPS",
       NULL,
       "Show the internal frame rate at which the emulated PlayStation system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
@@ -446,6 +429,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       {
          { "disabled", NULL },
          { "enabled",  NULL },
+         { "extra",  NULL },
          { NULL, NULL },
       },
       "disabled",

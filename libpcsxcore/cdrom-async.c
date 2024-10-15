@@ -490,6 +490,25 @@ int cdra_get_buf_count(void)
 {
    return acdrom.buf_cnt;
 }
+
+int cdra_get_buf_cached_approx(void)
+{
+   u32 buf_cnt = acdrom.buf_cnt, lba = acdrom.prefetch_lba;
+   u32 total = acdrom.total_lba;
+   u32 left = buf_cnt;
+   int buf_use = 0;
+
+   if (left > total)
+      left = total;
+   for (; lba < total && left > 0; lba++, left--)
+      if (lba == acdrom.buf_cache[lba % buf_cnt].lba)
+         buf_use++;
+   for (lba = 0; left > 0; lba++, left--)
+      if (lba == acdrom.buf_cache[lba % buf_cnt].lba)
+         buf_use++;
+
+   return buf_use;
+}
 #else
 
 // phys. CD-ROM without a cache is unusable so not implemented
@@ -565,6 +584,7 @@ int cdra_check_eject(int *inserted) { return 0; }
 void cdra_stop_thread(void) {}
 void cdra_set_buf_count(int newcount) {}
 int  cdra_get_buf_count(void) { return 0; }
+int  cdra_get_buf_cached_approx(void) { return 0; }
 
 #endif
 
