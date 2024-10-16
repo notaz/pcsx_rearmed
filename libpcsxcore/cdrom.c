@@ -664,12 +664,12 @@ static int msfiEq(const u8 *a, const u8 *b)
 void cdrPlayReadInterrupt(void)
 {
 	int hit = cdra_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
-	if (!hit && cdr.PhysCdPropagations++ < 222) {
-		// this propagates real cdrom delays to the emulated game
+	if (!hit && cdr.PhysCdPropagations < 75/2) {
+		// this propagates the real cdrom delays to the emulated game
 		CDRPLAYREAD_INT(cdReadTime / 2, 0);
+		cdr.PhysCdPropagations++;
 		return;
 	}
-	cdr.PhysCdPropagations = 0;
 
 	cdr.LastReadSeekCycles = psxRegs.cycle;
 
@@ -711,6 +711,9 @@ void cdrPlayReadInterrupt(void)
 	generate_subq(cdr.SetSectorPlay);
 
 	CDRPLAYREAD_INT(cdReadTime, 0);
+
+	// stop propagation since it breaks streaming
+	cdr.PhysCdPropagations = 0xff;
 }
 
 static void softReset(void)
@@ -900,6 +903,7 @@ void cdrInterrupt(void) {
 			// BIOS player - set flag again
 			cdr.Play = TRUE;
 			cdr.DriveState = DRIVESTATE_PLAY_READ;
+			cdr.PhysCdPropagations = 0;
 
 			CDRPLAYREAD_INT(cdReadTime + seekTime, 1);
 			start_rotating = 1;
@@ -1253,6 +1257,7 @@ void cdrInterrupt(void) {
 			cdr.SubqForwardSectors = 1;
 			cdr.sectorsRead = 0;
 			cdr.DriveState = DRIVESTATE_SEEK;
+			cdr.PhysCdPropagations = 0;
 			cdra_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1],
 					cdr.SetSectorPlay[2]);
 
