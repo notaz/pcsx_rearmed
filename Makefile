@@ -2,8 +2,16 @@
 
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
-CFLAGS += -Wall -ggdb -Iinclude -ffast-math
-ifndef DEBUG
+CFLAGS += -Wall -Iinclude -ffast-math
+
+DEBUG ?= 0
+DEBUG_SYMS ?= 0
+ASSERTS ?= 0
+HAVE_CHD ?= 1
+ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
+CFLAGS += -ggdb
+endif
+ifneq ($(DEBUG), 1)
 CFLAGS += -O2
 ifndef ASSERTS
 CFLAGS += -DNDEBUG
