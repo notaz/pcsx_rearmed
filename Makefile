@@ -7,6 +7,7 @@ CFLAGS += -Wall -Iinclude -ffast-math
 DEBUG ?= 0
 DEBUG_SYMS ?= 0
 ASSERTS ?= 0
+HAVE_CHD ?= 1
 ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
 CFLAGS += -ggdb
 endif
