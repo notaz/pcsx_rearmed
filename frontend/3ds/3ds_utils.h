@@ -17,6 +17,8 @@
 #define DEBUG_HOLD() do{printf("%s@%s:%d.\n",__FUNCTION__, __FILE__, __LINE__);fflush(stdout);wait_for_input();}while(0)
 
 void wait_for_input(void);
+void ctr_clear_cache(void);
+//void ctr_invalidate_icache(void); // only icache
 
 extern __attribute__((weak)) int  __ctr_svchax;
 
@@ -35,8 +37,6 @@ static inline void check_rosalina() {
        has_rosalina = true;
   }
 }
-
-void ctr_clear_cache(void);
 
 typedef int32_t (*ctr_callback_type)(void);
 
