@@ -450,7 +450,6 @@ endif
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) *.o $(OBJS) $(TARGET).map frontend/revision.h
-	$(RM) frontend/libretro-extern.T
 
 ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)
