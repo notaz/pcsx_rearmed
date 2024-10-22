@@ -68,3 +68,52 @@ FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
     bgt      2b
 
     pop      {r4-r11,pc}
+
+
+#ifdef HAVE_ARMV6 /* v6-only due to potential misaligned reads */
+
+# r1b0g0r0 g2r2b1g1 b3g3r3b2
+FUNCTION(bgr888_to_rgb565):
+    pld      [r1]
+    push     {r4-r10,lr}
+
+    mov      r10, #0x001f          @ b mask
+    mov      r12, #0x07e0          @ g mask
+    mov      lr,  #0xf800          @ r mask
+
+0:
+    ldr      r3, [r1], #4          @ may be unaligned
+    ldr      r4, [r1], #4
+    ldr      r5, [r1], #4
+    pld      [r1, #32*1]
+    and      r6, r10,r3, lsr #16+3 @ b0
+    and      r7, r12,r3, lsr #5    @ g0
+    and      r8, lr, r3, lsl #8    @ r0
+    and      r9, lr, r3, lsr #16   @ r1
+    orr      r6, r6, r7
+    orr      r6, r6, r8            @ r0g0b0
+
+    and      r7, r12,r4, lsl #3    @ g1
+    and      r8, r10,r4, lsr #11   @ b1
+    orr      r9, r9, r7
+    orr      r9, r9, r8            @ r1g1b1
+    and      r7, lr, r4, lsr #8    @ r2
+    and      r8, r12,r4, lsr #21   @ g2
+    pkhbt    r9, r6, r9, lsl #16
+    str      r9, [r0], #4
+
+    and      r6, r10,r5, lsr #3    @ b2
+    orr      r7, r7, r8
+    orr      r6, r6, r7            @ r2g2b2
+    and      r7, lr, r5            @ r3
+    and      r8, r12,r5, lsr #13   @ g3
+    orr      r7, r7, r5, lsr #27   @ r3b3
+    orr      r7, r7, r8            @ r3g3b3
+    pkhbt    r7, r6, r7, lsl #16
+    str      r7, [r0], #4
+    subs     r2, r2, #12
+    bgt      0b
+
+    pop      {r4-r10,pc}
+
+#endif /* HAVE_ARMV6 */

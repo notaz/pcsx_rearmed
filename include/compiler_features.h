@@ -8,11 +8,13 @@
 #  define noinline       __attribute__((noinline,noclone))
 # endif
 # define attr_unused     __attribute__((unused))
+# define attr_weak       __attribute__((weak))
 #else
 # define likely(x)       (x)
 # define unlikely(x)     (x)
 # define noinline
 # define attr_unused
+# define attr_weak
 #endif
 
 #ifndef __has_builtin
