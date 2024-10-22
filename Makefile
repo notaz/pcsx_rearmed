@@ -319,7 +319,7 @@ endif
 OBJS += frontend/cspace.o
 ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/cspace_neon.o
-frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565
 else
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/cspace_arm.o
