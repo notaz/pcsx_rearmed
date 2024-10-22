@@ -130,6 +130,7 @@ void emu_set_default_config(void)
 	Config.FractionalFramerate = -1;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
+	pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
 	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_neon.enhancement_tex_adj = 1;
