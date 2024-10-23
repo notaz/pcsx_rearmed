@@ -494,7 +494,11 @@ static void end_tcache_write(void *start, void *end)
   #elif defined(VITA)
   sceKernelSyncVMDomain(sceBlock, start, len);
   #elif defined(_3DS)
-  ctr_flush_invalidate_cache();
+  // tuned for old3ds' 16k:16k cache (in it's mostly clean state...)
+  if ((char *)end - (char *)start <= 2*1024)
+    ctr_clear_cache_range(start, end);
+  else
+    ctr_flush_invalidate_cache();
   ndrc_g.thread.cache_dirty = 1;
   #elif defined(HAVE_LIBNX)
   if (g_jit.type == JitType_CodeMemory) {
