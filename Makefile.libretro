@@ -358,9 +358,10 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -DZ7_DECL_Int32_AS_long
 	CFLAGS += -DUSE_CTRULIB_2
 
+	OBJS += deps/arm-mem/memcpymove-v6l.o
+	OBJS += deps/arm-mem/memset-v6l.o
 	OBJS += frontend/3ds/utils.o
 
-#	CFLAGS += -DPCSX
 	BUILTIN_GPU = unai
 	THREAD_RENDERING = 1
 	DYNAREC = ari64
