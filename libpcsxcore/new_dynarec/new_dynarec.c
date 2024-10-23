@@ -498,7 +498,7 @@ static void end_tcache_write(void *start, void *end)
   if ((char *)end - (char *)start <= 2*1024)
     ctr_clear_cache_range(start, end);
   else
-    ctr_flush_invalidate_cache();
+    ctr_clear_cache();
   ndrc_g.thread.cache_dirty = 1;
   #elif defined(HAVE_LIBNX)
   if (g_jit.type == JitType_CodeMemory) {
@@ -6314,9 +6314,6 @@ void new_dynarec_init(void)
   SysPrintf("Init new dynarec, ndrc size %x, pgsize %d\n",
     (int)sizeof(*ndrc), align + 1);
 
-#ifdef _3DS
-  check_rosalina();
-#endif
 #ifdef BASE_ADDR_DYNAMIC
   #ifdef VITA
   sceBlock = getVMBlock(); //sceKernelAllocMemBlockForVM("code", sizeof(*ndrc));

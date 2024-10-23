@@ -8,6 +8,7 @@ extern "C" {
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <3ds/svc.h>
 #include "3ds_utils.h"
 
 #define PROT_READ       0b001
