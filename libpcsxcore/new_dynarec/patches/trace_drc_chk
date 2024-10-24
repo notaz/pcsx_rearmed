@@ -1,16 +1,16 @@
 diff --git a/libpcsxcore/new_dynarec/new_dynarec.c b/libpcsxcore/new_dynarec/new_dynarec.c
-index 74f32ee3..4eec8a83 100644
+index dad7625d..ad8dc383 100644
 --- a/libpcsxcore/new_dynarec/new_dynarec.c
 +++ b/libpcsxcore/new_dynarec/new_dynarec.c
-@@ -325,7 +325,7 @@ static struct compile_info
-   int new_dynarec_hacks_old;
-   int new_dynarec_did_compile;
+@@ -334,7 +334,7 @@ static struct compile_info
+   #define stat_clear(s)
+ #endif
  
--  #define HACK_ENABLED(x) ((new_dynarec_hacks | new_dynarec_hacks_pergame) & (x))
+-  #define HACK_ENABLED(x) ((ndrc_g.hacks | ndrc_g.hacks_pergame) & (x))
 +  #define HACK_ENABLED(x) ((NDHACK_NO_STALLS) & (x))
  
-   extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
-   extern int last_count;  // last absolute target, often = next_interupt
+   /* registers that may be allocated */
+   /* 1-31 gpr */
 @@ -603,6 +603,7 @@ static int cycle_multiplier_active;
  
  static int CLOCK_ADJUST(int x)
@@ -21,7 +21,7 @@ index 74f32ee3..4eec8a83 100644
    return (x * m + s * 50) / 100;
 @@ -808,6 +809,9 @@ static noinline u_int generate_exception(u_int pc)
  // This is called from the recompiled JR/JALR instructions
- static void noinline *get_addr(u_int vaddr, int can_compile)
+ static void noinline *get_addr(const u_int vaddr, enum ndrc_compile_mode compile_mode)
  {
 +#ifdef DRC_DBG
 +printf("get_addr %08x, pc=%08x\n", vaddr, psxRegs.pc);
@@ -29,7 +29,7 @@ index 74f32ee3..4eec8a83 100644
    u_int start_page = get_page_prev(vaddr);
    u_int i, page, end_page = get_page(vaddr);
    void *found_clean = NULL;
-@@ -7213,7 +7217,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
+@@ -7258,7 +7262,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
      // R0 is always unneeded
      u|=1;
      // Save it
@@ -38,15 +38,15 @@ index 74f32ee3..4eec8a83 100644
      gte_unneeded[i]=gte_u;
      /*
      printf("ur (%d,%d) %x: ",istart,iend,start+i*4);
-@@ -8355,6 +8359,7 @@ static noinline void pass5a_preallocate1(void)
+@@ -8399,6 +8403,7 @@ static noinline void pass5a_preallocate1(void)
+ // to use, which can avoid a load-use penalty on certain CPUs.
  static noinline void pass5b_preallocate2(void)
  {
-   int i, hr;
 + return;
-   for(i=0;i<slen-1;i++)
+   int i, hr, limit = min(slen - 1, MAXBLOCK - 2);
+   for (i = 0; i < limit; i++)
    {
-     if (!i || !dops[i-1].is_jump)
-@@ -9380,6 +9385,10 @@ static int new_recompile_block(u_int addr)
+@@ -9425,6 +9430,10 @@ static int new_recompile_block(u_int addr)
  
  #ifdef ASSEM_PRINT
    fflush(stdout);
@@ -58,10 +58,10 @@ index 74f32ee3..4eec8a83 100644
    stat_inc(stat_bc_direct);
    return 0;
 diff --git a/libpcsxcore/new_dynarec/pcsxmem.c b/libpcsxcore/new_dynarec/pcsxmem.c
-index f4b1d90e..d3975ceb 100644
+index 151fb4bb..0238f30f 100644
 --- a/libpcsxcore/new_dynarec/pcsxmem.c
 +++ b/libpcsxcore/new_dynarec/pcsxmem.c
-@@ -258,6 +258,8 @@ static void write_biu(u32 value)
+@@ -242,6 +242,8 @@ static void write_biu(u32 value)
  		return;
  	}
  
@@ -71,10 +71,10 @@ index f4b1d90e..d3975ceb 100644
  	psxRegs.biuReg = value;
  }
 diff --git a/libpcsxcore/psxcounters.c b/libpcsxcore/psxcounters.c
-index d0d45ec5..4ed03c40 100644
+index 9ff295e0..dcd0022b 100644
 --- a/libpcsxcore/psxcounters.c
 +++ b/libpcsxcore/psxcounters.c
-@@ -428,9 +428,12 @@ void psxRcntUpdate()
+@@ -457,9 +457,12 @@ void psxRcntUpdate()
  
  /******************************************************************************/
  
@@ -87,7 +87,7 @@ index d0d45ec5..4ed03c40 100644
  
      _psxRcntWcount( index, value );
      psxRcntSet();
-@@ -439,6 +442,7 @@ void psxRcntWcount( u32 index, u32 value )
+@@ -468,6 +471,7 @@ void psxRcntWcount( u32 index, u32 value )
  void psxRcntWmode( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
@@ -95,7 +95,7 @@ index d0d45ec5..4ed03c40 100644
  
      _psxRcntWmode( index, value );
      _psxRcntWcount( index, 0 );
-@@ -450,6 +454,7 @@ void psxRcntWmode( u32 index, u32 value )
+@@ -479,6 +483,7 @@ void psxRcntWmode( u32 index, u32 value )
  void psxRcntWtarget( u32 index, u32 value )
  {
      verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
@@ -103,7 +103,7 @@ index d0d45ec5..4ed03c40 100644
  
      rcnts[index].target = value;
  
-@@ -463,6 +468,7 @@ u32 psxRcntRcount0()
+@@ -492,6 +497,7 @@ u32 psxRcntRcount0()
  {
      u32 index = 0;
      u32 count;
@@ -111,8 +111,27 @@ index d0d45ec5..4ed03c40 100644
  
      if ((rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset) ||
          (rcnts[0].mode & 7) == (RcSyncModeEnable | Rc01UnblankReset2))
+diff --git a/libpcsxcore/psxevents.c b/libpcsxcore/psxevents.c
+index 28c1b5df..fdcf98eb 100644
+--- a/libpcsxcore/psxevents.c
++++ b/libpcsxcore/psxevents.c
+@@ -70,10 +70,11 @@ void irq_test(psxCP0Regs *cp0)
+ 		}
+ 	}
+ 
+-	cp0->n.Cause &= ~0x400;
++	u32 c2 = cp0->n.Cause & ~0x400;
+ 	if (psxHu32(0x1070) & psxHu32(0x1074))
+-		cp0->n.Cause |= 0x400;
+-	if (((cp0->n.Cause | 1) & cp0->n.SR & 0x401) == 0x401) {
++		c2 |= 0x400;
++	if (((c2 | 1) & cp0->n.SR & 0x401) == 0x401) {
++		cp0->n.Cause = c2;
+ 		psxException(0, 0, cp0);
+ 		pending_exception = 1;
+ 	}
 diff --git a/libpcsxcore/psxinterpreter.c b/libpcsxcore/psxinterpreter.c
-index f6ff2e8b..2f7147c3 100644
+index f979d5c7..9bb1df07 100644
 --- a/libpcsxcore/psxinterpreter.c
 +++ b/libpcsxcore/psxinterpreter.c
 @@ -245,7 +245,7 @@ static inline void addCycle(psxRegisters *regs)
@@ -124,13 +143,121 @@ index f6ff2e8b..2f7147c3 100644
  	regs->subCycle &= 0xffff;
  }
  
-@@ -1348,8 +1348,15 @@ static void intShutdown() {
+@@ -442,7 +442,9 @@ static void doBranch(psxRegisters *regs, u32 tar, enum R3000Abdt taken) {
+ 		regs->CP0.n.Target = pc_final;
+ 	regs->branching = 0;
+ 
++	psxRegs.cycle += 2;
+ 	psxBranchTest();
++	psxRegs.cycle -= 2;
+ }
+ 
+ static void doBranchReg(psxRegisters *regs, u32 tar) {
+@@ -971,7 +973,7 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
+ 	}
+ }
+ 
+-OP(psxMTC0) { MTC0(regs_, _Rd_, _u32(_rRt_)); }
++OP(psxMTC0) { MTC0(regs_, _Rd_, _u32(_rRt_)); psxBranchTest(); }
+ 
+ // no exception
+ static inline void psxNULLne(psxRegisters *regs) {
+@@ -1130,6 +1132,7 @@ OP(psxHLE) {
+ 	dloadFlush(regs_);
+ 	psxHLEt[hleCode]();
+ 	branchSeen = 1;
++	psxRegs.cycle -= 2;
+ }
+ 
+ static void (INT_ATTR *psxBSC[64])(psxRegisters *regs_, u32 code) = {
+@@ -1179,18 +1182,20 @@ static void intReset() {
+ static inline void execI_(u8 **memRLUT, psxRegisters *regs) {
+ 	u32 pc = regs->pc;
+ 
+-	addCycle(regs);
++	//addCycle(regs);
+ 	dloadStep(regs);
+ 
+ 	regs->pc += 4;
+ 	regs->code = fetch(regs, memRLUT, pc);
+ 	psxBSC[regs->code >> 26](regs, regs->code);
++	psxRegs.cycle += 2;
++	fetchNoCache(regs, memRLUT, regs->pc); // bus err check
+ }
+ 
+ static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
+ 	u32 pc = regs->pc;
+ 
+-	addCycle(regs);
++	//addCycle(regs);
+ 	dloadStep(regs);
+ 
+ 	if (execBreakCheck(regs, pc))
+@@ -1199,6 +1204,8 @@ static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
+ 	regs->pc += 4;
+ 	regs->code = fetch(regs, memRLUT, pc);
+ 	psxBSC[regs->code >> 26](regs, regs->code);
++	psxRegs.cycle += 2;
++	fetchNoCache(regs, memRLUT, regs->pc); // bus err check
+ }
+ 
+ static void intExecute() {
+@@ -1219,22 +1226,30 @@ static void intExecuteBp() {
+ 		execIbp(memRLUT, regs_);
+ }
+ 
++ extern int last_count;
++ void do_insn_cmp(void);
+ void intExecuteBlock(enum blockExecCaller caller) {
+ 	psxRegisters *regs_ = &psxRegs;
+ 	u8 **memRLUT = psxMemRLUT;
+ 
++ last_count = 0;
+ 	branchSeen = 0;
+-	while (!branchSeen || (regs_->dloadReg[0] || regs_->dloadReg[1]))
++	while (!branchSeen || (regs_->dloadReg[0] || regs_->dloadReg[1])) {
++		do_insn_cmp();
+ 		execI_(memRLUT, regs_);
++	}
+ }
+ 
+ static void intExecuteBlockBp(enum blockExecCaller caller) {
+ 	psxRegisters *regs_ = &psxRegs;
+ 	u8 **memRLUT = psxMemRLUT;
+ 
++ last_count = 0;
+ 	branchSeen = 0;
+-	while (!branchSeen || (regs_->dloadReg[0] || regs_->dloadReg[1]))
++	while (!branchSeen || (regs_->dloadReg[0] || regs_->dloadReg[1])) {
++		do_insn_cmp();
+ 		execIbp(memRLUT, regs_);
++	}
+ }
+ 
+ static void intClear(u32 Addr, u32 Size) {
+@@ -1265,7 +1280,7 @@ static void setupCop(u32 sr)
+ 	else
+ 		psxBSC[17] = psxCOPd;
+ 	if (sr & (1u << 30))
+-		psxBSC[18] = Config.DisableStalls ? psxCOP2 : psxCOP2_stall;
++		psxBSC[18] = psxCOP2;
+ 	else
+ 		psxBSC[18] = psxCOPd;
+ 	if (sr & (1u << 31))
+@@ -1284,7 +1299,7 @@ void intApplyConfig() {
+ 	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
+ 	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);
+ 
+-	if (Config.DisableStalls) {
++	if (1) {
+ 		psxBSC[18] = psxCOP2;
+ 		psxBSC[50] = gteLWC2;
+ 		psxBSC[58] = gteSWC2;
+@@ -1365,8 +1380,13 @@ static void intShutdown() {
  // single step (may do several ops in case of a branch or load delay)
  // called by asm/dynarec
  void execI(psxRegisters *regs) {
-+ extern int last_count;
 + extern u32 next_interupt;
-+ void do_insn_cmp(void);
 + printf("execI %08x c %u, ni %u\n", regs->pc, regs->cycle, next_interupt);
 + last_count = 0;
  	do {
