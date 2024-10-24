@@ -58,7 +58,7 @@ dynarec_local:
 DRC_VAR(next_interupt, 4)
 DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
-DRC_VAR(pending_exception, 4)
+@DRC_VAR(unused1, 4)
 DRC_VAR(stop, 4)
 DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
@@ -104,8 +104,8 @@ FUNCTION(dyna_linker):
 	.align	2
 FUNCTION(cc_interrupt):
 	ldr	w0, [rFP, #LO_last_count]
+	ldr	w22, [rFP, #LO_pcaddr]
 	add	rCC, w0, rCC
-	str	wzr, [rFP, #LO_pending_exception]
 	str	rCC, [rFP, #LO_cycle]		/* PCSX cycles */
 	mov	x21, lr
 1:
@@ -113,16 +113,16 @@ FUNCTION(cc_interrupt):
 	bl	gen_interupt
 	mov	lr, x21
 	ldr	rCC, [rFP, #LO_cycle]
-	ldr	w0, [rFP, #LO_next_interupt]
-	ldr	w1, [rFP, #LO_pending_exception]
+	ldr	w0, [rFP, #LO_pcaddr]
+	ldr	w1, [rFP, #LO_next_interupt]
 	ldr	w2, [rFP, #LO_stop]
-	str	w0, [rFP, #LO_last_count]
-	sub	rCC, rCC, w0
+	str	w1, [rFP, #LO_last_count]
+	sub	rCC, rCC, w1
 	cbnz	w2, new_dyna_leave
-	cbnz	w1, 2f
+	cmp 	w0, w22
+	bne	2f
 	ret
 2:
-	ldr	w0, [rFP, #LO_pcaddr]
 	bl	ndrc_get_addr_ht
 	br	x0
 	ESIZE(cc_interrupt, .-cc_interrupt)

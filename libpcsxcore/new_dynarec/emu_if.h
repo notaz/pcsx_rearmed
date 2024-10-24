@@ -67,7 +67,6 @@ extern u32 inv_code_start, inv_code_end;
 
 /* cycles/irqs */
 extern u32 next_interupt;
-extern int pending_exception;
 
 /* called by drc */
 void pcsx_mtc0(u32 reg, u32 val);
