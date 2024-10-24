@@ -84,8 +84,6 @@ void ndrc_freeze(void *f, int mode)
 		SaveFuncs.write(f, addrs, size);
 	}
 	else {
-		new_dyna_pcsx_mem_load_state();
-
 		bytes = SaveFuncs.read(f, header, sizeof(header));
 		if (bytes != sizeof(header) || strcmp(header, header_save)) {
 			if (bytes > 0)
@@ -280,6 +278,14 @@ static void ari64_clear(u32 addr, u32 size)
 	new_dynarec_invalidate_range(addr, end);
 }
 
+static void ari64_on_ext_change(int ram_replaced, int other_cpu_emu_exec)
+{
+	if (ram_replaced)
+		ari64_reset();
+	else if (other_cpu_emu_exec)
+		new_dyna_pcsx_mem_load_state();
+}
+
 static void ari64_notify(enum R3000Anote note, void *data) {
 	switch (note)
 	{
@@ -290,8 +296,7 @@ static void ari64_notify(enum R3000Anote note, void *data) {
 	case R3000ACPU_NOTIFY_BEFORE_SAVE:
 		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
-		if (data == NULL)
-			ari64_reset();
+		ari64_on_ext_change(data == NULL, 0);
 		psxInt.Notify(note, data);
 		break;
 	}
@@ -354,6 +359,7 @@ static noinline void ari64_execute_threaded_slow(enum blockExecCaller block_call
 
 	psxInt.Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	//ari64_notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+	ari64_on_ext_change(0, 1);
 }
 
 static void ari64_execute_threaded_once(enum blockExecCaller block_caller)
