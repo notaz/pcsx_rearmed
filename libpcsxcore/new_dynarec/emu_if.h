@@ -69,8 +69,9 @@ extern u32 inv_code_start, inv_code_end;
 extern u32 next_interupt;
 
 /* called by drc */
-void pcsx_mtc0(u32 reg, u32 val);
-void pcsx_mtc0_ds(u32 reg, u32 val);
+struct psxRegisters;
+void pcsx_mtc0(struct psxRegisters *regs, u32 reg, u32 val);
+void pcsx_mtc0_ds(struct psxRegisters *regs, u32 reg, u32 val);
 
 /* misc */
 extern void SysPrintf(const char *fmt, ...);

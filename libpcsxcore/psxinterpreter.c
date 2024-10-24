@@ -36,8 +36,6 @@
 #define DO_EXCEPTION_RESERVEDI
 #define HANDLE_LOAD_DELAY
 
-static int branchSeen = 0;
-
 #ifdef __i386__
 #define INT_ATTR __attribute__((regparm(2)))
 #else
@@ -156,7 +154,7 @@ static void intExceptionDebugBp(psxRegisters *regs, u32 pc)
 	cp0->n.Cause |= (regs->branching << 30) | (R3000E_Bp << 2);
 	cp0->n.SR = (cp0->n.SR & ~0x3f) | ((cp0->n.SR & 0x0f) << 2);
 	cp0->n.EPC = regs->branching ? pc - 4 : pc;
-	psxRegs.pc = 0x80000040;
+	regs->pc = 0x80000040;
 }
 
 static int execBreakCheck(psxRegisters *regs, u32 pc)
@@ -412,7 +410,7 @@ static void psxDoDelayBranch(psxRegisters *regs, u32 tar1, u32 code1) {
 static void doBranch(psxRegisters *regs, u32 tar, enum R3000Abdt taken) {
 	u32 code, pc, pc_final;
 
-	branchSeen = regs->branching = taken;
+	regs->branchSeen = regs->branching = taken;
 	pc_final = taken == R3000A_BRANCH_TAKEN ? tar : regs->pc + 4;
 
 	// fetch the delay slot
@@ -1129,7 +1127,7 @@ OP(psxHLE) {
 	}
 	dloadFlush(regs_);
 	psxHLEt[hleCode]();
-	branchSeen = 1;
+	regs_->branchSeen = 1;
 }
 
 static void (INT_ATTR *psxBSC[64])(psxRegisters *regs_, u32 code) = {
@@ -1201,40 +1199,34 @@ static inline void execIbp(u8 **memRLUT, psxRegisters *regs) {
 	psxBSC[regs->code >> 26](regs, regs->code);
 }
 
-static void intExecute() {
-	psxRegisters *regs_ = &psxRegs;
+static void intExecute(psxRegisters *regs) {
 	u8 **memRLUT = psxMemRLUT;
-	extern int stop;
 
-	while (!stop)
-		execI_(memRLUT, regs_);
+	while (!regs->stop)
+		execI_(memRLUT, regs);
 }
 
-static void intExecuteBp() {
-	psxRegisters *regs_ = &psxRegs;
+static void intExecuteBp(psxRegisters *regs) {
 	u8 **memRLUT = psxMemRLUT;
-	extern int stop;
 
-	while (!stop)
-		execIbp(memRLUT, regs_);
+	while (!regs->stop)
+		execIbp(memRLUT, regs);
 }
 
-void intExecuteBlock(enum blockExecCaller caller) {
-	psxRegisters *regs_ = &psxRegs;
+static void intExecuteBlock(psxRegisters *regs, enum blockExecCaller caller) {
 	u8 **memRLUT = psxMemRLUT;
 
-	branchSeen = 0;
-	while (!branchSeen)
-		execI_(memRLUT, regs_);
+	regs->branchSeen = 0;
+	while (!regs->branchSeen)
+		execI_(memRLUT, regs);
 }
 
-static void intExecuteBlockBp(enum blockExecCaller caller) {
-	psxRegisters *regs_ = &psxRegs;
+static void intExecuteBlockBp(psxRegisters *regs, enum blockExecCaller caller) {
 	u8 **memRLUT = psxMemRLUT;
 
-	branchSeen = 0;
-	while (!branchSeen)
-		execIbp(memRLUT, regs_);
+	regs->branchSeen = 0;
+	while (!regs->branchSeen)
+		execIbp(memRLUT, regs);
 }
 
 static void intClear(u32 Addr, u32 Size) {

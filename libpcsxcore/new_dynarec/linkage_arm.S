@@ -53,24 +53,19 @@ dynarec_local:
 #define DRC_VAR(name, size_) \
 	DRC_VAR_(name, ESYM(name), size_)
 
-DRC_VAR(next_interupt, 4)
+@DRC_VAR(next_interupt, 4)
 DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
-@DRC_VAR(unused1, 4)
-DRC_VAR(stop, 4)
-DRC_VAR(branch_target, 4)
+@DRC_VAR(stop, 4)
 DRC_VAR(address, 4)
 DRC_VAR(hack_addr, 4)
 DRC_VAR(psxRegs, LO_psxRegs_end - LO_psxRegs)
 
 /* psxRegs */
-@DRC_VAR(reg, 128)
 @DRC_VAR(lo, 4)
 @DRC_VAR(hi, 4)
-DRC_VAR(reg_cop0, 128)
 DRC_VAR(reg_cop2d, 128)
 DRC_VAR(reg_cop2c, 128)
-DRC_VAR(pcaddr, 4)
 @DRC_VAR(code, 4)
 @DRC_VAR(cycle, 4)
 @DRC_VAR(interrupt, 4)
