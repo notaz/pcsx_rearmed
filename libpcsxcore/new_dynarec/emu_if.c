@@ -42,7 +42,6 @@
 #define stop              dynarec_local_var4(LO_stop)
 #define psxRegs           (*(psxRegisters *)((char *)dynarec_local + LO_psxRegs))
 #define next_interupt     dynarec_local_var4(LO_next_interupt)
-#define pending_exception dynarec_local_var4(LO_pending_exception)
 #endif
 
 static void ari64_thread_sync(void);
@@ -52,10 +51,6 @@ void pcsx_mtc0(u32 reg, u32 val)
 	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
 	MTC0(&psxRegs, reg, val);
 	gen_interupt(&psxRegs.CP0);
-
-	//if (psxRegs.CP0.n.Cause & psxRegs.CP0.n.SR & 0x0300) // possible sw irq
-	if ((psxRegs.pc & 0x803ffeff) == 0x80000080)
-		pending_exception = 1;
 }
 
 void pcsx_mtc0_ds(u32 reg, u32 val)
@@ -227,7 +222,6 @@ static void ari64_reset()
 	new_dyna_pcsx_mem_reset();
 	new_dynarec_invalidate_all_pages();
 	new_dyna_pcsx_mem_load_state();
-	pending_exception = 1;
 }
 
 // execute until predefined leave points
@@ -581,7 +575,7 @@ R3000Acpu psxRec = {
 
 struct ndrc_globals ndrc_g; // dummy
 unsigned int address;
-int pending_exception, stop;
+int stop;
 u32 next_interupt;
 void *psxH_ptr;
 void *zeromem_ptr;

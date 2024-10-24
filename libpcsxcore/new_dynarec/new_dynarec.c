@@ -73,7 +73,6 @@ static Jit g_jit;
 extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
 extern int last_count;  // last absolute target, often = next_interupt
 extern int pcaddr;
-extern int pending_exception;
 extern int branch_target;
 
 /* same as psxRegs.CP0.n.* */
@@ -1311,7 +1310,6 @@ static const char *fpofs_name(u_int ofs)
   ofscase(next_interupt);
   ofscase(cycle_count);
   ofscase(last_count);
-  ofscase(pending_exception);
   ofscase(stop);
   ofscase(address);
   ofscase(lo);
@@ -3608,8 +3606,6 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       }
       emit_movimm(start+i*4+4,HOST_TEMPREG);
       emit_writeword(HOST_TEMPREG,&pcaddr);
-      emit_movimm(0,HOST_TEMPREG);
-      emit_writeword(HOST_TEMPREG,&pending_exception);
     }
     if( s != 1)
       emit_mov(s, 1);
@@ -3621,11 +3617,11 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_sub(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
       //emit_writeword(HOST_TEMPREG,&last_count);
       assert(!is_delayslot);
-      emit_readword(&pending_exception,HOST_TEMPREG);
-      emit_test(HOST_TEMPREG,HOST_TEMPREG);
+      emit_readword(&pcaddr, 0);
+      emit_movimm(start+i*4+4, HOST_TEMPREG);
+      emit_cmp(HOST_TEMPREG, 0);
       void *jaddr = out;
       emit_jeq(0);
-      emit_readword(&pcaddr, 0);
       emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
       set_jump_target(jaddr, out);
@@ -5152,7 +5148,8 @@ static void do_ccstub(int n)
   literal_pool(256);
   assem_debug("do_ccstub %x\n",start+(u_int)stubs[n].b*4);
   set_jump_target(stubs[n].addr, out);
-  int i=stubs[n].b;
+  int i = stubs[n].b;
+  int r_pc = -1;
   if (stubs[n].d != TAKEN) {
     wb_dirtys(branch_regs[i].regmap,branch_regs[i].dirty);
   }
@@ -5163,8 +5160,7 @@ static void do_ccstub(int n)
   if(stubs[n].c!=-1)
   {
     // Save PC as return address
-    emit_movimm(stubs[n].c,0);
-    emit_writeword(0,&pcaddr);
+    emit_movimm(stubs[n].c, (r_pc = 0));
   }
   else
   {
@@ -5288,19 +5284,19 @@ static void do_ccstub(int n)
         else
           emit_movimm((dops[i].opcode2 & 1) ? cinfo[i].ba : start + i*4 + 8, addr);
       }
-      emit_writeword(addr, &pcaddr);
+      r_pc = addr;
     }
     else
     if(dops[i].itype==RJUMP)
     {
-      int r=get_reg(branch_regs[i].regmap,dops[i].rs1);
+      r_pc = get_reg(branch_regs[i].regmap, dops[i].rs1);
       if (ds_writes_rjump_rs(i)) {
-        r=get_reg(branch_regs[i].regmap,RTEMP);
+        r_pc = get_reg(branch_regs[i].regmap, RTEMP);
       }
-      emit_writeword(r,&pcaddr);
     }
     else {SysPrintf("Unknown branch type in do_ccstub\n");abort();}
   }
+  emit_writeword(r_pc, &pcaddr);
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
   if(stubs[n].a) emit_addimm(HOST_CCREG,(int)stubs[n].a,HOST_CCREG);
@@ -6272,7 +6268,6 @@ void new_dynarec_clear_full(void)
   mini_ht_clear();
   copy=shadow;
   expirep = EXPIRITY_OFFSET;
-  pending_exception=0;
   literalcount=0;
   stop_after_jal=0;
   inv_code_start=inv_code_end=~0;

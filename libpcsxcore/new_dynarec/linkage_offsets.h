@@ -4,8 +4,8 @@
 #define LO_next_interupt	64
 #define LO_cycle_count		(LO_next_interupt + 4)
 #define LO_last_count		(LO_cycle_count + 4)
-#define LO_pending_exception	(LO_last_count + 4)
-#define LO_stop			(LO_pending_exception + 4)
+#define LO_unused1		(LO_last_count + 4)
+#define LO_stop			(LO_unused1 + 4)
 #define LO_branch_target	(LO_stop + 4)
 #define LO_address		(LO_branch_target + 4)
 #define LO_hack_addr		(LO_address + 4)

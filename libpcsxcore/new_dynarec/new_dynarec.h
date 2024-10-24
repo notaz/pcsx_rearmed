@@ -2,7 +2,6 @@
 
 #define MAXBLOCK 2048 // in mips instructions
 
-extern int pending_exception;
 extern int stop;
 
 #define NDHACK_NO_SMC_CHECK	(1<<0)

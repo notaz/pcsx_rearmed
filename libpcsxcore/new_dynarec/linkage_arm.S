@@ -56,7 +56,7 @@ dynarec_local:
 DRC_VAR(next_interupt, 4)
 DRC_VAR(cycle_count, 4)
 DRC_VAR(last_count, 4)
-DRC_VAR(pending_exception, 4)
+@DRC_VAR(unused1, 4)
 DRC_VAR(stop, 4)
 DRC_VAR(branch_target, 4)
 DRC_VAR(address, 4)
@@ -235,26 +235,24 @@ FUNCTION(jump_vaddr_r0):
 	.align	2
 FUNCTION(cc_interrupt):
 	ldr	r0, [fp, #LO_last_count]
-	mov	r1, #0
-	add	r10, r0, r10
-	str	r1, [fp, #LO_pending_exception]
-	str	r10, [fp, #LO_cycle]		/* PCSX cycles */
+	ldr	r9, [fp, #LO_pcaddr]
+	add	r1, r0, r10
+	str	r1, [fp, #LO_cycle]		/* PCSX cycles */
 	mov	r10, lr
 
 	add	r0, fp, #LO_reg_cop0            /* CP0 */
 	bl	gen_interupt
 	mov	lr, r10
 	ldr	r10, [fp, #LO_cycle]
-	ldr	r0, [fp, #LO_next_interupt]
-	ldr	r1, [fp, #LO_pending_exception]
+	ldr	r0, [fp, #LO_pcaddr]
+	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r2, [fp, #LO_stop]
-	str	r0, [fp, #LO_last_count]
-	sub	r10, r10, r0
+	str	r1, [fp, #LO_last_count]
+	sub	r10, r10, r1
 	tst	r2, r2
 	ldmfdne	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
-	tst	r1, r1
+	cmp	r0, r9
 	moveq	pc, lr
-	ldr	r0, [fp, #LO_pcaddr]
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	cc_interrupt, .-cc_interrupt
