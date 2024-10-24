@@ -610,6 +610,17 @@ static void update_analogs(void)
 	}
 }
 
+static void emu_set_action(enum sched_action action_)
+{
+	extern enum sched_action emu_action, emu_action_old;
+
+	if (action_ == SACTION_NONE)
+		emu_action_old = 0;
+	else if (action_ != emu_action_old)
+		psxRegs.stop++;
+	emu_action = action_;
+}
+
 static void update_input(void)
 {
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
@@ -834,7 +845,7 @@ static void *watchdog_thread(void *unused)
 	{
 		sleep(sleep_time);
 
-		if (stop) {
+		if (psxRegs.stop) {
 			seen_dead = 0;
 			sleep_time = 5;
 			continue;

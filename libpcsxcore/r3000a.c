@@ -169,7 +169,7 @@ void psxJumpTest() {
 void psxExecuteBios() {
 	int i;
 	for (i = 0; i < 5000000; i++) {
-		psxCpu->ExecuteBlock(EXEC_CALLER_BOOT);
+		psxCpu->ExecuteBlock(&psxRegs, EXEC_CALLER_BOOT);
 		if ((psxRegs.pc & 0xff800000) == 0x80000000)
 			break;
 	}

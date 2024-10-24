@@ -72,11 +72,7 @@ static Jit g_jit;
 // from linkage_*
 extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
 extern int last_count;  // last absolute target, often = next_interupt
-extern int pcaddr;
-extern int branch_target;
 
-/* same as psxRegs.CP0.n.* */
-extern int reg_cop0[];
 extern int reg_cop2d[], reg_cop2c[];
 
 extern uintptr_t ram_offset;
@@ -3444,7 +3440,7 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
       wb_dirtys(regs[i].regmap_entry,regs[i].wasdirty);
       emit_movimm(start+i*4+4,0);
-      emit_writeword(0,&pcaddr);
+      emit_writeword(0,&psxRegs.pc);
       emit_addimm(HOST_CCREG,2,HOST_CCREG);
       emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
@@ -3574,7 +3570,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
     signed char t=get_reg_w(i_regs->regmap, dops[i].rt1);
     u_int copr=(source[i]>>11)&0x1f;
     if(t>=0&&dops[i].rt1!=0) {
-      emit_readword(&reg_cop0[copr],t);
+      emit_readword(&psxRegs.CP0.r[copr],t);
     }
   }
   else if(dops[i].opcode2==4) // MTC0
@@ -3598,18 +3594,20 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
         emit_writeword(HOST_CCREG,&last_count);
         emit_movimm(0,HOST_CCREG);
         emit_storereg(CCREG,HOST_CCREG);
-        emit_loadreg(dops[i].rs1,1);
-        emit_movimm(copr,0);
+        emit_loadreg(dops[i].rs1, 2);
+        emit_movimm(copr, 1);
+        emit_addimm_ptr(FP, (u_char *)&psxRegs - (u_char *)&dynarec_local, 0);
         emit_far_call(pcsx_mtc0_ds);
         emit_loadreg(dops[i].rs1,s);
         return;
       }
       emit_movimm(start+i*4+4,HOST_TEMPREG);
-      emit_writeword(HOST_TEMPREG,&pcaddr);
+      emit_writeword(HOST_TEMPREG,&psxRegs.pc);
     }
-    if( s != 1)
-      emit_mov(s, 1);
-    emit_movimm(copr, 0);
+    if (s != 2)
+      emit_mov(s, 2);
+    emit_movimm(copr, 1);
+    emit_addimm_ptr(FP, (u_char *)&psxRegs - (u_char *)&dynarec_local, 0);
     emit_far_call(pcsx_mtc0);
     if (copr == 12 || copr == 13) {
       emit_readword(&psxRegs.cycle,HOST_CCREG);
@@ -3617,7 +3615,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_sub(HOST_CCREG,HOST_TEMPREG,HOST_CCREG);
       //emit_writeword(HOST_TEMPREG,&last_count);
       assert(!is_delayslot);
-      emit_readword(&pcaddr, 0);
+      emit_readword(&psxRegs.pc, 0);
       emit_movimm(start+i*4+4, HOST_TEMPREG);
       emit_cmp(HOST_TEMPREG, 0);
       void *jaddr = out;
@@ -5009,7 +5007,7 @@ static void drc_dbg_emit_do_cmp(int i, int ccadj_)
     emit_storereg(dops[i].rt1, 0);
   }
   emit_movimm(start+i*4,0);
-  emit_writeword(0,&pcaddr);
+  emit_writeword(0,&psxRegs.pc);
   int cc = get_reg(regs[i].regmap_entry, CCREG);
   if (cc < 0)
     emit_loadreg(CCREG, cc = 0);
@@ -5296,7 +5294,7 @@ static void do_ccstub(int n)
     }
     else {SysPrintf("Unknown branch type in do_ccstub\n");abort();}
   }
-  emit_writeword(r_pc, &pcaddr);
+  emit_writeword(r_pc, &psxRegs.pc);
   // Update cycle count
   assert(branch_regs[i].regmap[HOST_CCREG]==CCREG||branch_regs[i].regmap[HOST_CCREG]==-1);
   if(stubs[n].a) emit_addimm(HOST_CCREG,(int)stubs[n].a,HOST_CCREG);
@@ -5307,7 +5305,7 @@ static void do_ccstub(int n)
       load_needed_regs(branch_regs[i].regmap,regs[(cinfo[i].ba-start)>>2].regmap_entry);
     else if(dops[i].itype==RJUMP) {
       if(get_reg(branch_regs[i].regmap,RTEMP)>=0)
-        emit_readword(&pcaddr,get_reg(branch_regs[i].regmap,RTEMP));
+        emit_readword(&psxRegs.pc,get_reg(branch_regs[i].regmap,RTEMP));
       else
         emit_loadreg(dops[i].rs1,get_reg(branch_regs[i].regmap,dops[i].rs1));
     }
@@ -9020,7 +9018,7 @@ static int new_recompile_block(u_int addr)
     void *beginning = start_block();
 
     emit_movimm(start,0);
-    emit_writeword(0,&pcaddr);
+    emit_writeword(0,&psxRegs.pc);
     emit_far_jump(new_dyna_leave);
     literal_pool(0);
     end_block(beginning);
@@ -9134,13 +9132,13 @@ static int new_recompile_block(u_int addr)
       // for BiosBootBypass() to work
       // io address var abused as a "already been here" flag
       emit_readword(&address, 1);
-      emit_writeword(0, &pcaddr);
+      emit_writeword(0, &psxRegs.pc);
       emit_writeword(0, &address);
       emit_cmp(0, 1);
     }
     else {
       emit_readword(&psxRegs.cpuInRecursion, 1);
-      emit_writeword(0, &pcaddr);
+      emit_writeword(0, &psxRegs.pc);
       emit_test(1, 1);
     }
     #ifdef __aarch64__

@@ -23,16 +23,14 @@ enum {
 };
 
 extern u32 event_cycles[PSXINT_COUNT];
-extern u32 next_interupt;
-extern int stop;
 
 #define set_event_raw_abs(e, abs) { \
 	u32 abs_ = abs; \
-	s32 di_ = next_interupt - abs_; \
+	s32 di_ = psxRegs.next_interupt - abs_; \
 	event_cycles[e] = abs_; \
 	if (di_ > 0) { \
-		/*printf("%u: next_interupt %u -> %u\n", psxRegs.cycle, next_interupt, abs_);*/ \
-		next_interupt = abs_; \
+		/*printf("%u: next_interupt %u -> %u\n", psxRegs.cycle, psxRegs.next_interupt, abs_);*/ \
+		psxRegs.next_interupt = abs_; \
 	} \
 }
 
@@ -44,7 +42,9 @@ extern int stop;
 } while (0)
 
 union psxCP0Regs_;
-u32  schedule_timeslice(void);
+struct psxRegisters;
+
+u32  schedule_timeslice(struct psxRegisters *regs);
 void irq_test(union psxCP0Regs_ *cp0);
 void gen_interupt(union psxCP0Regs_ *cp0);
 void events_restore(void);

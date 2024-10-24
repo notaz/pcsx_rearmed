@@ -779,7 +779,9 @@ int LoadState(const char *file) {
 	SaveFuncs.read(f, psxH, 0x00010000);
 	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 	psxRegs.gteBusyCycle = psxRegs.cycle;
+	psxRegs.branching = 0;
 	psxRegs.biosBranchCheck = ~0;
+	psxRegs.cpuInRecursion = 0;
 	psxRegs.gpuIdleAfter = psxRegs.cycle - 1;
 	HW_GPU_STATUS &= SWAP32(~PSXGPU_nBUSY);
 	if (misc->magic == MISC_MAGIC) {

@@ -420,7 +420,7 @@ static inline void softCall(u32 pc) {
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
 	while (pc0 != 0x80001000 && ++lim < 0x100000)
-		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+		psxCpu->ExecuteBlock(&psxRegs, EXEC_CALLER_HLE);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 	psxRegs.cpuInRecursion--;
@@ -445,7 +445,7 @@ static inline void softCallInException(u32 pc) {
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, PTR_1);
 
 	while (!returned_from_exception() && pc0 != 0x80001000 && ++lim < 0x100000)
-		psxCpu->ExecuteBlock(EXEC_CALLER_HLE);
+		psxCpu->ExecuteBlock(&psxRegs, EXEC_CALLER_HLE);
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, PTR_1);
 	psxRegs.cpuInRecursion--;
@@ -2270,8 +2270,8 @@ static void psxBios_WaitEvent() { // 0a
 
 	// retrigger this hlecall after the next emulation event
 	pc0 -= 4;
-	if ((s32)(next_interupt - psxRegs.cycle) > 0)
-		psxRegs.cycle = next_interupt;
+	if ((s32)(psxRegs.next_interupt - psxRegs.cycle) > 0)
+		psxRegs.cycle = psxRegs.next_interupt;
 	psxBranchTest();
 }
 
@@ -4564,7 +4564,7 @@ void psxBiosCheckBranch(void)
 	if (cycles_passed < 10 || cycles_passed > 50 || v0 != v0_expect)
 		return;
 
-	waste_cycles = schedule_timeslice() - psxRegs.cycle;
+	waste_cycles = schedule_timeslice(&psxRegs) - psxRegs.cycle;
 	loops = waste_cycles / cycles_passed;
 	if (loops > v0)
 		loops = v0;

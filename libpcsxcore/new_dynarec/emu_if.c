@@ -35,29 +35,7 @@
 //#define evprintf printf
 #define evprintf(...)
 
-#if !defined(DRC_DISABLE) && !defined(LIGHTREC)
-// reduce global loads/literal pools (maybe)
-#include "linkage_offsets.h"
-#define dynarec_local_var4(x) dynarec_local[(x) / sizeof(dynarec_local[0])]
-#define stop              dynarec_local_var4(LO_stop)
-#define psxRegs           (*(psxRegisters *)((char *)dynarec_local + LO_psxRegs))
-#define next_interupt     dynarec_local_var4(LO_next_interupt)
-#endif
-
 static void ari64_thread_sync(void);
-
-void pcsx_mtc0(u32 reg, u32 val)
-{
-	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
-	MTC0(&psxRegs, reg, val);
-	gen_interupt(&psxRegs.CP0);
-}
-
-void pcsx_mtc0_ds(u32 reg, u32 val)
-{
-	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, psxRegs.pc, psxRegs.cycle);
-	MTC0(&psxRegs, reg, val);
-}
 
 void ndrc_freeze(void *f, int mode)
 {
@@ -111,9 +89,23 @@ void ndrc_clear_full(void)
 }
 
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
+#include "linkage_offsets.h"
 
 static void ari64_thread_init(void);
 static int  ari64_thread_check_range(unsigned int start, unsigned int end);
+
+void pcsx_mtc0(psxRegisters *regs, u32 reg, u32 val)
+{
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, regs->pc, regs->cycle);
+	MTC0(regs, reg, val);
+	gen_interupt(&regs->CP0);
+}
+
+void pcsx_mtc0_ds(psxRegisters *regs, u32 reg, u32 val)
+{
+	evprintf("MTC0 %d #%x @%08x %u\n", reg, val, regs->pc, regs->cycle);
+	MTC0(regs, reg, val);
+}
 
 /* GTE stuff */
 void *gte_handlers[64];
@@ -226,36 +218,39 @@ static void ari64_reset()
 
 // execute until predefined leave points
 // (HLE softcall exit and BIOS fastboot end)
-static void ari64_execute_until()
+static void ari64_execute_until(psxRegisters *regs)
 {
-	evprintf("ari64_execute %08x, %u->%u (%d)\n", psxRegs.pc,
-		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
+	void *drc_local = (char *)regs - LO_psxRegs;
 
-	new_dyna_start(dynarec_local);
+	assert(drc_local == dynarec_local);
+	evprintf("ari64_execute %08x, %u->%u (%d)\n", regs->pc,
+		regs->cycle, regs->next_interupt, regs->next_interupt - regs->cycle);
 
-	evprintf("ari64_execute end %08x, %u->%u (%d)\n", psxRegs.pc,
-		psxRegs.cycle, next_interupt, next_interupt - psxRegs.cycle);
+	new_dyna_start(drc_local);
+
+	evprintf("ari64_execute end %08x, %u->%u (%d)\n", regs->pc,
+		regs->cycle, regs->next_interupt, regs->next_interupt - regs->cycle);
 }
 
-static void ari64_execute()
+static void ari64_execute(struct psxRegisters *regs)
 {
-	while (!stop) {
-		schedule_timeslice();
-		ari64_execute_until();
-		evprintf("drc left @%08x\n", psxRegs.pc);
+	while (!regs->stop) {
+		schedule_timeslice(regs);
+		ari64_execute_until(regs);
+		evprintf("drc left @%08x\n", regs->pc);
 	}
 }
 
-static void ari64_execute_block(enum blockExecCaller caller)
+static void ari64_execute_block(struct psxRegisters *regs, enum blockExecCaller caller)
 {
 	if (caller == EXEC_CALLER_BOOT)
-		stop++;
+		regs->stop++;
 
-	next_interupt = psxRegs.cycle + 1;
-	ari64_execute_until();
+	regs->next_interupt = regs->cycle + 1;
+	ari64_execute_until(regs);
 
 	if (caller == EXEC_CALLER_BOOT)
-		stop--;
+		regs->stop--;
 }
 
 static void ari64_clear(u32 addr, u32 size)
@@ -332,12 +327,13 @@ static void clear_local_cache(void)
 #endif
 }
 
-static noinline void ari64_execute_threaded_slow(enum blockExecCaller block_caller)
+static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
+	enum blockExecCaller block_caller)
 {
 	if (!ndrc_g.thread.busy) {
-		memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
+		memcpy(ndrc_smrv_regs, regs->GPR.r, sizeof(ndrc_smrv_regs));
 		slock_lock(ndrc_g.thread.lock);
-		ndrc_g.thread.addr = psxRegs.pc;
+		ndrc_g.thread.addr = regs->pc;
 		ndrc_g.thread.busy = 1;
 		slock_unlock(ndrc_g.thread.lock);
 		scond_signal(ndrc_g.thread.cond);
@@ -347,18 +343,19 @@ static noinline void ari64_execute_threaded_slow(enum blockExecCaller block_call
 	psxInt.Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 	do
 	{
-		psxInt.ExecuteBlock(block_caller);
+		psxInt.ExecuteBlock(regs, block_caller);
 	}
-	while (!stop && ndrc_g.thread.busy && block_caller == EXEC_CALLER_OTHER);
+	while (!regs->stop && ndrc_g.thread.busy && block_caller == EXEC_CALLER_OTHER);
 
 	psxInt.Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	//ari64_notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 	ari64_on_ext_change(0, 1);
 }
 
-static void ari64_execute_threaded_once(enum blockExecCaller block_caller)
+static void ari64_execute_threaded_once(struct psxRegisters *regs,
+	enum blockExecCaller block_caller)
 {
-	psxRegisters *regs = (void *)((char *)dynarec_local + LO_psxRegs);
+	void *drc_local = (char *)regs - LO_psxRegs;
 	void *target;
 
 	if (likely(!ndrc_g.thread.busy)) {
@@ -366,35 +363,36 @@ static void ari64_execute_threaded_once(enum blockExecCaller block_caller)
 		target = ndrc_get_addr_ht_param(regs->pc, ndrc_cm_no_compile);
 		if (target) {
 			clear_local_cache();
-			new_dyna_start_at(dynarec_local, target);
+			new_dyna_start_at(drc_local, target);
 			return;
 		}
 	}
-	ari64_execute_threaded_slow(block_caller);
+	ari64_execute_threaded_slow(regs, block_caller);
 }
 
-static void ari64_execute_threaded()
+static void ari64_execute_threaded(struct psxRegisters *regs)
 {
-	schedule_timeslice();
-	while (!stop)
+	schedule_timeslice(regs);
+	while (!regs->stop)
 	{
-		ari64_execute_threaded_once(EXEC_CALLER_OTHER);
+		ari64_execute_threaded_once(regs, EXEC_CALLER_OTHER);
 
-		if ((s32)(psxRegs.cycle - next_interupt) >= 0)
-			schedule_timeslice();
+		if ((s32)(regs->cycle - regs->next_interupt) >= 0)
+			schedule_timeslice(regs);
 	}
 }
 
-static void ari64_execute_threaded_block(enum blockExecCaller caller)
+static void ari64_execute_threaded_block(struct psxRegisters *regs,
+	enum blockExecCaller caller)
 {
 	if (caller == EXEC_CALLER_BOOT)
-		stop++;
+		regs->stop++;
 
-	next_interupt = psxRegs.cycle + 1;
-	ari64_execute_threaded_once(caller);
+	regs->next_interupt = regs->cycle + 1;
+	ari64_execute_threaded_once(regs, caller);
 
 	if (caller == EXEC_CALLER_BOOT)
-		stop--;
+		regs->stop--;
 }
 
 static void ari64_thread_sync(void)
@@ -574,9 +572,6 @@ R3000Acpu psxRec = {
 #else // if DRC_DISABLE
 
 struct ndrc_globals ndrc_g; // dummy
-unsigned int address;
-int stop;
-u32 next_interupt;
 void *psxH_ptr;
 void *zeromem_ptr;
 u32 zero_mem[0x1000/4];
@@ -861,7 +856,8 @@ void do_insn_cmp(void)
 	for (i = 0; i < 8; i++)
 		printf("r%d=%08x r%2d=%08x r%2d=%08x r%2d=%08x\n", i, allregs_p[i],
 			i+8, allregs_p[i+8], i+16, allregs_p[i+16], i+24, allregs_p[i+24]);
-	printf("PC: %08x/%08x, cycle %u, next %u\n", psxRegs.pc, ppc, psxRegs.cycle, next_interupt);
+	printf("PC: %08x/%08x, cycle %u, next %u\n", psxRegs.pc, ppc,
+		psxRegs.cycle, psxRegs.next_interupt);
 	//dump_mem("/tmp/psxram.dump", psxM, 0x200000);
 	//dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
 	exit(1);

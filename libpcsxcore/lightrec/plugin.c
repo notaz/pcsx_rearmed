@@ -69,8 +69,9 @@ void* code_buffer;
 static struct lightrec_state *lightrec_state;
 
 static bool use_lightrec_interpreter;
-static bool use_pcsx_interpreter;
 static bool block_stepping;
+//static bool use_pcsx_interpreter;
+#define use_pcsx_interpreter 0
 
 extern u32 lightrec_hacks;
 
@@ -161,7 +162,7 @@ static void lightrec_tansition_to_pcsx(struct lightrec_state *state)
 
 static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 {
-	s32 cycles_left = next_interupt - psxRegs.cycle;
+	s32 cycles_left = psxRegs.next_interupt - psxRegs.cycle;
 
 	if (block_stepping || cycles_left <= 0 || has_interrupt())
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
@@ -490,10 +491,10 @@ static void lightrec_plugin_execute_internal(bool block_only)
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
-	if (!block_only && stop)
+	if (!block_only && psxRegs.stop)
 		return;
 
-	cycles_pcsx = next_interupt - psxRegs.cycle;
+	cycles_pcsx = psxRegs.next_interupt - psxRegs.cycle;
 	assert((s32)cycles_pcsx > 0);
 
 	// step during early boot so that 0x80030000 fastboot hack works
@@ -502,7 +503,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		cycles_pcsx = 0;
 
 	if (use_pcsx_interpreter) {
-		intExecuteBlock(0);
+		psxInt.ExecuteBlock(&psxRegs, 0);
 	} else {
 		u32 cycles_lightrec = cycles_pcsx * 1024;
 		if (unlikely(use_lightrec_interpreter)) {
@@ -548,13 +549,14 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	}
 }
 
-static void lightrec_plugin_execute(void)
+static void lightrec_plugin_execute(psxRegisters *regs)
 {
-	while (!stop)
+	while (!regs->stop)
 		lightrec_plugin_execute_internal(false);
 }
 
-static void lightrec_plugin_execute_block(enum blockExecCaller caller)
+static void lightrec_plugin_execute_block(psxRegisters *regs,
+	enum blockExecCaller caller)
 {
 	lightrec_plugin_execute_internal(true);
 }
@@ -603,6 +605,8 @@ static void lightrec_plugin_apply_config()
 	}
 	cycles_per_op_old = cycles_per_op;
 	lightrec_set_cycles_per_opcode(lightrec_state, cycles_per_op);
+
+	intApplyConfig();
 }
 
 static void lightrec_plugin_shutdown(void)

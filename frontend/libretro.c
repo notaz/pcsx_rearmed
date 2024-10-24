@@ -659,7 +659,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
 void pl_frame_limit(void)
 {
    /* called once per frame, make psxCpu->Execute() above return */
-   stop++;
+   psxRegs.stop++;
 }
 
 void pl_timing_prepare(int is_pal)
@@ -3288,8 +3288,8 @@ void retro_run(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       update_variables(true);
 
-   stop = 0;
-   psxCpu->Execute();
+   psxRegs.stop = 0;
+   psxCpu->Execute(&psxRegs);
 
    if (pl_rearmed_cbs.fskip_dirty == 1) {
       if (frameskip_counter < frameskip_interval)

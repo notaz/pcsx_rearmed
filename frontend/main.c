@@ -538,7 +538,7 @@ int emu_core_init(void)
 
 void emu_core_ask_exit(void)
 {
-	stop++;
+	psxRegs.stop++;
 	g_emu_want_quit = 1;
 }
 
@@ -734,10 +734,10 @@ int main(int argc, char *argv[])
 
 	while (!g_emu_want_quit)
 	{
-		stop = 0;
+		psxRegs.stop = 0;
 		emu_action = SACTION_NONE;
 
-		psxCpu->Execute();
+		psxCpu->Execute(&psxRegs);
 		if (emu_action != SACTION_NONE)
 			do_emu_action();
 	}
