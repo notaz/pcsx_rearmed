@@ -320,7 +320,7 @@ static void clear_local_cache(void)
 #ifdef _3DS
 	if (ndrc_g.thread.cache_dirty) {
 		ndrc_g.thread.cache_dirty = 0;
-		ctr_clear_cache();
+		ctr_invalidate_icache();
 	}
 #else
 	// hopefully nothing is needed, as tested on r-pi4 and switch
