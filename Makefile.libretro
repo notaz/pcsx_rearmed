@@ -81,6 +81,7 @@ else ifeq ($(platform), libnx)
   endif
   include $(DEVKITPRO)/libnx/switch_rules
   SHELL := PATH=$(PATH) $(SHELL)
+  LD = $(PREFIX)ld
 else ifeq ($(platform), xenon)
   CC = xenon-gcc$(EXE_EXT)
   AR = xenon-ar$(EXE_EXT)
@@ -266,16 +267,17 @@ else ifeq ($(platform), libnx)
    TARGET := $(TARGET_NAME)_libretro_$(platform).a
    ARCH := arm64
    HAVE_VFS_FD = 0
-   CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition # -include $(LIBNX)/include/switch.h
+   CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE
    CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs -DNO_DYLIB -D__arm64__ -D__ARM_NEON__
-   CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
+   CFLAGS += -D__SWITCH__ -DSWITCH -DHAVE_LIBNX
    CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -DHAVE_INTTYPES -DLSB_FIRST -ffast-math -mcpu=cortex-a57+crc+fp+simd
    CFLAGS += -ftree-vectorize
-   CFLAGS += -Ifrontend/switch -ftree-vectorize
+   CFLAGS += -Ifrontend/switch
    NO_POSIX_MEMALIGN := 1
    NO_PTHREAD=1
    NO_MMAP := 1 # for psxmem
    LIBPTHREAD :=
+   WANT_ZLIB = 0
    PARTIAL_LINKING = 1
    BUILTIN_GPU = neon
    HAVE_NEON = 1
