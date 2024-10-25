@@ -27,6 +27,8 @@
 #include "gpu_timing.h"
 #include "gpulib_thread_if.h"
 
+extern void SysPrintf(const char *fmt, ...);
+
 #define FALSE 0
 #define TRUE 1
 #define BOOL unsigned short
@@ -67,7 +69,6 @@ static BOOL flushed;
 extern const unsigned char cmd_lengths[];
 
 static void *video_thread_main(void *arg) {
-	video_thread_state *thread = (video_thread_state *)arg;
 	video_thread_cmd *cmd;
 	int i;
 
@@ -78,22 +79,22 @@ static void *video_thread_main(void *arg) {
 	while(1) {
 		int result, cycles_dummy = 0, last_cmd, start, end;
 		video_thread_queue *queue;
-		pthread_mutex_lock(&thread->queue_lock);
+		pthread_mutex_lock(&thread.queue_lock);
 
-		while (!thread->queue->used && thread->running) {
-			pthread_cond_wait(&thread->cond_msg_avail, &thread->queue_lock);
+		while (!thread.queue->used && thread.running) {
+			pthread_cond_wait(&thread.cond_msg_avail, &thread.queue_lock);
 		}
 
-		if (!thread->running) {
-			pthread_mutex_unlock(&thread->queue_lock);
+		if (!thread.running) {
+			pthread_mutex_unlock(&thread.queue_lock);
 			break;
 		}
 
-		queue = thread->queue;
+		queue = thread.queue;
 		start = queue->start;
 		end = queue->end > queue->start ? queue->end : QUEUE_SIZE;
 		queue->start = end % QUEUE_SIZE;
-		pthread_mutex_unlock(&thread->queue_lock);
+		pthread_mutex_unlock(&thread.queue_lock);
 
 		for (i = start; i < end; i++) {
 			cmd = &queue->queue[i];
@@ -113,14 +114,14 @@ static void *video_thread_main(void *arg) {
 #endif /* _3DS */
 		}
 
-		pthread_mutex_lock(&thread->queue_lock);
+		pthread_mutex_lock(&thread.queue_lock);
 		queue->used -= (end - start);
 
 		if (!queue->used)
-			pthread_cond_signal(&thread->cond_queue_empty);
+			pthread_cond_signal(&thread.cond_queue_empty);
 
-		pthread_cond_signal(&thread->cond_msg_done);
-		pthread_mutex_unlock(&thread->queue_lock);
+		pthread_cond_signal(&thread.cond_msg_done);
+		pthread_mutex_unlock(&thread.queue_lock);
 	}
 
 	return 0;
@@ -219,7 +220,11 @@ static void video_thread_stop() {
 }
 
 static void video_thread_start() {
-	fprintf(stdout, "Starting render thread\n");
+	SysPrintf("Starting render thread\n");
+
+	thread.queue = &queues[0];
+	thread.bg_queue = &queues[1];
+	thread.running = TRUE;
 
 	if (pthread_cond_init(&thread.cond_msg_avail, NULL) ||
 			pthread_cond_init(&thread.cond_msg_done, NULL) ||
@@ -229,14 +234,11 @@ static void video_thread_start() {
 		goto error;
 	}
 
-	thread.queue = &queues[0];
-	thread.bg_queue = &queues[1];
-
-	thread.running = TRUE;
 	return;
 
  error:
-	fprintf(stderr,"Failed to start rendering thread\n");
+	SysPrintf("Failed to start rendering thread\n");
+	thread.running = FALSE;
 	video_thread_stop();
 }
 
@@ -250,7 +252,7 @@ static void video_thread_queue_cmd(uint32_t *list, int count, int last_cmd) {
 
 	if (!cmd_list) {
 		/* Out of memory, disable the thread and run sync from now on */
-		fprintf(stderr,"Failed to allocate render thread command list, stopping thread\n");
+		SysPrintf("Failed to allocate render thread command list, stopping thread\n");
 		video_thread_stop();
 	}
 
