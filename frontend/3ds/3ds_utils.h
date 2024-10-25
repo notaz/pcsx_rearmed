@@ -14,7 +14,7 @@
 void wait_for_input(void);
 void ctr_clear_cache(void);
 void ctr_clear_cache_range(void *start, void *end);
-//void ctr_invalidate_icache(void); // only icache
+void ctr_invalidate_icache(void); // only icache
 
 extern __attribute__((weak)) int  __ctr_svchax;
 

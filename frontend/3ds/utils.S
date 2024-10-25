@@ -61,13 +61,14 @@ ctr_clear_cache_range:
   bx lr
   .endfunc
 
-#if 0
   .func ctr_invalidate_icache_kernel
 ctr_invalidate_icache_kernel:
+  mrs r3, cpsr
   cpsid aif
   mov r0, #0
   mcr p15, 0, r0, c7, c10, 4    @ Data Sync Barrier
   mcr p15, 0, r0, c7, c5, 0     @ Invalidate entire instruction cache / Flush BTB
+  msr cpsr, r3
   bx lr
   .endfunc
 
@@ -78,4 +79,3 @@ ctr_invalidate_icache:
   svc 0x80                      @ svcCustomBackdoor
   bx lr
   .endfunc
-#endif
