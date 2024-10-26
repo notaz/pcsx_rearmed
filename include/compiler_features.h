@@ -8,12 +8,17 @@
 #  define noinline       __attribute__((noinline,noclone))
 # endif
 # define attr_unused     __attribute__((unused))
-# define attr_weak       __attribute__((weak))
 #else
 # define likely(x)       (x)
 # define unlikely(x)     (x)
 # define noinline
 # define attr_unused
+#endif
+
+// doesn't work on Android, mingw...
+#if defined(__GNUC__) && !defined(ANDROID) && !defined(__MINGW32__)
+# define attr_weak       __attribute__((weak))
+#else
 # define attr_weak
 #endif
 

@@ -112,6 +112,8 @@ void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 
 #endif
 
+#ifndef HAVE_bgr888_to_x
+
 void attr_weak bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
 {
 	const unsigned char *src = src_;
@@ -138,6 +140,8 @@ void attr_weak bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
 // TODO?
 void rgb888_to_rgb565(void *dst, const void *src, int bytes) {}
 void bgr888_to_rgb888(void *dst, const void *src, int bytes) {}
+
+#endif // HAVE_bgr888_to_x
 
 /* YUV stuff */
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
