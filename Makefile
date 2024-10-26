@@ -439,8 +439,7 @@ target_: $(TARGET)
 
 $(TARGET): $(OBJS)
 ifeq ($(PARTIAL_LINKING), 1)
-	sed -e 's/.*/EXTERN(\0)/' frontend/libretro-extern > frontend/libretro-extern.T
-	$(LD) -o $(basename $(TARGET))1.o -r --gc-sections -T frontend/libretro-extern.T $^
+	$(LD) -o $(basename $(TARGET))1.o -r --gc-sections $(addprefix -u , $(shell cat frontend/libretro-extern)) $^
 	$(OBJCOPY) --keep-global-symbols=frontend/libretro-extern $(basename $(TARGET))1.o $(basename $(TARGET)).o
 	$(AR) rcs $@ $(basename $(TARGET)).o
 else ifeq ($(STATIC_LINKING), 1)
