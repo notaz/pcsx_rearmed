@@ -227,21 +227,24 @@ plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
 endif
-ifeq "$(BUILTIN_GPU)" "unai_old"
-OBJS += plugins/gpu_unai_old/gpulib_if.o
-ifeq "$(ARCH)" "arm"
-OBJS += plugins/gpu_unai_old/gpu_arm.o
-endif
-plugins/gpu_unai_old/gpulib_if.o: CFLAGS += -DREARMED -O3
-CC_LINK = $(CXX)
-endif
 
 ifeq "$(BUILTIN_GPU)" "unai"
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1 -O3
+ifeq "$(THREAD_RENDERING)" "1"
+CFLAGS += -DTHREAD_RENDERING
+OBJS += plugins/gpulib/gpulib_thread_if.o
+endif
+ifneq "$(GPU_UNAI_NO_OLD)" "1"
+OBJS += plugins/gpu_unai/old/if.o
+else
+CFLAGS += -DGPU_UNAI_NO_OLD
+endif
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
+plugins/gpu_unai/gpulib_if.o \
+plugins/gpu_unai/old/if.o: CFLAGS += -O3
 CC_LINK = $(CXX)
 endif
 

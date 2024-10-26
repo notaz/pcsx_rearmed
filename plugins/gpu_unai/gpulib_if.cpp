@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../gpulib/gpu.h"
+#include "old/if.h"
 
 #ifdef THREAD_RENDERING
 #include "../gpulib/gpulib_thread_if.h"
@@ -67,6 +68,12 @@
 #include "gpu_command.h"
 
 /////////////////////////////////////////////////////////////////////////////
+
+#ifndef GPU_UNAI_NO_OLD
+#define IS_OLD_RENDERER() gpu_unai.config.old_renderer
+#else
+#define IS_OLD_RENDERER() false
+#endif
 
 #define DOWNSCALE_VRAM_SIZE (1024 * 512 * 2 * 2 + 4096)
 
@@ -247,7 +254,7 @@ int renderer_init(void)
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
   gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
-#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
+#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || !defined(GPU_UNAI_NO_OLD)
   // s_invTable
   for(int i=1;i<=(1<<TABLE_BITS);++i)
   {
@@ -402,6 +409,9 @@ int do_cmd_list(u32 *list_, int list_len,
   le32_t *list = (le32_t *)list_;
   le32_t *list_start = list;
   le32_t *list_end = list + list_len;
+
+  if (IS_OLD_RENDERER())
+    return oldunai_do_cmd_list(list_, list_len, cycles_sum_out, cycles_last, last_cmd);
 
   //TODO: set ilace_mask when resolution changes instead of every time,
   // eliminate #ifdef below.
@@ -825,8 +835,12 @@ breakloop:
 
 void renderer_sync_ecmds(u32 *ecmds)
 {
-  int dummy;
-  do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
+  if (!IS_OLD_RENDERER()) {
+    int dummy;
+    do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
+  }
+  else
+    oldunai_renderer_sync_ecmds(ecmds);
 }
 
 void renderer_update_caches(int x, int y, int w, int h, int state_changed)
@@ -846,6 +860,7 @@ void renderer_set_interlace(int enable, int is_odd)
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
   gpu_unai.vram = (le16_t *)gpu.vram;
+  gpu_unai.config.old_renderer  = cbs->gpu_unai.old_renderer;
   gpu_unai.config.ilace_force   = cbs->gpu_unai.ilace_force;
   gpu_unai.config.pixel_skip    = cbs->gpu_unai.pixel_skip;
   gpu_unai.config.lighting      = cbs->gpu_unai.lighting;
@@ -860,6 +875,7 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   } else {
     unmap_downscale_buffer();
   }
+  oldunai_renderer_set_config(cbs);
 }
 
 void renderer_sync(void)

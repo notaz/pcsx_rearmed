@@ -75,12 +75,14 @@ INLINE float FloatInv(const float x)
 ///////////////////////////////////////////////////////////////////////////
 // --- BEGIN INVERSE APPROXIMATION SECTION ---
 ///////////////////////////////////////////////////////////////////////////
-#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
+#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || !defined(GPU_UNAI_NO_OLD)
 
 //  big precision inverse table.
 #define TABLE_BITS 16
 s32 s_invTable[(1<<TABLE_BITS)];
+#endif
 
+#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
 //senquack - MIPS32 happens to have same instruction/format:
 #if defined(__arm__) || (__mips == 32)
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }

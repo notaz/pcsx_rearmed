@@ -726,6 +726,22 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
+#ifndef GPU_UNAI_NO_OLD
+   {
+      "pcsx_rearmed_gpu_unai_old_renderer",
+      "(GPU) Old renderer",
+      "Old renderer",
+      "This enables faster, but less accurate code.",
+      NULL,
+      "gpu_unai",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+      "disabled",
+   },
+#endif
    {
       "pcsx_rearmed_gpu_unai_blending",
       "(GPU) Texture Blending",
