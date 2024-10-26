@@ -151,6 +151,9 @@ INLINE void gpuClearImage(void)
 	w0 = PacketBuffer.S2[4] & 0x3ff;
 	h0 = PacketBuffer.S2[5] & 0x3ff;
 	 
+	x0 &= ~0xF;
+	w0 = ((w0 + 0xF) & ~0xF);
+
 	w0 += x0;
 	if (x0 < 0) x0 = 0;
 	if (w0 > FRAME_WIDTH) w0 = FRAME_WIDTH;
@@ -162,40 +165,22 @@ INLINE void gpuClearImage(void)
 	h0 -= y0;
 	if (h0 <= 0) return;
 
-	if (x0&1)
-	{
-		u16* pixel = (u16*)GPU_FrameBuffer + FRAME_OFFSET(x0, y0);
-		u16 rgb = GPU_RGB16(PacketBuffer.S4[0]);
-		y0 = FRAME_WIDTH - w0;
-		do {
-			x0=w0;
-			do { *pixel++ = rgb; } while (--x0);
-			pixel += y0;
-		} while (--h0);
-	}
-	else
 	{
 		u32* pixel = (u32*)(void*)GPU_FrameBuffer + ((FRAME_OFFSET(x0, y0))>>1);
 		u32 rgb = GPU_RGB16(PacketBuffer.S4[0]);
 		rgb |= (rgb<<16);
-		if (w0&1)
-		{
-			y0 = (FRAME_WIDTH - w0 +1)>>1;
-			w0>>=1;
-			do {
-				x0=w0;
-				do { *pixel++ = rgb; } while (--x0);
-				*((u16*)pixel) = (u16)rgb;
-				pixel += y0;
-			} while (--h0);
-		}
-		else
 		{
 			y0 = (FRAME_WIDTH - w0)>>1;
-			w0>>=1;
+			w0>>=3;
 			do {
 				x0=w0;
-				do { *pixel++ = rgb; } while (--x0);
+				do {
+					pixel[0] = rgb;
+					pixel[1] = rgb;
+					pixel[2] = rgb;
+					pixel[3] = rgb;
+					pixel += 4;
+				} while (--x0);
 				pixel += y0;
 			} while (--h0);
 		}

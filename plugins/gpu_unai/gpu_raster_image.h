@@ -162,6 +162,9 @@ void gpuClearImage(PtrUnion packet)
 	w0 = le16_to_s16(packet.U2[4]) & 0x3ff;
 	h0 = le16_to_s16(packet.U2[5]) & 0x1ff;
 
+	x0 &= ~0xF;
+	w0 = ((w0 + 0xF) & ~0xF);
+
 	w0 += x0;
 	if (x0 < 0) x0 = 0;
 	if (w0 > FRAME_WIDTH) w0 = FRAME_WIDTH;
@@ -177,40 +180,22 @@ void gpuClearImage(PtrUnion packet)
 		fprintf(stdout,"gpuClearImage(x0=%d,y0=%d,w0=%d,h0=%d)\n",x0,y0,w0,h0);
 	#endif
 
-	if (x0&1)
-	{
-		le16_t* pixel = gpu_unai.vram + FRAME_OFFSET(x0, y0);
-		le16_t rgb = u16_to_le16(GPU_RGB16(le32_to_u32(packet.U4[0])));
-		y0 = FRAME_WIDTH - w0;
-		do {
-			x0=w0;
-			do { *pixel++ = rgb; } while (--x0);
-			pixel += y0;
-		} while (--h0);
-	}
-	else
 	{
 		le32_t* pixel = (le32_t*)gpu_unai.vram + ((FRAME_OFFSET(x0, y0))>>1);
 		u32 _rgb = GPU_RGB16(le32_to_u32(packet.U4[0]));
 		le32_t rgb = u32_to_le32(_rgb | (_rgb << 16));
-		if (w0&1)
-		{
-			y0 = (FRAME_WIDTH - w0 +1)>>1;
-			w0>>=1;
-			do {
-				x0=w0;
-				do { *pixel++ = rgb; } while (--x0);
-				*((u16*)pixel) = (u16)le32_raw(rgb);
-				pixel += y0;
-			} while (--h0);
-		}
-		else
 		{
 			y0 = (FRAME_WIDTH - w0)>>1;
-			w0>>=1;
+			w0>>=3;
 			do {
 				x0=w0;
-				do { *pixel++ = rgb; } while (--x0);
+				do {
+					pixel[0] = rgb;
+					pixel[1] = rgb;
+					pixel[2] = rgb;
+					pixel[3] = rgb;
+					pixel += 4;
+				} while (--x0);
 				pixel += y0;
 			} while (--h0);
 		}
