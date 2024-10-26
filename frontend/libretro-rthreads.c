@@ -83,7 +83,7 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
 	h->id = (pthread_t)ctr_thread;
 #else
 	h = sthread_create(thread_func, NULL);
- #if defined(__GLIBC__) || defined(__MACH__) || \
+ #if defined(__GLIBC__) || \
     (defined(__ANDROID_API__) && __ANDROID_API__ >= 26)
 	if (h && (unsigned int)type < (unsigned int)PCSXRT_COUNT)
 	{

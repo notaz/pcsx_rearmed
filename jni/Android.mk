@@ -205,10 +205,7 @@ endif
 ifeq ($(HAVE_GPU_NEON),1)
   COREFLAGS   += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP -DGPU_NEON
   ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
-    COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
-    SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
-                   $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S \
-                   $(FRONTEND_DIR)/cspace_neon.S
+    SOURCES_ASM += $(NEON_DIR)/psx_gpu/psx_gpu_arm_neon.S
   else
     COREFLAGS   += -DSIMD_BUILD
     SOURCES_C   += $(NEON_DIR)/psx_gpu/psx_gpu_simd.c
@@ -223,6 +220,12 @@ else ifeq ($(TARGET_ARCH_ABI),armeabi)
 else
   COREFLAGS += -fno-strict-aliasing -DGPU_PEOPS
   SOURCES_C += $(PEOPS_DIR)/gpulib_if.c
+endif
+
+ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
+  COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
+  SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
+                 $(FRONTEND_DIR)/cspace_neon.S
 endif
 
 ifeq ($(USE_ASYNC_CDROM),1)
