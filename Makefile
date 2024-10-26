@@ -24,7 +24,8 @@ LDFLAGS += -fsanitize=address
 endif
 ifneq ($(NO_FSECTIONS), 1)
 CFLAGS += -ffunction-sections -fdata-sections
-LDFLAGS += -Wl,--gc-sections
+FSECTIONS_LDFLAGS ?= -Wl,--gc-sections
+LDFLAGS += $(FSECTIONS_LDFLAGS)
 endif
 CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
 	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
