@@ -2641,6 +2641,17 @@ static void update_variables(bool in_flight)
     * pcsx_rearmed_gpu_unai_scale_hires */
    pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
 
+   var.key = "pcsx_rearmed_gpu_unai_old_renderer";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.gpu_unai.old_renderer = 1;
+      else
+         pl_rearmed_cbs.gpu_unai.old_renderer = 0;
+   }
+
    var.key = "pcsx_rearmed_gpu_unai_lighting";
    var.value = NULL;
 

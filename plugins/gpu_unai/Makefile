@@ -8,7 +8,7 @@ CFLAGS += -DUSE_GPULIB=1
 include ../../config.mak
 
 SRC_STANDALONE += gpu.cpp
-SRC_GPULIB += gpulib_if.cpp
+SRC_GPULIB += gpulib_if.cpp old/if.cpp
 
 ifeq "$(ARCH)" "arm"
 SRC += gpu_arm.S

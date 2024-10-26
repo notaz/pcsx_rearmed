@@ -255,14 +255,6 @@ CFLAGS += -DTHREAD_RENDERING
 OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
 endif
-ifeq "$(BUILTIN_GPU)" "unai_old"
-OBJS += plugins/gpu_unai_old/gpulib_if.o
-ifeq "$(ARCH)" "arm"
-OBJS += plugins/gpu_unai_old/gpu_arm.o
-endif
-plugins/gpu_unai_old/gpulib_if.o: CFLAGS += -DREARMED -O3
-CC_LINK = $(CXX)
-endif
 
 ifeq "$(BUILTIN_GPU)" "unai"
 CFLAGS += -DGPU_UNAI
@@ -275,7 +267,14 @@ ifeq "$(THREAD_RENDERING)" "1"
 CFLAGS += -DTHREAD_RENDERING
 OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1 -O3
+ifneq "$(GPU_UNAI_NO_OLD)" "1"
+OBJS += plugins/gpu_unai/old/if.o
+else
+CFLAGS += -DGPU_UNAI_NO_OLD
+endif
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
+plugins/gpu_unai/gpulib_if.o \
+plugins/gpu_unai/old/if.o: CFLAGS += -O3
 CC_LINK = $(CXX)
 endif
 

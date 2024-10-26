@@ -39,13 +39,13 @@ check_define_val()
 
 platform_list="generic pandora maemo caanoo"
 platform="generic"
-builtin_gpu_list="neon peops unai unai_old"
+builtin_gpu_list="neon peops unai"
 dynarec_list="ari64 lightrec none"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
-plugins/dfxvideo/gpu_peops.so plugins/gpu_unai_old/gpu_unai_old.so plugins/gpu_unai/gpu_unai.so"
+plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
@@ -263,7 +263,7 @@ arm*)
       builtin_gpu="neon"
     elif [ "$have_armv7" != "yes" ]; then
       # pre-ARMv7 hardware is usually not fast enough for peops
-      builtin_gpu="unai_old"
+      builtin_gpu="unai"
     else
       builtin_gpu="peops"
     fi

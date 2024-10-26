@@ -22,8 +22,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../gpulib/gpu.h"
+#include "../../gpulib/gpu.h"
 #include "arm_features.h"
+#include "if.h"
 
 #define u8 uint8_t
 #define s8 int8_t
@@ -50,7 +51,8 @@ static bool blend = true; /* blending */
 static bool FrameToRead = false; /* load image in progress */
 static bool FrameToWrite = false; /* store image in progress */
 
-static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
+//static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
+#define enableAbbeyHack false
 
 static u8 BLEND_MODE;
 static u8 TEXT_MODE;
@@ -136,10 +138,11 @@ static u32   GPU_GP1;
 
 /////////////////////////////////////////////////////////////////////////////
 
-int renderer_init(void)
+void oldunai_renderer_init(void)
 {
 	GPU_FrameBuffer = (u16 *)gpu.vram;
 
+#if 0 // shared with "new" unai
 	// s_invTable
 	for(int i=1;i<=(1<<TABLE_BITS);++i)
 	{
@@ -151,30 +154,17 @@ int renderer_init(void)
 		#endif
 		s_invTable[i-1]=s32(v);
 	}
-
-	return 0;
-}
-
-void renderer_finish(void)
-{
-}
-
-void renderer_notify_res_change(void)
-{
-}
-
-void renderer_notify_scanout_change(int x, int y)
-{
+#endif
 }
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(uint32_t *list, int list_len,
+int oldunai_do_cmd_list(uint32_t *list, int list_len,
  int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
   unsigned int cmd = 0, len, i;
-  unsigned int *list_start = list;
-  unsigned int *list_end = list + list_len;
+  uint32_t *list_start = list;
+  uint32_t *list_end = list + list_len;
 
   linesInterlace = force_interlace;
 #ifdef HAVE_PRE_ARMV7 /* XXX */
@@ -521,34 +511,22 @@ breakloop:
   return list - list_start;
 }
 
-void renderer_sync_ecmds(uint32_t *ecmds)
+void oldunai_renderer_sync_ecmds(uint32_t *ecmds)
 {
   int dummy;
   do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
 }
 
-void renderer_update_caches(int x, int y, int w, int h, int state_changed)
-{
-}
-
-void renderer_flush_queues(void)
-{
-}
-
-void renderer_set_interlace(int enable, int is_odd)
-{
-}
-
 #ifndef TEST
 
-#include "../../frontend/plugin_lib.h"
+#include "../../../frontend/plugin_lib.h"
 
-void renderer_set_config(const struct rearmed_cbs *cbs)
+void oldunai_renderer_set_config(const struct rearmed_cbs *cbs)
 {
-  force_interlace = cbs->gpu_unai_old.lineskip;
-  enableAbbeyHack = cbs->gpu_unai_old.abe_hack;
-  light = !cbs->gpu_unai_old.no_light;
-  blend = !cbs->gpu_unai_old.no_blend;
+  force_interlace = cbs->gpu_unai.ilace_force;
+  //enableAbbeyHack = cbs->gpu_unai_old.abe_hack;
+  light = cbs->gpu_unai.lighting;
+  blend = cbs->gpu_unai.blending;
 
   GPU_FrameBuffer = (u16 *)gpu.vram;
 }
