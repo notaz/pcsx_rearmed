@@ -201,6 +201,7 @@ else ifeq ($(platform), osx)
 	CXXFLAGS  += $(ARCHFLAGS)
 	LDFLAGS += $(ARCHFLAGS)
 	HAVE_PHYSICAL_CDROM = 0
+	FSECTIONS_LDFLAGS = -Wl,-dead_strip
 
 # iOS
 else ifneq (,$(findstring ios,$(platform)))
@@ -238,6 +239,7 @@ else
 	MINVERSION = -miphoneos-version-min=5.0
 endif
 	CFLAGS += $(MINVERSION)
+	FSECTIONS_LDFLAGS = -Wl,-dead_strip
 
 else ifeq ($(platform), tvos-arm64)
 	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
@@ -261,6 +263,7 @@ endif
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 	MINVERSION = -mappletvos-version-min=11.0
 	CFLAGS += $(MINVERSION)
+	FSECTIONS_LDFLAGS = -Wl,-dead_strip
 
 # Nintendo Switch (libnx)
 else ifeq ($(platform), libnx)
