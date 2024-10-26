@@ -516,7 +516,9 @@ int emu_core_init(void)
 	SysPrintf("Starting PCSX-ReARMed " REV "%s\n", get_build_info());
 	SysPrintf("build time: " __DATE__ " " __TIME__ "\n");
 
+#ifdef HAVE_RTHREADS
 	pcsxr_sthread_init();
+#endif
 #ifndef NO_FRONTEND
 	check_profile();
 	check_memcards();
