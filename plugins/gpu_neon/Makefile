@@ -4,6 +4,7 @@ include ../../config.mak
 
 SRC += psx_gpu_if.c
 
+CFLAGS += -I../../include
 CFLAGS += -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 CFLAGS += -DNEON_BUILD
 ifeq "$(HAVE_NEON)" "1"

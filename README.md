@@ -1,7 +1,7 @@
 PCSX-ReARMed - yet another PCSX fork
 ====================================
 
-[![Build Status](https://travis-ci.org/libretro/pcsx_rearmed.svg?branch=master)](https://travis-ci.org/libretro/pcsx_rearmed)
+![CI (Linux)](https://github.com/notaz/pcsx_rearmed/workflows/CI%20(Linux)/badge.svg)
 
 *see [readme.txt](readme.txt) for more complete documentation*
 

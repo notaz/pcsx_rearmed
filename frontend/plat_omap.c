@@ -132,7 +132,7 @@ void *plat_gvideo_set_mode(int *w_in, int *h_in, int *bpp)
 	h -= t + b;
 
 	buf = vout_fbdev_resize(layer_fb, w, h, *bpp,
-		l, r, t, b, 3);
+		l, r, t, b, 3, 1);
 
 	vout_fbdev_clear(layer_fb);
 
@@ -154,9 +154,10 @@ void plat_gvideo_close(void)
 void plat_video_menu_enter(int is_rom_loaded)
 {
 	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
-		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 3);
+		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 3, 0);
 	if (g_menuscreen_ptr == NULL)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
+	vout_fbdev_clear(main_fb);
 
 	xenv_update(NULL, NULL, NULL, NULL);
 }
@@ -174,11 +175,11 @@ void plat_video_menu_leave(void)
 {
 	/* have to get rid of panning so that plugins that
 	 * use fb0 and don't ever pan can work. */
-	vout_fbdev_clear(main_fb);
 	g_menuscreen_ptr = vout_fbdev_resize(main_fb,
-		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 1);
+		g_menuscreen_w, g_menuscreen_h, 16, 0, 0, 0, 0, 1, 0);
 	if (g_menuscreen_ptr == NULL)
 		fprintf(stderr, "warning: vout_fbdev_resize failed\n");
+	vout_fbdev_clear(main_fb);
 }
 
 void plat_minimize(void)

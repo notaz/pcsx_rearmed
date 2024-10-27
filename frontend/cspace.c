@@ -94,20 +94,20 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 
 void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 {
-    // source can be misaligned, but it's very rare, so just force
-    const unsigned int *src = (const void *)((intptr_t)src_ & ~3);
-    unsigned int *dst = dst_;
-    unsigned int x, p, r, g, b;
+	// source can be misaligned, but it's very rare, so just force
+	const unsigned int *src = (const void *)((intptr_t)src_ & ~3);
+	unsigned int *dst = dst_;
+	unsigned int x, p, r, g, b;
 
-    for (x = 0; x < bytes / 4; x++) {
-        p = LE16TOHx2(src[x]);
+	for (x = 0; x < bytes / 4; x++) {
+		p = LE16TOHx2(src[x]);
 
-        r = (p & 0x001f001f) << 11;
-        g = (p & 0x03e003e0) << 1;
-        b = (p & 0x7c007c00) >> 10;
+		r = (p & 0x001f001f) << 11;
+		g = (p & 0x03e003e0) << 1;
+		b = (p & 0x7c007c00) >> 10;
 
-        dst[x] = r | g | b;
-    }
+		dst[x] = r | g | b;
+	}
 }
 
 #endif
@@ -116,25 +116,25 @@ void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
 
 void attr_weak bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
 {
-    const unsigned char *src = src_;
-    unsigned int *dst = dst_;
-    unsigned int r1, g1, b1, r2, g2, b2;
+	const unsigned char *src = src_;
+	unsigned int *dst = dst_;
+	unsigned int r1, g1, b1, r2, g2, b2;
 
-    for (; bytes >= 6; bytes -= 6, src += 6, dst++) {
-        r1 = src[0] & 0xf8;
-        g1 = src[1] & 0xfc;
-        b1 = src[2] & 0xf8;
-        r2 = src[3] & 0xf8;
-        g2 = src[4] & 0xfc;
-        b2 = src[5] & 0xf8;
+	for (; bytes >= 6; bytes -= 6, src += 6, dst++) {
+		r1 = src[0] & 0xf8;
+		g1 = src[1] & 0xfc;
+		b1 = src[2] & 0xf8;
+		r2 = src[3] & 0xf8;
+		g2 = src[4] & 0xfc;
+		b2 = src[5] & 0xf8;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-        *dst = (r1 << 24) | (g1 << 19) | (b1 << 13) |
-               (r2 << 8) | (g2 << 3) | (b2 >> 3);
+		*dst = (r1 << 24) | (g1 << 19) | (b1 << 13) |
+			(r2 << 8) | (g2 << 3) | (b2 >> 3);
 #else
-        *dst = (r2 << 24) | (g2 << 19) | (b2 << 13) |
-               (r1 << 8) | (g1 << 3) | (b1 >> 3);
+		*dst = (r2 << 24) | (g2 << 19) | (b2 << 13) |
+			(r1 << 8) | (g1 << 3) | (b1 >> 3);
 #endif
-    }
+	}
 }
 
 // TODO?
