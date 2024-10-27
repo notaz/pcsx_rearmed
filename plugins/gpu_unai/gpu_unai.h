@@ -22,6 +22,7 @@
 #ifndef GPU_UNAI_H
 #define GPU_UNAI_H
 
+#include <stdint.h>
 #include "gpu.h"
 
 // Header shared between both standalone gpu_unai (gpu.cpp) and new
@@ -62,6 +63,8 @@ typedef union {
 	u64 raw;
 } gcol_t;
 
+#ifndef NDEBUG
+
 typedef struct {
         u32 v;
 } le32_t;
@@ -70,44 +73,54 @@ typedef struct {
         u16 v;
 } le16_t;
 
+#define LExRead(v_) (v_.v)
+
+#else
+
+typedef u32 le32_t;
+typedef u16 le16_t;
+#define LExRead(v) (v)
+
+#endif
+
 static inline u32 le32_to_u32(le32_t le)
 {
-        return LE32TOH(le.v);
+        return LE32TOH(LExRead(le));
 }
 
 static inline s32 le32_to_s32(le32_t le)
 {
-        return (int32_t) LE32TOH(le.v);
+        return (int32_t) LE32TOH(LExRead(le));
 }
 
 static inline u32 le32_raw(le32_t le)
 {
-	return le.v;
+	return LExRead(le);
 }
 
 static inline le32_t u32_to_le32(u32 u)
 {
-	return (le32_t){ .v = HTOLE32(u) };
+	return (le32_t){ HTOLE32(u) };
 }
 
 static inline u16 le16_to_u16(le16_t le)
 {
-        return LE16TOH(le.v);
+        return LE16TOH(LExRead(le));
 }
 
 static inline s16 le16_to_s16(le16_t le)
 {
-        return (int16_t) LE16TOH(le.v);
+        return (int16_t) LE16TOH(LExRead(le));
 }
 
 static inline u16 le16_raw(le16_t le)
 {
-	return le.v;
+	return LExRead(le);
 }
 
 static inline le16_t u16_to_le16(u16 u)
 {
-	return (le16_t){ .v = HTOLE16(u) };
+	return (le16_t){ HTOLE16(u) };
 }
 
 union PtrUnion
