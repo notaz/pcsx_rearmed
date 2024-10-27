@@ -105,9 +105,12 @@ struct psx_gpu {
     uint32_t allow:1;
     uint32_t frame_ready:1;
     const int *advice;
+    const int *force;
+    int *dirty;
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
+  uint32_t scratch_ex_regs[8]; // for threaded rendering
   void *(*get_enhancement_bufer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   uint16_t *(*get_downscale_buffer)
@@ -134,6 +137,8 @@ void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);
 void renderer_notify_res_change(void);
+void renderer_notify_update_lace(int updated);
+void renderer_sync(void);
 void renderer_notify_scanout_change(int x, int y);
 
 int  vout_init(void);

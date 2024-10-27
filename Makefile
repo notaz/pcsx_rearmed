@@ -13,7 +13,7 @@ CFLAGS += -ggdb
 endif
 ifneq ($(DEBUG), 1)
 CFLAGS += -O2
-ifndef ASSERTS
+ifneq ($(ASSERTS), 1)
 CFLAGS += -DNDEBUG
 endif
 endif
@@ -77,6 +77,28 @@ OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cdrom-async.o \
 	libpcsxcore/sio.o libpcsxcore/spu.o libpcsxcore/gpu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
 #OBJS += libpcsxcore/debug.o libpcsxcore/socket.o libpcsxcore/disr3000a.o
+
+ifeq ($(WANT_ZLIB),1)
+ZLIB_DIR = deps/libchdr/deps/zlib-1.3.1
+CFLAGS += -I$(ZLIB_DIR)
+OBJS += $(ZLIB_DIR)/adler32.o \
+        $(ZLIB_DIR)/compress.o \
+        $(ZLIB_DIR)/crc32.o \
+        $(ZLIB_DIR)/deflate.o \
+        $(ZLIB_DIR)/gzclose.o \
+        $(ZLIB_DIR)/gzlib.o \
+        $(ZLIB_DIR)/gzread.o \
+        $(ZLIB_DIR)/gzwrite.o \
+        $(ZLIB_DIR)/infback.o \
+        $(ZLIB_DIR)/inffast.o \
+        $(ZLIB_DIR)/inflate.o \
+        $(ZLIB_DIR)/inftrees.o \
+        $(ZLIB_DIR)/trees.o \
+        $(ZLIB_DIR)/uncompr.o \
+        $(ZLIB_DIR)/zutil.o
+$(ZLIB_DIR)/%.o: CFLAGS += -DHAVE_UNISTD_H
+endif
+
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
@@ -209,6 +231,7 @@ endif
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(BUILTIN_GPU)" "neon"
+CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
@@ -222,13 +245,20 @@ frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_NEON
  endif
 endif
 ifeq "$(BUILTIN_GPU)" "peops"
+CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
+ifeq "$(THREAD_RENDERING)" "1"
+CFLAGS += -DTHREAD_RENDERING
+OBJS += plugins/gpulib/gpulib_thread_if.o
+endif
 endif
 
 ifeq "$(BUILTIN_GPU)" "unai"
+CFLAGS += -DGPU_UNAI
+CFLAGS += -DUSE_GPULIB=1
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
@@ -249,7 +279,7 @@ CC_LINK = $(CXX)
 endif
 
 # libchdr
-#ifeq "$(HAVE_CHD)" "1"
+ifeq "$(HAVE_CHD)" "1"
 LCHDR = deps/libchdr
 LCHDR_LZMA = $(LCHDR)/deps/lzma-24.05
 LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.6/lib
@@ -283,7 +313,7 @@ $(LCHDR_ZSTD)/decompress/%.o: CFLAGS += -I$(LCHDR_ZSTD)
 $(LCHDR)/src/%.o: CFLAGS += -I$(LCHDR_ZSTD)
 libpcsxcore/cdriso.o: CFLAGS += -Wno-unused-function
 CFLAGS += -DHAVE_CHD -I$(LCHDR)/include
-#endif
+endif
 
 # frontend/gui
 OBJS += frontend/cspace.o

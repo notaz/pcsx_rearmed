@@ -43,6 +43,7 @@ static void finish_vram_transfer(int is_read);
 static noinline void do_cmd_reset(void)
 {
   int dummy = 0;
+  renderer_sync();
   if (unlikely(gpu.cmd_len > 0))
     do_cmd_buffer(gpu.cmd_buffer, gpu.cmd_len, &dummy, &dummy);
   gpu.cmd_len = 0;
@@ -167,6 +168,8 @@ static noinline void update_height(void)
 
 static noinline void decide_frameskip(void)
 {
+  *gpu.frameskip.dirty = 1;
+
   if (gpu.frameskip.active)
     gpu.frameskip.cnt++;
   else {
@@ -174,7 +177,9 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.frame_ready = 1;
   }
 
-  if (!gpu.frameskip.active && *gpu.frameskip.advice)
+  if (*gpu.frameskip.force)
+    gpu.frameskip.active = 1;
+  else if (!gpu.frameskip.active && *gpu.frameskip.advice)
     gpu.frameskip.active = 1;
   else if (gpu.frameskip.set > 0 && gpu.frameskip.cnt < gpu.frameskip.set)
     gpu.frameskip.active = 1;
@@ -448,6 +453,8 @@ static int do_vram_io(uint32_t *data, int count, int is_read)
   int l;
   count *= 2; // operate in 16bpp pixels
 
+  renderer_sync();
+
   if (gpu.dma.offset) {
     l = w - gpu.dma.offset;
     if (count < l)
@@ -687,6 +694,7 @@ static noinline int do_cmd_buffer(uint32_t *data, int count,
         cmd = -1; // incomplete cmd, can't consume yet
         break;
       }
+      renderer_sync();
       *cycles_sum += *cycles_last;
       *cycles_last = 0;
       do_vram_copy(data + pos + 1, cycles_last);
@@ -890,12 +898,15 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
     case 1: // save
       if (gpu.cmd_len > 0)
         flush_cmd_buffer();
+
+      renderer_sync();
       memcpy(freeze->psxVRam, gpu.vram, 1024 * 512 * 2);
       memcpy(freeze->ulControl, gpu.regs, sizeof(gpu.regs));
       memcpy(freeze->ulControl + 0xe0, gpu.ex_regs, sizeof(gpu.ex_regs));
       freeze->ulStatus = gpu.status;
       break;
     case 0: // load
+      renderer_sync();
       memcpy(gpu.vram, freeze->psxVRam, 1024 * 512 * 2);
       memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
@@ -929,6 +940,8 @@ void GPUupdateLace(void)
     return;
   }
 
+  renderer_notify_update_lace(0);
+
   if (!gpu.state.fb_dirty)
     return;
 #endif
@@ -948,6 +961,7 @@ void GPUupdateLace(void)
   gpu.state.enhancement_was_active = gpu.state.enhancement_active;
   gpu.state.fb_dirty = 0;
   gpu.state.blanked = 0;
+  renderer_notify_update_lace(1);
 }
 
 void GPUvBlank(int is_vblank, int lcf)
@@ -984,6 +998,8 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
 {
   gpu.frameskip.set = cbs->frameskip;
   gpu.frameskip.advice = &cbs->fskip_advice;
+  gpu.frameskip.force = &cbs->fskip_force;
+  gpu.frameskip.dirty = (void *)&cbs->fskip_dirty;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
   gpu.state.hcnt = (uint32_t *)cbs->gpu_hcnt;

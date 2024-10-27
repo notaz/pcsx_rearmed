@@ -16,3 +16,6 @@
 [submodule "deps/libretro-common"]
 	path = deps/libretro-common
 	url = https://github.com/libretro/libretro-common.git
+[submodule "deps/mman"]
+	path = deps/mman
+	url = https://github.com/witwall/mman-win32
