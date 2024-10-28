@@ -38,9 +38,6 @@ typedef s32 fixed;
 #define fixed_TWO  ((fixed)2<<FIXED_BITS)
 #define fixed_HALF ((fixed)((1<<FIXED_BITS)>>1))
 
-//  big precision inverse table.
-extern s32 s_invTable[(1<<TABLE_BITS)];
-
 INLINE  fixed i2x(const int   _x) { return  ((_x)<<FIXED_BITS); }
 INLINE  fixed x2i(const fixed _x) { return  ((_x)>>FIXED_BITS); }
 
@@ -57,11 +54,38 @@ INLINE u32 Log2(u32 _a)
 }
 */
 
+#ifdef GPU_UNAI_USE_FLOATMATH
+
+#define inv_type float
+
+INLINE  void  xInv (const fixed _b, float & factor_, float & shift_)
+{
+	factor_ = 1.0f / _b;
+	shift_ = 0.0f; // not used
+}
+
+INLINE  fixed xInvMulx  (const fixed _a, const float fact, const float shift)
+{
+	return (fixed)((_a << FIXED_BITS) * fact);
+}
+
+INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
+{
+	return (fixed)((_a << FIXED_BITS) / (float)_b);
+}
+
+#else
+
+#define inv_type s32
+
 #ifdef HAVE_ARMV5
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }
 #else
 INLINE u32 Log2(u32 x) { u32 i = 0; for ( ; x > 0; ++i, x >>= 1); return i - 1; }
 #endif
+
+//  big precision inverse table.
+extern s32 s_invTable[(1<<TABLE_BITS)];
 
 #ifdef GPU_TABLE_10_BITS
 INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
@@ -112,6 +136,8 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
   xInv(_b, iFact, iShift);
   return xInvMulx(_a, iFact, iShift);
 }
+
+#endif // GPU_UNAI_USE_FLOATMATH
 
 ///////////////////////////////////////////////////////////////////////////
 template<typename T>

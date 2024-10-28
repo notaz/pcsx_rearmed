@@ -254,7 +254,7 @@ int renderer_init(void)
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
   gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
-#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || !defined(GPU_UNAI_NO_OLD)
+#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || (!defined(GPU_UNAI_NO_OLD) && !defined(GPU_UNAI_USE_FLOATMATH))
   // s_invTable
   for(int i=1;i<=(1<<TABLE_BITS);++i)
   {
