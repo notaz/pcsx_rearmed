@@ -707,7 +707,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;
@@ -748,7 +748,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;
@@ -788,7 +788,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;

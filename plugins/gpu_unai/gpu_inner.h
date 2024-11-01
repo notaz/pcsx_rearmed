@@ -359,9 +359,18 @@ const PT gpuTileSpanDrivers[32] = {
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Sprites innerloops generator
+typedef struct spriteDriverArg {
+	const le16_t *CBA;
+	u32 u0, v0, u0_mask, v0_mask;
+	s32 y0, y1, li;
+} spriteDriverArg;
+
+typedef void (*PS)(le16_t *pPixel, u32 count, const u8 *pTxt,
+	const spriteDriverArg *arg);
 
 template<int CF>
-static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
+static void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+	const spriteDriverArg *arg)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip (source color always comes with MSB=0).
@@ -370,7 +379,7 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 
 	uint_fast16_t uSrc, uDst, srcMSB;
 	bool should_blend;
-	u32 u0_mask = gpu_unai.TextureWindow[2];
+	u32 u0_mask = arg->u0_mask;
 
 	u8 r5, g5, b5;
 	if (CF_LIGHT) {
@@ -384,10 +393,20 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 		u0_mask <<= 1;
 	}
 
-	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
+	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = arg->CBA;
+	const u32 v0_mask = arg->v0_mask;
+	s32 y0 = arg->y0, y1 = arg->y1, li = arg->li;
+	u32 u0_ = arg->u0, v0 = arg->v0;
 
-	do
+	for (; y0 < y1; ++y0, pPixel += FRAME_WIDTH, ++v0)
 	{
+	  if (y0 & li) continue;
+	  const u8 *pTxt = pTxt_base + ((v0 & v0_mask) * 2048);
+	  le16_t *pDst = pPixel;
+	  u32 u0 = u0_;
+	  u32 count1 = count;
+	  do
+	  {
 		if (CF_MASKCHECK || CF_BLEND) { uDst = le16_to_u16(*pDst); }
 		if (CF_MASKCHECK) if (uDst&0x8000) { goto endsprite; }
 
@@ -423,11 +442,13 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 endsprite:
 		u0 += (CF_TEXTMODE==3) ? 2 : 1;
 		pDst++;
+	  }
+	  while (--count1);
 	}
-	while (--count);
 }
 
-static void SpriteNULL(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
+static void SpriteNULL(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+	const spriteDriverArg *arg)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -438,10 +459,9 @@ static void SpriteNULL(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Sprite innerloops driver
-typedef void (*PS)(le16_t *pDst, u32 count, u8* pTxt, u32 u0);
 
 // Template instantiation helper macros
-#define TI(cf) gpuSpriteSpanFn<(cf)>
+#define TI(cf) gpuSpriteDriverFn<(cf)>
 #define TN     SpriteNULL
 #define TIBLOCK(ub) \
 	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
@@ -461,7 +481,7 @@ typedef void (*PS)(le16_t *pDst, u32 count, u8* pTxt, u32 u0);
 	TN,            TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
 	TN,            TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f)
 
-const PS gpuSpriteSpanDrivers[256] = {
+const PS gpuSpriteDrivers[256] = {
 	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
 
