@@ -82,4 +82,13 @@ typedef enum {
 #define JIT_NOREG		_NOREG
 } jit_reg_t;
 
+typedef struct {
+    jit_uint32_t popcntb	: 1;
+} jit_cpu_t;
+
+/*
+ * Initialization
+ */
+extern jit_cpu_t		jit_cpu;
+
 #endif /* _jit_ppc_h */

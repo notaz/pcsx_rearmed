@@ -1,6 +1,6 @@
 
 #if __X32
-#define JIT_INSTR_MAX 63
+#define JIT_INSTR_MAX 66
     0,	/* data */
     0,	/* live */
     3,	/* align */
@@ -423,7 +423,7 @@
     6,	/* str_d */
     10,	/* sti_d */
     7,	/* stxr_d */
-    8,	/* stxi_d */
+    9,	/* stxi_d */
     10,	/* bltr_d */
     28,	/* blti_d */
     10,	/* bler_d */
@@ -495,7 +495,7 @@
     12,	/* qlshi */
     60,	/* qlshr_u */
     12,	/* qlshi_u */
-    59,	/* qrshr */
+    66,	/* qrshr */
     12,	/* qrshi */
     56,	/* qrshr_u */
     12,	/* qrshi_u */
@@ -525,10 +525,70 @@
     0,	/* fnmai_d */
     27,	/* fnmsr_d */
     0,	/* fnmsi_d */
-    18, /* hmulr */
-    23, /* hmuli */
-    18, /* hmulr_u */
-    23, /* hmuli_u */
+    18,	/* hmulr */
+    23,	/* hmuli */
+    18,	/* hmulr_u */
+    23,	/* hmuli_u */
+    5,	/* ldxbr_c */
+    6,	/* ldxbi_c */
+    5,	/* ldxar_c */
+    6,	/* ldxai_c */
+    5,	/* ldxbr_uc */
+    6,	/* ldxbi_uc */
+    5,	/* ldxar_uc */
+    6,	/* ldxai_uc */
+    5,	/* ldxbr_s */
+    6,	/* ldxbi_s */
+    5,	/* ldxar_s */
+    6,	/* ldxai_s */
+    5,	/* ldxbr_us */
+    6,	/* ldxbi_us */
+    5,	/* ldxar_us */
+    6,	/* ldxai_us */
+    4,	/* ldxbr_i */
+    5,	/* ldxbi_i */
+    4,	/* ldxar_i */
+    5,	/* ldxai_i */
+    0,	/* ldxbr_ui */
+    0,	/* ldxbi_ui */
+    0,	/* ldxar_ui */
+    0,	/* ldxai_ui */
+    0,	/* ldxbr_l */
+    0,	/* ldxbi_l */
+    0,	/* ldxar_l */
+    0,	/* ldxai_l */
+    6,	/* ldxbr_f */
+    7,	/* ldxbi_f */
+    6,	/* ldxar_f */
+    7,	/* ldxai_f */
+    6,	/* ldxbr_d */
+    7,	/* ldxbi_d */
+    6,	/* ldxar_d */
+    7,	/* ldxai_d */
+    6,	/* stxbr_c */
+    7,	/* stxbi_c */
+    6,	/* stxar_c */
+    7,	/* stxai_c */
+    5,	/* stxbr_s */
+    6,	/* stxbi_s */
+    5,	/* stxar_s */
+    6,	/* stxai_s */
+    4,	/* stxbr_i */
+    5,	/* stxbi_i */
+    4,	/* stxar_i */
+    5,	/* stxai_i */
+    0,	/* stxbr_l */
+    0,	/* stxbi_l */
+    0,	/* stxar_l */
+    0,	/* stxai_l */
+    8,	/* stxbr_f */
+    9,	/* stxbi_f */
+    8,	/* stxar_f */
+    9,	/* stxai_f */
+    8,	/* stxbr_d */
+    9,	/* stxbi_d */
+    8,	/* stxar_d */
+    9,	/* stxai_d */
 #endif /* __X32 */
 
 #if __X64
@@ -1028,7 +1088,7 @@
     15,	/* qlshi */
     54,	/* qlshr_u */
     15,	/* qlshi_u */
-    53,	/* qrshr */
+    62,	/* qrshr */
     15,	/* qrshi */
     49,	/* qrshr_u */
     15,	/* qrshi_u */
@@ -1058,10 +1118,40 @@
     0,	/* fnmai_d */
     30,	/* fnmsr_d */
     0,	/* fnmsi_d */
-    17, /* hmulr */
-    27, /* hmuli */
-    17, /* hmulr_u */
-    27, /* hmuli_u */
+    17,	/* hmulr */
+    27,	/* hmuli */
+    17,	/* hmulr_u */
+    27,	/* hmuli_u */
+    8,	/* ldxbi_c */
+    8,	/* ldxai_c */
+    8,	/* ldxbi_uc */
+    8,	/* ldxai_uc */
+    8,	/* ldxbi_s */
+    8,	/* ldxai_s */
+    8,	/* ldxbi_us */
+    8,	/* ldxai_us */
+    7,	/* ldxbi_i */
+    7,	/* ldxai_i */
+    7,	/* ldxbi_ui */
+    7,	/* ldxai_ui */
+    7,	/* ldxbi_l */
+    7,	/* ldxai_l */
+    9,	/* ldxbi_f */
+    9,	/* ldxai_f */
+    9,	/* ldxbi_d */
+    9,	/* ldxai_d */
+    10,	/* stxbi_c */
+    10,	/* stxai_c */
+    8,	/* stxbi_s */
+    8,	/* stxai_s */
+    7,	/* stxbi_i */
+    7,	/* stxai_i */
+    7,	/* stxbi_l */
+    7,	/* stxai_l */
+    9,	/* stxbi_f */
+    9,	/* stxai_f */
+    9,	/* stxbi_d */
+    9,	/* stxai_d */
 #else
 
 #  if __X64_32
@@ -1406,7 +1496,7 @@
     10,	/* bgtr_f */
     20,	/* bgti_f */
     13,	/* bner_f */
-    23,	/* bnei_f */
+    24,	/* bnei_f */
     10,	/* bunltr_f */
     20,	/* bunlti_f */
     10,	/* bunler_f */
@@ -1488,7 +1578,7 @@
     6,	/* str_d */
     11,	/* sti_d */
     10,	/* stxr_d */
-    9,	/* stxi_d */
+    10,	/* stxi_d */
     11,	/* bltr_d */
     30,	/* blti_d */
     11,	/* bler_d */
@@ -1500,7 +1590,7 @@
     11,	/* bgtr_d */
     30,	/* bgti_d */
     14,	/* bner_d */
-    33,	/* bnei_d */
+    37,	/* bnei_d */
     11,	/* bunltr_d */
     30,	/* bunlti_d */
     11,	/* bunler_d */
@@ -1560,7 +1650,7 @@
     15,	/* qlshi */
     52,	/* qlshr_u */
     15,	/* qlshi_u */
-    51,	/* qrshr */
+    60,	/* qrshr */
     15,	/* qrshi */
     47,	/* qrshr_u */
     15,	/* qrshi_u */
@@ -1590,10 +1680,40 @@
     0,	/* fnmai_d */
     31,	/* fnmsr_d */
     0,	/* fnmsi_d */
-    15, /* hmulr */
-    21, /* hmuli */
-    15, /* hmulr_u */
-    21, /* hmuli_u */
+    15,	/* hmulr */
+    21,	/* hmuli */
+    15,	/* hmulr_u */
+    21,	/* hmuli_u */
+    9,	/* ldxbi_c */
+    9,	/* ldxai_c */
+    9,	/* ldxbi_uc */
+    9,	/* ldxai_uc */
+    9,	/* ldxbi_s */
+    9,	/* ldxai_s */
+    9,	/* ldxbi_us */
+    9,	/* ldxai_us */
+    8,	/* ldxbi_i */
+    8,	/* ldxai_i */
+    0,	/* ldxbi_ui */
+    0,	/* ldxai_ui */
+    0,	/* ldxbi_l */
+    0,	/* ldxai_l */
+    10,	/* ldxbi_f */
+    10,	/* ldxai_f */
+    10,	/* ldxbi_d */
+    10,	/* ldxai_d */
+    11,	/* stxbi_c */
+    11,	/* stxai_c */
+    9,	/* stxbi_s */
+    9,	/* stxai_s */
+    8,	/* stxbi_i */
+    8,	/* stxai_i */
+    0,	/* stxbi_l */
+    0,	/* stxai_l */
+    10,	/* stxbi_f */
+    10,	/* stxai_f */
+    10,	/* stxbi_d */
+    10,	/* stxai_d */
 #else
 
 #define JIT_INSTR_MAX 112
@@ -2125,6 +2245,66 @@
     27, /* hmuli */
     17, /* hmulr_u */
     27, /* hmuli_u */
+    8,	/* ldxbr_c */
+    9,	/* ldxbi_c */
+    8,	/* ldxar_c */
+    9,	/* ldxai_c */
+    8,	/* ldxbr_uc */
+    9,	/* ldxbi_uc */
+    8,	/* ldxar_uc */
+    9,	/* ldxai_uc */
+    8,	/* ldxbr_s */
+    9,	/* ldxbi_s */
+    8,	/* ldxar_s */
+    9,	/* ldxai_s */
+    8,	/* ldxbr_us */
+    9,	/* ldxbi_us */
+    8,	/* ldxar_us */
+    9,	/* ldxai_us */
+    7,	/* ldxbr_i */
+    8,	/* ldxbi_i */
+    7,	/* ldxar_i */
+    8,	/* ldxai_i */
+    7,	/* ldxbr_ui */
+    8,	/* ldxbi_ui */
+    7,	/* ldxar_ui */
+    8,	/* ldxai_ui */
+    7,	/* ldxbr_l */
+    8,	/* ldxbi_l */
+    7,	/* ldxar_l */
+    8,	/* ldxai_l */
+    9,	/* ldxbr_f */
+    10,	/* ldxbi_f */
+    9,	/* ldxar_f */
+    10,	/* ldxai_f */
+    9,	/* ldxbr_d */
+    10,	/* ldxbi_d */
+    9,	/* ldxar_d */
+    10,	/* ldxai_d */
+    7,	/* stxbr_c */
+    8,	/* stxbi_c */
+    7,	/* stxar_c */
+    8,	/* stxai_c */
+    8,	/* stxbr_s */
+    9,	/* stxbi_s */
+    8,	/* stxar_s */
+    9,	/* stxai_s */
+    7,	/* stxbr_i */
+    8,	/* stxbi_i */
+    7,	/* stxar_i */
+    8,	/* stxai_i */
+    7,	/* stxbr_l */
+    8,	/* stxbi_l */
+    7,	/* stxar_l */
+    8,	/* stxai_l */
+    9,	/* stxbr_f */
+    10,	/* stxbi_f */
+    9,	/* stxar_f */
+    10,	/* stxai_f */
+    9,	/* stxbr_d */
+    10,	/* stxbi_d */
+    9,	/* stxar_d */
+    10,	/* stxai_d */
 #endif /* __CYGWIN__ || _WIN32 */
 #  endif /* __X64_32 */
 #endif /* __X64 */

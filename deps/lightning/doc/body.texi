@@ -554,6 +554,10 @@ ldr     _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *O2
 ldi     _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *O2
 ldxr    _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *(O2+O3)
 ldxi    _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *(O2+O3)
+ldxbr   _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O2 += O3, O1 = *O2
+ldxbi   _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O2 += O3, O1 = *O2
+ldxar   _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *O2, O2 += O3
+ldxai   _c  _uc  _s  _us  _i  _ui  _l  _f  _d  O1 = *O2, O2 += O3
 @end example
 
 @item Store operations
@@ -565,6 +569,10 @@ str     _c       _s       _i       _l  _f  _d  *O1 = O2
 sti     _c       _s       _i       _l  _f  _d  *O1 = O2
 stxr    _c       _s       _i       _l  _f  _d  *(O1+O2) = O3
 stxi    _c       _s       _i       _l  _f  _d  *(O1+O2) = O3
+stxbr   _c       _s       _i       _l  _f  _d  O2 += O1, *O2 = O3
+stxbi   _c       _s       _i       _l  _f  _d  O2 += O1, *O2 = O3
+stxar   _c       _s       _i       _l  _f  _d  *O2 = O3, O2 += O1
+stxai   _c       _s       _i       _l  _f  _d  *O2 = O3, O2 += O1
 @end example
 Note that the unsigned type modifier is not available, as the store
 only writes to the 1, 2, 4 or 8 sized memory address.

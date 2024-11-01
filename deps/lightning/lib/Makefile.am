@@ -17,7 +17,7 @@
 AM_CFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include	\
 	-D_GNU_SOURCE $(LIGHTNING_CFLAGS)
 liblightning_LTLIBRARIES = liblightning.la
-liblightning_la_LDFLAGS = -version-info 2:1:0
+liblightning_la_LDFLAGS = -version-info 2:2:0
 
 AM_CPPFLAGS =
 if get_jit_size
@@ -83,6 +83,9 @@ EXTRA_DIST =			\
 	jit_s390-cpu.c		\
 	jit_s390-fpu.c		\
 	jit_s390-sz.c		\
+	jit_sh.c		\
+	jit_sh-cpu.c		\
+	jit_sh-sz.c		\
 	jit_sparc.c		\
 	jit_sparc-cpu.c		\
 	jit_sparc-fpu.c		\

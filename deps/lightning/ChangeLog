@@ -1,3 +1,40 @@
+2024-01-24 Paulo Andrade <pcpa@gnu.org>
+
+	* check/Makefile.am: Add new ldstxbar test.
+	* check/all.tst: Add simple code to disassemble new codes.
+	* check/lightning.c: Add logic to call the new codes.
+	* doc/body.texi: Document the new codes and remove note about
+	only an immediate displacement argument supported.
+	* include/lightning.h.in: Add the new {ld,st}x{b,a}r_* codes.
+	* lib/jit_names.c: Add debug string for the new codes.
+	* lib/lightning.c: Implement fallbacks for the new codes.
+	* lib/jit_aarch64-sz.c, lib/jit_aarch64.c, lib/jit_alpha.c,
+	lib/jit_arm-sz.c, lib/jit_arm.c, lib/jit_hppa.c, lib/jit_ia64.c,
+	lib/jit_loongarch-sz.c, lib/jit_loongarch.c, lib/jit_mips-sz.c,
+	lib/jit_mips.c, lib/jit_ppc-sz.c, lib/jit_ppc.c, lib/jit_riscv-sz.c,
+	lib/jit_riscv.c, lib/jit_s390.c, lib/jit_sparc-sz.c, lib/jit_sparc.c,
+	lib/jit_x86-sz.c, lib/jit_x86.c: Implement the new increment load
+	and store codes with a register displacement.
+
+2023-12-22 Paulo Andrade <pcpa@gnu.org>
+
+	* check/Makefile.am: Add new ldstxbai test.
+	* check/all.tst: Add simple code to disassemble new codes.
+	* check/lightning.c: Add logic to call the new codes.
+	* doc/body.texi: Document the new codes.
+	* include/lightning.h.in: Add the new {ld,st}x{b,a}i_* codes.
+	* include/lightning/jit_private.h: Add jit_cc_a1_dep to tell
+	the instruction has argument one used as input and output.
+	* lib/lightning.c: Implement fallbacks for the new codes.
+	* lib/jit_names.c: Add debug string for the new codes.
+	* lib/jit_aarch64-sz.c, lib/jit_aarch64.c, lib/jit_alpha.c,
+	lib/jit_arm-sz.c, lib/jit_arm.c, lib/jit_hppa.c, lib/jit_ia64.c,
+	lib/jit_loongarch-sz.c, lib/jit_loongarch.c, lib/jit_mips-sz.c,
+	lib/jit_mips.c, lib/jit_ppc-sz.c, lib/jit_ppc.c, lib/jit_riscv-sz.c,
+	lib/jit_riscv.c, lib/jit_s390.c, lib/jit_sparc-sz.c, lib/jit_sparc.c,
+	lib/jit_x86-sz.c, lib/jit_x86.c: Implement the new increment load
+	and store codes.
+
 2023-08-21 Paulo Andrade <pcpa@gnu.org>
 
 	* check/Makefile.am, check/lightning.c: Add new hmul tests.

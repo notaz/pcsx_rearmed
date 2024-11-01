@@ -15,7 +15,7 @@ dnl License for more details.
 dnl
 
 AC_PREREQ([2.71])
-AC_INIT([GNU lightning],[2.2.2],[pcpa@gnu.org],[lightning])
+AC_INIT([GNU lightning],[2.2.3],[pcpa@gnu.org],[lightning])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([Makefile.am])
@@ -222,6 +222,7 @@ case "$target_cpu" in
     alpha*)		cpu=alpha	;;
     riscv*)		cpu=riscv	;;
     loongarch*)		cpu=loongarch	;;
+    sh*)		cpu=sh		;;
     *)					;;
 esac
 AM_CONDITIONAL(cpu_arm,       [test cpu-$cpu = cpu-arm])
@@ -236,6 +237,7 @@ AM_CONDITIONAL(cpu_s390,      [test cpu-$cpu = cpu-s390])
 AM_CONDITIONAL(cpu_alpha,     [test cpu-$cpu = cpu-alpha])
 AM_CONDITIONAL(cpu_riscv,     [test cpu-$cpu = cpu-riscv])
 AM_CONDITIONAL(cpu_loongarch, [test cpu-$cpu = cpu-loongarch])
+AM_CONDITIONAL(cpu_sh,      [test cpu-$cpu = cpu-sh])
 
 # Test x87 if both, x87 and sse2 available
 ac_cv_test_x86_x87=

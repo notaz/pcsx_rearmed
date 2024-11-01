@@ -198,6 +198,43 @@
 	ldxr_l %r0 %r1 %r2
 	ldxi_l %r0 %r1 8
 #endif
+	ldxbr_c %r0 %r1 %r2
+	ldxbi_c %r0 %r1 1
+	ldxar_c %r0 %r1 %r2
+	ldxai_c %r0 %r1 1
+	ldxbr_uc %r0 %r1 %r2
+	ldxbi_uc %r0 %r1 1
+	ldxar_uc %r0 %r1 %r2
+	ldxai_uc %r0 %r1 1
+	ldxbr_s %r0 %r1 %r2
+	ldxbi_s %r0 %r1 2
+	ldxar_s %r0 %r1 %r2
+	ldxai_s %r0 %r1 2
+	ldxbr_us %r0 %r1 %r2
+	ldxbi_us %r0 %r1 2
+	ldxar_us %r0 %r1 %r2
+	ldxai_us %r0 %r1 2
+	ldxbr_i %r0 %r1 %r2
+	ldxbi_i %r0 %r1 4
+	ldxar_i %r0 %r1 %r2
+	ldxai_i %r0 %r1 4
+#if __WORDSIZE == 64
+	ldxbr_ui %r0 %r1 %r2
+	ldxbi_ui %r0 %r1 4
+	ldxar_ui %r0 %r1 %r2
+	ldxai_ui %r0 %r1 4
+	ldxbi_l %r0 %r1 8
+	ldxbr_l %r0 %r1 %r2
+	ldxai_l %r0 %r1 8
+#endif
+	ldxbr_f %f0 %r1 %r2
+	ldxbi_f %f0 %r1 4
+	ldxar_f %f0 %r1 %r2
+	ldxai_f %f0 %r1 4
+	ldxbr_d %f0 %r1 %r2
+	ldxbi_d %f0 %r1 8
+	ldxar_d %f0 %r1 %r2
+	ldxai_d %f0 %r1 8
 	str_c %r1 %r0
 	sti_c 0x80000000 %r1
 	str_s %r1 %r0
@@ -218,6 +255,32 @@
 	stxr_l %r2 %r1 %r0
 	stxi_l 8 %r1 %r0
 #endif
+	stxbr_c %r2 %r1 %r0
+	stxbi_c 1 %r1 %r0
+	stxar_c %r2 %r1 %r0
+	stxai_c 1 %r1 %r0
+	stxbr_s %r2 %r1 %r0
+	stxbi_s 2 %r1 %r0
+	stxar_s %r2 %r1 %r0
+	stxai_s 2 %r1 %r0
+	stxbr_i %r2 %r1 %r0
+	stxbi_i 4 %r1 %r0
+	stxar_i %r2 %r1 %r0
+	stxai_i 4 %r1 %r0
+#if __WORDSIZE == 64
+	stxbr_l %r2 %r1 %r0
+	stxbi_l 8 %r1 %r0
+	stxar_l %r2 %r1 %r0
+	stxai_l 8 %r1 %r0
+#endif
+	stxbr_f %r2 %r0 %f0
+	stxbi_f 4 %r0 %f0
+	stxar_f %r2 %r0 %f0
+	stxai_f 4 %r0 %f0
+	stxbr_d %r2 %r0 %f0
+	stxbi_d 8 %r0 %f0
+	stxar_d %r2 %r0 %f0
+	stxai_d 8 %r0 %f0
 cond:
 	bltr cond %r0 %r1
 condi:

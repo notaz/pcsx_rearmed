@@ -16,6 +16,12 @@
  * Authors:
  *	Paulo Cesar Pereira de Andrade
  */
+#define CHECK_POPCNTB	0
+
+#if CHECK_POPCNTB
+#include <signal.h>
+#include <setjmp.h>
+#endif
 
 #define jit_arg_reg_p(i)		((i) >= 0 && (i) < 8)
 #if !_CALL_SYSV
@@ -112,6 +118,7 @@ extern void __clear_cache(void *, void *);
 /*
  * Initialization
  */
+jit_cpu_t		jit_cpu;
 jit_register_t		_rvs[] = {
     { rc(sav) | 0,			"r0" },
     { rc(sav) | 11,			"r11" },	/* env */
@@ -187,6 +194,9 @@ jit_register_t		_rvs[] = {
     { rc(arg) | rc(fpr) | 1,		"f1" },
     { _NOREG,				"<none>" },
 };
+#if CHECK_POPCNTB
+static sigjmp_buf	jit_env;
+#endif
 
 static jit_int32_t iregs[] = {
     _R14, _R15, _R16, _R17, _R18, _R19, _R20, _R21, _R22,
@@ -200,9 +210,57 @@ static jit_int32_t fregs[] = {
 /*
  * Implementation
  */
+#if CHECK_POPCNTB
+static void
+sigill_handler(int signum)
+{
+    jit_cpu.popcntb = 0;
+    siglongjmp(jit_env, 1);
+}
+#endif
+
 void
 jit_get_cpu(void)
 {
+#if CHECK_POPCNTB
+    long		r12;
+    struct		sigaction new_action, old_action;
+    new_action.sa_handler = sigill_handler;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGILL, NULL, &old_action);
+    if (old_action.sa_handler != SIG_IGN) {
+	sigaction(SIGILL, &new_action, NULL);
+	if (!sigsetjmp(jit_env, 1)) {
+	    jit_cpu.popcntb = 1;
+	    /* popcntb %r12, %r12 */
+	    __asm__ volatile("mr %%r12, %0;"
+			     "popcntb %%r12, %%r12;"
+			     "mr %0, %%r12;"
+			     : "=r" (r12), "=r" (r12));
+	    sigaction(SIGILL, &old_action, NULL);
+	}
+    }
+#elif defined(__linux__)
+    FILE	*fp;
+    char	*ptr;
+    long	 vers;
+    char	 buf[128];
+
+    if ((fp = fopen("/proc/cpuinfo", "r")) != NULL) {
+	while (fgets(buf, sizeof(buf), fp)) {
+	    if (strncmp(buf, "cpu\t\t: POWER", 12) == 0) {
+		vers = strtol(buf + 12, &ptr, 10);
+		jit_cpu.popcntb = vers > 5;
+		break;
+	    }
+	}
+	fclose(fp);
+    }
+#else
+    /* By default, assume it is not available */
+    jit_cpu.popcntb = 0;
+#endif
 }
 
 void
@@ -1262,6 +1320,24 @@ _emit_code(jit_state_t *_jit)
 		name##r##type(rn(node->u.w),				\
 			      rn(node->v.w), rn(node->w.w));		\
 		break
+#define case_rrx(name, type)						\
+	    case jit_code_##name##i##type:				\
+		name##i##type(rn(node->u.w), rn(node->v.w), node->w.w);	\
+	       break
+#define case_rrX(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w),				\
+			      rn(node->v.w), rn(node->w.w));		\
+		break
+#define case_xrr(name, type)						\
+		case jit_code_##name##i##type:				\
+		name##i##type(node->u.w, rn(node->v.w), rn(node->w.w));	\
+		break
+#define case_Xrr(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w), rn(node->v.w),		\
+			      rn(node->w.w));				\
+		break
 #define case_rrrr(name, type)						\
 	    case jit_code_##name##r##type:				\
 		name##r##type(rn(node->u.q.l), rn(node->u.q.h),		\
@@ -1604,6 +1680,26 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_unldi_u:
 		unldi_u(rn(node->u.w), node->v.w, node->w.w);
 		break;
+		case_rrx(ldxb, _c);	case_rrX(ldxb, _c);
+		case_rrx(ldxa, _c);	case_rrX(ldxa, _c);
+		case_rrx(ldxb, _uc);	case_rrX(ldxb, _uc);
+		case_rrx(ldxa, _uc);	case_rrX(ldxa, _uc);
+		case_rrx(ldxb, _s);	case_rrX(ldxb, _s);
+		case_rrx(ldxa, _s);	case_rrX(ldxa, _s);
+		case_rrx(ldxb, _us);	case_rrX(ldxb, _us);
+		case_rrx(ldxa, _us);	case_rrX(ldxa, _us);
+		case_rrx(ldxb, _i);	case_rrX(ldxb, _i);
+		case_rrx(ldxa, _i);	case_rrX(ldxa, _i);
+#if __WORDSIZE == 64
+		case_rrx(ldxb, _ui);	case_rrX(ldxb, _ui);
+		case_rrx(ldxa, _ui);	case_rrX(ldxa, _ui);
+		case_rrx(ldxb, _l);	case_rrX(ldxb, _l);
+		case_rrx(ldxa, _l);	case_rrX(ldxa, _l);
+#endif
+		case_rrx(ldxb, _f);	case_rrX(ldxb, _f);
+		case_rrx(ldxa, _f);	case_rrX(ldxa, _f);
+		case_rrx(ldxb, _d);	case_rrX(ldxb, _d);
+		case_rrx(ldxa, _d);	case_rrX(ldxa, _d);
 		case_rr(st, _c);
 		case_wr(st, _c);
 		case_rrr(stx, _c);
@@ -1630,6 +1726,20 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_unsti:
 		unsti(node->u.w, rn(node->v.w), node->w.w);
 		break;
+		case_xrr(stxb, _c);	case_Xrr(stxb, _c);
+		case_xrr(stxa, _c);	case_Xrr(stxa, _c);
+		case_xrr(stxb, _s);	case_Xrr(stxb, _s);
+		case_xrr(stxa, _s);	case_Xrr(stxa, _s);
+		case_xrr(stxb, _i);	case_Xrr(stxb, _i);
+		case_xrr(stxa, _i);	case_Xrr(stxa, _i);
+#if __WORDSIZE == 64
+		case_xrr(stxb, _l);	case_rrX(stxb, _l);
+		case_xrr(stxa, _l);	case_rrX(stxa, _l);
+#endif
+		case_xrr(stxb, _f);	case_rrX(stxb, _f);
+		case_xrr(stxa, _f);	case_rrX(stxa, _f);
+		case_xrr(stxb, _d);	case_rrX(stxb, _d);
+		case_xrr(stxa, _d);	case_rrX(stxa, _d);
 		case_rr(mov, _f);
 	    case jit_code_movi_f:
 		assert(node->flag & jit_flag_data);
@@ -2167,6 +2277,10 @@ _emit_code(jit_state_t *_jit)
 #undef case_wrr
 #undef case_rrf
 #undef case_rrw
+#undef case_xrr
+#undef case_Xrr
+#undef case_rrx
+#undef case_rrX
 #undef case_rrr
 #undef case_wr
 #undef case_rw

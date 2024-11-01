@@ -67,3 +67,7 @@ if cpu_loongarch
 lightning_include_HEADERS = 	\
 	jit_loongarch.h
 endif
+if cpu_sh
+lightning_include_HEADERS = 	\
+	jit_sh.h
+endif

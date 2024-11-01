@@ -302,6 +302,10 @@ static void _fallback_unsti_x(jit_state_t*,jit_word_t,jit_int32_t,jit_word_t);
 #    define fallback_patch_bmsi(inst, lbl)				\
 	patch_at(inst, lbl)
 #  endif
+#  if __WORDSIZE == 32
+#    define fallback_divi_u(r0,r1,i0)	_fallback_divi_u(_jit,r0,r1,i0)
+static void _fallback_divi_u(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  endif
 #endif
 
 #if CODE
@@ -4239,6 +4243,33 @@ _fallback_unsti_x(jit_state_t *_jit,
 #    endif
     }
     jit_unget_reg(t0);
+}
+#  endif
+
+#  if __WORDSIZE == 32
+static void _fallback_divi_u(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t t0;
+    unsigned int p, m;
+
+    if (i0 == 1) {
+        movr(r0, r1);
+    } else if (i0 >= 0x80000001) {
+        gei_u(r0, r1, i0);
+    } else {
+        p = 31 - __builtin_clz(i0) + !!(i0 & (i0 - 1));
+        m = (unsigned int)(((0x1ull << (32 + p)) + i0 - 1) / (unsigned long long)i0);
+
+        t0 = fallback_jit_get_reg(jit_class_gpr);
+
+        hmuli_u(rn(t0), r1, m);
+        subr(r0, r1, rn(t0));
+        rshi_u(r0, r0, 1);
+        addr(r0, r0, rn(t0));
+        rshi_u(r0, r0, p - 1);
+
+        jit_unget_reg(t0);
+    }
 }
 #  endif
 #endif

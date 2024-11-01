@@ -398,7 +398,30 @@ static void ldxr_l(void);	static void ldxi_l(void);
 static void ldxr(void);		static void ldxi(void);
 static void unldr(void);	static void unldi(void);
 static void unldr_u(void);	static void unldi_u(void);
-static void str_c(void);	static void sti_c(void);
+static void ldxbr_c(void);	static void ldxbi_c(void);
+static void ldxar_c(void);	static void ldxai_c(void);
+static void ldxbr_uc(void);	static void ldxbi_uc(void);
+static void ldxar_uc(void);	static void ldxai_uc(void);
+static void ldxbr_s(void);	static void ldxbi_s(void);
+static void ldxar_s(void);	static void ldxai_s(void);
+static void ldxbr_us(void);	static void ldxbi_us(void);
+static void ldxar_us(void);	static void ldxai_us(void);
+static void ldxbr_i(void);	static void ldxbi_i(void);
+static void ldxar_i(void);	static void ldxai_i(void);
+#if __WORDSIZE == 64
+static void ldxbr_ui(void);	static void ldxbi_ui(void);
+static void ldxar_ui(void);	static void ldxai_ui(void);
+static void ldxbr_l(void);	static void ldxbi_l(void);
+static void ldxar_l(void);	static void ldxai_l(void);
+#endif
+static void ldxbr(void);	static void ldxbi(void);
+static void ldxar(void);	static void ldxai(void);
+static void ldxbr_f(void);	static void ldxbi_f(void);
+static void ldxar_f(void);	static void ldxai_f(void);
+static void ldxbr_d(void);	static void ldxbi_d(void);
+static void ldxar_d(void);	static void ldxai_d(void);
+static void str_c(void);
+static void sti_c(void);
 static void str_s(void);	static void sti_s(void);
 static void str_i(void);	static void sti_i(void);
 #if __WORDSIZE == 64
@@ -413,6 +436,22 @@ static void stxr_l(void);	static void stxi_l(void);
 #endif
 static void stxr(void);		static void stxi(void);
 static void unstr(void);	static void unsti(void);
+static void stxbr_c(void);	static void stxbi_c(void);
+static void stxar_c(void);	static void stxai_c(void);
+static void stxbr_s(void);	static void stxbi_s(void);
+static void stxar_s(void);	static void stxai_s(void);
+static void stxbr_i(void);	static void stxbi_i(void);
+static void stxar_i(void);	static void stxai_i(void);
+#if __WORDSIZE == 64
+static void stxbr_l(void);	static void stxbi_l(void);
+static void stxar_l(void);	static void stxai_l(void);
+#endif
+static void stxbr_f(void);	static void stxbi_f(void);
+static void stxar_f(void);	static void stxai_f(void);
+static void stxbr_d(void);	static void stxbi_d(void);
+static void stxar_d(void);	static void stxai_d(void);
+static void stxbr(void);	static void stxbi(void);
+static void stxar(void);	static void stxai(void);
 static void bltr(void);		static void blti(void);
 static void bltr_u(void);	static void blti_u(void);
 static void bler(void);		static void blei(void);
@@ -802,6 +841,28 @@ static instr_t		  instr_vector[] = {
     entry(ldxr),	entry(ldxi),
     entry(unldr),	entry(unldi),
     entry(unldr_u),	entry(unldi_u),
+    entry(ldxbr_c),	entry(ldxbi_c),
+    entry(ldxar_c),	entry(ldxai_c),
+    entry(ldxbr_uc),	entry(ldxbi_uc),
+    entry(ldxar_uc),	entry(ldxai_uc),
+    entry(ldxbr_s),	entry(ldxbi_s),
+    entry(ldxar_s),	entry(ldxai_s),
+    entry(ldxbr_us),	entry(ldxbi_us),
+    entry(ldxar_us),	entry(ldxai_us),
+    entry(ldxbr_i),	entry(ldxbi_i),
+    entry(ldxar_i),	entry(ldxai_i),
+#if __WORDSIZE == 64
+    entry(ldxbr_ui),	entry(ldxbi_ui),
+    entry(ldxar_ui),	entry(ldxai_ui),
+    entry(ldxbr_l),	entry(ldxbi_l),
+    entry(ldxar_l),	entry(ldxai_l),
+#endif
+    entry(ldxbr_f),	entry(ldxbi_f),
+    entry(ldxar_f),	entry(ldxai_f),
+    entry(ldxbr_d),	entry(ldxbi_d),
+    entry(ldxar_d),	entry(ldxai_d),
+    entry(ldxbr),	entry(ldxbi),
+    entry(ldxar),	entry(ldxai),
     entry(str_c),	entry(sti_c),
     entry(str_s),	entry(sti_s),
     entry(str_i),	entry(sti_i),
@@ -817,6 +878,22 @@ static instr_t		  instr_vector[] = {
 #endif
     entry(stxr),	entry(stxi),
     entry(unstr),	entry(unsti),
+    entry(stxbr_c),	entry(stxbi_c),
+    entry(stxar_c),	entry(stxai_c),
+    entry(stxbr_s),	entry(stxbi_s),
+    entry(stxar_s),	entry(stxai_s),
+    entry(stxbr_i),	entry(stxbi_i),
+    entry(stxar_i),	entry(stxai_i),
+#if __WORDSIZE == 64
+    entry(stxbr_l),	entry(stxbi_l),
+    entry(stxar_l),	entry(stxai_l),
+#endif
+    entry(stxbr_f),	entry(stxbi_f),
+    entry(stxar_f),	entry(stxai_f),
+    entry(stxbr_d),	entry(stxbi_d),
+    entry(stxar_d),	entry(stxai_d),
+    entry(stxbr),	entry(stxbi),
+    entry(stxar),	entry(stxai),
     entry(bltr),	entry(blti),
     entry(bltr_u),	entry(blti_u),
     entry(bler),	entry(blei),
@@ -1866,6 +1943,28 @@ entry_ir_ir_ir(ldxr_l)		entry_ir_ir_im(ldxi_l)
 entry_ir_ir_ir(ldxr)		entry_ir_ir_im(ldxi)
 entry_ir_ir_im(unldr)		entry_ir_im_im(unldi)
 entry_ir_ir_im(unldr_u)		entry_ir_im_im(unldi_u)
+entry_ir_ir_ir(ldxbr_c)		entry_ir_ir_im(ldxbi_c)
+entry_ir_ir_ir(ldxar_c)		entry_ir_ir_im(ldxai_c)
+entry_ir_ir_ir(ldxbr_uc)	entry_ir_ir_im(ldxbi_uc)
+entry_ir_ir_ir(ldxar_uc)	entry_ir_ir_im(ldxai_uc)
+entry_ir_ir_ir(ldxbr_s)		entry_ir_ir_im(ldxbi_s)
+entry_ir_ir_ir(ldxar_s)		entry_ir_ir_im(ldxai_s)
+entry_ir_ir_ir(ldxbr_us)	entry_ir_ir_im(ldxbi_us)
+entry_ir_ir_ir(ldxar_us)	entry_ir_ir_im(ldxai_us)
+entry_ir_ir_ir(ldxbr_i)		entry_ir_ir_im(ldxbi_i)
+entry_ir_ir_ir(ldxar_i)		entry_ir_ir_im(ldxai_i)
+#if __WORDSIZE == 64
+entry_ir_ir_ir(ldxbr_ui)	entry_ir_ir_im(ldxbi_ui)
+entry_ir_ir_ir(ldxar_ui)	entry_ir_ir_im(ldxai_ui)
+entry_ir_ir_ir(ldxbr_l)		entry_ir_ir_im(ldxbi_l)
+entry_ir_ir_ir(ldxar_l)		entry_ir_ir_im(ldxai_l)
+#endif
+entry_ir_ir_ir(ldxbr)		entry_ir_ir_im(ldxbi)
+entry_ir_ir_ir(ldxar)		entry_ir_ir_im(ldxai)
+entry_fr_ir_ir(ldxbr_f)		entry_fr_ir_im(ldxbi_f)
+entry_fr_ir_ir(ldxar_f)		entry_fr_ir_im(ldxai_f)
+entry_fr_ir_ir(ldxbr_d)		entry_fr_ir_im(ldxbi_d)
+entry_fr_ir_ir(ldxar_d)		entry_fr_ir_im(ldxai_d)
 entry_ir_ir(str_c)		entry_pm_ir(sti_c)
 entry_ir_ir(str_s)		entry_pm_ir(sti_s)
 entry_ir_ir(str_i)		entry_pm_ir(sti_i)
@@ -1881,6 +1980,22 @@ entry_ir_ir_ir(stxr_l)		entry_im_ir_ir(stxi_l)
 #endif
 entry_ir_ir_ir(stxr)		entry_im_ir_ir(stxi)
 entry_ir_ir_im(unstr)		entry_im_ir_im(unsti)
+entry_ir_ir_ir(stxbr_c)		entry_im_ir_ir(stxbi_c)
+entry_ir_ir_ir(stxar_c)		entry_im_ir_ir(stxai_c)
+entry_ir_ir_ir(stxbr_s)		entry_im_ir_ir(stxbi_s)
+entry_ir_ir_ir(stxar_s)		entry_im_ir_ir(stxai_s)
+entry_ir_ir_ir(stxbr_i)		entry_im_ir_ir(stxbi_i)
+entry_ir_ir_ir(stxar_i)		entry_im_ir_ir(stxai_i)
+#if __WORDSIZE == 64
+entry_ir_ir_ir(stxbr_l)		entry_im_ir_ir(stxbi_l)
+entry_ir_ir_ir(stxar_l)		entry_im_ir_ir(stxai_l)
+#endif
+entry_ir_ir_ir(stxbr)		entry_im_ir_ir(stxbi)
+entry_ir_ir_ir(stxar)		entry_im_ir_ir(stxai)
+entry_ir_ir_fr(stxbr_f)		entry_im_ir_fr(stxbi_f)
+entry_ir_ir_fr(stxar_f)		entry_im_ir_fr(stxai_f)
+entry_ir_ir_fr(stxbr_d)		entry_im_ir_fr(stxbi_d)
+entry_ir_ir_fr(stxar_d)		entry_im_ir_fr(stxai_d)
 entry_lb_ir_ir(bltr)		entry_lb_ir_im(blti)
 entry_lb_ir_ir(bltr_u)		entry_lb_ir_im(blti_u)
 entry_lb_ir_ir(bler)		entry_lb_ir_im(blei)
@@ -4744,6 +4859,11 @@ main(int argc, char *argv[])
     opt_short += snprintf(cmdline + opt_short,
 			  sizeof(cmdline) - opt_short,
 			  " -D__loongarch__=1");
+#endif
+#if defined(__sh__)
+    opt_short += snprintf(cmdline + opt_short,
+			  sizeof(cmdline) - opt_short,
+			  " -D__sh__=1");
 #endif
     if ((parser.fp = popen(cmdline, "r")) == NULL)
 	error("cannot execute %s", cmdline);

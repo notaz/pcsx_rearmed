@@ -129,7 +129,8 @@
 #  define ARM_VMVNI			0x02800030
 #  define ARM_VLDR			0x0d100a00
 #  define ARM_VSTR			0x0d000a00
-#  define ARM_VM			0x0c000a00
+#  define ARM_VM_T1A1			0x0c000b00
+#  define ARM_VM_T2A2			0x0c000a00
 #  define ARM_VMOV_ADV_U		0x00800000 /* zero extend */
 #  define ARM_VMOV_ADV_8		0x00400000
 #  define ARM_VMOV_ADV_16		0x00000020
@@ -292,39 +293,7 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 #  define VCVTR_S32_F64(r0,r1)		CC_VCVTR_S32_F64(ARM_CC_AL,r0,r1)
 #  define CC_VCVTR_U32_F64(cc,r0,r1)	cc_vo_ss(cc,ARM_VCVTR_U32_F64,r0,r1)
 #  define VCVTR_U32_F64(r0,r1)		CC_VCVTR_U32_F64(ARM_CC_AL,r0,r1)
-#  define CC_VLDMIA_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_I,r0,r1,i0)
-#  define VLDMIA_F32(r0,r1,i0)		CC_VLDMIA_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDMIA_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_I|ARM_V_F64,r0,r1,i0)
-#  define VLDMIA_F64(r0,r1,i0)		CC_VLDMIA_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMIA_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_I,r0,r1,i0)
-#  define VSTMIA_F32(r0,r1,i0)		CC_VSTMIA_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMIA_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_I|ARM_V_F64,r0,r1,i0)
-#  define VSTMIA_F64(r0,r1,i0)		CC_VSTMIA_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDMIA_U_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_I|ARM_M_U,r0,r1,i0)
-#  define VLDMIA_U_F32(r0,r1,i0)	CC_VLDMIA_U_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDMIA_U_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_I|ARM_M_U|ARM_V_F64,r0,r1,i0)
-#  define VLDMIA_U_F64(r0,r1,i0)	CC_VLDMIA_U_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMIA_U_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_I|ARM_M_U,r0,r1,i0)
-#  define VSTMIA_U_F32(r0,r1,i0)	CC_VSTMIA_U_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMIA_U_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_I|ARM_M_U|ARM_V_F64,r0,r1,i0)
-#  define VSTMIA_U_F64(r0,r1,i0)	CC_VSTMIA_U_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDMDB_U_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_B|ARM_M_U,r0,r1,i0)
-#  define VLDMDB_U_F32(r0,r1,i0)	CC_VLDMDB_U_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDMDB_U_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_L|ARM_M_B|ARM_M_U|ARM_V_F64,r0,r1,i0)
-#  define VLDMDB_U_F64(r0,r1,i0)	CC_VLDMDB_U_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMDB_U_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_B|ARM_M_U,r0,r1,i0)
-#  define VSTMDB_U_F32(r0,r1,i0)	CC_VSTMDB_U_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTMDB_U_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM|ARM_M_B|ARM_M_U|ARM_V_F64,r0,r1,i0)
-#  define VSTMDB_U_F64(r0,r1,i0)	CC_VSTMDB_U_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VPUSH_F32(cc,r0,i0)	CC_VSTMDB_U_F32(cc,_SP_REGNO,r0,i0)
-#  define VPUSH_F32(r0,i0)		CC_VPUSH_F32(ARM_CC_AL,r0,i0)
-#  define CC_VPUSH_F64(cc,r0,i0)	CC_VSTMDB_U_F64(cc,_SP_REGNO,r0,i0)
-#  define VPUSH_F64(r0,i0)		CC_VPUSH_F64(ARM_CC_AL,r0,i0)
-#  define CC_VPOP_F32(cc,r0,i0)		CC_VLDMIA_U_F32(cc,_SP_REGNO,r0,i0)
-#  define VPOP_F32(r0,i0)		CC_VPOP_F32(ARM_CC_AL,r0,i0)
-#  define CC_VPOP_F64(cc,r0,i0)		CC_VLDMIA_U_F64(cc,_SP_REGNO,r0,i0)
-#  define VPOP_F64(r0,i0)		CC_VPOP_F64(ARM_CC_AL,r0,i0)
-#  define CC_VMOV_A_S8(cc,r0,r1)	cc_vorv_(cc,ARM_VMOV_A_D|ARM_VMOV_ADV_8,r0,r1)
+#  define CC_VMOV_A_S8(cc,r0,r1)       cc_vorv_(cc,ARM_VMOV_A_D|ARM_VMOV_ADV_8,r0,r1)
 #  define VMOV_A_S8(r0,r1)		CC_VMOV_A_S8(ARM_CC_AL,r0,r1)
 #  define CC_VMOV_A_U8(cc,r0,r1)	cc_vorv_(cc,ARM_VMOV_A_D|ARM_VMOV_ADV_8|ARM_VMOV_ADV_U,r0,r1)
 #  define VMOV_A_U8(r0,r1)		CC_VMOV_A_U8(ARM_CC_AL,r0,r1)
@@ -336,6 +305,14 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 #  define VMOV_A_S32(r0,r1)		CC_VMOV_A_S32(ARM_CC_AL,r0,r1)
 #  define CC_VMOV_A_U32(cc,r0,r1)	cc_vori_(cc,ARM_VMOV_A_D|ARM_VMOV_ADV_U,r0,r1)
 #  define VMOV_A_U32(r0,r1)		CC_VMOV_A_U32(ARM_CC_AL,r0,r1)
+#  define CC_VLDMIA_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM_T2A2|ARM_M_L|ARM_M_U|ARM_M_W,r0,r1,i0)
+#  define VLDMIA_F32(r0,r1,i0)		CC_VLDMIA_F32(ARM_CC_AL,r0,r1,i0)
+#  define CC_VSTMIA_F32(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM_T2A2|ARM_M_U|ARM_M_W,r0,r1,i0)
+#  define VSTMIA_F32(r0,r1,i0)		CC_VSTMIA_F32(ARM_CC_AL,r0,r1,i0)
+#  define CC_VLDMIA_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM_T1A1|ARM_M_L|ARM_M_U|ARM_M_W,r0,r1,(i0)<<1)
+#  define VLDMIA_F64(r0,r1,i0)		CC_VLDMIA_F64(ARM_CC_AL,r0,r1,i0)
+#  define CC_VSTMIA_F64(cc,r0,r1,i0)	cc_vorsl(cc,ARM_VM_T1A1|ARM_M_U|ARM_M_W,r0,r1,(i0)<<1)
+#  define VSTMIA_F64(r0,r1,i0)		CC_VSTMIA_F64(ARM_CC_AL,r0,r1,i0)
 #  define CC_VMOV_V_I8(cc,r0,r1)	cc_vorv_(cc,ARM_VMOV_D_A|ARM_VMOV_ADV_8,r1,r0)
 #  define VMOV_V_I8(r0,r1)		CC_VMOV_V_I8(ARM_CC_AL,r0,r1)
 #  define CC_VMOV_V_I16(cc,r0,r1)	cc_vorv_(cc,ARM_VMOV_D_A|ARM_VMOV_ADV_16,r1,r0)
@@ -475,19 +452,19 @@ static void _cc_vorsl(jit_state_t*,int,int,int,int,int);
 /* index is multipled by four */
 #  define CC_VLDRN_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR,r0,r1,i0)
 #  define VLDRN_F32(r0,r1,i0)		CC_VLDRN_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDR_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR|ARM_P,r0,r1,i0)
+#  define CC_VLDR_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR|ARM_U,r0,r1,i0)
 #  define VLDR_F32(r0,r1,i0)		CC_VLDR_F32(ARM_CC_AL,r0,r1,i0)
 #  define CC_VLDRN_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR|ARM_V_F64,r0,r1,i0)
 #  define VLDRN_F64(r0,r1,i0)		CC_VLDRN_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VLDR_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR|ARM_V_F64|ARM_P,r0,r1,i0)
+#  define CC_VLDR_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VLDR|ARM_V_F64|ARM_U,r0,r1,i0)
 #  define VLDR_F64(r0,r1,i0)		CC_VLDR_F64(ARM_CC_AL,r0,r1,i0)
 #  define CC_VSTRN_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR,r0,r1,i0)
 #  define VSTRN_F32(r0,r1,i0)		CC_VSTRN_F32(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTR_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_P,r0,r1,i0)
+#  define CC_VSTR_F32(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_U,r0,r1,i0)
 #  define VSTR_F32(r0,r1,i0)		CC_VSTR_F32(ARM_CC_AL,r0,r1,i0)
 #  define CC_VSTRN_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_V_F64,r0,r1,i0)
 #  define VSTRN_F64(r0,r1,i0)		CC_VSTRN_F64(ARM_CC_AL,r0,r1,i0)
-#  define CC_VSTR_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_V_F64|ARM_P,r0,r1,i0)
+#  define CC_VSTR_F64(cc,r0,r1,i0)	cc_vldst(cc,ARM_VSTR|ARM_V_F64|ARM_U,r0,r1,i0)
 #  define VSTR_F64(r0,r1,i0)		CC_VSTR_F64(ARM_CC_AL,r0,r1,i0)
 #  define vfp_popcntr(r0,r1)		_vfp_popcntr(_jit,r0,r1)
 static void _vfp_popcntr(jit_state_t*,jit_int32_t,jit_int32_t);
@@ -852,6 +829,10 @@ static void _vfp_ldxi_d(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 static void _vfp_unldr_x(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 #  define vfp_unldi_x(r0, i0, i1)	_vfp_unldi_x(_jit, r0, i0, i1)
 static void _vfp_unldi_x(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#  define vfp_ldxai_f(r0, r1, i0)	_vfp_ldxai_f(_jit, r0, r1, i0)
+static void _vfp_ldxai_f(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#  define vfp_ldxai_d(r0, r1, i0)	_vfp_ldxai_d(_jit, r0, r1, i0)
+static void _vfp_ldxai_d(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
 #  define vfp_str_f(r0,r1)		VSTR_F32(r1,r0,0)
 #  define vfp_str_d(r0,r1)		VSTR_F64(r1,r0,0)
 #  define vfp_sti_f(i0,r0)		_vfp_sti_f(_jit,i0,r0)
@@ -870,6 +851,10 @@ static void _vfp_stxi_d(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
 static void _vfp_unstr_x(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 #define vfp_unsti_x(i0, r0, i1)		_vfp_unsti_x(_jit, i0, r0, i1)
 static void _vfp_unsti_x(jit_state_t*, jit_word_t, jit_int32_t, jit_word_t);
+#  define vfp_stxai_f(i0, r0, r1)	_vfp_stxai_f(_jit, i0, r0, r1)
+static void _vfp_stxai_f(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define vfp_stxai_d(i0, r0, r1)	_vfp_stxai_d(_jit, i0, r0, r1)
+static void _vfp_stxai_d(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
 #  define vfp_vaarg_d(r0, r1)		_vfp_vaarg_d(_jit, r0, r1)
 static void _vfp_vaarg_d(jit_state_t*, jit_int32_t, jit_int32_t);
 #endif
@@ -1273,11 +1258,9 @@ _cc_vorsl(jit_state_t *_jit, int cc, int o, int r0, int r1, int i0)
     jit_thumb_t	thumb;
     assert(!(cc & 0x0fffffff));
     assert(!(o  & 0xf00ff0ff));
-    /* save i0 double precision registers */
-    if (o & ARM_V_F64)		i0 <<= 1;
-    /* if (r1 & 1) cc & ARM_V_F64 must be false */
-    if (r1 & 1)	o |= ARM_V_D;	r1 = vfp_regno(r1);
-    assert(i0 && !(i0 & 1) && r1 + i0 <= 32);
+    assert(!(r1 & 1));
+    r1 = vfp_regno(r1);
+    assert(i0 && r1 + i0 <= 32);
     thumb.i = cc|o|(_u4(r0)<<16)|(_u4(r1)<<12)|_u8(i0);
     if (jit_thumb_p())
 	iss(thumb.s[0], thumb.s[1]);
@@ -2616,6 +2599,30 @@ _vfp_unldi_x(jit_state_t *_jit, jit_int32_t r0, jit_word_t i0, jit_word_t i1)
 }
 
 static void
+_vfp_ldxai_f(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    assert(jit_fpr_p(r0));
+    if (i0 == 4)
+	VLDMIA_F32(r1, r0, 1);
+    else {
+	addi(r1, r1, i0);
+	vfp_ldr_f(r0, r1);
+    }
+}
+
+static void
+_vfp_ldxai_d(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    assert(jit_fpr_p(r0));
+    if (i0 == 8)
+	VLDMIA_F64(r1, r0, 1);
+    else {
+	addi(r1, r1, i0);
+	vfp_ldr_d(r0, r1);
+    }
+}
+
+static void
 _vfp_sti_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0)
 {
     jit_int32_t		reg;
@@ -2845,6 +2852,30 @@ _vfp_unsti_x(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_word_t i1)
 	    vfp_sti_f(i0, r0);
 	else
 	    vfp_sti_d(i0, r0);
+    }
+}
+
+static void
+_vfp_stxai_f(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    assert(jit_fpr_p(r1));
+    if (i0 == 4)
+	VSTMIA_F32(r0, r1, 1);
+    else {
+	addi(r0, r0, i0);
+	vfp_str_f(r0, r1);
+    }
+}
+
+static void
+_vfp_stxai_d(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    assert(jit_fpr_p(r1));
+    if (i0 == 8)
+	VSTMIA_F64(r0, r1, 1);
+    else {
+	addi(r0, r0, i0);
+	vfp_str_d(r0, r1);
     }
 }
 
