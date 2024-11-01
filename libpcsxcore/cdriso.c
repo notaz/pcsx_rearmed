@@ -1647,7 +1647,7 @@ int ISOreadTrack(const unsigned char *time, void *buf)
 
 	ret = cdimg_read_func(cdHandle, 0, buf, sector);
 	if (ret < 12*2 + 2048) {
-		if (multifile && sector >= msf2sec(ti[1].length)) {
+		if (buf && multifile && sector >= msf2sec(ti[1].length)) {
 			// assume a gap not backed by a file
 			memset(buf, 0, CD_FRAMESIZE_RAW);
 			return 0;
