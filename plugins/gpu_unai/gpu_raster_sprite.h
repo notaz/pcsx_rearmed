@@ -83,56 +83,10 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 	arg.v0_mask = gpu_unai.TextureWindow[3];
 	arg.y0 = y0;
 	arg.y1 = y1;
+	arg.lines = y1 - y0;
 	arg.li = li;
 	gpuSpriteDriver(Pixel, x1, pTxt_base, &arg);
 }
-
-#ifdef __arm__
-#include "gpu_arm.h"
-
-/* Notaz 4bit sprites optimization */
-void gpuDrawS16(PtrUnion packet, s32 *w_out, s32 *h_out)
-{
-	s32 x0, y0;
-	s32 u0, v0;
-	s32 xmin, xmax;
-	s32 ymin, ymax;
-	u32 h = 16;
-
-	//NOTE: Must 11-bit sign-extend the whole sum here, not just packet X/Y,
-	// or sprites in 1st level of SkullMonkeys disappear when walking right.
-	// This now matches behavior of Mednafen and PCSX Rearmed's gpu_neon:
-	x0 = GPU_EXPANDSIGN(le16_to_s16(packet.U2[2]) + gpu_unai.DrawingOffset[0]);
-	y0 = GPU_EXPANDSIGN(le16_to_s16(packet.U2[3]) + gpu_unai.DrawingOffset[1]);
-
-	xmin = gpu_unai.DrawingArea[0];	xmax = gpu_unai.DrawingArea[2];
-	ymin = gpu_unai.DrawingArea[1];	ymax = gpu_unai.DrawingArea[3];
-	u0 = packet.U1[8];
-	v0 = packet.U1[9];
-
-	if (x0 > xmax - 16 || x0 < xmin ||
-	    ((u0 | v0) & 15) || !(gpu_unai.TextureWindow[2] & gpu_unai.TextureWindow[3] & 8)) {
-		// send corner cases to general handler
-		packet.U4[3] = u32_to_le32(0x00100010);
-		gpuDrawS(packet, gpuSpriteSpanFn<0x20>, w_out, h_out);
-		return;
-	}
-
-	if (y0 >= ymax || y0 <= ymin - 16)
-		return;
-	if (y0 < ymin) {
-		h -= ymin - y0;
-		v0 += ymin - y0;
-		y0 = ymin;
-	}
-	else if (ymax - y0 < 16)
-		h = ymax - y0;
-	*w_out = 16;
-	*h_out = h;
-
-	draw_spr16_full(&gpu_unai.vram[FRAME_OFFSET(x0, y0)], &gpu_unai.TBA[FRAME_OFFSET(u0/4, v0)], gpu_unai.CBA, h);
-}
-#endif // __arm__
 
 void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_out)
 {

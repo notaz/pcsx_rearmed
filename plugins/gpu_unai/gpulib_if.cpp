@@ -766,17 +766,6 @@ int do_cmd_list(u32 *list_, int list_len,
 
       case 0x7C:
       case 0x7D:
-#ifdef __arm__
-        if ((gpu_unai.GPU_GP1 & 0x180) == 0 && (gpu_unai.Masking | gpu_unai.PixelMSB) == 0)
-        {
-          s32 w = 0, h = 0;
-          gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-          gpuDrawS16(packet, &w, &h);
-          gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
-          break;
-        }
-        // fallthrough
-#endif
       case 0x7E:
       case 0x7F: {          // Textured rectangle (16x16)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00100010);

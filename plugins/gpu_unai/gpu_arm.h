@@ -5,7 +5,13 @@
 extern "C" {
 #endif
 
-void draw_spr16_full(void *d, void *s, void *pal, int lines);
+struct spriteDriverArg;
+
+void sprite_driver_4bpp_asm(void *pPixel, const u8 *pTxt_base,
+	u32 count, const struct spriteDriverArg *arg);
+void sprite_driver_8bpp_asm(void *pPixel, const u8 *pTxt_base,
+	u32 count, const struct spriteDriverArg *arg);
+void sprite_4bpp_x16_asm(void *d, const void *s, void *pal, int lines);
 
 #ifdef __cplusplus
 }
