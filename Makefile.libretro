@@ -66,6 +66,10 @@ else ifeq ($(platform), vita)
   LD = arm-vita-eabi-ld$(EXE_EXT)
   OBJCOPY = arm-vita-eabi-objcopy$(EXE_EXT)
 else ifeq ($(platform), ctr)
+  ifneq ($(strip $(DEVKITPRO)),)
+  DEVKITARM ?= $(DEVKITPRO)/devkitARM
+  CTRULIB ?= $(DEVKITPRO)/libctru
+  endif
   ifeq ($(strip $(DEVKITARM)),)
   $(error "DEVKITARM env var is not set")
   endif
