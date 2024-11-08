@@ -138,6 +138,8 @@ cycle_multiplier_overrides[] =
 	{ 200, { "SCES02873" } },
 	/* Zero Divide - sometimes too fast */
 	{ 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
+	/* Eagle One: Harrier Attack - hangs (but not in standalone build?) */
+	{ 153, { "SLUS00943" } },
 };
 
 static const struct
