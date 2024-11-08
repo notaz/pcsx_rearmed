@@ -239,6 +239,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       NULL,
       "system",
       {
+         { "auto", "Auto" },
          { "30",  NULL },
          { "31",  NULL },
          { "32",  NULL },
@@ -312,11 +313,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "100", NULL },
          { NULL, NULL },
       },
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-      "50",
-#else
-      "57",
-#endif
+      "auto",
    },
    {
       "pcsx_rearmed_dithering",
