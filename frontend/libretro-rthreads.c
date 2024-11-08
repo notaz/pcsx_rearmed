@@ -24,6 +24,8 @@ void pcsxr_sthread_init(void)
 	SysPrintf("%d cpu core(s) detected\n", cpu_features_get_core_amount());
 #ifdef _3DS
 	int64_t version = 0;
+	int fpscr = -1;
+
 	APT_CheckNew3DS(&is_new_3ds);
 	svcGetSystemInfo(&version, 0x10000, 0);
 
@@ -31,9 +33,10 @@ void pcsxr_sthread_init(void)
 	u32 percent = -1;
 	APT_GetAppCpuTimeLimit(&percent);
 
-	SysPrintf("%s3ds detected, v%d.%d, AppCpuTimeLimit=%ld\n",
+	__asm__ volatile("fmrx %0, fpscr" : "=r"(fpscr));
+	SysPrintf("%s3ds detected, v%d.%d, AppCpuTimeLimit=%ld fpscr=%08x\n",
 		is_new_3ds ? "new" : "old", (int)GET_VERSION_MAJOR(version),
-		(int)GET_VERSION_MINOR(version), percent);
+		(int)GET_VERSION_MINOR(version), percent, fpscr);
 #endif
 }
 

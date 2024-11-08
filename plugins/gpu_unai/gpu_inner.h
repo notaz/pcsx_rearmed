@@ -360,8 +360,19 @@ const PT gpuTileSpanDrivers[32] = {
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Sprites innerloops generator
 
+// warning: gpu_arm.S asm uses this, update it if you change this
+typedef struct spriteDriverArg {
+	const le16_t *CBA;             // 00
+	u32 u0, v0, u0_mask, v0_mask;  // 04 08 0c 10
+	s32 y0, y1, lines, li;         // 14
+} spriteDriverArg;
+
+typedef void (*PS)(le16_t *pPixel, u32 count, const u8 *pTxt,
+	const spriteDriverArg *arg);
+
 template<int CF>
-static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
+static void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+	const spriteDriverArg *arg)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip (source color always comes with MSB=0).
@@ -370,7 +381,7 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 
 	uint_fast16_t uSrc, uDst, srcMSB;
 	bool should_blend;
-	u32 u0_mask = gpu_unai.TextureWindow[2];
+	u32 u0_mask = arg->u0_mask;
 
 	u8 r5, g5, b5;
 	if (CF_LIGHT) {
@@ -384,10 +395,20 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 		u0_mask <<= 1;
 	}
 
-	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
+	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = arg->CBA;
+	const u32 v0_mask = arg->v0_mask;
+	s32 y0 = arg->y0, y1 = arg->y1, li = arg->li;
+	u32 u0_ = arg->u0, v0 = arg->v0;
 
-	do
+	for (; y0 < y1; ++y0, pPixel += FRAME_WIDTH, ++v0)
 	{
+	  if (y0 & li) continue;
+	  const u8 *pTxt = pTxt_base + ((v0 & v0_mask) * 2048);
+	  le16_t *pDst = pPixel;
+	  u32 u0 = u0_;
+	  u32 count1 = count;
+	  do
+	  {
 		if (CF_MASKCHECK || CF_BLEND) { uDst = le16_to_u16(*pDst); }
 		if (CF_MASKCHECK) if (uDst&0x8000) { goto endsprite; }
 
@@ -423,11 +444,47 @@ static void gpuSpriteSpanFn(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 endsprite:
 		u0 += (CF_TEXTMODE==3) ? 2 : 1;
 		pDst++;
+	  }
+	  while (--count1);
 	}
-	while (--count);
 }
 
-static void SpriteNULL(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
+#ifdef __arm__
+#include "gpu_arm.h"
+
+static void Sprite4bppMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+        const spriteDriverArg *arg)
+{
+#if 1
+	s32 lines = arg->lines;
+	u32 u1m = arg->u0 + count - 1, v1m = arg->v0 + lines - 1;
+	if (u1m == (u1m & arg->u0_mask) && v1m == (v1m & arg->v0_mask)) {
+		pTxt_base += arg->u0 / 2 + arg->v0 * 2048;
+		sprite_driver_4bpp_asm(pPixel, pTxt_base, count, arg);
+	}
+	else
+#endif
+		gpuSpriteDriverFn<0x20>(pPixel, count, pTxt_base, arg);
+}
+
+static void Sprite8bppMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+        const spriteDriverArg *arg)
+{
+#if 1
+	s32 lines = arg->lines;
+	u32 u1m = arg->u0 + count - 1, v1m = arg->v0 + lines - 1;
+	if (u1m == (u1m & arg->u0_mask) && v1m == (v1m & arg->v0_mask)) {
+		pTxt_base += arg->u0 + arg->v0 * 2048;
+		sprite_driver_8bpp_asm(pPixel, pTxt_base, count, arg);
+	}
+	else
+#endif
+		gpuSpriteDriverFn<0x40>(pPixel, count, pTxt_base, arg);
+}
+#endif // __arm__
+
+static void SpriteNULL(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+	const spriteDriverArg *arg)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -438,30 +495,36 @@ static void SpriteNULL(le16_t *pDst, u32 count, u8* pTxt, u32 u0)
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Sprite innerloops driver
-typedef void (*PS)(le16_t *pDst, u32 count, u8* pTxt, u32 u0);
 
 // Template instantiation helper macros
-#define TI(cf) gpuSpriteSpanFn<(cf)>
+#define TI(cf) gpuSpriteDriverFn<(cf)>
 #define TN     SpriteNULL
+#ifdef __arm__
+#define TA4(cf) Sprite4bppMaybeAsm
+#define TA8(cf) Sprite8bppMaybeAsm
+#else
+#define TA4(cf) TI(cf)
+#define TA8(cf) TI(cf)
+#endif
 #define TIBLOCK(ub) \
-	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
-	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
-	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
-	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
-	TI((ub)|0x20), TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
-	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
-	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
-	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
-	TI((ub)|0x40), TI((ub)|0x41), TI((ub)|0x42), TI((ub)|0x43), TI((ub)|0x44), TI((ub)|0x45), TI((ub)|0x46), TI((ub)|0x47), \
-	TN,            TN,            TI((ub)|0x4a), TI((ub)|0x4b), TN,            TN,            TI((ub)|0x4e), TI((ub)|0x4f), \
-	TN,            TN,            TI((ub)|0x52), TI((ub)|0x53), TN,            TN,            TI((ub)|0x56), TI((ub)|0x57), \
-	TN,            TN,            TI((ub)|0x5a), TI((ub)|0x5b), TN,            TN,            TI((ub)|0x5e), TI((ub)|0x5f), \
-	TI((ub)|0x60), TI((ub)|0x61), TI((ub)|0x62), TI((ub)|0x63), TI((ub)|0x64), TI((ub)|0x65), TI((ub)|0x66), TI((ub)|0x67), \
-	TN,            TN,            TI((ub)|0x6a), TI((ub)|0x6b), TN,            TN,            TI((ub)|0x6e), TI((ub)|0x6f), \
-	TN,            TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
-	TN,            TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f)
+	TN,             TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,             TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,             TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,             TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TA4((ub)|0x20), TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TN,             TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
+	TN,             TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
+	TN,             TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
+	TA8((ub)|0x40), TI((ub)|0x41), TI((ub)|0x42), TI((ub)|0x43), TI((ub)|0x44), TI((ub)|0x45), TI((ub)|0x46), TI((ub)|0x47), \
+	TN,             TN,            TI((ub)|0x4a), TI((ub)|0x4b), TN,            TN,            TI((ub)|0x4e), TI((ub)|0x4f), \
+	TN,             TN,            TI((ub)|0x52), TI((ub)|0x53), TN,            TN,            TI((ub)|0x56), TI((ub)|0x57), \
+	TN,             TN,            TI((ub)|0x5a), TI((ub)|0x5b), TN,            TN,            TI((ub)|0x5e), TI((ub)|0x5f), \
+	TI((ub)|0x60),  TI((ub)|0x61), TI((ub)|0x62), TI((ub)|0x63), TI((ub)|0x64), TI((ub)|0x65), TI((ub)|0x66), TI((ub)|0x67), \
+	TN,             TN,            TI((ub)|0x6a), TI((ub)|0x6b), TN,            TN,            TI((ub)|0x6e), TI((ub)|0x6f), \
+	TN,             TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
+	TN,             TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f)
 
-const PS gpuSpriteSpanDrivers[256] = {
+const PS gpuSpriteDrivers[256] = {
 	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
 

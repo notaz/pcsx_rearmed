@@ -245,7 +245,7 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 	du4 = (u2 - u1) * ya - (u2 - u0) * yb;
 	dv4 = (v2 - v1) * ya - (v2 - v0) * yb;
 
-	s32 iF,iS;
+	inv_type iF,iS;
 	xInv( dx, iF, iS);
 	du4 = xInvMulx( du4, iF, iS);
 	dv4 = xInvMulx( dv4, iF, iS);
@@ -425,7 +425,7 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 	dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
 	db4 = (b2 - b1) * ya - (b2 - b0) * yb;
 
-	s32 iF,iS;
+	inv_type iF,iS;
 	xInv(            dx, iF, iS);
 	dr4 = xInvMulx( dr4, iF, iS);
 	dg4 = xInvMulx( dg4, iF, iS);
@@ -619,7 +619,7 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 	dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
 	db4 = (b2 - b1) * ya - (b2 - b0) * yb;
 
-	s32 iF,iS;
+	inv_type iF,iS;
 
 	xInv(            dx, iF, iS);
 	du4 = xInvMulx( du4, iF, iS);

@@ -24,7 +24,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal sprite drawing functions
 
-void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver, s32 *w_out, s32 *h_out)
+void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 {
 	s32 x0, x1, y0, y1;
 	u32 u0, v0;
@@ -67,70 +67,26 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver, s32 *w_out, s32 *h_
 
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
 	const int li=gpu_unai.ilace_mask;
-	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+	//const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+	//const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 	unsigned int tmode = gpu_unai.TEXT_MODE >> 5;
-	const u32 v0_mask = gpu_unai.TextureWindow[3];
 	u8* pTxt_base = (u8*)gpu_unai.TBA;
 
 	// Texture is accessed byte-wise, so adjust idx if 16bpp
 	if (tmode == 3) u0 <<= 1;
 
-	for (; y0<y1; ++y0) {
-		u8* pTxt = pTxt_base + ((v0 & v0_mask) * 2048);
-		if (!(y0&li) && (y0&pi)!=pif)
-			gpuSpriteSpanDriver(Pixel, x1, pTxt, u0);
-		Pixel += FRAME_WIDTH;
-		v0++;
-	}
+	spriteDriverArg arg;
+	arg.CBA = gpu_unai.CBA;
+	arg.u0 = u0;
+	arg.v0 = v0;
+	arg.u0_mask = gpu_unai.TextureWindow[2];
+	arg.v0_mask = gpu_unai.TextureWindow[3];
+	arg.y0 = y0;
+	arg.y1 = y1;
+	arg.lines = y1 - y0;
+	arg.li = li;
+	gpuSpriteDriver(Pixel, x1, pTxt_base, &arg);
 }
-
-#ifdef __arm__
-#include "gpu_arm.h"
-
-/* Notaz 4bit sprites optimization */
-void gpuDrawS16(PtrUnion packet, s32 *w_out, s32 *h_out)
-{
-	s32 x0, y0;
-	s32 u0, v0;
-	s32 xmin, xmax;
-	s32 ymin, ymax;
-	u32 h = 16;
-
-	//NOTE: Must 11-bit sign-extend the whole sum here, not just packet X/Y,
-	// or sprites in 1st level of SkullMonkeys disappear when walking right.
-	// This now matches behavior of Mednafen and PCSX Rearmed's gpu_neon:
-	x0 = GPU_EXPANDSIGN(le16_to_s16(packet.U2[2]) + gpu_unai.DrawingOffset[0]);
-	y0 = GPU_EXPANDSIGN(le16_to_s16(packet.U2[3]) + gpu_unai.DrawingOffset[1]);
-
-	xmin = gpu_unai.DrawingArea[0];	xmax = gpu_unai.DrawingArea[2];
-	ymin = gpu_unai.DrawingArea[1];	ymax = gpu_unai.DrawingArea[3];
-	u0 = packet.U1[8];
-	v0 = packet.U1[9];
-
-	if (x0 > xmax - 16 || x0 < xmin ||
-	    ((u0 | v0) & 15) || !(gpu_unai.TextureWindow[2] & gpu_unai.TextureWindow[3] & 8)) {
-		// send corner cases to general handler
-		packet.U4[3] = u32_to_le32(0x00100010);
-		gpuDrawS(packet, gpuSpriteSpanFn<0x20>, w_out, h_out);
-		return;
-	}
-
-	if (y0 >= ymax || y0 <= ymin - 16)
-		return;
-	if (y0 < ymin) {
-		h -= ymin - y0;
-		v0 += ymin - y0;
-		y0 = ymin;
-	}
-	else if (ymax - y0 < 16)
-		h = ymax - y0;
-	*w_out = 16;
-	*h_out = h;
-
-	draw_spr16_full(&gpu_unai.vram[FRAME_OFFSET(x0, y0)], &gpu_unai.TBA[FRAME_OFFSET(u0/4, v0)], gpu_unai.CBA, h);
-}
-#endif // __arm__
 
 void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_out)
 {

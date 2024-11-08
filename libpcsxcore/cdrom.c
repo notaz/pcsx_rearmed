@@ -476,7 +476,7 @@ static int ReadTrack(const u8 *time)
 		return 1;
 
 	ret = cdra_readTrack(time);
-	if (ret != 0)
+	if (ret == 0)
 		memcpy(cdr.Prev, time, 3);
 	return ret == 0;
 }
@@ -1793,8 +1793,9 @@ int cdrFreeze(void *f, int Mode) {
 			tmpp[1] = btoi(tmpp[1]);
 			tmpp[2] = btoi(tmpp[2]);
 		}
-		cdr.Prev[0]++;
-		ReadTrack(tmpp);
+		cdr.Prev[0] = 0xff;
+		if (tmpp[0] != 0xff)
+			ReadTrack(tmpp);
 
 		if (cdr.Play) {
 			if (cdr.freeze_ver < 0x63647202)

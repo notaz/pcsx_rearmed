@@ -112,6 +112,8 @@ extern int Log;
 
 void __Log(char *fmt, ...);
 
+// lots of timing depends on this and makes or breaks compatibility,
+// don't change unless you're going to retest hundreds of games
 #define CYCLE_MULT_DEFAULT 175
 
 typedef struct {

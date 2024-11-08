@@ -75,7 +75,7 @@ INLINE float FloatInv(const float x)
 ///////////////////////////////////////////////////////////////////////////
 // --- BEGIN INVERSE APPROXIMATION SECTION ---
 ///////////////////////////////////////////////////////////////////////////
-#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || !defined(GPU_UNAI_NO_OLD)
+#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || (!defined(GPU_UNAI_NO_OLD) && !defined(GPU_UNAI_USE_FLOATMATH))
 
 //  big precision inverse table.
 #define TABLE_BITS 16

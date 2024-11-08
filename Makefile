@@ -288,7 +288,7 @@ OBJS += $(LCHDR)/src/libchdr_cdrom.o
 OBJS += $(LCHDR)/src/libchdr_chd.o
 OBJS += $(LCHDR)/src/libchdr_flac.o
 OBJS += $(LCHDR)/src/libchdr_huffman.o
-$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -Wno-maybe-uninitialized -std=gnu11
+$(LCHDR)/src/%.o: CFLAGS += -Wno-unused -Wno-maybe-uninitialized -Wno-format -std=gnu11
 OBJS += $(LCHDR_LZMA)/src/Alloc.o
 OBJS += $(LCHDR_LZMA)/src/CpuArch.o
 OBJS += $(LCHDR_LZMA)/src/Delta.o

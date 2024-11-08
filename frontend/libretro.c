@@ -2297,7 +2297,10 @@ static void update_variables(bool in_flight)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       int psxclock = atoi(var.value);
-      Config.cycle_multiplier = 10000 / psxclock;
+      if (strcmp(var.value, "auto") == 0 || psxclock == 0)
+         Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
+      else
+         Config.cycle_multiplier = 10000 / psxclock;
    }
 
 #if !defined(DRC_DISABLE) && !defined(LIGHTREC)
@@ -3612,13 +3615,6 @@ void retro_init(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble))
       rumble_cb = rumble.set_rumble_state;
 
-   /* Set how much slower PSX CPU runs * 100 (so that 200 is 2 times)
-    * we have to do this because cache misses and some IO penalties
-    * are not emulated. Warning: changing this may break compatibility. */
-   Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-   Config.cycle_multiplier = 200;
-#endif
    pl_rearmed_cbs.gpu_peops.iUseDither = 1;
    pl_rearmed_cbs.gpu_peops.dwActFixes = GPU_PEOPS_OLD_FRAME_SKIP;
 

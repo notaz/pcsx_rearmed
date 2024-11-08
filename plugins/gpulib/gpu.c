@@ -240,7 +240,7 @@ static noinline void get_gpu_info(uint32_t data)
 	// fills. (Will change this value if it ever gets large page support)
 	#define VRAM_ALIGN 8192
 #else
-	#define VRAM_ALIGN 16
+	#define VRAM_ALIGN 64
 #endif
 
 // double, for overdraw guard + at least 1 page before
@@ -250,7 +250,7 @@ static noinline void get_gpu_info(uint32_t data)
 static uint16_t *vram_ptr_orig = NULL;
 
 #ifndef GPULIB_USE_MMAP
-# ifdef __linux__
+# if defined(__linux__) || defined(_3DS) || defined(HAVE_LIBNX) || defined(VITA)
 #  define GPULIB_USE_MMAP 1
 # else
 #  define GPULIB_USE_MMAP 0

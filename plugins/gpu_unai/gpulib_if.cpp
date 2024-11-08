@@ -254,7 +254,7 @@ int renderer_init(void)
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
   gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
-#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || !defined(GPU_UNAI_NO_OLD)
+#if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || (!defined(GPU_UNAI_NO_OLD) && !defined(GPU_UNAI_USE_FLOATMATH))
   // s_invTable
   for(int i=1;i<=(1<<TABLE_BITS);++i)
   {
@@ -707,7 +707,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;
@@ -748,7 +748,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;
@@ -766,17 +766,6 @@ int do_cmd_list(u32 *list_, int list_len,
 
       case 0x7C:
       case 0x7D:
-#ifdef __arm__
-        if ((gpu_unai.GPU_GP1 & 0x180) == 0 && (gpu_unai.Masking | gpu_unai.PixelMSB) == 0)
-        {
-          s32 w = 0, h = 0;
-          gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-          gpuDrawS16(packet, &w, &h);
-          gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
-          break;
-        }
-        // fallthrough
-#endif
       case 0x7E:
       case 0x7F: {          // Textured rectangle (16x16)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00100010);
@@ -788,7 +777,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
           driver_idx |= Lighting;
-        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        PS driver = gpuSpriteDrivers[driver_idx];
         gpuDrawS(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
       } break;

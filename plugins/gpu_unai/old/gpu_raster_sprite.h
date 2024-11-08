@@ -85,7 +85,7 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 }
 
 #ifdef __arm__
-#include "gpu_arm.h"
+#include "../gpu_arm.h"
 
 void gpuDrawS16(void)
 {
@@ -121,7 +121,7 @@ void gpuDrawS16(void)
 	else if (ymax - y0 < 16)
 		h = ymax - y0;
 
-	draw_spr16_full(&GPU_FrameBuffer[FRAME_OFFSET(x0, y0)], &TBA[FRAME_OFFSET(u0/4, v0)], CBA, h);
+	sprite_4bpp_x16_asm(&GPU_FrameBuffer[FRAME_OFFSET(x0, y0)], &TBA[FRAME_OFFSET(u0/4, v0)], CBA, h);
 }
 #endif // __arm__
 

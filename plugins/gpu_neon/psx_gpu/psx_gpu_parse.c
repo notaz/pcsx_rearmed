@@ -39,7 +39,7 @@ const u8 command_lengths[256] =
 };
 #endif
 
-void update_texture_ptr(psx_gpu_struct *psx_gpu)
+static void update_texture_ptr(psx_gpu_struct *psx_gpu)
 {
   u8 *texture_base;
   u8 *texture_ptr;
@@ -91,7 +91,7 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
   psx_gpu->texture_page_ptr = texture_ptr;  
 }
 
-void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
+static void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
 {
   texture_settings &= 0x1FF;
   if(psx_gpu->texture_settings != texture_settings)
@@ -135,17 +135,18 @@ void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
   }
 }
 
-void set_clut(psx_gpu_struct *psx_gpu, u32 clut_settings)
+static void set_clut(psx_gpu_struct *psx_gpu, u32 clut_settings)
 {
-  if(psx_gpu->clut_settings != clut_settings)
+  clut_settings &= 0x7FFF;
+  if (psx_gpu->clut_settings != clut_settings)
   {
     flush_render_block_buffer(psx_gpu);
     psx_gpu->clut_settings = clut_settings;
-    psx_gpu->clut_ptr = psx_gpu->vram_ptr + ((clut_settings & 0x7FFF) * 16);
+    psx_gpu->clut_ptr = psx_gpu->vram_ptr + clut_settings * 16;
   }
 }
 
-void set_triangle_color(psx_gpu_struct *psx_gpu, u32 triangle_color)
+static void set_triangle_color(psx_gpu_struct *psx_gpu, u32 triangle_color)
 {
   if(psx_gpu->triangle_color != triangle_color)
   {

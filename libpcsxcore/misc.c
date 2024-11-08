@@ -795,8 +795,6 @@ int LoadState(const char *file) {
 		CdromFrontendId = misc->CdromFrontendId;
 	}
 
-	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
-
 	if (Config.HLE)
 		psxBiosFreeze(0);
 
@@ -827,6 +825,8 @@ int LoadState(const char *file) {
 	events_restore();
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
 	result = 0;
 cleanup:
