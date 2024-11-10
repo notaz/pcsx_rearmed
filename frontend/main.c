@@ -936,7 +936,7 @@ static int _OpenPlugins(void) {
 #endif
 
 	ret = cdra_open();
-	if (ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
+	if (UsingIso() && ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
 	ret = SPU_open();
 	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
 	SPU_registerCallback(SPUirq);
