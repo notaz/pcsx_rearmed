@@ -285,22 +285,13 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
-  if (LineSkipEnabled()) {
-    // Set rendering line-skip (only render every other line in high-res
-    //  480 vertical mode, or, optionally, force it for all video modes)
+  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
-    if (gpu.screen.vres == 480) {
-      if (gpu_unai.config.ilace_force) {
-        gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
-      } else {
-        gpu_unai.ilace_mask = 1; // Only need 1/2 of lines
-      }
-    } else {
-      // Vert resolution changed from 480 to lower one
-      gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
-    }
-  } else {
-    gpu_unai.ilace_mask = 0;
+#ifndef HAVE_PRE_ARMV7 /* XXX */
+  if (gpu_unai.config.scale_hires)
+#endif
+  {
+    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   /*
@@ -397,17 +388,6 @@ int do_cmd_list(u32 *list_, int list_len,
 
   if (IS_OLD_RENDERER())
     return oldunai_do_cmd_list(list_, list_len, cycles_sum_out, cycles_last, last_cmd);
-
-  //TODO: set ilace_mask when resolution changes instead of every time,
-  // eliminate #ifdef below.
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
-
-#ifdef HAVE_PRE_ARMV7 /* XXX */
-  gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
-#endif
-  if (gpu_unai.config.scale_hires) {
-    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
-  }
 
   for (; list < list_end; list += 1 + len)
   {
@@ -827,6 +807,7 @@ void renderer_flush_queues(void)
 
 void renderer_set_interlace(int enable, int is_odd)
 {
+  renderer_notify_res_change();
 }
 
 #include "../../frontend/plugin_lib.h"
