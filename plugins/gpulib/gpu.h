@@ -52,7 +52,6 @@ extern "C" {
 #define PSX_GPU_STATUS_DMA_MASK		(BIT(29) | BIT(30))
 
 struct psx_gpu {
-  uint32_t cmd_buffer[CMD_BUFFER_LEN];
   uint32_t regs[16];
   uint16_t *vram;
   uint32_t status;
@@ -111,6 +110,7 @@ struct psx_gpu {
     uint32_t pending_fill[3];
   } frameskip;
   uint32_t scratch_ex_regs[8]; // for threaded rendering
+  uint32_t cmd_buffer[CMD_BUFFER_LEN];
   void *(*get_enhancement_bufer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   uint16_t *(*get_downscale_buffer)
