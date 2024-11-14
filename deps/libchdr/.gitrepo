@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/rtissera/libchdr
 	branch = master
-	commit = aaca599e18e43933fc193bd1b715c368c306208b
-	parent = e22f9f69d8191f859006cfa7d111423e18a41cd7
+	commit = b3974651d869c2f804e9879b063c23280d2ae617
+	parent = 39999efa35f7dd088e24c1e03cdb033d7add02af
 	method = merge
 	cmdver = 0.4.9

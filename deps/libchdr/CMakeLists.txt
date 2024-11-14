@@ -7,6 +7,7 @@ if(CMAKE_PROJECT_NAME STREQUAL "chdr")
 endif()
 option(INSTALL_STATIC_LIBS "Install static libraries" OFF)
 option(WITH_SYSTEM_ZLIB "Use system provided zlib library" OFF)
+option(WITH_SYSTEM_ZSTD "Use system provided zstd library" OFF)
 
 option(BUILD_LTO "Compile libchdr with link-time optimization if supported" OFF)
 if(BUILD_LTO)
@@ -15,6 +16,14 @@ if(BUILD_LTO)
   if(HAVE_IPO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
+endif()
+
+option(BUILD_FUZZER "Build instrumented binary for fuzzing with libfuzzer, requires clang")
+if(BUILD_FUZZER)
+  # Override CFLAGS early for instrumentation. Disable shared libs for instrumentation.
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,fuzzer-no-link")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,fuzzer-no-link")
+  set(BUILD_SHARED_LIBS OFF)
 endif()
 
 include(GNUInstallDirs)
@@ -41,11 +50,16 @@ else()
 endif()
 
 # zstd
-option(ZSTD_BUILD_SHARED "BUILD SHARED LIBRARIES" OFF)
-option(ZSTD_BUILD_PROGRAMS "BUILD PROGRAMS" OFF)
-option(ZSTD_LEGACY_SUPPORT "LEGACY SUPPORT" OFF)
-add_subdirectory(deps/zstd-1.5.6/build/cmake EXCLUDE_FROM_ALL)
-list(APPEND CHDR_LIBS libzstd_static)
+if (WITH_SYSTEM_ZSTD)
+  find_package(zstd REQUIRED)
+  list(APPEND PLATFORM_LIBS zstd::libzstd_shared)
+else()
+  option(ZSTD_BUILD_SHARED "BUILD SHARED LIBRARIES" OFF)
+  option(ZSTD_BUILD_PROGRAMS "BUILD PROGRAMS" OFF)
+  option(ZSTD_LEGACY_SUPPORT "LEGACY SUPPORT" OFF)
+  add_subdirectory(deps/zstd-1.5.6/build/cmake EXCLUDE_FROM_ALL)
+  list(APPEND CHDR_LIBS libzstd_static)
+endif()
 #--------------------------------------------------
 # chdr
 #--------------------------------------------------
