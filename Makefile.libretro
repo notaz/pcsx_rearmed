@@ -357,12 +357,13 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -DARM11 -D_3DS -D__3DS__
 	CFLAGS += -DNO_DYLIB -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
-	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -mword-relocations
 	CFLAGS += -fomit-frame-pointer
 	CFLAGS_LAST += -O3
 	# CFLAGS += -funroll-loops # ~500K of bloat
 	CFLAGS += -Ifrontend/3ds -I$(CTRULIB)/include
 	CFLAGS += -Werror=implicit-function-declaration
+	CFLAGS += -Wno-format
 	CFLAGS += -DHAVE_UNISTD_H
 	CFLAGS += -DZ7_DECL_Int32_AS_long
 	CFLAGS += -DUSE_CTRULIB_2
@@ -402,6 +403,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 		CFLAGS += -DHW_WUP
 		CFLAGS += -I frontend/wiiu
 		CFLAGS += -DZ7_DECL_Int32_AS_long
+		CFLAGS += -Wno-format
 		LIGHTREC_CUSTOM_MAP := 1
 		LIGHTREC_CUSTOM_MAP_OBJ := libpcsxcore/lightrec/mem_wiiu.o
 		LIGHTREC_CODE_INV := 1
