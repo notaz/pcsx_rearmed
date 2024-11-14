@@ -138,7 +138,6 @@ void emu_set_default_config(void)
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.old_renderer = 0;
 	pl_rearmed_cbs.gpu_unai.ilace_force = 0;
-	pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
 	pl_rearmed_cbs.gpu_unai.lighting = 1;
 	pl_rearmed_cbs.gpu_unai.fast_lighting = 0;
 	pl_rearmed_cbs.gpu_unai.blending = 1;
@@ -936,7 +935,7 @@ static int _OpenPlugins(void) {
 #endif
 
 	ret = cdra_open();
-	if (ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
+	if (UsingIso() && ret < 0) { SysMessage(_("Error opening CD-ROM plugin!")); return -1; }
 	ret = SPU_open();
 	if (ret < 0) { SysMessage(_("Error opening SPU plugin!")); return -1; }
 	SPU_registerCallback(SPUirq);

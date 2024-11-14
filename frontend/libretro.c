@@ -2639,10 +2639,6 @@ static void update_variables(bool in_flight)
     * (480i, 512i) and has been obsoleted by
     * pcsx_rearmed_gpu_unai_scale_hires */
    pl_rearmed_cbs.gpu_unai.ilace_force = 0;
-   /* Note: This used to be an option, but it has no
-    * discernable effect and has been obsoleted by
-    * pcsx_rearmed_gpu_unai_scale_hires */
-   pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
 
    var.key = "pcsx_rearmed_gpu_unai_old_renderer";
    var.value = NULL;

@@ -285,37 +285,13 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
-  if (PixelSkipEnabled()) {
-    // Set blit_mask for high horizontal resolutions. This allows skipping
-    //  rendering pixels that would never get displayed on low-resolution
-    //  platforms that use simple pixel-dropping scaler.
+  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
-    switch (gpu.screen.hres)
-    {
-      case 512: gpu_unai.blit_mask = 0xa4; break; // GPU_BlitWWSWWSWS
-      case 640: gpu_unai.blit_mask = 0xaa; break; // GPU_BlitWS
-      default:  gpu_unai.blit_mask = 0;    break;
-    }
-  } else {
-    gpu_unai.blit_mask = 0;
-  }
-
-  if (LineSkipEnabled()) {
-    // Set rendering line-skip (only render every other line in high-res
-    //  480 vertical mode, or, optionally, force it for all video modes)
-
-    if (gpu.screen.vres == 480) {
-      if (gpu_unai.config.ilace_force) {
-        gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
-      } else {
-        gpu_unai.ilace_mask = 1; // Only need 1/2 of lines
-      }
-    } else {
-      // Vert resolution changed from 480 to lower one
-      gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
-    }
-  } else {
-    gpu_unai.ilace_mask = 0;
+#ifndef HAVE_PRE_ARMV7 /* XXX */
+  if (gpu_unai.config.scale_hires)
+#endif
+  {
+    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   /*
@@ -413,17 +389,6 @@ int do_cmd_list(u32 *list_, int list_len,
   if (IS_OLD_RENDERER())
     return oldunai_do_cmd_list(list_, list_len, cycles_sum_out, cycles_last, last_cmd);
 
-  //TODO: set ilace_mask when resolution changes instead of every time,
-  // eliminate #ifdef below.
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
-
-#ifdef HAVE_PRE_ARMV7 /* XXX */
-  gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
-#endif
-  if (gpu_unai.config.scale_hires) {
-    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
-  }
-
   for (; list < list_end; list += 1 + len)
   {
     cmd = le32_to_u32(*list) >> 24;
@@ -453,7 +418,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -469,7 +434,7 @@ int do_cmd_list(u32 *list_, int list_len,
         gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
 
         u32 driver_idx =
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -491,7 +456,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -507,7 +472,7 @@ int do_cmd_list(u32 *list_, int list_len,
         gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
 
         u32 driver_idx =
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -533,7 +498,7 @@ int do_cmd_list(u32 *list_, int list_len,
         // shouldn't apply. Until the original array of template
         // instantiation ptrs is fixed, we're stuck with this. (TODO)
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
@@ -549,7 +514,7 @@ int do_cmd_list(u32 *list_, int list_len,
         gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
         gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
@@ -564,7 +529,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x3B: {          // Gouraud-shaded 4-pt poly
         // See notes regarding '129' for 0x30..0x33 further above -senquack
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
@@ -580,7 +545,7 @@ int do_cmd_list(u32 *list_, int list_len,
         gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
         gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
         PP driver = gpuPolySpanDrivers[
-          (gpu_unai.blit_mask?1024:0) |
+          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
@@ -842,6 +807,7 @@ void renderer_flush_queues(void)
 
 void renderer_set_interlace(int enable, int is_odd)
 {
+  renderer_notify_res_change();
 }
 
 #include "../../frontend/plugin_lib.h"
@@ -851,7 +817,6 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   gpu_unai.vram = (le16_t *)gpu.vram;
   gpu_unai.config.old_renderer  = cbs->gpu_unai.old_renderer;
   gpu_unai.config.ilace_force   = cbs->gpu_unai.ilace_force;
-  gpu_unai.config.pixel_skip    = cbs->gpu_unai.pixel_skip;
   gpu_unai.config.lighting      = cbs->gpu_unai.lighting;
   gpu_unai.config.fast_lighting = cbs->gpu_unai.fast_lighting;
   gpu_unai.config.blending      = cbs->gpu_unai.blending;

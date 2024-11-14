@@ -96,7 +96,6 @@ struct rearmed_cbs {
 	struct {
 		int old_renderer;
 		int ilace_force;
-		int pixel_skip;
 		int lighting;
 		int fast_lighting;
 		int blending;

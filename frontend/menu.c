@@ -445,7 +445,6 @@ static const struct {
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.old_renderer),
 	CE_INTVAL_P(gpu_unai.ilace_force),
-	CE_INTVAL_P(gpu_unai.pixel_skip),
 	CE_INTVAL_P(gpu_unai.lighting),
 	CE_INTVAL_P(gpu_unai.fast_lighting),
 	CE_INTVAL_P(gpu_unai.blending),
@@ -1449,7 +1448,6 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
 	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
-	mee_onoff     ("Pixel skip",                 0, pl_rearmed_cbs.gpu_unai.pixel_skip, 1),
 	mee_end,
 };
 
