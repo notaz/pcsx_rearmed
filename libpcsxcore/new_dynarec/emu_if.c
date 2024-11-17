@@ -356,11 +356,14 @@ static void ari64_execute_threaded_once(struct psxRegisters *regs,
 	enum blockExecCaller block_caller)
 {
 	void *drc_local = (char *)regs - LO_psxRegs;
+	struct ht_entry *hash_table =
+		*(void **)((char *)drc_local + LO_hash_table_ptr);
 	void *target;
 
 	if (likely(!ndrc_g.thread.busy)) {
 		ndrc_g.thread.addr = 0;
-		target = ndrc_get_addr_ht_param(regs->pc, ndrc_cm_no_compile);
+		target = ndrc_get_addr_ht_param(hash_table, regs->pc,
+				ndrc_cm_no_compile);
 		if (target) {
 			clear_local_cache();
 			new_dyna_start_at(drc_local, target);
@@ -428,6 +431,8 @@ static int ari64_thread_check_range(unsigned int start, unsigned int end)
 
 static void ari64_compile_thread(void *unused)
 {
+	struct ht_entry *hash_table =
+		*(void **)((char *)dynarec_local + LO_hash_table_ptr);
 	void *target;
 	u32 addr;
 
@@ -440,7 +445,8 @@ static void ari64_compile_thread(void *unused)
 		if (!ndrc_g.thread.busy || !addr || ndrc_g.thread.exit)
 			continue;
 
-		target = ndrc_get_addr_ht_param(addr, ndrc_cm_compile_in_thread);
+		target = ndrc_get_addr_ht_param(hash_table, addr,
+				ndrc_cm_compile_in_thread);
 		//printf("c  %08x -> %p\n", addr, target);
 		ndrc_g.thread.busy = 0;
 	}
@@ -520,7 +526,6 @@ static int ari64_thread_check_range(unsigned int start, unsigned int end) { retu
 
 static int ari64_init()
 {
-	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 	size_t i;
 
 	new_dynarec_init();
@@ -548,7 +553,6 @@ static int ari64_init()
 #endif
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
-	scratch_buf_ptr = scratch_buf;
 
 	ari64_thread_init();
 
@@ -576,11 +580,6 @@ R3000Acpu psxRec = {
 #else // if DRC_DISABLE
 
 struct ndrc_globals ndrc_g; // dummy
-void *psxH_ptr;
-void *zeromem_ptr;
-u32 zero_mem[0x1000/4];
-void *mem_rtab;
-void *scratch_buf_ptr;
 void new_dynarec_init() {}
 void new_dyna_start(void *context) {}
 void new_dynarec_cleanup() {}

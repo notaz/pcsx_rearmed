@@ -79,7 +79,7 @@ DRC_VAR(mem_wtab, 4)
 DRC_VAR(psxH_ptr, 4)
 DRC_VAR(zeromem_ptr, 4)
 DRC_VAR(invc_ptr, 4)
-DRC_VAR(scratch_buf_ptr, 4)
+DRC_VAR(hash_table_ptr, 4)
 DRC_VAR(ram_offset, 4)
 DRC_VAR(mini_ht, 256)
 
@@ -150,7 +150,9 @@ FUNCTION(dyna_linker):
 	mov	r5, r1
 	lsl	r6, r6, #8
 	/* must not compile - that might expire the caller block */
-	mov	r1, #0 /* ndrc_compile_mode */
+	ldr     r0, [fp, #LO_hash_table_ptr]
+	mov     r1, r4
+	mov	r2, #0 /* ndrc_compile_mode=ndrc_cm_no_compile */
 	bl	ndrc_get_addr_ht_param
 
 	movs	r8, r0
@@ -174,6 +176,7 @@ FUNCTION(dyna_linker):
 #else
 	/* XXX: should be able to do better than this... */
 #endif
+	ldr     r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	dyna_linker, .-dyna_linker
@@ -223,6 +226,7 @@ FUNCTION(jump_vaddr_r7):
 	add	r0, r7, #0
 	.size	jump_vaddr_r7, .-jump_vaddr_r7
 FUNCTION(jump_vaddr_r0):
+	ldr     r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	jump_vaddr_r0, .-jump_vaddr_r0
@@ -248,6 +252,7 @@ FUNCTION(cc_interrupt):
 	ldmfdne	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, pc}
 	cmp	r0, r9
 	moveq	pc, lr
+	ldr     r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	cc_interrupt, .-cc_interrupt
@@ -304,6 +309,7 @@ FUNCTION(jump_to_new_pc):
 	str	r1, [fp, #LO_last_count]
 	sub	r10, r10, r1
 	bne	new_dyna_leave
+	ldr     r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	mov	pc, r0
 	.size	jump_to_new_pc, .-jump_to_new_pc
@@ -408,6 +414,7 @@ FUNCTION(new_dyna_start):
 	stmfd	sp!, {r4, r5, r6, r7, r8, r9, sl, fp, ip, lr}
 	mov	fp, r0 /* dynarec_local */
 	ldr	r0, [fp, #LO_pcaddr]
+	ldr     r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 new_dyna_start_at_e:
 	ldr	r1, [fp, #LO_next_interupt]

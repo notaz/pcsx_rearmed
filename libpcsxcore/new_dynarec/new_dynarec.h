@@ -44,12 +44,14 @@ void new_dynarec_invalidate_all_pages(void);
 void new_dyna_start(void *context);
 void new_dyna_start_at(void *context, void *compiled_code);
 
+struct ht_entry;
 enum ndrc_compile_mode {
 	ndrc_cm_no_compile = 0,
 	ndrc_cm_compile_live,       // from executing code, vaddr is the current pc
 	ndrc_cm_compile_offline,
 	ndrc_cm_compile_in_thread,
 };
-void *ndrc_get_addr_ht_param(unsigned int vaddr, enum ndrc_compile_mode compile_mode);
+void *ndrc_get_addr_ht_param(struct ht_entry *ht, unsigned int vaddr,
+	enum ndrc_compile_mode compile_mode);
 
 extern unsigned int ndrc_smrv_regs[32];
