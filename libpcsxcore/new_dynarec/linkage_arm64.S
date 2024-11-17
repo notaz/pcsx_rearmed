@@ -81,7 +81,7 @@ DRC_VAR(mem_wtab, 8)
 DRC_VAR(psxH_ptr, 8)
 DRC_VAR(invc_ptr, 8)
 DRC_VAR(zeromem_ptr, 8)
-DRC_VAR(scratch_buf_ptr, 8)
+DRC_VAR(hash_table_ptr, 8)
 DRC_VAR(ram_offset, 8)
 DRC_VAR(mini_ht, 256)
 
@@ -92,6 +92,7 @@ DRC_VAR(mini_ht, 256)
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = instruction to patch */
+	ldr     x1, [rFP, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	br	x0
 	ESIZE(dyna_linker, .-dyna_linker)
@@ -118,6 +119,7 @@ FUNCTION(cc_interrupt):
 	bne	2f
 	ret
 2:
+	ldr     x1, [rFP, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	br	x0
 	ESIZE(cc_interrupt, .-cc_interrupt)
@@ -173,6 +175,7 @@ FUNCTION(jump_to_new_pc):
 	sub	rCC, rCC, w1
 	str	w1, [rFP, #LO_last_count]
 	cbnz	w2, new_dyna_leave
+	ldr     x1, [rFP, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	br	x0
 	ESIZE(jump_to_new_pc, .-jump_to_new_pc)
@@ -188,8 +191,9 @@ FUNCTION(new_dyna_start):
 	stp	x29, x30, [sp, #-SSP_ALL]!
 	mov	rFP, x0
 	ldr	w0,  [rFP, #LO_pcaddr]
+	ldr     x1,  [rFP, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
-	mov	x1, x0
+	mov	x1,  x0
 new_dyna_start_at_e:
 	ldr	w3,  [rFP, #LO_next_interupt]
 	ldr	w2,  [rFP, #LO_cycle]

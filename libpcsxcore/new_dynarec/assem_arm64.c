@@ -2038,6 +2038,7 @@ static void do_jump_vaddr(u_int rs)
 {
   if (rs != 0)
     emit_mov(rs, 0);
+  emit_readptr(&hash_table_ptr, 1);
   emit_far_call(ndrc_get_addr_ht);
   emit_jmpreg(0);
 }

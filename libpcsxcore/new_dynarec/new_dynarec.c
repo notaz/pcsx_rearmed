@@ -75,6 +75,7 @@ extern int last_count;  // last absolute target, often = next_interupt
 
 extern int reg_cop2d[], reg_cop2c[];
 
+extern void *hash_table_ptr;
 extern uintptr_t ram_offset;
 extern uintptr_t mini_ht[32][2];
 
@@ -400,7 +401,7 @@ void jump_to_new_pc();
 void call_gteStall();
 void new_dyna_leave();
 
-void *ndrc_get_addr_ht(u_int vaddr);
+void *ndrc_get_addr_ht(u_int vaddr, struct ht_entry *ht);
 void ndrc_add_jump_out(u_int vaddr, void *src);
 void ndrc_write_invalidate_one(u_int addr);
 static void ndrc_write_invalidate_many(u_int addr, u_int end);
@@ -642,9 +643,14 @@ static u_int get_page_prev(u_int vaddr)
   return page;
 }
 
+static struct ht_entry *hash_table_get_p(struct ht_entry *ht, u_int vaddr)
+{
+  return &ht[((vaddr >> 16) ^ vaddr) & 0xFFFF];
+}
+
 static struct ht_entry *hash_table_get(u_int vaddr)
 {
-  return &hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+  return hash_table_get_p(hash_table, vaddr);
 }
 
 #define HASH_TABLE_BAD 0xbac
@@ -805,7 +811,8 @@ static noinline u_int generate_exception(u_int pc)
 
 // Get address from virtual address
 // This is called from the recompiled JR/JALR instructions
-static void noinline *get_addr(const u_int vaddr, enum ndrc_compile_mode compile_mode)
+static void noinline *get_addr(struct ht_entry *ht, const u_int vaddr,
+  enum ndrc_compile_mode compile_mode)
 {
   u_int start_page = get_page_prev(vaddr);
   u_int i, page, end_page = get_page(vaddr);
@@ -846,31 +853,32 @@ static void noinline *get_addr(const u_int vaddr, enum ndrc_compile_mode compile
 
   int r = new_recompile_block(vaddr);
   if (likely(r == 0))
-    return ndrc_get_addr_ht(vaddr);
+    return ndrc_get_addr_ht(vaddr, ht);
 
   if (compile_mode == ndrc_cm_compile_live)
-    return ndrc_get_addr_ht(generate_exception(vaddr));
+    return ndrc_get_addr_ht(generate_exception(vaddr), ht);
 
   return NULL;
 }
 
 // Look up address in hash table first
-void *ndrc_get_addr_ht_param(unsigned int vaddr, enum ndrc_compile_mode compile_mode)
+void *ndrc_get_addr_ht_param(struct ht_entry *ht, unsigned int vaddr,
+  enum ndrc_compile_mode compile_mode)
 {
   //check_for_block_changes(vaddr, vaddr + MAXBLOCK);
-  const struct ht_entry *ht_bin = hash_table_get(vaddr);
+  const struct ht_entry *ht_bin = hash_table_get_p(ht, vaddr);
   u_int vaddr_a = vaddr & ~3;
   stat_inc(stat_ht_lookups);
   if (ht_bin->vaddr[0] == vaddr_a) return ht_bin->tcaddr[0];
   if (ht_bin->vaddr[1] == vaddr_a) return ht_bin->tcaddr[1];
-  return get_addr(vaddr, compile_mode);
+  return get_addr(ht, vaddr, compile_mode);
 }
 
 // "usual" addr lookup for indirect branches, etc
 // to be used by currently running code only
-void *ndrc_get_addr_ht(u_int vaddr)
+void *ndrc_get_addr_ht(u_int vaddr, struct ht_entry *ht)
 {
-  return ndrc_get_addr_ht_param(vaddr, ndrc_cm_compile_live);
+  return ndrc_get_addr_ht_param(ht, vaddr, ndrc_cm_compile_live);
 }
 
 static void clear_all_regs(signed char regmap[])
@@ -1317,6 +1325,7 @@ static const char *fpofs_name(u_int ofs)
   ofscase(psxH_ptr);
   ofscase(invc_ptr);
   ofscase(ram_offset);
+  ofscase(hash_table_ptr);
   #undef ofscase
   }
   buf[0] = 0;
@@ -3439,9 +3448,10 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
       wb_dirtys(regs[i].regmap_entry,regs[i].wasdirty);
-      emit_movimm(start+i*4+4,0);
-      emit_writeword(0,&psxRegs.pc);
-      emit_addimm(HOST_CCREG,2,HOST_CCREG);
+      emit_readptr(&hash_table_ptr, 1);
+      emit_movimm(start+i*4+4, 0);
+      emit_writeword(0, &psxRegs.pc);
+      emit_addimm(HOST_CCREG, 2, HOST_CCREG);
       emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
     }
@@ -3620,6 +3630,7 @@ static void cop0_assemble(int i, const struct regstat *i_regs, int ccadj_)
       emit_cmp(HOST_TEMPREG, 0);
       void *jaddr = out;
       emit_jeq(0);
+      emit_readptr(&hash_table_ptr, 1);
       emit_far_call(ndrc_get_addr_ht);
       emit_jmpreg(0);
       set_jump_target(jaddr, out);
@@ -6368,6 +6379,7 @@ void new_dynarec_init(void)
 #endif
   out = ndrc->translation_cache;
   new_dynarec_clear_full();
+  hash_table_ptr = hash_table;
 #ifdef HOST_IMM8
   // Copy this into local area so we don't have to put it in every literal pool
   invc_ptr=invalid_code;
@@ -6542,7 +6554,7 @@ void new_dynarec_load_blocks(const void *save, int size)
         psxRegs.GPR.r[i] = 0x1f800000;
     }
 
-    ndrc_get_addr_ht_param(sblocks[b].addr, ndrc_cm_compile_offline);
+    ndrc_get_addr_ht_param(hash_table, sblocks[b].addr, ndrc_cm_compile_offline);
 
     for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
@@ -9038,6 +9050,7 @@ static int new_recompile_block(u_int addr)
     emit_addimm(0, 0x18, 0);
     emit_adds_ptr(1, 1, 1);
     emit_ldr_dualindexed(1, 0, 0);
+    emit_readptr(&hash_table_ptr, 1);
     emit_writeword(0, &psxRegs.GPR.r[26]); // lw k0, 0x18(sp)
     emit_far_call(ndrc_get_addr_ht);
     emit_jmpreg(0); // jr k0
