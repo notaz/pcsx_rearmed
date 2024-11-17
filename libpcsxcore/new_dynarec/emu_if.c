@@ -526,6 +526,7 @@ static int ari64_thread_check_range(unsigned int start, unsigned int end) { retu
 
 static int ari64_init()
 {
+	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
 	size_t i;
 
 	new_dynarec_init();
@@ -553,6 +554,7 @@ static int ari64_init()
 #endif
 	psxH_ptr = psxH;
 	zeromem_ptr = zero_mem;
+	scratch_buf_ptr = scratch_buf; // for gte_neon.S
 
 	ari64_thread_init();
 

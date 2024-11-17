@@ -36,6 +36,11 @@
 #define execI			ESYM(execI)
 #endif
 
+/* make mini_ht reachable with a single armv4 insn */
+#if (LO_mini_ht & ~0xff0)
+#error misligned mini_ht
+#endif
+
 	.bss
 	.align	4
 	.global dynarec_local
@@ -79,8 +84,9 @@ DRC_VAR(mem_wtab, 4)
 DRC_VAR(psxH_ptr, 4)
 DRC_VAR(zeromem_ptr, 4)
 DRC_VAR(invc_ptr, 4)
-DRC_VAR(hash_table_ptr, 4)
+DRC_VAR(scratch_buf_ptr, 4)
 DRC_VAR(ram_offset, 4)
+DRC_VAR(hash_table_ptr, 4)
 DRC_VAR(mini_ht, 256)
 
 

@@ -81,8 +81,9 @@ DRC_VAR(mem_wtab, 8)
 DRC_VAR(psxH_ptr, 8)
 DRC_VAR(invc_ptr, 8)
 DRC_VAR(zeromem_ptr, 8)
-DRC_VAR(hash_table_ptr, 8)
+DRC_VAR(scratch_buf_ptr, 8)
 DRC_VAR(ram_offset, 8)
+DRC_VAR(hash_table_ptr, 8)
 DRC_VAR(mini_ht, 256)
 
 
