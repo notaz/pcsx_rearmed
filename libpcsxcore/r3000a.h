@@ -214,6 +214,7 @@ typedef struct psxRegisters {
 	u32 biosBranchCheck;
 	u32 cpuInRecursion;
 	u32 gpuIdleAfter;
+	u32 unused3[2];
 	// warning: changing anything in psxRegisters requires update of all
 	// asm in libpcsxcore/new_dynarec/ and may break savestates
 } psxRegisters;

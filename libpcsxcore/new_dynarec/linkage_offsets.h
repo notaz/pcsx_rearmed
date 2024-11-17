@@ -1,11 +1,7 @@
 
 #define PTRSZ __SIZEOF_POINTER__
 
-#define LO_unused0		64
-#define LO_unused1		(LO_unused0 + 4)
-#define LO_unused2		(LO_unused1 + 4)
-#define LO_unused3		(LO_unused2 + 4)
-#define LO_cycle_count		(LO_unused3 + 4)
+#define LO_cycle_count		64
 #define LO_last_count		(LO_cycle_count + 4)
 #define LO_address		(LO_last_count + 4)
 #define LO_hack_addr		(LO_address + 4)
@@ -22,13 +18,13 @@
 #define LO_interrupt		(LO_cycle + 4)
 #define LO_intCycle		(LO_interrupt + 4)
 #define LO_next_interupt	(LO_intCycle + 4*2*31)
-#define LO_unused4		(LO_next_interupt + 4)
-#define LO_gteBusyCycle		(LO_unused4 + 4)
+#define LO_unused		(LO_next_interupt + 4)
+#define LO_gteBusyCycle		(LO_unused + 4)
 #define LO_muldivBusyCycle	(LO_gteBusyCycle + 4)
 #define LO_psxRegs_subCycle	(LO_muldivBusyCycle + 4)
 #define LO_psxRegs_biuReg	(LO_psxRegs_subCycle + 4*2)
 #define LO_stop            	(LO_psxRegs_biuReg + 4)
-#define LO_psxRegs_end		(LO_stop + 4*7)
+#define LO_psxRegs_end		(LO_stop + 4*9)
 #define LO_rcnts		(LO_psxRegs_end)
 #define LO_rcnts_end		(LO_rcnts + 7*4*4)
 #define LO_inv_code_start	(LO_rcnts_end)
@@ -38,10 +34,12 @@
 #define LO_psxH_ptr		(LO_mem_wtab + PTRSZ)
 #define LO_zeromem_ptr		(LO_psxH_ptr + PTRSZ)
 #define LO_invc_ptr		(LO_zeromem_ptr + PTRSZ)
-#define LO_hash_table_ptr	(LO_invc_ptr + PTRSZ)
-#define LO_saved_lr		(LO_hash_table_ptr + PTRSZ)
+#define LO_scratch_buf_ptr	(LO_invc_ptr + PTRSZ)        // for gte_neon.S
+#define LO_saved_lr		(LO_scratch_buf_ptr + PTRSZ)
 #define LO_ram_offset		(LO_saved_lr + PTRSZ)
-#define LO_mini_ht		(LO_ram_offset + PTRSZ)
+#define LO_hash_table_ptr	(LO_ram_offset + PTRSZ)
+#define LO_unused2		(LO_hash_table_ptr + PTRSZ)
+#define LO_mini_ht		(LO_unused2 + PTRSZ)
 #define LO_dynarec_local_size	(LO_mini_ht + PTRSZ*32*2)
 
 #define LO_cop2_to_scratch_buf	(LO_scratch_buf_ptr - LO_reg_cop2d)
