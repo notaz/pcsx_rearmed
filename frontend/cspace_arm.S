@@ -20,6 +20,14 @@
     orr      \rn, r12, lsl #6
 .endm
 
+.macro bgr555_to_rgb565_one_i rn1 rn2
+    and      r12, lr, \rn1, lsr #5
+    and      \rn1,lr, \rn1, lsr #10
+    orr      r12, r11, lsl #5
+    and      r11, lr, \rn2
+    orr      \rn1,r12, lsl #6
+.endm
+
 .macro pld_ reg offs=#0
 #ifdef HAVE_ARMV6
     pld      [\reg, \offs]
@@ -27,7 +35,6 @@
 .endm
 
 FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
-    pld_     r1
     push     {r4-r11,lr}
     mov      lr, #0x001f
     subs     r2, #4*8
@@ -43,16 +50,17 @@ FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
 0:
     ldmia    r1!, {r3-r10}
     subs     r2, #4*8
-    bgr555_to_rgb565_one r3
-
-    pld_     r1, #32*2
-    bgr555_to_rgb565_one r4
-    bgr555_to_rgb565_one r5
-    bgr555_to_rgb565_one r6
-    bgr555_to_rgb565_one r7
-    bgr555_to_rgb565_one r8
-    bgr555_to_rgb565_one r9
-    bgr555_to_rgb565_one r10
+    bic      r12, r1, #0x1f
+    pld_     r12, #32*1
+    and      r11, lr, r3
+    bgr555_to_rgb565_one_i r3 r4
+    bgr555_to_rgb565_one_i r4 r5
+    bgr555_to_rgb565_one_i r5 r6
+    bgr555_to_rgb565_one_i r6 r7
+    bgr555_to_rgb565_one_i r7 r8
+    bgr555_to_rgb565_one_i r8 r9
+    bgr555_to_rgb565_one_i r9 r10
+    bgr555_to_rgb565_one_i r10 r10
     stmia    r0!, {r3-r10}
     bge      0b
 
