@@ -513,6 +513,16 @@ int emu_core_init(void)
 	SysPrintf("Starting PCSX-ReARMed " REV "%s\n", get_build_info());
 	SysPrintf("build time: " __DATE__ " " __TIME__ "\n");
 
+#if defined(__arm__) && defined(__VFP_FP__)
+	// RunFast mode
+	u32 fpscr = ~0;
+	__asm__ volatile("fmrx %0, fpscr" : "=r"(fpscr));
+	SysPrintf("old fpscr = %08x\n", fpscr);
+	fpscr &= ~0x00009f9f;
+	fpscr |=  0x03000000; // DN | FZ
+	__asm__ volatile("fmxr fpscr, %0" :: "r"(fpscr));
+#endif
+
 #ifdef HAVE_RTHREADS
 	pcsxr_sthread_init();
 #endif
