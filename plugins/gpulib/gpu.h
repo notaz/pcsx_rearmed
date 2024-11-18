@@ -147,6 +147,9 @@ void vout_update(void);
 void vout_blank(void);
 void vout_set_config(const struct rearmed_cbs *config);
 
+int  prim_try_simplify_quad_t (void *simplified, const void *prim);
+int  prim_try_simplify_quad_gt(void *simplified, const void *prim);
+
 /* listing these here for correct linkage if rasterizer uses c++ */
 struct GPUFreeze;
 

@@ -375,6 +375,36 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 #endif
 
 #include "../gpulib/gpu_timing.h"
+
+static inline void textured_sprite(int &cpu_cycles_sum, int &cpu_cycles)
+{
+  u32 PRIM = le32_to_u32(gpu_unai.PacketBuffer.U4[0]) >> 24;
+  gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+  u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
+  s32 w = 0, h = 0;
+
+  //senquack - Only color 808080h-878787h allows skipping lighting calculation:
+  // This fixes Silent Hill running animation on loading screens:
+  // (On PSX, color values 0x00-0x7F darken the source texture's color,
+  //  0x81-FF lighten textures (ultimately clamped to 0x1F),
+  //  0x80 leaves source texture color unchanged, HOWEVER,
+  //   gpu_unai uses a simple lighting LUT whereby only the upper
+  //   5 bits of an 8-bit color are used, so 0x80-0x87 all behave as
+  //   0x80.
+  //
+  // NOTE: I've changed all textured sprite draw commands here and
+  //  elsewhere to use proper behavior, but left poly commands
+  //  alone, I don't want to slow rendering down too much. (TODO)
+  //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
+  // Strip lower 3 bits of each color and determine if lighting should be used:
+  if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
+    driver_idx |= Lighting;
+  PS driver = gpuSpriteDrivers[driver_idx];
+  PtrUnion packet = { .ptr = (void*)&gpu_unai.PacketBuffer };
+  gpuDrawS(packet, driver, &w, &h);
+  gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+}
+
 extern const unsigned char cmd_lengths[256];
 
 int do_cmd_list(u32 *list_, int list_len,
@@ -468,8 +498,20 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x2D:
       case 0x2E:
       case 0x2F: {          // Textured 4-pt poly
-        gpuSetCLUT   (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+        u32 simplified_count;
         gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
+        if ((simplified_count = prim_try_simplify_quad_t(gpu_unai.PacketBuffer.U4,
+              gpu_unai.PacketBuffer.U4)))
+        {
+          for (i = 0;; ) {
+            textured_sprite(cpu_cycles_sum, cpu_cycles);
+            if (++i >= simplified_count)
+              break;
+            memcpy(&gpu_unai.PacketBuffer.U4[0], &gpu_unai.PacketBuffer.U4[i * 4], 16);
+          }
+          break;
+        }
+        gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 
         u32 driver_idx =
           //(gpu_unai.blit_mask?1024:0) |
@@ -542,8 +584,20 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x3D:
       case 0x3E:
       case 0x3F: {          // Gouraud-shaded, textured 4-pt poly
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        u32 simplified_count;
+        gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        if ((simplified_count = prim_try_simplify_quad_gt(gpu_unai.PacketBuffer.U4,
+              gpu_unai.PacketBuffer.U4)))
+        {
+          for (i = 0;; ) {
+            textured_sprite(cpu_cycles_sum, cpu_cycles);
+            if (++i >= simplified_count)
+              break;
+            memcpy(&gpu_unai.PacketBuffer.U4[0], &gpu_unai.PacketBuffer.U4[i * 4], 16);
+          }
+          break;
+        }
+        gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
@@ -651,31 +705,9 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x64:
       case 0x65:
       case 0x66:
-      case 0x67: {          // Textured rectangle (variable size)
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        // This fixes Silent Hill running animation on loading screens:
-        // (On PSX, color values 0x00-0x7F darken the source texture's color,
-        //  0x81-FF lighten textures (ultimately clamped to 0x1F),
-        //  0x80 leaves source texture color unchanged, HOWEVER,
-        //   gpu_unai uses a simple lighting LUT whereby only the upper
-        //   5 bits of an 8-bit color are used, so 0x80-0x87 all behave as
-        //   0x80.
-        // 
-        // NOTE: I've changed all textured sprite draw commands here and
-        //  elsewhere to use proper behavior, but left poly commands
-        //  alone, I don't want to slow rendering down too much. (TODO)
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
-      } break;
+      case 0x67:            // Textured rectangle (variable size)
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
+        break;
 
       case 0x68:
       case 0x69:
@@ -704,18 +736,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x76:
       case 0x77: {          // Textured rectangle (8x8)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00080008);
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
       } break;
 
       case 0x78:
@@ -734,17 +755,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x7E:
       case 0x7F: {          // Textured rectangle (16x16)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00100010);
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
       } break;
 
 #ifdef TEST
