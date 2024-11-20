@@ -376,6 +376,12 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 
 #include "../gpulib/gpu_timing.h"
 
+// Strip lower 3 bits of each color and determine if lighting should be used:
+static inline bool need_lighting(u32 rgb_raw)
+{
+  return (rgb_raw & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080);
+}
+
 static inline void textured_sprite(int &cpu_cycles_sum, int &cpu_cycles)
 {
   u32 PRIM = le32_to_u32(gpu_unai.PacketBuffer.U4[0]) >> 24;
@@ -395,9 +401,7 @@ static inline void textured_sprite(int &cpu_cycles_sum, int &cpu_cycles)
   // NOTE: I've changed all textured sprite draw commands here and
   //  elsewhere to use proper behavior, but left poly commands
   //  alone, I don't want to slow rendering down too much. (TODO)
-  //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-  // Strip lower 3 bits of each color and determine if lighting should be used:
-  if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
+  if (need_lighting(le32_raw(gpu_unai.PacketBuffer.U4[0])))
     driver_idx |= Lighting;
   PS driver = gpuSpriteDrivers[driver_idx];
   PtrUnion packet = { .ptr = (void*)&gpu_unai.PacketBuffer };
@@ -539,13 +543,22 @@ int do_cmd_list(u32 *list_, int list_len,
         // this is an untextured poly, so CF_LIGHT (texture blend)
         // shouldn't apply. Until the original array of template
         // instantiation ptrs is fixed, we're stuck with this. (TODO)
+        u8 gouraud = 129;
+        u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+        for (i = 1; i < 3; i++)
+          xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 2]);
+        if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
+          gouraud = 0;
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
-          gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyG(packet, driver, false);
+        if (gouraud)
+          gpuDrawPolyG(packet, driver, false);
+        else
+          gpuDrawPolyF(packet, driver, false, POLYTYPE_G);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
       } break;
 
@@ -555,13 +568,28 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x37: {          // Gouraud-shaded, textured 3-pt poly
         gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
         gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        u8 lighting = Lighting;
+        u8 gouraud = lighting ? (1<<7) : 0;
+        if (lighting) {
+          u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+          for (i = 1; i < 3; i++)
+            xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 3]);
+          if ((xor_ & HTOLE32(0xf8f8f8)) == 0) {
+            gouraud = 0;
+            if (!need_lighting(rgb0))
+              lighting = 0;
+          }
+        }
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
-          gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyGT(packet, driver, false);
+        if (gouraud)
+          gpuDrawPolyGT(packet, driver, false); // is_quad = true
+        else
+          gpuDrawPolyFT(packet, driver, false, POLYTYPE_GT);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
       } break;
 
@@ -570,13 +598,22 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
         // See notes regarding '129' for 0x30..0x33 further above -senquack
+        u8 gouraud = 129;
+        u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+        for (i = 1; i < 4; i++)
+          xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 2]);
+        if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
+          gouraud = 0;
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
-          gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyG(packet, driver, true); // is_quad = true
+        if (gouraud)
+          gpuDrawPolyG(packet, driver, true); // is_quad = true
+        else
+          gpuDrawPolyF(packet, driver, true, POLYTYPE_G);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
       } break;
 
@@ -598,13 +635,28 @@ int do_cmd_list(u32 *list_, int list_len,
           break;
         }
         gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+        u8 lighting = Lighting;
+        u8 gouraud = lighting ? (1<<7) : 0;
+        if (lighting) {
+          u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+          for (i = 1; i < 4; i++)
+            xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 3]);
+          if ((xor_ & HTOLE32(0xf8f8f8)) == 0) {
+            gouraud = 0;
+            if (!need_lighting(rgb0))
+              lighting = 0;
+          }
+        }
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
-          gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyGT(packet, driver, true); // is_quad = true
+        if (gouraud)
+          gpuDrawPolyGT(packet, driver, true); // is_quad = true
+        else
+          gpuDrawPolyFT(packet, driver, true, POLYTYPE_GT);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
       } break;
 

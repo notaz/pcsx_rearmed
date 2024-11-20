@@ -223,13 +223,14 @@ static bool polyUseTriangle(const PolyVertex *vbuf, int tri_num, const PolyVerte
 /*----------------------------------------------------------------------
 gpuDrawPolyF - Flat-shaded, untextured poly
 ----------------------------------------------------------------------*/
-void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
+void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad,
+	PolyType ptype = POLYTYPE_F)
 {
 	// Set up bgr555 color to be used across calls in inner driver
 	gpu_unai.PixelData = GPU_RGB16(le32_to_u32(packet.U4[0]));
 
 	PolyVertex vbuf[4];
-	polyInitVertexBuffer(vbuf, packet, POLYTYPE_F, is_quad);
+	polyInitVertexBuffer(vbuf, packet, ptype, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
@@ -374,7 +375,8 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 /*----------------------------------------------------------------------
 gpuDrawPolyFT - Flat-shaded, textured poly
 ----------------------------------------------------------------------*/
-void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
+void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad,
+	PolyType ptype = POLYTYPE_FT)
 {
 	// r8/g8/b8 used if texture-blending & dithering is applied (24-bit light)
 	gpu_unai.r8 = packet.U1[0];
@@ -386,7 +388,7 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 	gpu_unai.b5 = packet.U1[2] >> 3;
 
 	PolyVertex vbuf[4];
-	polyInitVertexBuffer(vbuf, packet, POLYTYPE_FT, is_quad);
+	polyInitVertexBuffer(vbuf, packet, ptype, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
