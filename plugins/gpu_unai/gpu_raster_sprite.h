@@ -61,22 +61,22 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 	*w_out = x1;
 	*h_out = y1 - y0;
 
-	gpu_unai.r5 = packet.U1[0] >> 3;
-	gpu_unai.g5 = packet.U1[1] >> 3;
-	gpu_unai.b5 = packet.U1[2] >> 3;
+	gpu_unai.inn.r5 = packet.U1[0] >> 3;
+	gpu_unai.inn.g5 = packet.U1[1] >> 3;
+	gpu_unai.inn.b5 = packet.U1[2] >> 3;
 
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
 	const int li=gpu_unai.ilace_mask;
 	//const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 	//const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 	unsigned int tmode = gpu_unai.TEXT_MODE >> 5;
-	u8* pTxt_base = (u8*)gpu_unai.TBA;
+	u8* pTxt_base = (u8*)gpu_unai.inn.TBA;
 
 	// Texture is accessed byte-wise, so adjust idx if 16bpp
 	if (tmode == 3) u0 <<= 1;
 
 	spriteDriverArg arg;
-	arg.CBA = gpu_unai.CBA;
+	arg.CBA = gpu_unai.inn.CBA;
 	arg.u0 = u0;
 	arg.v0 = v0;
 	arg.u0_mask = gpu_unai.TextureWindow[2];

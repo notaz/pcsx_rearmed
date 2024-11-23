@@ -385,9 +385,9 @@ static void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt_base,
 
 	u8 r5, g5, b5;
 	if (CF_LIGHT) {
-		r5 = gpu_unai.r5;
-		g5 = gpu_unai.g5;
-		b5 = gpu_unai.b5;
+		r5 = gpu_unai.inn.r5;
+		g5 = gpu_unai.inn.g5;
+		b5 = gpu_unai.inn.b5;
 	}
 
 	if (CF_TEXTMODE==3) {
@@ -531,6 +531,8 @@ const PS gpuSpriteDrivers[256] = {
 #undef TI
 #undef TN
 #undef TIBLOCK
+#undef TA4
+#undef TA8
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Polygon innerloops generator
@@ -569,7 +571,7 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 		if (!CF_GOURAUD)
 		{
 			// UNTEXTURED, NO GOURAUD
-			const u16 pix15 = gpu_unai.PixelData;
+			const u16 pix15 = gpu_unai.inn.PixelData;
 			do {
 				uint_fast16_t uSrc, uDst;
 
@@ -596,8 +598,8 @@ endpolynotextnogou:
 		else
 		{
 			// UNTEXTURED, GOURAUD
-			gcol_t l_gCol = gpu_unai.gCol;
-			gcol_t l_gInc = gpu_unai.gInc;
+			gcol_t l_gCol = gpu_unai.inn.gCol;
+			gcol_t l_gInc = gpu_unai.inn.gInc;
 
 			do {
 				uint_fast16_t uDst, uSrc;
@@ -643,12 +645,15 @@ endpolynotextgou:
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
 		// one 32-bit unsigned int, but this proved to lose too much accuracy
 		// (pixel drouputs noticeable in NFS3 sky), so now are separate vars.
-		u32 l_u_msk = gpu_unai.u_msk;     u32 l_v_msk = gpu_unai.v_msk;
-		u32 l_u = gpu_unai.u & l_u_msk;   u32 l_v = gpu_unai.v & l_v_msk;
-		s32 l_u_inc = gpu_unai.u_inc;     s32 l_v_inc = gpu_unai.v_inc;
+		u32 l_u_msk = gpu_unai.inn.u_msk;     u32 l_v_msk = gpu_unai.inn.v_msk;
+		u32 l_u = gpu_unai.inn.u & l_u_msk;   u32 l_v = gpu_unai.inn.v & l_v_msk;
+		s32 l_u_inc = gpu_unai.inn.u_inc;     s32 l_v_inc = gpu_unai.inn.v_inc;
+		l_v <<= 1;
+		l_v_inc <<= 1;
+		l_v_msk = (l_v_msk & (0xff<<10)) << 1;
 
-		const le16_t* TBA_ = gpu_unai.TBA;
-		const le16_t* CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
+		const le16_t* TBA_ = gpu_unai.inn.TBA;
+		const le16_t* CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.inn.CBA;
 
 		u8 r5, g5, b5;
 		u8 r8, g8, b8;
@@ -657,17 +662,17 @@ endpolynotextgou:
 
 		if (CF_LIGHT) {
 			if (CF_GOURAUD) {
-				l_gInc = gpu_unai.gInc;
-				l_gCol = gpu_unai.gCol;
+				l_gInc = gpu_unai.inn.gInc;
+				l_gCol = gpu_unai.inn.gCol;
 			} else {
 				if (CF_DITHER) {
-					r8 = gpu_unai.r8;
-					g8 = gpu_unai.g8;
-					b8 = gpu_unai.b8;
+					r8 = gpu_unai.inn.r8;
+					g8 = gpu_unai.inn.g8;
+					b8 = gpu_unai.inn.b8;
 				} else {
-					r5 = gpu_unai.r5;
-					g5 = gpu_unai.g5;
-					b5 = gpu_unai.b5;
+					r5 = gpu_unai.inn.r5;
+					g5 = gpu_unai.inn.g5;
+					b5 = gpu_unai.inn.b5;
 				}
 			}
 		}
@@ -682,17 +687,19 @@ endpolynotextgou:
 			//           (UNAI originally used 16.16)
 			if (CF_TEXTMODE==1) {  //  4bpp (CLUT)
 				u32 tu=(l_u>>10);
-				u32 tv=(l_v<<1)&(0xff<<11);
+				u32 tv=l_v&l_v_msk;
 				u8 rgb=((u8*)TBA_)[tv+(tu>>1)];
 				uSrc=le16_to_u16(CBA_[(rgb>>((tu&1)<<2))&0xf]);
 				if (!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
-				uSrc = le16_to_u16(CBA_[(((u8*)TBA_)[(l_u>>10)+((l_v<<1)&(0xff<<11))])]);
+				u32 tv=l_v&l_v_msk;
+				uSrc = le16_to_u16(CBA_[((u8*)TBA_)[tv+(l_u>>10)]]);
 				if (!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==3) {  // 16bpp
-				uSrc = le16_to_u16(TBA_[(l_u>>10)+((l_v)&(0xff<<10))]);
+				u32 tv=(l_v&l_v_msk)>>1;
+				uSrc = le16_to_u16(TBA_[tv+(l_u>>10)]);
 				if (!uSrc) goto endpolytext;
 			}
 
@@ -736,13 +743,20 @@ endpolynotextgou:
 endpolytext:
 			pDst++;
 			l_u = (l_u + l_u_inc) & l_u_msk;
-			l_v = (l_v + l_v_inc) & l_v_msk;
+			l_v += l_v_inc;
 			if (CF_LIGHT && CF_GOURAUD)
 				l_gCol.raw += l_gInc.raw;
 		}
 		while (--count);
 	}
 }
+
+#ifdef __arm__
+static void PolySpan4bppAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
+{
+	poly_4bpp_asm(pDst, &gpu_unai.inn, count);
+}
+#endif
 
 static void PolyNULL(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 {
@@ -758,12 +772,17 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count);
 // Template instantiation helper macros
 #define TI(cf) gpuPolySpanFn<(cf)>
 #define TN     PolyNULL
+#ifdef __arm__
+#define TA4(cf) PolySpan4bppAsm
+#else
+#define TA4(cf) TI(cf)
+#endif
 #define TIBLOCK(ub) \
 	TI((ub)|0x00), TI((ub)|0x01), TI((ub)|0x02), TI((ub)|0x03), TI((ub)|0x04), TI((ub)|0x05), TI((ub)|0x06), TI((ub)|0x07), \
 	TN,            TN,            TI((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
 	TN,            TN,            TI((ub)|0x12), TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
 	TN,            TN,            TI((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
-	TI((ub)|0x20), TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TA4((ub)|0x20),TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
 	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
 	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
 	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
@@ -800,5 +819,7 @@ const PP gpuPolySpanDrivers[2048] = {
 #undef TI
 #undef TN
 #undef TIBLOCK
+#undef TA4
+#undef TA8
 
 #endif /* __GPU_UNAI_GPU_INNER_H__ */

@@ -243,8 +243,8 @@ int renderer_init(void)
   //senquack - new vars must be updated whenever texture window is changed:
   //           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
   const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-  gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-  gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+  gpu_unai.inn.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+  gpu_unai.inn.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
   // Configuration options
   gpu_unai.config = gpu_unai_config_ext;
@@ -340,8 +340,8 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 
         // Inner loop vars must be updated whenever texture window is changed:
         const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-        gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-        gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+        gpu_unai.inn.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+        gpu_unai.inn.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
         gpuSetTexture(gpu_unai.GPU_GP1);
       }

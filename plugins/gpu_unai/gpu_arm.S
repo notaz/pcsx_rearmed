@@ -207,4 +207,76 @@ sprite_driver_8bpp_asm:
     .cfi_endproc
 
 
+.global poly_4bpp_asm @ (void *d, const struct gpu_unai_inner_t *inn, int count)
+poly_4bpp_asm:
+    .cfi_startproc
+    add     r12, r1, #4
+    stmfd   sp!, {r4-r7,lr}
+    .cfi_def_cfa_offset 4*5
+    .cfi_rel_offset lr, 4*4
+    ldmia   r12, {r3, r4, r7, r12, lr} @ clut, u, v, u_msk, v_msk
+    ldr     r5, [r1, #0x18]    @ u_inc
+    mov     r6, r12
+    ldr     r12,[r1, #0x1c]    @ v_inc
+    and     r4, r4, r6
+    and     lr, lr, r7         @ v_msk & v
+    and     lr, lr, #0xff<<10
+    tst     r12,r12
+    bne     poly_4bpp_asm_v
+    ldr     r1, [r1]           @ src
+    mov     r7, r4, lsr #13
+    add     r1, r1, lr, lsl #1
+    add     r12,r1, r7, lsl #2
+    pld_    r12,#2048
+0:
+    ldr     lr, [r1, r7, lsl #2]
+    lsr     r12,r4, #8
+    and     r12,r12,#0x1c
+    sub     r12,r12,#1
+    mov     r12,lr, ror r12
+    add     r4, r4, r5
+    and     r12,r12,#0x1e
+    and     r4, r4, r6
+    ldrh    r12,[r3, r12]
+    add     r0, r0, #2
+    mov     r7, r4, lsr #13
+    tst     r12,r12
+    strneh  r12,[r0, #-2]
+    subs    r2, r2, #1
+    bgt     0b
+
+    ldmfd   sp!, {r4-r7,pc}
+
+poly_4bpp_asm_v: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+    stmfd   sp!, {r8-r9}
+    ldr     r9, [r1, #0x14]    @ v_msk
+    ldr     r1, [r1]           @ src
+    mov     r8, r12            @ v_inc
+    mov     r12,r4, lsr #13
+    add     lr, r1, lr, lsl #1
+    and     r9, r9, #0xff<<10  @ v_msk_final
+0:
+    ldr     lr, [lr, r12, lsl #2]
+    lsr     r12,r4, #8
+    and     r12,r12,#0x1c
+    sub     r12,r12,#1
+    mov     r12,lr, ror r12
+    add     r4, r4, r5
+    and     r12,r12,#0x1e
+    and     r4, r4, r6
+    ldrh    r12,[r3, r12]
+    add     r0, r0, #2
+    add     r7, r7, r8
+    and     lr, r7, r9
+    tst     r12,r12
+    add     lr, r1, lr, lsl #1
+    strneh  r12,[r0, #-2]
+    mov     r12,r4, lsr #13
+    subs    r2, r2, #1
+    bgt     0b
+
+    ldmfd   sp!, {r8-r9}
+    ldmfd   sp!, {r4-r7,pc}
+    .cfi_endproc
+
 @ vim:filetype=armasm

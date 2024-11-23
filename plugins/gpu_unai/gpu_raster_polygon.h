@@ -227,7 +227,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 	PolyType ptype = POLYTYPE_F)
 {
 	// Set up bgr555 color to be used across calls in inner driver
-	gpu_unai.PixelData = GPU_RGB16(le32_to_u32(packet.U4[0]));
+	gpu_unai.inn.PixelData = GPU_RGB16(le32_to_u32(packet.U4[0]));
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, ptype, is_quad);
@@ -379,13 +379,13 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 	PolyType ptype = POLYTYPE_FT)
 {
 	// r8/g8/b8 used if texture-blending & dithering is applied (24-bit light)
-	gpu_unai.r8 = packet.U1[0];
-	gpu_unai.g8 = packet.U1[1];
-	gpu_unai.b8 = packet.U1[2];
+	gpu_unai.inn.r8 = packet.U1[0];
+	gpu_unai.inn.g8 = packet.U1[1];
+	gpu_unai.inn.b8 = packet.U1[2];
 	// r5/g5/b5 used if just texture-blending is applied (15-bit light)
-	gpu_unai.r5 = packet.U1[0] >> 3;
-	gpu_unai.g5 = packet.U1[1] >> 3;
-	gpu_unai.b5 = packet.U1[2] >> 3;
+	gpu_unai.inn.r5 = packet.U1[0] >> 3;
+	gpu_unai.inn.g5 = packet.U1[1] >> 3;
+	gpu_unai.inn.b5 = packet.U1[2] >> 3;
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, ptype, is_quad);
@@ -462,8 +462,8 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 #endif
 #endif
 		// Set u,v increments for inner driver
-		gpu_unai.u_inc = du4;
-		gpu_unai.v_inc = dv4;
+		gpu_unai.inn.u_inc = du4;
+		gpu_unai.inn.v_inc = dv4;
 
 		//senquack - TODO: why is it always going through 2 iterations when sometimes one would suffice here?
 		//			 (SAME ISSUE ELSEWHERE)
@@ -695,8 +695,8 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				}
 
 				// Set u,v coords for inner driver
-				gpu_unai.u = u4;
-				gpu_unai.v = v4;
+				gpu_unai.inn.u = u4;
+				gpu_unai.inn.v = v4;
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
@@ -792,7 +792,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 #endif
 #endif
 		// Setup packed Gouraud increment for inner driver
-		gpu_unai.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
+		gpu_unai.inn.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -1044,7 +1044,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				}
 
 				// Setup packed Gouraud color for inner driver
-				gpu_unai.gCol = gpuPackGouraudCol(r4, g4, b4);
+				gpu_unai.inn.gCol = gpuPackGouraudCol(r4, g4, b4);
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
@@ -1158,9 +1158,9 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 #endif
 #endif
 		// Set u,v increments and packed Gouraud increment for inner driver
-		gpu_unai.u_inc = du4;
-		gpu_unai.v_inc = dv4;
-		gpu_unai.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
+		gpu_unai.inn.u_inc = du4;
+		gpu_unai.inn.v_inc = dv4;
+		gpu_unai.inn.gInc = gpuPackGouraudColInc(dr4, dg4, db4);
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -1448,9 +1448,9 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				}
 
 				// Set packed Gouraud color and u,v coords for inner driver
-				gpu_unai.u = u4;
-				gpu_unai.v = v4;
-				gpu_unai.gCol = gpuPackGouraudCol(r4, g4, b4);
+				gpu_unai.inn.u = u4;
+				gpu_unai.inn.v = v4;
+				gpu_unai.inn.gCol = gpuPackGouraudCol(r4, g4, b4);
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
