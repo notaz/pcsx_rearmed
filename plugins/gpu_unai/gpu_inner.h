@@ -55,6 +55,7 @@
 #include "gpu_inner_quantization.h"
 #include "gpu_inner_light.h"
 
+#include "arm_features.h"
 #ifdef __arm__
 #include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
@@ -752,9 +753,13 @@ endpolytext:
 }
 
 #ifdef __arm__
-static void PolySpan4bppAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
+template<int CF>
+static void PolySpanAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 {
-	poly_4bpp_asm(pDst, &gpu_unai.inn, count);
+	switch (CF) {
+	case 0x20: poly_4bpp_asm  (pDst, &gpu_unai.inn, count); break;
+	case 0x21: poly_4bpp_l_asm(pDst, &gpu_unai.inn, count); break;
+	}
 }
 #endif
 
@@ -773,16 +778,21 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count);
 #define TI(cf) gpuPolySpanFn<(cf)>
 #define TN     PolyNULL
 #ifdef __arm__
-#define TA4(cf) PolySpan4bppAsm
+#define TA(cf) PolySpanAsm<(cf)>
 #else
-#define TA4(cf) TI(cf)
+#define TA(cf) TI(cf)
+#endif
+#ifdef HAVE_ARMV6
+#define TA6(cf) PolySpanAsm<(cf)>
+#else
+#define TA6(cf) TI(cf)
 #endif
 #define TIBLOCK(ub) \
 	TI((ub)|0x00), TI((ub)|0x01), TI((ub)|0x02), TI((ub)|0x03), TI((ub)|0x04), TI((ub)|0x05), TI((ub)|0x06), TI((ub)|0x07), \
 	TN,            TN,            TI((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
 	TN,            TN,            TI((ub)|0x12), TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
 	TN,            TN,            TI((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
-	TA4((ub)|0x20),TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TA((ub)|0x20), TA6((ub)|0x21),TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
 	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
 	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
 	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
@@ -819,7 +829,7 @@ const PP gpuPolySpanDrivers[2048] = {
 #undef TI
 #undef TN
 #undef TIBLOCK
-#undef TA4
-#undef TA8
+#undef TA
+#undef TA6
 
 #endif /* __GPU_UNAI_GPU_INNER_H__ */

@@ -207,27 +207,40 @@ sprite_driver_8bpp_asm:
     .cfi_endproc
 
 
-.global poly_4bpp_asm @ (void *d, const struct gpu_unai_inner_t *inn, int count)
-poly_4bpp_asm:
-    .cfi_startproc
+.macro poly_4bpp_init v_target need_rgb
     add     r12, r1, #4
-    stmfd   sp!, {r4-r7,lr}
-    .cfi_def_cfa_offset 4*5
-    .cfi_rel_offset lr, 4*4
     ldmia   r12, {r3, r4, r7, r12, lr} @ clut, u, v, u_msk, v_msk
     ldr     r5, [r1, #0x18]    @ u_inc
+.if \need_rgb
+    ldr     r10,[r1, #0x24]    @ rbg
+.endif
     mov     r6, r12
     ldr     r12,[r1, #0x1c]    @ v_inc
+.if \need_rgb
+    mov     r10,r10,lsl #7     @ 0bbb bbbb 0ggg gggg 0rrr rrrr r000 0000
+    bic     r10,r10,#1<<23
+    bic     r10,r10,#1<<15
+    mov     r11,r10,lsl #8
+.endif
     and     r4, r4, r6
     and     lr, lr, r7         @ v_msk & v
     and     lr, lr, #0xff<<10
     tst     r12,r12
-    bne     poly_4bpp_asm_v
+    bne     \v_target
     ldr     r1, [r1]           @ src
     mov     r7, r4, lsr #13
     add     r1, r1, lr, lsl #1
     add     r12,r1, r7, lsl #2
     pld_    r12,#2048
+.endm
+
+.global poly_4bpp_asm @ (void *d, const struct gpu_unai_inner_t *inn, int count)
+poly_4bpp_asm:
+    .cfi_startproc
+    stmfd   sp!, {r4-r7,lr}
+    .cfi_def_cfa_offset 4*5
+    .cfi_rel_offset lr, 4*4
+    poly_4bpp_init poly_4bpp_v_asm 0
 0:
     ldr     lr, [r1, r7, lsl #2]
     lsr     r12,r4, #8
@@ -247,8 +260,10 @@ poly_4bpp_asm:
 
     ldmfd   sp!, {r4-r7,pc}
 
-poly_4bpp_asm_v: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+poly_4bpp_v_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     stmfd   sp!, {r8-r9}
+    .cfi_def_cfa_offset 4*7
+    .cfi_rel_offset lr, 4*6
     ldr     r9, [r1, #0x14]    @ v_msk
     ldr     r1, [r1]           @ src
     mov     r8, r12            @ v_inc
@@ -278,5 +293,93 @@ poly_4bpp_asm_v: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     ldmfd   sp!, {r8-r9}
     ldmfd   sp!, {r4-r7,pc}
     .cfi_endproc
+
+
+#ifdef HAVE_ARMV6
+
+.macro modulate rp mbr mg t0 t1 t2
+    and     \t0, \rp, #0x001f
+    and     \t1, \rp, #0x03e0
+    and     \t2, \rp, #0x7c00
+    smulbb  \t0, \t0, \mbr       @ -> 0000 0000 0000 orrr  rrxx xxxx xxxx xxxx
+    smulbt  \t1, \t1, \mg        @ -> 0000 000o gggg gxxx  xxxx xxxx xxx0 0000
+    smulbt  \t2, \t2, \mbr       @ -> 00ob bbbb xxxx xxxx  xxxx xx00 0000 0000
+    and     \rp, \rp, #0x8000
+    usat    \t0, #5, \t0, asr #14
+    usat    \t1, #5, \t1, asr #19
+    usat    \t2, #5, \t2, asr #24
+    orr     \rp, \rp, \t0
+    orr     \rp, \rp, \t1, lsl #5
+    orr     \rp, \rp, \t2, lsl #10
+.endm
+
+.global poly_4bpp_l_asm @ (void *d, const struct gpu_unai_inner_t *inn, int count)
+poly_4bpp_l_asm:
+    .cfi_startproc
+    stmfd   sp!, {r4-r11,lr}
+    .cfi_def_cfa_offset 4*9
+    .cfi_rel_offset lr, 4*8
+    poly_4bpp_init poly_4bpp_lv_asm 1
+0:
+    mov     r12,r4, lsr #13
+    subs    r2, r2, #1
+    bmi     1f
+    ldr     lr, [r1, r12, lsl #2]
+    lsr     r12,r4, #8
+    and     r12,r12,#0x1c
+    sub     r12,r12,#1
+    mov     r12,lr, ror r12
+    add     r4, r4, r5
+    and     r12,r12,#0x1e
+    and     r4, r4, r6
+    ldrh    r12,[r3, r12]
+    add     r0, r0, #2
+    tst     r12,r12
+    beq     0b
+    modulate r12, r10, r11, r7, r8, lr
+    strh    r12,[r0, #-2]
+    b       0b
+1:
+    ldmfd   sp!, {r4-r11,pc}
+
+poly_4bpp_lv_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+    sub     sp, sp, #4*2
+    .cfi_def_cfa_offset 4*(9+2)
+    .cfi_rel_offset lr, 4*(8+2)
+    ldr     r9, [r1, #0x14]    @ v_msk
+    ldr     r1, [r1]           @ src
+    mov     r8, r12            @ v_inc
+    mov     r12,r4, lsr #13
+    and     r9, r9, #0xff<<10  @ v_msk_final
+    stmia   sp, {r5,r6}
+0:
+    and     lr, r7, r9
+    mov     r12,r4, lsr #13
+    add     lr, r1, lr, lsl #1
+    subs    r2, r2, #1
+    bmi     1f
+    ldr     lr, [lr, r12, lsl #2]
+    lsr     r12,r4, #8
+    and     r12,r12,#0x1c
+    sub     r12,r12,#1
+    mov     r12,lr, ror r12
+    add     r4, r4, r5
+    and     r12,r12,#0x1e
+    and     r4, r4, r6
+    ldrh    r12,[r3, r12]
+    add     r0, r0, #2
+    add     r7, r7, r8
+    tst     r12,r12
+    beq     0b
+    modulate r12, r10, r11, r5, r6, lr
+    strh    r12,[r0, #-2]
+    ldmia   sp, {r5,r6}
+    b       0b
+1:
+    add     sp, sp, #4*2
+    ldmfd   sp!, {r4-r11,pc}
+    .cfi_endproc
+
+#endif // HAVE_ARMV6
 
 @ vim:filetype=armasm

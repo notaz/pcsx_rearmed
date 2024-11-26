@@ -208,6 +208,10 @@ struct gpu_unai_inner_t {
 	u32 u_msk, v_msk;         // 10
 	s32 u_inc, v_inc;         // 18
 
+	// Color for flat-shaded, texture-blended prims
+	u8  r5, g5, b5, pad5;     // 20 5-bit light for undithered prims
+	u8  r8, g8, b8, pad8;     // 24 8-bit light for dithered prims
+
 	// Color for Gouraud-shaded prims
 	// Fixed-pt 8.8 rgb triplet
 	// Packed fixed-pt 8.3:8.3:8.2 rgb triplet
@@ -215,10 +219,6 @@ struct gpu_unai_inner_t {
 	//           ^ bit 16
 	gcol_t gCol;
 	gcol_t gInc;       // Increment along scanline for gCol
-
-	// Color for flat-shaded, texture-blended prims
-	u8  r5, g5, b5;    // 5-bit light for undithered prims
-	u8  r8, g8, b8;    // 8-bit light for dithered prims
 
 	// Color for flat-shaded, untextured prims
 	u16 PixelData;      // bgr555 color for untextured flat-shaded polys

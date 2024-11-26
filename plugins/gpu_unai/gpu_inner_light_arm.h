@@ -1,6 +1,8 @@
 #ifndef _OP_LIGHT_ARM_H_
 #define _OP_LIGHT_ARM_H_
 
+#include "arm_features.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 // Extract bgr555 color from Gouraud u32 fixed-pt 8.3:8.3:8.2 rgb triplet
 //
@@ -40,6 +42,27 @@ GPU_INLINE uint_fast16_t gpuLightingRGBARM(u32 gCol)
 //	    u16 output:	 mbbbbbgggggrrrrr
 // Where 'X' are fixed-pt bits.
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef HAVE_ARMV6
+// clang uses smulbb but not gcc, so we need this
+GPU_INLINE int_fast16_t smulbb(int_fast16_t a, int_fast16_t b)
+{
+	int_fast16_t r;
+	asm("smulbb %0, %1, %2" : "=r"(r) : "r"(a), "r"(b));
+	return r;
+}
+
+GPU_INLINE uint_fast16_t gpuLightingTXTARM(uint_fast16_t uSrc, u8 r5, u8 g5, u8 b5)
+{
+	// on v6 we have single-cycle mul and sat which is better than the lut
+	int_fast16_t r = smulbb(uSrc & 0x001f, r5);
+	int_fast16_t g = smulbb(uSrc & 0x03e0, g5);
+	int_fast16_t b = smulbb(uSrc & 0x7c00, b5);
+	asm volatile("usat %0, #5, %0, asr #4"  : "=r"(r) : "0"(r));
+	asm volatile("usat %0, #5, %0, asr #9"  : "=r"(g) : "0"(g));
+	asm volatile("usat %0, #5, %0, asr #14" : "=r"(b) : "0"(b));
+	return (uSrc & 0x8000) | (b << 10) | (g << 5) | r;
+}
+#else
 GPU_INLINE uint_fast16_t gpuLightingTXTARM(uint_fast16_t uSrc, u8 r5, u8 g5, u8 b5)
 {
 	uint_fast16_t out = 0x03E0;
@@ -65,6 +88,7 @@ GPU_INLINE uint_fast16_t gpuLightingTXTARM(uint_fast16_t uSrc, u8 r5, u8 g5, u8 
 	     : "cc");
 	return out;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Apply fast (low-precision) 5-bit Gouraud lighting to bgr555 texture color:
