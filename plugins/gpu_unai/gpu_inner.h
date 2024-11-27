@@ -56,6 +56,7 @@
 #include "gpu_inner_light.h"
 
 #include "arm_features.h"
+#include "compiler_features.h"
 #ifdef __arm__
 #include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
@@ -372,7 +373,7 @@ typedef void (*PS)(le16_t *pPixel, u32 count, const u8 *pTxt,
 	const spriteDriverArg *arg);
 
 template<int CF>
-static void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt_base,
+static noinline void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt_base,
 	const spriteDriverArg *arg)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
@@ -557,7 +558,7 @@ const PS gpuSpriteDrivers[256] = {
 //             relevant blend/light headers.
 // (see README_senquack.txt)
 template<int CF>
-static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
+static noinline void gpuPolySpanFn(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 {
 	// Blend func can save an operation if it knows uSrc MSB is unset.
 	//  Untextured prims can always skip this (src color MSB is always 0).
@@ -754,11 +755,13 @@ endpolytext:
 
 #ifdef __arm__
 template<int CF>
-static void PolySpanAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
+static void PolySpanMaybeAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 {
 	switch (CF) {
-	case 0x20: poly_4bpp_asm  (pDst, &gpu_unai.inn, count); break;
-	case 0x21: poly_4bpp_l_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x20: poly_4bpp_asm      (pDst, &gpu_unai.inn, count); break;
+	case 0x21: poly_4bpp_l_asm    (pDst, &gpu_unai.inn, count); break;
+	case 0x23: poly_4bpp_l_st0_asm(pDst, &gpu_unai.inn, count); break;
+	default:   gpuPolySpanFn<CF>(gpu_unai, pDst, count);
 	}
 }
 #endif
@@ -778,12 +781,12 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count);
 #define TI(cf) gpuPolySpanFn<(cf)>
 #define TN     PolyNULL
 #ifdef __arm__
-#define TA(cf) PolySpanAsm<(cf)>
+#define TA(cf) PolySpanMaybeAsm<(cf)>
 #else
 #define TA(cf) TI(cf)
 #endif
 #ifdef HAVE_ARMV6
-#define TA6(cf) PolySpanAsm<(cf)>
+#define TA6(cf) PolySpanMaybeAsm<(cf)>
 #else
 #define TA6(cf) TI(cf)
 #endif
@@ -792,7 +795,7 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count);
 	TN,            TN,            TI((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
 	TN,            TN,            TI((ub)|0x12), TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
 	TN,            TN,            TI((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
-	TA((ub)|0x20), TA6((ub)|0x21),TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TA((ub)|0x20), TA6((ub)|0x21),TI((ub)|0x22), TA6((ub)|0x23),TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
 	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
 	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
 	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \

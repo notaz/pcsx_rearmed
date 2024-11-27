@@ -7,6 +7,7 @@
 
 #include "arm_features.h"
 
+.syntax unified
 .text
 .align 2
 
@@ -32,13 +33,13 @@
     ldrh    r8, [r2, r8]
     ldrh    lr, [r2, lr]
     tst     r6, r6
-    strneh  r6, [r0, #\obase+0]
+    strhne  r6, [r0, #\obase+0]
     tst     r7, r7
-    strneh  r7, [r0, #\obase+2]
+    strhne  r7, [r0, #\obase+2]
     tst     r8, r8
-    strneh  r8, [r0, #\obase+4]
+    strhne  r8, [r0, #\obase+4]
     tst     lr, lr
-    strneh  lr, [r0, #\obase+6]
+    strhne  lr, [r0, #\obase+6]
 .endm
 
 @ in: r0=dst, r2=pal, r12=0x1fe
@@ -53,13 +54,13 @@
     ldrh     r8, [r2, r8]
     ldrh     \rs,[r2, \rs]
     tst      r6, r6
-    strneh   r6, [r0, #0]
+    strhne   r6, [r0, #0]
     tst      r7, r7
-    strneh   r7, [r0, #2]
+    strhne   r7, [r0, #2]
     tst      r8, r8
-    strneh   r8, [r0, #4]
+    strhne   r8, [r0, #4]
     tst      \rs,\rs
-    strneh   \rs,[r0, #6]
+    strhne   \rs,[r0, #6]
 .endm
 
 .global sprite_4bpp_x16_asm @ (u16 *d, void *s, u16 *pal, int lines)
@@ -175,7 +176,7 @@ sprite_driver_4bpp_asm:
     ldrh    r7, [r2, r7]
     add     r0, r0, #2
     tst     r7, r7
-    strneh  r7, [r0, #-2]
+    strhne  r7, [r0, #-2]
     subs    r8, r8, #1
     bgt     0b
     sprite_driver_part3
@@ -200,7 +201,7 @@ sprite_driver_8bpp_asm:
     ldrh    r7, [r2, r7]
     add     r0, r0, #2
     tst     r7, r7
-    strneh  r7, [r0, #-2]
+    strhne  r7, [r0, #-2]
     subs    r8, r8, #1
     bgt     0b
     sprite_driver_part3
@@ -254,7 +255,7 @@ poly_4bpp_asm:
     add     r0, r0, #2
     mov     r7, r4, lsr #13
     tst     r12,r12
-    strneh  r12,[r0, #-2]
+    strhne  r12,[r0, #-2]
     subs    r2, r2, #1
     bgt     0b
 
@@ -285,7 +286,7 @@ poly_4bpp_v_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     and     lr, r7, r9
     tst     r12,r12
     add     lr, r1, lr, lsl #1
-    strneh  r12,[r0, #-2]
+    strhne  r12,[r0, #-2]
     mov     r12,r4, lsr #13
     subs    r2, r2, #1
     bgt     0b
@@ -304,7 +305,7 @@ poly_4bpp_v_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     smulbb  \t0, \t0, \mbr       @ -> 0000 0000 0000 orrr  rrxx xxxx xxxx xxxx
     smulbt  \t1, \t1, \mg        @ -> 0000 000o gggg gxxx  xxxx xxxx xxx0 0000
     smulbt  \t2, \t2, \mbr       @ -> 00ob bbbb xxxx xxxx  xxxx xx00 0000 0000
-    and     \rp, \rp, #0x8000
+    ands    \rp, \rp, #0x8000    @ retain msb + semi-transparency test
     usat    \t0, #5, \t0, asr #14
     usat    \t1, #5, \t1, asr #19
     usat    \t2, #5, \t2, asr #24
@@ -313,13 +314,25 @@ poly_4bpp_v_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     orr     \rp, \rp, \t2, lsl #10
 .endm
 
-.global poly_4bpp_l_asm @ (void *d, const struct gpu_unai_inner_t *inn, int count)
-poly_4bpp_l_asm:
+@ http://www.slack.net/~ant/info/rgb_mixing.html
+@ p0 = (p0 + p1) / 2; p1 |= 0x8000
+@ msb of input p0 is assumed to be set
+.macro semitrans0 p0 p1 t
+    eor     \t,  \p0, \p1
+    and     \t,  \t, #0x0420
+    sub     \p0, \p0, \t
+    orr     \p1, \p1, #0x8000
+    uhadd16 \p0, \p0, \p1
+.endm
+
+.macro poly_4bpp_asm_m name semitrans
+.global \name @ (void *d, const struct gpu_unai_inner_t *inn, int count)
+\name:
     .cfi_startproc
     stmfd   sp!, {r4-r11,lr}
     .cfi_def_cfa_offset 4*9
     .cfi_rel_offset lr, 4*8
-    poly_4bpp_init poly_4bpp_lv_asm 1
+    poly_4bpp_init v_\name 1
 0:
     mov     r12,r4, lsr #13
     subs    r2, r2, #1
@@ -337,12 +350,20 @@ poly_4bpp_l_asm:
     tst     r12,r12
     beq     0b
     modulate r12, r10, r11, r7, r8, lr
+.if \semitrans < 0
+    @ no semi-transparency
+.elseif \semitrans == 0
+    ldrhne  r7, [r0, #-2]
+    strheq  r12,[r0, #-2]
+    beq     0b
+    semitrans0 r12, r7, lr
+.endif
     strh    r12,[r0, #-2]
     b       0b
 1:
     ldmfd   sp!, {r4-r11,pc}
 
-poly_4bpp_lv_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+v_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     sub     sp, sp, #4*2
     .cfi_def_cfa_offset 4*(9+2)
     .cfi_rel_offset lr, 4*(8+2)
@@ -372,6 +393,14 @@ poly_4bpp_lv_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     tst     r12,r12
     beq     0b
     modulate r12, r10, r11, r5, r6, lr
+.if \semitrans < 0
+    @ no semi-transparency
+.elseif \semitrans == 0
+    ldrhne  r7, [r0, #-2]
+    strheq  r12,[r0, #-2]
+    beq     0b
+    semitrans0 r12, r7, lr
+.endif
     strh    r12,[r0, #-2]
     ldmia   sp, {r5,r6}
     b       0b
@@ -379,6 +408,10 @@ poly_4bpp_lv_asm: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     add     sp, sp, #4*2
     ldmfd   sp!, {r4-r11,pc}
     .cfi_endproc
+.endm
+
+poly_4bpp_asm_m poly_4bpp_l_asm,    -1
+poly_4bpp_asm_m poly_4bpp_l_st0_asm, 0
 
 #endif // HAVE_ARMV6
 
