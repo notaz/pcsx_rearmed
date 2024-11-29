@@ -1,5 +1,5 @@
 #if __WORDSIZE == 64
-#define JIT_INSTR_MAX 144
+#define JIT_INSTR_MAX 208
     0,	/* data */
     0,	/* live */
     32,	/* align */
@@ -502,12 +502,12 @@
     48,	/* unldi */
     96,	/* unldr_u */
     48,	/* unldi_u */
-    128,	/* unstr */
-    96,	/* unsti */
+    192,	/* unstr */
+    64,	/* unsti */
     80,	/* unldr_x */
     48,	/* unldi_x */
-    144,	/* unstr_x */
-    112,	/* unsti_x */
+    208,	/* unstr_x */
+    64,	/* unsti_x */
     16,	/* fmar_f */
     0,	/* fmai_f */
     16,	/* fmsr_f */
@@ -524,8 +524,68 @@
     0,	/* fnmai_d */
     16,	/* fnmsr_d */
     0,	/* fnmsi_d */
-    32, /* hmulr */
-    32, /* hmuli */
-    32, /* hmulr_u */
-    32, /* hmuli_u */
+    32,	/* hmulr */
+    32,	/* hmuli */
+    32,	/* hmulr_u */
+    32,	/* hmuli_u */
+    16,	/* ldxbr_c */
+    16,	/* ldxbi_c */
+    16,	/* ldxar_c */
+    16,	/* ldxai_c */
+    16,	/* ldxbr_uc */
+    16,	/* ldxbi_uc */
+    16,	/* ldxar_uc */
+    16,	/* ldxai_uc */
+    16,	/* ldxbr_s */
+    16,	/* ldxbi_s */
+    16,	/* ldxar_s */
+    16,	/* ldxai_s */
+    16,	/* ldxbr_us */
+    16,	/* ldxbi_us */
+    16,	/* ldxar_us */
+    16,	/* ldxai_us */
+    16,	/* ldxbr_i */
+    16,	/* ldxbi_i */
+    16,	/* ldxar_i */
+    16,	/* ldxai_i */
+    16,	/* ldxbr_ui */
+    16,	/* ldxbi_ui */
+    16,	/* ldxar_ui */
+    16,	/* ldxai_ui */
+    16,	/* ldxbr_l */
+    16,	/* ldxbi_l */
+    16,	/* ldxar_l */
+    16,	/* ldxai_l */
+    16,	/* ldxbr_f */
+    16,	/* ldxbi_f */
+    16,	/* ldxar_f */
+    16,	/* ldxai_f */
+    16,	/* ldxbr_d */
+    16,	/* ldxbi_d */
+    16,	/* ldxar_d */
+    16,	/* ldxai_d */
+    16,	/* stxbr_c */
+    16,	/* stxbi_c */
+    16,	/* stxar_c */
+    16,	/* stxai_c */
+    16,	/* stxbr_s */
+    16,	/* stxbi_s */
+    16,	/* stxar_s */
+    16,	/* stxai_s */
+    16,	/* stxbr_i */
+    16,	/* stxbi_i */
+    16,	/* stxar_i */
+    16,	/* stxai_i */
+    16,	/* stxbr_l */
+    16,	/* stxbi_l */
+    16,	/* stxar_l */
+    16,	/* stxai_l */
+    16,	/* stxbr_f */
+    16,	/* stxbi_f */
+    16,	/* stxar_f */
+    16,	/* stxai_f */
+    16,	/* stxbr_d */
+    16,	/* stxbi_d */
+    16,	/* stxar_d */
+    16,	/* stxai_d */
 #endif /* __WORDSIZE */

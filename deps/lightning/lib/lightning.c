@@ -1737,6 +1737,46 @@ _jit_classify(jit_state_t *_jit, jit_code_t code)
 	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
 		   jit_cc_a1_reg|jit_cc_a1_rlh|jit_cc_a2_dbl;
 	    break;
+	case jit_code_ldxbi_c:	case jit_code_ldxai_c:
+	case jit_code_ldxbi_uc:	case jit_code_ldxai_uc:
+	case jit_code_ldxbi_s:	case jit_code_ldxai_s:
+	case jit_code_ldxbi_us:	case jit_code_ldxai_us:
+	case jit_code_ldxbi_i:	case jit_code_ldxai_i:
+	case jit_code_ldxbi_ui:	case jit_code_ldxai_ui:
+	case jit_code_ldxbi_l:	case jit_code_ldxai_l:
+	case jit_code_ldxbi_f:	case jit_code_ldxai_f:
+	case jit_code_ldxbi_d:	case jit_code_ldxai_d:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
+		   jit_cc_a1_reg|jit_cc_a1_dep|jit_cc_a2_int;
+	    break;
+	case jit_code_ldxbr_c:	case jit_code_ldxar_c:
+	case jit_code_ldxbr_uc:	case jit_code_ldxar_uc:
+	case jit_code_ldxbr_s:	case jit_code_ldxar_s:
+	case jit_code_ldxbr_us:	case jit_code_ldxar_us:
+	case jit_code_ldxbr_i:	case jit_code_ldxar_i:
+	case jit_code_ldxbr_ui:	case jit_code_ldxar_ui:
+	case jit_code_ldxbr_l:	case jit_code_ldxar_l:
+	case jit_code_ldxbr_f:	case jit_code_ldxar_f:
+	case jit_code_ldxbr_d:	case jit_code_ldxar_d:
+	    mask = jit_cc_a0_reg|jit_cc_a0_chg|
+		   jit_cc_a1_reg|jit_cc_a1_dep|jit_cc_a2_reg;
+	    break;
+	case jit_code_stxbi_c:	case jit_code_stxai_c:
+	case jit_code_stxbi_s:	case jit_code_stxai_s:
+	case jit_code_stxbi_i:	case jit_code_stxai_i:
+	case jit_code_stxbi_l:	case jit_code_stxai_l:
+	case jit_code_stxbi_f:	case jit_code_stxai_f:
+	case jit_code_stxbi_d:	case jit_code_stxai_d:
+	    mask = jit_cc_a0_int|jit_cc_a1_reg|jit_cc_a1_dep|jit_cc_a2_reg;
+	    break;
+	case jit_code_stxbr_c:	case jit_code_stxar_c:
+	case jit_code_stxbr_s:	case jit_code_stxar_s:
+	case jit_code_stxbr_i:	case jit_code_stxar_i:
+	case jit_code_stxbr_l:	case jit_code_stxar_l:
+	case jit_code_stxbr_f:	case jit_code_stxar_f:
+	case jit_code_stxbr_d:	case jit_code_stxar_d:
+	    mask = jit_cc_a0_reg|jit_cc_a1_reg|jit_cc_a1_dep|jit_cc_a2_reg;
+	    break;
 	default:
 	    abort();
     }
@@ -1764,8 +1804,8 @@ _jit_patch_abs(jit_state_t *_jit, jit_node_t *instr, jit_pointer_t address)
 	default:
 #ifndef NDEBUG
 	    mask = jit_classify(instr->code);
-#endif
 	    assert((mask & (jit_cc_a0_reg|jit_cc_a0_jmp)) == jit_cc_a0_jmp);
+#endif
 	    instr->u.p = address;
     }
 }
@@ -1794,8 +1834,8 @@ _jit_patch_at(jit_state_t *_jit, jit_node_t *instr, jit_node_t *label)
 	default:
 #ifndef NDEBUG
 	    mask = jit_classify(instr->code);
-#endif
 	    assert((mask & (jit_cc_a0_reg|jit_cc_a0_jmp)) == jit_cc_a0_jmp);
+#endif
 	    assert(label->code == jit_code_label);
 	    instr->u.n = label;
 	    break;
@@ -2580,15 +2620,18 @@ _jit_emit(jit_state_t *_jit)
 #  endif
 #  ifndef NDEBUG
 	result =
-	mprotect(_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
 #  endif
+	mprotect(_jit->code.ptr, _jit->code.protect, PROT_READ | PROT_EXEC);
 	assert(result == 0);
     }
 #endif /* HAVE_MMAP */
 
     return (_jit->code.ptr);
+
+#if HAVE_MMAP
 fail:
     return (NULL);
+#endif /* HAVE_MMAP */
 }
 
 void
@@ -4291,12 +4334,12 @@ static void _htoni_ul(jit_state_t*, jit_int32_t, jit_word_t);
 #endif
 #  define movi_f_w(r0, i0)		_movi_f_w(_jit, r0, i0)
 static void _movi_f_w(jit_state_t*, jit_int32_t, jit_float32_t);
-#if __WORDSIZE == 32 && !(defined(__mips__) && NEW_ABI)
-#  define movi_d_ww(r0, r1, i0)		_movi_d_ww(_jit, r0, r1, i0)
-static void _movi_d_ww(jit_state_t*, jit_int32_t, jit_int32_t, jit_float64_t);
-#else
+#if __WORDSIZE == 64
 #  define movi_d_w(r0, i0)		_movi_d_w(_jit, r0, i0)
 static void _movi_d_w(jit_state_t*, jit_int32_t, jit_float64_t);
+#elif !(defined(__mips__) && NEW_ABI)
+#  define movi_d_ww(r0, r1, i0)		_movi_d_ww(_jit, r0, r1, i0)
+static void _movi_d_ww(jit_state_t*, jit_int32_t, jit_int32_t, jit_float64_t);
 #endif
 #define cloi(r0, i0)			_cloi(_jit, r0, i0)
 static void _cloi(jit_state_t*, jit_int32_t, jit_word_t);
@@ -4324,6 +4367,118 @@ static void _generic_unldr_u(jit_state_t*,
 			     jit_int32_t, jit_int32_t, jit_word_t);
 #define generic_unldi_u(r0, i0, i1)	_generic_unldi_u(_jit, r0, i0, i1)
 static void _generic_unldi_u(jit_state_t*, jit_int32_t, jit_word_t, jit_word_t);
+#define generic_ldxbr_c(r0, r1, r2)	_generic_ldxbr_c(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxbi_c(r0, r1, i0)	_generic_ldxbi_c(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxar_c(r0, r1, r2)	_generic_ldxar_c(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxai_c(r0, r1, i0)	_generic_ldxai_c(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxbr_uc(r0, r1, r2)	_generic_ldxbr_uc(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_uc(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxbi_uc(r0, r1, i0)	_generic_ldxbi_uc(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_uc(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxar_uc(r0, r1, r2)	_generic_ldxar_uc(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_uc(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxai_uc(r0, r1, i0)	_generic_ldxai_uc(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_uc(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxbr_s(r0, r1, r2)	_generic_ldxbr_s(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxbi_s(r0, r1, i0)	_generic_ldxbi_s(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxar_s(r0, r1, r2)	_generic_ldxar_s(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxai_s(r0, r1, i0)	_generic_ldxai_s(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxbr_us(r0, r1, r2)	_generic_ldxbr_us(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_us(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxbi_us(r0, r1, i0)	_generic_ldxbi_us(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_us(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxar_us(r0, r1, r2)	_generic_ldxar_us(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_us(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxai_us(r0, r1, i0)	_generic_ldxai_us(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_us(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxar_i(r0, r1, r2)	_generic_ldxar_i(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxai_i(r0, r1, i0)	_generic_ldxai_i(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#define generic_ldxbr_i(r0, r1, r2)	_generic_ldxbr_i(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_ldxbi_i(r0, r1, i0)	_generic_ldxbi_i(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#if __WORDSIZE == 64
+#  define generic_ldxbr_ui(r0, r1, r2)	_generic_ldxbr_ui(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_ui(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxbi_ui(r0, r1, i0)	_generic_ldxbi_ui(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_ui(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxar_ui(r0, r1, r2)	_generic_ldxar_ui(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_ui(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxai_ui(r0, r1, i0)	_generic_ldxai_ui(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_ui(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxbr_l(r0, r1, i0)	_generic_ldxbr_l(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxbi_l(r0, r1, i0)	_generic_ldxbi_l(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxar_l(r0, r1, i0)	_generic_ldxar_l(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxar_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxai_l(r0, r1, i0)	_generic_ldxai_l(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#endif
+#if !defined(__i386__) && !defined(__x86_64__)
+#  define generic_ldxbr_f(r0, r1, r2)	_generic_ldxbr_f(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxbr_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxbi_f(r0, r1, i0)	_generic_ldxbi_f(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxar_f(r0, r1, r2)	_generic_ldxai_f(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_ldxar_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxai_f(r0, r1, i0)	_generic_ldxai_f(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxbr_d(r0, r1, i0)	_generic_ldxbr_d(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbr_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxbi_d(r0, r1, i0)	_generic_ldxbi_d(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxbi_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define generic_ldxar_d(r0, r1, i0)	_generic_ldxar_d(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxar_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_ldxai_d(r0, r1, i0)	_generic_ldxai_d(_jit, r0, r1, i0)
+static maybe_unused
+void _generic_ldxai_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#endif
 #define generic_unstr(r0, r1, i0)	_generic_unstr(_jit, r0, r1, i0)
 static void _generic_unstr(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 #define generic_unsti(i0, r0, i1)	_generic_unsti(_jit, i0, r0, i1)
@@ -4339,6 +4494,82 @@ static void _generic_unstr_x(jit_state_t*,
 			     jit_int32_t, jit_int32_t, jit_word_t);
 #  define generic_unsti_x(i0, r0, i1)	_generic_unsti_x(_jit, i0, r0, i1)
 static void _generic_unsti_x(jit_state_t*, jit_word_t, jit_int32_t, jit_word_t);
+#endif
+#define generic_stxbr_c(r0, r1, r2)	_generic_stxbr_c(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxbi_c(i0, r0, r1)	_generic_stxbi_c(_jit,i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_c(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#define generic_stxar_c(r0, r1, r2)	_generic_stxar_c(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxai_c(i0, r0, r1)	_generic_stxai_c(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_c(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#define generic_stxbr_s(r0, r1, r2)	_generic_stxbr_s(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxbi_s(i0, r0, r1)	_generic_stxbi_s(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_s(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#define generic_stxar_s(r0, r1, r2)	_generic_stxar_s(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxai_s(i0, r0, r1)	_generic_stxai_s(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_s(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#define generic_stxbr_i(r0, r1, r2)	_generic_stxbr_i(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxbi_i(i0, r0, r1)	_generic_stxbi_i(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_i(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#define generic_stxar_i(r0, r1, r2)	_generic_stxar_i(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#define generic_stxai_i(i0, r0, r1)	_generic_stxai_i(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_i(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#if __WORDSIZE == 64
+#  define generic_stxbr_l(r0, r1, r2)	_generic_stxbr_l(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxbi_l(i0, r0, r1)	_generic_stxbi_l(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_l(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define generic_stxar_l(r0, r1, r2)	_generic_stxar_l(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxai_l(i0, r0, r1)	_generic_stxai_l(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_l(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#endif
+#if !defined(__i386__) && !defined(__x86_64__)
+#  define generic_stxbr_f(r0, r1, r2)	_generic_stxbr_f(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxbi_f(i0, r0, r1)	_generic_stxbi_f(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_f(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define generic_stxar_f(r0, r1, r2)	_generic_stxar_f(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_f(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxai_f(i0, r0, r1)	_generic_stxai_f(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_f(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define generic_stxbr_d(r0, r1, r2)	_generic_stxbr_d(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxbr_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxbi_d(i0, r0, r1)	_generic_stxbi_d(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxbi_d(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define generic_stxar_d(r0, r1, r2)	_generic_stxar_d(_jit, r0, r1, r2)
+static maybe_unused
+void _generic_stxar_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
+#  define generic_stxai_d(i0, r0, r1)	_generic_stxai_d(_jit, i0, r0, r1)
+static maybe_unused
+void _generic_stxai_d(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
 #endif
 #define patch_alist(revert)		_patch_alist(_jit, revert)
 static maybe_unused void _patch_alist(jit_state_t *_jit, jit_bool_t revert);
@@ -4367,6 +4598,8 @@ static maybe_unused void _patch_alist(jit_state_t *_jit, jit_bool_t revert);
 #  include "jit_riscv.c"
 #elif defined(__loongarch__)
 #  include "jit_loongarch.c"
+#elif defined(__sh__)
+#  include "jit_sh.c"
 #endif
 
 static maybe_unused void
@@ -4575,7 +4808,23 @@ _movi_f_w(jit_state_t *_jit, jit_int32_t r0, jit_float32_t i0)
     movi(r0, data.i);
 }
 
-#if __WORDSIZE == 32 && !(defined(__mips__) && NEW_ABI)
+#if __WORDSIZE == 64
+static void
+_movi_d_w(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
+{
+    union {
+	jit_int64_t	l;
+	jit_float64_t	d;
+    } data;
+    data.d = i0;
+#  if defined(__ia64__)
+    /* Should be used only in this case (with out0 == 120) */
+    if (r0 >= 120)
+	r0 = _jitc->rout + (r0 - 120);
+#  endif
+    movi(r0, data.l);
+}
+#elif !(defined(__mips__) && NEW_ABI)
 static void
 _movi_d_ww(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_float64_t i0)
 {
@@ -4592,23 +4841,6 @@ _movi_d_ww(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_float64_t i0)
     movi(r1, data.i[0]);
     movi(r0, data.i[1]);
 #  endif
-}
-
-#else
-static void
-_movi_d_w(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
-{
-    union {
-	jit_int64_t	l;
-	jit_float64_t	d;
-    } data;
-    data.d = i0;
-#  if defined(__ia64__)
-    /* Should be used only in this case (with out0 == 120) */
-    if (r0 >= 120)
-	r0 = _jitc->rout + (r0 - 120);
-#  endif
-    movi(r0, data.l);
 }
 #endif
 
@@ -5472,6 +5704,120 @@ _generic_unsti_x(jit_state_t *_jit,
     else
 	sti_d(i0, r0);
 }
+#endif
+
+#define def_ldxbr_T(T)							\
+static void								\
+_generic_ldxbr_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)	\
+{									\
+    addr(r1, r1, r2);							\
+    ldr_##T(r0, r1);							\
+}
+#define def_ldxbi_T(T)							\
+static void								\
+_generic_ldxbi_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_word_t i0)	\
+{									\
+    addi(r1, r1, i0);							\
+    ldr_##T(r0, r1);							\
+}
+def_ldxbr_T(c)			def_ldxbi_T(c)
+def_ldxbr_T(uc)			def_ldxbi_T(uc)
+def_ldxbr_T(s)			def_ldxbi_T(s)
+def_ldxbr_T(us)			def_ldxbi_T(us)
+def_ldxbi_T(i)			def_ldxbr_T(i)
+#if __WORDSIZE == 64
+def_ldxbr_T(ui)			def_ldxbi_T(ui)
+def_ldxbr_T(l)			def_ldxbi_T(l)
+#endif
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__arm__)
+def_ldxbr_T(f)			def_ldxbi_T(f)
+def_ldxbr_T(d)			def_ldxbi_T(d)
+#endif
+
+#define def_ldxar_T(T)							\
+static void								\
+_generic_ldxar_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)	\
+{									\
+    ldr_##T(r0, r1);							\
+    addr(r1, r1, r2);							\
+}
+#define def_ldxai_T(T)							\
+static void								\
+_generic_ldxai_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_word_t i0)	\
+{									\
+    ldr_##T(r0, r1);							\
+    addi(r1, r1, i0);							\
+}
+def_ldxar_T(c)			def_ldxai_T(c)
+def_ldxar_T(uc)			def_ldxai_T(uc)
+def_ldxar_T(s)			def_ldxai_T(s)
+def_ldxar_T(us)			def_ldxai_T(us)
+def_ldxar_T(i)			def_ldxai_T(i)
+#if __WORDSIZE == 64
+def_ldxar_T(ui)			def_ldxai_T(ui)
+def_ldxar_T(l)			def_ldxai_T(l)
+#endif
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__arm__)
+def_ldxar_T(f)			def_ldxai_T(f)
+def_ldxar_T(d)			def_ldxai_T(d)
+#endif
+
+#define def_stxbr_T(T)							\
+static void								\
+_generic_stxbr_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)	\
+{									\
+    addr(r1, r1, r0);							\
+    str_##T(r1, r2);							\
+}
+#define def_stxbi_T(T)							\
+static void								\
+_generic_stxbi_##T(jit_state_t *_jit,					\
+			jit_word_t i0, jit_int32_t r0, jit_int32_t r1)	\
+{									\
+    addi(r0, r0, i0);							\
+    str_##T(r0, r1);							\
+}
+def_stxbr_T(c)			def_stxbi_T(c)
+def_stxbr_T(s)			def_stxbi_T(s)
+def_stxbr_T(i)			def_stxbi_T(i)
+#if __WORDSIZE == 64
+def_stxbr_T(l)			def_stxbi_T(l)
+#endif
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__arm__)
+def_stxbr_T(f)			def_stxbi_T(f)
+def_stxbr_T(d)			def_stxbi_T(d)
+#endif
+
+#define def_stxar_T(T)							\
+static void								\
+_generic_stxar_##T(jit_state_t *_jit,					\
+			jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)	\
+{									\
+    str_##T(r1, r2);							\
+    addr(r1, r1, r0);							\
+}
+#define def_stxai_T(T)							\
+static void								\
+_generic_stxai_##T(jit_state_t *_jit,					\
+			jit_word_t i0, jit_int32_t r0, jit_int32_t r1)	\
+{									\
+    str_##T(r0, r1);							\
+    addi(r0, r0, i0);							\
+}
+def_stxar_T(c)			def_stxai_T(c)
+def_stxar_T(s)			def_stxai_T(s)
+def_stxar_T(i)			def_stxai_T(i)
+#if __WORDSIZE == 64
+def_stxar_T(l)			def_stxai_T(l)
+#endif
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__arm__)
+def_stxar_T(f)			def_stxai_T(f)
+def_stxar_T(d)			def_stxai_T(d)
 #endif
 
 #if defined(stack_framesize)

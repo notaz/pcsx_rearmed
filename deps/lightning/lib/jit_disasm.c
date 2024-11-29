@@ -112,6 +112,12 @@ jit_init_debug(const char *progname, FILE *stream)
 #  if defined(__s390__) || defined(__s390x__)
     disasm_info.disassembler_options = "zarch";
 #  endif
+#  if defined(__sh__)
+    disasm_info.arch = bfd_arch_sh;
+    disasm_info.mach = bfd_mach_sh4;
+    disasm_info.endian = disasm_info.display_endian = BFD_ENDIAN_LITTLE;
+#  endif
+
     disasm_info.print_address_func = disasm_print_address;
 
 # if BINUTILS_2_29

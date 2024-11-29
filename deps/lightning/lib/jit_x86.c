@@ -1600,6 +1600,24 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_##name##i##type:				\
 		name##i##type(rn(node->u.w), rn(node->v.w), node->w.w);	\
 		break
+#define case_rrx(name, type)						\
+	    case jit_code_##name##i##type:				\
+		name##i##type(rn(node->u.w), rn(node->v.w), node->w.w);	\
+		break
+#define case_rrX(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w),				\
+			      rn(node->v.w), rn(node->w.w));		\
+		break
+#define case_xrr(name, type)						\
+	    case jit_code_##name##i##type:				\
+		name##i##type(node->u.w, rn(node->v.w), rn(node->w.w));	\
+		break
+#define case_Xrr(name, type)						\
+	    case jit_code_##name##r##type:				\
+		name##r##type(rn(node->u.w), rn(node->v.w),		\
+			      rn(node->w.w));				\
+		break
 #define case_rrrw(name, type)						\
 	    case jit_code_##name##i##type:				\
 		name##i##type(rn(node->u.q.l), rn(node->u.q.h),		\
@@ -1985,6 +2003,66 @@ _emit_code(jit_state_t *_jit)
 	    case jit_code_unldi_u:
 		unldi_u(rn(node->u.w), node->v.w, node->w.w);
 		break;
+		case_rrx(ldxb, _c);	case_rrX(ldxb, _c);
+		case_rrx(ldxa, _c);	case_rrX(ldxa, _c);
+		case_rrx(ldxb, _uc);	case_rrX(ldxb, _uc);
+		case_rrx(ldxa, _uc);	case_rrX(ldxa, _uc);
+		case_rrx(ldxb, _s);	case_rrX(ldxb, _s);
+		case_rrx(ldxa, _s);	case_rrX(ldxa, _s);
+		case_rrx(ldxb, _us);	case_rrX(ldxb, _us);
+		case_rrx(ldxa, _us);	case_rrX(ldxa, _us);
+		case_rrx(ldxb, _i);	case_rrX(ldxb, _i);
+		case_rrx(ldxa, _i);	case_rrX(ldxa, _i);
+#if __WORDSIZE == 64
+		case_rrx(ldxb, _ui);	case_rrX(ldxb, _ui);
+		case_rrx(ldxa, _ui);	case_rrX(ldxa, _ui);
+		case_rrx(ldxb, _l);	case_rrX(ldxb, _l);
+		case_rrx(ldxa, _l);	case_rrX(ldxa, _l);
+#endif
+	    case jit_code_ldxbr_f:
+		addr(rn(node->v.w), rn(node->v.w), rn(node->w.w));
+		goto L_ldxbi_f;
+	    case jit_code_ldxbi_f:
+		addi(rn(node->v.w), rn(node->v.w), node->w.w);
+	    L_ldxbi_f:
+		if (jit_x87_reg_p(node->u.w))
+		    x87_ldr_f(rn(node->u.w), rn(node->v.w));
+		else
+		    sse_ldr_f(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_ldxar_f:
+	    case jit_code_ldxai_f:
+		if (jit_x87_reg_p(node->u.w))
+		    x87_ldr_f(rn(node->u.w), rn(node->v.w));
+		else
+		    sse_ldr_f(rn(node->u.w), rn(node->v.w));
+		if (node->code == jit_code_ldxai_f)
+		    addi(rn(node->v.w), rn(node->v.w), node->w.w);
+		else
+		    addr(rn(node->v.w), rn(node->v.w), rn(node->w.w));
+		break;
+	    case jit_code_ldxbr_d:
+		addr(rn(node->v.w), rn(node->v.w), rn(node->w.w));
+		goto L_ldxbi_d;
+	    case jit_code_ldxbi_d:
+		addi(rn(node->v.w), rn(node->v.w), node->w.w);
+	    L_ldxbi_d:
+		if (jit_x87_reg_p(node->u.w))
+		    x87_ldr_d(rn(node->u.w), rn(node->v.w));
+		else
+		    sse_ldr_d(rn(node->u.w), rn(node->v.w));
+		break;
+	    case jit_code_ldxar_d:
+	    case jit_code_ldxai_d:
+		if (jit_x87_reg_p(node->u.w))
+		    x87_ldr_d(rn(node->u.w), rn(node->v.w));
+		else
+		    sse_ldr_d(rn(node->u.w), rn(node->v.w));
+		if (node->code == jit_code_ldxai_d)
+		    addi(rn(node->v.w), rn(node->v.w), node->w.w);
+		else
+		    addr(rn(node->v.w), rn(node->v.w), rn(node->w.w));
+		break;
 		case_rr(st, _c);
 		case_wr(st, _c);
 		case_rr(st, _s);
@@ -2010,6 +2088,60 @@ _emit_code(jit_state_t *_jit)
 		break;
 	    case jit_code_unsti:
 		unsti(node->u.w, rn(node->v.w), node->w.w);
+		break;
+		case_xrr(stxb, _c);	case_Xrr(stxb, _c);
+		case_xrr(stxa, _c);	case_Xrr(stxa, _c);
+		case_xrr(stxb, _s);	case_Xrr(stxb, _s);
+		case_xrr(stxa, _s);	case_Xrr(stxa, _s);
+		case_xrr(stxb, _i);	case_Xrr(stxb, _i);
+		case_xrr(stxa, _i);	case_Xrr(stxa, _i);
+#if __WORDSIZE == 64
+		case_xrr(stxb, _l);	case_rrX(stxb, _l);
+		case_xrr(stxa, _l);	case_rrX(stxa, _l);
+#endif
+	    case jit_code_stxbr_f:
+		addr(rn(node->v.w), rn(node->v.w), rn(node->u.w));
+		goto L_stxbi_f;
+	    case jit_code_stxbi_f:
+		addi(rn(node->v.w), rn(node->v.w), node->u.w);
+	    L_stxbi_f:
+		if (jit_x87_reg_p(node->w.w))
+		    x87_str_f(rn(node->v.w), rn(node->w.w));
+		else
+		    sse_str_f(rn(node->v.w), rn(node->w.w));
+		break;
+	    case jit_code_stxar_f:
+	    case jit_code_stxai_f:
+		if (jit_x87_reg_p(node->w.w))
+		    x87_str_f(rn(node->v.w), rn(node->w.w));
+		else
+		    sse_str_f(rn(node->v.w), rn(node->w.w));
+		if (node->code == jit_code_stxai_f)
+		    addi(rn(node->v.w), rn(node->v.w), node->u.w);
+		else
+		    addr(rn(node->v.w), rn(node->v.w), rn(node->u.w));
+		break;
+	    case jit_code_stxbr_d:
+		addr(rn(node->v.w), rn(node->v.w), rn(node->u.w));
+		goto L_stxbr_d;
+	    case jit_code_stxbi_d:
+		addi(rn(node->v.w), rn(node->v.w), node->u.w);
+	    L_stxbr_d:
+		if (jit_x87_reg_p(node->w.w))
+		    x87_str_d(rn(node->v.w), rn(node->w.w));
+		else
+		    sse_str_d(rn(node->v.w), rn(node->w.w));
+		break;
+	    case jit_code_stxar_d:
+	    case jit_code_stxai_d:
+		if (jit_x87_reg_p(node->w.w))
+		    x87_str_d(rn(node->v.w), rn(node->w.w));
+		else
+		    sse_str_d(rn(node->v.w), rn(node->w.w));
+		if (node->code == jit_code_stxai_d)
+		    addi(rn(node->v.w), rn(node->v.w), node->u.w);
+		else
+		    addr(rn(node->v.w), rn(node->v.w), rn(node->u.w));
 		break;
 		case_brr(blt,);
 		case_brw(blt,);
@@ -2651,6 +2783,10 @@ _emit_code(jit_state_t *_jit)
 #undef case_wrr
 #undef case_frw
 #undef case_rrf
+#undef case_xrr
+#undef case_Xrr
+#undef case_rrx
+#undef case_rrX
 #undef case_rrw
 #undef case_frr
 #undef case_rrr

@@ -29,6 +29,7 @@
 #define jit_swf_p()		(jit_cpu.vfp == 0)
 #define jit_hardfp_p()		jit_cpu.abi
 #define jit_ldrt_strt_p()	jit_cpu.ldrt_strt
+#define jit_post_index_p()	jit_cpu.post_index
 
 #define JIT_FP			_R11
 typedef enum {
@@ -125,6 +126,13 @@ typedef struct {
      * is in arm mode, or the reverse, what may cause a crash upon return
      * of that function if generating jit for a relative jump.
      */
+    /* Apparently a qemu 8.1.3 and possibly others bug, that treat
+     * ldrT Rt, [Rn, #+-<immN>]! and ldrT Rt, [Rn], #+/-<immN>
+     * identically, as a pre-index but the second one should adjust
+     * Rn after the load.
+     * The syntax for only offseting is ldrT Rt{, [Rn, #+/-<immN>}]
+     */
+    jit_uint32_t post_index	: 1;
     jit_uint32_t exchange	: 1;
     /* By default assume cannot load unaligned data.
      * A3.2.1

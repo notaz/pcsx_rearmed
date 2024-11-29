@@ -14,14 +14,14 @@ ok:
 #  define x80			0x8000000000000000
 #endif
 
-#if (__mips__ && __mips_isa_rev < 6)  || __sparc__ || __hppa__ || __riscv
+#if (__mips__ && __mips_isa_rev < 6)  || __sparc__ || __hppa__ || __riscv || __sh__
 #  define wnan			x7f
 #elif (__mips__ && __mips_isa_rev >= 6) || __arm__ || __aarch64__ || __alpha__ || __loongarch__
 #  define wnan			0
 #else
 #  define wnan			x80
 #endif
-#if __mips__ || __arm__ || __ppc__ || __sparc__ || __hppa__ || __aarch64__ || __s390__ || __riscv || __loongarch__
+#if __mips__ || __arm__ || __ppc__ || __sparc__ || __hppa__ || __aarch64__ || __s390__ || __riscv || __loongarch__ || __sh__
 #  define wpinf			x7f
 #elif __alpha__
 /* (at least) bug compatible with gcc 4.2.3 -ieee */
@@ -49,12 +49,12 @@ T##op##r##t##r0##f0##f1##l:				\
 	b##op##r##t bT##op##r##t##r0##f0##f1##l %f0 %f1	\
 	calli @abort					\
 bT##op##r##t##r0##f0##f1##l:				\
-	movi##t %f1 li					\
+	movi##t %f0 li					\
 	op##i##t %r0 %f0 ri				\
 	bnei T##op##i##t##r0##f0##f1##l %r0 0		\
 	calli @abort					\
 T##op##i##t##r0##f0##f1##l:				\
-	movi##t %f1 li					\
+	movi##t %f0 li					\
 	b##op##i##t bT##op##i##t##r0##f0##f1##l %f0 ri	\
 	calli @abort					\
 bT##op##i##t##r0##f0##f1##l:				\
@@ -64,7 +64,7 @@ bT##op##i##t##r0##f0##f1##l:				\
 	beqi F##op##r##t##r0##f0##f1##l %r0 1		\
 	calli @abort					\
 F##op##r##t##r0##f0##f1##l:				\
-	movi##t %f1 li					\
+	movi##t %f0 li					\
 	op##i##t %r0 %f0 ri				\
 	beqi F##op##i##t##r0##f0##f1##l %r0 1		\
 	calli @abort					\

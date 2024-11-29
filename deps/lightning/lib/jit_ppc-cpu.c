@@ -301,6 +301,8 @@ static void _FXS(jit_state_t*,int,int,int,int,int,int,int);
 #  define LWZX(d,a,b)			FX(31,d,a,b,23)
 #  define LD(d,a,s)			FDs(58,d,a,s)
 #  define LDX(d,a,b)			FX(31,d,a,b,21)
+#  define LDU(d,a,s)			FDs(58,d,a,s|1)
+#  define LDUX(d,a,b)			FX(31,d,a,b,53)
 #  define MCRF(d,s)			FXL(19,((d)<<2),((s)<<2),0)
 #  if DEBUG
 /* In case instruction is emulated, check the kernel can handle it.
@@ -893,6 +895,52 @@ static void _ldxr_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #    define ldxi_l(r0,r1,i0)		_ldxi_l(_jit,r0,r1,i0)
 static void _ldxi_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
 #  endif
+#  define ldxbr_c(r0,r1,r2)		_ldxbr_c(_jit,r0,r1,r2)
+static void _ldxbr_c(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define ldxbi_c(r0,r1,i0)		_ldxbi_c(_jit,r0,r1,i0)
+static void _ldxbi_c(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define ldxbr_uc(r0,r1,r2)		_ldxbr_uc(_jit,r0,r1,r2)
+static void _ldxbr_uc(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define ldxbi_uc(r0,r1,i0)		_ldxbi_uc(_jit,r0,r1,i0)
+static void _ldxbi_uc(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define ldxbr_s(r0,r1,r2)		_ldxbr_s(_jit,r0,r1,r2)
+static void _ldxbr_s(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define ldxbi_s(r0,r1,i0)		_ldxbi_s(_jit,r0,r1,i0)
+static void _ldxbi_s(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define ldxbr_us(r0,r1,r2)		_ldxbr_us(_jit,r0,r1,r2)
+static void _ldxbr_us(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define ldxbi_us(r0,r1,i0)		_ldxbi_us(_jit,r0,r1,i0)
+static void _ldxbi_us(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  define ldxbr_i(r0,r1,r2)		_ldxbr_i(_jit,r0,r1,r2)
+static void _ldxbr_i(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define ldxbi_i(r0,r1,i0)		_ldxbi_i(_jit,r0,r1,i0)
+static void _ldxbi_i(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  if __WORDSIZE == 64
+#    define ldxbr_ui(r0,r1,r2)		_ldxbr_ui(_jit,r0,r1,r2)
+static void _ldxbr_ui(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#    define ldxbi_ui(r0,r1,i0)		_ldxbi_ui(_jit,r0,r1,i0)
+static void _ldxbi_ui(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#    define ldxbr_l(r0,r1,r2)		_ldxbr_l(_jit,r0,r1,r2)
+static void _ldxbr_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#    define ldxbi_l(r0,r1,i0)		_ldxbi_l(_jit,r0,r1,i0)
+static void _ldxbi_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_word_t);
+#  endif
+#  define ldxar_c(r0,r1,r2)		generic_ldxar_c(r0,r1,r2)
+#  define ldxai_c(r0,r1,i0)		generic_ldxai_c(r0,r1,i0)
+#  define ldxar_uc(r0,r1,r2)		generic_ldxar_uc(r0,r1,r2)
+#  define ldxai_uc(r0,r1,i0)		generic_ldxai_uc(r0,r1,i0)
+#  define ldxar_s(r0,r1,r2)		generic_ldxar_s(r0,r1,r2)
+#  define ldxai_s(r0,r1,i0)		generic_ldxai_s(r0,r1,i0)
+#  define ldxar_us(r0,r1,r2)		generic_ldxar_us(r0,r1,r2)
+#  define ldxai_us(r0,r1,i0)		generic_ldxai_us(r0,r1,i0)
+#  define ldxar_i(r0,r1,r2)		generic_ldxar_i(r0,r1,r2)
+#  define ldxai_i(r0,r1,i0)		generic_ldxai_i(r0,r1,i0)
+#  if __WORDSIZE == 64
+#    define ldxar_ui(r0,r1,r2)		generic_ldxar_ui(r0,r1,r2)
+#    define ldxai_ui(r0,r1,i0)		generic_ldxai_ui(r0,r1,i0)
+#    define ldxar_l(r0,r1,r2)		generic_ldxar_l(r0,r1,r2)
+#    define ldxai_l(r0,r1,i0)		generic_ldxai_l(r0,r1,i0)
+#  endif
 #  define str_c(r0,r1)			STBX(r1, _R0_REGNO, r0)
 #  define sti_c(i0,r0)			_sti_c(_jit,i0,r0)
 static void _sti_c(jit_state_t*,jit_word_t,jit_int32_t);
@@ -922,6 +970,34 @@ static void _sti_l(jit_state_t*,jit_word_t,jit_int32_t);
 static void _stxr_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
 #    define stxi_l(i0,r0,r1)		_stxi_l(_jit,i0,r0,r1)
 static void _stxi_l(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  endif
+#  define stxbr_c(r0,r1,r2)		_stxbr_c(_jit,r0,r1,r2)
+static void _stxbr_c(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define stxbi_c(i0,r0,r1)		_stxbi_c(_jit,i0,r0,r1)
+static void _stxbi_c(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  define stxbr_s(r0,r1,r2)		_stxbr_s(_jit,r0,r1,r2)
+static void _stxbr_s(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define stxbi_s(i0,r0,r1)		_stxbi_s(_jit,i0,r0,r1)
+static void _stxbi_s(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  define stxbr_i(r0,r1,r2)		_stxbr_i(_jit,r0,r1,r2)
+static void _stxbr_i(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#  define stxbi_i(i0,r0,r1)		_stxbi_i(_jit,i0,r0,r1)
+static void _stxbi_i(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  if __WORDSIZE == 64
+#    define stxbr_l(r0,r1,r2)		_stxbr_l(_jit,r0,r1,r2)
+static void _stxbr_l(jit_state_t*,jit_int32_t,jit_int32_t,jit_int32_t);
+#    define stxbi_l(i0,r0,r1)		_stxbi_l(_jit,i0,r0,r1)
+static void _stxbi_l(jit_state_t*,jit_word_t,jit_int32_t,jit_int32_t);
+#  endif
+#  define stxar_c(r0,r1,r2)		generic_stxar_c(r0,r1,r2)
+#  define stxai_c(r0,r1,i0)		generic_stxai_c(r0,r1,i0)
+#  define stxar_s(r0,r1,r2)		generic_stxar_s(r0,r1,r2)
+#  define stxai_s(r0,r1,i0)		generic_stxai_s(r0,r1,i0)
+#  define stxar_i(r0,r1,r2)		generic_stxar_i(r0,r1,r2)
+#  define stxai_i(r0,r1,i0)		generic_stxai_i(r0,r1,i0)
+#  if __WORDSIZE == 64
+#    define stxar_l(r0,r1,r2)		generic_stxar_l(r0,r1,r2)
+#    define stxai_l(r0,r1,i0)		generic_stxai_l(r0,r1,i0)
 #  endif
 #  define jmpr(r0)			_jmpr(_jit,r0)
 static void _jmpr(jit_state_t*,jit_int32_t);
@@ -1301,17 +1377,21 @@ _ctzr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 static void
 _popcntr(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
-    jit_int32_t		reg;
-    reg = jit_get_reg(jit_class_gpr);
-    POPCNTB(r0, r1);
+    if (jit_cpu.popcntb) {
+	jit_int32_t		reg;
+	reg = jit_get_reg(jit_class_gpr);
+	POPCNTB(r0, r1);
 #if __WORDSIZE == 32
-    movi(rn(reg), 0x01010101);
+	movi(rn(reg), 0x01010101);
 #else
-    movi(rn(reg), 0x0101010101010101);
+	movi(rn(reg), 0x0101010101010101);
 #endif
-    mullr(r0, r0, rn(reg));
-    rshi_u(r0, r0, __WORDSIZE - 8);
-    jit_unget_reg(reg);
+	mullr(r0, r0, rn(reg));
+	rshi_u(r0, r0, __WORDSIZE - 8);
+	jit_unget_reg(reg);
+    }
+    else
+	fallback_popcnt(r0, r1);
 }
 
 static void
@@ -3341,6 +3421,182 @@ _ldxi_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 #  endif
 
 static void
+_ldxbr_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    ldxbr_uc(r0, r1, r2);
+    extr_c(r0, r0);
+}
+
+static void
+_ldxbi_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    ldxbi_uc(r0, r1, i0);
+    extr_c(r0, r0);
+}
+
+static void
+_ldxbr_uc(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+    LBZUX(r0, r1, r2);
+}
+
+static void
+_ldxbi_uc(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+	LBZU(r0, r1, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_uc(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_ldxbr_s(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+    LHAUX(r0, r1, r2);
+}
+
+static void
+_ldxbi_s(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+	LHAU(r0, r1, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_s(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_ldxbr_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+    LHZUX(r0, r1, r2);
+}
+
+static void
+_ldxbi_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+	LHZU(r0, r1, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_us(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_ldxbr_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+#  if __WORDSIZE == 32
+    LWZUX(r0, r1, r2);
+#  else
+    ldxbr_ui(r0, r1, r2);
+    extr_i(r0, r0);
+#  endif
+}
+
+static void
+_ldxbi_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+#  if __WORDSIZE == 32
+	LWZU(r0, r1, i0);
+#  else
+	ldxbi_ui(r0, r1, i0);
+	extr_i(r0, r0);
+#  endif
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_i(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+#  if __WORDSIZE == 64
+static void
+_ldxbr_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+    LWZUX(r0, r1, r2);
+}
+
+static void
+_ldxbi_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+	LWZU(r0, r1, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_ui(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_ldxbr_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    assert(r0 != r1);
+    LDUX(r0, r1, r2);
+}
+
+static void
+_ldxbi_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	assert(r0 != r1);
+	LDU(r0, r1, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	ldxbr_l(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+#  endif
+
+static void
 _sti_c(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0)
 {
     jit_bool_t		inv;
@@ -3609,6 +3865,100 @@ _stxi_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 	reg = jit_get_reg(jit_class_gpr);
 	movi(rn(reg), i0);
 	stxr_l(rn(reg), r0, r1);
+	jit_unget_reg(reg);
+    }
+}
+#  endif
+
+static void
+_stxbr_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    STBUX(r2, r1, r0);
+}
+
+static void
+_stxbi_c(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	STBU(r1, r0, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	stxbr_c(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_stxbr_s(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    STHUX(r2, r1, r0);
+}
+
+static void
+_stxbi_s(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	STHU(r1, r0, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	stxbr_s(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+static void
+_stxbr_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    STWUX(r2, r1, r0);
+}
+
+static void
+_stxbi_i(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	STWU(r1, r0, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	stxbr_i(r0, r1, rn(reg));
+	jit_unget_reg(reg);
+    }
+}
+
+#  if __WORDSIZE == 64
+static void
+_stxbr_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_int32_t r2)
+{
+    assert(r1 != _R0_REGNO);
+    STDUX(r2, r1, r0);
+}
+
+static void
+_stxbi_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    jit_int32_t		reg;
+    if (can_sign_extend_short_p(i0)) {
+	assert(r1 != _R0_REGNO);
+	STDU(r1, r0, i0);
+    }
+    else {
+	reg = jit_get_reg(jit_class_gpr);
+	movi(rn(reg), i0);
+	stxbr_l(r0, r1, rn(reg));
 	jit_unget_reg(reg);
     }
 }

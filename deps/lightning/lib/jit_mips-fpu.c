@@ -349,7 +349,7 @@ static void _movi_f(jit_state_t*,jit_int32_t,jit_float32_t*);
 #    define movi64(r0, i0)		_movi64(_jit, r0, i0)
 static void _movi64(jit_state_t*,jit_int32_t,jit_int64_t);
 #    define movi_d_w(r0, i0)		_movi_d_w(_jit, r0, i0)
-static void _movi_d_w(jit_state_t*,jit_int32_t,jit_int64_t);
+static void _movi_d_w(jit_state_t*,jit_int32_t,jit_float64_t);
 #  elif __WORDSIZE == 64
 #    define movi64(r0, i0)		movi(r0, i0)
 #  endif
@@ -1152,7 +1152,7 @@ _movi64(jit_state_t *_jit, jit_int32_t r0, jit_int64_t i0)
 }
 
 static void
-_movi_d_w(jit_state_t *_jit, jit_int32_t r0, jit_int64_t i0)
+_movi_d_w(jit_state_t *_jit, jit_int32_t r0, jit_float64_t i0)
 {
     union {
 	jit_int64_t	l;

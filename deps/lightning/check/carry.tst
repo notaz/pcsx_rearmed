@@ -136,6 +136,8 @@ ok:
 	fadd(__LINE__,   , r0, r1, x7fe, x1, x7f)
 	tsub(__LINE__,   , r0, r1, x80,  x1, x7f)
 	fsub(__LINE__,   , r0, r1, x7f,  x1, x7fe)
+	fsub(__LINE__,   , r0, r1, x0,   x1, ff)
+	fsub(__LINE__,   , r0, r1, ff,   ff, x0)
 	tadd(__LINE__, _u, r0, r1, ff,   x1, x0)
 	fadd(__LINE__, _u, r0, r1, x7f,  x1, x80)
 	tsub(__LINE__, _u, r0, r1, x0,   x1, ff)

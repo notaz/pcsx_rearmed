@@ -570,6 +570,45 @@ static void _ldxr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 static void _ldxi_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
 #    endif
 #  endif
+#  define ldxbr_c(r0, r1, r2)		generic_ldxbr_c(r0, r1, r2)
+#  define ldxbi_c(r0, r1, i0)		generic_ldxbi_c(r0, r1, i0)
+#  define ldxbr_uc(r0, r1, r2)		generic_ldxbr_uc(r0, r1, r2)
+#  define ldxbi_uc(r0, r1, i0)		generic_ldxbi_uc(r0, r1, i0)
+#  define ldxbr_s(r0, r1, r2)		generic_ldxbr_s(r0, r1, r2)
+#  define ldxbi_s(r0, r1, i0)		generic_ldxbi_s(r0, r1, i0)
+#  define ldxbr_us(r0, r1, r2)		generic_ldxbr_us(r0, r1, r2)
+#  define ldxbi_us(r0, r1, i0)		generic_ldxbi_us(r0, r1, i0)
+#  define ldxbr_i(r0, r1, r2)		generic_ldxbr_i(r0, r1, r2)
+#  define ldxbi_i(r0, r1, i0)		generic_ldxbi_i(r0, r1, i0)
+#  if __X64 && !__X64_32
+#    define ldxbr_ui(r0, r1, i0)	generic_ldxbr_ui(r0, r1, i0)
+#    define ldxbi_ui(r0, r1, i0)	generic_ldxbi_ui(r0, r1, i0)
+#    define ldxbr_l(r0, r1, r2)		generic_ldxbr_l(r0, r1, r2)
+#    define ldxbi_l(r0, r1, i0)		generic_ldxbi_l(r0, r1, i0)
+#  endif
+#  define ldxar_c(r0, r1, r2)		generic_ldxar_c(r0, r1, r2)
+#  define ldxai_c(r0, r1, i0)		_ldxai_c(_jit,r0, r1, i0)
+static void _ldxai_c(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define ldxar_uc(r0, r1, r2)		generic_ldxar_uc(r0, r1, r2)
+#  define ldxai_uc(r0, r1, i0)		_ldxai_uc(_jit, r0, r1, i0)
+static void _ldxai_uc(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define ldxar_s(r0, r1, r2)		generic_ldxar_s(r0, r1, r2)
+#  define ldxai_s(r0, r1, i0)		_ldxai_s(_jit, r0, r1, i0)
+static void _ldxai_s(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define ldxar_us(r0, r1, r2)		generic_ldxar_us(r0, r1, r2)
+#  define ldxai_us(r0, r1, i0)		_ldxai_us(_jit, r0, r1, i0)
+static void _ldxai_us(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  define ldxar_i(r0, r1, r2)		generic_ldxar_i(r0, r1, r2)
+#  define ldxai_i(r0, r1, i0)		_ldxai_i(_jit, r0, r1, i0)
+static void _ldxai_i(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  if __X64 && !__X64_32
+#    define ldxar_ui(r0, r1, i0)	generic_ldxar_ui(r0, r1, i0)
+#    define ldxai_ui(r0, r1, i0)	_ldxai_ui(_jit, r0, r1, i0)
+static void _ldxai_ui(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#    define ldxar_l(r0, r1, r2)		generic_ldxar_l(r0, r1, r2)
+#    define ldxai_l(r0, r1, i0)		_ldxai_l(_jit, r0, r1, i0)
+static void _ldxai_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_word_t);
+#  endif
 #  define unldr(r0, r1, i0)		generic_unldr(r0, r1, i0)
 #  define unldi(r0, i0, i1)		generic_unldi(r0, i0, i1)
 #  define unldr_u(r0, r1, i0)		generic_unldr_u(r0, r1, i0)
@@ -610,8 +649,34 @@ static void _stxr_l(jit_state_t*, jit_int32_t, jit_int32_t, jit_int32_t);
 #    define stxi_l(i0, r0, r1)		_stxi_l(_jit, i0, r0, r1)
 static void _stxi_l(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
 #  endif
-#define unstr(r0, r1, i0)		generic_unstr(r0, r1, i0)
-#define unsti(i0, r0, i1)		generic_unsti(i0, r0, i1)
+#  define stxbr_c(r0, r1, r2)		generic_stxbr_c(r0, r1, r2)
+#  define stxbi_c(i0, r0, r1)		generic_stxbi_c(i0, r0, r1)
+#  define stxbr_s(r0, r1, r2)		generic_stxbr_s(r0, r1, r2)
+#  define stxbi_s(i0, r0, r1)		generic_stxbi_s(i0, r0, r1)
+#  define stxbr_i(r0, r1, r2)		generic_stxbr_i(r0, r1, r2)
+#  define stxbi_i(i0, r0, r1)		generic_stxbi_i(i0, r0, r1)
+#  if __X64 && !__X64_32
+#    define stxbr_l(r0, r1, r2)		generic_stxbr_l(r0, r1, r2)
+#    define stxbi_l(i0, r0, r1)		generic_stxbi_l(i0, r0, r1)
+#  endif
+
+#  define stxar_c(r0, r1, r2)		generic_stxar_c(r0, r1, r2)
+#  define stxai_c(i0, r0, r1)		_stxai_c(_jit, i0, r0, r1)
+static void _stxai_c(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define stxar_s(r0, r1, r2)		generic_stxar_s(r0, r1, r2)
+#  define stxai_s(i0, r0, r1)		_stxai_s(_jit, i0, r0, r1)
+static void _stxai_s(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  define stxar_i(r0, r1, r2)		generic_stxar_i(r0, r1, r2)
+#  define stxai_i(i0, r0, r1)		_stxai_i(_jit, i0, r0, r1)
+static void _stxai_i(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  if __X64 && !__X64_32
+#    define stxar_l(r0, r1, r2)		generic_stxar_l(r0, r1, r2)
+#    define stxai_l(i0, r0, r1)		_stxai_l(_jit, i0, r0, r1)
+static void _stxai_l(jit_state_t*, jit_word_t, jit_int32_t, jit_int32_t);
+#  endif
+
+#  define unstr(r0, r1, i0)		generic_unstr(r0, r1, i0)
+#  define unsti(i0, r0, i1)		generic_unsti(i0, r0, i1)
 #  define jcc(code, i0)			_jcc(_jit, code, i0)
 #  define jo(i0)			jcc(X86_CC_O, i0)
 #  define jno(i0)			jcc(X86_CC_NO, i0)
@@ -806,6 +871,9 @@ static void _patch_at(jit_state_t*, jit_word_t, jit_word_t);
 #    endif
 #  endif
 #  define jit_cmov_p()			jit_cpu.cmov
+#  define is_low_mask(im)		(((im) & 1) ? (__builtin_popcountl((im) + 1) <= 1) : 0)
+#  define is_high_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) == 0) : 0)
+#  define unmasked_bits_count(im)	(__WORDSIZE - __builtin_popcountl(im))
 #endif
 
 #if CODE
@@ -1881,15 +1949,20 @@ _andi(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 	ixorr(r0, r0);
     else if (i0 == -1)
 	movr(r0, r1);
+    else if (r0 == r1 && can_sign_extend_int_p(i0))
+        iandi(r0, i0);
+    else if (is_low_mask(i0)) {
+        lshi(r0, r1, unmasked_bits_count(i0));
+        rshi_u(r0, r0, unmasked_bits_count(i0));
+    } else if (is_high_mask(i0)) {
+        rshi_u(r0, r1, unmasked_bits_count(i0));
+        lshi(r0, r0, unmasked_bits_count(i0));
+    }
     else if (r0 == r1) {
-	if (can_sign_extend_int_p(i0))
-	    iandi(r0, i0);
-	else {
 	    reg = jit_get_reg(jit_class_gpr);
 	    movi(rn(reg), i0);
 	    iandr(r0, rn(reg));
 	    jit_unget_reg(reg);
-	}
     }
     else {
 	movi(r0, i0);
@@ -3722,6 +3795,104 @@ _ldxi_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
 #endif
 
 static void
+_ldxai_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 1) {
+	/* lods %rsi, %al */
+	ic(0xac);
+	extr_c(r0, r0);
+    }
+    else
+	generic_ldxai_uc(r0, r1, i0);
+}
+
+static void
+_ldxai_uc(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 1) {
+	/* lods %rsi, %al */
+	ic(0xac);
+	extr_uc(r0, r0);
+    }
+    else
+	generic_ldxai_uc(r0, r1, i0);
+}
+
+static void
+_ldxai_s(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 2) {
+	/* lods %rsi, %ax */
+	ic(0x66);
+	ic(0xad);
+	extr_s(r0, r0);
+    }
+    else
+	generic_ldxai_us(r0, r1, i0);
+}
+
+static void
+_ldxai_us(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 2) {
+	/* lods %rsi, %ax */
+	ic(0x66);
+	ic(0xad);
+	extr_us(r0, r0);
+    }
+    else
+	generic_ldxai_us(r0, r1, i0);
+}
+
+static void
+_ldxai_i(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 4) {
+	/* lods %rsi, %eax */
+	ic(0xad);
+#  if __X64 && !__X64_32
+	extr_i(r0, r0);
+#  endif
+    }
+    else
+	generic_ldxai_i(r0, r1, i0);
+}
+
+#  if __X64 && !__X64_32
+static void
+_ldxai_ui(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 4) {
+	/* lods %rsi, %eax */
+	ic(0xad);
+	extr_ui(r0, r0);
+    }
+    else
+	generic_ldxai_ui(r0, r1, i0);
+}
+
+
+static void
+_ldxai_l(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1, jit_word_t i0)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RAX_REGNO && r1 == _RSI_REGNO && i0 == 8) {
+	/* lods %rsi, %rax */
+	ic(0x48);	/* rex.w */
+	ic(0xad);
+    }
+    else
+	generic_ldxai_l(r0, r1, i0);
+}
+#  endif
+
+static void
 _str_c(jit_state_t *_jit, jit_int32_t r0, jit_int32_t r1)
 {
     jit_int32_t		reg;
@@ -4042,6 +4213,57 @@ _stxi_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
 	stxr_l(rn(reg), r0, r1);
 	jit_unget_reg(reg);
     }
+}
+#endif
+
+static void
+_stxai_c(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RDI_REGNO && r1 == _RAX_REGNO && i0 == 1)
+	/* stos %al, %rdi */
+	ic(0xaa);
+    else
+	generic_stxai_c(i0, r0, r1);
+}
+
+static void
+_stxai_s(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RDI_REGNO && r1 == _RAX_REGNO && i0 == 2) {
+	/* stos %ax, %rdi */
+	ic(0x66);
+	ic(0xab);
+    }
+    else
+	generic_stxai_s(i0, r0, r1);
+}
+
+static void
+_stxai_i(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RDI_REGNO && r1 == _RAX_REGNO && i0 == 4)
+	/* stos %eax, %rdi */
+	ic(0xab);
+    else
+	generic_stxai_i(i0, r0, r1);
+}
+
+#if __X64 && !__X64_32
+static void
+_stxai_l(jit_state_t *_jit, jit_word_t i0, jit_int32_t r0, jit_int32_t r1)
+{
+    /* Assume DF = 0 */
+    if (r0 == _RDI_REGNO && r1 == _RAX_REGNO && i0 == 8) {
+	/* rex.w */
+	ic(0x48);
+	/* stos %rax, %rdi */
+	ic(0xab);
+    }
+    else
+	generic_stxai_l(i0, r0, r1);
 }
 #endif
 
