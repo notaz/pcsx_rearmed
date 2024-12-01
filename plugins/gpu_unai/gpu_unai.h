@@ -204,9 +204,16 @@ struct gpu_unai_inner_t {
 	// 22.10 Fixed-pt texture coords, mask, scanline advance
 	// NOTE: U,V are no longer packed together into one u32, this proved to be
 	//  too imprecise, leading to pixel dropouts.  Example: NFS3's skybox.
-	u32 u, v;                 // 08
-	u32 u_msk, v_msk;         // 10
-	s32 u_inc, v_inc;         // 18
+	u32 u, v;                 // 08 not fractional for sprites
+	u32 u_msk, v_msk;         // 10 always 22.10
+	union {
+	  struct {
+	    s32 u_inc, v_inc;     // 18 poly uv increment, 22.10
+	  };
+	  struct {
+	    s32 y0, y1;           // 18 sprite y range
+	  };
+	};
 
 	// Color for flat-shaded, texture-blended prims
 	u8  r5, g5, b5, pad5;     // 20 5-bit light for undithered prims
@@ -222,6 +229,19 @@ struct gpu_unai_inner_t {
 
 	// Color for flat-shaded, untextured prims
 	u16 PixelData;      // bgr555 color for untextured flat-shaded polys
+
+	u8 blit_mask;           // Determines what pixels to skip when rendering.
+	                        //  Only useful on low-resolution devices using
+	                        //  a simple pixel-dropping downscaler for PS1
+	                        //  high-res modes. See 'pixel_skip' option.
+
+	u8 ilace_mask;          // Determines what lines to skip when rendering.
+	                        //  Normally 0 when PS1 240 vertical res is in
+	                        //  use and ilace_force is 0. When running in
+	                        //  PS1 480 vertical res on a low-resolution
+	                        //  device (320x240), will usually be set to 1
+	                        //  so odd lines are not rendered. (Unless future
+	                        //  full-screen scaling option is in use ..TODO)
 };
 
 struct gpu_unai_t {
@@ -296,20 +316,6 @@ struct gpu_unai_t {
 
 	// End of inner Loop parameters
 	////////////////////////////////////////////////////////////////////////////
-
-
-	u8 blit_mask;           // Determines what pixels to skip when rendering.
-	                        //  Only useful on low-resolution devices using
-	                        //  a simple pixel-dropping downscaler for PS1
-	                        //  high-res modes. See 'pixel_skip' option.
-
-	u8 ilace_mask;          // Determines what lines to skip when rendering.
-	                        //  Normally 0 when PS1 240 vertical res is in
-	                        //  use and ilace_force is 0. When running in
-	                        //  PS1 480 vertical res on a low-resolution
-	                        //  device (320x240), will usually be set to 1
-	                        //  so odd lines are not rendered. (Unless future
-	                        //  full-screen scaling option is in use ..TODO)
 
 	bool prog_ilace_flag;   // Tracks successive frames for 'prog_ilace' option
 

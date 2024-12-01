@@ -161,7 +161,7 @@ static uint16_t *get_downscale_buffer(int *x, int *y, int *w, int *h, int *vram_
     lines = *h;
 
     // Ensure start at a non-skipped line
-    while (*y & gpu_unai.ilace_mask) ++*y;
+    while (*y & gpu_unai.inn.ilace_mask) ++*y;
   }
 
   unsigned int fb_offset_src = (*y * dstride + *x) & fb_mask;
@@ -252,7 +252,7 @@ int renderer_init(void)
   // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
   // present in latest PCSX4ALL sources we were using.
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+  gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
 #if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || (!defined(GPU_UNAI_NO_OLD) && !defined(GPU_UNAI_USE_FLOATMATH))
   // s_invTable
@@ -285,13 +285,13 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+  gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
 #ifndef HAVE_PRE_ARMV7 /* XXX */
   if (gpu_unai.config.scale_hires)
 #endif
   {
-    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
+    gpu_unai.inn.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   /*

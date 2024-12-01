@@ -272,6 +272,7 @@ OBJS += plugins/gpu_unai/old/if.o
 else
 CFLAGS += -DGPU_UNAI_NO_OLD
 endif
+plugins/gpu_unai/gpulib_if.o: plugins/gpu_unai/*.h
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
 ifneq ($(DEBUG), 1)
 plugins/gpu_unai/gpulib_if.o \

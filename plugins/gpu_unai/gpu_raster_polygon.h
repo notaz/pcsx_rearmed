@@ -352,9 +352,9 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				continue;
 
 			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
-			int li=gpu_unai.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+			int li=gpu_unai.inn.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ya++, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4 )
@@ -663,9 +663,9 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				continue;
 
 			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
-			int li=gpu_unai.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+			int li=gpu_unai.inn.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -1008,9 +1008,9 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				continue;
 
 			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
-			int li=gpu_unai.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+			int li=gpu_unai.inn.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -1403,9 +1403,9 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				continue;
 
 			le16_t* PixelBase = &gpu_unai.vram[FRAME_OFFSET(0, ya)];
-			int li=gpu_unai.ilace_mask;
-			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+			int li=gpu_unai.inn.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,

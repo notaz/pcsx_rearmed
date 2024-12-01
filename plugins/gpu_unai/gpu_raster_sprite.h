@@ -61,31 +61,16 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 	*w_out = x1;
 	*h_out = y1 - y0;
 
+	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
+
 	gpu_unai.inn.r5 = packet.U1[0] >> 3;
 	gpu_unai.inn.g5 = packet.U1[1] >> 3;
 	gpu_unai.inn.b5 = packet.U1[2] >> 3;
-
-	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
-	const int li=gpu_unai.ilace_mask;
-	//const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-	//const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
-	unsigned int tmode = gpu_unai.TEXT_MODE >> 5;
-	u8* pTxt_base = (u8*)gpu_unai.inn.TBA;
-
-	// Texture is accessed byte-wise, so adjust idx if 16bpp
-	if (tmode == 3) u0 <<= 1;
-
-	spriteDriverArg arg;
-	arg.CBA = gpu_unai.inn.CBA;
-	arg.u0 = u0;
-	arg.v0 = v0;
-	arg.u0_mask = gpu_unai.TextureWindow[2];
-	arg.v0_mask = gpu_unai.TextureWindow[3];
-	arg.y0 = y0;
-	arg.y1 = y1;
-	arg.lines = y1 - y0;
-	arg.li = li;
-	gpuSpriteDriver(Pixel, x1, pTxt_base, &arg);
+	gpu_unai.inn.u = u0;
+	gpu_unai.inn.v = v0;
+	gpu_unai.inn.y0 = y0;
+	gpu_unai.inn.y1 = y1;
+	gpuSpriteDriver(Pixel, x1, (u8 *)gpu_unai.inn.TBA, gpu_unai.inn);
 }
 
 void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_out)
@@ -118,9 +103,9 @@ void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_ou
 
 	const u16 Data = GPU_RGB16(le32_to_u32(packet.U4[0]));
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
-	const int li=gpu_unai.ilace_mask;
-	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
-	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
+	const int li=gpu_unai.inn.ilace_mask;
+	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
 	for (; y0<y1; ++y0) {
 		if (!(y0&li) && (y0&pi)!=pif)
