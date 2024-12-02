@@ -58,6 +58,7 @@
 #include "arm_features.h"
 #include "compiler_features.h"
 #ifdef __arm__
+#include "gpu_arm.h"
 #include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
 #define gpuBlending gpuBlendingARM
@@ -278,7 +279,7 @@ const PSD gpuPixelSpanDrivers[64] =
 //  GPU Tiles innerloops generator
 
 template<int CF>
-static void gpuTileSpanFn(le16_t *pDst, u32 count, u16 data)
+static inline void gpuTileSpanFn(le16_t *pDst, u16 data, u32 count)
 {
 	le16_t ldata;
 
@@ -330,7 +331,42 @@ endtile:
 	}
 }
 
-static void TileNULL(le16_t *pDst, u32 count, u16 data)
+template<int CF>
+static noinline void gpuTileDriverFn(le16_t *pDst, u16 data, u32 count,
+	const gpu_unai_inner_t &inn)
+{
+	const int li=gpu_unai.inn.ilace_mask;
+	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
+	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
+	const int y1 = inn.y1;
+	int y0 = inn.y0;
+
+	for (; y0 < y1; ++y0) {
+		if (!(y0&li) && (y0&pi) != pif)
+			gpuTileSpanFn<CF>(pDst, data, count);
+		pDst += FRAME_WIDTH;
+	}
+}
+
+#ifdef __arm__
+
+template<int CF>
+static void TileAsm(le16_t *pDst, u16 data, u32 count, const gpu_unai_inner_t &inn)
+{
+	switch (CF) {
+	case 0x02: tile_driver_st0_asm(pDst, data, count, &inn); return;
+	case 0x0a: tile_driver_st1_asm(pDst, data, count, &inn); return;
+	case 0x1a: tile_driver_st3_asm(pDst, data, count, &inn); return;
+#ifdef HAVE_ARMV6
+	case 0x12: tile_driver_st2_asm(pDst, data, count, &inn); return;
+#endif
+	}
+	gpuTileDriverFn<CF>(pDst, data, count, inn);
+}
+
+#endif
+
+static void TileNULL(le16_t *pDst, u16 data, u32 count, const gpu_unai_inner_t &inn)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"TileNULL()\n");
@@ -339,23 +375,35 @@ static void TileNULL(le16_t *pDst, u32 count, u16 data)
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Tiles innerloops driver
-typedef void (*PT)(le16_t *pDst, u32 count, u16 data);
+typedef void (*PT)(le16_t *pDst, u16 data, u32 count, const gpu_unai_inner_t &inn);
 
 // Template instantiation helper macros
-#define TI(cf) gpuTileSpanFn<(cf)>
+#define TI(cf) gpuTileDriverFn<(cf)>
 #define TN     TileNULL
+#ifdef __arm__
+#define TA(cf) TileAsm<(cf)>
+#else
+#define TA(cf) TI(cf)
+#endif
+#ifdef HAVE_ARMV6
+#define TA6(cf) TileAsm<(cf)>
+#else
+#define TA6(cf) TI(cf)
+#endif
 #define TIBLOCK(ub) \
-	TI((ub)|0x00), TI((ub)|0x02), TI((ub)|0x04), TI((ub)|0x06), \
-	TN,            TI((ub)|0x0a), TN,            TI((ub)|0x0e), \
-	TN,            TI((ub)|0x12), TN,            TI((ub)|0x16), \
-	TN,            TI((ub)|0x1a), TN,            TI((ub)|0x1e)
+	TI((ub)|0x00), TA6((ub)|0x02), TI((ub)|0x04), TI((ub)|0x06), \
+	TN,            TA ((ub)|0x0a), TN,            TI((ub)|0x0e), \
+	TN,            TA6((ub)|0x12), TN,            TI((ub)|0x16), \
+	TN,            TA ((ub)|0x1a), TN,            TI((ub)|0x1e)
 
-const PT gpuTileSpanDrivers[32] = {
+const PT gpuTileDrivers[32] = {
 	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
 
 #undef TI
 #undef TN
+#undef TA
+#undef TA6
 #undef TIBLOCK
 
 
@@ -446,7 +494,6 @@ endsprite:
 }
 
 #ifdef __arm__
-#include "gpu_arm.h"
 
 template<int CF>
 static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
@@ -467,14 +514,14 @@ static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
     const u8 *pTxt = pTxt_base + inn.v * 2048;
     switch (CF) {
     case 0x20: sprite_driver_4bpp_l0_std_asm(pPixel, pTxt, count, &inn); return;
+    case 0x22: sprite_driver_4bpp_l0_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x40: sprite_driver_8bpp_l0_std_asm(pPixel, pTxt, count, &inn); return;
+    case 0x42: sprite_driver_8bpp_l0_st0_asm(pPixel, pTxt, count, &inn); return;
 #ifdef HAVE_ARMV6
     case 0x21: sprite_driver_4bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
-    case 0x22: sprite_driver_4bpp_l0_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x23: sprite_driver_4bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x2b: sprite_driver_4bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
     case 0x41: sprite_driver_8bpp_l1_std_asm(pPixel, pTxt, count, &inn); return;
-    case 0x42: sprite_driver_8bpp_l0_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x43: sprite_driver_8bpp_l1_st0_asm(pPixel, pTxt, count, &inn); return;
     case 0x4b: sprite_driver_8bpp_l1_st1_asm(pPixel, pTxt, count, &inn); return;
 #endif
@@ -761,14 +808,18 @@ template<int CF>
 static void PolySpanMaybeAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count)
 {
 	switch (CF) {
+	case 0x02: poly_untex_st0_asm  (pDst, &gpu_unai.inn, count); break;
+	case 0x0a: poly_untex_st1_asm  (pDst, &gpu_unai.inn, count); break;
+	case 0x1a: poly_untex_st3_asm  (pDst, &gpu_unai.inn, count); break;
 	case 0x20: poly_4bpp_asm       (pDst, &gpu_unai.inn, count); break;
-	case 0x40: poly_8bpp_asm       (pDst, &gpu_unai.inn, count); break;
-#ifdef HAVE_ARMV6
-	case 0x21: poly_4bpp_l1_std_asm(pDst, &gpu_unai.inn, count); break;
 	case 0x22: poly_4bpp_l0_st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x40: poly_8bpp_asm       (pDst, &gpu_unai.inn, count); break;
+	case 0x42: poly_8bpp_l0_st0_asm(pDst, &gpu_unai.inn, count); break;
+#ifdef HAVE_ARMV6
+	case 0x12: poly_untex_st2_asm  (pDst, &gpu_unai.inn, count); break;
+	case 0x21: poly_4bpp_l1_std_asm(pDst, &gpu_unai.inn, count); break;
 	case 0x23: poly_4bpp_l1_st0_asm(pDst, &gpu_unai.inn, count); break;
 	case 0x41: poly_8bpp_l1_std_asm(pDst, &gpu_unai.inn, count); break;
-	case 0x42: poly_8bpp_l0_st0_asm(pDst, &gpu_unai.inn, count); break;
 	case 0x43: poly_8bpp_l1_st0_asm(pDst, &gpu_unai.inn, count); break;
 #endif
 	default:   gpuPolySpanFn<CF>(gpu_unai, pDst, count);
@@ -801,10 +852,10 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count);
 #define TA6(cf) TI(cf)
 #endif
 #define TIBLOCK(ub) \
-	TI((ub)|0x00), TI((ub)|0x01), TI((ub)|0x02), TI((ub)|0x03), TI((ub)|0x04), TI((ub)|0x05), TI((ub)|0x06), TI((ub)|0x07), \
-	TN,            TN,            TI((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
-	TN,            TN,            TI((ub)|0x12), TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
-	TN,            TN,            TI((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
+	TI((ub)|0x00), TI((ub)|0x01), TA6((ub)|0x02),TI((ub)|0x03), TI((ub)|0x04), TI((ub)|0x05), TI((ub)|0x06), TI((ub)|0x07), \
+	TN,            TN,            TA((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
+	TN,            TN,            TA6((ub)|0x12),TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
+	TN,            TN,            TA((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
 	TA((ub)|0x20), TA6((ub)|0x21),TA6((ub)|0x22),TA6((ub)|0x23),TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
 	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
 	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \

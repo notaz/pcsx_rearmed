@@ -73,7 +73,7 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 	gpuSpriteDriver(Pixel, x1, (u8 *)gpu_unai.inn.TBA, gpu_unai.inn);
 }
 
-void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_out)
+void gpuDrawT(PtrUnion packet, const PT gpuTileDriver, s32 *w_out, s32 *h_out)
 {
 	s32 x0, x1, y0, y1;
 
@@ -103,15 +103,10 @@ void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver, s32 *w_out, s32 *h_ou
 
 	const u16 Data = GPU_RGB16(le32_to_u32(packet.U4[0]));
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
-	const int li=gpu_unai.inn.ilace_mask;
-	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.inn.ilace_mask+1):0);
-	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.inn.ilace_mask+1):0):1);
 
-	for (; y0<y1; ++y0) {
-		if (!(y0&li) && (y0&pi)!=pif)
-			gpuTileSpanDriver(Pixel,x1,Data);
-		Pixel += FRAME_WIDTH;
-	}
+	gpu_unai.inn.y0 = y0;
+	gpu_unai.inn.y1 = y1;
+	gpuTileDriver(Pixel, Data, x1, gpu_unai.inn);
 }
 
 #endif /* __GPU_UNAI_GPU_RASTER_SPRITE_H__ */

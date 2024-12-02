@@ -224,11 +224,11 @@ struct gpu_unai_inner_t {
 	// Packed fixed-pt 8.3:8.3:8.2 rgb triplet
 	//  layout:  ccccccccXXXXXXXX for c in [r, g, b]
 	//           ^ bit 16
-	gcol_t gCol;
-	gcol_t gInc;       // Increment along scanline for gCol
+	gcol_t gCol;       // 28
+	gcol_t gInc;       // 30 Increment along scanline for gCol
 
 	// Color for flat-shaded, untextured prims
-	u16 PixelData;      // bgr555 color for untextured flat-shaded polys
+	u16 PixelData;     // 38 bgr555 color for untextured flat-shaded polys
 
 	u8 blit_mask;           // Determines what pixels to skip when rendering.
 	                        //  Only useful on low-resolution devices using

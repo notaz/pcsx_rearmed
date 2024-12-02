@@ -40,13 +40,64 @@
 @ msb of input p0 is assumed to be set
 .macro semitrans0 p0 p1 t
     eor     \t,  \p0, \p1
-    and     \t,  \t, #0x0420
+    and     \t,  \t,  #0x0420
     sub     \p0, \p0, \t
     orr     \p1, \p1, #0x8000
     uhadd16 \p0, \p0, \p1
 .endm
 
+.macro semitrans0p p0 p1 m421 t
+    eor     \t,  \p0, \p1
+    and     \t,  \t,  \m421
+    add     \p0, \p0, \p1
+    uhsub16 \p0, \p0, \t           @ sub because of borrow into hi16
+.endm
+
+@ p0 - {p1|r,g,b}   // p1* - premasked rgb
+.macro semitrans2p p0 p1r p1g p1b m1f t0 t1
+    and     \t0, \p0, \m1f
+    and     \t1, \p0, \m1f, lsl #5
+    and     \p0, \p0, \m1f, lsl #10
+    uqsub16 \t0, \t0, \p1r
+    uqsub16 \t1, \t1, \p1g
+    uqsub16 \p0, \p0, \p1b
+    orr     \t0, \t0, \t1
+    orr     \p0, \p0, \t0
+.endm
+
+#else
+
+@ msb of input p0 is assumed to be set
+.macro semitrans0 p0 p1 t
+    eor     \t,  \p0, \p1
+    and     \t,  \t,  #0x0420
+    orr     \p1, \p1, #0x8000
+    sub     \p0, \p0, \t
+    add     \p0, \p0, \p1
+    orr     \p0, \p0, #0x10000
+    mov     \p0, \p0, lsr #1
+.endm
+
+.macro semitrans0p p0 p1 m421 t
+    eor     \t,  \p0, \p1
+    and     \t,  \t,  \m421
+    add     \p0, \p0, \p1
+    sub     \p0, \p0, \t
+    mov     \p0, \p0, lsr #1
+.endm
+
 #endif // HAVE_ARMV6
+
+.macro semitrans13p p0 p1 m421 t0
+    add     \t0, \p0, \p1
+    eor     \p0, \p0, \p1
+    and     \p0, \p0, \m421          @ low_bits
+    sub     \p0, \t0, \p0
+    and     \p0, \p0, \m421, lsl #5  @ carries
+    sub     \t0, \t0, \p0            @ modulo
+    sub     \p0, \p0, \p0, lsr #5    @ clamp
+    orr     \p0, \t0, \p0
+.endm
 
 
 @ in: r0=dst, r2=pal, r12=0x1e
@@ -95,6 +146,91 @@
     strhne   \rs,[r0, #6]
 .endm
 
+
+@ (void *d, u16 c, u32 cnt, const struct gpu_unai_inner_t *inn)
+@ see also poly_untex_st_m
+.macro tile_driver_st_m name semit
+FUNCTION(\name):
+    .cfi_startproc
+    stmfd   sp!, {r4-r9,lr}
+    .cfi_def_cfa_offset 4*7
+    .cfi_rel_offset lr, 4*6
+    ldr     r7, [r3, #0x18]        @ y0
+    ldr     r8, [r3, #0x1c]        @ y1
+.if \semit != 2
+    mov     r4, #0x8000
+    orr     r4, r4, r4, lsl #16    @ mask 8000
+    mov     r6, #0x420
+    orr     r6, r6, #1
+    orr     r6, r6, r6, lsl #16    @ mask 0421
+.endif
+.if \semit == 2
+    and     r4, r1, #0x03e0
+    and     r5, r1, #0x7c00
+    and     r1, r1, #0x001f
+    orr     r4, r4, r4, lsl #16    @ premasked g
+    orr     r5, r5, r5, lsl #16    @ premasked b
+    mov     r6, #0x00001f
+    orr     r6, #0x1f0000          @ mask
+.elseif \semit == 3
+    mov     r1, r1, lsr #2
+    bic     r1, r1, #(0x0c60>>2)
+.endif
+    orr     r1, r1, r1, lsl #16
+    sub     r3, r8, r7             @ h
+    mov     r7, r2                 @ save w
+0:
+    ldrh    r8, [r0]
+    pld_    r0, #2048
+    tst     r0, #2
+    beq     1f
+    sub     r2, #1
+.if \semit == 0
+    bic     r8, r8, r4
+    semitrans0p  r8, r1, r6, lr
+.elseif \semit == 1 || \semit == 3
+    bic     r8, r8, r4
+    semitrans13p r8, r1, r6, lr
+.elseif \semit == 2
+    semitrans2p  r8, r1, r4, r5, r6, r9, lr
+.endif
+    strh    r8, [r0], #2
+1:
+    ldr     r8, [r0]
+    pld_    r0, #32
+    subs    r2, r2, #2
+.if \semit == 0
+    bic     r8, r8, r4
+    semitrans0p  r8, r1, r6, lr
+.elseif \semit == 1 || \semit == 3
+    bic     r8, r8, r4
+    semitrans13p r8, r1, r6, lr
+.elseif \semit == 2
+    semitrans2p  r8, r1, r4, r5, r6, r9, lr
+.endif
+    strpl   r8, [r0], #4
+    bpl     1b
+2:
+    tst     r2, #1
+    strhne  r8, [r0], #2
+    mov     r2, r7                 @ w
+    add     r0, r0, #2048
+    sub     r0, r0, r7, lsl #1
+    subs    r3, r3, #1
+    bgt     0b
+
+    ldmfd   sp!, {r4-r9,pc}
+    .cfi_endproc
+.endm
+
+
+tile_driver_st_m tile_driver_st0_asm, 0
+tile_driver_st_m tile_driver_st1_asm, 1
+tile_driver_st_m tile_driver_st3_asm, 3
+#ifdef HAVE_ARMV6
+tile_driver_st_m tile_driver_st2_asm, 2
+#endif
+
 @ (u16 *d, void *s, u16 *pal, int lines)
 sprite_4bpp_x16_asm_:
     ldr     r12,[r3, #0x18]        @ y0
@@ -106,7 +242,7 @@ FUNCTION(sprite_4bpp_x16_asm):
     stmfd   sp!, {r4-r8,lr}
     .cfi_def_cfa_offset 4*6
     .cfi_rel_offset lr, 4*5
-    mov     r12, #0x1e             @ empty pixel
+    mov     r12, #0x1e
 
 0:
     ldmia   r1, {r4,r5}
@@ -343,15 +479,15 @@ FUNCTION(\name):
 .endm
 
 sprite_driver_l_st sprite_driver_4bpp_l0_std_asm, 4, 0, -1
+sprite_driver_l_st sprite_driver_4bpp_l0_st0_asm, 4, 0,  0
 sprite_driver_l_st sprite_driver_8bpp_l0_std_asm, 8, 0, -1
+sprite_driver_l_st sprite_driver_8bpp_l0_st0_asm, 8, 0,  0
 
 #ifdef HAVE_ARMV6
 
-sprite_driver_l_st sprite_driver_4bpp_l0_st0_asm, 4, 0,  0
 sprite_driver_l_st sprite_driver_4bpp_l1_std_asm, 4, 1, -1
 sprite_driver_l_st sprite_driver_4bpp_l1_st0_asm, 4, 1,  0
 sprite_driver_l_st sprite_driver_4bpp_l1_st1_asm, 4, 1,  1
-sprite_driver_l_st sprite_driver_8bpp_l0_st0_asm, 8, 0,  0
 sprite_driver_l_st sprite_driver_8bpp_l1_std_asm, 8, 1, -1
 sprite_driver_l_st sprite_driver_8bpp_l1_st0_asm, 8, 1,  0
 sprite_driver_l_st sprite_driver_8bpp_l1_st1_asm, 8, 1,  1
@@ -412,6 +548,82 @@ FUNCTION(sprite_driver_16bpp_asm):
 
     ldmfd   sp!, {r4-r6,pc}
     .cfi_endproc
+
+
+@ (void *d, const gpu_unai_inner_t *inn, int count)
+@ see also tile_driver_st_m
+.macro poly_untex_st_m name semit
+FUNCTION(\name):
+    .cfi_startproc
+    ldrh    r1, [r1, #0x38]        @ rgb
+    stmfd   sp!, {r4-r7,lr}
+    .cfi_def_cfa_offset 4*5
+    .cfi_rel_offset lr, 4*4
+.if \semit != 2
+    mov     r4, #0x8000
+    orr     r4, r4, r4, lsl #16    @ mask 8000
+    mov     r6, #0x420
+    orr     r6, r6, #1
+    orr     r6, r6, r6, lsl #16    @ mask 0421
+.endif
+.if \semit == 2
+    and     r4, r1, #0x03e0
+    and     r5, r1, #0x7c00
+    and     r1, r1, #0x001f
+    orr     r4, r4, r4, lsl #16    @ premasked g
+    orr     r5, r5, r5, lsl #16    @ premasked b
+    mov     r6, #0x00001f
+    orr     r6, #0x1f0000          @ mask
+.elseif \semit == 3
+    mov     r1, r1, lsr #2
+    bic     r1, r1, #(0x0c60>>2)
+.endif
+    orr     r1, r1, r1, lsl #16
+0:
+    ldrh    r3, [r0]
+    pld_    r0, #2048
+    tst     r0, #2
+    beq     1f
+    sub     r2, #1
+.if \semit == 0
+    bic     r3, r3, r4
+    semitrans0p  r3, r1, r6, lr
+.elseif \semit == 1 || \semit == 3
+    bic     r3, r3, r4
+    semitrans13p r3, r1, r6, lr
+.elseif \semit == 2
+    semitrans2p  r3, r1, r4, r5, r6, r7, lr
+.endif
+    strh    r3, [r0], #2
+1:
+    ldr     r3, [r0]
+    pld_    r0, #32
+    subs    r2, r2, #2
+.if \semit == 0
+    bic     r3, r3, r4
+    semitrans0p  r3, r1, r6, lr
+.elseif \semit == 1 || \semit == 3
+    bic     r3, r3, r4
+    semitrans13p r3, r1, r6, lr
+.elseif \semit == 2
+    semitrans2p  r3, r1, r4, r5, r6, r7, lr
+.endif
+    strpl   r3, [r0], #4
+    bpl     1b
+2:
+    tst     r2, #1
+    strhne  r3, [r0], #2
+
+    ldmfd   sp!, {r4-r7,pc}
+    .cfi_endproc
+.endm
+
+poly_untex_st_m poly_untex_st0_asm, 0
+poly_untex_st_m poly_untex_st1_asm, 1
+poly_untex_st_m poly_untex_st3_asm, 3
+#ifdef HAVE_ARMV6
+poly_untex_st_m poly_untex_st2_asm, 2
+#endif
 
 
 .macro poly_4_8bpp_asm_m name bpp light semit
@@ -568,15 +780,15 @@ v_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
     .cfi_endproc
 .endm
 
-poly_4_8bpp_asm_m poly_4bpp_asm,       4, 0, -1
-poly_4_8bpp_asm_m poly_8bpp_asm,       8, 0, -1
+poly_4_8bpp_asm_m poly_4bpp_asm,        4, 0, -1
+poly_4_8bpp_asm_m poly_4bpp_l0_st0_asm, 4, 0,  0
+poly_4_8bpp_asm_m poly_8bpp_asm,        8, 0, -1
+poly_4_8bpp_asm_m poly_8bpp_l0_st0_asm, 8, 0,  0
 
 #ifdef HAVE_ARMV6
 
-poly_4_8bpp_asm_m poly_4bpp_l0_st0_asm, 4, 0,  0
 poly_4_8bpp_asm_m poly_4bpp_l1_std_asm, 4, 1, -1
 poly_4_8bpp_asm_m poly_4bpp_l1_st0_asm, 4, 1,  0
-poly_4_8bpp_asm_m poly_8bpp_l0_st0_asm, 8, 0,  0
 poly_4_8bpp_asm_m poly_8bpp_l1_std_asm, 8, 1, -1
 poly_4_8bpp_asm_m poly_8bpp_l1_st0_asm, 8, 1,  0
 
