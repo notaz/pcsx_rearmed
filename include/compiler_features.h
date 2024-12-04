@@ -2,6 +2,7 @@
 #ifdef __GNUC__
 # define likely(x)       __builtin_expect((x),1)
 # define unlikely(x)     __builtin_expect((x),0)
+# define preload         __builtin_prefetch
 # ifdef __clang__
 #  define noinline       __attribute__((noinline))
 # else
@@ -11,6 +12,7 @@
 #else
 # define likely(x)       (x)
 # define unlikely(x)     (x)
+# define preload         (x)
 # define noinline
 # define attr_unused
 #endif

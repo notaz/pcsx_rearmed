@@ -17,22 +17,10 @@
 #include "gpu_timing.h"
 #include "../../libpcsxcore/gpu.h" // meh
 #include "../../frontend/plugin_lib.h"
+#include "../../include/compiler_features.h"
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-#endif
-#ifdef __GNUC__
-# define unlikely(x) __builtin_expect((x), 0)
-# define preload __builtin_prefetch
-# ifndef __clang__
-#  define noinline __attribute__((noinline,noclone))
-# else
-#  define noinline __attribute__((noinline))
-# endif
-#else
-# define unlikely(x)
-# define preload(...)
-# define noinline
 #endif
 
 //#define log_io gpu_log

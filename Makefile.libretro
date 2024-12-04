@@ -356,7 +356,6 @@ else ifeq ($(platform), ctr)
 	TARGET := $(TARGET_NAME)_libretro_ctr.a
 	CFLAGS += -DARM11 -D_3DS -D__3DS__
 	CFLAGS += -DGPU_UNAI_USE_FLOATMATH -DGPU_UNAI_USE_FLOAT_DIV_MULTINV
-	CFLAGS += -DGPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE # needed on some compilers?
 	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp -mtp=soft
 	CFLAGS += -mword-relocations
 	CFLAGS += -fomit-frame-pointer

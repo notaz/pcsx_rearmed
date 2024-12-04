@@ -229,7 +229,7 @@ plugins/dfsound/out.o: CFLAGS += -DHAVE_LIBRETRO
 endif
 
 # builtin gpu
-OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
+OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o plugins/gpulib/prim.o
 ifeq "$(BUILTIN_GPU)" "neon"
 CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o
@@ -272,9 +272,12 @@ OBJS += plugins/gpu_unai/old/if.o
 else
 CFLAGS += -DGPU_UNAI_NO_OLD
 endif
+plugins/gpu_unai/gpulib_if.o: plugins/gpu_unai/*.h
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
+ifneq ($(DEBUG), 1)
 plugins/gpu_unai/gpulib_if.o \
 plugins/gpu_unai/old/if.o: CFLAGS += -O3
+endif
 CC_LINK = $(CXX)
 endif
 

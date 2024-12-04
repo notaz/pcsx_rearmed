@@ -41,10 +41,14 @@ GPU_INLINE uint_fast16_t gpuBlendingARM(uint_fast16_t uSrc, uint_fast16_t uDst)
 		asm ("eor %[mix], %[uSrc], %[uDst]\n\t" // uSrc ^ uDst
 		     "and %[mix], %[mix], %[mask]\n\t"  // ... & 0x0421
 		     "sub %[mix], %[uDst], %[mix]\n\t"  // uDst - ...
+		#ifdef HAVE_ARMV6
+		     "uhadd16 %[mix], %[uSrc], %[mix]\n\t"
+		#else
 		     "add %[mix], %[uSrc], %[mix]\n\t"  // uSrc + ...
 		     "mov %[mix], %[mix], lsr #0x1\n\t" // ... >> 1
+		#endif
 		     : [mix] "=&r" (mix)
-		     : [uSrc] "r" (uSrc), [uDst] "r" (uDst), [mask] "r" (0x0421));
+		     : [uSrc] "r" (uSrc), [uDst] "r" (uDst), [mask] "r" (0x0420)); // 421
 	}
 
 	if (BLENDMODE == 1 || BLENDMODE == 3) {

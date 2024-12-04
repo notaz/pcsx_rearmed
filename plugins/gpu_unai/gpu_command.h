@@ -45,13 +45,13 @@ void gpuSetTexture(u16 tpage)
 	
 	gpu_unai.BLEND_MODE  = ((tpage>>5) & 3) << 3;
 	gpu_unai.TEXT_MODE   = (tmode + 1) << 5; // gpu_unai.TEXT_MODE should be values 1..3, so add one
-	gpu_unai.TBA = &gpu_unai.vram[FRAME_OFFSET(tx, ty)];
+	gpu_unai.inn.TBA = &gpu_unai.vram[FRAME_OFFSET(tx, ty)];
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSetCLUT(u16 clut)
 {
-	gpu_unai.CBA = &gpu_unai.vram[(clut & 0x7FFF) << 4];
+	gpu_unai.inn.CBA = &gpu_unai.vram[(clut & 0x7FFF) << 4];
 }
 
 #ifdef  ENABLE_GPU_NULL_SUPPORT

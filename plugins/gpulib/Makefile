@@ -5,7 +5,7 @@ endif
 
 include ../../config.mak
 
-OBJS += gpu.o
+OBJS += gpu.o prim.o
 
 ifeq "$(ARCH)" "arm"
 OBJS += vout_pl.o

@@ -161,7 +161,7 @@ static uint16_t *get_downscale_buffer(int *x, int *y, int *w, int *h, int *vram_
     lines = *h;
 
     // Ensure start at a non-skipped line
-    while (*y & gpu_unai.ilace_mask) ++*y;
+    while (*y & gpu_unai.inn.ilace_mask) ++*y;
   }
 
   unsigned int fb_offset_src = (*y * dstride + *x) & fb_mask;
@@ -243,8 +243,8 @@ int renderer_init(void)
   //senquack - new vars must be updated whenever texture window is changed:
   //           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
   const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-  gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-  gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+  gpu_unai.inn.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+  gpu_unai.inn.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
   // Configuration options
   gpu_unai.config = gpu_unai_config_ext;
@@ -252,7 +252,7 @@ int renderer_init(void)
   // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
   // present in latest PCSX4ALL sources we were using.
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+  gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
 #if defined(GPU_UNAI_USE_INT_DIV_MULTINV) || (!defined(GPU_UNAI_NO_OLD) && !defined(GPU_UNAI_USE_FLOATMATH))
   // s_invTable
@@ -285,13 +285,13 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+  gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
 #ifndef HAVE_PRE_ARMV7 /* XXX */
   if (gpu_unai.config.scale_hires)
 #endif
   {
-    gpu_unai.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
+    gpu_unai.inn.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
 
   /*
@@ -340,8 +340,8 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 
         // Inner loop vars must be updated whenever texture window is changed:
         const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-        gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-        gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+        gpu_unai.inn.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+        gpu_unai.inn.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
         gpuSetTexture(gpu_unai.GPU_GP1);
       }
@@ -375,6 +375,40 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 #endif
 
 #include "../gpulib/gpu_timing.h"
+
+// Strip lower 3 bits of each color and determine if lighting should be used:
+static inline bool need_lighting(u32 rgb_raw)
+{
+  return (rgb_raw & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080);
+}
+
+static inline void textured_sprite(int &cpu_cycles_sum, int &cpu_cycles)
+{
+  u32 PRIM = le32_to_u32(gpu_unai.PacketBuffer.U4[0]) >> 24;
+  gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+  u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
+  s32 w = 0, h = 0;
+
+  //senquack - Only color 808080h-878787h allows skipping lighting calculation:
+  // This fixes Silent Hill running animation on loading screens:
+  // (On PSX, color values 0x00-0x7F darken the source texture's color,
+  //  0x81-FF lighten textures (ultimately clamped to 0x1F),
+  //  0x80 leaves source texture color unchanged, HOWEVER,
+  //   gpu_unai uses a simple lighting LUT whereby only the upper
+  //   5 bits of an 8-bit color are used, so 0x80-0x87 all behave as
+  //   0x80.
+  //
+  // NOTE: I've changed all textured sprite draw commands here and
+  //  elsewhere to use proper behavior, but left poly commands
+  //  alone, I don't want to slow rendering down too much. (TODO)
+  if (need_lighting(le32_raw(gpu_unai.PacketBuffer.U4[0])))
+    driver_idx |= Lighting;
+  PS driver = gpuSpriteDrivers[driver_idx];
+  PtrUnion packet = { .ptr = (void*)&gpu_unai.PacketBuffer };
+  gpuDrawS(packet, driver, &w, &h);
+  gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+}
+
 extern const unsigned char cmd_lengths[256];
 
 int do_cmd_list(u32 *list_, int list_len,
@@ -468,8 +502,20 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x2D:
       case 0x2E:
       case 0x2F: {          // Textured 4-pt poly
-        gpuSetCLUT   (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+        u32 simplified_count;
         gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
+        if ((simplified_count = prim_try_simplify_quad_t(gpu_unai.PacketBuffer.U4,
+              gpu_unai.PacketBuffer.U4)))
+        {
+          for (i = 0;; ) {
+            textured_sprite(cpu_cycles_sum, cpu_cycles);
+            if (++i >= simplified_count)
+              break;
+            memcpy(&gpu_unai.PacketBuffer.U4[0], &gpu_unai.PacketBuffer.U4[i * 4], 16);
+          }
+          break;
+        }
+        gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 
         u32 driver_idx =
           //(gpu_unai.blit_mask?1024:0) |
@@ -497,13 +543,22 @@ int do_cmd_list(u32 *list_, int list_len,
         // this is an untextured poly, so CF_LIGHT (texture blend)
         // shouldn't apply. Until the original array of template
         // instantiation ptrs is fixed, we're stuck with this. (TODO)
+        u8 gouraud = 129;
+        u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+        for (i = 1; i < 3; i++)
+          xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 2]);
+        if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
+          gouraud = 0;
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
-          gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyG(packet, driver, false);
+        if (gouraud)
+          gpuDrawPolyG(packet, driver, false);
+        else
+          gpuDrawPolyF(packet, driver, false, POLYTYPE_G);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
       } break;
 
@@ -513,13 +568,28 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x37: {          // Gouraud-shaded, textured 3-pt poly
         gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
         gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        u8 lighting = Lighting;
+        u8 gouraud = lighting ? (1<<7) : 0;
+        if (lighting) {
+          u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+          for (i = 1; i < 3; i++)
+            xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 3]);
+          if ((xor_ & HTOLE32(0xf8f8f8)) == 0) {
+            gouraud = 0;
+            if (!need_lighting(rgb0))
+              lighting = 0;
+          }
+        }
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
-          gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyGT(packet, driver, false);
+        if (gouraud)
+          gpuDrawPolyGT(packet, driver, false); // is_quad = true
+        else
+          gpuDrawPolyFT(packet, driver, false, POLYTYPE_GT);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
       } break;
 
@@ -528,13 +598,22 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
         // See notes regarding '129' for 0x30..0x33 further above -senquack
+        u8 gouraud = 129;
+        u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+        for (i = 1; i < 4; i++)
+          xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 2]);
+        if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
+          gouraud = 0;
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
-          gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyG(packet, driver, true); // is_quad = true
+        if (gouraud)
+          gpuDrawPolyG(packet, driver, true); // is_quad = true
+        else
+          gpuDrawPolyF(packet, driver, true, POLYTYPE_G);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
       } break;
 
@@ -542,15 +621,42 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x3D:
       case 0x3E:
       case 0x3F: {          // Gouraud-shaded, textured 4-pt poly
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        gpuSetTexture (le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        u32 simplified_count;
+        gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[5]) >> 16);
+        if ((simplified_count = prim_try_simplify_quad_gt(gpu_unai.PacketBuffer.U4,
+              gpu_unai.PacketBuffer.U4)))
+        {
+          for (i = 0;; ) {
+            textured_sprite(cpu_cycles_sum, cpu_cycles);
+            if (++i >= simplified_count)
+              break;
+            memcpy(&gpu_unai.PacketBuffer.U4[0], &gpu_unai.PacketBuffer.U4[i * 4], 16);
+          }
+          break;
+        }
+        gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
+        u8 lighting = Lighting;
+        u8 gouraud = lighting ? (1<<7) : 0;
+        if (lighting) {
+          u32 xor_ = 0, rgb0 = le32_raw(gpu_unai.PacketBuffer.U4[0]);
+          for (i = 1; i < 4; i++)
+            xor_ |= rgb0 ^ le32_raw(gpu_unai.PacketBuffer.U4[i * 3]);
+          if ((xor_ & HTOLE32(0xf8f8f8)) == 0) {
+            gouraud = 0;
+            if (!need_lighting(rgb0))
+              lighting = 0;
+          }
+        }
         PP driver = gpuPolySpanDrivers[
           //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
-          gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+          gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB
         ];
-        gpuDrawPolyGT(packet, driver, true); // is_quad = true
+        if (gouraud)
+          gpuDrawPolyGT(packet, driver, true); // is_quad = true
+        else
+          gpuDrawPolyFT(packet, driver, true, POLYTYPE_GT);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
       } break;
 
@@ -642,7 +748,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x61:
       case 0x62:
       case 0x63: {          // Monochrome rectangle (variable size)
-        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
+        PT driver = gpuTileDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         s32 w = 0, h = 0;
         gpuDrawT(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
@@ -651,38 +757,16 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x64:
       case 0x65:
       case 0x66:
-      case 0x67: {          // Textured rectangle (variable size)
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        // This fixes Silent Hill running animation on loading screens:
-        // (On PSX, color values 0x00-0x7F darken the source texture's color,
-        //  0x81-FF lighten textures (ultimately clamped to 0x1F),
-        //  0x80 leaves source texture color unchanged, HOWEVER,
-        //   gpu_unai uses a simple lighting LUT whereby only the upper
-        //   5 bits of an 8-bit color are used, so 0x80-0x87 all behave as
-        //   0x80.
-        // 
-        // NOTE: I've changed all textured sprite draw commands here and
-        //  elsewhere to use proper behavior, but left poly commands
-        //  alone, I don't want to slow rendering down too much. (TODO)
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
-      } break;
+      case 0x67:            // Textured rectangle (variable size)
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
+        break;
 
       case 0x68:
       case 0x69:
       case 0x6A:
       case 0x6B: {          // Monochrome rectangle (1x1 dot)
         gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00010001);
-        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
+        PT driver = gpuTileDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         s32 w = 0, h = 0;
         gpuDrawT(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(1, 1));
@@ -693,7 +777,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x72:
       case 0x73: {          // Monochrome rectangle (8x8)
         gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00080008);
-        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
+        PT driver = gpuTileDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         s32 w = 0, h = 0;
         gpuDrawT(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
@@ -704,18 +788,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x76:
       case 0x77: {          // Textured rectangle (8x8)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00080008);
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
       } break;
 
       case 0x78:
@@ -723,7 +796,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x7A:
       case 0x7B: {          // Monochrome rectangle (16x16)
         gpu_unai.PacketBuffer.U4[2] = u32_to_le32(0x00100010);
-        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
+        PT driver = gpuTileDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         s32 w = 0, h = 0;
         gpuDrawT(packet, driver, &w, &h);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
@@ -734,17 +807,7 @@ int do_cmd_list(u32 *list_, int list_len,
       case 0x7E:
       case 0x7F: {          // Textured rectangle (16x16)
         gpu_unai.PacketBuffer.U4[3] = u32_to_le32(0x00100010);
-        gpuSetCLUT    (le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
-        s32 w = 0, h = 0;
-        //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
-        // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((le32_raw(gpu_unai.PacketBuffer.U4[0]) & HTOLE32(0xF8F8F8)) != HTOLE32(0x808080))
-          driver_idx |= Lighting;
-        PS driver = gpuSpriteDrivers[driver_idx];
-        gpuDrawS(packet, driver, &w, &h);
-        gput_sum(cpu_cycles_sum, cpu_cycles, gput_sprite(w, h));
+        textured_sprite(cpu_cycles_sum, cpu_cycles);
       } break;
 
 #ifdef TEST
