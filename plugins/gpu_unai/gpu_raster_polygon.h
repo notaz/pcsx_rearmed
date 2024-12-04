@@ -258,7 +258,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				x3 = x4 = i2x(x0);
 				if (dx < 0) {
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx3 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) * FloatInv(y2 - y0)) : 0;
 					dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
 #else
@@ -276,7 +276,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 #endif
 				} else {
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx3 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
 					dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) * FloatInv(y2 - y0)) : 0;
 #else
@@ -304,7 +304,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 					x3 = i2x(x0) + (dx3 * (y1 - y0));
 					x4 = i2x(x1);
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) * FloatInv(y2 - y1)) : 0;
 #else
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
@@ -320,7 +320,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 					x3 = i2x(x1);
 					x4 = i2x(x0) + (dx4 * (y1 - y0));
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx3 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) * FloatInv(y2 - y1)) : 0;
 #else
 					dx3 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
@@ -583,7 +583,7 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 						v3 += (dv3 * (y1 - y0));
 					}
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) * FloatInv(y2 - y1)) : 0;
 #else
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
@@ -922,7 +922,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 					}
 
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) * FloatInv(y2 - y1)) : 0;
 #else
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
@@ -1307,7 +1307,7 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 					}
 
 #ifdef GPU_UNAI_USE_FLOATMATH
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV_FOR_ONE
+#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) * FloatInv(y2 - y1)) : 0;
 #else
 					dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
