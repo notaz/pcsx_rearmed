@@ -303,10 +303,10 @@ static void ari64_apply_config()
 	else
 		ndrc_g.hacks &= ~NDHACK_NO_STALLS;
 
-	thread_changed = (ndrc_g.hacks ^ ndrc_g.hacks_old)
+	thread_changed = ((ndrc_g.hacks | ndrc_g.hacks_pergame) ^ ndrc_g.hacks_old)
 		& (NDHACK_THREAD_FORCE | NDHACK_THREAD_FORCE_ON);
 	if (Config.cycle_multiplier != ndrc_g.cycle_multiplier_old
-	    || ndrc_g.hacks != ndrc_g.hacks_old)
+	    || (ndrc_g.hacks | ndrc_g.hacks_pergame) != ndrc_g.hacks_old)
 	{
 		new_dynarec_clear_full();
 	}
@@ -485,7 +485,9 @@ static void ari64_thread_init(void)
 {
 	int enable;
 
-	if (ndrc_g.hacks & NDHACK_THREAD_FORCE)
+	if (ndrc_g.hacks_pergame & NDHACK_THREAD_FORCE)
+		enable = 0;
+	else if (ndrc_g.hacks & NDHACK_THREAD_FORCE)
 		enable = ndrc_g.hacks & NDHACK_THREAD_FORCE_ON;
 	else {
 		u32 cpu_count = cpu_features_get_core_amount();

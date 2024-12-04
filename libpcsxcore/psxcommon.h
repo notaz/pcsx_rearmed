@@ -156,6 +156,7 @@ typedef struct {
 		boolean dualshock_init_analog;
 		boolean gpu_timing1024;
 		boolean fractional_Framerate;
+		boolean f1;
 	} hacks;
 } PcsxConfig;
 

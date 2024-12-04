@@ -6292,13 +6292,13 @@ void new_dynarec_clear_full(void)
   stat_clear(stat_links);
 
   if (ndrc_g.cycle_multiplier_old != Config.cycle_multiplier
-      || ndrc_g.hacks_old != ndrc_g.hacks)
+      || ndrc_g.hacks_old != (ndrc_g.hacks | ndrc_g.hacks_pergame))
   {
     SysPrintf("ndrc config: mul=%d, ha=%x, pex=%d\n",
       get_cycle_multiplier(), ndrc_g.hacks, Config.PreciseExceptions);
   }
   ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
-  ndrc_g.hacks_old = ndrc_g.hacks;
+  ndrc_g.hacks_old = ndrc_g.hacks | ndrc_g.hacks_pergame;
 }
 
 static int pgsize(void)
