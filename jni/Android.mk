@@ -60,6 +60,7 @@ SOURCES_C += $(SPU_DIR)/dma.c \
 
 # gpu
 SOURCES_C += $(GPU_DIR)/gpu.c \
+             $(GPU_DIR)/prim.c \
              $(GPU_DIR)/vout_pl.c
 
 # cdrcimg
