@@ -395,6 +395,7 @@ out:
 #ifdef _3DS
 static u32 mapped_addrs[8];
 static u32 mapped_ram, mapped_ram_src;
+static void *vram_mem;
 
 // http://3dbrew.org/wiki/Memory_layout#ARM11_User-land_memory_regions
 static void *pl_3ds_mmap(unsigned long addr, size_t size,
@@ -403,6 +404,9 @@ static void *pl_3ds_mmap(unsigned long addr, size_t size,
    void *ret = MAP_FAILED;
    *can_retry_addr = 0;
    (void)addr;
+
+   if (tag == MAP_TAG_VRAM && vram_mem)
+      return vram_mem;
 
    if (__ctr_svchax) do
    {
@@ -474,6 +478,9 @@ static void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
 {
    (void)tag;
 
+   if (ptr && ptr == vram_mem)
+      return;
+
    if (ptr && __ctr_svchax)
    {
       size_t i;
@@ -496,6 +503,26 @@ static void pl_3ds_munmap(void *ptr, size_t size, enum psxMapTag tag)
    }
 
    free(ptr);
+}
+
+// debug
+static int ctr_get_tlbe_k(u32 ptr)
+{
+   u32 tlb_base = -1, tlb_ctl = -1, *l1;
+   s32 tlb_mask = 0xffffc000;
+
+   asm volatile("mrc p15, 0, %0, c2, c0, 0" : "=r"(tlb_base));
+   asm volatile("mrc p15, 0, %0, c2, c0, 2" : "=r"(tlb_ctl));
+   tlb_mask >>= tlb_ctl & 7;
+   l1 = (u32 *)((tlb_base & tlb_mask) | 0xe0000000);
+   return l1[ptr >> 20];
+}
+
+static int ctr_get_tlbe(void *ptr)
+{
+   if (svcConvertVAToPA((void *)0xe0000000, 0) != 0x20000000)
+      return -1;
+   return svcCustomBackdoor(ctr_get_tlbe_k, ptr, NULL, NULL);
 }
 #endif
 
@@ -628,8 +655,9 @@ static void log_mem_usage(void)
    if (__ctr_svchax)
       svcGetSystemInfo(&mem_used, 0, 1);
 
-   SysPrintf("mem: %d/%d heap: %d linear: %d stack: %d exe: %d\n", (int)mem_used, app_memory,
-         __heap_size, __linear_heap_size, __stacksize__, (int)&__end__ - 0x100000);
+   SysPrintf("mem: %d/%d heap: %d linear: %d/%d stack: %d exe: %d\n",
+      (int)mem_used, app_memory, __heap_size, __linear_heap_size - linearSpaceFree(),
+      __linear_heap_size, __stacksize__, (int)&__end__ - 0x100000);
 #endif
 }
 
@@ -3577,7 +3605,16 @@ void retro_init(void)
    }
 
 #ifdef _3DS
-   vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+   // Place psx vram in linear mem to take advantage of it's supersection mapping.
+   // The emu allocs 2x (0x201000 to be exact) but doesn't really need that much,
+   // so place vout_buf below to also act as an overdraw guard.
+   vram_mem = linearMemAlign(1024*1024 + 4096 + VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 4096);
+   if (vram_mem) {
+      vout_buf = (char *)vram_mem + 1024*1024 + 4096;
+      if (__ctr_svchax)
+         SysPrintf("vram: %p PA %08x tlb %08x\n", vram_mem,
+               svcConvertVAToPA(vram_mem, 0), ctr_get_tlbe(vram_mem));
+   }
 #elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && P_HAVE_POSIX_MEMALIGN
    if (posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2) != 0)
       vout_buf = NULL;
@@ -3635,7 +3672,8 @@ void retro_deinit(void)
    }
    SysClose();
 #ifdef _3DS
-   linearFree(vout_buf);
+   linearFree(vram_mem);
+   vram_mem = NULL;
 #else
    free(vout_buf);
 #endif

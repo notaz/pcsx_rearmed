@@ -79,3 +79,17 @@ ctr_invalidate_icache:
   svc 0x80                      @ svcCustomBackdoor
   bx lr
   .endfunc
+
+  .global svcCustomBackdoor
+  .func svcCustomBackdoor
+svcCustomBackdoor:
+  svc 0x80                      @ svcCustomBackdoor
+  bx lr
+  .endfunc
+
+  .global svcConvertVAToPA
+  .func svcConvertVAToPA
+svcConvertVAToPA:
+  svc 0x90                      @ svcConvertVAToPA
+  bx lr
+  .endfunc
