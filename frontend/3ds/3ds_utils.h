@@ -15,6 +15,10 @@ void wait_for_input(void);
 void ctr_clear_cache(void);
 void ctr_clear_cache_range(void *start, void *end);
 void ctr_invalidate_icache(void); // only icache
+int ctr_get_tlbdesc(void *ptr);
+
+int svcCustomBackdoor(void *callback, void *a0, void *a1, void *a2);
+int svcConvertVAToPA(const void *VA, int writeCheck);
 
 extern __attribute__((weak)) int  __ctr_svchax;
 
