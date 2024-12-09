@@ -46,6 +46,7 @@ struct gpu_unai_config_t {
 	uint8_t fast_lighting:1;
 	uint8_t blending:1;
 	uint8_t dithering:1;
+	uint8_t force_dithering:1;
 	uint8_t old_renderer:1;
 
 	//senquack Only PCSX Rearmed's version of gpu_unai had this, and I

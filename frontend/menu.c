@@ -441,14 +441,13 @@ static const struct {
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 4),
-	CE_INTVAL_P(gpu_peops.iUseDither),
+	CE_INTVAL_PV(dithering, 2),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.old_renderer),
 	CE_INTVAL_P(gpu_unai.ilace_force),
 	CE_INTVAL_P(gpu_unai.lighting),
 	CE_INTVAL_P(gpu_unai.fast_lighting),
 	CE_INTVAL_P(gpu_unai.blending),
-	CE_INTVAL_P(gpu_unai.dithering),
 	CE_INTVAL_P(gpu_unai.scale_hires),
 	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_P(gpu_neon.enhancement_enable),
@@ -1427,7 +1426,6 @@ static menu_entry e_menu_plugin_gpu_neon[] =
 	mee_onoff_h   ("Enhanced res. speed hack",   0, pl_rearmed_cbs.gpu_neon.enhancement_no_main, 1, h_gpu_neon_enhanced_hack),
 	mee_onoff_h   ("Enh. res. texture adjust",   0, pl_rearmed_cbs.gpu_neon.enhancement_tex_adj, 1, h_gpu_neon_enhanced_texadj),
 	mee_enum      ("Enable interlace mode",      0, pl_rearmed_cbs.gpu_neon.allow_interlace, men_gpu_interlace),
-	mee_onoff     ("Enable dithering",           0, pl_rearmed_cbs.gpu_neon.allow_dithering, 1),
 	mee_end,
 };
 
@@ -1444,7 +1442,6 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 {
 	mee_onoff     ("Old renderer",               0, pl_rearmed_cbs.gpu_unai.old_renderer, 1),
 	mee_onoff     ("Interlace",                  0, pl_rearmed_cbs.gpu_unai.ilace_force, 1),
-	mee_onoff     ("Dithering",                  0, pl_rearmed_cbs.gpu_unai.dithering, 1),
 	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
 	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
@@ -1459,7 +1456,6 @@ static int menu_loop_plugin_gpu_unai(int id, int keys)
 }
 
 
-static const char *men_gpu_dithering[] = { "None", "Game dependant", "Always", NULL };
 //static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
 static const char h_gpu_2[]            = "Black screens in Lunar";
@@ -1472,7 +1468,6 @@ static const char h_gpu_10[]           = "Toggle busy flags after drawing";
 
 static menu_entry e_menu_plugin_gpu_peops[] =
 {
-	mee_enum      ("Dithering",                  0, pl_rearmed_cbs.gpu_peops.iUseDither, men_gpu_dithering),
 //	mee_onoff_h   ("Odd/even bit hack",          0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<0, h_gpu_0),
 	mee_onoff_h   ("Expand screen width",        0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<1, h_gpu_1),
 	mee_onoff_h   ("Ignore brightness color",    0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<2, h_gpu_2),
@@ -1551,6 +1546,8 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
+static const char *men_gpu_dithering[] = { "OFF", "ON", "Force", NULL };
+
 static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in\n"
 				   "savestates and can't be changed there. Must save\n"
 				   "config and reload the game for change to take effect";
@@ -1572,6 +1569,7 @@ static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1
 static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
+	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
 #ifdef BUILTIN_GPU_NEON

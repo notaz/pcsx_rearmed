@@ -661,7 +661,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       case 0xE1:
         set_texture(psx_gpu, list[0]);
 
-        if(list[0] & (1 << 9))
+        if ((psx_gpu->allow_dithering && (list[0] & (1 << 9)))
+            || psx_gpu->force_dithering)
           psx_gpu->render_state_base |= RENDER_STATE_DITHER;
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
@@ -1588,7 +1589,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       case 0xE1:
         set_texture(psx_gpu, list[0]);
 
-        if(list[0] & (1 << 9))
+        if ((psx_gpu->allow_dithering && (list[0] & (1 << 9)))
+            || psx_gpu->force_dithering)
           psx_gpu->render_state_base |= RENDER_STATE_DITHER;
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;

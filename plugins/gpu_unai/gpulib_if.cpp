@@ -883,8 +883,9 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   gpu_unai.config.lighting      = cbs->gpu_unai.lighting;
   gpu_unai.config.fast_lighting = cbs->gpu_unai.fast_lighting;
   gpu_unai.config.blending      = cbs->gpu_unai.blending;
-  gpu_unai.config.dithering     = cbs->gpu_unai.dithering;
   gpu_unai.config.scale_hires   = cbs->gpu_unai.scale_hires;
+  gpu_unai.config.dithering     = cbs->dithering != 0;
+  gpu_unai.config.force_dithering = cbs->dithering >> 1;
 
   gpu.state.downscale_enable    = gpu_unai.config.scale_hires;
   if (gpu_unai.config.scale_hires) {

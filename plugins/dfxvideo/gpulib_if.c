@@ -496,7 +496,7 @@ void renderer_notify_update_lace(int updated)
 
 void renderer_set_config(const struct rearmed_cbs *cbs)
 {
- iUseDither = cbs->gpu_peops.iUseDither;
+ iUseDither = cbs->dithering;
  dwActFixes = cbs->gpu_peops.dwActFixes;
  if (cbs->pl_set_gpu_caps)
   cbs->pl_set_gpu_caps(0);

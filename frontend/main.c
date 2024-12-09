@@ -129,19 +129,17 @@ void emu_set_default_config(void)
 	Config.GpuListWalking = -1;
 	Config.FractionalFramerate = -1;
 
+	pl_rearmed_cbs.dithering = 1;
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
-	pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
 	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_neon.enhancement_tex_adj = 1;
-	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
 	pl_rearmed_cbs.gpu_unai.old_renderer = 0;
 	pl_rearmed_cbs.gpu_unai.ilace_force = 0;
 	pl_rearmed_cbs.gpu_unai.lighting = 1;
 	pl_rearmed_cbs.gpu_unai.fast_lighting = 0;
 	pl_rearmed_cbs.gpu_unai.blending = 1;
-	pl_rearmed_cbs.gpu_unai.dithering = 0;
 	memset(&pl_rearmed_cbs.gpu_peopsgl, 0, sizeof(pl_rearmed_cbs.gpu_peopsgl));
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;
