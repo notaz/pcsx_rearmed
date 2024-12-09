@@ -208,6 +208,8 @@ typedef struct
   u16 enhancement_scanout_eselect;   // eviction selector
   u16 enhancement_current_buf;
 
+  u32 allow_dithering:1;
+  u32 force_dithering:1;
   u32 hack_disable_main:1;
   u32 hack_texture_adj:1;
 
@@ -226,7 +228,6 @@ typedef struct
   u8 texture_4bpp_cache[32][256 * 256];
   u8 texture_8bpp_even_cache[16][256 * 256];
   u8 texture_8bpp_odd_cache[16][256 * 256];
-  int use_dithering;
 } psx_gpu_struct;
 
 typedef struct __attribute__((aligned(16)))

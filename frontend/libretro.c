@@ -2186,23 +2186,20 @@ static void update_variables(bool in_flight)
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      if (strcmp(var.value, "disabled") == 0)
+      if (strcmp(var.value, "force") == 0)
       {
-         pl_rearmed_cbs.gpu_peops.iUseDither = 0;
-         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
-         pl_rearmed_cbs.gpu_unai.dithering = 0;
-#ifdef GPU_NEON
-         pl_rearmed_cbs.gpu_neon.allow_dithering = 0;
-#endif
-      }
-      else if (strcmp(var.value, "enabled") == 0)
-      {
-         pl_rearmed_cbs.gpu_peops.iUseDither    = 1;
+         pl_rearmed_cbs.dithering = 2;
          pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
-         pl_rearmed_cbs.gpu_unai.dithering = 1;
-#ifdef GPU_NEON
-         pl_rearmed_cbs.gpu_neon.allow_dithering = 1;
-#endif
+      }
+      else if (strcmp(var.value, "disabled") == 0)
+      {
+         pl_rearmed_cbs.dithering = 0;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 0;
+      }
+      else
+      {
+         pl_rearmed_cbs.dithering = 1;
+         pl_rearmed_cbs.gpu_peopsgl.bDrawDither = 1;
       }
    }
 
@@ -3648,7 +3645,6 @@ void retro_init(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, &rumble))
       rumble_cb = rumble.set_rumble_state;
 
-   pl_rearmed_cbs.gpu_peops.iUseDither = 1;
    pl_rearmed_cbs.gpu_peops.dwActFixes = GPU_PEOPS_OLD_FRAME_SKIP;
 
    SaveFuncs.open = save_open;
