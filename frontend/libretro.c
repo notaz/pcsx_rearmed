@@ -2457,31 +2457,6 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-#if 0 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
-   if (P_HAVE_PTHREAD) {
-	   var.value = NULL;
-	   var.key = "pcsx_rearmed_async_cd";
-	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-	   {
-		  if (strcmp(var.value, "async") == 0)
-		  {
-			 Config.AsyncCD = 1;
-			 Config.CHD_Precache = 0;
-		  }
-		  else if (strcmp(var.value, "sync") == 0)
-		  {
-			 Config.AsyncCD = 0;
-			 Config.CHD_Precache = 0;
-		  }
-		  else if (strcmp(var.value, "precache") == 0)
-		  {
-			 Config.AsyncCD = 0;
-			 Config.CHD_Precache = 1;
-		  }
-       }
-   }
-#endif
-
    var.value = NULL;
    var.key = "pcsx_rearmed_noxadecoding";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
