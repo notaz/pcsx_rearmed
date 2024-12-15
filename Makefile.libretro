@@ -348,6 +348,7 @@ else ifeq ($(platform), vita)
 	NO_MMAP := 1
 	NO_POSIX_MEMALIGN := 1
 	HAVE_PHYSICAL_CDROM = 0
+	EXTRA_EXTERN_SYMS += _newlib_vm_size_user
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
