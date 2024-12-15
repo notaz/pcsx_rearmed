@@ -573,7 +573,6 @@ static psx_map_t custom_psx_maps[] = {
 
 static int init_vita_mmap()
 {
-   int n;
    void *tmpaddr;
    addr = malloc(64 * 1024 * 1024);
    if (addr == NULL)
@@ -587,6 +586,7 @@ static int init_vita_mmap()
    custom_psx_maps[5].buffer = tmpaddr + 0x2000000;
    memset(tmpaddr, 0, 0x2210000);
 #if 0
+   int n;
    for(n = 0; n < 5; n++){
    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
    }
@@ -3677,14 +3677,6 @@ void retro_deinit(void)
    retro_audio_latency        = 0;
    update_audio_latency       = false;
 }
-
-#ifdef VITA
-#include <psp2/kernel/threadmgr.h>
-int usleep(unsigned long us)
-{
-   sceKernelDelayThread(us);
-}
-#endif
 
 void SysPrintf(const char *fmt, ...)
 {
