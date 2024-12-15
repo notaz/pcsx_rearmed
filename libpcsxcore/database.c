@@ -145,14 +145,16 @@ cycle_multiplier_overrides[] =
 	/* Syphon Filter - reportedly hangs under unknown conditions */
 	{ 169, { "SCUS94240" } },
 	/* Psychic Detective - some weird race condition in the game's cdrom code */
-	{ 222, { "SLUS00165", "SLUS00166", "SLUS00167" } },
-	{ 222, { "SLES00070", "SLES10070", "SLES20070" } },
+	{ 200, { "SLUS00165", "SLUS00166", "SLUS00167" } },
+	{ 200, { "SLES00070", "SLES10070", "SLES20070" } },
 	/* Vib-Ribbon - cd timing issues (PAL+ari64drc only?) */
 	{ 200, { "SCES02873" } },
 	/* Zero Divide - sometimes too fast */
 	{ 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
 	/* Eagle One: Harrier Attack - hangs (but not in standalone build?) */
 	{ 153, { "SLUS00943" } },
+	/* Sol Divide: FMV timing */
+	{ 200, { "SLUS01519", "SCPS45260", "SLPS01463" } },
 };
 
 /* Function for automatic patching according to GameID. */
