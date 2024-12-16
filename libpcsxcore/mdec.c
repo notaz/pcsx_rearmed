@@ -34,10 +34,12 @@
  */
  
 /*
- * >= 10 for Galerians
+ * >= 14 for Sol Divide
  * <= 18 for "Disney's Treasure Planet"
+ * Psychic Detective may break on *any* change
  */
-#define MDEC_BIAS 10
+#define MDEC_BIAS 14
+#define MDEC_DELAY 1024
 
 #define DSIZE			8
 #define DSIZE2			(DSIZE * DSIZE)
@@ -654,9 +656,9 @@ void psxDma1(u32 adr, u32 bcr, u32 chcr) {
 		log_unhandled("mdec: bork\n");
 	
 	/* define the power of mdec */
-	set_event(PSXINT_MDECOUTDMA, words * MDEC_BIAS);
+	set_event(PSXINT_MDECOUTDMA, words * MDEC_BIAS + MDEC_DELAY);
 	/* some CPU stalling */
-	psxRegs.cycle += words;
+	psxRegs.cycle += words * MDEC_BIAS / 4;
 }
 
 void mdec1Interrupt() {

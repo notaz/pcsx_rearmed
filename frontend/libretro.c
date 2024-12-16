@@ -573,7 +573,6 @@ static psx_map_t custom_psx_maps[] = {
 
 static int init_vita_mmap()
 {
-   int n;
    void *tmpaddr;
    addr = malloc(64 * 1024 * 1024);
    if (addr == NULL)
@@ -587,6 +586,7 @@ static int init_vita_mmap()
    custom_psx_maps[5].buffer = tmpaddr + 0x2000000;
    memset(tmpaddr, 0, 0x2210000);
 #if 0
+   int n;
    for(n = 0; n < 5; n++){
    sceClibPrintf("addr reserved %x\n",custom_psx_maps[n].buffer);
    }
@@ -2457,31 +2457,6 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-#if 0 // currently disabled, see USE_READ_THREAD in libpcsxcore/cdriso.c
-   if (P_HAVE_PTHREAD) {
-	   var.value = NULL;
-	   var.key = "pcsx_rearmed_async_cd";
-	   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-	   {
-		  if (strcmp(var.value, "async") == 0)
-		  {
-			 Config.AsyncCD = 1;
-			 Config.CHD_Precache = 0;
-		  }
-		  else if (strcmp(var.value, "sync") == 0)
-		  {
-			 Config.AsyncCD = 0;
-			 Config.CHD_Precache = 0;
-		  }
-		  else if (strcmp(var.value, "precache") == 0)
-		  {
-			 Config.AsyncCD = 0;
-			 Config.CHD_Precache = 1;
-		  }
-       }
-   }
-#endif
-
    var.value = NULL;
    var.key = "pcsx_rearmed_noxadecoding";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -3702,14 +3677,6 @@ void retro_deinit(void)
    retro_audio_latency        = 0;
    update_audio_latency       = false;
 }
-
-#ifdef VITA
-#include <psp2/kernel/threadmgr.h>
-int usleep(unsigned long us)
-{
-   sceKernelDelayThread(us);
-}
-#endif
 
 void SysPrintf(const char *fmt, ...)
 {

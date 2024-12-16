@@ -330,8 +330,9 @@ else ifeq ($(platform), vita)
 	CFLAGS += -DVITA
 	CFLAGS += -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -marm
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
-	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize -funroll-loops
-	CFLAGS += -fno-optimize-sibling-calls
+	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize
+	#CFLAGS += -funroll-loops # ~280K bloat
+	#CFLAGS += -fno-optimize-sibling-calls # debug?
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_DYLIB
 	CFLAGS_LAST += -O3
@@ -344,9 +345,10 @@ else ifeq ($(platform), vita)
 	DYNAREC = ari64
 	ARCH = arm
 	PARTIAL_LINKING = 1
-	NO_PTHREAD=1
+	NO_MMAP := 1
 	NO_POSIX_MEMALIGN := 1
 	HAVE_PHYSICAL_CDROM = 0
+	EXTRA_EXTERN_SYMS += _newlib_vm_size_user
 
 # CTR(3DS)
 else ifeq ($(platform), ctr)
