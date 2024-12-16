@@ -157,6 +157,12 @@ cycle_multiplier_overrides[] =
 	{ 200, { "SLUS01519", "SCPS45260", "SLPS01463" } },
 };
 
+static const char * const lightrec_hack_db[] =
+{
+	/* Tomb Raider (Rev 2) - boot menu clears over itself */
+	"SLUS00152",
+};
+
 /* Function for automatic patching according to GameID. */
 void Apply_Hacks_Cdrom(void)
 {
@@ -221,6 +227,9 @@ void Apply_Hacks_Cdrom(void)
 		lightrec_hacks = 0;
 		if (Config.hacks.f1)
 			lightrec_hacks |= LIGHTREC_HACK_INV_DMA_ONLY;
+		for (i = 0; i < ARRAY_SIZE(lightrec_hack_db); i++)
+			if (strcmp(lightrec_hack_db[i], CdromId) == 0)
+				lightrec_hacks |= LIGHTREC_HACK_INV_DMA_ONLY;
 		if (lightrec_hacks)
 			SysPrintf("using lightrec_hacks: 0x%x\n", lightrec_hacks);
 	}
