@@ -342,11 +342,10 @@ static void clear_local_cache(void)
 static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 	enum blockExecCaller block_caller)
 {
-	if (!ndrc_g.thread.busy) {
+	if (ndrc_g.thread.busy_addr == ~0u) {
 		memcpy(ndrc_smrv_regs, regs->GPR.r, sizeof(ndrc_smrv_regs));
 		slock_lock(ndrc_g.thread.lock);
-		ndrc_g.thread.addr = regs->pc;
-		ndrc_g.thread.busy = 1;
+		ndrc_g.thread.busy_addr = regs->pc;
 		slock_unlock(ndrc_g.thread.lock);
 		scond_signal(ndrc_g.thread.cond);
 	}
@@ -357,7 +356,7 @@ static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 	{
 		psxInt.ExecuteBlock(regs, block_caller);
 	}
-	while (!regs->stop && ndrc_g.thread.busy && block_caller == EXEC_CALLER_OTHER);
+	while (!regs->stop && ndrc_g.thread.busy_addr != ~0u && block_caller == EXEC_CALLER_OTHER);
 
 	psxInt.Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	//ari64_notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
@@ -372,8 +371,7 @@ static void ari64_execute_threaded_once(struct psxRegisters *regs,
 		*(void **)((char *)drc_local + LO_hash_table_ptr);
 	void *target;
 
-	if (likely(!ndrc_g.thread.busy)) {
-		ndrc_g.thread.addr = 0;
+	if (likely(ndrc_g.thread.busy_addr == ~0u)) {
 		target = ndrc_get_addr_ht_param(hash_table, regs->pc,
 				ndrc_cm_no_compile);
 		if (target) {
@@ -412,12 +410,12 @@ static void ari64_execute_threaded_block(struct psxRegisters *regs,
 
 static void ari64_thread_sync(void)
 {
-	if (!ndrc_g.thread.lock || !ndrc_g.thread.busy)
+	if (!ndrc_g.thread.lock || ndrc_g.thread.busy_addr == ~0u)
 		return;
 	for (;;) {
 		slock_lock(ndrc_g.thread.lock);
 		slock_unlock(ndrc_g.thread.lock);
-		if (!ndrc_g.thread.busy)
+		if (ndrc_g.thread.busy_addr == ~0)
 			break;
 		retro_sleep(0);
 	}
@@ -425,8 +423,8 @@ static void ari64_thread_sync(void)
 
 static int ari64_thread_check_range(unsigned int start, unsigned int end)
 {
-	u32 addr = ndrc_g.thread.addr;
-	if (!addr)
+	u32 addr = ndrc_g.thread.busy_addr;
+	if (addr == ~0u)
 		return 0;
 
 	addr &= 0x1fffffff;
@@ -451,16 +449,17 @@ static void ari64_compile_thread(void *unused)
 	slock_lock(ndrc_g.thread.lock);
 	while (!ndrc_g.thread.exit)
 	{
-		if (!ndrc_g.thread.busy)
+		addr = *(volatile unsigned int *)&ndrc_g.thread.busy_addr;
+		if (addr == ~0u)
 			scond_wait(ndrc_g.thread.cond, ndrc_g.thread.lock);
-		addr = ndrc_g.thread.addr;
-		if (!ndrc_g.thread.busy || !addr || ndrc_g.thread.exit)
+		addr = *(volatile unsigned int *)&ndrc_g.thread.busy_addr;
+		if (addr == ~0u || ndrc_g.thread.exit)
 			continue;
 
 		target = ndrc_get_addr_ht_param(hash_table, addr,
 				ndrc_cm_compile_in_thread);
 		//printf("c  %08x -> %p\n", addr, target);
-		ndrc_g.thread.busy = 0;
+		ndrc_g.thread.busy_addr = ~0u;
 	}
 	slock_unlock(ndrc_g.thread.lock);
 	(void)target;
@@ -490,7 +489,7 @@ static void ari64_thread_shutdown(void)
 		slock_free(ndrc_g.thread.lock);
 		ndrc_g.thread.lock = NULL;
 	}
-	ndrc_g.thread.busy = ndrc_g.thread.addr = 0;
+	ndrc_g.thread.busy_addr = ~0u;
 }
 
 static void ari64_thread_init(void)
@@ -514,7 +513,8 @@ static void ari64_thread_init(void)
 		return;
 
 	ari64_thread_shutdown();
-	ndrc_g.thread.busy = ndrc_g.thread.addr = ndrc_g.thread.exit = 0;
+	ndrc_g.thread.exit = 0;
+	ndrc_g.thread.busy_addr = ~0u;
 
 	if (enable) {
 		ndrc_g.thread.lock = slock_new();

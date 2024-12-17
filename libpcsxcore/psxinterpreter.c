@@ -1243,7 +1243,8 @@ static void intNotify(enum R3000Anote note, void *data) {
 		setupCop(psxRegs.CP0.n.SR);
 		// fallthrough
 	case R3000ACPU_NOTIFY_CACHE_ISOLATED: // Armored Core?
-		memset(&ICache, 0xff, sizeof(ICache));
+		if (fetch == fetchICache)
+			memset(&ICache, 0xff, sizeof(ICache));
 		break;
 	case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
 		break;
@@ -1340,8 +1341,10 @@ void intApplyConfig() {
 
 	// the dynarec may occasionally call the interpreter, in such a case the
 	// cache won't work (cache only works right if all fetches go through it)
-	if (!Config.icache_emulation || psxCpu != &psxInt)
+	if (!Config.icache_emulation || psxCpu != &psxInt) {
 		fetch = fetchNoCache;
+		memset(&ICache, 0xff, sizeof(ICache));
+	}
 	else
 		fetch = fetchICache;
 
