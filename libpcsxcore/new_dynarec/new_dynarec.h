@@ -24,8 +24,7 @@ struct ndrc_globals
 		void *cond;
 		void *dirty_start;
 		void *dirty_end;
-		unsigned int addr;
-		int busy;
+		unsigned int busy_addr; // 0 is valid, ~0 == none
 		int exit;
 	} thread;
 };
