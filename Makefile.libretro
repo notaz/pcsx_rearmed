@@ -332,7 +332,7 @@ else ifeq ($(platform), vita)
 	CFLAGS += -fsingle-precision-constant -mword-relocations -fno-unwind-tables
 	CFLAGS += -fno-asynchronous-unwind-tables -ftree-vectorize
 	#CFLAGS += -funroll-loops # ~280K bloat
-	#CFLAGS += -fno-optimize-sibling-calls # debug?
+	CFLAGS += -fno-optimize-sibling-calls # broken arm->thumb tailcalls?
 	CFLAGS += -I$(VITASDK)/include -Ifrontend/vita
 	CFLAGS += -DNO_DYLIB
 	CFLAGS_LAST += -O3

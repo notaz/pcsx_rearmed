@@ -9010,7 +9010,7 @@ static struct block_info *new_block_info(u_int start, u_int len,
   return block;
 }
 
-static int new_recompile_block(u_int addr)
+static int noinline new_recompile_block(u_int addr)
 {
   u_int pagelimit = 0;
   u_int state_rflags = 0;
