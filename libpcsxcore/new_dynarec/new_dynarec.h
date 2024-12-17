@@ -22,10 +22,11 @@ struct ndrc_globals
 		void *handle;
 		void *lock;
 		void *cond;
+		void *dirty_start;
+		void *dirty_end;
 		unsigned int addr;
 		int busy;
 		int exit;
-		int cache_dirty;   // 3ds only
 	} thread;
 };
 extern struct ndrc_globals ndrc_g;
@@ -40,6 +41,7 @@ void new_dynarec_print_stats(void);
 int  new_dynarec_quick_check_range(unsigned int start, unsigned int end);
 void new_dynarec_invalidate_range(unsigned int start, unsigned int end);
 void new_dynarec_invalidate_all_pages(void);
+void new_dyna_clear_cache(void *start, void *end);
 
 void new_dyna_start(void *context);
 void new_dyna_start_at(void *context, void *compiled_code);

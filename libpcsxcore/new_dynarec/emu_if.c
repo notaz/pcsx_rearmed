@@ -17,6 +17,7 @@
 #include "../gte_arm.h"
 #include "../gte_neon.h"
 #include "compiler_features.h"
+#include "arm_features.h"
 #define FLAGLESS
 #include "../gte.h"
 #ifdef NDRC_THREAD
@@ -317,13 +318,24 @@ static void ari64_apply_config()
 #ifdef NDRC_THREAD
 static void clear_local_cache(void)
 {
-#ifdef _3DS
-	if (ndrc_g.thread.cache_dirty) {
-		ndrc_g.thread.cache_dirty = 0;
-		ctr_invalidate_icache();
-	}
+#if defined(__arm__) || defined(__aarch64__)
+	if (ndrc_g.thread.dirty_start) {
+		// see "Ensuring the visibility of updates to instructions"
+		// in v7/v8 reference manuals (DDI0406, DDI0487 etc.)
+#if defined(__aarch64__) || defined(HAVE_ARMV8)
+		// the actual clean/invalidate is broadcast to all cores,
+		// the manual only prescribes an isb
+		__asm__ volatile("isb");
+//#elif defined(_3DS)
+//		ctr_invalidate_icache();
 #else
-	// hopefully nothing is needed, as tested on r-pi4 and switch
+		// while on v6 this is always required, on v7 it depends on
+		// "Multiprocessing Extensions" being present, but that is difficult
+		// to detect so do it always for now
+		new_dyna_clear_cache(ndrc_g.thread.dirty_start, ndrc_g.thread.dirty_end);
+#endif
+		ndrc_g.thread.dirty_start = ndrc_g.thread.dirty_end = 0;
+	}
 #endif
 }
 

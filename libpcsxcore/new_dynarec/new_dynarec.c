@@ -474,12 +474,7 @@ static void mprotect_w_x(void *start, void *end, int is_x)
 #endif
 }
 
-static void start_tcache_write(void *start, void *end)
-{
-  mprotect_w_x(start, end, 0);
-}
-
-static void end_tcache_write(void *start, void *end)
+void new_dyna_clear_cache(void *start, void *end)
 {
 #if defined(__arm__) || defined(__aarch64__)
   size_t len = (char *)end - (char *)start;
@@ -495,7 +490,6 @@ static void end_tcache_write(void *start, void *end)
     ctr_clear_cache_range(start, end);
   else
     ctr_clear_cache();
-  ndrc_g.thread.cache_dirty = 1;
   #elif defined(HAVE_LIBNX)
   if (g_jit.type == JitType_CodeMemory) {
     armDCacheClean(start, len);
@@ -512,6 +506,22 @@ static void end_tcache_write(void *start, void *end)
   #endif
   (void)len;
 #endif
+}
+
+static void start_tcache_write(void *start, void *end)
+{
+  mprotect_w_x(start, end, 0);
+}
+
+static void end_tcache_write(void *start, void *end)
+{
+#ifdef NDRC_THREAD
+  if (!ndrc_g.thread.dirty_start || (size_t)ndrc_g.thread.dirty_start > (size_t)start)
+    ndrc_g.thread.dirty_start = start;
+  if ((size_t)ndrc_g.thread.dirty_end < (size_t)end)
+    ndrc_g.thread.dirty_end = end;
+#endif
+  new_dyna_clear_cache(start, end);
 
   mprotect_w_x(start, end, 1);
 }
