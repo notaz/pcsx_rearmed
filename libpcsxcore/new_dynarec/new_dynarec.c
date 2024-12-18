@@ -6334,9 +6334,11 @@ void new_dynarec_init(void)
   if (sceBlock <= 0)
     SysPrintf("getVMBlock failed: %x\n", sceBlock);
   int ret = sceKernelGetMemBlockBase(sceBlock, (void **)&ndrc);
-  if (ret < 0)
-    SysPrintf("sceKernelGetMemBlockBase failed: %x\n", ret);
-  sceKernelOpenVMDomain();
+  if (ret)
+    SysPrintf("sceKernelGetMemBlockBase: %x\n", ret);
+  ret = sceKernelOpenVMDomain();
+  if (ret)
+    SysPrintf("sceKernelOpenVMDomain: %x\n", ret);
   #elif defined(_MSC_VER)
   ndrc = VirtualAlloc(NULL, sizeof(*ndrc), MEM_COMMIT | MEM_RESERVE,
     PAGE_EXECUTE_READWRITE);
