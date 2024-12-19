@@ -49,6 +49,6 @@ enum psx_gpu_state {
   PGS_PRIMITIVE_START, // for non-dma only
 };
 
-void gpu_state_change(int what);
+void gpu_state_change(int what, int cycles);
 
 #endif /* __GPU_H__ */

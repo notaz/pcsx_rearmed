@@ -63,7 +63,7 @@ struct rearmed_cbs {
 	void  (*pl_vout_set_raw_vram)(void *vram);
 	void  (*pl_set_gpu_caps)(int caps);
 	// emulation related
-	void  (*gpu_state_change)(int what);
+	void  (*gpu_state_change)(int what, int cycles);
 	// some stats, for display by some plugins
 	int flips_per_sec, cpu_usage;
 	float vsps_cur; // currect vsync/s
