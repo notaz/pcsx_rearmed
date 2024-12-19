@@ -13,7 +13,7 @@
 #include "gpu.h"
 #include "psxdma.h"
 
-void gpu_state_change(int what)
+void gpu_state_change(int what, int cycles)
 {
 	enum psx_gpu_state state = what;
 	switch (state)
@@ -22,10 +22,13 @@ void gpu_state_change(int what)
 		psxRegs.gpuIdleAfter = psxRegs.cycle + PSXCLK / 50;
 		break;
 	case PGS_VRAM_TRANSFER_END:
-		psxRegs.gpuIdleAfter = psxRegs.cycle;
+		psxRegs.gpuIdleAfter = psxRegs.cycle - 1;
 		break;
 	case PGS_PRIMITIVE_START:
-		psxRegs.gpuIdleAfter = psxRegs.cycle + 200;
+		// limit because gpulib delays things with it's buffering...
+		if (cycles > 512)
+			cycles = 512;
+		psxRegs.gpuIdleAfter = psxRegs.cycle + cycles - 1;
 		break;
 	}
 }

@@ -514,7 +514,7 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
   log_io(gpu, "start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
   if (gpu->gpu_state_change)
-    gpu->gpu_state_change(PGS_VRAM_TRANSFER_START);
+    gpu->gpu_state_change(PGS_VRAM_TRANSFER_START, 0);
 }
 
 static void finish_vram_transfer(struct psx_gpu *gpu, int is_read)
@@ -540,7 +540,7 @@ static void finish_vram_transfer(struct psx_gpu *gpu, int is_read)
                            gpu->dma_start.w, gpu->dma_start.h, 0);
   }
   if (gpu->gpu_state_change)
-    gpu->gpu_state_change(PGS_VRAM_TRANSFER_END);
+    gpu->gpu_state_change(PGS_VRAM_TRANSFER_END, 0);
 }
 
 static void do_vram_copy(struct psx_gpu *gpu, const uint32_t *params, int *cpu_cycles)
@@ -749,14 +749,15 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
 
 static noinline void flush_cmd_buffer(struct psx_gpu *gpu)
 {
+  int cycles_last = 0;
   int dummy = 0, left;
-  left = do_cmd_buffer(gpu, gpu->cmd_buffer, gpu->cmd_len, &dummy, &dummy);
+  left = do_cmd_buffer(gpu, gpu->cmd_buffer, gpu->cmd_len, &dummy, &cycles_last);
   if (left > 0)
     memmove(gpu->cmd_buffer, gpu->cmd_buffer + gpu->cmd_len - left, left * 4);
   if (left != gpu->cmd_len) {
-    if (!gpu->dma.h && gpu->gpu_state_change)
-      gpu->gpu_state_change(PGS_PRIMITIVE_START);
     gpu->cmd_len = left;
+    if (!gpu->dma.h && gpu->gpu_state_change)
+      gpu->gpu_state_change(PGS_PRIMITIVE_START, cycles_last);
   }
 }
 
