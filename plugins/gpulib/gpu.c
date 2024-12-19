@@ -493,7 +493,7 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
   uint32_t size_word, int is_read)
 {
   if (gpu->dma.h)
-    log_anomaly("start_vram_transfer while old unfinished\n");
+    log_anomaly(gpu, "start_vram_transfer while old unfinished\n");
 
   gpu->dma.x = pos_word & 0x3ff;
   gpu->dma.y = (pos_word >> 16) & 0x1ff;
@@ -511,7 +511,7 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
     gpu->state.last_vram_read_frame = *gpu->state.frame_count;
   }
 
-  log_io("start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
+  log_io(gpu, "start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
     gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
   if (gpu->gpu_state_change)
     gpu->gpu_state_change(PGS_VRAM_TRANSFER_START);
@@ -532,7 +532,7 @@ static void finish_vram_transfer(struct psx_gpu *gpu, int is_read)
     not_dirty |= dma_r - gpu->screen.src_x - 1;
     not_dirty |= dma_b - gpu->screen.src_y - 1;
     not_dirty >>= 31;
-    log_io("dma %3d,%3d %dx%d scr %3d,%3d %3dx%3d -> dirty %d\n",
+    log_io(gpu, "dma %3d,%3d %dx%d scr %3d,%3d %3dx%3d -> dirty %d\n",
       gpu->dma_start.x, gpu->dma_start.y, gpu->dma_start.w, gpu->dma_start.h,
       gpu->screen.src_x, gpu->screen.src_y, gpu->screen.hres, gpu->screen.vres, !not_dirty);
     gpu->state.fb_dirty |= !not_dirty;
@@ -715,7 +715,7 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
       if (cmd == 2)
         break;
       if (cmd == 0x1f)
-        log_anomaly("irq1?\n");
+        log_anomaly(gpu, "irq1?\n");
       pos++;
       continue;
     }
@@ -764,19 +764,19 @@ void GPUwriteDataMem(uint32_t *mem, int count)
 {
   int dummy = 0, left;
 
-  log_io("gpu_dma_write %p %d\n", mem, count);
+  log_io(&gpu, "gpu_dma_write %p %d\n", mem, count);
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer(&gpu);
 
   left = do_cmd_buffer(&gpu, mem, count, &dummy, &dummy);
   if (left)
-    log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, count);
+    log_anomaly(&gpu, "GPUwriteDataMem: discarded %d/%d words\n", left, count);
 }
 
 void GPUwriteData(uint32_t data)
 {
-  log_io("gpu_write %08x\n", data);
+  log_io(&gpu, "gpu_write %08x\n", data);
   gpu.cmd_buffer[gpu.cmd_len++] = HTOLE32(data);
   if (gpu.cmd_len >= CMD_BUFFER_LEN)
     flush_cmd_buffer(&gpu);
@@ -795,7 +795,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer(&gpu);
 
-  log_io("gpu_dma_chain\n");
+  log_io(&gpu, "gpu_dma_chain\n");
   addr = ld_addr = start_addr & 0xffffff;
   for (count = 0; (addr & 0x800000) == 0; count++)
   {
@@ -808,11 +808,11 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
     if (len > 0)
       cpu_cycles_sum += 5 + len;
 
-    log_io(".chain %08lx #%d+%d %u+%u\n",
+    log_io(&gpu, ".chain %08lx #%d+%d %u+%u\n",
       (long)(list - rambase) * 4, len, gpu.cmd_len, cpu_cycles_sum, cpu_cycles_last);
     if (unlikely(gpu.cmd_len > 0)) {
       if (gpu.cmd_len + len > ARRAY_SIZE(gpu.cmd_buffer)) {
-        log_anomaly("cmd_buffer overflow, likely garbage commands\n");
+        log_anomaly(&gpu, "cmd_buffer overflow, likely garbage commands\n");
         gpu.cmd_len = 0;
       }
       memcpy(gpu.cmd_buffer + gpu.cmd_len, list + 1, len * 4);
@@ -826,7 +826,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
       if (left) {
         memcpy(gpu.cmd_buffer, list + 1 + len - left, left * 4);
         gpu.cmd_len = left;
-        log_anomaly("GPUdmaChain: %d/%d words left\n", left, len);
+        log_anomaly(&gpu, "GPUdmaChain: %d/%d words left\n", left, len);
       }
     }
 
@@ -835,7 +835,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
       break;
     }
     if (addr == ld_addr) {
-      log_anomaly("GPUdmaChain: loop @ %08x, cnt=%u\n", addr, count);
+      log_anomaly(&gpu, "GPUdmaChain: loop @ %08x, cnt=%u\n", addr, count);
       break;
     }
     if (count == ld_count) {
@@ -856,7 +856,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
 
 void GPUreadDataMem(uint32_t *mem, int count)
 {
-  log_io("gpu_dma_read  %p %d\n", mem, count);
+  log_io(&gpu, "gpu_dma_read  %p %d\n", mem, count);
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer(&gpu);
@@ -879,7 +879,7 @@ uint32_t GPUreadData(void)
     ret = LE32TOH(ret);
   }
 
-  log_io("gpu_read %08x\n", ret);
+  log_io(&gpu, "gpu_read %08x\n", ret);
   return ret;
 }
 
@@ -891,7 +891,7 @@ uint32_t GPUreadStatus(void)
     flush_cmd_buffer(&gpu);
 
   ret = gpu.status;
-  log_io("gpu_read_status %08x\n", ret);
+  log_io(&gpu, "gpu_read_status %08x\n", ret);
   return ret;
 }
 

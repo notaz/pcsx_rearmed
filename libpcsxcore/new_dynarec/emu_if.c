@@ -24,9 +24,6 @@
 #include "../../frontend/libretro-rthreads.h"
 #include "features/features_cpu.h"
 #include "retro_timers.h"
-#ifdef VITA
-#include <psp2/kernel/sysmem.h>
-#endif
 #endif
 #ifdef _3DS
 #include <3ds_utils.h>
@@ -449,10 +446,6 @@ static void ari64_compile_thread(void *unused)
 	void *target;
 	u32 addr;
 
-#ifdef VITA
-	int ret = sceKernelOpenVMDomain();
-	if (ret) SysPrintf("thread: sceKernelOpenVMDomain: %x\n", ret);
-#endif
 	slock_lock(ndrc_g.thread.lock);
 	while (!ndrc_g.thread.exit)
 	{

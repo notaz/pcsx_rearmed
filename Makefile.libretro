@@ -347,6 +347,7 @@ else ifeq ($(platform), vita)
 	PARTIAL_LINKING = 1
 	NO_MMAP := 1
 	NO_POSIX_MEMALIGN := 1
+	NDRC_THREAD := 0 # can't write to tc from thread
 	HAVE_PHYSICAL_CDROM = 0
 	EXTRA_EXTERN_SYMS += _newlib_vm_size_user
 
