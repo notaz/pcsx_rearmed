@@ -1322,6 +1322,8 @@ static void cdrReadInterruptSetResult(unsigned char result)
 			cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 			cdr.CmdInProgress, cdr.IrqStat);
 		cdr.Irq1Pending = result;
+		// F1 2000 timing hack :(
+		psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
 		return;
 	}
 	SetResultSize(1);
