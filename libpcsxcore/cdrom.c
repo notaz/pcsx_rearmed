@@ -1304,16 +1304,6 @@ void cdrInterrupt(void) {
 	setIrq(IrqStat, Cmd);
 }
 
-#ifdef HAVE_ARMV7
- #define ssat32_to_16(v) \
-  asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
-#else
- #define ssat32_to_16(v) do { \
-  if (v < -32768) v = -32768; \
-  else if (v > 32767) v = 32767; \
- } while (0)
-#endif
-
 static void cdrPrepCdda(s16 *buf, int samples)
 {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -1332,6 +1322,8 @@ static void cdrReadInterruptSetResult(unsigned char result)
 			cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 			cdr.CmdInProgress, cdr.IrqStat);
 		cdr.Irq1Pending = result;
+		// F1 2000 timing hack :(
+		psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
 		return;
 	}
 	SetResultSize(1);
