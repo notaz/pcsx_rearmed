@@ -361,8 +361,8 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 
     case 5: {
       // GP0(E5h) - Set Drawing Offset (X,Y)
-      gpu_unai.DrawingOffset[0] = ((s32)cmd_word<<(32-11))>>(32-11);
-      gpu_unai.DrawingOffset[1] = ((s32)cmd_word<<(32-22))>>(32-11);
+      gpu_unai.DrawingOffset[0] = GPU_EXPANDSIGN(cmd_word);
+      gpu_unai.DrawingOffset[1] = GPU_EXPANDSIGN(cmd_word >> 11);
     } break;
 
     case 6: {

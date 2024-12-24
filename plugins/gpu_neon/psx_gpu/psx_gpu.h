@@ -32,6 +32,9 @@
 #define unlikely(x) __builtin_expect((x), 0)
 #endif
 
+#define sign_extend_11bit(value) \
+  (((s32)((value) << 21)) >> 21)
+
 typedef enum
 {
   PRIMITIVE_TYPE_TRIANGLE = 0,
@@ -246,6 +249,13 @@ typedef struct __attribute__((aligned(16)))
 
   u32 padding;
 } vertex_struct;
+
+typedef struct
+{
+  vertex_struct *vertexes[3];
+  s16 offset_x;
+  s16 offset_y;
+} prepared_triangle;
 
 void render_block_fill(psx_gpu_struct *psx_gpu, u32 color, u32 x, u32 y,
  u32 width, u32 height);
