@@ -346,7 +346,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
             const u32 *list_ = &siplified_prim[i * 4];
@@ -412,7 +413,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
             const u32 *list_ = &siplified_prim[i * 4];
@@ -1292,7 +1294,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
             const u32 *list_ = &siplified_prim[i * 4];
@@ -1356,7 +1359,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
             const u32 *list_ = &siplified_prim[i * 4];

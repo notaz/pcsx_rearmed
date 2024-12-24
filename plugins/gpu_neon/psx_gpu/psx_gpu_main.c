@@ -18,6 +18,12 @@
 #include "SDL.h"
 #include "common.h"
 
+#include "../../gpulib/gpu.h"
+#include "psx_gpu.c"
+#include "psx_gpu_parse.c"
+
+#pragma GCC diagnostic ignored "-Wunused-result"
+
 extern u32 span_pixels;
 extern u32 span_pixel_blocks;
 extern u32 spans;

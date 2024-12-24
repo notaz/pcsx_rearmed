@@ -5067,6 +5067,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->dither_table[1] = dither_table_row(2, -2, 3, -1);
   psx_gpu->dither_table[2] = dither_table_row(-3, 1, -4, 0);
   psx_gpu->dither_table[3] = dither_table_row(3, -1, 2, -2);
+  psx_gpu->allow_dithering = 1;
 
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
 
