@@ -909,7 +909,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "square", "Square" },
          { NULL, NULL },
       },
-      "circle",
+      "square",
    },
    {
       "pcsx_rearmed_vibration",
