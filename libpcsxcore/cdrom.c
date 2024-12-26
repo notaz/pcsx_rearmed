@@ -931,7 +931,6 @@ void cdrInterrupt(void) {
 				error = ERROR_BAD_ARGNUM;
 				goto set_error;
 			}
-			cdr.DriveState = DRIVESTATE_STANDBY;
 			second_resp_time = cdReadTime * 125 / 2;
 			start_rotating = 1;
 			break;
