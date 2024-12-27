@@ -210,7 +210,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 			psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 			set_event(PSXINT_GPUDMA, cycles_sum);
-			//printf("%u dma2cf: %6d,%4d %08x %08x %08x %08x\n", psxRegs.cycle,
+			//printf("%u dma2cf: %6ld,%4d %08x %08x %08x %08x\n", psxRegs.cycle,
 			//  cycles_sum, cycles_last_cmd, madr, bcr, chcr, HW_DMA2_MADR);
 			return;
 
@@ -237,7 +237,7 @@ void gpuInterrupt() {
 			cycles_sum += psxRegs.gpuIdleAfter - psxRegs.cycle;
 		psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 		set_event(PSXINT_GPUDMA, cycles_sum);
-		//printf("%u dma2cn: %6d,%4d %08x\n", psxRegs.cycle, cycles_sum,
+		//printf("%u dma2cn: %6ld,%4d %08x\n", psxRegs.cycle, cycles_sum,
 		//	cycles_last_cmd, HW_DMA2_MADR);
 		return;
 	}

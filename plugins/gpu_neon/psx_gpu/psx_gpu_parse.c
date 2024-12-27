@@ -292,7 +292,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
   u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
-  u32 siplified_prim[4*4];
+  u32 simplified_prim[4*4];
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -372,10 +372,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
         if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
-            (simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+            (simplified_count = prim_try_simplify_quad_t(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -437,10 +437,10 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
         if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
-            (simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+            (simplified_count = prim_try_simplify_quad_gt(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -1212,7 +1212,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
   u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
-  u32 siplified_prim[4*4];
+  u32 simplified_prim[4*4];
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -1320,10 +1320,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
         if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
-            (simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+            (simplified_count = prim_try_simplify_quad_t(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite_enh(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -1385,10 +1385,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
         if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
-            (simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+            (simplified_count = prim_try_simplify_quad_gt(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite_enh(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }

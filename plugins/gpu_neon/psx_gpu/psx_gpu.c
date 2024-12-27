@@ -1935,7 +1935,7 @@ setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
 
 #define setup_blocks_add_blocks_direct()                                       \
   stats_add(texel_blocks_untextured, span_num_blocks);                         \
-  span_pixel_blocks += span_num_blocks                                         \
+  stats_add(span_pixel_blocks, span_num_blocks);                               \
 
 
 #define setup_blocks_builder(shading, texturing, dithering, sw, target)        \
