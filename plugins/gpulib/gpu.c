@@ -831,10 +831,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
       }
     }
 
-    if (progress_addr) {
-      *progress_addr = addr;
+    if (progress_addr && (cpu_cycles_last + cpu_cycles_sum > 512))
       break;
-    }
     if (addr == ld_addr) {
       log_anomaly(&gpu, "GPUdmaChain: loop @ %08x, cnt=%u\n", addr, count);
       break;
@@ -851,6 +849,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
   gpu.state.last_list.cycles = cpu_cycles_sum + cpu_cycles_last;
   gpu.state.last_list.addr = start_addr;
 
+  if (progress_addr)
+    *progress_addr = addr;
   *cycles_last_cmd = cpu_cycles_last;
   return cpu_cycles_sum;
 }
