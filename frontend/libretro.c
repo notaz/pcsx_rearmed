@@ -2140,7 +2140,7 @@ static void update_variables(bool in_flight)
       {
          axis_bounds_modifier = true;
       }
-      else if (strcmp(var.value, "circle") == 0)
+      else
       {
          axis_bounds_modifier = false;
       }
@@ -2864,26 +2864,19 @@ static uint16_t get_analog_button(int16_t ret, retro_input_state_t input_state_c
    return button;
 }
 
-unsigned char axis_range_modifier(int16_t axis_value, bool is_square)
+static unsigned char axis_range_modifier(int axis_value, bool is_square)
 {
-   float modifier_axis_range = 0;
+   int modifier_axis_range;
 
    if (is_square)
-   {
-      modifier_axis_range = round((axis_value >> 8) / 0.785) + 128;
-      if (modifier_axis_range < 0)
-      {
-         modifier_axis_range = 0;
-      }
-      else if (modifier_axis_range > 255)
-      {
-         modifier_axis_range = 255;
-      }
-   }
+      modifier_axis_range = roundf((axis_value >> 8) / 0.785f) + 128;
    else
-   {
-      modifier_axis_range = MIN(((axis_value >> 8) + 128), 255);
-   }
+      modifier_axis_range = (axis_value >> 8) + 128;
+
+   if (modifier_axis_range < 0)
+      modifier_axis_range = 0;
+   else if (modifier_axis_range > 255)
+      modifier_axis_range = 255;
 
    return modifier_axis_range;
 }

@@ -1935,7 +1935,7 @@ setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
 
 #define setup_blocks_add_blocks_direct()                                       \
   stats_add(texel_blocks_untextured, span_num_blocks);                         \
-  span_pixel_blocks += span_num_blocks                                         \
+  stats_add(span_pixel_blocks, span_num_blocks);                               \
 
 
 #define setup_blocks_builder(shading, texturing, dithering, sw, target)        \
@@ -2918,9 +2918,9 @@ char *render_block_flag_strings[] =
    (triangle_winding_##winding << 6))                                          \
 
 static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
- vertex_struct *vertexes_out[3])
+ prepared_triangle *triangle_out)
 {
-  s32 y_top, y_bottom;
+  s32 y_top, y_bottom, offset_x, offset_y, i;
   s32 triangle_area;
   u32 triangle_winding = 0;
 
@@ -2955,6 +2955,7 @@ static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
 
   y_bottom = c->y;
   y_top = a->y;
+  offset_y = sign_extend_11bit(y_top + psx_gpu->offset_y) - y_top;
 
   if((y_bottom - y_top) >= 512)
   {
@@ -2982,7 +2983,7 @@ static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
       vertex_swap(a, b);
   }
 
-  if((c->x - psx_gpu->offset_x) >= 1024 || (c->x - a->x) >= 1024)
+  if(c->x - a->x >= 1024)
   {
 #ifdef PROFILE
     trivial_rejects++;
@@ -2990,21 +2991,31 @@ static int prepare_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
     return 0;
   }
 
-  if(invalidate_texture_cache_region_viewport(psx_gpu, a->x, y_top, c->x,
-   y_bottom) == 0)
+  offset_x = sign_extend_11bit(a->x + psx_gpu->offset_x) - a->x;
+  if(invalidate_texture_cache_region_viewport(psx_gpu,
+      a->x + offset_x, y_top + offset_y,
+      c->x + offset_x, y_bottom + offset_y) == 0)
   {
 #ifdef PROFILE
     trivial_rejects++;
 #endif
     return 0;
+  }
+
+  for (i = 0; i < 3; i++)
+  {
+    vertexes[i].x += offset_x;
+    vertexes[i].y += offset_y;
   }
 
   psx_gpu->triangle_area = triangle_area;
   psx_gpu->triangle_winding = triangle_winding;
 
-  vertexes_out[0] = a;
-  vertexes_out[1] = b;
-  vertexes_out[2] = c;
+  triangle_out->vertexes[0] = a;
+  triangle_out->vertexes[1] = b;
+  triangle_out->vertexes[2] = c;
+  triangle_out->offset_x = offset_x;
+  triangle_out->offset_y = offset_y;
 
   return 1;
 }
@@ -3157,9 +3168,9 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
 void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
  u32 flags)
 {
-  vertex_struct *vertex_ptrs[3];
-  if (prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
-    render_triangle_p(psx_gpu, vertex_ptrs, flags);
+  prepared_triangle triangle;
+  if (prepare_triangle(psx_gpu, vertexes, &triangle))
+    render_triangle_p(psx_gpu, triangle.vertexes, flags);
 }
 
 #if !defined(NEON_BUILD) || defined(SIMD_BUILD)
@@ -5067,6 +5078,7 @@ void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
   psx_gpu->dither_table[1] = dither_table_row(2, -2, 3, -1);
   psx_gpu->dither_table[2] = dither_table_row(-3, 1, -4, 0);
   psx_gpu->dither_table[3] = dither_table_row(3, -1, 2, -2);
+  psx_gpu->allow_dithering = 1;
 
   psx_gpu->primitive_type = PRIMITIVE_TYPE_UNKNOWN;
 

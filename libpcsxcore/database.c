@@ -32,6 +32,8 @@ static const char * const gpu_slow_llist_db[] =
 	"SLES01712", "SLPS01525", "SLPS91138", "SLPM87102", "SLUS00823",
 	/* Crash Bash */
 	"SCES02834", "SCUS94570", "SCUS94616", "SCUS94654",
+	/* F1 2000 - aborting/resuming dma in menus */
+	"SLUS01120", "SLES02722", "SLES02723", "SLES02724", "SLPS02758", "SLPM80564",
 	/* Final Fantasy IV */
 	"SCES03840", "SLPM86028", "SLUS01360",
 	/* Point Blank - calibration cursor */
@@ -52,12 +54,6 @@ static const char * const gpu_centering_hack_db[] =
 	"SLPM86042", "SLPM86103", "SLPM87323",
 	/* Sexy Parodius */
 	"SLPM86009",
-};
-
-static const char * const dualshock_timing1024_hack_db[] =
-{
-	/* Judge Dredd - could also be poor cdrom+mdec+dma timing */
-	"SLUS00630", "SLES00755",
 };
 
 static const char * const dualshock_init_analog_hack_db[] =
@@ -109,7 +105,6 @@ hack_db[] =
 	HACK_ENTRY(cdr_read_timing, cdr_read_hack_db),
 	HACK_ENTRY(gpu_slow_list_walking, gpu_slow_llist_db),
 	HACK_ENTRY(gpu_centering, gpu_centering_hack_db),
-	HACK_ENTRY(gpu_timing1024, dualshock_timing1024_hack_db),
 	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),
 	HACK_ENTRY(fractional_Framerate, fractional_Framerate_hack_db),
 	HACK_ENTRY(f1, f1_hack_db),
@@ -155,6 +150,22 @@ cycle_multiplier_overrides[] =
 	{ 153, { "SLUS00943" } },
 	/* Sol Divide: FMV timing */
 	{ 200, { "SLUS01519", "SCPS45260", "SLPS01463" } },
+};
+
+static const struct
+{
+	int cycles;
+	const char * const id[4];
+}
+gpu_timing_hack_db[] =
+{
+	/* Judge Dredd - poor cdrom+mdec+dma+gpu timing */
+	{ 1024, { "SLUS00630", "SLES00755" } },
+	/* F1 2000 - flooding the GPU in menus */
+	{ 300*1024, { "SLUS01120", "SLES02722", "SLES02723", "SLES02724" } },
+	{ 300*1024, { "SLPS02758", "SLPM80564" } },
+	/* Soul Blade - same as above */
+	{ 512*1024, { "SLUS00240", "SCES00577" } },
 };
 
 static const char * const lightrec_hack_db[] =
@@ -219,6 +230,22 @@ void Apply_Hacks_Cdrom(void)
 			ndrc_g.hacks_pergame |= NDHACK_OVERRIDE_CYCLE_M;
 			SysPrintf("using cycle_multiplier_override: %d\n",
 				Config.cycle_multiplier_override);
+			break;
+		}
+	}
+
+	Config.gpu_timing_override = 0;
+	for (i = 0; i < ARRAY_SIZE(gpu_timing_hack_db); i++)
+	{
+		const char * const * const ids = gpu_timing_hack_db[i].id;
+		for (j = 0; j < ARRAY_SIZE(gpu_timing_hack_db[i].id); j++)
+			if (ids[j] && strcmp(ids[j], CdromId) == 0)
+				break;
+		if (j < ARRAY_SIZE(gpu_timing_hack_db[i].id))
+		{
+			Config.gpu_timing_override = gpu_timing_hack_db[i].cycles;
+			SysPrintf("using gpu_timing_override: %d\n",
+				Config.gpu_timing_override);
 			break;
 		}
 	}

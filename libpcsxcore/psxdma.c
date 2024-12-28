@@ -192,10 +192,11 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 		case 0x01000401: // dma chain
 			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
 			// when not emulating walking progress, end immediately
+			// (some games abort the dma and read madr so break out of that logic)
 			madr_next = 0xffffff;
 
 			do_walking = Config.GpuListWalking;
-			if (do_walking < 0 || Config.hacks.gpu_timing1024)
+			if (do_walking < 0)
 				do_walking = Config.hacks.gpu_slow_list_walking;
 			madr_next_p = do_walking ? &madr_next : NULL;
 
@@ -204,13 +205,13 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 			HW_DMA2_MADR = SWAPu32(madr_next);
 
-			// a hack for Judge Dredd which is annoyingly sensitive to timing
-			if (Config.hacks.gpu_timing1024)
-				cycles_sum = 1024;
+			// timing hack with some lame heuristics
+			if (Config.gpu_timing_override && (do_walking || cycles_sum > 64))
+				cycles_sum = Config.gpu_timing_override;
 
 			psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 			set_event(PSXINT_GPUDMA, cycles_sum);
-			//printf("%u dma2cf: %6d,%4d %08x %08x %08x %08x\n", psxRegs.cycle,
+			//printf("%u dma2cf: %6ld,%4d %08x %08x %08x %08x\n", psxRegs.cycle,
 			//  cycles_sum, cycles_last_cmd, madr, bcr, chcr, HW_DMA2_MADR);
 			return;
 
@@ -237,8 +238,8 @@ void gpuInterrupt() {
 			cycles_sum += psxRegs.gpuIdleAfter - psxRegs.cycle;
 		psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 		set_event(PSXINT_GPUDMA, cycles_sum);
-		//printf("%u dma2cn: %6d,%4d %08x\n", psxRegs.cycle, cycles_sum,
-		//	cycles_last_cmd, HW_DMA2_MADR);
+		//printf("%u dma2cn: %6ld,%4d %08x\n", psxRegs.cycle, cycles_sum,
+		//  cycles_last_cmd, HW_DMA2_MADR);
 		return;
 	}
 	if (HW_DMA2_CHCR & SWAP32(0x01000000))

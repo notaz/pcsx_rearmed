@@ -202,14 +202,9 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
   }
 }
 
-#define sign_extend_11bit(value)                                               \
-  (((s32)((value) << 21)) >> 21)                                               \
-
 #define get_vertex_data_xy(vertex_number, offset16)                            \
-  vertexes[vertex_number].x =                                                  \
-   sign_extend_11bit(list_s16[offset16]) + psx_gpu->offset_x;                  \
-  vertexes[vertex_number].y =                                                  \
-   sign_extend_11bit(list_s16[(offset16) + 1]) + psx_gpu->offset_y;            \
+  vertexes[vertex_number].x = sign_extend_11bit(list_s16[offset16]);           \
+  vertexes[vertex_number].y = sign_extend_11bit(list_s16[(offset16) + 1]);     \
 
 #define get_vertex_data_uv(vertex_number, offset16)                            \
   vertexes[vertex_number].u = list_s16[offset16] & 0xFF;                       \
@@ -260,13 +255,44 @@ static void textured_sprite(psx_gpu_struct *psx_gpu, const u32 *list,
   gput_sum(*cpu_cycles_sum, *cpu_cycles, gput_sprite(width, height));
 }
 
+static void undo_offset(vertex_struct *vertexes, prepared_triangle *triangle)
+{
+  s32 i;
+  for (i = 0; i < 3; i++)
+  {
+    vertexes[i].x -= triangle->offset_x;
+    vertexes[i].y -= triangle->offset_y;
+  }
+}
+
+static void do_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ u32 current_command)
+{
+  prepared_triangle triangle;
+  if (prepare_triangle(psx_gpu, vertexes, &triangle))
+    render_triangle_p(psx_gpu, triangle.vertexes, current_command);
+}
+
+static void do_quad(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
+ u32 current_command)
+{
+  prepared_triangle triangle;
+  if (prepare_triangle(psx_gpu, vertexes, &triangle))
+  {
+    render_triangle_p(psx_gpu, triangle.vertexes, current_command);
+    undo_offset(vertexes, &triangle);
+  }
+  if (prepare_triangle(psx_gpu, vertexes + 1, &triangle))
+    render_triangle_p(psx_gpu, triangle.vertexes, current_command);
+}
+
 u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
  s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
   u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
-  u32 siplified_prim[4*4];
+  u32 simplified_prim[4*4];
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -307,7 +333,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(1, 4);
         get_vertex_data_xy(2, 6);
           
-        render_triangle(psx_gpu, vertexes, current_command);
+        do_triangle(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base());
         break;
       }
@@ -322,7 +348,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(1, 6);
         get_vertex_data_xy_uv(2, 10);
   
-        render_triangle(psx_gpu, vertexes, current_command);
+        do_triangle(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_t());
         break;
       }
@@ -335,9 +361,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy(1, 4);
         get_vertex_data_xy(2, 6);
         get_vertex_data_xy(3, 8);
-  
-        render_triangle(psx_gpu, vertexes, current_command);
-        render_triangle(psx_gpu, &(vertexes[1]), current_command);
+
+        do_quad(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base());
         break;
       }
@@ -346,10 +371,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_t(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -363,9 +389,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv(1, 6);   
         get_vertex_data_xy_uv(2, 10);  
         get_vertex_data_xy_uv(3, 14);
-  
-        render_triangle(psx_gpu, vertexes, current_command);
-        render_triangle(psx_gpu, &(vertexes[1]), current_command);
+
+        do_quad(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_t());
         break;
       }
@@ -376,7 +401,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(1, 4);
         get_vertex_data_xy_rgb(2, 8);
   
-        render_triangle(psx_gpu, vertexes, current_command);
+        do_triangle(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_g());
         break;
       }
@@ -390,7 +415,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(1, 6);
         get_vertex_data_xy_uv_rgb(2, 12);
 
-        render_triangle(psx_gpu, vertexes, current_command);
+        do_triangle(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_poly_base_gt());
         break;
       }
@@ -401,9 +426,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_rgb(1, 4);
         get_vertex_data_xy_rgb(2, 8);
         get_vertex_data_xy_rgb(3, 12);
-  
-        render_triangle(psx_gpu, vertexes, current_command);
-        render_triangle(psx_gpu, &(vertexes[1]), current_command);
+
+        do_quad(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_g());
         break;
       }
@@ -412,10 +436,11 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_gt(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -428,9 +453,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         get_vertex_data_xy_uv_rgb(1, 6);
         get_vertex_data_xy_uv_rgb(2, 12);
         get_vertex_data_xy_uv_rgb(3, 18);
-  
-        render_triangle(psx_gpu, vertexes, current_command);
-        render_triangle(psx_gpu, &(vertexes[1]), current_command);
+
+        do_quad(psx_gpu, vertexes, current_command);
         gput_sum(cpu_cycles_sum, cpu_cycles, gput_quad_base_gt());
         break;
       }
@@ -755,10 +779,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   
       case 0xE5:
       {
-        s32 offset_x = list[0] << 21;
-        s32 offset_y = list[0] << 10;
-        psx_gpu->offset_x = offset_x >> 21;
-        psx_gpu->offset_y = offset_y >> 21; 
+        psx_gpu->offset_x = sign_extend_11bit(list[0]);
+        psx_gpu->offset_y = sign_extend_11bit(list[0] >> 11);
   
         SET_Ex(5, list[0]);
         break;
@@ -1054,15 +1076,16 @@ static u32 uv_hack(psx_gpu_struct *psx_gpu, const vertex_struct *vertex_ptrs)
 static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
  vertex_struct *vertexes, u32 current_command)
 {
-  vertex_struct *vertex_ptrs[3];
+  prepared_triangle triangle;
 
-  if (!prepare_triangle(psx_gpu, vertexes, vertex_ptrs))
+  if (!prepare_triangle(psx_gpu, vertexes, &triangle))
     return;
 
   if (!psx_gpu->hack_disable_main)
-    render_triangle_p(psx_gpu, vertex_ptrs, current_command);
+    render_triangle_p(psx_gpu, triangle.vertexes, current_command);
 
-  if (!check_enhanced_range(psx_gpu, vertex_ptrs[0]->x, vertex_ptrs[2]->x))
+  if (!check_enhanced_range(psx_gpu, triangle.vertexes[0]->x,
+        triangle.vertexes[2]->x))
     return;
 
   if (!enhancement_enable(psx_gpu))
@@ -1070,17 +1093,21 @@ static void do_triangle_enhanced(psx_gpu_struct *psx_gpu,
 
   if ((current_command & RENDER_FLAGS_TEXTURE_MAP) && psx_gpu->hack_texture_adj)
     psx_gpu->hacks_active |= uv_hack(psx_gpu, vertexes);
-  shift_vertices3(vertex_ptrs);
+  shift_vertices3(triangle.vertexes);
   shift_triangle_area();
-  render_triangle_p(psx_gpu, vertex_ptrs, current_command);
-  unshift_vertices3(vertex_ptrs);
+  render_triangle_p(psx_gpu, triangle.vertexes, current_command);
+  //unshift_vertices3(triangle.vertexes);
 }
 
 static void do_quad_enhanced(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
  u32 current_command)
 {
+  s16 x12_save[2] = { vertexes[1].x, vertexes[2].x };
+  s16 y12_save[2] = { vertexes[1].y, vertexes[2].y };
   do_triangle_enhanced(psx_gpu, vertexes, current_command);
   enhancement_disable();
+  vertexes[1].x = x12_save[0], vertexes[2].x = x12_save[1];
+  vertexes[1].y = y12_save[0], vertexes[2].y = y12_save[1];
   do_triangle_enhanced(psx_gpu, &vertexes[1], current_command);
 }
 
@@ -1185,7 +1212,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
   u32 current_command = 0, command_length;
   u32 cpu_cycles_sum = 0, cpu_cycles = *cpu_cycles_last;
-  u32 siplified_prim[4*4];
+  u32 simplified_prim[4*4];
 
   u32 *list_start = list;
   u32 *list_end = list + (size / 4);
@@ -1292,10 +1319,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[4] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_t(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_t(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite_enh(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
@@ -1356,10 +1384,11 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
       {
         u32 i, simplified_count;
         set_texture(psx_gpu, list[5] >> 16);
-        if ((simplified_count = prim_try_simplify_quad_gt(siplified_prim, list)))
+        if (!(psx_gpu->render_state_base & RENDER_STATE_DITHER) &&
+            (simplified_count = prim_try_simplify_quad_gt(simplified_prim, list)))
         {
           for (i = 0; i < simplified_count; i++) {
-            const u32 *list_ = &siplified_prim[i * 4];
+            const u32 *list_ = &simplified_prim[i * 4];
             textured_sprite_enh(psx_gpu, list_, list_[3] & 0x3FF,
               (list_[3] >> 16) & 0x1FF, &cpu_cycles_sum, &cpu_cycles);
           }
