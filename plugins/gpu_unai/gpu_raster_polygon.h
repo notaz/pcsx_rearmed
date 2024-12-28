@@ -200,7 +200,7 @@ static bool polyUseTriangle(const PolyVertex *vbuf, int tri_num, const PolyVerte
 	y_off = GPU_EXPANDSIGN(lowest_y + y_off) - lowest_y;
 
 	// Determine if triangle is completely outside clipping range
-	int xmin, xmax, ymin, ymax;
+	s32 xmin, xmax, ymin, ymax;
 	xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
 	ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 	int clipped_lowest_x  = Max2(xmin, lowest_x + x_off);
