@@ -1381,20 +1381,20 @@ function(setup_spans_up_down)
 #define setup_blocks_uv_adj_hack_textured(hacks_active)                        \
   tst hacks_active, #(AHACK_TEXTURE_ADJ_U | AHACK_TEXTURE_ADJ_V);              \
   beq 91f;                                                                     \
-  /* see flush_render_block_buffer below for a reg saving note */              \
-  vpush { texture_mask };                                                      \
-  vpush { uvrg_dx4 };                                                          \
                                                                                \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                         \
+  /* pushing odd num of regs here realigns our unaligned stack */              \
+  vstr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vstr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
+  push { r0 - r4, EXTRA_UNSAVED_REGS r12, r14 };                               \
   mov r12, span_uvrg_offset;                                                   \
   sub r1, block_ptr_a, #64;                                                    \
   mov r2, span_edge_data;                                                      \
   mov r3, r12;                                                                 \
   bl setup_blocks_uv_adj_hack; /* psx_gpu=r0 */                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                         \
+  pop  { r0 - r4, EXTRA_UNSAVED_REGS r12, r14 };                               \
+  vldr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vldr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
                                                                                \
-  vpop { uvrg_dx4 };                                                           \
-  vpop { texture_mask };                                                       \
   vadd.u32 uvrg_dx8, uvrg_dx4, uvrg_dx4;                                       \
 91:                                                                            \
 
@@ -1650,17 +1650,14 @@ function(setup_blocks_shaded_textured_dithered_##swizzling##_indirect)         \
   ldmia sp!, { r4 - r11, pc };                                                 \
                                                                                \
  2:                                                                            \
-  /* this callee-save reg saving may look unnecessary but it actually is */    \
-  /* because the callee violates the ABI */                                    \
-  vpush { texture_mask };                                                      \
-  vpush { uvrg_dx4 };                                                          \
-                                                                               \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */         \
+  vstr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vstr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
+  /* pushing odd num of regs here realigns our unaligned stack */              \
+  push  { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */              \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 };                              \
-                                                                               \
-  vpop { uvrg_dx4 };                                                           \
-  vpop { texture_mask };                                                       \
+  pop   { r0 - r3, EXTRA_UNSAVED_REGS r12 };                                   \
+  vldr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vldr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
                                                                                \
   vadd.u32 uvrg_dx8, uvrg_dx4, uvrg_dx4;                                       \
   vmov.u8 fb_mask_ptrs, #0;                                                    \
@@ -1853,15 +1850,13 @@ function(setup_blocks_unshaded_textured_dithered_##swizzling##_indirect)       \
   ldmia sp!, { r4 - r11, pc };                                                 \
                                                                                \
  2:                                                                            \
-  vpush { texture_mask };                                                      \
-  vpush { uvrg_dx4 };                                                          \
-                                                                               \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */         \
+  vstr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vstr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
+  push  { r0 - r3, EXTRA_UNSAVED_REGS r12 }; /* r14=num_blocks */              \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12 };                              \
-                                                                               \
-  vpop { uvrg_dx4 };                                                           \
-  vpop { texture_mask };                                                       \
+  pop   { r0 - r3, EXTRA_UNSAVED_REGS r12 };                                   \
+  vldr texture_mask_u, [r0, #psx_gpu_saved_tmp_offset];                        \
+  vldr texture_mask_v, [r0, #psx_gpu_saved_tmp_offset + 8];                    \
                                                                                \
   vadd.u32 uvrg_dx8, uvrg_dx4, uvrg_dx4;                                       \
   vmov.u8 fb_mask_ptrs, #0;                                                    \
@@ -1972,13 +1967,13 @@ function(setup_blocks_unshaded_untextured_undithered_unswizzled_indirect)
   ldmia sp!, { r4 - r11, pc }
                                                                            
  2:
-  vpush { colors }
-
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
+  vstr d4, [r0, #psx_gpu_saved_tmp_offset]       /* colors */
+  vstr d5, [r0, #psx_gpu_saved_tmp_offset + 8]
+  push { r0 - r3, EXTRA_UNSAVED_REGS r12 }
   bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
-
-  vpop { colors }
+  pop  { r0 - r3, EXTRA_UNSAVED_REGS r12 }
+  vldr d4, [r0, #psx_gpu_saved_tmp_offset]
+  vldr d5, [r0, #psx_gpu_saved_tmp_offset + 8]
 
   vld1.u32 { test_mask }, [psx_gpu, :128]
   veor.u32 draw_mask, draw_mask, draw_mask
@@ -2385,16 +2380,14 @@ function(setup_blocks_shaded_untextured_##dithering##_unswizzled_indirect)     \
   bne 0b;                                                                      \
                                                                                \
   restore_abi_regs();                                                          \
-  ldmia sp!, { r4 - r11, pc };                                                 \
+  pop   { r4 - r11, pc };                                                      \
                                                                                \
  2:                                                                            \
-  vpush { rg_dx4 };                                                            \
-                                                                               \
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
+  vstr rg_dx4, [r0, #psx_gpu_saved_tmp_offset];                                \
+  push  { r0 - r3, EXTRA_UNSAVED_REGS r12 };                                   \
   bl flush_render_block_buffer;                                                \
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 };                        \
-                                                                               \
-  vpop { rg_dx4 };                                                             \
+  pop   { r0 - r3, EXTRA_UNSAVED_REGS r12 };                                   \
+  vldr rg_dx4, [r0, #psx_gpu_saved_tmp_offset];                                \
                                                                                \
   vmov.u8 d64_1, #1;                                                           \
   vmov.u8 d128_4, #4;                                                          \
@@ -2804,7 +2797,7 @@ function(texture_blocks_4bpp)
 .align 3
 
 function(texture_blocks_8bpp)
-  stmdb sp!, { r3 - r11, r14 }
+  push { r4 - r11, lr }
   add block_ptr, psx_gpu, #psx_gpu_blocks_offset
 
   ldr texture_ptr, [psx_gpu, #psx_gpu_texture_page_ptr_offset]
@@ -2882,15 +2875,14 @@ function(texture_blocks_8bpp)
   add block_ptr, block_ptr, #64
   bne 0b
 
-  ldmia sp!, { r3 - r11, pc }
+  pop { r4 - r11, pc }
 
 1:
-  stmdb sp!, { r1 - r2, EXTRA_UNSAVED_REGS r12 }
-
-  bl update_texture_8bpp_cache
-
-  ldmia sp!, { r1 - r2, EXTRA_UNSAVED_REGS r12 }
-  bal 0b
+  /* pushing odd num of regs here realigns our unaligned stack */
+  push { r1 - r2, EXTRA_UNSAVED_REGS r12 }
+  bl   update_texture_8bpp_cache
+  pop  { r1 - r2, EXTRA_UNSAVED_REGS r12 }
+  bal  0b
 
 
 #undef uv_0
@@ -4534,28 +4526,27 @@ function(warmup)
 .align 3
 
 setup_sprite_flush_blocks:
-  vpush { q1 - q5 }
+  push   { r0 - r3, EXTRA_UNSAVED_REGS r12, lr }
+  add    block, r0, #psx_gpu_saved_tmp_offset        /* r5 */
+  vstmia block, { q1 - q3 }
+  bl     flush_render_block_buffer
+  vldmia block, { q1 - q3 }
+  pop    { r0 - r3, EXTRA_UNSAVED_REGS r12, lr }
 
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
-  bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
-
-  vpop { q1 - q5 }
-
-  add block, psx_gpu, #psx_gpu_blocks_offset
-  bx lr
+  add    block, psx_gpu, #psx_gpu_blocks_offset
+  bx     lr
 
 
 setup_sprite_update_texture_4bpp_cache:
-  stmdb sp!, { r0 - r3, r14 }
+  push { r0 - r4, lr }
   bl update_texture_4bpp_cache
-  ldmia sp!, { r0 - r3, pc }
+  pop  { r0 - r4, pc }
 
 
 setup_sprite_update_texture_8bpp_cache:
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r14 }
+  push { r0 - r4, EXTRA_UNSAVED_REGS lr }
   bl update_texture_8bpp_cache
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS pc }
+  pop  { r0 - r4, EXTRA_UNSAVED_REGS pc }
 
 
 #define setup_sprite_tiled_initialize_4bpp()                                   \
@@ -4842,8 +4833,8 @@ setup_sprite_update_texture_8bpp_cache:
   setup_sprite_setup_left_draw_mask_fb_ptr##x4mode();                          \
                                                                                \
   setup_sprite_tile_column_height_##multi_height(edge_mode, edge, tm, x4mode); \
-  restore_abi_regs();                                                          \
-  ldmia sp!, { r4 - r11, pc }                                                  \
+  vpop { q4 - q7 };                                                            \
+  pop  { r3 - r11, pc }                                                        \
 
 #define setup_sprite_tiled_advance_column()                                    \
   add texture_offset_base, texture_offset_base, #0x100;                        \
@@ -4879,8 +4870,8 @@ setup_sprite_update_texture_8bpp_cache:
                                                                                \
   setup_sprite_tiled_advance_column();                                         \
   setup_sprite_tile_column_height_##multi_height(right_mode, left, tm, x4mode);\
-  restore_abi_regs();                                                          \
-  ldmia sp!, { r4 - r11, pc }                                                  \
+  vpop { q4 - q7 };                                                            \
+  pop  { r3 - r11, pc }                                                        \
 
 
 #define setup_sprite_offset_u_adjust()                                         \
@@ -5226,19 +5217,19 @@ setup_sprite_tile_column_width_multi(texture_mode,  single, half, half,        \
 .align 4;                                                                      \
                                                                                \
 function(setup_sprite_##texture_mode##x4mode)                                  \
-  stmdb sp!, { r4 - r11, r14 };                                                \
+  push { r3 - r11, lr };                                                       \
   setup_sprite_tiled_initialize_##texture_mode##x4mode();                      \
                                                                                \
-  ldr v, [sp, #36];                                                            \
+  ldr v, [sp, #4*(10+0)];                                                      \
   and offset_u, u, #0xF;                                                       \
                                                                                \
-  ldr width, [sp, #40];                                                        \
+  ldr width, [sp, #4*(10+1)];                                                  \
   ldr fb_ptr, [psx_gpu, #psx_gpu_vram_out_ptr_offset];                         \
                                                                                \
-  ldr height, [sp, #44];                                                       \
+  ldr height, [sp, #4*(10+2)];                                                 \
   add fb_ptr, fb_ptr, y, lsl #11;                                              \
                                                                                \
-  save_abi_regs();                                                             \
+  vpush { q4 - q7 };                                                           \
                                                                                \
   add fb_ptr, fb_ptr, x, lsl #1;                                               \
   and offset_v, v, #0xF;                                                       \
@@ -5362,7 +5353,7 @@ setup_sprite_tiled_builder(8bpp, _4x);
 #define texels_67                                         r9
 
 function(texture_sprite_blocks_8bpp)
-  stmdb sp!, { r4 - r11, r14 }
+  push { r4 - r11, r14 }
   movw texel_shift_mask, #(0xFF << 1)
 
   ldrh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
@@ -5415,8 +5406,9 @@ function(texture_sprite_blocks_8bpp)
   add block_ptr, block_ptr, #64
 
   bne 0b
+  nop
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r4 - r11, pc }
 
 
 #undef width_rounded
@@ -5481,30 +5473,30 @@ function(texture_sprite_blocks_8bpp)
 
 
 setup_sprites_16bpp_flush:
-  vpush { d0 - d3 }
-
-  stmdb sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
-  bl flush_render_block_buffer
-  ldmia sp!, { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
-
-  vpop { d0 - d3 }
+  push   { r0 - r3, EXTRA_UNSAVED_REGS r12, r14 }
+  add    r1, r0, #psx_gpu_saved_tmp_offset
+  vstmia r1, { d0 - d3 }
+  bl     flush_render_block_buffer
+  pop    { r0 - r3, EXTRA_UNSAVED_REGS r12 }
+  add    lr, r0, #psx_gpu_saved_tmp_offset
+  vldmia lr, { d0 - d3 }
 
   add block, psx_gpu, #psx_gpu_blocks_offset
   mov num_blocks, block_width
 
-  bx lr
+  pop { pc }
 
 function(setup_sprite_16bpp)
-  stmdb sp!, { r4 - r11, r14 }
+  push { r3 - r11, lr }
   ldr fb_ptr, [psx_gpu, #psx_gpu_vram_out_ptr_offset]
 
-  ldr v, [sp, #36]
+  ldr v, [sp, #4*(10+0)]
   add fb_ptr, fb_ptr, y, lsl #11
 
-  ldr width, [sp, #40]
+  ldr width, [sp, #4*(10+1)]
   add fb_ptr, fb_ptr, x, lsl #1
 
-  ldr height, [sp, #44]
+  ldr height, [sp, #4*(10+2)]
   and left_offset, u, #0x7
 
   add texture_offset_base, u, u
@@ -5574,7 +5566,7 @@ function(setup_sprite_16bpp)
   strh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
   bne 1b
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r3 - r11, pc }
 
  0:
   add num_blocks, num_blocks, block_width
@@ -5648,8 +5640,9 @@ function(setup_sprite_16bpp)
   strh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
 
   bne 0b
+  nop
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r3 - r11, pc }
 
 
 // 4x version
@@ -5657,16 +5650,16 @@ function(setup_sprite_16bpp)
 #undef draw_mask_fb_ptr
 
 function(setup_sprite_16bpp_4x)
-  stmdb sp!, { r4 - r11, r14 }
+  push { r3 - r11, lr }
   ldr fb_ptr, [psx_gpu, #psx_gpu_vram_out_ptr_offset]
 
-  ldr v, [sp, #36]
+  ldr v, [sp, #4*(10+0)]
   add fb_ptr, fb_ptr, y, lsl #11
 
-  ldr width, [sp, #40]
+  ldr width, [sp, #4*(10+1)]
   add fb_ptr, fb_ptr, x, lsl #1
 
-  ldr height, [sp, #44]
+  ldr height, [sp, #4*(10+2)]
   and left_offset, u, #0x7
 
   add texture_offset_base, u, u
@@ -5735,7 +5728,7 @@ function(setup_sprite_16bpp_4x)
   strh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
   bne 1b
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r3 - r11, pc }
 
  0:
   add num_blocks, num_blocks, block_width
@@ -5793,8 +5786,9 @@ function(setup_sprite_16bpp_4x)
   strh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
 
   bne 0b
+  nop
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r3 - r11, pc }
 
 
 #undef width
@@ -5839,18 +5833,18 @@ function(setup_sprite_16bpp_4x)
 .align 3
 
 function(setup_sprite_untextured_512)
-  stmdb sp!, { r4 - r11, r14 }
+  push { r4 - r11, r14 }
 
-  ldr width, [sp, #40]
+  ldr width, [sp, #4*(9+1)]
   ldr fb_ptr, [psx_gpu, #psx_gpu_vram_out_ptr_offset]
 
-  ldr height, [sp, #44]
+  ldr height, [sp, #4*(9+2)]
   add fb_ptr, fb_ptr, y, lsl #11
 
   add fb_ptr, fb_ptr, x, lsl #1
   sub right_width, width, #1
 
-  ldr color, [sp, #48]
+  ldr color, [sp, #4*(9+3)]
   and right_width, #7
 
   add block_width, width, #7
@@ -5927,7 +5921,7 @@ setup_sprite_untextured_height_loop:
   strh num_blocks, [psx_gpu, #psx_gpu_num_blocks_offset]
   bgt setup_sprite_untextured_height_loop
 
-  ldmia sp!, { r4 - r11, pc }
+  pop { r4 - r11, pc }
 
 
 
@@ -5960,7 +5954,7 @@ setup_sprite_untextured_height_loop:
 #define texel_block_expanded_cd                           q3
 
 function(update_texture_4bpp_cache)
-  stmdb sp!, { r4 - r11, r14 }
+  push  { r3 - r11, r14 }
   vpush { q0 - q3 }
 
   ldrb current_texture_page, [psx_gpu, #psx_gpu_current_texture_page_offset]
@@ -6034,7 +6028,7 @@ function(update_texture_4bpp_cache)
   bne 0b
 
   vpop { q0 - q3 }
-  ldmia sp!, { r4 - r11, pc }
+  pop  { r3 - r11, pc }
 
 
 #undef current_texture_page
@@ -6064,7 +6058,6 @@ function(update_texture_4bpp_cache)
 
 function(update_texture_8bpp_cache_slice)
   stmdb sp!, { r4 - r11, r14 }
-  vpush { q0 - q3 }
 
   ldrb current_texture_page, [psx_gpu, #psx_gpu_current_texture_page_offset]
   ldr vram_ptr_a, [psx_gpu, #psx_gpu_vram_ptr_offset]
@@ -6125,7 +6118,6 @@ function(update_texture_8bpp_cache_slice)
 
   bne 0b
 
-  vpop { q0 - q3 }
   ldmia sp!, { r4 - r11, pc }
 
 

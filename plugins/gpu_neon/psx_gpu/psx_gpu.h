@@ -218,7 +218,11 @@ typedef struct
 
   // Align up to 64 byte boundary to keep the upcoming buffers cache line
   // aligned, also make reachable with single immediate addition
-  u8 reserved_a[180 + 9*4 - 9*sizeof(void *)];
+  u8 reserved_a[68 + 9*4 - 9*sizeof(void *)];
+
+  // space for saving regs on c call to flush_render_block_buffer() and asm
+  u32 saved_tmp[48 / sizeof(u32)];
+  u32 saved_q4_q7[64 / sizeof(u32)];
 
   // 8KB
   block_struct blocks[MAX_BLOCKS_PER_ROW];

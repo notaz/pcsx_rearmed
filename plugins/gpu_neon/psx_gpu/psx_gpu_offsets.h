@@ -37,6 +37,7 @@
 #define psx_gpu_texture_mask_height_offset                0xfb
 #define psx_gpu_reciprocal_table_ptr_offset               0x108
 #define psx_gpu_hacks_active_offset                       0x114
+#define psx_gpu_saved_tmp_offset                          0x190
 #define psx_gpu_blocks_offset                             0x200
 #define psx_gpu_span_uvrg_offset_offset                   0x2200
 #define psx_gpu_span_edge_data_offset                     0x4200
