@@ -528,6 +528,11 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
     render_block_handler_struct *render_block_handler =
      psx_gpu->render_block_handler;
 
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+    // the asm doesn't bother to save callee-save vector regs, so do it here
+    __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
+
     render_block_handler->texture_blocks(psx_gpu);
     render_block_handler->shade_blocks(psx_gpu);
     render_block_handler->blend_blocks(psx_gpu);
@@ -538,6 +543,9 @@ void flush_render_block_buffer(psx_gpu_struct *psx_gpu)
 #endif
 
     psx_gpu->num_blocks = 0;
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+    __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
   }
 }
 
@@ -3037,6 +3045,11 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
   triangle_set_direction(y_direction_b, y_delta_b);
   triangle_set_direction(y_direction_c, y_delta_c);
 
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  // the asm doesn't bother to save callee-save vector regs, so do it here
+  __asm__ __volatile__("vstmia %0, {q4-q7}" :: "r"(psx_gpu->saved_q4_q7) : "memory");
+#endif
+
   compute_all_gradients(psx_gpu, a, b, c);
 
   switch(y_direction_a | (y_direction_b << 2) | (y_direction_c << 4) |
@@ -3163,6 +3176,10 @@ static void render_triangle_p(psx_gpu_struct *psx_gpu,
    &(render_triangle_block_handlers[render_state]);
   ((setup_blocks_function_type *)psx_gpu->render_block_handler->setup_blocks)
    (psx_gpu);
+
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  __asm__ __volatile__("vldmia %0, {q4-q7}" :: "r"(psx_gpu->saved_q4_q7));
+#endif
 }
 
 void render_triangle(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
