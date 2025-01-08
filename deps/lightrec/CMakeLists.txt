@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(lightrec LANGUAGES C VERSION 0.9)
 
 list(APPEND LIGHTREC_SOURCES
