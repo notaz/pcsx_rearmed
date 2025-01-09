@@ -731,6 +731,13 @@ static int lightrec_transform_branches(struct lightrec_state *state,
 
 		switch (op->i.op) {
 		case OP_J:
+			if (is_delay_slot(block->opcode_list, i)) {
+				/* Jumps in delay slots cannot be converted to
+				 * branches, as they have a different behaviour
+				 * there. */
+				continue;
+			}
+
 			/* Transform J opcode into BEQ $zero, $zero if possible. */
 			offset = (s32)((block->pc & 0xf0000000) >> 2 | op->j.imm)
 				- (s32)(block->pc >> 2) - (s32)i - 1;
