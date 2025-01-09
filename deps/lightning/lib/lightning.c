@@ -3817,12 +3817,13 @@ _simplify_stxi(jit_state_t *_jit, jit_node_t *prev, jit_node_t *node)
     if (value->kind == 0) {
 	switch (node->code) {
 	    /* no information about signed/unsigned either */
-	    case jit_code_stxi_c:	value->code = jit_code_ldxi_c;	break;
-	    case jit_code_stxi_s:	value->code = jit_code_ldxi_s;	break;
+#if __WORDSIZE == 32
 	    case jit_code_stxi_i:	value->code = jit_code_ldxi_i;	break;
-	    case jit_code_stxi_l:	value->code = jit_code_ldxi_l;	break;
 	    case jit_code_stxi_f:	value->code = jit_code_ldxi_f;	break;
+#else
+	    case jit_code_stxi_l:	value->code = jit_code_ldxi_l;	break;
 	    case jit_code_stxi_d:	value->code = jit_code_ldxi_d;	break;
+#endif
 	    default:		 	abort();
 	}
 	value->kind = jit_kind_code;
@@ -3943,20 +3944,26 @@ _simplify(jit_state_t *_jit)
 		    simplify_spill(node = prev, regno);
 		}
 		break;
-	    case jit_code_ldxi_c:	case jit_code_ldxi_uc:
-	    case jit_code_ldxi_s:	case jit_code_ldxi_us:
-	    case jit_code_ldxi_i:	case jit_code_ldxi_ui:
+#if __WORDSIZE == 32
+	    case jit_code_ldxi_i:
+	    case jit_code_ldxi_f:
+#else
 	    case jit_code_ldxi_l:
-	    case jit_code_ldxi_f:	case jit_code_ldxi_d:
+	    case jit_code_ldxi_d:
+#endif
 		regno = jit_regno(node->u.w);
 		if (simplify_ldxi(prev, node)) {
 		    result = 1;
 		    simplify_spill(node = prev, regno);
 		}
 		break;
-	    case jit_code_stxi_c:	case jit_code_stxi_s:
-	    case jit_code_stxi_i:	case jit_code_stxi_l:
-	    case jit_code_stxi_f:	case jit_code_stxi_d:
+#if __WORDSIZE == 32
+	    case jit_code_stxi_i:
+	    case jit_code_stxi_f:
+#else
+	    case jit_code_stxi_l:
+	    case jit_code_stxi_d:
+#endif
 		regno = jit_regno(node->u.w);
 		if (simplify_stxi(prev, node)) {
 		    result = 1;
