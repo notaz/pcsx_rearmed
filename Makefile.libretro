@@ -124,6 +124,8 @@ endif
 LIBPTHREAD := -lpthread
 ifneq ($(findstring Haiku,$(shell uname -s)),)
 LIBDL := -lroot -lnetwork
+# easiest way to prevent libretro-common from breaking on Haiku
+HAVE_PHYSICAL_CDROM := 0
 else
 LIBDL := -ldl
 endif
