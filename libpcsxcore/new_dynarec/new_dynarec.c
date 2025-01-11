@@ -6446,10 +6446,11 @@ static u_int *get_source_start(u_int addr, u_int *limit)
     /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
     (0xbfc00000 <= addr && addr < 0xbfc80000))
   {
-    // BIOS. The multiplier should be much higher as it's uncached 8bit mem,
-    // but timings in PCSX are too tied to the interpreter's 2-per-insn assumption
-    if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
-      cycle_multiplier_active = 200;
+    // BIOS. The multiplier should be much higher as it's uncached 8bit mem
+    // XXX: disabled as this introduces differences from the interpreter
+    // and lightrec multipliers making emu variations act inconsistently
+    //if (!HACK_ENABLED(NDHACK_OVERRIDE_CYCLE_M))
+    //  cycle_multiplier_active = 200;
 
     *limit = (addr & 0xfff00000) | 0x80000;
     return (u_int *)((u_char *)psxR + (addr&0x7ffff));
@@ -6615,6 +6616,12 @@ static int apply_hacks(void)
       SysPrintf("PE2 hack @%08x\n", start + (i+3)*4);
       dops[i + 3].itype = NOP;
     }
+  }
+  if (source[0] == 0x3c05edb8 && source[1] == 0x34a58320)
+  {
+    // lui a1, 0xEDB8; ori a1, 0x8320
+    SysPrintf("F1 2000 hack @%08x\n", start);
+    cycle_multiplier_active = 100;
   }
   i = slen;
   if (i > 10 && source[i-1] == 0 && source[i-2] == 0x03e00008

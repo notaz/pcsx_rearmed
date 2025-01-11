@@ -139,9 +139,11 @@ cycle_multiplier_overrides[] =
 	{ 310, { "SLUS01114", "SLES03286" } },
 	/* Syphon Filter - reportedly hangs under unknown conditions */
 	{ 169, { "SCUS94240" } },
+#ifndef DRC_DISABLE
 	/* Psychic Detective - some weird race condition in the game's cdrom code */
-	{ 200, { "SLUS00165", "SLUS00166", "SLUS00167" } },
-	{ 200, { "SLES00070", "SLES10070", "SLES20070" } },
+	{ 181, { "SLUS00165", "SLUS00166", "SLUS00167" } },
+	{ 181, { "SLES00070", "SLES10070", "SLES20070" } },
+#endif
 	/* Vib-Ribbon - cd timing issues (PAL+ari64drc only?) */
 	{ 200, { "SCES02873" } },
 	/* Zero Divide - sometimes too fast */
