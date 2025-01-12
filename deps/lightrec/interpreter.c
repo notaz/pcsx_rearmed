@@ -205,7 +205,9 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		if (branch_in_ds) {
 			run_first_op = true;
 
-			if (op->i.op == OP_SPECIAL)
+			if (!is_branch_taken(reg_cache, op->c))
+				next_pc = pc + 4;
+			else if (op->i.op == OP_SPECIAL)
 				next_pc = reg_cache[op->r.rs]; /* TODO: is it the old or new rs? */
 			else if (op->i.op == OP_J || op->i.op == OP_JAL)
 				next_pc = (pc & 0xf0000000) | (op->j.imm << 2);

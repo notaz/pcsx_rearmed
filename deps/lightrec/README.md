@@ -8,7 +8,7 @@ as the code emitter.
 
 As such, in theory it should be able to run on every CPU that Lightning
 can generate code for; including, but not limited to, __x86__, __x86_64__,
-__ARM__, __Aarch64__, __MIPS__, __PowerPC__ and __Risc-V__.
+__ARM__, __Aarch64__, __MIPS__, __PowerPC__, __SH4__ and __Risc-V__.
 
 ## Features
 
@@ -47,10 +47,10 @@ Lightrec has been ported to the following emulators:
 
 * [__PCSX-ReArmed__ (libretro)](https://github.com/libretro/pcsx_rearmed)
 
-* [__pcsx4all__ (my own fork)](https://github.com/pcercuei/pcsx4all)
-
 * [__Beetle__ (libretro)](https://github.com/libretro/beetle-psx-libretro/)
 
 * [__CubeSX/WiiSX__](https://github.com/emukidid/pcsxgc/)
+
+* [__Bloom__](https://github.com/pcercuei/bloom)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=pcercuei/lightrec&type=Date)](https://star-history.com/#pcercuei/lightrec&Date)
