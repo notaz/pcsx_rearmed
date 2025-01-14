@@ -206,7 +206,8 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			HW_DMA2_MADR = SWAPu32(madr_next);
 
 			// timing hack with some lame heuristics
-			if (Config.gpu_timing_override && (do_walking || cycles_sum > 64))
+			if (Config.gpu_timing_override && (do_walking || cycles_sum > 64)
+			    && !(HW_GPU_STATUS & SWAP32(PSXGPU_DHEIGHT | PSXGPU_RGB24)))
 				cycles_sum = Config.gpu_timing_override;
 
 			psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
@@ -227,18 +228,20 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 void gpuInterrupt() {
 	if (HW_DMA2_CHCR == SWAP32(0x01000401) && !(HW_DMA2_MADR & SWAP32(0x800000)))
 	{
-		u32 madr_next = 0xffffff, madr = SWAPu32(HW_DMA2_MADR);
+		u32 madr_next = SWAPu32(HW_DMA2_MADR);
+		s32 cycles_sum = psxRegs.gpuIdleAfter - psxRegs.cycle;
 		s32 cycles_last_cmd = 0;
-		long cycles_sum;
 
-		cycles_sum = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff,
-				&madr_next, &cycles_last_cmd);
+		do {
+			cycles_sum += cycles_last_cmd;
+			cycles_sum += GPU_dmaChain((u32 *)psxM, madr_next & 0x1fffff,
+					&madr_next, &cycles_last_cmd);
+		}
+		while (cycles_sum <= 0 && !(madr_next & 0x800000));
 		HW_DMA2_MADR = SWAPu32(madr_next);
-		if ((s32)(psxRegs.gpuIdleAfter - psxRegs.cycle) > 0)
-			cycles_sum += psxRegs.gpuIdleAfter - psxRegs.cycle;
 		psxRegs.gpuIdleAfter = psxRegs.cycle + cycles_sum + cycles_last_cmd;
 		set_event(PSXINT_GPUDMA, cycles_sum);
-		//printf("%u dma2cn: %6ld,%4d %08x\n", psxRegs.cycle, cycles_sum,
+		//printf("%u dma2cn: %6d,%4d %08x\n", psxRegs.cycle, cycles_sum,
 		//  cycles_last_cmd, HW_DMA2_MADR);
 		return;
 	}
