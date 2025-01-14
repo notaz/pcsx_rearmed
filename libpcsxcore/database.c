@@ -64,6 +64,8 @@ static const char * const dualshock_init_analog_hack_db[] =
 
 static const char * const fractional_Framerate_hack_db[] =
 {
+	/* Contra - Legacy of War - weird char select hang */
+	"SLUS00288", "SLES00608",
 	/* Dance Dance Revolution */
 	"SLPM86503", // 3rd Mix
 	"SLPM86752", // 4th Mix

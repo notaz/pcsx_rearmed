@@ -27,6 +27,7 @@
 #define PSXGPU_LCF     (1u<<31)
 #define PSXGPU_nBUSY   (1u<<26)
 #define PSXGPU_ILACE   (1u<<22)
+#define PSXGPU_RGB24   (1u<<21)
 #define PSXGPU_DHEIGHT (1u<<19)
 #define PSXGPU_FIELD   (1u<<13)
 
