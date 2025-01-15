@@ -224,13 +224,13 @@ static void ari64_execute_until(psxRegisters *regs)
 	void *drc_local = (char *)regs - LO_psxRegs;
 
 	assert(drc_local == dynarec_local);
-	evprintf("ari64_execute %08x, %u->%u (%d)\n", regs->pc,
-		regs->cycle, regs->next_interupt, regs->next_interupt - regs->cycle);
+	evprintf("+exec %08x, %u->%u (%d)\n", regs->pc, regs->cycle,
+		regs->next_interupt, regs->next_interupt - regs->cycle);
 
 	new_dyna_start(drc_local);
 
-	evprintf("ari64_execute end %08x, %u->%u (%d)\n", regs->pc,
-		regs->cycle, regs->next_interupt, regs->next_interupt - regs->cycle);
+	evprintf("-exec %08x, %u->%u (%d) stop %d \n", regs->pc, regs->cycle,
+		regs->next_interupt, regs->next_interupt - regs->cycle, regs->stop);
 }
 
 static void ari64_execute(struct psxRegisters *regs)

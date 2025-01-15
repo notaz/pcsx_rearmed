@@ -63,7 +63,6 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_RCNT] = psxRcntUpdate,
 };
 
-/* local dupe of psxBranchTest, using event_cycles */
 void irq_test(psxCP0Regs *cp0)
 {
 	psxRegisters *regs = cp0TOpsxRegs(cp0);
