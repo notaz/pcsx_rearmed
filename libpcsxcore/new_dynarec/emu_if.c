@@ -674,12 +674,12 @@ void do_insn_trace(void)
 	}
 	// log event changes
 	for (i = 0; i < PSXINT_COUNT; i++) {
-		if (event_cycles[i] != event_cycles_o[i]) {
+		if (psxRegs.event_cycles[i] != event_cycles_o[i]) {
 			byte = 0xf8;
 			fwrite(&byte, 1, 1, f);
 			fwrite(&i, 1, 1, f);
-			fwrite(&event_cycles[i], 1, 4, f);
-			event_cycles_o[i] = event_cycles[i];
+			fwrite(&psxRegs.event_cycles[i], 1, 4, f);
+			event_cycles_o[i] = psxRegs.event_cycles[i];
 		}
 	}
 	#define SAVE_IF_CHANGED(code_, name_) { \
@@ -816,9 +816,9 @@ void do_insn_cmp(void)
 
 	//if (psxRegs.cycle == 166172) breakme();
 
-	if (which_event >= 0 && event_cycles[which_event] != ev_cycles) {
+	if (which_event >= 0 && psxRegs.event_cycles[which_event] != ev_cycles) {
 		printf("bad ev_cycles #%d: %u %u / %u\n", which_event,
-			event_cycles[which_event], ev_cycles, psxRegs.cycle);
+			psxRegs.event_cycles[which_event], ev_cycles, psxRegs.cycle);
 		fatal = 1;
 	}
 

@@ -1623,8 +1623,8 @@ static u8 cdrom_sync(int do_ack)
 {
 	u8 r = 0;
 	if (psxRegs.interrupt & (1u << PSXINT_CDR)) {
-		if ((s32)(psxRegs.cycle - event_cycles[PSXINT_CDR]) < 0)
-			psxRegs.cycle = event_cycles[PSXINT_CDR] + 1;
+		if ((s32)(psxRegs.cycle - psxRegs.event_cycles[PSXINT_CDR]) < 0)
+			psxRegs.cycle = psxRegs.event_cycles[PSXINT_CDR] + 1;
 		irq_test(&psxRegs.CP0);
 	}
 	if (do_ack) {

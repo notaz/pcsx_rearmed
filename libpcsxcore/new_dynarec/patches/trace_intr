@@ -339,6 +339,6 @@ index 0c29dba7..3af7e156 100644
  void psxBranchTest() {
 + extern u32 irq_test_cycle;
 + irq_test_cycle = psxRegs.cycle;
- 	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
+ 	if ((psxRegs.cycle - psxRegs.psxNextsCounter) >= psxRegs.psxNextCounter)
  		psxRcntUpdate();
  
