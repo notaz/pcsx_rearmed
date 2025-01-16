@@ -22,12 +22,10 @@ enum {
 	PSXINT_COUNT
 };
 
-extern u32 event_cycles[PSXINT_COUNT];
-
 #define set_event_raw_abs(e, abs) { \
 	u32 abs_ = abs; \
 	s32 di_ = psxRegs.next_interupt - abs_; \
-	event_cycles[e] = abs_; \
+	psxRegs.event_cycles[e] = abs_; \
 	if (di_ > 0) { \
 		/*printf("%u: next_interupt %u -> %u\n", psxRegs.cycle, psxRegs.next_interupt, abs_);*/ \
 		psxRegs.next_interupt = abs_; \

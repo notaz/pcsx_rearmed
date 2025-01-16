@@ -75,8 +75,6 @@ unsigned int hSyncCount = 0;
 unsigned int frame_counter = 0;
 static u32 hsync_steps = 0;
 
-u32 psxNextCounter = 0, psxNextsCounter = 0;
-
 /******************************************************************************/
 
 #define FPS_FRACTIONAL_PAL  (53203425/314./3406) // ~49.75
@@ -241,26 +239,26 @@ void psxRcntSet()
     s32 countToUpdate;
     u32 i;
 
-    psxNextsCounter = psxRegs.cycle;
-    psxNextCounter  = 0x7fffffff;
+    psxRegs.psxNextsCounter = psxRegs.cycle;
+    psxRegs.psxNextCounter  = 0x7fffffff;
 
     for( i = 0; i < CounterQuantity; ++i )
     {
-        countToUpdate = rcnts[i].cycle - (psxNextsCounter - rcnts[i].cycleStart);
+        countToUpdate = rcnts[i].cycle - (psxRegs.psxNextsCounter - rcnts[i].cycleStart);
 
         if( countToUpdate < 0 )
         {
-            psxNextCounter = 0;
+            psxRegs.psxNextCounter = 0;
             break;
         }
 
-        if( countToUpdate < (s32)psxNextCounter )
+        if( countToUpdate < (s32)psxRegs.psxNextCounter )
         {
-            psxNextCounter = countToUpdate;
+            psxRegs.psxNextCounter = countToUpdate;
         }
     }
 
-    set_event(PSXINT_RCNT, psxNextCounter);
+    set_event(PSXINT_RCNT, psxRegs.psxNextCounter);
 }
 
 /******************************************************************************/
@@ -596,8 +594,8 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     gzfreeze( &rcnts, sizeof(Rcnt) * CounterQuantity );
     gzfreeze( &hSyncCount, sizeof(hSyncCount) );
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
-    gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
-    gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
+    gzfreeze( &psxRegs.psxNextCounter, sizeof(psxRegs.psxNextCounter) );
+    gzfreeze( &psxRegs.psxNextsCounter, sizeof(psxRegs.psxNextsCounter) );
 
     if (Mode == 0)
     {

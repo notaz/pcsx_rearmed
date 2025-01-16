@@ -580,7 +580,7 @@ int Load(const char *ExePath) {
 						case 0: /* End of file */
 							break;
 						default:
-							SysPrintf(_("Unknown CPE opcode %02x at position %08zx.\n"), opcode, ftell(tmpFile) - 1);
+							SysPrintf(_("Unknown CPE opcode %02x at position %08lx.\n"), opcode, ftell(tmpFile) - 1);
 							retval = -1;
 							break;
 					}
@@ -751,10 +751,10 @@ int LoadState(const char *file) {
 	void *f;
 	GPUFreeze_t *gpufP = NULL;
 	SPUFreeze_t *spufP = NULL;
+	boolean hle, oldhle;
 	int Size;
 	char header[32];
 	u32 version;
-	boolean hle;
 	int result = -1;
 
 	f = SaveFuncs.open(file, "rb");
@@ -768,6 +768,7 @@ int LoadState(const char *file) {
 		SysPrintf("incompatible savestate version %x\n", version);
 		goto cleanup;
 	}
+	oldhle = Config.HLE;
 	Config.HLE = hle;
 
 	if (Config.HLE)
@@ -826,6 +827,11 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 
+	if (Config.HLE != oldhle) {
+		// at least ari64 drc compiles differently so hard reset
+		psxCpu->Shutdown();
+		psxCpu->Init();
+	}
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
 	result = 0;

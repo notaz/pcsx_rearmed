@@ -29,8 +29,6 @@ extern "C" {
 #include "psxmem.h"
 #include "plugins.h"
 
-extern u32 psxNextCounter, psxNextsCounter;
-
 extern unsigned int hSyncCount, frame_counter;
 
 typedef struct Rcnt

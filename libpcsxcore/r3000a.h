@@ -196,7 +196,10 @@ typedef struct psxRegisters {
 	u32 code;			/* The instruction */
 	u32 cycle;
 	u32 interrupt;
-	struct { u32 sCycle, cycle; } intCycle[31];
+	struct { u32 sCycle, cycle; } intCycle[20];
+	u32 event_cycles[20];
+	u32 psxNextCounter;
+	u32 psxNextsCounter;
 	u32 next_interupt;  /* cycle */
 	u32 unused;
 	u32 gteBusyCycle;

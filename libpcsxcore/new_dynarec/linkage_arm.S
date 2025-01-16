@@ -251,7 +251,7 @@ FUNCTION(cc_interrupt):
 	ldr	r10, [fp, #LO_cycle]
 	ldr	r0, [fp, #LO_pcaddr]
 	ldr	r1, [fp, #LO_next_interupt]
-	ldr	r2, [fp, #LO_stop]
+	ldrb	r2, [fp, #LO_stop]
 	str	r1, [fp, #LO_last_count]
 	sub	r10, r10, r1
 	tst	r2, r2
@@ -307,7 +307,7 @@ call_psxException:
 	/* note: psxException might do recursive recompiler call from it's HLE code,
 	 * so be ready for this */
 FUNCTION(jump_to_new_pc):
-	ldr	r2, [fp, #LO_stop]
+	ldrb	r2, [fp, #LO_stop]
 	ldr	r1, [fp, #LO_next_interupt]
 	ldr	r10, [fp, #LO_cycle]
 	ldr	r0, [fp, #LO_pcaddr]

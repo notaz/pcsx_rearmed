@@ -9,8 +9,6 @@
 //#define evprintf printf
 #define evprintf(...)
 
-u32 event_cycles[PSXINT_COUNT];
-
 static psxRegisters *cp0TOpsxRegs(psxCP0Regs *cp0)
 {
 #ifndef LIGHTREC
@@ -31,7 +29,7 @@ u32 schedule_timeslice(psxRegisters *regs)
 	for (i = 0; irqs != 0; i++, irqs >>= 1) {
 		if (!(irqs & 1))
 			continue;
-		dif = event_cycles[i] - c;
+		dif = regs->event_cycles[i] - c;
 		//evprintf("  ev %d\n", dif);
 		if (0 < dif && dif < min)
 			min = dif;
@@ -63,7 +61,6 @@ static irq_func * const irq_funcs[] = {
 	[PSXINT_RCNT] = psxRcntUpdate,
 };
 
-/* local dupe of psxBranchTest, using event_cycles */
 void irq_test(psxCP0Regs *cp0)
 {
 	psxRegisters *regs = cp0TOpsxRegs(cp0);
@@ -73,7 +70,7 @@ void irq_test(psxCP0Regs *cp0)
 	for (irq = 0, irq_bits = regs->interrupt; irq_bits != 0; irq++, irq_bits >>= 1) {
 		if (!(irq_bits & 1))
 			continue;
-		if ((s32)(cycle - event_cycles[irq]) >= 0) {
+		if ((s32)(cycle - regs->event_cycles[irq]) >= 0) {
 			// note: irq_funcs() also modify regs->interrupt
 			regs->interrupt &= ~(1u << irq);
 			irq_funcs[irq]();
@@ -105,9 +102,9 @@ void events_restore(void)
 {
 	int i;
 	for (i = 0; i < PSXINT_COUNT; i++)
-		event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
+		psxRegs.event_cycles[i] = psxRegs.intCycle[i].sCycle + psxRegs.intCycle[i].cycle;
 
-	event_cycles[PSXINT_RCNT] = psxNextsCounter + psxNextCounter;
+	psxRegs.event_cycles[PSXINT_RCNT] = psxRegs.psxNextsCounter + psxRegs.psxNextCounter;
 	psxRegs.interrupt |=  1 << PSXINT_RCNT;
 	psxRegs.interrupt &= (1 << PSXINT_COUNT) - 1;
 }
