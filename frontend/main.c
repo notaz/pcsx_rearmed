@@ -737,7 +737,9 @@ int main(int argc, char *argv[])
 	else
 		menu_loop();
 
+#ifndef LIGHTREC_DEBUG
 	pl_start_watchdog();
+#endif
 
 	while (!g_emu_want_quit)
 	{
