@@ -1323,7 +1323,8 @@ static void cdrReadInterruptSetResult(unsigned char result)
 		cdr.Irq1Pending = result;
 		// F1 2000 timing hack :(
 		// compensate for some csum func @80014380 taking too long
-		psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
+		if (!cdr.AdpcmActive)
+			psxRegs.intCycle[PSXINT_CDREAD].sCycle += cdReadTime / 10;
 		return;
 	}
 	SetResultSize(1);
