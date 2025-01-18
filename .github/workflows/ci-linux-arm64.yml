@@ -1,7 +1,7 @@
 name: CI (Linux arm64)
 on: [push, pull_request]
 jobs:
-  build-linux:
+  build-linux-arm64:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v2
@@ -19,4 +19,4 @@ jobs:
     - name: configure
       run: DUMP_CONFIG_LOG=1 CROSS_COMPILE=aarch64-linux-gnu- SDL_CONFIG=usr/bin/sdl-config PATH=$PATH:usr/bin CFLAGS='-Iusr/include/ -Iusr/include/SDL' LDFLAGS='-Lusr/lib/aarch64-linux-gnu/ -Llib/aarch64-linux-gnu/ -Wl,-rpath-link=lib/aarch64-linux-gnu/,-rpath-link=usr/lib/aarch64-linux-gnu/,-rpath-link=usr/lib/aarch64-linux-gnu/pulseaudio/' ./configure
     - name: make
-      run: make
+      run: make -j$(getconf _NPROCESSORS_ONLN)
