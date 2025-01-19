@@ -663,6 +663,8 @@ static int msfiEq(const u8 *a, const u8 *b)
 
 void cdrPlayReadInterrupt(void)
 {
+	// this works but causes instability for timing sensitive games
+#if 0
 	int hit = cdra_prefetch(cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2]);
 	if (!hit && cdr.PhysCdPropagations < 75/2) {
 		// this propagates the real cdrom delays to the emulated game
@@ -670,7 +672,7 @@ void cdrPlayReadInterrupt(void)
 		cdr.PhysCdPropagations++;
 		return;
 	}
-
+#endif
 	cdr.LastReadSeekCycles = psxRegs.cycle;
 
 	if (cdr.Reading) {
