@@ -580,18 +580,26 @@ static boolean canDoTurbo(void)
 
 static int cdrSeekTime(unsigned char *target)
 {
-	int diff = msf2sec(cdr.SetSectorPlay) - msf2sec(target);
-	int seekTime = abs(diff) * (cdReadTime / 2000);
+	int diff = abs((int)msf2sec(cdr.SetSectorPlay) - (int)msf2sec(target));
+	int seekTime = diff * (cdReadTime / 2000);
 	int cyclesSinceRS = psxRegs.cycle - cdr.LastReadSeekCycles;
 	seekTime = MAX_VALUE(seekTime, 20000);
+
+	// sled seek?
+	if (diff >= 7200)
+		seekTime = PSXCLK / 7 + diff * 64;
+	// add *something* as rotation time until the target sector
+	if (cyclesSinceRS >= cdReadTime)
+		seekTime += (8 - ((cyclesSinceRS >> 18) & 7)) * (cdReadTime / 2);
 
 	// Transformers Beast Wars Transmetals does Setloc(x),SeekL,Setloc(x),ReadN
 	// and then wants some slack time
 	if (cdr.DriveState == DRIVESTATE_PAUSED || cyclesSinceRS < cdReadTime *3/2)
 		seekTime += cdReadTime;
 
-	seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
-	CDR_LOG("seek: %.2f %.2f (%.2f) st %d di %d\n", (float)seekTime / PSXCLK,
+	//seekTime = MIN_VALUE(seekTime, PSXCLK * 2 / 3);
+	CDR_LOG("seek: %02d:%02d:%02d %.2f %.2f (%.2f) st %d di %d\n",
+		target[0], target[1], target[2], (float)seekTime / PSXCLK,
 		(float)seekTime / cdReadTime, (float)cyclesSinceRS / cdReadTime,
 		cdr.DriveState, diff);
 	return seekTime;
