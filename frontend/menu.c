@@ -415,6 +415,7 @@ static const struct {
 	CE_CONFIG_VAL(FractionalFramerate),
 	CE_CONFIG_VAL(PreciseExceptions),
 	CE_CONFIG_VAL(TurboCD),
+	CE_CONFIG_VAL(SlowBoot),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
