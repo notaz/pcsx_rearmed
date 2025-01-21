@@ -570,6 +570,9 @@ static int ari64_init()
 	zeromem_ptr = zero_mem;
 	scratch_buf_ptr = scratch_buf; // for gte_neon.S
 
+	ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
+	ndrc_g.hacks_old = ndrc_g.hacks | ndrc_g.hacks_pergame;
+	ari64_apply_config();
 	ari64_thread_init();
 
 	return 0;

@@ -2,6 +2,7 @@
 #define __PSXINTERPRETER_H__
 
 struct psxRegisters;
+struct psxCP2Regs;
 
 // get an opcode without triggering exceptions or affecting cache
 u32 intFakeFetch(u32 pc);

@@ -78,6 +78,7 @@ static u32 lightrec_begin_cycles;
 
 extern u32 lightrec_hacks;
 
+static void lightrec_plugin_apply_config();
 extern void lightrec_code_inv(void *ptr, uint32_t len);
 
 enum my_cp2_opcodes {
@@ -493,6 +494,7 @@ static int lightrec_plugin_init(void)
 #ifndef _WIN32
 	signal(SIGPIPE, exit);
 #endif
+	lightrec_plugin_apply_config();
 	return 0;
 }
 
@@ -726,6 +728,7 @@ static void lightrec_plugin_apply_config()
 	cycles_per_op_old = cycles_per_op;
 	lightrec_set_cycles_per_opcode(lightrec_state, cycles_per_op);
 
+	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 	intApplyConfig();
 }
 
@@ -756,8 +759,6 @@ static void lightrec_plugin_reset(void)
 
 	regs->cp0[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
-
-	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 }
 
 static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2)
