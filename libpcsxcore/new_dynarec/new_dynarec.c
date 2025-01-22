@@ -315,6 +315,7 @@ static struct compile_info
   static void *copy;
   static u_int expirep;
   static u_int stop_after_jal;
+  static u_int ni_count;
   static u_int f1_hack;
   static u_int vsync_hack;
 #ifdef STAT_PRINT
@@ -6326,6 +6327,7 @@ void new_dynarec_clear_full(void)
   expirep = EXPIRITY_OFFSET;
   literalcount=0;
   stop_after_jal=0;
+  ni_count=0;
   inv_code_start=inv_code_end=~0;
   hack_addr=0;
   f1_hack=0;
@@ -6911,7 +6913,7 @@ static void disassemble_one(int i, u_int src)
       default:
         break;
     }
-    if (type == INTCALL)
+    if (type == INTCALL && ni_count < 64)
       SysPrintf("NI %08x @%08x (%08x)\n", src, start + i*4, start);
     dops[i].itype = type;
     dops[i].opcode2 = op2;
@@ -7060,7 +7062,7 @@ static void disassemble_one(int i, u_int src)
 
 static noinline void pass1_disassemble(u_int pagelimit)
 {
-  int i, j, done = 0, ni_count = 0;
+  int i, j, done = 0;
   int ds_next = 0;
 
   for (i = 0; !done; i++)
@@ -7180,7 +7182,17 @@ static noinline void pass1_disassemble(u_int pagelimit)
 
     /* Is this the end of the block? */
     if (i > 0 && dops[i-1].is_ujump) {
-      if (dops[i-1].rt1 == 0) { // not jal
+      // Don't recompile stuff that's already compiled
+      if (check_addr(start + i*4+4)) {
+        done = 1;
+        continue;
+      }
+      // Don't get too close to the limit
+      if (i > MAXBLOCK - 64)
+        done = 2;
+      if (dops[i-1].opcode2 == 0x08 || dops[i-1].rs1 == 31) // JR; JALR x, lr
+        done = 2;
+      else if (dops[i-1].itype != RJUMP && dops[i-1].rt1 == 0) { // not JAL(R)
         int found_bbranch = 0, t = (cinfo[i-1].ba - start) / 4;
         if ((u_int)(t - i) < 64 && start + (t+64)*4 < pagelimit) {
           // scan for a branch back to i+1
@@ -7200,29 +7212,26 @@ static noinline void pass1_disassemble(u_int pagelimit)
           done = 2;
       }
       else {
-        if(stop_after_jal) done=1;
-        // Stop on BREAK
-        if((source[i+1]&0xfc00003f)==0x0d) done=1;
+        // jal(r) - continue or perf may suffer for platforms without
+        // runtime block linking (like in crash3)
+        if (stop_after_jal)
+          done = 2;
       }
-      // Don't recompile stuff that's already compiled
-      if(check_addr(start+i*4+4)) done=1;
-      // Don't get too close to the limit
-      if (i > MAXBLOCK - 64)
-        done = 1;
     }
     if (dops[i].itype == HLECALL)
       done = 1;
-    else if (dops[i].itype == INTCALL)
+    else if (dops[i].itype == INTCALL) {
+      ni_count++;
       done = 2;
+    }
     else if (dops[i].is_exception)
-      done = stop_after_jal ? 1 : 2;
+      done = 2;
     if (done == 2) {
       // Does the block continue due to a branch?
-      for(j=i-1;j>=0;j--)
-      {
-        if(cinfo[j].ba==start+i*4) done=j=0; // Branch into delay slot
-        if(cinfo[j].ba==start+i*4+4) done=j=0;
-        if(cinfo[j].ba==start+i*4+8) done=j=0;
+      for (j = i-1; j >= 0; j--) {
+        if (cinfo[j].ba == start+i*4) done=j=0; // Branch into delay slot
+        if (cinfo[j].ba == start+i*4+4) done=j=0;
+        if (cinfo[j].ba == start+i*4+8) done=j=0;
       }
     }
     //assert(i<MAXBLOCK-1);
@@ -7230,11 +7239,10 @@ static noinline void pass1_disassemble(u_int pagelimit)
     assert(start+i*4<pagelimit);
     if (i == MAXBLOCK - 2)
       done = 1;
-    // Stop if we're compiling junk
-    if (dops[i].itype == INTCALL && (++ni_count > 8 || dops[i].opcode == 0x11)) {
-      done=stop_after_jal=1;
-      SysPrintf("Disabled speculative precompilation\n");
-    }
+  }
+  if (ni_count > 32 && !stop_after_jal) {
+    stop_after_jal = 1;
+    SysPrintf("Disabled speculative precompilation\n");
   }
   while (i > 0 && dops[i-1].is_jump)
     i--;
