@@ -7434,6 +7434,17 @@ static noinline void pass2a_unneeded_other(void)
           break;
       }
     }
+    // rm redundant stack loads (unoptimized code, assuming no io mem access through sp)
+    if (i > 0 && dops[i].is_load && dops[i].rs1 == 29 && dops[i].ls_type == LS_32
+        && dops[i-1].is_store && dops[i-1].rs1 == 29 && dops[i-1].ls_type == LS_32
+        && dops[i-1].rs2 == dops[i].rt1 && !dops[i-1].is_ds && i < slen - 1
+        && dops[i+1].rs1 != dops[i].rt1 && dops[i+1].rs2 != dops[i].rt1
+        && !dops[i].bt && cinfo[i].imm == cinfo[i-1].imm)
+    {
+      cinfo[i].imm = 0;
+      memset(&dops[i], 0, sizeof(dops[i]));
+      dops[i].itype = NOP;
+    }
   }
 }
 
