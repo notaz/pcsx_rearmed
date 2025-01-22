@@ -406,7 +406,6 @@ void jump_overflow_ds(u_int u0, u_int u1, u_int pc);
 void jump_addrerror   (u_int cause, u_int addr, u_int pc);
 void jump_addrerror_ds(u_int cause, u_int addr, u_int pc);
 void jump_to_new_pc();
-void call_gteStall();
 void new_dyna_leave();
 
 void *ndrc_get_addr_ht(u_int vaddr, struct ht_entry *ht);
@@ -1296,7 +1295,6 @@ static const struct {
   FUNCNAME(jump_overflow_ds),
   FUNCNAME(jump_addrerror),
   FUNCNAME(jump_addrerror_ds),
-  FUNCNAME(call_gteStall),
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
@@ -3671,11 +3669,7 @@ static void rfe_assemble(int i, const struct regstat *i_regs)
 
 static int cop2_is_stalling_op(int i, int *cycles)
 {
-  if (dops[i].opcode == 0x3a) { // SWC2
-    *cycles = 0;
-    return 1;
-  }
-  if (dops[i].itype == COP2 && (dops[i].opcode2 == 0 || dops[i].opcode2 == 2)) { // MFC2/CFC2
+  if (dops[i].itype == COP2 || dops[i].itype == C2LS) {
     *cycles = 0;
     return 1;
   }
@@ -3709,7 +3703,7 @@ static void emit_log_gte_stall(int i, int stall, u_int reglist)
 
 static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u_int reglist)
 {
-  int j = i, other_gte_op_cycles = -1, stall = -MAXBLOCK, cycles_passed;
+  int j = i, cycles, other_gte_op_cycles = -1, stall = -MAXBLOCK, cycles_passed;
   int rtmp = reglist_find_free(reglist);
 
   if (HACK_ENABLED(NDHACK_NO_STALLS))
@@ -3733,17 +3727,11 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
   if (other_gte_op_cycles >= 0)
     stall = other_gte_op_cycles - cycles_passed;
   else if (cycles_passed >= 44)
-    stall = 0; // can't stall
+    stall = 0; // can't possibly stall
   if (stall == -MAXBLOCK && rtmp >= 0) {
     // unknown stall, do the expensive runtime check
     assem_debug("; cop2_do_stall_check\n");
-#if 0 // too slow
-    save_regs(reglist);
-    emit_movimm(gte_cycletab[op], 0);
-    emit_addimm(HOST_CCREG, cinfo[i].ccadj, 1);
-    emit_far_call(call_gteStall);
-    restore_regs(reglist);
-#else
+    // busy - (cc + adj) -> busy - adj - cc
     host_tempreg_acquire();
     emit_readword(&psxRegs.gteBusyCycle, rtmp);
     emit_addimm(rtmp, -cinfo[i].ccadj, rtmp);
@@ -3752,7 +3740,6 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
     emit_cmovb_reg(rtmp, HOST_CCREG);
     //emit_log_gte_stall(i, 0, reglist);
     host_tempreg_release();
-#endif
   }
   else if (stall > 0) {
     //emit_log_gte_stall(i, stall, reglist);
@@ -3760,7 +3747,8 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
   }
 
   // save gteBusyCycle, if needed
-  if (gte_cycletab[op] == 0)
+  cycles = gte_cycletab[op];
+  if (cycles == 0)
     return;
   other_gte_op_cycles = -1;
   for (j = i + 1; j < slen; j++) {
@@ -3777,20 +3765,12 @@ static void cop2_do_stall_check(u_int op, int i, const struct regstat *i_regs, u
     // will handle stall when assembling that op
     return;
   cycles_passed = cinfo[min(j, slen -1)].ccadj - cinfo[i].ccadj;
-  if (cycles_passed >= 44)
+  if (cycles_passed >= cycles)
     return;
   assem_debug("; save gteBusyCycle\n");
   host_tempreg_acquire();
-#if 0
-  emit_readword(&last_count, HOST_TEMPREG);
-  emit_add(HOST_TEMPREG, HOST_CCREG, HOST_TEMPREG);
-  emit_addimm(HOST_TEMPREG, cinfo[i].ccadj, HOST_TEMPREG);
-  emit_addimm(HOST_TEMPREG, gte_cycletab[op]), HOST_TEMPREG);
+  emit_addimm(HOST_CCREG, cinfo[i].ccadj + cycles, HOST_TEMPREG);
   emit_writeword(HOST_TEMPREG, &psxRegs.gteBusyCycle);
-#else
-  emit_addimm(HOST_CCREG, cinfo[i].ccadj + gte_cycletab[op], HOST_TEMPREG);
-  emit_writeword(HOST_TEMPREG, &psxRegs.gteBusyCycle);
-#endif
   host_tempreg_release();
 }
 

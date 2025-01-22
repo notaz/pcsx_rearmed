@@ -283,8 +283,8 @@ const unsigned char gte_cycletab[64] = {
 	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
 };
 
-// warning: called by the dynarec
-int gteCheckStallRaw(u32 op_cycles, psxRegisters *regs) {
+// warning: ari64 drc stores it's negative cycles in gteBusyCycle
+static int gteCheckStallRaw(u32 op_cycles, psxRegisters *regs) {
 	u32 left = regs->gteBusyCycle - regs->cycle;
 	int stall = 0;
 

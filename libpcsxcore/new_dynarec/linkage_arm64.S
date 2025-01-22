@@ -29,7 +29,6 @@
 #define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
 #define gen_interupt		ESYM(gen_interupt)
-#define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
 #define execI			ESYM(execI)
 #endif
@@ -381,18 +380,6 @@ jump_handle_swx_interp: /* almost never happens */
 	str	w2, [rFP, #LO_cycle]           /* PCSX cycles */
 	bl	execI
 	b	jump_to_new_pc
-
-FUNCTION(call_gteStall):
-	/* w0 = op_cycles, w1 = cycles */
-	ldr	w2, [rFP, #LO_last_count]
-	str	lr, [rFP, #LO_saved_lr]
-	add	w1, w1, w2
-	str	w1, [rFP, #LO_cycle]
-	add	x1, rFP, #LO_psxRegs
-	bl	gteCheckStallRaw
-	ldr	lr, [rFP, #LO_saved_lr]
-	add	rCC, rCC, w0
-	ret
 
 #ifdef DRC_DBG
 #undef do_insn_cmp

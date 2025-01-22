@@ -31,7 +31,6 @@
 #define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
 #define ndrc_write_invalidate_one ESYM(ndrc_write_invalidate_one)
 #define gen_interupt		ESYM(gen_interupt)
-#define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
 #define execI			ESYM(execI)
 #endif
@@ -635,18 +634,6 @@ FUNCTION(rcnt2_read_count_m1):
 	mov	r0, r2, lsl #16-3
 	sub	r0, r0, r3, lsl #16-3
 	lsr	r0, #16			@ /= 8
-	bx	lr
-
-FUNCTION(call_gteStall):
-	/* r0 = op_cycles, r1 = cycles */
-	ldr	r2, [fp, #LO_last_count]
-	str	lr, [fp, #LO_saved_lr]
-	add	r1, r1, r2
-	str	r1, [fp, #LO_cycle]
-	add	r1, fp, #LO_psxRegs
-	bl	gteCheckStallRaw
-	ldr	lr, [fp, #LO_saved_lr]
-	add	r10, r10, r0
 	bx	lr
 
 #ifdef HAVE_ARMV6
