@@ -253,7 +253,7 @@ static struct decoded_insn
   u_char is_delay_load:1; // is_load + MFC/CFC
   u_char is_exception:1;  // unconditional, also interp. fallback
   u_char may_except:1;    // might generate an exception
-  u_char ls_type:2;       // load/store type (ls_width_type)
+  u_char ls_type:2;       // load/store type (ls_width_type LS_*)
 } dops[MAXBLOCK];
 
 enum ls_width_type {
@@ -309,6 +309,7 @@ static struct compile_info
   static u_int expirep;
   static u_int stop_after_jal;
   static u_int f1_hack;
+  static u_int vsync_hack;
 #ifdef STAT_PRINT
   static int stat_bc_direct;
   static int stat_bc_pre;
@@ -5543,6 +5544,52 @@ static void rjump_assemble(int i, const struct regstat *i_regs)
   #endif
 }
 
+static void vsync_hack_assemble(int i, int ld_ofs, int cc)
+{
+  int sp = get_reg(branch_regs[i].regmap, 29);
+  int ro = get_reg(branch_regs[i].regmap, ROREG);
+  int cycles = CLOCK_ADJUST(9+5) * 16;
+  void *t_exit[3], *loop_target, *t_loop_break;
+  int j;
+  if (sp < 0 || (ram_offset && ro < 0))
+    return;
+  assem_debug("; vsync hack\n");
+  host_tempreg_acquire();
+  emit_cmpimm(cc, -cycles);
+  t_exit[0] = out;
+  emit_jge(0);
+  emit_cmpimm(sp, RAM_SIZE);
+  t_exit[1] = out;
+  emit_jno(0);
+  if (ro >= 0) {
+    emit_addimm(sp, ld_ofs, HOST_TEMPREG);
+    emit_ldr_dualindexed(ro, HOST_TEMPREG, HOST_TEMPREG);
+  }
+  else
+    emit_readword_indexed(ld_ofs, sp, HOST_TEMPREG);
+  emit_cmpimm(HOST_TEMPREG, 17);
+  t_exit[2] = out;
+  emit_jl(0);
+
+  assem_debug("1:\n");
+  loop_target = out;
+  emit_addimm(HOST_TEMPREG, -16, HOST_TEMPREG);
+  emit_addimm(cc, cycles, cc);
+  emit_cmpimm(HOST_TEMPREG, 17);
+  t_loop_break = out;
+  emit_jl(DJT_2);
+  emit_cmpimm(cc, -cycles);
+  emit_jl(loop_target);
+
+  assem_debug("2:\n");
+  set_jump_target(t_loop_break, out);
+  do_store_word(sp, ld_ofs, HOST_TEMPREG, ro, 1);
+
+  for (j = 0; j < ARRAY_SIZE(t_exit); j++)
+    set_jump_target(t_exit[j], out);
+  host_tempreg_release();
+}
+
 static void cjump_assemble(int i, const struct regstat *i_regs)
 {
   const signed char *i_regmap = i_regs->regmap;
@@ -5556,6 +5603,7 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
   int internal=internal_branch(cinfo[i].ba);
   if(i==(cinfo[i].ba-start)>>2) assem_debug("idle loop\n");
   if(!match) invert=1;
+  if (vsync_hack && (vsync_hack >> 16) == i) invert=1;
   #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
   if(i>(cinfo[i].ba-start)>>2) invert=1;
   #endif
@@ -5690,6 +5738,8 @@ static void cjump_assemble(int i, const struct regstat *i_regs)
       }
       if(invert) {
         if(taken) set_jump_target(taken, out);
+        if (vsync_hack && (vsync_hack >> 16) == i)
+          vsync_hack_assemble(i, vsync_hack & 0xffff, cc);
         #ifdef CORTEX_A8_BRANCH_PREDICTION_HACK
         if (match && (!internal || !dops[(cinfo[i].ba-start)>>2].is_ds)) {
           if(adj) {
@@ -6600,9 +6650,55 @@ static void force_intcall(int i)
   cinfo[i].ba = -1;
 }
 
+static noinline void do_vsync(int i)
+{
+  // lui a0, x; addiu a0, x; jal puts
+  u32 addr = (cinfo[i].imm << 16) + (signed short)cinfo[i+1].imm;
+  char *str = NULL;
+  int j, t, jals_cnt = 0;
+
+  if (!is_ram_addr(addr))
+      return;
+  str = (char *)psxM + (addr & 0x1fffff);
+  if (!str || strncmp(str, "VSync: timeout", 14))
+    return;
+  // jal clearPad, jal clearRCnt; j return; nop
+  for (j = i+2; j < slen; j++) {
+    if (dops[j].itype == SHIFTIMM || dops[j].itype == IMM16 || dops[j].itype == ALU)
+      continue;
+    if (dops[j].opcode == 0x03) {
+      jals_cnt++; continue;
+    }
+    break;
+  }
+  if (j >= slen || jals_cnt != 3 || dops[j++].opcode != 0x02)
+    return;
+  for (; j < slen; j++)
+    if (dops[j].itype != SHIFTIMM && dops[j].itype != IMM16)
+      break;
+  if (j >= slen || dops[j].opcode != 0x23) // lw x, condition
+    return;
+  j += 2;
+  if (dops[j].opcode != 0 || dops[j].opcode2 != 0x2A) // slt x, y
+    return;
+  if (dops[++j].opcode != 0x05) // bnez x, loop
+    return;
+  t = (cinfo[j].ba - start) / 4;
+  if (t < 0 || t >= slen)
+    return;
+  // lw x, d(sp)
+  if (dops[t].opcode != 0x23 || dops[t].rs1 != 29 || (u32)cinfo[t].imm >= 1024)
+    return;
+  if (dops[t+2].opcode != 0x09 || cinfo[t+2].imm != -1) // addiu x, -1
+    return;
+  SysPrintf("vsync @%08x\n", start + t*4);
+  vsync_hack = (j << 16) | (cinfo[t].imm & 0xffff);
+}
+
 static int apply_hacks(void)
 {
   int i;
+  vsync_hack = 0;
   if (HACK_ENABLED(NDHACK_NO_COMPAT_HACKS))
     return 0;
   /* special hack(s) */
@@ -6615,6 +6711,13 @@ static int apply_hacks(void)
     {
       SysPrintf("PE2 hack @%08x\n", start + (i+3)*4);
       dops[i + 3].itype = NOP;
+    }
+    // see also: psxBiosCheckExe()
+    if (i > 1 && dops[i].opcode == 0x0f && dops[i].rt1 == 4
+        && dops[i+1].opcode == 0x09 && dops[i+1].rt1 == 4 && dops[i+1].rs1 == 4
+        && dops[i+2].opcode == 0x03)
+    {
+      do_vsync(i);
     }
   }
   if (source[0] == 0x3c05edb8 && source[1] == 0x34a58320)
@@ -6640,6 +6743,7 @@ static int apply_hacks(void)
       return 1;
     }
   }
+#if 0 // alt vsync, not used
   if (Config.HLE)
   {
     if (start <= psxRegs.biosBranchCheck && psxRegs.biosBranchCheck < start + i*4)
@@ -6652,6 +6756,7 @@ static int apply_hacks(void)
       }
     }
   }
+#endif
   return 0;
 }
 
