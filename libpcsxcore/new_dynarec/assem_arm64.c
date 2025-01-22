@@ -971,7 +971,7 @@ static int can_jump_or_call(const void *a)
 static void emit_call(const void *a)
 {
   intptr_t diff = (u_char *)a - out;
-  assem_debug("bl %p (%p+%lx)%s\n", a, out, diff, func_name(a));
+  assem_debug("bl %p%s\n", log_addr(a), func_name(a));
   assert(!(diff & 3));
   if (-134217728 <= diff && diff <= 134217727)
     output_w32(0x94000000 | ((diff >> 2) & 0x03ffffff));
@@ -981,77 +981,77 @@ static void emit_call(const void *a)
 
 static void emit_jmp(const void *a)
 {
-  assem_debug("b %p (%p+%lx)%s\n", a, out, (u_char *)a - out, func_name(a));
+  assem_debug("b %p%s\n", log_addr(a), func_name(a));
   u_int offset = genjmp(a);
   output_w32(0x14000000 | offset);
 }
 
 static void emit_jne(const void *a)
 {
-  assem_debug("bne %p\n", a);
+  assem_debug("bne %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_NE);
 }
 
 static void emit_jeq(const void *a)
 {
-  assem_debug("beq %p\n", a);
+  assem_debug("beq %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_EQ);
 }
 
 static void emit_js(const void *a)
 {
-  assem_debug("bmi %p\n", a);
+  assem_debug("bmi %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_MI);
 }
 
 static void emit_jns(const void *a)
 {
-  assem_debug("bpl %p\n", a);
+  assem_debug("bpl %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_PL);
 }
 
 static void emit_jl(const void *a)
 {
-  assem_debug("blt %p\n", a);
+  assem_debug("blt %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_LT);
 }
 
 static void emit_jge(const void *a)
 {
-  assem_debug("bge %p\n", a);
+  assem_debug("bge %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_GE);
 }
 
 static void emit_jo(const void *a)
 {
-  assem_debug("bvs %p\n", a);
+  assem_debug("bvs %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_VS);
 }
 
 static void emit_jno(const void *a)
 {
-  assem_debug("bvc %p\n", a);
+  assem_debug("bvc %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_VC);
 }
 
 static void emit_jc(const void *a)
 {
-  assem_debug("bcs %p\n", a);
+  assem_debug("bcs %p\n", log_addr(a));
   u_int offset = genjmpcc(a);
   output_w32(0x54000000 | (offset << 5) | COND_CS);
 }
 
 static void emit_cb(u_int isnz, u_int is64, const void *a, u_int r)
 {
-  assem_debug("cb%sz %s,%p\n", isnz?"n":"", is64?regname64[r]:regname[r], a);
+  assem_debug("cb%sz %s,%p\n", isnz?"n":"", is64?regname64[r]:regname[r], log_addr(a));
   u_int offset = genjmpcc(a);
   is64 = is64 ? 0x80000000 : 0;
   isnz = isnz ? 0x01000000 : 0;

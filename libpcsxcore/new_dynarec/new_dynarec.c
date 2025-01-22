@@ -57,6 +57,7 @@ static Jit g_jit;
 
 //#define DISASM
 //#define ASSEM_PRINT
+//#define ASSEM_PRINT_ADDRS
 //#define REGMAP_PRINT // with DISASM only
 //#define INV_DEBUG_W
 //#define STAT_PRINT
@@ -65,6 +66,12 @@ static Jit g_jit;
 #define assem_debug printf
 #else
 #define assem_debug(...)
+#endif
+#ifdef ASSEM_PRINT_ADDRS
+#define log_addr(a) (a)
+#else
+// for diff-able output
+#define log_addr(a) ((u_long)(a) <= 1024u ? (void *)(a) : (void *)0xadd0l)
 #endif
 //#define inv_debug printf
 #define inv_debug(...)
@@ -9130,7 +9137,7 @@ static int noinline new_recompile_block(u_int addr)
   u_int state_rflags = 0;
   int i;
 
-  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, out);
+  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, log_addr(out));
 
   if (addr & 3) {
     if (addr != hack_addr) {
@@ -9455,7 +9462,8 @@ static int noinline new_recompile_block(u_int addr)
   /* Pass 9 - Linker */
   for(i=0;i<linkcount;i++)
   {
-    assem_debug("%p -> %8x\n",link_addr[i].addr,link_addr[i].target);
+    assem_debug("link: %p -> %08x\n",
+      log_addr(link_addr[i].addr), link_addr[i].target);
     literal_pool(64);
     if (!link_addr[i].internal)
     {
@@ -9510,7 +9518,7 @@ static int noinline new_recompile_block(u_int addr)
   {
     if ((i == 0 || dops[i].bt) && instr_addr[i])
     {
-      assem_debug("%p (%d) <- %8x\n", instr_addr[i], i, start + i*4);
+      assem_debug("%p (%d) <- %8x\n", log_addr(instr_addr[i]), i, start + i*4);
       u_int vaddr = start + i*4;
 
       literal_pool(256);
