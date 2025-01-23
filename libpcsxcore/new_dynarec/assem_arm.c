@@ -28,6 +28,10 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
+#ifdef TC_WRITE_OFFSET
+#error "not implemented"
+#endif
+
 #ifdef DRC_DBG
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -103,11 +107,19 @@ const void *invalidate_addr_reg[16] = {
 
 /* Linker */
 
+static void set_jump_target_far1(u_int *insn, void *target)
+{
+  u_int ni = *insn & 0xff000000;
+  ni |= (((u_int)target - (u_int)insn - 8u) << 6) >> 8;
+  assert((ni & 0x0e000000) == 0x0a000000);
+  *insn = ni;
+}
+
 static void set_jump_target(void *addr, void *target_)
 {
-  u_int target = (u_int)target_;
-  u_char *ptr = addr;
-  u_int *ptr2=(u_int *)ptr;
+  const u_int target = (u_int)target_;
+  const u_char *ptr = addr;
+  u_int *ptr2 = (u_int *)ptr;
   if(ptr[3]==0xe2) {
     assert((target-(u_int)ptr2-8)<1024);
     assert(((uintptr_t)addr&3)==0);
@@ -130,8 +142,7 @@ static void set_jump_target(void *addr, void *target_)
     else *ptr2=(0x7A000000)|(((target-(u_int)ptr2-8)<<6)>>8);
   }
   else {
-    assert((ptr[3]&0x0e)==0xa);
-    *ptr2=(*ptr2&0xFF000000)|(((target-(u_int)ptr2-8)<<6)>>8);
+    set_jump_target_far1(ptr2, target_);
   }
 }
 
@@ -189,20 +200,6 @@ static void *find_extjump_insn(void *stub)
   void **l_ptr=(void *)ptr+offset+8;
   return *l_ptr;
 }
-
-// find where external branch is liked to using addr of it's stub:
-// get address that insn one after stub loads (dyna_linker arg1),
-// treat it as a pointer to branch insn,
-// return addr where that branch jumps to
-#if 0
-static void *get_pointer(void *stub)
-{
-  //printf("get_pointer(%x)\n",(int)stub);
-  int *i_ptr=find_extjump_insn(stub);
-  assert((*i_ptr&0x0f000000)==0x0a000000); // b
-  return (u_char *)i_ptr+((*i_ptr<<8)>>6)+8;
-}
-#endif
 
 // Allocate a specific ARM register.
 static void alloc_arm_reg(struct regstat *cur,int i,signed char reg,int hr)
@@ -1586,7 +1583,7 @@ static void literal_pool_jumpover(int n)
   set_jump_target(jaddr, out);
 }
 
-// parsed by get_pointer, find_extjump_insn
+// parsed by find_extjump_insn, check_extjump2
 static void emit_extjump(u_char *addr, u_int target)
 {
   u_char *ptr=(u_char *)addr;

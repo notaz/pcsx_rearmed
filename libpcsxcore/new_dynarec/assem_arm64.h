@@ -1,8 +1,9 @@
 #define HOST_IMM8 1
 
 /* calling convention:
-   r0 -r17: caller-save
-   r19-r29: callee-save */
+   x0 -x17: caller-save
+   x18    : caller-save (platform reg)
+   x19-x29: callee-save */
 
 #define HOST_REGS 29
 #define EXCLUDE_REG -1

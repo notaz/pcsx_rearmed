@@ -26,7 +26,7 @@
 
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
-#define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
+#define ndrc_patch_link		ESYM(ndrc_patch_link)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
 #define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
 #define ndrc_write_invalidate_one ESYM(ndrc_write_invalidate_one)
@@ -148,15 +148,15 @@ DRC_VAR(mini_ht, 256)
 FUNCTION(dyna_linker):
 	/* r0 = virtual target address */
 	/* r1 = pointer to an instruction to patch */
-#ifndef NO_WRITE_EXEC
+#if 1
 	ldr	r7, [r1]
 	mov	r4, r0
 	add	r6, r7, #2
 	mov	r5, r1
 	lsl	r6, r6, #8
 	/* must not compile - that might expire the caller block */
-	ldr     r0, [fp, #LO_hash_table_ptr]
-	mov     r1, r4
+	ldr	r0, [fp, #LO_hash_table_ptr]
+	mov	r1, r4
 	mov	r2, #0 /* ndrc_compile_mode=ndrc_cm_no_compile */
 	bl	ndrc_get_addr_ht_param
 
@@ -166,22 +166,15 @@ FUNCTION(dyna_linker):
 	teq	r0, r6
 	bxeq	r0     /* Stale i-cache */
 	mov	r0, r4
-	mov	r1, r6
-	bl	ndrc_add_jump_out
-
-	sub	r2, r8, r5
-	and	r1, r7, #0xff000000
-	lsl	r2, r2, #6
-	sub	r1, r1, #2
-	add	r1, r1, r2, lsr #8
-	str	r1, [r5]
+	mov	r1, r5
+	mov	r2, r6
+	mov	r3, r8
+	bl	ndrc_patch_link
 	bx	r8
 0:
 	mov	r0, r4
-#else
-	/* XXX: should be able to do better than this... */
 #endif
-	ldr     r1, [fp, #LO_hash_table_ptr]
+	ldr	r1, [fp, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	bx	r0
 	.size	dyna_linker, .-dyna_linker

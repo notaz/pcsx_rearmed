@@ -36,6 +36,7 @@
 
 extern char *invc_ptr;
 
+// note: max due to branch encoding: arm 32M, arm64 128M
 #define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
 
 struct tramp_insns

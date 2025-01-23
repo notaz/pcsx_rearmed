@@ -410,7 +410,6 @@ void jump_to_new_pc();
 void new_dyna_leave();
 
 void *ndrc_get_addr_ht(u_int vaddr, struct ht_entry *ht);
-void ndrc_add_jump_out(u_int vaddr, void *src);
 void ndrc_write_invalidate_one(u_int addr);
 static void ndrc_write_invalidate_many(u_int addr, u_int end);
 
@@ -1717,15 +1716,15 @@ void new_dynarec_invalidate_all_pages(void)
 }
 
 // Add an entry to jump_out after making a link
-// src should point to code by emit_extjump()
-void ndrc_add_jump_out(u_int vaddr, void *src)
+// stub should point to stub code by emit_extjump()
+static void ndrc_add_jump_out(u_int vaddr, void *stub)
 {
-  inv_debug("ndrc_add_jump_out: %p -> %x\n", src, vaddr);
+  inv_debug("ndrc_add_jump_out: %p -> %x\n", stub, vaddr);
   u_int page = get_page(vaddr);
   struct jump_info *ji;
 
   stat_inc(stat_links);
-  check_extjump2(src);
+  check_extjump2(stub);
   ji = jumps[page];
   if (ji == NULL) {
     ji = malloc(sizeof(*ji) + sizeof(ji->e[0]) * 16);
@@ -1738,8 +1737,28 @@ void ndrc_add_jump_out(u_int vaddr, void *src)
   }
   jumps[page] = ji;
   ji->e[ji->count].target_vaddr = vaddr;
-  ji->e[ji->count].stub = src;
+  ji->e[ji->count].stub = stub;
   ji->count++;
+}
+
+void ndrc_patch_link(u_int vaddr, void *insn, void *stub, void *target)
+{
+  void *insn_end = (char *)insn + 4;
+
+  //start_tcache_write(insn, insn_end);
+  mprotect_w_x(insn, insn_end, 0);
+
+  assert(target != stub);
+  set_jump_target_far1(insn, target);
+  ndrc_add_jump_out(vaddr, stub);
+
+#if defined(__aarch64__) || defined(NO_WRITE_EXEC)
+  // arm64: no syscall concerns, dyna_linker lacks stale detection
+  // w^x: have to do costly permission switching anyway
+  new_dyna_clear_cache(NDRC_WRITE_OFFSET(insn), NDRC_WRITE_OFFSET(insn_end));
+#endif
+  //end_tcache_write(insn, insn_end);
+  mprotect_w_x(insn, insn_end, 1);
 }
 
 /* Register allocation */
@@ -6287,11 +6306,11 @@ static noinline void new_dynarec_test(void)
 
   SysPrintf("(%p) testing if we can run recompiled code @%p...\n",
     new_dynarec_test, out);
-  ((volatile u_int *)NDRC_WRITE_OFFSET(out))[0]++; // make the cache dirty
 
   for (i = 0; i < ARRAY_SIZE(ret); i++) {
     out = ndrc->translation_cache;
     beginning = start_block();
+    ((volatile u_int *)NDRC_WRITE_OFFSET(out))[0]++; // make the cache dirty
     emit_movimm(DRC_TEST_VAL + i, 0); // test
     emit_ret();
     literal_pool(0);
@@ -6406,6 +6425,8 @@ void new_dynarec_init(void)
   void *mw = mmap(NULL, sizeof(*ndrc), PROT_READ | PROT_WRITE,
                   (flags = MAP_SHARED), fd, 0);
   assert(mw != MAP_FAILED);
+  #endif
+  #if defined(NO_WRITE_EXEC) || defined(TC_WRITE_OFFSET)
   prot = PROT_READ | PROT_EXEC;
   #endif
   ndrc = mmap((void *)desired_addr, sizeof(*ndrc), prot, flags, fd, 0);
@@ -6418,13 +6439,16 @@ void new_dynarec_init(void)
   #endif
   #endif
 #else
-  #ifndef NO_WRITE_EXEC
   ndrc = (struct ndrc_mem *)((size_t)(ndrc_bss + align) & ~align);
+  #ifndef NO_WRITE_EXEC
   // not all systems allow execute in data segment by default
   // size must be 4K aligned for 3DS?
   if (mprotect(ndrc, sizeof(*ndrc),
                PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
     SysPrintf("mprotect(%p) failed: %s\n", ndrc, strerror(errno));
+  #endif
+  #ifdef TC_WRITE_OFFSET
+  #error "misconfiguration detected"
   #endif
 #endif
   out = ndrc->translation_cache;
@@ -6473,17 +6497,17 @@ void new_dynarec_cleanup(void)
 
 static u_int *get_source_start(u_int addr, u_int *limit)
 {
-  if (addr < 0x00800000
-      || (0x80000000 <= addr && addr < 0x80800000)
-      || (0xa0000000 <= addr && addr < 0xa0800000))
+  if (addr < 0x00800000u
+      || (0x80000000u <= addr && addr < 0x80800000u)
+      || (0xa0000000u <= addr && addr < 0xa0800000u))
   {
     // used for BIOS calls mostly?
     *limit = (addr & 0xa0600000) + 0x00200000;
     return (u_int *)(psxM + (addr & 0x1fffff));
   }
   else if (
-    /* (0x9fc00000 <= addr && addr < 0x9fc80000) ||*/
-    (0xbfc00000 <= addr && addr < 0xbfc80000))
+    (0x9fc00000u <= addr && addr < 0x9fc80000u) ||
+    (0xbfc00000u <= addr && addr < 0xbfc80000u))
   {
     // BIOS. The multiplier should be much higher as it's uncached 8bit mem
     // XXX: disabled as this introduces differences from the interpreter
