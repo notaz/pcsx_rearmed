@@ -270,7 +270,6 @@ void psxMemReset() {
 
 		if (f == NULL) {
 			SysMessage(_("Could not open BIOS:\"%s\". Enabling HLE Bios!\n"), bios);
-			memset(psxR, 0, 0x80000);
 		} else {
 			if (fread(psxR, 1, 0x80000, f) == 0x80000) {
 				Config.HLE = FALSE;
@@ -280,6 +279,8 @@ void psxMemReset() {
 			fclose(f);
 		}
 	}
+	if (Config.HLE)
+		memset(psxR, 0, 0x80000);
 }
 
 void psxMemShutdown() {

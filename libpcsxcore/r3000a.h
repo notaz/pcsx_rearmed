@@ -234,6 +234,7 @@ void psxShutdown();
 void psxException(u32 code, enum R3000Abdt bdt, psxCP0Regs *cp0);
 void psxBranchTest();
 void psxExecuteBios();
+int  psxExecuteBiosEnded(void);
 void psxJumpTest();
 
 void irq10Interrupt();
