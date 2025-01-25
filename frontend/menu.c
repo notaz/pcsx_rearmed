@@ -415,6 +415,7 @@ static const struct {
 	CE_CONFIG_VAL(FractionalFramerate),
 	CE_CONFIG_VAL(PreciseExceptions),
 	CE_CONFIG_VAL(TurboCD),
+	CE_CONFIG_VAL(SlowBoot),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
 	CE_INTVAL(g_gamma),
@@ -2738,7 +2739,6 @@ void menu_prepare_emu(void)
 		prev_cpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 		prev_cpu->Shutdown();
 		psxCpu->Init();
-		psxCpu->Reset();
 		psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 	}
 

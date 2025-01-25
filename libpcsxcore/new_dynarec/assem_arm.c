@@ -28,6 +28,10 @@
 #include "pcnt.h"
 #include "arm_features.h"
 
+#ifdef TC_WRITE_OFFSET
+#error "not implemented"
+#endif
+
 #ifdef DRC_DBG
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -82,31 +86,40 @@ void invalidate_addr_r9();
 void invalidate_addr_r10();
 void invalidate_addr_r12();
 
-const u_int invalidate_addr_reg[16] = {
-  (int)invalidate_addr_r0,
-  (int)invalidate_addr_r1,
-  (int)invalidate_addr_r2,
-  (int)invalidate_addr_r3,
-  (int)invalidate_addr_r4,
-  (int)invalidate_addr_r5,
-  (int)invalidate_addr_r6,
-  (int)invalidate_addr_r7,
-  (int)invalidate_addr_r8,
-  (int)invalidate_addr_r9,
-  (int)invalidate_addr_r10,
+const void *invalidate_addr_reg[16] = {
+  invalidate_addr_r0,
+  invalidate_addr_r1,
+  invalidate_addr_r2,
+  invalidate_addr_r3,
+  invalidate_addr_r4,
+  invalidate_addr_r5,
+  invalidate_addr_r6,
+  invalidate_addr_r7,
+  invalidate_addr_r8,
+  invalidate_addr_r9,
+  invalidate_addr_r10,
   0,
-  (int)invalidate_addr_r12,
+  invalidate_addr_r12,
   0,
   0,
-  0};
+  0
+};
 
 /* Linker */
 
+static void set_jump_target_far1(u_int *insn, void *target)
+{
+  u_int ni = *insn & 0xff000000;
+  ni |= (((u_int)target - (u_int)insn - 8u) << 6) >> 8;
+  assert((ni & 0x0e000000) == 0x0a000000);
+  *insn = ni;
+}
+
 static void set_jump_target(void *addr, void *target_)
 {
-  u_int target = (u_int)target_;
-  u_char *ptr = addr;
-  u_int *ptr2=(u_int *)ptr;
+  const u_int target = (u_int)target_;
+  const u_char *ptr = addr;
+  u_int *ptr2 = (u_int *)ptr;
   if(ptr[3]==0xe2) {
     assert((target-(u_int)ptr2-8)<1024);
     assert(((uintptr_t)addr&3)==0);
@@ -129,8 +142,7 @@ static void set_jump_target(void *addr, void *target_)
     else *ptr2=(0x7A000000)|(((target-(u_int)ptr2-8)<<6)>>8);
   }
   else {
-    assert((ptr[3]&0x0e)==0xa);
-    *ptr2=(*ptr2&0xFF000000)|(((target-(u_int)ptr2-8)<<6)>>8);
+    set_jump_target_far1(ptr2, target_);
   }
 }
 
@@ -188,20 +200,6 @@ static void *find_extjump_insn(void *stub)
   void **l_ptr=(void *)ptr+offset+8;
   return *l_ptr;
 }
-
-// find where external branch is liked to using addr of it's stub:
-// get address that insn one after stub loads (dyna_linker arg1),
-// treat it as a pointer to branch insn,
-// return addr where that branch jumps to
-#if 0
-static void *get_pointer(void *stub)
-{
-  //printf("get_pointer(%x)\n",(int)stub);
-  int *i_ptr=find_extjump_insn(stub);
-  assert((*i_ptr&0x0f000000)==0x0a000000); // b
-  return (u_char *)i_ptr+((*i_ptr<<8)>>6)+8;
-}
-#endif
 
 // Allocate a specific ARM register.
 static void alloc_arm_reg(struct regstat *cur,int i,signed char reg,int hr)
@@ -987,7 +985,7 @@ static int can_jump_or_call(const void *a)
 static void emit_call(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bl %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a_));
+  assem_debug("bl %p%s\n", log_addr(a), func_name(a_));
   u_int offset=genjmp(a);
   output_w32(0xeb000000|offset);
 }
@@ -995,7 +993,7 @@ static void emit_call(const void *a_)
 static void emit_jmp(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("b %x (%x+%x)%s\n",a,(int)out,a-(int)out-8,func_name(a_));
+  assem_debug("b %p%s\n", log_addr(a_), func_name(a_));
   u_int offset=genjmp(a);
   output_w32(0xea000000|offset);
 }
@@ -1003,7 +1001,7 @@ static void emit_jmp(const void *a_)
 static void emit_jne(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bne %x\n",a);
+  assem_debug("bne %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x1a000000|offset);
 }
@@ -1011,7 +1009,7 @@ static void emit_jne(const void *a_)
 static void emit_jeq(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("beq %x\n",a);
+  assem_debug("beq %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x0a000000|offset);
 }
@@ -1019,7 +1017,7 @@ static void emit_jeq(const void *a_)
 static void emit_js(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bmi %x\n",a);
+  assem_debug("bmi %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x4a000000|offset);
 }
@@ -1027,7 +1025,7 @@ static void emit_js(const void *a_)
 static void emit_jns(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bpl %x\n",a);
+  assem_debug("bpl %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x5a000000|offset);
 }
@@ -1035,7 +1033,7 @@ static void emit_jns(const void *a_)
 static void emit_jl(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("blt %x\n",a);
+  assem_debug("blt %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0xba000000|offset);
 }
@@ -1043,7 +1041,7 @@ static void emit_jl(const void *a_)
 static void emit_jge(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bge %x\n",a);
+  assem_debug("bge %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0xaa000000|offset);
 }
@@ -1051,7 +1049,7 @@ static void emit_jge(const void *a_)
 static void emit_jo(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bvs %x\n",a);
+  assem_debug("bvs %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x6a000000|offset);
 }
@@ -1059,7 +1057,7 @@ static void emit_jo(const void *a_)
 static void emit_jno(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bvc %x\n",a);
+  assem_debug("bvc %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x7a000000|offset);
 }
@@ -1067,7 +1065,7 @@ static void emit_jno(const void *a_)
 static void emit_jc(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bcs %x\n",a);
+  assem_debug("bcs %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x2a000000|offset);
 }
@@ -1075,7 +1073,7 @@ static void emit_jc(const void *a_)
 static void emit_jcc(const void *a_)
 {
   int a = (int)a_;
-  assem_debug("bcc %x\n",a);
+  assem_debug("bcc %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x3a000000|offset);
 }
@@ -1454,9 +1452,10 @@ static void emit_ldrb_indexedsr12_reg(int base, int r, int rt)
   output_w32(0xe7d00000|rd_rn_rm(rt,base,r)|0x620);
 }
 
-static void emit_callne(int a)
+static void emit_callne(const void *a_)
 {
-  assem_debug("blne %x\n",a);
+  int a = (int)a_;
+  assem_debug("blne %p\n", log_addr(a_));
   u_int offset=genjmp(a);
   output_w32(0x1b000000|offset);
 }
@@ -1492,10 +1491,11 @@ static attr_unused void emit_addpl_imm(int rs,int imm,int rt)
   output_w32(0x52800000|rd_rn_rm(rt,rs,0)|armval);
 }
 
-static void emit_jno_unlikely(int a)
+static void emit_jno_unlikely(void *a_)
 {
-  //emit_jno(a);
-  assem_debug("addvc pc,pc,#? (%x)\n",/*a-(int)out-8,*/a);
+  //emit_jno(a_);
+  assert(a_ == NULL);
+  assem_debug("addvc pc,pc,#? (%p)\n", /*a-(int)out-8,*/ log_addr(a_));
   output_w32(0x72800000|rd_rn_rm(15,15,0));
 }
 
@@ -1583,7 +1583,7 @@ static void literal_pool_jumpover(int n)
   set_jump_target(jaddr, out);
 }
 
-// parsed by get_pointer, find_extjump_insn
+// parsed by find_extjump_insn, check_extjump2
 static void emit_extjump(u_char *addr, u_int target)
 {
   u_char *ptr=(u_char *)addr;
@@ -1665,7 +1665,7 @@ static void mov_loadtype_adj(enum stub_type type,int rs,int rt)
 
 static void do_readstub(int n)
 {
-  assem_debug("do_readstub %x\n",start+stubs[n].a*4);
+  assem_debug("do_readstub %p\n", log_addr(start + stubs[n].a*4));
   literal_pool(256);
   set_jump_target(stubs[n].addr, out);
   enum stub_type type=stubs[n].type;
@@ -1836,7 +1836,7 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
 
 static void do_writestub(int n)
 {
-  assem_debug("do_writestub %x\n",start+stubs[n].a*4);
+  assem_debug("do_writestub %p\n", log_addr(start + stubs[n].a*4));
   literal_pool(256);
   set_jump_target(stubs[n].addr, out);
   enum stub_type type=stubs[n].type;

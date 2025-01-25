@@ -72,9 +72,13 @@ static bool use_lightrec_interpreter;
 static bool block_stepping;
 //static bool use_pcsx_interpreter;
 #define use_pcsx_interpreter 0
+static bool ram_disabled;
+static bool lightrec_debug, lightrec_very_debug;
+static u32 lightrec_begin_cycles;
 
 extern u32 lightrec_hacks;
 
+static void lightrec_plugin_apply_config();
 extern void lightrec_code_inv(void *ptr, uint32_t len);
 
 enum my_cp2_opcodes {
@@ -340,6 +344,8 @@ static void lightrec_enable_ram(struct lightrec_state *state, bool enable)
 		memcpy(psxM, cache_buf, sizeof(cache_buf));
 	else
 		memcpy(cache_buf, psxM, sizeof(cache_buf));
+
+	ram_disabled = !enable;
 }
 
 static bool lightrec_can_hw_direct(u32 kaddr, bool is_write, u8 size)
@@ -465,6 +471,16 @@ static int lightrec_plugin_init(void)
 
 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
 
+#ifdef LIGHTREC_DEBUG
+	char *cycles = getenv("LIGHTREC_BEGIN_CYCLES");
+
+	lightrec_very_debug = !!getenv("LIGHTREC_VERY_DEBUG");
+	lightrec_debug = lightrec_very_debug || !!getenv("LIGHTREC_DEBUG");
+
+	if (cycles)
+		lightrec_begin_cycles = (unsigned int) strtol(cycles, NULL, 0);
+#endif
+
 	lightrec_state = lightrec_init(LIGHTREC_PROG_NAME,
 			lightrec_map, ARRAY_SIZE(lightrec_map),
 			&lightrec_ops);
@@ -478,7 +494,106 @@ static int lightrec_plugin_init(void)
 #ifndef _WIN32
 	signal(SIGPIPE, exit);
 #endif
+	lightrec_plugin_apply_config();
 	return 0;
+}
+
+static u32 do_calculate_hash(const void *buffer, u32 count, u32 needle, bool le)
+{
+	unsigned int i;
+	const u32 *data = (const u32 *) buffer;
+	u32 hash = needle;
+
+	count /= 4;
+	for(i = 0; i < count; ++i) {
+		hash += le ? LE32TOH(data[i]) : data[i];
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
+
+	return hash;
+}
+
+static u32 hash_calculate_le(const void *buffer, u32 count)
+{
+	return do_calculate_hash(buffer, count, 0xffffffff, true);
+}
+
+u32 hash_calculate(const void *buffer, u32 count)
+{
+	return do_calculate_hash(buffer, count, 0xffffffff, false);
+}
+
+static u32 hash_calculate_ram(const void *buffer, u32 ram_size)
+{
+	u32 hash;
+
+	if (ram_disabled)
+		hash = hash_calculate_le(cache_buf, sizeof(cache_buf));
+	else
+		hash = hash_calculate_le(buffer, sizeof(cache_buf));
+
+	return do_calculate_hash(buffer + sizeof(cache_buf),
+				 ram_size - sizeof(cache_buf),
+				 hash, true);
+}
+
+static const char * const mips_regs[] = {
+	"zero",
+	"at",
+	"v0", "v1",
+	"a0", "a1", "a2", "a3",
+	"t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+	"s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+	"t8", "t9",
+	"k0", "k1",
+	"gp", "sp", "fp", "ra",
+	"lo", "hi",
+};
+
+static void print_for_big_ass_debugger(void)
+{
+	struct lightrec_registers *regs;
+	unsigned int i;
+
+	regs = lightrec_get_registers(lightrec_state);
+
+	printf("CYCLE 0x%08x PC 0x%08x", psxRegs.cycle, psxRegs.pc);
+
+	if (lightrec_very_debug)
+		printf(" RAM 0x%08x SCRATCH 0x%08x HW 0x%08x",
+				hash_calculate_ram(psxM, 0x200000),
+				hash_calculate_le(psxH, 0x400),
+				hash_calculate_le(psxH + 0x1000, 0x2000));
+
+	printf(" CP0 0x%08x CP2D 0x%08x CP2C 0x%08x INT 0x%04x INTCYCLE 0x%08x GPU 0x%08x",
+			hash_calculate(regs->cp0, sizeof(regs->cp0)),
+			hash_calculate(regs->cp2d, sizeof(regs->cp2d)),
+			hash_calculate(regs->cp2c, sizeof(regs->cp2c)),
+			psxRegs.interrupt,
+			hash_calculate(psxRegs.intCycle, sizeof(psxRegs.intCycle)),
+			LE32TOH(HW_GPU_STATUS));
+
+	if (lightrec_very_debug) {
+		for (i = 0; i < 32; i++)
+			printf(" CP2D%u 0x%08x", i, regs->cp2d[i]);
+		for (i = 0; i < 32; i++)
+			printf(" CP2C%u 0x%08x", i, regs->cp2c[i]);
+	}
+
+	if (lightrec_very_debug)
+		for (i = 0; i < 34; i++)
+			printf(" %s 0x%08x", mips_regs[i], regs->gpr[i]);
+	else
+		printf(" GPR 0x%08x",
+		       hash_calculate(regs->gpr, sizeof(regs->gpr)));
+	printf("\n");
+
+	fflush(stdout);
 }
 
 static void lightrec_plugin_sync_regs_to_pcsx(bool need_cp2);
@@ -488,6 +603,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 {
 	struct lightrec_registers *regs;
 	u32 flags, cycles_pcsx;
+	u32 old_pc = psxRegs.pc;
 
 	regs = lightrec_get_registers(lightrec_state);
 	gen_interupt((psxCP0Regs *)regs->cp0);
@@ -522,6 +638,8 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		if (flags & LIGHTREC_EXIT_SEGFAULT) {
 			fprintf(stderr, "Exiting at cycle 0x%08x\n",
 				psxRegs.cycle);
+			if (lightrec_debug)
+				print_for_big_ass_debugger();
 			exit(1);
 		}
 
@@ -542,6 +660,10 @@ static void lightrec_plugin_execute_internal(bool block_only)
 		}
 	}
 
+	if (lightrec_debug && psxRegs.cycle >= lightrec_begin_cycles && psxRegs.pc != old_pc) {
+		print_for_big_ass_debugger();
+	}
+
 	if ((regs->cp0[13] & regs->cp0[12] & 0x300) && (regs->cp0[12] & 0x1)) {
 		/* Handle software interrupts */
 		regs->cp0[13] &= ~0x7c;
@@ -552,7 +674,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 static void lightrec_plugin_execute(psxRegisters *regs)
 {
 	while (!regs->stop)
-		lightrec_plugin_execute_internal(false);
+		lightrec_plugin_execute_internal(lightrec_very_debug);
 }
 
 static void lightrec_plugin_execute_block(psxRegisters *regs,
@@ -606,6 +728,7 @@ static void lightrec_plugin_apply_config()
 	cycles_per_op_old = cycles_per_op;
 	lightrec_set_cycles_per_opcode(lightrec_state, cycles_per_op);
 
+	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 	intApplyConfig();
 }
 
@@ -636,8 +759,6 @@ static void lightrec_plugin_reset(void)
 
 	regs->cp0[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	regs->cp0[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
-
-	lightrec_set_unsafe_opt_flags(lightrec_state, lightrec_hacks);
 }
 
 static void lightrec_plugin_sync_regs_from_pcsx(bool need_cp2)

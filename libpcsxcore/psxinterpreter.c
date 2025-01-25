@@ -1166,6 +1166,7 @@ void (*psxCP2[64])(struct psxCP2Regs *regs) = {
 ///////////////////////////////////////////
 
 static int intInit() {
+	intApplyConfig();
 	return 0;
 }
 

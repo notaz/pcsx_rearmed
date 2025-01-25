@@ -13,6 +13,7 @@
 #include "../psxinterpreter.h"
 #include "../psxcounters.h"
 #include "../psxevents.h"
+#include "../psxbios.h"
 #include "../r3000a.h"
 #include "../gte_arm.h"
 #include "../gte_neon.h"
@@ -352,11 +353,27 @@ static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 
 	//ari64_notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	psxInt.Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
-	do
+	psxCpu = &psxInt;
+	for (;;)
 	{
 		psxInt.ExecuteBlock(regs, block_caller);
+
+		if (ndrc_g.thread.busy_addr == ~0u)
+			break;
+		if (block_caller == EXEC_CALLER_HLE) {
+			if (!psxBiosSoftcallEnded())
+				continue;
+			break;
+		}
+		else if (block_caller == EXEC_CALLER_BOOT) {
+			if (!psxExecuteBiosEnded())
+				continue;
+			break;
+		}
+		if (regs->stop)
+			break;
 	}
-	while (!regs->stop && ndrc_g.thread.busy_addr != ~0u && block_caller == EXEC_CALLER_OTHER);
+	psxCpu = &psxRec;
 
 	psxInt.Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	//ari64_notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
@@ -402,7 +419,12 @@ static void ari64_execute_threaded_block(struct psxRegisters *regs,
 		regs->stop++;
 
 	regs->next_interupt = regs->cycle + 1;
+
 	ari64_execute_threaded_once(regs, caller);
+	if (regs->cpuInRecursion) {
+		// must sync since we are returning to compiled code
+		ari64_thread_sync();
+	}
 
 	if (caller == EXEC_CALLER_BOOT)
 		regs->stop--;
@@ -570,6 +592,9 @@ static int ari64_init()
 	zeromem_ptr = zero_mem;
 	scratch_buf_ptr = scratch_buf; // for gte_neon.S
 
+	ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
+	ndrc_g.hacks_old = ndrc_g.hacks | ndrc_g.hacks_pergame;
+	ari64_apply_config();
 	ari64_thread_init();
 
 	return 0;

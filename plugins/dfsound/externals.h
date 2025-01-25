@@ -128,43 +128,45 @@ typedef struct
  int VolLeft;
  int VolRight;
 
- int FB_SRC_A;       // (offset)
- int FB_SRC_B;       // (offset)
- int IIR_ALPHA;      // (coef.)
- int ACC_COEF_A;     // (coef.)
- int ACC_COEF_B;     // (coef.)
- int ACC_COEF_C;     // (coef.)
- int ACC_COEF_D;     // (coef.)
- int IIR_COEF;       // (coef.)
- int FB_ALPHA;       // (coef.)
- int FB_X;           // (coef.)
- int IIR_DEST_A0;    // (offset)
- int IIR_DEST_A1;    // (offset)
- int ACC_SRC_A0;     // (offset)
- int ACC_SRC_A1;     // (offset)
- int ACC_SRC_B0;     // (offset)
- int ACC_SRC_B1;     // (offset)
- int IIR_SRC_A0;     // (offset)
- int IIR_SRC_A1;     // (offset)
- int IIR_DEST_B0;    // (offset)
- int IIR_DEST_B1;    // (offset)
- int ACC_SRC_C0;     // (offset)
- int ACC_SRC_C1;     // (offset)
- int ACC_SRC_D0;     // (offset)
- int ACC_SRC_D1;     // (offset)
- int IIR_SRC_B1;     // (offset)
- int IIR_SRC_B0;     // (offset)
- int MIX_DEST_A0;    // (offset)
- int MIX_DEST_A1;    // (offset)
- int MIX_DEST_B0;    // (offset)
- int MIX_DEST_B1;    // (offset)
- int IN_COEF_L;      // (coef.)
- int IN_COEF_R;      // (coef.)
+ // directly from nocash docs
+ //int dAPF1; // 1DC0 disp    Reverb APF Offset 1
+ //int dAPF2; // 1DC2 disp    Reverb APF Offset 2
+ int vIIR;    // 1DC4 volume  Reverb Reflection Volume 1
+ int vCOMB1;  // 1DC6 volume  Reverb Comb Volume 1
+ int vCOMB2;  // 1DC8 volume  Reverb Comb Volume 2
+ int vCOMB3;  // 1DCA volume  Reverb Comb Volume 3
+ int vCOMB4;  // 1DCC volume  Reverb Comb Volume 4
+ int vWALL;   // 1DCE volume  Reverb Reflection Volume 2
+ int vAPF1;   // 1DD0 volume  Reverb APF Volume 1
+ int vAPF2;   // 1DD2 volume  Reverb APF Volume 2
+ int mLSAME;  // 1DD4 src/dst Reverb Same Side Reflection Address 1 Left
+ int mRSAME;  // 1DD6 src/dst Reverb Same Side Reflection Address 1 Right
+ int mLCOMB1; // 1DD8 src     Reverb Comb Address 1 Left
+ int mRCOMB1; // 1DDA src     Reverb Comb Address 1 Right
+ int mLCOMB2; // 1DDC src     Reverb Comb Address 2 Left
+ int mRCOMB2; // 1DDE src     Reverb Comb Address 2 Right
+ int dLSAME;  // 1DE0 src     Reverb Same Side Reflection Address 2 Left
+ int dRSAME;  // 1DE2 src     Reverb Same Side Reflection Address 2 Right
+ int mLDIFF;  // 1DE4 src/dst Reverb Different Side Reflect Address 1 Left
+ int mRDIFF;  // 1DE6 src/dst Reverb Different Side Reflect Address 1 Right
+ int mLCOMB3; // 1DE8 src     Reverb Comb Address 3 Left
+ int mRCOMB3; // 1DEA src     Reverb Comb Address 3 Right
+ int mLCOMB4; // 1DEC src     Reverb Comb Address 4 Left
+ int mRCOMB4; // 1DEE src     Reverb Comb Address 4 Right
+ int dLDIFF;  // 1DF0 src     Reverb Different Side Reflect Address 2 Left
+ int dRDIFF;  // 1DF2 src     Reverb Different Side Reflect Address 2 Right
+ int mLAPF1;  // 1DF4 src/dst Reverb APF Address 1 Left
+ int mRAPF1;  // 1DF6 src/dst Reverb APF Address 1 Right
+ int mLAPF2;  // 1DF8 src/dst Reverb APF Address 2 Left
+ int mRAPF2;  // 1DFA src/dst Reverb APF Address 2 Right
+ int vLIN;    // 1DFC volume  Reverb Input Volume Left
+ int vRIN;    // 1DFE volume  Reverb Input Volume Right
 
- int dirty;          // registers changed
+ // subtracted offsets
+ int mLAPF1_dAPF1, mRAPF1_dAPF1, mLAPF2_dAPF2, mRAPF2_dAPF2;
 
- // MIX_DEST_xx - FB_SRC_x
- int FB_SRC_A0, FB_SRC_A1, FB_SRC_B0, FB_SRC_B1;
+ int dirty;   // registers changed
+
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////

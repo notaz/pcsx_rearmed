@@ -21,6 +21,7 @@
 
 #include "stdafx.h"
 #include "spu.h"
+#include <assert.h>
 
 #define _IN_REVERB
 
@@ -42,130 +43,136 @@ INLINE void StartREVERB(int ch)
 
 ////////////////////////////////////////////////////////////////////////
 
-INLINE int rvb2ram_offs(int curr, int space, int iOff)
+INLINE int rvb_wrap(int ofs, int space)
 {
- iOff += curr;
- if (iOff >= 0x40000) iOff -= space;
- return iOff;
+#if 0
+ int mask = (0x3ffff - ofs) >> 31;
+ ofs = ofs - (space & mask);
+#else
+ if (ofs >= 0x40000)
+  ofs -= space;
+#endif
+ //assert(ofs >= 0x40000 - space);
+ //assert(ofs < 0x40000);
+ return ofs;
+}
+
+INLINE int rvb2ram_offs(int curr, int space, int ofs)
+{
+ ofs += curr;
+ return rvb_wrap(ofs, space);
 }
 
 // get_buffer content helper: takes care about wraps
 #define g_buffer(var) \
- ((int)(signed short)LE16TOH(spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)]))
+ ((int)(signed short)LE16TOH(spuMem[rvb2ram_offs(curr_addr, space, var)]))
 
 // saturate iVal and store it as var
-#define s_buffer(var, iVal) \
+#define s_buffer_w(var, iVal) \
  ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var)] = HTOLE16(iVal)
-
-#define s_buffer1(var, iVal) \
- ssat32_to_16(iVal); \
- spu.spuMem[rvb2ram_offs(curr_addr, space, rvb->var + 1)] = HTOLE16(iVal)
+ spuMem[rvb2ram_offs(curr_addr, space, var)] = HTOLE16(iVal)
 
 ////////////////////////////////////////////////////////////////////////
 
-// portions based on spu2-x from PCSX2
+// from nocash psx-spx
 static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr)
 {
+ unsigned short *spuMem = spu.spuMem;
  const REVERBInfo *rvb = spu.rvb;
- int IIR_ALPHA = rvb->IIR_ALPHA;
- int IIR_COEF = rvb->IIR_COEF;
  int space = 0x40000 - rvb->StartAddr;
- int l, r, ns;
+ int mlsame_m2o = rvb->mLSAME + space - 1;
+ int mrsame_m2o = rvb->mRSAME + space - 1;
+ int mldiff_m2o = rvb->mLDIFF + space - 1;
+ int mrdiff_m2o = rvb->mRDIFF + space - 1;
+ int vCOMB1 = rvb->vCOMB1, vCOMB2 = rvb->vCOMB2;
+ int vCOMB3 = rvb->vCOMB3, vCOMB4 = rvb->vCOMB4;
+ int vAPF1 = rvb->vAPF1, vAPF2 = rvb->vAPF2;
+ int vIIR = rvb->vIIR;
+ int vWALL = rvb->vWALL;
+ int ns;
+
+ if (mlsame_m2o >= space) mlsame_m2o -= space;
+ if (mrsame_m2o >= space) mrsame_m2o -= space;
+ if (mldiff_m2o >= space) mldiff_m2o -= space;
+ if (mrdiff_m2o >= space) mrdiff_m2o -= space;
 
  for (ns = 0; ns < ns_to * 2; )
   {
-   int ACC0, ACC1, FB_A0, FB_A1, FB_B0, FB_B1;
-   int mix_dest_a0, mix_dest_a1, mix_dest_b0, mix_dest_b1;
+   int Lin = RVB[ns]   * rvb->vLIN;
+   int Rin = RVB[ns+1] * rvb->vRIN;
+   int mlsame_m2 = g_buffer(mlsame_m2o) << 15; // -1
+   int mrsame_m2 = g_buffer(mrsame_m2o) << 15;
+   int mldiff_m2 = g_buffer(mldiff_m2o) << 15;
+   int mrdiff_m2 = g_buffer(mrdiff_m2o) << 15;
+   int Lout, Rout;
 
-   int input_L = RVB[ns]   * rvb->IN_COEF_L;
-   int input_R = RVB[ns+1] * rvb->IN_COEF_R;
+   mlsame_m2 += ((Lin + g_buffer(rvb->dLSAME) * vWALL - mlsame_m2) >> 15) * vIIR;
+   mrsame_m2 += ((Rin + g_buffer(rvb->dRSAME) * vWALL - mrsame_m2) >> 15) * vIIR;
+   mldiff_m2 += ((Lin + g_buffer(rvb->dLDIFF) * vWALL - mldiff_m2) >> 15) * vIIR;
+   mrdiff_m2 += ((Rin + g_buffer(rvb->dRDIFF) * vWALL - mrdiff_m2) >> 15) * vIIR;
+   mlsame_m2 >>= 15; s_buffer_w(rvb->mLSAME, mlsame_m2);
+   mrsame_m2 >>= 15; s_buffer_w(rvb->mRSAME, mrsame_m2);
+   mldiff_m2 >>= 15; s_buffer_w(rvb->mLDIFF, mldiff_m2);
+   mrdiff_m2 >>= 15; s_buffer_w(rvb->mRDIFF, mrdiff_m2);
 
-   int IIR_INPUT_A0 = ((g_buffer(IIR_SRC_A0) * IIR_COEF) + input_L) >> 15;
-   int IIR_INPUT_A1 = ((g_buffer(IIR_SRC_A1) * IIR_COEF) + input_R) >> 15;
-   int IIR_INPUT_B0 = ((g_buffer(IIR_SRC_B0) * IIR_COEF) + input_L) >> 15;
-   int IIR_INPUT_B1 = ((g_buffer(IIR_SRC_B1) * IIR_COEF) + input_R) >> 15;
-
-   int iir_dest_a0 = g_buffer(IIR_DEST_A0);
-   int iir_dest_a1 = g_buffer(IIR_DEST_A1);
-   int iir_dest_b0 = g_buffer(IIR_DEST_B0);
-   int iir_dest_b1 = g_buffer(IIR_DEST_B1);
-
-   int IIR_A0 = iir_dest_a0 + ((IIR_INPUT_A0 - iir_dest_a0) * IIR_ALPHA >> 15);
-   int IIR_A1 = iir_dest_a1 + ((IIR_INPUT_A1 - iir_dest_a1) * IIR_ALPHA >> 15);
-   int IIR_B0 = iir_dest_b0 + ((IIR_INPUT_B0 - iir_dest_b0) * IIR_ALPHA >> 15);
-   int IIR_B1 = iir_dest_b1 + ((IIR_INPUT_B1 - iir_dest_b1) * IIR_ALPHA >> 15);
+   Lout = vCOMB1 * g_buffer(rvb->mLCOMB1) + vCOMB2 * g_buffer(rvb->mLCOMB2)
+        + vCOMB3 * g_buffer(rvb->mLCOMB3) + vCOMB4 * g_buffer(rvb->mLCOMB4);
+   Rout = vCOMB1 * g_buffer(rvb->mRCOMB1) + vCOMB2 * g_buffer(rvb->mRCOMB2)
+        + vCOMB3 * g_buffer(rvb->mRCOMB3) + vCOMB4 * g_buffer(rvb->mRCOMB4);
 
    preload(SSumLR + ns + 64*2/4 - 4);
 
-   s_buffer1(IIR_DEST_A0, IIR_A0);
-   s_buffer1(IIR_DEST_A1, IIR_A1);
-   s_buffer1(IIR_DEST_B0, IIR_B0);
-   s_buffer1(IIR_DEST_B1, IIR_B1);
+   Lout -= vAPF1 * g_buffer(rvb->mLAPF1_dAPF1); Lout >>= 15;
+   Rout -= vAPF1 * g_buffer(rvb->mRAPF1_dAPF1); Rout >>= 15;
+   s_buffer_w(rvb->mLAPF1, Lout);
+   s_buffer_w(rvb->mRAPF1, Rout);
+   Lout = Lout * vAPF1 + (g_buffer(rvb->mLAPF1_dAPF1) << 15);
+   Rout = Rout * vAPF1 + (g_buffer(rvb->mRAPF1_dAPF1) << 15);
 
    preload(RVB + ns + 64*2/4 - 4);
 
-   ACC0 = (g_buffer(ACC_SRC_A0) * rvb->ACC_COEF_A +
-           g_buffer(ACC_SRC_B0) * rvb->ACC_COEF_B +
-           g_buffer(ACC_SRC_C0) * rvb->ACC_COEF_C +
-           g_buffer(ACC_SRC_D0) * rvb->ACC_COEF_D) >> 15;
-   ACC1 = (g_buffer(ACC_SRC_A1) * rvb->ACC_COEF_A +
-           g_buffer(ACC_SRC_B1) * rvb->ACC_COEF_B +
-           g_buffer(ACC_SRC_C1) * rvb->ACC_COEF_C +
-           g_buffer(ACC_SRC_D1) * rvb->ACC_COEF_D) >> 15;
+   Lout -= vAPF2 * g_buffer(rvb->mLAPF2_dAPF2); Lout >>= 15;
+   Rout -= vAPF2 * g_buffer(rvb->mRAPF2_dAPF2); Rout >>= 15;
+   s_buffer_w(rvb->mLAPF2, Lout);
+   s_buffer_w(rvb->mRAPF2, Rout);
+   Lout = Lout * vAPF2 + (g_buffer(rvb->mLAPF2_dAPF2) << 15);
+   Rout = Rout * vAPF2 + (g_buffer(rvb->mRAPF2_dAPF2) << 15);
 
-   FB_A0 = g_buffer(FB_SRC_A0);
-   FB_A1 = g_buffer(FB_SRC_A1);
-   FB_B0 = g_buffer(FB_SRC_B0);
-   FB_B1 = g_buffer(FB_SRC_B1);
+   Lout = ((Lout >> 15) * rvb->VolLeft)  >> 15;
+   Rout = ((Rout >> 15) * rvb->VolRight) >> 15;
 
-   mix_dest_a0 = ACC0 - ((FB_A0 * rvb->FB_ALPHA) >> 15);
-   mix_dest_a1 = ACC1 - ((FB_A1 * rvb->FB_ALPHA) >> 15);
-
-   mix_dest_b0 = FB_A0 + (((ACC0 - FB_A0) * rvb->FB_ALPHA - FB_B0 * rvb->FB_X) >> 15);
-   mix_dest_b1 = FB_A1 + (((ACC1 - FB_A1) * rvb->FB_ALPHA - FB_B1 * rvb->FB_X) >> 15);
-
-   s_buffer(MIX_DEST_A0, mix_dest_a0);
-   s_buffer(MIX_DEST_A1, mix_dest_a1);
-   s_buffer(MIX_DEST_B0, mix_dest_b0);
-   s_buffer(MIX_DEST_B1, mix_dest_b1);
-
-   l = (mix_dest_a0 + mix_dest_b0) / 2;
-   r = (mix_dest_a1 + mix_dest_b1) / 2;
-
-   l = (l * rvb->VolLeft)  >> 15; // 15?
-   r = (r * rvb->VolRight) >> 15;
-
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
 
    curr_addr++;
-   if (curr_addr >= 0x40000) curr_addr = rvb->StartAddr;
+   curr_addr = rvb_wrap(curr_addr, space);
   }
 }
 
 static void MixREVERB_off(int *SSumLR, int ns_to, int curr_addr)
 {
  const REVERBInfo *rvb = spu.rvb;
+ unsigned short *spuMem = spu.spuMem;
  int space = 0x40000 - rvb->StartAddr;
- int l, r, ns;
+ int Lout, Rout, ns;
 
  for (ns = 0; ns < ns_to * 2; )
   {
    preload(SSumLR + ns + 64*2/4 - 4);
 
-   l = (g_buffer(MIX_DEST_A0) + g_buffer(MIX_DEST_B0)) / 2;
-   r = (g_buffer(MIX_DEST_A1) + g_buffer(MIX_DEST_B1)) / 2;
+   // todo: is this missing COMB and APF1?
+   Lout = g_buffer(rvb->mLAPF2_dAPF2);
+   Rout = g_buffer(rvb->mLAPF2_dAPF2);
 
-   l = (l * rvb->VolLeft)  >> 15;
-   r = (r * rvb->VolRight) >> 15;
+   Lout = (Lout * rvb->VolLeft)  >> 15;
+   Rout = (Rout * rvb->VolRight) >> 15;
 
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
 
    curr_addr++;
    if (curr_addr >= 0x40000) curr_addr = rvb->StartAddr;
@@ -199,30 +206,30 @@ static void REVERBPrep(void)
      t -= space; \
    rvb->d = t
 
- prep_offs(IIR_SRC_A0, 32);
- prep_offs(IIR_SRC_A1, 34);
- prep_offs(IIR_SRC_B0, 36);
- prep_offs(IIR_SRC_B1, 38);
- prep_offs(IIR_DEST_A0, 20);
- prep_offs(IIR_DEST_A1, 22);
- prep_offs(IIR_DEST_B0, 36);
- prep_offs(IIR_DEST_B1, 38);
- prep_offs(ACC_SRC_A0, 24);
- prep_offs(ACC_SRC_A1, 26);
- prep_offs(ACC_SRC_B0, 28);
- prep_offs(ACC_SRC_B1, 30);
- prep_offs(ACC_SRC_C0, 40);
- prep_offs(ACC_SRC_C1, 42);
- prep_offs(ACC_SRC_D0, 44);
- prep_offs(ACC_SRC_D1, 46);
- prep_offs(MIX_DEST_A0, 52);
- prep_offs(MIX_DEST_A1, 54);
- prep_offs(MIX_DEST_B0, 56);
- prep_offs(MIX_DEST_B1, 58);
- prep_offs2(FB_SRC_A0, 52, 0);
- prep_offs2(FB_SRC_A1, 54, 0);
- prep_offs2(FB_SRC_B0, 56, 2);
- prep_offs2(FB_SRC_B1, 58, 2);
+ prep_offs(mLSAME,  0x14);
+ prep_offs(mRSAME,  0x16);
+ prep_offs(mLCOMB1, 0x18);
+ prep_offs(mRCOMB1, 0x1a);
+ prep_offs(mLCOMB2, 0x1c);
+ prep_offs(mRCOMB2, 0x1e);
+ prep_offs(dLSAME,  0x20);
+ prep_offs(dRSAME,  0x22);
+ prep_offs(mLDIFF,  0x24);
+ prep_offs(mRDIFF,  0x26);
+ prep_offs(mLCOMB3, 0x28);
+ prep_offs(mRCOMB3, 0x2a);
+ prep_offs(mLCOMB4, 0x2c);
+ prep_offs(mRCOMB4, 0x2e);
+ prep_offs(dLDIFF,  0x30);
+ prep_offs(dRDIFF,  0x32);
+ prep_offs(mLAPF1,  0x34);
+ prep_offs(mRAPF1,  0x36);
+ prep_offs(mLAPF2,  0x38);
+ prep_offs(mRAPF2,  0x3a);
+ prep_offs2(mLAPF1_dAPF1, 0x34, 0);
+ prep_offs2(mRAPF1_dAPF1, 0x36, 0);
+ prep_offs2(mLAPF2_dAPF2, 0x38, 2);
+ prep_offs2(mRAPF2_dAPF2, 0x3a, 2);
 
 #undef prep_offs
 #undef prep_offs2
@@ -244,181 +251,5 @@ INLINE void REVERBDo(int *SSumLR, int *RVB, int ns_to, int curr_addr)
 ////////////////////////////////////////////////////////////////////////
 
 #endif
-
-/*
------------------------------------------------------------------------------
-PSX reverb hardware notes
-by Neill Corlett
------------------------------------------------------------------------------
-
-Yadda yadda disclaimer yadda probably not perfect yadda well it's okay anyway
-yadda yadda.
-
------------------------------------------------------------------------------
-
-Basics
-------
-
-- The reverb buffer is 22khz 16-bit mono PCM.
-- It starts at the reverb address given by 1DA2, extends to
-  the end of sound RAM, and wraps back to the 1DA2 address.
-
-Setting the address at 1DA2 resets the current reverb work address.
-
-This work address ALWAYS increments every 1/22050 sec., regardless of
-whether reverb is enabled (bit 7 of 1DAA set).
-
-And the contents of the reverb buffer ALWAYS play, scaled by the
-"reverberation depth left/right" volumes (1D84/1D86).
-(which, by the way, appear to be scaled so 3FFF=approx. 1.0, 4000=-1.0)
-
------------------------------------------------------------------------------
-
-Register names
---------------
-
-These are probably not their real names.
-These are probably not even correct names.
-We will use them anyway, because we can.
-
-1DC0: FB_SRC_A       (offset)
-1DC2: FB_SRC_B       (offset)
-1DC4: IIR_ALPHA      (coef.)
-1DC6: ACC_COEF_A     (coef.)
-1DC8: ACC_COEF_B     (coef.)
-1DCA: ACC_COEF_C     (coef.)
-1DCC: ACC_COEF_D     (coef.)
-1DCE: IIR_COEF       (coef.)
-1DD0: FB_ALPHA       (coef.)
-1DD2: FB_X           (coef.)
-1DD4: IIR_DEST_A0    (offset)
-1DD6: IIR_DEST_A1    (offset)
-1DD8: ACC_SRC_A0     (offset)
-1DDA: ACC_SRC_A1     (offset)
-1DDC: ACC_SRC_B0     (offset)
-1DDE: ACC_SRC_B1     (offset)
-1DE0: IIR_SRC_A0     (offset)
-1DE2: IIR_SRC_A1     (offset)
-1DE4: IIR_DEST_B0    (offset)
-1DE6: IIR_DEST_B1    (offset)
-1DE8: ACC_SRC_C0     (offset)
-1DEA: ACC_SRC_C1     (offset)
-1DEC: ACC_SRC_D0     (offset)
-1DEE: ACC_SRC_D1     (offset)
-1DF0: IIR_SRC_B1     (offset)
-1DF2: IIR_SRC_B0     (offset)
-1DF4: MIX_DEST_A0    (offset)
-1DF6: MIX_DEST_A1    (offset)
-1DF8: MIX_DEST_B0    (offset)
-1DFA: MIX_DEST_B1    (offset)
-1DFC: IN_COEF_L      (coef.)
-1DFE: IN_COEF_R      (coef.)
-
-The coefficients are signed fractional values.
--32768 would be -1.0
- 32768 would be  1.0 (if it were possible... the highest is of course 32767)
-
-The offsets are (byte/8) offsets into the reverb buffer.
-i.e. you multiply them by 8, you get byte offsets.
-You can also think of them as (samples/4) offsets.
-They appear to be signed.  They can be negative.
-None of the documented presets make them negative, though.
-
-Yes, 1DF0 and 1DF2 appear to be backwards.  Not a typo.
-
------------------------------------------------------------------------------
-
-What it does
-------------
-
-We take all reverb sources:
-- regular channels that have the reverb bit on
-- cd and external sources, if their reverb bits are on
-and mix them into one stereo 44100hz signal.
-
-Lowpass/downsample that to 22050hz.  The PSX uses a proper bandlimiting
-algorithm here, but I haven't figured out the hysterically exact specifics.
-I use an 8-tap filter with these coefficients, which are nice but probably
-not the real ones:
-
-0.037828187894
-0.157538631280
-0.321159685278
-0.449322115345
-0.449322115345
-0.321159685278
-0.157538631280
-0.037828187894
-
-So we have two input samples (INPUT_SAMPLE_L, INPUT_SAMPLE_R) every 22050hz.
-
-* IN MY EMULATION, I divide these by 2 to make it clip less.
-  (and of course the L/R output coefficients are adjusted to compensate)
-  The real thing appears to not do this.
-
-At every 22050hz tick:
-- If the reverb bit is enabled (bit 7 of 1DAA), execute the reverb
-  steady-state algorithm described below
-- AFTERWARDS, retrieve the "wet out" L and R samples from the reverb buffer
-  (This part may not be exactly right and I guessed at the coefs. TODO: check later.)
-  L is: 0.333 * (buffer[MIX_DEST_A0] + buffer[MIX_DEST_B0])
-  R is: 0.333 * (buffer[MIX_DEST_A1] + buffer[MIX_DEST_B1])
-- Advance the current buffer position by 1 sample
-
-The wet out L and R are then upsampled to 44100hz and played at the
-"reverberation depth left/right" (1D84/1D86) volume, independent of the main
-volume.
-
------------------------------------------------------------------------------
-
-Reverb steady-state
--------------------
-
-The reverb steady-state algorithm is fairly clever, and of course by
-"clever" I mean "batshit insane".
-
-buffer[x] is relative to the current buffer position, not the beginning of
-the buffer.  Note that all buffer offsets must wrap around so they're
-contained within the reverb work area.
-
-Clipping is performed at the end... maybe also sooner, but definitely at
-the end.
-
-IIR_INPUT_A0 = buffer[IIR_SRC_A0] * IIR_COEF + INPUT_SAMPLE_L * IN_COEF_L;
-IIR_INPUT_A1 = buffer[IIR_SRC_A1] * IIR_COEF + INPUT_SAMPLE_R * IN_COEF_R;
-IIR_INPUT_B0 = buffer[IIR_SRC_B0] * IIR_COEF + INPUT_SAMPLE_L * IN_COEF_L;
-IIR_INPUT_B1 = buffer[IIR_SRC_B1] * IIR_COEF + INPUT_SAMPLE_R * IN_COEF_R;
-
-IIR_A0 = IIR_INPUT_A0 * IIR_ALPHA + buffer[IIR_DEST_A0] * (1.0 - IIR_ALPHA);
-IIR_A1 = IIR_INPUT_A1 * IIR_ALPHA + buffer[IIR_DEST_A1] * (1.0 - IIR_ALPHA);
-IIR_B0 = IIR_INPUT_B0 * IIR_ALPHA + buffer[IIR_DEST_B0] * (1.0 - IIR_ALPHA);
-IIR_B1 = IIR_INPUT_B1 * IIR_ALPHA + buffer[IIR_DEST_B1] * (1.0 - IIR_ALPHA);
-
-buffer[IIR_DEST_A0 + 1sample] = IIR_A0;
-buffer[IIR_DEST_A1 + 1sample] = IIR_A1;
-buffer[IIR_DEST_B0 + 1sample] = IIR_B0;
-buffer[IIR_DEST_B1 + 1sample] = IIR_B1;
-
-ACC0 = buffer[ACC_SRC_A0] * ACC_COEF_A +
-       buffer[ACC_SRC_B0] * ACC_COEF_B +
-       buffer[ACC_SRC_C0] * ACC_COEF_C +
-       buffer[ACC_SRC_D0] * ACC_COEF_D;
-ACC1 = buffer[ACC_SRC_A1] * ACC_COEF_A +
-       buffer[ACC_SRC_B1] * ACC_COEF_B +
-       buffer[ACC_SRC_C1] * ACC_COEF_C +
-       buffer[ACC_SRC_D1] * ACC_COEF_D;
-
-FB_A0 = buffer[MIX_DEST_A0 - FB_SRC_A];
-FB_A1 = buffer[MIX_DEST_A1 - FB_SRC_A];
-FB_B0 = buffer[MIX_DEST_B0 - FB_SRC_B];
-FB_B1 = buffer[MIX_DEST_B1 - FB_SRC_B];
-
-buffer[MIX_DEST_A0] = ACC0 - FB_A0 * FB_ALPHA;
-buffer[MIX_DEST_A1] = ACC1 - FB_A1 * FB_ALPHA;
-buffer[MIX_DEST_B0] = (FB_ALPHA * ACC0) - FB_A0 * (FB_ALPHA^0x8000) - FB_B0 * FB_X;
-buffer[MIX_DEST_B1] = (FB_ALPHA * ACC1) - FB_A1 * (FB_ALPHA^0x8000) - FB_B1 * FB_X;
-
------------------------------------------------------------------------------
-*/
 
 // vim:shiftwidth=1:expandtab

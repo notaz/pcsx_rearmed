@@ -154,6 +154,9 @@ cycle_multiplier_overrides[] =
 	{ 153, { "SLUS00943" } },
 	/* Sol Divide: FMV timing */
 	{ 200, { "SLUS01519", "SCPS45260", "SLPS01463" } },
+	/* Legend of Legaia - some attack moves lag and cause a/v desync */
+	{ 160, { "SCUS94254", "SCUS94366", "SCES01752" } },
+	{ 160, { "SCES01944", "SCES01945", "SCES01946", "SCES01947" } },
 };
 
 static const struct

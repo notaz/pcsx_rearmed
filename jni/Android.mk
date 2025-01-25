@@ -1,4 +1,5 @@
 LOCAL_PATH := $(call my-dir)
+include $(CLEAR_VARS)
 
 $(shell cd "$(LOCAL_PATH)" && ((git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > ../frontend/revision.h_))
 $(shell cd "$(LOCAL_PATH)" && (diff -q ../frontend/revision.h_ ../frontend/revision.h > /dev/null 2>&1 || cp ../frontend/revision.h_ ../frontend/revision.h))
@@ -22,6 +23,8 @@ DYNAREC_DIR  := $(ROOT_DIR)/libpcsxcore/new_dynarec
 DEPS_DIR     := $(ROOT_DIR)/deps
 LIBRETRO_COMMON := $(DEPS_DIR)/libretro-common
 EXTRA_INCLUDES :=
+COREFLAGS    :=
+SOURCES_ASM  :=
 
 # core
 SOURCES_C := $(CORE_DIR)/cdriso.c \
@@ -98,7 +101,6 @@ SOURCES_C += \
 	     $(LCHDR_ZSTD)/decompress/zstd_ddict.c \
 	     $(LCHDR_ZSTD)/decompress/zstd_decompress_block.c \
 	     $(LCHDR_ZSTD)/decompress/zstd_decompress.c
-SOURCES_ASM :=
 EXTRA_INCLUDES += $(LCHDR)/include $(LCHDR_LZMA)/include $(LCHDR_ZSTD)
 COREFLAGS += -DHAVE_CHD -DZ7_ST -DZSTD_DISABLE_ASM
 ifeq (,$(call gte,$(APP_PLATFORM_LEVEL),18))
@@ -152,6 +154,8 @@ else
 endif
   COREFLAGS   += -DLIGHTREC_CUSTOM_MAP=$(LIGHTREC_CUSTOM_MAP)
   COREFLAGS   += -DLIGHTREC_ENABLE_THREADED_COMPILER=$(LIGHTREC_THREADED_COMPILER)
+  COREFLAGS   += -DLIGHTREC_ENABLE_DISASSEMBLER=$(or $(LIGHTREC_DEBUG),0)
+  COREFLAGS   += -DLIGHTREC_NO_DEBUG=$(if $(LIGHTREC_DEBUG),0,1)
 
 ifeq ($(HAVE_ARI64),1)
   SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
@@ -245,14 +249,13 @@ ifneq ($(GIT_VERSION)," unknown")
   COREFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
 
-include $(CLEAR_VARS)
 LOCAL_MODULE        := retro
 LOCAL_SRC_FILES     := $(SOURCES_C) $(SOURCES_ASM)
 LOCAL_CFLAGS        := $(COREFLAGS)
 LOCAL_C_INCLUDES    := $(ROOT_DIR)/include
 LOCAL_C_INCLUDES    += $(DEPS_DIR)/crypto
 LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
-LOCAL_LDFLAGS       += -Wl,-version-script=$(FRONTEND_DIR)/libretro-version-script
+LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/libretro-version-script
 LOCAL_LDFLAGS       += -Wl,--script=$(FRONTEND_DIR)/libretro-extern.T
 LOCAL_LDFLAGS       += -Wl,--gc-sections
 LOCAL_LDLIBS        := -lz -llog

@@ -26,10 +26,9 @@
 
 #ifdef __MACH__
 #define dynarec_local		ESYM(dynarec_local)
-#define ndrc_add_jump_out	ESYM(ndrc_add_jump_out)
+#define ndrc_patch_link		ESYM(ndrc_patch_link)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
 #define gen_interupt		ESYM(gen_interupt)
-#define gteCheckStallRaw	ESYM(gteCheckStallRaw)
 #define psxException		ESYM(psxException)
 #define execI			ESYM(execI)
 #endif
@@ -91,8 +90,30 @@ DRC_VAR(mini_ht, 256)
 	.align	2
 
 FUNCTION(dyna_linker):
-	/* r0 = virtual target address */
-	/* r1 = instruction to patch */
+	/* w0 = virtual target address */
+	/* x1 = instruction to patch */
+#if 1
+	mov	w19, w0
+	mov	x20, x1
+	/* must not compile - that might expire the caller block */
+	ldr	x0, [rFP, #LO_hash_table_ptr]
+	mov	w1, w19
+	mov	w2, #0 /* ndrc_compile_mode=ndrc_cm_no_compile */
+	bl	ndrc_get_addr_ht_param
+	cbz	x0, 0f
+
+	ldr	w2, [x20]
+	mov	x3, x0
+	sbfiz	x2, x2, 2, 26
+	add	x2, x2, x20
+	mov	x1, x20
+	mov	w0, w19
+	mov	x19, x3
+	bl	ndrc_patch_link
+	br	x19
+0:
+	mov	w0, w19
+#endif
 	ldr     x1, [rFP, #LO_hash_table_ptr]
 	bl	ndrc_get_addr_ht
 	br	x0
@@ -381,18 +402,6 @@ jump_handle_swx_interp: /* almost never happens */
 	str	w2, [rFP, #LO_cycle]           /* PCSX cycles */
 	bl	execI
 	b	jump_to_new_pc
-
-FUNCTION(call_gteStall):
-	/* w0 = op_cycles, w1 = cycles */
-	ldr	w2, [rFP, #LO_last_count]
-	str	lr, [rFP, #LO_saved_lr]
-	add	w1, w1, w2
-	str	w1, [rFP, #LO_cycle]
-	add	x1, rFP, #LO_psxRegs
-	bl	gteCheckStallRaw
-	ldr	lr, [rFP, #LO_saved_lr]
-	add	rCC, rCC, w0
-	ret
 
 #ifdef DRC_DBG
 #undef do_insn_cmp

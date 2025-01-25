@@ -62,6 +62,8 @@ int psxInit() {
 
 void psxReset() {
 	boolean introBypassed = FALSE;
+	boolean oldhle = Config.HLE;
+
 	psxMemReset();
 
 	memset(&psxRegs, 0, sizeof(psxRegs));
@@ -75,6 +77,11 @@ void psxReset() {
 		psxRegs.CP0.n.SR &= ~(1u << 22); // RAM exception vector
 	}
 
+	if (Config.HLE != oldhle) {
+		// at least ari64 drc compiles differently so hard reset
+		psxCpu->Shutdown();
+		psxCpu->Init();
+	}
 	psxCpu->ApplyConfig();
 	psxCpu->Reset();
 
@@ -174,11 +181,15 @@ void psxJumpTest() {
 	}
 }
 
+int psxExecuteBiosEnded(void) {
+	return (psxRegs.pc & 0xff800000) == 0x80000000;
+}
+
 void psxExecuteBios() {
 	int i;
 	for (i = 0; i < 5000000; i++) {
 		psxCpu->ExecuteBlock(&psxRegs, EXEC_CALLER_BOOT);
-		if ((psxRegs.pc & 0xff800000) == 0x80000000)
+		if (psxExecuteBiosEnded())
 			break;
 	}
 	if (psxRegs.pc != 0x80030000)

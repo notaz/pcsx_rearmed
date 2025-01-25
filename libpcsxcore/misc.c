@@ -820,6 +820,12 @@ int LoadState(const char *file) {
 	psxHwFreeze(f, 0);
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
+
+	if (Config.HLE != oldhle) {
+		// at least ari64 drc compiles differently so hard reset
+		psxCpu->Shutdown();
+		psxCpu->Init();
+	}
 	ndrc_freeze(f, 0);
 	padFreeze(f, 0);
 
@@ -827,11 +833,6 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosCheckExe(biosBranchCheckOld, 0x60, 1);
 
-	if (Config.HLE != oldhle) {
-		// at least ari64 drc compiles differently so hard reset
-		psxCpu->Shutdown();
-		psxCpu->Init();
-	}
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
 	result = 0;

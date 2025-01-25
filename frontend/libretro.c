@@ -2311,7 +2311,6 @@ static void update_variables(bool in_flight)
          prev_cpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
          prev_cpu->Shutdown();
          psxCpu->Init();
-         psxCpu->Reset();
          psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
       }
    }
