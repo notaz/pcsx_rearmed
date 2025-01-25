@@ -52,6 +52,8 @@ static const char * const gpu_centering_hack_db[] =
 {
 	/* Gradius Gaiden */
 	"SLPM86042", "SLPM86103", "SLPM87323",
+	/* Salamander Deluxe Pack Plus */
+	"SLPM86037",
 	/* Sexy Parodius */
 	"SLPM86009",
 };

@@ -340,6 +340,31 @@ static void clear_local_cache(void)
 #endif
 }
 
+static void mixed_execute_block(struct psxRegisters *regs, enum blockExecCaller caller)
+{
+	psxInt.ExecuteBlock(regs, caller);
+}
+
+static void mixed_clear(u32 addr, u32 size)
+{
+	ari64_clear(addr, size);
+	psxInt.Clear(addr, size);
+}
+
+static void mixed_notify(enum R3000Anote note, void *data)
+{
+	ari64_notify(note, data);
+	psxInt.Notify(note, data);
+}
+
+static R3000Acpu psxMixedCpu = {
+	NULL /* Init */, NULL /* Reset */, NULL /* Execute */,
+	mixed_execute_block,
+	mixed_clear,
+	mixed_notify,
+	NULL /* ApplyConfig */,	NULL /* Shutdown */
+};
+
 static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 	enum blockExecCaller block_caller)
 {
@@ -353,10 +378,11 @@ static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 
 	//ari64_notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 	psxInt.Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
-	psxCpu = &psxInt;
+	assert(psxCpu == &psxRec);
+	psxCpu = &psxMixedCpu;
 	for (;;)
 	{
-		psxInt.ExecuteBlock(regs, block_caller);
+		mixed_execute_block(regs, block_caller);
 
 		if (ndrc_g.thread.busy_addr == ~0u)
 			break;

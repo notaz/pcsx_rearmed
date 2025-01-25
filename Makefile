@@ -500,7 +500,10 @@ clean: $(PLAT_CLEAN) clean_plugins
 ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)
 
-$(PLUGINS):
+plugins/gpulib/gpulib.$(ARCH).a:
+	$(MAKE) -C plugins/gpulib/
+
+$(PLUGINS): plugins/gpulib/gpulib.$(ARCH).a
 	$(MAKE) -C $(dir $@)
 
 clean_plugins:
