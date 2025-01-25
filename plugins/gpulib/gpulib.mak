@@ -4,17 +4,12 @@
 
 LDFLAGS += -shared -Wl,--no-undefined
 CFLAGS += $(PLUGIN_CFLAGS)
-ifeq "$(ARCH)" "arm"
- EXT =
-else
- #LDLIBS_GPULIB += `sdl-config --libs`
- EXT = .$(ARCH)
-endif
+#LDLIBS_GPULIB += `sdl-config --libs`
 ifdef DEBUG
  CFLAGS += -O0
 endif
 
-GPULIB_A = ../gpulib/gpulib$(EXT).a
+GPULIB_A = ../gpulib/gpulib.$(ARCH).a
 
 ifdef BIN_STANDALONE
 TARGETS += $(BIN_STANDALONE)

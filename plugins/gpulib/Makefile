@@ -7,22 +7,16 @@ include ../../config.mak
 
 OBJS += gpu.o prim.o
 
-ifeq "$(ARCH)" "arm"
-OBJS += vout_pl.o
-EXT = a
-else
 #CFLAGS += `sdl-config --cflags`
 #OBJS += vout_sdl.o
 OBJS += vout_pl.o
-EXT = $(ARCH).a
-endif
 CFLAGS += $(PLUGIN_CFLAGS)
 
 # need to compile to another dir, same files are compiled
 # into main binary without PIC
 OBJS2 = $(patsubst %.o,obj/%.o,$(OBJS)) 
 
-TARGET = gpulib.$(EXT)
+TARGET = gpulib.$(ARCH).a
 
 all: ../../config.mak obj $(TARGET)
 
