@@ -336,7 +336,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 
 	// offset
 	xoffs = x * pl_vout_scale_w;
-	doffs = xoffs + y * dstride;
+	doffs = xoffs + y * pl_vout_scale_h * dstride;
 
 	if (dims_changed)
 		flip_clear_counter = 3;
