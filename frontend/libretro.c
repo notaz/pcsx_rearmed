@@ -1953,15 +1953,13 @@ bool retro_load_game(const struct retro_game_info *info)
    for (i = 0; i < 8; ++i)
       in_type[i] = PSE_PAD_TYPE_STANDARD;
 
-   plugin_call_rearmed_cbs();
-   /* dfinput_activate(); */
-
    if (!is_exe && CheckCdrom() == -1)
    {
       LogErr("unsupported/invalid CD image: %s\n", info->path);
       return false;
    }
 
+   plugin_call_rearmed_cbs();
    SysReset();
 
    if (is_exe)
