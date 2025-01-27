@@ -695,9 +695,9 @@ int main(int argc, char *argv[])
 	if (OpenPlugins() == -1) {
 		return 1;
 	}
-	plugin_call_rearmed_cbs();
 
 	CheckCdrom();
+	plugin_call_rearmed_cbs();
 	SysReset();
 
 	if (file[0] != '\0') {
