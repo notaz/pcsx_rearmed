@@ -805,8 +805,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
     addr = LE32TOH(list[0]) & 0xffffff;
     preload(rambase + (addr & 0x1fffff) / 4);
 
-    cpu_cycles_sum += 10 + cpu_cycles_last;
-    cpu_cycles_last = 0;
+    cpu_cycles_sum += 10;
     if (len > 0)
       cpu_cycles_sum += 5 + len;
 
