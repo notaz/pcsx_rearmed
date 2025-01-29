@@ -864,16 +864,23 @@ static void _vaarg_d(jit_state_t*, jit_int32_t, jit_int32_t, jit_bool_t);
 #  define patch_at(instr, label)	_patch_at(_jit, instr, label)
 static void _patch_at(jit_state_t*, jit_word_t, jit_word_t);
 #  if !defined(HAVE_FFSL)
-#    if __X32
+#    if __WORDSIZE == 32
 #      define ffsl(i)			__builtin_ffs(i)
 #    else
-#      define ffsl(l)			__builtin_ffsl(l)
+#      define ffsl(l)			__builtin_ffsll(l)
 #    endif
 #  endif
+#  if __WORDSIZE == 32
+#    define popcntl(x)			__builtin_popcount(x)
+#    define ctzl(x)			__builtin_ctz(x)
+#  else
+#    define popcntl(x)			__builtin_popcountll(x)
+#    define ctzl(x)			__builtin_ctzll(x)
+#  endif
 #  define jit_cmov_p()			jit_cpu.cmov
-#  define is_low_mask(im)		(((im) & 1) ? (__builtin_popcountl((im) + 1) <= 1) : 0)
-#  define is_high_mask(im)		((im) ? (__builtin_popcountl((im) + (1 << __builtin_ctzl(im))) == 0) : 0)
-#  define unmasked_bits_count(im)	(__WORDSIZE - __builtin_popcountl(im))
+#  define is_low_mask(im)		(((im) & 1) ? (popcntl((im) + 1) <= 1) : 0)
+#  define is_high_mask(im)		((im) ? (popcntl((im) + (1 << ctzl(im))) == 0) : 0)
+#  define unmasked_bits_count(im)	(__WORDSIZE - popcntl(im))
 #endif
 
 #if CODE
