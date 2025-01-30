@@ -74,11 +74,31 @@ INLINE int rvb2ram_offs(int curr, int space, int ofs)
 
 ////////////////////////////////////////////////////////////////////////
 
-// from nocash psx-spx
-static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr)
+static void reverb_interpolate(REVERBInfo *rvb, int curr_addr,
+  int out0[2], int out1[2])
+{
+ int spos = (curr_addr - 3) & 3;
+ int dpos = curr_addr & 3;
+ int i;
+
+ for (i = 0; i < 2; i++)
+  rvb->SB[i][dpos] = rvb->SB[i][4 | dpos] = out0[i];
+
+ // mednafen uses some 20 coefs here, we just reuse gauss [0] and [128]
+ for (i = 0; i < 2; i++)
+ {
+  const int *s;
+  s = &rvb->SB[i][spos];
+  out0[i] = (s[0] * 0x12c7 + s[1] * 0x59b3 + s[2] * 0x1307) >> 15;
+  out1[i] = (s[0] * 0x019c + s[1] * 0x3def + s[2] * 0x3e4c + s[3] * 0x01a8) >> 15;
+ }
+}
+
+static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
+  int do_filter)
 {
  unsigned short *spuMem = spu.spuMem;
- const REVERBInfo *rvb = spu.rvb;
+ REVERBInfo *rvb = spu.rvb;
  int space = 0x40000 - rvb->StartAddr;
  int mlsame_m2o = rvb->mLSAME + space - 1;
  int mrsame_m2o = rvb->mRSAME + space - 1;
@@ -104,8 +124,9 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr)
    int mrsame_m2 = g_buffer(mrsame_m2o) << 15;
    int mldiff_m2 = g_buffer(mldiff_m2o) << 15;
    int mrdiff_m2 = g_buffer(mrdiff_m2o) << 15;
-   int Lout, Rout;
+   int Lout, Rout, out0[2], out1[2];
 
+   // from nocash psx-spx
    mlsame_m2 += ((Lin + g_buffer(rvb->dLSAME) * vWALL - mlsame_m2) >> 15) * vIIR;
    mrsame_m2 += ((Rin + g_buffer(rvb->dRSAME) * vWALL - mrsame_m2) >> 15) * vIIR;
    mldiff_m2 += ((Lin + g_buffer(rvb->dLDIFF) * vWALL - mldiff_m2) >> 15) * vIIR;
@@ -138,13 +159,15 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr)
    Lout = Lout * vAPF2 + (g_buffer(rvb->mLAPF2_dAPF2) << 15);
    Rout = Rout * vAPF2 + (g_buffer(rvb->mRAPF2_dAPF2) << 15);
 
-   Lout = ((Lout >> 15) * rvb->VolLeft)  >> 15;
-   Rout = ((Rout >> 15) * rvb->VolRight) >> 15;
+   out0[0] = out1[0] = (Lout >> 15) * rvb->VolLeft  >> 15;
+   out0[1] = out1[1] = (Rout >> 15) * rvb->VolRight >> 15;
+   if (do_filter)
+    reverb_interpolate(rvb, curr_addr, out0, out1);
 
-   SSumLR[ns++] += Lout;
-   SSumLR[ns++] += Rout;
-   SSumLR[ns++] += Lout;
-   SSumLR[ns++] += Rout;
+   SSumLR[ns++] += out0[0];
+   SSumLR[ns++] += out0[1];
+   SSumLR[ns++] += out1[0];
+   SSumLR[ns++] += out1[1];
 
    curr_addr++;
    curr_addr = rvb_wrap(curr_addr, space);
@@ -240,7 +263,7 @@ INLINE void REVERBDo(int *SSumLR, int *RVB, int ns_to, int curr_addr)
 {
  if (spu.spuCtrl & 0x80)                               // -> reverb on? oki
  {
-  MixREVERB(SSumLR, RVB, ns_to, curr_addr);
+  MixREVERB(SSumLR, RVB, ns_to, curr_addr, spu.interpolation > 1);
  }
  else if (spu.rvb->VolLeft || spu.rvb->VolRight)
  {

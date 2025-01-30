@@ -107,6 +107,10 @@ OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
+ifeq ($(MMAP_WIN32),1)
+CFLAGS += -Iinclude/mman -Ideps/mman
+OBJS += deps/mman/mman.o
+endif
 ifeq "$(USE_ASYNC_CDROM)" "1"
 libpcsxcore/cdrom-async.o: CFLAGS += -DUSE_ASYNC_CDROM
 frontend/libretro.o: CFLAGS += -DUSE_ASYNC_CDROM
@@ -169,8 +173,8 @@ deps/lightning/%: CFLAGS += -Wno-uninitialized
 deps/lightrec/%: CFLAGS += -Wno-uninitialized
 libpcsxcore/lightrec/mem.o: CFLAGS += -D_GNU_SOURCE
 ifeq ($(MMAP_WIN32),1)
-CFLAGS += -Iinclude/mman -I deps/mman
-OBJS += deps/mman/mman.o
+deps/lightning/lib/lightning.o: CFLAGS += -Dmprotect=_mprotect # deps/mman
+deps/lightning/lib/jit_print.o: CFLAGS += -w
 endif
 else ifeq "$(DYNAREC)" "ari64"
 OBJS += libpcsxcore/new_dynarec/new_dynarec.o
@@ -414,11 +418,6 @@ CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 CFLAGS += -DHAVE_LIBRETRO
 INC_LIBRETRO_COMMON := 1
 
-ifneq ($(DYNAREC),lightrec)
-ifeq ($(MMAP_WIN32),1)
-OBJS += libpcsxcore/memmap_win32.o
-endif
-endif
 endif # $(PLATFORM) == "libretro"
 
 ifeq "$(USE_RTHREADS)" "1"

@@ -333,11 +333,11 @@ INLINE int GetInterpolationGauss(const sample_buf *sb, int spos)
  int gpos = sb->interp.gauss.pos;
  int vl = (spos >> 6) & ~3;
  int vr;
- vr  = (gauss[vl+0] * gval(0)) >> 15;
- vr += (gauss[vl+1] * gval(1)) >> 15;
- vr += (gauss[vl+2] * gval(2)) >> 15;
- vr += (gauss[vl+3] * gval(3)) >> 15;
- return vr;
+ vr  = gauss[vl+0] * gval(0);
+ vr += gauss[vl+1] * gval(1);
+ vr += gauss[vl+2] * gval(2);
+ vr += gauss[vl+3] * gval(3);
+ return vr >> 15;
 }
 
 static void decode_block_data(int *dest, const unsigned char *src, int predict_nr, int shift_factor)
