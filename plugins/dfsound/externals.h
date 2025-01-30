@@ -167,6 +167,8 @@ typedef struct
 
  int dirty;   // registers changed
 
+ // for filtering
+ int SB[2][4*2];
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////
