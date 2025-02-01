@@ -945,6 +945,8 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
 
 void GPUupdateLace(void)
 {
+  int updated = 0;
+
   if (gpu.cmd_len > 0)
     flush_cmd_buffer(&gpu);
   renderer_flush_queues();
@@ -974,12 +976,14 @@ void GPUupdateLace(void)
     gpu.frameskip.frame_ready = 0;
   }
 
-  vout_update();
+  updated = vout_update();
   if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active)
     renderer_update_caches(0, 0, 1024, 512, 1);
   gpu.state.enhancement_was_active = gpu.state.enhancement_active;
-  gpu.state.fb_dirty = 0;
-  gpu.state.blanked = 0;
+  if (updated) {
+    gpu.state.fb_dirty = 0;
+    gpu.state.blanked = 0;
+  }
   renderer_notify_update_lace(1);
 }
 

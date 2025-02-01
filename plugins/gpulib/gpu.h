@@ -143,7 +143,7 @@ void renderer_notify_scanout_change(int x, int y);
 
 int  vout_init(void);
 int  vout_finish(void);
-void vout_update(void);
+int  vout_update(void);
 void vout_blank(void);
 void vout_set_config(const struct rearmed_cbs *config);
 

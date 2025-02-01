@@ -48,7 +48,7 @@ int vout_finish(void)
   return 0;
 }
 
-void vout_update(void)
+int vout_update(void)
 {
   uint32_t *d;
   int i;
@@ -75,6 +75,7 @@ void vout_update(void)
   }
   SDL_UnlockSurface(screen);
   SDL_UpdateRect(screen, 0, 0, 1024, 512);
+  return 1;
 }
 
 void vout_blank(void)
