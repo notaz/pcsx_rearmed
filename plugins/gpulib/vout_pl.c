@@ -35,7 +35,8 @@ static void check_mode_change(int force)
     h = gpu.screen.h;
   w_out = w, h_out = h;
 #ifdef RAW_FB_DISPLAY
-  w = w_out = 1024, h = h_out = 512;
+  w = w_out = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  h = h_out = 512;
 #endif
   gpu.state.enhancement_active =
     gpu.get_enhancement_bufer != NULL && gpu.state.enhancement_enable
@@ -73,7 +74,7 @@ static void check_mode_change(int force)
   }
 }
 
-void vout_update(void)
+int vout_update(void)
 {
   int bpp = (gpu.status & PSX_GPU_STATUS_RGB24) ? 24 : 16;
   uint8_t *vram = (uint8_t *)gpu.vram;
@@ -87,21 +88,22 @@ void vout_update(void)
   int src_x2 = 0;
 
 #ifdef RAW_FB_DISPLAY
-  w = 1024, h = 512, x = src_x = y = src_y = 0;
+  w = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  h = 512, x = src_x = y = src_y = 0;
 #endif
   if (x < 0) { w += x; src_x2 = -x; x = 0; }
   if (y < 0) { h += y; src_y -=  y; y = 0; }
 
   if (w <= 0 || h <= 0)
-    return;
+    return 0;
 
   check_mode_change(0);
   if (gpu.state.enhancement_active) {
     if (!gpu.state.enhancement_was_active)
-      return; // buffer not ready yet
+      return 0; // buffer not ready yet
     vram = gpu.get_enhancement_bufer(&src_x, &src_y, &w, &h, &vram_h);
     if (vram == NULL)
-      return;
+      return 0;
     x *= 2; y *= 2;
     src_x2 *= 2;
   }
@@ -126,6 +128,7 @@ void vout_update(void)
   cbs->pl_vout_flip(vram, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24),
       x, y, w, h, gpu.state.dims_changed);
   gpu.state.dims_changed = 0;
+  return 1;
 }
 
 void vout_blank(void)

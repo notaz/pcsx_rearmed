@@ -655,19 +655,22 @@ int vout_finish(void)
   return 0;
 }
 
-void vout_update(void)
+int vout_update(void)
 {
  if(PSXDisplay.Interlaced)                            // interlaced mode?
  {
   if(PSXDisplay.DisplayMode.x>0 && PSXDisplay.DisplayMode.y>0)
    {
     updateDisplay();                                  // -> swap buffers (new frame)
+    return 1;
    }
  }
  else if(bRenderFrontBuffer)                          // no interlace mode? and some stuff in front has changed?
  {
   updateFrontDisplay();                               // -> update front buffer
+  return 1;
  }
+ return 0;
 }
 
 void vout_blank(void)
