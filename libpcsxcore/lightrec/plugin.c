@@ -108,7 +108,6 @@ enum my_cp2_opcodes {
 
 static void (*cp2_ops[])(struct psxCP2Regs *) = {
 	[OP_CP2_RTPS] = gteRTPS,
-	[OP_CP2_RTPS] = gteRTPS,
 	[OP_CP2_NCLIP] = gteNCLIP,
 	[OP_CP2_OP] = gteOP,
 	[OP_CP2_DPCS] = gteDPCS,
