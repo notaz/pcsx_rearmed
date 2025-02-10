@@ -226,9 +226,9 @@ u32 texture_region_mask(s32 x1, s32 y1, s32 x2, s32 y2)
 
   coverage_x = x1 >> 6;
 
-  mask_up_left = 0xFFFF0000 << coverage_x;
-  if(coverage_x < 0)
-    mask_up_left = 0xFFFF0000;
+  mask_up_left = 0xFFFF0000;
+  if(coverage_x > 0)
+    mask_up_left <<= coverage_x;
 
   coverage_y = y1 >> 8;
   if(coverage_y <= 0)
@@ -1616,7 +1616,7 @@ setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
   vec_8x8s dither_offsets_short;                                               \
                                                                                \
   dither_row =                                                                 \
-   (dither_row >> dither_shift) | (dither_row << (32 - dither_shift));         \
+   (dither_row >> dither_shift) | ((u64)dither_row << (32 - dither_shift));    \
   dup_2x32b(vector_cast(vec_2x32u, dither_offsets_short), dither_row);         \
   setup_blocks_span_initialize_dithered_##texturing()                          \
 
@@ -5033,7 +5033,7 @@ void initialize_reciprocal_table(void)
 
 
 #define dither_table_row(a, b, c, d)                                           \
- ((a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16) | ((d & 0xFF) << 24))    \
+ ((a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16) | ((u32)(d & 0xFF) << 24)) \
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram)
 {

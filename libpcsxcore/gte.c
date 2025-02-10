@@ -199,7 +199,7 @@ static inline s32 LIM_(psxCP2Regs *regs, s32 value, s32 max, s32 min, u32 flag) 
 
 static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 	if (result > 0x1ffff) {
-		gteFLAG |= (1 << 31) | (1 << 17);
+		gteFLAG |= (1u << 31) | (1u << 17);
 		return 0x1ffff;
 	}
 	return result;
@@ -233,21 +233,21 @@ static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 #define limE(result) \
 	limE_(regs,result)
 
-#define A1(a) BOUNDS((a), 0x7fffffff, (1 << 30), -(s64)0x80000000, (1 << 31) | (1 << 27))
-#define A2(a) BOUNDS((a), 0x7fffffff, (1 << 29), -(s64)0x80000000, (1 << 31) | (1 << 26))
-#define A3(a) BOUNDS((a), 0x7fffffff, (1 << 28), -(s64)0x80000000, (1 << 31) | (1 << 25))
-#define limB1(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1 << 31) | (1 << 24))
-#define limB2(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1 << 31) | (1 << 23))
-#define limB3(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1 << 22))
-#define limC1(a) LIM((a), 0x00ff, 0x0000, (1 << 21))
-#define limC2(a) LIM((a), 0x00ff, 0x0000, (1 << 20))
-#define limC3(a) LIM((a), 0x00ff, 0x0000, (1 << 19))
-#define limD(a) LIM((a), 0xffff, 0x0000, (1 << 31) | (1 << 18))
+#define A1(a) BOUNDS((a), 0x7fffffff, (1u << 30), -(s64)0x80000000, (1u << 31) | (1u << 27))
+#define A2(a) BOUNDS((a), 0x7fffffff, (1u << 29), -(s64)0x80000000, (1u << 31) | (1u << 26))
+#define A3(a) BOUNDS((a), 0x7fffffff, (1u << 28), -(s64)0x80000000, (1u << 31) | (1u << 25))
+#define limB1(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1u << 31) | (1u << 24))
+#define limB2(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1u << 31) | (1u << 23))
+#define limB3(a, l) LIM((a), 0x7fff, -0x8000 * !l, (1u << 22))
+#define limC1(a) LIM((a), 0x00ff, 0x0000, (1u << 21))
+#define limC2(a) LIM((a), 0x00ff, 0x0000, (1u << 20))
+#define limC3(a) LIM((a), 0x00ff, 0x0000, (1u << 19))
+#define limD(a) LIM((a), 0xffff, 0x0000, (1u << 31) | (1u << 18))
 
-#define F(a) BOUNDS((a), 0x7fffffff, (1 << 31) | (1 << 16), -(s64)0x80000000, (1 << 31) | (1 << 15))
-#define limG1(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 14))
-#define limG2(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 13))
-#define limH(a) LIM((a), 0x1000, 0x0000, (1 << 12))
+#define F(a) BOUNDS((a), 0x7fffffff, (1u << 31) | (1u << 16), -(s64)0x80000000, (1u << 31) | (1u << 15))
+#define limG1(a) LIM((a), 0x3ff, -0x400, (1u << 31) | (1u << 14))
+#define limG2(a) LIM((a), 0x3ff, -0x400, (1u << 31) | (1u << 13))
+#define limH(a) LIM((a), 0x1000, 0x0000, (1u << 12))
 
 #ifndef __arm__
 #define A1U A1
@@ -360,12 +360,12 @@ void MTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 				a = gteLZCS;
 				if (a > 0) {
 					int i;
-					for (i = 31; (a & (1 << i)) == 0 && i >= 0; i--);
+					for (i = 31; (a & (1u << i)) == 0 && i >= 0; i--);
 					gteLZCR = 31 - i;
 				} else if (a < 0) {
 					int i;
 					a ^= 0xffffffff;
-					for (i = 31; (a & (1 << i)) == 0 && i >= 0; i--);
+					for (i = 31; (a & (1u << i)) == 0 && i >= 0; i--);
 					gteLZCR = 31 - i;
 				} else {
 					gteLZCR = 32;

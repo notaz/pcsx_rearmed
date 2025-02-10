@@ -325,7 +325,7 @@ static int card_io_delay;
 #define CARD_HARDLER_READM  0x5689 // fake, for psxBios_read()
 #define CARD_HARDLER_INFO   0x5B64
 
-#define HLEOP(n) SWAPu32((0x3b << 26) | (n));
+#define HLEOP(n) SWAPu32((0x3bu << 26) | (n));
 
 static u8 loadRam8(u32 addr)
 {

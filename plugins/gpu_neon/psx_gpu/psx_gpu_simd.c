@@ -1851,7 +1851,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   vec_8x8s dither_offsets_short;                                               \
                                                                                \
   dither_row =                                                                 \
-   (dither_row >> dither_shift) | (dither_row << (32 - dither_shift));         \
+   (dither_row >> dither_shift) | ((u64)dither_row << (32 - dither_shift));    \
   gvdup_n_u32(dither_offsets_short, dither_row);                               \
   setup_blocks_span_initialize_dithered_##texturing()                          \
 
