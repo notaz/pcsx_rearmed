@@ -36,6 +36,7 @@ typedef long (CALLBACK *NETopen)(unsigned long *);
 typedef long (CALLBACK *SIO1open)(unsigned long *);
 
 #include "spu.h"
+#include "gpu.h"
 #include "decode_xa.h"
 
 int LoadPlugins();
@@ -63,12 +64,6 @@ typedef void (CALLBACK* GPUupdateLace)(void);
 typedef void (CALLBACK* GPUmakeSnapshot)(void);
 typedef void (CALLBACK* GPUkeypressed)(int);
 typedef void (CALLBACK* GPUdisplayText)(char *);
-typedef struct {
-	uint32_t ulFreezeVersion;
-	uint32_t ulStatus;
-	uint32_t ulControl[256];
-	unsigned char psxVRam[1024*512*2];
-} GPUFreeze_t;
 typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *);
 typedef long (CALLBACK* GPUgetScreenPic)(unsigned char *);
 typedef long (CALLBACK* GPUshowScreenPic)(unsigned char *);
