@@ -343,16 +343,18 @@ void cdrLidSeekInterrupt(void)
 
 		// 02, 12, 10
 		if (!(cdr.StatP & STATUS_SHELLOPEN)) {
+			int was_reading = cdr.Reading;
 			StopReading();
 			SetPlaySeekRead(cdr.StatP, 0);
 			cdr.StatP |= STATUS_SHELLOPEN;
+			memset(cdr.Prev, 0xff, sizeof(cdr.Prev));
 
 			// IIRC this sometimes doesn't happen on real hw
 			// (when lots of commands are sent?)
 			SetResultSize(2);
 			cdr.Result[0] = cdr.StatP | STATUS_SEEKERROR;
 			cdr.Result[1] = ERROR_SHELLOPEN;
-			if (cdr.CmdInProgress) {
+			if (cdr.CmdInProgress || was_reading) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
 				cdr.CmdInProgress = 0;
 				cdr.Result[0] = cdr.StatP | STATUS_ERROR;
@@ -825,8 +827,10 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetloc:
-		// case CdlSetloc + CMD_WHILE_NOT_READY: // or is it?
-			CDR_LOG("CDROM setloc command (%02X, %02X, %02X)\n", cdr.Param[0], cdr.Param[1], cdr.Param[2]);
+		case CdlSetloc + CMD_WHILE_NOT_READY: // apparently?
+			if (cdr.StatP & STATUS_SHELLOPEN)
+				// wrong? Driver2 vs Amerzone
+				goto set_error;
 
 			// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
 			if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
