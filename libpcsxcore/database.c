@@ -131,9 +131,12 @@ cycle_multiplier_overrides[] =
 	{ 174, { "SLES00477" } },
 	/* Brave Fencer Musashi - cd sectors arrive too fast */
 	{ 170, { "SLUS00726", "SLPS01490" } },
-#if defined(DRC_DISABLE) || defined(LIGHTREC) /* new_dynarec has a hack for this game */
+#if defined(DRC_DISABLE) || defined(LIGHTREC) /* ari64 drc has a hack for this game */
 	/* Parasite Eve II - internal timer checks */
 	{ 125, { "SLUS01042", "SLUS01055", "SLES02558", "SLES12558" } },
+	{ 125, { "SLES02559", "SLES12559", "SLES02560", "SLES12560" } },
+	{ 125, { "SLES02561", "SLES12561", "SLES02562", "SLES12562" } },
+	{ 125, { "SCPS45467", "SCPS45468", "SLPS02480", "SLPS02481" } },
 #endif
 	/* Discworld Noir - audio skips if CPU runs too fast */
 	{ 222, { "SLES01549", "SLES02063", "SLES02064" } },
