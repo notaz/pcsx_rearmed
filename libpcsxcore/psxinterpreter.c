@@ -939,9 +939,9 @@ void MTC0(psxRegisters *regs_, int reg, u32 val) {
 //	SysPrintf("MTC0 %d: %x\n", reg, val);
 	switch (reg) {
 		case 12: // SR
-			if (unlikely((regs_->CP0.n.SR ^ val) & (1 << 16)))
+			if (unlikely((regs_->CP0.n.SR ^ val) & (1u << 16)))
 				psxMemOnIsolate((val >> 16) & 1);
-			if (unlikely((regs_->CP0.n.SR ^ val) & (7 << 29)))
+			if (unlikely((regs_->CP0.n.SR ^ val) & (7u << 29)))
 				setupCop(val);
 			regs_->CP0.n.SR = val;
 			psxTestSWInts(regs_, 1);

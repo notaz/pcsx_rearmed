@@ -1851,7 +1851,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   vec_8x8s dither_offsets_short;                                               \
                                                                                \
   dither_row =                                                                 \
-   (dither_row >> dither_shift) | (dither_row << (32 - dither_shift));         \
+   (dither_row >> dither_shift) | ((u64)dither_row << (32 - dither_shift));    \
   gvdup_n_u32(dither_offsets_short, dither_row);                               \
   setup_blocks_span_initialize_dithered_##texturing()                          \
 
@@ -1929,9 +1929,12 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
   gvaddq_u32(u_block, u_block, block_span);                                    \
   gvld1q_u32(block_span, psx_gpu->v_block_span.e);                             \
   gvaddq_u32(v_block, v_block, block_span);                                    \
+  (void)(span_b_offset);                                                       \
 }                                                                              \
 
 #define setup_blocks_span_initialize_unshaded_untextured()                     \
+  (void)(span_uvrg_offset);                                                    \
+  (void)(span_b_offset)                                                        \
 
 #define setup_blocks_texture_swizzled()                                        \
 {                                                                              \
@@ -2176,6 +2179,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 }                                                                              \
 
 #define setup_blocks_store_draw_mask_untextured_direct(_block, bits)           \
+  (void)(_block)                                                               \
 
 #define setup_blocks_uv_adj_hack_untextured(_block, edge_data, uvrg_offset)    \
 

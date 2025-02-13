@@ -108,14 +108,14 @@ static void set_texture(psx_gpu_struct *psx_gpu, u32 texture_settings)
 
     psx_gpu->render_state_base = render_state_base;
 
-    psx_gpu->current_texture_mask = 0x1 << new_texture_page;
+    psx_gpu->current_texture_mask = 1u << new_texture_page;
 
     if(texture_mode == TEXTURE_MODE_8BPP)
     {     
       // In 8bpp mode 256x256 takes up two pages. If it's on the right edge it
       // wraps back around to the left edge.
       u32 adjacent_texture_page = ((texture_settings + 1) & 0xF) | (texture_settings & 0x10);
-      psx_gpu->current_texture_mask |= 0x1 << adjacent_texture_page;
+      psx_gpu->current_texture_mask |= 1u << adjacent_texture_page;
 
       if((psx_gpu->last_8bpp_texture_page ^ new_texture_page) & 0x1)
       {

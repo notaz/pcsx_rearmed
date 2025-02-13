@@ -54,7 +54,7 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
  int changed = spu.regArea[rofs] != val;
  spu.regArea[rofs] = val;
 
- if (!changed && (ignore_dupe[rofs >> 5] & (1 << (rofs & 0x1f))))
+ if (!changed && (ignore_dupe[rofs >> 5] & (1u << (rofs & 0x1f))))
   return;
  // zero keyon/keyoff?
  if (val == 0 && (r & 0xff8) == 0xd88)

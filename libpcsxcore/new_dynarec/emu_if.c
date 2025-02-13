@@ -21,7 +21,7 @@
 #include "arm_features.h"
 #define FLAGLESS
 #include "../gte.h"
-#ifdef NDRC_THREAD
+#if defined(NDRC_THREAD) && !defined(DRC_DISABLE) && !defined(LIGHTREC)
 #include "../../frontend/libretro-rthreads.h"
 #include "features/features_cpu.h"
 #include "retro_timers.h"

@@ -24,6 +24,15 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
+#include <stdint.h>
+
+typedef struct GPUFreeze {
+	uint32_t ulFreezeVersion;
+	uint32_t ulStatus;
+	uint32_t ulControl[256];
+	unsigned char psxVRam[1024*512*2];
+} GPUFreeze_t;
+
 #define PSXGPU_LCF     (1u<<31)
 #define PSXGPU_nBUSY   (1u<<26)
 #define PSXGPU_ILACE   (1u<<22)

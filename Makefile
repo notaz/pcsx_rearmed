@@ -22,6 +22,10 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 #LDFLAGS += -static-libasan
 endif
+ifeq ($(DEBUG_UBSAN), 1)
+CFLAGS += -fsanitize=undefined -fno-sanitize=shift-base
+LDFLAGS += -fsanitize=undefined
+endif
 ifneq ($(NO_FSECTIONS), 1)
 CFLAGS += -ffunction-sections -fdata-sections
 FSECTIONS_LDFLAGS ?= -Wl,--gc-sections

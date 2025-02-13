@@ -505,9 +505,10 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
 
   renderer_flush_queues();
   if (is_read) {
+    const uint16_t *mem = VRAM_MEM_XY(gpu->vram, gpu->dma.x, gpu->dma.y);
     gpu->status |= PSX_GPU_STATUS_IMG;
     // XXX: wrong for width 1
-    gpu->gp0 = LE32TOH(*(uint32_t *) VRAM_MEM_XY(gpu->vram, gpu->dma.x, gpu->dma.y));
+    gpu->gp0 = LE16TOH(mem[0]) | ((uint32_t)LE16TOH(mem[1]) << 16);
     gpu->state.last_vram_read_frame = *gpu->state.frame_count;
   }
 
@@ -901,15 +902,7 @@ uint32_t GPUreadStatus(void)
   return ret;
 }
 
-struct GPUFreeze
-{
-  uint32_t ulFreezeVersion;      // should be always 1 for now (set by main emu)
-  uint32_t ulStatus;             // current gpu status
-  uint32_t ulControl[256];       // latest control register values
-  unsigned char psxVRam[1024*1024*2]; // current VRam image (full 2 MB for ZN)
-};
-
-long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
+long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
 {
   int i;
 

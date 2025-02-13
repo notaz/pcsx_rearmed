@@ -57,14 +57,14 @@ extern "C" {
 #define HW_DMA_PCR   (psxHu32ref(0x10f0))
 #define HW_DMA_ICR   (psxHu32ref(0x10f4))
 
-#define HW_DMA_ICR_BUS_ERROR     (1<<15)
-#define HW_DMA_ICR_GLOBAL_ENABLE (1<<23)
-#define HW_DMA_ICR_IRQ_SENT      (1<<31)
+#define HW_DMA_ICR_BUS_ERROR     (1u << 15)
+#define HW_DMA_ICR_GLOBAL_ENABLE (1u << 23)
+#define HW_DMA_ICR_IRQ_SENT      (1u << 31)
 
 #define DMA_INTERRUPT(n) { \
 	u32 icr = SWAPu32(HW_DMA_ICR); \
-	if (icr & (1 << (16 + n))) { \
-		icr |= 1 << (24 + n); \
+	if (icr & (1u << (16 + n))) { \
+		icr |= 1u << (24 + n); \
 		if (icr & HW_DMA_ICR_GLOBAL_ENABLE && !(icr & HW_DMA_ICR_IRQ_SENT)) { \
 			psxHu32ref(0x1070) |= SWAP32(8); \
 			icr |= HW_DMA_ICR_IRQ_SENT; \
