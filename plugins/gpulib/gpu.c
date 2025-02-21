@@ -141,6 +141,7 @@ static noinline void update_height(struct psx_gpu *gpu)
       break;
     case C_MANUAL:
       y = gpu->state.screen_centering_y;
+      vres += gpu->state.screen_centering_h_adj;
       break;
     default:
       // correct if slightly miscentered
@@ -1026,10 +1027,12 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x
       || gpu.state.screen_centering_y != cbs->screen_centering_y
+      || gpu.state.screen_centering_h_adj != cbs->screen_centering_h_adj
       || gpu.state.show_overscan != cbs->show_overscan) {
     gpu.state.screen_centering_type = cbs->screen_centering_type;
     gpu.state.screen_centering_x = cbs->screen_centering_x;
     gpu.state.screen_centering_y = cbs->screen_centering_y;
+    gpu.state.screen_centering_h_adj = cbs->screen_centering_h_adj;
     gpu.state.show_overscan = cbs->show_overscan;
     update_width(&gpu);
     update_height(&gpu);

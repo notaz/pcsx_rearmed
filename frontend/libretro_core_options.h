@@ -521,6 +521,19 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "0",
    },
+   {
+      "pcsx_rearmed_screen_centering_h_adj",
+      "(GPU) Manual height adjustment",
+      NULL,
+      "Height adjustment. Only effective when 'Screen centering' is set to 'Manual'.",
+      NULL,
+      "video",
+      {
+         V(-64), V(-48), V(-40), V(-32), V(-24), V(-16), V(-8), V(-7), V(-6), V(-5), V(-4), V(-3), V(-2), V(-1), V(0),
+         { NULL, NULL },
+      },
+      "0",
+   },
 #undef V
 #ifdef GPU_NEON
    {
