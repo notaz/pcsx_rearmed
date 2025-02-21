@@ -242,10 +242,14 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  unsigned int cycles)
 {
  SPUOSSFreeze_t * pFO = NULL;
+ sample_buf *sb_rvb = &spu.sb[MAXCHAN];
  int i, j;
 
  if(!pF) return 0;                                     // first check
 
+#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+ sb_rvb = &spu.sb_thread[MAXCHAN];
+#endif
  if(ulFreezeMode)                                      // info or save?
   {//--------------------------------------------------//
    int xa_left = 0, cdda_left = 0;
@@ -313,7 +317,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
    pFO->XALastVal = spu.XALastVal;
    pFO->last_keyon_cycles = spu.last_keyon_cycles;
    for (i = 0; i < 2; i++)
-    memcpy(&pFO->rvb_sb[i], spu.rvb->SB[i], sizeof(pFO->rvb_sb[i]));
+    memcpy(&pFO->rvb_sb[i], sb_rvb->SB_rvb[i], sizeof(pFO->rvb_sb[i]));
 
    for(i=0;i<MAXCHAN;i++)
     {
@@ -373,7 +377,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  if (pFO && pF->ulFreezeSize >= sizeof(*pF) + sizeof(*pFO)) {
   for (i = 0; i < 2; i++)
    for (j = 0; j < 2; j++)
-    memcpy(&spu.rvb->SB[i][j*4], pFO->rvb_sb[i], 4 * sizeof(spu.rvb->SB[i][0]));
+    memcpy(&sb_rvb->SB_rvb[i][j*4], pFO->rvb_sb[i], 4 * sizeof(sb_rvb->SB_rvb[i][0]));
  }
 
  // repair some globals
