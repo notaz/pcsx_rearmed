@@ -49,11 +49,9 @@ the emulator.
 Supported CD image formats:
 - .bin/.cue
 - .bin/.toc
+- .chd
 - .img/.ccd/.sub
 - .mdf/.mds
-- .Z/.Z.table
-- .bz/.bz.table
-- .ZNX/.ZNX.table (partial)
 - EBOOT.PBP (PSP, partial)
 - .cbn
 
@@ -110,6 +108,9 @@ the main menu where it is possible to enable/disable individual cheats.
 
 Changelog
 ---------
+
+r25 (2025-02-26)
+* bug fixes and compatibility improvements
 
 r24 (2024-01-22)
 * HLE compatibility has been greatly improved

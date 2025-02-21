@@ -6,7 +6,7 @@ body:
     attributes:
       label: PCSX-ReARMed Version
       description: Version number of the emulator as shown in the menus and printed in logs.
-      placeholder: r24l 3a52f747
+      placeholder: r25 ef0559d4
     validations:
       required: true
   - type: input
