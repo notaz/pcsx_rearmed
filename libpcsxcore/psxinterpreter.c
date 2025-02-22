@@ -756,6 +756,8 @@ static inline int checkLD(psxRegisters *regs, u32 addr, u32 m) {
 		return 0;
 	}
 	if (unlikely(BUS_LOCKED_ADDR(addr))) {
+		log_unhandled("bus error read addr=%08x @%08x ra=%08x\n",
+			addr, regs->pc - 4, regs->GPR.n.ra);
 		intException(regs, regs->pc - 4, R3000E_DBE << 2);
 		return 0;
 	}
@@ -779,6 +781,8 @@ static inline int checkST(psxRegisters *regs, u32 addr, u32 m) {
 		return 0;
 	}
 	if (unlikely(BUS_LOCKED_ADDR(addr))) {
+		log_unhandled("bus error write addr=%08x @%08x ra=%08x\n",
+			addr, regs->pc - 4, regs->GPR.n.ra);
 		intException(regs, regs->pc - 4, R3000E_DBE << 2);
 		return 0;
 	}
