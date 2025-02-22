@@ -7084,7 +7084,7 @@ static void disassemble_one(int i, u_int src)
     }
 }
 
-static noinline void pass1_disassemble(u_int pagelimit)
+static noinline void pass1a_disassemble(u_int pagelimit)
 {
   int i, j, done = 0;
   int ds_next = 0;
@@ -7199,8 +7199,11 @@ static noinline void pass1_disassemble(u_int pagelimit)
       force_intcall(i);
       done = 2;
     }
-    if (i >= 2 && (source[i-2] & 0xffe0f800) == 0x40806000) // MTC0 $12
+    if (i >= 2) {
+      if ((source[i-2] & 0xffe0f800) == 0x40806000 // MTC0 $12
+          || (dops[i-2].is_jump && dops[i-2].rt1 == 31)) // call
       dops[i].bt = 1;
+    }
     if (i >= 1 && (source[i-1] & 0xffe0f800) == 0x40806800) // MTC0 $13
       dops[i].bt = 1;
 
@@ -7275,8 +7278,17 @@ static noinline void pass1_disassemble(u_int pagelimit)
   slen = i;
 }
 
+static noinline void pass1b_bt(void)
+{
+  int i;
+  for (i = 0; i < slen; i++)
+    if (dops[i].is_jump && start <= cinfo[i].ba && cinfo[i].ba < start+slen*4)
+      // Internal branch, flag target
+      dops[(cinfo[i].ba - start) >> 2].bt = 1;
+}
+
 // Basic liveness analysis for MIPS registers
-static noinline void pass2_unneeded_regs(int istart,int iend,int r)
+static noinline void pass2b_unneeded_regs(int istart, int iend, int r)
 {
   int i;
   uint64_t u,gte_u,b,gte_b;
@@ -7298,9 +7310,6 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
     //printf("unneeded registers i=%d (%d,%d) r=%d\n",i,istart,iend,r);
     if(dops[i].is_jump)
     {
-      // If subroutine call, flag return address as a possible branch target
-      if(dops[i].rt1==31 && i<slen-2) dops[i+2].bt=1;
-
       if(cinfo[i].ba<start || cinfo[i].ba>=(start+slen*4))
       {
         // Branch out of this block, flush all regs
@@ -7316,8 +7325,6 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
       }
       else
       {
-        // Internal branch, flag target
-        dops[(cinfo[i].ba-start)>>2].bt=1;
         if(cinfo[i].ba<=start+i*4) {
           // Backward branch
           if(dops[i].is_ujump)
@@ -7346,7 +7353,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
           // Only go three levels deep.  This recursion can take an
           // excessive amount of time if there are a lot of nested loops.
           if(r<2) {
-            pass2_unneeded_regs((cinfo[i].ba-start)>>2,i-1,r+1);
+            pass2b_unneeded_regs((cinfo[i].ba-start)>>2, i-1, r+1);
           }else{
             unneeded_reg[(cinfo[i].ba-start)>>2]=1;
             gte_unneeded[(cinfo[i].ba-start)>>2]=gte_u_unknown;
@@ -7424,7 +7431,7 @@ static noinline void pass2_unneeded_regs(int istart,int iend,int r)
   }
 }
 
-static noinline void pass2a_unneeded_other(void)
+static noinline void pass2a_unneeded(void)
 {
   int i, j;
   for (i = 0; i < slen; i++)
@@ -9243,15 +9250,15 @@ static int noinline new_recompile_block(u_int addr)
 
   /* Pass 1 disassembly */
 
-  pass1_disassemble(pagelimit);
+  pass1a_disassemble(pagelimit);
+  pass1b_bt();
 
   int clear_hack_addr = apply_hacks();
 
-  /* Pass 2 - Register dependencies and branch targets */
+  /* Pass 2 - unneeded, register dependencies */
 
-  pass2_unneeded_regs(0,slen-1,0);
-
-  pass2a_unneeded_other();
+  pass2a_unneeded();
+  pass2b_unneeded_regs(0, slen-1, 0);
 
   /* Pass 3 - Register allocation */
 
