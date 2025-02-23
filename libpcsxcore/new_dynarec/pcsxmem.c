@@ -85,16 +85,12 @@ static u32 io_read_sio32()
 
 static void io_write_sio16(u32 value)
 {
-	sioWrite8((unsigned char)value);
-	sioWrite8((unsigned char)(value>>8));
+	sioWrite8(value);
 }
 
 static void io_write_sio32(u32 value)
 {
-	sioWrite8((unsigned char)value);
-	sioWrite8((unsigned char)(value >>  8));
-	sioWrite8((unsigned char)(value >> 16));
-	sioWrite8((unsigned char)(value >> 24));
+	sioWrite8(value);
 }
 
 #if !defined(DRC_DBG) && defined(__arm__)
