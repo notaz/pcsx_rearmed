@@ -2527,6 +2527,13 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_screen_centering_h_adj";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      pl_rearmed_cbs.screen_centering_h_adj = atoi(var.value);
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_show_overscan";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {

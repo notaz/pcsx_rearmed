@@ -114,7 +114,7 @@ static void do_processing(void)
   // nothing to do? Write out non-critical caches
   if (dirty) {
    syscalls.cache_wb(spu.spuMemC + 0x800, 0x800, 1);
-   syscalls.cache_wb(spu.sb_thread, sizeof(spu.sb_thread[0]) * MAXCHAN, 1);
+   syscalls.cache_wb(spu.sb_thread, sizeof(spu.sb_thread_), 1);
    if (had_rvb) {
     left = 0x40000 - spu.rvb->StartAddr;
     syscalls.cache_wb(spu.spuMem + spu.rvb->StartAddr, left * 2, 1);

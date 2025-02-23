@@ -1435,6 +1435,11 @@ static void cdrReadInterrupt(void)
 
 	if ((cdr.Mode & MODE_SF) && (subhdr->mode & 0x44) == 0x44) // according to nocash
 		deliver_data = 0;
+	if (buf[3] != 1 && buf[3] != 2) { // according to duckstation
+		deliver_data = 0;
+		CDR_LOG_I("%x:%02x:%02x mode %02x ignored\n",
+			buf[0], buf[1], buf[2], buf[3]);
+	}
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1455,21 +1460,19 @@ static void cdrReadInterrupt(void)
 cdrRead0:
 	bit 0,1 - reg index
 	bit 2 - adpcm active
-	bit 5 - 1 result ready
-	bit 6 - 1 dma ready
+	bit 3 - 1 parameter fifo empty
+	bit 4 - 1 parameter fifo not full
+	bit 5 - 1 response fifo not empty
+	bit 6 - 1 data fifo not empty
 	bit 7 - 1 command being processed
 */
 
 unsigned char cdrRead0(void) {
-	cdr.Ctrl &= ~0x24;
+	cdr.Ctrl &= ~0x64;
 	cdr.Ctrl |= cdr.AdpcmActive << 2;
 	cdr.Ctrl |= cdr.ResultReady << 5;
+	cdr.Ctrl |= ((signed int)(cdr.FifoOffset - cdr.FifoSize) >> 31) & 0x40;
 
-	//cdr.Ctrl &= ~0x40;
-	//if (cdr.FifoOffset != DATA_SIZE)
-	cdr.Ctrl |= 0x40; // data fifo not empty
-
-	// What means the 0x10 and the 0x08 bits? I only saw it used by the bios
 	cdr.Ctrl |= 0x18;
 
 	CDR_LOG_IO("cdr r0.sta: %02x\n", cdr.Ctrl);

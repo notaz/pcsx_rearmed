@@ -467,6 +467,7 @@ static const struct {
 	CE_INTVAL_P(screen_centering_type),
 	CE_INTVAL_P(screen_centering_x),
 	CE_INTVAL_P(screen_centering_y),
+	CE_INTVAL_P(screen_centering_h_adj),
 	CE_INTVAL_P(show_overscan),
 	CE_INTVAL(spu_config.iUseReverb),
 	CE_INTVAL(spu_config.iXAPitch),

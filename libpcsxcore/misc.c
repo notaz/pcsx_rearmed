@@ -362,6 +362,7 @@ int CheckCdrom() {
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
+	int lic_region_detected = -1;
 	int i, len, c;
 
 	FreePPFCache();
@@ -369,16 +370,25 @@ int CheckCdrom() {
 	memset(CdromId, 0, sizeof(CdromId));
 	memset(exename, 0, sizeof(exename));
 
-	time[0] = 0;
-	time[1] = 2;
-	time[2] = 0x10;
-
 	if (!Config.HLE && Config.SlowBoot) {
 		// boot to BIOS in case of CDDA or lid is open
 		cdra_getStatus(&stat);
 		if ((stat.Status & 0x10) || stat.Type == 2 || cdra_readTrack(time))
 			return 0;
 	}
+	if (Config.PsxAuto) {
+		time[0] = 0;
+		time[1] = 2;
+		time[2] = 4;
+		READTRACK();
+		if (strcmp((char *)buf + 12 + 46, "Entertainment Euro pe   ") == 0)
+			lic_region_detected = PSX_TYPE_PAL;
+		// else it'll default to NTSC anyway
+	}
+
+	time[0] = 0;
+	time[1] = 2;
+	time[2] = 0x10;
 	READTRACK();
 
 	strncpy(CdromLabel, buf + 52, 32);
@@ -441,7 +451,9 @@ int CheckCdrom() {
 		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
-		if (
+		if (lic_region_detected >= 0)
+			Config.PsxType = lic_region_detected;
+		else if (
 			/* Make sure Wild Arms SCUS-94608 is not detected as a PAL game. */
 			((CdromId[0] == 's' || CdromId[0] == 'S') && (CdromId[2] == 'e' || CdromId[2] == 'E')) ||
 			!strncmp(CdromId, "DTLS3035", 8) ||

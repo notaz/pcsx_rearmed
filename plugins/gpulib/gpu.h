@@ -94,8 +94,9 @@ struct psx_gpu {
     uint32_t w_out_old, h_out_old, status_vo_old;
     short screen_centering_type;
     short screen_centering_type_default;
-    int screen_centering_x;
-    int screen_centering_y;
+    short screen_centering_x;
+    short screen_centering_y;
+    int screen_centering_h_adj;
   } state;
   struct {
     int32_t set:3; /* -1 auto, 0 off, 1-3 fixed */

@@ -166,9 +166,6 @@ typedef struct
  int mLAPF1_dAPF1, mRAPF1_dAPF1, mLAPF2_dAPF2, mRAPF2_dAPF2;
 
  int dirty;   // registers changed
-
- // for filtering
- int SB[2][4*2];
 } REVERBInfo;
 
 ///////////////////////////////////////////////////////////
@@ -178,6 +175,7 @@ typedef struct
 typedef union
 {
  int SB[28 + 4 + 4];
+ int SB_rvb[2][4*2]; // for reverb filtering
  struct {
   int sample[28];
   union {
@@ -256,12 +254,12 @@ typedef struct
 
  unsigned short  regArea[0x400];
 
- sample_buf      sb[MAXCHAN];
+ sample_buf      sb[MAXCHAN+1]; // last entry is used for reverb filter
  int             interpolation;
 
 #if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
  sample_buf    * sb_thread;
- sample_buf      sb_thread_[MAXCHAN];
+ sample_buf      sb_thread_[MAXCHAN+1];
 #endif
 } SPUInfo;
 

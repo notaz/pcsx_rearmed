@@ -91,6 +91,7 @@ void psxHwWriteChcr2(u32 value);
 void psxHwWriteChcr3(u32 value);
 void psxHwWriteChcr4(u32 value);
 void psxHwWriteChcr6(u32 value);
+void psxHwWriteDmaPcr32(u32 value);
 void psxHwWriteDmaIcr32(u32 value);
 void psxHwWriteGpuSR(u32 value);
 u32  psxHwReadGpuSR(void);

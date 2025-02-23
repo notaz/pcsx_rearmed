@@ -143,7 +143,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	madr &= ~3;
 	switch (chcr) {
 		case 0x01000200: // vram2mem
-			PSXDMA_LOG("*** DMA2 GPU - vram2mem *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA2 GPU - vram2mem *** %x addr = %x size = %x\n", chcr, madr, bcr);
 			ptr = getDmaRam(madr, &words_max);
 			if (ptr == INVALID_PTR) {
 				log_unhandled("bad dma2 madr %x\n", madr);
@@ -167,7 +167,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			return;
 
 		case 0x01000201: // mem2vram
-			PSXDMA_LOG("*** DMA 2 - GPU mem2vram *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA 2 - GPU mem2vram *** %x addr = %x size = %x\n", chcr, madr, bcr);
 			words = words_left = (bcr >> 16) * (bcr & 0xffff);
 			while (words_left > 0) {
 				ptr = getDmaRam(madr, &words_max);
@@ -190,7 +190,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			return;
 
 		case 0x01000401: // dma chain
-			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %lx addr = %lx size = %lx\n", chcr, madr, bcr);
+			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %x addr = %x size = %x\n", chcr, madr, bcr);
 			// when not emulating walking progress, end immediately
 			// (some games abort the dma and read madr so break out of that logic)
 			madr_next = 0xffffff;

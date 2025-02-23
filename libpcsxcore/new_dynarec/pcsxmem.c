@@ -85,16 +85,12 @@ static u32 io_read_sio32()
 
 static void io_write_sio16(u32 value)
 {
-	sioWrite8((unsigned char)value);
-	sioWrite8((unsigned char)(value>>8));
+	sioWrite8(value);
 }
 
 static void io_write_sio32(u32 value)
 {
-	sioWrite8((unsigned char)value);
-	sioWrite8((unsigned char)(value >>  8));
-	sioWrite8((unsigned char)(value >> 16));
-	sioWrite8((unsigned char)(value >> 24));
+	sioWrite8(value);
 }
 
 #if !defined(DRC_DBG) && defined(__arm__)
@@ -267,7 +263,6 @@ make_forcew32_func(10a0)
 make_forcew32_func(10b0)
 make_forcew32_func(10c0)
 make_forcew32_func(10e0)
-make_forcew32_func(10f0)
 
 void new_dyna_pcsx_mem_load_state(void)
 {
@@ -421,6 +416,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM32(0x10cc)], psxHwWriteChcr4, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10e8)], psxHwWriteChcr6, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10ec)], psxHwWriteChcr6, 1);
+	map_item(&mem_iowtab[IOMEM32(0x10f0)], psxHwWriteDmaPcr32, 1);
 	map_item(&mem_iowtab[IOMEM32(0x10f4)], psxHwWriteDmaIcr32, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM32(0x1104)], io_rcnt_write_mode0, 1);
@@ -463,7 +459,7 @@ void new_dyna_pcsx_mem_init(void)
 	map_item(&mem_iowtab[IOMEM16(0x10e0)], io_write_force32_10e0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x10e8)], psxHwWriteChcr6, 1);
 	map_item(&mem_iowtab[IOMEM16(0x10ec)], psxHwWriteChcr6, 1);
-	map_item(&mem_iowtab[IOMEM16(0x10f0)], io_write_force32_10f0, 1);
+	map_item(&mem_iowtab[IOMEM16(0x10f0)], psxHwWriteDmaPcr32, 1);
 	map_item(&mem_iowtab[IOMEM16(0x10f4)], psxHwWriteDmaIcr32, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1100)], io_rcnt_write_count0, 1);
 	map_item(&mem_iowtab[IOMEM16(0x1104)], io_rcnt_write_mode0, 1);

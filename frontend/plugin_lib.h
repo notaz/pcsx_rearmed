@@ -112,6 +112,7 @@ struct rearmed_cbs {
 	int screen_centering_type_default;
 	int screen_centering_x;
 	int screen_centering_y;
+	int screen_centering_h_adj;
 	int show_overscan;
 };
 

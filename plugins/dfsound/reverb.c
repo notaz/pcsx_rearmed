@@ -74,7 +74,7 @@ INLINE int rvb2ram_offs(int curr, int space, int ofs)
 
 ////////////////////////////////////////////////////////////////////////
 
-static void reverb_interpolate(REVERBInfo *rvb, int curr_addr,
+static void reverb_interpolate(sample_buf *sb, int curr_addr,
   int out0[2], int out1[2])
 {
  int spos = (curr_addr - 3) & 3;
@@ -82,13 +82,13 @@ static void reverb_interpolate(REVERBInfo *rvb, int curr_addr,
  int i;
 
  for (i = 0; i < 2; i++)
-  rvb->SB[i][dpos] = rvb->SB[i][4 | dpos] = out0[i];
+  sb->SB_rvb[i][dpos] = sb->SB_rvb[i][4 | dpos] = out0[i];
 
  // mednafen uses some 20 coefs here, we just reuse gauss [0] and [128]
  for (i = 0; i < 2; i++)
  {
   const int *s;
-  s = &rvb->SB[i][spos];
+  s = &sb->SB_rvb[i][spos];
   out0[i] = (s[0] * 0x12c7 + s[1] * 0x59b3 + s[2] * 0x1307) >> 15;
   out1[i] = (s[0] * 0x019c + s[1] * 0x3def + s[2] * 0x3e4c + s[3] * 0x01a8) >> 15;
  }
@@ -98,7 +98,8 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
   int do_filter)
 {
  unsigned short *spuMem = spu.spuMem;
- REVERBInfo *rvb = spu.rvb;
+ const REVERBInfo *rvb = spu.rvb;
+ sample_buf *sb = &spu.sb[MAXCHAN];
  int space = 0x40000 - rvb->StartAddr;
  int mlsame_m2o = rvb->mLSAME + space - 1;
  int mrsame_m2o = rvb->mRSAME + space - 1;
@@ -111,6 +112,9 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
  int vWALL = rvb->vWALL;
  int ns;
 
+#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+ sb = &spu.sb_thread[MAXCHAN];
+#endif
  if (mlsame_m2o >= space) mlsame_m2o -= space;
  if (mrsame_m2o >= space) mrsame_m2o -= space;
  if (mldiff_m2o >= space) mldiff_m2o -= space;
@@ -162,7 +166,7 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
    out0[0] = out1[0] = (Lout >> 15) * rvb->VolLeft  >> 15;
    out0[1] = out1[1] = (Rout >> 15) * rvb->VolRight >> 15;
    if (do_filter)
-    reverb_interpolate(rvb, curr_addr, out0, out1);
+    reverb_interpolate(sb, curr_addr, out0, out1);
 
    SSumLR[ns++] += out0[0];
    SSumLR[ns++] += out0[1];
@@ -263,7 +267,7 @@ INLINE void REVERBDo(int *SSumLR, int *RVB, int ns_to, int curr_addr)
 {
  if (spu.spuCtrl & 0x80)                               // -> reverb on? oki
  {
-  MixREVERB(SSumLR, RVB, ns_to, curr_addr, spu.interpolation > 1);
+  MixREVERB(SSumLR, RVB, ns_to, curr_addr, 0); //spu.interpolation > 1);
  }
  else if (spu.rvb->VolLeft || spu.rvb->VolRight)
  {

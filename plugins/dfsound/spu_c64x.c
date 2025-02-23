@@ -188,7 +188,7 @@ static void thread_work_wait_sync(struct work_item *work, int force)
 static void thread_sync_caches(void)
 {
  if (f.stale_caches) {
-  f.dsp_cache_inv_virt(spu.sb_thread, sizeof(spu.sb_thread[0]) * MAXCHAN);
+  f.dsp_cache_inv_virt(spu.sb_thread, sizeof(spu.sb_thread[0]) * (MAXCHAN+1));
   f.dsp_cache_inv_virt(spu.spuMemC + 0x800, 0x800);
   if (spu.rvb->StartAddr) {
    int left = 0x40000 - spu.rvb->StartAddr;
@@ -204,6 +204,7 @@ static void init_spu_thread(void)
  struct region_mem *mem;
  int ret;
 
+ spu.sb_thread = spu.sb_thread_;
  if (f.handle == NULL) {
   const char lib[] = "libc64.so.1";
   int failed = 0;

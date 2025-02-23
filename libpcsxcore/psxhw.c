@@ -26,6 +26,7 @@
 #include "mdec.h"
 #include "cdrom.h"
 #include "gpu.h"
+#include "../include/compiler_features.h"
 
 void psxHwReset() {
 	memset(psxH, 0, 0x10000);
@@ -74,7 +75,7 @@ void psxHwWriteChcr##n(u32 value) \
 	if ((value ^ old) & 0x01000000) { \
 		if (!(value & 0x01000000)) \
 			abort_func; \
-		else if (SWAPu32(HW_DMA_PCR) & (8u << (n * 4))) \
+		else if (HW_DMA_PCR & SWAPu32(8u << (n * 4))) \
 			psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), value); \
 	} \
 }
@@ -85,6 +86,27 @@ make_dma_func(2, psxAbortDma2())
 make_dma_func(3,)
 make_dma_func(4,)
 make_dma_func(6,)
+
+void psxHwWriteDmaPcr32(u32 value)
+{
+	// todo: can this also pause/stop live dma?
+	u32 on = (SWAPu32(HW_DMA_PCR) ^ value) & value & 0x08888888;
+	u32 chcr;
+	HW_DMA_PCR = SWAPu32(value);
+	if (likely(!on))
+		return;
+	#define DO(n) \
+	chcr = SWAPu32(HW_DMA##n##_CHCR); \
+	if ((on & (8u << 4*n)) && (chcr & 0x01000000)) \
+		psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), chcr)
+	DO(0);
+	DO(1);
+	DO(2);
+	DO(3);
+	DO(4);
+	DO(6);
+	#undef DO
+}
 
 void psxHwWriteDmaIcr32(u32 value)
 {
@@ -336,6 +358,7 @@ void psxHwWrite16(u32 add, u32 value) {
 	case 0x10cc: psxHwWriteChcr4(value); return;
 	case 0x10e8: // DMA6 chcr (OT clear)
 	case 0x10ec: psxHwWriteChcr6(value); return;
+	case 0x10f0: psxHwWriteDmaPcr32(value); return;
 	case 0x10f4: psxHwWriteDmaIcr32(value); return;
 
 	// forced write32 with no immediate effect:
@@ -348,7 +371,6 @@ void psxHwWrite16(u32 add, u32 value) {
 	case 0x10c0:
 	case 0x10d0:
 	case 0x10e0:
-	case 0x10f0:
 		psxHu32ref(add) = SWAPu32(value);
 		return;
 
@@ -394,6 +416,7 @@ void psxHwWrite32(u32 add, u32 value) {
 	case 0x10cc: psxHwWriteChcr4(value); return;
 	case 0x10e8: // DMA6 chcr (OT clear)
 	case 0x10ec: psxHwWriteChcr6(value); return;
+	case 0x10f0: psxHwWriteDmaPcr32(value); return;
 	case 0x10f4: psxHwWriteDmaIcr32(value); return;
 
 	case 0x1810: GPU_writeData(value); return;
