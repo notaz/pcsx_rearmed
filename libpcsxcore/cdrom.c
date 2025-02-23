@@ -1435,6 +1435,11 @@ static void cdrReadInterrupt(void)
 
 	if ((cdr.Mode & MODE_SF) && (subhdr->mode & 0x44) == 0x44) // according to nocash
 		deliver_data = 0;
+	if (buf[3] != 1 && buf[3] != 2) { // according to duckstation
+		deliver_data = 0;
+		CDR_LOG_I("%x:%02x:%02x mode %02x ignored\n",
+			buf[0], buf[1], buf[2], buf[3]);
+	}
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
