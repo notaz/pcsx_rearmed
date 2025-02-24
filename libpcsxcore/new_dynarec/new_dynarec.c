@@ -6667,7 +6667,7 @@ static void force_intcall(int i)
   memset(&dops[i], 0, sizeof(dops[i]));
   dops[i].itype = INTCALL;
   dops[i].rs1 = CCREG;
-  dops[i].is_exception = 1;
+  dops[i].is_exception = dops[i].may_except = 1;
   cinfo[i].ba = -1;
 }
 
