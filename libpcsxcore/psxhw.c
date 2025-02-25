@@ -101,7 +101,11 @@ void psxHwWriteDmaPcr32(u32 value)
 		psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), chcr)
 	DO(0);
 	DO(1);
-	DO(2);
+	// breaks Kyuutenkai. Probably needs better timing or
+	// proper gpu side dma enable handling
+	//DO(2);
+	if ((on & (8u << 4*2)) && (SWAPu32(HW_DMA2_CHCR) & 0x01000000))
+		log_unhandled("dma2 pcr write ignored\n");
 	DO(3);
 	DO(4);
 	DO(6);
