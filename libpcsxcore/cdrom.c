@@ -624,11 +624,7 @@ static u32 cdrAlignTimingHack(u32 cycles)
 	 * Note: always enforcing this breaks other games like Crash PAL version
 	 * (inputs get dropped because bios handler doesn't see interrupts).
 	 */
-	u32 vint_rel;
-	if (psxRegs.cycle - rcnts[3].cycleStart > 250000)
-		return cycles;
-	vint_rel = rcnts[3].cycleStart + 63000 - psxRegs.cycle;
-	vint_rel += PSXCLK / 60;
+	u32 vint_rel = rcnts[3].cycleStart + 63000 - psxRegs.cycle;
 	while ((s32)(vint_rel - cycles) < 0)
 		vint_rel += PSXCLK / 60;
 	return vint_rel;
