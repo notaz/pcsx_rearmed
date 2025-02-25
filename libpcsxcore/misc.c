@@ -60,11 +60,11 @@ struct iso_directory_record {
 	char name			[1];
 };
 
-static void mmssdd( char *b, char *p )
+static void mmssdd(const char *b, char *p)
 {
-	int m, s, d;
-	unsigned char *ub = (void *)b;
+	const unsigned char *ub = (void *)b;
 	int block = (ub[3] << 24) | (ub[2] << 16) | (ub[1] << 8) | ub[0];
+	int m, s, d;
 
 	block += 150;
 	m = block / 4500;			// minutes
@@ -349,8 +349,11 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 		size -= 2048;
 		addr += 2048;
 	}
-	if (time_bcd_out)
-		memcpy(time_bcd_out, time, 3);
+	if (time_bcd_out) {
+		time_bcd_out[0] = itob(time[0]);
+		time_bcd_out[1] = itob(time[1]);
+		time_bcd_out[2] = itob(time[2]);
+	}
 
 	return 0;
 }
