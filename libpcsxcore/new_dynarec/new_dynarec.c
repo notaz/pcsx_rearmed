@@ -76,6 +76,11 @@ static Jit g_jit;
 //#define inv_debug printf
 #define inv_debug(...)
 
+#define SysPrintf_lim(...) do { \
+  if (err_print_count++ < 64u) \
+    SysPrintf(__VA_ARGS__); \
+} while (0)
+
 // from linkage_*
 extern int cycle_count; // ... until end of the timeslice, counts -N -> 0 (CCREG)
 extern int last_count;  // last absolute target, often = next_interupt
@@ -316,6 +321,7 @@ static struct compile_info
   static u_int expirep;
   static u_int stop_after_jal;
   static u_int ni_count;
+  static u_int err_print_count;
   static u_int f1_hack;
   static u_int vsync_hack;
 #ifdef STAT_PRINT
@@ -3479,7 +3485,8 @@ static void store_assemble(int i, const struct regstat *i_regs, int ccadj_)
   // not looking back as that should be in mips cache already
   // (see Spyro2 title->attract mode)
   if (start + i*4 < addr_const && addr_const < start + slen*4) {
-    SysPrintf("write to %08x hits block %08x, pc=%08x\n", addr_const, start, start+i*4);
+    SysPrintf_lim("write to %08x hits block %08x, pc=%08x\n",
+      addr_const, start, start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
@@ -6347,6 +6354,7 @@ void new_dynarec_clear_full(void)
   literalcount=0;
   stop_after_jal=0;
   ni_count=0;
+  err_print_count=0;
   inv_code_start=inv_code_end=~0;
   hack_addr=0;
   f1_hack=0;
@@ -6659,7 +6667,7 @@ static void force_intcall(int i)
   memset(&dops[i], 0, sizeof(dops[i]));
   dops[i].itype = INTCALL;
   dops[i].rs1 = CCREG;
-  dops[i].is_exception = 1;
+  dops[i].is_exception = dops[i].may_except = 1;
   cinfo[i].ba = -1;
 }
 
@@ -6937,8 +6945,8 @@ static void disassemble_one(int i, u_int src)
       default:
         break;
     }
-    if (type == INTCALL && ni_count < 64)
-      SysPrintf("NI %08x @%08x (%08x)\n", src, start + i*4, start);
+    if (type == INTCALL)
+      SysPrintf_lim("NI %08x @%08x (%08x)\n", src, start + i*4, start);
     dops[i].itype = type;
     dops[i].opcode2 = op2;
     dops[i].ls_type = ls_type;
@@ -7143,7 +7151,7 @@ static noinline void pass1a_disassemble(u_int pagelimit)
       // branch in delay slot?
       if (dops[i].is_jump) {
         // don't handle first branch and call interpreter if it's hit
-        SysPrintf("branch in DS @%08x (%08x)\n", start + i*4, start);
+        SysPrintf_lim("branch in DS @%08x (%08x)\n", start + i*4, start);
         force_j_to_interpreter = 1;
       }
       // load delay detection through a branch
@@ -7166,7 +7174,7 @@ static noinline void pass1a_disassemble(u_int pagelimit)
         if ((dop && is_ld_use_hazard(&dops[i], dop))
             || (!dop && Config.PreciseExceptions)) {
           // jump target wants DS result - potential load delay effect
-          SysPrintf("load delay in DS @%08x (%08x)\n", start + i*4, start);
+          SysPrintf_lim("load delay in DS @%08x (%08x)\n", start + i*4, start);
           force_j_to_interpreter = 1;
           if (0 <= t && t < i)
             dops[t + 1].bt = 1; // expected return from interpreter
@@ -7174,7 +7182,7 @@ static noinline void pass1a_disassemble(u_int pagelimit)
         else if(i>=2&&dops[i-2].rt1==2&&dops[i].rt1==2&&dops[i].rs1!=2&&dops[i].rs2!=2&&dops[i-1].rs1!=2&&dops[i-1].rs2!=2&&
               !(i>=3&&dops[i-3].is_jump)) {
           // v0 overwrite like this is a sign of trouble, bail out
-          SysPrintf("v0 overwrite @%08x (%08x)\n", start + i*4, start);
+          SysPrintf_lim("v0 overwrite @%08x (%08x)\n", start + i*4, start);
           force_j_to_interpreter = 1;
         }
       }
@@ -7182,7 +7190,7 @@ static noinline void pass1a_disassemble(u_int pagelimit)
     else if (i > 0 && dops[i-1].is_delay_load
              && is_ld_use_hazard(&dops[i-1], &dops[i])
              && (i < 2 || !dops[i-2].is_ujump)) {
-      SysPrintf("load delay @%08x (%08x)\n", start + i*4, start);
+      SysPrintf_lim("load delay @%08x (%08x)\n", start + i*4, start);
       for (j = i - 1; j > 0 && dops[j-1].is_delay_load; j--)
         if (dops[j-1].rt1 != dops[i-1].rt1)
           break;
@@ -7194,7 +7202,7 @@ static noinline void pass1a_disassemble(u_int pagelimit)
       i = j; // don't compile the problematic branch/load/etc
     }
     if (dops[i].is_exception && i > 0 && dops[i-1].is_jump) {
-      SysPrintf("exception in DS @%08x (%08x)\n", start + i*4, start);
+      SysPrintf_lim("exception in DS @%08x (%08x)\n", start + i*4, start);
       i--;
       force_intcall(i);
       done = 2;
@@ -8248,7 +8256,8 @@ static noinline void pass4_cull_unused_regs(void)
                 if(regmap_pre[i+1][hr]!=-1 || regs[i].regmap[hr]>0)
                 if(regmap_pre[i+1][hr]!=regs[i].regmap[hr])
                 {
-                  SysPrintf("fail: %x (%d %d!=%d)\n",start+i*4,hr,regmap_pre[i+1][hr],regs[i].regmap[hr]);
+                  SysPrintf_lim("fail: %x (%d %d!=%d)\n",
+                    start+i*4, hr, regmap_pre[i+1][hr], regs[i].regmap[hr]);
                   assert(regmap_pre[i+1][hr]==regs[i].regmap[hr]);
                 }
                 regmap_pre[i+1][hr]=-1;
@@ -9171,7 +9180,7 @@ static int noinline new_recompile_block(u_int addr)
 
   if (addr & 3) {
     if (addr != hack_addr) {
-      SysPrintf("game crash @%08x, ra=%08x\n", addr, psxRegs.GPR.n.ra);
+      SysPrintf_lim("game crash @%08x, ra=%08x\n", addr, psxRegs.GPR.n.ra);
       hack_addr = addr;
     }
     return -1;
@@ -9229,7 +9238,7 @@ static int noinline new_recompile_block(u_int addr)
   source = get_source_start(start, &pagelimit);
   if (source == NULL) {
     if (addr != hack_addr) {
-      SysPrintf("Compile at bogus memory address: %08x, ra=%x\n",
+      SysPrintf_lim("Compile at bogus memory address: %08x, ra=%x\n",
         addr, psxRegs.GPR.n.ra);
       hack_addr = addr;
     }
