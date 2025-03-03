@@ -36,6 +36,7 @@
 #include "../libpcsxcore/gpu.h"
 #include "../libpcsxcore/r3000a.h"
 #include "../libpcsxcore/psxcounters.h"
+#include "arm_features.h"
 
 #define HUD_HEIGHT 10
 
@@ -265,7 +266,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	assert(vout_h >= 192);
 
 	pl_vout_scale_w = pl_vout_scale_h = 1;
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 	if (soft_filter) {
 		if (resolution_ok(w * 2, h * 2) && bpp == 16) {
 			pl_vout_scale_w = 2;
@@ -379,7 +380,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 			}
 		}
 	}
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale_w == 2)
 	{
 		neon_scale2x_16_16(src, (void *)dest, w,
@@ -496,7 +497,7 @@ static int dispmode_doubleres(void)
 }
 #endif
 
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 static int dispmode_scale2x(void)
 {
 	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
@@ -525,7 +526,7 @@ static int (*dispmode_switchers[])(void) = {
 #ifdef BUILTIN_GPU_NEON
 	dispmode_doubleres,
 #endif
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 	dispmode_scale2x,
 	dispmode_eagle2x,
 #endif

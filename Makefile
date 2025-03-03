@@ -26,16 +26,6 @@ ifeq ($(DEBUG_UBSAN), 1)
 CFLAGS += -fsanitize=undefined -fno-sanitize=shift-base
 LDFLAGS += -fsanitize=undefined
 endif
-ifneq ($(NO_FSECTIONS), 1)
-CFLAGS += -ffunction-sections -fdata-sections
-FSECTIONS_LDFLAGS ?= -Wl,--gc-sections
-LDFLAGS += $(FSECTIONS_LDFLAGS)
-endif
-CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
-	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
-	  -DP_HAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1) \
-	  -DDISABLE_MEM_LUTS=0
-CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
 
@@ -64,11 +54,24 @@ endif
 CC_LINK ?= $(CC)
 CC_AS ?= $(CC)
 LDFLAGS += $(MAIN_LDFLAGS)
-EXTRA_LDFLAGS ?= -Wl,-Map=$@.map
+#EXTRA_LDFLAGS ?= -Wl,-Map=$@.map # not on some linkers
 LDLIBS += $(MAIN_LDLIBS)
 ifdef PCNT
 CFLAGS += -DPCNT
 endif
+
+ifneq ($(NO_FSECTIONS), 1)
+CFLAGS += -ffunction-sections -fdata-sections
+ifeq ($(GNU_LINKER),1)
+FSECTIONS_LDFLAGS ?= -Wl,--gc-sections
+LDFLAGS += $(FSECTIONS_LDFLAGS)
+endif
+endif # NO_FSECTIONS
+CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
+	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
+	  -DP_HAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1) \
+	  -DDISABLE_MEM_LUTS=0
+CXXFLAGS += $(CFLAGS)
 
 # core
 OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cdrom-async.o \
@@ -352,8 +355,10 @@ ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/libpicofe/in_sdl.o
 OBJS += frontend/libpicofe/plat_sdl.o
 OBJS += frontend/libpicofe/plat_dummy.o
-OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_sdl.o
+ifeq "$(HAVE_EVDEV)" "1"
+OBJS += frontend/libpicofe/linux/in_evdev.o
+endif
 ifeq "$(HAVE_GLES)" "1"
 OBJS += frontend/libpicofe/gl.o frontend/libpicofe/gl_platform.o
 LDLIBS += $(LDLIBS_GLES)

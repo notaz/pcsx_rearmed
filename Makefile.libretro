@@ -7,6 +7,7 @@ HAVE_PHYSICAL_CDROM ?= 1
 USE_ASYNC_CDROM ?= 1
 USE_LIBRETRO_VFS ?= 0
 NDRC_THREAD ?= 1
+GNU_LINKER ?= 1
 
 # Dynarec options: lightrec, ari64
 DYNAREC ?= lightrec
@@ -208,6 +209,7 @@ else ifeq ($(platform), osx)
 	LDFLAGS += $(ARCHFLAGS)
 	HAVE_PHYSICAL_CDROM = 0
 	FSECTIONS_LDFLAGS = -Wl,-dead_strip
+	GNU_LINKER = 0
 
 # iOS
 else ifneq (,$(findstring ios,$(platform)))
@@ -246,6 +248,7 @@ else
 endif
 	CFLAGS += $(MINVERSION)
 	FSECTIONS_LDFLAGS = -Wl,-dead_strip
+	GNU_LINKER = 0
 
 else ifeq ($(platform), tvos-arm64)
 	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
@@ -270,6 +273,7 @@ endif
 	MINVERSION = -mappletvos-version-min=11.0
 	CFLAGS += $(MINVERSION)
 	FSECTIONS_LDFLAGS = -Wl,-dead_strip
+	GNU_LINKER = 0
 
 # Nintendo Switch (libnx)
 else ifeq ($(platform), libnx)
