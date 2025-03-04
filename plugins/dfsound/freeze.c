@@ -139,6 +139,7 @@ typedef struct
  uint32_t   XALastVal;
  uint32_t   last_keyon_cycles;
  uint32_t   rvb_sb[2][4];
+ int32_t    interpolation; // which interpolation's data is in SPUCHAN_orig::SB
 
 } SPUOSSFreeze_t;
 
@@ -238,7 +239,7 @@ static void load_register(unsigned long reg, unsigned int cycles)
 // SPUFREEZE: called by main emu on savestate load/save
 ////////////////////////////////////////////////////////////////////////
 
-long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
+long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  unsigned int cycles)
 {
  SPUOSSFreeze_t * pFO = NULL;
@@ -318,6 +319,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
    pFO->last_keyon_cycles = spu.last_keyon_cycles;
    for (i = 0; i < 2; i++)
     memcpy(&pFO->rvb_sb[i], sb_rvb->SB_rvb[i], sizeof(pFO->rvb_sb[i]));
+   pFO->interpolation = spu.interpolation;
 
    for(i=0;i<MAXCHAN;i++)
     {
@@ -365,6 +367,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  spu.XARepeat = 0;
  spu.XALastVal = 0;
  spu.last_keyon_cycles = cycles - 16*786u;
+ spu.interpolation = -1;
  if (pFO && pF->ulFreezeSize >= sizeof(*pF) + offsetof(SPUOSSFreeze_t, rvb_sb)) {
   spu.cycles_dma_end = pFO->cycles_dma_end;
   spu.decode_dirty_ch = pFO->decode_dirty_ch;
@@ -378,6 +381,7 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
   for (i = 0; i < 2; i++)
    for (j = 0; j < 2; j++)
     memcpy(&sb_rvb->SB_rvb[i][j*4], pFO->rvb_sb[i], 4 * sizeof(sb_rvb->SB_rvb[i][0]));
+  spu.interpolation = pFO->interpolation;
  }
 
  // repair some globals
@@ -393,8 +397,6 @@ long CALLBACK SPUfreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  spu.rvb->StartAddr = regAreaGet(H_SPUReverbAddr) << 2;
  if (spu.rvb->CurrAddr < spu.rvb->StartAddr)
   spu.rvb->CurrAddr = spu.rvb->StartAddr;
- // fix to prevent new interpolations from crashing
- spu.interpolation = -1;
 
  ClearWorkingState();
 

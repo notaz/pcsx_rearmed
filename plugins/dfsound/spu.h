@@ -42,5 +42,6 @@ void CALLBACK SPUsetCDvol(unsigned char ll, unsigned char lr,
 
 // internal
 void ClearWorkingState(void);
+long DoFreeze(unsigned int, struct SPUFreeze *, unsigned int);
 
 #endif /* __P_SPU_H__ */

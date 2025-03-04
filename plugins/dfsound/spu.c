@@ -1574,6 +1574,13 @@ static void exit_spu_thread(void)
 
 #endif
 
+long CALLBACK SPUfreeze(unsigned int ulFreezeMode, struct SPUFreeze * pF,
+ unsigned int cycles)
+{
+ sync_worker_thread(1);
+ return DoFreeze(ulFreezeMode, pF, cycles);
+}
+
 // SPUINIT: this func will be called first by the main emu
 long CALLBACK SPUinit(void)
 {
