@@ -53,8 +53,11 @@ have_armv7=""
 have_arm_neon=""
 have_arm_neon_asm=""
 have_tslib=""
+have_evdev=""
 have_gles=""
 have_c64x_dsp=""
+have_fsections="yes"
+gnu_linker="yes"
 dynarec=""
 multithreading="yes"
 need_sdl="no"
@@ -68,27 +71,42 @@ optimize_cortexa8="no"
 optimize_arm926ej="no"
 
 # hardcoded stuff
-if [ "${OSTYPE}" = "FreeBSD" ]; then
-	CC="clang"
-	CXX="clang++"
-	CFLAGS="-I/usr/local/include -L/usr/local/lib"
-	MAKE=gmake
-else
-	CC="${CC-${CROSS_COMPILE}gcc}"
-	CXX="${CXX-${CROSS_COMPILE}g++}"
-fi
+case "${OSTYPE}" in
+  *BSD*|*darwin*)
+    CC="clang"
+    CXX="clang++"
+    if test -d /opt/local/include; then
+      # MacPorts
+      CFLAGS="$CFLAGS -I/opt/local/include"
+      LDFLAGS="$LDFLAGS -L/opt/local/lib"
+    fi
+    if test -d /opt/local/include; then
+      CFLAGS="$CFLAGS -I/usr/local/include"
+      LDFLAGS="$LDFLAGS -L/usr/local/lib"
+    fi
+    MAKE=gmake
+    gnu_linker="no"
+    ;;
+  *)
+    CC="${CC-${CROSS_COMPILE}gcc}"
+    CXX="${CXX-${CROSS_COMPILE}g++}"
+    ;;
+esac
 AS="${AS-${CROSS_COMPILE}as}"
 AR="${AS-${CROSS_COMPILE}ar}"
 MAIN_LDLIBS="$LDLIBS -ldl -lm -lpthread"
 config_mak="config.mak"
 
-if [ "${OSTYPE}" = "FreeBSD" ]; then
-	SYSROOT="$sysroot"
-	[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/local/bin/sdl-config"
-else
-	SYSROOT="$(${CC} --print-sysroot)"
-	[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
-fi
+case "${OSTYPE}" in
+  *BSD*|*darwin*)
+    SYSROOT="$sysroot"
+    [ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/local/bin/sdl-config"
+    ;;
+  *)
+    SYSROOT="$(${CC} --print-sysroot 2> /dev/null || true)"
+    [ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
+    ;;
+esac
 
 fail()
 {
@@ -220,6 +238,16 @@ if [ -z "$ARCH" ]; then
 fi
 
 case "$ARCH" in
+aarch64|arm64)
+  have_arm_neon="yes"
+  have_arm_neon_asm="no"
+  if [ "x$dynarec" = "x" ]; then
+    dynarec="ari64"
+  fi
+  if [ "x$builtin_gpu" = "x" ]; then
+    builtin_gpu="neon"
+  fi
+  ;;
 arm*)
   # ARM stuff
   ARCH="arm"
@@ -305,16 +333,6 @@ arm*)
   fi
   have_arm_neon_asm=$have_arm_neon
   ;;
-aarch64)
-  have_arm_neon="yes"
-  have_arm_neon_asm="no"
-  if [ "x$dynarec" = "x" ]; then
-    dynarec="ari64"
-  fi
-  if [ "x$builtin_gpu" = "x" ]; then
-    builtin_gpu="neon"
-  fi
-  ;;
 x86_64)
   if [ "x$dynarec" = "x" ]; then
     dynarec="lightrec"
@@ -399,7 +417,7 @@ check_sdl()
 {
   cat > $TMPC <<EOF
   #include <SDL.h>
-  void main() { SDL_OpenAudio(0, 0); }
+  int main(int argc, char *argv[]) { SDL_OpenAudio(0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -476,6 +494,24 @@ EOF
     have_tslib="yes"
   else
     have_tslib="no"
+  fi
+fi
+
+# evdev
+if [ "x$have_evdev" = "x" ]; then
+  cat > $TMPC <<EOF
+  #include <linux/input.h>
+EOF
+  have_evdev="no"
+  if compile_object; then
+    have_evdev="yes"
+  else
+    cat > $TMPC <<EOF
+    #include <dev/evdev/input.h>
+EOF
+    if compile_object; then
+      have_evdev="yes"
+    fi
   fi
 fi
 
@@ -604,10 +640,19 @@ fi
 if [ "$have_tslib" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak
 fi
+if [ "$have_evdev" = "yes" ]; then
+  echo "HAVE_EVDEV = 1" >> $config_mak
+fi
 if [ "$have_gles" = "yes" ]; then
   echo "HAVE_GLES = 1" >> $config_mak
   echo "CFLAGS_GLES = $CFLAGS_GLES" >> $config_mak
   echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
+fi
+if [ "$have_fsections" = "no" ]; then
+  echo "NO_FSECTIONS = 1" >> $config_mak
+fi
+if [ "$gnu_linker" = "yes" ]; then
+  echo "GNU_LINKER = 1" >> $config_mak
 fi
 echo "DYNAREC = $dynarec" >> $config_mak
 if [ "$drc_cache_base" = "yes" ]; then

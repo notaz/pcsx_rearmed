@@ -2,7 +2,10 @@
 # always adding gpulib to deps (XXX might be no longer needed)
 # users must include ../../config.mak
 
-LDFLAGS += -shared -Wl,--no-undefined
+LDFLAGS += -shared
+ifeq ($(GNU_LINKER),1)
+LDFLAGS += -Wl,--no-undefined
+endif
 CFLAGS += $(PLUGIN_CFLAGS)
 #LDLIBS_GPULIB += `sdl-config --libs`
 ifdef DEBUG

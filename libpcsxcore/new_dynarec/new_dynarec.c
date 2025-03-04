@@ -3386,6 +3386,7 @@ static void do_store_smc_check(int i, const struct regstat *i_regs, u_int reglis
   emit_cmpmem_indexedsr12_imm(invalid_code, addr, 1);
   #error not handled
 #endif
+  (void)count;
 #ifdef INVALIDATE_USE_COND_CALL
   if (count == 1) {
     emit_cmpimm(HOST_TEMPREG, 1);

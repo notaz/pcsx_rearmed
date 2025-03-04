@@ -9,11 +9,6 @@
  */
 
 #define _GNU_SOURCE 1
-#ifdef __FreeBSD__
-#define STAT stat
-#else
-#define STAT stat64
-#endif
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -45,10 +40,16 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/spu_config.h"
 #include "psemu_plugin_defs.h"
+#include "compiler_features.h"
 #include "arm_features.h"
 #include "revision.h"
 
 #define REARMED_BIRTHDAY_TIME 1293306830	/* 25 Dec 2010 */
+#if defined(__linux__) && (!defined(__SIZEOF_POINTER__) || __SIZEOF_POINTER__ == 4)
+#define STAT stat64
+#else
+#define STAT stat
+#endif
 
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
 
@@ -111,6 +112,7 @@ int g_opts, g_scaler, g_gamma = 100;
 int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
 int soft_filter;
+int in_evdev_allow_abs_only attr_weak; // FIXME
 
 #ifndef HAVE_PRE_ARMV7
 #define DEFAULT_PSX_CLOCK (10000 / CYCLE_MULT_DEFAULT)
@@ -1279,7 +1281,7 @@ static const char *men_scaler[] = {
 	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL
 };
 static const char *men_soft_filter[] = { "None",
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 	"scale2x", "eagle2x",
 #endif
 	NULL };
@@ -1292,7 +1294,7 @@ static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\
 				  "using d-pad or move it using R+d-pad";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 static const char *men_scanlines[] = { "OFF", "1", "2", "3", NULL };
 static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
 #endif
@@ -1388,7 +1390,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
-#ifdef __ARM_NEON__
+#ifdef HAVE_NEON32
 	mee_enum      ("Scanlines",                MA_OPT_SCANLINES, scanlines, men_scanlines),
 	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
 #endif

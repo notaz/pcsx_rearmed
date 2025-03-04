@@ -28,6 +28,7 @@
 #define dynarec_local		ESYM(dynarec_local)
 #define ndrc_patch_link		ESYM(ndrc_patch_link)
 #define ndrc_get_addr_ht	ESYM(ndrc_get_addr_ht)
+#define ndrc_get_addr_ht_param	ESYM(ndrc_get_addr_ht_param)
 #define gen_interupt		ESYM(gen_interupt)
 #define psxException		ESYM(psxException)
 #define execI			ESYM(execI)
