@@ -12,7 +12,7 @@ ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
 CFLAGS += -ggdb
 endif
 ifneq ($(DEBUG), 1)
-CFLAGS += -O2
+CFLAGS += -O3
 ifneq ($(ASSERTS), 1)
 CFLAGS += -DNDEBUG
 endif
