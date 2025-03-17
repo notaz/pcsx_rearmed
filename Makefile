@@ -12,7 +12,7 @@ ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
 CFLAGS += -ggdb
 endif
 ifneq ($(DEBUG), 1)
-CFLAGS += -O2
+CFLAGS += -O3
 ifneq ($(ASSERTS), 1)
 CFLAGS += -DNDEBUG
 endif
@@ -423,7 +423,6 @@ OBJS += deps/libretro-common/time/rtime.o
 CFLAGS += -DUSE_LIBRETRO_VFS
 endif
 OBJS += frontend/libretro.o
-CFLAGS += -DFRONTEND_SUPPORTS_RGB565
 CFLAGS += -DHAVE_LIBRETRO
 INC_LIBRETRO_COMMON := 1
 

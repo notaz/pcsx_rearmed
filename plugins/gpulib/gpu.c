@@ -921,14 +921,12 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
     case 0: // load
       renderer_sync();
       memcpy(gpu.vram, freeze->psxVRam, 1024 * 512 * 2);
-      memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
+      //memcpy(gpu.regs, freeze->ulControl, sizeof(gpu.regs));
       memcpy(gpu.ex_regs, freeze->ulControl + 0xe0, sizeof(gpu.ex_regs));
       gpu.status = freeze->ulStatus;
       gpu.cmd_len = 0;
-      for (i = 8; i > 0; i--) {
-        gpu.regs[i] ^= 1; // avoid reg change detection
-        GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
-      }
+      for (i = 8; i > 1; i--)
+        GPUwriteStatus((i << 24) | freeze->ulControl[i]);
       renderer_sync_ecmds(gpu.ex_regs);
       renderer_update_caches(0, 0, 1024, 512, 0);
       break;

@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
+#include <assert.h>
 #ifdef __MACH__
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -95,7 +96,7 @@ static unsigned msg_interface_version = 0;
 
 static void *vout_buf;
 static void *vout_buf_ptr;
-static int vout_width = 256, vout_height = 240, vout_pitch = 256;
+static int vout_width = 256, vout_height = 240, vout_pitch_b = 256*2;
 static int vout_fb_dirty;
 static int psx_w, psx_h;
 static bool vout_can_dupe;
@@ -133,8 +134,9 @@ static int retro_audio_buff_underrun            = false;
 static unsigned retro_audio_latency             = 0;
 static int update_audio_latency                 = false;
 
-static unsigned previous_width = 0;
-static unsigned previous_height = 0;
+static unsigned int current_width;
+static unsigned int current_height;
+static enum retro_pixel_format current_fmt;
 
 static int plugins_opened;
 
@@ -246,26 +248,60 @@ static void init_memcard(char *mcd_data)
    }
 }
 
-static void set_vout_fb()
+static void bgr_to_fb_empty(void *dst, const void *src, int bytes)
+{
+}
+
+typedef void (bgr_to_fb_func)(void *dst, const void *src, int bytes);
+static bgr_to_fb_func *g_bgr_to_fb = bgr_to_fb_empty;
+
+static void set_bgr_to_fb_func(int bgr24)
+{
+   switch (current_fmt)
+   {
+   case RETRO_PIXEL_FORMAT_XRGB8888:
+      g_bgr_to_fb = bgr24 ? bgr888_to_xrgb8888 : bgr555_to_xrgb8888;
+      break;
+   case RETRO_PIXEL_FORMAT_RGB565:
+      g_bgr_to_fb = bgr24 ? bgr888_to_rgb565 : bgr555_to_rgb565;
+      break;
+   default:
+      LogErr("unsupported current_fmt: %d\n", current_fmt);
+      g_bgr_to_fb = bgr_to_fb_empty;
+      break;
+   }
+}
+
+static void set_vout_fb(void)
 {
    struct retro_framebuffer fb = { 0 };
+   bool ret;
 
    fb.width          = vout_width;
    fb.height         = vout_height;
    fb.access_flags   = RETRO_MEMORY_ACCESS_WRITE;
 
-   vout_pitch = vout_width;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb)
-         && fb.format == RETRO_PIXEL_FORMAT_RGB565
-         && vout_can_dupe)
+   ret = environ_cb(RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER, &fb);
+   if (ret && vout_can_dupe &&
+       (fb.format == RETRO_PIXEL_FORMAT_RGB565 || fb.format == RETRO_PIXEL_FORMAT_XRGB8888))
    {
+      int bytes_pp = (fb.format == RETRO_PIXEL_FORMAT_XRGB8888) ? 4 : 2;
+      if (current_fmt != fb.format) {
+         LogWarn("fb.format changed: %d->%d\n", current_fmt, fb.format);
+         current_fmt = fb.format;
+      }
       vout_buf_ptr = fb.data;
-      if (fb.pitch / 2 != vout_pitch && fb.pitch != vout_width * 2)
-         LogWarn("got unusual pitch %zd for resolution %dx%d\n", fb.pitch, vout_width, vout_height);
-      vout_pitch = fb.pitch / 2;
+      vout_pitch_b = fb.pitch;
+      if (fb.pitch != vout_width * bytes_pp)
+         LogWarn("got unusual pitch %zd for fmt %d resolution %dx%d\n",
+               fb.pitch, fb.format, vout_width, vout_height);
    }
    else
+   {
+      int bytes_pp = (current_fmt == RETRO_PIXEL_FORMAT_XRGB8888) ? 4 : 2;
       vout_buf_ptr = vout_buf;
+      vout_pitch_b = vout_width * bytes_pp;
+   }
 }
 
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
@@ -275,10 +311,15 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
    psx_w = raw_w;
    psx_h = raw_h;
 
-   if (previous_width != vout_width || previous_height != vout_height)
+   /* it may seem like we could do RETRO_ENVIRONMENT_SET_PIXEL_FORMAT here to
+    * switch to something that can accommodate bgr24 for FMVs, but although it
+    * succeeds it doesn't actually change the format at least on Linux, and the
+    * docs say only retro_load_game() can do it */
+
+   if (current_width != vout_width || current_height != vout_height)
    {
-      previous_width = vout_width;
-      previous_height = vout_height;
+      current_width = vout_width;
+      current_height = vout_height;
 
       struct retro_system_av_info info;
       retro_get_system_av_info(&info);
@@ -286,23 +327,12 @@ static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
    }
 
    set_vout_fb();
+   set_bgr_to_fb_func(bpp == 24);
 }
-
-#ifndef FRONTEND_SUPPORTS_RGB565
-static void convert(void *buf, size_t bytes)
-{
-   unsigned int i, v, *p = buf;
-
-   for (i = 0; i < bytes / 4; i++)
-   {
-      v = p[i];
-      p[i] = (v & 0x001f001f) | ((v >> 1) & 0x7fe07fe0);
-   }
-}
-#endif
 
 // Function to add crosshairs
-static void addCrosshair(int port, int crosshair_color, unsigned short *buffer, int bufferStride, int pos_x, int pos_y, int thickness, int size_x, int size_y) {
+static void addCrosshair(int port, int crosshair_color, unsigned short *buffer, int bufferStride, int pos_x, int pos_y, int thickness, int size_x, int size_y)
+{
    for (port = 0; port < 2; port++) {
       // Draw the horizontal line of the crosshair
       int i, j;
@@ -344,50 +374,46 @@ static void CrosshairDimensions(int port, struct CrosshairInfo *info) {
 static void vout_flip(const void *vram, int stride, int bgr24,
       int x, int y, int w, int h, int dims_changed)
 {
-   unsigned short *dest = vout_buf_ptr;
+   int bytes_pp = (current_fmt == RETRO_PIXEL_FORMAT_XRGB8888) ? 4 : 2;
+   int bytes_pp_s = bgr24 ? 3 : 2;
+   bgr_to_fb_func *bgr_to_fb = g_bgr_to_fb;
+   unsigned char *dest = vout_buf_ptr;
    const unsigned short *src = vram;
-   int dstride = vout_pitch, h1 = h;
+   int dstride = vout_pitch_b, h1 = h;
    int port = 0;
 
    if (vram == NULL || dims_changed || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
    {
-      memset(vout_buf_ptr, 0, dstride * vout_height * 2);
+      unsigned char *dest2 = dest;
+      int h2 = h, ll = vout_width * bytes_pp;
+      if (dstride == ll)
+         memset(dest2, 0, dstride * vout_height);
+      else
+         for (; h2-- > 0; dest2 += dstride)
+            memset(dest2, 0, ll);
       // blanking
       if (vram == NULL)
          goto out;
    }
 
-   dest += x + y * dstride;
+   dest += x * bytes_pp + y * dstride;
 
-   if (bgr24)
-   {
-      // XXX: could we switch to RETRO_PIXEL_FORMAT_XRGB8888 here?
-      for (; h1-- > 0; dest += dstride, src += stride)
-      {
-         bgr888_to_rgb565(dest, src, w * 3);
-      }
-   }
-   else
-   {
-      for (; h1-- > 0; dest += dstride, src += stride)
-      {
-         bgr555_to_rgb565(dest, src, w * 2);
-      }
-   }
+   for (; h1-- > 0; dest += dstride, src += stride)
+      bgr_to_fb(dest, src, w * bytes_pp_s);
 
+   if (current_fmt == RETRO_PIXEL_FORMAT_RGB565)
    for (port = 0; port < 2; port++) {
       if (in_enable_crosshair[port] > 0 && (in_type[port] == PSE_PAD_TYPE_GUNCON || in_type[port] == PSE_PAD_TYPE_GUN))
       {
          struct CrosshairInfo crosshairInfo;
          CrosshairDimensions(port, &crosshairInfo);
-         addCrosshair(port, in_enable_crosshair[port], dest, dstride, crosshairInfo.pos_x, crosshairInfo.pos_y, crosshairInfo.thickness, crosshairInfo.size_x, crosshairInfo.size_y);
+         addCrosshair(port, in_enable_crosshair[port], (unsigned short *)dest,
+               dstride / 2, crosshairInfo.pos_x, crosshairInfo.pos_y,
+               crosshairInfo.thickness, crosshairInfo.size_x, crosshairInfo.size_y);
       }
    }
 
 out:
-#ifndef FRONTEND_SUPPORTS_RGB565
-   convert(vout_buf_ptr, vout_pitch * vout_height * 2);
-#endif
    vout_fb_dirty = 1;
    pl_rearmed_cbs.flip_cnt++;
 }
@@ -1747,6 +1773,20 @@ static void retro_set_audio_buff_status_cb(void)
 }
 
 static void update_variables(bool in_flight);
+
+static int get_bool_variable(const char *key)
+{
+   struct retro_variable var = { NULL, };
+
+   var.key = key;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "enabled") == 0)
+         return 1;
+   }
+   return 0;
+}
+
 bool retro_load_game(const struct retro_game_info *info)
 {
    size_t i;
@@ -1796,13 +1836,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
 
-#ifdef FRONTEND_SUPPORTS_RGB565
-   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
+   enum retro_pixel_format fmt = get_bool_variable("pcsx_rearmed_rgb32_output")
+      ? RETRO_PIXEL_FORMAT_XRGB8888 : RETRO_PIXEL_FORMAT_RGB565;
    if (environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
-   {
-      SysPrintf("RGB565 supported, using it\n");
-   }
-#endif
+      current_fmt = fmt;
+   else
+      LogErr("SET_PIXEL_FORMAT failed\n");
+   SysPrintf("Using PIXEL_FORMAT %d\n", current_fmt);
+   set_bgr_to_fb_func(0);
 
    if (info == NULL || info->path == NULL)
    {
@@ -3306,7 +3347,7 @@ void retro_run(void)
    }
 
    video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
-       vout_width, vout_height, vout_pitch * 2);
+       vout_width, vout_height, vout_pitch_b);
    vout_fb_dirty = 0;
 
 #ifdef HAVE_CDROM
@@ -3573,11 +3614,13 @@ void retro_init(void)
       exit(1);
    }
 
+   // alloc enough for RETRO_PIXEL_FORMAT_XRGB8888
+   size_t vout_buf_size = VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 4;
 #ifdef _3DS
    // Place psx vram in linear mem to take advantage of it's supersection mapping.
    // The emu allocs 2x (0x201000 to be exact) but doesn't really need that much,
    // so place vout_buf below to also act as an overdraw guard.
-   vram_mem = linearMemAlign(1024*1024 + 4096 + VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 4096);
+   vram_mem = linearMemAlign(1024*1024 + 4096 + vout_buf_size, 4096);
    if (vram_mem) {
       vout_buf = (char *)vram_mem + 1024*1024 + 4096;
       if (__ctr_svchax)
@@ -3585,12 +3628,12 @@ void retro_init(void)
                svcConvertVAToPA(vram_mem, 0), ctr_get_tlbe(vram_mem));
    }
 #elif defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE >= 200112L) && P_HAVE_POSIX_MEMALIGN
-   if (posix_memalign(&vout_buf, 16, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2) != 0)
+   if (posix_memalign(&vout_buf, 16, vout_buf_size) != 0)
       vout_buf = NULL;
    else
-      memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
+      memset(vout_buf, 0, vout_buf_size);
 #else
-   vout_buf = calloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT, 2);
+   vout_buf = calloc(vout_buf_size, 1);
 #endif
    if (vout_buf == NULL)
    {

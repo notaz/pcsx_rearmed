@@ -143,6 +143,28 @@ void bgr888_to_rgb888(void *dst, const void *src, int bytes) {}
 
 #endif // HAVE_bgr888_to_x
 
+void bgr555_to_xrgb8888(void * __restrict__ dst_, const void * __restrict__ src_, int bytes)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; bytes >= 2; bytes -= 2, src++, dst++)
+	{
+		uint32_t t = ((*src << 19) | (*src >> 7)) & 0xf800f8;
+		t |= (*src << 6) & 0xf800;
+		*dst = t | ((t >> 5) & 0x070707);
+	}
+}
+
+void bgr888_to_xrgb8888(void * __restrict__ dst_, const void * __restrict__ src_, int bytes)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; bytes >= 3; bytes -= 3, src += 3, dst++)
+		*dst = (src[0] << 16) | (src[1] << 8) | src[2];
+}
+
 /* YUV stuff */
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
 static unsigned char yuv_u[32 * 2], yuv_v[32 * 2];

@@ -1577,7 +1577,8 @@ static void exit_spu_thread(void)
 long CALLBACK SPUfreeze(unsigned int ulFreezeMode, struct SPUFreeze * pF,
  unsigned int cycles)
 {
- sync_worker_thread(1);
+ if (worker != NULL)
+  sync_worker_thread(1);
  return DoFreeze(ulFreezeMode, pF, cycles);
 }
 
