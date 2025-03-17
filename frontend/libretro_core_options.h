@@ -448,6 +448,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "auto",
    },
    {
+      "pcsx_rearmed_rgb32_output",
+      "RGB32 output",
+      NULL,
+      "Improves color depth for true color modes (most FMVs and occasional title screens). Causes higher CPU usage due to double memory bandwidth requirement, even in 15bpp modes. Takes effect on game reload only (libretro limitation).",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled",
+   },
+   {
       "pcsx_rearmed_gpu_slow_llists",
       "(GPU) Slow linked list processing",
       NULL,
@@ -1067,7 +1081,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_crosshair1",
       "Player 1 Lightgun Crosshair",
       NULL,
-      "Toggle player 1's crosshair for the Guncon or Konami Gun",
+      "Toggle player 1's crosshair for the Guncon or Konami Gun. Only works if RGB32 output is off (video options).",
       NULL,
       "input",
       {
@@ -1084,7 +1098,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_crosshair2",
       "Player 2 Lightgun Crosshair",
       NULL,
-      "Toggle player 2's crosshair for the Guncon or Konami Gun",
+      "Toggle player 2's crosshair for the Guncon or Konami Gun. Only works if RGB32 output is off (video options).",
       NULL,
       "input",
       {
