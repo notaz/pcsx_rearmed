@@ -1445,7 +1445,7 @@ static int menu_loop_plugin_gpu_neon(int id, int keys)
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
 	mee_onoff     ("Old renderer",               0, pl_rearmed_cbs.gpu_unai.old_renderer, 1),
-	mee_onoff     ("Interlace",                  0, pl_rearmed_cbs.gpu_unai.ilace_force, 1),
+	mee_onoff     ("Skip every 2nd line",        0, pl_rearmed_cbs.gpu_unai.ilace_force, 1),
 	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
 	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
