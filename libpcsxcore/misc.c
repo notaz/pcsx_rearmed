@@ -361,7 +361,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 int CheckCdrom() {
 	struct iso_directory_record *dir;
 	struct CdrStat stat = { 0, 0, };
-	unsigned char time[4];
+	unsigned char time[4] = { 0, 2, 4 };
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
