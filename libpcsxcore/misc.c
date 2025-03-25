@@ -361,7 +361,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head, u8 *time_bcd_out) {
 int CheckCdrom() {
 	struct iso_directory_record *dir;
 	struct CdrStat stat = { 0, 0, };
-	unsigned char time[4];
+	unsigned char time[4] = { 0, 2, 4 };
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
@@ -775,12 +775,25 @@ int LoadState(const char *file) {
 	f = SaveFuncs.open(file, "rb");
 	if (f == NULL) return -1;
 
-	SaveFuncs.read(f, header, sizeof(header));
+	if (!file)
+		file = "(stream)";
+	memset(header, 0, sizeof(header));
+	SaveFuncs.read(f, header, 16);
+	if (strncmp("RASTATE", header, 7) == 0) {
+		// looks like RA header, normal savestate should follow
+		SysPrintf("%s: trying to skip RASTATE header\n", file);
+		SaveFuncs.read(f, header, 16);
+	}
+	SaveFuncs.read(f, header + 16, 16);
 	SaveFuncs.read(f, &version, sizeof(u32));
 	SaveFuncs.read(f, &hle, sizeof(boolean));
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion) {
-		SysPrintf("incompatible savestate version %x\n", version);
+	if (strncmp("STv4 PCSX", header, 9) != 0) {
+		SysPrintf("%s: is not a savestate?\n", file);
+		goto cleanup;
+	}
+	if (version != SaveVersion) {
+		SysPrintf("%s: incompatible savestate version %x\n", file, version);
 		goto cleanup;
 	}
 	oldhle = Config.HLE;
@@ -866,7 +879,11 @@ int CheckState(const char *file) {
 	f = SaveFuncs.open(file, "rb");
 	if (f == NULL) return -1;
 
-	SaveFuncs.read(f, header, sizeof(header));
+	memset(header, 0, sizeof(header));
+	SaveFuncs.read(f, header, 16);
+	if (strncmp("RASTATE", header, 7) == 0)
+		SaveFuncs.read(f, header, 16);
+	SaveFuncs.read(f, header + 16, 16);
 	SaveFuncs.read(f, &version, sizeof(u32));
 	SaveFuncs.read(f, &hle, sizeof(boolean));
 
