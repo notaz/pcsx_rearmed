@@ -263,8 +263,10 @@ typedef struct
 #endif
 } SPUInfo;
 
-#define regAreaGet(offset) \
+#define regAreaRef(offset) \
   spu.regArea[((offset) - 0xc00) >> 1]
+#define regAreaGet(offset) \
+  regAreaRef(offset)
 #define regAreaGetCh(ch, offset) \
   spu.regArea[(((ch) << 4) | (offset)) >> 1]
 

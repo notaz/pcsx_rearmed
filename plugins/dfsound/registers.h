@@ -44,6 +44,8 @@
 #define H_CDRight        0x0db2
 #define H_ExtLeft        0x0db4
 #define H_ExtRight       0x0db6
+#define H_SPUcmvolL      0x0db8
+#define H_SPUcmvolR      0x0dba
 #define H_Reverb         0x0dc0
 #define H_SPUPitch0      0x0c04
 #define H_SPUPitch1      0x0c14

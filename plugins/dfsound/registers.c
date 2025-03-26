@@ -177,10 +177,21 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
     //-------------------------------------------------//
 
     case H_SPUmvolL:
-    case H_SPUmvolR:
-      if (val & 0x8000)
+    case H_SPUmvolR: {
+      int ofs = H_SPUcmvolL - H_SPUmvolL;
+      unsigned short *cur = &regAreaGet(r + ofs);
+      if (val & 0x8000) {
+        // this (for now?) lacks an update mechanism, so is instant
         log_unhandled("w master sweep: %08lx %04x\n", reg, val);
+        int was_neg = (*cur >> 14) & 1;
+        int dec = (val >> 13) & 1;
+        int inv = (val >> 12) & 1;
+        *cur = (was_neg ^ dec ^ inv) ? 0x7fff : 0;
+      }
+      else
+        *cur = val << 1;
       break;
+     }
 
     case 0x0dac:
      if (val != 4)
@@ -194,14 +205,6 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
     //-------------------------------------------------//
     case H_ExtRight:
      //auxprintf("ER %d\n",val);
-      break;
-    //-------------------------------------------------//
-    case H_SPUmvolL:
-     //auxprintf("ML %d\n",val);
-      break;
-    //-------------------------------------------------//
-    case H_SPUmvolR:
-     //auxprintf("MR %d\n",val);
       break;
     //-------------------------------------------------//
     case H_SPUMute1:
@@ -389,7 +392,12 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
  
     case H_SPUMute1:
     case H_SPUMute2:
-     log_unhandled("r isOn: %08lx\n", reg);
+     log_unhandled("spu r isOn: %08lx %04x\n", reg, regAreaGet(r));
+     break;
+
+    case H_SPUmvolL:
+    case H_SPUmvolR:
+     log_unhandled("spu r mvol: %08lx %04x\n", reg, regAreaGet(r));
      break;
 
     case 0x0dac:
@@ -402,7 +410,7 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
 
     default:
      if (r >= 0xda0)
-       log_unhandled("spu r %08lx\n", reg);
+       log_unhandled("spu r %08lx %04x\n", reg, regAreaGet(r));
      break;
   }
 
