@@ -2071,7 +2071,7 @@ static const char credits_text[] =
 	"PCSX4ALL plugin by PCSX4ALL team\n"
 	"  Chui, Franxis, Unai\n\n"
 	"integration, optimization and\n"
-	"  frontend (C) 2010-2015 notaz\n";
+	"  frontend (C) 2010-2025 notaz\n";
 
 static int reset_game(void)
 {
