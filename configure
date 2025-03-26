@@ -355,6 +355,8 @@ fi
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
   PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
+else
+  PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fno-PIC"
 fi
 
 case "$platform" in

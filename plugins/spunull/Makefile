@@ -6,8 +6,10 @@ PLUGINDIR = $(shell basename $(WD))
 
 all: ../../config.mak $(TARGET)
 
+CFLAGS += $(PLUGIN_CFLAGS)
+
 $(TARGET): spunull.c
-	$(CC) $(CFLAGS) -shared -fPIC -ggdb -O2 -o $@ $^
+	$(CC) $(CFLAGS) -shared -ggdb -O2 -o $@ $^
 	ln -fs $(PLUGINDIR)/$(TARGET) ../
 
 clean:
