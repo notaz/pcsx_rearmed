@@ -1,5 +1,5 @@
 /*
- * (C) notaz, 2010-2012
+ * (C) notaz, 2010-2025
  *
  * This work is licensed under the terms of the GNU GPLv2 or later.
  * See the COPYING file in the top-level directory.
