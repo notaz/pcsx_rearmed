@@ -207,12 +207,12 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym1(writeStatus, "GPUwriteStatus");
 	LoadGpuSym1(dmaChain, "GPUdmaChain");
 	LoadGpuSym1(updateLace, "GPUupdateLace");
-	LoadGpuSym0(keypressed, "GPUkeypressed");
-	LoadGpuSym0(displayText, "GPUdisplayText");
-	LoadGpuSym0(makeSnapshot, "GPUmakeSnapshot");
+	// LoadGpuSym0(keypressed, "GPUkeypressed");
+	// LoadGpuSym0(displayText, "GPUdisplayText");
+	// LoadGpuSym0(makeSnapshot, "GPUmakeSnapshot");
 	LoadGpuSym1(freeze, "GPUfreeze");
 	LoadGpuSym0(getScreenPic, "GPUgetScreenPic");
-	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
+	// LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
 	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(getScreenInfo, "GPUgetScreenInfo");
 

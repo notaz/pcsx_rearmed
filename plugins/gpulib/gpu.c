@@ -307,6 +307,11 @@ long GPUshutdown(void)
   return ret;
 }
 
+long GPUgetScreenPic(unsigned char * pMem)
+{
+  return 0;
+}
+
 void GPUwriteStatus(uint32_t data)
 {
   uint32_t cmd = data >> 24;

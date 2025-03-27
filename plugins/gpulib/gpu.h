@@ -168,6 +168,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze);
 void GPUupdateLace(void);
 long GPUopen(unsigned long *disp, char *cap, char *cfg);
 long GPUclose(void);
+long GPUgetScreenPic(unsigned char *);
 void GPUvBlank(int is_vblank, int lcf);
 void GPUgetScreenInfo(int *y, int *base_hres);
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
