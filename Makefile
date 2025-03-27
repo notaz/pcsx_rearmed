@@ -464,10 +464,11 @@ endif
 
 # misc
 OBJS += frontend/main.o frontend/plugin.o
-frontend/main.o: CFLAGS += -DBUILTIN_GPU=$(BUILTIN_GPU)
+frontend/main.o libpcsxcore/misc.o: CFLAGS += -DBUILTIN_GPU=$(BUILTIN_GPU)
 
-frontend/menu.o frontend/main.o: frontend/revision.h
-frontend/plat_sdl.o frontend/libretro.o: frontend/revision.h
+frontend/menu.o frontend/main.o: include/revision.h
+frontend/plat_sdl.o frontend/libretro.o: include/revision.h
+libpcsxcore/misc.o: include/revision.h
 
 CFLAGS += $(CFLAGS_LAST)
 
@@ -479,7 +480,7 @@ frontend/libpicofe/%.c:
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
 
-frontend/revision.h: FORCE
+include/revision.h: FORCE
 	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
 	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
 	@rm $@_
@@ -502,7 +503,7 @@ else
 endif
 
 clean: $(PLAT_CLEAN) clean_plugins
-	$(RM) $(TARGET) *.o $(OBJS) $(TARGET).map frontend/revision.h
+	$(RM) $(TARGET) *.o $(OBJS) $(TARGET).map include/revision.h
 
 ifneq ($(PLUGINS),)
 plugins_: $(PLUGINS)

@@ -33,10 +33,13 @@
 #include "psxbios.h"
 #include "database.h"
 #include <zlib.h>
+#include "revision.h"
 
 char CdromId[10] = "";
 char CdromLabel[33] = "";
 int  CdromFrontendId; // for frontend use
+
+static u32 save_counter;
 
 // PSX Executable types
 #define PSX_EXE     1
@@ -203,6 +206,8 @@ int LoadCdrom() {
 	u32 t_size;
 	u32 sp = 0;
 	int i, ret;
+
+	save_counter = 0;
 
 	if (!Config.HLE) {
 		if (psxRegs.pc != 0x80030000) // BiosBootBypass'ed or custom BIOS?
@@ -527,6 +532,8 @@ size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
 		memcpy(ptr, tmp, size * nmemb);
 		free(tmp);
 	}
+	else
+		ret = fread(ptr, size, nmemb, stream);
 	return ret;
 }
 
@@ -661,11 +668,23 @@ struct PcsxSaveFuncs SaveFuncs = {
 	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
 };
 
-static const char PcsxHeader[32] = "STv4 PCSX v" PCSX_VERSION;
+static const char PcsxHeader[32] = "STv4 PCSXra " REV;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
 static const u32 SaveVersion = 0x8b410006;
+
+struct origin_info {
+	boolean icache_emulation;
+	boolean DisableStalls;
+	boolean PreciseExceptions;
+	boolean TurboCD;
+	s8 GpuListWalking;
+	s8 FractionalFramerate;
+	u8 Cpu;
+	u8 PsxType;
+	char build_info[64];
+};
 
 #define MISC_MAGIC 0x4353494d
 struct misc_save_data {
@@ -678,17 +697,21 @@ struct misc_save_data {
 	u32 gpuSr;
 	u32 frame_counter;
 	int CdromFrontendId;
+	u32 save_counter;
 };
+
+#define EX_SCREENPIC_SIZE (128 * 96 * 3)
 
 int SaveState(const char *file) {
 	struct misc_save_data *misc = (void *)(psxH + 0xf000);
-	void *f;
+	struct origin_info oi = { 0, };
 	GPUFreeze_t *gpufP = NULL;
 	SPUFreezeHdr_t spufH;
 	SPUFreeze_t *spufP = NULL;
-	unsigned char *pMem = NULL;
+	u8 buf[EX_SCREENPIC_SIZE];
 	int result = -1;
 	int Size;
+	void *f;
 
 	assert(!psxRegs.branching);
 	assert(!psxRegs.cpuInRecursion);
@@ -706,6 +729,7 @@ int SaveState(const char *file) {
 	misc->gpuSr = HW_GPU_STATUS;
 	misc->frame_counter = frame_counter;
 	misc->CdromFrontendId = CdromFrontendId;
+	misc->save_counter = ++save_counter;
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
@@ -713,11 +737,22 @@ int SaveState(const char *file) {
 	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
 	SaveFuncs.write(f, (void *)&Config.HLE, sizeof(boolean));
 
-	pMem = (unsigned char *)malloc(128 * 96 * 3);
-	if (pMem == NULL) goto cleanup;
-	GPU_getScreenPic(pMem);
-	SaveFuncs.write(f, pMem, 128 * 96 * 3);
-	free(pMem);
+	oi.icache_emulation = Config.icache_emulation;
+	oi.DisableStalls = Config.DisableStalls;
+	oi.PreciseExceptions = Config.PreciseExceptions;
+	oi.TurboCD = Config.TurboCD;
+	oi.GpuListWalking = Config.GpuListWalking;
+	oi.FractionalFramerate = Config.FractionalFramerate;
+	oi.Cpu = Config.Cpu;
+	oi.PsxType = Config.PsxType;
+	snprintf(oi.build_info, sizeof(oi.build_info), "%s", get_build_info());
+
+	// this was space for ScreenPic
+	assert(sizeof(buf) >= EX_SCREENPIC_SIZE);
+	assert(sizeof(oi) - 3 <= EX_SCREENPIC_SIZE);
+	memset(buf, 0, sizeof(buf));
+	memcpy(buf + 3, &oi, sizeof(oi));
+	SaveFuncs.write(f, buf, EX_SCREENPIC_SIZE);
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
@@ -802,7 +837,9 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosInit();
 
-	SaveFuncs.seek(f, 128 * 96 * 3, SEEK_CUR);
+	// ex-ScreenPic space
+	SaveFuncs.seek(f, EX_SCREENPIC_SIZE, SEEK_CUR);
+
 	SaveFuncs.read(f, psxM, 0x00200000);
 	SaveFuncs.read(f, psxR, 0x00080000);
 	SaveFuncs.read(f, psxH, 0x00010000);
@@ -822,6 +859,8 @@ int LoadState(const char *file) {
 		HW_GPU_STATUS = misc->gpuSr;
 		frame_counter = misc->frame_counter;
 		CdromFrontendId = misc->CdromFrontendId;
+		if (misc->save_counter)
+			save_counter = misc->save_counter;
 	}
 
 	if (Config.HLE)
@@ -1012,4 +1051,55 @@ u16 calcCrc(const u8 *d, int len) {
 	}
 
 	return ~crc;
+}
+
+#define MKSTR2(x) #x
+#define MKSTR(x) MKSTR2(x)
+const char *get_build_info(void)
+{
+	return ""
+#ifdef __VERSION__
+		"cc " __VERSION__ " "
+#endif
+#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8
+		"64bit "
+#elif defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
+		"32bit "
+#endif
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		"be "
+#endif
+#if defined(__PIE__) || defined(__pie__)
+		"pie "
+#endif
+#if defined(__PIC__) || defined(__pic__)
+		"pic "
+#endif
+#if defined(__aarch64__)
+		"arm64"
+#elif defined(__arm__)
+		"arm"
+#endif
+#ifdef __ARM_ARCH
+		"v" MKSTR(__ARM_ARCH) " "
+#endif
+#ifdef __thumb__
+		"thumb "
+#endif
+#if defined(__AVX__)
+		"avx "
+#elif defined(__SSSE3__)
+		"ssse3 "
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+		"neon "
+#endif
+#if defined(__ARM_FEATURE_SVE) && __ARM_FEATURE_SVE
+		"sve "
+#endif
+#if defined(LIGHTREC)
+		"lightrec "
+#elif !defined(DRC_DISABLE)
+		"ari64 "
+#endif
+		"gpu=" MKSTR(BUILTIN_GPU);
 }

@@ -74,6 +74,8 @@ int RecvPcsxInfo();
 void trim(char *str);
 u16 calcCrc(const u8 *d, int len);
 
+const char *get_build_info(void);
+
 #ifdef __cplusplus
 }
 #endif

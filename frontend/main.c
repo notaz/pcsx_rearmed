@@ -436,49 +436,6 @@ static void log_wrong_cpu(void)
 #endif // DO_CPU_CHECKS
 }
 
-#define MKSTR2(x) #x
-#define MKSTR(x) MKSTR2(x)
-static const char *get_build_info(void)
-{
-	return " ("
-#ifdef __VERSION__
-		"cc " __VERSION__ " "
-#endif
-#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8
-		"64bit "
-#elif defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
-		"32bit "
-#endif
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		"be "
-#endif
-#if defined(__PIC__) || defined(__pic__)
-		"pic "
-#endif
-#if defined(__aarch64__)
-		"arm64"
-#elif defined(__arm__)
-		"arm"
-#endif
-#ifdef __ARM_ARCH
-		"v" MKSTR(__ARM_ARCH) " "
-#endif
-#if defined(__AVX__)
-		"avx "
-#elif defined(__SSSE3__)
-		"ssse3 "
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
-		"neon "
-#endif
-#if defined(LIGHTREC)
-		"lightrec "
-#elif !defined(DRC_DISABLE)
-		"ari64 "
-#endif
-		"gpu=" MKSTR(BUILTIN_GPU)
-		")";
-}
-
 int emu_core_preinit(void)
 {
 	// what is the name of the config file?
@@ -508,7 +465,7 @@ int emu_core_preinit(void)
 
 int emu_core_init(void)
 {
-	SysPrintf("Starting PCSX-ReARMed " REV "%s\n", get_build_info());
+	SysPrintf("Starting PCSX-ReARMed " REV " (%s)\n", get_build_info());
 	SysPrintf("build time: " __DATE__ " " __TIME__ "\n");
 
 #if defined(__arm__) && defined(__ARM_FP)
