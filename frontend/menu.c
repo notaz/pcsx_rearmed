@@ -1556,8 +1556,12 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 				   "savestates and can't be changed there. Must save\n"
 				   "config and reload the game for change to take effect";
 static const char h_plugin_gpu[] = 
-#ifdef BUILTIN_GPU_NEON
+#if defined(BUILTIN_GPU_NEON)
 				   "builtin_gpu is the NEON GPU, very fast and accurate\n"
+#elif defined(BUILTIN_GPU_PEOPS)
+				   "builtin_gpu is the P.E.Op.S GPU, slow but accurate\n"
+#elif defined(BUILTIN_GPU_UNAI)
+				   "builtin_gpu is the Unai GPU, very fast\n"
 #endif
 				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
 				   "gpu_unai is the GPU renderer from PCSX4ALL\n"
@@ -1576,8 +1580,12 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
-#ifdef BUILTIN_GPU_NEON
+#if defined(BUILTIN_GPU_NEON)
 	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
+#elif defined(BUILTIN_GPU_PEOPS)
+	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_peops, h_gpu_peops),
+#elif defined(BUILTIN_GPU_UNAI)
+	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
 #endif
 	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
 	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
