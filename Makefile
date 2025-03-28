@@ -270,6 +270,7 @@ CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_PEOPS
 OBJS += plugins/dfxvideo/gpulib_if.o
 ifeq "$(THREAD_RENDERING)" "1"
 CFLAGS += -DTHREAD_RENDERING
@@ -295,6 +296,7 @@ CFLAGS += -DGPU_UNAI_NO_OLD
 endif
 plugins/gpu_unai/gpulib_if.o: plugins/gpu_unai/*.h
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_UNAI
 ifneq ($(DEBUG), 1)
 plugins/gpu_unai/gpulib_if.o \
 plugins/gpu_unai/old/if.o: CFLAGS += -O3
