@@ -25,6 +25,7 @@
 
 #include "gte.h"
 #include "psxmem.h"
+#include "../include/compiler_features.h"
 
 #define VX(n) (n < 3 ? regs->CP2D.p[n << 1].sw.l : regs->CP2D.p[9].sw.l)
 #define VY(n) (n < 3 ? regs->CP2D.p[n << 1].sw.h : regs->CP2D.p[10].sw.l)
@@ -335,6 +336,16 @@ u32 MFC2(struct psxCP2Regs *regs, int reg) {
 	return regs->CP2D.r[reg];
 }
 
+static u32 lzc(s32 val)
+{
+#if __has_builtin(__builtin_clrsb)
+	return 1 + __builtin_clrsb(val);
+#else
+	val ^= val >> 31;
+	return val ? __builtin_clz(val) : 32;
+#endif
+}
+
 void MTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 	switch (reg) {
 		case 15:
@@ -353,24 +364,8 @@ void MTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 			break;
 
 		case 30:
-			{
-				int a;
-				gteLZCS = value;
-
-				a = gteLZCS;
-				if (a > 0) {
-					int i;
-					for (i = 31; (a & (1u << i)) == 0 && i >= 0; i--);
-					gteLZCR = 31 - i;
-				} else if (a < 0) {
-					int i;
-					a ^= 0xffffffff;
-					for (i = 31; (a & (1u << i)) == 0 && i >= 0; i--);
-					gteLZCR = 31 - i;
-				} else {
-					gteLZCR = 32;
-				}
-			}
+			gteLZCS = value;
+			gteLZCR = lzc(value);
 			break;
 
 		case 31:
