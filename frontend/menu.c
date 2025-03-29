@@ -1521,13 +1521,6 @@ static menu_entry e_menu_plugin_gpu_peopsgl[] =
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu_peopsgl(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_peopsgl, &sel);
-	return 0;
-}
-
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_volboost[]  = "Large values cause distortion";
 static const char h_spu_tempo[]     = "Slows down audio if emu is too slow\n"
@@ -1574,22 +1567,35 @@ static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
 static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
+static int menu_loop_pluginsel_options(int id, int keys)
+{
+	static int sel = 0;
+	if (strcmp(gpu_plugins[gpu_plugsel], "gpu_peops.so") == 0)
+		me_loop(e_menu_plugin_gpu_peops, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_unai.so") == 0)
+		me_loop(e_menu_plugin_gpu_unai, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_gles.so") == 0)
+		me_loop(e_menu_plugin_gpu_peopsgl, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_neon.so") == 0)
+		me_loop(e_menu_plugin_gpu_neon, &sel);
+	else
+#if defined(BUILTIN_GPU_NEON)
+		me_loop(e_menu_plugin_gpu_neon, &sel);
+#elif defined(BUILTIN_GPU_PEOPS)
+		me_loop(e_menu_plugin_gpu_peops, &sel);
+#elif defined(BUILTIN_GPU_UNAI)
+		me_loop(e_menu_plugin_gpu_unai, &sel);
+#endif
+	return 0;
+}
+
 static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
-#if defined(BUILTIN_GPU_NEON)
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
-#elif defined(BUILTIN_GPU_PEOPS)
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_peops, h_gpu_peops),
-#elif defined(BUILTIN_GPU_UNAI)
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
-#endif
-	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
-	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
-	mee_handler_h ("Configure gpu_gles GPU plugin", menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
+	mee_handler   ("Configure selected GPU plugin", menu_loop_pluginsel_options),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };
