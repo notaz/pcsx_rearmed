@@ -54,7 +54,7 @@ struct rearmed_cbs {
 	void  (*pl_get_layer_pos)(int *x, int *y, int *w, int *h);
 	int   (*pl_vout_open)(void);
 	void  (*pl_vout_set_mode)(int w, int h, int raw_w, int raw_h, int bpp);
-	void  (*pl_vout_flip)(const void *vram, int stride, int bgr24,
+	void  (*pl_vout_flip)(const void *vram, int vram_offset, int bgr24,
 			      int x, int y, int w, int h, int dims_changed);
 	void  (*pl_vout_close)(void);
 	void *(*mmap)(unsigned int size);

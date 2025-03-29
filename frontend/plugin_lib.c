@@ -311,14 +311,15 @@ void pl_force_clear(void)
 	flip_clear_counter = 2;
 }
 
-static void pl_vout_flip(const void *vram, int stride, int bgr24,
+static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	int x, int y, int w, int h, int dims_changed)
 {
 	unsigned char *dest = pl_vout_buf;
-	const unsigned short *src = vram;
+	const unsigned char *vram = vram_;
 	int dstride = pl_vout_w, h1 = h;
 	int h_full = pl_vout_h - pl_vout_yoffset;
 	int xoffs = 0, doffs;
+	int hwrapped;
 
 	pcnt_start(PCNT_BLIT);
 
@@ -353,7 +354,7 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 
 	if (pl_plat_blit)
 	{
-		pl_plat_blit(doffs, src, w, h, stride, bgr24);
+		pl_plat_blit(doffs, vram + vram_ofs, w, h, 1024, bgr24);
 		goto out_hud;
 	}
 
@@ -364,58 +365,93 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24,
 
 	if (bgr24)
 	{
+		hwrapped = (vram_ofs & 2047) + w * 3 - 2048;
 		if (pl_rearmed_cbs.only_16bpp) {
-			for (; h1-- > 0; dest += dstride * 2, src += stride)
-			{
-				bgr888_to_rgb565(dest, src, w * 3);
+			for (; h1-- > 0; dest += dstride * 2) {
+				bgr888_to_rgb565(dest, vram + vram_ofs, w * 3);
+				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			}
+
+			if (hwrapped > 0) {
+				// this is super-rare so just fix-up
+				vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+				dest -= dstride * 2 * h;
+				dest += (w - hwrapped / 3) * 2;
+				for (h1 = h; h1-- > 0; dest += dstride * 2) {
+					bgr888_to_rgb565(dest, vram + vram_ofs, hwrapped);
+					vram_ofs = (vram_ofs + 2048) & 0xfffff;
+				}
 			}
 		}
 		else {
 			dest -= doffs * 2;
 			dest += (doffs / 8) * 24;
 
-			for (; h1-- > 0; dest += dstride * 3, src += stride)
-			{
-				bgr888_to_rgb888(dest, src, w * 3);
+			for (; h1-- > 0; dest += dstride * 3) {
+				bgr888_to_rgb888(dest, vram + vram_ofs, w * 3);
+				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			}
+
+			if (hwrapped > 0) {
+				vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+				dest -= dstride * 3 * h;
+				dest += w * 3 - hwrapped;
+				for (h1 = h; h1-- > 0; dest += dstride * 3) {
+					bgr888_to_rgb888(dest, vram + vram_ofs, hwrapped);
+					vram_ofs = (vram_ofs + 2048) & 0xfffff;
+				}
 			}
 		}
 	}
 #ifdef HAVE_NEON32
 	else if (soft_filter == SOFT_FILTER_SCALE2X && pl_vout_scale_w == 2)
 	{
-		neon_scale2x_16_16(src, (void *)dest, w,
-			stride * 2, dstride * 2, h);
+		neon_scale2x_16_16((const void *)(vram + vram_ofs), (void *)dest, w,
+			2048, dstride * 2, h);
 	}
 	else if (soft_filter == SOFT_FILTER_EAGLE2X && pl_vout_scale_w == 2)
 	{
-		neon_eagle2x_16_16(src, (void *)dest, w,
-			stride * 2, dstride * 2, h);
+		neon_eagle2x_16_16((const void *)(vram + vram_ofs), (void *)dest, w,
+			2048, dstride * 2, h);
 	}
 	else if (scanlines != 0 && scanline_level != 100)
 	{
 		int h2, l = scanline_level * 2048 / 100;
-		int stride_0 = pl_vout_scale_h >= 2 ? 0 : stride;
+		int stride_0 = pl_vout_scale_h >= 2 ? 0 : 2048;
 
 		h1 *= pl_vout_scale_h;
 		while (h1 > 0)
 		{
 			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
-				bgr555_to_rgb565(dest, src, w * 2);
-				dest += dstride * 2, src += stride_0;
+				bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
+				vram_ofs = (vram_ofs + stride_0) & 0xfffff;
+				dest += dstride * 2;
 			}
 
 			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
-				bgr555_to_rgb565_b(dest, src, w * 2, l);
-				dest += dstride * 2, src += stride;
+				bgr555_to_rgb565_b(dest, vram + vram_ofs, w * 2, l);
+				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+				dest += dstride * 2;
 			}
 		}
 	}
 #endif
 	else
 	{
-		for (; h1-- > 0; dest += dstride * 2, src += stride)
-		{
-			bgr555_to_rgb565(dest, src, w * 2);
+		for (; h1-- > 0; dest += dstride * 2) {
+			bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
+			vram_ofs = (vram_ofs + 2048) & 0xfffff;
+		}
+
+		hwrapped = (vram_ofs & 2047) + w * 2 - 2048;
+		if (hwrapped > 0) {
+			vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+			dest -= dstride * 2 * h;
+			dest += w * 2 - hwrapped;
+			for (h1 = h; h1-- > 0; dest += dstride * 2) {
+				bgr555_to_rgb565(dest, vram + vram_ofs, hwrapped);
+				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			}
 		}
 	}
 
@@ -838,10 +874,6 @@ static void *watchdog_thread(void *unused)
 	int seen_dead = 0;
 	int sleep_time = 5;
 
-#if !defined(NDEBUG) || defined(DRC_DBG)
-	// don't interfere with debug
-	return NULL;
-#endif
 	while (1)
 	{
 		sleep(sleep_time);
@@ -864,6 +896,7 @@ static void *watchdog_thread(void *unused)
 			fprintf(stderr, "watchdog: seen_dead %d\n", seen_dead);
 		if (seen_dead > 4) {
 			fprintf(stderr, "watchdog: lockup detected, aborting\n");
+			fflush(stderr);
 			// we can't do any cleanup here really, the main thread is
 			// likely touching resources and would crash anyway
 			abort();
@@ -873,9 +906,25 @@ static void *watchdog_thread(void *unused)
 
 void pl_start_watchdog(void)
 {
+#if defined(NDEBUG) && !defined(DRC_DBG)
 	pthread_attr_t attr;
 	pthread_t tid;
 	int ret;
+#ifdef __linux__
+	int tpid = 0;
+	char buf[256];
+	FILE *f = fopen("/proc/self/status", "r");
+	if (f) {
+		while (fgets(buf, sizeof(buf), f))
+			if (buf[0] == 'T' && sscanf(buf, "TracerPid: %d", &tpid) == 1)
+				break;
+		fclose(f);
+	}
+	if (tpid) {
+		printf("no watchdog to tracer %d\n", tpid);
+		return;
+	}
+#endif
 	
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -883,6 +932,8 @@ void pl_start_watchdog(void)
 	ret = pthread_create(&tid, &attr, watchdog_thread, NULL);
 	if (ret != 0)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
+#endif
+	(void)watchdog_thread;
 }
 
 static void *pl_emu_mmap(unsigned long addr, size_t size,

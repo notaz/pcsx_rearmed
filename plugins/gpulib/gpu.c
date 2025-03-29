@@ -237,7 +237,7 @@ static noinline void get_gpu_info(struct psx_gpu *gpu, uint32_t data)
 	#define VRAM_ALIGN 64
 #endif
 
-// double, for overdraw guard + at least 1 page before
+// double, for overdraw/overscan guard + at least 1 page before
 #define VRAM_SIZE ((1024 * 512 * 2 * 2) + max(VRAM_ALIGN, 4096))
 
 // vram ptr received from mmap/malloc/alloc (will deallocate using this)

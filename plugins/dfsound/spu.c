@@ -1256,8 +1256,8 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
 static void do_samples_finish(int *SSumLR, int ns_to,
  int silentch, int decode_pos)
 {
-  int vol_l = ((int)regAreaGet(H_SPUmvolL) << 17) >> 17;
-  int vol_r = ((int)regAreaGet(H_SPUmvolR) << 17) >> 17;
+  int vol_l = ((int)regAreaGet(H_SPUcmvolL) << 16) >> 17;
+  int vol_r = ((int)regAreaGet(H_SPUcmvolR) << 16) >> 17;
   int ns;
   int d;
 

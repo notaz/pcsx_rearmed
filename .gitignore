@@ -12,8 +12,8 @@ pcsx.map
 config.mak
 config.log
 cheatpops.db
-frontend/revision.h
-tools
+/include/revision.h
+/tools
 obj/
 .vscode/
 .vscode/ipch/*
