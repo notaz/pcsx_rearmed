@@ -874,10 +874,6 @@ static void *watchdog_thread(void *unused)
 	int seen_dead = 0;
 	int sleep_time = 5;
 
-#if !defined(NDEBUG) || defined(DRC_DBG)
-	// don't interfere with debug
-	return NULL;
-#endif
 	while (1)
 	{
 		sleep(sleep_time);
@@ -900,6 +896,7 @@ static void *watchdog_thread(void *unused)
 			fprintf(stderr, "watchdog: seen_dead %d\n", seen_dead);
 		if (seen_dead > 4) {
 			fprintf(stderr, "watchdog: lockup detected, aborting\n");
+			fflush(stderr);
 			// we can't do any cleanup here really, the main thread is
 			// likely touching resources and would crash anyway
 			abort();
@@ -909,9 +906,25 @@ static void *watchdog_thread(void *unused)
 
 void pl_start_watchdog(void)
 {
+#if defined(NDEBUG) && !defined(DRC_DBG)
 	pthread_attr_t attr;
 	pthread_t tid;
 	int ret;
+#ifdef __linux__
+	int tpid = 0;
+	char buf[256];
+	FILE *f = fopen("/proc/self/status", "r");
+	if (f) {
+		while (fgets(buf, sizeof(buf), f))
+			if (buf[0] == 'T' && sscanf(buf, "TracerPid: %d", &tpid) == 1)
+				break;
+		fclose(f);
+	}
+	if (tpid) {
+		printf("no watchdog to tracer %d\n", tpid);
+		return;
+	}
+#endif
 	
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -919,6 +932,8 @@ void pl_start_watchdog(void)
 	ret = pthread_create(&tid, &attr, watchdog_thread, NULL);
 	if (ret != 0)
 		fprintf(stderr, "could not start watchdog: %d\n", ret);
+#endif
+	(void)watchdog_thread;
 }
 
 static void *pl_emu_mmap(unsigned long addr, size_t size,
