@@ -44,8 +44,7 @@ dynarec_list="ari64 lightrec none"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl"
 sound_drivers=""
-plugins="plugins/spunull/spunull.so \
-plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
+plugins=""
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
@@ -551,6 +550,15 @@ if check_c64_tools; then
   have_c64x_dsp="yes"
 fi
 
+# declare available dynamic plugins
+plugins="plugins/spunull/spunull.so"
+
+if [ "$builtin_gpu" != "peops" ]; then
+plugins="$plugins plugins/dfxvideo/gpu_peops.so"
+fi
+if [ "$builtin_gpu" != "unai" ]; then
+plugins="$plugins plugins/gpu_unai/gpu_unai.so"
+fi
 if [ "$have_gles" = "yes" ]; then
   plugins="$plugins plugins/gpu-gles/gpu_gles.so"
 fi
