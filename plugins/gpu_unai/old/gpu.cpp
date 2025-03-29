@@ -852,6 +852,7 @@ static void blit(void)
 		cbs->pl_vout_set_mode(w0, h1, w0, h1, isRGB24 ? 24 : 16);
 	}
 
+#error out of date
 	cbs->pl_vout_flip(base, 1024, isRGB24, w0, h1);
 }
 

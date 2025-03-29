@@ -86,6 +86,7 @@ int vout_update(void)
   int h = gpu.screen.h;
   int vram_h = 512;
   int src_x2 = 0;
+  int offset;
 
 #ifdef RAW_FB_DISPLAY
   w = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
@@ -122,10 +123,10 @@ int vout_update(void)
       h = vram_h - src_y;
   }
 
-  vram += (src_y * 1024 + src_x) * 2;
-  vram += src_x2 * bpp / 8;
+  offset = (src_y * 1024 + src_x) * 2;
+  offset += src_x2 * bpp / 8;
 
-  cbs->pl_vout_flip(vram, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24),
+  cbs->pl_vout_flip(vram, offset, !!(gpu.status & PSX_GPU_STATUS_RGB24),
       x, y, w, h, gpu.state.dims_changed);
   gpu.state.dims_changed = 0;
   return 1;
@@ -141,7 +142,7 @@ void vout_blank(void)
     w *= 2;
     h *= 2;
   }
-  cbs->pl_vout_flip(NULL, 1024, !!(gpu.status & PSX_GPU_STATUS_RGB24), 0, 0, w, h, 0);
+  cbs->pl_vout_flip(NULL, 0, !!(gpu.status & PSX_GPU_STATUS_RGB24), 0, 0, w, h, 0);
 }
 
 long GPUopen(unsigned long *disp, char *cap, char *cfg)

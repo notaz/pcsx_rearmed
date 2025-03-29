@@ -32,6 +32,7 @@ static void blit(void)
  // account for centering
  h -= PreviousPSXDisplay.Range.y0;
 
+ #error out of date
  rcbs->pl_vout_flip(srcs, 1024, PSXDisplay.RGB24, w, h);
 }
 
