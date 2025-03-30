@@ -1411,8 +1411,6 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
-static const char h_gpu_neon[] =
-	"Configure built-in NEON GPU plugin";
 static const char h_gpu_neon_enhanced[] =
 	"Renders in double resolution at perf. cost\n"
 	"(not available for high resolution games)";
@@ -1431,13 +1429,6 @@ static menu_entry e_menu_plugin_gpu_neon[] =
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu_neon(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_neon, &sel);
-	return 0;
-}
-
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
 	mee_onoff     ("Old renderer",               0, pl_rearmed_cbs.gpu_unai.old_renderer, 1),
@@ -1447,14 +1438,6 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
 	mee_end,
 };
-
-static int menu_loop_plugin_gpu_unai(int id, int keys)
-{
-	int sel = 0;
-	me_loop(e_menu_plugin_gpu_unai, &sel);
-	return 0;
-}
-
 
 //static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
@@ -1479,13 +1462,6 @@ static menu_entry e_menu_plugin_gpu_peops[] =
 	mee_onoff_h   ("Fake 'gpu busy' states",     0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<10, h_gpu_10),
 	mee_end,
 };
-
-static int menu_loop_plugin_gpu_peops(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_peops, &sel);
-	return 0;
-}
 
 static const char *men_peopsgl_texfilter[] = { "None", "Standard", "Extended",
 	"Standard-sprites", "Extended-sprites", "Standard+sprites", "Extended+sprites", NULL };
@@ -1558,9 +1534,9 @@ static const char h_plugin_gpu[] =
 				   "must save config and reload the game if changed";
 static const char h_plugin_spu[] = "spunull effectively disables sound\n"
 				   "must save config and reload the game if changed";
-static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
-static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
-static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
+// static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
+// static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
+// static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
 
 static int menu_loop_pluginsel_options(int id, int keys)
