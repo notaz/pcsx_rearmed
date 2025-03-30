@@ -567,12 +567,13 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 
 static u32 count_leading_bits(s32 data)
 {
-#if defined(__has_builtin) && __has_builtin(__builtin_clrsb)
+#ifdef __has_builtin
+#if __has_builtin(__builtin_clrsb)
 	return 1 + __builtin_clrsb(data);
-#else
+#endif
+#endif
 	data ^= data >> 31;
 	return data ? clz32(data) : 32;
-#endif
 }
 
 static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data)
