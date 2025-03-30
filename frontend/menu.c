@@ -1411,8 +1411,6 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
-#ifdef BUILTIN_GPU_NEON
-
 static const char h_gpu_neon[] =
 	"Configure built-in NEON GPU plugin";
 static const char h_gpu_neon_enhanced[] =
@@ -1439,8 +1437,6 @@ static int menu_loop_plugin_gpu_neon(int id, int keys)
 	me_loop(e_menu_plugin_gpu_neon, &sel);
 	return 0;
 }
-
-#endif
 
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
@@ -2077,9 +2073,7 @@ static const char credits_text[] =
 	"(C) 2005-2009 PCSX-df Team\n"
 	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
 	"ARM recompiler (C) 2009-2011 Ari64\n"
-#ifdef BUILTIN_GPU_NEON
 	"ARM NEON GPU (c) 2011-2012 Exophase\n"
-#endif
 	"PEOpS GPU and SPU by Pete Bernert\n"
 	"  and the P.E.Op.S. team\n"
 	"PCSX4ALL plugin by PCSX4ALL team\n"

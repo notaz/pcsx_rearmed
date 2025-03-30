@@ -519,7 +519,6 @@ static int dispmode_default(void)
 	return 1;
 }
 
-#ifdef BUILTIN_GPU_NEON
 static int dispmode_doubleres(void)
 {
 	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
@@ -531,7 +530,6 @@ static int dispmode_doubleres(void)
 	snprintf(hud_msg, sizeof(hud_msg), "double resolution");
 	return 1;
 }
-#endif
 
 #ifdef HAVE_NEON32
 static int dispmode_scale2x(void)
@@ -559,9 +557,7 @@ static int dispmode_eagle2x(void)
 
 static int (*dispmode_switchers[])(void) = {
 	dispmode_default,
-#ifdef BUILTIN_GPU_NEON
 	dispmode_doubleres,
-#endif
 #ifdef HAVE_NEON32
 	dispmode_scale2x,
 	dispmode_eagle2x,
