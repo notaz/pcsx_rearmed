@@ -51,6 +51,7 @@ have_armv6=""
 have_armv7=""
 have_arm_neon=""
 have_arm_neon_asm=""
+have_neon_gpu=""
 have_tslib=""
 have_evdev=""
 have_gles=""
@@ -126,6 +127,7 @@ set_platform()
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
+    have_neon_gpu="yes"
     need_xlib="yes"
     multithreading="no"
     ;;
@@ -133,6 +135,7 @@ set_platform()
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
+    have_neon_gpu="yes"
     multithreading="no"
     ;;
   caanoo)
@@ -239,12 +242,10 @@ fi
 case "$ARCH" in
 aarch64|arm64)
   have_arm_neon="yes"
+  have_neon_gpu="yes"
   have_arm_neon_asm="no"
   if [ "x$dynarec" = "x" ]; then
     dynarec="ari64"
-  fi
-  if [ "x$builtin_gpu" = "x" ]; then
-    builtin_gpu="neon"
   fi
   ;;
 arm*)
@@ -285,23 +286,13 @@ arm*)
     dynarec="ari64"
   fi
 
-  if [ "x$builtin_gpu" = "x" ]; then
-    if [ "$have_arm_neon" = "yes" ]; then
-      builtin_gpu="neon"
-    elif [ "$have_armv7" != "yes" ]; then
-      # pre-ARMv7 hardware is usually not fast enough for peops
-      builtin_gpu="unai"
-    else
-      builtin_gpu="peops"
-    fi
-  fi
-
-  # automatically set mfpu and mfloat-abi if they are not set
   if [ "$have_arm_neon" = "yes" ]; then
+    have_neon_gpu="yes"
     fpu="neon"
   elif [ "$have_armv6" = "yes" ]; then
     fpu="vfp"
   fi
+  # automatically set mfpu and mfloat-abi if they are not set
   if [ "x$fpu" != "x" ]; then
     echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=$fpu"
     echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=$fpu"
@@ -336,9 +327,7 @@ x86_64)
   if [ "x$dynarec" = "x" ]; then
     dynarec="lightrec"
   fi
-  if [ "x$builtin_gpu" = "x" ]; then
-    builtin_gpu="neon"
-  fi
+  have_neon_gpu="yes"
   ;;
 *)
   if [ "x$dynarec" = "x" ]; then
@@ -348,7 +337,14 @@ x86_64)
 esac
 
 if [ "x$builtin_gpu" = "x" ]; then
-  builtin_gpu="peops"
+  if [ "$have_neon_gpu" = "yes" ]; then
+    builtin_gpu="neon"
+  elif [ "$ARCH" = "arm" -a "$have_armv7" != "yes" ]; then
+    # pre-ARMv7 hardware is usually not fast enough for peops
+    builtin_gpu="unai"
+  else
+    builtin_gpu="peops"
+  fi
 fi
 
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
@@ -554,15 +550,15 @@ fi
 plugins="plugins/spunull/spunull.so"
 
 if [ "$builtin_gpu" != "peops" ]; then
-plugins="$plugins plugins/dfxvideo/gpu_peops.so"
+  plugins="$plugins plugins/dfxvideo/gpu_peops.so"
 fi
 if [ "$builtin_gpu" != "unai" ]; then
-plugins="$plugins plugins/gpu_unai/gpu_unai.so"
+  plugins="$plugins plugins/gpu_unai/gpu_unai.so"
 fi
 if [ "$have_gles" = "yes" ]; then
   plugins="$plugins plugins/gpu-gles/gpu_gles.so"
 fi
-if [ "$have_arm_neon" = "yes" -a "$builtin_gpu" != "neon" ]; then
+if [ "$have_neon_gpu" = "yes" -a "$builtin_gpu" != "neon" ]; then
   plugins="$plugins plugins/gpu_neon/gpu_neon.so"
 fi
 
