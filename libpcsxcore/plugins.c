@@ -89,23 +89,6 @@ PADstartPoll          PAD2_startPoll;
 PADpoll               PAD2_poll;
 PADsetSensitive       PAD2_setSensitive;
 
-NETinit               NET_init;
-NETshutdown           NET_shutdown;
-NETopen               NET_open;
-NETclose              NET_close;
-NETtest               NET_test;
-NETconfigure          NET_configure;
-NETabout              NET_about;
-NETpause              NET_pause;
-NETresume             NET_resume;
-NETqueryPlayer        NET_queryPlayer;
-NETsendData           NET_sendData;
-NETrecvData           NET_recvData;
-NETsendPadData        NET_sendPadData;
-NETrecvPadData        NET_recvPadData;
-NETsetInfo            NET_setInfo;
-NETkeypressed         NET_keypressed;
-
 #ifdef ENABLE_SIO1API
 
 SIO1init              SIO1_init;
@@ -913,53 +896,6 @@ int padToggleAnalog(unsigned int index)
 	return r;
 }
 
-
-void *hNETDriver = NULL;
-
-void CALLBACK NET__setInfo(netInfo *info) {}
-void CALLBACK NET__keypressed(int key) {}
-long CALLBACK NET__configure(void) { return 0; }
-long CALLBACK NET__test(void) { return 0; }
-void CALLBACK NET__about(void) {}
-
-#define LoadNetSym1(dest, name) \
-	LoadSym(NET_##dest, NET##dest, name, TRUE);
-
-#define LoadNetSymN(dest, name) \
-	LoadSym(NET_##dest, NET##dest, name, FALSE);
-
-#define LoadNetSym0(dest, name) \
-	LoadSym(NET_##dest, NET##dest, name, FALSE); \
-	if (NET_##dest == NULL) NET_##dest = (NET##dest) NET__##dest;
-
-static int LoadNETplugin(const char *NETdll) {
-	void *drv;
-
-	hNETDriver = SysLoadLibrary(NETdll);
-	if (hNETDriver == NULL) {
-		SysMessage (_("Could not load NetPlay plugin %s!"), NETdll); return -1;
-	}
-	drv = hNETDriver;
-	LoadNetSym1(init, "NETinit");
-	LoadNetSym1(shutdown, "NETshutdown");
-	LoadNetSym1(open, "NETopen");
-	LoadNetSym1(close, "NETclose");
-	LoadNetSymN(sendData, "NETsendData");
-	LoadNetSymN(recvData, "NETrecvData");
-	LoadNetSym1(sendPadData, "NETsendPadData");
-	LoadNetSym1(recvPadData, "NETrecvPadData");
-	LoadNetSym1(queryPlayer, "NETqueryPlayer");
-	LoadNetSym1(pause, "NETpause");
-	LoadNetSym1(resume, "NETresume");
-	LoadNetSym0(setInfo, "NETsetInfo");
-	LoadNetSym0(keypressed, "NETkeypressed");
-	LoadNetSym0(configure, "NETconfigure");
-	LoadNetSym0(test, "NETtest");
-	LoadNetSym0(about, "NETabout");
-
-	return 0;
-}
-
 #ifdef ENABLE_SIO1API
 
 void *hSIO1Driver = NULL;
@@ -1078,14 +1014,6 @@ int LoadPlugins() {
 	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Pad2);
 	if (LoadPAD2plugin(Plugin) == -1) return -1;
 
-	if (strcmp("Disabled", Config.Net) == 0 || strcmp("", Config.Net) == 0)
-		Config.UseNet = FALSE;
-	else {
-		Config.UseNet = TRUE;
-		sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Net);
-		if (LoadNETplugin(Plugin) == -1) Config.UseNet = FALSE;
-	}
-
 #ifdef ENABLE_SIO1API
 	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Sio1);
 	if (LoadSIO1plugin(Plugin) == -1) return -1;
@@ -1102,11 +1030,6 @@ int LoadPlugins() {
 	ret = PAD2_init(2);
 	if (ret < 0) { SysMessage (_("Error initializing Controller 2 plugin: %d"), ret); return -1; }
 
-	if (Config.UseNet) {
-		ret = NET_init();
-		if (ret < 0) { SysMessage (_("Error initializing NetPlay plugin: %d"), ret); return -1; }
-	}
-
 #ifdef ENABLE_SIO1API
 	ret = SIO1_init();
 	if (ret < 0) { SysMessage (_("Error initializing SIO1 plugin: %d"), ret); return -1; }
@@ -1117,28 +1040,16 @@ int LoadPlugins() {
 }
 
 void ReleasePlugins() {
-	if (Config.UseNet) {
-		int ret = NET_close();
-		if (ret < 0) Config.UseNet = FALSE;
-	}
-	NetOpened = FALSE;
-
 	cdra_shutdown();
 	if (hGPUDriver != NULL) GPU_shutdown();
 	if (hSPUDriver != NULL) SPU_shutdown();
 	if (hPAD1Driver != NULL) PAD1_shutdown();
 	if (hPAD2Driver != NULL) PAD2_shutdown();
 
-	if (Config.UseNet && hNETDriver != NULL) NET_shutdown();
-
 	if (hGPUDriver != NULL) { SysCloseLibrary(hGPUDriver); hGPUDriver = NULL; }
 	if (hSPUDriver != NULL) { SysCloseLibrary(hSPUDriver); hSPUDriver = NULL; }
 	if (hPAD1Driver != NULL) { SysCloseLibrary(hPAD1Driver); hPAD1Driver = NULL; }
 	if (hPAD2Driver != NULL) { SysCloseLibrary(hPAD2Driver); hPAD2Driver = NULL; }
-
-	if (Config.UseNet && hNETDriver != NULL) {
-		SysCloseLibrary(hNETDriver); hNETDriver = NULL;
-	}
 
 #ifdef ENABLE_SIO1API
 	if (hSIO1Driver != NULL) {

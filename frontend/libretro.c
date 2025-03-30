@@ -1931,7 +1931,6 @@ bool retro_load_game(const struct retro_game_info *info)
    }
 
    plugins_opened = 1;
-   NetOpened = 0;
 
    if (OpenPlugins() == -1)
    {

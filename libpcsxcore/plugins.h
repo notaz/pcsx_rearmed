@@ -32,7 +32,6 @@ extern "C" {
 typedef long (CALLBACK *GPUopen)(unsigned long *, char *, char *);
 typedef long (CALLBACK *SPUopen)(void);
 typedef long (CALLBACK *PADopen)(unsigned long *);
-typedef long (CALLBACK *NETopen)(unsigned long *);
 typedef long (CALLBACK *SIO1open)(unsigned long *);
 
 #include "spu.h"
@@ -181,57 +180,6 @@ extern PADkeypressed       PAD2_keypressed;
 extern PADstartPoll        PAD2_startPoll;
 extern PADpoll             PAD2_poll;
 extern PADsetSensitive     PAD2_setSensitive;
-
-// NET Functions
-typedef long (CALLBACK* NETinit)(void);
-typedef long (CALLBACK* NETshutdown)(void);
-typedef long (CALLBACK* NETclose)(void);
-typedef long (CALLBACK* NETconfigure)(void);
-typedef long (CALLBACK* NETtest)(void);
-typedef void (CALLBACK* NETabout)(void);
-typedef void (CALLBACK* NETpause)(void);
-typedef void (CALLBACK* NETresume)(void);
-typedef long (CALLBACK* NETqueryPlayer)(void);
-typedef long (CALLBACK* NETsendData)(void *, int, int);
-typedef long (CALLBACK* NETrecvData)(void *, int, int);
-typedef long (CALLBACK* NETsendPadData)(void *, int);
-typedef long (CALLBACK* NETrecvPadData)(void *, int);
-
-typedef struct {
-	char EmuName[32];
-	char CdromID[9];	// ie. 'SCPH12345', no \0 trailing character
-	char CdromLabel[11];
-	void *psxMem;
-	PADsetSensitive PAD_setSensitive;
-	char GPUpath[256];	// paths must be absolute
-	char SPUpath[256];
-	char CDRpath[256];
-	char MCD1path[256];
-	char MCD2path[256];
-	char BIOSpath[256];	// 'HLE' for internal bios
-	char Unused[1024];
-} netInfo;
-
-typedef long (CALLBACK* NETsetInfo)(netInfo *);
-typedef long (CALLBACK* NETkeypressed)(int);
-
-// NET function pointers 
-extern NETinit               NET_init;
-extern NETshutdown           NET_shutdown;
-extern NETopen               NET_open;
-extern NETclose              NET_close; 
-extern NETtest               NET_test;
-extern NETconfigure          NET_configure;
-extern NETabout              NET_about;
-extern NETpause              NET_pause;
-extern NETresume             NET_resume;
-extern NETqueryPlayer        NET_queryPlayer;
-extern NETsendData           NET_sendData;
-extern NETrecvData           NET_recvData;
-extern NETsendPadData        NET_sendPadData;
-extern NETrecvPadData        NET_recvPadData;
-extern NETsetInfo            NET_setInfo;
-extern NETkeypressed         NET_keypressed;
 
 #ifdef ENABLE_SIO1API
 

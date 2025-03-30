@@ -68,9 +68,6 @@ int SaveState(const char *file);
 int LoadState(const char *file);
 int CheckState(const char *file);
 
-int SendPcsxInfo();
-int RecvPcsxInfo();
-
 void trim(char *str);
 u16 calcCrc(const u8 *d, int len);
 

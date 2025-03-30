@@ -116,7 +116,6 @@ static void set_default_paths(void)
 	strcpy(Config.Spu, "builtin_spu");
 	strcpy(Config.Pad1, "builtin_pad");
 	strcpy(Config.Pad2, "builtin_pad");
-	strcpy(Config.Net, "Disabled");
 }
 
 void emu_set_default_config(void)

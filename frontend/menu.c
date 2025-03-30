@@ -2102,7 +2102,6 @@ static int reload_plugins(const char *cdimg)
 	set_cd_image(cdimg);
 	LoadPlugins();
 	pcnt_hook_plugins();
-	NetOpened = 0;
 	if (OpenPlugins() == -1) {
 		menu_update_msg("failed to open plugins");
 		return -1;
