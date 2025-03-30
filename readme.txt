@@ -85,6 +85,7 @@ GPU (graphics) and SPU (sound) plugins can be selected in
 builtin_gpu    - this is either Exophase's ARM NEON GPU (accurate and fast,
                  available if platform supports NEON, like on pandora),
                  gpu_peops or gpu_unai (depends on compile options).
+gpu_neon.so    - Exophase's ARM NEON GPU with ARMv7 assembly optimizations.
 gpu_peops.so   - P.E.Op.S. soft GPU, reasonably accurate but slow
                  (also found with older emulators on PC)
 gpu_gles.so    - experimental port of P.E.Op.S. MesaGL plugin to OpenGL ES.
