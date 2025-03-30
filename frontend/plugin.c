@@ -20,9 +20,6 @@
 #undef CALLBACK
 #define CALLBACK
 
-/* GPU */
-static void CALLBACK GPUdisplayText(char *_) { return; }
-
 /* SPU */
 #include "../plugins/dfsound/spu.h"
 
@@ -170,15 +167,6 @@ static const struct {
 	DIRECT_GPU(GPUvBlank),
 	DIRECT_GPU(GPUgetScreenInfo),
 	DIRECT_GPU(GPUrearmedCallbacks),
-
-	DIRECT_GPU(GPUdisplayText),
-/*
-	DIRECT_GPU(GPUkeypressed),
-	DIRECT_GPU(GPUmakeSnapshot),
-	DIRECT_GPU(GPUconfigure),
-	DIRECT_GPU(GPUgetScreenPic),
-	DIRECT_GPU(GPUshowScreenPic),
-*/
 };
 
 void *plugin_link(enum builtint_plugins_e id, const char *sym)

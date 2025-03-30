@@ -61,12 +61,7 @@ typedef uint32_t (CALLBACK* GPUreadData)(void);
 typedef void (CALLBACK* GPUreadDataMem)(uint32_t *, int);
 typedef long (CALLBACK* GPUdmaChain)(uint32_t *, uint32_t, uint32_t *, int32_t *);
 typedef void (CALLBACK* GPUupdateLace)(void);
-typedef void (CALLBACK* GPUmakeSnapshot)(void);
-typedef void (CALLBACK* GPUkeypressed)(int);
-typedef void (CALLBACK* GPUdisplayText)(char *);
 typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *);
-typedef long (CALLBACK* GPUgetScreenPic)(unsigned char *);
-typedef long (CALLBACK* GPUshowScreenPic)(unsigned char *);
 typedef void (CALLBACK* GPUvBlank)(int, int);
 typedef void (CALLBACK* GPUgetScreenInfo)(int *, int *);
 
@@ -83,12 +78,7 @@ extern GPUwriteStatus   GPU_writeStatus;
 extern GPUwriteData     GPU_writeData;
 extern GPUwriteDataMem  GPU_writeDataMem;
 extern GPUdmaChain      GPU_dmaChain;
-extern GPUkeypressed    GPU_keypressed;
-extern GPUdisplayText   GPU_displayText;
-extern GPUmakeSnapshot  GPU_makeSnapshot;
 extern GPUfreeze        GPU_freeze;
-extern GPUgetScreenPic  GPU_getScreenPic;
-extern GPUshowScreenPic GPU_showScreenPic;
 extern GPUvBlank        GPU_vBlank;
 extern GPUgetScreenInfo GPU_getScreenInfo;
 
@@ -212,8 +202,6 @@ typedef struct {
 	char CdromID[9];	// ie. 'SCPH12345', no \0 trailing character
 	char CdromLabel[11];
 	void *psxMem;
-	GPUshowScreenPic GPU_showScreenPic;
-	GPUdisplayText GPU_displayText;
 	PADsetSensitive PAD_setSensitive;
 	char GPUpath[256];	// paths must be absolute
 	char SPUpath[256];

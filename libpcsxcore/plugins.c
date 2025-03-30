@@ -41,12 +41,7 @@ GPUwriteStatus        GPU_writeStatus;
 GPUwriteData          GPU_writeData;
 GPUwriteDataMem       GPU_writeDataMem;
 GPUdmaChain           GPU_dmaChain;
-GPUkeypressed         GPU_keypressed;
-GPUdisplayText        GPU_displayText;
-GPUmakeSnapshot       GPU_makeSnapshot;
 GPUfreeze             GPU_freeze;
-GPUgetScreenPic       GPU_getScreenPic;
-GPUshowScreenPic      GPU_showScreenPic;
 GPUvBlank             GPU_vBlank;
 GPUgetScreenInfo      GPU_getScreenInfo;
 
@@ -163,19 +158,8 @@ static const char *err;
 
 void *hGPUDriver = NULL;
 
-void CALLBACK GPU__displayText(char *pText) {
-	SysPrintf("%s\n", pText);
-}
-
-long CALLBACK GPU__configure(void) { return 0; }
-long CALLBACK GPU__test(void) { return 0; }
-void CALLBACK GPU__about(void) {}
-void CALLBACK GPU__makeSnapshot(void) {}
-void CALLBACK GPU__keypressed(int key) {}
-long CALLBACK GPU__getScreenPic(unsigned char *pMem) { return -1; }
-long CALLBACK GPU__showScreenPic(unsigned char *pMem) { return -1; }
-void CALLBACK GPU__vBlank(int val) {}
-void CALLBACK GPU__getScreenInfo(int *y, int *base_hres) {}
+static void CALLBACK GPU__vBlank(int val) {}
+static void CALLBACK GPU__getScreenInfo(int *y, int *base_hres) {}
 
 #define LoadGpuSym1(dest, name) \
 	LoadSym(GPU_##dest, GPU##dest, name, TRUE);
@@ -207,12 +191,7 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym1(writeStatus, "GPUwriteStatus");
 	LoadGpuSym1(dmaChain, "GPUdmaChain");
 	LoadGpuSym1(updateLace, "GPUupdateLace");
-	LoadGpuSym0(keypressed, "GPUkeypressed");
-	LoadGpuSym0(displayText, "GPUdisplayText");
-	LoadGpuSym0(makeSnapshot, "GPUmakeSnapshot");
 	LoadGpuSym1(freeze, "GPUfreeze");
-	LoadGpuSym0(getScreenPic, "GPUgetScreenPic");
-	LoadGpuSym0(showScreenPic, "GPUshowScreenPic");
 	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(getScreenInfo, "GPUgetScreenInfo");
 
