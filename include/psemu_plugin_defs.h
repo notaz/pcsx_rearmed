@@ -195,7 +195,7 @@ typedef struct
 #define PSE_PAD_WARN				80
 
 
-typedef struct
+typedef struct PadDataS
 {
 	// controller type - fill it withe predefined values above
 	unsigned char controllerType;

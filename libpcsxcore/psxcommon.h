@@ -119,8 +119,6 @@ void __Log(char *fmt, ...);
 typedef struct {
 	char Gpu[MAXPATHLEN];
 	char Spu[MAXPATHLEN];
-	char Pad1[MAXPATHLEN];
-	char Pad2[MAXPATHLEN];
 	char Sio1[MAXPATHLEN];
 	char Mcd1[MAXPATHLEN];
 	char Mcd2[MAXPATHLEN];

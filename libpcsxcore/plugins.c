@@ -61,34 +61,6 @@ SPUasync              SPU_async;
 SPUplayCDDAchannel    SPU_playCDDAchannel;
 SPUsetCDvol           SPU_setCDvol;
 
-PADconfigure          PAD1_configure;
-PADabout              PAD1_about;
-PADinit               PAD1_init;
-PADshutdown           PAD1_shutdown;
-PADtest               PAD1_test;
-PADopen               PAD1_open;
-PADclose              PAD1_close;
-PADquery              PAD1_query;
-PADreadPort1          PAD1_readPort1;
-PADkeypressed         PAD1_keypressed;
-PADstartPoll          PAD1_startPoll;
-PADpoll               PAD1_poll;
-PADsetSensitive       PAD1_setSensitive;
-
-PADconfigure          PAD2_configure;
-PADabout              PAD2_about;
-PADinit               PAD2_init;
-PADshutdown           PAD2_shutdown;
-PADtest               PAD2_test;
-PADopen               PAD2_open;
-PADclose              PAD2_close;
-PADquery              PAD2_query;
-PADreadPort2          PAD2_readPort2;
-PADkeypressed         PAD2_keypressed;
-PADstartPoll          PAD2_startPoll;
-PADpoll               PAD2_poll;
-PADsetSensitive       PAD2_setSensitive;
-
 #ifdef ENABLE_SIO1API
 
 SIO1init              SIO1_init;
@@ -233,9 +205,6 @@ static int LoadSPUplugin(const char *SPUdll) {
 }
 
 extern int in_type[8];
-
-void *hPAD1Driver = NULL;
-void *hPAD2Driver = NULL;
 
 // Pad information, keystate, mode, config mode, vibration
 static PadDataS pads[8];
@@ -727,12 +696,12 @@ static unsigned char PADpollMain(int port, unsigned char value, int *more_data) 
 
 // refresh the button state on port 1.
 // int pad is not needed.
-unsigned char CALLBACK PAD1__startPoll(int unused) {
+unsigned char PAD1_startPoll(int unused) {
 	int i;
 
 	reqPos = 0;
 	pads[0].requestPadIndex = 0;
-	PAD1_readPort1(&pads[0]);
+	PAD1_readPort(&pads[0]);
 
 	pads[0].multitapLongModeEnabled = 0;
 	if (pads[0].portMultitap)
@@ -744,72 +713,24 @@ unsigned char CALLBACK PAD1__startPoll(int unused) {
 		// a multitap is plugged and enabled: refresh pads 1-3
 		for (i = 1; i < 4; i++) {
 			pads[i].requestPadIndex = i;
-			PAD1_readPort1(&pads[i]);
+			PAD1_readPort(&pads[i]);
 		}
 	}
 	return 0xff;
 }
 
-unsigned char CALLBACK PAD1__poll(unsigned char value, int *more_data) {
+unsigned char PAD1_poll(unsigned char value, int *more_data) {
 	return PADpollMain(0, value, more_data);
 }
 
 
-long CALLBACK PAD1__configure(void) { return 0; }
-void CALLBACK PAD1__about(void) {}
-long CALLBACK PAD1__test(void) { return 0; }
-long CALLBACK PAD1__query(void) { return 3; }
-long CALLBACK PAD1__keypressed() { return 0; }
-
-#define LoadPad1Sym1(dest, name) \
-	LoadSym(PAD1_##dest, PAD##dest, name, TRUE);
-
-#define LoadPad1SymN(dest, name) \
-	LoadSym(PAD1_##dest, PAD##dest, name, FALSE);
-
-#define LoadPad1Sym0(dest, name) \
-	LoadSym(PAD1_##dest, PAD##dest, name, FALSE); \
-	if (PAD1_##dest == NULL) PAD1_##dest = (PAD##dest) PAD1__##dest;
-
-static int LoadPAD1plugin(const char *PAD1dll) {
-	void *drv;
-	size_t p;
-
-	hPAD1Driver = SysLoadLibrary(PAD1dll);
-	if (hPAD1Driver == NULL) {
-		PAD1_configure = NULL;
-		SysMessage (_("Could not load Controller 1 plugin %s!"), PAD1dll); return -1;
-	}
-	drv = hPAD1Driver;
-	LoadPad1Sym1(init, "PADinit");
-	LoadPad1Sym1(shutdown, "PADshutdown");
-	LoadPad1Sym1(open, "PADopen");
-	LoadPad1Sym1(close, "PADclose");
-	LoadPad1Sym0(query, "PADquery");
-	LoadPad1Sym1(readPort1, "PADreadPort1");
-	LoadPad1Sym0(configure, "PADconfigure");
-	LoadPad1Sym0(test, "PADtest");
-	LoadPad1Sym0(about, "PADabout");
-	LoadPad1Sym0(keypressed, "PADkeypressed");
-	LoadPad1Sym0(startPoll, "PADstartPoll");
-	LoadPad1Sym0(poll, "PADpoll");
-	LoadPad1SymN(setSensitive, "PADsetSensitive");
-
-	memset(pads, 0, sizeof(pads));
-	for (p = 0; p < sizeof(pads) / sizeof(pads[0]); p++) {
-		memset(pads[p].ds.cmd4dConfig, 0xff, sizeof(pads[p].ds.cmd4dConfig));
-	}
-
-	return 0;
-}
-
-unsigned char CALLBACK PAD2__startPoll(int pad) {
+unsigned char PAD2_startPoll(int pad) {
 	int pad_index = pads[0].portMultitap ? 4 : 1;
 	int i;
 
 	reqPos = 0;
 	pads[pad_index].requestPadIndex = pad_index;
-	PAD2_readPort2(&pads[pad_index]);
+	PAD2_readPort(&pads[pad_index]);
 
 	pads[pad_index].multitapLongModeEnabled = 0;
 	if (pads[pad_index].portMultitap)
@@ -820,56 +741,23 @@ unsigned char CALLBACK PAD2__startPoll(int pad) {
 	} else {
 		for (i = 1; i < 4; i++) {
 			pads[pad_index + i].requestPadIndex = pad_index + i;
-			PAD2_readPort2(&pads[pad_index + i]);
+			PAD2_readPort(&pads[pad_index + i]);
 		}
 	}
 	return 0xff;
 }
 
-unsigned char CALLBACK PAD2__poll(unsigned char value, int *more_data) {
+unsigned char PAD2_poll(unsigned char value, int *more_data) {
 	return PADpollMain(pads[0].portMultitap ? 4 : 1, value, more_data);
 }
 
-long CALLBACK PAD2__configure(void) { return 0; }
-void CALLBACK PAD2__about(void) {}
-long CALLBACK PAD2__test(void) { return 0; }
-long CALLBACK PAD2__query(void) { return PSE_PAD_USE_PORT1 | PSE_PAD_USE_PORT2; }
-long CALLBACK PAD2__keypressed() { return 0; }
+static void PAD_init(void) {
+	size_t p;
 
-#define LoadPad2Sym1(dest, name) \
-	LoadSym(PAD2_##dest, PAD##dest, name, TRUE);
-
-#define LoadPad2Sym0(dest, name) \
-	LoadSym(PAD2_##dest, PAD##dest, name, FALSE); \
-	if (PAD2_##dest == NULL) PAD2_##dest = (PAD##dest) PAD2__##dest;
-
-#define LoadPad2SymN(dest, name) \
-	LoadSym(PAD2_##dest, PAD##dest, name, FALSE);
-
-static int LoadPAD2plugin(const char *PAD2dll) {
-	void *drv;
-
-	hPAD2Driver = SysLoadLibrary(PAD2dll);
-	if (hPAD2Driver == NULL) {
-		PAD2_configure = NULL;
-		SysMessage (_("Could not load Controller 2 plugin %s!"), PAD2dll); return -1;
+	memset(pads, 0, sizeof(pads));
+	for (p = 0; p < sizeof(pads) / sizeof(pads[0]); p++) {
+		memset(pads[p].ds.cmd4dConfig, 0xff, sizeof(pads[p].ds.cmd4dConfig));
 	}
-	drv = hPAD2Driver;
-	LoadPad2Sym1(init, "PADinit");
-	LoadPad2Sym1(shutdown, "PADshutdown");
-	LoadPad2Sym1(open, "PADopen");
-	LoadPad2Sym1(close, "PADclose");
-	LoadPad2Sym0(query, "PADquery");
-	LoadPad2Sym1(readPort2, "PADreadPort2");
-	LoadPad2Sym0(configure, "PADconfigure");
-	LoadPad2Sym0(test, "PADtest");
-	LoadPad2Sym0(about, "PADabout");
-	LoadPad2Sym0(keypressed, "PADkeypressed");
-	LoadPad2Sym0(startPoll, "PADstartPoll");
-	LoadPad2Sym0(poll, "PADpoll");
-	LoadPad2SymN(setSensitive, "PADsetSensitive");
-
-	return 0;
 }
 
 int padFreeze(void *f, int Mode) {
@@ -1008,12 +896,6 @@ int LoadPlugins() {
 	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Spu);
 	if (LoadSPUplugin(Plugin) == -1) return -1;
 
-	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Pad1);
-	if (LoadPAD1plugin(Plugin) == -1) return -1;
-
-	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Pad2);
-	if (LoadPAD2plugin(Plugin) == -1) return -1;
-
 #ifdef ENABLE_SIO1API
 	sprintf(Plugin, "%s/%s", Config.PluginsDir, Config.Sio1);
 	if (LoadSIO1plugin(Plugin) == -1) return -1;
@@ -1025,10 +907,7 @@ int LoadPlugins() {
 	if (ret < 0) { SysMessage (_("Error initializing GPU plugin: %d"), ret); return -1; }
 	ret = SPU_init();
 	if (ret < 0) { SysMessage (_("Error initializing SPU plugin: %d"), ret); return -1; }
-	ret = PAD1_init(1);
-	if (ret < 0) { SysMessage (_("Error initializing Controller 1 plugin: %d"), ret); return -1; }
-	ret = PAD2_init(2);
-	if (ret < 0) { SysMessage (_("Error initializing Controller 2 plugin: %d"), ret); return -1; }
+	PAD_init();
 
 #ifdef ENABLE_SIO1API
 	ret = SIO1_init();
@@ -1043,13 +922,9 @@ void ReleasePlugins() {
 	cdra_shutdown();
 	if (hGPUDriver != NULL) GPU_shutdown();
 	if (hSPUDriver != NULL) SPU_shutdown();
-	if (hPAD1Driver != NULL) PAD1_shutdown();
-	if (hPAD2Driver != NULL) PAD2_shutdown();
 
 	if (hGPUDriver != NULL) { SysCloseLibrary(hGPUDriver); hGPUDriver = NULL; }
 	if (hSPUDriver != NULL) { SysCloseLibrary(hSPUDriver); hSPUDriver = NULL; }
-	if (hPAD1Driver != NULL) { SysCloseLibrary(hPAD1Driver); hPAD1Driver = NULL; }
-	if (hPAD2Driver != NULL) { SysCloseLibrary(hPAD2Driver); hPAD2Driver = NULL; }
 
 #ifdef ENABLE_SIO1API
 	if (hSIO1Driver != NULL) {

@@ -24,13 +24,7 @@
 #include "../plugins/dfsound/spu.h"
 
 /* PAD */
-static long CALLBACK PADinit(long _) { return 0; }
-static long CALLBACK PADopen(unsigned long *_) { return 0; }
-static long CALLBACK PADshutdown(void) { return 0; }
-static long CALLBACK PADclose(void) { return 0; }
-static void CALLBACK PADsetSensitive(int _) { return; }
-
-static long CALLBACK PADreadPort1(PadDataS *pad) {
+long PAD1_readPort(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];
@@ -58,7 +52,7 @@ static long CALLBACK PADreadPort1(PadDataS *pad) {
 	return 0;
 }
 
-static long CALLBACK PADreadPort2(PadDataS *pad) {
+long PAD2_readPort(PadDataS *pad) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];
@@ -110,7 +104,6 @@ extern void GPUrearmedCallbacks(const struct rearmed_cbs *cbs);
 
 #define DIRECT_SPU(name) DIRECT(PLUGIN_SPU, name)
 #define DIRECT_GPU(name) DIRECT(PLUGIN_GPU, name)
-#define DIRECT_PAD(name) DIRECT(PLUGIN_PAD, name)
 
 static const struct {
 	int id;
@@ -133,23 +126,6 @@ static const struct {
 	DIRECT_SPU(SPUasync),
 	DIRECT_SPU(SPUplayCDDAchannel),
 	DIRECT_SPU(SPUsetCDvol),
-	/* PAD */
-	DIRECT_PAD(PADinit),
-	DIRECT_PAD(PADshutdown),
-	DIRECT_PAD(PADopen),
-	DIRECT_PAD(PADclose),
-	DIRECT_PAD(PADsetSensitive),
-	DIRECT_PAD(PADreadPort1),
-	DIRECT_PAD(PADreadPort2),
-/*
-	DIRECT_PAD(PADquery),
-	DIRECT_PAD(PADconfigure),
-	DIRECT_PAD(PADtest),
-	DIRECT_PAD(PADabout),
-	DIRECT_PAD(PADkeypressed),
-	DIRECT_PAD(PADstartPoll),
-	DIRECT_PAD(PADpoll),
-*/
 	/* GPU */
 	DIRECT_GPU(GPUupdateLace),
 	DIRECT_GPU(GPUinit),
