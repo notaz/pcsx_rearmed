@@ -249,6 +249,14 @@ ifneq ($(findstring libretro,$(SOUND_DRIVERS)),)
 plugins/dfsound/out.o: CFLAGS += -DHAVE_LIBRETRO
 endif
 
+# supported gpu list in menu
+ifeq "$(HAVE_NEON_GPU)" "1"
+frontend/menu.o: CFLAGS += -DGPU_NEON
+endif
+ifeq "$(HAVE_GLES)" "1"
+frontend/menu.o: CFLAGS += -DHAVE_GLES
+endif
+
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o plugins/gpulib/prim.o
 ifeq "$(BUILTIN_GPU)" "neon"

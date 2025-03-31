@@ -637,6 +637,9 @@ echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
 echo "PLUGINS = $plugins" >> $config_mak
+if [ "$have_neon_gpu" = "yes" ]; then
+  echo "HAVE_NEON_GPU = 1" >> $config_mak
+fi
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
 fi
