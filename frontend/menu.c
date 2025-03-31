@@ -1528,9 +1528,18 @@ static const char h_plugin_gpu[] =
 #elif defined(BUILTIN_GPU_UNAI)
 				   "builtin_gpu is the Unai GPU, very fast\n"
 #endif
+#if !defined(BUILTIN_GPU_NEON) && defined(GPU_NEON)
+				   "gpu_neon is Exophase's NEON GPU, fast and accurate\n"
+#endif
+#ifndef BUILTIN_GPU_PEOPS
 				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
+#endif
+#ifndef BUILTIN_GPU_UNAI
 				   "gpu_unai is the GPU renderer from PCSX4ALL\n"
+#endif
+#ifdef HAVE_GLES
 				   "gpu_gles Pete's hw GPU, uses 3D chip but is glitchy\n"
+#endif
 				   "must save config and reload the game if changed";
 static const char h_plugin_spu[] = "spunull effectively disables sound\n"
 				   "must save config and reload the game if changed";
