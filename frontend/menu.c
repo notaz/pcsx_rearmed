@@ -1528,6 +1528,7 @@ static const char h_plugin_gpu[] =
 #elif defined(BUILTIN_GPU_UNAI)
 				   "builtin_gpu is the Unai GPU, very fast\n"
 #endif
+#ifndef NO_DYLIB
 #if !defined(BUILTIN_GPU_NEON) && defined(GPU_NEON)
 				   "gpu_neon is Exophase's NEON GPU, fast and accurate\n"
 #endif
@@ -1540,9 +1541,15 @@ static const char h_plugin_gpu[] =
 #ifdef HAVE_GLES
 				   "gpu_gles Pete's hw GPU, uses 3D chip but is glitchy\n"
 #endif
-				   "must save config and reload the game if changed";
-static const char h_plugin_spu[] = "spunull effectively disables sound\n"
-				   "must save config and reload the game if changed";
+				   "must save config and reload the game if changed"
+#endif
+				   ;
+static const char h_plugin_spu[] = ""
+#ifndef NO_DYLIB
+				   "spunull effectively disables sound\n"
+				   "must save config and reload the game if changed"
+#endif
+;
 // static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
 // static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
 // static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
