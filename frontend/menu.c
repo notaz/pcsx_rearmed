@@ -12,7 +12,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#ifndef NO_DYLIB
 #include <dlfcn.h>
+#endif
 #include <zlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -2488,7 +2490,6 @@ static void scan_bios_plugins(void)
 	char fname[MAXPATHLEN];
 	struct dirent *ent;
 	int bios_i, gpu_i, spu_i, mc_i;
-	char *p;
 	DIR *dir;
 
 	bioses[0] = "HLE";
@@ -2501,7 +2502,11 @@ static void scan_bios_plugins(void)
 	dir = opendir(fname);
 	if (dir == NULL) {
 		perror("scan_bios_plugins bios opendir");
+#ifndef NO_DYLIB
 		goto do_plugins;
+#else
+		goto do_memcards;
+#endif
 	}
 
 	while (1) {
@@ -2535,7 +2540,9 @@ static void scan_bios_plugins(void)
 
 	closedir(dir);
 
+#ifndef NO_DYLIB
 do_plugins:
+	char *p;
 	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
 	dir = opendir(fname);
 	if (dir == NULL) {
@@ -2586,6 +2593,7 @@ do_plugins:
 	}
 
 	closedir(dir);
+#endif
 
 do_memcards:
 	dir = opendir("." MEMCARD_DIR);
