@@ -57,6 +57,7 @@ have_evdev=""
 have_gles=""
 have_c64x_dsp=""
 have_fsections="yes"
+have_dynamic="yes"
 gnu_linker="yes"
 dynarec=""
 multithreading="yes"
@@ -170,6 +171,10 @@ for opt do
   ;;
   --disable-threads) multithreading="no"
   ;;
+  --enable-dynamic) have_dynamic="yes"
+  ;;
+  --disable-dynamic) have_dynamic="no"
+  ;;
   --dynarec=*) dynarec="$optarg"
   ;;
   --disable-dynarec) dynarec="no"
@@ -192,6 +197,8 @@ if [ "$show_help" = "yes" ]; then
   echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
   echo "  --enable-threads"
   echo "  --disable-threads        enable/disable multithreaded features [guessed]"
+  echo "  --enable-dynamic"
+  echo "  --disable-dynamic        enable/disable dynamic loading obj. eg.plugins [guessed]"
   echo "  --dynarec=NAME           select dynamic recompiler [guessed]"
   echo "                           available: $dynarec_list"
   echo "influential environment variables:"
@@ -547,19 +554,24 @@ if check_c64_tools; then
 fi
 
 # declare available dynamic plugins
-plugins="plugins/spunull/spunull.so"
+if [ "$have_dynamic" = "yes" ]; then
+  plugins="plugins/spunull/spunull.so"
 
-if [ "$builtin_gpu" != "peops" ]; then
-  plugins="$plugins plugins/dfxvideo/gpu_peops.so"
-fi
-if [ "$builtin_gpu" != "unai" ]; then
-  plugins="$plugins plugins/gpu_unai/gpu_unai.so"
-fi
-if [ "$have_gles" = "yes" ]; then
-  plugins="$plugins plugins/gpu-gles/gpu_gles.so"
-fi
-if [ "$have_neon_gpu" = "yes" -a "$builtin_gpu" != "neon" ]; then
-  plugins="$plugins plugins/gpu_neon/gpu_neon.so"
+  if [ "$builtin_gpu" != "peops" ]; then
+    plugins="$plugins plugins/dfxvideo/gpu_peops.so"
+  fi
+  if [ "$builtin_gpu" != "unai" ]; then
+    plugins="$plugins plugins/gpu_unai/gpu_unai.so"
+  fi
+  if [ "$have_gles" = "yes" ]; then
+    plugins="$plugins plugins/gpu-gles/gpu_gles.so"
+  fi
+  if [ "$have_neon_gpu" = "yes" -a "$builtin_gpu" != "neon" ]; then
+    plugins="$plugins plugins/gpu_neon/gpu_neon.so"
+  fi
+else
+  have_dynamic="no"
+  CFLAGS="$CFLAGS -DNO_DYLIB"
 fi
 
 # check for xlib (only headers needed)
