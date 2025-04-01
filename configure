@@ -622,7 +622,11 @@ if [ "$ARCH" = "arm" ]; then
   echo "ARMv7 optimizations $have_armv7"
   echo "TI C64x DSP support $have_c64x_dsp"
 fi
-echo "tslib support       $have_tslib"
+if [ "$have_dynamic" = "yes" ]; then
+  echo "tslib support       $have_tslib"
+else
+  echo "tslib does NOT support staticly linked build"
+fi
 if [ "$platform" = "generic" ]; then
   echo "OpenGL ES output    $have_gles"
 fi
@@ -658,7 +662,7 @@ fi
 if [ "$have_arm_neon_asm" = "yes" ]; then
   echo "HAVE_NEON_ASM = 1" >> $config_mak
 fi
-if [ "$have_tslib" = "yes" ]; then
+if [ "$have_tslib" = "yes" -a "$have_dynamic" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak
 fi
 if [ "$have_evdev" = "yes" ]; then
