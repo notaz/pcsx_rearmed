@@ -554,7 +554,7 @@ rel: pcsx $(PLUGINS) \
 	mkdir -p $(OUT)/plugins
 	mkdir -p $(OUT)/bios
 	cp -r $^ $(OUT)/
-	mv $(OUT)/*.so* $(OUT)/plugins/
+	-mv $(OUT)/*.so* $(OUT)/plugins/
 	zip -9 -r $(OUT).zip $(OUT)
 endif
 
@@ -569,7 +569,7 @@ rel: pcsx plugins/dfsound/pcsxr_spu_area3.out $(PLUGINS) \
 	cp -r $^ out/
 	sed -e 's/%PR%/$(VER)/g' out/pcsx.pxml.templ > out/pcsx.pxml
 	rm out/pcsx.pxml.templ
-	mv out/*.so out/plugins/
+	-mv out/*.so out/plugins/
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c
 endif
 
@@ -589,7 +589,7 @@ rel: pcsx $(PLUGINS) \
 	rm -rf out
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
-	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
+	-mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
 	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
 	mkdir out/pcsx_rearmed/lib/
