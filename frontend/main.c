@@ -144,6 +144,11 @@ void emu_set_default_config(void)
 	spu_config.iTempo = 1;
 #endif
 #endif
+#if defined(MIYOO)
+	pl_rearmed_cbs.dithering = 0;
+	pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
+	pl_rearmed_cbs.gpu_unai.scale_hires = 1;
+#endif
 	ndrc_g.hacks = 0;
 
 	in_type[0] = PSE_PAD_TYPE_STANDARD;

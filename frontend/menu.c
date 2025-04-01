@@ -348,13 +348,21 @@ static void menu_set_defconfig(void)
 	g_scaler = SCALE_4_3;
 	g_gamma = 100;
 	volume_boost = 0;
+#ifdef MIYOO
+	frameskip = 0; // 0 - auto
+#else
 	frameskip = 1; // 1 - off
+#endif
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
 	scanlines = 0;
 	scanline_level = 20;
+#ifdef MIYOO
+	plat_target.vout_fullscreen = 1;
+#else
 	plat_target.vout_fullscreen = 0;
+#endif
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
