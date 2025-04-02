@@ -2542,7 +2542,6 @@ static void scan_bios_plugins(void)
 
 #ifndef NO_DYLIB
 do_plugins:
-	char *p;
 	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
 	dir = opendir(fname);
 	if (dir == NULL) {
@@ -2552,6 +2551,7 @@ do_plugins:
 
 	while (1) {
 		void *h, *tmp;
+		char *p;
 
 		errno = 0;
 		ent = readdir(dir);
