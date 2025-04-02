@@ -2375,7 +2375,11 @@ static void update_variables(bool in_flight)
    {
       int psxclock = atoi(var.value);
       if (strcmp(var.value, "auto") == 0 || psxclock == 0)
+#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
+         Config.cycle_multiplier = 200;
+#else
          Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
+#endif
       else
          Config.cycle_multiplier = 10000 / psxclock;
    }
