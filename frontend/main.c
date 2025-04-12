@@ -114,9 +114,6 @@ static void set_default_paths(void)
 	strcpy(Config.PluginsDir, "plugins");
 	strcpy(Config.Gpu, "builtin_gpu");
 	strcpy(Config.Spu, "builtin_spu");
-	strcpy(Config.Pad1, "builtin_pad");
-	strcpy(Config.Pad2, "builtin_pad");
-	strcpy(Config.Net, "Disabled");
 }
 
 void emu_set_default_config(void)
@@ -910,10 +907,6 @@ static int _OpenPlugins(void) {
 	// pcsx-rearmed: we handle gpu elsewhere
 	//ret = GPU_open(&gpuDisp, "PCSX", NULL);
 	//if (ret < 0) { SysMessage(_("Error opening GPU plugin!")); return -1; }
-	ret = PAD1_open(&gpuDisp);
-	if (ret < 0) { SysMessage(_("Error opening Controller 1 plugin!")); return -1; }
-	ret = PAD2_open(&gpuDisp);
-	if (ret < 0) { SysMessage(_("Error opening Controller 2 plugin!")); return -1; }
 
 	return 0;
 }
@@ -940,10 +933,6 @@ void ClosePlugins() {
 	cdra_close();
 	ret = SPU_close();
 	if (ret < 0) { SysMessage(_("Error closing SPU plugin!")); }
-	ret = PAD1_close();
-	if (ret < 0) { SysMessage(_("Error closing Controller 1 Plugin!")); }
-	ret = PAD2_close();
-	if (ret < 0) { SysMessage(_("Error closing Controller 2 plugin!")); }
 	// pcsx-rearmed: we handle gpu elsewhere
 	//ret = GPU_close();
 	//if (ret < 0) { SysMessage(_("Error closing GPU plugin!")); return; }
@@ -951,11 +940,11 @@ void ClosePlugins() {
 
 /* we hook statically linked plugins here */
 static const char *builtin_plugins[] = {
-	"builtin_gpu", "builtin_spu", "builtin_pad",
+	"builtin_gpu", "builtin_spu"
 };
 
 static const int builtin_plugin_ids[] = {
-	PLUGIN_GPU, PLUGIN_SPU, PLUGIN_PAD,
+	PLUGIN_GPU, PLUGIN_SPU
 };
 
 void *SysLoadLibrary(const char *lib) {

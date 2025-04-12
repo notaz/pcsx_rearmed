@@ -249,6 +249,14 @@ ifneq ($(findstring libretro,$(SOUND_DRIVERS)),)
 plugins/dfsound/out.o: CFLAGS += -DHAVE_LIBRETRO
 endif
 
+# supported gpu list in menu
+ifeq "$(HAVE_NEON_GPU)" "1"
+frontend/menu.o: CFLAGS += -DGPU_NEON
+endif
+ifeq "$(HAVE_GLES)" "1"
+frontend/menu.o: CFLAGS += -DHAVE_GLES
+endif
+
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o plugins/gpulib/prim.o
 ifeq "$(BUILTIN_GPU)" "neon"
@@ -270,6 +278,7 @@ CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_PEOPS
 OBJS += plugins/dfxvideo/gpulib_if.o
 ifeq "$(THREAD_RENDERING)" "1"
 CFLAGS += -DTHREAD_RENDERING
@@ -295,6 +304,7 @@ CFLAGS += -DGPU_UNAI_NO_OLD
 endif
 plugins/gpu_unai/gpulib_if.o: plugins/gpu_unai/*.h
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -DUSE_GPULIB=1
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_UNAI
 ifneq ($(DEBUG), 1)
 plugins/gpu_unai/gpulib_if.o \
 plugins/gpu_unai/old/if.o: CFLAGS += -O3
@@ -544,7 +554,7 @@ rel: pcsx $(PLUGINS) \
 	mkdir -p $(OUT)/plugins
 	mkdir -p $(OUT)/bios
 	cp -r $^ $(OUT)/
-	mv $(OUT)/*.so* $(OUT)/plugins/
+	-mv $(OUT)/*.so* $(OUT)/plugins/
 	zip -9 -r $(OUT).zip $(OUT)
 endif
 
@@ -559,7 +569,7 @@ rel: pcsx plugins/dfsound/pcsxr_spu_area3.out $(PLUGINS) \
 	cp -r $^ out/
 	sed -e 's/%PR%/$(VER)/g' out/pcsx.pxml.templ > out/pcsx.pxml
 	rm out/pcsx.pxml.templ
-	mv out/*.so out/plugins/
+	-mv out/*.so out/plugins/
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c
 endif
 
@@ -579,7 +589,7 @@ rel: pcsx $(PLUGINS) \
 	rm -rf out
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
-	mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
+	-mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
 	mv out/pcsx_rearmed/caanoo.gpe out/pcsx_rearmed/pcsx.gpe
 	mv out/pcsx_rearmed/pcsx_rearmed.ini out/
 	mkdir out/pcsx_rearmed/lib/

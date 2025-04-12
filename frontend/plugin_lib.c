@@ -318,6 +318,7 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	const unsigned char *vram = vram_;
 	int dstride = pl_vout_w, h1 = h;
 	int h_full = pl_vout_h - pl_vout_yoffset;
+	int enhres = w > psx_w;
 	int xoffs = 0, doffs;
 	int hwrapped;
 
@@ -438,13 +439,14 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 #endif
 	else
 	{
+		unsigned int vram_mask = enhres ? ~0 : 0xfffff;
 		for (; h1-- > 0; dest += dstride * 2) {
 			bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
-			vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			vram_ofs = (vram_ofs + 2048) & vram_mask;
 		}
 
 		hwrapped = (vram_ofs & 2047) + w * 2 - 2048;
-		if (hwrapped > 0) {
+		if (!enhres && hwrapped > 0) {
 			vram_ofs = (vram_ofs - h * 2048) & 0xff800;
 			dest -= dstride * 2 * h;
 			dest += w * 2 - hwrapped;
@@ -519,7 +521,6 @@ static int dispmode_default(void)
 	return 1;
 }
 
-#ifdef BUILTIN_GPU_NEON
 static int dispmode_doubleres(void)
 {
 	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
@@ -531,7 +532,6 @@ static int dispmode_doubleres(void)
 	snprintf(hud_msg, sizeof(hud_msg), "double resolution");
 	return 1;
 }
-#endif
 
 #ifdef HAVE_NEON32
 static int dispmode_scale2x(void)
@@ -559,9 +559,7 @@ static int dispmode_eagle2x(void)
 
 static int (*dispmode_switchers[])(void) = {
 	dispmode_default,
-#ifdef BUILTIN_GPU_NEON
 	dispmode_doubleres,
-#endif
 #ifdef HAVE_NEON32
 	dispmode_scale2x,
 	dispmode_eagle2x,

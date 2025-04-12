@@ -12,7 +12,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#ifndef NO_DYLIB
 #include <dlfcn.h>
+#endif
 #include <zlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1411,10 +1413,6 @@ static int menu_loop_gfx_options(int id, int keys)
 
 // ------------ bios/plugins ------------
 
-#ifdef BUILTIN_GPU_NEON
-
-static const char h_gpu_neon[] =
-	"Configure built-in NEON GPU plugin";
 static const char h_gpu_neon_enhanced[] =
 	"Renders in double resolution at perf. cost\n"
 	"(not available for high resolution games)";
@@ -1433,15 +1431,6 @@ static menu_entry e_menu_plugin_gpu_neon[] =
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu_neon(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_neon, &sel);
-	return 0;
-}
-
-#endif
-
 static menu_entry e_menu_plugin_gpu_unai[] =
 {
 	mee_onoff     ("Old renderer",               0, pl_rearmed_cbs.gpu_unai.old_renderer, 1),
@@ -1451,14 +1440,6 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
 	mee_end,
 };
-
-static int menu_loop_plugin_gpu_unai(int id, int keys)
-{
-	int sel = 0;
-	me_loop(e_menu_plugin_gpu_unai, &sel);
-	return 0;
-}
-
 
 //static const char h_gpu_0[]            = "Needed for Chrono Cross";
 static const char h_gpu_1[]            = "Capcom fighting games";
@@ -1483,13 +1464,6 @@ static menu_entry e_menu_plugin_gpu_peops[] =
 	mee_onoff_h   ("Fake 'gpu busy' states",     0, pl_rearmed_cbs.gpu_peops.dwActFixes, 1<<10, h_gpu_10),
 	mee_end,
 };
-
-static int menu_loop_plugin_gpu_peops(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_peops, &sel);
-	return 0;
-}
 
 static const char *men_peopsgl_texfilter[] = { "None", "Standard", "Extended",
 	"Standard-sprites", "Extended-sprites", "Standard+sprites", "Extended+sprites", NULL };
@@ -1521,13 +1495,6 @@ static menu_entry e_menu_plugin_gpu_peopsgl[] =
 	mee_end,
 };
 
-static int menu_loop_plugin_gpu_peopsgl(int id, int keys)
-{
-	static int sel = 0;
-	me_loop(e_menu_plugin_gpu_peopsgl, &sel);
-	return 0;
-}
-
 static const char *men_spu_interp[] = { "None", "Simple", "Gaussian", "Cubic", NULL };
 static const char h_spu_volboost[]  = "Large values cause distortion";
 static const char h_spu_tempo[]     = "Slows down audio if emu is too slow\n"
@@ -1556,19 +1523,61 @@ static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is sav
 				   "savestates and can't be changed there. Must save\n"
 				   "config and reload the game for change to take effect";
 static const char h_plugin_gpu[] = 
-#ifdef BUILTIN_GPU_NEON
+#if defined(BUILTIN_GPU_NEON)
 				   "builtin_gpu is the NEON GPU, very fast and accurate\n"
+#elif defined(BUILTIN_GPU_PEOPS)
+				   "builtin_gpu is the P.E.Op.S GPU, slow but accurate\n"
+#elif defined(BUILTIN_GPU_UNAI)
+				   "builtin_gpu is the Unai GPU, very fast\n"
 #endif
+#ifndef NO_DYLIB
+#if !defined(BUILTIN_GPU_NEON) && defined(GPU_NEON)
+				   "gpu_neon is Exophase's NEON GPU, fast and accurate\n"
+#endif
+#ifndef BUILTIN_GPU_PEOPS
 				   "gpu_peops is Pete's soft GPU, slow but accurate\n"
+#endif
+#ifndef BUILTIN_GPU_UNAI
 				   "gpu_unai is the GPU renderer from PCSX4ALL\n"
+#endif
+#ifdef HAVE_GLES
 				   "gpu_gles Pete's hw GPU, uses 3D chip but is glitchy\n"
-				   "must save config and reload the game if changed";
-static const char h_plugin_spu[] = "spunull effectively disables sound\n"
-				   "must save config and reload the game if changed";
-static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
-static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
-static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
+#endif
+				   "must save config and reload the game if changed"
+#endif
+				   ;
+static const char h_plugin_spu[] = ""
+#ifndef NO_DYLIB
+				   "spunull effectively disables sound\n"
+				   "must save config and reload the game if changed"
+#endif
+;
+// static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
+// static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
+// static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
 static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1.7";
+
+static int menu_loop_pluginsel_options(int id, int keys)
+{
+	static int sel = 0;
+	if (strcmp(gpu_plugins[gpu_plugsel], "gpu_peops.so") == 0)
+		me_loop(e_menu_plugin_gpu_peops, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_unai.so") == 0)
+		me_loop(e_menu_plugin_gpu_unai, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_gles.so") == 0)
+		me_loop(e_menu_plugin_gpu_peopsgl, &sel);
+	else if (strcmp(gpu_plugins[gpu_plugsel], "gpu_neon.so") == 0)
+		me_loop(e_menu_plugin_gpu_neon, &sel);
+	else
+#if defined(BUILTIN_GPU_NEON)
+		me_loop(e_menu_plugin_gpu_neon, &sel);
+#elif defined(BUILTIN_GPU_PEOPS)
+		me_loop(e_menu_plugin_gpu_peops, &sel);
+#elif defined(BUILTIN_GPU_UNAI)
+		me_loop(e_menu_plugin_gpu_unai, &sel);
+#endif
+	return 0;
+}
 
 static menu_entry e_menu_plugin_options[] =
 {
@@ -1576,12 +1585,7 @@ static menu_entry e_menu_plugin_options[] =
 	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
-#ifdef BUILTIN_GPU_NEON
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
-#endif
-	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
-	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
-	mee_handler_h ("Configure gpu_gles GPU plugin", menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
+	mee_handler   ("Configure selected GPU plugin", menu_loop_pluginsel_options),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };
@@ -2063,9 +2067,7 @@ static const char credits_text[] =
 	"(C) 2005-2009 PCSX-df Team\n"
 	"(C) 2009-2011 PCSX-Reloaded Team\n\n"
 	"ARM recompiler (C) 2009-2011 Ari64\n"
-#ifdef BUILTIN_GPU_NEON
 	"ARM NEON GPU (c) 2011-2012 Exophase\n"
-#endif
 	"PEOpS GPU and SPU by Pete Bernert\n"
 	"  and the P.E.Op.S. team\n"
 	"PCSX4ALL plugin by PCSX4ALL team\n"
@@ -2094,7 +2096,6 @@ static int reload_plugins(const char *cdimg)
 	set_cd_image(cdimg);
 	LoadPlugins();
 	pcnt_hook_plugins();
-	NetOpened = 0;
 	if (OpenPlugins() == -1) {
 		menu_update_msg("failed to open plugins");
 		return -1;
@@ -2489,7 +2490,6 @@ static void scan_bios_plugins(void)
 	char fname[MAXPATHLEN];
 	struct dirent *ent;
 	int bios_i, gpu_i, spu_i, mc_i;
-	char *p;
 	DIR *dir;
 
 	bioses[0] = "HLE";
@@ -2502,7 +2502,11 @@ static void scan_bios_plugins(void)
 	dir = opendir(fname);
 	if (dir == NULL) {
 		perror("scan_bios_plugins bios opendir");
+#ifndef NO_DYLIB
 		goto do_plugins;
+#else
+		goto do_memcards;
+#endif
 	}
 
 	while (1) {
@@ -2536,6 +2540,7 @@ static void scan_bios_plugins(void)
 
 	closedir(dir);
 
+#ifndef NO_DYLIB
 do_plugins:
 	snprintf(fname, sizeof(fname), "%s/", Config.PluginsDir);
 	dir = opendir(fname);
@@ -2546,6 +2551,7 @@ do_plugins:
 
 	while (1) {
 		void *h, *tmp;
+		char *p;
 
 		errno = 0;
 		ent = readdir(dir);
@@ -2587,6 +2593,7 @@ do_plugins:
 	}
 
 	closedir(dir);
+#endif
 
 do_memcards:
 	dir = opendir("." MEMCARD_DIR);

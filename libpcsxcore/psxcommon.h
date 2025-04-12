@@ -119,9 +119,6 @@ void __Log(char *fmt, ...);
 typedef struct {
 	char Gpu[MAXPATHLEN];
 	char Spu[MAXPATHLEN];
-	char Pad1[MAXPATHLEN];
-	char Pad2[MAXPATHLEN];
-	char Net[MAXPATHLEN];
 	char Sio1[MAXPATHLEN];
 	char Mcd1[MAXPATHLEN];
 	char Mcd2[MAXPATHLEN];
@@ -138,7 +135,6 @@ typedef struct {
 	boolean SlowBoot;
 	boolean Debug;
 	boolean PsxOut;
-	boolean UseNet;
 	boolean icache_emulation;
 	boolean DisableStalls;
 	boolean PreciseExceptions;
@@ -161,7 +157,6 @@ typedef struct {
 } PcsxConfig;
 
 extern PcsxConfig Config;
-extern boolean NetOpened;
 
 struct PcsxSaveFuncs {
 	void *(*open)(const char *name, const char *mode);

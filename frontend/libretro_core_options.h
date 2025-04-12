@@ -229,13 +229,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_psxclock",
       "PSX CPU Clock Speed (%)",
       NULL,
-      "Overclock or under-clock the PSX CPU. The value has to be lower than 100 because of some slowdowns (cache misses, hw access penalties, etc.) that are not emulated. Try adjusting this if the game is too slow, too fast or hangs."
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS)
-      " Default is 50."
-#else
-      " Default is 57."
-#endif
-      ,
+      "Overclock or under-clock the PSX CPU. Should be much less than 100 (something like 57) due to some real hardware slowdowns not being emulated. Usually should be left at 'Auto', else glitches or hangs are likely.",
       NULL,
       "system",
       {

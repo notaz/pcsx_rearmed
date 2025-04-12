@@ -468,15 +468,15 @@ static void emit_loadreg(int r, int hr)
 static void emit_storereg(int r, int hr)
 {
   assert(hr != EXCLUDE_REG);
-  int addr = (int)&psxRegs.GPR.r[r];
+  void *addr;
   switch (r) {
   //case HIREG: addr = &hi; break;
   //case LOREG: addr = &lo; break;
-  case CCREG: addr = (int)&cycle_count; break;
-  default: assert(r < 34); break;
+  case CCREG: addr = &cycle_count; break;
+  default: assert(r < 34u); addr = &psxRegs.GPR.r[r]; break;
   }
-  u_int offset = addr-(u_int)&dynarec_local;
-  assert(offset<4096);
+  uintptr_t offset = (char *)addr - (char *)&dynarec_local;
+  assert(offset < 4096u);
   assem_debug("str %s,fp+%d # r%d\n",regname[hr],offset,r);
   output_w32(0xe5800000|rd_rn_rm(hr,FP,0)|offset);
 }
