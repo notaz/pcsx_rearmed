@@ -272,7 +272,7 @@ FUNCTION(gteRTPS_neon): @ r0=CP2 (d,c),
     subs        r2, r4, #1
     orrvs       lr, #(1<<15)   @ F
     orrvs       lr, #(1<<31)
-    cmp         r4, #0x1000
+    cmp         r4, #0x1000<<12
     orrhi       lr, #(1<<12)   @ limH
 
     str         lr, [r0, #4*(32+31)] @ gteFLAG
@@ -512,7 +512,7 @@ FUNCTION(gteRTPT_neon): @ r0=CP2 (d,c),
     subs        r2, r4, #1
     orrvs       lr, #(1<<15)
     orrvs       lr, #(1<<31)   @ F
-    cmp         r4, #0x1000
+    cmp         r4, #0x1000<<12
     orrhi       lr, #(1<<12)   @ limH
 
     str         lr, [r0, #4*(32+31)] @ gteFLAG
