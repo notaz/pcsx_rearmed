@@ -380,6 +380,8 @@ static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
    unsigned char *dest = vout_buf_ptr;
    const unsigned char *vram = vram_;
    int dstride = vout_pitch_b, h1 = h;
+   int enhres = w > psx_w;
+   u32 vram_mask = enhres ? ~0 : 0xfffff;
    int port = 0, hwrapped;
 
    if (vram == NULL || dims_changed || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
@@ -400,11 +402,11 @@ static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
 
    for (; h1-- > 0; dest += dstride) {
       bgr_to_fb(dest, vram + vram_ofs, w * bytes_pp_s);
-      vram_ofs = (vram_ofs + 2048) & 0xfffff;
+      vram_ofs = (vram_ofs + 2048) & vram_mask;
    }
 
    hwrapped = (vram_ofs & 2047) + w * bytes_pp_s - 2048;
-   if (hwrapped > 0) {
+   if (!enhres && hwrapped > 0) {
       // this is super-rare so just fix-up
       vram_ofs = (vram_ofs - h * 2048) & 0xff800;
       dest -= dstride * h;

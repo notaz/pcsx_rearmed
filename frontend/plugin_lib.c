@@ -318,6 +318,7 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	const unsigned char *vram = vram_;
 	int dstride = pl_vout_w, h1 = h;
 	int h_full = pl_vout_h - pl_vout_yoffset;
+	int enhres = w > psx_w;
 	int xoffs = 0, doffs;
 	int hwrapped;
 
@@ -438,13 +439,14 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 #endif
 	else
 	{
+		unsigned int vram_mask = enhres ? ~0 : 0xfffff;
 		for (; h1-- > 0; dest += dstride * 2) {
 			bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
-			vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			vram_ofs = (vram_ofs + 2048) & vram_mask;
 		}
 
 		hwrapped = (vram_ofs & 2047) + w * 2 - 2048;
-		if (hwrapped > 0) {
+		if (!enhres && hwrapped > 0) {
 			vram_ofs = (vram_ofs - h * 2048) & 0xff800;
 			dest -= dstride * 2 * h;
 			dest += w * 2 - hwrapped;
