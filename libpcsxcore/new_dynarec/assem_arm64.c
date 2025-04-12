@@ -523,12 +523,12 @@ static void emit_writedword(u_int rt, void *addr)
 static void emit_storereg(u_int r, u_int hr)
 {
   assert(r < 64);
-  void *addr = &psxRegs.GPR.r[r];
+  void *addr;
   switch (r) {
   //case HIREG: addr = &hi; break;
   //case LOREG: addr = &lo; break;
   case CCREG: addr = &cycle_count; break;
-  default: assert(r < 34); break;
+  default: assert(r < 34u); addr = &psxRegs.GPR.r[r]; break;
   }
   emit_writeword(hr, addr);
 }
