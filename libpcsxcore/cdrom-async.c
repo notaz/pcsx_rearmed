@@ -26,76 +26,7 @@
 
 #ifdef HAVE_CDROM
 
-#include "vfs/vfs_implementation.h"
-#include "vfs/vfs_implementation_cdrom.h"
-#include "../frontend/libretro-cdrom.h"
-
-static libretro_vfs_implementation_file *g_cd_handle;
-
-static int rcdrom_open(const char *name, u32 *total_lba)
-{
-   g_cd_handle = retro_vfs_file_open_impl(name, RETRO_VFS_FILE_ACCESS_READ,
-        RETRO_VFS_FILE_ACCESS_HINT_NONE);
-   if (!g_cd_handle) {
-      SysPrintf("retro_vfs_file_open failed for '%s'\n", name);
-      return -1;
-   }
-   else {
-      int ret = cdrom_set_read_speed_x(g_cd_handle, 4);
-      if (ret) SysPrintf("CD speed set failed\n");
-      const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
-      const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
-      unsigned int lba = MSF2SECT(last->min, last->sec, last->frame);
-      *total_lba = lba + last->track_size;
-      //cdrom_get_current_config_random_readable(acdrom.h);
-      //cdrom_get_current_config_multiread(acdrom.h);
-      //cdrom_get_current_config_cdread(acdrom.h);
-      //cdrom_get_current_config_profiles(acdrom.h);
-      return 0;
-   }
-}
-
-static void rcdrom_close(void)
-{
-   if (g_cd_handle) {
-      retro_vfs_file_close_impl(g_cd_handle);
-      g_cd_handle = NULL;
-   }
-}
-
-static int rcdrom_getTN(u8 *tn)
-{
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
-   if (toc) {
-     tn[0] = 1;
-     tn[1] = toc->num_tracks;
-     return 0;
-   }
-   return -1;
-}
-
-static int rcdrom_getTD(u32 total_lba, u8 track, u8 *rt)
-{
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
-   rt[0] = 0, rt[1] = 2, rt[2] = 0;
-   if (track == 0) {
-      lba2msf(total_lba + 150, &rt[0], &rt[1], &rt[2]);
-   }
-   else if (track <= toc->num_tracks) {
-      int i = track - 1;
-      rt[0] = toc->track[i].min;
-      rt[1] = toc->track[i].sec;
-      rt[2] = toc->track[i].frame;
-   }
-   return 0;
-}
-
-static int rcdrom_getStatus(struct CdrStat *stat)
-{
-   const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
-   stat->Type = toc->track[0].audio ? 2 : 1;
-   return 0;
-}
+extern void *g_cd_handle;
 
 #elif defined(USE_ASYNC_CDROM)
 
