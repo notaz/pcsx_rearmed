@@ -30,12 +30,13 @@ static void *g_cd_handle;
 
 #ifndef HAVE_CDROM
 
-static void *rcdrom_open(const char *name, u32 *total_lba) { return NULL; }
+static void *rcdrom_open(const char *name, u32 *total_lba, u32 *have_sub) { return NULL; }
 static void rcdrom_close(void *stream) {}
 static int  rcdrom_getTN(void *stream, u8 *tn) { return -1; }
 static int  rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt) { return -1; }
 static int  rcdrom_getStatus(void *stream, struct CdrStat *stat) { return -1; }
 static int  rcdrom_readSector(void *stream, unsigned int lba, void *b) { return -1; }
+static int  rcdrom_readSub(void *stream, unsigned int lba, void *b) { return -1; }
 static int  rcdrom_isMediaInserted(void *stream) { return 0; }
 
 #endif
@@ -72,8 +73,12 @@ static void lbacache_do(u32 lba)
       ret = rcdrom_readSector(g_cd_handle, lba, buf);
    else
       ret = ISOreadTrack(msf, buf);
-   if (acdrom.have_subchannel)
-      ret |= ISOreadSub(msf, buf_sub);
+   if (acdrom.have_subchannel) {
+      if (g_cd_handle)
+         ret |= rcdrom_readSub(g_cd_handle, lba, buf_sub);
+      else
+         ret |= ISOreadSub(msf, buf_sub);
+   }
 
    slock_lock(acdrom.buf_lock);
    slock_unlock(acdrom.read_lock);
@@ -227,7 +232,7 @@ int cdra_open(void)
    acdrom_dbg("%s %s\n", __func__, name);
    acdrom.have_subchannel = 0;
    if (!strncmp(name, "cdrom:", 6)) {
-      g_cd_handle = rcdrom_open(name, &acdrom.total_lba);
+      g_cd_handle = rcdrom_open(name, &acdrom.total_lba, &acdrom.have_subchannel);
       if (!!g_cd_handle)
          ret = 0;
    }
@@ -324,8 +329,12 @@ static int cdra_do_read(const unsigned char *time, int cdda,
       acdrom.do_prefetch = 0;
       if (!buf)
          buf = acdrom.buf_local;
-      if (g_cd_handle)
-         ret = rcdrom_readSector(g_cd_handle, lba, buf);
+      if (g_cd_handle) {
+         if (buf_sub)
+            ret = rcdrom_readSub(g_cd_handle, lba, buf_sub);
+         else
+            ret = rcdrom_readSector(g_cd_handle, lba, buf);
+      }
       else if (buf_sub)
          ret = ISOreadSub(time, buf_sub);
       else if (cdda)

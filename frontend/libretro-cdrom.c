@@ -71,7 +71,7 @@ int rcdrom_readSector(void *stream, unsigned int lba, void *b)
    return cdrom_send_command_once(stream, DIRECTION_IN, b, 2352, cmd, sizeof(cmd));
 }
 
-void *rcdrom_open(const char *name, u32 *total_lba)
+void *rcdrom_open(const char *name, u32 *total_lba, u32 *have_subchannel)
 {
    void *g_cd_handle = retro_vfs_file_open_impl(name, RETRO_VFS_FILE_ACCESS_READ,
         RETRO_VFS_FILE_ACCESS_HINT_NONE);
@@ -86,6 +86,7 @@ void *rcdrom_open(const char *name, u32 *total_lba)
       const cdrom_track_t *last = &toc->track[toc->num_tracks - 1];
       unsigned int lba = MSF2SECT(last->min, last->sec, last->frame);
       *total_lba = lba + last->track_size;
+      *have_subchannel = 0;
       //cdrom_get_current_config_random_readable(acdrom.h);
       //cdrom_get_current_config_multiread(acdrom.h);
       //cdrom_get_current_config_cdread(acdrom.h);
@@ -136,6 +137,11 @@ int rcdrom_getStatus(void *stream, struct CdrStat *stat)
 int rcdrom_isMediaInserted(void *stream)
 {
    return cdrom_is_media_inserted(stream);
+}
+
+int rcdrom_readSub(void *stream, unsigned int lba, void *b)
+{
+   return -1;
 }
 
 // vim:sw=3:ts=3:expandtab
