@@ -7,14 +7,13 @@ extern "C" {
 struct CdrStat;
 
 #ifdef HAVE_CDROM
-int  rcdrom_open(const char *name, u32 *total_lba);
-void rcdrom_close(void);
-int  rcdrom_getTN(u8 *tn);
-int  rcdrom_getTD(u32 total_lba, u8 track, u8 *rt);
-int  rcdrom_getStatus(struct CdrStat *stat);
-
-int cdrom_read_sector(void *stream, unsigned int lba, void *b);
-int cdrom_is_media_inserted(void *stream);
+void *rcdrom_open(const char *name, u32 *total_lba);
+void rcdrom_close(void *stream);
+int  rcdrom_getTN(void *stream, u8 *tn);
+int  rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt);
+int  rcdrom_getStatus(void *stream, struct CdrStat *stat);
+int  rcdrom_readSector(void *stream, unsigned int lba, void *b);
+int  rcdrom_isMediaInserted(void *stream);
 #endif
 
 int  cdra_init(void);

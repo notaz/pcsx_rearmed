@@ -24,26 +24,21 @@
 #define acdrom_dbg(...)
 #endif
 
-#ifdef HAVE_CDROM
+#ifdef USE_ASYNC_CDROM
 
-extern void *g_cd_handle;
+static void *g_cd_handle;
 
-#elif defined(USE_ASYNC_CDROM)
+#ifndef HAVE_CDROM
 
-#define g_cd_handle 0
-
-static int  rcdrom_open(const char *name, u32 *total_lba) { return -1; }
-static void rcdrom_close(void) {}
-static int  rcdrom_getTN(u8 *tn) { return -1; }
-static int  rcdrom_getTD(u32 total_lba, u8 track, u8 *rt) { return -1; }
-static int  rcdrom_getStatus(struct CdrStat *stat) { return -1; }
-
-static int cdrom_read_sector(void *stream, unsigned int lba, void *b) { return -1; }
-static int cdrom_is_media_inserted(void *stream) { return 0; }
+static void *rcdrom_open(const char *name, u32 *total_lba) { return NULL; }
+static void rcdrom_close(void *stream) {}
+static int  rcdrom_getTN(void *stream, u8 *tn) { return -1; }
+static int  rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt) { return -1; }
+static int  rcdrom_getStatus(void *stream, struct CdrStat *stat) { return -1; }
+static int  rcdrom_readSector(void *stream, unsigned int lba, void *b) { return -1; }
+static int  rcdrom_isMediaInserted(void *stream) { return 0; }
 
 #endif
-
-#ifdef USE_ASYNC_CDROM
 
 #include "../frontend/libretro-rthreads.h"
 #include "retro_timers.h"
@@ -74,7 +69,7 @@ static void lbacache_do(u32 lba)
    lba2msf(lba + 150, &msf[0], &msf[1], &msf[2]);
    slock_lock(acdrom.read_lock);
    if (g_cd_handle)
-      ret = cdrom_read_sector(g_cd_handle, lba, buf);
+      ret = rcdrom_readSector(g_cd_handle, lba, buf);
    else
       ret = ISOreadTrack(msf, buf);
    if (acdrom.have_subchannel)
@@ -231,8 +226,11 @@ int cdra_open(void)
 
    acdrom_dbg("%s %s\n", __func__, name);
    acdrom.have_subchannel = 0;
-   if (!strncmp(name, "cdrom:", 6))
-      ret = rcdrom_open(name, &acdrom.total_lba);
+   if (!strncmp(name, "cdrom:", 6)) {
+      g_cd_handle = rcdrom_open(name, &acdrom.total_lba);
+      if (!!g_cd_handle)
+         ret = 0;
+   }
 
    // try ISO even if it's cdrom:// as it might work through libretro vfs
    if (ret < 0) {
@@ -256,7 +254,7 @@ void cdra_close(void)
    acdrom_dbg("%s\n", __func__);
    cdra_stop_thread();
    if (g_cd_handle)
-      rcdrom_close();
+      rcdrom_close(g_cd_handle);
    else
       ISOclose();
 }
@@ -265,7 +263,7 @@ int cdra_getTN(unsigned char *tn)
 {
    int ret;
    if (g_cd_handle)
-      ret = rcdrom_getTN(tn);
+      ret = rcdrom_getTN(g_cd_handle, tn);
    else
       ret = ISOgetTN(tn);
    acdrom_dbg("%s -> %d %d\n", __func__, tn[0], tn[1]);
@@ -276,7 +274,7 @@ int cdra_getTD(int track, unsigned char *rt)
 {
    int ret;
    if (g_cd_handle)
-      ret = rcdrom_getTD(acdrom.total_lba, track, rt);
+      ret = rcdrom_getTD(g_cd_handle, acdrom.total_lba, track, rt);
    else
       ret = ISOgetTD(track, rt);
    //acdrom_dbg("%s %d -> %d:%02d:%02d\n", __func__, track, rt[2], rt[1], rt[0]);
@@ -327,7 +325,7 @@ static int cdra_do_read(const unsigned char *time, int cdda,
       if (!buf)
          buf = acdrom.buf_local;
       if (g_cd_handle)
-         ret = cdrom_read_sector(g_cd_handle, lba, buf);
+         ret = rcdrom_readSector(g_cd_handle, lba, buf);
       else if (buf_sub)
          ret = ISOreadSub(time, buf_sub);
       else if (cdda)
@@ -388,7 +386,7 @@ int cdra_getStatus(struct CdrStat *stat)
    int ret;
    CDR__getStatus(stat);
    if (g_cd_handle)
-      ret = rcdrom_getStatus(stat);
+      ret = rcdrom_getStatus(g_cd_handle, stat);
    else
       ret = ISOgetStatus(stat);
    return ret;
@@ -404,7 +402,7 @@ int cdra_check_eject(int *inserted)
    if (!g_cd_handle || acdrom.do_prefetch || acdrom.check_eject_delay-- > 0)
       return 0;
    acdrom.check_eject_delay = 100;
-   *inserted = cdrom_is_media_inserted(g_cd_handle); // 1-2ms
+   *inserted = rcdrom_isMediaInserted(g_cd_handle); // 1-2ms
    return 1;
 }
 

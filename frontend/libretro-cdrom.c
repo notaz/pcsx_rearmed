@@ -10,8 +10,6 @@
 //#include "vfs/vfs_implementation.h"
 #include "vfs/vfs_implementation_cdrom.h"
 
-void *g_cd_handle;
-
 static int cdrom_send_command_dummy(const libretro_vfs_implementation_file *stream,
       CDROM_CMD_Direction dir, void *buf, size_t len, unsigned char *cmd, size_t cmd_len,
       unsigned char *sense, size_t sense_len)
@@ -63,8 +61,7 @@ int cdrom_set_read_speed_x(libretro_vfs_implementation_file *stream, unsigned sp
    return ret;
 }
 
-int cdrom_read_sector(libretro_vfs_implementation_file *stream,
-      unsigned int lba, void *b)
+int rcdrom_readSector(void *stream, unsigned int lba, void *b)
 {
    unsigned char cmd[] = {0xBE, 0, 0, 0, 0, 0, 0, 0, 1, 0xF8, 0, 0};
    cmd[2] = lba >> 24;
@@ -74,13 +71,13 @@ int cdrom_read_sector(libretro_vfs_implementation_file *stream,
    return cdrom_send_command_once(stream, DIRECTION_IN, b, 2352, cmd, sizeof(cmd));
 }
 
-int rcdrom_open(const char *name, u32 *total_lba)
+void *rcdrom_open(const char *name, u32 *total_lba)
 {
-   g_cd_handle = retro_vfs_file_open_impl(name, RETRO_VFS_FILE_ACCESS_READ,
+   void *g_cd_handle = retro_vfs_file_open_impl(name, RETRO_VFS_FILE_ACCESS_READ,
         RETRO_VFS_FILE_ACCESS_HINT_NONE);
    if (!g_cd_handle) {
       SysPrintf("retro_vfs_file_open failed for '%s'\n", name);
-      return -1;
+      return NULL;
    }
    else {
       int ret = cdrom_set_read_speed_x(g_cd_handle, 4);
@@ -93,19 +90,16 @@ int rcdrom_open(const char *name, u32 *total_lba)
       //cdrom_get_current_config_multiread(acdrom.h);
       //cdrom_get_current_config_cdread(acdrom.h);
       //cdrom_get_current_config_profiles(acdrom.h);
-      return 0;
+      return g_cd_handle;
    }
 }
 
-void rcdrom_close(void)
+void rcdrom_close(void *stream)
 {
-   if (g_cd_handle) {
-      retro_vfs_file_close_impl(g_cd_handle);
-      g_cd_handle = NULL;
-   }
+   retro_vfs_file_close_impl(stream);
 }
 
-int rcdrom_getTN(u8 *tn)
+int rcdrom_getTN(void *stream, u8 *tn)
 {
    const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
    if (toc) {
@@ -116,7 +110,7 @@ int rcdrom_getTN(u8 *tn)
    return -1;
 }
 
-int rcdrom_getTD(u32 total_lba, u8 track, u8 *rt)
+int rcdrom_getTD(void *stream, u32 total_lba, u8 track, u8 *rt)
 {
    const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
    rt[0] = 0, rt[1] = 2, rt[2] = 0;
@@ -132,11 +126,16 @@ int rcdrom_getTD(u32 total_lba, u8 track, u8 *rt)
    return 0;
 }
 
-int rcdrom_getStatus(struct CdrStat *stat)
+int rcdrom_getStatus(void *stream, struct CdrStat *stat)
 {
    const cdrom_toc_t *toc = retro_vfs_file_get_cdrom_toc();
    stat->Type = toc->track[0].audio ? 2 : 1;
    return 0;
+}
+
+int rcdrom_isMediaInserted(void *stream)
+{
+   return cdrom_is_media_inserted(stream);
 }
 
 // vim:sw=3:ts=3:expandtab
