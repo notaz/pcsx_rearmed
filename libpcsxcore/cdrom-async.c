@@ -277,14 +277,14 @@ int cdra_open(void)
 
    acdrom_dbg("%s %s\n", __func__, name);
    acdrom.have_subchannel = 0;
-   if (!strncmp(name, "cdrom:", 6)) {
+   if (!name[0] || !strncmp(name, "cdrom:", 6)) {
       g_cd_handle = rcdrom_open(name, &acdrom.total_lba, &acdrom.have_subchannel);
       if (!!g_cd_handle)
          ret = 0;
    }
 
    // try ISO even if it's cdrom:// as it might work through libretro vfs
-   if (ret < 0) {
+   if (name[0] && ret < 0) {
       ret = ISOopen(name);
       if (ret == 0) {
          u8 msf[3];
