@@ -10,6 +10,7 @@
  *   GNU General Public License for more details.                          *
  ***************************************************************************/
 
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 #include "system.h"
@@ -104,12 +105,15 @@ static struct {
    u32 buf_cnt, thread_exit, do_prefetch, prefetch_failed, have_subchannel;
    u32 total_lba, prefetch_lba;
    int check_eject_delay;
-   u8 buf_local[CD_FRAMESIZE_RAW];  // single sector cache, not touched by the thread
+
+   // single sector cache, not touched by the thread
+   alignas(64) u8 buf_local[CD_FRAMESIZE_RAW_ALIGNED];
 } acdrom;
 
 static void lbacache_do(u32 lba)
 {
-   unsigned char msf[3], buf[CD_FRAMESIZE_RAW], buf_sub[SUB_FRAMESIZE];
+   alignas(64) unsigned char buf[CD_FRAMESIZE_RAW_ALIGNED];
+   unsigned char msf[3], buf_sub[SUB_FRAMESIZE];
    u32 i = lba % acdrom.buf_cnt;
    int ret;
 

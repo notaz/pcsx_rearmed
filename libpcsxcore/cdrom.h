@@ -41,6 +41,10 @@ extern "C" {
 #define CD_FRAMESIZE_RAW		2352
 #define DATA_SIZE				(CD_FRAMESIZE_RAW - 12)
 
+/* CD_FRAMESIZE_RAW aligned to a cache line for DMA buffers
+ * (assuming a cache line of max. 64 bytes) */
+#define CD_FRAMESIZE_RAW_ALIGNED	2368
+
 #define SUB_FRAMESIZE			96
 
 #define MSF2SECT(m, s, f)		(((m) * 60 + (s) - 2) * 75 + (f))

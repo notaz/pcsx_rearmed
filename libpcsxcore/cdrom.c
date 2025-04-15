@@ -21,6 +21,7 @@
 * Handles all CD-ROM registers and functions.
 */
 
+#include <stdalign.h>
 #include <assert.h>
 #include "cdrom.h"
 #include "cdrom-async.h"
@@ -124,7 +125,7 @@ static struct {
 	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
 	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
 } cdr;
-static s16 read_buf[CD_FRAMESIZE_RAW/2];
+alignas(64) static s16 read_buf[CD_FRAMESIZE_RAW_ALIGNED / 2];
 
 struct SubQ {
 	char res0[12];
