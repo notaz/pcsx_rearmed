@@ -61,6 +61,10 @@
 #  endif
 #endif
 
+#ifndef GPUSTATUS_POLLING_THRESHOLD
+#  define GPUSTATUS_POLLING_THRESHOLD 0
+#endif
+
 psxRegisters psxRegs;
 Rcnt rcnts[4];
 
@@ -234,11 +238,29 @@ static u16 hw_read_half(struct lightrec_state *state,
 static u32 hw_read_word(struct lightrec_state *state,
 			u32 op, void *host, u32 mem)
 {
-	u32 val;
+	static u32 old_cycle, oldold_cycle, old_gpusr;
+	u32 val, diff;
 
 	lightrec_tansition_to_pcsx(state);
 
 	val = psxHwRead32(mem);
+
+	if (GPUSTATUS_POLLING_THRESHOLD > 0 && mem == 0x1f801814) {
+		diff = psxRegs.cycle - old_cycle;
+
+		if (diff > 0
+		    && diff < GPUSTATUS_POLLING_THRESHOLD
+		    && diff == old_cycle - oldold_cycle) {
+			while (psxRegs.next_interupt > psxRegs.cycle && val == old_gpusr) {
+				psxRegs.cycle += diff;
+				val = psxHwRead32(mem);
+			}
+		}
+
+		oldold_cycle = old_cycle;
+		old_cycle = psxRegs.cycle;
+		old_gpusr = val;
+	}
 
 	lightrec_tansition_from_pcsx(state);
 
