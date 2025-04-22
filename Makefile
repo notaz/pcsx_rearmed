@@ -463,6 +463,7 @@ endif
 ifeq "$(USE_FRONTEND)" "1"
 OBJS += frontend/menu.o
 OBJS += frontend/libpicofe/input.o
+frontend/libpicofe/input.o: CFLAGS += -Wno-array-bounds
 frontend/menu.o: frontend/libpicofe/menu.c
 ifeq "$(HAVE_TSLIB)" "1"
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
