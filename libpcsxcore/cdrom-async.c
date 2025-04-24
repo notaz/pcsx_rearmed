@@ -308,8 +308,10 @@ void cdra_close(void)
 {
    acdrom_dbg("%s\n", __func__);
    cdra_stop_thread();
-   if (g_cd_handle)
+   if (g_cd_handle) {
       rcdrom_close(g_cd_handle);
+      g_cd_handle = NULL;
+   }
    else
       ISOclose();
 }
