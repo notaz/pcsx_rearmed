@@ -48,6 +48,7 @@ void  pl_force_clear(void);
 
 void  pl_timing_prepare(int is_pal);
 void  pl_frame_limit(void);
+void  pl_update_layer_size(int w, int h, int fw, int fh);
 
 // for communication with gpulib
 struct rearmed_cbs {

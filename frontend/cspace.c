@@ -168,36 +168,53 @@ void bgr888_to_xrgb8888(void * __restrict__ dst_, const void * __restrict__ src_
 /* YUV stuff */
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
 static unsigned char yuv_u[32 * 2], yuv_v[32 * 2];
+static struct uyvy { uint32_t y:8; uint32_t vyu:24; } yuv_uyvy[32768];
 
 void bgr_to_uyvy_init(void)
 {
-  int i, v;
+	unsigned char yuv_y[256];
+	int i, v;
 
-  /* init yuv converter:
-    y0 = (int)((0.299f * r0) + (0.587f * g0) + (0.114f * b0));
-    y1 = (int)((0.299f * r1) + (0.587f * g1) + (0.114f * b1));
-    u = (int)(8 * 0.565f * (b0 - y0)) + 128;
-    v = (int)(8 * 0.713f * (r0 - y0)) + 128;
-  */
-  for (i = 0; i < 32; i++) {
-    yuv_ry[i] = (int)(0.299f * i * 65536.0f + 0.5f);
-    yuv_gy[i] = (int)(0.587f * i * 65536.0f + 0.5f);
-    yuv_by[i] = (int)(0.114f * i * 65536.0f + 0.5f);
-  }
-  for (i = -32; i < 32; i++) {
-    v = (int)(8 * 0.565f * i) + 128;
-    if (v < 0)
-      v = 0;
-    if (v > 255)
-      v = 255;
-    yuv_u[i + 32] = v;
-    v = (int)(8 * 0.713f * i) + 128;
-    if (v < 0)
-      v = 0;
-    if (v > 255)
-      v = 255;
-    yuv_v[i + 32] = v;
-  }
+	/* init yuv converter:
+	   y0 = (int)((0.299f * r0) + (0.587f * g0) + (0.114f * b0));
+	   y1 = (int)((0.299f * r1) + (0.587f * g1) + (0.114f * b1));
+	   u = (int)(8 * 0.565f * (b0 - y0)) + 128;
+	   v = (int)(8 * 0.713f * (r0 - y0)) + 128;
+	   */
+	for (i = 0; i < 32; i++) {
+		yuv_ry[i] = (int)(0.299f * i * 65536.0f + 0.5f);
+		yuv_gy[i] = (int)(0.587f * i * 65536.0f + 0.5f);
+		yuv_by[i] = (int)(0.114f * i * 65536.0f + 0.5f);
+	}
+	for (i = -32; i < 32; i++) {
+		v = (int)(8 * 0.565f * i) + 128;
+		if (v < 0)
+			v = 0;
+		if (v > 255)
+			v = 255;
+		yuv_u[i + 32] = v;
+		v = (int)(8 * 0.713f * i) + 128;
+		if (v < 0)
+			v = 0;
+		if (v > 255)
+			v = 255;
+		yuv_v[i + 32] = v;
+	}
+	// valid Y range seems to be 16..235
+	for (i = 0; i < 256; i++) {
+		yuv_y[i] = 16 + 219 * i / 32;
+	}
+	// everything combined into one large array for speed
+	for (i = 0; i < 32768; i++) {
+		int r = (i >> 0) & 0x1f, g = (i >> 5) & 0x1f, b = (i >> 10) & 0x1f;
+		int y = (yuv_ry[r] + yuv_gy[g] + yuv_by[b]) >> 16;
+		yuv_uyvy[i].y = yuv_y[y];
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		yuv_uyvy[i].vyu = (yuv_v[b-y + 32] << 16) | (yuv_y[y] << 8) | yuv_u[r-y + 32];
+#else
+		yuv_uyvy[i].vyu = (yuv_v[r-y + 32] << 16) | (yuv_y[y] << 8) | yuv_u[b-y + 32];
+#endif
+	}
 }
 
 void rgb565_to_uyvy(void *d, const void *s, int pixels)
@@ -229,54 +246,89 @@ void rgb565_to_uyvy(void *d, const void *s, int pixels)
   }
 }
 
-void bgr555_to_uyvy(void *d, const void *s, int pixels)
+void bgr555_to_uyvy(void *d, const void *s, int pixels, int x2)
 {
-  unsigned int *dst = d;
-  const unsigned short *src = s;
-  const unsigned char *yu = yuv_u + 32;
-  const unsigned char *yv = yuv_v + 32;
-  int r0, g0, b0, r1, g1, b1;
-  int y0, y1, u, v;
+	uint32_t *dst = d;
+	const uint16_t *src = s;
+	int i;
 
-  for (; pixels > 1; src += 2, dst++, pixels -= 2)
-  {
-    b0 = (src[0] >> 10) & 0x1f;
-    g0 = (src[0] >> 5) & 0x1f;
-    r0 =  src[0] & 0x1f;
-    b1 = (src[1] >> 10) & 0x1f;
-    g1 = (src[1] >> 5) & 0x1f;
-    r1 =  src[1] & 0x1f;
-    y0 = (yuv_ry[r0] + yuv_gy[g0] + yuv_by[b0]) >> 16;
-    y1 = (yuv_ry[r1] + yuv_gy[g1] + yuv_by[b1]) >> 16;
-    u = yu[b0 - y0];
-    v = yv[r0 - y0];
-    y0 = 16 + 219 * y0 / 31;
-    y1 = 16 + 219 * y1 / 31;
-
-    *dst = (y1 << 24) | (v << 16) | (y0 << 8) | u;
-  }
+	if (x2) {
+		for (i = pixels; i >= 4; src += 4, dst += 4, i -= 4)
+		{
+			const struct uyvy *uyvy0 = yuv_uyvy + (src[0] & 0x7fff);
+			const struct uyvy *uyvy1 = yuv_uyvy + (src[1] & 0x7fff);
+			const struct uyvy *uyvy2 = yuv_uyvy + (src[2] & 0x7fff);
+			const struct uyvy *uyvy3 = yuv_uyvy + (src[3] & 0x7fff);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			dst[0] = uyvy0->y | (uyvy0->vyu << 8);
+			dst[1] = uyvy1->y | (uyvy1->vyu << 8);
+			dst[2] = uyvy2->y | (uyvy2->vyu << 8);
+			dst[3] = uyvy3->y | (uyvy3->vyu << 8);
+#else
+			dst[0] = (uyvy0->y << 24) | uyvy0->vyu;
+			dst[1] = (uyvy1->y << 24) | uyvy1->vyu;
+			dst[2] = (uyvy2->y << 24) | uyvy2->vyu;
+			dst[3] = (uyvy3->y << 24) | uyvy3->vyu;
+#endif
+		}
+	} else {
+		for (i = pixels; i >= 4; src += 4, dst += 2, i -= 4)
+		{
+			const struct uyvy *uyvy0 = yuv_uyvy + (src[0] & 0x7fff);
+			const struct uyvy *uyvy1 = yuv_uyvy + (src[1] & 0x7fff);
+			const struct uyvy *uyvy2 = yuv_uyvy + (src[2] & 0x7fff);
+			const struct uyvy *uyvy3 = yuv_uyvy + (src[3] & 0x7fff);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+			dst[0] = uyvy1->y | (uyvy0->vyu << 8);
+			dst[1] = uyvy3->y | (uyvy2->vyu << 8);
+#else
+			dst[0] = (uyvy1->y << 24) | uyvy0->vyu;
+			dst[1] = (uyvy3->y << 24) | uyvy2->vyu;
+#endif
+		}
+	}
 }
 
-void bgr888_to_uyvy(void *d, const void *s, int pixels)
+void bgr888_to_uyvy(void *d, const void *s, int pixels, int x2)
 {
-  unsigned int *dst = d;
-  const unsigned char *src8 = s;
-  const unsigned char *yu = yuv_u + 32;
-  const unsigned char *yv = yuv_v + 32;
-  int r0, g0, b0, r1, g1, b1;
-  int y0, y1, u, v;
+	unsigned int *dst = d;
+	const unsigned char *src8 = s;
+	const unsigned char *yu = yuv_u + 32;
+	const unsigned char *yv = yuv_v + 32;
+	int r0, g0, b0, r1, g1, b1;
+	int y0, y1, u0, u1, v0, v1;
 
-  for (; pixels > 0; src8 += 3*2, dst++, pixels -= 2)
-  {
-    r0 = src8[0], g0 = src8[1], b0 = src8[2];
-    r1 = src8[3], g1 = src8[4], b1 = src8[5];
-    y0 = (r0 * 19595 + g0 * 38470 + b0 * 7471) >> 16;
-    y1 = (r1 * 19595 + g1 * 38470 + b1 * 7471) >> 16;
-    u = yu[(b0 - y0) / 8];
-    v = yv[(r0 - y0) / 8];
-    y0 = 16 + 219 * y0 / 255;
-    y1 = 16 + 219 * y1 / 255;
+	if (x2) {
+		for (; pixels >= 2; src8 += 3*2, pixels -= 2)
+		{
+			r0 = src8[0], g0 = src8[1], b0 = src8[2];
+			r1 = src8[3], g1 = src8[4], b1 = src8[5];
+			y0 = (r0 * 19595 + g0 * 38470 + b0 * 7471) >> 16;
+			y1 = (r1 * 19595 + g1 * 38470 + b1 * 7471) >> 16;
+			u0 = yu[(b0 - y0) / 8];
+			u1 = yu[(b1 - y1) / 8];
+			v0 = yv[(r0 - y0) / 8];
+			v1 = yv[(r1 - y1) / 8];
+			y0 = 16 + 219 * y0 / 255;
+			y1 = 16 + 219 * y1 / 255;
 
-    *dst = (y1 << 24) | (v << 16) | (y0 << 8) | u;
-  }
+			*dst++ = (y0 << 24) | (v0 << 16) | (y0 << 8) | u0;
+			*dst++ = (y1 << 24) | (v1 << 16) | (y1 << 8) | u1;
+		}
+	}
+	else {
+		for (; pixels >= 2; src8 += 3*2, dst++, pixels -= 2)
+		{
+			r0 = src8[0], g0 = src8[1], b0 = src8[2];
+			r1 = src8[3], g1 = src8[4], b1 = src8[5];
+			y0 = (r0 * 19595 + g0 * 38470 + b0 * 7471) >> 16;
+			y1 = (r1 * 19595 + g1 * 38470 + b1 * 7471) >> 16;
+			u0 = yu[(b0 - y0) / 8];
+			v0 = yv[(r0 - y0) / 8];
+			y0 = 16 + 219 * y0 / 255;
+			y1 = 16 + 219 * y1 / 255;
+
+			*dst = (y1 << 24) | (v0 << 16) | (y0 << 8) | u0;
+		}
+	}
 }

@@ -363,9 +363,11 @@ endif
 
 ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/libpicofe/in_sdl.o
-OBJS += frontend/libpicofe/plat_sdl.o
+#OBJS += frontend/libpicofe/plat_sdl.o
 OBJS += frontend/libpicofe/plat_dummy.o
 OBJS += frontend/plat_sdl.o
+frontend/plat_sdl.o frontend/libpicofe/plat_sdl.o: CFLAGS += -DSDL_OVERLAY_2X
+frontend/menu.o: CFLAGS += -DSDL_OVERLAY_2X -DMENU_SHOW_VARSCALER=1
 ifeq "$(HAVE_EVDEV)" "1"
 OBJS += frontend/libpicofe/linux/in_evdev.o
 endif
@@ -387,6 +389,7 @@ OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pandora.o frontend/plat_omap.o
 frontend/main.o frontend/menu.o: CFLAGS += -include frontend/pandora/ui_feat.h
 frontend/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
+frontend/plugin_lib.o: CFLAGS += -DPANDORA
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 CFLAGS += -gdwarf-3

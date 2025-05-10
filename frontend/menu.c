@@ -94,6 +94,7 @@ typedef enum
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
 	MA_OPT_VOUT_MODE,
+	MA_OPT_VOUT_FULL,
 	MA_OPT_SCANLINES,
 	MA_OPT_SCANLINE_LEVEL,
 	MA_OPT_CENTERING,
@@ -132,7 +133,6 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 
 #ifndef UI_FEATURES_H
 #define MENU_BIOS_PATH "bios/"
-#define MENU_SHOW_VARSCALER 0
 #define MENU_SHOW_VOUTMODE 1
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 0
@@ -141,6 +141,12 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #define MENU_SHOW_MINIMIZE 0
 #define MENU_SHOW_FULLSCREEN 1
 #define MENU_SHOW_VOLUME 0
+#endif
+#ifndef MENU_SHOW_VARSCALER
+#define MENU_SHOW_VARSCALER 0
+#endif
+#ifndef MENU_SHOW_VARSCALER_C
+#define MENU_SHOW_VARSCALER_C 0
 #endif
 
 static int min(int x, int y) { return x < y ? x : y; }
@@ -1280,7 +1286,11 @@ static int menu_loop_keyconfig(int id, int keys)
 // ------------ gfx options menu ------------
 
 static const char *men_scaler[] = {
-	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL
+	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen",
+#if MENU_SHOW_VARSCALER_C
+	"custom",
+#endif
+	NULL
 };
 static const char *men_soft_filter[] = { "None",
 #ifdef HAVE_NEON32
@@ -1385,10 +1395,11 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Screen centering",         MA_OPT_CENTERING, pl_rearmed_cbs.screen_centering_type, men_centering),
+	mee_enum      ("PSX Screen centering",     MA_OPT_CENTERING, pl_rearmed_cbs.screen_centering_type, men_centering),
 	mee_enum      ("Show overscan",            MA_OPT_OVERSCAN, pl_rearmed_cbs.show_overscan, men_overscan),
 	mee_enum_h    ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler, h_scaler),
 	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_onoff     ("Fullscreen mode",          MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
@@ -2672,6 +2683,12 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
 		plat_target.vout_methods != NULL);
 
+#ifndef SDL_OVERLAY_2X
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_FULL);
+	e_menu_gfx_options[i].data = plat_target.vout_methods;
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_FULL, 0);
+#endif
+
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
 	e_menu_gfx_options[i].data = plat_target.hwfilters;
 	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
@@ -2685,7 +2702,7 @@ void menu_init(void)
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE, MENU_SHOW_VOUTMODE);
-	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER_C);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
 	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);
