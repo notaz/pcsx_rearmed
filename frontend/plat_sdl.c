@@ -665,10 +665,18 @@ void plat_video_menu_leave(void)
   centered_clear();
 }
 
-/* unused stuff */
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 {
-  return 0;
+  if (plat_sdl_screen && !SDL_MUSTLOCK(plat_sdl_screen) &&
+      plat_sdl_overlay == NULL && !plat_sdl_gl_active)
+  {
+    *w = plat_sdl_screen->pitch / 2;
+    *h = plat_sdl_screen->h;
+    *bpp = 16;
+    return plat_sdl_screen->pixels;
+  }
+  fprintf(stderr, "screenshot not implemented in current mode\n");
+  return NULL;
 }
 
 void plat_trigger_vibrate(int pad, int low, int high)

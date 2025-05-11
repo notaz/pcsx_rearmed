@@ -132,7 +132,6 @@ static const char *memcards[32];
 static int bios_sel, gpu_plugsel, spu_plugsel;
 
 #ifndef UI_FEATURES_H
-#define MENU_BIOS_PATH "bios/"
 #define MENU_SHOW_VOUTMODE 1
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 0
@@ -151,18 +150,6 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 
 static int min(int x, int y) { return x < y ? x : y; }
 static int max(int x, int y) { return x > y ? x : y; }
-
-void emu_make_path(char *buff, const char *end, int size)
-{
-	int pos, end_len;
-
-	end_len = strlen(end);
-	pos = plat_get_root_dir(buff, size);
-	strncpy(buff + pos, end, size - pos);
-	buff[size - 1] = 0;
-	if (pos + end_len > size - 1)
-		printf("Warning: path truncated: %s\n", buff);
-}
 
 static int emu_check_save_file(int slot, int *time)
 {
@@ -508,10 +495,14 @@ static char *get_cd_label(void)
 
 static void make_cfg_fname(char *buf, size_t size, int is_game)
 {
-	if (is_game)
-		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", get_cd_label(), CdromId);
+	char id_buf[64];
+	if (is_game) {
+		snprintf(id_buf, sizeof(id_buf), "%.32s-%.9s.cfg",
+			get_cd_label(), CdromId);
+		emu_make_path(buf, size, CFG_DIR, id_buf);
+	}
 	else
-		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		emu_make_path(buf, size, PCSX_DOT_DIR, cfgfile_basename);
 }
 
 static void keys_write_all(FILE *f);
@@ -577,7 +568,7 @@ static int menu_do_last_cd_img(int is_get)
 	FILE *f;
 	int i, ret = -1;
 
-	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
+	emu_make_path(path, sizeof(path), PCSX_DOT_DIR, "lastcdimg.txt");
 	f = fopen(path, is_get ? "r" : "w");
 	if (f == NULL) {
 		ret = -1;
@@ -1905,10 +1896,10 @@ static void handle_memcard_sel(void)
 {
 	strcpy(Config.Mcd1, "none");
 	if (memcard1_sel != 0)
-		snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s", MEMCARD_DIR, memcards[memcard1_sel]);
+		emu_make_path(Config.Mcd1, sizeof(Config.Mcd1), MEMCARD_DIR, memcards[memcard1_sel]);
 	strcpy(Config.Mcd2, "none");
 	if (memcard2_sel != 0)
-		snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s", MEMCARD_DIR, memcards[memcard2_sel]);
+		emu_make_path(Config.Mcd2, sizeof(Config.Mcd2), MEMCARD_DIR, memcards[memcard2_sel]);
 	LoadMcds(Config.Mcd1, Config.Mcd2);
 	draw_mc_bg();
 }
@@ -2005,8 +1996,7 @@ static void menu_bios_warn(void)
 	int inp;
 	static const char msg[] =
 		"You don't seem to have copied any BIOS\n"
-		"files to\n"
-		MENU_BIOS_PATH "\n\n"
+		"files to\n%s\n\n"
 
 		"While many games work fine with fake\n"
 		"(HLE) BIOS, others (like MGS and FF8)\n"
@@ -2020,7 +2010,7 @@ static void menu_bios_warn(void)
 		"Press %s or %s to continue";
 	char tmp_msg[sizeof(msg) + 64];
 
-	snprintf(tmp_msg, sizeof(tmp_msg), msg,
+	snprintf(tmp_msg, sizeof(tmp_msg), msg, Config.BiosDir,
 		in_get_key_name(-1, -PBTN_MOK), in_get_key_name(-1, -PBTN_MBACK));
 	while (1)
 	{
@@ -2607,7 +2597,8 @@ do_plugins:
 #endif
 
 do_memcards:
-	dir = opendir("." MEMCARD_DIR);
+	emu_make_path(fname, sizeof(fname), MEMCARD_DIR, NULL);
+	dir = opendir(fname);
 	if (dir == NULL) {
 		perror("scan_bios_plugins memcards opendir");
 		return;
@@ -2627,7 +2618,7 @@ do_memcards:
 		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
 			continue;
 
-		snprintf(fname, sizeof(fname), "." MEMCARD_DIR "%s", ent->d_name);
+		emu_make_path(fname, sizeof(fname), MEMCARD_DIR, ent->d_name);
 		if (stat(fname, &st) != 0) {
 			printf("bad memcard file: %s\n", ent->d_name);
 			continue;
@@ -2671,7 +2662,7 @@ void menu_init(void)
 		exit(1);
 	}
 
-	emu_make_path(buff, "skin/background.png", sizeof(buff));
+	emu_make_data_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
 	i = plat_target.cpu_clock_set != NULL
