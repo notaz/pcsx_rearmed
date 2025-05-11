@@ -150,6 +150,8 @@ void emu_set_default_config(void)
 	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
+#ifndef NO_FRONTEND
+
 void do_emu_action(void)
 {
 	int ret;
@@ -165,7 +167,6 @@ void do_emu_action(void)
 		ret = emu_save_state(state_slot);
 		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "SAVED" : "FAIL!");
 		break;
-#ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
 		menu_loop();
@@ -269,13 +270,14 @@ do_state_slot:
 		ret = padToggleAnalog(0);
 		snprintf(hud_msg, sizeof(hud_msg), "ANALOG %s", ret ? "ON" : "OFF");
 		break;
-#endif
 	default:
 		return;
 	}
 
 	hud_new_msg = 3;
 }
+
+#endif
 
 static char basic_lcase(char c)
 {
