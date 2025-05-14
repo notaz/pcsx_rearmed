@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <SDL.h>
 
+#include "../libpcsxcore/plugins.h"
 #include "libpicofe/input.h"
 #include "libpicofe/in_sdl.h"
 #include "libpicofe/menu.h"
@@ -95,21 +96,36 @@ static const struct in_pdata in_sdl_platform_data = {
 
 static int psx_w = 256, psx_h = 240;
 static void *shadow_fb, *menubg_img;
-static int resized, window_w, window_h;
 static int vout_fullscreen_old;
 static int forced_clears;
 static int forced_flips;
 static int sdl12_compat;
+static int resized;
 static int in_menu;
 
+static int gl_w_prev, gl_h_prev;
+static float gl_vertices[] = {
+	-1.0f,  1.0f,  0.0f, // 0    0  1
+	 1.0f,  1.0f,  0.0f, // 1  ^
+	-1.0f, -1.0f,  0.0f, // 2  | 2  3
+	 1.0f, -1.0f,  0.0f, // 3  +-->
+};
+
+static void handle_window_resize(void);
 static void handle_scaler_resize(int w, int h);
 static void centered_clear(void);
 
-static void resize_cb(int w, int h)
+static int plugin_owns_display(void)
+{
+  // if true, a plugin is drawing and flipping
+  return (pl_rearmed_cbs.gpu_caps & GPU_CAP_OWNS_DISPLAY);
+}
+
+static void plugin_update(void)
 {
   // used by some plugins...
-  pl_rearmed_cbs.screen_w = w;
-  pl_rearmed_cbs.screen_h = h;
+  pl_rearmed_cbs.screen_w = plat_sdl_screen->w;
+  pl_rearmed_cbs.screen_h = plat_sdl_screen->h;
   pl_rearmed_cbs.gles_display = gl_es_display;
   pl_rearmed_cbs.gles_surface = gl_es_surface;
   plugin_call_rearmed_cbs();
@@ -125,6 +141,15 @@ static void sdl_event_handler(void *event_)
       window_w = event->resize.w & ~3;
       window_h = event->resize.h & ~1;
       resized = 1;
+      if (!in_menu && plat_sdl_gl_active && plugin_owns_display()) {
+        // the plugin flips by itself so resize has to be handled here
+        handle_window_resize();
+        if (GPU_open != NULL) {
+          int ret = GPU_open(&gpuDisp, "PCSX", NULL);
+          if (ret)
+            fprintf(stderr, "GPU_open: %d\n", ret);
+        }
+      }
     }
     return;
   case SDL_ACTIVEEVENT:
@@ -156,7 +181,6 @@ void plat_init(void)
   int ret;
 
   plat_sdl_quit_cb = quit_cb;
-  plat_sdl_resize_cb = resize_cb;
 
   ret = plat_sdl_init();
   if (ret != 0)
@@ -188,12 +212,10 @@ void plat_init(void)
 
   bgr_to_uyvy_init();
 
-  // to "finish" init and set SDL_RESIZABLE
-  plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, -1);
-  if (plat_sdl_overlay) {
-    printf("overlay: %08x hw=%d\n", plat_sdl_overlay->format,
-        plat_sdl_overlay->hw_overlay);
-  }
+  assert(plat_sdl_screen);
+  plugin_update();
+  if (plat_target.vout_method == vout_mode_gl)
+    gl_w_prev = plat_sdl_screen->w, gl_h_prev = plat_sdl_screen->h;
 }
 
 void plat_finish(void)
@@ -258,21 +280,11 @@ static void overlay_resize(int force)
       SDL_UnlockYUVOverlay(plat_sdl_overlay);
     }
   }
-  else
+  else {
     fprintf(stderr, "overlay resize to %dx%d failed\n", w, h);
-  handle_scaler_resize(w, h);
-}
-
-static void overlay_check_enable(void)
-{
-  // we no longer unconditionally call plat_sdl_change_video_mode()
-  // to not disturb the window, need to look for config change
-  if ((plat_target.vout_method == 0 || plat_sdl_gl_active) && plat_sdl_overlay) {
-    SDL_FreeYUVOverlay(plat_sdl_overlay);
-    plat_sdl_overlay = NULL;
+    plat_target.vout_method = 0;
   }
-  else if (plat_target.vout_method > 0 && !plat_sdl_gl_active) // lame
-    overlay_resize(0);
+  handle_scaler_resize(w, h);
 }
 
 static void overlay_blit(int doffs, const void *src_, int w, int h,
@@ -310,12 +322,69 @@ static void overlay_hud_print(int x, int y, const char *str, int bpp)
   SDL_UnlockYUVOverlay(plat_sdl_overlay);
 }
 
+static void gl_finish_pl(void)
+{
+  if (plugin_owns_display() && GPU_close != NULL)
+    GPU_close();
+  gl_finish();
+}
+
+static void gl_resize(void)
+{
+  int w = in_menu ? g_menuscreen_w : psx_w;
+  int h = in_menu ? g_menuscreen_h : psx_h;
+
+  if (plugin_owns_display())
+    w = plat_sdl_screen->w, h = plat_sdl_screen->h;
+  if (plat_sdl_gl_active) {
+    if (w == gl_w_prev && h == gl_h_prev)
+      return;
+    gl_finish_pl();
+  }
+  plat_sdl_gl_active = (gl_init(display, window, &gl_quirks, w, h) == 0);
+  if (plat_sdl_gl_active)
+    gl_w_prev = w, gl_h_prev = h;
+  else {
+    fprintf(stderr, "warning: could not init GL.\n");
+    plat_target.vout_method = 0;
+  }
+  handle_scaler_resize(w, h);
+  plugin_update();
+  forced_flips = 0; // interferes with gl
+}
+
+static void overlay_or_gl_check_enable(void)
+{
+  int ovl_on = plat_target.vout_method == vout_mode_overlay ||
+    plat_target.vout_method == vout_mode_overlay2x;
+  int gl_on = plat_target.vout_method == vout_mode_gl;
+  if (!gl_on && plat_sdl_gl_active) {
+    gl_finish_pl();
+    pl_rearmed_cbs.gles_display = gl_es_display;
+    pl_rearmed_cbs.gles_surface = gl_es_surface;
+    plat_sdl_gl_active = 0;
+  }
+  if (!ovl_on && plat_sdl_overlay) {
+    SDL_FreeYUVOverlay(plat_sdl_overlay);
+    plat_sdl_overlay = NULL;
+  }
+  if (ovl_on)
+    overlay_resize(0);
+  else if (gl_on)
+    gl_resize();
+}
+
 static void centered_clear(void)
 {
   int dstride = plat_sdl_screen->pitch / 2;
   int w = plat_sdl_screen->w;
   int h = plat_sdl_screen->h;
   unsigned short *dst;
+
+  if (plat_sdl_gl_active) {
+    gl_clear();
+    return;
+  }
 
   if (SDL_MUSTLOCK(plat_sdl_screen))
     SDL_LockSurface(plat_sdl_screen);
@@ -446,7 +515,7 @@ static void *setup_blit_callbacks(int w, int h)
 // different size overlay vs plat_sdl_screen layer
 static void change_mode(int w, int h)
 {
-  int set_w = w, set_h = h, had_overlay = 0;
+  int set_w = w, set_h = h, had_overlay = 0, had_gl = 0;
   if (plat_target.vout_fullscreen && (plat_target.vout_method != 0 || !sdl12_compat))
     set_w = fs_w, set_h = fs_h;
   if (plat_sdl_screen->w != set_w || plat_sdl_screen->h != set_h ||
@@ -465,6 +534,11 @@ static void change_mode(int w, int h)
       plat_sdl_overlay = NULL;
       had_overlay = 1;
     }
+    if (plat_sdl_gl_active) {
+      gl_finish_pl();
+      plat_sdl_gl_active = 0;
+      had_gl = 1;
+    }
     SDL_PumpEvents();
     plat_sdl_screen = SDL_SetVideoMode(set_w, set_h, 16, flags);
     //printf("mode: %dx%d %x -> %dx%d\n", set_w, set_h, flags,
@@ -473,10 +547,15 @@ static void change_mode(int w, int h)
     if (vout_fullscreen_old && !plat_target.vout_fullscreen)
       // why is this needed?? (on 1.2.68)
       SDL_WM_GrabInput(SDL_GRAB_OFF);
+    if (vout_mode_gl != -1)
+      update_wm_display_window();
     // overlay needs the latest plat_sdl_screen
     if (had_overlay)
       overlay_resize(1);
+    if (had_gl)
+      gl_resize();
     centered_clear();
+    plugin_update();
     vout_fullscreen_old = plat_target.vout_fullscreen;
   }
 }
@@ -487,9 +566,20 @@ static void handle_scaler_resize(int w, int h)
   int wh = plat_sdl_screen->h;
   int layer_w_old = g_layer_w;
   int layer_h_old = g_layer_h;
+  float w_mul, h_mul;
+  int x, y;
   pl_update_layer_size(w, h, ww, wh);
   if (layer_w_old != g_layer_w || layer_h_old != g_layer_h)
     forced_clears = 3;
+
+  w_mul = 2.0f / ww;
+  h_mul = 2.0f / wh;
+  x = (ww - g_layer_w) / 2;
+  y = (wh - g_layer_h) / 2;
+  gl_vertices[3*0+0] = gl_vertices[3*2+0] = -1.0f + x * w_mul;
+  gl_vertices[3*1+0] = gl_vertices[3*3+0] = -1.0f + (x + g_layer_w) * w_mul;
+  gl_vertices[3*2+1] = gl_vertices[3*3+1] = -1.0f + y * h_mul;
+  gl_vertices[3*0+1] = gl_vertices[3*1+1] = -1.0f + (y + g_layer_h) * h_mul;
 }
 
 static void handle_window_resize(void)
@@ -499,8 +589,8 @@ static void handle_window_resize(void)
     change_mode(window_w, window_h);
     setup_blit_callbacks(psx_w, psx_h);
     forced_clears = 3;
-    resized = 0;
   }
+  resized = 0;
 }
 
 void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
@@ -508,10 +598,15 @@ void *plat_gvideo_set_mode(int *w, int *h, int *bpp)
   psx_w = *w;
   psx_h = *h;
 
+  if (plat_sdl_gl_active && plugin_owns_display())
+    return NULL;
+
   if (plat_sdl_overlay != NULL)
     overlay_resize(0);
-  else if (plat_sdl_gl_active)
+  else if (plat_sdl_gl_active) {
     memset(shadow_fb, 0, (*w) * (*h) * 2);
+    gl_resize();
+  }
   else if (plat_target.vout_method == 0) // && sdl12_compat
     change_mode(*w, *h);
 
@@ -529,11 +624,10 @@ void *plat_gvideo_flip(void)
       (plat_sdl_screen->h - g_layer_h) / 2,
       g_layer_w, g_layer_h
     };
-
     SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
   }
   else if (plat_sdl_gl_active) {
-    gl_flip(shadow_fb, psx_w, psx_h);
+    gl_flip_v(shadow_fb, psx_w, psx_h, g_scaler != SCALE_FULLSCREEN ? gl_vertices : NULL);
     ret = shadow_fb;
   }
   else
@@ -592,7 +686,7 @@ void plat_video_menu_enter(int is_rom_loaded)
   if (plat_target.vout_method == 0)
     change_mode(g_menuscreen_w, g_menuscreen_h);
   else
-    overlay_check_enable();
+    overlay_or_gl_check_enable();
   centered_clear();
 }
 
@@ -607,7 +701,7 @@ void plat_video_menu_begin(void)
     change_mode(g_menuscreen_w, g_menuscreen_h);
   }
   else
-    overlay_check_enable();
+    overlay_or_gl_check_enable();
   handle_scaler_resize(g_menuscreen_w, g_menuscreen_h);
 
   if (old_ovl != plat_sdl_overlay || scaler_changed)
@@ -634,7 +728,8 @@ void plat_video_menu_end(void)
     SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
   }
   else if (plat_sdl_gl_active) {
-    gl_flip(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h);
+    gl_flip_v(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h,
+        g_scaler != SCALE_FULLSCREEN ? gl_vertices : NULL);
   }
   else {
     centered_blit_menu();
@@ -661,7 +756,7 @@ void plat_video_menu_leave(void)
   if (plat_target.vout_fullscreen)
     change_mode(fs_w, fs_h);
   else
-    overlay_check_enable();
+    overlay_or_gl_check_enable();
   centered_clear();
 }
 

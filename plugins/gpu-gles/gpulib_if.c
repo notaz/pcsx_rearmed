@@ -22,6 +22,8 @@
 #include "gpuPrim.c"
 #include "hud.c"
 
+static int is_opened;
+
 static const short dispWidths[8] = {256,320,512,640,368,384,512,640};
 short g_m1,g_m2,g_m3;
 short DrawSemiTrans;
@@ -315,6 +317,9 @@ if(bUp) updateDisplay();                              // yeah, real update (swap
 #define GPUwriteStatus_ext GPUwriteStatus_ext // for gpulib to see this
 void GPUwriteStatus_ext(unsigned int gdata)
 {
+ if (!is_opened)
+  return;
+
 switch((gdata>>24)&0xff)
  {
   case 0x00:
@@ -478,8 +483,6 @@ switch((gdata>>24)&0xff)
 
 #include "../gpulib/gpu.c"
 
-static int is_opened;
-
 static void set_vram(void *vram)
 {
  psxVub=vram;
@@ -504,6 +507,34 @@ int renderer_init(void)
  lGPUstatusRet = 0x14802000;
 
  return 0;
+}
+
+static void clear_gl_state_for_menu(void)
+{
+ static const GLenum caps[] = {
+  GL_ALPHA_TEST, GL_BLEND, GL_COLOR_LOGIC_OP, GL_COLOR_MATERIAL,
+  GL_CULL_FACE, GL_DEPTH_TEST, GL_FOG, GL_LIGHTING, GL_NORMALIZE,
+  GL_POLYGON_OFFSET_FILL, GL_RESCALE_NORMAL, GL_SAMPLE_ALPHA_TO_COVERAGE,
+  GL_SAMPLE_ALPHA_TO_ONE, GL_SAMPLE_COVERAGE, GL_SCISSOR_TEST, GL_STENCIL_TEST
+ };
+ static const GLenum cstates[] = {
+  GL_COLOR_ARRAY, GL_NORMAL_ARRAY, GL_POINT_SIZE_ARRAY_OES
+ };
+ size_t i;
+ for (i = 0; i < sizeof(caps) / sizeof(caps[0]); i++)
+  glDisable(caps[i]);
+ for (i = 0; i < 6; i++)
+  glDisable(GL_CLIP_PLANE0 + i);
+ for (i = 0; i < 8; i++)
+  glDisable(GL_LIGHT0 + i);
+ for (i = 0; i < sizeof(cstates) / sizeof(cstates[0]); i++)
+  glDisableClientState(cstates[i]);
+
+ glColor4ub(255, 255, 255, 255);
+ glLoadIdentity();
+ glEnable(GL_TEXTURE_2D);
+ glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+ glEnableClientState(GL_VERTEX_ARRAY);
 }
 
 void renderer_finish(void)
@@ -687,6 +718,10 @@ long GPUopen(unsigned long *disp, char *cap, char *cfg)
 {
  int ret;
 
+ if (is_opened) {
+  fprintf(stderr, "double GPUopen\n");
+  return -1;
+ }
  iResX = cbs->screen_w;
  iResY = cbs->screen_h;
  rRatioRect.left   = rRatioRect.top=0;
@@ -708,9 +743,12 @@ long GPUopen(unsigned long *disp, char *cap, char *cfg)
 
 long GPUclose(void)
 {
+ if (!is_opened)
+  return 0;
  is_opened = 0;
 
  KillDisplayLists();
+ clear_gl_state_for_menu();
  GLcleanup();                                          // close OGL
  return 0;
 }
@@ -740,9 +778,12 @@ void renderer_set_config(const struct rearmed_cbs *cbs_)
   cbs->pl_set_gpu_caps(GPU_CAP_OWNS_DISPLAY);
 
  if (is_opened && cbs->gles_display != NULL && cbs->gles_surface != NULL) {
-  // HACK..
-  GPUclose();
-  GPUopen(NULL, NULL, NULL);
+  if (cbs->gles_display != display || cbs->gles_surface != surface) {
+   // HACK...
+   fprintf(stderr, "gles reinit hack\n");
+   GPUclose();
+   GPUopen(NULL, NULL, NULL);
+  }
  }
 
  set_vram(gpu.vram);
