@@ -436,6 +436,10 @@ static const struct {
 	CE_INTVAL(memcard2_sel),
 	CE_INTVAL(g_autostateld_opt),
 	CE_INTVAL(cd_buf_count),
+	CE_INTVAL_N("adev0_axis0", in_adev_axis[0][0]),
+	CE_INTVAL_N("adev0_axis1", in_adev_axis[0][1]),
+	CE_INTVAL_N("adev1_axis0", in_adev_axis[1][0]),
+	CE_INTVAL_N("adev1_axis1", in_adev_axis[1][1]),
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 4),
@@ -1113,6 +1117,10 @@ static void keys_load_all(const char *cfg)
 
 static int key_config_loop_wrap(int id, int keys)
 {
+	int d;
+
+	for (d = 0; d < IN_MAX_DEVS; d++)
+		in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 0);
 	switch (id) {
 		case MA_CTRL_PLAYER1:
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 0);
@@ -1126,6 +1134,9 @@ static int key_config_loop_wrap(int id, int keys)
 		default:
 			break;
 	}
+	for (d = 0; d < IN_MAX_DEVS; d++)
+		in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 1);
+
 	return 0;
 }
 

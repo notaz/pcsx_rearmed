@@ -660,6 +660,8 @@ void plat_gvideo_close(void)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
+  int d;
+
   in_menu = 1;
 
   /* surface will be lost, must adjust pl_vout_buf for menu bg */
@@ -688,6 +690,9 @@ void plat_video_menu_enter(int is_rom_loaded)
   else
     overlay_or_gl_check_enable();
   centered_clear();
+
+  for (d = 0; d < IN_MAX_DEVS; d++)
+    in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 1);
 }
 
 void plat_video_menu_begin(void)
@@ -749,6 +754,8 @@ void plat_video_menu_end(void)
 
 void plat_video_menu_leave(void)
 {
+  int d;
+
   in_menu = 0;
   if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
     memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
@@ -758,6 +765,9 @@ void plat_video_menu_leave(void)
   else
     overlay_or_gl_check_enable();
   centered_clear();
+
+  for (d = 0; d < IN_MAX_DEVS; d++)
+    in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 0);
 }
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
