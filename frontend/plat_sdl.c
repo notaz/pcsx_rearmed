@@ -103,7 +103,7 @@ static int sdl12_compat;
 static int resized;
 static int in_menu;
 
-static int gl_w_prev, gl_h_prev;
+static int gl_w_prev, gl_h_prev, gl_quirks_prev;
 static float gl_vertices[] = {
 	-1.0f,  1.0f,  0.0f, // 0    0  1
 	 1.0f,  1.0f,  0.0f, // 1  ^
@@ -176,11 +176,14 @@ static void get_layer_pos(int *x, int *y, int *w, int *h)
 
 void plat_init(void)
 {
+  static const char *hwfilters[] = { "linear", "nearest", NULL };
   const SDL_version *ver;
   int shadow_size;
   int ret;
 
   plat_sdl_quit_cb = quit_cb;
+
+  old_fullscreen = -1; // hack
 
   ret = plat_sdl_init();
   if (ret != 0)
@@ -216,6 +219,8 @@ void plat_init(void)
   plugin_update();
   if (plat_target.vout_method == vout_mode_gl)
     gl_w_prev = plat_sdl_screen->w, gl_h_prev = plat_sdl_screen->h;
+  if (vout_mode_gl != -1)
+    plat_target.hwfilters = hwfilters;
 }
 
 void plat_finish(void)
@@ -334,16 +339,22 @@ static void gl_resize(void)
   int w = in_menu ? g_menuscreen_w : psx_w;
   int h = in_menu ? g_menuscreen_h : psx_h;
 
+  gl_quirks &= ~(GL_QUIRK_SCALING_NEAREST | GL_QUIRK_VSYNC_ON);
+  if (plat_target.hwfilter) // inverted from plat_sdl_gl_scaling()
+    gl_quirks |= GL_QUIRK_SCALING_NEAREST;
+  if (g_opts & OPT_VSYNC)
+    gl_quirks |= GL_QUIRK_VSYNC_ON;
+
   if (plugin_owns_display())
     w = plat_sdl_screen->w, h = plat_sdl_screen->h;
   if (plat_sdl_gl_active) {
-    if (w == gl_w_prev && h == gl_h_prev)
+    if (w == gl_w_prev && h == gl_h_prev && gl_quirks == gl_quirks_prev)
       return;
     gl_finish_pl();
   }
   plat_sdl_gl_active = (gl_init(display, window, &gl_quirks, w, h) == 0);
   if (plat_sdl_gl_active)
-    gl_w_prev = w, gl_h_prev = h;
+    gl_w_prev = w, gl_h_prev = h, gl_quirks_prev = gl_quirks;
   else {
     fprintf(stderr, "warning: could not init GL.\n");
     plat_target.vout_method = 0;
@@ -705,8 +716,7 @@ void plat_video_menu_begin(void)
       (plat_target.vout_fullscreen && scaler_changed)) {
     change_mode(g_menuscreen_w, g_menuscreen_h);
   }
-  else
-    overlay_or_gl_check_enable();
+  overlay_or_gl_check_enable();
   handle_scaler_resize(g_menuscreen_w, g_menuscreen_h);
 
   if (old_ovl != plat_sdl_overlay || scaler_changed)
@@ -762,8 +772,7 @@ void plat_video_menu_leave(void)
 
   if (plat_target.vout_fullscreen)
     change_mode(fs_w, fs_h);
-  else
-    overlay_or_gl_check_enable();
+  overlay_or_gl_check_enable();
   centered_clear();
 
   for (d = 0; d < IN_MAX_DEVS; d++)

@@ -15,6 +15,7 @@ enum g_opts_opts {
 	OPT_NO_FRAMELIM = 1 << 2,
 	OPT_SHOWSPU = 1 << 3,
 	OPT_TSGUN_NOTRIGGER = 1 << 4,
+	OPT_VSYNC = 1 << 5,
 };
 
 enum g_scaler_opts {

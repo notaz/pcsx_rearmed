@@ -99,6 +99,7 @@ typedef enum
 	MA_OPT_SCANLINE_LEVEL,
 	MA_OPT_CENTERING,
 	MA_OPT_OVERSCAN,
+	MA_OPT_VSYNC,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -1410,7 +1411,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
 #endif
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
-//	mee_onoff     ("Vsync",                    0, vsync, 1),
+	mee_onoff     ("OpenGL Vsync",             MA_OPT_VSYNC, g_opts, OPT_VSYNC),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
 };
@@ -2693,13 +2694,14 @@ void menu_init(void)
 
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
 	e_menu_gfx_options[i].data = plat_target.hwfilters;
-	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
-		plat_target.hwfilters != NULL);
+	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER, plat_target.hwfilters != NULL);
+	if (plat_target.hwfilters && !strcmp(plat_target.hwfilters[0], "linear"))
+		e_menu_gfx_options[i].name = "OpenGL filter";
+	else
+		me_enable(e_menu_gfx_options, MA_OPT_VSYNC, 0);
 
-	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
-		plat_target.gamma_set != NULL);
-
-#ifdef HAVE_PRE_ARMV7
+	me_enable(e_menu_gfx_options, MA_OPT_GAMMA, plat_target.gamma_set != NULL);
+#ifdef HAVE_NEON32
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
