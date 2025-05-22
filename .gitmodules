@@ -12,7 +12,7 @@
 	url = https://github.com/pcercuei/lightrec.git
 [submodule "deps/lightning"]
 	path = deps/lightning
-	url = https://git.savannah.gnu.org/git/lightning.git
+	url = https://github.com/notaz/gnu_lightning.git
 [submodule "deps/libretro-common"]
 	path = deps/libretro-common
 	url = https://github.com/libretro/libretro-common.git
