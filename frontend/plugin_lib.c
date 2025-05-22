@@ -45,7 +45,13 @@ int multitap1;
 int multitap2;
 int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
 int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
-int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
+int in_adev[2] = { -1, -1 };
+int in_adev_axis[2][2] =
+#ifdef PANDORA
+  {{ 0, 1 }, { 0, 1 }};
+#else
+  {{ 0, 1 }, { 2, 3 }};
+#endif
 int in_adev_is_nublike[2];
 unsigned short in_keystate[8];
 int in_mouse[8][2];
@@ -54,7 +60,7 @@ void *tsdev;
 void *pl_vout_buf;
 int g_layer_x, g_layer_y, g_layer_w, g_layer_h;
 static int pl_vout_w, pl_vout_h, pl_vout_bpp; /* output display/layer */
-static int pl_vout_scale_w, pl_vout_scale_h, pl_vout_yoffset;
+static int pl_vout_scale_w, pl_vout_scale_h;
 static int psx_w, psx_h, psx_bpp;
 static int vsync_cnt;
 static int is_pal, frame_interval, frame_interval1024;
@@ -178,7 +184,7 @@ static void print_hud(int x, int w, int h)
 }
 
 /* update scaler target size according to user settings */
-static void update_layer_size(int w, int h)
+void pl_update_layer_size(int w, int h, int fw, int fh)
 {
 	float mult;
 	int imult;
@@ -190,39 +196,45 @@ static void update_layer_size(int w, int h)
 
 	case SCALE_2_2:
 		g_layer_w = w; g_layer_h = h;
-		if (w * 2 <= g_menuscreen_w)
+		if (w * 2 <= fw)
 			g_layer_w = w * 2;
-		if (h * 2 <= g_menuscreen_h)
+		if (h * 2 <= fh)
 			g_layer_h = h * 2;
 		break;
 
 	case SCALE_4_3v2:
-		if (h > g_menuscreen_h || (240 < h && h <= 360))
-			goto fractional_4_3;
+#ifdef PANDORA
+		if (h <= fh && !(240 < h && h <= 360))
+		{
+#endif
 
 		// 4:3 that prefers integer scaling
-		imult = g_menuscreen_h / h;
+		imult = fh / h;
+		if (imult < 1)
+			imult = 1;
 		g_layer_w = w * imult;
 		g_layer_h = h * imult;
 		mult = (float)g_layer_w / (float)g_layer_h;
 		if (mult < 1.25f || mult > 1.666f)
 			g_layer_w = 4.0f/3.0f * (float)g_layer_h;
-		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		//printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
 		break;
+#ifdef PANDORA
+		}
+#endif
 
-	fractional_4_3:
 	case SCALE_4_3:
 		mult = 240.0f / (float)h * 4.0f / 3.0f;
 		if (h > 256)
 			mult *= 2.0f;
-		g_layer_w = mult * (float)g_menuscreen_h;
-		g_layer_h = g_menuscreen_h;
-		printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
+		g_layer_w = mult * (float)fh;
+		g_layer_h = fh;
+		//printf("  -> %dx%d %.1f\n", g_layer_w, g_layer_h, mult);
 		break;
 
 	case SCALE_FULLSCREEN:
-		g_layer_w = g_menuscreen_w;
-		g_layer_h = g_menuscreen_h;
+		g_layer_w = fw;
+		g_layer_h = fh;
 		break;
 
 	default:
@@ -230,11 +242,11 @@ static void update_layer_size(int w, int h)
 	}
 
 	if (g_scaler != SCALE_CUSTOM) {
-		g_layer_x = g_menuscreen_w / 2 - g_layer_w / 2;
-		g_layer_y = g_menuscreen_h / 2 - g_layer_h / 2;
+		g_layer_x = fw / 2 - g_layer_w / 2;
+		g_layer_y = fh / 2 - g_layer_h / 2;
 	}
-	if (g_layer_w > g_menuscreen_w * 2) g_layer_w = g_menuscreen_w * 2;
-	if (g_layer_h > g_menuscreen_h * 2) g_layer_h = g_menuscreen_h * 2;
+	if (g_layer_w > fw * 2) g_layer_w = fw * 2;
+	if (g_layer_h > fh * 2) g_layer_h = fh * 2;
 }
 
 // XXX: this is platform specific really
@@ -246,7 +258,6 @@ static inline int resolution_ok(int w, int h)
 static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
 	int vout_w, vout_h, vout_bpp;
-	int buf_yoffset = 0;
 
 	// special h handling, Wipeout likes to change it by 1-6
 	static int vsync_cnt_ms_prev;
@@ -285,7 +296,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	vout_w *= pl_vout_scale_w;
 	vout_h *= pl_vout_scale_h;
 
-	update_layer_size(vout_w, vout_h);
+	pl_update_layer_size(vout_w, vout_h, g_menuscreen_w, g_menuscreen_h);
 
 	pl_vout_buf = plat_gvideo_set_mode(&vout_w, &vout_h, &vout_bpp);
 	if (pl_vout_buf == NULL && pl_plat_blit == NULL)
@@ -295,11 +306,7 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 		pl_vout_w = vout_w;
 		pl_vout_h = vout_h;
 		pl_vout_bpp = vout_bpp;
-		pl_vout_yoffset = buf_yoffset;
 	}
-	if (pl_vout_buf != NULL)
-		pl_vout_buf = (char *)pl_vout_buf
-			+ pl_vout_yoffset * pl_vout_w * pl_vout_bpp / 8;
 
 	menu_notify_mode_change(pl_vout_w, pl_vout_h, pl_vout_bpp);
 }
@@ -317,7 +324,7 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	unsigned char *dest = pl_vout_buf;
 	const unsigned char *vram = vram_;
 	int dstride = pl_vout_w, h1 = h;
-	int h_full = pl_vout_h - pl_vout_yoffset;
+	int h_full = pl_vout_h;
 	int enhres = w > psx_w;
 	int xoffs = 0, doffs;
 	int hwrapped;
@@ -465,9 +472,6 @@ out:
 
 	// let's flip now
 	pl_vout_buf = plat_gvideo_flip();
-	if (pl_vout_buf != NULL)
-		pl_vout_buf = (char *)pl_vout_buf
-			+ pl_vout_yoffset * pl_vout_w * pl_vout_bpp / 8;
 
 	pl_rearmed_cbs.flip_cnt++;
 }

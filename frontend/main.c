@@ -46,6 +46,7 @@
 #endif
 
 #ifndef NO_FRONTEND
+#include <sys/stat.h>
 #include "libpicofe/input.h"
 #include "libpicofe/plat.h"
 #include "libpicofe/readpng.h"
@@ -53,6 +54,11 @@
 static void toggle_fast_forward(int force_off);
 static void check_profile(void);
 static void check_memcards(void);
+static int get_gameid_filename(char *buf, int size, const char *fmt, int i);
+static const char *get_home_dir(void);
+#define MAKE_PATH(buf, dir, fname) \
+	emu_make_path(buf, sizeof(buf), dir, fname)
+
 #endif
 #ifndef BOOT_MSG
 #define BOOT_MSG "Booting up..."
@@ -70,33 +76,6 @@ enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
 
-static inline void make_path(char *buf, size_t size, const char *dir, const char *fname)
-{
-	if (fname)
-		snprintf(buf, size, ".%s%s", dir, fname);
-	else
-		snprintf(buf, size, ".%s", dir);
-}
-#define MAKE_PATH(buf, dir, fname) \
-	make_path(buf, sizeof(buf), dir, fname)
-
-static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
-	char trimlabel[33];
-	int j;
-
-	strncpy(trimlabel, CdromLabel, 32);
-	trimlabel[32] = 0;
-	for (j = 31; j >= 0; j--)
-		if (trimlabel[j] == ' ')
-			trimlabel[j] = 0;
-		else
-			continue;
-
-	snprintf(buf, size, fmt, trimlabel, CdromId, i);
-
-	return 0;
-}
-
 void set_cd_image(const char *fname)
 {
 	SetIsoFile(fname);
@@ -105,13 +84,23 @@ void set_cd_image(const char *fname)
 static void set_default_paths(void)
 {
 #ifndef NO_FRONTEND
-	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
+	const char *home = get_home_dir();
+	struct stat st;
+	MAKE_PATH(Config.PatchesDir, PATCHES_DIR, NULL);
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
-	strcpy(Config.BiosDir, "bios");
+	MAKE_PATH(Config.BiosDir, BIOS_DIR, NULL);
+
+	emu_make_data_path(Config.PluginsDir, "plugins", sizeof(Config.PluginsDir));
+
+	// prefer bios in working dir for compatibility
+	if (!strcmp(home, ".") && !stat("bios", &st))
+		strcpy(Config.BiosDir, "bios");
+
+	SysPrintf("dirs: profile=%s" PCSX_DOT_DIR ", bios=%s, plugins=%s\n",
+		home, Config.BiosDir, Config.PluginsDir);
 #endif
 
-	strcpy(Config.PluginsDir, "plugins");
 	strcpy(Config.Gpu, "builtin_gpu");
 	strcpy(Config.Spu, "builtin_spu");
 }
@@ -161,6 +150,8 @@ void emu_set_default_config(void)
 	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
+#ifndef NO_FRONTEND
+
 void do_emu_action(void)
 {
 	int ret;
@@ -176,7 +167,6 @@ void do_emu_action(void)
 		ret = emu_save_state(state_slot);
 		snprintf(hud_msg, sizeof(hud_msg), ret == 0 ? "SAVED" : "FAIL!");
 		break;
-#ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
 		menu_loop();
@@ -246,12 +236,14 @@ do_state_slot:
 
 			scrbuf = pl_prepare_screenshot(&w, &h, &bpp);
 			get_gameid_filename(buf, sizeof(buf),
-				"screenshots/%.32s-%.9s.%d.png", ti);
-			ret = -1;
+				"%s" SCREENSHOTS_DIR "%.32s-%.9s.%d.png", ti);
+			ret = -2;
 			if (scrbuf != 0 && bpp == 16)
 				ret = writepng(buf, scrbuf, w, h);
 			if (ret == 0)
 				snprintf(hud_msg, sizeof(hud_msg), "SCREENSHOT TAKEN");
+			else
+				SysPrintf("writepng %s: %d\n", buf, ret);
 			break;
 		}
 	case SACTION_VOLUME_UP:
@@ -278,13 +270,14 @@ do_state_slot:
 		ret = padToggleAnalog(0);
 		snprintf(hud_msg, sizeof(hud_msg), "ANALOG %s", ret ? "ON" : "OFF");
 		break;
-#endif
 	default:
 		return;
 	}
 
 	hud_new_msg = 3;
 }
+
+#endif
 
 static char basic_lcase(char c)
 {
@@ -508,6 +501,45 @@ void emu_core_ask_exit(void)
 #include <sys/stat.h>
 #include <sys/types.h>
 
+static const char *get_home_dir(void)
+{
+#if defined(PANDORA) || !defined(__unix__)
+	return ".";
+#else
+	static const char *home = NULL;
+	struct stat st;
+	if (home)
+		return home;
+	// for compatibility with older versions, look for .pcsx in the working dir
+	if (stat(PCSX_DOT_DIR + 1, &st) != 0)
+		home = getenv("HOME");
+	if (home == NULL)
+		home = ".";
+	return home;
+#endif
+}
+
+void emu_make_path(char *buf, size_t size, const char *dir, const char *fname)
+{
+	const char *home = get_home_dir();
+	if (fname)
+		snprintf(buf, size, "%s%s%s", home, dir, fname);
+	else
+		snprintf(buf, size, "%s%s", home, dir);
+}
+
+void emu_make_data_path(char *buff, const char *end, int size)
+{
+	int pos, end_len;
+
+	end_len = strlen(end);
+	pos = plat_get_root_dir(buff, size);
+	strncpy(buff + pos, end, size - pos);
+	buff[size - 1] = 0;
+	if (pos + end_len > size - 1)
+		printf("Warning: path truncated: %s\n", buff);
+}
+
 static void create_profile_dir(const char *directory) {
 	char path[MAXPATHLEN];
 
@@ -522,12 +554,10 @@ static void check_profile(void) {
 	create_profile_dir(BIOS_DIR);
 	create_profile_dir(MEMCARD_DIR);
 	create_profile_dir(STATES_DIR);
-	create_profile_dir(PLUGINS_DIR);
-	create_profile_dir(PLUGINS_CFG_DIR);
 	create_profile_dir(CHEATS_DIR);
 	create_profile_dir(PATCHES_DIR);
-	create_profile_dir(PCSX_DOT_DIR "cfg");
-	create_profile_dir("/screenshots/");
+	create_profile_dir(CFG_DIR);
+	create_profile_dir(SCREENSHOTS_DIR);
 }
 
 static void check_memcards(void)
@@ -537,7 +567,8 @@ static void check_memcards(void)
 	int i;
 
 	for (i = 1; i <= 9; i++) {
-		snprintf(buf, sizeof(buf), ".%scard%d.mcd", MEMCARD_DIR, i);
+		snprintf(buf, sizeof(buf), "%s%scard%d.mcd",
+			get_home_dir(), MEMCARD_DIR, i);
 
 		f = fopen(buf, "rb");
 		if (f == NULL) {
@@ -639,7 +670,8 @@ int main(int argc, char *argv[])
 		// FIXME: this recovery doesn't work, just delete bad config and bail out
 		// SysMessage("could not load plugins, retrying with defaults\n");
 		set_default_paths();
-		snprintf(path, sizeof(path), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		snprintf(path, sizeof(path), "%s" PCSX_DOT_DIR "%s",
+			get_home_dir(), cfgfile_basename);
 		remove(path);
 		SysMessage("Failed loading plugins!");
 		return 1;
@@ -749,52 +781,32 @@ static void toggle_fast_forward(int force_off)
 }
 
 static void SignalExit(int sig) {
+	SysPrintf("got signal %d\n", sig);
 	// only to restore framebuffer/resolution on some devices
 	plat_finish();
 	_exit(1);
 }
-#endif
 
-void SysRunGui() {
-        printf("SysRunGui\n");
-}
+static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
+	char trimlabel[33];
+	int j;
 
-static void CALLBACK dummy_lace(void)
-{
-}
+	strncpy(trimlabel, CdromLabel, 32);
+	trimlabel[32] = 0;
+	for (j = 31; j >= 0; j--)
+		if (trimlabel[j] == ' ')
+			trimlabel[j] = 0;
+		else
+			continue;
 
-void SysReset() {
-	// rearmed hack: EmuReset() runs some code when real BIOS is used,
-	// but we usually do reset from menu while GPU is not open yet,
-	// so we need to prevent updateLace() call..
-	void *real_lace = GPU_updateLace;
-	GPU_updateLace = dummy_lace;
-	g_emu_resetting = 1;
+	snprintf(buf, size, fmt, get_home_dir(), trimlabel, CdromId, i);
 
-	// reset can run code, timing must be set
-	pl_timing_prepare(Config.PsxType);
-
-	EmuReset();
-
-	GPU_updateLace = real_lace;
-	g_emu_resetting = 0;
-}
-
-void SysClose() {
-	EmuShutdown();
-	ReleasePlugins();
-
-	StopDebugger();
-
-	if (emuLog != NULL && emuLog != stdout && emuLog != stderr) {
-		fclose(emuLog);
-		emuLog = NULL;
-	}
+	return 0;
 }
 
 int get_state_filename(char *buf, int size, int i) {
 	return get_gameid_filename(buf, size,
-		"." STATES_DIR "%.32s-%.9s.%3.3d", i);
+		"%s" STATES_DIR "%.32s-%.9s.%3.3d", i);
 }
 
 int emu_check_state(int slot)
@@ -839,6 +851,41 @@ int emu_load_state(int slot)
 		return ret;
 
 	return LoadState(fname);
+}
+
+#endif // NO_FRONTEND
+
+static void CALLBACK dummy_lace(void)
+{
+}
+
+void SysReset() {
+	// rearmed hack: EmuReset() runs some code when real BIOS is used,
+	// but we usually do reset from menu while GPU is not open yet,
+	// so we need to prevent updateLace() call..
+	void *real_lace = GPU_updateLace;
+	GPU_updateLace = dummy_lace;
+	g_emu_resetting = 1;
+
+	// reset can run code, timing must be set
+	pl_timing_prepare(Config.PsxType);
+
+	EmuReset();
+
+	GPU_updateLace = real_lace;
+	g_emu_resetting = 0;
+}
+
+void SysClose() {
+	EmuShutdown();
+	ReleasePlugins();
+
+	StopDebugger();
+
+	if (emuLog != NULL && emuLog != stdout && emuLog != stderr) {
+		fclose(emuLog);
+		emuLog = NULL;
+	}
 }
 
 #ifndef HAVE_LIBRETRO

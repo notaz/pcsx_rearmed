@@ -94,10 +94,12 @@ typedef enum
 	MA_OPT_SWFILTER,
 	MA_OPT_GAMMA,
 	MA_OPT_VOUT_MODE,
+	MA_OPT_VOUT_FULL,
 	MA_OPT_SCANLINES,
 	MA_OPT_SCANLINE_LEVEL,
 	MA_OPT_CENTERING,
 	MA_OPT_OVERSCAN,
+	MA_OPT_VSYNC,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -131,8 +133,6 @@ static const char *memcards[32];
 static int bios_sel, gpu_plugsel, spu_plugsel;
 
 #ifndef UI_FEATURES_H
-#define MENU_BIOS_PATH "bios/"
-#define MENU_SHOW_VARSCALER 0
 #define MENU_SHOW_VOUTMODE 1
 #define MENU_SHOW_SCALER2 0
 #define MENU_SHOW_NUBS_BTNS 0
@@ -142,21 +142,15 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #define MENU_SHOW_FULLSCREEN 1
 #define MENU_SHOW_VOLUME 0
 #endif
+#ifndef MENU_SHOW_VARSCALER
+#define MENU_SHOW_VARSCALER 0
+#endif
+#ifndef MENU_SHOW_VARSCALER_C
+#define MENU_SHOW_VARSCALER_C 0
+#endif
 
 static int min(int x, int y) { return x < y ? x : y; }
 static int max(int x, int y) { return x > y ? x : y; }
-
-void emu_make_path(char *buff, const char *end, int size)
-{
-	int pos, end_len;
-
-	end_len = strlen(end);
-	pos = plat_get_root_dir(buff, size);
-	strncpy(buff + pos, end, size - pos);
-	buff[size - 1] = 0;
-	if (pos + end_len > size - 1)
-		printf("Warning: path truncated: %s\n", buff);
-}
 
 static int emu_check_save_file(int slot, int *time)
 {
@@ -443,6 +437,10 @@ static const struct {
 	CE_INTVAL(memcard2_sel),
 	CE_INTVAL(g_autostateld_opt),
 	CE_INTVAL(cd_buf_count),
+	CE_INTVAL_N("adev0_axis0", in_adev_axis[0][0]),
+	CE_INTVAL_N("adev0_axis1", in_adev_axis[0][1]),
+	CE_INTVAL_N("adev1_axis0", in_adev_axis[1][0]),
+	CE_INTVAL_N("adev1_axis1", in_adev_axis[1][1]),
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 4),
@@ -502,10 +500,14 @@ static char *get_cd_label(void)
 
 static void make_cfg_fname(char *buf, size_t size, int is_game)
 {
-	if (is_game)
-		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", get_cd_label(), CdromId);
+	char id_buf[64];
+	if (is_game) {
+		snprintf(id_buf, sizeof(id_buf), "%.32s-%.9s.cfg",
+			get_cd_label(), CdromId);
+		emu_make_path(buf, size, CFG_DIR, id_buf);
+	}
 	else
-		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		emu_make_path(buf, size, PCSX_DOT_DIR, cfgfile_basename);
 }
 
 static void keys_write_all(FILE *f);
@@ -571,7 +573,7 @@ static int menu_do_last_cd_img(int is_get)
 	FILE *f;
 	int i, ret = -1;
 
-	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
+	emu_make_path(path, sizeof(path), PCSX_DOT_DIR, "lastcdimg.txt");
 	f = fopen(path, is_get ? "r" : "w");
 	if (f == NULL) {
 		ret = -1;
@@ -1116,6 +1118,10 @@ static void keys_load_all(const char *cfg)
 
 static int key_config_loop_wrap(int id, int keys)
 {
+	int d;
+
+	for (d = 0; d < IN_MAX_DEVS; d++)
+		in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 0);
 	switch (id) {
 		case MA_CTRL_PLAYER1:
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 0);
@@ -1129,6 +1135,9 @@ static int key_config_loop_wrap(int id, int keys)
 		default:
 			break;
 	}
+	for (d = 0; d < IN_MAX_DEVS; d++)
+		in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 1);
+
 	return 0;
 }
 
@@ -1280,7 +1289,11 @@ static int menu_loop_keyconfig(int id, int keys)
 // ------------ gfx options menu ------------
 
 static const char *men_scaler[] = {
-	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen", "custom", NULL
+	"1x1", "integer scaled 2x", "scaled 4:3", "integer scaled 4:3", "fullscreen",
+#if MENU_SHOW_VARSCALER_C
+	"custom",
+#endif
+	NULL
 };
 static const char *men_soft_filter[] = { "None",
 #ifdef HAVE_NEON32
@@ -1385,10 +1398,11 @@ static int menu_loop_cscaler(int id, int keys)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum      ("Screen centering",         MA_OPT_CENTERING, pl_rearmed_cbs.screen_centering_type, men_centering),
+	mee_enum      ("PSX Screen centering",     MA_OPT_CENTERING, pl_rearmed_cbs.screen_centering_type, men_centering),
 	mee_enum      ("Show overscan",            MA_OPT_OVERSCAN, pl_rearmed_cbs.show_overscan, men_overscan),
 	mee_enum_h    ("Scaler",                   MA_OPT_VARSCALER, g_scaler, men_scaler, h_scaler),
 	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_onoff     ("Fullscreen mode",          MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
 	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
@@ -1397,7 +1411,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
 #endif
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
-//	mee_onoff     ("Vsync",                    0, vsync, 1),
+	mee_onoff     ("OpenGL Vsync",             MA_OPT_VSYNC, g_opts, OPT_VSYNC),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
 	mee_end,
 };
@@ -1894,10 +1908,10 @@ static void handle_memcard_sel(void)
 {
 	strcpy(Config.Mcd1, "none");
 	if (memcard1_sel != 0)
-		snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s", MEMCARD_DIR, memcards[memcard1_sel]);
+		emu_make_path(Config.Mcd1, sizeof(Config.Mcd1), MEMCARD_DIR, memcards[memcard1_sel]);
 	strcpy(Config.Mcd2, "none");
 	if (memcard2_sel != 0)
-		snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s", MEMCARD_DIR, memcards[memcard2_sel]);
+		emu_make_path(Config.Mcd2, sizeof(Config.Mcd2), MEMCARD_DIR, memcards[memcard2_sel]);
 	LoadMcds(Config.Mcd1, Config.Mcd2);
 	draw_mc_bg();
 }
@@ -1994,8 +2008,7 @@ static void menu_bios_warn(void)
 	int inp;
 	static const char msg[] =
 		"You don't seem to have copied any BIOS\n"
-		"files to\n"
-		MENU_BIOS_PATH "\n\n"
+		"files to\n%s\n\n"
 
 		"While many games work fine with fake\n"
 		"(HLE) BIOS, others (like MGS and FF8)\n"
@@ -2009,7 +2022,7 @@ static void menu_bios_warn(void)
 		"Press %s or %s to continue";
 	char tmp_msg[sizeof(msg) + 64];
 
-	snprintf(tmp_msg, sizeof(tmp_msg), msg,
+	snprintf(tmp_msg, sizeof(tmp_msg), msg, Config.BiosDir,
 		in_get_key_name(-1, -PBTN_MOK), in_get_key_name(-1, -PBTN_MBACK));
 	while (1)
 	{
@@ -2596,7 +2609,8 @@ do_plugins:
 #endif
 
 do_memcards:
-	dir = opendir("." MEMCARD_DIR);
+	emu_make_path(fname, sizeof(fname), MEMCARD_DIR, NULL);
+	dir = opendir(fname);
 	if (dir == NULL) {
 		perror("scan_bios_plugins memcards opendir");
 		return;
@@ -2616,7 +2630,7 @@ do_memcards:
 		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
 			continue;
 
-		snprintf(fname, sizeof(fname), "." MEMCARD_DIR "%s", ent->d_name);
+		emu_make_path(fname, sizeof(fname), MEMCARD_DIR, ent->d_name);
 		if (stat(fname, &st) != 0) {
 			printf("bad memcard file: %s\n", ent->d_name);
 			continue;
@@ -2660,7 +2674,7 @@ void menu_init(void)
 		exit(1);
 	}
 
-	emu_make_path(buff, "skin/background.png", sizeof(buff));
+	emu_make_data_path(buff, "skin/background.png", sizeof(buff));
 	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
 
 	i = plat_target.cpu_clock_set != NULL
@@ -2672,20 +2686,27 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
 		plat_target.vout_methods != NULL);
 
+#ifndef SDL_OVERLAY_2X
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_FULL);
+	e_menu_gfx_options[i].data = plat_target.vout_methods;
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_FULL, 0);
+#endif
+
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_HWFILTER);
 	e_menu_gfx_options[i].data = plat_target.hwfilters;
-	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER,
-		plat_target.hwfilters != NULL);
+	me_enable(e_menu_gfx_options, MA_OPT_HWFILTER, plat_target.hwfilters != NULL);
+	if (plat_target.hwfilters && !strcmp(plat_target.hwfilters[0], "linear"))
+		e_menu_gfx_options[i].name = "OpenGL filter";
+	else
+		me_enable(e_menu_gfx_options, MA_OPT_VSYNC, 0);
 
-	me_enable(e_menu_gfx_options, MA_OPT_GAMMA,
-		plat_target.gamma_set != NULL);
-
-#ifdef HAVE_PRE_ARMV7
+	me_enable(e_menu_gfx_options, MA_OPT_GAMMA, plat_target.gamma_set != NULL);
+#ifdef HAVE_NEON32
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE, MENU_SHOW_VOUTMODE);
-	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER);
+	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER_C, MENU_SHOW_VARSCALER_C);
 	me_enable(e_menu_gfx_options, MA_OPT_SCALER2, MENU_SHOW_SCALER2);
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
 	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);

@@ -455,8 +455,10 @@ void CreateMcd(char *mcd) {
 	int i = 0, j;
 
 	f = fopen(mcd, "wb");
-	if (f == NULL)
+	if (f == NULL) {
+		SysPrintf("CreateMcd: couldn't open %s\n", mcd);
 		return;
+	}
 
 	if (stat(mcd, &buf) != -1) {
 		if ((buf.st_size == MCD_SIZE + 3904) || strstr(mcd, ".gme")) {

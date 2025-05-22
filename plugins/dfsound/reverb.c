@@ -105,11 +105,12 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
  int mrsame_m2o = rvb->mRSAME + space - 1;
  int mldiff_m2o = rvb->mLDIFF + space - 1;
  int mrdiff_m2o = rvb->mRDIFF + space - 1;
- int vCOMB1 = rvb->vCOMB1, vCOMB2 = rvb->vCOMB2;
- int vCOMB3 = rvb->vCOMB3, vCOMB4 = rvb->vCOMB4;
- int vAPF1 = rvb->vAPF1, vAPF2 = rvb->vAPF2;
+ int vCOMB1 = rvb->vCOMB1 >> 1, vCOMB2 = rvb->vCOMB2 >> 1;
+ int vCOMB3 = rvb->vCOMB3 >> 1, vCOMB4 = rvb->vCOMB4 >> 1;
+ int vAPF1 = rvb->vAPF1 >> 1, vAPF2 = rvb->vAPF2 >> 1;
+ int vLIN = rvb->vLIN >> 1, vRIN = rvb->vRIN >> 1;
+ int vWALL = rvb->vWALL >> 1;
  int vIIR = rvb->vIIR;
- int vWALL = rvb->vWALL;
  int ns;
 
 #if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
@@ -122,23 +123,26 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
 
  for (ns = 0; ns < ns_to * 2; )
   {
-   int Lin = RVB[ns]   * rvb->vLIN;
-   int Rin = RVB[ns+1] * rvb->vRIN;
-   int mlsame_m2 = g_buffer(mlsame_m2o) << 15; // -1
-   int mrsame_m2 = g_buffer(mrsame_m2o) << 15;
-   int mldiff_m2 = g_buffer(mldiff_m2o) << 15;
-   int mrdiff_m2 = g_buffer(mrdiff_m2o) << 15;
+   int Lin = RVB[ns];
+   int Rin = RVB[ns+1];
+   int mlsame_m2 = g_buffer(mlsame_m2o) << (15-1);
+   int mrsame_m2 = g_buffer(mrsame_m2o) << (15-1);
+   int mldiff_m2 = g_buffer(mldiff_m2o) << (15-1);
+   int mrdiff_m2 = g_buffer(mrdiff_m2o) << (15-1);
    int Lout, Rout, out0[2], out1[2];
+
+   ssat32_to_16(Lin); Lin *= vLIN;
+   ssat32_to_16(Rin); Rin *= vRIN;
 
    // from nocash psx-spx
    mlsame_m2 += ((Lin + g_buffer(rvb->dLSAME) * vWALL - mlsame_m2) >> 15) * vIIR;
    mrsame_m2 += ((Rin + g_buffer(rvb->dRSAME) * vWALL - mrsame_m2) >> 15) * vIIR;
    mldiff_m2 += ((Lin + g_buffer(rvb->dLDIFF) * vWALL - mldiff_m2) >> 15) * vIIR;
    mrdiff_m2 += ((Rin + g_buffer(rvb->dRDIFF) * vWALL - mrdiff_m2) >> 15) * vIIR;
-   mlsame_m2 >>= 15; s_buffer_w(rvb->mLSAME, mlsame_m2);
-   mrsame_m2 >>= 15; s_buffer_w(rvb->mRSAME, mrsame_m2);
-   mldiff_m2 >>= 15; s_buffer_w(rvb->mLDIFF, mldiff_m2);
-   mrdiff_m2 >>= 15; s_buffer_w(rvb->mRDIFF, mrdiff_m2);
+   mlsame_m2 >>= (15-1); s_buffer_w(rvb->mLSAME, mlsame_m2);
+   mrsame_m2 >>= (15-1); s_buffer_w(rvb->mRSAME, mrsame_m2);
+   mldiff_m2 >>= (15-1); s_buffer_w(rvb->mLDIFF, mldiff_m2);
+   mrdiff_m2 >>= (15-1); s_buffer_w(rvb->mRDIFF, mrdiff_m2);
 
    Lout = vCOMB1 * g_buffer(rvb->mLCOMB1) + vCOMB2 * g_buffer(rvb->mLCOMB2)
         + vCOMB3 * g_buffer(rvb->mLCOMB3) + vCOMB4 * g_buffer(rvb->mLCOMB4);
@@ -147,24 +151,24 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
 
    preload(SSumLR + ns + 64*2/4 - 4);
 
-   Lout -= vAPF1 * g_buffer(rvb->mLAPF1_dAPF1); Lout >>= 15;
-   Rout -= vAPF1 * g_buffer(rvb->mRAPF1_dAPF1); Rout >>= 15;
+   Lout -= vAPF1 * g_buffer(rvb->mLAPF1_dAPF1); Lout >>= (15-1);
+   Rout -= vAPF1 * g_buffer(rvb->mRAPF1_dAPF1); Rout >>= (15-1);
    s_buffer_w(rvb->mLAPF1, Lout);
    s_buffer_w(rvb->mRAPF1, Rout);
-   Lout = Lout * vAPF1 + (g_buffer(rvb->mLAPF1_dAPF1) << 15);
-   Rout = Rout * vAPF1 + (g_buffer(rvb->mRAPF1_dAPF1) << 15);
+   Lout = Lout * vAPF1 + (g_buffer(rvb->mLAPF1_dAPF1) << (15-1));
+   Rout = Rout * vAPF1 + (g_buffer(rvb->mRAPF1_dAPF1) << (15-1));
 
    preload(RVB + ns + 64*2/4 - 4);
 
-   Lout -= vAPF2 * g_buffer(rvb->mLAPF2_dAPF2); Lout >>= 15;
-   Rout -= vAPF2 * g_buffer(rvb->mRAPF2_dAPF2); Rout >>= 15;
+   Lout -= vAPF2 * g_buffer(rvb->mLAPF2_dAPF2); Lout >>= (15-1);
+   Rout -= vAPF2 * g_buffer(rvb->mRAPF2_dAPF2); Rout >>= (15-1);
    s_buffer_w(rvb->mLAPF2, Lout);
    s_buffer_w(rvb->mRAPF2, Rout);
-   Lout = Lout * vAPF2 + (g_buffer(rvb->mLAPF2_dAPF2) << 15);
-   Rout = Rout * vAPF2 + (g_buffer(rvb->mRAPF2_dAPF2) << 15);
+   Lout = Lout * vAPF2 + (g_buffer(rvb->mLAPF2_dAPF2) << (15-1));
+   Rout = Rout * vAPF2 + (g_buffer(rvb->mRAPF2_dAPF2) << (15-1));
 
-   out0[0] = out1[0] = (Lout >> 15) * rvb->VolLeft  >> 15;
-   out0[1] = out1[1] = (Rout >> 15) * rvb->VolRight >> 15;
+   out0[0] = out1[0] = (Lout >> (15-1)) * rvb->VolLeft  >> 15;
+   out0[1] = out1[1] = (Rout >> (15-1)) * rvb->VolRight >> 15;
    if (do_filter)
     reverb_interpolate(sb, curr_addr, out0, out1);
 

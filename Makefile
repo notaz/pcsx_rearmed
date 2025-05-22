@@ -363,9 +363,11 @@ endif
 
 ifeq "$(PLATFORM)" "generic"
 OBJS += frontend/libpicofe/in_sdl.o
-OBJS += frontend/libpicofe/plat_sdl.o
+#OBJS += frontend/libpicofe/plat_sdl.o
 OBJS += frontend/libpicofe/plat_dummy.o
 OBJS += frontend/plat_sdl.o
+frontend/plat_sdl.o frontend/libpicofe/plat_sdl.o: CFLAGS += -DSDL_OVERLAY_2X
+frontend/menu.o: CFLAGS += -DSDL_OVERLAY_2X -DMENU_SHOW_VARSCALER=1
 ifeq "$(HAVE_EVDEV)" "1"
 OBJS += frontend/libpicofe/linux/in_evdev.o
 endif
@@ -386,6 +388,7 @@ OBJS += frontend/libpicofe/linux/fbdev.o frontend/libpicofe/linux/xenv.o
 OBJS += frontend/libpicofe/linux/in_evdev.o
 OBJS += frontend/plat_pandora.o frontend/plat_omap.o
 frontend/main.o frontend/menu.o: CFLAGS += -include frontend/pandora/ui_feat.h
+frontend/main.o frontend/plugin_lib.o: CFLAGS += -DPANDORA
 frontend/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
@@ -463,6 +466,7 @@ endif
 ifeq "$(USE_FRONTEND)" "1"
 OBJS += frontend/menu.o
 OBJS += frontend/libpicofe/input.o
+frontend/libpicofe/input.o: CFLAGS += -Wno-array-bounds
 frontend/menu.o: frontend/libpicofe/menu.c
 ifeq "$(HAVE_TSLIB)" "1"
 frontend/%.o: CFLAGS += -DHAVE_TSLIB
