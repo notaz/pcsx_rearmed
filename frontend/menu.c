@@ -1404,8 +1404,8 @@ static menu_entry e_menu_gfx_options[] =
 	mee_enum      ("Video output mode",        MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_onoff     ("Fullscreen mode",          MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
 	mee_onoff     ("Software Scaling",         MA_OPT_SCALER2, soft_scaling, 1),
-	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 	mee_enum_h    ("Software Filter",          MA_OPT_SWFILTER, soft_filter, men_soft_filter, h_soft_filter),
+	mee_enum      ("Hardware Filter",          MA_OPT_HWFILTER, plat_target.hwfilter, men_dummy),
 #ifdef HAVE_NEON32
 	mee_enum      ("Scanlines",                MA_OPT_SCANLINES, scanlines, men_scanlines),
 	mee_range_h   ("Scanline brightness",      MA_OPT_SCANLINE_LEVEL, scanline_level, 0, 100, h_scanline_l),
@@ -2701,7 +2701,7 @@ void menu_init(void)
 		me_enable(e_menu_gfx_options, MA_OPT_VSYNC, 0);
 
 	me_enable(e_menu_gfx_options, MA_OPT_GAMMA, plat_target.gamma_set != NULL);
-#ifdef HAVE_NEON32
+#ifndef HAVE_NEON32
 	me_enable(e_menu_gfx_options, MA_OPT_SWFILTER, 0);
 #endif
 	me_enable(e_menu_gfx_options, MA_OPT_VARSCALER, MENU_SHOW_VARSCALER);

@@ -331,7 +331,7 @@ static void gl_finish_pl(void)
 {
   if (plugin_owns_display() && GPU_close != NULL)
     GPU_close();
-  gl_finish();
+  gl_destroy();
 }
 
 static void gl_resize(void)
@@ -352,7 +352,7 @@ static void gl_resize(void)
       return;
     gl_finish_pl();
   }
-  plat_sdl_gl_active = (gl_init(display, window, &gl_quirks, w, h) == 0);
+  plat_sdl_gl_active = (gl_create(window, &gl_quirks, w, h) == 0);
   if (plat_sdl_gl_active)
     gl_w_prev = w, gl_h_prev = h, gl_quirks_prev = gl_quirks;
   else {

@@ -533,6 +533,8 @@ if compile_binary $CFLAGS_GLES -lEGL -lGLES_CM $LDLIBS_GLES; then
 elif compile_binary $CFLAGS_GLES -lEGL -lGLESv1_CM $LDLIBS_GLES; then
   have_gles="yes"
   LDLIBS_GLES="-lEGL -lGLESv1_CM $LDLIBS_GLES"
+elif compile_object $CFLAGS_GLES; then
+  have_gles="yes"
 fi
 
 if check_c64_tools; then
@@ -549,7 +551,7 @@ if [ "$have_dynamic" = "yes" ]; then
   if [ "$builtin_gpu" != "unai" ]; then
     plugins="$plugins plugins/gpu_unai/gpu_unai.so"
   fi
-  if [ "$have_gles" = "yes" ]; then
+  if [ "$have_gles" = "yes" -a "x$LDLIBS_GLES" != "x" ]; then
     plugins="$plugins plugins/gpu-gles/gpu_gles.so"
   fi
   if [ "$have_neon_gpu" = "yes" -a "$builtin_gpu" != "neon" ]; then
