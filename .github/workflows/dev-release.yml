@@ -10,15 +10,17 @@ on:
 jobs:
   pre-release:
     name: "Pre Release"
-    runs-on: "ubuntu-20.04"
-
+    runs-on: "ubuntu-latest"
+    container:
+      image: ubuntu:20.04
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y make git bc sed zip
-          sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          id
+          apt-get update -qq
+          apt-get install -y make git bc sed zip
+          apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross
+          apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -26,6 +28,10 @@ jobs:
         env:
           MAKEFLAGS: -j$(nproc)
         run: |
+          grep PRETTY_NAME /etc/os-release
+          id
+          pwd
+          git config --global --add safe.directory /__w/pcsx_rearmed/pcsx_rearmed
           .github/build-libretro-zip.sh arm64 CortexA73_G12B
           .github/build-libretro-zip.sh arm32 rpi1
           .github/build-libretro-zip.sh arm32 rpi2
