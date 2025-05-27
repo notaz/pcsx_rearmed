@@ -11,7 +11,11 @@ jobs:
   pre-release:
     name: "Pre Release"
     runs-on: "ubuntu-20.04"
-
+    container:
+      image: ghcr.io/notaz/ubuntu:20.04
+      credentials:
+        username: notaz
+        password: ${{secrets.DOCKER_CONTAINER_REGISTRY_TOKEN}}
     steps:
       - name: Install dependencies
         run: |
