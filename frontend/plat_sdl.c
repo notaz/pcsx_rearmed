@@ -774,6 +774,7 @@ void plat_video_menu_leave(void)
     change_mode(fs_w, fs_h);
   overlay_or_gl_check_enable();
   centered_clear();
+  setup_blit_callbacks(psx_w, psx_h);
 
   for (d = 0; d < IN_MAX_DEVS; d++)
     in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 0);
