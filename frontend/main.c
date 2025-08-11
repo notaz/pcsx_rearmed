@@ -503,7 +503,7 @@ void emu_core_ask_exit(void)
 
 static const char *get_home_dir(void)
 {
-#if defined(PANDORA) || !defined(__unix__)
+#if defined(PANDORA) || !defined(__unix__) || defined(MIYOO)
 	return ".";
 #else
 	static const char *home = NULL;
