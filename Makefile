@@ -373,7 +373,8 @@ OBJS += frontend/libpicofe/linux/in_evdev.o
 endif
 ifeq "$(HAVE_GLES)" "1"
 OBJS += frontend/libpicofe/gl.o frontend/libpicofe/gl_platform.o
-LDLIBS += $(LDLIBS_GLES)
+OBJS += frontend/libpicofe/gl_loader.o
+#LDLIBS += $(LDLIBS_GLES) # loaded dynamically now
 frontend/libpicofe/plat_sdl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
 frontend/libpicofe/gl_platform.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)
 frontend/libpicofe/gl.o: CFLAGS += -DHAVE_GLES $(CFLAGS_GLES)

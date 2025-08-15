@@ -331,7 +331,7 @@ static void gl_finish_pl(void)
 {
   if (plugin_owns_display() && GPU_close != NULL)
     GPU_close();
-  gl_finish();
+  gl_destroy();
 }
 
 static void gl_resize(void)
@@ -352,7 +352,7 @@ static void gl_resize(void)
       return;
     gl_finish_pl();
   }
-  plat_sdl_gl_active = (gl_init(display, window, &gl_quirks, w, h) == 0);
+  plat_sdl_gl_active = (gl_create(window, &gl_quirks, w, h) == 0);
   if (plat_sdl_gl_active)
     gl_w_prev = w, gl_h_prev = h, gl_quirks_prev = gl_quirks;
   else {
@@ -774,6 +774,7 @@ void plat_video_menu_leave(void)
     change_mode(fs_w, fs_h);
   overlay_or_gl_check_enable();
   centered_clear();
+  setup_blit_callbacks(psx_w, psx_h);
 
   for (d = 0; d < IN_MAX_DEVS; d++)
     in_set_config_int(d, IN_CFG_ANALOG_MAP_ULDR, 0);

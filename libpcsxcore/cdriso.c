@@ -1494,6 +1494,14 @@ int ISOopen(const char *fname)
 			isMode1ISO = TRUE;
 		}
 	}
+	if (cdHandle && numtracks == 0) {
+		// assume some metadata-less format
+		numtracks = 1;
+		ti[1].type = DATA;
+		ti[1].start_offset = 0;
+		sec2msf(2 * 75, ti[1].start);
+		sec2msf(isMode1ISO ? size_main / 2048u : size_main / 2352u, ti[1].length);
+	}
 
 	SysPrintf("%s (%lld bytes).\n", image_str, (long long)size_main);
 
