@@ -1215,19 +1215,20 @@ static void rec_io(struct lightrec_cstate *state,
 	union code c = block->opcode_list[offset].c;
 	u32 flags = block->opcode_list[offset].flags;
 	bool is_tagged = LIGHTREC_FLAGS_GET_IO_MODE(flags);
+	bool load_delay = op_flag_load_delay(flags) && !state->no_load_delay;
+	u8 zero, reg = load_delay ? REG_TEMP : c.i.rt;
 	u32 lut_entry;
-	u8 zero;
 
 	jit_note(__FILE__, __LINE__);
 
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 
 	if (read_rt && likely(c.i.rt))
-		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, true);
 	else if (load_rt)
-		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, false);
 
-	if (op_flag_load_delay(flags) && !state->no_load_delay) {
+	if (load_delay) {
 		/* Clear state->in_delay_slot_n. This notifies the lightrec_rw
 		 * wrapper that it should write the REG_TEMP register instead of
 		 * the actual output register of the opcode. */

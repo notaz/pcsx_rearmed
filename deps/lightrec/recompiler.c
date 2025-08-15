@@ -43,7 +43,7 @@ struct recompiler {
 
 	pthread_mutex_t alloc_mutex;
 
-	unsigned int nb_recs;
+	unsigned int nb_recs, nb_cpus;
 	struct recompiler_thd thds[];
 };
 
@@ -232,6 +232,7 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 	rec->pause = false;
 	rec->must_flush = false;
 	rec->nb_recs = nb_recs;
+	rec->nb_cpus = nb_cpus;
 	slist_init(&rec->slist);
 
 	ret = pthread_cond_init(&rec->cond, NULL);
@@ -341,6 +342,17 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 			/* The block to compile is already in the queue -
 			 * increment its counter to increase its priority */
 			block_rec->requests++;
+
+			if (rec->nb_cpus == 1) {
+				/* On single-core CPUs, if we got a request for
+				 * a block that's already in the queue, we'll
+				 * probably get many more before the compiler
+				 * thread can run, which means that the block
+				 * will be interpreted until then, wasting a lot
+				 * of performance. In that case, it is better to
+				 * just let the compiler thread run now. */
+				pthread_cond_wait(&rec->cond2, &rec->mutex);
+			}
 			goto out_unlock;
 		}
 

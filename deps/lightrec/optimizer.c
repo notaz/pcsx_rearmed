@@ -101,6 +101,7 @@ static u64 opcode_read_mask(union code op)
 	case OP_J:
 	case OP_JAL:
 	case OP_LUI:
+	case OP_META_BIOS:
 		return 0;
 	case OP_BEQ:
 		if (op.i.rs == op.i.rt)

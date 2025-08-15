@@ -1362,6 +1362,9 @@ static unsigned int lightrec_get_mips_block_len(const u32 *src)
 		if (is_syscall(c))
 			return i;
 
+		if (c.i.op == OP_META_BIOS)
+			return i;
+
 		if (is_unconditional_jump(c))
 			return i + 1;
 	}
