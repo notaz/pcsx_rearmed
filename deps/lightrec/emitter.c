@@ -1229,6 +1229,10 @@ static void rec_io(struct lightrec_cstate *state,
 		lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, false);
 
 	if (load_delay) {
+		/* lightrec_rw() might read the actual target register (in case
+		 * of LWL/LWR), so we need to keep it in sync. */
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
+
 		/* Clear state->in_delay_slot_n. This notifies the lightrec_rw
 		 * wrapper that it should write the REG_TEMP register instead of
 		 * the actual output register of the opcode. */
