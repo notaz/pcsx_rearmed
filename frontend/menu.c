@@ -2166,7 +2166,7 @@ static int run_exe(void)
 	return 0;
 }
 
-static int run_cd_image(const char *fname)
+int run_cd_image(const char *fname)
 {
 	int autoload_state = g_autostateld_opt;
 	size_t fname_len = strlen(fname);
