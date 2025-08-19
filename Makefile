@@ -601,6 +601,10 @@ rel: pcsx $(PLUGINS) \
 	mkdir out/pcsx_rearmed/lib/
 	mkdir out/pcsx_rearmed/bios/
 	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_miyoo.zip *
+
+ipk: rel
+	VERSION="$(VER)" gm2xpkg -q -f miyoo/pkg.cfg
+	mv pcsx.ipk pcsx_rearmed.ipk
 endif
 
 ifeq "$(PLATFORM)" "caanoo"
