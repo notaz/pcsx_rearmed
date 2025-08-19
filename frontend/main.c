@@ -658,10 +658,10 @@ int main(int argc, char *argv[])
 	in_init();
 	pl_init();
 	plat_init();
+	menu_init(); // loads config
+
 	if (emu_core_init() != 0)
 		return 1;
-	CheckCdrom();
-	menu_init(cdfile ? 1 : 0); // loads config
 
 	if (psxout)
 		Config.PsxOut = 1;
@@ -682,6 +682,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	CheckCdrom();
 	plugin_call_rearmed_cbs();
 	SysReset();
 

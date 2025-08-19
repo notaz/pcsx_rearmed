@@ -2651,7 +2651,7 @@ do_memcards:
 	closedir(dir);
 }
 
-void menu_init(int cdarg)
+void menu_init(void)
 {
 	char buff[MAXPATHLEN];
 	int i;
@@ -2662,8 +2662,7 @@ void menu_init(int cdarg)
 	menu_init_base();
 
 	menu_set_defconfig();
-	if (cdarg && menu_load_config(1) != 0)
-		menu_load_config(0);
+	menu_load_config(0);
 	menu_do_last_cd_img(1);
 	last_vout_w = 320;
 	last_vout_h = 240;
