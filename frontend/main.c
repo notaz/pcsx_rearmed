@@ -636,7 +636,8 @@ int main(int argc, char *argv[])
 							"\t-cdfile FILE\tRuns a CD image file\n"
 							"\t-cfg FILE\tLoads desired configuration file (default: ~/.pcsx/pcsx.cfg)\n"
 							"\t-psxout\t\tEnable PSX output\n"
-							"\t-load STATENUM\tLoads savestate STATENUM (1-5)\n"
+							"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
+							"\t-loadf FILE\tLoads savestate from FILE\n"
 							"\t-h -help\tDisplay this message\n"
 							"\tfile\t\tLoads a PSX EXE file\n"));
 			 return 0;
@@ -695,15 +696,8 @@ int main(int argc, char *argv[])
 		if (Load(file) != -1)
 			ready_to_go = 1;
 	} else {
-		if (cdfile) {
-			if (LoadCdrom() == -1) {
-				ClosePlugins();
-				SysPrintf(_("Could not load CD-ROM!\n"));
-				return -1;
-			}
-			emu_on_new_cd(!loadst);
-			ready_to_go = 1;
-		}
+		if (cdfile)
+			ready_to_go = menu_load_cd_image(cdfile) == 0;
 	}
 
 	if (loadst_f) {
@@ -714,14 +708,12 @@ int main(int argc, char *argv[])
 	}
 
 	if (ready_to_go) {
-		if (menu_load_config(1) != 0)
-			menu_load_config(0);
 		menu_prepare_emu();
 
-		// If a state has been specified, then load that
-		if (loadst) {
+		// If a state slot has been specified, then load that
+		if (cdfile && loadst) {
 			int ret = emu_load_state(loadst - 1);
-			SysPrintf("%s state %d\n",
+			SysPrintf("%s state slot %d\n",
 				ret ? "failed to load" : "loaded", loadst);
 		}
 	}
