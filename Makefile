@@ -404,6 +404,16 @@ frontend/main.o frontend/menu.o: CFLAGS += -include frontend/320240/ui_gp2x.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
+ifeq "$(PLATFORM)" "miyoo"
+HOMEPATH = /mnt
+OBJS += frontend/libpicofe/in_sdl.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/libpicofe/plat_dummy.o
+OBJS += frontend/plat_sdl.o
+frontend/main.o frontend/menu.o: CFLAGS += -include frontend/320240/ui_miyoo.h
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
 maemo/%.o: maemo/%.c
@@ -576,6 +586,25 @@ rel: pcsx plugins/dfsound/pcsxr_spu_area3.out $(PLUGINS) \
 	rm out/pcsx.pxml.templ
 	-mv out/*.so out/plugins/
 	$(PND_MAKE) -p pcsx_rearmed_$(VER).pnd -d out -x out/pcsx.pxml -i frontend/pandora/pcsx.png -c
+endif
+
+ifeq "$(PLATFORM)" "miyoo"
+
+rel: pcsx $(PLUGINS) \
+		frontend/320240/pcsx26.png \
+		frontend/320240/skin \
+		readme.txt COPYING
+	rm -rf out
+	mkdir -p out/pcsx_rearmed/plugins
+	cp -r $^ out/pcsx_rearmed/
+	-mv out/pcsx_rearmed/*.so out/pcsx_rearmed/plugins/
+	mkdir out/pcsx_rearmed/lib/
+	mkdir out/pcsx_rearmed/bios/
+	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_miyoo.zip *
+
+ipk: rel
+	VERSION="$(VER)" gm2xpkg -q -f miyoo/pkg.cfg
+	mv pcsx.ipk pcsx_rearmed.ipk
 endif
 
 ifeq "$(PLATFORM)" "caanoo"

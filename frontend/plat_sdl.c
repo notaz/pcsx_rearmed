@@ -30,6 +30,42 @@
 
 #include "libpicofe/plat_sdl.c"
 
+#ifdef MIYOO
+static const struct in_default_bind in_sdl_defbinds[] = {
+  { SDLK_UP,        IN_BINDTYPE_PLAYER12, DKEY_UP },
+  { SDLK_DOWN,      IN_BINDTYPE_PLAYER12, DKEY_DOWN },
+  { SDLK_LEFT,      IN_BINDTYPE_PLAYER12, DKEY_LEFT },
+  { SDLK_RIGHT,     IN_BINDTYPE_PLAYER12, DKEY_RIGHT },
+  { SDLK_LSHIFT,    IN_BINDTYPE_PLAYER12, DKEY_TRIANGLE },
+  { SDLK_LCTRL,     IN_BINDTYPE_PLAYER12, DKEY_CROSS },
+  { SDLK_LALT,      IN_BINDTYPE_PLAYER12, DKEY_CIRCLE },
+  { SDLK_SPACE,     IN_BINDTYPE_PLAYER12, DKEY_SQUARE },
+  { SDLK_RETURN,    IN_BINDTYPE_PLAYER12, DKEY_START },
+  { SDLK_ESCAPE,    IN_BINDTYPE_PLAYER12, DKEY_SELECT },
+  { SDLK_TAB,       IN_BINDTYPE_PLAYER12, DKEY_L1 },
+  { SDLK_BACKSPACE, IN_BINDTYPE_PLAYER12, DKEY_R1 },
+  { SDLK_PAGEUP,    IN_BINDTYPE_PLAYER12, DKEY_L2 },
+  { SDLK_PAGEDOWN,  IN_BINDTYPE_PLAYER12, DKEY_R2 },
+  { SDLK_RALT,      IN_BINDTYPE_PLAYER12, DKEY_L3 },
+  { SDLK_RSHIFT,    IN_BINDTYPE_PLAYER12, DKEY_R3 },
+  { SDLK_RCTRL,     IN_BINDTYPE_EMU, SACTION_ENTER_MENU },
+  { 0, 0, 0 }
+};
+
+const struct menu_keymap in_sdl_key_map[] =
+{
+  { SDLK_UP,        PBTN_UP },
+  { SDLK_DOWN,      PBTN_DOWN },
+  { SDLK_LEFT,      PBTN_LEFT },
+  { SDLK_RIGHT,     PBTN_RIGHT },
+  { SDLK_LALT,      PBTN_MOK },
+  { SDLK_LCTRL,     PBTN_MBACK },
+  { SDLK_SPACE,     PBTN_MA2 },
+  { SDLK_LSHIFT,    PBTN_MA3 },
+  { SDLK_TAB,       PBTN_L },
+  { SDLK_BACKSPACE, PBTN_R },
+};
+#else
 static const struct in_default_bind in_sdl_defbinds[] = {
   { SDLK_UP,     IN_BINDTYPE_PLAYER12, DKEY_UP },
   { SDLK_DOWN,   IN_BINDTYPE_PLAYER12, DKEY_DOWN },
@@ -72,6 +108,7 @@ const struct menu_keymap in_sdl_key_map[] =
   { SDLK_LEFTBRACKET,  PBTN_L },
   { SDLK_RIGHTBRACKET, PBTN_R },
 };
+#endif
 
 const struct menu_keymap in_sdl_joy_map[] =
 {
