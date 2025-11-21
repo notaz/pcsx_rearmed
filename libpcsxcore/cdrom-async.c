@@ -10,6 +10,7 @@
  *   GNU General Public License for more details.                          *
  ***************************************************************************/
 
+#include <malloc.h>
 #include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,14 @@
 #include "cdriso.h"
 #include "cdrom.h"
 #include "cdrom-async.h"
+
+#ifdef WIN32
+#define memalign_free(ptr) _aligned_free(ptr)
+#define memalign_alloc(align, size) _aligned_malloc(size, align)
+#else
+#define memalign_free(ptr) free(ptr)
+#define memalign_alloc(align, size) memalign(align, size)
+#endif
 
 #if 0
 #define acdrom_dbg printf
@@ -91,11 +100,18 @@ static int c11_threads_cb_wrapper(void *cb)
 
 #include "retro_timers.h"
 
+/* Must be kept aligned to 64 bytes */
 struct cached_buf {
-   u32 lba;
-   u8 buf[CD_FRAMESIZE_RAW];
+   alignas(64)
+   u8 buf[CD_FRAMESIZE_RAW_ALIGNED];
    u8 buf_sub[SUB_FRAMESIZE];
+   u32 lba;
+   slock_t *lock;
+   scond_t *cond;
 };
+
+_Static_assert(!(sizeof(struct cached_buf) & 0x3f), "Unaligned size");
+
 static struct {
    sthread_t *thread;
    slock_t *read_lock;
@@ -103,21 +119,31 @@ static struct {
    scond_t *cond;
    struct cached_buf *buf_cache;
    u32 buf_cnt, thread_exit, do_prefetch, prefetch_failed, have_subchannel;
-   u32 total_lba, prefetch_lba;
+   u32 total_lba, prefetch_lba, prefetch_lba_to;
    int check_eject_delay;
 
    // single sector cache, not touched by the thread
    alignas(64) u8 buf_local[CD_FRAMESIZE_RAW_ALIGNED];
 } acdrom;
 
-static void lbacache_do(u32 lba)
+static int lbacache_do(u32 lba)
 {
-   alignas(64) unsigned char buf[CD_FRAMESIZE_RAW_ALIGNED];
-   unsigned char msf[3], buf_sub[SUB_FRAMESIZE];
    u32 i = lba % acdrom.buf_cnt;
+   unsigned char *buf;
+   u8 msf[3];
    int ret;
 
    lba2msf(lba + 150, &msf[0], &msf[1], &msf[2]);
+
+   slock_lock(acdrom.buf_cache[i].lock);
+
+   if (acdrom.buf_cache[i].lba == lba) {
+      slock_unlock(acdrom.buf_cache[i].lock);
+      return 0; /* Already in cache - nothing to do */
+   }
+
+   buf = acdrom.buf_cache[i].buf;
+
    slock_lock(acdrom.read_lock);
    if (g_cd_handle)
       ret = rcdrom_readSector(g_cd_handle, lba, buf);
@@ -125,43 +151,34 @@ static void lbacache_do(u32 lba)
       ret = ISOreadTrack(msf, buf);
    if (acdrom.have_subchannel) {
       if (g_cd_handle)
-         ret |= rcdrom_readSub(g_cd_handle, lba, buf_sub);
+         ret |= rcdrom_readSub(g_cd_handle, lba, acdrom.buf_cache[i].buf_sub);
       else
-         ret |= ISOreadSub(msf, buf_sub);
+         ret |= ISOreadSub(msf, acdrom.buf_cache[i].buf_sub);
    }
 
-   slock_lock(acdrom.buf_lock);
    slock_unlock(acdrom.read_lock);
-   acdrom_dbg("c  %d:%02d:%02d %2d m%d f%d\n", msf[0], msf[1], msf[2], ret,
+   acdrom_dbg("read %u %2d m%d f%d\n", lba, ret,
          buf[12+3], ((buf[12+4+2] >> 5) & 1) + 1);
-   if (ret) {
-      acdrom.do_prefetch = 0;
-      acdrom.prefetch_failed = 1;
-      slock_unlock(acdrom.buf_lock);
-      SysPrintf("prefetch: read failed for lba %d: %d\n", lba, ret);
-      return;
-   }
-   acdrom.prefetch_failed = 0;
-   acdrom.check_eject_delay = 100;
 
-   if (lba != acdrom.buf_cache[i].lba) {
+   if (!ret)
       acdrom.buf_cache[i].lba = lba;
-      memcpy(acdrom.buf_cache[i].buf, buf, sizeof(acdrom.buf_cache[i].buf));
-      if (acdrom.have_subchannel)
-         memcpy(acdrom.buf_cache[i].buf_sub, buf_sub, sizeof(buf_sub));
-   }
-   slock_unlock(acdrom.buf_lock);
-   if (g_cd_handle)
-      retro_sleep(0); // why does the main thread stall without this?
+
+   scond_signal(acdrom.buf_cache[i].cond);
+   slock_unlock(acdrom.buf_cache[i].lock);
+
+   return ret;
 }
 
 static int lbacache_get(unsigned int lba, void *buf, void *sub_buf)
 {
-   unsigned int i;
+   unsigned int i = lba % acdrom.buf_cnt;
    int ret = 0;
 
-   i = lba % acdrom.buf_cnt;
-   slock_lock(acdrom.buf_lock);
+   if (lba != acdrom.buf_cache[i].lba)
+      return 0;
+
+   slock_lock(acdrom.buf_cache[i].lock);
+
    if (lba == acdrom.buf_cache[i].lba) {
       if (buf)
          memcpy(buf, acdrom.buf_cache[i].buf, CD_FRAMESIZE_RAW);
@@ -169,7 +186,8 @@ static int lbacache_get(unsigned int lba, void *buf, void *sub_buf)
          memcpy(sub_buf, acdrom.buf_cache[i].buf_sub, SUB_FRAMESIZE);
       ret = 1;
    }
-   slock_unlock(acdrom.buf_lock);
+
+   slock_unlock(acdrom.buf_cache[i].lock);
    return ret;
 }
 
@@ -177,7 +195,8 @@ static int lbacache_get(unsigned int lba, void *buf, void *sub_buf)
 // with it. Only unsafe buffer accesses and simultaneous reads are prevented.
 static void cdra_prefetch_thread(void *unused)
 {
-   u32 buf_cnt, lba, lba_to;
+   u32 lba, lba_to;
+   int ret;
 
    slock_lock(acdrom.buf_lock);
    while (!acdrom.thread_exit)
@@ -190,76 +209,149 @@ static void cdra_prefetch_thread(void *unused)
       if (!acdrom.do_prefetch || acdrom.thread_exit)
          continue;
 
-      buf_cnt = acdrom.buf_cnt;
       lba = acdrom.prefetch_lba;
-      lba_to = lba + buf_cnt;
-      if (lba_to > acdrom.total_lba)
-         lba_to = acdrom.total_lba;
-      for (; lba < lba_to; lba++) {
-         if (lba != acdrom.buf_cache[lba % buf_cnt].lba)
-            break;
-      }
-      if (lba == lba_to || lba >= acdrom.total_lba) {
+      lba_to = acdrom.prefetch_lba_to;
+
+      if (lba == lba_to) {
          // caching complete
          acdrom.do_prefetch = 0;
          continue;
       }
 
       slock_unlock(acdrom.buf_lock);
-      lbacache_do(lba);
+
+      ret = lbacache_do(lba);
+      if (ret < 0) {
+         acdrom.do_prefetch = 0;
+         acdrom.prefetch_failed = 1;
+         SysPrintf("prefetch: read failed for lba %d: %d\n", lba, ret);
+      } else {
+         acdrom.prefetch_failed = 0;
+         acdrom.check_eject_delay = 100;
+      }
+
+      if (g_cd_handle)
+         retro_sleep(0); // why does the main thread stall without this?
+
       slock_lock(acdrom.buf_lock);
+
+      if (lba == acdrom.prefetch_lba)
+         acdrom.prefetch_lba++;
    }
    slock_unlock(acdrom.buf_lock);
 }
 
 void cdra_stop_thread(void)
 {
-   acdrom.thread_exit = 1;
+   unsigned int i;
+
    if (acdrom.buf_lock) {
+      acdrom.thread_exit = 1;
       slock_lock(acdrom.buf_lock);
       acdrom.do_prefetch = 0;
-      if (acdrom.cond)
-         scond_signal(acdrom.cond);
+      scond_signal(acdrom.cond);
       slock_unlock(acdrom.buf_lock);
    }
+
    if (acdrom.thread) {
       sthread_join(acdrom.thread);
       acdrom.thread = NULL;
    }
-   if (acdrom.cond) { scond_free(acdrom.cond); acdrom.cond = NULL; }
-   if (acdrom.buf_lock) { slock_free(acdrom.buf_lock); acdrom.buf_lock = NULL; }
-   if (acdrom.read_lock) { slock_free(acdrom.read_lock); acdrom.read_lock = NULL; }
-   free(acdrom.buf_cache);
-   acdrom.buf_cache = NULL;
+
+   if (acdrom.cond) {
+      scond_free(acdrom.cond);
+      acdrom.cond = NULL;
+   }
+
+   if (acdrom.buf_lock) {
+      slock_free(acdrom.buf_lock);
+      acdrom.buf_lock = NULL;
+   }
+
+   if (acdrom.read_lock) {
+      slock_free(acdrom.read_lock);
+      acdrom.read_lock = NULL;
+   }
+
+   if (acdrom.buf_cache) {
+      for (i = 0; i < acdrom.buf_cnt; i++)
+         slock_free(acdrom.buf_cache[i].lock);
+      for (i = 0; i < acdrom.buf_cnt; i++)
+         scond_free(acdrom.buf_cache[i].cond);
+
+      memalign_free(acdrom.buf_cache);
+      acdrom.buf_cache = NULL;
+   }
 }
 
 // the thread is optional, if anything fails we can do direct reads
-static void cdra_start_thread(void)
+static int cdra_start_thread(void)
 {
+   unsigned int i;
+
    cdra_stop_thread();
+
    acdrom.thread_exit = acdrom.prefetch_lba = acdrom.do_prefetch = 0;
    acdrom.prefetch_failed = 0;
-   if (acdrom.buf_cnt == 0)
-      return;
-   acdrom.buf_cache = calloc(acdrom.buf_cnt, sizeof(acdrom.buf_cache[0]));
-   acdrom.buf_lock = slock_new();
-   acdrom.read_lock = slock_new();
-   acdrom.cond = scond_new();
-   if (acdrom.buf_cache && acdrom.buf_lock && acdrom.read_lock && acdrom.cond)
-   {
-      int i;
-      acdrom.thread = pcsxr_sthread_create(cdra_prefetch_thread, PCSXRT_CDR);
-      for (i = 0; i < acdrom.buf_cnt; i++)
-         acdrom.buf_cache[i].lba = ~0;
+   if (acdrom.buf_cnt == 0) {
+      return -1;
    }
+
+   acdrom.buf_cache = memalign_alloc(64, acdrom.buf_cnt * sizeof(*acdrom.buf_cache));
+   if (!acdrom.buf_cache)
+      return -1;
+
+   memset(acdrom.buf_cache, 0, acdrom.buf_cnt * sizeof(*acdrom.buf_cache));
+
+   for (i = 0; i < acdrom.buf_cnt; i++) {
+      acdrom.buf_cache[i].lba = ~0;
+      acdrom.buf_cache[i].lock = slock_new();
+      if (!acdrom.buf_cache[i].lock)
+         goto out_free_locks;
+
+      acdrom.buf_cache[i].cond = scond_new();
+      if (!acdrom.buf_cache[i].cond) {
+         slock_free(acdrom.buf_cache[i].lock);
+         goto out_free_locks;
+      }
+   }
+
+   acdrom.buf_lock = slock_new();
+   if (!acdrom.buf_lock)
+      goto out_free_locks;
+
+   acdrom.read_lock = slock_new();
+   if (!acdrom.read_lock)
+      goto out_free_buf_lock;
+
+   acdrom.cond = scond_new();
+   if (!acdrom.cond)
+      goto out_free_read_lock;
+
+   acdrom.thread = pcsxr_sthread_create(cdra_prefetch_thread, PCSXRT_CDR);
    if (acdrom.thread) {
       SysPrintf("cdrom precache: %d buffers%s\n",
             acdrom.buf_cnt, acdrom.have_subchannel ? " +sub" : "");
    }
    else {
       SysPrintf("cdrom precache thread init failed.\n");
-      cdra_stop_thread();
    }
+
+   return 0;
+
+out_free_read_lock:
+   slock_free(acdrom.read_lock);
+out_free_buf_lock:
+   slock_free(acdrom.buf_lock);
+out_free_locks:
+   for (; i > 0; i--) {
+      slock_free(acdrom.buf_cache[i - 1].lock);
+      scond_free(acdrom.buf_cache[i - 1].cond);
+   }
+   memalign_free(acdrom.buf_cache);
+   acdrom.buf_cache = NULL;
+
+   return -1;
 }
 
 int cdra_init(void)
@@ -299,7 +391,7 @@ int cdra_open(void)
       }
    }
    if (ret == 0)
-      cdra_start_thread();
+      ret = cdra_start_thread();
    return ret;
 }
 
@@ -340,68 +432,67 @@ int cdra_getTD(int track, unsigned char *rt)
 int cdra_prefetch(unsigned char m, unsigned char s, unsigned char f)
 {
    u32 lba = MSF2SECT(m, s, f);
-   int ret = 1;
+
+   if (lba >= acdrom.total_lba)
+      return 0;
+
+   if (acdrom.buf_lock)
+      slock_lock(acdrom.buf_lock);
+
    if (acdrom.cond) {
       acdrom.prefetch_lba = lba;
+      acdrom.prefetch_lba_to = lba + acdrom.buf_cnt;
+      if (acdrom.prefetch_lba_to > acdrom.total_lba)
+         acdrom.prefetch_lba_to = acdrom.total_lba;
+
       acdrom.do_prefetch = 1;
       scond_signal(acdrom.cond);
    }
-   if (acdrom.buf_cache && !acdrom.prefetch_failed) {
-     u32 c = acdrom.buf_cnt;
-     if (c)
-        ret = acdrom.buf_cache[lba % c].lba == lba;
-     acdrom_dbg("p  %d:%02d:%02d %d\n", m, s, f, ret);
-   }
-   return ret;
+
+   acdrom_dbg("pref %u\n", lba);
+
+   if (acdrom.buf_lock)
+      slock_unlock(acdrom.buf_lock);
+
+   return 1;
+}
+
+static int cdra_wait_lba(u32 lba)
+{
+   struct cached_buf *buf = &acdrom.buf_cache[lba % acdrom.buf_cnt];
+
+   slock_lock(buf->lock);
+
+   while (buf->lba != lba && !acdrom.prefetch_failed)
+      scond_wait(buf->cond, buf->lock);
+
+   slock_unlock(buf->lock);
+
+   return acdrom.prefetch_failed ? -1 : 0;
 }
 
 static int cdra_do_read(const unsigned char *time, int cdda,
       void *buf, void *buf_sub)
 {
    u32 lba = MSF2SECT(time[0], time[1], time[2]);
-   int hit = 0, ret = -1, read_locked = 0;
-   do
-   {
-      if (acdrom.buf_lock) {
-         hit = lbacache_get(lba, buf, buf_sub);
-         if (hit)
-            break;
+   int ret = 0;
+
+   while (!ret && !lbacache_get(lba, buf, buf_sub)) {
+      if (lba < acdrom.prefetch_lba || lba >= acdrom.prefetch_lba_to) {
+         acdrom_dbg("miss %u %u-%u\n", lba,
+                    acdrom.prefetch_lba, acdrom.prefetch_lba_to);
+
+         cdra_prefetch(time[0], time[1], time[2]);
       }
-      if (acdrom.read_lock) {
-         // maybe still prefetching
-         slock_lock(acdrom.read_lock);
-         read_locked = 1;
-         hit = lbacache_get(lba, buf, buf_sub);
-         if (hit) {
-            hit = 2;
-            break;
-         }
-      }
-      acdrom.do_prefetch = 0;
-      if (g_cd_handle) {
-         if (buf_sub)
-            ret = rcdrom_readSub(g_cd_handle, lba, buf_sub);
-         else
-            ret = rcdrom_readSector(g_cd_handle, lba, buf);
-      }
-      else if (buf_sub)
-         ret = ISOreadSub(time, buf_sub);
-      else if (cdda)
-         ret = ISOreadCDDA(time, buf);
-      else
-         ret = ISOreadTrack(time, buf);
-      if (ret)
-         SysPrintf("cdrom read failed for lba %d: %d\n", lba, ret);
+
+      /* We're prefetching - wait until we have the sector */
+      ret = cdra_wait_lba(lba);
    }
-   while (0);
-   if (read_locked)
-      slock_unlock(acdrom.read_lock);
-   if (hit)
-      ret = 0;
+
    acdrom.check_eject_delay = ret ? 0 : 100;
-   acdrom_dbg("f%c %d:%02d:%02d %d%s\n",
+   acdrom_dbg("get%c %u %s\n",
       buf_sub ? 's' : (cdda ? 'c' : 'd'),
-      time[0], time[1], time[2], hit, ret ? " ERR" : "");
+      lba, ret ? " ERR" : "");
    return ret;
 }
 
@@ -426,14 +517,12 @@ int cdra_readSub(const unsigned char *time, void *buffer)
       return ISOreadSub(time, buffer);
    if (!acdrom.have_subchannel)
       return -1;
-   acdrom_dbg("s  %d:%02d:%02d\n", time[0], time[1], time[2]);
    return cdra_do_read(time, 0, NULL, buffer);
 }
 
 // pointer to cached buffer from last cdra_readTrack() call
 void *cdra_getBuffer(void)
 {
-   //acdrom_dbg("%s\n", __func__);
    if (!acdrom.thread && !g_cd_handle)
       return ISOgetBuffer();
    return acdrom.buf_local + 12;
