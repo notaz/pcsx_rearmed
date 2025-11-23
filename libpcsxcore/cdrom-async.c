@@ -89,7 +89,9 @@ static int c11_threads_cb_wrapper(void *cb)
 #include "../frontend/libretro-rthreads.h"
 #endif
 
+#ifdef HAVE_LIBRETRO
 #include "retro_timers.h"
+#endif
 
 struct cached_buf {
    u32 lba;
@@ -151,8 +153,10 @@ static void lbacache_do(u32 lba)
          memcpy(acdrom.buf_cache[i].buf_sub, buf_sub, sizeof(buf_sub));
    }
    slock_unlock(acdrom.buf_lock);
+#ifdef HAVE_LIBRETRO
    if (g_cd_handle)
       retro_sleep(0); // why does the main thread stall without this?
+#endif
 }
 
 static int lbacache_get(unsigned int lba, void *buf, void *sub_buf)
