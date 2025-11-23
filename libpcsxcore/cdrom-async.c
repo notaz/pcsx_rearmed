@@ -163,9 +163,8 @@ static int lbacache_get(unsigned int lba, void *buf, void *sub_buf)
    i = lba % acdrom.buf_cnt;
    slock_lock(acdrom.buf_lock);
    if (lba == acdrom.buf_cache[i].lba) {
-      if (!buf)
-         buf = acdrom.buf_local;
-      memcpy(buf, acdrom.buf_cache[i].buf, CD_FRAMESIZE_RAW);
+      if (buf)
+         memcpy(buf, acdrom.buf_cache[i].buf, CD_FRAMESIZE_RAW);
       if (sub_buf)
          memcpy(sub_buf, acdrom.buf_cache[i].buf_sub, SUB_FRAMESIZE);
       ret = 1;
@@ -379,8 +378,6 @@ static int cdra_do_read(const unsigned char *time, int cdda,
          }
       }
       acdrom.do_prefetch = 0;
-      if (!buf)
-         buf = acdrom.buf_local;
       if (g_cd_handle) {
          if (buf_sub)
             ret = rcdrom_readSub(g_cd_handle, lba, buf_sub);
@@ -415,7 +412,7 @@ int cdra_readTrack(const unsigned char *time)
       // just forward to ISOreadTrack to avoid extra copying
       return ISOreadTrack(time, NULL);
    }
-   return cdra_do_read(time, 0, NULL, NULL);
+   return cdra_do_read(time, 0, acdrom.buf_local, NULL);
 }
 
 int cdra_readCDDA(const unsigned char *time, void *buffer)

@@ -348,13 +348,21 @@ static void menu_set_defconfig(void)
 	g_scaler = SCALE_4_3;
 	g_gamma = 100;
 	volume_boost = 0;
+#ifdef MIYOO
+	frameskip = 0; // 0 - auto
+#else
 	frameskip = 1; // 1 - off
+#endif
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
 	scanlines = 0;
 	scanline_level = 20;
+#ifdef MIYOO
+	plat_target.vout_fullscreen = 1;
+#else
 	plat_target.vout_fullscreen = 0;
+#endif
 	psx_clock = DEFAULT_PSX_CLOCK;
 
 	region = 0;
@@ -2158,7 +2166,6 @@ static int run_exe(void)
 	SysReset();
 	if (Load(fname) != 0) {
 		menu_update_msg("exe load failed, bad file?");
-		printf("meh\n");
 		return -1;
 	}
 
@@ -2234,20 +2241,9 @@ static int run_cd_image(const char *fname)
 	return 0;
 }
 
-static int romsel_run(void)
+int menu_load_cd_image(const char *fname)
 {
 	int prev_gpu, prev_spu;
-	const char *fname;
-
-	fname = menu_loop_romsel(last_selected_fname,
-			sizeof(last_selected_fname), filter_exts,
-			optional_cdimg_filter);
-	if (fname == NULL)
-		return -1;
-
-	printf("selected file: %s\n", fname);
-
-	ndrc_clear_full();
 
 	if (run_cd_image(fname) != 0)
 		return -1;
@@ -2260,7 +2256,7 @@ static int romsel_run(void)
 	// check for plugin changes, have to repeat
 	// loading if game config changed plugins to reload them
 	if (prev_gpu != gpu_plugsel || prev_spu != spu_plugsel) {
-		printf("plugin change detected, reloading plugins..\n");
+		printf("plugin change detected, reloading plugins...\n");
 		if (run_cd_image(fname) != 0)
 			return -1;
 	}
@@ -2268,6 +2264,23 @@ static int romsel_run(void)
 	strcpy(last_selected_fname, fname);
 	menu_do_last_cd_img(0);
 	return 0;
+}
+
+static int romsel_run(void)
+{
+	const char *fname;
+
+	fname = menu_loop_romsel(last_selected_fname,
+			sizeof(last_selected_fname), filter_exts,
+			optional_cdimg_filter);
+	if (fname == NULL)
+		return -1;
+
+	printf("selected file: %s\n", fname);
+
+	ndrc_clear_full();
+
+	return menu_load_cd_image(fname);
 }
 
 static int swap_cd_image(void)

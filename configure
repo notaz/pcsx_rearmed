@@ -37,7 +37,7 @@ check_define_val()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora maemo caanoo"
+platform_list="generic pandora maemo caanoo miyoo"
 platform="generic"
 builtin_gpu_list="neon peops unai"
 dynarec_list="ari64 lightrec none"
@@ -137,6 +137,12 @@ set_platform()
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     have_neon_gpu="yes"
+    multithreading="no"
+    ;;
+  miyoo)
+    sound_drivers="alsa"
+    drc_cache_base="yes"
+    optimize_arm926ej="yes"
     multithreading="no"
     ;;
   caanoo)
@@ -367,6 +373,10 @@ generic)
   ;;
 maemo)
   CFLAGS="$CFLAGS -DMAEMO -DMAEMO_CHANGES"
+  ;;
+miyoo)
+  need_sdl="yes"
+  CFLAGS="$CFLAGS -DMIYOO"
   ;;
 esac
 

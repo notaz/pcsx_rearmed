@@ -30,7 +30,7 @@
 #define CHEATS_DIR         PCSX_DOT_DIR "cheats/"
 #define PATCHES_DIR        PCSX_DOT_DIR "patches/"
 #define CFG_DIR            PCSX_DOT_DIR "cfg/"
-#ifndef PANDORA
+#if !defined(PANDORA) && !defined(MIYOO)
 #define BIOS_DIR           PCSX_DOT_DIR "bios/"
 #define SCREENSHOTS_DIR    PCSX_DOT_DIR "screenshots/"
 #else
