@@ -564,7 +564,7 @@ ifeq "$(PLATFORM)" "generic"
 OUT = pcsx_rearmed_$(VER)
 
 rel: pcsx $(PLUGINS) \
-		frontend/pandora/skin readme.txt COPYING
+		frontend/pandora/skin README.md COPYING
 	rm -rf $(OUT)
 	mkdir -p $(OUT)/plugins
 	mkdir -p $(OUT)/bios
@@ -578,7 +578,7 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 rel: pcsx plugins/dfsound/pcsxr_spu_area3.out $(PLUGINS) \
 		frontend/pandora/pcsx.sh frontend/pandora/pcsx.pxml.templ frontend/pandora/pcsx.png \
-		frontend/pandora/picorestore frontend/pandora/skin readme.txt COPYING
+		frontend/pandora/picorestore frontend/pandora/skin frontend/pandora/readme.txt COPYING
 	rm -rf out
 	mkdir -p out/plugins
 	cp -r $^ out/
@@ -593,7 +593,7 @@ ifeq "$(PLATFORM)" "miyoo"
 rel: pcsx $(PLUGINS) \
 		frontend/320240/pcsx26.png \
 		frontend/320240/skin \
-		readme.txt COPYING
+		README.md COPYING
 	rm -rf out
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
@@ -619,7 +619,7 @@ rel: pcsx $(PLUGINS) \
 		frontend/warm/bin/warm_2.6.24.ko frontend/320240/pollux_set \
 		frontend/320240/pcsx_rearmed.ini frontend/320240/haptic_w.cfg \
 		frontend/320240/haptic_s.cfg \
-		readme.txt COPYING
+		COPYING
 	rm -rf out
 	mkdir -p out/pcsx_rearmed/plugins
 	cp -r $^ out/pcsx_rearmed/
