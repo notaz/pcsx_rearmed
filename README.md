@@ -7,8 +7,10 @@ PCSX-ReARMed - yet another PCSX fork
 
 PCSX ReARMed is yet another PCSX fork based on the PCSX-Reloaded project,
 which itself contains code from PCSX, PCSX-df and PCSX-Revolution. This
-version is ARM architecture oriented and features MIPS->ARM recompiler by
-Ari64, NEON GTE code and more performance improvements. It was created for
+version is focused on the ARM architecture while keeping/improving the x86 
+compatibility using the `lightrec` recompiler (which is not present in the 
+PCSX emulator family). It features a MIPS->ARM recompiler (new_dynarec) 
+by Ari64, NEON GTE code and more performance improvements. It was created for
 Pandora handheld, but should be usable on other devices after some code
 adjustments (N900, GPH Wiz/Caanoo, PlayBook versions are also available).
 
