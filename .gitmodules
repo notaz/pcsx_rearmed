@@ -4,4 +4,4 @@
 [submodule "deps/lightning/gnulib"]
 	active = false
 	path = deps/lightning/gnulib
-	url = git://git.sv.gnu.org/gnulib.git
+	url = https://git.savannah.gnu.org/git/gnulib.git
