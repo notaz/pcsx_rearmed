@@ -787,12 +787,6 @@ static unsigned short fname2color(const char *fname)
 static void draw_savestate_bg(int slot);
 
 #define MENU_ALIGN_LEFT
-#ifndef HAVE_PRE_ARMV7 // assume hires device
-#define MENU_X2 1
-#else
-#define MENU_X2 0
-#endif
-
 #include "libpicofe/menu.c"
 
 // a bit of black magic here
@@ -2672,7 +2666,7 @@ void menu_init(void)
 	cpu_clock_st = cpu_clock = plat_target_cpu_clock_get();
 
 	scan_bios_plugins();
-	menu_init_base();
+	menu_init_base_scale(g_menuscreen_w >= 640 && g_menuscreen_h >= 480 ? 2 : 1);
 
 	menu_set_defconfig();
 	menu_load_config(0);
