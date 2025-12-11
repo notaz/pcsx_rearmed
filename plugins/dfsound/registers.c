@@ -341,11 +341,11 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg, unsigned int cycles)
       {
        // this used to return 1 immediately after keyon to deal with
        // some poor timing, but that causes Rayman 2 to lose track of
-       // it's channels on busy scenes and start looping some of them forever
+       // its channels on busy scenes and start looping some of them forever
        const int ch = (r>>4) - 0xc0;
        if (spu.s_chan[ch].bStarting)
         do_samples_if_needed(cycles, 0, 2);
-       return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol >> 16);
+       return spu.s_chan[ch].ADSRX.EnvelopeVol;
       }
 
      case 14:                                          // get loop address
@@ -448,6 +448,7 @@ static void SoundOff(int start,int end,unsigned short val)
    if(val&1)
     {
      spu.s_chan[ch].ADSRX.State = ADSR_RELEASE;
+     spu.s_chan[ch].ADSRX.StepCounter = 0;
 
      // Jungle Book - Rhythm 'n Groove
      // - turns off buzzing sound (loop hangs)

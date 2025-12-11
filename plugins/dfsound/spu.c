@@ -1592,8 +1592,6 @@ long CALLBACK SPUinit(void)
  // a guard for runaway channels - End+Mute
  spu.spuMemC[512 * 1024 + 1] = 1;
 
- InitADSR();
-
  spu.s_chan = calloc(MAXCHAN+1, sizeof(spu.s_chan[0])); // channel + 1 infos (1 is security for fmod handling)
  spu.rvb = calloc(1, sizeof(REVERBInfo));
 

@@ -61,7 +61,7 @@ typedef struct
  int            ReleaseRate;
  int            EnvelopeVol;
  int            lVolume;
- int            lDummy1;
+ int            StepCounter;
  int            lDummy2;
 } ADSRInfoEx_orig;
 
@@ -187,7 +187,8 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->ADSRX.SustainRate = s->ADSRX.SustainRate;
  d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
  d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
- d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
+ d->ADSRX.EnvelopeVol = (uint32_t)s->ADSRX.EnvelopeVol << 16;
+ d->ADSRX.StepCounter = s->ADSRX.StepCounter;
  d->ADSRX.lVolume = d->bOn; // hmh
 }
 
@@ -222,7 +223,8 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->ADSRX.SustainRate = s->ADSRX.SustainRate;
  d->ADSRX.ReleaseModeExp = s->ADSRX.ReleaseModeExp;
  d->ADSRX.ReleaseRate = s->ADSRX.ReleaseRate;
- d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol;
+ d->ADSRX.EnvelopeVol = s->ADSRX.EnvelopeVol >> 16;
+ d->ADSRX.StepCounter = s->ADSRX.StepCounter;
  if (s->bOn) spu.dwChannelsAudible |= 1<<ch;
  else d->ADSRX.EnvelopeVol = 0;
 }
