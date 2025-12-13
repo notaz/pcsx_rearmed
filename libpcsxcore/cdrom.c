@@ -1211,8 +1211,20 @@ void cdrInterrupt(void) {
 			CDR_LOG_I("CdlID: %02x %02x %02x %02x\n", cdr.Result[0],
 				cdr.Result[1], cdr.Result[2], cdr.Result[3]);
 
-			/* This adds the string "PCSX" in Playstation bios boot screen */
-			memcpy((char *)&cdr.Result[4], "PCSX", 4);
+			/* 4-char string in Playstation bios boot screen */
+			if (Config.SlowBoot == 1)
+				memcpy(&cdr.Result[4], "PCSX", 4);
+			else {
+				cdr.Result[4] = 'S';
+				cdr.Result[5] = 'C';
+				cdr.Result[6] = 'E';
+				if (Config.PsxType == PSX_TYPE_PAL)
+					cdr.Result[7] = 'E';
+				else if (CdromId[2] == 'P' || CdromId[2] == 'p')
+					cdr.Result[7] = 'I';
+				else
+					cdr.Result[7] = 'A';
+			}
 			IrqStat = Complete;
 			break;
 
@@ -1236,6 +1248,13 @@ void cdrInterrupt(void) {
 		case CdlReadToc + CMD_WHILE_NOT_READY:
 			cdr.LocL[0] = LOCL_INVALID;
 			second_resp_time = cdReadTime * 180 / 4;
+			if (!Config.HLE && Config.SlowBoot) {
+				// hack: compensate cdrom being emulated too fast
+				// and bios finishing before the reverb decays
+				second_resp_time += cdReadTime * 75*2;
+				if ((psxRegs.pc >> 28) == 0x0b)
+					second_resp_time += cdReadTime * 75*3;
+			}
 			start_rotating = 1;
 			break;
 
