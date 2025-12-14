@@ -187,15 +187,51 @@ static void MixREVERB_off(int *SSumLR, int ns_to, int curr_addr)
  const REVERBInfo *rvb = spu.rvb;
  unsigned short *spuMem = spu.spuMem;
  int space = 0x40000 - rvb->StartAddr;
+ int vAPF1 = rvb->vAPF1 >> 1, vAPF2 = rvb->vAPF2 >> 1;
  int Lout, Rout, ns;
 
- for (ns = 0; ns < ns_to * 2; )
+ if (vAPF1 || vAPF2)
+ {
+  for (ns = 0; ns < ns_to * 2; )
+  {
+   int lapf1 = g_buffer(rvb->mLAPF1_dAPF1);
+   int rapf1 = g_buffer(rvb->mRAPF1_dAPF1);
+   int lapf2 = g_buffer(rvb->mLAPF2_dAPF2);
+   int rapf2 = g_buffer(rvb->mRAPF2_dAPF2);
+   preload(SSumLR + ns + 64*2/4 - 4);
+
+   Lout = Rout = 0; // but should be COMB?
+
+   Lout -= vAPF1 * lapf1; Lout >>= (15-1);
+   Rout -= vAPF1 * rapf1; Rout >>= (15-1);
+   Lout = Lout * vAPF1 + (lapf1 << (15-1));
+   Rout = Rout * vAPF1 + (rapf1 << (15-1));
+
+   Lout -= vAPF2 * lapf2; Lout >>= (15-1);
+   Rout -= vAPF2 * rapf2; Rout >>= (15-1);
+   Lout = Lout * vAPF2 + (lapf2 << (15-1));
+   Rout = Rout * vAPF2 + (rapf2 << (15-1));
+
+   Lout = (Lout >> (15-1)) * rvb->VolLeft  >> 15;
+   Rout = (Rout >> (15-1)) * rvb->VolRight >> 15;
+
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
+   SSumLR[ns++] += Lout;
+   SSumLR[ns++] += Rout;
+
+   curr_addr++;
+   if (curr_addr >= 0x40000) curr_addr = rvb->StartAddr;
+  }
+ }
+ else
+ {
+  for (ns = 0; ns < ns_to * 2; )
   {
    preload(SSumLR + ns + 64*2/4 - 4);
 
-   // todo: is this missing COMB and APF1?
    Lout = g_buffer(rvb->mLAPF2_dAPF2);
-   Rout = g_buffer(rvb->mLAPF2_dAPF2);
+   Rout = g_buffer(rvb->mRAPF2_dAPF2);
 
    Lout = (Lout * rvb->VolLeft)  >> 15;
    Rout = (Rout * rvb->VolRight) >> 15;
@@ -208,6 +244,7 @@ static void MixREVERB_off(int *SSumLR, int ns_to, int curr_addr)
    curr_addr++;
    if (curr_addr >= 0x40000) curr_addr = rvb->StartAddr;
   }
+ }
 }
 
 static void REVERBPrep(void)

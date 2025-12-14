@@ -145,6 +145,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       {
          { "disabled", NULL },
          { "enabled",  NULL },
+         { "enabled_no_pcsx", "ON, w/o PCSXtm" },
          { NULL, NULL },
       },
       "disabled",

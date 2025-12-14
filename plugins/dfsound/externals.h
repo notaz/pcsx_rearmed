@@ -29,9 +29,11 @@
 
 #ifdef __GNUC__
 #define noinline __attribute__((noinline))
+#define forceinline __attribute__((always_inline))
 #define unlikely(x) __builtin_expect((x), 0)
 #else
 #define noinline
+#define forceinline
 #define unlikely(x) x
 #endif
 #if defined(__GNUC__) && !defined(_TMS320C6X)
@@ -85,6 +87,7 @@ typedef struct
  unsigned char  SustainRate;
  unsigned char  ReleaseRate;
  int            EnvelopeVol;
+ int            StepCounter;	// 0 -> 32k
 } ADSRInfoEx;
               
 ///////////////////////////////////////////////////////////

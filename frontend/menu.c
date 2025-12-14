@@ -787,12 +787,6 @@ static unsigned short fname2color(const char *fname)
 static void draw_savestate_bg(int slot);
 
 #define MENU_ALIGN_LEFT
-#ifndef HAVE_PRE_ARMV7 // assume hires device
-#define MENU_X2 1
-#else
-#define MENU_X2 0
-#endif
-
 #include "libpicofe/menu.c"
 
 // a bit of black magic here
@@ -1541,6 +1535,7 @@ static int menu_loop_plugin_spu(int id, int keys)
 }
 
 static const char *men_gpu_dithering[] = { "OFF", "ON", "Force", NULL };
+static const char *men_bios_boot[] = { "OFF", "ON", "ON w/o PCSX", NULL };
 
 static const char h_bios[]       = "HLE is simulated BIOS. BIOS selection is saved in\n"
 				   "savestates and can't be changed there. Must save\n"
@@ -1602,9 +1597,12 @@ static int menu_loop_pluginsel_options(int id, int keys)
 	return 0;
 }
 
+static int slowboot_sel;
+
 static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
+	mee_enum      ("BIOS logo (slow boot)",         0, slowboot_sel, men_bios_boot),
 	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
@@ -1618,7 +1616,9 @@ static menu_entry e_menu_main2[];
 static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
+	slowboot_sel = Config.SlowBoot;
 	me_loop(e_menu_plugin_options, &sel);
+	Config.SlowBoot = slowboot_sel;
 
 	// sync BIOS/plugins
 	snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[bios_sel]);
@@ -2141,7 +2141,7 @@ static int run_bios(void)
 	ready_to_go = 0;
 	if (reload_plugins(NULL) != 0)
 		return -1;
-	Config.SlowBoot = 1;
+	Config.SlowBoot = 2;
 	SysReset();
 	Config.SlowBoot = origSlowBoot;
 
@@ -2672,7 +2672,7 @@ void menu_init(void)
 	cpu_clock_st = cpu_clock = plat_target_cpu_clock_get();
 
 	scan_bios_plugins();
-	menu_init_base();
+	menu_init_base_scale(g_menuscreen_w >= 640 && g_menuscreen_h >= 480 ? 2 : 1);
 
 	menu_set_defconfig();
 	menu_load_config(0);

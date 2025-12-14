@@ -132,7 +132,7 @@ typedef struct {
 	boolean Cdda;
 	boolean CHD_Precache; /* loads disk image into memory, works with CHD only. */
 	boolean HLE;
-	boolean SlowBoot;
+	uint8_t SlowBoot; // 0 = off, 1 = on, 2 = on, no PCSX 'ad'
 	boolean Debug;
 	boolean PsxOut;
 	boolean icache_emulation;

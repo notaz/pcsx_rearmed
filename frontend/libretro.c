@@ -2878,6 +2878,8 @@ static void update_variables(bool in_flight)
          Config.SlowBoot = 0;
          if (strcmp(var.value, "enabled") == 0)
             Config.SlowBoot = 1;
+         else if (strcmp(var.value, "enabled_no_pcsx") == 0)
+            Config.SlowBoot = 2;
       }
    }
 

@@ -424,10 +424,13 @@ static void Find_CurTrack(const u8 *time)
 static void generate_subq(const u8 *time)
 {
 	unsigned char start[3], next[3];
-	unsigned int this_s, start_s, next_s, pregap;
+	int this_s, start_s, next_s, pregap;
 	int relative_s;
 
-	cdra_getTD(cdr.CurTrack, start);
+	if (cdr.CurTrack <= cdr.ResultTN[1])
+		cdra_getTD(cdr.CurTrack, start);
+	else
+		memcpy(start, cdr.SetSectorEnd, 3);
 	if (cdr.CurTrack + 1 <= cdr.ResultTN[1]) {
 		pregap = 150;
 		cdra_getTD(cdr.CurTrack + 1, next);
@@ -444,7 +447,7 @@ static void generate_subq(const u8 *time)
 
 	cdr.TrackChanged = FALSE;
 
-	if (next_s - this_s < pregap) {
+	if (next_s - this_s < pregap && cdr.CurTrack <= cdr.ResultTN[1]) {
 		cdr.TrackChanged = TRUE;
 		cdr.CurTrack++;
 		start_s = next_s;
@@ -461,6 +464,8 @@ static void generate_subq(const u8 *time)
 		&cdr.subq.Relative[1], &cdr.subq.Relative[2]);
 
 	cdr.subq.Track = itob(cdr.CurTrack);
+	if (cdr.CurTrack > cdr.ResultTN[1]) // lead-out
+		cdr.subq.Track = 0xaa;
 	cdr.subq.Relative[0] = itob(cdr.subq.Relative[0]);
 	cdr.subq.Relative[1] = itob(cdr.subq.Relative[1]);
 	cdr.subq.Relative[2] = itob(cdr.subq.Relative[2]);
@@ -1206,8 +1211,20 @@ void cdrInterrupt(void) {
 			CDR_LOG_I("CdlID: %02x %02x %02x %02x\n", cdr.Result[0],
 				cdr.Result[1], cdr.Result[2], cdr.Result[3]);
 
-			/* This adds the string "PCSX" in Playstation bios boot screen */
-			memcpy((char *)&cdr.Result[4], "PCSX", 4);
+			/* 4-char string in Playstation bios boot screen */
+			if (Config.SlowBoot == 1)
+				memcpy(&cdr.Result[4], "PCSX", 4);
+			else {
+				cdr.Result[4] = 'S';
+				cdr.Result[5] = 'C';
+				cdr.Result[6] = 'E';
+				if (Config.PsxType == PSX_TYPE_PAL)
+					cdr.Result[7] = 'E';
+				else if (CdromId[2] == 'P' || CdromId[2] == 'p')
+					cdr.Result[7] = 'I';
+				else
+					cdr.Result[7] = 'A';
+			}
 			IrqStat = Complete;
 			break;
 
@@ -1231,6 +1248,13 @@ void cdrInterrupt(void) {
 		case CdlReadToc + CMD_WHILE_NOT_READY:
 			cdr.LocL[0] = LOCL_INVALID;
 			second_resp_time = cdReadTime * 180 / 4;
+			if (!Config.HLE && Config.SlowBoot) {
+				// hack: compensate cdrom being emulated too fast
+				// and bios finishing before the reverb decays
+				second_resp_time += cdReadTime * 75*2;
+				if ((psxRegs.pc >> 28) == 0x0b)
+					second_resp_time += cdReadTime * 75*3;
+			}
 			start_rotating = 1;
 			break;
 
