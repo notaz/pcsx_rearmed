@@ -424,10 +424,13 @@ static void Find_CurTrack(const u8 *time)
 static void generate_subq(const u8 *time)
 {
 	unsigned char start[3], next[3];
-	unsigned int this_s, start_s, next_s, pregap;
+	int this_s, start_s, next_s, pregap;
 	int relative_s;
 
-	cdra_getTD(cdr.CurTrack, start);
+	if (cdr.CurTrack <= cdr.ResultTN[1])
+		cdra_getTD(cdr.CurTrack, start);
+	else
+		memcpy(start, cdr.SetSectorEnd, 3);
 	if (cdr.CurTrack + 1 <= cdr.ResultTN[1]) {
 		pregap = 150;
 		cdra_getTD(cdr.CurTrack + 1, next);
@@ -444,7 +447,7 @@ static void generate_subq(const u8 *time)
 
 	cdr.TrackChanged = FALSE;
 
-	if (next_s - this_s < pregap) {
+	if (next_s - this_s < pregap && cdr.CurTrack <= cdr.ResultTN[1]) {
 		cdr.TrackChanged = TRUE;
 		cdr.CurTrack++;
 		start_s = next_s;
@@ -461,6 +464,8 @@ static void generate_subq(const u8 *time)
 		&cdr.subq.Relative[1], &cdr.subq.Relative[2]);
 
 	cdr.subq.Track = itob(cdr.CurTrack);
+	if (cdr.CurTrack > cdr.ResultTN[1]) // lead-out
+		cdr.subq.Track = 0xaa;
 	cdr.subq.Relative[0] = itob(cdr.subq.Relative[0]);
 	cdr.subq.Relative[1] = itob(cdr.subq.Relative[1]);
 	cdr.subq.Relative[2] = itob(cdr.subq.Relative[2]);
