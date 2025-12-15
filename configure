@@ -654,9 +654,6 @@ echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_neon_gpu" = "yes" ]; then
   echo "HAVE_NEON_GPU = 1" >> $config_mak
 fi
-if [ "$have_arm_neon" = "yes" ]; then
-  echo "HAVE_NEON = 1" >> $config_mak
-fi
 if [ "$have_arm_neon_asm" = "yes" ]; then
   echo "HAVE_NEON_ASM = 1" >> $config_mak
 fi

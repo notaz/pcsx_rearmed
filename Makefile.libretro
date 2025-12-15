@@ -166,7 +166,6 @@ else ifneq (,$(findstring CortexA73_G12B,$(platform)))
 	fpic := -fPIC
 	ARCH = arm64
 	BUILTIN_GPU = neon
-	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
 	CFLAGS += -march=armv8-a+crc -mcpu=cortex-a73 -mtune=cortex-a73.cortex-a53
@@ -177,7 +176,6 @@ else ifneq (,$(findstring h5,$(platform)))
 	fpic := -fPIC
 	ARCH = arm64
 	BUILTIN_GPU = neon
-	HAVE_NEON = 1
 	DYNAREC = ari64
 	CFLAGS += -fomit-frame-pointer -ffast-math -DARM
 	CFLAGS += -march=armv8-a+crc -mcpu=cortex-a53 -mtune=cortex-a53
@@ -229,11 +227,9 @@ endif
 ifeq ($(platform),ios-arm64)
 	ARCH := arm64
 	BUILTIN_GPU = neon
-	HAVE_NEON = 1
 	DYNAREC = 0
 else
 	ARCH := arm
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	BUILTIN_GPU = neon
 	CFLAGS += -marm -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
@@ -266,7 +262,6 @@ endif
 	CFLAGS += -DIOS -DTVOS
 	ARCH := arm64
 	BUILTIN_GPU = neon
-	HAVE_NEON = 1
 	DYNAREC = 0
 	HAVE_PHYSICAL_CDROM = 0
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
@@ -293,7 +288,6 @@ else ifeq ($(platform), libnx)
    WANT_ZLIB = 0
    PARTIAL_LINKING = 1
    BUILTIN_GPU = neon
-   HAVE_NEON = 1
    DYNAREC = ari64
    HAVE_PHYSICAL_CDROM = 0
 
@@ -302,7 +296,6 @@ else ifeq ($(platform), arm64)
    TARGET := $(TARGET_NAME)_libretro.so
    ARCH := arm64
    BUILTIN_GPU = neon
-   HAVE_NEON = 1
    DYNAREC = ari64
    HAVE_PHYSICAL_CDROM = 0
    fpic := -fPIC
@@ -344,7 +337,6 @@ else ifeq ($(platform), vita)
 	CFLAGS_LAST += -O3
 	ASFLAGS += -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon
 
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	BUILTIN_GPU = neon
 
@@ -386,7 +378,6 @@ else ifeq ($(platform), ctr)
 	THREAD_RENDERING = 1
 	DYNAREC = ari64
 	ARCH = arm
-	HAVE_NEON = 0
 	PARTIAL_LINKING = 1
 	WANT_ZLIB = 0
 	NO_POSIX_MEMALIGN := 1
@@ -438,7 +429,6 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
 	fpic := -fPIC
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	DYNAREC = ari64
 	BUILTIN_GPU = neon
@@ -457,7 +447,6 @@ else ifeq ($(platform), rpi1)
 	fpic := -fPIC
 	CFLAGS += -marm -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard
 	ASFLAGS += -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard
-	HAVE_NEON = 0
 	ARCH = arm
 	BUILTIN_GPU = unai
 	DYNAREC = ari64
@@ -468,7 +457,6 @@ else ifeq ($(platform), rpi2)
 	fpic := -fPIC
 	CFLAGS += -marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
@@ -480,7 +468,6 @@ else ifeq ($(platform), rpi3)
 	fpic := -fPIC
 	CFLAGS += -marm -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
@@ -491,7 +478,6 @@ else ifeq ($(platform), rpi3_64)
 	TARGET := $(TARGET_NAME)_libretro.so
 	ARCH := arm64
 	BUILTIN_GPU = neon
-	HAVE_NEON = 1
 	DYNAREC = ari64
 	fpic := -fPIC
 	CFLAGS += -march=armv8-a+crc+simd -mtune=cortex-a53 -ftree-vectorize
@@ -502,7 +488,6 @@ else ifeq ($(platform), rpi4)
 	fpic := -fPIC
 	CFLAGS += -marm -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
 	ASFLAGS += -mcpu=cortex-a72 -mfpu=neon-fp-armv8 -mfloat-abi=hard
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
@@ -513,7 +498,6 @@ else ifeq ($(platform), rpi4_64)
         TARGET := $(TARGET_NAME)_libretro.so
         ARCH := arm64
         BUILTIN_GPU = neon
-        HAVE_NEON = 1
         DYNAREC = ari64
         fpic := -fPIC
         CFLAGS += -march=armv8-a+crc+simd -mtune=cortex-a72 -ftree-vectorize
@@ -537,7 +521,6 @@ else ifeq ($(platform), classic_armv7_a7)
 	CXXFLAGS += $(CFLAGS)
 	CPPFLAGS += $(CFLAGS)
 	ASFLAGS += $(CFLAGS)
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
@@ -561,7 +544,6 @@ else ifeq ($(platform), classic_armv8_a35)
 	-fmerge-all-constants -fno-math-errno \
 	-fno-stack-protector -fomit-frame-pointer \
 	-marm -mcpu=cortex-a35 -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
-	HAVE_NEON = 1
 	HAVE_NEON_ASM = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
@@ -574,7 +556,6 @@ else ifeq ($(platform), classic_armv8_a35)
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-	HAVE_NEON = 0
 	BUILTIN_GPU = peops
 	ifneq (,$(findstring cortexa8,$(platform)))
 		CFLAGS += -mcpu=cortex-a8
@@ -591,7 +572,6 @@ else ifneq (,$(findstring armv,$(platform)))
 	ifneq (,$(findstring neon,$(platform)))
 		CFLAGS += -mfpu=neon
 		ASFLAGS += -mfpu=neon
-		HAVE_NEON = 1
 		HAVE_NEON_ASM = 1
 		BUILTIN_GPU = neon
 	endif
@@ -613,7 +593,6 @@ else ifeq ($(platform), miyoo)
 	ARCH = arm
 	BUILTIN_GPU = unai
 	DYNAREC = ari64
-	HAVE_NEON = 0
 
 # Emscripten
 else ifeq ($(platform), emscripten)
@@ -711,6 +690,9 @@ $(info platform:    $(platform))
 $(info ARCH:        $(ARCH))
 $(info DYNAREC:     $(DYNAREC))
 $(info BUILTIN_GPU: $(BUILTIN_GPU))
+ifeq ($(ARCH),arm)
+$(info NEON_ASM:    $(if $(HAVE_NEON_ASM),$(HAVE_NEON_ASM),no))
+endif
 $(info CC:          $(CC) : $(shell $(CC) --version | head -1))
 $(info CFLAGS:      $(CFLAGS))
 $(info MAIN_LDLIBS: $(MAIN_LDLIBS))
