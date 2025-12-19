@@ -10,7 +10,7 @@
 
 #include "../deps/libretro-common/rthreads/rthreads.c"
 #include "features/features_cpu.h"
-#include "libretro-rthreads.h"
+#include "pcsxr-threads.h"
 
 // pcsxr "extensions"
 extern void SysPrintf(const char *fmt, ...);

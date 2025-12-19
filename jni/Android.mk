@@ -239,7 +239,7 @@ USE_RTHREADS := 1
 endif
 ifeq ($(USE_RTHREADS),1)
 SOURCES_C += \
-             $(FRONTEND_DIR)/libretro-rthreads.c \
+             $(FRONTEND_DIR)/pcsxr-threads.c \
              $(LIBRETRO_COMMON)/features/features_cpu.c
 COREFLAGS += -DHAVE_RTHREADS
 endif
