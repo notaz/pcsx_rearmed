@@ -2602,18 +2602,16 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.show_overscan = 0;
    }
 
-#ifdef THREAD_RENDERING
+#ifdef USE_ASYNC_GPU
    var.key = "pcsx_rearmed_gpu_thread_rendering";
    var.value = NULL;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
-      if (strcmp(var.value, "disabled") == 0)
-         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_OFF;
-      else if (strcmp(var.value, "sync") == 0)
-         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_SYNC;
-      else if (strcmp(var.value, "async") == 0)
-         pl_rearmed_cbs.thread_rendering = THREAD_RENDERING_ASYNC;
+      if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.thread_rendering = 1;
+      else
+         pl_rearmed_cbs.thread_rendering = 0;
    }
 #endif
 

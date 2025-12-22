@@ -7,6 +7,7 @@ $(shell cd "$(LOCAL_PATH)" && (rm ../include/revision.h_))
 
 USE_LIBRETRO_VFS ?= 0
 USE_ASYNC_CDROM ?= 1
+USE_ASYNC_GPU ?= 1
 USE_RTHREADS ?= 0
 NDRC_THREAD ?= 1
 
@@ -235,6 +236,11 @@ endif
 
 ifeq ($(USE_ASYNC_CDROM),1)
 COREFLAGS += -DUSE_ASYNC_CDROM
+USE_RTHREADS := 1
+endif
+ifeq ($(USE_ASYNC_GPU),1)
+SOURCES_C += $(GPU_DIR)/gpu_async.c \
+COREFLAGS += -DUSE_ASYNC_GPU
 USE_RTHREADS := 1
 endif
 ifeq ($(USE_RTHREADS),1)

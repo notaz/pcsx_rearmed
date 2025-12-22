@@ -2,6 +2,7 @@ CFLAGS += -ggdb -Wall
 ifndef DEBUG
 CFLAGS += -O2
 endif
+CFLAGS += -DGPULIB_PLUGIN
 
 include ../../config.mak
 

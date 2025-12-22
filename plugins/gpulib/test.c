@@ -61,6 +61,7 @@ static gpu_dump_struct state;
 int main(int argc, char *argv[])
 {
   unsigned int start_cycles;
+  uint32_t ex_regs[8] = { 0, };
   uint32_t *list;
   int size, dummy;
   FILE *state_file;
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
 
   start_cycles = pcnt_get();
 
-  do_cmd_list(list, size / 4, &dummy, &dummy);
+  renderer_do_cmd_list(list, size / 4, ex_regs, &dummy, &dummy, &dummy);
   renderer_flush_queues();
 
   printf("%u\n", pcnt_get() - start_cycles);

@@ -284,7 +284,7 @@ void setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
     edge_data_struct *span_edge_data, vec_4x32u *span_uvrg_offset);
 
 void initialize_psx_gpu(psx_gpu_struct *psx_gpu, u16 *vram);
-u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
+u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_regs,
  s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command);
 
 void triangle_benchmark(psx_gpu_struct *psx_gpu);

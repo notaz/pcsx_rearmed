@@ -1,6 +1,6 @@
 
 // very conservative and wrong
-#define gput_fill(w, h)     (23 + (4 + (w) / 16u) * (h))
+#define gput_fill(w, h)     (23 + (4 + ((w) + 15) / 16u) * (h))
 #define gput_copy(w, h)     ((w) * (h))
 #define gput_poly_base()    (23)
 #define gput_poly_base_t()  (gput_poly_base() + 90)

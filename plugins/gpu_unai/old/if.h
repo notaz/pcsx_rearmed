@@ -1,9 +1,11 @@
 #ifndef GPU_UNAI_NO_OLD
 
+#include <stdint.h>
+
 struct rearmed_cbs;
 
 void oldunai_renderer_init(void);
-int  oldunai_do_cmd_list(uint32_t *list, int list_len,
+int  oldunai_do_cmd_list(uint32_t *list, int list_len, uint32_t *ex_regs,
        int *cycles_sum_out, int *cycles_last, int *last_cmd);
 void oldunai_renderer_sync_ecmds(uint32_t *ecmds);
 void oldunai_renderer_set_config(const struct rearmed_cbs *cbs);

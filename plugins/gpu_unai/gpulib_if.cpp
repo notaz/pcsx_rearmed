@@ -27,22 +27,6 @@
 #include "../gpulib/gpu.h"
 #include "old/if.h"
 
-#ifdef THREAD_RENDERING
-#include "../gpulib/gpulib_thread_if.h"
-#define do_cmd_list real_do_cmd_list
-#define renderer_init real_renderer_init
-#define renderer_finish real_renderer_finish
-#define renderer_sync_ecmds real_renderer_sync_ecmds
-#define renderer_update_caches real_renderer_update_caches
-#define renderer_flush_queues real_renderer_flush_queues
-#define renderer_set_interlace real_renderer_set_interlace
-#define renderer_set_config real_renderer_set_config
-#define renderer_notify_res_change real_renderer_notify_res_change
-#define renderer_notify_update_lace real_renderer_notify_update_lace
-#define renderer_sync real_renderer_sync
-#define ex_regs scratch_ex_regs
-#endif
-
 //#include "port.h"
 #include "gpu_unai.h"
 
@@ -283,7 +267,7 @@ void renderer_finish(void)
   unmap_downscale_buffer();
 }
 
-void renderer_notify_res_change(void)
+void renderer_notify_screen_change(const struct psx_gpu_screen *screen)
 {
   gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
@@ -301,17 +285,12 @@ void renderer_notify_res_change(void)
   */
 }
 
-void renderer_notify_scanout_change(int x, int y)
-{
-}
-
 #ifdef USE_GPULIB
 // Handles GP0 draw settings commands 0xE1...0xE6
 static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 {
   // Assume incoming GP0 command is 0xE1..0xE6, convert to 1..6
   u8 num = (cmd_word >> 24) & 7;
-  gpu.ex_regs[num] = cmd_word; // Update gpulib register
   switch (num) {
     case 1: {
       // GP0(E1h) - Draw Mode setting (aka "Texpage")
@@ -411,7 +390,7 @@ static inline void textured_sprite(int &cpu_cycles_sum, int &cpu_cycles)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(u32 *list_, int list_len,
+int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
  int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
   int cpu_cycles_sum = 0, cpu_cycles = *cycles_last;
@@ -420,8 +399,10 @@ int do_cmd_list(u32 *list_, int list_len,
   le32_t *list_start = list;
   le32_t *list_end = list + list_len;
 
-  if (IS_OLD_RENDERER())
-    return oldunai_do_cmd_list(list_, list_len, cycles_sum_out, cycles_last, last_cmd);
+  if (IS_OLD_RENDERER()) {
+    return oldunai_do_cmd_list(list_, list_len, ex_regs,
+             cycles_sum_out, cycles_last, last_cmd);
+  }
 
   for (; list < list_end; list += 1 + len)
   {
@@ -835,14 +816,16 @@ int do_cmd_list(u32 *list_, int list_len,
         goto breakloop;
 #endif
       case 0xE1 ... 0xE6: { // Draw settings
-        gpuGP0Cmd_0xEx(gpu_unai, le32_to_u32(gpu_unai.PacketBuffer.U4[0]));
+        u32 cmd_word = le32_to_u32(gpu_unai.PacketBuffer.U4[0]);
+        ex_regs[(cmd_word >> 24) & 7] = cmd_word;
+        gpuGP0Cmd_0xEx(gpu_unai, cmd_word);
       } break;
     }
   }
 
 breakloop:
-  gpu.ex_regs[1] &= ~0x1ff;
-  gpu.ex_regs[1] |= gpu_unai.GPU_GP1 & 0x1ff;
+  ex_regs[1] &= ~0x1ff;
+  ex_regs[1] |= gpu_unai.GPU_GP1 & 0x1ff;
 
   *cycles_sum_out += cpu_cycles_sum;
   *cycles_last = cpu_cycles;
@@ -854,7 +837,7 @@ void renderer_sync_ecmds(u32 *ecmds)
 {
   if (!IS_OLD_RENDERER()) {
     int dummy;
-    do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
+    renderer_do_cmd_list(&ecmds[1], 6, ecmds, &dummy, &dummy, &dummy);
   }
   else
     oldunai_renderer_sync_ecmds(ecmds);
@@ -870,7 +853,7 @@ void renderer_flush_queues(void)
 
 void renderer_set_interlace(int enable, int is_odd)
 {
-  renderer_notify_res_change();
+  renderer_notify_screen_change(&gpu.screen);
 }
 
 #include "../../frontend/plugin_lib.h"
@@ -894,14 +877,6 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     unmap_downscale_buffer();
   }
   oldunai_renderer_set_config(cbs);
-}
-
-void renderer_sync(void)
-{
-}
-
-void renderer_notify_update_lace(int updated)
-{
 }
 
 // vim:shiftwidth=2:expandtab

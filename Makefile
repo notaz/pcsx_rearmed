@@ -127,6 +127,11 @@ frontend/libretro.o: CFLAGS += -DUSE_ASYNC_CDROM
 frontend/menu.o: CFLAGS += -DUSE_ASYNC_CDROM
 USE_RTHREADS := 1
 endif
+ifeq "$(USE_ASYNC_GPU)" "1"
+frontend/libretro.o: CFLAGS += -DUSE_ASYNC_GPU
+frontend/menu.o: CFLAGS += -DUSE_ASYNC_GPU
+USE_RTHREADS := 1
+endif
 
 # dynarec
 ifeq "$(DYNAREC)" "lightrec"
@@ -256,6 +261,10 @@ endif
 
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o plugins/gpulib/prim.o
+ifeq "$(USE_ASYNC_GPU)" "1"
+OBJS += plugins/gpulib/gpu_async.o
+plugins/gpulib/%.o: CFLAGS += -DUSE_ASYNC_GPU
+endif
 ifeq "$(BUILTIN_GPU)" "neon"
 CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o
@@ -275,10 +284,6 @@ CFLAGS += -DGPU_PEOPS
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_PEOPS
 OBJS += plugins/dfxvideo/gpulib_if.o
-ifeq "$(THREAD_RENDERING)" "1"
-CFLAGS += -DTHREAD_RENDERING
-OBJS += plugins/gpulib/gpulib_thread_if.o
-endif
 endif
 
 ifeq "$(BUILTIN_GPU)" "unai"
@@ -287,10 +292,6 @@ CFLAGS += -DUSE_GPULIB=1
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
-endif
-ifeq "$(THREAD_RENDERING)" "1"
-CFLAGS += -DTHREAD_RENDERING
-OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
 ifneq "$(GPU_UNAI_NO_OLD)" "1"
 OBJS += plugins/gpu_unai/old/if.o
