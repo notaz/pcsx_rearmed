@@ -1001,7 +1001,11 @@ void GPUupdateLace(void)
     gpu.frameskip.frame_ready = 0;
   }
 
-  sync_renderer(&gpu);
+  if (gpu_async_enabled(&gpu))
+    gpu_async_sync_scanout(&gpu);
+  else
+    renderer_flush_queues();
+
   updated = vout_update();
   if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active)
     renderer_update_caches(0, 0, 1024, 512, 1);

@@ -1701,6 +1701,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_reg
         psx_gpu->saved_viewport_end_x = viewport_end_x;
         psx_gpu->saved_viewport_end_y = viewport_end_y;
 
+        // needed for multithreaded mode where the main thread will start
+        // scanout if it sees no intersect with the latest draw area
+        flush_render_block_buffer(psx_gpu);
+
         select_enhancement_buf(psx_gpu);
 #if 0
         if (!psx_gpu->enhancement_current_buf_ptr)
