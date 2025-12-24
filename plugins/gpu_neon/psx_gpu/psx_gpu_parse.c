@@ -687,7 +687,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_regs,
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
-        psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+        //psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
         ex_regs[1] = list[0];
         break;
   
@@ -1620,7 +1620,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_reg
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
-        psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+        //psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
         ex_regs[1] = list[0];
         break;
   

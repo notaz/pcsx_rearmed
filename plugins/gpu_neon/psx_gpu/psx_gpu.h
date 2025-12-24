@@ -175,7 +175,7 @@ typedef struct
 
   u8 triangle_winding;
 
-  u8 display_area_draw_enable;
+  u8 unused;
 
   u8 current_texture_page;
   u8 last_8bpp_texture_page;
