@@ -36,8 +36,10 @@
 #define FAKECMD_SCREEN_CHANGE 0xdfu
 #define FAKECMD_BREAK         0xdeu
 
-#if defined(__aarch64__) || defined(HAVE_ARMV6)
+#if defined(__aarch64__) || defined(HAVE_ARMV7)
 #define BARRIER() __asm__ __volatile__ ("dmb ishst" ::: "memory")
+#elif defined(HAVE_ARMV6)
+#define BARRIER() __asm__ __volatile__ ("mcr p15, 0, %0, c7, c10, 5" :: "r"(0) : "memory")
 #else
 #define BARRIER() __asm__ __volatile__ ("" ::: "memory")
 #endif
