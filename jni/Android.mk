@@ -239,7 +239,7 @@ COREFLAGS += -DUSE_ASYNC_CDROM
 USE_RTHREADS := 1
 endif
 ifeq ($(USE_ASYNC_GPU),1)
-SOURCES_C += $(GPU_DIR)/gpu_async.c \
+SOURCES_C += $(GPU_DIR)/gpu_async.c
 COREFLAGS += -DUSE_ASYNC_GPU
 USE_RTHREADS := 1
 endif
