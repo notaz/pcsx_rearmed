@@ -683,6 +683,7 @@ if [ "$have_c64x_dsp" = "yes" ]; then
 fi
 if [ "$multithreading" = "yes" ]; then
   echo "USE_ASYNC_CDROM = 1" >> $config_mak
+  echo "USE_ASYNC_GPU = 1" >> $config_mak
   echo "NDRC_THREAD = 1" >> $config_mak
 fi
 

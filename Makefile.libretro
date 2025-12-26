@@ -5,6 +5,7 @@ WANT_ZLIB ?= 1
 HAVE_CHD ?= 1
 HAVE_PHYSICAL_CDROM ?= 1
 USE_ASYNC_CDROM ?= 1
+USE_ASYNC_GPU ?= 1
 USE_LIBRETRO_VFS ?= 0
 NDRC_THREAD ?= 1
 GNU_LINKER ?= 1
@@ -155,7 +156,6 @@ endif
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
 	fpic := -fPIC
-	THREAD_RENDERING = 1
 ifeq ($(shell uname),Linux)
 	LIGHTREC_CUSTOM_MAP := 1
 endif
@@ -316,6 +316,7 @@ else ifeq ($(platform), psl1ght)
 	NEED_SYSCONF := 1
 	HAVE_PHYSICAL_CDROM = 0
 	USE_ASYNC_CDROM = 0
+	USE_ASYNC_GPU = 0
 
 # PSP
 else ifeq ($(platform), psp1)
@@ -375,7 +376,6 @@ else ifeq ($(platform), ctr)
 	OBJS += frontend/3ds/utils.o
 
 	BUILTIN_GPU = unai
-	THREAD_RENDERING = 1
 	DYNAREC = ari64
 	ARCH = arm
 	PARTIAL_LINKING = 1
@@ -415,7 +415,6 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	CFLAGS += -DGEKKO -mcpu=750 -meabi -mhard-float
 	CFLAGS += -DNO_DYLIB
 	STATIC_LINKING := 1
-	THREAD_RENDERING := 0
 	NO_PTHREAD := 1
 	NO_MMAP := 1
 	NO_POSIX_MEMALIGN := 1
@@ -424,6 +423,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	LIBRT :=
 	HAVE_PHYSICAL_CDROM = 0
 	USE_ASYNC_CDROM = 0
+	USE_ASYNC_GPU = 0
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -612,12 +612,14 @@ else ifeq ($(platform), emscripten)
       # but we don't want to include libretro-common's rthread object files here
       USE_RTHREADS=0
       USE_ASYNC_CDROM=0
+      USE_ASYNC_GPU=0
       # so we disable some uses of threads within pcsx_rearmed.
       # is this a good solution? I don't know!
    else
       LIBPTHREAD :=
       USE_RTHREADS=0
       USE_ASYNC_CDROM=0
+      USE_ASYNC_GPU=0
       NO_PTHREAD=1
    endif
    DYNAREC =

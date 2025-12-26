@@ -541,18 +541,14 @@ void renderer_finish(void)
 {
 }
 
-void renderer_notify_res_change(void)
-{
-}
-
-void renderer_notify_scanout_change(int x, int y)
+void renderer_notify_screen_change(const struct psx_gpu_screen *screen)
 {
 }
 
 extern const unsigned char cmd_lengths[256];
 
 // XXX: mostly dupe code from soft peops
-int do_cmd_list(uint32_t *list, int list_len,
+int renderer_do_cmd_list(uint32_t *list, int list_len, uint32_t *ex_regs,
  int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
   unsigned int cmd, len;
@@ -572,7 +568,7 @@ int do_cmd_list(uint32_t *list, int list_len,
     if (cmd == 0xa0 || cmd == 0xc0)
       break; // image i/o, forward to upper layer
     else if ((cmd & 0xf8) == 0xe0)
-      gpu.ex_regs[cmd & 7] = list[0];
+      ex_regs[cmd & 7] = list[0];
 #endif
 
     primTableJ[cmd]((void *)list);
@@ -641,8 +637,8 @@ int do_cmd_list(uint32_t *list, int list_len,
   }
 
 breakloop:
-  gpu.ex_regs[1] &= ~0x1ff;
-  gpu.ex_regs[1] |= lGPUstatusRet & 0x1ff;
+  ex_regs[1] &= ~0x1ff;
+  ex_regs[1] |= lGPUstatusRet & 0x1ff;
 
   *last_cmd = cmd;
   return list - list_start;
@@ -818,12 +814,4 @@ static void fps_update(void)
   snprintf(buf,sizeof(buf),"%3d",cbs->cpu_usage);
   DisplayText(buf, 1);
  }
-}
-
-void renderer_sync(void)
-{
-}
-
-void renderer_notify_update_lace(int updated)
-{
 }

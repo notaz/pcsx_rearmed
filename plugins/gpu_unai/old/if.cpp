@@ -159,7 +159,7 @@ void oldunai_renderer_init(void)
 
 extern const unsigned char cmd_lengths[256];
 
-int oldunai_do_cmd_list(uint32_t *list, int list_len,
+int oldunai_do_cmd_list(uint32_t *list, int list_len, uint32_t *ex_regs,
  int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
   unsigned int cmd = 0, len, i;
@@ -455,7 +455,7 @@ int oldunai_do_cmd_list(uint32_t *list, int list_len,
         const u32 temp = PacketBuffer.U4[0];
         GPU_GP1 = (GPU_GP1 & ~0x000007FF) | (temp & 0x000007FF);
         gpuSetTexture(temp);
-        gpu.ex_regs[1] = temp;
+        ex_regs[1] = temp;
         break;
       }
       case 0xE2: {
@@ -469,43 +469,43 @@ int oldunai_do_cmd_list(uint32_t *list, int list_len,
         TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
         TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
         gpuSetTexture(GPU_GP1);
-        gpu.ex_regs[2] = temp;
+        ex_regs[2] = temp;
         break;
       }
       case 0xE3: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingArea[0] = temp         & 0x3FF;
         DrawingArea[1] = (temp >> 10) & 0x3FF;
-        gpu.ex_regs[3] = temp;
+        ex_regs[3] = temp;
         break;
       }
       case 0xE4: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingArea[2] = (temp         & 0x3FF) + 1;
         DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
-        gpu.ex_regs[4] = temp;
+        ex_regs[4] = temp;
         break;
       }
       case 0xE5: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
         DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
-        gpu.ex_regs[5] = temp;
+        ex_regs[5] = temp;
         break;
       }
       case 0xE6: {
         const u32 temp = PacketBuffer.U4[0];
         Masking = (temp & 0x2) <<  1;
         PixelMSB =(temp & 0x1) <<  8;
-        gpu.ex_regs[6] = temp;
+        ex_regs[6] = temp;
         break;
       }
     }
   }
 
 breakloop:
-  gpu.ex_regs[1] &= ~0x1ff;
-  gpu.ex_regs[1] |= GPU_GP1 & 0x1ff;
+  ex_regs[1] &= ~0x1ff;
+  ex_regs[1] |= GPU_GP1 & 0x1ff;
 
   *last_cmd = cmd;
   return list - list_start;
@@ -514,7 +514,7 @@ breakloop:
 void oldunai_renderer_sync_ecmds(uint32_t *ecmds)
 {
   int dummy;
-  do_cmd_list(&ecmds[1], 6, &dummy, &dummy, &dummy);
+  renderer_do_cmd_list(&ecmds[1], 6, ecmds, &dummy, &dummy, &dummy);
 }
 
 #ifndef TEST

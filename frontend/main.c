@@ -15,7 +15,7 @@
 #include <dlfcn.h>
 #endif
 #ifdef HAVE_RTHREADS
-#include "../frontend/libretro-rthreads.h"
+#include "../frontend/pcsxr-threads.h"
 #endif
 
 #include "main.h"

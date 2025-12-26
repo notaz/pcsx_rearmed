@@ -329,18 +329,17 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "enabled",
 #endif
    },
-#ifdef THREAD_RENDERING
+#ifdef USE_ASYNC_GPU
    {
       "pcsx_rearmed_gpu_thread_rendering",
       "Threaded Rendering",
       NULL,
-      "When enabled, runs GPU commands in a secondary thread. 'Synchronous' improves performance while maintaining proper frame pacing. 'Asynchronous' improves performance even further, but may cause dropped frames and increased latency. Produces best results with games that run natively at less than 60 frames per second.",
+      "When enabled, runs GPU commands in a secondary thread.",
       NULL,
       "video",
       {
          { "disabled", NULL },
-         { "sync",     "Synchronous" },
-         { "async",    "Asynchronous" },
+         { "enabled",  NULL },
          { NULL, NULL},
       },
       "disabled",

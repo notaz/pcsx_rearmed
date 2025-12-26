@@ -237,10 +237,6 @@ static void do_fill(psx_gpu_struct *psx_gpu, u32 x, u32 y,
   get_vertex_data_xy(vertex_number, offset16);                                 \
   set_vertex_color_constant(vertex_number, color)                              \
 
-#ifndef SET_Ex
-#define SET_Ex(r, v)
-#endif
-
 static void textured_sprite(psx_gpu_struct *psx_gpu, const u32 *list,
   s32 width, s32 height, u32 *cpu_cycles_sum, u32 *cpu_cycles)
 {
@@ -286,7 +282,7 @@ static void do_quad(psx_gpu_struct *psx_gpu, vertex_struct *vertexes,
     render_triangle_p(psx_gpu, triangle.vertexes, current_command);
 }
 
-u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
+u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_regs,
  s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
@@ -691,8 +687,8 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
-        psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
-        SET_Ex(1, list[0]);
+        //psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+        ex_regs[1] = list[0];
         break;
   
       case 0xE2:
@@ -725,7 +721,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
           update_texture_ptr(psx_gpu);
         }
-        SET_Ex(2, list[0]);
+        ex_regs[2] = list[0];
         break;
       }
 
@@ -749,7 +745,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-        SET_Ex(3, list[0]);
+        ex_regs[3] = list[0];
         break;
       }
 
@@ -773,7 +769,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-        SET_Ex(4, list[0]);
+        ex_regs[4] = list[0];
         break;
       }
   
@@ -782,7 +778,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->offset_x = sign_extend_11bit(list[0]);
         psx_gpu->offset_y = sign_extend_11bit(list[0] >> 11);
   
-        SET_Ex(5, list[0]);
+        ex_regs[5] = list[0];
         break;
       }
 
@@ -802,7 +798,7 @@ u32 gpu_parse(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           psx_gpu->mask_msb = mask_msb;
         }
 
-        SET_Ex(6, list[0]);
+        ex_regs[6] = list[0];
         break;
       }
   
@@ -1206,7 +1202,7 @@ static void textured_sprite_enh(psx_gpu_struct *psx_gpu, const u32 *list,
     do_sprite_enhanced(psx_gpu, x, y, u, v, width_b, height_b, list[0]);
 }
 
-u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
+u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size, u32 *ex_regs,
  s32 *cpu_cycles_sum_out, s32 *cpu_cycles_last, u32 *last_command)
 {
   vertex_struct vertexes[4] __attribute__((aligned(16))) = {};
@@ -1624,8 +1620,8 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         else
           psx_gpu->render_state_base &= ~RENDER_STATE_DITHER;
 
-        psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
-        SET_Ex(1, list[0]);
+        //psx_gpu->display_area_draw_enable = (list[0] >> 10) & 0x1;
+        ex_regs[1] = list[0];
         break;
   
       case 0xE2:
@@ -1658,7 +1654,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
 
           update_texture_ptr(psx_gpu);
         }
-        SET_Ex(2, list[0]);
+        ex_regs[2] = list[0];
         break;
       }
   
@@ -1685,7 +1681,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-        SET_Ex(3, list[0]);
+        ex_regs[3] = list[0];
         break;
       }
 
@@ -1705,6 +1701,10 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->saved_viewport_end_x = viewport_end_x;
         psx_gpu->saved_viewport_end_y = viewport_end_y;
 
+        // needed for multithreaded mode where the main thread will start
+        // scanout if it sees no intersect with the latest draw area
+        flush_render_block_buffer(psx_gpu);
+
         select_enhancement_buf(psx_gpu);
 #if 0
         if (!psx_gpu->enhancement_current_buf_ptr)
@@ -1718,7 +1718,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
          psx_gpu->viewport_start_y, psx_gpu->viewport_end_x,
          psx_gpu->viewport_end_y);
 #endif
-        SET_Ex(4, list[0]);
+        ex_regs[4] = list[0];
         break;
       }
   
@@ -1727,7 +1727,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
         psx_gpu->offset_x = sign_extend_11bit(list[0]);
         psx_gpu->offset_y = sign_extend_11bit(list[0] >> 11);
   
-        SET_Ex(5, list[0]);
+        ex_regs[5] = list[0];
         break;
       }
 
@@ -1747,7 +1747,7 @@ u32 gpu_parse_enhanced(psx_gpu_struct *psx_gpu, u32 *list, u32 size,
           psx_gpu->mask_msb = mask_msb;
         }
 
-        SET_Ex(6, list[0]);
+        ex_regs[6] = list[0];
         break;
       }
   

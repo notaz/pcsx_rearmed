@@ -453,6 +453,7 @@ static const struct {
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 4),
 	CE_INTVAL_PV(dithering, 2),
+	CE_INTVAL_P(thread_rendering),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.old_renderer),
 	CE_INTVAL_P(gpu_unai.ilace_force),
@@ -1570,6 +1571,7 @@ static const char h_plugin_spu[] = ""
 				   "must save config and reload the game if changed"
 #endif
 ;
+static const char h_sputhr[]     = "Warning: has some known bugs\n";
 // static const char h_gpu_peops[]  = "Configure P.E.Op.S. SoftGL Driver V1.17";
 // static const char h_gpu_peopsgl[]= "Configure P.E.Op.S. MesaGL Driver V1.78";
 // static const char h_gpu_unai[]   = "Configure Unai/PCSX4ALL Team plugin (new)";
@@ -1603,9 +1605,15 @@ static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
 	mee_enum      ("BIOS logo (slow boot)",         0, slowboot_sel, men_bios_boot),
-	mee_enum      ("GPU Dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
+#ifdef USE_ASYNC_GPU
+	mee_onoff     ("GPU multithreading",            0, pl_rearmed_cbs.thread_rendering, 1),
+#endif
+	mee_enum      ("GPU dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
+#ifndef C64X_DSP
+	mee_onoff_h   ("SPU multithreading",            MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
+#endif
 	mee_handler   ("Configure selected GPU plugin", menu_loop_pluginsel_options),
 	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
@@ -1617,6 +1625,9 @@ static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
 	slowboot_sel = Config.SlowBoot;
+#ifndef C64X_DSP
+	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, spu_config.iThreadAvail);
+#endif
 	me_loop(e_menu_plugin_options, &sel);
 	Config.SlowBoot = slowboot_sel;
 
@@ -1760,7 +1771,6 @@ static const char h_confirm_save[]    = "Ask for confirmation when overwriting s
 static const char h_restore_def[]     = "Switches back to default / recommended\n"
 					"configuration";
 static const char h_frameskip[]       = "Warning: frameskip sometimes causes glitches\n";
-static const char h_sputhr[]          = "Warning: has some known bugs\n";
 
 static menu_entry e_menu_options[] =
 {
@@ -1772,8 +1782,6 @@ static menu_entry e_menu_options[] =
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),
 #ifdef C64X_DSP
 	mee_onoff_h   ("Use C64x DSP for sound",   MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
-#else
-	mee_onoff_h   ("Threaded SPU",             MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
 #endif
 	mee_handler_id("[Display]",                MA_OPT_DISP_OPTS, menu_loop_gfx_options),
 	mee_handler   ("[BIOS/Plugins]",           menu_loop_plugin_options),
@@ -1789,7 +1797,9 @@ static int menu_loop_options(int id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_options, MA_OPT_CPU_CLOCKS, cpu_clock_st > 0);
+#ifdef C64X_DSP
 	me_enable(e_menu_options, MA_OPT_SPU_THREAD, spu_config.iThreadAvail);
+#endif
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, ready_to_go && CdromId[0]);
 
 	me_loop(e_menu_options, &sel);

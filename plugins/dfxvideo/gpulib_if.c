@@ -22,22 +22,6 @@
 #pragma GCC diagnostic ignored "-Wmisleading-indentation"
 #endif
 
-#ifdef THREAD_RENDERING
-#include "../gpulib/gpulib_thread_if.h"
-#define do_cmd_list real_do_cmd_list
-#define renderer_init real_renderer_init
-#define renderer_finish real_renderer_finish
-#define renderer_sync_ecmds real_renderer_sync_ecmds
-#define renderer_update_caches real_renderer_update_caches
-#define renderer_flush_queues real_renderer_flush_queues
-#define renderer_set_interlace real_renderer_set_interlace
-#define renderer_set_config real_renderer_set_config
-#define renderer_notify_res_change real_renderer_notify_res_change
-#define renderer_notify_update_lace real_renderer_notify_update_lace
-#define renderer_sync real_renderer_sync
-#define ex_regs scratch_ex_regs
-#endif
-
 #define u32 uint32_t
 
 #define INFO_TW        0
@@ -311,18 +295,14 @@ void renderer_finish(void)
 {
 }
 
-void renderer_notify_res_change(void)
-{
-}
-
-void renderer_notify_scanout_change(int x, int y)
+void renderer_notify_screen_change(const struct psx_gpu_screen *screen)
 {
 }
 
 #include "../gpulib/gpu_timing.h"
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(uint32_t *list, int list_len,
+int renderer_do_cmd_list(uint32_t *list, int list_len, uint32_t *ex_regs,
  int *cycles_sum_out, int *cycles_last, int *last_cmd)
 {
   int cpu_cycles_sum = 0, cpu_cycles = *cycles_last;
@@ -344,7 +324,7 @@ int do_cmd_list(uint32_t *list, int list_len,
     if (0x80 <= cmd && cmd < 0xe0)
       break; // image i/o, forward to upper layer
     else if ((cmd & 0xf8) == 0xe0)
-      gpu.ex_regs[cmd & 7] = GETLE32(list);
+      ex_regs[cmd & 7] = GETLE32(list);
 #endif
 
     primTableJ[cmd]((void *)list);
@@ -445,8 +425,8 @@ int do_cmd_list(uint32_t *list, int list_len,
   }
 
 breakloop:
-  gpu.ex_regs[1] &= ~0x1ff;
-  gpu.ex_regs[1] |= lGPUstatusRet & 0x1ff;
+  ex_regs[1] &= ~0x1ff;
+  ex_regs[1] |= lGPUstatusRet & 0x1ff;
 
   *cycles_sum_out += cpu_cycles_sum;
   *cycles_last = cpu_cycles;
@@ -481,14 +461,6 @@ void renderer_flush_queues(void)
 }
 
 void renderer_set_interlace(int enable, int is_odd)
-{
-}
-
-void renderer_sync(void)
-{
-}
-
-void renderer_notify_update_lace(int updated)
 {
 }
 

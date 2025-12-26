@@ -51,19 +51,23 @@ extern "C" {
 #define PSX_GPU_STATUS_DMA(x)		((x) << 29)
 #define PSX_GPU_STATUS_DMA_MASK		(BIT(29) | BIT(30))
 
+struct psx_gpu_async;
+
+struct psx_gpu_screen {
+  short hres, vres;
+  short x, y, w, h;
+  short x1, x2;
+  short y1, y2;
+  short src_x, src_y;
+};
+
 struct psx_gpu {
   uint32_t regs[16];
   uint16_t *vram;
   uint32_t status;
   uint32_t gp0;
   uint32_t ex_regs[8];
-  struct {
-    int hres, vres;
-    int x, y, w, h;
-    int x1, x2;
-    int y1, y2;
-    int src_x, src_y;
-  } screen;
+  struct psx_gpu_screen screen;
   struct {
     int x, y, w, h;
     short int offset, is_read;
@@ -110,8 +114,8 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
-  uint32_t scratch_ex_regs[8]; // for threaded rendering
   uint32_t cmd_buffer[CMD_BUFFER_LEN];
+  struct psx_gpu_async *async;
   void *(*get_enhancement_bufer)
     (int *x, int *y, int *w, int *h, int *vram_h);
   uint16_t *(*get_downscale_buffer)
@@ -125,10 +129,11 @@ extern struct psx_gpu gpu;
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(uint32_t *list, int count,
-	int *cycles_sum, int *cycles_last, int *last_cmd);
-
 struct rearmed_cbs;
+
+// ex_regs: renderer should write Ex values for gpulib, never use them itself
+int  renderer_do_cmd_list(uint32_t *list, int count, uint32_t *ex_regs,
+	int *cycles_sum, int *cycles_last, int *last_cmd);
 
 int  renderer_init(void);
 void renderer_finish(void);
@@ -137,16 +142,17 @@ void renderer_update_caches(int x, int y, int w, int h, int state_changed);
 void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
 void renderer_set_config(const struct rearmed_cbs *config);
-void renderer_notify_res_change(void);
-void renderer_notify_update_lace(int updated);
-void renderer_sync(void);
-void renderer_notify_scanout_change(int x, int y);
+void renderer_notify_screen_change(const struct psx_gpu_screen *screen);
 
 int  vout_init(void);
 int  vout_finish(void);
 int  vout_update(void);
 void vout_blank(void);
 void vout_set_config(const struct rearmed_cbs *config);
+
+// helpers
+int  do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
+       const uint32_t *params, int *cpu_cycles);
 
 int  prim_try_simplify_quad_t (void *simplified, const void *prim);
 int  prim_try_simplify_quad_gt(void *simplified, const void *prim);
@@ -171,6 +177,8 @@ long GPUclose(void);
 void GPUvBlank(int is_vblank, int lcf);
 void GPUgetScreenInfo(int *y, int *base_hres);
 void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
+
+void SysPrintf(const char *fmt, ...);
 
 #ifdef __cplusplus
 }

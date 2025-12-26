@@ -144,6 +144,7 @@ int main(int argc, char *argv[])
   s32 dummy0 = 0;
   s32 dummy1 = 0;
   u32 dummy2 = 0;
+  u32 ex_regs[8];
 
   if((argc != 3) && (argc != 4))
   {
@@ -222,7 +223,7 @@ int main(int argc, char *argv[])
   init_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1, &dummy2);
+  gpu_parse(psx_gpu, list, size, ex_regs, &dummy0, &dummy1, &dummy2);
   flush_render_block_buffer(psx_gpu);
 
   clear_stats();
@@ -231,7 +232,7 @@ int main(int argc, char *argv[])
   u32 cycles = get_counter();
 #endif
 
-  gpu_parse(psx_gpu, list, size, &dummy0, &dummy1, &dummy2);
+  gpu_parse(psx_gpu, list, size, ex_regs, &dummy0, &dummy1, &dummy2);
   flush_render_block_buffer(psx_gpu);
 
 #ifdef CYCLE_COUNTER
