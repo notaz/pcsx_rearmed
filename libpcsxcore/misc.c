@@ -767,6 +767,7 @@ int SaveState(const char *file) {
 	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
 	if (gpufP == NULL) goto cleanup;
 	gpufP->ulFreezeVersion = 1;
+	memset(gpufP->ulControl, 0, sizeof(gpufP->ulControl));
 	GPU_freeze(1, gpufP);
 	SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t));
 	free(gpufP); gpufP = NULL;
