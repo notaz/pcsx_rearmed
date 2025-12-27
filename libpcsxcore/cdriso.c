@@ -24,6 +24,7 @@
 #include "cdriso.h"
 #include "ppf.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <zlib.h>
 #ifdef HAVE_CHD

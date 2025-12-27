@@ -18,6 +18,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h> //include for uint64_t
 #include <assert.h>
@@ -767,7 +768,7 @@ static attr_unused void check_for_block_changes(u_int start, u_int end)
       if (block->is_dirty)
         continue;
       if (memcmp(block->source, block->copy, block->len)) {
-        printf("bad block %08x-%08x %016llx %016llx @%08x\n",
+        SysPrintf("bad block %08x-%08x %016llx %016llx @%08x\n",
           block->start, block->start + block->len,
           *(long long *)block->source, *(long long *)block->copy, psxRegs.pc);
         fflush(stdout);

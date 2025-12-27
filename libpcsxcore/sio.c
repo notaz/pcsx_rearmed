@@ -21,6 +21,7 @@
 * SIO functions.
 */
 
+#include <stdio.h>
 #include "misc.h"
 #include "psxcounters.h"
 #include "psxevents.h"

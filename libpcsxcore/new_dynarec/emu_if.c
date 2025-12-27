@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <assert.h>
 
 #include "emu_if.h"
 #include "pcsxmem.h"

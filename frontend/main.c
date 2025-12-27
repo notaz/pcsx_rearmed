@@ -437,14 +437,6 @@ int emu_core_preinit(void)
 	// it may be redefined by -cfg on the command line
 	strcpy(cfgfile_basename, "pcsx.cfg");
 
-#ifdef IOS
-	emuLog = fopen("/User/Documents/pcsxr.log", "w");
-	if (emuLog == NULL)
-		emuLog = fopen("pcsxr.log", "w");
-	if (emuLog == NULL)
-#endif
-	emuLog = stdout;
-
 	log_wrong_cpu();
 
 	SetIsoFile(NULL);
@@ -878,11 +870,6 @@ void SysClose() {
 	ReleasePlugins();
 
 	StopDebugger();
-
-	if (emuLog != NULL && emuLog != stdout && emuLog != stderr) {
-		fclose(emuLog);
-		emuLog = NULL;
-	}
 }
 
 #ifndef HAVE_LIBRETRO
@@ -892,9 +879,9 @@ void SysPrintf(const char *fmt, ...) {
 	va_list list;
 
 	va_start(list, fmt);
-	vfprintf(emuLog, fmt, list);
+	vfprintf(stdout, fmt, list);
 	va_end(list);
-	fflush(emuLog);
+	//fflush(stdout);
 }
 
 #else

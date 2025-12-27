@@ -24,8 +24,11 @@
 // generic defines
 /////////////////////////////////////////////////////////
 
-//#define log_unhandled printf
+#ifdef LOG_UNHANDLED
+#define log_unhandled printf
+#else
 #define log_unhandled(...)
+#endif
 
 #ifdef __GNUC__
 #define noinline __attribute__((noinline))

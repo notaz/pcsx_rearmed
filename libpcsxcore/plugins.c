@@ -21,6 +21,8 @@
 * Plugin library callback/access functions.
 */
 
+#include <stdio.h>
+#include <time.h>
 #include "plugins.h"
 #include "cdriso.h"
 #include "cdrom-async.h"

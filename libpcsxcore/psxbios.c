@@ -30,6 +30,9 @@
 
 // TODO: implement all system calls, count the exact CPU cycles of system calls.
 
+#include <stdio.h>
+#include <stdarg.h>
+#include <assert.h>
 #include "psxbios.h"
 #include "psxhw.h"
 #include "gpu.h"
@@ -38,7 +41,6 @@
 #include "psxinterpreter.h"
 #include "psxevents.h"
 #include "cdrom.h"
-#include <stdarg.h>
 #include <zlib.h>
 
 #ifndef PSXBIOS_LOG

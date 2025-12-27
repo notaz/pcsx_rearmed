@@ -17,6 +17,9 @@ ifneq ($(ASSERTS), 1)
 CFLAGS += -DNDEBUG
 endif
 endif
+ifeq ($(LOG_UNHANDLED), 1)
+CFLAGS += -DLOG_UNHANDLED
+endif
 ifndef NO_AUTODEPS
 AUTODEPFLAGS += -MMD -MP
 endif

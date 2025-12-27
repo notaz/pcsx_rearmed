@@ -8,9 +8,12 @@
 #define _GNU_SOURCE 1 // strcasestr
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
+#include <math.h>
 #include <assert.h>
 #ifdef __MACH__
 #include <unistd.h>
