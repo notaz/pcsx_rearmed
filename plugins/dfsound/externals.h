@@ -90,6 +90,8 @@ typedef struct
  int            StepCounter;	// 0 -> 32k
 } ADSRInfoEx;
               
+struct xa_decode;
+
 ///////////////////////////////////////////////////////////
 
 // MAIN CHANNEL STRUCT
@@ -244,7 +246,7 @@ typedef struct
  //void (CALLBACK *cddavCallback)(short, short);
  void (CALLBACK *scheduleCallback)(unsigned int);
 
- const xa_decode_t * xapGlobal;
+ const struct xa_decode * xapGlobal;
  unsigned int  * XAFeed;
  unsigned int  * XAPlay;
  unsigned int  * XAStart;
@@ -294,7 +296,7 @@ void do_irq_io(int cycles_after);
 
 #endif
 
-void FeedXA(const xa_decode_t *xap);
+void FeedXA(const struct xa_decode *xap);
 void FeedCDDA(unsigned char *pcm, int nBytes);
 
 #endif /* __P_SOUND_EXTERNALS_H__ */

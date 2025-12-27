@@ -241,6 +241,34 @@ typedef struct PadDataS
 	unsigned char reserved[22];
 } PadDataS;
 
+typedef struct {
+	int	y0, y1;
+} ADPCM_Decode_t;
+
+typedef struct xa_decode {
+	int				freq;
+	int				nbits;
+	int				stereo;
+	int				nsamples;
+	ADPCM_Decode_t	left, right;
+	short			pcm[16384];
+} xa_decode_t;
+
+typedef struct {
+	char PluginName[8];
+	unsigned int PluginVersion;
+	unsigned int Size;
+} SPUFreezeHdr_t;
+
+typedef struct SPUFreeze {
+	char PluginName[8];
+	unsigned int PluginVersion;
+	unsigned int Size;
+	unsigned char SPUPorts[0x200];
+	unsigned char SPURam[0x80000];
+	xa_decode_t xa;
+} SPUFreeze_t;
+
 /*         NET PlugIn v2       */
 /* Added by linuzappz@pcsx.net */
 

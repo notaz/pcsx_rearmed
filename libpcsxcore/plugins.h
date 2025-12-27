@@ -100,20 +100,6 @@ typedef void (CALLBACK* SPUreadDMAMem)(unsigned short *, int, unsigned int);
 typedef void (CALLBACK* SPUplayADPCMchannel)(xa_decode_t *, unsigned int, int);
 typedef void (CALLBACK* SPUregisterCallback)(void (CALLBACK *callback)(int));
 typedef void (CALLBACK* SPUregisterScheduleCb)(void (CALLBACK *callback)(unsigned int cycles_after));
-typedef struct {
-	unsigned char PluginName[8];
-	uint32_t PluginVersion;
-	uint32_t Size;
-} SPUFreezeHdr_t;
-typedef struct SPUFreeze {
-	unsigned char PluginName[8];
-	uint32_t PluginVersion;
-	uint32_t Size;
-	unsigned char SPUPorts[0x200];
-	unsigned char SPURam[0x80000];
-	xa_decode_t xa;
-	unsigned char *unused;
-} SPUFreeze_t;
 typedef long (CALLBACK* SPUfreeze)(unsigned int, struct SPUFreeze *, unsigned int);
 typedef void (CALLBACK* SPUasync)(unsigned int, unsigned int);
 typedef int  (CALLBACK* SPUplayCDDAchannel)(short *, int, unsigned int, int);

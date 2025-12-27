@@ -22,6 +22,7 @@
 */
 
 #include "decode_xa.h"
+#include "psemu_plugin_defs.h"
 
 #define FIXED
 

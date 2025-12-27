@@ -1,12 +1,4 @@
 /////////////////////////////////////////////////////////
-
-#define PSE_LT_SPU                  4
-#define PSE_SPU_ERR_SUCCESS         0
-#define PSE_SPU_ERR                 -60
-#define PSE_SPU_ERR_NOTCONFIGURED   PSE_SPU_ERR -1
-#define PSE_SPU_ERR_INIT            PSE_SPU_ERR -2
-
-/////////////////////////////////////////////////////////
 // main emu calls:
 // 0. Get type/name/version
 // 1. Init
@@ -21,8 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "xa.h"
 #include "register.h"
+#include "../../include/psemu_plugin_defs.h"
 // some ms windows compatibility define
 #undef CALLBACK
 #define CALLBACK
@@ -402,16 +394,6 @@ char * SPUgetLibInfos(void)
 
 typedef struct
 {
- char          szSPUName[8];
- unsigned long ulFreezeVersion;
- unsigned long ulFreezeSize;
- unsigned char cSPUPort[0x200];
- unsigned char cSPURam[0x80000];
- xa_decode_t   xaS;     
-} SPUFreeze_t;
-
-typedef struct
-{
  unsigned long Future[256];
 
 } SPUNULLFreeze_t;
@@ -429,23 +411,23 @@ long CALLBACK SPUfreeze(unsigned long ulFreezeMode,SPUFreeze_t * pF,unsigned int
    if(ulFreezeMode==1)
     memset(pF,0,sizeof(SPUFreeze_t)+sizeof(SPUNULLFreeze_t));
 
-   strcpy(pF->szSPUName,"PBNUL");
-   pF->ulFreezeVersion=1;
-   pF->ulFreezeSize=sizeof(SPUFreeze_t)+sizeof(SPUNULLFreeze_t);
+   strcpy(pF->PluginName, "PBNUL");
+   pF->PluginVersion = 1;
+   pF->Size = sizeof(SPUFreeze_t)+sizeof(SPUNULLFreeze_t);
 
    if(ulFreezeMode==2) return 1;
 
-   memcpy(pF->cSPURam,spuMem,0x80000);
-   memcpy(pF->cSPUPort,regArea,0x200);
+   memcpy(pF->SPURam, spuMem, 0x80000);
+   memcpy(pF->SPUPorts, regArea, 0x200);
    // dummy:
-   memset(&pF->xaS,0,sizeof(xa_decode_t));
+   memset(&pF->xa, 0, sizeof(xa_decode_t));
    return 1;
   }
 
  if(ulFreezeMode!=0) return 0;
 
- memcpy(spuMem,pF->cSPURam,0x80000);
- memcpy(regArea,pF->cSPUPort,0x200);
+ memcpy(spuMem, pF->SPURam, 0x80000);
+ memcpy(regArea, pF->SPUPorts, 0x200);
 
  for(i=0;i<0x100;i++)
   {
