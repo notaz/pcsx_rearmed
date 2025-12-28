@@ -1007,8 +1007,10 @@ void GPUupdateLace(void)
     renderer_flush_queues();
 
   updated = vout_update();
-  if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active)
+  if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active) {
+    gpu_async_sync(&gpu);
     renderer_update_caches(0, 0, 1024, 512, 1);
+  }
   gpu.state.enhancement_was_active = gpu.state.enhancement_active;
   if (updated) {
     gpu.state.fb_dirty = 0;
@@ -1033,8 +1035,12 @@ void GPUvBlank(int is_vblank, int lcf)
 
     if (gpu.cmd_len > 0)
       flush_cmd_buffer(&gpu);
-    renderer_flush_queues();
-    renderer_set_interlace(interlace, !lcf);
+    if (gpu.async)
+      gpu_async_set_interlace(&gpu, interlace, !lcf);
+    else {
+      renderer_flush_queues();
+      renderer_set_interlace(interlace, !lcf);
+    }
   }
 }
 
