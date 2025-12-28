@@ -497,7 +497,7 @@ frontend/libpicofe/%.c:
 	@exit 1
 
 libpcsxcore/gte_nf.o: libpcsxcore/gte.c
-	$(CC) -c -o $@ $^ $(CFLAGS) $(AUTODEPFLAGS) -DFLAGLESS
+	$(CC) -c -o $@ $< $(CFLAGS) $(AUTODEPFLAGS) -DFLAGLESS
 
 include/revision.h: FORCE
 	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_

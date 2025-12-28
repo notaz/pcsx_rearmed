@@ -18,6 +18,7 @@ void gpu_async_sync(struct psx_gpu *gpu);
 void gpu_async_sync_scanout(struct psx_gpu *gpu);
 void gpu_async_sync_ecmds(struct psx_gpu *gpu);
 void gpu_async_notify_screen_change(struct psx_gpu *gpu);
+void gpu_async_set_interlace(struct psx_gpu *gpu, int enable, int is_odd);
 
 #else
 
@@ -29,6 +30,7 @@ void gpu_async_notify_screen_change(struct psx_gpu *gpu);
 #define gpu_async_sync_scanout(gpu) do {} while (0)
 #define gpu_async_sync_ecmds(gpu)
 #define gpu_async_notify_screen_change(gpu)
+#define gpu_async_set_interlace(gpu, enable, is_odd)
 
 #endif
 

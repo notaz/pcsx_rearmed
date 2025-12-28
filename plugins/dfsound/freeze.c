@@ -24,6 +24,7 @@
 #include "externals.h"
 #include "registers.h"
 #include "spu.h"
+#include "psemu_plugin_defs.h"
 
 ////////////////////////////////////////////////////////////////////////
 // freeze structs
@@ -107,16 +108,6 @@ typedef struct
  ADSRInfo          ADSR;                               // active ADSR settings
  ADSRInfoEx_orig   ADSRX;                              // next ADSR settings (will be moved to active on sample start)
 } SPUCHAN_orig;
-
-typedef struct SPUFreeze
-{
- char          szSPUName[8];
- uint32_t ulFreezeVersion;
- uint32_t ulFreezeSize;
- unsigned char cSPUPort[0x200];
- unsigned char cSPURam[0x80000];
- xa_decode_t   xaS;     
-} SPUFreeze_t;
 
 typedef struct
 {
@@ -261,23 +252,23 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
    if(ulFreezeMode==1)                                 
     memset(pF,0,sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t));
 
-   strcpy(pF->szSPUName,"PBOSS");
-   pF->ulFreezeVersion=5;
-   pF->ulFreezeSize=sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t);
+   strcpy(pF->PluginName, "PBOSS");
+   pF->PluginVersion = 5;
+   pF->Size = sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t);
 
    if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
                                                        // save mode:
    regAreaGet(H_SPUctrl) = spu.spuCtrl;
    regAreaGet(H_SPUstat) = spu.spuStat;
-   memcpy(pF->cSPURam,spu.spuMem,0x80000);             // copy common infos
-   memcpy(pF->cSPUPort,spu.regArea,0x200);
+   memcpy(pF->SPURam, spu.spuMem, 0x80000);            // copy common infos
+   memcpy(pF->SPUPorts, spu.regArea, 0x200);
 
    if(spu.xapGlobal && spu.XAPlay!=spu.XAFeed)         // some xa
     {
      xa_left = spu.XAFeed - spu.XAPlay;
      if (xa_left < 0)
       xa_left = spu.XAEnd - spu.XAPlay + spu.XAFeed - spu.XAStart;
-     pF->xaS = *spu.xapGlobal;
+     pF->xa = *spu.xapGlobal;
     }
    else if (spu.CDDAPlay != spu.CDDAFeed)
     {
@@ -286,19 +277,19 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
      cdda_left = spu.CDDAFeed - spu.CDDAPlay;
      if (cdda_left < 0)
       cdda_left = spu.CDDAEnd - spu.CDDAPlay + spu.CDDAFeed - spu.CDDAStart;
-     if (cdda_left > sizeof(pF->xaS.pcm) / 4)
-      cdda_left = sizeof(pF->xaS.pcm) / 4;
+     if (cdda_left > sizeof(pF->xa.pcm) / 4)
+      cdda_left = sizeof(pF->xa.pcm) / 4;
      if (p + cdda_left <= spu.CDDAEnd)
-      memcpy(pF->xaS.pcm, p, cdda_left * 4);
+      memcpy(pF->xa.pcm, p, cdda_left * 4);
      else {
-      memcpy(pF->xaS.pcm, p, (spu.CDDAEnd - p) * 4);
-      memcpy((char *)pF->xaS.pcm + (spu.CDDAEnd - p) * 4, spu.CDDAStart,
+      memcpy(pF->xa.pcm, p, (spu.CDDAEnd - p) * 4);
+      memcpy((char *)pF->xa.pcm + (spu.CDDAEnd - p) * 4, spu.CDDAStart,
              (cdda_left - (spu.CDDAEnd - p)) * 4);
      }
-     pF->xaS.nsamples = 0;
+     pF->xa.nsamples = 0;
     }
    else
-    memset(&pF->xaS,0,sizeof(xa_decode_t));            // or clean xa
+    memset(&pF->xa, 0, sizeof(xa_decode_t));           // or clean xa
 
    pFO=(SPUOSSFreeze_t *)(pF+1);                       // store special stuff
 
@@ -338,27 +329,27 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
                                                        
  if(ulFreezeMode!=0) return 0;                         // bad mode? bye
 
- memcpy(spu.spuMem,pF->cSPURam,0x80000);               // get ram
- memcpy(spu.regArea,pF->cSPUPort,0x200);
+ memcpy(spu.spuMem, pF->SPURam, 0x80000);              // get ram
+ memcpy(spu.regArea, pF->SPUPorts, 0x200);
  spu.bMemDirty = 1;
  spu.spuCtrl = regAreaGet(H_SPUctrl);
  spu.spuStat = regAreaGet(H_SPUstat);
 
- if (!strcmp(pF->szSPUName,"PBOSS") && pF->ulFreezeVersion==5)
+ if (!strcmp(pF->PluginName, "PBOSS") && pF->PluginVersion == 5)
    pFO = LoadStateV5(pF, cycles);
  else LoadStateUnknown(pF, cycles);
 
  spu.XAPlay = spu.XAFeed = spu.XAStart;
  spu.CDDAPlay = spu.CDDAFeed = spu.CDDAStart;
  spu.cdClearSamples = 512;
- if (pFO && pFO->xa_left && pF->xaS.nsamples) {        // start xa again
-  FeedXA(&pF->xaS);
+ if (pFO && pFO->xa_left && pF->xa.nsamples) {         // start xa again
+  FeedXA(&pF->xa);
   spu.XAPlay = spu.XAFeed - pFO->xa_left;
   if (spu.XAPlay < spu.XAStart)
    spu.XAPlay = spu.XAStart;
  }
  else if (pFO && pFO->cdda_left) {                     // start cdda again
-  FeedCDDA((void *)pF->xaS.pcm, pFO->cdda_left * 4);
+  FeedCDDA((void *)pF->xa.pcm, pFO->cdda_left * 4);
  }
 
  // not in old savestates
@@ -370,7 +361,7 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  spu.XALastVal = 0;
  spu.last_keyon_cycles = cycles - 16*786u;
  spu.interpolation = -1;
- if (pFO && pF->ulFreezeSize >= sizeof(*pF) + offsetof(SPUOSSFreeze_t, rvb_sb)) {
+ if (pFO && pF->Size >= sizeof(*pF) + offsetof(SPUOSSFreeze_t, rvb_sb)) {
   spu.cycles_dma_end = pFO->cycles_dma_end;
   spu.decode_dirty_ch = pFO->decode_dirty_ch;
   spu.dwNoiseVal = pFO->dwNoiseVal;
@@ -379,7 +370,7 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
   spu.XALastVal = pFO->XALastVal;
   spu.last_keyon_cycles = pFO->last_keyon_cycles;
  }
- if (pFO && pF->ulFreezeSize >= sizeof(*pF) + sizeof(*pFO)) {
+ if (pFO && pF->Size >= sizeof(*pF) + sizeof(*pFO)) {
   for (i = 0; i < 2; i++)
    for (j = 0; j < 2; j++)
     memcpy(&sb_rvb->SB_rvb[i][j*4], pFO->rvb_sb[i], 4 * sizeof(sb_rvb->SB_rvb[i][0]));

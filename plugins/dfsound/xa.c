@@ -19,6 +19,7 @@
 #include "spu.h"
 #define _IN_XA
 #include <stdint.h>
+#include "psemu_plugin_defs.h"
 
 // will be included from spu.c
 #ifdef _IN_SPU

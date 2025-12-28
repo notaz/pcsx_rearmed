@@ -34,7 +34,8 @@
 // must be in 0xc0...0xdf range that can't appear in thread's real cmd stream;
 // must be at least 3 words due to cmd_lengths[]
 #define FAKECMD_SCREEN_CHANGE 0xdfu
-#define FAKECMD_BREAK         0xdeu
+#define FAKECMD_SET_INTERLACE 0xdeu
+#define FAKECMD_BREAK         0xddu
 
 #if defined(__aarch64__) || defined(HAVE_ARMV7)
 #define BARRIER() __asm__ __volatile__ ("dmb ishst" ::: "memory")
@@ -43,6 +44,8 @@
 #else
 #define BARRIER() __asm__ __volatile__ ("" ::: "memory")
 #endif
+#define RDPOS(pos_) *(volatile uint32_t *)&(pos_)
+#define WRPOS(pos_, d_) *(volatile uint32_t *)&(pos_) = (d_)
 
 enum waitmode {
   waitmode_none = 0,
@@ -75,6 +78,7 @@ struct psx_gpu_async
   struct pos_drawarea draw_areas[AGPU_AREAS_CNT];
 };
 
+// cmd_* must be at least 3 words long
 union cmd_screen_change
 {
   uint32_t u32s[4];
@@ -86,14 +90,43 @@ union cmd_screen_change
   };
 };
 
+union cmd_set_interlace
+{
+  uint32_t u32s[3];
+  struct {
+    uint32_t cmd;
+    int enable, is_odd;
+  };
+};
+
+struct cmd_break
+{
+  uint32_t u32s[3];
+};
+
 static int noinline do_notify_screen_change(struct psx_gpu *gpu,
     const union cmd_screen_change *cmd);
+static int do_set_interlace(struct psx_gpu *gpu,
+    const union cmd_set_interlace *cmd);
+
+static void run_thread_nolock(struct psx_gpu_async *agpu)
+{
+  if (agpu->idle) {
+    agpu->idle = 0;
+    scond_signal(agpu->cond_use);
+  }
+}
+
+static void run_thread(struct psx_gpu_async *agpu)
+{
+  slock_lock(agpu->lock);
+  run_thread_nolock(agpu);
+  slock_unlock(agpu->lock);
+}
 
 static int calc_space_for_add(struct psx_gpu_async *agpu)
 {
-  int pos_used, space;
-  pos_used = *(volatile uint32_t *)&agpu->pos_used;
-  space = AGPU_BUF_LEN - (agpu->pos_added - pos_used);
+  int space = AGPU_BUF_LEN - (agpu->pos_added - RDPOS(agpu->pos_used));
   assert(space >= 0);
   assert(space <= AGPU_BUF_LEN);
   return space;
@@ -124,7 +157,7 @@ static int do_add(struct psx_gpu_async *agpu, const uint32_t *list, int len)
     retval = len;
   }
   BARRIER();
-  *(volatile uint32_t *)&agpu->pos_added = pos_added;
+  WRPOS(agpu->pos_added, pos_added);
   return retval;
 }
 
@@ -135,7 +168,8 @@ static void do_add_with_wait(struct psx_gpu_async *agpu, const uint32_t *list, i
     if (do_add(agpu, list, len))
       break;
     slock_lock(agpu->lock);
-    while (len > AGPU_BUF_LEN - (agpu->pos_added - agpu->pos_used)) {
+    run_thread_nolock(agpu);
+    while (len > AGPU_BUF_LEN - (agpu->pos_added - RDPOS(agpu->pos_used))) {
       assert(!agpu->idle);
       assert(agpu->wait_mode == waitmode_none);
       agpu->wait_mode = waitmode_progress;
@@ -143,21 +177,6 @@ static void do_add_with_wait(struct psx_gpu_async *agpu, const uint32_t *list, i
     }
     slock_unlock(agpu->lock);
   }
-}
-
-static void run_thread_nolock(struct psx_gpu_async *agpu)
-{
-  if (agpu->idle) {
-    agpu->idle = 0;
-    scond_signal(agpu->cond_use);
-  }
-}
-
-static void run_thread(struct psx_gpu_async *agpu)
-{
-  slock_lock(agpu->lock);
-  run_thread_nolock(agpu);
-  slock_unlock(agpu->lock);
 }
 
 static void add_draw_area(struct psx_gpu_async *agpu, uint32_t pos, int force,
@@ -339,8 +358,8 @@ breakloop:
     do_add_with_wait(agpu, list_data + pos_handled, left);
   }
   if (insert_break) {
-    uint32_t cmd[3] = { HTOLE32(FAKECMD_BREAK << 24), };
-    do_add(agpu, cmd, sizeof(cmd) / sizeof(cmd[0]));
+    struct cmd_break cmd = {{ HTOLE32(FAKECMD_BREAK << 24), }};
+    do_add(agpu, cmd.u32s, sizeof(cmd.u32s) / sizeof(cmd.u32s[0]));
   }
 
   *cpu_cycles_sum_out += cyc_sum;
@@ -359,7 +378,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
   slock_lock(agpu->lock);
   while (!agpu->exit)
   {
-    int len = agpu->pos_added - agpu->pos_used;
+    int len = RDPOS(agpu->pos_added) - agpu->pos_used;
     int pos = agpu->pos_used & AGPU_BUF_MASK;
     int done, cycles_dummy = 0, cmd = -1;
     assert(len >= 0);
@@ -392,21 +411,24 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     done = renderer_do_cmd_list(agpu->cmd_buffer + pos, len, agpu->ex_regs,
              &cycles_dummy, &cycles_dummy, &cmd);
     if (done != len) {
+      const void *list = agpu->cmd_buffer + pos + done;
       switch (cmd) {
         case 0x80 ... 0x9f:
-          done += do_vram_copy(gpup->vram, agpu->ex_regs,
-                    agpu->cmd_buffer + pos + done, &cycles_dummy);
+          done += do_vram_copy(gpup->vram, agpu->ex_regs, list, &cycles_dummy);
           break;
         case FAKECMD_SCREEN_CHANGE:
-          done += do_notify_screen_change(gpup,
-                    (const void *)(agpu->cmd_buffer + pos + done));
+          done += do_notify_screen_change(gpup, list);
+          break;
+        case FAKECMD_SET_INTERLACE:
+          done += do_set_interlace(gpup, list);
           break;
         case FAKECMD_BREAK:
-          done++;
+          done += sizeof(struct cmd_break) / 4;
           break;
         default:
           assert(0);
-          done++;
+          if (!done)
+            done = 1;
           break;
       }
     }
@@ -462,15 +484,35 @@ static int noinline do_notify_screen_change(struct psx_gpu *gpu,
   return sizeof(*cmd) / 4;
 }
 
+void gpu_async_set_interlace(struct psx_gpu *gpu, int enable, int is_odd)
+{
+  union cmd_set_interlace cmd;
+
+  if (!gpu->async)
+    return;
+  cmd.cmd = HTOLE32(FAKECMD_SET_INTERLACE << 24);
+  cmd.enable = enable;
+  cmd.is_odd = is_odd;
+  do_add_with_wait(gpu->async, cmd.u32s, sizeof(cmd) / 4);
+}
+
+static int do_set_interlace(struct psx_gpu *gpu,
+    const union cmd_set_interlace *cmd)
+{
+  renderer_flush_queues();
+  renderer_set_interlace(cmd->enable, cmd->is_odd);
+  return sizeof(*cmd) / 4;
+}
+
 void gpu_async_sync(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
 
-  if (!agpu || (agpu->idle && agpu->pos_added == agpu->pos_used))
+  if (!agpu || (agpu->idle && agpu->pos_added == RDPOS(agpu->pos_used)))
     return;
   agpu_log(gpu, "agpu: sync %d\n", agpu->pos_added - agpu->pos_used);
   slock_lock(agpu->lock);
-  if (agpu->idle && agpu->pos_added != agpu->pos_used) {
+  if (agpu->idle && agpu->pos_added != RDPOS(agpu->pos_used)) {
     agpu_log(gpu, "agpu: idle %d\n", agpu->pos_added - agpu->pos_used);
     run_thread_nolock(agpu);
   }
@@ -492,9 +534,11 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
   uint32_t pos;
   int c, i;
 
-  if (!agpu || (agpu->idle && agpu->pos_added == agpu->pos_used))
+  if (!agpu)
     return;
-  pos = *(volatile uint32_t *)&agpu->pos_used;
+  pos = RDPOS(agpu->pos_used);
+  if (agpu->idle && agpu->pos_added == pos)
+    return;
   i = agpu->pos_area;
   if (agpu->idle)
     /* unlikely but possible - do a full sync */;
@@ -518,7 +562,7 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
           area_x0, area_y0, area_x1 - area_x0, area_y1 - area_y0);
         break;
       }
-      pos = *(volatile uint32_t *)&agpu->pos_used;
+      pos = RDPOS(agpu->pos_used);
       if (pos >= agpu->draw_areas[i].pos)
         return;
     }
@@ -543,13 +587,8 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
 void gpu_async_sync_ecmds(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
-  int i;
-
-  if (agpu) {
-    for (i = 0; i < 6 && agpu->pos_added - agpu->pos_used < AGPU_BUF_LEN; i++)
-      agpu->cmd_buffer[agpu->pos_added++ & AGPU_BUF_MASK] = gpu->ex_regs[i + 1];
-    assert(i == 6);
-  }
+  if (agpu)
+    do_add_with_wait(agpu, gpu->ex_regs + 1, 6);
 }
 
 static void psx_gpu_async_free(struct psx_gpu_async *agpu)
