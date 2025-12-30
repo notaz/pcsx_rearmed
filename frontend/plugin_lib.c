@@ -249,6 +249,16 @@ void pl_update_layer_size(int w, int h, int fw, int fh)
 	if (g_layer_h > fh * 2) g_layer_h = fh * 2;
 }
 
+static const struct cspace_func_type {
+	void (*blit)(void *dst, const void *src, int dst_pixels);
+	void (*blit_dscale640)(void *dst, const void *src, int dst_pixels);
+	void (*blit_dscale512)(void *dst, const void *src, int dst_pixels);
+} cspace_funcs[] = {
+	{ bgr555_to_rgb565, bgr555_to_rgb565_640_to_320, bgr555_to_rgb565_512_to_320 },
+	{ bgr888_to_rgb888, bgr888_to_rgb888_640_to_320, bgr888_to_rgb888_512_to_320 },
+	{ bgr888_to_rgb565, bgr888_to_rgb565_640_to_320, bgr888_to_rgb565_512_to_320 },
+};
+
 // XXX: this is platform specific really
 static inline int resolution_ok(int w, int h)
 {
@@ -257,6 +267,7 @@ static inline int resolution_ok(int w, int h)
 
 static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
+	const struct cspace_func_type *cspace_f = cspace_funcs;
 	int vout_w, vout_h, vout_bpp;
 
 	// special h handling, Wipeout likes to change it by 1-6
@@ -271,8 +282,26 @@ static void pl_vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 	vout_w = w;
 	vout_h = h;
 	vout_bpp = bpp;
-	if (pl_rearmed_cbs.only_16bpp)
-		vout_bpp = 16;
+	if (bpp > 16) {
+		cspace_f = &cspace_funcs[1];
+		if (pl_rearmed_cbs.only_16bpp) {
+			cspace_f = &cspace_funcs[2];
+			vout_bpp = 16;
+		}
+	}
+	pl_rearmed_cbs.cspace_blit = cspace_f->blit;
+	if (pl_rearmed_cbs.scale_hires) {
+		if (raw_w >= 640-4) {
+			pl_rearmed_cbs.cspace_blit = cspace_f->blit_dscale640;
+			vout_w = 320;
+		}
+		else if (raw_w >= 512-4) {
+			pl_rearmed_cbs.cspace_blit = cspace_f->blit_dscale512;
+			vout_w = 320;
+		}
+		if (vout_h > 256)
+			vout_h /= 2;
+	}
 
 	assert(vout_h >= 192);
 
@@ -321,9 +350,11 @@ void pl_force_clear(void)
 static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	int x, int y, int w, int h, int dims_changed)
 {
+	void (*blit)(void *dst, const void *src, int bytes);
 	unsigned char *dest = pl_vout_buf;
 	const unsigned char *vram = vram_;
-	int dstride = pl_vout_w, h1 = h;
+	int dstride = pl_vout_w, h1;
+	int sstride = 2048;
 	int h_full = pl_vout_h;
 	int enhres = w > psx_w;
 	int xoffs = 0, doffs;
@@ -340,9 +371,6 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 				dstride * h_full * pl_vout_bpp / 8);
 		goto out_hud;
 	}
-
-	assert(x + w <= pl_vout_w);
-	assert(y + h <= pl_vout_h);
 
 	// offset
 	xoffs = x * pl_vout_scale_w;
@@ -371,23 +399,32 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 
 	dest += doffs * 2;
 
+	if (x + w > pl_vout_w)
+		w = pl_vout_w - x;
+	if (h >= pl_vout_h * 3 / 2) {
+		sstride = 4096;
+		h /= 2;
+	}
+	assert(y + h <= pl_vout_h);
+	blit = pl_rearmed_cbs.cspace_blit;
+
 	if (bgr24)
 	{
 		hwrapped = (vram_ofs & 2047) + w * 3 - 2048;
 		if (pl_rearmed_cbs.only_16bpp) {
-			for (; h1-- > 0; dest += dstride * 2) {
-				bgr888_to_rgb565(dest, vram + vram_ofs, w * 3);
-				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			for (h1 = h; h1-- > 0; dest += dstride * 2) {
+				blit(dest, vram + vram_ofs, w);
+				vram_ofs = (vram_ofs + sstride) & 0xfffff;
 			}
 
 			if (hwrapped > 0) {
 				// this is super-rare so just fix-up
-				vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+				vram_ofs = (vram_ofs - h * sstride) & 0xff800;
 				dest -= dstride * 2 * h;
 				dest += (w - hwrapped / 3) * 2;
 				for (h1 = h; h1-- > 0; dest += dstride * 2) {
-					bgr888_to_rgb565(dest, vram + vram_ofs, hwrapped);
-					vram_ofs = (vram_ofs + 2048) & 0xfffff;
+					blit(dest, vram + vram_ofs, hwrapped / 2);
+					vram_ofs = (vram_ofs + sstride) & 0xfffff;
 				}
 			}
 		}
@@ -395,18 +432,18 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 			dest -= doffs * 2;
 			dest += (doffs / 8) * 24;
 
-			for (; h1-- > 0; dest += dstride * 3) {
-				bgr888_to_rgb888(dest, vram + vram_ofs, w * 3);
-				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+			for (h1 = h; h1-- > 0; dest += dstride * 3) {
+				blit(dest, vram + vram_ofs, w);
+				vram_ofs = (vram_ofs + sstride) & 0xfffff;
 			}
 
 			if (hwrapped > 0) {
-				vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+				vram_ofs = (vram_ofs - h * sstride) & 0xff800;
 				dest -= dstride * 3 * h;
 				dest += w * 3 - hwrapped;
 				for (h1 = h; h1-- > 0; dest += dstride * 3) {
-					bgr888_to_rgb888(dest, vram + vram_ofs, hwrapped);
-					vram_ofs = (vram_ofs + 2048) & 0xfffff;
+					blit(dest, vram + vram_ofs, hwrapped / 3);
+					vram_ofs = (vram_ofs + sstride) & 0xfffff;
 				}
 			}
 		}
@@ -425,20 +462,20 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	else if (scanlines != 0 && scanline_level != 100)
 	{
 		int h2, l = scanline_level * 2048 / 100;
-		int stride_0 = pl_vout_scale_h >= 2 ? 0 : 2048;
+		int stride_0 = pl_vout_scale_h >= 2 ? 0 : sstride;
 
-		h1 *= pl_vout_scale_h;
+		h1 = h * pl_vout_scale_h;
 		while (h1 > 0)
 		{
 			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
-				bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
+				bgr555_to_rgb565(dest, vram + vram_ofs, w);
 				vram_ofs = (vram_ofs + stride_0) & 0xfffff;
 				dest += dstride * 2;
 			}
 
 			for (h2 = scanlines; h2 > 0 && h1 > 0; h2--, h1--) {
-				bgr555_to_rgb565_b(dest, vram + vram_ofs, w * 2, l);
-				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+				bgr555_to_rgb565_b(dest, vram + vram_ofs, w, l);
+				vram_ofs = (vram_ofs + sstride) & 0xfffff;
 				dest += dstride * 2;
 			}
 		}
@@ -447,19 +484,19 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 	else
 	{
 		unsigned int vram_mask = enhres ? ~0 : 0xfffff;
-		for (; h1-- > 0; dest += dstride * 2) {
-			bgr555_to_rgb565(dest, vram + vram_ofs, w * 2);
-			vram_ofs = (vram_ofs + 2048) & vram_mask;
+		for (h1 = h; h1-- > 0; dest += dstride * 2) {
+			blit(dest, vram + vram_ofs, w);
+			vram_ofs = (vram_ofs + sstride) & vram_mask;
 		}
 
 		hwrapped = (vram_ofs & 2047) + w * 2 - 2048;
 		if (!enhres && hwrapped > 0) {
-			vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+			vram_ofs = (vram_ofs - h * sstride) & 0xff800;
 			dest -= dstride * 2 * h;
 			dest += w * 2 - hwrapped;
 			for (h1 = h; h1-- > 0; dest += dstride * 2) {
-				bgr555_to_rgb565(dest, vram + vram_ofs, hwrapped);
-				vram_ofs = (vram_ofs + 2048) & 0xfffff;
+				blit(dest, vram + vram_ofs, hwrapped / 2);
+				vram_ofs = (vram_ofs + sstride) & 0xfffff;
 			}
 		}
 	}
@@ -863,6 +900,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
 	pl_vout_flip,
 	pl_vout_close,
 
+	.cspace_blit = bgr555_to_rgb565,
 	.mmap = pl_mmap,
 	.munmap = pl_munmap,
 	.pl_set_gpu_caps = pl_set_gpu_caps,

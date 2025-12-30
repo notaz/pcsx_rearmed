@@ -458,7 +458,7 @@ void gpu_async_notify_screen_change(struct psx_gpu *gpu)
 {
   union cmd_screen_change cmd;
 
-  if (!gpu->async || !gpu->state.enhancement_active) // gpu_neon only
+  if (!gpu->async)
     return;
   cmd.cmd = HTOLE32(FAKECMD_SCREEN_CHANGE << 24);
   cmd.x = gpu->screen.x;

@@ -376,18 +376,4 @@ static inline bool ProgressiveInterlaceEnabled()
 #endif
 }
 
-// For now, 320x240 output resolution is assumed, using simple line-skipping
-//  and pixel-skipping downscaler.
-// TODO: Flesh these out so they return useful values based on whether
-//       running on higher-res device or a resampling downscaler is enabled.
-static inline bool PixelSkipEnabled()
-{
-	return gpu_unai.config.pixel_skip || gpu_unai.config.scale_hires;
-}
-
-static inline bool LineSkipEnabled()
-{
-	return true;
-}
-
 #endif // GPU_UNAI_H

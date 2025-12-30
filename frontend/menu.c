@@ -454,13 +454,13 @@ static const struct {
 	CE_INTVAL_V(frameskip, 4),
 	CE_INTVAL_PV(dithering, 2),
 	CE_INTVAL_P(thread_rendering),
+	CE_INTVAL_P(scale_hires),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
 	CE_INTVAL_P(gpu_unai.old_renderer),
 	CE_INTVAL_P(gpu_unai.ilace_force),
 	CE_INTVAL_P(gpu_unai.lighting),
 	CE_INTVAL_P(gpu_unai.fast_lighting),
 	CE_INTVAL_P(gpu_unai.blending),
-	CE_INTVAL_P(gpu_unai.scale_hires),
 	CE_INTVAL_P(gpu_neon.allow_interlace),
 	CE_INTVAL_P(gpu_neon.enhancement_enable),
 	CE_INTVAL_P(gpu_neon.enhancement_no_main),
@@ -857,9 +857,9 @@ static void draw_savestate_bg(int slot)
 
 	for (; h > 0; h--, d += g_menuscreen_w, s += 1024) {
 		if (gpu->ulStatus & 0x200000)
-			bgr888_to_rgb565(d, s, w * 3);
+			bgr888_to_rgb565(d, s, w);
 		else
-			bgr555_to_rgb565(d, s, w * 2);
+			bgr555_to_rgb565(d, s, w);
 
 		// darken this so that menu text is visible
 		if (g_menuscreen_w - w < 320)
@@ -1312,6 +1312,8 @@ static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\
 				  "using d-pad or move it using R+d-pad";
 static const char h_soft_filter[] = "Works only if game uses low resolution modes";
 static const char h_gamma[]     = "Gamma/brightness adjustment (default 100)";
+static const char h_lowres[]    = "Forces all PSX high resolutions to 320x240 or lower\n"
+				  "by skipping lines and pixels";
 #ifdef HAVE_NEON32
 static const char *men_scanlines[] = { "OFF", "1", "2", "3", NULL };
 static const char h_scanline_l[]  = "Scanline brightness, 0-100%";
@@ -1416,6 +1418,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 	mee_onoff     ("OpenGL Vsync",             MA_OPT_VSYNC, g_opts, OPT_VSYNC),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
+	mee_onoff_h   ("Force low resolution",     0, pl_rearmed_cbs.scale_hires, 1, h_lowres),
 	mee_end,
 };
 
@@ -1455,7 +1458,6 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 	mee_onoff     ("Lighting",                   0, pl_rearmed_cbs.gpu_unai.lighting, 1),
 	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
-	mee_onoff     ("Downscale Hi-Res",           0, pl_rearmed_cbs.gpu_unai.scale_hires, 1),
 	mee_end,
 };
 
@@ -1823,7 +1825,7 @@ static void draw_frame_debug(GPUFreeze_t *gpuf, int x, int y)
 		GPU_freeze(1, gpuf);
 
 	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
-		bgr555_to_rgb565(d, s, w * 2);
+		bgr555_to_rgb565(d, s, w);
 
 	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
 	snprintf(buff, sizeof(buff), "GPU sr: %08x", gpuf->ulStatus);
@@ -2769,7 +2771,7 @@ static void menu_leave_emu(void)
 		}
 		else {
 			for (; h > 0; h--, d += g_menuscreen_w, s += last_vout_w * 3) {
-				rgb888_to_rgb565(d, s, w * 3);
+				rgb888_to_rgb565(d, s, w);
 				menu_darken_bg(d, d, w, 0);
 			}
 		}

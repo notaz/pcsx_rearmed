@@ -484,11 +484,11 @@ static void centered_blit(int doffs, const void *src_, int w, int h,
 
   if (bgr24) {
     for (; h > 0; dst += dstride, src += sstride, h--)
-      bgr888_to_rgb565(dst, src, w * 3);
+      bgr888_to_rgb565(dst, src, w);
   }
   else {
     for (; h > 0; dst += dstride, src += sstride, h--)
-      bgr555_to_rgb565(dst, src, w * 2);
+      bgr555_to_rgb565(dst, src, w);
   }
 
   if (SDL_MUSTLOCK(plat_sdl_screen))

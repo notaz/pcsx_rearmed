@@ -6,16 +6,27 @@ extern "C"
 {
 #endif
 
-void bgr555_to_rgb565(void *dst, const void *src, int bytes);
-void bgr888_to_rgb888(void *dst, const void *src, int bytes);
-void bgr888_to_rgb565(void *dst, const void *src, int bytes);
-void rgb888_to_rgb565(void *dst, const void *src, int bytes);
+void bgr555_to_rgb565(void *dst, const void *src, int pixels);
+void bgr888_to_rgb888(void *dst, const void *src, int pixels);
+void bgr888_to_rgb565(void *dst, const void *src, int pixels);
+void rgb888_to_rgb565(void *dst, const void *src, int pixels);
 
-void bgr555_to_rgb565_b(void *dst, const void *src, int bytes,
+void bgr555_to_rgb565_b(void *dst, const void *src, int pixels,
 	int brightness2k); // 0-0x0800
 
-void bgr555_to_xrgb8888(void *dst, const void *src, int bytes);
-void bgr888_to_xrgb8888(void *dst, const void *src, int bytes);
+void bgr555_to_xrgb8888(void *dst, const void *src, int pixels);
+void bgr888_to_xrgb8888(void *dst, const void *src, int pixels);
+
+void bgr555_to_rgb565_640_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_rgb565_640_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_rgb888_640_to_320(void *dst, const void *src, int dst_pixels);
+void bgr555_to_xrgb8888_640_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_xrgb8888_640_to_320(void *dst, const void *src, int dst_pixels);
+void bgr555_to_rgb565_512_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_rgb565_512_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_rgb888_512_to_320(void *dst, const void *src, int dst_pixels);
+void bgr555_to_xrgb8888_512_to_320(void *dst, const void *src, int dst_pixels);
+void bgr888_to_xrgb8888_512_to_320(void *dst, const void *src, int dst_pixels);
 
 void bgr_to_uyvy_init(void);
 void rgb565_to_uyvy(void *d, const void *s, int pixels);

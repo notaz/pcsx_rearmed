@@ -456,6 +456,24 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled",
    },
    {
+      "pcsx_rearmed_scale_hires",
+      "Hi-Res Downscaling",
+      NULL,
+      "When enabled, games that run in high resolution video modes (480i, 512i) will be downscaled to 320x240 by skipping lines and/or columns. May be useful on some devices with native 240p display resolutions that lack efficient hardware scaling.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL},
+      },
+#ifdef _MIYOO
+      "enabled",
+#else
+      "disabled",
+#endif
+   },
+   {
       "pcsx_rearmed_gpu_slow_llists",
       "(GPU) Slow linked list processing",
       NULL,
@@ -816,24 +834,6 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { NULL, NULL},
       },
       "disabled",
-   },
-   {
-      "pcsx_rearmed_gpu_unai_scale_hires",
-      "(GPU) Hi-Res Downscaling",
-      "Hi-Res Downscaling",
-      "When enabled, games that run in high resolution video modes (480i, 512i) will be downscaled to 320x240. Can improve performance, and is recommended on devices with native 240p display resolutions.",
-      NULL,
-      "gpu_unai",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL},
-      },
-#ifdef _MIYOO
-      "enabled",
-#else
-      "disabled",
-#endif
    },
 #endif /* GPU_UNAI */
    {
