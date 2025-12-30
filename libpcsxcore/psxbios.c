@@ -2857,13 +2857,16 @@ void psxBios_nextfile() { // 43
 }
 
 #define burename(mcd) { \
+	char *pa0 = Ra0; \
+	char *pa1 = Ra1; \
+	if (pa0 != INVALID_PTR && pa1 != INVALID_PTR) \
 	for (i=1; i<16; i++) { \
 		int namelen, j, xor = 0; \
 		ptr = Mcd##mcd##Data + 128 * i; \
 		if ((*ptr & 0xF0) != 0x50) continue; \
-		if (strcmp(Ra0+5, ptr+0xa)) continue; \
-		namelen = strlen(Ra1+5); \
-		memcpy(ptr+0xa, Ra1+5, namelen); \
+		if (strcmp(pa0+5, ptr+0xa)) continue; \
+		namelen = strlen(pa1+5); \
+		memcpy(ptr+0xa, pa1+5, namelen); \
 		memset(ptr+0xa+namelen, 0, 0x75-namelen); \
 		for (j=0; j<127; j++) xor^= ptr[j]; \
 		ptr[127] = xor; \
