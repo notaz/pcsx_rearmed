@@ -48,7 +48,8 @@
 #else
 #define CDR_LOG_IO(...)
 #endif
-//#define CDR_LOG_CMD_IRQ
+//#define CDR_LOG_CMD
+//#define CDR_LOG_CMD_ACK
 
 static struct {
 	// unused members maintain savesate compatibility
@@ -172,7 +173,7 @@ struct SubQ {
 #define CdlGetQ        29
 #define CdlReadToc     30
 
-#ifdef CDR_LOG_CMD_IRQ
+#ifdef CDR_LOG_CMD
 static const char * const CmdName[0x100] = {
     "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
@@ -203,8 +204,9 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define MODE_SPEED       (1<<7) // 0x80
 #define MODE_STRSND      (1<<6) // 0x40 ADPCM on/off
 #define MODE_SIZE_2340   (1<<5) // 0x20
-#define MODE_SIZE_2328   (1<<4) // 0x10
+#define MODE_SIZE_2328   (1<<4) // 0x10 (likely wrong)
 #define MODE_SIZE_2048   (0<<4) // 0x00
+#define MODE_BIT4        (1<<4) // 0x10
 #define MODE_SF          (1<<3) // 0x08 channel on/off
 #define MODE_REPORT      (1<<2) // 0x04
 #define MODE_AUTOPAUSE   (1<<1) // 0x02
@@ -301,7 +303,7 @@ static void setIrq(u8 irq, int log_cmd)
 	if ((old ^ new_) & new_)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 
-#ifdef CDR_LOG_CMD_IRQ
+#ifdef CDR_LOG_CMD
 	if (cdr.IrqStat)
 	{
 		int i;
@@ -478,7 +480,7 @@ static int ReadTrack(const u8 *time)
 {
 	int ret;
 
-	CDR_LOG("ReadTrack *** %02d:%02d:%02d\n", tmp[0], tmp[1], tmp[2]);
+	CDR_LOG("ReadTrack *** %02d:%02d:%02d\n", time[0], time[1], time[2]);
 
 	if (memcmp(cdr.Prev, time, 3) == 0)
 		return 1;
@@ -486,6 +488,9 @@ static int ReadTrack(const u8 *time)
 	ret = cdra_readTrack(time);
 	if (ret == 0)
 		memcpy(cdr.Prev, time, 3);
+	else
+		log_unhandled("ReadTrack %02d:%02d:%02d ret %d\n",
+			time[0], time[1], time[2], ret);
 	return ret == 0;
 }
 
@@ -1063,7 +1068,8 @@ void cdrInterrupt(void) {
 
 		case CdlSetmode:
 		case CdlSetmode + CMD_WHILE_NOT_READY:
-			CDR_LOG("cdrWrite1() Log: Setmode %x\n", cdr.Param[0]);
+			if ((cdr.Mode ^ cdr.Param[0]) & MODE_BIT4)
+				log_unhandled("cdrom: mode4 changed: %02x\n", cdr.Param[0]);
 			cdr.Mode = cdr.Param[0];
 			break;
 
@@ -1198,11 +1204,12 @@ void cdrInterrupt(void) {
 			cdr.Result[3] = 0;
 
 			// 0x10 - audio | 0x40 - disk missing | 0x80 - unlicensed
-			if (cdra_getStatus(&cdr_stat) != 0 || cdr_stat.Type == 0 || cdr_stat.Type == 0xff) {
+			if (cdra_getStatus(&cdr_stat) != 0 ||
+			    cdr_stat.Type == CDRT_UNKNOWN || cdr_stat.Type == 0xff) {
 				cdr.Result[1] = 0xc0;
 			}
 			else {
-				if (cdr_stat.Type == 2)
+				if (cdr_stat.Type == CDRT_CDDA)
 					cdr.Result[1] |= 0x10;
 				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
@@ -1270,9 +1277,13 @@ void cdrInterrupt(void) {
 
 			Find_CurTrack(cdr.SetlocPending ? cdr.SetSector : cdr.SetSectorPlay);
 
-			if ((cdr.Mode & MODE_CDDA) && cdr.CurTrack > 1)
+			if (cdr.Mode & MODE_CDDA)
 				// Read* acts as play for cdda tracks in cdda mode
 				goto do_CdlPlay;
+			if (cdr_stat.Type != CDRT_DATA) {
+				error = ERROR_INVALIDCMD;
+				goto set_error;
+			}
 
 			StopCdda();
 			if (cdr.SetlocPending) {
@@ -1456,9 +1467,10 @@ static void cdrReadInterrupt(void)
 
 	if ((cdr.Mode & MODE_SF) && (subhdr->mode & 0x44) == 0x44) // according to nocash
 		deliver_data = 0;
-	if (buf[3] != 1 && buf[3] != 2) { // according to duckstation
-		deliver_data = 0;
-		CDR_LOG_I("%x:%02x:%02x mode %02x ignored\n",
+	if (!(cdr.Mode & MODE_SIZE_2340) && buf[3] != 1 && buf[3] != 2) {
+		deliver_data = 0; // according to duckstation
+		CDR_LOG_I("%d:%02d:%02d msf %x:%02x:%02x mode %02x ignored\n",
+			cdr.SetSectorPlay[0], cdr.SetSectorPlay[1], cdr.SetSectorPlay[2],
 			buf[0], buf[1], buf[2], buf[3]);
 	}
 
@@ -1535,7 +1547,7 @@ void cdrWrite1(unsigned char rt) {
 		return;
 	}
 
-#ifdef CDR_LOG_CMD_IRQ
+#ifdef CDR_LOG_CMD
 	CDR_LOG_I("CD1 write: %x (%s)", rt, CmdName[rt]);
 	if (cdr.ParamC) {
 		int i;
@@ -1623,7 +1635,7 @@ void cdrWrite3(unsigned char rt) {
 			u32 nextCycle = psxRegs.intCycle[PSXINT_CDR].sCycle
 				+ psxRegs.intCycle[PSXINT_CDR].cycle;
 			int pending = psxRegs.interrupt & (1 << PSXINT_CDR);
-#ifdef CDR_LOG_CMD_IRQ
+#ifdef CDR_LOG_CMD_ACK
 			CDR_LOG_I("ack %02x (w=%02x p=%d,%x,%x,%d)\n",
 				cdr.IrqStat & rt, rt, !!pending, cdr.CmdInProgress,
 				cdr.Irq1Pending, nextCycle - psxRegs.cycle);
@@ -1774,6 +1786,7 @@ static void getCdInfo(void)
 {
 	cdra_getTN(cdr.ResultTN);
 	cdra_getTD(0, cdr.SetSectorEnd);
+	cdra_getStatus(&cdr_stat);
 }
 
 void cdrReset() {
