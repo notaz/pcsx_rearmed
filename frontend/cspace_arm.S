@@ -34,8 +34,9 @@
 #endif
 .endm
 
-FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int bytes
+FUNCTION(bgr555_to_rgb565): @ void *dst, const void *src, int pixels
     push     {r4-r11,lr}
+    mov      r2, r2, lsl #1
     mov      lr, #0x001f
     subs     r2, #4*8
     orr      lr, lr, lsl #16
@@ -119,7 +120,7 @@ FUNCTION(bgr888_to_rgb565):
     orr      r7, r7, r8            @ r3g3b3
     pkhbt    r7, r6, r7, lsl #16
     str      r7, [r0], #4
-    subs     r2, r2, #12
+    subs     r2, r2, #4
     bgt      0b
 
     pop      {r4-r10,pc}

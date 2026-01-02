@@ -61,11 +61,6 @@ char* disR3000AF(u32 code, u32 pc);
 
 //#define CDRCMD_DEBUG
 
-#if defined (PSXCPU_LOG) || defined(PSXDMA_LOG) || defined(CDR_LOG) || defined(PSXHW_LOG) || \
-	defined(PSXBIOS_LOG) || defined(PSXMEM_LOG) || defined(GTE_LOG)    || defined(PAD_LOG)
-#define EMU_LOG __Log
-#endif
-
 #ifdef __cplusplus
 }
 #endif

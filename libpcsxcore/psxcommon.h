@@ -43,18 +43,13 @@ extern "C" {
 #endif
 
 // System includes
-#include <stdio.h>
+//#include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <math.h>
-#include <time.h>
-#include <ctype.h>
 #ifndef __SWITCH__
 #include <sys/types.h>
 #endif
-#include <assert.h>
 
 // Define types
 typedef int8_t s8;
@@ -106,11 +101,6 @@ typedef uint8_t boolean;
 #define N_(msgid) msgid
 
 #endif
-
-extern FILE *emuLog;
-extern int Log;
-
-void __Log(char *fmt, ...);
 
 // lots of timing depends on this and makes or breaks compatibility,
 // don't change unless you're going to retest hundreds of games

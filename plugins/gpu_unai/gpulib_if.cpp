@@ -59,159 +59,6 @@
 #define IS_OLD_RENDERER() false
 #endif
 
-#define DOWNSCALE_VRAM_SIZE (1024 * 512 * 2 * 2 + 4096)
-
-INLINE void scale_640_to_320(le16_t *dest, const le16_t *src, bool isRGB24) {
-  size_t uCount = 320;
-
-  if(isRGB24) {
-    const uint8_t* src8 = (const uint8_t *)src;
-    uint8_t* dst8 = (uint8_t *)dest;
-
-    do {
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8;
-      src8 += 4;
-    } while(--uCount);
-  } else {
-    const le16_t* src16 = src;
-    le16_t* dst16 = dest;
-
-    do {
-      *dst16++ = *src16;
-      src16 += 2;
-    } while(--uCount);
-  }
-}
-
-INLINE void scale_512_to_320(le16_t *dest, const le16_t *src, bool isRGB24) {
-  size_t uCount = 64;
-
-  if(isRGB24) {
-    const uint8_t* src8 = (const uint8_t *)src;
-    uint8_t* dst8 = (uint8_t *)dest;
-
-    do {
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8;
-      src8 += 4;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8;
-      src8 += 4;
-      *dst8++ = *src8++;
-      *dst8++ = *src8++;
-      *dst8++ = *src8;
-      src8 += 4;
-    } while(--uCount);
-  } else {
-    const le16_t* src16 = src;
-    le16_t* dst16 = dest;
-
-    do {
-      *dst16++ = *src16++;
-      *dst16++ = *src16;
-      src16 += 2;
-      *dst16++ = *src16++;
-      *dst16++ = *src16;
-      src16 += 2;
-      *dst16++ = *src16;
-      src16 += 2;
-    } while(--uCount);
-  }
-}
-
-static uint16_t *get_downscale_buffer(int *x, int *y, int *w, int *h, int *vram_h)
-{
-  le16_t *dest = gpu_unai.downscale_vram;
-  const le16_t *src = gpu_unai.vram;
-  bool isRGB24 = (gpu_unai.GPU_GP1 & 0x00200000 ? true : false);
-  int stride = 1024, dstride = 1024, lines = *h, orig_w = *w;
-
-  // PS1 fb read wraps around (fixes black screen in 'Tobal no. 1')
-  unsigned int fb_mask = 1024 * 512 - 1;
-
-  if (*h > 240) {
-    *h /= 2;
-    stride *= 2;
-    lines = *h;
-
-    // Ensure start at a non-skipped line
-    while (*y & gpu_unai.inn.ilace_mask) ++*y;
-  }
-
-  unsigned int fb_offset_src = (*y * dstride + *x) & fb_mask;
-  unsigned int fb_offset_dest = fb_offset_src;
-
-  if (*w == 512 || *w == 640) {
-    *w = 320;
-  }
-
-  switch(orig_w) {
-  case 640:
-    do {
-      scale_640_to_320(dest + fb_offset_dest, src + fb_offset_src, isRGB24);
-      fb_offset_src = (fb_offset_src + stride) & fb_mask;
-      fb_offset_dest = (fb_offset_dest + dstride) & fb_mask;
-    } while(--lines);
-
-    break;
-  case 512:
-    do {
-      scale_512_to_320(dest + fb_offset_dest, src + fb_offset_src, isRGB24);
-      fb_offset_src = (fb_offset_src + stride) & fb_mask;
-      fb_offset_dest = (fb_offset_dest + dstride) & fb_mask;
-    } while(--lines);
-    break;
-  default:
-    size_t size = isRGB24 ? *w * 3 : *w * 2;
-
-    do {
-      memcpy(dest + fb_offset_dest, src + fb_offset_src, size);
-      fb_offset_src = (fb_offset_src + stride) & fb_mask;
-      fb_offset_dest = (fb_offset_dest + dstride) & fb_mask;
-    } while(--lines);
-    break;
-  }
-
-  return (uint16_t *)gpu_unai.downscale_vram;
-}
-
-static void map_downscale_buffer(void)
-{
-  if (gpu_unai.downscale_vram)
-    return;
-
-  gpu_unai.downscale_vram = (le16_t*)gpu.mmap(DOWNSCALE_VRAM_SIZE);
-
-  if (gpu_unai.downscale_vram == NULL || gpu_unai.downscale_vram == (le16_t *)(intptr_t)-1) {
-    SysPrintf("failed to map downscale buffer\n");
-    gpu_unai.downscale_vram = NULL;
-    gpu.get_downscale_buffer = NULL;
-  }
-  else {
-    gpu.get_downscale_buffer = get_downscale_buffer;
-  }
-}
-
-static void unmap_downscale_buffer(void)
-{
-  if (gpu_unai.downscale_vram == NULL)
-    return;
-
-  gpu.munmap(gpu_unai.downscale_vram, DOWNSCALE_VRAM_SIZE);
-  gpu_unai.downscale_vram = NULL;
-  gpu.get_downscale_buffer = NULL;
-}
-
 int renderer_init(void)
 {
   memset((void*)&gpu_unai, 0, sizeof(gpu_unai));
@@ -255,25 +102,18 @@ int renderer_init(void)
   SetupLightLUT();
   SetupDitheringConstants();
 
-  if (gpu_unai.config.scale_hires) {
-    map_downscale_buffer();
-  }
-
   return 0;
 }
 
 void renderer_finish(void)
 {
-  unmap_downscale_buffer();
 }
 
 void renderer_notify_screen_change(const struct psx_gpu_screen *screen)
 {
   gpu_unai.inn.ilace_mask = gpu_unai.config.ilace_force;
 
-#ifndef HAVE_PRE_ARMV7 /* XXX */
-  if (gpu_unai.config.scale_hires)
-#endif
+  if (gpu.state.downscale_enable)
   {
     gpu_unai.inn.ilace_mask |= !!(gpu.status & PSX_GPU_STATUS_INTERLACE);
   }
@@ -866,16 +706,10 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
   gpu_unai.config.lighting      = cbs->gpu_unai.lighting;
   gpu_unai.config.fast_lighting = cbs->gpu_unai.fast_lighting;
   gpu_unai.config.blending      = cbs->gpu_unai.blending;
-  gpu_unai.config.scale_hires   = cbs->gpu_unai.scale_hires;
   gpu_unai.config.dithering     = cbs->dithering != 0;
   gpu_unai.config.force_dithering = cbs->dithering >> 1;
 
-  gpu.state.downscale_enable    = gpu_unai.config.scale_hires;
-  if (gpu_unai.config.scale_hires) {
-    map_downscale_buffer();
-  } else {
-    unmap_downscale_buffer();
-  }
+  renderer_notify_screen_change(&gpu.screen);
   oldunai_renderer_set_config(cbs);
 }
 

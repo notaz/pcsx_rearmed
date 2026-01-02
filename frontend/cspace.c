@@ -20,9 +20,38 @@
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAP16(x) __builtin_bswap16(x)
 #define LE16TOHx2(x) ((SWAP16((x) >> 16) << 16) | SWAP16(x))
+#define LE32TOH(x) __builtin_bswap32(x)
 #else
 #define LE16TOHx2(x) (x)
+#define LE32TOH(x) (x)
 #endif
+
+static inline uint32_t bgr555_to_rgb565_pair(uint32_t p)
+{
+	uint32_t r, g, b;
+	r = (p & 0x001f001f) << 11;
+	g = (p & 0x03e003e0) << 1;
+	b = (p & 0x7c007c00) >> 10;
+	return r | g | b;
+}
+
+static inline uint32_t bgr888_to_rgb565_pair(const uint8_t * __restrict__ src, int o2)
+{
+	uint32_t r1, g1, b1, r2, g2, b2;
+	r1 = src[0] & 0xf8;
+	g1 = src[1] & 0xfc;
+	b1 = src[2] & 0xf8;
+	r2 = src[o2 + 0] & 0xf8;
+	g2 = src[o2 + 1] & 0xfc;
+	b2 = src[o2 + 2] & 0xf8;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	return (r1 << 24) | (g1 << 19) | (b1 << 13) |
+	       (r2 << 8)  | (g2 << 3)  | (b2 >> 3);
+#else
+	return (r2 << 24) | (g2 << 19) | (b2 << 13) |
+	       (r1 << 8)  | (g1 << 3)  | (b1 >> 3);
+#endif
+}
 
 #if defined(HAVE_bgr555_to_rgb565)
 
@@ -56,13 +85,14 @@ typedef uint16_t gvu16u __attribute__((vector_size(16),aligned(2)));
   gsri(d_, s1, 11); \
 }
 
-void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_, int bytes)
+void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
+	int pixels)
 {
 	const uint16_t * __restrict__ src = src_;
 	uint16_t * __restrict__ dst = dst_;
 	gvu16 c0x07c0 = gdup(0x07c0);
 
-	assert(!(((uintptr_t)dst | (uintptr_t)src | bytes) & 1));
+	assert(!(((uintptr_t)dst | (uintptr_t)src) & 1));
 
 	// align the destination
 	if ((uintptr_t)dst & 0x0e)
@@ -73,10 +103,10 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 		*(gvu16u *)dst = d;
 		dst += left / 2;
 		src += left / 2;
-		bytes -= left;
+		pixels -= left / 2;
 	}
 	// go
-	for (; bytes >= 16; dst += 8, src += 8, bytes -= 16)
+	for (; pixels >= 8; dst += 8, src += 8, pixels -= 8)
 	{
 		gvu16 d, s = *(const gvu16u *)src;
 		do_one_simd(d, s, c0x07c0);
@@ -84,7 +114,7 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 		__builtin_prefetch(src + 128/2);
 	}
 	// finish it
-	for (; bytes > 0; dst++, src++, bytes -= 2)
+	for (; pixels > 0; dst++, src++, pixels--)
 		*dst = do_one(*src);
 }
 #undef do_one
@@ -92,77 +122,215 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 
 #else
 
-void bgr555_to_rgb565(void *dst_, const void *src_, int bytes)
+void bgr555_to_rgb565(void * __restrict__ dst_, const void * __restrict__ src_,
+	int pixels)
 {
 	// source can be misaligned, but it's very rare, so just force
-	const unsigned int *src = (const void *)((intptr_t)src_ & ~3);
-	unsigned int *dst = dst_;
-	unsigned int x, p, r, g, b;
+	const uint32_t * __restrict__ src = (const void *)((intptr_t)src_ & ~3);
+	uint32_t x, * __restrict__ dst = dst_;
 
-	for (x = 0; x < bytes / 4; x++) {
-		p = LE16TOHx2(src[x]);
-
-		r = (p & 0x001f001f) << 11;
-		g = (p & 0x03e003e0) << 1;
-		b = (p & 0x7c007c00) >> 10;
-
-		dst[x] = r | g | b;
-	}
+	for (x = 0; x < pixels / 2; x++)
+		dst[x] = bgr555_to_rgb565_pair(LE16TOHx2(src[x]));
 }
 
 #endif
+
+static inline void bgr888_to_rgb888_one(uint8_t * __restrict__ dst,
+	const uint8_t * __restrict__ src)
+{
+	dst[0] = src[2];
+	dst[1] = src[1];
+	dst[2] = src[0];
+}
 
 #ifndef HAVE_bgr888_to_x
 
-void attr_weak bgr888_to_rgb565(void *dst_, const void *src_, int bytes)
-{
-	const unsigned char *src = src_;
-	unsigned int *dst = dst_;
-	unsigned int r1, g1, b1, r2, g2, b2;
-
-	for (; bytes >= 6; bytes -= 6, src += 6, dst++) {
-		r1 = src[0] & 0xf8;
-		g1 = src[1] & 0xfc;
-		b1 = src[2] & 0xf8;
-		r2 = src[3] & 0xf8;
-		g2 = src[4] & 0xfc;
-		b2 = src[5] & 0xf8;
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		*dst = (r1 << 24) | (g1 << 19) | (b1 << 13) |
-			(r2 << 8) | (g2 << 3) | (b2 >> 3);
-#else
-		*dst = (r2 << 24) | (g2 << 19) | (b2 << 13) |
-			(r1 << 8) | (g1 << 3) | (b1 >> 3);
-#endif
-	}
-}
-
-// TODO?
-void rgb888_to_rgb565(void *dst, const void *src, int bytes) {}
-void bgr888_to_rgb888(void *dst, const void *src, int bytes) {}
-
-#endif // HAVE_bgr888_to_x
-
-void bgr555_to_xrgb8888(void * __restrict__ dst_, const void * __restrict__ src_, int bytes)
-{
-	const uint16_t * __restrict__ src = src_;
-	uint32_t * __restrict__ dst = dst_;
-
-	for (; bytes >= 2; bytes -= 2, src++, dst++)
-	{
-		uint32_t t = ((*src << 19) | (*src >> 7)) & 0xf800f8;
-		t |= (*src << 6) & 0xf800;
-		*dst = t | ((t >> 5) & 0x070707);
-	}
-}
-
-void bgr888_to_xrgb8888(void * __restrict__ dst_, const void * __restrict__ src_, int bytes)
+void attr_weak bgr888_to_rgb565(void * __restrict__ dst_,
+		const void * __restrict__ src_, int pixels)
 {
 	const uint8_t * __restrict__ src = src_;
 	uint32_t * __restrict__ dst = dst_;
 
-	for (; bytes >= 3; bytes -= 3, src += 3, dst++)
+	for (; pixels >= 2; pixels -= 2, src += 3*2, dst++)
+		*dst = bgr888_to_rgb565_pair(src, 3);
+}
+
+// TODO?
+void rgb888_to_rgb565(void *dst, const void *src, int pixels) {}
+
+void bgr888_to_rgb888(void * __restrict__ dst_,
+	const void * __restrict__ src_, int pixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint8_t * __restrict__ dst = dst_;
+	
+	for (; pixels >= 1; pixels--, src += 3, dst += 3)
+		bgr888_to_rgb888_one(dst, src);
+}
+
+#endif // HAVE_bgr888_to_x
+
+static inline uint32_t bgr555_to_xrgb8888_one(uint16_t p)
+{
+	uint32_t t = ((p << 19) | (p >> 7)) & 0xf800f8;
+	t |= (p << 6) & 0xf800;
+	return t | ((t >> 5) & 0x070707);
+}
+
+static inline uint32_t bgr888_to_xrgb8888_one(const uint8_t * __restrict__ src)
+{
+	return (src[0] << 16) | (src[1] << 8) | src[2];
+}
+
+void bgr555_to_xrgb8888(void * __restrict__ dst_,
+	const void * __restrict__ src_, int pixels)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; pixels >= 1; pixels--, src++, dst++)
+		*dst = bgr555_to_xrgb8888_one(*src);
+}
+
+void bgr888_to_xrgb8888(void * __restrict__ dst_,
+	const void * __restrict__ src_, int pixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; pixels >= 1; pixels--, src += 3, dst++)
+		*dst = bgr888_to_xrgb8888_one(src);
+}
+
+/* downscale */
+void bgr555_to_rgb565_640_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 2; dpixels -= 2, src += 4, dst++) {
+		uint32_t p = LE32TOH(src[0] | (src[2] << 16));
+		*dst = bgr555_to_rgb565_pair(p);
+	}
+}
+
+void bgr888_to_rgb565_640_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 2; dpixels -= 2, src += 4*3, dst++)
+		*dst = bgr888_to_rgb565_pair(src, 2*3);
+}
+
+void bgr888_to_rgb888_640_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint8_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 1; dpixels--, src += 2*3, dst += 3)
+		bgr888_to_rgb888_one(dst, src);
+}
+
+void bgr555_to_xrgb8888_640_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 1; dpixels--, src += 2, dst++)
+		*dst = bgr555_to_xrgb8888_one(*src);
+}
+
+void bgr888_to_xrgb8888_640_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 1; dpixels--, src += 3*2, dst++)
 		*dst = (src[0] << 16) | (src[1] << 8) | src[2];
+}
+
+void bgr555_to_rgb565_512_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	// 16 -> 10 to keep dst aligned
+	for (; dpixels >= 10; dpixels -= 10, src += 16, dst += 5) {
+		// picks a src pixel nearest to the center of the dst pixel
+		dst[0] = bgr555_to_rgb565_pair(LE32TOH(src[0]  | (src[2] << 16)));
+		dst[1] = bgr555_to_rgb565_pair(LE32TOH(src[4]  | (src[5] << 16)));
+		dst[2] = bgr555_to_rgb565_pair(LE32TOH(src[7]  | (src[8] << 16)));
+		dst[3] = bgr555_to_rgb565_pair(LE32TOH(src[10] | (src[12] << 16)));
+		dst[4] = bgr555_to_rgb565_pair(LE32TOH(src[13] | (src[15] << 16)));
+	}
+}
+
+void bgr888_to_rgb565_512_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 10; dpixels -= 10, src += 16*3, dst += 5) {
+		dst[0] = bgr888_to_rgb565_pair(src + 3*0, 3*2);
+		dst[1] = bgr888_to_rgb565_pair(src + 3*4, 3*5);
+		dst[2] = bgr888_to_rgb565_pair(src + 3*7, 3*8);
+		dst[3] = bgr888_to_rgb565_pair(src + 3*10, 3*12);
+		dst[4] = bgr888_to_rgb565_pair(src + 3*13, 3*15);
+	}
+}
+
+void bgr888_to_rgb888_512_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint8_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 5; dpixels -= 5, src += 8*3, dst += 5*3) {
+		bgr888_to_rgb888_one(dst + 3*0, src + 3*0);
+		bgr888_to_rgb888_one(dst + 3*1, src + 3*2);
+		bgr888_to_rgb888_one(dst + 3*2, src + 3*4);
+		bgr888_to_rgb888_one(dst + 3*3, src + 3*5);
+		bgr888_to_rgb888_one(dst + 3*4, src + 3*7);
+	}
+}
+
+void bgr555_to_xrgb8888_512_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint16_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	// 8 -> 5
+	for (; dpixels >= 5; dpixels -= 5, src += 8, dst += 5) {
+		dst[0] = bgr555_to_xrgb8888_one(src[0]);
+		dst[1] = bgr555_to_xrgb8888_one(src[2]);
+		dst[2] = bgr555_to_xrgb8888_one(src[4]);
+		dst[3] = bgr555_to_xrgb8888_one(src[5]);
+		dst[4] = bgr555_to_xrgb8888_one(src[7]);
+	}
+}
+
+void bgr888_to_xrgb8888_512_to_320(void * __restrict__ dst_,
+	const void * __restrict__ src_, int dpixels)
+{
+	const uint8_t * __restrict__ src = src_;
+	uint32_t * __restrict__ dst = dst_;
+
+	for (; dpixels >= 5; dpixels -= 5, src += 8*3, dst += 5) {
+		dst[0] = bgr888_to_xrgb8888_one(src + 0*3);
+		dst[1] = bgr888_to_xrgb8888_one(src + 2*3);
+		dst[2] = bgr888_to_xrgb8888_one(src + 4*3);
+		dst[3] = bgr888_to_xrgb8888_one(src + 5*3);
+		dst[4] = bgr888_to_xrgb8888_one(src + 7*3);
+	}
 }
 
 /* YUV stuff */

@@ -19,6 +19,8 @@
  *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA
  */
 
+#include <stdio.h>
+#include <ctype.h>
 #include "psxcommon.h"
 #include "ppf.h"
 #include "misc.h"

@@ -8,9 +8,12 @@
 #define _GNU_SOURCE 1 // strcasestr
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
+#include <math.h>
 #include <assert.h>
 #ifdef __MACH__
 #include <unistd.h>
@@ -57,6 +60,9 @@
 #include "3ds/3ds_utils.h"
 #endif
 
+#ifndef min
+#define min(a, b) ((b) < (a) ? (b) : (a))
+#endif
 #ifndef MAP_FAILED
 #define MAP_FAILED      ((void *)(intptr_t)-1)
 #endif
@@ -134,8 +140,6 @@ static int retro_audio_buff_underrun            = false;
 static unsigned retro_audio_latency             = 0;
 static int update_audio_latency                 = false;
 
-static unsigned int current_width;
-static unsigned int current_height;
 static enum retro_pixel_format current_fmt;
 
 static int plugins_opened;
@@ -248,27 +252,44 @@ static void init_memcard(char *mcd_data)
    }
 }
 
-static void bgr_to_fb_empty(void *dst, const void *src, int bytes)
+static void bgr_to_fb_empty(void *dst, const void *src, int dst_pixels)
 {
 }
 
-typedef void (bgr_to_fb_func)(void *dst, const void *src, int bytes);
-static bgr_to_fb_func *g_bgr_to_fb = bgr_to_fb_empty;
+typedef void (bgr_to_fb_func)(void *dst, const void *src, int dst_pixels);
+
+static const struct cspace_func_type {
+   void (*blit)(void *dst, const void *src, int dst_pixels);
+   void (*blit_dscale640)(void *dst, const void *src, int dst_pixels);
+   void (*blit_dscale512)(void *dst, const void *src, int dst_pixels);
+} cspace_funcs[] = {
+   { bgr555_to_rgb565,   bgr555_to_rgb565_640_to_320,   bgr555_to_rgb565_512_to_320 },
+   { bgr888_to_rgb565,   bgr888_to_rgb565_640_to_320,   bgr888_to_rgb565_512_to_320 },
+   { bgr555_to_xrgb8888, bgr555_to_xrgb8888_640_to_320, bgr555_to_xrgb8888_512_to_320 },
+   { bgr888_to_xrgb8888, bgr888_to_xrgb8888_640_to_320, bgr888_to_xrgb8888_512_to_320 },
+};
 
 static void set_bgr_to_fb_func(int bgr24)
 {
+   int func_id = bgr24;
    switch (current_fmt)
    {
-   case RETRO_PIXEL_FORMAT_XRGB8888:
-      g_bgr_to_fb = bgr24 ? bgr888_to_xrgb8888 : bgr555_to_xrgb8888;
-      break;
    case RETRO_PIXEL_FORMAT_RGB565:
-      g_bgr_to_fb = bgr24 ? bgr888_to_rgb565 : bgr555_to_rgb565;
+      break;
+   case RETRO_PIXEL_FORMAT_XRGB8888:
+      func_id += 2;
       break;
    default:
       LogErr("unsupported current_fmt: %d\n", current_fmt);
-      g_bgr_to_fb = bgr_to_fb_empty;
-      break;
+      pl_rearmed_cbs.cspace_blit = bgr_to_fb_empty;
+      return;
+   }
+   pl_rearmed_cbs.cspace_blit = cspace_funcs[func_id].blit;
+   if (vout_width == 320) {
+      if (psx_w >= 640-4)
+         pl_rearmed_cbs.cspace_blit = cspace_funcs[func_id].blit_dscale640;
+      else if (psx_w >= 512-4)
+         pl_rearmed_cbs.cspace_blit = cspace_funcs[func_id].blit_dscale512;
    }
 }
 
@@ -306,10 +327,19 @@ static void set_vout_fb(void)
 
 static void vout_set_mode(int w, int h, int raw_w, int raw_h, int bpp)
 {
+   static unsigned int current_width;
+   static unsigned int current_height;
    vout_width = w;
    vout_height = h;
    psx_w = raw_w;
    psx_h = raw_h;
+
+   if (pl_rearmed_cbs.scale_hires) {
+      if (raw_w >= 512-4 && w > 320)
+         vout_width = 320;
+      if (h > 256)
+         vout_height = h / 2;
+   }
 
    /* it may seem like we could do RETRO_ENVIRONMENT_SET_PIXEL_FORMAT here to
     * switch to something that can accommodate bgr24 for FMVs, but although it
@@ -375,14 +405,16 @@ static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
       int x, int y, int w, int h, int dims_changed)
 {
    int bytes_pp = (current_fmt == RETRO_PIXEL_FORMAT_XRGB8888) ? 4 : 2;
+   bgr_to_fb_func *bgr_to_fb = pl_rearmed_cbs.cspace_blit;
    int bytes_pp_s = bgr24 ? 3 : 2;
-   bgr_to_fb_func *bgr_to_fb = g_bgr_to_fb;
    unsigned char *dest = vout_buf_ptr;
    const unsigned char *vram = vram_;
-   int dstride = vout_pitch_b, h1 = h;
+   int dstride = vout_pitch_b, h1;
    int enhres = w > psx_w;
    u32 vram_mask = enhres ? ~0 : 0xfffff;
+   int w_blit = min(w, vout_width);
    int port = 0, hwrapped;
+   int sstride = 2048;
 
    if (vram == NULL || dims_changed || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
    {
@@ -398,22 +430,28 @@ static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
          goto out;
    }
 
+   if (h >= vout_height * 3 / 2) {
+      sstride = 4096;
+      h /= 2;
+   }
+   h = min(h, vout_height);
    dest += x * bytes_pp + y * dstride;
 
-   for (; h1-- > 0; dest += dstride) {
-      bgr_to_fb(dest, vram + vram_ofs, w * bytes_pp_s);
-      vram_ofs = (vram_ofs + 2048) & vram_mask;
+   for (h1 = h; h1-- > 0; dest += dstride) {
+      bgr_to_fb(dest, vram + vram_ofs, w_blit);
+      vram_ofs = (vram_ofs + sstride) & vram_mask;
    }
 
    hwrapped = (vram_ofs & 2047) + w * bytes_pp_s - 2048;
    if (!enhres && hwrapped > 0) {
       // this is super-rare so just fix-up
-      vram_ofs = (vram_ofs - h * 2048) & 0xff800;
+      w_blit = hwrapped / bytes_pp_s;
+      vram_ofs = (vram_ofs - h * sstride) & 0xff800;
       dest -= dstride * h;
       dest += (w - hwrapped / bytes_pp_s) * bytes_pp;
       for (h1 = h; h1-- > 0; dest += dstride) {
-         bgr_to_fb(dest, vram + vram_ofs, hwrapped);
-         vram_ofs = (vram_ofs + 2048) & 0xfffff;
+         bgr_to_fb(dest, vram + vram_ofs, w_blit);
+         vram_ofs = (vram_ofs + sstride) & 0xfffff;
       }
    }
 
@@ -718,6 +756,7 @@ struct rearmed_cbs pl_rearmed_cbs = {
    .pl_vout_set_mode = vout_set_mode,
    .pl_vout_flip     = vout_flip,
    .pl_vout_close    = vout_close,
+   .cspace_blit      = bgr_to_fb_empty,
    .mmap             = pl_mmap,
    .munmap           = pl_munmap,
    .gpu_state_change = gpu_state_change,
@@ -968,7 +1007,6 @@ static bool update_option_visibility(void)
             "pcsx_rearmed_gpu_unai_skipline",
             "pcsx_rearmed_gpu_unai_lighting",
             "pcsx_rearmed_gpu_unai_fast_lighting",
-            "pcsx_rearmed_gpu_unai_scale_hires",
          };
 
          option_display.visible = show_advanced_gpu_unai_settings;
@@ -2602,6 +2640,17 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.show_overscan = 0;
    }
 
+   var.key = "pcsx_rearmed_scale_hires";
+   var.value = NULL;
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "disabled") == 0)
+         pl_rearmed_cbs.scale_hires = 0;
+      else if (strcmp(var.value, "enabled") == 0)
+         pl_rearmed_cbs.scale_hires = 1;
+   }
+
 #ifdef USE_ASYNC_GPU
    var.key = "pcsx_rearmed_gpu_thread_rendering";
    var.value = NULL;
@@ -2696,7 +2745,7 @@ static void update_variables(bool in_flight)
    /* Note: This used to be an option, but it only works
     * (correctly) when running high resolution games
     * (480i, 512i) and has been obsoleted by
-    * pcsx_rearmed_gpu_unai_scale_hires */
+    * pcsx_rearmed_scale_hires */
    pl_rearmed_cbs.gpu_unai.ilace_force = 0;
 
    var.key = "pcsx_rearmed_gpu_unai_old_renderer";
@@ -2752,17 +2801,6 @@ static void update_variables(bool in_flight)
          pl_rearmed_cbs.gpu_unai.blending = 0;
       else if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.gpu_unai.blending = 1;
-   }
-
-   var.key = "pcsx_rearmed_gpu_unai_scale_hires";
-   var.value = NULL;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-   {
-      if (strcmp(var.value, "disabled") == 0)
-         pl_rearmed_cbs.gpu_unai.scale_hires = 0;
-      else if (strcmp(var.value, "enabled") == 0)
-         pl_rearmed_cbs.gpu_unai.scale_hires = 1;
    }
 #endif // GPU_UNAI
 

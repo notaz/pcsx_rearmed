@@ -49,6 +49,12 @@ extern "C" {
 
 #define MSF2SECT(m, s, f)		(((m) * 60 + (s) - 2) * 75 + (f))
 
+enum cdrType {
+	CDRT_UNKNOWN = 0,
+	CDRT_DATA = 1,
+	CDRT_CDDA = 2,
+};
+
 static inline void lba2msf(unsigned int lba, u8 *m, u8 *s, u8 *f) {
 	*m = lba / 75 / 60;
 	lba = lba - *m * 75 * 60;

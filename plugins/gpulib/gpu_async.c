@@ -458,7 +458,7 @@ void gpu_async_notify_screen_change(struct psx_gpu *gpu)
 {
   union cmd_screen_change cmd;
 
-  if (!gpu->async || !gpu->state.enhancement_active) // gpu_neon only
+  if (!gpu->async)
     return;
   cmd.cmd = HTOLE32(FAKECMD_SCREEN_CHANGE << 24);
   cmd.x = gpu->screen.x;
@@ -542,6 +542,10 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
   i = agpu->pos_area;
   if (agpu->idle)
     /* unlikely but possible - do a full sync */;
+  else if (so_x1 > 1024 || so_y1 > 512) {
+    agpu_log(gpu, "agpu: wrap %d,%d %dx%d\n",
+      so_x0, so_y0, so_x1 - so_x0, so_y1 - so_y0);
+  }
   else if (agpu->draw_areas[(i+1) & AGPU_AREAS_MASK].pos > pos) {
     agpu_log(gpu, "agpu: oldest draw area %d > %d\n",
       agpu->draw_areas[(i+1) & AGPU_AREAS_MASK].pos, pos);

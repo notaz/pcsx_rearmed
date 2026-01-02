@@ -193,7 +193,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 	if (pl_vout_buf != NULL) {
 		if (psx_bpp == 16)
 			// have to do rgb conversion for menu bg
-			bgr555_to_rgb565(pl_vout_buf, pl_vout_buf, 320*240*2);
+			bgr555_to_rgb565(pl_vout_buf, pl_vout_buf, 320*240);
 		else
 			memset(pl_vout_buf, 0, 320*240*2);
 	}
@@ -228,7 +228,7 @@ void plat_video_menu_leave(void)
 
 void *plat_prepare_screenshot(int *w, int *h, int *bpp)
 {
-	bgr555_to_rgb565(pl_vout_buf, pl_vout_buf, 320*240*2);
+	bgr555_to_rgb565(pl_vout_buf, pl_vout_buf, 320*240);
 	*w = 320;
 	*h = 240;
 	*bpp = psx_bpp;

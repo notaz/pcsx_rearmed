@@ -1064,6 +1064,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.frame_count = (uint32_t *)cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
+  gpu.state.downscale_enable = cbs->scale_hires;
   gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x

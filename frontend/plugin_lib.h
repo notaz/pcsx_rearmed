@@ -54,6 +54,7 @@ struct rearmed_cbs {
 	void  (*pl_vout_flip)(const void *vram, int vram_offset, int bgr24,
 			      int x, int y, int w, int h, int dims_changed);
 	void  (*pl_vout_close)(void);
+	void  (*cspace_blit)(void *dst, const void *src, int bytes);
 	void *(*mmap)(unsigned int size);
 	void  (*munmap)(void *ptr, unsigned int size);
 	// only used by some frontends
@@ -78,6 +79,7 @@ struct rearmed_cbs {
 	unsigned int only_16bpp; // platform is 16bpp-only
 	unsigned int thread_rendering;
 	unsigned int dithering; // 0 off, 1 on, 2 force
+	unsigned int scale_hires;
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 		int   enhancement_enable;
@@ -95,7 +97,6 @@ struct rearmed_cbs {
 		int lighting;
 		int fast_lighting;
 		int blending;
-		int scale_hires;
 	} gpu_unai;
 	struct {
 		int   dwActFixes;

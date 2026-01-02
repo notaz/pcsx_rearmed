@@ -44,8 +44,12 @@ void SysRunGui();						// Returns to the Gui
 void SysClose();						// Close mem and plugins
 
 // log if the game does something we don't handle (well)
-//#define log_unhandled printf
+#ifdef LOG_UNHANDLED
+#include <stdio.h>
+#define log_unhandled printf
+#else
 #define log_unhandled(...)
+#endif
 
 #ifdef __cplusplus
 }

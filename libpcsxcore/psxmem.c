@@ -23,6 +23,7 @@
 
 // TODO: Implement caches & cycle penalty.
 
+#include <stdio.h>
 #include "psxmem.h"
 #include "psxmem_map.h"
 #include "r3000a.h"

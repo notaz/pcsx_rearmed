@@ -53,8 +53,6 @@ int psxInit() {
 	psxCpu = &psxInt;
 #endif
 
-	Log = 0;
-
 	if (psxMemInit() == -1) return -1;
 
 	return psxCpu->Init();
@@ -96,11 +94,6 @@ void psxReset() {
 	}
 	if (Config.HLE || introBypassed)
 		psxBiosSetupBootState();
-
-#ifdef EMU_LOG
-	EMU_LOG("*BIOS END*\n");
-#endif
-	Log = 0;
 }
 
 void psxShutdown() {

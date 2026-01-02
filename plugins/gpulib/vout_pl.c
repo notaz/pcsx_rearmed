@@ -52,15 +52,6 @@ static void check_mode_change(int force)
     bpp = 24;
   }
 
-  gpu.state.downscale_active =
-    gpu.get_downscale_buffer != NULL && gpu.state.downscale_enable
-    && (w >= 512 || h >= 256);
-
-  if (gpu.state.downscale_active) {
-    w_out = w < 512 ? w : 320;
-    h_out = h < 256 ? h : h / 2;
-  }
-
   // width|rgb24 change?
   if (force || (gpu.status ^ gpu.state.status_vo_old) & ((7<<16)|(1<<21))
       || w_out != gpu.state.w_out_old || h_out != gpu.state.h_out_old)
@@ -109,9 +100,6 @@ int vout_update(void)
     src_x2 *= 2;
   }
 
-  if (gpu.state.downscale_active)
-    vram = (void *)gpu.get_downscale_buffer(&src_x, &src_y, &w, &h, &vram_h);
-
   if (src_y + h > vram_h) {
     if (src_y + h - vram_h > h / 2) {
       // wrap
@@ -122,6 +110,10 @@ int vout_update(void)
       // clip
       h = vram_h - src_y;
   }
+
+  // gpu_unai skips drawing odd lines
+  if (h > 256 && gpu.state.downscale_enable && (src_y & 1))
+    src_y++;
 
   offset = (src_y * 1024 + src_x) * 2;
   offset += src_x2 * bpp / 8;

@@ -25,10 +25,6 @@
 #include "ppf.h"
 
 PcsxConfig Config;
-boolean NetOpened = FALSE;
-
-int Log = 0;
-FILE *emuLog = NULL;
 
 int EmuInit() {
 	return psxInit();
@@ -59,20 +55,4 @@ void EmuUpdate() {
 		extern void pl_frame_limit(void);
 		pl_frame_limit();
 	}
-}
-
-void __Log(char *fmt, ...) {
-	va_list list;
-#ifdef LOG_STDOUT
-	char tmp[1024];
-#endif
-
-	va_start(list, fmt);
-#ifndef LOG_STDOUT
-	vfprintf(emuLog, fmt, list);
-#else
-	vsprintf(tmp, fmt, list);
-	SysPrintf(tmp);
-#endif
-	va_end(list);
 }
