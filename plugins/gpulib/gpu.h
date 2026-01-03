@@ -12,14 +12,19 @@
 #define __GPULIB_GPU_H__
 
 #include <stdint.h>
+#include <string.h>
+#include "../../include/compiler_features.h"
 
 //#define RAW_FB_DISPLAY
 
 #define gpu_log(gpu, fmt, ...) \
   printf("%d:%03d: " fmt, *(gpu)->state.frame_count, *(gpu)->state.hcnt, ##__VA_ARGS__)
 
-//#define log_anomaly gpu_log
+#ifdef LOG_UNHANDLED
+#define log_anomaly gpu_log
+#else
 #define log_anomaly(...)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,11 +155,27 @@ void vout_blank(void);
 void vout_set_config(const struct rearmed_cbs *config);
 
 // helpers
+#define VRAM_MEM_XY(vram_, x, y) &vram_[(y) * 1024 + (x)]
+
 int  do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
        const uint32_t *params, int *cpu_cycles);
 
 int  prim_try_simplify_quad_t (void *simplified, const void *prim);
 int  prim_try_simplify_quad_gt(void *simplified, const void *prim);
+
+void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6);
+
+static inline void do_vram_line(uint16_t *vram_, int x, int y,
+    uint16_t *mem, int l, int is_read, uint32_t r6)
+{
+  uint16_t *vram = VRAM_MEM_XY(vram_, x, y);
+  if (unlikely(is_read))
+    memcpy(mem, vram, l * 2);
+  else if (unlikely(r6))
+    cpy_mask(vram, mem, l, r6);
+  else
+    memcpy(vram, mem, l * 2);
+}
 
 /* listing these here for correct linkage if rasterizer uses c++ */
 struct GPUFreeze;

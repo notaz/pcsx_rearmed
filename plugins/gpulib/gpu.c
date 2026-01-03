@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdlib.h> /* for calloc */
 
 #include "gpu.h"
 #include "gpu_timing.h"
@@ -31,7 +30,7 @@ struct psx_gpu gpu;
 
 static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count,
     int *cycles_sum, int *cycles_last);
-static noinline void finish_vram_transfer(struct psx_gpu *gpu, int is_read);
+static noinline void finish_vram_transfer(struct psx_gpu *gpu, int is_read, int is_async);
 
 static void sync_renderer(struct psx_gpu *gpu)
 {
@@ -51,7 +50,7 @@ static noinline void do_cmd_reset(struct psx_gpu *gpu)
   sync_renderer(gpu);
 
   if (unlikely(gpu->dma.h > 0))
-    finish_vram_transfer(gpu, gpu->dma_start.is_read);
+    finish_vram_transfer(gpu, gpu->dma_start.is_read, 0);
   gpu->dma.h = 0;
 }
 
@@ -428,10 +427,8 @@ const unsigned char cmd_lengths[256] =
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-#define VRAM_MEM_XY(vram_, x, y) &vram_[(y) * 1024 + (x)]
-
 // this isn't very useful so should be rare
-static void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6)
+void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6)
 {
   int i;
   if (r6 == 1) {
@@ -447,18 +444,6 @@ static void cpy_mask(uint16_t *dst, const uint16_t *src, int l, uint32_t r6)
   }
 }
 
-static inline void do_vram_line(uint16_t *vram_, int x, int y,
-    uint16_t *mem, int l, int is_read, uint32_t r6)
-{
-  uint16_t *vram = VRAM_MEM_XY(vram_, x, y);
-  if (unlikely(is_read))
-    memcpy(mem, vram, l * 2);
-  else if (unlikely(r6))
-    cpy_mask(vram, mem, l, r6);
-  else
-    memcpy(vram, mem, l * 2);
-}
-
 static int do_vram_io(struct psx_gpu *gpu, uint32_t *data, int count, int is_read)
 {
   int count_initial = count;
@@ -468,11 +453,20 @@ static int do_vram_io(struct psx_gpu *gpu, uint32_t *data, int count, int is_rea
   int x = gpu->dma.x, y = gpu->dma.y;
   int w = gpu->dma.w, h = gpu->dma.h;
   int o = gpu->dma.offset;
-  int l;
+  int l, async_queued = 0;
+
+  if (gpu_async_enabled(gpu) && !is_read && o == 0 &&
+      count <= AGPU_DMA_MAX && w * h == count * 2)
+    async_queued = gpu_async_try_dma(gpu, data, count);
+  if (async_queued) {
+    gpu->dma.h = 0;
+    finish_vram_transfer(gpu, 0, 1);
+    return count;
+  }
+  if (o == 0)
+    sync_renderer(gpu);
+
   count *= 2; // operate in 16bpp pixels
-
-  //sync_renderer(gpu); // done in start_vram_transfer()
-
   if (gpu->dma.offset) {
     l = w - gpu->dma.offset;
     if (count < l)
@@ -505,7 +499,7 @@ static int do_vram_io(struct psx_gpu *gpu, uint32_t *data, int count, int is_rea
     }
   }
   else
-    finish_vram_transfer(gpu, is_read);
+    finish_vram_transfer(gpu, is_read, 0);
   gpu->dma.y = y;
   gpu->dma.h = h;
   gpu->dma.offset = o;
@@ -527,7 +521,8 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
   gpu->dma.is_read = is_read;
   gpu->dma_start = gpu->dma;
 
-  sync_renderer(gpu);
+  // postponed until the actual transfer
+  //sync_renderer(gpu);
 
   if (is_read) {
     const uint16_t *mem = VRAM_MEM_XY(gpu->vram, gpu->dma.x, gpu->dma.y);
@@ -537,13 +532,17 @@ static noinline void start_vram_transfer(struct psx_gpu *gpu, uint32_t pos_word,
     gpu->state.last_vram_read_frame = *gpu->state.frame_count;
   }
 
-  log_io(gpu, "start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
-    gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
+  if (gpu->dma.x + gpu->dma.w > 1024)
+    log_anomaly(gpu, "vram tr xwrap: %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
+      gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
+  else
+    log_io(gpu, "start_vram_transfer %c (%d, %d) %dx%d\n", is_read ? 'r' : 'w',
+      gpu->dma.x, gpu->dma.y, gpu->dma.w, gpu->dma.h);
   if (gpu->gpu_state_change)
     gpu->gpu_state_change(PGS_VRAM_TRANSFER_START, 0);
 }
 
-static void finish_vram_transfer(struct psx_gpu *gpu, int is_read)
+static void finish_vram_transfer(struct psx_gpu *gpu, int is_read, int is_async)
 {
   if (is_read)
     gpu->status &= ~PSX_GPU_STATUS_IMG;
@@ -562,8 +561,9 @@ static void finish_vram_transfer(struct psx_gpu *gpu, int is_read)
       gpu->dma_start.x, gpu->dma_start.y, gpu->dma_start.w, gpu->dma_start.h,
       gpu->screen.src_x, gpu->screen.src_y, gpu->screen.hres, gpu->screen.vres, !not_dirty);
     gpu->state.fb_dirty |= !not_dirty;
-    renderer_update_caches(gpu->dma_start.x, gpu->dma_start.y,
-                           gpu->dma_start.w, gpu->dma_start.h, 0);
+    if (!is_async)
+      renderer_update_caches(gpu->dma_start.x, gpu->dma_start.y,
+                             gpu->dma_start.w, gpu->dma_start.h, 0);
   }
   if (gpu->gpu_state_change)
     gpu->gpu_state_change(PGS_VRAM_TRANSFER_END, 0);
