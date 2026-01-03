@@ -362,7 +362,7 @@ void GPUwriteStatus(uint32_t data)
       if (src_x != gpu.screen.src_x || src_y != gpu.screen.src_y) {
         gpu.screen.src_x = src_x;
         gpu.screen.src_y = src_y;
-        if (gpu.async)
+        if (gpu_async_enabled(&gpu))
           gpu_async_notify_screen_change(&gpu);
         else
           renderer_notify_screen_change(&gpu.screen);
@@ -389,7 +389,7 @@ void GPUwriteStatus(uint32_t data)
       gpu.status = (gpu.status & ~0x7f0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
       update_width(&gpu);
       update_height(&gpu);
-      if (gpu.async)
+      if (gpu_async_enabled(&gpu))
         gpu_async_notify_screen_change(&gpu);
       else
         renderer_notify_screen_change(&gpu.screen);
@@ -619,72 +619,133 @@ int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
   return 4;
 }
 
-static noinline int do_cmd_list_skip(struct psx_gpu *gpu, uint32_t *data,
-  int count, int *last_cmd)
+static noinline int do_cmd_list_skip(struct psx_gpu *gpu, uint32_t *data, int list_len,
+    int *cpu_cycles_sum_out, int *cpu_cycles_last, int *last_cmd)
 {
-  int cmd = 0, pos = 0, len, dummy = 0, v;
+  uint32_t cyc_sum = 0, cyc = *cpu_cycles_last;
+  int cmd = 0, pos, len;
   int skip = 1;
 
   gpu->frameskip.pending_fill[0] = 0;
 
-  while (pos < count && skip) {
+  for (pos = 0; pos < list_len && skip; pos += len)
+  {
     uint32_t *list = data + pos;
+    const int16_t *slist = (void *)list;
+    int num_vertexes, w, h;
+    int dummy = 0;
+
     cmd = LE32TOH(list[0]) >> 24;
     len = 1 + cmd_lengths[cmd];
-    if (pos + len > count) {
+    if (pos + len > list_len) {
       cmd = -1;
       break; // incomplete cmd
     }
 
     switch (cmd) {
       case 0x02:
-        if ((LE32TOH(list[2]) & 0x3ff) > gpu->screen.w || ((LE32TOH(list[2]) >> 16) & 0x1ff) > gpu->screen.h)
+        w = ((LE16TOH(slist[4]) & 0x3ff) + 0xf) & ~0xf;
+        h =   LE16TOH(slist[5]) & 0x1ff;
+        if (w > gpu->screen.w || h > gpu->screen.h)
+        {
           // clearing something large, don't skip
-          renderer_do_cmd_list(list, 3, gpu->ex_regs, &dummy, &dummy, &dummy);
+          if (gpu_async_enabled(gpu))
+            (void)gpu_async_do_cmd_list(gpu, list, 3, &dummy, &dummy, &dummy);
+          else
+            renderer_do_cmd_list(list, 3, gpu->ex_regs, &dummy, &dummy, &dummy);
+        }
         else
           memcpy(gpu->frameskip.pending_fill, list, 3 * 4);
+        gput_sum(cyc_sum, cyc, gput_fill(w, h));
         break;
-      case 0x24 ... 0x27:
-      case 0x2c ... 0x2f:
-      case 0x34 ... 0x37:
-      case 0x3c ... 0x3f:
+      case 0x1f: // irq?
+        goto breakloop;
+      case 0x20 ... 0x23: gput_sum(cyc_sum, cyc, gput_poly_base());    break;
+      case 0x24 ... 0x27: gput_sum(cyc_sum, cyc, gput_poly_base_t());  goto do_texpage;
+      case 0x28 ... 0x2b: gput_sum(cyc_sum, cyc, gput_quad_base());    break;
+      case 0x2c ... 0x2f: gput_sum(cyc_sum, cyc, gput_quad_base_t());  goto do_texpage;
+      case 0x30 ... 0x33: gput_sum(cyc_sum, cyc, gput_poly_base_g());  break;
+      case 0x34 ... 0x37: gput_sum(cyc_sum, cyc, gput_poly_base_gt()); goto do_texpage;
+      case 0x38 ... 0x3b: gput_sum(cyc_sum, cyc, gput_quad_base_g());  break;
+      case 0x3c ... 0x3f: gput_sum(cyc_sum, cyc, gput_quad_base_gt());
+      do_texpage:
         gpu->ex_regs[1] &= ~0x1ff;
         gpu->ex_regs[1] |= (LE32TOH(list[4 + ((cmd >> 4) & 1)]) >> 16) & 0x1ff;
         break;
-      case 0x48 ... 0x4F:
-        for (v = 3; pos + v < count; v++)
-        {
-          if ((list[v] & HTOLE32(0xf000f000)) == HTOLE32(0x50005000))
-            break;
-        }
-        len += v - 3;
+      case 0x40 ... 0x47:
+        gput_sum(cyc_sum, cyc, gput_line(0));
         break;
-      case 0x58 ... 0x5F:
-        for (v = 4; pos + v < count; v += 2)
+      case 0x48 ... 0x4F:
+        for (num_vertexes = 2; ; num_vertexes++)
         {
-          if ((list[v] & HTOLE32(0xf000f000)) == HTOLE32(0x50005000))
+          gput_sum(cyc_sum, cyc, gput_line(0));
+          if (pos + num_vertexes + 1 >= list_len) {
+            cmd = -1;
+            goto breakloop;
+          }
+          if ((list[num_vertexes + 1] & LE32TOH(0xf000f000)) == LE32TOH(0x50005000))
             break;
         }
-        len += v - 4;
+        len += (num_vertexes - 2);
+        break;
+      case 0x50 ... 0x57:
+        gput_sum(cyc_sum, cyc, gput_line(0));
+        break;
+      case 0x58 ... 0x5f:
+        for (num_vertexes = 2; ; num_vertexes++)
+        {
+          gput_sum(cyc_sum, cyc, gput_line(0));
+          if (pos + num_vertexes*2 >= list_len) {
+            cmd = -1;
+            goto breakloop;
+          }
+          if ((list[num_vertexes * 2] & LE32TOH(0xf000f000)) == LE32TOH(0x50005000))
+            break;
+        }
+        len += (num_vertexes - 2) * 2;
+        break;
+      case 0x60 ... 0x63:
+        w = LE16TOH(slist[4]) & 0x3FF;
+        h = LE16TOH(slist[5]) & 0x1FF;
+        gput_sum(cyc_sum, cyc, gput_sprite(w, h));
+        break;
+      case 0x64 ... 0x67:
+        w = LE16TOH(slist[6]) & 0x3FF;
+        h = LE16TOH(slist[7]) & 0x1FF;
+        gput_sum(cyc_sum, cyc, gput_sprite(w, h));
+        break;
+      case 0x68 ... 0x6b: gput_sum(cyc_sum, cyc, gput_sprite(1, 1));   break;
+      case 0x70 ... 0x73:
+      case 0x74 ... 0x77: gput_sum(cyc_sum, cyc, gput_sprite(8, 8));   break;
+      case 0x78 ... 0x7b:
+      case 0x7C ... 0x7f: gput_sum(cyc_sum, cyc, gput_sprite(16, 16)); break;
+      case 0x80 ... 0x9f: // vid -> vid
+        w = ((LE16TOH(slist[6]) - 1) & 0x3ff) + 1;
+        h = ((LE16TOH(slist[7]) - 1) & 0x1ff) + 1;
+        gput_sum(cyc_sum, cyc, gput_copy(w, h));
+        break;
+      case 0xa0 ... 0xbf: // sys -> vid
+      case 0xc0 ... 0xdf: // vid -> sys
+        goto breakloop;
+      case 0xe3:
+        skip = decide_frameskip_allow(gpu);
+        // fallthrough
+      case 0xe0 ... 0xe2:
+      case 0xe4 ... 0xe7:
+        gpu->ex_regs[cmd & 7] = LE32TOH(list[0]);
         break;
       default:
-        if ((cmd & 0xf8) == 0xe0) {
-          gpu->ex_regs[cmd & 7] = LE32TOH(list[0]);
-          if (cmd == 0xe3)
-            skip = decide_frameskip_allow(gpu);
-        }
         break;
     }
-    if (0x80 <= cmd && cmd <= 0xdf)
-      break; // image i/o
-
-    pos += len;
   }
 
-  if (gpu->async)
+breakloop:
+  if (gpu_async_enabled(gpu))
     gpu_async_sync_ecmds(gpu);
   else
     renderer_sync_ecmds(gpu->ex_regs);
+  *cpu_cycles_sum_out += cyc_sum;
+  *cpu_cycles_last = cyc;
   *last_cmd = cmd;
   return pos;
 }
@@ -734,7 +795,7 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
         cmd = -1; // incomplete cmd, can't consume yet
         break;
       }
-      if (gpu->async)
+      if (gpu_async_enabled(gpu))
         break;
       *cycles_sum += *cycles_last;
       *cycles_last = 0;
@@ -754,9 +815,10 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
     if (gpu->frameskip.active &&
         (gpu->frameskip.allow || ((LE32TOH(data[pos]) >> 24) & 0xf0) == 0xe0)) {
       // 0xex cmds might affect frameskip.allow, so pass to do_cmd_list_skip
-      pos += do_cmd_list_skip(gpu, data + pos, count - pos, &cmd);
+      pos += do_cmd_list_skip(gpu, data + pos, count - pos,
+               cycles_sum, cycles_last, &cmd);
     }
-    else if (gpu->async) {
+    else if (gpu_async_enabled(gpu)) {
       pos += gpu_async_do_cmd_list(gpu, data + pos, count - pos,
                cycles_sum, cycles_last, &cmd);
       vram_dirty = 1;
@@ -802,7 +864,7 @@ void GPUwriteDataMem(uint32_t *mem, int count)
 {
   int dummy = 0, left;
 
-  log_io(&gpu, "gpu_dma_write %p %d\n", mem, count);
+  log_io(&gpu, "gpu_dma_write %p %d cached %d\n", mem, count, gpu.cmd_len);
 
   if (unlikely(gpu.cmd_len > 0))
     flush_cmd_buffer(&gpu);
@@ -1035,7 +1097,7 @@ void GPUvBlank(int is_vblank, int lcf)
 
     if (gpu.cmd_len > 0)
       flush_cmd_buffer(&gpu);
-    if (gpu.async)
+    if (gpu_async_enabled(&gpu))
       gpu_async_set_interlace(&gpu, interlace, !lcf);
     else {
       renderer_flush_queues();
