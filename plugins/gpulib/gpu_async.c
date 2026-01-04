@@ -257,8 +257,9 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
         darea = &agpu->draw_areas[agpu->pos_area];
         if (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1) {
           // let the main thread know about changes outside of drawing area
-          agpu_log(gpu, "agpu: fill %d,%d vs area %d,%d\n", x, y, darea->x0, darea->y0);
-          add_draw_area(agpu, agpu->pos_added, 1, x, x + w, y, y + h);
+          agpu_log(gpu, "agpu: fill %d,%d %dx%d vs area %d,%d %dx%d\n", x, y, w, h,
+            darea->x0, darea->y0, darea->x1 - darea->x0, darea->y1 - darea->y0);
+          add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
           add_draw_area_e(agpu, agpu->pos_added + 1, 1, gpu->ex_regs);
         }
         gput_sum(cyc_sum, cyc, gput_fill(w, h));
@@ -330,8 +331,10 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
         w = ((LE16TOH(slist[6]) - 1) & 0x3ff) + 1;
         h = ((LE16TOH(slist[7]) - 1) & 0x1ff) + 1;
         darea = &agpu->draw_areas[agpu->pos_area];
-        if (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1) {
-          add_draw_area(agpu, agpu->pos_added, 1, x, x + w, y, y + h);
+        if ((w > 2 || h > 1) &&
+            (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1))
+        {
+          add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
           add_draw_area_e(agpu, agpu->pos_added + 1, 1, gpu->ex_regs);
         }
         gput_sum(cyc_sum, cyc, gput_copy(w, h));
@@ -352,7 +355,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
           break;
         }
         gpu->ex_regs[cmd & 7] = LE32TOH(list[0]);
-        add_draw_area_e(agpu, agpu->pos_added, 1, gpu->ex_regs);
+        add_draw_area_e(agpu, agpu->pos_added, 0, gpu->ex_regs);
         insert_break = 1;
         break;
       default:
