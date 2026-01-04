@@ -405,7 +405,7 @@ int gpu_async_try_dma(struct psx_gpu *gpu, const uint32_t *data, int words)
     return 0;
   // avoid double copying
   used = agpu->pos_added - RDPOS(agpu->pos_used);
-  if (agpu->idle && used == 0)
+  if (RDPOS(agpu->idle) && used == 0)
     return 0;
   // only proceed if there is space to avoid messy sync
   if (AGPU_BUF_LEN - used < sizeof(cmd) / 4 + ((w + 1) / 2) * (h + 1)) {
@@ -528,10 +528,15 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
 
 void gpu_async_notify_screen_change(struct psx_gpu *gpu)
 {
+  struct psx_gpu_async *agpu = gpu->async;
   union cmd_screen_change cmd;
 
-  if (!gpu->async)
+  if (!agpu)
     return;
+  if (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used)) {
+    renderer_notify_screen_change(&gpu->screen);
+    return;
+  }
   cmd.cmd = HTOLE32(FAKECMD_SCREEN_CHANGE << 24);
   cmd.x = gpu->screen.x;
   cmd.y = gpu->screen.y;
@@ -558,10 +563,16 @@ static int noinline do_notify_screen_change(struct psx_gpu *gpu,
 
 void gpu_async_set_interlace(struct psx_gpu *gpu, int enable, int is_odd)
 {
+  struct psx_gpu_async *agpu = gpu->async;
   union cmd_set_interlace cmd;
 
-  if (!gpu->async)
+  if (!agpu)
     return;
+  if (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used)) {
+    renderer_flush_queues();
+    renderer_set_interlace(enable, is_odd);
+    return;
+  }
   cmd.cmd = HTOLE32(FAKECMD_SET_INTERLACE << 24);
   cmd.enable = enable;
   cmd.is_odd = is_odd;
@@ -608,7 +619,7 @@ void gpu_async_sync(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
 
-  if (!agpu || (agpu->idle && agpu->pos_added == RDPOS(agpu->pos_used)))
+  if (!agpu || (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used)))
     return;
   agpu_log(gpu, "agpu: sync %d\n", agpu->pos_added - agpu->pos_used);
   slock_lock(agpu->lock);
@@ -637,7 +648,7 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
   if (!agpu)
     return;
   pos = RDPOS(agpu->pos_used);
-  if (agpu->idle && agpu->pos_added == pos)
+  if (RDPOS(agpu->idle) && agpu->pos_added == pos)
     return;
   i = agpu->pos_area;
   if (agpu->idle)
@@ -691,7 +702,11 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
 void gpu_async_sync_ecmds(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
-  if (agpu)
+  if (!agpu)
+    return;
+  if (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used))
+    memcpy(agpu->ex_regs + 1, gpu->ex_regs + 1, 6*4);
+  else
     do_add_with_wait(agpu, gpu->ex_regs + 1, 6);
 }
 
