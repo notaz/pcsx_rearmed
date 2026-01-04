@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include "../../include/compiler_features.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #ifndef min
@@ -26,8 +27,7 @@ static int initialized;
 
 #define PCSX
 
-static __attribute__((noinline)) void
-sync_enhancement_buffers(int x, int y, int w, int h);
+static noinline void sync_enhancement_buffers(int x, int y, int w, int h);
 
 #include "../gpulib/gpu.h"
 #include "psx_gpu/psx_gpu.c"
@@ -110,8 +110,7 @@ void renderer_finish(void)
   initialized = 0;
 }
 
-static __attribute__((noinline)) void
-sync_enhancement_buffers(int x, int y, int w, int h)
+static noinline void sync_enhancement_buffers(int x, int y, int w, int h)
 {
   int i, right = x + w, bottom = y + h;
   const u16 *src = gpu.vram;

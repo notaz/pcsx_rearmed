@@ -25,6 +25,7 @@
 #endif
 #include "psx_gpu_simd.h"
 #include "psx_gpu_offsets.h"
+#include "../../../include/compiler_features.h"
 
 #if 0
 void dump_r_d(const char *name, void *dump);
@@ -1479,8 +1480,7 @@ void setup_spans_up_down(psx_gpu_struct *psx_gpu, vertex_struct *v_a,
 
 // this is some hacky mess, can this be improved somehow?
 // ideally change things to not have to do this hack at all
-void __attribute__((noinline))
-setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
+noinline void setup_blocks_uv_adj_hack(psx_gpu_struct *psx_gpu, block_struct *block,
     edge_data_struct *span_edge_data, vec_4x32u *span_uvrg_offset)
 {
   size_t span_i = span_uvrg_offset - psx_gpu->span_uvrg_offset;
@@ -4097,9 +4097,8 @@ void setup_sprite_untextured_512(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
 
 #endif
 
-static void __attribute__((noinline))
-setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu, s32 x, s32 y, s32 u,
- s32 v, s32 width, s32 height, u32 color)
+static noinline void setup_sprite_untextured_simple(psx_gpu_struct *psx_gpu,
+    s32 x, s32 y, s32 u, s32 v, s32 width, s32 height, u32 color)
 {
   u32 r = color & 0xFF;
   u32 g = (color >> 8) & 0xFF;
