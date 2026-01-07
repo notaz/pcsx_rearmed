@@ -85,11 +85,12 @@ static void SetupLightLUT()
 ////////////////////////////////////////////////////////////////////////////////
 GPU_INLINE gcol_t gpuPackGouraudCol(u32 r, u32 g, u32 b)
 {
-	return (gcol_t){
+	return (gcol_t){{
 		(u16)(r >> 2),
 		(u16)(g >> 2),
 		(u16)(b >> 2),
-	};
+		0
+	}};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,8 +168,13 @@ GPU_INLINE u32 gpuLightingRGB24(gcol_t gCol)
 //          u16 output:  0bbbbbgggggrrrrr
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE uint_fast16_t gpuLightingTXTGeneric(uint_fast16_t uSrc, u8 r5, u8 g5, u8 b5)
+GPU_INLINE uint_fast16_t gpuLightingTXTGeneric(uint_fast16_t uSrc, u32 bgr0888)
 {
+	// gcc can move this out of the loop if it wants to
+	uint_fast32_t b5 = (bgr0888 >> 19);
+	uint_fast32_t g5 = (bgr0888 >> 11) & 0x1f;
+	uint_fast32_t r5 = (bgr0888 >>  3) & 0x1f;
+
 	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | b5] << 10) |
 	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | g5] <<  5) |
 	       (gpu_unai.LightLUT[((uSrc&0x001F)<<5) | r5]      ) |
@@ -189,7 +195,7 @@ GPU_INLINE uint_fast16_t gpuLightingTXTGeneric(uint_fast16_t uSrc, u8 r5, u8 g5,
 //          u16 output:  0bbbbbgggggrrrrr
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE uint_fast16_t gpuLightingTXTGouraud(uint_fast16_t uSrc, gcol_t gCol)
+GPU_INLINE uint_fast16_t gpuLightingTXTGouraudGeneric(uint_fast16_t uSrc, gcol_t gCol)
 {
 	return (gpu_unai.LightLUT[((uSrc&0x7C00)>>5) | (gCol.c.b >> 11)] << 10) |
 	       (gpu_unai.LightLUT[ (uSrc&0x03E0)     | (gCol.c.g >> 11)] << 5) |
@@ -213,22 +219,22 @@ GPU_INLINE uint_fast16_t gpuLightingTXTGouraud(uint_fast16_t uSrc, gcol_t gCol)
 //                     ^ bit 31
 // Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-GPU_INLINE u32 gpuLightingTXT24(uint_fast16_t uSrc, u8 r8, u8 g8, u8 b8)
+GPU_INLINE u32 gpuLightingTXT24(uint_fast16_t uSrc, u32 bgr0888)
 {
 	uint_fast16_t r1 = uSrc&0x001F;
 	uint_fast16_t g1 = uSrc&0x03E0;
 	uint_fast16_t b1 = uSrc&0x7C00;
 
-	uint_fast16_t r2 = r8;
-	uint_fast16_t g2 = g8;
-	uint_fast16_t b2 = b8;
+	uint_fast16_t r2 = bgr0888 & 0x0000ff;
+	uint_fast32_t g2 = bgr0888 & 0x00ff00;
+	uint_fast16_t b2 = bgr0888 >> 16;
 
 	u32 r3 = r1 * r2; if (r3 & 0xFFFFF000) r3 = ~0xFFFFF000;
-	u32 g3 = g1 * g2; if (g3 & 0xFFFE0000) g3 = ~0xFFFE0000;
+	u32 g3 = g1 * g2; if (g3 & 0xFE000000) g3 = ~0xFE000000;
 	u32 b3 = b1 * b2; if (b3 & 0xFFC00000) b3 = ~0xFFC00000;
 
 	return ((r3>> 3)    ) |
-	       ((g3>> 8)<<10) |
+	       ((g3>>16)<<10) |
 	       ((b3>>13)<<20);
 }
 

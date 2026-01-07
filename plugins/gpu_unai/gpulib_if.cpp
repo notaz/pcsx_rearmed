@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "arm_features.h"
 #include "../gpulib/gpu.h"
 #include "old/if.h"
 

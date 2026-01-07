@@ -56,12 +56,51 @@
 #define s64 int64_t
 #define u64 uint64_t
 
-typedef union {
+union gcol_t {
 	struct {
 		u16 r, g, b;
+#ifdef HAVE_ARMV6
+		u16 counter;
+#else
+		u16 unused;
+#endif
 	} c;
+#if defined(HAVE_ARMV6) || (defined(__SIZEOF_SIZE_T__) && __SIZEOF_SIZE_T__ == 4)
+	u32 raw32[2];
+#else
 	u64 raw;
-} gcol_t;
+#endif
+
+	inline gcol_t & operator+=(const gcol_t &rhs)
+	{
+#ifdef HAVE_ARMV6
+		// prevent bit spills the other versions have,
+		// allowing to use the unused part as a counter
+		asm("uadd16 %[d], %[d], %[s]" : [d]"+r"(raw32[0]) : [s]"r"(rhs.raw32[0]));
+		asm("uadd16 %[d], %[d], %[s]" : [d]"+r"(raw32[1]) : [s]"r"(rhs.raw32[1]));
+#elif defined(__SIZEOF_SIZE_T__) && __SIZEOF_SIZE_T__ == 4
+		// avoid having to do carry that's not needed here
+		raw32[0] += rhs.raw32[0];
+		raw32[1] += rhs.raw32[1];
+#else
+		raw += rhs.raw;
+#endif
+		return *this;
+	}
+
+	inline void set_counter(int counter)
+	{
+#ifdef HAVE_ARMV6
+		c.counter = counter;
+#endif
+	}
+	inline void get_counter(int &counter)
+	{
+#ifdef HAVE_ARMV6
+		counter = raw32[1];
+#endif
+	}
+};
 
 #ifndef NDEBUG
 

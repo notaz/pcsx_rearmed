@@ -63,6 +63,9 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteDriver, s32 *w_out, s32 *h_out)
 
 	le16_t *Pixel = &gpu_unai.vram[FRAME_OFFSET(x0, y0)];
 
+	gpu_unai.inn.r8 = packet.U1[0];
+	gpu_unai.inn.g8 = packet.U1[1];
+	gpu_unai.inn.b8 = packet.U1[2];
 	gpu_unai.inn.r5 = packet.U1[0] >> 3;
 	gpu_unai.inn.g5 = packet.U1[1] >> 3;
 	gpu_unai.inn.b5 = packet.U1[2] >> 3;

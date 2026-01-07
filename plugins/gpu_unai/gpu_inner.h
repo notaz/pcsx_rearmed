@@ -62,10 +62,15 @@
 #include "gpu_inner_blend_arm.h"
 #include "gpu_inner_light_arm.h"
 #define gpuBlending gpuBlendingARM
-#define gpuLightingTXT gpuLightingTXTARM
-#else
+#endif
+#ifndef gpuBlending
 #define gpuBlending gpuBlendingGeneric
+#endif
+#ifndef gpuLightingTXT // gpuLightingTXTARM
 #define gpuLightingTXT gpuLightingTXTGeneric
+#endif
+#ifndef gpuLightingTXTGouraud // gpuLightingTXTGouraudARM
+#define gpuLightingTXTGouraud gpuLightingTXTGouraudGeneric
 #endif
 
 // Non-dithering lighting and blending functions preserve uSrc
@@ -425,12 +430,12 @@ static noinline void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt
 	uint_fast16_t uSrc, uDst, srcMSB;
 	bool should_blend;
 	u32 u0_mask = inn.u_msk >> 10;
+	u32 bgr0888;
 
-	u8 r5, g5, b5;
 	if (CF_LIGHT) {
-		r5 = inn.r5;
-		g5 = inn.g5;
-		b5 = inn.b5;
+		bgr0888 = (gpu_unai.inn.b8 << 16) |
+			  (gpu_unai.inn.g8 << 8) |
+			   gpu_unai.inn.r8;
 	}
 
 	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = inn.CBA;
@@ -474,7 +479,7 @@ static noinline void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt
 		if (CF_BLEND || CF_LIGHT) srcMSB = uSrc & 0x8000;
 		
 		if (CF_LIGHT)
-			uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
+			uSrc = gpuLightingTXT(uSrc, bgr0888);
 
 		should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
 
@@ -683,7 +688,7 @@ endpolynotextnogou:
 
 endpolynotextgou:
 				pDst++;
-				l_gCol.raw += l_gInc.raw;
+				l_gCol += l_gInc;
 			}
 			while (--count);
 		}
@@ -707,25 +712,24 @@ endpolynotextgou:
 		const le16_t* TBA_ = gpu_unai.inn.TBA;
 		const le16_t* CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.inn.CBA;
 
-		u8 r5, g5, b5;
-		u8 r8, g8, b8;
+		u32 bgr0888;
 
 		gcol_t l_gInc, l_gCol;
+		int pcounter = count - 1; // "repeat while positive" counter
 
 		if (CF_LIGHT) {
 			if (CF_GOURAUD) {
 				l_gInc = gpu_unai.inn.gInc;
 				l_gCol = gpu_unai.inn.gCol;
+
+				l_gInc.set_counter(-1);
+				l_gCol.set_counter(pcounter);
 			} else {
-				if (CF_DITHER) {
-					r8 = gpu_unai.inn.r8;
-					g8 = gpu_unai.inn.g8;
-					b8 = gpu_unai.inn.b8;
-				} else {
-					r5 = gpu_unai.inn.r5;
-					g5 = gpu_unai.inn.g5;
-					b5 = gpu_unai.inn.b5;
-				}
+				// keep this packed, otherwise gcc runs out of regs
+				bgr0888 = (gpu_unai.inn.b8 << 16) |
+					  (gpu_unai.inn.g8 << 8) |
+					   gpu_unai.inn.r8;
+				// XXX pre-pack
 			}
 		}
 
@@ -769,7 +773,7 @@ endpolynotextgou:
 				if ( CF_GOURAUD)
 					uSrc24 = gpuLightingTXT24Gouraud(uSrc, l_gCol);
 				if (!CF_GOURAUD)
-					uSrc24 = gpuLightingTXT24(uSrc, r8, g8, b8);
+					uSrc24 = gpuLightingTXT24(uSrc, bgr0888);
 
 				if (CF_BLEND && srcMSB)
 					uSrc24 = gpuBlending24<CF_BLENDMODE>(uSrc24, uDst);
@@ -781,7 +785,7 @@ endpolynotextgou:
 					if ( CF_GOURAUD)
 						uSrc = gpuLightingTXTGouraud(uSrc, l_gCol);
 					if (!CF_GOURAUD)
-						uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
+						uSrc = gpuLightingTXT(uSrc, bgr0888);
 				}
 
 				should_blend = MSB_PRESERVED ? uSrc & 0x8000 : srcMSB;
@@ -796,10 +800,13 @@ endpolytext:
 			pDst++;
 			l_u = (l_u + l_u_inc) & l_u_msk;
 			l_v += l_v_inc;
-			if (CF_LIGHT && CF_GOURAUD)
-				l_gCol.raw += l_gInc.raw;
+			if (CF_LIGHT && CF_GOURAUD) {
+				l_gCol += l_gInc;
+				l_gCol.get_counter(pcounter);
+			}
+			pcounter--;
 		}
-		while (--count);
+		while (pcounter >= 0);
 	}
 }
 

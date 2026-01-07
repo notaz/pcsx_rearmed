@@ -19,6 +19,8 @@
 
 #ifdef HAVE_ARMV6
 
+@ mbr: 0bbb bbbb 0ggg gggg 0rrr rrrr r000 0000
+@ mg:  0ggg gggg ...
 .macro modulate rp mbr mg t0 t1 t2
     and     \t0, \rp, #0x001f
     and     \t1, \rp, #0x03e0
@@ -649,8 +651,9 @@ FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
     and     r4, r4, r6
     and     lr, lr, r7         @ v_msk & v
     and     lr, lr, #0xff<<10
+    pld_    r3                 @ clut
     tst     r12,r12
-    bne     v_\name
+    bne     10f @ vinc_\name
     ldr     r1, [r1]           @ src
     mov     r7, r4, lsr #(13 - (\bpp / 8 * 3))
     add     r1, r1, lr, lsl #1
@@ -705,7 +708,7 @@ FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
 1:
     ldmfd   sp!, {r4-r11,pc}
 
-v_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+10: @ vinc_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
 .if \light || \semit >= 0
     sub     sp, sp, #4*2
     stmia   sp, {r5,r6}
@@ -723,9 +726,9 @@ v_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
 .endif
 0:
 .if \light || \semit >= 0
-    and     lr, r7, r9
-    mov     r12,r4, lsr #(13 - (\bpp / 8 * 3))
-    add     lr, r1, lr, lsl #1
+    and     lr, r7, r9         @ l_v & l_v_msk
+    mov     r12,r4, lsr #(13 - (\bpp / 8 * 3))  @ l_u
+    add     lr, r1, lr, lsl #1 @ (u16 *)TBA + l_v
     subs    r2, r2, #1
     bmi     1f
 .endif
