@@ -274,7 +274,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -290,7 +289,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
         gpuSetTexture(le32_to_u32(gpu_unai.PacketBuffer.U4[4]) >> 16);
 
         u32 driver_idx =
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -312,7 +310,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -340,7 +337,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
         gpuSetCLUT(le32_to_u32(gpu_unai.PacketBuffer.U4[2]) >> 16);
 
         u32 driver_idx =
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -372,7 +368,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
         if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
           gouraud = 0;
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
@@ -403,7 +398,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
           }
         }
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB
@@ -427,7 +421,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
         if ((xor_ & HTOLE32(0xf8f8f8)) == 0)
           gouraud = 0;
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | gouraud | gpu_unai.PixelMSB
@@ -470,7 +463,6 @@ int renderer_do_cmd_list(u32 *list_, int list_len, uint32_t *ex_regs,
           }
         }
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gouraud | lighting | gpu_unai.PixelMSB

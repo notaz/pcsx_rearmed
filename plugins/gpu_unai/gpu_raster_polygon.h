@@ -371,7 +371,7 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				if ((xmin - xa) > 0) xa = xmin;
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa), ya);
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -387,10 +387,6 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 	gpu_unai.inn.r8 = packet.U1[0];
 	gpu_unai.inn.g8 = packet.U1[1];
 	gpu_unai.inn.b8 = packet.U1[2];
-	// r5/g5/b5 used if just texture-blending is applied (15-bit light)
-	gpu_unai.inn.r5 = packet.U1[0] >> 3;
-	gpu_unai.inn.g5 = packet.U1[1] >> 3;
-	gpu_unai.inn.b5 = packet.U1[2] >> 3;
 
 	PolyVertex vbuf[4];
 	polyInitVertexBuffer(vbuf, packet, ptype, is_quad);
@@ -706,7 +702,7 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa), ya);
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -1055,7 +1051,7 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa), ya);
 			}
 		}
 	} while (++cur_pass < total_passes);
@@ -1462,7 +1458,7 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 
 				if (xb > xmax) xb = xmax;
 				if ((xb - xa) > 0)
-					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa));
+					gpuPolySpanDriver(gpu_unai, PixelBase + xa, (xb - xa), ya);
 			}
 		}
 	} while (++cur_pass < total_passes);

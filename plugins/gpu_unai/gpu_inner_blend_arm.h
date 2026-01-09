@@ -95,13 +95,8 @@ GPU_INLINE uint_fast16_t gpuBlendingARM(uint_fast16_t uSrc, uint_fast16_t uDst)
 		     : [uSrc] "r" (uSrc), [uDst] "r" (uDst), [mask] "r" (0x8420));
 	}
 
-	// There's not a case where we can get into this function,
-	// SKIP_USRC_MSB_MASK is false, and the msb of uSrc is unset.
-	if (!SKIP_USRC_MSB_MASK) {
-		asm ("orr %[mix], %[mix], #0x8000" : [mix] "+r" (mix));
-	}
-  
 	return mix;
 }
+#define gpuBlending gpuBlendingARM
 
 #endif  //_OP_BLEND_ARM_H_
