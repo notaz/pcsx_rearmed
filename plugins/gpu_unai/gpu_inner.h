@@ -26,7 +26,7 @@
 // Inner loop driver instantiation file
 
 ///////////////////////////////////////////////////////////////////////////////
-//  Option Masks (CF template paramter)
+//  Option Masks (CF template paramter): ds gttm mcbl
 #define  CF_LIGHT     ((CF>> 0)&1) // Lighting
 #define  CF_BLEND     ((CF>> 1)&1) // Blending
 #define  CF_MASKCHECK ((CF>> 2)&1) // Mask bit check
@@ -386,14 +386,14 @@ static noinline void gpuSpriteDriverFn(le16_t *pPixel, u32 count, const u8 *pTxt
 {
 	uint_fast16_t uSrc, uDst;
 	bool should_blend;
-	u32 u0_mask = inn.u_msk >> 10;
+	u32 u0_mask = inn.mask_v00u & 0xff;
 	u32 bgr0888;
 
 	if (CF_LIGHT)
 		bgr0888 = gpu_unai.inn.bgr0888;
 
 	const le16_t *CBA_; if (CF_TEXTMODE!=3) CBA_ = inn.CBA;
-	const u32 v0_mask = inn.v_msk >> 10;
+	const u32 v0_mask = inn.mask_v00u >> 24;
 	s32 y0 = inn.y0, y1 = inn.y1, li = inn.ilace_mask;
 	u32 u0_ = inn.u, v0 = inn.v;
 
@@ -455,7 +455,7 @@ static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
 #if 1
   s32 lines = inn.y1 - inn.y0;
   u32 u1m = inn.u + count - 1, v1m = inn.v + lines - 1;
-  if (u1m == (u1m & (inn.u_msk >> 10)) && v1m == (v1m & (inn.v_msk >> 10))) {
+  if (u1m == (u1m & (inn.mask_v00u & 0xff)) && v1m == (v1m & (inn.mask_v00u >> 24))) {
     const u8 *pTxt = pTxt_base + inn.v * 2048;
     switch (CF) {
     case 0x20: sprite_driver_4bpp_asm (pPixel, pTxt + inn.u / 2, count, &inn); return;
@@ -463,7 +463,7 @@ static void SpriteMaybeAsm(le16_t *pPixel, u32 count, const u8 *pTxt_base,
     case 0x60: sprite_driver_16bpp_asm(pPixel, pTxt + inn.u * 2, count, &inn); return;
     }
   }
-  if (v1m == (v1m & (inn.v_msk >> 10))) {
+  if (v1m == (v1m & (inn.mask_v00u >> 24))) {
     const u8 *pTxt = pTxt_base + inn.v * 2048;
     switch (CF) {
     case 0x20: sprite_driver_4bpp_l0_std_asm(pPixel, pTxt, count, &inn); return;
@@ -570,7 +570,7 @@ static noinline void gpuPolySpanFn(const gpu_unai_t &gpu_unai, le16_t *pDst, u32
 	bool should_blend;
 	s16 DitherLut16[4];
 
-	if (CF_DITHER)
+	if (CF_DITHER && CF_TEXTMODE)
 		memcpy(DitherLut16, &gpu_unai.DitherLut16[y & 3][0], sizeof(DitherLut16));
 
 	if (!CF_TEXTMODE)
@@ -602,6 +602,12 @@ endpolynotextnogou:
 			// UNTEXTURED, GOURAUD
 			gcol_t l_gCol = gpu_unai.inn.gCol;
 			gcol_t l_gInc = gpu_unai.inn.gInc;
+			u32 dv;
+			if (CF_DITHER) {
+				uintptr_t rot = ((uintptr_t)pDst & 0x06) << 2;
+				dv = gpu_unai.DitherLut32[y & 3];
+				dv = (dv >> rot) | (dv << ((32 - rot) & 31));
+			}
 
 			do {
 				uint_fast16_t uDst, uSrc;
@@ -611,8 +617,8 @@ endpolynotextnogou:
 
 				if (CF_DITHER) {
 					// GOURAUD, DITHER
-					int_fast16_t dv = DITHER_LKUP(DitherLut16, pDst);
-					uSrc = gpuLightingRGBDither(l_gCol, dv);
+					uSrc = gpuLightingRGBDither(l_gCol, (s8)dv);
+					dv = (dv >> 8) | (dv << 24);
 				} else {
 					// GOURAUD, NO DITHER
 					uSrc = gpuLightingRGB(l_gCol);
@@ -639,12 +645,11 @@ endpolynotextgou:
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
 		// one 32-bit unsigned int, but this proved to lose too much accuracy
 		// (pixel drouputs noticeable in NFS3 sky), so now are separate vars.
-		u32 l_u_msk = gpu_unai.inn.u_msk;     u32 l_v_msk = gpu_unai.inn.v_msk;
-		u32 l_u = gpu_unai.inn.u & l_u_msk;   u32 l_v = gpu_unai.inn.v & l_v_msk;
-		s32 l_u_inc = gpu_unai.inn.u_inc;     s32 l_v_inc = gpu_unai.inn.v_inc;
+		u32 l_u = gpu_unai.inn.u;         u32 l_v = gpu_unai.inn.v;
+		s32 l_u_inc = gpu_unai.inn.u_inc; s32 l_v_inc = gpu_unai.inn.v_inc;
+		u32 mask_v00u = gpu_unai.inn.mask_v00u;
 		l_v <<= 1;
 		l_v_inc <<= 1;
-		l_v_msk = (l_v_msk & (0xff<<10)) << 1;
 
 		const le16_t* TBA_ = gpu_unai.inn.TBA;
 		const le16_t* CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.inn.CBA;
@@ -675,20 +680,22 @@ endpolynotextgou:
 			//senquack - adapted to work with new 22.10 fixed point routines:
 			//           (UNAI originally used 16.16)
 			if (CF_TEXTMODE==1) {  //  4bpp (CLUT)
-				u32 tu=(l_u>>10);
-				u32 tv=l_v&l_v_msk;
+				u32 tu = (l_u >> 10) & mask_v00u;
+				u32 tv =  l_v & (mask_v00u >> 13);
 				u8 rgb=((u8*)TBA_)[tv+(tu>>1)];
 				uSrc=le16_to_u16(CBA_[(rgb>>((tu&1)<<2))&0xf]);
 				if (!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
-				u32 tv=l_v&l_v_msk;
-				uSrc = le16_to_u16(CBA_[((u8*)TBA_)[tv+(l_u>>10)]]);
+				u32 tu = (l_u >> 10) & mask_v00u;
+				u32 tv =  l_v & (mask_v00u >> 13);
+				uSrc = le16_to_u16(CBA_[((u8*)TBA_)[tv+tu]]);
 				if (!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==3) {  // 16bpp
-				u32 tv=(l_v&l_v_msk)>>1;
-				uSrc = le16_to_u16(TBA_[tv+(l_u>>10)]);
+				u32 tu = (l_u >> 10) & mask_v00u;
+				u32 tv = (l_v >> 1) & (mask_v00u >> 14);
+				uSrc = le16_to_u16(TBA_[tv+tu]);
 				if (!uSrc) goto endpolytext;
 			}
 
@@ -723,7 +730,7 @@ endpolynotextgou:
 			else            { *pDst = u16_to_le16(uSrc);          }
 endpolytext:
 			pDst++;
-			l_u = (l_u + l_u_inc) & l_u_msk;
+			l_u += l_u_inc;
 			l_v += l_v_inc;
 			if (CF_LIGHT && CF_GOURAUD) {
 				l_gCol += l_gInc;
@@ -739,23 +746,40 @@ endpolytext:
 template<int CF>
 static void PolySpanMaybeAsm(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count, s32 y)
 {
+#define DV(y) gpu_unai.DitherLut32[y & 3]
+	// [utx|Xbp]     - untextured, Xbpp
+	// l[0|1|g]      - modulation/lighting off|on|gouraud
+	// d[0|1]        - dither off/on
+	// st[d|0|1|2|3] - semitransparency mode disabled/0/1/2/3
 	switch (CF) {
-	case 0x02: poly_untex_st0_asm  (pDst, &gpu_unai.inn, count); break;
-	case 0x0a: poly_untex_st1_asm  (pDst, &gpu_unai.inn, count); break;
-	case 0x1a: poly_untex_st3_asm  (pDst, &gpu_unai.inn, count); break;
-	case 0x20: poly_4bpp_asm       (pDst, &gpu_unai.inn, count); break;
-	case 0x22: poly_4bpp_l0_st0_asm(pDst, &gpu_unai.inn, count); break;
-	case 0x40: poly_8bpp_asm       (pDst, &gpu_unai.inn, count); break;
-	case 0x42: poly_8bpp_l0_st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x002: poly_utx_l0d0m0st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x00a: poly_utx_l0d0m0st1_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x01a: poly_utx_l0d0m0st3_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x020: poly_4bp_l0d0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x022: poly_4bp_l0d0m0st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x040: poly_8bp_l0d0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x042: poly_8bp_l0d0m0st0_asm(pDst, &gpu_unai.inn, count); break;
 #ifdef HAVE_ARMV6
-	case 0x12: poly_untex_st2_asm  (pDst, &gpu_unai.inn, count); break;
-	case 0x21: poly_4bpp_l1_std_asm(pDst, &gpu_unai.inn, count); break;
-	case 0x23: poly_4bpp_l1_st0_asm(pDst, &gpu_unai.inn, count); break;
-	case 0x41: poly_8bpp_l1_std_asm(pDst, &gpu_unai.inn, count); break;
-	case 0x43: poly_8bpp_l1_st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x012: poly_utx_l0d0m0st2_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x021: poly_4bp_l1d0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x023: poly_4bp_l1d0m0st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x041: poly_8bp_l1d0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x043: poly_8bp_l1d0m0st0_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x081: poly_utx_g1d0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x0a1: poly_4bp_lgd0m0std_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x0ab: poly_4bp_lgd0m0st1_asm(pDst, &gpu_unai.inn, count); break;
+	case 0x221: poly_4bp_l1d1m0std_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x223: poly_4bp_l1d1m0st0_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x241: poly_8bp_l1d1m0std_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x243: poly_8bp_l1d1m0st0_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x281: poly_utx_g1d1m0std_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x2a1: poly_4bp_lgd1m0std_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x2ab: poly_4bp_lgd1m0st1_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
+	case 0x381: poly_utx_g1d1m1std_asm(pDst, &gpu_unai.inn, count, DV(y)); break;
 #endif
 	default:   gpuPolySpanFn<CF>(gpu_unai, pDst, count, y);
 	}
+#undef DV
 }
 #endif
 
@@ -800,12 +824,12 @@ typedef void (*PP)(const gpu_unai_t &gpu_unai, le16_t *pDst, u32 count, s32 y);
 	TN,            TN,            TI((ub)|0x6a), TI((ub)|0x6b), TN,            TN,            TI((ub)|0x6e), TI((ub)|0x6f), \
 	TN,            TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
 	TN,            TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f), \
-	TN,            TI((ub)|0x81), TN,            TI((ub)|0x83), TN,            TI((ub)|0x85), TN,            TI((ub)|0x87), \
+	TN,            TA6((ub)|0x81),TN,            TI((ub)|0x83), TN,            TI((ub)|0x85), TN,            TI((ub)|0x87), \
 	TN,            TN,            TN,            TI((ub)|0x8b), TN,            TN,            TN,            TI((ub)|0x8f), \
 	TN,            TN,            TN,            TI((ub)|0x93), TN,            TN,            TN,            TI((ub)|0x97), \
 	TN,            TN,            TN,            TI((ub)|0x9b), TN,            TN,            TN,            TI((ub)|0x9f), \
-	TN,            TI((ub)|0xa1), TN,            TI((ub)|0xa3), TN,            TI((ub)|0xa5), TN,            TI((ub)|0xa7), \
-	TN,            TN,            TN,            TI((ub)|0xab), TN,            TN,            TN,            TI((ub)|0xaf), \
+	TN,            TA6((ub)|0xa1),TN,            TI((ub)|0xa3), TN,            TI((ub)|0xa5), TN,            TI((ub)|0xa7), \
+	TN,            TN,            TN,            TA6((ub)|0xab),TN,            TN,            TN,            TI((ub)|0xaf), \
 	TN,            TN,            TN,            TI((ub)|0xb3), TN,            TN,            TN,            TI((ub)|0xb7), \
 	TN,            TN,            TN,            TI((ub)|0xbb), TN,            TN,            TN,            TI((ub)|0xbf), \
 	TN,            TI((ub)|0xc1), TN,            TI((ub)|0xc3), TN,            TI((ub)|0xc5), TN,            TI((ub)|0xc7), \

@@ -184,6 +184,10 @@ void gpuClearImage(PtrUnion packet)
 		le32_t* pixel = (le32_t*)gpu_unai.vram + ((FRAME_OFFSET(x0, y0))>>1);
 		u32 _rgb = GPU_RGB16(le32_to_u32(packet.U4[0]));
 		le32_t rgb = u32_to_le32(_rgb | (_rgb << 16));
+#ifdef __arm__
+		gpu_fill_asm(pixel, le32_to_u32(rgb), w0, h0);
+		return;
+#endif
 		{
 			y0 = (FRAME_WIDTH - w0)>>1;
 			w0>>=3;

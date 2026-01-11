@@ -244,7 +244,8 @@ struct gpu_unai_inner_t {
 	// NOTE: U,V are no longer packed together into one u32, this proved to be
 	//  too imprecise, leading to pixel dropouts.  Example: NFS3's skybox.
 	u32 u, v;                 // 08 not fractional for sprites
-	u32 u_msk, v_msk;         // 10 always 22.10
+	u32 mask_v00u;            // 10 (v_mask << 24) | (u_mask & 0xff)
+	u32 unused;
 	union {
 	  struct {
 	    s32 u_inc, v_inc;     // 18 poly uv increment, 22.10
@@ -361,6 +362,7 @@ struct gpu_unai_t {
 	// End of inner Loop parameters
 	////////////////////////////////////////////////////////////////////////////
 
+	u32 DitherLut32[4];     // shifted up by 4, packed into u32 as 4 values
 	s16 DitherLut16[4][4];  // shifted up by 4 and s16 to simplify lookup asm
 
 	bool prog_ilace_flag;   // Tracks successive frames for 'prog_ilace' option

@@ -30,9 +30,15 @@ static void SetupDitheringConstants()
 	};
 
 	int i, j;
-	for (i = 0; i < 4; i++)
-		for (j = 0; j < 4; j++)
-			gpu_unai.DitherLut16[i][j] = (u16)DitherMatrix[i][j] << 4;
+	for (i = 0; i < 4; i++) {
+		u32 packed = 0;
+		for (j = 0; j < 4; j++) {
+			u32 val = (u32)(s32)DitherMatrix[i][j] << 4;
+			gpu_unai.DitherLut16[i][j] = (s16)val;
+			packed |= (val & 0xffu) << j*8u;
+		}
+		gpu_unai.DitherLut32[i] = packed;
+	}
 }
 
 #endif //_OP_DITHER_H_

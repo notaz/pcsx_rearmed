@@ -21,18 +21,31 @@
 
 @ mbr: 0bbb bbbb 0ggg gggg 0rrr rrrr r000 0000
 @ mg:  0ggg gggg ...
-.macro modulate rp mbr mg t0 t1 t2
+@ dither: 2 if on
+@ assumes r0 as dst ptr, dither value at [sp, #8]
+@ assumes and must retain flags from input (tst \rp, \rp)
+.macro modulate dither rp mbr mg t0 t1 t2
     and     \t0, \rp, #0x001f
     and     \t1, \rp, #0x03e0
     and     \t2, \rp, #0x7c00
     smulbb  \t0, \t0, \mbr       @ -> 0000 0000 0000 orrr  rrxx xxxx xxxx xxxx
     smulbt  \t1, \t1, \mg        @ -> 0000 000o gggg gxxx  xxxx xxxx xxx0 0000
     smulbt  \t2, \t2, \mbr       @ -> 00ob bbbb xxxx xxxx  xxxx xx00 0000 0000
-    and     \rp, \rp, #0x8000    @ retain msb
-    usat    \t0, #5, \t0, asr #14
+.if \dither == 2
+    ldr     \mg, [sp, #8]        @ dither_val
+    mov     \rp, #0x18
+    and     \rp, \rp, r0, lsl #2
+    mov     \rp, \mg, ror \rp
+    mov     \mg, \mbr, lsl #8    @ restore mg
+    sxtb    \rp, \rp
+    add     \t0, \t0, \rp, lsl #7
+    add     \t1, \t1, \rp, lsl #12
+    add     \t2, \t2, \rp, lsl #17
+.endif
+    usat    \rp, #5, \t0, asr #14
     usat    \t1, #5, \t1, asr #19
     usat    \t2, #5, \t2, asr #24
-    orr     \rp, \rp, \t0
+    orrmi   \rp, \rp, #0x8000
     orr     \rp, \rp, \t1, lsl #5
     orr     \rp, \rp, \t2, lsl #10
 .endm
@@ -149,6 +162,32 @@
 .endm
 
 
+@ everything is aligned by at least 16,
+@ gpu_unai doesn't do wrapping so it's missing here too
+FUNCTION(gpu_fill_asm): @ (void *d, u32 rgbx2, u32 w, u32 h)
+    .cfi_startproc
+    push    {r4,r5,r10,r11}
+    mov     r10,r1
+    mov     r11,r1
+    mov     r12,r1
+    add     r4, r0, #2048
+    mov     r5, r2
+0:
+    subs    r2, r2, #8
+    stmia   r0!, {r1,r10,r11,r12}
+    bgt     0b
+
+    subs    r3, r3, #1
+    mov     r0, r4
+    add     r4, r4, #2048
+    mov     r2, r5
+    bgt     0b
+
+    pop     {r4,r5,r10,r11}
+    bx      lr
+    .cfi_endproc
+
+
 @ (void *d, u16 c, u32 cnt, const struct gpu_unai_inner_t *inn)
 @ see also poly_untex_st_m
 .macro tile_driver_st_m name semit
@@ -215,10 +254,10 @@ FUNCTION(\name):
 2:
     tst     r2, #1
     strhne  r8, [r0], #2
+    subs    r3, r3, #1
     mov     r2, r7                 @ w
     add     r0, r0, #2048
     sub     r0, r0, r7, lsl #1
-    subs    r3, r3, #1
     bgt     0b
 
     ldmfd   sp!, {r4-r9,pc}
@@ -284,10 +323,10 @@ FUNCTION(sprite_4bpp_x16_asm):
     ldr     r2, [r3, #0x04]    @ pal
 11: @ line_loop:
     pld_    r11, #2048
+    ands    r6, r5, #(7 >> \is8bpp)
     mov     r0, r10
     mov     r1, r11
     mov     r3, r9
-    ands    r6, r5, #(7 >> \is8bpp)
     bne     15f @ fractional_u
 12:
     subs    r3, r3, #(8 >> \is8bpp) @ w
@@ -297,9 +336,9 @@ FUNCTION(sprite_4bpp_x16_asm):
     cmn     r3, #(8 >> \is8bpp)
     bne     14f @ fractional_w
 13: @ eol:
+    subs    r5, r5, #0x100
     add     r10, r10, #2048
     add     r11, r11, #2048
-    subs    r5, r5, #0x100
     bpl     11b @ line_loop
     ldmfd   sp!, {r4-r11,pc}
 14: @ fractional_w:
@@ -340,8 +379,8 @@ FUNCTION(sprite_driver_4bpp_asm):
     pld_    r1, #28
     do_4x_4bpp r4, 0,  0
     do_4x_4bpp r4, 16, 8
-    add     r0, r0, #16
     subs    r3, r3, #8
+    add     r0, r0, #16
     bpl     0b
     sprite_driver_part2 0
 0:
@@ -365,8 +404,8 @@ FUNCTION(sprite_driver_8bpp_asm):
     ldr     r4, [r1], #4
     pld_    r1, #28
     do_4x_8bpp r4
-    add     r0, r0, #8
     subs    r3, r3, #4
+    add     r0, r0, #8
     bpl     0b
     sprite_driver_part2 1
 0:
@@ -395,11 +434,11 @@ FUNCTION(\name):
     mov     r6, r2             @ saved_w
     ldr     r2, [r3, #0x04]    @ pal
     ldr     r10,[r3, #0x08]    @ u
-    ldr     r11,[r3, #0x10]    @ u_msk
+    ldr     r11,[r3, #0x10]    @ mask_v00u
     sub     r5, r7, r5         @ h
     mov     r7, r8, lsl #(8+2) @ 0bbb bb00 0ggg gg00 0rrr rr00 0000 0000
     mov     r8, r8, lsl #(16+2)@ 0ggg gg00 ...
-    mov     r3, r11,lsr #10
+    and     r3, r11,#0xff
     orr     r6, r3, r6, lsl #16 @ (w << 16) | u_mask
     mov     r3, r6
     and     r10,r10,r6
@@ -434,7 +473,7 @@ FUNCTION(\name):
     tst     r12,r12
     beq     0b
 .if \light && \semit != 1
-    modulate r12, r7, r8, r4, r9, lr
+    modulate 0, r12, r7, r8, r4, r9, lr
 .endif
 .if \semit == 0
     ldrhmi  lr, [r0, #-2]
@@ -511,9 +550,9 @@ FUNCTION(sprite_driver_16bpp_asm):
     sub     r5, r4, r5
     sub     r5, r5, #1         @ h-1
 3: @ line_loop:
+    tst     r1, #2
     pld_    r1, #2048
     mov     r2, r6             @ w
-    tst     r1, #2
     beq     0f
 2: @ 1pix:
     ldrh    lr, [r1], #2
@@ -543,14 +582,15 @@ FUNCTION(sprite_driver_16bpp_asm):
     bne     2b @ 1pix
     add     r0, r0, #2048
     add     r1, r1, #2048
+    subs    r5, r5, #1
     sub     r0, r0, r6, lsl #1 @ dst
     sub     r1, r1, r6, lsl #1
-    subs    r5, r5, #1
     bpl     3b @ line_loop
 
     ldmfd   sp!, {r4-r6,pc}
     .cfi_endproc
 
+@ -----------------------------------------------------------
 
 @ (void *d, const gpu_unai_inner_t *inn, int count)
 @ see also tile_driver_st_m
@@ -583,8 +623,8 @@ FUNCTION(\name):
     orr     r1, r1, r1, lsl #16
 0:
     ldrh    r3, [r0]
-    pld_    r0, #2048
     tst     r0, #2
+    pld_    r0, #2048
     beq     1f
     sub     r2, #1
 .if \semit == 0
@@ -620,51 +660,248 @@ FUNCTION(\name):
     .cfi_endproc
 .endm
 
-poly_untex_st_m poly_untex_st0_asm, 0
-poly_untex_st_m poly_untex_st1_asm, 1
-poly_untex_st_m poly_untex_st3_asm, 3
+poly_untex_st_m poly_utx_l0d0m0st0_asm, 0
+poly_untex_st_m poly_utx_l0d0m0st1_asm, 1
+poly_untex_st_m poly_utx_l0d0m0st3_asm, 3
 #ifdef HAVE_ARMV6
-poly_untex_st_m poly_untex_st2_asm, 2
-#endif
+poly_untex_st_m poly_utx_l0d0m0st2_asm, 2
 
 
-.macro poly_4_8bpp_asm_m name bpp light semit
-FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
+@ r0: dst          r7 : b16_inc
+@ r1: r16          r8 : 0x001f001f
+@ r2: count        r9 : scratch
+@ r3: g16
+@ r4: b16
+@ r5: r16_inc      r12: scratch
+@ r6: g16_inc      lr : scratch
+FUNCTION(poly_utx_g1d0m0std_asm): @ (void *d, const gpu_unai_inner_t *inn, int count)
+    .cfi_startproc
+    stmfd   sp!, {r4-r9,lr}
+    .cfi_def_cfa_offset 4*7
+    .cfi_rel_offset lr, 4*6
+    ldrh    r3, [r1, #0x2a]       @ g16
+    ldrh    r4, [r1, #0x2c]       @ b16
+    ldrh    r5, [r1, #0x30]       @ r16_inc
+    ldrh    r6, [r1, #0x32]       @ g16_inc
+    ldrh    r7, [r1, #0x34]       @ b16_inc
+    ldrh    r1, [r1, #0x28]       @ r16
+    tst     r0, #2
+    mov     r8, #0x1f
+    pkhbt   r8, r8, r8, lsl #16   @ 0x001f001f
+    beq     0f @ pairs
+@ do_one:
+    and     r9, r8, r1, lsr #11   @ r
+    and     r12,r8, r3, lsr #11   @ g
+    and     lr, r8, r4, lsr #11   @ b
+    uadd16  r1, r1, r5            @ r += r_inc
+    uadd16  r3, r3, r6            @ g += g_inc
+    uadd16  r4, r4, r7            @ b += b_inc
+    orr     r12,r9, r12,lsl #5
+    orr     r12,r12,lr ,lsl #10
+    subs    r2, r2, #1
+    strh    r12,[r0], #2
+    ble     1f @ return
+0: @ pairs:
+    add     r9, r1, r5            @ r += r_inc
+    add     r12,r3, r6
+    add     lr, r4, r7
+    pkhbt   r1, r1, r9, lsl #16   @ r_next | r
+    pkhbt   r3, r3, r12,lsl #16   @ g_next | g
+    pkhbt   r4, r4, lr, lsl #16   @ b_next | b
+    pkhbt   r5, r5, r5, lsl #16   @ r_inc
+    pkhbt   r6, r6, r6, lsl #16
+    pkhbt   r7, r7, r7, lsl #16
+    uadd16  r5, r5, r5            @ r_inc *= 2
+    uadd16  r6, r6, r6
+    uadd16  r7, r7, r7
+0: @ pairs_loop
+    and     r9, r8, r1, lsr #11   @ r
+    and     r12,r8, r3, lsr #11   @ g
+    and     lr, r8, r4, lsr #11   @ b
+    uadd16  r1, r1, r5            @ r += r_inc
+    uadd16  r3, r3, r6            @ g += g_inc
+    uadd16  r4, r4, r7            @ b += b_inc
+    orr     r12,r9, r12,lsl #5
+    orr     r12,r12,lr ,lsl #10
+    subs    r2, r2, #2
+    strpl   r12,[r0], #4
+    bgt     0b
+
+    nop
+    strhmi  r12,[r0], #2
+1: @ return
+    ldmfd   sp!, {r4-r9,pc}
+    .cfi_endproc
+
+
+@ r0: dst          r7 : b16_inc
+@ r1: r16          r8 : 0x001f001f
+@ r2: count        r9 : scratch
+@ r3: g16          r10: dither_val0
+@ r4: b16          r11: dither_val_current | 0x42104210
+@ r5: r16_inc      r12: scratch
+@ r6: g16_inc      lr : scratch
+@ stack: dither_val_prep0, dither_val_prep1
+@ maskmode: same as e6: b0=set, b1=check
+.macro poly_utx_g_asm_m name maskmode
+FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count, u32 dv)
     .cfi_startproc
     stmfd   sp!, {r4-r11,lr}
     .cfi_def_cfa_offset 4*9
     .cfi_rel_offset lr, 4*8
+    ldrh    r4, [r1, #0x2c]       @ b16
+    ldrh    r5, [r1, #0x30]       @ r16_inc
+    ldrh    r6, [r1, #0x32]       @ g16_inc
+    ldrh    r7, [r1, #0x34]       @ b16_inc
+    mov     r10,r3
+    ldrh    r3, [r1, #0x2a]       @ g16
+    ldrh    r1, [r1, #0x28]       @ r16
+    mov     r8, #0x1f
+    movs    r9, r0, lsl #30
+    movcs   r11,r10,ror #16       @ setup dither_val
+    movcc   r11,r10
+    pkhbt   r8, r8, r8, lsl #16   @ 0x001f001f
+    movmi   r11,r11,ror #8
+    tst     r0, #2
+    sub     r2, r2, #1            @ adjust for the short loop
+    beq     1f @ maybe_pairs
+0: @ do_one:
+    sxtb    lr, r11
+    mov     r11,r11,ror #8
+    add     r9, r1, lr, lsl #4    @ r + dither
+    add     r12,r3, lr, lsl #4    @ g + dither
+    add     lr, r4, lr, lsl #4    @ b + dither
+    usat    r9, #5, r9, asr #11   @ r
+    usat    r12,#5, r12,asr #11   @ g
+    usat    lr, #5, lr, asr #11   @ b
+    uadd16  r1, r1, r5            @ r += r_inc
+    uadd16  r3, r3, r6            @ g += g_inc
+    uadd16  r4, r4, r7            @ b += b_inc
+    orr     r12,r9, r12,lsl #5
+    orr     r12,r12,lr ,lsl #10
+.if \maskmode & 1
+    orr     r12,r12,#0x8000
+.endif
+    sub     r2, r2, #1
+    strh    r12,[r0], #2
+1: @ maybe_pairs:
+    cmp     r2, #4
+    bcc     0b                    @ (16) pair setup is expensive, just do it normally
+    adds    r2, r2, #1
+    beq     2f @ return
+@ pairs:
+    sxtb    r9, r10
+    sxtb    r12,r10,ror #8
+    sxtb    lr, r10,ror #16
+    sxtb    r11,r10,ror #24
+    mov     r9, r9, lsl #4
+    mov     r12,r12,lsl #20
+    mov     lr, lr, lsl #4
+    mov     r11,r11,lsl #20
+    pkhbt   r10,r9, r12           @ dither_val1 | dither_val0
+    pkhbt   r11,lr, r11           @ dither_val3 | dither_val2
+    eor     r1, r1, #0x8000       @ r convert to signed
+    eor     r3, r3, #0x8000
+    eor     r4, r4, #0x8000
+    add     r9, r1, r5            @ r += r_inc
+    add     r12,r3, r6
+    add     lr, r4, r7
+    pkhbt   r1, r1, r9, lsl #16   @ r_next | r
+    pkhbt   r3, r3, r12,lsl #16   @ g_next | g
+    pkhbt   r4, r4, lr, lsl #16   @ b_next | b
+    pkhbt   r5, r5, r5, lsl #16   @ r_inc
+    pkhbt   r6, r6, r6, lsl #16
+    pkhbt   r7, r7, r7, lsl #16
+    uadd16  r5, r5, r5            @ r_inc *= 2
+    uadd16  r6, r6, r6
+    uadd16  r7, r7, r7
+    push    {r10,r11}
+    mov     r9,     0x0010
+    orr     r9, r9, 0x4200
+    tst     r0, #4
+    movne   r10,r11
+    pkhbt   r11,r9, r9, lsl #16
+0: @ pairs_loop
+    qadd16  r9, r1, r10           @ r
+    qadd16  r12,r3, r10           @ g
+    qadd16  lr, r4, r10           @ b
+    tst     r0, #4
+    ldreq   r10,[sp, #4]          @ load the next dither values
+    ldrne   r10,[sp]
+    and     r9, r8, r9, lsr #11   @ r
+    and     r12,r8, r12,lsr #11   @ g
+    and     lr, r8, lr, lsr #11   @ b
+    qadd16  r1, r1, r5            @ r += r_inc
+    qadd16  r3, r3, r6            @ g += g_inc
+    qadd16  r4, r4, r7            @ b += b_inc
+    orr     r12,r9, r12,lsl #5
+    orr     r12,r12,lr ,lsl #10
+    subs    r2, r2, #2
+    eor     r12,r12,r11           @ back to unsigned
+.if \maskmode & 1
+    orr     r12,r12,#0x80000000
+    orr     r12,r12,#0x00008000
+.endif
+    strpl   r12,[r0], #4
+    bgt     0b                    @ (17)
+
+    add     sp, sp, #4*2
+    strhmi  r12,[r0], #2
+2: @ return
+    ldmfd   sp!, {r4-r11,pc}
+    .cfi_endproc
+.endm
+
+poly_utx_g_asm_m poly_utx_g1d1m0std_asm, 0
+poly_utx_g_asm_m poly_utx_g1d1m1std_asm, 1
+
+#endif // HAVE_ARMV6
+
+@ stack: u_inc, mask_v00u, dither_val/unused
+@ light:  0 off, 1 on, 2 dither
+@ semit: -1 off, 0-3 - modes
+.macro poly_4_8bpp_asm_m name bpp light semit
+FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count[, u32 dv])
+    .cfi_startproc
+    stmfd   sp!, {r3-r11,lr}
+    sub     sp, sp, #4*2
+    .cfi_def_cfa_offset 4*12
+    .cfi_rel_offset lr, 4*11
     add     r12, r1, #4
-    ldmia   r12, {r3, r4, r7, r12, lr} @ clut, u, v, u_msk, v_msk
+    ldmia   r12, {r3, r4, r7, r12} @ clut, u, v, mask_v00u
     ldr     r5, [r1, #0x18]    @ u_inc
 .if \light
     ldr     r10,[r1, #0x24]    @ rbg
 .endif
-    mov     r6, r12            @ u_msk
+    mov     r6, r12            @ mask_v00u
     ldr     r12,[r1, #0x1c]    @ v_inc
+    pld_    r3                 @ clut
 .if \light
     mov     r10,r10,lsl #7     @ 0bbb bbbb 0ggg gggg 0rrr rrrr r000 0000
     bic     r10,r10,#1<<23
     bic     r10,r10,#1<<15
     mov     r11,r10,lsl #8     @ 0ggg gggg ...
 .endif
-    and     r4, r4, r6
-    and     lr, lr, r7         @ v_msk & v
-    and     lr, lr, #0xff<<10
-    pld_    r3                 @ clut
     tst     r12,r12
-    bne     10f @ vinc_\name
     ldr     r1, [r1]           @ src
-    mov     r7, r4, lsr #(13 - (\bpp / 8 * 3))
+    sub     r0, r0, #2         @ adjust for loop
+    bne     10f @ use_vinc
+
+    @ no_vinc:
+    and     lr, r7, r6, lsr #(24-10)
+    and     r7, r4, r6, lsl #10
     add     r1, r1, lr, lsl #1
+    mov     r7, r7, lsr #(13 - (\bpp / 8 * 3))
+    mov     r6, r6, lsl #10
 #ifdef HAVE_ARMV6
     add     r12,r1, r7, lsl #(2 - (\bpp / 8 * 2))
     pld_    r12,#2048          @ next line
 #endif
 0:
-.if \light || \semit >= 0
-    mov     r7, r4, lsr #(13 - (\bpp / 8 * 3))
+.if \light || \semit >= 0  @ else this is done before branching
     subs    r2, r2, #1
+    and     r7, r4, r6
+    mov     r7, r7, lsr #(13 - (\bpp / 8 * 3))
     bmi     1f
 .endif
 .if \bpp == 4
@@ -680,13 +917,13 @@ FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
     add     r4, r4, r5
     add     r12,r12,r12
 .endif
-    and     r4, r4, r6
     ldrsh   r12,[r3, r12]
     add     r0, r0, #2
 .if !\light && \semit < 0
-    mov     r7, r4, lsr #(13 - (\bpp / 8 * 3))
+    and     r7, r4, r6
+    mov     r7, r7, lsr #(13 - (\bpp / 8 * 3))
     tst     r12,r12
-    strhne  r12,[r0, #-2]
+    strhne  r12,[r0]
     subs    r2, r2, #1
     bgt     0b
     @ end
@@ -694,67 +931,88 @@ FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
     tst     r12,r12
     beq     0b
 .if \light && \semit != 1
-    modulate r12, r10, r11, r7, r8, lr
+    modulate \light, r12, r10, r11, r7, r8, lr
 .endif
 .if \semit == 0
-    ldrhmi  r7, [r0, #-2]
-    strhpl  r12,[r0, #-2]
+    ldrhmi  r7, [r0]
+    strhpl  r12,[r0]
     bpl     0b
+    pld_    r0, #32
     semitrans0 r12, r7, lr
 .endif
-    strh    r12,[r0, #-2]
+    strh    r12,[r0]
     b       0b
 .endif                         @ \light || \semit >= 0
 1:
+    add     sp, sp, #4*3
     ldmfd   sp!, {r4-r11,pc}
 
-10: @ vinc_\name: @ r3=clut, r4=u, r5=u_inc, r6=u_msk, r7=v, lr=v_masked
+@ r0: dst          r7 : v
+@ r1: src_texels   r8 : v_inc
+@ r2: count        r9 : next_texel_ptr
+@ r3: clut         r10: rbg
+@ r4: u            r11: g
+@ r5: u_inc        r12: scratch
+@ r6: mask_v00u    lr : texels | scratch
+@ stack: u_inc, mask_v00u, dither_val/unused
+10: @ use_vinc:
 .if \light || \semit >= 0
-    sub     sp, sp, #4*2
-    stmia   sp, {r5,r6}
-    .cfi_def_cfa_offset 4*(9+2)
-    .cfi_rel_offset lr, 4*(8+2)
+    stmia   sp, {r5,r6}     @ save {u_inc, mask} for reload when we are out of regs
 .endif
-    ldr     r9, [r1, #0x14]    @ v_msk
-    ldr     r1, [r1]           @ src
-    mov     r8, r12            @ v_inc
-    and     r9, r9, #0xff<<10  @ v_msk_final
-.if !\light && \semit < 0
-    and     lr, r7, r9
-    mov     r12,r4, lsr #(13 - (\bpp / 8 * 3))
+    mov     r8, r12               @ v_inc
+    @ load the first texel:
+    and     lr, r7, r6, lsr #(24-10) @ l_v & (l_v_msk=mask_v00u>>14)
+    and     r12,r4, r6, lsl #10
     add     lr, r1, lr, lsl #1
+    mov     r12,r12,lsr #(13 - (\bpp / 8 * 3))
+.if \bpp == 4
+    ldr     r9, [lr, r12, lsl #2]
+.else
+    ldrb    r9, [lr, r12]
 .endif
+    add     r4, r4, r5            @ u_next
+    add     r7, r7, r8            @ v_next
 0:
 .if \light || \semit >= 0
-    and     lr, r7, r9         @ l_v & l_v_msk
-    mov     r12,r4, lsr #(13 - (\bpp / 8 * 3))  @ l_u
-    add     lr, r1, lr, lsl #1 @ (u16 *)TBA + l_v
     subs    r2, r2, #1
     bmi     1f
 .endif
+    @ calculate the next load
+    and     lr, r7, r6, lsr #(24-10) @ l_v & (l_v_msk=mask_v00u>>14)
+    and     r12,r4, r6, lsl #10
+    add     lr, r1, lr, lsl #1
 .if \bpp == 4
-    ldr     lr, [lr, r12, lsl #2]
-    lsr     r12,r4, #8
+    mov     r12,r12,lsr #13
+    add     lr, lr, r12, lsl #2
+.else
+    add     lr, lr, r12, lsr #10
+.endif
+    @pld     [lr]                  @ doesn't help?
+.if \bpp == 4
+    sub     r12,r4, r5            @ undo u_next
+    lsr     r12,r12,#8
     and     r12,r12,#0x1c
     sub     r12,r12,#1
-    mov     r12,lr, ror r12
-    add     r4, r4, r5
+    add     r4, r4, r5            @ u_next_next
+    mov     r12,r9, ror r12
     and     r12,r12,#0x1e
 .else
-    ldrb    r12,[lr, r12]
-    add     r4, r4, r5
-    add     r12,r12,r12
+    add     r4, r4, r5            @ u_next_next
+    add     r12,r9, r9
 .endif
-    and     r4, r4, r6
+    @ load the pixel
     ldrsh   r12,[r3, r12]
+    @ the slow next texel load:
+.if \bpp == 4
+    ldr     r9, [lr]
+.else
+    ldrb    r9, [lr]
+.endif
     add     r0, r0, #2
-    add     r7, r7, r8
+    add     r7, r7, r8            @ v_next_next
 .if !\light && \semit < 0
-    and     lr, r7, r9
     tst     r12,r12
-    add     lr, r1, lr, lsl #1
-    strhne  r12,[r0, #-2]
-    mov     r12,r4, lsr #(13 - (\bpp / 8 * 3))
+    strhne  r12,[r0]
     subs    r2, r2, #1
     bgt     0b
     @ end
@@ -762,38 +1020,188 @@ FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count)
     tst     r12,r12
     beq     0b
 .if \light && \semit != 1
-    modulate r12, r10, r11, r5, r6, lr
+    modulate \light, r12, r10, r11, r5, r6, lr
 .endif
 .if \semit == 0
-    ldrhmi  r6, [r0, #-2]
-    strhpl  r12,[r0, #-2]
+    ldrhmi  r6, [r0]
+    strhpl  r12,[r0]
     ldmiapl sp, {r5,r6}
     bpl     0b
+    pld_    r0, #32
     semitrans0 r12, r6, lr
 .endif
-    strh    r12,[r0, #-2]
+    strh    r12,[r0]
     ldmia   sp, {r5,r6}
     b       0b
 .endif                         @ \light || \semit >= 0
 1:
-.if \light || \semit >= 0
-    add     sp, sp, #4*2
-.endif
+    add     sp, sp, #4*3
     ldmfd   sp!, {r4-r11,pc}
     .cfi_endproc
 .endm
 
-poly_4_8bpp_asm_m poly_4bpp_asm,        4, 0, -1
-poly_4_8bpp_asm_m poly_4bpp_l0_st0_asm, 4, 0,  0
-poly_4_8bpp_asm_m poly_8bpp_asm,        8, 0, -1
-poly_4_8bpp_asm_m poly_8bpp_l0_st0_asm, 8, 0,  0
+poly_4_8bpp_asm_m poly_4bp_l0d0m0std_asm, 4, 0, -1
+poly_4_8bpp_asm_m poly_4bp_l0d0m0st0_asm, 4, 0,  0
+poly_4_8bpp_asm_m poly_8bp_l0d0m0std_asm, 8, 0, -1
+poly_4_8bpp_asm_m poly_8bp_l0d0m0st0_asm, 8, 0,  0
 
 #ifdef HAVE_ARMV6
 
-poly_4_8bpp_asm_m poly_4bpp_l1_std_asm, 4, 1, -1
-poly_4_8bpp_asm_m poly_4bpp_l1_st0_asm, 4, 1,  0
-poly_4_8bpp_asm_m poly_8bpp_l1_std_asm, 8, 1, -1
-poly_4_8bpp_asm_m poly_8bpp_l1_st0_asm, 8, 1,  0
+poly_4_8bpp_asm_m poly_4bp_l1d0m0std_asm, 4, 1, -1
+poly_4_8bpp_asm_m poly_4bp_l1d0m0st0_asm, 4, 1,  0
+poly_4_8bpp_asm_m poly_4bp_l1d1m0std_asm, 4, 2, -1
+poly_4_8bpp_asm_m poly_4bp_l1d1m0st0_asm, 4, 2,  0
+poly_4_8bpp_asm_m poly_8bp_l1d0m0std_asm, 8, 1, -1
+poly_4_8bpp_asm_m poly_8bp_l1d0m0st0_asm, 8, 1,  0
+poly_4_8bpp_asm_m poly_8bp_l1d1m0std_asm, 8, 2, -1
+poly_4_8bpp_asm_m poly_8bp_l1d1m0st0_asm, 8, 2,  0
+
+@ -----------------------------------------------------------
+@ gouraud stuff
+
+@ r0: dst          r7 : next_texel_ptr
+@ r1: src_texels   r8 : texels | scratch
+@ r2: count|b16    r9 : mask_v00u | scratch
+@ r3: clut         r10: u_inc | scratch
+@ r4: u            r11: v_inc | scratch
+@ r5: v            r12: scratch
+@ r6: g16|r16      lr : scratch
+@ stack: gr16_inc, b16_inc, mask_v00u, dither_val, u_inc, v_inc, sp_offset, lr
+@ semit: -1 off, 0-3 - modes
+.macro poly_4bpp_g_asm_m name is_dither semit
+FUNCTION(\name): @ (void *d, const gpu_unai_inner_t *inn, int count, u32 dv)
+    .cfi_startproc
+    mov     r12,sp
+    bic     sp, #31               @ align stack
+    sub     r12, r12, sp
+    stmfd   sp!,{r4-r11}
+    sub     sp, #32
+.if \is_dither
+    str     r3, [sp, #0x0c]       @ save dither_val
+.endif
+    str     r12,[sp, #0x18]       @ save sp_offset
+    str     lr, [sp, #0x1c]
+    .cfi_rel_offset lr, 0x1c
+    ldr     r3, [r1, 0x04]        @ clut
+    ldrd    r4, r5, [r1, 0x08]    @ u, v
+    ldrd    r10,r11,[r1, 0x18]    @ u_inc, v_inc
+    ldrh    r12,[r1, #0x2c]       @ b16
+    ldr     r6, [r1, #0x28]       @ g16|r16
+    ldr     r9, [r1, #0x10]       @ mask_v00u
+    pkhbt   r2, r12, r2, lsl #16  @ count|b16
+    ldr     r7, [r1, #0x30]       @ gr16_inc
+    ldr     r8, [r1, #0x34]       @ 0b16_inc
+    ldr     r1, [r1]              @ src_texels
+    pld_    r3                    @ clut
+    usub16  r6, r6, r7            @ g16|r16  adjust for loop
+    usub16  r2, r2, r8            @ b16
+    stmia   sp, {r7-r9}           @ save gr16_inc, b16_inc, mask_v00u
+    @ load the first texel:
+    and     lr, r5, r9, lsr #(24-10) @ l_v & (l_v_msk=mask_v00u>>14)
+    and     r12,r4, r9, lsl #10
+    add     lr, r1, lr, lsl #1
+    mov     r12,r12,lsr #13
+    add     r4, r4, r10           @ u_next
+    add     r5, r5, r11           @ v_next
+    ldr     r7, [lr, r12, lsl #2]
+.if \is_dither || \semit >= 0
+    strd    r10, r11, [sp, #0x10] @ save u_inc, v_inc
+.endif
+    sub     r0, r0, #2            @ adjust for the loop
+0: @ loop:
+    ldr     r9, [sp, #0x08]       @ mask_v00u
+    subs    r2, r2, #1<<16
+    bmi     1f @ done
+    @ prepare for the next texel load/preload:
+    and     lr, r5, r9, lsr #(24-10) @ l_v & (l_v_msk=mask_v00u>>14)
+    and     r12,r4, r9, lsl #10
+    add     lr, r1, lr, lsl #1
+    mov     r12,r12,lsr #13
+    add     r8, lr, r12, lsl #2
+    @pld     [r8]                  @ doesn't help?
+    @ process texels
+    sub     r12,r4, r10           @ undo u_next
+    lsr     r12,r12,#8
+    and     r12,r12,#0x1c
+    sub     r12,r12,#1
+    mov     r12,r7, ror r12
+    add     r4, r4, r10           @ u_next_next
+    and     r12,r12,#0x1e
+    add     r5, r5, r11           @ v_next_next
+    @ load the pixel
+    ldrsh   r12,[r3, r12]
+    ldmia   sp, {r9, lr}          @ gr16_inc, b16_inc
+    @ the slow next texel load:
+    ldr     r7, [r8]
+    uadd16  r6, r6, r9            @ g16|r16 current
+    uadd16  r2, r2, lr            @ b16 current
+    tst     r12,r12
+    add     r0, r0, #2
+    uxtb16  lr, r6, ror #8        @ g16|r16 >> 8 & 0xff00ff
+    beq     0b
+    @ modulate/light
+.if \semit >= 0
+    ldrhmi  r11,[r0]
+    movpl   r11,#0
+.endif
+.if \is_dither
+    movs    r10,r0, lsl #30
+    ldr     r10, [sp, #0x0c]      @ dither_val
+.endif
+    and     r9, r12, #0x001f      @ r
+    and     r8, r12, #0x03e0      @ g
+    smulbb  r9, r9, lr
+    smulbt  r8, r8, lr
+    uxtb    lr, r2, ror #8
+.if \is_dither
+    movcs   r10, r10, lsr #16
+    sxtbmi  r10, r10, ror #8
+    sxtbpl  r10, r10
+    tst     r12,r12
+.endif
+    and     r12,r12, #0x7c00      @ b
+    smulbb  lr, lr, r12
+.if \is_dither
+    add     r9,  r9, r10
+    add     r8,  r8, r10, lsl #5
+    add     lr,  lr, r10, lsl #10
+.endif
+.if \semit == 1
+    and     r10, r11, #0x001f
+    and     r12, r11, #0x03e0
+    and     r11, r11, #0x7c00
+    add     r9,  r9, r10, lsl #7
+    add     r8,  r8, r12, lsl #7
+    add     lr,  lr, r11, lsl #7
+.endif
+.if \semit >= 0
+    ldrd    r10, r11, [sp, #0x10] @ restore u_inc, v_inc
+.elseif \is_dither
+    ldr     r10, [sp, #0x10]      @ restore u_inc
+.endif
+    usat    r12, #5, r9, asr #7
+    usat    r8,  #5, r8, asr #12
+    usat    lr,  #5, lr, asr #17
+    orrmi   r12, #0x8000
+    orr     r12, r12, r8, lsl #5
+    orr     r12, r12, lr, lsl #10
+    strh    r12, [r0]
+    b       0b
+1: @ done
+    @pld     [sp, #64]
+    ldr     r0, [sp, #0x18]       @ sp_offset
+    ldr     lr, [sp, #0x1c]
+    add     sp, sp, #32
+    ldmfd   sp!,{r4-r11}
+    add     sp, sp, r0
+    bx      lr
+    .cfi_endproc
+.endm
+
+poly_4bpp_g_asm_m poly_4bp_lgd0m0std_asm, 0, -1
+poly_4bpp_g_asm_m poly_4bp_lgd0m0st1_asm, 0,  1
+poly_4bpp_g_asm_m poly_4bp_lgd1m0std_asm, 1, -1
+poly_4bpp_g_asm_m poly_4bp_lgd1m0st1_asm, 1,  1
 
 #endif // HAVE_ARMV6
 
