@@ -180,22 +180,17 @@ typedef struct
 
 // psx buffers / addresses
 
-typedef union
-{
- int SB[28 + 4 + 4];
- int SB_rvb[2][4*2]; // for reverb filtering
+typedef union {
+ short buf[4+28];
  struct {
-  int sample[28];
-  union {
-   struct {
-    int pos;
-    int val[4];
-   } gauss;
-   int simple[5]; // 28-32
-  } interp;
-  int sinc_old;
+  short old[4];        // old samples for interpolation
+  short decode[28];
  };
 } sample_buf;
+
+typedef struct {
+ int sample[2][4*2];
+} sample_buf_rvb;
 
 typedef struct
 {
@@ -260,9 +255,11 @@ typedef struct
  unsigned int  * CDDAStart;
  unsigned int  * CDDAEnd;
 
+ __attribute__((aligned(32)))
  unsigned short  regArea[0x400];
 
- sample_buf      sb[MAXCHAN+1]; // last entry is used for reverb filter
+ sample_buf      sb[MAXCHAN];
+ sample_buf_rvb  sb_rvb; // for reverb filtering
  int             interpolation;
 
 #if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)

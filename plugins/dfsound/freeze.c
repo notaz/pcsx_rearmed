@@ -139,6 +139,8 @@ typedef struct
 static SPUOSSFreeze_t * LoadStateV5(SPUFreeze_t * pF, uint32_t cycles);
 static void LoadStateUnknown(SPUFreeze_t * pF, uint32_t cycles); // unknown format
 
+#define SB_FORMAT_MAGIC 0x73626201
+
 // we want to retain compatibility between versions,
 // so use original channel struct
 static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
@@ -149,6 +151,7 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  assert(sizeof(d->SB) >= sizeof(spu.sb[ch]));
+ d->SB[sizeof(d->SB) / sizeof(d->SB[0]) - 1] = SB_FORMAT_MAGIC;
  memcpy(d->SB, &spu.sb[ch], sizeof(spu.sb[ch]));
  d->iStart = (regAreaGetCh(ch, 6) & ~1) << 3;
  d->iCurr = 0; // set by the caller
@@ -163,8 +166,8 @@ static void save_channel(SPUCHAN_orig *d, const SPUCHAN *s, int ch)
  d->bIgnoreLoop = (s->prevflags ^ 2) << 1;
  d->iRightVolume = s->iRightVolume;
  d->iRawPitch = s->iRawPitch;
- d->s_1 = spu.sb[ch].SB[27]; // yes it's reversed
- d->s_2 = spu.sb[ch].SB[26];
+ d->s_1 = spu.sb[ch].decode[27]; // yes it's reversed
+ d->s_2 = spu.sb[ch].decode[26];
  d->bRVBActive = s->bRVBActive;
  d->bNoise = s->bNoise;
  d->bFMod = s->bFMod;
@@ -192,7 +195,13 @@ static void load_channel(SPUCHAN *d, const SPUCHAN_orig *s, int ch)
  d->spos = s->spos;
  d->sinc = s->sinc;
  d->sinc_inv = 0;
- memcpy(&spu.sb[ch], s->SB, sizeof(spu.sb[ch]));
+ if (s->SB[sizeof(s->SB) / sizeof(s->SB[0]) - 1] == SB_FORMAT_MAGIC)
+  memcpy(&spu.sb[ch], s->SB, sizeof(spu.sb[ch]));
+ else {
+  memset(&spu.sb[ch], 0, sizeof(spu.sb[ch]));
+  spu.sb[ch].decode[27] = s->s_1; // yes it's reversed
+  spu.sb[ch].decode[26] = s->s_2;
+ }
  d->pCurr = (void *)((uintptr_t)s->iCurr & 0x7fff0);
  d->pLoop = (void *)((uintptr_t)s->iLoop & 0x7fff0);
  d->bReverb = s->bReverb;
@@ -236,13 +245,13 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  unsigned int cycles)
 {
  SPUOSSFreeze_t * pFO = NULL;
- sample_buf *sb_rvb = &spu.sb[MAXCHAN];
+ sample_buf_rvb *sb_rvb = &spu.sb_rvb;
  int i, j;
 
  if(!pF) return 0;                                     // first check
 
 #if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
- sb_rvb = &spu.sb_thread[MAXCHAN];
+ sb_rvb = (sample_buf_rvb *)&spu.sb_thread[MAXCHAN];
 #endif
  if(ulFreezeMode)                                      // info or save?
   {//--------------------------------------------------//
@@ -311,7 +320,7 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
    pFO->XALastVal = spu.XALastVal;
    pFO->last_keyon_cycles = spu.last_keyon_cycles;
    for (i = 0; i < 2; i++)
-    memcpy(&pFO->rvb_sb[i], sb_rvb->SB_rvb[i], sizeof(pFO->rvb_sb[i]));
+    memcpy(&pFO->rvb_sb[i], sb_rvb->sample[i], sizeof(pFO->rvb_sb[i]));
    pFO->interpolation = spu.interpolation;
 
    for(i=0;i<MAXCHAN;i++)
@@ -373,7 +382,7 @@ long DoFreeze(unsigned int ulFreezeMode, SPUFreeze_t * pF,
  if (pFO && pF->Size >= sizeof(*pF) + sizeof(*pFO)) {
   for (i = 0; i < 2; i++)
    for (j = 0; j < 2; j++)
-    memcpy(&sb_rvb->SB_rvb[i][j*4], pFO->rvb_sb[i], 4 * sizeof(sb_rvb->SB_rvb[i][0]));
+    memcpy(&sb_rvb->sample[i][j*4], pFO->rvb_sb[i], 4 * sizeof(sb_rvb->sample[i][0]));
   spu.interpolation = pFO->interpolation;
  }
  for (i = 0; i <= 2; i += 2)

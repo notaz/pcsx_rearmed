@@ -32,6 +32,9 @@
 #ifdef __arm__
 #include "arm_features.h"
 #endif
+#ifndef ARRAY_LEN
+#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
+#endif
 
 #ifdef HAVE_ARMV6
  #define ssat32_to_16(v) \
@@ -43,31 +46,12 @@
  } while (0)
 #endif
 
-#define PSXCLK	33868800	/* 33.8688 MHz */
-
 // intended to be ~1 frame
 #define IRQ_NEAR_BLOCKS 32
 
-/*
-#if defined (USEMACOSX)
-static char * libraryName     = N_("Mac OS X Sound");
-#elif defined (USEALSA)
-static char * libraryName     = N_("ALSA Sound");
-#elif defined (USEOSS)
-static char * libraryName     = N_("OSS Sound");
-#elif defined (USESDL)
-static char * libraryName     = N_("SDL Sound");
-#elif defined (USEPULSEAUDIO)
-static char * libraryName     = N_("PulseAudio Sound");
-#else
-static char * libraryName     = N_("NULL Sound");
-#endif
-
-static char * libraryInfo     = N_("P.E.Op.S. Sound Driver V1.7\nCoded by Pete Bernert and the P.E.Op.S. team\n");
-*/
-
 // globals
 
+__attribute__((aligned(32)))
 SPUInfo         spu;
 SPUConfig       spu_config;
 
@@ -85,116 +69,6 @@ int ChanBuf[NSSIZE];
 
 #include "reverb.c"
 #include "adsr.c"
-
-////////////////////////////////////////////////////////////////////////
-// helpers for simple interpolation
-
-//
-// easy interpolation on upsampling, no special filter, just "Pete's common sense" tm
-//
-// instead of having n equal sample values in a row like:
-//       ____
-//           |____
-//
-// we compare the current delta change with the next delta change.
-//
-// if curr_delta is positive,
-//
-//  - and next delta is smaller (or changing direction):
-//         \.
-//          -__
-//
-//  - and next delta significant (at least twice) bigger:
-//         --_
-//            \.
-//
-//  - and next delta is nearly same:
-//          \.
-//           \.
-//
-//
-// if curr_delta is negative,
-//
-//  - and next delta is smaller (or changing direction):
-//          _--
-//         /
-//
-//  - and next delta significant (at least twice) bigger:
-//            /
-//         __- 
-//
-//  - and next delta is nearly same:
-//           /
-//          /
-//
-
-static void InterpolateUp(sample_buf *sb, int sinc)
-{
- int *SB = sb->SB;
- if (sb->sinc_old != sinc)
- {
-  sb->sinc_old = sinc;
-  SB[32] = 1;
- }
- if(SB[32]==1)                                         // flag == 1? calc step and set flag... and don't change the value in this pass
-  {
-   const int id1=SB[30]-SB[29];                        // curr delta to next val
-   const int id2=SB[31]-SB[30];                        // and next delta to next-next val :)
-
-   SB[32]=0;
-
-   if(id1>0)                                           // curr delta positive
-    {
-     if(id2<id1)
-      {SB[28]=id1;SB[32]=2;}
-     else
-     if(id2<(id1<<1))
-      SB[28]=(id1*sinc)>>16;
-     else
-      SB[28]=(id1*sinc)>>17;
-    }
-   else                                                // curr delta negative
-    {
-     if(id2>id1)
-      {SB[28]=id1;SB[32]=2;}
-     else
-     if(id2>(id1<<1))
-      SB[28]=(id1*sinc)>>16;
-     else
-      SB[28]=(id1*sinc)>>17;
-    }
-  }
- else
- if(SB[32]==2)                                         // flag 1: calc step and set flag... and don't change the value in this pass
-  {
-   SB[32]=0;
-
-   SB[28]=(SB[28]*sinc)>>17;
-   //if(sinc<=0x8000)
-   //     SB[29]=SB[30]-(SB[28]*((0x10000/sinc)-1));
-   //else
-   SB[29]+=SB[28];
-  }
- else                                                  // no flags? add bigger val (if possible), calc smaller step, set flag1
-  SB[29]+=SB[28];
-}
-
-//
-// even easier interpolation on downsampling, also no special filter, again just "Pete's common sense" tm
-//
-
-static void InterpolateDown(sample_buf *sb, int sinc)
-{
- int *SB = sb->SB;
- if(sinc>=0x20000L)                                 // we would skip at least one val?
-  {
-   SB[29]+=(SB[30]-SB[29])/2;                                  // add easy weight
-   if(sinc>=0x30000L)                               // we would skip even more vals?
-    SB[29]+=(SB[31]-SB[30])/2;                                 // add additional next weight
-  }
-}
-
-////////////////////////////////////////////////////////////////////////
 
 #include "gauss_i.h"
 #include "xa.c"
@@ -245,17 +119,10 @@ void do_irq_io(int cycles_after)
 // START SOUND... called by main thread to setup a new sound on a channel
 ////////////////////////////////////////////////////////////////////////
 
-static void ResetInterpolation(sample_buf *sb)
-{
- memset(&sb->interp, 0, sizeof(sb->interp));
- sb->sinc_old = -1;
-}
-
 static void StartSoundSB(sample_buf *sb)
 {
- sb->SB[26] = 0;                                       // init mixing vars
- sb->SB[27] = 0;
- ResetInterpolation(sb);
+ //memset(sb->old, 0, sizeof(sb->old));
+ memset(sb->decode + 28 - 5, 0, sizeof(sb->decode[0]) * 5);
 }
 
 static void StartSoundMain(int ch)
@@ -300,18 +167,9 @@ INLINE int FModChangeFrequency(int pitch, int ns, int *fmod_buf)
  return pitch << 4;
 }                    
 
-INLINE void StoreInterpolationGaussCubic(sample_buf *sb, int fa)
+INLINE int interp_cubic_get(const short * __restrict__ sb, int sbpos, int spos)
 {
- int gpos = sb->interp.gauss.pos & 3;
- sb->interp.gauss.val[gpos++] = fa;
- sb->interp.gauss.pos = gpos & 3;
-}
-
-#define gval(x) (int)sb->interp.gauss.val[(gpos + x) & 3]
-
-INLINE int GetInterpolationCubic(const sample_buf *sb, int spos)
-{
- int gpos = sb->interp.gauss.pos;
+#define gval(x) sb[sbpos - 4 + x]
  int xd = (spos >> 1) + 1;
  int fa;
 
@@ -326,21 +184,22 @@ INLINE int GetInterpolationCubic(const sample_buf *sb, int spos)
  fa >>= 15;
  fa = fa + gval(0);
  return fa;
+#undef gval
 }
 
-INLINE int GetInterpolationGauss(const sample_buf *sb, int spos)
+INLINE int interp_gauss_get(const short * __restrict__ sb, int sbpos, int spos)
 {
- int gpos = sb->interp.gauss.pos;
  int vl = (spos >> 6) & ~3;
  int vr;
- vr  = gauss[vl+0] * gval(0);
- vr += gauss[vl+1] * gval(1);
- vr += gauss[vl+2] * gval(2);
- vr += gauss[vl+3] * gval(3);
+ vr  = gauss[vl+0] * sb[sbpos-4];
+ vr += gauss[vl+1] * sb[sbpos-3];
+ vr += gauss[vl+2] * sb[sbpos-2];
+ vr += gauss[vl+3] * sb[sbpos-1];
  return vr >> 15;
 }
 
-static void decode_block_data(int *dest, const unsigned char *src, int predict_nr, int shift_factor)
+static void decode_block_data(short *dest, const unsigned char *src,
+  int predict_nr, int shift_factor)
 {
  static const int f[16][2] = {
     {    0,  0  },
@@ -377,7 +236,7 @@ static void decode_block_data(int *dest, const unsigned char *src, int predict_n
  }
 }
 
-static int decode_block(void *unused, int ch, int *SB)
+static int decode_block(void *unused, int ch, sample_buf *sb)
 {
  SPUCHAN *s_chan = &spu.s_chan[ch];
  unsigned char *start;
@@ -405,7 +264,8 @@ static int decode_block(void *unused, int ch, int *SB)
  shift_factor = predict_nr & 0xf;
  predict_nr >>= 4;
 
- decode_block_data(SB, start + 2, predict_nr, shift_factor);
+ memcpy(sb->old, sb->decode + (28-4), sizeof(sb->old));
+ decode_block_data(sb->decode, start + 2, predict_nr, shift_factor);
 
  flags = start[1];
  if (flags & 4 && !s_chan->bIgnoreLoop)
@@ -491,75 +351,66 @@ static void scan_for_irq(int ch, unsigned int *upd_samples)
  }
 }
 
-#define make_do_samples(name, fmod_code, interp_start, interp_store, interp_get, interp_end) \
-static noinline int name(int *dst, \
- int (*decode_f)(void *context, int ch, int *SB), void *ctx, \
- int ch, int ns_to, sample_buf *sb, int sinc, int *spos, int *sbpos) \
+#define make_do_samples(name, fmod_code, interp_start, interp_get, interp_update) \
+static noinline int name(int * __restrict__ dst,              \
+ int (*decode_f)(void *ctx, int ch, sample_buf *), void *ctx, \
+ int ch, int ns_to, sample_buf * __restrict__ sb,             \
+ int sinc, int *spos_p, int *sbpos_p)        \
 {                                            \
- int ns, d, fa;                              \
- int ret = ns_to;                            \
+ short * __restrict__ buf = sb->buf;         \
+ int sboffset = ARRAY_LEN(sb->old);          \
+ int sbpos = (*sbpos_p) + sboffset;          \
+ int spos = *spos_p;                         \
+ int ns, d, ret = ns_to;                     \
  interp_start;                               \
                                              \
  for (ns = 0; ns < ns_to; ns++)              \
  {                                           \
+  dst[ns] = interp_get(buf, sbpos, spos);    \
   fmod_code;                                 \
+  spos += sinc;                              \
+  if (spos < 0x10000)                        \
+   continue;                                 \
                                              \
-  *spos += sinc;                             \
-  while (*spos >= 0x10000)                   \
+  sbpos += spos >> 16;                       \
+  spos = spos & 0xffff;                      \
+  if (unlikely(sbpos >= 28 + sboffset))      \
   {                                          \
-   fa = sb->SB[(*sbpos)++];                  \
-   if (*sbpos >= 28)                         \
-   {                                         \
-    *sbpos = 0;                              \
-    d = decode_f(ctx, ch, sb->SB);           \
+    sbpos -= 28;                             \
+    d = decode_f(ctx, ch, sb);               \
     if (d && ns < ret)                       \
      ret = ns;                               \
-   }                                         \
-                                             \
-   interp_store;                             \
-   *spos -= 0x10000;                         \
   }                                          \
-                                             \
-  interp_get;                                \
+  interp_update;                             \
  }                                           \
                                              \
- interp_end;                                 \
-                                             \
+ *spos_p = spos;                             \
+ *sbpos_p = sbpos - sboffset;                \
  return ret;                                 \
 }
 
-// helpers for simple linear interpolation: delay real val for two slots,
-// and calc the two deltas, for a 'look at the future behaviour'
-#define simple_interp_store \
-  sb->SB[28] = 0; \
-  sb->SB[29] = sb->SB[30]; \
-  sb->SB[30] = sb->SB[31]; \
-  sb->SB[31] = fa; \
-  sb->SB[32] = 1
+#define interp_none_start \
+  short fa = buf[sbpos]
+#define interp_none_get(...) fa
+#define interp_none_update fa = buf[sbpos]
 
-#define simple_interp_get \
-  if(sinc<0x10000)                /* -> upsampling? */ \
-       InterpolateUp(sb, sinc);   /* --> interpolate up */ \
-  else InterpolateDown(sb, sinc); /* --> else down */ \
-  dst[ns] = sb->SB[29]
+#define interp_simple_get(buf, sbpos, spos) \
+  (buf[sbpos-2] * (0x10000 - spos) + buf[sbpos-1] * spos) >> 16
 
-make_do_samples(do_samples_nointerp, , fa = sb->SB[29],
-   , dst[ns] = fa, sb->SB[29] = fa)
-make_do_samples(do_samples_simple, , ,
-  simple_interp_store, simple_interp_get, )
-make_do_samples(do_samples_gauss, , ,
-  StoreInterpolationGaussCubic(sb, fa),
-  dst[ns] = GetInterpolationGauss(sb, *spos), )
-make_do_samples(do_samples_cubic, , ,
-  StoreInterpolationGaussCubic(sb, fa),
-  dst[ns] = GetInterpolationCubic(sb, *spos), )
+make_do_samples(do_samples_nointerp, ,
+  interp_none_start, interp_none_get, interp_none_update)
+make_do_samples(do_samples_simple, ,
+  , interp_simple_get, )
+make_do_samples(do_samples_gauss, ,
+  , interp_gauss_get, )
+make_do_samples(do_samples_cubic, ,
+  , interp_cubic_get, )
 make_do_samples(do_samples_fmod,
-  sinc = FModChangeFrequency(spu.s_chan[ch].iRawPitch, ns, iFMod), ,
-  StoreInterpolationGaussCubic(sb, fa),
-  dst[ns] = GetInterpolationGauss(sb, *spos), )
+  sinc = FModChangeFrequency(spu.s_chan[ch].iRawPitch, ns, iFMod),
+  , interp_gauss_get, )
 
 INLINE int do_samples_adpcm(int *dst,
- int (*decode_f)(void *context, int ch, int *SB), void *ctx,
+ int (*decode_f)(void *ctx, int ch, sample_buf *), void *ctx,
  int ch, int ns_to, int fmod, sample_buf *sb, int sinc, int *spos, int *sbpos)
 {
  int interp = spu.interpolation;
@@ -779,15 +630,6 @@ static void do_channels(int ns_to)
  int do_rvb, ch, d;
  SPUCHAN *s_chan;
 
- if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
- {
-  spu.interpolation = spu_config.iUseInterpolation;
-  mask = spu.dwChannelsAudible & 0xffffff;
-  for (ch = 0; mask != 0; ch++, mask >>= 1)
-   if (mask & 1)
-    ResetInterpolation(&spu.sb[ch]);
- }
-
  do_rvb = spu.rvb->StartAddr && spu_config.iUseReverb;
  if (do_rvb)
   memset(RVB, 0, ns_to * sizeof(RVB[0]) * 2);
@@ -906,7 +748,7 @@ static struct spu_worker {
  } i[4];
 } *worker;
 
-#define WORK_MAXCNT (sizeof(worker->i) / sizeof(worker->i[0]))
+#define WORK_MAXCNT ARRAY_LEN(worker->i)
 #define WORK_I_MASK (WORK_MAXCNT - 1)
 
 static void thread_work_start(void);
@@ -914,7 +756,7 @@ static void thread_work_wait_sync(struct work_item *work, int force);
 static void thread_sync_caches(void);
 static int  thread_get_i_done(void);
 
-static int decode_block_work(void *context, int ch, int *SB)
+static int decode_block_work(void *context, int ch, sample_buf *sb)
 {
  const unsigned char *ram = spu.spuMemC;
  int predict_nr, shift_factor, flags;
@@ -926,7 +768,8 @@ static int decode_block_work(void *context, int ch, int *SB)
  shift_factor = predict_nr & 0xf;
  predict_nr >>= 4;
 
- decode_block_data(SB, ram + start + 2, predict_nr, shift_factor);
+ memcpy(sb->old, sb->decode + (28-4), sizeof(sb->old));
+ decode_block_data(sb->decode, ram + start + 2, predict_nr, shift_factor);
 
  flags = ram[start + 1];
  if (flags & 4)
@@ -963,7 +806,7 @@ static void queue_channel_work(int ns_to, unsigned int silentch)
   mask = spu.dwChannelsAudible & ~spu.dwNewChannel & 0xffffff;
   for (ch = 0; mask != 0; ch++, mask >>= 1) {
    if (mask & 1)
-    memcpy(spu.sb_thread[ch].SB, spu.sb[ch].SB, sizeof(spu.sb_thread[ch].SB));
+    memcpy(&spu.sb_thread[ch], &spu.sb[ch], sizeof(spu.sb_thread[ch]));
   }
  }
 
@@ -1056,15 +899,6 @@ static void do_channel_work(struct work_item *work)
 
  ns_to = work->ns_to;
 
- if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
- {
-  spu.interpolation = spu_config.iUseInterpolation;
-  mask = work->channels_on;
-  for (ch = 0; mask != 0; ch++, mask >>= 1)
-   if (mask & 1)
-    ResetInterpolation(&spu.sb_thread[ch]);
- }
-
  if (work->rvb_addr)
   memset(RVB, 0, ns_to * sizeof(RVB[0]) * 2);
 
@@ -1144,7 +978,7 @@ static void sync_worker_thread(int force_no_thread)
   thread_sync_caches();
   for (ch = 0; mask != 0; ch++, mask >>= 1) {
    if (mask & 1)
-    memcpy(spu.sb[ch].SB, spu.sb_thread[ch].SB, sizeof(spu.sb_thread[ch].SB));
+    memcpy(&spu.sb[ch], &spu.sb_thread[ch], sizeof(spu.sb_thread[ch]));
   }
  }
 }
@@ -1228,6 +1062,9 @@ void do_samples(unsigned int cycles_to, int force_no_thread)
 
   if (unlikely(spu.rvb->dirty))
    REVERBPrep();
+
+  //if (unlikely(spu.interpolation != spu_config.iUseInterpolation))
+  spu.interpolation = spu_config.iUseInterpolation;
 
   if (force_no_thread || worker == NULL || !spu_config.iUseThread) {
    do_channels(ns_to);
