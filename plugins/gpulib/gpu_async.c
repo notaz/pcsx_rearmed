@@ -67,8 +67,8 @@ struct psx_gpu_async
   uint32_t pos_used;
   uint32_t pos_target;
   enum waitmode wait_mode;
-  uint8_t exit;
-  uint8_t idle;
+  uint32_t idle;
+  uint32_t exit;
   sthread_t *thread;
   slock_t *lock;
   scond_t *cond_use;
