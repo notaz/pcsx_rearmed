@@ -35,15 +35,16 @@ static inline uint32_t bgr555_to_rgb565_pair(uint32_t p)
 	return r | g | b;
 }
 
-static inline uint32_t bgr888_to_rgb565_pair(const uint8_t * __restrict__ src, int o2)
+static inline uint32_t bgr888_to_rgb565_pair(const uint8_t * __restrict__ src,
+	int o0, int o1)
 {
 	uint32_t r1, g1, b1, r2, g2, b2;
-	r1 = src[0] & 0xf8;
-	g1 = src[1] & 0xfc;
-	b1 = src[2] & 0xf8;
-	r2 = src[o2 + 0] & 0xf8;
-	g2 = src[o2 + 1] & 0xfc;
-	b2 = src[o2 + 2] & 0xf8;
+	r1 = src[o0 + 0] & 0xf8;
+	g1 = src[o0 + 1] & 0xfc;
+	b1 = src[o0 + 2] & 0xf8;
+	r2 = src[o1 + 0] & 0xf8;
+	g2 = src[o1 + 1] & 0xfc;
+	b2 = src[o1 + 2] & 0xf8;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	return (r1 << 24) | (g1 << 19) | (b1 << 13) |
 	       (r2 << 8)  | (g2 << 3)  | (b2 >> 3);
@@ -152,7 +153,7 @@ void attr_weak bgr888_to_rgb565(void * __restrict__ dst_,
 	uint32_t * __restrict__ dst = dst_;
 
 	for (; pixels >= 2; pixels -= 2, src += 3*2, dst++)
-		*dst = bgr888_to_rgb565_pair(src, 3);
+		*dst = bgr888_to_rgb565_pair(src, 0, 3);
 }
 
 // TODO?
@@ -222,7 +223,7 @@ void bgr888_to_rgb565_640_to_320(void * __restrict__ dst_,
 	uint32_t * __restrict__ dst = dst_;
 
 	for (; dpixels >= 2; dpixels -= 2, src += 4*3, dst++)
-		*dst = bgr888_to_rgb565_pair(src, 2*3);
+		*dst = bgr888_to_rgb565_pair(src, 0*3, 2*3);
 }
 
 void bgr888_to_rgb888_640_to_320(void * __restrict__ dst_,
@@ -279,11 +280,11 @@ void bgr888_to_rgb565_512_to_320(void * __restrict__ dst_,
 	uint32_t * __restrict__ dst = dst_;
 
 	for (; dpixels >= 10; dpixels -= 10, src += 16*3, dst += 5) {
-		dst[0] = bgr888_to_rgb565_pair(src + 3*0, 3*2);
-		dst[1] = bgr888_to_rgb565_pair(src + 3*4, 3*5);
-		dst[2] = bgr888_to_rgb565_pair(src + 3*7, 3*8);
-		dst[3] = bgr888_to_rgb565_pair(src + 3*10, 3*12);
-		dst[4] = bgr888_to_rgb565_pair(src + 3*13, 3*15);
+		dst[0] = bgr888_to_rgb565_pair(src, 3*0, 3*2);
+		dst[1] = bgr888_to_rgb565_pair(src, 3*4, 3*5);
+		dst[2] = bgr888_to_rgb565_pair(src, 3*7, 3*8);
+		dst[3] = bgr888_to_rgb565_pair(src, 3*10, 3*12);
+		dst[4] = bgr888_to_rgb565_pair(src, 3*13, 3*15);
 	}
 }
 
