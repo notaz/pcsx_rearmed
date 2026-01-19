@@ -3537,12 +3537,13 @@ static const u32 gpu_ctl_def[] = {
 static const u32 gpu_data_def[] = {
 	0xe100360b, 0xe2000000, 0xe3000800, 0xe4077e7f,
 	0xe5001000, 0xe6000000,
-	0x02000000, 0x00000000, 0x01ff03ff
+	0x02000000, 0x00000000, 0x010003ff,
+	0x02000000, 0x01000000, 0x010003ff
 };
 
 // from 1f801d80
 static const u16 spu_config[] = {
-	0x3fff, 0x37ef, 0x5ebc, 0x5ebc, 0x0000, 0x0000, 0x0000, 0x00a0,
+	0x3fff, 0x37ef, 0x5ebc, 0x5ebc, 0x0000, 0x0000, 0xffff, 0x00ff,
 	0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0x00ff, 0x0000, 0x0000,
 	0x0000, 0xe128, 0x0000, 0x0200, 0xf0f0, 0xc085, 0x0004, 0x0000,
 	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
@@ -3551,6 +3552,22 @@ static const u16 spu_config[] = {
 	0x1a32, 0x15ef, 0x15ee, 0x1055, 0x1334, 0x0f2d, 0x11f6, 0x0c5d,
 	0x1056, 0x0ae1, 0x0ae0, 0x07a2, 0x0464, 0x0232, 0x8000, 0x8000
 };
+
+static void spu_clear_mem(u32 addr, u32 size)
+{
+	u16 buf[16*1024/2];
+	u32 i;
+
+	SPU_writeRegister(0x1f801da6, addr >> 3, psxRegs.cycle);
+	SPU_writeRegister(0x1f801dac, 4, psxRegs.cycle); // transfer control
+	memset(buf, 0, sizeof(buf));
+	for (i = 0; i < size; i += sizeof(buf)) {
+		u32 left = size - i;
+		if (left > sizeof(buf))
+			left = sizeof(buf);
+		SPU_writeDMAMem(buf, left / 2, psxRegs.cycle);
+	}
+}
 
 void psxBiosSetupBootState(void)
 {
@@ -3606,9 +3623,22 @@ void psxBiosSetupBootState(void)
 	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
 		GPU_writeData(gpu_data_def[i]);
 
-	// spu
+	// spu: channel sample mem for loop 1000-4490
+	spu_clear_mem(0x1000, 0x4490 - 0x1000 + 0x10);
+	{
+		u16 flags = SWAP16(0x300);
+		SPU_writeRegister(0x1f801da6, 0x4490 >> 3, psxRegs.cycle);
+		SPU_writeDMAMem(&flags, 1, psxRegs.cycle);
+	}
+	// spu: clear reverb ram
+	spu_clear_mem(spu_config[0x22/2] << 3, 0x80000 - (spu_config[0x22/2] << 3));
+	// spu regs
 	for (i = 0x1f801d80; i < sizeof(spu_config) / sizeof(spu_config[0]); i++)
 		SPU_writeRegister(0x1f801d80 + i*2, spu_config[i], psxRegs.cycle);
+	for (i = 0; i < 24; i++) {
+		SPU_writeRegister(0x1f801c06 + i*0x10, 0x1000>>3, psxRegs.cycle); // start
+		SPU_writeRegister(0x1f801c0e + i*0x10, 0x1a60>>3, psxRegs.cycle); // loop
+	}
 }
 
 static void hleExc0_0_1();
