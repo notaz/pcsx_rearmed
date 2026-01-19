@@ -66,9 +66,12 @@ static noinline void do_reset(struct psx_gpu *gpu)
   gpu->status = 0x14802000;
   gpu->gp0 = 0;
   gpu->regs[3] = 1;
+  gpu->screen.src_x = gpu->screen.src_y = 0;
   gpu->screen.hres = gpu->screen.w = 256;
   gpu->screen.vres = gpu->screen.h = 240;
   gpu->screen.x = gpu->screen.y = 0;
+  gpu->screen.x1 = 0x200, gpu->screen.x2 = 0x200+256*10;
+  gpu->screen.y1 = 0x010, gpu->screen.y2 = 0x010+240;
   renderer_sync_ecmds(gpu->ex_regs);
   renderer_notify_screen_change(&gpu->screen);
   gpu_async_sync_ecmds(gpu);
