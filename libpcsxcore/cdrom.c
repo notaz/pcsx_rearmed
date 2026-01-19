@@ -865,7 +865,6 @@ void cdrInterrupt(void) {
 			}
 			break;
 
-		do_CdlPlay:
 		case CdlPlay:
 			StopCdda();
 			StopReading();
@@ -1277,10 +1276,7 @@ void cdrInterrupt(void) {
 
 			Find_CurTrack(cdr.SetlocPending ? cdr.SetSector : cdr.SetSectorPlay);
 
-			if (cdr.Mode & MODE_CDDA)
-				// Read* acts as play for cdda tracks in cdda mode
-				goto do_CdlPlay;
-			if (cdr_stat.Type != CDRT_DATA) {
+			if (cdr_stat.Type != CDRT_DATA && !(cdr.Mode & MODE_CDDA)) {
 				error = ERROR_INVALIDCMD;
 				goto set_error;
 			}
