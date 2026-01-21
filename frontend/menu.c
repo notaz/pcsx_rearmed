@@ -1895,6 +1895,8 @@ static void draw_mc_bg(void)
 	for (i = 0; i < 15; i++) {
 		GetMcdBlockInfo(1, i + 1, &blocks1[i]);
 		GetMcdBlockInfo(2, i + 1, &blocks2[i]);
+		blocks1[i].Title[24] = 0;
+		blocks2[i].Title[24] = 0;
 	}
 
 	menu_draw_begin(1, 1);
@@ -1911,10 +1913,10 @@ static void draw_mc_bg(void)
 	row2 = g_menuscreen_w / 2;
 	for (i = 0; i < maxicons; i++) {
 		draw_mc_icon(8, y + i * 32, (u16 *)blocks1[i].Icon);
-		smalltext_out16(10+32, y + i * 32 + 8, blocks1[i].sTitle, 0xf71e);
+		smalltext_out16(10+32, y + i * 32 + 8, blocks1[i].Title, 0xf71e);
 
 		draw_mc_icon(row2 + 8, y + i * 32, (u16 *)blocks2[i].Icon);
-		smalltext_out16(row2 + 10+32, y + i * 32 + 8, blocks2[i].sTitle, 0xf71e);
+		smalltext_out16(row2 + 10+32, y + i * 32 + 8, blocks2[i].Title, 0xf71e);
 	}
 
 	menu_darken_bg(g_menubg_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
