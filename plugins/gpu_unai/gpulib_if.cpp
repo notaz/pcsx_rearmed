@@ -675,8 +675,16 @@ breakloop:
   return list - list_start;
 }
 
-void renderer_sync_ecmds(u32 *ecmds)
+void renderer_sync_ecmds(u32 *ecmds_)
 {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  // the funcs below expect LE
+  uint32_t i, ecmds[8];
+  for (i = 1; i <= 6; i++)
+    ecmds[i] = HTOLE32(ecmds_[i]);
+#else
+  uint32_t *ecmds = ecmds_;
+#endif
   if (!IS_OLD_RENDERER()) {
     int dummy;
     renderer_do_cmd_list(&ecmds[1], 6, ecmds, &dummy, &dummy, &dummy);

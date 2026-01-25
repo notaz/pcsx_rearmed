@@ -73,7 +73,7 @@ struct psx_gpu_async
   slock_t *lock;
   scond_t *cond_use;
   scond_t *cond_add;
-  uint32_t ex_regs[8]; // used by vram copy at least
+  uint32_t ex_regs[8]; // state at render time, native endian
   uint32_t cmd_buffer[AGPU_BUF_LEN];
   uint32_t pos_area;
   struct pos_drawarea draw_areas[AGPU_AREAS_CNT];
@@ -256,7 +256,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
         h =   LE16TOH(slist[5]) & 0x1ff;
         darea = &agpu->draw_areas[agpu->pos_area];
         if (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1) {
-          // let the main thread know about changes outside of drawing area
+          // let the thread know about changes outside of drawing area
           agpu_log(gpu, "agpu: fill %d,%d %dx%d vs area %d,%d %dx%d\n", x, y, w, h,
             darea->x0, darea->y0, darea->x1 - darea->x0, darea->y1 - darea->y0);
           add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
@@ -704,10 +704,20 @@ void gpu_async_sync_ecmds(struct psx_gpu *gpu)
   struct psx_gpu_async *agpu = gpu->async;
   if (!agpu)
     return;
-  if (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used))
+  if (RDPOS(agpu->idle) && agpu->pos_added == RDPOS(agpu->pos_used)) {
     memcpy(agpu->ex_regs + 1, gpu->ex_regs + 1, 6*4);
-  else
-    do_add_with_wait(agpu, gpu->ex_regs + 1, 6);
+    add_draw_area_e(agpu, agpu->pos_added, 0, gpu->ex_regs);
+    renderer_sync_ecmds(agpu->ex_regs);
+    return;
+  }
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  uint32_t i, ecmds[8];
+  for (i = 1; i <= 6; i++)
+    ecmds[i] = HTOLE32(ecmds_[i]);
+#else
+  const uint32_t *ecmds = gpu->ex_regs;
+#endif
+  do_add_with_wait(agpu, ecmds + 1, 6);
 }
 
 static void psx_gpu_async_free(struct psx_gpu_async *agpu)

@@ -71,7 +71,7 @@ struct psx_gpu {
   uint16_t *vram;
   uint32_t status;
   uint32_t gp0;
-  uint32_t ex_regs[8];
+  uint32_t ex_regs[8];  // in native endian
   struct psx_gpu_screen screen;
   struct {
     int x, y, w, h;
