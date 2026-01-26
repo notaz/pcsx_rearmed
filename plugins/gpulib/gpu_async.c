@@ -126,6 +126,7 @@ static void run_thread_nolock(struct psx_gpu_async *agpu)
   if (agpu->idle) {
     agpu->idle = 0;
     scond_signal(agpu->cond_use);
+    //agpu_log(&gpu, "%u/%u kick\n", RDPOS(agpu->pos_used), agpu->pos_added);
   }
 }
 
@@ -256,7 +257,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
         h =   LE16TOH(slist[5]) & 0x1ff;
         darea = &agpu->draw_areas[agpu->pos_area];
         if (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1) {
-          // let the thread know about changes outside of drawing area
+          // let sync_scanout() know about changes outside of drawing area
           agpu_log(gpu, "agpu: fill %d,%d %dx%d vs area %d,%d %dx%d\n", x, y, w, h,
             darea->x0, darea->y0, darea->x1 - darea->x0, darea->y1 - darea->y0);
           add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
@@ -464,6 +465,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
           assert(0);
       }
       agpu->idle = 1;
+      //agpu_log(&gpu, "%u/%u sleep\n", agpu->pos_used, RDPOS(agpu->pos_added));
       scond_wait(agpu->cond_use, agpu->lock);
       continue;
     }
@@ -683,8 +685,9 @@ void gpu_async_sync_scanout(struct psx_gpu *gpu)
     }
     if (c > 0) {
       i = (i + 1) & AGPU_AREAS_MASK;
-      agpu_log(gpu, "agpu: wait %d/%d\n", agpu->draw_areas[i].pos - agpu->pos_used,
-          agpu->pos_added - agpu->pos_used);
+      agpu_log(gpu, "agpu: wait %d/%d @ %u/%u\n",
+          agpu->draw_areas[i].pos - RDPOS(agpu->pos_used), agpu->pos_added -
+          RDPOS(agpu->pos_used), RDPOS(agpu->pos_used), agpu->pos_added);
       slock_lock(agpu->lock);
       if (!agpu->idle) {
         assert(agpu->wait_mode == waitmode_none);

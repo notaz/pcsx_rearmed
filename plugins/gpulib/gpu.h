@@ -112,6 +112,7 @@ struct psx_gpu {
     uint32_t active:1;
     uint32_t allow:1;
     uint32_t frame_ready:1;
+    uint32_t ecmds_dirty_renderer:1;
     const int *advice;
     const int *force;
     int *dirty;
