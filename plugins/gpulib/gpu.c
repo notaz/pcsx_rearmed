@@ -40,12 +40,29 @@ static void sync_renderer(struct psx_gpu *gpu)
     renderer_flush_queues();
 }
 
+static void sync_renderer_ecmds(struct psx_gpu *gpu)
+{
+  if (gpu_async_enabled(gpu))
+    gpu_async_sync_ecmds(gpu);
+  else
+    renderer_sync_ecmds(gpu->ex_regs);
+}
+
+static void sync_ecmds_status_bits(struct psx_gpu *gpu)
+{
+  gpu->status &= ~0x1fff;
+  gpu->status |= gpu->ex_regs[1] & 0x7ff;
+  gpu->status |= (gpu->ex_regs[6] & 3) << 11;
+}
+
 static noinline void do_cmd_reset(struct psx_gpu *gpu)
 {
   int dummy = 0;
 
-  if (unlikely(gpu->cmd_len > 0))
+  if (unlikely(gpu->cmd_len > 0)) {
     do_cmd_buffer(gpu, gpu->cmd_buffer, gpu->cmd_len, &dummy, &dummy);
+    sync_ecmds_status_bits(gpu);
+  }
   gpu->cmd_len = 0;
   sync_renderer(gpu);
 
@@ -743,10 +760,7 @@ static noinline int do_cmd_list_skip(struct psx_gpu *gpu, uint32_t *data, int li
   }
 
 breakloop:
-  if (gpu_async_enabled(gpu))
-    gpu_async_sync_ecmds(gpu);
-  else
-    renderer_sync_ecmds(gpu->ex_regs);
+  sync_renderer_ecmds(gpu);
   *cpu_cycles_sum_out += cyc_sum;
   *cpu_cycles_last = cyc;
   *last_cmd = cmd;
@@ -837,13 +851,10 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
       break;
   }
 
-  gpu->status &= ~0x1fff;
-  gpu->status |= gpu->ex_regs[1] & 0x7ff;
-  gpu->status |= (gpu->ex_regs[6] & 3) << 11;
-
   gpu->state.fb_dirty |= vram_dirty;
 
-  if (old_e3 != gpu->ex_regs[3])
+  // this is here because the renderer doesn't tell us if it saw e3
+  if (unlikely(gpu->frameskip.set && old_e3 != gpu->ex_regs[3]))
     decide_frameskip_allow(gpu);
 
   return count - pos;
@@ -875,14 +886,18 @@ void GPUwriteDataMem(uint32_t *mem, int count)
   left = do_cmd_buffer(&gpu, mem, count, &dummy, &dummy);
   if (left)
     log_anomaly(&gpu, "GPUwriteDataMem: discarded %d/%d words\n", left, count);
+
+  sync_ecmds_status_bits(&gpu);
 }
 
 void GPUwriteData(uint32_t data)
 {
   log_io(&gpu, "gpu_write %08x\n", data);
   gpu.cmd_buffer[gpu.cmd_len++] = HTOLE32(data);
-  if (gpu.cmd_len >= CMD_BUFFER_LEN)
+  if (gpu.cmd_len >= CMD_BUFFER_LEN) {
     flush_cmd_buffer(&gpu);
+    sync_ecmds_status_bits(&gpu);
+  }
 }
 
 long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
@@ -950,6 +965,8 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
     }
   }
 
+  sync_ecmds_status_bits(&gpu);
+
   //printf(" -> %d %d\n", cpu_cycles_sum, cpu_cycles_last);
   gpu.state.last_list.frame = *gpu.state.frame_count;
   gpu.state.last_list.hcnt = *gpu.state.hcnt;
@@ -966,8 +983,10 @@ void GPUreadDataMem(uint32_t *mem, int count)
 {
   log_io(&gpu, "gpu_dma_read  %p %d\n", mem, count);
 
-  if (unlikely(gpu.cmd_len > 0))
+  if (unlikely(gpu.cmd_len > 0)) {
     flush_cmd_buffer(&gpu);
+    sync_ecmds_status_bits(&gpu);
+  }
 
   if (gpu.dma.h)
     do_vram_io(&gpu, mem, count, 1);
@@ -977,8 +996,10 @@ uint32_t GPUreadData(void)
 {
   uint32_t ret;
 
-  if (unlikely(gpu.cmd_len > 0))
+  if (unlikely(gpu.cmd_len > 0)) {
     flush_cmd_buffer(&gpu);
+    sync_ecmds_status_bits(&gpu);
+  }
 
   ret = gpu.gp0;
   if (gpu.dma.h) {
@@ -995,8 +1016,10 @@ uint32_t GPUreadStatus(void)
 {
   uint32_t ret;
 
-  if (unlikely(gpu.cmd_len > 0))
+  if (unlikely(gpu.cmd_len > 0)) {
     flush_cmd_buffer(&gpu);
+    sync_ecmds_status_bits(&gpu);
+  }
 
   ret = gpu.status;
   log_io(&gpu, "gpu_read_status %08x\n", ret);
@@ -1009,8 +1032,10 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
 
   switch (type) {
     case 1: // save
-      if (gpu.cmd_len > 0)
+      if (gpu.cmd_len > 0) {
         flush_cmd_buffer(&gpu);
+        sync_ecmds_status_bits(&gpu);
+      }
 
       sync_renderer(&gpu);
       memcpy(freeze->psxVRam, gpu.vram, 1024 * 512 * 2);
@@ -1040,8 +1065,10 @@ void GPUupdateLace(void)
 {
   int updated = 0;
 
-  if (gpu.cmd_len > 0)
+  if (gpu.cmd_len > 0) {
     flush_cmd_buffer(&gpu);
+    sync_ecmds_status_bits(&gpu);
+  }
 
 #ifndef RAW_FB_DISPLAY
   if (gpu.status & PSX_GPU_STATUS_BLANKING) {
@@ -1098,8 +1125,10 @@ void GPUvBlank(int is_vblank, int lcf)
   if (interlace || interlace != gpu.state.old_interlace) {
     gpu.state.old_interlace = interlace;
 
-    if (gpu.cmd_len > 0)
+    if (gpu.cmd_len > 0) {
       flush_cmd_buffer(&gpu);
+      sync_ecmds_status_bits(&gpu);
+    }
     if (gpu_async_enabled(&gpu))
       gpu_async_set_interlace(&gpu, interlace, !lcf);
     else {
@@ -1156,6 +1185,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   if (cbs->pl_vout_set_raw_vram)
     cbs->pl_vout_set_raw_vram(gpu.vram);
   sync_renderer(&gpu);
+  sync_renderer_ecmds(&gpu);
   renderer_set_config(cbs);
   vout_set_config(cbs);
 
