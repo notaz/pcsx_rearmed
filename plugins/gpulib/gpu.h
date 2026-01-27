@@ -153,8 +153,8 @@ void renderer_notify_screen_change(const struct psx_gpu_screen *screen);
 
 int  vout_init(void);
 int  vout_finish(void);
-int  vout_update(void);
-void vout_blank(void);
+int  vout_update(struct psx_gpu *gpu, int src_x, int src_y);
+void vout_blank(struct psx_gpu *gpu);
 void vout_set_config(const struct rearmed_cbs *config);
 
 // helpers

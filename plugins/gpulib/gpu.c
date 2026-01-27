@@ -1105,7 +1105,7 @@ void GPUupdateLace(void)
 #ifndef RAW_FB_DISPLAY
   if (gpu.status & PSX_GPU_STATUS_BLANKING) {
     if (!gpu.state.blanked) {
-      vout_blank();
+      vout_blank(&gpu);
       gpu.state.blanked = 1;
       gpu.state.fb_dirty_display_area = 1;
     }
@@ -1127,7 +1127,7 @@ void GPUupdateLace(void)
   else
     renderer_flush_queues();
 
-  updated = vout_update();
+  updated = vout_update(&gpu, gpu.screen.src_x, gpu.screen.src_y);
   if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active) {
     gpu_async_sync(&gpu);
     renderer_update_caches(0, 0, 1024, 512, 1);
