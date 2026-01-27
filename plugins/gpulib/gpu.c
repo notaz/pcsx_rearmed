@@ -199,7 +199,7 @@ static noinline void frameskip_prepare_noskip(struct psx_gpu *gpu)
     int dummy = 0;
     if (gpu_async_enabled(gpu))
       (void)gpu_async_do_cmd_list(gpu, gpu->frameskip.pending_fill, 3,
-          &dummy, &dummy, &dummy);
+          &dummy, &dummy, &dummy, &dummy);
     else
       renderer_do_cmd_list(gpu->frameskip.pending_fill, 3, gpu->ex_regs,
           &dummy, &dummy, &dummy);
@@ -207,8 +207,18 @@ static noinline void frameskip_prepare_noskip(struct psx_gpu *gpu)
   }
 }
 
-static noinline void decide_frameskip(struct psx_gpu *gpu)
+#define FRAMESKIP_MAX_FLIP_DELAY 5
+
+static noinline void decide_frameskip(struct psx_gpu *gpu, uint32_t flip_delay)
 {
+  if (flip_delay > FRAMESKIP_MAX_FLIP_DELAY) {
+    // don't skip if no updates for a while
+    gpu->frameskip.active = 0;
+    gpu->frameskip.cnt = 0;
+    gpu->frameskip.frame_ready = 1;
+    return;
+  }
+
   *gpu->frameskip.dirty = 1;
 
   if (gpu->frameskip.active)
@@ -397,8 +407,9 @@ void GPUwriteStatus(uint32_t data)
         gpu.screen.src_y = src_y;
         check_draw_to_display(&gpu);
         if (gpu.frameskip.set) {
-          if (gpu.frameskip.last_flip_frame != *gpu.state.frame_count)
-            decide_frameskip(&gpu);
+          uint32_t flip_delay = *gpu.state.frame_count - gpu.frameskip.last_flip_frame;
+          if (flip_delay)
+            decide_frameskip(&gpu, flip_delay);
           if (!gpu.frameskip.active || !gpu.frameskip.allow)
             frameskip_prepare_noskip(&gpu);
         }
@@ -688,7 +699,7 @@ static noinline int do_cmd_list_skip(struct psx_gpu *gpu, uint32_t *data, int li
         {
           // clearing something large, don't skip
           if (gpu_async_enabled(gpu))
-            (void)gpu_async_do_cmd_list(gpu, list, 3, &dummy, &dummy, &dummy);
+            (void)gpu_async_do_cmd_list(gpu, list, 3, &dummy, &dummy, &dummy, &dummy);
           else
             renderer_do_cmd_list(list, 3, gpu->ex_regs, &dummy, &dummy, &dummy);
         }
@@ -860,8 +871,7 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
                cycles_sum, cycles_last, &cmd);
     else if (gpu_async_enabled(gpu)) {
       pos += gpu_async_do_cmd_list(gpu, data + pos, count - pos,
-               cycles_sum, cycles_last, &cmd);
-      vram_dirty = 1;
+               cycles_sum, cycles_last, &cmd, &vram_dirty);
     }
     else {
       pos += renderer_do_cmd_list(data + pos, count - pos, gpu->ex_regs,
@@ -1087,13 +1097,19 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze)
 
 void GPUupdateLace(void)
 {
-  int updated = 0;
+  int delay_vout_update = 0;
+  int updated = 1;
 
-  if (gpu.frameskip.set && *gpu.state.frame_count - gpu.frameskip.last_flip_frame >= 10) {
-    gpu.frameskip.frame_ready = 1;
-    if (gpu.frameskip.active) {
-      gpu.frameskip.active = 0;
-      frameskip_on_no_skip(&gpu);
+  if (gpu.frameskip.set) {
+    uint32_t flip_delay = *gpu.state.frame_count - gpu.frameskip.last_flip_frame;
+    if (gpu_async_enabled(&gpu))
+      gpu_async_try_delayed_flip(&gpu, 0);
+    if (flip_delay > FRAMESKIP_MAX_FLIP_DELAY) {
+      gpu.frameskip.frame_ready = 1;
+      if (gpu.frameskip.active) {
+        gpu.frameskip.active = 0;
+        frameskip_prepare_noskip(&gpu);
+      }
     }
   }
 
@@ -1123,11 +1139,12 @@ void GPUupdateLace(void)
 #endif
 
   if (gpu_async_enabled(&gpu))
-    gpu_async_sync_scanout(&gpu);
+    delay_vout_update = gpu_async_sync_scanout(&gpu);
   else
     renderer_flush_queues();
 
-  updated = vout_update(&gpu, gpu.screen.src_x, gpu.screen.src_y);
+  if (!delay_vout_update)
+    updated = vout_update(&gpu, gpu.screen.src_x, gpu.screen.src_y);
   if (gpu.state.enhancement_active && !gpu.state.enhancement_was_active) {
     gpu_async_sync(&gpu);
     renderer_update_caches(0, 0, 1024, 512, 1);
@@ -1183,6 +1200,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.frameskip.dirty = (void *)&cbs->fskip_dirty;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
+  gpu.frameskip.last_flip_frame = *cbs->gpu_frame_count - FRAMESKIP_MAX_FLIP_DELAY - 1;
   gpu.state.hcnt = (uint32_t *)cbs->gpu_hcnt;
   gpu.state.frame_count = (uint32_t *)cbs->gpu_frame_count;
   gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;

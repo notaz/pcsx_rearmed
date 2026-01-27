@@ -77,6 +77,9 @@ struct psx_gpu_async
   uint32_t cmd_buffer[AGPU_BUF_LEN];
   uint32_t pos_area;
   struct pos_drawarea draw_areas[AGPU_AREAS_CNT];
+  struct {
+    int src_x, src_y;
+  } delayed_flip;
 };
 
 // cmd_* must be at least 3 words long
@@ -224,17 +227,39 @@ static void add_draw_area_e(struct psx_gpu_async *agpu, uint32_t pos, int force,
 }
 
 int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int list_len,
- int *cpu_cycles_sum_out, int *cpu_cycles_last, int *last_cmd)
+ int *cpu_cycles_sum_out, int *cpu_cycles_last, int *last_cmd, int *vram_dirty)
 {
-  uint32_t cyc_sum = 0, cyc = *cpu_cycles_last;
+  int cyc_sum = 0, cyc = *cpu_cycles_last;
   struct psx_gpu_async *agpu = gpu->async;
   int pos_handled = 0, dst_can_add = 1;
+  int cmd = -1, pos = 0, len;
   int rendered_anything = 0;
   int insert_break = 0;
-  int cmd = -1, pos, len;
+  uint32_t pos_added;
 
   assert(agpu);
-  for (pos = 0; pos < list_len; pos += len)
+  pos_added = agpu->pos_added;
+  if (RDPOS(agpu->idle) && pos_added == RDPOS(agpu->pos_used)) {
+    // do the cheap stuff directly to avoid thread wakeup/sync
+    for (; pos < list_len; pos++) {
+      uint32_t ecmd = LE32TOH(list_data[pos]);
+      cmd = ecmd >> 24;
+      if (cmd < 2)
+        continue;
+      if ((cmd & 0xf8) != 0xe0)
+        break;
+      if (gpu->ex_regs[cmd & 7] == ecmd)
+        continue;
+      gpu->ex_regs[cmd & 7] = ecmd;
+      if (cmd == 0xe3 || cmd == 0xe4)
+        add_draw_area_e(agpu, pos_added, 0, gpu->ex_regs);
+    }
+    pos_handled = pos;
+    if (pos)
+      renderer_do_cmd_list((uint32_t *)list_data, pos, agpu->ex_regs, &cyc_sum, &cyc, &cmd);
+  }
+
+  for (; pos < list_len; pos += len)
   {
     const uint32_t *list = list_data + pos;
     const int16_t *slist = (void *)list;
@@ -260,8 +285,8 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
           // let sync_scanout() know about changes outside of drawing area
           agpu_log(gpu, "agpu: fill %d,%d %dx%d vs area %d,%d %dx%d\n", x, y, w, h,
             darea->x0, darea->y0, darea->x1 - darea->x0, darea->y1 - darea->y0);
-          add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
-          add_draw_area_e(agpu, agpu->pos_added + 1, 1, gpu->ex_regs);
+          add_draw_area(agpu, pos_added, 1, x, y, x + w, y + h);
+          add_draw_area_e(agpu, pos_added + 1, 1, gpu->ex_regs);
         }
         gput_sum(cyc_sum, cyc, gput_fill(w, h));
         break;
@@ -335,8 +360,8 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
         if ((w > 2 || h > 1) &&
             (x < darea->x0 || x + w > darea->x1 || y < darea->y0 || y + h > darea->y1))
         {
-          add_draw_area(agpu, agpu->pos_added, 1, x, y, x + w, y + h);
-          add_draw_area_e(agpu, agpu->pos_added + 1, 1, gpu->ex_regs);
+          add_draw_area(agpu, pos_added, 1, x, y, x + w, y + h);
+          add_draw_area_e(agpu, pos_added + 1, 1, gpu->ex_regs);
         }
         gput_sum(cyc_sum, cyc, gput_copy(w, h));
         break;
@@ -356,7 +381,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
           break;
         }
         gpu->ex_regs[cmd & 7] = LE32TOH(list[0]);
-        add_draw_area_e(agpu, agpu->pos_added, 0, gpu->ex_regs);
+        add_draw_area_e(agpu, pos_added, 0, gpu->ex_regs);
         insert_break = 1;
         break;
       default:
@@ -367,7 +392,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
     rendered_anything |= rendered;
     if (dst_can_add) {
       if (!skip) {
-        int added = dst_can_add = do_add(agpu, list, len);
+        int added = dst_can_add = do_add_pos(agpu, list, len, &pos_added);
         pos_handled += added;
       }
       else
@@ -375,6 +400,15 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
     }
   }
 breakloop:
+  *cpu_cycles_sum_out += cyc_sum;
+  *cpu_cycles_last = cyc;
+  *last_cmd = cmd;
+  *vram_dirty |= rendered_anything;
+
+  if (unlikely(rendered_anything && agpu->delayed_flip.src_x != -1))
+    gpu_async_try_delayed_flip(gpu, 1);
+  BARRIER();
+  WRPOS(agpu->pos_added, pos_added);
   if (pos_handled && (rendered_anything || pos_handled < pos))
     run_thread(agpu);
   if (pos_handled < pos) {
@@ -384,13 +418,9 @@ breakloop:
     do_add_with_wait(agpu, list_data + pos_handled, left);
   }
   if (insert_break) {
-    struct cmd_break cmd = {{ HTOLE32(FAKECMD_BREAK << 24), }};
-    do_add(agpu, cmd.u32s, sizeof(cmd.u32s) / sizeof(cmd.u32s[0]));
+    struct cmd_break cmdb = {{ HTOLE32(FAKECMD_BREAK << 24), }};
+    do_add(agpu, cmdb.u32s, sizeof(cmdb.u32s) / sizeof(cmdb.u32s[0]));
   }
-
-  *cpu_cycles_sum_out += cyc_sum;
-  *cpu_cycles_last = cyc;
-  *last_cmd = cmd;
   return pos;
 }
 
@@ -617,7 +647,7 @@ static int do_dma_write(struct psx_gpu *gpu,
   return done;
 }
 
-void gpu_async_sync(struct psx_gpu *gpu)
+static void gpu_async_sync_nocheck(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
 
@@ -639,67 +669,139 @@ void gpu_async_sync(struct psx_gpu *gpu)
   assert(agpu->idle);
 }
 
-void gpu_async_sync_scanout(struct psx_gpu *gpu)
+void gpu_async_sync(struct psx_gpu *gpu)
 {
   struct psx_gpu_async *agpu = gpu->async;
-  int so_x0 = gpu->screen.src_x, so_y0 = gpu->screen.src_y;
+
+  if (!agpu)
+    return;
+  if (!RDPOS(agpu->idle) || agpu->pos_added != RDPOS(agpu->pos_used))
+    gpu_async_sync_nocheck(gpu);
+
+  if (unlikely(agpu->delayed_flip.src_x != -1)) {
+    int src_x = agpu->delayed_flip.src_x;
+    agpu_log(gpu, "agpu: delayed_flip 2\n");
+    agpu->delayed_flip.src_x = -1;
+    vout_update(gpu, src_x, agpu->delayed_flip.src_y);
+  }
+}
+
+static int calc_scanout_wait(struct psx_gpu *gpu, int so_x0, int so_y0,
+    uint32_t *pos_to)
+{
+  struct psx_gpu_async *agpu = gpu->async;
   int so_x1 = so_x0 + gpu->screen.hres, so_y1 = so_y0 + gpu->screen.vres;
   uint32_t pos;
   int c, i;
 
-  if (!agpu)
-    return;
   pos = RDPOS(agpu->pos_used);
   if (RDPOS(agpu->idle) && agpu->pos_added == pos)
-    return;
+    return 0;
   i = agpu->pos_area;
   if (agpu->idle)
-    /* unlikely but possible - do a full sync */;
-  else if (so_x1 > 1024 || so_y1 > 512) {
+    // unlikely but possible - do a full sync
+    return -1;
+  if (so_x1 > 1024 || so_y1 > 512) {
     agpu_log(gpu, "agpu: wrap %d,%d %dx%d\n",
       so_x0, so_y0, so_x1 - so_x0, so_y1 - so_y0);
+    return -1;
   }
   else if (agpu->draw_areas[(i+1) & AGPU_AREAS_MASK].pos > pos) {
     agpu_log(gpu, "agpu: oldest draw area %d > %d\n",
       agpu->draw_areas[(i+1) & AGPU_AREAS_MASK].pos, pos);
+    return -1;
   }
-  else {
-    for (c = 0, i = agpu->pos_area; c < AGPU_AREAS_CNT;
-         c++, i = (i - 1) & AGPU_AREAS_MASK)
-    {
-      int area_x0 = agpu->draw_areas[i].x0, area_y0 = agpu->draw_areas[i].y0;
-      int area_x1 = agpu->draw_areas[i].x1, area_y1 = agpu->draw_areas[i].y1;
-      if (so_x1 <= area_x0 || area_x1 <= so_x0)
-        /* no x intersect */;
-      else if (so_y1 <= area_y0 || area_y1 <= so_y0)
-        /* no y intersect */;
-      else {
-        agpu_log(gpu, "agpu: scanout #%d %d,%d %dx%d hit %d,%d %dx%d\n",
-          c, so_x0, so_y0, so_x1 - so_x0, so_y1 - so_y0,
-          area_x0, area_y0, area_x1 - area_x0, area_y1 - area_y0);
-        break;
-      }
-      pos = RDPOS(agpu->pos_used);
-      if (pos >= agpu->draw_areas[i].pos)
-        return;
+
+  for (c = 0, i = agpu->pos_area; c < AGPU_AREAS_CNT;
+       c++, i = (i - 1) & AGPU_AREAS_MASK)
+  {
+    int area_x0 = agpu->draw_areas[i].x0, area_y0 = agpu->draw_areas[i].y0;
+    int area_x1 = agpu->draw_areas[i].x1, area_y1 = agpu->draw_areas[i].y1;
+    if (so_x1 <= area_x0 || area_x1 <= so_x0)
+      /* no x intersect */;
+    else if (so_y1 <= area_y0 || area_y1 <= so_y0)
+      /* no y intersect */;
+    else {
+      agpu_log(gpu, "agpu: scanout #%d %d,%d %dx%d hit %d,%d %dx%d\n",
+        c, so_x0, so_y0, so_x1 - so_x0, so_y1 - so_y0,
+        area_x0, area_y0, area_x1 - area_x0, area_y1 - area_y0);
+      break;
     }
-    if (c > 0) {
-      i = (i + 1) & AGPU_AREAS_MASK;
-      agpu_log(gpu, "agpu: wait %d/%d @ %u/%u\n",
-          agpu->draw_areas[i].pos - RDPOS(agpu->pos_used), agpu->pos_added -
-          RDPOS(agpu->pos_used), RDPOS(agpu->pos_used), agpu->pos_added);
-      slock_lock(agpu->lock);
-      if (!agpu->idle) {
-        assert(agpu->wait_mode == waitmode_none);
-        agpu->pos_target = agpu->draw_areas[i].pos + 1;
-        agpu->wait_mode = waitmode_target;
-        scond_wait(agpu->cond_add, agpu->lock);
-      }
-      slock_unlock(agpu->lock);
-      return;
-    }
+    pos = RDPOS(agpu->pos_used);
+    if (pos >= agpu->draw_areas[i].pos)
+      return 0;
   }
-  gpu_async_sync(gpu);
+  if (c == 0)
+    // newest drawing area hits the scanout - full sync
+    return -1;
+
+  i = (i + 1) & AGPU_AREAS_MASK;
+  *pos_to = agpu->draw_areas[i].pos + 1;
+  return 1;
+}
+
+static void do_scanout_wait(struct psx_gpu *gpu, int check_ret, uint32_t target)
+{
+  struct psx_gpu_async *agpu = gpu->async;
+  if (check_ret == 1) {
+    agpu_log(gpu, "agpu: wait %d/%d @ %u/%u\n",
+        target - RDPOS(agpu->pos_used), agpu->pos_added -
+        RDPOS(agpu->pos_used), RDPOS(agpu->pos_used), agpu->pos_added);
+    slock_lock(agpu->lock);
+    if (!agpu->idle && (int32_t)(agpu->pos_used - target) < 0) {
+      assert(agpu->wait_mode == waitmode_none);
+      agpu->pos_target = target;
+      agpu->wait_mode = waitmode_target;
+      scond_wait(agpu->cond_add, agpu->lock);
+    }
+    slock_unlock(agpu->lock);
+  }
+  else
+    gpu_async_sync_nocheck(gpu);
+}
+
+int gpu_async_sync_scanout(struct psx_gpu *gpu)
+{
+  struct psx_gpu_async *agpu = gpu->async;
+  uint32_t target = 0;
+  int ret;
+
+  if (!agpu)
+    return 0;
+  ret = calc_scanout_wait(gpu, gpu->screen.src_x, gpu->screen.src_y, &target);
+  if (ret == 0)
+    return 0;
+  if (gpu->frameskip.set) {
+    // delay. Could do it without fskip also, but that would cause frame/input lag
+    if (agpu->delayed_flip.src_x != -1)
+      agpu_log(gpu, "agpu: missed delayed_flip?\n");
+    agpu->delayed_flip.src_x = gpu->screen.src_x;
+    agpu->delayed_flip.src_y = gpu->screen.src_y;
+    return 1;
+  }
+  do_scanout_wait(gpu, ret, target);
+  return 0;
+}
+
+void gpu_async_try_delayed_flip(struct psx_gpu *gpu, int force)
+{
+  struct psx_gpu_async *agpu = gpu->async;
+  uint32_t target = 0;
+  int check_ret = 0;
+
+  if (!agpu || agpu->delayed_flip.src_x == -1)
+    return;
+  check_ret = calc_scanout_wait(gpu, gpu->screen.src_x, gpu->screen.src_y, &target);
+  if (force) {
+    do_scanout_wait(gpu, check_ret, target);
+    check_ret = 0;
+  }
+  if (check_ret == 0) {
+    int src_x = agpu->delayed_flip.src_x;
+    agpu_log(gpu, "agpu: delayed_flip %d\n", force);
+    agpu->delayed_flip.src_x = -1;
+    vout_update(gpu, src_x, agpu->delayed_flip.src_y);
+  }
 }
 
 void gpu_async_sync_ecmds(struct psx_gpu *gpu)
@@ -761,6 +863,8 @@ void gpu_async_start(struct psx_gpu *gpu)
 
   agpu = calloc(1, sizeof(*agpu));
   if (agpu) {
+    agpu->delayed_flip.src_x = -1;
+    agpu->delayed_flip.src_y = -1;
     agpu->lock = slock_new();
     agpu->cond_add = scond_new();
     agpu->cond_use = scond_new();
