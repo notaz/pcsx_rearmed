@@ -740,7 +740,7 @@ static void toggle_fast_forward(int force_off)
 	static int fast_forward;
 	static int normal_g_opts;
 	static int normal_enhancement_enable;
-	//static int normal_frameskip;
+	static int normal_frameskip;
 
 	if (force_off && !fast_forward)
 		return;
@@ -748,16 +748,17 @@ static void toggle_fast_forward(int force_off)
 	fast_forward = !fast_forward;
 	if (fast_forward) {
 		normal_g_opts = g_opts;
-		//normal_frameskip = pl_rearmed_cbs.frameskip;
+		normal_frameskip = pl_rearmed_cbs.frameskip;
 		normal_enhancement_enable =
 			pl_rearmed_cbs.gpu_neon.enhancement_enable;
 
 		g_opts |= OPT_NO_FRAMELIM;
-		// pl_rearmed_cbs.frameskip = 3; // too broken
+		if (normal_frameskip != 0)
+			pl_rearmed_cbs.frameskip = 3;
 		pl_rearmed_cbs.gpu_neon.enhancement_enable = 0;
 	} else {
 		g_opts = normal_g_opts;
-		//pl_rearmed_cbs.frameskip = normal_frameskip;
+		pl_rearmed_cbs.frameskip = normal_frameskip;
 		pl_rearmed_cbs.gpu_neon.enhancement_enable =
 			normal_enhancement_enable;
 
