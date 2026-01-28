@@ -682,7 +682,7 @@ int vout_finish(void)
   return 0;
 }
 
-int vout_update(void)
+int vout_update(struct psx_gpu *gpu, int src_x, int src_y)
 {
  if(PSXDisplay.Interlaced)                            // interlaced mode?
  {
@@ -700,7 +700,7 @@ int vout_update(void)
  return 0;
 }
 
-void vout_blank(void)
+void vout_blank(struct psx_gpu *gpu)
 {
 }
 
