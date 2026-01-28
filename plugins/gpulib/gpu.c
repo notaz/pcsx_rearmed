@@ -228,6 +228,7 @@ static noinline void decide_frameskip(struct psx_gpu *gpu, uint32_t flip_delay)
     gpu->frameskip.frame_ready = 1;
   }
 
+  // note: frontend/libretro only uses 'force'
   if (*gpu->frameskip.force)
     gpu->frameskip.active = 1;
   else if (!gpu->frameskip.active && *gpu->frameskip.advice)

@@ -1777,7 +1777,7 @@ static void retro_audio_buff_status_cb(
 {
    retro_audio_buff_active    = active;
    retro_audio_buff_occupancy = occupancy;
-   retro_audio_buff_underrun  = underrun_likely;
+   retro_audio_buff_underrun |= underrun_likely;
 }
 
 static void retro_set_audio_buff_status_cb(void)
@@ -1815,8 +1815,8 @@ static void retro_set_audio_buff_status_cb(void)
           * buffer underruns */
          uint32_t frame_time_usec = 1000000.0 / (is_pal_mode ? 50.0 : 60.0);
 
-         /* Set latency to 6x current frame time... */
-         retro_audio_latency = (unsigned)(6 * frame_time_usec / 1000);
+         /* Set latency... */
+         retro_audio_latency = (unsigned)((4 + frameskip_interval * 2) * frame_time_usec / 1000);
 
          /* ...then round up to nearest multiple of 32 */
          retro_audio_latency = (retro_audio_latency + 0x1F) & ~0x1F;
@@ -1825,6 +1825,7 @@ static void retro_set_audio_buff_status_cb(void)
 
    update_audio_latency = true;
    frameskip_counter    = 0;
+   pl_rearmed_cbs.fskip_force = 0;
 }
 
 static void update_variables(bool in_flight);
@@ -3353,12 +3354,9 @@ void retro_run(void)
    set_vout_fb();
    print_internal_fps();
 
-   /* Check whether current frame should
-    * be skipped */
-   pl_rearmed_cbs.fskip_force = 0;
-   pl_rearmed_cbs.fskip_dirty = 0;
-
-   if (frameskip_type != FRAMESKIP_NONE)
+   /* Check whether current frame should be skipped */
+   if (frameskip_type != FRAMESKIP_NONE && !pl_rearmed_cbs.fskip_force &&
+       frameskip_counter < frameskip_interval)
    {
       bool skip_frame = false;
 
@@ -3377,8 +3375,7 @@ void retro_run(void)
             break;
       }
 
-      if (skip_frame && frameskip_counter < frameskip_interval)
-         pl_rearmed_cbs.fskip_force = 1;
+      pl_rearmed_cbs.fskip_force = skip_frame;
    }
 
    /* If frameskip/timing settings have changed,
@@ -3404,11 +3401,16 @@ void retro_run(void)
    psxRegs.stop = 0;
    psxCpu->Execute(&psxRegs);
 
-   if (pl_rearmed_cbs.fskip_dirty == 1) {
-      if (frameskip_counter < frameskip_interval)
-         frameskip_counter++;
-      else if (frameskip_counter >= frameskip_interval || !pl_rearmed_cbs.fskip_force)
+   if (pl_rearmed_cbs.fskip_dirty) {
+      if (frameskip_counter >= frameskip_interval || !pl_rearmed_cbs.fskip_force)
          frameskip_counter = 0;
+      else
+         frameskip_counter++;
+
+      if (pl_rearmed_cbs.fskip_force)
+         retro_audio_buff_underrun = false;
+      pl_rearmed_cbs.fskip_force = 0;
+      pl_rearmed_cbs.fskip_dirty = 0;
    }
 
    video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
