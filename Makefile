@@ -11,8 +11,9 @@ HAVE_CHD ?= 1
 ifneq ($(DEBUG)$(DEBUG_SYMS), 00)
 CFLAGS += -ggdb
 endif
+CFLAGS_OPT ?= -Ofast
 ifneq ($(DEBUG), 1)
-CFLAGS += -Ofast
+CFLAGS += $(CFLAGS_OPT)
 ifneq ($(ASSERTS), 1)
 CFLAGS += -DNDEBUG
 endif

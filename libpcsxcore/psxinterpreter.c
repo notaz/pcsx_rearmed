@@ -104,7 +104,7 @@ static void intException(psxRegisters *regs, u32 pc, u32 cause)
 {
 	if (cause != 0x20) {
 		//FILE *f = fopen("/tmp/psx_ram.bin", "wb");
-		//fwrite(psxM, 1, 0x200000, f); fclose(f);
+		//fwrite(psxRegs.ptrs.psxM, 1, 0x200000, f); fclose(f);
 		log_unhandled("exception %08x @%08x ra=%08x\n",
 			cause, pc, regs->GPR.n.ra);
 	}

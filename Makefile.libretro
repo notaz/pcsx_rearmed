@@ -600,6 +600,7 @@ else ifeq ($(platform), emscripten)
    NO_MMAP = 1
    # we can use -lz for emscripten's built-in zlib port
    WANT_ZLIB=0
+   CFLAGS_OPT = -O2
    CFLAGS += -DNO_DYLIB -DNO_SOCKET
    CFLAGS += -msimd128 -ftree-vectorize
    # when compiling with pthreads...

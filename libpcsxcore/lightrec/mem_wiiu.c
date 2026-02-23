@@ -68,18 +68,20 @@ int lightrec_init_mmap(void) {
 			wiiu_unmap(avail_va + 0x200000 * i, 0x200000);
 		goto cleanup_allocations;
 	}
-	psxM = (void*)avail_va;
+	psxRegs.ptrs.psxM = (void*)avail_va;
 
-	psxP = wiiu_mmap(avail_va + 0x1f000000, 0x10000, psx_parallel);
-	psxH = wiiu_mmap(avail_va + 0x1f800000, 0x10000, psx_scratch);
-	psxR = wiiu_mmap(avail_va + 0x1fc00000, 0x80000, psx_bios);
+	psxRegs.ptrs.psxP = wiiu_mmap(avail_va + 0x1f000000, 0x10000, psx_parallel);
+	psxRegs.ptrs.psxH = wiiu_mmap(avail_va + 0x1f800000, 0x10000, psx_scratch);
+	psxRegs.ptrs.psxR = wiiu_mmap(avail_va + 0x1fc00000, 0x80000, psx_bios);
 
-	if (psxP == MAP_FAILED || psxH == MAP_FAILED || psxR == MAP_FAILED) {
+	if (psxRegs.ptrs.psxP == MAP_FAILED || psxRegs.ptrs.psxH == MAP_FAILED ||
+	    psxRegs.ptrs.psxR == MAP_FAILED)
+	{
 		for (int i = 0; i < 4; i++)
-			wiiu_unmap(psxM + 0x200000 * i, 0x200000);
-		wiiu_unmap(psxP, 0x10000);
-		wiiu_unmap(psxH, 0x10000);
-		wiiu_unmap(psxR, 0x80000);
+			wiiu_unmap(psxRegs.ptrs.psxM + 0x200000 * i, 0x200000);
+		wiiu_unmap(psxRegs.ptrs.psxP, 0x10000);
+		wiiu_unmap(psxRegs.ptrs.psxH, 0x10000);
+		wiiu_unmap(psxRegs.ptrs.psxR, 0x80000);
 		goto cleanup_allocations;
 	}
 
@@ -97,10 +99,10 @@ cleanup_allocations:
 
 void lightrec_free_mmap(void) {
 	for (int i = 0; i < 4; i++)
-		wiiu_unmap(psxM + 0x200000 * i, 0x200000);
-	wiiu_unmap(psxP, 0x10000);
-	wiiu_unmap(psxH, 0x10000);
-	wiiu_unmap(psxR, 0x80000);
+		wiiu_unmap(psxRegs.ptrs.psxM + 0x200000 * i, 0x200000);
+	wiiu_unmap(psxRegs.ptrs.psxP, 0x10000);
+	wiiu_unmap(psxRegs.ptrs.psxH, 0x10000);
+	wiiu_unmap(psxRegs.ptrs.psxR, 0x80000);
 	free(psx_mem);
 	free(psx_parallel);
 	free(psx_scratch);

@@ -697,15 +697,15 @@ static u32 memcheck_read(u32 a)
 {
 	if ((a >> 16) == 0x1f80)
 		// scratchpad/IO
-		return *(u32 *)(psxH + (a & 0xfffc));
+		return *(u32 *)(psxRegs.ptrs.psxH + (a & 0xfffc));
 
 	if ((a >> 16) == 0x1f00)
 		// parallel
-		return *(u32 *)(psxP + (a & 0xfffc));
+		return *(u32 *)(psxRegs.ptrs.psxP + (a & 0xfffc));
 
 //	if ((a & ~0xe0600000) < 0x200000)
 	// RAM
-	return *(u32 *)(psxM + (a & 0x1ffffc));
+	return *(u32 *)(psxRegs.ptrs.psxM + (a & 0x1ffffc));
 }
 
 #if 0
@@ -761,8 +761,8 @@ void do_insn_trace(void)
 
 #if 0
 	if (psxRegs.cycle == 190230) {
-		dump_mem("/mnt/ntz/dev/pnd/tmp/psxram_i.dump", psxM, 0x200000);
-		dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs_i.dump", psxH, 0x10000);
+		dump_mem("/mnt/ntz/dev/pnd/tmp/psxram_i.dump", psxRegs.ptrs.psxM, 0x200000);
+		dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs_i.dump", psxRegs.ptrs.psxH, 0x10000);
 		printf("dumped\n");
 		exit(1);
 	}
@@ -937,8 +937,8 @@ void do_insn_cmp(void)
 			i+8, allregs_p[i+8], i+16, allregs_p[i+16], i+24, allregs_p[i+24]);
 	printf("PC: %08x/%08x, cycle %u, next %u\n", psxRegs.pc, ppc,
 		psxRegs.cycle, psxRegs.next_interupt);
-	//dump_mem("/tmp/psxram.dump", psxM, 0x200000);
-	//dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxH, 0x10000);
+	//dump_mem("/tmp/psxram.dump", psxRegs.ptrs.psxM, 0x200000);
+	//dump_mem("/mnt/ntz/dev/pnd/tmp/psxregs.dump", psxRegs.ptrs.psxH, 0x10000);
 	exit(1);
 ok:
 	//psxRegs.cycle = rregs.cycle + 2; // sync timing
