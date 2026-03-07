@@ -98,17 +98,6 @@ int vout_update(struct psx_gpu *gpu, int src_x, int src_y)
     src_x2 *= 2;
   }
 
-  if (src_y + h > vram_h) {
-    if (src_y + h - vram_h > h / 2) {
-      // wrap
-      h -= vram_h - src_y;
-      src_y = 0;
-    }
-    else
-      // clip
-      h = vram_h - src_y;
-  }
-
   // gpu_unai skips drawing odd lines
   if (h > 256 && gpu->state.downscale_enable && (src_y & 1))
     src_y++;
