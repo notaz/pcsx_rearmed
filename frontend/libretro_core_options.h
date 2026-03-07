@@ -139,7 +139,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_show_bios_bootlogo",
       "Show BIOS Boot Logo",
       NULL,
-      "When using an official BIOS file, specify whether to show the PlayStation logo upon starting or resetting content. Warning: Enabling the boot logo may reduce game compatibility.",
+      "When using an official BIOS file, specify whether to show the PlayStation logo upon starting or resetting content. Also enables the display of BIOS file name in OSD. Warning: Enabling the boot logo may reduce game compatibility.",
       NULL,
       "system",
       {

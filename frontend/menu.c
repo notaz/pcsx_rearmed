@@ -373,13 +373,10 @@ static void menu_set_defconfig(void)
 }
 
 #define CE_CONFIG_STR(val) \
-	{ #val, 0, Config.val }
+	{ #val, sizeof(Config.val), Config.val }
 
 #define CE_CONFIG_VAL(val) \
 	{ #val, sizeof(Config.val), &Config.val }
-
-#define CE_STR(val) \
-	{ #val, 0, val }
 
 #define CE_INTVAL(val) \
 	{ #val, sizeof(val), &val }
@@ -392,7 +389,7 @@ static void menu_set_defconfig(void)
 
 // 'versioned' var, used when defaults change
 #define CE_CONFIG_STR_V(val, ver) \
-	{ #val #ver, 0, Config.val }
+	{ #val #ver, sizeof(Config.val), Config.val }
 
 #define CE_INTVAL_V(val, ver) \
 	{ #val #ver, sizeof(val), &val }
@@ -405,7 +402,7 @@ static const struct {
 	size_t len;
 	void *val;
 } config_data[] = {
-	CE_CONFIG_STR(Bios),
+	{ "Bios", sizeof(Config.Bios[0]), Config.Bios[0] },
 	CE_CONFIG_STR_V(Gpu, 3),
 	CE_CONFIG_STR(Spu),
 //	CE_CONFIG_STR(Cdr),
@@ -548,10 +545,11 @@ static int menu_write_config(int is_game)
 
 	for (i = 0; i < ARRAY_SIZE(config_data); i++) {
 		fprintf(f, "%s = ", config_data[i].name);
-		switch (config_data[i].len) {
-		case 0:
+		if (config_data[i].len > 8) { // string
 			fprintf(f, "%s\n", (char *)config_data[i].val);
-			break;
+			continue;
+		}
+		switch (config_data[i].len) {
 		case 1:
 			write_u32_value(f, *(u8 *)config_data[i].val);
 			break;
@@ -612,16 +610,20 @@ out:
 	return 0;
 }
 
-static void parse_str_val(char *cval, const char *src)
+static void parse_str_val(char *cval, size_t len, const char *src)
 {
-	char *tmp;
-	strncpy(cval, src, MAXPATHLEN);
-	cval[MAXPATHLEN - 1] = 0;
-	tmp = strchr(cval, '\n');
+	const char *tmp;
+	len--;
+	tmp = strchr(src, '\n');
 	if (tmp == NULL)
-		tmp = strchr(cval, '\r');
-	if (tmp != NULL)
-		*tmp = 0;
+		tmp = strchr(src, '\r');
+	if (tmp != NULL) {
+		size_t l1 = tmp - src;
+		if (len > l1)
+			len = l1;
+	}
+	memcpy(cval, src, len);
+	cval[len] = 0;
 }
 
 static void keys_load_all(const char *cfg);
@@ -671,8 +673,8 @@ int menu_load_config(int is_game)
 			continue;
 		tmp += 3;
 
-		if (config_data[i].len == 0) {
-			parse_str_val(config_data[i].val, tmp);
+		if (config_data[i].len > 8) {
+			parse_str_val(config_data[i].val, config_data[i].len, tmp);
 			continue;
 		}
 
@@ -702,7 +704,7 @@ int menu_load_config(int is_game)
 		char *tmp = strstr(cfg, "lastcdimg = ");
 		if (tmp != NULL) {
 			tmp += 12;
-			parse_str_val(last_selected_fname, tmp);
+			parse_str_val(last_selected_fname, sizeof(last_selected_fname), tmp);
 		}
 	}
 
@@ -719,7 +721,7 @@ fail:
 
 	// sync plugins
 	for (i = bios_sel = 0; bioses[i] != NULL; i++)
-		if (strcmp(Config.Bios, bioses[i]) == 0)
+		if (strcmp(Config.Bios[0], bioses[i]) == 0)
 			{ bios_sel = i; break; }
 
 	for (i = gpu_plugsel = 0; gpu_plugins[i] != NULL; i++)
@@ -1634,7 +1636,7 @@ static int menu_loop_plugin_options(int id, int keys)
 	Config.SlowBoot = slowboot_sel;
 
 	// sync BIOS/plugins
-	snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[bios_sel]);
+	snprintf(Config.Bios[0], sizeof(Config.Bios[0]), "%s", bioses[bios_sel]);
 	snprintf(Config.Gpu, sizeof(Config.Gpu), "%s", gpu_plugins[gpu_plugsel]);
 	snprintf(Config.Spu, sizeof(Config.Spu), "%s", spu_plugins[spu_plugsel]);
 	me_enable(e_menu_main2, MA_MAIN_RUN_BIOS, bios_sel != 0);
@@ -2174,6 +2176,9 @@ static int run_exe(void)
 	if (fname == NULL)
 		return -1;
 
+	Config.PsxRegion = PSX_REGION_US;
+	Config.PsxType = PSX_TYPE_NTSC;
+
 	ready_to_go = 0;
 	if (reload_plugins(NULL) != 0)
 		return -1;
@@ -2490,7 +2495,7 @@ void menu_loop(void)
 		// assume first run
 		if (bioses[1] != NULL) {
 			// autoselect BIOS to make user's life easier
-			snprintf(Config.Bios, sizeof(Config.Bios), "%s", bioses[1]);
+			snprintf(Config.Bios[0], sizeof(Config.Bios[0]), "%s", bioses[1]);
 			bios_sel = 1;
 		}
 		else if (!warned_about_bios) {
