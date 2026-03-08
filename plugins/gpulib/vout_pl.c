@@ -38,13 +38,15 @@ static void check_mode_change(struct psx_gpu *gpu, int force)
   w = w_out = (gpu->status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
   h = h_out = 512;
 #endif
-  gpu->state.enhancement_active =
-    gpu->get_enhancement_bufer != NULL && gpu->state.enhancement_enable
-    && w <= 512 && h <= 256 && !(gpu->status & PSX_GPU_STATUS_RGB24);
-
-  if (gpu->state.enhancement_active) {
-    w_out *= 2;
-    h_out *= 2;
+  if (gpu->get_enhancement_bufer != NULL && gpu->state.enhancement_enable) {
+    gpu->state.enhancement_active =
+      w <= 512 && h <= 256 && !(gpu->status & PSX_GPU_STATUS_RGB24) &&
+      gpu->screen.src_y < (512 - 256/2) && gpu->state.src_y_old < (512 - 256/2);
+    gpu->state.src_y_old = gpu->screen.src_y;
+    if (gpu->state.enhancement_active) {
+      w_out *= 2;
+      h_out *= 2;
+    }
   }
   if (gpu->status & PSX_GPU_STATUS_RGB24) {
     // some asm relies on this alignment

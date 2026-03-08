@@ -101,7 +101,8 @@ struct psx_gpu {
       uint32_t hcnt;
     } last_list;
     uint32_t last_vram_read_frame;
-    uint32_t w_out_old, h_out_old, status_vo_old;
+    uint16_t w_out_old, h_out_old, src_y_old;
+    uint32_t status_vo_old;
     short screen_centering_type;
     short screen_centering_type_default;
     short screen_centering_x;
