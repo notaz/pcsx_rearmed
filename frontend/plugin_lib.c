@@ -423,7 +423,7 @@ static void pl_vout_flip(const void *vram_, int vram_ofs, int bgr24,
 				dest -= dstride * 2 * h;
 				dest += (w - hwrapped / 3) * 2;
 				for (h1 = h; h1-- > 0; dest += dstride * 2) {
-					blit(dest, vram + vram_ofs, hwrapped / 2);
+					blit(dest, vram + vram_ofs, hwrapped / 3);
 					vram_ofs = (vram_ofs + sstride) & 0xfffff;
 				}
 			}

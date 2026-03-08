@@ -35,7 +35,7 @@ static void check_mode_change(struct psx_gpu *gpu, int force)
     h = gpu->screen.h;
   w_out = w, h_out = h;
 #ifdef RAW_FB_DISPLAY
-  w = w_out = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  w = w_out = (gpu->status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
   h = h_out = 512;
 #endif
   gpu->state.enhancement_active =
@@ -78,7 +78,7 @@ int vout_update(struct psx_gpu *gpu, int src_x, int src_y)
   int offset;
 
 #ifdef RAW_FB_DISPLAY
-  w = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  w = (gpu->status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
   h = 512, x = src_x = y = src_y = 0;
 #endif
   if (x < 0) { w += x; src_x2 = -x; x = 0; }
