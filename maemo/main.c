@@ -192,7 +192,7 @@ int main(int argc, char **argv)
 	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "/opt/maemo/usr/games" PATCHES_DIR);
 	Config.PsxAuto = 1;
 	pl_rearmed_cbs.frameskip = -1;
-	strcpy(Config.Bios, "HLE");
+	strcpy(Config.Bios[0], "HLE");
 	spu_config.iUseReverb = 1;
 	spu_config.iUseInterpolation = 1;
 	in_type1 = PSE_PAD_TYPE_STANDARD;
@@ -243,7 +243,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-nosound"))		        strcpy(Config.Spu, "spunull.so");
 		else if (!strcmp(argv[i], "-bdir"))			sprintf(Config.BiosDir, "%s", argv[++i]);
 		else if (!strcmp(argv[i], "-pdir"))			        sprintf(Config.PluginsDir, "%s", argv[++i]);
-		else if (!strcmp(argv[i], "-bios"))			sprintf(Config.Bios, "%s", argv[++i]);
+		else if (!strcmp(argv[i], "-bios"))			sprintf(Config.Bios[0], "%s", argv[++i]);
 		else if (!strcmp(argv[i], "-gles"))			        { strcpy(Config.Gpu, "gpu_gles.so"); g_maemo_opts |= 8 ;}
 		else if (!strcmp(argv[i], "-oldgpu"))		        strcpy(Config.Gpu, "gpu_peops.so");
 		else if (!strcmp(argv[i], "-unai"))		            strcpy(Config.Gpu, "gpu_unai.so");

@@ -4116,6 +4116,8 @@ void psxBiosInit() {
 	ram32[A_RCNT_VBL_ACK/4 + 2] = SWAP32(1);
 	ram32[A_RCNT_VBL_ACK/4 + 3] = SWAP32(1);
 	ram32[A_RND_SEED/4] = SWAPu32(0x24040001); // was 0xac20cc00
+
+	SysPrintf("HLE BIOS initialized.\n");
 }
 
 void psxBiosShutdown() {

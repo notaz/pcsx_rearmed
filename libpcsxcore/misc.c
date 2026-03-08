@@ -372,13 +372,19 @@ int CheckCdrom() {
 	char *buf;
 	unsigned char mdir[4096];
 	char exename[256];
-	int lic_region_detected = -1;
-	int i, len, c;
+	int psxtype_from_lic = -1;
+	struct { u8 region; const char *str; } lic_strings[] = {
+		{ PSX_REGION_JP, "Inc." },
+		{ PSX_REGION_US, "Amer  ica" },
+		{ PSX_REGION_EU, "Euro pe" }
+	};
+	size_t i, len, c;
 
 	FreePPFCache();
 	memset(CdromLabel, 0, sizeof(CdromLabel));
 	memset(CdromId, 0, sizeof(CdromId));
 	memset(exename, 0, sizeof(exename));
+	Config.PsxRegion = PSX_REGION_US;
 
 	if (!Config.HLE && Config.SlowBoot) {
 		// boot to BIOS in case of CDDA or lid is open
@@ -386,15 +392,21 @@ int CheckCdrom() {
 		if ((stat.Status & 0x10) || stat.Type == 2 || cdra_readTrack(time))
 			return 0;
 	}
-	if (Config.PsxAuto) {
-		time[0] = 0;
-		time[1] = 2;
-		time[2] = 4;
-		READTRACK();
-		if (strcmp((char *)buf + 12 + 46, "Entertainment Euro pe   ") == 0)
-			lic_region_detected = PSX_TYPE_PAL;
-		// else it'll default to NTSC anyway
+	time[0] = 0;
+	time[1] = 2;
+	time[2] = 4;
+	READTRACK();
+	for (i = 0; i < sizeof(lic_strings) / sizeof(lic_strings[0]); i++) {
+		len = strlen(lic_strings[i].str);
+		if (strncmp((char *)buf + 12 + 60, lic_strings[i].str, len) == 0) {
+			Config.PsxRegion = lic_strings[i].region;
+			psxtype_from_lic = Config.PsxRegion == PSX_REGION_EU
+				? PSX_TYPE_PAL : PSX_TYPE_NTSC;
+			break;
+		}
 	}
+	if (psxtype_from_lic < 0)
+		SysPrintf("CheckCdrom: missing lic sector?\n");
 
 	time[0] = 0;
 	time[1] = 2;
@@ -435,7 +447,7 @@ int CheckCdrom() {
 		/* Workaround for Wild Arms EU/US which has non-standard string causing incorrect region detection */
 		if (exename[0] == 'E' && exename[1] == 'X' && exename[2] == 'E' && exename[3] == '\\') {
 			size_t offset = 4;
-			size_t i, len = strlen(exename) - offset;
+			len = strlen(exename) - offset;
 			for (i = 0; i < len; i++)
 				exename[i] = exename[i + offset];
 			exename[i] = '\0';
@@ -461,8 +473,8 @@ int CheckCdrom() {
 		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
-		if (lic_region_detected >= 0)
-			Config.PsxType = lic_region_detected;
+		if (psxtype_from_lic >= 0)
+			Config.PsxType = psxtype_from_lic;
 		else if (
 			/* Make sure Wild Arms SCUS-94608 is not detected as a PAL game. */
 			((CdromId[0] == 's' || CdromId[0] == 'S') && (CdromId[2] == 'e' || CdromId[2] == 'E')) ||

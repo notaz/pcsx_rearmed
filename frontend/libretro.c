@@ -72,9 +72,11 @@
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
-
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
 #define ISHEXDEC ((buf[cursor] >= '0') && (buf[cursor] <= '9')) || ((buf[cursor] >= 'a') && (buf[cursor] <= 'f')) || ((buf[cursor] >= 'A') && (buf[cursor] <= 'F'))
@@ -110,7 +112,6 @@ static int vout_width = 256, vout_height = 240, vout_pitch_b = 256*2;
 static int vout_fb_dirty;
 static int psx_w, psx_h;
 static bool vout_can_dupe;
-static bool found_bios;
 static int display_internal_fps;
 static bool libretro_supports_bitmasks = false;
 static bool libretro_supports_option_categories = false;
@@ -1773,15 +1774,15 @@ static void set_retro_memmap(void)
 }
 
 static void show_notification(const char *msg_str,
-      unsigned duration_ms, unsigned priority)
+      unsigned duration_ms, unsigned priority, enum retro_log_level level)
 {
    if (msg_interface_version >= 1)
    {
       struct retro_message_ext msg = {
          msg_str,
          duration_ms,
-         3,
-         RETRO_LOG_WARN,
+         priority,
+         level,
          RETRO_MESSAGE_TARGET_ALL,
          RETRO_MESSAGE_TYPE_NOTIFICATION,
          -1
@@ -1992,7 +1993,8 @@ bool retro_load_game(const struct retro_game_info *info)
 #if !defined(HAVE_CDROM) && !defined(USE_LIBRETRO_VFS)
       ReleasePlugins();
       LogErr("%s\n", "Physical CD-ROM support is not compiled in.");
-      show_notification("Physical CD-ROM support is not compiled in.", 6000, 3);
+      show_notification("Physical CD-ROM support is not compiled in.",
+         6000, 3, RETRO_LOG_ERROR);
       return false;
 #endif
    }
@@ -2075,10 +2077,18 @@ bool retro_load_game(const struct retro_game_info *info)
    for (i = 0; i < 8; ++i)
       in_type[i] = PSE_PAD_TYPE_STANDARD;
 
-   if (!is_exe && CheckCdrom() == -1)
+   if (!is_exe)
    {
-      LogErr("unsupported/invalid CD image: %s\n", info->path);
-      return false;
+      if (CheckCdrom() == -1)
+      {
+         LogErr("unsupported/invalid CD image: %s\n", info->path);
+         return false;
+      }
+   }
+   else
+   {
+      Config.PsxRegion = PSX_REGION_US;
+      Config.PsxType = PSX_TYPE_NTSC;
    }
 
    plugin_call_rearmed_cbs();
@@ -2108,10 +2118,20 @@ bool retro_load_game(const struct retro_game_info *info)
 #endif
    log_mem_usage(0);
 
-   if (check_unsatisfied_libcrypt())
-      show_notification("LibCrypt protected game with missing SBI detected", 3000, 3);
+   if (check_unsatisfied_libcrypt()) {
+      show_notification("LibCrypt protected game with missing SBI detected",
+            3000, 3, RETRO_LOG_WARN);
+   }
+   if (Config.SlowBoot)
+   {
+      char buf[16+64];
+      if (Config.PsxRegion < ARRAY_SIZE(Config.Bios) && Config.Bios[Config.PsxRegion][0]) {
+         snprintf(buf, sizeof(buf), "Booting BIOS: %s", Config.Bios[Config.PsxRegion]);
+         show_notification(buf, 1000, 2, RETRO_LOG_INFO);
+      }
+   }
    if (Config.TurboCD)
-      show_notification("TurboCD is ON", 700, 2);
+      show_notification("TurboCD is ON", 700, 2, RETRO_LOG_INFO);
 
    return true;
 }
@@ -2941,20 +2961,6 @@ static void update_variables(bool in_flight)
    }
 #endif
 
-   if (found_bios)
-   {
-      var.value = NULL;
-      var.key = "pcsx_rearmed_show_bios_bootlogo";
-      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      {
-         Config.SlowBoot = 0;
-         if (strcmp(var.value, "enabled") == 0)
-            Config.SlowBoot = 1;
-         else if (strcmp(var.value, "enabled_no_pcsx") == 0)
-            Config.SlowBoot = 2;
-      }
-   }
-
    if (in_flight)
    {
       // inform core things about possible config changes
@@ -3282,7 +3288,7 @@ static void update_input(void)
                int state = padToggleAnalog(i);
                char msg[32];
                snprintf(msg, sizeof(msg), "ANALOG %s", state ? "ON" : "OFF");
-               show_notification(msg, 800, 1);
+               show_notification(msg, 800, 1, RETRO_LOG_INFO);
                in_dualshock_toggling = true;
             }
             return;
@@ -3375,12 +3381,16 @@ static void print_internal_fps(void)
    }
 }
 
+static bool get_bios_config_hle(void);
+static void prepare_bios(bool use_hle);
+
 void retro_run(void)
 {
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (rebootemu != 0)
    {
       rebootemu = 0;
+      prepare_bios(get_bios_config_hle());
       SysReset();
       if (Config.HLE)
          LoadCdrom();
@@ -3462,8 +3472,13 @@ void retro_run(void)
 #endif
 }
 
-static bool try_use_bios(const char *path, bool preferred_only)
+// see Config.Bios
+static char *bios_saved[PSX_REGION_COUNT];
+
+static bool try_use_bios(char *path, size_t path_size, bool preferred_only)
 {
+   const char *guessed_region_name = "US";
+   u8 guessed_region = PSX_REGION_US;
    long size;
    const char *name;
    FILE *fp = fopen(path, "rb");
@@ -3484,11 +3499,20 @@ static bool try_use_bios(const char *path, bool preferred_only)
       return false;
    if (strstr(name, "unirom"))
       return false;
-   // jp bios have an addidional region check
-   if (preferred_only && (strcasestr(name, "00.") || strcasestr(name, "j.bin")))
-      return false;
+   if (strstr(name, "00.") || strcasestr(name, "j.bin")) {
+      guessed_region = PSX_REGION_JP;
+      guessed_region_name = "JP";
+   }
+   else if (strstr(name, "02.") || strstr(name, "52.") || strcasestr(name, "e.bin")) {
+      guessed_region = PSX_REGION_EU;
+      guessed_region_name = "EU";
+   }
 
-   snprintf(Config.Bios, sizeof(Config.Bios), "%s", name);
+   if (bios_saved[guessed_region] == NULL) {
+      bios_saved[guessed_region] = strdup(name);
+      if (bios_saved[guessed_region])
+         SysPrintf("found %s BIOS file: %s\n", guessed_region_name, path);
+   }
    return true;
 }
 
@@ -3496,18 +3520,17 @@ static bool try_use_bios(const char *path, bool preferred_only)
 #include <sys/types.h>
 #include <dirent.h>
 
-static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
+static void find_any_bios(const char *dirpath, char *path, size_t path_size)
 {
    static const char *substr_pref[] = { "scph", "ps" };
    static const char *substr_alt[] = { "scph", "ps", "openbios" };
    DIR *dir;
    struct dirent *ent;
-   bool ret = false;
    size_t i;
 
    dir = opendir(dirpath);
    if (dir == NULL)
-      return false;
+      return;
 
    // try to find a "better" bios
    while ((ent = readdir(dir)))
@@ -3518,8 +3541,8 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
          if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
             continue;
          snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-         ret = try_use_bios(path, true);
-         if (ret)
+         try_use_bios(path, path_size, true);
+         if (bios_saved[0] && bios_saved[1] && bios_saved[2])
             goto finish;
       }
    }
@@ -3534,19 +3557,17 @@ static bool find_any_bios(const char *dirpath, char *path, size_t path_size)
          if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
             continue;
          snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-         ret = try_use_bios(path, false);
-         if (ret)
+         try_use_bios(path, path_size, false);
+         if (bios_saved[0] && bios_saved[1] && bios_saved[2])
             goto finish;
       }
    }
 
-
 finish:
    closedir(dir);
-   return ret;
 }
 #else
-#define find_any_bios(...) false
+#define find_any_bios(...)
 #endif
 
 static void check_system_specs(void)
@@ -3601,76 +3622,101 @@ static int init_memcards(void)
    return ret;
 }
 
+static bool get_bios_config_hle(void)
+{
+   struct retro_variable var = { NULL, };
+   bool use_hle = false;
+
+   var.key = "pcsx_rearmed_bios";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (!strcmp(var.value, "HLE"))
+         use_hle = true;
+   }
+
+   Config.SlowBoot = 0;
+   if (!use_hle)
+   {
+      var.value = NULL;
+      var.key = "pcsx_rearmed_show_bios_bootlogo";
+      if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      {
+         if (strcmp(var.value, "enabled") == 0)
+            Config.SlowBoot = 1;
+         else if (strcmp(var.value, "enabled_no_pcsx") == 0)
+            Config.SlowBoot = 2;
+      }
+   }
+   return use_hle;
+}
+
+static void prepare_bios(bool use_hle)
+{
+   size_t i, count = sizeof(bios_saved) / sizeof(bios_saved[0]);
+   assert(count == sizeof(Config.Bios) / sizeof(Config.Bios[0]));
+   for (i = 0; i < count; i++) {
+      Config.Bios[i][0] = 0;
+      if (bios_saved[i] && !use_hle) {
+         int r = snprintf(Config.Bios[i], sizeof(Config.Bios[i]), "%s", bios_saved[i]);
+         if (r >= sizeof(Config.Bios[i])) {
+            LogErr("BIOS '%s' name is too long, discarding\n", bios_saved[i]);
+            Config.Bios[i][0] = 0;
+         }
+      }
+   }
+}
+
 static void loadPSXBios(void)
 {
-   const char *dir;
    char path[PATH_MAX];
-   unsigned useHLE = 0;
-
-   const char *bios[] = {
+   const char *dir;
+   const char *msg_str = NULL;
+   unsigned duration = 0;
+   const char * const us_bios[] = {
       "PSXONPSP660", "psxonpsp660",
       "SCPH101", "scph101",
       "SCPH5501", "scph5501",
       "SCPH7001", "scph7001",
       "SCPH1001", "scph1001"
    };
+   bool use_hle = get_bios_config_hle();
+   enum retro_log_level level = RETRO_LOG_INFO;
 
-   struct retro_variable var = {
-      .key = "pcsx_rearmed_bios",
-      .value = NULL
-   };
-
-   found_bios = 0;
-
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
    {
-      if (!strcmp(var.value, "HLE"))
-         useHLE = 1;
+      unsigned i;
+      snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
+
+      for (i = 0; i < sizeof(us_bios) / sizeof(us_bios[0]); i++)
+      {
+         bool found_bios;
+         snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, us_bios[i]);
+         found_bios = try_use_bios(path, sizeof(path), true);
+         if (found_bios)
+            break;
+      }
+
+      find_any_bios(dir, path, sizeof(path));
    }
 
-   if (!useHLE)
+   prepare_bios(use_hle);
+
+   if (use_hle)
    {
-      if (environ_cb(RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &dir) && dir)
-      {
-         unsigned i;
-         snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
-
-         for (i = 0; i < sizeof(bios) / sizeof(bios[0]); i++)
-         {
-            snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, bios[i]);
-            found_bios = try_use_bios(path, true);
-            if (found_bios)
-               break;
-         }
-
-         if (!found_bios)
-            found_bios = find_any_bios(dir, path, sizeof(path));
-      }
-      if (found_bios)
-      {
-         SysPrintf("found BIOS file: %s\n", Config.Bios);
-      }
+      msg_str = "BIOS set to \'hle\'";
+      SysPrintf("Using HLE BIOS.\n");
+      // shorter as the user probably intentionally wants to use HLE
+      duration = 700;
    }
-
-   if (!found_bios)
+   else if (!bios_saved[0] && !bios_saved[1] && !bios_saved[2])
    {
-      const char *msg_str;
-      unsigned duration;
-      if (useHLE)
-      {
-         msg_str = "BIOS set to \'hle\'";
-         SysPrintf("Using HLE BIOS.\n");
-         // shorter as the user probably intentionally wants to use HLE
-         duration = 700;
-      }
-      else
-      {
-         msg_str = "No PlayStation BIOS file found - add for better compatibility";
-         SysPrintf("No BIOS files found.\n");
-         duration = 3000;
-      }
-      show_notification(msg_str, duration, 2);
+      msg_str = "No PlayStation BIOS file found - add for better compatibility";
+      SysPrintf("No BIOS files found.\n");
+      duration = 3000;
+      level = RETRO_LOG_WARN;
    }
+   if (msg_str)
+      show_notification(msg_str, duration, 2, level);
 }
 
 void retro_init(void)
@@ -3778,6 +3824,8 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+   size_t i;
+
    if (plugins_opened)
    {
       ClosePlugins();
@@ -3805,6 +3853,10 @@ void retro_deinit(void)
 #ifdef GPU_UNAI
    show_advanced_gpu_unai_settings = true;
 #endif
+   for (i = 0; i < ARRAY_SIZE(bios_saved); i++) {
+      free(bios_saved[i]);
+      bios_saved[i] = NULL;
+   }
 
    /* Have to reset disks struct, otherwise
     * fnames/flabels will leak memory */

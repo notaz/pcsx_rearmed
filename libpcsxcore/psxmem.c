@@ -287,6 +287,8 @@ int psxMemInit(void)
 }
 
 void psxMemReset() {
+	size_t count = sizeof(Config.Bios) / sizeof(Config.Bios[0]);
+	size_t i, r = Config.PsxRegion, rret;
 	FILE *f = NULL;
 	char bios[1024];
 
@@ -298,20 +300,26 @@ void psxMemReset() {
 
 	Config.HLE = TRUE;
 
-	if (strcmp(Config.Bios, "HLE") != 0) {
-		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);
+	// prefer wrong region bios to HLE
+	for (i = 0; i < count; i++, r++) {
+		if (r >= count)
+			r = 0;
+		if (!Config.Bios[r][0] || strcmp(Config.Bios[r], "HLE") == 0)
+			continue;
+		snprintf(bios, sizeof(bios), "%s/%s", Config.BiosDir, Config.Bios[r]);
 		f = fopen(bios, "rb");
-
 		if (f == NULL) {
-			SysMessage(_("Could not open BIOS:\"%s\". Enabling HLE Bios!\n"), bios);
-		} else {
-			if (fread(psxRegs.ptrs.psxR, 1, 0x80000, f) == 0x80000) {
-				Config.HLE = FALSE;
-			} else {
-				SysMessage(_("The selected BIOS:\"%s\" is of wrong size. Enabling HLE Bios!\n"), bios);
-			}
-			fclose(f);
+			SysMessage("Could not open BIOS: \"%s\"\n", bios);
+			continue;
 		}
+		rret = fread(psxRegs.ptrs.psxR, 1, 0x80000, f);
+		fclose(f);
+		if (rret == 0x80000) {
+			SysMessage("Loaded BIOS \"%s\".\n", bios);
+			Config.HLE = FALSE;
+			break;
+		}
+		SysMessage("BIOS \"%s\" is of wrong size, skipping.\n", bios);
 	}
 	if (Config.HLE)
 		memset(psxRegs.ptrs.psxR, 0, 0x80000);

@@ -106,13 +106,15 @@ typedef uint8_t boolean;
 // don't change unless you're going to retest hundreds of games
 #define CYCLE_MULT_DEFAULT 175
 
+#define PSX_REGION_COUNT 3
+
 typedef struct {
 	char Gpu[MAXPATHLEN];
 	char Spu[MAXPATHLEN];
 	char Sio1[MAXPATHLEN];
 	char Mcd1[MAXPATHLEN];
 	char Mcd2[MAXPATHLEN];
-	char Bios[MAXPATHLEN];
+	char Bios[PSX_REGION_COUNT][64]; // us, jp, eu; see psxMemReset()
 	char BiosDir[MAXPATHLEN];
 	char PluginsDir[MAXPATHLEN];
 	char PatchesDir[MAXPATHLEN];
@@ -136,6 +138,7 @@ typedef struct {
 	s8 FractionalFramerate; // ~49.75 and ~59.81 instead of 50 and 60
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
+	u8 PsxRegion; // PSX_REGION_US, PSX_REGION_JP, PSX_REGION_EU
 	struct {
 		boolean cdr_read_timing;
 		boolean gpu_slow_list_walking;
@@ -168,6 +171,12 @@ enum {
 	PSX_TYPE_NTSC = 0,
 	PSX_TYPE_PAL
 }; // PSX Types
+
+enum {
+	PSX_REGION_US = 0,
+	PSX_REGION_JP,
+	PSX_REGION_EU
+};
 
 enum {
 	CPU_DYNAREC = 0,

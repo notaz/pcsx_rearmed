@@ -35,16 +35,18 @@ static void check_mode_change(struct psx_gpu *gpu, int force)
     h = gpu->screen.h;
   w_out = w, h_out = h;
 #ifdef RAW_FB_DISPLAY
-  w = w_out = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  w = w_out = (gpu->status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
   h = h_out = 512;
 #endif
-  gpu->state.enhancement_active =
-    gpu->get_enhancement_bufer != NULL && gpu->state.enhancement_enable
-    && w <= 512 && h <= 256 && !(gpu->status & PSX_GPU_STATUS_RGB24);
-
-  if (gpu->state.enhancement_active) {
-    w_out *= 2;
-    h_out *= 2;
+  if (gpu->get_enhancement_bufer != NULL && gpu->state.enhancement_enable) {
+    gpu->state.enhancement_active =
+      w <= 512 && h <= 256 && !(gpu->status & PSX_GPU_STATUS_RGB24) &&
+      gpu->screen.src_y < (512 - 256/2) && gpu->state.src_y_old < (512 - 256/2);
+    gpu->state.src_y_old = gpu->screen.src_y;
+    if (gpu->state.enhancement_active) {
+      w_out *= 2;
+      h_out *= 2;
+    }
   }
   if (gpu->status & PSX_GPU_STATUS_RGB24) {
     // some asm relies on this alignment
@@ -78,7 +80,7 @@ int vout_update(struct psx_gpu *gpu, int src_x, int src_y)
   int offset;
 
 #ifdef RAW_FB_DISPLAY
-  w = (gpu.status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
+  w = (gpu->status & PSX_GPU_STATUS_RGB24) ? 2048/3 : 1024;
   h = 512, x = src_x = y = src_y = 0;
 #endif
   if (x < 0) { w += x; src_x2 = -x; x = 0; }
@@ -96,17 +98,6 @@ int vout_update(struct psx_gpu *gpu, int src_x, int src_y)
       return 0;
     x *= 2; y *= 2;
     src_x2 *= 2;
-  }
-
-  if (src_y + h > vram_h) {
-    if (src_y + h - vram_h > h / 2) {
-      // wrap
-      h -= vram_h - src_y;
-      src_y = 0;
-    }
-    else
-      // clip
-      h = vram_h - src_y;
   }
 
   // gpu_unai skips drawing odd lines

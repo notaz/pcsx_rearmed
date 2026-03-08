@@ -445,7 +445,7 @@ int emu_core_preinit(void)
 
 	set_default_paths();
 	emu_set_default_config();
-	strcpy(Config.Bios, "HLE");
+	strcpy(Config.Bios[0], "HLE");
 
 	return 0;
 }
