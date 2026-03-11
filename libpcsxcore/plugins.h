@@ -132,6 +132,10 @@ long PAD2_readPort(PadDataS *);
 unsigned char PAD2_startPoll(int);
 unsigned char PAD2_poll(unsigned char, int *);
 
+int padFreeze(void *f, int Mode);
+int padToggleAnalog(unsigned int index);
+void padReset(void);
+
 #ifdef ENABLE_SIO1API
 
 // SIO1 Functions (link cable)
@@ -209,9 +213,6 @@ void SetIsoFile(const char *filename);
 const char *GetIsoFile(void);
 boolean UsingIso(void);
 void SetCdOpenCaseTime(s64 time);
-
-int padFreeze(void *f, int Mode);
-int padToggleAnalog(unsigned int index);
 
 extern void pl_gun_byte2(int port, unsigned char byte);
 extern void plat_trigger_vibrate(int pad, int low, int high);

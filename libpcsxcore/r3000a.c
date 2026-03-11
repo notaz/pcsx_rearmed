@@ -84,6 +84,7 @@ void psxReset() {
 	psxCpu->ApplyConfig();
 	psxCpu->Reset();
 
+	padReset();
 	psxHwReset();
 	psxBiosInit();
 

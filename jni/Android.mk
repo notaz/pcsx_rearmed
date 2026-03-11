@@ -36,6 +36,7 @@ SOURCES_C := $(CORE_DIR)/cdriso.c \
              $(CORE_DIR)/decode_xa.c \
              $(CORE_DIR)/mdec.c \
              $(CORE_DIR)/misc.c \
+             $(CORE_DIR)/pad.c \
              $(CORE_DIR)/plugins.c \
              $(CORE_DIR)/ppf.c \
              $(CORE_DIR)/psxbios.c \
