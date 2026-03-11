@@ -300,6 +300,9 @@ void psxMemReset() {
 
 	Config.HLE = TRUE;
 
+	if (r >= count || !Config.Bios[r][0])
+		r = 0;
+
 	// prefer wrong region bios to HLE
 	for (i = 0; i < count; i++, r++) {
 		if (r >= count)
