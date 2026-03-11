@@ -114,7 +114,7 @@ extern uintptr_t mini_ht[32][2];
 #define INVALIDATE_USE_COND_CALL
 #endif
 
-#ifdef NO_WRITE_EXEC
+#if defined(NO_WRITE_EXEC) || defined(TC_WRITE_OFFSET)
 #define BLOCK_INFO_IN_TC 0
 #else
 #define BLOCK_INFO_IN_TC 1
@@ -9310,7 +9310,7 @@ static void block_info_finish(struct compile_state *st, struct block_info *block
   if (block_tmp->source && block_tmp->len > 0) {
     // put a copy of source in tc
     copy = start_tcache_write_reserve(block_tmp->len);
-    memcpy(copy, block_tmp->source, block_tmp->len);
+    memcpy(NDRC_WRITE_OFFSET(copy), block_tmp->source, block_tmp->len);
     out += block_tmp->len;
     end_tcache_write(NDRC_WRITE_OFFSET(copy), NDRC_WRITE_OFFSET(out), 0);
   }
