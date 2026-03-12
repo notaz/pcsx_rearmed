@@ -14,11 +14,13 @@
 #include <strings.h>
 #include <time.h>
 #include <math.h>
+#include <errno.h>
 #include <assert.h>
 #ifdef __MACH__
 #include <unistd.h>
 #include <sys/syscall.h>
 #endif
+#include <zlib.h>
 
 #include "retro_miscellaneous.h"
 #ifdef SWITCH
@@ -1672,8 +1674,10 @@ static bool read_m3u(const char *file)
    char line[1024];
    char name[PATH_MAX];
    FILE *fp = fopen(file, "r");
-   if (!fp)
+   if (!fp) {
+      LogErr("fopen '%s' failed: %d\n", file, errno);
       return false;
+   }
 
    while (fgets(line, sizeof(line), fp) && disk_count < sizeof(disks) / sizeof(disks[0]))
    {
@@ -3475,45 +3479,86 @@ void retro_run(void)
 // see Config.Bios
 static char *bios_saved[PSX_REGION_COUNT];
 
-static bool try_use_bios(char *path, size_t path_size, bool preferred_only)
+static bool have_all_bios(void)
+{
+   size_t i;
+   for (i = 0; i < ARRAY_SIZE(bios_saved); i++)
+      if (!bios_saved[i])
+         return false;
+   return true;
+}
+
+static void try_use_bios(char *path, size_t path_size, bool preferred_only, bool quiet)
 {
    const char *guessed_region_name = "US";
-   u8 guessed_region = PSX_REGION_US;
-   long size;
+   u8 *data = NULL, guessed_region = PSX_REGION_US;
    const char *name;
-   FILE *fp = fopen(path, "rb");
-   if (fp == NULL)
-      return false;
-
-   fseek(fp, 0, SEEK_END);
-   size = ftell(fp);
-   fclose(fp);
+   long i, size;
+   FILE *fp;
+   u32 crc;
 
    name = strrchr(path, SLASH);
    if (name++ == NULL)
       name = path;
+   for (i = 0; i < ARRAY_SIZE(bios_saved); i++)
+      if (bios_saved[i] && !strcmp(name, bios_saved[i]))
+         return;
 
-   if (preferred_only && size != 512 * 1024)
-      return false;
-   if (size != 512 * 1024 && size != 4 * 1024 * 1024)
-      return false;
-   if (strstr(name, "unirom"))
-      return false;
-   if (strstr(name, "00.") || strcasestr(name, "j.bin")) {
-      guessed_region = PSX_REGION_JP;
-      guessed_region_name = "JP";
+   fp = fopen(path, "rb");
+   if (fp == NULL) {
+      if (!quiet)
+         LogErr("fopen '%s' failed: %d\n", path, errno);
+      return;
    }
-   else if (strstr(name, "02.") || strstr(name, "52.") || strcasestr(name, "e.bin")) {
+
+   if (strcasestr(name, "unirom"))
+      goto finish;
+
+   fseek(fp, 0, SEEK_END);
+   size = ftell(fp);
+   if (preferred_only && size != 512 * 1024)
+      goto finish;
+   if (size != 512 * 1024 && size != 4 * 1024 * 1024)
+      goto finish;
+
+   data = malloc(512 * 1024);
+   if (data == NULL)
+      goto finish;
+   if (fseek(fp, 0, SEEK_SET) != 0)
+      goto finish;
+   if (fread(data, 1, 512 * 1024, fp) != 512 * 1024) {
+      LogErr("fread '%s' failed\n", path);
+      goto finish;
+   }
+   if (memcmp(data + 1, "\x00\x08\x3c\x3f", 4) &&
+       strncmp((char *)data + 0x12c, "PS compatible", strlen("PS compatible")))
+   {
+      if (!quiet)
+         SysPrintf("skipping '%s'\n", name);
+      goto finish;
+   }
+
+   crc = crc32(0, data, 512 * 1024);
+   if (!memcmp(data + 0x7ff51, " E", 2)) {
       guessed_region = PSX_REGION_EU;
       guessed_region_name = "EU";
+   }
+   else if (!memcmp(data + 0x7ff51, " J", 2) ||
+            crc == 0x18D0F7D8 || crc == 0x3B601FC8 || crc == 0x3539DEF6)
+   {
+      guessed_region = PSX_REGION_JP;
+      guessed_region_name = "JP";
    }
 
    if (bios_saved[guessed_region] == NULL) {
       bios_saved[guessed_region] = strdup(name);
       if (bios_saved[guessed_region])
-         SysPrintf("found %s BIOS file: %s\n", guessed_region_name, path);
+         SysPrintf("found %s BIOS file, crc32 %08x: %s\n", guessed_region_name, crc, path);
    }
-   return true;
+finish:
+   free(data);
+   if (fp)
+     fclose(fp);
 }
 
 #ifndef VITA
@@ -3522,48 +3567,21 @@ static bool try_use_bios(char *path, size_t path_size, bool preferred_only)
 
 static void find_any_bios(const char *dirpath, char *path, size_t path_size)
 {
-   static const char *substr_pref[] = { "scph", "ps" };
-   static const char *substr_alt[] = { "scph", "ps", "openbios" };
-   DIR *dir;
    struct dirent *ent;
-   size_t i;
+   DIR *dir;
 
    dir = opendir(dirpath);
    if (dir == NULL)
       return;
 
-   // try to find a "better" bios
    while ((ent = readdir(dir)))
    {
-      for (i = 0; i < sizeof(substr_pref) / sizeof(substr_pref[0]); i++)
-      {
-         const char *substr = substr_pref[i];
-         if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
-            continue;
-         snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-         try_use_bios(path, path_size, true);
-         if (bios_saved[0] && bios_saved[1] && bios_saved[2])
-            goto finish;
-      }
+      snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
+      try_use_bios(path, path_size, true, false);
+      if (have_all_bios())
+         break;
    }
 
-   // another pass to look for anything fitting, even ps2 bios
-   rewinddir(dir);
-   while ((ent = readdir(dir)))
-   {
-      for (i = 0; i < sizeof(substr_alt) / sizeof(substr_alt[0]); i++)
-      {
-         const char *substr = substr_alt[i];
-         if ((strncasecmp(ent->d_name, substr, strlen(substr)) != 0))
-            continue;
-         snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
-         try_use_bios(path, path_size, false);
-         if (bios_saved[0] && bios_saved[1] && bios_saved[2])
-            goto finish;
-      }
-   }
-
-finish:
    closedir(dir);
 }
 #else
@@ -3652,13 +3670,13 @@ static bool get_bios_config_hle(void)
 
 static void prepare_bios(bool use_hle)
 {
-   size_t i, count = sizeof(bios_saved) / sizeof(bios_saved[0]);
-   assert(count == sizeof(Config.Bios) / sizeof(Config.Bios[0]));
+   size_t i, count = ARRAY_SIZE(bios_saved);
+   assert(count == ARRAY_SIZE(Config.Bios));
    for (i = 0; i < count; i++) {
       Config.Bios[i][0] = 0;
       if (bios_saved[i] && !use_hle) {
          int r = snprintf(Config.Bios[i], sizeof(Config.Bios[i]), "%s", bios_saved[i]);
-         if (r >= sizeof(Config.Bios[i])) {
+         if ((size_t)r >= sizeof(Config.Bios[i])) {
             LogErr("BIOS '%s' name is too long, discarding\n", bios_saved[i]);
             Config.Bios[i][0] = 0;
          }
@@ -3672,12 +3690,9 @@ static void loadPSXBios(void)
    const char *dir;
    const char *msg_str = NULL;
    unsigned duration = 0;
-   const char * const us_bios[] = {
-      "PSXONPSP660", "psxonpsp660",
-      "SCPH101", "scph101",
-      "SCPH5501", "scph5501",
-      "SCPH7001", "scph7001",
-      "SCPH1001", "scph1001"
+   const char * const listed_bios[] = {
+      "scph5500", "scph5501", "scph5502",
+      "psxonpsp660", "scph101", "scph7001", "scph1001",
    };
    bool use_hle = get_bios_config_hle();
    enum retro_log_level level = RETRO_LOG_INFO;
@@ -3687,16 +3702,16 @@ static void loadPSXBios(void)
       unsigned i;
       snprintf(Config.BiosDir, sizeof(Config.BiosDir), "%s", dir);
 
-      for (i = 0; i < sizeof(us_bios) / sizeof(us_bios[0]); i++)
+      for (i = 0; i < ARRAY_SIZE(listed_bios); i++)
       {
-         bool found_bios;
-         snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, us_bios[i]);
-         found_bios = try_use_bios(path, sizeof(path), true);
-         if (found_bios)
+         snprintf(path, sizeof(path), "%s%c%s.bin", dir, SLASH, listed_bios[i]);
+         try_use_bios(path, sizeof(path), true, true);
+         if (have_all_bios())
             break;
       }
 
-      find_any_bios(dir, path, sizeof(path));
+      if (i == ARRAY_SIZE(listed_bios))
+         find_any_bios(dir, path, sizeof(path));
    }
 
    prepare_bios(use_hle);

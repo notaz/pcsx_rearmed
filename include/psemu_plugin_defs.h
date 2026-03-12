@@ -235,10 +235,15 @@ typedef struct PadDataS
 		unsigned char padding;
 	} ds;
 	unsigned char multitapLongModeEnabled;
-	unsigned char padding2;
-	unsigned char txData[34];
+	unsigned char respSize;
+	unsigned char txData[8];      // after multitap
+	unsigned char txData1;        // txData[1] before multitap
+	unsigned char reserved1[25];
+	unsigned char rxData[8];
+	unsigned char rxDataOld[8];   // for multitap
+	unsigned char respSizeOld;
 
-	unsigned char reserved[22];
+	unsigned char reserved2[5];
 } PadDataS;
 
 typedef struct {
