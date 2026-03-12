@@ -242,11 +242,11 @@ static noinline void decide_frameskip(struct psx_gpu *gpu, uint32_t flip_delay)
 static noinline void check_draw_to_display(struct psx_gpu *gpu)
 {
   uint32_t cmd_e3 = gpu->ex_regs[3];
-  uint32_t x = cmd_e3 & 0x3ff;
-  uint32_t y = (cmd_e3 >> 10) & 0x3ff;
+  uint32_t x1 = cmd_e3 & 0x3ff,    y1 = (cmd_e3 >> 10) & 0x3ff;
+  uint32_t x2 = gpu->screen.src_x, y2 = gpu->screen.src_y;
+  uint32_t w = gpu->screen.w,      h = gpu->screen.h;
   uint32_t no_intersect =
-    (uint32_t)(x - gpu->screen.src_x) >= (uint32_t)gpu->screen.w ||
-    (uint32_t)(y - gpu->screen.src_y) >= (uint32_t)gpu->screen.h;
+    x1 + w <= x2 || x2 + w <= x1 || y1 + h <= y2 || y2 + h <= y1;
   gpu->state.draw_display_intersect = !no_intersect;
   // no frameskip if it decides to draw to display area,
   // but not for interlace since it'll most likely always do that
@@ -886,7 +886,7 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
   }
 
   // this is here because the renderer doesn't tell us if it saw e3
-  if (unlikely(gpu->frameskip.set && old_e3 != gpu->ex_regs[3]))
+  if (unlikely(old_e3 != gpu->ex_regs[3]))
     check_draw_to_display(gpu);
 
   gpu->state.fb_dirty_display_area |= vram_dirty & gpu->state.draw_display_intersect;
