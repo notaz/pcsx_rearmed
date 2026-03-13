@@ -881,8 +881,8 @@ static char *get_pse_pad_label[] = {
 static const struct retro_controller_description pads[8] =
 {
    { "standard",   RETRO_DEVICE_JOYPAD },
-   { "analog",     RETRO_DEVICE_PSE_ANALOG },
    { "dualshock",  RETRO_DEVICE_PSE_DUALSHOCK },
+   { "analog",     RETRO_DEVICE_PSE_ANALOG },
    { "negcon",     RETRO_DEVICE_PSE_NEGCON },
    { "guncon",     RETRO_DEVICE_PSE_GUNCON },
    { "konami gun", RETRO_DEVICE_PSE_JUSTIFIER },
@@ -1138,6 +1138,8 @@ unsigned retro_api_version(void)
 static void update_multitap(void)
 {
    struct retro_variable var = { 0 };
+   int multitap1_old = multitap1;
+   int multitap2_old = multitap2;
 
    multitap1 = 0;
    multitap2 = 0;
@@ -1156,13 +1158,19 @@ static void update_multitap(void)
          multitap2 = 1;
       }
    }
+   if (multitap1 != multitap1_old || multitap2 != multitap2_old) {
+      SysPrintf("multitap: %d %d\n", multitap1, multitap2);
+      padChanged();
+   }
 }
 
 void retro_set_controller_port_device(unsigned port, unsigned device)
 {
+   int in_type_old;
    if (port >= PORTS_NUMBER)
       return;
 
+   in_type_old = in_type[port];
    switch (device)
    {
    case RETRO_DEVICE_JOYPAD:
@@ -1193,7 +1201,10 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
       break;
    }
 
-   SysPrintf("port: %u  device: %s\n", port + 1, get_pse_pad_label[in_type[port]]);
+   if (in_type[port] != in_type_old) {
+       SysPrintf("port: %u  device: %s\n", port + 1, get_pse_pad_label[in_type[port]]);
+       padChanged();
+   }
 }
 
 void retro_get_system_info(struct retro_system_info *info)

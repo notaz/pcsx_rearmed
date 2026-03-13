@@ -208,8 +208,8 @@ void sioWrite8(unsigned char value) {
 			StatReg |= RX_RDY;		// Transfer is Ready
 
 			switch (CtrlReg & 0x2002) {
-				case 0x0002: buf[0] = PAD1_startPoll(1); break;
-				case 0x2002: buf[0] = PAD2_startPoll(2); break;
+				case 0x0002: buf[0] = PAD1_startPoll(); break;
+				case 0x2002: buf[0] = PAD2_startPoll(); break;
 			}
 			bufcount = 1;
 			parp = 0;

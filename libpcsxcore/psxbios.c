@@ -4135,7 +4135,7 @@ void psxBiosCnfLoaded(u32 tcb_cnt, u32 evcb_cnt, u32 stack) {
 
 #define psxBios_PADpoll(pad) { \
 	int i, more_data = 0; \
-	PAD##pad##_startPoll(pad); \
+	PAD##pad##_startPoll(); \
 	pad_buf##pad[1] = PAD##pad##_poll(0x42, &more_data); \
 	pad_buf##pad[0] = more_data ? 0 : 0xff; \
 	PAD##pad##_poll(0, &more_data); \

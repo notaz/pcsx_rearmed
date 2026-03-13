@@ -24,13 +24,11 @@
 #include "../plugins/dfsound/spu.h"
 
 /* PAD */
-long PAD1_readPort(PadDataS *pad) {
+void PAD1_readPort(PadDataS *pad, int *is_multitap) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];
 	pad->buttonStatus = ~in_keystate[pad_index];
-
-	pad->portMultitap = multitap1;
 
 	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON || in_type[pad_index] == PSE_PAD_TYPE_GUN)
 	{
@@ -49,16 +47,15 @@ long PAD1_readPort(PadDataS *pad) {
 		pad->moveY = in_mouse[pad_index][1];
 	}
 
-	return 0;
+	if (is_multitap)
+		*is_multitap = multitap1;
 }
 
-long PAD2_readPort(PadDataS *pad) {
+void PAD2_readPort(PadDataS *pad, int *is_multitap) {
 	int pad_index = pad->requestPadIndex;
 
 	pad->controllerType = in_type[pad_index];
 	pad->buttonStatus = ~in_keystate[pad_index];
-
-	pad->portMultitap = multitap2;
 
 	if (in_type[pad_index] == PSE_PAD_TYPE_ANALOGJOY || in_type[pad_index] == PSE_PAD_TYPE_ANALOGPAD || in_type[pad_index] == PSE_PAD_TYPE_NEGCON || in_type[pad_index] == PSE_PAD_TYPE_GUNCON || in_type[pad_index] == PSE_PAD_TYPE_GUN)
 	{
@@ -77,7 +74,8 @@ long PAD2_readPort(PadDataS *pad) {
 		pad->moveY = in_mouse[pad_index][1];
 	}
 
-	return 0;
+	if (is_multitap)
+		*is_multitap = multitap2;
 }
 
 /* GPU */

@@ -308,6 +308,7 @@ static int optional_cdimg_filter(struct dirent **namelist, int count,
 static void menu_sync_config(void)
 {
 	static int allow_abs_only_old;
+	int in_type_old[2] = { in_type[0], in_type[1] };
 
 	Config.PsxAuto = 1;
 	if (region > 0) {
@@ -334,6 +335,8 @@ static void menu_sync_config(void)
 		in_probe();
 		allow_abs_only_old = in_evdev_allow_abs_only;
 	}
+	if (in_type[0] != in_type_old[0] || in_type[1] != in_type_old[1])
+		padChanged();
 
 	spu_config.iVolume = 768 + 128 * volume_boost;
 	pl_rearmed_cbs.frameskip = frameskip - 1;

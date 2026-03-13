@@ -124,17 +124,18 @@ extern SPUplayCDDAchannel  SPU_playCDDAchannel;
 extern SPUsetCDvol         SPU_setCDvol;
 
 // PAD Functions
-long PAD1_readPort(PadDataS *);
-unsigned char PAD1_startPoll(int);
+void PAD1_readPort(struct PadDataS *, int *is_multitap);
+unsigned char PAD1_startPoll(void);
 unsigned char PAD1_poll(unsigned char, int *);
 
-long PAD2_readPort(PadDataS *);
-unsigned char PAD2_startPoll(int);
+void PAD2_readPort(struct PadDataS *, int *is_multitap);
+unsigned char PAD2_startPoll(void);
 unsigned char PAD2_poll(unsigned char, int *);
 
 int padFreeze(void *f, int Mode);
 int padToggleAnalog(unsigned int index);
 void padReset(void);
+void padChanged(void);
 
 #ifdef ENABLE_SIO1API
 
