@@ -334,15 +334,16 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_gpu_thread_rendering",
       "Threaded Rendering",
       NULL,
-      "When enabled, runs GPU commands in a secondary thread.",
+      "When enabled, runs GPU commands in a secondary thread. 'Auto' enables it if at least 2 CPU cores are detected.",
       NULL,
       "video",
       {
+         { "auto", "Auto" },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL},
       },
-      "disabled",
+      "auto",
    },
 #endif
    {

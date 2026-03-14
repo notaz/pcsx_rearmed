@@ -859,11 +859,17 @@ void gpu_async_stop(struct psx_gpu *gpu)
   }
 }
 
-void gpu_async_start(struct psx_gpu *gpu)
+void gpu_async_enable(struct psx_gpu *gpu, int enable)
 {
   struct psx_gpu_async *agpu;
-  if (gpu->async)
+  if (enable < 0)
+    enable = pcsxr_sthread_core_count > 1;
+  if (!gpu->async == !enable)
     return;
+  if (!enable) {
+    gpu_async_stop(gpu);
+    return;
+  }
 
   assert(AGPU_DMA_MAX <= AGPU_BUF_LEN / 2);
 

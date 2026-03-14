@@ -2730,8 +2730,10 @@ static void update_variables(bool in_flight)
    {
       if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.thread_rendering = 1;
-      else
+      else if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.thread_rendering = 0;
+      else
+         pl_rearmed_cbs.thread_rendering = -1; // auto
    }
 #endif
 

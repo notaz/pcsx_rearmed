@@ -10,6 +10,10 @@ enum pcsxr_thread_type
 	PCSXRT_COUNT // must be last
 };
 
+extern int pcsxr_sthread_core_count;
+
+void pcsxr_sthread_init(void);
+
 #ifndef USE_C11_THREADS
 
 /* use libretro-common rthreads */
@@ -18,7 +22,6 @@ enum pcsxr_thread_type
 #define STRHEAD_RET_TYPE void
 #define STRHEAD_RETURN()
 
-void pcsxr_sthread_init(void);
 sthread_t *pcsxr_sthread_create(void (*thread_func)(void*),
 	enum pcsxr_thread_type type);
 
@@ -29,8 +32,6 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void*),
 
 #define STRHEAD_RET_TYPE int
 #define STRHEAD_RETURN() return 0
-
-#define pcsxr_sthread_init()
 
 #define slock_new() ({ \
 	mtx_t *lock = malloc(sizeof(*lock)); \
