@@ -365,7 +365,7 @@ long GPUshutdown(void)
 void GPUwriteStatus(uint32_t data)
 {
   uint32_t cmd = data >> 24;
-  uint32_t fb_dirty = 1;
+  uint32_t fb_dirty = 1, frame;
   int src_x, src_y, changed;
 
   if (cmd < ARRAY_SIZE(gpu.regs)) {
@@ -398,9 +398,10 @@ void GPUwriteStatus(uint32_t data)
     case 0x05:
       src_x = data & 0x3ff; src_y = (data >> 10) & 0x1ff;
       changed = src_x != gpu.screen.src_x || src_y != gpu.screen.src_y;
+      frame = *gpu.state.frame_count;
       // last_flip_frame check allows frameskip on dheight games
       // that always set the same display area address
-      if (changed || gpu.frameskip.last_flip_frame != *gpu.state.frame_count)
+      if (changed || gpu.frameskip.last_flip_frame != frame)
       {
         gpu.state.fb_dirty_display_area |= gpu.state.fb_dirty;
         gpu.state.fb_dirty = 0;
@@ -408,7 +409,7 @@ void GPUwriteStatus(uint32_t data)
         gpu.screen.src_y = src_y;
         check_draw_to_display(&gpu);
         if (gpu.frameskip.set) {
-          uint32_t flip_delay = *gpu.state.frame_count - gpu.frameskip.last_flip_frame;
+          uint32_t flip_delay = frame - gpu.frameskip.last_flip_frame;
           if (flip_delay)
             decide_frameskip(&gpu, flip_delay);
           if (!gpu.frameskip.active || !gpu.frameskip.allow)
@@ -417,6 +418,16 @@ void GPUwriteStatus(uint32_t data)
         gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
       }
       if (changed) {
+        if (!gpu.state.vblank && !(gpu.status & PSX_GPU_STATUS_BLANKING) &&
+            !gpu.state.use_alternative_flip)
+        {
+          uint32_t fdiff = frame - gpu.state.last_adflip_frame;
+          gpu.state.last_adflip_frame = frame;
+          if (fdiff < 9u) {
+            log_anomaly(&gpu, "active display flip detected\n");
+            gpu.state.use_alternative_flip = 1;
+          }
+        }
         if (gpu_async_enabled(&gpu))
           gpu_async_notify_screen_change(&gpu);
         else
@@ -1095,7 +1106,7 @@ long GPUfreeze(uint32_t type, GPUFreeze_t *freeze, uint16_t **vram_ptr)
   return 1;
 }
 
-void GPUupdateLace(void)
+static void GPUupdateLace(void)
 {
   int delay_vout_update = 0;
   int updated = 1;
@@ -1124,6 +1135,7 @@ void GPUupdateLace(void)
       vout_blank(&gpu);
       gpu.state.blanked = 1;
       gpu.state.fb_dirty_display_area = 1;
+      gpu.state.use_alternative_flip = 0;
     }
     return;
   }
@@ -1158,7 +1170,9 @@ void GPUupdateLace(void)
 
 void GPUvBlank(int is_vblank, int lcf)
 {
-  int interlace = gpu.state.allow_interlace
+  int interlace;
+  gpu.state.vblank = is_vblank;
+  interlace = gpu.state.allow_interlace
     && (gpu.status & PSX_GPU_STATUS_INTERLACE)
     && (gpu.status & PSX_GPU_STATUS_DHEIGHT);
   // interlace doesn't look nice on progressive displays,
@@ -1182,6 +1196,8 @@ void GPUvBlank(int is_vblank, int lcf)
       renderer_set_interlace(interlace, !lcf);
     }
   }
+  if ((!is_vblank) == gpu.state.use_alternative_flip)
+    GPUupdateLace();
 }
 
 void GPUgetScreenInfo(int *y, int *base_hres)
@@ -1207,6 +1223,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
   gpu.state.enhancement_active = 0;
   gpu.state.downscale_enable = cbs->scale_hires;
+  gpu.state.use_alternative_flip = 0;
   gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x

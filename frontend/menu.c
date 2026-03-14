@@ -1833,12 +1833,16 @@ static void draw_frame_debug(GPUFreeze_t *gpuf, int x, int y)
 	for (; h > 0; h--, d += g_menuscreen_w, s += 1024)
 		bgr555_to_rgb565(d, s, w);
 
-	smalltext_out16(4, 1, "build: "__DATE__ " " __TIME__ " " REV, 0xe7fc);
-	snprintf(buff, sizeof(buff), "GPU sr: %08x", gpuf->ulStatus);
-	smalltext_out16(4, (ty += me_sfont_h), buff, 0xe7fc);
+	snprintf(buff, sizeof(buff), "GPU sr: %08x scn: %3d %3d", gpuf->ulStatus,
+		gpuf->ulControl[5] & 0x3ff, (gpuf->ulControl[5] >> 10) & 0x1ff);
+	smalltext_out16(4, ty, buff, 0xe7fc);
 	snprintf(buff, sizeof(buff), "PC/SP: %08x %08x", psxRegs.pc, psxRegs.GPR.n.sp);
 	smalltext_out16(4, (ty += me_sfont_h), buff, 0xe7fc);
 }
+
+static void debug_set_mode(int w, int h, int raw_w, int raw_h, int bpp) {}
+static void debug_flip(const void *vram_, int vram_ofs, int bgr24,
+	int x, int y, int w, int h, int dims_changed) {}
 
 static void debug_menu_loop(void)
 {
@@ -1862,6 +1866,19 @@ static void debug_menu_loop(void)
 		else if (inp & PBTN_DOWN)  { if (df_y < 512 - g_menuscreen_h) df_y++; }
 		else if (inp & PBTN_LEFT)  { if (df_x > 0) df_x -= 2; }
 		else if (inp & PBTN_RIGHT) { if (df_x < 1024 - g_menuscreen_w) df_x += 2; }
+		else if (inp & PBTN_MOK) {
+			u32 oldframe = frame_counter;
+			void *old_set_mode = pl_rearmed_cbs.pl_vout_set_mode;
+			void *old_flip = pl_rearmed_cbs.pl_vout_flip;
+			pl_rearmed_cbs.pl_vout_set_mode = debug_set_mode;
+			pl_rearmed_cbs.pl_vout_flip = debug_flip;
+			psxRegs.stop++;
+			while (frame_counter == oldframe)
+				psxCpu->ExecuteBlock(&psxRegs, EXEC_CALLER_OTHER);
+			psxRegs.stop--;
+			pl_rearmed_cbs.pl_vout_set_mode = old_set_mode;
+			pl_rearmed_cbs.pl_vout_flip = old_flip;
+		}
 	}
 
 	free(gpuf);

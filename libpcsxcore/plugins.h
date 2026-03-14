@@ -58,13 +58,11 @@ typedef uint32_t (CALLBACK* GPUreadStatus)(void);
 typedef uint32_t (CALLBACK* GPUreadData)(void);
 typedef void (CALLBACK* GPUreadDataMem)(uint32_t *, int);
 typedef long (CALLBACK* GPUdmaChain)(uint32_t *, uint32_t, uint32_t *, int32_t *);
-typedef void (CALLBACK* GPUupdateLace)(void);
 typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *, uint16_t **);
 typedef void (CALLBACK* GPUvBlank)(int, int);
 typedef void (CALLBACK* GPUgetScreenInfo)(int *, int *);
 
 // GPU function pointers
-extern GPUupdateLace    GPU_updateLace;
 extern GPUinit          GPU_init;
 extern GPUshutdown      GPU_shutdown; 
 extern GPUopen          GPU_open;

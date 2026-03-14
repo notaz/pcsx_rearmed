@@ -397,7 +397,7 @@ void psxRcntUpdate()
             setIrq( 0x01 );
 
             EmuUpdate();
-            GPU_updateLace();
+            //GPU_updateLace(); // handled by GPU_vBlank() now
 
             if( SPU_async )
             {

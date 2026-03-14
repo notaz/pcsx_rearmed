@@ -845,16 +845,16 @@ int emu_load_state(int slot)
 
 #endif // NO_FRONTEND
 
-static void CALLBACK dummy_lace(void)
+static void CALLBACK dummy_vBlank(int is_vblank, int lcf)
 {
 }
 
 void SysReset() {
 	// rearmed hack: EmuReset() runs some code when real BIOS is used,
 	// but we usually do reset from menu while GPU is not open yet,
-	// so we need to prevent updateLace() call..
-	void *real_lace = GPU_updateLace;
-	GPU_updateLace = dummy_lace;
+	// so we need to prevent vBlank() call...
+	void *real_vbl = GPU_vBlank;
+	GPU_vBlank = dummy_vBlank;
 	g_emu_resetting = 1;
 
 	// reset can run code, timing must be set
@@ -862,7 +862,7 @@ void SysReset() {
 
 	EmuReset();
 
-	GPU_updateLace = real_lace;
+	GPU_vBlank = real_vbl;
 	g_emu_resetting = 0;
 }
 
