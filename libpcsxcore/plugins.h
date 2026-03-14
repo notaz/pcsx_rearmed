@@ -58,13 +58,11 @@ typedef uint32_t (CALLBACK* GPUreadStatus)(void);
 typedef uint32_t (CALLBACK* GPUreadData)(void);
 typedef void (CALLBACK* GPUreadDataMem)(uint32_t *, int);
 typedef long (CALLBACK* GPUdmaChain)(uint32_t *, uint32_t, uint32_t *, int32_t *);
-typedef void (CALLBACK* GPUupdateLace)(void);
 typedef long (CALLBACK* GPUfreeze)(uint32_t, GPUFreeze_t *, uint16_t **);
 typedef void (CALLBACK* GPUvBlank)(int, int);
 typedef void (CALLBACK* GPUgetScreenInfo)(int *, int *);
 
 // GPU function pointers
-extern GPUupdateLace    GPU_updateLace;
 extern GPUinit          GPU_init;
 extern GPUshutdown      GPU_shutdown; 
 extern GPUopen          GPU_open;
@@ -124,17 +122,18 @@ extern SPUplayCDDAchannel  SPU_playCDDAchannel;
 extern SPUsetCDvol         SPU_setCDvol;
 
 // PAD Functions
-long PAD1_readPort(PadDataS *);
-unsigned char PAD1_startPoll(int);
+void PAD1_readPort(struct PadDataS *, int *is_multitap);
+unsigned char PAD1_startPoll(void);
 unsigned char PAD1_poll(unsigned char, int *);
 
-long PAD2_readPort(PadDataS *);
-unsigned char PAD2_startPoll(int);
+void PAD2_readPort(struct PadDataS *, int *is_multitap);
+unsigned char PAD2_startPoll(void);
 unsigned char PAD2_poll(unsigned char, int *);
 
 int padFreeze(void *f, int Mode);
 int padToggleAnalog(unsigned int index);
 void padReset(void);
+void padChanged(void);
 
 #ifdef ENABLE_SIO1API
 

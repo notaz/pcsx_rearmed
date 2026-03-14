@@ -31,7 +31,6 @@
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
 
-GPUupdateLace         GPU_updateLace;
 GPUinit               GPU_init;
 GPUshutdown           GPU_shutdown;
 GPUopen               GPU_open;
@@ -147,7 +146,6 @@ static int LoadGPUplugin(const char *GPUdll) {
 	LoadGpuSym1(writeDataMem, "GPUwriteDataMem");
 	LoadGpuSym1(writeStatus, "GPUwriteStatus");
 	LoadGpuSym1(dmaChain, "GPUdmaChain");
-	LoadGpuSym1(updateLace, "GPUupdateLace");
 	LoadGpuSym1(freeze, "GPUfreeze");
 	LoadGpuSym0(vBlank, "GPUvBlank");
 	LoadGpuSym0(getScreenInfo, "GPUgetScreenInfo");

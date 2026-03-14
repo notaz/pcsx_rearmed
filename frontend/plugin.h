@@ -16,7 +16,7 @@ void *plugin_link(enum builtint_plugins_e id, const char *sym);
 void plugin_call_rearmed_cbs(void);
 
 struct PadDataS;
-long PAD1_readPort(struct PadDataS *);
-long PAD2_readPort(struct PadDataS *);
+void PAD1_readPort(struct PadDataS *, int *is_multitap);
+void PAD2_readPort(struct PadDataS *, int *is_multitap);
 
 #endif /* __PLUGIN_H__ */
