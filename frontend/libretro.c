@@ -2608,7 +2608,7 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
-#if P_HAVE_PTHREAD
+#ifdef USE_ASYNC_SPU
    var.value = NULL;
    var.key = "pcsx_rearmed_spu_thread";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
@@ -2618,7 +2618,7 @@ static void update_variables(bool in_flight)
          spu_config.iUseThread = 1;
       else
          spu_config.iUseThread = 0;
-      if (spu_config.iUseThread != spu_thread_old)
+      if (spu_config.iUseThread != spu_thread_old && SPU_configure)
          SPU_configure();
    }
 #endif

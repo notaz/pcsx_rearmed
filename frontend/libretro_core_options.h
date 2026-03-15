@@ -907,7 +907,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "enabled",
    },
-#if P_HAVE_PTHREAD
+#ifdef USE_ASYNC_SPU
    {
       "pcsx_rearmed_spu_thread",
       "Threaded SPU",
@@ -922,7 +922,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif // P_HAVE_PTHREAD
+#endif
    {
       "pcsx_rearmed_show_input_settings",
       "Show Input Settings",

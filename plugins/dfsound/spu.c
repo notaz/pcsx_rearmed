@@ -695,7 +695,7 @@ static void do_samples_finish(int *SSumLR, int ns_to,
 
 // optional worker thread handling
 
-#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+#if defined(USE_ASYNC_SPU) || defined(WANT_THREAD_CODE)
 
 // worker thread state
 static struct spu_worker {
@@ -990,7 +990,7 @@ static void sync_worker_thread(int force_no_thread) {}
 
 static const void * const worker = NULL;
 
-#endif // P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+#endif // defined(USE_ASYNC_SPU) || defined(WANT_THREAD_CODE)
 
 ////////////////////////////////////////////////////////////////////////
 // MAIN SPU FUNCTION
@@ -1298,7 +1298,7 @@ static void RemoveStreams(void)
 /* special code for TI C64x DSP */
 #include "spu_c64x.c"
 
-#elif P_HAVE_PTHREAD
+#elif defined(USE_ASYNC_SPU)
 
 #include "../../frontend/pcsxr-threads.h"
 #ifdef _3DS
@@ -1356,6 +1356,9 @@ static void init_spu_thread(void)
 {
  int ret;
 
+ spu.sb_thread = spu.sb_thread_;
+ if (!spu_config.iUseThread)
+  return;
  if (worker)
   return;
  worker = calloc(1, sizeof(*worker));
@@ -1396,7 +1399,7 @@ static void exit_spu_thread(void)
  worker = NULL;
 }
 
-#else // if !P_HAVE_PTHREAD
+#else // if !defined(USE_ASYNC_SPU)
 
 static void init_spu_thread(void)
 {
@@ -1438,11 +1441,7 @@ long CALLBACK SPUinit(void)
  if (spu_config.iVolume == 0)
   spu_config.iVolume = 768; // 1024 is 1.0
 
- spu.sb_thread = spu.sb_thread_;
-#ifndef C64X_DSP
- if (spu_config.iUseThread)
-#endif
-  init_spu_thread();
+ init_spu_thread();
 
  for (i = 0; i < MAXCHAN; i++)                         // loop sound channels
   {
@@ -1504,10 +1503,12 @@ long CALLBACK SPUshutdown(void)
 
 void CALLBACK SPUconfigure(void)
 {
+#ifndef C64X_DSP
  if (spu.bSpuInit && spu_config.iUseThread)
   init_spu_thread();
  else
   exit_spu_thread();
+#endif
 }
 
 // SETUP CALLBACKS

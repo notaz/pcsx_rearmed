@@ -257,7 +257,7 @@ long DoFreeze(int ulFreezeMode, struct SPUFreeze * pF, unsigned short **ram,
  if (!pF || !pF2) return 0;                            // first check
  pFO = pF2;
 
-#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+#if defined(USE_ASYNC_SPU) || defined(WANT_THREAD_CODE)
  sb_rvb = (sample_buf_rvb *)&spu.sb_thread[MAXCHAN];
 #endif
  if(ulFreezeMode)                                      // info or save?
