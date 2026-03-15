@@ -293,9 +293,12 @@ static void ari64_notify(enum R3000Anote note, void *data) {
 		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD:
 		ari64_on_ext_change(data == NULL, 0);
-		// fallthrough
-	// for state load, we take no action to not duplicate ndrc_freeze() work
+		psxInt.Notify(note, data);
+		break;
 	case R3000ACPU_NOTIFY_AFTER_LOAD_STATE:
+		// no invalidate since ndrc_freeze() already did it
+		new_dyna_pcsx_mem_reset();
+		new_dyna_pcsx_mem_load_state();
 		psxInt.Notify(note, data);
 		break;
 	}

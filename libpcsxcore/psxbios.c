@@ -3648,6 +3648,18 @@ static void hleExc0_1_2();
 
 #include "sjisfont.h"
 
+void psxBiosResetTables() {
+	memset(biosA0, 0, sizeof(biosA0));
+	// biosB0 is just a ptr to C0
+	memset(biosC0, 0, sizeof(biosC0));
+
+	biosA0[0x03] = biosB0[0x35] = psxBios_write_psxout;
+	biosA0[0x3c] = biosB0[0x3d] = psxBios_putchar_psxout;
+	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
+	// calls putchar() internally so no need to override
+	//biosA0[0x3f] = psxBios_printf_psxout;
+}
+
 void psxBiosInit() {
 	u32 *ptr, *ram32, *rom32;
 	char *romc;
@@ -3656,17 +3668,8 @@ void psxBiosInit() {
 
 	psxRegs.biosBranchCheck = ~0;
 
+	psxBiosResetTables();
 	memset(psxRegs.ptrs.psxM, 0, 0x10000);
-	for(i = 0; i < 256; i++) {
-		biosA0[i] = NULL;
-		biosB0[i] = NULL;
-		biosC0[i] = NULL;
-	}
-	biosA0[0x03] = biosB0[0x35] = psxBios_write_psxout;
-	biosA0[0x3c] = biosB0[0x3d] = psxBios_putchar_psxout;
-	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
-	// calls putchar() internally so no need to override
-	//biosA0[0x3f] = psxBios_printf_psxout;
 
 	if (!Config.HLE) {
 		char verstr[0x24+1];

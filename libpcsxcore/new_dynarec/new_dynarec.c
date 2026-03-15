@@ -1519,17 +1519,17 @@ static void *check_addr(u_int vaddr)
 // asumes blocks are to be destroyed separately
 static void blocks_clear(struct block_info **head)
 {
-  struct block_info *cur, *next;
+  struct block_info *cur;
 
   if ((cur = *head)) {
     *head = NULL;
-    while (cur) {
-      next = cur->next_by_vaddr;
 #if !BLOCK_INFO_IN_TC
+    while (cur) {
+      struct block_info *next = cur->next_by_vaddr;
       free(cur);
-#endif
       cur = next;
     }
+#endif
   }
 }
 
