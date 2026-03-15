@@ -420,7 +420,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_display_fps_v2",
       "Display Internal FPS",
       NULL,
-      "Show the internal frame rate at which the emulated PlayStation system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
+      "Show the internal frame rate at which the emulated system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
       NULL,
       "video",
       {

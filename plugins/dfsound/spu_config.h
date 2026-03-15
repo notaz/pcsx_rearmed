@@ -12,8 +12,10 @@ typedef struct
  int        iTempo;
  int        iUseThread;
 
+#ifdef C64X_DSP
  // status
  int        iThreadAvail;
+#endif
 } SPUConfig;
 
 extern SPUConfig spu_config;

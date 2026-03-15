@@ -41,6 +41,7 @@
 #include "../libpcsxcore/ppf.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/spu_config.h"
+#include "pcsxr-threads.h"
 #include "psemu_plugin_defs.h"
 #include "compiler_features.h"
 #include "arm_features.h"
@@ -1631,14 +1632,17 @@ static menu_entry e_menu_main2[];
 static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
+	int spu_thread_old = spu_config.iUseThread;
 	menu_iopts[0] = Config.SlowBoot;
 	menu_iopts[1] = pl_rearmed_cbs.thread_rendering + 1;
 #ifndef C64X_DSP
-	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, spu_config.iThreadAvail);
+	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, pcsxr_sthread_core_count > 1);
 #endif
 	me_loop(e_menu_plugin_options, &sel);
 	Config.SlowBoot = menu_iopts[0];
 	pl_rearmed_cbs.thread_rendering = menu_iopts[1] - 1;
+	if (spu_config.iUseThread != spu_thread_old)
+		SPU_configure();
 
 	// sync BIOS/plugins
 	snprintf(Config.Bios[0], sizeof(Config.Bios[0]), "%s", bioses[bios_sel]);

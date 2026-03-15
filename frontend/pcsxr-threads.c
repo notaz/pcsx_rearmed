@@ -18,6 +18,7 @@ extern void SysPrintf(const char *fmt, ...);
 
 #ifndef USE_C11_THREADS
 
+#include "rthreads/rthreads.h"
 #include "../deps/libretro-common/rthreads/rthreads.c"
 #include "features/features_cpu.h"
 

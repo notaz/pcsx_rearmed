@@ -1300,12 +1300,14 @@ static void RemoveStreams(void)
 
 #elif P_HAVE_PTHREAD
 
-#include <pthread.h>
+#include "../../frontend/pcsxr-threads.h"
+#ifdef _3DS
+#include <3ds/svc.h> // semaphore.h dep
+#endif
 #include <semaphore.h>
-#include <unistd.h>
 
 static struct {
- pthread_t thread;
+ sthread_t *thread;
  sem_t sem_avail;
  sem_t sem_done;
 } t;
@@ -1331,7 +1333,7 @@ static void thread_sync_caches(void)
 {
 }
 
-static void *spu_worker_thread(void *unused)
+static STRHEAD_RET_TYPE spu_worker_thread(void *unused)
 {
  struct work_item *work;
 
@@ -1347,18 +1349,15 @@ static void *spu_worker_thread(void *unused)
   sem_post(&t.sem_done);
  }
 
- return NULL;
+ STRHEAD_RETURN();
 }
 
 static void init_spu_thread(void)
 {
  int ret;
 
- spu.sb_thread = spu.sb_thread_;
-
- if (sysconf(_SC_NPROCESSORS_ONLN) <= 1)
+ if (worker)
   return;
-
  worker = calloc(1, sizeof(*worker));
  if (worker == NULL)
   return;
@@ -1369,11 +1368,10 @@ static void init_spu_thread(void)
  if (ret != 0)
   goto fail_sem_done;
 
- ret = pthread_create(&t.thread, NULL, spu_worker_thread, NULL);
- if (ret != 0)
+ t.thread = pcsxr_sthread_create(spu_worker_thread, PCSXRT_SPU);
+ if (!t.thread)
   goto fail_thread;
 
- spu_config.iThreadAvail = 1;
  return;
 
 fail_thread:
@@ -1383,7 +1381,6 @@ fail_sem_done:
 fail_sem_avail:
  free(worker);
  worker = NULL;
- spu_config.iThreadAvail = 0;
 }
 
 static void exit_spu_thread(void)
@@ -1392,7 +1389,7 @@ static void exit_spu_thread(void)
   return;
  worker->exit_thread = 1;
  sem_post(&t.sem_avail);
- pthread_join(t.thread, NULL);
+ sthread_join(t.thread);
  sem_destroy(&t.sem_done);
  sem_destroy(&t.sem_avail);
  free(worker);
@@ -1441,7 +1438,11 @@ long CALLBACK SPUinit(void)
  if (spu_config.iVolume == 0)
   spu_config.iVolume = 768; // 1024 is 1.0
 
- init_spu_thread();
+ spu.sb_thread = spu.sb_thread_;
+#ifndef C64X_DSP
+ if (spu_config.iUseThread)
+#endif
+  init_spu_thread();
 
  for (i = 0; i < MAXCHAN; i++)                         // loop sound channels
   {
@@ -1499,6 +1500,14 @@ long CALLBACK SPUshutdown(void)
  spu.bSpuInit=0;
 
  return 0;
+}
+
+void CALLBACK SPUconfigure(void)
+{
+ if (spu.bSpuInit && spu_config.iUseThread)
+  init_spu_thread();
+ else
+  exit_spu_thread();
 }
 
 // SETUP CALLBACKS

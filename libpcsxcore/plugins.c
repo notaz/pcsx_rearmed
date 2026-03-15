@@ -50,6 +50,7 @@ SPUinit               SPU_init;
 SPUshutdown           SPU_shutdown;
 SPUopen               SPU_open;
 SPUclose              SPU_close;
+SPUconfigure          SPU_configure;
 SPUwriteRegister      SPU_writeRegister;
 SPUreadRegister       SPU_readRegister;
 SPUwriteDMAMem        SPU_writeDMAMem;
@@ -189,6 +190,7 @@ static int LoadSPUplugin(const char *SPUdll) {
 	LoadSpuSym1(shutdown, "SPUshutdown");
 	LoadSpuSym1(open, "SPUopen");
 	LoadSpuSym1(close, "SPUclose");
+	LoadSpuSym1(configure, "SPUconfigure");
 	LoadSpuSym1(writeRegister, "SPUwriteRegister");
 	LoadSpuSym1(readRegister, "SPUreadRegister");
 	LoadSpuSym1(writeDMAMem, "SPUwriteDMAMem");

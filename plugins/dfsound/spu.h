@@ -25,6 +25,7 @@ long CALLBACK SPUopen(void);
 long CALLBACK SPUinit(void);
 long CALLBACK SPUshutdown(void);
 long CALLBACK SPUclose(void);
+void CALLBACK SPUconfigure(void);
 void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
 unsigned short CALLBACK SPUreadRegister(unsigned long, unsigned int);
 void CALLBACK SPUregisterCallback(void (*cb)(int));

@@ -2613,10 +2613,13 @@ static void update_variables(bool in_flight)
    var.key = "pcsx_rearmed_spu_thread";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
+      int spu_thread_old = spu_config.iUseThread;
       if (strcmp(var.value, "enabled") == 0)
          spu_config.iUseThread = 1;
       else
          spu_config.iUseThread = 0;
+      if (spu_config.iUseThread != spu_thread_old)
+         SPU_configure();
    }
 #endif
 
