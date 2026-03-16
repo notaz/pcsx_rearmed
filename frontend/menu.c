@@ -41,6 +41,7 @@
 #include "../libpcsxcore/ppf.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/dfsound/spu_config.h"
+#include "pcsxr-threads.h"
 #include "psemu_plugin_defs.h"
 #include "compiler_features.h"
 #include "arm_features.h"
@@ -1542,6 +1543,8 @@ static int menu_loop_plugin_spu(int id, int keys)
 	return 0;
 }
 
+static const char *men_autooo[]  = { "Auto", "Off", "On", NULL };
+
 static const char *men_gpu_dithering[] = { "OFF", "ON", "Force", NULL };
 static const char *men_bios_boot[] = { "OFF", "ON", "ON w/o PCSX", NULL };
 
@@ -1606,15 +1609,13 @@ static int menu_loop_pluginsel_options(int id, int keys)
 	return 0;
 }
 
-static int slowboot_sel;
-
 static menu_entry e_menu_plugin_options[] =
 {
 	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
-	mee_enum      ("BIOS logo (slow boot)",         0, slowboot_sel, men_bios_boot),
+	mee_enum      ("BIOS logo (slow boot)",         0, menu_iopts[0], men_bios_boot),
 	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
 #ifdef USE_ASYNC_GPU
-	mee_onoff     ("GPU multithreading",            0, pl_rearmed_cbs.thread_rendering, 1),
+	mee_enum      ("GPU multithreading",            0, menu_iopts[1], men_autooo),
 #endif
 	mee_enum      ("GPU dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
@@ -1631,12 +1632,17 @@ static menu_entry e_menu_main2[];
 static int menu_loop_plugin_options(int id, int keys)
 {
 	static int sel = 0;
-	slowboot_sel = Config.SlowBoot;
+	int spu_thread_old = spu_config.iUseThread;
+	menu_iopts[0] = Config.SlowBoot;
+	menu_iopts[1] = pl_rearmed_cbs.thread_rendering + 1;
 #ifndef C64X_DSP
-	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, spu_config.iThreadAvail);
+	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, pcsxr_sthread_core_count > 1);
 #endif
 	me_loop(e_menu_plugin_options, &sel);
-	Config.SlowBoot = slowboot_sel;
+	Config.SlowBoot = menu_iopts[0];
+	pl_rearmed_cbs.thread_rendering = menu_iopts[1] - 1;
+	if (spu_config.iUseThread != spu_thread_old)
+		SPU_configure();
 
 	// sync BIOS/plugins
 	snprintf(Config.Bios[0], sizeof(Config.Bios[0]), "%s", bioses[bios_sel]);
@@ -1677,8 +1683,6 @@ static int menu_loop_speed_hacks(int id, int keys)
 	Config.DisableStalls = menu_iopts[0];
 	return 0;
 }
-
-static const char *men_autooo[]  = { "Auto", "Off", "On", NULL };
 
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"

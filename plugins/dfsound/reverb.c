@@ -115,7 +115,7 @@ static void MixREVERB(int *SSumLR, int *RVB, int ns_to, int curr_addr,
  int vIIR = rvb->vIIR;
  int ns;
 
-#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+#if defined(USE_ASYNC_SPU) || defined(WANT_THREAD_CODE)
  // this is reusing sb_thread[] due to complications with spu_c64x
  //sb = (sample_buf_rvb *)&spu.sb_thread[MAXCHAN];
 #endif

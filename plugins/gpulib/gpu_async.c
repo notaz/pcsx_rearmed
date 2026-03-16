@@ -472,7 +472,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
 {
   struct psx_gpu *gpup = &gpu;
   struct psx_gpu_async *agpu = gpup->async;
-  int dirty = 0;
+  int renderer_dirty = 0;
 
   assert(agpu);
   slock_lock(agpu->lock);
@@ -482,7 +482,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     int pos = agpu->pos_used & AGPU_BUF_MASK;
     int done, cycles_dummy = 0, cmd = -1;
     assert(len >= 0);
-    if (len == 0 && !dirty) {
+    if (len == 0 && !renderer_dirty) {
       switch (agpu->wait_mode) {
         case waitmode_full:
         case waitmode_target:
@@ -501,9 +501,9 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     }
     slock_unlock(agpu->lock);
 
-    if (len == 0 && dirty) {
+    if (len == 0 && renderer_dirty) {
       renderer_flush_queues();
-      dirty = 0;
+      renderer_dirty = 0;
       slock_lock(agpu->lock);
       continue;
     }
@@ -511,6 +511,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     len = min(len, AGPU_BUF_LEN - pos);
     done = renderer_do_cmd_list(agpu->cmd_buffer + pos, len, agpu->ex_regs,
              &cycles_dummy, &cycles_dummy, &cmd);
+    renderer_dirty |= done;
     if (done != len) {
       const void *list = agpu->cmd_buffer + pos + done;
       switch (cmd) {
@@ -522,12 +523,16 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
           break;
         case FAKECMD_SET_INTERLACE:
           done += do_set_interlace(gpup, list);
+          renderer_dirty = 0;
           break;
         case FAKECMD_DMA_WRITE:
           done += do_dma_write(gpup, list, pos + done);
+          renderer_dirty = 0;
           break;
         case FAKECMD_BREAK:
           done += sizeof(struct cmd_break) / 4;
+          renderer_flush_queues();
+          renderer_dirty = 0;
           break;
         default:
           assert(0);
@@ -537,7 +542,6 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
       }
     }
 
-    dirty = 1;
     assert(done > 0);
     slock_lock(agpu->lock);
     agpu->pos_used += done;
@@ -628,6 +632,8 @@ static int do_dma_write(struct psx_gpu *gpu,
   uint16_t *vram = gpu->vram;
   int stride = (w + 1) / 2;
   int done = 0;
+
+  renderer_flush_queues();
 
   pos += sizeof(*cmd) / 4u;
   done += sizeof(*cmd) / 4u;
@@ -853,11 +859,17 @@ void gpu_async_stop(struct psx_gpu *gpu)
   }
 }
 
-void gpu_async_start(struct psx_gpu *gpu)
+void gpu_async_enable(struct psx_gpu *gpu, int enable)
 {
   struct psx_gpu_async *agpu;
-  if (gpu->async)
+  if (enable < 0)
+    enable = pcsxr_sthread_core_count > 1;
+  if (!gpu->async == !enable)
     return;
+  if (!enable) {
+    gpu_async_stop(gpu);
+    return;
+  }
 
   assert(AGPU_DMA_MAX <= AGPU_BUF_LEN / 2);
 

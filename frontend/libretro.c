@@ -2608,15 +2608,18 @@ static void update_variables(bool in_flight)
          spu_config.iUseInterpolation = 0;
    }
 
-#if P_HAVE_PTHREAD
+#ifdef USE_ASYNC_SPU
    var.value = NULL;
    var.key = "pcsx_rearmed_spu_thread";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
+      int spu_thread_old = spu_config.iUseThread;
       if (strcmp(var.value, "enabled") == 0)
          spu_config.iUseThread = 1;
       else
          spu_config.iUseThread = 0;
+      if (spu_config.iUseThread != spu_thread_old && SPU_configure)
+         SPU_configure();
    }
 #endif
 
@@ -2730,8 +2733,10 @@ static void update_variables(bool in_flight)
    {
       if (strcmp(var.value, "enabled") == 0)
          pl_rearmed_cbs.thread_rendering = 1;
-      else
+      else if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.thread_rendering = 0;
+      else
+         pl_rearmed_cbs.thread_rendering = -1; // auto
    }
 #endif
 

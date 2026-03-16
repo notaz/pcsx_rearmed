@@ -137,9 +137,9 @@ struct retro_core_option_v2_definition option_defs_us[] = {
    },
    {
       "pcsx_rearmed_show_bios_bootlogo",
-      "Show BIOS Boot Logo",
+      "Show BIOS Name/Boot Logo",
       NULL,
-      "When using an official BIOS file, specify whether to show the PlayStation logo upon starting or resetting content. Also enables the display of BIOS file name in OSD. Warning: Enabling the boot logo may reduce game compatibility.",
+      "When using a custom BIOS file, enables the display of its file name in the OSD. Also specifies whether to show the BIOS logo when starting or selecting Reset. Warning: Enabling the logo may reduce game compatibility.",
       NULL,
       "system",
       {
@@ -334,15 +334,16 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_gpu_thread_rendering",
       "Threaded Rendering",
       NULL,
-      "When enabled, runs GPU commands in a secondary thread.",
+      "When enabled, runs GPU commands in a secondary thread. 'Auto' enables it if at least 2 CPU cores are detected.",
       NULL,
       "video",
       {
+         { "auto", "Auto" },
          { "disabled", NULL },
          { "enabled",  NULL },
          { NULL, NULL},
       },
-      "disabled",
+      "auto",
    },
 #endif
    {
@@ -419,7 +420,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "pcsx_rearmed_display_fps_v2",
       "Display Internal FPS",
       NULL,
-      "Show the internal frame rate at which the emulated PlayStation system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
+      "Show the internal frame rate at which the emulated system is rendering content. Note: Requires on-screen notifications to be enabled in the libretro frontend.",
       NULL,
       "video",
       {
@@ -906,7 +907,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "enabled",
    },
-#if P_HAVE_PTHREAD
+#ifdef USE_ASYNC_SPU
    {
       "pcsx_rearmed_spu_thread",
       "Threaded SPU",
@@ -921,7 +922,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "disabled",
    },
-#endif // P_HAVE_PTHREAD
+#endif
    {
       "pcsx_rearmed_show_input_settings",
       "Show Input Settings",

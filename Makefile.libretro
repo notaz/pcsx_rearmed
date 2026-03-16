@@ -6,6 +6,7 @@ HAVE_CHD ?= 1
 HAVE_PHYSICAL_CDROM ?= 1
 USE_ASYNC_CDROM ?= 1
 USE_ASYNC_GPU ?= 1
+USE_ASYNC_SPU ?= 1
 USE_LIBRETRO_VFS ?= 0
 NDRC_THREAD ?= 1
 GNU_LINKER ?= 1
@@ -282,7 +283,6 @@ else ifeq ($(platform), libnx)
    CFLAGS += -ftree-vectorize
    CFLAGS += -Ifrontend/switch
    NO_POSIX_MEMALIGN := 1
-   NO_PTHREAD=1
    NO_MMAP := 1 # for psxmem
    LIBPTHREAD :=
    WANT_ZLIB = 0
@@ -310,13 +310,13 @@ else ifeq ($(platform), psl1ght)
 	NO_UNDEF_CHECK := 1
 	STATIC_LINKING := 1
 	NO_MMAP := 1
-	NO_PTHREAD := 1
 	LIBPTHREAD :=
 	LIBDL :=
 	NEED_SYSCONF := 1
 	HAVE_PHYSICAL_CDROM = 0
 	USE_ASYNC_CDROM = 0
 	USE_ASYNC_GPU = 0
+	USE_ASYNC_SPU = 0
 
 # PSP
 else ifeq ($(platform), psp1)
@@ -413,7 +413,6 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	CFLAGS += -DGEKKO -mcpu=750 -meabi -mhard-float
 	CFLAGS += -DNO_DYLIB
 	STATIC_LINKING := 1
-	NO_PTHREAD := 1
 	NO_MMAP := 1
 	NO_POSIX_MEMALIGN := 1
 	LIBDL :=
@@ -422,6 +421,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	HAVE_PHYSICAL_CDROM = 0
 	USE_ASYNC_CDROM = 0
 	USE_ASYNC_GPU = 0
+	USE_ASYNC_SPU = 0
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -595,7 +595,6 @@ else ifeq ($(platform), miyoo)
 # Emscripten
 else ifeq ($(platform), emscripten)
    TARGET  := $(TARGET_NAME)_libretro_$(platform).bc
-   pthread ?= 0
    fpic    := -fPIC
    NO_MMAP = 1
    # we can use -lz for emscripten's built-in zlib port
@@ -603,24 +602,11 @@ else ifeq ($(platform), emscripten)
    CFLAGS_OPT = -O2
    CFLAGS += -DNO_DYLIB -DNO_SOCKET
    CFLAGS += -msimd128 -ftree-vectorize
-   # when compiling with pthreads...
-   ifneq ($(pthread), 0)
-      # use -lpthread
-      LIBPTHREAD := -lpthread
-      NO_PTHREAD=0
-      # but we don't want to include libretro-common's rthread object files here
-      USE_RTHREADS=0
-      USE_ASYNC_CDROM=0
-      USE_ASYNC_GPU=0
-      # so we disable some uses of threads within pcsx_rearmed.
-      # is this a good solution? I don't know!
-   else
-      LIBPTHREAD :=
-      USE_RTHREADS=0
-      USE_ASYNC_CDROM=0
-      USE_ASYNC_GPU=0
-      NO_PTHREAD=1
-   endif
+   LIBPTHREAD :=
+   USE_RTHREADS=0
+   USE_ASYNC_CDROM=0
+   USE_ASYNC_GPU=0
+   USE_ASYNC_SPU=0
    DYNAREC =
    STATIC_LINKING = 1
    HAVE_PHYSICAL_CDROM = 0
@@ -635,12 +621,12 @@ ifneq ($(DEBUG),1)
 endif
 	CFLAGS += -D__WIN32__ -DNO_DYLIB
 	MMAP_WIN32=1
-	NO_PTHREAD=1
 	MAIN_LDLIBS += -lws2_32
 	LIBPTHREAD :=
 	LIBDL :=
 	LIBM :=
 	USE_LIBRETRO_VFS = 1
+	USE_ASYNC_SPU = 0 # uses posix semaphore.h
 endif
 
 CFLAGS += $(fpic)

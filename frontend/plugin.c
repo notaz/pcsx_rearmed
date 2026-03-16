@@ -112,6 +112,7 @@ static const struct {
 	DIRECT_SPU(SPUshutdown),
 	DIRECT_SPU(SPUopen),
 	DIRECT_SPU(SPUclose),
+	DIRECT_SPU(SPUconfigure),
 	DIRECT_SPU(SPUwriteRegister),
 	DIRECT_SPU(SPUreadRegister),
 	DIRECT_SPU(SPUwriteDMAMem),

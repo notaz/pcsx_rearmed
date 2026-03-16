@@ -262,7 +262,7 @@ typedef struct
  sample_buf_rvb  sb_rvb; // for reverb filtering
  int             interpolation;
 
-#if P_HAVE_PTHREAD || defined(WANT_THREAD_CODE)
+#if defined(USE_ASYNC_SPU) || defined(WANT_THREAD_CODE)
  sample_buf    * sb_thread;
  sample_buf      sb_thread_[MAXCHAN+1];
 #endif

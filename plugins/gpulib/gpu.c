@@ -1254,10 +1254,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   renderer_set_config(cbs);
   vout_set_config(cbs);
 
-  if (cbs->thread_rendering)
-    gpu_async_start(&gpu);
-  else
-    gpu_async_stop(&gpu);
+  gpu_async_enable(&gpu, cbs->thread_rendering);
 }
 
 // for standalone plugins only

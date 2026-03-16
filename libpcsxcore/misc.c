@@ -859,6 +859,8 @@ int LoadState(const char *file) {
 
 	if (Config.HLE)
 		psxBiosInit();
+	else if (oldhle)
+		psxBiosResetTables();
 
 	// ex-ScreenPic space
 	SaveFuncs.seek(f, EX_SCREENPIC_SIZE, SEEK_CUR);

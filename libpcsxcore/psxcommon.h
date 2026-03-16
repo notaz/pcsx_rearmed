@@ -80,7 +80,6 @@ typedef uint8_t boolean;
 #ifndef _WIN32
 #define strnicmp strncasecmp
 #endif
-#define __inline inline
 
 // Enables NLS/internationalization if active
 #ifdef ENABLE_NLS

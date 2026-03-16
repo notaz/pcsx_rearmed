@@ -7,22 +7,25 @@
 #include <3ds/services/apt.h>
 #include <sys/time.h>
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
+static bool is_new_3ds;
 #endif
-
-#include "../deps/libretro-common/rthreads/rthreads.c"
-#include "features/features_cpu.h"
 #include "pcsxr-threads.h"
+
+int pcsxr_sthread_core_count;
 
 // pcsxr "extensions"
 extern void SysPrintf(const char *fmt, ...);
 
-#ifdef _3DS
-static bool is_new_3ds;
-#endif
+#ifndef USE_C11_THREADS
 
-void pcsxr_sthread_init(void)
+#include "rthreads/rthreads.h"
+#include "../deps/libretro-common/rthreads/rthreads.c"
+#include "features/features_cpu.h"
+
+#define CORE_COUNT() cpu_features_get_core_amount()
+
+static void pcsxr_sthread_lib_init(void)
 {
-	SysPrintf("%d cpu core(s) detected\n", cpu_features_get_core_amount());
 #ifdef _3DS
 	int64_t version = 0;
 	int fpscr = -1;
@@ -103,4 +106,22 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
  #endif
 #endif
 	return h;
+}
+
+#else // USE_C11_THREADS
+
+#include <unistd.h>
+#define CORE_COUNT() sysconf(_SC_NPROCESSORS_ONLN)
+#define pcsxr_sthread_lib_init()
+
+#endif
+
+void pcsxr_sthread_init(void)
+{
+	pcsxr_sthread_core_count = CORE_COUNT();
+	if (pcsxr_sthread_core_count < 1)
+		pcsxr_sthread_core_count = 1;
+	SysPrintf("%d cpu core(s) detected\n", pcsxr_sthread_core_count);
+
+	pcsxr_sthread_lib_init();
 }

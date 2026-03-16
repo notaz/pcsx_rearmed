@@ -75,7 +75,6 @@ LDFLAGS += $(FSECTIONS_LDFLAGS)
 endif
 endif # NO_FSECTIONS
 CFLAGS += -DP_HAVE_MMAP=$(if $(NO_MMAP),0,1) \
-	  -DP_HAVE_PTHREAD=$(if $(NO_PTHREAD),0,1) \
 	  -DP_HAVE_POSIX_MEMALIGN=$(if $(NO_POSIX_MEMALIGN),0,1) \
 	  -DDISABLE_MEM_LUTS=0
 CXXFLAGS += $(CFLAGS)
@@ -135,6 +134,11 @@ endif
 ifeq "$(USE_ASYNC_GPU)" "1"
 frontend/libretro.o: CFLAGS += -DUSE_ASYNC_GPU
 frontend/menu.o: CFLAGS += -DUSE_ASYNC_GPU
+USE_RTHREADS := 1
+endif
+ifeq "$(USE_ASYNC_SPU)" "1"
+frontend/libretro.o: CFLAGS += -DUSE_ASYNC_SPU
+frontend/menu.o: CFLAGS += -DUSE_ASYNC_SPU
 USE_RTHREADS := 1
 endif
 
@@ -235,6 +239,9 @@ endif
 ifeq "$(HAVE_C64_TOOLS)" "1"
 plugins/dfsound/%.o: CFLAGS += -DC64X_DSP -DWANT_THREAD_CODE
 frontend/menu.o: CFLAGS += -DC64X_DSP
+endif
+ifeq "$(USE_ASYNC_SPU)" "1"
+plugins/dfsound/%.o: CFLAGS += -DUSE_ASYNC_SPU
 endif
 ifneq ($(findstring oss,$(SOUND_DRIVERS)),)
 plugins/dfsound/out.o: CFLAGS += -DHAVE_OSS

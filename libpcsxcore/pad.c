@@ -597,7 +597,8 @@ int padFreeze(void *f, int Mode)
 			if (g.pads[i].saveSize != sizeof(g.pads[i]))
 				SaveFuncs.seek(f, g.pads[i].saveSize - sizeof(g.pads[i]),
 						SEEK_CUR);
-			changed |= controllerType != g.pads[i].controllerType;
+			if (controllerType)
+				changed |= controllerType != g.pads[i].controllerType;
 			changed |= portMultitap != g.pads[i].portMultitap;
 		}
 	}
@@ -621,5 +622,5 @@ int padToggleAnalog(unsigned int index)
 void padChanged(void)
 {
 	padReset();
-	g.replug_frame = frame_counter;
+	g.replug_frame = frame_counter ? frame_counter : -1;
 }
