@@ -444,10 +444,8 @@ static unsigned char PADpoll_(int port, unsigned char value, int pos, int *more_
 	}
 
 	*more_data = pos < pad->respSize - 1;
-	if (pos >= pad->respSize) {
-		log_unhandled("pad %zd read %d/%d\n", pad - g.pads, pos, pad->respSize);
+	if (pos >= pad->respSize)
 		return 0xff; // no response/HiZ
-	}
 
 	return pad->rxData[pos];
 }
@@ -498,8 +496,11 @@ static unsigned char PADpollMain(int port, unsigned char value, int *more_data)
 		ret = 0xff;
 		*more_data = 0;
 	}
-	else if (!g.pads[port].portMultitap || !g.pads[port].multitapLongModeEnabled)
+	else if (!g.pads[port].portMultitap || !g.pads[port].multitapLongModeEnabled) {
 		ret = PADpoll_(port, value, pos, more_data);
+		if (pos >= g.pads[port].respSize)
+			log_unhandled("pad%d rd %d/%d\n", port, pos, g.pads[port].respSize);
+	}
 	else
 		ret = PADpollMultitap(port, value, pos, more_data);
 
