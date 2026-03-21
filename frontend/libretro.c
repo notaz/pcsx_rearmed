@@ -2668,6 +2668,18 @@ static void update_variables(bool in_flight)
    }
 
    var.value = NULL;
+   var.key = "pcsx_rearmed_alt_flip";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (strcmp(var.value, "early") == 0)
+         Config.AlternativeFlip = 1;
+      else if (strcmp(var.value, "late") == 0)
+         Config.AlternativeFlip = 0;
+      else // auto
+         Config.AlternativeFlip = -1;
+   }
+
+   var.value = NULL;
    var.key = "pcsx_rearmed_screen_centering";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
