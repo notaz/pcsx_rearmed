@@ -114,6 +114,7 @@ void emu_set_default_config(void)
 	Config.cycle_multiplier = CYCLE_MULT_DEFAULT;
 	Config.GpuListWalking = -1;
 	Config.FractionalFramerate = -1;
+	Config.AlternativeFlip = -1;
 
 	pl_rearmed_cbs.dithering = 1;
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto

@@ -167,6 +167,8 @@ void plugin_call_rearmed_cbs(void)
 
 	pl_rearmed_cbs.screen_centering_type_default =
 		Config.hacks.gpu_centering ? C_INGAME : C_AUTO;
+	pl_rearmed_cbs.alt_flip = Config.AlternativeFlip > 0 ||
+		(Config.AlternativeFlip < 0 && Config.hacks.alt_flip);
 
 	rearmed_set_cbs = SysLoadSym(hGPUDriver, "GPUrearmedCallbacks");
 	if (rearmed_set_cbs != NULL)

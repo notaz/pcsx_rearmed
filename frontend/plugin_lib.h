@@ -76,9 +76,10 @@ struct rearmed_cbs {
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
-	unsigned int only_16bpp; // platform is 16bpp-only
-	unsigned int dithering; // 0 off, 1 on, 2 force
-	unsigned int scale_hires;
+	unsigned char only_16bpp; // platform is 16bpp-only
+	unsigned char dithering; // 0 off, 1 on, 2 force
+	unsigned char scale_hires;
+	unsigned char alt_flip;
 	int   thread_rendering; // -1 auto, 0 off, 1 on
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess

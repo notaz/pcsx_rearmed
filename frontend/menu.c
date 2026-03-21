@@ -112,7 +112,7 @@ static int psx_clock;
 static int memcard1_sel = -1, memcard2_sel = -1;
 static int cd_buf_count;
 extern int g_autostateld_opt;
-static int menu_iopts[8];
+static int menu_iopts[9];
 int g_opts, g_scaler, g_gamma = 100;
 int scanlines, scanline_level = 20;
 int soft_scaling, analog_deadzone; // for Caanoo
@@ -420,6 +420,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_CONFIG_VAL(GpuListWalking),
 	CE_CONFIG_VAL(FractionalFramerate),
+	CE_CONFIG_VAL(AlternativeFlip),
 	CE_CONFIG_VAL(PreciseExceptions),
 	CE_CONFIG_VAL(TurboCD),
 	CE_CONFIG_VAL(SlowBoot),
@@ -1424,7 +1425,7 @@ static menu_entry e_menu_gfx_options[] =
 	mee_range_h   ("Gamma adjustment",         MA_OPT_GAMMA, g_gamma, 1, 200, h_gamma),
 	mee_onoff     ("OpenGL Vsync",             MA_OPT_VSYNC, g_opts, OPT_VSYNC),
 	mee_cust_h    ("Setup custom scaler",      MA_OPT_VARSCALER_C, menu_loop_cscaler, NULL, h_cscaler),
-	mee_onoff_h   ("Force low resolution",     0, pl_rearmed_cbs.scale_hires, 1, h_lowres),
+	mee_onoff_h   ("Force low resolution",     0, menu_iopts[0], 1, h_lowres),
 	mee_end,
 };
 
@@ -1432,7 +1433,11 @@ static int menu_loop_gfx_options(int id, int keys)
 {
 	static int sel = 0;
 
+	menu_iopts[0] = pl_rearmed_cbs.scale_hires;
+
 	me_loop(e_menu_gfx_options, &sel);
+
+	pl_rearmed_cbs.scale_hires = menu_iopts[0];
 
 	return 0;
 }
@@ -1617,7 +1622,7 @@ static menu_entry e_menu_plugin_options[] =
 #ifdef USE_ASYNC_GPU
 	mee_enum      ("GPU multithreading",            0, menu_iopts[1], men_autooo),
 #endif
-	mee_enum      ("GPU dithering",                 0, pl_rearmed_cbs.dithering, men_gpu_dithering),
+	mee_enum      ("GPU dithering",                 0, menu_iopts[2], men_gpu_dithering),
 	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
 #ifndef C64X_DSP
 	mee_onoff_h   ("SPU multithreading",            MA_OPT_SPU_THREAD, spu_config.iUseThread, 1, h_sputhr),
@@ -1635,12 +1640,16 @@ static int menu_loop_plugin_options(int id, int keys)
 	int spu_thread_old = spu_config.iUseThread;
 	menu_iopts[0] = Config.SlowBoot;
 	menu_iopts[1] = pl_rearmed_cbs.thread_rendering + 1;
+	menu_iopts[2] = pl_rearmed_cbs.dithering;
 #ifndef C64X_DSP
 	me_enable(e_menu_plugin_options, MA_OPT_SPU_THREAD, pcsxr_sthread_core_count > 1);
 #endif
+
 	me_loop(e_menu_plugin_options, &sel);
+
 	Config.SlowBoot = menu_iopts[0];
 	pl_rearmed_cbs.thread_rendering = menu_iopts[1] - 1;
+	pl_rearmed_cbs.dithering = menu_iopts[2];
 	if (spu_config.iUseThread != spu_thread_old)
 		SPU_configure();
 
@@ -1684,6 +1693,8 @@ static int menu_loop_speed_hacks(int id, int keys)
 	return 0;
 }
 
+static const char *men_aflip[]  = { "Auto", "Late", "Early", NULL };
+
 static const char h_cfg_cpul[]   = "Shows CPU usage in %";
 static const char h_cfg_spu[]    = "Shows active SPU channels\n"
 				   "(green: normal, red: fmod, blue: noise)";
@@ -1707,7 +1718,10 @@ static const char h_cfg_tcd[]    = "Greatly reduce CD load times. Breaks some ga
 static const char h_cfg_psxclk[]  = "Over/under-clock the PSX, default is " DEFAULT_PSX_CLOCK_S "\n"
 				    "(adjust this if the game is too slow/too fast/hangs)";
 
-enum { AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU, AMO_GPUL, AMO_FFPS, AMO_TCD };
+enum {
+	AMO_XA, AMO_CDDA, AMO_IC, AMO_BP, AMO_CPU,
+	AMO_GPUL, AMO_FFPS, AMO_TCD, AMO_AFLIP,
+};
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -1720,6 +1734,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("BP exception emulation", 0, menu_iopts[AMO_BP],   1, h_cfg_exc),
 	mee_enum_h    ("GPU l-list slow walking",0, menu_iopts[AMO_GPUL], men_autooo, h_cfg_gpul),
 	mee_enum_h    ("Fractional framerate",   0, menu_iopts[AMO_FFPS], men_autooo, h_cfg_ffps),
+	mee_enum      ("Framebuffer readout",    0, menu_iopts[AMO_AFLIP], men_aflip),
 	mee_onoff_h   ("Turbo CD-ROM ",          0, menu_iopts[AMO_TCD], 1, h_cfg_tcd),
 #ifdef USE_ASYNC_CDROM
 	mee_range     ("CD-ROM read-ahead",      0, cd_buf_count, 0, 1024),
@@ -1751,6 +1766,7 @@ static int menu_loop_adv_options(int id, int keys)
 		*opts[i].mopt = *opts[i].opt;
 	menu_iopts[AMO_GPUL] = Config.GpuListWalking + 1;
 	menu_iopts[AMO_FFPS] = Config.FractionalFramerate + 1;
+	menu_iopts[AMO_AFLIP] = Config.AlternativeFlip + 1;
 
 	me_loop(e_menu_adv_options, &sel);
 
@@ -1758,6 +1774,7 @@ static int menu_loop_adv_options(int id, int keys)
 		*opts[i].opt = *opts[i].mopt;
 	Config.GpuListWalking = menu_iopts[AMO_GPUL] - 1;
 	Config.FractionalFramerate = menu_iopts[AMO_FFPS] - 1;
+	Config.AlternativeFlip = menu_iopts[AMO_AFLIP] - 1;
 	cdra_set_buf_count(cd_buf_count);
 
 	return 0;

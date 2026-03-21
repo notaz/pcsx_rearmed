@@ -447,6 +447,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "auto",
    },
    {
+      "pcsx_rearmed_alt_flip",
+      "Framebuffer readout",
+      NULL,
+      "Some games make changes to the framebuffer while it's being sent to the display, which is currently not emulated. However this option allows to choose if the emulator takes the video frame before the emulated PSX active display period ('Early') or after ('Late'). Normally this should be left at 'Auto'.",
+      NULL,
+      "video",
+      {
+         { "auto",  "Auto" },
+         { "early", "Early" },
+         { "late",  "Late" },
+         { NULL, NULL },
+      },
+      "auto",
+   },
+   {
       "pcsx_rearmed_rgb32_output",
       "RGB32 output",
       NULL,

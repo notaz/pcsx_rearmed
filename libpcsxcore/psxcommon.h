@@ -133,8 +133,9 @@ typedef struct {
 	int cycle_multiplier; // 100 for 1.0
 	int cycle_multiplier_override;
 	int gpu_timing_override;
-	s8 GpuListWalking;
-	s8 FractionalFramerate; // ~49.75 and ~59.81 instead of 50 and 60
+	s8 GpuListWalking; // -1..1: -1 = auto, 0/1 = off/on
+	s8 FractionalFramerate; // -1..1, ~49.75 and ~59.81 instead of 50 and 60
+	s8 AlternativeFlip; // -1..1
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
 	u8 PsxRegion; // PSX_REGION_US, PSX_REGION_JP, PSX_REGION_EU
@@ -145,6 +146,7 @@ typedef struct {
 		boolean dualshock_init_analog;
 		boolean fractional_Framerate;
 		boolean f1;
+		boolean alt_flip;
 	} hacks;
 } PcsxConfig;
 

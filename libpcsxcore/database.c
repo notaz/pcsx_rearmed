@@ -94,6 +94,14 @@ static const char * const f1_hack_db[] =
 	"SCES03404", "SCES03423", "SCES03424", "SCES03524",
 };
 
+static const char * const alt_flip_db[] =
+{
+	/* Darius Gaiden (Japan) */
+	"SLPS00574", "SLPM80054",
+	/* NFS3 */
+	"SLUS00620",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -112,6 +120,7 @@ hack_db[] =
 	HACK_ENTRY(dualshock_init_analog, dualshock_init_analog_hack_db),
 	HACK_ENTRY(fractional_Framerate, fractional_Framerate_hack_db),
 	HACK_ENTRY(f1, f1_hack_db),
+	HACK_ENTRY(alt_flip, alt_flip_db),
 };
 
 static const struct

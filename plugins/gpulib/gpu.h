@@ -86,7 +86,6 @@ struct psx_gpu {
     uint32_t old_interlace:1;
     uint32_t allow_interlace:2;
     uint32_t blanked:1;
-    uint32_t vblank:1;
     uint32_t use_alternative_flip:1;
     uint32_t enhancement_enable:1;
     uint32_t enhancement_active:1;
@@ -103,7 +102,6 @@ struct psx_gpu {
       uint32_t hcnt;
     } last_list;
     uint32_t last_vram_read_frame;
-    uint32_t last_adflip_frame;
     uint16_t w_out_old, h_out_old, src_y_old;
     uint32_t status_vo_old;
     short screen_centering_type;

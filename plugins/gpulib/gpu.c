@@ -418,16 +418,6 @@ void GPUwriteStatus(uint32_t data)
         gpu.frameskip.last_flip_frame = *gpu.state.frame_count;
       }
       if (changed) {
-        if (!gpu.state.vblank && !(gpu.status & PSX_GPU_STATUS_BLANKING) &&
-            !gpu.state.use_alternative_flip)
-        {
-          uint32_t fdiff = frame - gpu.state.last_adflip_frame;
-          gpu.state.last_adflip_frame = frame;
-          if (fdiff < 9u) {
-            log_anomaly(&gpu, "active display flip detected\n");
-            gpu.state.use_alternative_flip = 1;
-          }
-        }
         if (gpu_async_enabled(&gpu))
           gpu_async_notify_screen_change(&gpu);
         else
@@ -1171,7 +1161,6 @@ static void GPUupdateLace(void)
 void GPUvBlank(int is_vblank, int lcf)
 {
   int interlace;
-  gpu.state.vblank = is_vblank;
   interlace = gpu.state.allow_interlace
     && (gpu.status & PSX_GPU_STATUS_INTERLACE)
     && (gpu.status & PSX_GPU_STATUS_DHEIGHT);
@@ -1223,7 +1212,7 @@ void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
   gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
   gpu.state.enhancement_active = 0;
   gpu.state.downscale_enable = cbs->scale_hires;
-  gpu.state.use_alternative_flip = 0;
+  gpu.state.use_alternative_flip = cbs->alt_flip;
   gpu.state.screen_centering_type_default = cbs->screen_centering_type_default;
   if (gpu.state.screen_centering_type != cbs->screen_centering_type
       || gpu.state.screen_centering_x != cbs->screen_centering_x
