@@ -173,6 +173,8 @@ cycle_multiplier_overrides[] =
 	{ 160, { "SCES01944", "SCES01945", "SCES01946", "SCES01947" } },
 	/* Tunguska: Legend of Faith - 2x too fast */
 	{ 232, { "SLES03298" } },
+	/* Riichi Mahjong - hangs */
+	{ 200, { "SLPS03023" } },
 };
 
 static const struct
