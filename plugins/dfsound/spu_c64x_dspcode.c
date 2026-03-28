@@ -140,7 +140,6 @@ static unsigned int exec(dsp_component_cmd_t cmd,
  switch (cmd) {
   case CCMD_INIT:
    enable_l2_cache();
-   InitADSR();
 
    spu.spuMemC = mem->spu_ram;
    spu.sb_thread = mem->sb_thread;
