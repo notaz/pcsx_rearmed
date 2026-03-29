@@ -110,6 +110,10 @@ the main menu where it is possible to enable/disable individual cheats.
 Changelog
 ---------
 
+r26 (2025-03-29)
+* bug fixes and compatibility improvements
+* fast forward should be fast again if frameskip is on
+
 r25 (2025-02-26)
 * bug fixes and compatibility improvements
 
