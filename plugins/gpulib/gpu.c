@@ -239,18 +239,29 @@ static noinline void decide_frameskip(struct psx_gpu *gpu, uint32_t flip_delay)
     gpu->frameskip.active = 0;
 }
 
+static int check_screen_intersect(struct psx_gpu *gpu, int x, int y, int w, int h)
+{
+  int32_t screen_r = gpu->screen.src_x + gpu->screen.w;
+  int32_t screen_b = gpu->screen.src_y + gpu->screen.h;
+  int32_t dst_r = x + w, dst_b = y + h;
+  int32_t no_intersect;
+  no_intersect  = screen_r - x - 1;
+  no_intersect |= screen_b - y - 1;
+  no_intersect |= dst_r - gpu->screen.src_x - 1;
+  no_intersect |= dst_b - gpu->screen.src_y - 1;
+  no_intersect >>= 31;
+  return !no_intersect;
+}
+
 static noinline void check_draw_to_display(struct psx_gpu *gpu)
 {
   uint32_t cmd_e3 = gpu->ex_regs[3];
-  uint32_t x1 = cmd_e3 & 0x3ff,    y1 = (cmd_e3 >> 10) & 0x3ff;
-  uint32_t x2 = gpu->screen.src_x, y2 = gpu->screen.src_y;
-  uint32_t w = gpu->screen.w,      h = gpu->screen.h;
-  uint32_t no_intersect =
-    x1 + w <= x2 || x2 + w <= x1 || y1 + h <= y2 || y2 + h <= y1;
-  gpu->state.draw_display_intersect = !no_intersect;
+  uint32_t x1 = cmd_e3 & 0x3ff, y1 = (cmd_e3 >> 10) & 0x3ff;
+  int intersect = check_screen_intersect(gpu, x1, y1, gpu->screen.w, gpu->screen.h);
+  gpu->state.draw_display_intersect = intersect;
   // no frameskip if it decides to draw to display area,
   // but not for interlace since it'll most likely always do that
-  gpu->frameskip.allow = no_intersect || (gpu->status & PSX_GPU_STATUS_INTERLACE);
+  gpu->frameskip.allow = !intersect || (gpu->status & PSX_GPU_STATUS_INTERLACE);
 }
 
 static void flush_cmd_buffer(struct psx_gpu *gpu);
@@ -598,20 +609,12 @@ static void finish_vram_transfer(struct psx_gpu *gpu, int is_read, int is_async)
   if (is_read)
     gpu->status &= ~PSX_GPU_STATUS_IMG;
   else {
-    int32_t screen_r = gpu->screen.src_x + gpu->screen.hres;
-    int32_t screen_b = gpu->screen.src_y + gpu->screen.vres;
-    int32_t dma_r = gpu->dma_start.x + gpu->dma_start.w;
-    int32_t dma_b = gpu->dma_start.y + gpu->dma_start.h;
-    int32_t not_dirty;
-    not_dirty  = screen_r - gpu->dma_start.x - 1;
-    not_dirty |= screen_b - gpu->dma_start.y - 1;
-    not_dirty |= dma_r - gpu->screen.src_x - 1;
-    not_dirty |= dma_b - gpu->screen.src_y - 1;
-    not_dirty >>= 31;
+    int intersect = check_screen_intersect(gpu, gpu->dma_start.x, gpu->dma_start.y,
+                      gpu->dma_start.w, gpu->dma_start.h);
     log_io(gpu, "dma %3d,%3d %dx%d scr %3d,%3d %3dx%3d -> dirty %d\n",
       gpu->dma_start.x, gpu->dma_start.y, gpu->dma_start.w, gpu->dma_start.h,
-      gpu->screen.src_x, gpu->screen.src_y, gpu->screen.hres, gpu->screen.vres, !not_dirty);
-    gpu->state.fb_dirty_display_area |= !not_dirty;
+      gpu->screen.src_x, gpu->screen.src_y, gpu->screen.hres, gpu->screen.vres, intersect);
+    gpu->state.fb_dirty_display_area |= intersect;
     gpu->state.fb_dirty = 1;
     if (!is_async)
       renderer_update_caches(gpu->dma_start.x, gpu->dma_start.y,
@@ -621,8 +624,27 @@ static void finish_vram_transfer(struct psx_gpu *gpu, int is_read, int is_async)
     gpu->gpu_state_change(PGS_VRAM_TRANSFER_END, 0);
 }
 
-int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
-      const uint32_t *params, int *cpu_cycles)
+int do_vram_copy_pre(struct psx_gpu *gpu, const uint32_t *params, int *cpu_cycles)
+{
+  const uint32_t sx =  LE32TOH(params[1]) & 0x3FF;
+  const uint32_t sy = (LE32TOH(params[1]) >> 16) & 0x1FF;
+  const uint32_t dx =  LE32TOH(params[2]) & 0x3FF;
+  const uint32_t dy = (LE32TOH(params[2]) >> 16) & 0x1FF;
+  uint32_t w =  ((LE32TOH(params[3]) - 1) & 0x3FF) + 1;
+  uint32_t h = (((LE32TOH(params[3]) >> 16) - 1) & 0x1FF) + 1;
+  int intersect;
+
+  *cpu_cycles = gput_copy(w, h);
+  if (sx == dx && sy == dy && !(gpu->ex_regs[6] & 0x8000))
+    return 0;
+
+  intersect = check_screen_intersect(gpu, dx, dy, w, h);
+  gpu->state.fb_dirty_display_area |= intersect;
+  gpu->state.fb_dirty = 1;
+  return 1;
+}
+
+int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs, const uint32_t *params)
 {
   const uint32_t sx =  LE32TOH(params[1]) & 0x3FF;
   const uint32_t sy = (LE32TOH(params[1]) >> 16) & 0x1FF;
@@ -633,10 +655,6 @@ int do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
   uint16_t msb = ex_regs[6] << 15;
   uint16_t lbuf[128];
   uint32_t x, y;
-
-  *cpu_cycles += gput_copy(w, h);
-  if (sx == dx && sy == dy && msb == 0)
-    return 4;
 
   renderer_flush_queues();
 
@@ -855,8 +873,8 @@ static noinline int do_cmd_buffer(struct psx_gpu *gpu, uint32_t *data, int count
         break;
       *cycles_sum += *cycles_last;
       *cycles_last = 0;
-      do_vram_copy(gpu->vram, gpu->ex_regs, data + pos, cycles_last);
-      vram_dirty = 1;
+      if (do_vram_copy_pre(gpu, data + pos, cycles_last))
+        do_vram_copy(gpu->vram, gpu->ex_regs, data + pos);
       pos += 4;
       continue;
     case 0x00:
