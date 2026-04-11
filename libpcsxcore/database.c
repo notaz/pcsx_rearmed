@@ -163,7 +163,12 @@ cycle_multiplier_overrides[] =
 	/* Vib-Ribbon - cd timing issues (PAL+ari64drc only?) */
 	{ 200, { "SCES02873" } },
 	/* Zero Divide - sometimes too fast */
-	{ 200, { "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
+#ifdef LIGHTREC
+	{ 222, // missing gte stalling
+#else
+	{ 200,
+#endif
+		{ "SLUS00183", "SLES00159", "SLPS00083", "SLPM80008" } },
 	/* Eagle One: Harrier Attack - hangs (but not in standalone build?) */
 	{ 153, { "SLUS00943" } },
 	/* Sol Divide: FMV timing */
