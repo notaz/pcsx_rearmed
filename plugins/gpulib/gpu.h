@@ -162,8 +162,8 @@ void vout_set_config(const struct rearmed_cbs *config);
 // helpers
 #define VRAM_MEM_XY(vram_, x, y) &vram_[(y) * 1024 + (x)]
 
-int  do_vram_copy(uint16_t *vram, const uint32_t *ex_regs,
-       const uint32_t *params, int *cpu_cycles);
+int  do_vram_copy_pre(struct psx_gpu *gpu, const uint32_t *params, int *cpu_cycles);
+int  do_vram_copy(uint16_t *vram, const uint32_t *ex_regs, const uint32_t *params);
 
 int  prim_try_simplify_quad_t (void *simplified, const void *prim);
 int  prim_try_simplify_quad_gt(void *simplified, const void *prim);

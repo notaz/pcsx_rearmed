@@ -264,7 +264,7 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
     const uint32_t *list = list_data + pos;
     const int16_t *slist = (void *)list;
     const struct pos_drawarea *darea;
-    int rendered = 1, skip = 0;
+    int rendered = 1, skip = 0, cyc_tmp;
     int num_vertexes, x, y, w, h;
 
     cmd = LE32TOH(list[0]) >> 24;
@@ -352,6 +352,12 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
       case 0x78 ... 0x7b:
       case 0x7C ... 0x7f: gput_sum(cyc_sum, cyc, gput_sprite(16, 16)); break;
       case 0x80 ... 0x9f: // vid -> vid
+        rendered = do_vram_copy_pre(gpu, list, &cyc_tmp);
+        gput_sum(cyc_sum, cyc, cyc_tmp);
+        if (!rendered) {
+          skip = 1;
+          break;
+        }
         x =   LE16TOH(slist[4]) & 0x3ff;
         y =   LE16TOH(slist[5]) & 0x1ff;
         w = ((LE16TOH(slist[6]) - 1) & 0x3ff) + 1;
@@ -363,7 +369,6 @@ int gpu_async_do_cmd_list(struct psx_gpu *gpu, const uint32_t *list_data, int li
           add_draw_area(agpu, pos_added, 1, x, y, x + w, y + h);
           add_draw_area_e(agpu, pos_added + 1, 1, gpu->ex_regs);
         }
-        gput_sum(cyc_sum, cyc, gput_copy(w, h));
         break;
       case 0xa0 ... 0xbf: // sys -> vid
       case 0xc0 ... 0xdf: // vid -> sys
@@ -516,7 +521,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
       const void *list = agpu->cmd_buffer + pos + done;
       switch (cmd) {
         case 0x80 ... 0x9f:
-          done += do_vram_copy(gpup->vram, agpu->ex_regs, list, &cycles_dummy);
+          done += do_vram_copy(gpup->vram, agpu->ex_regs, list);
           break;
         case FAKECMD_SCREEN_CHANGE:
           done += do_notify_screen_change(gpup, list);
