@@ -7555,14 +7555,6 @@ static noinline void pass3_register_alloc(struct compile_state *st, u_int addr)
   int hr;
   int i, j;
 
-  if (addr & 1) {
-    // First instruction is delay slot
-    cc=-1;
-    dops[1].bt=1;
-    ds=1;
-    st->unneeded_reg[0]=1;
-  }
-
   for(i=0;i<st->slen;i++)
   {
     if(dops[i].bt)
