@@ -7550,8 +7550,8 @@ static noinline void pass3_register_alloc(struct compile_state *st, u_int addr)
   current.loadedconst = 0;
   current.noevict = 0;
   //current.waswritten = 0;
+  int cc = 0, cc_raw = 0;
   int ds=0;
-  int cc=0;
   int hr;
   int i, j;
 
@@ -8073,10 +8073,10 @@ static noinline void pass3_register_alloc(struct compile_state *st, u_int addr)
     }
 
     // Count cycles in between branches
-    cinfo[i].ccadj = CLOCK_ADJUST(cc);
+    cinfo[i].ccadj = CLOCK_ADJUST(cc) + cc_raw;
     if (i > 0 && (dops[i-1].is_jump || dops[i].is_exception))
     {
-      cc=0;
+      cc = cc_raw = 0;
     }
 #if !defined(DRC_DBG)
     else if(dops[i].itype==C2OP&&gte_cycletab[st->source[i]&0x3f]>2)
@@ -8084,16 +8084,16 @@ static noinline void pass3_register_alloc(struct compile_state *st, u_int addr)
       // this should really be removed since the real stalls have been implemented,
       // but doing so causes sizeable perf regression against the older version
       u_int gtec = gte_cycletab[st->source[i] & 0x3f];
-      cc += HACK_ENABLED(NDHACK_NO_STALLS) ? gtec/2 : 2;
+      cc_raw += HACK_ENABLED(NDHACK_NO_STALLS) ? gtec/2 : 2;
     }
     else if(i>1&&dops[i].itype==STORE&&dops[i-1].itype==STORE&&dops[i-2].itype==STORE&&!dops[i].bt)
     {
-      cc+=4;
+      cc_raw += 4;
     }
     else if(dops[i].itype==C2LS)
     {
       // same as with C2OP
-      cc += HACK_ENABLED(NDHACK_NO_STALLS) ? 4 : 2;
+      cc_raw += HACK_ENABLED(NDHACK_NO_STALLS) ? 4 : 2;
     }
 #endif
     else
