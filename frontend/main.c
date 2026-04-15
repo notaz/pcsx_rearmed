@@ -604,8 +604,8 @@ int main(int argc, char *argv[])
 			if (i+1 >= argc) break;
 			strncpy(isofilename, argv[++i], MAXPATHLEN);
 			if (isofilename[0] != '/') {
-				getcwd(path, MAXPATHLEN);
-				if (strlen(path) + strlen(isofilename) + 1 < MAXPATHLEN) {
+				if (getcwd(path, MAXPATHLEN) != NULL &&
+				    strlen(path) + strlen(isofilename) + 1 < MAXPATHLEN) {
 					strcat(path, "/");
 					strcat(path, isofilename);
 					strcpy(isofilename, path);
@@ -637,8 +637,8 @@ int main(int argc, char *argv[])
 		} else {
 			strncpy(file, argv[i], MAXPATHLEN);
 			if (file[0] != '/') {
-				getcwd(path, MAXPATHLEN);
-				if (strlen(path) + strlen(file) + 1 < MAXPATHLEN) {
+				if (getcwd(path, MAXPATHLEN) != NULL &&
+				    strlen(path) + strlen(file) + 1 < MAXPATHLEN) {
 					strcat(path, "/");
 					strcat(path, file);
 					strcpy(file, path);

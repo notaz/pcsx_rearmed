@@ -530,6 +530,24 @@ static int card_buf_io(int is_write, int port, void *buf, u32 size)
 	return size;
 }
 
+static int check_bad_deref(void *p)
+{
+	if (p == INVALID_PTR)
+	{
+		// scratchpad, or generate an exception
+		log_unhandled("bios bad deref\n");
+		assert(0);
+		pc0 = ra;
+		return 1;
+	}
+	return 0;
+}
+
+static int check_bad_deref2(void *p0, void *p1)
+{
+	return check_bad_deref(p0) || check_bad_deref(p1);
+}
+
 /*                                           *
 //                                           *
 //                                           *
@@ -740,53 +758,59 @@ void psxBios_longjmp() { // 0x14
 }
 
 void psxBios_strcat() { // 0x15
-	u8 *p2 = (u8 *)Ra1;
-	u32 p1 = a0;
+	u32 p0 = a0;
+	u32 p1 = a1;
+	u8 v;
 
 	PSXBIOS_LOG("psxBios_%s %s (%x), %s (%x)\n", biosA0n[0x15], Ra0, a0, Ra1, a1);
-	if (a0 == 0 || a1 == 0 || p2 == INVALID_PTR)
+	if (a0 == 0 || a1 == 0)
 	{
 		mips_return_c(0, 6);
 		return;
 	}
-	while (loadRam8(p1)) {
+	while (psxMemRead8(&psxRegs, p0)) {
 		use_cycles(4);
-		p1++;
+		p0++;
 	}
-	for (; *p2; p1++, p2++)
-		storeRam8(p1, *p2);
-	storeRam8(p1, 0);
+	for (; (v = psxMemRead8(&psxRegs, p1)); p0++, p1++) {
+		psxMemWrite8(&psxRegs, p0, v);
+		use_cycles(6);
+	}
+	psxMemWrite8(&psxRegs, p0, 0);
 
+	a1 = p1;
 	mips_return_c(a0, 22);
 }
 
 void psxBios_strncat() { // 0x16
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
+	u32 p0 = a0, p1 = a1;
 	s32 n = a2;
+	u8 v;
 
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x), %d\n", biosA0n[0x16], Ra0, a0, Ra1, a1, a2);
 #endif
 	if (a0 == 0 || a1 == 0)
 	{
-		v0 = 0;
-		pc0 = ra;
+		mips_return_c(0, 6);
 		return;
 	}
-	while (*p1++);
-	--p1;
-	while ((*p1++ = *p2++) != '\0') {
-		if (--n < 0) {
-			*--p1 = '\0';
-			break;
-		}
+	while (psxMemRead8(&psxRegs, p0)) {
+		use_cycles(4);
+		p0++;
 	}
+	for (; (v = psxMemRead8(&psxRegs, p1)) && n-- > 0; p0++, p1++) {
+		psxMemWrite8(&psxRegs, p0, v);
+		use_cycles(8);
+	}
+	psxMemWrite8(&psxRegs, p0, 0);
 
-	v0 = a0; pc0 = ra;
+	a1 = p1;
+	mips_return_c(a0, 22);
 }
 
 void psxBios_strcmp() { // 0x17
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
+	char *p1 = Ra0, *p2 = Ra1;
 	s32 n=0;
 	if (a0 == 0 && a1 == 0)
 	{
@@ -809,6 +833,7 @@ void psxBios_strcmp() { // 0x17
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x)\n", biosA0n[0x17], Ra0, a0, Ra1, a1);
 #endif
+	if (check_bad_deref2(p1, p2)) return;
 
 	while (*p1 == *p2++) {
 		n++;
@@ -830,7 +855,7 @@ void psxBios_strcmp() { // 0x17
 }
 
 void psxBios_strncmp() { // 0x18
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
+	char *p1 = Ra0, *p2 = Ra1;
 	s32 n = a2;
 	if (a0 == 0 && a1 == 0)
 	{
@@ -853,6 +878,7 @@ void psxBios_strncmp() { // 0x18
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s (%x), %s (%x), %d\n", biosA0n[0x18], Ra0, a0, Ra1, a1, a2);
 #endif
+	if (check_bad_deref2(p1, p2)) return;
 
 	while (--n >= 0 && *p1 == *p2++) {
 		if (*p1++ == '\0') {
@@ -875,15 +901,21 @@ void psxBios_strncmp() { // 0x18
 }
 
 void psxBios_strcpy() { // 0x19
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
-	PSXBIOS_LOG("psxBios_%s %x, %s (%x)\n", biosA0n[0x19], a0, p2, a1);
+	u32 p0 = a0, p1 = a1;
+	u8 v;
+	PSXBIOS_LOG("psxBios_%s %x, %s (%x)\n", biosA0n[0x19], a0, (char *)PSXM(a1), a1);
 	if (a0 == 0 || a1 == 0)
 	{
 		v0 = 0;
 		pc0 = ra;
 		return;
 	}
-	while ((*p1++ = *p2++) != '\0');
+
+	for (; (v = psxMemRead8(&psxRegs, p1)); p0++, p1++) {
+		psxMemWrite8(&psxRegs, p0, v);
+		//use_cycles(8);
+	}
+	psxMemWrite8(&psxRegs, p0, 0);
 
 	v0 = a0; pc0 = ra;
 }
@@ -897,6 +929,8 @@ void psxBios_strncpy() { // 0x1a
 		pc0 = ra;
 		return;
 	}
+	if (check_bad_deref2(p1, p2)) return;
+
 	for (i = 0; i < n; i++) {
 		if ((*p1++ = *p2++) == '\0') {
 			while (++i < n) {
@@ -911,14 +945,18 @@ void psxBios_strncpy() { // 0x1a
 }
 
 void psxBios_strlen() { // 0x1b
-	char *p = (char *)Ra0;
+	u32 l = 0, p0 = a0;
+
 	v0 = 0;
 	if (a0 == 0)
 	{
 		pc0 = ra;
 		return;
 	}
-	while (*p++) v0++;
+	while (psxMemRead8(&psxRegs, p0++))
+		l++;
+
+	v0 = l;
 	pc0 = ra;
 }
 
@@ -930,6 +968,7 @@ void psxBios_index() { // 0x1c
 		pc0 = ra;
 		return;
 	}
+	if (check_bad_deref(p)) return;
 
 	do {
 		if (*p == a1) {
@@ -951,6 +990,8 @@ void psxBios_rindex() { // 0x1d
 		pc0 = ra;
 		return;
 	}
+	if (check_bad_deref(p)) return;
+
 	do {
 		if (*p == a1)
 			v0 = a0 + (p - (char *)Ra0);
@@ -968,7 +1009,9 @@ void psxBios_strrchr() { // 0x1f
 }
 
 void psxBios_strpbrk() { // 0x20
-	char *p1 = (char *)Ra0, *p2 = (char *)Ra1, *scanp, c, sc;
+	char *p1 = Ra0, *p2 = Ra1, *scanp, c, sc;
+
+	if (check_bad_deref2(p1, p2)) return;
 
 	while ((c = *p1++) != '\0') {
 		for (scanp = p2; (sc = *scanp++) != '\0';) {
@@ -985,9 +1028,11 @@ void psxBios_strpbrk() { // 0x20
 }
 
 void psxBios_strspn() { // 0x21
-	char *p1, *p2;
+	char *p1 = Ra0, *p2 = Ra1;
 
-	for (p1 = (char *)Ra0; *p1 != '\0'; p1++) {
+	if (check_bad_deref2(p1, p2)) return;
+
+	for (; *p1 != '\0'; p1++) {
 		for (p2 = (char *)Ra1; *p2 != '\0' && *p2 != *p1; p2++);
 		if (*p2 == '\0') break;
 	}
@@ -996,9 +1041,11 @@ void psxBios_strspn() { // 0x21
 }
 
 void psxBios_strcspn() { // 0x22
-	char *p1, *p2;
+	char *p1 = Ra0, *p2 = Ra1;
 
-	for (p1 = (char *)Ra0; *p1 != '\0'; p1++) {
+	if (check_bad_deref2(p1, p2)) return;
+
+	for (; *p1 != '\0'; p1++) {
 		for (p2 = (char *)Ra1; *p2 != '\0' && *p2 != *p1; p2++);
 		if (*p2 != '\0') break;
 	}
@@ -1008,7 +1055,9 @@ void psxBios_strcspn() { // 0x22
 
 void psxBios_strtok() { // 0x23
 	char *pcA0 = (char *)Ra0;
-	char *pcRet = strtok(pcA0, (char *)Ra1);
+	char *pcRet;
+	if (check_bad_deref2(pcA0, Ra1)) return;
+	pcRet = strtok(pcA0, (char *)Ra1);
 	if (pcRet)
 		v0 = a0 + pcRet - pcA0;
 	else
@@ -1019,6 +1068,7 @@ void psxBios_strtok() { // 0x23
 void psxBios_strstr() { // 0x24
 	char *p = (char *)Ra0, *p1, *p2;
 	PSXBIOS_LOG("psxBios_%s %s (%x), %s (%x)\n", biosA0n[0x24], p, a0, Ra1, a1);
+	if (check_bad_deref2(p, Ra1)) return;
 
 	while (*p != '\0') {
 		p1 = p;
@@ -1071,14 +1121,10 @@ static void do_memcpy(u32 dst, u32 src, s32 len)
 {
 	u32 d = dst, s = src;
 	s32 l = len;
-	while (l-- > 0) {
-		const u8 *sb = PSXM(s);
-		u8 *db = PSXM(d);
-		if (db != INVALID_PTR && sb != INVALID_PTR)
-			*db = *sb;
-		d++;
-		s++;
-	}
+
+	for (; l-- > 0; d++, s++)
+		psxMemWrite8(&psxRegs, d, psxMemRead8(&psxRegs, s));
+
 	psxCpu->Clear(dst, (len + 3) / 4);
 }
 
@@ -1123,6 +1169,7 @@ void psxBios_bcmp() { // 0x29
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
 
 	if (a0 == 0 || a1 == 0) { v0 = 0; pc0 = ra; return; }
+	if (check_bad_deref2(p1, p2)) return;
 
 	while ((s32)a2-- > 0) {
 		if (*p1++ != *p2++) {
@@ -1213,6 +1260,7 @@ void psxBios_memchr() { // 0x2e
 		pc0 = ra;
 		return;
 	}
+	if (check_bad_deref(p)) return;
 
 	while ((s32)a2-- > 0) {
 		if (*p++ != (s8)a1) continue;
@@ -1335,9 +1383,11 @@ loop:
 }
 
 void psxBios_qsort() { // 0x31
+	char *p = (char *)Ra0;
+	if (check_bad_deref(p)) return;
 	qswidth = a2;
 	qscmpfunc = a3;
-	qsort_main((char *)Ra0, (char *)Ra0 + a1 * a2);
+	qsort_main(p, p + a1 * a2);
 
 	pc0 = ra;
 }
@@ -1515,7 +1565,9 @@ static void psxBios_printf_psxout() { // 0x3f
 	char *ptmp = tmp;
 	int n=1, i=0, j;
 	void *psp;
+	char *ra0 = Ra0;
 
+	if (check_bad_deref(ra0)) return;
 	psp = PSXM(sp);
 	if (psp != INVALID_PTR) {
 		memcpy(save, psp, 4 * 4);
@@ -1525,50 +1577,61 @@ static void psxBios_printf_psxout() { // 0x3f
 		psxMu32ref(sp + 12) = SWAP32((u32)a3);
 	}
 
-	while (Ra0[i]) {
-		switch (Ra0[i]) {
+	while (ra0[i]) {
+		size_t space = sizeof(tmp) - (ptmp - tmp);
+		char *ptr;
+		u32 sparg;
+		switch (ra0[i]) {
 			case '%':
 				j = 0;
 				tmp2[j++] = '%';
 _start:
-				switch (Ra0[++i]) {
+				switch (ra0[++i]) {
 					case '.':
 					case 'l':
-						tmp2[j++] = Ra0[i]; goto _start;
+						tmp2[j++] = ra0[i]; goto _start;
 					default:
-						if (Ra0[i] >= '0' && Ra0[i] <= '9') {
-							tmp2[j++] = Ra0[i];
+						if (ra0[i] >= '0' && ra0[i] <= '9') {
+							tmp2[j++] = ra0[i];
 							goto _start;
 						}
 						break;
 				}
-				tmp2[j++] = Ra0[i];
+				tmp2[j++] = ra0[i];
 				tmp2[j] = 0;
 
-				switch (Ra0[i]) {
+				sparg = psxMu32(sp + n * 4);
+				switch (ra0[i]) {
 					case 'f': case 'F':
-						ptmp += sprintf(ptmp, tmp2, (float)psxMu32(sp + n * 4)); n++; break;
 					case 'a': case 'A':
 					case 'e': case 'E':
 					case 'g': case 'G':
-						ptmp += sprintf(ptmp, tmp2, (double)psxMu32(sp + n * 4)); n++; break;
+						ptmp += snprintf(ptmp, space, "(%%%c)", ra0[i]);
+						n++;
+						break;
 					case 'p':
 					case 'i': case 'u':
 					case 'd': case 'D':
 					case 'o': case 'O':
 					case 'x': case 'X':
-						ptmp += sprintf(ptmp, tmp2, (unsigned int)psxMu32(sp + n * 4)); n++; break;
+						ptmp += snprintf(ptmp, space, tmp2, sparg); n++; break;
 					case 'c':
-						ptmp += sprintf(ptmp, tmp2, (unsigned char)psxMu32(sp + n * 4)); n++; break;
+						ptmp += snprintf(ptmp, space, tmp2, (char)sparg); n++; break;
 					case 's':
-						ptmp += sprintf(ptmp, tmp2, (char*)PSXM(psxMu32(sp + n * 4))); n++; break;
+						ptr = PSXM(sparg);
+						if (ptr == INVALID_PTR)
+							ptmp += snprintf(ptmp, space, "%%s=%08x", sparg);
+						else
+							ptmp += snprintf(ptmp, space, tmp2, ptr);
+						n++;
+						break;
 					case '%':
-						*ptmp++ = Ra0[i]; break;
+						*ptmp++ = ra0[i]; break;
 				}
 				i++;
 				break;
 			default:
-				*ptmp++ = Ra0[i++];
+				*ptmp++ = ra0[i++];
 		}
 	}
 	*ptmp = 0;
@@ -1772,7 +1835,7 @@ static void psxBios_FlushCache() { // 44
 
 void psxBios_GPU_dw() { // 0x46
 	int size;
-	u32 *ptr;
+	u32 ptr;
 
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x46]);
@@ -1782,11 +1845,14 @@ void psxBios_GPU_dw() { // 0x46
 	GPU_writeData((a1<<0x10)|(a0&0xffff));
 	GPU_writeData((a3<<0x10)|(a2&0xffff));
 	size = (a2*a3)/2;
-	ptr = (u32*)PSXM(Rsp[4]);  //that is correct?
-	while(size--)
+	ptr = Rsp[4];
+
+	while (size--)
 	{
-		GPU_writeData(SWAPu32(*ptr++));
-	} 
+		GPU_writeData(loadRam32(ptr));
+		ptr += 4;
+	}
+	Rsp[4] = ptr;
 
 	pc0 = ra;
 }
@@ -1830,12 +1896,13 @@ void psxBios_GPU_cw() { // 0x49
 }
 
 void psxBios_GPU_cwb() { // 0x4a
-	u32 *ptr = (u32*)Ra0;
+	u32 ptr = a0;
 	int size = a1;
 	gpuSyncPluginSR();
-	while(size--)
+	while (size--)
 	{
-		GPU_writeData(SWAPu32(*ptr++));
+		GPU_writeData(loadRam32(ptr));
+		ptr += 4;
 	}
 
 	pc0 = ra;
@@ -2710,12 +2777,11 @@ static void psxBios_write() { // 0x35/0x03
 
 static void psxBios_write_psxout() {
 	if (a0 == 1) { // stdout
-		const char *ptr = Ra1;
+		u32 ptr = a1;
 		int len = a2;
 
-		if (ptr != INVALID_PTR)
-			while (len-- > 0)
-				SysPrintf("%c", *ptr++);
+		while (len-- > 0)
+			SysPrintf("%c", (char)psxMemRead8(&psxRegs, ptr++));
 	}
 }
 
@@ -2724,7 +2790,11 @@ static void psxBios_putchar_psxout() { // 3d
 }
 
 static void psxBios_puts_psxout() { // 3e/3f
-	SysPrintf("%s", Ra0);
+	char *p = Ra0;
+	if (p != INVALID_PTR)
+		SysPrintf("%s", p);
+	else
+		log_unhandled("psxbios: puts(%08x)\n", a0);
 }
 
 /*
@@ -2746,7 +2816,7 @@ void psxBios_putchar() { // 3d
 }
 
 void psxBios_puts() { // 3e/3f
-	if (Config.PsxOut) SysPrintf("%s", Ra0);
+	if (Config.PsxOut) psxBios_puts_psxout();
 	pc0 = ra;
 }
 

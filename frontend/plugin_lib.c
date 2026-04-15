@@ -76,16 +76,20 @@ void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
 static __attribute__((noinline)) int get_cpu_ticks(void)
 {
 	static unsigned long last_utime;
-	static int fd;
+	static int fd = -1;
 	unsigned long utime, ret;
-	char buf[128];
+	char buf[256];
+	ssize_t n;
 
-	if (fd == 0)
+	if (fd == -1)
 		fd = open("/proc/self/stat", O_RDONLY);
+	if (fd == -1)
+		return 0;
 	lseek(fd, 0, SEEK_SET);
-	buf[0] = 0;
-	read(fd, buf, sizeof(buf));
-	buf[sizeof(buf) - 1] = 0;
+	n = read(fd, buf, sizeof(buf) - 1);
+	if (n <= 0)
+		return 0;
+	buf[n] = 0;
 
 	sscanf(buf, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu", &utime);
 	ret = utime - last_utime;
