@@ -24,75 +24,47 @@
 #include "decode_xa.h"
 #include "psemu_plugin_defs.h"
 
-#define FIXED
-
 #define NOT(_X_)				(!(_X_))
-#define XACLAMP(_X_,_MI_,_MA_)	{if(_X_<_MI_)_X_=_MI_;if(_X_>_MA_)_X_=_MA_;}
 
-#define SH	4
-#define SHC	10
+#ifdef HAVE_ARMV6
+ #define ssat32_to_16(v) \
+  asm("ssat %0,#16,%1" : "=r" (v) : "r" (v))
+#else
+ #define ssat32_to_16(v) do { \
+  if (v < -32768) v = -32768; \
+  else if (v > 32767) v = 32767; \
+ } while (0)
+#endif
 
 //============================================
 //===  ADPCM DECODING ROUTINES
 //============================================
 
-#ifndef FIXED
-static double K0[4] = {
-    0.0,
-    0.9375,
-    1.796875,
-    1.53125
-};
-
-static double K1[4] = {
-    0.0,
-    0.0,
-    -0.8125,
-    -0.859375
-};
-#else
-static int K0[4] = {
-	0.0       * (1<<SHC),
-	0.9375    * (1<<SHC),
-	1.796875  * (1<<SHC),
-	1.53125   * (1<<SHC)
-};
- 
-static int K1[4] = {
-	0.0       * (1<<SHC),
-	0.0       * (1<<SHC),
-	-0.8125   * (1<<SHC),
-	-0.859375 * (1<<SHC)
-};
-#endif
-
 #define BLKSIZ 28       /* block size (32 - 4 nibbles) */
 
-//===========================================
 void ADPCM_InitDecode(ADPCM_Decode_t *decp) {
 	decp->y0 = 0;
 	decp->y1 = 0;
 }
 
-//===========================================
-#ifndef FIXED
-#define IK0(fid)	((int)((-K0[fid]) * (1<<SHC)))
-#define IK1(fid)	((int)((-K1[fid]) * (1<<SHC)))
-#else
-#define IK0(fid)	(-K0[fid])
-#define IK1(fid)	(-K1[fid])
-#endif
-
 static __inline void ADPCM_DecodeBlock16( ADPCM_Decode_t *decp, u8 filter_range, const void *vblockp, short *destp, int inc ) {
+	static const s8 f[4][2] = {
+		{    0,  0  },
+		{   60,  0  },
+		{  115, -52 },
+		{   98, -55 },
+	};
 	int i;
 	int range, filterid;
-	s32 fy0, fy1;
+	s32 fy0, fy1, f0, f1;
 	const u16 *blockp;
 
-	blockp = (const unsigned short *)vblockp;
-	filterid = (filter_range >>  4) & 0x0f;
+	blockp = vblockp;
+	filterid = (filter_range >>  4) & 0x03;
 	range    = (filter_range >>  0) & 0x0f;
 
+	f0 = f[filterid][0];
+	f1 = f[filterid][1];
 	fy0 = decp->y0;
 	fy1 = decp->y1;
 
@@ -101,20 +73,20 @@ static __inline void ADPCM_DecodeBlock16( ADPCM_Decode_t *decp, u8 filter_range,
 		s32 x0, x1, x2, x3;
 
 		y = *blockp++;
-		x3 = (short)( y        & 0xf000) >> range; x3 <<= SH;
-		x2 = (short)((y <<  4) & 0xf000) >> range; x2 <<= SH;
-		x1 = (short)((y <<  8) & 0xf000) >> range; x1 <<= SH;
-		x0 = (short)((y << 12) & 0xf000) >> range; x0 <<= SH;
+		x3 = (s16)( y        & 0xf000) >> range;
+		x2 = (s16)((y <<  4) & 0xf000) >> range;
+		x1 = (s16)((y <<  8) & 0xf000) >> range;
+		x0 = (s16)((y << 12) & 0xf000) >> range;
 
-		x0 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x0;
-		x1 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x1;
-		x2 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x2;
-		x3 -= (IK0(filterid) * fy0 + (IK1(filterid) * fy1)) >> SHC; fy1 = fy0; fy0 = x3;
+		x0 += (f0 * fy0 + f1 * fy1) >> 6; fy1 = fy0; fy0 = x0;
+		x1 += (f0 * fy0 + f1 * fy1) >> 6; fy1 = fy0; fy0 = x1;
+		x2 += (f0 * fy0 + f1 * fy1) >> 6; fy1 = fy0; fy0 = x2;
+		x3 += (f0 * fy0 + f1 * fy1) >> 6; fy1 = fy0; fy0 = x3;
 
-		XACLAMP( x0, (int)(-32768u<<SH), 32767<<SH ); *destp = x0 >> SH; destp += inc;
-		XACLAMP( x1, (int)(-32768u<<SH), 32767<<SH ); *destp = x1 >> SH; destp += inc;
-		XACLAMP( x2, (int)(-32768u<<SH), 32767<<SH ); *destp = x2 >> SH; destp += inc;
-		XACLAMP( x3, (int)(-32768u<<SH), 32767<<SH ); *destp = x3 >> SH; destp += inc;
+		ssat32_to_16(x0); *destp = x0; destp += inc;
+		ssat32_to_16(x1); *destp = x1; destp += inc;
+		ssat32_to_16(x2); *destp = x2; destp += inc;
+		ssat32_to_16(x3); *destp = x3; destp += inc;
 	}
 	decp->y0 = fy0;
 	decp->y1 = fy1;
