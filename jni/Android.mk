@@ -277,6 +277,7 @@ LOCAL_C_INCLUDES    += $(EXTRA_INCLUDES)
 LOCAL_LDFLAGS       := -Wl,-version-script=$(FRONTEND_DIR)/libretro-version-script
 LOCAL_LDFLAGS       += -Wl,--script=$(FRONTEND_DIR)/libretro-extern.T
 LOCAL_LDFLAGS       += -Wl,--gc-sections
+LOCAL_LDFLAGS       += -Wl,-z,max-page-size=16384
 LOCAL_LDLIBS        := -lz -llog
 LOCAL_ARM_MODE      := arm
 
