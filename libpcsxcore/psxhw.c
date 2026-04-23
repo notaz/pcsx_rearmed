@@ -33,6 +33,7 @@ void psxHwReset() {
 
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
+	sioReset();
 	psxRcntInit();
 	HW_GPU_STATUS = SWAP32(0x10802000);
 }

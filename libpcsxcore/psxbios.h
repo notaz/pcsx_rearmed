@@ -30,9 +30,9 @@ extern "C" {
 #include "misc.h"
 #include "sio.h"
 
-extern char *biosA0n[256];
-extern char *biosB0n[256];
-extern char *biosC0n[256];
+extern const char * const biosA0n[256];
+extern const char * const biosB0n[256];
+extern const char * const biosC0n[256];
 
 void psxBiosInit();
 void psxBiosShutdown();
