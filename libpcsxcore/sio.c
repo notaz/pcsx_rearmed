@@ -22,6 +22,7 @@
 */
 
 #include <stdio.h>
+#include <assert.h>
 #include "misc.h"
 #include "psxcounters.h"
 #include "psxevents.h"
@@ -56,8 +57,7 @@
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];
-static unsigned char cardh1[4] = { 0xff, 0x08, 0x5a, 0x5d };
-static unsigned char cardh2[4] = { 0xff, 0x08, 0x5a, 0x5d };
+static const unsigned char cardh[4] = { 0xff, 0x08, 0x5a, 0x5d };
 
 // Transfer Ready and the Buffer is Empty
 // static unsigned short StatReg = 0x002b;
@@ -73,7 +73,9 @@ static unsigned char adrH, adrL;
 static unsigned int padst;
 
 char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
-char McdDisable[2];
+
+unsigned char McdDisable[2];
+unsigned char McdFlag[2];
 
 // clk cycle byte
 // 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
@@ -81,10 +83,10 @@ char McdDisable[2];
 #define SIO_CYCLES		535
 
 void sioWrite8(unsigned char value) {
-	int more_data = 0;
+	int port = (CtrlReg >> 13) & 1, more_data = 0;
 #if 0
 	s32 framec = psxRegs.cycle - rcnts[3].cycleStart;
-	printf("%d:%03d sio write8 %04x %02x\n", frame_counter,
+	printf("%d:%03d sio write8    %04x %02x\n", frame_counter,
 		(s32)(framec / (PSXCLK / 60 / 263.0f)), CtrlReg, value);
 #endif
 	switch (padst) {
@@ -188,13 +190,10 @@ void sioWrite8(unsigned char value) {
 			return;
 		case 5:
 			parp++;
-			if ((rdwr == 1 && parp == 132) ||
+			if (//(rdwr == 1 && parp == 132) ||
 			    (rdwr == 2 && parp == 129)) {
-				// clear "new card" flags
-				if (CtrlReg & 0x2000)
-					cardh2[1] &= ~8;
-				else
-					cardh1[1] &= ~8;
+				// clear the "new card" flag
+				McdFlag[port] &= ~8;
 			}
 			if (rdwr == 2) {
 				if (parp < 128) buf[parp + 1] = value;
@@ -217,18 +216,10 @@ void sioWrite8(unsigned char value) {
 			set_event(PSXINT_SIO, SIO_CYCLES);
 			return;
 		case 0x81: // start memcard
-			if (CtrlReg & 0x2000)
-			{
-				if (McdDisable[1])
-					goto no_device;
-				memcpy(buf, cardh2, 4);
-			}
-			else
-			{
-				if (McdDisable[0])
-					goto no_device;
-				memcpy(buf, cardh1, 4);
-			}
+			if (McdDisable[port])
+				goto no_device;
+			memcpy(buf, cardh, 4);
+			buf[1] = McdFlag[port];
 			StatReg |= RX_RDY;
 			parp = 0;
 			bufcount = 3;
@@ -300,8 +291,8 @@ unsigned char sioRead8() {
 
 #if 0
 	s32 framec = psxRegs.cycle - rcnts[3].cycleStart;
-	printf("%d:%03d sio read8  %04x %02x\n", frame_counter,
-		(s32)((float)framec / (PSXCLK / 60 / 263.0f)), CtrlReg, ret);
+	printf("%d:%03d sio read8  %2d %04x %02x\n", frame_counter,
+		(s32)((float)framec / (PSXCLK / 60 / 263.0f)), parp, CtrlReg, ret);
 #endif
 	return ret;
 }
@@ -337,18 +328,16 @@ void LoadMcd(int mcd, char *str) {
 	FILE *f;
 	char *data = NULL;
 
-	if (mcd != 1 && mcd != 2)
-		return;
-
-	if (mcd == 1) {
+	if (mcd == 1)
 		data = Mcd1Data;
-		cardh1[1] |= 8; // mark as new
-	}
-	if (mcd == 2) {
+	else if (mcd == 2)
 		data = Mcd2Data;
-		cardh2[1] |= 8;
+	else {
+		assert(0);
+		return;
 	}
 
+	McdFlag[mcd - 1] |= 8; // mark as new
 	McdDisable[mcd - 1] = 0;
 #ifdef HAVE_LIBRETRO
 	// memcard1 is handled by libretro
@@ -773,6 +762,10 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 	strncpy(Info->Name, (char *)ptr, 16);
 }
 
+void sioReset() {
+	McdFlag[0] = McdFlag[1] = 8;
+}
+
 int sioFreeze(void *f, int Mode) {
 	gzfreeze(buf, sizeof(buf));
 	gzfreeze(&StatReg, sizeof(StatReg));
@@ -786,6 +779,12 @@ int sioFreeze(void *f, int Mode) {
 	gzfreeze(&adrH, sizeof(adrH));
 	gzfreeze(&adrL, sizeof(adrL));
 	gzfreeze(&padst, sizeof(padst));
+	if (Mode == 0) {
+		// card likely changed since the state save,
+		// let the game know
+		McdFlag[0] |= 8;
+		McdFlag[1] |= 8;
+	}
 
 	return 0;
 }

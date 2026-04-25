@@ -37,6 +37,7 @@
 #include "../libpcsxcore/cheat.h"
 #include "../libpcsxcore/r3000a.h"
 #include "../libpcsxcore/gpu.h"
+#include "../libpcsxcore/sio.h"
 #include "../libpcsxcore/database.h"
 #include "../plugins/dfsound/out.h"
 #include "../plugins/dfsound/spu_config.h"
@@ -152,11 +153,6 @@ static enum retro_pixel_format current_fmt;
 static int plugins_opened;
 
 #define is_pal_mode Config.PsxType
-
-/* memory card data */
-extern char Mcd1Data[MCD_SIZE];
-extern char Mcd2Data[MCD_SIZE];
-extern char McdDisable[2];
 
 /* PCSX ReARMed core calls and stuff */
 int in_type[8] = {
@@ -3604,6 +3600,8 @@ static void find_any_bios(const char *dirpath, char *path, size_t path_size)
 
    while ((ent = readdir(dir)))
    {
+      if (ent->d_name[0] == '.' && (ent->d_name[1] == '.' || !ent->d_name[1]))
+         continue;
       snprintf(path, path_size, "%s%c%s", dirpath, SLASH, ent->d_name);
       try_use_bios(path, path_size, true, false);
       if (have_all_bios())

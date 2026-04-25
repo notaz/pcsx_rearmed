@@ -376,6 +376,7 @@ int CheckCdrom() {
 	struct { u8 region; const char *str; } lic_strings[] = {
 		{ PSX_REGION_JP, "Inc." },
 		{ PSX_REGION_US, "Amer  ica" },
+		{ PSX_REGION_US, "of America" },
 		{ PSX_REGION_EU, "Euro pe" }
 	};
 	size_t i, len, c;

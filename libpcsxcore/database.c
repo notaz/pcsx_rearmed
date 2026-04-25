@@ -28,6 +28,8 @@ static const char * const cdr_read_hack_db[] =
 
 static const char * const gpu_slow_llist_db[] =
 {
+	/* Alice in Cyberland */
+	"SLPS00636",
 	/* Bomberman Fantasy Race */
 	"SLES01712", "SLPS01525", "SLPS91138", "SLPM87102", "SLUS00823",
 	/* Crash Bash */
@@ -36,6 +38,8 @@ static const char * const gpu_slow_llist_db[] =
 	"SLUS01120", "SLES02722", "SLES02723", "SLES02724", "SLPS02758", "SLPM80564",
 	/* Final Fantasy IV */
 	"SCES03840", "SLPM86028", "SLUS01360",
+	/* NHL Face Off '97/98 */
+	"SCUS94550", "SCES00392", "SCUS94174", "SCES01022",
 	/* Point Blank - calibration cursor */
 	"SCED00287", "SCES00886", "SLUS00481",
 	/* Simple 1500 Series Vol. 57: The Meiro */

@@ -54,7 +54,7 @@
 
 #define PTR_1 (void *)(size_t)1
 
-char *biosA0n[256] = {
+const char * const biosA0n[256] = {
 // 0x00
 	"open",		"lseek",	"read",		"write",
 	"close",	"ioctl",	"exit",		"sys_a0_07",
@@ -106,16 +106,16 @@ char *biosA0n[256] = {
 	"DisableKernelIORedirection",		"EnableKernelIORedirection", "sys_a0_9a", "sys_a0_9b",
 	"SetConf",			"GetConf",		"sys_a0_9e",		"SetMem",
 // 0xa0
-	"_boot",			"SystemError",	"EnqueueCdIntr",	"DequeueCdIntr",
-	"sys_a0_a4",		"ReadSector",	"get_cd_status",	"bufs_cb_0",
-	"bufs_cb_1",		"bufs_cb_2",	"bufs_cb_3",		"_card_info",
-	"_card_load",		"_card_auto",	"bufs_cd_4",		"sys_a0_af",
+	"_boot",		"SystemError",	"EnqueueCdIntr",	"DequeueCdIntr",
+	"sys_a0_a4",		"CdReadSector",	"CdGetStatus",		"bu_cb_ok",
+	"bu_cb_err_write",	"bu_cb_err_busy", "bu_cb_err_eject",	"_card_info",
+	"_card_load_dir",	"_card_auto",	"bufs_cd_4",		"sys_a0_af",
 // 0xb0
 	"sys_a0_b0",		"sys_a0_b1",	"do_a_long_jmp",	"sys_a0_b3",
 	"GetSystemInfo",
 };
 
-char *biosB0n[256] = {
+const char * const biosB0n[256] = {
 // 0x00
 	"SysMalloc",		"sys_b0_01",	"sys_b0_02",	"sys_b0_03",
 	"sys_b0_04",		"sys_b0_05",	"sys_b0_06",	"DeliverEvent",
@@ -140,7 +140,7 @@ char *biosB0n[256] = {
 	"cd",				"format",		"firstfile",	"nextfile",
 	"rename",			"delete",		"undelete",		"AddDevice",
 	"RemoteDevice",		"PrintInstalledDevices", "InitCARD", "StartCARD",
-	"StopCARD",			"sys_b0_4d",	"_card_write",	"_card_read",
+	"StopCARD",		"sys_b0_4d",	"_card_write_sector","_card_read_sector",
 // 0x50
 	"_new_card",		"Krom2RawAdd",	"sys_b0_52",	"sys_b0_53",
 	"_get_errno",		"_get_error",	"GetC0Table",	"GetB0Table",
@@ -148,7 +148,7 @@ char *biosB0n[256] = {
 	"_card_status",		"_card_wait",
 };
 
-char *biosC0n[256] = {
+const char * const biosC0n[256] = {
 // 0x00
 	"InitRCnt",			  "InitException",		"SysEnqIntRP",		"SysDeqIntRP",
 	"get_free_EvCB_slot", "get_free_TCB_slot",	"ExceptionHandler",	"InstallExeptionHandler",
@@ -308,6 +308,9 @@ static int card_io_delay;
 #define A_HEAP_END      0x9008
 #define A_HEAP_INIT_FLG 0x900c
 #define A_RND_SEED      0x9010
+#define A_CARD_HLVL_FN  0x9f20  // card_hlvl_func_info, ...
+#define A_CARD_HLVL_SFN 0x9f28
+#define A_CARD_SCTR_LFT 0x9f58
 #define A_HEAP_FRSTCHNK 0xb060
 #define A_HEAP_CURCHNK  0xb064
 #define A_CONF_TCB      0xb940
@@ -322,12 +325,17 @@ static int card_io_delay;
 #define A_B0_5B_TRAP    0x43d0
 
 #define CARD_HARDLER_WRITE  0x51F4
-#define CARD_HARDLER_WRITEM 0x51F5 // fake, for psxBios_write()
 #define CARD_HARDLER_READ   0x5688
-#define CARD_HARDLER_READM  0x5689 // fake, for psxBios_read()
 #define CARD_HARDLER_INFO   0x5B64
 
 #define HLEOP(n) SWAPu32((0x3bu << 26) | (n));
+
+enum card_hlvl_func {
+	card_hlvl_func_info = 1,
+	card_hlvl_func_read = 2,
+	card_hlvl_func_write = 3,
+	card_hlvl_func_load_dir = 4,
+};
 
 static u8 loadRam8(u32 addr)
 {
@@ -485,8 +493,8 @@ static int card_buf_io(int is_write, int port, void *buf, u32 size)
 	FileDesc *desc = &FDesc[2 + port];
 	u32 offset = 8192 * desc->mcfile + desc->offset;
 
-	PSXBIOS_LOG("card_%s_buf %d,%d: ofs=%x(%x) sz=%x (%s)\n",
-		is_write ? "write" : "read", port, desc->mcfile,
+	PSXBIOS_LOG("card_%s_buf %d,%d,%x: ofs=%x(%x) sz=%x (%s)\n",
+		is_write ? "write" : "read", port, desc->mcfile, desc->mode,
 		desc->offset, offset, size, mcdptr + 128 * desc->mcfile + 0xa);
 	if (!(loadRam8(A_CARD_STATUS1 + port) & 1)) {
 		PSXBIOS_LOG(" ...busy %x\n", loadRam8(A_CARD_STATUS1 + port));
@@ -508,10 +516,14 @@ static int card_buf_io(int is_write, int port, void *buf, u32 size)
 	}
 	if (is_write) {
 		memcpy(mcdptr + offset, buf, size);
-		if (port == 0)
+		if (port == 0) {
 			SaveMcd(Config.Mcd1, Mcd1Data, offset, size);
-		else
+			McdFlag[0] &= ~8;
+		}
+		else {
 			SaveMcd(Config.Mcd2, Mcd2Data, offset, size);
+			McdFlag[1] &= ~8;
+		}
 	}
 	else {
 		size_t ram_offset = (u8 *)buf - psxRegs.ptrs.psxM;
@@ -519,12 +531,17 @@ static int card_buf_io(int is_write, int port, void *buf, u32 size)
 		if (ram_offset < 0x200000)
 			psxCpu->Clear(ram_offset, (size + 3) / 4);
 	}
-	desc->offset += size;
+	if (!(desc->mode & 0x8000) || is_write) // ?? ff9
+		desc->offset += size;
 	if (desc->mode & 0x8000) { // async
+		storeRam32(A_CARD_ACHAN, port * 0x10);
+		storeRam32(A_CARD_HLVL_FN + port*4,
+			is_write ? card_hlvl_func_write : card_hlvl_func_read);
 		storeRam8(A_CARD_STATUS1 + port, is_write ? 4 : 2); // busy
+		storeRam32(A_CARD_SCTR_LFT, (size + 0x7f) >> 7);
 		storeRam32(A_CARD_HANDLER,
-			is_write ? CARD_HARDLER_WRITEM : CARD_HARDLER_READM);
-		card_io_delay = 2 + size / 1024; // hack
+			is_write ? CARD_HARDLER_WRITE : CARD_HARDLER_READ);
+		card_io_delay = 2; // is this still needed?
 		return 0;
 	}
 	return size;
@@ -1957,6 +1974,9 @@ void psxBios_LoadExec() { // 51
 static void psxBios__bu_init() { // 70
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x70]);
 
+	storeRam32(A_CARD_HLVL_FN + 0, 0);
+	storeRam32(A_CARD_HLVL_FN + 4, 0);
+
 	DeliverEvent(0xf0000011, 0x0004);
 	DeliverEvent(0xf4000001, 0x0004);
 
@@ -2233,6 +2253,7 @@ static u32 DeliverEvent(u32 class, u32 spec) {
 		use_cycles(6);
 		ret = SWAP32(ev->mode);
 		if (ret == EvMdMARK) {
+			//if (class == 0xf4000001 || class == 0xf0000011) // MC
 			if (ev->status != SWAP32(EvStALREADY))
 				PSXBIOS_EV_LOG("DeliverEvent %08x %x (%08zx) set\n",
 					class, spec, (ev - ev_first) | 0xf1000000u);
@@ -2242,6 +2263,7 @@ static u32 DeliverEvent(u32 class, u32 spec) {
 		use_cycles(8);
 		if (ret == EvMdCALL) {
 			ret = SWAP32(ev->fhandler);
+			//if (class == 0xf4000001 || class == 0xf0000011) // MC
 			PSXBIOS_EV_LOG("DeliverEvent %08x %x (%08zx) cb %x\n",
 				class, spec, (ev - ev_first) | 0xf1000000u, ret);
 			if (ret) {
@@ -2364,8 +2386,8 @@ static void psxBios_TestEvent() { // 0b
 	u32 status = loadRam32(base + (a0 & 0xffff) * sizeof(EvCB) + 4);
 	u32 ret = 0;
 
-	if (psxRegs.cycle - floodchk > 16*1024u) { // prevent log flood
-		PSXBIOS_LOG("psxBios_%s    %x %x\n", biosB0n[0x0b], a0, status);
+	if (status == EvStALREADY || psxRegs.cycle - floodchk > 16*1024u) {
+		PSXBIOS_LOG("psxBios_%s    %x -> %x\n", biosB0n[0x0b], a0, status);
 		floodchk = psxRegs.cycle;
 	}
 	if (status == EvStALREADY) {
@@ -2672,6 +2694,7 @@ static void buopen(int mcd, char *ptr, char *cfg)
 			v0 = 1 + mcd;
 			/* just go ahead and resave them all */
 			SaveMcd(cfg, ptr, 128, 128 * 15);
+			McdFlag[mcd - 1] &= ~8;
 			break;
 		}
 		/* shouldn't this return ENOSPC if i == 16? */
@@ -3057,7 +3080,18 @@ void psxBios_StopCARD() { // 4c
 	mips_return_void_c(200);
 }
 
-void psxBios__card_write() { // 0x4e
+static int card_get_port(int arg)
+{
+	int port = arg;
+	if (port < 0) port += 0x0f; // ?
+	port >>= 4;
+	if (port >= 2u)
+		log_unhandled("psxbios: card port %02x\n", arg);
+	return port;
+}
+
+static void psxBios__card_write_sector() // 0x4e
+{
 	void *pa2 = Ra2;
 	int port;
 
@@ -3070,26 +3104,30 @@ void psxBios__card_write() { // 0x4e
 		v0 = 0; pc0 = ra;
 		return;
 	}
-	storeRam32(A_CARD_ACHAN, a0);
-	port = a0 >> 4;
+	port = card_get_port(a0);
 
 	if (pa2 != INVALID_PTR && a1 < 0x400) {
 		if (port == 0) {
 			memcpy(Mcd1Data + a1 * 128, pa2, 128);
 			SaveMcd(Config.Mcd1, Mcd1Data, a1 * 128, 128);
+			McdFlag[0] &= ~8;
 		} else {
 			memcpy(Mcd2Data + a1 * 128, pa2, 128);
 			SaveMcd(Config.Mcd2, Mcd2Data, a1 * 128, 128);
+			McdFlag[1] &= ~8;
 		}
 	}
 
+	storeRam32(A_CARD_ACHAN, a0);
 	storeRam8(A_CARD_STATUS1 + port, 4); // busy/write
+	storeRam32(A_CARD_SCTR_LFT, 1);
 	storeRam32(A_CARD_HANDLER, CARD_HARDLER_WRITE);
 
 	v0 = 1; pc0 = ra;
 }
 
-static void psxBios__card_read() { // 0x4f
+static void psxBios__card_read_sector() // 0x4f
+{
 	void *pa2 = Ra2;
 	int port;
 
@@ -3100,8 +3138,7 @@ static void psxBios__card_read() { // 0x4f
 		v0 = 0; pc0 = ra;
 		return;
 	}
-	storeRam32(A_CARD_ACHAN, a0);
-	port = a0 >> 4;
+	port = card_get_port(a0);
 
 	if (pa2 != INVALID_PTR && a1 < 0x400) {
 		if (port == 0) {
@@ -3111,7 +3148,9 @@ static void psxBios__card_read() { // 0x4f
 		}
 	}
 
+	storeRam32(A_CARD_ACHAN, a0);
 	storeRam8(A_CARD_STATUS1 + port, 2); // busy/read
+	storeRam32(A_CARD_SCTR_LFT, 1);
 	storeRam32(A_CARD_HANDLER, CARD_HARDLER_READ);
 
 	v0 = 1; pc0 = ra;
@@ -3192,8 +3231,6 @@ void psxBios_GetB0Table() { // 57
 }
 
 static void psxBios__card_chan() { // 0x58
-	// todo: should return active slot channel
-	// (active - which was last processed by irq code)
 	u32 ret = loadRam32(A_CARD_ACHAN);
 	PSXBIOS_LOG("psxBios_%s -> %02x\n", biosB0n[0x58], ret);
 
@@ -3222,58 +3259,56 @@ static void psxBios__card_wait() { // 5d
 
 	// todo
 	if (!(s & 1))
-		log_unhandled("%s %x\n", __func__, s);
+		log_unhandled("%s status %x todo: wait\n", __func__, s);
 
 	mips_return_c(s, 11);
 }
 
-static void psxBios__card_info() { // A ab
+static void psxBios__card_info() // A ab
+{
+	int port;
 	PSXBIOS_LOG("psxBios_%s %02x\n", biosA0n[0xab], a0);
-	u32 ret, port;
+	port = card_get_port(a0);
+
+	if (!(loadRam8(A_CARD_STATUS1 + port) & 1)) {
+		PSXBIOS_LOG(" ...busy %x\n", loadRam8(A_CARD_STATUS1 + port));
+		mips_return(0);
+		return;
+	}
+
 	storeRam32(A_CARD_ACHAN, a0);
-	port = a0 >> 4;
+	storeRam32(A_CARD_HLVL_FN + port*4, card_hlvl_func_info);
+	storeRam8(A_CARD_STATUS1 + port, 8); // busy/info
+	storeRam32(A_CARD_HANDLER, CARD_HARDLER_INFO);
 
-	switch (port) {
-	case 0x0:
-	case 0x1:
-		ret = 0x0004;
-		if (McdDisable[port & 1])
-			ret = 0x0100;
-		break;
-	default:
-		PSXBIOS_LOG("psxBios_%s: UNKNOWN PORT 0x%x\n", biosA0n[0xab], a0);
-		ret = 0x0302;
-		break;
-	}
+	// will deliver 0xf4000001 from card_vint_handler()
 
-	if (McdDisable[0] && McdDisable[1])
-		ret = 0x0100;
-
-	if (ret == 4) {
-		// deliver from card_vint_handler()
-		storeRam8(A_CARD_STATUS1 + port, 8); // busy/info
-		storeRam32(A_CARD_HANDLER, CARD_HARDLER_INFO);
-	} else {
-		DeliverEvent(0xf4000001, ret);
-		DeliverEvent(0xf0000011, 0x0004); // ?
-	}
 	mips_return(1);
 }
 
-static void psxBios__card_load() { // A ac
+static void psxBios__card_load_dir() // A ac
+{
+	int port;
 	PSXBIOS_LOG("psxBios_%s %02x\n", biosA0n[0xac], a0);
 
+	port = card_get_port(a0);
+	storeRam32(A_CARD_HLVL_FN + port*4, card_hlvl_func_load_dir);
+	storeRam32(A_CARD_HLVL_SFN + port*4, 1);
 	storeRam32(A_CARD_ACHAN, a0);
+	storeRam8(A_CARD_STATUS1 + port, 2); // busy/read
+	storeRam32(A_CARD_SCTR_LFT, 3); // should be 0x24 or so?
+	storeRam32(A_CARD_HANDLER, CARD_HARDLER_READ);
 
-//	DeliverEvent(0xf0000011, 0x0004);
-	DeliverEvent(0xf4000001, 0x0004);
+	// will deliver 0xf4000001 from card_vint_handler()
 
 	mips_return(1);
 }
 
-static void card_vint_handler(void) {
-	u8 select, status;
-	u32 handler;
+static void card_vint_handler(void)
+{
+	u32 handler, spec;
+	u8 port, status;
+	int finish = 1;
 
 	if (card_io_delay) {
 		card_io_delay--;
@@ -3285,48 +3320,61 @@ static void card_vint_handler(void) {
 	UnDeliverEvent(0xf0000011, 0x0200);
 	UnDeliverEvent(0xf0000011, 0x2000);
 
-#if 0
-	select = loadRam8(A_CARD_ISLOT);
-	select = (select ^ 1) & 1;
-	storeRam8(A_CARD_ISLOT, select);
-#else
-	select = loadRam8(A_CARD_ACHAN) >> 4;
-	storeRam8(A_CARD_ISLOT, select);
-#endif
-	status = loadRam8(A_CARD_STATUS1 + select);
-	if (status & 1)
-		return; // done
+	port = (loadRam32(A_CARD_ACHAN) >> 4) & 1;
+	status = loadRam8(A_CARD_STATUS1 + port);
+	if (status & 1) {
+		port ^= 1;
+		status = loadRam8(A_CARD_STATUS1 + port);
+		if (status & 1)
+			return; // done
+
+		storeRam32(A_CARD_ACHAN, port * 0x10);
+	}
+	storeRam8(A_CARD_ISLOT, port);
+	handler = loadRam32(A_CARD_HANDLER);
+	if (!handler)
+		return;
 
 	//psxBios_SysDeqIntRP_(0, 0x7540);
 	//psxBios_SysDeqIntRP_(0, 0x7540);
-	//card_state_machine = 0;
-	//card_error_flag = 0;
-	handler = loadRam32(A_CARD_HANDLER);
 	switch (handler) {
+		u32 hlvl_func;
+		s32 sectors_left;
 	case CARD_HARDLER_INFO:
-		DeliverEvent(0xf4000001, 4);
-		DeliverEvent(0xf0000011, 4);
-		storeRam8(A_CARD_STATUS1 + select, 1);
-		storeRam32(A_CARD_HANDLER, 0);
+		if (McdDisable[port])
+			spec = 0x100;
+		else if (McdFlag[port] & 8)
+			spec = 0x2000;
+		else
+			spec = 4;
+		DeliverEvent(0xf4000001, spec);
 		break;
-	case CARD_HARDLER_WRITEM:
-	case CARD_HARDLER_READM:
-		DeliverEvent(0xf4000001, 4);
-		// fallthrough
 	case CARD_HARDLER_WRITE:
 	case CARD_HARDLER_READ:
-		DeliverEvent(0xf0000011, 4);
-		storeRam8(A_CARD_STATUS1 + select, 1);
-		storeRam32(A_CARD_HANDLER, 0);
-		break;
-	case 0:
+		spec = 4;
+		sectors_left = loadRam32(A_CARD_SCTR_LFT) - 1;
+		if (sectors_left > 0) {
+			storeRam32(A_CARD_SCTR_LFT, sectors_left);
+			finish = 0;
+			break;
+		}
+		storeRam32(A_CARD_SCTR_LFT, 0);
+		hlvl_func = loadRam32(A_CARD_HLVL_FN + port*4);
+		if (!hlvl_func || hlvl_func > 4)
+			log_unhandled("psxbios: unexpected hlvl_func %x\n", hlvl_func);
+		if (hlvl_func)
+			DeliverEvent(0xf4000001, 4);
 		break;
 	default:
 		log_unhandled("%s: unhandled handler %x\n", __func__, handler);
-		DeliverEvent(0xf0000011, 0x8000);
-		storeRam8(A_CARD_STATUS1 + select, 1);
-		storeRam32(A_CARD_HANDLER, 0);
+		spec = 0x8000;
 	}
+	if (finish) {
+		storeRam32(A_CARD_HLVL_FN  + port*4, 0);
+		storeRam32(A_CARD_HLVL_SFN + port*4, 0);
+		storeRam8(A_CARD_STATUS1 + port, 1);
+	}
+	DeliverEvent(0xf0000011, spec);
 }
 
 /* System calls C0 */
@@ -3460,7 +3508,7 @@ static void psxBios_InitDefInt() { // 0c
 
 void psxBios_dummy() {
 	u32 pc = (pc0 & 0x1fffff) - 4;
-	char **ntab = pc == 0xa0 ? biosA0n : pc == 0xb0 ? biosB0n
+	const char * const *ntab = pc == 0xa0 ? biosA0n : pc == 0xb0 ? biosB0n
 		: pc == 0xc0 ? biosC0n : NULL;
 	PSXBIOS_LOG("unk %x call: %x ra=%x (%s)\n",
 		pc, t1, ra, ntab ? ntab[t1 & 0xff] : "???");
@@ -3929,7 +3977,7 @@ void psxBiosInit() {
 	//biosA0[0xa9] = psxBios_bufs_cb_2;
 	//biosA0[0xaa] = psxBios_bufs_cb_3;
 	biosA0[0xab] = psxBios__card_info;
-	biosA0[0xac] = psxBios__card_load;
+	biosA0[0xac] = psxBios__card_load_dir;
 	//biosA0[0axd] = psxBios__card_auto;
 	//biosA0[0xae] = psxBios_bufs_cd_4;
 	//biosA0[0xaf] = psxBios_sys_a0_af;
@@ -4017,8 +4065,8 @@ void psxBiosInit() {
 	biosB0[0x4b] = psxBios_StartCARD;
 	biosB0[0x4c] = psxBios_StopCARD;
 	//biosB0[0x4d] = psxBios_sys_b0_4d;
-	biosB0[0x4e] = psxBios__card_write;
-	biosB0[0x4f] = psxBios__card_read;
+	biosB0[0x4e] = psxBios__card_write_sector;
+	biosB0[0x4f] = psxBios__card_read_sector;
 	biosB0[0x50] = psxBios__new_card;
 	biosB0[0x51] = psxBios_Krom2RawAdd;
 	//biosB0[0x52] = psxBios_sys_b0_52;
