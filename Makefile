@@ -201,9 +201,11 @@ deps/lightning/lib/lightning.o: CFLAGS += -Dmprotect=_mprotect # deps/mman
 deps/lightning/lib/jit_print.o: CFLAGS += -w
 endif
 else ifeq "$(DYNAREC)" "ari64"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o
-OBJS += libpcsxcore/new_dynarec/pcsxmem.o
-libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -O2 # less bloat
+ OBJS += libpcsxcore/new_dynarec/new_dynarec.o
+ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+ ifneq ($(DEBUG), 1)
+ libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -O2 # less bloat
+ endif
  ifeq "$(ARCH)" "arm"
  OBJS += libpcsxcore/new_dynarec/linkage_arm.o
  else ifneq (,$(findstring $(ARCH),aarch64 arm64))

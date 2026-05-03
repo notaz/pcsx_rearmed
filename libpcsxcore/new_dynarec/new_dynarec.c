@@ -18,6 +18,9 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE // gettid
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h> //include for uint64_t
@@ -461,6 +464,187 @@ static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
 
+// linux perf jit dump support:
+// perf record -k CLOCK_MONOTONIC ...
+// perf inject --jit --input perf.data --output perf.jit.data
+#if defined(__linux__) && !defined(ANDROID) && !defined(TC_WRITE_OFFSET) && \
+    defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ >= 30
+#include <time.h>
+#include <elf.h>
+static FILE *perf_dump;
+static int perf_use_map;
+
+struct perf_dump_hdr
+{
+  uint32_t magic, version, total_size, elf_mach, pad1, pid;
+  uint64_t timestamp, flags;
+};
+
+struct perf_dump_rhdr
+{
+  uint32_t id, total_size;
+  uint64_t timestamp;
+};
+
+struct perf_dump_record
+{
+  struct perf_dump_rhdr hdr;
+  uint32_t pid, tid;
+  uint64_t vma, code_addr, code_size, code_index;
+  // char name[]
+  // uint8_t native_code;
+};
+
+struct perf_dump_dbg_hdr
+{
+  struct perf_dump_rhdr hdr;
+  uint64_t code_addr;
+  uint64_t nr_entry;
+};
+
+struct perf_dump_dbg_entry
+{
+  uint64_t code_addr;
+  uint32_t line;
+  uint32_t discrim;
+  // char name[n]
+};
+
+static uint64_t perf_dump_tstamp(void)
+{
+  struct timespec ts;
+  uint64_t ret = 0;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+    ret = ts.tv_sec * 1000000000ll + ts.tv_nsec;
+  return ret;
+}
+
+static void perf_dump_fwrite(const void *d, size_t s)
+{
+  size_t r = fwrite(d, 1, s, perf_dump);
+  if (r != s)
+    perror("perf_dump fwrite");
+}
+
+static void perf_dump_init(void)
+{
+  struct perf_dump_hdr hdr;
+  char fname[64];
+  void *mem;
+  pid_t pid;
+  if (likely(!getenv("PCSXR_JIT_DUMP") && !(perf_use_map = !!getenv("PCSXR_PERF_MAP"))))
+    return;
+  pid = getpid();
+  // filenames must be exactly this
+  snprintf(fname, sizeof(fname), perf_use_map ?
+    "/tmp/perf-%ld.map" : "/tmp/jit-%ld.dump", (long)pid);
+  perf_dump = fopen(fname, "w+");
+  if (!perf_dump) {
+    perror("fopen perf dump/map");
+    return;
+  }
+  if (perf_use_map)
+    return;
+  memset(&hdr, 0, sizeof(hdr));
+  hdr.magic = 0x4A695444;
+  hdr.version = 1;
+  hdr.total_size = sizeof(hdr);
+#ifdef __aarch64__
+  hdr.elf_mach = EM_AARCH64;
+#else
+  hdr.elf_mach = EM_ARM;
+#endif
+  hdr.pid = pid;
+  hdr.timestamp = perf_dump_tstamp();
+  perf_dump_fwrite(&hdr, sizeof(hdr));
+
+  // for perf inject to work
+  mem = mmap(NULL, sizeof(hdr), PROT_READ | PROT_EXEC, MAP_PRIVATE, fileno(perf_dump), 0);
+  if (mem == MAP_FAILED)
+    perror("mmap perf_dump");
+  else
+    munmap(mem, sizeof(hdr));
+}
+
+static noinline void perf_dump_write_(const struct compile_state *st,
+  const u_char *start, const u_char *end)
+{
+  struct perf_dump_dbg_hdr drec = {{ 0, }};
+  struct perf_dump_dbg_entry dent = { 0, };
+  struct perf_dump_record rec = { 0, };
+  static uint64_t code_index;
+  char sym[32], dbg_name[12];
+  size_t sym_len;
+  int i;
+
+  sym_len = snprintf(sym, sizeof(sym), "ndrc_b_%08x", st->start);
+  if (perf_use_map) {
+    fprintf(perf_dump, "%zx %zx %s\n", (size_t)start, end - start, sym);
+    fflush(perf_dump);
+    return;
+  }
+  // JIT_DEBUG_INFO:
+  // we use fixed-len names for simplicity,
+  // entries+1 because objdump doesn't show the last entry for whatever reason
+  for (i = 1; i < st->slen; i++)
+    if (st->instr_addr[i])
+      drec.nr_entry++;
+  if (drec.nr_entry) {
+    drec.nr_entry++;
+    drec.code_addr = (size_t)start;
+    drec.hdr.id = 2;
+    drec.hdr.timestamp = perf_dump_tstamp();
+    drec.hdr.total_size = sizeof(drec) + drec.nr_entry * (sizeof(dent) + sizeof(dbg_name));
+    perf_dump_fwrite(&drec, sizeof(drec));
+    for (i = 1; i < st->slen; i++) {
+      dent.code_addr = (size_t)st->instr_addr[i];
+      if (!dent.code_addr)
+        continue;
+      dent.line = i;
+      perf_dump_fwrite(&dent, sizeof(dent));
+      snprintf(dbg_name, sizeof(dbg_name), "ins%08x", st->start + i*4);
+      perf_dump_fwrite(dbg_name, sizeof(dbg_name));
+    }
+    assert(dbg_name[sizeof(dbg_name) - 2]);
+    dent.code_addr = (size_t)end;
+    dent.line++;
+    perf_dump_fwrite(&dent, sizeof(dent));
+    perf_dump_fwrite("end        ", 12);
+  }
+
+  // JIT_CODE_LOAD:
+  rec.pid = (uint32_t)getpid();
+  rec.tid = (uint32_t)gettid();
+  rec.vma = rec.code_addr = (size_t)start;
+  rec.code_size = end - start;
+  rec.code_index = code_index++;
+  rec.hdr.timestamp = perf_dump_tstamp();
+  rec.hdr.total_size = sizeof(rec) + sym_len + 1 + rec.code_size;
+  perf_dump_fwrite(&rec, sizeof(rec));
+  perf_dump_fwrite(sym, sym_len + 1);
+  perf_dump_fwrite(start, rec.code_size);
+}
+
+static noinline void perf_dump_wrap_(void)
+{
+  if (perf_use_map) {
+    rewind(perf_dump);
+    if (ftruncate(fileno(perf_dump), 0))
+      perror("ftruncate perf_dump");
+  }
+  // else how do we delete blocks in a jitdump?
+}
+
+#define perf_dump_write(st, start, end) \
+  if (perf_dump) perf_dump_write_(st, start, end)
+#define perf_dump_wrap() \
+  if (perf_dump) perf_dump_wrap_()
+#else
+#define perf_dump_init()
+#define perf_dump_write(...)
+#define perf_dump_wrap()
+#endif
+
 #ifdef VITA
 #include <psp2/kernel/sysmem.h>
 static int sceBlock;
@@ -566,6 +750,7 @@ static void *start_tcache_write_reserve(u_int max_space)
     clear_tcache_space(out - tc_base, end - out);
     out = ndrc->translation_cache;
     end = out + max_space;
+    perf_dump_wrap();
   }
   // we do a bit more than requested to avoid large jump and lots of
   // expirations the moment we wrap
@@ -6239,7 +6424,7 @@ void print_regmap(const char *name, const signed char *regmap)
 }
 
   /* disassembly */
-void disassemble_inst(int i, u_int start, u_int *source)
+void disassemble_inst(struct compile_state *st, int i, u_int start, u_int *source)
 {
     if (dops[i].bt) printf("*"); else printf(" ");
     switch(dops[i].itype) {
@@ -6327,7 +6512,7 @@ void disassemble_inst(int i, u_int start, u_int *source)
 }
 #else
 #define set_mnemonic(i_, n_)
-static void disassemble_inst(int i, u_int start, u_int *source) {}
+static void disassemble_inst(struct compile_state *st, ...) {}
 #endif // DISASM
 
 #define DRC_TEST_VAL 0x74657374
@@ -6506,6 +6691,7 @@ void new_dynarec_init(void)
   SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
   SysPrintf("%p/%p/%p/%p/%p\n", psxRegs.ptrs.psxM, psxRegs.ptrs.psxH,
     psxRegs.ptrs.psxR, mem_rtab, out);
+  perf_dump_init();
 }
 
 void new_dynarec_cleanup(void)
@@ -9289,8 +9475,8 @@ static struct block_info *block_info_new(u_int start, u_int len,
   return block;
 }
 
-static void block_info_finish(struct compile_state *st, struct block_info *block_tmp,
-  u_char *beginning, u_char *end)
+static void block_info_finish(const struct compile_state *st,
+  struct block_info *block_tmp, u_char *beginning, u_char *end)
 {
   u_int page = get_page(block_tmp->start);
   struct block_info *block;
@@ -9343,6 +9529,7 @@ static void block_info_finish(struct compile_state *st, struct block_info *block
     block_last_compiled->next_in_tc = block;
   block_last_compiled = block;
   stat_inc(stat_blocks);
+  perf_dump_write(st, beginning, end);
 }
 
 static int noinline new_recompile_block(u_int addr)
@@ -9352,7 +9539,7 @@ static int noinline new_recompile_block(u_int addr)
   u_int state_rflags = 0;
   int i;
 
-  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, log_addr(out));
+  assem_debug("NOTCOMPILED: addr = %08x -> %p\n", addr, log_addr(out));
 
   if (addr & 3) {
     if (addr != hack_addr) {
@@ -9484,7 +9671,7 @@ static int noinline new_recompile_block(u_int addr)
   stubcount = 0;
   st.is_delayslot = 0;
   u_int dirty_pre = 0;
-  void *beginning = start_block(MAX_OUTPUT_BLOCK_SIZE);
+  u_char *beginning = start_block(MAX_OUTPUT_BLOCK_SIZE);
   void *instr_addr0_override = NULL;
   int ds = 0;
 
@@ -9518,7 +9705,7 @@ static int noinline new_recompile_block(u_int addr)
     check_regmap(regs[i].regmap_entry);
     check_regmap(regs[i].regmap);
     //if(ds) printf("ds: ");
-    disassemble_inst(i, st.start, st.source);
+    disassemble_inst(&st, i, st.start, st.source);
     if(ds) {
       ds=0; // Skip delay slot
       if(dops[i].bt) assem_debug("OOPS - branch into delay slot\n");
@@ -9760,7 +9947,7 @@ static int noinline new_recompile_block(u_int addr)
   hash_table_add(block->jump_in[0].vaddr, block->jump_in[0].addr);
   // Write out the literal pool if necessary
   literal_pool(0);
-  assert(out - (u_char *)beginning < MAX_OUTPUT_BLOCK_SIZE);
+  assert(out - beginning < MAX_OUTPUT_BLOCK_SIZE);
 
   end_block(beginning);
   block_info_finish(&st, block, beginning, out);
