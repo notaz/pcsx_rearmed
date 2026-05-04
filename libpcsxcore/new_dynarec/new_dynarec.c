@@ -3945,7 +3945,7 @@ static void cop2_do_stall_check(struct compile_state *st, u_int op, int i,
     return;
   if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG) {
     // happens occasionally... cc evicted? Don't bother then
-    //printf("no cc %08x\n", start + i*4);
+    //printf("no cc %08x\n", st->start + i*4);
     return;
   }
   if (!dops[i].bt) {
@@ -8609,7 +8609,7 @@ static noinline void pass5a_preallocate1(struct compile_state *st)
                       k--;
                     }
                     if(regs[k-1].regmap[hr]==f_regmap[hr]&&regmap_pre[k][hr]==f_regmap[hr]) {
-                      //printf("Extend r%d, %x ->\n",hr,start+k*4);
+                      //printf("Extend r%d, %x ->\n",hr,st->start+k*4);
                       while(k<i) {
                         regs[k].regmap_entry[hr]=f_regmap[hr];
                         regs[k].regmap[hr]=f_regmap[hr];
@@ -9257,7 +9257,7 @@ static noinline void pass6_clean_registers_r(struct compile_state *st,
     wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
     wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
     wont_dirty_i &= ~(1u << 31);
-    if (i > istart && !dops[i].is_jump) {
+    if (i > istart && !dops[i].is_jump && !dops[i].bt) {
       // Don't store a register immediately after writing it,
       // may prevent dual-issue.
       wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt1) & 31);
