@@ -236,7 +236,7 @@ struct block_info
   u_int len;   // of the whole block source
   u_int tc_offs;
   u_int tc_len;
-  u_int reg_sv_flags;
+  u_int reg_sv_flags; // bit0: no_save, else scratchpad val
   u_short jump_out_cnt;
   u_short unused;
   u_char is_dirty;
@@ -1056,6 +1056,7 @@ static noinline u_int generate_exception(u_int pc)
 static void noinline *get_addr(struct ht_entry *ht, const u_int vaddr,
   enum ndrc_compile_mode compile_mode)
 {
+  int set_smrv_regs = (compile_mode != ndrc_cm_compile_offline);
   u_int start_page = get_page_prev(vaddr);
   u_int i, page, end_page = get_page(vaddr);
   void *found_clean = NULL;
@@ -1085,13 +1086,16 @@ static void noinline *get_addr(struct ht_entry *ht, const u_int vaddr,
   if (compile_mode == ndrc_cm_no_compile)
     return NULL;
 #ifdef NDRC_THREAD
-  if (ndrc_g.thread.handle && compile_mode == ndrc_cm_compile_live) {
-    psxRegs.pc = vaddr;
-    return new_dyna_leave;
+  if (ndrc_g.thread.handle) {
+    if (compile_mode == ndrc_cm_compile_live) {
+      psxRegs.pc = vaddr;
+      return new_dyna_leave;
+    }
+    set_smrv_regs = 0;
   }
-  if (!ndrc_g.thread.handle)
 #endif
-  memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
+  if (set_smrv_regs)
+    memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
 
   int r = new_recompile_block(vaddr);
   if (likely(r == 0))
@@ -3092,7 +3096,7 @@ static int get_ptr_mem_type(struct compile_state *st, u_int a)
       return MTYPE_8000;
     return MTYPE_0000;
   }
-  if(0x1f800000 <= a && a < 0x1f801000)
+  if(0x1f800000 <= a && a < 0x1f800400)
     return MTYPE_1F80;
   if(0x80200000 <= a && a < 0x80800000)
     return MTYPE_8020;
@@ -6791,7 +6795,7 @@ int new_dynarec_save_blocks(void *save, int size)
   for (p = 0; p < ARRAY_SIZE(blocks); p++) {
     bcnt = 0;
     for (block = blocks[p]; block != NULL; block = block->next_by_vaddr) {
-      if (block->is_dirty)
+      if (block->is_dirty || (block->reg_sv_flags & 1))
         continue;
       tmp_blocks[bcnt].addr = block->start;
       tmp_blocks[bcnt].regflags = block->reg_sv_flags;
@@ -6824,7 +6828,6 @@ void new_dynarec_load_blocks(const void *save, int size)
   const struct savestate_block *sblocks = save;
   int count = size / sizeof(sblocks[0]);
   struct block_info *block;
-  u_int regs_save[32];
   u_int page;
   uint32_t f;
   int i, b;
@@ -6858,26 +6861,16 @@ void new_dynarec_load_blocks(const void *save, int size)
   do_clear_cache();
   mini_ht_clear();
 
-  // change GPRs for speculation to at least partially work...
-  memcpy(regs_save, &psxRegs.GPR, sizeof(regs_save));
-  for (i = 1; i < 32; i++)
-    psxRegs.GPR.r[i] = 0x80000000;
-
   for (b = 0; b < count; b++) {
+    for (i = 1; i < 32; i++)
+      ndrc_smrv_regs[i] = 0x80000000;
     for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
-        psxRegs.GPR.r[i] = 0x1f800000;
+        ndrc_smrv_regs[i] = 0x1f800000;
     }
 
     ndrc_get_addr_ht_param(hash_table, sblocks[b].addr, ndrc_cm_compile_offline);
-
-    for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
-      if (f & 1)
-        psxRegs.GPR.r[i] = 0x80000000;
-    }
   }
-
-  memcpy(&psxRegs.GPR, regs_save, sizeof(regs_save));
 }
 
 void new_dynarec_print_stats(void)
@@ -9551,9 +9544,11 @@ static int noinline new_recompile_block(u_int addr)
 
   // this is just for speculation
   for (i = 1; i < 32; i++) {
-    if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
-      state_rflags |= 1 << i;
+    if ((ndrc_smrv_regs[i] & 0xfffffc00u) == 0x1f800000u)
+      state_rflags |= 1u << i;
   }
+  if (!(state_rflags & (1 << 29)) && (ndrc_smrv_regs[29] & 0xffe00000u) != 0x80000000u)
+    state_rflags |= 1; // no save
 
   st.source = NULL;
   st.start = addr;
