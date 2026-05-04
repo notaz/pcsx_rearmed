@@ -181,6 +181,7 @@ enum R3000Abdt {
 	R3000A_BRANCH_NOT_TAKEN = 2,
 	// none or tells that there was an exception in DS back to doBranch
 	R3000A_BRANCH_NONE_OR_EXCEPTION = 0,
+	R3000A_BRANCH_HLE_RETURN = 1,
 };
 
 typedef struct psxCP2Regs {

@@ -395,6 +395,9 @@ static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 	{
 		mixed_execute_block(regs, block_caller);
 
+		// drc only stops on taken branches, so avoid useless blocks
+		if (regs->branchSeen == R3000A_BRANCH_NOT_TAKEN)
+			continue;
 		if (ndrc_g.thread.busy_addr == ~0u)
 			break;
 		if (block_caller == EXEC_CALLER_HLE) {
