@@ -23,7 +23,7 @@
 #endif
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h> //include for uint64_t
+#include <stdint.h>
 #include <assert.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -1497,6 +1497,8 @@ static void host_tempreg_release(void) {}
 #endif
 
 #ifdef ASSEM_PRINT
+#include "../psxhw.h"
+#include "../cdrom.h"
 extern void gen_interupt();
 extern void do_insn_cmp();
 #define FUNCNAME(f) { f, " " #f }
@@ -1528,6 +1530,21 @@ static const struct {
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
+  FUNCNAME(sio1ReadStat16),
+  FUNCNAME(psxHwReadGpuSR),
+  FUNCNAME(cdrRead0),
+  FUNCNAME(cdrRead1),
+  FUNCNAME(cdrRead2),
+  FUNCNAME(cdrRead3),
+  FUNCNAME(cdrWrite0),
+  FUNCNAME(cdrWrite1),
+  FUNCNAME(cdrWrite2),
+  FUNCNAME(cdrWrite3),
+  FUNCNAME(psxHwWriteIstat),
+  FUNCNAME(psxHwWriteImask),
+  FUNCNAME(psxHwWriteDmaPcr32),
+  FUNCNAME(psxHwWriteDmaIcr32),
+  FUNCNAME(psxHwWriteGpuSR),
   FUNCNAME(execI),
 #ifdef __aarch64__
   FUNCNAME(do_memhandler_pre),
@@ -3297,30 +3314,78 @@ static void do_store_byte(int a, int rt, int offset_reg)
     emit_writebyte_indexed(rt, 0, a);
 }
 
+// determines if code overwrite checking is needed only
+// (also true non-existent 0x20000000 mirror that shouldn't matter)
+#define is_ram_addr(a) !((a) & 0x5f800000)
+
+static u_int resolve_const_io(int i, const struct regstat *i_regs, int *is_const,
+  u_int *likely_addr)
+{
+  int j, s, mr = dops[i].rs1, rom_ok = 1;
+  u_int addr;
+  *is_const = *likely_addr = 0;
+  s = get_reg(i_regs->regmap, mr);
+  if (s < 0)
+    return ~0;
+  if ((i_regs->wasconst >> s) & 1) {
+    *is_const = 1;
+    return constmap[i][s] + cinfo[i].imm;
+  }
+  for (j = i - 1; j >= 0; j--) {
+    if (dops[j].is_ds)
+      return ~0;
+    if (dops[j].bt)
+      rom_ok = 0;
+    if (dops[j].rt1 == mr)
+      break;
+  }
+  if (j < 0 || dops[j].opcode != 0x23) // LW
+    return ~0;
+  s = get_reg(regs[j].regmap, dops[j].rs1);
+  if (s < 0 || !((regs[j].wasconst >> s) & 1))
+    return ~0;
+  addr = constmap[j][s] + cinfo[j].imm;
+  if ((0x9fc00000u <= addr && addr < 0x9fc80000u) ||
+      (0xbfc00000u <= addr && addr < 0xbfc80000u)) {
+    addr = *(u_int *)(psxRegs.ptrs.psxR + (addr & 0x07fffc)) + cinfo[i].imm;
+    if (rom_ok) {
+      *is_const = 1;
+      return addr;
+    }
+  }
+  else if (is_ram_addr(addr))
+    addr = *(u_int *)(psxRegs.ptrs.psxM + (addr & 0x1ffffc)) + cinfo[i].imm;
+  // this seems to do more hard than good, scratchpad data is just too volatile
+  //else if ((addr >> 10) == (0x1f800000u >> 10))
+  //  addr = *(u_int *)(psxRegs.ptrs.psxH + (addr & 0x0003fc)) + cinfo[i].imm;
+  else
+    return ~0;
+  smrv_strong |= 1u << mr;
+  ndrc_smrv_regs[mr] = addr;
+  // take non-ram/scratchpad likely_addr only, else keep the usual path
+  if (is_ram_addr(addr))
+    return ~0;
+  if (psxRegs.ptrs.psxH == (void *)0x1f800000 && (addr >> 10) == (0x1f800000u >> 10))
+    return ~0;
+  *likely_addr = addr;
+  return ~0;
+}
+
 static void load_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
   int addr = cinfo[i].addr;
-  int s,tl;
-  int offset;
-  void *jaddr=0;
-  int memtarget=0,c=0;
-  int offset_reg = -1;
+  void *jaddr = NULL;
+  int c = 0, offset_reg = -1;
   int fastio_reg_override = -1;
-  u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg_w(i_regs->regmap, dops[i].rt1);
-  s=get_reg(i_regs->regmap,dops[i].rs1);
-  offset=cinfo[i].imm;
+  u_int saddr_likely = 0;
+  u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
+  int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  u_int reglist = get_host_reglist(i_regs->regmap);
+  int tl = get_reg_w(i_regs->regmap, dops[i].rt1);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if (c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    }
-  }
   //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
-  if(tl<0 && ((!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80) || dops[i].rt1==0)) {
+  if (tl < 0 && ((!c || ((u_int)saddr_const >> 16) == 0x1f80) || dops[i].rt1 == 0)) {
       // could be FIFO, must perform the read
       // ||dummy read
       assem_debug("(forced read)\n");
@@ -3330,7 +3395,6 @@ static void load_assemble(struct compile_state *st, int i,
   assert(addr >= 0);
  if(tl>=0) {
   //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
   reglist&=~(1<<tl);
   if(!c) {
     #ifdef R29_HACK
@@ -3342,13 +3406,13 @@ static void load_assemble(struct compile_state *st, int i,
                 &offset_reg, &fastio_reg_override, ccadj_);
     }
   }
-  else if (ram_offset && memtarget) {
+  else if (ram_offset && ram80x_io) {
     offset_reg = get_ro_reg(i_regs, 0);
   }
   int dummy=(dops[i].rt1==0)||(tl!=get_reg_w(i_regs->regmap, dops[i].rt1)); // ignore loads to r0 and unneeded reg
   switch (dops[i].opcode) {
   case 0x20: // LB
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       if(!dummy) {
         int a = addr;
         if (fastio_reg_override >= 0)
@@ -3363,10 +3427,10 @@ static void load_assemble(struct compile_state *st, int i,
         add_stub_r(LOADB_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
     }
     else
-      inline_readstub(LOADB_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+      inline_readstub(LOADB_STUB, i, saddr_const, i_regs->regmap,dops[i].rt1, ccadj_, reglist);
     break;
   case 0x21: // LH
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       if(!dummy) {
         int a = addr;
         if (fastio_reg_override >= 0)
@@ -3380,10 +3444,10 @@ static void load_assemble(struct compile_state *st, int i,
         add_stub_r(LOADH_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
     }
     else
-      inline_readstub(LOADH_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+      inline_readstub(LOADH_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
     break;
   case 0x23: // LW
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       if(!dummy) {
         int a = addr;
         if (fastio_reg_override >= 0)
@@ -3394,10 +3458,10 @@ static void load_assemble(struct compile_state *st, int i,
         add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
     }
     else
-      inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+      inline_readstub(LOADW_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
     break;
   case 0x24: // LBU
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       if(!dummy) {
         int a = addr;
         if (fastio_reg_override >= 0)
@@ -3412,10 +3476,10 @@ static void load_assemble(struct compile_state *st, int i,
         add_stub_r(LOADBU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
     }
     else
-      inline_readstub(LOADBU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+      inline_readstub(LOADBU_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
     break;
   case 0x25: // LHU
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       if(!dummy) {
         int a = addr;
         if (fastio_reg_override >= 0)
@@ -3429,7 +3493,7 @@ static void load_assemble(struct compile_state *st, int i,
         add_stub_r(LOADHU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
     }
     else
-      inline_readstub(LOADHU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+      inline_readstub(LOADHU_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
     break;
   default:
     assert(0);
@@ -3446,8 +3510,8 @@ static void loadlr_assemble(struct compile_state *st, int i,
   int addr = cinfo[i].addr;
   int s,tl,temp,temp2;
   int offset;
-  void *jaddr=0;
-  int memtarget=0,c=0;
+  void *jaddr = NULL;
+  int ram80x_io = 0, c = 0;
   int offset_reg = -1;
   int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
@@ -3458,11 +3522,10 @@ static void loadlr_assemble(struct compile_state *st, int i,
   offset=cinfo[i].imm;
   reglist|=1<<temp;
   assert(addr >= 0);
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if(c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    }
+  if (s >= 0) {
+    c = (i_regs->wasconst >> s) & 1;
+    if (c)
+      ram80x_io = (signed int)(constmap[i][s] + offset) < (signed int)(0x80000000+RAM_SIZE);
   }
   if(!c) {
     emit_shlimm(addr,3,temp);
@@ -3475,7 +3538,7 @@ static void loadlr_assemble(struct compile_state *st, int i,
               &offset_reg, &fastio_reg_override, ccadj_);
   }
   else {
-    if (ram_offset && memtarget) {
+    if (ram_offset && ram80x_io) {
       offset_reg = get_ro_reg(i_regs, 0);
     }
     if (dops[i].opcode==0x22||dops[i].opcode==0x26) {
@@ -3485,7 +3548,7 @@ static void loadlr_assemble(struct compile_state *st, int i,
     }
   }
   if (dops[i].opcode==0x22||dops[i].opcode==0x26) { // LWL/LWR
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       int a = temp2;
       if (fastio_reg_override >= 0)
         a = fastio_reg_override;
@@ -3606,33 +3669,19 @@ static void do_store_smc_check(struct compile_state *st, int i,
     addr, imm_min, imm_max, i);
 }
 
-// determines if code overwrite checking is needed only
-// (also true non-existent 0x20000000 mirror that shouldn't matter)
-#define is_ram_addr(a) !((a) & 0x5f800000)
-
 static void store_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  int s,tl;
   int addr = cinfo[i].addr;
-  int offset;
-  void *jaddr=0;
-  enum stub_type type=0;
-  int memtarget=0,c=0;
-  int offset_reg = -1;
+  void *jaddr = NULL;
+  enum stub_type type = 0;
+  int c = 0, offset_reg = -1;
   int fastio_reg_override = -1;
-  u_int addr_const = ~0;
-  u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg(i_regs->regmap,dops[i].rs2);
-  s=get_reg(i_regs->regmap,dops[i].rs1);
-  offset=cinfo[i].imm;
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if (c) {
-      addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
-    }
-  }
+  u_int reglist = get_host_reglist(i_regs->regmap);
+  u_int saddr_likely = 0;
+  u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
+  int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  int tl = get_reg(i_regs->regmap, dops[i].rs2);
   assert(tl>=0);
   assert(addr >= 0);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
@@ -3641,13 +3690,13 @@ static void store_assemble(struct compile_state *st, int i,
     jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr,
               &offset_reg, &fastio_reg_override, ccadj_);
   }
-  else if (ram_offset && memtarget) {
+  else if (ram_offset && ram80x_io) {
     offset_reg = get_ro_reg(i_regs, 0);
   }
 
   switch (dops[i].opcode) {
   case 0x28: // SB
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       int a = addr;
       if (fastio_reg_override >= 0)
         a = fastio_reg_override;
@@ -3656,7 +3705,7 @@ static void store_assemble(struct compile_state *st, int i,
     type = STOREB_STUB;
     break;
   case 0x29: // SH
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       int a = addr;
       if (fastio_reg_override >= 0)
         a = fastio_reg_override;
@@ -3665,7 +3714,7 @@ static void store_assemble(struct compile_state *st, int i,
     type = STOREH_STUB;
     break;
   case 0x2B: // SW
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       int a = addr;
       if (fastio_reg_override >= 0)
         a = fastio_reg_override;
@@ -3682,16 +3731,16 @@ static void store_assemble(struct compile_state *st, int i,
     // PCSX store handlers don't check invcode again
     add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj_,reglist);
   }
-  if (!c || is_ram_addr(addr_const))
+  if (!c || is_ram_addr(saddr_const))
     do_store_smc_check(st, i, i_regs, reglist, addr);
-  if (c && !memtarget)
-    inline_writestub(type, i, addr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
+  if (c && !ram80x_io)
+    inline_writestub(type, i, saddr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
   // basic current block modification detection..
   // not looking back as that should be in mips cache already
   // (see Spyro2 title->attract mode)
-  if (st->start + i*4 < addr_const && addr_const < st->start + st->slen*4) {
+  if (st->start + i*4 < saddr_const && saddr_const < st->start + st->slen*4) {
     SysPrintf_lim("write to %08x hits block %08x, pc=%08x\n",
-      addr_const, st->start, st->start+i*4);
+      saddr_const, st->start, st->start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
@@ -3715,7 +3764,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   void *jaddr=0;
   void *case1, *case23, *case3;
   void *done0, *done1, *done2;
-  int memtarget=0,c=0;
+  int ram80x_io = 0, c = 0;
   int offset_reg = -1;
   u_int addr_const = ~0;
   u_int reglist = get_host_reglist(i_regs->regmap);
@@ -3726,7 +3775,7 @@ static void storelr_assemble(struct compile_state *st, int i,
     c = (i_regs->isconst >> s) & 1;
     if (c) {
       addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
+      ram80x_io = (signed int)addr_const < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
   assert(tl>=0);
@@ -3739,7 +3788,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   }
   else
   {
-    if(!memtarget||!dops[i].rs1) {
+    if (!ram80x_io || !dops[i].rs1) {
       jaddr=out;
       emit_jmp(0);
     }
@@ -3816,7 +3865,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   set_jump_target(done2, out);
   if (offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if (!c || !memtarget)
+  if (!c || !ram80x_io)
     add_stub_r(STORELR_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
   if (!c || is_ram_addr(addr_const))
     do_store_smc_check(st, i, i_regs, reglist, addr);
@@ -4193,8 +4242,8 @@ static void c2ls_assemble(struct compile_state *st, int i,
   int s,tl;
   int ar;
   int offset;
-  int memtarget=0,c=0;
-  void *jaddr2=NULL;
+  int ram80x_io = 0, c = 0;
+  void *jaddr2 = NULL;
   enum stub_type type;
   int offset_reg = -1;
   int fastio_reg_override = -1;
@@ -4219,7 +4268,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
     c = (i_regs->isconst >> s) & 1;
     if (c) {
       addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
+      ram80x_io = (signed int)addr_const < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
 
@@ -4232,7 +4281,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
   else
     type=LOADW_STUB;
 
-  if(c&&!memtarget) {
+  if (c && !ram80x_io) {
     jaddr2=out;
     emit_jmp(0); // inline_readstub/inline_writestub?
   }
@@ -4241,7 +4290,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
       jaddr2 = emit_fastpath_cmp_jump(st, i, i_regs, ar,
                 &offset_reg, &fastio_reg_override, ccadj_);
     }
-    else if (ram_offset && memtarget) {
+    else if (ram_offset && ram80x_io) {
       offset_reg = get_ro_reg(i_regs, 0);
     }
     switch (dops[i].opcode) {
@@ -4479,6 +4528,7 @@ static void hlecall_assemble(struct compile_state *st, int i,
   if (hleCode < ARRAY_SIZE(psxHLEt))
     hlefunc = psxHLEt[hleCode];
 
+  assem_debug("; hlecall 0x%x\n", hleCode);
   call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4+4, hlefunc);
 }
 
@@ -5236,7 +5286,7 @@ static int match_bt(struct compile_state *st, signed char i_regmap[],
 }
 
 #ifdef DRC_DBG
-static void drc_dbg_emit_do_cmp(int i, int ccadj_)
+static void drc_dbg_emit_do_cmp(struct compile_state *st, int i, int ccadj_)
 {
   extern void do_insn_cmp();
   //extern int cycle;
@@ -5289,8 +5339,8 @@ static void drc_dbg_emit_wb_dirtys(int i, const struct regstat *i_regs)
   }
 }
 #else
-#define drc_dbg_emit_do_cmp(x,y)
-#define drc_dbg_emit_wb_dirtys(x,y)
+#define drc_dbg_emit_do_cmp(st, x, y)
+#define drc_dbg_emit_wb_dirtys(x, y)
 #endif
 
 // Used when a branch jumps into the delay slot of another branch
@@ -5302,7 +5352,7 @@ static void ds_assemble_entry(struct compile_state *st, int i)
     st->instr_addr[t] = out;
   assem_debug("Assemble delay slot at %x\n",cinfo[i].ba);
   assem_debug("<->\n");
-  drc_dbg_emit_do_cmp(t, ccadj_);
+  drc_dbg_emit_do_cmp(st, t, ccadj_);
   if(regs[t].regmap_entry[HOST_CCREG]==CCREG&&regs[t].regmap[HOST_CCREG]!=CCREG)
     wb_register(CCREG,regs[t].regmap_entry,regs[t].wasdirty);
   load_regs(regs[t].regmap_entry,regs[t].regmap,dops[t].rs1,dops[t].rs2);
@@ -9727,7 +9777,7 @@ static int noinline new_recompile_block(u_int addr)
       // branch target entry point
       st.instr_addr[i] = out;
       assem_debug("<->\n");
-      drc_dbg_emit_do_cmp(i, cinfo[i].ccadj);
+      drc_dbg_emit_do_cmp(&st, i, cinfo[i].ccadj);
       if (clear_hack_addr) {
         emit_movimm(0, 0);
         emit_writeword(0, &hack_addr);

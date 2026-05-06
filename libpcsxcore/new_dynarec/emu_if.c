@@ -566,7 +566,7 @@ static void ari64_thread_init(void)
 	else {
 		u32 cpu_count = cpu_features_get_core_amount();
 		enable = cpu_count > 1;
-#ifdef _3DS
+#if defined(DRC_DBG) || defined(_3DS)
 		// bad for old3ds, reprotedly no improvement for new3ds
 		enable = 0;
 #endif
