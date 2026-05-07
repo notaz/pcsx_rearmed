@@ -1628,27 +1628,16 @@ static void mov_loadtype_adj(enum stub_type type,int rs,int rt)
 #include "pcsxmem.h"
 #include "pcsxmem_inline.c"
 
-static void do_readstub(struct compile_state *st, int n)
+static void do_read_slow(struct compile_state *st, int i, const struct regstat *i_regs,
+  enum stub_type type, void *retaddr, int rs, int ccadj, u_int reglist)
 {
-  assem_debug("do_readstub %x\n", st->start + stubs[n].a*4);
-  literal_pool(256);
-  set_jump_target(stubs[n].addr, out);
-  enum stub_type type=stubs[n].type;
-  int i=stubs[n].a;
-  int rs=stubs[n].b;
-  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  u_int reglist=stubs[n].e;
-  const signed char *i_regmap=i_regs->regmap;
-  int rt;
-  if(dops[i].itype==C2LS||dops[i].itype==LOADLR) {
-    rt=get_reg(i_regmap,FTEMP);
-  }else{
-    rt=get_reg(i_regmap,dops[i].rt1);
-  }
-  assert(rs>=0);
-  int r,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
-  void *restore_jump = NULL;
-  reglist|=(1<<rs);
+  int itype = dops[i].itype;
+  const signed char *i_regmap = i_regs->regmap;
+  int rt = get_reg(i_regmap, (itype == C2LS || itype == LOADLR) ? FTEMP : dops[i].rt1);
+  int r, temp = -1, temp2 = HOST_TEMPREG, regs_saved = 0;
+  void *restore_jump = NULL, *end_jump = NULL;
+  assert(rs >= 0);
+  reglist |= 1 << rs;
   for(r=0;r<=12;r++) {
     if(((1<<r)&0x13ff)&&((1<<r)&reglist)==0) {
       temp=r; break;
@@ -1667,7 +1656,7 @@ static void do_readstub(struct compile_state *st, int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
+  if (itype == C2LS || (rt >= 0 && dops[i].rt1 != 0)) {
     switch(type) {
       case LOADB_STUB:  emit_ldrccsb_dualindexed(temp2,rs,rt); break;
       case LOADBU_STUB: emit_ldrccb_dualindexed(temp2,rs,rt); break;
@@ -1677,12 +1666,16 @@ static void do_readstub(struct compile_state *st, int n)
       default: assert(0);
     }
   }
-  if(regs_saved) {
-    restore_jump=out;
-    emit_jcc(0); // jump to reg restore
+  if (regs_saved) {
+    restore_jump = out;
+    emit_jcc(DJT_1); // jump to reg restore
+  }
+  else if (!retaddr) {
+    end_jump = out;
+    emit_jcc(DJT_1);
   }
   else
-    emit_jcc(stubs[n].retaddr); // return address
+    emit_jcc(retaddr); // return address
 
   if(!regs_saved)
     save_regs(reglist);
@@ -1698,23 +1691,29 @@ static void do_readstub(struct compile_state *st, int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
+  emit_addimm(cc < 0 ? 2 : cc, ccadj, 2);
   emit_far_call(handler);
 #if 0
   if (type == LOADW_STUB) {
     // new cycle_count returned in r2
-    emit_addimm(2, -(int)stubs[n].d, cc<0?2:cc);
+    emit_addimm(2, -ccadj, cc<0?2:cc);
     if (cc < 0)
       emit_storereg(CCREG, 2);
   }
 #endif
-  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
-    mov_loadtype_adj(type,0,rt);
-  }
-  if(restore_jump)
+  if (itype == C2LS || (rt >= 0 && dops[i].rt1 != 0))
+    mov_loadtype_adj(type, 0, rt);
+  if (restore_jump) {
+    assem_debug("1:\n");
     set_jump_target(restore_jump, out);
+  }
   restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr); // return address
+  if (retaddr)
+    emit_jmp(retaddr);
+  if (end_jump) {
+    assem_debug("1: ; end read_slow\n");
+    set_jump_target(end_jump, out);
+  }
 }
 
 static void inline_readstub(enum stub_type type, int i, u_int addr,
@@ -1799,28 +1798,16 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   restore_regs(reglist);
 }
 
-static void do_writestub(struct compile_state *st, int n)
+static void do_write_slow(struct compile_state *st, int i, const struct regstat *i_regs,
+  enum stub_type type, void *retaddr, int rs, int ccadj, u_int reglist, int do_smc_check)
 {
-  assem_debug("do_writestub %x\n", st->start + stubs[n].a*4);
-  literal_pool(256);
-  set_jump_target(stubs[n].addr, out);
-  enum stub_type type=stubs[n].type;
-  int i=stubs[n].a;
-  int rs=stubs[n].b;
-  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  u_int reglist=stubs[n].e;
-  const signed char *i_regmap=i_regs->regmap;
-  int rt,r;
-  if(dops[i].itype==C2LS) {
-    rt=get_reg(i_regmap,r=FTEMP);
-  }else{
-    rt=get_reg(i_regmap,r=dops[i].rs2);
-  }
-  assert(rs>=0);
-  assert(rt>=0);
-  int rtmp,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
-  void *restore_jump = NULL;
-  int reglist2=reglist|(1<<rs)|(1<<rt);
+  const signed char *i_regmap = i_regs->regmap;
+  int rt = get_reg(i_regmap, (dops[i].itype == C2LS) ? FTEMP : dops[i].rs2);
+  void *handler_jump = NULL, *restore_jump = NULL, *end_jump = NULL;
+  int rtmp, temp = -1, temp2 = HOST_TEMPREG, regs_saved = 0;
+  int jmp2_cond, reglist2 = reglist | (1<<rs) | (1<<rt);
+  assert(rs >= 0);
+  assert(rt >= 0);
   for(rtmp=0;rtmp<=12;rtmp++) {
     if(((1<<rtmp)&0x13ff)&&((1<<rtmp)&reglist2)==0) {
       temp=rtmp; break;
@@ -1839,18 +1826,51 @@ static void do_writestub(struct compile_state *st, int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  switch(type) {
-    case STOREB_STUB: emit_strccb_dualindexed(temp2,rs,rt); break;
-    case STOREH_STUB: emit_strcch_dualindexed(temp2,rs,rt); break;
-    case STOREW_STUB: emit_strcc_dualindexed(temp2,rs,rt); break;
-    default:          assert(0);
+  if (do_smc_check) {
+    jmp2_cond = 0;
+    handler_jump = out;
+    emit_jc(DJT_1);
+    switch (type) {
+      case STOREB_STUB: emit_strb_dualindexed(temp2, rs, rt); break;
+      case STOREH_STUB: emit_strh_dualindexed(temp2, rs, rt); break;
+      case STOREW_STUB: emit_str_dualindexed(temp2, rs, rt); break;
+      default:          assert(0);
+    }
+    do_store_smc_check(st, i, i_regs, reglist, rs);
   }
-  if(regs_saved) {
-    restore_jump=out;
-    emit_jcc(0); // jump to reg restore
+  else {
+    jmp2_cond = 1;
+    switch (type) {
+      case STOREB_STUB: emit_strccb_dualindexed(temp2, rs, rt); break;
+      case STOREH_STUB: emit_strcch_dualindexed(temp2, rs, rt); break;
+      case STOREW_STUB: emit_strcc_dualindexed(temp2, rs, rt); break;
+      default:          assert(0);
+    }
   }
-  else
-    emit_jcc(stubs[n].retaddr); // return address (invcode check)
+  if (regs_saved) {
+    restore_jump = out;
+    if (jmp2_cond)
+      emit_jcc(DJT_2); // jump to reg restore
+    else
+      emit_jmp(DJT_2);
+  }
+  else if (!retaddr) {
+    end_jump = out;
+    if (jmp2_cond)
+      emit_jcc(DJT_2);
+    else
+      emit_jmp(DJT_2);
+  }
+  else {
+    if (jmp2_cond)
+      emit_jcc(retaddr); // return address (invcode check)
+    else
+      emit_jmp(retaddr);
+  }
+  if (handler_jump) {
+    assem_debug("1:\n");
+    set_jump_target(handler_jump, out);
+  }
 
   if(!regs_saved)
     save_regs(reglist);
@@ -1868,16 +1888,23 @@ static void do_writestub(struct compile_state *st, int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
+  emit_addimm(cc < 0 ? 2 : cc, ccadj, 2);
   emit_far_call(handler);
   // new cycle_count returned in r2
-  emit_addimm(2,-(int)stubs[n].d,cc<0?2:cc);
+  emit_addimm(2, -ccadj, cc < 0 ? 2 : cc);
   if(cc<0)
     emit_storereg(CCREG,2);
-  if(restore_jump)
+  if (restore_jump) {
+    assem_debug("2:\n");
     set_jump_target(restore_jump, out);
+  }
   restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr);
+  if (retaddr)
+    emit_jmp(retaddr);
+  if (end_jump) {
+    assem_debug("2: ; end write_slow\n");
+    set_jump_target(end_jump, out);
+  }
 }
 
 static void inline_writestub(enum stub_type type, int i, u_int addr,

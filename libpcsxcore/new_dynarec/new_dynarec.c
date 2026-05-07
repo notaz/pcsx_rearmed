@@ -454,12 +454,14 @@ static int get_final_value(struct compile_state *st, int hr, int i, u_int *value
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist);
+  int i, int addr_hr, const struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(struct compile_state *st, void *addr, u_int target, int ext);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
 static void cop2_do_stall_check(struct compile_state *st, u_int op, int i,
   const struct regstat *i_regs, u_int reglist);
+static void do_store_smc_check(struct compile_state *st, int i,
+  const struct regstat *i_regs, u_int reglist, int addr_hr);
 static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
@@ -2602,9 +2604,9 @@ static void add_stub(enum stub_type type, void *addr, void *retaddr,
 }
 
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist)
+  int i, int addr_hr, const struct regstat *i_regs, int ccadj, u_int reglist)
 {
-  add_stub(type, addr, retaddr, i, addr_reg, (uintptr_t)i_regs, ccadj, reglist);
+  add_stub(type, addr, retaddr, i, addr_hr, (uintptr_t)i_regs, ccadj, reglist);
 }
 
 // Write out a single register
@@ -3280,6 +3282,38 @@ static void do_load_word(int a, int rt, int offset_reg)
     emit_readword_indexed(0, a, rt);
 }
 
+static void do_load_hword(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrh_dualindexed(offset_reg, a, rt);
+  else
+    emit_movzwl_indexed(0, a, rt);
+}
+
+static void do_load_shword(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrsh_dualindexed(offset_reg, a, rt);
+  else
+    emit_movswl_indexed(0, a, rt);
+}
+
+static void do_load_byte(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrb_dualindexed(offset_reg, a, rt);
+  else
+    emit_movzbl_indexed(0, a, rt);
+}
+
+static void do_load_sbyte(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrsb_dualindexed(offset_reg, a, rt);
+  else
+    emit_movsbl_indexed(0, a, rt);
+}
+
 static void do_store_word(int a, int ofs, int rt, int offset_reg, int preseve_a)
 {
   if (offset_reg < 0) {
@@ -3367,6 +3401,7 @@ static u_int resolve_const_io(int i, const struct regstat *i_regs, int *is_const
     return ~0;
   if (psxRegs.ptrs.psxH == (void *)0x1f800000 && (addr >> 10) == (0x1f800000u >> 10))
     return ~0;
+  assem_debug("; likely addr: %08x\n", addr);
   *likely_addr = addr;
   return ~0;
 }
@@ -3374,13 +3409,15 @@ static u_int resolve_const_io(int i, const struct regstat *i_regs, int *is_const
 static void load_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  int addr = cinfo[i].addr;
+  int addr_hr = cinfo[i].addr;
+  int addr_hr_io = -1;
   void *jaddr = NULL;
-  int c = 0, offset_reg = -1;
-  int fastio_reg_override = -1;
+  enum stub_type type = 0;
+  int c = 0, offset_reg = -1, is_dummy;
   u_int saddr_likely = 0;
   u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
   int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  int inline_slow_io = saddr_likely != 0;
   u_int reglist = get_host_reglist(i_regs->regmap);
   int tl = get_reg_w(i_regs->regmap, dops[i].rt1);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
@@ -3388,119 +3425,62 @@ static void load_assemble(struct compile_state *st, int i,
   if (tl < 0 && ((!c || ((u_int)saddr_const >> 16) == 0x1f80) || dops[i].rt1 == 0)) {
       // could be FIFO, must perform the read
       // ||dummy read
-      assem_debug("(forced read)\n");
+      assem_debug("; forced read\n");
       tl = get_reg_temp(i_regs->regmap); // may be == addr
       assert(tl>=0);
   }
-  assert(addr >= 0);
- if(tl>=0) {
-  //printf("load_assemble: c=%d\n",c);
-  reglist&=~(1<<tl);
-  if(!c) {
-    #ifdef R29_HACK
-    // Strmnnrmn's speed hack
-    if(dops[i].rs1!=29||st->start<0x80001000||st->start>=0x80000000+RAM_SIZE)
-    #endif
-    {
-      jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr,
-                &offset_reg, &fastio_reg_override, ccadj_);
-    }
+  assert(addr_hr >= 0);
+  if (tl < 0)
+    return;
+  is_dummy = dops[i].rt1 == 0 || tl != get_reg_w(i_regs->regmap, dops[i].rt1);
+  reglist &= ~(1 << tl);
+  if (!c && !inline_slow_io) {
+    addr_hr_io = addr_hr;
+    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr_hr,
+        &offset_reg, &addr_hr_io, ccadj_);
   }
-  else if (ram_offset && ram80x_io) {
-    offset_reg = get_ro_reg(i_regs, 0);
+  else if (c && ram80x_io) {
+    addr_hr_io = addr_hr;
+    if (ram_offset)
+      offset_reg = get_ro_reg(i_regs, 0);
   }
-  int dummy=(dops[i].rt1==0)||(tl!=get_reg_w(i_regs->regmap, dops[i].rt1)); // ignore loads to r0 and unneeded reg
   switch (dops[i].opcode) {
   case 0x20: // LB
-    if (!c || ram80x_io) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-
-        if (offset_reg >= 0)
-          emit_ldrsb_dualindexed(offset_reg, a, tl);
-        else
-          emit_movsbl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADB_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADB_STUB, i, saddr_const, i_regs->regmap,dops[i].rt1, ccadj_, reglist);
+    type = LOADB_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_sbyte(addr_hr_io, tl, offset_reg);
     break;
   case 0x21: // LH
-    if (!c || ram80x_io) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        if (offset_reg >= 0)
-          emit_ldrsh_dualindexed(offset_reg, a, tl);
-        else
-          emit_movswl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADH_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADH_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
+    type = LOADH_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_shword(addr_hr_io, tl, offset_reg);
     break;
   case 0x23: // LW
-    if (!c || ram80x_io) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        do_load_word(a, tl, offset_reg);
-      }
-      if(jaddr)
-        add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADW_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
+    type = LOADW_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_word(addr_hr_io, tl, offset_reg);
     break;
   case 0x24: // LBU
-    if (!c || ram80x_io) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-
-        if (offset_reg >= 0)
-          emit_ldrb_dualindexed(offset_reg, a, tl);
-        else
-          emit_movzbl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADBU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADBU_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
+    type = LOADBU_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_byte(addr_hr_io, tl, offset_reg);
     break;
   case 0x25: // LHU
-    if (!c || ram80x_io) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        if (offset_reg >= 0)
-          emit_ldrh_dualindexed(offset_reg, a, tl);
-        else
-          emit_movzwl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADHU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADHU_STUB, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
+    type = LOADHU_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_hword(addr_hr_io, tl, offset_reg);
     break;
   default:
     assert(0);
   }
- } // tl >= 0
- if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
-   host_tempreg_release();
+  if (addr_hr_io == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
+    host_tempreg_release();
+  if (jaddr)
+    add_stub_r(type, jaddr, out, i, addr_hr, i_regs, ccadj_,reglist);
+  if (inline_slow_io)
+    do_read_slow(st, i, i_regs, type, NULL, addr_hr, ccadj_, reglist);
+  else if (addr_hr_io < 0)
+    inline_readstub(type, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
 }
 
 #ifndef loadlr_assemble
@@ -3617,7 +3597,7 @@ static void do_invstub(struct compile_state *st, int n)
 }
 
 static void do_store_smc_check(struct compile_state *st, int i,
-  const struct regstat *i_regs, u_int reglist, int addr)
+  const struct regstat *i_regs, u_int reglist, int addr_hr)
 {
   if (HACK_ENABLED(NDHACK_NO_SMC_CHECK))
     return;
@@ -3647,16 +3627,16 @@ static void do_store_smc_check(struct compile_state *st, int i,
   int ir = get_reg(i_regs->regmap, INVCP);
   assert(ir >= 0);
   host_tempreg_acquire();
-  emit_ldrb_indexedsr12_reg(ir, addr, HOST_TEMPREG);
+  emit_ldrb_indexedsr12_reg(ir, addr_hr, HOST_TEMPREG);
 #else
-  emit_cmpmem_indexedsr12_imm(invalid_code, addr, 1);
+  emit_cmpmem_indexedsr12_imm(invalid_code, addr_hr, 1);
   #error not handled
 #endif
   (void)count;
 #ifdef INVALIDATE_USE_COND_CALL
   if (count == 1) {
     emit_cmpimm(HOST_TEMPREG, 1);
-    emit_callne(invalidate_addr_reg[addr]);
+    emit_callne(invalidate_addr_reg[addr_hr]);
     host_tempreg_release();
     return;
   }
@@ -3666,76 +3646,69 @@ static void do_store_smc_check(struct compile_state *st, int i,
   imm_min -= cinfo[i].imm;
   imm_max -= cinfo[i].imm;
   add_stub(INVCODE_STUB, jaddr, out, reglist|(1<<HOST_CCREG),
-    addr, imm_min, imm_max, i);
+    addr_hr, imm_min, imm_max, i);
 }
 
 static void store_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  int addr = cinfo[i].addr;
+  int addr_hr = cinfo[i].addr;
+  int addr_hr_io = -1;
   void *jaddr = NULL;
   enum stub_type type = 0;
   int c = 0, offset_reg = -1;
-  int fastio_reg_override = -1;
   u_int reglist = get_host_reglist(i_regs->regmap);
   u_int saddr_likely = 0;
   u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
   int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  int inline_slow_io = saddr_likely != 0;
   int tl = get_reg(i_regs->regmap, dops[i].rs2);
   assert(tl>=0);
-  assert(addr >= 0);
+  assert(addr_hr >= 0);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
-  reglist |= 1u << addr;
-  if (!c) {
-    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr,
-              &offset_reg, &fastio_reg_override, ccadj_);
+  reglist |= 1u << addr_hr;
+  if (!c && !inline_slow_io) {
+    addr_hr_io = addr_hr;
+    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr_hr,
+              &offset_reg, &addr_hr_io, ccadj_);
   }
-  else if (ram_offset && ram80x_io) {
-    offset_reg = get_ro_reg(i_regs, 0);
+  else if (c && ram80x_io) {
+    addr_hr_io = addr_hr;
+    if (ram_offset)
+      offset_reg = get_ro_reg(i_regs, 0);
   }
 
   switch (dops[i].opcode) {
   case 0x28: // SB
-    if (!c || ram80x_io) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_byte(a, tl, offset_reg);
-    }
     type = STOREB_STUB;
+    if (addr_hr_io >= 0)
+      do_store_byte(addr_hr_io, tl, offset_reg);
     break;
   case 0x29: // SH
-    if (!c || ram80x_io) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_hword(a, 0, tl, offset_reg, 1);
-    }
     type = STOREH_STUB;
+    if (addr_hr_io >= 0)
+      do_store_hword(addr_hr_io, 0, tl, offset_reg, 1);
     break;
   case 0x2B: // SW
-    if (!c || ram80x_io) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_word(a, 0, tl, offset_reg, 1);
-    }
     type = STOREW_STUB;
+    if (addr_hr_io >= 0)
+      do_store_word(addr_hr_io, 0, tl, offset_reg, 1);
     break;
   default:
     assert(0);
   }
-  if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
+  if (addr_hr_io == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if (jaddr) {
-    // PCSX store handlers don't check invcode again
-    add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-  }
-  if (!c || is_ram_addr(saddr_const))
-    do_store_smc_check(st, i, i_regs, reglist, addr);
+  if (jaddr)
+    add_stub_r(type, jaddr, out, i, addr_hr, i_regs, ccadj_, reglist);
+  else if (inline_slow_io)
+    do_write_slow(st, i, i_regs, type, NULL, addr_hr, ccadj_, reglist, 1);
+
+  if ((!c && !inline_slow_io) || is_ram_addr(saddr_const))
+    do_store_smc_check(st, i, i_regs, reglist, addr_hr);
   if (c && !ram80x_io)
     inline_writestub(type, i, saddr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
-  // basic current block modification detection..
+  // basic current block modification detection...
   // not looking back as that should be in mips cache already
   // (see Spyro2 title->attract mode)
   if (st->start + i*4 < saddr_const && saddr_const < st->start + st->slen*4) {
@@ -4379,6 +4352,32 @@ static void cop2_assemble(struct compile_state *st, int i, const struct regstat 
     emit_writeword(temp,&reg_cop2c[copr]);
     assert(sl>=0);
   }
+}
+
+static void do_readstub(struct compile_state *st, int n)
+{
+  assem_debug("do_readstub %x\n", st->start + stubs[n].a*4);
+  set_jump_target(stubs[n].addr, out);
+  int i = stubs[n].a;
+  int rs = stubs[n].b;
+  const struct regstat *i_regs = (void *)stubs[n].c;
+  int adj = (int)stubs[n].d;
+  u_int reglist = stubs[n].e;
+  literal_pool(256);
+  do_read_slow(st, i, i_regs, stubs[n].type, stubs[n].retaddr, rs, adj, reglist);
+}
+
+static void do_writestub(struct compile_state *st, int n)
+{
+  assem_debug("do_writestub %x\n", st->start + stubs[n].a*4);
+  set_jump_target(stubs[n].addr, out);
+  int i = stubs[n].a;
+  int rs = stubs[n].b;
+  struct regstat *i_regs = (struct regstat *)stubs[n].c;
+  int adj = stubs[n].d;
+  u_int reglist = stubs[n].e;
+  literal_pool(256);
+  do_write_slow(st, i, i_regs, stubs[n].type, stubs[n].retaddr, rs, adj, reglist, 0);
 }
 
 static void do_unalignedwritestub(struct compile_state *st, int n)
