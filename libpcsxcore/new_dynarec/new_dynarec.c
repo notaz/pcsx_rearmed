@@ -5834,25 +5834,29 @@ static void vsync_hack_assemble(int i, int ld_ofs, int cc)
 {
   int sp = get_reg(branch_regs[i].regmap, 29);
   int ro = get_reg(branch_regs[i].regmap, ROREG);
+  int tmp = get_reg_temp(branch_regs[i].regmap);
   int cycles = CLOCK_ADJUST(9+5) * 16;
   void *t_exit[3], *loop_target, *t_loop_break;
   int j;
-  if (sp < 0 || (ram_offset && ro < 0))
+  if (sp < 0 || (ram_offset && ro < 0) || tmp < 0) {
+    //printf("vsync hack r %d %d %d\n", sp, ro, tmp);
     return;
+  }
   assem_debug("; vsync hack\n");
   host_tempreg_acquire();
   emit_cmpimm(cc, -cycles);
   t_exit[0] = out;
   emit_jge(0);
-  emit_cmpimm(sp, RAM_SIZE);
+  emit_andimm(sp, ~0x00e00000, tmp);
+  emit_cmpimm(tmp, RAM_SIZE);
   t_exit[1] = out;
   emit_jno(0);
   if (ro >= 0) {
-    emit_addimm(sp, ld_ofs, HOST_TEMPREG);
+    emit_addimm(tmp, ld_ofs, HOST_TEMPREG);
     emit_ldr_dualindexed(ro, HOST_TEMPREG, HOST_TEMPREG);
   }
   else
-    emit_readword_indexed(ld_ofs, sp, HOST_TEMPREG);
+    emit_readword_indexed(ld_ofs, tmp, HOST_TEMPREG);
   emit_cmpimm(HOST_TEMPREG, 17);
   t_exit[2] = out;
   emit_jl(0);
@@ -5869,7 +5873,7 @@ static void vsync_hack_assemble(int i, int ld_ofs, int cc)
 
   assem_debug("2:\n");
   set_jump_target(t_loop_break, out);
-  do_store_word(sp, ld_ofs, HOST_TEMPREG, ro, 1);
+  do_store_word(tmp, ld_ofs, HOST_TEMPREG, ro, 1);
 
   for (j = 0; j < ARRAY_SIZE(t_exit); j++)
     set_jump_target(t_exit[j], out);
@@ -6958,20 +6962,17 @@ static void force_intcall(int i)
   cinfo[i].ba = -1;
 }
 
-static noinline void do_vsync(struct compile_state *st, int i)
+static noinline void do_vsync(struct compile_state *st, int i, u32 addr)
 {
   // lui a0, x; addiu a0, x; jal puts
-  u32 addr = (cinfo[i].imm << 16) + (signed short)cinfo[i+1].imm;
   char *str = NULL;
   int j, t, jals_cnt = 0;
 
-  if (!is_ram_addr(addr))
-      return;
   str = (char *)psxRegs.ptrs.psxM + (addr & 0x1fffff);
   if (!str || strncmp(str, "VSync: timeout", 14))
     return;
   // jal clearPad, jal clearRCnt; j return; nop
-  for (j = i+2; j < st->slen; j++) {
+  for (j = i+1; j < st->slen; j++) {
     if (dops[j].itype == SHIFTIMM || dops[j].itype == IMM16 || dops[j].itype == ALU)
       continue;
     if (dops[j].opcode == 0x03) {
@@ -7021,11 +7022,16 @@ static int apply_hacks(struct compile_state *st)
       dops[i + 3].itype = NOP;
     }
     // see also: psxBiosCheckExe()
-    if (i > 1 && dops[i].opcode == 0x0f && dops[i].rt1 == 4
-        && dops[i+1].opcode == 0x09 && dops[i+1].rt1 == 4 && dops[i+1].rs1 == 4
-        && dops[i+2].opcode == 0x03)
+    if (i > 4 && is_ram_addr(st->start) &&
+          dops[i].opcode == 0x0f && dops[i].rt1 == 4 &&            // lui
+        ((dops[i+1].opcode == 0x09 && dops[i+2].opcode == 0x03) || // addiu; jal
+         (dops[i+1].opcode == 0x03 && dops[i+2].opcode == 0x09)) &&
+         (dops[i-1].opcode == 0x05 || dops[i-2].opcode == 0x05))
     {
-      do_vsync(st, i);
+      int a = dops[i+1].opcode == 0x09 ? 1 : 2;
+      u32 addr = (cinfo[i].imm << 16) + (signed short)cinfo[i+a].imm;
+      if (dops[i+a].rt1 == 4 && dops[i+a].rs1 == 4 && is_ram_addr(addr))
+        do_vsync(st, i, addr);
     }
   }
   if (st->source[0] == 0x3c05edb8 && st->source[1] == 0x34a58320)
