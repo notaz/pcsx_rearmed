@@ -1985,26 +1985,33 @@ static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
   emit_far_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
 }
 
+#include "../gte_neon.h"
+#include "../gte_arm.h"
+
 static void c2op_assemble(struct compile_state *st, int i, const struct regstat *i_regs)
 {
   u_int c2op = st->source[i] & 0x3f;
   u_int reglist_full = get_host_reglist(i_regs->regmap);
   u_int reglist = reglist_full & CALLER_SAVE_REGS;
-  int need_flags, need_ir;
+  int need_flags = !(gte_unneeded[i+1] >> 63); // +1 because of how liveness detection works
+  gte_handler *handler;
 
-  if (gte_handlers[c2op]!=NULL) {
-    need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
-    need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
+  if (HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
+    need_flags = 0;
+#ifdef DRC_DBG
+  need_flags = 1;
+#endif
+  handler = need_flags ? gteGetHandler(st->source[i]) : gteGetHandler_nf(st->source[i]);
+  if (handler) {
+    int need_ir = (gte_unneeded[i+1] & 0xe00) != 0xe00;
     assem_debug("gte op %08x, unneeded %016llx, need_flags %d, need_ir %d\n",
       st->source[i], gte_unneeded[i+1], need_flags, need_ir);
-    if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
-      need_flags=0;
     int shift = (st->source[i] >> 19) & 1;
     int lm = (st->source[i] >> 10) & 1;
     switch(c2op) {
 #ifndef DRC_DBG
-      case GTE_MVMVA: {
 #ifdef HAVE_ARMV5
+      case GTEOP_MVMVA: {
         int v  = (st->source[i] >> 15) & 3;
         int cv = (st->source[i] >> 13) & 3;
         int mx = (st->source[i] >> 17) & 3;
@@ -2044,15 +2051,33 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
         if(need_flags||need_ir)
           c2op_call_MACtoIR(lm,need_flags);
 #endif
-#else /* if not HAVE_ARMV5 */
-        c2op_prologue(st,c2op,i,i_regs,reglist);
-        emit_movimm(st->source[i],1); // opcode
-        emit_writeword(1,&psxRegs.code);
-        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
-#endif
         break;
       }
-      case GTE_OP:
+#endif // HAVE_ARMV5
+      case GTEOP_RTPS:
+#if defined(__ARM_NEON__)
+	// compiler's _nf version is still a lot slower than neon
+        if (!Config.PreciseExceptions)
+          handler = gteRTPS_neon;
+#elif defined(HAVE_ARMV5)
+        if (!need_flags)
+          handler = gteRTPS_nf_arm;
+#endif
+        goto do_handler;
+      case GTEOP_RTPT:
+#if defined(__ARM_NEON__)
+        if (!Config.PreciseExceptions)
+          handler = gteRTPT_neon;
+#elif defined(HAVE_ARMV5)
+        if (!need_flags)
+          handler = gteRTPT_nf_arm;
+#endif
+        goto do_handler;
+      case GTEOP_NCLIP:
+        if (need_flags)
+          handler = gteNCLIP_arm;
+        goto do_handler;
+      case GTEOP_OP:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteOP_part_shift:gteOP_part_noshift);
         if(need_flags||need_ir) {
@@ -2060,15 +2085,15 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
           c2op_call_MACtoIR(lm,need_flags);
         }
         break;
-      case GTE_DPCS:
+      case GTEOP_DPCS:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteDPCS_part_shift:gteDPCS_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_INTPL:
+      case GTEOP_INTPL:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteINTPL_part_shift:gteINTPL_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_SQR:
+      case GTEOP_SQR:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
         if(need_flags||need_ir) {
@@ -2076,29 +2101,25 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
           c2op_call_MACtoIR(lm,need_flags);
         }
         break;
-      case GTE_DCPL:
-        c2op_prologue(st,c2op,i,i_regs,reglist);
-        c2op_call_rgb_func(gteDCPL_part,lm,need_ir,need_flags);
-        break;
-      case GTE_GPF:
+      //case GTEOP_DCPL:
+      case GTEOP_GPF:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPF_part_shift:gteGPF_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_GPL:
+      case GTEOP_GPL:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
         break;
 #endif
+      do_handler:
       default:
         c2op_prologue(st,c2op,i,i_regs,reglist);
-#ifdef DRC_DBG
         emit_movimm(st->source[i],1); // opcode
-        emit_writeword(1,&psxRegs.code);
-#endif
-        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
+        //emit_writeword(1,&psxRegs.code);
+        emit_far_call(handler);
         break;
     }
-    c2op_epilogue(c2op,reglist);
+    c2op_epilogue(c2op, reglist);
   }
 }
 

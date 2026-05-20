@@ -11,7 +11,5 @@ u32 intFakeFetch(u32 pc);
 void execI(struct psxRegisters *regs);
 void intApplyConfig();
 void MTC0(struct psxRegisters *regs, int reg, u32 val);
-void gteNULL(struct psxCP2Regs *regs);
-extern void (*psxCP2[64])(struct psxCP2Regs *regs);
 
 #endif // __PSXINTERPRETER_H__

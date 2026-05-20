@@ -18,9 +18,11 @@
 #ifndef __GTE_ARM_H__
 #define __GTE_ARM_H__
 
-void gteRTPS_nf_arm(void *cp2_regs, int opcode);
-void gteRTPT_nf_arm(void *cp2_regs, int opcode);
-void gteNCLIP_arm(void *cp2_regs, int opcode);
+#include "psxcommon.h"
+
+void gteRTPS_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
+void gteNCLIP_arm(psxCP2Regs *cp2_regs, u32 opcode);
 
 // decomposed ops, nonstd calling convention
 void gteMVMVA_part_arm(void *cp2_regs, int is_shift12);

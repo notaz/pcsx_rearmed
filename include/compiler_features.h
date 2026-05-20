@@ -10,6 +10,7 @@
 # else
 #  define noinline       __attribute__((noinline,noclone))
 # endif
+# define force_inline    __attribute__((always_inline))
 # define attr_unused     __attribute__((unused))
 # define nosanitize(x)   __attribute__((no_sanitize(x)))
 #else
@@ -17,8 +18,14 @@
 # define unlikely(x)     (x)
 # define preload         (x)
 # define noinline
+# define force_inline
 # define attr_unused
 # define nosanitize(x)
+#endif
+#if   defined(__GNUC__) && __GNUC__ >= 11 || (defined(__clang__) && __clang__ >= 7)
+# define no_stackprotector __attribute__((no_stack_protector))
+#else
+# define no_stackprotector
 #endif
 
 // doesn't work on Android, mingw...

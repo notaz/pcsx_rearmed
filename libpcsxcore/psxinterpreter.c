@@ -986,11 +986,6 @@ OP(psxNULL) {
 	intExceptionReservedInsn(regs_);
 }
 
-void gteNULL(struct psxCP2Regs *regs) {
-	psxRegisters *regs_ = (psxRegisters *)((u8 *)regs - offsetof(psxRegisters, CP2));
-	psxNULLne(regs_);
-}
-
 OP(psxSPECIAL) {
 	psxSPC[_Funct_](regs_, code);
 }
@@ -1028,7 +1023,7 @@ OP(psxCOP1) {
 OP(psxCOP2) {
 	u32 rt = _Rt_, rd = _Rd_, rs = _Rs_;
 	if (rs & 0x10) {
-		psxCP2[_Funct_](&regs_->CP2);
+		gteDispatch(&regs_->CP2, code);
 		return;
 	}
 	switch (rs) {
@@ -1150,17 +1145,6 @@ static void (INT_ATTR *psxSPC[64])(psxRegisters *regs_, u32 code) = {
 	psxNULL, psxNULL , psxSLT , psxSLTU, psxNULL   , psxNULL , psxNULL, psxNULL,
 	psxNULL, psxNULL , psxNULL, psxNULL, psxNULL   , psxNULL , psxNULL, psxNULL,
 	psxNULL, psxNULL , psxNULL, psxNULL, psxNULL   , psxNULL , psxNULL, psxNULL
-};
-
-void (*psxCP2[64])(struct psxCP2Regs *regs) = {
-	gteNULL , gteRTPS , gteNULL , gteNULL, gteNULL, gteNULL , gteNCLIP, gteNULL, // 00
-	gteNULL , gteNULL , gteNULL , gteNULL, gteOP  , gteNULL , gteNULL , gteNULL, // 08
-	gteDPCS , gteINTPL, gteMVMVA, gteNCDS, gteCDP , gteNULL , gteNCDT , gteNULL, // 10
-	gteNULL , gteNULL , gteNULL , gteNCCS, gteCC  , gteNULL , gteNCS  , gteNULL, // 18
-	gteNCT  , gteNULL , gteNULL , gteNULL, gteNULL, gteNULL , gteNULL , gteNULL, // 20
-	gteSQR  , gteDCPL , gteDPCT , gteNULL, gteNULL, gteAVSZ3, gteAVSZ4, gteNULL, // 28
-	gteRTPT , gteNULL , gteNULL , gteNULL, gteNULL, gteNULL , gteNULL , gteNULL, // 30
-	gteNULL , gteNULL , gteNULL , gteNULL, gteNULL, gteGPF  , gteGPL  , gteNCCT  // 38
 };
 
 ///////////////////////////////////////////

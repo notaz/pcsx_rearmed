@@ -1789,33 +1789,39 @@ static void c2op_epilogue(u_int op,u_int reglist)
 
 static void c2op_assemble(struct compile_state *st, int i, const struct regstat *i_regs)
 {
-  u_int c2op = st->source[i]&0x3f;
-  u_int hr,reglist_full=0,reglist;
-  int need_flags,need_ir;
+  u_int c2op = st->source[i] & 0x3f;
+  u_int hr, reglist_full = 0, reglist;
+  int need_flags = !(gte_unneeded[i+1] >> 63); // +1 because of how liveness detection works
+  gte_handler *handler;
   for(hr=0;hr<HOST_REGS;hr++) {
     if(i_regs->regmap[hr]>=0) reglist_full|=1<<hr;
   }
-  reglist=reglist_full&CALLER_SAVE_REGS;
+  reglist = reglist_full & CALLER_SAVE_REGS;
 
-  if (gte_handlers[c2op]!=NULL) {
-    need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
-    need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
+  if (HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
+    need_flags = 0;
+#ifdef DRC_DBG
+  need_flags = 1;
+#endif
+  handler = need_flags ? gteGetHandler(st->source[i]) : gteGetHandler_nf(st->source[i]);
+  if (handler) {
+    int need_ir = (gte_unneeded[i+1]&0xe00) != 0xe00;
+    //int shift = (source[i] >> 19) & 1;
+    //int lm = (source[i] >> 10) & 1;
     assem_debug("gte op %08x, unneeded %016lx, need_flags %d, need_ir %d\n",
       st->source[i], gte_unneeded[i+1], need_flags, need_ir);
     if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
       need_flags=0;
-    //int shift = (source[i] >> 19) & 1;
-    //int lm = (source[i] >> 10) & 1;
     switch(c2op) {
       default:
         (void)need_ir;
         c2op_prologue(st, c2op, i, i_regs, reglist);
         emit_movimm(st->source[i], 1); // opcode
-        emit_writeword(1,&psxRegs.code);
-        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
+        //emit_writeword(1,&psxRegs.code);
+        emit_far_call(handler);
         break;
     }
-    c2op_epilogue(c2op,reglist);
+    c2op_epilogue(c2op, reglist);
   }
 }
 

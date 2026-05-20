@@ -4,34 +4,7 @@
 extern int dynarec_local[];
 
 /* COP2/GTE */
-enum gte_opcodes {
-	GTE_RTPS	= 0x01,
-	GTE_NCLIP	= 0x06,
-	GTE_OP		= 0x0c,
-	GTE_DPCS	= 0x10,
-	GTE_INTPL	= 0x11,
-	GTE_MVMVA	= 0x12,
-	GTE_NCDS	= 0x13,
-	GTE_CDP		= 0x14,
-	GTE_NCDT	= 0x16,
-	GTE_NCCS	= 0x1b,
-	GTE_CC		= 0x1c,
-	GTE_NCS		= 0x1e,
-	GTE_NCT		= 0x20,
-	GTE_SQR		= 0x28,
-	GTE_DCPL	= 0x29,
-	GTE_DPCT	= 0x2a,
-	GTE_AVSZ3	= 0x2d,
-	GTE_AVSZ4	= 0x2e,
-	GTE_RTPT	= 0x30,
-	GTE_GPF		= 0x3d,
-	GTE_GPL		= 0x3e,
-	GTE_NCCT	= 0x3f,
-};
-
-extern void *gte_handlers[64];
-extern void *gte_handlers_nf[64];
-extern const char *gte_regnames[64];
+extern const char *gte_opnames[64];
 extern const uint64_t gte_reg_reads[64];
 extern const uint64_t gte_reg_writes[64];
 

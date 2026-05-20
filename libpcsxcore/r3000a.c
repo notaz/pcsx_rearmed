@@ -116,8 +116,8 @@ void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 		// (just skips it, supposedly because it's scheduled already)
 		// so we execute it here
 		psxCP2Regs *cp2 = (psxCP2Regs *)(cp0 + 1);
-		psxRegs.code = opcode;
-		psxCP2[opcode & 0x3f](cp2);
+		//psxRegs.code = opcode;
+		gteDispatch(cp2, opcode);
 	}
 
 	// Set the Cause

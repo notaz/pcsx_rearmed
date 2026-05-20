@@ -7194,10 +7194,10 @@ static void disassemble_one(struct compile_state *st, int i, u_int src)
         op2 = (src >> 21) & 0x1f;
         if (op2 & 0x10) {
           type = OTHER;
-          if (gte_handlers[src & 0x3f] != NULL) {
+          if (gteGetHandler(src) != NULL) {
 #ifdef DISASM
-            if (gte_regnames[src & 0x3f] != NULL)
-              strcpy(insn[i], gte_regnames[src & 0x3f]);
+            if (gte_opnames[src & 0x3f] != NULL)
+              strcpy(insn[i], gte_opnames[src & 0x3f]);
             else
               snprintf(insn[i], sizeof(insn[i]), "COP2 %x", src & 0x3f);
 #endif
@@ -7368,7 +7368,7 @@ static void disassemble_one(struct compile_state *st, int i, u_int src)
         gte_rs[i]=gte_reg_reads[src&0x3f];
         gte_rt[i]=gte_reg_writes[src&0x3f];
         gte_rt[i]|=1ll<<63; // every op changes flags
-        if((src&0x3f)==GTE_MVMVA) {
+        if ((src & 0x3f) == GTEOP_MVMVA) {
           int v = (src >> 15) & 3;
           gte_rs[i]&=~0xe3fll;
           if(v==3) gte_rs[i]|=0xe00ll;

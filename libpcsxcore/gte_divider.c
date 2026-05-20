@@ -35,16 +35,13 @@ static const u8 table[] =
 
 u32 DIVIDE(u16 numerator, u16 denominator)
 {
-	if (numerator < (denominator * 2)) {
-		int shift = __builtin_clz(denominator) - 16;
+	//if (numerator < (denominator * 2)) // done by the caller
+	int shift = __builtin_clz(denominator) - 16;
 
-		int r1 = (denominator << shift) & 0x7fff;
-		int r2 = table[(r1 + 0x40) >> 7] + 0x101;
-		int r3 = ((0x80 - r2 * (r1 + 0x8000)) >> 8) & 0x1ffff;
-		u32 reciprocal = (r2 * r3 + 0x80) >> 8;
+	int r1 = (denominator << shift) & 0x7fff;
+	int r2 = table[(r1 + 0x40) >> 7] + 0x101;
+	int r3 = ((0x80 - r2 * (r1 + 0x8000)) >> 8) & 0x1ffff;
+	u32 reciprocal = (r2 * r3 + 0x80) >> 8;
 
-		return ((u64)reciprocal * (numerator << shift) + 0x8000) >> 16;
-	}
-
-	return 0xffffffff;
+	return ((u64)reciprocal * (numerator << shift) + 0x8000) >> 16;
 }

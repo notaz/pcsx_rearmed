@@ -85,71 +85,14 @@ extern u32 lightrec_hacks;
 static void lightrec_plugin_apply_config();
 extern void lightrec_code_inv(void *ptr, uint32_t len);
 
-enum my_cp2_opcodes {
-	OP_CP2_RTPS		= 0x01,
-	OP_CP2_NCLIP		= 0x06,
-	OP_CP2_OP		= 0x0c,
-	OP_CP2_DPCS		= 0x10,
-	OP_CP2_INTPL		= 0x11,
-	OP_CP2_MVMVA		= 0x12,
-	OP_CP2_NCDS		= 0x13,
-	OP_CP2_CDP		= 0x14,
-	OP_CP2_NCDT		= 0x16,
-	OP_CP2_NCCS		= 0x1b,
-	OP_CP2_CC		= 0x1c,
-	OP_CP2_NCS		= 0x1e,
-	OP_CP2_NCT		= 0x20,
-	OP_CP2_SQR		= 0x28,
-	OP_CP2_DCPL		= 0x29,
-	OP_CP2_DPCT		= 0x2a,
-	OP_CP2_AVSZ3		= 0x2d,
-	OP_CP2_AVSZ4		= 0x2e,
-	OP_CP2_RTPT		= 0x30,
-	OP_CP2_GPF		= 0x3d,
-	OP_CP2_GPL		= 0x3e,
-	OP_CP2_NCCT		= 0x3f,
-};
-
-static void (*cp2_ops[])(struct psxCP2Regs *) = {
-	[OP_CP2_RTPS] = gteRTPS,
-	[OP_CP2_NCLIP] = gteNCLIP,
-	[OP_CP2_OP] = gteOP,
-	[OP_CP2_DPCS] = gteDPCS,
-	[OP_CP2_INTPL] = gteINTPL,
-	[OP_CP2_MVMVA] = gteMVMVA,
-	[OP_CP2_NCDS] = gteNCDS,
-	[OP_CP2_CDP] = gteCDP,
-	[OP_CP2_NCDT] = gteNCDT,
-	[OP_CP2_NCCS] = gteNCCS,
-	[OP_CP2_CC] = gteCC,
-	[OP_CP2_NCS] = gteNCS,
-	[OP_CP2_NCT] = gteNCT,
-	[OP_CP2_SQR] = gteSQR,
-	[OP_CP2_DCPL] = gteDCPL,
-	[OP_CP2_DPCT] = gteDPCT,
-	[OP_CP2_AVSZ3] = gteAVSZ3,
-	[OP_CP2_AVSZ4] = gteAVSZ4,
-	[OP_CP2_RTPT] = gteRTPT,
-	[OP_CP2_GPF] = gteGPF,
-	[OP_CP2_GPL] = gteGPL,
-	[OP_CP2_NCCT] = gteNCCT,
-};
-
 static char cache_buf[64 * 1024];
 
 static void cop2_op(struct lightrec_state *state, u32 func)
 {
 	struct lightrec_registers *regs = lightrec_get_registers(state);
-
-	psxRegs.code = func;
-
-	if (unlikely(!cp2_ops[func & 0x3f])) {
-		fprintf(stderr, "Invalid CP2 function %u\n", func);
-	} else {
-		/* This works because regs->cp2c comes right after regs->cp2d,
-		 * so it can be cast to a pcsxCP2Regs pointer. */
-		cp2_ops[func & 0x3f]((psxCP2Regs *) regs->cp2d);
-	}
+	/* This works because regs->cp2c comes right after regs->cp2d,
+	 * so it can be cast to a pcsxCP2Regs pointer. */
+	gteDispatch((psxCP2Regs *)regs->cp2d, func);
 }
 
 static bool has_interrupt(void)
