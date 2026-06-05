@@ -115,9 +115,14 @@ endif
 
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
+OBJS += libpcsxcore/gte_nf_arm.o
+else ifneq (,$(findstring $(ARCH),aarch64 arm64))
+OBJS += libpcsxcore/gte_arm64.o
+OBJS += libpcsxcore/gte_nf_arm64.o
 endif
 ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
+OBJS += libpcsxcore/gte_nf_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
@@ -510,9 +515,6 @@ frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
 	@echo "git submodule init && git submodule update"
 	@exit 1
-
-libpcsxcore/gte_nf.o: libpcsxcore/gte.c
-	$(CC) -c -o $@ $< $(CFLAGS) $(AUTODEPFLAGS) -DFLAGLESS
 
 include/revision.h: FORCE
 	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_

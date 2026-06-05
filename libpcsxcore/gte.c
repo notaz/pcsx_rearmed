@@ -24,6 +24,7 @@
 */
 
 #include "gte.h"
+#include "gte_arm.h"
 #include "psxmem.h"
 #include "../include/compiler_features.h"
 #include "../include/arm_features.h"
@@ -200,9 +201,31 @@ static inline s32 mac123sub_s12(u32 id, u32 *flags, s32 in12, s32 subtrahend, in
 
 static inline s64 mac123add(u32 id, u32 *flags, s64 in, s32 addend) {
 	s64 a;
+#if defined(__arm__)
+	u32 flag = 1u << (31 - id);
+	asm("adds %Q[a], %Q[in], %[add], lsl #20\n"
+	    "adcs %R[a], %R[in], %[add], asr #12\n"
+	    "movpl %[flag], %[flag], lsr #3\n"
+	    "orrvs %[flags], %[flags], %[flag]"
+	    : [a]"=&r"(a), [flags]"+&r"(*flags), [flag]"+&r"(flag)
+	    : [in]"r"(in), [add]"r"(addend)
+	    : "cc");
+#elif 0 // defined(__aarch64__) // slower
+	u32 flag = 1u << (31 - id);
+	u32 flagpl = 1u << (31 - id - 3);
+	s64 add_ = addend;
+	asm("adds %[a], %[in], %[add], lsl %[shift]\n"
+	    "csel %w[flag], %w[flagpl], %w[flag], pl\n"
+	    "csel %w[flag], %w[flag], wzr, vs\n"
+	    : [a]"=&r"(a), [flag]"+&r"(flag)
+	    : [in]"r"(in), [add]"r"(add_), [flagpl]"r"(flagpl), [shift]"i"(MAC123_SHIFT)
+	    : "cc");
+	*flags |= flag;
+#else
 	int o = __builtin_add_overflow(in, (s64)addend << MAC123_SHIFT, &a);
 	*flags |= (o && a <  0) << (31 - id);
 	*flags |= (o && a >= 0) << (28 - id);
+#endif
 	return a;
 }
 
@@ -220,9 +243,33 @@ static inline s32 mac123add_s12(u32 id, u32 *flags, s32 in12, s32 addend, int sh
 
 static inline s64 mac123sub_s12(u32 id, u32 *flags, s32 in12, s32 subtrahend, int shift) {
 	s64 a;
+#if defined(__arm__)
+	u32 flag = 1u << (31 - id);
+	s64 in = (s64)in12 << (12+MAC123_SHIFT);
+	asm("subs %Q[a], %Q[in], %[sub], lsl #20\n"
+	    "sbcs %R[a], %R[in], %[sub], asr #12\n"
+	    "movpl %[flag], %[flag], lsr #3\n"
+	    "orrvs %[flags], %[flags], %[flag]"
+	    : [a]"=&r"(a), [flags]"+&r"(*flags), [flag]"+&r"(flag)
+	    : [in]"r"(in), [sub]"r"(subtrahend)
+	    : "cc");
+#elif 0 // defined(__aarch64__)
+	u32 flag = 1u << (31 - id);
+	u32 flagpl = 1u << (31 - id - 3);
+	s64 in = (s64)in12 << (12+MAC123_SHIFT);
+	s64 sub_ = subtrahend;
+	asm("subs %[a], %[in], %[sub], lsl %[shift]\n"
+	    "csel %w[flag], %w[flagpl], %w[flag], pl\n"
+	    "csel %w[flag], %w[flag], wzr, vs\n"
+	    : [a]"=&r"(a), [flag]"+&r"(flag)
+	    : [in]"r"(in), [sub]"r"(sub_), [flagpl]"r"(flagpl), [shift]"i"(MAC123_SHIFT)
+	    : "cc");
+	*flags |= flag;
+#else
 	int o = __builtin_sub_overflow((s64)in12 << (12+MAC123_SHIFT), (s64)subtrahend << MAC123_SHIFT, &a);
 	*flags |= (o && subtrahend <  0) << (31 - id);
 	*flags |= (o && subtrahend >= 0) << (28 - id);
+#endif
 	return a >> (shift+MAC123_SHIFT);
 }
 
@@ -231,25 +278,64 @@ static inline s64 mac123sub_s12(u32 id, u32 *flags, s32 in12, s32 subtrahend, in
 #ifndef FLAGLESS
 
 static inline s64 mac0flags(u32 *flags, s64 a) {
+#if 1
+	if (a != (s32)a)
+		*flags |= 1u << (16 + (a >> 63));
+#else
 	if (a > 0x7fffffff)
 		*flags |= 1u << 16;
-	else if (a < -(s64)0x80000000)
+	if (a < -(s64)0x80000000)
 		*flags |= 1u << 15;
+#endif
 	return a;
 }
 
+#if defined(__arm__)
+
+#define LIM(flags_, value_, max_, min_, flag_) \
+({s32 r_ = value_; \
+  asm("cmp   %[val], %[max]\n" \
+      "movgt %[val], %[max]\n" \
+      "orrgt %[flags], %[flag]\n" \
+      "cmp   %[val], %[min]\n" \
+      "movlt %[val], %[min]\n" \
+      "orrlt %[flags], %[flag]\n" \
+      : [val]"+&r"(r_), [flags]"+&r"(*(flags_)) \
+      : [max]"r"(max_), [min]"r"(min_), [flag]"i"(flag_) \
+      : "cc"); \
+  r_;})
+
+#elif defined(__aarch64__)
+
+#define LIM(flags_, value_, max_, min_, flagc_) \
+({s32 r_ = value_; \
+  u32 flag_o_, flag_ = flagc_; \
+  asm("cmp  %w[val], %w[max]\n" \
+      "csel %w[val], %w[max], %w[val], gt\n" \
+      "csel %w[flag_o], %w[flag], wzr, gt\n" \
+      "cmp  %w[val], %w[min]\n" \
+      "csel %w[val], %w[min], %w[val], lt\n" \
+      "csel %w[flag_o], %w[flag], %w[flag_o], lt\n" \
+      : [val]"+&r"(r_), [flag_o]"=&r"(flag_o_) \
+      : [max]"r"(max_), [min]"r"(min_), [flag]"r"(flag_) \
+      : "cc"); \
+  *(flags_) |= flag_o_; \
+  r_;})
+
+#else
+
 static inline s32 LIM(u32 *flags, s32 value, s32 max, s32 min, u32 flag) {
 	s32 ret = value;
-	if (value > max) {
-		*flags |= flag;
+	if (ret > max)
 		ret = max;
-	}
-	else if (value < min) {
-		*flags |= flag;
+	if (ret < min)
 		ret = min;
-	}
+	if (ret != value)
+		*flags |= flag;
 	return ret;
 }
+
+#endif
 
 static inline void LIMF(u32 *flags, s32 value, s32 max, s32 min, u32 flag) {
 	if (value > max || value < min)
@@ -269,9 +355,9 @@ static inline s64 mac0flags(u32 *flags, s64 a) {
 
 static inline s32 LIM(u32 *flags, s32 value, s32 max, s32 min, u32 flag) {
 	s32 ret = value;
-	if (value > max)
+	if (ret > max)
 		ret = max;
-	else if (value < min)
+	if (ret < min)
 		ret = min;
 	return ret;
 }
@@ -450,7 +536,7 @@ static u32 DIVIDE_(s16 n, u16 d) {
 
 static inline s32 divide(u32 *flags, u16 h, u16 sz3)
 {
-	if (h < sz3 * 2u) {
+	if (likely(h < sz3 * 2u)) {
 		s32 r = DIVIDE(h, sz3);
 		return r >= 0x1ffff ? 0x1ffff : r;
 	}
@@ -459,6 +545,26 @@ static inline s32 divide(u32 *flags, u16 h, u16 sz3)
 #endif
 	return 0x1ffff;
 }
+
+#ifdef HAVE_ARMV5
+
+#define gteMAC123f gteMAC123f_arm
+
+#else
+
+static u32 gteMAC123f(psxCP2Regs *regs, s32 vx, s32 vy, s32 vz,
+	const s16 *mx, const s32 *cv, int shift)
+{
+	u32 flags = 0;
+
+	gteMAC1 = mac123add4(1, &flags, cv[0], mx[0] * vx, mx[1] * vy, mx[2] * vz, shift);
+	gteMAC2 = mac123add4(2, &flags, cv[1], mx[3] * vx, mx[4] * vy, mx[5] * vz, shift);
+	gteMAC3 = mac123add4(3, &flags, cv[2], mx[6] * vx, mx[7] * vy, mx[8] * vz, shift);
+
+	return flags;
+}
+
+#endif
 
 static inline force_inline void gteRTPS(psxCP2Regs *regs, int shift, int lm)
 {
@@ -541,11 +647,9 @@ static inline force_inline void gteRTPT(psxCP2Regs *regs, int shift, int lm)
 static inline force_inline void NM(gteMVMVAn)(psxCP2Regs *regs,
 	const s16 *mx, const s16 *v, const s32 *cv, int shift, int lm)
 {
-	s32 vx = v[0], vy = v[1], vz = v[2];
 	u32 flags = 0;
-	gteMAC1 = mac123add4(1, &flags, cv[0], mx[0] * vx, mx[1] * vy, mx[2] * vz, shift);
-	gteMAC2 = mac123add4(2, &flags, cv[1], mx[3] * vx, mx[4] * vy, mx[5] * vz, shift);
-	gteMAC3 = mac123add4(3, &flags, cv[2], mx[6] * vx, mx[7] * vy, mx[8] * vz, shift);
+
+	flags = gteMAC123f(regs, v[0], v[1], v[2], mx, cv, shift);
 	gteIR1 = limB1(&flags, gteMAC1, lm);
 	gteIR2 = limB2(&flags, gteMAC2, lm);
 	gteIR3 = limB3(&flags, gteMAC3, lm);
@@ -631,7 +735,7 @@ static inline force_inline void gteMVMVA(psxCP2Regs *regs,
 	}
 }
 
-static void gteMVMVA_(psxCP2Regs *regs, u32 code)
+void NM(gteMVMVA_generic)(psxCP2Regs *regs, u32 code)
 {
 	gteMVMVA(regs, GTE_MX(code), GTE_V(code), GTE_CV(code),
 	         12 * GTE_SF(code), GTE_LM(code));
@@ -706,9 +810,10 @@ static inline force_inline void runColor1(psxCP2Regs *regs, u32 *flags, int shif
 	ir1 = limB1(flags, mac1, lm);
 	ir2 = limB2(flags, mac2, lm);
 	ir3 = limB3(flags, mac3, lm);
-	mac1 = mac123add4(1, flags, gteRBK, gteLR1 * ir1, gteLR2 * ir2, gteLR3 * ir3, shift);
-	mac2 = mac123add4(2, flags, gteGBK, gteLG1 * ir1, gteLG2 * ir2, gteLG3 * ir3, shift);
-	mac3 = mac123add4(3, flags, gteBBK, gteLB1 * ir1, gteLB2 * ir2, gteLB3 * ir3, shift);
+	*flags |= gteMAC123f(regs, ir1, ir2, ir3, &gteLR1, &gteRBK, shift);
+	mac1 = gteMAC1;
+	mac2 = gteMAC2;
+	mac3 = gteMAC3;
 	if (is_ncc || is_ncd) {
 		ir1 = limB1(flags, mac1, lm);
 		ir2 = limB2(flags, mac2, lm);
@@ -964,16 +1069,14 @@ static inline void gteINTPL(psxCP2Regs *regs, int shift, int lm)
 
 static inline void runColor3(psxCP2Regs *regs, int shift, int lm, int is_cdp)
 {
-	s32 ir1 = gteIR1, ir2 = gteIR2, ir3 = gteIR3;
 	s32 mac1, mac2, mac3;
-	u32 flags = 0;
+	s32 ir1, ir2, ir3;
+	u32 flags;
 
-	mac1 = mac123add4(1, &flags, gteRBK, gteLR1 * ir1, gteLR2 * ir2, gteLR3 * ir3, shift);
-	mac2 = mac123add4(2, &flags, gteGBK, gteLG1 * ir1, gteLG2 * ir2, gteLG3 * ir3, shift);
-	mac3 = mac123add4(3, &flags, gteBBK, gteLB1 * ir1, gteLB2 * ir2, gteLB3 * ir3, shift);
-	ir1 = limB1(&flags, mac1, lm);
-	ir2 = limB2(&flags, mac2, lm);
-	ir3 = limB3(&flags, mac3, lm);
+	flags = gteMAC123f(regs, gteIR1, gteIR2, gteIR3, &gteLR1, &gteRBK, shift);
+	ir1 = limB1(&flags, gteMAC1, lm);
+	ir2 = limB2(&flags, gteMAC2, lm);
+	ir3 = limB3(&flags, gteMAC3, lm);
 	mac1 = ((s32)gteR * ir1) << 4;
 	mac2 = ((s32)gteG * ir2) << 4;
 	mac3 = ((s32)gteB * ir3) << 4;
@@ -1018,15 +1121,16 @@ static inline void gteCDP(psxCP2Regs *regs, int shift, int lm)
 	runColor3(regs, shift, lm, 1);
 }
 
-#define DECL_OP4_(name, nf) \
-static void gte##name##_sf0lm0##nf(psxCP2Regs *regs, u32 code) { gte##name(regs,  0, 0); } \
-static void gte##name##_sf0lm1##nf(psxCP2Regs *regs, u32 code) { gte##name(regs,  0, 1); } \
-static void gte##name##_sf1lm0##nf(psxCP2Regs *regs, u32 code) { gte##name(regs, 12, 0); } \
-static void gte##name##_sf1lm1##nf(psxCP2Regs *regs, u32 code) { gte##name(regs, 12, 1); }
+#define DECL_OP4__(name, nf, decl_) \
+decl_ void gte##name##_sf0lm0##nf(psxCP2Regs *regs, u32 code) { gte##name(regs,  0, 0); } \
+decl_ void gte##name##_sf0lm1##nf(psxCP2Regs *regs, u32 code) { gte##name(regs,  0, 1); } \
+decl_ void gte##name##_sf1lm0##nf(psxCP2Regs *regs, u32 code) { gte##name(regs, 12, 0); } \
+decl_ void gte##name##_sf1lm1##nf(psxCP2Regs *regs, u32 code) { gte##name(regs, 12, 1); }
 #define DECL_OP1_(name, nf) \
 static void gte##name##nf(psxCP2Regs *regs, u32 code) { gte##name##_(regs); }
 
-#define DECL_OP4(name, nf) DECL_OP4_(name, nf)
+#define DECL_OP4_(name, nf, decl_) DECL_OP4__(name, nf, decl_)
+#define DECL_OP4(name, nf) DECL_OP4_(name, nf, static)
 #define DECL_OP1(name, nf) DECL_OP1_(name, nf)
 
 #define DECL_MVMVA1(nf, sf_, mx_, v_, cv_, lm_) \
@@ -1083,7 +1187,7 @@ static void no_stackprotector gteMVMVA_mx##mx_##v##v_##cv##cv_##sf##sf_##lm##lm_
 	TABLE_ENTRY1_MVMVA32(nf, 0) \
 	TABLE_ENTRY1_MVMVA32(nf, 1)
 
-DECL_OP4(RTPS,  NF)
+DECL_OP4_(RTPS, NF, )
 DECL_OP1(NCLIP, NF)
 DECL_OP4(OP,    NF)
 DECL_OP4(DPCS,  NF)
@@ -1100,7 +1204,7 @@ DECL_OP4(DCPL,  NF)
 DECL_OP4(DPCT,  NF)
 DECL_OP1(AVSZ3, NF)
 DECL_OP1(AVSZ4, NF)
-DECL_OP4(RTPT,  NF)
+DECL_OP4_(RTPT, NF, )
 DECL_OP4(GPF,   NF)
 DECL_OP4(GPL,   NF)
 DECL_OP4(NCCT,  NF)
@@ -1142,7 +1246,7 @@ gte_handler * NM(gteGetHandler)(u32 code)
 		return h;
 	if (op == GTEOP_MVMVA) {
 		if (code & ((1u << 18) | (1u << 14))) // "bugged" mx/cv
-			h = gteMVMVA_;
+			h = NM(gteMVMVA_generic);
 		else {
 			l = ((code >> (19-5)) & 0x20) | // sf
 			    ((code >> (17-4)) & 0x10) | // mx
@@ -1169,32 +1273,24 @@ void gteDispatch(psxCP2Regs *regs, u32 code)
 /* decomposed/parametrized versions for the recompiler */
 
 void gteSQR_part_noshift(psxCP2Regs *regs) {
-	gteFLAG = 0;
-
 	gteMAC1 = gteIR1 * gteIR1;
 	gteMAC2 = gteIR2 * gteIR2;
 	gteMAC3 = gteIR3 * gteIR3;
 }
 
 void gteSQR_part_shift(psxCP2Regs *regs) {
-	gteFLAG = 0;
-
 	gteMAC1 = (gteIR1 * gteIR1) >> 12;
 	gteMAC2 = (gteIR2 * gteIR2) >> 12;
 	gteMAC3 = (gteIR3 * gteIR3) >> 12;
 }
 
 void gteOP_part_noshift(psxCP2Regs *regs) {
-	gteFLAG = 0;
-
 	gteMAC1 = (gteR22 * gteIR3) - (gteR33 * gteIR2);
 	gteMAC2 = (gteR33 * gteIR1) - (gteR11 * gteIR3);
 	gteMAC3 = (gteR11 * gteIR2) - (gteR22 * gteIR1);
 }
 
 void gteOP_part_shift(psxCP2Regs *regs) {
-	gteFLAG = 0;
-
 	gteMAC1 = ((gteR22 * gteIR3) - (gteR33 * gteIR2)) >> 12;
 	gteMAC2 = ((gteR33 * gteIR1) - (gteR11 * gteIR3)) >> 12;
 	gteMAC3 = ((gteR11 * gteIR2) - (gteR22 * gteIR1)) >> 12;

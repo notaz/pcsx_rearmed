@@ -20,18 +20,25 @@
 
 #include "psxcommon.h"
 
-void gteRTPS_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
-void gteRTPT_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
+u32 gteMAC123f_arm(psxCP2Regs *regs, s32 vx, s32 vy, s32 vz,
+	const s16 *mx, const s32 *cv, int shift);
+
+// note: doesn't use opcode, just maintaining common signature
+void gteRTPS_sf1lm0_arm(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_arm(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPS_sf1lm0_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_nf_arm(psxCP2Regs *cp2_regs, u32 opcode);
 void gteNCLIP_arm(psxCP2Regs *cp2_regs, u32 opcode);
 
-// decomposed ops, nonstd calling convention
-void gteMVMVA_part_arm(void *cp2_regs, int is_shift12);
-void gteMVMVA_part_nf_arm(void *cp2_regs, int is_shift12);
-void gteMVMVA_part_cv3sh12_arm(void *cp2_regs);
+// decomposed ops, nonstd calling convention (see asm)
+void gteMVMVA_part_sf0_arm(void *cp2_regs, u32 opcode);
+void gteMVMVA_part_sf1_arm(void *cp2_regs, u32 opcode);
+void gteMVMVA_part_sf0cv3_arm(void *cp2_regs, u32 opcode);
+void gteMVMVA_part_sf1cv3_arm(void *cp2_regs, u32 opcode);
 
-void gteMACtoIR_lm0(void *cp2_regs);
-void gteMACtoIR_lm1(void *cp2_regs);
-void gteMACtoIR_lm0_nf(void *cp2_regs);
-void gteMACtoIR_lm1_nf(void *cp2_regs);
+void gteMACtoIR_lm0_arm(void *cp2_regs, u32 gte_flags);
+void gteMACtoIR_lm1_arm(void *cp2_regs, u32 gte_flags);
+void gteMACtoIR_lm0_nf_arm(void *cp2_regs);
+void gteMACtoIR_lm1_nf_arm(void *cp2_regs);
 
 #endif /* __GTE_ARM_H__ */

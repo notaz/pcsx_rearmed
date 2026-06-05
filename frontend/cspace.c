@@ -80,10 +80,10 @@ typedef uint16_t gvu16u __attribute__((vector_size(16),aligned(2)));
   uint16_t d_ = (s) << 1; d_ = (d_ & 0x07c0) | (d_ << 10) | (d_ >> 11); d_; \
 })
 #define do_one_simd(d_, s_, c0x07c0_) { \
-  gvu16 s1 = s_ << 1; \
-  d_ = s1 & c0x07c0_; \
+  gvu16 s1_ = s_ << 1; \
+  d_ = s1_ & c0x07c0_; \
   gsli(d_, s_, 11); \
-  gsri(d_, s1, 11); \
+  gsri(d_, s1_, 11); \
 }
 
 void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
@@ -92,6 +92,7 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 	const uint16_t * __restrict__ src = src_;
 	uint16_t * __restrict__ dst = dst_;
 	gvu16 c0x07c0 = gdup(0x07c0);
+	uintptr_t pfc_ofs;
 
 	assert(!(((uintptr_t)dst | (uintptr_t)src) & 1));
 
@@ -106,13 +107,18 @@ void bgr555_to_rgb565(void * __restrict__ dst_, const void *  __restrict__ src_,
 		src += left / 2;
 		pixels -= left / 2;
 	}
+	pfc_ofs = (128 + 64 - ((uintptr_t)src & 63l)) / 2;
 	// go
-	for (; pixels >= 8; dst += 8, src += 8, pixels -= 8)
+	for (; pixels >= 8*2; dst += 8*2, src += 8*2, pixels -= 8*2)
 	{
-		gvu16 d, s = *(const gvu16u *)src;
-		do_one_simd(d, s, c0x07c0);
-		*(gvu16 *)dst = d;
-		__builtin_prefetch(src + 128/2);
+		gvu16 d0, s0 = ((const gvu16u *)src)[0];
+		gvu16 d1, s1 = ((const gvu16u *)src)[1];
+		do_one_simd(d0, s0, c0x07c0);
+		do_one_simd(d1, s1, c0x07c0);
+		//asm("stnp %q0, %q1, [%2]" :: "w"(d0), "w"(d1), "r"(dst) : "memory");
+		((gvu16 *)dst)[0] = d0;
+		((gvu16 *)dst)[1] = d1;
+		__builtin_prefetch(src + pfc_ofs);
 	}
 	// finish it
 	for (; pixels > 0; dst++, src++, pixels--)

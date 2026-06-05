@@ -33,14 +33,14 @@
 #define LO_mem_rtab		(LO_inv_code_end + 4)
 #define LO_mem_wtab		(LO_mem_rtab + PTRSZ)
 #define LO_psxH_ptr		(LO_mem_wtab + PTRSZ)
-#define LO_zeromem_ptr		(LO_psxH_ptr + PTRSZ)
+#define LO_zeromem_ptr		(LO_psxH_ptr + PTRSZ)        // unused
 #define LO_invc_ptr		(LO_zeromem_ptr + PTRSZ)
-#define LO_scratch_buf_ptr	(LO_invc_ptr + PTRSZ)        // for gte_neon.S
-#define LO_saved_lr		(LO_scratch_buf_ptr + PTRSZ)
+#define LO_gte_divider_tab_ptr	(LO_invc_ptr + PTRSZ)        // for gte_neon.S
+#define LO_saved_lr		(LO_gte_divider_tab_ptr + PTRSZ)
 #define LO_ram_offset		(LO_saved_lr + PTRSZ)
 #define LO_hash_table_ptr	(LO_ram_offset + PTRSZ)
 #define LO_unused2		(LO_hash_table_ptr + PTRSZ)
 #define LO_mini_ht		(LO_unused2 + PTRSZ)
 #define LO_dynarec_local_size	(LO_mini_ht + PTRSZ*32*2)
 
-#define LO_cop2_to_scratch_buf	(LO_scratch_buf_ptr - LO_reg_cop2d)
+#define LO_cop2_to_gte_divider_tab_ptr	(LO_gte_divider_tab_ptr - LO_reg_cop2d)

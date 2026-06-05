@@ -20,8 +20,11 @@
 
 #include "psxcommon.h"
 
-void gteRTPS_neon(psxCP2Regs *cp2_regs, u32 opcode);
-void gteRTPT_neon(psxCP2Regs *cp2_regs, u32 opcode);
+// note: doesn't use opcode, just maintaining common signature
+void gteRTPS_sf1lm0_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPS_sf1lm0_nf_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_nf_neon(psxCP2Regs *cp2_regs, u32 opcode);
 
 // decomposed ops, nonstd calling convention
 void gteMVMVA_part_neon(psxCP2Regs *cp2_regs, u32 opcode);

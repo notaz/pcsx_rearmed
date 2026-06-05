@@ -18,6 +18,8 @@
 #ifndef __GTE_DIVIDER_H__
 #define __GTE_DIVIDER_H__
 
+extern const u8 gte_divider_tab[];
+
 u32 DIVIDE(u16 n, u16 d);
 
 #endif /* __GTE_DIVIDER_H__ */

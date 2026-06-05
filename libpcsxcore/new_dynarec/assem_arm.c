@@ -1967,22 +1967,38 @@ static void c2op_epilogue(u_int op,u_int reglist)
   restore_regs_all(reglist);
 }
 
-static void c2op_call_MACtoIR(int lm,int need_flags)
+enum MACtoIRflagMode {
+  fm_load, fm_zero, fm_preset_r1
+};
+
+static void c2op_call_MACtoIR(int lm, int need_flags, enum MACtoIRflagMode fmode)
 {
-  if(need_flags)
-    emit_far_call(lm?gteMACtoIR_lm1:gteMACtoIR_lm0);
+  if (need_flags) {
+    switch (fmode) {
+    case fm_load:
+      emit_readword_indexed((char *)&psxRegs.CP2C.n.flag - (char *)&psxRegs.CP2, 0, 1);
+      break;
+    case
+      fm_zero: emit_movimm(0, 1);
+      break;
+    default:
+      break;
+    }
+    emit_far_call(lm ? gteMACtoIR_lm1_arm : gteMACtoIR_lm0_arm);
+  }
   else
-    emit_far_call(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf);
+    emit_far_call(lm ? gteMACtoIR_lm1_nf_arm : gteMACtoIR_lm0_nf_arm);
 }
 
 static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
 {
   emit_far_call(func);
-  // func is C code and trashes r0
-  emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-  if(need_flags||need_ir)
-    c2op_call_MACtoIR(lm,need_flags);
-  emit_far_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
+  if (need_flags || need_ir) {
+    // func is C code and trashes r0
+    emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+    c2op_call_MACtoIR(lm, need_flags, fm_load);
+  }
+  emit_far_call(need_flags ? gteMACtoRGB : gteMACtoRGB_nf);
 }
 
 #include "../gte_neon.h"
@@ -2015,63 +2031,50 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
         int v  = (st->source[i] >> 15) & 3;
         int cv = (st->source[i] >> 13) & 3;
         int mx = (st->source[i] >> 17) & 3;
-        reglist=reglist_full&(CALLER_SAVE_REGS|0xf0); // +{r4-r7}
+        if ((st->source[i] & (1u << 18)) || cv == 2) // "bugged" mx/cv
+          goto do_handler;
+        reglist = reglist_full & (CALLER_SAVE_REGS|0x7f0); // +{r4-r10}
         c2op_prologue(st, c2op, i, i_regs, reglist);
         /* r4,r5 = VXYZ(v) packed; r6 = &MX11(mx); r7 = &CV1(cv) */
-        if(v<3)
-          emit_ldrd(v*8,0,4);
+        if (v < 3)
+          emit_ldrd(v*8, 0, 4);
         else {
-          emit_movzwl_indexed(9*4,0,4);  // gteIR
-          emit_movzwl_indexed(10*4,0,6);
-          emit_movzwl_indexed(11*4,0,5);
-          emit_orrshl_imm(6,16,4);
+          emit_movzwl_indexed(4 *  9, 0, 4);  // gteIR
+          emit_movzwl_indexed(4 * 10, 0, 6);
+          emit_movzwl_indexed(4 * 11, 0, 5);
+          emit_orrshl_imm(6, 16, 4);
         }
-        if(mx<3)
-          emit_addimm(0,32*4+mx*8*4,6);
-        else
-          emit_readword(&zeromem_ptr,6);
-        if(cv<3)
-          emit_addimm(0,32*4+(cv*8+5)*4,7);
-        else
-          emit_readword(&zeromem_ptr,7);
-#ifdef __ARM_NEON__
-        emit_movimm(st->source[i],1); // opcode
-        emit_far_call(gteMVMVA_part_neon);
-        if(need_flags) {
-          emit_movimm(lm,1);
-          emit_far_call(gteMACtoIR_flags_neon);
-        }
-#else
-        if(cv==3&&shift)
-          emit_far_call(gteMVMVA_part_cv3sh12_arm);
+        assert(mx < 3);
+        emit_addimm(0, 32*4 + mx*8*4, 6);
+        if (cv == 3)
+          emit_far_call(shift ? gteMVMVA_part_sf1cv3_arm : gteMVMVA_part_sf0cv3_arm);
         else {
-          emit_movimm(shift,1);
-          emit_far_call(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm);
+          emit_addimm(0, 32*4 + (cv*8+5)*4, 7);
+          emit_movimm(st->source[i], 1);
+          emit_far_call(shift ? gteMVMVA_part_sf1_arm : gteMVMVA_part_sf0_arm);
         }
-        if(need_flags||need_ir)
-          c2op_call_MACtoIR(lm,need_flags);
-#endif
+        if (need_flags || need_ir)
+          c2op_call_MACtoIR(lm, need_flags, fm_preset_r1); // r1 from gteMVMVA_part_*
         break;
       }
 #endif // HAVE_ARMV5
       case GTEOP_RTPS:
+        if (shift && !lm) {
 #if defined(__ARM_NEON__)
-	// compiler's _nf version is still a lot slower than neon
-        if (!Config.PreciseExceptions)
-          handler = gteRTPS_neon;
+          handler = need_flags ? gteRTPS_sf1lm0_neon : gteRTPS_sf1lm0_nf_neon;
 #elif defined(HAVE_ARMV5)
-        if (!need_flags)
-          handler = gteRTPS_nf_arm;
+          handler = need_flags ? gteRTPS_sf1lm0_arm : gteRTPS_sf1lm0_nf_arm;
 #endif
+        }
         goto do_handler;
       case GTEOP_RTPT:
+        if (shift && !lm) {
 #if defined(__ARM_NEON__)
-        if (!Config.PreciseExceptions)
-          handler = gteRTPT_neon;
+          handler = need_flags ? gteRTPT_sf1lm0_neon : gteRTPT_sf1lm0_nf_neon;
 #elif defined(HAVE_ARMV5)
-        if (!need_flags)
-          handler = gteRTPT_nf_arm;
+          handler = need_flags ? gteRTPT_sf1lm0_arm : gteRTPT_sf1lm0_nf_arm;
 #endif
+        }
         goto do_handler;
       case GTEOP_NCLIP:
         if (need_flags)
@@ -2080,9 +2083,9 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
       case GTEOP_OP:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteOP_part_shift:gteOP_part_noshift);
-        if(need_flags||need_ir) {
-          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-          c2op_call_MACtoIR(lm,need_flags);
+        if (need_flags || need_ir) {
+          emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+          c2op_call_MACtoIR(lm, need_flags, fm_zero);
         }
         break;
       case GTEOP_DPCS:
@@ -2096,9 +2099,9 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
       case GTEOP_SQR:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
-        if(need_flags||need_ir) {
-          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-          c2op_call_MACtoIR(lm,need_flags);
+        if (need_flags || need_ir) {
+          emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+          c2op_call_MACtoIR(lm, need_flags, fm_zero);
         }
         break;
       //case GTEOP_DCPL:
@@ -2110,8 +2113,8 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
         break;
-#endif
       do_handler:
+#endif
       default:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_movimm(st->source[i],1); // opcode
@@ -2127,12 +2130,13 @@ static void c2op_ctc2_31_assemble(signed char sl, signed char temp)
 {
   //value = value & 0x7ffff000;
   //if (value & 0x7f87e000) value |= 0x80000000;
-  emit_shrimm(sl,12,temp);
-  emit_shlimm(temp,12,temp);
-  emit_testimm(temp,0x7f000000);
-  emit_testeqimm(temp,0x00870000);
-  emit_testeqimm(temp,0x0000e000);
-  emit_orrne_imm(temp,0x80000000,temp);
+  emit_andimm(sl, ~0xff, temp);
+  emit_andimm(temp, ~0xf00, temp);
+  emit_andimm(temp, ~(1u << 31), temp);
+  emit_testimm(sl,   0x7f000000);
+  emit_testeqimm(sl, 0x00870000);
+  emit_testeqimm(sl, 0x0000e000);
+  emit_orrne_imm(temp, 1u << 31, temp);
 }
 
 static void do_mfc2_31_one(u_int copr,signed char temp)

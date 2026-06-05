@@ -1787,6 +1787,8 @@ static void c2op_epilogue(u_int op,u_int reglist)
   save_load_regs_all(0, reglist);
 }
 
+#include "../gte_arm64.h"
+
 static void c2op_assemble(struct compile_state *st, int i, const struct regstat *i_regs)
 {
   u_int c2op = st->source[i] & 0x3f;
@@ -1805,16 +1807,23 @@ static void c2op_assemble(struct compile_state *st, int i, const struct regstat 
 #endif
   handler = need_flags ? gteGetHandler(st->source[i]) : gteGetHandler_nf(st->source[i]);
   if (handler) {
-    int need_ir = (gte_unneeded[i+1]&0xe00) != 0xe00;
-    //int shift = (source[i] >> 19) & 1;
-    //int lm = (source[i] >> 10) & 1;
+    int need_ir = (gte_unneeded[i+1] & 0xe00) != 0xe00;
+    int shift = (st->source[i] >> 19) & 1;
+    int lm = (st->source[i] >> 10) & 1;
     assem_debug("gte op %08x, unneeded %016lx, need_flags %d, need_ir %d\n",
       st->source[i], gte_unneeded[i+1], need_flags, need_ir);
-    if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
-      need_flags=0;
-    switch(c2op) {
+    if (HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
+      need_flags = 0;
+    switch (c2op) {
+#ifndef DRC_DBG
+      case GTEOP_RTPS:
+        if (shift && !lm)
+          handler = need_flags ? gteRTPS_sf1lm0_arm64 : gteRTPS_sf1lm0_nf_arm64;
+        goto do_handler;
+      do_handler:
+#endif
       default:
-        (void)need_ir;
+        (void)(need_ir + shift + lm);
         c2op_prologue(st, c2op, i, i_regs, reglist);
         emit_movimm(st->source[i], 1); // opcode
         //emit_writeword(1,&psxRegs.code);
@@ -1836,7 +1845,6 @@ static void c2op_ctc2_31_assemble(signed char sl, signed char temp)
   emit_orimm(temp, 0x80000000, HOST_TEMPREG);
   emit_cmovne_reg(HOST_TEMPREG, temp);
   host_tempreg_release();
-  assert(0); // testing needed
 }
 
 static void do_mfc2_31_one(u_int copr,signed char temp)

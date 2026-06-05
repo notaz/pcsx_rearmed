@@ -18,8 +18,8 @@
 #include "../r3000a.h"
 #include "compiler_features.h"
 #include "arm_features.h"
-#define FLAGLESS
 #include "../gte.h"
+#include "../gte_divider.h"
 #if defined(NDRC_THREAD) && !defined(DRC_DISABLE) && !defined(LIGHTREC)
 #include "../../frontend/pcsxr-threads.h"
 #include "features/features_cpu.h"
@@ -588,14 +588,12 @@ static int ari64_thread_check_range(unsigned int start, unsigned int end) { retu
 
 static int ari64_init()
 {
-	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
-
 	new_dynarec_init();
 	new_dyna_pcsx_mem_init();
 
 	psxH_ptr = psxRegs.ptrs.psxH;
 	zeromem_ptr = zero_mem;
-	scratch_buf_ptr = scratch_buf; // for gte_neon.S
+	gte_divider_tab_ptr = gte_divider_tab; // for gte_neon.S
 
 	ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
 	ndrc_g.hacks_old = ndrc_g.hacks | ndrc_g.hacks_pergame;

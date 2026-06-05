@@ -69,6 +69,11 @@ typedef void (gte_handler)(psxCP2Regs *regs, u32 code);
 gte_handler *gteGetHandler(u32 code);
 gte_handler *gteGetHandler_nf(u32 code);
 
+// used by asm/drc
+void gteRTPS_sf1lm0(psxCP2Regs *regs, u32 code);
+void gteMVMVA_generic(psxCP2Regs *regs, u32 code);
+void gteMVMVA_generic_nf(psxCP2Regs *regs, u32 code);
+
 void gteSQR_part_noshift(struct psxCP2Regs *regs);
 void gteSQR_part_shift(struct psxCP2Regs *regs);
 void gteOP_part_noshift(struct psxCP2Regs *regs);

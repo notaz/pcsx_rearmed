@@ -32,7 +32,7 @@ extern unsigned int address;
 extern unsigned int hack_addr;
 extern void *psxH_ptr;
 extern void *zeromem_ptr;
-extern void *scratch_buf_ptr;
+extern const void *gte_divider_tab_ptr;
 
 // same as invalid_code, just a region for ram write checks (inclusive)
 // (psx/guest address range)
