@@ -5,7 +5,7 @@ $(shell cd "$(LOCAL_PATH)" && ((git describe --always || echo) | sed -e 's/.*/#d
 $(shell cd "$(LOCAL_PATH)" && (diff -q ../include/revision.h_ ../include/revision.h > /dev/null 2>&1 || cp ../include/revision.h_ ../include/revision.h))
 $(shell cd "$(LOCAL_PATH)" && (rm ../include/revision.h_))
 
-USE_LIBRETRO_VFS ?= 0
+USE_LIBRETRO_VFS ?= 1
 USE_ASYNC_CDROM ?= 1
 USE_ASYNC_GPU ?= 1
 USE_ASYNC_SPU ?= 1
@@ -120,7 +120,7 @@ ifeq ($(USE_LIBRETRO_VFS),1)
 SOURCES_C += \
              $(LIBRETRO_COMMON)/compat/compat_posix_string.c \
              $(LIBRETRO_COMMON)/compat/fopen_utf8.c \
-             $(LIBRETRO_COMMON)/encodings/compat_strl.c \
+             $(LIBRETRO_COMMON)/compat/compat_strl.c \
              $(LIBRETRO_COMMON)/encodings/encoding_utf.c \
              $(LIBRETRO_COMMON)/file/file_path.c \
              $(LIBRETRO_COMMON)/streams/file_stream.c \
