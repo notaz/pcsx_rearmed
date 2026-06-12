@@ -147,6 +147,7 @@ typedef struct {
 		boolean fractional_Framerate;
 		boolean f1;
 		boolean alt_flip;
+		boolean drc_no_thread;
 	} hacks;
 } PcsxConfig;
 

@@ -106,6 +106,14 @@ static const char * const alt_flip_db[] =
 	"SLUS00620",
 };
 
+/* slight timing jitter when switching betweed drc/interpreter
+ * triggers unfortunate timing conditions */
+static const char * const drc_no_thread_db[] =
+{
+	/* Hellboy - Asylum Seeker (USA) */
+	"SLUS01414",
+};
+
 #define HACK_ENTRY(var, list) \
 	{ #var, &Config.hacks.var, list, ARRAY_SIZE(list) }
 
@@ -125,6 +133,7 @@ hack_db[] =
 	HACK_ENTRY(fractional_Framerate, fractional_Framerate_hack_db),
 	HACK_ENTRY(f1, f1_hack_db),
 	HACK_ENTRY(alt_flip, alt_flip_db),
+	HACK_ENTRY(drc_no_thread, drc_no_thread_db),
 };
 
 static const struct
@@ -184,6 +193,8 @@ cycle_multiplier_overrides[] =
 	{ 232, { "SLES03298" } },
 	/* Riichi Mahjong - hangs */
 	{ 200, { "SLPS03023" } },
+	/* NBA Jam: Tournament Edition - halftime stats */
+	{ 161, { "SLUS00002", "SLPS00199", "SLES00068" } },
 };
 
 static const struct
@@ -248,7 +259,7 @@ void Apply_Hacks_Cdrom(void)
 
 	/* Dynarec game-specific hacks */
 	ndrc_g.hacks_pergame = 0;
-	if (Config.hacks.f1)
+	if (Config.hacks.f1 || Config.hacks.drc_no_thread)
 		ndrc_g.hacks_pergame |= NDHACK_THREAD_FORCE; // force without *_ON -> off
 	Config.cycle_multiplier_override = 0;
 
