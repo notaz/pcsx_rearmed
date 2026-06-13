@@ -56,7 +56,7 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     saddlv   d11, v11.4s
     saddlv   d12, v12.4s
     ldr      x16, [x0, #LO_cop2_to_gte_divider_tab_ptr] // gte_divider_tab
-    mov      v10.2d[1], v11.2d[0]
+    mov      v10.d[1], v11.d[0]
     add      x1, x0, #4*25
     add      v3.2d, v3.2d, v10.2d
     add      d4,    d4,    d12
@@ -69,13 +69,13 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     sqxtun   v2.4h, v5.4s         // SZ (not uqxtn)
     sxtl     v1.4s, v3.4h         // gteIR|123 expanded
     add      x1, x0, #4*9
- F( mov      w5, v5.4s[0] )       // gteMAC
- F( mov      w6, v5.4s[1] )
- F( mov      w7, v5.4s[2] )
-    mov      w14,v1.4s[0]         // gteIR
-    mov      w15,v1.4s[1]
+ F( mov      w5, v5.s[0] )        // gteMAC
+ F( mov      w6, v5.s[1] )
+ F( mov      w7, v5.s[2] )
+    mov      w14,v1.s[0]          // gteIR
+    mov      w15,v1.s[1]
 #ifndef FLAGLESS
-    mov      w4, v1.4s[2]
+    mov      w4, v1.s[2]
     cmp      w5, w14
     cset     w5, ne
     cmp      w6, w15
@@ -86,7 +86,7 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     orr      w17, w17, w6, lsl #23 // IR2/limB2
     orr      w17, w17, w8, lsl #22 // IR2/limB3
 #endif
-    umov     w9, v2.4h[2]         // SZ3
+    umov     w9, v2.h[2]          // SZ3
     st1      {v1.2s}, [x1], #4*2
     st1      {v1.s}[2], [x1]
  F( cmp      w7, w9 )
