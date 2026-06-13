@@ -19,7 +19,7 @@
 //#define ASM_PROTOTYPES
 //#include "psx_gpu_simd.h"
 #ifdef __SSE2__
-#include <x86intrin.h>
+#include <immintrin.h>
 #endif
 #ifndef SIMD_BUILD
 #error "please define SIMD_BUILD if you want this gpu_neon C simd implementation"

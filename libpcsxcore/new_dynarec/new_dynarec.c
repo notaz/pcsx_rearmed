@@ -18,9 +18,12 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE // gettid
+#endif
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h> //include for uint64_t
+#include <stdint.h>
 #include <assert.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -233,7 +236,7 @@ struct block_info
   u_int len;   // of the whole block source
   u_int tc_offs;
   u_int tc_len;
-  u_int reg_sv_flags;
+  u_int reg_sv_flags; // bit0: no_save, else scratchpad val
   u_short jump_out_cnt;
   u_short unused;
   u_char is_dirty;
@@ -451,15 +454,198 @@ static int get_final_value(struct compile_state *st, int hr, int i, u_int *value
 static void add_stub(enum stub_type type, void *addr, void *retaddr,
   u_int a, uintptr_t b, uintptr_t c, u_int d, u_int e);
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist);
+  int i, int addr_hr, const struct regstat *i_regs, int ccadj, u_int reglist);
 static void add_to_linker(struct compile_state *st, void *addr, u_int target, int ext);
 static void *get_direct_memhandler(void *table, u_int addr,
   enum stub_type type, uintptr_t *addr_host);
 static void cop2_do_stall_check(struct compile_state *st, u_int op, int i,
   const struct regstat *i_regs, u_int reglist);
+static void do_store_smc_check(struct compile_state *st, int i,
+  const struct regstat *i_regs, u_int reglist, int addr_hr);
 static void pass_args(int a0, int a1);
 static void emit_far_jump(const void *f);
 static void emit_far_call(const void *f);
+
+// linux perf jit dump support:
+// perf record -k CLOCK_MONOTONIC ...
+// perf inject --jit --input perf.data --output perf.jit.data
+#if defined(__linux__) && !defined(ANDROID) && !defined(TC_WRITE_OFFSET) && \
+    defined(__GLIBC_MINOR__) && __GLIBC_MINOR__ >= 30
+#include <time.h>
+#include <elf.h>
+static FILE *perf_dump;
+static int perf_use_map;
+
+struct perf_dump_hdr
+{
+  uint32_t magic, version, total_size, elf_mach, pad1, pid;
+  uint64_t timestamp, flags;
+};
+
+struct perf_dump_rhdr
+{
+  uint32_t id, total_size;
+  uint64_t timestamp;
+};
+
+struct perf_dump_record
+{
+  struct perf_dump_rhdr hdr;
+  uint32_t pid, tid;
+  uint64_t vma, code_addr, code_size, code_index;
+  // char name[]
+  // uint8_t native_code;
+};
+
+struct perf_dump_dbg_hdr
+{
+  struct perf_dump_rhdr hdr;
+  uint64_t code_addr;
+  uint64_t nr_entry;
+};
+
+struct perf_dump_dbg_entry
+{
+  uint64_t code_addr;
+  uint32_t line;
+  uint32_t discrim;
+  // char name[n]
+};
+
+static uint64_t perf_dump_tstamp(void)
+{
+  struct timespec ts;
+  uint64_t ret = 0;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+    ret = ts.tv_sec * 1000000000ll + ts.tv_nsec;
+  return ret;
+}
+
+static void perf_dump_fwrite(const void *d, size_t s)
+{
+  size_t r = fwrite(d, 1, s, perf_dump);
+  if (r != s)
+    perror("perf_dump fwrite");
+}
+
+static void perf_dump_init(void)
+{
+  struct perf_dump_hdr hdr;
+  char fname[64];
+  void *mem;
+  pid_t pid;
+  if (likely(!getenv("PCSXR_JIT_DUMP") && !(perf_use_map = !!getenv("PCSXR_PERF_MAP"))))
+    return;
+  pid = getpid();
+  // filenames must be exactly this
+  snprintf(fname, sizeof(fname), perf_use_map ?
+    "/tmp/perf-%ld.map" : "/tmp/jit-%ld.dump", (long)pid);
+  perf_dump = fopen(fname, "w+");
+  if (!perf_dump) {
+    perror("fopen perf dump/map");
+    return;
+  }
+  if (perf_use_map)
+    return;
+  memset(&hdr, 0, sizeof(hdr));
+  hdr.magic = 0x4A695444;
+  hdr.version = 1;
+  hdr.total_size = sizeof(hdr);
+#ifdef __aarch64__
+  hdr.elf_mach = EM_AARCH64;
+#else
+  hdr.elf_mach = EM_ARM;
+#endif
+  hdr.pid = pid;
+  hdr.timestamp = perf_dump_tstamp();
+  perf_dump_fwrite(&hdr, sizeof(hdr));
+
+  // for perf inject to work
+  mem = mmap(NULL, sizeof(hdr), PROT_READ | PROT_EXEC, MAP_PRIVATE, fileno(perf_dump), 0);
+  if (mem == MAP_FAILED)
+    perror("mmap perf_dump");
+  else
+    munmap(mem, sizeof(hdr));
+}
+
+static noinline void perf_dump_write_(const struct compile_state *st,
+  const u_char *start, const u_char *end)
+{
+  struct perf_dump_dbg_hdr drec = {{ 0, }};
+  struct perf_dump_dbg_entry dent = { 0, };
+  struct perf_dump_record rec = { 0, };
+  static uint64_t code_index;
+  char sym[32], dbg_name[12];
+  size_t sym_len;
+  int i;
+
+  sym_len = snprintf(sym, sizeof(sym), "ndrc_b_%08x", st->start);
+  if (perf_use_map) {
+    fprintf(perf_dump, "%zx %zx %s\n", (size_t)start, end - start, sym);
+    fflush(perf_dump);
+    return;
+  }
+  // JIT_DEBUG_INFO:
+  // we use fixed-len names for simplicity,
+  // entries+1 because objdump doesn't show the last entry for whatever reason
+  for (i = 1; i < st->slen; i++)
+    if (st->instr_addr[i])
+      drec.nr_entry++;
+  if (drec.nr_entry) {
+    drec.nr_entry++;
+    drec.code_addr = (size_t)start;
+    drec.hdr.id = 2;
+    drec.hdr.timestamp = perf_dump_tstamp();
+    drec.hdr.total_size = sizeof(drec) + drec.nr_entry * (sizeof(dent) + sizeof(dbg_name));
+    perf_dump_fwrite(&drec, sizeof(drec));
+    for (i = 1; i < st->slen; i++) {
+      dent.code_addr = (size_t)st->instr_addr[i];
+      if (!dent.code_addr)
+        continue;
+      dent.line = i;
+      perf_dump_fwrite(&dent, sizeof(dent));
+      snprintf(dbg_name, sizeof(dbg_name), "ins%08x", st->start + i*4);
+      perf_dump_fwrite(dbg_name, sizeof(dbg_name));
+    }
+    assert(dbg_name[sizeof(dbg_name) - 2]);
+    dent.code_addr = (size_t)end;
+    dent.line++;
+    perf_dump_fwrite(&dent, sizeof(dent));
+    perf_dump_fwrite("end        ", 12);
+  }
+
+  // JIT_CODE_LOAD:
+  rec.pid = (uint32_t)getpid();
+  rec.tid = (uint32_t)gettid();
+  rec.vma = rec.code_addr = (size_t)start;
+  rec.code_size = end - start;
+  rec.code_index = code_index++;
+  rec.hdr.timestamp = perf_dump_tstamp();
+  rec.hdr.total_size = sizeof(rec) + sym_len + 1 + rec.code_size;
+  perf_dump_fwrite(&rec, sizeof(rec));
+  perf_dump_fwrite(sym, sym_len + 1);
+  perf_dump_fwrite(start, rec.code_size);
+}
+
+static noinline void perf_dump_wrap_(void)
+{
+  if (perf_use_map) {
+    rewind(perf_dump);
+    if (ftruncate(fileno(perf_dump), 0))
+      perror("ftruncate perf_dump");
+  }
+  // else how do we delete blocks in a jitdump?
+}
+
+#define perf_dump_write(st, start, end) \
+  if (perf_dump) perf_dump_write_(st, start, end)
+#define perf_dump_wrap() \
+  if (perf_dump) perf_dump_wrap_()
+#else
+#define perf_dump_init()
+#define perf_dump_write(...)
+#define perf_dump_wrap()
+#endif
 
 #ifdef VITA
 #include <psp2/kernel/sysmem.h>
@@ -566,6 +752,7 @@ static void *start_tcache_write_reserve(u_int max_space)
     clear_tcache_space(out - tc_base, end - out);
     out = ndrc->translation_cache;
     end = out + max_space;
+    perf_dump_wrap();
   }
   // we do a bit more than requested to avoid large jump and lots of
   // expirations the moment we wrap
@@ -871,6 +1058,7 @@ static noinline u_int generate_exception(u_int pc)
 static void noinline *get_addr(struct ht_entry *ht, const u_int vaddr,
   enum ndrc_compile_mode compile_mode)
 {
+  int set_smrv_regs = (compile_mode != ndrc_cm_compile_offline);
   u_int start_page = get_page_prev(vaddr);
   u_int i, page, end_page = get_page(vaddr);
   void *found_clean = NULL;
@@ -900,13 +1088,16 @@ static void noinline *get_addr(struct ht_entry *ht, const u_int vaddr,
   if (compile_mode == ndrc_cm_no_compile)
     return NULL;
 #ifdef NDRC_THREAD
-  if (ndrc_g.thread.handle && compile_mode == ndrc_cm_compile_live) {
-    psxRegs.pc = vaddr;
-    return new_dyna_leave;
+  if (ndrc_g.thread.handle) {
+    if (compile_mode == ndrc_cm_compile_live) {
+      psxRegs.pc = vaddr;
+      return new_dyna_leave;
+    }
+    set_smrv_regs = 0;
   }
-  if (!ndrc_g.thread.handle)
 #endif
-  memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
+  if (set_smrv_regs)
+    memcpy(ndrc_smrv_regs, psxRegs.GPR.r, sizeof(ndrc_smrv_regs));
 
   int r = new_recompile_block(vaddr);
   if (likely(r == 0))
@@ -1308,6 +1499,8 @@ static void host_tempreg_release(void) {}
 #endif
 
 #ifdef ASSEM_PRINT
+#include "../psxhw.h"
+#include "../cdrom.h"
 extern void gen_interupt();
 extern void do_insn_cmp();
 #define FUNCNAME(f) { f, " " #f }
@@ -1339,6 +1532,21 @@ static const struct {
   FUNCNAME(new_dyna_leave),
   FUNCNAME(pcsx_mtc0),
   FUNCNAME(pcsx_mtc0_ds),
+  FUNCNAME(sio1ReadStat16),
+  FUNCNAME(psxHwReadGpuSR),
+  FUNCNAME(cdrRead0),
+  FUNCNAME(cdrRead1),
+  FUNCNAME(cdrRead2),
+  FUNCNAME(cdrRead3),
+  FUNCNAME(cdrWrite0),
+  FUNCNAME(cdrWrite1),
+  FUNCNAME(cdrWrite2),
+  FUNCNAME(cdrWrite3),
+  FUNCNAME(psxHwWriteIstat),
+  FUNCNAME(psxHwWriteImask),
+  FUNCNAME(psxHwWriteDmaPcr32),
+  FUNCNAME(psxHwWriteDmaIcr32),
+  FUNCNAME(psxHwWriteGpuSR),
   FUNCNAME(execI),
 #ifdef __aarch64__
   FUNCNAME(do_memhandler_pre),
@@ -2396,9 +2604,9 @@ static void add_stub(enum stub_type type, void *addr, void *retaddr,
 }
 
 static void add_stub_r(enum stub_type type, void *addr, void *retaddr,
-  int i, int addr_reg, const struct regstat *i_regs, int ccadj, u_int reglist)
+  int i, int addr_hr, const struct regstat *i_regs, int ccadj, u_int reglist)
 {
-  add_stub(type, addr, retaddr, i, addr_reg, (uintptr_t)i_regs, ccadj, reglist);
+  add_stub(type, addr, retaddr, i, addr_hr, (uintptr_t)i_regs, ccadj, reglist);
 }
 
 // Write out a single register
@@ -2907,7 +3115,7 @@ static int get_ptr_mem_type(struct compile_state *st, u_int a)
       return MTYPE_8000;
     return MTYPE_0000;
   }
-  if(0x1f800000 <= a && a < 0x1f801000)
+  if(0x1f800000 <= a && a < 0x1f800400)
     return MTYPE_1F80;
   if(0x80200000 <= a && a < 0x80800000)
     return MTYPE_8020;
@@ -3074,6 +3282,38 @@ static void do_load_word(int a, int rt, int offset_reg)
     emit_readword_indexed(0, a, rt);
 }
 
+static void do_load_hword(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrh_dualindexed(offset_reg, a, rt);
+  else
+    emit_movzwl_indexed(0, a, rt);
+}
+
+static void do_load_shword(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrsh_dualindexed(offset_reg, a, rt);
+  else
+    emit_movswl_indexed(0, a, rt);
+}
+
+static void do_load_byte(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrb_dualindexed(offset_reg, a, rt);
+  else
+    emit_movzbl_indexed(0, a, rt);
+}
+
+static void do_load_sbyte(int a, int rt, int offset_reg)
+{
+  if (offset_reg >= 0)
+    emit_ldrsb_dualindexed(offset_reg, a, rt);
+  else
+    emit_movsbl_indexed(0, a, rt);
+}
+
 static void do_store_word(int a, int ofs, int rt, int offset_reg, int preseve_a)
 {
   if (offset_reg < 0) {
@@ -3108,146 +3348,139 @@ static void do_store_byte(int a, int rt, int offset_reg)
     emit_writebyte_indexed(rt, 0, a);
 }
 
+// determines if code overwrite checking is needed only
+// (also true non-existent 0x20000000 mirror that shouldn't matter)
+#define is_ram_addr(a) !((a) & 0x5f800000)
+
+static u_int resolve_const_io(int i, const struct regstat *i_regs, int *is_const,
+  u_int *likely_addr)
+{
+  int j, s, mr = dops[i].rs1, rom_ok = 1;
+  u_int addr;
+  *is_const = *likely_addr = 0;
+  s = get_reg(i_regs->regmap, mr);
+  if (s < 0)
+    return ~0;
+  if ((i_regs->wasconst >> s) & 1) {
+    *is_const = 1;
+    return constmap[i][s] + cinfo[i].imm;
+  }
+  for (j = i - 1; j >= 0; j--) {
+    if (dops[j].is_ds)
+      return ~0;
+    if (dops[j].bt)
+      rom_ok = 0;
+    if (dops[j].rt1 == mr)
+      break;
+  }
+  if (j < 0 || dops[j].opcode != 0x23) // LW
+    return ~0;
+  s = get_reg(regs[j].regmap, dops[j].rs1);
+  if (s < 0 || !((regs[j].wasconst >> s) & 1))
+    return ~0;
+  addr = constmap[j][s] + cinfo[j].imm;
+  if ((0x9fc00000u <= addr && addr < 0x9fc80000u) ||
+      (0xbfc00000u <= addr && addr < 0xbfc80000u)) {
+    addr = *(u_int *)(psxRegs.ptrs.psxR + (addr & 0x07fffc)) + cinfo[i].imm;
+    if (rom_ok) {
+      *is_const = 1;
+      return addr;
+    }
+  }
+  else if (is_ram_addr(addr))
+    addr = *(u_int *)(psxRegs.ptrs.psxM + (addr & 0x1ffffc)) + cinfo[i].imm;
+  // this seems to do more hard than good, scratchpad data is just too volatile
+  //else if ((addr >> 10) == (0x1f800000u >> 10))
+  //  addr = *(u_int *)(psxRegs.ptrs.psxH + (addr & 0x0003fc)) + cinfo[i].imm;
+  else
+    return ~0;
+  smrv_strong |= 1u << mr;
+  ndrc_smrv_regs[mr] = addr;
+  // take non-ram/scratchpad likely_addr only, else keep the usual path
+  if (is_ram_addr(addr))
+    return ~0;
+  if (psxRegs.ptrs.psxH == (void *)0x1f800000 && (addr >> 10) == (0x1f800000u >> 10))
+    return ~0;
+  assem_debug("; likely addr: %08x\n", addr);
+  *likely_addr = addr;
+  return ~0;
+}
+
 static void load_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  int addr = cinfo[i].addr;
-  int s,tl;
-  int offset;
-  void *jaddr=0;
-  int memtarget=0,c=0;
-  int offset_reg = -1;
-  int fastio_reg_override = -1;
-  u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg_w(i_regs->regmap, dops[i].rt1);
-  s=get_reg(i_regs->regmap,dops[i].rs1);
-  offset=cinfo[i].imm;
+  int addr_hr = cinfo[i].addr;
+  int addr_hr_io = -1;
+  void *jaddr = NULL;
+  enum stub_type type = 0;
+  int c = 0, offset_reg = -1, is_dummy;
+  u_int saddr_likely = 0;
+  u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
+  int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  int inline_slow_io = saddr_likely != 0;
+  u_int reglist = get_host_reglist(i_regs->regmap);
+  int tl = get_reg_w(i_regs->regmap, dops[i].rt1);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if (c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    }
-  }
   //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
-  if(tl<0 && ((!c||(((u_int)constmap[i][s]+offset)>>16)==0x1f80) || dops[i].rt1==0)) {
+  if (tl < 0 && ((!c || ((u_int)saddr_const >> 16) == 0x1f80) || dops[i].rt1 == 0)) {
       // could be FIFO, must perform the read
       // ||dummy read
-      assem_debug("(forced read)\n");
+      assem_debug("; forced read\n");
       tl = get_reg_temp(i_regs->regmap); // may be == addr
       assert(tl>=0);
   }
-  assert(addr >= 0);
- if(tl>=0) {
-  //printf("load_assemble: c=%d\n",c);
-  //if(c) printf("load_assemble: const=%lx\n",(long)constmap[i][s]+offset);
-  reglist&=~(1<<tl);
-  if(!c) {
-    #ifdef R29_HACK
-    // Strmnnrmn's speed hack
-    if(dops[i].rs1!=29||st->start<0x80001000||st->start>=0x80000000+RAM_SIZE)
-    #endif
-    {
-      jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr,
-                &offset_reg, &fastio_reg_override, ccadj_);
-    }
+  assert(addr_hr >= 0);
+  if (tl < 0)
+    return;
+  is_dummy = dops[i].rt1 == 0 || tl != get_reg_w(i_regs->regmap, dops[i].rt1);
+  reglist &= ~(1 << tl);
+  if (!c && !inline_slow_io) {
+    addr_hr_io = addr_hr;
+    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr_hr,
+        &offset_reg, &addr_hr_io, ccadj_);
   }
-  else if (ram_offset && memtarget) {
-    offset_reg = get_ro_reg(i_regs, 0);
+  else if (c && ram80x_io) {
+    addr_hr_io = addr_hr;
+    if (ram_offset)
+      offset_reg = get_ro_reg(i_regs, 0);
   }
-  int dummy=(dops[i].rt1==0)||(tl!=get_reg_w(i_regs->regmap, dops[i].rt1)); // ignore loads to r0 and unneeded reg
   switch (dops[i].opcode) {
   case 0x20: // LB
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-
-        if (offset_reg >= 0)
-          emit_ldrsb_dualindexed(offset_reg, a, tl);
-        else
-          emit_movsbl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADB_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADB_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+    type = LOADB_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_sbyte(addr_hr_io, tl, offset_reg);
     break;
   case 0x21: // LH
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        if (offset_reg >= 0)
-          emit_ldrsh_dualindexed(offset_reg, a, tl);
-        else
-          emit_movswl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADH_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADH_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+    type = LOADH_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_shword(addr_hr_io, tl, offset_reg);
     break;
   case 0x23: // LW
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        do_load_word(a, tl, offset_reg);
-      }
-      if(jaddr)
-        add_stub_r(LOADW_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADW_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+    type = LOADW_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_word(addr_hr_io, tl, offset_reg);
     break;
   case 0x24: // LBU
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-
-        if (offset_reg >= 0)
-          emit_ldrb_dualindexed(offset_reg, a, tl);
-        else
-          emit_movzbl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADBU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADBU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+    type = LOADBU_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_byte(addr_hr_io, tl, offset_reg);
     break;
   case 0x25: // LHU
-    if(!c||memtarget) {
-      if(!dummy) {
-        int a = addr;
-        if (fastio_reg_override >= 0)
-          a = fastio_reg_override;
-        if (offset_reg >= 0)
-          emit_ldrh_dualindexed(offset_reg, a, tl);
-        else
-          emit_movzwl_indexed(0, a, tl);
-      }
-      if(jaddr)
-        add_stub_r(LOADHU_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-    }
-    else
-      inline_readstub(LOADHU_STUB,i,constmap[i][s]+offset,i_regs->regmap,dops[i].rt1,ccadj_,reglist);
+    type = LOADHU_STUB;
+    if (addr_hr_io >= 0 && !is_dummy)
+      do_load_hword(addr_hr_io, tl, offset_reg);
     break;
   default:
     assert(0);
   }
- } // tl >= 0
- if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
-   host_tempreg_release();
+  if (addr_hr_io == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
+    host_tempreg_release();
+  if (jaddr)
+    add_stub_r(type, jaddr, out, i, addr_hr, i_regs, ccadj_,reglist);
+  if (inline_slow_io)
+    do_read_slow(st, i, i_regs, type, NULL, addr_hr, ccadj_, reglist);
+  else if (addr_hr_io < 0)
+    inline_readstub(type, i, saddr_const, i_regs->regmap, dops[i].rt1, ccadj_, reglist);
 }
 
 #ifndef loadlr_assemble
@@ -3257,8 +3490,8 @@ static void loadlr_assemble(struct compile_state *st, int i,
   int addr = cinfo[i].addr;
   int s,tl,temp,temp2;
   int offset;
-  void *jaddr=0;
-  int memtarget=0,c=0;
+  void *jaddr = NULL;
+  int ram80x_io = 0, c = 0;
   int offset_reg = -1;
   int fastio_reg_override = -1;
   u_int reglist=get_host_reglist(i_regs->regmap);
@@ -3269,11 +3502,10 @@ static void loadlr_assemble(struct compile_state *st, int i,
   offset=cinfo[i].imm;
   reglist|=1<<temp;
   assert(addr >= 0);
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if(c) {
-      memtarget=((signed int)(constmap[i][s]+offset))<(signed int)0x80000000+RAM_SIZE;
-    }
+  if (s >= 0) {
+    c = (i_regs->wasconst >> s) & 1;
+    if (c)
+      ram80x_io = (signed int)(constmap[i][s] + offset) < (signed int)(0x80000000+RAM_SIZE);
   }
   if(!c) {
     emit_shlimm(addr,3,temp);
@@ -3286,7 +3518,7 @@ static void loadlr_assemble(struct compile_state *st, int i,
               &offset_reg, &fastio_reg_override, ccadj_);
   }
   else {
-    if (ram_offset && memtarget) {
+    if (ram_offset && ram80x_io) {
       offset_reg = get_ro_reg(i_regs, 0);
     }
     if (dops[i].opcode==0x22||dops[i].opcode==0x26) {
@@ -3296,7 +3528,7 @@ static void loadlr_assemble(struct compile_state *st, int i,
     }
   }
   if (dops[i].opcode==0x22||dops[i].opcode==0x26) { // LWL/LWR
-    if(!c||memtarget) {
+    if (!c || ram80x_io) {
       int a = temp2;
       if (fastio_reg_override >= 0)
         a = fastio_reg_override;
@@ -3365,7 +3597,7 @@ static void do_invstub(struct compile_state *st, int n)
 }
 
 static void do_store_smc_check(struct compile_state *st, int i,
-  const struct regstat *i_regs, u_int reglist, int addr)
+  const struct regstat *i_regs, u_int reglist, int addr_hr)
 {
   if (HACK_ENABLED(NDHACK_NO_SMC_CHECK))
     return;
@@ -3395,16 +3627,16 @@ static void do_store_smc_check(struct compile_state *st, int i,
   int ir = get_reg(i_regs->regmap, INVCP);
   assert(ir >= 0);
   host_tempreg_acquire();
-  emit_ldrb_indexedsr12_reg(ir, addr, HOST_TEMPREG);
+  emit_ldrb_indexedsr12_reg(ir, addr_hr, HOST_TEMPREG);
 #else
-  emit_cmpmem_indexedsr12_imm(invalid_code, addr, 1);
+  emit_cmpmem_indexedsr12_imm(invalid_code, addr_hr, 1);
   #error not handled
 #endif
   (void)count;
 #ifdef INVALIDATE_USE_COND_CALL
   if (count == 1) {
     emit_cmpimm(HOST_TEMPREG, 1);
-    emit_callne(invalidate_addr_reg[addr]);
+    emit_callne(invalidate_addr_reg[addr_hr]);
     host_tempreg_release();
     return;
   }
@@ -3414,95 +3646,74 @@ static void do_store_smc_check(struct compile_state *st, int i,
   imm_min -= cinfo[i].imm;
   imm_max -= cinfo[i].imm;
   add_stub(INVCODE_STUB, jaddr, out, reglist|(1<<HOST_CCREG),
-    addr, imm_min, imm_max, i);
+    addr_hr, imm_min, imm_max, i);
 }
-
-// determines if code overwrite checking is needed only
-// (also true non-existent 0x20000000 mirror that shouldn't matter)
-#define is_ram_addr(a) !((a) & 0x5f800000)
 
 static void store_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  int s,tl;
-  int addr = cinfo[i].addr;
-  int offset;
-  void *jaddr=0;
-  enum stub_type type=0;
-  int memtarget=0,c=0;
-  int offset_reg = -1;
-  int fastio_reg_override = -1;
-  u_int addr_const = ~0;
-  u_int reglist=get_host_reglist(i_regs->regmap);
-  tl=get_reg(i_regs->regmap,dops[i].rs2);
-  s=get_reg(i_regs->regmap,dops[i].rs1);
-  offset=cinfo[i].imm;
-  if(s>=0) {
-    c=(i_regs->wasconst>>s)&1;
-    if (c) {
-      addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
-    }
-  }
+  int addr_hr = cinfo[i].addr;
+  int addr_hr_io = -1;
+  void *jaddr = NULL;
+  enum stub_type type = 0;
+  int c = 0, offset_reg = -1;
+  u_int reglist = get_host_reglist(i_regs->regmap);
+  u_int saddr_likely = 0;
+  u_int saddr_const = resolve_const_io(i, i_regs, &c, &saddr_likely);
+  int ram80x_io = (signed int)saddr_const < (signed int)(0x80000000 + RAM_SIZE);
+  int inline_slow_io = saddr_likely != 0;
+  int tl = get_reg(i_regs->regmap, dops[i].rs2);
   assert(tl>=0);
-  assert(addr >= 0);
+  assert(addr_hr >= 0);
   if(i_regs->regmap[HOST_CCREG]==CCREG) reglist&=~(1<<HOST_CCREG);
-  reglist |= 1u << addr;
-  if (!c) {
-    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr,
-              &offset_reg, &fastio_reg_override, ccadj_);
+  reglist |= 1u << addr_hr;
+  if (!c && !inline_slow_io) {
+    addr_hr_io = addr_hr;
+    jaddr = emit_fastpath_cmp_jump(st, i, i_regs, addr_hr,
+              &offset_reg, &addr_hr_io, ccadj_);
   }
-  else if (ram_offset && memtarget) {
-    offset_reg = get_ro_reg(i_regs, 0);
+  else if (c && ram80x_io) {
+    addr_hr_io = addr_hr;
+    if (ram_offset)
+      offset_reg = get_ro_reg(i_regs, 0);
   }
 
   switch (dops[i].opcode) {
   case 0x28: // SB
-    if(!c||memtarget) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_byte(a, tl, offset_reg);
-    }
     type = STOREB_STUB;
+    if (addr_hr_io >= 0)
+      do_store_byte(addr_hr_io, tl, offset_reg);
     break;
   case 0x29: // SH
-    if(!c||memtarget) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_hword(a, 0, tl, offset_reg, 1);
-    }
     type = STOREH_STUB;
+    if (addr_hr_io >= 0)
+      do_store_hword(addr_hr_io, 0, tl, offset_reg, 1);
     break;
   case 0x2B: // SW
-    if(!c||memtarget) {
-      int a = addr;
-      if (fastio_reg_override >= 0)
-        a = fastio_reg_override;
-      do_store_word(a, 0, tl, offset_reg, 1);
-    }
     type = STOREW_STUB;
+    if (addr_hr_io >= 0)
+      do_store_word(addr_hr_io, 0, tl, offset_reg, 1);
     break;
   default:
     assert(0);
   }
-  if (fastio_reg_override == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
+  if (addr_hr_io == HOST_TEMPREG || offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if (jaddr) {
-    // PCSX store handlers don't check invcode again
-    add_stub_r(type,jaddr,out,i,addr,i_regs,ccadj_,reglist);
-  }
-  if (!c || is_ram_addr(addr_const))
-    do_store_smc_check(st, i, i_regs, reglist, addr);
-  if (c && !memtarget)
-    inline_writestub(type, i, addr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
-  // basic current block modification detection..
+  if (jaddr)
+    add_stub_r(type, jaddr, out, i, addr_hr, i_regs, ccadj_, reglist);
+  else if (inline_slow_io)
+    do_write_slow(st, i, i_regs, type, NULL, addr_hr, ccadj_, reglist, 1);
+
+  if ((!c && !inline_slow_io) || is_ram_addr(saddr_const))
+    do_store_smc_check(st, i, i_regs, reglist, addr_hr);
+  if (c && !ram80x_io)
+    inline_writestub(type, i, saddr_const, i_regs->regmap, dops[i].rs2, ccadj_, reglist);
+  // basic current block modification detection...
   // not looking back as that should be in mips cache already
   // (see Spyro2 title->attract mode)
-  if (st->start + i*4 < addr_const && addr_const < st->start + st->slen*4) {
+  if (st->start + i*4 < saddr_const && saddr_const < st->start + st->slen*4) {
     SysPrintf_lim("write to %08x hits block %08x, pc=%08x\n",
-      addr_const, st->start, st->start+i*4);
+      saddr_const, st->start, st->start+i*4);
     assert(i_regs->regmap==regs[i].regmap); // not delay slot
     if(i_regs->regmap==regs[i].regmap) {
       load_all_consts(regs[i].regmap_entry,regs[i].wasdirty,i);
@@ -3526,7 +3737,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   void *jaddr=0;
   void *case1, *case23, *case3;
   void *done0, *done1, *done2;
-  int memtarget=0,c=0;
+  int ram80x_io = 0, c = 0;
   int offset_reg = -1;
   u_int addr_const = ~0;
   u_int reglist = get_host_reglist(i_regs->regmap);
@@ -3537,7 +3748,7 @@ static void storelr_assemble(struct compile_state *st, int i,
     c = (i_regs->isconst >> s) & 1;
     if (c) {
       addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
+      ram80x_io = (signed int)addr_const < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
   assert(tl>=0);
@@ -3550,7 +3761,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   }
   else
   {
-    if(!memtarget||!dops[i].rs1) {
+    if (!ram80x_io || !dops[i].rs1) {
       jaddr=out;
       emit_jmp(0);
     }
@@ -3627,7 +3838,7 @@ static void storelr_assemble(struct compile_state *st, int i,
   set_jump_target(done2, out);
   if (offset_reg == HOST_TEMPREG)
     host_tempreg_release();
-  if (!c || !memtarget)
+  if (!c || !ram80x_io)
     add_stub_r(STORELR_STUB,jaddr,out,i,addr,i_regs,ccadj_,reglist);
   if (!c || is_ram_addr(addr_const))
     do_store_smc_check(st, i, i_regs, reglist, addr);
@@ -3756,7 +3967,7 @@ static void cop2_do_stall_check(struct compile_state *st, u_int op, int i,
     return;
   if (get_reg(i_regs->regmap, CCREG) != HOST_CCREG) {
     // happens occasionally... cc evicted? Don't bother then
-    //printf("no cc %08x\n", start + i*4);
+    //printf("no cc %08x\n", st->start + i*4);
     return;
   }
   if (!dops[i].bt) {
@@ -4004,8 +4215,8 @@ static void c2ls_assemble(struct compile_state *st, int i,
   int s,tl;
   int ar;
   int offset;
-  int memtarget=0,c=0;
-  void *jaddr2=NULL;
+  int ram80x_io = 0, c = 0;
+  void *jaddr2 = NULL;
   enum stub_type type;
   int offset_reg = -1;
   int fastio_reg_override = -1;
@@ -4030,7 +4241,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
     c = (i_regs->isconst >> s) & 1;
     if (c) {
       addr_const = constmap[i][s] + offset;
-      memtarget = ((signed int)addr_const) < (signed int)(0x80000000 + RAM_SIZE);
+      ram80x_io = (signed int)addr_const < (signed int)(0x80000000 + RAM_SIZE);
     }
   }
 
@@ -4043,7 +4254,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
   else
     type=LOADW_STUB;
 
-  if(c&&!memtarget) {
+  if (c && !ram80x_io) {
     jaddr2=out;
     emit_jmp(0); // inline_readstub/inline_writestub?
   }
@@ -4052,7 +4263,7 @@ static void c2ls_assemble(struct compile_state *st, int i,
       jaddr2 = emit_fastpath_cmp_jump(st, i, i_regs, ar,
                 &offset_reg, &fastio_reg_override, ccadj_);
     }
-    else if (ram_offset && memtarget) {
+    else if (ram_offset && ram80x_io) {
       offset_reg = get_ro_reg(i_regs, 0);
     }
     switch (dops[i].opcode) {
@@ -4141,6 +4352,32 @@ static void cop2_assemble(struct compile_state *st, int i, const struct regstat 
     emit_writeword(temp,&reg_cop2c[copr]);
     assert(sl>=0);
   }
+}
+
+static void do_readstub(struct compile_state *st, int n)
+{
+  assem_debug("do_readstub %x\n", st->start + stubs[n].a*4);
+  set_jump_target(stubs[n].addr, out);
+  int i = stubs[n].a;
+  int rs = stubs[n].b;
+  const struct regstat *i_regs = (void *)stubs[n].c;
+  int adj = (int)stubs[n].d;
+  u_int reglist = stubs[n].e;
+  literal_pool(256);
+  do_read_slow(st, i, i_regs, stubs[n].type, stubs[n].retaddr, rs, adj, reglist);
+}
+
+static void do_writestub(struct compile_state *st, int n)
+{
+  assem_debug("do_writestub %x\n", st->start + stubs[n].a*4);
+  set_jump_target(stubs[n].addr, out);
+  int i = stubs[n].a;
+  int rs = stubs[n].b;
+  struct regstat *i_regs = (struct regstat *)stubs[n].c;
+  int adj = stubs[n].d;
+  u_int reglist = stubs[n].e;
+  literal_pool(256);
+  do_write_slow(st, i, i_regs, stubs[n].type, stubs[n].retaddr, rs, adj, reglist, 0);
 }
 
 static void do_unalignedwritestub(struct compile_state *st, int n)
@@ -4290,6 +4527,7 @@ static void hlecall_assemble(struct compile_state *st, int i,
   if (hleCode < ARRAY_SIZE(psxHLEt))
     hlefunc = psxHLEt[hleCode];
 
+  assem_debug("; hlecall 0x%x\n", hleCode);
   call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4+4, hlefunc);
 }
 
@@ -5047,7 +5285,7 @@ static int match_bt(struct compile_state *st, signed char i_regmap[],
 }
 
 #ifdef DRC_DBG
-static void drc_dbg_emit_do_cmp(int i, int ccadj_)
+static void drc_dbg_emit_do_cmp(struct compile_state *st, int i, int ccadj_)
 {
   extern void do_insn_cmp();
   //extern int cycle;
@@ -5100,8 +5338,8 @@ static void drc_dbg_emit_wb_dirtys(int i, const struct regstat *i_regs)
   }
 }
 #else
-#define drc_dbg_emit_do_cmp(x,y)
-#define drc_dbg_emit_wb_dirtys(x,y)
+#define drc_dbg_emit_do_cmp(st, x, y)
+#define drc_dbg_emit_wb_dirtys(x, y)
 #endif
 
 // Used when a branch jumps into the delay slot of another branch
@@ -5113,7 +5351,7 @@ static void ds_assemble_entry(struct compile_state *st, int i)
     st->instr_addr[t] = out;
   assem_debug("Assemble delay slot at %x\n",cinfo[i].ba);
   assem_debug("<->\n");
-  drc_dbg_emit_do_cmp(t, ccadj_);
+  drc_dbg_emit_do_cmp(st, t, ccadj_);
   if(regs[t].regmap_entry[HOST_CCREG]==CCREG&&regs[t].regmap[HOST_CCREG]!=CCREG)
     wb_register(CCREG,regs[t].regmap_entry,regs[t].wasdirty);
   load_regs(regs[t].regmap_entry,regs[t].regmap,dops[t].rs1,dops[t].rs2);
@@ -5596,25 +5834,29 @@ static void vsync_hack_assemble(int i, int ld_ofs, int cc)
 {
   int sp = get_reg(branch_regs[i].regmap, 29);
   int ro = get_reg(branch_regs[i].regmap, ROREG);
+  int tmp = get_reg_temp(branch_regs[i].regmap);
   int cycles = CLOCK_ADJUST(9+5) * 16;
   void *t_exit[3], *loop_target, *t_loop_break;
   int j;
-  if (sp < 0 || (ram_offset && ro < 0))
+  if (sp < 0 || (ram_offset && ro < 0) || tmp < 0) {
+    //printf("vsync hack r %d %d %d\n", sp, ro, tmp);
     return;
+  }
   assem_debug("; vsync hack\n");
   host_tempreg_acquire();
   emit_cmpimm(cc, -cycles);
   t_exit[0] = out;
   emit_jge(0);
-  emit_cmpimm(sp, RAM_SIZE);
+  emit_andimm(sp, ~0x00e00000, tmp);
+  emit_cmpimm(tmp, RAM_SIZE);
   t_exit[1] = out;
   emit_jno(0);
   if (ro >= 0) {
-    emit_addimm(sp, ld_ofs, HOST_TEMPREG);
+    emit_addimm(tmp, ld_ofs, HOST_TEMPREG);
     emit_ldr_dualindexed(ro, HOST_TEMPREG, HOST_TEMPREG);
   }
   else
-    emit_readword_indexed(ld_ofs, sp, HOST_TEMPREG);
+    emit_readword_indexed(ld_ofs, tmp, HOST_TEMPREG);
   emit_cmpimm(HOST_TEMPREG, 17);
   t_exit[2] = out;
   emit_jl(0);
@@ -5631,7 +5873,7 @@ static void vsync_hack_assemble(int i, int ld_ofs, int cc)
 
   assem_debug("2:\n");
   set_jump_target(t_loop_break, out);
-  do_store_word(sp, ld_ofs, HOST_TEMPREG, ro, 1);
+  do_store_word(tmp, ld_ofs, HOST_TEMPREG, ro, 1);
 
   for (j = 0; j < ARRAY_SIZE(t_exit); j++)
     set_jump_target(t_exit[j], out);
@@ -6239,7 +6481,7 @@ void print_regmap(const char *name, const signed char *regmap)
 }
 
   /* disassembly */
-void disassemble_inst(int i, u_int start, u_int *source)
+void disassemble_inst(struct compile_state *st, int i, u_int start, u_int *source)
 {
     if (dops[i].bt) printf("*"); else printf(" ");
     switch(dops[i].itype) {
@@ -6327,7 +6569,7 @@ void disassemble_inst(int i, u_int start, u_int *source)
 }
 #else
 #define set_mnemonic(i_, n_)
-static void disassemble_inst(int i, u_int start, u_int *source) {}
+static void disassemble_inst(struct compile_state *st, ...) {}
 #endif // DISASM
 
 #define DRC_TEST_VAL 0x74657374
@@ -6506,6 +6748,7 @@ void new_dynarec_init(void)
   SysPrintf("Mapped (RAM/scrp/ROM/LUTs/TC):\n");
   SysPrintf("%p/%p/%p/%p/%p\n", psxRegs.ptrs.psxM, psxRegs.ptrs.psxH,
     psxRegs.ptrs.psxR, mem_rtab, out);
+  perf_dump_init();
 }
 
 void new_dynarec_cleanup(void)
@@ -6605,7 +6848,7 @@ int new_dynarec_save_blocks(void *save, int size)
   for (p = 0; p < ARRAY_SIZE(blocks); p++) {
     bcnt = 0;
     for (block = blocks[p]; block != NULL; block = block->next_by_vaddr) {
-      if (block->is_dirty)
+      if (block->is_dirty || (block->reg_sv_flags & 1))
         continue;
       tmp_blocks[bcnt].addr = block->start;
       tmp_blocks[bcnt].regflags = block->reg_sv_flags;
@@ -6638,7 +6881,6 @@ void new_dynarec_load_blocks(const void *save, int size)
   const struct savestate_block *sblocks = save;
   int count = size / sizeof(sblocks[0]);
   struct block_info *block;
-  u_int regs_save[32];
   u_int page;
   uint32_t f;
   int i, b;
@@ -6672,26 +6914,16 @@ void new_dynarec_load_blocks(const void *save, int size)
   do_clear_cache();
   mini_ht_clear();
 
-  // change GPRs for speculation to at least partially work...
-  memcpy(regs_save, &psxRegs.GPR, sizeof(regs_save));
-  for (i = 1; i < 32; i++)
-    psxRegs.GPR.r[i] = 0x80000000;
-
   for (b = 0; b < count; b++) {
+    for (i = 1; i < 32; i++)
+      ndrc_smrv_regs[i] = 0x80000000;
     for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
       if (f & 1)
-        psxRegs.GPR.r[i] = 0x1f800000;
+        ndrc_smrv_regs[i] = 0x1f800000;
     }
 
     ndrc_get_addr_ht_param(hash_table, sblocks[b].addr, ndrc_cm_compile_offline);
-
-    for (f = sblocks[b].regflags, i = 0; f; f >>= 1, i++) {
-      if (f & 1)
-        psxRegs.GPR.r[i] = 0x80000000;
-    }
   }
-
-  memcpy(&psxRegs.GPR, regs_save, sizeof(regs_save));
 }
 
 void new_dynarec_print_stats(void)
@@ -6730,20 +6962,17 @@ static void force_intcall(int i)
   cinfo[i].ba = -1;
 }
 
-static noinline void do_vsync(struct compile_state *st, int i)
+static noinline void do_vsync(struct compile_state *st, int i, u32 addr)
 {
   // lui a0, x; addiu a0, x; jal puts
-  u32 addr = (cinfo[i].imm << 16) + (signed short)cinfo[i+1].imm;
   char *str = NULL;
   int j, t, jals_cnt = 0;
 
-  if (!is_ram_addr(addr))
-      return;
   str = (char *)psxRegs.ptrs.psxM + (addr & 0x1fffff);
   if (!str || strncmp(str, "VSync: timeout", 14))
     return;
   // jal clearPad, jal clearRCnt; j return; nop
-  for (j = i+2; j < st->slen; j++) {
+  for (j = i+1; j < st->slen; j++) {
     if (dops[j].itype == SHIFTIMM || dops[j].itype == IMM16 || dops[j].itype == ALU)
       continue;
     if (dops[j].opcode == 0x03) {
@@ -6793,11 +7022,16 @@ static int apply_hacks(struct compile_state *st)
       dops[i + 3].itype = NOP;
     }
     // see also: psxBiosCheckExe()
-    if (i > 1 && dops[i].opcode == 0x0f && dops[i].rt1 == 4
-        && dops[i+1].opcode == 0x09 && dops[i+1].rt1 == 4 && dops[i+1].rs1 == 4
-        && dops[i+2].opcode == 0x03)
+    if (i > 4 && is_ram_addr(st->start) &&
+          dops[i].opcode == 0x0f && dops[i].rt1 == 4 &&            // lui
+        ((dops[i+1].opcode == 0x09 && dops[i+2].opcode == 0x03) || // addiu; jal
+         (dops[i+1].opcode == 0x03 && dops[i+2].opcode == 0x09)) &&
+         (dops[i-1].opcode == 0x05 || dops[i-2].opcode == 0x05))
     {
-      do_vsync(st, i);
+      int a = dops[i+1].opcode == 0x09 ? 1 : 2;
+      u32 addr = (cinfo[i].imm << 16) + (signed short)cinfo[i+a].imm;
+      if (dops[i+a].rt1 == 4 && dops[i+a].rs1 == 4 && is_ram_addr(addr))
+        do_vsync(st, i, addr);
     }
   }
   if (st->source[0] == 0x3c05edb8 && st->source[1] == 0x34a58320)
@@ -6960,10 +7194,10 @@ static void disassemble_one(struct compile_state *st, int i, u_int src)
         op2 = (src >> 21) & 0x1f;
         if (op2 & 0x10) {
           type = OTHER;
-          if (gte_handlers[src & 0x3f] != NULL) {
+          if (gteGetHandler(src) != NULL) {
 #ifdef DISASM
-            if (gte_regnames[src & 0x3f] != NULL)
-              strcpy(insn[i], gte_regnames[src & 0x3f]);
+            if (gte_opnames[src & 0x3f] != NULL)
+              strcpy(insn[i], gte_opnames[src & 0x3f]);
             else
               snprintf(insn[i], sizeof(insn[i]), "COP2 %x", src & 0x3f);
 #endif
@@ -7134,7 +7368,7 @@ static void disassemble_one(struct compile_state *st, int i, u_int src)
         gte_rs[i]=gte_reg_reads[src&0x3f];
         gte_rt[i]=gte_reg_writes[src&0x3f];
         gte_rt[i]|=1ll<<63; // every op changes flags
-        if((src&0x3f)==GTE_MVMVA) {
+        if ((src & 0x3f) == GTEOP_MVMVA) {
           int v = (src >> 15) & 3;
           gte_rs[i]&=~0xe3fll;
           if(v==3) gte_rs[i]|=0xe00ll;
@@ -8430,7 +8664,7 @@ static noinline void pass5a_preallocate1(struct compile_state *st)
                       k--;
                     }
                     if(regs[k-1].regmap[hr]==f_regmap[hr]&&regmap_pre[k][hr]==f_regmap[hr]) {
-                      //printf("Extend r%d, %x ->\n",hr,start+k*4);
+                      //printf("Extend r%d, %x ->\n",hr,st->start+k*4);
                       while(k<i) {
                         regs[k].regmap_entry[hr]=f_regmap[hr];
                         regs[k].regmap[hr]=f_regmap[hr];
@@ -9078,7 +9312,7 @@ static noinline void pass6_clean_registers_r(struct compile_state *st,
     wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i].rt2) & 31);
     wont_dirty_i |= 1u << (get_rreg(rregmap_i, CCREG) & 31);
     wont_dirty_i &= ~(1u << 31);
-    if (i > istart && !dops[i].is_jump) {
+    if (i > istart && !dops[i].is_jump && !dops[i].bt) {
       // Don't store a register immediately after writing it,
       // may prevent dual-issue.
       wont_dirty_i |= 1u << (get_rreg(rregmap_i, dops[i-1].rt1) & 31);
@@ -9289,8 +9523,8 @@ static struct block_info *block_info_new(u_int start, u_int len,
   return block;
 }
 
-static void block_info_finish(struct compile_state *st, struct block_info *block_tmp,
-  u_char *beginning, u_char *end)
+static void block_info_finish(const struct compile_state *st,
+  struct block_info *block_tmp, u_char *beginning, u_char *end)
 {
   u_int page = get_page(block_tmp->start);
   struct block_info *block;
@@ -9343,6 +9577,7 @@ static void block_info_finish(struct compile_state *st, struct block_info *block
     block_last_compiled->next_in_tc = block;
   block_last_compiled = block;
   stat_inc(stat_blocks);
+  perf_dump_write(st, beginning, end);
 }
 
 static int noinline new_recompile_block(u_int addr)
@@ -9352,7 +9587,7 @@ static int noinline new_recompile_block(u_int addr)
   u_int state_rflags = 0;
   int i;
 
-  assem_debug("NOTCOMPILED: addr = %x -> %p\n", addr, log_addr(out));
+  assem_debug("NOTCOMPILED: addr = %08x -> %p\n", addr, log_addr(out));
 
   if (addr & 3) {
     if (addr != hack_addr) {
@@ -9364,9 +9599,11 @@ static int noinline new_recompile_block(u_int addr)
 
   // this is just for speculation
   for (i = 1; i < 32; i++) {
-    if ((psxRegs.GPR.r[i] & 0xffff0000) == 0x1f800000)
-      state_rflags |= 1 << i;
+    if ((ndrc_smrv_regs[i] & 0xfffffc00u) == 0x1f800000u)
+      state_rflags |= 1u << i;
   }
+  if (!(state_rflags & (1 << 29)) && (ndrc_smrv_regs[29] & 0xffe00000u) != 0x80000000u)
+    state_rflags |= 1; // no save
 
   st.source = NULL;
   st.start = addr;
@@ -9484,7 +9721,7 @@ static int noinline new_recompile_block(u_int addr)
   stubcount = 0;
   st.is_delayslot = 0;
   u_int dirty_pre = 0;
-  void *beginning = start_block(MAX_OUTPUT_BLOCK_SIZE);
+  u_char *beginning = start_block(MAX_OUTPUT_BLOCK_SIZE);
   void *instr_addr0_override = NULL;
   int ds = 0;
 
@@ -9518,7 +9755,7 @@ static int noinline new_recompile_block(u_int addr)
     check_regmap(regs[i].regmap_entry);
     check_regmap(regs[i].regmap);
     //if(ds) printf("ds: ");
-    disassemble_inst(i, st.start, st.source);
+    disassemble_inst(&st, i, st.start, st.source);
     if(ds) {
       ds=0; // Skip delay slot
       if(dops[i].bt) assem_debug("OOPS - branch into delay slot\n");
@@ -9545,7 +9782,7 @@ static int noinline new_recompile_block(u_int addr)
       // branch target entry point
       st.instr_addr[i] = out;
       assem_debug("<->\n");
-      drc_dbg_emit_do_cmp(i, cinfo[i].ccadj);
+      drc_dbg_emit_do_cmp(&st, i, cinfo[i].ccadj);
       if (clear_hack_addr) {
         emit_movimm(0, 0);
         emit_writeword(0, &hack_addr);
@@ -9760,7 +9997,7 @@ static int noinline new_recompile_block(u_int addr)
   hash_table_add(block->jump_in[0].vaddr, block->jump_in[0].addr);
   // Write out the literal pool if necessary
   literal_pool(0);
-  assert(out - (u_char *)beginning < MAX_OUTPUT_BLOCK_SIZE);
+  assert(out - beginning < MAX_OUTPUT_BLOCK_SIZE);
 
   end_block(beginning);
   block_info_finish(&st, block, beginning, out);

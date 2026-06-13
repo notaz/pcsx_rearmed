@@ -16,12 +16,10 @@
 #include "../psxevents.h"
 #include "../psxbios.h"
 #include "../r3000a.h"
-#include "../gte_arm.h"
-#include "../gte_neon.h"
 #include "compiler_features.h"
 #include "arm_features.h"
-#define FLAGLESS
 #include "../gte.h"
+#include "../gte_divider.h"
 #if defined(NDRC_THREAD) && !defined(DRC_DISABLE) && !defined(LIGHTREC)
 #include "../../frontend/pcsxr-threads.h"
 #include "features/features_cpu.h"
@@ -115,20 +113,7 @@ void pcsx_mtc0_ds(psxRegisters *regs, u32 reg, u32 val)
 }
 
 /* GTE stuff */
-void *gte_handlers[64];
-
-void *gte_handlers_nf[64] = {
-	NULL      , gteRTPS_nf , NULL       , NULL      , NULL     , NULL       , gteNCLIP_nf, NULL      , // 00
-	NULL      , NULL       , NULL       , NULL      , gteOP_nf , NULL       , NULL       , NULL      , // 08
-	gteDPCS_nf, gteINTPL_nf, gteMVMVA_nf, gteNCDS_nf, gteCDP_nf, NULL       , gteNCDT_nf , NULL      , // 10
-	NULL      , NULL       , NULL       , gteNCCS_nf, gteCC_nf , NULL       , gteNCS_nf  , NULL      , // 18
-	gteNCT_nf , NULL       , NULL       , NULL      , NULL     , NULL       , NULL       , NULL      , // 20
-	gteSQR_nf , gteDCPL_nf , gteDPCT_nf , NULL      , NULL     , gteAVSZ3_nf, gteAVSZ4_nf, NULL      , // 28 
-	gteRTPT_nf, NULL       , NULL       , NULL      , NULL     , NULL       , NULL       , NULL      , // 30
-	NULL      , NULL       , NULL       , NULL      , NULL     , gteGPF_nf  , gteGPL_nf  , gteNCCT_nf, // 38
-};
-
-const char *gte_regnames[64] = {
+const char *gte_opnames[64] = {
 	NULL  , "RTPS" , NULL   , NULL  , NULL , NULL   , "NCLIP", NULL  , // 00
 	NULL  , NULL   , NULL   , NULL  , "OP" , NULL   , NULL   , NULL  , // 08
 	"DPCS", "INTPL", "MVMVA", "NCDS", "CDP", NULL   , "NCDT" , NULL  , // 10
@@ -165,54 +150,54 @@ const char *gte_regnames[64] = {
 	(GDBITS9(b0,b1,b2,b3,b4,b5,b6,b7,b8) | GDBIT(b9))
 
 const uint64_t gte_reg_reads[64] = {
-	[GTE_RTPS]  = 0x1f0000ff00000000ll | GDBITS7(0,1,13,14,17,18,19),
-	[GTE_NCLIP] =                        GDBITS3(12,13,14),
-	[GTE_OP]    = GCBITS3(0,2,4)       | GDBITS3(9,10,11),
-	[GTE_DPCS]  = GCBITS3(21,22,23)    | GDBITS4(6,8,21,22),
-	[GTE_INTPL] = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
-	[GTE_MVMVA] = 0x00ffffff00000000ll | GDBITS9(0,1,2,3,4,5,9,10,11), // XXX: maybe decode further?
-	[GTE_NCDS]  = 0x00ffff0000000000ll | GDBITS6(0,1,6,8,21,22),
-	[GTE_CDP]   = 0x00ffe00000000000ll | GDBITS7(6,8,9,10,11,21,22),
-	[GTE_NCDT]  = 0x00ffff0000000000ll | GDBITS8(0,1,2,3,4,5,6,8),
-	[GTE_NCCS]  = 0x001fff0000000000ll | GDBITS5(0,1,6,21,22),
-	[GTE_CC]    = 0x001fe00000000000ll | GDBITS6(6,9,10,11,21,22),
-	[GTE_NCS]   = 0x001fff0000000000ll | GDBITS5(0,1,6,21,22),
-	[GTE_NCT]   = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
-	[GTE_SQR]   =                        GDBITS3(9,10,11),
-	[GTE_DCPL]  = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
-	[GTE_DPCT]  = GCBITS3(21,22,23)    | GDBITS4(8,20,21,22),
-	[GTE_AVSZ3] = GCBIT(29)            | GDBITS3(17,18,19),
-	[GTE_AVSZ4] = GCBIT(30)            | GDBITS4(16,17,18,19),
-	[GTE_RTPT]  = 0x1f0000ff00000000ll | GDBITS7(0,1,2,3,4,5,19),
-	[GTE_GPF]   =                        GDBITS7(6,8,9,10,11,21,22),
-	[GTE_GPL]   =                        GDBITS10(6,8,9,10,11,21,22,25,26,27),
-	[GTE_NCCT]  = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
+	[GTEOP_RTPS]  = 0x1f0000ff00000000ll | GDBITS7(0,1,13,14,17,18,19),
+	[GTEOP_NCLIP] =                        GDBITS3(12,13,14),
+	[GTEOP_OP]    = GCBITS3(0,2,4)       | GDBITS3(9,10,11),
+	[GTEOP_DPCS]  = GCBITS3(21,22,23)    | GDBITS4(6,8,21,22),
+	[GTEOP_INTPL] = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
+	[GTEOP_MVMVA] = 0x00ffffff00000000ll | GDBITS9(0,1,2,3,4,5,9,10,11), // XXX: maybe decode further?
+	[GTEOP_NCDS]  = 0x00ffff0000000000ll | GDBITS6(0,1,6,8,21,22),
+	[GTEOP_CDP]   = 0x00ffe00000000000ll | GDBITS7(6,8,9,10,11,21,22),
+	[GTEOP_NCDT]  = 0x00ffff0000000000ll | GDBITS8(0,1,2,3,4,5,6,8),
+	[GTEOP_NCCS]  = 0x001fff0000000000ll | GDBITS5(0,1,6,21,22),
+	[GTEOP_CC]    = 0x001fe00000000000ll | GDBITS6(6,9,10,11,21,22),
+	[GTEOP_NCS]   = 0x001fff0000000000ll | GDBITS5(0,1,6,21,22),
+	[GTEOP_NCT]   = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
+	[GTEOP_SQR]   =                        GDBITS3(9,10,11),
+	[GTEOP_DCPL]  = GCBITS3(21,22,23)    | GDBITS7(6,8,9,10,11,21,22),
+	[GTEOP_DPCT]  = GCBITS3(21,22,23)    | GDBITS4(8,20,21,22),
+	[GTEOP_AVSZ3] = GCBIT(29)            | GDBITS3(17,18,19),
+	[GTEOP_AVSZ4] = GCBIT(30)            | GDBITS4(16,17,18,19),
+	[GTEOP_RTPT]  = 0x1f0000ff00000000ll | GDBITS7(0,1,2,3,4,5,19),
+	[GTEOP_GPF]   =                        GDBITS7(6,8,9,10,11,21,22),
+	[GTEOP_GPL]   =                        GDBITS10(6,8,9,10,11,21,22,25,26,27),
+	[GTEOP_NCCT]  = 0x001fff0000000000ll | GDBITS7(0,1,2,3,4,5,6),
 };
 
 // note: this excludes gteFLAG that is always written to
 const uint64_t gte_reg_writes[64] = {
-	[GTE_RTPS]  = 0x0f0f7f00ll,
-	[GTE_NCLIP] = GDBIT(24),
-	[GTE_OP]    = GDBITS6(9,10,11,25,26,27),
-	[GTE_DPCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_INTPL] = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_MVMVA] = GDBITS6(9,10,11,25,26,27),
-	[GTE_NCDS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_CDP]   = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_NCDT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_NCCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_CC]    = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_NCS]   = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_NCT]   = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_SQR]   = GDBITS6(9,10,11,25,26,27),
-	[GTE_DCPL]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_DPCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_AVSZ3] = GDBITS2(7,24),
-	[GTE_AVSZ4] = GDBITS2(7,24),
-	[GTE_RTPT]  = 0x0f0f7f00ll,
-	[GTE_GPF]   = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_GPL]   = GDBITS9(9,10,11,20,21,22,25,26,27),
-	[GTE_NCCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_RTPS]  = 0x0f0f7f00ll,
+	[GTEOP_NCLIP] = GDBIT(24),
+	[GTEOP_OP]    = GDBITS6(9,10,11,25,26,27),
+	[GTEOP_DPCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_INTPL] = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_MVMVA] = GDBITS6(9,10,11,25,26,27),
+	[GTEOP_NCDS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_CDP]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_NCDT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_NCCS]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_CC]    = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_NCS]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_NCT]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_SQR]   = GDBITS6(9,10,11,25,26,27),
+	[GTEOP_DCPL]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_DPCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_AVSZ3] = GDBITS2(7,24),
+	[GTEOP_AVSZ4] = GDBITS2(7,24),
+	[GTEOP_RTPT]  = 0x0f0f7f00ll,
+	[GTEOP_GPF]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_GPL]   = GDBITS9(9,10,11,20,21,22,25,26,27),
+	[GTEOP_NCCT]  = GDBITS9(9,10,11,20,21,22,25,26,27),
 };
 
 static void ari64_reset()
@@ -395,6 +380,9 @@ static noinline void ari64_execute_threaded_slow(struct psxRegisters *regs,
 	{
 		mixed_execute_block(regs, block_caller);
 
+		// drc only stops on taken branches, so avoid useless blocks
+		if (regs->branchSeen == R3000A_BRANCH_NOT_TAKEN)
+			continue;
 		if (ndrc_g.thread.busy_addr == ~0u)
 			break;
 		if (block_caller == EXEC_CALLER_HLE) {
@@ -563,7 +551,7 @@ static void ari64_thread_init(void)
 	else {
 		u32 cpu_count = cpu_features_get_core_amount();
 		enable = cpu_count > 1;
-#ifdef _3DS
+#if defined(DRC_DBG) || defined(_3DS)
 		// bad for old3ds, reprotedly no improvement for new3ds
 		enable = 0;
 #endif
@@ -600,35 +588,12 @@ static int ari64_thread_check_range(unsigned int start, unsigned int end) { retu
 
 static int ari64_init()
 {
-	static u32 scratch_buf[8*8*2] __attribute__((aligned(64)));
-	size_t i;
-
 	new_dynarec_init();
 	new_dyna_pcsx_mem_init();
 
-	for (i = 0; i < ARRAY_SIZE(gte_handlers); i++)
-		if (psxCP2[i] != gteNULL)
-			gte_handlers[i] = psxCP2[i];
-
-#if defined(__arm__) && !defined(DRC_DBG)
-	gte_handlers[0x06] = gteNCLIP_arm;
-#ifdef HAVE_ARMV5
-	gte_handlers_nf[0x01] = gteRTPS_nf_arm;
-	gte_handlers_nf[0x30] = gteRTPT_nf_arm;
-#endif
-#ifdef __ARM_NEON__
-	// compiler's _nf version is still a lot slower than neon
-	// _nf_arm RTPS is roughly the same, RTPT slower
-	gte_handlers[0x01] = gte_handlers_nf[0x01] = gteRTPS_neon;
-	gte_handlers[0x30] = gte_handlers_nf[0x30] = gteRTPT_neon;
-#endif
-#endif
-#ifdef DRC_DBG
-	memcpy(gte_handlers_nf, gte_handlers, sizeof(gte_handlers_nf));
-#endif
 	psxH_ptr = psxRegs.ptrs.psxH;
 	zeromem_ptr = zero_mem;
-	scratch_buf_ptr = scratch_buf; // for gte_neon.S
+	gte_divider_tab_ptr = gte_divider_tab; // for gte_neon.S
 
 	ndrc_g.cycle_multiplier_old = Config.cycle_multiplier;
 	ndrc_g.hacks_old = ndrc_g.hacks | ndrc_g.hacks_pergame;

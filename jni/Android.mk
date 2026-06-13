@@ -164,9 +164,12 @@ ifeq ($(HAVE_ARI64),1)
   SOURCES_C   += $(DYNAREC_DIR)/new_dynarec.c \
                  $(DYNAREC_DIR)/pcsxmem.c
   ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
-    SOURCES_ASM += $(DYNAREC_DIR)/linkage_arm64.S
+    SOURCES_ASM += $(CORE_DIR)/gte_arm64.S \
+                   $(CORE_DIR)/gte_nf_arm64.S \
+                   $(DYNAREC_DIR)/linkage_arm64.S
   else
     SOURCES_ASM += $(CORE_DIR)/gte_arm.S \
+                   $(CORE_DIR)/gte_nf_arm.S \
                    $(SPU_DIR)/arm_utils.S \
                    $(DYNAREC_DIR)/linkage_arm.S
   endif
@@ -236,6 +239,7 @@ endif
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   COREFLAGS   += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
   SOURCES_ASM += $(CORE_DIR)/gte_neon.S \
+                 $(CORE_DIR)/gte_nf_neon.S \
                  $(FRONTEND_DIR)/cspace_neon.S
 endif
 

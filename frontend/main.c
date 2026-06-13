@@ -704,7 +704,7 @@ int main(int argc, char *argv[])
 		menu_prepare_emu();
 
 		// If a state slot has been specified, then load that
-		if (cdfile && loadst) {
+		if (CdromId[0] && loadst) {
 			int ret = emu_load_state(loadst - 1);
 			SysPrintf("%s state slot %d\n",
 				ret ? "failed to load" : "loaded", loadst);

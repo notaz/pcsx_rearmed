@@ -115,9 +115,14 @@ endif
 
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
+OBJS += libpcsxcore/gte_nf_arm.o
+else ifneq (,$(findstring $(ARCH),aarch64 arm64))
+OBJS += libpcsxcore/gte_arm64.o
+OBJS += libpcsxcore/gte_nf_arm64.o
 endif
 ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
+OBJS += libpcsxcore/gte_nf_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
@@ -201,9 +206,11 @@ deps/lightning/lib/lightning.o: CFLAGS += -Dmprotect=_mprotect # deps/mman
 deps/lightning/lib/jit_print.o: CFLAGS += -w
 endif
 else ifeq "$(DYNAREC)" "ari64"
-OBJS += libpcsxcore/new_dynarec/new_dynarec.o
-OBJS += libpcsxcore/new_dynarec/pcsxmem.o
-libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -O2 # less bloat
+ OBJS += libpcsxcore/new_dynarec/new_dynarec.o
+ OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+ ifneq ($(DEBUG), 1)
+ libpcsxcore/new_dynarec/new_dynarec.o: CFLAGS += -O2 # less bloat
+ endif
  ifeq "$(ARCH)" "arm"
  OBJS += libpcsxcore/new_dynarec/linkage_arm.o
  else ifneq (,$(findstring $(ARCH),aarch64 arm64))
@@ -508,9 +515,6 @@ frontend/libpicofe/%.c:
 	@echo "libpicofe module is missing, please run:"
 	@echo "git submodule init && git submodule update"
 	@exit 1
-
-libpcsxcore/gte_nf.o: libpcsxcore/gte.c
-	$(CC) -c -o $@ $< $(CFLAGS) $(AUTODEPFLAGS) -DFLAGLESS
 
 include/revision.h: FORCE
 	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_

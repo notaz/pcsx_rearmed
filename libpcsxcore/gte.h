@@ -19,44 +19,33 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
-#ifdef FLAGLESS
-
-#define gteRTPS gteRTPS_nf
-#define gteOP gteOP_nf
-#define gteNCLIP gteNCLIP_nf
-#define gteDPCS gteDPCS_nf
-#define gteINTPL gteINTPL_nf
-#define gteMVMVA gteMVMVA_nf
-#define gteNCDS gteNCDS_nf
-#define gteNCDT gteNCDT_nf
-#define gteCDP gteCDP_nf
-#define gteNCCS gteNCCS_nf
-#define gteCC gteCC_nf
-#define gteNCS gteNCS_nf
-#define gteNCT gteNCT_nf
-#define gteSQR gteSQR_nf
-#define gteDCPL gteDCPL_nf
-#define gteDPCT gteDPCT_nf
-#define gteAVSZ3 gteAVSZ3_nf
-#define gteAVSZ4 gteAVSZ4_nf
-#define gteRTPT gteRTPT_nf
-#define gteGPF gteGPF_nf
-#define gteGPL gteGPL_nf
-#define gteNCCT gteNCCT_nf
-
-#define gteGPL_part_noshift gteGPL_part_noshift_nf
-#define gteGPL_part_shift gteGPL_part_shift_nf
-#define gteDPCS_part_noshift gteDPCS_part_noshift_nf
-#define gteDPCS_part_shift gteDPCS_part_shift_nf
-#define gteINTPL_part_noshift gteINTPL_part_noshift_nf
-#define gteINTPL_part_shift gteINTPL_part_shift_nf
-#define gteMACtoRGB gteMACtoRGB_nf
-
-#undef __GTE_H__
-#endif
-
 #ifndef __GTE_H__
 #define __GTE_H__
+
+enum gteop_opcodes {
+	GTEOP_RTPS  = 0x01,
+	GTEOP_NCLIP = 0x06,
+	GTEOP_OP    = 0x0c,
+	GTEOP_DPCS  = 0x10,
+	GTEOP_INTPL = 0x11,
+	GTEOP_MVMVA = 0x12,
+	GTEOP_NCDS  = 0x13,
+	GTEOP_CDP   = 0x14,
+	GTEOP_NCDT  = 0x16,
+	GTEOP_NCCS  = 0x1b,
+	GTEOP_CC    = 0x1c,
+	GTEOP_NCS   = 0x1e,
+	GTEOP_NCT   = 0x20,
+	GTEOP_SQR   = 0x28,
+	GTEOP_DCPL  = 0x29,
+	GTEOP_DPCT  = 0x2a,
+	GTEOP_AVSZ3 = 0x2d,
+	GTEOP_AVSZ4 = 0x2e,
+	GTEOP_RTPT  = 0x30,
+	GTEOP_GPF   = 0x3d,
+	GTEOP_GPL   = 0x3e,
+	GTEOP_NCCT  = 0x3f,
+};
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,49 +59,41 @@ struct psxCP2Regs;
 extern const unsigned char gte_cycletab[64];
 
 void gteCheckStall(u32 op);
+void gteDispatch(psxCP2Regs *regs, u32 code);
 
 u32  MFC2(struct psxCP2Regs *regs, int reg);
 void MTC2(struct psxCP2Regs *regs, u32 value, int reg);
 void CTC2(struct psxCP2Regs *regs, u32 value, int reg);
 
-void gteRTPS(struct psxCP2Regs *regs);
-void gteOP(struct psxCP2Regs *regs);
-void gteNCLIP(struct psxCP2Regs *regs);
-void gteDPCS(struct psxCP2Regs *regs);
-void gteINTPL(struct psxCP2Regs *regs);
-void gteMVMVA(struct psxCP2Regs *regs);
-void gteNCDS(struct psxCP2Regs *regs);
-void gteNCDT(struct psxCP2Regs *regs);
-void gteCDP(struct psxCP2Regs *regs);
-void gteNCCS(struct psxCP2Regs *regs);
-void gteCC(struct psxCP2Regs *regs);
-void gteNCS(struct psxCP2Regs *regs);
-void gteNCT(struct psxCP2Regs *regs);
-void gteSQR(struct psxCP2Regs *regs);
-void gteDCPL(struct psxCP2Regs *regs);
-void gteDPCT(struct psxCP2Regs *regs);
-void gteAVSZ3(struct psxCP2Regs *regs);
-void gteAVSZ4(struct psxCP2Regs *regs);
-void gteRTPT(struct psxCP2Regs *regs);
-void gteGPF(struct psxCP2Regs *regs);
-void gteGPL(struct psxCP2Regs *regs);
-void gteNCCT(struct psxCP2Regs *regs);
+typedef void (gte_handler)(psxCP2Regs *regs, u32 code);
+gte_handler *gteGetHandler(u32 code);
+gte_handler *gteGetHandler_nf(u32 code);
+
+// used by asm/drc
+void gteRTPS_sf1lm0(psxCP2Regs *regs, u32 code);
+void gteMVMVA_generic(psxCP2Regs *regs, u32 code);
+void gteMVMVA_generic_nf(psxCP2Regs *regs, u32 code);
 
 void gteSQR_part_noshift(struct psxCP2Regs *regs);
 void gteSQR_part_shift(struct psxCP2Regs *regs);
 void gteOP_part_noshift(struct psxCP2Regs *regs);
 void gteOP_part_shift(struct psxCP2Regs *regs);
-void gteDCPL_part(struct psxCP2Regs *regs);
 void gteGPF_part_noshift(struct psxCP2Regs *regs);
 void gteGPF_part_shift(struct psxCP2Regs *regs);
-
 void gteGPL_part_noshift(struct psxCP2Regs *regs);
+
 void gteGPL_part_shift(struct psxCP2Regs *regs);
+void gteGPL_part_shift_nf(struct psxCP2Regs *regs);
 void gteDPCS_part_noshift(struct psxCP2Regs *regs);
+void gteDPCS_part_noshift_nf(struct psxCP2Regs *regs);
 void gteDPCS_part_shift(struct psxCP2Regs *regs);
+void gteDPCS_part_shift_nf(struct psxCP2Regs *regs);
 void gteINTPL_part_noshift(struct psxCP2Regs *regs);
+void gteINTPL_part_noshift_nf(struct psxCP2Regs *regs);
 void gteINTPL_part_shift(struct psxCP2Regs *regs);
+void gteINTPL_part_shift_nf(struct psxCP2Regs *regs);
 void gteMACtoRGB(struct psxCP2Regs *regs);
+void gteMACtoRGB_nf(struct psxCP2Regs *regs);
 
 #ifdef __cplusplus
 }

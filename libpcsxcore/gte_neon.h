@@ -18,13 +18,18 @@
 #ifndef __GTE_NEON_H__
 #define __GTE_NEON_H__
 
-void gteRTPS_neon(void *cp2_regs, int opcode);
-void gteRTPT_neon(void *cp2_regs, int opcode);
+#include "psxcommon.h"
+
+// note: doesn't use opcode, just maintaining common signature
+void gteRTPS_sf1lm0_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPS_sf1lm0_nf_neon(psxCP2Regs *cp2_regs, u32 opcode);
+void gteRTPT_sf1lm0_nf_neon(psxCP2Regs *cp2_regs, u32 opcode);
 
 // decomposed ops, nonstd calling convention
-void gteMVMVA_part_neon(void *cp2_regs, int opcode);
+void gteMVMVA_part_neon(psxCP2Regs *cp2_regs, u32 opcode);
 
 // after NEON call only, does not do gteIR
-void gteMACtoIR_flags_neon(void *cp2_regs, int lm);
+void gteMACtoIR_flags_neon(psxCP2Regs *cp2_regs, int lm);
 
 #endif /* __GTE_NEON_H__ */

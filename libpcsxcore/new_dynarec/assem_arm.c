@@ -1628,27 +1628,16 @@ static void mov_loadtype_adj(enum stub_type type,int rs,int rt)
 #include "pcsxmem.h"
 #include "pcsxmem_inline.c"
 
-static void do_readstub(struct compile_state *st, int n)
+static void do_read_slow(struct compile_state *st, int i, const struct regstat *i_regs,
+  enum stub_type type, void *retaddr, int rs, int ccadj, u_int reglist)
 {
-  assem_debug("do_readstub %x\n", st->start + stubs[n].a*4);
-  literal_pool(256);
-  set_jump_target(stubs[n].addr, out);
-  enum stub_type type=stubs[n].type;
-  int i=stubs[n].a;
-  int rs=stubs[n].b;
-  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  u_int reglist=stubs[n].e;
-  const signed char *i_regmap=i_regs->regmap;
-  int rt;
-  if(dops[i].itype==C2LS||dops[i].itype==LOADLR) {
-    rt=get_reg(i_regmap,FTEMP);
-  }else{
-    rt=get_reg(i_regmap,dops[i].rt1);
-  }
-  assert(rs>=0);
-  int r,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
-  void *restore_jump = NULL;
-  reglist|=(1<<rs);
+  int itype = dops[i].itype;
+  const signed char *i_regmap = i_regs->regmap;
+  int rt = get_reg(i_regmap, (itype == C2LS || itype == LOADLR) ? FTEMP : dops[i].rt1);
+  int r, temp = -1, temp2 = HOST_TEMPREG, regs_saved = 0;
+  void *restore_jump = NULL, *end_jump = NULL;
+  assert(rs >= 0);
+  reglist |= 1 << rs;
   for(r=0;r<=12;r++) {
     if(((1<<r)&0x13ff)&&((1<<r)&reglist)==0) {
       temp=r; break;
@@ -1667,7 +1656,7 @@ static void do_readstub(struct compile_state *st, int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
+  if (itype == C2LS || (rt >= 0 && dops[i].rt1 != 0)) {
     switch(type) {
       case LOADB_STUB:  emit_ldrccsb_dualindexed(temp2,rs,rt); break;
       case LOADBU_STUB: emit_ldrccb_dualindexed(temp2,rs,rt); break;
@@ -1677,12 +1666,16 @@ static void do_readstub(struct compile_state *st, int n)
       default: assert(0);
     }
   }
-  if(regs_saved) {
-    restore_jump=out;
-    emit_jcc(0); // jump to reg restore
+  if (regs_saved) {
+    restore_jump = out;
+    emit_jcc(DJT_1); // jump to reg restore
+  }
+  else if (!retaddr) {
+    end_jump = out;
+    emit_jcc(DJT_1);
   }
   else
-    emit_jcc(stubs[n].retaddr); // return address
+    emit_jcc(retaddr); // return address
 
   if(!regs_saved)
     save_regs(reglist);
@@ -1698,23 +1691,29 @@ static void do_readstub(struct compile_state *st, int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
+  emit_addimm(cc < 0 ? 2 : cc, ccadj, 2);
   emit_far_call(handler);
 #if 0
   if (type == LOADW_STUB) {
     // new cycle_count returned in r2
-    emit_addimm(2, -(int)stubs[n].d, cc<0?2:cc);
+    emit_addimm(2, -ccadj, cc<0?2:cc);
     if (cc < 0)
       emit_storereg(CCREG, 2);
   }
 #endif
-  if(dops[i].itype==C2LS||(rt>=0&&dops[i].rt1!=0)) {
-    mov_loadtype_adj(type,0,rt);
-  }
-  if(restore_jump)
+  if (itype == C2LS || (rt >= 0 && dops[i].rt1 != 0))
+    mov_loadtype_adj(type, 0, rt);
+  if (restore_jump) {
+    assem_debug("1:\n");
     set_jump_target(restore_jump, out);
+  }
   restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr); // return address
+  if (retaddr)
+    emit_jmp(retaddr);
+  if (end_jump) {
+    assem_debug("1: ; end read_slow\n");
+    set_jump_target(end_jump, out);
+  }
 }
 
 static void inline_readstub(enum stub_type type, int i, u_int addr,
@@ -1799,28 +1798,16 @@ static void inline_readstub(enum stub_type type, int i, u_int addr,
   restore_regs(reglist);
 }
 
-static void do_writestub(struct compile_state *st, int n)
+static void do_write_slow(struct compile_state *st, int i, const struct regstat *i_regs,
+  enum stub_type type, void *retaddr, int rs, int ccadj, u_int reglist, int do_smc_check)
 {
-  assem_debug("do_writestub %x\n", st->start + stubs[n].a*4);
-  literal_pool(256);
-  set_jump_target(stubs[n].addr, out);
-  enum stub_type type=stubs[n].type;
-  int i=stubs[n].a;
-  int rs=stubs[n].b;
-  const struct regstat *i_regs=(struct regstat *)stubs[n].c;
-  u_int reglist=stubs[n].e;
-  const signed char *i_regmap=i_regs->regmap;
-  int rt,r;
-  if(dops[i].itype==C2LS) {
-    rt=get_reg(i_regmap,r=FTEMP);
-  }else{
-    rt=get_reg(i_regmap,r=dops[i].rs2);
-  }
-  assert(rs>=0);
-  assert(rt>=0);
-  int rtmp,temp=-1,temp2=HOST_TEMPREG,regs_saved=0;
-  void *restore_jump = NULL;
-  int reglist2=reglist|(1<<rs)|(1<<rt);
+  const signed char *i_regmap = i_regs->regmap;
+  int rt = get_reg(i_regmap, (dops[i].itype == C2LS) ? FTEMP : dops[i].rs2);
+  void *handler_jump = NULL, *restore_jump = NULL, *end_jump = NULL;
+  int rtmp, temp = -1, temp2 = HOST_TEMPREG, regs_saved = 0;
+  int jmp2_cond, reglist2 = reglist | (1<<rs) | (1<<rt);
+  assert(rs >= 0);
+  assert(rt >= 0);
   for(rtmp=0;rtmp<=12;rtmp++) {
     if(((1<<rtmp)&0x13ff)&&((1<<rtmp)&reglist2)==0) {
       temp=rtmp; break;
@@ -1839,18 +1826,51 @@ static void do_writestub(struct compile_state *st, int n)
   emit_shrimm(rs,12,temp2);
   emit_readword_dualindexedx4(temp,temp2,temp2);
   emit_lsls_imm(temp2,1,temp2);
-  switch(type) {
-    case STOREB_STUB: emit_strccb_dualindexed(temp2,rs,rt); break;
-    case STOREH_STUB: emit_strcch_dualindexed(temp2,rs,rt); break;
-    case STOREW_STUB: emit_strcc_dualindexed(temp2,rs,rt); break;
-    default:          assert(0);
+  if (do_smc_check) {
+    jmp2_cond = 0;
+    handler_jump = out;
+    emit_jc(DJT_1);
+    switch (type) {
+      case STOREB_STUB: emit_strb_dualindexed(temp2, rs, rt); break;
+      case STOREH_STUB: emit_strh_dualindexed(temp2, rs, rt); break;
+      case STOREW_STUB: emit_str_dualindexed(temp2, rs, rt); break;
+      default:          assert(0);
+    }
+    do_store_smc_check(st, i, i_regs, reglist, rs);
   }
-  if(regs_saved) {
-    restore_jump=out;
-    emit_jcc(0); // jump to reg restore
+  else {
+    jmp2_cond = 1;
+    switch (type) {
+      case STOREB_STUB: emit_strccb_dualindexed(temp2, rs, rt); break;
+      case STOREH_STUB: emit_strcch_dualindexed(temp2, rs, rt); break;
+      case STOREW_STUB: emit_strcc_dualindexed(temp2, rs, rt); break;
+      default:          assert(0);
+    }
   }
-  else
-    emit_jcc(stubs[n].retaddr); // return address (invcode check)
+  if (regs_saved) {
+    restore_jump = out;
+    if (jmp2_cond)
+      emit_jcc(DJT_2); // jump to reg restore
+    else
+      emit_jmp(DJT_2);
+  }
+  else if (!retaddr) {
+    end_jump = out;
+    if (jmp2_cond)
+      emit_jcc(DJT_2);
+    else
+      emit_jmp(DJT_2);
+  }
+  else {
+    if (jmp2_cond)
+      emit_jcc(retaddr); // return address (invcode check)
+    else
+      emit_jmp(retaddr);
+  }
+  if (handler_jump) {
+    assem_debug("1:\n");
+    set_jump_target(handler_jump, out);
+  }
 
   if(!regs_saved)
     save_regs(reglist);
@@ -1868,16 +1888,23 @@ static void do_writestub(struct compile_state *st, int n)
   int cc=get_reg(i_regmap,CCREG);
   if(cc<0)
     emit_loadreg(CCREG,2);
-  emit_addimm(cc<0?2:cc,(int)stubs[n].d,2);
+  emit_addimm(cc < 0 ? 2 : cc, ccadj, 2);
   emit_far_call(handler);
   // new cycle_count returned in r2
-  emit_addimm(2,-(int)stubs[n].d,cc<0?2:cc);
+  emit_addimm(2, -ccadj, cc < 0 ? 2 : cc);
   if(cc<0)
     emit_storereg(CCREG,2);
-  if(restore_jump)
+  if (restore_jump) {
+    assem_debug("2:\n");
     set_jump_target(restore_jump, out);
+  }
   restore_regs(reglist);
-  emit_jmp(stubs[n].retaddr);
+  if (retaddr)
+    emit_jmp(retaddr);
+  if (end_jump) {
+    assem_debug("2: ; end write_slow\n");
+    set_jump_target(end_jump, out);
+  }
 }
 
 static void inline_writestub(enum stub_type type, int i, u_int addr,
@@ -1940,138 +1967,162 @@ static void c2op_epilogue(u_int op,u_int reglist)
   restore_regs_all(reglist);
 }
 
-static void c2op_call_MACtoIR(int lm,int need_flags)
+enum MACtoIRflagMode {
+  fm_load, fm_zero, fm_preset_r1
+};
+
+static void c2op_call_MACtoIR(int lm, int need_flags, enum MACtoIRflagMode fmode)
 {
-  if(need_flags)
-    emit_far_call(lm?gteMACtoIR_lm1:gteMACtoIR_lm0);
+  if (need_flags) {
+    switch (fmode) {
+    case fm_load:
+      emit_readword_indexed((char *)&psxRegs.CP2C.n.flag - (char *)&psxRegs.CP2, 0, 1);
+      break;
+    case
+      fm_zero: emit_movimm(0, 1);
+      break;
+    default:
+      break;
+    }
+    emit_far_call(lm ? gteMACtoIR_lm1_arm : gteMACtoIR_lm0_arm);
+  }
   else
-    emit_far_call(lm?gteMACtoIR_lm1_nf:gteMACtoIR_lm0_nf);
+    emit_far_call(lm ? gteMACtoIR_lm1_nf_arm : gteMACtoIR_lm0_nf_arm);
 }
 
 static void c2op_call_rgb_func(void *func,int lm,int need_ir,int need_flags)
 {
   emit_far_call(func);
-  // func is C code and trashes r0
-  emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-  if(need_flags||need_ir)
-    c2op_call_MACtoIR(lm,need_flags);
-  emit_far_call(need_flags?gteMACtoRGB:gteMACtoRGB_nf);
+  if (need_flags || need_ir) {
+    // func is C code and trashes r0
+    emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+    c2op_call_MACtoIR(lm, need_flags, fm_load);
+  }
+  emit_far_call(need_flags ? gteMACtoRGB : gteMACtoRGB_nf);
 }
+
+#include "../gte_neon.h"
+#include "../gte_arm.h"
 
 static void c2op_assemble(struct compile_state *st, int i, const struct regstat *i_regs)
 {
   u_int c2op = st->source[i] & 0x3f;
   u_int reglist_full = get_host_reglist(i_regs->regmap);
   u_int reglist = reglist_full & CALLER_SAVE_REGS;
-  int need_flags, need_ir;
+  int need_flags = !(gte_unneeded[i+1] >> 63); // +1 because of how liveness detection works
+  gte_handler *handler;
 
-  if (gte_handlers[c2op]!=NULL) {
-    need_flags=!(gte_unneeded[i+1]>>63); // +1 because of how liveness detection works
-    need_ir=(gte_unneeded[i+1]&0xe00)!=0xe00;
+  if (HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
+    need_flags = 0;
+#ifdef DRC_DBG
+  need_flags = 1;
+#endif
+  handler = need_flags ? gteGetHandler(st->source[i]) : gteGetHandler_nf(st->source[i]);
+  if (handler) {
+    int need_ir = (gte_unneeded[i+1] & 0xe00) != 0xe00;
     assem_debug("gte op %08x, unneeded %016llx, need_flags %d, need_ir %d\n",
       st->source[i], gte_unneeded[i+1], need_flags, need_ir);
-    if(HACK_ENABLED(NDHACK_GTE_NO_FLAGS))
-      need_flags=0;
     int shift = (st->source[i] >> 19) & 1;
     int lm = (st->source[i] >> 10) & 1;
     switch(c2op) {
 #ifndef DRC_DBG
-      case GTE_MVMVA: {
 #ifdef HAVE_ARMV5
+      case GTEOP_MVMVA: {
         int v  = (st->source[i] >> 15) & 3;
         int cv = (st->source[i] >> 13) & 3;
         int mx = (st->source[i] >> 17) & 3;
-        reglist=reglist_full&(CALLER_SAVE_REGS|0xf0); // +{r4-r7}
+        if ((st->source[i] & (1u << 18)) || cv == 2) // "bugged" mx/cv
+          goto do_handler;
+        reglist = reglist_full & (CALLER_SAVE_REGS|0x7f0); // +{r4-r10}
         c2op_prologue(st, c2op, i, i_regs, reglist);
         /* r4,r5 = VXYZ(v) packed; r6 = &MX11(mx); r7 = &CV1(cv) */
-        if(v<3)
-          emit_ldrd(v*8,0,4);
+        if (v < 3)
+          emit_ldrd(v*8, 0, 4);
         else {
-          emit_movzwl_indexed(9*4,0,4);  // gteIR
-          emit_movzwl_indexed(10*4,0,6);
-          emit_movzwl_indexed(11*4,0,5);
-          emit_orrshl_imm(6,16,4);
+          emit_movzwl_indexed(4 *  9, 0, 4);  // gteIR
+          emit_movzwl_indexed(4 * 10, 0, 6);
+          emit_movzwl_indexed(4 * 11, 0, 5);
+          emit_orrshl_imm(6, 16, 4);
         }
-        if(mx<3)
-          emit_addimm(0,32*4+mx*8*4,6);
-        else
-          emit_readword(&zeromem_ptr,6);
-        if(cv<3)
-          emit_addimm(0,32*4+(cv*8+5)*4,7);
-        else
-          emit_readword(&zeromem_ptr,7);
-#ifdef __ARM_NEON__
-        emit_movimm(st->source[i],1); // opcode
-        emit_far_call(gteMVMVA_part_neon);
-        if(need_flags) {
-          emit_movimm(lm,1);
-          emit_far_call(gteMACtoIR_flags_neon);
-        }
-#else
-        if(cv==3&&shift)
-          emit_far_call(gteMVMVA_part_cv3sh12_arm);
+        assert(mx < 3);
+        emit_addimm(0, 32*4 + mx*8*4, 6);
+        if (cv == 3)
+          emit_far_call(shift ? gteMVMVA_part_sf1cv3_arm : gteMVMVA_part_sf0cv3_arm);
         else {
-          emit_movimm(shift,1);
-          emit_far_call(need_flags?gteMVMVA_part_arm:gteMVMVA_part_nf_arm);
+          emit_addimm(0, 32*4 + (cv*8+5)*4, 7);
+          emit_movimm(st->source[i], 1);
+          emit_far_call(shift ? gteMVMVA_part_sf1_arm : gteMVMVA_part_sf0_arm);
         }
-        if(need_flags||need_ir)
-          c2op_call_MACtoIR(lm,need_flags);
-#endif
-#else /* if not HAVE_ARMV5 */
-        c2op_prologue(st,c2op,i,i_regs,reglist);
-        emit_movimm(st->source[i],1); // opcode
-        emit_writeword(1,&psxRegs.code);
-        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
-#endif
+        if (need_flags || need_ir)
+          c2op_call_MACtoIR(lm, need_flags, fm_preset_r1); // r1 from gteMVMVA_part_*
         break;
       }
-      case GTE_OP:
+#endif // HAVE_ARMV5
+      case GTEOP_RTPS:
+        if (shift && !lm) {
+#if defined(__ARM_NEON__)
+          handler = need_flags ? gteRTPS_sf1lm0_neon : gteRTPS_sf1lm0_nf_neon;
+#elif defined(HAVE_ARMV5)
+          handler = need_flags ? gteRTPS_sf1lm0_arm : gteRTPS_sf1lm0_nf_arm;
+#endif
+        }
+        goto do_handler;
+      case GTEOP_RTPT:
+        if (shift && !lm) {
+#if defined(__ARM_NEON__)
+          handler = need_flags ? gteRTPT_sf1lm0_neon : gteRTPT_sf1lm0_nf_neon;
+#elif defined(HAVE_ARMV5)
+          handler = need_flags ? gteRTPT_sf1lm0_arm : gteRTPT_sf1lm0_nf_arm;
+#endif
+        }
+        goto do_handler;
+      case GTEOP_NCLIP:
+        if (need_flags)
+          handler = gteNCLIP_arm;
+        goto do_handler;
+      case GTEOP_OP:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteOP_part_shift:gteOP_part_noshift);
-        if(need_flags||need_ir) {
-          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-          c2op_call_MACtoIR(lm,need_flags);
+        if (need_flags || need_ir) {
+          emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+          c2op_call_MACtoIR(lm, need_flags, fm_zero);
         }
         break;
-      case GTE_DPCS:
+      case GTEOP_DPCS:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteDPCS_part_shift:gteDPCS_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_INTPL:
+      case GTEOP_INTPL:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteINTPL_part_shift:gteINTPL_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_SQR:
+      case GTEOP_SQR:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         emit_far_call(shift?gteSQR_part_shift:gteSQR_part_noshift);
-        if(need_flags||need_ir) {
-          emit_addimm(FP,(int)&psxRegs.CP2D.r[0]-(int)&dynarec_local,0);
-          c2op_call_MACtoIR(lm,need_flags);
+        if (need_flags || need_ir) {
+          emit_addimm(FP, (char *)&psxRegs.CP2D.r[0] - (char *)&dynarec_local, 0);
+          c2op_call_MACtoIR(lm, need_flags, fm_zero);
         }
         break;
-      case GTE_DCPL:
-        c2op_prologue(st,c2op,i,i_regs,reglist);
-        c2op_call_rgb_func(gteDCPL_part,lm,need_ir,need_flags);
-        break;
-      case GTE_GPF:
+      //case GTEOP_DCPL:
+      case GTEOP_GPF:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPF_part_shift:gteGPF_part_noshift,lm,need_ir,need_flags);
         break;
-      case GTE_GPL:
+      case GTEOP_GPL:
         c2op_prologue(st,c2op,i,i_regs,reglist);
         c2op_call_rgb_func(shift?gteGPL_part_shift:gteGPL_part_noshift,lm,need_ir,need_flags);
         break;
+      do_handler:
 #endif
       default:
         c2op_prologue(st,c2op,i,i_regs,reglist);
-#ifdef DRC_DBG
         emit_movimm(st->source[i],1); // opcode
-        emit_writeword(1,&psxRegs.code);
-#endif
-        emit_far_call(need_flags?gte_handlers[c2op]:gte_handlers_nf[c2op]);
+        //emit_writeword(1,&psxRegs.code);
+        emit_far_call(handler);
         break;
     }
-    c2op_epilogue(c2op,reglist);
+    c2op_epilogue(c2op, reglist);
   }
 }
 
@@ -2079,12 +2130,13 @@ static void c2op_ctc2_31_assemble(signed char sl, signed char temp)
 {
   //value = value & 0x7ffff000;
   //if (value & 0x7f87e000) value |= 0x80000000;
-  emit_shrimm(sl,12,temp);
-  emit_shlimm(temp,12,temp);
-  emit_testimm(temp,0x7f000000);
-  emit_testeqimm(temp,0x00870000);
-  emit_testeqimm(temp,0x0000e000);
-  emit_orrne_imm(temp,0x80000000,temp);
+  emit_andimm(sl, ~0xff, temp);
+  emit_andimm(temp, ~0xf00, temp);
+  emit_andimm(temp, ~(1u << 31), temp);
+  emit_testimm(sl,   0x7f000000);
+  emit_testeqimm(sl, 0x00870000);
+  emit_testeqimm(sl, 0x0000e000);
+  emit_orrne_imm(temp, 1u << 31, temp);
 }
 
 static void do_mfc2_31_one(u_int copr,signed char temp)
