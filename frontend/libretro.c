@@ -1791,8 +1791,9 @@ static void set_retro_memmap(void)
    environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &retromap);
 }
 
-static void show_notification(const char *msg_str,
-      unsigned duration_ms, unsigned priority, enum retro_log_level level)
+static void show_message(const char *msg_str,
+      unsigned duration_ms, unsigned priority, enum retro_log_level level,
+      enum retro_message_target target, enum retro_message_type type)
 {
    if (msg_interface_version >= 1)
    {
@@ -1800,10 +1801,7 @@ static void show_notification(const char *msg_str,
          msg_str,
          duration_ms,
          priority,
-         level,
-         RETRO_MESSAGE_TARGET_ALL,
-         RETRO_MESSAGE_TYPE_NOTIFICATION,
-         -1
+         level, target, type, -1
       };
       environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &msg);
    }
@@ -1815,6 +1813,13 @@ static void show_notification(const char *msg_str,
       };
       environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &msg);
    }
+}
+
+static void show_notification(const char *msg_str,
+      unsigned duration_ms, unsigned priority, enum retro_log_level level)
+{
+   show_message(msg_str, duration_ms, priority, level,
+         RETRO_MESSAGE_TARGET_ALL, RETRO_MESSAGE_TYPE_NOTIFICATION);
 }
 
 static void retro_audio_buff_status_cb(
@@ -2147,7 +2152,8 @@ bool retro_load_game(const struct retro_game_info *info)
       char buf[16+64];
       if (Config.PsxRegion < ARRAY_SIZE(Config.Bios) && Config.Bios[Config.PsxRegion][0]) {
          snprintf(buf, sizeof(buf), "Booting BIOS: %s", Config.Bios[Config.PsxRegion]);
-         show_notification(buf, 1000, 2, RETRO_LOG_INFO);
+         show_message(buf, 800, 2, RETRO_LOG_INFO, RETRO_MESSAGE_TARGET_OSD,
+               RETRO_MESSAGE_TYPE_PROGRESS);
       }
    }
    if (Config.TurboCD)
