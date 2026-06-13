@@ -42,7 +42,7 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     cmp      w4, w7
     ccmp     w5, w7, #0, hi
     ccmp     w6, w7, #0, hi
-    bls      gteRTPS_sf1lm0       // if MAC123 can overflow, don't bother
+    bls      call_gteRTPS_sf1lm0  // if MAC123 can overflow, don't bother
 
     add      x1, x0, #4*17        // gteSZ*
     mov      w2, #0
@@ -193,6 +193,8 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     str      w17, [x0, #4*(32+31)] // gteFLAG
 #endif
     ret
+call_gteRTPS_sf1lm0:
+    b        gteRTPS_sf1lm0       // apple can't do cond. branch to an external
     ESIZE(gteRTPS_sf1lm0_arm64, .-gteRTPS_sf1lm0_arm64)
 
 
