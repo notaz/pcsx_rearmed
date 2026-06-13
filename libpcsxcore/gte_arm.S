@@ -20,6 +20,11 @@
 #else
 #define V6(...)
 #endif
+#ifdef __MACH__
+#define gteRTPS_sf1lm0   ESYM(gteRTPS_sf1lm0)
+#define gteRTPT_sf1lm0   ESYM(gteRTPT_sf1lm0)
+#define gteMVMVA_generic ESYM(gteMVMVA_generic)
+#endif
 
 .syntax unified
 .text

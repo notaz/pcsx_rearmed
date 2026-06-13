@@ -15,6 +15,10 @@
 #else
 #define F(code...) code
 #endif
+#ifdef __MACH__
+#define gteRTPS_sf1lm0   ESYM(gteRTPS_sf1lm0)
+#define gteRTPT_sf1lm0   ESYM(gteRTPT_sf1lm0)
+#endif
 
 .syntax unified
 .text

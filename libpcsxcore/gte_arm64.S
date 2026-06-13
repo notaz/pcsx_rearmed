@@ -14,6 +14,9 @@
 #else
 #define F(code...) code
 #endif
+#ifdef __MACH__
+#define gteRTPS_sf1lm0 ESYM(gteRTPS_sf1lm0)
+#endif
 
 .text
 .align 2
@@ -190,7 +193,7 @@ FUNCTION(gteRTPS_sf1lm0_arm64):   // x0=CP2 (d,c); save: v8-v15
     str      w17, [x0, #4*(32+31)] // gteFLAG
 #endif
     ret
-    .size       gteRTPS_sf1lm0_arm64, .-gteRTPS_sf1lm0_arm64
+    ESIZE(gteRTPS_sf1lm0_arm64, .-gteRTPS_sf1lm0_arm64)
 
 
 // vim:filetype=armasm
