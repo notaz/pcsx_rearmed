@@ -26,6 +26,10 @@
 #include "misc.h"
 #include "cdrom.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include <streams/file_stream_transforms.h>
+#endif
+
 typedef struct tagPPF_DATA {
 	s32					addr;
 	s32					pos;
