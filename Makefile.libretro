@@ -317,12 +317,14 @@ else ifeq ($(platform), psl1ght)
 	USE_ASYNC_CDROM = 0
 	USE_ASYNC_GPU = 0
 	USE_ASYNC_SPU = 0
+	USE_LIBRETRO_VFS = 0
 
 # PSP
 else ifeq ($(platform), psp1)
 	TARGET := $(TARGET_NAME)_libretro_psp1.a
 	CFLAGS += -DPSP -G0
 	HAVE_PHYSICAL_CDROM = 0
+	USE_LIBRETRO_VFS = 0
 
 # Vita
 else ifeq ($(platform), vita)
@@ -422,6 +424,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	USE_ASYNC_CDROM = 0
 	USE_ASYNC_GPU = 0
 	USE_ASYNC_SPU = 0
+	USE_LIBRETRO_VFS = 0
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -438,6 +441,7 @@ else ifeq ($(platform), qnx)
 	LIBDL :=
 	LIBM :=
 	HAVE_PHYSICAL_CDROM = 0
+	USE_LIBRETRO_VFS = 0
 
 #Raspberry Pi 1
 else ifeq ($(platform), rpi1)
@@ -532,6 +536,7 @@ else ifeq ($(platform), classic_armv7_a7)
 			LDFLAGS += -static-libgcc -static-libstdc++
 		endif
 	endif
+	USE_LIBRETRO_VFS = 0
 
 # (armv8 a35, hard point, neon based) ###
 # PlayStation Classic
@@ -547,6 +552,7 @@ else ifeq ($(platform), classic_armv8_a35)
 	BUILTIN_GPU = neon
 	DYNAREC = ari64
 	LDFLAGS += -static-libgcc -static-libstdc++ -fPIC
+	USE_LIBRETRO_VFS = 0
 
 #######################################
 
@@ -611,6 +617,7 @@ else ifeq ($(platform), emscripten)
    DYNAREC =
    STATIC_LINKING = 1
    HAVE_PHYSICAL_CDROM = 0
+   USE_LIBRETRO_VFS = 0
    plugins/gpu_neon/psx_gpu/psx_gpu_simd.o: CFLAGS += -msse4.2
 
 # Windows
