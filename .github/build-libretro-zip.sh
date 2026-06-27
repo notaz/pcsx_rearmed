@@ -26,5 +26,7 @@ shift
 
 
 make -f Makefile.libretro platform=$plat "$@"
+echo "creating pcsx_rearmed_libretro_${aname}_${plat}.zip"
 zip -9 "pcsx_rearmed_libretro_${aname}_${plat}.zip" pcsx_rearmed_libretro.so
 make -f Makefile.libretro platform=$plat clean
+echo
