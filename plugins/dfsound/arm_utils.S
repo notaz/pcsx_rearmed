@@ -154,4 +154,7 @@ FUNCTION(mix_chan_rvb): @ (int *SSumLR, int count, int lv, int rv, int *rvb)
 
 #endif
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm

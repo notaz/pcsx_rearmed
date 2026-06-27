@@ -198,4 +198,7 @@ call_gteRTPS_sf1lm0:
     ESIZE(gteRTPS_sf1lm0_arm64, .-gteRTPS_sf1lm0_arm64)
 
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",@progbits
+#endif
 // vim:filetype=armasm

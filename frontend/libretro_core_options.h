@@ -449,6 +449,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled",
    },
    {
+      "pcsx_rearmed_display_info",
+      "Display Informational Notifications",
+      NULL,
+      "Shows things like unsafe hack options that are enabled and the BIOS name that is booting.",
+      NULL,
+      "video",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "enabled",
+   },
+   {
       "pcsx_rearmed_fractional_framerate",
       "Use fractional frame rate",
       NULL,

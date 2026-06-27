@@ -263,5 +263,7 @@ FUNCTION(rgb888_to_rgb565): @ dst, src, pixels
     nop
     bx          lr
 
-
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm:expandtab

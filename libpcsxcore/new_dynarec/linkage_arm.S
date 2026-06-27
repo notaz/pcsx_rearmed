@@ -669,4 +669,7 @@ FUNCTION(get_reg):
 
 #endif /* HAVE_ARMV6 */
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm

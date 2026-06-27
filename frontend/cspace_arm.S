@@ -126,3 +126,8 @@ FUNCTION(bgr888_to_rgb565):
     pop      {r4-r10,pc}
 
 #endif /* HAVE_ARMV6 */
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
+@ vim:filetype=armasm:expandtab
