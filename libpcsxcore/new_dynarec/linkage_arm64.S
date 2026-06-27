@@ -428,3 +428,7 @@ FUNCTION(do_insn_cmp_arm64):
 	ldp	x18, x30, [sp, #(SSP_CALLEE_REGS + 18*8)]
 	ret
 #endif
+
+#ifdef __ELF__
+.section .note.GNU-stack,"",@progbits
+#endif

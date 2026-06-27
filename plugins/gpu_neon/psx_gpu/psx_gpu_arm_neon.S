@@ -6157,4 +6157,7 @@ function(scale2x_tiles8)
 
   pop { r4, pc }
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 // vim:filetype=armasm

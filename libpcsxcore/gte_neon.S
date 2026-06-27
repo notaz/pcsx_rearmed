@@ -488,4 +488,7 @@ FUNCTION(gteRTPT_sf1lm0_neon): @ r0=CP2 (d,c),
     pop         {r4-r11,pc}
     .size	gteRTPT_sf1lm0_neon, .-gteRTPT_sf1lm0_neon
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm

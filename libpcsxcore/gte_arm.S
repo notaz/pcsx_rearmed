@@ -1079,4 +1079,7 @@ FUNCTION(gteMACtoIR_lm1_nf_arm): @ r0=CP2 (d,c)
 
 #endif // FLAGLESS
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm

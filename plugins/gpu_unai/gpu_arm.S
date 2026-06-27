@@ -1205,4 +1205,7 @@ poly_4bpp_g_asm_m poly_4bp_lgd1m0st1_asm, 1,  1
 
 #endif // HAVE_ARMV6
 
+#ifdef __ELF__
+.section .note.GNU-stack,"",%progbits
+#endif
 @ vim:filetype=armasm
