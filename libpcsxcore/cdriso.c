@@ -1747,6 +1747,8 @@ int ISOgetStatus(struct CdrStat *stat)
 	
 	// BIOS - boot ID (CD type)
 	stat->Type = ti[1].type;
+	stat->nodisk = cdHandle == NULL;
+	stat->mode1 = cdimg_read_func == cdread_2048;
 	
 	return 0;
 }

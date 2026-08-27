@@ -1217,16 +1217,18 @@ void cdrInterrupt(void) {
 
 			// [1]: 0x10 - audio | 0x40 - disk missing | 0x80 - unlicensed
 			// [2]: TOC Disk Type Byte (00=CD-DA or CD-ROM, 20=CD-ROM-XA)
+			memset(&cdr_stat, 0, sizeof(cdr_stat));
 			if (cdra_getStatus(&cdr_stat) != 0 ||
 			    cdr_stat.Type == CDRT_UNKNOWN || cdr_stat.Type == 0xff) {
-				cdr.Result[1] = 0xc0;
+				cdr.Result[0] = 0x08;
+				cdr.Result[1] = cdr_stat.nodisk ? 0x40 : 0x80;
 			}
 			else {
 				if (cdr_stat.Type == CDRT_CDDA)
 					cdr.Result[1] |= 0x10;
 				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
-				else if (strcmp(CdromId, "SLUS99999") != 0)
+				else if (!cdr_stat.mode1)
 					cdr.Result[2] = 0x20;
 			}
 			cdr.Result[0] |= (cdr.Result[1] >> 4) & 0x08;
@@ -1247,7 +1249,7 @@ void cdrInterrupt(void) {
 				else
 					cdr.Result[7] = 'A';
 			}
-			IrqStat = Complete;
+			IrqStat = (cdr.Result[0] & 8) ? DiskError : Complete;
 			break;
 
 		case CdlInit:

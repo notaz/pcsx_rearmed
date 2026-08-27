@@ -155,6 +155,8 @@ static int LoadGPUplugin(const char *GPUdll) {
 }
 
 int CDR__getStatus(struct CdrStat *stat) {
+	stat->nodisk = 0;
+	stat->mode1 = 0;
 	if (cdOpenCaseTime < 0 || cdOpenCaseTime > (s64)time(NULL))
 		stat->Status = 0x10;
 	else
