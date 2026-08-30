@@ -414,7 +414,8 @@ static const struct {
 	CE_CONFIG_VAL(Mdec),
 	CE_CONFIG_VAL(Cdda),
 	CE_CONFIG_VAL(Debug),
-	CE_CONFIG_VAL(PsxOut),
+	CE_CONFIG_VAL(PsxStdOut),
+	// PsxStdIn is command-line only
 	CE_CONFIG_VAL(icache_emulation),
 	CE_CONFIG_VAL(DisableStalls),
 	CE_CONFIG_VAL(Cpu),

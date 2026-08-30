@@ -125,7 +125,8 @@ typedef struct {
 	boolean HLE;
 	uint8_t SlowBoot; // 0 = off, 1 = on, 2 = on, no PCSX 'ad'
 	boolean Debug;
-	boolean PsxOut;
+	boolean PsxStdOut;
+	boolean PsxStdIn;
 	boolean icache_emulation;
 	boolean DisableStalls;
 	boolean PreciseExceptions;

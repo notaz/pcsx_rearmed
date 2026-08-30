@@ -337,6 +337,8 @@ enum card_hlvl_func {
 	card_hlvl_func_load_dir = 4,
 };
 
+#define isRamAddr(addr) !((addr) & 0x5f800000)
+
 static u8 loadRam8(u32 addr)
 {
 	assert(!(addr & 0x5f800000));
@@ -600,7 +602,7 @@ static void psxBios_putc(void) // 0x09, 0x3B
 		PSXBIOS_LOG("psxBios_%s '%c' %d\n", biosA0n[0x09], (char)a0, a1);
 
 	if (a1 == 1) { // stdout
-		if (Config.PsxOut) printf("%c", (char)a0);
+		if (Config.PsxStdOut) printf("%c", (char)a0);
 	}
 	else if (a1 == 2 || a1 == 3) {
 		ret = card_buf_io(1, a1 - 2, buf, 1);
@@ -1571,11 +1573,7 @@ static void psxBios_InitHeap() { // 0x39
 	mips_return_void_c(14);
 }
 
-void psxBios_getchar() { //0x3b
-	v0 = getchar(); pc0 = ra;
-}
-
-static void psxBios_printf_psxout() { // 0x3f
+static void psxBios_printf_n() { // 0x3f
 	char tmp[1024];
 	char tmp2[1024];
 	u32 save[4] = { 0, };
@@ -1656,13 +1654,13 @@ _start:
 	if (psp != INVALID_PTR)
 		memcpy(psp, save, 4 * 4);
 
-	if (Config.PsxOut)
+	if (Config.PsxStdOut)
 		SysPrintf("%s", tmp);
 }
 
-void psxBios_printf() { // 0x3f
-	psxBios_printf_psxout();
-	pc0 = ra;
+static void psxBios_printf() { // 0x3f
+	psxBios_printf_n();
+	mips_return_void_c(100);
 }
 
 static void psxBios_cd() { // 0x40
@@ -2800,7 +2798,7 @@ static void psxBios_write() { // 0x35/0x03
 		char *ptr = pa1;
 
 		v0 = a2;
-		if (Config.PsxOut) while (a2 > 0) {
+		if (Config.PsxStdOut) while (a2 > 0) {
 			SysPrintf("%c", *ptr++); a2--;
 		}
 		pc0 = ra; return;
@@ -2811,7 +2809,7 @@ static void psxBios_write() { // 0x35/0x03
 	mips_return_c(ret, 100);
 }
 
-static void psxBios_write_psxout() {
+static void psxBios_write_n() {
 	if (a0 == 1) { // stdout
 		u32 ptr = a1;
 		int len = a2;
@@ -2821,16 +2819,53 @@ static void psxBios_write_psxout() {
 	}
 }
 
-static void psxBios_putchar_psxout() { // 3d
+// "nonivasive" stdio functions
+static void psxBios_putchar_n() { // 3d
 	SysPrintf("%c", (char)a0);
 }
 
-static void psxBios_puts_psxout() { // 3e/3f
+static void psxBios_puts_n() { // 3e/3f
 	char *p = Ra0;
 	if (p != INVALID_PTR)
 		SysPrintf("%s", p);
 	else
 		log_unhandled("psxbios: puts(%08x)\n", a0);
+}
+
+static void psxBios_puts() { // 3e/3f
+	if (Config.PsxStdOut)
+		psxBios_puts_n();
+	pc0 = ra;
+}
+
+static void psxBios_getchar() { // 3b/3c
+	int c = 0x7f;
+	if (Config.PsxStdIn)
+		c = getchar();
+	mips_return_c(c, 100);
+}
+
+static void psxBios_gets() { // 3d/3e
+	u32 ret = 0;
+
+	if (Config.PsxStdIn && isRamAddr(a0)) {
+		u32 i, start; s32 c = 1;
+		ret = a0;
+		start = ret & 0x1fffff;
+		for (i = start; i < 0x200000; ) {
+			c = getchar() & 0x7f;
+			if (c == 0 || c == 0x7f || c == 0x0a || c == 0x0d)
+				break;
+			if (c == 0x08 && i > start) {
+				i--;
+				continue;
+			}
+			psxRegs.ptrs.psxM[i++] = c;
+		}
+		if (i < 0x200000)
+			psxRegs.ptrs.psxM[i] = 0;
+	}
+	mips_return_c(ret, 100);
 }
 
 /*
@@ -2847,12 +2882,8 @@ void psxBios_close() { // 0x36
 }
 
 void psxBios_putchar() { // 3d
-	if (Config.PsxOut) SysPrintf("%c", (char)a0);
-	pc0 = ra;
-}
-
-void psxBios_puts() { // 3e/3f
-	if (Config.PsxOut) psxBios_puts_psxout();
+	if (Config.PsxStdOut)
+		psxBios_putchar_n();
 	pc0 = ra;
 }
 
@@ -3779,16 +3810,30 @@ static void hleExc0_1_2();
 
 #include "sjisfont.h"
 
-void psxBiosResetTables() {
+void psxBiosSetupStdio(void) {
+	int out = Config.PsxStdOut, in = Config.PsxStdIn;
+	if (Config.HLE)
+	{
+		psxRegs.biosFuncsHooked = 0; // not used by HLE
+		return;
+	}
+	biosA0[0x03] = biosB0[0x35] = out ? psxBios_write_n : NULL;
+	biosA0[0x3c] = biosB0[0x3d] = out ? psxBios_putchar_n : NULL;
+	biosA0[0x3e] = biosB0[0x3f] = out ? psxBios_puts_n : NULL;
+	// calls putchar() through the table, so no need to override
+	//biosA0[0x3f] = psxBios_printf_n;
+
+	biosA0[0x3b] = biosB0[0x3c] = in ? psxBios_getchar : NULL;
+	// calls getchar() directly
+	biosA0[0x3d] = biosB0[0x3e] = in ? psxBios_gets : NULL;
+
+	psxRegs.biosFuncsHooked = out || in;
+}
+
+void psxBiosResetTables(void) {
 	memset(biosA0, 0, sizeof(biosA0));
 	// biosB0 is just a ptr to C0
 	memset(biosC0, 0, sizeof(biosC0));
-
-	biosA0[0x03] = biosB0[0x35] = psxBios_write_psxout;
-	biosA0[0x3c] = biosB0[0x3d] = psxBios_putchar_psxout;
-	biosA0[0x3e] = biosB0[0x3f] = psxBios_puts_psxout;
-	// calls putchar() internally so no need to override
-	//biosA0[0x3f] = psxBios_printf_psxout;
 }
 
 void psxBiosInit() {
@@ -3800,6 +3845,7 @@ void psxBiosInit() {
 	psxRegs.biosBranchCheck = ~0;
 
 	psxBiosResetTables();
+	psxBiosSetupStdio();
 	memset(psxRegs.ptrs.psxM, 0, 0x10000);
 
 	if (!Config.HLE) {
@@ -3879,7 +3925,7 @@ void psxBiosInit() {
 	//biosA0[0x3a] = psxBios__exit;
 	biosA0[0x3b] = psxBios_getchar;
 	biosA0[0x3c] = psxBios_putchar;
-	//biosA0[0x3d] = psxBios_gets;
+	biosA0[0x3d] = psxBios_gets;
 	biosA0[0x3e] = psxBios_puts;
 	biosA0[0x3f] = psxBios_printf;
 	biosA0[0x40] = psxBios_SystemErrorUnresolvedException;
@@ -4062,7 +4108,7 @@ void psxBiosInit() {
 	biosB0[0x3b] = psxBios_putc;
 	biosB0[0x3c] = psxBios_getchar;
 	biosB0[0x3d] = psxBios_putchar;
-	//biosB0[0x3e] = psxBios_gets;
+	biosB0[0x3e] = psxBios_gets;
 	biosB0[0x3f] = psxBios_puts;
 	biosB0[0x40] = psxBios_cd;
 	biosB0[0x41] = psxBios_format;

@@ -705,12 +705,14 @@ OP(psxJAL) {
 *********************************************************/
 OP(psxJR) {
 	doBranchReg(regs_, _rRs_);
-	psxJumpTest();
+	if (unlikely(regs_->biosFuncsHooked && regs_->pc <= 0xc0))
+		psxBiosJumpTest(regs_);
 }
 
 OP(psxJRe) {
 	doBranchRegE(regs_, _rRs_);
-	psxJumpTest();
+	if (unlikely(regs_->biosFuncsHooked && regs_->pc <= 0xc0))
+		psxBiosJumpTest(regs_);
 }
 
 OP(psxJALR) {

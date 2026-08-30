@@ -43,7 +43,8 @@ void psxBiosSetupBootState(void);
 void psxBiosCheckExe(u32 t_addr, u32 t_size, int loading_state);
 void psxBiosCheckBranch(void);
 int  psxBiosSoftcallEnded(void);
-void psxBiosResetTables();
+void psxBiosResetTables(void);
+void psxBiosSetupStdio(void);
 
 extern void (*biosA0[256])();
 extern void (**biosB0)();

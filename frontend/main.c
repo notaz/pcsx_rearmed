@@ -586,6 +586,7 @@ int main(int argc, char *argv[])
 	const char *cdfile = NULL;
 	const char *loadst_f = NULL;
 	int psxout = 0;
+	int psxin = 0;
 	int loadst = 0;
 	int i;
 
@@ -593,8 +594,12 @@ int main(int argc, char *argv[])
 
 	// read command line options
 	for (i = 1; i < argc; i++) {
-		     if (!strcmp(argv[i], "-psxout")) psxout = 1;
-		else if (!strcmp(argv[i], "-load")) loadst = atol(argv[++i]);
+		if (!strcmp(argv[i], "-psxout") || !strcmp(argv[i], "-stdout"))
+			psxout = 1;
+		else if (!strcmp(argv[i], "-psxin") || !strcmp(argv[i], "-stdin"))
+			psxin = 1;
+		else if (!strcmp(argv[i], "-load"))
+			loadst = atol(argv[++i]);
 		else if (!strcmp(argv[i], "-cfg")) {
 			if (i+1 >= argc) break;
 			strncpy(cfgfile_basename, argv[++i], MAXPATHLEN-100);	/* TODO buffer overruns */
@@ -624,15 +629,16 @@ int main(int argc, char *argv[])
 			 !strcmp(argv[i], "--help")) {
 			 printf("PCSX-ReARMed " REV "\n");
 			 printf("%s\n", _(
-							" pcsx [options] [file]\n"
-							"\toptions:\n"
-							"\t-cdfile FILE\tRuns a CD image file\n"
-							"\t-cfg FILE\tLoads desired configuration file (default: ~/.pcsx/pcsx.cfg)\n"
-							"\t-psxout\t\tEnable PSX output\n"
-							"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
-							"\t-loadf FILE\tLoads savestate from FILE\n"
-							"\t-h -help\tDisplay this message\n"
-							"\tfile\t\tLoads a PSX EXE file\n"));
+				" pcsx [options] [file]\n"
+				"\toptions:\n"
+				"\t-cdfile FILE\tRuns a CD image file\n"
+				"\t-cfg FILE\tLoads desired configuration file (default: ~/.pcsx/pcsx.cfg)\n"
+				"\t-psxout,-stdout\tEnable PSX stdout\n"
+				"\t-psxin,-stdin\tConnect host stdin to PSX stdin\n"
+				"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
+				"\t-loadf FILE\tLoads savestate from FILE\n"
+				"\t-h,-help\tDisplay this message\n"
+				"\tfile\t\tLoads a PSX EXE file\n"));
 			 return 0;
 		} else {
 			strncpy(file, argv[i], MAXPATHLEN);
@@ -663,7 +669,9 @@ int main(int argc, char *argv[])
 		return 1;
 
 	if (psxout)
-		Config.PsxOut = 1;
+		Config.PsxStdOut = 1;
+	if (psxin)
+		Config.PsxStdIn = 1;
 
 	if (LoadPlugins() == -1) {
 		// FIXME: this recovery doesn't work, just delete bad config and bail out

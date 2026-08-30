@@ -32,6 +32,7 @@
 #include <stddef.h>
 #include <assert.h>
 
+#define PSXBIOS_LOG(...)
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
@@ -145,34 +146,32 @@ void psxBranchTest(psxRegisters *regs) {
 		psxBiosCheckBranch();
 }
 
-void psxJumpTest() {
-	if (!Config.HLE && Config.PsxOut) {
-		u32 call = psxRegs.GPR.n.t1 & 0xff;
-		switch (psxRegs.pc & 0x1fffff) {
-			case 0xa0:
-#ifdef PSXBIOS_LOG
-				if (call != 0x28 && call != 0xe) {
-					PSXBIOS_LOG("Bios call a0: %s (%x) %x,%x,%x,%x\n", biosA0n[call], call, psxRegs.GPR.n.a0, psxRegs.GPR.n.a1, psxRegs.GPR.n.a2, psxRegs.GPR.n.a3); }
-#endif
-				if (biosA0[call])
-					biosA0[call]();
-				break;
-			case 0xb0:
-#ifdef PSXBIOS_LOG
-				if (call != 0x17 && call != 0xb) {
-					PSXBIOS_LOG("Bios call b0: %s (%x) %x,%x,%x,%x\n", biosB0n[call], call, psxRegs.GPR.n.a0, psxRegs.GPR.n.a1, psxRegs.GPR.n.a2, psxRegs.GPR.n.a3); }
-#endif
-				if (biosB0[call])
-					biosB0[call]();
-				break;
-			case 0xc0:
-#ifdef PSXBIOS_LOG
-				PSXBIOS_LOG("Bios call c0: %s (%x) %x,%x,%x,%x\n", biosC0n[call], call, psxRegs.GPR.n.a0, psxRegs.GPR.n.a1, psxRegs.GPR.n.a2, psxRegs.GPR.n.a3);
-#endif
-				if (biosC0[call])
-					biosC0[call]();
-				break;
-		}
+void psxBiosJumpTest(psxRegisters *regs) {
+	const psxGPRRegs *r = &regs->GPR;
+	u32 call = r->n.t1;
+	if (call > 0xffu)
+		return;
+	switch (regs->pc & 0x1fffff) {
+	case 0xa0:
+		if (call != 0x28 && call != 0xe)
+			PSXBIOS_LOG("Bios call a0: %s (%x) %x,%x,%x,%x\n",
+				biosA0n[call], call, r->n.a0, r->n.a1, r->n.a2, r->n.a3);
+		if (biosA0[call])
+			biosA0[call]();
+		break;
+	case 0xb0:
+		if (call != 0x17 && call != 0xb && call != 0x3d)
+			PSXBIOS_LOG("Bios call b0: %s (%x) %x,%x,%x,%x\n",
+				biosB0n[call], call, r->n.a0, r->n.a1, r->n.a2, r->n.a3);
+		if (biosB0[call])
+			biosB0[call]();
+		break;
+	case 0xc0:
+		PSXBIOS_LOG("Bios call c0: %s (%x) %x,%x,%x,%x\n",
+			biosC0n[call], call, r->n.a0, r->n.a1, r->n.a2, r->n.a3);
+		if (biosC0[call])
+			biosC0[call]();
+		break;
 	}
 }
 
