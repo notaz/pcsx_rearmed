@@ -386,8 +386,8 @@ static inline u32 getFinalFlag(u32 flags) {
 
 //senquack - n param should be unsigned (will be 'gteH' reg which is u16)
 #ifdef GTE_USE_NATIVE_DIVIDE
-INLINE u32 DIVIDE(u16 n, u16 d) {
-	return ((u32)n << 16) / d;
+static inline u32 DIVIDE(u16 n, u16 d) {
+	return (((u32)n << 16) + (d >> 1)) / d;
 }
 #else
 #include "gte_divider.h"
