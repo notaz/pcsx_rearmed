@@ -273,9 +273,11 @@ int psxMemInit(void)
 	mapRam(1);
 
 	// bios
-	lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0x1fc00000u, 0x1fc80000u);
-	lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0x9fc00000u, 0x9fc80000u);
-	lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0xbfc00000u, 0xbfc80000u);
+	for (i = 0; i < 0x400000; i += 0x80000) {
+		lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0x1fc00000u + i, 0x1fc80000u + i);
+		lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0x9fc00000u + i, 0x9fc80000u + i);
+		lutMap(memRLUT, psxRegs.ptrs.psxR, 0x80000, 0xbfc00000u + i, 0xbfc80000u + i);
+	}
 
 	// Don't allow writes to PIO Expansion region (psxP) to take effect.
 	// NOTE: Not sure if this is needed to fix any games but seems wise,

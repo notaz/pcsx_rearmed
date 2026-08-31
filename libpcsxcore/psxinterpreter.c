@@ -734,7 +734,7 @@ OP(psxJALRe) {
 
 // revisit: incomplete
 #define BUS_LOCKED_ADDR(a) \
-	((0x1fc80000u <= (a) && (a) < 0x80000000u) || \
+	((0x20000000u <= (a) && (a) < 0x80000000u) || \
 	 (0xc0000000u <= (a) && (a) < 0xfffe0000u))
 
 // exception checking order is important
