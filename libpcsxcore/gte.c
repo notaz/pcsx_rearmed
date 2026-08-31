@@ -384,15 +384,6 @@ static inline u32 getFinalFlag(u32 flags) {
 #define limG2(flags, a) LIM(flags, a,  0x3ff, -0x400, (1u << 13))
 #define limH(flags, a)  LIM(flags, a, 0x1000, 0x0000, (1u << 12))
 
-//senquack - n param should be unsigned (will be 'gteH' reg which is u16)
-#ifdef GTE_USE_NATIVE_DIVIDE
-static inline u32 DIVIDE(u16 n, u16 d) {
-	return (((u32)n << 16) + (d >> 1)) / d;
-}
-#else
-#include "gte_divider.h"
-#endif // GTE_USE_NATIVE_DIVIDE
-
 #ifndef FLAGLESS
 
 const unsigned char gte_cycletab[64] = {
@@ -525,13 +516,17 @@ void CTC2(struct psxCP2Regs *regs, u32 value, int reg) {
 
 #endif // FLAGLESS
 
-#if 0
-#define DIVIDE DIVIDE_
-static u32 DIVIDE_(s16 n, u16 d) {
-	s32 n_ = n;
-	return ((n_ << 16) + d / 2) / d;
-	//return (u32)((float)(n_ << 16) / (float)d + (float)0.5);
+//#define GTE_USE_NATIVE_DIVIDE
+#ifdef GTE_USE_NATIVE_DIVIDE
+
+// more mathematically correct, but not what the real hardware does
+// (wrong for ~24.72% denominators)
+static inline u32 DIVIDE(u16 n, u16 d) {
+	return (((u32)n << 16) + (d >> 1)) / d;
 }
+
+#else
+#include "gte_divider.h"
 #endif
 
 static inline s32 divide(u32 *flags, u16 h, u16 sz3)
