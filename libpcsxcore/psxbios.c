@@ -3846,7 +3846,6 @@ void psxBiosInit() {
 
 	psxBiosResetTables();
 	psxBiosSetupStdio();
-	memset(psxRegs.ptrs.psxM, 0, 0x10000);
 
 	if (!Config.HLE) {
 		char verstr[0x24+1];
@@ -3858,7 +3857,11 @@ void psxBiosInit() {
 		return;
 	}
 
-	for(i = 0; i < 256; i++) {
+	// the real bios doesn't clear the kernel and stack areas (only rewrites
+	// parts of them), but since we don't put the same data at least clear it
+	memset(psxRegs.ptrs.psxM, 0, 0x200000);
+
+	for (i = 0; i < 256; i++) {
 		if (biosA0[i] == NULL) biosA0[i] = psxBios_dummy;
 		if (biosB0[i] == NULL) biosB0[i] = psxBios_dummy;
 		if (biosC0[i] == NULL) biosC0[i] = psxBios_dummy;

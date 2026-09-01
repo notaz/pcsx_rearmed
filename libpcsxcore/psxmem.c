@@ -294,7 +294,7 @@ void psxMemReset() {
 	FILE *f = NULL;
 	char bios[1024];
 
-	memset(psxRegs.ptrs.psxM, 0, 0x00200000);
+	//memset(psxRegs.ptrs.psxM, 0, 0x00200000); // done by the BIOS [10000...sp)
 	memset(psxRegs.ptrs.psxP, 0xff, 0x00010000);
 
 	if (!DISABLE_MEM_LUTS)
