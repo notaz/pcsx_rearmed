@@ -90,7 +90,7 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
 		free(h);
 		return NULL;
 	}
-	h->id = (pthread_t)ctr_thread;
+	h->id = ctr_thread;
 #else
 	h = sthread_create(thread_func, NULL);
  #if defined(__GLIBC__) || \
