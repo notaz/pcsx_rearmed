@@ -137,7 +137,7 @@ static inline void * psxm(u32 mem, int write)
 	if (psxm_(&ret, &psxRegs, mem, write))
 		return ret;
 	if ((mem & 0x7ffffc00) == 0x1f800000)
-		return psxRegs.ptrs.psxR + (mem & 0x3ff);
+		return psxRegs.ptrs.psxH + (mem & 0x3ff);
 	return INVALID_PTR;
 }
 

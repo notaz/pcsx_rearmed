@@ -2856,8 +2856,9 @@ static void psxBios_gets() { // 3d/3e
 			c = getchar() & 0x7f;
 			if (c == 0 || c == 0x7f || c == 0x0a || c == 0x0d)
 				break;
-			if (c == 0x08 && i > start) {
-				i--;
+			if (c == 0x08) {
+				if (i > start)
+					i--;
 				continue;
 			}
 			psxRegs.ptrs.psxM[i++] = c;

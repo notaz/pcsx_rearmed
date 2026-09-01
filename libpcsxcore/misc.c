@@ -523,7 +523,7 @@ static int PSXGetFileType(FILE *f) {
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
 	if (fread(&mybuf, 1, sizeof(mybuf), f) != sizeof(mybuf))
-		goto io_fail;
+		return INVALID_EXE;
 	
 	fseek(f, current, SEEK_SET);
 
@@ -538,12 +538,6 @@ static int PSXGetFileType(FILE *f) {
 	if (SWAPu16(coff_hdr->f_magic) == 0x0162)
 		return COFF_EXE;
 
-	return INVALID_EXE;
-
-io_fail:
-#ifndef NDEBUG
-	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
 	return INVALID_EXE;
 }
 
@@ -569,7 +563,7 @@ int Load(const char *ExePath) {
 	FILE *tmpFile;
 	EXE_HEADER tmpHead;
 	int type;
-	int retval = 0;
+	int retval = -1;
 	u8 opcode;
 	u32 section_address, section_size;
 	u32 pc0 = 0, gp0 = 0, sp0 = 0x801fff00;
@@ -581,13 +575,12 @@ int Load(const char *ExePath) {
 	tmpFile = fopen(ExePath, "rb");
 	if (tmpFile == NULL) {
 		SysPrintf(_("Error opening file: %s.\n"), ExePath);
-		retval = -1;
 	} else {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
 				if (fread(&tmpHead, 1, sizeof(EXE_HEADER), tmpFile) != sizeof(EXE_HEADER))
-					goto fail_io;
+					goto out;
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
@@ -603,13 +596,13 @@ int Load(const char *ExePath) {
 				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
 				do {
 					if (fread(&opcode, 1, sizeof(opcode), tmpFile) != sizeof(opcode))
-						goto fail_io;
+						goto out;
 					switch (opcode) {
 						case 1: /* Section loading */
 							if (fread(&section_address, 1, sizeof(section_address), tmpFile) != sizeof(section_address))
-								goto fail_io;
+								goto out;
 							if (fread(&section_size, 1, sizeof(section_size), tmpFile) != sizeof(section_size))
-								goto fail_io;
+								goto out;
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 							//printf("Loading %08X bytes from %08X to %08X\n", section_size, ftell(tmpFile), section_address);
@@ -622,31 +615,29 @@ int Load(const char *ExePath) {
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
 							if (fread(&pc0, 1, sizeof(pc0), tmpFile) != sizeof(pc0))
-								goto fail_io;
+								goto out;
 							pc0 = SWAPu32(pc0);
 							break;
 						case 0: /* End of file */
 							break;
 						default:
 							SysPrintf(_("Unknown CPE opcode %02x at position %08lx.\n"), opcode, (long)(ftell(tmpFile) - 1));
-							retval = -1;
-							break;
+							goto out;
 					}
-				} while (opcode != 0 && retval == 0);
+				} while (opcode != 0);
+				retval = 0;
 				break;
 			case COFF_EXE:
 				SysPrintf(_("COFF files not supported.\n"));
-				retval = -1;
 				break;
 			case INVALID_EXE:
 				SysPrintf(_("This file does not appear to be a valid PSX EXE file.\n"));
 				SysPrintf(_("(did you forget -cdfile ?)\n"));
-				retval = -1;
 				break;
 		}
 	}
 
-
+out:
 	if (retval == 0) {
 		if (manuallyLoadedExePath != ExePath) {
 			free(manuallyLoadedExePath);
@@ -658,6 +649,8 @@ int Load(const char *ExePath) {
 			SetBootRegs(pc0, gp0, sp0);
 	}
 	else {
+		SysPrintf(_("EXE load failed.\n"));
+		ExePath = NULL; // might be == manuallyLoadedExePath
 		free(manuallyLoadedExePath);
 		manuallyLoadedExePath = NULL;
 		CdromId[0] = '\0';
@@ -667,11 +660,6 @@ int Load(const char *ExePath) {
 	if (tmpFile)
 		fclose(tmpFile);
 	return retval;
-
-fail_io:
-	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-	fclose(tmpFile);
-	return -1;
 }
 
 int CheckResetManualExe()

@@ -598,8 +598,10 @@ int main(int argc, char *argv[])
 			psxout = 1;
 		else if (!strcmp(argv[i], "-psxin") || !strcmp(argv[i], "-stdin"))
 			psxin = 1;
-		else if (!strcmp(argv[i], "-load"))
+		else if (!strcmp(argv[i], "-load")) {
+			if (i+1 >= argc) break;
 			loadst = atol(argv[++i]);
+		}
 		else if (!strcmp(argv[i], "-cfg")) {
 			if (i+1 >= argc) break;
 			strncpy(cfgfile_basename, argv[++i], MAXPATHLEN-100);	/* TODO buffer overruns */
