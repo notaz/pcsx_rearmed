@@ -90,8 +90,7 @@
 #define RETRO_ENVIRONMENT_SET_SAVE_STATE_DISABLE_UNDO 0x800005
 #endif
 
-//hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
-static int rebootemu = 0;
+static bool reset_pending = false;
 
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
@@ -2246,7 +2245,7 @@ size_t retro_get_memory_size(unsigned id)
 void retro_reset(void)
 {
    //hack to prevent retroarch freezing when reseting in the menu but not while running with the hot key
-   rebootemu = 1;
+   reset_pending = true;
    //SysReset();
 }
 
@@ -3488,12 +3487,14 @@ static void prepare_bios(bool use_hle);
 void retro_run(void)
 {
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
-   if (rebootemu != 0)
+   if (reset_pending)
    {
-      rebootemu = 0;
+      reset_pending = false;
       prepare_bios(get_bios_config_hle());
       SysReset();
-      if (Config.HLE)
+      if (CheckResetManualExe())
+         ;
+      else if (Config.HLE)
          LoadCdrom();
    }
 

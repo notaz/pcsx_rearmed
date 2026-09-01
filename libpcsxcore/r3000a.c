@@ -105,6 +105,7 @@ void psxShutdown() {
 	psxCpu->Shutdown();
 
 	psxMemShutdown();
+	MiscShutdown();
 }
 
 // cp0 is passed separately for lightrec to be less messy

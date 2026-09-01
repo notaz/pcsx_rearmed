@@ -62,11 +62,14 @@ int BiosBootBypass();
 int LoadCdrom();
 int LoadCdromFile(const char *filename, int full, EXE_HEADER *head, u8 *time_bcd_out);
 int CheckCdrom();
+int CheckResetManualExe();
 int Load(const char *ExePath);
 
 int SaveState(const char *file);
 int LoadState(const char *file);
 int CheckState(const char *file);
+
+void MiscShutdown();
 
 void trim(char *str);
 u16 calcCrc(const u8 *d, int len);

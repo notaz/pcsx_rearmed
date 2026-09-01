@@ -46,6 +46,7 @@ char CdromLabel[33] = "";
 int  CdromFrontendId; // for frontend use
 
 static u32 save_counter;
+static char *manuallyLoadedExePath;
 
 // PSX Executable types
 #define PSX_EXE     1
@@ -300,6 +301,8 @@ int LoadCdrom() {
 
 	psxCpu->Clear(tmpHead.h.t_addr, tmpHead.h.t_size / 4);
 	//psxCpu->Reset();
+	free(manuallyLoadedExePath);
+	manuallyLoadedExePath = NULL;
 
 	if (Config.HLE)
 		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size, 0);
@@ -362,6 +365,9 @@ int LoadCdromFile(const char *filename, int full, EXE_HEADER *head, u8 *time_bcd
 			size -= 2048;
 			addr += 2048;
 		}
+		// exe from cd doesn't count as manually loaded
+		free(manuallyLoadedExePath);
+		manuallyLoadedExePath = NULL;
 	}
 	if (time_bcd_out) {
 		time_bcd_out[0] = itob(time[0]);
@@ -566,6 +572,7 @@ int Load(const char *ExePath) {
 	int retval = 0;
 	u8 opcode;
 	u32 section_address, section_size;
+	u32 pc0 = 0, gp0 = 0, sp0 = 0x801fff00;
 	void *mem;
 
 	strcpy(CdromId, "SLUS99999");
@@ -589,8 +596,7 @@ int Load(const char *ExePath) {
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0),
-					SWAP32(tmpHead.s_addr));
+				pc0 = SWAP32(tmpHead.pc0), gp0 = SWAP32(tmpHead.gp0), sp0 = SWAP32(tmpHead.s_addr);
 				retval = 0;
 				break;
 			case CPE_EXE:
@@ -615,9 +621,9 @@ int Load(const char *ExePath) {
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-							if (fread(&psxRegs.pc, 1, sizeof(psxRegs.pc), tmpFile) != sizeof(psxRegs.pc))
+							if (fread(&pc0, 1, sizeof(pc0), tmpFile) != sizeof(pc0))
 								goto fail_io;
-							psxRegs.pc = SWAPu32(psxRegs.pc);
+							pc0 = SWAPu32(pc0);
 							break;
 						case 0: /* End of file */
 							break;
@@ -640,7 +646,20 @@ int Load(const char *ExePath) {
 		}
 	}
 
-	if (retval != 0) {
+
+	if (retval == 0) {
+		if (manuallyLoadedExePath != ExePath) {
+			free(manuallyLoadedExePath);
+			manuallyLoadedExePath = strdup(ExePath);
+		}
+		if (!manuallyLoadedExePath)
+			SysPrintf(_("OOM for %s?\n"), ExePath);
+		if (pc0)
+			SetBootRegs(pc0, gp0, sp0);
+	}
+	else {
+		free(manuallyLoadedExePath);
+		manuallyLoadedExePath = NULL;
 		CdromId[0] = '\0';
 		CdromLabel[0] = '\0';
 	}
@@ -650,11 +669,16 @@ int Load(const char *ExePath) {
 	return retval;
 
 fail_io:
-#ifndef NDEBUG
 	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
 	fclose(tmpFile);
 	return -1;
+}
+
+int CheckResetManualExe()
+{
+	if (manuallyLoadedExePath && Load(manuallyLoadedExePath) == 0)
+		return 1;
+	return 0;
 }
 
 // STATES
@@ -1051,6 +1075,12 @@ u16 calcCrc(const u8 *d, int len) {
 	}
 
 	return ~crc;
+}
+
+void MiscShutdown()
+{
+	free(manuallyLoadedExePath);
+	manuallyLoadedExePath = NULL;
 }
 
 #define MKSTR2(x) #x

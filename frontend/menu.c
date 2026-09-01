@@ -2161,6 +2161,8 @@ static int reset_game(void)
 	ClosePlugins();
 	OpenPlugins(1);
 	SysReset();
+	if (CheckResetManualExe())
+		return 0;
 	if (Config.HLE) {
 		if (LoadCdrom() == -1)
 			return -1;
