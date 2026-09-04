@@ -168,6 +168,26 @@ static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 }
 
+// set ra so that the exe returns to the _exit() syscall
+static void SetRaToExit(void)
+{
+	u32 *ram = (u32 *)psxRegs.ptrs.psxM;
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+
+	//printf("%s ra=%08x sp=%08x\n", __func__, psxRegs.GPR.n.ra, psxRegs.GPR.n.sp);
+	if (psxRegs.GPR.n.sp == 0) // hle
+		psxRegs.GPR.n.sp = 0x1ffff0;
+	else if ((psxRegs.GPR.n.sp & 0x1fffff) > 12)
+		psxRegs.GPR.n.sp -= 12;
+	ram += (psxRegs.GPR.n.sp & 0x1fffff) / 4;
+	ram[0] = 0x240a00a0; // li $t2, 0xa0
+	ram[1] = 0x01400008; // jr $t2
+	ram[2] = 0x2409003a; // li $t1, 0x3a // _exit
+	psxRegs.GPR.n.ra = (psxRegs.GPR.n.sp & 0x1ffffc) | 0x80000000;
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+}
+
 int BiosBootBypass() {
 	struct CdrStat stat = { 0, 0, };
 	assert(psxRegs.pc == 0x80030000);
@@ -645,6 +665,8 @@ out:
 		}
 		if (!manuallyLoadedExePath)
 			SysPrintf(_("OOM for %s?\n"), ExePath);
+		if (psxRegs.GPR.n.ra == 0xf0001234 || (Config.PsxStdOut && Config.PsxStdIn))
+			SetRaToExit();
 		if (pc0)
 			SetBootRegs(pc0, gp0, sp0);
 	}

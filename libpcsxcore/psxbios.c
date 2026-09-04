@@ -1705,6 +1705,17 @@ static void psxBios_SystemErrorUnresolvedException() {
 	mips_return_void_c(1000);
 }
 
+static void psxBios__exit() {
+	// exit mechanism in debug (stdin+stdout) mode
+	if (Config.PsxStdOut && Config.PsxStdIn)
+		psxRegs.stop = 0xf0u;
+	else if (floodchk != 0x12340a3a) {
+		SysPrintf("psxBios_%s called from %08x\n", biosA0n[0x3a], ra);
+		floodchk = 0x12340a3a;
+	}
+	mips_return_void_c(1000);
+}
+
 static void FlushCache() {
 	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
 	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
@@ -3828,6 +3839,10 @@ void psxBiosSetupStdio(void) {
 	// calls getchar() directly
 	biosA0[0x3d] = biosB0[0x3e] = in ? psxBios_gets : NULL;
 
+	// _exit() support for test/debug mode
+	if (out && in)
+		biosA0[0x3a] = psxBios__exit;
+
 	psxRegs.biosFuncsHooked = out || in;
 }
 
@@ -3926,7 +3941,7 @@ void psxBiosInit() {
 	biosA0[0x37] = psxBios_calloc;
 	biosA0[0x38] = psxBios_realloc;
 	biosA0[0x39] = psxBios_InitHeap;
-	//biosA0[0x3a] = psxBios__exit;
+	biosA0[0x3a] = psxBios__exit;
 	biosA0[0x3b] = psxBios_getchar;
 	biosA0[0x3c] = psxBios_putchar;
 	biosA0[0x3d] = psxBios_gets;
