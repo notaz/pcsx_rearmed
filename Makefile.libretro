@@ -399,7 +399,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 		NEED_SYSCONF := 1
 	else ifeq ($(platform), wiiu)
 		# -mwup was removed in newer devkitPPC versions
-		CFLAGS += -DHW_WUP
+		CFLAGS += -DHW_WUP -D__wiiu__
 		CFLAGS += -I frontend/wiiu
 		CFLAGS += -DZ7_DECL_Int32_AS_long
 		CFLAGS += -Wno-format
