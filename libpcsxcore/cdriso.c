@@ -45,7 +45,9 @@
 #undef ftello
 #undef rewind
 #define ftello rftell
-#define fseeko rfseek
+/* Adapt rfseek's position/-1 result to fseeko's status result. */
+#define fseeko(stream, offset, origin) \
+	(rfseek(stream, offset, origin) < 0 ? -1 : 0)
 #define rewind(f_) rfseek(f_, 0, SEEK_SET)
 #endif
 

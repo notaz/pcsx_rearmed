@@ -28,6 +28,10 @@
 
 #ifdef USE_LIBRETRO_VFS
 #include <streams/file_stream_transforms.h>
+#undef fseek
+/* Adapt rfseek's position/-1 result to fseek's status result. */
+#define fseek(stream, offset, origin) \
+	(rfseek(stream, offset, origin) < 0 ? -1 : 0)
 #endif
 
 typedef struct tagPPF_DATA {
