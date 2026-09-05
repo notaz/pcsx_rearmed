@@ -1719,7 +1719,11 @@ static bool read_m3u(const char *file)
          char disk_label[PATH_MAX];
          disk_label[0] = '\0';
 
-         snprintf(name, sizeof(name), "%s%c%s", base_dir, SLASH, line);
+         if (line[0] == '/' || line[0] == '\\' ||
+             (line[1] == ':' && (line[2] == '/' || line[2] == '\\')))
+            snprintf(name, sizeof(name), "%s", line);
+         else
+            snprintf(name, sizeof(name), "%s%c%s", base_dir, SLASH, line);
          disks[disk_count].fname = strdup(name);
 
          get_disk_label(disk_label, name, PATH_MAX);
