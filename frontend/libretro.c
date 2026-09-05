@@ -1514,13 +1514,13 @@ static unsigned int disk_get_image_index(void)
 
 static bool disk_set_image_index(unsigned int index)
 {
-   if (index >= sizeof(disks) / sizeof(disks[0]))
+   if (index > disk_count)
       return false;
 
    CdromId[0] = '\0';
    CdromLabel[0] = '\0';
 
-   if (disks[index].fname == NULL)
+   if (index == disk_count || disks[index].fname == NULL)
    {
       LogErr("missing disk #%u\n", index);
       cdra_shutdown();
