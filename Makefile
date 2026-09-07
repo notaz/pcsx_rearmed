@@ -433,6 +433,7 @@ OBJS += deps/libretro-common/compat/compat_strl.o
 OBJS += deps/libretro-common/file/file_path.o
 OBJS += deps/libretro-common/file/file_path_io.o
 OBJS += deps/libretro-common/string/stdstring.o
+OBJS += deps/libretro-common/string/rstrtod.o
 OBJS += deps/libretro-common/vfs/vfs_implementation.o
 endif
 ifeq "$(HAVE_PHYSICAL_CDROM)" "1"
