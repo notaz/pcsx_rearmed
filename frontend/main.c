@@ -749,6 +749,7 @@ int main(int argc, char *argv[])
 			do_emu_action();
 		else if (Config.PsxStdOut && Config.PsxStdIn && psxRegs.stop >= 0xf0u) {
 			// debug exit mode
+			psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 			retval = psxRegs.GPR.n.v0;
 			break;
 		}

@@ -1213,6 +1213,14 @@ static void emit_ldrd(int offset, int rs, int rt)
   }
 }
 
+static void emit_readbyte(void *addr, int rt)
+{
+  uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
+  assert(offset < 4096);
+  assem_debug("ldrb %s,fp+%#x%s\n", regname[rt], offset, fpofs_name(offset));
+  output_w32(0xe5d00000|rd_rn_rm(rt,FP,0)|offset);
+}
+
 static void emit_readword(void *addr, int rt)
 {
   uintptr_t offset = (u_char *)addr - (u_char *)&dynarec_local;
