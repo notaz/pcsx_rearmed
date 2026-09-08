@@ -561,9 +561,10 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	assert((s32)cycles_pcsx > 0);
 
 	// step during early boot so that 0x80030000 fastboot hack works
+	// must not use 0 cycles to ensure progress
 	block_stepping = block_only;
 	if (block_only)
-		cycles_pcsx = 0;
+		cycles_pcsx = 1;
 
 	if (use_pcsx_interpreter) {
 		psxInt.ExecuteBlock(&psxRegs, 0);
@@ -589,10 +590,9 @@ static void lightrec_plugin_execute_internal(bool block_only)
 				print_for_big_ass_debugger();
 			exit(1);
 		}
-
-		if (flags & LIGHTREC_EXIT_SYSCALL)
+		else if (flags & LIGHTREC_EXIT_SYSCALL)
 			psxException(R3000E_Syscall << 2, 0, (psxCP0Regs *)regs->cp0);
-		if (flags & LIGHTREC_EXIT_BREAK)
+		else if (flags & LIGHTREC_EXIT_BREAK)
 			psxException(R3000E_Bp << 2, 0, (psxCP0Regs *)regs->cp0);
 		else if (flags & LIGHTREC_EXIT_UNKNOWN_OP) {
 			u32 op = intFakeFetch(psxRegs.pc);
@@ -605,6 +605,13 @@ static void lightrec_plugin_execute_internal(bool block_only)
 			}
 			else
 				psxException(R3000E_RI << 2, 0, (psxCP0Regs *)regs->cp0);
+		}
+		else if (psxRegs.biosFuncsHooked && ((psxRegs.pc & ~0xa0000010) == 0xa0 ||
+			 (psxRegs.pc & ~0xa0000000) == 0xc0)) {
+			// this is rather costly, but hooking should be off in most cases
+			lightrec_plugin_sync_regs_to_pcsx(0);
+			psxBiosJumpTest(&psxRegs);
+			lightrec_plugin_sync_regs_from_pcsx(0);
 		}
 	}
 
