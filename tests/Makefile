@@ -32,4 +32,11 @@ $(TARGET).elf: $(OBJS) ps-exe.ld
 clean:
 	$(RM) *.o $(TARGET).elf $(TARGET).map $(TARGET)
 
-.PHONY: clean all
+testcd.cue:
+	../tools/mkm2cd testcd 750
+	test -f $@
+
+run: $(TARGET) ../pcsx testcd.cue
+	cd .. && ./pcsx -stdout -stdin -novid -cdfile tests/testcd.cue tests/$(TARGET)
+
+.PHONY: clean all run

@@ -18,3 +18,18 @@ syscall_a0:
     jr    $t2
     move  $a2, $a3
 
+
+    .global memset
+    .type memset, @function
+memset:
+    beqz  $a2, 1f
+    move  $v0, $a0
+0:
+    sb    $a1, 0($a0)
+    addiu $a2, -1
+    bnez  $a2, 0b
+    addiu $a0, 1
+1:
+    jr    $ra
+    nop
+
