@@ -121,6 +121,7 @@ SOURCES_C += \
              $(LIBRETRO_COMMON)/streams/file_stream.c \
              $(LIBRETRO_COMMON)/streams/file_stream_transforms.c \
              $(LIBRETRO_COMMON)/string/stdstring.c \
+             $(LIBRETRO_COMMON)/string/rstrtod.c \
              $(LIBRETRO_COMMON)/time/rtime.c \
              $(LIBRETRO_COMMON)/vfs/vfs_implementation.c
 COREFLAGS += -DUSE_LIBRETRO_VFS

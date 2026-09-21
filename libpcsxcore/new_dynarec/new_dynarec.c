@@ -1557,6 +1557,7 @@ static const struct {
   FUNCNAME(psxHwWriteDmaIcr32),
   FUNCNAME(psxHwWriteGpuSR),
   FUNCNAME(execI),
+  FUNCNAME(psxBiosJumpTest),
 #ifdef __aarch64__
   FUNCNAME(do_memhandler_pre),
   FUNCNAME(do_memhandler_post),
@@ -4493,7 +4494,7 @@ static void mov_assemble(int i, const struct regstat *i_regs)
 
 // call interpreter, exception handler, things that change pc/regs/cycles ...
 static void call_c_cpu_handler(struct compile_state *st, int i,
-  const struct regstat *i_regs, int ccadj_, u_int pc, void *func)
+  const struct regstat *i_regs, int ccadj_, u_int pc, int changes_pc, void *func)
 {
   signed char ccreg=get_reg(i_regs->regmap,CCREG);
   assert(ccreg==HOST_CCREG);
@@ -4508,7 +4509,8 @@ static void call_c_cpu_handler(struct compile_state *st, int i,
   emit_writeword(2,&psxRegs.cycle);
   emit_addimm_ptr(FP,(u_char *)&psxRegs - (u_char *)&dynarec_local,0);
   emit_far_call(func);
-  emit_far_jump(jump_to_new_pc);
+  if (changes_pc)
+    emit_far_jump(jump_to_new_pc);
 }
 
 static void exception_assemble(struct compile_state *st, int i,
@@ -4546,13 +4548,13 @@ static void hlecall_assemble(struct compile_state *st, int i,
     hlefunc = psxHLEt[hleCode];
 
   assem_debug("; hlecall 0x%x\n", hleCode);
-  call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4+4, hlefunc);
+  call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4+4, 1, hlefunc);
 }
 
 static void intcall_assemble(struct compile_state *st, int i,
   const struct regstat *i_regs, int ccadj_)
 {
-  call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4, execI);
+  call_c_cpu_handler(st, i, i_regs, ccadj_, st->start + i*4, 1, execI);
 }
 
 static void speculate_mov(int rs,int rt)
@@ -9768,6 +9770,34 @@ static int noinline new_recompile_block(u_int addr)
     emit_jne(new_dyna_leave);
     #endif
   }
+  else if (((st.start & ~0xa0000010) == 0xa0 || (st.start & ~0xa0000000) == 0xc0) &&
+           psxRegs.biosFuncsHooked)
+  {
+    instr_addr0_override = out;
+    call_c_cpu_handler(&st, 0, &regs[0], 0, st.start, 0, psxBiosJumpTest);
+    emit_readbyte(&psxRegs.stop, 1);
+    emit_readword(&psxRegs.pc, 0);
+    emit_cmpimm(1, 0xf0u); // see psxbios.c
+    #ifdef __aarch64__
+    emit_jl(out + 4*2);
+    emit_far_jump(new_dyna_leave);
+    #else
+    emit_jge(new_dyna_leave);
+    #endif
+    if (st.start <= 0xc0u)
+      emit_cmpimm(0, st.start);
+    else {
+      emit_movimm(st.start, 1);
+      emit_cmp(0, 1);
+    }
+    #ifdef __aarch64__
+    emit_jeq(out + 4*2);
+    emit_far_jump(jump_to_new_pc);
+    #else
+    emit_jne(jump_to_new_pc);
+    #endif
+  }
+
   for(i=0;i<st.slen;i++)
   {
     __builtin_prefetch(regs[i+1].regmap);

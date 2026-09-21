@@ -104,13 +104,13 @@ static bool has_interrupt(void)
 		(regs->cp0[12] & regs->cp0[13] & 0x0300);
 }
 
-static void lightrec_tansition_to_pcsx(struct lightrec_state *state)
+static void lightrec_transition_to_pcsx(struct lightrec_state *state)
 {
 	psxRegs.cycle += lightrec_current_cycle_count(state) / 1024;
 	lightrec_reset_cycle_count(state, 0);
 }
 
-static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
+static void lightrec_transition_from_pcsx(struct lightrec_state *state)
 {
 	s32 cycles_left = psxRegs.next_interupt - psxRegs.cycle;
 
@@ -124,42 +124,42 @@ static void lightrec_tansition_from_pcsx(struct lightrec_state *state)
 static void hw_write_byte(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)
 {
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	psxHwWrite8(&psxRegs, mem, val);
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 }
 
 static void hw_write_half(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)
 {
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	psxHwWrite16(&psxRegs, mem, val);
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 }
 
 static void hw_write_word(struct lightrec_state *state,
 			  u32 op, void *host, u32 mem, u32 val)
 {
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	psxHwWrite32(&psxRegs, mem, val);
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 }
 
 static u8 hw_read_byte(struct lightrec_state *state, u32 op, void *host, u32 mem)
 {
 	u8 val;
 
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	val = psxHwRead8(&psxRegs, mem);
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 
 	return val;
 }
@@ -169,11 +169,11 @@ static u16 hw_read_half(struct lightrec_state *state,
 {
 	u16 val;
 
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	val = psxHwRead16(&psxRegs, mem);
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 
 	return val;
 }
@@ -184,7 +184,7 @@ static u32 hw_read_word(struct lightrec_state *state,
 	static u32 old_cycle, oldold_cycle, old_gpusr;
 	u32 val, diff;
 
-	lightrec_tansition_to_pcsx(state);
+	lightrec_transition_to_pcsx(state);
 
 	val = psxHwRead32(&psxRegs, mem);
 
@@ -205,7 +205,7 @@ static u32 hw_read_word(struct lightrec_state *state,
 		old_gpusr = val;
 	}
 
-	lightrec_tansition_from_pcsx(state);
+	lightrec_transition_from_pcsx(state);
 
 	return val;
 }
@@ -287,6 +287,41 @@ static struct lightrec_mem_map lightrec_map[] = {
 		.pc = 0x00600000,
 		.length = 0x200000,
 		.mirror_of = &lightrec_map[PSX_MAP_KERNEL_USER_RAM],
+	},
+	[PSX_MAP_BIOS_MIRROR1] = {
+		.pc = 0x1fc80000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR2] = {
+		.pc = 0x1fd00000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR3] = {
+		.pc = 0x1fd80000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR4] = {
+		.pc = 0x1fe00000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR5] = {
+		.pc = 0x1fe80000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR6] = {
+		.pc = 0x1ff00000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
+	},
+	[PSX_MAP_BIOS_MIRROR7] = {
+		.pc = 0x1ff80000,
+		.length = 0x80000,
+		.mirror_of = &lightrec_map[PSX_MAP_BIOS],
 	},
 
 	/* Mirror of the parallel port. Only used by the PS2/PS3 BIOS */
@@ -526,9 +561,10 @@ static void lightrec_plugin_execute_internal(bool block_only)
 	assert((s32)cycles_pcsx > 0);
 
 	// step during early boot so that 0x80030000 fastboot hack works
+	// must not use 0 cycles to ensure progress
 	block_stepping = block_only;
 	if (block_only)
-		cycles_pcsx = 0;
+		cycles_pcsx = 1;
 
 	if (use_pcsx_interpreter) {
 		psxInt.ExecuteBlock(&psxRegs, 0);
@@ -543,7 +579,7 @@ static void lightrec_plugin_execute_internal(bool block_only)
 						      psxRegs.pc, cycles_lightrec);
 		}
 
-		lightrec_tansition_to_pcsx(lightrec_state);
+		lightrec_transition_to_pcsx(lightrec_state);
 
 		flags = lightrec_exit_flags(lightrec_state);
 
@@ -554,10 +590,9 @@ static void lightrec_plugin_execute_internal(bool block_only)
 				print_for_big_ass_debugger();
 			exit(1);
 		}
-
-		if (flags & LIGHTREC_EXIT_SYSCALL)
+		else if (flags & LIGHTREC_EXIT_SYSCALL)
 			psxException(R3000E_Syscall << 2, 0, (psxCP0Regs *)regs->cp0);
-		if (flags & LIGHTREC_EXIT_BREAK)
+		else if (flags & LIGHTREC_EXIT_BREAK)
 			psxException(R3000E_Bp << 2, 0, (psxCP0Regs *)regs->cp0);
 		else if (flags & LIGHTREC_EXIT_UNKNOWN_OP) {
 			u32 op = intFakeFetch(psxRegs.pc);
@@ -570,6 +605,13 @@ static void lightrec_plugin_execute_internal(bool block_only)
 			}
 			else
 				psxException(R3000E_RI << 2, 0, (psxCP0Regs *)regs->cp0);
+		}
+		else if (psxRegs.biosFuncsHooked && ((psxRegs.pc & ~0xa0000010) == 0xa0 ||
+			 (psxRegs.pc & ~0xa0000000) == 0xc0)) {
+			// this is rather costly, but hooking should be off in most cases
+			lightrec_plugin_sync_regs_to_pcsx(0);
+			psxBiosJumpTest(&psxRegs);
+			lightrec_plugin_sync_regs_from_pcsx(0);
 		}
 	}
 

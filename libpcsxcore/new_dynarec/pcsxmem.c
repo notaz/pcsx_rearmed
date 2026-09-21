@@ -329,8 +329,9 @@ void new_dyna_pcsx_mem_init(void)
 	new_dyna_pcsx_mem_isolate(0);
 
 	// BIOS and its mirrors
-	for (i = 0; i < (0x80000 >> 12); i++) {
+	for (i = 0; i < (0x400000 >> 12); i++) {
 		map_l1_mem(mem_readtab, i, 0x1fc00000, 0x80000, psxRegs.ptrs.psxR);
+		map_l1_mem(mem_readtab, i, 0x9fc00000, 0x80000, psxRegs.ptrs.psxR);
 		map_l1_mem(mem_readtab, i, 0xbfc00000, 0x80000, psxRegs.ptrs.psxR);
 	}
 

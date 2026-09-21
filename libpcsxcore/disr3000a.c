@@ -21,6 +21,8 @@
 * R3000A disassembler.
 */
 
+#include <stdio.h>
+
 #include "psxcommon.h"
 
 // XXX: don't care but maybe fix it someday

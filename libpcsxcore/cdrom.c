@@ -24,6 +24,7 @@
 #include <stdalign.h>
 #include <assert.h>
 #include "cdrom.h"
+#include "cdrom_bits.h"
 #include "cdrom-async.h"
 #include "misc.h"
 #include "ppf.h"
@@ -102,7 +103,7 @@ static struct {
 	unsigned char CurFile, CurChannel;
 	int FilterFile, FilterChannel;
 	unsigned char LocL[8];
-	int unused4;
+	u32 LastPauseCycles;
 
 	xa_decode_t Xa;
 
@@ -140,44 +141,11 @@ struct SubQ {
 	char res1[72];
 };
 
-/* CD-ROM magic numbers */
-#define CdlSync        0  /* nocash documentation : "Uh, actually, returns error code 40h = Invalid Command...?" */
-#define CdlNop         1
-#define CdlSetloc      2
-#define CdlPlay        3
-#define CdlForward     4
-#define CdlBackward    5
-#define CdlReadN       6
-#define CdlStandby     7
-#define CdlStop        8
-#define CdlPause       9
-#define CdlReset       10
-#define CdlMute        11
-#define CdlDemute      12
-#define CdlSetfilter   13
-#define CdlSetmode     14
-#define CdlGetparam    15
-#define CdlGetlocL     16
-#define CdlGetlocP     17
-#define CdlReadT       18
-#define CdlGetTN       19
-#define CdlGetTD       20
-#define CdlSeekL       21
-#define CdlSeekP       22
-#define CdlSetclock    23
-#define CdlGetclock    24
-#define CdlTest        25
-#define CdlID          26
-#define CdlReadS       27
-#define CdlInit        28
-#define CdlGetQ        29
-#define CdlReadToc     30
-
 #ifdef CDR_LOG_CMD
 static const char * const CmdName[0x100] = {
-    "CdlSync",     "CdlNop",       "CdlSetloc",  "CdlPlay",
+    NULL,          "CdlNop",       "CdlSetloc",  "CdlPlay",
     "CdlForward",  "CdlBackward",  "CdlReadN",   "CdlStandby",
-    "CdlStop",     "CdlPause",     "CdlReset",    "CdlMute",
+    "CdlStop",     "CdlPause",     "CdlReset",   "CdlMute",
     "CdlDemute",   "CdlSetfilter", "CdlSetmode", "CdlGetparam",
     "CdlGetlocL",  "CdlGetlocP",   "CdlReadT",   "CdlGetTN",
     "CdlGetTD",    "CdlSeekL",     "CdlSeekP",   "CdlSetclock",
@@ -191,43 +159,6 @@ unsigned char Test05[] = { 0 };
 unsigned char Test20[] = { 0x98, 0x06, 0x10, 0xC3 };
 unsigned char Test22[] = { 0x66, 0x6F, 0x72, 0x20, 0x45, 0x75, 0x72, 0x6F };
 unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
-
-// cdr.IrqStat:
-#define NoIntr		0
-#define DataReady	1
-#define Complete	2
-#define Acknowledge	3
-#define DataEnd		4
-#define DiskError	5
-
-/* Modes flags */
-#define MODE_SPEED       (1<<7) // 0x80
-#define MODE_STRSND      (1<<6) // 0x40 ADPCM on/off
-#define MODE_SIZE_2340   (1<<5) // 0x20
-#define MODE_SIZE_2328   (1<<4) // 0x10 (likely wrong)
-#define MODE_SIZE_2048   (0<<4) // 0x00
-#define MODE_BIT4        (1<<4) // 0x10
-#define MODE_SF          (1<<3) // 0x08 channel on/off
-#define MODE_REPORT      (1<<2) // 0x04
-#define MODE_AUTOPAUSE   (1<<1) // 0x02
-#define MODE_CDDA        (1<<0) // 0x01
-
-/* Status flags */
-#define STATUS_PLAY      (1<<7) // 0x80
-#define STATUS_SEEK      (1<<6) // 0x40
-#define STATUS_READ      (1<<5) // 0x20
-#define STATUS_SHELLOPEN (1<<4) // 0x10
-#define STATUS_UNKNOWN3  (1<<3) // 0x08
-#define STATUS_SEEKERROR (1<<2) // 0x04
-#define STATUS_ROTATING  (1<<1) // 0x02
-#define STATUS_ERROR     (1<<0) // 0x01
-
-/* Errors */
-#define ERROR_NOTREADY   (1<<7) // 0x80
-#define ERROR_INVALIDCMD (1<<6) // 0x40
-#define ERROR_BAD_ARGNUM (1<<5) // 0x20
-#define ERROR_BAD_ARGVAL (1<<4) // 0x10
-#define ERROR_SHELLOPEN  (1<<3) // 0x08
 
 // 1x = 75 sectors per second
 // PSXCLK = 1 sec in the ps
@@ -742,7 +673,7 @@ static void softReset(void)
 		cdr.DriveState = DRIVESTATE_LID_OPEN;
 		cdr.StatP = STATUS_SHELLOPEN;
 	}
-	else if (CdromId[0] == '\0') {
+	else if (cdr_stat.nodisk) {
 		cdr.DriveState = DRIVESTATE_STOPPED;
 		cdr.StatP = 0;
 	}
@@ -824,6 +755,12 @@ void cdrInterrupt(void) {
 		// no disk or busy with the initial scan, allowed cmds are limited
 		not_ready = CMD_WHILE_NOT_READY;
 		break;
+	case DRIVESTATE_PAUSED:
+		if ((u32)(psxRegs.cycle - cdr.LastPauseCycles) > 100000u) {
+			SetPlaySeekRead(cdr.StatP, 0);
+			cdr.Result[0] = cdr.StatP;
+		}
+		break;
 	}
 
 	switch (Cmd | not_ready) {
@@ -834,11 +771,6 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetloc:
-		case CdlSetloc + CMD_WHILE_NOT_READY: // apparently?
-			if (cdr.StatP & STATUS_SHELLOPEN)
-				// wrong? Driver2 vs Amerzone
-				goto set_error;
-
 			// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
 			if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
 			{
@@ -984,6 +916,10 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlPause:
+			if (cdr.DriveState == DRIVESTATE_SEEK) {
+				error = ERROR_NOTREADY;
+				goto set_error;
+			}
 			if (cdr.AdpcmActive) {
 				cdr.AdpcmActive = 0;
 				cdr.Xa.nsamples = 0;
@@ -1015,17 +951,10 @@ void cdrInterrupt(void) {
 				// a hack to try to avoid weird cmd vs irq1 races causing games to retry
 				second_resp_time += (cdr.RetryDetected & 15) * 100001;
 			}
-			SetPlaySeekRead(cdr.StatP, 0);
 			DriveStateOld = cdr.DriveState;
 			cdr.DriveState = DRIVESTATE_PAUSED;
-			if (DriveStateOld == DRIVESTATE_SEEK) {
-				// According to Duckstation this fails, but the
-				// exact conditions and effects are not clear.
-				// Moto Racer World Tour seems to rely on this.
-				// For now assume pause works anyway, just errors out.
-				error = ERROR_NOTREADY;
-				goto set_error;
-			}
+			if (DriveStateOld != DRIVESTATE_PAUSED)
+				cdr.LastPauseCycles = psxRegs.cycle;
 			break;
 
 		case CdlPause + CMD_PART2:
@@ -1217,16 +1146,18 @@ void cdrInterrupt(void) {
 
 			// [1]: 0x10 - audio | 0x40 - disk missing | 0x80 - unlicensed
 			// [2]: TOC Disk Type Byte (00=CD-DA or CD-ROM, 20=CD-ROM-XA)
+			memset(&cdr_stat, 0, sizeof(cdr_stat));
 			if (cdra_getStatus(&cdr_stat) != 0 ||
 			    cdr_stat.Type == CDRT_UNKNOWN || cdr_stat.Type == 0xff) {
-				cdr.Result[1] = 0xc0;
+				cdr.Result[0] = 0x08;
+				cdr.Result[1] = cdr_stat.nodisk ? 0x40 : 0x80;
 			}
 			else {
 				if (cdr_stat.Type == CDRT_CDDA)
 					cdr.Result[1] |= 0x10;
 				if (CdromId[0] == '\0')
 					cdr.Result[1] |= 0x80;
-				else if (strcmp(CdromId, "SLUS99999") != 0)
+				else if (!cdr_stat.mode1)
 					cdr.Result[2] = 0x20;
 			}
 			cdr.Result[0] |= (cdr.Result[1] >> 4) & 0x08;
@@ -1247,7 +1178,7 @@ void cdrInterrupt(void) {
 				else
 					cdr.Result[7] = 'A';
 			}
-			IrqStat = Complete;
+			IrqStat = (cdr.Result[0] & 8) ? DiskError : Complete;
 			break;
 
 		case CdlInit:
@@ -1330,7 +1261,6 @@ void cdrInterrupt(void) {
 			start_rotating = 1;
 			break;
 
-		case CdlSync:
 		default:
 			error = ERROR_INVALIDCMD;
 			// FALLTHROUGH
@@ -1565,8 +1495,8 @@ void cdrWrite1(unsigned char rt) {
 		int i;
 		SysPrintf(" Param[%d] = {", cdr.ParamC);
 		for (i = 0; i < cdr.ParamC; i++)
-			SysPrintf(" %x,", cdr.Param[i]);
-		SysPrintf("}");
+			SysPrintf("%s %x", i ? "," : "", cdr.Param[i]);
+		SysPrintf(" }");
 	}
 	SysPrintf(" @%08x\n", psxRegs.pc);
 #endif
@@ -1584,6 +1514,14 @@ void cdrWrite1(unsigned char rt) {
 			rt, cdr.Cmd, cdr.CmdInProgress);
 		if (cdr.CmdInProgress < 0x100) // no pending 2nd response
 			cdr.CmdInProgress = rt;
+		else if (rt != (cdr.CmdInProgress & 0xff) &&
+			 (u32)(psxRegs.event_cycles[PSXINT_CDR] - psxRegs.cycle) > 20000u) {
+			// cancel 2nd response
+			CDR_LOG_I("cancel cmd %02x 2nd response\n",
+				  cdr.CmdInProgress & 0xff);
+			cdr.CmdInProgress = rt;
+			set_event(PSXINT_CDR, 20000);
+		}
 	}
 
 	cdr.Cmd = rt;
@@ -1817,6 +1755,7 @@ void cdrReset() {
 
 	softReset();
 	getCdInfo();
+	cdr.StatP |= STATUS_SHELLOPEN;
 }
 
 int cdrFreeze(void *f, int Mode) {

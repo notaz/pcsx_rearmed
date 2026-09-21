@@ -4,7 +4,7 @@ jobs:
   build-libretro:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
     - name: make
@@ -13,7 +13,7 @@ jobs:
   build-libretro-win32:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
     - name: Install dependencies
@@ -26,7 +26,7 @@ jobs:
   build-libretro-android:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
     - name: ndk-build

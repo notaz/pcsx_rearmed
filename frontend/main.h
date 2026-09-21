@@ -64,6 +64,7 @@ void set_cd_image(const char *fname);
 
 extern unsigned long gpuDisp;
 extern int ready_to_go, g_emu_want_quit, g_emu_resetting;
+extern int g_novideo; // no window/video output at all (-novid)
 
 extern char hud_msg[64];
 extern int hud_new_msg;

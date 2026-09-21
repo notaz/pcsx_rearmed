@@ -32,3 +32,7 @@ psx_gpu_offsets_update
 /bios/
 /old/
 /a/
+/tests/*.exe
+/tests/*.exe.*
+/tests/testcd.cue
+/tests/testcd.bin

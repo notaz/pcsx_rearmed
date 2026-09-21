@@ -1,7 +1,11 @@
 CFLAGS += -Wall -O2
-LDFLAGS += -lz
 
-all: psxcimg
+TARGETS += mkm2cd psxcimg
+psxcimg: LDLIBS += -lz
+
+all: $(TARGETS)
 
 clean:
-	$(RM) psxcimg
+	$(RM) $(TARGETS)
+
+.PHONY: all clean

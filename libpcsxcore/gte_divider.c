@@ -37,12 +37,16 @@ const attr_aligned(64) u8 gte_divider_tab[] =
 u32 DIVIDE(u16 numerator, u16 denominator)
 {
 	//if (numerator < (denominator * 2)) // done by the caller
-	int shift = __builtin_clz(denominator) - 16;
 
-	int r1 = (denominator << shift) & 0x7fff;
-	int r2 = gte_divider_tab[(r1 + 0x40) >> 7] + 0x101;
-	int r3 = ((0x80 - r2 * (r1 + 0x8000)) >> 8) & 0x1ffff;
-	u32 reciprocal = (r2 * r3 + 0x80) >> 8;
+	/* normalize the denominator to [0x8000,0xffff] */
+	int shift = __builtin_clz(denominator) - 16;
+	int nd = denominator << shift;
+
+	int seed = gte_divider_tab[((nd ^ 0x8000) + 0x40) >> 7] + 0x101;
+
+	/* one Newton-Raphson step */
+	int err = ((0x80 - seed * nd) >> 8) & 0x1ffff;
+	u32 reciprocal = (seed * err + 0x80) >> 8;
 
 	return ((u64)reciprocal * (numerator << shift) + 0x8000) >> 16;
 }

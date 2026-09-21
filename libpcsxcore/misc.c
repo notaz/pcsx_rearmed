@@ -46,6 +46,7 @@ char CdromLabel[33] = "";
 int  CdromFrontendId; // for frontend use
 
 static u32 save_counter;
+static char *manuallyLoadedExePath;
 
 // PSX Executable types
 #define PSX_EXE     1
@@ -163,6 +164,26 @@ static void SetBootRegs(u32 pc, u32 gp, u32 sp)
 
 	psxRegs.GPR.n.t0 = psxRegs.GPR.n.sp; // mimic A(43)
 	psxRegs.GPR.n.t3 = pc;
+
+	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+}
+
+// set ra so that the exe returns to the _exit() syscall
+static void SetRaToExit(void)
+{
+	u32 *ram = (u32 *)psxRegs.ptrs.psxM;
+	psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+
+	//printf("%s ra=%08x sp=%08x\n", __func__, psxRegs.GPR.n.ra, psxRegs.GPR.n.sp);
+	if (psxRegs.GPR.n.sp == 0) // hle
+		psxRegs.GPR.n.sp = 0x1ffff0;
+	else if ((psxRegs.GPR.n.sp & 0x1fffff) > 12)
+		psxRegs.GPR.n.sp -= 12;
+	ram += (psxRegs.GPR.n.sp & 0x1fffff) / 4;
+	ram[0] = 0x240a00a0; // li $t2, 0xa0
+	ram[1] = 0x01400008; // jr $t2
+	ram[2] = 0x2409003a; // li $t1, 0x3a // _exit
+	psxRegs.GPR.n.ra = (psxRegs.GPR.n.sp & 0x1ffffc) | 0x80000000;
 
 	psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 }
@@ -300,6 +321,8 @@ int LoadCdrom() {
 
 	psxCpu->Clear(tmpHead.h.t_addr, tmpHead.h.t_size / 4);
 	//psxCpu->Reset();
+	free(manuallyLoadedExePath);
+	manuallyLoadedExePath = NULL;
 
 	if (Config.HLE)
 		psxBiosCheckExe(tmpHead.h.t_addr, tmpHead.h.t_size, 0);
@@ -362,6 +385,9 @@ int LoadCdromFile(const char *filename, int full, EXE_HEADER *head, u8 *time_bcd
 			size -= 2048;
 			addr += 2048;
 		}
+		// exe from cd doesn't count as manually loaded
+		free(manuallyLoadedExePath);
+		manuallyLoadedExePath = NULL;
 	}
 	if (time_bcd_out) {
 		time_bcd_out[0] = itob(time[0]);
@@ -517,7 +543,7 @@ static int PSXGetFileType(FILE *f) {
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
 	if (fread(&mybuf, 1, sizeof(mybuf), f) != sizeof(mybuf))
-		goto io_fail;
+		return INVALID_EXE;
 	
 	fseek(f, current, SEEK_SET);
 
@@ -532,12 +558,6 @@ static int PSXGetFileType(FILE *f) {
 	if (SWAPu16(coff_hdr->f_magic) == 0x0162)
 		return COFF_EXE;
 
-	return INVALID_EXE;
-
-io_fail:
-#ifndef NDEBUG
-	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
 	return INVALID_EXE;
 }
 
@@ -563,9 +583,10 @@ int Load(const char *ExePath) {
 	FILE *tmpFile;
 	EXE_HEADER tmpHead;
 	int type;
-	int retval = 0;
+	int retval = -1;
 	u8 opcode;
 	u32 section_address, section_size;
+	u32 pc0 = 0, gp0 = 0, sp0 = 0x801fff00;
 	void *mem;
 
 	strcpy(CdromId, "SLUS99999");
@@ -574,13 +595,12 @@ int Load(const char *ExePath) {
 	tmpFile = fopen(ExePath, "rb");
 	if (tmpFile == NULL) {
 		SysPrintf(_("Error opening file: %s.\n"), ExePath);
-		retval = -1;
 	} else {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
 				if (fread(&tmpHead, 1, sizeof(EXE_HEADER), tmpFile) != sizeof(EXE_HEADER))
-					goto fail_io;
+					goto out;
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
@@ -589,21 +609,20 @@ int Load(const char *ExePath) {
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				SetBootRegs(SWAP32(tmpHead.pc0), SWAP32(tmpHead.gp0),
-					SWAP32(tmpHead.s_addr));
+				pc0 = SWAP32(tmpHead.pc0), gp0 = SWAP32(tmpHead.gp0), sp0 = SWAP32(tmpHead.s_addr);
 				retval = 0;
 				break;
 			case CPE_EXE:
 				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
 				do {
 					if (fread(&opcode, 1, sizeof(opcode), tmpFile) != sizeof(opcode))
-						goto fail_io;
+						goto out;
 					switch (opcode) {
 						case 1: /* Section loading */
 							if (fread(&section_address, 1, sizeof(section_address), tmpFile) != sizeof(section_address))
-								goto fail_io;
+								goto out;
 							if (fread(&section_size, 1, sizeof(section_size), tmpFile) != sizeof(section_size))
-								goto fail_io;
+								goto out;
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 							//printf("Loading %08X bytes from %08X to %08X\n", section_size, ftell(tmpFile), section_address);
@@ -615,32 +634,47 @@ int Load(const char *ExePath) {
 							break;
 						case 3: /* register loading (PC only?) */
 							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-							if (fread(&psxRegs.pc, 1, sizeof(psxRegs.pc), tmpFile) != sizeof(psxRegs.pc))
-								goto fail_io;
-							psxRegs.pc = SWAPu32(psxRegs.pc);
+							if (fread(&pc0, 1, sizeof(pc0), tmpFile) != sizeof(pc0))
+								goto out;
+							pc0 = SWAPu32(pc0);
 							break;
 						case 0: /* End of file */
 							break;
 						default:
 							SysPrintf(_("Unknown CPE opcode %02x at position %08lx.\n"), opcode, (long)(ftell(tmpFile) - 1));
-							retval = -1;
-							break;
+							goto out;
 					}
-				} while (opcode != 0 && retval == 0);
+				} while (opcode != 0);
+				retval = 0;
 				break;
 			case COFF_EXE:
 				SysPrintf(_("COFF files not supported.\n"));
-				retval = -1;
 				break;
 			case INVALID_EXE:
 				SysPrintf(_("This file does not appear to be a valid PSX EXE file.\n"));
 				SysPrintf(_("(did you forget -cdfile ?)\n"));
-				retval = -1;
 				break;
 		}
 	}
 
-	if (retval != 0) {
+out:
+	if (retval == 0) {
+		if (manuallyLoadedExePath != ExePath) {
+			free(manuallyLoadedExePath);
+			manuallyLoadedExePath = strdup(ExePath);
+		}
+		if (!manuallyLoadedExePath)
+			SysPrintf(_("OOM for %s?\n"), ExePath);
+		if (psxRegs.GPR.n.ra == 0xf0001234 || (Config.PsxStdOut && Config.PsxStdIn))
+			SetRaToExit();
+		if (pc0)
+			SetBootRegs(pc0, gp0, sp0);
+	}
+	else {
+		SysPrintf(_("EXE load failed.\n"));
+		ExePath = NULL; // might be == manuallyLoadedExePath
+		free(manuallyLoadedExePath);
+		manuallyLoadedExePath = NULL;
 		CdromId[0] = '\0';
 		CdromLabel[0] = '\0';
 	}
@@ -648,13 +682,13 @@ int Load(const char *ExePath) {
 	if (tmpFile)
 		fclose(tmpFile);
 	return retval;
+}
 
-fail_io:
-#ifndef NDEBUG
-	SysPrintf(_("File IO error in <%s:%s>.\n"), __FILE__, __func__);
-#endif
-	fclose(tmpFile);
-	return -1;
+int CheckResetManualExe()
+{
+	if (manuallyLoadedExePath && Load(manuallyLoadedExePath) == 0)
+		return 1;
+	return 0;
 }
 
 // STATES
@@ -878,6 +912,7 @@ int LoadState(const char *file) {
 		psxBiosInit();
 	else if (oldhle)
 		psxBiosResetTables();
+	psxBiosSetupStdio();
 
 	// ex-ScreenPic space
 	SaveFuncs.seek(f, EX_SCREENPIC_SIZE, SEEK_CUR);
@@ -1050,6 +1085,12 @@ u16 calcCrc(const u8 *d, int len) {
 	}
 
 	return ~crc;
+}
+
+void MiscShutdown()
+{
+	free(manuallyLoadedExePath);
+	manuallyLoadedExePath = NULL;
 }
 
 #define MKSTR2(x) #x

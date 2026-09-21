@@ -14,7 +14,7 @@ static psxRegisters *cp0TOpsxRegs(psxCP0Regs *cp0)
 #ifndef LIGHTREC
 	return (void *)((char *)cp0 - offsetof(psxRegisters, CP0));
 #else
-	// lightrec has it's own cp0
+	// lightrec has its own cp0
 	return &psxRegs;
 #endif
 }

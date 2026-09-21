@@ -113,12 +113,12 @@ static inline int psxm_lut(u8 **ret, const psxRegisters *regs, u32 mem, int writ
 		if (write && (regs->CP0.n.SR & (1u << 16))) // cacheIsolated
 			return 0;
 
-		*ret = regs->ptrs.psxM + (mem & 0x1fffff);
+		*ret = regs->ptrs.psxM + (mem & 0x1fffffu);
 		return 1;
 	}
 
-	if (!write && mem - 0x1fc00000u < 0x80000u) {
-		*ret = regs->ptrs.psxR + (mem - 0x1fc00000u);
+	if (!write && mem - 0x1fc00000u < 0x400000u) {
+		*ret = regs->ptrs.psxR + ((mem - 0x1fc00000u) & 0x7ffffu);
 		return 1;
 	}
 
@@ -137,7 +137,7 @@ static inline void * psxm(u32 mem, int write)
 	if (psxm_(&ret, &psxRegs, mem, write))
 		return ret;
 	if ((mem & 0x7ffffc00) == 0x1f800000)
-		return psxRegs.ptrs.psxR + (mem & 0x3ff);
+		return psxRegs.ptrs.psxH + (mem & 0x3ff);
 	return INVALID_PTR;
 }
 

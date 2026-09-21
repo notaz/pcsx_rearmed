@@ -82,7 +82,8 @@ extern GPUgetScreenInfo GPU_getScreenInfo;
 struct CdrStat {
 	uint32_t Type; // DATA, CDDA
 	uint32_t Status; // same as cdr.StatP
-	unsigned char Time_[3]; // unused
+	uint8_t  nodisk;
+	uint8_t  mode1;
 };
 
 int CDR__getStatus(struct CdrStat *stat);

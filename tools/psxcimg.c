@@ -19,7 +19,8 @@ int main(int argc, char *argv[])
 	FILE *fin, *fout;
 	long in_bytes, out_bytes;
 	long s, total_sectors;
-	int ret, len;
+	size_t len;
+	int ret;
 
 	if (argc < 2) {
 		fprintf(stderr, "usage:\n%s <cd_img> [out_basename]\n", argv[0]);
