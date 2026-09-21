@@ -771,11 +771,6 @@ void cdrInterrupt(void) {
 			break;
 
 		case CdlSetloc:
-		case CdlSetloc + CMD_WHILE_NOT_READY: // apparently?
-			if (cdr.StatP & STATUS_SHELLOPEN)
-				// wrong? Driver2 vs Amerzone
-				goto set_error;
-
 			// MM must be BCD, SS must be BCD and <0x60, FF must be BCD and <0x75
 			if (((cdr.Param[0] & 0x0F) > 0x09) || (cdr.Param[0] > 0x99) || ((cdr.Param[1] & 0x0F) > 0x09) || (cdr.Param[1] >= 0x60) || ((cdr.Param[2] & 0x0F) > 0x09) || (cdr.Param[2] >= 0x75))
 			{

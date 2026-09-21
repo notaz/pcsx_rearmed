@@ -223,19 +223,46 @@ static int test_cdrom_start_read(struct tstate *st)
     return ret;
 }
 
-static void test_cdrom_read_pause(struct tstate *st)
+static void test_cdrom_nocd(struct tstate *st, u8 shell_bit)
+{
+    u8 rirq, rx[16];
+    assert_eq(st, cdr_do_cmd(st, CdlSetloc, prm3(0, 2, 0), &rirq, rx), 2);
+    assert_eq(st, rirq, DiskError);
+    assert_eq(st, rx[0], shell_bit | STATUS_ERROR);
+    assert_eq(st, rx[1], ERROR_NOTREADY);
+    assert_eq(st, cdr_do_cmd(st, CdlNop, prm0(), NULL, rx), 1);
+    assert_eq(st, rx[0], shell_bit);
+    assert_eq(st, cdr_do_cmd(st, CdlNop, prm0(), NULL, rx), 1);
+    assert_eq(st, rx[0], 0);
+}
+
+static void test_cdrom_read_pause(struct tstate *st, u8 shell_bit)
 {
     u8 rx[16];
-    if (test_cdrom_start_read(st) != 0) return;
+    st->cd_hist_pos = 0xff;
+    st->tf_grp = 0;
+    assert_eq(st, cdr_do_cmd(st, CdlSetloc, prm3(0, 2, 0), NULL, rx), 1);
+    assert_eq(st, rx[0], shell_bit | STATUS_ROTATING);
+    assert_eq(st, cdr_do_cmd(st, CdlReadN, prm0(), NULL, rx), 1);
+    assert_eq(st, rx[0], shell_bit | STATUS_ROTATING);
+    assert_eq(st, cdr_poll_read_2nd(st, DataReady, rx), 1);
+    assert_eq(st, rx[0], STATUS_READ | shell_bit | STATUS_ROTATING);
     assert_eq(st, cdr_do_cmd(st, CdlPause, prm0(), NULL, rx), 1);
-    assert_eq(st, rx[0], STATUS_READ | STATUS_ROTATING);
+    assert_eq(st, rx[0], STATUS_READ | shell_bit | STATUS_ROTATING);
     assert_eq(st, cdr_poll_read_2nd(st, Complete, rx), 1);
+    assert_eq(st, rx[0], shell_bit | STATUS_ROTATING);
+    assert_eq(st, cdr_do_cmd(st, CdlNop, prm0(), NULL, rx), 1);
+    assert_eq(st, rx[0], shell_bit | STATUS_ROTATING);
+    assert_eq(st, cdr_do_cmd(st, CdlNop, prm0(), NULL, rx), 1);
     assert_eq(st, rx[0], STATUS_ROTATING);
+    if (st->tf_grp)
+        cdrom_dump_hist(st);
 }
 
 static void test_cdrom_read_premature_pause(struct tstate *st)
 {
     u8 rirq, rx[16];
+    st->cd_hist_pos = 0xff;
     st->tf_grp = 0;
     assert_eq(st, cdr_do_cmd(st, CdlSetloc, prm3(0, 2, 0), NULL, rx), 1);
     assert_eq(st, rx[0], STATUS_ROTATING);
@@ -314,8 +341,8 @@ int main()
 {
     struct tstate st = { (u8 *)0x1f800000, 0, };
     register u32 ra asm("ra");
+    u8 rirq, buf[16];
     int have_cd;
-    u8 buf[16];
     int len;
 
     printf("started, ra=%x\n", ra);
@@ -325,14 +352,18 @@ int main()
 
     test_cdrom_irqen(&st);
     cdr_w_irqf(st.hw, 0x5f); // ack irq, clear param fifo
-    len = cdr_do_cmd(&st, CdlNop, prm0(), NULL, buf);
-    have_cd = len == 1 && (buf[0] & STATUS_ROTATING);
+    // query with an invalid cmd to not lose the valuable STATUS_SHELLOPEN bit
+    len = cdr_do_cmd(&st, 0, prm0(), &rirq, buf);
+    have_cd = len == 2 && (buf[0] & STATUS_ROTATING);
     printf("cd: %s (%02x)\n", have_cd ? "yes" : "no", buf[0]);
     if (have_cd) {
-        test_cdrom_read_pause(&st);
+        test_cdrom_read_pause(&st, buf[0] & STATUS_SHELLOPEN);
         test_cdrom_read_premature_pause(&st);
         test_cdrom_pause_resp2_cancel(&st);
         test_cdrom_seek_resp2_cancel(&st);
+    }
+    else {
+        test_cdrom_nocd(&st, buf[0] & STATUS_SHELLOPEN);
     }
 
     printf("%s (%d/%d)\n", st.tt == st.tp ? "pass" : "fail", st.tp, st.tt);
